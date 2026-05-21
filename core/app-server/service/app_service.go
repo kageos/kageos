@@ -7,14 +7,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/appcall"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/kageos/kageos/pkg/appcall"
+	"github.com/kageos/kageos/pkg/contextx"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/core/app-server/repository"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/functionschema"
+	"github.com/kageos/kageos/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +25,8 @@ type AppService struct {
 	functionRepo    *repository.FunctionRepository
 	serviceTreeRepo *repository.ServiceTreeRepository
 	operateLogRepo  *repository.OperateLogRepository
+	teamAccess      *TeamAccessService
+	sensitiveFields *FunctionSensitiveFieldService
 }
 
 // NewAppService 创建 AppService（依赖注入）
@@ -35,6 +38,14 @@ func NewAppService(appCall *appcall.Client, appRepo *repository.AppRepository, f
 		serviceTreeRepo: serviceTreeRepo,
 		operateLogRepo:  operateLogRepo,
 	}
+}
+
+func (a *AppService) SetTeamAccessService(teamAccess *TeamAccessService) {
+	a.teamAccess = teamAccess
+}
+
+func (a *AppService) SetFunctionSensitiveFieldService(sensitiveFields *FunctionSensitiveFieldService) {
+	a.sensitiveFields = sensitiveFields
 }
 
 // CreateApp 创建应用
@@ -167,8 +178,8 @@ func (a *AppService) IncrementFunctionRunCount(ctx context.Context, fullCodePath
 	}
 }
 
-// RecordTableOperateLog 记录 Table 操作日志（OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows）。
-func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordTableOperateLogReq) error {
+// RecordTableActionLog 记录 Table 操作日志（OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows）。
+func (a *AppService) RecordTableActionLog(ctx context.Context, req *dto.RecordTableActionLogReq) error {
 	if req == nil {
 		return nil
 	}
@@ -181,35 +192,39 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 	if err != nil {
 		return fmt.Errorf("获取应用信息失败: %w", err)
 	}
+	version := strings.TrimSpace(req.Version)
+	if version == "" {
+		version = app.Version
+	}
 
 	resourceID := fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/"))
 
 	// 根据操作类型处理不同的记录逻辑
 	switch req.Action {
 	case "OnTableAddRow":
-		log := buildTableOperateLog(req, resourceID, req.RowID, req.Body, nil, app.Version)
-		go func(log *model.TableOperateLog) {
-			if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
-				logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 新增操作日志失败: %v", err)
+		log := a.buildTableActionOperateLog(ctx, req, resourceID, req.RowID, req.Body, nil, version)
+		go func(log *model.OperateLog) {
+			if err := a.operateLogRepo.CreateOperateLog(context.Background(), log); err != nil {
+				logger.Warnf(ctx, "[RecordTableActionLog] 记录 Table 新增操作日志失败: %v", err)
 			}
 		}(log)
 
 	case "OnTableUpdateRow":
 		// 更新操作：记录 updates 和 old_values
-		log := buildTableOperateLog(req, resourceID, req.RowID, req.Updates, req.OldValues, app.Version)
-		go func(log *model.TableOperateLog) {
-			if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
-				logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 更新操作日志失败: %v", err)
+		log := a.buildTableActionOperateLog(ctx, req, resourceID, req.RowID, req.Updates, req.OldValues, version)
+		go func(log *model.OperateLog) {
+			if err := a.operateLogRepo.CreateOperateLog(context.Background(), log); err != nil {
+				logger.Warnf(ctx, "[RecordTableActionLog] 记录 Table 更新操作日志失败: %v", err)
 			}
 		}(log)
 
 	case "OnTableDeleteRows":
 		// 删除操作：为每个删除的记录创建一条日志
 		for _, rowID := range req.RowIDs {
-			log := buildTableOperateLog(req, resourceID, rowID, nil, nil, app.Version)
-			go func(log *model.TableOperateLog) {
-				if err := a.operateLogRepo.CreateTableOperateLog(log); err != nil {
-					logger.Warnf(ctx, "[RecordTableOperateLog] 记录 Table 删除操作日志失败: %v", err)
+			log := a.buildTableActionOperateLog(ctx, req, resourceID, rowID, nil, nil, version)
+			go func(log *model.OperateLog) {
+				if err := a.operateLogRepo.CreateOperateLog(context.Background(), log); err != nil {
+					logger.Warnf(ctx, "[RecordTableActionLog] 记录 Table 删除操作日志失败: %v", err)
 				}
 			}(log)
 		}
@@ -218,27 +233,93 @@ func (a *AppService) RecordTableOperateLog(ctx context.Context, req *dto.RecordT
 	return nil
 }
 
-func buildTableOperateLog(req *dto.RecordTableOperateLogReq, resourceID string, rowID int64, updates, oldValues []byte, version string) *model.TableOperateLog {
+func (a *AppService) buildTableActionOperateLog(ctx context.Context, req *dto.RecordTableActionLogReq, resourceID string, rowID int64, updates, oldValues []byte, version string) *model.OperateLog {
+	fullCodePath := buildTableActionLogFullCodePath(req, resourceID)
+	tableFields := a.sensitiveFieldSet(fullCodePath, sensitiveFieldSectionRequest, sensitiveFieldSectionFields)
+	responseFields := a.sensitiveFieldSet(fullCodePath, sensitiveFieldSectionResponse)
+	details := dto.TableActionLogDetails{
+		RowID:   rowID,
+		Version: version,
+	}
+	if len(req.RowIDs) > 0 {
+		details.RowIDs = req.RowIDs
+	}
+	if req.DurationMillis > 0 {
+		details.DurationMillis = req.DurationMillis
+	}
+	if len(req.ResponseBody) > 0 {
+		details.ResponseBody = rawMessageObjectWithFields(req.ResponseBody, responseFields)
+	}
+	status := strings.TrimSpace(req.Status)
+	if status == "" {
+		status = "success"
+	}
+	summary := strings.TrimSpace(req.Summary)
+	if summary == "" {
+		summary = buildTableActionLogSummary(req.RequestUser, req.Action, fullCodePath, rowID, status)
+	}
+
+	return &model.OperateLog{
+		TenantUser:    req.TenantUser,
+		CompanyCode:   contextx.GetRequestCompanyCode(ctx),
+		App:           req.App,
+		ActorUser:     req.RequestUser,
+		Action:        req.Action,
+		ResourceType:  "table",
+		ResourcePath:  fullCodePath,
+		ResourceName:  strings.TrimPrefix(req.Router, "/"),
+		TargetID:      fmt.Sprintf("%d", rowID),
+		Summary:       summary,
+		DetailsJSON:   mustMarshalRaw(details),
+		OldValuesJSON: sanitizeOperateLogRawMessageWithFields(oldValues, tableFields),
+		NewValuesJSON: sanitizeOperateLogRawMessageWithFields(updates, tableFields),
+		Status:        status,
+		Source:        req.Source,
+		IPAddress:     req.IPAddress,
+		UserAgent:     req.UserAgent,
+		TraceID:       req.TraceID,
+	}
+}
+
+func (a *AppService) sensitiveFieldSet(fullCodePath string, sections ...string) map[string]struct{} {
+	if a == nil || a.sensitiveFields == nil {
+		return nil
+	}
+	return a.sensitiveFields.SensitiveFieldSet(fullCodePath, sections...)
+}
+
+func buildTableActionLogSummary(requestUser, action, fullCodePath string, rowID int64, status string) string {
+	if status == "failed" {
+		switch action {
+		case "OnTableAddRow":
+			return fmt.Sprintf("%s failed to create row on %s", requestUser, fullCodePath)
+		case "OnTableUpdateRow":
+			return fmt.Sprintf("%s failed to update row #%d on %s", requestUser, rowID, fullCodePath)
+		case "OnTableDeleteRows":
+			return fmt.Sprintf("%s failed to delete row #%d on %s", requestUser, rowID, fullCodePath)
+		default:
+			return fmt.Sprintf("%s failed to execute %s on %s", requestUser, action, fullCodePath)
+		}
+	}
+	switch action {
+	case "OnTableAddRow":
+		return fmt.Sprintf("%s created row on %s", requestUser, fullCodePath)
+	case "OnTableUpdateRow":
+		return fmt.Sprintf("%s updated row #%d on %s", requestUser, rowID, fullCodePath)
+	case "OnTableDeleteRows":
+		return fmt.Sprintf("%s deleted row #%d on %s", requestUser, rowID, fullCodePath)
+	default:
+		return fmt.Sprintf("%s executed %s on %s", requestUser, action, fullCodePath)
+	}
+}
+
+func buildTableActionLogFullCodePath(req *dto.RecordTableActionLogReq, resourceID string) string {
 	parts := strings.Split(resourceID, "/")
 	fullCodePath := fmt.Sprintf("/%s/%s", req.TenantUser, req.App)
 	if len(parts) > 2 {
 		fullCodePath = fmt.Sprintf("/%s/%s/%s", req.TenantUser, req.App, strings.Join(parts[2:], "/"))
 	}
-
-	return &model.TableOperateLog{
-		TenantUser:   req.TenantUser,
-		RequestUser:  req.RequestUser,
-		Action:       req.Action,
-		IPAddress:    req.IPAddress,
-		UserAgent:    req.UserAgent,
-		App:          req.App,
-		FullCodePath: fullCodePath,
-		RowID:        rowID,
-		Updates:      updates,
-		OldValues:    oldValues,
-		TraceID:      req.TraceID,
-		Version:      version,
-	}
+	return fullCodePath
 }
 
 // processAPIDiff 处理API差异，包括新增、更新、删除
@@ -255,16 +336,16 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 		}
 	}
 
-	if err := a.syncAddedAPIs(state, diffData.Add); err != nil {
+	if err := a.syncAddedAPIs(ctx, state, diffData.Add); err != nil {
 		return err
 	}
-	if err := a.syncUpdatedAPIs(state, diffData.Update); err != nil {
+	if err := a.syncUpdatedAPIs(ctx, state, diffData.Update); err != nil {
 		return err
 	}
 
 	// 处理删除的API
 	if len(diffData.Delete) > 0 {
-		err := a.deleteFunctionsForAPIs(state.app.ID, diffData.Delete)
+		err := a.deleteFunctionsForAPIs(ctx, state.app, diffData.Delete)
 		if err != nil {
 			return fmt.Errorf("删除function和service_tree记录失败: %w", err)
 		}
@@ -292,7 +373,7 @@ func (a *AppService) loadAppMetadataSyncState(ctx context.Context, appID int64) 
 	}, nil
 }
 
-func (a *AppService) syncAddedAPIs(state *appMetadataSyncState, apis []*dto.ApiInfo) error {
+func (a *AppService) syncAddedAPIs(ctx context.Context, state *appMetadataSyncState, apis []*dto.ApiInfo) error {
 	if len(apis) == 0 {
 		return nil
 	}
@@ -309,11 +390,14 @@ func (a *AppService) syncAddedAPIs(state *appMetadataSyncState, apis []*dto.ApiI
 	if err := a.createServiceTreesForAPIs(state, apis, functions); err != nil {
 		return fmt.Errorf("创建service_tree记录失败: %w", err)
 	}
+	if err := a.syncSensitiveFieldsForAPIs(ctx, state, apis, functions); err != nil {
+		return fmt.Errorf("同步敏感字段失败: %w", err)
+	}
 
 	return nil
 }
 
-func (a *AppService) syncUpdatedAPIs(state *appMetadataSyncState, apis []*dto.ApiInfo) error {
+func (a *AppService) syncUpdatedAPIs(ctx context.Context, state *appMetadataSyncState, apis []*dto.ApiInfo) error {
 	if len(apis) == 0 {
 		return nil
 	}
@@ -330,7 +414,29 @@ func (a *AppService) syncUpdatedAPIs(state *appMetadataSyncState, apis []*dto.Ap
 	if err := a.updateServiceTreesForAPIs(state, apis, functions); err != nil {
 		return fmt.Errorf("更新service_tree记录失败: %w", err)
 	}
+	if err := a.syncSensitiveFieldsForAPIs(ctx, state, apis, functions); err != nil {
+		return fmt.Errorf("同步敏感字段失败: %w", err)
+	}
 
+	return nil
+}
+
+func (a *AppService) syncSensitiveFieldsForAPIs(ctx context.Context, state *appMetadataSyncState, apis []*dto.ApiInfo, functions []*model.Function) error {
+	if a.sensitiveFields == nil || len(apis) == 0 {
+		return nil
+	}
+	for i, api := range apis {
+		if api == nil || api.Schema == nil {
+			continue
+		}
+		var functionID int64
+		if i < len(functions) && functions[i] != nil {
+			functionID = functions[i].ID
+		}
+		if err := a.sensitiveFields.SyncFunctionSchema(ctx, state.app.User, state.app.Code, api.BuildFullCodePath(), functionID, api.Schema); err != nil {
+			return fmt.Errorf("同步 %s 敏感字段失败: %w", api.BuildFullCodePath(), err)
+		}
+	}
 	return nil
 }
 
@@ -656,7 +762,7 @@ func (a *AppService) updateServiceTreesForAPIs(state *appMetadataSyncState, apis
 }
 
 // deleteFunctionsForAPIs 删除API对应的Function和ServiceTree记录
-func (a *AppService) deleteFunctionsForAPIs(appID int64, apis []*dto.ApiInfo) error {
+func (a *AppService) deleteFunctionsForAPIs(ctx context.Context, app *model.App, apis []*dto.ApiInfo) error {
 	// 收集需要删除的router和method
 	routers := make([]string, 0, len(apis))
 	methods := make([]string, 0, len(apis))
@@ -682,11 +788,16 @@ func (a *AppService) deleteFunctionsForAPIs(appID int64, apis []*dto.ApiInfo) er
 		router := api.BuildFullCodePath()
 		routers = append(routers, router)
 		methods = append(methods, api.Method)
+		if a.sensitiveFields != nil {
+			if err := a.sensitiveFields.DeleteFunction(ctx, app.User, app.Code, router); err != nil {
+				return fmt.Errorf("删除function敏感字段失败: %w", err)
+			}
+		}
 	}
 
 	// 批量删除Function记录
 	if len(routers) > 0 {
-		err := a.functionRepo.DeleteFunctions(appID, routers, methods)
+		err := a.functionRepo.DeleteFunctions(app.ID, routers, methods)
 		if err != nil {
 			return fmt.Errorf("删除function记录失败: %w", err)
 		}
@@ -739,15 +850,22 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 	}
 
 	// 从数据库获取应用列表（支持搜索和过滤）
-	apps, totalCount, err := a.appRepo.GetAppsWithPage(req.User, page, pageSize, req.Search, req.IncludeAll, req.Type)
+	apps, _, err := a.appRepo.GetAppsWithPage(req.User, page, pageSize, req.Search, req.IncludeAll, req.Type)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用列表失败: %w", err)
 	}
+	apps, err = a.mergeAccessibleApps(ctx, apps, req)
+	if err != nil {
+		return nil, fmt.Errorf("获取已授权应用失败: %w", err)
+	}
 
 	// 转换为 AppInfo 列表
-	appInfos := make([]*dto.AppInfo, len(apps))
-	for i, app := range apps {
-		appInfos[i] = &dto.AppInfo{
+	appInfos := make([]*dto.AppInfo, 0, len(apps))
+	for _, app := range apps {
+		if !a.canReadApp(ctx, app, req.User) {
+			continue
+		}
+		appInfos = append(appInfos, &dto.AppInfo{
 			ID:        app.ID,
 			User:      app.User,
 			Code:      app.Code,
@@ -761,17 +879,81 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 			Type:      int(app.Type),
 			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
 			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
-		}
+		})
 	}
 
 	return &dto.GetAppsResp{
 		PageInfoResp: dto.PageInfoResp{
 			Page:       page,
 			PageSize:   pageSize,
-			TotalCount: int(totalCount),
+			TotalCount: len(appInfos),
 			Items:      appInfos,
 		},
 	}, nil
+}
+
+func (a *AppService) mergeAccessibleApps(ctx context.Context, apps []*model.App, req *dto.GetAppsReq) ([]*model.App, error) {
+	if a.teamAccess == nil || req == nil || req.User == "" || req.Type != nil {
+		return apps, nil
+	}
+	grantedApps, err := a.teamAccess.ListAccessibleApps(ctx, req.User)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(apps)+len(grantedApps))
+	merged := make([]*model.App, 0, len(apps)+len(grantedApps))
+	matchesSearch := func(app *model.App) bool {
+		if app == nil {
+			return false
+		}
+		search := strings.ToLower(strings.TrimSpace(req.Search))
+		if search == "" {
+			return true
+		}
+		return strings.Contains(strings.ToLower(app.Name), search) || strings.Contains(strings.ToLower(app.Code), search)
+	}
+	for _, app := range apps {
+		if app == nil {
+			continue
+		}
+		key := app.User + "/" + app.Code
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		merged = append(merged, app)
+	}
+	for _, app := range grantedApps {
+		if !matchesSearch(app) {
+			continue
+		}
+		key := app.User + "/" + app.Code
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		merged = append(merged, app)
+	}
+	return merged, nil
+}
+
+func (a *AppService) canReadApp(ctx context.Context, app *model.App, currentUser string) bool {
+	if app == nil {
+		return false
+	}
+	if a.teamAccess == nil {
+		return true
+	}
+	resourcePath := app.GetPrefix()
+	ok, err := a.teamAccess.Can(ctx, app.User, app.Code, currentUser, resourcePath, access.ActionRead)
+	if err != nil {
+		return false
+	}
+	if ok {
+		return true
+	}
+	hasAnyAccess, err := a.teamAccess.HasAnyWorkspaceAccess(ctx, app.User, app.Code, currentUser)
+	return err == nil && hasAnyAccess
 }
 
 // GetAppDetail 获取应用详情

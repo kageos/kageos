@@ -44,7 +44,7 @@ sudo bash install.sh /path/to/namespace
 默认配置已经内置：
 
 - `container.lsm_mode = auto`
-- `container.apparmor_profile = ai-agent-os-app`
+- `container.apparmor_profile = kageos-app`
 
 通常不需要再改 `app-runtime.yaml`；安装好策略后直接重启 runtime 即可生效。
 
@@ -56,10 +56,10 @@ sudo bash install.sh /path/to/namespace
 deploy/security/
   README.md              # 本文件
   apparmor/
-    ai-agent-os-app      # AppArmor profile（路径型：deny unlink）
+    kageos-app      # AppArmor profile（路径型：deny unlink）
     install.sh            # 一键安装（拷贝 + 加载）
   selinux/
-    ai-agent-os-app.te   # SELinux 策略源文件（类型型：自定义 type + 受限权限）
+    kageos-app.te   # SELinux 策略源文件（类型型：自定义 type + 受限权限）
     install.sh            # 一键安装（编译 + 安装模块 + 打标签）
 ```
 
@@ -68,11 +68,11 @@ deploy/security/
 **AppArmor**
 ```bash
 # 宿主机上确认 profile 已加载
-sudo aa-status | grep ai-agent-os-app
+sudo aa-status | grep kageos-app
 
 # 容器内确认 profile 生效
 cat /proc/1/attr/current
-# 应输出：ai-agent-os-app
+# 应输出：kageos-app
 
 # 容器内尝试删除（应被拒绝）
 rm /app/code/some-file    # Permission denied
@@ -81,11 +81,11 @@ rm /app/code/some-file    # Permission denied
 **SELinux**
 ```bash
 # 宿主机上确认模块已安装
-semodule -l | grep ai_agent_os_app
+semodule -l | grep kageos_app
 
 # 宿主机上确认标签
 ls -lZ namespace/user/app/code/
-# 应显示 ai_agent_os_data_t
+# 应显示 kageos_data_t
 
 # 容器内尝试删除（应被拒绝）
 rm /app/code/some-file    # Permission denied

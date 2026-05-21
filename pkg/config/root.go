@@ -9,29 +9,29 @@ import (
 )
 
 const (
-	// MarkerAgentOSRoot 仓库根目录标记文件（可选，便于无 go.mod 场景定位根）
-	MarkerAgentOSRoot    = ".ai-agent-os-root"
+	// MarkerKageOSRoot 仓库根目录标记文件（可选，便于无 go.mod 场景定位根）
+	MarkerKageOSRoot     = ".kageos-root"
 	maxMarkerSearchDepth = 8
 	maxMarkerSearchDirs  = 4096
 )
 
 var (
-	agentOSRoot     string
-	agentOSRootOnce sync.Once
+	kageOSRoot     string
+	kageOSRootOnce sync.Once
 )
 
-// GetAgentOSRoot 返回 AI Agent OS 项目根目录绝对路径，用于解析 deploy/dev、deploy/prod 等。
+// GetKageOSRoot 返回 Kageos 项目根目录绝对路径，用于解析 .kageos、deploy/dev、deploy/prod 等。
 // 查找顺序：
-//  1. 从代码所在目录、当前工作目录开始，优先向上查找 `.ai-agent-os-root`
-//  2. 若仍未找到，则从这些起点的祖先目录向下搜索 `.ai-agent-os-root`
-//  3. 最后再退化为 deploy/dev/config、deploy/prod/config、go.mod 等弱特征目录
+//  1. 从代码所在目录、当前工作目录开始，优先向上查找 `.kageos-root`
+//  2. 若仍未找到，则从这些起点的祖先目录向下搜索 `.kageos-root`
+//  3. 最后再退化为 .kageos、deploy/prod/config、go.mod 等弱特征目录
 //
 // 若均未找到则返回空字符串，配置解析将退化为仅相对 cwd 查找。
-func GetAgentOSRoot() string {
-	agentOSRootOnce.Do(func() {
+func GetKageOSRoot() string {
+	kageOSRootOnce.Do(func() {
 		if _, file, _, ok := runtime.Caller(0); ok {
-			if root := discoverAgentOSRootFrom(filepath.Dir(file)); root != "" {
-				agentOSRoot = root
+			if root := discoverKageOSRootFrom(filepath.Dir(file)); root != "" {
+				kageOSRoot = root
 				return
 			}
 		}
@@ -39,12 +39,12 @@ func GetAgentOSRoot() string {
 		if err != nil {
 			return
 		}
-		agentOSRoot = discoverAgentOSRootFrom(cwd)
+		kageOSRoot = discoverKageOSRootFrom(cwd)
 	})
-	return agentOSRoot
+	return kageOSRoot
 }
 
-func discoverAgentOSRootFrom(start string) string {
+func discoverKageOSRootFrom(start string) string {
 	dir, err := filepath.Abs(start)
 	if err != nil {
 		return ""
@@ -59,7 +59,7 @@ func discoverAgentOSRootFrom(start string) string {
 		}
 	}
 	for _, ancestor := range ancestorDirs(dir) {
-		if isWeakAgentOSRootDir(ancestor) {
+		if isWeakKageOSRootDir(ancestor) {
 			return ancestor
 		}
 	}
@@ -68,7 +68,7 @@ func discoverAgentOSRootFrom(start string) string {
 
 func discoverMarkerRootUpward(start string) string {
 	for _, dir := range ancestorDirs(start) {
-		if hasAgentOSRootMarker(dir) {
+		if hasKageOSRootMarker(dir) {
 			return dir
 		}
 	}
@@ -89,7 +89,7 @@ func discoverMarkerRootDownward(start string, maxDepth int, maxDirs int) string 
 		queue = queue[1:]
 		visited++
 
-		if hasAgentOSRootMarker(current.path) {
+		if hasKageOSRootMarker(current.path) {
 			return current.path
 		}
 		if current.depth >= maxDepth {
@@ -127,15 +127,15 @@ func ancestorDirs(start string) []string {
 	return dirs
 }
 
-func hasAgentOSRootMarker(dir string) bool {
-	if _, err := os.Stat(filepath.Join(dir, MarkerAgentOSRoot)); err == nil {
+func hasKageOSRootMarker(dir string) bool {
+	if _, err := os.Stat(filepath.Join(dir, MarkerKageOSRoot)); err == nil {
 		return true
 	}
 	return false
 }
 
-func isWeakAgentOSRootDir(dir string) bool {
-	if st, err := os.Stat(filepath.Join(dir, "deploy", "dev", "config")); err == nil && st.IsDir() {
+func isWeakKageOSRootDir(dir string) bool {
+	if st, err := os.Stat(filepath.Join(dir, ".kageos")); err == nil && st.IsDir() {
 		return true
 	}
 	if st, err := os.Stat(filepath.Join(dir, "deploy", "prod", "config")); err == nil && st.IsDir() {

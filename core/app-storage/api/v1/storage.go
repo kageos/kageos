@@ -6,17 +6,25 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/kageos/kageos/pkg/contextx"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-storage/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-storage/service"
-	"github.com/ai-agent-os/ai-agent-os/core/app-storage/storage"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/core/app-storage/model"
+	"github.com/kageos/kageos/core/app-storage/service"
+	"github.com/kageos/kageos/core/app-storage/storage"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/ginx/response"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/publicshare"
+)
+
+const (
+	publicCompanyLogoRouter  = "public/company-logos"
+	publicCompanyLogoUser    = "anonymous-company-register"
+	publicCompanyLogoMaxSize = 512 * 1024
 )
 
 // Storage 存储相关API
@@ -29,6 +37,466 @@ func NewStorage(storageService *service.StorageService) *Storage {
 	return &Storage{
 		storageService: storageService,
 	}
+}
+
+func (s *Storage) GetPublicCompanyLogoUploadToken(c *gin.Context) {
+	var req dto.GetUploadTokenReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	if err := validatePublicCompanyLogo(req.FileName, req.ContentType, req.FileSize); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	bucket := req.Bucket
+	if bucket == "" {
+		bucket = s.storageService.GetBucketName()
+	}
+	creds, key, expire, err := s.storageService.GenerateUploadToken(
+		ctx,
+		bucket,
+		publicCompanyLogoRouter,
+		req.FileName,
+		req.ContentType,
+		req.FileSize,
+		string(dto.UploadSourceBrowser),
+	)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLsInBucket(ctx, bucket, key)
+	if err != nil {
+		logger.Warnf(c, "Failed to generate public company logo download URLs: %v", err)
+		downloadURL = ""
+		serverDownloadURL = ""
+	}
+
+	resp := buildUploadTokenResponse(
+		creds,
+		bucket,
+		key,
+		expire,
+		s.storageService.GetCDNDomain(),
+		s.storageService.GetStorageType(),
+		downloadURL,
+		serverDownloadURL,
+		publicCompanyLogoUser,
+	)
+	response.OkWithData(c, resp)
+}
+
+func (s *Storage) PublicCompanyLogoUploadComplete(c *gin.Context) {
+	var req dto.UploadCompleteReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	if !strings.HasPrefix(strings.TrimLeft(req.Key, "/"), publicCompanyLogoRouter+"/") {
+		response.FailWithMessage(c, "企业 Logo 文件路径不合法")
+		return
+	}
+	if err := validatePublicCompanyLogo(req.FileName, req.ContentType, req.FileSize); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	bucket := req.Bucket
+	if bucket == "" {
+		bucket = s.storageService.GetBucketName()
+	}
+	ref := s.storageService.BuildFileRef(bucket, req.Key)
+	var downloadURL string
+	var serverDownloadURL string
+	var expireStr string
+	if req.Success {
+		if err := createUploadRecord(
+			s.storageService,
+			ctx,
+			bucket,
+			req.Key,
+			publicCompanyLogoRouter,
+			req.FileName,
+			"company logo",
+			req.FileSize,
+			req.ContentType,
+			req.Hash,
+			"",
+			"",
+			publicCompanyLogoUser,
+		); err != nil {
+			logger.Warnf(c, "Failed to record public company logo upload: %v", err)
+		}
+		expire := time.Time{}
+		var err error
+		downloadURL, serverDownloadURL, expire, err = s.storageService.GetFileURLsInBucket(ctx, bucket, req.Key)
+		if err != nil {
+			logger.Errorf(c, "Failed to generate public company logo URL: %v", err)
+			downloadURL = ""
+			serverDownloadURL = ""
+		}
+		if !expire.IsZero() {
+			expireStr = expire.Format(storage.TimeFormat)
+		}
+	}
+
+	response.OkWithData(c, &dto.UploadCompleteResp{
+		Message:           "企业 Logo 上传完成",
+		Key:               req.Key,
+		Bucket:            bucket,
+		Ref:               ref,
+		FileName:          req.FileName,
+		Description:       "company logo",
+		FileSize:          req.FileSize,
+		ContentType:       req.ContentType,
+		Hash:              req.Hash,
+		Storage:           s.storageService.GetStorageType(),
+		DownloadURL:       downloadURL,
+		ServerDownloadURL: serverDownloadURL,
+		Expire:            expireStr,
+	})
+}
+
+func validatePublicCompanyLogo(fileName string, contentType string, fileSize int64) error {
+	if strings.TrimSpace(fileName) == "" {
+		return fmt.Errorf("文件名不能为空")
+	}
+	if fileSize <= 0 {
+		return fmt.Errorf("文件大小不能为空")
+	}
+	if fileSize > publicCompanyLogoMaxSize {
+		return fmt.Errorf("企业 Logo 不能超过 512KB")
+	}
+	contentType = strings.ToLower(strings.TrimSpace(contentType))
+	allowed := map[string]bool{
+		"image/png":     true,
+		"image/jpeg":    true,
+		"image/jpg":     true,
+		"image/webp":    true,
+		"image/svg+xml": true,
+	}
+	if !allowed[contentType] {
+		return fmt.Errorf("企业 Logo 仅支持 PNG、JPG、WebP 或 SVG")
+	}
+	return nil
+}
+
+func (s *Storage) publicShareRequestUser(c *gin.Context, router string) (string, bool) {
+	claims, err := publicshare.ValidateAnonymousToken(c.GetHeader(publicshare.AnonymousTokenHeader))
+	if err != nil {
+		response.FailWithMessage(c, "匿名访问凭证无效，请刷新页面后重试")
+		return "", false
+	}
+	shareID := strings.TrimSpace(c.Param("share_id"))
+	if shareID == "" {
+		response.FailWithMessage(c, "分享链接无效")
+		return "", false
+	}
+	tenantUser, app := parsePublicShareRouter(router)
+	requestUser := publicshare.DeriveActorID(tenantUser, app, shareID, claims.SessionID)
+	c.Request.Header.Set(contextx.RequestUserHeader, requestUser)
+	return requestUser, true
+}
+
+func parsePublicShareRouter(router string) (string, string) {
+	parts := strings.Split(strings.Trim(strings.TrimSpace(router), "/"), "/")
+	if len(parts) < 2 {
+		return "", ""
+	}
+	return parts[0], parts[1]
+}
+
+func isObjectKeyInRouter(key string, router string) bool {
+	key = strings.Trim(strings.TrimSpace(key), "/")
+	router = strings.Trim(strings.TrimSpace(router), "/")
+	if key == "" || router == "" {
+		return false
+	}
+	return key == router || strings.HasPrefix(key, router+"/")
+}
+
+func (s *Storage) PublicShareGetUploadToken(c *gin.Context) {
+	var req dto.GetUploadTokenReq
+	var resp *dto.GetUploadTokenResp
+	var err error
+	defer func() {
+		logger.Infof(c, "PublicShareGetUploadToken req:%+v resp:%+v err:%v", req, resp, err)
+	}()
+
+	if err = c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	router := strings.Trim(strings.TrimSpace(req.Router), "/")
+	if router == "" {
+		response.FailWithMessage(c, "公开上传必须提供函数路由")
+		return
+	}
+	requestUser, ok := s.publicShareRequestUser(c, router)
+	if !ok {
+		return
+	}
+
+	uploadSource := getDefaultUploadSource(req.UploadSource)
+	ctx := contextx.ToContext(c)
+	presignHost := contextx.GetPresignHost(ctx)
+	logger.Infof(c, "[PublicShareGetUploadToken] presign host for upload: X-Forwarded-Host=%q, Request.Host=%q => presignHost=%q", c.GetHeader("X-Forwarded-Host"), c.Request.Host, presignHost)
+
+	bucket := req.Bucket
+	if bucket == "" {
+		bucket = s.storageService.GetBucketName()
+	}
+	var creds *storage.UploadCredentials
+	var key string
+	var expire time.Time
+	if req.PreviewForKey != "" {
+		if !isObjectKeyInRouter(req.PreviewForKey, router) {
+			response.FailWithMessage(c, "预览文件路径不属于当前分享")
+			return
+		}
+		creds, key, expire, err = s.storageService.GeneratePreviewUploadToken(ctx, bucket, req.PreviewForKey, req.FileName, req.ContentType, req.FileSize, uploadSource)
+	} else {
+		creds, key, expire, err = s.storageService.GenerateUploadToken(ctx, bucket, router, req.FileName, req.ContentType, req.FileSize, uploadSource)
+	}
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLsInBucket(ctx, bucket, key)
+	if err != nil {
+		logger.Errorf(c, "Failed to generate public share download URLs: %v", err)
+		downloadURL = ""
+		serverDownloadURL = ""
+	}
+
+	resp = buildUploadTokenResponse(
+		creds,
+		bucket,
+		key,
+		expire,
+		s.storageService.GetCDNDomain(),
+		s.storageService.GetStorageType(),
+		downloadURL,
+		serverDownloadURL,
+		requestUser,
+	)
+	response.OkWithData(c, resp)
+}
+
+func (s *Storage) PublicShareUploadComplete(c *gin.Context) {
+	var req dto.UploadCompleteReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	router := strings.Trim(strings.TrimSpace(req.Router), "/")
+	if router == "" {
+		response.FailWithMessage(c, "公开上传完成必须提供函数路由")
+		return
+	}
+	if _, ok := s.publicShareRequestUser(c, router); !ok {
+		return
+	}
+	if req.Success && !isObjectKeyInRouter(req.Key, router) {
+		response.FailWithMessage(c, "文件路径不属于当前分享")
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	var downloadURL string
+	var serverDownloadURL string
+	var expireStr string
+	var thumbnailURL string
+	bucket := req.Bucket
+	if bucket == "" {
+		bucket = s.storageService.GetBucketName()
+	}
+	ref := s.storageService.BuildFileRef(bucket, req.Key)
+	if req.Success {
+		requestUser := contextx.GetRequestUser(c)
+		if err := createUploadRecord(
+			s.storageService,
+			ctx,
+			bucket,
+			req.Key,
+			router,
+			req.FileName,
+			req.Description,
+			req.FileSize,
+			req.ContentType,
+			req.Hash,
+			req.ThumbnailRef,
+			req.PreviewKind,
+			requestUser,
+		); err != nil {
+			logger.Errorf(c, "Failed to record public share upload to database: %v (file_key: %s)", err, req.Key)
+		}
+
+		var expire time.Time
+		var err error
+		downloadURL, serverDownloadURL, expire, err = s.storageService.GetFileURLsInBucket(ctx, bucket, req.Key)
+		if err != nil {
+			logger.Errorf(c, "Failed to generate public share download URLs: %v", err)
+			downloadURL = ""
+			serverDownloadURL = ""
+		}
+		thumbnailURL = s.browserURLForRef(ctx, req.ThumbnailRef)
+		if !expire.IsZero() {
+			expireStr = expire.Format(storage.TimeFormat)
+		} else {
+			expireStr = time.Now().Add(storage.DefaultDownloadURLExpiry).Format(storage.TimeFormat)
+		}
+	} else {
+		logger.Warnf(c, "Public share upload failed: key=%s, error=%s", req.Key, req.Error)
+	}
+
+	response.OkWithData(c, &dto.UploadCompleteResp{
+		Message:           "上传完成通知已处理",
+		Key:               req.Key,
+		Bucket:            bucket,
+		Ref:               ref,
+		FileName:          req.FileName,
+		Description:       req.Description,
+		FileSize:          req.FileSize,
+		ContentType:       req.ContentType,
+		Hash:              req.Hash,
+		ThumbnailRef:      req.ThumbnailRef,
+		ThumbnailURL:      thumbnailURL,
+		PreviewKind:       req.PreviewKind,
+		Storage:           s.storageService.GetStorageType(),
+		DownloadURL:       downloadURL,
+		ServerDownloadURL: serverDownloadURL,
+		Expire:            expireStr,
+	})
+}
+
+func (s *Storage) PublicShareBatchUploadComplete(c *gin.Context) {
+	var req dto.BatchUploadCompleteReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	router := ""
+	for _, item := range req.Items {
+		if strings.TrimSpace(item.Router) != "" {
+			router = strings.Trim(strings.TrimSpace(item.Router), "/")
+			break
+		}
+	}
+	if router == "" {
+		response.FailWithMessage(c, "公开上传完成必须提供函数路由")
+		return
+	}
+	if _, ok := s.publicShareRequestUser(c, router); !ok {
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	requestUser := contextx.GetRequestUser(c)
+	results := make([]dto.BatchUploadCompleteResult, 0, len(req.Items))
+	for _, item := range req.Items {
+		itemRouter := strings.Trim(strings.TrimSpace(item.Router), "/")
+		if itemRouter == "" {
+			itemRouter = router
+		}
+		bucket := item.Bucket
+		if bucket == "" {
+			bucket = s.storageService.GetBucketName()
+		}
+		ref := s.storageService.BuildFileRef(bucket, item.Key)
+		if item.Success {
+			if !isObjectKeyInRouter(item.Key, itemRouter) {
+				results = append(results, dto.BatchUploadCompleteResult{
+					Key:    item.Key,
+					Bucket: bucket,
+					Ref:    ref,
+					Status: "failed",
+					Error:  "文件路径不属于当前分享",
+				})
+				continue
+			}
+			if err := createUploadRecord(
+				s.storageService,
+				ctx,
+				bucket,
+				item.Key,
+				itemRouter,
+				item.FileName,
+				item.Description,
+				item.FileSize,
+				item.ContentType,
+				item.Hash,
+				item.ThumbnailRef,
+				item.PreviewKind,
+				requestUser,
+			); err != nil {
+				logger.Errorf(c, "Failed to record public share upload for key %s: %v", item.Key, err)
+				results = append(results, dto.BatchUploadCompleteResult{
+					Key:    item.Key,
+					Status: "failed",
+					Error:  fmt.Sprintf("记录失败: %v", err),
+				})
+				continue
+			}
+
+			downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLsInBucket(ctx, bucket, item.Key)
+			if err != nil {
+				logger.Errorf(c, "Failed to generate public share download URLs for key %s: %v", item.Key, err)
+				downloadURL = ""
+				serverDownloadURL = ""
+			}
+			results = append(results, dto.BatchUploadCompleteResult{
+				Key:               item.Key,
+				Bucket:            bucket,
+				Ref:               ref,
+				Status:            "completed",
+				DownloadURL:       downloadURL,
+				Description:       item.Description,
+				ServerDownloadURL: serverDownloadURL,
+				Hash:              item.Hash,
+				ThumbnailRef:      item.ThumbnailRef,
+				ThumbnailURL:      s.browserURLForRef(ctx, item.ThumbnailRef),
+				PreviewKind:       item.PreviewKind,
+			})
+		} else {
+			logger.Warnf(c, "Public share upload failed: key=%s, error=%s", item.Key, item.Error)
+			results = append(results, dto.BatchUploadCompleteResult{
+				Key:    item.Key,
+				Bucket: bucket,
+				Ref:    ref,
+				Status: "failed",
+				Error:  item.Error,
+			})
+		}
+	}
+
+	response.OkWithData(c, dto.BatchUploadCompleteResp{Results: results})
+}
+
+func (s *Storage) PublicShareResolveFileRefs(c *gin.Context) {
+	var req dto.ResolveFileRefsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	if _, ok := s.publicShareRequestUser(c, ""); !ok {
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	files, err := s.storageService.ResolveFileRefs(ctx, req.Refs, req.Audience)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, dto.ResolveFileRefsResp{Files: files})
 }
 
 // GetUploadToken 获取上传凭证

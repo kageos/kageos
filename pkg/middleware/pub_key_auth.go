@@ -1,11 +1,11 @@
 package middleware
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/pkg/auth"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/ginx/response"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // PubKeyValidator 验证 pub key 的回调函数，返回用户名
@@ -42,6 +42,7 @@ func JWTOrPubKeyAuth(validator PubKeyValidator) gin.HandlerFunc {
 			if deptPath := c.GetHeader(contextx.DepartmentFullPathHeader); deptPath != "" {
 				c.Set(contextx.DepartmentFullPathHeader, deptPath)
 			}
+			setCompanyContextFromHeaders(c)
 			c.Next()
 			return
 		}
@@ -57,6 +58,7 @@ func JWTOrPubKeyAuth(validator PubKeyValidator) gin.HandlerFunc {
 				if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
 					c.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
 				}
+				setCompanyContextFromClaims(c, claims)
 				c.Next()
 				return
 			}

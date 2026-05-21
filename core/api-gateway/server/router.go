@@ -16,13 +16,13 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	v1 "github.com/ai-agent-os/ai-agent-os/core/api-gateway/api/v1"
-	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
-	"github.com/ai-agent-os/ai-agent-os/pkg/response"
+	v1 "github.com/kageos/kageos/core/api-gateway/api/v1"
+	"github.com/kageos/kageos/pkg/auth"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/pprof"
+	"github.com/kageos/kageos/pkg/response"
 )
 
 // setupRoutes 设置路由
@@ -324,6 +324,15 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 				if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
 					c.Request.Header.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
 					logger.Debugf(s.ctx, "[Proxy] Extracted department_full_path from token: %s", *claims.DepartmentFullPath)
+				}
+				if claims.CompanyCode != "" {
+					c.Request.Header.Set(contextx.CompanyCodeHeader, claims.CompanyCode)
+				}
+				if claims.CompanyName != "" {
+					c.Request.Header.Set(contextx.CompanyNameHeader, claims.CompanyName)
+				}
+				if claims.CompanyLogoURL != "" {
+					c.Request.Header.Set(contextx.CompanyLogoURLHeader, claims.CompanyLogoURL)
 				}
 			} else {
 				// token 解析失败，但不阻止请求（可能是不需要认证的接口）

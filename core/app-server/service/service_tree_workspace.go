@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/dto"
 )
 
 func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.GetWorkspaceContextReq) (*dto.GetWorkspaceContextResp, error) {

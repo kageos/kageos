@@ -1,7 +1,9 @@
 package repository
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
+	"strings"
+
+	"github.com/kageos/kageos/core/hr-server/model"
 	"gorm.io/gorm"
 )
 
@@ -99,6 +101,23 @@ func (r *UserRepository) SearchUsersFuzzy(keyword string, limit int) ([]*model.U
 	return users, err
 }
 
+// SearchUsersFuzzyByCompany 模糊查询同企业用户（根据用户名、邮箱或昵称）。
+func (r *UserRepository) SearchUsersFuzzyByCompany(companyCode, keyword string, limit int) ([]*model.User, error) {
+	var users []*model.User
+	companyCode = strings.TrimSpace(companyCode)
+	keyword = strings.TrimSpace(keyword)
+	query := r.db.Where("company_code = ?", companyCode)
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("(username LIKE ? OR email LIKE ? OR nickname LIKE ?)", like, like, like)
+	}
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	err := query.Find(&users).Error
+	return users, err
+}
+
 // GetUsersByUsernames 根据用户名列表批量获取用户信息
 func (r *UserRepository) GetUsersByUsernames(usernames []string) ([]*model.User, error) {
 	if len(usernames) == 0 {
@@ -106,6 +125,15 @@ func (r *UserRepository) GetUsersByUsernames(usernames []string) ([]*model.User,
 	}
 	var users []*model.User
 	err := r.db.Where("username IN ?", usernames).Find(&users).Error
+	return users, err
+}
+
+func (r *UserRepository) GetUsersByUsernamesAndCompany(usernames []string, companyCode string) ([]*model.User, error) {
+	if len(usernames) == 0 {
+		return []*model.User{}, nil
+	}
+	var users []*model.User
+	err := r.db.Where("company_code = ? AND username IN ?", strings.TrimSpace(companyCode), usernames).Find(&users).Error
 	return users, err
 }
 

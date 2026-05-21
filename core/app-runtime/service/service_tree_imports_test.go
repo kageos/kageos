@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
+	appconfig "github.com/kageos/kageos/pkg/config"
 )
 
 func TestUpdateMainFileImportsAddsBlankImportAndIsIdempotent(t *testing.T) {
@@ -20,7 +20,7 @@ func TestUpdateMainFileImportsAddsBlankImportAndIsIdempotent(t *testing.T) {
 	mainFilePath := writeMainGoFixture(t, basePath, `package main
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/app"
 )
 
 func main() {
@@ -39,7 +39,7 @@ func main() {
 	}
 
 	content := readMainGoFixture(t, mainFilePath)
-	importPath := `github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/ticket_system/order`
+	importPath := `github.com/kageos/kageos/namespace/alice/demo/code/api/ticket_system/order`
 	if strings.Count(content, importPath) != 1 {
 		t.Fatalf("unexpected import count in main.go: %s", content)
 	}
@@ -55,9 +55,9 @@ func TestRemoveMainFileImportRemovesOnlyTargetImport(t *testing.T) {
 	mainFilePath := writeMainGoFixture(t, basePath, `package main
 
 import (
-	_ "github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/keep/me"
-	_ "github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/remove/me"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+	_ "github.com/kageos/kageos/namespace/alice/demo/code/api/keep/me"
+	_ "github.com/kageos/kageos/namespace/alice/demo/code/api/remove/me"
+	"github.com/kageos/kageos/sdk/agent-app/app"
 )
 
 func main() {
@@ -73,10 +73,10 @@ func main() {
 	}
 
 	content := readMainGoFixture(t, mainFilePath)
-	if strings.Contains(content, `github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/remove/me`) {
+	if strings.Contains(content, `github.com/kageos/kageos/namespace/alice/demo/code/api/remove/me`) {
 		t.Fatalf("target import still exists: %s", content)
 	}
-	if !strings.Contains(content, `github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/keep/me`) {
+	if !strings.Contains(content, `github.com/kageos/kageos/namespace/alice/demo/code/api/keep/me`) {
 		t.Fatalf("non-target import was removed: %s", content)
 	}
 
@@ -91,12 +91,12 @@ func TestRemoveMainFileImportRemovesTargetSubtreeImports(t *testing.T) {
 	mainFilePath := writeMainGoFixture(t, basePath, `package main
 
 import (
-	_ "github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/keep/me"
-	_ "github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace"
-	_ "github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace/create-project"
-	_ "github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace/execute"
-	_ "github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace_extra/keep"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+	_ "github.com/kageos/kageos/namespace/alice/demo/code/api/keep/me"
+	_ "github.com/kageos/kageos/namespace/alice/demo/code/api/workspace"
+	_ "github.com/kageos/kageos/namespace/alice/demo/code/api/workspace/create-project"
+	_ "github.com/kageos/kageos/namespace/alice/demo/code/api/workspace/execute"
+	_ "github.com/kageos/kageos/namespace/alice/demo/code/api/workspace_extra/keep"
+	"github.com/kageos/kageos/sdk/agent-app/app"
 )
 
 func main() {
@@ -113,17 +113,17 @@ func main() {
 
 	content := readMainGoFixture(t, mainFilePath)
 	for _, removed := range []string{
-		`github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace"`,
-		`github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace/create-project`,
-		`github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace/execute`,
+		`github.com/kageos/kageos/namespace/alice/demo/code/api/workspace"`,
+		`github.com/kageos/kageos/namespace/alice/demo/code/api/workspace/create-project`,
+		`github.com/kageos/kageos/namespace/alice/demo/code/api/workspace/execute`,
 	} {
 		if strings.Contains(content, removed) {
 			t.Fatalf("target subtree import still exists %s: %s", removed, content)
 		}
 	}
 	for _, kept := range []string{
-		`github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/keep/me`,
-		`github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/workspace_extra/keep`,
+		`github.com/kageos/kageos/namespace/alice/demo/code/api/keep/me`,
+		`github.com/kageos/kageos/namespace/alice/demo/code/api/workspace_extra/keep`,
 	} {
 		if !strings.Contains(content, kept) {
 			t.Fatalf("non-target import was removed %s: %s", kept, content)

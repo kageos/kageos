@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/dto"
 )
 
 func TestValidateCapabilityBundleRejectsWorkspaceBoundPaths(t *testing.T) {
@@ -141,6 +141,44 @@ func TestBuildCapabilityBundleInstallPlanMountsRelativePackages(t *testing.T) {
 	}
 }
 
+func TestBuildCapabilityBundleInstallPlanIncludesDocs(t *testing.T) {
+	t.Parallel()
+
+	bundle := &dto.CapabilityBundle{
+		SchemaVersion: dto.CapabilityBundleSchemaVersion,
+		Name:          "CRM",
+		TreeNodes: []*dto.CapabilityBundleTreeNode{
+			{RelativePath: "crm", Type: model.ServiceTreeTypePackage, Code: "crm", Name: "CRM"},
+			{RelativePath: "crm/readme.docs", ParentPath: "crm", Type: model.ServiceTreeTypeDocs, Code: "readme.docs", Name: "使用说明", Tags: []string{"docs", "crm"}},
+		},
+		Docs: []*dto.CapabilityBundleDoc{
+			{RelativePath: "crm/readme.docs", Name: "使用说明", Content: "# 使用说明\n", Format: "markdown"},
+		},
+		Packages: []*dto.CapabilityBundlePackage{
+			{Path: "crm", Name: "CRM"},
+		},
+		Files: []*dto.CapabilityBundleFile{},
+	}
+
+	plan, err := buildCapabilityBundleInstallPlan("/alice/app/openapi", bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.directoryItems) != 1 || plan.directoryItems[0].FullCodePath != "/alice/app/openapi/crm" {
+		t.Fatalf("unexpected directories: %#v", plan.directoryItems)
+	}
+	if len(plan.docItems) != 1 {
+		t.Fatalf("unexpected doc count: %d", len(plan.docItems))
+	}
+	got := plan.docItems[0]
+	if got.FullCodePath != "/alice/app/openapi/crm/readme.docs" || got.ParentFullCodePath != "/alice/app/openapi/crm" {
+		t.Fatalf("unexpected doc path: %#v", got)
+	}
+	if got.Name != "使用说明" || got.Content != "# 使用说明\n" || got.Tags != "docs,crm" {
+		t.Fatalf("unexpected doc metadata: %#v", got)
+	}
+}
+
 func TestBuildCapabilityBundleInstallPlanSupportsRootPackageFiles(t *testing.T) {
 	t.Parallel()
 
@@ -161,6 +199,90 @@ func TestBuildCapabilityBundleInstallPlanSupportsRootPackageFiles(t *testing.T) 
 	}
 	if len(plan.fileItems) != 1 || plan.fileItems[0].FullCodePath != "/customer/crm/openapi" {
 		t.Fatalf("unexpected files: %#v", plan.fileItems)
+	}
+}
+
+func TestValidateCapabilityBundleTreeNodes(t *testing.T) {
+	t.Parallel()
+
+	bundle := &dto.CapabilityBundle{
+		SchemaVersion: dto.CapabilityBundleSchemaVersion,
+		Name:          "CRM",
+		TreeNodes: []*dto.CapabilityBundleTreeNode{
+			{RelativePath: "crm", Type: model.ServiceTreeTypePackage, Code: "crm", Name: "CRM"},
+			{RelativePath: "crm/customers", ParentPath: "crm", Type: model.ServiceTreeTypePackage, Code: "customers", Name: "Customers"},
+			{RelativePath: "crm/customers/list.table", ParentPath: "crm/customers", Type: model.ServiceTreeTypeFunction, Code: "list.table", Name: "Customer List", TemplateType: "table"},
+		},
+		Packages: []*dto.CapabilityBundlePackage{
+			{Path: "crm", Name: "CRM"},
+			{Path: "crm/customers", Name: "Customers"},
+		},
+		Files: []*dto.CapabilityBundleFile{
+			{PackagePath: "crm/customers", Path: "list.go", Content: "package customers"},
+		},
+	}
+
+	if err := validateCapabilityBundle(bundle); err != nil {
+		t.Fatalf("expected valid bundle with nested tree nodes: %v", err)
+	}
+}
+
+func TestValidateCapabilityBundleTreeNodesRejectsMissingParent(t *testing.T) {
+	t.Parallel()
+
+	bundle := &dto.CapabilityBundle{
+		SchemaVersion: dto.CapabilityBundleSchemaVersion,
+		TreeNodes: []*dto.CapabilityBundleTreeNode{
+			{RelativePath: "crm/customers/list.table", ParentPath: "crm/customers", Type: model.ServiceTreeTypeFunction, Code: "list.table"},
+		},
+		Files: []*dto.CapabilityBundleFile{
+			{Path: "list.go", Content: "package crm"},
+		},
+	}
+
+	err := validateCapabilityBundle(bundle)
+	if err == nil {
+		t.Fatal("expected missing parent validation error")
+	}
+	if !strings.Contains(err.Error(), "parent_path 未在 tree_nodes 中声明") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateCapabilityBundleDocsRejectsNonDocsNode(t *testing.T) {
+	t.Parallel()
+
+	bundle := &dto.CapabilityBundle{
+		SchemaVersion: dto.CapabilityBundleSchemaVersion,
+		TreeNodes: []*dto.CapabilityBundleTreeNode{
+			{RelativePath: "crm", Type: model.ServiceTreeTypePackage, Code: "crm"},
+		},
+		Docs: []*dto.CapabilityBundleDoc{
+			{RelativePath: "crm", Content: "# CRM\n"},
+		},
+	}
+
+	err := validateCapabilityBundle(bundle)
+	if err == nil {
+		t.Fatal("expected docs validation error")
+	}
+	if !strings.Contains(err.Error(), "不是 docs") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestCapabilityRelativeTreeNodePathSupportsNestedFunction(t *testing.T) {
+	t.Parallel()
+
+	root := &model.ServiceTree{Code: "crm", Type: model.ServiceTreeTypePackage, FullCodePath: "/alice/app/crm"}
+	node := &model.ServiceTree{Code: "list.table", Type: model.ServiceTreeTypeFunction, FullCodePath: "/alice/app/crm/customers/list.table"}
+
+	got, err := capabilityRelativeTreeNodePath(root, node, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "crm/customers/list.table" {
+		t.Fatalf("relative path = %q", got)
 	}
 }
 

@@ -7,12 +7,12 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/trace"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
 	"github.com/go-playground/form/v4"
 	"github.com/go-playground/validator/v10"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/trace"
+	"github.com/kageos/kageos/sdk/agent-app/env"
 )
 
 var (
@@ -58,23 +58,35 @@ func (a *App) NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context,
 		Token:              req.Token,
 		DepartmentFullPath: msgInfo.RequestUserDept,
 		ClientSource:       msgInfo.ClientSource,
+		SourceType:         strings.TrimSpace(req.SourceType),
+		SourceRef:          strings.TrimSpace(req.SourceRef),
 	})
+	token := req.Token
+	anonymousToken := strings.TrimSpace(req.AnonymousToken)
+	if msgInfo.ClientSource == "public_share" {
+		if anonymousToken == "" {
+			anonymousToken = strings.TrimSpace(req.Token)
+		}
+		token = ""
+	}
 	return &Context{
-		body:     req.Body,
-		urlQuery: req.UrlQuery,
-		Context:  ctx,
-		msg:      &msgInfo,
-		token:    req.Token, // ✨ 保存token，用于调用存储服务
+		body:           req.Body,
+		urlQuery:       req.UrlQuery,
+		Context:        ctx,
+		msg:            &msgInfo,
+		token:          token,          // ✨ 保存token，用于调用存储服务
+		anonymousToken: anonymousToken, // 公开分享匿名 token，不作为 X-Token 使用
 	}, nil
 }
 
 type Context struct {
 	context.Context
-	msg        *trace.Msg
-	body       []byte
-	urlQuery   string
-	token      string      // ✨ Token（用于调用存储服务等）
-	routerInfo *routerInfo // 当前请求对应的路由信息（包含 PackagePath）
+	msg            *trace.Msg
+	body           []byte
+	urlQuery       string
+	token          string      // ✨ Token（用于调用存储服务等）
+	anonymousToken string      // 公开分享匿名 token
+	routerInfo     *routerInfo // 当前请求对应的路由信息（包含 PackagePath）
 }
 
 func (c *Context) ShouldBind(req interface{}) error {

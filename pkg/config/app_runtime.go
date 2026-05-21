@@ -70,11 +70,11 @@ const (
 	defaultRuntimeAppBasePath      = "namespace"
 	defaultRuntimeBuildOutputDir   = "workplace/bin/releases"
 	defaultRuntimeBinaryNameFormat = "{user}_{app}_{version}"
-	defaultRuntimeGitEmailSuffix   = "ai-agent-os.com"
+	defaultRuntimeGitEmailSuffix   = "kageos.com"
 	defaultContainerRuntime        = "podman"
 	defaultContainerLSMMode        = "auto"
-	defaultAppArmorProfile         = "ai-agent-os-app"
-	defaultContainerBaseImage      = "agentos-app-runtime-base:latest"
+	defaultAppArmorProfile         = "kageos-app"
+	defaultContainerBaseImage      = "kagebase:latest"
 	defaultContainerPath           = "/app"
 )
 
@@ -117,7 +117,7 @@ type BuildConfig struct {
 
 // GitConfig Git 配置
 type GitConfig struct {
-	EmailSuffix string `mapstructure:"email_suffix"` // Git 邮箱后缀（如 "ai-agent-os.com"）
+	EmailSuffix string `mapstructure:"email_suffix"` // Git 邮箱后缀（如 "kageos.com"）
 }
 
 func (c *AppManageServiceConfig) GetBasePath() string {
@@ -190,7 +190,7 @@ type ContainerServiceConfig struct {
 	// - apparmor / selinux: 强制使用该 LSM（不检测）。
 	// - none: 不使用 LSM 相关安全选项。
 	LSMMode         string      `mapstructure:"lsm_mode"`         // auto / apparmor / selinux / none
-	AppArmorProfile string      `mapstructure:"apparmor_profile"` // AppArmor 环境下使用的 profile 名；未配置时默认 ai-agent-os-app
+	AppArmorProfile string      `mapstructure:"apparmor_profile"` // AppArmor 环境下使用的 profile 名；未配置时默认 kageos-app
 	Image           ImageConfig `mapstructure:"image"`
 }
 
@@ -363,6 +363,9 @@ func (c *ContainerServiceConfig) GetAppArmorProfile() string {
 }
 
 func (c *ContainerServiceConfig) GetBaseImage() string {
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_BASE_IMAGE")); v != "" {
+		return v
+	}
 	if c == nil {
 		return defaultContainerBaseImage
 	}
@@ -385,8 +388,8 @@ func (c *ContainerServiceConfig) GetContainerPath() string {
 // loadYAMLConfig 加载 YAML 配置文件。
 // 当前优先级：
 //
-//	dev  -> deploy/dev/config/<file>
-//	prod -> deploy/prod/config/runtime/<file>   -> fallback: deploy/prod/config/template/<file>
+//	dev  -> .kageos/dev/config/<file>           -> fallback: deploy/dev/config/<file>
+//	prod -> .kageos/prod/generated/config/<file> -> fallback: deploy/prod/config/runtime/<file> -> deploy/prod/config/template/<file>
 //
 // 加载成功时打印实际使用的配置路径，避免糊涂账。
 func loadYAMLConfig(filename string, config interface{}) error {
@@ -439,10 +442,12 @@ func configPathsForEnv(root, env, baseName string) []string {
 	root = filepath.Clean(root)
 	if env == "dev" {
 		return []string{
+			filepath.Join(root, ".kageos", "dev", "config", baseName),
 			filepath.Join(root, "deploy", "dev", "config", baseName),
 		}
 	}
 	return []string{
+		filepath.Join(root, ".kageos", "prod", "generated", "config", baseName),
 		filepath.Join(root, "deploy", "prod", "config", "runtime", baseName),
 		filepath.Join(root, "deploy", "prod", "config", "template", baseName),
 	}
@@ -463,7 +468,7 @@ func findConfigFile(filename string) string {
 	}
 
 	// 0. 显式根目录
-	if root := GetAgentOSRoot(); root != "" {
+	if root := GetKageOSRoot(); root != "" {
 		if p := tryPrefix(root); p != "" {
 			return p
 		}

@@ -4,7 +4,7 @@ import { extractFileGroupsFromResult } from './useOutputFileGroups'
 describe('extractFileGroupsFromResult', () => {
   it('extracts a declared root-level file field', () => {
     const groups = extractFileGroupsFromResult({
-      output_files: 'ai-agent-os/output/report.xlsx'
+      output_files: 'kageos/output/report.xlsx'
     }, {
       display_file_fields: ['output_files']
     })
@@ -14,7 +14,7 @@ describe('extractFileGroupsFromResult', () => {
         label: 'Output Files',
         files: [
           {
-            ref: 'ai-agent-os/output/report.xlsx',
+            ref: 'kageos/output/report.xlsx',
             name: 'report.xlsx',
           }
         ]
@@ -25,11 +25,11 @@ describe('extractFileGroupsFromResult', () => {
   it('extracts a declared nested file field', () => {
     const groups = extractFileGroupsFromResult({
       data: {
-        preview_files: 'ai-agent-os/output/preview.png'
+        preview_files: 'kageos/output/preview.png'
       },
       variants: [
         {
-          rendered_files: 'ai-agent-os/output/clip.mp4'
+          rendered_files: 'kageos/output/clip.mp4'
         }
       ]
     }, {
@@ -41,7 +41,7 @@ describe('extractFileGroupsFromResult', () => {
         label: 'Data / Preview Files',
         files: [
           {
-            ref: 'ai-agent-os/output/preview.png',
+            ref: 'kageos/output/preview.png',
             name: 'preview.png',
           }
         ]
@@ -51,7 +51,7 @@ describe('extractFileGroupsFromResult', () => {
 
   it('supports JSON-string results with declared comma-separated refs', () => {
     const groups = extractFileGroupsFromResult(JSON.stringify({
-      output_files: 'ai-agent-os/output/audio.wav,ai-agent-os/output/subtitle.srt'
+      output_files: 'kageos/output/audio.wav,kageos/output/subtitle.srt'
     }), {
       display_file_fields: ['output_files']
     })
@@ -61,11 +61,11 @@ describe('extractFileGroupsFromResult', () => {
         label: 'Output Files',
         files: [
           {
-            ref: 'ai-agent-os/output/audio.wav',
+            ref: 'kageos/output/audio.wav',
             name: 'audio.wav',
           },
           {
-            ref: 'ai-agent-os/output/subtitle.srt',
+            ref: 'kageos/output/subtitle.srt',
             name: 'subtitle.srt',
           }
         ]
@@ -75,7 +75,7 @@ describe('extractFileGroupsFromResult', () => {
 
   it('does not extract refs without metadata', () => {
     const groups = extractFileGroupsFromResult({
-      output_files: 'ai-agent-os/output/report.xlsx'
+      output_files: 'kageos/output/report.xlsx'
     })
 
     expect(groups).toEqual([])
@@ -96,8 +96,8 @@ describe('extractFileGroupsFromResult', () => {
 
   it('rejects file-like fields when the whole string is not refs only', () => {
     const groups = extractFileGroupsFromResult({
-      output_files: '执行完成，文件: ai-agent-os/output/report.xlsx',
-      preview_files: 'ai-agent-os/output/preview.png, image/*',
+      output_files: '执行完成，文件: kageos/output/report.xlsx',
+      preview_files: 'kageos/output/preview.png, image/*',
       file_name: 'report.xlsx'
     }, {
       display_file_fields: ['output_files', 'preview_files', 'file_name']
@@ -108,8 +108,8 @@ describe('extractFileGroupsFromResult', () => {
 
   it('extracts only fields declared by metadata', () => {
     const groups = extractFileGroupsFromResult({
-      output_files: 'ai-agent-os/output/report.xlsx',
-      preview_files: 'ai-agent-os/output/preview.png'
+      output_files: 'kageos/output/report.xlsx',
+      preview_files: 'kageos/output/preview.png'
     }, {
       display_file_fields: ['output_files']
     })
@@ -119,7 +119,7 @@ describe('extractFileGroupsFromResult', () => {
         label: 'Output Files',
         files: [
           {
-            ref: 'ai-agent-os/output/report.xlsx',
+            ref: 'kageos/output/report.xlsx',
             name: 'report.xlsx',
           }
         ]
@@ -129,7 +129,7 @@ describe('extractFileGroupsFromResult', () => {
 
   it('does not fall back to guessed fields when metadata is present', () => {
     const groups = extractFileGroupsFromResult({
-      output_files: 'ai-agent-os/output/report.xlsx'
+      output_files: 'kageos/output/report.xlsx'
     }, {
       display_file_fields: []
     })

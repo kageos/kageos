@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/appinvoke"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/appinvoke"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/subjects"
 	"github.com/nats-io/nats.go"
 )
 
@@ -44,6 +44,12 @@ func (t *appInvokeTransport) requestApp(ctx context.Context, natsID int64, req *
 	invokeReq := *req
 	if invokeReq.ClientSource == "" {
 		invokeReq.ClientSource = contextx.GetClientSource(ctx)
+	}
+	if invokeReq.SourceType == "" {
+		invokeReq.SourceType = contextx.GetSourceType(ctx)
+	}
+	if invokeReq.SourceRef == "" {
+		invokeReq.SourceRef = contextx.GetSourceRef(ctx)
 	}
 	msg, err := appinvoke.BuildRuntimeRequestMsg(&invokeReq)
 	if err != nil {

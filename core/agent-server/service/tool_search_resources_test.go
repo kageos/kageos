@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 )
 
 func TestNormalizeSearchResourcesType(t *testing.T) {

@@ -41,5 +41,5 @@ DEALLOCATE PREPARE alterIfNotExists;
 -- 3. 初始化 system 用户（如果不存在）
 -- 注意：这里只是示例，实际应该在应用启动时通过代码初始化
 -- INSERT INTO `user` (`username`, `email`, `status`, `email_verified`, `type`, `created_at`, `updated_at`)
--- SELECT 'system', 'system@ai-agent-os.local', 'active', 1, 1, NOW(), NOW()
+-- SELECT 'system', 'system@kageos.local', 'active', 1, 1, NOW(), NOW()
 -- WHERE NOT EXISTS (SELECT 1 FROM `user` WHERE `username` = 'system');

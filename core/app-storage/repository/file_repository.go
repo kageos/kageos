@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-storage/model"
+	"github.com/kageos/kageos/core/app-storage/model"
 	"gorm.io/gorm"
 )
 

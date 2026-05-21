@@ -164,7 +164,7 @@ app-storage (9092)
 podman start minio
 
 # 启动 app-storage
-cd /Users/beiluo/Documents/work/code/ai-agent-os
+cd /Users/beiluo/Documents/work/code/kageos
 ./bin/app-storage
 
 # 启动 app-server
@@ -208,9 +208,9 @@ curl -X POST http://localhost:5173/api/v1/storage/upload_token \
 #   "code": 200,
 #   "data": {
 #     "method": "presigned_url",
-#     "url": "http://localhost:9000/ai-agent-os/luobei/.../test.pdf?...",
+#     "url": "http://localhost:9000/kageos/luobei/.../test.pdf?...",
 #     "key": "luobei/test88888/plugins/cashier_desk/2024/11/test.pdf",
-#     "bucket": "ai-agent-os",
+#     "bucket": "kageos",
 #     "expire": "2024-11-04T13:00:00Z"
 #   }
 # }

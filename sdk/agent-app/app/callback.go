@@ -1,15 +1,15 @@
 package app
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
+	"github.com/kageos/kageos/sdk/agent-app/callback"
 )
 
 const (
-	CallbackTypeOnTableAddRow          = "OnTableAddRow"
-	CallbackTypeOnTableUpdateRow       = "OnTableUpdateRow"
-	CallbackTypeOnTableDeleteRows      = "OnTableDeleteRows"
-	CallbackTypeOnPageLoad             = "OnPageLoad"
-	CallbackTypeOnSelectFuzzy          = "OnSelectFuzzy"
+	CallbackTypeOnTableAddRow     = "OnTableAddRow"
+	CallbackTypeOnTableUpdateRow  = "OnTableUpdateRow"
+	CallbackTypeOnTableDeleteRows = "OnTableDeleteRows"
+	CallbackTypeOnPageLoad        = "OnPageLoad"
+	CallbackTypeOnSelectFuzzy     = "OnSelectFuzzy"
 )
 
 type OnTableAddRow func(ctx *Context, req *callback.OnTableAddRowReq) (*callback.OnTableAddRowResp, error)

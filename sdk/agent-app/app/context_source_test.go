@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
 )
 
 func TestNewContextCarriesClientSource(t *testing.T) {
@@ -53,5 +53,35 @@ func TestNewContextCarriesRequestInfo(t *testing.T) {
 	}
 	if got := contextx.GetRequestDepartmentFullPath(ctx); got != "/org/dev" {
 		t.Fatalf("dept = %q, want /org/dev", got)
+	}
+}
+
+func TestNewContextCarriesPublicShareContext(t *testing.T) {
+	a := &App{}
+
+	ctx, err := a.NewContext(context.Background(), &dto.RequestAppReq{
+		TraceId:        "trace-1",
+		RequestUser:    "guest_anon_1",
+		Token:          "legacy-anon-token",
+		AnonymousToken: "anon-token",
+		ClientSource:   "public_share",
+		SourceType:     "public_share",
+		SourceRef:      "ps_123",
+	})
+	if err != nil {
+		t.Fatalf("NewContext returned error: %v", err)
+	}
+
+	if got := ctx.token; got != "" {
+		t.Fatalf("ctx.token = %q, want empty for public share", got)
+	}
+	if got := ctx.anonymousToken; got != "anon-token" {
+		t.Fatalf("ctx.anonymousToken = %q, want anon-token", got)
+	}
+	if got := contextx.GetSourceType(ctx); got != "public_share" {
+		t.Fatalf("source type = %q, want public_share", got)
+	}
+	if got := contextx.GetSourceRef(ctx); got != "ps_123" {
+		t.Fatalf("source ref = %q, want ps_123", got)
 	}
 }

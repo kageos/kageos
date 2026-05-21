@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/agent-server/model"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/logger"
 	"gorm.io/gorm"
 )
 

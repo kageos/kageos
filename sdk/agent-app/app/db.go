@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
 	"github.com/glebarez/sqlite"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/sdk/agent-app/env"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
 )
@@ -70,12 +70,12 @@ func sanitizeDBName(dbName string) string {
 		dbName = dbName + ".db"
 	}
 
-	// 计算数据目录（可配置，默认到 $HOME/.ai-agent-os/data）
+	// 计算数据目录（可配置，默认到 $HOME/.kageos/data）
 	base := getDataDir()
 	return filepath.Join(base, dbName)
 }
 
-// getDataDir 获取数据目录（优先环境变量 AI_AGENT_OS_DATA_DIR，其次 $HOME/.ai-agent-os/data）
+// getDataDir 获取数据目录（优先环境变量 KAGEOS_DATA_DIR，其次 $HOME/.kageos/data）
 func getDataDir() string {
 	// 固定为容器内的绝对路径
 	return "/app/workplace/data"

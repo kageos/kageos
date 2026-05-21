@@ -13,7 +13,7 @@ jwt:
   secret: "${JWT_SECRET}"
   access_token_expire: 2592000
   refresh_token_expire: 7776000
-  issuer: "ai-agent-os"
+  issuer: "kageos"
 
 sdk:
   nats_url: "${NATS_URL}"

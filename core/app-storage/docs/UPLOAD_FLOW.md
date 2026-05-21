@@ -60,7 +60,7 @@
 │          upload_domain: "http://localhost:9000", ✨ 上传域名      │
 │          headers: { "Content-Type": "application/pdf" },         │
 │          key: "luobei/test88888/.../xxx.pdf",                    │
-│          bucket: "ai-agent-os",                                 │
+│          bucket: "kageos",                                 │
 │          cdn_domain: "https://cdn.example.com"                   │
 │        }                                                         │
 └────────────────────┬────────────────────────────────────────────┘

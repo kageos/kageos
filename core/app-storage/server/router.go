@@ -1,9 +1,9 @@
 package server
 
 import (
-	v1 "github.com/ai-agent-os/ai-agent-os/core/app-storage/api/v1"
-	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
-	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
+	v1 "github.com/kageos/kageos/core/app-storage/api/v1"
+	middleware2 "github.com/kageos/kageos/pkg/middleware"
+	"github.com/kageos/kageos/pkg/pprof"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -27,10 +27,19 @@ func (s *Server) setupRoutes() {
 	// API v1 路由组
 	apiV1 := storage.Group("/api/v1")
 
+	// 公开上传：注册前企业 Logo 使用，接口内部会限制文件类型、大小和存储路径。
+	public := apiV1.Group("/public")
+	storageHandler := v1.NewStorage(s.storageService)
+	public.POST("/company_logo/upload_token", storageHandler.GetPublicCompanyLogoUploadToken)
+	public.POST("/company_logo/upload_complete", storageHandler.PublicCompanyLogoUploadComplete)
+	public.POST("/share/:share_id/upload_token", storageHandler.PublicShareGetUploadToken)
+	public.POST("/share/:share_id/upload_complete", storageHandler.PublicShareUploadComplete)
+	public.POST("/share/:share_id/batch_upload_complete", storageHandler.PublicShareBatchUploadComplete)
+	public.POST("/share/:share_id/files/resolve", storageHandler.PublicShareResolveFileRefs)
+
 	// 存储相关路由（需要JWT验证）
 	storageGroup := apiV1
 	storageGroup.Use(middleware2.JWTAuth()) // 存储管理需要JWT认证
-	storageHandler := v1.NewStorage(s.storageService)
 
 	// 上传相关
 	storageGroup.POST("/upload_token", storageHandler.GetUploadToken)

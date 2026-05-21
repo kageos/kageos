@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-storage/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-storage/service"
-	"github.com/ai-agent-os/ai-agent-os/core/app-storage/storage"
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/core/app-storage/model"
+	"github.com/kageos/kageos/core/app-storage/service"
+	"github.com/kageos/kageos/core/app-storage/storage"
+	"github.com/kageos/kageos/dto"
 )
 
 // getDefaultUploadSource 获取默认上传来源，如果为空则返回browser

@@ -1,7 +1,7 @@
 package model
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/app"
 	"testing"
 )
 

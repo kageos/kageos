@@ -37,6 +37,7 @@ type HRServerConfig struct {
 	Server     HRServerServerConfig `mapstructure:"server"`
 	Email      EmailConfig          `mapstructure:"email"`
 	DB         DBConfig             `mapstructure:"db"`
+	Company    CompanyConfig        `mapstructure:"company"`     // 默认企业配置
 	SystemUser SystemUserConfig     `mapstructure:"system_user"` // ⭐ 系统账号配置
 	// 注意：JWT 配置已移至全局配置，不再在此处配置
 	// 数据库配置保留在服务配置中，因为微服务后续每个服务一个库
@@ -45,6 +46,13 @@ type HRServerConfig struct {
 // SystemUserConfig 系统账号配置
 type SystemUserConfig struct {
 	Password string `mapstructure:"password"` // 系统账号密码（可选，如果为空则生成随机密码）
+}
+
+// CompanyConfig 默认企业配置。
+type CompanyConfig struct {
+	Code    string `mapstructure:"code"`
+	Name    string `mapstructure:"name"`
+	LogoURL string `mapstructure:"logo_url"`
 }
 
 // HRServerServerConfig hr-server 服务器配置
@@ -136,7 +144,7 @@ func (c *HRServerConfig) GetDatabaseDSN() string {
 		db.User = "root"
 	}
 	if db.Name == "" {
-		db.Name = "ai_agent_os"
+		db.Name = "kageos"
 	}
 
 	// MySQL DSN 格式: user:password@tcp(host:port)/dbname?charset=utf8mb4&parseTime=True&loc=Local
@@ -162,4 +170,31 @@ func (c *HRServerConfig) GetSystemUserPassword() string {
 	}
 	// 其次从配置文件获取
 	return c.SystemUser.Password
+}
+
+func (c *HRServerConfig) GetCompanyCode() string {
+	if envCode := os.Getenv("KAGEOS_COMPANY_CODE"); envCode != "" {
+		return envCode
+	}
+	if c.Company.Code != "" {
+		return c.Company.Code
+	}
+	return "default"
+}
+
+func (c *HRServerConfig) GetCompanyName() string {
+	if envName := os.Getenv("KAGEOS_COMPANY_NAME"); envName != "" {
+		return envName
+	}
+	if c.Company.Name != "" {
+		return c.Company.Name
+	}
+	return "Default"
+}
+
+func (c *HRServerConfig) GetCompanyLogoURL() string {
+	if envLogoURL := os.Getenv("KAGEOS_COMPANY_LOGO_URL"); envLogoURL != "" {
+		return envLogoURL
+	}
+	return c.Company.LogoURL
 }

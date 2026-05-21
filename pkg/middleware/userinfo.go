@@ -1,10 +1,10 @@
 package middleware
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/pkg/auth"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // WithUserInfo 为请求添加用户信息的中间件

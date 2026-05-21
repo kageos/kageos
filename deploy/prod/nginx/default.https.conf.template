@@ -21,7 +21,7 @@ server {
 server {
     listen 80 default_server;
     server_name ${CANONICAL_HOST} _;
-    include /etc/nginx/snippets/ai-agent-os-common.conf;
+    include /etc/nginx/snippets/kageos-common.conf;
 }
 
 server {
@@ -34,5 +34,5 @@ server {
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
 
-    include /etc/nginx/snippets/ai-agent-os-common.conf;
+    include /etc/nginx/snippets/kageos-common.conf;
 }

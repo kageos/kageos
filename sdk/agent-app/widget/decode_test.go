@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
-	apptypes "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+	"github.com/kageos/kageos/pkg/gormx/query"
+	apptypes "github.com/kageos/kageos/sdk/agent-app/types"
 )
 
 // 测试用的嵌套结构体

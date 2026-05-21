@@ -37,7 +37,7 @@ describe('useWorkspaceFunctionTabs', () => {
     }
   })
 
-  it('normalizes retired panel deep links back to content', () => {
+  it('opens the permission tab from the panel query', () => {
     const scope = effectScope()
 
     try {
@@ -65,7 +65,7 @@ describe('useWorkspaceFunctionTabs', () => {
         currentFunctionDetail
       }))!
 
-      expect(tabs.functionActiveTab.value).toBe('content')
+      expect(tabs.functionActiveTab.value).toBe('permission')
     } finally {
       scope.stop()
     }

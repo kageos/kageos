@@ -1,6 +1,6 @@
 // @title HR Server API
 // @version 1.0
-// @description AI Agent OS HR服务 API 文档（用户管理、组织架构、职责管理）
+// @description Kageos HR服务 API 文档（用户管理、组织架构、职责管理）
 // @termsOfService http://swagger.io/terms/
 
 // @contact.name API Support
@@ -8,7 +8,7 @@
 // @contact.email support@swagger.io
 
 // @license.name Business Source License 1.1
-// @license.url https://github.com/ai-agent-os/ai-agent-os/blob/main/LICENSE
+// @license.url https://github.com/kageos/kageos/blob/main/LICENSE
 
 // @host localhost:9091
 // @BasePath
@@ -30,7 +30,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/runner"
+	"github.com/kageos/kageos/core/hr-server/runner"
 )
 
 func main() {

@@ -1,9 +1,9 @@
 package server
 
 import (
-	v1 "github.com/ai-agent-os/ai-agent-os/core/hr-server/api/v1"
-	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
-	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
+	v1 "github.com/kageos/kageos/core/hr-server/api/v1"
+	middleware2 "github.com/kageos/kageos/pkg/middleware"
+	"github.com/kageos/kageos/pkg/pprof"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -30,6 +30,7 @@ func (s *Server) setupRoutes() {
 	authHandler := v1.NewAuth(s.authService, s.emailService, s.userService, s.departmentService)
 	auth.POST("/send_email_code", authHandler.SendEmailCode)
 	auth.POST("/register", authHandler.Register)
+	auth.GET("/companies/search", authHandler.SearchCompanies)
 	auth.POST("/login", authHandler.Login)
 	auth.POST("/refresh", authHandler.RefreshToken)
 	auth.POST("/logout", authHandler.Logout)

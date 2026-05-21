@@ -22,7 +22,7 @@
 
 ### 运行环境速查
 
-- 当前应用运行时基础镜像：`agentos-app-runtime-base:latest`
+- 当前应用运行时基础镜像：`kagebase:latest`
 - 运行时内已预装大量开源 CLI，可直接在 Go 代码里通过 `exec.Command("<可执行程序>", ...)` 调用
 - 新增工具默认**直接依赖 PATH**，不要额外设计 `*_PATH` 环境变量
 - 图片处理默认优先 **ImageMagick**：canonical Ubuntu 22.04 镜像内使用 `convert` / `identify` / `mogrify`

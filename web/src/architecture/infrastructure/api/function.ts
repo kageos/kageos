@@ -1,5 +1,6 @@
 import { get, post, put, del } from '@/architecture/infrastructure/apiClient/request'
 import type { FunctionDetail, SearchParams } from '@/architecture/domain/types'
+import { ensurePublicAnonymousToken, getCurrentPublicShareId, publicShareAnonymousHeaders } from './publicShare'
 
 export interface SelectFuzzyItem {
   value: unknown
@@ -141,13 +142,23 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
  * @param router 函数路由（如 /luobei/test999/plugins/cashier_desk），将转换为 full-code-path
  * @param data 回调数据
  */
-export function selectFuzzy(method: string, router: string, data: {
+export async function selectFuzzy(method: string, router: string, data: {
   code: string
   type: 'by_keyword' | 'by_value' | 'by_values'
   value: unknown
   request: Record<string, unknown>
   value_type: string
 }): Promise<SelectFuzzyResponse> {
+  const publicShareId = getCurrentPublicShareId()
+  if (publicShareId) {
+    await ensurePublicAnonymousToken()
+    return post<SelectFuzzyResponse>(
+      `/public/api/s/${publicShareId}/callback/on_select_fuzzy`,
+      data,
+      { headers: publicShareAnonymousHeaders() }
+    )
+  }
+
   // ⭐ 使用标准 API：/callback/on_select_fuzzy/{full-code-path}
   // router 格式：/luobei/app/dir/func，需要确保以 / 开头
   const fullCodePath = router.startsWith('/') ? router : `/${router}`

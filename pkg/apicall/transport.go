@@ -10,8 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/serviceconfig"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/publicshare"
+	"github.com/kageos/kageos/pkg/serviceconfig"
 )
 
 type ApiResult[T any] struct {
@@ -106,6 +107,9 @@ func applyCommonHeaders(req *http.Request, ctx context.Context) {
 	}
 	if sourceRef := contextx.GetSourceRef(ctx); sourceRef != "" {
 		req.Header.Set(contextx.SourceRefHeader, sourceRef)
+	}
+	if anonymousToken, ok := ctx.Value(publicshare.AnonymousTokenHeader).(string); ok && strings.TrimSpace(anonymousToken) != "" {
+		req.Header.Set(publicshare.AnonymousTokenHeader, strings.TrimSpace(anonymousToken))
 	}
 }
 

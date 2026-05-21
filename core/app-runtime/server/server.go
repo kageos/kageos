@@ -10,15 +10,15 @@ import (
 	"strconv"
 	"time"
 
-	v1 "github.com/ai-agent-os/ai-agent-os/core/app-runtime/api/v1"
-	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/repository"
-	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/service"
-	"github.com/ai-agent-os/ai-agent-os/pkg/builder"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/dbx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
+	v1 "github.com/kageos/kageos/core/app-runtime/api/v1"
+	"github.com/kageos/kageos/core/app-runtime/model"
+	"github.com/kageos/kageos/core/app-runtime/repository"
+	"github.com/kageos/kageos/core/app-runtime/service"
+	"github.com/kageos/kageos/pkg/builder"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/dbx"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/natsx"
 	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
 )
@@ -138,7 +138,7 @@ func (s *Server) initDatabase(ctx context.Context) error {
 }
 
 func resolveRuntimeDBPath() (string, error) {
-	root := config.GetAgentOSRoot()
+	root := config.GetKageOSRoot()
 	dataRoot := "data"
 	if root != "" {
 		dataRoot = filepath.Join(root, "data")

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ServiceTree } from '@/architecture/domain/types'
+import { setLocale } from '@/architecture/shared/i18n'
 import {
   buildServiceTreeNodeActionTestId,
   getServiceTreeNodeActions,
@@ -28,6 +29,8 @@ function commands(actions: ReturnType<typeof getServiceTreeNodeActions>): Servic
 }
 
 describe('serviceTreeNodeActions', () => {
+  setLocale('zh-CN')
+
   it('shows package actions with capability bundle wording', () => {
     const actions = getServiceTreeNodeActions(node({}))
 
@@ -42,6 +45,17 @@ describe('serviceTreeNodeActions', () => {
     ])
     expect(actions.find(action => action.command === 'export-json')?.label).toBe('导出能力包')
     expect(actions.find(action => action.command === 'import-json')?.label).toBe('导入能力包')
+  })
+
+  it('shows permission management only for nodes with admin access', () => {
+    expect(commands(getServiceTreeNodeActions(node({})))).not.toContain('manage-access')
+
+    const actions = getServiceTreeNodeActions(node({
+      permissions: { read: true, admin: true }
+    }))
+
+    expect(commands(actions)).toContain('manage-access')
+    expect(actions.find(action => action.command === 'manage-access')?.label).toBe('权限管理')
   })
 
   it('only shows delete and paste for eligible non-root packages', () => {

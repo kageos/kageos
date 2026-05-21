@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/service"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/core/hr-server/model"
+	"github.com/kageos/kageos/core/hr-server/service"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/ginx/response"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // User 用户相关API
@@ -62,6 +62,10 @@ func (u *User) GetUserInfo(c *gin.Context) {
 		response.FailWithMessage(c, "用户不存在: "+err.Error())
 		return
 	}
+	if err := u.ensureSameCompany(c, user); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 
 	// 转换为DTO（包含详细信息）
 	ctx := contextx.ToContext(c)
@@ -109,6 +113,10 @@ func (u *User) QueryUser(c *gin.Context) {
 	user, err := u.userService.GetUserByUsername(username)
 	if err != nil {
 		response.FailWithMessage(c, "用户不存在: "+err.Error())
+		return
+	}
+	if err := u.ensureSameCompany(c, user); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -162,7 +170,12 @@ func (u *User) SearchUsersFuzzy(c *gin.Context) {
 	keyword := extractUsernameFromDisplayName(req.Keyword)
 
 	// 查询用户列表
-	users, err := u.userService.SearchUsersFuzzy(keyword, req.Limit)
+	requester := contextx.GetRequestUser(c)
+	if requester == "" {
+		response.FailWithMessage(c, "未提供用户信息")
+		return
+	}
+	users, err := u.userService.SearchUsersFuzzyInRequesterCompany(requester, keyword, req.Limit)
 	if err != nil {
 		response.FailWithMessage(c, "查询失败: "+err.Error())
 		return
@@ -210,7 +223,12 @@ func (u *User) GetUsersByUsernames(c *gin.Context) {
 	}
 
 	// 查询用户列表
-	users, err := u.userService.GetUsersByUsernames(req.Usernames)
+	requester := contextx.GetRequestUser(c)
+	if requester == "" {
+		response.FailWithMessage(c, "未提供用户信息")
+		return
+	}
+	users, err := u.userService.GetUsersByUsernamesInRequesterCompany(requester, req.Usernames)
 	if err != nil {
 		response.FailWithMessage(c, "查询失败: "+err.Error())
 		return
@@ -302,6 +320,21 @@ func extractUsernameFromDisplayName(displayName string) string {
 	return strings.TrimSpace(strings.Split(displayName, "(")[0])
 }
 
+func (u *User) ensureSameCompany(c *gin.Context, target *model.User) error {
+	requester := contextx.GetRequestUser(c)
+	if requester == "" {
+		return fmt.Errorf("未提供用户信息")
+	}
+	current, err := u.userService.GetUserByUsername(requester)
+	if err != nil {
+		return fmt.Errorf("当前用户不存在: %w", err)
+	}
+	if current.CompanyCode != target.CompanyCode {
+		return fmt.Errorf("用户不存在")
+	}
+	return nil
+}
+
 // convertUserToDTO 将model.User转换为dto.UserInfo（基础版本，不包含详细信息）
 func convertUserToDTO(user *model.User) *dto.UserInfo {
 	return convertUserToDTOWithDetails(user, nil, nil)
@@ -315,6 +348,7 @@ func convertUserToDTOWithDetails(user *model.User, deptMap map[string]*model.Dep
 		ID:            user.ID,
 		Username:      user.Username,
 		Email:         user.Email,
+		CompanyCode:   user.CompanyCode,
 		RegisterType:  user.RegisterType,
 		Avatar:        user.Avatar,
 		Nickname:      user.Nickname,
@@ -371,6 +405,7 @@ func convertUsersToDTOBatch(ctx context.Context, users []*model.User, userServic
 	// 收集所有需要查询的部门路径和 Leader 用户名
 	deptPaths := make([]string, 0)
 	leaderUsernames := make([]string, 0)
+	companyCodes := make([]string, 0)
 
 	for _, user := range users {
 		if user.DepartmentFullPath != "" {
@@ -378,6 +413,29 @@ func convertUsersToDTOBatch(ctx context.Context, users []*model.User, userServic
 		}
 		if user.LeaderUsername != "" {
 			leaderUsernames = append(leaderUsernames, user.LeaderUsername)
+		}
+		if user.CompanyCode != "" {
+			companyCodes = append(companyCodes, user.CompanyCode)
+		}
+	}
+
+	companyMap := make(map[string]*model.Company)
+	if len(companyCodes) > 0 && userService != nil {
+		uniqueCodes := make(map[string]bool)
+		codeList := make([]string, 0, len(companyCodes))
+		for _, code := range companyCodes {
+			if !uniqueCodes[code] {
+				uniqueCodes[code] = true
+				codeList = append(codeList, code)
+			}
+		}
+		companies, err := userService.GetCompaniesByCodes(codeList)
+		if err != nil {
+			logger.Warnf(ctx, "[convertUsersToDTOBatch] 批量查询企业信息失败: %v", err)
+		} else {
+			for _, company := range companies {
+				companyMap[company.Code] = company
+			}
 		}
 	}
 
@@ -421,6 +479,10 @@ func convertUsersToDTOBatch(ctx context.Context, users []*model.User, userServic
 	userInfos := make([]*dto.UserInfo, 0, len(users))
 	for _, user := range users {
 		userInfo := convertUserToDTOWithDetails(user, deptMap, leaderMap)
+		if company := companyMap[user.CompanyCode]; company != nil {
+			userInfo.CompanyName = company.Name
+			userInfo.CompanyLogoURL = company.LogoURL
+		}
 		userInfos = append(userInfos, userInfo)
 	}
 

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 type PythonArtifact struct {

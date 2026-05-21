@@ -1,6 +1,6 @@
 # App Storage
 
-App Storage is the MinIO-backed file service for AI-Agent-OS. It provides presigned upload credentials, browser/server download URLs, file metadata records, listing, statistics, and delete operations.
+App Storage is the MinIO-backed file service for KageOS. It provides presigned upload credentials, browser/server download URLs, file metadata records, listing, statistics, and delete operations.
 
 ## Scope
 
@@ -75,7 +75,7 @@ storage:
     secret_key: minioadmin123
     use_ssl: false
     region: us-east-1
-    default_bucket: ai-agent-os
+    default_bucket: kageos
   upload:
     max_size: 104857600
     token_expire: 3600

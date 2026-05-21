@@ -1,9 +1,9 @@
 package server
 
 import (
-	v1 "github.com/ai-agent-os/ai-agent-os/core/app-server/api/v1"
-	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
-	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
+	v1 "github.com/kageos/kageos/core/app-server/api/v1"
+	middleware2 "github.com/kageos/kageos/pkg/middleware"
+	"github.com/kageos/kageos/pkg/pprof"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -21,6 +21,13 @@ func (s *Server) setupRoutes() {
 	// Swagger 文档路由
 	s.httpServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
+	publicShareHandler := v1.NewPublicShareAPI(s.publicShareService, s.appService, s.teamAccessService)
+	public := s.httpServer.Group("/public/api")
+	public.POST("/anonymous-token", publicShareHandler.AnonymousToken)
+	public.GET("/s/:share_id", publicShareHandler.View)
+	public.POST("/s/:share_id/submit", publicShareHandler.Submit)
+	public.POST("/s/:share_id/callback/on_select_fuzzy", publicShareHandler.CallbackOnSelectFuzzy)
+
 	// Workspace 路由组（统一使用 /workspace/api/v1 开头，方便网关代理）
 	workspace := s.httpServer.Group("/workspace")
 	apiV1 := workspace.Group("/api/v1")
@@ -31,7 +38,7 @@ func (s *Server) setupRoutes() {
 	// 应用管理路由（需要JWT验证）
 	app := apiV1.Group("/app")
 	app.Use(middleware2.JWTAuth()) // 应用管理需要JWT认证
-	appHandler := v1.NewApp(s.appService, s.serviceTreeService)
+	appHandler := v1.NewApp(s.appService, s.serviceTreeService, s.teamAccessService)
 	app.GET("/list", appHandler.GetApps)
 	app.GET("/detail", appHandler.GetAppDetail)
 	app.GET("/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
@@ -40,9 +47,24 @@ func (s *Server) setupRoutes() {
 	app.POST("/update", appHandler.UpdateApp)
 	app.PUT("/workspace", appHandler.UpdateWorkspace)
 
+	teamAccess := apiV1.Group("/team_access")
+	teamAccess.Use(middleware2.JWTAuth())
+	teamAccessHandler := v1.NewTeamAccess(s.teamAccessService)
+	teamAccess.GET("/members", teamAccessHandler.ListMembers)
+	teamAccess.POST("/assign", teamAccessHandler.Assign)
+	teamAccess.POST("/batch_assign", teamAccessHandler.BatchAssign)
+	teamAccess.POST("/remove", teamAccessHandler.Remove)
+	teamAccess.GET("/my_permissions", teamAccessHandler.MyPermissions)
+
+	publicShares := apiV1.Group("/public_shares")
+	publicShares.Use(middleware2.JWTAuth())
+	publicShares.POST("", publicShareHandler.Create)
+	publicShares.GET("", publicShareHandler.List)
+	publicShares.POST("/:share_id/disable", publicShareHandler.Disable)
+
 	// 服务目录管理路由（需要JWT验证）
 	serviceTree := apiV1.Group("/service_tree")
-	serviceTreeHandler := v1.NewServiceTree(s.serviceTreeService)
+	serviceTreeHandler := v1.NewServiceTree(s.serviceTreeService, s.teamAccessService)
 
 	// 需要JWT验证的路由
 	serviceTreeAuth := serviceTree.Group("")
@@ -81,7 +103,7 @@ func (s *Server) setupRoutes() {
 	// ⭐ 文档管理路由（基于完整路径，与 table/form/chart 风格一致）
 	docs := apiV1.Group("/docs")
 	docs.Use(middleware2.JWTAuth())
-	docHandler := v1.NewDoc(s.docService)
+	docHandler := v1.NewDoc(s.docService, s.teamAccessService)
 	docs.GET("/search", docHandler.SearchDocs)                 // 搜索文档（模糊搜索）
 	docs.GET("/batch", docHandler.BatchGetDocs)                // 批量获取文档（精确查询）
 	docs.GET("/info/*full-code-path", docHandler.GetDoc)       // 获取文档
@@ -107,9 +129,9 @@ func (s *Server) setupRoutes() {
 
 	// 操作日志路由（需要JWT验证）
 	operateLog := apiV1.Group("/operate_log")
-	operateLog.Use(middleware2.JWTAuth())                           // JWT 认证
-	operateLogHandler := v1.NewOperateLog(s.operateLogService)      // 查询 Table 操作日志
-	operateLog.GET("/table", operateLogHandler.GetTableOperateLogs) // 查询 Table 操作日志
+	operateLog.Use(middleware2.JWTAuth())                                           // JWT 认证
+	operateLogHandler := v1.NewOperateLog(s.operateLogService, s.teamAccessService) // 查询统一操作日志
+	operateLog.GET("/general", operateLogHandler.GetOperateLogs)                    // 查询通用操作日志
 
 	// 目录更新历史路由（需要JWT验证）
 	directoryUpdateHistory := apiV1.Group("/directory_update_history")
@@ -119,7 +141,7 @@ func (s *Server) setupRoutes() {
 	directoryUpdateHistory.GET("/directory", directoryUpdateHistoryHandler.GetDirectoryUpdateHistory)    // 获取目录更新历史（目录视角）
 
 	// ⭐ 标准接口路由（使用 full-code-path）
-	standardAPI := v1.NewStandardAPI(s.appService)
+	standardAPI := v1.NewStandardAPI(s.appService, s.teamAccessService)
 
 	// Table 函数接口
 	table := apiV1.Group("/table")

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
+	"github.com/kageos/kageos/core/app-server/model"
 	"gorm.io/gorm"
 )
 
@@ -465,6 +465,28 @@ func (r *ServiceTreeRepository) GetDescendantDirectories(appID int64, parentFull
 	return result, nil
 }
 
+// GetDescendantNodes 递归获取所有子节点（包括目录、函数和文档）。
+func (r *ServiceTreeRepository) GetDescendantNodes(appID int64, parentFullCodePath string) ([]*model.ServiceTree, error) {
+	normalizedPath := strings.TrimSuffix(parentFullCodePath, "/") + "/"
+
+	var descendants []*model.ServiceTree
+	err := r.db.Where("app_id = ? AND full_code_path LIKE ?",
+		appID, normalizedPath+"%").
+		Order("full_code_path ASC").
+		Find(&descendants).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*model.ServiceTree, 0, len(descendants))
+	for _, node := range descendants {
+		if strings.HasPrefix(node.FullCodePath, normalizedPath) {
+			result = append(result, node)
+		}
+	}
+	return result, nil
+}
+
 // splitSearchKeywords 将 keyword 按竖线 | 拆成多个关键词并去空，如 "视频|video|流媒体" -> ["视频","video","流媒体"]
 func splitSearchKeywords(keyword string) []string {
 	keyword = strings.TrimSpace(keyword)
@@ -495,19 +517,8 @@ func (r *ServiceTreeRepository) SearchFunctions(currentUser, user, app, keyword,
 			subq = subq.Where("code = ?", app)
 		}
 		query = query.Where("service_tree.app_id IN (?)", subq)
-	} else if currentUser != "" {
-		subq := r.db.Model(&model.App{}).Select("id").Where(
-			"is_public = ? OR user = ? OR admins = ? OR admins LIKE ? OR admins LIKE ? OR admins LIKE ?",
-			true,
-			currentUser,
-			currentUser,
-			currentUser+",%",
-			"%,"+currentUser+",%",
-			"%,"+currentUser,
-		)
-		if app != "" {
-			subq = subq.Where("code = ?", app)
-		}
+	} else if currentUser != "" && app != "" {
+		subq := r.db.Model(&model.App{}).Select("id").Where("code = ?", app)
 		query = query.Where("service_tree.app_id IN (?)", subq)
 	}
 	if templateType != "" {
@@ -565,19 +576,8 @@ func (r *ServiceTreeRepository) SearchResources(currentUser, user, app, keyword 
 			subq = subq.Where("code = ?", app)
 		}
 		query = query.Where("service_tree.app_id IN (?)", subq)
-	} else if currentUser != "" {
-		subq := r.db.Model(&model.App{}).Select("id").Where(
-			"is_public = ? OR user = ? OR admins = ? OR admins LIKE ? OR admins LIKE ? OR admins LIKE ?",
-			true,
-			currentUser,
-			currentUser,
-			currentUser+",%",
-			"%,"+currentUser+",%",
-			"%,"+currentUser,
-		)
-		if app != "" {
-			subq = subq.Where("code = ?", app)
-		}
+	} else if currentUser != "" && app != "" {
+		subq := r.db.Model(&model.App{}).Select("id").Where("code = ?", app)
 		query = query.Where("service_tree.app_id IN (?)", subq)
 	}
 

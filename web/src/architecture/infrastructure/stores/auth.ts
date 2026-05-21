@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { login as loginApi, logout as logoutApi, getUserInfo, refreshToken as refreshTokenApi } from '@/architecture/infrastructure/api/auth'
 import { updateUser as updateUserApi, type UpdateUserReq } from '@/architecture/infrastructure/api/user'
 import type { UserInfo, LoginRequest } from '@/architecture/domain/types'
+import { translate } from '@/architecture/shared/i18n'
 import { getCurrentRoutePath, navigateTo } from '@/architecture/shared/routing/navigation'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -56,7 +57,7 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('token', response.token)
       localStorage.setItem('user', JSON.stringify(response.user))
 
-      ElMessage.success('登录成功')
+      ElMessage.success(translate('auth.loginSuccess'))
 
       // 跳转到工作空间（会弹出选择工作空间）
       const username = response.user?.username || 'me'
@@ -64,7 +65,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       return response
     } catch (error) {
-      console.error('登录失败:', error)
+      console.error('Login failed:', error)
       throw error
     } finally {
       isLoading.value = false
@@ -84,12 +85,12 @@ export const useAuthStore = defineStore('auth', () => {
         await logoutApi()
       }
     } catch (error) {
-      console.error('登出请求失败:', error)
+      console.error('Logout request failed:', error)
     } finally {
       clearAuthState()
 
       if (notify) {
-        ElMessage.success('已退出登录')
+        ElMessage.success(translate('auth.logoutSuccess'))
       }
 
       if (redirectToLogin && getCurrentRoutePath() !== '/login') {
@@ -109,7 +110,7 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('user', JSON.stringify(userInfo))
       return userInfo
     } catch (error) {
-      console.error('获取用户信息失败:', error)
+      console.error('Failed to fetch user info:', error)
       // 如果获取用户信息失败，可能是token过期，清理状态
       await logout()
       throw error
@@ -175,11 +176,11 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = response.user
       // 更新 localStorage
       localStorage.setItem('user', JSON.stringify(response.user))
-      ElMessage.success('更新成功')
+      ElMessage.success(translate('common.updateSuccess'))
       return response.user
     } catch (error) {
-      console.error('更新用户信息失败:', error)
-      ElMessage.error('更新用户信息失败')
+      console.error('Failed to update user info:', error)
+      ElMessage.error(translate('common.updateFailed'))
       throw error
     }
   }

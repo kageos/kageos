@@ -1,22 +1,56 @@
 package dto
 
-// GetTableOperateLogsReq 查询 Table 操作日志请求
-type GetTableOperateLogsReq struct {
-	TenantUser   string `json:"tenant_user" form:"tenant_user"`       // 租户用户（app 的所有者）
-	RequestUser  string `json:"request_user" form:"request_user"`     // 请求用户（实际执行操作的用户）
-	App          string `json:"app" form:"app"`                       // 应用名
-	FullCodePath string `json:"full_code_path" form:"full_code_path"` // 完整代码路径
-	RowID        int64  `json:"row_id" form:"row_id"`                 // 记录ID
-	Action       string `json:"action" form:"action"`                 // 操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows
-	Page         int    `json:"page" form:"page"`                     // 页码（从1开始）
-	PageSize     int    `json:"page_size" form:"page_size"`           // 每页数量
-	OrderBy      string `json:"order_by" form:"order_by"`             // 排序字段（默认：created_at DESC）
+import "encoding/json"
+
+// GetOperateLogsReq 查询通用操作日志请求。
+type GetOperateLogsReq struct {
+	TenantUser         string `json:"tenant_user" form:"tenant_user"`
+	CompanyCode        string `json:"company_code" form:"company_code"`
+	ActorUser          string `json:"actor_user" form:"actor_user"`
+	TargetUser         string `json:"target_user" form:"target_user"`
+	App                string `json:"app" form:"app"`
+	ResourceType       string `json:"resource_type" form:"resource_type"`
+	ResourcePath       string `json:"resource_path" form:"resource_path"`
+	ResourcePathPrefix string `json:"resource_path_prefix" form:"resource_path_prefix"`
+	Action             string `json:"action" form:"action"`
+	Status             string `json:"status" form:"status"`
+	RowID              int64  `json:"row_id" form:"row_id"`
+	Keyword            string `json:"keyword" form:"keyword"`
+	Page               int    `json:"page" form:"page"`
+	PageSize           int    `json:"page_size" form:"page_size"`
+	OrderBy            string `json:"order_by" form:"order_by"`
 }
 
-// GetTableOperateLogsResp 查询 Table 操作日志响应
-type GetTableOperateLogsResp struct {
-	Logs     interface{} `json:"logs"`      // 日志列表
-	Total    int64       `json:"total"`     // 总数
-	Page     int         `json:"page"`      // 当前页码
-	PageSize int         `json:"page_size"` // 每页数量
+// GetOperateLogsResp 查询通用操作日志响应。
+type GetOperateLogsResp struct {
+	Logs     []OperateLogItem `json:"logs"`
+	Total    int64            `json:"total"`
+	Page     int              `json:"page"`
+	PageSize int              `json:"page_size"`
+}
+
+// OperateLogItem 是统一操作日志列表返回项。
+type OperateLogItem struct {
+	ID            int64           `json:"id"`
+	TenantUser    string          `json:"tenant_user"`
+	CompanyCode   string          `json:"company_code"`
+	App           string          `json:"app"`
+	ActorUser     string          `json:"actor_user"`
+	Action        string          `json:"action"`
+	ResourceType  string          `json:"resource_type"`
+	ResourcePath  string          `json:"resource_path"`
+	ResourceName  string          `json:"resource_name"`
+	TargetUser    string          `json:"target_user"`
+	TargetID      string          `json:"target_id"`
+	Summary       string          `json:"summary"`
+	DetailsJSON   json.RawMessage `json:"details_json" swaggertype:"object"`
+	OldValuesJSON json.RawMessage `json:"old_values_json" swaggertype:"object"`
+	NewValuesJSON json.RawMessage `json:"new_values_json" swaggertype:"object"`
+	Status        string          `json:"status"`
+	Source        string          `json:"source"`
+	IPAddress     string          `json:"ip_address"`
+	UserAgent     string          `json:"user_agent"`
+	TraceID       string          `json:"trace_id"`
+	CreatedAt     string          `json:"created_at"`
+	UpdatedAt     string          `json:"updated_at"`
 }

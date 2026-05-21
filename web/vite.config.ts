@@ -91,6 +91,10 @@ export default defineConfig(({ command, mode }) => {
         changeOrigin: true,
         rewrite: (path) => path, // 不重写路径，直接转发
       },
+      '/public/api': {
+        target: proxyTarget,
+        changeOrigin: true,
+      },
       // Agent API 通过网关代理（只代理 API 请求，不代理页面路由）
       '/agent/api': {
         target: proxyTarget,
@@ -123,7 +127,7 @@ export default defineConfig(({ command, mode }) => {
         changeOrigin: true,
       },
       // MinIO 文件代理。需保留浏览器 Host（changeOrigin: false）以便预签名与 MinIO 收到的 Host 一致；本地配置 cdn_domain 为前端 origin 如 http://localhost:5173
-      '/ai-agent-os': {
+      '/kageos': {
         target: minioTarget,
         changeOrigin: false,
       },

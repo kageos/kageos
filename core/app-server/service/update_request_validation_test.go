@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 )
 
 func TestServiceTreeMutationUpdateMetadataRequiresID(t *testing.T) {

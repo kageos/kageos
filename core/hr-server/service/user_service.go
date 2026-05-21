@@ -4,22 +4,24 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/hr-server/model"
+	"github.com/kageos/kageos/core/hr-server/repository"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // UserService 用户服务
 type UserService struct {
 	userRepo        *repository.UserRepository
+	companyRepo     *repository.CompanyRepository
 	tokenPublisher  TokenPublisher                    // 可选：向 gateway 发布 token 命令
 	userSessionRepo *repository.UserSessionRepository // ⭐ 新增：用户会话仓库（用于查询活跃会话）
 }
 
 // NewUserService 创建用户服务（依赖注入）
-func NewUserService(userRepo *repository.UserRepository, tokenPublisher TokenPublisher, userSessionRepo *repository.UserSessionRepository) *UserService {
+func NewUserService(userRepo *repository.UserRepository, companyRepo *repository.CompanyRepository, tokenPublisher TokenPublisher, userSessionRepo *repository.UserSessionRepository) *UserService {
 	return &UserService{
 		userRepo:        userRepo,
+		companyRepo:     companyRepo,
 		tokenPublisher:  tokenPublisher,
 		userSessionRepo: userSessionRepo,
 	}
@@ -42,6 +44,20 @@ func (s *UserService) SearchUsersFuzzy(keyword string, limit int) ([]*model.User
 	return s.userRepo.SearchUsersFuzzy(keyword, limit)
 }
 
+func (s *UserService) SearchUsersFuzzyInRequesterCompany(requesterUsername, keyword string, limit int) ([]*model.User, error) {
+	requester, err := s.userRepo.GetUserByUsername(requesterUsername)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	return s.userRepo.SearchUsersFuzzyByCompany(requester.CompanyCode, keyword, limit)
+}
+
 // GetUsersByUsernames 批量获取用户信息
 func (s *UserService) GetUsersByUsernames(usernames []string) ([]*model.User, error) {
 	// 限制批量查询数量，防止大量数据查询
@@ -50,6 +66,22 @@ func (s *UserService) GetUsersByUsernames(usernames []string) ([]*model.User, er
 		usernames = usernames[:100]
 	}
 	return s.userRepo.GetUsersByUsernames(usernames)
+}
+
+func (s *UserService) GetUsersByUsernamesInRequesterCompany(requesterUsername string, usernames []string) ([]*model.User, error) {
+	if len(usernames) > 100 {
+		logger.Warnf(nil, "[UserService] Too many usernames in batch query, limiting to 100")
+		usernames = usernames[:100]
+	}
+	requester, err := s.userRepo.GetUserByUsername(requesterUsername)
+	if err != nil {
+		return nil, err
+	}
+	return s.userRepo.GetUsersByUsernamesAndCompany(usernames, requester.CompanyCode)
+}
+
+func (s *UserService) GetCompaniesByCodes(codes []string) ([]*model.Company, error) {
+	return s.companyRepo.GetCompaniesByCodes(codes)
 }
 
 // UpdateUser 更新用户信息（只更新提供的字段，空字符串会被忽略）

@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/runner"
+	"github.com/kageos/kageos/core/app-runtime/runner"
 )
 
 func main() {

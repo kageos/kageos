@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/containers/podman/v5/pkg/bindings"
 	"github.com/containers/podman/v5/pkg/bindings/containers"
 	"github.com/containers/podman/v5/pkg/bindings/images"
 	"github.com/containers/podman/v5/pkg/domain/entities"
 	"github.com/containers/podman/v5/pkg/specgen"
+	appconfig "github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // ContainerOperator 容器操作接口
@@ -767,7 +767,7 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 		}
 	case LSMSELinux:
 		// SELinux 防护依赖宿主机上安装的策略模块 + 目录标签（deploy/security/selinux/install.sh），
-		// 挂载时不加 :z/:Z 以保持 ai_agent_os_data_t 标签不被覆盖。
+		// 挂载时不加 :z/:Z 以保持 kageos_data_t 标签不被覆盖。
 		logger.Infof(ctx, "[LSM] SELinux 环境，容器 %s 依赖宿主机策略模块与目录标签防删", name)
 	default:
 		logger.Warnf(ctx, "[LSM] 未检测到可用 LSM，容器 %s 无内核级防删保护", name)

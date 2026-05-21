@@ -13,12 +13,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/netprobe"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/natsx"
+	"github.com/kageos/kageos/pkg/netprobe"
+	"github.com/kageos/kageos/pkg/subjects"
+	"github.com/kageos/kageos/sdk/agent-app/env"
 	"github.com/nats-io/nats.go"
 )
 

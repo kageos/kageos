@@ -4,7 +4,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROFILE_NAME="ai-agent-os-app"
+PROFILE_NAME="kageos-app"
 PROFILE_SRC="$SCRIPT_DIR/$PROFILE_NAME"
 PROFILE_DST="/etc/apparmor.d/$PROFILE_NAME"
 

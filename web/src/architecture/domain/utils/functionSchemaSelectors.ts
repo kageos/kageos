@@ -44,6 +44,10 @@ export function getTableRawFields(functionDetail?: FunctionDetail | null): Field
   return getFunctionSchema(functionDetail)?.table?.fields || []
 }
 
+export function getTableAllFields(functionDetail?: FunctionDetail | null): FieldConfig[] {
+  return getTableRawFields(functionDetail)
+}
+
 export function getTableListFields(functionDetail?: FunctionDetail | null): FieldConfig[] {
   return getTableRawFields(functionDetail).filter((field) => visibleInScene(field, 'list'))
 }

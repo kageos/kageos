@@ -7,9 +7,9 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/core/app-server/repository"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 func readDirectorySnapshotsRecursively(

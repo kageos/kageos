@@ -1,6 +1,6 @@
 # SDK 平台 API 参考
 
-本文档说明 SDK 代码如何调用 AgentOS 平台能力。
+本文档说明 SDK 代码如何调用 KageOS 平台能力。
 
 ## ctx.APICall
 
@@ -13,11 +13,12 @@ err := ctx.APICall(method, path, reqBody, respData)
 规则：
 
 - `method` 使用 `http.MethodGet`、`http.MethodPost` 等。
-- `path` 使用平台网关路径，例如 `/workspace/api/v1/operate_log/table`。
+- `path` 使用平台网关路径，例如 `/workspace/api/v1/operate_log/general`。
 - `reqBody` 是请求体；GET 可传 `nil`。
 - `respData` 是响应 `data` 对应结构体指针。
 - SDK 会带上 token、trace、request_user、department、client_source、source_type、source_ref。
 - 平台 Web API 负责身份上下文、Table 更新日志和数据边界。
+- 字段 `sensitive:"true"` 只影响平台操作日志脱敏；业务数据库仍按应用代码明文写入。不要生成 `password:true` 组件。
 
 禁止：
 

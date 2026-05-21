@@ -1,31 +1,88 @@
 <template>
   <div class="detail-content">
     <div v-if="packageNode">
-      <PackageDetailOverviewCard
-        :package-node="packageNode"
-        :total-run-count="totalRunCount"
-      />
-      <details v-if="directoryMarkdown" class="directory-markdown-detail">
-        <summary class="directory-markdown-summary">
-          <span>目录详情</span>
-          <span class="directory-markdown-summary-hint">展开</span>
-        </summary>
-        <div class="directory-markdown-body" v-html="renderMarkdown(directoryMarkdown)" />
-      </details>
-      <PackageDetailChildrenGrid
-        :children="packageNode.children || []"
-        @select-child="$emit('select-child', $event)"
-      />
+      <el-tabs v-model="activeTab" class="detail-tabs">
+        <el-tab-pane :label="t('packageDetail.detail')" name="detail">
+          <div class="tab-content">
+            <PackageDetailOverviewCard
+              :package-node="packageNode"
+              :total-run-count="totalRunCount"
+            />
+            <details
+              v-if="directoryMarkdown"
+              class="directory-markdown-detail"
+              @toggle="handleDirectoryDetailsToggle"
+            >
+              <summary class="directory-markdown-summary">
+                <span>{{ t('packageDetail.detail') }}</span>
+                <span class="directory-markdown-summary-hint">
+                  {{ directoryDetailsOpen ? t('packageDetail.collapse') : t('packageDetail.expand') }}
+                </span>
+              </summary>
+              <div class="directory-markdown-body" v-html="renderMarkdown(directoryMarkdown)" />
+            </details>
+            <PackageDetailChildrenGrid
+              :children="packageNode.children || []"
+              @select-child="$emit('select-child', $event)"
+            />
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane :label="t('packageDetail.permission')" name="permission">
+          <div class="tab-content access-tab-content">
+            <TeamAccessPanel
+              ref="accessPanelRef"
+              :node="packageNode"
+              embedded
+              @changed="$emit('access-changed')"
+            />
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane
+          v-if="featureFlags.operateLogs"
+          :label="t('packageDetail.operateLog')"
+          name="operateLog"
+        >
+          <div class="tab-content operate-log-tab-content">
+            <OperateLogSection
+              ref="operateLogSectionRef"
+              :full-code-path="packageNode.full_code_path || ''"
+              :row-id="0"
+              :function-detail="null"
+              scope="directory"
+              embedded
+              show-refresh
+              :title="t('packageDetail.directoryOperateLog')"
+              :auto-load="false"
+            />
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ServiceTree } from '@/architecture/domain/types'
 import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
+import OperateLogSection from './OperateLogSection.vue'
+import TeamAccessPanel from './TeamAccessPanel.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
+import { featureFlags } from '@/architecture/shared/config/features'
+
+type PackageTabName = 'detail' | 'permission' | 'operateLog'
+
+interface LoadableOperateLogSection {
+  load: () => void
+}
+
+interface LoadableAccessPanel {
+  loadMembers: () => void
+}
 
 const props = defineProps<{
   packageNode: ServiceTree | null
@@ -34,14 +91,49 @@ const props = defineProps<{
 
 defineEmits<{
   (e: 'select-child', child: ServiceTree): void
+  (e: 'access-changed'): void
 }>()
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
+const { t } = useI18n()
+
+const activeTab = ref<PackageTabName>('detail')
+const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
+const accessPanelRef = ref<LoadableAccessPanel | null>(null)
+const directoryDetailsOpen = ref(false)
 
 const directoryMarkdown = computed(() => {
   return props.packageNode?.description?.trim() || ''
 })
+
+function loadOperateLogTab(tabName: PackageTabName) {
+  if (tabName === 'operateLog' && featureFlags.operateLogs) {
+    nextTick(() => operateLogSectionRef.value?.load())
+  }
+  if (tabName === 'permission') {
+    nextTick(() => accessPanelRef.value?.loadMembers())
+  }
+}
+
+function handleDirectoryDetailsToggle(event: Event) {
+  directoryDetailsOpen.value = (event.currentTarget as HTMLDetailsElement).open
+}
+
+watch(
+  activeTab,
+  (tabName) => loadOperateLogTab(tabName),
+  { immediate: true }
+)
+
+watch(
+  () => props.packageNode?.full_code_path,
+  () => {
+    if (activeTab.value === 'operateLog') {
+      loadOperateLogTab('operateLog')
+    }
+  }
+)
 
 </script>
 
@@ -55,6 +147,8 @@ const directoryMarkdown = computed(() => {
 }
 
 .detail-tabs {
+  min-height: 0;
+
   :deep(.el-tabs__header) {
     margin: 10px 0 18px;
     overflow: visible;
@@ -143,6 +237,11 @@ const directoryMarkdown = computed(() => {
   padding: 0;
 }
 
+.operate-log-tab-content,
+.access-tab-content {
+  min-height: 360px;
+}
+
 .directory-markdown-detail {
   margin: -8px 0 24px;
   border: 1px solid var(--app-shell-panel-border);
@@ -190,15 +289,6 @@ const directoryMarkdown = computed(() => {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   font-weight: 600;
-}
-
-.directory-markdown-detail[open] .directory-markdown-summary-hint {
-  font-size: 0;
-}
-
-.directory-markdown-detail[open] .directory-markdown-summary-hint::after {
-  content: '收起';
-  font-size: 12px;
 }
 
 .directory-markdown-body {

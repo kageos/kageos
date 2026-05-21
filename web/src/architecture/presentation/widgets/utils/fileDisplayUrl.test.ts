@@ -3,7 +3,7 @@ import { getFileDisplayUrl, normalizeFileDisplayUrl } from './fileDisplayUrl'
 
 describe('fileDisplayUrl', () => {
   it('keeps relative storage proxy paths unchanged', () => {
-    expect(normalizeFileDisplayUrl('/ai-agent-os/demo/image.png')).toBe('/ai-agent-os/demo/image.png')
+    expect(normalizeFileDisplayUrl('/kageos/demo/image.png')).toBe('/kageos/demo/image.png')
   })
 
   it('keeps absolute browser urls unchanged', () => {
@@ -16,15 +16,15 @@ describe('fileDisplayUrl', () => {
 
   it('prefers browser download url over server download url', () => {
     expect(getFileDisplayUrl({
-      download_url: '/ai-agent-os/demo/image.png',
-      server_download_url: 'http://host.containers.internal:9000/ai-agent-os/demo/image.png?sign=1'
-    } as any)).toBe('/ai-agent-os/demo/image.png')
+      download_url: '/kageos/demo/image.png',
+      server_download_url: 'http://host.containers.internal:9000/kageos/demo/image.png?sign=1'
+    } as any)).toBe('/kageos/demo/image.png')
   })
 
   it('falls back to server download url when browser download url is empty', () => {
     expect(getFileDisplayUrl({
       download_url: '',
-      server_download_url: 'http://host.containers.internal:9000/ai-agent-os/demo/image.png?sign=1'
-    } as any)).toBe('http://host.containers.internal:9000/ai-agent-os/demo/image.png?sign=1')
+      server_download_url: 'http://host.containers.internal:9000/kageos/demo/image.png?sign=1'
+    } as any)).toBe('http://host.containers.internal:9000/kageos/demo/image.png?sign=1')
   })
 })

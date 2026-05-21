@@ -7,12 +7,15 @@ import {
   DocumentChecked,
   Download,
   Edit,
+  Key,
   Plus,
   Upload
 } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { isRootNode } from '@/architecture/domain/utils/tree-utils'
 import { featureFlags } from '@/architecture/shared/config/features'
+import { canAdmin } from '../composables/useAccessControl'
+import { translate } from '@/architecture/shared/i18n'
 
 export type ServiceTreeNodeActionCommand =
   | 'create-directory'
@@ -26,6 +29,7 @@ export type ServiceTreeNodeActionCommand =
   | 'paste'
   | 'delete-function'
   | 'delete-doc'
+  | 'manage-access'
   | 'update-history'
 
 export interface ServiceTreeNodeAction {
@@ -46,68 +50,74 @@ export function getServiceTreeNodeActions(
   const actions: ServiceTreeNodeAction[] = [
     {
       command: 'create-directory',
-      label: '添加服务目录',
+      label: translate('serviceTree.addDirectory'),
       icon: Plus,
       visible: data.type === 'package'
     },
     {
       command: 'create-docs',
-      label: '创建文档',
+      label: translate('serviceTree.createDocs'),
       icon: Document,
       visible: data.type === 'package'
     },
     {
       command: 'open-workstation',
-      label: '打开工作台',
+      label: translate('serviceTree.openWorkbench'),
       icon: ChatDotRound,
       visible: data.type === 'package'
     },
     {
+      command: 'manage-access',
+      label: translate('serviceTree.manageAccess'),
+      icon: Key,
+      visible: Boolean(data.full_code_path) && canAdmin(data)
+    },
+    {
       command: 'delete-directory',
-      label: '删除目录',
+      label: translate('serviceTree.deleteDirectory'),
       icon: Delete,
       visible: data.type === 'package' && !isRootNode(data)
     },
     {
       command: 'rename',
-      label: '重命名',
+      label: translate('serviceTree.rename'),
       icon: Edit,
       visible: data.type === 'package'
     },
     {
       command: 'copy',
-      label: '复制',
+      label: translate('serviceTree.copy'),
       icon: CopyDocument,
       visible: data.type === 'package'
     },
     {
       command: 'export-json',
-      label: '导出能力包',
+      label: translate('serviceTree.exportBundle'),
       icon: Download,
       visible: featureFlags.capabilityBundle && data.type === 'package'
     },
     {
       command: 'import-json',
-      label: '导入能力包',
+      label: translate('serviceTree.importBundle'),
       icon: Upload,
       visible: featureFlags.capabilityBundle && data.type === 'package'
     },
     {
       command: 'paste',
-      label: '粘贴',
+      label: translate('serviceTree.paste'),
       icon: DocumentChecked,
       visible: data.type === 'package'
         && Boolean(options.hasCopiedDirectory)
     },
     {
       command: 'delete-function',
-      label: '删除函数',
+      label: translate('serviceTree.deleteFunction'),
       icon: Delete,
       visible: data.type === 'function'
     },
     {
       command: 'delete-doc',
-      label: '删除文档',
+      label: translate('serviceTree.deleteDoc'),
       icon: Delete,
       visible: data.type === 'docs'
     },

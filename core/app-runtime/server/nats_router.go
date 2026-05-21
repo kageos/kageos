@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	v1 "github.com/ai-agent-os/ai-agent-os/core/app-runtime/api/v1"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
+	v1 "github.com/kageos/kageos/core/app-runtime/api/v1"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/subjects"
 	"github.com/nats-io/nats.go"
 )
 

@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/core/app-server/repository"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -17,14 +18,16 @@ type DocService struct {
 	docRepo         *repository.DocRepository
 	serviceTreeRepo *repository.ServiceTreeRepository
 	appRepo         *repository.AppRepository
+	teamAccess      *TeamAccessService
 }
 
 // NewDocService 创建文档服务
-func NewDocService(docRepo *repository.DocRepository, serviceTreeRepo *repository.ServiceTreeRepository, appRepo *repository.AppRepository) *DocService {
+func NewDocService(docRepo *repository.DocRepository, serviceTreeRepo *repository.ServiceTreeRepository, appRepo *repository.AppRepository, teamAccess *TeamAccessService) *DocService {
 	return &DocService{
 		docRepo:         docRepo,
 		serviceTreeRepo: serviceTreeRepo,
 		appRepo:         appRepo,
+		teamAccess:      teamAccess,
 	}
 }
 
@@ -264,6 +267,9 @@ func (s *DocService) SearchDocs(ctx context.Context, req *dto.SearchDocsReq) (*d
 	// 转换为 DTO
 	docItems := make([]*dto.DocItem, 0, len(docs))
 	for _, doc := range docs {
+		if !s.canReadPath(ctx, doc.FullCodePath) {
+			continue
+		}
 		item := &dto.DocItem{
 			ID:           doc.ID,
 			Name:         doc.Name,
@@ -286,7 +292,7 @@ func (s *DocService) SearchDocs(ctx context.Context, req *dto.SearchDocsReq) (*d
 
 	return &dto.SearchDocsResp{
 		Docs:     docItems,
-		Total:    total,
+		Total:    int64(len(docItems)),
 		Page:     req.Page,
 		PageSize: req.PageSize,
 	}, nil
@@ -306,6 +312,9 @@ func (s *DocService) BatchGetDocs(ctx context.Context, req *dto.BatchGetDocsReq)
 	// 转换为 DTO
 	docItems := make([]*dto.DocItem, 0, len(docs))
 	for _, doc := range docs {
+		if !s.canReadPath(ctx, doc.FullCodePath) {
+			continue
+		}
 		item := &dto.DocItem{
 			ID:           doc.ID,
 			Name:         doc.Name,
@@ -327,6 +336,18 @@ func (s *DocService) BatchGetDocs(ctx context.Context, req *dto.BatchGetDocsReq)
 		req.Paths, len(docItems), req.IncludeContent)
 
 	return &dto.BatchGetDocsResp{Docs: docItems}, nil
+}
+
+func (s *DocService) canReadPath(ctx context.Context, fullCodePath string) bool {
+	if s.teamAccess == nil {
+		return true
+	}
+	tenantUser, app, err := access.ParseUserApp(fullCodePath)
+	if err != nil {
+		return false
+	}
+	ok, err := s.teamAccess.Can(ctx, tenantUser, app, contextx.GetRequestUser(ctx), fullCodePath, access.ActionRead)
+	return err == nil && ok
 }
 
 // ==================== 基于路径的文档操作（新接口，用于 /docs/*full-code-path） ====================

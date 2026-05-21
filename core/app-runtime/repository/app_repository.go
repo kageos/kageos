@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/model"
+	"github.com/kageos/kageos/core/app-runtime/model"
 	"gorm.io/gorm"
 )
 

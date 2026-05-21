@@ -22,6 +22,7 @@ export function useFilesValueSync(options: UseFilesValueSyncOptions) {
   const updateFiles = async (files: FileItem[]): Promise<void> => {
     const refs = files.map(file => file.ref).filter(Boolean)
     const raw = stringifyFileRefs(refs)
+    options.setCurrentFiles?.(files)
 
     emitFieldValue({
       raw,

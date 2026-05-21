@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
+	"github.com/kageos/kageos/pkg/gormx/query"
 )
 
 // LinkValue Link 组件的值结构（JSON 格式）

@@ -1,7 +1,7 @@
 package model
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"github.com/kageos/kageos/pkg/gormx/models"
 	"gorm.io/gorm"
 )
 
@@ -11,8 +11,9 @@ type User struct {
 	UpdatedAt     models.Time    `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 	DeletedAt     gorm.DeletedAt `json:"-" gorm:"index"`
 	CreatedBy     string         `json:"created_by" gorm:"column:created_by;type:varchar(255)"`
-	Username      string         `json:"username" gorm:"column:username;type:varchar(255);uniqueIndex;not null"`     // 登录用户名，唯一
-	Email         string         `json:"email" gorm:"column:email;type:varchar(255);uniqueIndex"`                    // 邮箱，用于注册验证，可为空（第三方登录用户）
+	Username      string         `json:"username" gorm:"column:username;type:varchar(255);uniqueIndex;not null"` // 登录用户名，唯一
+	Email         string         `json:"email" gorm:"column:email;type:varchar(255);uniqueIndex"`                // 邮箱，用于注册验证，可为空（第三方登录用户）
+	CompanyCode   string         `json:"company_code" gorm:"column:company_code;type:varchar(64);index;not null;default:'default';comment:企业代码"`
 	PasswordHash  string         `json:"-" gorm:"column:password_hash;type:varchar(255)"`                            // 密码哈希，不返回给前端
 	Status        string         `json:"status" gorm:"column:status;type:varchar(50);default:'pending'"`             // 用户状态: pending(待邮箱验证), active(已激活)
 	EmailVerified bool           `json:"email_verified" gorm:"column:email_verified;type:boolean;default:false"`     // 邮箱是否已验证

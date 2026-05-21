@@ -321,7 +321,7 @@ func analyzeChangeImpact(oldApi, newApi *ApiInfo) ChangeImpact {
 
 ## ✅ 总结
 
-UpdateVersions功能为AI Agent OS提供了完整的API变更历史追踪能力：
+UpdateVersions功能为Kageos提供了完整的API变更历史追踪能力：
 
 1. **完整历史**: 记录API从创建到每次修改的完整版本历史
 2. **活跃度分析**: 通过更新频率识别API的活跃程度
@@ -329,4 +329,4 @@ UpdateVersions功能为AI Agent OS提供了完整的API变更历史追踪能力�
 4. **智能提示**: 前端可以根据历史数据提供更好的用户体验
 5. **数据驱动**: 为API优化和重构提供数据支持
 
-这个功能让你的AI Agent OS不仅是代码生成工具，更是一个**智能的API生命周期管理平台**！🚀
+这个功能让你的Kageos不仅是代码生成工具，更是一个**智能的API生命周期管理平台**！🚀

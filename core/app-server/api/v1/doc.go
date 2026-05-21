@@ -1,22 +1,25 @@
 package v1
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/core/app-server/service"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/ginx/response"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 type Doc struct {
-	docService *service.DocService
+	docService        *service.DocService
+	teamAccessService *service.TeamAccessService
 }
 
 // NewDoc 创建文档处理器（依赖注入）
-func NewDoc(docService *service.DocService) *Doc {
+func NewDoc(docService *service.DocService, teamAccessService *service.TeamAccessService) *Doc {
 	return &Doc{
-		docService: docService,
+		docService:        docService,
+		teamAccessService: teamAccessService,
 	}
 }
 
@@ -38,6 +41,10 @@ func (s *Doc) GetDoc(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
 		response.FailWithMessage(c, "路径不能为空")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -82,6 +89,10 @@ func (s *Doc) UpdateDoc(c *gin.Context) {
 
 	// 从 URL 路径参数填充 FullCodePath 到 DTO
 	req.FullCodePath = fullCodePath
+	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionUpdate); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 
 	ctx := contextx.ToContext(c)
 	doc, err := s.docService.UpdateDoc(ctx, &req)
@@ -112,6 +123,10 @@ func (s *Doc) DeleteDoc(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
 		response.FailWithMessage(c, "路径不能为空")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionDelete); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -183,6 +198,12 @@ func (s *Doc) BatchGetDocs(c *gin.Context) {
 	if len(req.Paths) == 0 {
 		response.FailWithMessage(c, "paths 参数不能为空")
 		return
+	}
+	for _, path := range req.Paths {
+		if err := requireAccess(c, s.teamAccessService, path, access.ActionRead); err != nil {
+			response.FailWithMessage(c, err.Error())
+			return
+		}
 	}
 
 	ctx := contextx.ToContext(c)

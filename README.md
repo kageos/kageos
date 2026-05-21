@@ -1,6 +1,6 @@
-# AI-Agent-OS
+# KageOS
 
-AI-Agent-OS is a source-available AI light-application workspace for individuals and small teams. Users describe an internal tool in natural language, confirm a lightweight PRD, and let the system generate runnable `Form`, `Table`, and `Chart` applications.
+KageOS is a source-available AI light-application workspace for individuals and small teams. Users describe an internal tool in natural language, confirm a lightweight PRD, and let the system generate runnable `Form`, `Table`, and `Chart` applications.
 
 The project is currently licensed under the Business Source License 1.1. It is not OSI open source today; see [LICENSE](LICENSE) for the exact grant, Hosted Service restriction, Change Date, and future Apache-2.0 change license.
 
@@ -100,4 +100,4 @@ The same checks are wired into GitHub Actions in `.github/workflows/ci.yml`.
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before opening issues or pull requests.
 
-Do not commit real `.env` files, production `aos.yaml`, customer licenses, generated deployment output, `namespace/`, `local/`, or other private workspaces. Use the example files and local overrides instead.
+Do not commit real `.env` files, production `kage.yaml`, customer licenses, generated deployment output, `namespace/`, `local/`, or other private workspaces. Use the example files and local overrides instead.

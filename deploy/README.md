@@ -23,12 +23,12 @@
 
 | 方式 | 适合场景 | 入口 | 说明 |
 |------|------|------|------|
-| `deploy/dev` | 本地开发、联调、排查问题 | `bash deploy/dev/scripts/infra.sh up` + GoLand 启动 `core/cmd/main/main.go` | 基础设施容器化，后端源码运行，前端本地 `npm run dev` |
-| `deploy/prod` 本地构建 | 单机测试环境、演示环境、还没有镜像发布链时的正式部署 | `go run ./cmd/aosctl init` → `up` | Go 部署器渲染配置并调用 Compose 构建/启动 |
-| `deploy/prod` 发布镜像 | 企业生产、固定 tag、需要可回滚的环境 | `go run ./cmd/aosctl up --image` | 目标机不做主镜像源码构建，直接拉 `images.main` 并初始化运行时底座 |
+| `deploy/dev` | 本地开发、联调、排查问题 | `go run ./cmd/kagectl init-dev` + GoLand 启动 `core/cmd/main/main.go` | 基础设施容器化，后端源码运行，前端本地 `npm run dev` |
+| `deploy/prod` 本地构建 | 单机测试环境、演示环境、还没有镜像发布链时的正式部署 | `go run ./cmd/kagectl init` → `up` | Go 部署器渲染配置并调用 Compose 构建/启动 |
+| `deploy/prod` 发布镜像 | 企业生产、固定 tag、需要可回滚的环境 | `go run ./cmd/kagectl up --image` | 目标机不做主镜像源码构建，直接拉 `images.main` 并初始化运行时底座 |
 | `deploy/prod` HTTP | 内网部署、临时验证 | `site.tls_mode=http` | 容器内只跑 HTTP |
 | `deploy/prod` 外部 TLS | 已有 LB / CDN / WAF / Ingress 做 TLS 终止 | `site.tls_mode=external` | 容器内只跑 HTTP，HTTPS 由外层代理处理 |
-| `deploy/prod` 内建 HTTPS | 单机公网直出、自己持有证书 | `site.tls_mode=redirect` | 证书路径写进 `aos.yaml`，容器内 Nginx 直接提供 HTTPS |
+| `deploy/prod` 内建 HTTPS | 单机公网直出、自己持有证书 | `site.tls_mode=redirect` | 证书内容通过环境变量或 `kage.yaml` 注入，容器内 Nginx 直接提供 HTTPS |
 
 当前成熟主线只有两条：
 
@@ -66,8 +66,8 @@ deploy/
 - 面向单机生产部署
 - 重点是“部署器清楚、配置清楚、生成物清楚、Compose 只做底层执行”
 - 入口文件：
-  - `cmd/aosctl`
-  - `deploy/prod/aos.example.yaml`
+  - `cmd/kagectl`
+  - `deploy/prod/kage.example.yaml`
   - `deploy/prod/QUICK_START.md`
 
 ### `base/`

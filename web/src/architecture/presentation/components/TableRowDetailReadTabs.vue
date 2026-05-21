@@ -1,9 +1,9 @@
 <template>
   <el-tabs v-model="activeTabModel" class="detail-tabs">
-    <el-tab-pane label="详情" name="detail">
+    <el-tab-pane :label="t('rowDetail.detail')" name="detail">
       <div class="tab-content">
         <div v-if="linkFields.length > 0" class="detail-links-section">
-          <div class="links-section-title">相关链接</div>
+          <div class="links-section-title">{{ t('rowDetail.relatedLinks') }}</div>
           <div class="links-section-content">
             <LinkWidget
               v-for="linkField in linkFields"
@@ -73,7 +73,7 @@
                           link
                           @click="toggleRichTextExpanded(field.code)"
                         >
-                          {{ isRichTextExpanded(field.code) ? '收起' : '展开全文' }}
+                          {{ isRichTextExpanded(field.code) ? t('common.collapse') : t('rowDetail.expandFull') }}
                         </el-button>
                       </div>
                     </div>
@@ -96,7 +96,7 @@
 
             <div class="sidebar-content">
               <div v-if="groupedFields.idField" class="metadata-section">
-                <div class="metadata-section-title">基本信息</div>
+                <div class="metadata-section-title">{{ t('rowDetail.baseInfo') }}</div>
                 <div class="field-row metadata-field">
                   <div class="field-label">ID</div>
                   <div class="field-value">
@@ -110,7 +110,7 @@
               </div>
 
               <div v-if="groupedFields.userFields.length > 0" class="metadata-section">
-                <div class="metadata-section-title">人员信息</div>
+                <div class="metadata-section-title">{{ t('rowDetail.peopleInfo') }}</div>
                 <div
                   v-for="field in groupedFields.userFields"
                   :key="field.code"
@@ -130,7 +130,7 @@
               </div>
 
               <div v-if="groupedFields.dateTimeFields.length > 0" class="metadata-section">
-                <div class="metadata-section-title">时间信息</div>
+                <div class="metadata-section-title">{{ t('rowDetail.timeInfo') }}</div>
                 <div
                   v-for="field in groupedFields.dateTimeFields"
                   :key="field.code"
@@ -198,7 +198,7 @@
       </div>
     </el-tab-pane>
 
-    <el-tab-pane v-if="featureFlags.operateLogs" label="操作日志" name="operateLog">
+    <el-tab-pane v-if="featureFlags.operateLogs" :label="t('functionTabs.operateLog')" name="operateLog">
       <div class="tab-content">
         <OperateLogSection
           ref="operateLogSectionRef"
@@ -215,6 +215,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FieldConfig, FunctionDetail } from '../../domain/types'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import LinkWidget from '@/architecture/presentation/widgets/LinkWidget.vue'
@@ -257,6 +258,7 @@ const emit = defineEmits<{
 }>()
 
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
+const { t } = useI18n()
 
 const activeTabModel = computed({
   get: () => props.modelValue,

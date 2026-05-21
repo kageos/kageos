@@ -4,27 +4,29 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/core/app-server/repository"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/access"
 )
 
 type serviceTreeSearchService struct {
 	serviceTreeRepo *repository.ServiceTreeRepository
+	teamAccess      *TeamAccessService
 }
 
-func newServiceTreeSearchService(serviceTreeRepo *repository.ServiceTreeRepository) *serviceTreeSearchService {
-	return &serviceTreeSearchService{serviceTreeRepo: serviceTreeRepo}
+func newServiceTreeSearchService(serviceTreeRepo *repository.ServiceTreeRepository, teamAccess *TeamAccessService) *serviceTreeSearchService {
+	return &serviceTreeSearchService{serviceTreeRepo: serviceTreeRepo, teamAccess: teamAccess}
 }
 
 func (s *serviceTreeSearchService) SearchFunctions(
-	_ context.Context,
+	ctx context.Context,
 	req *dto.SearchFunctionsReq,
 ) (*dto.SearchFunctionsResp, error) {
 	page, pageSize := normalizeSearchFunctionsPagination(req.Page, req.PageSize)
 	fetchSize := calculateSearchFunctionsFetchSize(page, pageSize, req.Keyword)
 
-	trees, total, err := s.serviceTreeRepo.SearchFunctions(
+	trees, _, err := s.serviceTreeRepo.SearchFunctions(
 		req.CurrentUser,
 		req.User,
 		req.App,
@@ -37,25 +39,26 @@ func (s *serviceTreeSearchService) SearchFunctions(
 		return nil, fmt.Errorf("搜索函数失败: %w", err)
 	}
 
+	trees = s.filterReadableTrees(ctx, req.CurrentUser, trees)
 	trees = rankAndLimitSearchFunctions(trees, req.Keyword, page, pageSize)
 
 	return &dto.SearchFunctionsResp{
 		Functions: buildFunctionSearchResults(trees),
-		Total:     total,
+		Total:     int64(len(trees)),
 		Page:      page,
 		PageSize:  pageSize,
 	}, nil
 }
 
 func (s *serviceTreeSearchService) SearchResources(
-	_ context.Context,
+	ctx context.Context,
 	req *dto.SearchResourcesReq,
 ) (*dto.SearchResourcesResp, error) {
 	page, pageSize := normalizeSearchResourcesPagination(req.Page, req.PageSize)
 	fetchSize := calculateSearchResourcesFetchSize(page, pageSize, req.Keyword)
 	nodeTypes := parseSearchResourceTypes(req.ResourceType)
 
-	trees, total, err := s.serviceTreeRepo.SearchResources(
+	trees, _, err := s.serviceTreeRepo.SearchResources(
 		req.CurrentUser,
 		req.User,
 		req.App,
@@ -68,14 +71,44 @@ func (s *serviceTreeSearchService) SearchResources(
 		return nil, fmt.Errorf("搜索资源失败: %w", err)
 	}
 
+	trees = s.filterReadableTrees(ctx, req.CurrentUser, trees)
 	trees = rankAndLimitSearchResources(trees, req.Keyword, page, pageSize)
 
 	return &dto.SearchResourcesResp{
 		Items:    buildResourceSearchResults(trees, req.Keyword),
-		Total:    total,
+		Total:    int64(len(trees)),
 		Page:     page,
 		PageSize: pageSize,
 	}, nil
+}
+
+func (s *serviceTreeSearchService) filterReadableTrees(ctx context.Context, username string, trees []*model.ServiceTree) []*model.ServiceTree {
+	if s.teamAccess == nil || username == "" {
+		return trees
+	}
+	filtered := make([]*model.ServiceTree, 0, len(trees))
+	for _, tree := range trees {
+		if tree == nil {
+			continue
+		}
+		tenantUser, app := "", ""
+		if tree.App != nil {
+			tenantUser = tree.App.User
+			app = tree.App.Code
+		}
+		if tenantUser == "" || app == "" {
+			var err error
+			tenantUser, app, err = access.ParseUserApp(tree.FullCodePath)
+			if err != nil {
+				continue
+			}
+		}
+		ok, err := s.teamAccess.Can(ctx, tenantUser, app, username, tree.FullCodePath, access.ActionRead)
+		if err == nil && ok {
+			filtered = append(filtered, tree)
+		}
+	}
+	return filtered
 }
 
 func parseSearchResourceTypes(resourceType string) []string {

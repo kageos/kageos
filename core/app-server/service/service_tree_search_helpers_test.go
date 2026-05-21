@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
+	"github.com/kageos/kageos/core/app-server/model"
 )
 
 func TestRankAndLimitSearchResourcesUsesHeatWithinSameMatchTier(t *testing.T) {

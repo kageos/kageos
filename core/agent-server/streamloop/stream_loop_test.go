@@ -3,7 +3,7 @@ package streamloop
 import (
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
+	"github.com/kageos/kageos/pkg/llms"
 )
 
 func TestAppendToolCallArgsPreservesStringSpaceAcrossChunks(t *testing.T) {

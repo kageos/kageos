@@ -6,7 +6,7 @@ import { ref, watch } from 'vue'
 import type { ThemeMode, ThemeConfig } from '@/architecture/domain/types/theme'
 import { THEME_PRESETS, DEFAULT_THEME } from '@/architecture/domain/types/theme'
 
-const THEME_STORAGE_KEY = 'ai-agent-os-theme'
+const THEME_STORAGE_KEY = 'kageos-theme'
 
 export const useThemeStore = defineStore('theme', () => {
   // 当前主题配置
@@ -29,7 +29,7 @@ export const useThemeStore = defineStore('theme', () => {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
       const defaultTheme = prefersDark 
         ? THEME_PRESETS.find(t => t.mode === 'dark') || DEFAULT_THEME
-        : DEFAULT_THEME
+        : THEME_PRESETS.find(t => t.mode === 'light') || DEFAULT_THEME
       currentTheme.value = defaultTheme
     }
     
@@ -104,4 +104,3 @@ export const useThemeStore = defineStore('theme', () => {
     getAvailableThemes
   }
 })
-

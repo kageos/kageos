@@ -1,4 +1,4 @@
-# AI Agent OS - 开发环境基础设施（Docker 版本）
+# Kageos - 开发环境基础设施（Docker 版本）
 # 与 docker-compose.infra.yml 的服务内容基本一致。
 # 这里保留 Docker 专用的容器名 / volume 名，优先保证本地项目隔离与可读性。
 # 用法: docker compose -f deploy/dev/compose/docker-compose.dev.yml up -d
@@ -9,13 +9,14 @@ services:
 
   mysql:
     image: mysql:8.0
-    container_name: ai-agent-os-dev-mysql
+    container_name: kageos-dev-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_ROOT_HOST: "%"
       TZ: Asia/Shanghai
     ports:
-      - "3306:3306"
+      - "127.0.0.1:${MYSQL_PORT:-3318}:3306"
     volumes:
       - dev-mysql-data:/var/lib/mysql
       - ../../base/infra/mysql/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -25,7 +26,7 @@ services:
       --max-connections=500
       --innodb-buffer-pool-size=256M
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$${MYSQL_ROOT_PASSWORD}\""]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -33,21 +34,21 @@ services:
 
   nats:
     image: nats:2.10-alpine
-    container_name: ai-agent-os-dev-nats
+    container_name: kageos-dev-nats
     restart: unless-stopped
     ports:
       - "4222:4222"
     volumes:
       - ../../base/infra/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
-    command: ["-c", "/etc/nats/nats-server.conf"]
+    command: ["--user", "${NATS_SEED_USER:-kageos}", "--pass", "${NATS_SEED_PASSWORD:-local-dev-nats}", "-c", "/etc/nats/nats-server.conf"]
 
   minio:
     image: minio/minio:latest
-    container_name: ai-agent-os-dev-minio
+    container_name: kageos-dev-minio
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
       TZ: Asia/Shanghai
     ports:
       - "9000:9000"
@@ -58,6 +59,6 @@ services:
 
 volumes:
   dev-mysql-data:
-    name: ai-agent-os-dev-mysql-data
+    name: kageos-dev-mysql3318-data
   dev-minio-data:
-    name: ai-agent-os-dev-minio-data
+    name: kageos-dev-minio-data

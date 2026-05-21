@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 )
 
 // UploadResult 上传结果

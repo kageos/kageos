@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/repository"
-	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/emailx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/hr-server/repository"
+	appconfig "github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/emailx"
+	"github.com/kageos/kageos/pkg/gormx/models"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // EmailService 邮箱服务
@@ -104,11 +104,11 @@ func (s *EmailService) generateCode() string {
 func (s *EmailService) getSubject(codeType string) string {
 	switch codeType {
 	case "register":
-		return "AI Agent OS 注册验证码"
+		return "Kageos 注册验证码"
 	case "forgot_password":
-		return "AI Agent OS 重置密码"
+		return "Kageos 重置密码"
 	default:
-		return "AI Agent OS 验证码"
+		return "Kageos 验证码"
 	}
 }
 
@@ -118,9 +118,9 @@ func (s *EmailService) getBody(code, codeType string) string {
 	case "register":
 		return fmt.Sprintf(`
 			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-				<h2 style="color: #333;">AI Agent OS 注册验证码</h2>
+				<h2 style="color: #333;">Kageos 注册验证码</h2>
 				<p>您好！</p>
-				<p>您正在注册 AI Agent OS 账户，验证码为：</p>
+				<p>您正在注册 Kageos 账户，验证码为：</p>
 				<div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
 					<h1 style="color: #007bff; font-size: 32px; margin: 0; letter-spacing: 5px;">%s</h1>
 				</div>
@@ -134,9 +134,9 @@ func (s *EmailService) getBody(code, codeType string) string {
 		// code 在这里是重置密码的链接
 		return fmt.Sprintf(`
 			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-				<h2 style="color: #333;">AI Agent OS 重置密码</h2>
+				<h2 style="color: #333;">Kageos 重置密码</h2>
 				<p>您好！</p>
-				<p>您正在重置 AI Agent OS 账户密码，请点击以下链接重置密码：</p>
+				<p>您正在重置 Kageos 账户密码，请点击以下链接重置密码：</p>
 				<div style="text-align: center; margin: 30px 0;">
 					<a href="%s" style="display: inline-block; padding: 12px 30px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold;">重置密码</a>
 				</div>

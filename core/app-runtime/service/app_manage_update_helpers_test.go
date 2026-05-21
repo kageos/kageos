@@ -39,3 +39,51 @@ func TestNoteUnknownUpdateVersionAppendsLogMarker(t *testing.T) {
 		t.Fatalf("expected no marker for known version, got %q", got)
 	}
 }
+
+func TestCreateVersionContainerReusesRunningRuntime(t *testing.T) {
+	t.Parallel()
+
+	driver := &stubAppRuntimeDriver{running: true}
+	service := &AppManageService{runtimeDriver: driver}
+
+	if err := service.createVersionContainer(context.Background(), "system", "tools", "v3", "."); err != nil {
+		t.Fatalf("expected running runtime to be reused, got error: %v", err)
+	}
+	if driver.createCalled {
+		t.Fatal("expected create to be skipped when runtime is already running")
+	}
+}
+
+type stubAppRuntimeDriver struct {
+	running      bool
+	createCalled bool
+}
+
+func (d *stubAppRuntimeDriver) IsAvailable() bool {
+	return true
+}
+
+func (d *stubAppRuntimeDriver) CreateAppVersion(context.Context, AppVersionSpec) error {
+	d.createCalled = true
+	return nil
+}
+
+func (d *stubAppRuntimeDriver) StartAppVersion(context.Context, AppVersionSpec) error {
+	return nil
+}
+
+func (d *stubAppRuntimeDriver) StopAppVersion(context.Context, AppVersionRef) error {
+	return nil
+}
+
+func (d *stubAppRuntimeDriver) RemoveAppVersion(context.Context, AppVersionRef) error {
+	return nil
+}
+
+func (d *stubAppRuntimeDriver) IsAppVersionRunning(context.Context, AppVersionRef) (bool, error) {
+	return d.running, nil
+}
+
+func (d *stubAppRuntimeDriver) ListAppVersions(context.Context) ([]AppRuntimeInstance, error) {
+	return nil, nil
+}

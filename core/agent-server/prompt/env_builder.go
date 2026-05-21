@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
-	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
+	"github.com/kageos/kageos/pkg/functionschema"
+	"github.com/kageos/kageos/pkg/servicetree"
+	"github.com/kageos/kageos/sdk/agent-app/widget"
 )
 
 // WorkspaceEnvInput 构建环境数据所需的输入，调用方从 workspaceCtx 等填充后传入；nil 表示无上下文，仅用 directoryName/fullCodePath 做降级
@@ -65,7 +65,7 @@ func BuildInitGoContent(fullCodePath string, name, desc string) string {
 	return fmt.Sprintf(`package %s
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/app"
 )
 
 var packageContext = &app.PackageContext{
@@ -364,5 +364,5 @@ func BuildWorkspaceEnvBlockWithTemplate(template string, data *WorkspaceEnvData,
 
 %s
 
-要生成或修改系统/应用时，先调用 change_role 进入对应身份；当前身份文档不足时再 read_doc 明确路径。业务能力写成 AgentOS SDK Go 应用，禁止用 HTML/CSS/JS、localStorage、纯前端等方案。`, directoryName, fullCodePath, data.DirectoryList)
+要生成或修改系统/应用时，先调用 change_role 进入对应身份；当前身份文档不足时再 read_doc 明确路径。业务能力写成 KageOS SDK Go 应用，禁止用 HTML/CSS/JS、localStorage、纯前端等方案。`, directoryName, fullCodePath, data.DirectoryList)
 }

@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/gofmt"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/gofmt"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // WorkspaceFileService 管理工作区源码文件读写，不承载编译、发布等生命周期语义。

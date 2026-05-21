@@ -4,10 +4,12 @@ const CapabilityBundleSchemaVersion = "capability.bundle.v1"
 
 // CapabilityBundle 是跨工作空间复用的能力包，只保存相对 code/api 的包和文件结构。
 type CapabilityBundle struct {
-	SchemaVersion string                     `json:"schema_version"`
-	Name          string                     `json:"name,omitempty"`
-	Packages      []*CapabilityBundlePackage `json:"packages"`
-	Files         []*CapabilityBundleFile    `json:"files"`
+	SchemaVersion string                      `json:"schema_version"`
+	Name          string                      `json:"name,omitempty"`
+	TreeNodes     []*CapabilityBundleTreeNode `json:"tree_nodes,omitempty"`
+	Docs          []*CapabilityBundleDoc      `json:"docs,omitempty"`
+	Packages      []*CapabilityBundlePackage  `json:"packages"`
+	Files         []*CapabilityBundleFile     `json:"files"`
 }
 
 type CapabilityBundleFile struct {
@@ -21,6 +23,29 @@ type CapabilityBundlePackage struct {
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
 	Tags        string `json:"tags,omitempty"`
+}
+
+type CapabilityBundleTreeNode struct {
+	RelativePath string   `json:"relative_path"`
+	ParentPath   string   `json:"parent_path,omitempty"`
+	Type         string   `json:"type"`
+	Code         string   `json:"code"`
+	Name         string   `json:"name,omitempty"`
+	Description  string   `json:"description,omitempty"`
+	Tags         []string `json:"tags,omitempty"`
+	TemplateType string   `json:"template_type,omitempty"`
+	Method       string   `json:"method,omitempty"`
+	Router       string   `json:"router,omitempty"`
+	SortOrder    int      `json:"sort_order,omitempty"`
+}
+
+type CapabilityBundleDoc struct {
+	RelativePath string `json:"relative_path"`
+	Name         string `json:"name,omitempty"`
+	Content      string `json:"content"`
+	Format       string `json:"format,omitempty"`
+	Summary      string `json:"summary,omitempty"`
+	Category     string `json:"category,omitempty"`
 }
 
 type ExportCapabilityBundleReq struct {
@@ -45,6 +70,7 @@ type InstallCapabilityBundleResp struct {
 	Message             string   `json:"message"`
 	DirectoryCount      int      `json:"directory_count"`
 	FileCount           int      `json:"file_count"`
+	DocCount            int      `json:"doc_count,omitempty"`
 	TargetDirectoryPath string   `json:"target_directory_path"`
 	CreatedPaths        []string `json:"created_paths,omitempty"`
 	WrittenPaths        []string `json:"written_paths,omitempty"`

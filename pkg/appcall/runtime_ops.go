@@ -3,8 +3,8 @@ package appcall
 import (
 	"context"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/subjects"
 )
 
 // CreateApp 创建应用（subject: runtime.v1.cmd.app.create）

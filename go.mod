@@ -1,4 +1,4 @@
-module github.com/ai-agent-os/ai-agent-os
+module github.com/kageos/kageos
 
 go 1.25.0
 
@@ -21,7 +21,7 @@ require (
 	github.com/swaggo/gin-swagger v1.6.1
 	github.com/swaggo/swag v1.16.6
 	github.com/xuri/excelize/v2 v2.10.0
-	github.com/yuin/goldmark v1.8.2
+	github.com/yuin/goldmark v1.4.13
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.49.0
 	golang.org/x/sync v0.20.0

@@ -3,8 +3,8 @@ package dto
 import (
 	"encoding/json"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"github.com/kageos/kageos/pkg/functionschema"
+	"github.com/kageos/kageos/pkg/gormx/models"
 )
 
 // WorkspaceChatReq 工作台对话请求（只认 LLM，单模式）

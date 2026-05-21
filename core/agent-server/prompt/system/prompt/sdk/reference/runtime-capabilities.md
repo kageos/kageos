@@ -14,20 +14,20 @@
 
 ## 平台 API
 
-业务函数调用 AgentOS 平台能力使用：
+业务函数调用 KageOS 平台能力使用：
 
 ```go
 var out SomeResp
-if err := ctx.APICall(http.MethodGet, "/workspace/api/v1/operate_log/table?"+query.Encode(), nil, &out); err != nil {
-    logger.Errorf(ctx, "[TableOperateLog] APICall failed, err=%v", err)
-    return nil, fmt.Errorf("[系统错误]-[TableOperateLog] 调用平台接口失败: %w", err)
+if err := ctx.APICall(http.MethodGet, "/workspace/api/v1/operate_log/general?"+query.Encode(), nil, &out); err != nil {
+    logger.Errorf(ctx, "[OperateLog] APICall failed, err=%v", err)
+    return nil, fmt.Errorf("[系统错误]-[OperateLog] 调用平台接口失败: %w", err)
 }
 ```
 
 规则：
 
 - `method` 使用 `http.MethodGet`、`http.MethodPost` 等。
-- `path` 使用平台网关路径，例如 `/workspace/api/v1/operate_log/table`。
+- `path` 使用平台网关路径，例如 `/workspace/api/v1/operate_log/general`。
 - `reqBody` 是请求体；GET 可传 `nil`。
 - `respData` 是响应 data 对应结构体指针。
 - SDK 会带上 token、trace、request_user、department、client_source、source_type、source_ref。
@@ -40,7 +40,7 @@ if err := ctx.APICall(http.MethodGet, "/workspace/api/v1/operate_log/table?"+que
 - 直连平台数据库。
 - 伪造平台运行上下文。
 
-Table 更新日志等平台领域，优先走 `platform_engineer` 角色和 `/system/openapi` 函数。
+操作日志等平台领域，优先走 `platform_engineer` 角色和 `/system/openapi` 函数。
 
 ## 当前用户和上下文
 
@@ -187,6 +187,8 @@ if object.Status != "开放" {
 - 不要只返回“失败”。
 - 系统错误日志要有足够上下文。
 - 不要把敏感 token、完整大文件内容、隐私正文打进日志。
+- `sensitive:"true"` 只表示平台操作日志会移除该字段；它不加密用户业务表。密码、token、API key 等如需落业务库，默认按普通字段明文存储；需要密文存储时由业务代码自行加密后写入。
+- 不要在 widget 标签中生成 `password:true` 配置，SDK 不支持业务密码输入组件。
 
 ## Python 和外部处理
 

@@ -12,7 +12,7 @@ db:
   port: 3306
   user: "root"
   password: "${MYSQL_ROOT_PASSWORD}"
-  name: "app_db"
+  name: "app-server"
   max_idle_conns: 30
   max_open_conns: 200
   max_lifetime: 300

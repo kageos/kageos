@@ -9,15 +9,15 @@ import (
 	"syscall"
 	"time"
 
-	agentServerRunner "github.com/ai-agent-os/ai-agent-os/core/agent-server/runner"
-	apiGatewayRunner "github.com/ai-agent-os/ai-agent-os/core/api-gateway/runner"
-	appRuntimeRunner "github.com/ai-agent-os/ai-agent-os/core/app-runtime/runner"
-	appServerRunner "github.com/ai-agent-os/ai-agent-os/core/app-server/runner"
-	appStorageRunner "github.com/ai-agent-os/ai-agent-os/core/app-storage/runner"
-	hrServerRunner "github.com/ai-agent-os/ai-agent-os/core/hr-server/runner"
+	agentServerRunner "github.com/kageos/kageos/core/agent-server/runner"
+	apiGatewayRunner "github.com/kageos/kageos/core/api-gateway/runner"
+	appRuntimeRunner "github.com/kageos/kageos/core/app-runtime/runner"
+	appServerRunner "github.com/kageos/kageos/core/app-server/runner"
+	appStorageRunner "github.com/kageos/kageos/core/app-storage/runner"
+	hrServerRunner "github.com/kageos/kageos/core/hr-server/runner"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/infra"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/pkg/infra"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // ServiceMain 服务主函数类型
@@ -103,11 +103,11 @@ func main() {
 	defer cancel()
 
 	fmt.Println("========================================")
-	fmt.Println("  AI Agent OS - 统一启动入口")
+	fmt.Println("  Kageos - 统一启动入口")
 	fmt.Println("========================================")
 	fmt.Println("  说明：")
-	fmt.Println("  - 生产默认 prod：优先读 deploy/prod/config/runtime，缺失时回退到 deploy/prod/config/template")
-	fmt.Println("  - 开发：APP_ENV=dev 读 deploy/dev/config")
+	fmt.Println("  - 生产默认 prod：优先读 .kageos/prod/generated/config，缺失时回退到 deploy/prod/config/template")
+	fmt.Println("  - 开发：APP_ENV=dev 读 .kageos/dev/config")
 	fmt.Println("  - 正式部署入口：见 deploy/prod/README.md")
 	fmt.Println("  - 亦可拆分为各服务独立进程（各服务 cmd/app/main.go）或 K8s 分布式部署")
 	fmt.Println("========================================")
@@ -220,12 +220,10 @@ func main() {
 	// ⭐ 在后台 goroutine 中持续监听错误
 	go func() {
 		for err := range errors {
-			fmt.Printf("\n[错误] %v\n", err)
-			logger.Errorf(ctx, "服务运行失败: %v", err)
-			// 通知所有服务停止
-			close(stopCh)
-			wg.Wait()
-			os.Exit(1)
+			message := fmt.Sprintf("服务启动/运行失败，统一启动入口直接退出: %v", err)
+			fmt.Fprintf(os.Stderr, "\n[FATAL] %s\n", message)
+			logger.Errorf(ctx, "%s", message)
+			panic(message)
 		}
 	}()
 

@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	workspaceprd "github.com/ai-agent-os/ai-agent-os/core/agent-server/workspace/prd"
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	workspaceprd "github.com/kageos/kageos/core/agent-server/workspace/prd"
+	"github.com/kageos/kageos/dto"
 )
 
 type WritePRDTool struct{}

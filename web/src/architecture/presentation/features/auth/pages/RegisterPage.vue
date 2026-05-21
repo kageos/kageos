@@ -1,48 +1,176 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { computed, ref, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { User, Lock, Message, Check, Loading } from '@element-plus/icons-vue'
-import { register as registerApi, sendEmailCode } from '@/architecture/presentation/context/api/auth'
-import type { RegisterRequest } from '@/architecture/domain/types'
+import { User, Lock, Message, Check, Loading, OfficeBuilding, Picture, Upload, Delete } from '@element-plus/icons-vue'
+import { register as registerApi, sendEmailCode, searchCompanies, uploadCompanyLogo } from '@/architecture/presentation/context/api/auth'
+import type { RegisterRequest, CompanyOption } from '@/architecture/domain/types'
+import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
+import defaultCompanyLogo from '@/architecture/presentation/assets/logo.svg'
 
 const router = useRouter()
+const { t } = useI18n()
+const maxLogoSize = 512 * 1024
 
 // 表单数据
 const registerForm = reactive<RegisterRequest>({
   username: '',
   email: '',
   password: '',
-  code: ''
+  code: '',
+  company_action: 'create',
+  company_code: '',
+  company_name: '',
+  company_logo_url: ''
 })
 
 // 表单引用
 const registerFormRef = ref()
+const logoInputRef = ref<HTMLInputElement>()
 
 // 加载状态
 const loading = ref(false)
 const sendingCode = ref(false)
 const countdown = ref(0)
+const logoLoadFailed = ref(false)
+const uploadingLogo = ref(false)
+const searchingCompanies = ref(false)
+const companyOptions = ref<CompanyOption[]>([])
+let companySearchSeq = 0
+
+const normalizedCompanyLogoURL = computed(() => registerForm.company_logo_url?.trim() || '')
+const companyLogoPreview = computed(() => (
+  registerForm.company_action === 'create' && !logoLoadFailed.value
+    ? normalizedCompanyLogoURL.value || defaultCompanyLogo
+    : ''
+))
+
+watch(() => registerForm.company_action, (action) => {
+  registerFormRef.value?.clearValidate?.(['company_name', 'company_logo_url'])
+  if (action === 'join') {
+    registerForm.company_name = ''
+    registerForm.company_logo_url = ''
+    logoLoadFailed.value = false
+    searchJoinCompanies('')
+  }
+})
+
+watch(normalizedCompanyLogoURL, () => {
+  logoLoadFailed.value = false
+})
 
 // 表单验证规则
-const rules = {
+const rules = computed(() => ({
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 2, max: 50, message: '用户名长度在 2 到 50 个字符', trigger: 'blur' },
-    { pattern: /^[a-zA-Z0-9_]+$/, message: '用户名只能包含字母、数字和下划线', trigger: 'blur' }
+    { required: true, message: t('auth.usernameRequired'), trigger: 'blur' },
+    { min: 2, max: 50, message: t('auth.usernameLength'), trigger: 'blur' },
+    { pattern: /^[a-zA-Z0-9_]+$/, message: t('auth.usernamePattern'), trigger: 'blur' }
   ],
   email: [
-    { required: true, message: '请输入邮箱地址', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
+    { required: true, message: t('auth.emailRequired'), trigger: 'blur' },
+    { type: 'email', message: t('auth.emailInvalid'), trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 50, message: '密码长度在 6 到 50 个字符', trigger: 'blur' }
+    { required: true, message: t('auth.passwordRequired'), trigger: 'blur' },
+    { min: 6, max: 50, message: t('auth.passwordLength'), trigger: 'blur' }
   ],
   code: [
-    { required: true, message: '请输入验证码', trigger: 'blur' },
-    { len: 6, message: '验证码长度为 6 位', trigger: 'blur' }
-  ]
+    { required: true, message: t('auth.codeRequired'), trigger: 'blur' },
+    { len: 6, message: t('auth.codeLength'), trigger: 'blur' }
+  ],
+  company_action: [
+    { required: true, message: t('auth.companyActionRequired'), trigger: 'change' }
+  ],
+  company_code: [
+    { required: true, message: t('auth.companyCodeRequired'), trigger: 'blur' },
+    { min: 2, max: 64, message: t('auth.companyCodeLength'), trigger: 'blur' },
+    { pattern: /^[a-zA-Z0-9_-]+$/, message: t('auth.companyCodePattern'), trigger: 'blur' }
+  ],
+  company_name: [
+    {
+      validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
+        if (registerForm.company_action === 'create' && !value?.trim()) {
+          callback(new Error(t('auth.companyNameRequired')))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur'
+    }
+  ],
+  company_logo_url: []
+}))
+
+const triggerLogoUpload = () => {
+  logoInputRef.value?.click()
+}
+
+const resetCompanyLogo = () => {
+  registerForm.company_logo_url = ''
+  logoLoadFailed.value = false
+  if (logoInputRef.value) {
+    logoInputRef.value.value = ''
+  }
+}
+
+const clearCompanyLogo = () => {
+  registerForm.company_logo_url = ''
+  logoLoadFailed.value = false
+  if (logoInputRef.value) {
+    logoInputRef.value.value = ''
+  }
+}
+
+const handleLogoFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) {
+    return
+  }
+  if (!file.type.startsWith('image/')) {
+    ElMessage.warning(t('auth.companyLogoFileType'))
+    input.value = ''
+    return
+  }
+  if (file.size > maxLogoSize) {
+    ElMessage.warning(t('auth.companyLogoFileSize'))
+    input.value = ''
+    return
+  }
+  uploadingLogo.value = true
+  try {
+    const url = await uploadCompanyLogo(file)
+    registerForm.company_logo_url = url
+    logoLoadFailed.value = false
+    ElMessage.success(t('auth.companyLogoUploadSuccess'))
+  } catch (error: any) {
+    console.error('Upload company logo failed:', error)
+    ElMessage.error(error?.message || t('auth.companyLogoUploadFailed'))
+  } finally {
+    uploadingLogo.value = false
+    input.value = ''
+  }
+}
+
+const searchJoinCompanies = async (keyword: string) => {
+  const seq = ++companySearchSeq
+  searchingCompanies.value = true
+  try {
+    const resp = await searchCompanies(keyword, 10)
+    if (seq === companySearchSeq) {
+      companyOptions.value = resp.companies || []
+    }
+  } catch (error) {
+    console.error('Search companies failed:', error)
+    if (seq === companySearchSeq) {
+      companyOptions.value = []
+    }
+  } finally {
+    if (seq === companySearchSeq) {
+      searchingCompanies.value = false
+    }
+  }
 }
 
 // 处理注册
@@ -51,14 +179,29 @@ const handleRegister = async () => {
     await registerFormRef.value.validate()
     loading.value = true
 
-    await registerApi(registerForm)
+    const payload: RegisterRequest = {
+      username: registerForm.username.trim(),
+      email: registerForm.email.trim(),
+      password: registerForm.password,
+      code: registerForm.code,
+      company_action: registerForm.company_action,
+      company_code: registerForm.company_code.trim()
+    }
+    if (registerForm.company_action === 'create') {
+      payload.company_name = registerForm.company_name?.trim()
+      if (normalizedCompanyLogoURL.value) {
+        payload.company_logo_url = normalizedCompanyLogoURL.value
+      }
+    }
 
-    ElMessage.success('注册成功！请登录')
+    await registerApi(payload)
+
+    ElMessage.success(t('auth.registerSuccess'))
     await router.push('/login')
   } catch (error: any) {
-    console.error('注册失败:', error)
+    console.error('Register failed:', error)
     // 🔥 统一使用 msg 字段
-    const message = error?.response?.data?.msg || error?.message || '注册失败，请重试'
+    const message = error?.response?.data?.msg || error?.message || t('auth.registerFailed')
     ElMessage.error(message)
   } finally {
     loading.value = false
@@ -68,19 +211,19 @@ const handleRegister = async () => {
 // 发送验证码
 const sendVerificationCode = async () => {
   if (!registerForm.email) {
-    ElMessage.warning('请先输入邮箱地址')
+    ElMessage.warning(t('auth.emailFirst'))
     return
   }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerForm.email)) {
-    ElMessage.warning('请输入正确的邮箱地址')
+    ElMessage.warning(t('auth.emailInvalid'))
     return
   }
 
   try {
     sendingCode.value = true
     await sendEmailCode(registerForm.email)
-    ElMessage.success('验证码已发送到您的邮箱')
+    ElMessage.success(t('auth.emailCodeSent'))
 
     // 开始倒计时
     countdown.value = 60
@@ -91,9 +234,9 @@ const sendVerificationCode = async () => {
       }
     }, 1000)
   } catch (error: any) {
-    console.error('发送验证码失败:', error)
+    console.error('Send verification code failed:', error)
     // 🔥 统一使用 msg 字段
-    const message = error?.response?.data?.msg || error?.message || '发送验证码失败，请重试'
+    const message = error?.response?.data?.msg || error?.message || t('auth.emailCodeFailed')
     ElMessage.error(message)
   } finally {
     sendingCode.value = false
@@ -115,6 +258,10 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
 <template>
   <div class="register-container" @keypress="handleKeyPress">
+    <div class="auth-language">
+      <LanguageSwitcher />
+    </div>
+
     <!-- 背景装饰 -->
     <div class="background-decoration">
       <div class="decoration-circle circle-1"></div>
@@ -128,15 +275,14 @@ const handleKeyPress = (event: KeyboardEvent) => {
         <div class="brand-logo-wrapper">
           <div class="logo-glow"></div>
           <div class="brand-logo">
-            <img alt="AI Agent OS" class="logo" src="@/architecture/presentation/assets/logo.svg" />
+            <img alt="Kageos" class="logo" src="@/architecture/presentation/assets/logo.svg" />
           </div>
         </div>
         <h1 class="brand-title">
-          <span class="title-gradient">加入我们</span>
+          <span class="title-gradient">{{ t('auth.registerHeroTitle') }}</span>
         </h1>
         <p class="brand-subtitle">
-          开启AI应用开发的新旅程<br />
-          描述即生成，想法即产品
+          {{ t('auth.registerHeroSubtitle') }}
         </p>
         <div class="brand-steps">
           <div class="step-item">
@@ -144,8 +290,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
               <div class="step-number">1</div>
             </div>
             <div class="step-content">
-              <span class="step-title">注册账号</span>
-              <span class="step-desc">快速创建您的专属账号</span>
+              <span class="step-title">{{ t('auth.registerStepAccountTitle') }}</span>
+              <span class="step-desc">{{ t('auth.registerStepAccountDesc') }}</span>
             </div>
           </div>
           <div class="step-item">
@@ -153,8 +299,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
               <div class="step-number">2</div>
             </div>
             <div class="step-content">
-              <span class="step-title">验证邮箱</span>
-              <span class="step-desc">确保账号安全可靠</span>
+              <span class="step-title">{{ t('auth.registerStepEmailTitle') }}</span>
+              <span class="step-desc">{{ t('auth.registerStepEmailDesc') }}</span>
             </div>
           </div>
           <div class="step-item">
@@ -162,8 +308,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
               <div class="step-number">3</div>
             </div>
             <div class="step-content">
-              <span class="step-title">开始使用</span>
-              <span class="step-desc">创造您的第一个AI应用</span>
+              <span class="step-title">{{ t('auth.registerStepStartTitle') }}</span>
+              <span class="step-desc">{{ t('auth.registerStepStartDesc') }}</span>
             </div>
           </div>
         </div>
@@ -177,8 +323,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
           <div class="header-icon">
             <el-icon><User /></el-icon>
           </div>
-          <h2 class="register-title">创建新账号</h2>
-          <p class="register-subtitle">填写您的信息以完成注册</p>
+          <h2 class="register-title">{{ t('auth.registerTitle') }}</h2>
+          <p class="register-subtitle">{{ t('auth.registerSubtitle') }}</p>
         </div>
 
         <el-form
@@ -192,7 +338,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
           <el-form-item prop="username">
             <el-input
               v-model="registerForm.username"
-              placeholder="请输入用户名"
+              :placeholder="t('auth.usernamePlaceholder')"
               :prefix-icon="User"
               clearable
               size="large"
@@ -203,7 +349,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
           <el-form-item prop="email">
             <el-input
               v-model="registerForm.email"
-              placeholder="请输入邮箱地址"
+              :placeholder="t('auth.emailPlaceholder')"
               :prefix-icon="Message"
               clearable
               size="large"
@@ -215,7 +361,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
             <el-input
               v-model="registerForm.password"
               type="password"
-              placeholder="请输入密码"
+              :placeholder="t('auth.passwordPlaceholder')"
               :prefix-icon="Lock"
               show-password
               clearable
@@ -224,11 +370,121 @@ const handleKeyPress = (event: KeyboardEvent) => {
             />
           </el-form-item>
 
+          <el-form-item prop="company_action">
+            <div class="company-panel">
+              <div class="company-panel-header">
+                <div class="company-panel-icon">
+                  <el-icon><OfficeBuilding /></el-icon>
+                </div>
+                <div class="company-panel-copy">
+                  <div class="company-panel-title">{{ t('auth.companySectionTitle') }}</div>
+                  <div class="company-panel-desc">{{ t('auth.companySectionDesc') }}</div>
+                </div>
+              </div>
+              <el-segmented
+                v-model="registerForm.company_action"
+                :options="[
+                  { label: t('auth.createCompany'), value: 'create' },
+                  { label: t('auth.joinCompany'), value: 'join' }
+                ]"
+                class="company-mode"
+              />
+            </div>
+          </el-form-item>
+
+          <el-form-item v-if="registerForm.company_action === 'create'" prop="company_name">
+            <el-input
+              v-model="registerForm.company_name"
+              :placeholder="t('auth.companyNamePlaceholder')"
+              :prefix-icon="OfficeBuilding"
+              clearable
+              size="large"
+              class="form-input"
+            />
+          </el-form-item>
+
+          <div v-if="registerForm.company_action === 'create'" class="company-logo-row">
+            <div class="company-logo-preview">
+              <img
+                v-if="companyLogoPreview"
+                :src="companyLogoPreview"
+                :alt="registerForm.company_name || t('auth.companyLogoPreview')"
+                @error="logoLoadFailed = true"
+              />
+              <el-icon v-else><Picture /></el-icon>
+            </div>
+            <div class="company-logo-actions">
+              <div class="company-logo-title">{{ t('auth.companyLogoTitle') }}</div>
+              <div class="company-logo-desc">{{ t('auth.companyLogoDesc') }}</div>
+              <div class="company-logo-buttons">
+                <el-button size="small" :icon="Upload" :loading="uploadingLogo" :disabled="uploadingLogo" @click="triggerLogoUpload">
+                  {{ uploadingLogo ? t('auth.companyLogoUploading') : t('auth.companyLogoUpload') }}
+                </el-button>
+                <el-button size="small" :icon="Picture" :disabled="uploadingLogo" @click="resetCompanyLogo">
+                  {{ t('auth.companyLogoUseDefault') }}
+                </el-button>
+                <el-button size="small" text :icon="Delete" :disabled="uploadingLogo" @click="clearCompanyLogo">
+                  {{ t('auth.companyLogoClear') }}
+                </el-button>
+              </div>
+              <input
+                ref="logoInputRef"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                class="company-logo-input"
+                @change="handleLogoFileChange"
+              />
+            </div>
+          </div>
+
+          <el-form-item v-if="registerForm.company_action === 'create'" prop="company_code">
+            <el-input
+              v-model="registerForm.company_code"
+              :placeholder="t('auth.companyCodeCreatePlaceholder')"
+              :prefix-icon="OfficeBuilding"
+              clearable
+              size="large"
+              class="form-input"
+            />
+          </el-form-item>
+
+          <el-form-item v-else prop="company_code">
+            <el-select
+              v-model="registerForm.company_code"
+              filterable
+              remote
+              clearable
+              reserve-keyword
+              :remote-method="searchJoinCompanies"
+              :loading="searchingCompanies"
+              :placeholder="t('auth.companySearchPlaceholder')"
+              size="large"
+              class="form-input company-select"
+            >
+              <el-option
+                v-for="company in companyOptions"
+                :key="company.code"
+                :label="`${company.name} (${company.code})`"
+                :value="company.code"
+              >
+                <div class="company-select-option">
+                  <div class="company-select-logo">
+                    <img :src="company.logo_url || defaultCompanyLogo" :alt="company.name" />
+                  </div>
+                  <div class="company-select-copy">
+                    <div class="company-select-name">{{ company.name }}</div>
+                    <div class="company-select-code">{{ company.code }}</div>
+                  </div>
+                </div>
+              </el-option>
+            </el-select>
+          </el-form-item>
+
           <el-form-item prop="code">
             <div class="code-input-group">
               <el-input
                 v-model="registerForm.code"
-                placeholder="请输入验证码"
+                :placeholder="t('auth.codePlaceholder')"
                 maxlength="6"
                 clearable
                 size="large"
@@ -242,7 +498,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
                 @click="sendVerificationCode"
                 class="code-btn"
               >
-                {{ countdown > 0 ? `${countdown}s` : '发送验证码' }}
+                {{ countdown > 0 ? t('auth.secondsRetry', { seconds: countdown }) : t('auth.sendCode') }}
               </el-button>
             </div>
           </el-form-item>
@@ -258,15 +514,15 @@ const handleKeyPress = (event: KeyboardEvent) => {
               <template #loading>
                 <el-icon class="is-loading"><Loading /></el-icon>
               </template>
-              <span v-if="!loading">立即注册</span>
-              <span v-else>注册中...</span>
+              <span v-if="!loading">{{ t('auth.registerButton') }}</span>
+              <span v-else>{{ t('auth.registerLoading') }}</span>
             </el-button>
           </el-form-item>
 
           <div class="register-footer">
-            <span class="register-tip">已有账号？</span>
+            <span class="register-tip">{{ t('auth.hasAccount') }}</span>
             <el-button type="text" @click="goToLogin" class="login-link">
-              立即登录
+              {{ t('auth.loginNow') }}
             </el-button>
           </div>
         </el-form>
@@ -285,8 +541,12 @@ const handleKeyPress = (event: KeyboardEvent) => {
   --auth-surface: rgba(244, 247, 251, 0.88);
   --auth-card-bg: rgba(255, 255, 255, 0.8);
   --auth-card-border: rgba(148, 163, 184, 0.24);
-  --auth-input-bg: rgba(255, 255, 255, 0.96);
-  --auth-input-border: #cbd5e1;
+  --auth-input-bg: rgba(248, 252, 249, 0.96);
+  --auth-input-bg-focus: rgba(255, 255, 255, 0.98);
+  --auth-input-border: rgba(80, 143, 105, 0.3);
+  --auth-input-text: #174630;
+  --auth-input-placeholder: #7f9b8c;
+  --auth-input-icon: rgba(22, 163, 74, 0.58);
   --auth-text: #0f172a;
   --auth-text-muted: #475569;
   --auth-text-soft: #64748b;
@@ -297,6 +557,13 @@ const handleKeyPress = (event: KeyboardEvent) => {
   position: relative;
   overflow: hidden;
   isolation: isolate;
+}
+
+.auth-language {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  z-index: 3;
 }
 
 /* 背景装饰动画 */
@@ -598,6 +865,190 @@ const handleKeyPress = (event: KeyboardEvent) => {
   margin-bottom: 32px;
 }
 
+.form-input {
+  --el-input-text-color: var(--auth-input-text);
+  --el-input-placeholder-color: var(--auth-input-placeholder);
+  --el-input-icon-color: var(--auth-input-icon);
+  --el-input-bg-color: var(--auth-input-bg);
+  --el-input-border-color: var(--auth-input-border);
+  --el-input-hover-border-color: rgba(22, 163, 74, 0.42);
+  --el-input-focus-border-color: var(--auth-accent);
+  --el-text-color-regular: var(--auth-input-text);
+}
+
+.company-panel {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.86);
+}
+
+.company-panel-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.company-panel-icon {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  color: var(--auth-accent-strong);
+  background: rgba(22, 163, 74, 0.12);
+}
+
+.company-panel-copy {
+  min-width: 0;
+}
+
+.company-panel-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--auth-text);
+  line-height: 1.3;
+}
+
+.company-panel-desc {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--auth-text-soft);
+}
+
+.company-mode {
+  width: 100%;
+}
+
+:deep(.company-mode .el-segmented__item) {
+  flex: 1;
+  min-height: 44px;
+}
+
+.company-logo-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.company-logo-preview {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 14px;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.company-logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.company-logo-preview .el-icon {
+  font-size: 24px;
+}
+
+.company-logo-actions {
+  flex: 1;
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.company-logo-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--auth-text);
+  line-height: 1.35;
+}
+
+.company-logo-desc {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--auth-text-soft);
+}
+
+.company-logo-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.company-logo-buttons :deep(.el-button) {
+  margin-left: 0;
+  border-radius: 10px;
+}
+
+.company-logo-input {
+  display: none;
+}
+
+.company-select {
+  width: 100%;
+}
+
+.company-select-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.company-select-logo {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 8px;
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.1);
+}
+
+.company-select-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.company-select-copy {
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.company-select-name {
+  overflow: hidden;
+  color: #174630;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.company-select-code {
+  overflow: hidden;
+  color: #7f9b8c;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 :deep(.el-form-item) {
   margin-bottom: 28px;
 }
@@ -609,6 +1060,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
   padding: 0 16px;
   transition: all 0.3s ease;
   border: 1px solid var(--auth-input-border);
+  color: var(--auth-input-text);
 }
 
 :deep(.el-input__wrapper:hover) {
@@ -617,6 +1069,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 }
 
 :deep(.el-input__wrapper.is-focus) {
+  background: var(--auth-input-bg-focus);
   box-shadow: 0 0 0 4px var(--auth-accent-soft);
   border-color: var(--auth-accent);
 }
@@ -624,11 +1077,22 @@ const handleKeyPress = (event: KeyboardEvent) => {
 :deep(.el-input__inner) {
   height: 52px;
   font-size: 15px;
-  color: var(--auth-text);
+  color: var(--auth-input-text) !important;
+  -webkit-text-fill-color: var(--auth-input-text);
+  caret-color: var(--auth-accent) !important;
+  font-weight: 600;
 }
 
 :deep(.el-input__inner::placeholder) {
-  color: #94a3b8;
+  color: var(--auth-input-placeholder) !important;
+  -webkit-text-fill-color: var(--auth-input-placeholder);
+  font-weight: 400;
+}
+
+:deep(.el-input__inner:-webkit-autofill) {
+  -webkit-text-fill-color: var(--auth-input-text);
+  box-shadow: 0 0 0 1000px var(--auth-input-bg-focus) inset;
+  caret-color: var(--auth-accent);
 }
 
 .code-input-group {
@@ -721,11 +1185,11 @@ const handleKeyPress = (event: KeyboardEvent) => {
 }
 
 :deep(.el-input__prefix) {
-  color: #94a3b8;
+  color: var(--auth-input-icon);
 }
 
 :deep(.el-input__suffix) {
-  color: #94a3b8;
+  color: var(--auth-input-icon);
 }
 
 /* 响应式设计 */
@@ -828,5 +1292,150 @@ const handleKeyPress = (event: KeyboardEvent) => {
   .decoration-circle {
     display: none;
   }
+}
+</style>
+
+<style>
+.register-container .form-input.el-input .el-input__inner,
+.register-container .form-input.el-input input.el-input__inner {
+  color: #174630 !important;
+  -webkit-text-fill-color: #174630 !important;
+  caret-color: #16a34a !important;
+}
+
+.register-container .form-input.el-input .el-input__inner::placeholder,
+.register-container .form-input.el-input input.el-input__inner::placeholder {
+  color: #7f9b8c !important;
+  -webkit-text-fill-color: #7f9b8c !important;
+}
+
+.register-container .form-input.el-input .el-input__prefix,
+.register-container .form-input.el-input .el-input__suffix,
+.register-container .form-input.el-input .el-input__password,
+.register-container .form-input.el-input .el-input__clear {
+  color: rgba(22, 163, 74, 0.58) !important;
+}
+
+.register-container .form-input.el-input .el-input__wrapper {
+  background-color: rgba(248, 252, 249, 0.96) !important;
+  border-color: rgba(80, 143, 105, 0.3) !important;
+}
+
+.register-container .form-input.el-input .el-input__wrapper.is-focus {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border-color: #16a34a !important;
+}
+
+.register-container .company-select.el-select {
+  --el-select-input-color: #174630;
+  --el-select-input-focus-border-color: #16a34a;
+  --el-select-border-color-hover: rgba(22, 163, 74, 0.42);
+  --el-text-color-placeholder: #7f9b8c;
+}
+
+.register-container .company-select.el-select .el-select__wrapper {
+  min-height: 54px;
+  background-color: rgba(248, 252, 249, 0.96) !important;
+  border: 1px solid rgba(80, 143, 105, 0.3) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+
+.register-container .company-select.el-select .el-select__wrapper.is-focused {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border-color: #16a34a !important;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14) !important;
+}
+
+.register-container .company-select.el-select .el-select__selected-item,
+.register-container .company-select.el-select .el-select__placeholder,
+.register-container .company-select.el-select .el-select__input {
+  color: #174630 !important;
+  -webkit-text-fill-color: #174630 !important;
+  font-weight: 600;
+}
+
+.register-container .company-select.el-select .el-select__placeholder.is-transparent,
+.register-container .company-select.el-select .el-select__input::placeholder {
+  color: #7f9b8c !important;
+  -webkit-text-fill-color: #7f9b8c !important;
+  font-weight: 400;
+}
+
+.register-container .company-select.el-select .el-select__suffix,
+.register-container .company-select.el-select .el-select__caret {
+  color: rgba(22, 163, 74, 0.58) !important;
+}
+
+.register-container .company-mode.el-segmented {
+  --el-segmented-bg-color: rgba(22, 163, 74, 0.08);
+  --el-segmented-item-selected-bg-color: #16a34a;
+  --el-segmented-item-selected-color: #ffffff;
+  --el-segmented-item-hover-bg-color: rgba(22, 163, 74, 0.12);
+  --el-segmented-item-hover-color: #174630;
+  --el-border-radius-base: 12px;
+  background: rgba(22, 163, 74, 0.08) !important;
+  border: 1px solid rgba(80, 143, 105, 0.24);
+}
+
+.register-container .company-mode.el-segmented .el-segmented__item {
+  color: #2f684a !important;
+  font-weight: 600;
+}
+
+.register-container .company-mode.el-segmented .el-segmented__item:hover {
+  color: #174630 !important;
+}
+
+.register-container .company-mode.el-segmented .el-segmented__item:active,
+.register-container .company-mode.el-segmented .el-segmented__item:focus,
+.register-container .company-mode.el-segmented .el-segmented__item:focus-visible {
+  color: #174630 !important;
+  background-color: rgba(22, 163, 74, 0.16) !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.register-container .company-mode.el-segmented .el-segmented__item.is-selected {
+  color: #ffffff !important;
+}
+
+.register-container .company-mode.el-segmented .el-segmented__item.is-selected:active,
+.register-container .company-mode.el-segmented .el-segmented__item.is-selected:focus,
+.register-container .company-mode.el-segmented .el-segmented__item.is-selected:focus-visible {
+  color: #ffffff !important;
+  background-color: #16a34a !important;
+}
+
+.register-container .company-mode.el-segmented .el-segmented__item-label {
+  color: inherit !important;
+}
+
+.register-container .company-mode.el-segmented .el-segmented__item *,
+.register-container .company-mode.el-segmented .el-segmented__item:active *,
+.register-container .company-mode.el-segmented .el-segmented__item:focus *,
+.register-container .company-mode.el-segmented .el-segmented__item:focus-visible * {
+  color: inherit !important;
+}
+
+.register-container .auth-language .language-switcher {
+  border-color: rgba(22, 163, 74, 0.24) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.8)) !important;
+  color: #174630 !important;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.1) !important;
+  backdrop-filter: blur(16px);
+}
+
+.register-container .auth-language .language-switcher:hover,
+.register-container .auth-language .language-switcher:focus-visible {
+  border-color: rgba(22, 163, 74, 0.46) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9)) !important;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.14) !important;
+  transform: translateY(-1px);
+}
+
+.register-container .auth-language .language-switcher__code,
+.register-container .auth-language .language-switcher__arrow {
+  color: #7f9b8c !important;
 }
 </style>

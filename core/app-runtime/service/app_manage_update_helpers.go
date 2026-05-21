@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	sharedDto "github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	sharedDto "github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 type updateAppState struct {
@@ -221,6 +221,20 @@ func (s *AppManageService) waitForUpdatedVersionStartup(
 		}
 		return nil
 	case <-time.After(startupTimeout):
+		running, err := s.runtimeDriver.IsAppVersionRunning(ctx, AppVersionRef{User: user, App: app, Version: newVersion})
+		if err != nil {
+			logger.Warnf(ctx, "[UpdateApp] Failed to check runtime after startup timeout: %v", err)
+		}
+		if running {
+			logStr.WriteString("Startup notification missed but runtime is running\t")
+			logger.Infof(ctx, "[UpdateApp] Runtime %s/%s/%s is running after missed startup notification; treating as started", user, app, newVersion)
+			if err := s.updateAppStatusToActive(ctx, user, app); err != nil {
+				logger.Warnf(ctx, "[UpdateApp] Failed to update app status to active: %v", err)
+			} else {
+				logger.Infof(ctx, "[UpdateApp] App status updated to active: %s/%s", user, app)
+			}
+			return nil
+		}
 		logStr.WriteString("Startup timeout\t")
 		return fmt.Errorf("timeout waiting for app startup notification: %s/%s/%s", user, app, newVersion)
 	}

@@ -3,24 +3,27 @@ package v1
 import (
 	"strconv"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/contextx"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/core/app-server/service"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/ginx/response"
 )
 
 type App struct {
 	appService         *service.AppService
 	serviceTreeService *service.ServiceTreeService
+	teamAccessService  *service.TeamAccessService
 }
 
 // NewApp 创建 App 处理器（依赖注入）
-func NewApp(appService *service.AppService, serviceTreeService *service.ServiceTreeService) *App {
+func NewApp(appService *service.AppService, serviceTreeService *service.ServiceTreeService, teamAccessService *service.TeamAccessService) *App {
 	return &App{
 		appService:         appService,
 		serviceTreeService: serviceTreeService,
+		teamAccessService:  teamAccessService,
 	}
 }
 
@@ -83,6 +86,10 @@ func (a *App) UpdateApp(c *gin.Context) {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
+	if err := requireAccess(c, a.teamAccessService, req.ResourcePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 
 	ctx := contextx.ToContext(c)
 	resp, err = a.appService.UpdateApp(ctx, req)
@@ -114,6 +121,10 @@ func (a *App) UpdateWorkspace(c *gin.Context) {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
+	if err := requireAccess(c, a.teamAccessService, req.ResourcePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 
 	ctx := contextx.ToContext(c)
 	resp, err := a.appService.UpdateWorkspace(ctx, &req)
@@ -143,6 +154,10 @@ func (a *App) DeleteApp(c *gin.Context) {
 	resourcePath := c.Query("resource_path")
 	req := &dto.DeleteAppReq{
 		ResourcePath: resourcePath,
+	}
+	if err := requireAccess(c, a.teamAccessService, req.ResourcePath, access.ActionDelete); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
 	}
 
 	ctx := contextx.ToContext(c)
@@ -241,6 +256,10 @@ func (a *App) GetAppDetail(c *gin.Context) {
 	req = dto.GetAppDetailReq{
 		ResourcePath: resourcePath,
 	}
+	if err := requireAccess(c, a.teamAccessService, req.ResourcePath, access.ActionRead); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 
 	ctx := contextx.ToContext(c)
 	resp, err = a.appService.GetAppDetail(ctx, &req)
@@ -275,6 +294,20 @@ func (a *App) GetAppWithServiceTree(c *gin.Context) {
 	req = dto.GetAppWithServiceTreeReq{
 		ResourcePath: c.Query("resource_path"),
 		Type:         c.Query("type"),
+	}
+	tenantUser, appCode, err := access.ParseUserApp(req.ResourcePath)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	hasAccess, err := a.teamAccessService.HasAnyWorkspaceAccess(contextx.ToContext(c), tenantUser, appCode, contextx.GetRequestUser(c))
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	if !hasAccess {
+		response.FailWithMessage(c, "无权限查看该 workspace")
+		return
 	}
 
 	// 调用 ServiceTreeService 的方法（避免循环依赖）

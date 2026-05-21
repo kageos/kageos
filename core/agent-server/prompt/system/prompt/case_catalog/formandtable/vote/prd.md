@@ -58,12 +58,12 @@ package vote
 import (
 	"fmt"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/statistics"
+	"github.com/kageos/kageos/pkg/gormx/query"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/callback"
+	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos/sdk/agent-app/statistics"
 	"gorm.io/gorm"
 )
 
@@ -347,9 +347,9 @@ package vote
 import (
 	"fmt"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/kageos/kageos/pkg/gormx/query"
+	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/response"
 	"gorm.io/gorm"
 )
 
@@ -496,9 +496,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/response"
 	"gorm.io/gorm"
 )
 
@@ -637,11 +637,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/statistics"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/callback"
+	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos/sdk/agent-app/statistics"
 	"gorm.io/gorm"
 )
 
@@ -1032,12 +1032,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/statistics"
+	"github.com/kageos/kageos/pkg/gormx/query"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/callback"
+	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos/sdk/agent-app/statistics"
 	"gorm.io/gorm"
 )
 

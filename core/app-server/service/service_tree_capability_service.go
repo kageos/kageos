@@ -5,8 +5,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
+	"github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/core/app-server/repository"
 )
 
 type serviceTreeCapabilityBundleService struct {
@@ -14,6 +14,7 @@ type serviceTreeCapabilityBundleService struct {
 	appRepo          *repository.AppRepository
 	runtimeWorkspace *runtimeWorkspaceBridge
 	appService       *AppService
+	docService       *DocService
 }
 
 func newServiceTreeCapabilityBundleService(
@@ -21,12 +22,14 @@ func newServiceTreeCapabilityBundleService(
 	appRepo *repository.AppRepository,
 	runtimeWorkspace *runtimeWorkspaceBridge,
 	appService *AppService,
+	docService *DocService,
 ) *serviceTreeCapabilityBundleService {
 	return &serviceTreeCapabilityBundleService{
 		serviceTreeRepo:  serviceTreeRepo,
 		appRepo:          appRepo,
 		runtimeWorkspace: runtimeWorkspace,
 		appService:       appService,
+		docService:       docService,
 	}
 }
 

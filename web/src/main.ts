@@ -1,4 +1,5 @@
 import './architecture/presentation/assets/main.css'
+import 'element-plus/dist/index.css'
 import './architecture/presentation/styles/theme.scss'
 import './architecture/presentation/styles/widgets.css'
 import './architecture/presentation/assets/theme-workstation-sci-fi.css'
@@ -10,16 +11,14 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import { ElLoadingDirective } from 'element-plus'
-import dayjs from 'dayjs'
-import 'dayjs/locale/zh-cn'
-
-dayjs.locale('zh-cn')
 
 import App from './App.vue'
 import router from './architecture/presentation/router'
 import { useAuthStore } from './architecture/infrastructure/stores/auth'
+import { useLocaleStore } from './architecture/infrastructure/stores/locale'
 import { useThemeStore } from './architecture/infrastructure/stores/theme'
 import { useUserInfoStore } from './architecture/infrastructure/stores/userInfo'
+import { i18n } from './architecture/shared/i18n'
 import { registerWidgetInitializers } from './architecture/presentation/widgets/initializers/registerInitializers'
 import { ensureInitialized } from './architecture/presentation/widgets/registry'
 
@@ -31,6 +30,7 @@ pinia.use(piniaPluginPersistedstate)
 
 app.use(pinia)
 app.use(router)
+app.use(i18n)
 app.directive('loading', ElLoadingDirective)
 
 // 初始化认证状态
@@ -40,6 +40,9 @@ authStore.initAuth()
 // 初始化主题
 const themeStore = useThemeStore()
 themeStore.initTheme()
+
+const localeStore = useLocaleStore()
+localeStore.initLocale()
 
 // 🔥 注册所有 Widget 初始化器（组件自治，符合依赖倒置原则）
 registerWidgetInitializers()

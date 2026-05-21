@@ -6,9 +6,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/appcall"
+	"github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/core/app-server/repository"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/appcall"
 )
 
 // extractVersionNum 从版本号字符串中提取数字部分（如 "v1" -> 1, "v20" -> 20）
@@ -36,6 +37,7 @@ type ServiceTreeService struct {
 	packageService     *serviceTreePackageService
 	batchService       *serviceTreeBatchService
 	capabilityBundle   *serviceTreeCapabilityBundleService
+	teamAccessService  *TeamAccessService
 }
 
 func NewServiceTreeService(
@@ -45,30 +47,42 @@ func NewServiceTreeService(
 	fileSnapshotRepo *repository.FileSnapshotRepository,
 	appService *AppService,
 	docService *DocService,
+	teamAccessService *TeamAccessService,
 ) *ServiceTreeService {
 	runtimeWorkspace := newRuntimeWorkspaceBridge(appRepo, appCall)
-	queryView := newServiceTreeQueryView(serviceTreeRepo, appRepo)
+	queryView := newServiceTreeQueryView(serviceTreeRepo, appRepo, teamAccessService)
 
 	return &ServiceTreeService{
 		queryView:          queryView,
 		workspaceService:   newServiceTreeWorkspaceService(serviceTreeRepo, fileSnapshotRepo, runtimeWorkspace, queryView),
-		searchService:      newServiceTreeSearchService(serviceTreeRepo),
+		searchService:      newServiceTreeSearchService(serviceTreeRepo, teamAccessService),
 		copyService:        newServiceTreeCopyService(serviceTreeRepo, appRepo, runtimeWorkspace, appService),
 		mutationService:    newServiceTreeMutationService(serviceTreeRepo, appRepo, runtimeWorkspace, docService),
 		specialNodeService: newServiceTreeSpecialNodeService(serviceTreeRepo, appRepo, docService),
 		functionService:    newServiceTreeFunctionService(serviceTreeRepo, appRepo, appService),
 		packageService:     newServiceTreePackageService(serviceTreeRepo, appRepo, runtimeWorkspace),
 		batchService:       newServiceTreeBatchService(serviceTreeRepo, runtimeWorkspace, appService),
-		capabilityBundle:   newServiceTreeCapabilityBundleService(serviceTreeRepo, appRepo, runtimeWorkspace, appService),
+		capabilityBundle:   newServiceTreeCapabilityBundleService(serviceTreeRepo, appRepo, runtimeWorkspace, appService, docService),
+		teamAccessService:  teamAccessService,
 	}
 }
 
 func (s *ServiceTreeService) CreatePackage(ctx context.Context, req *dto.CreatePackageReq) (*dto.CreatePackageResp, error) {
-	return s.packageService.CreatePackage(ctx, req)
+	resp, err := s.packageService.CreatePackage(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(resp.FullCodePath))
+	return resp, nil
 }
 
 func (s *ServiceTreeService) CreateFunction(ctx context.Context, req *dto.CreateFunctionReq) (*dto.CreateFunctionResp, error) {
-	return s.functionService.CreateFunction(ctx, req)
+	resp, err := s.functionService.CreateFunction(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(resp.FullCodePath))
+	return resp, nil
 }
 
 func (s *ServiceTreeService) GetAppWithServiceTree(ctx context.Context, req *dto.GetAppWithServiceTreeReq) (*dto.GetAppWithServiceTreeResp, error) {
@@ -91,7 +105,24 @@ func (s *ServiceTreeService) BatchCreateDirectoryTree(
 }
 
 func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunctionsReq) (*dto.AddFunctionsResp, error) {
-	return s.functionService.AddFunctions(ctx, req)
+	var oldNode *model.ServiceTree
+	var expectedPath string
+	if req != nil {
+		expectedPath = s.resolveAddFunctionsAuditPath(ctx, req)
+		oldNode = s.getServiceTreeForAuditByPath(expectedPath)
+	}
+	resp, err := s.functionService.AddFunctions(ctx, req)
+	if err != nil {
+		return resp, err
+	}
+	if resp != nil && resp.Success && expectedPath != "" {
+		action := "service_tree.node.created"
+		if oldNode != nil {
+			action = "service_tree.node.updated"
+		}
+		s.writeServiceTreeOperateLog(ctx, action, oldNode, s.getServiceTreeForAuditByPath(expectedPath))
+	}
+	return resp, nil
 }
 
 func (s *ServiceTreeService) ExportCapabilityBundle(ctx context.Context, req *dto.ExportCapabilityBundleReq) (*dto.CapabilityBundle, error) {

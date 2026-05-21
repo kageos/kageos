@@ -12,7 +12,7 @@ const docTemplate = `{
         "contact": {},
         "license": {
             "name": "Business Source License 1.1",
-            "url": "https://github.com/ai-agent-os/ai-agent-os/blob/main/LICENSE"
+            "url": "https://github.com/kageos/kageos/blob/main/LICENSE"
         },
         "version": "{{.Version}}"
     },
@@ -1097,8 +1097,8 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "localhost:9092",
 	BasePath:         "",
 	Schemes:          []string{},
-	Title:            "AI Agent OS Storage API",
-	Description:      "AI Agent OS 存储服务 API 文档",
+	Title:            "Kageos Storage API",
+	Description:      "Kageos 存储服务 API 文档",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

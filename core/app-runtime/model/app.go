@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"github.com/kageos/kageos/pkg/gormx/models"
 )
 
 // App 应用信息表

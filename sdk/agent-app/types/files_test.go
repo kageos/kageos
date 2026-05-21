@@ -21,11 +21,11 @@ func TestFilesStringProtocol(t *testing.T) {
 }
 
 func TestSplitAndJoinFileRef(t *testing.T) {
-	bucket, key := SplitFileRef("/ai-agent-os/workspace/chat/a.png")
-	if bucket != "ai-agent-os" || key != "workspace/chat/a.png" {
+	bucket, key := SplitFileRef("/kageos/workspace/chat/a.png")
+	if bucket != "kageos" || key != "workspace/chat/a.png" {
 		t.Fatalf("SplitFileRef() = %q, %q", bucket, key)
 	}
-	if got, want := JoinFileRef(bucket, key), "ai-agent-os/workspace/chat/a.png"; got != want {
+	if got, want := JoinFileRef(bucket, key), "kageos/workspace/chat/a.png"; got != want {
 		t.Fatalf("JoinFileRef() = %q, want %q", got, want)
 	}
 }

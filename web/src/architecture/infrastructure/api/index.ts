@@ -2,6 +2,7 @@
 export * from './auth'
 export * from './app'
 export * from './service-tree'
+export * from './team-access'
 export * from './function'
 export * from './agent'
 export * from './state'

@@ -13,16 +13,16 @@ import (
 
 	"github.com/robfig/cron/v3"
 
-	sharedDto "github.com/ai-agent-os/ai-agent-os/dto"
+	sharedDto "github.com/kageos/kageos/dto"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/repository"
-	"github.com/ai-agent-os/ai-agent-os/pkg/builder"
-	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/gitx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
+	"github.com/kageos/kageos/core/app-runtime/model"
+	"github.com/kageos/kageos/core/app-runtime/repository"
+	"github.com/kageos/kageos/pkg/builder"
+	appconfig "github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/gitx"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/subjects"
 	"github.com/nats-io/nats.go"
 )
 
@@ -172,7 +172,7 @@ func (s *AppManageService) CreateApp(ctx context.Context, user, app string, opts
 		}
 	}
 
-	// 4. 启动脚本已内置在 ai-agent-os 镜像中，无需复制
+	// 4. 启动脚本已内置在 kageos 镜像中，无需复制
 
 	// 5. 创建应用时不创建版本文件，版本文件将在第一次编译时创建
 	// 这样可以避免创建时就写入版本信息
@@ -480,8 +480,8 @@ func (s *AppManageService) createVersionContainer(ctx context.Context, user, app
 	}
 
 	if exists {
-		logger.Warnf(ctx, "[createVersionContainer] App runtime instance %s already exists and is running", runtimeName)
-		return fmt.Errorf("app runtime instance %s already exists and is running", runtimeName)
+		logger.Infof(ctx, "[createVersionContainer] App runtime instance %s already exists and is running; reusing it", runtimeName)
+		return nil
 	}
 
 	spec, err := s.buildAppVersionSpec(ctx, ref, appDir)
@@ -1337,7 +1337,7 @@ func (s *AppManageService) commitToGit(
 	// 3. 获取邮箱后缀（从配置读取）
 	emailSuffix := s.config.GetGitEmailSuffix()
 	if emailSuffix == "" {
-		emailSuffix = "ai-agent-os.com" // 默认后缀
+		emailSuffix = "kageos.com" // 默认后缀
 	}
 
 	// 4. 构建邮箱：{user}@{email_suffix}

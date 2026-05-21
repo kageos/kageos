@@ -7,18 +7,18 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
-	"github.com/ai-agent-os/ai-agent-os/pkg/appcall"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/dbx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
-	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/waiter"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/core/app-server/repository"
+	"github.com/kageos/kageos/core/app-server/service"
+	"github.com/kageos/kageos/pkg/appcall"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/dbx"
+	"github.com/kageos/kageos/pkg/logger"
+	middleware2 "github.com/kageos/kageos/pkg/middleware"
+	"github.com/kageos/kageos/pkg/natsx"
+	"github.com/kageos/kageos/pkg/serverx"
+	"github.com/kageos/kageos/pkg/waiter"
 	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
 )
@@ -41,6 +41,9 @@ type Server struct {
 	docService                    *service.DocService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	operateLogService             *service.OperateLogService
+	teamAccessService             *service.TeamAccessService
+	functionSensitiveFieldService *service.FunctionSensitiveFieldService
+	publicShareService            *service.PublicShareService
 	appRepo                       *repository.AppRepository // ⭐ 应用仓储（用于其他服务）
 
 	// 上游服务
@@ -206,6 +209,9 @@ func (s *Server) initNATS(ctx context.Context) error {
 func (s *Server) initServices(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing services...")
 
+	if err := model.ReconcileNatsHostFromURL(s.db, s.cfg.GetNats().URL); err != nil {
+		return fmt.Errorf("reconcile nats host from config: %w", err)
+	}
 	if err := model.ReconcileNatsHostFromEnv(s.db); err != nil {
 		return fmt.Errorf("reconcile nats host from NATS_SEED_HOST: %w", err)
 	}
@@ -229,21 +235,34 @@ func (s *Server) initServices(ctx context.Context) error {
 	functionRepo := repository.NewFunctionRepository(s.db)
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
 	operateLogRepo := repository.NewOperateLogRepository(s.db)
+	teamAccessRepo := repository.NewTeamAccessRepository(s.db)
+	functionSensitiveFieldRepo := repository.NewFunctionSensitiveFieldRepository(s.db)
+	publicShareRepo := repository.NewPublicShareRepository(s.db)
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
 	s.appService = service.NewAppService(s.appCall, appRepo, functionRepo, serviceTreeRepo, operateLogRepo)
 	s.operateLogService = service.NewOperateLogService(operateLogRepo)
+	s.teamAccessService = service.NewTeamAccessService(teamAccessRepo, operateLogRepo, appRepo)
+	s.functionSensitiveFieldService = service.NewFunctionSensitiveFieldService(functionSensitiveFieldRepo)
+	if err := s.functionSensitiveFieldService.LoadAll(ctx); err != nil {
+		return fmt.Errorf("加载敏感字段缓存失败: %w", err)
+	}
+	s.appService.SetTeamAccessService(s.teamAccessService)
+	s.appService.SetFunctionSensitiveFieldService(s.functionSensitiveFieldService)
 
 	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
 	docRepo := repository.NewDocRepository(s.db)
-	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo)
+	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo, s.teamAccessService)
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.docService)
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.docService, s.teamAccessService)
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)
+
+	// 初始化公开分享服务（MVP: Form 匿名提交）
+	s.publicShareService = service.NewPublicShareService(publicShareRepo, functionRepo, serviceTreeRepo)
 
 	// 初始化目录更新历史服务
 	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo, serviceTreeRepo)

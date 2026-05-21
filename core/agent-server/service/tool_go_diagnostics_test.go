@@ -41,7 +41,7 @@ func TestAppendGoFileDiagnosticsSkipsNonGoFile(t *testing.T) {
 func TestAppendGoFileDiagnosticsDoesNotRunCrossFileOnSelectFuzzyCheck(t *testing.T) {
 	msg := appendGoFileDiagnostics("已落盘: nps_record_list.go。", "/u/app/nps", "nps_record_list.go", `package nps
 
-import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+import "github.com/kageos/kageos/sdk/agent-app/app"
 
 var T = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
@@ -59,7 +59,7 @@ var T = &app.TableTemplate{
 func TestAppendGoFileDiagnosticsWarnsImportShim(t *testing.T) {
 	msg := appendGoFileDiagnostics("已落盘: nps_types.go。", "/u/app/nps", "nps_types.go", `package nps
 
-import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+import "github.com/kageos/kageos/sdk/agent-app/types"
 
 // 此文件用于导出 types 包，供其他文件使用
 var _ = types.Time{}
@@ -74,7 +74,7 @@ var _ = types.Time{}
 func TestAppendGoFileDiagnosticsWarnsRootAgentAppImport(t *testing.T) {
 	msg := appendGoFileDiagnostics("已落盘: nps_distribution.go。", "/u/app/nps", "nps_distribution.go", `package nps
 
-import agentapp "github.com/ai-agent-os/ai-agent-os/sdk/agent-app"
+import agentapp "github.com/kageos/kageos/sdk/agent-app"
 
 var _ = agentapp.ChartTypePie
 `)

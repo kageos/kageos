@@ -7,15 +7,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/service"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/dbx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/core/hr-server/model"
+	"github.com/kageos/kageos/core/hr-server/repository"
+	"github.com/kageos/kageos/core/hr-server/service"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/dbx"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/natsx"
+	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
 )
@@ -67,6 +67,10 @@ func NewServer(cfg *config.HRServerConfig) (*Server, error) {
 
 	if err := s.initServices(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init services: %w", err)
+	}
+
+	if err := service.InitDefaultCompany(ctx, s.db); err != nil {
+		return nil, fmt.Errorf("failed to init default company: %w", err)
 	}
 
 	// ⭐ 初始化默认组织（根节点、未分配组织、虚拟组织/测试组）；须在默认用户之前，以便 test_user 归属 /org/virtual/test
@@ -179,6 +183,7 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化仓库
 	userRepo := repository.NewUserRepository(s.db)
+	companyRepo := repository.NewCompanyRepository(s.db)
 	userSessionRepo := repository.NewUserSessionRepository(s.db)
 	emailCodeRepo := repository.NewEmailCodeRepository(s.db)
 	deptRepo := repository.NewDepartmentRepository(s.db)
@@ -188,13 +193,13 @@ func (s *Server) initServices(ctx context.Context) error {
 	}
 
 	// 初始化认证服务
-	s.authService = service.NewAuthService(userRepo, userSessionRepo, s.tokenPublisher)
+	s.authService = service.NewAuthService(userRepo, companyRepo, userSessionRepo, s.tokenPublisher)
 
 	// 初始化邮件服务
 	s.emailService = service.NewEmailService(emailCodeRepo)
 
 	// 初始化用户服务
-	s.userService = service.NewUserService(userRepo, s.tokenPublisher, userSessionRepo)
+	s.userService = service.NewUserService(userRepo, companyRepo, s.tokenPublisher, userSessionRepo)
 
 	s.departmentService = service.NewDepartmentService(deptRepo, userRepo)
 

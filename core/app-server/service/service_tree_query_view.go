@@ -9,24 +9,29 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/core/app-server/repository"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 type serviceTreeQueryView struct {
 	serviceTreeRepo *repository.ServiceTreeRepository
 	appRepo         *repository.AppRepository
+	teamAccess      *TeamAccessService
 }
 
 func newServiceTreeQueryView(
 	serviceTreeRepo *repository.ServiceTreeRepository,
 	appRepo *repository.AppRepository,
+	teamAccess *TeamAccessService,
 ) *serviceTreeQueryView {
 	return &serviceTreeQueryView{
 		serviceTreeRepo: serviceTreeRepo,
 		appRepo:         appRepo,
+		teamAccess:      teamAccess,
 	}
 }
 
@@ -56,7 +61,16 @@ func (q *serviceTreeQueryView) getServiceTreeByAppModel(ctx context.Context, app
 
 	logger.Debugf(ctx, "[ServiceTreeService] 按 MVP 模式返回全量可访问服务树: app_id=%d", appModel.ID)
 
-	rootResp := q.convertToGetServiceTreeResp(rootNode)
+	permissionsByPath, err := q.permissionsByPath(ctx, appModel, trees)
+	if err != nil {
+		return nil, err
+	}
+
+	rootResp := q.convertToGetServiceTreeResp(rootNode, permissionsByPath)
+	rootResp = filterVisibleServiceTree(rootResp)
+	if rootResp == nil {
+		return []*dto.GetServiceTreeResp{}, nil
+	}
 
 	logger.Debugf(ctx, "[ServiceTreeService] 服务树转换完成: root_id=%d, children_count=%d",
 		rootNode.ID, len(rootResp.Children))
@@ -146,7 +160,36 @@ func (q *serviceTreeQueryView) GetServiceTreeDetail(ctx context.Context, req *dt
 	return resp, nil
 }
 
-func (q *serviceTreeQueryView) convertToGetServiceTreeResp(tree *model.ServiceTree) *dto.GetServiceTreeResp {
+func (q *serviceTreeQueryView) permissionsByPath(ctx context.Context, appModel *model.App, trees []*model.ServiceTree) (map[string]*access.Result, error) {
+	paths := collectServiceTreePaths(trees)
+	if q.teamAccess == nil {
+		results := make(map[string]*access.Result, len(paths))
+		for _, path := range paths {
+			normalized := access.NormalizeResourcePath(path)
+			results[normalized] = &access.Result{ResourcePath: normalized, Permissions: access.RolePermissions(access.RoleOwner)}
+		}
+		return results, nil
+	}
+	return q.teamAccess.PermissionsForTree(ctx, appModel.User, appModel.Code, contextx.GetRequestUser(ctx), paths)
+}
+
+func collectServiceTreePaths(trees []*model.ServiceTree) []string {
+	paths := make([]string, 0)
+	var walk func(nodes []*model.ServiceTree)
+	walk = func(nodes []*model.ServiceTree) {
+		for _, node := range nodes {
+			if node == nil {
+				continue
+			}
+			paths = append(paths, node.FullCodePath)
+			walk(node.Children)
+		}
+	}
+	walk(trees)
+	return paths
+}
+
+func (q *serviceTreeQueryView) convertToGetServiceTreeResp(tree *model.ServiceTree, permissionsByPath map[string]*access.Result) *dto.GetServiceTreeResp {
 	resp := &dto.GetServiceTreeResp{
 		ID:           tree.ID,
 		Name:         tree.Name,
@@ -164,10 +207,18 @@ func (q *serviceTreeQueryView) convertToGetServiceTreeResp(tree *model.ServiceTr
 		VersionNum:   tree.VersionNum,
 		RunCount:     tree.RunCount,
 	}
+	if permissionResult := permissionsByPath[access.NormalizeResourcePath(tree.FullCodePath)]; permissionResult != nil {
+		resp.Permissions = permissionResult.Permissions
+		resp.RoleCodes = permissionResult.RoleCodes
+		resp.InheritedFrom = permissionResult.InheritedFrom
+		resp.ExpiresAt = permissionResult.ExpiresAt
+	} else {
+		resp.Permissions = access.EmptyPermissionSet()
+	}
 
 	if len(tree.Children) > 0 {
 		for _, child := range tree.Children {
-			childResp := q.convertToGetServiceTreeResp(child)
+			childResp := q.convertToGetServiceTreeResp(child, permissionsByPath)
 			resp.Children = append(resp.Children, childResp)
 		}
 	}
@@ -177,6 +228,23 @@ func (q *serviceTreeQueryView) convertToGetServiceTreeResp(tree *model.ServiceTr
 	}
 
 	return resp
+}
+
+func filterVisibleServiceTree(node *dto.GetServiceTreeResp) *dto.GetServiceTreeResp {
+	if node == nil {
+		return nil
+	}
+	filteredChildren := make([]*dto.GetServiceTreeResp, 0, len(node.Children))
+	for _, child := range node.Children {
+		if filteredChild := filterVisibleServiceTree(child); filteredChild != nil {
+			filteredChildren = append(filteredChildren, filteredChild)
+		}
+	}
+	node.Children = filteredChildren
+	if access.HasPermission(node.Permissions, access.ActionRead) || len(node.Children) > 0 {
+		return node
+	}
+	return nil
 }
 
 func (q *serviceTreeQueryView) calculateExpandedKeys(trees []*dto.GetServiceTreeResp) []int64 {

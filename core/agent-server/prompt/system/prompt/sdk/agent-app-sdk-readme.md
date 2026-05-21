@@ -167,7 +167,7 @@ func init() {
 最小可用片段示例：
 
 ```go
-import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/chart"
+import "github.com/kageos/kageos/sdk/agent-app/chart"
 
 type SalesStatisticsReq struct {
     StartTime string `json:"start_time" form:"start_time" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
@@ -227,9 +227,11 @@ func TicketTrendChart(ctx *app.Context, resp response.Response) error {
 
 ### 1. widget 标签
 
-widget tag 内部格式是 `name:显示名;type:已支持组件类型;配置项:值`。生成代码时只使用**当前已支持**的组件类型；只要写了 `widget` 标签，就必须显式写 `type`。`type` 大小写敏感，主键/ID 展示必须写 `type:ID`，不要写成 `type:id`。常用配置：`render_default`、`placeholder`、`options`、`options_colors`、`min`/`max`/`step`/`unit`、`format`、`precision`、`accept`、`max_size`、`max_count`、`height`、`disabled`、`creatable` 等。`render_default` 是前端渲染默认值，只在新增/初始化界面填充，不等于 `gorm:"default:..."` 或数据库默认值。
+widget tag 内部格式是 `name:显示名;type:已支持组件类型;配置项:值`。生成代码时只使用**当前已支持**的组件类型；只要写了 `widget` 标签，就必须显式写 `type`。`type` 大小写敏感，主键/ID 展示必须写 `type:ID`，不要写成 `type:id`。常用配置：`render_default`、`placeholder`、`options`、`options_colors`、`min`/`max`/`step`/`unit`、`format`、`precision`、`accept`、`max_size`、`max_count`、`height`、`disabled`、`creatable` 等。`input` 不支持 `password:true`；密码、token、API key 等如需存储，按普通业务字段处理，平台不承诺业务库加密。`render_default` 是前端渲染默认值，只在新增/初始化界面填充，不等于 `gorm:"default:..."` 或数据库默认值。
 
 同一层结构体字段的 `json` code 不能重复。可选 `data` 标签只允许 `format`、`example`，用于补充 schema 数据格式和示例，不替代 widget 配置。
+
+**敏感字段约定**：字段可以写 `sensitive:"true"`，表示该字段在平台操作日志中会被移除，不进入 `operate_logs` 的 request/response/old/new JSON。它不表示业务数据库加密，不改变用户应用自己的 SQLite/GORM 落库行为。需要密文存储时，由业务代码自行加密后再写入；当前不要在 widget 标签中生成 `password:true` 配置。
 
 **select / multiselect 与 options_colors（提示词约定，按必填处理）**：生成静态 `select` 或静态 `multiselect` 时配置 `options_colors`，与 `options` 一一对应（逗号分隔，顺序一致），前端会用颜色标签区分选项。动态 OnSelectFuzzy 下拉不写 `options`，也不要写 `options_colors`。`options_colors` 只支持 6 位十六进制 `RRGGBB`，不带 `#`，如 `FF9800`、`9C27B0`、`4CAF50`。不要生成 `primary`、`success`、`warning`、`danger`、`info`、`default`、`secondary`、`#FF9800` 或 `rgb(...)`。示例：`options:待处理,进行中,已完成` 对应 `options_colors:E6A23C,409EFF,67C23A`；`options:VIP,普通,体验` 对应 `options_colors:E91E63,9E9E9E,4CAF50`。
 
@@ -256,8 +258,8 @@ Names   []string `json:"names" widget:"name:文本列表;type:list;item_type:tex
 type WidgetLookupExample struct {
     ID             int        `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" hide:"create,update"`
     Title          string     `json:"title" gorm:"column:title" widget:"name:标题;type:input;placeholder:请输入标题;render_default:新建记录" validate:"required,min=2,max=200"`
-    Password       string     `json:"password" gorm:"-" widget:"name:密码;type:input;password:true;placeholder:请输入密码"`
     Phone          string     `json:"phone" gorm:"column:phone" widget:"name:电话;type:input;prepend:+86;append:分机"`
+    ApiToken       string     `json:"api_token" gorm:"column:api_token" widget:"name:API Token;type:input;placeholder:请输入 Token" sensitive:"true"` // sensitive 只影响操作日志，不做业务库加密。
     Description    string     `json:"description" gorm:"column:description" widget:"name:描述;type:text_area;placeholder:请输入详细描述;render_default:暂无" validate:"required,min=10"`
     ReadonlyText   string     `json:"readonly_text" gorm:"-" widget:"name:只读文本;type:text;format:markdown" hide:"create,update"`
     Content        string     `json:"content" gorm:"type:text;column:content" widget:"name:详细内容;type:richtext;height:360"`
@@ -300,7 +302,7 @@ type WidgetLookupExtra struct {
 | 组件类型 | 常用配置 | 说明 | 典型用法 |
 |----------|----------|------|----------|
 | `ID` | — | 只读主键/标识；`type` 必须写大写 `ID` | 列表主键、详情 ID |
-| `input` | `placeholder`、`password`、`prepend`、`append`、`render_default` | 单行文本输入 | 标题、电话、邮箱 |
+| `input` | `placeholder`、`prepend`、`append`、`render_default` | 单行文本输入；不支持 `password:true` | 标题、电话、邮箱、业务 token |
 | `text` | `format` | 只读文本展示 | JSON、Markdown、CSV、HTML 输出 |
 | `text_area` | `placeholder`、`render_default` | 多行文本输入 | 描述、备注 |
 | `richtext` | `height` | 富文本编辑 | 详细内容、公告正文 |
@@ -599,11 +601,12 @@ FinishedAt   types.Time  `json:"finished_at" gorm:"column:finished_at;type:datet
 
 **场景 5：新增和编辑都展示、但列表不展示（hide:"list"）**
 
-敏感或内部信息需要在新增/编辑表单里填写，但不在列表里展示，避免列表信息过载或泄露。例如：内部备注、成本价、二次确认密码等。用 `hide:"list"`，前端会在新增和编辑表单展示，列表不展示。
+敏感或内部信息需要在新增/编辑表单里填写，但不在列表里展示，避免列表信息过载或泄露。例如：内部备注、成本价、业务 token 等。用 `hide:"list"`，前端会在新增和编辑表单展示，列表不展示。若还需要避免进入平台操作日志，加 `sensitive:"true"`；这不会加密业务表中的真实值。
 
 ```go
 InternalNote string  `json:"internal_note" gorm:"column:internal_note" widget:"name:内部备注;type:text_area" hide:"list"` // 前端在新增/编辑表单展示，列表不展示。
 CostPrice    float64 `json:"cost_price" gorm:"column:cost_price" widget:"name:成本价;type:float;precision:2;unit:元" hide:"list"` // 前端在新增/编辑表单展示，列表不展示。
+ApiToken     string  `json:"api_token" gorm:"column:api_token" widget:"name:API Token;type:input" hide:"list" sensitive:"true"` // 业务库按普通字段存储；平台操作日志会移除此字段。
 ```
 
 **小结**：`hide` 的值表示“隐藏在哪些场景”。`hide:"create,update"` = 仅列表展示；`hide:"list,update"` = 仅新增展示；`hide:"list,create"` = 仅编辑展示；`hide:"list"` = 新增/编辑展示但列表不展示；不设 = 三个场景均展示。配合 `widget:"-"` 可完全隐藏字段。
@@ -1089,7 +1092,7 @@ func onSelectFuzzyProduct(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*ca
 
 #### Statistics 与聚合计算（OnSelectFuzzyResp.Statistics）
 
-`OnSelectFuzzyResp.Statistics` 的键值对会在前端表单旁展示（如收银台「商品原价总额」「会员折扣后价格」「当前余额」等）。值可以是**静态字符串**，也可以是 **`statistics` 包**返回的表达式，由前端根据当前 **table 行数据**或**选中项**动态计算。仅当当前文件真实使用 `statistics.Value` 等符号时才导入 `github.com/ai-agent-os/ai-agent-os/sdk/agent-app/statistics`。
+`OnSelectFuzzyResp.Statistics` 的键值对会在前端表单旁展示（如收银台「商品原价总额」「会员折扣后价格」「当前余额」等）。值可以是**静态字符串**，也可以是 **`statistics` 包**返回的表达式，由前端根据当前 **table 行数据**或**选中项**动态计算。仅当当前文件真实使用 `statistics.Value` 等符号时才导入 `github.com/kageos/kageos/sdk/agent-app/statistics`。
 
 **1. table 子表场景（对当前 table 多行聚合）**
 
@@ -1216,8 +1219,8 @@ Chart 用于**只读的统计/图表**（BI），GET 请求。ChartTemplate、�
    - **正确**：使用具体类型 `&chart.LineChart{}`、`&chart.BarChart{}` 等，只填 Title、XAxis、Series（Name、Data、可选 Config），不填 ChartType 和 Series[].Type；框架会在 `resp.Chart()` 时自动注入。
 
 3. **误用 sdk/agent-app 下的 query 包**  
-   - **错误**：`import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/query"`，导致编译报错「包找不到」。  
-   - **正确**：查询/分页等应使用 `github.com/ai-agent-os/ai-agent-os/pkg/gormx/query`（或项目内实际提供的 query 包），不要使用 `sdk/agent-app/query`。
+   - **错误**：`import "github.com/kageos/kageos/sdk/agent-app/query"`，导致编译报错「包找不到」。  
+   - **正确**：查询/分页等应使用 `github.com/kageos/kageos/pkg/gormx/query`（或项目内实际提供的 query 包），不要使用 `sdk/agent-app/query`。
 
 4. **不确定时先看案例**  
    - 图表个数、路由拆分、返回格式，以收银台案例为准：`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`，看每个图表是如何「一个 GET 路由 + 一个具体图表类型返回值」实现的。
