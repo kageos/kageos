@@ -1,43 +1,54 @@
 import { get } from '@/architecture/infrastructure/apiClient/request'
 
-export interface TableOperateLog {
+export interface OperateLog {
   id: number
   tenant_user: string
-  request_user: string
-  action: string
+  company_code?: string
   app: string
-  full_code_path: string
-  row_id: number
-  updates?: any
-  old_values?: any
+  actor_user: string
+  action: string
+  resource_type: string
+  resource_path: string
+  resource_name?: string
+  target_user?: string
+  target_id?: string
+  summary?: string
+  details_json?: any
+  old_values_json?: any
+  new_values_json?: any
+  status?: string
+  source?: string
   ip_address?: string
   user_agent?: string
   trace_id?: string
-  version?: string
   created_at: string
 }
 
-export interface GetTableOperateLogsParams {
+export interface GetOperateLogsParams {
   tenant_user?: string
-  request_user?: string
+  company_code?: string
+  actor_user?: string
+  target_user?: string
   app?: string
-  full_code_path?: string
-  full_code_path_prefix?: string
-  row_id?: number
+  resource_type?: string
+  resource_path?: string
+  resource_path_prefix?: string
   action?: string
+  status?: string
+  row_id?: number
   keyword?: string
   page?: number
   page_size?: number
   order_by?: string
 }
 
-export interface GetTableOperateLogsResponse {
-  logs: TableOperateLog[]
+export interface GetOperateLogsResponse {
+  logs: OperateLog[]
   total: number
   page: number
   page_size: number
 }
 
-export function getTableOperateLogs(params: GetTableOperateLogsParams): Promise<GetTableOperateLogsResponse> {
-  return get<GetTableOperateLogsResponse>('/workspace/api/v1/operate_log/table', params)
+export function getOperateLogs(params: GetOperateLogsParams): Promise<GetOperateLogsResponse> {
+  return get<GetOperateLogsResponse>('/workspace/api/v1/operate_log/general', params)
 }

@@ -5,7 +5,7 @@ import { Logger } from '@/architecture/shared/logger'
 import type { ServiceTree } from '../../domain/types'
 import { featureFlags } from '@/architecture/shared/config/features'
 
-type FunctionTabName = 'content' | 'detail' | 'permission' | 'operateLog'
+type FunctionTabName = 'content' | 'detail' | 'permission' | 'publicShare' | 'operateLog'
 
 type FunctionFormViewRef = Record<string, unknown>
 
@@ -44,6 +44,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   const getFunctionTabQueryValue = () => {
     if (functionActiveTab.value === 'detail') return 'detail'
     if (functionActiveTab.value === 'permission') return 'permission'
+    if (functionActiveTab.value === 'publicShare') return 'publicShare'
     if (functionActiveTab.value === 'operateLog') return 'operateLog'
     return undefined
   }
@@ -72,6 +73,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   const handleFunctionTabChange = (tabName: string) => {
     if (tabName === 'detail') functionActiveTab.value = 'detail'
     else if (tabName === 'permission') functionActiveTab.value = 'permission'
+    else if (tabName === 'publicShare') functionActiveTab.value = 'publicShare'
     else if (tabName === 'operateLog' && featureFlags.operateLogs) functionActiveTab.value = 'operateLog'
     else functionActiveTab.value = 'content'
     syncFunctionTabQuery()
@@ -87,6 +89,11 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
 
     if (normalizedTab === 'permission' && currentFunction.value?.type === 'function') {
       functionActiveTab.value = 'permission'
+      return
+    }
+
+    if (normalizedTab === 'publicShare' && currentFunction.value?.type === 'function') {
+      functionActiveTab.value = 'publicShare'
       return
     }
 

@@ -325,6 +325,15 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 					c.Request.Header.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
 					logger.Debugf(s.ctx, "[Proxy] Extracted department_full_path from token: %s", *claims.DepartmentFullPath)
 				}
+				if claims.CompanyCode != "" {
+					c.Request.Header.Set(contextx.CompanyCodeHeader, claims.CompanyCode)
+				}
+				if claims.CompanyName != "" {
+					c.Request.Header.Set(contextx.CompanyNameHeader, claims.CompanyName)
+				}
+				if claims.CompanyLogoURL != "" {
+					c.Request.Header.Set(contextx.CompanyLogoURLHeader, claims.CompanyLogoURL)
+				}
 			} else {
 				// token 解析失败，但不阻止请求（可能是不需要认证的接口）
 				tokenPrefix := ""

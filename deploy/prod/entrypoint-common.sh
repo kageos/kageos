@@ -58,7 +58,7 @@ set_smtp_defaults() {
   SMTP_USERNAME="${SMTP_USERNAME-}"
   SMTP_PASSWORD="${SMTP_PASSWORD-}"
   SMTP_FROM="${SMTP_FROM-}"
-  SMTP_FROM_NAME="${SMTP_FROM_NAME:-AI Agent OS}"
+  SMTP_FROM_NAME="${SMTP_FROM_NAME:-Kageos}"
 }
 
 render_runtime_templates() {

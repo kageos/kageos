@@ -8,7 +8,7 @@
     <template #header>
       <div class="dialog-title">
         <el-icon><Key /></el-icon>
-        <span>权限管理</span>
+        <span>{{ t('access.title') }}</span>
       </div>
     </template>
 
@@ -17,10 +17,10 @@
         <section class="resource-panel">
           <div class="panel-header">
             <div>
-              <h3>选择资源</h3>
-              <p>可以一次勾选多个目录、文档或函数</p>
+              <h3>{{ t('access.selectResource') }}</h3>
+              <p>{{ t('access.selectResourceDesc') }}</p>
             </div>
-            <el-tag size="small" effect="plain">已选 {{ selectedResourcePaths.length }}</el-tag>
+            <el-tag size="small" effect="plain">{{ t('common.selectedCount', { count: selectedResourcePaths.length }) }}</el-tag>
           </div>
 
           <div class="tree-container">
@@ -45,7 +45,7 @@
                   <img
                     v-if="data.type === 'package'"
                     src="/service-tree/custom-folder.svg"
-                    alt="目录"
+                    :alt="t('packageDetail.detail')"
                     class="node-icon package-icon-img"
                     :class="getNodeIconClass(data)"
                   />
@@ -53,7 +53,7 @@
                     <img
                       v-if="data.template_type === TEMPLATE_TYPE.FORM"
                       src="/service-tree/编辑.svg"
-                      alt="表单"
+                      :alt="t('packageDetail.form')"
                       class="node-icon form-icon-img"
                       :class="getNodeIconClass(data)"
                     />
@@ -67,14 +67,14 @@
                   <img
                     v-else-if="data.type === 'docs'"
                     src="/文档.svg"
-                    alt="文档"
+                    :alt="t('packageDetail.docs')"
                     class="node-icon docs-icon-img"
                     :class="getNodeIconClass(data)"
                   />
                   <img
                     v-else-if="isBoardNode(data)"
                     src="/讨论区.svg"
-                    alt="讨论区"
+                    alt="board"
                     class="node-icon board-icon-img"
                     :class="getNodeIconClass(data)"
                   />
@@ -89,8 +89,8 @@
         <section class="role-panel">
           <div class="panel-header">
             <div>
-              <h3>选择角色</h3>
-              <p>四个固定角色，权限点统一复用</p>
+              <h3>{{ t('access.selectRole') }}</h3>
+              <p>{{ t('access.selectRoleDesc') }}</p>
             </div>
           </div>
 
@@ -139,13 +139,13 @@
         <section class="grant-panel">
           <div class="panel-header">
             <div>
-              <h3>填写赋权信息</h3>
-              <p>提交后会批量写入当前社区版权限表</p>
+              <h3>{{ t('access.grantInfo') }}</h3>
+              <p>{{ t('access.grantInfoDesc') }}</p>
             </div>
           </div>
 
           <el-form label-position="top" class="grant-form" @submit.prevent>
-            <el-form-item label="赋权用户">
+            <el-form-item :label="t('access.grantUser')">
               <UsersWidget
                 :value="grantUsersValue"
                 :field="grantUsersField"
@@ -155,32 +155,32 @@
               />
             </el-form-item>
 
-            <el-form-item label="有效期">
+            <el-form-item :label="t('access.expires')">
               <el-radio-group v-model="grantPermanent">
-                <el-radio :label="true">长期有效</el-radio>
-                <el-radio :label="false">指定时间</el-radio>
+                <el-radio :label="true">{{ t('access.permanent') }}</el-radio>
+                <el-radio :label="false">{{ t('access.customTime') }}</el-radio>
               </el-radio-group>
               <el-date-picker
                 v-if="!grantPermanent"
                 v-model="grantExpiresAt"
                 class="expires-picker"
                 type="datetime"
-                placeholder="选择到期时间"
+                :placeholder="t('access.expiresPlaceholder')"
                 clearable
               />
             </el-form-item>
 
             <div class="grant-preview">
               <div class="preview-row">
-                <span>资源</span>
-                <strong>{{ selectedResourcePaths.length }} 个</strong>
+                <span>{{ t('access.resource') }}</span>
+                <strong>{{ t('common.resourceCount', { count: selectedResourcePaths.length }) }}</strong>
               </div>
               <div class="preview-row">
-                <span>用户</span>
-                <strong>{{ selectedUsernames.length }} 个</strong>
+                <span>{{ t('access.users') }}</span>
+                <strong>{{ t('common.userCount', { count: selectedUsernames.length }) }}</strong>
               </div>
               <div class="preview-row">
-                <span>角色</span>
+                <span>{{ t('access.role') }}</span>
                 <strong>{{ roleLabel(grantRole) }}</strong>
               </div>
             </div>
@@ -193,7 +193,7 @@
               :disabled="!canSubmitGrant"
               @click="submitGrant"
             >
-              提交赋权
+              {{ t('access.submitGrant') }}
             </el-button>
           </el-form>
         </section>
@@ -202,15 +202,15 @@
       <section class="members-panel">
         <div class="members-header">
           <div>
-            <h3>已有权限</h3>
+            <h3>{{ t('access.existing') }}</h3>
             <p>{{ node.full_code_path }}</p>
           </div>
-          <el-button size="small" :loading="loading" @click="loadMembers">刷新</el-button>
+          <el-button size="small" :loading="loading" @click="loadMembers">{{ t('common.refresh') }}</el-button>
         </div>
 
         <el-tabs v-model="activeTab" class="access-tabs">
-          <el-tab-pane :label="`当前目录 ${currentMembers.length}`" name="current" />
-          <el-tab-pane :label="`继承上级 ${inheritedMembers.length}`" name="inherited" />
+          <el-tab-pane :label="t('access.currentDirectoryCount', { count: currentMembers.length })" name="current" />
+          <el-tab-pane :label="t('access.inheritedParentCount', { count: inheritedMembers.length })" name="inherited" />
         </el-tabs>
 
         <el-table
@@ -219,9 +219,9 @@
           class="access-table"
           :row-key="memberRowKey"
           size="small"
-          empty-text="暂无权限记录"
+          :empty-text="t('access.empty')"
         >
-          <el-table-column label="成员" min-width="220">
+          <el-table-column :label="t('access.member')" min-width="220">
             <template #default="{ row }">
               <div class="member-users-cell">
                 <UsersWidget
@@ -233,14 +233,14 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="角色" width="116">
+          <el-table-column :label="t('access.role')" width="116">
             <template #default="{ row }">
               <el-tag size="small" :type="roleTagType(row.role_code)">
                 {{ roleLabel(row.role_code) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="权限" min-width="220">
+          <el-table-column :label="t('functionTabs.permission')" min-width="220">
             <template #default="{ row }">
               <div class="permission-tags">
                 <el-tag
@@ -254,18 +254,18 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="来源" min-width="190">
+          <el-table-column :label="t('access.source')" min-width="190">
             <template #default="{ row }">
-              <span v-if="row.direct" class="source-current">当前目录</span>
+              <span v-if="row.direct" class="source-current">{{ t('access.currentDirectory') }}</span>
               <span v-else class="source-inherited">{{ row.inherited_from || row.resource_path }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="到期" width="150">
+          <el-table-column :label="t('access.expiresColumn')" width="150">
             <template #default="{ row }">
               {{ formatExpiresAt(row.expires_at) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="92" fixed="right">
+          <el-table-column :label="t('common.operation')" width="92" fixed="right">
             <template #default="{ row }">
               <el-button
                 v-if="row.direct"
@@ -276,10 +276,10 @@
                 :loading="removingKey === memberRowKey(row)"
                 @click="removeMember(row)"
               >
-                移除
+                {{ t('common.remove') }}
               </el-button>
-              <el-tooltip v-else content="继承权限需要到来源目录移除" placement="top">
-                <span class="disabled-action">继承</span>
+              <el-tooltip v-else :content="t('access.inheritedRemoveTip')" placement="top">
+                <span class="disabled-action">{{ t('access.inherited') }}</span>
               </el-tooltip>
             </template>
           </el-table-column>
@@ -291,6 +291,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   CircleCheck,
   Delete,
@@ -344,48 +345,50 @@ const emit = defineEmits<{
   (e: 'changed'): void
 }>()
 
-const roleOptions: RoleOption[] = [
+const { t } = useI18n()
+
+const roleOptions = computed<RoleOption[]>(() => [
   {
     value: 'viewer',
-    title: '查看者',
+    title: t('access.roleViewerTitle'),
     codeLabel: 'Viewer',
-    subtitle: '只读角色',
-    description: '只能查看目录下的文档、表格、表单和图表。',
+    subtitle: t('access.roleViewerSubtitle'),
+    description: t('access.roleViewerDescription'),
     permissions: ['read'],
     tone: 'view',
     icon: View,
   },
   {
     value: 'member',
-    title: '成员',
+    title: t('access.roleMemberTitle'),
     codeLabel: 'Member',
-    subtitle: '编辑角色',
-    description: '可以查看、新增和更新内容，但不能删除记录或调整目录结构。',
+    subtitle: t('access.roleMemberSubtitle'),
+    description: t('access.roleMemberDescription'),
     permissions: ['read', 'write', 'update'],
     tone: 'edit',
     icon: EditPen,
   },
   {
     value: 'admin',
-    title: '管理员',
+    title: t('access.roleAdminTitle'),
     codeLabel: 'Admin',
-    subtitle: '管理角色',
-    description: '可以管理目录内容、删除记录，并给其他成员赋权。',
+    subtitle: t('access.roleAdminSubtitle'),
+    description: t('access.roleAdminDescription'),
     permissions: ['read', 'write', 'update', 'delete', 'admin'],
     tone: 'admin',
     icon: Key,
   },
   {
     value: 'owner',
-    title: '拥有者',
+    title: t('access.roleOwnerTitle'),
     codeLabel: 'Owner',
-    subtitle: '拥有者角色',
-    description: '拥有完整权限，包括 Owner 权限转授。只有 Owner 能授予 Owner。',
+    subtitle: t('access.roleOwnerSubtitle'),
+    description: t('access.roleOwnerDescription'),
     permissions: ['read', 'write', 'update', 'delete', 'admin', 'owner'],
     tone: 'owner',
     icon: User,
   },
-]
+])
 
 const permissionLabelMap = {
   read: 'read',
@@ -396,10 +399,10 @@ const permissionLabelMap = {
   owner: 'owner',
 } satisfies Record<string, string>
 
-const grantUsersField: FieldConfig = {
+const grantUsersField = computed<FieldConfig>(() => ({
   code: 'teamAccessUsers',
-  name: '用户',
-  desc: '搜索并选择一个或多个用户',
+  name: t('access.users'),
+  desc: t('access.memberPickerDesc'),
   widget: {
     type: WidgetType.USERS,
     config: {
@@ -409,12 +412,12 @@ const grantUsersField: FieldConfig = {
   data: {
     type: 'string'
   }
-}
+}))
 
-const memberUsersField: FieldConfig = {
+const memberUsersField = computed<FieldConfig>(() => ({
   code: 'teamAccessMemberUsers',
-  name: '成员',
-  desc: '成员',
+  name: t('access.member'),
+  desc: t('access.member'),
   widget: {
     type: WidgetType.USERS,
     config: {
@@ -424,7 +427,7 @@ const memberUsersField: FieldConfig = {
   data: {
     type: 'string'
   }
-}
+}))
 
 const dialogVisible = computed({
   get: () => props.modelValue,
@@ -439,7 +442,7 @@ const removingKey = ref('')
 const activeTab = ref<AccessTab>('current')
 const activeResourcePath = ref('')
 const selectedResourcePaths = ref<string[]>([])
-const grantUsersValue = ref<FieldValue>(createStringFieldValue(grantUsersField, '', { emptyRaw: '' }))
+const grantUsersValue = ref<FieldValue>(createStringFieldValue(grantUsersField.value, '', { emptyRaw: '' }))
 const grantRole = ref<AccessRoleCode>('viewer')
 const grantPermanent = ref(true)
 const grantExpiresAt = ref<Date | null>(null)
@@ -489,7 +492,7 @@ watch(() => ({
   activeTab.value = 'current'
   activeResourcePath.value = path
   selectedResourcePaths.value = [path]
-  grantUsersValue.value = createStringFieldValue(grantUsersField, '', { emptyRaw: '' })
+  grantUsersValue.value = createStringFieldValue(grantUsersField.value, '', { emptyRaw: '' })
   grantRole.value = 'viewer'
   grantPermanent.value = true
   grantExpiresAt.value = null
@@ -511,7 +514,7 @@ async function loadMembers() {
     const resp = await listTeamMembers(path)
     members.value = resp.members || []
   } catch (error: any) {
-    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '获取权限列表失败'
+    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('access.loadFailed')
     ElMessage.error(message)
   } finally {
     loading.value = false
@@ -562,7 +565,7 @@ function isBoardNode(data: ServiceTree): boolean {
 
 async function submitGrant() {
   if (!canSubmitGrant.value) {
-    ElMessage.warning('请选择资源、用户和角色')
+    ElMessage.warning(t('access.selectResourceUserRole'))
     return
   }
 
@@ -574,12 +577,15 @@ async function submitGrant() {
       role_codes: [grantRole.value],
       expires_at: grantPermanent.value ? null : (grantExpiresAt.value ? grantExpiresAt.value.toISOString() : null)
     })
-    ElMessage.success(`已给 ${selectedUsernames.value.length} 个用户授予 ${selectedResourcePaths.value.length} 个资源权限`)
-    grantUsersValue.value = createStringFieldValue(grantUsersField, '', { emptyRaw: '' })
+    ElMessage.success(t('access.grantResourcesSuccess', {
+      users: selectedUsernames.value.length,
+      resources: selectedResourcePaths.value.length
+    }))
+    grantUsersValue.value = createStringFieldValue(grantUsersField.value, '', { emptyRaw: '' })
     await loadMembers()
     emit('changed')
   } catch (error: any) {
-    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '赋权失败'
+    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('access.grantFailed')
     ElMessage.error(message)
   } finally {
     submitting.value = false
@@ -590,11 +596,11 @@ async function removeMember(member: TeamMemberAccess) {
   const key = memberRowKey(member)
   try {
     await ElMessageBox.confirm(
-      `确认移除 ${member.username} 在当前目录的 ${roleLabel(member.role_code)} 权限？`,
-      '移除授权',
+      t('access.removeDirectoryConfirm', { username: member.username, role: roleLabel(member.role_code) }),
+      t('access.removeConfirmTitle'),
       {
-        confirmButtonText: '移除',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.remove'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
@@ -609,11 +615,11 @@ async function removeMember(member: TeamMemberAccess) {
       username: member.username,
       role_code: member.role_code
     })
-    ElMessage.success('已移除授权')
+    ElMessage.success(t('access.removeSuccess'))
     await loadMembers()
     emit('changed')
   } catch (error: any) {
-    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '移除授权失败'
+    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('access.removeFailed')
     ElMessage.error(message)
   } finally {
     removingKey.value = ''
@@ -638,12 +644,12 @@ function memberRowKey(member: TeamMemberAccess): string {
 }
 
 function roleLabel(role: AccessRoleCode): string {
-  const option = roleOptions.find(item => item.value === role)
+  const option = roleOptions.value.find(item => item.value === role)
   return option?.title || role
 }
 
 function memberUsersValue(username: string): FieldValue {
-  return createStringFieldValue(memberUsersField, username || '', { emptyRaw: '' })
+  return createStringFieldValue(memberUsersField.value, username || '', { emptyRaw: '' })
 }
 
 function roleTagType(role: AccessRoleCode): 'danger' | 'warning' | 'success' | 'info' {
@@ -658,11 +664,11 @@ function permissionLabels(permissions: AccessPermissions | null | undefined): st
   const labels = Object.entries(permissionLabelMap)
     .filter(([key]) => permissions[key as keyof AccessPermissions])
     .map(([, label]) => label)
-  return labels.length > 0 ? labels : ['无']
+  return labels.length > 0 ? labels : [t('access.noPermission')]
 }
 
 function formatExpiresAt(value?: string): string {
-  if (!value) return '长期有效'
+  if (!value) return t('access.permanent')
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString()

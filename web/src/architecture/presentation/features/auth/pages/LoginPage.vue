@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { computed, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Check, Loading } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { LoginRequest } from '@/architecture/domain/types'
+import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 // 表单数据
 const loginForm = reactive<LoginRequest>({
@@ -22,16 +25,16 @@ const loginFormRef = ref()
 const loading = ref(false)
 
 // 表单验证规则
-const rules = {
+const rules = computed(() => ({
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 2, max: 50, message: '用户名长度在 2 到 50 个字符', trigger: 'blur' }
+    { required: true, message: t('auth.usernameRequired'), trigger: 'blur' },
+    { min: 2, max: 50, message: t('auth.usernameLength'), trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 50, message: '密码长度在 6 到 50 个字符', trigger: 'blur' }
+    { required: true, message: t('auth.passwordRequired'), trigger: 'blur' },
+    { min: 6, max: 50, message: t('auth.passwordLength'), trigger: 'blur' }
   ]
-}
+}))
 
 // 处理登录
 const handleLogin = async () => {
@@ -44,9 +47,9 @@ const handleLogin = async () => {
     // 登录成功后跳转到首页
     await router.push('/')
   } catch (error: any) {
-    console.error('登录失败:', error)
+    console.error('Login failed:', error)
     // 🔥 统一使用 msg 字段
-    const message = error?.response?.data?.msg || error?.message || '登录失败，请检查用户名和密码'
+    const message = error?.response?.data?.msg || error?.message || t('auth.loginFailed')
     ElMessage.error(message)
   } finally {
     loading.value = false
@@ -73,6 +76,10 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
 <template>
   <div class="login-container" data-testid="login-page" @keypress="handleKeyPress">
+    <div class="auth-language">
+      <LanguageSwitcher />
+    </div>
+
     <!-- 背景装饰 -->
     <div class="background-decoration">
       <div class="decoration-circle circle-1"></div>
@@ -86,15 +93,14 @@ const handleKeyPress = (event: KeyboardEvent) => {
         <div class="brand-logo-wrapper">
           <div class="logo-glow"></div>
           <div class="brand-logo">
-            <img alt="AI Agent OS" class="logo" src="@/architecture/presentation/assets/logo.svg" />
+            <img alt="Kageos" class="logo" src="@/architecture/presentation/assets/logo.svg" />
           </div>
         </div>
         <h1 class="brand-title">
-          <span class="title-gradient">AI Agent OS</span>
+          <span class="title-gradient">Kageos</span>
         </h1>
         <p class="brand-subtitle">
-          新一代智能代理操作系统<br />
-          让AI应用开发像描述一样简单
+          {{ t('auth.brandSubtitle') }}
         </p>
         <div class="brand-features">
           <div class="feature-item">
@@ -102,8 +108,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
               <el-icon><Check /></el-icon>
             </div>
             <div class="feature-text">
-              <span class="feature-title">智能代码生成</span>
-              <span class="feature-desc">基于自然语言生成生产代码</span>
+              <span class="feature-title">{{ t('auth.featureCodeTitle') }}</span>
+              <span class="feature-desc">{{ t('auth.featureCodeDesc') }}</span>
             </div>
           </div>
           <div class="feature-item">
@@ -111,8 +117,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
               <el-icon><Check /></el-icon>
             </div>
             <div class="feature-text">
-              <span class="feature-title">自动API渲染</span>
-              <span class="feature-desc">零代码构建完整应用界面</span>
+              <span class="feature-title">{{ t('auth.featureRenderTitle') }}</span>
+              <span class="feature-desc">{{ t('auth.featureRenderDesc') }}</span>
             </div>
           </div>
           <div class="feature-item">
@@ -120,8 +126,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
               <el-icon><Check /></el-icon>
             </div>
             <div class="feature-text">
-              <span class="feature-title">物理多租户</span>
-              <span class="feature-desc">完全隔离的安全运行环境</span>
+              <span class="feature-title">{{ t('auth.featureTenantTitle') }}</span>
+              <span class="feature-desc">{{ t('auth.featureTenantDesc') }}</span>
             </div>
           </div>
         </div>
@@ -135,8 +141,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
           <div class="header-icon">
             <el-icon><User /></el-icon>
           </div>
-          <h2 class="login-title">欢迎回来</h2>
-          <p class="login-subtitle">登录您的账号以继续使用</p>
+          <h2 class="login-title">{{ t('auth.loginTitle') }}</h2>
+          <p class="login-subtitle">{{ t('auth.loginSubtitle') }}</p>
         </div>
 
         <el-form
@@ -151,7 +157,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
           <el-form-item prop="username">
             <el-input
               v-model="loginForm.username"
-              placeholder="请输入用户名"
+              :placeholder="t('auth.usernamePlaceholder')"
               :prefix-icon="User"
               clearable
               size="large"
@@ -164,7 +170,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
             <el-input
               v-model="loginForm.password"
               type="password"
-              placeholder="请输入密码"
+              :placeholder="t('auth.passwordPlaceholder')"
               :prefix-icon="Lock"
               show-password
               clearable
@@ -187,21 +193,21 @@ const handleKeyPress = (event: KeyboardEvent) => {
               <template #loading>
                 <el-icon class="is-loading"><Loading /></el-icon>
               </template>
-              <span v-if="!loading">登录</span>
-              <span v-else>登录中...</span>
+              <span v-if="!loading">{{ t('auth.loginButton') }}</span>
+              <span v-else>{{ t('auth.loginLoading') }}</span>
             </el-button>
           </el-form-item>
 
           <div class="login-footer">
             <div class="footer-top">
               <el-button type="text" @click="goToForgotPassword" class="forgot-password-link">
-                忘记密码？
+                {{ t('auth.forgotPassword') }}
               </el-button>
             </div>
             <div class="footer-bottom">
-            <span class="login-tip">还没有账号？</span>
+            <span class="login-tip">{{ t('auth.noAccount') }}</span>
             <el-button type="text" @click="goToRegister" class="register-link">
-              立即注册
+              {{ t('auth.registerNow') }}
             </el-button>
             </div>
           </div>
@@ -221,8 +227,12 @@ const handleKeyPress = (event: KeyboardEvent) => {
   --auth-surface: rgba(244, 247, 251, 0.88);
   --auth-card-bg: rgba(255, 255, 255, 0.8);
   --auth-card-border: rgba(148, 163, 184, 0.26);
-  --auth-input-bg: rgba(255, 255, 255, 0.96);
-  --auth-input-border: #cbd5e1;
+  --auth-input-bg: rgba(248, 251, 255, 0.96);
+  --auth-input-bg-focus: rgba(255, 255, 255, 0.98);
+  --auth-input-border: rgba(93, 130, 188, 0.3);
+  --auth-input-text: #1e3a5f;
+  --auth-input-placeholder: #7d91ad;
+  --auth-input-icon: rgba(22, 119, 255, 0.58);
   --auth-text: #0f172a;
   --auth-text-muted: #475569;
   --auth-text-soft: #64748b;
@@ -233,6 +243,13 @@ const handleKeyPress = (event: KeyboardEvent) => {
   position: relative;
   overflow: hidden;
   isolation: isolate;
+}
+
+.auth-language {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  z-index: 3;
 }
 
 /* 背景装饰动画 */
@@ -534,6 +551,17 @@ const handleKeyPress = (event: KeyboardEvent) => {
   margin-bottom: 32px;
 }
 
+.form-input {
+  --el-input-text-color: var(--auth-input-text);
+  --el-input-placeholder-color: var(--auth-input-placeholder);
+  --el-input-icon-color: var(--auth-input-icon);
+  --el-input-bg-color: var(--auth-input-bg);
+  --el-input-border-color: var(--auth-input-border);
+  --el-input-hover-border-color: rgba(22, 119, 255, 0.42);
+  --el-input-focus-border-color: var(--auth-accent);
+  --el-text-color-regular: var(--auth-input-text);
+}
+
 :deep(.el-form-item) {
   margin-bottom: 28px;
 }
@@ -545,6 +573,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
   padding: 0 16px;
   transition: all 0.3s ease;
   border: 1px solid var(--auth-input-border);
+  color: var(--auth-input-text);
 }
 
 :deep(.el-input__wrapper:hover) {
@@ -553,6 +582,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 }
 
 :deep(.el-input__wrapper.is-focus) {
+  background: var(--auth-input-bg-focus);
   box-shadow: 0 0 0 4px var(--auth-accent-soft);
   border-color: var(--auth-accent);
 }
@@ -560,11 +590,22 @@ const handleKeyPress = (event: KeyboardEvent) => {
 :deep(.el-input__inner) {
   height: 52px;
   font-size: 15px;
-  color: var(--auth-text);
+  color: var(--auth-input-text) !important;
+  -webkit-text-fill-color: var(--auth-input-text);
+  caret-color: var(--auth-accent) !important;
+  font-weight: 600;
 }
 
 :deep(.el-input__inner::placeholder) {
-  color: #94a3b8;
+  color: var(--auth-input-placeholder) !important;
+  -webkit-text-fill-color: var(--auth-input-placeholder);
+  font-weight: 400;
+}
+
+:deep(.el-input__inner:-webkit-autofill) {
+  -webkit-text-fill-color: var(--auth-input-text);
+  box-shadow: 0 0 0 1000px var(--auth-input-bg-focus) inset;
+  caret-color: var(--auth-accent);
 }
 
 .login-btn-item {
@@ -648,11 +689,11 @@ const handleKeyPress = (event: KeyboardEvent) => {
 }
 
 :deep(.el-input__prefix) {
-  color: #94a3b8;
+  color: var(--auth-input-icon);
 }
 
 :deep(.el-input__suffix) {
-  color: #94a3b8;
+  color: var(--auth-input-icon);
 }
 
 /* 响应式设计 */
@@ -745,5 +786,58 @@ const handleKeyPress = (event: KeyboardEvent) => {
   .decoration-circle {
     display: none;
   }
+}
+</style>
+
+<style>
+.login-container .form-input.el-input .el-input__inner,
+.login-container .form-input.el-input input.el-input__inner {
+  color: #1e3a5f !important;
+  -webkit-text-fill-color: #1e3a5f !important;
+  caret-color: #1677ff !important;
+}
+
+.login-container .form-input.el-input .el-input__inner::placeholder,
+.login-container .form-input.el-input input.el-input__inner::placeholder {
+  color: #7d91ad !important;
+  -webkit-text-fill-color: #7d91ad !important;
+}
+
+.login-container .form-input.el-input .el-input__prefix,
+.login-container .form-input.el-input .el-input__suffix,
+.login-container .form-input.el-input .el-input__password,
+.login-container .form-input.el-input .el-input__clear {
+  color: rgba(22, 119, 255, 0.58) !important;
+}
+
+.login-container .form-input.el-input .el-input__wrapper {
+  background-color: rgba(248, 251, 255, 0.96) !important;
+  border-color: rgba(93, 130, 188, 0.3) !important;
+}
+
+.login-container .form-input.el-input .el-input__wrapper.is-focus {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border-color: #1677ff !important;
+}
+
+.login-container .auth-language .language-switcher {
+  border-color: rgba(22, 119, 255, 0.24) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.8)) !important;
+  color: #1e3a5f !important;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.1) !important;
+  backdrop-filter: blur(16px);
+}
+
+.login-container .auth-language .language-switcher:hover,
+.login-container .auth-language .language-switcher:focus-visible {
+  border-color: rgba(22, 119, 255, 0.46) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9)) !important;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.14) !important;
+  transform: translateY(-1px);
+}
+
+.login-container .auth-language .language-switcher__code,
+.login-container .auth-language .language-switcher__arrow {
+  color: #64748b !important;
 }
 </style>

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Swagger文档生成脚本
-# 用于生成AI Agent OS所有服务的API文档
+# 用于生成Kageos所有服务的API文档
 
 set -e  # 遇到错误立即退出
 

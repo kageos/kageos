@@ -103,7 +103,7 @@ func main() {
 	defer cancel()
 
 	fmt.Println("========================================")
-	fmt.Println("  AI Agent OS - 统一启动入口")
+	fmt.Println("  Kageos - 统一启动入口")
 	fmt.Println("========================================")
 	fmt.Println("  说明：")
 	fmt.Println("  - 生产默认 prod：优先读 deploy/prod/config/runtime，缺失时回退到 deploy/prod/config/template")
@@ -220,12 +220,10 @@ func main() {
 	// ⭐ 在后台 goroutine 中持续监听错误
 	go func() {
 		for err := range errors {
-			fmt.Printf("\n[错误] %v\n", err)
-			logger.Errorf(ctx, "服务运行失败: %v", err)
-			// 通知所有服务停止
-			close(stopCh)
-			wg.Wait()
-			os.Exit(1)
+			message := fmt.Sprintf("服务启动/运行失败，统一启动入口直接退出: %v", err)
+			fmt.Fprintf(os.Stderr, "\n[FATAL] %s\n", message)
+			logger.Errorf(ctx, "%s", message)
+			panic(message)
 		}
 	}()
 

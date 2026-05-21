@@ -30,6 +30,7 @@ func (s *Server) setupRoutes() {
 	authHandler := v1.NewAuth(s.authService, s.emailService, s.userService, s.departmentService)
 	auth.POST("/send_email_code", authHandler.SendEmailCode)
 	auth.POST("/register", authHandler.Register)
+	auth.GET("/companies/search", authHandler.SearchCompanies)
 	auth.POST("/login", authHandler.Login)
 	auth.POST("/refresh", authHandler.RefreshToken)
 	auth.POST("/logout", authHandler.Logout)

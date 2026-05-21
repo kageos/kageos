@@ -1,4 +1,4 @@
--- AI Agent OS 数据库初始化脚本
+-- Kageos 数据库初始化脚本
 -- 由 MySQL 容器首次启动时自动执行（挂载到 /docker-entrypoint-initdb.d/）。
 --
 -- 账号密码（与 compose 和 configs 一致）:

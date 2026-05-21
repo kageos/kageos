@@ -21,6 +21,12 @@ func (s *Server) setupRoutes() {
 	// Swagger 文档路由
 	s.httpServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
+	publicShareHandler := v1.NewPublicShareAPI(s.publicShareService, s.appService, s.teamAccessService)
+	public := s.httpServer.Group("/public/api")
+	public.GET("/s/:share_id", publicShareHandler.View)
+	public.POST("/s/:share_id/submit", publicShareHandler.Submit)
+	public.POST("/s/:share_id/callback/on_select_fuzzy", publicShareHandler.CallbackOnSelectFuzzy)
+
 	// Workspace 路由组（统一使用 /workspace/api/v1 开头，方便网关代理）
 	workspace := s.httpServer.Group("/workspace")
 	apiV1 := workspace.Group("/api/v1")
@@ -48,6 +54,12 @@ func (s *Server) setupRoutes() {
 	teamAccess.POST("/batch_assign", teamAccessHandler.BatchAssign)
 	teamAccess.POST("/remove", teamAccessHandler.Remove)
 	teamAccess.GET("/my_permissions", teamAccessHandler.MyPermissions)
+
+	publicShares := apiV1.Group("/public_shares")
+	publicShares.Use(middleware2.JWTAuth())
+	publicShares.POST("", publicShareHandler.Create)
+	publicShares.GET("", publicShareHandler.List)
+	publicShares.POST("/:share_id/disable", publicShareHandler.Disable)
 
 	// 服务目录管理路由（需要JWT验证）
 	serviceTree := apiV1.Group("/service_tree")
@@ -116,9 +128,9 @@ func (s *Server) setupRoutes() {
 
 	// 操作日志路由（需要JWT验证）
 	operateLog := apiV1.Group("/operate_log")
-	operateLog.Use(middleware2.JWTAuth())                           // JWT 认证
-	operateLogHandler := v1.NewOperateLog(s.operateLogService)      // 查询 Table 操作日志
-	operateLog.GET("/table", operateLogHandler.GetTableOperateLogs) // 查询 Table 操作日志
+	operateLog.Use(middleware2.JWTAuth())                                           // JWT 认证
+	operateLogHandler := v1.NewOperateLog(s.operateLogService, s.teamAccessService) // 查询统一操作日志
+	operateLog.GET("/general", operateLogHandler.GetOperateLogs)                    // 查询通用操作日志
 
 	// 目录更新历史路由（需要JWT验证）
 	directoryUpdateHistory := apiV1.Group("/directory_update_history")

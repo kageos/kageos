@@ -179,6 +179,7 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化仓库
 	userRepo := repository.NewUserRepository(s.db)
+	companyRepo := repository.NewCompanyRepository(s.db)
 	userSessionRepo := repository.NewUserSessionRepository(s.db)
 	emailCodeRepo := repository.NewEmailCodeRepository(s.db)
 	deptRepo := repository.NewDepartmentRepository(s.db)
@@ -188,13 +189,13 @@ func (s *Server) initServices(ctx context.Context) error {
 	}
 
 	// 初始化认证服务
-	s.authService = service.NewAuthService(userRepo, userSessionRepo, s.tokenPublisher)
+	s.authService = service.NewAuthService(userRepo, companyRepo, userSessionRepo, s.tokenPublisher)
 
 	// 初始化邮件服务
 	s.emailService = service.NewEmailService(emailCodeRepo)
 
 	// 初始化用户服务
-	s.userService = service.NewUserService(userRepo, s.tokenPublisher, userSessionRepo)
+	s.userService = service.NewUserService(userRepo, companyRepo, s.tokenPublisher, userSessionRepo)
 
 	s.departmentService = service.NewDepartmentService(deptRepo, userRepo)
 

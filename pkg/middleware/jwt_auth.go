@@ -37,6 +37,7 @@ func JWTAuth() gin.HandlerFunc {
 			if deptPath := c.GetHeader(contextx.DepartmentFullPathHeader); deptPath != "" {
 				c.Set(contextx.DepartmentFullPathHeader, deptPath)
 			}
+			setCompanyContextFromHeaders(c)
 
 			logger.Debugf(c, "[JWTAuth] 从 header 获取用户信息 - User: %s, Path: %s", requestUser, c.Request.URL.Path)
 			c.Next()
@@ -71,6 +72,7 @@ func JWTAuth() gin.HandlerFunc {
 			if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
 				c.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
 			}
+			setCompanyContextFromClaims(c, claims)
 
 			c.Next()
 			return
@@ -120,8 +122,33 @@ func JWTAuthOptional() gin.HandlerFunc {
 			claims, err := jwtService.ValidateToken(token)
 			if err == nil {
 				c.Set(contextx.RequestUserHeader, claims.Username)
+				setCompanyContextFromClaims(c, claims)
 			}
 		}
 		c.Next()
+	}
+}
+
+func setCompanyContextFromHeaders(c *gin.Context) {
+	if companyCode := c.GetHeader(contextx.CompanyCodeHeader); companyCode != "" {
+		c.Set(contextx.CompanyCodeHeader, companyCode)
+	}
+	if companyName := c.GetHeader(contextx.CompanyNameHeader); companyName != "" {
+		c.Set(contextx.CompanyNameHeader, companyName)
+	}
+	if companyLogoURL := c.GetHeader(contextx.CompanyLogoURLHeader); companyLogoURL != "" {
+		c.Set(contextx.CompanyLogoURLHeader, companyLogoURL)
+	}
+}
+
+func setCompanyContextFromClaims(c *gin.Context, claims *auth.JWTClaims) {
+	if claims.CompanyCode != "" {
+		c.Set(contextx.CompanyCodeHeader, claims.CompanyCode)
+	}
+	if claims.CompanyName != "" {
+		c.Set(contextx.CompanyNameHeader, claims.CompanyName)
+	}
+	if claims.CompanyLogoURL != "" {
+		c.Set(contextx.CompanyLogoURLHeader, claims.CompanyLogoURL)
 	}
 }

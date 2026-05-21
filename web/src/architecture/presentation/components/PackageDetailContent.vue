@@ -2,16 +2,22 @@
   <div class="detail-content">
     <div v-if="packageNode">
       <el-tabs v-model="activeTab" class="detail-tabs">
-        <el-tab-pane label="目录详情" name="detail">
+        <el-tab-pane :label="t('packageDetail.detail')" name="detail">
           <div class="tab-content">
             <PackageDetailOverviewCard
               :package-node="packageNode"
               :total-run-count="totalRunCount"
             />
-            <details v-if="directoryMarkdown" class="directory-markdown-detail">
+            <details
+              v-if="directoryMarkdown"
+              class="directory-markdown-detail"
+              @toggle="handleDirectoryDetailsToggle"
+            >
               <summary class="directory-markdown-summary">
-                <span>目录详情</span>
-                <span class="directory-markdown-summary-hint">展开</span>
+                <span>{{ t('packageDetail.detail') }}</span>
+                <span class="directory-markdown-summary-hint">
+                  {{ directoryDetailsOpen ? t('packageDetail.collapse') : t('packageDetail.expand') }}
+                </span>
               </summary>
               <div class="directory-markdown-body" v-html="renderMarkdown(directoryMarkdown)" />
             </details>
@@ -22,7 +28,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="权限" name="permission">
+        <el-tab-pane :label="t('packageDetail.permission')" name="permission">
           <div class="tab-content access-tab-content">
             <TeamAccessPanel
               ref="accessPanelRef"
@@ -35,7 +41,7 @@
 
         <el-tab-pane
           v-if="featureFlags.operateLogs"
-          label="操作日志"
+          :label="t('packageDetail.operateLog')"
           name="operateLog"
         >
           <div class="tab-content operate-log-tab-content">
@@ -47,7 +53,7 @@
               scope="directory"
               embedded
               show-refresh
-              title="目录操作日志"
+              :title="t('packageDetail.directoryOperateLog')"
               :auto-load="false"
             />
           </div>
@@ -59,6 +65,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ServiceTree } from '@/architecture/domain/types'
 import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
@@ -89,10 +96,12 @@ defineEmits<{
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
+const { t } = useI18n()
 
 const activeTab = ref<PackageTabName>('detail')
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
 const accessPanelRef = ref<LoadableAccessPanel | null>(null)
+const directoryDetailsOpen = ref(false)
 
 const directoryMarkdown = computed(() => {
   return props.packageNode?.description?.trim() || ''
@@ -105,6 +114,10 @@ function loadOperateLogTab(tabName: PackageTabName) {
   if (tabName === 'permission') {
     nextTick(() => accessPanelRef.value?.loadMembers())
   }
+}
+
+function handleDirectoryDetailsToggle(event: Event) {
+  directoryDetailsOpen.value = (event.currentTarget as HTMLDetailsElement).open
 }
 
 watch(
@@ -276,15 +289,6 @@ watch(
   color: var(--el-text-color-secondary);
   font-size: 12px;
   font-weight: 600;
-}
-
-.directory-markdown-detail[open] .directory-markdown-summary-hint {
-  font-size: 0;
-}
-
-.directory-markdown-detail[open] .directory-markdown-summary-hint::after {
-  content: '收起';
-  font-size: 12px;
 }
 
 .directory-markdown-body {

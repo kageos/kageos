@@ -1,6 +1,6 @@
-// @title AI Agent OS API Gateway
+// @title Kageos API Gateway
 // @version 1.0
-// @description AI Agent OS API 网关服务文档
+// @description Kageos API 网关服务文档
 
 // @host localhost:9090
 // @BasePath /

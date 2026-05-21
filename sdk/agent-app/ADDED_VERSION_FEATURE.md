@@ -253,11 +253,11 @@ func recommendAPIImprovements(api *ApiInfo) []Recommendation {
 
 ## ✅ 总结
 
-AddedVersion功能为AI Agent OS提供了强大的API生命周期追踪能力：
+AddedVersion功能为Kageos提供了强大的API生命周期追踪能力：
 
 1. **历史追溯**: 清晰记录每个API的起源
 2. **版本分析**: 支持基于版本的数据分析
 3. **智能决策**: 帮助做出重构和优化决策
 4. **用户体验**: 前端可以基于API年龄提供更好的用户提示
 
-这个功能让你的AI Agent OS不仅是代码生成工具，更是一个智能的API管理平台！🚀
+这个功能让你的Kageos不仅是代码生成工具，更是一个智能的API管理平台！🚀

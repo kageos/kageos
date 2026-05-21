@@ -35,6 +35,17 @@ func TestRolePermissions(t *testing.T) {
 	}
 }
 
+func TestIsSystemBuiltinPath(t *testing.T) {
+	for _, path := range []string{"/system", "/system/prompt/case_catalog/table/ticket", "system/tools/runtime/python.form"} {
+		if !IsSystemBuiltinPath(path) {
+			t.Fatalf("%s should be treated as system builtin", path)
+		}
+	}
+	if IsSystemBuiltinPath("/alice/app/system") {
+		t.Fatal("user workspace path should not be treated as system builtin")
+	}
+}
+
 func TestResolveInheritsFromParentPath(t *testing.T) {
 	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
 	result := Resolve([]Assignment{

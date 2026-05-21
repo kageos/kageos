@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ServiceTree } from '@/architecture/domain/types'
+import { setLocale } from '@/architecture/shared/i18n'
 import {
   buildServiceTreeNodeActionTestId,
   getServiceTreeNodeActions,
@@ -28,6 +29,8 @@ function commands(actions: ReturnType<typeof getServiceTreeNodeActions>): Servic
 }
 
 describe('serviceTreeNodeActions', () => {
+  setLocale('zh-CN')
+
   it('shows package actions with capability bundle wording', () => {
     const actions = getServiceTreeNodeActions(node({}))
 

@@ -30,6 +30,13 @@ type StandardAPI struct {
 	teamAccessService *service.TeamAccessService
 }
 
+type callbackRequestEnvelope struct {
+	Method string `json:"method"`
+	Router string `json:"router"`
+	Body   []byte `json:"body"`
+	Type   string `json:"type"`
+}
+
 // NewStandardAPI 创建标准接口处理器
 func NewStandardAPI(appService *service.AppService, teamAccessService *service.TeamAccessService) *StandardAPI {
 	return &StandardAPI{
@@ -176,17 +183,18 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 	defer c.Request.Body.Close()
 
 	// 构建回调请求体
-	mp := make(map[string]interface{})
-	mp["method"] = c.Request.Method
-	mp["router"] = router
-	mp["body"] = all
-	mp["type"] = callbackType
+	envelope := callbackRequestEnvelope{
+		Method: c.Request.Method,
+		Router: router,
+		Body:   all,
+		Type:   callbackType,
+	}
 
 	// 绑定查询参数
 	req.UrlQuery = c.Request.URL.RawQuery
 
 	// 将回调信息序列化为 JSON
-	marshal, err := json.Marshal(mp)
+	marshal, err := json.Marshal(envelope)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +332,7 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 	}
 
 	user, app, router, _ := parseFullCodePath(fullCodePath)
-	logReq := &dto.RecordTableOperateLogReq{
+	logReq := &dto.RecordTableActionLogReq{
 		TenantUser:  user,
 		RequestUser: req.RequestUser,
 		App:         app,
@@ -337,16 +345,15 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 		TraceID:     req.TraceId,
 	}
 	ctx := contextx.ToContext(c)
-	go func() {
-		if err := s.appService.RecordTableOperateLog(ctx, logReq); err != nil {
-			logger.Warnf(ctx, "[TableCreate] 记录 Table 新增操作日志失败: %v", err)
-		}
-	}()
 
 	// 调用服务层
 	now := time.Now()
 	resp, err := s.appService.RequestApp(ctx, req)
 	mill := time.Since(now).Milliseconds()
+	fillTableActionLogResult(logReq, resp, err, mill)
+	if logErr := s.appService.RecordTableActionLog(ctx, logReq); logErr != nil {
+		logger.Warnf(ctx, "[TableCreate] 记录 Table 新增操作日志失败: %v", logErr)
+	}
 
 	// 构建响应元数据
 	metadata := make(map[string]interface{})
@@ -751,10 +758,11 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 		return
 	}
 
-	// 使用已解析的 bodyData（可能已自动填充 old_values）记录操作日志
+	// 使用已解析的 bodyData（可能已自动填充 old_values）准备操作日志
+	var logReq *dto.RecordTableActionLogReq
 	if bodyData != nil {
 		user, app, router, _ := parseFullCodePath(fullCodePath)
-		logReq := &dto.RecordTableOperateLogReq{
+		logReq = &dto.RecordTableActionLogReq{
 			TenantUser:  user,
 			RequestUser: req.RequestUser,
 			App:         app,
@@ -783,13 +791,6 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 			logReq.OldValues, _ = json.Marshal(oldValuesData)
 		}
 
-		// 异步记录操作日志
-		ctx := contextx.ToContext(c)
-		go func() {
-			if err := s.appService.RecordTableOperateLog(ctx, logReq); err != nil {
-				logger.Warnf(ctx, "[TableUpdate] 记录 Table 更新操作日志失败: %v", err)
-			}
-		}()
 	}
 
 	// 调用服务层
@@ -797,6 +798,12 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 	now := time.Now()
 	resp, err := s.appService.RequestApp(ctx, req)
 	mill := time.Since(now).Milliseconds()
+	fillTableActionLogResult(logReq, resp, err, mill)
+	if logReq != nil {
+		if logErr := s.appService.RecordTableActionLog(ctx, logReq); logErr != nil {
+			logger.Warnf(ctx, "[TableUpdate] 记录 Table 更新操作日志失败: %v", logErr)
+		}
+	}
 
 	// 构建响应元数据
 	metadata := make(map[string]interface{})
@@ -870,9 +877,10 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 
 	// 解析请求体，用于记录操作日志
 	var bodyData map[string]interface{}
+	var logReq *dto.RecordTableActionLogReq
 	if err := json.Unmarshal(bodyBytes, &bodyData); err == nil {
 		user, app, router, _ := parseFullCodePath(fullCodePath)
-		logReq := &dto.RecordTableOperateLogReq{
+		logReq = &dto.RecordTableActionLogReq{
 			TenantUser:  user,
 			RequestUser: req.RequestUser,
 			App:         app,
@@ -894,14 +902,6 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 			}
 			logReq.RowIDs = rowIDs
 		}
-
-		// 异步记录操作日志
-		ctx := contextx.ToContext(c)
-		go func() {
-			if err := s.appService.RecordTableOperateLog(ctx, logReq); err != nil {
-				logger.Warnf(ctx, "[TableDelete] 记录 Table 删除操作日志失败: %v", err)
-			}
-		}()
 	}
 
 	// 调用服务层
@@ -909,6 +909,12 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 	now := time.Now()
 	resp, err := s.appService.RequestApp(ctx, req)
 	mill := time.Since(now).Milliseconds()
+	fillTableActionLogResult(logReq, resp, err, mill)
+	if logReq != nil {
+		if logErr := s.appService.RecordTableActionLog(ctx, logReq); logErr != nil {
+			logger.Warnf(ctx, "[TableDelete] 记录 Table 删除操作日志失败: %v", logErr)
+		}
+	}
 
 	// 构建响应元数据
 	metadata := make(map[string]interface{})
@@ -978,6 +984,33 @@ func (s *StandardAPI) FormSubmit(c *gin.Context) {
 	now := time.Now()
 	resp, err := s.appService.RequestApp(ctx, req)
 	mill := time.Since(now).Milliseconds()
+
+	formLogReq := &dto.RecordFormOperateLogReq{
+		TenantUser:     req.User,
+		RequestUser:    req.RequestUser,
+		App:            req.App,
+		Router:         req.Router,
+		Action:         "form_submit",
+		FunctionMethod: req.Method,
+		RequestBody:    req.Body,
+		ResponseBody:   buildFormOperateLogResponseBody(resp, err, mill),
+		IPAddress:      c.ClientIP(),
+		UserAgent:      c.GetHeader("User-Agent"),
+		TraceID:        req.TraceId,
+		DurationMillis: mill,
+		Status:         "success",
+		Summary:        "表单提交成功",
+	}
+	if resp != nil {
+		formLogReq.Version = resp.Version
+	}
+	if err != nil || (resp != nil && resp.Error != "") {
+		formLogReq.Status = "failed"
+		formLogReq.Summary = "表单提交失败"
+	}
+	if logErr := s.appService.RecordFormOperateLog(ctx, formLogReq); logErr != nil {
+		logger.Warnf(ctx, "[FormSubmit] 记录 Form 操作日志失败: %v", logErr)
+	}
 
 	// 构建响应元数据
 	metadata := make(map[string]interface{})

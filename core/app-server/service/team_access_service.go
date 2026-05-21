@@ -9,7 +9,9 @@ import (
 
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
+	"github.com/ai-agent-os/ai-agent-os/dto"
 	"github.com/ai-agent-os/ai-agent-os/pkg/access"
+	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
 	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 )
@@ -18,6 +20,7 @@ type TeamAccessService struct {
 	teamAccessRepo *repository.TeamAccessRepository
 	operateLogRepo *repository.OperateLogRepository
 	appRepo        *repository.AppRepository
+	userLookup     func(ctx context.Context, username string) (*dto.UserInfo, error)
 }
 
 func NewTeamAccessService(
@@ -29,6 +32,7 @@ func NewTeamAccessService(
 		teamAccessRepo: teamAccessRepo,
 		operateLogRepo: operateLogRepo,
 		appRepo:        appRepo,
+		userLookup:     lookupUserForTeamAccess,
 	}
 }
 
@@ -56,6 +60,13 @@ func (s *TeamAccessService) Resolve(ctx context.Context, tenantUser, app, userna
 	app = strings.TrimSpace(app)
 	username = strings.TrimSpace(username)
 	resourcePath = access.NormalizeResourcePath(resourcePath)
+	if access.IsSystemBuiltinPath(resourcePath) {
+		return &access.Result{
+			ResourcePath: resourcePath,
+			RoleCodes:    []access.RoleCode{access.RoleViewer},
+			Permissions:  access.RolePermissions(access.RoleViewer),
+		}, nil
+	}
 	if tenantUser == "" || app == "" || username == "" || resourcePath == "" {
 		return &access.Result{ResourcePath: resourcePath, Permissions: access.EmptyPermissionSet()}, nil
 	}
@@ -90,6 +101,9 @@ func (s *TeamAccessService) Assign(ctx context.Context, req access.AssignRoleReq
 	if err := s.requireAdminForGrant(ctx, req.TenantUser, req.App, req.CreatedBy, req.ResourcePath, req.RoleCode); err != nil {
 		return err
 	}
+	if err := s.ensureAssignableUserInRequesterCompany(ctx, req.Username); err != nil {
+		return err
+	}
 
 	assignment := &model.WorkspaceRoleAssignment{
 		TenantUser:   req.TenantUser,
@@ -114,9 +128,9 @@ func (s *TeamAccessService) Assign(ctx context.Context, req access.AssignRoleReq
 		TargetUser:   req.Username,
 		Summary:      fmt.Sprintf("%s assigned %s to %s on %s", req.CreatedBy, req.RoleCode, req.Username, req.ResourcePath),
 		Status:       "success",
-		NewValues: map[string]interface{}{
-			"role_code":  req.RoleCode,
-			"expires_at": req.ExpiresAt,
+		NewValues: dto.TeamRoleAssignedValues{
+			RoleCode:  string(req.RoleCode),
+			ExpiresAt: req.ExpiresAt,
 		},
 	})
 	return nil
@@ -179,9 +193,9 @@ func (s *TeamAccessService) Remove(ctx context.Context, req access.RemoveRoleReq
 		TargetUser:   req.Username,
 		Summary:      fmt.Sprintf("%s removed role %s from %s on %s", req.Actor, req.RoleCode, req.Username, req.ResourcePath),
 		Status:       "success",
-		Details: map[string]interface{}{
-			"role_code":     req.RoleCode,
-			"rows_affected": rows,
+		Details: dto.TeamRoleRemovedDetails{
+			RoleCode:     string(req.RoleCode),
+			RowsAffected: rows,
 		},
 	})
 	return nil
@@ -341,6 +355,32 @@ func (s *TeamAccessService) requireAdminForGrant(ctx context.Context, tenantUser
 	return s.Check(ctx, tenantUser, app, actor, resourcePath, access.ActionAdmin)
 }
 
+func (s *TeamAccessService) ensureAssignableUserInRequesterCompany(ctx context.Context, username string) error {
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return fmt.Errorf("username 不能为空")
+	}
+	companyCode := strings.TrimSpace(contextx.GetRequestCompanyCode(ctx))
+	if companyCode == "" || s.userLookup == nil {
+		return nil
+	}
+	user, err := s.userLookup(ctx, username)
+	if err != nil {
+		return fmt.Errorf("被授权用户不存在或不属于当前企业: %w", err)
+	}
+	if user == nil || strings.TrimSpace(user.Username) == "" {
+		return fmt.Errorf("被授权用户不存在或不属于当前企业")
+	}
+	if user.CompanyCode != "" && user.CompanyCode != companyCode {
+		return fmt.Errorf("被授权用户不存在或不属于当前企业")
+	}
+	return nil
+}
+
+func lookupUserForTeamAccess(ctx context.Context, username string) (*dto.UserInfo, error) {
+	return apicall.GetUserByUsername(ctx, &dto.QueryUserReq{Username: username})
+}
+
 func validateAssignRoleRequest(req access.AssignRoleRequest) error {
 	if req.TenantUser == "" || req.App == "" || req.Username == "" || req.ResourcePath == "" {
 		return fmt.Errorf("tenant_user、app、username、resource_path 不能为空")
@@ -379,6 +419,7 @@ func toAccessAssignments(assignments []*model.WorkspaceRoleAssignment) []access.
 
 type operateLogInput struct {
 	TenantUser   string
+	CompanyCode  string
 	App          string
 	ActorUser    string
 	Action       string
@@ -406,6 +447,7 @@ func (s *TeamAccessService) writeOperateLog(ctx context.Context, input operateLo
 	}
 	log := &model.OperateLog{
 		TenantUser:   input.TenantUser,
+		CompanyCode:  firstNonEmpty(input.CompanyCode, contextx.GetRequestCompanyCode(ctx)),
 		App:          input.App,
 		ActorUser:    input.ActorUser,
 		Action:       input.Action,
@@ -430,11 +472,20 @@ func (s *TeamAccessService) writeOperateLog(ctx context.Context, input operateLo
 	}()
 }
 
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
 func mustMarshalRaw(v interface{}) json.RawMessage {
 	if v == nil {
 		return nil
 	}
-	data, err := json.Marshal(v)
+	data, err := json.Marshal(redactOperateLogValue(v))
 	if err != nil {
 		return nil
 	}

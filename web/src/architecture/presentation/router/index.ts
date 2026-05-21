@@ -2,6 +2,14 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import { featureFlags } from '@/architecture/shared/config/features'
 import { setAppRouter } from '@/architecture/shared/routing/navigation'
+import { onLocaleChanged, translate } from '@/architecture/shared/i18n'
+
+function updateDocumentTitle(titleKey: unknown, path: string) {
+  if (typeof titleKey !== 'string' || path.startsWith('/workspace')) {
+    return
+  }
+  document.title = `${translate(titleKey)} - ${import.meta.env.VITE_APP_TITLE || 'Kageos'}`
+}
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -12,7 +20,7 @@ const router = createRouter({
       name: 'login',
       component: () => import('@/architecture/presentation/features/auth/pages/LoginPage.vue'),
       meta: {
-        title: '登录',
+        titleKey: 'route.login',
         requireAuth: false
       }
     },
@@ -21,7 +29,7 @@ const router = createRouter({
       name: 'register',
       component: () => import('@/architecture/presentation/features/auth/pages/RegisterPage.vue'),
       meta: {
-        title: '注册',
+        titleKey: 'route.register',
         requireAuth: false
       }
     },
@@ -30,7 +38,7 @@ const router = createRouter({
       name: 'forgot-password',
       component: () => import('@/architecture/presentation/features/auth/pages/ForgotPasswordPage.vue'),
       meta: {
-        title: '忘记密码',
+        titleKey: 'route.forgotPassword',
         requireAuth: false
       }
     },
@@ -39,8 +47,17 @@ const router = createRouter({
       name: 'create-test-user',
       component: () => import('@/architecture/presentation/features/auth/pages/CreateTestUserPage.vue'),
       meta: {
-        title: '创建测试用户',
+        titleKey: 'route.createTestUser',
         requireAuth: true
+      }
+    },
+    {
+      path: '/public/s/:shareId',
+      name: 'public-share',
+      component: () => import('@/architecture/presentation/features/public/pages/PublicSharePage.vue'),
+      meta: {
+        titleKey: 'route.publicShare',
+        requireAuth: false
       }
     },
 
@@ -50,7 +67,7 @@ const router = createRouter({
       name: 'user-settings',
       component: () => import('@/architecture/presentation/features/user/pages/UserSettingsPage.vue'),
       meta: {
-        title: '个人设置',
+        titleKey: 'route.userSettings',
         requireAuth: true
       }
     },
@@ -59,7 +76,7 @@ const router = createRouter({
       path: '/agent',
       redirect: '/agent/llm',
       meta: {
-        title: 'LLM 配置',
+        titleKey: 'route.llmConfig',
         requireAuth: true
       }
     },
@@ -68,7 +85,7 @@ const router = createRouter({
       name: 'llm-management',
       component: () => import('@/architecture/presentation/features/agent/pages/LLMManagementPage.vue'),
       meta: {
-        title: 'LLM 管理',
+        titleKey: 'route.llmManagement',
         requireAuth: true,
         feature: 'llmManagement'
       }
@@ -80,7 +97,7 @@ const router = createRouter({
       name: 'home',
       redirect: '/workspace',
       meta: {
-        title: '首页',
+        titleKey: 'route.home',
         requireAuth: false
       }
     },
@@ -92,7 +109,7 @@ const router = createRouter({
       name: 'workspace',
       component: () => import('@/architecture/presentation/views/WorkspaceView.vue'),
       meta: {
-        title: '工作空间',
+        titleKey: 'route.workspace',
         requireAuth: true
       }
     },
@@ -100,7 +117,7 @@ const router = createRouter({
       path: '/workspace/workstation',
       redirect: '/workspace',
       meta: {
-        title: '工作空间',
+        titleKey: 'route.workspace',
         requireAuth: true
       }
     },
@@ -110,7 +127,7 @@ const router = createRouter({
       name: 'workspace-user',
       component: () => import('@/architecture/presentation/views/WorkspaceView.vue'),
       meta: {
-        title: '工作空间',
+        titleKey: 'route.workspace',
         requireAuth: true
       }
     },
@@ -121,7 +138,7 @@ const router = createRouter({
       name: 'workspace-path',
       component: () => import('@/architecture/presentation/views/WorkspaceView.vue'),
       meta: {
-        title: '工作空间',
+        titleKey: 'route.workspace',
         requireAuth: true
       },
       // 路由守卫：排除 /api 路径
@@ -144,7 +161,7 @@ const router = createRouter({
       name: 'not-found',
       component: () => import('@/architecture/presentation/views/Error/404.vue'),
       meta: {
-        title: '页面不存在',
+        titleKey: 'route.notFound',
         requireAuth: false
       }
     }
@@ -188,9 +205,7 @@ router.beforeEach(async (to, from, next) => {
   }
 
   // 设置页面标题（Workspace页面会通过watch动态更新，这里只设置默认标题）
-  if (to.meta?.title && !to.path.startsWith('/workspace')) {
-    document.title = `${to.meta.title} - ${import.meta.env.VITE_APP_TITLE || 'AI Agent OS'}`
-  }
+  updateDocumentTitle(to.meta?.titleKey, to.path)
 
   // 检查是否需要认证
   if (to.meta?.requireAuth !== false) {
@@ -235,3 +250,8 @@ router.beforeEach(async (to, from, next) => {
 })
 
 export default router
+
+onLocaleChanged(() => {
+  const route = router.currentRoute.value
+  updateDocumentTitle(route.meta?.titleKey, route.path)
+})

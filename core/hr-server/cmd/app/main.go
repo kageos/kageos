@@ -1,6 +1,6 @@
 // @title HR Server API
 // @version 1.0
-// @description AI Agent OS HR服务 API 文档（用户管理、组织架构、职责管理）
+// @description Kageos HR服务 API 文档（用户管理、组织架构、职责管理）
 // @termsOfService http://swagger.io/terms/
 
 // @contact.name API Support

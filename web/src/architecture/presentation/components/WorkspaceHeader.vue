@@ -27,12 +27,24 @@
         size="small"
         class="header-search-button"
         @click="showGlobalSearchDialog = true"
-        title="全站搜索"
+        :title="t('workspace.globalSearch')"
         data-testid="workspace-header-search"
       >
         <el-icon><Search /></el-icon>
-        搜索
+        {{ t('workspace.search') }}
       </el-button>
+      <div
+        v-if="companyName || companyLogo"
+        class="company-badge"
+        :title="companyTitle"
+        data-testid="workspace-header-company"
+      >
+        <el-avatar :size="28" :src="companyLogo || undefined" class="company-logo">
+          {{ companyInitials }}
+        </el-avatar>
+        <span class="company-name">{{ companyName }}</span>
+      </div>
+      <LanguageSwitcher />
 
       <el-dropdown
         @command="handleUserCommand"
@@ -52,19 +64,19 @@
               </span>
               <span class="user-account-copy">
                 <span class="user-account-name">{{ userName }}</span>
-                <span class="user-account-meta">{{ userEmail || '已登录账户' }}</span>
+                <span class="user-account-meta">{{ userEmail || t('workspace.loggedInAccount') }}</span>
               </span>
               <span class="user-account-badge">MVP</span>
             </el-dropdown-item>
 
-            <el-dropdown-item disabled class="user-dropdown-section-title">账户</el-dropdown-item>
+            <el-dropdown-item disabled class="user-dropdown-section-title">{{ t('workspace.account') }}</el-dropdown-item>
             <el-dropdown-item command="settings" class="user-dropdown-action">
               <span class="user-menu-icon user-menu-icon--profile">
                 <el-icon><UserFilled /></el-icon>
               </span>
               <span class="user-menu-copy">
-                <span class="user-menu-title">个人设置</span>
-                <span class="user-menu-desc">资料、发布密钥与账户信息</span>
+                <span class="user-menu-title">{{ t('workspace.profileSettings') }}</span>
+                <span class="user-menu-desc">{{ t('workspace.profileDesc') }}</span>
               </span>
             </el-dropdown-item>
             <el-dropdown-item v-if="featureFlags.llmManagement" command="agent" class="user-dropdown-action">
@@ -72,8 +84,8 @@
                 <el-icon><Cpu /></el-icon>
               </span>
               <span class="user-menu-copy">
-                <span class="user-menu-title">LLM 配置</span>
-                <span class="user-menu-desc">模型、密钥与默认配置</span>
+                <span class="user-menu-title">{{ t('workspace.llmConfig') }}</span>
+                <span class="user-menu-desc">{{ t('workspace.llmDesc') }}</span>
               </span>
             </el-dropdown-item>
 
@@ -86,12 +98,12 @@
                 <el-icon><Setting /></el-icon>
               </span>
               <span class="user-menu-copy">
-                <span class="user-menu-title">开发调试</span>
-                <span class="user-menu-desc">查看调试工具与运行信息</span>
+                <span class="user-menu-title">{{ t('workspace.devDebug') }}</span>
+                <span class="user-menu-desc">{{ t('workspace.devDebugDesc') }}</span>
               </span>
             </el-dropdown-item>
 
-            <el-dropdown-item disabled class="user-dropdown-section-title user-dropdown-section-title--divided">主题风格</el-dropdown-item>
+            <el-dropdown-item disabled class="user-dropdown-section-title user-dropdown-section-title--divided">{{ t('workspace.theme') }}</el-dropdown-item>
             <el-dropdown-item
               v-for="theme in availableThemes"
               :key="theme.name"
@@ -107,7 +119,7 @@
               </span>
               <span class="user-menu-copy">
                 <span class="user-menu-title">{{ theme.label }}</span>
-                <span class="user-menu-desc">{{ theme.mode === 'dark' ? '暗色界面' : '浅色界面' }}</span>
+                <span class="user-menu-desc">{{ theme.mode === 'dark' ? t('workspace.darkUi') : t('workspace.lightUi') }}</span>
               </span>
               <span class="user-theme-check">
                 <el-icon v-if="currentThemeName === theme.name"><Check /></el-icon>
@@ -119,8 +131,8 @@
                 <el-icon><SwitchButton /></el-icon>
               </span>
               <span class="user-menu-copy">
-                <span class="user-menu-title">退出登录</span>
-                <span class="user-menu-desc">结束当前会话</span>
+                <span class="user-menu-title">{{ t('workspace.logout') }}</span>
+                <span class="user-menu-desc">{{ t('workspace.logoutDesc') }}</span>
               </span>
             </el-dropdown-item>
           </el-dropdown-menu>
@@ -139,6 +151,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   ArrowDown,
   UserFilled,
@@ -157,6 +170,7 @@ import { useAuthStore, useThemeStore } from '@/architecture/presentation/context
 import DebugDialog from './DebugDialog.vue'
 import GlobalResourceSearchDialog from './GlobalResourceSearchDialog.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
+import LanguageSwitcher from './LanguageSwitcher.vue'
 
 defineProps<{
   currentApp: App | null
@@ -176,6 +190,7 @@ defineEmits<{
 const router = useRouter()
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
+const { t } = useI18n()
 
 // 用户相关
 const userName = computed(() => authStore.userName || 'User')
@@ -184,6 +199,19 @@ const userAvatar = computed(() => authStore.user?.avatar || '')
 const userInitials = computed(() => {
   const name = userName.value
   return name ? name.substring(0, 2).toUpperCase() : 'US'
+})
+const companyName = computed(() => authStore.user?.company_name || authStore.user?.company_code || '')
+const companyCode = computed(() => authStore.user?.company_code || '')
+const companyLogo = computed(() => authStore.user?.company_logo_url || '')
+const companyInitials = computed(() => {
+  const source = companyName.value || companyCode.value || 'CO'
+  return source.substring(0, 2).toUpperCase()
+})
+const companyTitle = computed(() => {
+  if (!companyCode.value || companyCode.value === companyName.value) {
+    return companyName.value
+  }
+  return `${companyName.value} (${companyCode.value})`
 })
 const availableThemes = computed(() => themeStore.getAvailableThemes())
 const currentThemeName = computed(() => themeStore.currentTheme.name)
@@ -218,9 +246,9 @@ const handleUserCommand = (command: string) => {
 
 const handleLogout = async () => {
   try {
-    await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('workspace.logoutConfirm'), t('workspace.logoutConfirmTitle'), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning'
     })
     await authStore.logout()
@@ -289,6 +317,38 @@ defineExpose({
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+}
+
+.company-badge {
+  display: flex;
+  max-width: 220px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 12px;
+  background: var(--app-shell-panel-muted-bg);
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+  cursor: default;
+}
+
+.company-logo {
+  flex-shrink: 0;
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.16);
+  background: rgba(var(--el-color-primary-rgb), 0.1);
+  color: var(--el-color-primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.company-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user-profile {
@@ -617,6 +677,15 @@ defineExpose({
 }
 
 @media (max-width: 760px) {
+  .company-name {
+    display: none;
+  }
+
+  .company-badge {
+    max-width: none;
+    padding: 6px;
+  }
+
   .username {
     display: none;
   }

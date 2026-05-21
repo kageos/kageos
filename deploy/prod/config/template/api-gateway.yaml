@@ -26,6 +26,12 @@ routes:
       - url: "http://127.0.0.1:9091"
     timeout: 300
 
+  - path: "/public/api"
+    service_name: "workspace-public"
+    targets:
+      - url: "http://127.0.0.1:9091"
+    timeout: 300
+
   - path: "/hr"
     service_name: "hr"
     targets:

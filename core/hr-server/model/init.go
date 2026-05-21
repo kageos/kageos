@@ -1,6 +1,8 @@
 package model
 
 import (
+	"errors"
+
 	"gorm.io/gorm"
 )
 
@@ -10,6 +12,7 @@ func InitModels(db *gorm.DB) error {
 	// 这样可以确保外键约束能够正确创建
 	err := db.AutoMigrate(
 		// 第一层：基础表（不被其他表引用）
+		&Company{},
 		&User{}, // 被 UserSession、EmailVerification 引用
 
 		// 第二层：依赖 User 的表
@@ -24,5 +27,36 @@ func InitModels(db *gorm.DB) error {
 		return err
 	}
 
+	if err := ensureCompanyLogoColumn(db); err != nil {
+		return err
+	}
+
+	return initDefaultCompany(db)
+}
+
+func ensureCompanyLogoColumn(db *gorm.DB) error {
+	if db.Migrator().HasColumn(&Company{}, "LogoURL") {
+		return db.Migrator().AlterColumn(&Company{}, "LogoURL")
+	}
 	return nil
+}
+
+func initDefaultCompany(db *gorm.DB) error {
+	company := &Company{}
+	err := db.Where("code = ?", DefaultCompanyCode).First(company).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		company = &Company{
+			Code:      DefaultCompanyCode,
+			Name:      "Default",
+			CreatedBy: "system",
+			LogoURL:   "",
+		}
+		if err := db.Create(company).Error; err != nil {
+			return err
+		}
+	}
+	return db.Model(&User{}).Where("company_code = '' OR company_code IS NULL").Update("company_code", DefaultCompanyCode).Error
 }

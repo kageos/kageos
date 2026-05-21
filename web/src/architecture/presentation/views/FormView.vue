@@ -169,7 +169,7 @@
           <el-icon><RefreshLeft /></el-icon>
           重置
         </el-button>
-        <el-button size="large" @click="showDebugDialog = true" type="info">
+        <el-button v-if="showDebugButton" size="large" @click="showDebugDialog = true" type="info">
           <el-icon><View /></el-icon>
           Debug
         </el-button>
@@ -201,6 +201,9 @@
                 :value="getResponseFieldValue(field.code)"
                 :field-path="field.code"
                 mode="response"
+                :form-renderer="formRendererContext"
+                :function-method="functionDetail?.method || 'GET'"
+                :function-router="functionDetail?.router || ''"
               />
             </el-form-item>
           </div>
@@ -210,6 +213,9 @@
               :value="getResponseFieldValue(field.code)"
               :field-path="field.code"
               mode="response"
+              :form-renderer="formRendererContext"
+              :function-method="functionDetail?.method || 'GET'"
+              :function-router="functionDetail?.router || ''"
             />
           </el-form-item>
         </template>
@@ -321,7 +327,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, provide } from 'vue'
+import { computed, nextTick, ref, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Document, List, User } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElEmpty } from 'element-plus'
@@ -340,17 +346,23 @@ import { useFormViewState } from '../composables/useFormViewState'
 import { useFormViewLifecycle } from '../composables/useFormViewLifecycle'
 import { createFormViewRuntime } from './utils/formViewRuntime'
 import { FORM_LABEL_WIDTH } from '../utils/formLayout'
-import { getFormRequestFields } from '@/architecture/domain/utils/functionSchemaSelectors'
+import { getFormRequestFields, getFormResponseFields } from '@/architecture/domain/utils/functionSchemaSelectors'
+import { createDisplayAwareFieldValue } from '@/architecture/domain/utils/createFieldValue'
+import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'
+import type { IFormGateway } from '@/architecture/domain/interfaces/IFormGateway'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
   showSubmitButton?: boolean  // 🔥 是否显示提交按钮（用于 FormDialog 等场景）
   showResetButton?: boolean  // 🔥 是否显示重置按钮
+  showDebugButton?: boolean
   flatSurface?: boolean
   initialData?: Record<string, any>  // 🔥 初始数据（用于编辑模式）
+  formGateway?: IFormGateway
 }>(), {
   showSubmitButton: true,
   showResetButton: true,
+  showDebugButton: true,
   flatSurface: false,
   initialData: () => ({}),
 })
@@ -367,7 +379,7 @@ const {
   applicationService
 } = createFormViewRuntime({
   eventBus,
-  formGateway: serviceFactory.getFormGateway()
+  formGateway: props.formGateway || serviceFactory.getFormGateway()
 })
 provide(formDataStoreKey, formDataStore)
 const workspaceStateManager = serviceFactory.getWorkspaceStateManager()
@@ -546,12 +558,113 @@ function validateForm(): boolean {
   return domainService.validateForm(fields)
 }
 
+async function applyOperateLog(requestBody: Record<string, any>, responseBody?: Record<string, any> | null): Promise<void> {
+  const nextData = new Map<string, FieldValue>()
+  requestFields.value.forEach((field: FieldConfig) => {
+    if (Object.prototype.hasOwnProperty.call(requestBody, field.code)) {
+      nextData.set(field.code, createDisplayAwareFieldValue(requestBody[field.code], field))
+    }
+  })
+  if (nextData.size > 0) {
+    stateManager.setState({ data: nextData })
+    await nextTick()
+    await hydrateCurrentWidgetDisplays('initialData')
+  }
+
+  if (responseBody) {
+    const responseResult = await hydrateOperateLogResponse(unwrapOperateLogResponseBody(responseBody))
+    stateManager.setResponse(responseResult)
+    stateManager.setMetadata({
+      trace_id: responseBody.trace_id,
+      version: responseBody.version,
+      total_cost_mill: responseBody.total_cost_mill,
+    })
+  }
+
+  ElMessage.success('已回填本次执行记录')
+}
+
+async function hydrateOperateLogResponse(responseResult: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const detail = functionDetail.value
+  if (!detail) {
+    return responseResult
+  }
+
+  const hydrated: Record<string, unknown> = { ...responseResult }
+  const requestValues = buildAllFormDataForInitializer()
+
+  for (const field of getFormResponseFields(detail) as FieldConfig[]) {
+    if (!Object.prototype.hasOwnProperty.call(responseResult, field.code)) {
+      continue
+    }
+
+    const hydrationField = resolveOperateLogResponseHydrationField(detail, field)
+    const currentValue = createDisplayAwareFieldValue(responseResult[field.code], hydrationField)
+    try {
+      const initializedValue = await widgetInitializerRegistry.initialize({
+        field: hydrationField,
+        currentValue,
+        allFormData: requestValues,
+        functionDetail: detail,
+        initSource: 'initialData',
+        fieldPath: field.code,
+      })
+      hydrated[field.code] = initializedValue
+    } catch {
+      hydrated[field.code] = currentValue
+    }
+  }
+
+  return hydrated
+}
+
+function resolveOperateLogResponseHydrationField(detail: FunctionDetail, responseField: FieldConfig): FieldConfig {
+  if (Array.isArray(responseField.callbacks) && responseField.callbacks.length > 0) {
+    return responseField
+  }
+
+  const requestField = (getFormRequestFields(detail) as FieldConfig[])
+    .find((field) => field.code === responseField.code)
+  if (!requestField || !Array.isArray(requestField.callbacks) || requestField.callbacks.length === 0) {
+    return responseField
+  }
+
+  return {
+    ...responseField,
+    callbacks: requestField.callbacks,
+    depend_on: responseField.depend_on || requestField.depend_on,
+  }
+}
+
+function buildAllFormDataForInitializer(): Record<string, FieldValue> {
+  const allValues: Record<string, FieldValue> = {}
+  const state = stateManager.getState()
+  state.data?.forEach((value: FieldValue, key: string) => {
+    allValues[key] = value
+  })
+  return allValues
+}
+
+function unwrapOperateLogResponseBody(responseBody: Record<string, any>): Record<string, unknown> {
+  for (const key of ['result', 'data', 'response']) {
+    const value = responseBody[key]
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return value as Record<string, unknown>
+    }
+    if (value !== undefined && value !== null && value !== '') {
+      return { result: value }
+    }
+  }
+  return responseBody
+}
+
 // 🔥 暴露方法给外部组件调用（兼容 FormRenderer 的接口）
 defineExpose({
   submitForm,
   prepareSubmitDataWithTypeConversion,  // 表单提交（新增场景）
   prepareUpdateData,                     // 表格更新（更新场景，只返回变更的字段）
-  validateForm
+  validateForm,
+  applyOperateLog
 })
 
 

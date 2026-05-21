@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { computed, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Message, Loading, Lock } from '@element-plus/icons-vue'
 import { forgotPassword, sendEmailCode } from '@/architecture/presentation/context/api/auth'
+import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
 
 const router = useRouter()
+const { t } = useI18n()
 
 // 表单数据
 const formData = reactive({
@@ -26,44 +29,44 @@ const countdown = ref(0)
 // 表单验证规则
 const validateConfirmPassword = (rule: any, value: string, callback: Function) => {
   if (!value) {
-    callback(new Error('请再次输入密码'))
+    callback(new Error(t('auth.confirmPasswordRequired')))
   } else if (value !== formData.password) {
-    callback(new Error('两次输入的密码不一致'))
+    callback(new Error(t('auth.confirmPasswordMismatch')))
   } else {
     callback()
   }
 }
 
-const rules = {
+const rules = computed(() => ({
   email: [
-    { required: true, message: '请输入邮箱地址', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
+    { required: true, message: t('auth.emailRequired'), trigger: 'blur' },
+    { type: 'email', message: t('auth.emailInvalid'), trigger: 'blur' }
   ],
   code: [
-    { required: true, message: '请输入验证码', trigger: 'blur' },
-    { len: 6, message: '验证码长度为6位', trigger: 'blur' }
+    { required: true, message: t('auth.codeRequired'), trigger: 'blur' },
+    { len: 6, message: t('auth.codeLength'), trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, max: 50, message: '密码长度在 6 到 50 个字符', trigger: 'blur' }
+    { required: true, message: t('auth.passwordRequired'), trigger: 'blur' },
+    { min: 6, max: 50, message: t('auth.passwordLength'), trigger: 'blur' }
   ],
   confirmPassword: [
-    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    { required: true, message: t('auth.confirmPasswordRequired'), trigger: 'blur' },
     { validator: validateConfirmPassword, trigger: 'blur' }
   ]
-}
+}))
 
 // 发送验证码
 const handleSendCode = async () => {
   if (!formData.email) {
-    ElMessage.warning('请先输入邮箱地址')
+    ElMessage.warning(t('auth.emailFirst'))
     return
   }
 
   try {
     codeLoading.value = true
     await sendEmailCode(formData.email, 'forgot_password')
-    ElMessage.success('验证码已发送到您的邮箱，请查收')
+    ElMessage.success(t('auth.emailCodeSent'))
     
     // 开始倒计时
     countdown.value = 60
@@ -74,8 +77,8 @@ const handleSendCode = async () => {
       }
     }, 1000)
   } catch (error: any) {
-    console.error('发送验证码失败:', error)
-    const message = error?.response?.data?.msg || error?.message || '发送验证码失败'
+    console.error('Send verification code failed:', error)
+    const message = error?.response?.data?.msg || error?.message || t('auth.emailCodeFailed')
     ElMessage.error(message)
   } finally {
     codeLoading.value = false
@@ -94,19 +97,19 @@ const handleSubmit = async () => {
       password: formData.password
     })
 
-    ElMessage.success('密码重置成功，请使用新密码登录')
+    ElMessage.success(t('auth.passwordResetSuccess'))
     
     // 跳转到登录页
     setTimeout(() => {
       router.push('/login')
     }, 2000)
   } catch (error: any) {
-    console.error('忘记密码失败:', error)
+    console.error('Forgot password failed:', error)
     if (error?.errors) {
       // 表单验证错误，不显示错误消息
       return
     }
-    const message = error?.response?.data?.msg || error?.message || '操作失败，请重试'
+    const message = error?.response?.data?.msg || error?.message || t('auth.operationFailed')
     ElMessage.error(message)
   } finally {
     loading.value = false
@@ -128,6 +131,10 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
 <template>
   <div class="forgot-password-container" @keypress="handleKeyPress">
+    <div class="auth-language">
+      <LanguageSwitcher />
+    </div>
+
     <!-- 背景装饰 -->
     <div class="background-decoration">
       <div class="decoration-circle circle-1"></div>
@@ -141,15 +148,14 @@ const handleKeyPress = (event: KeyboardEvent) => {
         <div class="brand-logo-wrapper">
           <div class="logo-glow"></div>
           <div class="brand-logo">
-            <img alt="AI Agent OS" class="logo" src="@/architecture/presentation/assets/logo.svg" />
+            <img alt="Kageos" class="logo" src="@/architecture/presentation/assets/logo.svg" />
           </div>
         </div>
         <h1 class="brand-title">
-          <span class="title-gradient">忘记密码</span>
+          <span class="title-gradient">{{ t('auth.forgotHeroTitle') }}</span>
         </h1>
         <p class="brand-subtitle">
-          请输入您的邮箱地址和验证码<br />
-          设置新密码即可完成重置
+          {{ t('auth.forgotHeroSubtitle') }}
         </p>
       </div>
     </div>
@@ -161,8 +167,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
           <div class="header-icon">
             <el-icon><Message /></el-icon>
           </div>
-          <h2 class="form-title">找回密码</h2>
-          <p class="form-subtitle">验证邮箱并设置新密码</p>
+          <h2 class="form-title">{{ t('auth.forgotTitle') }}</h2>
+          <p class="form-subtitle">{{ t('auth.forgotSubtitle') }}</p>
         </div>
 
         <el-form
@@ -176,7 +182,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
           <el-form-item prop="email">
             <el-input
               v-model="formData.email"
-              placeholder="请输入邮箱地址"
+              :placeholder="t('auth.emailPlaceholder')"
               :prefix-icon="Message"
               clearable
               size="large"
@@ -188,7 +194,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
             <div class="code-input-wrapper">
               <el-input
                 v-model="formData.code"
-                placeholder="请输入验证码"
+                :placeholder="t('auth.codePlaceholder')"
                 maxlength="6"
                 clearable
                 size="large"
@@ -203,8 +209,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
                 <template #loading>
                   <el-icon class="is-loading"><Loading /></el-icon>
                 </template>
-                <span v-if="countdown > 0">{{ countdown }}秒后重试</span>
-                <span v-else>发送验证码</span>
+                <span v-if="countdown > 0">{{ t('auth.secondsRetry', { seconds: countdown }) }}</span>
+                <span v-else>{{ t('auth.sendCode') }}</span>
               </el-button>
             </div>
           </el-form-item>
@@ -213,7 +219,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
             <el-input
               v-model="formData.password"
               type="password"
-              placeholder="请输入新密码"
+              :placeholder="t('auth.newPasswordPlaceholder')"
               :prefix-icon="Lock"
               show-password
               clearable
@@ -226,7 +232,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
             <el-input
               v-model="formData.confirmPassword"
               type="password"
-              placeholder="请再次输入新密码"
+              :placeholder="t('auth.confirmPasswordPlaceholder')"
               :prefix-icon="Lock"
               show-password
               clearable
@@ -247,14 +253,14 @@ const handleKeyPress = (event: KeyboardEvent) => {
               <template #loading>
                 <el-icon class="is-loading"><Loading /></el-icon>
               </template>
-              <span v-if="!loading">提交</span>
-              <span v-else>提交中...</span>
+              <span v-if="!loading">{{ t('auth.submitButton') }}</span>
+              <span v-else>{{ t('auth.submitLoading') }}</span>
             </el-button>
           </el-form-item>
 
           <div class="form-footer">
             <el-button type="text" @click="goToLogin" class="back-link">
-              ← 返回登录
+              {{ t('auth.backToLogin') }}
             </el-button>
           </div>
         </el-form>
@@ -283,6 +289,13 @@ const handleKeyPress = (event: KeyboardEvent) => {
   position: relative;
   overflow: hidden;
   isolation: isolate;
+}
+
+.auth-language {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  z-index: 3;
 }
 
 /* 背景装饰动画 */
@@ -726,5 +739,28 @@ const handleKeyPress = (event: KeyboardEvent) => {
   .decoration-circle {
     display: none;
   }
+}
+</style>
+
+<style>
+.forgot-password-container .auth-language .language-switcher {
+  border-color: rgba(22, 119, 255, 0.24) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.8)) !important;
+  color: #1e3a5f !important;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.1) !important;
+  backdrop-filter: blur(16px);
+}
+
+.forgot-password-container .auth-language .language-switcher:hover,
+.forgot-password-container .auth-language .language-switcher:focus-visible {
+  border-color: rgba(22, 119, 255, 0.46) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9)) !important;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.14) !important;
+  transform: translateY(-1px);
+}
+
+.forgot-password-container .auth-language .language-switcher__code,
+.forgot-password-container .auth-language .language-switcher__arrow {
+  color: #64748b !important;
 }
 </style>

@@ -1,6 +1,9 @@
 package v1
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
 	"github.com/ai-agent-os/ai-agent-os/core/hr-server/service"
 	"github.com/ai-agent-os/ai-agent-os/dto"
@@ -88,7 +91,8 @@ func (a *Auth) Register(c *gin.Context) {
 	var resp *dto.RegisterResp
 	var err error
 	defer func() {
-		logger.Infof(c, "Register req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Infof(c, "Register username=%s email=%s company_action=%s company_code=%s resp:%+v err:%v",
+			req.Username, req.Email, req.CompanyAction, req.CompanyCode, resp, err)
 	}()
 
 	// 绑定请求参数
@@ -105,7 +109,7 @@ func (a *Auth) Register(c *gin.Context) {
 	}
 
 	// 注册用户
-	userID, err := a.authService.RegisterUser(req.Username, req.Email, req.Password)
+	userID, err := a.authService.RegisterUser(req.Username, req.Email, req.Password, req.CompanyAction, req.CompanyCode, req.CompanyName, req.CompanyLogoURL)
 	if err != nil {
 		response.FailWithMessage(c, "注册失败: "+err.Error())
 		return
@@ -123,6 +127,42 @@ func (a *Auth) Register(c *gin.Context) {
 	}
 
 	response.OkWithData(c, resp)
+}
+
+// SearchCompanies 模糊搜索企业
+// @Summary 模糊搜索企业
+// @Description 注册加入企业时，根据企业名称或企业代码搜索可加入企业
+// @Tags 认证管理
+// @Produce json
+// @Param keyword query string false "搜索关键字"
+// @Param limit query int false "返回数量"
+// @Success 200 {object} dto.SearchCompaniesResp "搜索成功"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /hr/api/v1/auth/companies/search [get]
+func (a *Auth) SearchCompanies(c *gin.Context) {
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	limit := 10
+	if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
+		if parsedLimit, parseErr := strconv.Atoi(rawLimit); parseErr == nil {
+			limit = parsedLimit
+		}
+	}
+
+	companies, err := a.authService.SearchCompaniesFuzzy(keyword, limit)
+	if err != nil {
+		response.FailWithMessage(c, "搜索企业失败: "+err.Error())
+		return
+	}
+
+	options := make([]dto.CompanyOption, 0, len(companies))
+	for _, company := range companies {
+		options = append(options, dto.CompanyOption{
+			Code:    company.Code,
+			Name:    company.Name,
+			LogoURL: company.LogoURL,
+		})
+	}
+	response.OkWithData(c, &dto.SearchCompaniesResp{Companies: options})
 }
 
 // CreateUserBySecret 超管一键创建用户（免邮箱验证，仅 system 用户可操作，用于创建测试用户）
@@ -183,7 +223,7 @@ func (a *Auth) Login(c *gin.Context) {
 	var resp *dto.LoginResp
 	var err error
 	defer func() {
-		logger.Infof(c, "Login req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Infof(c, "Login username=%s remember=%v err:%v", req.Username, req.Remember, err)
 	}()
 
 	// 绑定请求参数

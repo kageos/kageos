@@ -896,6 +896,19 @@ definitions:
         example: "2024-01-01T00:00:00Z"
         type: string
     type: object
+  dto.GetOperateLogsResp:
+    properties:
+      logs:
+        items:
+          $ref: '#/definitions/dto.OperateLogItem'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
   dto.GetServiceTreeDetailResp:
     properties:
       app_id:
@@ -1036,19 +1049,52 @@ definitions:
         example: 1
         type: integer
     type: object
-  dto.GetTableOperateLogsResp:
+  dto.OperateLogItem:
     properties:
-      logs:
-        description: 日志列表
-      page:
-        description: 当前页码
+      action:
+        type: string
+      actor_user:
+        type: string
+      app:
+        type: string
+      company_code:
+        type: string
+      created_at:
+        type: string
+      details_json:
+        type: object
+      id:
         type: integer
-      page_size:
-        description: 每页数量
-        type: integer
-      total:
-        description: 总数
-        type: integer
+      ip_address:
+        type: string
+      new_values_json:
+        type: object
+      old_values_json:
+        type: object
+      resource_name:
+        type: string
+      resource_path:
+        type: string
+      resource_type:
+        type: string
+      source:
+        type: string
+      status:
+        type: string
+      summary:
+        type: string
+      target_id:
+        type: string
+      target_user:
+        type: string
+      tenant_user:
+        type: string
+      trace_id:
+        type: string
+      updated_at:
+        type: string
+      user_agent:
+        type: string
     type: object
   dto.PackageInfo:
     properties:
@@ -1482,6 +1528,9 @@ definitions:
       name:
         description: 必需字段
         type: string
+      sensitive:
+        description: 敏感字段，操作日志记录时会脱敏
+        type: boolean
       validation:
         description: 验证规则，完全照搬 github.com/go-playground/validator/v10
         type: string
@@ -1523,12 +1572,12 @@ info:
     email: support@swagger.io
     name: API Support
     url: http://www.swagger.io/support
-  description: AI Agent OS 应用管理平台 API 文档
+  description: Kageos 应用管理平台 API 文档
   license:
     name: Business Source License 1.1
     url: https://github.com/ai-agent-os/ai-agent-os/blob/main/LICENSE
   termsOfService: http://swagger.io/terms/
-  title: AI Agent OS API
+  title: Kageos API
   version: "1.0"
 paths:
   /workspace/api/v1/app/create:
@@ -2525,11 +2574,11 @@ paths:
       summary: 更新函数
       tags:
       - 服务目录
-  /workspace/api/v1/operate_log/table:
+  /workspace/api/v1/operate_log/general:
     get:
       consumes:
       - application/json
-      description: 查询 Table 操作日志
+      description: 查询统一存储在 operate_logs 中的操作日志
       parameters:
       - description: JWT Token
         in: header
@@ -2540,31 +2589,47 @@ paths:
         in: query
         name: tenant_user
         type: string
-      - description: 请求用户（实际执行操作的用户）
+      - description: 企业代码（默认当前登录企业）
         in: query
-        name: request_user
+        name: company_code
+        type: string
+      - description: 执行用户
+        in: query
+        name: actor_user
+        type: string
+      - description: 被操作用户
+        in: query
+        name: target_user
         type: string
       - description: 应用名
         in: query
         name: app
         type: string
-      - description: 完整代码路径
+      - description: 资源类型：table/form/team_access/directory/function
         in: query
-        name: full_code_path
+        name: resource_type
         type: string
-      - description: 完整代码路径前缀，用于查询目录下日志
+      - description: 资源路径
         in: query
-        name: full_code_path_prefix
+        name: resource_path
         type: string
-      - description: 记录ID
+      - description: 资源路径前缀
         in: query
-        name: row_id
-        type: integer
-      - description: 操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows
+        name: resource_path_prefix
+        type: string
+      - description: 操作类型
         in: query
         name: action
         type: string
-      - description: 关键词：匹配操作人、资源路径、Trace、版本或记录ID
+      - description: 状态：success/failed
+        in: query
+        name: status
+        type: string
+      - description: Table 记录 ID
+        in: query
+        name: row_id
+        type: integer
+      - description: 关键词：匹配操作人、被操作人、资源路径、Trace 或摘要
         in: query
         name: keyword
         type: string
@@ -2588,20 +2653,8 @@ paths:
         "200":
           description: 查询成功
           schema:
-            $ref: '#/definitions/dto.GetTableOperateLogsResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未认证
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      summary: 查询 Table 操作日志
+            $ref: '#/definitions/dto.GetOperateLogsResp'
+      summary: 查询通用操作日志
       tags:
       - 操作日志
   /workspace/api/v1/packages:

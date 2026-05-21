@@ -91,6 +91,10 @@ export default defineConfig(({ command, mode }) => {
         changeOrigin: true,
         rewrite: (path) => path, // 不重写路径，直接转发
       },
+      '/public/api': {
+        target: proxyTarget,
+        changeOrigin: true,
+      },
       // Agent API 通过网关代理（只代理 API 请求，不代理页面路由）
       '/agent/api': {
         target: proxyTarget,

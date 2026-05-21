@@ -1309,7 +1309,7 @@ func defaultConfig() (Config, error) {
 		SMTP: SMTPConfig{
 			Host:     "smtp.qq.com",
 			Port:     587,
-			FromName: "AI Agent OS",
+			FromName: "Kageos",
 		},
 	}
 	return cfg, nil
@@ -1398,7 +1398,7 @@ func applyDefaults(cfg *Config) {
 		cfg.SMTP.Port = 587
 	}
 	if cfg.SMTP.FromName == "" {
-		cfg.SMTP.FromName = "AI Agent OS"
+		cfg.SMTP.FromName = "Kageos"
 	}
 }
 

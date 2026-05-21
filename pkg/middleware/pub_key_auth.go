@@ -42,6 +42,7 @@ func JWTOrPubKeyAuth(validator PubKeyValidator) gin.HandlerFunc {
 			if deptPath := c.GetHeader(contextx.DepartmentFullPathHeader); deptPath != "" {
 				c.Set(contextx.DepartmentFullPathHeader, deptPath)
 			}
+			setCompanyContextFromHeaders(c)
 			c.Next()
 			return
 		}
@@ -57,6 +58,7 @@ func JWTOrPubKeyAuth(validator PubKeyValidator) gin.HandlerFunc {
 				if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
 					c.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
 				}
+				setCompanyContextFromClaims(c, claims)
 				c.Next()
 				return
 			}

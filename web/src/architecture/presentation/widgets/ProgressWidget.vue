@@ -23,29 +23,33 @@
     
     <!-- 响应模式（只读） -->
     <div v-else-if="mode === 'response'" class="response-progress">
-      <el-progress
-        :percentage="percentage"
-        :format="formatText"
-      />
+      <div class="progress-readonly">
+        <div class="progress-track">
+          <div class="progress-fill" :style="{ width: percentageWidth }"></div>
+        </div>
+        <span class="progress-label">{{ formattedValue }}</span>
+      </div>
     </div>
     
     <!-- 表格单元格模式 -->
     <div v-else-if="mode === 'table-cell'" class="table-cell-progress">
-      <el-progress
-        :percentage="percentage"
-        :format="formatText"
-        :stroke-width="8"
-      />
+      <div class="progress-readonly is-compact">
+        <div class="progress-track">
+          <div class="progress-fill" :style="{ width: percentageWidth }"></div>
+        </div>
+        <span class="progress-label">{{ formattedValue }}</span>
+      </div>
     </div>
     
     <!-- 详情模式 -->
     <div v-else-if="mode === 'detail'" class="detail-progress">
       <div class="detail-label">{{ field.name }}</div>
-      <el-progress
-        :percentage="percentage"
-        :format="formatText"
-        :stroke-width="12"
-      />
+      <div class="progress-readonly">
+        <div class="progress-track">
+          <div class="progress-fill" :style="{ width: percentageWidth }"></div>
+        </div>
+        <span class="progress-label">{{ formattedValue }}</span>
+      </div>
     </div>
     
     <!-- 搜索模式（通常不支持搜索，但保留兼容性） -->
@@ -66,7 +70,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ElProgress, ElInputNumber } from 'element-plus'
+import { ElInputNumber } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
@@ -140,10 +144,7 @@ const formattedValue = computed(() => {
   return formatProgressValue(rawValue.value)
 })
 
-// 格式化进度条文字
-const formatText = computed(() => {
-  return () => formattedValue.value
-})
+const percentageWidth = computed(() => `${percentage.value}%`)
 
 // 内部值（用于 v-model，仅在编辑模式）
 const internalValue = computed({
@@ -205,6 +206,47 @@ function formatProgressValue(value: number): string {
 
 .table-cell-progress {
   width: 100%;
+}
+
+.progress-readonly {
+  display: grid;
+  grid-template-columns: minmax(96px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.progress-readonly.is-compact {
+  grid-template-columns: minmax(90px, 1fr) auto;
+  gap: 8px;
+}
+
+.progress-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--el-fill-color-light);
+}
+
+.progress-readonly.is-compact .progress-track {
+  height: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  min-width: 2px;
+  border-radius: inherit;
+  background: var(--el-color-primary);
+  transition: width 0.2s ease;
+}
+
+.progress-label {
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .detail-progress {

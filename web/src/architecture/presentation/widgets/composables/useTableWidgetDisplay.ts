@@ -1,9 +1,8 @@
-import { computed, defineComponent } from 'vue'
+import { computed } from 'vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createEmptyFieldValue, createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import { renderTableCell } from '@/architecture/presentation/widgets/utils/tableCellRenderer'
 import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'
 import {
   getTableRowFieldPresenceState,
@@ -104,27 +103,6 @@ export function useTableWidgetDisplay(
     return itemFields.value.filter((field) => isResponseRowFieldVisible(rowIndex, field))
   }
 
-  function getCellContent(field: FieldConfig, rawValue: any): { content: any; isString: boolean } {
-    return renderTableCell(field, rawValue, {
-      mode: 'table-cell',
-      fieldPath: field.code,
-      formRenderer: props.formRenderer,
-      formManager: props.formManager
-    })
-  }
-
-  const CellRenderer = defineComponent({
-    props: {
-      vnode: {
-        type: Object,
-        required: true
-      }
-    },
-    setup(rendererProps: { vnode: any }) {
-      return () => rendererProps.vnode
-    }
-  })
-
   const displayValue = computed(() => {
     const value = formDataStore.data.has(props.fieldPath)
       ? formDataStore.getValue(props.fieldPath)
@@ -170,6 +148,9 @@ export function useTableWidgetDisplay(
     if (type === 'number' || type === 'float') {
       return 120
     }
+    if (type === 'progress' || type === 'slider') {
+      return 220
+    }
 
     return 150
   }
@@ -184,7 +165,7 @@ export function useTableWidgetDisplay(
   }
 
   function getWidgetComponent(type: string, widgetMode: string = props.mode) {
-    if (widgetMode === 'response') {
+    if (widgetMode === 'response' || props.mode === 'response') {
       return widgetComponentFactory.getResponseComponent(type)
     }
     return widgetComponentFactory.getRequestComponent(type)
@@ -203,8 +184,6 @@ export function useTableWidgetDisplay(
     isEditRowFieldVisible,
     isResponseRowFieldVisible,
     getVisibleResponseDetailFields,
-    getCellContent,
-    CellRenderer,
     displayValue,
     handleTableCellConfirm,
     getColumnWidth,

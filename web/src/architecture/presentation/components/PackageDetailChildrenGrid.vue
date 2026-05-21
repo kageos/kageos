@@ -3,7 +3,7 @@
     <div class="section-header">
       <h3 class="section-title">
         <el-icon class="section-icon"><Grid /></el-icon>
-        资源列表
+        {{ t('packageDetail.resourceList') }}
       </h3>
       <el-tag class="section-badge" type="primary" size="small">
         {{ children.length }}
@@ -22,14 +22,14 @@
             <img
               v-if="child.type === 'package'"
               src="/service-tree/custom-folder.svg"
-              alt="目录"
+              :alt="t('packageDetail.detail')"
               class="child-icon-img"
             />
             <template v-else-if="child.type === 'function'">
               <img
                 v-if="child.template_type === TEMPLATE_TYPE.FORM"
                 src="/service-tree/编辑.svg"
-                alt="表单"
+                :alt="t('packageDetail.form')"
                 class="child-icon-img"
               />
               <el-icon v-else class="child-icon">
@@ -51,7 +51,7 @@
           >
             {{ getTemplateTypeText(child.template_type) }}
           </el-tag>
-          <el-tag v-else-if="child.type === 'docs'" size="small" type="info" class="child-type-tag">文档</el-tag>
+          <el-tag v-else-if="child.type === 'docs'" size="small" type="info" class="child-type-tag">{{ t('packageDetail.docs') }}</el-tag>
         </div>
 
         <div class="child-card-body">
@@ -71,7 +71,7 @@
 
   <el-empty
     v-else
-    description="该目录下暂无子目录或函数"
+    :description="t('packageDetail.emptyChildren')"
     :image-size="120"
     class="empty-state"
   />
@@ -79,6 +79,7 @@
 
 <script setup lang="ts">
 import { DataLine, Document, Grid } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
@@ -93,6 +94,8 @@ defineEmits<{
   'select-child': [child: ServiceTree]
 }>()
 
+const { t } = useI18n()
+
 function getTemplateTypeTag(templateType?: string): string {
   const typeMap: Record<string, string> = {
     table: 'success',
@@ -104,11 +107,11 @@ function getTemplateTypeTag(templateType?: string): string {
 
 function getTemplateTypeText(templateType?: string): string {
   const typeMap: Record<string, string> = {
-    table: '表格',
-    form: '表单',
-    chart: '图表'
+    table: t('packageDetail.table'),
+    form: t('packageDetail.form'),
+    chart: t('packageDetail.chart')
   }
-  return templateType ? (typeMap[templateType] || '函数') : '函数'
+  return templateType ? (typeMap[templateType] || t('packageDetail.function')) : t('packageDetail.function')
 }
 
 function getChildFunctionIcon(child: ServiceTree) {

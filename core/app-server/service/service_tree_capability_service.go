@@ -14,6 +14,7 @@ type serviceTreeCapabilityBundleService struct {
 	appRepo          *repository.AppRepository
 	runtimeWorkspace *runtimeWorkspaceBridge
 	appService       *AppService
+	docService       *DocService
 }
 
 func newServiceTreeCapabilityBundleService(
@@ -21,12 +22,14 @@ func newServiceTreeCapabilityBundleService(
 	appRepo *repository.AppRepository,
 	runtimeWorkspace *runtimeWorkspaceBridge,
 	appService *AppService,
+	docService *DocService,
 ) *serviceTreeCapabilityBundleService {
 	return &serviceTreeCapabilityBundleService{
 		serviceTreeRepo:  serviceTreeRepo,
 		appRepo:          appRepo,
 		runtimeWorkspace: runtimeWorkspace,
 		appService:       appService,
+		docService:       docService,
 	}
 }
 

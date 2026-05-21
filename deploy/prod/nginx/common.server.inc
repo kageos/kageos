@@ -22,6 +22,18 @@ location /workspace/api/ {
     client_max_body_size 4096m;
 }
 
+location /public/api/ {
+    proxy_pass http://127.0.0.1:9090;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+    client_max_body_size 4096m;
+}
+
 location /agent/api/ {
     proxy_pass http://127.0.0.1:9090;
     proxy_set_header Host $host;

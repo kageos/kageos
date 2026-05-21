@@ -14,13 +14,12 @@ func init() {
 // 使用示例：
 //
 //	Title string `json:"title" widget:"name:标题;type:input;placeholder:请输入标题" validate:"required,min=2"`
-//	Password string `json:"password" widget:"name:密码;type:input;password:true"`
 //
 // 校验规则：
 // - 注册的是本文件的 validateInputWidget；
 // - Go 字段必须是 string 或 *string；
-// - password 必须显式写 true/false；
-// - placeholder/password/prepend/append/render_default 都是前端渲染配置，不改变 Go 类型；
+// - 业务 schema 不支持 password 输入；密钥/密码类数据应作为普通业务值自行处理，或后续接入 Secrets 能力；
+// - placeholder/prepend/append/render_default 都是前端渲染配置，不改变 Go 类型；
 // - 必填、长度、格式等业务约束应写在 validate tag，例如 validate:"required,email"。
 type Input struct {
 	Placeholder   string `json:"placeholder,omitempty"`    // 占位符文本
@@ -63,8 +62,8 @@ func validateInputWidget(ctx ValidateContext) error {
 	if err := requireStringLikeGoType(ctx); err != nil {
 		errs = append(errs, err)
 	}
-	if err := validateBoolTag(ctx, "password"); err != nil {
-		errs = append(errs, err)
+	if strings.TrimSpace(ctx.Field.WidgetParsed["password"]) != "" {
+		errs = append(errs, fieldError(ctx, "input widget does not support password; use a normal input and handle encryption in application code if needed"))
 	}
 	return errors.Join(errs...)
 }

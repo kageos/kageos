@@ -3,14 +3,38 @@ import { ElMessage } from 'element-plus'
 import type { TagProps } from 'element-plus'
 import { formatTimestamp } from '@/architecture/shared/date'
 import { useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
-import { getTableOperateLogs, type TableOperateLog } from '@/architecture/presentation/context/api/operateLog'
-import type { FieldConfig } from '@/architecture/domain/types'
+import { getOperateLogs, type OperateLog } from '@/architecture/presentation/context/api/operateLog'
+import { searchUsersFuzzy } from '@/architecture/presentation/context/api/user'
+import type { FieldConfig, UserInfo } from '@/architecture/domain/types'
 import { getFunctionByPath } from '@/architecture/presentation/context/api/function'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/shared/logger'
-import { getTableAllFields } from '@/architecture/domain/utils/functionSchemaSelectors'
+import { getFormRequestFields, getTableAllFields } from '@/architecture/domain/utils/functionSchemaSelectors'
+import { translate } from '@/architecture/shared/i18n'
 
 type OperateLogScope = 'row' | 'function' | 'directory'
+type OperateLogEntry = {
+  id: number
+  tenant_user: string
+  request_user: string
+  action: string
+  app: string
+  full_code_path: string
+  row_id: number
+  updates?: any
+  old_values?: any
+  ip_address?: string
+  user_agent?: string
+  trace_id?: string
+  version?: string
+  created_at: string
+  resource_type?: string
+  status?: string
+  summary?: string
+  details_json?: any
+  old_values_json?: any
+  new_values_json?: any
+}
 
 interface OperateLogChangeEntry {
   fieldCode: string
@@ -26,6 +50,11 @@ interface OperateLogValueEntry {
   value: any
 }
 
+interface OperateLogMetaEntry {
+  label: string
+  value: string
+}
+
 const OPERATE_LOG_PAGE_SIZE = 12
 
 interface UseOperateLogSectionOptions {
@@ -34,6 +63,7 @@ interface UseOperateLogSectionOptions {
   functionDetail: Ref<any>
   autoLoad: Ref<boolean>
   scope?: Ref<OperateLogScope>
+  onApplyFormLog?: (requestBody: Record<string, any>, responseBody: Record<string, any> | null) => void
 }
 
 export function useOperateLogSection({
@@ -42,13 +72,18 @@ export function useOperateLogSection({
   functionDetail,
   autoLoad,
   scope,
+  onApplyFormLog,
 }: UseOperateLogSectionOptions) {
+  const t = translate
   const userInfoStore = useUserInfoStore()
 
-  const logs = ref<TableOperateLog[]>([])
+  const logs = ref<OperateLogEntry[]>([])
   const loading = ref(false)
   const keyword = ref('')
   const actionFilter = ref('')
+  const userFilter = ref('')
+  const userOptions = ref<Array<{ label: string; value: string; userInfo?: UserInfo }>>([])
+  const userFilterLoading = ref(false)
   const currentPage = ref(1)
   const pageSize = ref(OPERATE_LOG_PAGE_SIZE)
   const total = ref(0)
@@ -62,11 +97,17 @@ export function useOperateLogSection({
   const showRowIdColumn = computed(() => currentScope() !== 'row')
   const showResourceColumn = computed(() => currentScope() === 'directory')
   const actionOptions = computed(() => [
-    { label: '全部操作', value: '' },
-    { label: '新增', value: 'OnTableAddRow' },
-    { label: '更新', value: 'OnTableUpdateRow' },
-    { label: '删除', value: 'OnTableDeleteRows' },
+    { label: t('operateLog.allActions'), value: '' },
+    ...(isFormOperateLog.value ? [{ label: t('operateLog.submit'), value: 'form_submit' }] : []),
+    { label: t('operateLog.add'), value: 'OnTableAddRow' },
+    { label: t('operateLog.update'), value: 'OnTableUpdateRow' },
+    { label: t('operateLog.delete'), value: 'OnTableDeleteRows' },
   ])
+
+  const isFormOperateLog = computed(() => {
+    const detail = functionDetail.value as FunctionDetail | null
+    return detail?.template_type === 'form' || detail?.schema?.type === 'form'
+  })
 
   const formatDateTime = (dateTime: string | number | null | undefined): string => {
     if (!dateTime) return '-'
@@ -106,12 +147,12 @@ export function useOperateLogSection({
     const months = Math.floor(days / 30)
     const years = Math.floor(days / 365)
 
-    if (seconds < 60) return '刚刚'
-    if (minutes < 60) return `${minutes}分钟前`
-    if (hours < 24) return `${hours}小时前`
-    if (days < 30) return `${days}天前`
-    if (months < 12) return `${months}个月前`
-    return `${years}年前`
+    if (seconds < 60) return t('operateLog.justNow')
+    if (minutes < 60) return t('operateLog.minutesAgo', { count: minutes })
+    if (hours < 24) return t('operateLog.hoursAgo', { count: hours })
+    if (days < 30) return t('operateLog.daysAgo', { count: days })
+    if (months < 12) return t('operateLog.monthsAgo', { count: months })
+    return t('operateLog.yearsAgo', { count: years })
   }
 
   const loadFunctionDetail = async () => {
@@ -161,8 +202,52 @@ export function useOperateLogSection({
       users.forEach((user: any) => {
         userInfoMap.value.set(user.username, user)
       })
+      mergeUserOptions(Array.from(usernames).map((username) => {
+        const userInfo = userInfoMap.value.get(username)
+        return {
+          label: formatUserOptionLabel(username, userInfo),
+          value: username,
+          userInfo,
+        }
+      }))
     } catch (error) {
       Logger.warn('[OperateLogSection]', '加载用户信息失败', { error })
+    }
+  }
+
+  const formatUserOptionLabel = (username: string, userInfo?: UserInfo | null): string => {
+    if (!userInfo?.nickname) {
+      return username
+    }
+    return `${username}(${userInfo.nickname})`
+  }
+
+  const mergeUserOptions = (options: Array<{ label: string; value: string; userInfo?: UserInfo }>) => {
+    const nextMap = new Map<string, { label: string; value: string; userInfo?: UserInfo }>()
+    userOptions.value.forEach((option) => nextMap.set(option.value, option))
+    options.forEach((option) => nextMap.set(option.value, option))
+    userOptions.value = Array.from(nextMap.values())
+  }
+
+  const searchUserOptions = async (query: string) => {
+    const keywordText = query.trim()
+    if (!keywordText) {
+      return
+    }
+
+    userFilterLoading.value = true
+    try {
+      const response = await searchUsersFuzzy(keywordText, 20)
+      userOptions.value = (response.users || []).map((user) => ({
+        label: formatUserOptionLabel(user.username, user),
+        value: user.username,
+        userInfo: user,
+      }))
+    } catch (error) {
+      Logger.warn('[OperateLogSection]', '搜索操作用户失败', { keyword: keywordText, error })
+      userOptions.value = []
+    } finally {
+      userFilterLoading.value = false
     }
   }
 
@@ -204,18 +289,23 @@ export function useOperateLogSection({
     loading.value = true
     try {
       await loadFunctionDetail()
-      const response = await getTableOperateLogs({
+      const resourceType = scopeValue === 'directory'
+        ? ''
+        : (isFormOperateLog.value ? 'form' : 'table')
+      const response = await getOperateLogs({
+        ...(resourceType ? { resource_type: resourceType } : {}),
         ...(scopeValue === 'directory'
-          ? { full_code_path_prefix: fullCodePath.value }
-          : { full_code_path: fullCodePath.value }),
+          ? { resource_path_prefix: fullCodePath.value }
+          : { resource_path: fullCodePath.value }),
         ...(scopeValue === 'row' ? { row_id: rowId.value } : {}),
         ...(actionFilter.value ? { action: actionFilter.value } : {}),
+        ...(userFilter.value ? { actor_user: userFilter.value } : {}),
         ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
         page: currentPage.value,
         page_size: pageSize.value,
         order_by: 'created_at DESC',
       })
-      logs.value = response.logs || []
+      logs.value = (response.logs || []).map(normalizeOperateLog)
       total.value = response.total || 0
       expandedLogIds.value = []
       await loadDirectoryFunctionDetails()
@@ -228,7 +318,7 @@ export function useOperateLogSection({
       }
     } catch (error: any) {
       Logger.error('[OperateLogSection]', '加载操作日志失败', { error })
-      ElMessage.warning('加载操作日志失败: ' + (error.message || '未知错误'))
+      ElMessage.warning(t('operateLog.loadFailed', { message: error.message || t('common.none') }))
     } finally {
       loading.value = false
     }
@@ -241,8 +331,40 @@ export function useOperateLogSection({
     return userInfoMap.value.get(username) || null
   }
 
+  const normalizeOperateLog = (log: OperateLog): OperateLogEntry => ({
+    id: log.id,
+    tenant_user: log.tenant_user,
+    request_user: log.actor_user,
+    action: log.action,
+    app: log.app,
+    full_code_path: log.resource_path,
+    row_id: readOperateLogRowId(log),
+    updates: log.new_values_json,
+    old_values: log.old_values_json,
+    ip_address: log.ip_address,
+    user_agent: log.user_agent,
+    trace_id: log.trace_id,
+    version: log.details_json?.version || log.new_values_json?.version,
+    created_at: log.created_at,
+    resource_type: log.resource_type,
+    status: log.status,
+    summary: log.summary,
+    details_json: log.details_json,
+    old_values_json: log.old_values_json,
+    new_values_json: log.new_values_json,
+  })
+
+  const readOperateLogRowId = (log: OperateLog): number => {
+    const raw = log.details_json?.row_id ?? log.target_id
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+    if (typeof raw === 'string' && raw.trim() !== '' && !Number.isNaN(Number(raw))) return Number(raw)
+    return 0
+  }
+
   const getActionTagType = (action: string): TagProps['type'] => {
     switch (action) {
+      case 'form_submit':
+        return 'success'
       case 'OnTableAddRow':
         return 'success'
       case 'OnTableUpdateRow':
@@ -257,11 +379,13 @@ export function useOperateLogSection({
   const getActionLabel = (action: string): string => {
     switch (action) {
       case 'OnTableAddRow':
-        return '新增'
+        return t('operateLog.add')
+      case 'form_submit':
+        return t('operateLog.submit')
       case 'OnTableUpdateRow':
-        return '更新'
+        return t('operateLog.update')
       case 'OnTableDeleteRows':
-        return '删除'
+        return t('operateLog.delete')
       default:
         return action
     }
@@ -286,7 +410,9 @@ export function useOperateLogSection({
       return null
     }
 
-    let fields: FieldConfig[] | null = getTableAllFields(detail as FunctionDetail)
+    let fields: FieldConfig[] | null = isFormOperateLog.value
+      ? getFormRequestFields(detail as FunctionDetail)
+      : getTableAllFields(detail as FunctionDetail)
     if (fields.length === 0 && Array.isArray(detail)) {
       fields = detail
     }
@@ -306,10 +432,10 @@ export function useOperateLogSection({
 
   const formatLogValue = (rawValue: any): string => {
     if (rawValue === null || rawValue === undefined || rawValue === '') {
-      return '-'
+      return t('operateLog.emptyValue')
     }
     if (typeof rawValue === 'boolean') {
-      return rawValue ? '是' : '否'
+      return rawValue ? t('operateLog.boolYes') : t('operateLog.boolNo')
     }
     if (typeof rawValue === 'number') {
       return String(rawValue)
@@ -319,18 +445,18 @@ export function useOperateLogSection({
     }
     if (Array.isArray(rawValue)) {
       if (rawValue.length === 0) {
-        return '-'
+        return t('operateLog.emptyValue')
       }
       const simpleValues = rawValue.every((item) => ['string', 'number', 'boolean'].includes(typeof item))
       if (simpleValues) {
         const text = rawValue.map((item) => formatLogValue(item)).join('、')
         return text.length > 120 ? `${text.slice(0, 120)}...` : text
       }
-      return `${rawValue.length} 项`
+      return t('operateLog.items', { count: rawValue.length })
     }
     if (typeof rawValue === 'object') {
       if (Array.isArray(rawValue.files)) {
-        return `${rawValue.files.length} 个文件`
+        return t('operateLog.files', { count: rawValue.files.length })
       }
       for (const key of ['name', 'title', 'label', 'text', 'value']) {
         if (typeof rawValue[key] === 'string' && rawValue[key]) {
@@ -347,7 +473,7 @@ export function useOperateLogSection({
     return String(rawValue)
   }
 
-  const getChangeEntries = (log: TableOperateLog): OperateLogChangeEntry[] => {
+  const getChangeEntries = (log: OperateLogEntry): OperateLogChangeEntry[] => {
     const updates = parseJSON(log.updates)
     if (!updates || typeof updates !== 'object' || Array.isArray(updates)) {
       return []
@@ -363,7 +489,7 @@ export function useOperateLogSection({
     }))
   }
 
-  const getValueEntries = (log: TableOperateLog): OperateLogValueEntry[] => {
+  const getValueEntries = (log: OperateLogEntry): OperateLogValueEntry[] => {
     const values = parseJSON(log.action === 'OnTableDeleteRows' ? log.old_values : log.updates)
     if (!values || typeof values !== 'object' || Array.isArray(values)) {
       return []
@@ -376,7 +502,7 @@ export function useOperateLogSection({
     }))
   }
 
-  const getPrimaryEntries = (log: TableOperateLog): OperateLogValueEntry[] => {
+  const getPrimaryEntries = (log: OperateLogEntry): OperateLogValueEntry[] => {
     if (log.action === 'OnTableUpdateRow') {
       return getChangeEntries(log)
         .slice(0, 3)
@@ -389,34 +515,49 @@ export function useOperateLogSection({
     return getValueEntries(log).slice(0, 3)
   }
 
-  const getLogTitle = (log: TableOperateLog): string => {
-    const recordName = log.row_id ? `记录 #${log.row_id}` : '一条记录'
+  const getLogTitle = (log: OperateLogEntry): string => {
+    if (log.action === 'form_submit') {
+      return log.status === 'failed' ? t('operateLog.formSubmitFailed') : t('operateLog.formSubmitted')
+    }
+    const recordName = log.row_id ? t('common.rowRecord', { id: log.row_id }) : t('operateLog.record')
     switch (log.action) {
       case 'OnTableAddRow':
-        return `新增了${recordName}`
+        return t('operateLog.added', { record: recordName })
       case 'OnTableUpdateRow':
-        return `更新了${recordName}`
+        return t('operateLog.updated', { record: recordName })
       case 'OnTableDeleteRows':
-        return `删除了${recordName}`
+        return t('operateLog.deleted', { record: recordName })
       default:
-        return `执行了 ${log.action}`
+        return t('operateLog.executed', { action: log.action })
     }
   }
 
-  const getLogEmptyText = (log: TableOperateLog): string => {
+  const getLogEmptyText = (log: OperateLogEntry): string => {
     switch (log.action) {
       case 'OnTableAddRow':
-        return '记录已新增，暂无字段详情'
+        return t('operateLog.addEmpty')
       case 'OnTableUpdateRow':
-        return '记录已更新，暂无字段变更详情'
+        return t('operateLog.updateEmpty')
       case 'OnTableDeleteRows':
-        return '记录已删除'
+        return t('operateLog.deleteEmpty')
+      case 'form_submit':
+        return t('operateLog.formSubmitEmpty')
       default:
-        return '暂无更多操作详情'
+        return t('operateLog.detailEmpty')
     }
   }
 
-  const getLogSummary = (log: TableOperateLog): string => {
+  const getLogSummary = (log: OperateLogEntry): string => {
+    if (log.action === 'form_submit' && log.summary) {
+      return log.summary
+    }
+    const response = getLogResponseBody(log)
+    if (log.status === 'failed' && response?.error) {
+      return String(response.error)
+    }
+    if (log.summary && (log.resource_type === 'team_access' || !['OnTableAddRow', 'OnTableUpdateRow', 'OnTableDeleteRows'].includes(log.action))) {
+      return log.summary
+    }
     const entries = getPrimaryEntries(log)
     if (entries.length === 0) {
       return getLogEmptyText(log)
@@ -424,6 +565,53 @@ export function useOperateLogSection({
     return entries
       .map((entry) => `${entry.fieldName}: ${formatLogValue(entry.value)}`)
       .join(' · ')
+  }
+
+  const readNumber = (value: unknown): number | null => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) return Number(value)
+    return null
+  }
+
+  const getLogResponseBody = (log: OperateLogEntry): Record<string, any> | null => {
+    const response = parseJSON(log.details_json?.response_body)
+    if (!response || typeof response !== 'object' || Array.isArray(response)) {
+      return null
+    }
+    return response as Record<string, any>
+  }
+
+  const getLogDuration = (log: OperateLogEntry): number | null => {
+    return readNumber(log.details_json?.duration_millis ?? getLogResponseBody(log)?.total_cost_mill)
+  }
+
+  const getLogStatusLabel = (log: OperateLogEntry): string => {
+    return log.status === 'failed' ? t('operateLog.failed') : t('operateLog.success')
+  }
+
+  const getLogStatusTagType = (log: OperateLogEntry): TagProps['type'] => {
+    return log.status === 'failed' ? 'danger' : 'success'
+  }
+
+  const formatDuration = (value: number | null): string => {
+    if (value === null || value < 0) return t('operateLog.durationMissing')
+    if (value < 1000) return `${value}ms`
+    if (value < 60000) return `${(value / 1000).toFixed(value < 10000 ? 2 : 1)}s`
+    const minutes = Math.floor(value / 60000)
+    const seconds = ((value % 60000) / 1000).toFixed(1)
+    return `${minutes}m ${seconds}s`
+  }
+
+  const getLogMetaEntries = (log: OperateLogEntry): OperateLogMetaEntry[] => {
+    const response = getLogResponseBody(log)
+    const entries: OperateLogMetaEntry[] = []
+    const duration = getLogDuration(log)
+    if (duration !== null) entries.push({ label: t('operateLog.duration'), value: formatDuration(duration) })
+    if (log.version) entries.push({ label: t('operateLog.version'), value: log.version })
+    if (response?.error) entries.push({ label: t('operateLog.error'), value: String(response.error) })
+    if (log.trace_id) entries.push({ label: 'Trace', value: log.trace_id })
+    if (log.ip_address) entries.push({ label: 'IP', value: log.ip_address })
+    return entries
   }
 
   const isLogExpanded = (logId: number): boolean => {
@@ -438,6 +626,25 @@ export function useOperateLogSection({
     expandedLogIds.value = [...expandedLogIds.value, logId]
   }
 
+  const canApplyFormLog = (log: OperateLogEntry): boolean => {
+    return log.action === 'form_submit' && typeof onApplyFormLog === 'function'
+  }
+
+  const applyFormLog = (log: OperateLogEntry) => {
+    const requestBody = parseJSON(log.old_values_json ?? log.updates)
+    const responseBody = parseJSON(log.new_values_json)
+    if (!requestBody || typeof requestBody !== 'object' || Array.isArray(requestBody)) {
+      ElMessage.warning(t('operateLog.formReplayEmpty'))
+      return
+    }
+    onApplyFormLog?.(
+      requestBody as Record<string, any>,
+      responseBody && typeof responseBody === 'object' && !Array.isArray(responseBody)
+        ? responseBody as Record<string, any>
+        : null
+    )
+  }
+
   const resetAndLoad = () => {
     currentPage.value = 1
     hasLoaded.value = false
@@ -450,6 +657,10 @@ export function useOperateLogSection({
   }
 
   const handleActionChange = () => {
+    resetAndLoad()
+  }
+
+  const handleUserChange = () => {
     resetAndLoad()
   }
 
@@ -472,6 +683,7 @@ export function useOperateLogSection({
         logs.value = []
         total.value = 0
         currentPage.value = 1
+        userFilter.value = ''
         functionDetailMap.value = new Map()
       }
 
@@ -504,6 +716,7 @@ export function useOperateLogSection({
       logs.value = []
       total.value = 0
       currentPage.value = 1
+      userFilter.value = ''
       functionDetailCache.value = null
       functionDetailMap.value = new Map()
     }
@@ -519,6 +732,9 @@ export function useOperateLogSection({
     formatRelativeTime,
     keyword,
     actionFilter,
+    userFilter,
+    userOptions,
+    userFilterLoading,
     actionOptions,
     currentPage,
     pageSize,
@@ -533,13 +749,23 @@ export function useOperateLogSection({
     getLogTitle,
     getLogEmptyText,
     getLogSummary,
+    getLogDuration,
+    getLogStatusLabel,
+    getLogStatusTagType,
+    getLogMetaEntries,
+    formatDuration,
+    canApplyFormLog,
+    applyFormLog,
     isLogExpanded,
     toggleLogExpanded,
     handleSearch,
     handleActionChange,
+    handleUserChange,
+    searchUserOptions,
     handlePageChange,
     load,
     showRowIdColumn,
     showResourceColumn,
+    isFormOperateLog,
   }
 }

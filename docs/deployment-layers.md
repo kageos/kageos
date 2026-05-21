@@ -1,4 +1,4 @@
-# AI Agent OS 部署分层模型
+# Kageos 部署分层模型
 
 > 状态：执行口径
 > 更新时间：2026-05-17
@@ -114,7 +114,7 @@ MySQL / NATS / MinIO 支持 `bundled` 和 `external`。`bundled` 由 Compose 启
 - namespace 工作目录
 - 用户 App 镜像构建、启动、停止、更新
 
-这是 AI Agent OS 和普通 SaaS 最大的差异：平台不仅提供业务 API，还负责动态运行用户生成的应用。
+这是 Kageos 和普通 SaaS 最大的差异：平台不仅提供业务 API，还负责动态运行用户生成的应用。
 
 健康探针：
 

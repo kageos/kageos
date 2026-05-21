@@ -20,6 +20,10 @@ const RequestUserHeader = "X-Request-User"
 // ⭐ 统一使用此常量，不要硬编码字符串（既用于 HTTP Header，也用于 Context）
 const DepartmentFullPathHeader = "X-Department-Full-Path"
 
+const CompanyCodeHeader = "X-Company-Code"
+const CompanyNameHeader = "X-Company-Name"
+const CompanyLogoURLHeader = "X-Company-Logo-Url"
+
 // TokenHeader HTTP Header 中的 Token key（统一使用此名称）
 const TokenHeader = "X-Token"
 
@@ -104,6 +108,30 @@ func GetRequestDepartmentFullPath(c context.Context) string {
 		}
 	}
 
+	return ""
+}
+
+func GetRequestCompanyCode(c context.Context) string {
+	return getStringFromContextOrHeader(c, CompanyCodeHeader)
+}
+
+func GetRequestCompanyName(c context.Context) string {
+	return getStringFromContextOrHeader(c, CompanyNameHeader)
+}
+
+func GetRequestCompanyLogoURL(c context.Context) string {
+	return getStringFromContextOrHeader(c, CompanyLogoURLHeader)
+}
+
+func getStringFromContextOrHeader(c context.Context, key string) string {
+	if v, ok := c.(*gin.Context); ok {
+		return v.GetHeader(key)
+	}
+	if value := c.Value(key); value != nil {
+		if s, ok := value.(string); ok && s != "" {
+			return s
+		}
+	}
 	return ""
 }
 
@@ -263,7 +291,45 @@ func ToContext(c *gin.Context) context.Context {
 		c.Request.Header.Set(DepartmentFullPathHeader, deptPath)
 	}
 
-	// 5. ClientSource：header 或 context，取到后 set 回 header + context，供操作日志和下游调用链识别入口来源
+	// 5. Company：header 或 context，取到后 set 回 header + context
+	companyCode := c.GetHeader(CompanyCodeHeader)
+	if companyCode == "" {
+		if v, exists := c.Get(CompanyCodeHeader); exists {
+			if s, ok := v.(string); ok && s != "" {
+				companyCode = s
+			}
+		}
+	}
+	if companyCode != "" {
+		ctx = context.WithValue(ctx, CompanyCodeHeader, companyCode)
+		c.Request.Header.Set(CompanyCodeHeader, companyCode)
+	}
+	companyName := c.GetHeader(CompanyNameHeader)
+	if companyName == "" {
+		if v, exists := c.Get(CompanyNameHeader); exists {
+			if s, ok := v.(string); ok && s != "" {
+				companyName = s
+			}
+		}
+	}
+	if companyName != "" {
+		ctx = context.WithValue(ctx, CompanyNameHeader, companyName)
+		c.Request.Header.Set(CompanyNameHeader, companyName)
+	}
+	companyLogoURL := c.GetHeader(CompanyLogoURLHeader)
+	if companyLogoURL == "" {
+		if v, exists := c.Get(CompanyLogoURLHeader); exists {
+			if s, ok := v.(string); ok && s != "" {
+				companyLogoURL = s
+			}
+		}
+	}
+	if companyLogoURL != "" {
+		ctx = context.WithValue(ctx, CompanyLogoURLHeader, companyLogoURL)
+		c.Request.Header.Set(CompanyLogoURLHeader, companyLogoURL)
+	}
+
+	// 6. ClientSource：header 或 context，取到后 set 回 header + context，供操作日志和下游调用链识别入口来源
 	clientSource := c.GetHeader(ClientSourceHeader)
 	if clientSource == "" {
 		if v, exists := c.Get(ClientSourceHeader); exists {
@@ -277,7 +343,7 @@ func ToContext(c *gin.Context) context.Context {
 		c.Request.Header.Set(ClientSourceHeader, clientSource)
 	}
 
-	// 6. Source ref：后台自动化/函数触发来源，供工具调用链审计和后续白名单使用
+	// 7. Source ref：后台自动化/函数触发来源，供工具调用链审计和后续白名单使用
 	sourceType := c.GetHeader(SourceTypeHeader)
 	if sourceType != "" {
 		ctx = context.WithValue(ctx, SourceTypeHeader, sourceType)
@@ -289,7 +355,7 @@ func ToContext(c *gin.Context) context.Context {
 		c.Request.Header.Set(SourceRefHeader, sourceRef)
 	}
 
-	// 7. PresignHost：优先 X-Forwarded-Host（含端口），无端口时用 X-Forwarded-Port 或 PresignDefaultPort 补全，与浏览器 PUT 的 Host 一致避免 403
+	// 8. PresignHost：优先 X-Forwarded-Host（含端口），无端口时用 X-Forwarded-Port 或 PresignDefaultPort 补全，与浏览器 PUT 的 Host 一致避免 403
 	presignHost := c.GetHeader("X-Forwarded-Host")
 	if presignHost == "" {
 		presignHost = c.Request.Host
@@ -315,6 +381,9 @@ func NatsTraceContext(msg *nats.Msg) context.Context {
 	ctx = context.WithValue(ctx, TokenHeader, msg.Header.Get(TokenHeader))
 	ctx = context.WithValue(ctx, TraceIdHeader, msg.Header.Get(TraceIdHeader))
 	ctx = context.WithValue(ctx, DepartmentFullPathHeader, msg.Header.Get(DepartmentFullPathHeader))
+	ctx = context.WithValue(ctx, CompanyCodeHeader, msg.Header.Get(CompanyCodeHeader))
+	ctx = context.WithValue(ctx, CompanyNameHeader, msg.Header.Get(CompanyNameHeader))
+	ctx = context.WithValue(ctx, CompanyLogoURLHeader, msg.Header.Get(CompanyLogoURLHeader))
 	if clientSource := msg.Header.Get(ClientSourceHeader); clientSource != "" {
 		ctx = context.WithValue(ctx, ClientSourceHeader, clientSource)
 	}
@@ -340,6 +409,15 @@ func CtxToTraceNats(c context.Context, subject string) *nats.Msg {
 	if departmentFullPath := GetRequestDepartmentFullPath(c); departmentFullPath != "" {
 		msg.Header.Set(DepartmentFullPathHeader, departmentFullPath)
 	}
+	if companyCode := GetRequestCompanyCode(c); companyCode != "" {
+		msg.Header.Set(CompanyCodeHeader, companyCode)
+	}
+	if companyName := GetRequestCompanyName(c); companyName != "" {
+		msg.Header.Set(CompanyNameHeader, companyName)
+	}
+	if companyLogoURL := GetRequestCompanyLogoURL(c); companyLogoURL != "" {
+		msg.Header.Set(CompanyLogoURLHeader, companyLogoURL)
+	}
 	if clientSource := GetClientSource(c); clientSource != "" {
 		msg.Header.Set(ClientSourceHeader, clientSource)
 	}
@@ -359,6 +437,9 @@ type RequestInfo struct {
 	RequestUser        string
 	Token              string
 	DepartmentFullPath string
+	CompanyCode        string
+	CompanyName        string
+	CompanyLogoURL     string
 	ClientSource       string
 	SourceType         string
 	SourceRef          string
@@ -377,6 +458,15 @@ func WithRequestInfo(ctx context.Context, info RequestInfo) context.Context {
 	}
 	if info.DepartmentFullPath != "" {
 		ctx = context.WithValue(ctx, DepartmentFullPathHeader, info.DepartmentFullPath)
+	}
+	if info.CompanyCode != "" {
+		ctx = context.WithValue(ctx, CompanyCodeHeader, info.CompanyCode)
+	}
+	if info.CompanyName != "" {
+		ctx = context.WithValue(ctx, CompanyNameHeader, info.CompanyName)
+	}
+	if info.CompanyLogoURL != "" {
+		ctx = context.WithValue(ctx, CompanyLogoURLHeader, info.CompanyLogoURL)
 	}
 	if info.ClientSource != "" {
 		ctx = context.WithValue(ctx, ClientSourceHeader, info.ClientSource)

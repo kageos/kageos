@@ -1557,9 +1557,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspace/api/v1/operate_log/table": {
+        "/workspace/api/v1/operate_log/general": {
             "get": {
-                "description": "查询 Table 操作日志",
+                "description": "查询统一存储在 operate_logs 中的操作日志",
                 "consumes": [
                     "application/json"
                 ],
@@ -1569,7 +1569,7 @@ const docTemplate = `{
                 "tags": [
                     "操作日志"
                 ],
-                "summary": "查询 Table 操作日志",
+                "summary": "查询通用操作日志",
                 "parameters": [
                     {
                         "type": "string",
@@ -1586,8 +1586,20 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "请求用户（实际执行操作的用户）",
-                        "name": "request_user",
+                        "description": "企业代码（默认当前登录企业）",
+                        "name": "company_code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "执行用户",
+                        "name": "actor_user",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "被操作用户",
+                        "name": "target_user",
                         "in": "query"
                     },
                     {
@@ -1598,31 +1610,43 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "完整代码路径",
-                        "name": "full_code_path",
+                        "description": "资源类型：table/form/team_access/directory/function",
+                        "name": "resource_type",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "完整代码路径前缀，用于查询目录下日志",
-                        "name": "full_code_path_prefix",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "记录ID",
-                        "name": "row_id",
+                        "description": "资源路径",
+                        "name": "resource_path",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows",
+                        "description": "资源路径前缀",
+                        "name": "resource_path_prefix",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "操作类型",
                         "name": "action",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "关键词：匹配操作人、资源路径、Trace、版本或记录ID",
+                        "description": "状态：success/failed",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Table 记录 ID",
+                        "name": "row_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "关键词：匹配操作人、被操作人、资源路径、Trace 或摘要",
                         "name": "keyword",
                         "in": "query"
                     },
@@ -1651,25 +1675,7 @@ const docTemplate = `{
                     "200": {
                         "description": "查询成功",
                         "schema": {
-                            "$ref": "#/definitions/dto.GetTableOperateLogsResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未认证",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/dto.GetOperateLogsResp"
                         }
                     }
                 }
@@ -3804,6 +3810,26 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.GetOperateLogsResp": {
+            "type": "object",
+            "properties": {
+                "logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.OperateLogItem"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.GetServiceTreeDetailResp": {
             "type": "object",
             "properties": {
@@ -3987,23 +4013,74 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.GetTableOperateLogsResp": {
+        "dto.OperateLogItem": {
             "type": "object",
             "properties": {
-                "logs": {
-                    "description": "日志列表"
+                "action": {
+                    "type": "string"
                 },
-                "page": {
-                    "description": "当前页码",
+                "actor_user": {
+                    "type": "string"
+                },
+                "app": {
+                    "type": "string"
+                },
+                "company_code": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "details_json": {
+                    "type": "object"
+                },
+                "id": {
                     "type": "integer"
                 },
-                "page_size": {
-                    "description": "每页数量",
-                    "type": "integer"
+                "ip_address": {
+                    "type": "string"
                 },
-                "total": {
-                    "description": "总数",
-                    "type": "integer"
+                "new_values_json": {
+                    "type": "object"
+                },
+                "old_values_json": {
+                    "type": "object"
+                },
+                "resource_name": {
+                    "type": "string"
+                },
+                "resource_path": {
+                    "type": "string"
+                },
+                "resource_type": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "summary": {
+                    "type": "string"
+                },
+                "target_id": {
+                    "type": "string"
+                },
+                "target_user": {
+                    "type": "string"
+                },
+                "tenant_user": {
+                    "type": "string"
+                },
+                "trace_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_agent": {
+                    "type": "string"
                 }
             }
         },
@@ -4611,6 +4688,10 @@ const docTemplate = `{
                     "description": "必需字段",
                     "type": "string"
                 },
+                "sensitive": {
+                    "description": "敏感字段，操作日志记录时会脱敏",
+                    "type": "boolean"
+                },
                 "validation": {
                     "description": "验证规则，完全照搬 github.com/go-playground/validator/v10",
                     "type": "string"
@@ -4681,8 +4762,8 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "localhost:9090",
 	BasePath:         "",
 	Schemes:          []string{},
-	Title:            "AI Agent OS API",
-	Description:      "AI Agent OS 应用管理平台 API 文档",
+	Title:            "Kageos API",
+	Description:      "Kageos 应用管理平台 API 文档",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
