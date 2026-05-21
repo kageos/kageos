@@ -3,8 +3,8 @@ package repository
 import (
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"github.com/kageos/kageos/core/hr-server/model"
+	"github.com/kageos/kageos/pkg/gormx/models"
 	"gorm.io/gorm"
 )
 

@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	appmodel "github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/repository"
+	appmodel "github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/core/app-server/repository"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

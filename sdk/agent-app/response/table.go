@@ -1,6 +1,6 @@
 package response
 
-import "github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
+import "github.com/kageos/kageos/pkg/gormx/query"
 
 type Table interface {
 	Builder

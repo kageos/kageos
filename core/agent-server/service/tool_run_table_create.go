@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 type RunTableCreateTool struct{}

@@ -1,6 +1,6 @@
 package service
 
-import workspaceprd "github.com/ai-agent-os/ai-agent-os/core/agent-server/workspace/prd"
+import workspaceprd "github.com/kageos/kageos/core/agent-server/workspace/prd"
 
 const workspaceBuildArtifactKind = "agent_app_build"
 

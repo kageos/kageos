@@ -50,10 +50,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos/sdk/agent-app/types"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -422,10 +422,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos/sdk/agent-app/types"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -662,10 +662,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos/sdk/agent-app/types"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -972,10 +972,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos/sdk/agent-app/types"
 	"github.com/xuri/excelize/v2"
 )
 

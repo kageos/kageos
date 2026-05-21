@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 	"github.com/nats-io/nats.go"
 )
 

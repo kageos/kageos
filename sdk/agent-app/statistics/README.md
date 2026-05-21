@@ -9,7 +9,7 @@
 ### 导入包
 
 ```go
-import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/statistics"
+import "github.com/kageos/kageos/sdk/agent-app/statistics"
 ```
 
 ### 使用方式：直接函数调用
@@ -161,7 +161,7 @@ statistics.Value("有效期")
 ### 示例1：收银台商品统计
 
 ```go
-import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/statistics"
+import "github.com/kageos/kageos/sdk/agent-app/statistics"
 
 func onSelectFuzzyProduct(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*callback.OnSelectFuzzyResp, error) {
     // ... 查询商品逻辑 ...
@@ -185,7 +185,7 @@ func onSelectFuzzyProduct(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*ca
 ### 示例2：会员卡选择（动态显示余额）
 
 ```go
-import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/statistics"
+import "github.com/kageos/kageos/sdk/agent-app/statistics"
 
 func onSelectFuzzyMemberCard(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*callback.OnSelectFuzzyResp, error) {
     // ... 查询会员卡逻辑 ...
@@ -212,7 +212,7 @@ func onSelectFuzzyMemberCard(ctx *app.Context, req *callback.OnSelectFuzzyReq) (
 ### 方式1：使用 go doc
 
 ```bash
-go doc github.com/ai-agent-os/ai-agent-os/sdk/agent-app/statistics
+go doc github.com/kageos/kageos/sdk/agent-app/statistics
 ```
 
 ### 方式2：IDE 自动补全

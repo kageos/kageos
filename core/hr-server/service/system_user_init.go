@@ -6,10 +6,10 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	hrmodel "github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
-	hrrepository "github.com/ai-agent-os/ai-agent-os/core/hr-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	hrmodel "github.com/kageos/kageos/core/hr-server/model"
+	hrrepository "github.com/kageos/kageos/core/hr-server/repository"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -18,12 +18,12 @@ const (
 	// SystemUsername 系统用户名
 	SystemUsername = "system"
 	// SystemUserEmail 系统用户邮箱
-	SystemUserEmail = "system@ai-agent-os.local"
+	SystemUserEmail = "system@kageos.local"
 
 	// TestUsername 测试用户名（用于执行/测试场景兜底）
 	TestUsername = "test_user"
 	// TestUserEmail 测试用户邮箱
-	TestUserEmail = "test_user@ai-agent-os.local"
+	TestUserEmail = "test_user@kageos.local"
 	// TestUserDepartmentPath 测试用户默认归属部门（虚拟组织/测试组）
 	TestUserDepartmentPath = "/org/virtual/test"
 )

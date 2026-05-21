@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	sharedDto "github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	sharedDto "github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 func (s *AppManageService) fetchVersionDiffPayload(

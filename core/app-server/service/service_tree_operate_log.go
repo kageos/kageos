@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/access"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 func (s *ServiceTreeService) getServiceTreeForAudit(id int64) *model.ServiceTree {

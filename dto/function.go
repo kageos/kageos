@@ -1,6 +1,6 @@
 package dto
 
-import "github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+import "github.com/kageos/kageos/pkg/functionschema"
 
 // GetFunctionReq 获取函数详情请求
 type GetFunctionReq struct {

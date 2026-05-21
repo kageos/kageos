@@ -1,6 +1,6 @@
 # SDK 平台 API 参考
 
-本文档说明 SDK 代码如何调用 AgentOS 平台能力。
+本文档说明 SDK 代码如何调用 KageOS 平台能力。
 
 ## ctx.APICall
 

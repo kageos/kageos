@@ -7,8 +7,8 @@ import (
 	pathpkg "path"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
 )
 
 const agentToolClientSource = "agent"

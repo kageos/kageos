@@ -73,7 +73,7 @@ cd "$ROOT"
 # up 之后始终执行 init SQL（幂等），确保所有数据库存在
 if [[ "$ACTION" == "up" ]]; then
   if [[ "$ENGINE" == "docker" ]]; then
-    MYSQL_CONTAINER="ai-agent-os-dev-mysql"
+    MYSQL_CONTAINER="kageos-dev-mysql"
   else
     MYSQL_CONTAINER="mysql8"
   fi

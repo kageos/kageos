@@ -3,7 +3,7 @@ package app
 import (
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/kageos/kageos/sdk/agent-app/response"
 )
 
 type HandleFunc func(ctx *Context, resp response.Response) error

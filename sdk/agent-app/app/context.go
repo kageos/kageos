@@ -7,12 +7,12 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/trace"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
 	"github.com/go-playground/form/v4"
 	"github.com/go-playground/validator/v10"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/trace"
+	"github.com/kageos/kageos/sdk/agent-app/env"
 )
 
 var (

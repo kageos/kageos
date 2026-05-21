@@ -3,7 +3,7 @@ package v1
 import (
 	"encoding/json"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 )
 
 func fillTableActionLogResult(logReq *dto.RecordTableActionLogReq, resp *dto.RequestAppResp, err error, durationMillis int64) {

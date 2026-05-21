@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // WorkspaceChangeService 管理目录脚手架、批量文件写入和发布前后的回滚编排。

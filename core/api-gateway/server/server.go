@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	middleware2 "github.com/ai-agent-os/ai-agent-os/pkg/middleware"
-	"github.com/ai-agent-os/ai-agent-os/pkg/natsx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/serverx"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/logger"
+	middleware2 "github.com/kageos/kageos/pkg/middleware"
+	"github.com/kageos/kageos/pkg/natsx"
+	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/nats-io/nats.go"
 )
 

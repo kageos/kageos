@@ -7,7 +7,7 @@
 ### 1. 仅打日志（开发/排查）
 
 ```go
-import "github.com/ai-agent-os/ai-agent-os/pkg/gormx/xgorm"
+import "github.com/kageos/kageos/pkg/gormx/xgorm"
 
 db, _ := gorm.Open(...)
 xgorm.RegisterCallbacks(db)

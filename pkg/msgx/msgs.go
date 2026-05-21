@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/nats-io/nats.go"
 )
 

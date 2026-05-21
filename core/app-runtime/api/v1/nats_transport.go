@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/msgx"
 	"github.com/nats-io/nats.go"
 )
 

@@ -89,7 +89,7 @@ func (p runtimeAppPaths) BuildOutputDir(outputDir string) string {
 }
 
 func (p runtimeAppPaths) NamespaceAPIImport(packagePath string) string {
-	base := fmt.Sprintf("github.com/ai-agent-os/ai-agent-os/namespace/%s/%s/code/api", p.user, p.app)
+	base := fmt.Sprintf("github.com/kageos/kageos/namespace/%s/%s/code/api", p.user, p.app)
 	cleanPackagePath := strings.Trim(packagePath, "/")
 	if cleanPackagePath == "" {
 		return base

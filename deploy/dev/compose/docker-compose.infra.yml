@@ -68,6 +68,6 @@ services:
 
 volumes:
   infra-mysql-data:
-    name: ai-agent-os-infra-mysql-data
+    name: kageos-infra-mysql-data
   infra-minio-data:
-    name: ai-agent-os-infra-minio-data
+    name: kageos-infra-minio-data

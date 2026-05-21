@@ -1,6 +1,6 @@
 package dto
 
-import "github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
+import "github.com/kageos/kageos/core/hr-server/model"
 
 // CreateDepartmentReq 创建部门请求
 type CreateDepartmentReq struct {

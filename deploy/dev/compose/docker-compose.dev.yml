@@ -9,7 +9,7 @@ services:
 
   mysql:
     image: mysql:8.0
-    container_name: ai-agent-os-dev-mysql
+    container_name: kageos-dev-mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
@@ -33,7 +33,7 @@ services:
 
   nats:
     image: nats:2.10-alpine
-    container_name: ai-agent-os-dev-nats
+    container_name: kageos-dev-nats
     restart: unless-stopped
     ports:
       - "4222:4222"
@@ -43,7 +43,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: ai-agent-os-dev-minio
+    container_name: kageos-dev-minio
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -58,6 +58,6 @@ services:
 
 volumes:
   dev-mysql-data:
-    name: ai-agent-os-dev-mysql-data
+    name: kageos-dev-mysql-data
   dev-minio-data:
-    name: ai-agent-os-dev-minio-data
+    name: kageos-dev-minio-data

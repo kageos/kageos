@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
+	"github.com/kageos/kageos/sdk/agent-app/widget"
 )
 
 var promptRRGGBBPattern = regexp.MustCompile(`^[0-9A-Fa-f]{6}$`)

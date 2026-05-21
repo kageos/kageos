@@ -1,7 +1,7 @@
 package model
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"github.com/kageos/kageos/pkg/gormx/models"
 )
 
 // FileSnapshot 文件快照表，记录每个文件每个版本的代码内容

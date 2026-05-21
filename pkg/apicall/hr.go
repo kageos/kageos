@@ -3,7 +3,7 @@ package apicall
 import (
 	"context"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 )
 
 // GetUserByUsername 根据用户名获取用户信息（app-server -> hr-server）

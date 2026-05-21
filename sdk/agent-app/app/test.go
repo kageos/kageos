@@ -3,9 +3,9 @@ package app
 import (
 	"fmt"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
+	"github.com/kageos/kageos/pkg/gormx/query"
 
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/kageos/kageos/sdk/agent-app/response"
 )
 
 var Temp = &TableTemplate{

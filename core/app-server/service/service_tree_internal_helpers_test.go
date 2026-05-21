@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/dto"
 )
 
 func TestNormalizeSearchFunctionsPagination_DefaultsInvalidValues(t *testing.T) {

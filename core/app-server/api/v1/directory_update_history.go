@@ -3,12 +3,12 @@ package v1
 import (
 	"strconv"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/core/app-server/service"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/ginx/response"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // DirectoryUpdateHistory 目录更新历史相关API

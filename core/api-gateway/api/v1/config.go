@@ -1,9 +1,9 @@
 package v1
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/serviceconfig"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/serviceconfig"
 )
 
 // Config 配置处理器

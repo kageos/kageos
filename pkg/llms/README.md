@@ -10,7 +10,7 @@ this layer.
 ## Import
 
 ```go
-import "github.com/ai-agent-os/ai-agent-os/pkg/llms"
+import "github.com/kageos/kageos/pkg/llms"
 ```
 
 Environment variable:

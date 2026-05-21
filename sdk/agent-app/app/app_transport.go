@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/discovery"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/discovery"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/msgx"
+	"github.com/kageos/kageos/pkg/subjects"
+	"github.com/kageos/kageos/sdk/agent-app/env"
 	"github.com/nats-io/nats.go"
 )
 

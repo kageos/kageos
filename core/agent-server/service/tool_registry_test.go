@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/prompt"
+	"github.com/kageos/kageos/core/agent-server/prompt"
 )
 
 func TestAllListedToolsHaveHandlers(t *testing.T) {

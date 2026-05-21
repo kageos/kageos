@@ -1,6 +1,6 @@
 package service
 
-import "github.com/ai-agent-os/ai-agent-os/core/agent-server/prompt"
+import "github.com/kageos/kageos/core/agent-server/prompt"
 
 func workspaceToolNamesForMode(modeProvider prompt.WorkspaceModePromptProvider, fallbackToolNames []string) []string {
 	var toolNames []string

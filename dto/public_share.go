@@ -3,7 +3,7 @@ package dto
 import (
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+	"github.com/kageos/kageos/pkg/functionschema"
 )
 
 type CreatePublicShareReq struct {

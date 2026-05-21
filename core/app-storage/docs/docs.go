@@ -12,7 +12,7 @@ const docTemplate = `{
         "contact": {},
         "license": {
             "name": "Business Source License 1.1",
-            "url": "https://github.com/ai-agent-os/ai-agent-os/blob/main/LICENSE"
+            "url": "https://github.com/kageos/kageos/blob/main/LICENSE"
         },
         "version": "{{.Version}}"
     },

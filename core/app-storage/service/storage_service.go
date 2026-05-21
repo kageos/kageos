@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-storage/model"
-	"github.com/ai-agent-os/ai-agent-os/core/app-storage/repository"
-	"github.com/ai-agent-os/ai-agent-os/core/app-storage/storage"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/google/uuid"
+	"github.com/kageos/kageos/core/app-storage/model"
+	"github.com/kageos/kageos/core/app-storage/repository"
+	"github.com/kageos/kageos/core/app-storage/storage"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // 导入常量以便使用

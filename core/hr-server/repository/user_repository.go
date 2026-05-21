@@ -3,7 +3,7 @@ package repository
 import (
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
+	"github.com/kageos/kageos/core/hr-server/model"
 	"gorm.io/gorm"
 )
 

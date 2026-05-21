@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
-	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/agent-server/model"
+	"github.com/kageos/kageos/pkg/llms"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 func (s *WorkspaceChatService) currentWorkspaceRoleForSession(ctx context.Context, sessionID string) string {

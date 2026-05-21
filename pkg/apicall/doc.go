@@ -3,7 +3,7 @@ package apicall
 import (
 	"context"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 )
 
 // GetDoc 根据完整路径获取单篇文档内容（用于 read_doc 工具按需拉取）

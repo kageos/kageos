@@ -14,8 +14,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	_ "github.com/ai-agent-os/ai-agent-os/core/api-gateway/docs"
-	"github.com/ai-agent-os/ai-agent-os/core/api-gateway/runner"
+	_ "github.com/kageos/kageos/core/api-gateway/docs"
+	"github.com/kageos/kageos/core/api-gateway/runner"
 )
 
 func main() {

@@ -9,7 +9,7 @@ import (
 	"net/smtp"
 	"time"
 
-	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
+	appconfig "github.com/kageos/kageos/pkg/config"
 )
 
 // Sender 封装 SMTP 发送能力，供各服务复用。

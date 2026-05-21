@@ -6,14 +6,14 @@ import (
 
 	// 注意：不在这里导入 docs，避免统一入口时 swagger 重复注册
 	// docs 只在独立启动的 main.go 中导入
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/server"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/app-server/server"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/logger"
 
 	// 导入认证 API 以确保 swag 扫描到（独立启动时）
 	// 注意：统一入口不会使用 swagger，所以这里可以不导入
 	// 但为了保持独立启动的兼容性，我们保留 API 导入
-	_ "github.com/ai-agent-os/ai-agent-os/core/app-server/api/v1"
+	_ "github.com/kageos/kageos/core/app-server/api/v1"
 )
 
 func ensureLogger(ctx context.Context, level, filename string, isDev bool) error {

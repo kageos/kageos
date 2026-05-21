@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
+	appconfig "github.com/kageos/kageos/pkg/config"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

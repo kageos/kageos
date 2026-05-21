@@ -1,6 +1,6 @@
 package streamloop
 
-import "github.com/ai-agent-os/ai-agent-os/dto"
+import "github.com/kageos/kageos/dto"
 
 // ToolCallSummary 单次工具调用摘要（与 dto.WorkspaceChatToolCallSummary 对齐，供 OnDone 等使用）
 type ToolCallSummary struct {

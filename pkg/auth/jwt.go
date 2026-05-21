@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/golang-jwt/jwt/v5"
+	appconfig "github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // JWTService JWT 服务（公共基础设施，所有服务共享）

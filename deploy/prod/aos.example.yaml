@@ -13,7 +13,7 @@ images:
   minio: "docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
 
 storage:
-  root: "/data/ai-agent-os"
+  root: "/data/kageos"
 
 mysql:
   mode: "bundled"
@@ -45,7 +45,7 @@ minio:
   secret_key: "replace-with-a-strong-minio-password"
   use_ssl: false
   region: "us-east-1"
-  bucket: "ai-agent-os"
+  bucket: "kageos"
 
 secrets:
   jwt_secret: "0123456789abcdef0123456789abcdef"

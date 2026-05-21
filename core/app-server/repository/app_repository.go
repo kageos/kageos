@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
+	"github.com/kageos/kageos/core/app-server/model"
 	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 )

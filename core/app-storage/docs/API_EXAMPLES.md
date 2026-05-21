@@ -36,14 +36,14 @@ curl -X POST "$BASE_URL/upload_token" \
 {
   "code": 0,
   "data": {
-    "url": "http://localhost:9000/ai-agent-os/luobei/test88888/tools/cashier_desk/2025/11/03/550e8400-e29b-41d4-a716-446655440000.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&...",
+    "url": "http://localhost:9000/kageos/luobei/test88888/tools/cashier_desk/2025/11/03/550e8400-e29b-41d4-a716-446655440000.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&...",
     "key": "luobei/test88888/plugins/cashier_desk/2025/11/03/550e8400-e29b-41d4-a716-446655440000.pdf",
     "method": "PUT",
     "expire": "2025-11-03 22:48:00",
     "headers": {
       "Content-Type": "application/pdf"
     },
-    "bucket": "ai-agent-os"
+    "bucket": "kageos"
   }
 }
 ```

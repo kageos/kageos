@@ -3,9 +3,9 @@ package app
 import (
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/storage"
-	"github.com/ai-agent-os/ai-agent-os/pkg/trace"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/storage"
+	"github.com/kageos/kageos/pkg/trace"
 )
 
 func TestResolvedDownloadFilePreferredDownloadURL(t *testing.T) {

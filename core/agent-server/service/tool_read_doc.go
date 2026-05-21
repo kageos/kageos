@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/prompt"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
+	"github.com/kageos/kageos/core/agent-server/prompt"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apicall"
 )
 
 type ReadDocTool struct{}

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
-	apptypes "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+	"github.com/kageos/kageos/pkg/gormx/query"
+	apptypes "github.com/kageos/kageos/sdk/agent-app/types"
 )
 
 // ExampleDecodeTable 完整的DecodeTable使用示例（使用MVP简化后的widget组件）

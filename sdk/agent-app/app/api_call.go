@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/contextx"
 )
 
-// APICall calls an AgentOS gateway API with the current request context.
+// APICall calls an KageOS gateway API with the current request context.
 //
 // It is intentionally thin: SDK code passes method/path/body/response, and the
 // platform side handles auth, permission checks and auditing based on the

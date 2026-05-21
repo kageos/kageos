@@ -9,15 +9,15 @@ import (
 	"syscall"
 	"time"
 
-	agentServerRunner "github.com/ai-agent-os/ai-agent-os/core/agent-server/runner"
-	apiGatewayRunner "github.com/ai-agent-os/ai-agent-os/core/api-gateway/runner"
-	appRuntimeRunner "github.com/ai-agent-os/ai-agent-os/core/app-runtime/runner"
-	appServerRunner "github.com/ai-agent-os/ai-agent-os/core/app-server/runner"
-	appStorageRunner "github.com/ai-agent-os/ai-agent-os/core/app-storage/runner"
-	hrServerRunner "github.com/ai-agent-os/ai-agent-os/core/hr-server/runner"
+	agentServerRunner "github.com/kageos/kageos/core/agent-server/runner"
+	apiGatewayRunner "github.com/kageos/kageos/core/api-gateway/runner"
+	appRuntimeRunner "github.com/kageos/kageos/core/app-runtime/runner"
+	appServerRunner "github.com/kageos/kageos/core/app-server/runner"
+	appStorageRunner "github.com/kageos/kageos/core/app-storage/runner"
+	hrServerRunner "github.com/kageos/kageos/core/hr-server/runner"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/infra"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/pkg/infra"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // ServiceMain 服务主函数类型

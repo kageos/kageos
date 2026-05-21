@@ -3,7 +3,7 @@
 // @description Kageos 存储服务 API 文档
 
 // @license.name Business Source License 1.1
-// @license.url https://github.com/ai-agent-os/ai-agent-os/blob/main/LICENSE
+// @license.url https://github.com/kageos/kageos/blob/main/LICENSE
 
 // @host localhost:9092
 // @BasePath
@@ -21,8 +21,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	_ "github.com/ai-agent-os/ai-agent-os/core/app-storage/docs"
-	"github.com/ai-agent-os/ai-agent-os/core/app-storage/runner"
+	_ "github.com/kageos/kageos/core/app-storage/docs"
+	"github.com/kageos/kageos/core/app-storage/runner"
 )
 
 func main() {

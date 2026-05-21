@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // runPythonPreinstallDoc 与 deploy/base/images/app-base/Dockerfile 中 apt/python3-* 与 pip3 install 预装保持一致；改镜像时请同步更新本文案
@@ -56,7 +56,7 @@ var runPythonToolDef = toolDefinition[runPythonArgs](
 - python_code **必须定义**：def agentos_entry(args, output_dir): ...
 - 第一个参数 args 为传入的对象参数；第二个参数 output_dir 为受控输出目录
 - 若本轮用户上传了附件，系统会在执行前自动下载到容器本地，并注入 args["input_files"]：本地文件路径列表。单文件取 args["input_files"][0]。Python 代码应直接 open 本地路径，不要 requests.get 文件引用或猜 URL；不要把文件引用数组再塞进 args["input_files"]。
-- input_files 也可以直接传入上一步工具返回的 output_files 文件引用（bucket/object_key，如 ai-agent-os/system/tools/runtime/python.form/.../result.csv）。平台会像处理用户上传附件一样自动从 COS/对象存储下载到容器本地，并注入 args["input_files"] 本地路径列表；这用于多步骤流水线，避免手动下载再上传。
+- input_files 也可以直接传入上一步工具返回的 output_files 文件引用（bucket/object_key，如 kageos/system/tools/runtime/python.form/.../result.csv）。平台会像处理用户上传附件一样自动从 COS/对象存储下载到容器本地，并注入 args["input_files"] 本地路径列表；这用于多步骤流水线，避免手动下载再上传。
 - 返回值 **必须是 dict**，仅允许：
   - data: JSON 可序列化结果
   - output_files: 输出文件列表，每项至少含 path

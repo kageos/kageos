@@ -2,7 +2,7 @@ package model
 
 import (
 	"encoding/json"
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"github.com/kageos/kageos/pkg/gormx/models"
 )
 
 // DirectoryUpdateHistory 目录更新历史记录表

@@ -3,8 +3,8 @@ package dto
 import (
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/access"
-	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/functionschema"
 )
 
 // 注意：DiffData 定义在 dto/app_runtime_namespace.go 中

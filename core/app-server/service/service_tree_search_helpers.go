@@ -4,9 +4,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
+	"github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/functionschema"
 )
 
 func normalizeSearchFunctionsPagination(page, pageSize int) (int, int) {

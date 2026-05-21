@@ -53,7 +53,7 @@ hash := result.Hash  // 上传前计算的 SHA256
 ## 使用示例
 
 ```go
-import "github.com/ai-agent-os/ai-agent-os/pkg/storage"
+import "github.com/kageos/kageos/pkg/storage"
 
 // 1. 从存储服务获取上传凭证
 creds := &dto.GetUploadTokenResp{

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
+	"github.com/kageos/kageos/pkg/functionschema"
+	"github.com/kageos/kageos/sdk/agent-app/widget"
 )
 
 func TestBuildInitGoContentUsesPackageRelativeRouterGroup(t *testing.T) {

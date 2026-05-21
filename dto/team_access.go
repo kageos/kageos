@@ -3,7 +3,7 @@ package dto
 import (
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/access"
+	"github.com/kageos/kageos/pkg/access"
 )
 
 type AssignTeamRoleReq struct {

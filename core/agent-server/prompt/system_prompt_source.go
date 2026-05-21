@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	workspaceprd "github.com/ai-agent-os/ai-agent-os/core/agent-server/workspace/prd"
+	workspaceprd "github.com/kageos/kageos/core/agent-server/workspace/prd"
 )
 
 const (

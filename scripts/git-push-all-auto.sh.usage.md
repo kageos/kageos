@@ -99,8 +99,8 @@ COMMIT_MSG="feat: 完善 Table 更新日志
    ```
 
 2. **远程仓库**（已配置）：
-   - GitHub: `origin` → `git@github.com:ai-agent-os/ai-agent-os.git`
-   - Gitee: `gitee` → `https://gitee.com/lliubaorui/ai-agent-os.git`
+   - GitHub: `origin` → `git@github.com:kageos/kageos.git`
+   - Gitee: `gitee` → `https://gitee.com/lliubaorui/kageos.git`
 
 ### 自动配置
 

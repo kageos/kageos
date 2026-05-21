@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/storage"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/storage"
+	"github.com/kageos/kageos/sdk/agent-app/types"
 )
 
 const maxUploadBatchSize = 100

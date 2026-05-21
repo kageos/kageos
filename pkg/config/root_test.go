@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestDiscoverAgentOSRootFromUpwardMarker(t *testing.T) {
+func TestDiscoverKageOSRootFromUpwardMarker(t *testing.T) {
 	t.Parallel()
 
 	base := t.TempDir()
@@ -16,22 +16,22 @@ func TestDiscoverAgentOSRootFromUpwardMarker(t *testing.T) {
 	if err := os.MkdirAll(start, 0o755); err != nil {
 		t.Fatalf("mkdir start: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, MarkerAgentOSRoot), []byte("marker"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, MarkerKageOSRoot), []byte("marker"), 0o644); err != nil {
 		t.Fatalf("write marker: %v", err)
 	}
 
-	got := discoverAgentOSRootFrom(start)
+	got := discoverKageOSRootFrom(start)
 	if got != root {
-		t.Fatalf("discoverAgentOSRootFrom(%q) = %q, want %q", start, got, root)
+		t.Fatalf("discoverKageOSRootFrom(%q) = %q, want %q", start, got, root)
 	}
 }
 
-func TestDiscoverAgentOSRootFromDownwardMarker(t *testing.T) {
+func TestDiscoverKageOSRootFromDownwardMarker(t *testing.T) {
 	t.Parallel()
 
 	base := t.TempDir()
 	searchStart := filepath.Join(base, "Library", "Caches", "JetBrains", "tmp")
-	root := filepath.Join(base, "Documents", "work", "code", "gitee.com", "ai-agent-os")
+	root := filepath.Join(base, "Documents", "work", "code", "gitee.com", "kageos")
 
 	if err := os.MkdirAll(searchStart, 0o755); err != nil {
 		t.Fatalf("mkdir searchStart: %v", err)
@@ -39,12 +39,12 @@ func TestDiscoverAgentOSRootFromDownwardMarker(t *testing.T) {
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatalf("mkdir root: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, MarkerAgentOSRoot), []byte("marker"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, MarkerKageOSRoot), []byte("marker"), 0o644); err != nil {
 		t.Fatalf("write marker: %v", err)
 	}
 
-	got := discoverAgentOSRootFrom(searchStart)
+	got := discoverKageOSRootFrom(searchStart)
 	if got != root {
-		t.Fatalf("discoverAgentOSRootFrom(%q) = %q, want %q", searchStart, got, root)
+		t.Fatalf("discoverKageOSRootFrom(%q) = %q, want %q", searchStart, got, root)
 	}
 }

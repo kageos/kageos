@@ -1,6 +1,6 @@
 package model
 
-import "github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+import "github.com/kageos/kageos/pkg/gormx/models"
 
 // WorkspaceHandoffPacket records the structured artifact that moves one workspace role session to the next.
 type WorkspaceHandoffPacket struct {

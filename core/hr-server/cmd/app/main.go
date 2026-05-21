@@ -8,7 +8,7 @@
 // @contact.email support@swagger.io
 
 // @license.name Business Source License 1.1
-// @license.url https://github.com/ai-agent-os/ai-agent-os/blob/main/LICENSE
+// @license.url https://github.com/kageos/kageos/blob/main/LICENSE
 
 // @host localhost:9091
 // @BasePath
@@ -30,7 +30,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/runner"
+	"github.com/kageos/kageos/core/hr-server/runner"
 )
 
 func main() {

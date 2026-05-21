@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
+	"github.com/kageos/kageos/pkg/functionschema"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/sdk/agent-app/callback"
 
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
+	"github.com/kageos/kageos/sdk/agent-app/env"
+	"github.com/kageos/kageos/sdk/agent-app/widget"
 	"github.com/nats-io/nats.go"
 )
 

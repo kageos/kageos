@@ -49,7 +49,7 @@ Compose
 
 - Linux 宿主机。
 - 已安装 `podman compose` 或 `docker compose`。
-- `/data` 可写；`aosctl up` 会创建 `/data/ai-agent-os`。
+- `/data` 可写；`aosctl up` 会创建 `/data/kageos`。
 - `main` 服务需要 `privileged: true`。
 - 宿主机 80 端口未被占用；如果启用容器内 HTTPS，443 端口也必须空闲。
 
@@ -119,18 +119,18 @@ tail -f deploy/prod/aosctl-up.log
 
 ## 持久卷
 
-生产环境统一使用 `/data/ai-agent-os` 宿主机固定目录挂载。
+生产环境统一使用 `/data/kageos` 宿主机固定目录挂载。
 
 | 宿主机目录 | 容器挂载点 | 用途 |
 |------|--------|------|
-| `/data/ai-agent-os/mysql` | `/var/lib/mysql` | MySQL 数据目录 |
-| `/data/ai-agent-os/minio` | `/data` | MinIO 数据目录 |
-| `/data/ai-agent-os/namespace` | `/app/namespace` | 用户应用空间 |
-| `/data/ai-agent-os/data` | `/app/data` | 应用侧本地数据目录 |
-| `/data/ai-agent-os/logs` | `/app/logs` | 平台日志 |
-| `/data/ai-agent-os/podman_storage` | `/var/lib/containers` | 容器内 Podman 存储 |
+| `/data/kageos/mysql` | `/var/lib/mysql` | MySQL 数据目录 |
+| `/data/kageos/minio` | `/data` | MinIO 数据目录 |
+| `/data/kageos/namespace` | `/app/namespace` | 用户应用空间 |
+| `/data/kageos/data` | `/app/data` | 应用侧本地数据目录 |
+| `/data/kageos/logs` | `/app/logs` | 平台日志 |
+| `/data/kageos/podman_storage` | `/var/lib/containers` | 容器内 Podman 存储 |
 
-备份时直接备份 `/data/ai-agent-os` 下对应目录。不要对该目录做未经验证的清理。
+备份时直接备份 `/data/kageos` 下对应目录。不要对该目录做未经验证的清理。
 
 ## 文件说明
 

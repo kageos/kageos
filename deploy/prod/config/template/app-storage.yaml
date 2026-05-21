@@ -21,7 +21,7 @@ storage:
     secret_key: "${MINIO_ROOT_PASSWORD}"
     use_ssl: false
     region: "us-east-1"
-    default_bucket: "ai-agent-os"
+    default_bucket: "kageos"
   upload:
     max_size: 4294967296
     token_expire: 3600

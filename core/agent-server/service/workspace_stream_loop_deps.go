@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/prompt"
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/streamloop"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
-	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
+	"github.com/kageos/kageos/core/agent-server/prompt"
+	"github.com/kageos/kageos/core/agent-server/streamloop"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/llms"
 )
 
 // workspaceStreamLoopDeps 工作台对流式工具对话循环的依赖实现（只认 LLM，单模式）

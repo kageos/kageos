@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 )
 
 type Tool interface {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/kageos/kageos/sdk/agent-app/response"
 )
 
 type compileTestReq struct {
