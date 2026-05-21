@@ -1,9 +1,10 @@
 site:
   base_url: "http://your-ip-or-domain"
   tls_mode: "http"
-  certs_host_dir: "./certs"
   cert_file: "/app/tls/fullchain.pem"
   key_file: "/app/tls/privkey.pem"
+  tls_cert_pem_b64: ""
+  tls_key_pem_b64: ""
 
 images:
   main: "localhost/kageos-main:latest"

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -53,11 +54,12 @@ type Config struct {
 }
 
 type SiteConfig struct {
-	BaseURL      string `yaml:"base_url"`
-	TLSMode      string `yaml:"tls_mode"`
-	CertsHostDir string `yaml:"certs_host_dir"`
-	CertFile     string `yaml:"cert_file"`
-	KeyFile      string `yaml:"key_file"`
+	BaseURL       string `yaml:"base_url"`
+	TLSMode       string `yaml:"tls_mode"`
+	CertFile      string `yaml:"cert_file"`
+	KeyFile       string `yaml:"key_file"`
+	TLSCertPEMB64 string `yaml:"tls_cert_pem_b64,omitempty"`
+	TLSKeyPEMB64  string `yaml:"tls_key_pem_b64,omitempty"`
 }
 
 type ImageConfig struct {
@@ -176,6 +178,7 @@ type RuntimeConfig struct {
 	NATSAuthPassword  string
 	ComposeConfigPath string
 	LLMSeedEnvVars    []string
+	EnvFilePath       string
 }
 
 func main() {
@@ -444,7 +447,7 @@ func parseBootstrapFlags(args []string) (bootstrapOptions, error) {
 }
 
 func printUsage() {
-	fmt.Println(`aosctl manages AI-Agent-OS production deployment files.
+	fmt.Println(`aosctl manages KageOS production deployment files.
 
 Usage:
   aosctl init [--force] [--base-url URL] [--mysql-mode bundled|external]
@@ -554,6 +557,7 @@ func writeInitialConfig(paths Paths, opts initOptions) (bool, error) {
 	}
 	cfg.Site.BaseURL = opts.BaseURL
 	cfg.MySQL.Mode = opts.MySQLMode
+	applyEnvOverrides(&cfg)
 	if opts.MySQLMode == "external" {
 		cfg.MySQL.Host = ""
 		cfg.MySQL.User = ""
@@ -1192,6 +1196,7 @@ func loadConfig(paths Paths) (Config, error) {
 		return Config{}, fmt.Errorf("parse config %s: %w", paths.ConfigPath, err)
 	}
 	applyDefaults(&cfg)
+	applyEnvOverrides(&cfg)
 	return cfg, nil
 }
 
@@ -1254,10 +1259,9 @@ func defaultConfig() (Config, error) {
 
 	cfg := Config{
 		Site: SiteConfig{
-			TLSMode:      "http",
-			CertsHostDir: "./certs",
-			CertFile:     "/app/tls/fullchain.pem",
-			KeyFile:      "/app/tls/privkey.pem",
+			TLSMode:  "http",
+			CertFile: "/app/tls/fullchain.pem",
+			KeyFile:  "/app/tls/privkey.pem",
 		},
 		Images: ImageConfig{
 			Main:    defaultMainImage,
@@ -1318,9 +1322,6 @@ func defaultConfig() (Config, error) {
 func applyDefaults(cfg *Config) {
 	if cfg.Site.TLSMode == "" {
 		cfg.Site.TLSMode = "http"
-	}
-	if cfg.Site.CertsHostDir == "" {
-		cfg.Site.CertsHostDir = "./certs"
 	}
 	if cfg.Site.CertFile == "" {
 		cfg.Site.CertFile = "/app/tls/fullchain.pem"
@@ -1402,6 +1403,21 @@ func applyDefaults(cfg *Config) {
 	}
 }
 
+func applyEnvOverrides(cfg *Config) {
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_BASE_URL")); v != "" {
+		cfg.Site.BaseURL = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_TLS_MODE")); v != "" {
+		cfg.Site.TLSMode = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_TLS_CERT_PEM_B64")); v != "" {
+		cfg.Site.TLSCertPEMB64 = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_TLS_KEY_PEM_B64")); v != "" {
+		cfg.Site.TLSKeyPEMB64 = v
+	}
+}
+
 func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 	rt := RuntimeConfig{
 		Config:       cfg,
@@ -1411,7 +1427,7 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 		IncludeMinIO: cfg.MinIO.Mode == "bundled",
 	}
 
-	rt.TLSCertsHostDir = resolveRelativePath(paths.ProdDir, cfg.Site.CertsHostDir)
+	rt.TLSCertsHostDir = filepath.Join(paths.GeneratedDir, "tls")
 
 	rt.MySQLHostForMain = cfg.MySQL.Host
 	rt.MySQLPortForMain = cfg.MySQL.Port
@@ -1444,6 +1460,7 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 		rt.NATSAuthPassword = cfg.NATS.Password
 	}
 	rt.ComposeConfigPath = filepath.Join(paths.GeneratedDir, "docker-compose.yaml")
+	rt.EnvFilePath = filepath.Join(paths.GeneratedDir, "env", "kageos.env")
 	rt.LLMSeedEnvVars = uniqueLLMSeedEnvVars(cfg.LLMs.Configs)
 	return rt, nil
 }
@@ -1460,6 +1477,11 @@ func validateConfig(rt RuntimeConfig) error {
 	}
 	if rt.Site.TLSMode == "redirect" && !strings.HasPrefix(rt.Site.BaseURL, "https://") {
 		errs = append(errs, fmt.Errorf("site.tls_mode=redirect requires https site.base_url"))
+	}
+	if rt.Site.TLSMode == "https" || rt.Site.TLSMode == "redirect" {
+		if strings.TrimSpace(rt.Site.TLSCertPEMB64) == "" || strings.TrimSpace(rt.Site.TLSKeyPEMB64) == "" {
+			errs = append(errs, fmt.Errorf("site.tls_mode=%s requires KAGEOS_TLS_CERT_PEM_B64 and KAGEOS_TLS_KEY_PEM_B64, or site.tls_cert_pem_b64/site.tls_key_pem_b64", rt.Site.TLSMode))
+		}
 	}
 	if !filepath.IsAbs(rt.Storage.Root) {
 		errs = append(errs, fmt.Errorf("storage.root must be absolute"))
@@ -1607,7 +1629,9 @@ func renderAll(rt RuntimeConfig) error {
 	dirs := []string{
 		rt.Paths.GeneratedDir,
 		filepath.Join(rt.Paths.GeneratedDir, "config"),
+		filepath.Join(rt.Paths.GeneratedDir, "env"),
 		filepath.Join(rt.Paths.GeneratedDir, "infra"),
+		rt.TLSCertsHostDir,
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -1618,6 +1642,7 @@ func renderAll(rt RuntimeConfig) error {
 	files := map[string]string{
 		"docker-compose.yaml":      renderTemplate(composeTemplate, rt),
 		".env":                     renderTemplate(envTemplate, rt),
+		"env/kageos.env":           renderTemplate(envTemplate, rt),
 		"infra/nats-server.conf":   renderTemplate(natsConfigTemplate, rt),
 		"infra/mysql-init.sql":     renderTemplate(mysqlInitTemplate, rt),
 		"config/global.yaml":       renderTemplate(globalConfigTemplate, rt),
@@ -1630,14 +1655,59 @@ func renderAll(rt RuntimeConfig) error {
 	}
 	for rel, content := range files {
 		mode := os.FileMode(0644)
-		if rel == ".env" {
+		if rel == ".env" || strings.HasPrefix(rel, "env/") {
 			mode = 0600
 		}
 		if err := os.WriteFile(filepath.Join(rt.Paths.GeneratedDir, rel), []byte(content), mode); err != nil {
 			return err
 		}
 	}
+	if err := renderTLSFiles(rt); err != nil {
+		return err
+	}
 	return nil
+}
+
+func renderTLSFiles(rt RuntimeConfig) error {
+	certB64 := strings.TrimSpace(rt.Site.TLSCertPEMB64)
+	keyB64 := strings.TrimSpace(rt.Site.TLSKeyPEMB64)
+	if certB64 == "" && keyB64 == "" {
+		return nil
+	}
+	if certB64 == "" || keyB64 == "" {
+		return fmt.Errorf("TLS cert and key must be provided together")
+	}
+	cert, err := decodeBase64PEM("TLS certificate", certB64)
+	if err != nil {
+		return err
+	}
+	key, err := decodeBase64PEM("TLS private key", keyB64)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(rt.TLSCertsHostDir, "fullchain.pem"), cert, 0600); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(rt.TLSCertsHostDir, "privkey.pem"), key, 0600); err != nil {
+		return err
+	}
+	return nil
+}
+
+func decodeBase64PEM(label, value string) ([]byte, error) {
+	data, err := base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		if raw, rawErr := base64.RawStdEncoding.DecodeString(value); rawErr == nil {
+			data = raw
+		} else {
+			return nil, fmt.Errorf("decode %s base64: %w", label, err)
+		}
+	}
+	text := strings.TrimSpace(string(data))
+	if !strings.Contains(text, "-----BEGIN ") || !strings.Contains(text, "-----END ") {
+		return nil, fmt.Errorf("%s does not look like PEM data after base64 decode", label)
+	}
+	return []byte(text + "\n"), nil
 }
 
 func renderTemplate(text string, data any) string {

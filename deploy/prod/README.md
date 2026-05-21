@@ -2,7 +2,7 @@
 
 > 官方生产入口：`deploy/prod/`
 
-AI-Agent-OS 的生产部署由 `aosctl` 统一控制。Compose 仍是底层容器执行器，但用户不需要手工维护生成后的 Compose 文件。
+KageOS 的生产部署由 `aosctl` 统一控制。Compose 仍是底层容器执行器，但用户不需要手工维护生成后的 Compose 文件。
 
 快速入口：
 
@@ -81,10 +81,21 @@ site:
 site:
   base_url: "https://your-domain"
   tls_mode: "redirect"
-  certs_host_dir: "./certs"
   cert_file: "/app/tls/fullchain.pem"
   key_file: "/app/tls/privkey.pem"
+  tls_cert_pem_b64: "base64-fullchain-pem"
+  tls_key_pem_b64: "base64-privkey-pem"
 ```
+
+也可以不写入 YAML，直接用环境变量传入，`aosctl` 会渲染到 `.generated/tls/`：
+
+```bash
+KAGEOS_TLS_CERT_PEM_B64="$(base64 < fullchain.pem | tr -d '\n')" \
+KAGEOS_TLS_KEY_PEM_B64="$(base64 < privkey.pem | tr -d '\n')" \
+go run ./cmd/aosctl up --config deploy/prod/aos.yaml
+```
+
+渲染后证书会落到 `.generated/tls/`，最终注入容器的环境变量会落到 `.generated/env/kageos.env`，便于后续运维查看和备份。
 
 ## 常用命令
 
