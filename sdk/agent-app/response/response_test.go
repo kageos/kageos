@@ -3,7 +3,7 @@ package response
 import (
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
+	"github.com/kageos/kageos/pkg/gormx/query"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

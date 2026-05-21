@@ -1,4 +1,4 @@
-const STORAGE_PROXY_PREFIXES = ['/ai-agent-os/']
+const STORAGE_PROXY_PREFIXES = ['/kageos/']
 const LOCAL_STORAGE_HOSTS = new Set(['localhost:9000', '127.0.0.1:9000', 'host.containers.internal:9000', 'minio:9000'])
 
 function currentOrigin(): string {

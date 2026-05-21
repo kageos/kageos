@@ -3,7 +3,7 @@ package apicall
 import (
 	"context"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 )
 
 // BatchGetUploadToken 批量获取上传凭证

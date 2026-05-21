@@ -27,7 +27,7 @@ const (
 	defaultProdDir     = "deploy/prod"
 	defaultConfigName  = "aos.yaml"
 	defaultGenerated   = ".generated"
-	defaultStorageRoot = "/data/ai-agent-os"
+	defaultStorageRoot = "/data/kageos"
 
 	defaultMainImage    = "localhost/agentos-main:latest"
 	defaultAppBaseImage = "localhost/agentos-app-runtime-base:latest"
@@ -1296,7 +1296,7 @@ func defaultConfig() (Config, error) {
 			SecretKey:    minioPass,
 			UseSSL:       false,
 			Region:       "us-east-1",
-			Bucket:       "ai-agent-os",
+			Bucket:       "kageos",
 		},
 		Secrets: SecretsConfig{
 			JWTSecret:              jwt,
@@ -1389,7 +1389,7 @@ func applyDefaults(cfg *Config) {
 		cfg.MinIO.Region = "us-east-1"
 	}
 	if cfg.MinIO.Bucket == "" {
-		cfg.MinIO.Bucket = "ai-agent-os"
+		cfg.MinIO.Bucket = "kageos"
 	}
 	if cfg.SMTP.Host == "" {
 		cfg.SMTP.Host = "smtp.qq.com"

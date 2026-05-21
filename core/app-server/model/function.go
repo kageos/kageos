@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"github.com/kageos/kageos/pkg/functionschema"
+	"github.com/kageos/kageos/pkg/gormx/models"
 )
 
 type Function struct {

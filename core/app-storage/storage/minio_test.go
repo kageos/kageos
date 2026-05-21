@@ -19,7 +19,7 @@ func (c testMinIOConfig) GetAccessKey() string      { return "minioadmin" }
 func (c testMinIOConfig) GetSecretKey() string      { return "minioadmin123" }
 func (c testMinIOConfig) GetRegion() string         { return "us-east-1" }
 func (c testMinIOConfig) GetUseSSL() bool           { return c.useSSL }
-func (c testMinIOConfig) GetDefaultBucket() string  { return "ai-agent-os" }
+func (c testMinIOConfig) GetDefaultBucket() string  { return "kageos" }
 func (c testMinIOConfig) GetCDNDomain() string      { return c.cdnDomain }
 func (c testMinIOConfig) GetServerEndpoint() string { return c.serverEndpoint }
 
@@ -33,7 +33,7 @@ func TestGenerateUploadCredentialsUsesHTTPSFromCDNDomain(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	creds, err := storage.GenerateUploadCredentials(context.Background(), "ai-agent-os", "a.txt", "text/plain", time.Hour, UploadSourceBrowser)
+	creds, err := storage.GenerateUploadCredentials(context.Background(), "kageos", "a.txt", "text/plain", time.Hour, UploadSourceBrowser)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestGenerateUploadCredentialsUsesServerEndpointForServerUpload(t *testing.T
 		t.Fatal(err)
 	}
 
-	creds, err := storage.GenerateUploadCredentials(context.Background(), "ai-agent-os", "a.txt", "text/plain", time.Hour, UploadSourceServer)
+	creds, err := storage.GenerateUploadCredentials(context.Background(), "kageos", "a.txt", "text/plain", time.Hour, UploadSourceServer)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/convert"
+	"github.com/kageos/kageos/pkg/convert"
 )
 
 func init() {

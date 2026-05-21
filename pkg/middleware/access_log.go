@@ -3,9 +3,9 @@ package middleware
 import (
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // AccessLog 访问日志中间件

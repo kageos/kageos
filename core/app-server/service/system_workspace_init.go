@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	appmodel "github.com/ai-agent-os/ai-agent-os/core/app-server/model"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	appmodel "github.com/kageos/kageos/core/app-server/model"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -16,7 +16,7 @@ const (
 	// SystemUsername 系统用户名
 	SystemUsername = "system"
 	// SystemUserEmail 系统用户邮箱
-	SystemUserEmail = "system@ai-agent-os.local"
+	SystemUserEmail = "system@kageos.local"
 )
 
 type systemAppDefinition struct {

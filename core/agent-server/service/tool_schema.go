@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 )
 
 var toolSchemaCache sync.Map

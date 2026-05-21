@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 func addFunctionsImpl(s *serviceTreeFunctionService, ctx context.Context, req *dto.AddFunctionsReq) (*dto.AddFunctionsResp, error) {

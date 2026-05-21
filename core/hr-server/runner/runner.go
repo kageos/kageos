@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/server"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/hr-server/server"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/logger"
 
 	// 导入认证 API 以确保 swag 扫描到（独立启动时）
-	_ "github.com/ai-agent-os/ai-agent-os/core/hr-server/api/v1"
+	_ "github.com/kageos/kageos/core/hr-server/api/v1"
 )
 
 // Main 服务主函数（支持统一入口调用）

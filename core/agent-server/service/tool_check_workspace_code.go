@@ -16,9 +16,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/sdk/agent-app/widget"
 )
 
 type CheckWorkspaceCodeTool struct{}
@@ -214,7 +214,7 @@ func checkParsedGoFileSyntaxAndImports(file parsedGoSourceFileForCheck) []checkW
 
 	issues := checkGoFileStructurePatterns(file.Source.Name, parsed, fset)
 	for name, imp := range imports {
-		if imp.Path == "github.com/ai-agent-os/ai-agent-os/sdk/agent-app" {
+		if imp.Path == "github.com/kageos/kageos/sdk/agent-app" {
 			issues = append(issues, checkWorkspaceCodeIssue{
 				File:     file.Source.Name,
 				Line:     imp.Line,
@@ -309,12 +309,12 @@ var knownImportRoots = map[string]struct{}{
 }
 
 var sdkPackageDirsForSelectorCheck = map[string]string{
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app":        "sdk/agent-app/app",
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback":   "sdk/agent-app/callback",
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/chart":      "sdk/agent-app/chart",
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response":   "sdk/agent-app/response",
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/statistics": "sdk/agent-app/statistics",
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/types":      "sdk/agent-app/types",
+	"github.com/kageos/kageos/sdk/agent-app/app":        "sdk/agent-app/app",
+	"github.com/kageos/kageos/sdk/agent-app/callback":   "sdk/agent-app/callback",
+	"github.com/kageos/kageos/sdk/agent-app/chart":      "sdk/agent-app/chart",
+	"github.com/kageos/kageos/sdk/agent-app/response":   "sdk/agent-app/response",
+	"github.com/kageos/kageos/sdk/agent-app/statistics": "sdk/agent-app/statistics",
+	"github.com/kageos/kageos/sdk/agent-app/types":      "sdk/agent-app/types",
 }
 
 var (

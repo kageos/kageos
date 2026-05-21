@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/response"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/sdk/agent-app/callback"
+	"github.com/kageos/kageos/sdk/agent-app/response"
 	"gorm.io/gorm"
 )
 

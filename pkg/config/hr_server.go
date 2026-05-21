@@ -136,7 +136,7 @@ func (c *HRServerConfig) GetDatabaseDSN() string {
 		db.User = "root"
 	}
 	if db.Name == "" {
-		db.Name = "ai_agent_os"
+		db.Name = "kageos"
 	}
 
 	// MySQL DSN 格式: user:password@tcp(host:port)/dbname?charset=utf8mb4&parseTime=True&loc=Local

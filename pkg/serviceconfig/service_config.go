@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/netprobe"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/netprobe"
 )
 
 // GetGatewayURL 获取网关地址

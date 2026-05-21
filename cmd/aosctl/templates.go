@@ -108,7 +108,7 @@ services:
 
 networks:
   aos:
-    name: ai-agent-os-customer-aos
+    name: kageos-customer-aos
 `
 
 const envTemplate = `
@@ -158,7 +158,7 @@ jwt:
   secret: {{ q .Secrets.JWTSecret }}
   access_token_expire: 2592000
   refresh_token_expire: 7776000
-  issuer: "ai-agent-os"
+  issuer: "kageos"
 
 sdk:
   nats_url: {{ q .SDKNATSURL }}

@@ -72,7 +72,7 @@ location /api/ {
     proxy_send_timeout 300s;
 }
 
-location /ai-agent-os/ {
+location /kageos/ {
     proxy_pass http://127.0.0.1:9000;
     proxy_set_header Host $http_host;
     proxy_set_header X-Real-IP $remote_addr;

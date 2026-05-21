@@ -1,11 +1,11 @@
 package middleware
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/pkg/auth"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/ginx/response"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // isInternalRequest 检查是否为内网请求（SDK内部调用）

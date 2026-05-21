@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
+	"github.com/kageos/kageos/sdk/agent-app/widget"
 )
 
 const Version = 1

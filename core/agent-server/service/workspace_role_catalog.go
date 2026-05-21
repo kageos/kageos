@@ -3,7 +3,7 @@ package service
 import (
 	"strings"
 
-	workspaceroles "github.com/ai-agent-os/ai-agent-os/core/agent-server/workspace/roles"
+	workspaceroles "github.com/kageos/kageos/core/agent-server/workspace/roles"
 )
 
 const (

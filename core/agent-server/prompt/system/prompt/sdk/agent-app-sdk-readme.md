@@ -167,7 +167,7 @@ func init() {
 最小可用片段示例：
 
 ```go
-import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/chart"
+import "github.com/kageos/kageos/sdk/agent-app/chart"
 
 type SalesStatisticsReq struct {
     StartTime string `json:"start_time" form:"start_time" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
@@ -231,7 +231,7 @@ widget tag 内部格式是 `name:显示名;type:已支持组件类型;配置项:
 
 同一层结构体字段的 `json` code 不能重复。可选 `data` 标签只允许 `format`、`example`，用于补充 schema 数据格式和示例，不替代 widget 配置。
 
-**敏感字段约定**：字段可以写 `sensitive:"true"`，表示该字段在平台操作日志中会被移除，不进入 `operate_logs` 的 request/response/old/new JSON。它不表示业务数据库加密，不改变用户应用自己的 SQLite/GORM 落库行为。需要密文存储时，由业务代码自行加密后再写入；当前不要生成 `widget:"...;password:true"`。
+**敏感字段约定**：字段可以写 `sensitive:"true"`，表示该字段在平台操作日志中会被移除，不进入 `operate_logs` 的 request/response/old/new JSON。它不表示业务数据库加密，不改变用户应用自己的 SQLite/GORM 落库行为。需要密文存储时，由业务代码自行加密后再写入；当前不要在 widget 标签中生成 `password:true` 配置。
 
 **select / multiselect 与 options_colors（提示词约定，按必填处理）**：生成静态 `select` 或静态 `multiselect` 时配置 `options_colors`，与 `options` 一一对应（逗号分隔，顺序一致），前端会用颜色标签区分选项。动态 OnSelectFuzzy 下拉不写 `options`，也不要写 `options_colors`。`options_colors` 只支持 6 位十六进制 `RRGGBB`，不带 `#`，如 `FF9800`、`9C27B0`、`4CAF50`。不要生成 `primary`、`success`、`warning`、`danger`、`info`、`default`、`secondary`、`#FF9800` 或 `rgb(...)`。示例：`options:待处理,进行中,已完成` 对应 `options_colors:E6A23C,409EFF,67C23A`；`options:VIP,普通,体验` 对应 `options_colors:E91E63,9E9E9E,4CAF50`。
 
@@ -1092,7 +1092,7 @@ func onSelectFuzzyProduct(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*ca
 
 #### Statistics 与聚合计算（OnSelectFuzzyResp.Statistics）
 
-`OnSelectFuzzyResp.Statistics` 的键值对会在前端表单旁展示（如收银台「商品原价总额」「会员折扣后价格」「当前余额」等）。值可以是**静态字符串**，也可以是 **`statistics` 包**返回的表达式，由前端根据当前 **table 行数据**或**选中项**动态计算。仅当当前文件真实使用 `statistics.Value` 等符号时才导入 `github.com/ai-agent-os/ai-agent-os/sdk/agent-app/statistics`。
+`OnSelectFuzzyResp.Statistics` 的键值对会在前端表单旁展示（如收银台「商品原价总额」「会员折扣后价格」「当前余额」等）。值可以是**静态字符串**，也可以是 **`statistics` 包**返回的表达式，由前端根据当前 **table 行数据**或**选中项**动态计算。仅当当前文件真实使用 `statistics.Value` 等符号时才导入 `github.com/kageos/kageos/sdk/agent-app/statistics`。
 
 **1. table 子表场景（对当前 table 多行聚合）**
 
@@ -1219,8 +1219,8 @@ Chart 用于**只读的统计/图表**（BI），GET 请求。ChartTemplate、�
    - **正确**：使用具体类型 `&chart.LineChart{}`、`&chart.BarChart{}` 等，只填 Title、XAxis、Series（Name、Data、可选 Config），不填 ChartType 和 Series[].Type；框架会在 `resp.Chart()` 时自动注入。
 
 3. **误用 sdk/agent-app 下的 query 包**  
-   - **错误**：`import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/query"`，导致编译报错「包找不到」。  
-   - **正确**：查询/分页等应使用 `github.com/ai-agent-os/ai-agent-os/pkg/gormx/query`（或项目内实际提供的 query 包），不要使用 `sdk/agent-app/query`。
+   - **错误**：`import "github.com/kageos/kageos/sdk/agent-app/query"`，导致编译报错「包找不到」。  
+   - **正确**：查询/分页等应使用 `github.com/kageos/kageos/pkg/gormx/query`（或项目内实际提供的 query 包），不要使用 `sdk/agent-app/query`。
 
 4. **不确定时先看案例**  
    - 图表个数、路由拆分、返回格式，以收银台案例为准：`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`，看每个图表是如何「一个 GET 路由 + 一个具体图表类型返回值」实现的。

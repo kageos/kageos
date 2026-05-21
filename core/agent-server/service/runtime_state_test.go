@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 )
 
 func TestInMemoryRuntimeStateStoreSummaryAggregatesToAncestors(t *testing.T) {

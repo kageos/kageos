@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/prompt"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/apicall"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
-	"github.com/ai-agent-os/ai-agent-os/pkg/servicetree"
+	"github.com/kageos/kageos/core/agent-server/prompt"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/naming"
+	"github.com/kageos/kageos/pkg/servicetree"
 )
 
 type writeDocCommand struct {

@@ -11,15 +11,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/access"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/functionschema"
-	"github.com/ai-agent-os/ai-agent-os/pkg/ginx/response"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/core/app-server/service"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/functionschema"
+	"github.com/kageos/kageos/pkg/ginx/response"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/sdk/agent-app/widget"
 	"github.com/xuri/excelize/v2"
 )
 

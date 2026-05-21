@@ -1,6 +1,6 @@
 package model
 
-import "github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+import "github.com/kageos/kageos/pkg/gormx/models"
 
 type FunctionSensitiveField struct {
 	models.Base

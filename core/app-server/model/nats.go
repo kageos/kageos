@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"github.com/kageos/kageos/pkg/gormx/models"
 )
 
 type Nats struct {

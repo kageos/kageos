@@ -3,10 +3,10 @@ package v1
 import (
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-server/service"
-	"github.com/ai-agent-os/ai-agent-os/pkg/access"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/core/app-server/service"
+	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/contextx"
 )
 
 func requireAccess(c *gin.Context, teamAccessService *service.TeamAccessService, resourcePath string, action access.Action) error {

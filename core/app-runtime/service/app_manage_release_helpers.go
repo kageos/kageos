@@ -4,9 +4,9 @@ import (
 	"context"
 	"os"
 
-	sharedDto "github.com/ai-agent-os/ai-agent-os/dto"
-	appPkg "github.com/ai-agent-os/ai-agent-os/pkg/app"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	sharedDto "github.com/kageos/kageos/dto"
+	appPkg "github.com/kageos/kageos/pkg/app"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 type appReleaseResult struct {

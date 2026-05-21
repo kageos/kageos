@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env"
+	"github.com/kageos/kageos/pkg/subjects"
+	"github.com/kageos/kageos/sdk/agent-app/env"
 )
 
 func TestResolveNATSURL(t *testing.T) {

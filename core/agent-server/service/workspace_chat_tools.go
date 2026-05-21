@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/agent-server/model"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/llms"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // executeToolCalls 执行工具调用并保存消息。若 tool 消息保存失败则返回 error，不再进入下一轮，避免 400 insufficient tool messages。

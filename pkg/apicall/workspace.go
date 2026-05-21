@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 )
 
 // UpdateAppResp 与 app_runtime_namespace 中定义一致，避免循环依赖时使用

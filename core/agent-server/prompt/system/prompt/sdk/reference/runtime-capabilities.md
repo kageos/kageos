@@ -14,7 +14,7 @@
 
 ## 平台 API
 
-业务函数调用 AgentOS 平台能力使用：
+业务函数调用 KageOS 平台能力使用：
 
 ```go
 var out SomeResp
@@ -188,7 +188,7 @@ if object.Status != "开放" {
 - 系统错误日志要有足够上下文。
 - 不要把敏感 token、完整大文件内容、隐私正文打进日志。
 - `sensitive:"true"` 只表示平台操作日志会移除该字段；它不加密用户业务表。密码、token、API key 等如需落业务库，默认按普通字段明文存储；需要密文存储时由业务代码自行加密后写入。
-- 不要生成 `widget:"...;password:true"`，SDK 不支持业务密码输入组件。
+- 不要在 widget 标签中生成 `password:true` 配置，SDK 不支持业务密码输入组件。
 
 ## Python 和外部处理
 

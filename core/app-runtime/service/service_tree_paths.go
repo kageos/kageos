@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/naming"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/naming"
 )
 
 func validateBatchWritePathSegment(segment string) error {
@@ -212,7 +212,7 @@ func writePackageInitFile(packageDir, packageCode, routerGroup, name, descriptio
 	content := fmt.Sprintf(`package %s
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/app"
 )
 
 var packageContext = &app.PackageContext{

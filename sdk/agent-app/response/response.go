@@ -3,7 +3,7 @@ package response
 import (
 	"fmt"
 
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/chart"
+	"github.com/kageos/kageos/sdk/agent-app/chart"
 )
 
 type RunFunctionResp struct {

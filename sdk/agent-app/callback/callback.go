@@ -2,8 +2,8 @@ package callback
 
 import (
 	"fmt"
-	"github.com/ai-agent-os/ai-agent-os/pkg/jsonx"
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/widget"
+	"github.com/kageos/kageos/pkg/jsonx"
+	"github.com/kageos/kageos/sdk/agent-app/widget"
 )
 
 type OnApiCreateReq struct {

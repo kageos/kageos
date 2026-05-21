@@ -49,9 +49,9 @@ type Config interface {
 ```json
 {
   "key": "luobei/test88888/plugins/cashier_desk/2025/11/03/xxx.pdf",
-  "bucket": "ai-agent-os",
+  "bucket": "kageos",
   "method": "presigned_url",
-  "url": "http://localhost:9000/ai-agent-os/xxx.pdf?X-Amz-Signature=...",
+  "url": "http://localhost:9000/kageos/xxx.pdf?X-Amz-Signature=...",
   "cdn_domain": "https://cdn.example.com",  // ✨ CDN 域名
   "expire": "2025-11-04 00:00:00"
 }
@@ -140,7 +140,7 @@ storage:
   type: "minio"
   minio:
     endpoint: "localhost:9000"
-    default_bucket: "ai-agent-os"
+    default_bucket: "kageos"
     cdn_domain: ""  # 本地开发，不使用 CDN
 ```
 
@@ -151,7 +151,7 @@ storage:
   type: "minio"
   minio:
     endpoint: "minio.example.com:9000"
-    default_bucket: "ai-agent-os"
+    default_bucket: "kageos"
     cdn_domain: "https://cdn.example.com"  # 配置 CDN 域名
 ```
 

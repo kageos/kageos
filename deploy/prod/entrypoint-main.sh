@@ -99,7 +99,7 @@ elif [[ "$CANONICAL_SCHEME" == "https" ]]; then
 fi
 
 mkdir -p /etc/nginx/snippets
-cp /app/deploy/prod/nginx/common.server.inc /etc/nginx/snippets/ai-agent-os-common.conf
+cp /app/deploy/prod/nginx/common.server.inc /etc/nginx/snippets/kageos-common.conf
 
 export TLS_CERT_FILE
 export TLS_KEY_FILE

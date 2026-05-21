@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
-	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/hr-server/model"
+	"github.com/kageos/kageos/core/hr-server/repository"
+	"github.com/kageos/kageos/pkg/auth"
+	appconfig "github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/gormx/models"
+	"github.com/kageos/kageos/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )

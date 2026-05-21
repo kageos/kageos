@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/hr-server/repository"
-	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/emailx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/hr-server/repository"
+	appconfig "github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/emailx"
+	"github.com/kageos/kageos/pkg/gormx/models"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // EmailService 邮箱服务

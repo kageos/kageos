@@ -362,7 +362,7 @@ func TestUninstallDataTargetsKeepPodmanStorageByDefault(t *testing.T) {
 
 	rt := RuntimeConfig{
 		Config: Config{
-			Storage: StorageConfig{Root: "/data/ai-agent-os"},
+			Storage: StorageConfig{Root: "/data/kageos"},
 		},
 	}
 	targets := uninstallDataTargets(rt, uninstallOptions{PurgeData: true})
@@ -380,7 +380,7 @@ func TestUninstallDataTargetsKeepPodmanStorageByDefault(t *testing.T) {
 	for _, target := range targets {
 		got = append(got, target.Path)
 	}
-	if !strings.Contains(strings.Join(got, ","), "/data/ai-agent-os/podman_storage") {
+	if !strings.Contains(strings.Join(got, ","), "/data/kageos/podman_storage") {
 		t.Fatalf("podman storage should be included when explicitly requested, got %v", got)
 	}
 }

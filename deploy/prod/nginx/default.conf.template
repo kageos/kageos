@@ -10,5 +10,5 @@ server {
 server {
     listen 80 default_server;
     server_name ${CANONICAL_HOST} _;
-    include /etc/nginx/snippets/ai-agent-os-common.conf;
+    include /etc/nginx/snippets/kageos-common.conf;
 }

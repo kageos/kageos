@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	appconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
+	appconfig "github.com/kageos/kageos/pkg/config"
 )
 
 func TestCreateVersionFilesAlsoCreatesCurrentVersionFiles(t *testing.T) {

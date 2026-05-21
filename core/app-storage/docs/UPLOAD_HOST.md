@@ -48,7 +48,7 @@ type UploadCredentials struct {
 {
   "key": "luobei/test88888/plugins/cashier_desk/2025/11/03/xxx.pdf",
   "method": "presigned_url",
-  "url": "http://localhost:9000/ai-agent-os/xxx.pdf?X-Amz-Signature=...",
+  "url": "http://localhost:9000/kageos/xxx.pdf?X-Amz-Signature=...",
   "upload_host": "localhost:9000",          // ✨ 上传目标 host
   "upload_domain": "http://localhost:9000", // ✨ 上传完整域名
   "headers": {
@@ -173,7 +173,7 @@ func (s *MinIOStorage) extractDomainInfo(uploadURL string) (host string, domain 
 #### MinIO
 
 ```
-URL: http://localhost:9000/ai-agent-os/file.pdf?X-Amz-Signature=...
+URL: http://localhost:9000/kageos/file.pdf?X-Amz-Signature=...
 upload_host: localhost:9000
 upload_domain: http://localhost:9000
 ```
@@ -257,7 +257,7 @@ POST /api/v1/storage/upload_token
 {
   "key": "luobei/test88888/plugins/cashier_desk/2025/11/03/xxx.pdf",
   "method": "presigned_url",
-  "url": "http://localhost:9000/ai-agent-os/xxx.pdf?X-Amz-Signature=...",
+  "url": "http://localhost:9000/kageos/xxx.pdf?X-Amz-Signature=...",
   "upload_host": "localhost:9000",
   "upload_domain": "http://localhost:9000",
   "headers": {

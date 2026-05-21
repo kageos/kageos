@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // VersionInfo 版本信息结构体
@@ -205,7 +205,7 @@ func (s *AppManageService) createMainGoFile(mainGoPath, user, app string) error 
 	content := []byte(`package main
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+	"github.com/kageos/kageos/sdk/agent-app/app"
 )
 
 func main() {

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 )
 
 // ResponseWaiter 针对 string 键与 *dto.RequestAppResp 的并发安全等待器

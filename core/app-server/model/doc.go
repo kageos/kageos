@@ -1,7 +1,7 @@
 package model
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/pkg/gormx/models"
+	"github.com/kageos/kageos/pkg/gormx/models"
 )
 
 // Docs 文档模型

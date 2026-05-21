@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
-	aosconfig "github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/kageos/kageos/core/agent-server/model"
+	"github.com/kageos/kageos/core/agent-server/repository"
+	aosconfig "github.com/kageos/kageos/pkg/config"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

@@ -3,7 +3,7 @@ package v1
 import (
 	"encoding/json"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
+	"github.com/kageos/kageos/dto"
 )
 
 func buildFormOperateLogResponseBody(resp *dto.RequestAppResp, err error, totalCostMill int64) json.RawMessage {

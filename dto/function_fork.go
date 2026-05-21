@@ -6,7 +6,7 @@ package dto
 // 例如：a fork到a1目录，b fork到b1目录
 type ForkFunctionGroupReq struct {
 	SourceToTargetMap map[string]string `json:"source_to_target_map" binding:"required" example:"/luobei/app_a/tools/cashier:/luobei/app_b/a1,/luobei/app_a/tools/excel:/luobei/app_b/b1"` // 源到目标的映射：key=函数组的full_group_code，value=服务目录的full_code_path
-	TargetAppID       int64             `json:"target_app_id" binding:"required" example:"123"`                                                                                                            // 目标应用 ID
+	TargetAppID       int64             `json:"target_app_id" binding:"required" example:"123"`                                                                                            // 目标应用 ID
 }
 
 // ForkFunctionGroupResp Fork 函数组响应（API 层，简化版）

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/discovery"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/subjects"
+	"github.com/kageos/kageos/pkg/discovery"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/subjects"
 	"github.com/nats-io/nats.go"
 )
 

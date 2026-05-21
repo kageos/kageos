@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/netprobe"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/netprobe"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )

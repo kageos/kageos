@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/msgx"
+	"github.com/kageos/kageos/pkg/msgx"
 )
 
 // runtimeRequester 封装 app-runtime 管理类 request-reply 调用。

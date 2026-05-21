@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/service"
-	"github.com/ai-agent-os/ai-agent-os/pkg/appinvoke"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/app-runtime/service"
+	"github.com/kageos/kageos/pkg/appinvoke"
+	"github.com/kageos/kageos/pkg/logger"
 	"github.com/nats-io/nats.go"
 )
 

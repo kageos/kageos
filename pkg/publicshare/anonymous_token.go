@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
+	"github.com/kageos/kageos/pkg/config"
 )
 
 const (

@@ -3,7 +3,7 @@ package apicall
 import (
 	"context"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
+	"github.com/kageos/kageos/pkg/contextx"
 )
 
 // NewContext 创建一个包含 token 和 traceId 的 context。

@@ -1,9 +1,9 @@
 package middleware
 
 import (
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/kageos/kageos/pkg/contextx"
 )
 
 // WithTraceId 为请求添加跟踪ID的中间件

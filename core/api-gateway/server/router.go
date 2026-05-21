@@ -16,13 +16,13 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	v1 "github.com/ai-agent-os/ai-agent-os/core/api-gateway/api/v1"
-	"github.com/ai-agent-os/ai-agent-os/pkg/auth"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
-	"github.com/ai-agent-os/ai-agent-os/pkg/pprof"
-	"github.com/ai-agent-os/ai-agent-os/pkg/response"
+	v1 "github.com/kageos/kageos/core/api-gateway/api/v1"
+	"github.com/kageos/kageos/pkg/auth"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/pprof"
+	"github.com/kageos/kageos/pkg/response"
 )
 
 // setupRoutes 设置路由

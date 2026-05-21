@@ -3,7 +3,7 @@ package streamloop
 import (
 	"context"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
+	"github.com/kageos/kageos/pkg/llms"
 )
 
 // StreamLoopDeps 流式工具对话循环的依赖：由调用方（如工作台）实现并注入

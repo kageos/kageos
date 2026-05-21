@@ -29,7 +29,7 @@ luobei/test88888/tools/cashier_desk/2025/01/03/550e8400-e29b-41d4-a716-446655440
 ### 层级结构
 
 ```
-ai-agent-os (Bucket)
+kageos (Bucket)
 ├── luobei/                              # 租户：luobei
 │   ├── test88888/                       # 应用：test88888
 │   │   ├── tools/cashier_desk/          # 函数：收银台
@@ -82,7 +82,7 @@ MinIO 的 `ListObjects` API 支持按前缀过滤，我们可以：
 
 ```go
 func GetStorageStats(ctx context.Context, router string) (fileCount int, totalSize int64, err error) {
-    bucket := "ai-agent-os"
+    bucket := "kageos"
     prefix := router + "/"
     
     objectCh := client.ListObjects(ctx, bucket, minio.ListObjectsOptions{

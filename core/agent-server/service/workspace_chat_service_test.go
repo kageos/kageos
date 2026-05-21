@@ -5,12 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/model"
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/repository"
-	"github.com/ai-agent-os/ai-agent-os/core/agent-server/streamloop"
-	"github.com/ai-agent-os/ai-agent-os/dto"
-	"github.com/ai-agent-os/ai-agent-os/pkg/contextx"
-	"github.com/ai-agent-os/ai-agent-os/pkg/llms"
+	"github.com/kageos/kageos/core/agent-server/model"
+	"github.com/kageos/kageos/core/agent-server/repository"
+	"github.com/kageos/kageos/core/agent-server/streamloop"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/llms"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

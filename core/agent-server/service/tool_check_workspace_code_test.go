@@ -74,7 +74,7 @@ func TestCheckWorkspaceGoSourcesAllowsPageSortReqRequestModelOverlap(t *testing.
 			Name: "nps_record_list.go",
 			Content: `package nps
 
-import "github.com/ai-agent-os/ai-agent-os/pkg/gormx/query"
+import "github.com/kageos/kageos/pkg/gormx/query"
 
 type NpsRecord struct {
 	Status string ` + "`json:\"status\" widget:\"name:状态;type:select;options:开放,关闭;options_colors:67C23A,F56C6C\"`" + `
@@ -100,7 +100,7 @@ func TestCheckWorkspaceGoSourcesDetectsOnSelectFuzzyMismatch(t *testing.T) {
 			Name: "auction_bid_list.go",
 			Content: `package auction
 
-import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+import "github.com/kageos/kageos/sdk/agent-app/app"
 
 type AuctionBid struct {
 	ItemID int ` + "`json:\"item_id\" widget:\"name:拍品ID;type:ID\" callback:\"OnSelectFuzzy\"`" + `
@@ -144,7 +144,7 @@ func TestCheckWorkspaceGoSourcesDetectsUnknownSDKSelector(t *testing.T) {
 			Name: "nps_statistics.go",
 			Content: `package nps
 
-import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/app"
+import "github.com/kageos/kageos/sdk/agent-app/app"
 
 func bad(req *app.OnSelectFuzzyReq) {}
 `,
@@ -161,7 +161,7 @@ func TestCheckWorkspaceGoSourcesAllowsKnownSDKSelector(t *testing.T) {
 			Name: "nps_statistics.go",
 			Content: `package nps
 
-import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/callback"
+import "github.com/kageos/kageos/sdk/agent-app/callback"
 
 func ok(req *callback.OnSelectFuzzyReq) {}
 `,

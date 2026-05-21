@@ -9,7 +9,7 @@ Python 代码执行 SDK，支持在 Go 代码中执行 Python 脚本，并按固
 使用 Builder 模式，灵活且易于扩展。
 
 ```go
-import "github.com/ai-agent-os/ai-agent-os/sdk/agent-app/runtime/python"
+import "github.com/kageos/kageos/sdk/agent-app/runtime/python"
 
 ctx := context.Background()
 

@@ -6,12 +6,12 @@ import (
 
 	// 注意：不在这里导入 docs，避免统一入口时 swagger 重复注册
 	// docs 只在独立启动的 main.go 中导入
-	"github.com/ai-agent-os/ai-agent-os/core/app-storage/server"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/app-storage/server"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/logger"
 
 	// 导入存储 API 以确保 swag 扫描到（独立启动时）
-	_ "github.com/ai-agent-os/ai-agent-os/core/app-storage/api/v1"
+	_ "github.com/kageos/kageos/core/app-storage/api/v1"
 )
 
 // Main 服务主函数（支持统一入口调用）

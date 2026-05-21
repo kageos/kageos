@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ai-agent-os/ai-agent-os/core/app-runtime/server"
-	"github.com/ai-agent-os/ai-agent-os/pkg/config"
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/core/app-runtime/server"
+	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // Main 服务主函数（支持统一入口调用）

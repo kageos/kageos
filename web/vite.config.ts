@@ -127,7 +127,7 @@ export default defineConfig(({ command, mode }) => {
         changeOrigin: true,
       },
       // MinIO 文件代理。需保留浏览器 Host（changeOrigin: false）以便预签名与 MinIO 收到的 Host 一致；本地配置 cdn_domain 为前端 origin 如 http://localhost:5173
-      '/ai-agent-os': {
+      '/kageos': {
         target: minioTarget,
         changeOrigin: false,
       },

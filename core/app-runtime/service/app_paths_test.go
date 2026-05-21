@@ -44,7 +44,7 @@ func TestRuntimeAppPathsNamespaceAPIImport(t *testing.T) {
 
 	paths := newRuntimeAppPaths("namespace", "alice", "demo")
 	got := paths.NamespaceAPIImport("/ticket_system/order")
-	want := "github.com/ai-agent-os/ai-agent-os/namespace/alice/demo/code/api/ticket_system/order"
+	want := "github.com/kageos/kageos/namespace/alice/demo/code/api/ticket_system/order"
 	if got != want {
 		t.Fatalf("NamespaceAPIImport() = %s, want %s", got, want)
 	}

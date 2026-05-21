@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-agent-os/ai-agent-os/pkg/logger"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // Builder 应用构建器
@@ -180,9 +180,9 @@ func (b *Builder) buildLdFlags(opts *BuildOpts) []string {
 	ldFlags = append(ldFlags, opts.LdFlags...)
 
 	// 为 SDK 应用注入构建信息到 env 包
-	ldFlags = append(ldFlags, fmt.Sprintf("-X github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env.User=%s", opts.User))
-	ldFlags = append(ldFlags, fmt.Sprintf("-X github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env.App=%s", opts.App))
-	ldFlags = append(ldFlags, fmt.Sprintf("-X github.com/ai-agent-os/ai-agent-os/sdk/agent-app/env.Version=%s", opts.Version))
+	ldFlags = append(ldFlags, fmt.Sprintf("-X github.com/kageos/kageos/sdk/agent-app/env.User=%s", opts.User))
+	ldFlags = append(ldFlags, fmt.Sprintf("-X github.com/kageos/kageos/sdk/agent-app/env.App=%s", opts.App))
+	ldFlags = append(ldFlags, fmt.Sprintf("-X github.com/kageos/kageos/sdk/agent-app/env.Version=%s", opts.Version))
 
 	return ldFlags
 }
