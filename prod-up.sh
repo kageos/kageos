@@ -2,9 +2,9 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_PATH="${KAGEOS_CONFIG:-${AOS_CONFIG:-deploy/prod/kage.yaml}}"
-LOG_FILE="${KAGEOS_UP_LOG:-${AOS_UP_LOG:-deploy/prod/kagectl-up.log}}"
-PID_FILE="${KAGEOS_UP_PID_FILE:-${AOS_UP_PID_FILE:-deploy/prod/kagectl-up.pid}}"
+CONFIG_PATH="${KAGEOS_CONFIG:-deploy/prod/kage.yaml}"
+LOG_FILE="${KAGEOS_UP_LOG:-deploy/prod/kagectl-up.log}"
+PID_FILE="${KAGEOS_UP_PID_FILE:-deploy/prod/kagectl-up.pid}"
 
 resolve_path() {
   local path="$1"
@@ -22,7 +22,7 @@ PID_ABS="$(resolve_path "$PID_FILE")"
 cd "$ROOT_DIR"
 
 warn_rootless_podman_linger() {
-  if [[ "${KAGEOS_SKIP_LINGER_CHECK:-${AOS_SKIP_LINGER_CHECK:-0}}" == "1" ]]; then
+  if [[ "${KAGEOS_SKIP_LINGER_CHECK:-0}" == "1" ]]; then
     return
   fi
   if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
