@@ -31,7 +31,7 @@ type pythonRunOutput struct {
 
 // ExecuteResult 执行 Python 代码，返回结构化结果与输出文件声明。
 //
-// Python 代码必须定义固定入口函数（历史 agentos_entry 仍兼容）:
+// Python 代码必须定义固定入口函数:
 //
 //	def kageos_entry(args, output_dir): ...
 //
@@ -150,8 +150,6 @@ func (e *Executor) runExecutionCommand(ctx context.Context, workspace *pythonExe
 	cmd.Env = append(os.Environ(),
 		"KAGEOS_OUTPUT_DIR="+workspace.outputDir,
 		"KAGEOS_RESULT_PATH="+workspace.resultPath,
-		"AGENTOS_OUTPUT_DIR="+workspace.outputDir,
-		"AGENTOS_RESULT_PATH="+workspace.resultPath,
 	)
 
 	var stdoutBuf bytes.Buffer

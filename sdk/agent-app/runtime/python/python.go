@@ -21,7 +21,6 @@ type PythonArtifact struct {
 }
 
 const DefaultEntryFunctionName = "kageos_entry"
-const LegacyEntryFunctionName = "agentos_entry"
 
 type ExecutionResult struct {
 	OK          bool             `json:"ok"`
@@ -565,10 +564,9 @@ if len(sys.argv) > 1:
         sys.exit(1)
 
 ENTRY_FUNCTION_NAME = "` + DefaultEntryFunctionName + `"
-LEGACY_ENTRY_FUNCTION_NAME = "` + LegacyEntryFunctionName + `"
 ACTIVE_ENTRY_FUNCTION_NAME = ENTRY_FUNCTION_NAME
-output_dir = os.environ.get("KAGEOS_OUTPUT_DIR") or os.environ.get("AGENTOS_OUTPUT_DIR", "")
-result_path = os.environ.get("KAGEOS_RESULT_PATH") or os.environ.get("AGENTOS_RESULT_PATH", "")
+output_dir = os.environ.get("KAGEOS_OUTPUT_DIR", "")
+result_path = os.environ.get("KAGEOS_RESULT_PATH", "")
 
 def output_file(path, name=None, description=None):
     if path is None:
@@ -727,10 +725,6 @@ try:
     compiled = compile(user_code, "<kageos-user-code>", "exec")
     exec(compiled, globals(), globals())
     entry = globals().get(ENTRY_FUNCTION_NAME)
-    if not callable(entry):
-        entry = globals().get(LEGACY_ENTRY_FUNCTION_NAME)
-        if callable(entry):
-            ACTIVE_ENTRY_FUNCTION_NAME = LEGACY_ENTRY_FUNCTION_NAME
     if not callable(entry):
         raise RuntimeError(f"python_code 必须定义函数 {ENTRY_FUNCTION_NAME}(args, output_dir)")
     normalized_result = _normalize_result(entry(request, output_dir))
