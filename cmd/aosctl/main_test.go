@@ -190,6 +190,47 @@ func TestRenderTLSFromBase64Config(t *testing.T) {
 	}
 }
 
+func TestWriteDeploymentSummary(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Site.BaseURL = "http://127.0.0.1"
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := renderAll(rt); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeDeploymentSummary(rt, "ready"); err != nil {
+		t.Fatal(err)
+	}
+
+	summary := mustReadFile(t, rt.SummaryPath)
+	for _, want := range []string{
+		"# KageOS Deployment Summary",
+		"| Access URL | `http://127.0.0.1` |",
+		"| Admin username | `system` |",
+		"| Initial password | `" + cfg.SystemUser.Password + "` |",
+		"| Environment file | `" + rt.EnvFilePath + "` |",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("deployment summary missing %q, got:\n%s", want, summary)
+		}
+	}
+}
+
 func TestRenderExternalNATSKeepsSDKURL(t *testing.T) {
 	t.Parallel()
 
