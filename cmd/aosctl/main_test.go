@@ -69,7 +69,7 @@ func TestRenderBundledConfig(t *testing.T) {
 	}
 
 	mysqlInit := mustReadFile(t, filepath.Join(paths.GeneratedDir, "infra", "mysql-init.sql"))
-	if !strings.Contains(mysqlInit, "CREATE DATABASE IF NOT EXISTS `app_db`") {
+	if !strings.Contains(mysqlInit, "CREATE DATABASE IF NOT EXISTS `app-server`") {
 		t.Fatalf("mysql init should quote database identifiers, got:\n%s", mysqlInit)
 	}
 
@@ -659,7 +659,7 @@ func TestRequiredMySQLDatabases(t *testing.T) {
 	rt := RuntimeConfig{
 		Config: Config{
 			MySQL: MySQLConfig{
-				AppDatabase:     "app_db",
+				AppDatabase:     "app-server",
 				StorageDatabase: "app-storage",
 				AgentDatabase:   "agent-server",
 				HRDatabase:      "hr-server",
@@ -668,7 +668,7 @@ func TestRequiredMySQLDatabases(t *testing.T) {
 	}
 
 	got := requiredMySQLDatabases(rt)
-	for _, want := range []string{"app_db", "app-storage", "agent-server", "hr-server"} {
+	for _, want := range []string{"app-server", "app-storage", "agent-server", "hr-server"} {
 		if !containsString(got, want) {
 			t.Fatalf("required MySQL databases missing %q: %#v", want, got)
 		}

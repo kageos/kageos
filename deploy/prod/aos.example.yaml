@@ -22,7 +22,7 @@ mysql:
   port: 3306
   user: "root"
   password: "replace-with-a-strong-mysql-password"
-  app_database: "app_db"
+  app_database: "app-server"
   agent_database: "agent-server"
   storage_database: "app-storage"
   hr_database: "hr-server"

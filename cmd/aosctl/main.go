@@ -1284,7 +1284,7 @@ func defaultConfig() (Config, error) {
 			Port:             3306,
 			User:             "root",
 			Password:         mysqlPass,
-			AppDatabase:      "app_db",
+			AppDatabase:      "app-server",
 			AgentDatabase:    "agent-server",
 			StorageDatabase:  "app-storage",
 			HRDatabase:       "hr-server",
@@ -1361,7 +1361,7 @@ func applyDefaults(cfg *Config) {
 		cfg.MySQL.Port = 3306
 	}
 	if cfg.MySQL.AppDatabase == "" {
-		cfg.MySQL.AppDatabase = "app_db"
+		cfg.MySQL.AppDatabase = "app-server"
 	}
 	if cfg.MySQL.AgentDatabase == "" {
 		cfg.MySQL.AgentDatabase = "agent-server"
