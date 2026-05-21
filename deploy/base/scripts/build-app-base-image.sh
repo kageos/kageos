@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# 构建用户应用基础镜像（默认 kageos-app-runtime-base:latest，可由 APP_BASE_IMAGE 覆盖）
+# 构建用户应用基础镜像（默认 kagebase:latest，可由 APP_BASE_IMAGE 覆盖）
 # Canonical 位置：deploy/base/scripts/build-app-base-image.sh
 # 用法：在项目根目录执行 bash deploy/base/scripts/build-app-base-image.sh [--force] [--no-cache]
 
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
-APP_BASE_IMAGE="${APP_BASE_IMAGE:-kageos-app-runtime-base:latest}"
+APP_BASE_IMAGE="${APP_BASE_IMAGE:-kagebase:latest}"
 APP_BASE_APT_CHECK_DATE="${APP_BASE_APT_CHECK_DATE:-0}"
 force=0
 no_cache=0

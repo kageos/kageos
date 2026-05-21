@@ -31,7 +31,7 @@ const (
 	defaultStorageRoot = "/data/kageos"
 
 	defaultMainImage    = "localhost/kageos-main:latest"
-	defaultAppBaseImage = "localhost/kageos-app-runtime-base:latest"
+	defaultAppBaseImage = "localhost/kagebase:latest"
 	defaultMySQLImage   = "docker.io/library/mysql:8.0"
 	defaultNATSImage    = "docker.io/library/nats:2.10-alpine"
 	defaultMinIOImage   = "docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
