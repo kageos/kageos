@@ -27,7 +27,6 @@ import (
 const (
 	defaultProdDir     = "deploy/prod"
 	defaultConfigName  = "kage.yaml"
-	legacyConfigName   = "aos.yaml"
 	defaultGenerated   = ".generated"
 	defaultStorageRoot = "/data/kageos"
 
@@ -483,10 +482,6 @@ func resolvePaths(opts commonOptions) (Paths, error) {
 	configPath := opts.ConfigPath
 	if configPath == "" {
 		configPath = filepath.Join(prodDir, defaultConfigName)
-		legacyConfigPath := filepath.Join(prodDir, legacyConfigName)
-		if !fileExists(configPath) && fileExists(legacyConfigPath) {
-			configPath = legacyConfigPath
-		}
 	} else if !filepath.IsAbs(configPath) {
 		configPath = filepath.Join(repoRoot, configPath)
 	}
