@@ -1,0 +1,3 @@
+# 标记本仓库为 AI Agent OS 项目根目录（可选）。
+# 配置统一在 deploy/config/{dev,prod}/。
+# 亦可通过环境变量 AI_AGENT_OS_ROOT=/绝对路径 指定根目录（systemd、容器常用）。
