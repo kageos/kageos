@@ -196,7 +196,7 @@ if object.Status != "开放" {
 
 规则：
 
-- 固定入口函数是 `agentos_entry(args, output_dir)`。
+- 固定入口函数是 `kageos_entry(args, output_dir)`。
 - Go 侧使用 `pythonRuntime.NewExecutor(...)` 后必须 `defer executor.Close()`。
 - 需要输出文件时，Python 返回 `output_files`，Go 侧用 `ExecuteJSONWithResult`、`OutputFilePaths()` 校验，再用 `ctx.GetFS().ResponseFiles(...)` 下发。
 - Go 和 Python 是同机子进程，但 cwd 可能不同；文件路径尽量用绝对路径。

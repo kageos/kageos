@@ -25,6 +25,22 @@ func entryCode(body string) string {
 	return "def " + DefaultEntryFunctionName + "(args, output_dir):\n" + strings.Join(lines, "\n") + "\n"
 }
 
+func legacyEntryCode(body string) string {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		body = "return {}"
+	}
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			lines[i] = ""
+			continue
+		}
+		lines[i] = "    " + line
+	}
+	return "def " + LegacyEntryFunctionName + "(args, output_dir):\n" + strings.Join(lines, "\n") + "\n"
+}
+
 func TestExecutor_Execute(t *testing.T) {
 	ctx := context.Background()
 
@@ -349,6 +365,24 @@ print("hello")
 	}
 	if result == nil || !strings.Contains(result.Error, DefaultEntryFunctionName) {
 		t.Fatalf("unexpected result: %+v, err=%v", result, err)
+	}
+}
+
+func TestExecutor_ExecuteResultSupportsLegacyEntryFunction(t *testing.T) {
+	ctx := context.Background()
+	ex := NewExecutor(legacyEntryCode(`
+return {"data": {"ok": True}}
+`)).WithTimeout(30 * time.Second)
+	defer func() { _ = ex.Close() }()
+
+	var result struct {
+		OK bool `json:"ok"`
+	}
+	if err := ex.ExecuteJSON(ctx, &result); err != nil {
+		t.Fatalf("legacy entry should still work: %v", err)
+	}
+	if !result.OK {
+		t.Fatalf("unexpected result: %+v", result)
 	}
 }
 

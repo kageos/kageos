@@ -20,7 +20,8 @@ type PythonArtifact struct {
 	Description string `json:"description,omitempty"`
 }
 
-const DefaultEntryFunctionName = "agentos_entry"
+const DefaultEntryFunctionName = "kageos_entry"
+const LegacyEntryFunctionName = "agentos_entry"
 
 type ExecutionResult struct {
 	OK          bool             `json:"ok"`
@@ -160,7 +161,7 @@ func (e *Executor) Execute(ctx context.Context) ([]byte, error) {
 	return []byte(combineStdoutStderr(result.Stdout, result.Stderr)), err
 }
 
-// ExecuteJSON 执行 Python 代码，自动解析 agentos_entry 返回的 data 字段到 result
+// ExecuteJSON 执行 Python 代码，自动解析 kageos_entry 返回的 data 字段到 result
 // ctx: 上下文（用于超时控制）
 // result: 结果结构体指针（必须是可 JSON 反序列化的类型）
 // 返回: 错误
@@ -564,8 +565,10 @@ if len(sys.argv) > 1:
         sys.exit(1)
 
 ENTRY_FUNCTION_NAME = "` + DefaultEntryFunctionName + `"
-output_dir = os.environ.get("AGENTOS_OUTPUT_DIR", "")
-result_path = os.environ.get("AGENTOS_RESULT_PATH", "")
+LEGACY_ENTRY_FUNCTION_NAME = "` + LegacyEntryFunctionName + `"
+ACTIVE_ENTRY_FUNCTION_NAME = ENTRY_FUNCTION_NAME
+output_dir = os.environ.get("KAGEOS_OUTPUT_DIR") or os.environ.get("AGENTOS_OUTPUT_DIR", "")
+result_path = os.environ.get("KAGEOS_RESULT_PATH") or os.environ.get("AGENTOS_RESULT_PATH", "")
 
 def output_file(path, name=None, description=None):
     if path is None:
@@ -599,11 +602,11 @@ def _normalize_result(result):
     if result is None:
         result = {}
     if not isinstance(result, dict):
-        raise TypeError(f"{ENTRY_FUNCTION_NAME}(args, output_dir) 必须返回 dict")
+        raise TypeError(f"{ACTIVE_ENTRY_FUNCTION_NAME}(args, output_dir) 必须返回 dict")
     allowed_keys = {"data", "output_files", "warnings"}
     unknown_keys = sorted(set(result.keys()) - allowed_keys)
     if unknown_keys:
-        raise ValueError(f"{ENTRY_FUNCTION_NAME} 返回了不支持的字段: {', '.join(unknown_keys)}")
+        raise ValueError(f"{ACTIVE_ENTRY_FUNCTION_NAME} 返回了不支持的字段: {', '.join(unknown_keys)}")
     output_files_raw = result.get("output_files") or []
     if not isinstance(output_files_raw, list):
         raise TypeError("output_files 必须是 list")
@@ -721,9 +724,13 @@ except ImportError:
 # 执行用户代码
 user_code = ` + string(userCode) + `
 try:
-    compiled = compile(user_code, "<agentos-user-code>", "exec")
+    compiled = compile(user_code, "<kageos-user-code>", "exec")
     exec(compiled, globals(), globals())
     entry = globals().get(ENTRY_FUNCTION_NAME)
+    if not callable(entry):
+        entry = globals().get(LEGACY_ENTRY_FUNCTION_NAME)
+        if callable(entry):
+            ACTIVE_ENTRY_FUNCTION_NAME = LEGACY_ENTRY_FUNCTION_NAME
     if not callable(entry):
         raise RuntimeError(f"python_code 必须定义函数 {ENTRY_FUNCTION_NAME}(args, output_dir)")
     normalized_result = _normalize_result(entry(request, output_dir))

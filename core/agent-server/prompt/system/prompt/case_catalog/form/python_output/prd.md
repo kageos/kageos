@@ -4,7 +4,7 @@
 
 - **类型**：单 Form，POST，无 Table。
 - **路由**：`sandbox_file_out_demo.form`；路由组 `/form/python_output`。
-- **适合参考**：`pythonRuntime.NewExecutor`、**`defer executor.Close()`**（默认临时工作目录须释放）、固定入口 `agentos_entry(args, output_dir)`、`ExecuteJSONWithResult`；Go 计算 **`filepath.Abs` 输出绝对路径** 经请求传给 Python，Python **直接写入该路径**（如 `savefig`），再通过 `output_files` 声明该文件，Go 再 **`OutputFilePaths()` + `ResponseFiles(...)`** 下发给用户下载。勿用**相对路径**在 Go/Python 之间互传（**双方进程 cwd 不同**）。
+- **适合参考**：`pythonRuntime.NewExecutor`、**`defer executor.Close()`**（默认临时工作目录须释放）、固定入口 `kageos_entry(args, output_dir)`、`ExecuteJSONWithResult`；Go 计算 **`filepath.Abs` 输出绝对路径** 经请求传给 Python，Python **直接写入该路径**（如 `savefig`），再通过 `output_files` 声明该文件，Go 再 **`OutputFilePaths()` + `ResponseFiles(...)`** 下发给用户下载。勿用**相对路径**在 Go/Python 之间互传（**双方进程 cwd 不同**）。
 - **运行关系**：Go 调用 Python 为**同一运行时环境内**拉起子进程（同机、非网络隔离），Python 只要写 Go 给出的绝对路径，Go 即可读同一文件。
 - **与 `run_python` 区别**：工具库 Python 链路支持输入附件自动下载为 `args.input_files` 本地路径列表，也支持 `output_files` 下发附件；但本类 Form 仍适合需要**固化字段、沉淀业务接口、控制响应结构和命名规则**的场景（跑在**应用运行时容器内**，非宿主机）。
 
@@ -45,7 +45,7 @@
 // 2) 若既要 Python 处理能力又要可下载文件：在 **本应用** Form 里调 pythonRuntime.NewExecutor；
 //    执行发生在 **应用运行时容器内**（工作空间容器，非宿主机）。Go 与 Python **同机**（子进程），非网络隔离。
 // 3) Go 将 **绝对路径**（filepath.Abs + GetTraceOutputDir）通过请求字段传给 Python，Python 在固定入口
-//    agentos_entry(args, output_dir) 中直接 savefig 到该路径，并返回 output_files 声明；
+//    kageos_entry(args, output_dir) 中直接 savefig 到该路径，并返回 output_files 声明；
 //    Go 再用 ExecuteJSONWithResult + OutputFilePaths() 校验产物，再 ResponseFiles 下发。
 //    勿用相对路径互传（Go/Python 的 cwd 不同）。须 defer executor.Close() 释放默认临时目录。
 // 大模型请先 read_doc /system/prompt/case_catalog/form/python_output。
@@ -143,7 +143,7 @@ import os
 
 plt.rcParams['axes.unicode_minus'] = False
 
-def agentos_entry(args, output_dir):
+def kageos_entry(args, output_dir):
     title = args["title"]
     image_output_path = args["image_output_path"]
     if not image_output_path or not os.path.isabs(image_output_path):
