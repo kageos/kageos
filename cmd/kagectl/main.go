@@ -528,7 +528,7 @@ func parseBuildAppBaseFlags(args []string) (buildAppBaseOptions, error) {
 }
 
 func parseInitDevFlags(args []string) (initDevOptions, error) {
-	opts := initDevOptions{Engine: "auto"}
+	opts := initDevOptions{Engine: "podman"}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--engine":
@@ -567,7 +567,7 @@ func parseInitDevFlags(args []string) (initDevOptions, error) {
 			}
 			opts.CompanyName = strings.TrimSpace(args[i])
 		default:
-			if opts.Engine == "auto" && (args[i] == "auto" || args[i] == "docker" || args[i] == "podman") {
+			if args[i] == "auto" || args[i] == "docker" || args[i] == "podman" {
 				opts.Engine = args[i]
 				continue
 			}
@@ -585,7 +585,7 @@ func printUsage() {
 
 Usage:
   kagectl init [--force] [--base-url URL] [--mysql-mode bundled|external] [--company-code CODE] [--company-name NAME]
-  kagectl init-dev [--engine auto|docker|podman] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME]
+  kagectl init-dev [--engine podman|docker|auto] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME]
   kagectl bootstrap --base-url URL [--mysql-mode bundled|external] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
   kagectl build-app-base [--image IMAGE] [--force] [--no-cache]
   kagectl render [--config .kageos/prod/kage.yaml]
@@ -675,14 +675,19 @@ func cmdInitDev(paths Paths, args []string) error {
 	}
 	if opts.SkipBase {
 		fmt.Println("==> skip app base image (--skip-base)")
+		printDevInitSummary(paths, opts)
 		return nil
 	}
 	fmt.Println("==> ensure app base image")
-	return runBuildAppBaseScript(paths, buildAppBaseOptions{
+	if err := runBuildAppBaseScript(paths, buildAppBaseOptions{
 		Image:   opts.BaseImage,
 		Force:   opts.BaseForce,
 		NoCache: opts.BaseNoCache,
-	})
+	}); err != nil {
+		return err
+	}
+	printDevInitSummary(paths, opts)
+	return nil
 }
 
 func cmdBootstrap(paths Paths, args []string) error {
@@ -2018,6 +2023,72 @@ func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, company
 	}
 	fmt.Printf("==> dev config rendered: %s\n", configDir)
 	return nil
+}
+
+func printDevInitSummary(paths Paths, opts initDevOptions) {
+	envPath := filepath.Join(paths.RepoRoot, ".kageos", "dev", "env", "kageos.env")
+	values, err := readEnvFile(envPath)
+	if err != nil {
+		fmt.Printf("WARN: unable to read dev summary env file: %v\n", err)
+		return
+	}
+
+	baseImage := opts.BaseImage
+	if baseImage == "" {
+		baseImage = values["KAGEOS_APP_BASE_IMAGE"]
+	}
+	smtpStatus := "not configured"
+	if strings.TrimSpace(values["SMTP_HOST"]) != "" &&
+		strings.TrimSpace(values["SMTP_USERNAME"]) != "" &&
+		strings.TrimSpace(values["SMTP_PASSWORD"]) != "" &&
+		strings.TrimSpace(values["SMTP_FROM"]) != "" {
+		smtpStatus = "configured"
+	}
+
+	rows := [][2]string{
+		{"Config dir", filepath.Join(paths.RepoRoot, defaultDevConfig)},
+		{"Env file", envPath},
+		{"Engine", opts.Engine},
+		{"App base image", baseImage},
+		{"Admin username", "system"},
+		{"Admin password", values["SYSTEM_USER_PASSWORD"]},
+		{"MySQL host", values["MYSQL_HOST"]},
+		{"MySQL port", values["MYSQL_PORT"]},
+		{"MySQL user", "root"},
+		{"MySQL password", values["MYSQL_ROOT_PASSWORD"]},
+		{"MySQL databases", "app-server, agent-server, app-storage, hr-server"},
+		{"NATS URL", values["NATS_URL"]},
+		{"NATS user", values["NATS_SEED_USER"]},
+		{"NATS password", values["NATS_SEED_PASSWORD"]},
+		{"MinIO endpoint", values["MINIO_ENDPOINT"]},
+		{"MinIO root user", values["MINIO_ROOT_USER"]},
+		{"MinIO root password", values["MINIO_ROOT_PASSWORD"]},
+		{"JWT secret", values["JWT_SECRET"]},
+		{"Company code", values["KAGEOS_COMPANY_CODE"]},
+		{"Company name", strings.Trim(values["KAGEOS_COMPANY_NAME"], `"'`)},
+		{"SMTP status", smtpStatus},
+		{"SMTP host", values["SMTP_HOST"]},
+		{"SMTP username", values["SMTP_USERNAME"]},
+	}
+	fmt.Println()
+	fmt.Println("Kageos dev initialization summary")
+	printPlainTable("Item", "Value", rows)
+	fmt.Println()
+	fmt.Println("Tip: SMTP is optional for local startup. Configure SMTP_* in the env file only when email verification must send real messages.")
+}
+
+func printPlainTable(leftHeader, rightHeader string, rows [][2]string) {
+	width := len(leftHeader)
+	for _, row := range rows {
+		if len(row[0]) > width {
+			width = len(row[0])
+		}
+	}
+	fmt.Printf("%-*s  %s\n", width, leftHeader, rightHeader)
+	fmt.Printf("%s  %s\n", strings.Repeat("-", width), strings.Repeat("-", 48))
+	for _, row := range rows {
+		fmt.Printf("%-*s  %s\n", width, row[0], row[1])
+	}
 }
 
 func loadOrCreateDevSecrets(stateDir, envPath string, regen bool) (devSecrets, error) {

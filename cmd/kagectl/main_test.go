@@ -365,6 +365,16 @@ func TestParseInitDevFlags(t *testing.T) {
 	}
 }
 
+func TestParseInitDevFlagsDefaultsToPodman(t *testing.T) {
+	opts, err := parseInitDevFlags(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.Engine != "podman" {
+		t.Fatalf("Engine = %q, want podman", opts.Engine)
+	}
+}
+
 func TestParseInitDevFlagsAcceptsPositionalEngine(t *testing.T) {
 	opts, err := parseInitDevFlags([]string{"docker"})
 	if err != nil {
