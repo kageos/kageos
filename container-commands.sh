@@ -3,7 +3,7 @@
 # 说明：
 # - 这是容器/部署常用命令清单，不建议整文件执行。
 # - 推荐在编辑器里按需选择某一行执行，或复制单行到终端执行。
-# - dev 默认 app-base 镜像 tag：agentos-app-runtime-base:latest。
+# - dev 默认 app-base 镜像 tag：kageos-app-runtime-base:latest。
 # - prod 命令需要在部署机器上执行，并确保 deploy/prod/aos.yaml 已初始化。
 
 echo "container-commands.sh 是命令清单，请在编辑器中选择单行执行，不要整文件运行。"
@@ -33,7 +33,7 @@ bash deploy/base/scripts/build-app-base-image.sh --force
 bash deploy/base/scripts/build-app-base-image.sh --force --no-cache
 
 # 指定 app-base 镜像 tag 后强制无缓存重建；当 dev 配置改了 base_image 时使用。
-APP_BASE_IMAGE="agentos-app-runtime-base:latest" bash deploy/base/scripts/build-app-base-image.sh --force --no-cache
+APP_BASE_IMAGE="kageos-app-runtime-base:latest" bash deploy/base/scripts/build-app-base-image.sh --force --no-cache
 
 # Dev backend
 # 后端本地开发使用 GoLand 启动 core/cmd/main/main.go，并设置 APP_ENV=dev。
@@ -42,22 +42,22 @@ APP_ENV=dev go run ./core/cmd/main
 
 # Image checks
 # 检查本地 Podman 是否存在 dev app-base 镜像。
-podman image exists agentos-app-runtime-base:latest
+podman image exists kageos-app-runtime-base:latest
 
 # 列出本地 app-base 镜像。
-podman images | grep agentos-app-runtime-base
+podman images | grep kageos-app-runtime-base
 
 # 在 app-base 镜像内验证常用 Python 包是否可 import。
-podman run --rm --entrypoint /bin/sh agentos-app-runtime-base:latest -lc 'python3 -c "import pandas, numpy, matplotlib, openpyxl, xlsxwriter, pptx, plotly, pyecharts, bs4, yaml, qrcode, barcode, xlrd, xlwt, aiohttp, toml, snownlp, tabulate, arrow, dateutil, wordcloud, pymysql, pytesseract, yt_dlp; print(\"python packages OK\")" && yt-dlp --version'
+podman run --rm --entrypoint /bin/sh kageos-app-runtime-base:latest -lc 'python3 -c "import pandas, numpy, matplotlib, openpyxl, xlsxwriter, pptx, plotly, pyecharts, bs4, yaml, qrcode, barcode, xlrd, xlwt, aiohttp, toml, snownlp, tabulate, arrow, dateutil, wordcloud, pymysql, pytesseract, yt_dlp; print(\"python packages OK\")" && yt-dlp --version'
 
 # 在 app-base 镜像内验证常用 CLI 辅助工具。
-podman run --rm --entrypoint /bin/sh agentos-app-runtime-base:latest -lc 'wget --version | head -n 1 && mediainfo --Version && 7z i | head -n 2 && rsync --version | head -n 1 && zstd --version'
+podman run --rm --entrypoint /bin/sh kageos-app-runtime-base:latest -lc 'wget --version | head -n 1 && mediainfo --Version && 7z i | head -n 2 && rsync --version | head -n 1 && zstd --version'
 
 # 在 app-base 镜像内验证 Tesseract 命令和中英文语言包。
-podman run --rm --entrypoint /bin/sh agentos-app-runtime-base:latest -lc 'tesseract --version | head -n 1 && tesseract --list-langs | tee /tmp/tesseract-langs.txt && grep -x eng /tmp/tesseract-langs.txt && grep -x chi_sim /tmp/tesseract-langs.txt'
+podman run --rm --entrypoint /bin/sh kageos-app-runtime-base:latest -lc 'tesseract --version | head -n 1 && tesseract --list-langs | tee /tmp/tesseract-langs.txt && grep -x eng /tmp/tesseract-langs.txt && grep -x chi_sim /tmp/tesseract-langs.txt'
 
 # 在 app-base 镜像内验证中文字体和 matplotlib 配置。
-podman run --rm --entrypoint /bin/sh agentos-app-runtime-base:latest -lc 'fc-match "Noto Sans CJK SC"; python3 -c "import matplotlib; print(matplotlib.matplotlib_fname())"'
+podman run --rm --entrypoint /bin/sh kageos-app-runtime-base:latest -lc 'fc-match "Noto Sans CJK SC"; python3 -c "import matplotlib; print(matplotlib.matplotlib_fname())"'
 
 # Prod local deploy
 # 生产配置初始化：生成 deploy/prod/aos.yaml。

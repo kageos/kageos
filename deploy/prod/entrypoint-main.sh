@@ -15,7 +15,7 @@ set_smtp_defaults
 TLS_MODE="${TLS_MODE:-http}"
 TLS_CERT_FILE="${TLS_CERT_FILE:-/app/tls/fullchain.pem}"
 TLS_KEY_FILE="${TLS_KEY_FILE:-/app/tls/privkey.pem}"
-APP_BASE_IMAGE="${APP_BASE_IMAGE:-localhost/agentos-app-runtime-base:latest}"
+APP_BASE_IMAGE="${APP_BASE_IMAGE:-localhost/kageos-app-runtime-base:latest}"
 MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
 NATS_HOST="${NATS_HOST:-127.0.0.1}"
