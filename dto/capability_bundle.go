@@ -66,6 +66,12 @@ type InstallCapabilityBundleReq struct {
 	Bundle *CapabilityBundle `json:"bundle" binding:"required"`
 }
 
+type InstallCapabilityBundleFromURLReq struct {
+	InstallCapabilityOptions
+	BundleURL  string `json:"bundle_url" binding:"required"`
+	InstallKey string `json:"install_key,omitempty"`
+}
+
 type InstallCapabilityBundleResp struct {
 	Message             string   `json:"message"`
 	DirectoryCount      int      `json:"directory_count"`

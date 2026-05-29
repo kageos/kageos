@@ -5,10 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/dto"
@@ -17,6 +21,8 @@ import (
 	"github.com/kageos/kageos/pkg/naming"
 	"gorm.io/gorm"
 )
+
+const maxRemoteCapabilityBundleBytes = 32 << 20
 
 type capabilityBundleInstallPlan struct {
 	targetRootPath string
@@ -628,6 +634,14 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundleFromFile(ctx
 	return s.InstallCapabilityBundle(ctx, opts, bundle)
 }
 
+func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundleFromURL(ctx context.Context, opts *dto.InstallCapabilityOptions, bundleURL, installKey string) (*dto.InstallCapabilityBundleResp, error) {
+	bundle, err := downloadCapabilityBundle(ctx, bundleURL, installKey)
+	if err != nil {
+		return nil, err
+	}
+	return s.InstallCapabilityBundle(ctx, opts, bundle)
+}
+
 func readCapabilityBundleFile(filePath string) (*dto.CapabilityBundle, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -636,6 +650,68 @@ func readCapabilityBundleFile(filePath string) (*dto.CapabilityBundle, error) {
 	var bundle dto.CapabilityBundle
 	if err := json.Unmarshal(data, &bundle); err != nil {
 		return nil, fmt.Errorf("解析能力包 JSON 失败: file=%s: %w", filePath, err)
+	}
+	return &bundle, nil
+}
+
+func downloadCapabilityBundle(ctx context.Context, rawURL, installKey string) (*dto.CapabilityBundle, error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return nil, fmt.Errorf("能力包 URL 不能为空")
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("能力包 URL 无效: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return nil, fmt.Errorf("能力包 URL 仅支持 http/https")
+	}
+	if installKey == "" {
+		rawPath := strings.Trim(parsed.EscapedPath(), "/")
+		parts := strings.Split(rawPath, "/")
+		if len(parts) >= 2 && parts[len(parts)-2] == "bundle" {
+			key, err := url.PathUnescape(parts[len(parts)-1])
+			if err != nil {
+				return nil, fmt.Errorf("解析 URL 中的安装密钥失败: %w", err)
+			}
+			installKey = key
+			parts = parts[:len(parts)-1]
+			parsed.Path = "/" + strings.Join(parts, "/")
+			parsed.RawPath = ""
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("创建能力包下载请求失败: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	if installKey = strings.TrimSpace(installKey); installKey != "" {
+		req.Header.Set("X-Install-Key", installKey)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("下载能力包失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("下载能力包失败: HTTP %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxRemoteCapabilityBundleBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("读取能力包响应失败: %w", err)
+	}
+	if len(data) > maxRemoteCapabilityBundleBytes {
+		return nil, fmt.Errorf("能力包过大，最大支持 %d MB", maxRemoteCapabilityBundleBytes>>20)
+	}
+
+	var bundle dto.CapabilityBundle
+	if err := json.Unmarshal(data, &bundle); err != nil {
+		return nil, fmt.Errorf("解析能力包 JSON 失败: %w", err)
 	}
 	return &bundle, nil
 }

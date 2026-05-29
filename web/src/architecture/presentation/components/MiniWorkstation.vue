@@ -14,6 +14,7 @@
       @dragover.prevent="onDragOver"
       @dragleave.prevent="onDragLeave"
       @drop.prevent="onDrop"
+      @paste="onPaste"
     >
       <div class="mini-workspace-backdrop" aria-hidden="true"></div>
       <section class="mini-shell">
@@ -438,7 +439,8 @@ const {
   removeFile,
   onDragOver,
   onDragLeave,
-  onDrop
+  onDrop,
+  onPaste
 } = useMiniWorkstationUploads({
   fullCodePath: fullCodePathRef,
   inputText,

@@ -268,6 +268,7 @@
         :key="field.code"
         :prop="field.code"
         :label="field.name"
+        class-name="table-data-column"
         :sortable="getSortableConfig(field)"
         :sort-order="sortOrderMap[field.code] || null"
         :label-class-name="getSortHeaderClass(field.code)"
@@ -1098,6 +1099,60 @@ useTableViewLifecycle({
 
 :deep(.el-table td.el-table__cell) {
   background: var(--app-shell-panel-bg-strong) !important;
+}
+
+:deep(.table-data-column .cell) {
+  display: block;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:deep(.table-data-column .cell > *) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+:deep(.table-data-column .input-widget),
+:deep(.table-data-column .text-widget),
+:deep(.table-data-column .table-cell-text),
+:deep(.table-data-column .formatted-content),
+:deep(.table-data-column .table-cell-value),
+:deep(.table-data-column .text-content),
+:deep(.table-data-column .code-content),
+:deep(.table-data-column .html-table-cell),
+:deep(.table-data-column .markdown-table-cell),
+:deep(.table-data-column .csv-preview),
+:deep(.table-data-column .csv-preview-text),
+:deep(.table-data-column .html-content-preview),
+:deep(.table-data-column .files-display-text) {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:deep(.table-data-column .table-cell-multiselect),
+:deep(.table-data-column .files-table-cell),
+:deep(.table-data-column .files-select-display) {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.table-view :deep(.table-data-column .formatted-content),
+.table-view :deep(.table-data-column .text-content),
+.table-view :deep(.table-data-column .code-content),
+.table-view :deep(.table-data-column .html-table-cell),
+.table-view :deep(.table-data-column .markdown-table-cell) {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .detail-icon-button {

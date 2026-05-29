@@ -17,6 +17,7 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/natsx"
+	"github.com/kageos/kageos/pkg/openapitoken"
 	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/kageos/kageos/pkg/waiter"
 	"github.com/nats-io/nats.go"
@@ -184,6 +185,9 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	// 自动迁移表结构
 	if err := model.InitTables(s.db); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
+	}
+	if err := openapitoken.SetDB(s.db); err != nil {
+		return fmt.Errorf("failed to init openapi token store: %w", err)
 	}
 
 	logger.Infof(ctx, "[Server] Database initialized successfully")

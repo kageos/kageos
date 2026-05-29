@@ -5,6 +5,7 @@ import (
 	"github.com/kageos/kageos/pkg/auth"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/openapitoken"
 )
 
 // WithUserInfo 为请求添加用户信息的中间件
@@ -14,6 +15,41 @@ func WithUserInfo() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// ✨ 优先从 X-Request-User header 读取（网关已设置）
 		requestUser := c.GetHeader(contextx.RequestUserHeader)
+
+		if requestUser == "" {
+			if rawOpenAPIToken := openapitoken.BearerToken(c.GetHeader("Authorization")); rawOpenAPIToken != "" {
+				principal, err := openapitoken.Validate(rawOpenAPIToken, c.ClientIP(), c.GetHeader("User-Agent"))
+				if err == nil {
+					requestUser = principal.Username
+					c.Set("user_id", principal.UserID)
+					c.Set("username", principal.Username)
+					c.Set("email", principal.Email)
+					c.Set("openapi_token_id", principal.TokenID)
+					c.Set(contextx.TokenHeader, rawOpenAPIToken)
+					c.Request.Header.Set(contextx.TokenHeader, rawOpenAPIToken)
+					if principal.DepartmentFullPath != "" {
+						c.Set(contextx.DepartmentFullPathHeader, principal.DepartmentFullPath)
+						c.Request.Header.Set(contextx.DepartmentFullPathHeader, principal.DepartmentFullPath)
+					}
+					if principal.CompanyCode != "" {
+						c.Set(contextx.CompanyCodeHeader, principal.CompanyCode)
+						c.Request.Header.Set(contextx.CompanyCodeHeader, principal.CompanyCode)
+					}
+					if principal.CompanyName != "" {
+						c.Set(contextx.CompanyNameHeader, principal.CompanyName)
+						c.Request.Header.Set(contextx.CompanyNameHeader, principal.CompanyName)
+					}
+					if principal.CompanyLogoURL != "" {
+						c.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
+						c.Request.Header.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
+					}
+					c.Request.Header.Set(contextx.SourceTypeHeader, "openapi_token")
+					c.Request.Header.Set(contextx.SourceRefHeader, principal.Username)
+				} else {
+					logger.Warnf(c, "[WithUserInfo] OpenAPI token 解析失败 - Path: %s, Error: %v", c.Request.URL.Path, err)
+				}
+			}
+		}
 
 		// ⭐ 如果 header 中没有用户信息，尝试从 token 中解析（降级方案）
 		if requestUser == "" {

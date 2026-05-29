@@ -993,4 +993,94 @@ function getTablePreviewUrl(file: FileItem): string {
   padding: 20px;
 }
 
+@media (max-width: 700px) {
+  .files-editor-shell {
+    border-radius: 8px;
+  }
+
+  .upload-area {
+    padding: 10px;
+  }
+
+  .upload-area-title-row {
+    gap: 8px;
+  }
+
+  .upload-area-title,
+  .upload-area-count {
+    min-width: 0;
+  }
+
+  .upload-meta-badge {
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .upload-dragger-content {
+    min-height: 68px;
+    padding: 8px;
+  }
+
+  .upload-icon {
+    font-size: 24px !important;
+  }
+
+  .el-upload__text {
+    font-size: 12px;
+  }
+
+  .el-upload__tip {
+    font-size: 10px;
+    word-break: break-word;
+  }
+
+  .uploading-file {
+    padding: 10px;
+  }
+
+  .uploading-file .file-info {
+    align-items: flex-start;
+    min-width: 0;
+  }
+
+  .uploading-file .file-name {
+    min-width: 0;
+    white-space: normal;
+    word-break: break-all;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .uploading-file .file-size {
+    flex-shrink: 0;
+  }
+
+  .file-actions {
+    align-items: flex-start;
+    gap: 6px;
+    flex-direction: column;
+  }
+
+  .action-buttons {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .section-title {
+    font-size: 13px;
+  }
+
+  .files-list {
+    gap: 8px;
+  }
+
+  .image-preview-container {
+    min-height: 160px;
+    padding: 8px;
+  }
+}
 </style>

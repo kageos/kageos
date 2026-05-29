@@ -15,6 +15,7 @@ import (
 	"github.com/kageos/kageos/pkg/dbx"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/natsx"
+	"github.com/kageos/kageos/pkg/openapitoken"
 	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
@@ -155,6 +156,9 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	// ⭐ 执行数据库迁移（自动创建/更新表结构）
 	if err := model.InitModels(db); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
+	}
+	if err := openapitoken.SetDB(db); err != nil {
+		return fmt.Errorf("failed to init openapi token store: %w", err)
 	}
 
 	logger.Infof(ctx, "[Server] Database initialized successfully")

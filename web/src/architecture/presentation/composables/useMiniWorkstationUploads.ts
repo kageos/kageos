@@ -6,10 +6,35 @@ import type { WorkspaceChatMessageFile } from '@/architecture/presentation/conte
 
 const UPLOAD_ROUTER = 'workspace/chat'
 
+type ClipboardFileTransfer = Pick<DataTransfer, 'files' | 'items'>
+
 export interface UseMiniWorkstationUploadsOptions {
   fullCodePath: Ref<string>
   inputText: Ref<string>
   inputRef: Ref<HTMLTextAreaElement | undefined>
+}
+
+export function extractClipboardFiles(dataTransfer: ClipboardFileTransfer | null | undefined): File[] {
+  if (!dataTransfer) {
+    return []
+  }
+
+  const fileListFiles = Array.from(dataTransfer.files || [])
+  if (fileListFiles.length > 0) {
+    return fileListFiles
+  }
+
+  const itemFiles: File[] = []
+  Array.from(dataTransfer.items || []).forEach((item) => {
+    if (item.kind === 'file') {
+      const file = item.getAsFile()
+      if (file) {
+        itemFiles.push(file)
+      }
+    }
+  })
+
+  return itemFiles
 }
 
 export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOptions) {
@@ -70,6 +95,29 @@ export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOpti
       ElMessage.error(error?.message || '上传失败')
     } finally {
       uploading.value = false
+    }
+  }
+
+  async function onPaste(event: ClipboardEvent) {
+    if (event.defaultPrevented) {
+      return
+    }
+
+    const files = extractClipboardFiles(event.clipboardData)
+    if (files.length === 0) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (!fullCodePath.value) {
+      ElMessage.warning('请先选择目录后再粘贴文件')
+      return
+    }
+
+    for (const file of files) {
+      await onFileChange({ raw: file })
     }
   }
 
@@ -136,6 +184,7 @@ export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOpti
     removeFile,
     onDragOver,
     onDragLeave,
-    onDrop
+    onDrop,
+    onPaste
   }
 }

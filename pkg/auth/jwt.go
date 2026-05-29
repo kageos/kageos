@@ -71,21 +71,38 @@ type UserTokenContext struct {
 
 // GenerateAccessTokenWithContext 生成访问令牌，携带用户、企业和组织架构上下文。
 func (s *JWTService) GenerateAccessTokenWithContext(userContext UserTokenContext) (string, error) {
+	return s.generateTokenWithContext(userContext, "access", time.Now().Add(time.Duration(s.config.AccessTokenExpire)*time.Second))
+}
+
+// GenerateOpenAPITokenWithContext 生成用于 OpenAPI 调用的长期 JWT。
+// expiresAt 为零值时不写 exp，表示不过期；吊销由 OpenAPI Token 记录控制。
+func (s *JWTService) GenerateOpenAPITokenWithContext(userContext UserTokenContext, expiresAt *time.Time) (string, error) {
+	exp := time.Time{}
+	if expiresAt != nil {
+		exp = *expiresAt
+	}
+	return s.generateTokenWithContext(userContext, "openapi", exp)
+}
+
+func (s *JWTService) generateTokenWithContext(userContext UserTokenContext, subjectPrefix string, expiresAt time.Time) (string, error) {
 	now := time.Now()
+	registeredClaims := jwt.RegisteredClaims{
+		Issuer:    s.config.Issuer,
+		Subject:   fmt.Sprintf("%s_%d", subjectPrefix, userContext.UserID),
+		IssuedAt:  jwt.NewNumericDate(now),
+		NotBefore: jwt.NewNumericDate(now),
+	}
+	if !expiresAt.IsZero() {
+		registeredClaims.ExpiresAt = jwt.NewNumericDate(expiresAt)
+	}
 	claims := JWTClaims{
-		UserID:         userContext.UserID,
-		Username:       userContext.Username,
-		Email:          userContext.Email,
-		CompanyCode:    userContext.CompanyCode,
-		CompanyName:    userContext.CompanyName,
-		CompanyLogoURL: userContext.CompanyLogoURL,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    s.config.Issuer,
-			Subject:   fmt.Sprintf("%d", userContext.UserID),
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(s.config.AccessTokenExpire) * time.Second)),
-			NotBefore: jwt.NewNumericDate(now),
-		},
+		UserID:           userContext.UserID,
+		Username:         userContext.Username,
+		Email:            userContext.Email,
+		CompanyCode:      userContext.CompanyCode,
+		CompanyName:      userContext.CompanyName,
+		CompanyLogoURL:   userContext.CompanyLogoURL,
+		RegisteredClaims: registeredClaims,
 	}
 
 	if userContext.DepartmentFullPath != "" {

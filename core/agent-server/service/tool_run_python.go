@@ -24,14 +24,6 @@ const runPythonPreinstallDoc = `**生产镜像已预装、可直接 import 的�
 - 配置与安全：yaml（PyYAML）、toml、cryptography
 - 另有 **Python 标准库**（json、re、collections、datetime、itertools、math、random 等）
 
-**matplotlib 中文：** 生产镜像已配置中文字体（优先 Noto CJK / WenQuanYi Zen Hei）并关闭 unicode minus 问题；普通标题、坐标轴、图例里的中文不需要脚本额外设置字体。
-**FFmpeg 中文水印：** 使用 ffmpeg drawtext 渲染中文时，必须显式指定 fontfile，否则常见现象是中文变成方框。当前镜像可优先使用：
-- /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
-- /usr/share/fonts/truetype/wqy/wqy-zenhei.ttc
-
-典型写法：
-drawtext=text='千幻智能':fontfile=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc:fontsize=40:fontcolor=white:x=w-tw-30:y=h-th-30:borderw=2:bordercolor=black@0.8
-
 **若 import 报错：** 优先改用上面列表或标准库；需要新依赖时请管理员更新 Dockerfile / 基础镜像 requirements.txt 并重打镜像。不可在本工具参数里指定 pip 包。
 **环境差异：** 本地非 Docker 运行时以本机 python 为准，可能与镜像不一致。`
 
@@ -56,6 +48,7 @@ var runPythonToolDef = toolDefinition[runPythonArgs](
 - python_code **必须定义**：def kageos_entry(args, output_dir): ...
 - 第一个参数 args 为传入的对象参数；第二个参数 output_dir 为受控输出目录
 - 若本轮用户上传了附件，系统会在执行前自动下载到容器本地，并注入 args["input_files"]：本地文件路径列表。单文件取 args["input_files"][0]。Python 代码应直接 open 本地路径，不要 requests.get 文件引用或猜 URL；不要把文件引用数组再塞进 args["input_files"]。
+- 若继续处理历史消息里的上传文件，请把 <files> 里的 refs 原样传给本工具顶层 input_files 参数；不要拆成 bucket/key 放进 args，也不要自行拼 COS URL。
 - input_files 也可以直接传入上一步工具返回的 output_files 文件引用（bucket/object_key，如 kageos/system/tools/runtime/python.form/.../result.csv）。平台会像处理用户上传附件一样自动从 COS/对象存储下载到容器本地，并注入 args["input_files"] 本地路径列表；这用于多步骤流水线，避免手动下载再上传。
 - 返回值 **必须是 dict**，仅允许：
   - data: JSON 可序列化结果
@@ -68,7 +61,6 @@ var runPythonToolDef = toolDefinition[runPythonArgs](
 - 使用 4 个空格缩进，不要使用 Tab；不要混用空格和 Tab。
 - 不要把 ANSI 颜色控制符、终端转义字符或 NUL 等不可见控制字符写进 python_code；这类字符会导致 SyntaxError 或 IndentationError。
 - 优先生成短脚本、少嵌套脚本。Excel/CSV 分析优先用 pandas；只有确实要精细 Excel 样式时才用 openpyxl，避免逐单元格大段样式代码。
-- 生成图表时不要手动设置 matplotlib 中文字体（不要写 font.sans-serif/SimHei/Arial Unicode MS）；镜像已配置中文字体，只保留 axes.unicode_minus=False 即可。
 - import 语句放在文件开头，或至少放在 kageos_entry 函数体开头；不要先使用名字再在后面 import。
 - 避免长的多层嵌套块，尤其是 for 里再套 if/else、try、with。能用 pandas 向量化、groupby、assign、map、apply、to_dict('records')、zip、列表推导式解决的，就不要写多层块。
 - 返回值里的 data 必须保持 JSON 可序列化：dict key 只能是字符串；不要把 tuple、Timestamp、numpy 标量、集合直接塞进 data。pandas 聚合后优先用 as_index=False 或 reset_index()，最终用 to_dict('records') 返回。
@@ -77,7 +69,7 @@ var runPythonToolDef = toolDefinition[runPythonArgs](
 - 输出图片、Excel、PDF 等文件时，统一写到 output_dir，再在 output_files 里声明绝对路径。
 - 如果上一轮出现 SyntaxError 或 IndentationError，不要局部修补旧长脚本；请重新生成一份更短、更扁平、缩进完整的 python_code。
 
-**输出结果：** 工具库执行端会解析 kageos_entry 的返回值；若返回里有 **output_files**，Go 侧会负责校验、上传并构造成最终 string，工作台自动展示可下载附件。
+**输出结果：** 工具库执行端会解析 kageos_entry 的返回值；若返回里有 **output_files**，Go 侧会负责校验、上传并构造成最终 string，工作台自动展示文件组件（预览、打开、下载等能力由组件提供）。最终回复只需说明已生成/已处理，不要手写“下载文件：xxx”、Markdown 下载链接或伪 URL。
 
 **文件流转能力（重要）：**
 - output_files 返回的文件引用可以直接作为下一次 run_python 的 input_files 参数。
@@ -125,7 +117,7 @@ func runPythonTool(ctx context.Context, args runPythonArgs, attachedFiles string
 	if len(args.Args) > 0 {
 		body["args"] = args.Args
 	}
-	if inputFiles := resolvePythonInputFiles(args.InputFiles, attachedFiles); inputFiles != "" {
+	if inputFiles := resolvePythonInputFiles(args.InputFiles, attachedFiles, args.Args); inputFiles != "" {
 		body["input_files"] = inputFiles
 	}
 	timeoutSec := 120
@@ -153,11 +145,63 @@ func runPythonTool(ctx context.Context, args runPythonArgs, attachedFiles string
 	return content, isError, out
 }
 
-func resolvePythonInputFiles(explicit string, attached string) string {
+func resolvePythonInputFiles(explicit string, attached string, args map[string]interface{}) string {
 	if s := strings.TrimSpace(explicit); s != "" {
 		return s
 	}
-	return strings.TrimSpace(attached)
+	if s := strings.TrimSpace(attached); s != "" {
+		return s
+	}
+	return inputFileRefsFromRunPythonArgs(args)
+}
+
+func inputFileRefsFromRunPythonArgs(args map[string]interface{}) string {
+	if len(args) == 0 {
+		return ""
+	}
+	for _, key := range []string{"input_files", "files", "refs"} {
+		if refs := normalizeRunPythonInputFileRefsValue(args[key]); refs != "" {
+			return refs
+		}
+	}
+	bucket := strings.TrimSpace(fmt.Sprint(args["bucket"]))
+	key := strings.TrimSpace(fmt.Sprint(args["key"]))
+	if bucket == "" || bucket == "<nil>" || key == "" || key == "<nil>" {
+		return ""
+	}
+	return strings.TrimRight(bucket, "/") + "/" + strings.TrimLeft(key, "/")
+}
+
+func normalizeRunPythonInputFileRefsValue(value interface{}) string {
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case []string:
+		return strings.Join(cleanRunPythonStringParts(v), ",")
+	case []interface{}:
+		parts := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				parts = append(parts, s)
+			}
+		}
+		return strings.Join(cleanRunPythonStringParts(parts), ",")
+	case map[string]interface{}:
+		return normalizeRunPythonInputFileRefsValue(v["refs"])
+	default:
+		return ""
+	}
+}
+
+func cleanRunPythonStringParts(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func pythonFormPayload(m map[string]interface{}) map[string]interface{} {
@@ -226,6 +270,15 @@ func buildPythonModelGuidance(raw map[string]interface{}) string {
 		}
 		if strings.Contains(out, "UnboundLocalError") {
 			appendLine("【作用域】请检查变量是否先使用后赋值；import 语句请放到文件顶部或函数体开头。")
+		}
+		if strings.Contains(out, "返回了不支持的字段") {
+			appendLine("【返回协议】kageos_entry 只能返回 data、output_files、warnings；错误说明请放进 data.error，或直接 raise ValueError(...)。")
+		}
+		if strings.Contains(out, "IndexError: list index out of range") {
+			appendLine("【输入文件】如果代码读取 args[\"input_files\"][0]，请确认工具顶层 input_files 已传入文件引用，或本轮消息确实带有上传附件；不要把 bucket/key 当成本地文件路径读取。")
+		}
+		if strings.Contains(out, "requests.exceptions.ConnectionError") || strings.Contains(out, "Failed to establish a new connection") {
+			appendLine("【文件读取】不要 requests.get 对象存储 URL 或猜 COS 域名；应把文件引用传给工具顶层 input_files，然后读取注入的 args[\"input_files\"] 本地路径。")
 		}
 		if strings.Contains(out, "keys must be str, int, float, bool or None, not tuple") {
 			appendLine("【JSON 序列化】data 中的 dict key 不能是 tuple。pandas groupby/agg 后请先 reset_index() 或 as_index=False，再用 to_dict('records')。")

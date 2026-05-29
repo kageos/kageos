@@ -19,10 +19,12 @@ podman build -t kagebase:latest deploy/base/images/app-base
 docker build -t kagebase:latest deploy/base/images/app-base
 ```
 
-如需显式覆盖 pip 源 / 超时 / 重试（例如网络较差的生产环境）：
+如需显式覆盖 Ubuntu APT 源、pip 源、超时、重试（例如网络较差的生产环境）：
 
 ```bash
 podman build \
+  --build-arg UBUNTU_APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/ubuntu \
+  --build-arg UBUNTU_PORTS_APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports \
   --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
   --build-arg PIP_DEFAULT_TIMEOUT=300 \
   --build-arg PIP_RETRIES=10 \
@@ -86,8 +88,7 @@ bash deploy/base/scripts/build-app-base-image.sh --force --no-cache
 镜像中直接安装 Ubuntu 仓库提供的 FFmpeg，可在用户应用里通过 `exec.Command` 调用。
 
 - **来源**：Ubuntu 22.04 仓库
-- **常见能力**：转码、抽帧、音频处理、字幕/滤镜处理、`drawtext` 中文
-- **中文支持**：镜像内已安装 `fontconfig`、`Noto CJK`、`WenQuanYi Zen Hei` 字体，可直接配合 `drawtext` 使用；matplotlib 默认也会优先使用中文字体，避免标题、坐标轴、图例出现方框。
+- **常见能力**：转码、抽帧、音频处理、字幕/滤镜处理
 
 **注意**：具体编译选项和编码器能力以镜像内 `ffmpeg -version`、`ffmpeg -encoders`、`ffmpeg -codecs` 的实际输出为准；分发时仍需遵守 FFmpeg 及其启用编解码器的许可证要求。
 

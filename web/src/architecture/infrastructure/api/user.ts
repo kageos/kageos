@@ -20,6 +20,44 @@ export function updateUser(data: UpdateUserReq) {
   return put<UpdateUserResp>('/hr/api/v1/user/update', data)
 }
 
+export interface OpenAPITokenInfo {
+  id: number
+  name: string
+  token_prefix: string
+  expires_at?: string
+  revoked_at?: string
+  last_used_at?: string
+  last_used_ip?: string
+  last_used_user_agent?: string
+  created_at: string
+}
+
+export interface ListOpenAPITokensResp {
+  tokens: OpenAPITokenInfo[]
+}
+
+export interface CreateOpenAPITokenReq {
+  name: string
+  expires_at?: string
+}
+
+export interface CreateOpenAPITokenResp {
+  token: OpenAPITokenInfo
+  secret_token: string
+}
+
+export function listOpenAPITokens() {
+  return get<ListOpenAPITokensResp>('/hr/api/v1/user/openapi_tokens')
+}
+
+export function createOpenAPIToken(data: CreateOpenAPITokenReq) {
+  return post<CreateOpenAPITokenResp>('/hr/api/v1/user/openapi_tokens', data)
+}
+
+export function revokeOpenAPIToken(id: number) {
+  return post('/hr/api/v1/user/openapi_tokens/revoke', { id })
+}
+
 // 根据用户名精确查询
 export interface QueryUserResp {
   user: UserInfo
@@ -78,4 +116,3 @@ export interface GetUsersByDepartmentResp {
 export function getUsersByDepartment(departmentFullPath: string) {
   return get<GetUsersByDepartmentResp>('/hr/api/v1/user/department', { department_full_path: departmentFullPath })
 }
-

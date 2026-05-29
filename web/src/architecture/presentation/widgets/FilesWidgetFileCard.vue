@@ -453,4 +453,105 @@ function handleCardClick(): void {
   gap: 8px;
   margin-top: 10px;
 }
+
+@media (max-width: 700px) {
+  .file-list-item {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px;
+    min-width: 0;
+  }
+
+  .file-upload-user {
+    width: 100%;
+    min-width: 0;
+    margin: 0 0 8px;
+  }
+
+  .file-list-item:has(.file-upload-user) {
+    flex-wrap: wrap;
+  }
+
+  .file-thumbnail {
+    width: 44px;
+    height: 44px;
+    padding: 3px;
+    border-radius: 6px;
+  }
+
+  .thumbnail-icon {
+    font-size: 24px !important;
+  }
+
+  .file-info {
+    width: calc(100% - 54px);
+    min-width: 0;
+    max-width: 100%;
+    flex: 0 1 calc(100% - 54px);
+  }
+
+  .file-name {
+    width: 100%;
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-all;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .file-description-text,
+  .file-description-placeholder {
+    padding: 3px 6px;
+    word-break: break-word;
+  }
+
+  .file-meta {
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .file-meta :deep(.el-tag) {
+    max-width: 100%;
+  }
+
+  .file-upload-time {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .file-actions {
+    flex: 0 0 100%;
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+    padding-left: 54px;
+  }
+
+  .file-actions :deep(.el-button) {
+    min-width: 0;
+    margin-left: 0;
+    padding: 0 8px;
+  }
+
+  .file-description-editor {
+    padding: 0 10px 12px;
+  }
+
+  .description-editor-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .description-editor-actions :deep(.el-button) {
+    width: 100%;
+    margin-left: 0;
+  }
+}
 </style>

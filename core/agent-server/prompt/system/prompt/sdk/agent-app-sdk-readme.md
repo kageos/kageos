@@ -1287,7 +1287,7 @@ c := &chart.GaugeChart{
             Data:   []interface{}{completionRate},
             Config: map[string]interface{}{
                 "min": 0, "max": 100,
-                "detail": map[string]interface{}{"formatter": "{value}%", "fontSize": 20},
+                "detail": map[string]interface{}{"formatter": "{value}%"},
             },
         },
     },

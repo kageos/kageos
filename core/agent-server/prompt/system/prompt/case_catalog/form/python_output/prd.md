@@ -153,9 +153,9 @@ def kageos_entry(args, output_dir):
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.axis('off')
-    ax.text(0.5, 0.62, title, ha='center', va='center', fontsize=15, fontweight='bold')
-    ax.text(0.5, 0.38, '模式：Go 传绝对路径 → Python savefig；同机子进程；defer Close() 释放临时目录', ha='center', va='center', fontsize=9, linespacing=1.4)
-    ax.text(0.5, 0.12, 'read_doc: /system/prompt/case_catalog/form/python_output', ha='center', va='center', fontsize=8, color='#666')
+    ax.text(0.5, 0.62, title, ha='center', va='center')
+    ax.text(0.5, 0.38, '模式：Go 传绝对路径 → Python savefig；同机子进程；defer Close() 释放临时目录', ha='center', va='center', linespacing=1.4)
+    ax.text(0.5, 0.12, 'read_doc: /system/prompt/case_catalog/form/python_output', ha='center', va='center', color='#666')
 
     out_dir = os.path.dirname(image_output_path)
     if out_dir:

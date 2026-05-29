@@ -32,6 +32,7 @@
               :show-submit-button="true"
               :show-reset-button="true"
               :show-debug-button="false"
+              response-display-mode="dialog"
             />
           </div>
         </div>
@@ -208,29 +209,56 @@ onMounted(loadShare)
 @media (max-width: 700px) {
   .public-share-page {
     height: auto;
-    min-height: 100vh;
-    padding: 12px;
-    overflow: visible;
+    min-height: 100svh;
+    align-items: center;
+    padding: 18px 12px 28px;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .public-share-shell {
+    width: min(460px, 100%);
+    flex: 0 0 auto;
+    gap: 12px;
     overflow: visible;
   }
 
   .public-share-header {
     display: block;
-    padding: 22px 18px;
-    border-radius: 14px;
+    padding: 8px 8px 4px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    text-align: center;
+  }
+
+  .public-share-header::before,
+  .public-share-function-panel::before {
+    display: none;
+  }
+
+  .public-share-eyebrow {
+    margin-bottom: 6px;
+    font-size: 11px;
   }
 
   .public-share-header h1 {
-    font-size: 23px;
+    font-size: 22px;
+    line-height: 1.35;
+  }
+
+  .public-share-description {
+    margin-top: 8px;
+    font-size: 14px;
+    line-height: 1.55;
   }
 
   .public-share-meta {
-    margin-top: 12px;
+    margin-top: 10px;
     max-width: none;
-    text-align: left;
+    text-align: center;
+    font-size: 12px;
   }
 
   .public-share-renderer {
@@ -244,8 +272,28 @@ onMounted(loadShare)
 
   .public-share-renderer .function-runtime {
     overflow: visible;
-    padding: 14px;
+    padding: 10px;
   }
 
+  .public-share-renderer :deep(.form-view-main) {
+    padding: 20px 18px 22px;
+    border-radius: 16px;
+  }
+
+  .public-share-renderer :deep(.section-title) {
+    margin-bottom: 18px;
+    font-size: 18px;
+    text-align: center;
+  }
+
+  .public-share-renderer :deep(.form-actions-row) {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .public-share-renderer :deep(.form-actions-row .el-button) {
+    width: 100%;
+    margin-left: 0;
+  }
 }
 </style>
