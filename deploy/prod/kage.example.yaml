@@ -56,6 +56,17 @@ secrets:
 system_user:
   password: "replace-with-a-strong-system-password"
 
+company:
+  code: "default"
+  name: "Default"
+  logo_url: ""
+
+auth:
+  # admin_only: only system-created users can sign in.
+  # email_code: self-service registration requires complete SMTP settings.
+  # debug_code: local/internal testing only.
+  registration_mode: "admin_only"
+
 llms:
   # 可选。配置后 agent-server 启动时会幂等初始化到 LLM 管理页面。
   default: "main"
@@ -73,6 +84,7 @@ llms:
       admin: "system"
 
 smtp:
+  mode: "smtp"
   host: "smtp.qq.com"
   port: 587
   username: ""

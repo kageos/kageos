@@ -11,7 +11,7 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 )
 
-const filesInstruction = "以上 <files> 标签中的 JSON 为本轮用户上传的文件引用。files 字段的新标准是 bucket/object_key 字符串；提交表单或表格时，直接把 refs 字符串填到对应 files 字段。"
+const filesInstruction = "以上 <files> 标签中的 JSON 为本轮用户上传的文件引用。files 字段的新标准是 bucket/object_key 字符串；提交表单或表格时，直接把 refs 字符串填到对应 files 字段；调用 run_python 时把 refs 字符串填到工具顶层 input_files 参数，不要猜 URL。工具结果里的 files/output_files 会由工作台渲染成文件组件，最终回复不要手写下载文件名、Markdown 下载链接或伪 URL。"
 
 // userContentForStorage 入库用：只保留用户文字到 Content，文件引用字符串单独到 Files。
 // 返回 (content, filesRefs)；无文件时 filesRefs 为 nil。

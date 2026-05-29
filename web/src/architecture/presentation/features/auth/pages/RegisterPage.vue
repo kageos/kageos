@@ -222,8 +222,13 @@ const sendVerificationCode = async () => {
 
   try {
     sendingCode.value = true
-    await sendEmailCode(registerForm.email)
-    ElMessage.success(t('auth.emailCodeSent'))
+    const resp = await sendEmailCode(registerForm.email)
+    if (resp?.debug_code) {
+      registerForm.code = resp.debug_code
+      ElMessage.success(`Dev verification code: ${resp.debug_code}`)
+    } else {
+      ElMessage.success(t('auth.emailCodeSent'))
+    }
 
     // 开始倒计时
     countdown.value = 60

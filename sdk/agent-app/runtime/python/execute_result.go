@@ -33,7 +33,7 @@ type pythonRunOutput struct {
 //
 // Python 代码必须定义固定入口函数:
 //
-//	def agentos_entry(args, output_dir): ...
+//	def kageos_entry(args, output_dir): ...
 //
 // 其中:
 // - args: Go 侧 WithRequest 传入的对象（dict）
@@ -111,7 +111,7 @@ func (e *Executor) prepareExecutionWorkspace(ctx context.Context) (*pythonExecut
 		pythonPath: pythonPath,
 		workDir:    workDir,
 		outputDir:  outputDir,
-		resultPath: filepath.Join(workDir, ".agentos", "result.json"),
+		resultPath: filepath.Join(workDir, ".kageos", "result.json"),
 		scriptPath: scriptPath,
 	}, nil
 }
@@ -148,8 +148,8 @@ func (e *Executor) runExecutionCommand(ctx context.Context, workspace *pythonExe
 	cmd := exec.CommandContext(ctx, workspace.pythonPath, workspace.scriptPath, string(requestJSON))
 	cmd.Dir = workspace.workDir
 	cmd.Env = append(os.Environ(),
-		"AGENTOS_OUTPUT_DIR="+workspace.outputDir,
-		"AGENTOS_RESULT_PATH="+workspace.resultPath,
+		"KAGEOS_OUTPUT_DIR="+workspace.outputDir,
+		"KAGEOS_RESULT_PATH="+workspace.resultPath,
 	)
 
 	var stdoutBuf bytes.Buffer

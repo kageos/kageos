@@ -27,7 +27,7 @@ func (s *Server) setupRoutes() {
 
 	// 认证相关路由（不需要JWT验证）
 	auth := apiV1.Group("/auth")
-	authHandler := v1.NewAuth(s.authService, s.emailService, s.userService, s.departmentService)
+	authHandler := v1.NewAuth(s.authService, s.emailService, s.settingsService, s.userService, s.departmentService)
 	auth.POST("/send_email_code", authHandler.SendEmailCode)
 	auth.POST("/register", authHandler.Register)
 	auth.GET("/companies/search", authHandler.SearchCompanies)
@@ -45,6 +45,16 @@ func (s *Server) setupRoutes() {
 	user.GET("/query", userHandler.QueryUser)
 	user.GET("/search_fuzzy", userHandler.SearchUsersFuzzy)
 	user.PUT("/update", userHandler.UpdateUser)
+	user.GET("/openapi_tokens", userHandler.ListOpenAPITokens)
+	user.POST("/openapi_tokens", userHandler.CreateOpenAPIToken)
+	user.POST("/openapi_tokens/revoke", userHandler.RevokeOpenAPIToken)
+
+	systemSettings := apiV1.Group("/system/settings")
+	systemSettings.Use(middleware2.JWTAuth())
+	systemSettingsHandler := v1.NewSystemSettings(s.settingsService)
+	systemSettings.GET("", systemSettingsHandler.Get)
+	systemSettings.PUT("", systemSettingsHandler.Update)
+	systemSettings.POST("/email/test", systemSettingsHandler.TestEmail)
 
 	// 批量获取用户（需要JWT验证）
 	users := apiV1.Group("/users")

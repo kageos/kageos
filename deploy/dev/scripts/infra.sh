@@ -2,16 +2,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-ENGINE="${DEV_RUNTIME:-auto}"
+ENGINE="${DEV_RUNTIME:-podman}"
 ENV_FILE="$ROOT/.kageos/dev/env/kageos.env"
 
 pick_engine() {
-  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-    echo docker
-    return 0
-  fi
   if command -v podman >/dev/null 2>&1 && podman compose version >/dev/null 2>&1; then
     echo podman
+    return 0
+  fi
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    echo docker
     return 0
   fi
   echo "ERROR: 未找到 docker compose 或 podman compose，请先安装。" >&2

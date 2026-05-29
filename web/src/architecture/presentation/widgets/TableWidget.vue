@@ -27,9 +27,11 @@
           :key="itemField.code"
           :prop="itemField.code"
           :label="itemField.name"
+          class-name="table-widget-data-column"
           :min-width="getColumnWidth(itemField)"
           :align="getColumnAlign(itemField)"
           header-align="left"
+          show-overflow-tooltip
         >
           <template #default="{ row, $index }">
             <template v-if="isNestedContainerField(itemField)">
@@ -126,9 +128,11 @@
               :key="itemField.code"
               :prop="itemField.code"
               :label="itemField.name"
+              class-name="table-widget-data-column"
               :min-width="getColumnWidth(itemField)"
               :align="getColumnAlign(itemField)"
               header-align="left"
+              show-overflow-tooltip
             >
               <template #default="{ row, $index }">
                 <!-- 
@@ -597,6 +601,59 @@ defineExpose({
   min-height: 52px;
   padding-top: 12px;
   padding-bottom: 12px;
+}
+
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .cell) {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .cell > *) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .input-widget),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .text-widget),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .table-cell-text),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .formatted-content),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .table-cell-value),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .text-content),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .code-content),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .html-table-cell),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .markdown-table-cell),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .csv-preview),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .csv-preview-text),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .html-content-preview),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .files-display-text) {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .table-cell-multiselect),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .files-table-cell),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .files-select-display) {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .formatted-content),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .text-content),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .code-content),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .html-table-cell),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .markdown-table-cell) {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 :deep(.table-widget-table .is-editing-row > td) {

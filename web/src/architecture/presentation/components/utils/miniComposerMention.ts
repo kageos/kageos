@@ -14,6 +14,15 @@ export interface MiniComposerMentionReplacement {
   cursor: number
 }
 
+export interface MiniComposerMentionToken {
+  kind: MiniComposerMentionKind
+  trigger: MiniComposerMentionTrigger
+  raw: string
+  value: string
+  start: number
+  end: number
+}
+
 function normalizeCursor(text: string, cursor: number | null | undefined): number {
   if (typeof cursor !== 'number' || Number.isNaN(cursor)) {
     return text.length
@@ -68,4 +77,32 @@ export function replaceMiniComposerMention(
     value,
     cursor: before.length + insertText.length
   }
+}
+
+export function findMiniComposerMentionTokens(text: string): MiniComposerMentionToken[] {
+  const tokens: MiniComposerMentionToken[] = []
+  const matcher = /(^|\s)([@/][^\s]+)/g
+  let match: RegExpExecArray | null
+
+  while ((match = matcher.exec(text)) !== null) {
+    const prefix = match[1] || ''
+    const raw = match[2] || ''
+    const trigger = raw[0]
+
+    if ((trigger !== '@' && trigger !== '/') || raw.length <= 1 || raw.startsWith('//')) {
+      continue
+    }
+
+    const start = match.index + prefix.length
+    tokens.push({
+      kind: trigger === '@' ? 'user' : 'resource',
+      trigger,
+      raw,
+      value: raw.slice(1),
+      start,
+      end: start + raw.length
+    })
+  }
+
+  return tokens
 }

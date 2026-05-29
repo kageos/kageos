@@ -88,6 +88,15 @@
                 <span class="user-menu-desc">{{ t('workspace.llmDesc') }}</span>
               </span>
             </el-dropdown-item>
+            <el-dropdown-item v-if="isSystemUser" command="system-settings" class="user-dropdown-action">
+              <span class="user-menu-icon user-menu-icon--profile">
+                <el-icon><Setting /></el-icon>
+              </span>
+              <span class="user-menu-copy">
+                <span class="user-menu-title">System settings</span>
+                <span class="user-menu-desc">Email and registration policy</span>
+              </span>
+            </el-dropdown-item>
 
             <el-dropdown-item
               v-if="isDevelopment"
@@ -196,6 +205,7 @@ const { t } = useI18n()
 // 用户相关
 const userName = computed(() => authStore.userName || 'User')
 const userEmail = computed(() => authStore.userEmail || '')
+const isSystemUser = computed(() => userName.value === 'system')
 const userAvatar = computed(() => authStore.user?.avatar || '')
 const userInitials = computed(() => {
   const name = userName.value
@@ -236,6 +246,9 @@ const handleUserCommand = (command: string) => {
       break
     case 'agent':
       router.push('/agent/llm')
+      break
+    case 'system-settings':
+      router.push('/system/settings')
       break
     case 'debug':
       showDebugDialog.value = true

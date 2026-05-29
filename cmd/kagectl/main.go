@@ -52,6 +52,7 @@ type Config struct {
 	NATS       NATSConfig       `yaml:"nats"`
 	MinIO      MinIOConfig      `yaml:"minio"`
 	Company    CompanyConfig    `yaml:"company"`
+	Auth       AuthConfig       `yaml:"auth"`
 	Secrets    SecretsConfig    `yaml:"secrets"`
 	SystemUser SystemUserConfig `yaml:"system_user"`
 	LLMs       LLMSeedsConfig   `yaml:"llms"`
@@ -120,6 +121,10 @@ type CompanyConfig struct {
 	LogoURL string `yaml:"logo_url"`
 }
 
+type AuthConfig struct {
+	RegistrationMode string `yaml:"registration_mode"`
+}
+
 type SecretsConfig struct {
 	JWTSecret              string `yaml:"jwt_secret"`
 	GeneratedByKageCtl     bool   `yaml:"generated_by_kagectl"`
@@ -151,6 +156,7 @@ type LLMSeedConfig struct {
 }
 
 type SMTPConfig struct {
+	Mode     string `yaml:"mode"`
 	Host     string `yaml:"host"`
 	Port     int    `yaml:"port"`
 	Username string `yaml:"username"`
@@ -279,11 +285,13 @@ type uninstallOptions struct {
 }
 
 type initOptions struct {
-	Force       bool
-	BaseURL     string
-	MySQLMode   string
-	CompanyCode string
-	CompanyName string
+	Force            bool
+	BaseURL          string
+	MySQLMode        string
+	CompanyCode      string
+	CompanyName      string
+	RegistrationMode string
+	SMTPMode         string
 }
 
 type bootstrapOptions struct {
@@ -454,11 +462,29 @@ func parseInitFlags(command string, args []string) (initOptions, error) {
 				return opts, fmt.Errorf("--company-name requires a value")
 			}
 			opts.CompanyName = strings.TrimSpace(args[i])
+		case "--registration-mode":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--registration-mode requires admin_only, email_code, or debug_code")
+			}
+			opts.RegistrationMode = strings.TrimSpace(args[i])
+		case "--smtp-mode":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--smtp-mode requires smtp or log")
+			}
+			opts.SMTPMode = strings.TrimSpace(args[i])
 		default:
 			return opts, fmt.Errorf("%s does not support argument %q", command, args[i])
 		}
 	}
 	if err := validateMode("mysql.mode", opts.MySQLMode); err != nil {
+		return opts, err
+	}
+	if err := validateRegistrationMode(opts.RegistrationMode); err != nil {
+		return opts, err
+	}
+	if err := validateSMTPMode(opts.SMTPMode); err != nil {
 		return opts, err
 	}
 	return opts, nil
@@ -482,6 +508,18 @@ func parseBootstrapFlags(args []string) (bootstrapOptions, error) {
 				return opts, fmt.Errorf("--mysql-mode requires a value")
 			}
 			opts.Init.MySQLMode = args[i]
+		case "--registration-mode":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--registration-mode requires admin_only, email_code, or debug_code")
+			}
+			opts.Init.RegistrationMode = strings.TrimSpace(args[i])
+		case "--smtp-mode":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--smtp-mode requires smtp or log")
+			}
+			opts.Init.SMTPMode = strings.TrimSpace(args[i])
 		case "--image", "--no-build", "--skip-verify":
 			opts.UpArgs = append(opts.UpArgs, args[i])
 		case "--wait-timeout":
@@ -495,6 +533,12 @@ func parseBootstrapFlags(args []string) (bootstrapOptions, error) {
 		}
 	}
 	if err := validateMode("mysql.mode", opts.Init.MySQLMode); err != nil {
+		return opts, err
+	}
+	if err := validateRegistrationMode(opts.Init.RegistrationMode); err != nil {
+		return opts, err
+	}
+	if err := validateSMTPMode(opts.Init.SMTPMode); err != nil {
 		return opts, err
 	}
 	if _, err := parseUpFlags(opts.UpArgs); err != nil {
@@ -528,7 +572,7 @@ func parseBuildAppBaseFlags(args []string) (buildAppBaseOptions, error) {
 }
 
 func parseInitDevFlags(args []string) (initDevOptions, error) {
-	opts := initDevOptions{Engine: "auto"}
+	opts := initDevOptions{Engine: "podman"}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--engine":
@@ -567,7 +611,7 @@ func parseInitDevFlags(args []string) (initDevOptions, error) {
 			}
 			opts.CompanyName = strings.TrimSpace(args[i])
 		default:
-			if opts.Engine == "auto" && (args[i] == "auto" || args[i] == "docker" || args[i] == "podman") {
+			if args[i] == "auto" || args[i] == "docker" || args[i] == "podman" {
 				opts.Engine = args[i]
 				continue
 			}
@@ -581,12 +625,12 @@ func parseInitDevFlags(args []string) (initDevOptions, error) {
 }
 
 func printUsage() {
-	fmt.Println(`kagectl manages KageOS production deployment files.
+	fmt.Println(`kagectl manages Kageos production deployment files.
 
 Usage:
-  kagectl init [--force] [--base-url URL] [--mysql-mode bundled|external] [--company-code CODE] [--company-name NAME]
-  kagectl init-dev [--engine auto|docker|podman] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME]
-  kagectl bootstrap --base-url URL [--mysql-mode bundled|external] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
+  kagectl init [--force] [--base-url URL] [--mysql-mode bundled|external] [--company-code CODE] [--company-name NAME] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log]
+  kagectl init-dev [--engine podman|docker|auto] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME]
+  kagectl bootstrap --base-url URL [--mysql-mode bundled|external] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
   kagectl build-app-base [--image IMAGE] [--force] [--no-cache]
   kagectl render [--config .kageos/prod/kage.yaml]
   kagectl layers [--config .kageos/prod/kage.yaml] [--json]
@@ -675,14 +719,19 @@ func cmdInitDev(paths Paths, args []string) error {
 	}
 	if opts.SkipBase {
 		fmt.Println("==> skip app base image (--skip-base)")
+		printDevInitSummary(paths, opts)
 		return nil
 	}
 	fmt.Println("==> ensure app base image")
-	return runBuildAppBaseScript(paths, buildAppBaseOptions{
+	if err := runBuildAppBaseScript(paths, buildAppBaseOptions{
 		Image:   opts.BaseImage,
 		Force:   opts.BaseForce,
 		NoCache: opts.BaseNoCache,
-	})
+	}); err != nil {
+		return err
+	}
+	printDevInitSummary(paths, opts)
+	return nil
 }
 
 func cmdBootstrap(paths Paths, args []string) error {
@@ -730,6 +779,12 @@ func writeInitialConfig(paths Paths, opts initOptions) (bool, error) {
 	if opts.CompanyName != "" {
 		cfg.Company.Name = opts.CompanyName
 	}
+	if opts.RegistrationMode != "" {
+		cfg.Auth.RegistrationMode = opts.RegistrationMode
+	}
+	if opts.SMTPMode != "" {
+		cfg.SMTP.Mode = opts.SMTPMode
+	}
 	applyEnvOverrides(&cfg)
 	if opts.MySQLMode == "external" {
 		cfg.MySQL.Host = ""
@@ -749,6 +804,7 @@ func writeInitialConfig(paths Paths, opts initOptions) (bool, error) {
 	}
 
 	fmt.Printf("created config: %s\n", paths.ConfigPath)
+	printProdInitSummary(paths, cfg)
 	return true, nil
 }
 
@@ -1485,6 +1541,9 @@ func defaultConfig() (Config, error) {
 			Code: "default",
 			Name: "Default",
 		},
+		Auth: AuthConfig{
+			RegistrationMode: "admin_only",
+		},
 		Secrets: SecretsConfig{
 			JWTSecret:              jwt,
 			GeneratedByKageCtl:     true,
@@ -1494,6 +1553,7 @@ func defaultConfig() (Config, error) {
 			Password: systemUserPass,
 		},
 		SMTP: SMTPConfig{
+			Mode:     "smtp",
 			Host:     "smtp.qq.com",
 			Port:     587,
 			FromName: "Kageos",
@@ -1554,6 +1614,9 @@ func defaultDevDeploymentConfig(secrets devSecrets) Config {
 			Code: "default",
 			Name: "Default",
 		},
+		Auth: AuthConfig{
+			RegistrationMode: "debug_code",
+		},
 		Secrets: SecretsConfig{
 			JWTSecret:              secrets.JWTSecret,
 			GeneratedByKageCtl:     true,
@@ -1561,6 +1624,7 @@ func defaultDevDeploymentConfig(secrets devSecrets) Config {
 		},
 		SystemUser: SystemUserConfig{Password: secrets.SystemUserPassword},
 		SMTP: SMTPConfig{
+			Mode:     "log",
 			Host:     "smtp.qq.com",
 			Port:     587,
 			FromName: "Kageos",
@@ -1601,6 +1665,13 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Company.Name == "" {
 		cfg.Company.Name = "Default"
+	}
+	if cfg.Auth.RegistrationMode == "" {
+		if cfg.SMTP.Mode == "log" {
+			cfg.Auth.RegistrationMode = "debug_code"
+		} else {
+			cfg.Auth.RegistrationMode = "admin_only"
+		}
 	}
 	if cfg.MySQL.Mode == "" {
 		cfg.MySQL.Mode = "bundled"
@@ -1650,6 +1721,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.SMTP.Host == "" {
 		cfg.SMTP.Host = "smtp.qq.com"
 	}
+	if cfg.SMTP.Mode == "" {
+		cfg.SMTP.Mode = "smtp"
+	}
 	if cfg.SMTP.Port == 0 {
 		cfg.SMTP.Port = 587
 	}
@@ -1673,6 +1747,12 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := strings.TrimSpace(os.Getenv("KAGEOS_COMPANY_LOGO_URL")); v != "" {
 		cfg.Company.LogoURL = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_REGISTRATION_MODE")); v != "" {
+		cfg.Auth.RegistrationMode = v
+	}
+	if v := strings.TrimSpace(os.Getenv("SMTP_MODE")); v != "" {
+		cfg.SMTP.Mode = v
 	}
 	if v := strings.TrimSpace(os.Getenv("KAGEOS_TLS_MODE")); v != "" {
 		cfg.Site.TLSMode = v
@@ -1825,6 +1905,24 @@ func validateConfig(rt RuntimeConfig) error {
 	if strings.TrimSpace(rt.Company.Name) == "" {
 		errs = append(errs, fmt.Errorf("company.name is required"))
 	}
+	if err := validateRegistrationMode(rt.Auth.RegistrationMode); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateSMTPMode(rt.SMTP.Mode); err != nil {
+		errs = append(errs, err)
+	}
+	if rt.Auth.RegistrationMode == "email_code" && rt.SMTP.Mode != "smtp" {
+		errs = append(errs, fmt.Errorf("auth.registration_mode=email_code requires smtp.mode=smtp"))
+	}
+	if rt.Auth.RegistrationMode == "email_code" {
+		if strings.TrimSpace(rt.SMTP.Host) == "" ||
+			rt.SMTP.Port == 0 ||
+			strings.TrimSpace(rt.SMTP.Username) == "" ||
+			strings.TrimSpace(rt.SMTP.Password) == "" ||
+			strings.TrimSpace(rt.SMTP.From) == "" {
+			errs = append(errs, fmt.Errorf("auth.registration_mode=email_code requires complete smtp host/port/username/password/from"))
+		}
+	}
 	if len(rt.Secrets.JWTSecret) < 32 {
 		errs = append(errs, fmt.Errorf("secrets.jwt_secret must be at least 32 chars"))
 	}
@@ -1835,6 +1933,24 @@ func validateConfig(rt RuntimeConfig) error {
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
+}
+
+func validateRegistrationMode(mode string) error {
+	switch strings.TrimSpace(mode) {
+	case "", "admin_only", "email_code", "debug_code":
+		return nil
+	default:
+		return fmt.Errorf("auth.registration_mode must be admin_only, email_code, or debug_code")
+	}
+}
+
+func validateSMTPMode(mode string) error {
+	switch strings.TrimSpace(mode) {
+	case "", "smtp", "log":
+		return nil
+	default:
+		return fmt.Errorf("smtp.mode must be smtp or log")
+	}
 }
 
 func uniqueLLMSeedEnvVars(configs []LLMSeedConfig) []string {
@@ -2020,6 +2136,75 @@ func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, company
 	return nil
 }
 
+func printDevInitSummary(paths Paths, opts initDevOptions) {
+	envPath := filepath.Join(paths.RepoRoot, ".kageos", "dev", "env", "kageos.env")
+	values, err := readEnvFile(envPath)
+	if err != nil {
+		fmt.Printf("WARN: unable to read dev summary env file: %v\n", err)
+		return
+	}
+
+	baseImage := opts.BaseImage
+	if baseImage == "" {
+		baseImage = values["KAGEOS_APP_BASE_IMAGE"]
+	}
+	smtpStatus := "not configured"
+	if strings.TrimSpace(values["SMTP_MODE"]) == "log" {
+		smtpStatus = "log mode"
+	} else if strings.TrimSpace(values["SMTP_HOST"]) != "" &&
+		strings.TrimSpace(values["SMTP_USERNAME"]) != "" &&
+		strings.TrimSpace(values["SMTP_PASSWORD"]) != "" &&
+		strings.TrimSpace(values["SMTP_FROM"]) != "" {
+		smtpStatus = "configured"
+	}
+
+	rows := [][2]string{
+		{"Config dir", filepath.Join(paths.RepoRoot, defaultDevConfig)},
+		{"Env file", envPath},
+		{"Engine", opts.Engine},
+		{"App base image", baseImage},
+		{"Admin username", "system"},
+		{"Admin password", values["SYSTEM_USER_PASSWORD"]},
+		{"MySQL host", values["MYSQL_HOST"]},
+		{"MySQL port", values["MYSQL_PORT"]},
+		{"MySQL user", "root"},
+		{"MySQL password", values["MYSQL_ROOT_PASSWORD"]},
+		{"MySQL databases", "app-server, agent-server, app-storage, hr-server"},
+		{"NATS URL", values["NATS_URL"]},
+		{"NATS user", values["NATS_SEED_USER"]},
+		{"NATS password", values["NATS_SEED_PASSWORD"]},
+		{"MinIO endpoint", values["MINIO_ENDPOINT"]},
+		{"MinIO root user", values["MINIO_ROOT_USER"]},
+		{"MinIO root password", values["MINIO_ROOT_PASSWORD"]},
+		{"JWT secret", values["JWT_SECRET"]},
+		{"Company code", values["KAGEOS_COMPANY_CODE"]},
+		{"Company name", strings.Trim(values["KAGEOS_COMPANY_NAME"], `"'`)},
+		{"SMTP mode", values["SMTP_MODE"]},
+		{"SMTP status", smtpStatus},
+		{"SMTP host", values["SMTP_HOST"]},
+		{"SMTP username", values["SMTP_USERNAME"]},
+	}
+	fmt.Println()
+	fmt.Println("Kageos dev initialization summary")
+	printPlainTable("Item", "Value", rows)
+	fmt.Println()
+	fmt.Println("Tip: local dev uses SMTP_MODE=log, so verification codes are printed in logs and returned as debug_code. Set SMTP_MODE=smtp and configure SMTP_* when real email delivery is required.")
+}
+
+func printPlainTable(leftHeader, rightHeader string, rows [][2]string) {
+	width := len(leftHeader)
+	for _, row := range rows {
+		if len(row[0]) > width {
+			width = len(row[0])
+		}
+	}
+	fmt.Printf("%-*s  %s\n", width, leftHeader, rightHeader)
+	fmt.Printf("%s  %s\n", strings.Repeat("-", width), strings.Repeat("-", 48))
+	for _, row := range rows {
+		fmt.Printf("%-*s  %s\n", width, row[0], row[1])
+	}
+}
+
 func loadOrCreateDevSecrets(stateDir, envPath string, regen bool) (devSecrets, error) {
 	if !regen {
 		if values, err := readEnvFile(envPath); err == nil {
@@ -2181,7 +2366,7 @@ func writeDeploymentSummary(rt RuntimeConfig, status string) error {
 func deploymentSummaryMarkdown(rt RuntimeConfig, status string) string {
 	rows := deploymentSummaryRows(rt, status)
 	var b strings.Builder
-	b.WriteString("# KageOS Deployment Summary\n\n")
+	b.WriteString("# Kageos Deployment Summary\n\n")
 	b.WriteString("| Item | Value |\n")
 	b.WriteString("|---|---|\n")
 	for _, row := range rows {
@@ -2204,7 +2389,7 @@ func printDeploymentSummary(rt RuntimeConfig, status string) {
 	}
 
 	fmt.Println()
-	fmt.Println("KageOS deployment summary")
+	fmt.Println("Kageos deployment summary")
 	fmt.Printf("%-*s  %s\n", width, "Item", "Value")
 	fmt.Printf("%s  %s\n", strings.Repeat("-", width), strings.Repeat("-", 48))
 	for _, row := range rows {
@@ -2218,6 +2403,23 @@ func deploymentSummaryRows(rt RuntimeConfig, status string) [][2]string {
 		{"Access URL", rt.Site.BaseURL},
 		{"Admin username", "system"},
 		{"Initial password", rt.SystemUser.Password},
+		{"Registration mode", rt.Auth.RegistrationMode},
+		{"SMTP mode", rt.SMTP.Mode},
+		{"SMTP status", smtpStatus(rt.SMTP)},
+		{"Company code", rt.Company.Code},
+		{"Company name", rt.Company.Name},
+		{"MySQL mode", rt.MySQL.Mode},
+		{"MySQL address", rt.MySQLAddress},
+		{"MySQL user", rt.MySQL.User},
+		{"MySQL password", rt.MySQL.Password},
+		{"NATS URL", redactURLCredentials(rt.NATSURL)},
+		{"NATS user", rt.NATSAuthUser},
+		{"NATS password", rt.NATSAuthPassword},
+		{"MinIO endpoint", rt.MinIOEndpoint},
+		{"MinIO access key", rt.MinIO.AccessKey},
+		{"MinIO secret key", rt.MinIO.SecretKey},
+		{"JWT secret", rt.Secrets.JWTSecret},
+		{"App base image", rt.Images.AppBase},
 		{"Main config", rt.Paths.ConfigPath},
 		{"Compose file", rt.ComposeConfigPath},
 		{"Generated config dir", filepath.Join(rt.Paths.GeneratedDir, "config")},
@@ -2228,6 +2430,57 @@ func deploymentSummaryRows(rt RuntimeConfig, status string) [][2]string {
 		{"Logs command", fmt.Sprintf("go run ./cmd/kagectl logs --config %s main", rt.Paths.ConfigPath)},
 		{"Stop command", fmt.Sprintf("go run ./cmd/kagectl down --config %s", rt.Paths.ConfigPath)},
 	}
+}
+
+func printProdInitSummary(paths Paths, cfg Config) {
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		fmt.Printf("WARN: unable to build prod init summary: %v\n", err)
+		return
+	}
+	rows := [][2]string{
+		{"Config file", paths.ConfigPath},
+		{"Access URL", cfg.Site.BaseURL},
+		{"Admin username", "system"},
+		{"Initial password", cfg.SystemUser.Password},
+		{"Registration mode", cfg.Auth.RegistrationMode},
+		{"SMTP mode", cfg.SMTP.Mode},
+		{"SMTP status", smtpStatus(cfg.SMTP)},
+		{"Company code", cfg.Company.Code},
+		{"Company name", cfg.Company.Name},
+		{"MySQL mode", cfg.MySQL.Mode},
+		{"MySQL address", rt.MySQLAddress},
+		{"MySQL user", cfg.MySQL.User},
+		{"MySQL password", cfg.MySQL.Password},
+		{"NATS URL", redactURLCredentials(natsURLForMain(cfg))},
+		{"NATS user", cfg.NATS.User},
+		{"NATS password", cfg.NATS.Password},
+		{"MinIO endpoint", cfg.MinIO.Endpoint},
+		{"MinIO access key", cfg.MinIO.AccessKey},
+		{"MinIO secret key", cfg.MinIO.SecretKey},
+		{"JWT secret", cfg.Secrets.JWTSecret},
+		{"Storage root", cfg.Storage.Root},
+	}
+	fmt.Println()
+	fmt.Println("Kageos production initialization summary")
+	printPlainTable("Item", "Value", rows)
+	fmt.Println()
+	fmt.Println("Next: run `go run ./cmd/kagectl doctor --config .kageos/prod/kage.yaml`, then `go run ./cmd/kagectl up --config .kageos/prod/kage.yaml`.")
+	fmt.Println("Tip: production defaults to auth.registration_mode=admin_only. Log in as system, configure SMTP in System settings, then enable email_code registration if public signup is required.")
+}
+
+func smtpStatus(cfg SMTPConfig) string {
+	if cfg.Mode == "log" {
+		return "log mode"
+	}
+	if strings.TrimSpace(cfg.Host) != "" &&
+		cfg.Port > 0 &&
+		strings.TrimSpace(cfg.Username) != "" &&
+		strings.TrimSpace(cfg.Password) != "" &&
+		strings.TrimSpace(cfg.From) != "" {
+		return "configured"
+	}
+	return "not configured"
 }
 
 func renderTemplate(text string, data any) string {

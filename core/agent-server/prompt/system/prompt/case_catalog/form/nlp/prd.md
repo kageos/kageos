@@ -179,7 +179,7 @@ func buildJiebaSegmentCode() string {
 	code := `import jieba
 import jieba.analyse
 
-def agentos_entry(args, output_dir):
+def kageos_entry(args, output_dir):
     text = args["text"]
     cut_all = args["cut_all"]
     use_hmm = args["use_hmm"]

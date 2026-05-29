@@ -92,7 +92,7 @@ export function getUserInfo() {
 export function sendEmailCode(email: string, codeType: 'register' | 'forgot_password' = 'register') {
   // 将 codeType 作为查询参数传递
   const url = `/hr/api/v1/auth/send_email_code?type=${codeType}`
-  return post(url, { email })
+  return post<{ debug_code?: string }>(url, { email })
 }
 
 // 忘记密码（简化版：直接通过验证码重置密码）

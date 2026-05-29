@@ -23,7 +23,7 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   height: 500,
-  placeholder: '请输入内容，支持拖拽文件到此处或粘贴图片/文件上传',
+  placeholder: '开始写文档...',
   disabled: false
 })
 
@@ -241,222 +241,250 @@ defineExpose({
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
-/* ========== 主题适配 ========== */
-
-/* 主容器 */
 :deep(.vditor) {
-  border-radius: var(--border-radius-base);
-  border-color: var(--border-base);
-  background-color: var(--bg-primary);
-  height: 100%; /* 确保占据容器高度 */
+  --doc-editor-surface: var(--app-shell-panel-bg, #ffffff);
+  --doc-editor-muted: var(--el-text-color-secondary, #64748b);
+  --doc-editor-subtle: color-mix(in srgb, var(--bg-secondary, #f8fafc) 58%, var(--doc-editor-surface));
+  --doc-editor-line: color-mix(in srgb, var(--border-base, #d8dee8) 76%, transparent);
+  --doc-editor-ink: var(--el-text-color-primary, #111827);
+
+  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--doc-editor-line);
+  border-radius: 8px;
+  background: var(--doc-editor-surface);
+  box-shadow: 0 18px 55px -46px rgba(15, 23, 42, 0.72);
 }
 
-/* 工具栏 */
 :deep(.vditor-toolbar) {
-  background-color: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-base);
-  padding: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-height: 46px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--doc-editor-line);
+  background: color-mix(in srgb, var(--doc-editor-surface) 88%, var(--doc-editor-subtle));
 }
 
 :deep(.vditor-toolbar button) {
-  color: var(--text-primary);
-  transition: all 0.2s ease;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  border-radius: 6px;
+  color: var(--doc-editor-muted);
+  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+:deep(.vditor-toolbar button svg) {
+  width: 15px;
+  height: 15px;
 }
 
 :deep(.vditor-toolbar button:hover) {
-  background-color: var(--bg-tertiary);
-  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary, #1677ff) 9%, transparent);
+  color: var(--color-primary, #1677ff);
 }
 
 :deep(.vditor-toolbar button.vditor-toolbar__item--current) {
-  background-color: var(--color-primary);
-  color: white;
+  background: color-mix(in srgb, var(--color-primary, #1677ff) 13%, transparent);
+  color: var(--color-primary, #1677ff);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary, #1677ff) 28%, transparent);
 }
 
 :deep(.vditor-toolbar .vditor-tooltipped::after) {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-base);
+  background: var(--doc-editor-ink);
+  color: var(--bg-primary, #ffffff);
+  border: none;
+  border-radius: 6px;
 }
 
-/* 分隔线 */
 :deep(.vditor-toolbar .vditor-toolbar__divider) {
-  background-color: var(--border-base);
+  width: 1px;
+  height: 18px;
+  margin: 0 5px;
+  background: var(--doc-editor-line);
 }
 
-/* 编辑区（IR 模式） */
-:deep(.vditor-ir) {
-  background-color: var(--bg-primary);
-  flex: 1; /* 占据剩余空间 */
+:deep(.vditor-ir),
+:deep(.vditor-wysiwyg),
+:deep(.vditor-sv),
+:deep(.vditor-preview) {
+  flex: 1;
+  min-height: 0;
+  background: var(--doc-editor-surface);
+}
+
+:deep(.vditor-ir),
+:deep(.vditor-wysiwyg),
+:deep(.vditor-preview) {
   overflow-y: auto;
 }
 
-:deep(.vditor-ir pre.vditor-reset) {
-  color: var(--text-primary);
-  padding: 16px;
-}
-
-/* 光标 */
-:deep(.vditor-ir .vditor-reset .vditor-ir__marker) {
-  color: var(--text-secondary);
-}
-
-/* Markdown 渲染样式适配 */
-:deep(.vditor-ir .vditor-reset) {
-  /* 标题 */
-  h1, h2, h3, h4, h5, h6 {
-    color: var(--text-primary);
-    border-bottom-color: var(--border-base);
-  }
-  
-  /* 段落和文本 */
-  p, li {
-    color: var(--text-regular);
-  }
-  
-  /* 链接 */
-  a {
-    color: var(--color-primary);
-    
-    &:hover {
-      opacity: 0.8;
-    }
-  }
-  
-  /* 行内代码 */
-  code:not(.hljs) {
-    background: var(--bg-tertiary);
-    color: var(--color-primary);
-    font-weight: 500;
-  }
-  
-  /* 代码块 */
-  pre > code {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-base);
-  }
-  
-  /* 引用块 */
-  blockquote {
-    border-left-color: var(--color-primary);
-    background: var(--bg-secondary);
-    color: var(--text-regular);
-  }
-  
-  /* 表格 */
-  table {
-    th {
-      background: var(--bg-secondary);
-      color: var(--text-primary);
-      border-color: var(--border-base);
-    }
-    
-    td {
-      color: var(--text-regular);
-      border-color: var(--border-base);
-    }
-  }
-  
-  /* 分割线 */
-  hr {
-    background-color: var(--border-base);
-  }
-}
-
-/* 预览区 */
-:deep(.vditor-preview) {
-  background-color: var(--bg-primary);
-}
-
+:deep(.vditor-ir pre.vditor-reset),
+:deep(.vditor-wysiwyg pre.vditor-reset),
 :deep(.vditor-preview .vditor-reset) {
-  color: var(--text-primary);
-  
-  /* 复用上面的样式 */
-  h1, h2, h3, h4, h5, h6 {
-    color: var(--text-primary);
-    border-bottom-color: var(--border-base);
-  }
-  
-  p, li {
-    color: var(--text-regular);
-  }
-  
-  a {
-    color: var(--color-primary);
-  }
-  
-  code:not(.hljs) {
-    background: var(--bg-tertiary);
-    color: var(--color-primary);
-    font-weight: 500;
-  }
-  
-  pre {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-base);
-  }
-  
-  blockquote {
-    border-left-color: var(--color-primary);
-    background: var(--bg-secondary);
-  }
-  
-  table th {
-    background: var(--bg-secondary);
-    border-color: var(--border-base);
-  }
-  
-  table td {
-    border-color: var(--border-base);
-  }
+  max-width: 820px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 42px clamp(24px, 5vw, 64px) 72px;
+  color: var(--doc-editor-ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.75;
 }
 
-/* 底部状态栏 */
+:deep(.vditor-sv .vditor-input) {
+  padding: 30px clamp(22px, 4vw, 44px);
+  background: var(--doc-editor-surface);
+  color: var(--doc-editor-ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+:deep(.vditor-ir .vditor-reset .vditor-ir__marker) {
+  color: color-mix(in srgb, var(--doc-editor-muted) 82%, transparent);
+}
+
+:deep(.vditor-reset h1),
+:deep(.vditor-reset h2),
+:deep(.vditor-reset h3),
+:deep(.vditor-reset h4),
+:deep(.vditor-reset h5),
+:deep(.vditor-reset h6) {
+  color: var(--doc-editor-ink);
+  font-weight: 650;
+  line-height: 1.28;
+  letter-spacing: 0;
+}
+
+:deep(.vditor-reset h1) {
+  margin: 0 0 0.85em;
+  padding-bottom: 0.32em;
+  border-bottom: 1px solid var(--doc-editor-line);
+  font-size: 2em;
+}
+
+:deep(.vditor-reset h2) {
+  margin-top: 1.9em;
+  padding-bottom: 0.28em;
+  border-bottom: 1px solid color-mix(in srgb, var(--doc-editor-line) 78%, transparent);
+  font-size: 1.45em;
+}
+
+:deep(.vditor-reset h3) {
+  margin-top: 1.65em;
+  font-size: 1.18em;
+}
+
+:deep(.vditor-reset p),
+:deep(.vditor-reset li) {
+  color: var(--el-text-color-regular, #374151);
+}
+
+:deep(.vditor-reset a) {
+  color: var(--color-primary, #1677ff);
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.18s ease;
+}
+
+:deep(.vditor-reset a:hover) {
+  text-decoration-color: currentColor;
+}
+
+:deep(.vditor-reset code:not(.hljs)) {
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--color-primary, #1677ff) 10%, transparent);
+  color: color-mix(in srgb, var(--color-primary, #1677ff) 76%, var(--doc-editor-ink));
+  font-weight: 500;
+}
+
+:deep(.vditor-reset pre) {
+  border: 1px solid var(--doc-editor-line);
+  border-radius: 8px;
+  background: color-mix(in srgb, #111827 92%, var(--doc-editor-surface));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+:deep(.vditor-reset pre > code) {
+  border: none;
+  background: transparent;
+}
+
+:deep(.vditor-reset blockquote) {
+  border-left: 3px solid color-mix(in srgb, var(--color-primary, #1677ff) 46%, var(--doc-editor-line));
+  background: transparent;
+  color: var(--doc-editor-muted);
+}
+
+:deep(.vditor-reset table th),
+:deep(.vditor-reset table td) {
+  border-color: var(--doc-editor-line);
+}
+
+:deep(.vditor-reset table th) {
+  background: var(--doc-editor-subtle);
+  color: var(--doc-editor-ink);
+}
+
+:deep(.vditor-reset hr) {
+  background: var(--doc-editor-line);
+}
+
 :deep(.vditor-resize) {
-  background-color: var(--bg-secondary);
-  border-top: 1px solid var(--border-base);
+  min-height: 30px;
+  border-top: 1px solid var(--doc-editor-line);
+  background: color-mix(in srgb, var(--doc-editor-surface) 86%, var(--doc-editor-subtle));
 }
 
-:deep(.vditor-resize span) {
-  color: var(--text-secondary);
+:deep(.vditor-resize span),
+:deep(.vditor-counter) {
+  color: var(--doc-editor-muted);
 }
 
-/* 全屏模式 */
 :deep(.vditor--fullscreen) {
-  background-color: var(--bg-primary);
   z-index: 2000;
+  border-radius: 0;
+  background: var(--doc-editor-surface);
 }
 
-/* 加载提示 */
-:deep(.vditor-tip) {
-  background-color: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-base);
-}
-
-/* 下拉菜单 */
-:deep(.vditor-hint) {
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-base);
+:deep(.vditor-tip),
+:deep(.vditor-hint),
+:deep(.vditor-upload),
+:deep(.vditor-panel) {
+  border: 1px solid var(--doc-editor-line);
+  border-radius: 8px;
+  background: var(--doc-editor-surface);
+  color: var(--doc-editor-ink);
+  box-shadow: 0 18px 46px -34px rgba(15, 23, 42, 0.65);
 }
 
 :deep(.vditor-hint button) {
-  color: var(--text-primary);
+  color: var(--doc-editor-ink);
 }
 
 :deep(.vditor-hint button:hover),
 :deep(.vditor-hint button.vditor-hint--current) {
-  background-color: var(--bg-tertiary);
-  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary, #1677ff) 9%, transparent);
+  color: var(--color-primary, #1677ff);
 }
 
-/* 上传进度 */
-:deep(.vditor-upload) {
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-base);
+@media (max-width: 768px) {
+  :deep(.vditor-toolbar) {
+    padding: 7px;
+  }
+
+  :deep(.vditor-ir pre.vditor-reset),
+  :deep(.vditor-wysiwyg pre.vditor-reset),
+  :deep(.vditor-preview .vditor-reset) {
+    padding: 30px 20px 60px;
+    font-size: 15px;
+  }
 }
 </style>

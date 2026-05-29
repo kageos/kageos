@@ -37,8 +37,20 @@ type ProductsResponse = {
   products: HubProduct[];
 };
 
+type InstallCapabilityBundleFromURLInput = {
+  target_directory_path: string;
+  overwrite?: boolean;
+  force_diff?: boolean;
+  bundle_url: string;
+  install_key?: string;
+};
+
 export function getHubBaseUrl() {
   return process.env.NEXT_PUBLIC_HUB_API_URL || "http://127.0.0.1:8090";
+}
+
+export function getAppServerBaseUrl() {
+  return process.env.NEXT_PUBLIC_APP_SERVER_API_URL || "";
 }
 
 export async function listHubProducts(): Promise<HubProduct[]> {
@@ -50,6 +62,29 @@ export async function listHubProducts(): Promise<HubProduct[]> {
   }
   const data = (await response.json()) as ProductsResponse;
   return data.products ?? [];
+}
+
+export async function installCapabilityBundleFromURL(
+  input: InstallCapabilityBundleFromURLInput,
+) {
+  const appServerBaseUrl = getAppServerBaseUrl();
+  if (!appServerBaseUrl) {
+    throw new Error("NEXT_PUBLIC_APP_SERVER_API_URL is not configured");
+  }
+
+  const response = await fetch(
+    `${appServerBaseUrl}/workspace/api/v1/service_tree/install_capability_bundle_from_url`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`Capability bundle install request failed: ${response.status}`);
+  }
+  return response.json();
 }
 
 export function formatPrice(product: HubProduct) {

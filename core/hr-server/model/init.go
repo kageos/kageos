@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 
+	"github.com/kageos/kageos/pkg/openapitoken"
 	"gorm.io/gorm"
 )
 
@@ -13,12 +14,14 @@ func InitModels(db *gorm.DB) error {
 	err := db.AutoMigrate(
 		// 第一层：基础表（不被其他表引用）
 		&Company{},
+		&SystemSetting{},
 		&User{}, // 被 UserSession、EmailVerification 引用
 
 		// 第二层：依赖 User 的表
 		&UserSession{},       // 引用 User
 		&EmailVerification{}, // 引用 User
 		&EmailCode{},         // 不引用其他表，但依赖 User 存在
+		&openapitoken.OpenAPIToken{},
 
 		// 第三层：部门表（自引用）
 		&Department{}, // 自引用（ParentID -> ID）

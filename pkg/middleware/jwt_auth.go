@@ -6,6 +6,7 @@ import (
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/ginx/response"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/openapitoken"
 )
 
 // isInternalRequest 检查是否为内网请求（SDK内部调用）
@@ -40,6 +41,45 @@ func JWTAuth() gin.HandlerFunc {
 			setCompanyContextFromHeaders(c)
 
 			logger.Debugf(c, "[JWTAuth] 从 header 获取用户信息 - User: %s, Path: %s", requestUser, c.Request.URL.Path)
+			c.Next()
+			return
+		}
+
+		if rawOpenAPIToken := openapitoken.BearerToken(c.GetHeader("Authorization")); rawOpenAPIToken != "" {
+			principal, err := openapitoken.Validate(rawOpenAPIToken, c.ClientIP(), c.GetHeader("User-Agent"))
+			if err != nil {
+				logger.Errorf(c, "[JWTAuth] OpenAPI token validation failed: %v", err)
+				response.FailWithMessage(c, "OpenAPI Token 无效或已过期")
+				c.Abort()
+				return
+			}
+			c.Set("user_id", principal.UserID)
+			c.Set("username", principal.Username)
+			c.Set("email", principal.Email)
+			c.Set("openapi_token_id", principal.TokenID)
+			c.Set(contextx.RequestUserHeader, principal.Username)
+			c.Set(contextx.TokenHeader, rawOpenAPIToken)
+			c.Request.Header.Set(contextx.RequestUserHeader, principal.Username)
+			c.Request.Header.Set(contextx.TokenHeader, rawOpenAPIToken)
+			if principal.DepartmentFullPath != "" {
+				c.Set(contextx.DepartmentFullPathHeader, principal.DepartmentFullPath)
+				c.Request.Header.Set(contextx.DepartmentFullPathHeader, principal.DepartmentFullPath)
+			}
+			if principal.CompanyCode != "" {
+				c.Set(contextx.CompanyCodeHeader, principal.CompanyCode)
+				c.Request.Header.Set(contextx.CompanyCodeHeader, principal.CompanyCode)
+			}
+			if principal.CompanyName != "" {
+				c.Set(contextx.CompanyNameHeader, principal.CompanyName)
+				c.Request.Header.Set(contextx.CompanyNameHeader, principal.CompanyName)
+			}
+			if principal.CompanyLogoURL != "" {
+				c.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
+				c.Request.Header.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
+			}
+			c.Request.Header.Set(contextx.SourceTypeHeader, "openapi_token")
+			c.Request.Header.Set(contextx.SourceRefHeader, principal.Username)
+
 			c.Next()
 			return
 		}

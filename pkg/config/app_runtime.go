@@ -468,7 +468,7 @@ func findConfigFile(filename string) string {
 	}
 
 	// 0. 显式根目录
-	if root := GetKageOSRoot(); root != "" {
+	if root := GetKageosRoot(); root != "" {
 		if p := tryPrefix(root); p != "" {
 			return p
 		}

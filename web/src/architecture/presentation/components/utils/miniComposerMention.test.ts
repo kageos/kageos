@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { findMiniComposerMentionQuery, replaceMiniComposerMention } from './miniComposerMention'
+import {
+  findMiniComposerMentionQuery,
+  findMiniComposerMentionTokens,
+  replaceMiniComposerMention
+} from './miniComposerMention'
 
 describe('miniComposerMention', () => {
   it('detects a user mention token at the cursor', () => {
@@ -47,5 +51,20 @@ describe('miniComposerMention', () => {
 
     expect(result.value).toBe('请 @alice 帮忙')
     expect(result.cursor).toBe(8)
+  })
+
+  it('extracts mention tokens for entity chips', () => {
+    const tokens = findMiniComposerMentionTokens('请 @alice 看 /luobei/demo/help.docs')
+
+    expect(tokens.map(token => ({ kind: token.kind, raw: token.raw }))).toEqual([
+      { kind: 'user', raw: '@alice' },
+      { kind: 'resource', raw: '/luobei/demo/help.docs' }
+    ])
+  })
+
+  it('does not treat urls or emails as mention chips', () => {
+    const tokens = findMiniComposerMentionTokens('邮箱 a@b.com，地址 https://example.com')
+
+    expect(tokens).toEqual([])
   })
 })

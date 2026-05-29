@@ -104,6 +104,91 @@
         </el-form>
       </el-card>
 
+      <el-card shadow="hover" class="settings-card">
+        <template #header>
+          <div class="token-header">
+            <div>
+              <h2>OpenAPI Tokens</h2>
+              <p>用于服务间调用，可长期有效，也可以随时吊销。</p>
+            </div>
+            <el-button type="primary" @click="createTokenDialogVisible = true">
+              创建 Token
+            </el-button>
+          </div>
+        </template>
+
+        <el-table :data="openapiTokens" v-loading="tokensLoading" empty-text="暂无 OpenAPI Token">
+          <el-table-column prop="name" label="名称" min-width="180" />
+          <el-table-column prop="token_prefix" label="前缀" width="150" />
+          <el-table-column label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.revoked_at ? 'danger' : 'success'">
+                {{ row.revoked_at ? '已吊销' : '可用' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="last_used_at" label="最后使用" min-width="170">
+            <template #default="{ row }">
+              {{ row.last_used_at || '从未使用' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="expires_at" label="过期时间" min-width="170">
+            <template #default="{ row }">
+              {{ row.expires_at || '永不过期' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="110" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                link
+                type="danger"
+                :disabled="!!row.revoked_at"
+                @click="handleRevokeToken(row.id)"
+              >
+                吊销
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-card>
+
+      <el-dialog v-model="createTokenDialogVisible" title="创建 OpenAPI Token" width="520px">
+        <el-form label-width="90px">
+          <el-form-item label="名称">
+            <el-input v-model="newTokenName" placeholder="kageos-hub-production" />
+          </el-form-item>
+          <el-form-item label="过期时间">
+            <el-date-picker
+              v-model="newTokenExpiresAt"
+              type="datetime"
+              placeholder="留空表示永不过期"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="createTokenDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="creatingToken" @click="handleCreateToken">
+            创建
+          </el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="createdTokenVisible" title="Token 只显示一次" width="640px">
+        <p class="form-tip">请现在保存这个 Token，关闭弹窗后无法再次查看明文。</p>
+        <el-input
+          v-model="createdSecretToken"
+          readonly
+          type="textarea"
+          :rows="3"
+          class="token-secret"
+        />
+        <template #footer>
+          <el-button @click="copyCreatedToken">复制</el-button>
+          <el-button type="primary" @click="createdTokenVisible = false">完成</el-button>
+        </template>
+      </el-dialog>
+
     </div>
   </div>
 </template>
@@ -111,11 +196,17 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElForm } from 'element-plus'
+import { ElMessage, ElMessageBox, ElForm } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import CommonUpload from '@/architecture/presentation/shared/components/CommonUpload.vue'
 import type { FormRules } from 'element-plus'
+import {
+  createOpenAPIToken,
+  listOpenAPITokens,
+  revokeOpenAPIToken,
+  type OpenAPITokenInfo,
+} from '@/architecture/presentation/context/api/user'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -125,6 +216,14 @@ const formRef = ref<InstanceType<typeof ElForm>>()
 
 // 提交状态
 const submitting = ref(false)
+const tokensLoading = ref(false)
+const creatingToken = ref(false)
+const createTokenDialogVisible = ref(false)
+const createdTokenVisible = ref(false)
+const newTokenName = ref('')
+const newTokenExpiresAt = ref<Date | null>(null)
+const createdSecretToken = ref('')
+const openapiTokens = ref<OpenAPITokenInfo[]>([])
 
 // 当前用户
 const currentUser = computed(() => authStore.user)
@@ -231,6 +330,64 @@ function handleBack() {
   router.go(-1)
 }
 
+async function loadOpenAPITokens() {
+  tokensLoading.value = true
+  try {
+    const resp = await listOpenAPITokens()
+    openapiTokens.value = resp.tokens || []
+  } catch (error: any) {
+    ElMessage.error(error?.message || '加载 OpenAPI Token 失败')
+  } finally {
+    tokensLoading.value = false
+  }
+}
+
+async function handleCreateToken() {
+  if (!newTokenName.value.trim()) {
+    ElMessage.warning('请输入 Token 名称')
+    return
+  }
+  creatingToken.value = true
+  try {
+    const resp = await createOpenAPIToken({
+      name: newTokenName.value.trim(),
+      expires_at: newTokenExpiresAt.value ? newTokenExpiresAt.value.toISOString() : undefined,
+    })
+    createdSecretToken.value = resp.secret_token
+    createdTokenVisible.value = true
+    createTokenDialogVisible.value = false
+    newTokenName.value = ''
+    newTokenExpiresAt.value = null
+    await loadOpenAPITokens()
+  } catch (error: any) {
+    ElMessage.error(error?.message || '创建 OpenAPI Token 失败')
+  } finally {
+    creatingToken.value = false
+  }
+}
+
+async function handleRevokeToken(id: number) {
+  try {
+    await ElMessageBox.confirm('吊销后使用该 Token 的服务调用会立即失效，确定继续吗？', '吊销 Token', {
+      type: 'warning',
+      confirmButtonText: '吊销',
+      cancelButtonText: '取消',
+    })
+    await revokeOpenAPIToken(id)
+    ElMessage.success('已吊销')
+    await loadOpenAPITokens()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error?.message || '吊销失败')
+    }
+  }
+}
+
+async function copyCreatedToken() {
+  await navigator.clipboard.writeText(createdSecretToken.value)
+  ElMessage.success('已复制')
+}
+
 // 组件挂载时初始化
 onMounted(async () => {
   if (!authStore.isAuthenticated) {
@@ -245,6 +402,7 @@ onMounted(async () => {
   }
   
   initFormData()
+  await loadOpenAPITokens()
 })
 </script>
 
@@ -301,6 +459,28 @@ onMounted(async () => {
 
 .disabled-input {
   opacity: 0.6;
+}
+
+.token-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.token-header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.token-header p {
+  margin: 4px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.token-secret {
+  margin-top: 12px;
 }
 
 </style>

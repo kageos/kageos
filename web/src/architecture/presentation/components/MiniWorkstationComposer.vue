@@ -32,7 +32,7 @@
         class="mini-input"
         data-testid="mini-workstation-input"
         placeholder="输入命令...（@搜用户，/搜目录/工具/文档，Enter 发送，Shift+Enter 换行）"
-        rows="3"
+        rows="1"
         @input="emitInput"
         @keydown="onTextareaKeydown"
         @keyup="onTextareaCursorChange"
@@ -96,7 +96,19 @@
               <span class="mini-mention-title" :title="option.label">{{ option.label }}</span>
               <span class="mini-mention-type">{{ option.typeLabel }}</span>
             </span>
-            <span class="mini-mention-desc" :title="option.description">{{ option.description }}</span>
+            <span v-if="option.description" class="mini-mention-desc" :title="option.description">
+              {{ option.description }}
+            </span>
+            <span v-if="option.metaItems.length > 0" class="mini-mention-meta-row">
+              <span
+                v-for="meta in option.metaItems"
+                :key="`${option.key}-${meta}`"
+                class="mini-mention-meta"
+                :title="meta"
+              >
+                {{ meta }}
+              </span>
+            </span>
           </span>
         </button>
       </div>
@@ -248,6 +260,7 @@ interface MiniMentionOption {
   iconSrc?: string
   iconComponent?: Component
   iconClass?: string
+  metaItems: string[]
 }
 
 const localInputRef = ref<HTMLTextAreaElement | null>(null)
@@ -339,6 +352,13 @@ function onTextareaKeydown(event: KeyboardEvent) {
   }
 }
 
+function isIMEComposing(event: KeyboardEvent) {
+  return composing.value
+    || event.isComposing
+    || event.key === 'Process'
+    || (event as KeyboardEvent & { keyCode?: number }).keyCode === 229
+}
+
 function onCompositionStart() {
   composing.value = true
 }
@@ -346,13 +366,6 @@ function onCompositionStart() {
 function onCompositionEnd(event: CompositionEvent) {
   composing.value = false
   updateMentionFromTextarea(event.target as HTMLTextAreaElement)
-}
-
-function isIMEComposing(event: KeyboardEvent) {
-  return composing.value
-    || event.isComposing
-    || event.key === 'Process'
-    || (event as KeyboardEvent & { keyCode?: number }).keyCode === 229
 }
 
 function updateMentionFromTextarea(textarea: HTMLTextAreaElement | null) {
@@ -442,28 +455,47 @@ async function runMentionSearch(query: MiniComposerMentionQuery, searchKey: stri
 
 function mapUserMentionOption(user: UserInfo): MiniMentionOption {
   const username = user.username || ''
+  const department = user.department_full_name_path || user.department_name || ''
+  const company = user.company_name || user.company_code || ''
+  const signature = cleanMentionText(user.signature)
+  const email = cleanMentionText(user.email)
+
   return {
     key: `user:${username}`,
     kind: 'user',
     label: formatUserDisplayName(user),
     value: username,
-    description: user.email || user.signature || username,
+    description: email || signature || username,
     typeLabel: '用户',
     avatar: user.avatar,
-    initial: username[0]?.toUpperCase() || 'U'
+    initial: username[0]?.toUpperCase() || 'U',
+    metaItems: compactMetaItems([
+      username ? `@${username}` : '',
+      department,
+      company
+    ])
   }
 }
 
 function mapResourceMentionOption(resource: ResourceSearchResult): MiniMentionOption {
   const path = resource.full_code_path || ''
+  const description = cleanMentionText(resource.description)
+    || cleanMentionText(resource.snippet)
+    || getReadablePath(path)
+
   return {
     key: `resource:${resource.type}:${resource.id}:${path}`,
     kind: 'resource',
     label: resource.name || resource.code || getPathTail(path) || path,
     value: path,
-    description: path,
+    description,
     typeLabel: getResourceTypeLabel(resource),
     resourceType: resource.type,
+    metaItems: compactMetaItems([
+      getReadablePath(path),
+      resource.match_source ? `命中 ${getMatchSourceLabel(resource.match_source)}` : '',
+      shouldShowResourceHeat(resource) ? `${formatCompactCount(resource.run_count || 0)} 次运行` : ''
+    ]),
     ...getResourceIconMeta(resource)
   }
 }
@@ -473,6 +505,25 @@ function getPathTail(path: string) {
   return parts[parts.length - 1] || ''
 }
 
+function getReadablePath(path: string) {
+  const parts = path.split('/').filter(Boolean)
+  if (parts.length <= 3) return path
+  return `/${parts.slice(-3).join('/')}`
+}
+
+function cleanMentionText(value?: string) {
+  return String(value || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function compactMetaItems(items: Array<string | undefined | null>) {
+  return items
+    .map(item => cleanMentionText(item || ''))
+    .filter((item, index, list) => item && list.indexOf(item) === index)
+}
+
 function getResourceTypeLabel(resource: ResourceSearchResult) {
   if (resource.type === 'package') return '目录'
   if (resource.type === 'docs') return '文档'
@@ -480,6 +531,26 @@ function getResourceTypeLabel(resource: ResourceSearchResult) {
   if (resource.template_type === 'form') return '表单工具'
   if (resource.template_type === 'chart') return '图表工具'
   return '工具'
+}
+
+function getMatchSourceLabel(matchSource: string) {
+  const normalized = matchSource.toLowerCase()
+  if (normalized.includes('description')) return '描述'
+  if (normalized.includes('tag')) return '标签'
+  if (normalized.includes('code')) return '编码'
+  if (normalized.includes('path')) return '路径'
+  if (normalized.includes('name')) return '名称'
+  return matchSource
+}
+
+function shouldShowResourceHeat(resource: ResourceSearchResult) {
+  return resource.type === 'function' && !!resource.run_count
+}
+
+function formatCompactCount(count: number) {
+  if (count >= 10000) return `${(count / 10000).toFixed(count >= 100000 ? 0 : 1)}w`
+  if (count >= 1000) return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k`
+  return String(count)
 }
 
 function getResourceIconMeta(resource: ResourceSearchResult): Pick<MiniMentionOption, 'iconSrc' | 'iconComponent' | 'iconClass'> {
@@ -512,8 +583,7 @@ function applyMentionOption(option: MiniMentionOption | undefined) {
     return
   }
 
-  const textarea = localInputRef.value
-  const currentText = textarea?.value ?? props.inputText
+  const currentText = props.inputText
   const replacement = option.kind === 'user' ? `@${option.value}` : option.value
   const result = replaceMiniComposerMention(currentText, mentionQuery.value, replacement)
 
@@ -585,10 +655,11 @@ function cancelMentionClose() {
 .mini-ws-input {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: stretch;
+  align-items: center;
   gap: 12px;
-  min-height: 82px;
-  padding: 12px;
+  box-sizing: border-box;
+  min-height: 50px;
+  padding: 4px 10px;
   position: relative;
   border: 1px solid rgba(130, 153, 190, 0.26);
   border-radius: 14px;
@@ -631,6 +702,8 @@ function cancelMentionClose() {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 10px;
+  box-sizing: border-box;
+  height: 36px;
   padding: 0 10px;
   border: 1px solid rgba(124, 146, 189, 0.16);
   border-radius: 10px;
@@ -656,20 +729,22 @@ function cancelMentionClose() {
   flex: 1;
   width: 100%;
   min-width: 0;
-  height: 62px;
-  min-height: 62px;
-  max-height: 160px;
-  padding: 14px 0 10px;
+  height: 28px;
+  min-height: 28px;
+  max-height: 80px;
+  margin: 3px 0;
+  padding: 4px 0;
   border: 0;
   border-radius: 0;
   outline: none;
+  box-sizing: border-box;
   font-size: 14px;
   line-height: 20px;
   font-family: inherit;
   background: transparent;
   color: #e6f0ff;
   resize: none;
-  overflow-y: auto;
+  overflow-y: hidden;
   box-shadow: none;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
@@ -685,7 +760,7 @@ function cancelMentionClose() {
   right: 76px;
   bottom: calc(100% - 4px);
   z-index: 12;
-  max-height: 264px;
+  max-height: 338px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -718,13 +793,16 @@ function cancelMentionClose() {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 .mini-mention-state {
-  padding: 14px 12px;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  padding: 16px 14px;
   color: rgba(184, 225, 235, 0.68);
   font-size: 12px;
 }
 .mini-mention-list {
   overflow-y: auto;
-  padding: 6px;
+  padding: 7px;
 }
 .mini-mention-list::-webkit-scrollbar {
   width: 7px;
@@ -737,25 +815,29 @@ function cancelMentionClose() {
   width: 100%;
   min-width: 0;
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  gap: 9px;
-  align-items: center;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 11px;
+  align-items: start;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
   color: inherit;
   cursor: pointer;
-  padding: 8px;
+  padding: 10px;
   text-align: left;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
 }
 .mini-mention-option:hover,
 .mini-mention-option.is-active {
   border-color: rgba(34, 211, 238, 0.32);
-  background: rgba(34, 211, 238, 0.1);
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.13), rgba(124, 255, 196, 0.06)),
+    rgba(34, 211, 238, 0.08);
+  transform: translateY(-1px);
 }
 .mini-mention-icon {
-  width: 30px;
-  height: 30px;
+  width: 38px;
+  height: 38px;
   border-radius: 8px;
   display: inline-flex;
   align-items: center;
@@ -788,34 +870,36 @@ function cancelMentionClose() {
   background: rgba(255, 255, 255, 0.04);
 }
 .mini-mention-avatar {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   font-size: 12px;
   font-weight: 700;
 }
 .mini-mention-resource-img {
-  width: 17px;
-  height: 17px;
+  width: 22px;
+  height: 22px;
   object-fit: contain;
   flex-shrink: 0;
   opacity: 0.94;
 }
 .mini-mention-resource-component {
-  width: 17px;
-  height: 17px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
 }
 .mini-mention-main,
 .mini-mention-title-row,
 .mini-mention-title,
-.mini-mention-desc {
+.mini-mention-desc,
+.mini-mention-meta-row,
+.mini-mention-meta {
   min-width: 0;
 }
 .mini-mention-main {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 .mini-mention-title-row {
   display: flex;
@@ -845,8 +929,28 @@ function cancelMentionClose() {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: rgba(184, 225, 235, 0.62);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11.5px;
+  font-size: 12px;
+}
+.mini-mention-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  overflow: hidden;
+}
+.mini-mention-meta {
+  max-width: 160px;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(96, 231, 255, 0.13);
+  border-radius: 7px;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(184, 225, 235, 0.7);
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .mini-action-stack {
   flex-shrink: 0;
@@ -871,7 +975,7 @@ function cancelMentionClose() {
   min-height: 42px;
   border-radius: 8px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   box-shadow: 0 0 20px rgba(104, 119, 255, 0.16);
 }
 .mini-send-btn.el-button--primary {
@@ -899,7 +1003,7 @@ function cancelMentionClose() {
 }
 
 :deep(.mini-ws--maximized) .mini-ws-input {
-  padding: 12px;
+  padding: 4px 10px;
 }
 :deep(.mini-ws--maximized) .mini-ws-files {
   padding: 6px 24px;

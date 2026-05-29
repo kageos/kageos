@@ -5,12 +5,12 @@
     {
       "path": "openapi/operate_log",
       "name": "操作日志平台接口",
-      "description": "KageOS 操作日志平台接口封装，提供统一操作日志查询。"
+      "description": "Kageos 操作日志平台接口封装，提供统一操作日志查询。"
     },
     {
       "path": "operate_log",
       "name": "操作日志平台接口",
-      "description": "KageOS 操作日志平台接口封装，提供统一操作日志查询。"
+      "description": "Kageos 操作日志平台接口封装，提供统一操作日志查询。"
     }
   ],
   "files": [

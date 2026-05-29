@@ -15,6 +15,7 @@ import (
 	"github.com/kageos/kageos/pkg/dbx"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/natsx"
+	"github.com/kageos/kageos/pkg/openapitoken"
 	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
@@ -33,6 +34,7 @@ type Server struct {
 	// 服务
 	authService       *service.AuthService
 	emailService      *service.EmailService
+	settingsService   *service.SystemSettingsService
 	userService       *service.UserService
 	departmentService *service.DepartmentService
 	tokenPublisher    service.TokenPublisher
@@ -155,6 +157,9 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	if err := model.InitModels(db); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
+	if err := openapitoken.SetDB(db); err != nil {
+		return fmt.Errorf("failed to init openapi token store: %w", err)
+	}
 
 	logger.Infof(ctx, "[Server] Database initialized successfully")
 	return nil
@@ -187,6 +192,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	userSessionRepo := repository.NewUserSessionRepository(s.db)
 	emailCodeRepo := repository.NewEmailCodeRepository(s.db)
 	deptRepo := repository.NewDepartmentRepository(s.db)
+	settingRepo := repository.NewSystemSettingRepository(s.db)
 
 	if s.natsConn != nil {
 		s.tokenPublisher = service.NewGatewayTokenPublisher(s.natsConn)
@@ -194,9 +200,10 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化认证服务
 	s.authService = service.NewAuthService(userRepo, companyRepo, userSessionRepo, s.tokenPublisher)
+	s.settingsService = service.NewSystemSettingsService(settingRepo)
 
 	// 初始化邮件服务
-	s.emailService = service.NewEmailService(emailCodeRepo)
+	s.emailService = service.NewEmailService(emailCodeRepo, s.settingsService)
 
 	// 初始化用户服务
 	s.userService = service.NewUserService(userRepo, companyRepo, s.tokenPublisher, userSessionRepo)

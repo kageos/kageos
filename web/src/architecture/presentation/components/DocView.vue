@@ -1,6 +1,6 @@
 <template>
-  <div class="doc-view" v-loading="loading">
-    <!-- 阅读区：收窄 + 居中，参考 CSDN 文章区 -->
+  <div class="doc-view" :class="{ 'doc-view--editing': isEditing }" v-loading="loading">
+    <!-- 阅读区 -->
     <div class="doc-view__reader" v-if="doc">
       <div class="doc-content">
         <!-- 文档头部 -->
@@ -78,16 +78,12 @@
               show-word-limit
             />
             
-            <!-- ✨ 使用 Vditor 所见即所得编辑器（支持拖拽/粘贴上传） -->
             <VditorEditor
               v-model="editContent"
               height="100%"
-              placeholder="请输入文档内容，支持拖拽文件到此处或粘贴图片/文件上传"
+              placeholder="开始写文档..."
               class="doc-vditor-editor"
             />
-            <div class="doc-editor-upload-hint">
-              支持拖拽文件到编辑区上传，或粘贴剪贴板中的图片/文件上传
-            </div>
           </div>
 
           <!-- 预览模式：支持图片点击预览 -->
@@ -168,6 +164,7 @@ import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight, Clock, Refresh
 import type { ServiceTree } from '@/architecture/domain/types'
 import { getDoc, updateDoc, deleteDoc } from '@/architecture/presentation/context/api/doc'  // ✅ 使用新的文档 API
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
+import { consumeDocAutoEdit } from '@/architecture/presentation/utils/docAutoEdit'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 
 const VditorEditor = defineAsyncComponent(() => import('@/architecture/presentation/shared/components/VditorEditor.vue'))
@@ -284,6 +281,9 @@ const loadDoc = async () => {
     // ✅ 使用 full_code_path 调用新接口
     const data = await getDoc(props.node.full_code_path)
     doc.value = data || null
+    if (doc.value && consumeDocAutoEdit(props.node.full_code_path)) {
+      enterEditMode(doc.value)
+    }
   } catch (error: any) {
     if (error.response?.status === 404) {
       // 文档不存在，这是正常情况（节点已创建但文档内容未创建）
@@ -296,6 +296,13 @@ const loadDoc = async () => {
   }
 }
 
+function enterEditMode(targetDoc = doc.value) {
+  if (!targetDoc) return
+  isEditing.value = true
+  editSummary.value = targetDoc.summary || ''
+  editContent.value = targetDoc.content || ''
+}
+
 // 创建文档
 const handleCreate = () => {
   isEditing.value = true
@@ -305,11 +312,7 @@ const handleCreate = () => {
 
 // 编辑文档
 const handleEdit = () => {
-  if (doc.value) {
-    isEditing.value = true
-    editSummary.value = doc.value.summary || ''
-    editContent.value = doc.value.content || ''
-  }
+  enterEditMode()
 }
 
 // 保存文档
@@ -413,8 +416,8 @@ const handleDelete = async () => {
 // immediate: true 会在组件挂载时立即执行一次，无需在 onMounted 中重复调用
 watch(() => props.node?.id, () => {
   if (props.node?.id) {
-    loadDoc()
     isEditing.value = false
+    loadDoc()
   }
 }, { immediate: true })
 </script>
@@ -424,30 +427,35 @@ watch(() => props.node?.id, () => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--bg-primary);
-  border-radius: var(--border-radius-lg);
-  padding: 24px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary, #f8fafc) 58%, transparent) 0%, transparent 180px),
+    var(--bg-primary);
+  padding: 28px 32px 44px;
   overflow-y: auto;
-  box-sizing: border-box; /* 确保 padding 不会撑破宽度 */
+  box-sizing: border-box;
 }
 
-/* 阅读区收窄 + 居中，参考 CSDN/Notion 文章宽度 */
 .doc-view__reader {
   width: 100%;
-  max-width: 1024px; /* 进一步增加最大宽度，适应宽表格和更大屏幕 */
+  max-width: 960px;
   margin: 0 auto;
   box-sizing: border-box;
+}
+
+.doc-view--editing {
+  padding-inline: 28px;
+}
+
+.doc-view--editing .doc-view__reader {
+  max-width: 1120px;
 }
 
 .doc-content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--app-shell-panel-bg, #fff); /* 增加背景和卡片效果 */
-  border-radius: 16px;
-  border: 1px solid var(--el-border-color-extra-light, #f0f2f5);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 20px 40px -10px rgba(0, 0, 0, 0.03); /* 高级弥散阴影 */
-  padding: 48px 56px; /* 更加宽裕的内边距，增加呼吸感 */
+  background: transparent;
+  padding: 38px 8px 56px;
   box-sizing: border-box;
   width: 100%;
 }
@@ -456,9 +464,10 @@ watch(() => props.node?.id, () => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 32px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  gap: 28px;
+  margin-bottom: 34px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-base, #d8dee8) 70%, transparent);
 }
 
 .doc-title-section {
@@ -466,12 +475,12 @@ watch(() => props.node?.id, () => {
 }
 
 .doc-title {
-  font-size: 32px;
+  font-size: clamp(28px, 3vw, 36px);
   font-weight: 700;
   color: var(--el-text-color-primary, #111827);
-  margin: 0 0 16px 0;
-  line-height: 1.3;
-  letter-spacing: -0.02em;
+  margin: 0 0 14px;
+  line-height: 1.22;
+  letter-spacing: 0;
 }
 
 .doc-meta {
@@ -516,21 +525,29 @@ watch(() => props.node?.id, () => {
 
 .doc-actions {
   display: flex;
-  gap: 12px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 220px;
+}
+
+.doc-actions :deep(.el-button) {
+  height: 34px;
+  padding-inline: 14px;
+  border-radius: 7px;
+  font-weight: 500;
 }
 
 .doc-summary {
-  margin-bottom: 32px;
-  padding: 16px 20px;
-  background: var(--el-fill-color-light, #f9fafb);
-  border-left: 4px solid var(--el-color-primary);
-  border-radius: 4px 8px 8px 4px;
+  margin: 0 0 34px;
+  padding: 2px 0 2px 18px;
+  border-left: 3px solid color-mix(in srgb, var(--color-primary, #1677ff) 64%, var(--border-base, #d8dee8));
   
   p {
     margin: 0;
-    color: var(--el-text-color-regular, #374151);
-    line-height: 1.6;
-    font-size: 15px;
+    color: var(--el-text-color-secondary, #4b5563);
+    line-height: 1.75;
+    font-size: 16px;
   }
 }
 
@@ -545,8 +562,8 @@ watch(() => props.node?.id, () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  min-height: 0; /* 关键：让 flex 子元素可以缩小 */
+  gap: 14px;
+  min-height: 0;
 }
 
 .doc-title-input {
@@ -557,28 +574,36 @@ watch(() => props.node?.id, () => {
 
 .doc-summary-input {
   font-size: 14px;
-  flex-shrink: 0; /* 摘要输入框不缩小 */
+  flex-shrink: 0;
+}
+
+.doc-summary-input :deep(.el-textarea__inner) {
+  border-radius: 8px;
+  box-shadow: none;
+  border: 1px solid color-mix(in srgb, var(--border-base, #d8dee8) 78%, transparent);
+  background: color-mix(in srgb, var(--app-shell-panel-bg, #fff) 86%, transparent);
+  line-height: 1.6;
+  padding: 12px 14px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.doc-summary-input :deep(.el-textarea__inner:focus) {
+  border-color: color-mix(in srgb, var(--color-primary, #1677ff) 64%, var(--border-base, #d8dee8));
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb, 22, 119, 255), 0.1);
+  background: var(--app-shell-panel-bg, #fff);
 }
 
 .doc-vditor-editor {
-  flex: 1; /* 占据剩余所有空间 */
-  min-height: 400px; /* 最小高度 */
+  flex: 1;
+  min-height: clamp(560px, calc(100vh - 360px), 820px);
   display: flex;
   flex-direction: column;
-}
-
-.doc-editor-upload-hint {
-  flex-shrink: 0;
-  padding: 8px 0 0;
-  font-size: 12px;
-  color: var(--el-text-color-placeholder);
 }
 
 .doc-preview {
   min-height: 400px;
 }
 
-/* Markdown 正文：顶级 SaaS 排版 (Tailwind Typography 风格) */
 .markdown-content {
   font-size: 16px;
   line-height: 1.75;
@@ -598,13 +623,13 @@ watch(() => props.node?.id, () => {
     font-weight: 700;
     margin-top: 0;
     padding-bottom: 0.3em;
-    border-bottom: 1px solid var(--el-border-color-lighter);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-base, #d8dee8) 70%, transparent);
   }
 
   :deep(h2) {
     font-size: 1.5em;
     padding-bottom: 0.3em;
-    border-bottom: 1px solid var(--el-border-color-lighter);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-base, #d8dee8) 62%, transparent);
   }
 
   :deep(h3) {
@@ -668,7 +693,7 @@ watch(() => props.node?.id, () => {
     font-weight: 400;
     font-style: normal;
     color: var(--el-text-color-secondary, #4b5563);
-    border-left: 4px solid var(--el-border-color, #d1d5db);
+    border-left: 3px solid color-mix(in srgb, var(--color-primary, #1677ff) 42%, var(--border-base, #d1d5db));
     padding-left: 1rem;
     margin-top: 1.6em;
     margin-bottom: 1.6em;
@@ -721,13 +746,13 @@ watch(() => props.node?.id, () => {
     margin-top: 2em;
     margin-bottom: 2em;
     cursor: pointer;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 14px 36px -24px rgba(15, 23, 42, 0.55);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     display: block;
 
     &:hover {
       transform: translateY(-2px);
-      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 18px 42px -22px rgba(15, 23, 42, 0.62);
     }
   }
 
@@ -765,6 +790,36 @@ watch(() => props.node?.id, () => {
   align-items: center;
   justify-content: center;
   min-height: 400px;
+}
+
+@media (max-width: 768px) {
+  .doc-view {
+    padding: 18px 16px 32px;
+  }
+
+  .doc-content {
+    padding: 22px 0 40px;
+  }
+
+  .doc-header {
+    flex-direction: column;
+    gap: 18px;
+    margin-bottom: 26px;
+  }
+
+  .doc-actions {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  .doc-title {
+    font-size: 28px;
+  }
+
+  .doc-vditor-editor {
+    min-height: 560px;
+  }
 }
 
 /* 图片预览弹层：层级由全局浮层协议控制 */

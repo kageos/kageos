@@ -14,7 +14,7 @@ import "github.com/kageos/kageos/sdk/agent-app/runtime/python"
 ctx := context.Background()
 
 code := `
-def agentos_entry(args, output_dir):
+def kageos_entry(args, output_dir):
     return {
         "data": {
             "sum": args["a"] + args["b"],
@@ -99,8 +99,8 @@ func (e *Executor) WithRequest(req interface{}) *Executor
 **返回**：`*Executor` 支持链式调用
 
 **说明**：
-- 请求结构体会自动序列化为 JSON，作为 `agentos_entry(args, output_dir)` 的第一个参数传给 Python
-- Python 端必须定义固定入口函数 `agentos_entry(args, output_dir)`
+- 请求结构体会自动序列化为 JSON，作为 `kageos_entry(args, output_dir)` 的第一个参数传给 Python
+- Python 端必须定义固定入口函数 `kageos_entry(args, output_dir)`
 - 返回值必须为 dict，支持 `data`、`output_files`、`warnings` 三个字段
 - 支持嵌套结构体、数组、字典等复杂类型
 

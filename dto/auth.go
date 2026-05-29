@@ -7,7 +7,7 @@ type SendEmailCodeReq struct {
 
 // SendEmailCodeResp 发送邮箱验证码响应
 type SendEmailCodeResp struct {
-	// 使用统一的 response.Response 格式，无需额外字段
+	DebugCode string `json:"debug_code,omitempty" example:"123456"` // 本地 log 模式返回，生产 SMTP 模式为空
 }
 
 // RegisterReq 用户注册请求

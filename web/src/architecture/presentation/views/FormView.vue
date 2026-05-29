@@ -177,7 +177,7 @@
     </div>
 
     <!-- 输出参数展示：提交前就显示，显示"等待提交"标签 -->
-    <div v-if="responseFields.length > 0" class="response-section">
+    <div v-if="showInlineResponseSection" class="response-section">
       <div class="section-title">
         输出参数
         <el-tag v-if="!hasResponseData" type="info" size="small" style="margin-left: 12px">
@@ -222,8 +222,14 @@
       </el-form>
     </div>
 
+    <div v-if="showDialogResponseButton" class="response-dialog-entry">
+      <el-button type="primary" plain @click="responseDialogVisible = true">
+        查看提交结果
+      </el-button>
+    </div>
+
     <!-- 执行信息（元数据）：显示函数执行耗时等信息，明确区分不是输出参数 -->
-    <div v-if="responseMetadata && responseMetadata.total_cost_mill !== undefined" class="metadata-section">
+    <div v-if="showInlineMetadataSection" class="metadata-section">
       <div class="metadata-title">
         <el-icon class="metadata-icon"><InfoFilled /></el-icon>
         <span>执行信息</span>
@@ -231,10 +237,74 @@
       <div class="metadata-content">
         <span class="metadata-label">执行耗时：</span>
         <span class="metadata-value">
-          {{ formatCostTime(Number(responseMetadata.total_cost_mill || 0)) }}
+          {{ formatCostTime(metadataTotalCost) }}
         </span>
       </div>
     </div>
+
+    <el-dialog
+      v-model="responseDialogVisible"
+      title="提交结果"
+      :width="responseDialogWidth"
+      class="response-result-dialog"
+      modal-class="response-result-dialog-overlay"
+      align-center
+      append-to-body
+    >
+      <div class="response-dialog-content">
+        <el-form
+          v-if="responseFields.length > 0"
+          label-position="left"
+          :label-width="FORM_LABEL_WIDTH"
+          :class="{ 'is-empty': !hasResponseData }"
+        >
+          <template v-for="field in responseFields" :key="field.code">
+            <div v-if="responseLabelsOnTop" class="form-field-label-top">
+              <label class="field-label">{{ field.name }}</label>
+              <el-form-item class="form-item-no-label">
+                <WidgetComponent
+                  :field="field"
+                  :value="getResponseFieldValue(field.code)"
+                  :field-path="field.code"
+                  mode="response"
+                  :form-renderer="formRendererContext"
+                  :function-method="functionDetail?.method || 'GET'"
+                  :function-router="functionDetail?.router || ''"
+                />
+              </el-form-item>
+            </div>
+            <el-form-item v-else :label="field.name">
+              <WidgetComponent
+                :field="field"
+                :value="getResponseFieldValue(field.code)"
+                :field-path="field.code"
+                mode="response"
+                :form-renderer="formRendererContext"
+                :function-method="functionDetail?.method || 'GET'"
+                :function-router="functionDetail?.router || ''"
+              />
+            </el-form-item>
+          </template>
+        </el-form>
+        <el-empty v-else description="暂无输出数据" />
+
+        <div v-if="showDialogMetadataSection" class="metadata-section response-dialog-metadata">
+          <div class="metadata-title">
+            <el-icon class="metadata-icon"><InfoFilled /></el-icon>
+            <span>执行信息</span>
+          </div>
+          <div class="metadata-content">
+            <span class="metadata-label">执行耗时：</span>
+            <span class="metadata-value">
+              {{ formatCostTime(metadataTotalCost) }}
+            </span>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="responseDialogVisible = false">知道了</el-button>
+      </template>
+    </el-dialog>
 
     <!-- Debug 弹窗 -->
     <el-dialog
@@ -329,7 +399,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Document, List, User } from '@element-plus/icons-vue'
+import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElEmpty } from 'element-plus'
 import { eventBus } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -359,12 +429,14 @@ const props = withDefaults(defineProps<{
   flatSurface?: boolean
   initialData?: Record<string, any>  // 🔥 初始数据（用于编辑模式）
   formGateway?: IFormGateway
+  responseDisplayMode?: 'inline' | 'dialog'
 }>(), {
   showSubmitButton: true,
   showResetButton: true,
   showDebugButton: true,
   flatSurface: false,
   initialData: () => ({}),
+  responseDisplayMode: 'inline',
 })
 
 // 路由
@@ -444,6 +516,18 @@ const {
 })
 
 const submitFeedback = ref<{ type: 'success' | 'error'; message: string } | null>(null)
+const responseDialogVisible = ref(false)
+const responseInDialog = computed(() => props.responseDisplayMode === 'dialog')
+const responseDialogWidth = computed(() => 'min(560px, calc(100vw - 24px))')
+const showInlineResponseSection = computed(() => responseFields.value.length > 0 && !responseInDialog.value)
+const showDialogResponseButton = computed(() => responseInDialog.value && responseFields.value.length > 0 && hasResponseData.value)
+const showInlineMetadataSection = computed(() => {
+  return !responseInDialog.value && responseMetadata.value && responseMetadata.value.total_cost_mill !== undefined
+})
+const showDialogMetadataSection = computed(() => {
+  return responseInDialog.value && responseMetadata.value && responseMetadata.value.total_cost_mill !== undefined
+})
+const metadataTotalCost = computed(() => Number(responseMetadata.value?.total_cost_mill || 0))
 
 const submitForm = async (): Promise<boolean> => {
   try {
@@ -488,11 +572,15 @@ const handleSubmit = async (): Promise<void> => {
   const success = await submitForm()
   if (success) {
     submitFeedback.value = null
+    if (responseInDialog.value && responseFields.value.length > 0) {
+      responseDialogVisible.value = true
+    }
   }
 }
 
 const handleReset = (): void => {
   submitFeedback.value = null
+  responseDialogVisible.value = false
   lifecycle.resetFormRuntimeState()
   // 重新初始化表单
   const fields = requestFields.value
@@ -1020,6 +1108,43 @@ const lifecycle = useFormViewLifecycle({
   opacity: 0.6;
 }
 
+.response-dialog-entry {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.response-dialog-content {
+  max-height: min(68vh, 640px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.response-dialog-content :deep(.el-form-item:last-child) {
+  margin-bottom: 0;
+}
+
+:global(.response-result-dialog-overlay .el-overlay-dialog) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+:global(.response-result-dialog) {
+  margin: 0 auto;
+}
+
+:global(.response-result-dialog .el-dialog__body) {
+  padding-top: 8px;
+}
+
+.response-dialog-metadata {
+  margin-top: 18px;
+}
+
 .metadata-section {
   margin-top: 20px;
   padding-top: 20px;
@@ -1219,5 +1344,116 @@ const lifecycle = useFormViewLifecycle({
 .form-view-main :deep(.upload-area.is-dragging) {
   border-color: color-mix(in srgb, var(--el-color-primary) 40%, var(--app-auth-input-border));
   background: color-mix(in srgb, var(--el-color-primary) 8%, var(--app-auth-input-bg));
+}
+
+@media (max-width: 700px) {
+  .form-view-main {
+    padding: 22px 18px 24px;
+    border-radius: 16px;
+  }
+
+  .form-view-container {
+    display: block;
+  }
+
+  .form-view-main :deep(.el-form .el-form-item:not(.form-item-no-label)) {
+    display: block;
+  }
+
+  .form-view-main :deep(.el-form .el-form-item:not(.form-item-no-label) .el-form-item__label) {
+    justify-content: flex-start;
+    width: auto !important;
+    height: auto;
+    margin-bottom: 8px;
+    padding-right: 0;
+    text-align: left;
+  }
+
+  .form-view-main :deep(.el-form .el-form-item:not(.form-item-no-label) .el-form-item__content) {
+    margin-left: 0 !important;
+  }
+
+  .form-actions-section {
+    margin-top: 22px;
+    padding-top: 18px;
+  }
+
+  .form-actions-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions-row :deep(.el-button) {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .response-dialog-entry {
+    justify-content: stretch;
+  }
+
+  .response-dialog-entry :deep(.el-button) {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  :global(.response-result-dialog) {
+    width: min(560px, calc(100vw - 24px)) !important;
+    margin: 0 auto !important;
+    transform: none;
+    border-radius: 16px;
+  }
+
+  :global(.response-result-dialog .el-dialog__header) {
+    padding: 16px 18px 8px;
+  }
+
+  :global(.response-result-dialog .el-dialog__body) {
+    max-height: 62vh;
+    overflow: hidden;
+    padding: 8px 18px 16px;
+  }
+
+  :global(.response-result-dialog .el-dialog__footer) {
+    padding: 0 18px 16px;
+  }
+
+  :global(.response-result-dialog .el-dialog__footer .el-button) {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  :global(.response-result-dialog .el-form-item:not(.form-item-no-label)) {
+    display: block;
+    margin-bottom: 18px;
+  }
+
+  :global(.response-result-dialog .el-form-item:not(.form-item-no-label) .el-form-item__label) {
+    justify-content: flex-start;
+    width: auto !important;
+    height: auto;
+    margin-bottom: 8px;
+    padding-right: 0;
+    text-align: left;
+  }
+
+  :global(.response-result-dialog .el-form-item:not(.form-item-no-label) .el-form-item__content) {
+    width: 100%;
+    margin-left: 0 !important;
+  }
+
+  :global(.response-result-dialog .form-field-label-top .field-label) {
+    text-align: left;
+  }
+
+  :global(.response-result-dialog .form-item-no-label) {
+    display: block;
+    margin-bottom: 18px;
+  }
+
+  :global(.response-result-dialog .form-item-no-label .el-form-item__content) {
+    width: 100%;
+    margin-left: 0 !important;
+  }
 }
 </style>

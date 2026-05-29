@@ -8,24 +8,15 @@ import {
   deleteServiceTreeFunction
 } from '@/architecture/presentation/context/api/service-tree'
 import { isRootNode as isRootTreeNode } from '@/architecture/domain/utils/tree-utils'
+import { markDocForAutoEdit } from '@/architecture/presentation/utils/docAutoEdit'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 
 interface CreateDocsForm {
   name: string
-  code: string
-  description: string
-  tags: string
-  content: string
-  summary: string
 }
 
 const createEmptyDocsForm = (): CreateDocsForm => ({
-  name: '',
-  code: '',
-  description: '',
-  tags: '',
-  content: '',
-  summary: ''
+  name: ''
 })
 
 export interface UseWorkspaceNodeActionsOptions {
@@ -65,31 +56,8 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
       return
     }
 
-    if (!createDocsForm.value.name.trim()) {
-      ElMessage.warning('请输入文档名称')
-      return
-    }
-
-    if (!createDocsForm.value.code.trim()) {
-      ElMessage.warning('请输入文档英文标识')
-      return
-    }
-
-    const codePattern = /^[a-z0-9_]+$/
-    if (!codePattern.test(createDocsForm.value.code)) {
-      ElMessage.warning('文档英文标识只能包含小写英文字母、数字和下划线')
-      return
-    }
-
-    let code = createDocsForm.value.code.trim()
-    if (!code.endsWith('.docs')) {
-      code = `${code}.docs`
-    }
-
-    if (!createDocsForm.value.content.trim()) {
-      ElMessage.warning('请输入文档内容')
-      return
-    }
+    const title = createDocsForm.value.name.trim() || '未命名文档'
+    const code = buildUniqueDocsCode(createDocsCodeBase(title), currentDocsParentNode.value)
 
     creatingDocs.value = true
     try {
@@ -97,19 +65,17 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
       const response = await createDocs({
         user: currentApp.value.user,
         app: currentApp.value.code,
-        name: createDocsForm.value.name.trim(),
+        name: title,
         code,
         parent_full_code_path: parentFullCodePath,
-        description: createDocsForm.value.description.trim() || '',
-        tags: createDocsForm.value.tags.trim() || '',
-        content: createDocsForm.value.content.trim(),
-        format: 'markdown',
-        summary: createDocsForm.value.summary.trim() || ''
+        content: createInitialDocContent(title),
+        format: 'markdown'
       })
 
       createDocsDialogVisible.value = false
       if (response && response.id) {
-        ElMessage.success('文档节点创建成功')
+        markDocForAutoEdit(response.full_code_path)
+        ElMessage.success('文档已创建')
         await afterCreateNode(response)
       } else {
         ElMessage.warning('创建文档节点成功，但未返回节点信息')
@@ -382,3 +348,79 @@ function findNearestRemainingParentPath(currentPath: string, deletedPaths: strin
   }
   return ''
 }
+
+function createDocsCodeBase(title: string): string {
+  const normalized = title
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+
+  let base = normalized || `doc_${Date.now().toString(36)}`
+  if (!/^[a-z]/.test(base)) {
+    base = `doc_${base}`
+  }
+  if (RESERVED_DOC_CODES.has(base)) {
+    base = `doc_${base}`
+  }
+
+  return trimDocsCodeBase(base)
+}
+
+function buildUniqueDocsCode(base: string, parentNode: ServiceTreeType | null): string {
+  const existingCodes = new Set(
+    (parentNode?.children || [])
+      .map((child) => (child.code || '').toLowerCase())
+      .filter(Boolean)
+  )
+
+  let candidate = `${base}.docs`
+  let index = 2
+  while (existingCodes.has(candidate.toLowerCase())) {
+    const suffix = `_${index}`
+    candidate = `${trimDocsCodeBase(base, suffix.length)}${suffix}.docs`
+    index += 1
+  }
+
+  return candidate
+}
+
+function trimDocsCodeBase(base: string, reservedSuffixLength = 0): string {
+  const maxLength = Math.max(1, 45 - reservedSuffixLength)
+  const trimmed = base.slice(0, maxLength).replace(/_+$/g, '')
+  return trimmed || `doc_${Date.now().toString(36)}`
+}
+
+function createInitialDocContent(title: string): string {
+  return `# ${title}\n\n`
+}
+
+const RESERVED_DOC_CODES = new Set([
+  'break',
+  'case',
+  'chan',
+  'const',
+  'continue',
+  'default',
+  'defer',
+  'else',
+  'fallthrough',
+  'for',
+  'func',
+  'go',
+  'goto',
+  'if',
+  'import',
+  'interface',
+  'map',
+  'package',
+  'range',
+  'return',
+  'select',
+  'struct',
+  'switch',
+  'type',
+  'var'
+])

@@ -76,6 +76,7 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth.GET("/export_capability_bundle", serviceTreeHandler.ExportCapabilityBundle)
 	serviceTreeAuth.POST("/export_capability_bundle", serviceTreeHandler.ExportCapabilityBundle)
 	serviceTreeAuth.POST("/install_capability_bundle", serviceTreeHandler.InstallCapabilityBundle)
+	serviceTreeAuth.POST("/install_capability_bundle_from_url", serviceTreeHandler.InstallCapabilityBundleFromURL)
 
 	// ⭐ 按类型分离的 CRUD 接口（推荐使用）
 	// ==================== Package 类型接口 ====================

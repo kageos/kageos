@@ -56,8 +56,8 @@ podman run --rm --entrypoint /bin/sh kagebase:latest -lc 'wget --version | head 
 # 在 app-base 镜像内验证 Tesseract 命令和中英文语言包。
 podman run --rm --entrypoint /bin/sh kagebase:latest -lc 'tesseract --version | head -n 1 && tesseract --list-langs | tee /tmp/tesseract-langs.txt && grep -x eng /tmp/tesseract-langs.txt && grep -x chi_sim /tmp/tesseract-langs.txt'
 
-# 在 app-base 镜像内验证中文字体和 matplotlib 配置。
-podman run --rm --entrypoint /bin/sh kagebase:latest -lc 'fc-match "Noto Sans CJK SC"; python3 -c "import matplotlib; print(matplotlib.matplotlib_fname())"'
+# 在 app-base 镜像内验证中文字体、fontconfig、matplotlib 与 ReportLab 兜底。
+podman run --rm --entrypoint /bin/sh kagebase:latest -lc 'fc-match "sans-serif"; fc-match "sans-serif:lang=zh-cn"; fc-match "Arial:lang=zh-cn"; fc-match "Helvetica:lang=zh-cn"; fc-match "monospace:lang=zh-cn"; test -f "$KAGEOS_CJK_FONT"; test -f "$KAGEOS_REPORTLAB_CJK_FONT"; python3 -c "import matplotlib; print(matplotlib.matplotlib_fname())"; tmp=/tmp/reportlab-font-check.pdf; python3 -c "from reportlab.pdfgen import canvas; c=canvas.Canvas(\"/tmp/reportlab-font-check.pdf\"); c.setFont(\"Helvetica-Bold\", 12); c.drawString(10, 10, \"千幻智能\"); c.save()"; pdftotext "$tmp" - | grep -q "千幻智能"'
 
 # Prod local deploy
 # 生产配置初始化：生成 .kageos/prod/kage.yaml。

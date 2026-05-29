@@ -19,8 +19,10 @@
 go run ./cmd/kagectl init-dev
 ```
 
-该命令会启动 MySQL / NATS / MinIO，执行幂等数据库初始化 SQL，并确保本地用户应用运行时基础镜像 `kagebase:latest` 存在；如果镜像已存在会跳过构建。
+该命令默认使用 Podman 启动 MySQL / NATS / MinIO，执行幂等数据库初始化 SQL，并确保本地用户应用运行时基础镜像 `kagebase:latest` 存在；如果镜像已存在会跳过构建。
 首次执行时会生成 `.kageos/dev/env/kageos.env`，里面包含 MySQL、NATS、MinIO、JWT、system user 等本地随机密钥；后续重复执行会复用已有值，避免把已有本地数据库密码刷掉。
+初始化结束后会在终端打印英文表格，列出本地开发需要记录的路径、账号、密码和 key。
+本地开发默认 `SMTP_MODE=log`，发送验证码时不会调用真实邮箱服务；验证码会写入后端日志，并通过 `send_email_code` 接口的 `debug_code` 返回，填这个验证码即可注册。生产环境需要真实发信时再改成 `SMTP_MODE=smtp` 并配置 `SMTP_*`。
 本地 dev MySQL 默认只绑定宿主机 `127.0.0.1:3318`，容器内部仍是 `3306`，这样不容易和你机器上的旧 MySQL 或其它项目冲突。
 幂等规则：只有 `.kageos` 不存在时才初始化生成 secrets；一旦 `.kageos` 存在，`init-dev` 只应用 `.kageos/dev/env/kageos.env` 里的值，不会隐式生成替换密码。
 
@@ -40,7 +42,7 @@ go run ./cmd/kagectl init-dev --skip-base
 如需重新生成本地密钥：
 
 ```bash
-go run ./cmd/kagectl init-dev --engine podman --regen-secrets
+go run ./cmd/kagectl init-dev --regen-secrets
 ```
 
 注意：如果 MySQL/MinIO 已经有旧 volume，重新生成密码后需要清理旧本地 volume，否则容器里的历史密码不会自动变化。

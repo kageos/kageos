@@ -20,6 +20,7 @@ db:
   slow_threshold: 200
 
 email:
+  mode: "${SMTP_MODE}"
   smtp:
     host: "${SMTP_HOST}"
     port: ${SMTP_PORT}
@@ -30,6 +31,9 @@ email:
   verification:
     code_length: 6
     code_expire: 300
+
+auth:
+  registration_mode: "${KAGEOS_REGISTRATION_MODE}"
 
 system_user:
   password: "${SYSTEM_USER_PASSWORD}"

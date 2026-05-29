@@ -141,6 +141,14 @@ func (s *ServiceTreeService) InstallCapabilityBundleFromFile(ctx context.Context
 	return s.capabilityBundle.InstallCapabilityBundleFromFile(ctx, opts, filePath)
 }
 
+func (s *ServiceTreeService) InstallCapabilityBundleFromURL(ctx context.Context, req *dto.InstallCapabilityBundleFromURLReq) (*dto.InstallCapabilityBundleResp, error) {
+	if req == nil {
+		return nil, fmt.Errorf("通过 URL 安装能力包请求不能为空")
+	}
+	opts := req.InstallCapabilityOptions
+	return s.capabilityBundle.InstallCapabilityBundleFromURL(ctx, &opts, req.BundleURL, req.InstallKey)
+}
+
 func (s *ServiceTreeService) BatchWriteFiles(ctx context.Context, req *dto.BatchWriteFilesReq) (*dto.BatchWriteFilesResp, error) {
 	return s.batchService.BatchWriteFiles(ctx, req)
 }

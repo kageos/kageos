@@ -1,6 +1,6 @@
-# KageOS
+# Kageos
 
-KageOS is a source-available AI light-application workspace for individuals and small teams. Users describe an internal tool in natural language, confirm a lightweight PRD, and let the system generate runnable `Form`, `Table`, and `Chart` applications.
+Kageos is a source-available AI light-application workspace for individuals and small teams. Users describe an internal tool in natural language, confirm a lightweight PRD, and let the system generate runnable `Form`, `Table`, and `Chart` applications.
 
 The project is currently licensed under the Business Source License 1.1. It is not OSI open source today; see [LICENSE](LICENSE) for the exact grant, Hosted Service restriction, Change Date, and future Apache-2.0 change license.
 

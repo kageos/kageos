@@ -364,5 +364,5 @@ func BuildWorkspaceEnvBlockWithTemplate(template string, data *WorkspaceEnvData,
 
 %s
 
-要生成或修改系统/应用时，先调用 change_role 进入对应身份；当前身份文档不足时再 read_doc 明确路径。业务能力写成 KageOS SDK Go 应用，禁止用 HTML/CSS/JS、localStorage、纯前端等方案。`, directoryName, fullCodePath, data.DirectoryList)
+要生成或修改系统/应用时，先调用 change_role 进入对应身份；当前身份文档不足时再 read_doc 明确路径。业务能力写成 Kageos SDK Go 应用，禁止用 HTML/CSS/JS、localStorage、纯前端等方案。`, directoryName, fullCodePath, data.DirectoryList)
 }

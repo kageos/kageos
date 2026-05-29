@@ -2,7 +2,7 @@
 
 > 官方生产入口：`deploy/prod/`
 
-KageOS 的生产部署由 `kagectl` 统一控制。Compose 仍是底层容器执行器，但用户不需要手工维护生成后的 Compose 文件。
+Kageos 的生产部署由 `kagectl` 统一控制。Compose 仍是底层容器执行器，但用户不需要手工维护生成后的 Compose 文件。
 
 快速入口：
 
@@ -58,6 +58,8 @@ Compose
 ```bash
 go run ./cmd/kagectl bootstrap --base-url http://your-ip-or-domain
 ```
+
+执行 `kagectl init` / `bootstrap` 时会自动生成 MySQL、NATS、MinIO、JWT、system 初始密码，并在终端打印英文表格。生产默认 `auth.registration_mode=admin_only`：先用 `system` 登录后台，在 `System settings` 配置并测试 SMTP 后，再开启 `email_code` 自助注册。
 
 最小 `kage.yaml`：
 
@@ -126,6 +128,7 @@ tail -f .kageos/prod/kagectl-up.log
 - 公网入口只通过容器内 Nginx 暴露；生产 Nginx 不转发 `/swagger/`。
 - `.kageos/prod/kage.yaml` 和 `.kageos/prod/generated/` 是本机敏感配置/生成物，默认不应入库。
 - NATS 生产默认开启账号密码认证；`kagectl init` 会自动生成 `nats.password`。
+- 自助注册生产默认关闭；公网开放注册前必须在 system 后台配置 SMTP 并开启邮箱验证码注册。
 - 如果 `site.tls_mode=redirect`，`site.base_url` 必须是 `https://`。
 
 ## 持久卷
