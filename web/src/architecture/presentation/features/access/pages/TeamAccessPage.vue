@@ -1975,10 +1975,10 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-action-groups {
-  align-self: center;
+  align-self: stretch;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   min-width: 0;
 }
 
@@ -2023,7 +2023,7 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-action-group .role-action-grid {
-  grid-template-columns: repeat(auto-fit, minmax(48px, max-content));
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
   gap: 4px;
 }
 
@@ -2051,6 +2051,13 @@ function formatExpiresAt(value?: string): string {
 
 .role-action-group .role-action-icon {
   font-size: 12px;
+}
+
+.role-action-group .role-action-copy span {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  line-height: 1.25;
 }
 
 .role-action-item.is-enabled {
@@ -2226,6 +2233,10 @@ function formatExpiresAt(value?: string): string {
   .role-card-identity {
     flex-direction: row;
     align-items: center;
+  }
+
+  .role-action-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
