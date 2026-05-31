@@ -189,22 +189,46 @@
                   </span>
                 </span>
                 <span class="role-description">{{ role.description }}</span>
-                <span class="role-action-grid">
+                <span class="role-action-groups">
                   <span
-                    v-for="actionState in roleActionStates(role)"
-                    :key="`${role.value}-${actionState.value}`"
-                    class="role-action-item"
-                    :class="{
-                      'is-enabled': actionState.enabled,
-                      'is-disabled': !actionState.enabled,
-                    }"
+                    v-for="group in roleActionGroups(role)"
+                    :key="`${role.value}-${group.kind}`"
+                    class="role-action-group"
                   >
-                    <el-icon class="role-action-icon">
-                      <component :is="actionState.enabled ? CircleCheck : CircleClose" />
-                    </el-icon>
-                    <span class="role-action-copy">
-                      <span>{{ actionState.label }}</span>
-                      <small v-if="actionState.description">{{ actionState.description }}</small>
+                    <span class="role-action-group-title">
+                      <img
+                        v-if="group.iconSrc"
+                        :src="group.iconSrc"
+                        :alt="group.label"
+                        class="role-action-group-icon"
+                        :class="group.iconClass"
+                      />
+                      <component
+                        v-else
+                        :is="group.iconComponent"
+                        class="role-action-group-icon"
+                        :class="group.iconClass"
+                      />
+                      <span>{{ group.label }}</span>
+                    </span>
+                    <span class="role-action-grid">
+                      <span
+                        v-for="actionState in group.actions"
+                        :key="`${role.value}-${group.kind}-${actionState.value}`"
+                        class="role-action-item"
+                        :class="{
+                          'is-enabled': actionState.enabled,
+                          'is-disabled': !actionState.enabled,
+                        }"
+                      >
+                        <el-icon class="role-action-icon">
+                          <component :is="actionState.enabled ? CircleCheck : CircleClose" />
+                        </el-icon>
+                        <span class="role-action-copy">
+                          <span>{{ actionState.label }}</span>
+                          <small v-if="actionState.description">{{ actionState.description }}</small>
+                        </span>
+                      </span>
                     </span>
                   </span>
                 </span>
@@ -438,6 +462,19 @@ interface RoleActionConfig {
   description?: string
 }
 
+interface RoleActionState extends RoleActionConfig {
+  enabled: boolean
+}
+
+interface RoleActionGroup {
+  kind: ResourceKind
+  label: string
+  iconSrc: string
+  iconComponent: Component
+  iconClass: string
+  actions: RoleActionState[]
+}
+
 type AccessPermissionsKey = keyof AccessPermissions
 
 const route = useRoute()
@@ -506,6 +543,9 @@ const treeProps = {
   children: 'children',
   label: 'name'
 }
+
+const directoryRoleActionKinds: ResourceKind[] = ['directory', 'table', 'form', 'chart', 'docs']
+const appRoleActionKinds: ResourceKind[] = ['app', ...directoryRoleActionKinds]
 
 const roleOptions = computed<RoleOption[]>(() => [
   {
@@ -576,17 +616,7 @@ const currentResourceKind = computed<ResourceKind>(() => {
   return depth <= 2 ? 'app' : 'directory'
 })
 
-const currentResourceTypeLabel = computed(() => {
-  const labels: Record<ResourceKind, string> = {
-    app: t('access.resourceApp'),
-    directory: t('access.resourceDirectory'),
-    table: t('packageDetail.table'),
-    form: t('packageDetail.form'),
-    chart: t('packageDetail.chart'),
-    docs: t('packageDetail.docs'),
-  }
-  return labels[currentResourceKind.value]
-})
+const currentResourceTypeLabel = computed(() => getResourceKindLabel(currentResourceKind.value))
 
 const currentResourceTagType = computed((): 'primary' | 'success' | 'warning' | 'info' => {
   if (currentResourceKind.value === 'table') return 'primary'
@@ -595,26 +625,11 @@ const currentResourceTagType = computed((): 'primary' | 'success' | 'warning' | 
   return 'info'
 })
 
-const currentResourceIconSrc = computed(() => {
-  if (currentResourceKind.value === 'app' || currentResourceKind.value === 'directory') return '/service-tree/custom-folder.svg'
-  if (currentResourceKind.value === 'form') return '/service-tree/编辑.svg'
-  if (currentResourceKind.value === 'docs') return '/文档.svg'
-  return ''
-})
+const currentResourceIconSrc = computed(() => getResourceIconSrc(currentResourceKind.value))
 
-const currentResourceIconComponent = computed<Component>(() => {
-  if (currentResourceKind.value === 'chart') return ChartIcon
-  return TableIcon
-})
+const currentResourceIconComponent = computed<Component>(() => getResourceIconComponent(currentResourceKind.value))
 
-const currentResourceIconClass = computed(() => {
-  if (currentResourceKind.value === 'app') return 'app-icon-img'
-  if (currentResourceKind.value === 'directory') return 'package-icon-img'
-  if (currentResourceKind.value === 'form') return 'form-icon-img'
-  if (currentResourceKind.value === 'docs') return 'docs-icon-img'
-  if (currentResourceKind.value === 'chart') return 'chart-icon'
-  return 'table-icon'
-})
+const currentResourceIconClass = computed(() => getResourceIconClass(currentResourceKind.value))
 
 const selectedUsernames = computed(() => {
   return extractStringFieldRaw(grantUsersValue.value)
@@ -645,36 +660,43 @@ const roleActionConfigs = computed<Record<ResourceKind, RoleActionConfig[]>>(() 
     { value: 'write', label: t('access.actionAppCreate') },
     { value: 'update', label: t('access.actionAppUpdate') },
     { value: 'delete', label: t('access.actionAppDelete') },
-    { value: 'admin', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
+    { value: 'admin', label: t('access.actionAdmin'), description: t('access.actionAdminDesc') },
+    { value: 'owner', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
   ],
   directory: [
     { value: 'read', label: t('access.actionDirectoryRead') },
     { value: 'write', label: t('access.actionDirectoryWrite') },
     { value: 'update', label: t('access.actionDirectoryUpdate') },
     { value: 'delete', label: t('access.actionDirectoryDelete') },
-    { value: 'admin', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
+    { value: 'admin', label: t('access.actionAdmin'), description: t('access.actionAdminDesc') },
+    { value: 'owner', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
   ],
   table: [
     { value: 'read', label: t('access.actionTableRead') },
     { value: 'write', label: t('access.actionTableWrite') },
     { value: 'update', label: t('access.actionTableUpdate') },
     { value: 'delete', label: t('access.actionTableDelete') },
-    { value: 'admin', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
+    { value: 'admin', label: t('access.actionAdmin'), description: t('access.actionAdminDesc') },
+    { value: 'owner', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
   ],
   form: [
     { value: 'read', label: t('access.actionFormRead') },
     { value: 'write', label: t('access.actionFormSubmit') },
-    { value: 'admin', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
+    { value: 'admin', label: t('access.actionAdmin'), description: t('access.actionAdminDesc') },
+    { value: 'owner', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
   ],
   chart: [
     { value: 'read', label: t('access.actionChartRead') },
-    { value: 'admin', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
+    { value: 'admin', label: t('access.actionAdmin'), description: t('access.actionAdminDesc') },
+    { value: 'owner', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
   ],
   docs: [
     { value: 'read', label: t('access.actionDocsRead') },
     { value: 'write', label: t('access.actionDocsWrite') },
+    { value: 'update', label: t('access.actionDocsUpdate') },
     { value: 'delete', label: t('access.actionDocsDelete') },
-    { value: 'admin', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
+    { value: 'admin', label: t('access.actionAdmin'), description: t('access.actionAdminDesc') },
+    { value: 'owner', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
   ],
 }))
 
@@ -951,18 +973,75 @@ function roleLabel(role: AccessRoleCode): string {
   return option?.title || role
 }
 
-function roleActionStates(role: RoleOption) {
-  const actionConfigs = roleActionConfigs.value[currentResourceKind.value] || []
+function roleActionGroups(role: RoleOption): RoleActionGroup[] {
+  return getRoleActionKinds()
+    .map(kind => ({
+      kind,
+      label: getResourceKindLabel(kind),
+      iconSrc: getResourceIconSrc(kind),
+      iconComponent: getResourceIconComponent(kind),
+      iconClass: getResourceIconClass(kind),
+      actions: roleActionStatesForKind(role, kind),
+    }))
+    .filter(group => group.actions.length > 0)
+}
+
+function getRoleActionKinds(): ResourceKind[] {
+  if (currentResourceKind.value === 'app') return appRoleActionKinds
+  if (currentResourceKind.value === 'directory') return directoryRoleActionKinds
+  return [currentResourceKind.value]
+}
+
+function roleActionStatesForKind(role: RoleOption, kind: ResourceKind): RoleActionState[] {
+  const actionConfigs = roleActionConfigs.value[kind] || []
   const enabledActions = new Set(role.permissions)
-  const hasFullCoverage = enabledActions.has('admin') || enabledActions.has('owner')
+  const hasAdminCoverage = enabledActions.has('admin')
+  const hasOwnerCoverage = enabledActions.has('owner')
   return actionConfigs.map(action => ({
     ...action,
-    enabled: hasFullCoverage || enabledActions.has(action.value)
+    enabled: hasOwnerCoverage
+      || (action.value !== 'owner' && hasAdminCoverage)
+      || enabledActions.has(action.value)
   }))
 }
 
 function rolePermissionPointCount(role: RoleOption): number {
-  return roleActionStates(role).filter(action => action.enabled).length
+  return roleActionGroups(role).reduce((total, group) => {
+    return total + group.actions.filter(action => action.enabled).length
+  }, 0)
+}
+
+function getResourceKindLabel(kind: ResourceKind): string {
+  const labels: Record<ResourceKind, string> = {
+    app: t('access.resourceApp'),
+    directory: t('access.resourceDirectory'),
+    table: t('packageDetail.table'),
+    form: t('packageDetail.form'),
+    chart: t('packageDetail.chart'),
+    docs: t('packageDetail.docs'),
+  }
+  return labels[kind]
+}
+
+function getResourceIconSrc(kind: ResourceKind): string {
+  if (kind === 'app' || kind === 'directory') return '/service-tree/custom-folder.svg'
+  if (kind === 'form') return '/service-tree/编辑.svg'
+  if (kind === 'docs') return '/文档.svg'
+  return ''
+}
+
+function getResourceIconComponent(kind: ResourceKind): Component {
+  if (kind === 'chart') return ChartIcon
+  return TableIcon
+}
+
+function getResourceIconClass(kind: ResourceKind): string {
+  if (kind === 'app') return 'app-icon-img'
+  if (kind === 'directory') return 'package-icon-img'
+  if (kind === 'form') return 'form-icon-img'
+  if (kind === 'docs') return 'docs-icon-img'
+  if (kind === 'chart') return 'chart-icon'
+  return 'table-icon'
 }
 
 function memberUsersValue(username: string): FieldValue {
@@ -1880,10 +1959,55 @@ function formatExpiresAt(value?: string): string {
   overflow: hidden;
 }
 
+.role-action-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.role-action-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--el-bg-color) 94%, var(--el-fill-color) 6%);
+}
+
+.role-action-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--el-text-color-primary);
+  font-size: 12px;
+  font-weight: 700;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.role-action-group-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
 .role-action-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 6px;
+}
+
+.role-action-group .role-action-grid {
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 5px;
 }
 
 .role-action-item {
@@ -1898,6 +2022,13 @@ function formatExpiresAt(value?: string): string {
   font-size: 12px;
   font-weight: 600;
   min-width: 0;
+}
+
+.role-action-group .role-action-item {
+  min-height: 30px;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: 7px;
 }
 
 .role-action-item.is-enabled {
@@ -1936,6 +2067,14 @@ function formatExpiresAt(value?: string): string {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+}
+
+.role-action-group .role-action-copy small {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .role-card.is-selected .role-card-title-row strong {
@@ -2062,6 +2201,7 @@ function formatExpiresAt(value?: string): string {
     flex-direction: column;
   }
 
+  .role-action-groups,
   .role-action-grid {
     grid-template-columns: 1fr;
   }
