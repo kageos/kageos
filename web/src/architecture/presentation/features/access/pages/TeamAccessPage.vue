@@ -170,7 +170,7 @@
                 type="button"
                 @click="grantRole = role.value"
               >
-                <span class="role-card-head">
+                <span class="role-card-aside">
                   <span class="role-card-identity">
                     <span class="role-icon-badge" :class="`role-icon-badge-${role.tone}`">
                       <el-icon><component :is="role.icon" /></el-icon>
@@ -188,7 +188,6 @@
                     {{ grantRole === role.value ? t('access.roleSelected') : t('access.roleSelect') }}
                   </span>
                 </span>
-                <span class="role-description">{{ role.description }}</span>
                 <span class="role-action-groups">
                   <span
                     v-for="group in roleActionGroups(role)"
@@ -1864,9 +1863,12 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-card {
-  gap: 10px;
-  min-height: 136px;
-  padding: 14px;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 12px;
+  min-height: 0;
+  padding: 10px;
   border-radius: 8px;
   background: var(--el-bg-color);
   transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
@@ -1886,24 +1888,29 @@ function formatExpiresAt(value?: string): string {
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08), inset 0 0 0 1px rgba(21, 128, 61, 0.16);
 }
 
-.role-card-head {
-  align-items: flex-start;
+.role-card-aside {
+  display: flex;
+  flex-direction: column;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
+  padding: 2px 10px 2px 0;
+  border-right: 1px solid var(--el-border-color-lighter);
 }
 
 .role-card-identity {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
 .role-icon-badge {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  font-size: 17px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  font-size: 16px;
 }
 
 .role-icon-badge-view {
@@ -1928,7 +1935,9 @@ function formatExpiresAt(value?: string): string {
 
 .role-card-copy {
   min-width: 0;
-  gap: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .role-card-title-row strong {
@@ -1947,7 +1956,8 @@ function formatExpiresAt(value?: string): string {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 9px;
+  width: fit-content;
+  padding: 4px 8px;
   border-radius: 999px;
   background: var(--el-fill-color-light);
   color: var(--el-text-color-secondary);
@@ -1961,20 +1971,15 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-description {
-  margin: 0;
-  color: var(--el-text-color-regular);
-  line-height: 1.45;
-  font-size: 12px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  display: none;
 }
 
 .role-action-groups {
+  align-self: center;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 6px;
+  min-width: 0;
 }
 
 .role-action-group {
@@ -2018,7 +2023,7 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-action-group .role-action-grid {
-  grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(48px, max-content));
   gap: 4px;
 }
 
@@ -2202,9 +2207,25 @@ function formatExpiresAt(value?: string): string {
     max-height: none;
   }
 
-  .role-selection-header,
-  .role-card-head {
+  .role-selection-header {
     flex-direction: column;
+  }
+
+  .role-card {
+    grid-template-columns: 1fr;
+  }
+
+  .role-card-aside {
+    flex-direction: row;
+    align-items: center;
+    border-right: 0;
+    border-bottom: 1px solid var(--el-border-color-lighter);
+    padding: 0 0 8px;
+  }
+
+  .role-card-identity {
+    flex-direction: row;
+    align-items: center;
   }
 }
 
