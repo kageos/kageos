@@ -180,7 +180,7 @@
                         <strong>{{ role.title }}</strong>
                       </span>
                       <span class="role-card-subtitle">{{ role.subtitle }}</span>
-                      <span class="role-card-meta-text">{{ role.codeLabel }} · {{ role.permissions.length }} {{ t('access.permissionPoints') }}</span>
+                      <span class="role-card-meta-text">{{ role.codeLabel }} · {{ rolePermissionPointCount(role) }} {{ t('access.permissionPoints') }}</span>
                     </span>
                   </span>
                   <span class="role-card-state" :class="{ 'is-selected': grantRole === role.value }">
@@ -202,7 +202,10 @@
                     <el-icon class="role-action-icon">
                       <component :is="actionState.enabled ? CircleCheck : CircleClose" />
                     </el-icon>
-                    <span>{{ actionState.label }}</span>
+                    <span class="role-action-copy">
+                      <span>{{ actionState.label }}</span>
+                      <small v-if="actionState.description">{{ actionState.description }}</small>
+                    </span>
                   </span>
                 </span>
               </button>
@@ -429,6 +432,14 @@ interface RoleOption {
   icon: Component
 }
 
+interface RoleActionConfig {
+  value: AccessPermissionsKey
+  label: string
+  description?: string
+}
+
+type AccessPermissionsKey = keyof AccessPermissions
+
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
@@ -628,14 +639,44 @@ const visibleMembers = computed(() => {
   return activeTab.value === 'current' ? currentMembers.value : inheritedMembers.value
 })
 
-const roleActionConfig = computed(() => [
-  { value: 'read', label: t('access.actionRead') },
-  { value: 'write', label: t('access.actionWrite') },
-  { value: 'update', label: t('access.actionUpdate') },
-  { value: 'delete', label: t('access.actionDelete') },
-  { value: 'admin', label: t('access.actionAdmin') },
-  { value: 'owner', label: t('access.actionOwner') },
-])
+const roleActionConfigs = computed<Record<ResourceKind, RoleActionConfig[]>>(() => ({
+  app: [
+    { value: 'read', label: t('access.actionAppRead') },
+    { value: 'write', label: t('access.actionAppCreate') },
+    { value: 'update', label: t('access.actionAppUpdate') },
+    { value: 'delete', label: t('access.actionAppDelete') },
+    { value: 'admin', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
+  ],
+  directory: [
+    { value: 'read', label: t('access.actionDirectoryRead') },
+    { value: 'write', label: t('access.actionDirectoryWrite') },
+    { value: 'update', label: t('access.actionDirectoryUpdate') },
+    { value: 'delete', label: t('access.actionDirectoryDelete') },
+    { value: 'admin', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
+  ],
+  table: [
+    { value: 'read', label: t('access.actionTableRead') },
+    { value: 'write', label: t('access.actionTableWrite') },
+    { value: 'update', label: t('access.actionTableUpdate') },
+    { value: 'delete', label: t('access.actionTableDelete') },
+    { value: 'admin', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
+  ],
+  form: [
+    { value: 'read', label: t('access.actionFormRead') },
+    { value: 'write', label: t('access.actionFormSubmit') },
+    { value: 'admin', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
+  ],
+  chart: [
+    { value: 'read', label: t('access.actionChartRead') },
+    { value: 'admin', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
+  ],
+  docs: [
+    { value: 'read', label: t('access.actionDocsRead') },
+    { value: 'write', label: t('access.actionDocsWrite') },
+    { value: 'delete', label: t('access.actionDocsDelete') },
+    { value: 'admin', label: t('access.actionOwnership'), description: t('access.actionOwnershipDesc') },
+  ],
+}))
 
 watch(requestedResourcePath, () => {
   void reloadPage()
@@ -911,11 +952,17 @@ function roleLabel(role: AccessRoleCode): string {
 }
 
 function roleActionStates(role: RoleOption) {
+  const actionConfigs = roleActionConfigs.value[currentResourceKind.value] || []
   const enabledActions = new Set(role.permissions)
-  return roleActionConfig.value.map(action => ({
+  const hasFullCoverage = enabledActions.has('admin') || enabledActions.has('owner')
+  return actionConfigs.map(action => ({
     ...action,
-    enabled: enabledActions.has(action.value)
+    enabled: hasFullCoverage || enabledActions.has(action.value)
   }))
+}
+
+function rolePermissionPointCount(role: RoleOption): number {
+  return roleActionStates(role).filter(action => action.enabled).length
 }
 
 function memberUsersValue(username: string): FieldValue {
@@ -1493,15 +1540,15 @@ function formatExpiresAt(value?: string): string {
 
 .access-shell {
   width: 100%;
-  max-width: 1600px;
+  max-width: 1680px;
   height: 100%;
   margin: 0 auto;
 }
 
 .apply-layout {
   display: grid;
-  grid-template-columns: 400px minmax(0, 1fr) 430px;
-  gap: 24px;
+  grid-template-columns: 340px minmax(0, 1fr) 360px;
+  gap: 18px;
   height: 100%;
   min-height: 0;
   align-items: start;
@@ -1539,7 +1586,7 @@ function formatExpiresAt(value?: string): string {
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
-  padding: 16px 20px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--el-border-color-lighter);
   background: var(--el-fill-color-lighter);
 }
@@ -1565,7 +1612,7 @@ function formatExpiresAt(value?: string): string {
 .resource-tools {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
@@ -1648,7 +1695,7 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-selection-section {
-  padding: 24px;
+  padding: 18px;
   background: var(--el-fill-color-lighter);
   border-radius: 8px;
   border: 1px solid var(--el-border-color-lighter);
@@ -1659,8 +1706,8 @@ function formatExpiresAt(value?: string): string {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .role-selection-copy {
@@ -1702,9 +1749,9 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-selection-desc {
-  margin: 10px 0 0;
-  font-size: 13px;
-  line-height: 1.7;
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
   color: var(--el-text-color-secondary);
 }
 
@@ -1722,15 +1769,15 @@ function formatExpiresAt(value?: string): string {
 .role-cards {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .role-card {
-  gap: 16px;
-  min-height: 178px;
-  padding: 18px;
+  gap: 10px;
+  min-height: 136px;
+  padding: 14px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--el-bg-color) 95%, var(--el-color-primary-light-9) 5%);
+  background: var(--el-bg-color);
   transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
@@ -1743,29 +1790,29 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-card.is-selected {
-  border-color: color-mix(in srgb, var(--el-color-primary) 58%, var(--el-border-color) 42%);
-  background: color-mix(in srgb, var(--el-bg-color) 88%, var(--el-color-primary-light-8) 12%);
-  box-shadow: 0 12px 28px rgba(64, 158, 255, 0.14);
+  border-color: color-mix(in srgb, #15803d 48%, var(--el-border-color) 52%);
+  background: var(--el-bg-color);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08), inset 0 0 0 1px rgba(21, 128, 61, 0.16);
 }
 
 .role-card-head {
   align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
 }
 
 .role-card-identity {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
 .role-icon-badge {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
-  font-size: 18px;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  font-size: 17px;
 }
 
 .role-icon-badge-view {
@@ -1790,11 +1837,11 @@ function formatExpiresAt(value?: string): string {
 
 .role-card-copy {
   min-width: 0;
-  gap: 4px;
+  gap: 2px;
 }
 
 .role-card-title-row strong {
-  font-size: 17px;
+  font-size: 15px;
   line-height: 1.25;
   color: var(--el-text-color-primary);
 }
@@ -1809,7 +1856,7 @@ function formatExpiresAt(value?: string): string {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
+  padding: 5px 9px;
   border-radius: 999px;
   background: var(--el-fill-color-light);
   color: var(--el-text-color-secondary);
@@ -1825,27 +1872,32 @@ function formatExpiresAt(value?: string): string {
 .role-description {
   margin: 0;
   color: var(--el-text-color-regular);
-  line-height: 1.7;
-  font-size: 13px;
+  line-height: 1.45;
+  font-size: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .role-action-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 6px;
 }
 
 .role-action-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
-  padding: 9px 10px;
+  min-height: 34px;
+  padding: 7px 8px;
   border-radius: 8px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   font-size: 12px;
   font-weight: 600;
+  min-width: 0;
 }
 
 .role-action-item.is-enabled {
@@ -1863,10 +1915,69 @@ function formatExpiresAt(value?: string): string {
   flex-shrink: 0;
 }
 
+.role-action-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    color: var(--el-text-color-secondary);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.role-card.is-selected .role-card-title-row strong {
+  color: var(--el-text-color-primary);
+}
+
+.role-card.is-selected .role-icon-badge-view {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.role-card.is-selected .role-icon-badge-edit {
+  color: #0f766e;
+  background: rgba(15, 118, 110, 0.12);
+}
+
+.role-card.is-selected .role-icon-badge-admin {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.14);
+}
+
+.role-card.is-selected .role-icon-badge-owner {
+  color: #be123c;
+  background: rgba(244, 63, 94, 0.12);
+}
+
+.role-card.is-selected .role-action-item.is-enabled {
+  border-color: rgba(34, 197, 94, 0.24);
+  background: rgba(34, 197, 94, 0.08);
+  color: #15803d;
+}
+
+.role-card.is-selected .role-action-item.is-disabled {
+  border-color: var(--el-border-color-lighter);
+  background: color-mix(in srgb, var(--el-bg-color) 96%, var(--el-text-color-secondary) 4%);
+  color: var(--el-text-color-secondary);
+}
+
 .grant-form {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 18px 20px 20px;
+  padding: 16px;
   overflow-y: auto;
 
   :deep(.el-form-item) {
@@ -1912,7 +2023,8 @@ function formatExpiresAt(value?: string): string {
 
 @media (max-width: 1500px) {
   .apply-layout {
-    grid-template-columns: 350px minmax(0, 1fr) 400px;
+    grid-template-columns: 300px minmax(0, 1fr) 330px;
+    gap: 16px;
   }
 }
 
