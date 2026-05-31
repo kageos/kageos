@@ -1619,24 +1619,25 @@ function formatExpiresAt(value?: string): string {
 .team-access-page {
   box-sizing: border-box;
   height: 100vh;
-  padding: 24px;
+  padding: 12px 10px;
   overflow: hidden;
 }
 
 .access-shell {
   width: 100%;
-  max-width: 1680px;
+  max-width: none;
   height: 100%;
-  margin: 0 auto;
+  margin: 0;
 }
 
 .apply-layout {
   display: grid;
-  grid-template-columns: 340px minmax(0, 1fr) 360px;
-  gap: 18px;
+  grid-template-columns: 280px minmax(0, 1fr) 300px;
+  gap: 12px;
   height: 100%;
   min-height: 0;
-  align-items: start;
+  align-items: stretch;
+  overflow: hidden;
 }
 
 .apply-sidebar,
@@ -1661,17 +1662,21 @@ function formatExpiresAt(value?: string): string {
 .apply-main {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  min-width: 0;
+  max-height: 100%;
   overflow-y: auto;
-  padding-right: 2px;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 .panel-toolbar {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
-  padding: 14px 16px;
+  gap: 10px;
+  padding: 12px;
   border-bottom: 1px solid var(--el-border-color-lighter);
   background: var(--el-fill-color-lighter);
 }
@@ -1780,11 +1785,11 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-selection-section {
-  padding: 18px;
+  padding: 14px;
   background: var(--el-fill-color-lighter);
   border-radius: 8px;
   border: 1px solid var(--el-border-color-lighter);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .role-selection-header {
@@ -1854,7 +1859,8 @@ function formatExpiresAt(value?: string): string {
 .role-cards {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  padding-bottom: 10px;
 }
 
 .role-card {
@@ -1967,7 +1973,7 @@ function formatExpiresAt(value?: string): string {
 
 .role-action-groups {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
   gap: 6px;
 }
 
@@ -2012,7 +2018,7 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-action-group .role-action-grid {
-  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
   gap: 4px;
 }
 
@@ -2035,6 +2041,11 @@ function formatExpiresAt(value?: string): string {
   gap: 5px;
   padding: 4px 6px;
   border-radius: 7px;
+  font-size: 11px;
+}
+
+.role-action-group .role-action-icon {
+  font-size: 12px;
 }
 
 .role-action-item.is-enabled {
@@ -2118,7 +2129,7 @@ function formatExpiresAt(value?: string): string {
 .grant-form {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 16px;
+  padding: 12px;
   overflow-y: auto;
 
   :deep(.el-form-item) {
@@ -2164,8 +2175,8 @@ function formatExpiresAt(value?: string): string {
 
 @media (max-width: 1500px) {
   .apply-layout {
-    grid-template-columns: 300px minmax(0, 1fr) 330px;
-    gap: 16px;
+    grid-template-columns: 260px minmax(0, 1fr) 280px;
+    gap: 10px;
   }
 }
 
