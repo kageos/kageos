@@ -192,23 +192,17 @@
       class="capability-import-input"
       @change="handleCapabilityImportFileChange"
     />
-    <TeamAccessDialog
-      v-model="accessDialogVisible"
-      :node="accessDialogNode"
-      :tree-data="props.treeData"
-      @changed="emit('refresh-tree')"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { MoreFilled, Document, Download, Delete, Search, Select, Close } from '@element-plus/icons-vue'
 import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'
-import TeamAccessDialog from './TeamAccessDialog.vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { isRootNode } from '@/architecture/domain/utils/tree-utils'
@@ -249,6 +243,7 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 const { t } = useI18n()
+const router = useRouter()
 
 const runtimeSummaries = ref<Record<string, RuntimeStateSummary>>({})
 let runtimeSummaryTimer: ReturnType<typeof setInterval> | null = null
@@ -289,8 +284,6 @@ const selectedNodes = ref<ServiceTree[]>([])
 const bulkExporting = ref(false)
 const capabilityImportInputRef = ref<HTMLInputElement | null>(null)
 const capabilityImportTargetNode = ref<ServiceTree | null>(null)
-const accessDialogVisible = ref(false)
-const accessDialogNode = ref<ServiceTree | null>(null)
 let unsubscribeRuntimeRefresh: (() => void) | null = null
 
 const stopRuntimeSummaryPolling = () => {
@@ -451,13 +444,17 @@ function getNodeActions(data: ServiceTree) {
   })
 }
 
-function openAccessDialog(data: ServiceTree) {
+function openAccessPage(data: ServiceTree) {
   if (!data.full_code_path) {
     ElMessage.warning(t('serviceTree.pathMissingRefresh'))
     return
   }
-  accessDialogNode.value = data
-  accessDialogVisible.value = true
+  void router.push({
+    path: '/permissions/access',
+    query: {
+      resource: data.full_code_path
+    }
+  })
 }
 
 const selectedNodeCount = computed(() => selectedNodes.value.length)
@@ -734,7 +731,7 @@ const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTr
       emit('delete-directory', data)
       return
     case 'manage-access':
-      openAccessDialog(data)
+      openAccessPage(data)
       return
     case 'update-history':
       emit('update-history', data)

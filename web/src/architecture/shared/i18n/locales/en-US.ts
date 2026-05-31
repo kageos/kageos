@@ -271,6 +271,10 @@ export default {
   },
   access: {
     title: 'Access management',
+    backToWorkspace: 'Back to workspace',
+    openResource: 'Open resource',
+    invalidResource: 'Invalid resource path',
+    loadTreeFailed: 'Failed to load service tree',
     grantCurrent: 'Grant access to this resource',
     member: 'Member',
     role: 'Role',

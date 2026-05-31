@@ -99,6 +99,16 @@ const router = createRouter({
         requireAuth: true
       }
     },
+    {
+      path: '/permissions/access',
+      alias: '/permissions/apply',
+      name: 'permission-access',
+      component: () => import('@/architecture/presentation/features/access/pages/TeamAccessPage.vue'),
+      meta: {
+        titleKey: 'access.title',
+        requireAuth: true
+      }
+    },
 
     // 根路径：直接走工作空间链路，后续由全局守卫补齐登录态和 username
     {

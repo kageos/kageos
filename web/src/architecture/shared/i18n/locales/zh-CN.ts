@@ -271,6 +271,10 @@ export default {
   },
   access: {
     title: '权限管理',
+    backToWorkspace: '返回工作空间',
+    openResource: '打开资源',
+    invalidResource: '资源路径无效',
+    loadTreeFailed: '获取服务目录失败',
     grantCurrent: '给当前资源赋权',
     member: '成员',
     role: '角色',
