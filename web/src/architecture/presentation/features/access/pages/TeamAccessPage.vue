@@ -1,313 +1,378 @@
 <template>
   <main class="team-access-page">
-    <header class="page-header">
-      <div class="page-title-area">
-        <el-button class="back-button" text :icon="ArrowLeft" @click="goBack">
-          {{ t('access.backToWorkspace') }}
-        </el-button>
-        <div>
-          <div class="page-kicker">{{ t('access.title') }}</div>
-          <h1>{{ activeResource?.name || appName || t('access.title') }}</h1>
-          <p>{{ activeResourcePath || requestedResourcePath || t('access.invalidResource') }}</p>
-        </div>
-      </div>
-      <div class="page-actions">
-        <el-button :loading="pageLoading" @click="reloadPage">{{ t('common.refresh') }}</el-button>
-        <el-button type="primary" plain @click="openActiveResource">
-          {{ t('access.openResource') }}
-        </el-button>
-      </div>
-    </header>
+    <div class="access-shell">
+      <el-alert
+        v-if="invalidResource"
+        class="page-alert"
+        type="warning"
+        :title="t('access.invalidResource')"
+        :closable="false"
+        show-icon
+      />
 
-    <el-alert
-      v-if="invalidResource"
-      class="page-alert"
-      type="warning"
-      :title="t('access.invalidResource')"
-      :closable="false"
-      show-icon
-    />
+      <el-alert
+        v-else-if="loadError"
+        class="page-alert"
+        type="error"
+        :title="loadError"
+        :closable="false"
+        show-icon
+      />
 
-    <el-alert
-      v-else-if="loadError"
-      class="page-alert"
-      type="error"
-      :title="loadError"
-      :closable="false"
-      show-icon
-    />
-
-    <section v-else v-loading="pageLoading" class="access-page-body">
-      <div class="grant-flow">
-        <section class="resource-panel">
-          <div class="panel-header">
-            <div>
-              <h3>{{ t('access.selectResource') }}</h3>
-              <p>{{ t('access.selectResourceDesc') }}</p>
+      <section v-else v-loading="pageLoading" class="apply-layout">
+        <aside class="apply-sidebar">
+          <section class="tree-card">
+            <div class="panel-toolbar">
+              <div class="panel-title-copy">
+                <h3>{{ t('access.selectResource') }}</h3>
+                <p>{{ t('access.selectResourceDesc') }}</p>
+              </div>
+              <div class="resource-tools">
+                <el-tag size="small" effect="plain">
+                  {{ t('common.selectedCount', { count: selectedResourcePaths.length }) }}
+                </el-tag>
+                <el-tooltip :content="t('access.viewExisting')" placement="bottom">
+                  <el-button
+                    size="small"
+                    :icon="UserFilled"
+                    :loading="membersLoading && membersDialogVisible"
+                    @click="openMembersDialog"
+                  >
+                    {{ t('access.existing') }}
+                  </el-button>
+                </el-tooltip>
+              </div>
             </div>
-            <el-tag size="small" effect="plain">
-              {{ t('common.selectedCount', { count: selectedResourcePaths.length }) }}
-            </el-tag>
+
+            <div class="tree-container">
+              <el-tree
+                ref="treeRef"
+                class="resource-tree"
+                :data="treeData"
+                :props="treeProps"
+                node-key="full_code_path"
+                show-checkbox
+                :check-strictly="true"
+                :default-expand-all="true"
+                :expand-on-click-node="false"
+                :check-on-click-node="true"
+                :highlight-current="true"
+                :current-node-key="activeResourcePath"
+                @node-click="handleResourceClick"
+                @check="handleResourceCheck"
+              >
+                <template #default="{ node: treeNode, data }">
+                  <span class="tree-node" :class="{ 'is-selected': activeResourcePath === data.full_code_path }">
+                    <img
+                      v-if="data.type === 'package'"
+                      src="/service-tree/custom-folder.svg"
+                      :alt="t('packageDetail.detail')"
+                      class="node-icon package-icon-img"
+                      :class="getNodeIconClass(data)"
+                    />
+                    <template v-else-if="data.type === 'function'">
+                      <img
+                        v-if="data.template_type === TEMPLATE_TYPE.FORM"
+                        src="/service-tree/编辑.svg"
+                        :alt="t('packageDetail.form')"
+                        class="node-icon form-icon-img"
+                        :class="getNodeIconClass(data)"
+                      />
+                      <component
+                        v-else
+                        :is="getFunctionIcon(data)"
+                        class="node-icon"
+                        :class="getNodeIconClass(data)"
+                      />
+                    </template>
+                    <img
+                      v-else-if="data.type === 'docs'"
+                      src="/文档.svg"
+                      :alt="t('packageDetail.docs')"
+                      class="node-icon docs-icon-img"
+                      :class="getNodeIconClass(data)"
+                    />
+                    <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
+                    <span class="node-label">{{ treeNode.label }}</span>
+                  </span>
+                </template>
+              </el-tree>
+            </div>
+          </section>
+        </aside>
+
+        <section class="apply-main">
+          <div class="scope-header-main">
+            <div class="scope-title-main">
+              <span class="scope-icon">
+                <img
+                  v-if="currentResourceIconSrc"
+                  :src="currentResourceIconSrc"
+                  :alt="currentResourceTypeLabel"
+                  class="scope-icon-img"
+                  :class="currentResourceIconClass"
+                />
+                <component
+                  v-else
+                  :is="currentResourceIconComponent"
+                  class="scope-icon-component"
+                  :class="currentResourceIconClass"
+                />
+              </span>
+              <span class="scope-name-main">{{ activeResource?.name || appName || t('common.currentResource') }}</span>
+              <el-tag size="small" :type="currentResourceTagType">{{ currentResourceTypeLabel }}</el-tag>
+            </div>
+            <div class="scope-path-main">
+              <code>{{ activeResourcePath }}</code>
+            </div>
           </div>
 
-          <div class="tree-container">
-            <el-tree
-              ref="treeRef"
-              class="resource-tree"
-              :data="treeData"
-              :props="treeProps"
-              node-key="full_code_path"
-              show-checkbox
-              :check-strictly="true"
-              :default-expand-all="true"
-              :expand-on-click-node="false"
-              :check-on-click-node="true"
-              :highlight-current="true"
-              :current-node-key="activeResourcePath"
-              @node-click="handleResourceClick"
-              @check="handleResourceCheck"
-            >
-              <template #default="{ node: treeNode, data }">
-                <span class="tree-node" :class="{ 'is-selected': activeResourcePath === data.full_code_path }">
-                  <img
-                    v-if="data.type === 'package'"
-                    src="/service-tree/custom-folder.svg"
-                    :alt="t('packageDetail.detail')"
-                    class="node-icon package-icon-img"
-                    :class="getNodeIconClass(data)"
-                  />
-                  <template v-else-if="data.type === 'function'">
+          <div class="role-selection-section">
+            <div class="role-selection-header">
+              <div class="role-selection-copy">
+                <span class="role-selection-kicker">{{ t('access.roleSwitch') }}</span>
+                <h4 class="role-selection-title">
+                  <el-icon><UserFilled /></el-icon>
+                  {{ t('access.selectRole') }}
+                </h4>
+                <div class="role-selection-meta">
+                  <div class="role-selection-resource-pill">
                     <img
-                      v-if="data.template_type === TEMPLATE_TYPE.FORM"
-                      src="/service-tree/编辑.svg"
-                      :alt="t('packageDetail.form')"
-                      class="node-icon form-icon-img"
-                      :class="getNodeIconClass(data)"
+                      v-if="currentResourceIconSrc"
+                      :src="currentResourceIconSrc"
+                      :alt="currentResourceTypeLabel"
+                      class="role-selection-resource-icon"
+                      :class="currentResourceIconClass"
                     />
                     <component
                       v-else
-                      :is="getFunctionIcon(data)"
-                      class="node-icon"
-                      :class="getNodeIconClass(data)"
+                      :is="currentResourceIconComponent"
+                      class="role-selection-resource-icon"
+                      :class="currentResourceIconClass"
                     />
-                  </template>
-                  <img
-                    v-else-if="data.type === 'docs'"
-                    src="/文档.svg"
-                    :alt="t('packageDetail.docs')"
-                    class="node-icon docs-icon-img"
-                    :class="getNodeIconClass(data)"
-                  />
-                  <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
-                  <span class="node-label">{{ treeNode.label }}</span>
-                </span>
-              </template>
-            </el-tree>
-          </div>
-        </section>
-
-        <section class="role-panel">
-          <div class="panel-header">
-            <div>
-              <h3>{{ t('access.selectRole') }}</h3>
-              <p>{{ t('access.selectRoleDesc') }}</p>
-            </div>
-          </div>
-
-          <div class="resource-summary">
-            <div class="resource-title">{{ activeResource?.name || t('common.currentResource') }}</div>
-            <div class="resource-path">{{ activeResourcePath }}</div>
-          </div>
-
-          <div class="role-cards">
-            <button
-              v-for="role in roleOptions"
-              :key="role.value"
-              class="role-card"
-              :class="[`tone-${role.tone}`, { 'is-selected': grantRole === role.value }]"
-              :aria-pressed="grantRole === role.value"
-              type="button"
-              @click="grantRole = role.value"
-            >
-              <span class="role-card-head">
-                <span class="role-icon-badge">
-                  <el-icon><component :is="role.icon" /></el-icon>
-                </span>
-                <span class="role-card-copy">
-                  <strong>{{ role.title }}</strong>
-                  <em>{{ role.codeLabel }} · {{ role.subtitle }}</em>
-                </span>
-                <span class="role-state" :class="{ 'is-selected': grantRole === role.value }">
-                  <el-icon v-if="grantRole === role.value"><CircleCheck /></el-icon>
-                  <span v-else class="role-empty-dot" />
-                </span>
+                    <span>{{ currentResourceTypeLabel }}</span>
+                  </div>
+                </div>
+                <p class="role-selection-desc">{{ t('access.roleCardDesc') }}</p>
+              </div>
+              <span class="role-selection-hint">
+                {{ t('access.selectedRole', { role: roleLabel(grantRole) }) }}
               </span>
-              <span class="role-description">{{ role.description }}</span>
-              <span class="role-action-grid">
-                <span
-                  v-for="permission in role.permissions"
-                  :key="permission"
-                  class="role-action-item"
-                >
-                  {{ permission }}
+            </div>
+
+            <div class="role-cards">
+              <button
+                v-for="role in roleOptions"
+                :key="role.value"
+                class="role-card"
+                :class="[`tone-${role.tone}`, { 'is-selected': grantRole === role.value }]"
+                :aria-pressed="grantRole === role.value"
+                type="button"
+                @click="grantRole = role.value"
+              >
+                <span class="role-card-head">
+                  <span class="role-card-identity">
+                    <span class="role-icon-badge" :class="`role-icon-badge-${role.tone}`">
+                      <el-icon><component :is="role.icon" /></el-icon>
+                    </span>
+                    <span class="role-card-copy">
+                      <span class="role-card-title-row">
+                        <strong>{{ role.title }}</strong>
+                      </span>
+                      <span class="role-card-subtitle">{{ role.subtitle }}</span>
+                      <span class="role-card-meta-text">{{ role.codeLabel }} · {{ role.permissions.length }} {{ t('access.permissionPoints') }}</span>
+                    </span>
+                  </span>
+                  <span class="role-card-state" :class="{ 'is-selected': grantRole === role.value }">
+                    <el-icon><component :is="grantRole === role.value ? CircleCheck : CircleClose" /></el-icon>
+                    {{ grantRole === role.value ? t('access.roleSelected') : t('access.roleSelect') }}
+                  </span>
                 </span>
-              </span>
-            </button>
+                <span class="role-description">{{ role.description }}</span>
+                <span class="role-action-grid">
+                  <span
+                    v-for="actionState in roleActionStates(role)"
+                    :key="`${role.value}-${actionState.value}`"
+                    class="role-action-item"
+                    :class="{
+                      'is-enabled': actionState.enabled,
+                      'is-disabled': !actionState.enabled,
+                    }"
+                  >
+                    <el-icon class="role-action-icon">
+                      <component :is="actionState.enabled ? CircleCheck : CircleClose" />
+                    </el-icon>
+                    <span>{{ actionState.label }}</span>
+                  </span>
+                </span>
+              </button>
+            </div>
           </div>
         </section>
 
-        <section class="grant-panel">
-          <div class="panel-header">
-            <div>
-              <h3>{{ t('access.grantInfo') }}</h3>
-              <p>{{ t('access.grantInfoDesc') }}</p>
-            </div>
-          </div>
-
-          <el-form label-position="top" class="grant-form" @submit.prevent>
-            <el-form-item :label="t('access.grantUser')">
-              <UsersWidget
-                :value="grantUsersValue"
-                :field="grantUsersField"
-                mode="edit"
-                field-path="teamAccessPageUsers"
-                @update:modelValue="handleGrantUsersChange"
-              />
-            </el-form-item>
-
-            <el-form-item :label="t('access.expires')">
-              <el-radio-group v-model="grantPermanent">
-                <el-radio :label="true">{{ t('access.permanent') }}</el-radio>
-                <el-radio :label="false">{{ t('access.customTime') }}</el-radio>
-              </el-radio-group>
-              <el-date-picker
-                v-if="!grantPermanent"
-                v-model="grantExpiresAt"
-                class="expires-picker"
-                type="datetime"
-                :placeholder="t('access.expiresPlaceholder')"
-                clearable
-              />
-            </el-form-item>
-
-            <div class="grant-preview">
-              <div class="preview-row">
-                <span>{{ t('access.resource') }}</span>
-                <strong>{{ t('common.resourceCount', { count: selectedResourcePaths.length }) }}</strong>
-              </div>
-              <div class="preview-row">
-                <span>{{ t('access.users') }}</span>
-                <strong>{{ t('common.userCount', { count: selectedUsernames.length }) }}</strong>
-              </div>
-              <div class="preview-row">
-                <span>{{ t('access.role') }}</span>
-                <strong>{{ roleLabel(grantRole) }}</strong>
+        <aside class="apply-sidebar-right">
+          <section class="form-card">
+            <div class="panel-toolbar">
+              <div class="panel-title-copy">
+                <h3>{{ t('access.grantInfo') }}</h3>
+                <p>{{ t('access.grantInfoDesc') }}</p>
               </div>
             </div>
 
-            <el-button
-              class="submit-button"
-              type="primary"
-              :icon="Plus"
-              :loading="submitting"
-              :disabled="!canSubmitGrant"
-              @click="submitGrant"
-            >
-              {{ t('access.submitGrant') }}
-            </el-button>
-          </el-form>
-        </section>
+            <el-form label-position="top" class="grant-form" @submit.prevent>
+              <el-form-item :label="t('access.grantUser')">
+                <UsersWidget
+                  :value="grantUsersValue"
+                  :field="grantUsersField"
+                  mode="edit"
+                  field-path="teamAccessPageUsers"
+                  @update:modelValue="handleGrantUsersChange"
+                />
+              </el-form-item>
+
+              <el-form-item :label="t('access.expires')">
+                <el-radio-group v-model="grantPermanent">
+                  <el-radio :label="true">{{ t('access.permanent') }}</el-radio>
+                  <el-radio :label="false">{{ t('access.customTime') }}</el-radio>
+                </el-radio-group>
+                <el-date-picker
+                  v-if="!grantPermanent"
+                  v-model="grantExpiresAt"
+                  class="expires-picker"
+                  type="datetime"
+                  :placeholder="t('access.expiresPlaceholder')"
+                  clearable
+                />
+              </el-form-item>
+
+              <div class="grant-preview">
+                <div class="preview-row">
+                  <span>{{ t('access.resource') }}</span>
+                  <strong>{{ t('common.resourceCount', { count: selectedResourcePaths.length }) }}</strong>
+                </div>
+                <div class="preview-row">
+                  <span>{{ t('access.users') }}</span>
+                  <strong>{{ t('common.userCount', { count: selectedUsernames.length }) }}</strong>
+                </div>
+                <div class="preview-row">
+                  <span>{{ t('access.role') }}</span>
+                  <strong>{{ roleLabel(grantRole) }}</strong>
+                </div>
+              </div>
+
+              <el-button
+                class="submit-button"
+                type="primary"
+                :icon="Plus"
+                :loading="submitting"
+                :disabled="!canSubmitGrant"
+                @click="submitGrant"
+              >
+                {{ t('access.submitGrant') }}
+              </el-button>
+              <el-button class="cancel-button" @click="goBack">
+                {{ t('common.cancel') }}
+              </el-button>
+            </el-form>
+          </section>
+        </aside>
+      </section>
+    </div>
+
+    <el-dialog
+      v-model="membersDialogVisible"
+      class="access-members-dialog"
+      width="960px"
+      :title="t('access.existing')"
+      destroy-on-close
+    >
+      <div class="members-dialog-header">
+        <div>
+          <h3>{{ activeResource?.name || t('common.currentResource') }}</h3>
+          <p>{{ activeResourcePath }}</p>
+        </div>
+        <el-button size="small" :icon="Refresh" :loading="membersLoading" @click="loadMembers">
+          {{ t('common.refresh') }}
+        </el-button>
       </div>
 
-      <section class="members-panel">
-        <div class="members-header">
-          <div>
-            <h3>{{ t('access.existing') }}</h3>
-            <p>{{ activeResourcePath }}</p>
-          </div>
-          <el-button size="small" :loading="membersLoading" @click="loadMembers">
-            {{ t('common.refresh') }}
-          </el-button>
-        </div>
+      <el-tabs v-model="activeTab" class="access-tabs">
+        <el-tab-pane :label="t('access.currentDirectoryCount', { count: currentMembers.length })" name="current" />
+        <el-tab-pane :label="t('access.inheritedParentCount', { count: inheritedMembers.length })" name="inherited" />
+      </el-tabs>
 
-        <el-tabs v-model="activeTab" class="access-tabs">
-          <el-tab-pane :label="t('access.currentDirectoryCount', { count: currentMembers.length })" name="current" />
-          <el-tab-pane :label="t('access.inheritedParentCount', { count: inheritedMembers.length })" name="inherited" />
-        </el-tabs>
-
-        <el-table
-          v-loading="membersLoading"
-          :data="visibleMembers"
-          class="access-table"
-          :row-key="memberRowKey"
-          size="small"
-          :empty-text="t('access.empty')"
-        >
-          <el-table-column :label="t('access.member')" min-width="220">
-            <template #default="{ row }">
-              <div class="member-users-cell">
-                <UsersWidget
-                  :value="memberUsersValue(row.username)"
-                  :field="memberUsersField"
-                  mode="response"
-                  :field-path="`teamAccessPageMember:${memberRowKey(row)}`"
-                />
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column :label="t('access.role')" width="116">
-            <template #default="{ row }">
-              <el-tag size="small" :type="roleTagType(row.role_code)">
-                {{ roleLabel(row.role_code) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column :label="t('functionTabs.permission')" min-width="220">
-            <template #default="{ row }">
-              <div class="permission-tags">
-                <el-tag
-                  v-for="permission in permissionLabels(row.permissions)"
-                  :key="permission"
-                  size="small"
-                  effect="plain"
-                >
-                  {{ permission }}
-                </el-tag>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column :label="t('access.source')" min-width="190">
-            <template #default="{ row }">
-              <span v-if="row.direct" class="source-current">{{ t('access.currentDirectory') }}</span>
-              <span v-else class="source-inherited">{{ row.inherited_from || row.resource_path }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column :label="t('access.expiresColumn')" width="150">
-            <template #default="{ row }">
-              {{ formatExpiresAt(row.expires_at) }}
-            </template>
-          </el-table-column>
-          <el-table-column :label="t('common.operation')" width="92" fixed="right">
-            <template #default="{ row }">
-              <el-button
-                v-if="row.direct"
-                type="danger"
-                link
+      <el-table
+        v-loading="membersLoading"
+        :data="visibleMembers"
+        class="access-table"
+        :row-key="memberRowKey"
+        size="small"
+        :empty-text="t('access.empty')"
+      >
+        <el-table-column :label="t('access.member')" min-width="220">
+          <template #default="{ row }">
+            <div class="member-users-cell">
+              <UsersWidget
+                :value="memberUsersValue(row.username)"
+                :field="memberUsersField"
+                mode="response"
+                :field-path="`teamAccessPageMember:${memberRowKey(row)}`"
+              />
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('access.role')" width="116">
+          <template #default="{ row }">
+            <el-tag size="small" :type="roleTagType(row.role_code)">
+              {{ roleLabel(row.role_code) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('functionTabs.permission')" min-width="220">
+          <template #default="{ row }">
+            <div class="permission-tags">
+              <el-tag
+                v-for="permission in permissionLabels(row.permissions)"
+                :key="permission"
                 size="small"
-                :icon="Delete"
-                :loading="removingKey === memberRowKey(row)"
-                @click="removeMember(row)"
+                effect="plain"
               >
-                {{ t('common.remove') }}
-              </el-button>
-              <el-tooltip v-else :content="t('access.inheritedRemoveTip')" placement="top">
-                <span class="disabled-action">{{ t('access.inherited') }}</span>
-              </el-tooltip>
-            </template>
-          </el-table-column>
-        </el-table>
-      </section>
-    </section>
+                {{ permission }}
+              </el-tag>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('access.source')" min-width="190">
+          <template #default="{ row }">
+            <span v-if="row.direct" class="source-current">{{ t('access.currentDirectory') }}</span>
+            <span v-else class="source-inherited">{{ row.inherited_from || row.resource_path }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('access.expiresColumn')" width="150">
+          <template #default="{ row }">
+            {{ formatExpiresAt(row.expires_at) }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('common.operation')" width="92" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              v-if="row.direct"
+              type="danger"
+              link
+              size="small"
+              :icon="Delete"
+              :loading="removingKey === memberRowKey(row)"
+              @click="removeMember(row)"
+            >
+              {{ t('common.remove') }}
+            </el-button>
+            <el-tooltip v-else :content="t('access.inheritedRemoveTip')" placement="top">
+              <span class="disabled-action">{{ t('access.inherited') }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </main>
 </template>
 
@@ -316,14 +381,16 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowLeft,
   CircleCheck,
+  CircleClose,
   Delete,
   Document,
   EditPen,
   Key,
   Plus,
+  Refresh,
   User,
+  UserFilled,
   View
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -349,6 +416,7 @@ import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
 
 type AccessTab = 'current' | 'inherited'
 type RoleTone = 'view' | 'edit' | 'admin' | 'owner'
+type ResourceKind = 'app' | 'directory' | 'table' | 'form' | 'chart' | 'docs'
 
 interface RoleOption {
   value: AccessRoleCode
@@ -386,6 +454,7 @@ const activeTab = ref<AccessTab>('current')
 const activeResourcePath = ref('')
 const selectedResourcePaths = ref<string[]>([])
 const members = ref<TeamMemberAccess[]>([])
+const membersDialogVisible = ref(false)
 const grantRole = ref<AccessRoleCode>('viewer')
 const grantPermanent = ref(true)
 const grantExpiresAt = ref<Date | null>(null)
@@ -483,6 +552,59 @@ const activeResource = computed(() => {
   return findNodeByPath(treeData.value, activeResourcePath.value)
 })
 
+const currentResourceKind = computed<ResourceKind>(() => {
+  const node = activeResource.value
+  if (!node) return 'directory'
+  if (node.type === 'docs') return 'docs'
+  if (node.type === 'function') {
+    if (node.template_type === TEMPLATE_TYPE.FORM) return 'form'
+    if (node.template_type === TEMPLATE_TYPE.CHART) return 'chart'
+    return 'table'
+  }
+  const depth = node.full_code_path?.split('/').filter(Boolean).length || 0
+  return depth <= 2 ? 'app' : 'directory'
+})
+
+const currentResourceTypeLabel = computed(() => {
+  const labels: Record<ResourceKind, string> = {
+    app: t('access.resourceApp'),
+    directory: t('access.resourceDirectory'),
+    table: t('packageDetail.table'),
+    form: t('packageDetail.form'),
+    chart: t('packageDetail.chart'),
+    docs: t('packageDetail.docs'),
+  }
+  return labels[currentResourceKind.value]
+})
+
+const currentResourceTagType = computed((): 'primary' | 'success' | 'warning' | 'info' => {
+  if (currentResourceKind.value === 'table') return 'primary'
+  if (currentResourceKind.value === 'form' || currentResourceKind.value === 'directory') return 'success'
+  if (currentResourceKind.value === 'chart') return 'warning'
+  return 'info'
+})
+
+const currentResourceIconSrc = computed(() => {
+  if (currentResourceKind.value === 'app' || currentResourceKind.value === 'directory') return '/service-tree/custom-folder.svg'
+  if (currentResourceKind.value === 'form') return '/service-tree/编辑.svg'
+  if (currentResourceKind.value === 'docs') return '/文档.svg'
+  return ''
+})
+
+const currentResourceIconComponent = computed<Component>(() => {
+  if (currentResourceKind.value === 'chart') return ChartIcon
+  return TableIcon
+})
+
+const currentResourceIconClass = computed(() => {
+  if (currentResourceKind.value === 'app') return 'app-icon-img'
+  if (currentResourceKind.value === 'directory') return 'package-icon-img'
+  if (currentResourceKind.value === 'form') return 'form-icon-img'
+  if (currentResourceKind.value === 'docs') return 'docs-icon-img'
+  if (currentResourceKind.value === 'chart') return 'chart-icon'
+  return 'table-icon'
+})
+
 const selectedUsernames = computed(() => {
   return extractStringFieldRaw(grantUsersValue.value)
     .split(',')
@@ -505,6 +627,15 @@ const inheritedMembers = computed(() => {
 const visibleMembers = computed(() => {
   return activeTab.value === 'current' ? currentMembers.value : inheritedMembers.value
 })
+
+const roleActionConfig = computed(() => [
+  { value: 'read', label: t('access.actionRead') },
+  { value: 'write', label: t('access.actionWrite') },
+  { value: 'update', label: t('access.actionUpdate') },
+  { value: 'delete', label: t('access.actionDelete') },
+  { value: 'admin', label: t('access.actionAdmin') },
+  { value: 'owner', label: t('access.actionOwner') },
+])
 
 watch(requestedResourcePath, () => {
   void reloadPage()
@@ -531,13 +662,14 @@ async function reloadPage() {
     treeData.value = buildTreeData(resp.app, resp.service_tree || [])
 
     const initialPath = findNodeByPath(treeData.value, parsed.resourcePath)?.full_code_path || parsed.resourcePath
+    const initialResourcePaths = collectSelectionWithDescendants(initialPath)
     activeTab.value = 'current'
     activeResourcePath.value = initialPath
-    selectedResourcePaths.value = [initialPath]
+    selectedResourcePaths.value = initialResourcePaths
     resetGrantForm()
 
     await nextTick()
-    treeRef.value?.setCheckedKeys?.([initialPath])
+    treeRef.value?.setCheckedKeys?.(initialResourcePaths)
     treeRef.value?.setCurrentKey?.(initialPath)
     await loadMembers()
   } catch (error: any) {
@@ -599,7 +731,15 @@ function handleResourceClick(data: ServiceTree) {
   void loadMembers()
 }
 
-function handleResourceCheck() {
+function handleResourceCheck(data: ServiceTree) {
+  if (data?.full_code_path) {
+    applyResourceSelectionCascade(data, isResourceChecked(data))
+  } else {
+    syncCheckedResourcePaths()
+  }
+}
+
+function syncCheckedResourcePaths() {
   const checkedKeys = treeRef.value?.getCheckedKeys?.() as string[] | undefined
   selectedResourcePaths.value = normalizeResourcePathList(checkedKeys || [])
   if (selectedResourcePaths.value.length > 0 && !selectedResourcePaths.value.includes(activeResourcePath.value)) {
@@ -607,6 +747,25 @@ function handleResourceCheck() {
     treeRef.value?.setCurrentKey?.(activeResourcePath.value)
     void loadMembers()
   }
+}
+
+function isResourceChecked(node: ServiceTree): boolean {
+  if (!node.full_code_path) return false
+  const checkedKeys = treeRef.value?.getCheckedKeys?.() as string[] | undefined
+  return new Set(checkedKeys || []).has(node.full_code_path)
+}
+
+function applyResourceSelectionCascade(node: ServiceTree, checked: boolean) {
+  const checkedKeys = new Set((treeRef.value?.getCheckedKeys?.() as string[] | undefined) || [])
+  for (const path of collectNodeAndDescendantPaths(node)) {
+    if (checked) {
+      checkedKeys.add(path)
+    } else {
+      checkedKeys.delete(path)
+    }
+  }
+  treeRef.value?.setCheckedKeys?.([...checkedKeys])
+  syncCheckedResourcePaths()
 }
 
 function handleGrantUsersChange(value: FieldValue) {
@@ -625,12 +784,9 @@ function goBack() {
   void router.push(target)
 }
 
-function openActiveResource() {
-  if (!activeResourcePath.value) {
-    goBack()
-    return
-  }
-  void router.push(resolveWorkspaceUrl(activeResourcePath.value))
+async function openMembersDialog() {
+  membersDialogVisible.value = true
+  await loadMembers()
 }
 
 function getFunctionIcon(data: ServiceTree): Component {
@@ -722,6 +878,25 @@ function findNodeByPath(nodes: ServiceTree[], path: string): ServiceTree | null 
   return null
 }
 
+function collectNodeAndDescendantPaths(node: ServiceTree): string[] {
+  const paths: string[] = []
+  const walk = (current: ServiceTree) => {
+    if (current.full_code_path) {
+      paths.push(current.full_code_path)
+    }
+    for (const child of current.children || []) {
+      walk(child)
+    }
+  }
+  walk(node)
+  return paths
+}
+
+function collectSelectionWithDescendants(path: string): string[] {
+  const node = findNodeByPath(treeData.value, path)
+  return node ? normalizeResourcePathList(collectNodeAndDescendantPaths(node)) : [path]
+}
+
 function normalizeResourcePathList(paths: string[]): string[] {
   return [...new Set(paths.map(item => String(item).trim()).filter(Boolean))]
 }
@@ -733,6 +908,14 @@ function memberRowKey(member: TeamMemberAccess): string {
 function roleLabel(role: AccessRoleCode): string {
   const option = roleOptions.value.find(item => item.value === role)
   return option?.title || role
+}
+
+function roleActionStates(role: RoleOption) {
+  const enabledActions = new Set(role.permissions)
+  return roleActionConfig.value.map(action => ({
+    ...action,
+    enabled: enabledActions.has(action.value)
+  }))
 }
 
 function memberUsersValue(username: string): FieldValue {
@@ -1298,6 +1481,477 @@ function formatExpiresAt(value?: string): string {
     .el-button {
       flex: 1;
     }
+  }
+}
+
+.team-access-page {
+  box-sizing: border-box;
+  height: 100vh;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.access-shell {
+  width: 100%;
+  max-width: 1600px;
+  height: 100%;
+  margin: 0 auto;
+}
+
+.apply-layout {
+  display: grid;
+  grid-template-columns: 400px minmax(0, 1fr) 430px;
+  gap: 24px;
+  height: 100%;
+  min-height: 0;
+  align-items: start;
+}
+
+.apply-sidebar,
+.apply-sidebar-right,
+.apply-main {
+  min-height: 0;
+  height: 100%;
+}
+
+.tree-card,
+.form-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-bg-color);
+  overflow: hidden;
+}
+
+.apply-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.panel-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-lighter);
+}
+
+.panel-title-copy {
+  min-width: 0;
+
+  h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--el-text-color-primary);
+  }
+
+  p {
+    margin: 5px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--el-text-color-secondary);
+  }
+}
+
+.resource-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tree-container {
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 10px 18px;
+}
+
+.resource-tree {
+  :deep(.el-tree-node__content) {
+    height: 34px;
+    padding: 0 8px;
+    border-radius: 6px;
+  }
+
+  :deep(.el-tree-node.is-current > .el-tree-node__content) {
+    border-left: none;
+    box-shadow: inset 2px 0 0 var(--el-color-primary);
+  }
+}
+
+.scope-header-main {
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.scope-title-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scope-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.scope-icon-img,
+.scope-icon-component,
+.role-selection-resource-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.scope-name-main {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--el-text-color-primary);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scope-path-main {
+  margin-top: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  word-break: break-all;
+
+  code {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--el-fill-color-lighter);
+    color: var(--el-text-color-secondary);
+  }
+}
+
+.role-selection-section {
+  padding: 24px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  overflow: hidden;
+}
+
+.role-selection-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.role-selection-copy {
+  min-width: 0;
+}
+
+.role-selection-kicker {
+  display: inline-block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.role-selection-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--el-text-color-primary);
+}
+
+.role-selection-meta {
+  margin-top: 10px;
+}
+
+.role-selection-resource-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  font-size: 12px;
+  color: var(--el-text-color-primary);
+}
+
+.role-selection-desc {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--el-text-color-secondary);
+}
+
+.role-selection-hint {
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.role-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.role-card {
+  gap: 16px;
+  min-height: 178px;
+  padding: 18px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--el-bg-color) 95%, var(--el-color-primary-light-9) 5%);
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.role-card:hover,
+.role-card:focus-visible {
+  border-color: color-mix(in srgb, var(--el-color-primary) 35%, var(--el-border-color) 65%);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.role-card.is-selected {
+  border-color: color-mix(in srgb, var(--el-color-primary) 58%, var(--el-border-color) 42%);
+  background: color-mix(in srgb, var(--el-bg-color) 88%, var(--el-color-primary-light-8) 12%);
+  box-shadow: 0 12px 28px rgba(64, 158, 255, 0.14);
+}
+
+.role-card-head {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.role-card-identity {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.role-icon-badge {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  font-size: 18px;
+}
+
+.role-icon-badge-view {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.role-icon-badge-edit {
+  color: #0f766e;
+  background: rgba(15, 118, 110, 0.12);
+}
+
+.role-icon-badge-admin {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.14);
+}
+
+.role-icon-badge-owner {
+  color: #be123c;
+  background: rgba(244, 63, 94, 0.12);
+}
+
+.role-card-copy {
+  min-width: 0;
+  gap: 4px;
+}
+
+.role-card-title-row strong {
+  font-size: 17px;
+  line-height: 1.25;
+  color: var(--el-text-color-primary);
+}
+
+.role-card-subtitle,
+.role-card-meta-text {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.role-card-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.role-card-state.is-selected {
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+}
+
+.role-description {
+  margin: 0;
+  color: var(--el-text-color-regular);
+  line-height: 1.7;
+  font-size: 13px;
+}
+
+.role-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.role-action-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.role-action-item.is-enabled {
+  border-color: rgba(34, 197, 94, 0.22);
+  background: rgba(34, 197, 94, 0.08);
+  color: #15803d;
+}
+
+.role-action-item.is-disabled {
+  color: var(--el-text-color-secondary);
+  background: color-mix(in srgb, var(--el-bg-color) 96%, var(--el-text-color-secondary) 4%);
+}
+
+.role-action-icon {
+  flex-shrink: 0;
+}
+
+.grant-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 18px 20px 20px;
+  overflow-y: auto;
+
+  :deep(.el-form-item) {
+    margin-bottom: 18px;
+  }
+}
+
+.grant-preview {
+  padding: 14px;
+  margin: 2px 0 16px;
+}
+
+.submit-button,
+.cancel-button {
+  width: 100%;
+}
+
+.cancel-button {
+  margin: 12px 0 0;
+}
+
+.members-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+
+  h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--el-text-color-primary);
+  }
+
+  p {
+    margin: 5px 0 0;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    word-break: break-all;
+  }
+}
+
+@media (max-width: 1500px) {
+  .apply-layout {
+    grid-template-columns: 350px minmax(0, 1fr) 400px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .team-access-page {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+  }
+
+  .access-shell {
+    height: auto;
+  }
+
+  .apply-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .tree-card,
+  .form-card {
+    height: auto;
+    max-height: none;
+  }
+
+  .role-selection-header,
+  .role-card-head {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .resource-tools {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+
+  .role-action-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
