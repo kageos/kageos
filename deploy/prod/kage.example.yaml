@@ -24,6 +24,7 @@ mysql:
   password: "replace-with-a-strong-mysql-password"
   app_database: "app-server"
   agent_database: "agent-server"
+  connector_database: "connector-server"
   storage_database: "app-storage"
   hr_database: "hr-server"
   create_bundled_sql: true

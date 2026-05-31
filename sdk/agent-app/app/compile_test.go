@@ -116,6 +116,42 @@ func TestCompileAndValidateAcceptsValidForm(t *testing.T) {
 	}
 }
 
+func TestGetApisNormalizesConnectorEndpoints(t *testing.T) {
+	t.Parallel()
+
+	testApp := newCompileTestApp("/demo/github.form", &FormTemplate{
+		BaseConfig: BaseConfig{
+			Request:    compileTestReq{},
+			Connectors: []string{"Slack"},
+			ConnectorEndpoints: []ConnectorEndpoint{
+				{Provider: "GitHub", Method: "get", URL: "/user", Name: " 当前用户 ", RequiredScopes: []string{" read:user ", "user:email"}},
+				{Provider: "github", Method: "GET", URL: "/user", Name: "duplicate", RequiredScopes: []string{"read:user", "read:org"}},
+			},
+		},
+	})
+
+	apis, _, err := testApp.getApis()
+	if err != nil {
+		t.Fatalf("getApis() error = %v, want nil", err)
+	}
+	if len(apis) != 1 {
+		t.Fatalf("expected one api, got %d", len(apis))
+	}
+	if got := strings.Join(apis[0].Connectors, ","); got != "slack,github" {
+		t.Fatalf("connectors = %q, want %q", got, "slack,github")
+	}
+	if len(apis[0].ConnectorEndpoints) != 1 {
+		t.Fatalf("expected one normalized endpoint, got %#v", apis[0].ConnectorEndpoints)
+	}
+	endpoint := apis[0].ConnectorEndpoints[0]
+	if endpoint.Provider != "github" || endpoint.Method != "GET" || endpoint.URL != "/user" || endpoint.Name != "当前用户" {
+		t.Fatalf("unexpected endpoint: %#v", endpoint)
+	}
+	if got := strings.Join(endpoint.RequiredScopes, ","); got != "read:user,user:email,read:org" {
+		t.Fatalf("required scopes = %q, want read:user,user:email,read:org", got)
+	}
+}
+
 func TestTableTemplateFallsBackToFirstCreateTableWhenAutoCrudMissing(t *testing.T) {
 	t.Parallel()
 

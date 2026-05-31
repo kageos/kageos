@@ -54,20 +54,28 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 		var schema *functionschema.FunctionSchema
 		if child.Function != nil {
 			callbacks = child.Function.GetCallbacks()
+			if child.Function.Connectors != "" {
+				child.Connectors = child.Function.Connectors
+			}
+			if child.Function.ConnectorEndpoints != "" {
+				child.ConnectorEndpoints = child.Function.ConnectorEndpoints
+			}
 			if parsed, err := functionschema.Parse(child.Function.Schema); err == nil {
 				schema = parsed
 			}
 		}
 		childrenNodes = append(childrenNodes, dto.WorkspaceContextNode{
-			ID:           child.ID,
-			Name:         child.Name,
-			Code:         child.Code,
-			Type:         child.Type,
-			Description:  child.Description,
-			FullCodePath: child.FullCodePath,
-			TemplateType: child.TemplateType,
-			Callbacks:    callbacks,
-			Schema:       schema,
+			ID:                 child.ID,
+			Name:               child.Name,
+			Code:               child.Code,
+			Type:               child.Type,
+			Description:        child.Description,
+			FullCodePath:       child.FullCodePath,
+			TemplateType:       child.TemplateType,
+			Callbacks:          callbacks,
+			Connectors:         splitConnectorCodes(child.Connectors),
+			ConnectorEndpoints: splitConnectorEndpoints(child.ConnectorEndpoints),
+			Schema:             schema,
 		})
 	}
 

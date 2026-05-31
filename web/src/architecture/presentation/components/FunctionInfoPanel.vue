@@ -51,6 +51,61 @@
       </section>
     </div>
 
+    <section v-if="connectorItems.length > 0" class="function-info-section connector-section">
+      <div class="section-heading connector-heading">
+        <div class="section-heading-title">
+          <el-icon><Connection /></el-icon>
+          <span>连接器依赖</span>
+        </div>
+        <span class="connector-ready-count">{{ connectedConnectorCount }}/{{ connectorItems.length }} 可用</span>
+      </div>
+      <div class="connector-list">
+        <div
+          v-for="item in connectorItems"
+          :key="item.provider"
+          class="connector-item"
+          :class="{ 'is-connected': isConnectorReady(item), 'is-scope-missing': hasMissingScopes(item) }"
+        >
+          <span class="connector-lamp" />
+          <div class="connector-copy">
+            <span class="connector-provider">{{ item.provider }}</span>
+            <span class="connector-message" :title="connectorStatusText(item)">
+              {{ connectorStatusText(item) }}
+            </span>
+          </div>
+          <el-button
+            v-if="!isConnectorReady(item)"
+            class="connector-action"
+            size="small"
+            :type="hasMissingScopes(item) ? 'danger' : 'primary'"
+            plain
+            @click.stop="handleConnectConnector(item.provider, connectorAuthorizeScopes(item))"
+          >
+            {{ hasMissingScopes(item) ? '补授权' : '连接' }}
+          </el-button>
+        </div>
+      </div>
+      <div v-if="connectorEndpointItems.length > 0" class="connector-endpoint-list">
+        <div v-for="(endpoint, index) in connectorEndpointItems" :key="`${endpoint.provider || 'connector'}-${endpoint.method || 'GET'}-${endpoint.url || index}`" class="connector-endpoint-item">
+          <el-tag size="small" effect="plain">{{ endpoint.provider || '-' }}</el-tag>
+          <el-tag size="small" type="info" effect="plain">{{ endpoint.method || 'GET' }}</el-tag>
+          <code>{{ endpoint.url || '-' }}</code>
+          <span v-if="endpoint.name" class="connector-endpoint-name">{{ endpoint.name }}</span>
+          <div v-if="endpoint.required_scopes?.length" class="connector-endpoint-scopes">
+            <el-tag
+              v-for="scope in endpoint.required_scopes"
+              :key="scope"
+              size="small"
+              type="warning"
+              effect="plain"
+            >
+              {{ scope }}
+            </el-tag>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="function-info-section schema-section">
       <div class="section-heading schema-heading">
         <div class="section-heading-title">
@@ -127,8 +182,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { DataLine, Document, Link, Operation, Tickets } from '@element-plus/icons-vue'
-import type { FieldConfig, FunctionDetail, ServiceTree } from '@/architecture/domain/types'
+import { ElMessage } from 'element-plus'
+import { Connection, DataLine, Document, Link, Operation, Tickets } from '@element-plus/icons-vue'
+import type { FieldConfig, FunctionConnectorEndpoint, FunctionConnectorStatus, FunctionDetail, ServiceTree } from '@/architecture/domain/types'
+import { CONNECTOR_GLOBAL_RESOURCE_PATH, startConnectorOAuth } from '@/architecture/presentation/context/api/connector'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 
 interface Props {
@@ -152,7 +209,7 @@ const mergedFunctionData = computed(() => {
     description: (detail?.description || node?.description || '').trim(),
     method: detail?.method || 'GET',
     router: detail?.router || '',
-    fullCodePath: node?.full_code_path || '',
+    fullCodePath: detail?.full_code_path || node?.full_code_path || '',
     templateType: detail?.template_type || node?.template_type || detail?.schema?.type || '',
     createdBy: node?.owner || detail?.created_by || '',
     createdAt: detail?.created_at || node?.created_at || '',
@@ -226,6 +283,66 @@ const tagList = computed(() => {
     .filter(Boolean)
 })
 
+const connectorItems = computed<FunctionConnectorStatus[]>(() => {
+  const detail = props.functionData
+  const required = Array.isArray(detail?.connectors)
+    ? detail.connectors
+    : Array.isArray(props.functionNode?.connectors)
+      ? props.functionNode.connectors
+      : []
+  const statusMap = new Map((detail?.connector_status || []).map(item => [item.provider, item]))
+  const requiredScopeMap = connectorRequiredScopesByProvider.value
+
+  return required
+    .map(provider => provider.trim())
+    .filter(Boolean)
+    .map(provider => {
+      const status = statusMap.get(provider)
+      if (status) {
+        return {
+          ...status,
+          required_scopes: normalizeScopes([
+            ...(status.required_scopes || []),
+            ...(requiredScopeMap.get(provider) || [])
+          ])
+        }
+      }
+      return {
+        provider,
+        required: true,
+        connected: false,
+        required_scopes: requiredScopeMap.get(provider) || []
+      }
+    })
+})
+
+const connectedConnectorCount = computed(() => connectorItems.value.filter(item => isConnectorReady(item)).length)
+
+const connectorEndpointItems = computed<FunctionConnectorEndpoint[]>(() => {
+  const detail = props.functionData
+  const endpoints = Array.isArray(detail?.connector_endpoints)
+    ? detail.connector_endpoints
+    : Array.isArray(props.functionNode?.connector_endpoints)
+      ? props.functionNode.connector_endpoints
+      : []
+  return endpoints.filter(endpoint => endpoint && (endpoint.provider || endpoint.url))
+})
+
+const connectorRequiredScopesByProvider = computed(() => {
+  const scopeMap = new Map<string, string[]>()
+  for (const endpoint of connectorEndpointItems.value) {
+    const provider = (endpoint.provider || '').trim()
+    if (!provider) {
+      continue
+    }
+    scopeMap.set(provider, normalizeScopes([
+      ...(scopeMap.get(provider) || []),
+      ...(endpoint.required_scopes || [])
+    ]))
+  }
+  return scopeMap
+})
+
 const metadataItems = computed(() => [
   { label: '函数编码', value: displayValue(mergedFunctionData.value.code) },
   { label: '资源路径', value: displayValue(mergedFunctionData.value.fullCodePath) },
@@ -273,6 +390,68 @@ function resolveWidgetType(field: FieldConfig): string {
 
 function isRequiredField(field: FieldConfig): boolean {
   return Boolean(field.meta?.isRequired || field.validation?.split(',').some(rule => rule.trim() === 'required'))
+}
+
+function connectorStatusText(item: FunctionConnectorStatus): string {
+  if (hasMissingScopes(item)) {
+    return `权限不足：${item.missing_scopes?.join('、')}`
+  }
+  if (item.connected) {
+    return item.display_name || item.resolved_from || '已连接'
+  }
+  return item.message || '未连接'
+}
+
+function normalizeScopes(scopes: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const scope of scopes) {
+    for (const part of String(scope || '').replace(/,/g, ' ').split(/\s+/)) {
+      const trimmed = part.trim()
+      if (!trimmed || seen.has(trimmed)) {
+        continue
+      }
+      seen.add(trimmed)
+      out.push(trimmed)
+    }
+  }
+  return out
+}
+
+function hasMissingScopes(item: FunctionConnectorStatus): boolean {
+  return Boolean(item.connected && item.missing_scopes?.length)
+}
+
+function isConnectorReady(item: FunctionConnectorStatus): boolean {
+  return Boolean(item.connected && !item.missing_scopes?.length)
+}
+
+function connectorAuthorizeScopes(item: FunctionConnectorStatus): string[] {
+  return normalizeScopes([
+    ...(item.granted_scopes || []),
+    ...(item.missing_scopes || []),
+    ...(item.required_scopes || [])
+  ])
+}
+
+function connectorResourcePath(): string {
+  return mergedFunctionData.value.fullCodePath || CONNECTOR_GLOBAL_RESOURCE_PATH
+}
+
+async function handleConnectConnector(provider: string, scopes: string[] = []) {
+  try {
+    const redirectAfter = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    const resp = await startConnectorOAuth({
+      provider,
+      resource_path: connectorResourcePath(),
+      scopes,
+      redirect_after: redirectAfter
+    })
+    window.location.href = resp.authorize_url
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '发起连接器授权失败'
+    ElMessage.error(message)
+  }
 }
 </script>
 
@@ -375,7 +554,17 @@ function isRequiredField(field: FieldConfig): boolean {
   justify-content: space-between;
 }
 
+.connector-heading {
+  justify-content: space-between;
+}
+
 .schema-count {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.connector-ready-count {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   font-weight: 600;
@@ -493,6 +682,108 @@ function isRequiredField(field: FieldConfig): boolean {
 
 .schema-section {
   margin-bottom: 16px;
+}
+
+.connector-section {
+  margin-bottom: 16px;
+}
+
+.connector-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.connector-endpoint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
+}
+
+.connector-endpoint-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.connector-endpoint-item code {
+  min-width: 0;
+  color: var(--el-text-color-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  word-break: break-all;
+}
+
+.connector-endpoint-name {
+  color: var(--el-text-color-secondary);
+}
+
+.connector-endpoint-scopes {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.connector-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 240px;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--app-shell-panel-muted-bg, var(--el-fill-color-lighter));
+}
+
+.connector-lamp {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+  background: var(--el-color-warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--el-color-warning) 16%, transparent);
+}
+
+.connector-item.is-connected .connector-lamp {
+  background: var(--el-color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--el-color-success) 16%, transparent);
+}
+
+.connector-item.is-scope-missing .connector-lamp {
+  background: var(--el-color-danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--el-color-danger) 16%, transparent);
+}
+
+.connector-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.connector-provider {
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.connector-message {
+  overflow: hidden;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connector-action {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .schema-columns {

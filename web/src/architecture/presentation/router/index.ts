@@ -99,6 +99,23 @@ const router = createRouter({
         requireAuth: true
       }
     },
+    {
+      path: '/connectors',
+      redirect: '/connectors/providers',
+      meta: {
+        titleKey: 'route.connectorManagement',
+        requireAuth: true
+      }
+    },
+    {
+      path: '/connectors/providers',
+      name: 'connector-provider-management',
+      component: () => import('@/architecture/presentation/features/connector/pages/ConnectorProviderManagementPage.vue'),
+      meta: {
+        titleKey: 'route.connectorManagement',
+        requireAuth: true
+      }
+    },
 
     // 根路径：直接走工作空间链路，后续由全局守卫补齐登录态和 username
     {

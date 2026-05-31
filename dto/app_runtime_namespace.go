@@ -234,13 +234,15 @@ func (a *ApiInfo) GetPackageChain() []string {
 }
 
 type ApiInfo struct {
-	Code         string   `json:"code"`
-	Name         string   `json:"name"`
-	Desc         string   `json:"desc"`
-	Tags         []string `json:"tags"`
-	Router       string   `json:"router"`
-	Method       string   `json:"method"`
-	CreateTables []string `json:"create_tables"`
+	Code               string              `json:"code"`
+	Name               string              `json:"name"`
+	Desc               string              `json:"desc"`
+	Tags               []string            `json:"tags"`
+	Router             string              `json:"router"`
+	Method             string              `json:"method"`
+	CreateTables       []string            `json:"create_tables"`
+	Connectors         []string            `json:"connectors,omitempty"`
+	ConnectorEndpoints []ConnectorEndpoint `json:"connector_endpoints,omitempty"`
 	// FunctionGroupCode 和 FunctionGroupName 已移除，不再需要
 
 	Schema         *functionschema.FunctionSchema `json:"schema"`

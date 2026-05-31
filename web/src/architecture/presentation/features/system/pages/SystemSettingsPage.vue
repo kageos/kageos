@@ -4,12 +4,17 @@
       <template #header>
         <div class="card-header">
           <div>
-            <h2>System settings</h2>
+            <h2>{{ t('route.systemSettings') }}</h2>
             <p>Email delivery and self-service registration are managed by the system owner.</p>
           </div>
           <div class="header-actions">
-            <el-button :icon="Refresh" @click="loadSettings">Refresh</el-button>
-            <el-button type="primary" :icon="Check" :loading="saving" @click="saveSettings">Save</el-button>
+            <el-button :icon="Connection" @click="router.push('/connectors/providers')">
+              {{ t('workspace.connectorConfig') }}
+            </el-button>
+            <el-button :icon="Refresh" @click="loadSettings">{{ t('common.refresh') }}</el-button>
+            <el-button type="primary" :icon="Check" :loading="saving" @click="saveSettings">
+              {{ t('connectorProvider.save') }}
+            </el-button>
           </div>
         </div>
       </template>
@@ -80,8 +85,10 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Check, Message, Refresh } from '@element-plus/icons-vue'
+import { Check, Connection, Message, Refresh } from '@element-plus/icons-vue'
 import {
   getSystemSettings,
   updateSystemSettings,
@@ -93,6 +100,8 @@ const loading = ref(false)
 const saving = ref(false)
 const testing = ref(false)
 const testEmail = ref('')
+const router = useRouter()
+const { t } = useI18n()
 
 const form = reactive<SystemSettings>({
   registration_mode: 'admin_only',

@@ -29,10 +29,12 @@ func (r *FunctionRepository) UpdateFunctions(functions []*model.Function) error 
 
 	for _, function := range functions {
 		updates := map[string]interface{}{
-			"schema":        function.Schema,
-			"has_config":    function.HasConfig,
-			"create_tables": function.CreateTables,
-			"template_type": function.TemplateType,
+			"schema":              function.Schema,
+			"has_config":          function.HasConfig,
+			"create_tables":       function.CreateTables,
+			"connectors":          function.Connectors,
+			"connector_endpoints": function.ConnectorEndpoints,
+			"template_type":       function.TemplateType,
 		}
 		err := r.db.Model(&model.Function{}).
 			Where("app_id = ? AND method = ? AND router = ?", function.AppID, function.Method, function.Router).

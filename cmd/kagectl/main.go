@@ -81,16 +81,17 @@ type StorageConfig struct {
 }
 
 type MySQLConfig struct {
-	Mode             string `yaml:"mode"`
-	Host             string `yaml:"host"`
-	Port             int    `yaml:"port"`
-	User             string `yaml:"user"`
-	Password         string `yaml:"password"`
-	AppDatabase      string `yaml:"app_database"`
-	AgentDatabase    string `yaml:"agent_database"`
-	StorageDatabase  string `yaml:"storage_database"`
-	HRDatabase       string `yaml:"hr_database"`
-	CreateBundledSQL bool   `yaml:"create_bundled_sql"`
+	Mode              string `yaml:"mode"`
+	Host              string `yaml:"host"`
+	Port              int    `yaml:"port"`
+	User              string `yaml:"user"`
+	Password          string `yaml:"password"`
+	AppDatabase       string `yaml:"app_database"`
+	AgentDatabase     string `yaml:"agent_database"`
+	ConnectorDatabase string `yaml:"connector_database"`
+	StorageDatabase   string `yaml:"storage_database"`
+	HRDatabase        string `yaml:"hr_database"`
+	CreateBundledSQL  bool   `yaml:"create_bundled_sql"`
 }
 
 type NATSConfig struct {
@@ -1274,6 +1275,7 @@ func verifyLayerChecks(rt RuntimeConfig) []layerCheck {
 		layerCheck{Layer: layerPlatform, Name: "app-server", Target: "http://127.0.0.1:9091/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9091/health") }},
 		layerCheck{Layer: layerPlatform, Name: "app-storage", Target: "http://127.0.0.1:9092/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9092/health") }},
 		layerCheck{Layer: layerPlatform, Name: "agent-server", Target: "http://127.0.0.1:9095/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9095/health") }},
+		layerCheck{Layer: layerPlatform, Name: "connector-server", Target: "http://127.0.0.1:9096/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9096/health") }},
 		layerCheck{Layer: layerPlatform, Name: "hr-server", Target: "http://127.0.0.1:9097/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9097/health") }},
 		layerCheck{Layer: layerPlatform, Name: "main platform probe", Target: "compose exec main /app/health/platform.sh", Fn: func() error {
 			return runComposeCapture(rt.Paths.GeneratedDir, "exec", "-T", "main", "/app/health/platform.sh")
@@ -1507,16 +1509,17 @@ func defaultConfig() (Config, error) {
 		},
 		Storage: StorageConfig{Root: defaultStorageRoot},
 		MySQL: MySQLConfig{
-			Mode:             "bundled",
-			Host:             "127.0.0.1",
-			Port:             3306,
-			User:             "root",
-			Password:         mysqlPass,
-			AppDatabase:      "app-server",
-			AgentDatabase:    "agent-server",
-			StorageDatabase:  "app-storage",
-			HRDatabase:       "hr-server",
-			CreateBundledSQL: true,
+			Mode:              "bundled",
+			Host:              "127.0.0.1",
+			Port:              3306,
+			User:              "root",
+			Password:          mysqlPass,
+			AppDatabase:       "app-server",
+			AgentDatabase:     "agent-server",
+			ConnectorDatabase: "connector-server",
+			StorageDatabase:   "app-storage",
+			HRDatabase:        "hr-server",
+			CreateBundledSQL:  true,
 		},
 		NATS: NATSConfig{
 			Mode:        "bundled",
@@ -1579,16 +1582,17 @@ func defaultDevDeploymentConfig(secrets devSecrets) Config {
 		},
 		Storage: StorageConfig{Root: defaultStorageRoot},
 		MySQL: MySQLConfig{
-			Mode:             "external",
-			Host:             "127.0.0.1",
-			Port:             3318,
-			User:             "root",
-			Password:         secrets.MySQLRootPassword,
-			AppDatabase:      "app-server",
-			AgentDatabase:    "agent-server",
-			StorageDatabase:  "app-storage",
-			HRDatabase:       "hr-server",
-			CreateBundledSQL: true,
+			Mode:              "external",
+			Host:              "127.0.0.1",
+			Port:              3318,
+			User:              "root",
+			Password:          secrets.MySQLRootPassword,
+			AppDatabase:       "app-server",
+			AgentDatabase:     "agent-server",
+			ConnectorDatabase: "connector-server",
+			StorageDatabase:   "app-storage",
+			HRDatabase:        "hr-server",
+			CreateBundledSQL:  true,
 		},
 		NATS: NATSConfig{
 			Mode:        "external",
@@ -1684,6 +1688,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.MySQL.AgentDatabase == "" {
 		cfg.MySQL.AgentDatabase = "agent-server"
+	}
+	if cfg.MySQL.ConnectorDatabase == "" {
+		cfg.MySQL.ConnectorDatabase = "connector-server"
 	}
 	if cfg.MySQL.StorageDatabase == "" {
 		cfg.MySQL.StorageDatabase = "app-storage"
@@ -2052,18 +2059,19 @@ func renderAll(rt RuntimeConfig) error {
 	}
 
 	files := map[string]string{
-		"docker-compose.yaml":      renderTemplate(composeTemplate, rt),
-		".env":                     renderTemplate(envTemplate, rt),
-		"env/kageos.env":           renderTemplate(envTemplate, rt),
-		"infra/nats-server.conf":   renderTemplate(natsConfigTemplate, rt),
-		"infra/mysql-init.sql":     renderTemplate(mysqlInitTemplate, rt),
-		"config/global.yaml":       renderTemplate(globalConfigTemplate, rt),
-		"config/api-gateway.yaml":  renderTemplate(apiGatewayConfigTemplate, rt),
-		"config/app-runtime.yaml":  renderTemplate(appRuntimeConfigTemplate, rt),
-		"config/app-server.yaml":   renderTemplate(appServerConfigTemplate, rt),
-		"config/app-storage.yaml":  renderTemplate(appStorageConfigTemplate, rt),
-		"config/agent-server.yaml": renderTemplate(agentServerConfigTemplate, rt),
-		"config/hr-server.yaml":    renderTemplate(hrServerConfigTemplate, rt),
+		"docker-compose.yaml":          renderTemplate(composeTemplate, rt),
+		".env":                         renderTemplate(envTemplate, rt),
+		"env/kageos.env":               renderTemplate(envTemplate, rt),
+		"infra/nats-server.conf":       renderTemplate(natsConfigTemplate, rt),
+		"infra/mysql-init.sql":         renderTemplate(mysqlInitTemplate, rt),
+		"config/global.yaml":           renderTemplate(globalConfigTemplate, rt),
+		"config/api-gateway.yaml":      renderTemplate(apiGatewayConfigTemplate, rt),
+		"config/app-runtime.yaml":      renderTemplate(appRuntimeConfigTemplate, rt),
+		"config/app-server.yaml":       renderTemplate(appServerConfigTemplate, rt),
+		"config/app-storage.yaml":      renderTemplate(appStorageConfigTemplate, rt),
+		"config/connector-server.yaml": renderTemplate(connectorServerConfigTemplate, rt),
+		"config/agent-server.yaml":     renderTemplate(agentServerConfigTemplate, rt),
+		"config/hr-server.yaml":        renderTemplate(hrServerConfigTemplate, rt),
 	}
 	for rel, content := range files {
 		mode := os.FileMode(0644)
@@ -2116,13 +2124,14 @@ func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, company
 	}
 
 	files := map[string]string{
-		"global.yaml":       renderTemplate(globalConfigTemplate, rt),
-		"api-gateway.yaml":  renderTemplate(apiGatewayConfigTemplate, rt),
-		"app-runtime.yaml":  renderTemplate(appRuntimeConfigTemplate, rt),
-		"app-server.yaml":   renderTemplate(appServerConfigTemplate, rt),
-		"app-storage.yaml":  renderTemplate(appStorageConfigTemplate, rt),
-		"agent-server.yaml": renderTemplate(agentServerConfigTemplate, rt),
-		"hr-server.yaml":    renderTemplate(hrServerConfigTemplate, rt),
+		"global.yaml":           renderTemplate(globalConfigTemplate, rt),
+		"api-gateway.yaml":      renderTemplate(apiGatewayConfigTemplate, rt),
+		"app-runtime.yaml":      renderTemplate(appRuntimeConfigTemplate, rt),
+		"app-server.yaml":       renderTemplate(appServerConfigTemplate, rt),
+		"app-storage.yaml":      renderTemplate(appStorageConfigTemplate, rt),
+		"connector-server.yaml": renderTemplate(connectorServerConfigTemplate, rt),
+		"agent-server.yaml":     renderTemplate(agentServerConfigTemplate, rt),
+		"hr-server.yaml":        renderTemplate(hrServerConfigTemplate, rt),
 	}
 	for name, content := range files {
 		if err := os.WriteFile(filepath.Join(configDir, name), []byte(content), 0644); err != nil {
@@ -2169,7 +2178,7 @@ func printDevInitSummary(paths Paths, opts initDevOptions) {
 		{"MySQL port", values["MYSQL_PORT"]},
 		{"MySQL user", "root"},
 		{"MySQL password", values["MYSQL_ROOT_PASSWORD"]},
-		{"MySQL databases", "app-server, agent-server, app-storage, hr-server"},
+		{"MySQL databases", "app-server, agent-server, app-storage, connector-server, hr-server"},
 		{"NATS URL", values["NATS_URL"]},
 		{"NATS user", values["NATS_SEED_USER"]},
 		{"NATS password", values["NATS_SEED_PASSWORD"]},
@@ -2678,6 +2687,7 @@ func requiredMySQLDatabases(rt RuntimeConfig) []string {
 		rt.MySQL.AppDatabase,
 		rt.MySQL.StorageDatabase,
 		rt.MySQL.AgentDatabase,
+		rt.MySQL.ConnectorDatabase,
 		rt.MySQL.HRDatabase,
 	})
 }

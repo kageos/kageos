@@ -1,5 +1,5 @@
 import { get, post, put, del } from '@/architecture/infrastructure/apiClient/request'
-import type { CapabilityBundle, ServiceTree, CreateServiceTreeRequest, FunctionSchema } from '@/architecture/domain/types'
+import type { CapabilityBundle, ServiceTree, CreateServiceTreeRequest, FunctionConnectorEndpoint, FunctionSchema } from '@/architecture/domain/types'
 
 // ⭐ 创建 package 类型节点（推荐使用）
 export function createPackage(data: CreateServiceTreeRequest) {
@@ -201,6 +201,10 @@ export interface FunctionSearchResult {
   schema?: FunctionSchema
   /** 函数级回调能力 */
   callbacks?: string[]
+  /** 函数依赖的连接器 provider 列表 */
+  connectors?: string[]
+  /** 函数声明使用的连接器 API 端点 */
+  connector_endpoints?: FunctionConnectorEndpoint[]
 }
 
 export interface SearchFunctionsResp {

@@ -146,6 +146,28 @@ export interface FunctionSchema {
 /**
  * 函数详情
  */
+export interface FunctionConnectorStatus {
+  provider: string
+  required?: boolean
+  connected: boolean
+  connection_id?: string
+  display_name?: string
+  resolved_from?: string
+  required_scopes?: string[]
+  granted_scopes?: string[]
+  missing_scopes?: string[]
+  message?: string
+}
+
+export interface FunctionConnectorEndpoint {
+  provider?: string
+  method?: string
+  url?: string
+  name?: string
+  desc?: string
+  required_scopes?: string[]
+}
+
 export interface FunctionDetail {
   id?: number
   app_id?: number
@@ -157,6 +179,9 @@ export interface FunctionDetail {
   router?: string
   has_config?: boolean
   create_tables?: string
+  connectors?: string[]
+  connector_endpoints?: FunctionConnectorEndpoint[]
+  connector_status?: FunctionConnectorStatus[]
   template_type?: string  // 'form', 'table', 'chart'
   schema?: FunctionSchema  // 函数配置唯一来源
   created_by?: string  // 创建者用户名

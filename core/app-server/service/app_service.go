@@ -155,6 +155,12 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 	logger.Infof(ctx, "[AppService:RequestApp] start: traceId=%s, %s/%s/%s, method=%s, router=%s, natsId=%d, dbElapsed=%s",
 		req.TraceId, req.User, req.App, req.Version, req.Method, req.Router, app.NatsID, dbElapsed.Truncate(time.Millisecond))
 
+	if err := a.requireFunctionConnectors(ctx, req); err != nil {
+		logger.Warnf(ctx, "[AppService:RequestApp] connector dependency not ready: traceId=%s, user=%s, app=%s, router=%s, err=%v",
+			req.TraceId, req.User, req.App, req.Router, err)
+		return nil, err
+	}
+
 	resp, err := a.appCall.RequestApp(ctx, app.NatsID, req)
 	totalElapsed := time.Since(start)
 	if err != nil {
@@ -166,6 +172,37 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 		req.TraceId, req.User, req.App, req.Version, resp.Error != "", totalElapsed.Truncate(time.Millisecond))
 	resp.Version = req.Version
 	return resp, nil
+}
+
+func (a *AppService) requireFunctionConnectors(ctx context.Context, req *dto.RequestAppReq) error {
+	if a == nil || a.functionRepo == nil {
+		return nil
+	}
+	fullCodePath := requestFunctionFullCodePath(req)
+	if fullCodePath == "" {
+		return nil
+	}
+	function, err := a.functionRepo.GetFunctionByFullCodePath(fullCodePath)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return fmt.Errorf("检查函数连接器依赖失败: %w", err)
+	}
+	connectors := splitConnectorCodes(function.Connectors)
+	if len(connectors) == 0 {
+		return nil
+	}
+	endpoints := splitConnectorEndpoints(function.ConnectorEndpoints)
+	statuses := functionConnectorStatuses(ctx, fullCodePath, connectors, endpoints)
+	missing := missingConnectorProviders(statuses)
+	if len(missing) > 0 {
+		if err := connectorDependencyError(statuses); err != nil {
+			return err
+		}
+		return fmt.Errorf("函数依赖连接器 %s，请先完成连接或补充授权后再执行", strings.Join(missing, "、"))
+	}
+	return nil
 }
 
 // IncrementFunctionRunCount 将指定 full_code_path 的 function 运行次数 +1（成功执行 Form/Table/Chart 后调用，用于 search_tools 按热度排序）
@@ -453,13 +490,17 @@ func (a *AppService) convertApiInfoToFunctions(appID int64, apis []*dto.ApiInfo,
 			return nil, fmt.Errorf("template_type 与 schema.type 不一致: template_type=%s schema.type=%s", api.TemplateType, api.Schema.Type)
 		}
 
+		endpoints := normalizeConnectorEndpoints(api.ConnectorEndpoints)
+		connectors := normalizeConnectorCodes(append(append([]string{}, api.Connectors...), connectorCodesFromEndpoints(endpoints)...))
 		function := &model.Function{
-			AppID:        appID,
-			Method:       api.Method,
-			Router:       api.BuildFullCodePath(),
-			Schema:       schemaJSON,
-			HasConfig:    false, // 预留字段，默认为false
-			TemplateType: api.TemplateType,
+			AppID:              appID,
+			Method:             api.Method,
+			Router:             api.BuildFullCodePath(),
+			Schema:             schemaJSON,
+			HasConfig:          false, // 预留字段，默认为false
+			Connectors:         joinConnectorCodes(connectors),
+			ConnectorEndpoints: joinConnectorEndpoints(endpoints),
+			TemplateType:       api.TemplateType,
 		}
 		// 设置创建者用户名（通过嵌入的 Base 结构体）
 		function.CreatedBy = username
@@ -679,6 +720,9 @@ func (a *AppService) applyFunctionNodeMetadata(tree *model.ServiceTree, api *dto
 	tree.TemplateType = api.TemplateType
 	tree.RefID = functionID
 	tree.Tags = strings.Join(api.Tags, ",")
+	endpoints := normalizeConnectorEndpoints(api.ConnectorEndpoints)
+	tree.Connectors = joinConnectorCodes(append(append([]string{}, api.Connectors...), connectorCodesFromEndpoints(endpoints)...))
+	tree.ConnectorEndpoints = joinConnectorEndpoints(endpoints)
 }
 
 // updateFunctionsForAPIs 更新API对应的Function记录

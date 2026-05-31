@@ -9,19 +9,35 @@ type GetFunctionReq struct {
 
 // GetFunctionResp 获取函数详情响应
 type GetFunctionResp struct {
-	ID           int64                          `json:"id" example:"1"`                                            // 函数ID
-	AppID        int64                          `json:"app_id" example:"1"`                                        // 应用ID
-	TreeID       int64                          `json:"tree_id" example:"1"`                                       // 服务目录ID
-	Method       string                         `json:"method" example:"GET"`                                      // HTTP方法
-	Router       string                         `json:"router" example:"/crm/crm_ticket"`                          // 路由路径
-	HasConfig    bool                           `json:"has_config" example:"true"`                                 // 是否有配置
-	CreateTables string                         `json:"create_tables" example:"users,orders"`                      // 创建的表
-	TemplateType string                         `json:"template_type" example:"table"`                             // 模板类型（form、table、chart）
-	Schema       *functionschema.FunctionSchema `json:"schema"`                                                    // 函数配置 schema
-	CreatedAt    string                         `json:"created_at" example:"2024-01-01T00:00:00Z"`                 // 创建时间
-	UpdatedAt    string                         `json:"updated_at" example:"2024-01-01T00:00:00Z"`                 // 更新时间
-	CreatedBy    string                         `json:"created_by" example:"beiluo"`                               // 创建者用户名
-	FullCodePath string                         `json:"full_code_path" example:"/beiluo/testapi18/crm/crm_ticket"` //
+	ID                 int64                          `json:"id" example:"1"`                                            // 函数ID
+	AppID              int64                          `json:"app_id" example:"1"`                                        // 应用ID
+	TreeID             int64                          `json:"tree_id" example:"1"`                                       // 服务目录ID
+	Method             string                         `json:"method" example:"GET"`                                      // HTTP方法
+	Router             string                         `json:"router" example:"/crm/crm_ticket"`                          // 路由路径
+	HasConfig          bool                           `json:"has_config" example:"true"`                                 // 是否有配置
+	CreateTables       string                         `json:"create_tables" example:"users,orders"`                      // 创建的表
+	Connectors         []string                       `json:"connectors,omitempty" example:"github,google"`              // 函数依赖的连接器 provider 列表
+	ConnectorEndpoints []ConnectorEndpoint            `json:"connector_endpoints,omitempty"`                             // 函数声明使用的连接器 API 端点
+	ConnectorStatus    []FunctionConnectorStatus      `json:"connector_status,omitempty"`                                // 当前用户的连接器就绪状态
+	TemplateType       string                         `json:"template_type" example:"table"`                             // 模板类型（form、table、chart）
+	Schema             *functionschema.FunctionSchema `json:"schema"`                                                    // 函数配置 schema
+	CreatedAt          string                         `json:"created_at" example:"2024-01-01T00:00:00Z"`                 // 创建时间
+	UpdatedAt          string                         `json:"updated_at" example:"2024-01-01T00:00:00Z"`                 // 更新时间
+	CreatedBy          string                         `json:"created_by" example:"beiluo"`                               // 创建者用户名
+	FullCodePath       string                         `json:"full_code_path" example:"/beiluo/testapi18/crm/crm_ticket"` //
+}
+
+type FunctionConnectorStatus struct {
+	Provider       string   `json:"provider"`
+	Required       bool     `json:"required"`
+	Connected      bool     `json:"connected"`
+	ConnectionID   string   `json:"connection_id,omitempty"`
+	DisplayName    string   `json:"display_name,omitempty"`
+	ResolvedFrom   string   `json:"resolved_from,omitempty"`
+	RequiredScopes []string `json:"required_scopes,omitempty"`
+	GrantedScopes  []string `json:"granted_scopes,omitempty"`
+	MissingScopes  []string `json:"missing_scopes,omitempty"`
+	Message        string   `json:"message,omitempty"`
 }
 
 // GetFunctionsByAppReq 获取应用下所有函数请求
@@ -36,19 +52,21 @@ type GetFunctionsByAppResp struct {
 
 // FunctionInfo 函数信息
 type FunctionInfo struct {
-	ID           int64    `json:"id" example:"1"`                                               // 函数ID
-	AppID        int64    `json:"app_id" example:"1"`                                           // 应用ID
-	TreeID       int64    `json:"tree_id" example:"1"`                                          // 服务目录ID
-	Method       string   `json:"method" example:"GET"`                                         // HTTP方法
-	Router       string   `json:"router" example:"/users"`                                      // 路由路径
-	HasConfig    bool     `json:"has_config" example:"true"`                                    // 是否有配置
-	CreateTables string   `json:"create_tables" example:"users,orders"`                         // 创建的表
-	Callbacks    []string `json:"callbacks,omitempty" example:"OnTableAddRow,OnTableUpdateRow"` // 回调函数摘要
-	TemplateType string   `json:"template_type" example:"table"`                                // 模板类型（form、table、chart）
-	CreatedAt    string   `json:"created_at" example:"2024-01-01T00:00:00Z"`                    // 创建时间
-	UpdatedAt    string   `json:"updated_at" example:"2024-01-01T00:00:00Z"`                    // 更新时间
-	Name         string   `json:"name" example:"工单管理"`                                          // 函数名称（从 ServiceTree 获取）
-	Description  string   `json:"description" example:"用于管理工单的创建、更新、删除等功能"`                     // 函数描述（从 ServiceTree 获取）
+	ID                 int64               `json:"id" example:"1"`                                               // 函数ID
+	AppID              int64               `json:"app_id" example:"1"`                                           // 应用ID
+	TreeID             int64               `json:"tree_id" example:"1"`                                          // 服务目录ID
+	Method             string              `json:"method" example:"GET"`                                         // HTTP方法
+	Router             string              `json:"router" example:"/users"`                                      // 路由路径
+	HasConfig          bool                `json:"has_config" example:"true"`                                    // 是否有配置
+	CreateTables       string              `json:"create_tables" example:"users,orders"`                         // 创建的表
+	Connectors         []string            `json:"connectors,omitempty" example:"github,google"`                 // 函数依赖的连接器 provider 列表
+	ConnectorEndpoints []ConnectorEndpoint `json:"connector_endpoints,omitempty"`                                // 函数声明使用的连接器 API 端点
+	Callbacks          []string            `json:"callbacks,omitempty" example:"OnTableAddRow,OnTableUpdateRow"` // 回调函数摘要
+	TemplateType       string              `json:"template_type" example:"table"`                                // 模板类型（form、table、chart）
+	CreatedAt          string              `json:"created_at" example:"2024-01-01T00:00:00Z"`                    // 创建时间
+	UpdatedAt          string              `json:"updated_at" example:"2024-01-01T00:00:00Z"`                    // 更新时间
+	Name               string              `json:"name" example:"工单管理"`                                          // 函数名称（从 ServiceTree 获取）
+	Description        string              `json:"description" example:"用于管理工单的创建、更新、删除等功能"`                     // 函数描述（从 ServiceTree 获取）
 }
 
 // GetFunctionGroupInfoResp 获取函数组信息响应（用于函数组复制）

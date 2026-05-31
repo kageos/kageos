@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -93,12 +94,13 @@ func (c *Context) ShouldBind(req interface{}) error {
 	if c.msg == nil {
 		return fmt.Errorf("msg is nil")
 	}
-	if c.body != nil {
-		return json.Unmarshal(c.body, req)
-	}
-	if strings.ToUpper(c.msg.Method) == "GET" {
+	method := strings.ToUpper(c.msg.Method)
+	if method == http.MethodGet {
 		if c.urlQuery == "" {
-			return nil
+			if len(c.body) == 0 {
+				return nil
+			}
+			return json.Unmarshal(c.body, req)
 		}
 		query, err := url.ParseQuery(c.urlQuery)
 		if err != nil {
@@ -108,10 +110,12 @@ func (c *Context) ShouldBind(req interface{}) error {
 		if err != nil {
 			return fmt.Errorf("解码表单数据失败: %w", err)
 		}
-	} else {
-		return json.Unmarshal(c.body, req)
+		return nil
 	}
-	return nil
+	if len(c.body) == 0 {
+		return nil
+	}
+	return json.Unmarshal(c.body, req)
 }
 
 // ShouldBindValidate 绑定请求体/查询参数并在绑定成功后做 struct 校验。

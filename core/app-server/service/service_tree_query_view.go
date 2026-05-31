@@ -142,19 +142,21 @@ func (q *serviceTreeQueryView) GetServiceTreeDetail(ctx context.Context, req *dt
 	}
 
 	resp := &dto.GetServiceTreeDetailResp{
-		ID:           tree.ID,
-		Name:         tree.Name,
-		Code:         tree.Code,
-		Type:         tree.Type,
-		Description:  tree.Description,
-		Tags:         tree.Tags,
-		AppID:        tree.AppID,
-		RefID:        tree.RefID,
-		FullCodePath: tree.FullCodePath,
-		TemplateType: tree.TemplateType,
-		Version:      tree.Version,
-		VersionNum:   tree.VersionNum,
-		RunCount:     tree.RunCount,
+		ID:                 tree.ID,
+		Name:               tree.Name,
+		Code:               tree.Code,
+		Type:               tree.Type,
+		Description:        tree.Description,
+		Tags:               tree.Tags,
+		Connectors:         splitConnectorCodes(tree.Connectors),
+		ConnectorEndpoints: splitConnectorEndpoints(tree.ConnectorEndpoints),
+		AppID:              tree.AppID,
+		RefID:              tree.RefID,
+		FullCodePath:       tree.FullCodePath,
+		TemplateType:       tree.TemplateType,
+		Version:            tree.Version,
+		VersionNum:         tree.VersionNum,
+		RunCount:           tree.RunCount,
 	}
 
 	return resp, nil
@@ -191,21 +193,23 @@ func collectServiceTreePaths(trees []*model.ServiceTree) []string {
 
 func (q *serviceTreeQueryView) convertToGetServiceTreeResp(tree *model.ServiceTree, permissionsByPath map[string]*access.Result) *dto.GetServiceTreeResp {
 	resp := &dto.GetServiceTreeResp{
-		ID:           tree.ID,
-		Name:         tree.Name,
-		Code:         tree.Code,
-		RefID:        tree.RefID,
-		Type:         tree.Type,
-		Description:  tree.Description,
-		Tags:         tree.Tags,
-		Admins:       tree.Admins,
-		Owner:        tree.CreatedBy,
-		AppID:        tree.AppID,
-		FullCodePath: tree.FullCodePath,
-		TemplateType: tree.TemplateType,
-		Version:      tree.Version,
-		VersionNum:   tree.VersionNum,
-		RunCount:     tree.RunCount,
+		ID:                 tree.ID,
+		Name:               tree.Name,
+		Code:               tree.Code,
+		RefID:              tree.RefID,
+		Type:               tree.Type,
+		Description:        tree.Description,
+		Tags:               tree.Tags,
+		Connectors:         splitConnectorCodes(tree.Connectors),
+		ConnectorEndpoints: splitConnectorEndpoints(tree.ConnectorEndpoints),
+		Admins:             tree.Admins,
+		Owner:              tree.CreatedBy,
+		AppID:              tree.AppID,
+		FullCodePath:       tree.FullCodePath,
+		TemplateType:       tree.TemplateType,
+		Version:            tree.Version,
+		VersionNum:         tree.VersionNum,
+		RunCount:           tree.RunCount,
 	}
 	if permissionResult := permissionsByPath[access.NormalizeResourcePath(tree.FullCodePath)]; permissionResult != nil {
 		resp.Permissions = permissionResult.Permissions

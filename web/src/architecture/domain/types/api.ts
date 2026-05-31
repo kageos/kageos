@@ -1,6 +1,8 @@
 // API 响应基础类型是传输层协议壳，定义在 shared；这里保留重导出兼容旧调用方。
 export type { ApiResponse } from '@/architecture/shared/apiTypes'
 
+import type { FunctionConnectorEndpoint } from './field'
+
 // 用户相关类型
 export interface UserInfo {
   id: number
@@ -85,6 +87,8 @@ export interface ServiceTree {
   type: 'package' | 'function' | 'docs'
   description: string
   tags: string
+  connectors?: string[]
+  connector_endpoints?: FunctionConnectorEndpoint[]
   admins?: string  // 节点管理员列表，逗号分隔的用户名
   owner?: string   // 节点创建者（owner）
   app_id: number
@@ -130,6 +134,7 @@ export type {
   WidgetConfig, 
   FieldValue,
   FieldMeta,
+  FunctionConnectorEndpoint,
   FunctionDetail,
   FunctionSchema,
   WidgetMode,

@@ -73,6 +73,9 @@ func TestRenderBundledConfig(t *testing.T) {
 	if !strings.Contains(mysqlInit, "CREATE DATABASE IF NOT EXISTS `app-server`") {
 		t.Fatalf("mysql init should quote database identifiers, got:\n%s", mysqlInit)
 	}
+	if !strings.Contains(mysqlInit, "CREATE DATABASE IF NOT EXISTS `connector-server`") {
+		t.Fatalf("mysql init should create connector-server database, got:\n%s", mysqlInit)
+	}
 
 	appServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-server.yaml"))
 	if strings.Contains(appServerConfig, `scheduled_task_db`) {
@@ -126,6 +129,17 @@ func TestRenderBundledConfig(t *testing.T) {
 		t.Fatalf("generated app-storage config should include container MinIO endpoint, got:\n%s", appStorageConfig)
 	}
 
+	connectorServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "connector-server.yaml"))
+	for _, want := range []string{
+		`port: 9096`,
+		`name: "connector-server"`,
+		`callback_base_url: "http://127.0.0.1"`,
+	} {
+		if !strings.Contains(connectorServerConfig, want) {
+			t.Fatalf("generated connector-server config missing %q, got:\n%s", want, connectorServerConfig)
+		}
+	}
+
 	for _, want := range []string{
 		`system_user:`,
 		`password: "` + cfg.SystemUser.Password + `"`,
@@ -138,6 +152,9 @@ func TestRenderBundledConfig(t *testing.T) {
 	apiGatewayConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "api-gateway.yaml"))
 	if !strings.Contains(apiGatewayConfig, `path: "/public/api"`) {
 		t.Fatalf("generated api-gateway config should proxy public share APIs, got:\n%s", apiGatewayConfig)
+	}
+	if !strings.Contains(apiGatewayConfig, `path: "/connector"`) {
+		t.Fatalf("generated api-gateway config should proxy connector APIs, got:\n%s", apiGatewayConfig)
 	}
 	for _, retired := range []string{`path: "/message"`, `path: "/control"`} {
 		if strings.Contains(apiGatewayConfig, retired) {
@@ -447,6 +464,20 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 	}
 	if !strings.Contains(appServerConfig, `port: 3318`) {
 		t.Fatalf("dev app-server config should use isolated mysql port 3318, got:\n%s", appServerConfig)
+	}
+	apiGatewayConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "api-gateway.yaml"))
+	if !strings.Contains(apiGatewayConfig, `path: "/connector"`) {
+		t.Fatalf("dev api-gateway config should proxy connector APIs, got:\n%s", apiGatewayConfig)
+	}
+	connectorServerConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "connector-server.yaml"))
+	for _, want := range []string{
+		`port: 9096`,
+		`port: 3318`,
+		`name: "connector-server"`,
+	} {
+		if !strings.Contains(connectorServerConfig, want) {
+			t.Fatalf("dev connector-server config missing %q, got:\n%s", want, connectorServerConfig)
+		}
 	}
 	appRuntimeConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "app-runtime.yaml"))
 	if !strings.Contains(appRuntimeConfig, `base_image: "kagebase:latest"`) {
@@ -941,6 +972,7 @@ func TestVerifyLayerChecksIncludeBundledSDKEndpoints(t *testing.T) {
 		"main edge probe",
 		"main platform probe",
 		"main runtime probe",
+		"connector-server",
 		"sdk gateway endpoint",
 		"sdk nats endpoint",
 		"sdk minio endpoint",
@@ -957,16 +989,17 @@ func TestRequiredMySQLDatabases(t *testing.T) {
 	rt := RuntimeConfig{
 		Config: Config{
 			MySQL: MySQLConfig{
-				AppDatabase:     "app-server",
-				StorageDatabase: "app-storage",
-				AgentDatabase:   "agent-server",
-				HRDatabase:      "hr-server",
+				AppDatabase:       "app-server",
+				StorageDatabase:   "app-storage",
+				AgentDatabase:     "agent-server",
+				ConnectorDatabase: "connector-server",
+				HRDatabase:        "hr-server",
 			},
 		},
 	}
 
 	got := requiredMySQLDatabases(rt)
-	for _, want := range []string{"app-server", "app-storage", "agent-server", "hr-server"} {
+	for _, want := range []string{"app-server", "app-storage", "agent-server", "connector-server", "hr-server"} {
 		if !containsString(got, want) {
 			t.Fatalf("required MySQL databases missing %q: %#v", want, got)
 		}

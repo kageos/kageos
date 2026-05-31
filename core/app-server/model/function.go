@@ -11,15 +11,17 @@ import (
 
 type Function struct {
 	models.Base
-	Schema       json.RawMessage `json:"schema" gorm:"type:json"`
-	AppID        int64           `json:"app_id"`
-	TreeID       int64           `json:"tree_id"`
-	Method       string          `json:"method" gorm:"type:varchar(255);column:method"`
-	Router       string          `json:"router" gorm:"type:varchar(255);column:router"`
-	HasConfig    bool            `json:"has_config" gorm:"column:has_config;comment:是否存在配置"` // 是否存在配置
-	CreateTables string          `json:"create_tables"`                                      //创建该api时候会自动帮忙创建这个数据库表gorm的model列表
-	TemplateType string          `json:"template_type"`                                      // 渲染类型
-	App          *App            `json:"-" gorm:"foreignKey:AppID;references:ID"`            // 预加载
+	Schema             json.RawMessage `json:"schema" gorm:"type:json"`
+	AppID              int64           `json:"app_id"`
+	TreeID             int64           `json:"tree_id"`
+	Method             string          `json:"method" gorm:"type:varchar(255);column:method"`
+	Router             string          `json:"router" gorm:"type:varchar(255);column:router"`
+	HasConfig          bool            `json:"has_config" gorm:"column:has_config;comment:是否存在配置"`              // 是否存在配置
+	CreateTables       string          `json:"create_tables"`                                                   //创建该api时候会自动帮忙创建这个数据库表gorm的model列表
+	Connectors         string          `json:"connectors" gorm:"type:text;column:connectors"`                   // 函数依赖的连接器 provider 列表，逗号分隔
+	ConnectorEndpoints string          `json:"connector_endpoints" gorm:"type:text;column:connector_endpoints"` // 函数声明使用的连接器 API 端点，JSON
+	TemplateType       string          `json:"template_type"`                                                   // 渲染类型
+	App                *App            `json:"-" gorm:"foreignKey:AppID;references:ID"`                         // 预加载
 	// 不在此处关联 ServiceTree，避免 AutoMigrate 为 tree_id 建外键导致历史脏数据迁移失败；搜索函数改为查 ServiceTree 并 Preload Function
 }
 

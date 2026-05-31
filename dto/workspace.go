@@ -187,15 +187,17 @@ type GetWorkspaceContextReq struct {
 
 // WorkspaceContextNode 工作台环境节点信息
 type WorkspaceContextNode struct {
-	ID           int64                          `json:"id"`
-	Name         string                         `json:"name"`                // 节点名称
-	Code         string                         `json:"code"`                // 节点代码
-	Type         string                         `json:"type"`                // 节点类型：package（目录）或 function（函数）
-	Description  string                         `json:"description"`         // 节点描述
-	FullCodePath string                         `json:"full_code_path"`      // 完整路径
-	TemplateType string                         `json:"template_type"`       // 函数类型（仅 function 有效）：table、form、chart
-	Callbacks    []string                       `json:"callbacks,omitempty"` // 函数回调能力摘要（仅 function 有效）
-	Schema       *functionschema.FunctionSchema `json:"schema,omitempty"`    // 函数 schema 摘要（仅 function 有效）
+	ID                 int64                          `json:"id"`
+	Name               string                         `json:"name"`                          // 节点名称
+	Code               string                         `json:"code"`                          // 节点代码
+	Type               string                         `json:"type"`                          // 节点类型：package（目录）或 function（函数）
+	Description        string                         `json:"description"`                   // 节点描述
+	FullCodePath       string                         `json:"full_code_path"`                // 完整路径
+	TemplateType       string                         `json:"template_type"`                 // 函数类型（仅 function 有效）：table、form、chart
+	Callbacks          []string                       `json:"callbacks,omitempty"`           // 函数回调能力摘要（仅 function 有效）
+	Connectors         []string                       `json:"connectors,omitempty"`          // 函数依赖的连接器 provider 列表（仅 function 有效）
+	ConnectorEndpoints []ConnectorEndpoint            `json:"connector_endpoints,omitempty"` // 函数声明使用的连接器 API 端点（仅 function 有效）
+	Schema             *functionschema.FunctionSchema `json:"schema,omitempty"`              // 函数 schema 摘要（仅 function 有效）
 }
 
 // WorkspaceContextDirectory 工作台环境目录信息

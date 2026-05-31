@@ -14,6 +14,7 @@ import (
 	appRuntimeRunner "github.com/kageos/kageos/core/app-runtime/runner"
 	appServerRunner "github.com/kageos/kageos/core/app-server/runner"
 	appStorageRunner "github.com/kageos/kageos/core/app-storage/runner"
+	connectorServerRunner "github.com/kageos/kageos/core/connector-server/runner"
 	hrServerRunner "github.com/kageos/kageos/core/hr-server/runner"
 
 	"github.com/kageos/kageos/pkg/infra"
@@ -73,7 +74,15 @@ func init() {
 		ReadyChannel: make(chan struct{}, 1),
 	})
 
-	// 5. App Server（应用服务，依赖 app-runtime）
+	// 5. Connector Server（连接器服务）
+	services = append(services, &ServiceInfo{
+		Name:         "connector-server",
+		Main:         connectorServerRunner.Main,
+		DependsOn:    nil,
+		ReadyChannel: make(chan struct{}, 1),
+	})
+
+	// 6. App Server（应用服务，依赖 app-runtime）
 	services = append(services, &ServiceInfo{
 		Name:         "app-server",
 		Main:         appServerRunner.Main,
@@ -86,10 +95,11 @@ func init() {
 		"app-storage",
 		"hr-server",
 		"agent-server",
+		"connector-server",
 		"app-server",
 	}
 
-	// 6. API Gateway（API 网关，最后启动，因为依赖其他服务）
+	// 7. API Gateway（API 网关，最后启动，因为依赖其他服务）
 	services = append(services, &ServiceInfo{
 		Name:         "api-gateway",
 		Main:         apiGatewayRunner.Main,

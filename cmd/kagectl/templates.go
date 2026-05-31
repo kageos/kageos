@@ -171,6 +171,7 @@ const mysqlInitTemplate = `
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.AppDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.StorageDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.AgentDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.ConnectorDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.HRDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 `
 
@@ -241,6 +242,11 @@ routes:
     service_name: "hr"
     targets:
       - url: "http://127.0.0.1:9097"
+    timeout: 300
+  - path: "/connector"
+    service_name: "connector"
+    targets:
+      - url: "http://127.0.0.1:9096"
     timeout: 300
 
 timeouts:
@@ -333,6 +339,36 @@ db:
   max_lifetime: 300
   log_level: "info"
   slow_threshold: 200
+`
+
+const connectorServerConfigTemplate = `
+server:
+  port: 9096
+  listen_host: "127.0.0.1"
+  log_level: "info"
+  debug: false
+  enable_pprof: false
+
+db:
+  type: "mysql"
+  host: {{ q .MySQLHostForMain }}
+  port: {{ .MySQLPortForMain }}
+  user: {{ q .MySQL.User }}
+  password: {{ q .MySQL.Password }}
+  name: {{ q .MySQL.ConnectorDatabase }}
+  max_idle_conns: 10
+  max_open_conns: 100
+  max_lifetime: 300
+  log_level: "warn"
+  slow_threshold: 200
+
+oauth:
+  callback_base_url: {{ q .Site.BaseURL }}
+  state_ttl_seconds: 600
+  provider_admins:
+    - "system"
+  token_encryption_secret: ""
+  providers: []
 `
 
 const agentServerConfigTemplate = `

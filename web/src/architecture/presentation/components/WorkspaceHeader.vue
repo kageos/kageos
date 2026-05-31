@@ -33,6 +33,15 @@
         <el-icon><Search /></el-icon>
         {{ t('workspace.search') }}
       </el-button>
+      <el-button
+        size="small"
+        class="header-connector-button"
+        @click="router.push('/connectors/providers')"
+        :title="t('workspace.connectorConfig')"
+      >
+        <el-icon><Connection /></el-icon>
+        {{ t('workspace.connectorConfig') }}
+      </el-button>
       <div
         v-if="companyName || companyCode"
         class="company-badge"
@@ -93,8 +102,17 @@
                 <el-icon><Setting /></el-icon>
               </span>
               <span class="user-menu-copy">
-                <span class="user-menu-title">System settings</span>
-                <span class="user-menu-desc">Email and registration policy</span>
+                <span class="user-menu-title">{{ t('route.systemSettings') }}</span>
+                <span class="user-menu-desc">{{ t('workspace.systemSettingsDesc') }}</span>
+              </span>
+            </el-dropdown-item>
+            <el-dropdown-item command="connector-providers" class="user-dropdown-action">
+              <span class="user-menu-icon user-menu-icon--connector">
+                <el-icon><Connection /></el-icon>
+              </span>
+              <span class="user-menu-copy">
+                <span class="user-menu-title">{{ t('workspace.connectorConfig') }}</span>
+                <span class="user-menu-desc">{{ t('workspace.connectorConfigDesc') }}</span>
               </span>
             </el-dropdown-item>
 
@@ -165,6 +183,7 @@ import {
   ArrowDown,
   UserFilled,
   Cpu,
+  Connection,
   Setting,
   Search,
   Moon,
@@ -249,6 +268,9 @@ const handleUserCommand = (command: string) => {
       break
     case 'system-settings':
       router.push('/system/settings')
+      break
+    case 'connector-providers':
+      router.push('/connectors/providers')
       break
     case 'debug':
       showDebugDialog.value = true
@@ -590,6 +612,11 @@ defineExpose({
   color: #0284c7;
 }
 
+.user-menu-icon--connector {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+
 .user-menu-icon--role {
   background: rgba(99, 102, 241, 0.12);
   color: #4f46e5;
@@ -669,7 +696,8 @@ defineExpose({
   box-shadow: 0 14px 32px rgba(var(--el-color-primary-rgb), 0.22);
 }
 
-.header-search-button {
+.header-search-button,
+.header-connector-button {
   height: 40px;
   padding: 0 14px;
   border-radius: 12px;
@@ -690,6 +718,12 @@ defineExpose({
   }
 }
 
+.header-connector-button {
+  .el-icon {
+    margin-right: 4px;
+  }
+}
+
 @media (max-width: 760px) {
   .company-name {
     display: none;
@@ -707,6 +741,14 @@ defineExpose({
   .user-profile {
     max-width: none;
     padding: 7px 9px;
+  }
+
+  .header-connector-button {
+    padding: 0 10px;
+
+    span:not(.el-icon) {
+      display: none;
+    }
   }
 }
 </style>

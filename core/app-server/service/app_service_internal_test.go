@@ -37,12 +37,18 @@ func TestApplyFunctionNodeMetadataOverwritesStaleFields(t *testing.T) {
 		TemplateType: "form",
 		RefID:        1,
 		Tags:         "legacy,stale",
+		Connectors:   "legacy",
 	}
 	api := &dto.ApiInfo{
 		Code:         "ticket_list",
 		Name:         "工单列表",
 		Desc:         `新的描述`,
 		TemplateType: "table",
+		Connectors:   []string{"GitHub", "github", "slack"},
+		ConnectorEndpoints: []dto.ConnectorEndpoint{
+			{Provider: "GitHub", Method: "get", URL: "/user", Name: "当前用户", RequiredScopes: []string{"read:user"}},
+			{Provider: "github", Method: "GET", URL: "/user", Name: "duplicate", RequiredScopes: []string{"user:email"}},
+		},
 	}
 
 	svc.applyFunctionNodeMetadata(tree, api, 42)
@@ -58,5 +64,18 @@ func TestApplyFunctionNodeMetadataOverwritesStaleFields(t *testing.T) {
 	}
 	if tree.Tags != "" {
 		t.Fatalf("expected stale tags to be cleared, got %q", tree.Tags)
+	}
+	if tree.Connectors != "github,slack" {
+		t.Fatalf("expected connectors to be normalized, got %q", tree.Connectors)
+	}
+	endpoints := splitConnectorEndpoints(tree.ConnectorEndpoints)
+	if len(endpoints) != 1 {
+		t.Fatalf("expected one normalized endpoint, got %#v", endpoints)
+	}
+	if endpoint := endpoints[0]; endpoint.Provider != "github" || endpoint.Method != "GET" || endpoint.URL != "/user" || endpoint.Name != "当前用户" {
+		t.Fatalf("unexpected endpoint after apply: %#v", endpoint)
+	}
+	if got := endpoints[0].RequiredScopes; len(got) != 2 || got[0] != "read:user" || got[1] != "user:email" {
+		t.Fatalf("unexpected required scopes after apply: %#v", got)
 	}
 }

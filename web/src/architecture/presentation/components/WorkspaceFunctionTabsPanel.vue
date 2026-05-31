@@ -1,6 +1,10 @@
 <template>
   <div class="function-tabs-wrapper" data-testid="workspace-function-tabs">
     <div class="function-tabs-shell">
+      <FunctionConnectorBar
+        :current-function="currentFunction"
+        :function-detail="currentFunctionDetail"
+      />
       <el-tabs
         :model-value="activeTab"
         class="function-detail-tabs"
@@ -16,6 +20,7 @@
               :current-function="currentFunction"
               :function-detail="currentFunctionDetail"
               :form-view-ref-target="functionFormViewRef"
+              :show-connector-bar="false"
             />
           </div>
         </el-tab-pane>
@@ -82,6 +87,7 @@ import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
 import FunctionInfoPanel from './FunctionInfoPanel.vue'
+import FunctionConnectorBar from './FunctionConnectorBar.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import TeamAccessPanel from './TeamAccessPanel.vue'
 import PublicSharePanel from './PublicSharePanel.vue'
