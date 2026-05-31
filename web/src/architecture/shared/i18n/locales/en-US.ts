@@ -303,7 +303,7 @@ export default {
     actionTableWrite: 'Create record',
     actionTableUpdate: 'Update record',
     actionTableDelete: 'Delete record',
-    actionFormRead: 'View form',
+    actionFormRead: 'View',
     actionFormSubmit: 'Submit form',
     actionChartRead: 'View chart',
     actionDocsRead: 'View docs',

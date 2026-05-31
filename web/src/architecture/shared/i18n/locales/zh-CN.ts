@@ -303,7 +303,7 @@ export default {
     actionTableWrite: '新增记录',
     actionTableUpdate: '修改记录',
     actionTableDelete: '删除记录',
-    actionFormRead: '查看表单',
+    actionFormRead: '查看',
     actionFormSubmit: '提交表单',
     actionChartRead: '查看图表',
     actionDocsRead: '查看文档',

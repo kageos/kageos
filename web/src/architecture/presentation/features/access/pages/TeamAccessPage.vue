@@ -993,7 +993,7 @@ function getRoleActionKinds(): ResourceKind[] {
 }
 
 function roleActionStatesForKind(role: RoleOption, kind: ResourceKind): RoleActionState[] {
-  const actionConfigs = roleActionConfigs.value[kind] || []
+  const actionConfigs = (roleActionConfigs.value[kind] || []).filter(action => shouldShowRoleAction(role, action.value))
   const enabledActions = new Set(role.permissions)
   const hasAdminCoverage = enabledActions.has('admin')
   const hasOwnerCoverage = enabledActions.has('owner')
@@ -1003,6 +1003,12 @@ function roleActionStatesForKind(role: RoleOption, kind: ResourceKind): RoleActi
       || (action.value !== 'owner' && hasAdminCoverage)
       || enabledActions.has(action.value)
   }))
+}
+
+function shouldShowRoleAction(role: RoleOption, action: AccessPermissionsKey): boolean {
+  if (action === 'admin') return role.value === 'admin' || role.value === 'owner'
+  if (action === 'owner') return role.value === 'owner'
+  return true
 }
 
 function rolePermissionPointCount(role: RoleOption): number {
@@ -1961,16 +1967,16 @@ function formatExpiresAt(value?: string): string {
 
 .role-action-groups {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 6px;
 }
 
 .role-action-group {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 5px;
   min-width: 0;
-  padding: 8px;
+  padding: 6px;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
   background: color-mix(in srgb, var(--el-bg-color) 94%, var(--el-fill-color) 6%);
@@ -1982,7 +1988,7 @@ function formatExpiresAt(value?: string): string {
   gap: 6px;
   min-width: 0;
   color: var(--el-text-color-primary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 
   span {
@@ -1993,8 +1999,8 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-action-group-icon {
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   flex-shrink: 0;
   object-fit: contain;
 }
@@ -2006,8 +2012,8 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-action-group .role-action-grid {
-  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
-  gap: 5px;
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  gap: 4px;
 }
 
 .role-action-item {
@@ -2025,9 +2031,9 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-action-group .role-action-item {
-  min-height: 30px;
-  gap: 6px;
-  padding: 5px 7px;
+  min-height: 26px;
+  gap: 5px;
+  padding: 4px 6px;
   border-radius: 7px;
 }
 
@@ -2070,11 +2076,7 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-action-group .role-action-copy small {
-  display: -webkit-box;
-  overflow: hidden;
-  white-space: normal;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  display: none;
 }
 
 .role-card.is-selected .role-card-title-row strong {
