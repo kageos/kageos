@@ -80,7 +80,6 @@ declare module 'vue' {
     FunctionConnectorBar: typeof import('./src/architecture/presentation/components/FunctionConnectorBar.vue')['default']
     FunctionExecutionResultReadonly: typeof import('./src/architecture/presentation/components/FunctionExecutionResultReadonly.vue')['default']
     FunctionGroupDetailView: typeof import('./src/architecture/presentation/components/FunctionGroupDetailView.vue')['default']
-    FunctionInfoPanel: typeof import('./src/architecture/presentation/components/FunctionInfoPanel.vue')['default']
     GlobalResourceSearchDialog: typeof import('./src/architecture/presentation/components/GlobalResourceSearchDialog.vue')['default']
     LanguageSwitcher: typeof import('./src/architecture/presentation/components/LanguageSwitcher.vue')['default']
     LLMSelector: typeof import('./src/architecture/presentation/shared/components/LLMSelector.vue')['default']
@@ -138,6 +137,7 @@ declare module 'vue' {
     WorkspaceFunctionTabsPanel: typeof import('./src/architecture/presentation/components/WorkspaceFunctionTabsPanel.vue')['default']
     WorkspaceHeader: typeof import('./src/architecture/presentation/components/WorkspaceHeader.vue')['default']
     WorkspaceListDialog: typeof import('./src/architecture/presentation/shared/components/WorkspaceListDialog.vue')['default']
+    WorkspaceListPanel: typeof import('./src/architecture/presentation/shared/components/WorkspaceListPanel.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']
@@ -214,7 +214,6 @@ declare global {
   const FunctionConnectorBar: typeof import('./src/architecture/presentation/components/FunctionConnectorBar.vue')['default']
   const FunctionExecutionResultReadonly: typeof import('./src/architecture/presentation/components/FunctionExecutionResultReadonly.vue')['default']
   const FunctionGroupDetailView: typeof import('./src/architecture/presentation/components/FunctionGroupDetailView.vue')['default']
-  const FunctionInfoPanel: typeof import('./src/architecture/presentation/components/FunctionInfoPanel.vue')['default']
   const GlobalResourceSearchDialog: typeof import('./src/architecture/presentation/components/GlobalResourceSearchDialog.vue')['default']
   const LanguageSwitcher: typeof import('./src/architecture/presentation/components/LanguageSwitcher.vue')['default']
   const LLMSelector: typeof import('./src/architecture/presentation/shared/components/LLMSelector.vue')['default']
@@ -272,4 +271,5 @@ declare global {
   const WorkspaceFunctionTabsPanel: typeof import('./src/architecture/presentation/components/WorkspaceFunctionTabsPanel.vue')['default']
   const WorkspaceHeader: typeof import('./src/architecture/presentation/components/WorkspaceHeader.vue')['default']
   const WorkspaceListDialog: typeof import('./src/architecture/presentation/shared/components/WorkspaceListDialog.vue')['default']
+  const WorkspaceListPanel: typeof import('./src/architecture/presentation/shared/components/WorkspaceListPanel.vue')['default']
 }

@@ -3,6 +3,7 @@ import type { WidgetComponentProps } from '@/architecture/presentation/widgets/t
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createEmptyFieldValue, createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
+import { normalizeWidgetType, WidgetType } from '@/architecture/domain/constants/widget'
 import { widgetComponentFactory } from '@/architecture/presentation/widgets/registry'
 import {
   getTableRowFieldPresenceState,
@@ -137,22 +138,37 @@ export function useTableWidgetDisplay(
   }
 
   function getColumnWidth(field: any): number {
-    const type = field.widget?.type || 'input'
+    const type = normalizeWidgetType(field.widget?.type)
 
-    if (type === 'datetime') {
+    if (type === WidgetType.DATETIME) {
       return 180
     }
-    if (type === 'switch') {
-      return 100
+    if (type === WidgetType.SWITCH) {
+      return 110
     }
-    if (type === 'number' || type === 'float') {
-      return 120
+    if (type === WidgetType.NUMBER || type === WidgetType.FLOAT) {
+      return 130
     }
-    if (type === 'progress' || type === 'slider') {
+    if (type === WidgetType.PROGRESS || type === WidgetType.SLIDER) {
       return 220
     }
+    if (type === WidgetType.TEXT_AREA || type === WidgetType.RICH_TEXT) {
+      return 300
+    }
+    if (type === WidgetType.TEXT || type === WidgetType.INPUT || type === WidgetType.LINK) {
+      return 220
+    }
+    if (type === WidgetType.FILES) {
+      return 180
+    }
+    if (type === WidgetType.DEPARTMENT || type === WidgetType.DEPARTMENTS) {
+      return 280
+    }
+    if (type === WidgetType.USER || type === WidgetType.USERS) {
+      return 240
+    }
 
-    return 150
+    return 180
   }
 
   function getColumnAlign(field: any): 'left' | 'center' | 'right' {

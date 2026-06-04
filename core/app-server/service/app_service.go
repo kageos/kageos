@@ -275,8 +275,10 @@ func (a *AppService) buildTableActionOperateLog(ctx context.Context, req *dto.Re
 	tableFields := a.sensitiveFieldSet(fullCodePath, sensitiveFieldSectionRequest, sensitiveFieldSectionFields)
 	responseFields := a.sensitiveFieldSet(fullCodePath, sensitiveFieldSectionResponse)
 	details := dto.TableActionLogDetails{
-		RowID:   rowID,
-		Version: version,
+		RowID:      rowID,
+		Version:    version,
+		SourceType: contextx.GetSourceType(ctx),
+		SourceRef:  contextx.GetSourceRef(ctx),
 	}
 	if len(req.RowIDs) > 0 {
 		details.RowIDs = req.RowIDs
@@ -295,6 +297,10 @@ func (a *AppService) buildTableActionOperateLog(ctx context.Context, req *dto.Re
 	if summary == "" {
 		summary = buildTableActionLogSummary(req.RequestUser, req.Action, fullCodePath, rowID, status)
 	}
+	source := strings.TrimSpace(req.Source)
+	if source == "" {
+		source = contextx.GetAuditClientSource(ctx)
+	}
 
 	return &model.OperateLog{
 		TenantUser:    req.TenantUser,
@@ -311,7 +317,7 @@ func (a *AppService) buildTableActionOperateLog(ctx context.Context, req *dto.Re
 		OldValuesJSON: sanitizeOperateLogRawMessageWithFields(oldValues, tableFields),
 		NewValuesJSON: sanitizeOperateLogRawMessageWithFields(updates, tableFields),
 		Status:        status,
-		Source:        req.Source,
+		Source:        source,
 		IPAddress:     req.IPAddress,
 		UserAgent:     req.UserAgent,
 		TraceID:       req.TraceID,

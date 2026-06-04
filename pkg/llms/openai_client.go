@@ -309,7 +309,11 @@ func newToolCall(id, typ string, index *int, name, arguments string) ToolCall {
 }
 
 func sanitizeToolCallArguments(arguments string) string {
-	if strings.TrimSpace(arguments) == "" {
+	trimmed := strings.TrimSpace(arguments)
+	if trimmed == "" {
+		return "{}"
+	}
+	if !json.Valid([]byte(trimmed)) {
 		return "{}"
 	}
 	return arguments

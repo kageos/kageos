@@ -131,3 +131,95 @@ func TestRecordTableActionLogPersistsFailedResultAndDuration(t *testing.T) {
 		t.Fatalf("response body was not redacted correctly: %+v", responseBody)
 	}
 }
+
+func TestRecordTableActionLogUsesContextAuditSource(t *testing.T) {
+	service, db := newAppServiceOperateLogTest(t)
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
+		ClientSource: contextx.ClientSourceAgent,
+		SourceType:   contextx.SourceTypeAgentTool,
+		SourceRef:    "session-1",
+	})
+
+	err := service.RecordTableActionLog(ctx, &dto.RecordTableActionLogReq{
+		TenantUser:  "alice",
+		RequestUser: "bob",
+		App:         "ops",
+		Router:      "tickets.table",
+		Action:      "OnTableAddRow",
+		Body:        json.RawMessage(`{"title":"demo"}`),
+		TraceID:     "trace-agent",
+	})
+	if err != nil {
+		t.Fatalf("record table action log: %v", err)
+	}
+
+	var log model.OperateLog
+	deadline := time.Now().Add(time.Second)
+	for {
+		queryErr := db.Where("trace_id = ?", "trace-agent").First(&log).Error
+		if queryErr == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("log was not persisted: %v", queryErr)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if log.Source != contextx.ClientSourceAgent {
+		t.Fatalf("source = %q, want agent", log.Source)
+	}
+	var details dto.TableActionLogDetails
+	if err := json.Unmarshal(log.DetailsJSON, &details); err != nil {
+		t.Fatalf("unmarshal details: %v", err)
+	}
+	if details.SourceType != contextx.SourceTypeAgentTool || details.SourceRef != "session-1" {
+		t.Fatalf("source details mismatch: %+v", details)
+	}
+}
+
+func TestRecordFormOperateLogInfersOpenAPISource(t *testing.T) {
+	service, db := newAppServiceOperateLogTest(t)
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
+		SourceType: contextx.SourceTypeOpenAPIToken,
+		SourceRef:  "bob",
+	})
+
+	err := service.RecordFormOperateLog(ctx, &dto.RecordFormOperateLogReq{
+		TenantUser:     "alice",
+		RequestUser:    "bob",
+		App:            "ops",
+		Router:         "tools/export.form",
+		Action:         "form_submit",
+		FunctionMethod: "POST",
+		RequestBody:    json.RawMessage(`{"format":"csv"}`),
+		ResponseBody:   json.RawMessage(`{"ok":true}`),
+		TraceID:        "trace-openapi",
+		Status:         "success",
+	})
+	if err != nil {
+		t.Fatalf("record form operate log: %v", err)
+	}
+
+	var log model.OperateLog
+	deadline := time.Now().Add(time.Second)
+	for {
+		queryErr := db.Where("trace_id = ?", "trace-openapi").First(&log).Error
+		if queryErr == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("log was not persisted: %v", queryErr)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if log.Source != contextx.ClientSourceOpenAPI {
+		t.Fatalf("source = %q, want openapi", log.Source)
+	}
+	var details dto.FormOperateLogDetails
+	if err := json.Unmarshal(log.DetailsJSON, &details); err != nil {
+		t.Fatalf("unmarshal details: %v", err)
+	}
+	if details.SourceType != contextx.SourceTypeOpenAPIToken || details.SourceRef != "bob" {
+		t.Fatalf("source details mismatch: %+v", details)
+	}
+}

@@ -40,6 +40,28 @@ func TestWithAgentToolExecutionContextMarksSource(t *testing.T) {
 	if got := contextx.GetClientSource(ctx); got != "agent" {
 		t.Fatalf("client source = %q, want agent", got)
 	}
+	if got := contextx.GetSourceType(ctx); got != contextx.SourceTypeAgentTool {
+		t.Fatalf("source type = %q, want %s", got, contextx.SourceTypeAgentTool)
+	}
+	if got := contextx.GetSourceRef(ctx); got != "session-1" {
+		t.Fatalf("source ref = %q, want session-1", got)
+	}
+}
+
+func TestParseToolCallArgsRejectsInvalidJSON(t *testing.T) {
+	svc := &WorkspaceChatService{}
+	call := llms.ToolCall{ID: "call_bad", Type: "function"}
+	call.Function.Name = "write_go_file"
+	call.Function.Arguments = `{"content":"unterminated`
+
+	_, err := svc.parseToolCallArgs(context.Background(), call)
+	if err == nil {
+		t.Fatal("expected invalid tool arguments to return an error")
+	}
+	res := invalidToolArgumentsResult(call, err)
+	if !res.IsError || !strings.Contains(res.Content, "参数不是合法 JSON") {
+		t.Fatalf("unexpected invalid arguments result: %#v", res)
+	}
 }
 
 func TestSaveAssistantMessageStoresLLMMetadata(t *testing.T) {

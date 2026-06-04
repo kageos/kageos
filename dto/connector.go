@@ -3,20 +3,43 @@ package dto
 import "encoding/json"
 
 type ConnectorConnectionInfo struct {
-	ID                int64  `json:"id"`
-	ConnectionID      string `json:"connection_id"`
-	OwnerUsername     string `json:"owner_username"`
-	Provider          string `json:"provider"`
-	DisplayName       string `json:"display_name"`
-	ExternalAccountID string `json:"external_account_id,omitempty"`
-	Status            string `json:"status"`
-	Metadata          string `json:"metadata,omitempty"`
-	CreatedAt         string `json:"created_at"`
-	UpdatedAt         string `json:"updated_at"`
+	ID                int64                       `json:"id"`
+	ConnectionID      string                      `json:"connection_id"`
+	OwnerUsername     string                      `json:"owner_username"`
+	Provider          string                      `json:"provider"`
+	AuthType          string                      `json:"auth_type"`
+	DisplayName       string                      `json:"display_name"`
+	ExternalAccountID string                      `json:"external_account_id,omitempty"`
+	Status            string                      `json:"status"`
+	Metadata          string                      `json:"metadata,omitempty"`
+	Profile           *ConnectorConnectionProfile `json:"profile,omitempty"`
+	CreatedAt         string                      `json:"created_at"`
+	UpdatedAt         string                      `json:"updated_at"`
+}
+
+type ConnectorConnectionProfile struct {
+	Provider        string                    `json:"provider,omitempty"`
+	DisplayName     string                    `json:"display_name,omitempty"`
+	AccountID       string                    `json:"account_id,omitempty"`
+	AccountName     string                    `json:"account_name,omitempty"`
+	AvatarURL       string                    `json:"avatar_url,omitempty"`
+	AccountURL      string                    `json:"account_url,omitempty"`
+	WorkspaceID     string                    `json:"workspace_id,omitempty"`
+	WorkspaceName   string                    `json:"workspace_name,omitempty"`
+	WorkspaceIcon   string                    `json:"workspace_icon,omitempty"`
+	ResourceSummary *ConnectorResourceSummary `json:"resource_summary,omitempty"`
+	LastEnrichedAt  string                    `json:"last_enriched_at,omitempty"`
+}
+
+type ConnectorResourceSummary struct {
+	PageCount     int      `json:"page_count,omitempty"`
+	DatabaseCount int      `json:"database_count,omitempty"`
+	Samples       []string `json:"samples,omitempty"`
 }
 
 type CreateConnectorConnectionReq struct {
 	Provider          string                 `json:"provider" binding:"required" example:"github"`
+	AuthType          string                 `json:"auth_type,omitempty" example:"oauth2_user"`
 	DisplayName       string                 `json:"display_name" example:"GitHub - beiluo"`
 	ExternalAccountID string                 `json:"external_account_id,omitempty" example:"beiluo"`
 	Metadata          map[string]interface{} `json:"metadata,omitempty"`
@@ -72,6 +95,7 @@ type ResolveConnectorBindingResp struct {
 type StartConnectorOAuthReq struct {
 	Provider      string   `json:"provider" binding:"required" example:"github"`
 	ResourcePath  string   `json:"resource_path,omitempty" example:"/"`
+	ConnectionID  string   `json:"connection_id,omitempty" example:"conn_abc123"`
 	Scopes        []string `json:"scopes,omitempty" example:"repo,user:email"`
 	DisplayName   string   `json:"display_name,omitempty" example:"GitHub - beiluo"`
 	RedirectAfter string   `json:"redirect_after,omitempty" example:"/settings/connectors"`
@@ -108,30 +132,38 @@ type RefreshConnectorOAuthTokenResp struct {
 }
 
 type ConnectorOAuthProviderInfo struct {
-	ID              int64    `json:"id,omitempty"`
-	Code            string   `json:"code"`
-	Name            string   `json:"name"`
-	ClientID        string   `json:"client_id,omitempty"`
-	HasClientSecret bool     `json:"has_client_secret"`
-	AuthURL         string   `json:"auth_url,omitempty"`
-	TokenURL        string   `json:"token_url,omitempty"`
-	Scopes          []string `json:"scopes,omitempty"`
-	Enabled         bool     `json:"enabled"`
-	Active          bool     `json:"active"`
-	Managed         bool     `json:"managed"`
-	CreatedAt       string   `json:"created_at,omitempty"`
-	UpdatedAt       string   `json:"updated_at,omitempty"`
+	ID                 int64    `json:"id,omitempty"`
+	Code               string   `json:"code"`
+	Name               string   `json:"name"`
+	AuthType           string   `json:"auth_type"`
+	ClientID           string   `json:"client_id,omitempty"`
+	HasClientSecret    bool     `json:"has_client_secret"`
+	AuthURL            string   `json:"auth_url,omitempty"`
+	TokenURL           string   `json:"token_url,omitempty"`
+	Scopes             []string `json:"scopes,omitempty"`
+	ProviderAccountURL string   `json:"provider_account_url,omitempty"`
+	LogoURL            string   `json:"logo_url,omitempty"`
+	BrandColor         string   `json:"brand_color,omitempty"`
+	Enabled            bool     `json:"enabled"`
+	Active             bool     `json:"active"`
+	Managed            bool     `json:"managed"`
+	CreatedAt          string   `json:"created_at,omitempty"`
+	UpdatedAt          string   `json:"updated_at,omitempty"`
 }
 
 type UpsertConnectorOAuthProviderReq struct {
-	Code         string   `json:"code" example:"github"`
-	Name         string   `json:"name" example:"GitHub"`
-	ClientID     string   `json:"client_id,omitempty"`
-	ClientSecret string   `json:"client_secret,omitempty"`
-	AuthURL      string   `json:"auth_url,omitempty"`
-	TokenURL     string   `json:"token_url,omitempty"`
-	Scopes       []string `json:"scopes,omitempty"`
-	Enabled      *bool    `json:"enabled,omitempty"`
+	Code               string   `json:"code" example:"github"`
+	Name               string   `json:"name" example:"GitHub"`
+	AuthType           string   `json:"auth_type,omitempty" example:"oauth2_user"`
+	ClientID           string   `json:"client_id,omitempty"`
+	ClientSecret       string   `json:"client_secret,omitempty"`
+	AuthURL            string   `json:"auth_url,omitempty"`
+	TokenURL           string   `json:"token_url,omitempty"`
+	Scopes             []string `json:"scopes,omitempty"`
+	ProviderAccountURL string   `json:"provider_account_url,omitempty"`
+	LogoURL            string   `json:"logo_url,omitempty"`
+	BrandColor         string   `json:"brand_color,omitempty"`
+	Enabled            *bool    `json:"enabled,omitempty"`
 }
 
 type ListConnectorOAuthProvidersResp struct {

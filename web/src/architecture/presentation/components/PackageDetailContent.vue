@@ -1,33 +1,31 @@
 <template>
   <div class="detail-content">
     <div v-if="packageNode">
-      <el-tabs v-model="activeTab" class="detail-tabs">
-        <el-tab-pane :label="t('packageDetail.detail')" name="detail">
-          <div class="tab-content">
-            <PackageDetailOverviewCard
-              :package-node="packageNode"
-              :total-run-count="totalRunCount"
-            />
-            <details
-              v-if="directoryMarkdown"
-              class="directory-markdown-detail"
-              @toggle="handleDirectoryDetailsToggle"
-            >
-              <summary class="directory-markdown-summary">
-                <span>{{ t('packageDetail.detail') }}</span>
-                <span class="directory-markdown-summary-hint">
-                  {{ directoryDetailsOpen ? t('packageDetail.collapse') : t('packageDetail.expand') }}
-                </span>
-              </summary>
-              <div class="directory-markdown-body" v-html="renderMarkdown(directoryMarkdown)" />
-            </details>
-            <PackageDetailChildrenGrid
-              :children="packageNode.children || []"
-              @select-child="$emit('select-child', $event)"
-            />
-          </div>
-        </el-tab-pane>
+      <div class="tab-content primary-content">
+        <PackageDetailOverviewCard
+          :package-node="packageNode"
+          :total-run-count="totalRunCount"
+        />
+        <details
+          v-if="directoryMarkdown"
+          class="directory-markdown-detail"
+          @toggle="handleDirectoryDetailsToggle"
+        >
+          <summary class="directory-markdown-summary">
+            <span>{{ t('packageDetail.directoryDescription') }}</span>
+            <span class="directory-markdown-summary-hint">
+              {{ directoryDetailsOpen ? t('packageDetail.collapse') : t('packageDetail.expand') }}
+            </span>
+          </summary>
+          <div class="directory-markdown-body" v-html="renderMarkdown(directoryMarkdown)" />
+        </details>
+        <PackageDetailChildrenGrid
+          :children="packageNode.children || []"
+          @select-child="$emit('select-child', $event)"
+        />
+      </div>
 
+      <el-tabs v-model="activeTab" class="detail-tabs auxiliary-tabs">
         <el-tab-pane :label="t('packageDetail.permission')" name="permission">
           <div class="tab-content access-tab-content">
             <TeamAccessPanel
@@ -74,7 +72,7 @@ import TeamAccessPanel from './TeamAccessPanel.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { featureFlags } from '@/architecture/shared/config/features'
 
-type PackageTabName = 'detail' | 'permission' | 'operateLog'
+type PackageTabName = 'permission' | 'operateLog'
 
 interface LoadableOperateLogSection {
   load: () => void
@@ -98,7 +96,7 @@ const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
 const { t } = useI18n()
 
-const activeTab = ref<PackageTabName>('detail')
+const activeTab = ref<PackageTabName>('permission')
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
 const accessPanelRef = ref<LoadableAccessPanel | null>(null)
 const directoryDetailsOpen = ref(false)
@@ -231,6 +229,10 @@ watch(
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
   }
+}
+
+.auxiliary-tabs {
+  margin-top: 34px;
 }
 
 .tab-content {

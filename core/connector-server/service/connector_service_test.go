@@ -63,6 +63,32 @@ func TestDirectoryBindingIsScopedToRequestUser(t *testing.T) {
 	}
 }
 
+func TestCreateConnectionDefaultsToOAuth2UserAuthType(t *testing.T) {
+	svc := newTestConnectorService(t)
+	ctx := contextx.WithRequestUser(context.Background(), "alice")
+
+	conn, err := svc.CreateConnection(ctx, dto.CreateConnectorConnectionReq{Provider: "github"})
+	if err != nil {
+		t.Fatalf("create connection: %v", err)
+	}
+	if conn.AuthType != model.ConnectorAuthTypeOAuth2User {
+		t.Fatalf("auth_type = %s, want %s", conn.AuthType, model.ConnectorAuthTypeOAuth2User)
+	}
+}
+
+func TestCreateConnectionRejectsUnsupportedAuthType(t *testing.T) {
+	svc := newTestConnectorService(t)
+	ctx := contextx.WithRequestUser(context.Background(), "alice")
+
+	_, err := svc.CreateConnection(ctx, dto.CreateConnectorConnectionReq{
+		Provider: "github",
+		AuthType: "api_key",
+	})
+	if err == nil || !strings.Contains(err.Error(), "auth_type 目前仅支持 oauth2_user") {
+		t.Fatalf("expected unsupported auth_type error, got %v", err)
+	}
+}
+
 func TestGlobalDirectoryBindingResolvesEveryWorkspaceForOwner(t *testing.T) {
 	svc := newTestConnectorService(t)
 
@@ -98,6 +124,48 @@ func TestGlobalDirectoryBindingResolvesEveryWorkspaceForOwner(t *testing.T) {
 	bobCtx := contextx.WithRequestUser(context.Background(), "bob")
 	if _, err := svc.ResolveDirectoryBinding(bobCtx, "/someone/else/folder/file", "github"); err == nil {
 		t.Fatal("expected bob to be unable to resolve alice global binding")
+	}
+}
+
+func TestGlobalDirectoryBindingWinsOverLegacySpecificBinding(t *testing.T) {
+	svc := newTestConnectorService(t)
+
+	ctx := contextx.WithRequestUser(context.Background(), "alice")
+	globalConn, err := svc.CreateConnection(ctx, dto.CreateConnectorConnectionReq{
+		Provider:    "notion",
+		DisplayName: "Global Notion",
+	})
+	if err != nil {
+		t.Fatalf("create global connection: %v", err)
+	}
+	legacyConn, err := svc.CreateConnection(ctx, dto.CreateConnectorConnectionReq{
+		Provider:    "notion",
+		DisplayName: "Legacy Notion",
+	})
+	if err != nil {
+		t.Fatalf("create legacy connection: %v", err)
+	}
+	if _, err := svc.BindDirectory(ctx, dto.BindConnectorDirectoryReq{
+		ResourcePath: "/",
+		Provider:     "notion",
+		ConnectionID: globalConn.ConnectionID,
+	}); err != nil {
+		t.Fatalf("bind global directory: %v", err)
+	}
+	if _, err := svc.BindDirectory(ctx, dto.BindConnectorDirectoryReq{
+		ResourcePath: "/system/connector/notion/connection_status.form",
+		Provider:     "notion",
+		ConnectionID: legacyConn.ConnectionID,
+	}); err != nil {
+		t.Fatalf("bind legacy directory: %v", err)
+	}
+
+	resolved, err := svc.ResolveDirectoryBinding(ctx, "/system/connector/notion/connection_status.form", "notion")
+	if err != nil {
+		t.Fatalf("resolve notion binding: %v", err)
+	}
+	if resolved.ResolvedFrom != "/" || resolved.Connection.ConnectionID != globalConn.ConnectionID {
+		t.Fatalf("global binding should win over legacy specific binding: %#v", resolved)
 	}
 }
 
@@ -168,8 +236,10 @@ func TestOAuthCallbackStoresEncryptedTokenAndBinding(t *testing.T) {
 		case "/user":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"id":    "alice-ext",
-				"login": "alice",
+				"id":         "alice-ext",
+				"login":      "alice",
+				"avatar_url": "https://avatars.test/alice.png",
+				"html_url":   "https://github.test/alice",
 			})
 		default:
 			http.NotFound(w, r)
@@ -215,8 +285,14 @@ func TestOAuthCallbackStoresEncryptedTokenAndBinding(t *testing.T) {
 	if completed.Connection.ExternalAccountID != "alice-ext" {
 		t.Fatalf("external account = %s, want alice-ext", completed.Connection.ExternalAccountID)
 	}
-	if completed.Binding == nil || completed.Binding.ResourcePath != "/alice/app" {
-		t.Fatalf("expected /alice/app binding, got %#v", completed.Binding)
+	if completed.Connection.AuthType != model.ConnectorAuthTypeOAuth2User {
+		t.Fatalf("auth_type = %s, want %s", completed.Connection.AuthType, model.ConnectorAuthTypeOAuth2User)
+	}
+	if completed.Connection.Profile == nil || completed.Connection.Profile.AccountName != "alice" || completed.Connection.Profile.AvatarURL == "" {
+		t.Fatalf("connection profile not enriched: %#v", completed.Connection.Profile)
+	}
+	if completed.Binding == nil || completed.Binding.ResourcePath != connectorGlobalResourcePath {
+		t.Fatalf("expected global binding, got %#v", completed.Binding)
 	}
 	if !completed.Token.HasAccess || !completed.Token.HasRefresh {
 		t.Fatalf("token summary missing access/refresh: %#v", completed.Token)
@@ -328,6 +404,87 @@ func TestRefreshOAuthTokenUpdatesEncryptedAccessToken(t *testing.T) {
 	}
 }
 
+func TestOAuthReconnectUpdatesExistingConnection(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/token":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"access_token":  "access-reconnected",
+				"refresh_token": "refresh-reconnected",
+				"token_type":    "Bearer",
+			})
+		case "/user":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"id":    "alice-reconnected",
+				"login": "alice-new",
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	svc := newOAuthTestConnectorService(t, config.ConnectorOAuthConfig{
+		CallbackBaseURL: "http://kageos.test",
+		Providers: []config.ConnectorOAuthProviderConfig{{
+			Code:             "test",
+			Name:             "Test Provider",
+			ClientID:         "client-id",
+			ClientSecret:     "client-secret",
+			AuthURL:          upstream.URL + "/authorize",
+			TokenURL:         upstream.URL + "/token",
+			UserInfoURL:      upstream.URL + "/user",
+			Scopes:           []string{"identity"},
+			ExternalIDField:  "id",
+			DisplayNameField: "login",
+		}},
+	})
+	ctx := contextx.WithRequestUser(context.Background(), "alice")
+	conn, err := svc.CreateConnection(ctx, dto.CreateConnectorConnectionReq{
+		Provider:    "test",
+		DisplayName: "Old Account",
+	})
+	if err != nil {
+		t.Fatalf("create connection: %v", err)
+	}
+	if _, err := svc.storeOAuthToken(ctx, "alice", "test", conn.ConnectionID, &OAuthTokenPayload{
+		AccessToken: "access-old",
+		TokenType:   "Bearer",
+		Scopes:      "old.scope",
+	}); err != nil {
+		t.Fatalf("store token: %v", err)
+	}
+	started, err := svc.StartOAuth(ctx, dto.StartConnectorOAuthReq{
+		Provider:     "test",
+		ConnectionID: conn.ConnectionID,
+		Scopes:       []string{"new.scope"},
+	})
+	if err != nil {
+		t.Fatalf("start reconnect oauth: %v", err)
+	}
+	completed, _, err := svc.CompleteOAuthCallback(context.Background(), "code-123", started.State, "")
+	if err != nil {
+		t.Fatalf("complete reconnect oauth: %v", err)
+	}
+	if completed.Connection.ConnectionID != conn.ConnectionID {
+		t.Fatalf("reconnect should update existing connection, got %s want %s", completed.Connection.ConnectionID, conn.ConnectionID)
+	}
+	if completed.Connection.ExternalAccountID != "alice-reconnected" || completed.Connection.DisplayName != "alice-new" {
+		t.Fatalf("connection profile not updated: %#v", completed.Connection)
+	}
+	if completed.Binding == nil || completed.Binding.ConnectionID != conn.ConnectionID || completed.Binding.ResourcePath != "/" {
+		t.Fatalf("reconnect should keep global binding on existing connection: %#v", completed.Binding)
+	}
+	granted := strings.Fields(completed.Token.Scopes)
+	for _, want := range []string{"identity", "old.scope", "new.scope"} {
+		if !containsString(granted, want) {
+			t.Fatalf("reconnected scopes %q missing %q", completed.Token.Scopes, want)
+		}
+	}
+}
+
 func TestOAuthProviderManagementEncryptsSecretAndOverridesRuntimeConfig(t *testing.T) {
 	svc := newOAuthTestConnectorService(t, config.ConnectorOAuthConfig{
 		CallbackBaseURL: "http://kageos.test",
@@ -353,6 +510,9 @@ func TestOAuthProviderManagementEncryptsSecretAndOverridesRuntimeConfig(t *testi
 	}
 	if info.Code != "custom" || info.ClientID != "custom-client" {
 		t.Fatalf("unexpected provider info: %#v", info)
+	}
+	if info.AuthType != model.ConnectorAuthTypeOAuth2User {
+		t.Fatalf("auth_type = %s, want %s", info.AuthType, model.ConnectorAuthTypeOAuth2User)
 	}
 
 	row, err := svc.repo.GetOAuthProviderSetting(context.Background(), "custom")
@@ -407,6 +567,8 @@ func TestSeedOAuthProviderSettingsInitializesBuiltInProviders(t *testing.T) {
 	for _, env := range []string{
 		"KAGEOS_OAUTH_GITHUB_CLIENT_ID",
 		"KAGEOS_OAUTH_GITHUB_CLIENT_SECRET",
+		"KAGEOS_OAUTH_NOTION_CLIENT_ID",
+		"KAGEOS_OAUTH_NOTION_CLIENT_SECRET",
 		"KAGEOS_OAUTH_GITLAB_CLIENT_ID",
 		"KAGEOS_OAUTH_GITLAB_CLIENT_SECRET",
 		"KAGEOS_OAUTH_GOOGLE_CLIENT_ID",
@@ -442,7 +604,7 @@ func TestSeedOAuthProviderSettingsInitializesBuiltInProviders(t *testing.T) {
 	for _, provider := range providers {
 		byCode[provider.Code] = provider
 	}
-	for _, code := range []string{"github", "gitlab", "google", "microsoft", "slack", "feishu", "lark", "dingtalk"} {
+	for _, code := range []string{"github", "notion", "gitlab", "google", "microsoft", "slack", "feishu", "lark", "dingtalk"} {
 		provider, ok := byCode[code]
 		if !ok {
 			t.Fatalf("seeded provider %s not found: %#v", code, providers)
@@ -452,6 +614,9 @@ func TestSeedOAuthProviderSettingsInitializesBuiltInProviders(t *testing.T) {
 		}
 		if !provider.Enabled {
 			t.Fatalf("provider %s should be enabled by default: %#v", code, provider)
+		}
+		if provider.AuthType != model.ConnectorAuthTypeOAuth2User {
+			t.Fatalf("provider %s auth_type = %s, want %s", code, provider.AuthType, model.ConnectorAuthTypeOAuth2User)
 		}
 		if provider.Active {
 			t.Fatalf("provider %s should wait for client credentials before becoming active: %#v", code, provider)

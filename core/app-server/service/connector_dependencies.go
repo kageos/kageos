@@ -124,10 +124,8 @@ func functionConnectorStatuses(ctx context.Context, fullCodePath string, connect
 	if len(codes) == 0 {
 		return nil
 	}
-	fullCodePath = strings.TrimSpace(fullCodePath)
-	if fullCodePath == "" {
-		fullCodePath = apicall.ConnectorGlobalResourcePath
-	}
+	providerDisplays := connectorProviderDisplays(ctx, codes)
+	connectorResourcePath := apicall.ConnectorGlobalResourcePath
 	statuses := make([]dto.FunctionConnectorStatus, 0, len(codes))
 	for _, provider := range codes {
 		scopes := requiredScopes[provider]
@@ -136,7 +134,8 @@ func functionConnectorStatuses(ctx context.Context, fullCodePath string, connect
 			Required:       true,
 			RequiredScopes: scopes,
 		}
-		resp, err := apicall.ResolveConnectorBindingWithScopes(ctx, provider, fullCodePath, scopes)
+		applyConnectorProviderDisplay(&status, providerDisplays[provider])
+		resp, err := apicall.ResolveConnectorBindingWithScopes(ctx, provider, connectorResourcePath, scopes)
 		if err != nil {
 			status.Message = err.Error()
 			statuses = append(statuses, status)
@@ -150,6 +149,7 @@ func functionConnectorStatuses(ctx context.Context, fullCodePath string, connect
 		status.Connected = true
 		status.ConnectionID = resp.Connection.ConnectionID
 		status.DisplayName = resp.Connection.DisplayName
+		status.Profile = resp.Connection.Profile
 		status.ResolvedFrom = resp.ResolvedFrom
 		status.GrantedScopes = resp.GrantedScopes
 		status.MissingScopes = resp.MissingScopes
@@ -159,6 +159,29 @@ func functionConnectorStatuses(ctx context.Context, fullCodePath string, connect
 		statuses = append(statuses, status)
 	}
 	return statuses
+}
+
+func connectorProviderDisplays(ctx context.Context, providers []string) map[string]*dto.ConnectorOAuthProviderInfo {
+	displays := make(map[string]*dto.ConnectorOAuthProviderInfo, len(providers))
+	for _, provider := range normalizeConnectorCodes(providers) {
+		resp, err := apicall.GetConnectorOAuthProvider(ctx, provider)
+		if err != nil || resp == nil {
+			continue
+		}
+		info := resp.Provider
+		displays[provider] = &info
+	}
+	return displays
+}
+
+func applyConnectorProviderDisplay(status *dto.FunctionConnectorStatus, provider *dto.ConnectorOAuthProviderInfo) {
+	if status == nil || provider == nil {
+		return
+	}
+	status.ProviderName = strings.TrimSpace(provider.Name)
+	status.ProviderLogoURL = strings.TrimSpace(provider.LogoURL)
+	status.ProviderBrandColor = strings.TrimSpace(provider.BrandColor)
+	status.ProviderAccountURL = strings.TrimSpace(provider.ProviderAccountURL)
 }
 
 func missingConnectorProviders(statuses []dto.FunctionConnectorStatus) []string {

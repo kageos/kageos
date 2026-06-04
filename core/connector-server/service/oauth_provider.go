@@ -19,7 +19,10 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const tokenRequestModeJSON = "json"
+const (
+	tokenRequestModeJSON      = "json"
+	tokenRequestModeJSONBasic = "json_basic"
+)
 
 type OAuthProviderRegistry struct {
 	providers map[string]config.ConnectorOAuthProviderConfig
@@ -77,6 +80,11 @@ func (r *OAuthProviderRegistry) List() map[string]config.ConnectorOAuthProviderC
 }
 
 func validateOAuthProvider(provider config.ConnectorOAuthProviderConfig) (config.ConnectorOAuthProviderConfig, error) {
+	authType, err := normalizeConnectorAuthType(provider.AuthType)
+	if err != nil {
+		return config.ConnectorOAuthProviderConfig{}, err
+	}
+	provider.AuthType = authType
 	provider.ClientID = strings.TrimSpace(firstNonEmpty(provider.ClientID, os.Getenv(provider.ClientIDEnv)))
 	provider.ClientSecret = strings.TrimSpace(firstNonEmpty(provider.ClientSecret, os.Getenv(provider.ClientSecretEnv)))
 	if provider.ClientID == "" {
@@ -92,8 +100,15 @@ func validateOAuthProvider(provider config.ConnectorOAuthProviderConfig) (config
 }
 
 func (r *OAuthProviderRegistry) BuildAuthURL(provider config.ConnectorOAuthProviderConfig, redirectURL, state, codeChallenge string, scopes []string) string {
+	return connectorAdapterFor(provider.Code).BuildAuthorizeURL(provider, redirectURL, state, codeChallenge, scopes)
+}
+
+func buildOAuthAuthorizeURL(provider config.ConnectorOAuthProviderConfig, redirectURL, state, codeChallenge string, scopes []string) string {
 	conf := oauth2Config(provider, redirectURL, scopes)
-	opts := []oauth2.AuthCodeOption{oauth2.AccessTypeOffline}
+	opts := []oauth2.AuthCodeOption{}
+	if providerUsesAccessTypeOffline(provider) {
+		opts = append(opts, oauth2.AccessTypeOffline)
+	}
 	if providerUsesPKCE(provider) {
 		opts = append(opts,
 			oauth2.SetAuthURLParam("code_challenge", codeChallenge),
@@ -109,8 +124,15 @@ func (r *OAuthProviderRegistry) BuildAuthURL(provider config.ConnectorOAuthProvi
 }
 
 func (r *OAuthProviderRegistry) Exchange(ctx context.Context, provider config.ConnectorOAuthProviderConfig, redirectURL, code, codeVerifier string, scopes []string) (*OAuthTokenPayload, error) {
-	if strings.EqualFold(provider.TokenRequestMode, tokenRequestModeJSON) {
+	return connectorAdapterFor(provider.Code).ExchangeToken(ctx, provider, redirectURL, code, codeVerifier, scopes)
+}
+
+func exchangeOAuthToken(ctx context.Context, provider config.ConnectorOAuthProviderConfig, redirectURL, code, codeVerifier string, scopes []string) (*OAuthTokenPayload, error) {
+	switch strings.ToLower(strings.TrimSpace(provider.TokenRequestMode)) {
+	case tokenRequestModeJSON:
 		return exchangeJSONToken(ctx, provider, redirectURL, code, codeVerifier, scopes)
+	case tokenRequestModeJSONBasic:
+		return exchangeJSONBasicToken(ctx, provider, redirectURL, code, codeVerifier, scopes)
 	}
 	conf := oauth2Config(provider, redirectURL, scopes)
 	opts := []oauth2.AuthCodeOption{}
@@ -125,11 +147,18 @@ func (r *OAuthProviderRegistry) Exchange(ctx context.Context, provider config.Co
 }
 
 func (r *OAuthProviderRegistry) Refresh(ctx context.Context, provider config.ConnectorOAuthProviderConfig, refreshToken string, scopes []string) (*OAuthTokenPayload, error) {
+	return connectorAdapterFor(provider.Code).RefreshToken(ctx, provider, refreshToken, scopes)
+}
+
+func refreshOAuthToken(ctx context.Context, provider config.ConnectorOAuthProviderConfig, refreshToken string, scopes []string) (*OAuthTokenPayload, error) {
 	if strings.TrimSpace(refreshToken) == "" {
 		return nil, fmt.Errorf("refresh_token 为空，无法刷新")
 	}
-	if strings.EqualFold(provider.TokenRequestMode, tokenRequestModeJSON) {
+	switch strings.ToLower(strings.TrimSpace(provider.TokenRequestMode)) {
+	case tokenRequestModeJSON:
 		return refreshJSONToken(ctx, provider, refreshToken, scopes)
+	case tokenRequestModeJSONBasic:
+		return refreshJSONBasicToken(ctx, provider, refreshToken, scopes)
 	}
 	conf := oauth2Config(provider, "", scopes)
 	expired := &oauth2.Token{
@@ -182,7 +211,7 @@ func randomBase64URL(size int) (string, error) {
 }
 
 func exchangeJSONToken(ctx context.Context, provider config.ConnectorOAuthProviderConfig, redirectURL, code, codeVerifier string, scopes []string) (*OAuthTokenPayload, error) {
-	body := jsonTokenBody(provider, "authorization_code")
+	body := jsonTokenBody(provider, "authorization_code", true)
 	body[paramName(provider.CodeParam, "code")] = code
 	if redirectURL != "" {
 		body[paramName(provider.RedirectURIParam, "redirect_uri")] = redirectURL
@@ -199,7 +228,7 @@ func exchangeJSONToken(ctx context.Context, provider config.ConnectorOAuthProvid
 }
 
 func refreshJSONToken(ctx context.Context, provider config.ConnectorOAuthProviderConfig, refreshToken string, scopes []string) (*OAuthTokenPayload, error) {
-	body := jsonTokenBody(provider, "refresh_token")
+	body := jsonTokenBody(provider, "refresh_token", true)
 	body[paramName(provider.RefreshTokenParam, "refresh_token")] = refreshToken
 	for key, value := range provider.ExtraTokenParams {
 		if strings.TrimSpace(key) != "" {
@@ -209,12 +238,43 @@ func refreshJSONToken(ctx context.Context, provider config.ConnectorOAuthProvide
 	return postJSONToken(ctx, provider.TokenURL, body, scopes)
 }
 
-func jsonTokenBody(provider config.ConnectorOAuthProviderConfig, grantType string) map[string]string {
-	return map[string]string{
-		paramName(provider.ClientIDParam, "client_id"):         provider.ClientID,
-		paramName(provider.ClientSecretParam, "client_secret"): provider.ClientSecret,
-		paramName(provider.GrantTypeParam, "grant_type"):       grantType,
+func exchangeJSONBasicToken(ctx context.Context, provider config.ConnectorOAuthProviderConfig, redirectURL, code, codeVerifier string, scopes []string) (*OAuthTokenPayload, error) {
+	body := jsonTokenBody(provider, "authorization_code", false)
+	body[paramName(provider.CodeParam, "code")] = code
+	if redirectURL != "" {
+		body[paramName(provider.RedirectURIParam, "redirect_uri")] = redirectURL
 	}
+	if providerUsesPKCE(provider) {
+		body["code_verifier"] = codeVerifier
+	}
+	for key, value := range provider.ExtraTokenParams {
+		if strings.TrimSpace(key) != "" {
+			body[key] = value
+		}
+	}
+	return postJSONBasicToken(ctx, provider, provider.TokenURL, body, scopes)
+}
+
+func refreshJSONBasicToken(ctx context.Context, provider config.ConnectorOAuthProviderConfig, refreshToken string, scopes []string) (*OAuthTokenPayload, error) {
+	body := jsonTokenBody(provider, "refresh_token", false)
+	body[paramName(provider.RefreshTokenParam, "refresh_token")] = refreshToken
+	for key, value := range provider.ExtraTokenParams {
+		if strings.TrimSpace(key) != "" {
+			body[key] = value
+		}
+	}
+	return postJSONBasicToken(ctx, provider, provider.TokenURL, body, scopes)
+}
+
+func jsonTokenBody(provider config.ConnectorOAuthProviderConfig, grantType string, includeCredentials bool) map[string]string {
+	body := map[string]string{
+		paramName(provider.GrantTypeParam, "grant_type"): grantType,
+	}
+	if includeCredentials {
+		body[paramName(provider.ClientIDParam, "client_id")] = provider.ClientID
+		body[paramName(provider.ClientSecretParam, "client_secret")] = provider.ClientSecret
+	}
+	return body
 }
 
 func postJSONToken(ctx context.Context, tokenURL string, body map[string]string, scopes []string) (*OAuthTokenPayload, error) {
@@ -243,6 +303,35 @@ func postJSONToken(ctx context.Context, tokenURL string, body map[string]string,
 	return parseTokenPayload(data, scopes)
 }
 
+func postJSONBasicToken(ctx context.Context, provider config.ConnectorOAuthProviderConfig, tokenURL string, body map[string]string, scopes []string) (*OAuthTokenPayload, error) {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(string(payload)))
+	if err != nil {
+		return nil, err
+	}
+	credentials := base64.StdEncoding.EncodeToString([]byte(provider.ClientID + ":" + provider.ClientSecret))
+	req.Header.Set("Authorization", "Basic "+credentials)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	decorateProviderAPIRequest(provider.Code, req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("oauth token endpoint returned %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+	return parseTokenPayload(data, scopes)
+}
+
 func fetchProviderUserInfo(ctx context.Context, provider config.ConnectorOAuthProviderConfig, accessToken string) (map[string]interface{}, error) {
 	if strings.TrimSpace(provider.UserInfoURL) == "" || strings.TrimSpace(accessToken) == "" {
 		return nil, nil
@@ -253,6 +342,7 @@ func fetchProviderUserInfo(ctx context.Context, provider config.ConnectorOAuthPr
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Accept", "application/json")
+	decorateProviderAPIRequest(provider.Code, req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -455,6 +545,10 @@ func providerUsesPKCE(provider config.ConnectorOAuthProviderConfig) bool {
 	return *provider.UsePKCE
 }
 
+func providerUsesAccessTypeOffline(provider config.ConnectorOAuthProviderConfig) bool {
+	return connectorAdapterFor(provider.Code).UseAccessTypeOffline()
+}
+
 func paramName(value, fallback string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -475,6 +569,9 @@ func firstNonEmpty(values ...string) string {
 func mergeOAuthProvider(base, override config.ConnectorOAuthProviderConfig) config.ConnectorOAuthProviderConfig {
 	if override.Name != "" {
 		base.Name = override.Name
+	}
+	if override.AuthType != "" {
+		base.AuthType = override.AuthType
 	}
 	if override.ClientID != "" {
 		base.ClientID = override.ClientID
@@ -539,6 +636,12 @@ func mergeOAuthProvider(base, override config.ConnectorOAuthProviderConfig) conf
 	if override.ProviderAccountURL != "" {
 		base.ProviderAccountURL = override.ProviderAccountURL
 	}
+	if override.LogoURL != "" {
+		base.LogoURL = override.LogoURL
+	}
+	if override.BrandColor != "" {
+		base.BrandColor = override.BrandColor
+	}
 	base.Code = override.Code
 	return base
 }
@@ -548,117 +651,178 @@ func builtInOAuthProviders() map[string]config.ConnectorOAuthProviderConfig {
 	falseValue := false
 	return map[string]config.ConnectorOAuthProviderConfig{
 		"github": {
-			Code:             "github",
-			Name:             "GitHub",
-			ClientIDEnv:      "KAGEOS_OAUTH_GITHUB_CLIENT_ID",
-			ClientSecretEnv:  "KAGEOS_OAUTH_GITHUB_CLIENT_SECRET",
-			AuthURL:          "https://github.com/login/oauth/authorize",
-			TokenURL:         "https://github.com/login/oauth/access_token",
-			UserInfoURL:      "https://api.github.com/user",
-			UsePKCE:          &trueValue,
-			ExternalIDField:  "id",
-			DisplayNameField: "login",
+			Code:               "github",
+			Name:               "GitHub",
+			ClientIDEnv:        "KAGEOS_OAUTH_GITHUB_CLIENT_ID",
+			ClientSecretEnv:    "KAGEOS_OAUTH_GITHUB_CLIENT_SECRET",
+			AuthURL:            "https://github.com/login/oauth/authorize",
+			TokenURL:           "https://github.com/login/oauth/access_token",
+			UserInfoURL:        "https://api.github.com/user",
+			UsePKCE:            &trueValue,
+			ExternalIDField:    "id",
+			DisplayNameField:   "login",
+			ProviderAccountURL: "https://github.com",
+			LogoURL:            "https://github.githubassets.com/favicons/favicon.svg",
+			BrandColor:         "#24292f",
+		},
+		"notion": {
+			Code:               "notion",
+			Name:               "Notion",
+			ClientIDEnv:        "KAGEOS_OAUTH_NOTION_CLIENT_ID",
+			ClientSecretEnv:    "KAGEOS_OAUTH_NOTION_CLIENT_SECRET",
+			AuthURL:            "https://api.notion.com/v1/oauth/authorize",
+			TokenURL:           "https://api.notion.com/v1/oauth/token",
+			UserInfoURL:        "https://api.notion.com/v1/users/me",
+			TokenRequestMode:   tokenRequestModeJSONBasic,
+			UsePKCE:            &falseValue,
+			ExtraAuthParams:    map[string]string{"owner": "user"},
+			ExternalIDField:    "id",
+			DisplayNameField:   "name",
+			ProviderAccountURL: "https://www.notion.so",
+			LogoURL:            "https://www.notion.so/images/favicon.ico",
+			BrandColor:         "#000000",
 		},
 		"gitlab": {
-			Code:             "gitlab",
-			Name:             "GitLab",
-			ClientIDEnv:      "KAGEOS_OAUTH_GITLAB_CLIENT_ID",
-			ClientSecretEnv:  "KAGEOS_OAUTH_GITLAB_CLIENT_SECRET",
-			AuthURL:          "https://gitlab.com/oauth/authorize",
-			TokenURL:         "https://gitlab.com/oauth/token",
-			UserInfoURL:      "https://gitlab.com/api/v4/user",
-			Scopes:           []string{"read_user"},
-			UsePKCE:          &trueValue,
-			ExternalIDField:  "id",
-			DisplayNameField: "username",
+			Code:               "gitlab",
+			Name:               "GitLab",
+			ClientIDEnv:        "KAGEOS_OAUTH_GITLAB_CLIENT_ID",
+			ClientSecretEnv:    "KAGEOS_OAUTH_GITLAB_CLIENT_SECRET",
+			AuthURL:            "https://gitlab.com/oauth/authorize",
+			TokenURL:           "https://gitlab.com/oauth/token",
+			UserInfoURL:        "https://gitlab.com/api/v4/user",
+			Scopes:             []string{"read_user"},
+			UsePKCE:            &trueValue,
+			ExternalIDField:    "id",
+			DisplayNameField:   "username",
+			ProviderAccountURL: "https://gitlab.com",
+			LogoURL:            "https://about.gitlab.com/ico/favicon.ico",
+			BrandColor:         "#fc6d26",
 		},
 		"google": {
-			Code:             "google",
-			Name:             "Google",
-			ClientIDEnv:      "KAGEOS_OAUTH_GOOGLE_CLIENT_ID",
-			ClientSecretEnv:  "KAGEOS_OAUTH_GOOGLE_CLIENT_SECRET",
-			AuthURL:          "https://accounts.google.com/o/oauth2/v2/auth",
-			TokenURL:         "https://oauth2.googleapis.com/token",
-			UserInfoURL:      "https://openidconnect.googleapis.com/v1/userinfo",
-			Scopes:           []string{"openid", "email", "profile"},
-			UsePKCE:          &trueValue,
-			ExtraAuthParams:  map[string]string{"prompt": "consent"},
-			ExternalIDField:  "sub",
-			DisplayNameField: "email",
+			Code:               "google",
+			Name:               "Google",
+			ClientIDEnv:        "KAGEOS_OAUTH_GOOGLE_CLIENT_ID",
+			ClientSecretEnv:    "KAGEOS_OAUTH_GOOGLE_CLIENT_SECRET",
+			AuthURL:            "https://accounts.google.com/o/oauth2/v2/auth",
+			TokenURL:           "https://oauth2.googleapis.com/token",
+			UserInfoURL:        "https://openidconnect.googleapis.com/v1/userinfo",
+			Scopes:             []string{"openid", "email", "profile"},
+			UsePKCE:            &trueValue,
+			ExtraAuthParams:    map[string]string{"prompt": "consent"},
+			ExternalIDField:    "sub",
+			DisplayNameField:   "email",
+			ProviderAccountURL: "https://myaccount.google.com",
+			LogoURL:            "https://www.google.com/favicon.ico",
+			BrandColor:         "#4285f4",
 		},
 		"microsoft": {
-			Code:             "microsoft",
-			Name:             "Microsoft",
-			ClientIDEnv:      "KAGEOS_OAUTH_MICROSOFT_CLIENT_ID",
-			ClientSecretEnv:  "KAGEOS_OAUTH_MICROSOFT_CLIENT_SECRET",
-			AuthURL:          "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-			TokenURL:         "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-			UserInfoURL:      "https://graph.microsoft.com/v1.0/me",
-			Scopes:           []string{"openid", "offline_access", "profile", "email", "User.Read"},
-			UsePKCE:          &trueValue,
-			ExternalIDField:  "id",
-			DisplayNameField: "userPrincipalName",
+			Code:               "microsoft",
+			Name:               "Microsoft",
+			ClientIDEnv:        "KAGEOS_OAUTH_MICROSOFT_CLIENT_ID",
+			ClientSecretEnv:    "KAGEOS_OAUTH_MICROSOFT_CLIENT_SECRET",
+			AuthURL:            "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+			TokenURL:           "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+			UserInfoURL:        "https://graph.microsoft.com/v1.0/me",
+			Scopes:             []string{"openid", "offline_access", "profile", "email", "User.Read"},
+			UsePKCE:            &trueValue,
+			ExternalIDField:    "id",
+			DisplayNameField:   "userPrincipalName",
+			ProviderAccountURL: "https://account.microsoft.com",
+			LogoURL:            "https://www.microsoft.com/favicon.ico",
+			BrandColor:         "#5e5e5e",
 		},
 		"slack": {
-			Code:            "slack",
-			Name:            "Slack",
-			ClientIDEnv:     "KAGEOS_OAUTH_SLACK_CLIENT_ID",
-			ClientSecretEnv: "KAGEOS_OAUTH_SLACK_CLIENT_SECRET",
-			AuthURL:         "https://slack.com/oauth/v2/authorize",
-			TokenURL:        "https://slack.com/api/oauth.v2.access",
-			Scopes:          []string{"identity.basic"},
-			UsePKCE:         &falseValue,
+			Code:               "slack",
+			Name:               "Slack",
+			ClientIDEnv:        "KAGEOS_OAUTH_SLACK_CLIENT_ID",
+			ClientSecretEnv:    "KAGEOS_OAUTH_SLACK_CLIENT_SECRET",
+			AuthURL:            "https://slack.com/oauth/v2/authorize",
+			TokenURL:           "https://slack.com/api/oauth.v2.access",
+			Scopes:             []string{"identity.basic"},
+			UsePKCE:            &falseValue,
+			ProviderAccountURL: "https://slack.com",
+			LogoURL:            "https://a.slack-edge.com/80588/marketing/img/meta/favicon-32.png",
+			BrandColor:         "#4a154b",
 		},
 		"feishu": {
-			Code:             "feishu",
-			Name:             "飞书",
-			ClientIDEnv:      "KAGEOS_OAUTH_FEISHU_CLIENT_ID",
-			ClientSecretEnv:  "KAGEOS_OAUTH_FEISHU_CLIENT_SECRET",
-			AuthURL:          "https://accounts.feishu.cn/open-apis/authen/v1/authorize",
-			TokenURL:         "https://open.feishu.cn/open-apis/authen/v2/oauth/token",
-			TokenRequestMode: tokenRequestModeJSON,
-			UsePKCE:          &trueValue,
-			ExternalIDField:  "open_id",
-			DisplayNameField: "name",
+			Code:               "feishu",
+			Name:               "飞书",
+			ClientIDEnv:        "KAGEOS_OAUTH_FEISHU_CLIENT_ID",
+			ClientSecretEnv:    "KAGEOS_OAUTH_FEISHU_CLIENT_SECRET",
+			AuthURL:            "https://accounts.feishu.cn/open-apis/authen/v1/authorize",
+			TokenURL:           "https://open.feishu.cn/open-apis/authen/v2/oauth/token",
+			TokenRequestMode:   tokenRequestModeJSON,
+			UsePKCE:            &trueValue,
+			ExternalIDField:    "open_id",
+			DisplayNameField:   "name",
+			ProviderAccountURL: "https://www.feishu.cn",
+			BrandColor:         "#00d6b9",
 		},
 		"lark": {
-			Code:             "lark",
-			Name:             "Lark",
-			ClientIDEnv:      "KAGEOS_OAUTH_LARK_CLIENT_ID",
-			ClientSecretEnv:  "KAGEOS_OAUTH_LARK_CLIENT_SECRET",
-			AuthURL:          "https://accounts.larksuite.com/open-apis/authen/v1/authorize",
-			TokenURL:         "https://open.larksuite.com/open-apis/authen/v2/oauth/token",
-			TokenRequestMode: tokenRequestModeJSON,
-			UsePKCE:          &trueValue,
-			ExternalIDField:  "open_id",
-			DisplayNameField: "name",
+			Code:               "lark",
+			Name:               "Lark",
+			ClientIDEnv:        "KAGEOS_OAUTH_LARK_CLIENT_ID",
+			ClientSecretEnv:    "KAGEOS_OAUTH_LARK_CLIENT_SECRET",
+			AuthURL:            "https://accounts.larksuite.com/open-apis/authen/v1/authorize",
+			TokenURL:           "https://open.larksuite.com/open-apis/authen/v2/oauth/token",
+			TokenRequestMode:   tokenRequestModeJSON,
+			UsePKCE:            &trueValue,
+			ExternalIDField:    "open_id",
+			DisplayNameField:   "name",
+			ProviderAccountURL: "https://www.larksuite.com",
+			BrandColor:         "#00d6b9",
 		},
 		"dingtalk": {
-			Code:              "dingtalk",
-			Name:              "钉钉",
-			ClientIDEnv:       "KAGEOS_OAUTH_DINGTALK_CLIENT_ID",
-			ClientSecretEnv:   "KAGEOS_OAUTH_DINGTALK_CLIENT_SECRET",
-			AuthURL:           "https://login.dingtalk.com/oauth2/auth",
-			TokenURL:          "https://api.dingtalk.com/v1.0/oauth2/userAccessToken",
-			TokenRequestMode:  tokenRequestModeJSON,
-			ClientIDParam:     "clientId",
-			ClientSecretParam: "clientSecret",
-			GrantTypeParam:    "grantType",
-			RefreshTokenParam: "refreshToken",
-			UsePKCE:           &falseValue,
-			ExternalIDField:   "unionId",
-			DisplayNameField:  "nick",
+			Code:               "dingtalk",
+			Name:               "钉钉",
+			ClientIDEnv:        "KAGEOS_OAUTH_DINGTALK_CLIENT_ID",
+			ClientSecretEnv:    "KAGEOS_OAUTH_DINGTALK_CLIENT_SECRET",
+			AuthURL:            "https://login.dingtalk.com/oauth2/auth",
+			TokenURL:           "https://api.dingtalk.com/v1.0/oauth2/userAccessToken",
+			TokenRequestMode:   tokenRequestModeJSON,
+			ClientIDParam:      "clientId",
+			ClientSecretParam:  "clientSecret",
+			GrantTypeParam:     "grantType",
+			RefreshTokenParam:  "refreshToken",
+			UsePKCE:            &falseValue,
+			ExternalIDField:    "unionId",
+			DisplayNameField:   "nick",
+			ProviderAccountURL: "https://www.dingtalk.com",
+			BrandColor:         "#1677ff",
 		},
 	}
 }
 
 func safeRedirectAfter(value string) string {
 	value = strings.TrimSpace(value)
-	if value == "" || !strings.HasPrefix(value, "/") || strings.HasPrefix(value, "//") {
+	if value == "" {
 		return ""
 	}
-	if parsed, err := url.Parse(value); err == nil && parsed.IsAbs() {
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return ""
+	}
+	if parsed.IsAbs() {
+		if isLocalOAuthRedirectHost(parsed) {
+			return value
+		}
+		return ""
+	}
+	if !strings.HasPrefix(value, "/") || strings.HasPrefix(value, "//") {
 		return ""
 	}
 	return value
+}
+
+func isLocalOAuthRedirectHost(u *url.URL) bool {
+	if u == nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	switch host {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	default:
+		return false
+	}
 }

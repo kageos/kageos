@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { useWorkspaceFunctionTabs } from './useWorkspaceFunctionTabs'
 
 describe('useWorkspaceFunctionTabs', () => {
-  it('opens the detail tab from the panel query', () => {
+  it('normalizes the removed detail panel query back to content', () => {
     const scope = effectScope()
 
     try {
@@ -31,7 +31,7 @@ describe('useWorkspaceFunctionTabs', () => {
         currentFunctionDetail
       }))!
 
-      expect(tabs.functionActiveTab.value).toBe('detail')
+      expect(tabs.functionActiveTab.value).toBe('content')
     } finally {
       scope.stop()
     }

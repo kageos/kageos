@@ -12,7 +12,7 @@ type RecordTableActionLogReq struct {
 	App            string          `json:"app"`                                             // 应用名
 	Router         string          `json:"router"`                                          // 路由路径（如：crm/crm_ticket）
 	Action         string          `json:"action"`                                          // 操作类型：OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows
-	Source         string          `json:"source"`                                          // 来源（如 browser、agent、api）
+	Source         string          `json:"source"`                                          // 来源（如 browser、agent、openapi）
 	RowID          int64           `json:"row_id"`                                          // 记录ID（OnTableUpdateRow 和 OnTableDeleteRows 需要）
 	RowIDs         []int64         `json:"row_ids"`                                         // 记录ID列表（OnTableDeleteRows 需要，批量删除）
 	Body           json.RawMessage `json:"body" swaggertype:"string" example:"{}"`          // 请求体（OnTableAddRow 需要）
@@ -53,6 +53,8 @@ type TableActionLogDetails struct {
 	RowIDs         []int64     `json:"row_ids,omitempty"`
 	Version        string      `json:"version,omitempty"`
 	DurationMillis int64       `json:"duration_millis,omitempty"`
+	SourceType     string      `json:"source_type,omitempty"`
+	SourceRef      string      `json:"source_ref,omitempty"`
 	ResponseBody   interface{} `json:"response_body,omitempty"`
 }
 
@@ -62,6 +64,8 @@ type FormOperateLogDetails struct {
 	Method         string      `json:"method"`
 	Version        string      `json:"version,omitempty"`
 	DurationMillis int64       `json:"duration_millis,omitempty"`
+	SourceType     string      `json:"source_type,omitempty"`
+	SourceRef      string      `json:"source_ref,omitempty"`
 	RequestBody    interface{} `json:"request_body,omitempty"`
 	ResponseBody   interface{} `json:"response_body,omitempty"`
 }

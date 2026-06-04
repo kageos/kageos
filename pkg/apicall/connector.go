@@ -84,6 +84,14 @@ func ResolveConnectorBindingWithScopes(ctx context.Context, provider, resourcePa
 	))
 }
 
+func GetConnectorOAuthProvider(ctx context.Context, provider string) (*dto.GetConnectorOAuthProviderResp, error) {
+	provider = strings.TrimSpace(provider)
+	if provider == "" {
+		return nil, fmt.Errorf("provider 不能为空")
+	}
+	return GetAPI[*dto.GetConnectorOAuthProviderResp](ctx, "/connector/api/v1/oauth/providers/"+url.PathEscape(provider), nil)
+}
+
 func ListConnectorConnections(ctx context.Context, provider string) (*dto.ListConnectorConnectionsResp, error) {
 	return GetAPI[*dto.ListConnectorConnectionsResp](ctx, "/connector/api/v1/connections", buildQueryParams(
 		withTrimmedQueryValue("provider", provider),

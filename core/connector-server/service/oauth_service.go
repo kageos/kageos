@@ -67,9 +67,22 @@ func (s *ConnectorService) StartOAuth(ctx context.Context, req dto.StartConnecto
 	if hasConnectorWildcardResourcePath(req.ResourcePath) {
 		return nil, fmt.Errorf("resource_path 不支持通配符，请使用 / 表示全局连接器")
 	}
-	resourcePath := defaultConnectorResourcePath(req.ResourcePath)
+	resourcePath := connectorGlobalResourcePath
 	if _, _, err := parseConnectorBindingScope(resourcePath); err != nil {
 		return nil, err
+	}
+	connectionID := strings.TrimSpace(req.ConnectionID)
+	if connectionID != "" {
+		conn, err := s.repo.GetOwnedConnection(ctx, owner, connectionID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, fmt.Errorf("连接器不存在或不属于当前用户")
+			}
+			return nil, err
+		}
+		if normalizeProvider(conn.Provider) != provider.Code {
+			return nil, fmt.Errorf("连接器 provider 不匹配: got %s, want %s", conn.Provider, provider.Code)
+		}
 	}
 	state, err := newOAuthState()
 	if err != nil {
@@ -79,12 +92,14 @@ func (s *ConnectorService) StartOAuth(ctx context.Context, req dto.StartConnecto
 	if err != nil {
 		return nil, err
 	}
-	scopes := s.effectiveOAuthScopes(ctx, owner, provider, resourcePath, req.Scopes)
+	adapter := connectorAdapterFor(provider.Code)
+	scopes := s.effectiveOAuthScopes(ctx, owner, provider, resourcePath, req.Scopes, connectionID)
 	expiresAt := time.Now().Add(s.oauthStateTTL())
 	oauthState := &model.ConnectorOAuthState{
 		State:         state,
 		OwnerUsername: owner,
 		Provider:      provider.Code,
+		ConnectionID:  connectionID,
 		ResourcePath:  resourcePath,
 		Scopes:        strings.Join(scopes, " "),
 		DisplayName:   strings.TrimSpace(req.DisplayName),
@@ -101,7 +116,7 @@ func (s *ConnectorService) StartOAuth(ctx context.Context, req dto.StartConnecto
 	callbackURL := s.oauthCallbackURL()
 	return &dto.StartConnectorOAuthResp{
 		Provider:     provider.Code,
-		AuthorizeURL: s.oauth.BuildAuthURL(provider, callbackURL, state, codeChallenge, scopes),
+		AuthorizeURL: adapter.BuildAuthorizeURL(provider, callbackURL, state, codeChallenge, scopes),
 		State:        state,
 		ExpiresAt:    expiresAt.Format(time.RFC3339),
 		CallbackURL:  callbackURL,
@@ -138,33 +153,44 @@ func (s *ConnectorService) CompleteOAuthCallback(ctx context.Context, code, stat
 		return nil, oauthState.RedirectAfter, err
 	}
 	scopes := splitScopes(oauthState.Scopes)
-	tokenPayload, err := s.oauth.Exchange(ctx, provider, s.oauthCallbackURL(), code, oauthState.CodeVerifier, scopes)
+	adapter := connectorAdapterFor(provider.Code)
+	tokenPayload, err := adapter.ExchangeToken(ctx, provider, s.oauthCallbackURL(), code, oauthState.CodeVerifier, scopes)
 	if err != nil {
 		return nil, oauthState.RedirectAfter, err
 	}
-	userInfo, err := fetchProviderUserInfo(ctx, provider, tokenPayload.AccessToken)
+	profile, err := buildOAuthConnectionProfile(ctx, provider, tokenPayload)
 	if err != nil {
 		return nil, oauthState.RedirectAfter, err
 	}
-	externalID, providerDisplayName := extractProviderIdentity(provider, userInfo)
-	displayName := firstNonEmpty(oauthState.DisplayName, providerDisplayName, provider.Name, provider.Code)
-	metadata := map[string]interface{}{
-		"oauth":       true,
-		"scopes":      scopes,
-		"provider":    provider.Code,
-		"external_id": externalID,
-	}
-	if provider.ProviderAccountURL != "" {
-		metadata["provider_account_url"] = provider.ProviderAccountURL
-	}
-	connection, err := s.createConnectionForOwner(ctx, oauthState.OwnerUsername, dto.CreateConnectorConnectionReq{
-		Provider:          provider.Code,
-		DisplayName:       displayName,
-		ExternalAccountID: externalID,
-		Metadata:          metadata,
-	})
-	if err != nil {
-		return nil, oauthState.RedirectAfter, err
+	displayName := firstNonEmpty(oauthState.DisplayName, profile.DisplayName, provider.Name, provider.Code)
+	var connection *dto.ConnectorConnectionInfo
+	if strings.TrimSpace(oauthState.ConnectionID) != "" {
+		existing, err := s.repo.GetOwnedConnection(ctx, oauthState.OwnerUsername, oauthState.ConnectionID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, oauthState.RedirectAfter, fmt.Errorf("重新授权的连接器不存在或不属于当前用户")
+			}
+			return nil, oauthState.RedirectAfter, err
+		}
+		if normalizeProvider(existing.Provider) != provider.Code {
+			return nil, oauthState.RedirectAfter, fmt.Errorf("重新授权的连接器 provider 不匹配: got %s, want %s", existing.Provider, provider.Code)
+		}
+		displayName = firstNonEmpty(oauthState.DisplayName, profile.DisplayName, existing.DisplayName, provider.Name, provider.Code)
+		connection, err = s.updateConnectionProfileForOwner(ctx, oauthState.OwnerUsername, existing.ConnectionID, provider.Code, displayName, profile.ExternalAccountID, profile.Metadata)
+		if err != nil {
+			return nil, oauthState.RedirectAfter, err
+		}
+	} else {
+		connection, err = s.createConnectionForOwner(ctx, oauthState.OwnerUsername, dto.CreateConnectorConnectionReq{
+			Provider:          provider.Code,
+			AuthType:          model.ConnectorAuthTypeOAuth2User,
+			DisplayName:       displayName,
+			ExternalAccountID: profile.ExternalAccountID,
+			Metadata:          profile.Metadata,
+		})
+		if err != nil {
+			return nil, oauthState.RedirectAfter, err
+		}
 	}
 	tokenInfo, err := s.storeOAuthToken(ctx, oauthState.OwnerUsername, provider.Code, connection.ConnectionID, tokenPayload)
 	if err != nil {
@@ -220,7 +246,7 @@ func (s *ConnectorService) RefreshOAuthToken(ctx context.Context, connectionID s
 	if err != nil {
 		return nil, err
 	}
-	payload, err := s.oauth.Refresh(ctx, provider, refreshToken, splitScopes(tokenRow.Scopes))
+	payload, err := connectorAdapterFor(provider.Code).RefreshToken(ctx, provider, refreshToken, splitScopes(tokenRow.Scopes))
 	if err != nil {
 		return nil, err
 	}
@@ -323,14 +349,26 @@ func effectiveScopes(requested, defaults []string) []string {
 	return cleanScopes(defaults)
 }
 
-func (s *ConnectorService) effectiveOAuthScopes(ctx context.Context, owner string, provider config.ConnectorOAuthProviderConfig, resourcePath string, requested []string) []string {
-	scopes := make([]string, 0, len(provider.Scopes)+len(requested))
-	scopes = append(scopes, provider.Scopes...)
-	if existingScopes := s.existingOAuthScopesForResource(ctx, owner, resourcePath, provider.Code); len(existingScopes) > 0 {
-		scopes = append(scopes, existingScopes...)
+func (s *ConnectorService) effectiveOAuthScopes(ctx context.Context, owner string, provider config.ConnectorOAuthProviderConfig, resourcePath string, requested []string, connectionID string) []string {
+	var existingScopes []string
+	if strings.TrimSpace(connectionID) != "" {
+		existingScopes = s.existingOAuthScopesForConnection(ctx, owner, connectionID)
 	}
-	scopes = append(scopes, requested...)
-	return cleanScopes(scopes)
+	if len(existingScopes) == 0 {
+		existingScopes = s.existingOAuthScopesForResource(ctx, owner, resourcePath, provider.Code)
+	}
+	return connectorAdapterFor(provider.Code).MergeReconnectScopes(provider, existingScopes, requested)
+}
+
+func (s *ConnectorService) existingOAuthScopesForConnection(ctx context.Context, owner, connectionID string) []string {
+	if owner == "" || strings.TrimSpace(connectionID) == "" {
+		return nil
+	}
+	tokenRow, err := s.repo.GetOwnedOAuthToken(ctx, owner, connectionID)
+	if err != nil {
+		return nil
+	}
+	return splitScopes(tokenRow.Scopes)
 }
 
 func (s *ConnectorService) existingOAuthScopesForResource(ctx context.Context, owner, resourcePath, provider string) []string {
@@ -371,68 +409,6 @@ func cleanScopes(scopes []string) []string {
 
 func splitScopes(scopeText string) []string {
 	return cleanScopes([]string{scopeText})
-}
-
-func missingScopes(provider string, granted, required []string) []string {
-	granted = cleanScopes(granted)
-	required = cleanScopes(required)
-	if len(required) == 0 {
-		return nil
-	}
-	missing := make([]string, 0)
-	for _, scope := range required {
-		if connectorScopeGranted(provider, granted, scope) {
-			continue
-		}
-		missing = append(missing, scope)
-	}
-	return missing
-}
-
-func connectorScopeGranted(provider string, granted []string, required string) bool {
-	required = strings.TrimSpace(required)
-	if required == "" {
-		return true
-	}
-	grantedSet := make(map[string]struct{}, len(granted))
-	for _, scope := range granted {
-		scope = strings.TrimSpace(scope)
-		if scope != "" {
-			grantedSet[scope] = struct{}{}
-		}
-	}
-	if _, ok := grantedSet[required]; ok {
-		return true
-	}
-	if normalizeProvider(provider) == "github" {
-		return githubScopeImplies(grantedSet, required)
-	}
-	return false
-}
-
-func githubScopeImplies(granted map[string]struct{}, required string) bool {
-	if _, ok := granted["repo"]; ok {
-		switch required {
-		case "public_repo", "repo:status", "repo_deployment", "repo:invite", "security_events", "admin:repo_hook", "write:repo_hook", "read:repo_hook":
-			return true
-		}
-	}
-	if _, ok := granted["user"]; ok {
-		switch required {
-		case "read:user", "user:email", "user:follow":
-			return true
-		}
-	}
-	if _, ok := granted["admin:org"]; ok {
-		switch required {
-		case "write:org", "read:org":
-			return true
-		}
-	}
-	if _, ok := granted["write:org"]; ok && required == "read:org" {
-		return true
-	}
-	return false
 }
 
 func appendOAuthCallbackQuery(redirectAfter, status, connectionID, message string) string {

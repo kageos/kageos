@@ -40,7 +40,6 @@
               <el-input
                 v-model="keyword"
                 class="history-search"
-                size="small"
                 clearable
                 :placeholder="t('operateLog.keywordPlaceholder')"
                 :prefix-icon="Search"
@@ -50,7 +49,6 @@
               <el-select
                 v-model="userFilter"
                 class="history-user-select"
-                size="small"
                 filterable
                 remote
                 reserve-keyword
@@ -71,7 +69,6 @@
               <el-select
                 v-model="actionFilter"
                 class="history-action-select"
-                size="small"
                 :placeholder="t('operateLog.actionPlaceholder')"
                 clearable
                 @change="handleActionChange"
@@ -83,8 +80,21 @@
                   :value="option.value"
                 />
               </el-select>
+              <el-select
+                v-model="sourceFilter"
+                class="history-source-select"
+                :placeholder="t('operateLog.sourcePlaceholder')"
+                clearable
+                @change="handleSourceChange"
+              >
+                <el-option
+                  v-for="option in sourceOptions"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
               <el-button
-                size="small"
                 type="primary"
                 plain
                 :icon="Search"
@@ -97,9 +107,41 @@
             <el-table
               :data="logs"
               stripe
-              class="history-table"
+              class="history-table form-history-table"
               :empty-text="t('operateLog.empty')"
             >
+              <el-table-column type="expand" width="40">
+                <template #default="{ row }">
+                  <div class="table-log-details">
+                    <div
+                      v-if="getFormRequestEntries(row).length > 0"
+                      class="value-list"
+                    >
+                      <div
+                        v-for="item in getFormRequestEntries(row)"
+                        :key="item.fieldCode"
+                        class="value-row"
+                      >
+                        <span class="value-field">{{ item.fieldName }}</span>
+                        <span class="value-text">{{ formatLogValue(item.value) }}</span>
+                      </div>
+                    </div>
+
+                    <div v-else class="text-muted">{{ getLogEmptyText(row) }}</div>
+
+                    <div class="log-meta-grid">
+                      <span
+                        v-for="item in getLogMetaEntries(row)"
+                        :key="`${item.label}:${item.value}`"
+                      >
+                        {{ item.label }}: {{ item.value }}
+                      </span>
+                      <span v-if="row.user_agent">UA: {{ row.user_agent }}</span>
+                    </div>
+                  </div>
+                </template>
+              </el-table-column>
+
               <el-table-column :label="t('operateLog.result')" min-width="260">
                 <template #default="{ row }">
                   <div class="result-cell">
@@ -123,6 +165,14 @@
                     layout="horizontal"
                     size="small"
                   />
+                </template>
+              </el-table-column>
+
+              <el-table-column :label="t('operateLog.source')" min-width="110" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="getSourceTagType(row.source)" size="small" effect="light">
+                    {{ getSourceLabel(row.source) }}
+                  </el-tag>
                 </template>
               </el-table-column>
 
@@ -183,7 +233,6 @@
           <el-input
             v-model="keyword"
             class="operate-log-search"
-            size="small"
             clearable
             :placeholder="t('operateLog.keywordPlaceholder')"
             :prefix-icon="Search"
@@ -193,7 +242,6 @@
           <el-select
             v-model="userFilter"
             class="operate-log-user-select"
-            size="small"
             filterable
             remote
             reserve-keyword
@@ -214,7 +262,6 @@
           <el-select
             v-model="actionFilter"
             class="operate-log-action-select"
-            size="small"
             :placeholder="t('operateLog.actionPlaceholder')"
             clearable
             @change="handleActionChange"
@@ -226,8 +273,21 @@
               :value="option.value"
             />
           </el-select>
+          <el-select
+            v-model="sourceFilter"
+            class="operate-log-source-select"
+            :placeholder="t('operateLog.sourcePlaceholder')"
+            clearable
+            @change="handleSourceChange"
+          >
+            <el-option
+              v-for="option in sourceOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
           <el-button
-            size="small"
             type="primary"
             plain
             :icon="Search"
@@ -335,6 +395,14 @@
                 layout="horizontal"
                 size="small"
               />
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('operateLog.source')" width="110" align="center">
+            <template #default="{ row }">
+              <el-tag :type="getSourceTagType(row.source)" size="small" effect="light">
+                {{ getSourceLabel(row.source) }}
+              </el-tag>
             </template>
           </el-table-column>
 
@@ -492,19 +560,24 @@ const {
   formatRelativeTime,
   keyword,
   actionFilter,
+  sourceFilter,
   userFilter,
   userOptions,
   userFilterLoading,
   actionOptions,
+  sourceOptions,
   currentPage,
   pageSize,
   total,
   getUserInfo,
   getActionTagType,
   getActionLabel,
+  getSourceLabel,
+  getSourceTagType,
   formatLogValue,
   getChangeEntries,
   getValueEntries,
+  getFormRequestEntries,
   getLogTitle,
   getLogEmptyText,
   getLogSummary,
@@ -515,6 +588,7 @@ const {
   applyFormLog,
   handleSearch,
   handleActionChange,
+  handleSourceChange,
   handleUserChange,
   searchUserOptions,
   handlePageChange,
@@ -699,24 +773,31 @@ defineExpose({
 }
 
 .operate-log-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 200px) minmax(140px, 170px) minmax(130px, 160px) auto;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
+  border-radius: 12px;
+  background: var(--app-shell-panel-bg-strong, var(--el-bg-color));
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight, rgba(255, 255, 255, 0.65));
 }
 
 .operate-log-search {
-  flex: 1 1 280px;
-  min-width: 220px;
+  min-width: 0;
 }
 
-.operate-log-action-select {
-  width: 132px;
-}
-
+.operate-log-action-select,
+.operate-log-source-select,
 .operate-log-user-select {
-  width: 180px;
+  width: 100%;
+  min-width: 0;
+}
+
+.operate-log-toolbar > .el-button {
+  min-width: 86px;
 }
 
 .form-operate-log-section {
@@ -760,26 +841,70 @@ defineExpose({
 }
 
 .form-history-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 200px) minmax(140px, 170px) minmax(130px, 160px) auto;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--el-border-color-extra-light);
-  background: var(--el-fill-color-lighter);
+  background: var(--app-shell-panel-bg-strong, var(--el-bg-color));
 }
 
 .history-search {
-  flex: 1 1 320px;
-  min-width: 220px;
+  min-width: 0;
 }
 
-.history-action-select {
-  width: 140px;
-}
-
+.history-action-select,
+.history-source-select,
 .history-user-select {
-  width: 180px;
+  width: 100%;
+  min-width: 0;
+}
+
+.form-history-toolbar > .el-button {
+  min-width: 86px;
+}
+
+.operate-log-toolbar :deep(.el-input__wrapper),
+.operate-log-toolbar :deep(.el-select__wrapper),
+.form-history-toolbar :deep(.el-input__wrapper),
+.form-history-toolbar :deep(.el-select__wrapper) {
+  min-height: 36px;
+  border-radius: 10px;
+  background: var(--app-shell-panel-bg-strong, var(--el-bg-color));
+  box-shadow: 0 0 0 1px var(--app-shell-panel-border, var(--el-border-color-light)) inset;
+  transition: box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.operate-log-toolbar :deep(.el-input__wrapper:hover),
+.operate-log-toolbar :deep(.el-select__wrapper:hover),
+.form-history-toolbar :deep(.el-input__wrapper:hover),
+.form-history-toolbar :deep(.el-select__wrapper:hover) {
+  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.28) inset;
+}
+
+.operate-log-toolbar :deep(.el-input__wrapper.is-focus),
+.operate-log-toolbar :deep(.el-select__wrapper.is-focused),
+.form-history-toolbar :deep(.el-input__wrapper.is-focus),
+.form-history-toolbar :deep(.el-select__wrapper.is-focused) {
+  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.45) inset, 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.1);
+}
+
+.operate-log-toolbar :deep(.el-input__inner),
+.operate-log-toolbar :deep(.el-select__placeholder),
+.operate-log-toolbar :deep(.el-select__selected-item),
+.form-history-toolbar :deep(.el-input__inner),
+.form-history-toolbar :deep(.el-select__placeholder),
+.form-history-toolbar :deep(.el-select__selected-item) {
+  font-size: 13px;
+}
+
+.operate-log-toolbar > .el-button,
+.form-history-toolbar > .el-button {
+  height: 36px;
+  border-radius: 10px;
+  font-weight: 600;
+  box-shadow: none;
 }
 
 .history-table {
@@ -812,6 +937,17 @@ defineExpose({
 }
 
 .table-history-table :deep(.el-table__expanded-cell) {
+  padding: 0;
+  background: var(--el-fill-color-lighter);
+}
+
+.form-history-table {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.form-history-table :deep(.el-table__expanded-cell) {
   padding: 0;
   background: var(--el-fill-color-lighter);
 }
@@ -1236,6 +1372,21 @@ defineExpose({
 }
 
 @media (max-width: 720px) {
+  .operate-log-toolbar,
+  .form-history-toolbar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .operate-log-search,
+  .history-search {
+    grid-column: 1 / -1;
+  }
+
+  .operate-log-toolbar > .el-button,
+  .form-history-toolbar > .el-button {
+    width: 100%;
+  }
+
   .log-card-head {
     flex-direction: column;
   }
@@ -1246,6 +1397,13 @@ defineExpose({
 
   .change-row,
   .value-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .operate-log-toolbar,
+  .form-history-toolbar {
     grid-template-columns: 1fr;
   }
 }

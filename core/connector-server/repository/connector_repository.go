@@ -49,6 +49,40 @@ func (r *ConnectorRepository) GetOwnedConnection(ctx context.Context, ownerUsern
 	return &row, nil
 }
 
+func (r *ConnectorRepository) UpdateOwnedConnectionProfile(ctx context.Context, ownerUsername, connectionID, displayName, externalAccountID, metadata, updatedBy string) (*model.ConnectorConnection, error) {
+	ownerUsername = strings.TrimSpace(ownerUsername)
+	connectionID = strings.TrimSpace(connectionID)
+	if ownerUsername == "" || connectionID == "" {
+		return nil, fmt.Errorf("owner_username 和 connection_id 不能为空")
+	}
+	now := time.Now()
+	updates := map[string]interface{}{
+		"display_name":        strings.TrimSpace(displayName),
+		"external_account_id": strings.TrimSpace(externalAccountID),
+		"metadata":            metadata,
+		"updated_by":          strings.TrimSpace(updatedBy),
+		"updated_at":          now,
+	}
+	var row model.ConnectorConnection
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&model.ConnectorConnection{}).
+			Where("owner_username = ? AND connection_id = ? AND status = ?", ownerUsername, connectionID, model.ConnectorStatusActive).
+			Updates(updates)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return tx.Where("owner_username = ? AND connection_id = ? AND status = ?", ownerUsername, connectionID, model.ConnectorStatusActive).
+			First(&row).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
 func (r *ConnectorRepository) DeleteOwnedConnection(ctx context.Context, ownerUsername, connectionID string) error {
 	ownerUsername = strings.TrimSpace(ownerUsername)
 	connectionID = strings.TrimSpace(connectionID)
@@ -242,6 +276,7 @@ func (r *ConnectorRepository) UpsertOAuthProviderSetting(ctx context.Context, se
 		Columns: []clause.Column{{Name: "code"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"name",
+			"auth_type",
 			"client_id",
 			"client_secret_cipher",
 			"auth_url",
@@ -260,6 +295,9 @@ func (r *ConnectorRepository) UpsertOAuthProviderSetting(ctx context.Context, se
 			"extra_token_params",
 			"external_id_field",
 			"display_name_field",
+			"provider_account_url",
+			"logo_url",
+			"brand_color",
 			"enabled",
 			"updated_by",
 			"updated_at",
@@ -275,6 +313,30 @@ func (r *ConnectorRepository) CreateOAuthProviderSettingIfNotExists(ctx context.
 		Columns:   []clause.Column{{Name: "code"}},
 		DoNothing: true,
 	}).Create(setting).Error
+}
+
+func (r *ConnectorRepository) FillOAuthProviderDisplayDefaults(ctx context.Context, code, providerAccountURL, logoURL, brandColor string) error {
+	code = normalizeCode(code)
+	providerAccountURL = strings.TrimSpace(providerAccountURL)
+	logoURL = strings.TrimSpace(logoURL)
+	brandColor = strings.TrimSpace(brandColor)
+	if code == "" || (providerAccountURL == "" && logoURL == "" && brandColor == "") {
+		return nil
+	}
+	updates := map[string]interface{}{}
+	if providerAccountURL != "" {
+		updates["provider_account_url"] = gorm.Expr("CASE WHEN provider_account_url = '' OR provider_account_url IS NULL THEN ? ELSE provider_account_url END", providerAccountURL)
+	}
+	if logoURL != "" {
+		updates["logo_url"] = gorm.Expr("CASE WHEN logo_url = '' OR logo_url IS NULL THEN ? ELSE logo_url END", logoURL)
+	}
+	if brandColor != "" {
+		updates["brand_color"] = gorm.Expr("CASE WHEN brand_color = '' OR brand_color IS NULL THEN ? ELSE brand_color END", brandColor)
+	}
+	return r.db.WithContext(ctx).
+		Model(&model.ConnectorOAuthProviderSetting{}).
+		Where("code = ?", code).
+		Updates(updates).Error
 }
 
 func (r *ConnectorRepository) ListOAuthProviderSettings(ctx context.Context) ([]*model.ConnectorOAuthProviderSetting, error) {

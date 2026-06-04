@@ -20,10 +20,6 @@ import (
 
 const connectorProxyMaxBodyBytes = 4 << 20
 
-var connectorProxyBases = map[string]string{
-	"github": "https://api.github.com",
-}
-
 var connectorProxyHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 func (s *ConnectorService) Proxy(ctx context.Context, req dto.ConnectorProxyReq) (*dto.ConnectorProxyResp, error) {
@@ -38,8 +34,9 @@ func (s *ConnectorService) Proxy(ctx context.Context, req dto.ConnectorProxyReq)
 	if provider == "" {
 		return nil, fmt.Errorf("provider 不能为空")
 	}
-	baseURL, ok := connectorProxyBases[provider]
-	if !ok {
+	adapter := connectorAdapterFor(provider)
+	baseURL := strings.TrimSpace(adapter.ProxyBaseURL())
+	if baseURL == "" {
 		return nil, fmt.Errorf("connector proxy 暂不支持 provider: %s", provider)
 	}
 	method := strings.ToUpper(strings.TrimSpace(req.Method))
@@ -84,7 +81,8 @@ func (s *ConnectorService) Proxy(ctx context.Context, req dto.ConnectorProxyReq)
 	if err != nil {
 		return nil, err
 	}
-	outReq, err := buildConnectorProxyRequest(ctx, method, targetURL, accessToken, provider, req)
+	req.Provider = provider
+	outReq, err := adapter.BuildProxyRequest(ctx, method, targetURL, accessToken, req)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +96,7 @@ func (s *ConnectorService) Proxy(ctx context.Context, req dto.ConnectorProxyReq)
 		return nil, fmt.Errorf("读取 %s API 响应失败: %w", provider, err)
 	}
 	if outResp.StatusCode < http.StatusOK || outResp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("%s API 返回 %d: %s", provider, outResp.StatusCode, strings.TrimSpace(string(data)))
+		return nil, adapter.TranslateProxyError(outResp.StatusCode, data)
 	}
 	return &dto.ConnectorProxyResp{
 		Provider:      provider,
@@ -164,7 +162,7 @@ func cleanConnectorProxyPath(rawPath string) (string, error) {
 	return parsed.Path, nil
 }
 
-func buildConnectorProxyRequest(ctx context.Context, method, targetURL, accessToken, provider string, req dto.ConnectorProxyReq) (*http.Request, error) {
+func buildDefaultConnectorProxyRequest(ctx context.Context, method, targetURL, accessToken, provider string, req dto.ConnectorProxyReq) (*http.Request, error) {
 	var body io.Reader
 	if len(req.Body) > 0 && method != http.MethodGet {
 		body = bytes.NewReader(req.Body)
@@ -174,14 +172,12 @@ func buildConnectorProxyRequest(ctx context.Context, method, targetURL, accessTo
 		return nil, fmt.Errorf("创建 connector proxy 请求失败: %w", err)
 	}
 	outReq.Header.Set("Authorization", "Bearer "+accessToken)
-	outReq.Header.Set("Accept", defaultConnectorProxyAccept(provider))
+	outReq.Header.Set("Accept", "application/json")
 	outReq.Header.Set("User-Agent", "KageOS-Connector")
 	if method != http.MethodGet && len(req.Body) > 0 {
 		outReq.Header.Set("Content-Type", "application/json")
 	}
-	if provider == "github" {
-		outReq.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	}
+	decorateProviderAPIRequest(provider, outReq)
 	for key, value := range req.Headers {
 		switch http.CanonicalHeaderKey(strings.TrimSpace(key)) {
 		case "Accept", "If-None-Match":
@@ -200,13 +196,6 @@ func allowedConnectorProxyMethod(method string) bool {
 	default:
 		return false
 	}
-}
-
-func defaultConnectorProxyAccept(provider string) string {
-	if provider == "github" {
-		return "application/vnd.github+json"
-	}
-	return "application/json"
 }
 
 func pickConnectorProxyHeaders(headers http.Header) map[string]string {

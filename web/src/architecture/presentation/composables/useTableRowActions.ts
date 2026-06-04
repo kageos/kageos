@@ -1,6 +1,6 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Router } from 'vue-router'
-import { WidgetType } from '@/architecture/domain/constants/widget'
+import { normalizeWidgetType, WidgetType } from '@/architecture/domain/constants/widget'
 import { convertToFieldValue } from '@/architecture/domain/utils/field'
 import { isWidgetConfigFlagEnabled } from '@/architecture/domain/utils/widgetConfigFlag'
 import { parseLinkValue, addLinkTypeToUrl } from '@/architecture/shared/routing/linkNavigation'
@@ -128,12 +128,19 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
   }
 
   const getColumnWidth = (field: FieldConfig): number => {
-    if (field.widget?.type === WidgetType.DATETIME) return 180
-    if (field.widget?.type === WidgetType.TEXT_AREA) return 300
-    if (field.widget?.type === WidgetType.FILES && isWidgetConfigFlagEnabled(field.widget?.config?.list_preview)) return 180
-    if (field.widget?.type === 'department' || field.widget?.type === 'departments') return 300
-    if (field.widget?.type === 'user' || field.widget?.type === 'users') return 250
-    return 150
+    const widgetType = normalizeWidgetType(field.widget?.type)
+
+    if (widgetType === WidgetType.DATETIME) return 180
+    if (widgetType === WidgetType.SWITCH) return 110
+    if (widgetType === WidgetType.NUMBER || widgetType === WidgetType.FLOAT) return 130
+    if (widgetType === WidgetType.PROGRESS || widgetType === WidgetType.SLIDER) return 220
+    if (widgetType === WidgetType.TEXT_AREA || widgetType === WidgetType.RICH_TEXT) return 320
+    if (widgetType === WidgetType.TEXT || widgetType === WidgetType.INPUT || widgetType === WidgetType.LINK) return 220
+    if (widgetType === WidgetType.FILES && isWidgetConfigFlagEnabled(field.widget?.config?.list_preview)) return 200
+    if (widgetType === WidgetType.FILES) return 180
+    if (widgetType === WidgetType.DEPARTMENT || widgetType === WidgetType.DEPARTMENTS) return 300
+    if (widgetType === WidgetType.USER || widgetType === WidgetType.USERS) return 250
+    return 180
   }
 
   return {

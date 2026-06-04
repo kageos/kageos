@@ -8,6 +8,7 @@ import (
 
 	"github.com/kageos/kageos/core/agent-server/model"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/llms"
 	"github.com/kageos/kageos/pkg/logger"
 )
@@ -33,10 +34,13 @@ func (s *WorkspaceChatService) executeToolCalls(
 
 		sendEvent(EventToolCall, StreamEventToolCall{Name: tc.Function.Name, Status: ToolCallStatusRunning, Arguments: tc.Function.Arguments})
 
-		args := s.parseToolCallArgs(ctx, tc)
+		args, parseErr := s.parseToolCallArgs(ctx, tc)
 		var toolRes ToolResult
 		var st string
-		if blockedRes, blocked := workspaceRoleToolGateResult(activeRoleID, tc.Function.Name); blocked {
+		if parseErr != nil {
+			toolRes = invalidToolArgumentsResult(tc, parseErr)
+			st = ToolCallStatusError
+		} else if blockedRes, blocked := workspaceRoleToolGateResult(activeRoleID, tc.Function.Name); blocked {
 			toolRes = blockedRes
 			st = ToolCallStatusError
 			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 角色工具门禁阻断 - RoleID: %s, ToolName: %s, Error: %s", i+1, len(allToolCalls), activeRoleID, tc.Function.Name, toolRes.Content)
@@ -88,23 +92,34 @@ func withAgentToolExecutionContext(ctx context.Context, sessionID string) contex
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	_ = sessionID
-	return withAgentToolClientSource(ctx)
+	ctx = withAgentToolClientSource(ctx)
+	return contextx.WithSourceInfo(ctx, contextx.SourceTypeAgentTool, sessionID)
 }
 
-// parseToolCallArgs 解析 tool_call 的 arguments JSON，解析失败时返回空 map
-func (s *WorkspaceChatService) parseToolCallArgs(ctx context.Context, tc llms.ToolCall) map[string]interface{} {
-	argumentsStr := tc.Function.Arguments
+// parseToolCallArgs 解析 tool_call 的 arguments JSON，解析失败时返回错误，由调用方保存一条 tool error，避免坏参数继续执行真实工具。
+func (s *WorkspaceChatService) parseToolCallArgs(ctx context.Context, tc llms.ToolCall) (map[string]interface{}, error) {
+	argumentsStr := strings.TrimSpace(tc.Function.Arguments)
 	if argumentsStr == "" {
-		argumentsStr = "{}"
 		logger.Warnf(ctx, "[WorkspaceChatStream] tool_call arguments 为空，使用空对象，ToolCallID: %s, ToolName: %s", tc.ID, tc.Function.Name)
+		return map[string]interface{}{}, nil
 	}
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(argumentsStr), &args); err != nil {
 		logger.Warnf(ctx, "[WorkspaceChatStream] 解析 tool_call arguments 失败: %v, ToolCallID: %s, ToolName: %s", err, tc.ID, tc.Function.Name)
-		args = make(map[string]interface{})
+		return map[string]interface{}{}, err
 	}
-	return args
+	if args == nil {
+		args = map[string]interface{}{}
+	}
+	return args, nil
+}
+
+func invalidToolArgumentsResult(tc llms.ToolCall, err error) ToolResult {
+	toolName := strings.TrimSpace(tc.Function.Name)
+	if toolName == "" {
+		toolName = "工具"
+	}
+	return toolResult(fmt.Sprintf("%s 参数不是合法 JSON，本次未执行工具。请重新调用该工具，并提供完整 JSON 参数。解析错误: %v", toolName, err), true)
 }
 
 // callOtherTool 调用 ToolRegistry 中的内置工作台工具。

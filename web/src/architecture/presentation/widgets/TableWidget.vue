@@ -605,9 +605,9 @@ defineExpose({
 
 :deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .cell) {
   min-width: 0;
-  white-space: nowrap;
+  line-height: 1.45;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 :deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .cell > *) {
@@ -615,18 +615,7 @@ defineExpose({
   max-width: 100%;
 }
 
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .input-widget),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .text-widget),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .table-cell-text),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .formatted-content),
 :deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .table-cell-value),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .text-content),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .code-content),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .html-table-cell),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .markdown-table-cell),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .csv-preview),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .csv-preview-text),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .html-content-preview),
 :deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .files-display-text) {
   display: block;
   min-width: 0;
@@ -634,6 +623,31 @@ defineExpose({
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .input-widget .table-cell-value),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .textarea-widget .table-cell-value),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .rich-text-widget .table-cell-value),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .text-widget .table-cell-value),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .table-cell-text),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .formatted-content),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .text-content),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .code-content),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .html-table-cell),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .markdown-table-cell),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .csv-preview),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .csv-preview-text),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .html-content-preview) {
+  display: -webkit-box;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 :deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .table-cell-multiselect),

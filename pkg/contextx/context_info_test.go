@@ -47,6 +47,20 @@ func TestCtxToTraceNatsPreservesClientSource(t *testing.T) {
 	}
 }
 
+func TestResolveClientSourceInfersOpenAPI(t *testing.T) {
+	ctx := WithSourceInfo(context.Background(), SourceTypeOpenAPIToken, "alice")
+
+	if got := ResolveClientSource(ctx); got != ClientSourceOpenAPI {
+		t.Fatalf("ResolveClientSource(ctx) = %q, want openapi", got)
+	}
+}
+
+func TestGetAuditClientSourceFallsBackToUnknown(t *testing.T) {
+	if got := GetAuditClientSource(context.Background()); got != ClientSourceUnknown {
+		t.Fatalf("GetAuditClientSource(ctx) = %q, want unknown", got)
+	}
+}
+
 func TestCtxToTraceNatsPreservesDepartment(t *testing.T) {
 	ctx := WithDepartmentFullPath(context.Background(), "/org/dev")
 

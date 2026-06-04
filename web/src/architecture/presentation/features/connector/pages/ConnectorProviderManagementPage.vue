@@ -74,17 +74,48 @@
           <el-table-column :label="t('connectorProvider.provider')" min-width="220">
             <template #default="{ row }">
               <div class="provider-cell">
-                <div class="provider-title">
-                  <span class="provider-name">{{ row.name || row.code }}</span>
-                  <el-tag v-if="row.managed" size="small" type="primary">
-                    {{ t('connectorProvider.initialized') }}
-                  </el-tag>
-                  <el-tag v-else size="small" type="info">
-                    {{ t('connectorProvider.builtIn') }}
-                  </el-tag>
+                <div class="provider-main">
+                  <span class="provider-icon" :style="providerIconStyle(row)">
+                    <img
+                      v-if="providerLogo(row)"
+                      :src="providerLogo(row)"
+                      :alt="row.name || row.code"
+                      @error="handleProviderLogoError"
+                    />
+                    <span class="provider-initial">{{ providerInitial(row) }}</span>
+                  </span>
+                  <div>
+                    <div class="provider-title">
+                      <span class="provider-name">{{ row.name || row.code }}</span>
+                      <el-tag v-if="row.managed" size="small" type="primary">
+                        {{ t('connectorProvider.initialized') }}
+                      </el-tag>
+                      <el-tag v-else size="small" type="info">
+                        {{ t('connectorProvider.builtIn') }}
+                      </el-tag>
+                    </div>
+                    <div class="provider-code">{{ row.code }}</div>
+                    <el-link
+                      v-if="row.provider_account_url"
+                      class="provider-account-link"
+                      type="primary"
+                      :href="row.provider_account_url"
+                      target="_blank"
+                      :underline="false"
+                    >
+                      {{ t('connectorProvider.connectionURL') }}
+                    </el-link>
+                  </div>
                 </div>
-                <div class="provider-code">{{ row.code }}</div>
               </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('connectorProvider.authType')" width="130" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" effect="plain">
+                {{ row.auth_type || 'oauth2_user' }}
+              </el-tag>
             </template>
           </el-table-column>
 
@@ -183,6 +214,18 @@
           <el-form-item :label="t('connectorProvider.displayName')" prop="name">
             <el-input v-model="form.name" :placeholder="t('connectorProvider.displayNamePlaceholder')" />
           </el-form-item>
+          <el-form-item :label="t('connectorProvider.connectionURL')">
+            <el-input v-model="form.provider_account_url" :placeholder="t('connectorProvider.connectionURLPlaceholder')" />
+          </el-form-item>
+          <el-form-item :label="t('connectorProvider.logoURL')">
+            <el-input v-model="form.logo_url" :placeholder="t('connectorProvider.logoURLPlaceholder')" />
+          </el-form-item>
+          <el-form-item :label="t('connectorProvider.brandColor')">
+            <div class="brand-color-control">
+              <el-color-picker v-model="form.brand_color" show-alpha />
+              <el-input v-model="form.brand_color" :placeholder="t('connectorProvider.brandColorPlaceholder')" />
+            </div>
+          </el-form-item>
           <el-form-item :label="t('connectorProvider.enabled')">
             <el-switch v-model="form.enabled" />
           </el-form-item>
@@ -254,6 +297,9 @@ interface ProviderFormState {
   auth_url: string
   token_url: string
   scopes_text: string
+  provider_account_url: string
+  logo_url: string
+  brand_color: string
   has_client_secret: boolean
 }
 
@@ -293,6 +339,9 @@ const filteredProviders = computed(() => {
       item.name,
       item.auth_url,
       item.token_url,
+      item.provider_account_url,
+      item.logo_url,
+      item.brand_color,
       ...(item.scopes || [])
     ].some((field) => (field || '').toLowerCase().includes(q))
   })
@@ -335,6 +384,9 @@ function createDefaultForm(): ProviderFormState {
     auth_url: '',
     token_url: '',
     scopes_text: '',
+    provider_account_url: '',
+    logo_url: '',
+    brand_color: '',
     has_client_secret: false
   }
 }
@@ -353,6 +405,9 @@ function applyForm(provider: ConnectorOAuthProviderInfo) {
   form.auth_url = provider.auth_url || ''
   form.token_url = provider.token_url || ''
   form.scopes_text = (provider.scopes || []).join('\n')
+  form.provider_account_url = provider.provider_account_url || ''
+  form.logo_url = provider.logo_url || ''
+  form.brand_color = provider.brand_color || ''
   form.has_client_secret = provider.has_client_secret
 }
 
@@ -375,6 +430,26 @@ function providerStatusLabel(row: ConnectorOAuthProviderInfo) {
     return t('connectorProvider.disabled')
   }
   return row.active ? t('connectorProvider.active') : t('connectorProvider.pending')
+}
+
+function providerLogo(row: ConnectorOAuthProviderInfo) {
+  return (row.logo_url || '').trim()
+}
+
+function providerInitial(row: ConnectorOAuthProviderInfo) {
+  return (row.name || row.code || '?').trim().slice(0, 1).toUpperCase()
+}
+
+function providerIconStyle(row: ConnectorOAuthProviderInfo) {
+  const color = (row.brand_color || '').trim()
+  return color ? { '--provider-color': color } : {}
+}
+
+function handleProviderLogoError(event: Event) {
+  const target = event.target as HTMLImageElement | null
+  if (target) {
+    target.style.display = 'none'
+  }
 }
 
 function formatDateTime(value?: string) {
@@ -435,6 +510,9 @@ function buildPayload(): UpsertConnectorOAuthProviderReq {
     client_id: form.client_id.trim(),
     auth_url: form.auth_url.trim(),
     token_url: form.token_url.trim(),
+    provider_account_url: form.provider_account_url.trim(),
+    logo_url: form.logo_url.trim(),
+    brand_color: form.brand_color.trim(),
     scopes: parseScopes(form.scopes_text)
   }
 
@@ -612,6 +690,45 @@ onMounted(loadProviders)
     gap: 4px;
   }
 
+  .provider-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .provider-icon {
+    --provider-color: var(--el-color-primary);
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--provider-color) 30%, var(--el-border-color) 70%);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--provider-color) 12%, var(--el-fill-color-blank) 88%);
+    color: var(--provider-color);
+    font-size: 14px;
+    font-weight: 700;
+
+    img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      padding: 6px;
+      object-fit: contain;
+      background: var(--el-fill-color-blank);
+    }
+  }
+
+  .provider-initial {
+    line-height: 1;
+  }
+
   .provider-title {
     display: flex;
     align-items: center;
@@ -624,10 +741,24 @@ onMounted(loadProviders)
     color: var(--el-text-color-primary);
   }
 
+  .provider-account-link {
+    display: inline-flex;
+    width: fit-content;
+    font-size: 12px;
+  }
+
   .url-cell {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .brand-color-control {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    width: 100%;
   }
 
 }

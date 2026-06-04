@@ -53,6 +53,7 @@ type ConnectorOAuthConfig struct {
 type ConnectorOAuthProviderConfig struct {
 	Code               string            `mapstructure:"code"`
 	Name               string            `mapstructure:"name"`
+	AuthType           string            `mapstructure:"auth_type"`
 	ClientID           string            `mapstructure:"client_id"`
 	ClientSecret       string            `mapstructure:"client_secret"`
 	ClientIDEnv        string            `mapstructure:"client_id_env"`
@@ -74,6 +75,8 @@ type ConnectorOAuthProviderConfig struct {
 	ExternalIDField    string            `mapstructure:"external_id_field"`
 	DisplayNameField   string            `mapstructure:"display_name_field"`
 	ProviderAccountURL string            `mapstructure:"provider_account_url"`
+	LogoURL            string            `mapstructure:"logo_url"`
+	BrandColor         string            `mapstructure:"brand_color"`
 }
 
 func (c *ConnectorServerConfig) GetPort() int {

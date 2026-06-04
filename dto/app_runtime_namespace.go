@@ -37,7 +37,7 @@ type RequestAppReq struct {
 	RequestUserDept string `json:"request_user_dept" swaggerignore:"true"`         // 请求用户部门（由中间件自动填充）
 	Token           string `json:"token" swaggerignore:"true"`                     // 认证 Token（由中间件自动填充，透传到 SDK）
 	AnonymousToken  string `json:"anonymous_token,omitempty" swaggerignore:"true"` // 公开分享匿名 Token（只用于 public_share 场景）
-	ClientSource    string `json:"client_source,omitempty" swaggerignore:"true"`   // 客户端来源（browser、agent、api）
+	ClientSource    string `json:"client_source,omitempty" swaggerignore:"true"`   // 客户端来源（browser、agent、openapi）
 	SourceType      string `json:"source_type,omitempty" swaggerignore:"true"`     // 调用来源类型
 	SourceRef       string `json:"source_ref,omitempty" swaggerignore:"true"`      // 调用来源引用
 	User            string `json:"user" binding:"required" example:"beiluo"`       // 租户用户名（应用所有者）

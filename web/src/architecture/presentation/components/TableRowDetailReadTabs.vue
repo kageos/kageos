@@ -267,7 +267,7 @@ const activeTabModel = computed({
 
 function loadTab(tabName: string) {
   if (tabName === 'operateLog' && featureFlags.operateLogs) {
-    operateLogSectionRef.value?.load()
+    nextTick(() => operateLogSectionRef.value?.load())
   }
 }
 
@@ -279,10 +279,19 @@ watch(
       return
     }
     if (tabName === 'operateLog') {
-      nextTick(() => loadTab(tabName))
+      loadTab(tabName)
     }
   },
   { immediate: true }
+)
+
+watch(
+  () => [props.fullCodePath, props.rowId],
+  () => {
+    if (props.modelValue === 'operateLog') {
+      loadTab('operateLog')
+    }
+  }
 )
 </script>
 

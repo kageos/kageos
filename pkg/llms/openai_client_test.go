@@ -66,3 +66,10 @@ func TestValidateRequestAllowsAssistantToolCallsWithoutContent(t *testing.T) {
 		t.Fatalf("validateRequest returned error: %v", err)
 	}
 }
+
+func TestSanitizeToolCallArgumentsFallsBackForInvalidJSON(t *testing.T) {
+	got := sanitizeToolCallArguments(`{"content":"unterminated`)
+	if got != "{}" {
+		t.Fatalf("sanitizeToolCallArguments() = %q, want {}", got)
+	}
+}

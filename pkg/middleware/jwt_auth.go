@@ -77,7 +77,9 @@ func JWTAuth() gin.HandlerFunc {
 				c.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
 				c.Request.Header.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
 			}
-			c.Request.Header.Set(contextx.SourceTypeHeader, "openapi_token")
+			c.Set(contextx.ClientSourceHeader, contextx.ClientSourceOpenAPI)
+			c.Request.Header.Set(contextx.ClientSourceHeader, contextx.ClientSourceOpenAPI)
+			c.Request.Header.Set(contextx.SourceTypeHeader, contextx.SourceTypeOpenAPIToken)
 			c.Request.Header.Set(contextx.SourceRefHeader, principal.Username)
 
 			c.Next()

@@ -211,9 +211,12 @@ func processStreamChunks(
 	flushToolCallsDelta()
 
 	content := strings.TrimSpace(buf.String())
+	allToolCalls = normalizeToolCalls(ctx, allToolCalls)
 	for _, tc := range allToolCalls {
 		if tc.Function.Arguments == "" {
 			logger.Warnf(ctx, "[StreamLoop] tool_call arguments 为空，ToolCallID: %s, ToolName: %s", tc.ID, tc.Function.Name)
+		} else if !json.Valid([]byte(strings.TrimSpace(tc.Function.Arguments))) {
+			logger.Warnf(ctx, "[StreamLoop] tool_call arguments 不是合法 JSON，ToolCallID: %s, ToolName: %s", tc.ID, tc.Function.Name)
 		}
 	}
 	return content, allToolCalls, nil
@@ -235,56 +238,38 @@ func mergeToolCalls(chunkToolCalls []llms.ToolCall, allToolCalls []llms.ToolCall
 	for _, tc := range chunkToolCalls {
 		if tc.Index != nil {
 			idx := *tc.Index
+			if tc.ID != "" {
+				if existingIdx, ok := toolCallsIndex[tc.ID]; ok {
+					idx = existingIdx
+				}
+			}
 			if idx < 0 {
 				idx = len(allToolCalls)
 			}
 			for len(allToolCalls) <= idx {
 				allToolCalls = append(allToolCalls, llms.ToolCall{Type: "function"})
 			}
-			if tc.ID != "" {
-				allToolCalls[idx].ID = tc.ID
-				toolCallsIndex[tc.ID] = idx
-			}
-			if tc.Type != "" {
-				allToolCalls[idx].Type = tc.Type
-			}
-			if tc.Function.Name != "" {
-				allToolCalls[idx].Function.Name = tc.Function.Name
-			}
-			if tc.Function.Arguments != "" {
-				allToolCalls[idx].Function.Arguments = appendToolCallArgs(allToolCalls[idx].Function.Arguments, tc.Function.Arguments)
+			mergeToolCallFields(&allToolCalls[idx], tc)
+			if allToolCalls[idx].ID != "" {
+				toolCallsIndex[allToolCalls[idx].ID] = idx
 			}
 			continue
 		}
 		if tc.ID != "" {
 			if idx, ok := toolCallsIndex[tc.ID]; ok {
-				if tc.Function.Name != "" {
-					allToolCalls[idx].Function.Name = tc.Function.Name
-				}
-				if tc.Function.Arguments != "" {
-					allToolCalls[idx].Function.Arguments = appendToolCallArgs(allToolCalls[idx].Function.Arguments, tc.Function.Arguments)
-				}
-			} else if len(allToolCalls) > 0 && allToolCalls[len(allToolCalls)-1].ID == "" {
+				mergeToolCallFields(&allToolCalls[idx], tc)
+			} else if lastIdx := lastAnonymousStartedToolCallIndex(allToolCalls); lastIdx >= 0 {
 				// 流式先发 name 再发 id（按 index 分片）：最后一条是 id 为空的同一 tool_call，合并到该条，避免出现两条（一条 id 空）导致 API 报 insufficient tool messages
-				lastIdx := len(allToolCalls) - 1
-				allToolCalls[lastIdx].ID = tc.ID
-				if tc.Function.Name != "" {
-					allToolCalls[lastIdx].Function.Name = tc.Function.Name
-				}
-				if tc.Function.Arguments != "" {
-					allToolCalls[lastIdx].Function.Arguments = appendToolCallArgs(allToolCalls[lastIdx].Function.Arguments, tc.Function.Arguments)
-				}
+				mergeToolCallFields(&allToolCalls[lastIdx], tc)
 				toolCallsIndex[tc.ID] = lastIdx
 			} else {
 				allToolCalls = append(allToolCalls, tc)
 				toolCallsIndex[tc.ID] = len(allToolCalls) - 1
 			}
 		} else if tc.Function.Arguments != "" {
-			if len(allToolCalls) > 0 {
-				lastIdx := len(allToolCalls) - 1
-				allToolCalls[lastIdx].Function.Arguments = appendToolCallArgs(allToolCalls[lastIdx].Function.Arguments, tc.Function.Arguments)
-			}
-			if len(allToolCalls) == 0 && tc.Function.Name != "" {
+			if idx := onlyOpenToolCallIndex(allToolCalls); idx >= 0 {
+				allToolCalls[idx].Function.Arguments = appendToolCallArgs(allToolCalls[idx].Function.Arguments, tc.Function.Arguments)
+			} else if len(allToolCalls) == 0 && tc.Function.Name != "" {
 				allToolCalls = append(allToolCalls, tc)
 			}
 		} else if tc.Function.Name != "" {
@@ -294,4 +279,77 @@ func mergeToolCalls(chunkToolCalls []llms.ToolCall, allToolCalls []llms.ToolCall
 		}
 	}
 	return allToolCalls, toolCallsIndex
+}
+
+func mergeToolCallFields(dst *llms.ToolCall, src llms.ToolCall) {
+	if dst.Type == "" {
+		dst.Type = "function"
+	}
+	if src.ID != "" {
+		dst.ID = src.ID
+	}
+	if src.Type != "" {
+		dst.Type = src.Type
+	}
+	if src.Function.Name != "" {
+		dst.Function.Name = src.Function.Name
+	}
+	if src.Function.Arguments != "" {
+		dst.Function.Arguments = appendToolCallArgs(dst.Function.Arguments, src.Function.Arguments)
+	}
+}
+
+func lastAnonymousStartedToolCallIndex(toolCalls []llms.ToolCall) int {
+	for i := len(toolCalls) - 1; i >= 0; i-- {
+		tc := toolCalls[i]
+		if strings.TrimSpace(tc.ID) != "" {
+			return -1
+		}
+		if strings.TrimSpace(tc.Function.Name) != "" || strings.TrimSpace(tc.Function.Arguments) != "" {
+			return i
+		}
+	}
+	return -1
+}
+
+func onlyOpenToolCallIndex(toolCalls []llms.ToolCall) int {
+	found := -1
+	for i, tc := range toolCalls {
+		if isBlankToolCall(tc) {
+			continue
+		}
+		args := strings.TrimSpace(tc.Function.Arguments)
+		if args == "" || !json.Valid([]byte(args)) {
+			if found >= 0 {
+				return -1
+			}
+			found = i
+		}
+	}
+	return found
+}
+
+func normalizeToolCalls(ctx context.Context, toolCalls []llms.ToolCall) []llms.ToolCall {
+	out := make([]llms.ToolCall, 0, len(toolCalls))
+	for i, tc := range toolCalls {
+		if isBlankToolCall(tc) {
+			continue
+		}
+		if tc.Type == "" {
+			tc.Type = "function"
+		}
+		if strings.TrimSpace(tc.ID) == "" {
+			tc.ID = fmt.Sprintf("call_local_%d", i)
+			logger.Warnf(ctx, "[StreamLoop] tool_call id 为空，已生成本地 ID: %s, ToolName: %s", tc.ID, tc.Function.Name)
+		}
+		out = append(out, tc)
+	}
+	return out
+}
+
+func isBlankToolCall(tc llms.ToolCall) bool {
+	return strings.TrimSpace(tc.ID) == "" &&
+		strings.TrimSpace(tc.Function.Name) == "" &&
+		strings.TrimSpace(tc.Function.Arguments) == "" &&
+		(strings.TrimSpace(tc.Type) == "" || strings.TrimSpace(tc.Type) == "function")
 }

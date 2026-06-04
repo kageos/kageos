@@ -14,6 +14,7 @@ type GetOperateLogsReq struct {
 	ResourcePathPrefix string `json:"resource_path_prefix" form:"resource_path_prefix"`
 	Action             string `json:"action" form:"action"`
 	Status             string `json:"status" form:"status"`
+	Source             string `json:"source" form:"source"`
 	RowID              int64  `json:"row_id" form:"row_id"`
 	Keyword            string `json:"keyword" form:"keyword"`
 	Page               int    `json:"page" form:"page"`

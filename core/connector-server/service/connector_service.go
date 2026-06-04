@@ -57,6 +57,10 @@ func (s *ConnectorService) createConnectionForOwner(ctx context.Context, owner s
 	if provider == "" {
 		return nil, fmt.Errorf("provider 不能为空")
 	}
+	authType, err := normalizeConnectorAuthType(req.AuthType)
+	if err != nil {
+		return nil, err
+	}
 	displayName := strings.TrimSpace(req.DisplayName)
 	if displayName == "" {
 		displayName = provider
@@ -73,6 +77,7 @@ func (s *ConnectorService) createConnectionForOwner(ctx context.Context, owner s
 		ConnectionID:      connectionID,
 		OwnerUsername:     owner,
 		Provider:          provider,
+		AuthType:          authType,
 		DisplayName:       displayName,
 		ExternalAccountID: strings.TrimSpace(req.ExternalAccountID),
 		Status:            model.ConnectorStatusActive,
@@ -82,6 +87,32 @@ func (s *ConnectorService) createConnectionForOwner(ctx context.Context, owner s
 	conn.UpdatedBy = owner
 	if err := s.repo.CreateConnection(ctx, conn); err != nil {
 		return nil, err
+	}
+	return connectionToInfo(conn), nil
+}
+
+func (s *ConnectorService) updateConnectionProfileForOwner(ctx context.Context, owner, connectionID, provider, displayName, externalAccountID string, metadata map[string]interface{}) (*dto.ConnectorConnectionInfo, error) {
+	provider = normalizeProvider(provider)
+	if provider == "" {
+		return nil, fmt.Errorf("provider 不能为空")
+	}
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		displayName = provider
+	}
+	metadataText, err := marshalMetadata(metadata)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := s.repo.UpdateOwnedConnectionProfile(ctx, owner, connectionID, displayName, externalAccountID, metadataText, owner)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("连接器不存在或不属于当前用户")
+		}
+		return nil, err
+	}
+	if normalizeProvider(conn.Provider) != provider {
+		return nil, fmt.Errorf("连接器 provider 不匹配: got %s, want %s", conn.Provider, provider)
 	}
 	return connectionToInfo(conn), nil
 }
@@ -262,7 +293,7 @@ func (s *ConnectorService) ResolveDirectoryBindingWithScopes(ctx context.Context
 				return nil, err
 			}
 			requiredScopes = cleanScopes(requiredScopes)
-			missing := missingScopes(provider, grantedScopes, requiredScopes)
+			missing := connectorAdapterFor(provider).MissingScopes(grantedScopes, requiredScopes)
 			return &dto.ResolveConnectorBindingResp{
 				Binding:        *bindingToInfo(binding, conn),
 				Connection:     *connectionToInfo(conn),
@@ -303,10 +334,12 @@ func connectionToInfo(conn *model.ConnectorConnection) *dto.ConnectorConnectionI
 		ConnectionID:      conn.ConnectionID,
 		OwnerUsername:     conn.OwnerUsername,
 		Provider:          conn.Provider,
+		AuthType:          defaultConnectorAuthType(conn.AuthType),
 		DisplayName:       conn.DisplayName,
 		ExternalAccountID: conn.ExternalAccountID,
 		Status:            conn.Status,
 		Metadata:          conn.Metadata,
+		Profile:           connectionProfileFromMetadata(conn.Metadata),
 		CreatedAt:         formatModelTime(conn.CreatedAt),
 		UpdatedAt:         formatModelTime(conn.UpdatedAt),
 	}
@@ -335,6 +368,25 @@ func bindingToInfo(binding *model.ConnectorDirectoryBinding, conn *model.Connect
 
 func normalizeProvider(provider string) string {
 	return strings.ToLower(strings.TrimSpace(provider))
+}
+
+func normalizeConnectorAuthType(authType string) (string, error) {
+	authType = strings.ToLower(strings.TrimSpace(authType))
+	if authType == "" {
+		return model.ConnectorAuthTypeOAuth2User, nil
+	}
+	if authType != model.ConnectorAuthTypeOAuth2User {
+		return "", fmt.Errorf("auth_type 目前仅支持 %s", model.ConnectorAuthTypeOAuth2User)
+	}
+	return authType, nil
+}
+
+func defaultConnectorAuthType(authType string) string {
+	normalized, err := normalizeConnectorAuthType(authType)
+	if err != nil {
+		return model.ConnectorAuthTypeOAuth2User
+	}
+	return normalized
 }
 
 func normalizeConnectorResourcePath(resourcePath string) string {
@@ -379,6 +431,51 @@ func marshalMetadata(metadata map[string]interface{}) (string, error) {
 	return string(data), nil
 }
 
+func connectionProfileFromMetadata(raw string) *dto.ConnectorConnectionProfile {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var metadata map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &metadata); err != nil {
+		return nil
+	}
+	profileValue, ok := metadata["profile"]
+	if !ok || profileValue == nil {
+		return legacyConnectionProfileFromMetadata(metadata)
+	}
+	data, err := json.Marshal(profileValue)
+	if err != nil {
+		return legacyConnectionProfileFromMetadata(metadata)
+	}
+	var profile dto.ConnectorConnectionProfile
+	if err := json.Unmarshal(data, &profile); err != nil {
+		return legacyConnectionProfileFromMetadata(metadata)
+	}
+	if profile == (dto.ConnectorConnectionProfile{}) {
+		return nil
+	}
+	return &profile
+}
+
+func legacyConnectionProfileFromMetadata(metadata map[string]interface{}) *dto.ConnectorConnectionProfile {
+	profile := &dto.ConnectorConnectionProfile{
+		Provider:      oauthValueString(metadata["provider"]),
+		AccountID:     oauthValueString(metadata["external_id"]),
+		AccountName:   oauthValueString(metadata["username"]),
+		AvatarURL:     oauthValueString(metadata["avatar_url"]),
+		AccountURL:    oauthValueString(metadata["provider_account_url"]),
+		WorkspaceID:   oauthValueString(metadata["workspace_id"]),
+		WorkspaceName: oauthValueString(metadata["workspace_name"]),
+		WorkspaceIcon: oauthValueString(metadata["workspace_icon"]),
+	}
+	profile.DisplayName = firstNonEmpty(profile.WorkspaceName, profile.AccountName)
+	if *profile == (dto.ConnectorConnectionProfile{}) {
+		return nil
+	}
+	return profile
+}
+
 func newConnectionID() (string, error) {
 	var b [12]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -401,9 +498,9 @@ func resourcePathCandidates(resourcePath string) []string {
 	}
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	candidates := make([]string, 0, len(parts)+1)
+	candidates = append(candidates, connectorGlobalResourcePath)
 	for i := len(parts); i >= 2; i-- {
 		candidates = append(candidates, "/"+strings.Join(parts[:i], "/"))
 	}
-	candidates = append(candidates, connectorGlobalResourcePath)
 	return candidates
 }

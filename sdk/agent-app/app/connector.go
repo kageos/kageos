@@ -19,11 +19,7 @@ func (c *Context) GetConnector(provider string) (*dto.ResolveConnectorBindingRes
 	if c == nil {
 		return nil, fmt.Errorf("context is nil")
 	}
-	resourcePath := strings.TrimSpace(c.GetFullCodePath())
-	if resourcePath == "" {
-		resourcePath = ConnectorGlobalResourcePath
-	}
-	return apicall.ResolveConnectorBinding(c.apiCallContext(), provider, resourcePath)
+	return c.GetConnectorForResource(provider, ConnectorGlobalResourcePath)
 }
 
 func (c *Context) GetConnectorForResource(provider, resourcePath string) (*dto.ResolveConnectorBindingResp, error) {
@@ -37,7 +33,7 @@ func (c *Context) CallConnector(provider string, req ConnectorRequest) (*Connect
 	if c == nil {
 		return nil, fmt.Errorf("context is nil")
 	}
-	return c.CallConnectorForResource(provider, c.GetFullCodePath(), req)
+	return c.CallConnectorForResource(provider, ConnectorGlobalResourcePath, req)
 }
 
 func (c *Context) CallConnectorForResource(provider, resourcePath string, req ConnectorRequest) (*ConnectorResponse, error) {

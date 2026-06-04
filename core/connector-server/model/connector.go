@@ -11,12 +11,17 @@ const (
 	ConnectorStatusRevoked = "revoked"
 )
 
+const (
+	ConnectorAuthTypeOAuth2User = "oauth2_user"
+)
+
 // ConnectorConnection is a user-owned connector account reference.
 type ConnectorConnection struct {
 	models.Base
 	ConnectionID      string `json:"connection_id" gorm:"column:connection_id;type:varchar(64);not null;uniqueIndex"`
 	OwnerUsername     string `json:"owner_username" gorm:"column:owner_username;type:varchar(100);not null;index:idx_connector_owner_provider"`
 	Provider          string `json:"provider" gorm:"column:provider;type:varchar(80);not null;index:idx_connector_owner_provider"`
+	AuthType          string `json:"auth_type" gorm:"column:auth_type;type:varchar(40);not null;default:oauth2_user;index"`
 	DisplayName       string `json:"display_name" gorm:"column:display_name;type:varchar(200);not null"`
 	ExternalAccountID string `json:"external_account_id" gorm:"column:external_account_id;type:varchar(200)"`
 	Status            string `json:"status" gorm:"column:status;type:varchar(30);not null;default:active;index"`
@@ -58,6 +63,7 @@ type ConnectorOAuthState struct {
 	State         string     `json:"state" gorm:"column:state;type:varchar(128);not null;uniqueIndex"`
 	OwnerUsername string     `json:"owner_username" gorm:"column:owner_username;type:varchar(100);not null;index"`
 	Provider      string     `json:"provider" gorm:"column:provider;type:varchar(80);not null;index"`
+	ConnectionID  string     `json:"connection_id" gorm:"column:connection_id;type:varchar(64);index"`
 	ResourcePath  string     `json:"resource_path" gorm:"column:resource_path;type:varchar(500);index"`
 	Scopes        string     `json:"scopes" gorm:"column:scopes;type:text"`
 	DisplayName   string     `json:"display_name" gorm:"column:display_name;type:varchar(200)"`
@@ -98,6 +104,7 @@ type ConnectorOAuthProviderSetting struct {
 	models.Base
 	Code               string `json:"code" gorm:"column:code;type:varchar(80);not null;uniqueIndex"`
 	Name               string `json:"name" gorm:"column:name;type:varchar(120);not null"`
+	AuthType           string `json:"auth_type" gorm:"column:auth_type;type:varchar(40);not null;default:oauth2_user;index"`
 	ClientID           string `json:"client_id" gorm:"column:client_id;type:varchar(300)"`
 	ClientSecretCipher string `json:"-" gorm:"column:client_secret_cipher;type:text"`
 	AuthURL            string `json:"auth_url" gorm:"column:auth_url;type:varchar(1000)"`
@@ -116,6 +123,9 @@ type ConnectorOAuthProviderSetting struct {
 	ExtraTokenParams   string `json:"extra_token_params" gorm:"column:extra_token_params;type:text"`
 	ExternalIDField    string `json:"external_id_field" gorm:"column:external_id_field;type:varchar(120)"`
 	DisplayNameField   string `json:"display_name_field" gorm:"column:display_name_field;type:varchar(120)"`
+	ProviderAccountURL string `json:"provider_account_url" gorm:"column:provider_account_url;type:varchar(1000)"`
+	LogoURL            string `json:"logo_url" gorm:"column:logo_url;type:varchar(1000)"`
+	BrandColor         string `json:"brand_color" gorm:"column:brand_color;type:varchar(40)"`
 	Enabled            bool   `json:"enabled" gorm:"column:enabled;not null;default:true;index"`
 }
 

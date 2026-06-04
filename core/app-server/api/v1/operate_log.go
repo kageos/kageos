@@ -37,6 +37,7 @@ func NewOperateLog(operateLogService *service.OperateLogService, teamAccessServi
 // @Param resource_path_prefix query string false "资源路径前缀"
 // @Param action query string false "操作类型"
 // @Param status query string false "状态：success/failed"
+// @Param source query string false "操作来源：browser/agent/openapi/public_share"
 // @Param row_id query int false "Table 记录 ID"
 // @Param keyword query string false "关键词：匹配操作人、被操作人、资源路径、Trace 或摘要"
 // @Param page query int false "页码（从1开始）" default(1)

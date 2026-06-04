@@ -2,15 +2,37 @@ import { del, get, post, put } from '@/architecture/infrastructure/apiClient/req
 
 export const CONNECTOR_GLOBAL_RESOURCE_PATH = '/'
 
+export interface ConnectorResourceSummary {
+  page_count?: number
+  database_count?: number
+  samples?: string[]
+}
+
+export interface ConnectorConnectionProfile {
+  provider?: string
+  display_name?: string
+  account_id?: string
+  account_name?: string
+  avatar_url?: string
+  account_url?: string
+  workspace_id?: string
+  workspace_name?: string
+  workspace_icon?: string
+  resource_summary?: ConnectorResourceSummary
+  last_enriched_at?: string
+}
+
 export interface ConnectorConnectionInfo {
   id: number
   connection_id: string
   owner_username: string
   provider: string
+  auth_type: string
   display_name: string
   external_account_id?: string
   status: string
   metadata?: string
+  profile?: ConnectorConnectionProfile
   created_at: string
   updated_at: string
 }
@@ -31,6 +53,7 @@ export interface ConnectorDirectoryBindingInfo {
 export interface StartConnectorOAuthReq {
   provider: string
   resource_path?: string
+  connection_id?: string
   scopes?: string[]
   display_name?: string
   redirect_after?: string
@@ -73,11 +96,15 @@ export interface ConnectorOAuthProviderInfo {
   id?: number
   code: string
   name: string
+  auth_type: string
   client_id?: string
   has_client_secret: boolean
   auth_url?: string
   token_url?: string
   scopes?: string[]
+  provider_account_url?: string
+  logo_url?: string
+  brand_color?: string
   enabled: boolean
   active: boolean
   managed: boolean
@@ -88,11 +115,15 @@ export interface ConnectorOAuthProviderInfo {
 export interface UpsertConnectorOAuthProviderReq {
   code: string
   name: string
+  auth_type?: string
   client_id?: string
   client_secret?: string
   auth_url?: string
   token_url?: string
   scopes?: string[]
+  provider_account_url?: string
+  logo_url?: string
+  brand_color?: string
   enabled?: boolean
 }
 

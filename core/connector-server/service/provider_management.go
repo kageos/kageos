@@ -99,6 +99,9 @@ func (s *ConnectorService) SeedOAuthProviderSettings(ctx context.Context) error 
 		if err := s.repo.CreateOAuthProviderSettingIfNotExists(ctx, setting); err != nil {
 			return err
 		}
+		if err := s.repo.FillOAuthProviderDisplayDefaults(ctx, code, setting.ProviderAccountURL, setting.LogoURL, setting.BrandColor); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -135,6 +138,10 @@ func (s *ConnectorService) UpsertOAuthProvider(ctx context.Context, req dto.Upse
 		current = mergeOAuthProvider(current, existingProvider)
 	}
 	req = mergeOAuthProviderUpsertReq(current, req)
+	authType, err := normalizeConnectorAuthType(req.AuthType)
+	if err != nil {
+		return nil, err
+	}
 	clientSecretCipher := ""
 	if existing != nil {
 		clientSecretCipher = existing.ClientSecretCipher
@@ -163,6 +170,7 @@ func (s *ConnectorService) UpsertOAuthProvider(ctx context.Context, req dto.Upse
 	setting := &model.ConnectorOAuthProviderSetting{
 		Code:               code,
 		Name:               name,
+		AuthType:           authType,
 		ClientID:           strings.TrimSpace(req.ClientID),
 		ClientSecretCipher: clientSecretCipher,
 		AuthURL:            strings.TrimSpace(req.AuthURL),
@@ -181,6 +189,9 @@ func (s *ConnectorService) UpsertOAuthProvider(ctx context.Context, req dto.Upse
 		ExtraTokenParams:   extraToken,
 		ExternalIDField:    strings.TrimSpace(current.ExternalIDField),
 		DisplayNameField:   strings.TrimSpace(current.DisplayNameField),
+		ProviderAccountURL: strings.TrimSpace(req.ProviderAccountURL),
+		LogoURL:            strings.TrimSpace(req.LogoURL),
+		BrandColor:         strings.TrimSpace(req.BrandColor),
 		Enabled:            enabled,
 	}
 	setting.CreatedBy = user
@@ -259,32 +270,39 @@ func (s *ConnectorService) providerSettingToConfig(row *model.ConnectorOAuthProv
 		return config.ConnectorOAuthProviderConfig{}, err
 	}
 	return config.ConnectorOAuthProviderConfig{
-		Code:              normalizeProvider(row.Code),
-		Name:              strings.TrimSpace(row.Name),
-		ClientID:          strings.TrimSpace(row.ClientID),
-		ClientSecret:      clientSecret,
-		AuthURL:           strings.TrimSpace(row.AuthURL),
-		TokenURL:          strings.TrimSpace(row.TokenURL),
-		UserInfoURL:       strings.TrimSpace(row.UserInfoURL),
-		Scopes:            splitScopes(row.Scopes),
-		UsePKCE:           row.UsePKCE,
-		TokenRequestMode:  strings.TrimSpace(row.TokenRequestMode),
-		ClientIDParam:     strings.TrimSpace(row.ClientIDParam),
-		ClientSecretParam: strings.TrimSpace(row.ClientSecretParam),
-		GrantTypeParam:    strings.TrimSpace(row.GrantTypeParam),
-		CodeParam:         strings.TrimSpace(row.CodeParam),
-		RefreshTokenParam: strings.TrimSpace(row.RefreshTokenParam),
-		RedirectURIParam:  strings.TrimSpace(row.RedirectURIParam),
-		ExtraAuthParams:   extraAuth,
-		ExtraTokenParams:  extraToken,
-		ExternalIDField:   strings.TrimSpace(row.ExternalIDField),
-		DisplayNameField:  strings.TrimSpace(row.DisplayNameField),
+		Code:               normalizeProvider(row.Code),
+		Name:               strings.TrimSpace(row.Name),
+		AuthType:           defaultConnectorAuthType(row.AuthType),
+		ClientID:           strings.TrimSpace(row.ClientID),
+		ClientSecret:       clientSecret,
+		AuthURL:            strings.TrimSpace(row.AuthURL),
+		TokenURL:           strings.TrimSpace(row.TokenURL),
+		UserInfoURL:        strings.TrimSpace(row.UserInfoURL),
+		Scopes:             splitScopes(row.Scopes),
+		UsePKCE:            row.UsePKCE,
+		TokenRequestMode:   strings.TrimSpace(row.TokenRequestMode),
+		ClientIDParam:      strings.TrimSpace(row.ClientIDParam),
+		ClientSecretParam:  strings.TrimSpace(row.ClientSecretParam),
+		GrantTypeParam:     strings.TrimSpace(row.GrantTypeParam),
+		CodeParam:          strings.TrimSpace(row.CodeParam),
+		RefreshTokenParam:  strings.TrimSpace(row.RefreshTokenParam),
+		RedirectURIParam:   strings.TrimSpace(row.RedirectURIParam),
+		ExtraAuthParams:    extraAuth,
+		ExtraTokenParams:   extraToken,
+		ExternalIDField:    strings.TrimSpace(row.ExternalIDField),
+		DisplayNameField:   strings.TrimSpace(row.DisplayNameField),
+		ProviderAccountURL: strings.TrimSpace(row.ProviderAccountURL),
+		LogoURL:            strings.TrimSpace(row.LogoURL),
+		BrandColor:         strings.TrimSpace(row.BrandColor),
 	}, nil
 }
 
 func mergeOAuthProviderUpsertReq(current config.ConnectorOAuthProviderConfig, req dto.UpsertConnectorOAuthProviderReq) dto.UpsertConnectorOAuthProviderReq {
 	if strings.TrimSpace(req.Name) == "" {
 		req.Name = current.Name
+	}
+	if strings.TrimSpace(req.AuthType) == "" {
+		req.AuthType = current.AuthType
 	}
 	if strings.TrimSpace(req.ClientID) == "" {
 		req.ClientID = current.ClientID
@@ -298,6 +316,15 @@ func mergeOAuthProviderUpsertReq(current config.ConnectorOAuthProviderConfig, re
 	if req.Scopes == nil {
 		req.Scopes = current.Scopes
 	}
+	if strings.TrimSpace(req.ProviderAccountURL) == "" {
+		req.ProviderAccountURL = current.ProviderAccountURL
+	}
+	if strings.TrimSpace(req.LogoURL) == "" {
+		req.LogoURL = current.LogoURL
+	}
+	if strings.TrimSpace(req.BrandColor) == "" {
+		req.BrandColor = current.BrandColor
+	}
 	return req
 }
 
@@ -305,6 +332,10 @@ func (s *ConnectorService) providerConfigToSeedSetting(provider config.Connector
 	code := normalizeProvider(provider.Code)
 	if code == "" {
 		return nil, fmt.Errorf("provider code 不能为空")
+	}
+	authType, err := normalizeConnectorAuthType(provider.AuthType)
+	if err != nil {
+		return nil, fmt.Errorf("%s auth_type 非法: %w", code, err)
 	}
 	extraAuth, err := marshalStringMap(provider.ExtraAuthParams)
 	if err != nil {
@@ -324,6 +355,7 @@ func (s *ConnectorService) providerConfigToSeedSetting(provider config.Connector
 	setting := &model.ConnectorOAuthProviderSetting{
 		Code:               code,
 		Name:               firstNonEmpty(provider.Name, code),
+		AuthType:           authType,
 		ClientID:           strings.TrimSpace(provider.ClientID),
 		ClientSecretCipher: clientSecretCipher,
 		AuthURL:            strings.TrimSpace(provider.AuthURL),
@@ -342,6 +374,9 @@ func (s *ConnectorService) providerConfigToSeedSetting(provider config.Connector
 		ExtraTokenParams:   extraToken,
 		ExternalIDField:    strings.TrimSpace(provider.ExternalIDField),
 		DisplayNameField:   strings.TrimSpace(provider.DisplayNameField),
+		ProviderAccountURL: strings.TrimSpace(provider.ProviderAccountURL),
+		LogoURL:            strings.TrimSpace(provider.LogoURL),
+		BrandColor:         strings.TrimSpace(provider.BrandColor),
 		Enabled:            true,
 	}
 	setting.CreatedBy = "system"
@@ -364,19 +399,23 @@ func (s *ConnectorService) providerSettingToMergedInfo(row *model.ConnectorOAuth
 
 func providerSettingToInfo(row *model.ConnectorOAuthProviderSetting) dto.ConnectorOAuthProviderInfo {
 	info := dto.ConnectorOAuthProviderInfo{
-		ID:              row.ID,
-		Code:            row.Code,
-		Name:            row.Name,
-		ClientID:        row.ClientID,
-		HasClientSecret: row.ClientSecretCipher != "",
-		AuthURL:         row.AuthURL,
-		TokenURL:        row.TokenURL,
-		Scopes:          splitScopes(row.Scopes),
-		Enabled:         row.Enabled,
-		Active:          row.Enabled && row.ClientID != "" && row.ClientSecretCipher != "" && row.AuthURL != "" && row.TokenURL != "",
-		Managed:         true,
-		CreatedAt:       formatModelTime(row.CreatedAt),
-		UpdatedAt:       formatModelTime(row.UpdatedAt),
+		ID:                 row.ID,
+		Code:               row.Code,
+		Name:               row.Name,
+		AuthType:           defaultConnectorAuthType(row.AuthType),
+		ClientID:           row.ClientID,
+		HasClientSecret:    row.ClientSecretCipher != "",
+		AuthURL:            row.AuthURL,
+		TokenURL:           row.TokenURL,
+		Scopes:             splitScopes(row.Scopes),
+		ProviderAccountURL: row.ProviderAccountURL,
+		LogoURL:            row.LogoURL,
+		BrandColor:         row.BrandColor,
+		Enabled:            row.Enabled,
+		Active:             row.Enabled && row.ClientID != "" && row.ClientSecretCipher != "" && row.AuthURL != "" && row.TokenURL != "",
+		Managed:            true,
+		CreatedAt:          formatModelTime(row.CreatedAt),
+		UpdatedAt:          formatModelTime(row.UpdatedAt),
 	}
 	return info
 }
@@ -385,21 +424,26 @@ func providerConfigToInfo(provider config.ConnectorOAuthProviderConfig) dto.Conn
 	clientID := strings.TrimSpace(firstNonEmpty(provider.ClientID, os.Getenv(provider.ClientIDEnv)))
 	hasClientSecret := strings.TrimSpace(firstNonEmpty(provider.ClientSecret, os.Getenv(provider.ClientSecretEnv))) != ""
 	return dto.ConnectorOAuthProviderInfo{
-		Code:            provider.Code,
-		Name:            firstNonEmpty(provider.Name, provider.Code),
-		ClientID:        clientID,
-		HasClientSecret: hasClientSecret,
-		AuthURL:         provider.AuthURL,
-		TokenURL:        provider.TokenURL,
-		Scopes:          cleanScopes(provider.Scopes),
-		Enabled:         true,
-		Active:          clientID != "" && hasClientSecret && strings.TrimSpace(provider.AuthURL) != "" && strings.TrimSpace(provider.TokenURL) != "",
-		Managed:         false,
+		Code:               provider.Code,
+		Name:               firstNonEmpty(provider.Name, provider.Code),
+		AuthType:           defaultConnectorAuthType(provider.AuthType),
+		ClientID:           clientID,
+		HasClientSecret:    hasClientSecret,
+		AuthURL:            provider.AuthURL,
+		TokenURL:           provider.TokenURL,
+		Scopes:             cleanScopes(provider.Scopes),
+		ProviderAccountURL: provider.ProviderAccountURL,
+		LogoURL:            provider.LogoURL,
+		BrandColor:         provider.BrandColor,
+		Enabled:            true,
+		Active:             clientID != "" && hasClientSecret && strings.TrimSpace(provider.AuthURL) != "" && strings.TrimSpace(provider.TokenURL) != "",
+		Managed:            false,
 	}
 }
 
 func applyProviderSettingMetadata(info *dto.ConnectorOAuthProviderInfo, row *model.ConnectorOAuthProviderSetting) {
 	info.ID = row.ID
+	info.AuthType = defaultConnectorAuthType(firstNonEmpty(info.AuthType, row.AuthType))
 	info.Enabled = row.Enabled
 	info.Active = row.Enabled && info.ClientID != "" && info.HasClientSecret && strings.TrimSpace(info.AuthURL) != "" && strings.TrimSpace(info.TokenURL) != ""
 	info.Managed = true

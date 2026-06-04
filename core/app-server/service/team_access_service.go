@@ -477,7 +477,7 @@ func (s *TeamAccessService) writeOperateLog(ctx context.Context, input operateLo
 		TargetID:     input.TargetID,
 		Summary:      input.Summary,
 		Status:       input.Status,
-		Source:       contextx.GetClientSource(ctx),
+		Source:       contextx.GetAuditClientSource(ctx),
 		TraceID:      contextx.GetTraceId(ctx),
 	}
 	log.DetailsJSON = mustMarshalRaw(input.Details)

@@ -138,6 +138,8 @@ func (s *StandardAPI) buildRequestAppReq(c *gin.Context, fullCodePath string) (*
 		RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
 		Token:           contextx.GetToken(c),
 		ClientSource:    contextx.GetClientSource(c),
+		SourceType:      contextx.GetSourceType(c),
+		SourceRef:       contextx.GetSourceRef(c),
 	}
 
 	// 绑定请求体（POST、PUT、PATCH、DELETE 等方法通常有请求体）
@@ -173,6 +175,8 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 		RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
 		Token:           contextx.GetToken(c),
 		ClientSource:    contextx.GetClientSource(c),
+		SourceType:      contextx.GetSourceType(c),
+		SourceRef:       contextx.GetSourceRef(c),
 	}
 
 	// 读取请求体
@@ -724,6 +728,9 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 			RequestUser:     contextx.GetRequestUser(c),
 			RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
 			Token:           contextx.GetToken(c),
+			ClientSource:    contextx.GetClientSource(c),
+			SourceType:      contextx.GetSourceType(c),
+			SourceRef:       contextx.GetSourceRef(c),
 		}
 		searchResp, err := s.appService.RequestApp(ctx, searchReq)
 		if err != nil {
