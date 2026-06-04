@@ -31,6 +31,13 @@
           <span class="mini-msg-badge">工作台</span>
           <span v-if="getAssistantModelLabel(msg)" class="mini-msg-model">{{ getAssistantModelLabel(msg) }}</span>
           <span class="mini-msg-time">{{ msg.created_at ? formatMessageTime(msg.created_at) : '—' }}</span>
+          <span
+            v-if="getAssistantDurationLabel(msg, i)"
+            :class="['mini-msg-output-duration', { 'mini-msg-output-duration--running': isAssistantTimerRunning(msg, i) }]"
+          >
+            <span v-if="isAssistantTimerRunning(msg, i)" class="mini-msg-output-duration-dot"></span>
+            输出耗时 {{ getAssistantDurationLabel(msg, i) }}
+          </span>
         </div>
         <div v-if="msg.blocks?.length" class="mini-msg-assistant">
           <template v-for="(block, bi) in msg.blocks" :key="bi">
@@ -131,6 +138,7 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { CircleCheck, CircleClose, Loading } from '@element-plus/icons-vue'
 import type { OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
@@ -160,6 +168,116 @@ const emit = defineEmits<{
   (e: 'confirm-prd', payload: { remark: string; prd: unknown }): void
 }>()
 
+interface RuntimeTimer {
+  messageIndex: number
+  createdAt: string
+  startedAt: number
+  completedAt?: number
+}
+
+const assistantTimer = ref<RuntimeTimer | null>(null)
+const assistantTimerNow = ref(Date.now())
+let assistantTimerInterval: ReturnType<typeof setInterval> | null = null
+
+function getAssistantOutputSize(message: ChatMessage): number {
+  let size = message.content?.length ?? 0
+  if (message.blocks?.length) {
+    for (const block of message.blocks) {
+      if (block.type === 'content') {
+        size += block.text.length
+      } else {
+        size += block.calls.length
+        for (const call of block.calls) {
+          size += (call.arguments?.length ?? 0) + (call.result?.length ?? 0) + (call.error?.length ?? 0)
+        }
+      }
+    }
+  }
+  if (message.tool_calls?.length) {
+    size += message.tool_calls.length
+    for (const call of message.tool_calls) {
+      size += (call.arguments?.length ?? 0) + (call.result?.length ?? 0) + (call.error?.length ?? 0)
+    }
+  }
+  return size
+}
+
+function hasAssistantVisibleOutput(message: ChatMessage): boolean {
+  return message.role === 'assistant' && getAssistantOutputSize(message) > 0
+}
+
+function isAssistantTimerTarget(message: ChatMessage, msgIndex: number): boolean {
+  const timer = assistantTimer.value
+  return !!timer && message.role === 'assistant' && timer.messageIndex === msgIndex && timer.createdAt === (message.created_at || '')
+}
+
+function syncAssistantTimerInterval() {
+  const timer = assistantTimer.value
+  if (timer && timer.completedAt == null) {
+    if (assistantTimerInterval == null) {
+      assistantTimerInterval = setInterval(() => {
+        assistantTimerNow.value = Date.now()
+      }, 250)
+    }
+    return
+  }
+  if (assistantTimerInterval != null) {
+    clearInterval(assistantTimerInterval)
+    assistantTimerInterval = null
+  }
+}
+
+function syncAssistantTimer() {
+  const now = Date.now()
+  const lastIndex = props.messages.length - 1
+  const lastMessage = props.messages[lastIndex]
+
+  if (props.sending && lastMessage?.role === 'assistant' && hasAssistantVisibleOutput(lastMessage)) {
+    const createdAt = lastMessage.created_at || ''
+    const timer = assistantTimer.value
+    if (!timer || timer.messageIndex !== lastIndex || timer.createdAt !== createdAt || timer.completedAt != null) {
+      assistantTimer.value = { messageIndex: lastIndex, createdAt, startedAt: now }
+      assistantTimerNow.value = now
+    }
+  } else if (!props.sending && assistantTimer.value && assistantTimer.value.completedAt == null) {
+    assistantTimer.value = { ...assistantTimer.value, completedAt: now }
+    assistantTimerNow.value = now
+  }
+
+  const timer = assistantTimer.value
+  if (timer) {
+    const targetMessage = props.messages[timer.messageIndex]
+    if (!targetMessage || targetMessage.role !== 'assistant' || (targetMessage.created_at || '') !== timer.createdAt) {
+      assistantTimer.value = null
+    }
+  }
+
+  syncAssistantTimerInterval()
+}
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  if (hours > 0) return `${hours}时${minutes}分${seconds}秒`
+  if (minutes > 0) return `${minutes}分${seconds}秒`
+  return `${seconds}秒`
+}
+
+function getAssistantDurationLabel(message: ChatMessage, msgIndex: number): string {
+  if (!isAssistantTimerTarget(message, msgIndex)) return ''
+  const timer = assistantTimer.value
+  if (!timer) return ''
+  const end = timer.completedAt ?? assistantTimerNow.value
+  return formatDuration(end - timer.startedAt)
+}
+
+function isAssistantTimerRunning(message: ChatMessage, msgIndex: number): boolean {
+  const timer = assistantTimer.value
+  return isAssistantTimerTarget(message, msgIndex) && !!timer && timer.completedAt == null
+}
+
 function renderContentBlock(text: string, msgIndex: number, blockIndex: number, blockCount: number): string {
   const isStreamingTail =
     props.sending &&
@@ -180,6 +298,20 @@ function getAssistantModelLabel(message: ChatMessage): string {
   if (provider && model) return `${provider}/${model}`
   return model || provider
 }
+
+watch(
+  () => [
+    props.sending ? 'sending' : 'idle',
+    props.messages.length,
+    props.messages.map((message, index) => `${index}:${message.role}:${message.created_at || ''}:${getAssistantOutputSize(message)}`).join('|')
+  ].join(':'),
+  syncAssistantTimer,
+  { immediate: true }
+)
+
+onBeforeUnmount(() => {
+  if (assistantTimerInterval != null) clearInterval(assistantTimerInterval)
+})
 </script>
 
 <style scoped>
@@ -243,9 +375,11 @@ function getAssistantModelLabel(message: ChatMessage): string {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   margin-bottom: 4px;
 }
 .mini-msg-model {
+  flex-shrink: 1;
   min-width: 0;
   max-width: 220px;
   overflow: hidden;
@@ -259,6 +393,31 @@ function getAssistantModelLabel(message: ChatMessage): string {
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.mini-msg-output-duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: 1px solid rgba(96, 231, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(34, 211, 238, 0.08);
+  color: rgba(184, 225, 235, 0.74);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.mini-msg-output-duration--running {
+  border-color: rgba(96, 231, 255, 0.26);
+  color: #bff8ff;
+}
+.mini-msg-output-duration-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px rgba(96, 231, 255, 0.5);
 }
 .mini-msg-assistant-header .mini-msg-badge {
   border-color: rgba(246, 199, 107, 0.3);
