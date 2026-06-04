@@ -53,7 +53,7 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 		return err
 	}
 
-	content, allToolCalls, err := processStreamChunks(ctx, stream, deps.SendEvent)
+	content, allToolCalls, err := processStreamChunks(ctx, stream, deps.SendEvent, round)
 	if err != nil {
 		deps.SendEvent(EventError, &errorData{Message: err.Error()})
 		return err
@@ -65,7 +65,7 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 			deps.SendEvent(EventError, &errorData{Message: "保存 assistant 消息失败: " + err.Error()})
 			return err
 		}
-		summaries, err := deps.ExecuteToolCalls(ctx, allToolCalls, deps.SendEvent)
+		summaries, err := deps.ExecuteToolCalls(ctx, allToolCalls, round, deps.SendEvent)
 		if err != nil {
 			deps.SendEvent(EventError, &errorData{Message: err.Error()})
 			return err
@@ -85,9 +85,11 @@ type contentData struct {
 	Content string `json:"content"`
 }
 
-// toolCallsStreamDeltaUpdate 增量更新项（index + 可选 name + delta）
+// toolCallsStreamDeltaUpdate 增量更新项（id/index/round + 可选 name + delta）
 type toolCallsStreamDeltaUpdate struct {
 	Index int    `json:"index"`
+	Round int    `json:"round"`
+	ID    string `json:"id,omitempty"`
 	Name  string `json:"name,omitempty"` // 仅新 tool_call 首次出现时
 	Delta string `json:"delta"`
 }
@@ -104,6 +106,7 @@ func processStreamChunks(
 	ctx context.Context,
 	stream <-chan *llms.StreamChunk,
 	sendEvent func(string, interface{}),
+	round int,
 ) (string, []llms.ToolCall, error) {
 	var buf strings.Builder
 	allToolCalls := make([]llms.ToolCall, 0)
@@ -112,10 +115,11 @@ func processStreamChunks(
 	// 增量+节流：累积 delta，满足条件时 flush
 	pendingDeltas := make(map[int]string)
 	pendingNames := make(map[int]string)
+	pendingIDs := make(map[int]string)
 	var lastSendTime time.Time
 
 	flushToolCallsDelta := func() {
-		if len(pendingDeltas) == 0 && len(pendingNames) == 0 {
+		if len(pendingDeltas) == 0 && len(pendingNames) == 0 && len(pendingIDs) == 0 {
 			return
 		}
 		seen := make(map[int]bool)
@@ -123,6 +127,9 @@ func processStreamChunks(
 			seen[idx] = true
 		}
 		for idx := range pendingNames {
+			seen[idx] = true
+		}
+		for idx := range pendingIDs {
 			seen[idx] = true
 		}
 		indices := make([]int, 0, len(seen))
@@ -134,7 +141,8 @@ func processStreamChunks(
 		for _, idx := range indices {
 			delta := pendingDeltas[idx]
 			name := pendingNames[idx]
-			updates = append(updates, toolCallsStreamDeltaUpdate{Index: idx, Name: name, Delta: delta})
+			id := pendingIDs[idx]
+			updates = append(updates, toolCallsStreamDeltaUpdate{Index: idx, Round: round, ID: id, Name: name, Delta: delta})
 		}
 		if len(updates) > 0 {
 			sendEvent(EventToolCallsStreamDelta, &toolCallsStreamDeltaData{Updates: updates})
@@ -144,6 +152,9 @@ func processStreamChunks(
 		}
 		for k := range pendingNames {
 			delete(pendingNames, k)
+		}
+		for k := range pendingIDs {
+			delete(pendingIDs, k)
 		}
 		lastSendTime = time.Now()
 	}
@@ -166,8 +177,12 @@ func processStreamChunks(
 		}
 		if len(ch.ToolCalls) > 0 {
 			prevArgs := make([]string, len(allToolCalls))
+			prevNames := make([]string, len(allToolCalls))
+			prevIDs := make([]string, len(allToolCalls))
 			for i := range allToolCalls {
 				prevArgs[i] = allToolCalls[i].Function.Arguments
+				prevNames[i] = allToolCalls[i].Function.Name
+				prevIDs[i] = allToolCalls[i].ID
 			}
 			prevLen := len(allToolCalls)
 
@@ -179,20 +194,31 @@ func processStreamChunks(
 				newArgs := allToolCalls[i].Function.Arguments
 				delta := ""
 				name := ""
+				id := ""
 				if i < prevLen {
 					oldLen := len(prevArgs[i])
 					if len(newArgs) > oldLen {
 						delta = newArgs[oldLen:]
 					}
+					if allToolCalls[i].Function.Name != "" && allToolCalls[i].Function.Name != prevNames[i] {
+						name = allToolCalls[i].Function.Name
+					}
+					if allToolCalls[i].ID != "" && allToolCalls[i].ID != prevIDs[i] {
+						id = allToolCalls[i].ID
+					}
 				} else {
 					name = allToolCalls[i].Function.Name
+					id = allToolCalls[i].ID
 					delta = newArgs
 				}
-				if delta != "" || name != "" {
+				if delta != "" || name != "" || id != "" {
 					pendingDeltas[i] += delta
 					totalPending += len(delta)
 					if name != "" {
 						pendingNames[i] = name
+					}
+					if id != "" {
+						pendingIDs[i] = id
 					}
 				}
 			}

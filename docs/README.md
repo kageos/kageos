@@ -8,4 +8,5 @@ This directory collects product thinking, architecture notes, operating guides, 
 
 ## Runtime Operations
 
+- [Kageos 生命周期 SOP](kagectl-lifecycle-sop.md)
 - [Podman Runtime 事故复盘与本地客户端风险评估](podman-runtime-incident-and-local-client-risk.md)

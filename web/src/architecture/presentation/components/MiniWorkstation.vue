@@ -1,13 +1,13 @@
 <!--
-  MiniWorkstation - 迷你浮动工作台
-  右下角弹出的小窗口，支持输入命令、上传文件、SSE 实时输出、最小化。
+  MiniWorkstation - 工作台面板
+  支持输入命令、上传文件、SSE 实时输出、后台保持任务状态。
 -->
 <template>
   <transition name="mini-ws-pop">
     <div
       v-if="visible && !collapsed"
       ref="rootRef"
-      :class="['mini-ws', { 'mini-ws--maximized': maximized, 'mini-ws--sending': sending, 'mini-ws--interaction-open': interactionOpen }]"
+      :class="['mini-ws', { 'mini-ws--maximized': maximized, 'mini-ws--compact': !maximized, 'mini-ws--sending': sending, 'mini-ws--interaction-open': interactionOpen }]"
       data-testid="mini-workstation"
       :data-full-code-path="fullCodePath"
       :style="windowStyle"
@@ -18,24 +18,109 @@
     >
       <div class="mini-workspace-backdrop" aria-hidden="true"></div>
       <section class="mini-shell">
-        <section v-if="showCurrentOutput" class="mini-current-output">
-          <div class="mini-current-layout">
+        <header class="mini-drawer-head">
+          <div class="mini-drawer-title">
+            <strong>工作台</strong>
+            <span :title="fullCodePath">{{ dirName || displayPath }}</span>
+          </div>
+          <div class="mini-drawer-actions">
+            <button
+              type="button"
+              class="mini-drawer-primary-action"
+              title="在当前工作台目录新建会话"
+              @click="startNewSession"
+            >
+              <el-icon><Plus /></el-icon>
+              <span>新建会话</span>
+            </button>
+            <button
+              type="button"
+              class="mini-drawer-secondary-action"
+              :disabled="!lastDrawerSession"
+              :title="lastDrawerSession ? `打开：${getSessionTitle(lastDrawerSession)}` : '暂无可打开的上次会话'"
+              @click="openLastDrawerSession"
+            >
+              <el-icon><Clock /></el-icon>
+              <span>打开上次</span>
+            </button>
+            <button
+              type="button"
+              class="mini-drawer-icon-action"
+              :title="maximized ? '收回右侧面板' : '全屏展示工作台'"
+              @click="toggleDrawerWidth"
+            >
+              <el-icon>
+                <ArrowRight v-if="maximized" />
+                <ArrowLeft v-else />
+              </el-icon>
+            </button>
+            <button
+              type="button"
+              class="mini-drawer-icon-action"
+              :title="`关闭工作台，任务会继续在后台执行（${toggleShortcutLabel || '快捷键'}）`"
+              @click="hideWorkstation"
+            >
+              <el-icon><Close /></el-icon>
+            </button>
+          </div>
+        </header>
+
+        <section class="mini-current-output">
+          <div :class="['mini-current-layout', { 'is-artifact-open': artifactPanelExpanded }]">
             <aside class="mini-current-meta">
               <header class="mini-current-session-head">
                 <div>
-                  <strong>当前目录会话</strong>
+                  <strong>会话列表</strong>
                   <span :title="fullCodePath">{{ dirName || displayPath }}</span>
                 </div>
-                <em>{{ currentOutputSessionList.length }}</em>
+                <em>{{ drawerSessionList.length }}</em>
               </header>
+              <div v-if="hasDifferentCurrentContext" class="mini-current-context-switch">
+                <span>当前页面</span>
+                <strong :title="normalizedCurrentContextPath">{{ currentContextName }}</strong>
+                <button type="button" @click="openCurrentContextNewSession">
+                  当前目录新会话
+                </button>
+              </div>
+              <div class="mini-drawer-scope-tabs" role="tablist" aria-label="会话范围">
+                <button
+                  type="button"
+                  :class="{ active: drawerSessionScope === 'current' }"
+                  @click="setDrawerSessionScope('current')"
+                >
+                  当前目录
+                </button>
+                <button
+                  type="button"
+                  :class="{ active: drawerSessionScope === 'all' }"
+                  @click="setDrawerSessionScope('all')"
+                >
+                  全部会话
+                </button>
+              </div>
+              <label class="mini-drawer-session-search">
+                <el-icon :size="14"><Search /></el-icon>
+                <input v-model="sessionSearchKeyword" placeholder="搜索会话、目录或角色" />
+              </label>
+              <div class="mini-drawer-session-filters">
+                <button
+                  v-for="filter in sessionFilters"
+                  :key="filter.value"
+                  type="button"
+                  :class="{ active: sessionFilter === filter.value }"
+                  @click="sessionFilter = filter.value"
+                >
+                  {{ filter.label }}
+                </button>
+              </div>
               <div class="mini-current-session-list">
                 <button
-                  v-for="item in currentOutputSessionList"
+                  v-for="item in drawerSessionList"
                   :key="item.session_id"
                   type="button"
                   :class="['mini-current-session-row', getSessionStatusClass(item), { active: item.session_id === sessionId }]"
                   :title="getSessionTitle(item)"
-                  @click="handleCurrentOutputSessionSelect(item)"
+                  @click="handleDrawerSessionSelect(item)"
                 >
                   <span class="mini-status-dot" :class="getSessionStatusClass(item)"></span>
                   <span class="mini-current-session-copy">
@@ -46,15 +131,17 @@
                   </span>
                 </button>
                 <button
-                  v-if="currentOutputSessionList.length === 0"
+                  v-if="drawerSessionList.length === 0"
                   type="button"
                   class="mini-current-session-row active is-draft"
                   @click="startNewSession"
                 >
                   <span class="mini-status-dot"></span>
                   <span class="mini-current-session-copy">
-                    <span class="mini-current-session-title">新建会话</span>
-                    <span class="mini-current-session-sub">当前目录 · 待输入</span>
+                    <span class="mini-current-session-title">
+                      {{ drawerSessionScope === 'current' ? '当前目录暂无会话' : '暂无匹配会话' }}
+                    </span>
+                    <span class="mini-current-session-sub">点击新建会话开始</span>
                   </span>
                 </button>
               </div>
@@ -75,37 +162,41 @@
                 />
               </div>
             </div>
-            <MiniWorkstationArtifactPanel
-              :artifact-items="artifactItems"
-              :maximized="maximized"
-              :panel-has-content="panelHasContent"
-              :panel-item-count="panelItemCount"
-              :uploaded-files="uploadedFiles"
-              :output-files="outputFiles"
-              :display-fields="allPanelDisplayFields"
-              :display-field-preview-visible="dfPreviewVisible"
-              @artifact-click="handleArtifactClick"
-              @preview-file="previewFile"
-              @download-file="downloadFile"
-              @preview-field="openDfPreview"
-              @copy-field="copyDisplayFieldValue"
-            />
+            <section :class="['mini-artifact-drawer', { 'is-open': artifactPanelExpanded }]">
+              <button
+                type="button"
+                class="mini-artifact-toggle"
+                :aria-expanded="artifactPanelExpanded"
+                title="展开或收起产物"
+                @click="toggleArtifactPanel"
+              >
+                <span>产物</span>
+                <strong>{{ artifactToggleCount }} 项</strong>
+                <em>{{ artifactPanelExpanded ? '收起' : '展开' }}</em>
+                <el-icon>
+                  <ArrowUp v-if="artifactPanelExpanded" />
+                  <ArrowDown v-else />
+                </el-icon>
+              </button>
+              <MiniWorkstationArtifactPanel
+                v-if="artifactPanelExpanded"
+                :artifact-items="artifactItems"
+                :maximized="maximized"
+                :panel-has-content="panelHasContent"
+                :panel-item-count="panelItemCount"
+                :uploaded-files="uploadedFiles"
+                :output-files="outputFiles"
+                :display-fields="allPanelDisplayFields"
+                :display-field-preview-visible="dfPreviewVisible"
+                @artifact-click="handleArtifactClick"
+                @preview-file="previewFile"
+                @download-file="downloadFile"
+                @preview-field="openDfPreview"
+                @copy-field="copyDisplayFieldValue"
+              />
+            </section>
           </div>
         </section>
-
-        <MiniWorkstationSessionDock
-          :summary-sessions="summarySessions"
-          :center-count="recentSessionSourceList.length || miniSessionList.length"
-          :directory-label="dirName || displayPath"
-          :session-id="sessionId"
-          :get-session-status-class="getSessionStatusClass"
-          :get-session-status-kind="getSessionStatusKind"
-          :get-session-title="getSessionTitle"
-          :get-session-subtitle="getSessionSubtitle"
-          @open-center="openSessionCenter"
-          @new-session="startNewSession"
-          @select="handleSummarySessionSelect"
-        />
 
         <MiniWorkstationPendingActionBar
           v-if="pendingPrd"
@@ -186,29 +277,6 @@
         </MiniWorkstationComposer>
       </section>
 
-      <MiniWorkstationSessionCenter
-        :open="sessionCenterOpen"
-        :current-directory-sessions="currentDirectorySessionList"
-        :recent-sessions="recentSessionCenterList"
-        :current-directory-total="miniSessionList.length"
-        :recent-source-total="recentSessionCenterSourceList.length"
-        :loading-current="loadingSessions"
-        :loading-recent="loadingGlobalSessions"
-        :full-code-path="fullCodePath"
-        :directory-label="dirName || displayPath"
-        :session-id="sessionId"
-        :session-filters="sessionFilters"
-        v-model:session-search-keyword="sessionSearchKeyword"
-        v-model:session-filter="sessionFilter"
-        :format-relative-time="formatRelativeTime"
-        :get-session-status-class="getSessionStatusClass"
-        :get-session-title="getSessionTitle"
-        :get-session-center-subtitle="getSessionCenterSubtitle"
-        :get-session-status-label="getSessionStatusLabel"
-        @close="closeSessionCenter"
-        @select="handleSessionCenterSelect"
-      />
-
       <!-- 拖拽上传遮罩 -->
       <transition name="el-fade-in-linear">
         <div v-if="dragOver" class="mini-ws-drop-overlay">
@@ -232,8 +300,16 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, computed, watch } from 'vue'
+import { nextTick, onMounted, ref, computed, watch } from 'vue'
 import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Clock,
+  Close,
+  Plus,
+  Search,
   UploadFilled,
   Setting
 } from '@element-plus/icons-vue'
@@ -248,8 +324,6 @@ import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
 import MiniWorkstationDebugSettings from './MiniWorkstationDebugSettings.vue'
 import MiniWorkstationMessages from './MiniWorkstationMessages.vue'
 import MiniWorkstationPendingActionBar from './MiniWorkstationPendingActionBar.vue'
-import MiniWorkstationSessionCenter from './MiniWorkstationSessionCenter.vue'
-import MiniWorkstationSessionDock from './MiniWorkstationSessionDock.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { useMiniWorkstationPanel } from '../composables/useMiniWorkstationPanel'
 import { useMiniWorkstationSessions } from '../composables/useMiniWorkstationSessions'
@@ -287,6 +361,8 @@ const props = defineProps<{
   initialExpanded?: boolean
   initialMaximized?: boolean
   pathNameMap?: Record<string, string>
+  currentFullCodePath?: string
+  currentDirName?: string
   toggleShortcutLabel?: string
 }>()
 
@@ -298,6 +374,7 @@ const emit = defineEmits<{
   (e: 'close'): void
   (e: 'task-started', sessionId: string): void
   (e: 'tool-call-ok', payload: { name: string }): void
+  (e: 'open-current-new-session', payload: { fullCodePath: string; dirName: string }): void
   (e: 'expanded-change', payload: { expanded: boolean; sessionId?: string }): void
   (e: 'maximize-change', payload: { maximized: boolean; sessionId?: string }): void
 }>()
@@ -312,11 +389,14 @@ const settingsPopoverOpen = ref(false)
 const interactionOpen = computed(() => llmSelectOpen.value || settingsPopoverOpen.value)
 const confirmedPrdKeys = ref<Set<string>>(new Set())
 const confirmedTestHandoffKeys = ref<Set<string>>(new Set())
+const artifactPanelExpanded = ref(false)
 const collapsed = ref(props.initialExpanded === false)
 const suppressAutoSelectLatestSession = ref(false)
-const sessionCenterOpen = ref(false)
 const sessionSearchKeyword = ref('')
 const sessionFilter = ref<SessionFilterValue>('all')
+type DrawerSessionScope = 'current' | 'all'
+const DRAWER_SESSION_SCOPE_STORAGE_KEY = 'workspace-mini-session-scope'
+const drawerSessionScope = ref<DrawerSessionScope>(readStoredDrawerSessionScope())
 
 const windowStyle = computed(() => ({
   '--mini-stack-offset': `${props.initialOffset || 0}px`
@@ -386,8 +466,6 @@ watch(() => props.initialExpanded, (value) => {
 const {
   miniSessionList,
   globalSessionList,
-  loadingSessions,
-  loadingGlobalSessions,
   stopping,
   loadMiniSessions,
   loadGlobalSessions,
@@ -453,6 +531,8 @@ const artifactItems = computed<MiniArtifactItem[]>(() => {
   return [...files, ...fields]
 })
 
+const artifactToggleCount = computed(() => Math.max(artifactItems.value.length, panelItemCount.value))
+
 const hasCurrentGeneratedArtifacts = computed(() => {
   if (artifactItems.value.length > 0) return true
   return messages.value.some(messageHasGeneratedArtifacts)
@@ -462,19 +542,12 @@ const sessionFilters = miniWorkstationSessionFilters
 
 const {
   displayPath,
-  currentOutputSessionList,
-  recentSessionSourceList,
-  summarySessions,
-  recentSessionCenterSourceList,
   currentDirectorySessionList,
   recentSessionCenterList,
   getSessionTitle,
   getSessionDirectoryPath,
-  getSessionSubtitle,
-  getSessionCenterSubtitle,
   getSessionTimestamp,
   getSessionStatusLabel,
-  getSessionStatusKind,
   getSessionStatusClass,
   normalizeFullCodePath
 } = useMiniWorkstationSessionView({
@@ -490,6 +563,77 @@ const {
   sessionSearchKeyword,
   sessionFilter
 })
+
+const normalizedWorkbenchPath = computed(() => normalizeFullCodePath(props.fullCodePath || ''))
+const normalizedCurrentContextPath = computed(() => normalizeFullCodePath(props.currentFullCodePath || ''))
+const currentContextName = computed(() => {
+  const label = (props.currentDirName || '').trim()
+  if (label) return label
+  const path = normalizedCurrentContextPath.value
+  return path.split('/').filter(Boolean).pop() || '当前目录'
+})
+const hasDifferentCurrentContext = computed(() => {
+  return !!normalizedCurrentContextPath.value && normalizedCurrentContextPath.value !== normalizedWorkbenchPath.value
+})
+
+const drawerSessionList = computed(() => {
+  return drawerSessionScope.value === 'current'
+    ? currentDirectorySessionList.value
+    : recentSessionCenterList.value
+})
+
+const lastDrawerSession = computed<WorkspaceSessionItem | null>(() => {
+  return [...drawerSessionList.value]
+    .sort((left, right) => getSessionTimestamp(right) - getSessionTimestamp(left))[0] || null
+})
+
+watch(drawerSessionScope, (scope) => {
+  try {
+    localStorage.setItem(DRAWER_SESSION_SCOPE_STORAGE_KEY, scope)
+  } catch {
+    // localStorage 不可用时仅使用本次会话状态。
+  }
+  if (props.visible) {
+    loadDrawerSessions()
+  }
+})
+
+function loadDrawerSessions() {
+  void loadMiniSessions()
+  if (drawerSessionScope.value === 'all') {
+    void loadGlobalSessions()
+  }
+}
+
+function readStoredDrawerSessionScope(): DrawerSessionScope {
+  try {
+    const stored = localStorage.getItem(DRAWER_SESSION_SCOPE_STORAGE_KEY)
+    return stored === 'all' ? 'all' : 'current'
+  } catch {
+    return 'current'
+  }
+}
+
+function setDrawerSessionScope(scope: DrawerSessionScope) {
+  drawerSessionScope.value = scope
+}
+
+function handleDrawerSessionSelect(session: WorkspaceSessionItem) {
+  if (session.session_id && session.session_id === sessionId.value) {
+    return
+  }
+  requestSessionSwitch(session)
+}
+
+function openLastDrawerSession() {
+  if (!lastDrawerSession.value) return
+  requestSessionSwitch(lastDrawerSession.value)
+}
+
+function toggleArtifactPanel() {
+  artifactPanelExpanded.value = !artifactPanelExpanded.value
+  restoreOutputScroll()
+}
 
 function setCollapsed(value: boolean, sessionIdOverride?: string) {
   if (value) {
@@ -515,25 +659,31 @@ function hideWorkstation() {
   emit('minimize')
 }
 
+function toggleDrawerWidth() {
+  maximized.value = !maximized.value
+  if (maximized.value) {
+    stopMiniPoll()
+  } else if (sessionId.value && !sending.value) {
+    startMiniPoll(sessionId.value)
+  }
+  restoreOutputScroll()
+  emit('maximize-change', { maximized: maximized.value, sessionId: sessionId.value })
+}
+
 function startNewSession() {
   suppressAutoSelectLatestSession.value = true
   handleNewSession()
   resetOutputScrollState()
-  if (maximized.value) {
-    maximized.value = false
-    emit('maximize-change', { maximized: false, sessionId: '' })
-  }
   setCollapsed(false, '')
 }
 
-async function openSessionCenter() {
-  sessionCenterOpen.value = true
-  await loadMiniSessions()
-  await loadGlobalSessions()
-}
-
-function closeSessionCenter() {
-  sessionCenterOpen.value = false
+function openCurrentContextNewSession() {
+  const fullCodePath = normalizedCurrentContextPath.value
+  if (!fullCodePath) return
+  emit('open-current-new-session', {
+    fullCodePath,
+    dirName: currentContextName.value
+  })
 }
 
 function requestSessionSwitch(session: WorkspaceSessionItem) {
@@ -550,32 +700,6 @@ function requestSessionSwitch(session: WorkspaceSessionItem) {
     initial_maximized: maximized.value,
     open_as_mini: true
   })
-}
-
-function handleCurrentOutputSessionSelect(session: WorkspaceSessionItem) {
-  if (session.session_id && session.session_id === sessionId.value) {
-    return
-  }
-  requestSessionSwitch(session)
-}
-
-function handleSummarySessionSelect(session: WorkspaceSessionItem) {
-  if (session.session_id && session.session_id === sessionId.value) {
-    if (!maximized.value) {
-      maximized.value = true
-      stopMiniPoll()
-      restoreOutputScroll()
-      emit('maximize-change', { maximized: true, sessionId: sessionId.value })
-    }
-    return
-  }
-
-  requestSessionSwitch(session)
-}
-
-function handleSessionCenterSelect(session: WorkspaceSessionItem) {
-  closeSessionCenter()
-  requestSessionSwitch(session)
 }
 
 function handleArtifactClick(item: MiniArtifactItem) {
@@ -735,6 +859,7 @@ watch(
       if (!previousVisible) {
         suppressAutoSelectLatestSession.value = false
       }
+      loadDrawerSessions()
       restoreOutputScroll()
     }
   },
@@ -745,8 +870,16 @@ watch(
   () => props.fullCodePath,
   () => {
     suppressAutoSelectLatestSession.value = false
+    if (!props.visible) return
+    loadDrawerSessions()
   }
 )
+
+onMounted(() => {
+  if (props.visible) {
+    loadDrawerSessions()
+  }
+})
 
 watch(
   [() => props.visible, collapsed, initialSessionIdRef, sessionId, miniSessionList],
@@ -1506,7 +1639,7 @@ useMiniWorkstationEffects({
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
   gap: 10px;
   padding-right: 12px;
   border-right: 1px solid rgba(130, 153, 190, 0.18);
@@ -1864,6 +1997,584 @@ useMiniWorkstationEffects({
     display: none;
   }
 
+}
+
+/* Fullscreen workbench shell */
+.mini-ws,
+.mini-ws--maximized {
+  top: 18px;
+  right: 18px;
+  bottom: 18px;
+  left: 18px;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.mini-ws--compact {
+  top: 88px;
+  left: auto;
+  width: clamp(560px, 44vw, 680px);
+}
+
+.mini-workspace-backdrop,
+.mini-workspace-backdrop::after,
+.mini-ws--maximized .mini-workspace-backdrop {
+  display: none;
+}
+
+.mini-shell,
+.mini-ws--maximized .mini-shell {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  overflow: hidden;
+  border: 1px solid rgba(124, 146, 189, 0.22);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 120px),
+    rgba(16, 22, 34, 0.96);
+  box-shadow:
+    0 24px 72px rgba(8, 14, 24, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  color: var(--mini-cyber-text);
+  pointer-events: auto;
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+}
+
+.mini-drawer-head {
+  min-height: 68px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px 12px 16px;
+  border-bottom: 1px solid rgba(124, 146, 189, 0.18);
+  background: rgba(22, 30, 46, 0.78);
+}
+
+.mini-drawer-title {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.mini-drawer-title strong {
+  color: #f5f8ff;
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.mini-drawer-title span {
+  min-width: 0;
+  overflow: hidden;
+  color: #8e9fbb;
+  font-size: 12px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-drawer-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.mini-drawer-primary-action,
+.mini-drawer-secondary-action,
+.mini-drawer-icon-action {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(124, 146, 189, 0.24);
+  border-radius: 8px;
+  background: rgba(30, 42, 68, 0.68);
+  color: #d7e5fa;
+  font-size: 12px;
+  font-weight: 760;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.mini-drawer-primary-action {
+  padding: 0 11px;
+  border-color: rgba(43, 213, 159, 0.35);
+  background: rgba(23, 78, 61, 0.42);
+  color: #a5f7d5;
+}
+
+.mini-drawer-secondary-action {
+  padding: 0 11px;
+  border-color: rgba(83, 174, 255, 0.32);
+  background: rgba(29, 73, 118, 0.36);
+  color: #a8d7ff;
+}
+
+.mini-drawer-icon-action {
+  width: 34px;
+  padding: 0;
+}
+
+.mini-drawer-primary-action:hover,
+.mini-drawer-secondary-action:hover,
+.mini-drawer-icon-action:hover {
+  border-color: rgba(83, 174, 255, 0.55);
+  background: rgba(37, 56, 88, 0.84);
+  color: #ffffff;
+}
+
+.mini-drawer-secondary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.mini-current-output,
+.mini-ws--maximized .mini-current-output {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  padding: 12px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.mini-current-layout {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.mini-ws--maximized .mini-current-layout {
+  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.mini-ws--maximized .mini-current-layout.is-artifact-open {
+  grid-template-columns: 280px minmax(0, 1fr) 320px;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.mini-current-meta {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 0 12px 0 0;
+  border-right: 1px solid rgba(124, 146, 189, 0.16);
+  overflow: hidden;
+}
+
+.mini-current-session-head {
+  padding: 0;
+}
+
+.mini-current-session-head strong {
+  color: #eef5ff;
+}
+
+.mini-current-context-switch {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding: 9px 10px;
+  border: 1px solid rgba(246, 199, 107, 0.2);
+  border-radius: 8px;
+  background: rgba(62, 47, 18, 0.22);
+}
+
+.mini-current-context-switch span {
+  color: rgba(246, 217, 150, 0.72);
+  font-size: 10px;
+  font-weight: 760;
+}
+
+.mini-current-context-switch strong {
+  min-width: 0;
+  color: #ffe4a3;
+  font-size: 12px;
+  font-weight: 850;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-current-context-switch button {
+  width: 100%;
+  height: 28px;
+  border: 1px solid rgba(246, 199, 107, 0.34);
+  border-radius: 7px;
+  background: rgba(246, 199, 107, 0.12);
+  color: #ffdda0;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mini-current-context-switch button:hover {
+  border-color: rgba(246, 199, 107, 0.56);
+  background: rgba(246, 199, 107, 0.18);
+  color: #fff2d6;
+}
+
+.mini-drawer-scope-tabs,
+.mini-drawer-session-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mini-drawer-scope-tabs button,
+.mini-drawer-session-filters button {
+  min-width: 0;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(124, 146, 189, 0.2);
+  border-radius: 7px;
+  background: rgba(30, 42, 68, 0.46);
+  color: #9eadc8;
+  font-size: 11px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.mini-drawer-scope-tabs button {
+  flex: 1 1 0;
+}
+
+.mini-drawer-session-filters {
+  flex-wrap: wrap;
+}
+
+.mini-drawer-session-filters button {
+  flex: 1 1 calc(50% - 4px);
+}
+
+.mini-drawer-scope-tabs button.active,
+.mini-drawer-session-filters button.active {
+  border-color: rgba(83, 174, 255, 0.45);
+  background: rgba(34, 113, 205, 0.2);
+  color: #9bd4ff;
+}
+
+.mini-drawer-session-search {
+  height: 32px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid rgba(124, 146, 189, 0.18);
+  border-radius: 8px;
+  background: rgba(10, 16, 29, 0.36);
+  color: #8e9fbb;
+}
+
+.mini-drawer-session-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #d7e5fa;
+  font-size: 12px;
+}
+
+.mini-drawer-session-search input::placeholder {
+  color: #687996;
+}
+
+.mini-current-session-list {
+  padding: 0 2px 3px 0;
+}
+
+.mini-current-session-row {
+  min-height: 48px;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.mini-current-stream {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.mini-ws-output,
+.mini-ws--maximized .mini-ws-output {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 13px;
+  border: 1px solid rgba(124, 146, 189, 0.16);
+  border-radius: 10px;
+  background: rgba(10, 16, 29, 0.34);
+}
+
+.mini-artifact-drawer {
+  grid-column: 1 / -1;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  overflow: hidden;
+  padding: 8px 0 0;
+  border-top: 1px solid rgba(124, 146, 189, 0.16);
+}
+
+.mini-artifact-toggle {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid rgba(83, 174, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(30, 42, 68, 0.5);
+  color: #c8d8ef;
+  font-size: 12px;
+  font-weight: 760;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.mini-artifact-toggle:hover {
+  border-color: rgba(83, 174, 255, 0.44);
+  background: rgba(34, 113, 205, 0.18);
+  color: #ffffff;
+}
+
+.mini-artifact-toggle strong {
+  color: #8ed0ff;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.mini-artifact-toggle em {
+  min-width: 0;
+  overflow: hidden;
+  color: #8e9fbb;
+  font-size: 11px;
+  font-style: normal;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-artifact-drawer .mini-artifact-panel {
+  max-height: 116px;
+  overflow: auto;
+  padding: 0;
+  border: 0;
+}
+
+.mini-ws--maximized .mini-artifact-drawer.is-open {
+  grid-column: 3;
+  grid-row: 1;
+  max-height: none;
+  grid-template-rows: auto minmax(0, 1fr);
+  padding: 0 0 0 12px;
+  border-top: 0;
+  border-left: 1px solid rgba(124, 146, 189, 0.16);
+}
+
+.mini-ws--maximized .mini-artifact-drawer.is-open .mini-artifact-panel {
+  height: 100%;
+  max-height: none;
+}
+
+.mini-shell :deep(.mini-ws-input) {
+  margin: 0;
+  border-width: 1px 0 0;
+  border-radius: 0;
+  background: rgba(22, 30, 46, 0.78);
+  box-shadow: none;
+}
+
+.mini-ws-files {
+  margin: 0;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(124, 146, 189, 0.14);
+  background: rgba(22, 30, 46, 0.78);
+}
+
+.mini-ws-drop-overlay,
+.mini-ws--maximized .mini-ws-drop-overlay {
+  inset: 12px;
+  height: auto;
+  border-radius: 12px;
+}
+
+@media (max-width: 1180px) {
+  .mini-ws,
+  .mini-ws--maximized {
+    left: 18px;
+    width: auto;
+  }
+
+  .mini-ws--compact {
+    left: auto;
+    width: min(720px, calc(100vw - 330px));
+  }
+
+  .mini-current-layout,
+  .mini-ws--maximized .mini-current-layout,
+  .mini-ws--maximized .mini-current-layout.is-artifact-open {
+    grid-template-columns: 180px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .mini-ws--maximized .mini-artifact-drawer.is-open {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    max-height: 150px;
+    padding: 8px 0 0;
+    border-top: 1px solid rgba(124, 146, 189, 0.16);
+    border-left: 0;
+  }
+
+  .mini-ws--maximized .mini-artifact-drawer.is-open .mini-artifact-panel {
+    height: auto;
+    max-height: 108px;
+  }
+}
+
+@media (max-width: 820px) {
+  .mini-ws,
+  .mini-ws--maximized {
+    inset: 0;
+    width: auto;
+  }
+
+  .mini-shell,
+  .mini-ws--maximized .mini-shell {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .mini-drawer-head {
+    grid-template-columns: 1fr;
+  }
+
+  .mini-drawer-actions {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 34px 34px;
+    gap: 7px;
+  }
+
+  .mini-drawer-primary-action,
+  .mini-drawer-secondary-action {
+    width: 100%;
+    min-width: 0;
+    padding: 0 8px;
+  }
+
+  .mini-drawer-primary-action span,
+  .mini-drawer-secondary-action span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mini-current-layout,
+  .mini-ws--maximized .mini-current-layout,
+  .mini-ws--maximized .mini-current-layout.is-artifact-open {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .mini-current-meta {
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    max-height: 260px;
+    padding: 0 0 10px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(124, 146, 189, 0.16);
+  }
+
+  .mini-shell :deep(.mini-ws-input) {
+    grid-template-columns: 42px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 8px;
+    padding: 6px 8px;
+  }
+
+  .mini-shell :deep(.mini-composer-left-actions) {
+    width: 42px;
+    min-width: 0;
+  }
+
+  .mini-shell :deep(.mini-path-pill) {
+    display: none;
+  }
+
+  .mini-shell :deep(.mini-input-wrap) {
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mini-shell :deep(.mini-action-stack) {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 116px) auto;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .mini-shell :deep(.mini-ws-model-select) {
+    width: 116px;
+  }
+
+  .mini-shell :deep(.mini-action-row) {
+    min-width: 0;
+    justify-content: flex-end;
+  }
+
+  .mini-shell :deep(.mini-send-btn),
+  .mini-shell :deep(.mini-stop-btn) {
+    min-width: 88px;
+  }
+
+  .mini-shell :deep(.mini-hide-btn) {
+    width: 38px;
+    min-width: 38px;
+  }
 }
 </style>
 

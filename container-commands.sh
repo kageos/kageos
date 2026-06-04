@@ -9,18 +9,21 @@
 echo "container-commands.sh 是命令清单，请在编辑器中选择单行执行，不要整文件运行。"
 exit 0
 
-# Dev infra
-# 启动 dev 依赖服务：MySQL / NATS / MinIO，并幂等初始化数据库。
-bash deploy/dev/scripts/infra.sh up -d
+# Dev lifecycle
+# 初始化 dev 模式：写入 .kageos/kageos.env，启动 MySQL / NATS / MinIO，并幂等初始化数据库。
+go run ./cmd/kagectl init --dev
+
+# 启动 dev 后端主进程；Ctrl-C 停止后端。
+go run ./cmd/kagectl up
+
+# 查看 dev 基础设施状态。
+go run ./cmd/kagectl status
 
 # 停止 dev 依赖服务。
-bash deploy/dev/scripts/infra.sh down
-
-# 查看 dev 依赖服务状态。
-bash deploy/dev/scripts/infra.sh ps
+go run ./cmd/kagectl down
 
 # 持续查看 dev 依赖服务日志。
-bash deploy/dev/scripts/infra.sh logs -f
+go run ./cmd/kagectl logs infra
 
 # Dev app-base image
 # 构建 dev 用户应用运行时基础镜像；如果同名 tag 已存在，脚本会跳过。
@@ -35,10 +38,8 @@ bash deploy/base/scripts/build-app-base-image.sh --force --no-cache
 # 指定 app-base 镜像 tag 后强制无缓存重建；当 dev 配置改了 base_image 时使用。
 KAGEOS_APP_BASE_IMAGE="kagebase:latest" bash deploy/base/scripts/build-app-base-image.sh --force --no-cache
 
-# Dev backend
-# 后端本地开发使用 GoLand 启动 core/cmd/main/main.go，并设置 APP_ENV=dev。
-# 命令行临时启动时可用这一行。
-APP_ENV=dev go run ./core/cmd/main
+# Dev backend debug
+# 如需绕过 kagectl 调试主进程，先执行 init --dev，再从 GoLand 启动 core/cmd/main/main.go。
 
 # Image checks
 # 检查本地 Podman 是否存在 dev app-base 镜像。
@@ -64,22 +65,22 @@ podman run --rm --entrypoint /bin/sh kagebase:latest -lc 'fc-match "sans-serif";
 go run ./cmd/kagectl init --base-url http://your-ip-or-domain
 
 # 执行生产预检。
-go run ./cmd/kagectl doctor --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl doctor
 
 # 本地构建主镜像并启动/更新生产服务。
-go run ./cmd/kagectl up --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl up
 
 # 使用已发布主镜像启动/更新生产服务。
-go run ./cmd/kagectl up --config .kageos/prod/kage.yaml --image
+go run ./cmd/kagectl up --image
 
 # 执行生产健康检查。
-go run ./cmd/kagectl verify --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl verify
 
 # 查看生产 main 日志。
-go run ./cmd/kagectl logs --config .kageos/prod/kage.yaml main
+go run ./cmd/kagectl logs main
 
 # 查看生产服务状态。
-go run ./cmd/kagectl status --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl status
 
 # 停止生产服务。
-go run ./cmd/kagectl down --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl down

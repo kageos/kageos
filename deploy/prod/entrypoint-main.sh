@@ -129,7 +129,7 @@ fi
 
 if ! podman image exists "${KAGEOS_APP_BASE_IMAGE}" 2>/dev/null; then
   echo "ERROR: 未找到用户应用基础镜像 ${KAGEOS_APP_BASE_IMAGE}" >&2
-  echo "ERROR: 请先在宿主机执行 go run ./cmd/kagectl up --config .kageos/prod/kage.yaml" >&2
+  echo "ERROR: 请先在宿主机执行 go run ./cmd/kagectl up" >&2
   exit 1
 fi
 echo "==> 用户应用基础镜像已就绪: ${KAGEOS_APP_BASE_IMAGE}"

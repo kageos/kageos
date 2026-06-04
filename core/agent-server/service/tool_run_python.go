@@ -69,7 +69,7 @@ var runPythonToolDef = toolDefinition[runPythonArgs](
 - 输出图片、Excel、PDF 等文件时，统一写到 output_dir，再在 output_files 里声明绝对路径。
 - 如果上一轮出现 SyntaxError 或 IndentationError，不要局部修补旧长脚本；请重新生成一份更短、更扁平、缩进完整的 python_code。
 
-**输出结果：** 工具库执行端会解析 kageos_entry 的返回值；若返回里有 **output_files**，Go 侧会负责校验、上传并构造成最终 string，工作台自动展示文件组件（预览、打开、下载等能力由组件提供）。最终回复只需说明已生成/已处理，不要手写“下载文件：xxx”、Markdown 下载链接或伪 URL。
+**输出结果：** 工具库执行端会解析 kageos_entry 的返回值；若返回里有 **output_files**，Go 侧会负责校验、上传并构造成最终 string，工作台自动展示文件组件（预览、打开、下载等能力由组件提供）。最终回复按任务复杂度给高密度结果：简单处理 1-2 句话，分析类任务保留关键结论、风险和下一步；不要手写“下载文件：xxx”、Markdown 下载链接或伪 URL，不要复述脚本逻辑、文件参数和工具执行过程。
 
 **文件流转能力（重要）：**
 - output_files 返回的文件引用可以直接作为下一次 run_python 的 input_files 参数。

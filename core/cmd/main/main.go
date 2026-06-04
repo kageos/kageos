@@ -116,10 +116,9 @@ func main() {
 	fmt.Println("  Kageos - 统一启动入口")
 	fmt.Println("========================================")
 	fmt.Println("  说明：")
-	fmt.Println("  - 生产默认 prod：优先读 .kageos/prod/generated/config，缺失时回退到 deploy/prod/config/template")
-	fmt.Println("  - 开发：APP_ENV=dev 读 .kageos/dev/config")
-	fmt.Println("  - 正式部署入口：见 deploy/prod/README.md")
-	fmt.Println("  - 亦可拆分为各服务独立进程（各服务 cmd/app/main.go）或 K8s 分布式部署")
+	fmt.Println("  - 运行模式由 .kageos/kageos.env 决定")
+	fmt.Println("  - 开发初始化：kagectl init --dev")
+	fmt.Println("  - 正式部署：kagectl init && kagectl up")
 	fmt.Println("========================================")
 
 	// 初始化统一的日志系统（只初始化一次，所有服务共享）
@@ -141,9 +140,9 @@ func main() {
 
 	logger.Infof(ctx, "统一日志系统初始化完成")
 
-	// ⭐ 启动预检：确保 Podman Machine + 基础设施容器（MySQL/NATS/MinIO）就绪
+	// 启动预检：确保当前模式下的基础设施可达。
 	fmt.Println("\n[启动预检]")
-	fmt.Println("  检查 Podman 环境和基础设施容器...")
+	fmt.Println("  检查基础设施连通性...")
 	if err := infra.Preflight(ctx); err != nil {
 		fmt.Printf("\n  ⚠️  预检警告: %v\n", err)
 		fmt.Println("  部分基础设施可能不可用，服务启动后可能出现连接错误")

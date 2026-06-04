@@ -44,25 +44,6 @@ resolve_engine() {
   esac
 }
 
-mysql_sql_quote() {
-  local value="$1"
-  value="${value//\\/\\\\}"
-  value="${value//\'/\'\'}"
-  printf "'%s'" "$value"
-}
-
-try_migrate_legacy_mysql_root_password() {
-  local quoted_password
-  quoted_password="$(mysql_sql_quote "$MYSQL_ROOT_PASSWORD")"
-  if "$ENGINE" exec "$MYSQL_CONTAINER" mysql -h 127.0.0.1 -uroot -proot -e "SELECT 1" >/dev/null 2>&1; then
-    echo "WARN: MySQL volume still uses legacy root/root; migrating root password to .kageos/dev/env/kageos.env ..."
-    "$ENGINE" exec "$MYSQL_CONTAINER" mysql -h 127.0.0.1 -uroot -proot -e \
-      "ALTER USER 'root'@'%' IDENTIFIED BY ${quoted_password}; ALTER USER 'root'@'localhost' IDENTIFIED BY ${quoted_password}; FLUSH PRIVILEGES;"
-    return 0
-  fi
-  return 1
-}
-
 if [[ "${1:-}" == "docker" || "${1:-}" == "podman" || "${1:-}" == "auto" ]]; then
   ENGINE="$1"
   shift
@@ -77,7 +58,7 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 else
   echo "ERROR: dev env file not found: $ENV_FILE" >&2
-  echo "ERROR: please run: go run ./cmd/kagectl init-dev --skip-base" >&2
+  echo "ERROR: please run: go run ./cmd/kagectl init --dev --skip-base" >&2
   exit 1
 fi
 
@@ -124,16 +105,8 @@ if [[ "$ACTION" == "up" ]]; then
       sleep 2
     done
     if [[ "$MYSQL_READY" != "1" ]]; then
-      if try_migrate_legacy_mysql_root_password; then
-        if "$ENGINE" exec "$MYSQL_CONTAINER" mysql -h 127.0.0.1 -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT 1" >/dev/null 2>&1; then
-          MYSQL_READY=1
-        fi
-      fi
-    fi
-    if [[ "$MYSQL_READY" != "1" ]]; then
       echo "ERROR: MySQL 未能使用 .kageos/dev/env/kageos.env 中的 MYSQL_ROOT_PASSWORD 登录。" >&2
-      echo "ERROR: 常见原因是旧 MySQL volume 里保存的是历史密码，但 .kageos/dev/env/kageos.env 已换成新密码。" >&2
-      echo "ERROR: 若可清空本地开发数据，请执行：bash deploy/dev/scripts/infra.sh ${ENGINE} down -v && go run ./cmd/kagectl init-dev --engine ${ENGINE} --regen-secrets" >&2
+      echo "ERROR: 若可清空本地开发数据，请执行：go run ./cmd/kagectl down && ${ENGINE} volume rm kageos-dev-mysql3318-data，然后重新执行 go run ./cmd/kagectl bootstrap --dev --engine ${ENGINE} --regen-secrets" >&2
       exit 1
     fi
 

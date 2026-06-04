@@ -432,6 +432,36 @@ func TestParseInitDevFlagsAcceptsSkipBase(t *testing.T) {
 	}
 }
 
+func TestTakeDevFlag(t *testing.T) {
+	dev, rest := takeDevFlag([]string{"--dev", "--engine", "docker"})
+	if !dev {
+		t.Fatal("dev = false, want true")
+	}
+	if strings.Join(rest, " ") != "--engine docker" {
+		t.Fatalf("rest = %q", strings.Join(rest, " "))
+	}
+}
+
+func TestWorkspaceConfigRoundTrip(t *testing.T) {
+	repoRoot := t.TempDir()
+	paths := Paths{RepoRoot: repoRoot}
+
+	if got := currentWorkspaceMode(paths); got != workspaceModeProd {
+		t.Fatalf("currentWorkspaceMode() = %q, want prod default", got)
+	}
+	if err := writeWorkspaceConfig(paths, workspaceModeDev, workspaceDevConfig{Engine: "docker"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg := loadWorkspaceConfig(paths)
+	if cfg.Mode != workspaceModeDev || cfg.Dev.Engine != "docker" {
+		t.Fatalf("unexpected workspace config: %#v", cfg)
+	}
+	envContent := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "kageos.env"))
+	if !strings.Contains(envContent, "KAGEOS_MODE=dev") || !strings.Contains(envContent, "KAGEOS_DEV_ENGINE=docker") {
+		t.Fatalf("workspace env file missing dev engine, got:\n%s", envContent)
+	}
+}
+
 func TestSDKMinIOEndpointUsesContainerHostForLocalEndpoints(t *testing.T) {
 	t.Parallel()
 
@@ -566,7 +596,7 @@ func TestRenderDevConfigRefusesImplicitSecretsWhenStateExistsWithoutEnv(t *testi
 		ConfigPath:   filepath.Join(repoRoot, defaultProdDir, defaultConfigName),
 		GeneratedDir: filepath.Join(repoRoot, defaultProdDir, defaultGenerated),
 	}
-	if err := os.MkdirAll(filepath.Join(repoRoot, ".kageos"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".kageos", "dev"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -797,8 +827,19 @@ func TestParseInitAndBootstrapFlags(t *testing.T) {
 		t.Fatalf("unexpected bootstrap opts: %#v", bootstrapOpts)
 	}
 
+	devBootstrapOpts, err := parseBootstrapDevFlags([]string{"--engine", "docker", "--skip-base", "--skip-verify", "--wait-timeout", "30s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if devBootstrapOpts.Init.Engine != "docker" || !devBootstrapOpts.Init.SkipBase || strings.Join(devBootstrapOpts.UpArgs, " ") != "--skip-verify --wait-timeout 30s" {
+		t.Fatalf("unexpected dev bootstrap opts: %#v", devBootstrapOpts)
+	}
+
 	if _, err := parseBootstrapFlags([]string{"--image", "--no-build"}); err == nil {
 		t.Fatal("expected bootstrap to reject conflicting up flags")
+	}
+	if _, err := parseBootstrapDevFlags([]string{"--image"}); err == nil {
+		t.Fatal("expected bootstrap --dev to reject --image")
 	}
 }
 

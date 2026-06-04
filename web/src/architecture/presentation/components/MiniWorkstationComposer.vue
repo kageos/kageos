@@ -173,7 +173,7 @@
             data-testid="mini-workstation-collapse"
             @click="$emit('collapse')"
           >
-            <el-icon><ArrowDown /></el-icon>
+            <el-icon><Close /></el-icon>
           </button>
         </el-tooltip>
       </div>
@@ -183,7 +183,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, type Component } from 'vue'
-import { ArrowDown, Document, Paperclip, VideoPause } from '@element-plus/icons-vue'
+import { Close, Document, Paperclip, VideoPause } from '@element-plus/icons-vue'
 import type { LLMInfo } from '@/architecture/presentation/context/api/agent'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
 import { searchUsersFuzzy } from '@/architecture/presentation/context/api/user'
@@ -236,7 +236,7 @@ const modelSelectPopperOptions = {
 
 const miniHideShortcutHint = computed(() => {
   const toggleShortcut = (props.toggleShortcutLabel || '').trim()
-  return toggleShortcut ? `隐藏到底部 (Esc / ${toggleShortcut})` : '隐藏到底部 (Esc)'
+  return toggleShortcut ? `关闭工作台，任务继续后台执行 (Esc / ${toggleShortcut})` : '关闭工作台，任务继续后台执行 (Esc)'
 })
 
 const displayPath = computed(() => {

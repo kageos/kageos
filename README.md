@@ -36,19 +36,13 @@ Prerequisites:
 - Docker Compose or Podman Compose.
 - MySQL, NATS, and MinIO from the bundled development compose stack.
 
-Start the local infrastructure:
+Bootstrap local development backend:
 
 ```bash
-bash deploy/dev/scripts/infra.sh up
+go run ./cmd/kagectl bootstrap --dev
 ```
 
-Start the backend:
-
-```bash
-APP_ENV=dev go run ./core/cmd/main
-```
-
-Start the frontend:
+Start the frontend in another terminal:
 
 ```bash
 cd web

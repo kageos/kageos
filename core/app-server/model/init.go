@@ -8,12 +8,13 @@ import (
 	"strconv"
 	"strings"
 
+	kageconfig "github.com/kageos/kageos/pkg/config"
 	"gorm.io/gorm"
 )
 
-// isAppEnvDev 与 pkg/config getConfigEnv 一致：仅 APP_ENV=dev 为开发，其余（含未设）视为生产/交付环境。
+// isAppEnvDev 与 pkg/config GetConfigEnv 一致：优先读取 .kageos/kageos.env。
 func isAppEnvDev() bool {
-	return strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))) == "dev"
+	return kageconfig.IsDevMode()
 }
 
 // defaultNatsSeedEndpoint 无 NATS_SEED_HOST 时：开发默认 localhost，交付/线上默认 127.0.0.1（main 容器 host 网络）。

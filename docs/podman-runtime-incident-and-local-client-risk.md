@@ -73,7 +73,7 @@ Kageos 项目本身还有救，而且生产单机 Linux 这条路比 macOS Podma
 本地开发推荐命令：
 
 ```bash
-go run ./cmd/kagectl init-dev
+go run ./cmd/kagectl init --dev
 ```
 
 默认 engine 是 Podman：

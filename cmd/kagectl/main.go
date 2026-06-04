@@ -168,6 +168,8 @@ type SMTPConfig struct {
 
 type Paths struct {
 	RepoRoot     string
+	StateDir     string
+	StateEnvPath string
 	ProdDir      string
 	ConfigPath   string
 	GeneratedDir string
@@ -230,8 +232,6 @@ func run(args []string) error {
 		return nil
 	case "init":
 		return cmdInit(paths, rest)
-	case "init-dev", "dev-init", "init-local":
-		return cmdInitDev(paths, rest)
 	case "bootstrap":
 		return cmdBootstrap(paths, rest)
 	case "build-app-base":
@@ -297,6 +297,11 @@ type initOptions struct {
 
 type bootstrapOptions struct {
 	Init   initOptions
+	UpArgs []string
+}
+
+type bootstrapDevOptions struct {
+	Init   initDevOptions
 	UpArgs []string
 }
 
@@ -548,6 +553,37 @@ func parseBootstrapFlags(args []string) (bootstrapOptions, error) {
 	return opts, nil
 }
 
+func parseBootstrapDevFlags(args []string) (bootstrapDevOptions, error) {
+	opts := bootstrapDevOptions{}
+	initArgs := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--skip-verify":
+			opts.UpArgs = append(opts.UpArgs, args[i])
+		case "--wait-timeout":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--wait-timeout requires a duration, e.g. 5m or 30s")
+			}
+			opts.UpArgs = append(opts.UpArgs, "--wait-timeout", args[i])
+		case "--image", "--no-build":
+			return opts, fmt.Errorf("bootstrap --dev does not support %s; dev runs source code directly", args[i])
+		default:
+			initArgs = append(initArgs, args[i])
+		}
+	}
+
+	initOpts, err := parseInitDevFlags(initArgs)
+	if err != nil {
+		return opts, err
+	}
+	if _, err := parseUpFlags(opts.UpArgs); err != nil {
+		return opts, err
+	}
+	opts.Init = initOpts
+	return opts, nil
+}
+
 func parseBuildAppBaseFlags(args []string) (buildAppBaseOptions, error) {
 	opts := buildAppBaseOptions{}
 	for i := 0; i < len(args); i++ {
@@ -616,7 +652,7 @@ func parseInitDevFlags(args []string) (initDevOptions, error) {
 				opts.Engine = args[i]
 				continue
 			}
-			return opts, fmt.Errorf("init-dev does not support argument %q", args[i])
+			return opts, fmt.Errorf("init --dev does not support argument %q", args[i])
 		}
 	}
 	if opts.Engine != "auto" && opts.Engine != "docker" && opts.Engine != "podman" {
@@ -626,24 +662,29 @@ func parseInitDevFlags(args []string) (initDevOptions, error) {
 }
 
 func printUsage() {
-	fmt.Println(`kagectl manages Kageos production deployment files.
+	fmt.Println(`kagectl manages Kageos lifecycle.
 
 Usage:
   kagectl init [--force] [--base-url URL] [--mysql-mode bundled|external] [--company-code CODE] [--company-name NAME] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log]
-  kagectl init-dev [--engine podman|docker|auto] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME]
+  kagectl init --dev [--engine podman|docker|auto] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME]
   kagectl bootstrap --base-url URL [--mysql-mode bundled|external] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
+  kagectl bootstrap --dev [--engine podman|docker|auto] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME] [--skip-verify] [--wait-timeout 5m]
   kagectl build-app-base [--image IMAGE] [--force] [--no-cache]
   kagectl render [--config .kageos/prod/kage.yaml]
   kagectl layers [--config .kageos/prod/kage.yaml] [--json]
-  kagectl doctor [--config .kageos/prod/kage.yaml] [--json]
-  kagectl up [--config .kageos/prod/kage.yaml] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
-  kagectl verify [--config .kageos/prod/kage.yaml] [--json]
-  kagectl status [--config .kageos/prod/kage.yaml] [--json]
-  kagectl logs [--config .kageos/prod/kage.yaml] [service|layer] [--layer L0-L5]
-  kagectl down [--config .kageos/prod/kage.yaml]
+  kagectl doctor [--json]
+  kagectl up [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
+  kagectl verify [--json]
+  kagectl status [--json]
+  kagectl logs [main|infra|service|layer] [--layer L0-L5]
+  kagectl down
   kagectl uninstall [--config .kageos/prod/kage.yaml] [--purge-data] [--purge-podman-storage] [--purge-images] [--keep-generated] [--purge-private-config] [--force] [--dry-run]
 
-Compose remains the container execution engine; kagectl owns layered config rendering, deployment orchestration, and diagnostics.`)
+Modes:
+  prod is the default and writes .kageos/kageos.env KAGEOS_MODE=prod.
+  init --dev writes .kageos/kageos.env KAGEOS_MODE=dev; later up/status/down/logs use that mode.
+
+Compose remains the container execution engine; kagectl owns config rendering, orchestration, and diagnostics.`)
 }
 
 func resolvePaths(opts commonOptions) (Paths, error) {
@@ -651,6 +692,7 @@ func resolvePaths(opts commonOptions) (Paths, error) {
 	if err != nil {
 		return Paths{}, err
 	}
+	stateDir := filepath.Join(repoRoot, defaultStateDir)
 
 	prodDir := opts.ProdDir
 	if prodDir == "" {
@@ -668,6 +710,8 @@ func resolvePaths(opts commonOptions) (Paths, error) {
 
 	return Paths{
 		RepoRoot:     repoRoot,
+		StateDir:     stateDir,
+		StateEnvPath: filepath.Join(stateDir, defaultStateEnv),
 		ProdDir:      prodDir,
 		ConfigPath:   configPath,
 		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
@@ -693,12 +737,19 @@ func findRepoRoot() (string, error) {
 }
 
 func cmdInit(paths Paths, args []string) error {
+	dev, args := takeDevFlag(args)
+	if dev {
+		return cmdInitDev(paths, args)
+	}
 	opts, err := parseInitFlags("init", args)
 	if err != nil {
 		return err
 	}
 	created, err := writeInitialConfig(paths, opts)
 	if err != nil {
+		return err
+	}
+	if err := writeWorkspaceConfig(paths, workspaceModeProd, workspaceDevConfig{}); err != nil {
 		return err
 	}
 	if created {
@@ -712,7 +763,14 @@ func cmdInitDev(paths Paths, args []string) error {
 	if err != nil {
 		return err
 	}
+	return runInitDev(paths, opts)
+}
+
+func runInitDev(paths Paths, opts initDevOptions) error {
 	if err := renderDevConfig(paths, opts.RegenSecrets, opts.CompanyCode, opts.CompanyName); err != nil {
+		return err
+	}
+	if err := writeWorkspaceConfig(paths, workspaceModeDev, workspaceDevConfig{Engine: opts.Engine}); err != nil {
 		return err
 	}
 	if err := runDevInfraScript(paths, opts); err != nil {
@@ -735,7 +793,25 @@ func cmdInitDev(paths Paths, args []string) error {
 	return nil
 }
 
+func takeDevFlag(args []string) (bool, []string) {
+	dev := false
+	rest := make([]string, 0, len(args))
+	for _, arg := range args {
+		if arg == "--dev" {
+			dev = true
+			continue
+		}
+		rest = append(rest, arg)
+	}
+	return dev, rest
+}
+
 func cmdBootstrap(paths Paths, args []string) error {
+	dev, args := takeDevFlag(args)
+	if dev {
+		return cmdBootstrapDev(paths, args)
+	}
+
 	opts, err := parseBootstrapFlags(args)
 	if err != nil {
 		return err
@@ -749,6 +825,20 @@ func cmdBootstrap(paths Paths, args []string) error {
 		if _, err := writeInitialConfig(paths, opts.Init); err != nil {
 			return err
 		}
+	}
+	if err := writeWorkspaceConfig(paths, workspaceModeProd, workspaceDevConfig{}); err != nil {
+		return err
+	}
+	return cmdUp(paths, opts.UpArgs)
+}
+
+func cmdBootstrapDev(paths Paths, args []string) error {
+	opts, err := parseBootstrapDevFlags(args)
+	if err != nil {
+		return err
+	}
+	if err := runInitDev(paths, opts.Init); err != nil {
+		return err
 	}
 	return cmdUp(paths, opts.UpArgs)
 }
@@ -810,6 +900,13 @@ func writeInitialConfig(paths Paths, opts initOptions) (bool, error) {
 }
 
 func cmdRender(paths Paths) error {
+	if currentWorkspaceMode(paths) == workspaceModeDev {
+		if err := renderDevConfig(paths, false, "", ""); err != nil {
+			return err
+		}
+		fmt.Printf("rendered dev config: %s\n", filepath.Join(paths.RepoRoot, defaultDevConfig))
+		return nil
+	}
 	cfg, err := loadConfig(paths)
 	if err != nil {
 		return err
@@ -853,6 +950,12 @@ func cmdDoctor(paths Paths, args []string) error {
 	if err != nil {
 		return err
 	}
+	if currentWorkspaceMode(paths) == workspaceModeDev {
+		if opts.JSON {
+			return runLayerChecksJSON("doctor", devDoctorChecks(paths))
+		}
+		return runLayerChecks("doctor", devDoctorChecks(paths))
+	}
 	cfg, err := loadConfig(paths)
 	if err != nil {
 		return err
@@ -872,6 +975,9 @@ func cmdUp(paths Paths, args []string) error {
 	opts, err := parseUpFlags(args)
 	if err != nil {
 		return err
+	}
+	if currentWorkspaceMode(paths) == workspaceModeDev {
+		return cmdDevUp(paths, opts)
 	}
 	fmt.Println("[L0 部署控制层] 检查宿主机和读取配置")
 	rt, err := loadRuntimeConfig(paths)
@@ -951,6 +1057,12 @@ func cmdVerify(paths Paths, args []string) error {
 	if err != nil {
 		return err
 	}
+	if currentWorkspaceMode(paths) == workspaceModeDev {
+		if opts.JSON {
+			return runLayerChecksJSON("verify", devVerifyChecks(paths))
+		}
+		return runLayerChecks("verify", devVerifyChecks(paths))
+	}
 	rt, err := loadRuntimeConfig(paths)
 	if err != nil {
 		return err
@@ -965,6 +1077,9 @@ func cmdStatus(paths Paths, args []string) error {
 	opts, _, err := parseOutputFlags("status", args)
 	if err != nil {
 		return err
+	}
+	if currentWorkspaceMode(paths) == workspaceModeDev {
+		return cmdDevStatus(paths, opts)
 	}
 	if err := requireGeneratedCompose(paths); err != nil {
 		return err
@@ -996,6 +1111,9 @@ func cmdStatus(paths Paths, args []string) error {
 }
 
 func cmdLogs(paths Paths, args []string) error {
+	if currentWorkspaceMode(paths) == workspaceModeDev {
+		return cmdDevLogs(paths, args)
+	}
 	if err := requireGeneratedCompose(paths); err != nil {
 		return err
 	}
@@ -1045,6 +1163,9 @@ func cmdLogs(paths Paths, args []string) error {
 }
 
 func cmdDown(paths Paths) error {
+	if currentWorkspaceMode(paths) == workspaceModeDev {
+		return cmdDevDown(paths)
+	}
 	if err := requireGeneratedCompose(paths); err != nil {
 		return err
 	}
@@ -2089,7 +2210,7 @@ func renderAll(rt RuntimeConfig) error {
 }
 
 func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, companyName string) error {
-	stateDir := filepath.Join(paths.RepoRoot, ".kageos")
+	stateDir := filepath.Join(paths.RepoRoot, ".kageos", "dev")
 	envDir := filepath.Join(paths.RepoRoot, ".kageos", "dev", "env")
 	envPath := filepath.Join(envDir, "kageos.env")
 	secrets, err := loadOrCreateDevSecrets(stateDir, envPath, regenSecrets)
@@ -2100,7 +2221,7 @@ func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, company
 		fmt.Println("==> dev secrets regenerated")
 	} else if fileExists(envPath) && hasWeakDevSecrets(secrets) {
 		fmt.Println("WARN: existing dev secrets contain old fixed defaults; keep them to avoid breaking existing local volumes")
-		fmt.Println("WARN: rotate with `kagectl init-dev --regen-secrets` after clearing old dev infra volumes")
+		fmt.Println("WARN: rotate with `kagectl init --dev --regen-secrets` after clearing old dev infra volumes")
 	}
 
 	cfg := defaultDevDeploymentConfig(secrets)
@@ -2168,6 +2289,7 @@ func printDevInitSummary(paths Paths, opts initDevOptions) {
 	}
 
 	rows := [][2]string{
+		{"Mode env", workspaceEnvPath(paths)},
 		{"Config dir", filepath.Join(paths.RepoRoot, defaultDevConfig)},
 		{"Env file", envPath},
 		{"Engine", opts.Engine},
@@ -2197,6 +2319,7 @@ func printDevInitSummary(paths Paths, opts initDevOptions) {
 	fmt.Println("Kageos dev initialization summary")
 	printPlainTable("Item", "Value", rows)
 	fmt.Println()
+	fmt.Println("Next: run `go run ./cmd/kagectl up` to start the local backend.")
 	fmt.Println("Tip: local dev uses SMTP_MODE=log, so verification codes are printed in logs and returned as debug_code. Set SMTP_MODE=smtp and configure SMTP_* when real email delivery is required.")
 }
 
@@ -2435,9 +2558,9 @@ func deploymentSummaryRows(rt RuntimeConfig, status string) [][2]string {
 		{"Environment file", rt.EnvFilePath},
 		{"TLS directory", rt.TLSCertsHostDir},
 		{"Summary file", rt.SummaryPath},
-		{"Status command", fmt.Sprintf("go run ./cmd/kagectl status --config %s", rt.Paths.ConfigPath)},
-		{"Logs command", fmt.Sprintf("go run ./cmd/kagectl logs --config %s main", rt.Paths.ConfigPath)},
-		{"Stop command", fmt.Sprintf("go run ./cmd/kagectl down --config %s", rt.Paths.ConfigPath)},
+		{"Status command", "go run ./cmd/kagectl status"},
+		{"Logs command", "go run ./cmd/kagectl logs main"},
+		{"Stop command", "go run ./cmd/kagectl down"},
 	}
 }
 
@@ -2448,6 +2571,7 @@ func printProdInitSummary(paths Paths, cfg Config) {
 		return
 	}
 	rows := [][2]string{
+		{"Mode env", workspaceEnvPath(paths)},
 		{"Config file", paths.ConfigPath},
 		{"Access URL", cfg.Site.BaseURL},
 		{"Admin username", "system"},
@@ -2474,7 +2598,7 @@ func printProdInitSummary(paths Paths, cfg Config) {
 	fmt.Println("Kageos production initialization summary")
 	printPlainTable("Item", "Value", rows)
 	fmt.Println()
-	fmt.Println("Next: run `go run ./cmd/kagectl doctor --config .kageos/prod/kage.yaml`, then `go run ./cmd/kagectl up --config .kageos/prod/kage.yaml`.")
+	fmt.Println("Next: run `go run ./cmd/kagectl doctor`, then `go run ./cmd/kagectl up`.")
 	fmt.Println("Tip: production defaults to auth.registration_mode=admin_only. Log in as system, configure SMTP in System settings, then enable email_code registration if public signup is required.")
 }
 
@@ -2525,6 +2649,17 @@ func detectComposeCommand() ([]string, error) {
 func checkComposeCommand() error {
 	_, err := detectComposeCommand()
 	return err
+}
+
+func checkDevComposeCommand(engine string) error {
+	engine = normalizeDevEngine(engine)
+	if engine == "auto" {
+		return checkComposeCommand()
+	}
+	if _, err := exec.LookPath(engine); err != nil {
+		return err
+	}
+	return exec.Command(engine, "compose", "version").Run()
 }
 
 func runCompose(workDir string, args ...string) error {
@@ -2593,16 +2728,21 @@ func runBuildAppBaseScript(paths Paths, opts buildAppBaseOptions) error {
 }
 
 func runDevInfraScript(paths Paths, opts initDevOptions) error {
+	return runDevInfraCommand(paths, opts.Engine, "up", "-d")
+}
+
+func runDevInfraCommand(paths Paths, engine string, commandArgs ...string) error {
 	scriptPath := filepath.Join(paths.RepoRoot, "deploy", "dev", "scripts", "infra.sh")
 	if !fileExists(scriptPath) {
 		return fmt.Errorf("dev infra script not found: %s", scriptPath)
 	}
 
 	args := []string{scriptPath}
-	if opts.Engine != "" && opts.Engine != "auto" {
-		args = append(args, opts.Engine)
+	engine = normalizeDevEngine(engine)
+	if engine != "" {
+		args = append(args, engine)
 	}
-	args = append(args, "up", "-d")
+	args = append(args, commandArgs...)
 
 	cmd := exec.Command("bash", args...)
 	cmd.Dir = paths.RepoRoot

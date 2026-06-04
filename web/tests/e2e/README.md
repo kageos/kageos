@@ -7,15 +7,21 @@
 
 ## 启动依赖
 
-先在仓库根目录启动后端，再在 `web/` 启前端：
+先在仓库根目录启动后端：
 
 ```bash
-APP_ENV=dev go run ./core/cmd/main
+go run ./cmd/kagectl init --dev
+go run ./cmd/kagectl up
+```
+
+再在另一个终端启动前端：
+
+```bash
 cd web
 npm run dev -- --host 127.0.0.1
 ```
 
-日常本地开发也可以直接用 GoLand 启动 `core/cmd/main/main.go`，环境变量设置为 `APP_ENV=dev`。
+日常本地开发也可以直接用 GoLand 启动 `core/cmd/main/main.go`，运行模式由 `.kageos/kageos.env` 决定。
 
 首次使用需要安装 Playwright 浏览器：
 

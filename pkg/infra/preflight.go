@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
@@ -31,7 +32,7 @@ func mysqlPreflightAddress() string {
 	}
 
 	port := 3306
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "dev") {
+	if config.IsDevMode() {
 		port = 3318
 	}
 	if rawPort := strings.TrimSpace(os.Getenv("MYSQL_PORT")); rawPort != "" {

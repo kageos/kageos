@@ -61,15 +61,19 @@ func (d *workspaceStreamLoopDeps) SaveAssistantMessageWithToolCalls(ctx context.
 	return d.service.saveAssistantMessageWithToolCalls(ctx, d.sessionID, content, toolCalls, d.user, d.currentLLMMeta)
 }
 
-func (d *workspaceStreamLoopDeps) ExecuteToolCalls(ctx context.Context, allToolCalls []llms.ToolCall, sendEvent func(string, interface{})) ([]streamloop.ToolCallSummary, error) {
-	summaries, err := d.service.executeToolCalls(ctx, allToolCalls, d.sessionID, d.fullCodePath, d.user, d.files, sendEvent)
+func (d *workspaceStreamLoopDeps) ExecuteToolCalls(ctx context.Context, allToolCalls []llms.ToolCall, round int, sendEvent func(string, interface{})) ([]streamloop.ToolCallSummary, error) {
+	summaries, err := d.service.executeToolCalls(ctx, allToolCalls, d.sessionID, d.fullCodePath, d.user, d.files, round, sendEvent)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]streamloop.ToolCallSummary, len(summaries))
 	for i := range summaries {
 		out[i] = streamloop.ToolCallSummary{
-			Name: summaries[i].Name, Status: summaries[i].Status,
+			ID:         summaries[i].ID,
+			Index:      summaries[i].Index,
+			Round:      summaries[i].Round,
+			Name:       summaries[i].Name,
+			Status:     summaries[i].Status,
 			Arguments: summaries[i].Arguments, Result: summaries[i].Result, ResultData: summaries[i].ResultData, Metadata: summaries[i].Metadata, Error: summaries[i].Error,
 		}
 	}
@@ -81,7 +85,11 @@ func (d *workspaceStreamLoopDeps) OnDone(summaries []streamloop.ToolCallSummary)
 	toolCalls := make([]dto.WorkspaceChatToolCallSummary, len(summaries))
 	for i := range summaries {
 		toolCalls[i] = dto.WorkspaceChatToolCallSummary{
-			Name: summaries[i].Name, Status: summaries[i].Status,
+			ID:         summaries[i].ID,
+			Index:      summaries[i].Index,
+			Round:      summaries[i].Round,
+			Name:       summaries[i].Name,
+			Status:     summaries[i].Status,
 			Arguments: summaries[i].Arguments, Result: summaries[i].Result, ResultData: summaries[i].ResultData, Metadata: summaries[i].Metadata, Error: summaries[i].Error,
 		}
 	}

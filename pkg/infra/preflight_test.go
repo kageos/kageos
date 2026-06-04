@@ -1,9 +1,29 @@
 package infra
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func setKageosMode(t *testing.T, mode string) {
+	t.Helper()
+	root := t.TempDir()
+	t.Setenv("KAGEOS_ROOT", root)
+	if mode == "" {
+		return
+	}
+	stateDir := filepath.Join(root, ".kageos")
+	if err := os.MkdirAll(stateDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stateDir, "kageos.env"), []byte("KAGEOS_MODE="+mode+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestMySQLPreflightAddressDevDefaultsTo3318(t *testing.T) {
-	t.Setenv("APP_ENV", "dev")
+	setKageosMode(t, "dev")
 	t.Setenv("MYSQL_HOST", "")
 	t.Setenv("MYSQL_PORT", "")
 
@@ -13,7 +33,7 @@ func TestMySQLPreflightAddressDevDefaultsTo3318(t *testing.T) {
 }
 
 func TestMySQLPreflightAddressAllowsEnvOverride(t *testing.T) {
-	t.Setenv("APP_ENV", "dev")
+	setKageosMode(t, "dev")
 	t.Setenv("MYSQL_HOST", "localhost")
 	t.Setenv("MYSQL_PORT", "4406")
 
@@ -23,7 +43,7 @@ func TestMySQLPreflightAddressAllowsEnvOverride(t *testing.T) {
 }
 
 func TestMySQLPreflightAddressProdDefaultsTo3306(t *testing.T) {
-	t.Setenv("APP_ENV", "prod")
+	setKageosMode(t, "prod")
 	t.Setenv("MYSQL_HOST", "")
 	t.Setenv("MYSQL_PORT", "")
 

@@ -58,6 +58,50 @@ func TestMergeToolCallsUsesOpenAIStreamIndex(t *testing.T) {
 	}
 }
 
+func TestProcessStreamChunksEmitsStableToolCallIdentity(t *testing.T) {
+	idx0 := 0
+	makeCall := func(index *int, id, name, args string) llms.ToolCall {
+		tc := llms.ToolCall{ID: id, Type: "function", Index: index}
+		tc.Function.Name = name
+		tc.Function.Arguments = args
+		return tc
+	}
+
+	stream := make(chan *llms.StreamChunk, 2)
+	stream <- &llms.StreamChunk{ToolCalls: []llms.ToolCall{
+		makeCall(&idx0, "", "run_python", `{"code":"print(1)"}`),
+	}}
+	stream <- &llms.StreamChunk{ToolCalls: []llms.ToolCall{
+		makeCall(&idx0, "call_1", "", ""),
+	}}
+	close(stream)
+
+	var events []toolCallsStreamDeltaData
+	_, calls, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
+		if event != EventToolCallsStreamDelta {
+			return
+		}
+		payload, ok := data.(*toolCallsStreamDeltaData)
+		if !ok {
+			t.Fatalf("delta payload type = %T, want *toolCallsStreamDeltaData", data)
+		}
+		events = append(events, *payload)
+	}, 3)
+	if err != nil {
+		t.Fatalf("processStreamChunks returned error: %v", err)
+	}
+	if len(calls) != 1 || calls[0].ID != "call_1" {
+		t.Fatalf("calls = %#v, want one call with id call_1", calls)
+	}
+	if len(events) != 1 || len(events[0].Updates) != 1 {
+		t.Fatalf("events = %#v, want one delta update", events)
+	}
+	update := events[0].Updates[0]
+	if update.ID != "call_1" || update.Index != 0 || update.Round != 3 || update.Name != "run_python" {
+		t.Fatalf("delta update identity = %#v, want id/index/round/name", update)
+	}
+}
+
 func TestMergeToolCallsPrefersKnownIDWhenStreamIndexIsWrong(t *testing.T) {
 	idx0 := 0
 	idx1 := 1

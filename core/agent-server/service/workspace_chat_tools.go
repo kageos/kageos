@@ -20,6 +20,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 	sessionID, fullCodePath string,
 	user string,
 	files string,
+	round int,
 	sendEvent func(string, interface{}),
 ) ([]dto.WorkspaceChatToolCallSummary, error) {
 	ctx = withAgentToolExecutionContext(ctx, sessionID)
@@ -32,7 +33,14 @@ func (s *WorkspaceChatService) executeToolCalls(
 		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 执行工具调用 - ToolCallID: %s, ToolName: %s, Arguments: %q",
 			i+1, len(allToolCalls), tc.ID, tc.Function.Name, tc.Function.Arguments)
 
-		sendEvent(EventToolCall, StreamEventToolCall{Name: tc.Function.Name, Status: ToolCallStatusRunning, Arguments: tc.Function.Arguments})
+		sendEvent(EventToolCall, StreamEventToolCall{
+			ID:        tc.ID,
+			Index:     i,
+			Round:     round,
+			Name:      tc.Function.Name,
+			Status:    ToolCallStatusRunning,
+			Arguments: tc.Function.Arguments,
+		})
 
 		args, parseErr := s.parseToolCallArgs(ctx, tc)
 		var toolRes ToolResult
@@ -63,10 +71,28 @@ func (s *WorkspaceChatService) executeToolCalls(
 			errStr = toolRes.Content
 		}
 		toolSummaries = append(toolSummaries, dto.WorkspaceChatToolCallSummary{
-			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Metadata: toolRes.Metadata, Error: errStr,
+			ID:         tc.ID,
+			Index:      i,
+			Round:      round,
+			Name:       tc.Function.Name,
+			Status:     st,
+			Arguments:  tc.Function.Arguments,
+			Result:     resultStr,
+			ResultData: resultData,
+			Metadata:   toolRes.Metadata,
+			Error:      errStr,
 		})
 		sendEvent(EventToolCall, StreamEventToolCall{
-			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Metadata: toolRes.Metadata, Error: errStr,
+			ID:         tc.ID,
+			Index:      i,
+			Round:      round,
+			Name:       tc.Function.Name,
+			Status:     st,
+			Arguments:  tc.Function.Arguments,
+			Result:     resultStr,
+			ResultData: resultData,
+			Metadata:   toolRes.Metadata,
+			Error:      errStr,
 		})
 		if err := s.saveToolMessage(ctx, sessionID, tc.ID, tc.Function.Name, st, toolRes, user); err != nil {
 			logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool 消息失败 ToolCallID=%s: %v（若为 Error 1366 请将表转为 utf8mb4）", tc.ID, err)

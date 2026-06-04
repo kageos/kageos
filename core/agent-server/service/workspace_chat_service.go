@@ -117,6 +117,9 @@ type StreamEventSession struct {
 
 // StreamEventToolCall tool_call 事件数据
 type StreamEventToolCall struct {
+	ID         string                  `json:"id,omitempty"`        // tool_call_id（用于稳定合并同一次调用）
+	Index      int                     `json:"index"`               // 当前工具轮次内的调用序号
+	Round      int                     `json:"round"`               // 工具调用轮次，从 0 开始
 	Name       string                  `json:"name"`
 	Status     string                  `json:"status"`                // ok / error / running / streaming
 	Arguments  string                  `json:"arguments"`             // 流式或最终参数（streaming 时逐段推送，供前端实时展示）

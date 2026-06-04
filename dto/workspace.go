@@ -36,6 +36,8 @@ type WorkspaceChatResp struct {
 // WorkspaceChatToolCallSummary 工作台单次 tool 调用摘要（供前端展示）
 type WorkspaceChatToolCallSummary struct {
 	ID         string              `json:"id"`                    // tool_call_id（用于关联 tool 消息）
+	Index      int                 `json:"index"`                 // 当前工具轮次内的调用序号
+	Round      int                 `json:"round"`                 // 工具调用轮次，从 0 开始
 	Name       string              `json:"name"`                  // 工具名称
 	Status     string              `json:"status"`                // ok / error
 	Arguments  string              `json:"arguments"`             // 参数（JSON 字符串，可选）

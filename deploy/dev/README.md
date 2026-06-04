@@ -11,50 +11,72 @@
 
 ## 官方入口
 
-### 1. 起基础设施
+### 1. 一键启动开发后端
 
-推荐直接用官方脚本：
+推荐首次开发直接用 `kagectl bootstrap --dev`：
 
 ```bash
-go run ./cmd/kagectl init-dev
+go run ./cmd/kagectl bootstrap --dev
 ```
+
+该命令会初始化开发模式、启动 MySQL / NATS / MinIO、确保本地用户应用运行时基础镜像存在，并以前台方式启动后端主进程。停止后端用 `Ctrl-C`；停止 MySQL / NATS / MinIO 用：
+
+```bash
+go run ./cmd/kagectl down
+```
+
+### 1.1 只初始化开发模式
+
+如需只初始化，不启动后端主进程：
+
+```bash
+go run ./cmd/kagectl init --dev
+```
+
+该命令会写入 `.kageos/kageos.env`：
+
+```dotenv
+KAGEOS_MODE=dev
+KAGEOS_DEV_ENGINE=podman
+```
+
+后续 `kagectl up/status/down/logs/doctor/verify` 会根据这个模式自动走本地开发链路，不需要再手工设置运行模式。
 
 该命令默认使用 Podman 启动 MySQL / NATS / MinIO，执行幂等数据库初始化 SQL，并确保本地用户应用运行时基础镜像 `kagebase:latest` 存在；如果镜像已存在会跳过构建。
 首次执行时会生成 `.kageos/dev/env/kageos.env`，里面包含 MySQL、NATS、MinIO、JWT、system user 等本地随机密钥；后续重复执行会复用已有值，避免把已有本地数据库密码刷掉。
 初始化结束后会在终端打印英文表格，列出本地开发需要记录的路径、账号、密码和 key。
 本地开发默认 `SMTP_MODE=log`，发送验证码时不会调用真实邮箱服务；验证码会写入后端日志，并通过 `send_email_code` 接口的 `debug_code` 返回，填这个验证码即可注册。生产环境需要真实发信时再改成 `SMTP_MODE=smtp` 并配置 `SMTP_*`。
 本地 dev MySQL 默认只绑定宿主机 `127.0.0.1:3318`，容器内部仍是 `3306`，这样不容易和你机器上的旧 MySQL 或其它项目冲突。
-幂等规则：只有 `.kageos` 不存在时才初始化生成 secrets；一旦 `.kageos` 存在，`init-dev` 只应用 `.kageos/dev/env/kageos.env` 里的值，不会隐式生成替换密码。
+幂等规则：一旦 `.kageos/dev/env/kageos.env` 存在，`init --dev` 只复用里面的值，不会隐式生成替换密码。
 
 若你想显式指定容器引擎：
 
 ```bash
-go run ./cmd/kagectl init-dev --engine docker
-go run ./cmd/kagectl init-dev --engine podman
+go run ./cmd/kagectl init --dev --engine docker
+go run ./cmd/kagectl init --dev --engine podman
 ```
 
 如只想初始化 MySQL / NATS / MinIO，不处理基础镜像：
 
 ```bash
-go run ./cmd/kagectl init-dev --skip-base
+go run ./cmd/kagectl init --dev --skip-base
 ```
 
 如需重新生成本地密钥：
 
 ```bash
-go run ./cmd/kagectl init-dev --regen-secrets
+go run ./cmd/kagectl init --dev --regen-secrets
 ```
 
-注意：如果 MySQL/MinIO 已经有旧 volume，重新生成密码后需要清理旧本地 volume，否则容器里的历史密码不会自动变化。
-当前 dev MySQL 使用独立 volume `kageos-dev-mysql3318-data`；历史 `3306` 时代的 volume 不会被自动复用。
+注意：如需重新生成本地密钥，请先清理本地开发数据 volume，否则已有 MySQL/MinIO 数据仍会使用原密码。
 
 如需初始化时使用自定义基础镜像 tag：
 
 ```bash
-go run ./cmd/kagectl init-dev --base-image "registry.example.com/kagebase:stable"
+go run ./cmd/kagectl init --dev --base-image "registry.example.com/kagebase:stable"
 ```
 
-等价的原始命令如下。
+下面是排障时才需要看的底层 compose 命令，不是日常入口。
 
 Docker 本地开发：
 
@@ -84,19 +106,29 @@ podman compose --env-file .kageos/dev/env/kageos.env -f deploy/dev/compose/docke
 
 当前服务配置加载会读取 `.kageos/dev/config/*.yaml`。备份、消息和控制面服务已从 MVP 删除，本地开发不再需要它们的独立配置。
 
-### 2. 起后端
+### 2. 单独起后端
 
-本地开发后端从 GoLand 启动平台主进程：
+命令行启动：
+
+```bash
+go run ./cmd/kagectl up
+```
+
+`kagectl up` 会先确保本地基础设施运行，再以前台方式启动 `core/cmd/main`。停止后端用 `Ctrl-C`；停止 MySQL / NATS / MinIO 用：
+
+```bash
+go run ./cmd/kagectl down
+```
+
+如需从 GoLand 启动平台主进程：
 
 - Run target：`core/cmd/main/main.go`
 - Working directory：仓库根目录
-- Environment：`APP_ENV=dev`
 
 说明：
 
-- `APP_ENV=dev` 时启动预检会自动按本地 compose 基础设施模式处理，无需额外环境变量
-- GoLand 本地开发直接启动 `core/cmd/main/main.go` 也需要设置 `APP_ENV=dev`
-- 如需命令行临时启动，等价命令是 `APP_ENV=dev go run ./core/cmd/main`
+- GoLand 启动前先执行 `go run ./cmd/kagectl init --dev`，让 `.kageos/kageos.env` 记录开发模式。
+- 服务配置会按 `.kageos/kageos.env` 自动读取 `.kageos/dev/config/*.yaml`。
 
 ### 2.1 构建用户应用运行时基础镜像
 

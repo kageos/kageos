@@ -188,9 +188,15 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 			var toolCalls []llms.ToolCall
 			if err := json.Unmarshal([]byte(*msg.ToolCalls), &toolCalls); err == nil {
 				// 转换为前端需要的格式，包含完整信息
-				for _, tc := range toolCalls {
+				for i, tc := range toolCalls {
+					index := i
+					if tc.Index != nil {
+						index = *tc.Index
+					}
 					toolCallSummary := dto.WorkspaceChatToolCallSummary{
 						ID:        tc.ID,
+						Index:     index,
+						Round:     0,
 						Name:      tc.Function.Name,
 						Arguments: tc.Function.Arguments, // 包含参数 JSON 字符串
 						Status:    "ok",                  // 默认状态

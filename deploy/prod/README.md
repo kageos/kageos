@@ -94,7 +94,7 @@ site:
 ```bash
 KAGEOS_TLS_CERT_PEM_B64="$(base64 < fullchain.pem | tr -d '\n')" \
 KAGEOS_TLS_KEY_PEM_B64="$(base64 < privkey.pem | tr -d '\n')" \
-go run ./cmd/kagectl up --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl up
 ```
 
 渲染后证书会落到 `.kageos/prod/generated/tls/`，最终注入容器的环境变量会落到 `.kageos/prod/generated/env/kageos.env`，便于后续运维查看和备份。
@@ -103,17 +103,17 @@ go run ./cmd/kagectl up --config .kageos/prod/kage.yaml
 
 ```bash
 go run ./cmd/kagectl init --base-url http://your-ip-or-domain
-go run ./cmd/kagectl doctor --config .kageos/prod/kage.yaml
-go run ./cmd/kagectl up --config .kageos/prod/kage.yaml
-go run ./cmd/kagectl verify --config .kageos/prod/kage.yaml
-go run ./cmd/kagectl status --config .kageos/prod/kage.yaml
-go run ./cmd/kagectl logs --config .kageos/prod/kage.yaml --layer L3
-go run ./cmd/kagectl down --config .kageos/prod/kage.yaml
-go run ./cmd/kagectl uninstall --config .kageos/prod/kage.yaml --dry-run
-go run ./cmd/kagectl uninstall --config .kageos/prod/kage.yaml --purge-data --force
+go run ./cmd/kagectl doctor
+go run ./cmd/kagectl up
+go run ./cmd/kagectl verify
+go run ./cmd/kagectl status
+go run ./cmd/kagectl logs --layer L3
+go run ./cmd/kagectl down
+go run ./cmd/kagectl uninstall --dry-run
+go run ./cmd/kagectl uninstall --purge-data --force
 ```
 
-后台启动脚本：
+可选后台 wrapper：
 
 ```bash
 ./prod-up.sh
@@ -160,6 +160,6 @@ tail -f .kageos/prod/kagectl-up.log
 
 ```bash
 git pull --ff-only
-go run ./cmd/kagectl up --config .kageos/prod/kage.yaml
-go run ./cmd/kagectl verify --config .kageos/prod/kage.yaml
+go run ./cmd/kagectl up
+go run ./cmd/kagectl verify
 ```

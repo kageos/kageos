@@ -386,7 +386,7 @@ func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
 	call.Function.Name = "change_role"
 	call.Function.Arguments = `{"target_role":"product_manager","user_input":"帮我做个系统"}`
 
-	summaries, err := svc.executeToolCalls(context.Background(), []llms.ToolCall{call}, "role-session", "/liubeiluo/demo", "tester", "", func(string, interface{}) {})
+	summaries, err := svc.executeToolCalls(context.Background(), []llms.ToolCall{call}, "role-session", "/liubeiluo/demo", "tester", "", 0, func(string, interface{}) {})
 	if err != nil {
 		t.Fatalf("execute tool calls: %v", err)
 	}
