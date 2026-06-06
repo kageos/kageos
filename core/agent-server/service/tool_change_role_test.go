@@ -2,8 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/functionschema"
+	"github.com/kageos/kageos/sdk/agent-app/widget"
 )
 
 func TestBuildChangeRoleLoadsPlanDocs(t *testing.T) {
@@ -234,6 +239,108 @@ func TestBuildChangeRoleAddsRoleSpecificNextStepAdvice(t *testing.T) {
 		if !strings.Contains(keyInfo, want) {
 			t.Fatalf("QA handoff advice should contain %q, got %#v", want, got.Handoff.KeyInformation)
 		}
+	}
+}
+
+func TestBuildChangeRoleRunsAppOperatorCapabilityHook(t *testing.T) {
+	oldSearchFunctions := workspaceRoleHookSearchFunctions
+	t.Cleanup(func() {
+		workspaceRoleHookSearchFunctions = oldSearchFunctions
+	})
+	var gotReq *dto.SearchFunctionsReq
+	workspaceRoleHookSearchFunctions = func(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error) {
+		gotReq = req
+		return &dto.SearchFunctionsResp{
+			Functions: []*dto.FunctionSearchResult{
+				{
+					Name:         "投票主题",
+					Code:         "vote_topic_list",
+					FullCodePath: "/system/x_world/vote/vote_topic_list.table",
+					TemplateType: "table",
+					Callbacks:    []string{"OnTableAddRow"},
+					Schema: functionschema.NewTable(
+						[]*widget.Field{testSearchToolField("topic_title", "主题标题", "input", nil, "")},
+						[]*widget.Field{testSearchToolField("topic_title", "主题标题", "input", nil, "required")},
+						[]string{"OnTableAddRow"},
+					),
+				},
+				{
+					Name:         "提交投票",
+					Code:         "vote_submit",
+					FullCodePath: "/system/x_world/vote/vote_submit.form",
+					TemplateType: "form",
+					Schema: functionschema.NewForm(
+						[]*widget.Field{testSearchToolField("option_id", "选项", "select", nil, "required")},
+						nil,
+						nil,
+					),
+				},
+				{
+					Name:         "其他应用函数",
+					FullCodePath: "/system/x_world/ticket/ticket_list.table",
+					TemplateType: "table",
+				},
+			},
+		}, nil
+	}
+
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		TargetRole:       WorkspaceRoleAppOperator,
+		ExecuteDirectory: "/system/x_world/vote",
+		TaskContext:      []string{"用户要创建一个四大古都投票"},
+	}, "/system/x_world/vote")
+
+	if gotReq == nil || gotReq.User != "system" || gotReq.App != "x_world" || gotReq.Keyword != "vote" {
+		t.Fatalf("unexpected function search request: %#v", gotReq)
+	}
+	if got.AppCapabilities == nil || got.AppCapabilities.Status != "ok" {
+		t.Fatalf("expected app capability snapshot, got %#v", got.AppCapabilities)
+	}
+	if got.AppCapabilities.TotalFunctions != 2 || got.AppCapabilities.Counts.Tables != 1 || got.AppCapabilities.Counts.Forms != 1 {
+		t.Fatalf("unexpected app capability counts: %#v", got.AppCapabilities)
+	}
+	if len(got.ExecutedHooks) != 1 ||
+		got.ExecutedHooks[0].ID != workspaceRoleHookAppOperatorCapabilities ||
+		got.ExecutedHooks[0].Stage != workspaceRoleHookStageBeforeEnter {
+		t.Fatalf("expected app operator before_enter hook record, got %#v", got.ExecutedHooks)
+	}
+	keyInfo := strings.Join(got.Handoff.KeyInformation, "；")
+	for _, want := range []string{
+		"当前应用能力快照",
+		"/system/x_world/vote/vote_topic_list.table",
+		"run_table_create",
+		"/system/x_world/vote/vote_submit.form",
+		"search_tools(directory=change_role.execute_directory",
+	} {
+		if !strings.Contains(keyInfo, want) {
+			t.Fatalf("app operator handoff key info should contain %q, got %#v", want, got.Handoff.KeyInformation)
+		}
+	}
+}
+
+func TestBuildChangeRoleAppOperatorCapabilityHookDoesNotBlockOnSearchError(t *testing.T) {
+	oldSearchFunctions := workspaceRoleHookSearchFunctions
+	t.Cleanup(func() {
+		workspaceRoleHookSearchFunctions = oldSearchFunctions
+	})
+	workspaceRoleHookSearchFunctions = func(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error) {
+		return nil, errors.New("service tree unavailable")
+	}
+
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		TargetRole:       WorkspaceRoleAppOperator,
+		ExecuteDirectory: "/system/x_world/vote",
+		TaskContext:      []string{"用户要查询投票结果"},
+	}, "/system/x_world/vote")
+
+	if got.AppCapabilities == nil || got.AppCapabilities.Status != "error" {
+		t.Fatalf("expected error snapshot, got %#v", got.AppCapabilities)
+	}
+	if got.CurrentRole != WorkspaceRoleAppOperator || len(got.ExecutedHooks) != 1 {
+		t.Fatalf("change_role should still switch to app_operator and record hook, got %#v", got)
+	}
+	if !strings.Contains(strings.Join(got.Handoff.KeyInformation, "；"), "search_tools(directory=change_role.execute_directory)") {
+		t.Fatalf("error snapshot should carry search_tools fallback, got %#v", got.Handoff.KeyInformation)
 	}
 }
 

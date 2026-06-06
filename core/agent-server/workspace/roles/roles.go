@@ -193,7 +193,7 @@ func Specs() map[string]Spec {
 				[]string{"固定目标应用 execute_directory", "先获取函数 schema、必填项、枚举、文件字段和写入能力", "必要时先查询关联数据或调用 OnSelectFuzzy", "调用 run_* 完成业务操作", "失败时区分参数/数据问题和应用 bug"},
 				[]string{"业务操作完成并返回结果", "或失败原因已分类并交接维护角色"},
 				[]LifecycleHook{
-					hook("app_operator.before_enter_capabilities", "before_enter", "进入操作角色前生成当前应用能力快照。", []string{"execute_directory", "registered functions"}, []string{"available_capabilities", "operation_schema_summary"}),
+					hook("app_operator.before_enter_capabilities", "before_enter", "进入操作角色前生成当前应用能力快照。", []string{"execute_directory", "registered functions"}, []string{"available_capabilities", "operation_schema_summary", "app_capabilities", "executed_hooks"}),
 					hook("app_operator.after_run", "after_tool", "业务运行后判断是否需要继续查询、补参数或交接维护。", []string{"run_* result"}, []string{"operation_result", "failure_classification"}),
 				},
 			),

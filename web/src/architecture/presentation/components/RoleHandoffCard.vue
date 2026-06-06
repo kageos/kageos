@@ -69,6 +69,29 @@
         </ul>
       </section>
     </div>
+
+    <div v-if="hasAppCapabilities" class="role-handoff-grid role-handoff-capabilities">
+      <section class="role-handoff-section role-handoff-section--wide">
+        <div class="role-handoff-label">当前应用能力</div>
+        <div v-if="appCapabilitySummary" class="role-handoff-capability-summary">{{ appCapabilitySummary }}</div>
+        <ul v-if="appCapabilityGuidance.length" class="role-handoff-capability-guidance">
+          <li v-for="(item, idx) in appCapabilityGuidance" :key="`cap-guide-${idx}`">{{ item }}</li>
+        </ul>
+        <ul v-if="appCapabilityFunctions.length" class="role-handoff-capability-functions">
+          <li v-for="fn in appCapabilityFunctions" :key="fn.fullCodePath || fn.name">
+            <div class="role-handoff-capability-name">
+              <span>{{ fn.title }}</span>
+              <code v-if="fn.fullCodePath">{{ fn.fullCodePath }}</code>
+            </div>
+            <div class="role-handoff-capability-meta">{{ fn.meta }}</div>
+            <div v-if="fn.schemaSummary.length" class="role-handoff-capability-schema">
+              {{ fn.schemaSummary.join(' / ') }}
+            </div>
+          </li>
+        </ul>
+        <span v-if="!appCapabilityFunctions.length && !appCapabilityGuidance.length" class="role-handoff-empty">未提供</span>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -92,6 +115,14 @@ interface RuntimeHook {
   produces?: unknown
 }
 
+interface CapabilityFunctionView {
+  title: string
+  name: string
+  fullCodePath: string
+  meta: string
+  schemaSummary: string[]
+}
+
 const props = defineProps<{
   toolCall: WorkspaceChatToolCallSummary
 }>()
@@ -100,6 +131,7 @@ const args = computed<UnknownRecord>(() => parseJSONRecord(props.toolCall.argume
 const resultData = computed<UnknownRecord>(() => asRecord(props.toolCall.result_data))
 const resultHandoff = computed<HandoffBlock>(() => asRecord(resultData.value.handoff) as HandoffBlock)
 const runtimeContract = computed<UnknownRecord>(() => asRecord(resultData.value.runtime_contract))
+const appCapabilities = computed<UnknownRecord>(() => asRecord(resultData.value.app_capabilities))
 
 const executeDirectory = computed(() =>
   firstString(
@@ -140,6 +172,12 @@ const runtimeHooks = computed(() => normalizeHooks(runtimeContract.value.hooks))
 const hasRuntimeContract = computed(() =>
   runtimeSop.value.length > 0 || runtimeDoneWhen.value.length > 0 || runtimeHooks.value.length > 0
 )
+const appCapabilityGuidance = computed(() => firstList(appCapabilities.value.guidance))
+const appCapabilityFunctions = computed(() => normalizeCapabilityFunctions(appCapabilities.value.functions))
+const appCapabilitySummary = computed(() => formatAppCapabilitySummary(appCapabilities.value))
+const hasAppCapabilities = computed(() =>
+  Boolean(appCapabilitySummary.value || appCapabilityGuidance.value.length > 0 || appCapabilityFunctions.value.length > 0)
+)
 
 const metaBadges = computed(() => {
   const badges: string[] = []
@@ -151,6 +189,8 @@ const metaBadges = computed(() => {
     badges.push('完整产物已引用')
   }
   if (hasRuntimeContract.value) badges.push('角色契约已加载')
+  const capabilityTotal = numberValue(appCapabilities.value.total_functions)
+  if (hasAppCapabilities.value && capabilityTotal >= 0) badges.push(`能力快照 ${capabilityTotal} 个函数`)
   return badges
 })
 
@@ -230,8 +270,69 @@ function normalizeHooks(value: unknown): string[] {
   return uniqueStrings(out)
 }
 
+function normalizeCapabilityFunctions(value: unknown): CapabilityFunctionView[] {
+  if (!Array.isArray(value)) return []
+  const out: CapabilityFunctionView[] = []
+  for (const item of value) {
+    const record = asRecord(item)
+    const type = firstString(record.type)
+    const name = firstString(record.name, record.code)
+    const fullCodePath = firstString(record.full_code_path)
+    const capabilities = firstString(record.capabilities)
+    const runTools = firstList(record.run_tools)
+    const schemaSummary = firstList(record.schema_summary).slice(0, 4)
+    const title = [type, name].filter(Boolean).join(' · ')
+    const meta = [
+      capabilities ? `能力：${capabilities}` : '',
+      runTools.length ? `工具：${runTools.join('、')}` : '',
+    ].filter(Boolean).join('；')
+    out.push({
+      title: title || fullCodePath || '未命名函数',
+      name,
+      fullCodePath,
+      meta,
+      schemaSummary,
+    })
+  }
+  return out
+}
+
+function formatAppCapabilitySummary(value: UnknownRecord): string {
+  const status = firstString(value.status)
+  if (!status) return ''
+  const directory = firstString(value.execute_directory)
+  const total = numberValue(value.total_functions)
+  const displayed = numberValue(value.displayed_functions)
+  const counts = asRecord(value.counts)
+  const tables = numberValue(counts.tables)
+  const forms = numberValue(counts.forms)
+  const charts = numberValue(counts.charts)
+  const error = firstString(value.error)
+  if (status === 'error') {
+    return `获取失败${directory ? ` · ${directory}` : ''}${error ? ` · ${error}` : ''}`
+  }
+  if (status === 'empty') {
+    return `未发现已注册函数${directory ? ` · ${directory}` : ''}`
+  }
+  if (status === 'skipped') {
+    return `未生成能力快照${directory ? ` · ${directory}` : ''}`
+  }
+  const countText = total >= 0 ? `${total} 个函数` : '函数数量未知'
+  const displayText = displayed >= 0 ? `展示 ${displayed} 个` : ''
+  const typeText = [tables >= 0 ? `Table ${tables}` : '', forms >= 0 ? `Form ${forms}` : '', charts >= 0 ? `Chart ${charts}` : '']
+    .filter(Boolean)
+    .join(' / ')
+  return [directory, countText, typeText, displayText].filter(Boolean).join(' · ')
+}
+
 function arrayLength(value: unknown): number {
   return Array.isArray(value) ? value.length : 0
+}
+
+function numberValue(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
+  return -1
 }
 
 function uniqueStrings(items: string[]): string[] {
@@ -313,6 +414,10 @@ function uniqueStrings(items: string[]): string[] {
   margin-top: 10px;
 }
 
+.role-handoff-capabilities {
+  margin-top: 10px;
+}
+
 .role-handoff-section {
   min-width: 0;
   padding: 8px;
@@ -362,6 +467,48 @@ code {
 .role-handoff-empty {
   color: var(--el-text-color-placeholder);
   font-size: 12px;
+}
+
+.role-handoff-capability-summary {
+  margin-bottom: 6px;
+  color: var(--el-text-color-primary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.role-handoff-capability-guidance {
+  margin-bottom: 8px;
+}
+
+.role-handoff-capability-functions {
+  padding-left: 0;
+  list-style: none;
+}
+
+.role-handoff-capability-functions > li {
+  padding: 6px 0;
+  border-top: 1px solid var(--el-border-color-extra-light);
+}
+
+.role-handoff-capability-functions > li:first-child {
+  border-top: 0;
+}
+
+.role-handoff-capability-name {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+  font-weight: 600;
+}
+
+.role-handoff-capability-meta,
+.role-handoff-capability-schema {
+  margin-top: 3px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
 }
 
 @media (max-width: 720px) {

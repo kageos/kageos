@@ -28,26 +28,28 @@ type changeRoleArgs struct {
 }
 
 type changeRoleData struct {
-	PreviousRole     string              `json:"previous_role,omitempty" schema_desc:"切换前身份"`
-	PreviousRoleName string              `json:"previous_role_name,omitempty" schema_desc:"切换前展示名称"`
-	RoleID           string              `json:"role_id" schema_desc:"当前角色 ID" schema_required:"true"`
-	DisplayName      string              `json:"display_name" schema_desc:"当前角色展示名称" schema_required:"true"`
-	CurrentRole      string              `json:"current_role" schema_desc:"当前身份" schema_required:"true"`
-	Switched         bool                `json:"switched" schema_desc:"是否发生身份切换" schema_required:"true"`
-	Reason           string              `json:"reason" schema_desc:"选择或切换原因" schema_required:"true"`
-	ExecuteDirectory string              `json:"execute_directory" schema_desc:"下一身份执行目录" schema_required:"true"`
-	Directory        string              `json:"directory,omitempty" schema_desc:"工作目录"`
-	Handoff          roleHandoffData     `json:"handoff" schema_desc:"标准四块角色交接信息" schema_required:"true"`
-	ContextPolicy    string              `json:"context_policy" schema_desc:"上下文携带策略" schema_required:"true"`
-	ReferenceDocs    []string            `json:"reference_docs,omitempty" schema_desc:"建议优先读取的参考文档"`
-	ReferenceFiles   []string            `json:"reference_files,omitempty" schema_desc:"建议优先查看的参考文件"`
-	RequiredDocs     []string            `json:"required_docs" schema_desc:"当前身份文档路径" schema_required:"true"`
-	LoadedDocs       []changeRoleDoc     `json:"loaded_docs" schema_desc:"已返回的文档正文" schema_required:"true"`
-	MissingDocs      []string            `json:"missing_docs,omitempty" schema_desc:"未能读取到正文的文档路径"`
-	AllowedNextTools []string            `json:"allowed_next_tools,omitempty" schema_desc:"当前身份常用下一步工具"`
-	RuntimeContract  roleRuntimeContract `json:"runtime_contract" schema_desc:"当前角色运行契约：进入/禁止条件、SOP、完成标准、交接字段和生命周期 Hook" schema_required:"true"`
-	NextAction       string              `json:"next_action" schema_desc:"当前身份下一步动作" schema_required:"true"`
-	NextRoles        []nextWorkspaceRole `json:"next_roles,omitempty" schema_desc:"完成后的推荐后续角色"`
+	PreviousRole     string                          `json:"previous_role,omitempty" schema_desc:"切换前身份"`
+	PreviousRoleName string                          `json:"previous_role_name,omitempty" schema_desc:"切换前展示名称"`
+	RoleID           string                          `json:"role_id" schema_desc:"当前角色 ID" schema_required:"true"`
+	DisplayName      string                          `json:"display_name" schema_desc:"当前角色展示名称" schema_required:"true"`
+	CurrentRole      string                          `json:"current_role" schema_desc:"当前身份" schema_required:"true"`
+	Switched         bool                            `json:"switched" schema_desc:"是否发生身份切换" schema_required:"true"`
+	Reason           string                          `json:"reason" schema_desc:"选择或切换原因" schema_required:"true"`
+	ExecuteDirectory string                          `json:"execute_directory" schema_desc:"下一身份执行目录" schema_required:"true"`
+	Directory        string                          `json:"directory,omitempty" schema_desc:"工作目录"`
+	Handoff          roleHandoffData                 `json:"handoff" schema_desc:"标准四块角色交接信息" schema_required:"true"`
+	ContextPolicy    string                          `json:"context_policy" schema_desc:"上下文携带策略" schema_required:"true"`
+	ReferenceDocs    []string                        `json:"reference_docs,omitempty" schema_desc:"建议优先读取的参考文档"`
+	ReferenceFiles   []string                        `json:"reference_files,omitempty" schema_desc:"建议优先查看的参考文件"`
+	RequiredDocs     []string                        `json:"required_docs" schema_desc:"当前身份文档路径" schema_required:"true"`
+	LoadedDocs       []changeRoleDoc                 `json:"loaded_docs" schema_desc:"已返回的文档正文" schema_required:"true"`
+	MissingDocs      []string                        `json:"missing_docs,omitempty" schema_desc:"未能读取到正文的文档路径"`
+	AllowedNextTools []string                        `json:"allowed_next_tools,omitempty" schema_desc:"当前身份常用下一步工具"`
+	RuntimeContract  roleRuntimeContract             `json:"runtime_contract" schema_desc:"当前角色运行契约：进入/禁止条件、SOP、完成标准、交接字段和生命周期 Hook" schema_required:"true"`
+	AppCapabilities  *workspaceAppCapabilitySnapshot `json:"app_capabilities,omitempty" schema_desc:"当前应用操作能力快照，仅 app_operator before_enter 生成"`
+	ExecutedHooks    []workspaceExecutedRoleHook     `json:"executed_hooks,omitempty" schema_desc:"本次 change_role 已执行的角色 Hook"`
+	NextAction       string                          `json:"next_action" schema_desc:"当前身份下一步动作" schema_required:"true"`
+	NextRoles        []nextWorkspaceRole             `json:"next_roles,omitempty" schema_desc:"完成后的推荐后续角色"`
 }
 
 type changeRoleDoc struct {
@@ -119,6 +121,14 @@ func buildChangeRole(ctx context.Context, args changeRoleArgs, fallbackDirectory
 	handoff := buildRoleHandoff(args, firstNonEmptyString(fallbackDirectory...))
 	handoff = normalizeRoleHandoffForTargetRole(target, handoff, firstNonEmptyString(fallbackDirectory...))
 	handoff = appendRoleHandoffAdvice(target, handoff)
+	hookOutput := runWorkspaceRoleBeforeEnterHooks(ctx, workspaceRoleHookInput{
+		Stage:            workspaceRoleHookStageBeforeEnter,
+		SourceRole:       previous,
+		TargetRole:       target,
+		FullCodePath:     firstNonEmptyString(fallbackDirectory...),
+		ExecuteDirectory: handoff.ExecuteDirectory,
+	})
+	handoff = appendRoleHookHandoffKeyInformation(handoff, hookOutput)
 	contextSummary := buildRoleHandoffSummary(handoff, args.TaskSummary)
 	contextPolicy := buildRoleContextPolicy(switched, args.ResetContext, contextSummary, referenceDocs, referenceFiles, handoff)
 
@@ -141,6 +151,8 @@ func buildChangeRole(ctx context.Context, args changeRoleArgs, fallbackDirectory
 		MissingDocs:      missingDocs,
 		AllowedNextTools: workspaceRoleAllowedTools(target),
 		RuntimeContract:  roleSpec.Runtime,
+		AppCapabilities:  hookOutput.AppCapabilities,
+		ExecutedHooks:    hookOutput.ExecutedHooks,
 		NextAction:       roleSpec.Action,
 		NextRoles:        roleSpec.NextRoles,
 	}
@@ -178,6 +190,15 @@ func appendRoleHandoffAdvice(targetRole string, handoff roleHandoffData) roleHan
 		return handoff
 	}
 	handoff.KeyInformation = appendUniqueRoleHandoffStrings(advice, handoff.KeyInformation...)
+	handoff.KeyInformation = trimRoleHandoffStrings(handoff.KeyInformation, 16)
+	return handoff
+}
+
+func appendRoleHookHandoffKeyInformation(handoff roleHandoffData, hookOutput workspaceRoleHookOutput) roleHandoffData {
+	if len(hookOutput.HandoffKeyInformation) == 0 {
+		return handoff
+	}
+	handoff.KeyInformation = appendUniqueRoleHandoffStrings(handoff.KeyInformation, hookOutput.HandoffKeyInformation...)
 	handoff.KeyInformation = trimRoleHandoffStrings(handoff.KeyInformation, 16)
 	return handoff
 }

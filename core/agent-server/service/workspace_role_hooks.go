@@ -1,15 +1,24 @@
 package service
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
 	"github.com/kageos/kageos/core/agent-server/model"
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/functionschema"
 )
 
 const (
 	workspaceRoleHookStageBeforeHandoff        = "before_handoff"
+	workspaceRoleHookStageBeforeEnter          = "before_enter"
 	workspaceRoleHookProductManagerToDeveloper = "product_manager.to_app_developer"
+	workspaceRoleHookAppOperatorCapabilities   = "app_operator.before_enter_capabilities"
 )
+
+var workspaceRoleHookSearchFunctions = apicall.SearchFunctions
 
 type workspaceRoleHookInput struct {
 	Stage              string
@@ -25,8 +34,10 @@ type workspaceRoleHookInput struct {
 }
 
 type workspaceRoleHookOutput struct {
-	PRDExecutionMarkdown string
-	ExecutedHooks        []workspaceExecutedRoleHook
+	PRDExecutionMarkdown  string
+	AppCapabilities       *workspaceAppCapabilitySnapshot
+	ExecutedHooks         []workspaceExecutedRoleHook
+	HandoffKeyInformation []string
 }
 
 type workspaceExecutedRoleHook struct {
@@ -37,6 +48,38 @@ type workspaceExecutedRoleHook struct {
 	Status     string   `json:"status"`
 	Produced   []string `json:"produced,omitempty"`
 	Note       string   `json:"note,omitempty"`
+}
+
+type workspaceAppCapabilitySnapshot struct {
+	Status             string                           `json:"status"`
+	ExecuteDirectory   string                           `json:"execute_directory,omitempty"`
+	Scope              string                           `json:"scope,omitempty"`
+	User               string                           `json:"user,omitempty"`
+	App                string                           `json:"app,omitempty"`
+	Keyword            string                           `json:"keyword,omitempty"`
+	TotalFunctions     int                              `json:"total_functions"`
+	DisplayedFunctions int                              `json:"displayed_functions"`
+	Counts             workspaceAppCapabilityCounts     `json:"counts"`
+	Functions          []workspaceAppFunctionCapability `json:"functions,omitempty"`
+	Guidance           []string                         `json:"guidance,omitempty"`
+	Error              string                           `json:"error,omitempty"`
+}
+
+type workspaceAppCapabilityCounts struct {
+	Tables int `json:"tables"`
+	Forms  int `json:"forms"`
+	Charts int `json:"charts"`
+}
+
+type workspaceAppFunctionCapability struct {
+	Name          string   `json:"name,omitempty"`
+	Code          string   `json:"code,omitempty"`
+	FullCodePath  string   `json:"full_code_path,omitempty"`
+	Type          string   `json:"type,omitempty"`
+	Capabilities  string   `json:"capabilities,omitempty"`
+	RunTools      []string `json:"run_tools,omitempty"`
+	Description   string   `json:"description,omitempty"`
+	SchemaSummary []string `json:"schema_summary,omitempty"`
 }
 
 func runWorkspaceRoleHooks(input workspaceRoleHookInput) workspaceRoleHookOutput {
@@ -64,6 +107,25 @@ func runWorkspaceRoleHooks(input workspaceRoleHookInput) workspaceRoleHookOutput
 	return out
 }
 
+func runWorkspaceRoleBeforeEnterHooks(ctx context.Context, input workspaceRoleHookInput) workspaceRoleHookOutput {
+	out := workspaceRoleHookOutput{}
+	if shouldRunWorkspaceAppOperatorCapabilitiesHook(input) {
+		snapshot := buildWorkspaceAppOperatorCapabilitySnapshot(ctx, input)
+		out.AppCapabilities = snapshot
+		out.HandoffKeyInformation = workspaceAppCapabilityHandoffLines(snapshot)
+		out.ExecutedHooks = append(out.ExecutedHooks, workspaceExecutedRoleHook{
+			ID:         workspaceRoleHookAppOperatorCapabilities,
+			Stage:      workspaceRoleHookStageBeforeEnter,
+			SourceRole: normalizeWorkspaceRole(input.SourceRole),
+			TargetRole: WorkspaceRoleAppOperator,
+			Status:     firstNonEmptyString(snapshot.Status, "skipped"),
+			Produced:   []string{"available_capabilities", "operation_schema_summary"},
+			Note:       workspaceAppCapabilityHookNote(snapshot),
+		})
+	}
+	return out
+}
+
 func shouldRunWorkspacePRDToDeveloperHook(input workspaceRoleHookInput) bool {
 	if strings.TrimSpace(input.Stage) != workspaceRoleHookStageBeforeHandoff {
 		return false
@@ -79,4 +141,200 @@ func shouldRunWorkspacePRDToDeveloperHook(input workspaceRoleHookInput) bool {
 	}
 	sourceRole := normalizeWorkspaceRole(input.SourceRole)
 	return sourceRole == "" || sourceRole == WorkspaceRoleProductManager
+}
+
+func shouldRunWorkspaceAppOperatorCapabilitiesHook(input workspaceRoleHookInput) bool {
+	return strings.TrimSpace(input.Stage) == workspaceRoleHookStageBeforeEnter &&
+		normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleAppOperator
+}
+
+func buildWorkspaceAppOperatorCapabilitySnapshot(ctx context.Context, input workspaceRoleHookInput) *workspaceAppCapabilitySnapshot {
+	executeDirectory := normalizeWorkspacePath(input.ExecuteDirectory)
+	snapshot := &workspaceAppCapabilitySnapshot{
+		Status:           "skipped",
+		ExecuteDirectory: executeDirectory,
+	}
+	if executeDirectory == "" {
+		snapshot.Error = "execute_directory 为空，无法限定当前应用能力范围。"
+		snapshot.Guidance = []string{"重新调用 change_role 时必须传目标应用目录作为 execute_directory。"}
+		return snapshot
+	}
+
+	currentPath := firstNonEmptyString(input.FullCodePath, executeDirectory)
+	user, app, scope := resolveSearchScopeUserApp(searchScopeCurrentApp, "", "", currentPath, searchScopeVisible)
+	keyword := workspaceDirectorySearchKeyword(executeDirectory)
+	snapshot.Scope = scope
+	snapshot.User = user
+	snapshot.App = app
+	snapshot.Keyword = keyword
+
+	resp, err := workspaceRoleHookSearchFunctions(ctx, &dto.SearchFunctionsReq{
+		User:     user,
+		App:      app,
+		Keyword:  keyword,
+		Page:     1,
+		PageSize: 100,
+	})
+	if err != nil {
+		snapshot.Status = "error"
+		snapshot.Error = err.Error()
+		snapshot.Guidance = []string{
+			"能力快照获取失败；下一步先调用 search_tools，并且 directory 必须等于 change_role.execute_directory。",
+			"在拿到函数 schema 前，不要编造 full_code_path、字段名、枚举值或关联 ID。",
+		}
+		return snapshot
+	}
+	functions := []*dto.FunctionSearchResult{}
+	if resp != nil {
+		functions = resp.Functions
+	}
+	functions = filterSearchToolFunctionsByDirectory(functions, executeDirectory)
+	return buildWorkspaceAppCapabilitySnapshotFromFunctions(snapshot, functions, 12)
+}
+
+func buildWorkspaceAppCapabilitySnapshotFromFunctions(snapshot *workspaceAppCapabilitySnapshot, functions []*dto.FunctionSearchResult, limit int) *workspaceAppCapabilitySnapshot {
+	if snapshot == nil {
+		snapshot = &workspaceAppCapabilitySnapshot{}
+	}
+	if limit <= 0 {
+		limit = 12
+	}
+	snapshot.TotalFunctions = len(functions)
+	snapshot.Status = "ok"
+	if len(functions) == 0 {
+		snapshot.Status = "empty"
+		snapshot.Guidance = []string{
+			"当前 execute_directory 下未发现已注册函数；先用 read_dir/search_resources 确认目录是否选错。",
+			"如果目录确实没有函数，用户目标可能不是业务操作，需要重新判断是否进入产品或开发角色。",
+		}
+		return snapshot
+	}
+
+	for _, fn := range functions {
+		if fn == nil {
+			continue
+		}
+		switch fn.TemplateType {
+		case functionschema.TypeTable:
+			snapshot.Counts.Tables++
+		case functionschema.TypeForm:
+			snapshot.Counts.Forms++
+		case functionschema.TypeChart:
+			snapshot.Counts.Charts++
+		}
+		if len(snapshot.Functions) >= limit {
+			continue
+		}
+		snapshot.Functions = append(snapshot.Functions, workspaceAppFunctionCapabilityFromSearchResult(fn))
+	}
+	snapshot.DisplayedFunctions = len(snapshot.Functions)
+	snapshot.Guidance = []string{
+		"用户在当前目录下的新增、提交、查询、更新、删除、查看图表，优先解释为使用现有软件完成业务结果。",
+		"业务运行只能调用 execute_directory 或其子目录下函数；需要完整 schema 时继续 search_tools(directory=execute_directory, schema_output=both)。",
+		"写入前必须确认必填字段、枚举、文件字段和关联 ID；必要时先查询或调用 run_on_select_fuzzy。",
+	}
+	return snapshot
+}
+
+func workspaceAppFunctionCapabilityFromSearchResult(fn *dto.FunctionSearchResult) workspaceAppFunctionCapability {
+	summary := summarizeSearchToolSchema(fn.Schema)
+	if len(summary) > 6 {
+		summary = append(summary[:6], fmt.Sprintf("... 还有 %d 行字段摘要，完整 schema 用 search_tools(schema_output=both) 查看", len(summary)-6))
+	}
+	return workspaceAppFunctionCapability{
+		Name:          compactText(fn.Name, 80),
+		Code:          strings.TrimSpace(fn.Code),
+		FullCodePath:  strings.TrimSpace(fn.FullCodePath),
+		Type:          strings.TrimSpace(fn.TemplateType),
+		Capabilities:  formatSearchToolFunctionCapabilities(fn.TemplateType, fn.Callbacks),
+		RunTools:      workspaceAppRunToolsForFunction(fn),
+		Description:   compactText(fn.Description, 140),
+		SchemaSummary: trimRoleHandoffStrings(summary, 7),
+	}
+}
+
+func workspaceAppRunToolsForFunction(fn *dto.FunctionSearchResult) []string {
+	if fn == nil {
+		return nil
+	}
+	switch fn.TemplateType {
+	case functionschema.TypeForm:
+		return []string{"run_form_submit"}
+	case functionschema.TypeChart:
+		return []string{"run_chart_query"}
+	case functionschema.TypeTable:
+		tools := []string{"run_table_search"}
+		if hasSearchToolCallback(fn.Callbacks, "OnTableAddRow") {
+			tools = append(tools, "run_table_create")
+		}
+		if hasSearchToolCallback(fn.Callbacks, "OnTableUpdateRow") {
+			tools = append(tools, "run_table_update")
+		}
+		if hasSearchToolCallback(fn.Callbacks, "OnTableDeleteRows") {
+			tools = append(tools, "run_table_delete")
+		}
+		return tools
+	default:
+		return nil
+	}
+}
+
+func workspaceAppCapabilityHandoffLines(snapshot *workspaceAppCapabilitySnapshot) []string {
+	if snapshot == nil {
+		return nil
+	}
+	lines := []string{}
+	switch snapshot.Status {
+	case "ok":
+		lines = append(lines, fmt.Sprintf(
+			"当前应用能力快照：%s 下共 %d 个函数（Table %d / Form %d / Chart %d），已展示 %d 个；业务操作必须限定在这些函数或子目录函数内。",
+			firstNonEmptyString(snapshot.ExecuteDirectory, "未指定目录"),
+			snapshot.TotalFunctions,
+			snapshot.Counts.Tables,
+			snapshot.Counts.Forms,
+			snapshot.Counts.Charts,
+			snapshot.DisplayedFunctions,
+		))
+		for i, fn := range snapshot.Functions {
+			if i >= 8 {
+				break
+			}
+			lines = append(lines, compactText(fmt.Sprintf(
+				"%s %s：%s；能力=%s；运行工具=%s；字段摘要=%s",
+				firstNonEmptyString(fn.Type, "function"),
+				firstNonEmptyString(fn.Name, fn.Code),
+				fn.FullCodePath,
+				firstNonEmptyString(fn.Capabilities, "-"),
+				strings.Join(fn.RunTools, "、"),
+				firstNonEmptyString(strings.Join(fn.SchemaSummary, " / "), "需用 search_tools 查看"),
+			), 300))
+		}
+		if snapshot.TotalFunctions > 8 {
+			lines = append(lines, fmt.Sprintf("当前目录还有 %d 个函数未写入交接摘要；如需选择其他函数，继续用 search_tools(directory=change_role.execute_directory) 查询。", snapshot.TotalFunctions-8))
+		}
+		lines = append(lines, "需要完整 schema 时调用 search_tools(directory=change_role.execute_directory, schema_output=both)；不要测试或操作整个工作区。")
+	case "empty":
+		lines = append(lines, "当前应用能力快照：execute_directory 下未发现已注册函数；先确认目录是否选错，不要直接当作新建系统。")
+	case "error":
+		lines = append(lines, "当前应用能力快照获取失败："+compactText(snapshot.Error, 180)+"；下一步先用 search_tools(directory=change_role.execute_directory) 重新确认函数 schema。")
+	default:
+		lines = append(lines, "当前应用能力快照未生成；重新调用 change_role 时必须明确 execute_directory。")
+	}
+	return trimRoleHandoffStrings(lines, 12)
+}
+
+func workspaceAppCapabilityHookNote(snapshot *workspaceAppCapabilitySnapshot) string {
+	if snapshot == nil {
+		return "未生成能力快照。"
+	}
+	switch snapshot.Status {
+	case "ok":
+		return fmt.Sprintf("已生成当前应用能力快照：%d 个函数。", snapshot.TotalFunctions)
+	case "empty":
+		return "当前目录未发现已注册函数。"
+	case "error":
+		return "能力快照获取失败，已给出 search_tools 兜底建议。"
+	default:
+		return "能力快照被跳过。"
+	}
 }
