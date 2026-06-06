@@ -153,20 +153,21 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
 	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "tester")
+	artifact := []byte(`{
+		"kind":"agent_app_prd",
+		"project":{"name":"NPS 回访","code":"nps_followup","summary":"记录门店回访评分并查看趋势"},
+		"tables":[{"name":"满意度记录","fields":[{"name":"门店"},{"name":"评分"},{"name":"原因"}],"search_fields":[{"name":"创建开始时间"},{"name":"创建结束时间"},{"name":"门店"}],"handlers":[]}],
+		"forms":[{"name":"提交评分","target_table":"满意度记录","request_fields":[{"name":"门店"},{"name":"评分"},{"name":"原因"}]}],
+		"charts":[{"name":"NPS 趋势","source_table":"满意度记录","chart_type":"line","dimension":"日期","metrics":["平均评分"]}],
+		"rules":["记录表默认只读，不要补人工新增编辑删除"]
+	}`)
 	resp, err := svc.CreateWorkspaceHandoff(ctx, &dto.WorkspaceHandoffReq{
 		SourceSessionID: "source-session",
 		FullCodePath:    "/liubeiluo/demo",
 		TargetRole:      WorkspaceRoleAppDeveloper,
 		ArtifactKind:    "agent_app_prd",
-		Artifact: []byte(`{
-			"kind":"agent_app_prd",
-			"project":{"name":"NPS 回访","code":"nps_followup","summary":"记录门店回访评分并查看趋势"},
-			"tables":[{"name":"满意度记录","fields":[{"name":"门店"},{"name":"评分"},{"name":"原因"}],"search_fields":[{"name":"创建开始时间"},{"name":"创建结束时间"},{"name":"门店"}],"handlers":[]}],
-			"forms":[{"name":"提交评分","target_table":"满意度记录","request_fields":[{"name":"门店"},{"name":"评分"},{"name":"原因"}]}],
-			"charts":[{"name":"NPS 趋势","source_table":"满意度记录","chart_type":"line","dimension":"日期","metrics":["平均评分"]}],
-			"rules":["记录表默认只读，不要补人工新增编辑删除"]
-		}`),
-		Remark: "优先做列表",
+		Artifact:        artifact,
+		Remark:          "优先做列表",
 	})
 	if err != nil {
 		t.Fatalf("handoff: %v", err)
@@ -274,6 +275,117 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	}
 	if !strings.Contains(packet.HandoffContextJSON, "reference_files") || !strings.Contains(packet.HandoffContextJSON, "/liubeiluo/demo") {
 		t.Fatalf("handoff packet should preserve reference files: %#v", packet)
+	}
+
+	dup, err := svc.CreateWorkspaceHandoff(ctx, &dto.WorkspaceHandoffReq{
+		SourceSessionID: "source-session",
+		FullCodePath:    "/liubeiluo/demo",
+		TargetRole:      WorkspaceRoleAppDeveloper,
+		ArtifactKind:    "agent_app_prd",
+		Artifact:        artifact,
+		Remark:          "重复确认",
+	})
+	if err != nil {
+		t.Fatalf("duplicate handoff should return existing target: %v", err)
+	}
+	if dup.SessionID != resp.SessionID || dup.HandoffPacketID != resp.HandoffPacketID || dup.MessageID != resp.MessageID {
+		t.Fatalf("duplicate handoff should be idempotent, first=%#v dup=%#v", resp, dup)
+	}
+	var handoffCount int64
+	if err := db.Model(&model.WorkspaceHandoffPacket{}).Where("source_session_id = ?", "source-session").Count(&handoffCount).Error; err != nil {
+		t.Fatalf("count handoff packets: %v", err)
+	}
+	if handoffCount != 1 {
+		t.Fatalf("duplicate handoff should not create another packet, got %d", handoffCount)
+	}
+	var targetCount int64
+	if err := db.Model(&model.AgentChatSession{}).Where("parent_session_id = ?", "source-session").Count(&targetCount).Error; err != nil {
+		t.Fatalf("count target sessions: %v", err)
+	}
+	if targetCount != 1 {
+		t.Fatalf("duplicate handoff should not create another target session, got %d", targetCount)
+	}
+}
+
+func TestWorkspaceSessionAccessIsScopedToCurrentUser(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	for _, session := range []*model.AgentChatSession{
+		{
+			TreeID:        1,
+			FullCodePath:  "/system/x_world/vote",
+			Source:        SourceWorkspace,
+			SessionID:     "alice-session",
+			Title:         "Alice 会话",
+			ModeCode:      "dev",
+			Status:        model.ChatSessionStatusActive,
+			ContextPolicy: ContextPolicyFull,
+			User:          "alice",
+		},
+		{
+			TreeID:        1,
+			FullCodePath:  "/system/x_world/vote",
+			Source:        SourceWorkspace,
+			SessionID:     "bob-session",
+			Title:         "Bob 会话",
+			ModeCode:      "dev",
+			Status:        model.ChatSessionStatusGenerating,
+			ContextPolicy: ContextPolicyFull,
+			User:          "bob",
+		},
+	} {
+		if err := sessionRepo.Create(session); err != nil {
+			t.Fatalf("create session: %v", err)
+		}
+	}
+	if err := messageRepo.Create(&model.AgentChatMessage{
+		SessionID: "alice-session",
+		Role:      RoleUser,
+		Content:   "查询投票主题",
+		User:      "alice",
+	}); err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
+	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "alice")
+
+	sessions, total, err := svc.ListSessions(ctx, "/system/x_world/vote", 1, 20)
+	if err != nil {
+		t.Fatalf("list sessions: %v", err)
+	}
+	if total != 1 || len(sessions) != 1 || sessions[0].SessionID != "alice-session" {
+		t.Fatalf("list sessions should only return current user's sessions, total=%d sessions=%#v", total, sessions)
+	}
+	if _, err := svc.ListMessages(ctx, "alice-session"); err != nil {
+		t.Fatalf("list own messages: %v", err)
+	}
+	if _, err := svc.ListMessages(ctx, "bob-session"); err == nil || !strings.Contains(err.Error(), "不能操作其他用户的会话") {
+		t.Fatalf("list other user's messages should fail, got %v", err)
+	}
+	if err := svc.CancelSession(ctx, "bob-session"); err == nil || !strings.Contains(err.Error(), "不能操作其他用户的会话") {
+		t.Fatalf("cancel other user's session should fail, got %v", err)
+	}
+
+	marked, err := sessionRepo.TryMarkGenerating("alice-session", "alice", "dev")
+	if err != nil || !marked {
+		t.Fatalf("first TryMarkGenerating should succeed, marked=%v err=%v", marked, err)
+	}
+	marked, err = sessionRepo.TryMarkGenerating("alice-session", "alice", "dev")
+	if err != nil {
+		t.Fatalf("second TryMarkGenerating returned error: %v", err)
+	}
+	if marked {
+		t.Fatal("second TryMarkGenerating should not mark an already generating session")
 	}
 }
 

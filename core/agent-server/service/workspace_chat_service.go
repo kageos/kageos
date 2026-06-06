@@ -199,6 +199,9 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		if e != nil || session == nil {
 			return s.handleError(sendEvent, fmt.Sprintf("会话不存在: %s", req.SessionID), e)
 		}
+		if e := ensureWorkspaceSessionOwner(ctx, session); e != nil {
+			return s.handleError(sendEvent, e.Error(), e)
+		}
 		if sessionPath := strings.TrimSpace(session.FullCodePath); sessionPath != "" {
 			fullCodePath = sessionPath
 		}
@@ -240,8 +243,8 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	if session.ArchivedForModel {
 		return s.handleError(sendEvent, "该会话已归档为展示历史，不再进入模型上下文；请从新的阶段交接会话继续。", nil)
 	}
-	if session.ModeCode != modeCode {
-		session.ModeCode = modeCode
+	if session.Status == model.ChatSessionStatusGenerating {
+		return s.handleError(sendEvent, "该会话正在执行中，请等待当前任务完成，或先取消后再继续。", nil)
 	}
 	modeProvider := requestedModeProvider
 	if modeCode != requestedModeCode || modeProvider == nil {
@@ -266,11 +269,18 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	s.sseConnections.Store(sessionID, struct{}{})
 
 	// ⭐ 标记会话为 generating（后台执行中）
-	session.Status = model.ChatSessionStatusGenerating
-	session.UpdatedBy = user
-	if e := s.sessionRepo.Update(session); e != nil {
+	markedGenerating, e := s.sessionRepo.TryMarkGenerating(sessionID, user, modeCode)
+	if e != nil {
 		logger.Warnf(ctx, "[WorkspaceChatStream] 标记 generating 失败: %v", e)
+		s.sseConnections.Delete(sessionID)
+		return s.handleError(sendEvent, "标记会话执行中失败", e)
+	} else if !markedGenerating {
+		s.sseConnections.Delete(sessionID)
+		return s.handleError(sendEvent, "该会话正在执行中，请等待当前任务完成，或先取消后再继续。", nil)
 	}
+	session.Status = model.ChatSessionStatusGenerating
+	session.ModeCode = modeCode
+	session.UpdatedBy = user
 
 	// ⭐ 创建可取消的 context 并注册到 runningCancels，供 CancelSession 使用
 	runCtx, runCancel := context.WithCancel(ctx)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/contextx"
 )
+
+var errWorkspaceHandoffAlreadyProcessed = errors.New("workspace handoff already processed")
 
 // CreateWorkspaceHandoff freezes the source conversation for model context and
 // creates a clean target session that starts from one structured artifact.
@@ -74,12 +77,6 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 	handoffContextMessageJSON := formatWorkspaceHandoffContextJSON(workspaceHandoffContextForMessage(handoffContext))
 	executeDirectory := firstNonEmptyString(handoffContext.ExecuteDirectory, fullCodePath)
 	targetFullCodePath := workspaceHandoffTargetSessionFullCodePath(fullCodePath, executeDirectory, targetRole, artifactKind)
-
-	source.ArchivedForModel = true
-	source.ContextPolicy = ContextPolicyDisplayOnly
-	source.ArchiveReason = fmt.Sprintf("已交接到%s，会话仅保留展示历史", workspaceRoleDisplayName(targetRole))
-	source.Status = model.ChatSessionStatusDone
-	source.UpdatedBy = user
 
 	targetSessionID := uuid.New().String()
 	displayContent := strings.TrimSpace(req.DisplayContent)
@@ -150,9 +147,26 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 	}
 	handoffPacket.CreatedBy = user
 	handoffPacket.UpdatedBy = user
+	var existingResp *dto.WorkspaceHandoffResp
 	if err := s.sessionRepo.TransactionWithMessagesAndHandoffPackets(func(sessionTx *repository.ChatSessionRepository, messageTx *repository.ChatMessageRepository, handoffTx *repository.WorkspaceHandoffPacketRepository) error {
-		if err := sessionTx.Update(source); err != nil {
+		if packet, err := handoffTx.FindLatestBySourceAndTarget(source.SessionID, artifactKind, targetRole, target.User); err != nil {
+			return fmt.Errorf("查询已有交接包失败: %w", err)
+		} else if packet != nil {
+			existingResp = buildExistingWorkspaceHandoffResp(packet, sessionTx, messageTx)
+			return nil
+		}
+		archived, err := sessionTx.ArchiveForModelIfActive(source.SessionID, workspaceRoleDisplayName(targetRole), user)
+		if err != nil {
 			return fmt.Errorf("归档来源会话失败: %w", err)
+		}
+		if !archived {
+			if packet, err := handoffTx.FindLatestBySourceAndTarget(source.SessionID, artifactKind, targetRole, target.User); err != nil {
+				return fmt.Errorf("查询已有交接包失败: %w", err)
+			} else if packet != nil {
+				existingResp = buildExistingWorkspaceHandoffResp(packet, sessionTx, messageTx)
+				return nil
+			}
+			return errWorkspaceHandoffAlreadyProcessed
 		}
 		if err := sessionTx.Create(target); err != nil {
 			return fmt.Errorf("创建交接会话失败: %w", err)
@@ -166,7 +180,13 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 		}
 		return nil
 	}); err != nil {
+		if errors.Is(err, errWorkspaceHandoffAlreadyProcessed) {
+			return nil, fmt.Errorf("该阶段交接已处理，请刷新会话列表后从新的阶段会话继续")
+		}
 		return nil, err
+	}
+	if existingResp != nil {
+		return existingResp, nil
 	}
 
 	return &dto.WorkspaceHandoffResp{
@@ -181,6 +201,34 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 		DisplayContent:  displayContent,
 		HandoffContext:  handoffContextJSON,
 	}, nil
+}
+
+func buildExistingWorkspaceHandoffResp(packet *model.WorkspaceHandoffPacket, sessionRepo *repository.ChatSessionRepository, messageRepo *repository.ChatMessageRepository) *dto.WorkspaceHandoffResp {
+	if packet == nil {
+		return nil
+	}
+	resp := &dto.WorkspaceHandoffResp{
+		SessionID:       packet.TargetSessionID,
+		SourceSessionID: packet.SourceSessionID,
+		TargetRole:      packet.TargetRole,
+		ArtifactKind:    packet.ArtifactKind,
+		ContextPolicy:   packet.ContextPolicy,
+		HandoffPacketID: packet.ID,
+		MessageID:       packet.InitialMessageID,
+		HandoffContext:  packet.HandoffContextJSON,
+	}
+	if sessionRepo != nil {
+		if target, err := sessionRepo.GetBySessionID(packet.TargetSessionID); err == nil && target != nil {
+			resp.DisplayContent = target.Title
+		}
+	}
+	if messageRepo != nil && packet.InitialMessageID > 0 {
+		if msg, err := messageRepo.GetByID(packet.InitialMessageID); err == nil && msg != nil {
+			resp.Content = msg.Content
+			resp.DisplayContent = firstNonEmptyString(msg.DisplayContent, resp.DisplayContent)
+		}
+	}
+	return resp
 }
 
 type workspaceHandoffContentInput struct {
