@@ -187,7 +187,7 @@ func (seed normalizedLLMSeed) toModel() *model.LLMConfig {
 	cfg := &model.LLMConfig{
 		Code:        seed.Code,
 		Name:        seed.Name,
-		Provider:    "openai",
+		Provider:    model.LLMProviderOpenAI,
 		Model:       seed.Model,
 		APIKey:      seed.APIKey,
 		APIBase:     seed.APIBase,
@@ -205,7 +205,7 @@ func (seed normalizedLLMSeed) toModel() *model.LLMConfig {
 func applyLLMSeedToModel(cfg *model.LLMConfig, seed normalizedLLMSeed, apiKeySpecified bool) {
 	cfg.Code = seed.Code
 	cfg.Name = seed.Name
-	cfg.Provider = "openai"
+	cfg.Provider = model.LLMProviderOpenAI
 	cfg.Model = seed.Model
 	if apiKeySpecified && seed.APIKey != "" {
 		cfg.APIKey = seed.APIKey

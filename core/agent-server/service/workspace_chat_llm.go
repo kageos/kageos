@@ -154,15 +154,32 @@ func normalizeWorkspaceModeCode(code string) string {
 }
 
 func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, fullCodePath, directoryName string, workspaceCtx *dto.GetWorkspaceContextResp, modeProvider prompt.WorkspaceModePromptProvider, fallbackToolNames []string, fallbackSystemPrompt string) ([]llms.Message, []llms.ToolDef, error) {
+	msgs, tools, _, err := s.buildLLMMessagesWithPlan(ctx, sessionID, fullCodePath, directoryName, workspaceCtx, modeProvider, fallbackToolNames, fallbackSystemPrompt, 0)
+	return msgs, tools, err
+}
+
+func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, sessionID, fullCodePath, directoryName string, workspaceCtx *dto.GetWorkspaceContextResp, modeProvider prompt.WorkspaceModePromptProvider, fallbackToolNames []string, fallbackSystemPrompt string, round int) ([]llms.Message, []llms.ToolDef, *dto.WorkspaceModelContextPlan, error) {
 	list, err := s.messageRepo.ListBySessionID(sessionID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
+	allMessages := append([]*model.AgentChatMessage(nil), list...)
+	var session *model.AgentChatSession
+	contextPolicy := ContextPolicyFull
+	parentSessionID := ""
+	modelContextAnchorMessageID := int64(0)
 	if s.sessionRepo != nil {
-		if session, err := s.sessionRepo.GetBySessionID(sessionID); err == nil && session != nil && session.ModelContextAnchorMessageID > 0 {
-			list = filterWorkspaceMessagesAfterAnchor(list, session.ModelContextAnchorMessageID)
+		if gotSession, err := s.sessionRepo.GetBySessionID(sessionID); err == nil && gotSession != nil {
+			session = gotSession
+			contextPolicy = normalizeWorkspaceModelContextPolicy(session.ContextPolicy)
+			parentSessionID = strings.TrimSpace(session.ParentSessionID)
+			modelContextAnchorMessageID = session.ModelContextAnchorMessageID
+			if session.ModelContextAnchorMessageID > 0 {
+				list = filterWorkspaceMessagesAfterAnchor(list, session.ModelContextAnchorMessageID)
+			}
 		}
 	}
+	excludedByAnchor := countWorkspaceMessagesAtOrBeforeAnchor(allMessages, modelContextAnchorMessageID)
 	var toolNames []string
 	var systemPromptFragment string
 	if modeProvider != nil {
@@ -171,8 +188,12 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 		systemPromptFragment = fallbackSystemPrompt
 	}
 	toolNames = workspaceToolNamesForMode(modeProvider, fallbackToolNames)
-	toolsDesc, _ := s.toolReg.ListTools(ctx, toolNames)
+	var toolsDesc []dto.ToolDef
+	if s.toolReg != nil {
+		toolsDesc, _ = s.toolReg.ListTools(ctx, toolNames)
+	}
 	llmTools := convertToLLMTools(toolsDesc)
+	llmToolNames := toolNamesFromWorkspaceToolDefs(toolsDesc)
 
 	// 环境数据与 env 块统一由 prompt 包构建
 	now := time.Now()
@@ -202,14 +223,19 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	}
 
 	msgs := []llms.Message{{Role: "system", Content: system}}
+	includedMessages := make([]*model.AgentChatMessage, 0, len(list))
+	excludedDisplayOnly := make([]*model.AgentChatMessage, 0)
+	excludedUnsupported := make([]*model.AgentChatMessage, 0)
 	for _, m := range list {
 		if normalizeMessageContextUsage(m.ContextUsage) == MessageContextDisplayOnly {
+			excludedDisplayOnly = append(excludedDisplayOnly, m)
 			continue
 		}
 		switch m.Role {
 		case RoleUser:
 			userContent := userContentForLLM(m.Content, m.Files)
 			msgs = append(msgs, llms.Message{Role: RoleUser, Content: userContent})
+			includedMessages = append(includedMessages, m)
 		case RoleAssistant:
 			// 检查是否有 tool_calls（从 ToolCalls JSON 字段解析）
 			msg := llms.Message{Role: RoleAssistant, Content: m.Content}
@@ -221,6 +247,7 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 				}
 			}
 			msgs = append(msgs, msg)
+			includedMessages = append(includedMessages, m)
 		case RoleTool:
 			// 使用标准的 tool 角色消息
 			msgs = append(msgs, llms.Message{
@@ -228,9 +255,34 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 				ToolCallID: m.ToolCallID,
 				Content:    m.Content,
 			})
+			includedMessages = append(includedMessages, m)
+		default:
+			excludedUnsupported = append(excludedUnsupported, m)
 		}
 	}
-	return msgs, llmTools, nil
+	plan := s.buildWorkspaceModelContextPlan(ctx, workspaceModelContextPlanInput{
+		SessionID:                   sessionID,
+		Round:                       round,
+		FullCodePath:                fullCodePath,
+		DirectoryName:               directoryName,
+		WorkspaceCtx:                workspaceCtx,
+		Session:                     session,
+		ModeProvider:                modeProvider,
+		ContextPolicy:               contextPolicy,
+		ParentSessionID:             parentSessionID,
+		ModelContextAnchorMessageID: modelContextAnchorMessageID,
+		AllMessages:                 allMessages,
+		ScopedMessages:              list,
+		IncludedMessages:            includedMessages,
+		ExcludedDisplayOnly:         excludedDisplayOnly,
+		ExcludedUnsupported:         excludedUnsupported,
+		ExcludedByAnchor:            excludedByAnchor,
+		RequestedToolNames:          toolNames,
+		LLMToolNames:                llmToolNames,
+		LLMMessageCount:             len(msgs),
+		LLMToolCount:                len(llmTools),
+	})
+	return msgs, llmTools, plan, nil
 }
 
 func workspaceDynamicTimeHint(data *prompt.WorkspaceEnvData) string {

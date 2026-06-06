@@ -184,19 +184,21 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 				info.LLMUsage = &usage
 			}
 		}
+		if msg.ModelContextPlan != nil && *msg.ModelContextPlan != "" {
+			var plan dto.WorkspaceModelContextPlan
+			if err := json.Unmarshal([]byte(*msg.ModelContextPlan), &plan); err == nil {
+				info.ModelContextPlan = &plan
+			}
+		}
 		if msg.ToolCalls != nil && *msg.ToolCalls != "" {
 			// 解析 tool_calls JSON
 			var toolCalls []llms.ToolCall
 			if err := json.Unmarshal([]byte(*msg.ToolCalls), &toolCalls); err == nil {
 				// 转换为前端需要的格式，包含完整信息
 				for i, tc := range toolCalls {
-					index := i
-					if tc.Index != nil {
-						index = *tc.Index
-					}
 					toolCallSummary := dto.WorkspaceChatToolCallSummary{
 						ID:        tc.ID,
-						Index:     index,
+						Index:     i,
 						Round:     0,
 						Name:      tc.Function.Name,
 						Arguments: tc.Function.Arguments, // 包含参数 JSON 字符串

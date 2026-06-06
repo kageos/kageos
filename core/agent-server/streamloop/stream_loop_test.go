@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/llms"
 )
 
@@ -26,8 +27,8 @@ func TestAppendToolCallArgsIgnoresDeltaWhenCurrentIsValidJSON(t *testing.T) {
 func TestMergeToolCallsUsesOpenAIStreamIndex(t *testing.T) {
 	idx0 := 0
 	idx1 := 1
-	makeCall := func(index *int, id, name, args string) llms.ToolCall {
-		tc := llms.ToolCall{ID: id, Type: "function", Index: index}
+	makeCall := func(index *int, id, name, args string) llms.ToolCallDelta {
+		tc := llms.ToolCallDelta{ID: id, Type: "function", Index: index}
 		tc.Function.Name = name
 		tc.Function.Arguments = args
 		return tc
@@ -35,11 +36,11 @@ func TestMergeToolCallsUsesOpenAIStreamIndex(t *testing.T) {
 
 	var all []llms.ToolCall
 	indexByID := map[string]int{}
-	all, indexByID = mergeToolCalls([]llms.ToolCall{
+	all, indexByID = mergeToolCallDeltas([]llms.ToolCallDelta{
 		makeCall(&idx0, "call_a", "first_tool", `{"a":`),
 		makeCall(&idx1, "call_b", "second_tool", `{"b":`),
 	}, all, indexByID)
-	all, indexByID = mergeToolCalls([]llms.ToolCall{
+	all, indexByID = mergeToolCallDeltas([]llms.ToolCallDelta{
 		makeCall(&idx0, "", "", `1}`),
 		makeCall(&idx1, "", "", `2}`),
 	}, all, indexByID)
@@ -60,30 +61,30 @@ func TestMergeToolCallsUsesOpenAIStreamIndex(t *testing.T) {
 
 func TestProcessStreamChunksEmitsStableToolCallIdentity(t *testing.T) {
 	idx0 := 0
-	makeCall := func(index *int, id, name, args string) llms.ToolCall {
-		tc := llms.ToolCall{ID: id, Type: "function", Index: index}
+	makeCall := func(index *int, id, name, args string) llms.ToolCallDelta {
+		tc := llms.ToolCallDelta{ID: id, Type: "function", Index: index}
 		tc.Function.Name = name
 		tc.Function.Arguments = args
 		return tc
 	}
 
 	stream := make(chan *llms.StreamChunk, 2)
-	stream <- &llms.StreamChunk{ToolCalls: []llms.ToolCall{
+	stream <- &llms.StreamChunk{ToolCallDeltas: []llms.ToolCallDelta{
 		makeCall(&idx0, "", "run_python", `{"code":"print(1)"}`),
 	}}
-	stream <- &llms.StreamChunk{ToolCalls: []llms.ToolCall{
+	stream <- &llms.StreamChunk{ToolCallDeltas: []llms.ToolCallDelta{
 		makeCall(&idx0, "call_1", "", ""),
 	}}
 	close(stream)
 
-	var events []toolCallsStreamDeltaData
+	var events []dto.WorkspaceStreamToolCallDeltaData
 	_, calls, _, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
 		if event != EventToolCallsStreamDelta {
 			return
 		}
-		payload, ok := data.(*toolCallsStreamDeltaData)
+		payload, ok := data.(*dto.WorkspaceStreamToolCallDeltaData)
 		if !ok {
-			t.Fatalf("delta payload type = %T, want *toolCallsStreamDeltaData", data)
+			t.Fatalf("delta payload type = %T, want *dto.WorkspaceStreamToolCallDeltaData", data)
 		}
 		events = append(events, *payload)
 	}, 3)
@@ -148,8 +149,8 @@ func TestProcessStreamChunksReturnsLLMErrorWithoutEmittingErrorEvent(t *testing.
 func TestMergeToolCallsPrefersKnownIDWhenStreamIndexIsWrong(t *testing.T) {
 	idx0 := 0
 	idx1 := 1
-	makeCall := func(index *int, id, name, args string) llms.ToolCall {
-		tc := llms.ToolCall{ID: id, Type: "function", Index: index}
+	makeCall := func(index *int, id, name, args string) llms.ToolCallDelta {
+		tc := llms.ToolCallDelta{ID: id, Type: "function", Index: index}
 		tc.Function.Name = name
 		tc.Function.Arguments = args
 		return tc
@@ -157,11 +158,11 @@ func TestMergeToolCallsPrefersKnownIDWhenStreamIndexIsWrong(t *testing.T) {
 
 	var all []llms.ToolCall
 	indexByID := map[string]int{}
-	all, indexByID = mergeToolCalls([]llms.ToolCall{
+	all, indexByID = mergeToolCallDeltas([]llms.ToolCallDelta{
 		makeCall(&idx0, "call_a", "first_tool", `{"a":`),
 		makeCall(&idx1, "call_b", "second_tool", `{"b":`),
 	}, all, indexByID)
-	all, indexByID = mergeToolCalls([]llms.ToolCall{
+	all, indexByID = mergeToolCallDeltas([]llms.ToolCallDelta{
 		makeCall(&idx0, "call_b", "", `2}`),
 	}, all, indexByID)
 
@@ -177,8 +178,8 @@ func TestMergeToolCallsPrefersKnownIDWhenStreamIndexIsWrong(t *testing.T) {
 }
 
 func TestMergeToolCallsDoesNotAppendAnonymousArgsWhenAmbiguous(t *testing.T) {
-	makeCall := func(id, name, args string) llms.ToolCall {
-		tc := llms.ToolCall{ID: id, Type: "function"}
+	makeCall := func(id, name, args string) llms.ToolCallDelta {
+		tc := llms.ToolCallDelta{ID: id, Type: "function"}
 		tc.Function.Name = name
 		tc.Function.Arguments = args
 		return tc
@@ -186,11 +187,11 @@ func TestMergeToolCallsDoesNotAppendAnonymousArgsWhenAmbiguous(t *testing.T) {
 
 	var all []llms.ToolCall
 	indexByID := map[string]int{}
-	all, indexByID = mergeToolCalls([]llms.ToolCall{
+	all, indexByID = mergeToolCallDeltas([]llms.ToolCallDelta{
 		makeCall("call_a", "first_tool", `{"a":`),
 		makeCall("call_b", "second_tool", `{"b":`),
 	}, all, indexByID)
-	all, _ = mergeToolCalls([]llms.ToolCall{
+	all, _ = mergeToolCallDeltas([]llms.ToolCallDelta{
 		makeCall("", "", `1}`),
 	}, all, indexByID)
 

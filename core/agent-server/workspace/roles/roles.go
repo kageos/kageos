@@ -42,11 +42,12 @@ type RuntimeContract struct {
 }
 
 type LifecycleHook struct {
-	ID       string   `json:"id" schema_desc:"Hook 标识" schema_required:"true"`
-	Stage    string   `json:"stage" schema_desc:"触发阶段，例如 before_enter/after_tool/before_handoff" schema_required:"true"`
-	Purpose  string   `json:"purpose" schema_desc:"Hook 目的" schema_required:"true"`
-	Reads    []string `json:"reads,omitempty" schema_desc:"Hook 读取的输入或资料"`
-	Produces []string `json:"produces,omitempty" schema_desc:"Hook 产出的上下文或产物"`
+	ID                   string   `json:"id" schema_desc:"Hook 标识" schema_required:"true"`
+	Stage                string   `json:"stage" schema_desc:"触发阶段，例如 before_enter/after_tool/before_handoff" schema_required:"true"`
+	Purpose              string   `json:"purpose" schema_desc:"Hook 目的" schema_required:"true"`
+	Reads                []string `json:"reads,omitempty" schema_desc:"Hook 读取的输入或资料"`
+	Produces             []string `json:"produces,omitempty" schema_desc:"Hook 产出的上下文或产物"`
+	ImplementationStatus string   `json:"implementation_status,omitempty" schema_desc:"Hook 运行时实现状态：implemented/planned"`
 }
 
 type NextRole struct {

@@ -53,6 +53,10 @@ func (s *WorkspaceChatService) executeToolCalls(
 			toolRes = blockedRes
 			st = ToolCallStatusError
 			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 角色工具门禁阻断 - RoleID: %s, ToolName: %s, Error: %s", i+1, len(allToolCalls), activeRoleID, tc.Function.Name, toolRes.Content)
+		} else if blockedRes, blocked := workspaceToolScopeGateResult(activeRoleID, tc.Function.Name, args, activeFullCodePath); blocked {
+			toolRes = blockedRes
+			st = ToolCallStatusError
+			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 工具目录门禁阻断 - RoleID: %s, ToolName: %s, ExecuteDirectory: %s, Error: %s", i+1, len(allToolCalls), activeRoleID, tc.Function.Name, activeFullCodePath, toolRes.Content)
 		} else {
 			toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, activeFullCodePath, files, i+1, len(allToolCalls))
 		}

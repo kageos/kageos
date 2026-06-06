@@ -75,8 +75,8 @@ llms:
     - code: "main"
       name: "默认模型"
       model: "gpt-4o-mini"
-      # 推荐用环境变量注入密钥；api_base 不填时走 OpenAI 默认地址。
-      # OpenAI-compatible 网关可把 api_base 改成对应的 /v1 地址。
+	      # 推荐用环境变量注入密钥；api_base 不填时走 OpenAI SDK 默认地址。
+	      # api_base 仅用于受控部署或代理场景下覆盖 OpenAI API base URL。
       api_key_env: "OPENAI_API_KEY"
       api_base: ""
       timeout: 300

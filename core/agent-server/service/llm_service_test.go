@@ -18,7 +18,7 @@ func TestLLMConfigAdminPermissionsAndNormalization(t *testing.T) {
 
 	cfg := &model.LLMConfig{
 		Name:      "Primary",
-		Provider:  "openai",
+		Provider:  model.LLMProviderOpenAI,
 		Model:     "gpt-test",
 		APIKey:    "secret",
 		Admin:     " alice, bob ,alice ",
@@ -45,7 +45,7 @@ func TestLLMConfigAdminPermissionsAndNormalization(t *testing.T) {
 
 	blockedUpdate := &model.LLMConfig{
 		Name:      "Blocked",
-		Provider:  "openai",
+		Provider:  model.LLMProviderOpenAI,
 		Model:     "gpt-test",
 		Timeout:   30,
 		MaxTokens: 1024,
@@ -58,7 +58,7 @@ func TestLLMConfigAdminPermissionsAndNormalization(t *testing.T) {
 
 	allowedUpdate := &model.LLMConfig{
 		Name:      "Allowed",
-		Provider:  "openai",
+		Provider:  model.LLMProviderOpenAI,
 		Model:     "gpt-test-new",
 		APIKey:    "new-secret",
 		Timeout:   60,
@@ -89,7 +89,7 @@ func TestLLMConfigDeleteAndSetDefaultRequireAdmin(t *testing.T) {
 
 	cfg := &model.LLMConfig{
 		Name:      "Primary",
-		Provider:  "openai",
+		Provider:  model.LLMProviderOpenAI,
 		Model:     "gpt-test",
 		Admin:     "alice",
 		Timeout:   30,

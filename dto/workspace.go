@@ -137,22 +137,23 @@ type ListWorkspaceMessagesResp struct {
 
 // WorkspaceMessageInfo 工作台消息信息
 type WorkspaceMessageInfo struct {
-	ID             int64                          `json:"id"`                        // 消息ID
-	SessionID      string                         `json:"session_id"`                // 会话ID
-	Role           string                         `json:"role"`                      // 角色：user/assistant/tool
-	User           string                         `json:"user"`                      // 创建该消息的用户
-	Content        string                         `json:"content"`                   // 消息内容（user 仅存用户文字，不含 <files> 块）
-	DisplayContent string                         `json:"display_content,omitempty"` // 前端展示内容，空则展示 content
-	Files          *string                        `json:"files,omitempty"`           // 用户消息附带的文件引用字符串，仅 user 角色可能有
-	ToolCalls      []WorkspaceChatToolCallSummary `json:"tool_calls,omitempty"`      // 工具调用列表（仅assistant角色）
-	LLMConfigID    int64                          `json:"llm_config_id,omitempty"`   // assistant 消息生成时使用的 LLM 配置 ID
-	LLMConfigName  string                         `json:"llm_config_name,omitempty"` // assistant 消息生成时使用的 LLM 配置名称快照
-	LLMProvider    string                         `json:"llm_provider,omitempty"`    // assistant 消息生成时使用的 LLM provider
-	LLMModel       string                         `json:"llm_model,omitempty"`       // assistant 消息生成时使用的模型名称
-	LLMUsage       *LLMUsageInfo                  `json:"llm_usage,omitempty"`       // assistant 消息生成时的 token 用量
-	ContextUsage   string                         `json:"context_usage,omitempty"`   // 模型上下文用途
-	ArtifactKind   string                         `json:"artifact_kind,omitempty"`   // 结构化产物类型
-	CreatedAt      models.Time                    `json:"created_at"`                // 创建时间
+	ID               int64                          `json:"id"`                           // 消息ID
+	SessionID        string                         `json:"session_id"`                   // 会话ID
+	Role             string                         `json:"role"`                         // 角色：user/assistant/tool
+	User             string                         `json:"user"`                         // 创建该消息的用户
+	Content          string                         `json:"content"`                      // 消息内容（user 仅存用户文字，不含 <files> 块）
+	DisplayContent   string                         `json:"display_content,omitempty"`    // 前端展示内容，空则展示 content
+	Files            *string                        `json:"files,omitempty"`              // 用户消息附带的文件引用字符串，仅 user 角色可能有
+	ToolCalls        []WorkspaceChatToolCallSummary `json:"tool_calls,omitempty"`         // 工具调用列表（仅assistant角色）
+	LLMConfigID      int64                          `json:"llm_config_id,omitempty"`      // assistant 消息生成时使用的 LLM 配置 ID
+	LLMConfigName    string                         `json:"llm_config_name,omitempty"`    // assistant 消息生成时使用的 LLM 配置名称快照
+	LLMProvider      string                         `json:"llm_provider,omitempty"`       // assistant 消息生成时的固定 LLM 协议标记
+	LLMModel         string                         `json:"llm_model,omitempty"`          // assistant 消息生成时使用的模型名称
+	LLMUsage         *LLMUsageInfo                  `json:"llm_usage,omitempty"`          // assistant 消息生成时的 token 用量
+	ModelContextPlan *WorkspaceModelContextPlan     `json:"model_context_plan,omitempty"` // assistant 消息生成时的模型上下文计划
+	ContextUsage     string                         `json:"context_usage,omitempty"`      // 模型上下文用途
+	ArtifactKind     string                         `json:"artifact_kind,omitempty"`      // 结构化产物类型
+	CreatedAt        models.Time                    `json:"created_at"`                   // 创建时间
 }
 
 // LLMUsageInfo LLM token 用量快照。

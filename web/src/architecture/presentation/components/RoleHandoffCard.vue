@@ -17,6 +17,41 @@
       <span v-for="badge in metaBadges" :key="badge">{{ badge }}</span>
     </div>
 
+    <section v-if="hasPacketValidation" class="role-handoff-section role-handoff-validation">
+      <div class="role-handoff-label">交接协议校验</div>
+      <div class="role-handoff-chip-row role-handoff-chip-row--validation">
+        <span :class="`role-handoff-validation-chip--${packetValidationStatus}`">{{ packetValidationLabel }}</span>
+      </div>
+      <ul v-if="packetValidationDetails.length">
+        <li v-for="(item, idx) in packetValidationDetails" :key="`packet-validation-${idx}`">{{ item }}</li>
+      </ul>
+    </section>
+
+    <section v-if="hasContextPolicy" class="role-handoff-section role-handoff-context-policy">
+      <div class="role-handoff-label">模型上下文策略</div>
+      <div v-if="contextPolicyBadges.length" class="role-handoff-chip-row role-handoff-chip-row--context">
+        <span v-for="badge in contextPolicyBadges" :key="badge">{{ badge }}</span>
+      </div>
+      <div v-if="contextPolicy" class="role-handoff-policy-text">{{ contextPolicy }}</div>
+    </section>
+
+    <section v-if="hasRoleDefinition" class="role-handoff-section role-handoff-definition">
+      <div class="role-handoff-label">角色协议</div>
+      <div v-if="roleResponsibility" class="role-handoff-policy-text">{{ roleResponsibility }}</div>
+      <div v-if="roleAllowedTools.length" class="role-handoff-diagnostic-block">
+        <div class="role-handoff-mini-label">允许工具</div>
+        <div class="role-handoff-chip-row role-handoff-chip-row--tools">
+          <span v-for="tool in roleAllowedTools" :key="`allowed-${tool}`">{{ tool }}</span>
+        </div>
+      </div>
+      <div v-if="roleForbiddenTools.length" class="role-handoff-diagnostic-block">
+        <div class="role-handoff-mini-label">禁止工具</div>
+        <div class="role-handoff-chip-row role-handoff-chip-row--forbidden">
+          <span v-for="tool in roleForbiddenTools" :key="`forbidden-${tool}`">{{ tool }}</span>
+        </div>
+      </div>
+    </section>
+
     <div v-if="executedHooks.length || hasBuildDiagnostics" class="role-handoff-grid role-handoff-observability">
       <section v-if="executedHooks.length" class="role-handoff-section">
         <div class="role-handoff-label">已执行 Hook</div>
@@ -172,6 +207,7 @@ interface RuntimeHook {
   stage?: unknown
   purpose?: unknown
   produces?: unknown
+  implementation_status?: unknown
 }
 
 interface ExecutedHookView {
@@ -205,11 +241,32 @@ const props = defineProps<{
 
 const args = computed<UnknownRecord>(() => parseJSONRecord(props.toolCall.arguments))
 const resultData = computed<UnknownRecord>(() => asRecord(props.toolCall.result_data))
-const resultHandoff = computed<HandoffBlock>(() => asRecord(resultData.value.handoff) as HandoffBlock)
-const runtimeContract = computed<UnknownRecord>(() => asRecord(resultData.value.runtime_contract))
+const handoffPacket = computed<UnknownRecord>(() => asRecord(resultData.value.handoff_packet))
+const resultHandoff = computed<HandoffBlock>(() => mergeHandoffBlock(handoffPacket.value, asRecord(resultData.value.handoff)))
+const roleDefinition = computed<UnknownRecord>(() => asRecord(resultData.value.role_definition))
+const runtimeContract = computed<UnknownRecord>(() => firstRecord(resultData.value.runtime_contract, roleDefinition.value.runtime_contract))
 const appCapabilities = computed<UnknownRecord>(() => asRecord(resultData.value.app_capabilities))
-const buildDiagnostics = computed<UnknownRecord>(() => asRecord(resultData.value.build_diagnostics))
-const executedHooks = computed(() => normalizeExecutedHooks(resultData.value.executed_hooks))
+const buildDiagnostics = computed<UnknownRecord>(() => firstRecord(handoffPacket.value.build_diagnostics, resultData.value.build_diagnostics))
+const executedHooks = computed(() => uniqueExecutedHooks([
+  ...normalizeExecutedHooks(handoffPacket.value.executed_hooks),
+  ...normalizeExecutedHooks(resultData.value.executed_hooks),
+]))
+const contextPolicy = computed(() => firstString(handoffPacket.value.context_policy, resultData.value.context_policy))
+const packetValidation = computed<UnknownRecord>(() => asRecord(handoffPacket.value.validation))
+const packetValidationStatus = computed(() => normalizePacketValidationStatus(firstString(packetValidation.value.status)))
+const packetValidationLabel = computed(() => {
+  if (packetValidationStatus.value === 'error') return '字段异常'
+  if (packetValidationStatus.value === 'warning') return '字段已修正'
+  return '字段完整'
+})
+const packetValidationDetails = computed(() => [
+  ...firstList(packetValidation.value.errors).map((item) => `错误：${item}`),
+  ...firstList(packetValidation.value.warnings).map((item) => `警告：${item}`),
+  ...firstList(packetValidation.value.repaired).map((item) => `已修正：${item}`),
+])
+const hasPacketValidation = computed(() =>
+  Object.keys(handoffPacket.value).length > 0 && Object.keys(packetValidation.value).length > 0
+)
 
 const executeDirectory = computed(() =>
   firstString(
@@ -239,6 +296,7 @@ const keyInformation = computed(() =>
 
 const references = computed(() => uniqueStrings([
   ...firstList(resultHandoff.value.references, args.value.references),
+  ...firstList(handoffPacket.value.references),
   ...firstList(resultData.value.reference_docs, args.value.reference_docs),
   ...firstList(resultData.value.reference_files, args.value.reference_files),
   ...firstList(resultData.value.required_docs),
@@ -274,17 +332,38 @@ const hasBuildDiagnostics = computed(() =>
     buildDiagnosticRetryPolicy.value
   )
 )
+const contextPolicyBadges = computed(() => {
+  const badges: string[] = []
+  if (booleanValue(resultData.value.switched)) badges.push('角色已切换')
+  if (booleanValue(args.value.reset_context) || contextPolicy.value.includes('丢弃旧细节')) badges.push('旧细节已裁剪')
+  if (contextPolicy.value.includes('旧上下文只作背景')) badges.push('旧上下文仅作背景')
+  if (contextPolicy.value.includes('标准四块交接')) badges.push('四块交接生效')
+  if (executeDirectory.value) badges.push('目录已固定')
+  return uniqueStrings(badges)
+})
+const hasContextPolicy = computed(() => Boolean(contextPolicy.value || contextPolicyBadges.value.length))
+const roleResponsibility = computed(() => firstString(roleDefinition.value.responsibility, roleDefinition.value.default_next_action))
+const roleAllowedTools = computed(() => firstList(roleDefinition.value.allowed_tools).slice(0, 16))
+const roleForbiddenTools = computed(() => firstList(roleDefinition.value.forbidden_tools).slice(0, 12))
+const hasRoleDefinition = computed(() =>
+  Boolean(roleResponsibility.value || roleAllowedTools.value.length > 0 || roleForbiddenTools.value.length > 0)
+)
 
 const metaBadges = computed(() => {
   const badges: string[] = []
+  const packetVersion = firstString(handoffPacket.value.version)
   const requiredCount = arrayLength(resultData.value.required_docs)
   const loadedCount = arrayLength(resultData.value.loaded_docs)
+  if (Object.keys(handoffPacket.value).length > 0) badges.push(packetVersion ? `交接协议 ${packetVersion}` : '交接协议')
+  if (hasPacketValidation.value) badges.push(packetValidationLabel.value)
   if (requiredCount > 0) badges.push(`文档包 ${requiredCount} 项`)
   if (loadedCount > 0) badges.push(`已加载 ${loadedCount} 项`)
   if (references.value.some((item) => /agent_app_(prd|build)|完整\s*(PRD|产物)|artifact/i.test(item))) {
     badges.push('完整产物已引用')
   }
+  if (hasRoleDefinition.value) badges.push('角色协议')
   if (hasRuntimeContract.value) badges.push('角色契约已加载')
+  if (hasContextPolicy.value) badges.push('上下文策略')
   const capabilityTotal = numberValue(appCapabilities.value.total_functions)
   if (hasAppCapabilities.value && capabilityTotal >= 0) badges.push(`能力快照 ${capabilityTotal} 个函数`)
   if (executedHooks.value.length) badges.push(`Hook ${executedHooks.value.length} 个`)
@@ -326,11 +405,34 @@ function asRecord(value: unknown): UnknownRecord {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as UnknownRecord : {}
 }
 
+function firstRecord(...values: unknown[]): UnknownRecord {
+  for (const value of values) {
+    const record = asRecord(value)
+    if (Object.keys(record).length > 0) return record
+  }
+  return {}
+}
+
+function mergeHandoffBlock(packet: UnknownRecord, legacy: UnknownRecord): HandoffBlock {
+  return {
+    execute_directory: firstString(packet.execute_directory, legacy.execute_directory),
+    task_context: firstList(packet.task_context, legacy.task_context),
+    key_information: firstList(packet.key_information, legacy.key_information),
+    references: firstList(packet.references, legacy.references),
+  }
+}
+
 function firstString(...values: unknown[]): string {
   for (const value of values) {
     if (typeof value === 'string' && value.trim()) return value.trim()
   }
   return ''
+}
+
+function normalizePacketValidationStatus(status: string): 'ok' | 'warning' | 'error' {
+  if (status === 'error') return 'error'
+  if (status === 'warning') return 'warning'
+  return 'ok'
 }
 
 function firstList(...values: unknown[]): string[] {
@@ -360,12 +462,20 @@ function normalizeHooks(value: unknown): string[] {
     const id = firstString(hook.id)
     const purpose = firstString(hook.purpose)
     const produces = firstList(hook.produces)
-    const label = [stage, id].filter(Boolean).join(' · ')
+    const status = formatHookImplementationStatus(firstString(hook.implementation_status))
+    const label = [stage, id, status].filter(Boolean).join(' · ')
     const tail = produces.length ? `产出：${produces.join('、')}` : ''
     const text = [label, purpose, tail].filter(Boolean).join('；')
     if (text) out.push(text)
   }
   return uniqueStrings(out)
+}
+
+function formatHookImplementationStatus(status: string): string {
+  if (status === 'implemented') return '已实现'
+  if (status === 'planned') return '计划中'
+  if (status === 'unknown') return '未登记'
+  return ''
 }
 
 function normalizeExecutedHooks(value: unknown): ExecutedHookView[] {
@@ -392,6 +502,18 @@ function normalizeExecutedHooks(value: unknown): ExecutedHookView[] {
       produced,
       note,
     })
+  }
+  return out
+}
+
+function uniqueExecutedHooks(items: ExecutedHookView[]): ExecutedHookView[] {
+  const seen = new Set<string>()
+  const out: ExecutedHookView[] = []
+  for (const item of items) {
+    const key = [item.id, item.stage, item.status, item.note].join('|')
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(item)
   }
   return out
 }
@@ -506,6 +628,12 @@ function numberValue(value: unknown): number {
   return -1
 }
 
+function booleanValue(value: unknown): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') return value.trim().toLowerCase() === 'true'
+  return false
+}
+
 function uniqueStrings(items: string[]): string[] {
   const seen = new Set<string>()
   const out: string[] = []
@@ -586,6 +714,18 @@ function uniqueStrings(items: string[]): string[] {
 }
 
 .role-handoff-observability {
+  margin-bottom: 10px;
+}
+
+.role-handoff-context-policy {
+  margin-bottom: 10px;
+}
+
+.role-handoff-validation {
+  margin-bottom: 10px;
+}
+
+.role-handoff-definition {
   margin-bottom: 10px;
 }
 
@@ -704,6 +844,57 @@ code {
   background: var(--el-color-warning-light-9);
   border: 1px solid var(--el-color-warning-light-7);
   border-radius: 4px;
+}
+
+.role-handoff-chip-row--context {
+  margin-bottom: 6px;
+}
+
+.role-handoff-chip-row--context span {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary-light-7);
+}
+
+.role-handoff-chip-row--validation {
+  margin-bottom: 6px;
+}
+
+.role-handoff-chip-row--validation .role-handoff-validation-chip--ok {
+  color: var(--el-color-success);
+  background: var(--el-color-success-light-9);
+  border-color: var(--el-color-success-light-7);
+}
+
+.role-handoff-chip-row--validation .role-handoff-validation-chip--warning {
+  color: var(--el-color-warning-dark-2);
+  background: var(--el-color-warning-light-9);
+  border-color: var(--el-color-warning-light-7);
+}
+
+.role-handoff-chip-row--validation .role-handoff-validation-chip--error {
+  color: var(--el-color-danger);
+  background: var(--el-color-danger-light-9);
+  border-color: var(--el-color-danger-light-7);
+}
+
+.role-handoff-policy-text {
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.role-handoff-chip-row--tools span {
+  color: var(--el-color-success);
+  background: var(--el-color-success-light-9);
+  border-color: var(--el-color-success-light-7);
+}
+
+.role-handoff-chip-row--forbidden span {
+  color: var(--el-color-danger);
+  background: var(--el-color-danger-light-9);
+  border-color: var(--el-color-danger-light-7);
 }
 
 .role-handoff-diagnostic-block {

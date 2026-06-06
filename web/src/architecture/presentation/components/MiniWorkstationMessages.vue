@@ -46,6 +46,12 @@
             输出耗时 {{ getAssistantDurationLabel(msg, i) }}
           </span>
         </div>
+        <ModelContextPlanCard
+          v-if="msg.model_context_plan"
+          :plan="msg.model_context_plan"
+          :plans="msg.model_context_plans"
+          class="mini-msg-model-context"
+        />
         <div v-if="msg.blocks?.length" class="mini-msg-assistant">
           <template v-for="(block, bi) in msg.blocks" :key="bi">
             <div
@@ -175,6 +181,7 @@ import type { OutputDisplayField } from '@/architecture/presentation/composables
 import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import type { ChatMessage, ChatMessageToolCall } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import MessageToolCalls from './MessageToolCalls.vue'
+import ModelContextPlanCard from './ModelContextPlanCard.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import PrdPreview from './PrdPreview.vue'
@@ -231,6 +238,9 @@ function getAssistantOutputSize(message: ChatMessage): number {
     for (const call of message.tool_calls) {
       size += (call.arguments?.length ?? 0) + (call.result?.length ?? 0) + (call.error?.length ?? 0)
     }
+  }
+  if (message.model_context_plans?.length || message.model_context_plan) {
+    size += message.model_context_plans?.length || 1
   }
   return size
 }
@@ -491,6 +501,9 @@ onBeforeUnmount(() => {
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
+}
+.mini-msg-model-context {
+  margin-bottom: 6px;
 }
 .mini-msg-output-duration {
   display: inline-flex;

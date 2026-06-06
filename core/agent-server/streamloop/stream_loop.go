@@ -8,14 +8,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/llms"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
 const (
-	EventContent              = "content"
-	EventToolCallsStreamDelta = "tool_calls_stream_delta" // 增量+节流，节省带宽
-	EventError                = "error"
+	EventContent              = dto.WorkspaceStreamEventContent
+	EventToolCallsStreamDelta = dto.WorkspaceStreamEventToolCallsStreamDelta // 增量+节流，节省带宽
+	EventError                = dto.WorkspaceStreamEventError
 	MaxToolRounds             = 100 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
 
 	// 节流参数：满足任一条件即 flush
@@ -86,19 +87,6 @@ type contentData struct {
 	Content string `json:"content"`
 }
 
-// toolCallsStreamDeltaUpdate 增量更新项（id/index/round + 可选 name + delta）
-type toolCallsStreamDeltaUpdate struct {
-	Index int    `json:"index"`
-	Round int    `json:"round"`
-	ID    string `json:"id,omitempty"`
-	Name  string `json:"name,omitempty"` // 仅新 tool_call 首次出现时
-	Delta string `json:"delta"`
-}
-
-type toolCallsStreamDeltaData struct {
-	Updates []toolCallsStreamDeltaUpdate `json:"updates"`
-}
-
 type errorData struct {
 	Message string `json:"message"`
 }
@@ -112,6 +100,9 @@ func processStreamChunks(
 	var buf strings.Builder
 	allToolCalls := make([]llms.ToolCall, 0)
 	toolCallsIndex := make(map[string]int)
+	finalToolCalls := make([]llms.ToolCall, 0)
+	finalToolCallsReceived := false
+	finishReason := ""
 	var usage *llms.Usage
 
 	// 增量+节流：累积 delta，满足条件时 flush
@@ -139,15 +130,15 @@ func processStreamChunks(
 			indices = append(indices, idx)
 		}
 		sort.Ints(indices)
-		updates := make([]toolCallsStreamDeltaUpdate, 0, len(indices))
+		updates := make([]dto.WorkspaceStreamToolCallDeltaUpdate, 0, len(indices))
 		for _, idx := range indices {
 			delta := pendingDeltas[idx]
 			name := pendingNames[idx]
 			id := pendingIDs[idx]
-			updates = append(updates, toolCallsStreamDeltaUpdate{Index: idx, Round: round, ID: id, Name: name, Delta: delta})
+			updates = append(updates, dto.WorkspaceStreamToolCallDeltaUpdate{Index: idx, Round: round, ID: id, Name: name, Delta: delta})
 		}
 		if len(updates) > 0 {
-			sendEvent(EventToolCallsStreamDelta, &toolCallsStreamDeltaData{Updates: updates})
+			sendEvent(EventToolCallsStreamDelta, &dto.WorkspaceStreamToolCallDeltaData{Updates: updates})
 		}
 		for k := range pendingDeltas {
 			delete(pendingDeltas, k)
@@ -171,6 +162,9 @@ func processStreamChunks(
 		if ch.Usage != nil {
 			usage = ch.Usage
 		}
+		if ch.FinishReason != "" {
+			finishReason = ch.FinishReason
+		}
 		if ch.Error != "" {
 			flushToolCallsDelta()
 			return "", nil, usage, fmt.Errorf("LLM 流式错误: %s", ch.Error)
@@ -179,7 +173,7 @@ func processStreamChunks(
 			buf.WriteString(ch.Content)
 			sendEvent(EventContent, &contentData{Content: ch.Content})
 		}
-		if len(ch.ToolCalls) > 0 {
+		if len(ch.ToolCallDeltas) > 0 {
 			prevArgs := make([]string, len(allToolCalls))
 			prevNames := make([]string, len(allToolCalls))
 			prevIDs := make([]string, len(allToolCalls))
@@ -190,7 +184,7 @@ func processStreamChunks(
 			}
 			prevLen := len(allToolCalls)
 
-			allToolCalls, toolCallsIndex = mergeToolCalls(ch.ToolCalls, allToolCalls, toolCallsIndex)
+			allToolCalls, toolCallsIndex = mergeToolCallDeltas(ch.ToolCallDeltas, allToolCalls, toolCallsIndex)
 
 			// 计算 delta 并累积
 			totalPending := 0
@@ -235,13 +229,33 @@ func processStreamChunks(
 				lastSendTime = now
 			}
 		}
+		if ch.Done && len(ch.FinalToolCalls) > 0 {
+			finalToolCalls = append(finalToolCalls[:0], ch.FinalToolCalls...)
+			finalToolCallsReceived = true
+		}
 	}
 
 	// 流结束，flush 剩余
 	flushToolCallsDelta()
 
 	content := strings.TrimSpace(buf.String())
-	allToolCalls = normalizeToolCalls(ctx, allToolCalls)
+	switch finishReason {
+	case "length":
+		return content, nil, usage, fmt.Errorf("LLM 响应因达到最大输出长度而中断，请调大 max_tokens 或缩短上下文后重试")
+	case "content_filter":
+		return content, nil, usage, fmt.Errorf("LLM 响应被内容安全策略截断")
+	}
+	if finalToolCallsReceived {
+		allToolCalls = finalToolCalls
+	} else {
+		allToolCalls = normalizeToolCalls(ctx, allToolCalls)
+	}
+	if finishReason == "tool_calls" && len(allToolCalls) == 0 {
+		return content, nil, usage, fmt.Errorf("LLM 结束原因为 tool_calls，但未返回完整工具调用")
+	}
+	if err := validateToolCallsForExecution(allToolCalls); err != nil {
+		return content, nil, usage, err
+	}
 	for _, tc := range allToolCalls {
 		if tc.Function.Arguments == "" {
 			logger.Warnf(ctx, "[StreamLoop] tool_call arguments 为空，ToolCallID: %s, ToolName: %s", tc.ID, tc.Function.Name)
@@ -250,6 +264,18 @@ func processStreamChunks(
 		}
 	}
 	return content, allToolCalls, usage, nil
+}
+
+func validateToolCallsForExecution(toolCalls []llms.ToolCall) error {
+	for i, tc := range toolCalls {
+		if strings.TrimSpace(tc.ID) == "" {
+			return fmt.Errorf("LLM 返回的第 %d 个 tool_call 缺少 id", i)
+		}
+		if strings.TrimSpace(tc.Function.Name) == "" {
+			return fmt.Errorf("LLM 返回的第 %d 个 tool_call 缺少 function.name", i)
+		}
+	}
+	return nil
 }
 
 func addLLMUsage(a, b *llms.Usage) *llms.Usage {
@@ -286,7 +312,7 @@ func appendToolCallArgs(cur, delta string) string {
 	return cur + delta
 }
 
-func mergeToolCalls(chunkToolCalls []llms.ToolCall, allToolCalls []llms.ToolCall, toolCallsIndex map[string]int) ([]llms.ToolCall, map[string]int) {
+func mergeToolCallDeltas(chunkToolCalls []llms.ToolCallDelta, allToolCalls []llms.ToolCall, toolCallsIndex map[string]int) ([]llms.ToolCall, map[string]int) {
 	for _, tc := range chunkToolCalls {
 		if tc.Index != nil {
 			idx := *tc.Index
@@ -315,25 +341,33 @@ func mergeToolCalls(chunkToolCalls []llms.ToolCall, allToolCalls []llms.ToolCall
 				mergeToolCallFields(&allToolCalls[lastIdx], tc)
 				toolCallsIndex[tc.ID] = lastIdx
 			} else {
-				allToolCalls = append(allToolCalls, tc)
+				allToolCalls = append(allToolCalls, toolCallFromDelta(tc))
 				toolCallsIndex[tc.ID] = len(allToolCalls) - 1
 			}
 		} else if tc.Function.Arguments != "" {
 			if idx := onlyOpenToolCallIndex(allToolCalls); idx >= 0 {
 				allToolCalls[idx].Function.Arguments = appendToolCallArgs(allToolCalls[idx].Function.Arguments, tc.Function.Arguments)
 			} else if len(allToolCalls) == 0 && tc.Function.Name != "" {
-				allToolCalls = append(allToolCalls, tc)
+				allToolCalls = append(allToolCalls, toolCallFromDelta(tc))
 			}
 		} else if tc.Function.Name != "" {
 			if len(allToolCalls) == 0 || allToolCalls[len(allToolCalls)-1].ID != "" {
-				allToolCalls = append(allToolCalls, tc)
+				allToolCalls = append(allToolCalls, toolCallFromDelta(tc))
 			}
 		}
 	}
 	return allToolCalls, toolCallsIndex
 }
 
-func mergeToolCallFields(dst *llms.ToolCall, src llms.ToolCall) {
+func toolCallFromDelta(delta llms.ToolCallDelta) llms.ToolCall {
+	tc := llms.ToolCall{ID: delta.ID, Type: delta.Type, Function: delta.Function}
+	if tc.Type == "" {
+		tc.Type = "function"
+	}
+	return tc
+}
+
+func mergeToolCallFields(dst *llms.ToolCall, src llms.ToolCallDelta) {
 	if dst.Type == "" {
 		dst.Type = "function"
 	}

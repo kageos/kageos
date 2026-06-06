@@ -281,7 +281,7 @@ func (h *LLM) Create(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	cfg := &model.LLMConfig{
 		Name:        req.Name,
-		Provider:    "openai",
+		Provider:    model.LLMProviderOpenAI,
 		Model:       req.Model,
 		APIKey:      req.APIKey,
 		APIBase:     req.APIBase,
@@ -337,7 +337,7 @@ func (h *LLM) Update(c *gin.Context) {
 
 	// 更新字段
 	cfg.Name = req.Name
-	cfg.Provider = "openai"
+	cfg.Provider = model.LLMProviderOpenAI
 	cfg.Model = req.Model
 	cfg.APIKey = req.APIKey
 	cfg.APIBase = req.APIBase

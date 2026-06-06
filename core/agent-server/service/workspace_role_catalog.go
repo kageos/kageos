@@ -52,20 +52,15 @@ func workspaceRoleTransitionWhen(fromRole, toRole string) (string, bool) {
 }
 
 func workspaceRoleAllowedTools(role string) []string {
-	allowed := append([]string(nil), workspaceRoleBaseReadOnlyTools()...)
-	if spec, ok := workspaceRoleSpecFor(role); ok {
-		for _, tool := range spec.AllowedTools {
-			if !containsWorkspaceRoleString(allowed, tool) {
-				allowed = append(allowed, tool)
-			}
-		}
+	if definition, ok := workspaceRoleDefinitionFor(role); ok {
+		return append([]string(nil), definition.AllowedTools...)
 	}
-	return allowed
+	return append([]string(nil), workspaceRoleBaseReadOnlyTools()...)
 }
 
 func workspaceRoleForbiddenTools(role string) []string {
-	if spec, ok := workspaceRoleSpecFor(role); ok {
-		return append([]string(nil), spec.ForbiddenTools...)
+	if definition, ok := workspaceRoleDefinitionFor(role); ok {
+		return append([]string(nil), definition.ForbiddenTools...)
 	}
 	return nil
 }

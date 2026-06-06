@@ -75,7 +75,7 @@ func TestSanitizeToolCallArgumentsFallsBackForInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestOpenAIClientChatStreamToleratesEmptyDataAndBadTrailingJSON(t *testing.T) {
+func TestOpenAIClientChatStreamUsesSDKAndIncludesUsage(t *testing.T) {
 	var payload map[string]interface{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/chat/completions" {
@@ -85,11 +85,10 @@ func TestOpenAIClientChatStreamToleratesEmptyDataAndBadTrailingJSON(t *testing.T
 			t.Fatalf("decode request: %v", err)
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = w.Write([]byte("data:\n\n"))
-		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"你\"}}]}\n\n"))
-		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"好\"}}]}\n\n"))
-		_, _ = w.Write([]byte("data: {\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5,\"prompt_tokens_details\":{\"cached_tokens\":1}}}\n\n"))
-		_, _ = w.Write([]byte("data: {\"choices\":["))
+		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-test\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你\"},\"finish_reason\":null}],\"usage\":null}\n\n"))
+		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-test\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"好\"},\"finish_reason\":null}],\"usage\":null}\n\n"))
+		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-test\",\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5,\"prompt_tokens_details\":{\"cached_tokens\":1}}}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
 	}))
 	defer server.Close()
 
@@ -121,13 +120,18 @@ func TestOpenAIClientChatStreamToleratesEmptyDataAndBadTrailingJSON(t *testing.T
 	if payload["stream"] != true {
 		t.Fatalf("stream = %#v, want true", payload["stream"])
 	}
+	streamOptions, _ := payload["stream_options"].(map[string]interface{})
+	if streamOptions["include_usage"] != true {
+		t.Fatalf("stream_options = %#v, want include_usage true", payload["stream_options"])
+	}
 }
 
-func TestOpenAIClientChatStreamParsesToolCallDeltas(t *testing.T) {
+func TestOpenAIClientChatStreamEmitsToolCallDeltasAndFinalAccumulation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{\\\"q\\\"\"}}]}}]}\n\n"))
-		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\":\\\"x\\\"}\"}}]}}]}\n\n"))
+		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-test\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{\\\"q\\\"\"}}]},\"finish_reason\":null}],\"usage\":null}\n\n"))
+		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-test\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\":\\\"x\\\"}\"}}]},\"finish_reason\":null}],\"usage\":null}\n\n"))
+		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-test\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}],\"usage\":null}\n\n"))
 		_, _ = w.Write([]byte("data: [DONE]\n\n"))
 	}))
 	defer server.Close()
@@ -140,20 +144,32 @@ func TestOpenAIClientChatStreamParsesToolCallDeltas(t *testing.T) {
 		t.Fatalf("ChatStream returned error: %v", err)
 	}
 
-	var calls []ToolCall
+	var deltas []ToolCallDelta
+	var final []ToolCall
+	done := false
 	for chunk := range stream {
 		if chunk.Error != "" {
 			t.Fatalf("unexpected stream error: %s", chunk.Error)
 		}
-		calls = append(calls, chunk.ToolCalls...)
+		deltas = append(deltas, chunk.ToolCallDeltas...)
+		if chunk.Done {
+			done = true
+			final = chunk.FinalToolCalls
+		}
 	}
-	if len(calls) != 2 {
-		t.Fatalf("tool call chunks = %#v, want 2 chunks", calls)
+	if len(deltas) != 2 {
+		t.Fatalf("tool call chunks = %#v, want 2 chunks", deltas)
 	}
-	if calls[0].ID != "call_1" || calls[0].Function.Name != "lookup" || calls[0].Function.Arguments != `{"q"` {
-		t.Fatalf("first tool call chunk = %#v", calls[0])
+	if deltas[0].ID != "call_1" || deltas[0].Function.Name != "lookup" || deltas[0].Function.Arguments != `{"q"` {
+		t.Fatalf("first tool call chunk = %#v", deltas[0])
 	}
-	if calls[1].Function.Arguments != `:"x"}` {
-		t.Fatalf("second tool call arguments = %q", calls[1].Function.Arguments)
+	if deltas[1].Function.Arguments != `:"x"}` {
+		t.Fatalf("second tool call arguments = %q", deltas[1].Function.Arguments)
+	}
+	if !done {
+		t.Fatalf("stream did not emit done chunk")
+	}
+	if len(final) != 1 || final[0].ID != "call_1" || final[0].Function.Name != "lookup" || final[0].Function.Arguments != `{"q":"x"}` {
+		t.Fatalf("final tool calls = %#v, want accumulated lookup call", final)
 	}
 }

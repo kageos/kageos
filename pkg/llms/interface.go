@@ -83,15 +83,25 @@ type ToolFunctionDef struct {
 	Strict      *bool                  `json:"strict,omitempty"` // OpenAI strict 工具参数模式
 }
 
-// ToolCall 工具调用（标准 OpenAI 格式）
+// ToolCallFunction 工具调用函数信息
+type ToolCallFunction struct {
+	Name      string `json:"name"`      // 函数名
+	Arguments string `json:"arguments"` // JSON 字符串格式的参数
+}
+
+// ToolCall 工具调用（标准 OpenAI assistant tool_calls 格式）
 type ToolCall struct {
-	ID       string `json:"id"`   // 工具调用 ID（用于关联 tool 消息）
-	Type     string `json:"type"` // 固定为 "function"
-	Index    *int   `json:"index,omitempty"`
-	Function struct {
-		Name      string `json:"name"`      // 函数名
-		Arguments string `json:"arguments"` // JSON 字符串格式的参数
-	} `json:"function"`
+	ID       string           `json:"id"`       // 工具调用 ID（用于关联 tool 消息）
+	Type     string           `json:"type"`     // 固定为 "function"
+	Function ToolCallFunction `json:"function"` // 函数调用信息
+}
+
+// ToolCallDelta 工具调用流式增量（OpenAI streaming delta 中包含 index）
+type ToolCallDelta struct {
+	Index    *int             `json:"index,omitempty"` // 流式分片位置，仅用于合并 delta
+	ID       string           `json:"id,omitempty"`
+	Type     string           `json:"type,omitempty"`
+	Function ToolCallFunction `json:"function"`
 }
 
 // Message 对话消息结构（扩展支持 tool 角色和 tool_calls）
@@ -132,11 +142,13 @@ type Usage struct {
 
 // StreamChunk 流式响应数据块
 type StreamChunk struct {
-	Content   string     `json:"content"`              // 流式内容片段
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"` // 工具调用列表（流式输出中可能包含）
-	Done      bool       `json:"done"`                 // 是否完成
-	Error     string     `json:"error,omitempty"`      // 错误信息（如果有）
-	Usage     *Usage     `json:"usage,omitempty"`      // 使用统计（完成时提供）
+	Content        string          `json:"content"`                    // 流式内容片段
+	ToolCallDeltas []ToolCallDelta `json:"tool_call_deltas,omitempty"` // 工具调用增量（流式输出中可能包含）
+	FinalToolCalls []ToolCall      `json:"final_tool_calls,omitempty"` // SDK 累积后的完整工具调用（完成时提供）
+	FinishReason   string          `json:"finish_reason,omitempty"`    // OpenAI finish_reason
+	Done           bool            `json:"done"`                       // 是否完成
+	Error          string          `json:"error,omitempty"`            // 错误信息（如果有）
+	Usage          *Usage          `json:"usage,omitempty"`            // 使用统计（完成时提供）
 }
 
 // LLMClient 大模型客户端接口

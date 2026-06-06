@@ -43,19 +43,21 @@ const (
 
 // 工具调用状态常量
 const (
-	ToolCallStatusOK        = "ok"
-	ToolCallStatusError     = "error"
-	ToolCallStatusRunning   = "running"   // 工具正在执行，用于流式反馈到前端
-	ToolCallStatusStreaming = "streaming" // LLM 流式输出 tool_call（name/arguments 逐段到达），推送到前端实时展示
+	ToolCallStatusOK        = dto.WorkspaceToolCallStatusOK
+	ToolCallStatusError     = dto.WorkspaceToolCallStatusError
+	ToolCallStatusRunning   = dto.WorkspaceToolCallStatusRunning
+	ToolCallStatusStreaming = dto.WorkspaceToolCallStatusStreaming
 )
 
 // 流式事件类型常量
 const (
-	EventSession  = "session"
-	EventToolCall = "tool_call"
-	EventContent  = "content"
-	EventDone     = "done"
-	EventError    = "error"
+	EventSession              = dto.WorkspaceStreamEventSession
+	EventModelContextPlan     = dto.WorkspaceStreamEventModelContextPlan
+	EventToolCall             = dto.WorkspaceStreamEventToolCall
+	EventToolCallsStreamDelta = dto.WorkspaceStreamEventToolCallsStreamDelta
+	EventContent              = dto.WorkspaceStreamEventContent
+	EventDone                 = dto.WorkspaceStreamEventDone
+	EventError                = dto.WorkspaceStreamEventError
 )
 
 // WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；只认 LLM + 单模式（dev）
@@ -94,10 +96,7 @@ func NewWorkspaceChatService(
 }
 
 // StreamEvent 流式事件：用于 SSE 传输
-type StreamEvent struct {
-	Event string      `json:"event"` // session|tool_call|content|done|error
-	Data  interface{} `json:"data"`  // 对应负载（具体类型见下方各事件结构体）
-}
+type StreamEvent = dto.WorkspaceStreamEvent
 
 // WorkspaceChatEventSink 接收工作台执行事件。SSE 与后台任务共用同一执行链路。
 type WorkspaceChatEventSink interface {
@@ -111,39 +110,16 @@ func (f workspaceChatEventSinkFunc) Send(event string, data interface{}) {
 }
 
 // StreamEventSession session 事件数据
-type StreamEventSession struct {
-	SessionID string `json:"session_id"`
-}
+type StreamEventSession = dto.WorkspaceStreamSession
 
 // StreamEventToolCall tool_call 事件数据
-type StreamEventToolCall struct {
-	ID         string                  `json:"id,omitempty"` // tool_call_id（用于稳定合并同一次调用）
-	Index      int                     `json:"index"`        // 当前工具轮次内的调用序号
-	Round      int                     `json:"round"`        // 工具调用轮次，从 0 开始
-	Name       string                  `json:"name"`
-	Status     string                  `json:"status"`                // ok / error / running / streaming
-	Arguments  string                  `json:"arguments"`             // 流式或最终参数（streaming 时逐段推送，供前端实时展示）
-	Result     string                  `json:"result"`                // 工具返回结果（status=ok 时可选）
-	ResultData interface{}             `json:"result_data,omitempty"` // 结构化工具结果（供前端直接消费）
-	Metadata   *dto.ToolResultMetadata `json:"metadata,omitempty"`    // 工具结果元数据（供前端按字段渲染）
-	Error      string                  `json:"error"`                 // 错误信息（status=error 时可选）
-}
+type StreamEventToolCall = dto.WorkspaceStreamToolCall
 
 // StreamEventContent content 事件数据
-type StreamEventContent struct {
-	Content string `json:"content"`
-}
+type StreamEventContent = dto.WorkspaceStreamContent
 
 // StreamEventDone done 事件数据
-type StreamEventDone struct {
-	SessionID     string                             `json:"session_id"`
-	ToolCalls     []dto.WorkspaceChatToolCallSummary `json:"tool_calls"`
-	LLMConfigID   int64                              `json:"llm_config_id,omitempty"`
-	LLMConfigName string                             `json:"llm_config_name,omitempty"`
-	LLMProvider   string                             `json:"llm_provider,omitempty"`
-	LLMModel      string                             `json:"llm_model,omitempty"`
-	LLMUsage      *dto.LLMUsageInfo                  `json:"llm_usage,omitempty"`
-}
+type StreamEventDone = dto.WorkspaceStreamDone
 
 type messageLLMMetadata struct {
 	ConfigID   int64
@@ -153,9 +129,7 @@ type messageLLMMetadata struct {
 }
 
 // StreamEventError error 事件数据
-type StreamEventError struct {
-	Message string `json:"message"`
-}
+type StreamEventError = dto.WorkspaceStreamError
 
 // WorkspaceChatStream 工作台对话流式入口：通过 eventChan 发送 SSE 事件（session、tool_call、content、done、error）
 // eventChan 为只写 channel，由调用方在 goroutine 中读取并写 SSE，避免 Flush 阻塞 LLM stream 消费

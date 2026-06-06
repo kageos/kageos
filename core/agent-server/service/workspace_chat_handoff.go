@@ -73,8 +73,12 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 		Remark:        req.Remark,
 		ContextPolicy: contextPolicy,
 	})
+	if workspaceRoleHandoffPacketHasValidationErrors(handoffContext.HandoffPacket) {
+		return nil, fmt.Errorf("交接协议校验失败: %s", workspaceRoleHandoffPacketValidationSummary(handoffContext.HandoffPacket))
+	}
 	handoffContextJSON := formatWorkspaceHandoffContextJSON(handoffContext)
 	handoffContextMessageJSON := formatWorkspaceHandoffContextJSON(workspaceHandoffContextForMessage(handoffContext))
+	handoffPacketJSON := formatWorkspaceRoleHandoffPacketJSON(handoffContext.HandoffPacket)
 	executeDirectory := firstNonEmptyString(handoffContext.ExecuteDirectory, fullCodePath)
 	targetFullCodePath := workspaceHandoffTargetSessionFullCodePath(fullCodePath, executeDirectory, targetRole, artifactKind)
 
@@ -115,6 +119,7 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 	content := buildWorkspaceHandoffContent(workspaceHandoffContentInput{
 		ArtifactKind:         artifactKind,
 		ArtifactJSON:         artifactJSON,
+		HandoffPacketJSON:    handoffPacketJSON,
 		HandoffContextJSON:   handoffContextMessageJSON,
 		PRDExecutionMarkdown: handoffContext.PRDExecutionMarkdown,
 		ExecuteDirectory:     executeDirectory,
@@ -234,6 +239,7 @@ func buildExistingWorkspaceHandoffResp(packet *model.WorkspaceHandoffPacket, ses
 type workspaceHandoffContentInput struct {
 	ArtifactKind         string
 	ArtifactJSON         string
+	HandoffPacketJSON    string
 	HandoffContextJSON   string
 	PRDExecutionMarkdown string
 	ExecuteDirectory     string
@@ -256,6 +262,7 @@ type workspaceHandoffContextInput struct {
 type workspaceHandoffContext struct {
 	SourceSessionID      string                      `json:"source_session_id,omitempty"`
 	SourceTitle          string                      `json:"source_title,omitempty"`
+	SourceRole           string                      `json:"source_role,omitempty"`
 	FullCodePath         string                      `json:"full_code_path,omitempty"`
 	WorkspaceDirectory   string                      `json:"workspace_directory,omitempty"`
 	TargetAppDirectory   string                      `json:"target_app_directory,omitempty"`
@@ -286,6 +293,7 @@ type workspaceHandoffContext struct {
 	BuildDiagnostics     *workspaceBuildDiagnostics  `json:"build_diagnostics,omitempty"`
 	PRDExecutionMarkdown string                      `json:"prd_execution_markdown,omitempty"`
 	ExecutedHooks        []workspaceExecutedRoleHook `json:"executed_hooks,omitempty"`
+	HandoffPacket        *workspaceRoleHandoffPacket `json:"handoff_packet,omitempty"`
 }
 
 type workspaceArtifactDigest struct {
@@ -341,6 +349,7 @@ func formatWorkspaceHandoffContextJSON(ctx workspaceHandoffContext) string {
 
 func workspaceHandoffContextForMessage(ctx workspaceHandoffContext) workspaceHandoffContext {
 	ctx.PRDExecutionMarkdown = ""
+	ctx.HandoffPacket = nil
 	return ctx
 }
 
@@ -392,6 +401,7 @@ func buildWorkspaceHandoffContext(input workspaceHandoffContextInput) workspaceH
 	if input.Source != nil {
 		ctx.SourceSessionID = input.Source.SessionID
 		ctx.SourceTitle = input.Source.Title
+		ctx.SourceRole = workspaceSessionRoleID(input.Source)
 	}
 	ctx.StageSummary = workspaceHandoffStageSummary(ctx, digest)
 	ctx.ConfirmedScope = workspaceHandoffConfirmedScope(digest)
@@ -410,6 +420,7 @@ func buildWorkspaceHandoffContext(input workspaceHandoffContextInput) workspaceH
 	ctx.VerificationFocus = workspaceHandoffVerificationFocus(input.ArtifactKind, input.TargetRole, digest)
 	ctx.ReferenceDocs = workspaceHandoffReferenceDocs(input.TargetRole, input.ArtifactKind)
 	ctx.ReferenceFiles = workspaceHandoffReferenceFiles(input.FullCodePath, workspaceDirectory, targetAppDirectory, input.ArtifactKind, input.TargetRole, digest)
+	ctx.HandoffPacket = buildWorkspaceRoleHandoffPacketFromContext(ctx)
 	return ctx
 }
 
@@ -1277,8 +1288,10 @@ func workspaceHandoffVerificationFocus(artifactKind, targetRole string, digest *
 
 func workspaceHandoffReferenceDocs(targetRole, artifactKind string) []string {
 	role := normalizeWorkspaceRole(targetRole)
-	spec, _ := workspaceRoleSpecFor(role)
-	docs := roleDocumentPackage(role, spec)
+	docs := []string{}
+	if definition, ok := workspaceRoleDefinitionFor(role); ok {
+		docs = append([]string(nil), definition.DocumentPackage...)
+	}
 	if artifactKind == "agent_app_prd" && role == WorkspaceRoleAppDeveloper {
 		docs = appendUniqueWorkspaceString(docs, "/system/prompt/case_catalog", 0)
 		docs = appendUniqueWorkspaceString(docs, "/system/prompt/sdk/agent-app-sdk-readme", 0)
@@ -1521,7 +1534,7 @@ func buildWorkspaceHandoffContent(input workspaceHandoffContentInput) string {
 		fmt.Sprintf("这是阶段交接后的执行会话。请先调用 change_role，target_role 固定为 %s。", input.TargetRole),
 		fmt.Sprintf("change_role.execute_directory 必须固定为 %s；后续读取、构建、测试、运行只能围绕该目录或该目录下函数。", firstNonEmptyString(input.ExecuteDirectory, "当前工作台目录")),
 		"change_role 只携带四块交接信息：execute_directory、task_context、key_information、references。",
-		fmt.Sprintf("上下文策略：%s。只以本消息中的 HANDOFF_CONTEXT JSON、结构化产物 JSON 和补充备注为准，不要依赖来源会话的完整历史讨论。", input.ContextPolicy),
+		fmt.Sprintf("上下文策略：%s。优先以本消息中的 HANDOFF_PACKET JSON 为准；HANDOFF_CONTEXT JSON 仅作补充证据，不要依赖来源会话的完整历史讨论。", input.ContextPolicy),
 		"不要重复产出已确认的设计文档；除非产物本身缺失关键字段，否则直接执行目标阶段任务。",
 	}
 	if input.ArtifactKind == "agent_app_prd" && normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleAppDeveloper {
@@ -1551,6 +1564,11 @@ func buildWorkspaceHandoffContent(input workspaceHandoffContentInput) string {
 		)
 	}
 	lines = append(lines,
+		"",
+		"HANDOFF_PACKET JSON:",
+		"```json",
+		nonEmptyWorkspaceHandoffJSON(input.HandoffPacketJSON),
+		"```",
 		"",
 		"HANDOFF_CONTEXT JSON:",
 		"```json",

@@ -38,11 +38,13 @@ function normalizeSessionMessages(rawMessages: any[]): ChatMessage[] {
           : [],
         tool_calls: message.tool_calls || [],
         llm_config_id: message.llm_config_id,
-	        llm_config_name: message.llm_config_name || '',
-	        llm_provider: message.llm_provider || '',
-	        llm_model: message.llm_model || '',
-	        llm_usage: message.llm_usage,
-	        created_at: message.created_at,
+        llm_config_name: message.llm_config_name || '',
+        llm_provider: message.llm_provider || '',
+        llm_model: message.llm_model || '',
+        llm_usage: message.llm_usage,
+        model_context_plan: message.model_context_plan,
+        model_context_plans: message.model_context_plan ? [message.model_context_plan] : undefined,
+        created_at: message.created_at,
         blocks: (() => {
           const content = displayContent
           const toolCalls = message.tool_calls || []

@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"slices"
 	"strings"
 
 	"github.com/kageos/kageos/core/agent-server/prompt"
@@ -15,7 +14,7 @@ type changeRoleArgs struct {
 	CurrentRole      string   `json:"current_role" schema_desc:"当前身份 ID；没有则留空"`
 	TargetRole       string   `json:"target_role" schema_desc:"目标身份 ID，例如 product_manager/app_developer/app_operator/qa_engineer；沿用身份时也明确传当前身份" schema_required:"true"`
 	ExecuteDirectory string   `json:"execute_directory" schema_desc:"下一身份所有读取、构建、测试、运行都必须限定的工作台目录完整路径；新建应用开发阶段传已存在父目录，例如 /user/app，目标新目录放入 key_information；测试/维护/操作阶段传目标应用目录；不能写“当前目录”" schema_required:"true"`
-	TaskContext      []string `json:"task_context" schema_desc:"交接上下文：上一阶段做了什么、用户原始目标/需求、必须满足的要求、特殊 case 或未决问题；3-6 条短句" schema_required:"true"`
+	TaskContext      []string `json:"task_context" schema_desc:"交接上下文：上一阶段做了什么、用户原始目标/需求、必须满足的要求、特殊 case 或未决问题；3-6 条短句"`
 	KeyInformation   []string `json:"key_information" schema_desc:"下一身份必须知道的关键信息：PRD 摘要、构建版本、函数/表单/表格/图表路径、测试重点、失败现象等"`
 	References       []string `json:"references" schema_desc:"参考资料：PRD/构建产物、示例案例、系统文档、SDK 文档、源码文件、日志或外部 URL；只放真正要看的资料"`
 	ResetContext     bool     `json:"reset_context" schema_desc:"是否建议丢弃旧细节，只保留本次四块交接信息进入新身份"`
@@ -38,6 +37,7 @@ type changeRoleData struct {
 	ExecuteDirectory string                          `json:"execute_directory" schema_desc:"下一身份执行目录" schema_required:"true"`
 	Directory        string                          `json:"directory,omitempty" schema_desc:"工作目录"`
 	Handoff          roleHandoffData                 `json:"handoff" schema_desc:"标准四块角色交接信息" schema_required:"true"`
+	HandoffPacket    workspaceRoleHandoffPacket      `json:"handoff_packet" schema_desc:"标准角色交接协议包；优先使用该字段，旧 handoff 仅作兼容" schema_required:"true"`
 	ContextPolicy    string                          `json:"context_policy" schema_desc:"上下文携带策略" schema_required:"true"`
 	ReferenceDocs    []string                        `json:"reference_docs,omitempty" schema_desc:"建议优先读取的参考文档"`
 	ReferenceFiles   []string                        `json:"reference_files,omitempty" schema_desc:"建议优先查看的参考文件"`
@@ -45,6 +45,7 @@ type changeRoleData struct {
 	LoadedDocs       []changeRoleDoc                 `json:"loaded_docs" schema_desc:"已返回的文档正文" schema_required:"true"`
 	MissingDocs      []string                        `json:"missing_docs,omitempty" schema_desc:"未能读取到正文的文档路径"`
 	AllowedNextTools []string                        `json:"allowed_next_tools,omitempty" schema_desc:"当前身份常用下一步工具"`
+	RoleDefinition   workspaceRoleDefinition         `json:"role_definition" schema_desc:"当前角色统一协议定义：职责、文档、工具权限、SOP、完成标准和切换目标" schema_required:"true"`
 	RuntimeContract  roleRuntimeContract             `json:"runtime_contract" schema_desc:"当前角色运行契约：进入/禁止条件、SOP、完成标准、交接字段和生命周期 Hook" schema_required:"true"`
 	AppCapabilities  *workspaceAppCapabilitySnapshot `json:"app_capabilities,omitempty" schema_desc:"当前应用操作能力快照，仅 app_operator before_enter 生成"`
 	BuildDiagnostics *workspaceBuildDiagnostics      `json:"build_diagnostics,omitempty" schema_desc:"构建失败诊断，仅 build_engineer before_enter 生成"`
@@ -83,7 +84,16 @@ func (t *ChangeRoleTool) Execute(ctx context.Context, call ToolCall) ToolResult 
 	if strings.TrimSpace(args.TargetRole) != "" && !isKnownWorkspaceRole(args.TargetRole) {
 		return toolResult("target_role 不支持: "+strings.TrimSpace(args.TargetRole)+"。请使用标准角色 ID：product_manager、app_developer、maintenance_engineer、app_operator、qa_engineer、build_engineer、data_operator、platform_engineer、reviewer。", true)
 	}
+	if strings.TrimSpace(args.TargetRole) == "" {
+		return toolResult("change_role 必须显式传 target_role；沿用身份时也要传当前标准角色 ID。", true)
+	}
+	if strings.TrimSpace(args.ExecuteDirectory) == "" {
+		return toolResult("change_role 必须显式传 execute_directory，且必须是下一角色唯一允许读取、构建、测试、运行的工作台完整路径；不能省略、不能写“当前目录”。", true)
+	}
 	data := buildChangeRole(ctx, args, call.FullCodePath)
+	if workspaceRoleHandoffPacketHasValidationErrors(&data.HandoffPacket) {
+		return toolResult("change_role 交接协议校验失败: "+workspaceRoleHandoffPacketValidationSummary(&data.HandoffPacket), true)
+	}
 	return toolResultWithStructuredData(data, false)
 }
 
@@ -113,8 +123,8 @@ func buildChangeRole(ctx context.Context, args changeRoleArgs, fallbackDirectory
 		}
 	}
 
-	roleSpec, _ := workspaceRoleSpecFor(target)
-	requiredDocs := roleDocumentPackage(target, roleSpec)
+	roleDefinition, _ := workspaceRoleDefinitionFor(target)
+	requiredDocs := append([]string(nil), roleDefinition.DocumentPackage...)
 	loadedDocs, missingDocs := loadRoleDocs(ctx, requiredDocs)
 	switched := previous != "" && previous != target
 	referenceDocs := trimStringSlice(args.ReferenceDocs)
@@ -133,31 +143,34 @@ func buildChangeRole(ctx context.Context, args changeRoleArgs, fallbackDirectory
 	handoff = appendRoleHookHandoffKeyInformation(handoff, hookOutput)
 	contextSummary := buildRoleHandoffSummary(handoff, args.TaskSummary)
 	contextPolicy := buildRoleContextPolicy(switched, args.ResetContext, contextSummary, referenceDocs, referenceFiles, handoff)
+	handoffPacket := buildWorkspaceRoleHandoffPacketFromChangeRole(previous, target, handoff, contextPolicy, hookOutput)
 
 	return changeRoleData{
 		PreviousRole:     previous,
 		PreviousRoleName: workspaceRoleDisplayName(previous),
 		RoleID:           target,
-		DisplayName:      roleSpec.DisplayName,
+		DisplayName:      roleDefinition.DisplayName,
 		CurrentRole:      target,
 		Switched:         switched,
 		Reason:           reason,
 		ExecuteDirectory: handoff.ExecuteDirectory,
 		Directory:        handoff.ExecuteDirectory,
 		Handoff:          handoff,
+		HandoffPacket:    handoffPacket,
 		ContextPolicy:    contextPolicy,
 		ReferenceDocs:    referenceDocs,
 		ReferenceFiles:   referenceFiles,
 		RequiredDocs:     requiredDocs,
 		LoadedDocs:       loadedDocs,
 		MissingDocs:      missingDocs,
-		AllowedNextTools: workspaceRoleAllowedTools(target),
-		RuntimeContract:  roleSpec.Runtime,
+		AllowedNextTools: append([]string(nil), roleDefinition.AllowedTools...),
+		RoleDefinition:   roleDefinition,
+		RuntimeContract:  roleDefinition.RuntimeContract,
 		AppCapabilities:  hookOutput.AppCapabilities,
 		BuildDiagnostics: hookOutput.BuildDiagnostics,
 		ExecutedHooks:    hookOutput.ExecutedHooks,
-		NextAction:       roleSpec.Action,
-		NextRoles:        roleSpec.NextRoles,
+		NextAction:       roleDefinition.DefaultNextAction,
+		NextRoles:        append([]nextWorkspaceRole(nil), roleDefinition.AllowedTransitions...),
 	}
 }
 
@@ -380,42 +393,6 @@ func trimRoleHandoffStrings(items []string, limit int) []string {
 		}
 	}
 	return out
-}
-
-func roleDocumentPackage(role string, spec workspaceRoleSpec) []string {
-	role = normalizeWorkspaceRole(role)
-	docs := make([]string, 0, len(spec.Docs)+len(spec.Optional)+4)
-	addDoc := func(path string) {
-		path = prompt.NormalizePromptDocPath(path)
-		if path == "" || slices.Contains(docs, path) {
-			return
-		}
-		docs = append(docs, path)
-	}
-	for _, doc := range spec.Docs {
-		addDoc(doc)
-	}
-	for _, doc := range spec.Optional {
-		addDoc(doc)
-	}
-	switch role {
-	case WorkspaceRoleMaintenanceEngineer:
-		addDoc("/system/prompt/sdk/agent-app-sdk-readme")
-	case WorkspaceRoleBuildEngineer:
-		for _, doc := range []string{
-			"/system/prompt/sdk/agent-app-sdk-readme",
-			"/system/prompt/sdk/reference/build-validation",
-		} {
-			addDoc(doc)
-		}
-	case WorkspaceRolePlatformEngineer:
-		for _, doc := range []string{
-			"/system/prompt/platform-capability-boundaries",
-		} {
-			addDoc(doc)
-		}
-	}
-	return docs
 }
 
 func loadRoleDocs(ctx context.Context, paths []string) ([]changeRoleDoc, []string) {

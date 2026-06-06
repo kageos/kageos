@@ -1,13 +1,10 @@
 package llms
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"strings"
 
@@ -17,8 +14,8 @@ import (
 
 const defaultOpenAIModel = "gpt-4o-mini"
 
-// OpenAIClient is the only concrete LLM client. Non-OpenAI vendors must expose
-// an OpenAI-compatible Chat Completions endpoint and be configured via BaseURL.
+// OpenAIClient is the only concrete LLM client. BaseURL is only an OpenAI SDK
+// endpoint override for proxies or controlled deployments, not a provider switch.
 type OpenAIClient struct {
 	apiKey  string
 	model   string
@@ -97,59 +94,81 @@ func (c *OpenAIClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan
 	if err := validateRequest(ctx, c.apiKey, req); err != nil {
 		return nil, err
 	}
-	options := normalizeClientOptions(c.options)
 
-	payload, err := c.buildChatStreamPayload(req)
-	if err != nil {
-		return nil, err
-	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("序列化 LLM 流式请求失败: %w", err)
-	}
-
-	timeout := resolveRequestTimeout(options, req)
-	callCtx, cancel := context.WithTimeout(ctx, timeout)
-	httpReq, err := http.NewRequestWithContext(callCtx, http.MethodPost, c.chatCompletionsURL(), bytes.NewReader(body))
+	callCtx, cancel := context.WithTimeout(ctx, resolveRequestTimeout(c.options, req))
+	params, err := c.buildChatParams(req)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
-	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Accept", "text/event-stream")
-	if userAgent := strings.TrimSpace(options.UserAgent); userAgent != "" {
-		httpReq.Header.Set("User-Agent", userAgent)
+	params.StreamOptions = openai.ChatCompletionStreamOptionsParam{
+		IncludeUsage: openai.Bool(true),
 	}
 
-	httpClient := createHTTPClient(options, timeout)
-	resp, err := httpClient.Do(httpReq)
-	if err != nil {
+	stream := c.client.Chat.Completions.NewStreaming(callCtx, params)
+	if err := stream.Err(); err != nil {
 		cancel()
-		return nil, err
-	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		_ = resp.Body.Close()
-		cancel()
-		return nil, formatOpenAICompatibleHTTPError(resp.StatusCode, raw)
-	}
-	if strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "application/json") {
-		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		_ = resp.Body.Close()
-		cancel()
-		return nil, formatOpenAICompatibleHTTPError(resp.StatusCode, raw)
+		return nil, formatOpenAIError(err)
 	}
 
 	chunkChan := make(chan *StreamChunk)
 	go func() {
 		defer close(chunkChan)
 		defer cancel()
-		defer resp.Body.Close()
-		readOpenAICompatibleStream(callCtx, resp.Body, chunkChan)
+		defer stream.Close()
+		readOpenAIStream(callCtx, stream, chunkChan)
 	}()
 
 	return chunkChan, nil
+}
+
+func readOpenAIStream(ctx context.Context, stream interface {
+	Next() bool
+	Current() openai.ChatCompletionChunk
+	Err() error
+}, chunkChan chan<- *StreamChunk) {
+	acc := openai.ChatCompletionAccumulator{}
+	cachedTokensReported := false
+	lastFinishReason := ""
+
+	for stream.Next() {
+		chunk := stream.Current()
+		if chunk.Usage.PromptTokensDetails.JSON.CachedTokens.Valid() {
+			cachedTokensReported = true
+		}
+		if !acc.AddChunk(chunk) {
+			chunkChan <- &StreamChunk{Error: "OpenAI 流式响应累积失败", Done: true, Usage: convertAccumulatedOpenAIUsage(acc.Usage, cachedTokensReported)}
+			return
+		}
+		for _, choice := range chunk.Choices {
+			if choice.FinishReason != "" {
+				lastFinishReason = choice.FinishReason
+			}
+			out := &StreamChunk{
+				Content:        choice.Delta.Content,
+				ToolCallDeltas: convertOpenAIDeltaToolCalls(choice.Delta.ToolCalls),
+				FinishReason:   choice.FinishReason,
+			}
+			if out.Content != "" || len(out.ToolCallDeltas) > 0 {
+				chunkChan <- out
+			}
+		}
+	}
+	if err := stream.Err(); err != nil {
+		if ctx.Err() != nil {
+			chunkChan <- &StreamChunk{Error: ctx.Err().Error(), Done: true, Usage: convertAccumulatedOpenAIUsage(acc.Usage, cachedTokensReported), FinishReason: lastFinishReason}
+			return
+		}
+		chunkChan <- &StreamChunk{Error: formatOpenAIError(err).Error(), Done: true, Usage: convertAccumulatedOpenAIUsage(acc.Usage, cachedTokensReported), FinishReason: lastFinishReason}
+		return
+	}
+
+	chunkChan <- &StreamChunk{
+		Done:           true,
+		FinalToolCalls: accumulatedOpenAIToolCalls(acc),
+		FinishReason:   lastFinishReason,
+		Usage:          convertAccumulatedOpenAIUsage(acc.Usage, cachedTokensReported),
+	}
 }
 
 func (c *OpenAIClient) GetModelName() string {
@@ -292,29 +311,56 @@ func convertToolCallParams(toolCalls []ToolCall) []openai.ChatCompletionMessageT
 func convertOpenAIToolCalls(toolCalls []openai.ChatCompletionMessageToolCallUnion) []ToolCall {
 	out := make([]ToolCall, 0, len(toolCalls))
 	for _, tc := range toolCalls {
-		fn := tc.AsFunction()
-		if fn.ID == "" && fn.Function.Name == "" && fn.Function.Arguments == "" {
+		id := tc.ID
+		typ := string(tc.Type)
+		name := tc.Function.Name
+		arguments := tc.Function.Arguments
+		if id == "" && name == "" && arguments == "" {
+			fn := tc.AsFunction()
+			id = fn.ID
+			typ = string(fn.Type)
+			name = fn.Function.Name
+			arguments = fn.Function.Arguments
+		}
+		if id == "" && name == "" && arguments == "" {
 			continue
 		}
-		out = append(out, newToolCall(fn.ID, "function", nil, fn.Function.Name, fn.Function.Arguments))
+		out = append(out, newToolCall(id, typ, name, arguments))
 	}
 	return out
 }
 
-func convertOpenAIDeltaToolCalls(toolCalls []openai.ChatCompletionChunkChoiceDeltaToolCall) []ToolCall {
-	out := make([]ToolCall, 0, len(toolCalls))
+func convertOpenAIDeltaToolCalls(toolCalls []openai.ChatCompletionChunkChoiceDeltaToolCall) []ToolCallDelta {
+	out := make([]ToolCallDelta, 0, len(toolCalls))
 	for _, tc := range toolCalls {
 		idx := int(tc.Index)
-		out = append(out, newToolCall(tc.ID, tc.Type, &idx, tc.Function.Name, tc.Function.Arguments))
+		out = append(out, newToolCallDelta(&idx, tc.ID, tc.Type, tc.Function.Name, tc.Function.Arguments))
 	}
 	return out
 }
 
-func newToolCall(id, typ string, index *int, name, arguments string) ToolCall {
+func accumulatedOpenAIToolCalls(acc openai.ChatCompletionAccumulator) []ToolCall {
+	if len(acc.Choices) == 0 {
+		return nil
+	}
+	return convertOpenAIToolCalls(acc.Choices[0].Message.ToolCalls)
+}
+
+func newToolCall(id, typ, name, arguments string) ToolCall {
 	if typ == "" {
 		typ = "function"
 	}
-	tc := ToolCall{ID: id, Type: typ, Index: index}
+	tc := ToolCall{ID: id, Type: typ}
+	tc.Function.Name = name
+	tc.Function.Arguments = arguments
+	return tc
+}
+
+func newToolCallDelta(index *int, id, typ, name, arguments string) ToolCallDelta {
+	if typ == "" {
+		typ = "function"
+	}
+	tc := ToolCallDelta{Index: index, ID: id, Type: typ}
 	tc.Function.Name = name
 	tc.Function.Arguments = arguments
 	return tc
@@ -341,6 +387,19 @@ func convertOpenAIUsage(usage openai.CompletionUsage) *Usage {
 		TotalTokens:          int(usage.TotalTokens),
 		CachedTokens:         int(usage.PromptTokensDetails.CachedTokens),
 		CachedTokensReported: usage.PromptTokensDetails.JSON.CachedTokens.Valid(),
+	}
+}
+
+func convertAccumulatedOpenAIUsage(usage openai.CompletionUsage, cachedTokensReported bool) *Usage {
+	if usage.PromptTokens == 0 && usage.CompletionTokens == 0 && usage.TotalTokens == 0 {
+		return nil
+	}
+	return &Usage{
+		PromptTokens:         int(usage.PromptTokens),
+		CompletionTokens:     int(usage.CompletionTokens),
+		TotalTokens:          int(usage.TotalTokens),
+		CachedTokens:         int(usage.PromptTokensDetails.CachedTokens),
+		CachedTokensReported: cachedTokensReported,
 	}
 }
 

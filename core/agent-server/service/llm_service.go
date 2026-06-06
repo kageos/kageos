@@ -126,7 +126,7 @@ func (s *LLMService) CreateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	if cfg.Name == "" {
 		return fmt.Errorf("配置名称不能为空")
 	}
-	cfg.Provider = "openai"
+	cfg.Provider = model.LLMProviderOpenAI
 	if cfg.Model == "" {
 		return fmt.Errorf("模型名称不能为空")
 	}
@@ -186,7 +186,7 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	if cfg.Name == "" {
 		return fmt.Errorf("配置名称不能为空")
 	}
-	cfg.Provider = "openai"
+	cfg.Provider = model.LLMProviderOpenAI
 	if cfg.Model == "" {
 		return fmt.Errorf("模型名称不能为空")
 	}

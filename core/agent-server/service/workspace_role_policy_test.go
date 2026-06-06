@@ -1,6 +1,9 @@
 package service
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestWorkspaceRoleAliasesResolveToCanonicalRoles(t *testing.T) {
 	cases := map[string]string{
@@ -82,5 +85,69 @@ func TestWorkspaceRoleToolGateRequiresRoleBeforeMutations(t *testing.T) {
 	}
 	if res, blocked := workspaceRoleToolGateResult("", "write_go_file"); !blocked || !res.IsError {
 		t.Fatalf("empty role should block write_go_file, blocked=%v res=%#v", blocked, res)
+	}
+}
+
+func TestWorkspaceRoleHookDeclarationsAreRegisteredOrPlanned(t *testing.T) {
+	for roleID, spec := range workspaceRoleSpecs() {
+		for _, hook := range spec.Runtime.Hooks {
+			status := workspaceRoleHookImplementationStatus(hook.ID)
+			switch status {
+			case workspaceRoleHookImplementationImplemented, workspaceRoleHookImplementationPlanned:
+			default:
+				t.Fatalf("role %s hook %s should be registered or explicitly planned, status=%q", roleID, hook.ID, status)
+			}
+		}
+	}
+}
+
+func TestWorkspaceToolScopeGateBlocksPathsOutsideExecuteDirectory(t *testing.T) {
+	res, blocked := workspaceToolScopeGateResult(WorkspaceRoleQAEngineer, "run_table_search", map[string]interface{}{
+		"full_code_path": "/system/x_world/ticket/ticket_list.table",
+	}, "/system/x_world/vote")
+	if !blocked || !res.IsError {
+		t.Fatalf("expected scope gate to block sibling app path, blocked=%v res=%#v", blocked, res)
+	}
+	if !strings.Contains(res.Content, "execute_directory /system/x_world/vote") {
+		t.Fatalf("scope error should mention execute directory, got %q", res.Content)
+	}
+
+	res, blocked = workspaceToolScopeGateResult(WorkspaceRoleQAEngineer, "run_table_search", map[string]interface{}{
+		"full_code_path": "/system/x_world/vote/vote_topic_list.table",
+	}, "/system/x_world/vote")
+	if blocked || res.IsError {
+		t.Fatalf("expected scope gate to allow path inside execute directory, blocked=%v res=%#v", blocked, res)
+	}
+}
+
+func TestWorkspaceToolScopeGateAllowsPromptDocsOutsideExecuteDirectory(t *testing.T) {
+	res, blocked := workspaceToolScopeGateResult(WorkspaceRoleAppDeveloper, "read_doc", map[string]interface{}{
+		"directory": "/system/prompt/roles/app-developer,/system/prompt/sdk/agent-app-sdk-readme",
+	}, "/system/x_world/vote")
+	if blocked || res.IsError {
+		t.Fatalf("expected prompt docs to bypass workspace scope, blocked=%v res=%#v", blocked, res)
+	}
+}
+
+func TestWorkspaceToolScopeGateRequiresScopedSearchForOperatorAndQA(t *testing.T) {
+	res, blocked := workspaceToolScopeGateResult(WorkspaceRoleAppOperator, "search_tools", map[string]interface{}{
+		"keyword": "投票",
+	}, "/system/x_world/vote")
+	if !blocked || !res.IsError {
+		t.Fatalf("expected app_operator search_tools without directory to fail, blocked=%v res=%#v", blocked, res)
+	}
+
+	res, blocked = workspaceToolScopeGateResult(WorkspaceRoleAppOperator, "search_tools", map[string]interface{}{
+		"directory": "/system/x_world/vote",
+	}, "/system/x_world/vote")
+	if blocked || res.IsError {
+		t.Fatalf("expected app_operator scoped search_tools to pass, blocked=%v res=%#v", blocked, res)
+	}
+
+	res, blocked = workspaceToolScopeGateResult(WorkspaceRoleQAEngineer, "search_resources", map[string]interface{}{
+		"scope": "current_app",
+	}, "/system/x_world/vote")
+	if blocked || res.IsError {
+		t.Fatalf("expected qa current_app search_resources to pass, blocked=%v res=%#v", blocked, res)
 	}
 }

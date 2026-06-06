@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -77,12 +78,12 @@ func TestSaveAssistantMessageStoresLLMMetadata(t *testing.T) {
 	meta := messageLLMMetadata{
 		ConfigID:   12,
 		ConfigName: "OpenAI Mini",
-		Provider:   "openai",
+		Provider:   model.LLMProviderOpenAI,
 		Model:      "gpt-4o-mini",
 	}
 
 	usage := &llms.Usage{PromptTokens: 1200, CompletionTokens: 80, TotalTokens: 1280, CachedTokens: 1024, CachedTokensReported: true}
-	if err := svc.saveAssistantMessage(context.Background(), "session-llm", "ok", "tester", meta, usage); err != nil {
+	if err := svc.saveAssistantMessage(context.Background(), "session-llm", "ok", "tester", meta, nil, usage); err != nil {
 		t.Fatalf("save assistant message: %v", err)
 	}
 	messages, err := messageRepo.ListBySessionID("session-llm")
@@ -98,6 +99,152 @@ func TestSaveAssistantMessageStoresLLMMetadata(t *testing.T) {
 	}
 	if got.LLMUsage == nil || !strings.Contains(*got.LLMUsage, `"cached_tokens":1024`) || !strings.Contains(*got.LLMUsage, `"cached_tokens_reported":true`) {
 		t.Fatalf("LLM usage not stored: %#v", got.LLMUsage)
+	}
+}
+
+func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate sessions: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:                      7,
+		FullCodePath:                "/liubeiluo/vote",
+		Source:                      SourceWorkspace,
+		SessionID:                   "model-plan-session",
+		Title:                       "模型上下文计划",
+		ModeCode:                    "dev",
+		Status:                      model.ChatSessionStatusActive,
+		RoleID:                      WorkspaceRoleQAEngineer,
+		RoleDisplayName:             "测试工程师",
+		ParentSessionID:             "source-session",
+		ContextPolicy:               ContextPolicyArtifactOnly,
+		ModelContextAnchorMessageID: 1,
+		User:                        "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	oldMsg := &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "旧开发讨论", User: "tester"}
+	if err := messageRepo.Create(oldMsg); err != nil {
+		t.Fatalf("create old message: %v", err)
+	}
+	packet := workspaceRoleHandoffPacket{
+		Version:          workspaceRoleHandoffPacketVersion,
+		SourceSessionID:  "source-session",
+		SourceRole:       WorkspaceRoleBuildEngineer,
+		TargetRole:       WorkspaceRoleQAEngineer,
+		ArtifactKind:     workspaceBuildArtifactKind,
+		ExecuteDirectory: "/liubeiluo/vote",
+		TaskContext:      []string{"build 已通过，开始测试"},
+		KeyInformation:   []string{"重点验证投票提交"},
+		References:       []string{"/system/prompt/roles/qa-engineer"},
+		ContextPolicy:    ContextPolicyArtifactOnly,
+	}
+	normalizeAndValidateWorkspaceRoleHandoffPacket(&packet)
+	handoffMsg := &model.AgentChatMessage{
+		SessionID:    session.SessionID,
+		Role:         RoleUser,
+		Content:      "HANDOFF_PACKET JSON:\n```json\n" + formatWorkspaceRoleHandoffPacketJSON(&packet) + "\n```",
+		ContextUsage: MessageContextArtifact,
+		ArtifactKind: workspaceBuildArtifactKind,
+		User:         "tester",
+	}
+	if err := messageRepo.Create(handoffMsg); err != nil {
+		t.Fatalf("create handoff message: %v", err)
+	}
+	displayOnlyMsg := &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "只展示", ContextUsage: MessageContextDisplayOnly, User: "tester"}
+	if err := messageRepo.Create(displayOnlyMsg); err != nil {
+		t.Fatalf("create display only message: %v", err)
+	}
+	svc := &WorkspaceChatService{
+		toolReg:     NewToolRegistry(),
+		sessionRepo: sessionRepo,
+		messageRepo: messageRepo,
+	}
+	workspaceCtx := &dto.GetWorkspaceContextResp{}
+	workspaceCtx.Directory.Name = "投票系统"
+	workspaceCtx.Directory.Code = "vote"
+	workspaceCtx.Directory.Type = "package"
+
+	msgs, tools, plan, err := svc.buildLLMMessagesWithPlan(context.Background(), session.SessionID, "/liubeiluo/vote", "投票系统", workspaceCtx, nil, []string{"read_doc", "search_tools"}, "fallback", 2)
+	if err != nil {
+		t.Fatalf("build messages: %v", err)
+	}
+	if plan == nil {
+		t.Fatal("plan is nil")
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("llm messages = %d, want system + handoff", len(msgs))
+	}
+	if len(tools) != 2 {
+		t.Fatalf("tools = %d, want 2", len(tools))
+	}
+	if plan.ProtocolVersion != workspaceModelContextPlanVersion || plan.Round != 2 {
+		t.Fatalf("bad plan identity: %#v", plan)
+	}
+	if plan.Role.ID != WorkspaceRoleQAEngineer || plan.Role.Source != "session" {
+		t.Fatalf("bad role plan: %#v", plan.Role)
+	}
+	if plan.Messages.ContextPolicy != ContextPolicyArtifactOnly || plan.Messages.ExcludedByAnchor != 1 || plan.Messages.ExcludedDisplayOnly != 1 {
+		t.Fatalf("bad message policy: %#v", plan.Messages)
+	}
+	if plan.Messages.SourceHistoryPolicy != "parent_session_display_only_and_anchor_trimmed" {
+		t.Fatalf("source history policy = %q", plan.Messages.SourceHistoryPolicy)
+	}
+	if plan.Handoff == nil || plan.Handoff.TargetRole != WorkspaceRoleQAEngineer || plan.Handoff.ExecuteDirectory != "/liubeiluo/vote" {
+		t.Fatalf("bad handoff plan: %#v", plan.Handoff)
+	}
+	if !containsWorkspaceRoleString(plan.Docs.MissingDocs, "/system/prompt/roles/qa-engineer") {
+		t.Fatalf("missing docs should include qa guide: %#v", plan.Docs.MissingDocs)
+	}
+	if !containsWorkspaceRoleString(plan.Tools.LLMTools, "read_doc") || !containsWorkspaceRoleString(plan.Tools.LLMTools, "search_tools") {
+		t.Fatalf("bad tool plan: %#v", plan.Tools)
+	}
+}
+
+func TestAttachLLMUsageToWorkspaceModelContextPlanReportsCacheResult(t *testing.T) {
+	plan := &dto.WorkspaceModelContextPlan{
+		CachePlan: dto.WorkspaceModelContextCachePlan{
+			StablePrefixStrategy: "system_env_role_protocol_handoff_first",
+			ActualUsageField:     "assistant.llm_usage.cached_tokens",
+		},
+	}
+
+	attachLLMUsageToWorkspaceModelContextPlan(plan, &llms.Usage{
+		PromptTokens:         1200,
+		CompletionTokens:     80,
+		TotalTokens:          1280,
+		CachedTokens:         1024,
+		CachedTokensReported: true,
+	})
+
+	if plan.CachePlan.Result == nil {
+		t.Fatal("cache result is nil")
+	}
+	if plan.CachePlan.Result.Status != "hit" ||
+		plan.CachePlan.Result.CachedTokens != 1024 ||
+		plan.CachePlan.Result.CacheHitRatePercent != 85 ||
+		!plan.CachePlan.Result.CachedTokensReported {
+		t.Fatalf("unexpected cache result: %#v", plan.CachePlan.Result)
+	}
+
+	attachLLMUsageToWorkspaceModelContextPlan(plan, &llms.Usage{
+		PromptTokens:         1200,
+		CompletionTokens:     80,
+		TotalTokens:          1280,
+		CachedTokensReported: false,
+	})
+	if plan.CachePlan.Result.Status != "not_reported" || plan.CachePlan.Result.CachedTokensReported {
+		t.Fatalf("not_reported cache result mismatch: %#v", plan.CachePlan.Result)
 	}
 }
 
@@ -204,6 +351,11 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	if !strings.Contains(resp.Content, "HANDOFF_CONTEXT JSON") || !strings.Contains(resp.Content, "latest_user_notes") {
 		t.Fatalf("content should include rich handoff context, got %q", resp.Content)
 	}
+	if !strings.Contains(resp.Content, "HANDOFF_PACKET JSON") ||
+		!strings.Contains(resp.Content, `"version": "role_handoff.v1"`) ||
+		!strings.Contains(resp.Content, `"execute_directory": "/liubeiluo/demo"`) {
+		t.Fatalf("content should include typed handoff packet, got %q", resp.Content)
+	}
 	if !strings.Contains(resp.Content, "不要复杂审批") || !strings.Contains(resp.Content, "满意度记录") {
 		t.Fatalf("handoff context should preserve source constraints and artifact digest, got %q", resp.Content)
 	}
@@ -222,6 +374,35 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 		!strings.Contains(resp.HandoffContext, `"execute_directory": "/liubeiluo/demo"`) ||
 		!strings.Contains(resp.HandoffContext, `"artifact_included": true`) {
 		t.Fatalf("handoff context should expose target app dir, execute dir and artifact status, got %q", resp.HandoffContext)
+	}
+	var parsedContext workspaceHandoffContext
+	if err := json.Unmarshal([]byte(resp.HandoffContext), &parsedContext); err != nil {
+		t.Fatalf("handoff context should be valid JSON: %v\n%s", err, resp.HandoffContext)
+	}
+	if parsedContext.HandoffPacket == nil {
+		t.Fatalf("handoff context should include typed handoff packet, got %#v", parsedContext)
+	}
+	typedPacket := parsedContext.HandoffPacket
+	if typedPacket.Version != workspaceRoleHandoffPacketVersion ||
+		typedPacket.SourceRole != WorkspaceRoleProductManager ||
+		typedPacket.TargetRole != WorkspaceRoleAppDeveloper ||
+		typedPacket.ExecuteDirectory != "/liubeiluo/demo" ||
+		typedPacket.TargetAppDirectory != "/liubeiluo/demo/nps_followup" {
+		t.Fatalf("typed handoff packet metadata wrong: %#v", typedPacket)
+	}
+	if typedPacket.Artifact == nil || typedPacket.Artifact.Kind != "agent_app_prd" || typedPacket.Artifact.Source != "AGENT_APP_PRD JSON" {
+		t.Fatalf("typed handoff packet should reference full artifact block, got %#v", typedPacket.Artifact)
+	}
+	if typedPacket.ArtifactDigest == nil || typedPacket.ArtifactDigest.ProjectCode != "nps_followup" || len(typedPacket.ArtifactDigest.Tables) != 1 {
+		t.Fatalf("typed handoff packet should carry compact artifact digest, got %#v", typedPacket.ArtifactDigest)
+	}
+	if typedPacket.BuildDiagnostics != nil {
+		t.Fatalf("PRD to developer packet should not carry build diagnostics, got %#v", typedPacket.BuildDiagnostics)
+	}
+	typedPacketJSON := formatWorkspaceRoleHandoffPacketJSON(typedPacket)
+	if strings.Contains(typedPacketJSON, "prd_execution_markdown") ||
+		strings.Contains(typedPacketJSON, `"project":`) {
+		t.Fatalf("typed packet should not inline rendered PRD markdown or full artifact JSON, got %s", typedPacketJSON)
 	}
 	if !strings.Contains(resp.HandoffContext, "reference_docs") || !strings.Contains(resp.HandoffContext, "/system/prompt/sdk/agent-app-sdk-readme") || !strings.Contains(resp.HandoffContext, "/system/prompt/case_catalog") {
 		t.Fatalf("handoff context should include recommended reference docs, got %q", resp.HandoffContext)
@@ -272,6 +453,9 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	}
 	if !strings.Contains(packet.HandoffContextJSON, "product_manager_to_app_developer") || !strings.Contains(packet.HandoffContextJSON, "记录表默认只读") {
 		t.Fatalf("handoff packet context wrong: %#v", packet)
+	}
+	if !strings.Contains(packet.HandoffContextJSON, `"handoff_packet"`) || !strings.Contains(packet.HandoffContextJSON, `"version": "role_handoff.v1"`) {
+		t.Fatalf("stored handoff context should preserve typed packet: %#v", packet)
 	}
 	if !strings.Contains(packet.HandoffContextJSON, "reference_files") || !strings.Contains(packet.HandoffContextJSON, "/liubeiluo/demo") {
 		t.Fatalf("handoff packet should preserve reference files: %#v", packet)
@@ -666,6 +850,33 @@ func TestBuildWorkspaceHandoffContextForNewAppUsesWorkspaceRootExecuteDirectory(
 		ctx.ExecutedHooks[0].Status != "ok" {
 		t.Fatalf("handoff should record executed PRD hook, got %#v", ctx.ExecutedHooks)
 	}
+	if ctx.HandoffPacket == nil {
+		t.Fatal("handoff context should expose typed handoff packet")
+	}
+	if ctx.HandoffPacket.Version != workspaceRoleHandoffPacketVersion ||
+		ctx.HandoffPacket.TargetRole != WorkspaceRoleAppDeveloper ||
+		ctx.HandoffPacket.ExecuteDirectory != "/system/x_world" ||
+		ctx.HandoffPacket.TargetAppDirectory != "/system/x_world/vote" {
+		t.Fatalf("typed packet metadata wrong: %#v", ctx.HandoffPacket)
+	}
+	if ctx.HandoffPacket.Artifact == nil ||
+		ctx.HandoffPacket.Artifact.Kind != "agent_app_prd" ||
+		ctx.HandoffPacket.Artifact.Source != "AGENT_APP_PRD JSON" {
+		t.Fatalf("typed packet should reference PRD artifact block, got %#v", ctx.HandoffPacket.Artifact)
+	}
+	if ctx.HandoffPacket.ArtifactDigest == nil || ctx.HandoffPacket.ArtifactDigest.ProjectCode != "vote" {
+		t.Fatalf("typed packet should carry compact PRD digest, got %#v", ctx.HandoffPacket.ArtifactDigest)
+	}
+	if ctx.HandoffPacket.BuildDiagnostics != nil {
+		t.Fatalf("new app PRD handoff packet should not carry build diagnostics: %#v", ctx.HandoffPacket.BuildDiagnostics)
+	}
+	if !containsWorkspaceRoleString(ctx.HandoffPacket.References, "AGENT_APP_PRD JSON（本消息完整产物块）") ||
+		!containsWorkspaceRoleString(ctx.HandoffPacket.References, "/system/x_world/vote") {
+		t.Fatalf("typed packet references should include artifact block and target app directory: %#v", ctx.HandoffPacket.References)
+	}
+	if strings.Contains(formatWorkspaceRoleHandoffPacketJSON(ctx.HandoffPacket), `"prd_execution_markdown"`) {
+		t.Fatalf("typed packet should not inline rendered PRD markdown: %s", formatWorkspaceRoleHandoffPacketJSON(ctx.HandoffPacket))
+	}
 	if got := workspaceHandoffTargetSessionFullCodePath("/system/x_world/ticket_management", ctx.ExecuteDirectory, WorkspaceRoleAppDeveloper, "agent_app_prd"); got != "/system/x_world" {
 		t.Fatalf("target session full code path = %q, want /system/x_world", got)
 	}
@@ -715,6 +926,55 @@ func TestBuildWorkspaceHandoffContextNarrowsQAExecuteDirectoryFromSourceMessages
 	if !containsWorkspaceRoleString(ctx.ArtifactDigest.Tables[0].SearchFields, "创建开始时间") {
 		t.Fatalf("QA context should preserve PRD search fields, got %#v", ctx.ArtifactDigest.Tables[0])
 	}
+	if ctx.HandoffPacket == nil ||
+		ctx.HandoffPacket.TargetRole != WorkspaceRoleQAEngineer ||
+		ctx.HandoffPacket.ExecuteDirectory != "/system/x_world/ticket_management" ||
+		ctx.HandoffPacket.TargetAppDirectory != "/system/x_world/ticket_management" {
+		t.Fatalf("QA typed packet should narrow to target app directory, got %#v", ctx.HandoffPacket)
+	}
+	if ctx.HandoffPacket.BuildDiagnostics != nil {
+		t.Fatalf("QA build-success packet should not carry build diagnostics, got %#v", ctx.HandoffPacket.BuildDiagnostics)
+	}
+	if !strings.Contains(strings.Join(ctx.HandoffPacket.KeyInformation, "；"), "测试重点") ||
+		!strings.Contains(strings.Join(ctx.HandoffPacket.KeyInformation, "；"), "创建开始时间") {
+		t.Fatalf("QA typed packet should carry verification focus, got %#v", ctx.HandoffPacket.KeyInformation)
+	}
+}
+
+func TestBuildWorkspaceHandoffContextForBuildFailureIncludesDiagnosticsInPacket(t *testing.T) {
+	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
+		FullCodePath:  "/system/x_world/inventory",
+		TargetRole:    WorkspaceRoleBuildEngineer,
+		ArtifactKind:  workspaceBuildFailureKind,
+		ArtifactJSON:  `{"kind":"agent_app_build_failure","workspace_path":"/system/x_world/inventory","error":"app startup failed: SDK schema compile failed: router /inventory/purchase_inbound_list.table table schema decode failed\nfield SupplierName (supplier_name): widget \"select\" requires options or OnSelectFuzzyMap entry\nfield CreatedBy (created_by): audit field \"created_by\" hide tag must be \"create,update\", got \"\""}`,
+		ContextPolicy: ContextPolicyArtifactOnly,
+	})
+	if ctx.HandoffPacket == nil {
+		t.Fatal("build failure context should expose typed handoff packet")
+	}
+	packet := ctx.HandoffPacket
+	if packet.TargetRole != WorkspaceRoleBuildEngineer ||
+		packet.ExecuteDirectory != "/system/x_world/inventory" ||
+		packet.BuildDiagnostics == nil {
+		t.Fatalf("build failure packet should carry build diagnostics in target directory, got %#v", packet)
+	}
+	for _, want := range []string{"schema_validation", "select_options", "audit_field"} {
+		if !containsWorkspaceRoleString(packet.BuildDiagnostics.Categories, want) {
+			t.Fatalf("packet diagnostics should include category %q, got %#v", want, packet.BuildDiagnostics.Categories)
+		}
+	}
+	if !containsWorkspaceRoleString(packet.BuildDiagnostics.Routers, "/inventory/purchase_inbound_list.table") {
+		t.Fatalf("packet diagnostics should include router, got %#v", packet.BuildDiagnostics.Routers)
+	}
+	if !containsWorkspaceRoleString(packet.References, "/system/prompt/sdk/reference/build-validation") {
+		t.Fatalf("packet references should include diagnostic required docs, got %#v", packet.References)
+	}
+	keyInfo := strings.Join(packet.KeyInformation, "；")
+	for _, want := range []string{"构建错误类别", "构建错误 router", "构建修复策略"} {
+		if !strings.Contains(keyInfo, want) {
+			t.Fatalf("build failure packet key info should contain %q, got %#v", want, packet.KeyInformation)
+		}
+	}
 }
 
 func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
@@ -751,7 +1011,7 @@ func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
 	}
 	call := llms.ToolCall{ID: "call-change-role", Type: "function"}
 	call.Function.Name = "change_role"
-	call.Function.Arguments = `{"target_role":"product_manager","user_input":"帮我做个系统"}`
+	call.Function.Arguments = `{"target_role":"product_manager","execute_directory":"/liubeiluo/demo","user_input":"帮我做个系统"}`
 
 	summaries, nextFullCodePath, err := svc.executeToolCalls(context.Background(), []llms.ToolCall{call}, "role-session", "/liubeiluo/demo", "tester", "", 0, func(string, interface{}) {})
 	if err != nil {
@@ -881,6 +1141,7 @@ CREATE TABLE agent_chat_messages (
 	llm_provider text,
 	llm_model text,
 	llm_usage text,
+	model_context_plan text,
 	context_usage text DEFAULT 'include',
 	artifact_kind text,
 	user text NOT NULL

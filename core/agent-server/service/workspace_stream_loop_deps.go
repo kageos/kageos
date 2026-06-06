@@ -12,18 +12,20 @@ import (
 
 // workspaceStreamLoopDeps 工作台对流式工具对话循环的依赖实现（只认 LLM，单模式）
 type workspaceStreamLoopDeps struct {
-	ctx                  context.Context
-	sendEvent            func(string, interface{})
-	sessionID            string
-	fullCodePath         string
-	llmConfigID          int64
-	user                 string
-	modeProvider         prompt.WorkspaceModePromptProvider
-	toolNames            []string
-	systemPromptFragment string
-	files                string
-	service              *WorkspaceChatService
-	currentLLMMeta       messageLLMMetadata
+	ctx                     context.Context
+	sendEvent               func(string, interface{})
+	sessionID               string
+	fullCodePath            string
+	llmConfigID             int64
+	user                    string
+	modeProvider            prompt.WorkspaceModePromptProvider
+	toolNames               []string
+	systemPromptFragment    string
+	files                   string
+	service                 *WorkspaceChatService
+	currentLLMMeta          messageLLMMetadata
+	currentModelContextPlan *dto.WorkspaceModelContextPlan
+	modelContextRound       int
 }
 
 var _ streamloop.StreamLoopDeps = (*workspaceStreamLoopDeps)(nil)
@@ -37,7 +39,13 @@ func (d *workspaceStreamLoopDeps) BuildMessages(ctx context.Context) ([]llms.Mes
 	if directoryName == "" {
 		directoryName = workspaceCtx.Directory.Code
 	}
-	return d.service.buildLLMMessages(ctx, d.sessionID, d.fullCodePath, directoryName, workspaceCtx, d.modeProvider, d.toolNames, d.systemPromptFragment)
+	msgs, tools, plan, err := d.service.buildLLMMessagesWithPlan(ctx, d.sessionID, d.fullCodePath, directoryName, workspaceCtx, d.modeProvider, d.toolNames, d.systemPromptFragment, d.modelContextRound)
+	if err != nil {
+		return nil, nil, err
+	}
+	d.currentModelContextPlan = plan
+	d.modelContextRound++
+	return msgs, tools, nil
 }
 
 func (d *workspaceStreamLoopDeps) PrepareLLM(ctx context.Context, msgs []llms.Message, tools []llms.ToolDef) (llms.LLMClient, *llms.ChatRequest, error) {
@@ -46,6 +54,19 @@ func (d *workspaceStreamLoopDeps) PrepareLLM(ctx context.Context, msgs []llms.Me
 		return nil, nil, err
 	}
 	d.currentLLMMeta = buildMessageLLMMetadata(llmConfig, client)
+	if d.currentModelContextPlan != nil {
+		d.currentModelContextPlan.LLM = &dto.WorkspaceModelContextLLM{
+			ConfigID:     d.currentLLMMeta.ConfigID,
+			ConfigName:   d.currentLLMMeta.ConfigName,
+			Provider:     d.currentLLMMeta.Provider,
+			Model:        d.currentLLMMeta.Model,
+			RequestModel: chatReq.Model,
+			MaxTokens:    chatReq.MaxTokens,
+			MessageCount: len(msgs),
+			ToolCount:    len(tools),
+		}
+		d.sendEvent(EventModelContextPlan, d.currentModelContextPlan)
+	}
 	return client, chatReq, nil
 }
 
@@ -54,11 +75,21 @@ func (d *workspaceStreamLoopDeps) SendEvent(event string, data interface{}) {
 }
 
 func (d *workspaceStreamLoopDeps) SaveAssistantMessage(ctx context.Context, content string, usage *llms.Usage) error {
-	return d.service.saveAssistantMessage(ctx, d.sessionID, content, d.user, d.currentLLMMeta, usage)
+	d.finalizeCurrentModelContextPlan(usage)
+	return d.service.saveAssistantMessage(ctx, d.sessionID, content, d.user, d.currentLLMMeta, d.currentModelContextPlan, usage)
 }
 
 func (d *workspaceStreamLoopDeps) SaveAssistantMessageWithToolCalls(ctx context.Context, content string, toolCalls []llms.ToolCall, usage *llms.Usage) error {
-	return d.service.saveAssistantMessageWithToolCalls(ctx, d.sessionID, content, toolCalls, d.user, d.currentLLMMeta, usage)
+	d.finalizeCurrentModelContextPlan(usage)
+	return d.service.saveAssistantMessageWithToolCalls(ctx, d.sessionID, content, toolCalls, d.user, d.currentLLMMeta, d.currentModelContextPlan, usage)
+}
+
+func (d *workspaceStreamLoopDeps) finalizeCurrentModelContextPlan(usage *llms.Usage) {
+	if d.currentModelContextPlan == nil {
+		return
+	}
+	attachLLMUsageToWorkspaceModelContextPlan(d.currentModelContextPlan, usage)
+	d.sendEvent(EventModelContextPlan, d.currentModelContextPlan)
 }
 
 func (d *workspaceStreamLoopDeps) ExecuteToolCalls(ctx context.Context, allToolCalls []llms.ToolCall, round int, sendEvent func(string, interface{})) ([]streamloop.ToolCallSummary, error) {
@@ -97,12 +128,13 @@ func (d *workspaceStreamLoopDeps) OnDone(summaries []streamloop.ToolCallSummary,
 		}
 	}
 	d.sendEvent(EventDone, StreamEventDone{
-		SessionID:     d.sessionID,
-		ToolCalls:     toolCalls,
-		LLMConfigID:   d.currentLLMMeta.ConfigID,
-		LLMConfigName: d.currentLLMMeta.ConfigName,
-		LLMProvider:   d.currentLLMMeta.Provider,
-		LLMModel:      d.currentLLMMeta.Model,
-		LLMUsage:      llmUsageInfoFromUsage(usage),
+		SessionID:        d.sessionID,
+		ToolCalls:        toolCalls,
+		LLMConfigID:      d.currentLLMMeta.ConfigID,
+		LLMConfigName:    d.currentLLMMeta.ConfigName,
+		LLMProvider:      d.currentLLMMeta.Provider,
+		LLMModel:         d.currentLLMMeta.Model,
+		LLMUsage:         llmUsageInfoFromUsage(usage),
+		ModelContextPlan: d.currentModelContextPlan,
 	})
 }

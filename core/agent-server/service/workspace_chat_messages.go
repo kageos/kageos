@@ -96,6 +96,19 @@ func marshalLLMUsageField(ctx context.Context, usage *llms.Usage) *string {
 	return &out
 }
 
+func marshalModelContextPlanField(ctx context.Context, plan *dto.WorkspaceModelContextPlan) *string {
+	if plan == nil {
+		return nil
+	}
+	b, err := json.Marshal(plan)
+	if err != nil {
+		logger.Warnf(ctx, "[WorkspaceChatStream] 保存模型上下文计划失败: %v", err)
+		return nil
+	}
+	out := string(b)
+	return &out
+}
+
 // sanitizeContentForMySQLUtf8 去掉 4 字节 UTF-8 字符（BMP 外），避免 MySQL utf8 列报 Error 1366；表为 utf8mb4 时无需此过滤。
 func sanitizeContentForMySQLUtf8(s string) string {
 	var b strings.Builder
@@ -148,21 +161,23 @@ func (s *WorkspaceChatService) saveAssistantMessageWithToolCalls(
 	allToolCalls []llms.ToolCall,
 	user string,
 	llmMeta messageLLMMetadata,
+	modelContextPlan *dto.WorkspaceModelContextPlan,
 	usage *llms.Usage,
 ) error {
 	toolCallsJSON, _ := json.Marshal(allToolCalls)
 	toolCallsStr := string(toolCallsJSON)
 	asstMsg := &model.AgentChatMessage{
-		SessionID:     sessionID,
-		Role:          RoleAssistant,
-		Content:       content,
-		ToolCalls:     &toolCallsStr,
-		LLMConfigID:   llmMeta.ConfigID,
-		LLMConfigName: llmMeta.ConfigName,
-		LLMProvider:   llmMeta.Provider,
-		LLMModel:      llmMeta.Model,
-		LLMUsage:      marshalLLMUsageField(ctx, usage),
-		User:          user,
+		SessionID:        sessionID,
+		Role:             RoleAssistant,
+		Content:          content,
+		ToolCalls:        &toolCallsStr,
+		LLMConfigID:      llmMeta.ConfigID,
+		LLMConfigName:    llmMeta.ConfigName,
+		LLMProvider:      llmMeta.Provider,
+		LLMModel:         llmMeta.Model,
+		LLMUsage:         marshalLLMUsageField(ctx, usage),
+		ModelContextPlan: marshalModelContextPlanField(ctx, modelContextPlan),
+		User:             user,
 	}
 	asstMsg.CreatedBy = user
 	asstMsg.UpdatedBy = user
@@ -180,18 +195,20 @@ func (s *WorkspaceChatService) saveAssistantMessage(
 	content string,
 	user string,
 	llmMeta messageLLMMetadata,
+	modelContextPlan *dto.WorkspaceModelContextPlan,
 	usage *llms.Usage,
 ) error {
 	asstMsg := &model.AgentChatMessage{
-		SessionID:     sessionID,
-		Role:          RoleAssistant,
-		Content:       content,
-		LLMConfigID:   llmMeta.ConfigID,
-		LLMConfigName: llmMeta.ConfigName,
-		LLMProvider:   llmMeta.Provider,
-		LLMModel:      llmMeta.Model,
-		LLMUsage:      marshalLLMUsageField(ctx, usage),
-		User:          user,
+		SessionID:        sessionID,
+		Role:             RoleAssistant,
+		Content:          content,
+		LLMConfigID:      llmMeta.ConfigID,
+		LLMConfigName:    llmMeta.ConfigName,
+		LLMProvider:      llmMeta.Provider,
+		LLMModel:         llmMeta.Model,
+		LLMUsage:         marshalLLMUsageField(ctx, usage),
+		ModelContextPlan: marshalModelContextPlanField(ctx, modelContextPlan),
+		User:             user,
 	}
 	asstMsg.CreatedBy = user
 	asstMsg.UpdatedBy = user

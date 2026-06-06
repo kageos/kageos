@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
+
 	"github.com/kageos/kageos/pkg/logger"
+	"gorm.io/gorm"
 
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/dto"
@@ -84,17 +86,22 @@ func (a *AppService) buildInitialAppAndRoot(requestUser, tenantUser string, req 
 }
 
 func (a *AppService) persistCreatedApp(ctx context.Context, app *model.App, rootNode *model.ServiceTree) error {
-	if err := a.appRepo.CreateApp(app); err != nil {
+	if err := a.appRepo.GetDB().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(app).Error; err != nil {
+			return err
+		}
+
+		rootNode.AppID = app.ID
+		rootNode.RefID = app.ID
+		if err := tx.Create(rootNode).Error; err != nil {
+			logger.Errorf(ctx, "[AppService] 创建 service_tree 根节点失败: app_id=%d, error=%v", app.ID, err)
+			return fmt.Errorf("创建工作空间根节点失败: %w", err)
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
-
-	rootNode.AppID = app.ID
-	rootNode.RefID = app.ID
-	if err := a.serviceTreeRepo.Create(rootNode); err != nil {
-		logger.Errorf(ctx, "[AppService] 创建 service_tree 根节点失败: app_id=%d, error=%v", app.ID, err)
-		// 根节点创建失败会导致服务树无法显示，暂时保持现有行为：返回错误，不做回滚。
-		return fmt.Errorf("创建工作空间根节点失败: %w", err)
-	}
+	a.appRepo.InvalidateAppCacheBoth(app.User, app.Code, app.ID)
 
 	logger.Infof(ctx, "[AppService] 创建 service_tree 根节点成功: app_id=%d, root_id=%d, full_code_path=%s",
 		app.ID, rootNode.ID, rootNode.FullCodePath)

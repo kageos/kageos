@@ -36,7 +36,7 @@ func TestLLMListMarksCurrentAdmins(t *testing.T) {
 	svc := newLLMHandlerTestService(t)
 	if err := svc.CreateLLMConfig(contextx.WithRequestUser(context.Background(), "alice"), &model.LLMConfig{
 		Name:      "Editable",
-		Provider:  "openai",
+		Provider:  model.LLMProviderOpenAI,
 		Model:     "gpt-test",
 		APIKey:    "secret",
 		Admin:     "alice",

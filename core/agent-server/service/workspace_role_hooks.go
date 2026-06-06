@@ -17,9 +17,69 @@ const (
 	workspaceRoleHookProductManagerToDeveloper = "product_manager.to_app_developer"
 	workspaceRoleHookAppOperatorCapabilities   = "app_operator.before_enter_capabilities"
 	workspaceRoleHookBuildEngineerDiagnostics  = "build_engineer.before_enter_diagnostics"
+	workspaceRoleHookMaintenanceScope          = "maintenance.before_enter_scope"
+	workspaceRoleHookQABeforeEnterSchema       = "qa.before_enter_schema"
 )
 
 var workspaceRoleHookSearchFunctions = apicall.SearchFunctions
+
+const (
+	workspaceRoleHookImplementationImplemented = "implemented"
+	workspaceRoleHookImplementationPlanned     = "planned"
+)
+
+type workspaceRoleHookRegistration struct {
+	ID        string
+	Stage     string
+	ShouldRun func(workspaceRoleHookInput) bool
+	Run       func(context.Context, workspaceRoleHookInput) workspaceRoleHookOutput
+}
+
+var workspaceRoleHookRegistry = []workspaceRoleHookRegistration{
+	{
+		ID:        workspaceRoleHookProductManagerToDeveloper,
+		Stage:     workspaceRoleHookStageBeforeHandoff,
+		ShouldRun: shouldRunWorkspacePRDToDeveloperHook,
+		Run:       runWorkspacePRDToDeveloperHook,
+	},
+	{
+		ID:        workspaceRoleHookMaintenanceScope,
+		Stage:     workspaceRoleHookStageBeforeEnter,
+		ShouldRun: shouldRunWorkspaceMaintenanceScopeHook,
+		Run:       runWorkspaceMaintenanceScopeHook,
+	},
+	{
+		ID:        workspaceRoleHookQABeforeEnterSchema,
+		Stage:     workspaceRoleHookStageBeforeEnter,
+		ShouldRun: shouldRunWorkspaceQABeforeEnterSchemaHook,
+		Run:       runWorkspaceQABeforeEnterSchemaHook,
+	},
+	{
+		ID:        workspaceRoleHookAppOperatorCapabilities,
+		Stage:     workspaceRoleHookStageBeforeEnter,
+		ShouldRun: shouldRunWorkspaceAppOperatorCapabilitiesHook,
+		Run:       runWorkspaceAppOperatorCapabilitiesHook,
+	},
+	{
+		ID:        workspaceRoleHookBuildEngineerDiagnostics,
+		Stage:     workspaceRoleHookStageBeforeEnter,
+		ShouldRun: shouldRunWorkspaceBuildEngineerDiagnosticsHook,
+		Run:       runWorkspaceBuildEngineerDiagnosticsHook,
+	},
+}
+
+var workspaceRolePlannedHookIDs = map[string]struct{}{
+	"product_manager.prd_ready":         {},
+	"app_developer.before_enter_prd":    {},
+	"app_developer.after_build":         {},
+	"maintenance.after_build":           {},
+	"qa.after_run":                      {},
+	"app_operator.after_run":            {},
+	"build_engineer.after_build":        {},
+	"data_operator.before_enter_inputs": {},
+	"platform.before_enter_boundary":    {},
+	"reviewer.before_handoff":           {},
+}
 
 type workspaceRoleHookInput struct {
 	Stage              string
@@ -86,61 +146,179 @@ type workspaceAppFunctionCapability struct {
 }
 
 func runWorkspaceRoleHooks(input workspaceRoleHookInput) workspaceRoleHookOutput {
+	return runWorkspaceRoleHookRegistry(context.Background(), input)
+}
+
+func runWorkspaceRoleBeforeEnterHooks(ctx context.Context, input workspaceRoleHookInput) workspaceRoleHookOutput {
+	return runWorkspaceRoleHookRegistry(ctx, input)
+}
+
+func runWorkspaceRoleHookRegistry(ctx context.Context, input workspaceRoleHookInput) workspaceRoleHookOutput {
 	out := workspaceRoleHookOutput{}
-	if shouldRunWorkspacePRDToDeveloperHook(input) {
-		sourceRole := normalizeWorkspaceRole(input.SourceRole)
-		markdown := renderWorkspacePRDExecutionMarkdown(input.Artifact, input.ExecuteDirectory, input.TargetAppDirectory)
-		if strings.TrimSpace(markdown) != "" {
-			out.PRDExecutionMarkdown = markdown
-			note := "已根据 agent_app_prd JSON 生成开发执行视图；目标模型不接收来源会话完整历史。"
-			if sourceRole == "" {
-				note += " 来源角色未记录，按目标角色和产物类型兼容触发。"
-			}
-			out.ExecutedHooks = append(out.ExecutedHooks, workspaceExecutedRoleHook{
-				ID:         workspaceRoleHookProductManagerToDeveloper,
-				Stage:      workspaceRoleHookStageBeforeHandoff,
-				SourceRole: sourceRole,
-				TargetRole: WorkspaceRoleAppDeveloper,
-				Status:     "ok",
-				Produced:   []string{"PRD_EXECUTION_MARKDOWN"},
-				Note:       note,
-			})
+	stage := strings.TrimSpace(input.Stage)
+	for _, registration := range workspaceRoleHookRegistry {
+		if strings.TrimSpace(registration.Stage) != stage || registration.Run == nil {
+			continue
 		}
+		if registration.ShouldRun != nil && !registration.ShouldRun(input) {
+			continue
+		}
+		mergeWorkspaceRoleHookOutput(&out, registration.Run(ctx, input))
 	}
 	return out
 }
 
-func runWorkspaceRoleBeforeEnterHooks(ctx context.Context, input workspaceRoleHookInput) workspaceRoleHookOutput {
+func mergeWorkspaceRoleHookOutput(dst *workspaceRoleHookOutput, src workspaceRoleHookOutput) {
+	if dst == nil {
+		return
+	}
+	if strings.TrimSpace(src.PRDExecutionMarkdown) != "" {
+		dst.PRDExecutionMarkdown = src.PRDExecutionMarkdown
+	}
+	if src.AppCapabilities != nil {
+		dst.AppCapabilities = src.AppCapabilities
+	}
+	if src.BuildDiagnostics != nil {
+		dst.BuildDiagnostics = src.BuildDiagnostics
+	}
+	dst.ExecutedHooks = append(dst.ExecutedHooks, src.ExecutedHooks...)
+	dst.HandoffKeyInformation = append(dst.HandoffKeyInformation, src.HandoffKeyInformation...)
+}
+
+func annotateWorkspaceRoleRuntimeContractHooks(contract roleRuntimeContract) roleRuntimeContract {
+	if len(contract.Hooks) == 0 {
+		return contract
+	}
+	for i := range contract.Hooks {
+		contract.Hooks[i].ImplementationStatus = workspaceRoleHookImplementationStatus(contract.Hooks[i].ID)
+	}
+	return contract
+}
+
+func workspaceRoleHookImplementationStatus(hookID string) string {
+	hookID = strings.TrimSpace(hookID)
+	if hookID == "" {
+		return ""
+	}
+	for _, registration := range workspaceRoleHookRegistry {
+		if strings.TrimSpace(registration.ID) == hookID {
+			return workspaceRoleHookImplementationImplemented
+		}
+	}
+	if _, ok := workspaceRolePlannedHookIDs[hookID]; ok {
+		return workspaceRoleHookImplementationPlanned
+	}
+	return "unknown"
+}
+
+func runWorkspacePRDToDeveloperHook(ctx context.Context, input workspaceRoleHookInput) workspaceRoleHookOutput {
+	_ = ctx
 	out := workspaceRoleHookOutput{}
-	if shouldRunWorkspaceBuildEngineerDiagnosticsHook(input) {
-		diagnostics := buildWorkspaceDiagnostics(workspaceBuildErrorTextFromHandoff(input.Handoff), input.ExecuteDirectory)
-		out.BuildDiagnostics = diagnostics
-		out.HandoffKeyInformation = append(out.HandoffKeyInformation, workspaceBuildDiagnosticsHandoffLines(diagnostics)...)
-		out.ExecutedHooks = append(out.ExecutedHooks, workspaceExecutedRoleHook{
-			ID:         workspaceRoleHookBuildEngineerDiagnostics,
-			Stage:      workspaceRoleHookStageBeforeEnter,
-			SourceRole: normalizeWorkspaceRole(input.SourceRole),
-			TargetRole: WorkspaceRoleBuildEngineer,
-			Status:     firstNonEmptyString(diagnostics.Status, "empty"),
-			Produced:   []string{"build_diagnostics", "required_docs", "repair_policy", "executed_hooks"},
-			Note:       workspaceBuildDiagnosticsHookNote(diagnostics),
-		})
+	sourceRole := normalizeWorkspaceRole(input.SourceRole)
+	markdown := renderWorkspacePRDExecutionMarkdown(input.Artifact, input.ExecuteDirectory, input.TargetAppDirectory)
+	if strings.TrimSpace(markdown) == "" {
+		return out
 	}
-	if shouldRunWorkspaceAppOperatorCapabilitiesHook(input) {
-		snapshot := buildWorkspaceAppOperatorCapabilitySnapshot(ctx, input)
-		out.AppCapabilities = snapshot
-		out.HandoffKeyInformation = workspaceAppCapabilityHandoffLines(snapshot)
-		out.ExecutedHooks = append(out.ExecutedHooks, workspaceExecutedRoleHook{
-			ID:         workspaceRoleHookAppOperatorCapabilities,
-			Stage:      workspaceRoleHookStageBeforeEnter,
-			SourceRole: normalizeWorkspaceRole(input.SourceRole),
-			TargetRole: WorkspaceRoleAppOperator,
-			Status:     firstNonEmptyString(snapshot.Status, "skipped"),
-			Produced:   []string{"available_capabilities", "operation_schema_summary"},
-			Note:       workspaceAppCapabilityHookNote(snapshot),
-		})
+	out.PRDExecutionMarkdown = markdown
+	note := "已根据 agent_app_prd JSON 生成开发执行视图；目标模型不接收来源会话完整历史。"
+	if sourceRole == "" {
+		note += " 来源角色未记录，按目标角色和产物类型兼容触发。"
 	}
+	out.ExecutedHooks = append(out.ExecutedHooks, workspaceExecutedRoleHook{
+		ID:         workspaceRoleHookProductManagerToDeveloper,
+		Stage:      workspaceRoleHookStageBeforeHandoff,
+		SourceRole: sourceRole,
+		TargetRole: WorkspaceRoleAppDeveloper,
+		Status:     "ok",
+		Produced:   []string{"PRD_EXECUTION_MARKDOWN"},
+		Note:       note,
+	})
 	return out
+}
+
+func runWorkspaceAppOperatorCapabilitiesHook(ctx context.Context, input workspaceRoleHookInput) workspaceRoleHookOutput {
+	snapshot := buildWorkspaceAppOperatorCapabilitySnapshot(ctx, input)
+	return workspaceRoleHookOutput{
+		AppCapabilities:       snapshot,
+		HandoffKeyInformation: workspaceAppCapabilityHandoffLines(snapshot),
+		ExecutedHooks: []workspaceExecutedRoleHook{
+			{
+				ID:         workspaceRoleHookAppOperatorCapabilities,
+				Stage:      workspaceRoleHookStageBeforeEnter,
+				SourceRole: normalizeWorkspaceRole(input.SourceRole),
+				TargetRole: WorkspaceRoleAppOperator,
+				Status:     firstNonEmptyString(snapshot.Status, "skipped"),
+				Produced:   []string{"available_capabilities", "operation_schema_summary"},
+				Note:       workspaceAppCapabilityHookNote(snapshot),
+			},
+		},
+	}
+}
+
+func runWorkspaceBuildEngineerDiagnosticsHook(ctx context.Context, input workspaceRoleHookInput) workspaceRoleHookOutput {
+	_ = ctx
+	diagnostics := buildWorkspaceDiagnostics(workspaceBuildErrorTextFromHandoff(input.Handoff), input.ExecuteDirectory)
+	return workspaceRoleHookOutput{
+		BuildDiagnostics:      diagnostics,
+		HandoffKeyInformation: workspaceBuildDiagnosticsHandoffLines(diagnostics),
+		ExecutedHooks: []workspaceExecutedRoleHook{
+			{
+				ID:         workspaceRoleHookBuildEngineerDiagnostics,
+				Stage:      workspaceRoleHookStageBeforeEnter,
+				SourceRole: normalizeWorkspaceRole(input.SourceRole),
+				TargetRole: WorkspaceRoleBuildEngineer,
+				Status:     firstNonEmptyString(diagnostics.Status, "empty"),
+				Produced:   []string{"build_diagnostics", "required_docs", "repair_policy", "executed_hooks"},
+				Note:       workspaceBuildDiagnosticsHookNote(diagnostics),
+			},
+		},
+	}
+}
+
+func runWorkspaceMaintenanceScopeHook(ctx context.Context, input workspaceRoleHookInput) workspaceRoleHookOutput {
+	_ = ctx
+	lines := workspaceMaintenanceScopeHandoffLines(input)
+	status := "ok"
+	if normalizeWorkspacePath(input.ExecuteDirectory) == "" {
+		status = "empty"
+	}
+	return workspaceRoleHookOutput{
+		HandoffKeyInformation: lines,
+		ExecutedHooks: []workspaceExecutedRoleHook{
+			{
+				ID:         workspaceRoleHookMaintenanceScope,
+				Stage:      workspaceRoleHookStageBeforeEnter,
+				SourceRole: normalizeWorkspaceRole(input.SourceRole),
+				TargetRole: WorkspaceRoleMaintenanceEngineer,
+				Status:     status,
+				Produced:   []string{"maintenance_scope"},
+				Note:       workspaceMaintenanceScopeHookNote(input),
+			},
+		},
+	}
+}
+
+func runWorkspaceQABeforeEnterSchemaHook(ctx context.Context, input workspaceRoleHookInput) workspaceRoleHookOutput {
+	_ = ctx
+	lines := workspaceQAVerificationPlanHandoffLines(input)
+	status := "ok"
+	if normalizeWorkspacePath(input.ExecuteDirectory) == "" {
+		status = "empty"
+	}
+	return workspaceRoleHookOutput{
+		HandoffKeyInformation: lines,
+		ExecutedHooks: []workspaceExecutedRoleHook{
+			{
+				ID:         workspaceRoleHookQABeforeEnterSchema,
+				Stage:      workspaceRoleHookStageBeforeEnter,
+				SourceRole: normalizeWorkspaceRole(input.SourceRole),
+				TargetRole: WorkspaceRoleQAEngineer,
+				Status:     status,
+				Produced:   []string{"test_capability_snapshot", "verification_plan"},
+				Note:       workspaceQABeforeEnterSchemaHookNote(input),
+			},
+		},
+	}
 }
 
 func shouldRunWorkspacePRDToDeveloperHook(input workspaceRoleHookInput) bool {
@@ -168,6 +346,118 @@ func shouldRunWorkspaceAppOperatorCapabilitiesHook(input workspaceRoleHookInput)
 func shouldRunWorkspaceBuildEngineerDiagnosticsHook(input workspaceRoleHookInput) bool {
 	return strings.TrimSpace(input.Stage) == workspaceRoleHookStageBeforeEnter &&
 		normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleBuildEngineer
+}
+
+func shouldRunWorkspaceMaintenanceScopeHook(input workspaceRoleHookInput) bool {
+	return strings.TrimSpace(input.Stage) == workspaceRoleHookStageBeforeEnter &&
+		normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleMaintenanceEngineer
+}
+
+func shouldRunWorkspaceQABeforeEnterSchemaHook(input workspaceRoleHookInput) bool {
+	return strings.TrimSpace(input.Stage) == workspaceRoleHookStageBeforeEnter &&
+		normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleQAEngineer
+}
+
+func workspaceMaintenanceScopeHandoffLines(input workspaceRoleHookInput) []string {
+	executeDirectory := normalizeWorkspacePath(input.ExecuteDirectory)
+	if executeDirectory == "" {
+		return []string{"维护范围：execute_directory 为空；重新调用 change_role 固定目标应用目录后再读取或修改代码。"}
+	}
+	lines := []string{
+		fmt.Sprintf("维护范围：execute_directory=%s；只读取、修改、构建该目录或其子目录，禁止扫描或改动其他应用。", executeDirectory),
+	}
+	paths := workspaceScopedPathsFromHandoff(input, executeDirectory)
+	if len(paths) > 0 {
+		lines = append(lines, "维护相关路径："+strings.Join(trimRoleHandoffStrings(paths, 8), "、"))
+	} else {
+		lines = append(lines, "维护相关路径：交接信息未提供具体文件；先 read_dir/read_go_file 限定 execute_directory 读取最小必要源码。")
+	}
+	if summary := workspaceCompactHandoffSummary(input, 220); summary != "" {
+		lines = append(lines, "维护问题摘要："+summary)
+	}
+	lines = append(lines, "修改后只在 execute_directory 对应工作空间 build_workspace；构建/schema 问题交接 build_engineer，业务验证交接 qa_engineer。")
+	return trimRoleHandoffStrings(lines, 8)
+}
+
+func workspaceQAVerificationPlanHandoffLines(input workspaceRoleHookInput) []string {
+	executeDirectory := normalizeWorkspacePath(input.ExecuteDirectory)
+	if executeDirectory == "" {
+		return []string{"测试范围：execute_directory 为空；重新调用 change_role 固定目标应用目录后再查询 schema 或运行测试。"}
+	}
+	lines := []string{
+		fmt.Sprintf("测试范围：execute_directory=%s；所有 search_tools/search_resources/run_* 调用必须限定该目录或其子目录，禁止测试整个工作区。", executeDirectory),
+	}
+	functionPaths := workspaceFunctionPaths(workspaceScopedPathsFromHandoff(input, executeDirectory))
+	if len(functionPaths) > 0 {
+		lines = append(lines, "候选测试函数："+strings.Join(trimRoleHandoffStrings(functionPaths, 10), "、"))
+	} else {
+		lines = append(lines, "候选测试函数：交接信息未提取到具体 .table/.form/.chart；先调用 search_tools(directory=change_role.execute_directory, schema_output=both) 获取函数 schema。")
+	}
+	lines = append(lines, "验证顺序：先主数据/配置表，再 Form 提交，再目标记录表，再 Chart/结果查询；失败后归因为参数、数据、schema、业务 bug 或环境问题。")
+	lines = append(lines, "测试前必须确认 Request 字段、必填项、枚举、文件字段、关联 ID 和时间/用户筛选；不要根据函数名猜 body。")
+	return trimRoleHandoffStrings(lines, 8)
+}
+
+func workspaceMaintenanceScopeHookNote(input workspaceRoleHookInput) string {
+	if normalizeWorkspacePath(input.ExecuteDirectory) == "" {
+		return "execute_directory 为空，已要求重新固定维护目录。"
+	}
+	return "已收敛维护范围，后续读取、修改和构建必须限定在 execute_directory。"
+}
+
+func workspaceQABeforeEnterSchemaHookNote(input workspaceRoleHookInput) string {
+	if normalizeWorkspacePath(input.ExecuteDirectory) == "" {
+		return "execute_directory 为空，已要求重新固定测试目录。"
+	}
+	return "已生成测试范围和 schema 查询计划，后续运行工具必须限定在 execute_directory。"
+}
+
+func workspaceScopedPathsFromHandoff(input workspaceRoleHookInput, executeDirectory string) []string {
+	executeDirectory = normalizeWorkspacePath(executeDirectory)
+	if executeDirectory == "" {
+		return nil
+	}
+	text := workspaceHandoffSearchText(input)
+	paths := workspacePathsFromText(text)
+	out := []string{}
+	for _, item := range paths {
+		path := normalizeWorkspacePath(item)
+		if path == "" || !workspacePathHasPrefix(path, executeDirectory) {
+			continue
+		}
+		out = appendUniqueRoleHandoffStrings(out, path)
+	}
+	return out
+}
+
+func workspaceFunctionPaths(paths []string) []string {
+	out := []string{}
+	for _, item := range paths {
+		path := normalizeWorkspacePath(item)
+		if path == "" {
+			continue
+		}
+		for _, suffix := range []string{".table", ".form", ".chart"} {
+			if strings.HasSuffix(path, suffix) {
+				out = appendUniqueRoleHandoffStrings(out, path)
+				break
+			}
+		}
+	}
+	return out
+}
+
+func workspaceCompactHandoffSummary(input workspaceRoleHookInput, maxLength int) string {
+	return compactText(strings.Join(append(append([]string{}, input.Handoff.TaskContext...), input.Handoff.KeyInformation...), "；"), maxLength)
+}
+
+func workspaceHandoffSearchText(input workspaceRoleHookInput) string {
+	parts := []string{}
+	parts = append(parts, input.Handoff.ExecuteDirectory)
+	parts = append(parts, input.Handoff.TaskContext...)
+	parts = append(parts, input.Handoff.KeyInformation...)
+	parts = append(parts, input.Handoff.References...)
+	return strings.Join(parts, "\n")
 }
 
 func workspaceBuildErrorTextFromHandoff(handoff roleHandoffData) string {
