@@ -70,6 +70,12 @@ func TestBuildChangeRoleLoadsCreateDocs(t *testing.T) {
 	if containsWorkspaceRoleString(got.AllowedNextTools, "write_prd") {
 		t.Fatalf("app_developer should not plan PRD again, tools=%v", got.AllowedNextTools)
 	}
+	if !containsWorkspaceRoleString(got.RuntimeContract.DoneWhen, "build_workspace 成功并产生 agent_app_build artifact") {
+		t.Fatalf("app_developer should expose done_when contract, runtime=%#v", got.RuntimeContract)
+	}
+	if len(got.RuntimeContract.Hooks) == 0 {
+		t.Fatalf("app_developer should expose lifecycle hooks, runtime=%#v", got.RuntimeContract)
+	}
 }
 
 func TestBuildChangeRoleLoadsBuildRepairDocs(t *testing.T) {

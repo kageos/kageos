@@ -45,6 +45,7 @@ type changeRoleData struct {
 	LoadedDocs       []changeRoleDoc     `json:"loaded_docs" schema_desc:"已返回的文档正文" schema_required:"true"`
 	MissingDocs      []string            `json:"missing_docs,omitempty" schema_desc:"未能读取到正文的文档路径"`
 	AllowedNextTools []string            `json:"allowed_next_tools,omitempty" schema_desc:"当前身份常用下一步工具"`
+	RuntimeContract  roleRuntimeContract `json:"runtime_contract" schema_desc:"当前角色运行契约：进入/禁止条件、SOP、完成标准、交接字段和生命周期 Hook" schema_required:"true"`
 	NextAction       string              `json:"next_action" schema_desc:"当前身份下一步动作" schema_required:"true"`
 	NextRoles        []nextWorkspaceRole `json:"next_roles,omitempty" schema_desc:"完成后的推荐后续角色"`
 }
@@ -139,6 +140,7 @@ func buildChangeRole(ctx context.Context, args changeRoleArgs, fallbackDirectory
 		LoadedDocs:       loadedDocs,
 		MissingDocs:      missingDocs,
 		AllowedNextTools: workspaceRoleAllowedTools(target),
+		RuntimeContract:  roleSpec.Runtime,
 		NextAction:       roleSpec.Action,
 		NextRoles:        roleSpec.NextRoles,
 	}

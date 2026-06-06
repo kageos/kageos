@@ -21,6 +21,7 @@ const (
 
 type workspaceRoleSpec = workspaceroles.Spec
 type nextWorkspaceRole = workspaceroles.NextRole
+type roleRuntimeContract = workspaceroles.RuntimeContract
 
 func workspaceRoleSpecs() map[string]workspaceRoleSpec {
 	return workspaceroles.Specs()

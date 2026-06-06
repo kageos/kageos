@@ -44,6 +44,31 @@
         <span v-else class="role-handoff-empty">未提供</span>
       </section>
     </div>
+
+    <div v-if="hasRuntimeContract" class="role-handoff-grid role-handoff-runtime">
+      <section class="role-handoff-section">
+        <div class="role-handoff-label">角色 SOP</div>
+        <ul v-if="runtimeSop.length">
+          <li v-for="(item, idx) in runtimeSop" :key="`sop-${idx}`">{{ item }}</li>
+        </ul>
+        <span v-else class="role-handoff-empty">未提供</span>
+      </section>
+
+      <section class="role-handoff-section">
+        <div class="role-handoff-label">完成标准</div>
+        <ul v-if="runtimeDoneWhen.length">
+          <li v-for="(item, idx) in runtimeDoneWhen" :key="`done-${idx}`">{{ item }}</li>
+        </ul>
+        <span v-else class="role-handoff-empty">未提供</span>
+      </section>
+
+      <section v-if="runtimeHooks.length" class="role-handoff-section role-handoff-section--wide">
+        <div class="role-handoff-label">生命周期 Hook</div>
+        <ul>
+          <li v-for="(item, idx) in runtimeHooks" :key="`hook-${idx}`">{{ item }}</li>
+        </ul>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -60,6 +85,13 @@ interface HandoffBlock {
   references?: unknown
 }
 
+interface RuntimeHook {
+  id?: unknown
+  stage?: unknown
+  purpose?: unknown
+  produces?: unknown
+}
+
 const props = defineProps<{
   toolCall: WorkspaceChatToolCallSummary
 }>()
@@ -67,6 +99,7 @@ const props = defineProps<{
 const args = computed<UnknownRecord>(() => parseJSONRecord(props.toolCall.arguments))
 const resultData = computed<UnknownRecord>(() => asRecord(props.toolCall.result_data))
 const resultHandoff = computed<HandoffBlock>(() => asRecord(resultData.value.handoff) as HandoffBlock)
+const runtimeContract = computed<UnknownRecord>(() => asRecord(resultData.value.runtime_contract))
 
 const executeDirectory = computed(() =>
   firstString(
@@ -101,6 +134,13 @@ const references = computed(() => uniqueStrings([
   ...firstList(resultData.value.required_docs),
 ]))
 
+const runtimeSop = computed(() => firstList(runtimeContract.value.sop))
+const runtimeDoneWhen = computed(() => firstList(runtimeContract.value.done_when))
+const runtimeHooks = computed(() => normalizeHooks(runtimeContract.value.hooks))
+const hasRuntimeContract = computed(() =>
+  runtimeSop.value.length > 0 || runtimeDoneWhen.value.length > 0 || runtimeHooks.value.length > 0
+)
+
 const metaBadges = computed(() => {
   const badges: string[] = []
   const requiredCount = arrayLength(resultData.value.required_docs)
@@ -110,6 +150,7 @@ const metaBadges = computed(() => {
   if (references.value.some((item) => /agent_app_(prd|build)|完整\s*(PRD|产物)|artifact/i.test(item))) {
     badges.push('完整产物已引用')
   }
+  if (hasRuntimeContract.value) badges.push('角色契约已加载')
   return badges
 })
 
@@ -170,6 +211,23 @@ function normalizeList(value: unknown): string[] {
     return [value.trim()]
   }
   return []
+}
+
+function normalizeHooks(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const out: string[] = []
+  for (const item of value) {
+    const hook = asRecord(item) as RuntimeHook
+    const stage = firstString(hook.stage)
+    const id = firstString(hook.id)
+    const purpose = firstString(hook.purpose)
+    const produces = firstList(hook.produces)
+    const label = [stage, id].filter(Boolean).join(' · ')
+    const tail = produces.length ? `产出：${produces.join('、')}` : ''
+    const text = [label, purpose, tail].filter(Boolean).join('；')
+    if (text) out.push(text)
+  }
+  return uniqueStrings(out)
 }
 
 function arrayLength(value: unknown): number {
@@ -249,6 +307,10 @@ function uniqueStrings(items: string[]): string[] {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
+}
+
+.role-handoff-runtime {
+  margin-top: 10px;
 }
 
 .role-handoff-section {

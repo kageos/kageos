@@ -21,6 +21,43 @@ func TestSpecsExposeRoleContracts(t *testing.T) {
 		if len(spec.Docs) == 0 {
 			t.Fatalf("role spec %q should load at least one SOP doc", roleID)
 		}
+		if len(spec.Runtime.HandoffRequired) == 0 {
+			t.Fatalf("role spec %q should declare handoff required fields", roleID)
+		}
+		if len(spec.Runtime.SOP) == 0 {
+			t.Fatalf("role spec %q should declare runtime SOP", roleID)
+		}
+		if len(spec.Runtime.DoneWhen) == 0 {
+			t.Fatalf("role spec %q should declare done_when", roleID)
+		}
+	}
+}
+
+func TestRoleRuntimeContractsExposeLifecycleHooks(t *testing.T) {
+	specs := Specs()
+	for _, tc := range []struct {
+		roleID string
+		hookID string
+		stage  string
+	}{
+		{roleID: ProductManager, hookID: "product_manager.to_app_developer", stage: "before_handoff"},
+		{roleID: AppDeveloper, hookID: "app_developer.before_enter_prd", stage: "before_enter"},
+		{roleID: AppOperator, hookID: "app_operator.before_enter_capabilities", stage: "before_enter"},
+		{roleID: BuildEngineer, hookID: "build_engineer.before_enter_diagnostics", stage: "before_enter"},
+	} {
+		spec := specs[tc.roleID]
+		found := false
+		for _, h := range spec.Runtime.Hooks {
+			if h.ID == tc.hookID && h.Stage == tc.stage {
+				found = true
+				if strings.TrimSpace(h.Purpose) == "" || len(h.Produces) == 0 {
+					t.Fatalf("hook %s should declare purpose and outputs: %#v", tc.hookID, h)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("role %s should expose hook %s at %s, hooks=%#v", tc.roleID, tc.hookID, tc.stage, spec.Runtime.Hooks)
+		}
 	}
 }
 
