@@ -218,7 +218,7 @@ func Specs() map[string]Spec {
 				[]string{"固定目标应用目录", "读取完整错误和相关源码", "按 router/字段/文件归类同类问题", "不确定先读 build-validation、SDK 主文档或案例", "批量修复后重新 build"},
 				[]string{"build_workspace 成功并可交接 QA", "或确认问题属于业务设计缺陷并交接维护角色"},
 				[]LifecycleHook{
-					hook("build_engineer.before_enter_diagnostics", "before_enter", "解析构建错误并匹配修复策略和必读文档。", []string{"build error", "workspace path"}, []string{"build_diagnostics", "required_docs", "repair_policy"}),
+					hook("build_engineer.before_enter_diagnostics", "before_enter", "解析构建错误并匹配修复策略和必读文档。", []string{"build error", "workspace path"}, []string{"build_diagnostics", "required_docs", "repair_policy", "executed_hooks"}),
 					hook("build_engineer.after_build", "after_tool", "重新构建后决定 QA 或继续修复。", []string{"build_workspace result"}, []string{"agent_app_build artifact", "remaining_errors"}),
 				},
 			),

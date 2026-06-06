@@ -365,6 +365,55 @@ func TestBuildChangeRoleAddsFailureAdviceBeforeRetrying(t *testing.T) {
 	}
 }
 
+func TestBuildChangeRoleRunsBuildEngineerDiagnosticsHook(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		CurrentRole:      WorkspaceRoleAppDeveloper,
+		TargetRole:       WorkspaceRoleBuildEngineer,
+		ExecuteDirectory: "/system/x_world/inventory",
+		TaskContext: []string{
+			"build_workspace 失败，进入构建修复阶段",
+			"app startup failed: SDK schema compile failed: router /inventory/purchase_inbound_list.table table schema decode failed",
+		},
+		KeyInformation: []string{
+			`field SupplierName (supplier_name): widget "select" requires options or OnSelectFuzzyMap entry`,
+			`field CreatedBy (created_by): audit field "created_by" hide tag must be "create,update", got ""`,
+		},
+		References:   []string{"/system/prompt/sdk/reference/build-validation"},
+		ResetContext: true,
+	}, "/system/x_world/inventory")
+
+	if got.BuildDiagnostics == nil {
+		t.Fatalf("expected build diagnostics, got %#v", got)
+	}
+	for _, want := range []string{"schema_validation", "select_options", "audit_field"} {
+		if !containsWorkspaceRoleString(got.BuildDiagnostics.Categories, want) {
+			t.Fatalf("expected diagnostics category %q, got %#v", want, got.BuildDiagnostics.Categories)
+		}
+	}
+	if !containsWorkspaceRoleString(got.BuildDiagnostics.Routers, "/inventory/purchase_inbound_list.table") {
+		t.Fatalf("expected router in diagnostics, got %#v", got.BuildDiagnostics.Routers)
+	}
+	if !workspaceBuildDiagnosticsHasFieldIssue(got.BuildDiagnostics, "CreatedBy", "created_by") {
+		t.Fatalf("expected CreatedBy field issue, got %#v", got.BuildDiagnostics.FieldIssues)
+	}
+	if len(got.ExecutedHooks) != 1 ||
+		got.ExecutedHooks[0].ID != workspaceRoleHookBuildEngineerDiagnostics ||
+		got.ExecutedHooks[0].Stage != workspaceRoleHookStageBeforeEnter {
+		t.Fatalf("expected build engineer diagnostics hook record, got %#v", got.ExecutedHooks)
+	}
+	keyInfo := strings.Join(got.Handoff.KeyInformation, "；")
+	for _, want := range []string{
+		"构建诊断",
+		"错误类型=schema_validation、audit_field、select_options",
+		"构建修复必读资料",
+		"同类错误第二次出现前",
+	} {
+		if !strings.Contains(keyInfo, want) {
+			t.Fatalf("build engineer handoff key info should contain %q, got %#v", want, got.Handoff.KeyInformation)
+		}
+	}
+}
+
 func TestBuildChangeRoleKeepsRichSummaryAcrossRoles(t *testing.T) {
 	summary := strings.Repeat("已确认范围=提交评分 Form、满意度记录只读表、NPS 趋势图；", 10) +
 		"关键约束=记录表由 Form 产生，不开放手工新增；验证重点=门店筛选和日期趋势。"

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -97,6 +98,44 @@ namespace/auction/auction_bid_list.go:15:6: AuctionBidRecord redeclared in this 
 	if got := strings.Count(enriched, "options_colors 只支持"); got != 1 {
 		t.Fatalf("expected options_colors hint once, got %d in:\n%s", got, enriched)
 	}
+
+	diagnostics := buildWorkspaceDiagnostics(errText, "/liubeiluo/auction")
+	for _, want := range []string{
+		"schema_validation",
+		"audit_field",
+		"select_options",
+		"widget",
+		"table_request",
+		"pagination_response",
+		"sdk_api_or_go_symbol",
+		"chart_response",
+		"duplicate_definition",
+	} {
+		if !containsWorkspaceRoleString(diagnostics.Categories, want) {
+			t.Fatalf("expected diagnostics category %q, got %#v", want, diagnostics.Categories)
+		}
+	}
+	if !containsWorkspaceRoleString(diagnostics.Routers, "/auction/auction_item_list.table") {
+		t.Fatalf("expected router in diagnostics, got %#v", diagnostics.Routers)
+	}
+	if !containsWorkspaceRoleString(diagnostics.Files, "namespace/auction/auction_statistics.go:49") {
+		t.Fatalf("expected file reference in diagnostics, got %#v", diagnostics.Files)
+	}
+	if !workspaceBuildDiagnosticsHasFieldIssue(diagnostics, "CreatedBy", "created_by") {
+		t.Fatalf("expected CreatedBy field issue, got %#v", diagnostics.FieldIssues)
+	}
+	if !containsWorkspaceRoleString(diagnostics.SDKSymbols, "chart.ComboChart") ||
+		!containsWorkspaceRoleString(diagnostics.SDKSymbols, "types.EmptyRequest") ||
+		!containsWorkspaceRoleString(diagnostics.SDKSymbols, "app.Time") {
+		t.Fatalf("expected sdk symbols in diagnostics, got %#v", diagnostics.SDKSymbols)
+	}
+	if !containsWorkspaceRoleString(diagnostics.RequiredDocs, "/system/prompt/sdk/reference/build-validation") ||
+		!containsWorkspaceRoleString(diagnostics.RequiredDocs, "/system/prompt/sdk/agent-app-sdk-readme") {
+		t.Fatalf("expected required docs, got %#v", diagnostics.RequiredDocs)
+	}
+	if !strings.Contains(strings.Join(diagnostics.RepairPolicy, "；"), "不要直接整文件重写") {
+		t.Fatalf("expected repair policy, got %#v", diagnostics.RepairPolicy)
+	}
 }
 
 func TestWorkspaceBuildErrorHintsNoop(t *testing.T) {
@@ -125,4 +164,33 @@ func TestWorkspaceBuildErrorMentionsScope(t *testing.T) {
 			t.Fatalf("expected %q in:\n%s", want, got)
 		}
 	}
+}
+
+func TestBuildWorkspaceToolReturnsStructuredDataOnLocalError(t *testing.T) {
+	got := (&BuildWorkspaceTool{}).Execute(context.Background(), ToolCall{})
+	if !got.IsError {
+		t.Fatalf("expected local path error, got %#v", got)
+	}
+	data, ok := got.Data.(buildWorkspaceResultData)
+	if !ok {
+		t.Fatalf("expected structured build data on error, got %#v", got.Data)
+	}
+	if data.Kind != workspaceBuildFailureKind || data.Status != "error" || data.BuildDiagnostics == nil {
+		t.Fatalf("unexpected build failure data: %#v", data)
+	}
+	if data.BuildDiagnostics.Status != "error" || !strings.Contains(data.BuildDiagnostics.ErrorSummary, "无法获取当前工作目录") {
+		t.Fatalf("unexpected diagnostics: %#v", data.BuildDiagnostics)
+	}
+}
+
+func workspaceBuildDiagnosticsHasFieldIssue(diagnostics *workspaceBuildDiagnostics, field string, jsonName string) bool {
+	if diagnostics == nil {
+		return false
+	}
+	for _, issue := range diagnostics.FieldIssues {
+		if issue.Field == field && issue.JSONName == jsonName {
+			return true
+		}
+	}
+	return false
 }

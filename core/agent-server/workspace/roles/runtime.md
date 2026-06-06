@@ -31,6 +31,7 @@ Hook 必须产出结构化数据，不能偷偷拼隐藏长提示词；必须声
 
 - `product_manager.to_app_developer`：在用户确认 `agent_app_prd` 并交接给 `app_developer` 前执行，把结构化 PRD 渲染成 `PRD_EXECUTION_MARKDOWN`，同时在 handoff context 写入 `executed_hooks`，用于前端和日志观察本次交接到底产出了什么。
 - `app_operator.before_enter_capabilities`：在进入 `app_operator` 前按 `execute_directory` 搜索当前应用下的 Table/Form/Chart，生成 `app_capabilities` 能力快照和 `executed_hooks`，并把函数路径、运行工具、字段摘要写入标准交接的关键信息。失败时不阻断切换，但会要求下一步显式调用 `search_tools(directory=change_role.execute_directory)`。
+- `build_engineer.before_enter_diagnostics`：在进入 `build_engineer` 前从标准四块交接里解析 build/schema 错误，生成 `build_diagnostics`、`required_docs`、`repair_policy` 和 `executed_hooks`，并把错误类别、router、字段问题、必读资料和重试策略写入关键信息。未拿到完整错误时不阻断切换，但会要求先读取完整 build_workspace 失败输出。
 
 后续 Hook 应按同一方式接入：主流程只调用 HookRunner，具体角色逻辑放在对应 Hook 内；Hook 输出必须可测试、可展示，不依赖旧会话完整历史。
 

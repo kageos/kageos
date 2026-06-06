@@ -47,6 +47,7 @@ type changeRoleData struct {
 	AllowedNextTools []string                        `json:"allowed_next_tools,omitempty" schema_desc:"当前身份常用下一步工具"`
 	RuntimeContract  roleRuntimeContract             `json:"runtime_contract" schema_desc:"当前角色运行契约：进入/禁止条件、SOP、完成标准、交接字段和生命周期 Hook" schema_required:"true"`
 	AppCapabilities  *workspaceAppCapabilitySnapshot `json:"app_capabilities,omitempty" schema_desc:"当前应用操作能力快照，仅 app_operator before_enter 生成"`
+	BuildDiagnostics *workspaceBuildDiagnostics      `json:"build_diagnostics,omitempty" schema_desc:"构建失败诊断，仅 build_engineer before_enter 生成"`
 	ExecutedHooks    []workspaceExecutedRoleHook     `json:"executed_hooks,omitempty" schema_desc:"本次 change_role 已执行的角色 Hook"`
 	NextAction       string                          `json:"next_action" schema_desc:"当前身份下一步动作" schema_required:"true"`
 	NextRoles        []nextWorkspaceRole             `json:"next_roles,omitempty" schema_desc:"完成后的推荐后续角色"`
@@ -127,6 +128,7 @@ func buildChangeRole(ctx context.Context, args changeRoleArgs, fallbackDirectory
 		TargetRole:       target,
 		FullCodePath:     firstNonEmptyString(fallbackDirectory...),
 		ExecuteDirectory: handoff.ExecuteDirectory,
+		Handoff:          handoff,
 	})
 	handoff = appendRoleHookHandoffKeyInformation(handoff, hookOutput)
 	contextSummary := buildRoleHandoffSummary(handoff, args.TaskSummary)
@@ -152,6 +154,7 @@ func buildChangeRole(ctx context.Context, args changeRoleArgs, fallbackDirectory
 		AllowedNextTools: workspaceRoleAllowedTools(target),
 		RuntimeContract:  roleSpec.Runtime,
 		AppCapabilities:  hookOutput.AppCapabilities,
+		BuildDiagnostics: hookOutput.BuildDiagnostics,
 		ExecutedHooks:    hookOutput.ExecutedHooks,
 		NextAction:       roleSpec.Action,
 		NextRoles:        roleSpec.NextRoles,
@@ -198,7 +201,7 @@ func appendRoleHookHandoffKeyInformation(handoff roleHandoffData, hookOutput wor
 	if len(hookOutput.HandoffKeyInformation) == 0 {
 		return handoff
 	}
-	handoff.KeyInformation = appendUniqueRoleHandoffStrings(handoff.KeyInformation, hookOutput.HandoffKeyInformation...)
+	handoff.KeyInformation = appendUniqueRoleHandoffStrings(hookOutput.HandoffKeyInformation, handoff.KeyInformation...)
 	handoff.KeyInformation = trimRoleHandoffStrings(handoff.KeyInformation, 16)
 	return handoff
 }
