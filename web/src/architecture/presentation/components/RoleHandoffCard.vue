@@ -17,6 +17,65 @@
       <span v-for="badge in metaBadges" :key="badge">{{ badge }}</span>
     </div>
 
+    <div v-if="executedHooks.length || hasBuildDiagnostics" class="role-handoff-grid role-handoff-observability">
+      <section v-if="executedHooks.length" class="role-handoff-section">
+        <div class="role-handoff-label">已执行 Hook</div>
+        <ul class="role-handoff-hook-list">
+          <li v-for="hook in executedHooks" :key="`${hook.id}-${hook.stage}`">
+            <div class="role-handoff-hook-head">
+              <code>{{ hook.id }}</code>
+              <el-tag size="small" :type="hook.statusType">{{ hook.status || 'unknown' }}</el-tag>
+            </div>
+            <div v-if="hook.meta" class="role-handoff-subtle">{{ hook.meta }}</div>
+            <div v-if="hook.produced.length" class="role-handoff-subtle">产出：{{ hook.produced.join('、') }}</div>
+            <div v-if="hook.note" class="role-handoff-subtle">{{ hook.note }}</div>
+          </li>
+        </ul>
+      </section>
+
+      <section v-if="hasBuildDiagnostics" class="role-handoff-section role-handoff-section--wide">
+        <div class="role-handoff-label">构建诊断</div>
+        <div v-if="buildDiagnosticSummary" class="role-handoff-diagnostic-summary">{{ buildDiagnosticSummary }}</div>
+        <div v-if="buildDiagnosticCategories.length" class="role-handoff-chip-row">
+          <span v-for="item in buildDiagnosticCategories" :key="`diag-cat-${item}`">{{ item }}</span>
+        </div>
+        <div v-if="buildDiagnosticRouters.length" class="role-handoff-diagnostic-block">
+          <div class="role-handoff-mini-label">Router</div>
+          <ul class="role-handoff-references">
+            <li v-for="item in buildDiagnosticRouters" :key="`diag-router-${item}`">
+              <code>{{ item }}</code>
+            </li>
+          </ul>
+        </div>
+        <div v-if="buildDiagnosticFieldIssues.length" class="role-handoff-diagnostic-block">
+          <div class="role-handoff-mini-label">字段问题</div>
+          <ul>
+            <li v-for="item in buildDiagnosticFieldIssues" :key="`${item.field}-${item.jsonName}-${item.message}`">
+              <span>{{ item.title }}</span>
+              <span v-if="item.message">：{{ item.message }}</span>
+            </li>
+          </ul>
+        </div>
+        <div v-if="buildDiagnosticDocs.length" class="role-handoff-diagnostic-block">
+          <div class="role-handoff-mini-label">必读资料</div>
+          <ul class="role-handoff-references">
+            <li v-for="item in buildDiagnosticDocs" :key="`diag-doc-${item}`">
+              <code>{{ item }}</code>
+            </li>
+          </ul>
+        </div>
+        <div v-if="buildDiagnosticPolicy.length" class="role-handoff-diagnostic-block">
+          <div class="role-handoff-mini-label">修复策略</div>
+          <ul>
+            <li v-for="(item, idx) in buildDiagnosticPolicy" :key="`diag-policy-${idx}`">{{ item }}</li>
+          </ul>
+        </div>
+        <div v-if="buildDiagnosticRetryPolicy" class="role-handoff-diagnostic-retry">
+          {{ buildDiagnosticRetryPolicy }}
+        </div>
+      </section>
+    </div>
+
     <div class="role-handoff-grid">
       <section class="role-handoff-section">
         <div class="role-handoff-label">任务上下文</div>
@@ -115,12 +174,29 @@ interface RuntimeHook {
   produces?: unknown
 }
 
+interface ExecutedHookView {
+  id: string
+  stage: string
+  status: string
+  statusType: 'success' | 'warning' | 'danger' | 'info'
+  meta: string
+  produced: string[]
+  note: string
+}
+
 interface CapabilityFunctionView {
   title: string
   name: string
   fullCodePath: string
   meta: string
   schemaSummary: string[]
+}
+
+interface BuildDiagnosticFieldIssueView {
+  field: string
+  jsonName: string
+  title: string
+  message: string
 }
 
 const props = defineProps<{
@@ -132,6 +208,8 @@ const resultData = computed<UnknownRecord>(() => asRecord(props.toolCall.result_
 const resultHandoff = computed<HandoffBlock>(() => asRecord(resultData.value.handoff) as HandoffBlock)
 const runtimeContract = computed<UnknownRecord>(() => asRecord(resultData.value.runtime_contract))
 const appCapabilities = computed<UnknownRecord>(() => asRecord(resultData.value.app_capabilities))
+const buildDiagnostics = computed<UnknownRecord>(() => asRecord(resultData.value.build_diagnostics))
+const executedHooks = computed(() => normalizeExecutedHooks(resultData.value.executed_hooks))
 
 const executeDirectory = computed(() =>
   firstString(
@@ -178,6 +256,24 @@ const appCapabilitySummary = computed(() => formatAppCapabilitySummary(appCapabi
 const hasAppCapabilities = computed(() =>
   Boolean(appCapabilitySummary.value || appCapabilityGuidance.value.length > 0 || appCapabilityFunctions.value.length > 0)
 )
+const buildDiagnosticSummary = computed(() => formatBuildDiagnosticSummary(buildDiagnostics.value))
+const buildDiagnosticCategories = computed(() => firstList(buildDiagnostics.value.categories).slice(0, 8))
+const buildDiagnosticRouters = computed(() => firstList(buildDiagnostics.value.routers).slice(0, 8))
+const buildDiagnosticFieldIssues = computed(() => normalizeDiagnosticFieldIssues(buildDiagnostics.value.field_issues).slice(0, 6))
+const buildDiagnosticDocs = computed(() => firstList(buildDiagnostics.value.required_docs).slice(0, 6))
+const buildDiagnosticPolicy = computed(() => firstList(buildDiagnostics.value.repair_policy).slice(0, 6))
+const buildDiagnosticRetryPolicy = computed(() => firstString(buildDiagnostics.value.retry_policy))
+const hasBuildDiagnostics = computed(() =>
+  Boolean(
+    buildDiagnosticSummary.value ||
+    buildDiagnosticCategories.value.length ||
+    buildDiagnosticRouters.value.length ||
+    buildDiagnosticFieldIssues.value.length ||
+    buildDiagnosticDocs.value.length ||
+    buildDiagnosticPolicy.value.length ||
+    buildDiagnosticRetryPolicy.value
+  )
+)
 
 const metaBadges = computed(() => {
   const badges: string[] = []
@@ -191,6 +287,8 @@ const metaBadges = computed(() => {
   if (hasRuntimeContract.value) badges.push('角色契约已加载')
   const capabilityTotal = numberValue(appCapabilities.value.total_functions)
   if (hasAppCapabilities.value && capabilityTotal >= 0) badges.push(`能力快照 ${capabilityTotal} 个函数`)
+  if (executedHooks.value.length) badges.push(`Hook ${executedHooks.value.length} 个`)
+  if (hasBuildDiagnostics.value) badges.push('构建诊断')
   return badges
 })
 
@@ -270,6 +368,41 @@ function normalizeHooks(value: unknown): string[] {
   return uniqueStrings(out)
 }
 
+function normalizeExecutedHooks(value: unknown): ExecutedHookView[] {
+  if (!Array.isArray(value)) return []
+  const out: ExecutedHookView[] = []
+  for (const item of value) {
+    const record = asRecord(item)
+    const id = firstString(record.id)
+    const stage = firstString(record.stage)
+    const status = firstString(record.status)
+    const sourceRole = firstString(record.source_role)
+    const targetRole = firstString(record.target_role)
+    const produced = firstList(record.produced)
+    const note = firstString(record.note)
+    const roleText = [sourceRole, targetRole].filter(Boolean).join(' -> ')
+    const meta = [stage, roleText].filter(Boolean).join(' · ')
+    if (!id && !stage && !status && !note) continue
+    out.push({
+      id: id || 'unknown_hook',
+      stage,
+      status,
+      statusType: hookStatusType(status),
+      meta,
+      produced,
+      note,
+    })
+  }
+  return out
+}
+
+function hookStatusType(status: string): 'success' | 'warning' | 'danger' | 'info' {
+  if (status === 'ok') return 'success'
+  if (status === 'error') return 'danger'
+  if (status === 'empty' || status === 'skipped') return 'warning'
+  return 'info'
+}
+
 function normalizeCapabilityFunctions(value: unknown): CapabilityFunctionView[] {
   if (!Array.isArray(value)) return []
   const out: CapabilityFunctionView[] = []
@@ -292,6 +425,26 @@ function normalizeCapabilityFunctions(value: unknown): CapabilityFunctionView[] 
       fullCodePath,
       meta,
       schemaSummary,
+    })
+  }
+  return out
+}
+
+function normalizeDiagnosticFieldIssues(value: unknown): BuildDiagnosticFieldIssueView[] {
+  if (!Array.isArray(value)) return []
+  const out: BuildDiagnosticFieldIssueView[] = []
+  for (const item of value) {
+    const record = asRecord(item)
+    const field = firstString(record.field)
+    const jsonName = firstString(record.json_name)
+    const message = firstString(record.message)
+    const title = field && jsonName ? `${field} (${jsonName})` : firstString(field, jsonName, '未知字段')
+    if (!field && !jsonName && !message) continue
+    out.push({
+      field,
+      jsonName,
+      title,
+      message,
     })
   }
   return out
@@ -323,6 +476,24 @@ function formatAppCapabilitySummary(value: UnknownRecord): string {
     .filter(Boolean)
     .join(' / ')
   return [directory, countText, typeText, displayText].filter(Boolean).join(' · ')
+}
+
+function formatBuildDiagnosticSummary(value: UnknownRecord): string {
+  const status = firstString(value.status)
+  if (!status) return ''
+  const directory = firstString(value.workspace_path)
+  const errorSummary = firstString(value.error_summary)
+  if (status === 'empty') {
+    return [directory, '未拿到完整构建错误，先读取 build_workspace 失败输出'].filter(Boolean).join(' · ')
+  }
+  const summary = errorSummary ? truncateText(errorSummary, 220) : '已生成构建失败诊断'
+  return [directory, summary].filter(Boolean).join(' · ')
+}
+
+function truncateText(value: string, maxLength: number): string {
+  const text = value.trim()
+  if (!maxLength || text.length <= maxLength) return text
+  return `${text.slice(0, maxLength)}...`
 }
 
 function arrayLength(value: unknown): number {
@@ -414,6 +585,10 @@ function uniqueStrings(items: string[]): string[] {
   margin-top: 10px;
 }
 
+.role-handoff-observability {
+  margin-bottom: 10px;
+}
+
 .role-handoff-capabilities {
   margin-top: 10px;
 }
@@ -474,6 +649,84 @@ code {
   color: var(--el-text-color-primary);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.role-handoff-hook-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+.role-handoff-hook-list > li {
+  padding: 6px 0;
+  border-top: 1px solid var(--el-border-color-extra-light);
+}
+
+.role-handoff-hook-list > li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.role-handoff-hook-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.role-handoff-subtle {
+  margin-top: 3px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.role-handoff-diagnostic-summary {
+  margin-bottom: 6px;
+  color: var(--el-text-color-primary);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.role-handoff-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.role-handoff-chip-row span {
+  padding: 2px 6px;
+  color: var(--el-color-warning-dark-2);
+  font-size: 12px;
+  line-height: 18px;
+  background: var(--el-color-warning-light-9);
+  border: 1px solid var(--el-color-warning-light-7);
+  border-radius: 4px;
+}
+
+.role-handoff-diagnostic-block {
+  margin-top: 8px;
+}
+
+.role-handoff-mini-label {
+  margin-bottom: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.role-handoff-diagnostic-retry {
+  margin-top: 8px;
+  padding: 6px 8px;
+  color: var(--el-color-warning-dark-2);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+  background: var(--el-color-warning-light-9);
+  border: 1px solid var(--el-color-warning-light-7);
+  border-radius: 6px;
 }
 
 .role-handoff-capability-guidance {
