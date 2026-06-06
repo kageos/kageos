@@ -60,7 +60,7 @@ var workspaceBuildFieldIssueRe = regexp.MustCompile(`field\s+([A-Za-z0-9_]+)\s+\
 
 var buildWorkspaceToolDef = toolDefinitionWithOutput[buildWorkspaceArgs, structuredToolResultSchema[buildWorkspaceResultData]](
 	"build_workspace",
-	"编译当前工作空间（Go 应用）。不写文件，仅基于当前已落盘的代码触发一次编译并部署。无需传参。连续写多个文件后可调用一次 build_workspace 再编译。构建成功后返回 agent_app_build 阶段产物和 pending_test 交互状态，前端应提示用户确认是否交接给 qa_engineer 测试工程师；构建失败时不要交接测试，也不要凭直觉反复重写。先完整阅读错误，按 router/字段/文件定位同类问题；不清楚 SDK schema、widget、callback、审计字段或 API 写法时，先 read_doc /system/prompt/sdk/reference/build-validation、SDK 主文档或匹配案例，再批量修复后重新 build。",
+	"编译当前工作空间（Go 应用）。不写文件，仅基于当前已落盘的代码触发一次编译并部署。无需传参。连续写多个文件后可调用一次 build_workspace 再编译。构建成功后返回 agent_app_build 阶段产物和 pending_test 交互状态，前端应提示用户确认是否交接给 qa_engineer 测试工程师；构建失败后返回 agent_app_build_failure、build_diagnostics 和 pending_build_repair 交互状态，前端应提示是否交接给 build_engineer。构建失败时不要交接测试，也不要凭直觉反复重写。先完整阅读错误，按 router/字段/文件定位同类问题；不清楚 SDK schema、widget、callback、审计字段或 API 写法时，先 read_doc /system/prompt/sdk/reference/build-validation、SDK 主文档或匹配案例，再批量修复后重新 build。",
 )
 
 func (t *BuildWorkspaceTool) Definition() dto.ToolDef {
@@ -136,6 +136,7 @@ func buildWorkspaceFailureResult(workspacePath string, errText string) buildWork
 		App:              app,
 		Error:            compactText(errText, 700),
 		BuildDiagnostics: buildWorkspaceDiagnostics(errText, workspacePath),
+		Interaction:      pendingBuildRepairInteraction(),
 	}
 }
 

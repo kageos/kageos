@@ -13,6 +13,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AppSwitcher: typeof import('./src/architecture/presentation/shared/components/AppSwitcher.vue')['default']
+    BuildWorkspaceDiagnosticsCard: typeof import('./src/architecture/presentation/components/BuildWorkspaceDiagnosticsCard.vue')['default']
     ChartIcon: typeof import('./src/architecture/presentation/shared/components/icons/ChartIcon.vue')['default']
     ChartRenderer: typeof import('./src/architecture/presentation/components/ChartRenderer.vue')['default']
     CommonUpload: typeof import('./src/architecture/presentation/shared/components/CommonUpload.vue')['default']
@@ -150,6 +151,7 @@ declare module 'vue' {
 // For TSX support
 declare global {
   const AppSwitcher: typeof import('./src/architecture/presentation/shared/components/AppSwitcher.vue')['default']
+  const BuildWorkspaceDiagnosticsCard: typeof import('./src/architecture/presentation/components/BuildWorkspaceDiagnosticsCard.vue')['default']
   const ChartIcon: typeof import('./src/architecture/presentation/shared/components/icons/ChartIcon.vue')['default']
   const ChartRenderer: typeof import('./src/architecture/presentation/components/ChartRenderer.vue')['default']
   const CommonUpload: typeof import('./src/architecture/presentation/shared/components/CommonUpload.vue')['default']

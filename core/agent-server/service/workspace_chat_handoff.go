@@ -283,6 +283,7 @@ type workspaceHandoffContext struct {
 	ReferenceFiles       []string                    `json:"reference_files,omitempty"`
 	Remark               string                      `json:"remark,omitempty"`
 	ArtifactDigest       *workspaceArtifactDigest    `json:"artifact_digest,omitempty"`
+	BuildDiagnostics     *workspaceBuildDiagnostics  `json:"build_diagnostics,omitempty"`
 	PRDExecutionMarkdown string                      `json:"prd_execution_markdown,omitempty"`
 	ExecutedHooks        []workspaceExecutedRoleHook `json:"executed_hooks,omitempty"`
 }
@@ -349,6 +350,7 @@ func buildWorkspaceHandoffContext(input workspaceHandoffContextInput) workspaceH
 	if digest == nil && input.ArtifactKind == workspaceBuildArtifactKind {
 		digest = workspaceHandoffPRDDigestFromMessages(input.Messages)
 	}
+	buildDiagnostics := workspaceHandoffBuildDiagnostics(input.ArtifactKind, artifactMap, input.ArtifactJSON)
 	userGoal, latestNotes := summarizeWorkspaceSourceMessages(input.Messages)
 	if userGoal == "" && digest != nil {
 		userGoal = firstNonEmptyString(digest.Summary, digest.ProjectName)
@@ -383,6 +385,7 @@ func buildWorkspaceHandoffContext(input workspaceHandoffContextInput) workspaceH
 		LatestUserNotes:      latestNotes,
 		Remark:               strings.TrimSpace(input.Remark),
 		ArtifactDigest:       digest,
+		BuildDiagnostics:     buildDiagnostics,
 		PRDExecutionMarkdown: hookOutput.PRDExecutionMarkdown,
 		ExecutedHooks:        hookOutput.ExecutedHooks,
 	}
@@ -393,7 +396,9 @@ func buildWorkspaceHandoffContext(input workspaceHandoffContextInput) workspaceH
 	ctx.StageSummary = workspaceHandoffStageSummary(ctx, digest)
 	ctx.ConfirmedScope = workspaceHandoffConfirmedScope(digest)
 	ctx.KeyDecisions = workspaceHandoffKeyDecisions(input.ArtifactKind, input.TargetRole, digest, input.Remark)
+	ctx.KeyDecisions = append(ctx.KeyDecisions, workspaceHandoffBuildFailureDecisions(input.ArtifactKind, input.TargetRole, buildDiagnostics)...)
 	ctx.Constraints = workspaceHandoffConstraints(input.ArtifactKind, input.TargetRole, digest, latestNotes)
+	ctx.Constraints = append(ctx.Constraints, workspaceHandoffBuildFailureConstraints(input.ArtifactKind, input.TargetRole)...)
 	ctx.NonGoals = workspaceHandoffFilteredNotes(latestNotes, digestRules(digest), []string{"不", "不要", "无需", "暂不", "只读", "禁止"})
 	ctx.UserPreferences = workspaceHandoffFilteredNotes(latestNotes, digestRules(digest), []string{"希望", "优先", "默认", "尽量", "需要", "偏好"})
 	ctx.WorkflowNotes = workspaceHandoffWorkflowNotes(digest)
@@ -401,6 +406,7 @@ func buildWorkspaceHandoffContext(input workspaceHandoffContextInput) workspaceH
 	ctx.EdgeCases = workspaceHandoffFilteredNotes(latestNotes, digestRules(digest), []string{"异常", "边界", "权限", "失败", "为空", "重复", "冲突"})
 	ctx.OpenQuestions = workspaceHandoffFilteredNotes(latestNotes, digestRules(digest), []string{"?", "？", "待确认", "不确定", "后续确认"})
 	ctx.ImplementationFocus = workspaceHandoffImplementationFocus(input.ArtifactKind, input.TargetRole, digest)
+	ctx.ImplementationFocus = append(ctx.ImplementationFocus, workspaceHandoffBuildRepairFocus(input.ArtifactKind, input.TargetRole, buildDiagnostics)...)
 	ctx.VerificationFocus = workspaceHandoffVerificationFocus(input.ArtifactKind, input.TargetRole, digest)
 	ctx.ReferenceDocs = workspaceHandoffReferenceDocs(input.TargetRole, input.ArtifactKind)
 	ctx.ReferenceFiles = workspaceHandoffReferenceFiles(input.FullCodePath, workspaceDirectory, targetAppDirectory, input.ArtifactKind, input.TargetRole, digest)
@@ -440,6 +446,9 @@ func workspaceHandoffExecuteDirectory(fullCodePath, artifactKind, targetRole, wo
 	}
 	if artifactKind == workspaceBuildArtifactKind && role == WorkspaceRoleQAEngineer && targetAppDirectory != "" {
 		return targetAppDirectory
+	}
+	if artifactKind == workspaceBuildFailureKind && role == WorkspaceRoleBuildEngineer {
+		return firstNonEmptyString(normalizeWorkspacePath(targetAppDirectory), normalizeWorkspacePath(workspaceDirectory), normalizeWorkspacePath(fullCodePath))
 	}
 	return normalizeWorkspacePath(fullCodePath)
 }
@@ -500,6 +509,9 @@ func workspaceHandoffTargetSessionFullCodePath(fallbackFullCodePath, executeDire
 	if artifactKind == workspaceBuildArtifactKind && normalizeWorkspaceRole(targetRole) == WorkspaceRoleQAEngineer && executeDirectory != "" {
 		return executeDirectory
 	}
+	if artifactKind == workspaceBuildFailureKind && normalizeWorkspaceRole(targetRole) == WorkspaceRoleBuildEngineer && executeDirectory != "" {
+		return executeDirectory
+	}
 	return firstNonEmptyString(fallbackFullCodePath, executeDirectory)
 }
 
@@ -509,6 +521,8 @@ func workspaceHandoffStage(artifactKind, targetRole string) string {
 		return "product_manager_to_app_developer"
 	case artifactKind == workspaceBuildArtifactKind && normalizeWorkspaceRole(targetRole) == WorkspaceRoleQAEngineer:
 		return "build_engineer_to_qa_engineer"
+	case artifactKind == workspaceBuildFailureKind && normalizeWorkspaceRole(targetRole) == WorkspaceRoleBuildEngineer:
+		return "build_failure_to_build_engineer"
 	default:
 		return "workspace_stage_handoff"
 	}
@@ -1078,12 +1092,82 @@ func workspaceHandoffBaseConstraints(artifactKind, role string) []string {
 	}
 }
 
+func workspaceHandoffBuildDiagnostics(artifactKind string, artifact map[string]interface{}, artifactJSON string) *workspaceBuildDiagnostics {
+	if strings.TrimSpace(artifactKind) != workspaceBuildFailureKind {
+		return nil
+	}
+	if raw, ok := artifact["build_diagnostics"]; ok && raw != nil {
+		data, err := json.Marshal(raw)
+		if err == nil {
+			var diagnostics workspaceBuildDiagnostics
+			if err := json.Unmarshal(data, &diagnostics); err == nil && strings.TrimSpace(diagnostics.Status) != "" {
+				return &diagnostics
+			}
+		}
+	}
+	errText := firstNonEmptyString(workspaceStringField(artifact, "error"), workspaceStringField(artifact, "content"), artifactJSON)
+	return buildWorkspaceDiagnostics(errText, workspaceStringField(artifact, "workspace_path"))
+}
+
+func workspaceHandoffBuildFailureDecisions(artifactKind, targetRole string, diagnostics *workspaceBuildDiagnostics) []string {
+	if artifactKind != workspaceBuildFailureKind || normalizeWorkspaceRole(targetRole) != WorkspaceRoleBuildEngineer || diagnostics == nil {
+		return nil
+	}
+	out := []string{"构建失败诊断已随 agent_app_build_failure artifact 传入；修复阶段以 build_diagnostics 和完整 build_workspace 错误为准。"}
+	if len(diagnostics.Categories) > 0 {
+		out = append(out, "构建错误类型："+strings.Join(trimWorkspaceStrings(diagnostics.Categories, 8), "、"))
+	}
+	if len(diagnostics.Routers) > 0 {
+		out = append(out, "涉及 router："+strings.Join(trimWorkspaceStrings(diagnostics.Routers, 8), "、"))
+	}
+	if len(diagnostics.FieldIssues) > 0 {
+		fields := []string{}
+		for _, issue := range diagnostics.FieldIssues {
+			fields = appendUniqueWorkspaceString(fields, compactText(fmt.Sprintf("%s(%s): %s", issue.Field, issue.JSONName, issue.Message), 180), 5)
+		}
+		out = append(out, "字段问题："+strings.Join(fields, "；"))
+	}
+	if len(diagnostics.RequiredDocs) > 0 {
+		out = append(out, "修复前必读："+strings.Join(trimWorkspaceStrings(diagnostics.RequiredDocs, 6), "、"))
+	}
+	return trimWorkspaceStrings(out, 8)
+}
+
+func workspaceHandoffBuildFailureConstraints(artifactKind, targetRole string) []string {
+	if artifactKind != workspaceBuildFailureKind || normalizeWorkspaceRole(targetRole) != WorkspaceRoleBuildEngineer {
+		return nil
+	}
+	return []string{
+		"构建修复阶段只处理 build/schema/widget/SDK API/路由注册等构建问题，不重新设计 PRD。",
+		"同类错误第二次出现前必须补读 required_docs、匹配案例或相关 SDK 源码；不要继续同一方案重试。",
+	}
+}
+
+func workspaceHandoffBuildRepairFocus(artifactKind, targetRole string, diagnostics *workspaceBuildDiagnostics) []string {
+	if artifactKind != workspaceBuildFailureKind || normalizeWorkspaceRole(targetRole) != WorkspaceRoleBuildEngineer {
+		return nil
+	}
+	out := []string{
+		"先读完整 build_workspace 错误，再按 router/字段/文件归类同类问题。",
+		"小范围批量修复后重新 build_workspace；不要扩大到整个工作空间测试。",
+	}
+	if diagnostics != nil {
+		out = append(out, trimWorkspaceStrings(diagnostics.RepairPolicy, 5)...)
+		if diagnostics.RetryPolicy != "" {
+			out = append(out, diagnostics.RetryPolicy)
+		}
+	}
+	return trimWorkspaceStrings(out, 8)
+}
+
 func workspaceHandoffArtifactLabel(artifactKind string) string {
 	switch strings.TrimSpace(artifactKind) {
 	case "agent_app_prd":
 		return "PRD"
 	case workspaceBuildArtifactKind:
 		return "构建产物"
+	case workspaceBuildFailureKind:
+		return "构建失败诊断"
 	case "":
 		return "阶段产物"
 	default:
@@ -1201,6 +1285,11 @@ func workspaceHandoffReferenceDocs(targetRole, artifactKind string) []string {
 	}
 	if artifactKind == workspaceBuildArtifactKind && role == WorkspaceRoleQAEngineer {
 		docs = appendUniqueWorkspaceString(docs, "/system/prompt/roles/qa-engineer", 0)
+	}
+	if artifactKind == workspaceBuildFailureKind && role == WorkspaceRoleBuildEngineer {
+		docs = appendUniqueWorkspaceString(docs, "/system/prompt/roles/build-engineer", 0)
+		docs = appendUniqueWorkspaceString(docs, "/system/prompt/sdk/reference/build-validation", 0)
+		docs = appendUniqueWorkspaceString(docs, "/system/prompt/sdk/agent-app-sdk-readme", 0)
 	}
 	return trimWorkspaceStrings(docs, 12)
 }
@@ -1407,6 +1496,11 @@ func defaultWorkspaceHandoffDisplayContent(artifactKind, targetRole, remark stri
 			return "已构建成功，开始测试验证。\n\n补充备注：\n" + strings.TrimSpace(remark)
 		}
 		return "已构建成功，开始测试验证。"
+	case workspaceBuildFailureKind:
+		if strings.TrimSpace(remark) != "" {
+			return "构建失败，交接构建修复。\n\n补充备注：\n" + strings.TrimSpace(remark)
+		}
+		return "构建失败，交接构建修复。"
 	default:
 		label := strings.TrimSpace(artifactKind)
 		if label == "" {
@@ -1438,6 +1532,13 @@ func buildWorkspaceHandoffContent(input workspaceHandoffContentInput) string {
 	if input.ArtifactKind == workspaceBuildArtifactKind && normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleQAEngineer {
 		lines = append(lines,
 			"测试阶段要求：不要修改代码，不要重新 build；先调用 change_role 进入 qa_engineer，并把 execute_directory 固定为本目录；read_dir/search_tools/search_resources 必须显式使用该目录，禁止测试整个空间。按业务操作顺序验证：先主数据/配置表，再 Form 提交，再目标记录表，再 Chart；重点覆盖创建开始时间/创建结束时间和用户筛选。测试失败时判断是测试数据问题、业务 bug 还是构建/schema 问题，并交接给 maintenance_engineer 或 build_engineer。",
+		)
+	}
+	if input.ArtifactKind == workspaceBuildFailureKind && normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleBuildEngineer {
+		lines = append(lines,
+			"构建修复阶段要求：不要重新设计 PRD，不要进入测试，不要继续同一方案反复重写；先调用 change_role 进入 build_engineer，并把 execute_directory 固定为本目录。",
+			"change_role.task_context/key_information 必须携带 HANDOFF_CONTEXT.build_diagnostics 或 agent_app_build_failure.build_diagnostics 中的错误类别、router、字段问题、必读资料和修复策略。",
+			"修复前先读 /system/prompt/sdk/reference/build-validation、SDK 主文档或匹配案例；按 router/字段/文件归类同类错误，小范围批量修复后再 build_workspace。",
 		)
 	}
 	if input.ArtifactKind == "agent_app_prd" && strings.TrimSpace(input.PRDExecutionMarkdown) != "" {

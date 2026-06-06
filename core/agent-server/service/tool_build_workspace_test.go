@@ -178,6 +178,12 @@ func TestBuildWorkspaceToolReturnsStructuredDataOnLocalError(t *testing.T) {
 	if data.Kind != workspaceBuildFailureKind || data.Status != "error" || data.BuildDiagnostics == nil {
 		t.Fatalf("unexpected build failure data: %#v", data)
 	}
+	if data.Interaction == nil ||
+		data.Interaction.Status != "pending_build_repair" ||
+		data.Interaction.TargetRoleOnConfirm != WorkspaceRoleBuildEngineer ||
+		!containsWorkspaceRoleString(data.Interaction.AllowedActions, "start_build_repair") {
+		t.Fatalf("unexpected build repair interaction: %#v", data.Interaction)
+	}
 	if data.BuildDiagnostics.Status != "error" || !strings.Contains(data.BuildDiagnostics.ErrorSummary, "无法获取当前工作目录") {
 		t.Fatalf("unexpected diagnostics: %#v", data.BuildDiagnostics)
 	}

@@ -19,7 +19,7 @@
 import { computed } from 'vue'
 
 const props = defineProps<{
-  variant: 'prd' | 'test'
+  variant: 'prd' | 'test' | 'repair'
   helpText: string
   sending: boolean
 }>()
@@ -31,12 +31,32 @@ defineEmits<{
   (e: 'confirm'): void
 }>()
 
-const title = computed(() => props.variant === 'prd' ? 'PRD 等待确认' : '应用等待测试')
-const viewLabel = computed(() => props.variant === 'prd' ? '查看 PRD' : '查看构建结果')
+const title = computed(() => {
+  if (props.variant === 'prd') return 'PRD 等待确认'
+  if (props.variant === 'repair') return '构建等待修复'
+  return '应用等待测试'
+})
+const viewLabel = computed(() => {
+  if (props.variant === 'prd') return '查看 PRD'
+  if (props.variant === 'repair') return '查看诊断'
+  return '查看构建结果'
+})
 const reviseLabel = computed(() => props.variant === 'prd' ? '修改 PRD' : '继续修改')
-const cancelLabel = computed(() => props.variant === 'prd' ? '取消' : '暂不测试')
-const confirmLabel = computed(() => props.variant === 'prd' ? '确认 PRD' : '开始测试')
-const dataTestId = computed(() => props.variant === 'prd' ? 'mini-prd-confirm-bar' : 'mini-test-confirm-bar')
+const cancelLabel = computed(() => {
+  if (props.variant === 'prd') return '取消'
+  if (props.variant === 'repair') return '暂不修复'
+  return '暂不测试'
+})
+const confirmLabel = computed(() => {
+  if (props.variant === 'prd') return '确认 PRD'
+  if (props.variant === 'repair') return '交接修复'
+  return '开始测试'
+})
+const dataTestId = computed(() => {
+  if (props.variant === 'prd') return 'mini-prd-confirm-bar'
+  if (props.variant === 'repair') return 'mini-build-repair-confirm-bar'
+  return 'mini-test-confirm-bar'
+})
 </script>
 
 <style scoped>

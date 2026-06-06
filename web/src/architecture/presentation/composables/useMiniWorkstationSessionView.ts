@@ -208,6 +208,7 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
       'pending',
       'pending_confirmation',
       'pending_test',
+      'pending_build_repair',
       'waiting_approval',
       'paused',
       'queued'
@@ -227,6 +228,7 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
     const status = getSessionRawStatus(session)
     if (status === 'pending_confirmation') return 'PRD 待确认'
     if (status === 'pending_test') return '测试待确认'
+    if (status === 'pending_build_repair') return '修复待确认'
     const labels: Record<SessionStatusKind, string> = {
       running: '执行中',
       waiting: '待确认',

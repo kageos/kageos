@@ -94,6 +94,12 @@
                   :tool-call="tc"
                   class="mini-msg-role-handoff"
                 />
+                <BuildWorkspaceDiagnosticsCard
+                  v-for="(tc, bi) in getBuildWorkspaceFailureCallsFromCalls(block.calls)"
+                  :key="`build-failure-${tc.name}-${bi}`"
+                  :tool-call="tc"
+                  class="mini-msg-build-diagnostics"
+                />
                 <OutputFilesDisplay
                   v-if="getFileGroupsFromCalls(block.calls).length"
                   :file-groups="getFileGroupsFromCalls(block.calls)"
@@ -136,6 +142,12 @@
               :tool-call="tc"
               class="mini-msg-role-handoff"
             />
+            <BuildWorkspaceDiagnosticsCard
+              v-for="(tc, bi) in getBuildWorkspaceFailureCallsFromCalls(msg.tool_calls)"
+              :key="`msg-build-failure-${tc.name}-${bi}`"
+              :tool-call="tc"
+              class="mini-msg-build-diagnostics"
+            />
             <OutputFilesDisplay
               v-if="getFileGroupsFromCalls(msg.tool_calls).length"
               :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
@@ -167,6 +179,7 @@ import OutputDisplayFields from './OutputDisplayFields.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import PrdPreview from './PrdPreview.vue'
 import RoleHandoffCard from './RoleHandoffCard.vue'
+import BuildWorkspaceDiagnosticsCard from './BuildWorkspaceDiagnosticsCard.vue'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 
@@ -313,6 +326,15 @@ function getPrdCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall
 
 function getRoleHandoffCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
   return calls.filter((call) => call.name === 'change_role')
+}
+
+function getBuildWorkspaceFailureCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
+  return calls.filter((call) =>
+    call.name === 'build_workspace' &&
+    call.result_data != null &&
+    typeof call.result_data === 'object' &&
+    (call.result_data as { kind?: string }).kind === 'agent_app_build_failure'
+  )
 }
 
 function getAssistantModelLabel(message: ChatMessage): string {
@@ -669,6 +691,18 @@ onBeforeUnmount(() => {
 
   margin: 6px 0;
   border-top: 1px solid rgba(96, 231, 255, 0.16);
+  border-radius: 8px;
+}
+.mini-msg-build-diagnostics {
+  --el-text-color-primary: var(--mini-cyber-text, #d8f8ff);
+  --el-text-color-regular: rgba(216, 248, 255, 0.86);
+  --el-text-color-secondary: rgba(173, 220, 233, 0.68);
+  --el-border-color-lighter: rgba(248, 113, 113, 0.28);
+  --el-border-color-extra-light: rgba(248, 113, 113, 0.14);
+  --el-fill-color-blank: rgba(34, 18, 30, 0.82);
+  --el-fill-color-lighter: rgba(18, 12, 24, 0.64);
+
+  margin: 6px 0;
   border-radius: 8px;
 }
 .mini-msg-prd-preview :deep(.prd-preview) {

@@ -435,6 +435,52 @@ func TestPersistWorkspaceSessionInteractionStatusMarksPending(t *testing.T) {
 	}
 }
 
+func TestPersistWorkspaceSessionInteractionStatusMarksBuildRepairPendingFromErrorTool(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/demo",
+		Source:        SourceWorkspace,
+		SessionID:     "pending-build-repair-session",
+		Title:         "构建失败",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusGenerating,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
+	svc.persistWorkspaceSessionInteractionStatus(context.Background(), "pending-build-repair-session", []streamloop.ToolCallSummary{
+		{
+			Name:   "build_workspace",
+			Status: ToolCallStatusError,
+			ResultData: map[string]interface{}{
+				"kind": "agent_app_build_failure",
+				"interaction": map[string]interface{}{
+					"status": model.ChatSessionStatusPendingBuildRepair,
+				},
+			},
+		},
+	}, "tester")
+
+	updated, err := sessionRepo.GetBySessionID("pending-build-repair-session")
+	if err != nil {
+		t.Fatalf("get updated session: %v", err)
+	}
+	if updated.Status != model.ChatSessionStatusPendingBuildRepair {
+		t.Fatalf("status = %q, want %q", updated.Status, model.ChatSessionStatusPendingBuildRepair)
+	}
+}
+
 func TestPersistWorkspaceSessionInteractionStatusMarksOutput(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {

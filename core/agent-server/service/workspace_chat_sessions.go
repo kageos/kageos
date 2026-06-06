@@ -155,9 +155,6 @@ func workspaceSessionStatusFromToolSummaries(summaries []streamloop.ToolCallSumm
 
 func workspaceInteractionSessionStatusFromToolSummaries(summaries []streamloop.ToolCallSummary) string {
 	for i := len(summaries) - 1; i >= 0; i-- {
-		if summaries[i].Status != ToolCallStatusOK {
-			continue
-		}
 		if status := workspaceInteractionSessionStatusFromResultData(summaries[i].ResultData); status != "" {
 			return status
 		}
@@ -236,6 +233,8 @@ func normalizeWorkspacePendingInteractionStatus(status string) string {
 		return model.ChatSessionStatusPendingConfirmation
 	case model.ChatSessionStatusPendingTest:
 		return model.ChatSessionStatusPendingTest
+	case model.ChatSessionStatusPendingBuildRepair:
+		return model.ChatSessionStatusPendingBuildRepair
 	default:
 		return ""
 	}
@@ -255,7 +254,7 @@ func (s *WorkspaceChatService) ResolveWorkspacePendingInteraction(ctx context.Co
 		return fmt.Errorf("不能操作其他用户的会话")
 	}
 	switch session.Status {
-	case model.ChatSessionStatusPendingConfirmation, model.ChatSessionStatusPendingTest:
+	case model.ChatSessionStatusPendingConfirmation, model.ChatSessionStatusPendingTest, model.ChatSessionStatusPendingBuildRepair:
 		session.Status = model.ChatSessionStatusActive
 		session.UpdatedBy = user
 		if err := s.sessionRepo.Update(session); err != nil {

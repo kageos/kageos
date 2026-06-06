@@ -97,7 +97,7 @@ function getSessionStatusClass(status?: string): string {
   const normalized = normalizeSessionStatus(status)
   if (normalized === 'generating') return 'generating'
   if (['output', 'new_file', 'new_output', 'has_output'].includes(normalized)) return 'output'
-  if (['pending_confirmation', 'pending_test', 'waiting', 'pending'].includes(normalized)) return 'waiting'
+  if (['pending_confirmation', 'pending_test', 'pending_build_repair', 'waiting', 'pending'].includes(normalized)) return 'waiting'
   if (normalized === 'done') return 'done'
   if (normalized === 'cancelled') return 'cancelled'
   if (normalized === 'failed') return 'failed'
@@ -114,6 +114,7 @@ function getSessionStatusLabel(status?: string): string {
     has_output: '新文件',
     pending_confirmation: 'PRD 待确认',
     pending_test: '测试待确认',
+    pending_build_repair: '修复待确认',
     done: '已完成',
     cancelled: '已取消',
     failed: '失败'

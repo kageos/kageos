@@ -210,14 +210,14 @@
         />
 
         <MiniWorkstationPendingActionBar
-          v-else-if="pendingTestHandoff"
-          variant="test"
-          :help-text="pendingTestHandoffHelpText"
+          v-else-if="pendingBuildHandoff"
+          :variant="pendingBuildHandoffVariant"
+          :help-text="pendingBuildHandoffHelpText"
           :sending="sending"
           @view="focusPrdPreview"
           @revise="prepareContinueDevelopment"
-          @cancel="cancelPendingTestHandoff"
-          @confirm="confirmPendingTestHandoff"
+          @cancel="cancelPendingBuildHandoff"
+          @confirm="confirmPendingBuildHandoff"
         />
 
         <MiniWorkstationComposer
@@ -388,7 +388,7 @@ const llmSelectOpen = ref(false)
 const settingsPopoverOpen = ref(false)
 const interactionOpen = computed(() => llmSelectOpen.value || settingsPopoverOpen.value)
 const confirmedPrdKeys = ref<Set<string>>(new Set())
-const confirmedTestHandoffKeys = ref<Set<string>>(new Set())
+const confirmedBuildHandoffKeys = ref<Set<string>>(new Set())
 const artifactPanelExpanded = ref(false)
 const collapsed = ref(props.initialExpanded === false)
 const suppressAutoSelectLatestSession = ref(false)
@@ -779,7 +779,7 @@ interface PrdInteractionData {
   }
 }
 
-interface BuildTestInteractionData {
+interface BuildInteractionData {
   kind?: string
   workspace_path?: string
   app?: string
@@ -815,7 +815,7 @@ const pendingPrdHelpText = computed(() => {
   return pendingPrd.value?.interaction?.help_text || 'PRD 已生成，请确认后进入开发；看不到按钮也可以直接回复：确认 PRD。'
 })
 
-const pendingTestHandoff = computed<BuildTestInteractionData | null>(() => {
+const pendingBuildHandoff = computed<BuildInteractionData | null>(() => {
   for (let i = messages.value.length - 1; i >= 0; i--) {
     const message = messages.value[i]
     if (!message) continue
@@ -823,17 +823,23 @@ const pendingTestHandoff = computed<BuildTestInteractionData | null>(() => {
     for (let j = calls.length - 1; j >= 0; j--) {
       const call = calls[j]
       if (!call) continue
-      if (call.name !== 'build_workspace' || call.status !== 'ok' || !isBuildTestInteractionData(call.result_data)) continue
+      if (call.name !== 'build_workspace' || !isBuildInteractionData(call.result_data)) continue
       const key = getStageArtifactKey(call.result_data)
-      if (confirmedTestHandoffKeys.value.has(key)) continue
+      if (confirmedBuildHandoffKeys.value.has(key)) continue
       return call.result_data
     }
   }
   return null
 })
 
-const pendingTestHandoffHelpText = computed(() => {
-  return pendingTestHandoff.value?.interaction?.help_text || '应用已编译部署，请确认是否进入测试工程师验证。'
+const pendingBuildHandoffHelpText = computed(() => {
+  if (pendingBuildHandoff.value?.interaction?.help_text) return pendingBuildHandoff.value.interaction.help_text
+  if (isBuildRepairInteractionData(pendingBuildHandoff.value)) return '构建失败，请确认是否交接给构建修复工程师。'
+  return '应用已编译部署，请确认是否进入测试工程师验证。'
+})
+
+const pendingBuildHandoffVariant = computed<'test' | 'repair'>(() => {
+  return isBuildRepairInteractionData(pendingBuildHandoff.value) ? 'repair' : 'test'
 })
 
 const hasCurrentOutputContent = computed(() => {
@@ -841,7 +847,7 @@ const hasCurrentOutputContent = computed(() => {
     || messages.value.length > 0
     || artifactItems.value.length > 0
     || !!pendingPrd.value
-    || !!pendingTestHandoff.value
+    || !!pendingBuildHandoff.value
 })
 
 const showCurrentOutput = computed(() => {
@@ -922,10 +928,17 @@ function isPrdInteractionData(value: unknown): value is PrdInteractionData {
   return data.kind === 'agent_app_prd' && data.interaction?.status === 'pending_confirmation'
 }
 
-function isBuildTestInteractionData(value: unknown): value is BuildTestInteractionData {
+function isBuildInteractionData(value: unknown): value is BuildInteractionData {
   if (!value || typeof value !== 'object') return false
-  const data = value as BuildTestInteractionData
-  return data.kind === 'agent_app_build' && data.interaction?.status === 'pending_test'
+  const data = value as BuildInteractionData
+  return (data.kind === 'agent_app_build' && data.interaction?.status === 'pending_test') ||
+    (data.kind === 'agent_app_build_failure' && data.interaction?.status === 'pending_build_repair')
+}
+
+function isBuildRepairInteractionData(value: unknown): value is BuildInteractionData {
+  if (!value || typeof value !== 'object') return false
+  const data = value as BuildInteractionData
+  return data.kind === 'agent_app_build_failure' && data.interaction?.status === 'pending_build_repair'
 }
 
 function getStageArtifactKey(artifact: unknown) {
@@ -942,10 +955,10 @@ function markPrdConfirmed(prd: unknown) {
   confirmedPrdKeys.value = next
 }
 
-function markTestHandoffHandled(artifact: unknown) {
-  const next = new Set(confirmedTestHandoffKeys.value)
+function markBuildHandoffHandled(artifact: unknown) {
+  const next = new Set(confirmedBuildHandoffKeys.value)
   next.add(getStageArtifactKey(artifact))
-  confirmedTestHandoffKeys.value = next
+  confirmedBuildHandoffKeys.value = next
 }
 
 async function clearCurrentPendingInteractionStatus() {
@@ -974,15 +987,16 @@ async function handleBeforeSend(payload: { text: string; files: unknown[] | null
       return true
     }
   }
-  if (pendingTestHandoff.value) {
-    if (isStartTestText(text)) {
-      await handleConfirmTestHandoff({ artifact: pendingTestHandoff.value })
+  if (pendingBuildHandoff.value) {
+    if (isStartBuildHandoffText(text, pendingBuildHandoff.value)) {
+      await handleConfirmBuildHandoff({ artifact: pendingBuildHandoff.value })
       return true
     }
-    if (isSkipTestText(text)) {
-      markTestHandoffHandled(pendingTestHandoff.value)
+    if (isSkipBuildHandoffText(text, pendingBuildHandoff.value)) {
+      const repairing = isBuildRepairInteractionData(pendingBuildHandoff.value)
+      markBuildHandoffHandled(pendingBuildHandoff.value)
       await clearCurrentPendingInteractionStatus()
-      ElMessage.info('已暂不进入测试')
+      ElMessage.info(repairing ? '已暂不进入构建修复' : '已暂不进入测试')
       return true
     }
   }
@@ -1009,14 +1023,32 @@ function isSkipTestText(text: string) {
   return ['暂不测试', '先不测试', '不用测试', '跳过测试'].includes(normalized)
 }
 
+function isStartRepairText(text: string) {
+  const normalized = text.replace(/\s+/g, '').toLowerCase()
+  return ['开始修复', '修复', '交接修复', '进入修复', '构建修复', '进入构建修复', '切到构建修复'].includes(normalized)
+}
+
+function isSkipRepairText(text: string) {
+  const normalized = text.replace(/\s+/g, '').toLowerCase()
+  return ['暂不修复', '先不修复', '不用修复', '跳过修复'].includes(normalized)
+}
+
+function isStartBuildHandoffText(text: string, artifact: unknown) {
+  return isBuildRepairInteractionData(artifact) ? isStartRepairText(text) : isStartTestText(text)
+}
+
+function isSkipBuildHandoffText(text: string, artifact: unknown) {
+  return isBuildRepairInteractionData(artifact) ? isSkipRepairText(text) : isSkipTestText(text)
+}
+
 function confirmPendingPrd() {
   if (!pendingPrd.value) return
   void handleConfirmPrd({ remark: '', prd: pendingPrd.value })
 }
 
-function confirmPendingTestHandoff() {
-  if (!pendingTestHandoff.value) return
-  void handleConfirmTestHandoff({ artifact: pendingTestHandoff.value })
+function confirmPendingBuildHandoff() {
+  if (!pendingBuildHandoff.value) return
+  void handleConfirmBuildHandoff({ artifact: pendingBuildHandoff.value })
 }
 
 function prepareRevisePrd() {
@@ -1036,11 +1068,12 @@ async function cancelPendingPrd() {
   ElMessage.info('已取消本次 PRD 确认')
 }
 
-async function cancelPendingTestHandoff() {
-  if (!pendingTestHandoff.value) return
-  markTestHandoffHandled(pendingTestHandoff.value)
+async function cancelPendingBuildHandoff() {
+  if (!pendingBuildHandoff.value) return
+  const repairing = isBuildRepairInteractionData(pendingBuildHandoff.value)
+  markBuildHandoffHandled(pendingBuildHandoff.value)
   await clearCurrentPendingInteractionStatus()
-  ElMessage.info('已暂不进入测试')
+  ElMessage.info(repairing ? '已暂不进入构建修复' : '已暂不进入测试')
 }
 
 function focusPrdPreview() {
@@ -1083,9 +1116,10 @@ async function handleConfirmPrd(payload: { remark: string; prd: unknown }) {
   )
 }
 
-async function handleConfirmTestHandoff(payload: { artifact: unknown }) {
+async function handleConfirmBuildHandoff(payload: { artifact: unknown }) {
+  const repair = isBuildRepairInteractionData(payload.artifact)
   if (!sessionId.value || !props.fullCodePath || sending.value) {
-    ElMessage.warning('当前会话还未准备好，暂时不能进入测试')
+    ElMessage.warning(repair ? '当前会话还未准备好，暂时不能交接修复' : '当前会话还未准备好，暂时不能进入测试')
     return
   }
   let handoff
@@ -1093,18 +1127,18 @@ async function handleConfirmTestHandoff(payload: { artifact: unknown }) {
     handoff = await createWorkspaceHandoff({
       source_session_id: sessionId.value,
       full_code_path: props.fullCodePath,
-      target_role: getBuildTestTargetRole(payload.artifact),
-      artifact_kind: getStageArtifactKind(payload.artifact, 'agent_app_build'),
+      target_role: getBuildHandoffTargetRole(payload.artifact),
+      artifact_kind: getStageArtifactKind(payload.artifact, repair ? 'agent_app_build_failure' : 'agent_app_build'),
       artifact: payload.artifact,
       remark: '',
       context_policy: 'artifact_only',
-      display_content: '已构建成功，开始测试验证。'
+      display_content: repair ? '构建失败，交接构建修复。' : '已构建成功，开始测试验证。'
     })
   } catch (error: any) {
-    ElMessage.error(error?.message || '创建测试会话失败')
+    ElMessage.error(error?.message || (repair ? '创建构建修复会话失败' : '创建测试会话失败'))
     return
   }
-  markTestHandoffHandled(payload.artifact)
+  markBuildHandoffHandled(payload.artifact)
   sessionId.value = handoff.session_id
   void sendTextToSession(
     handoff.session_id,
@@ -1121,11 +1155,11 @@ function getPrdTargetRole(prd: unknown) {
   return 'app_developer'
 }
 
-function getBuildTestTargetRole(artifact: unknown) {
-  if (isBuildTestInteractionData(artifact) && artifact.interaction?.target_role_on_confirm) {
+function getBuildHandoffTargetRole(artifact: unknown) {
+  if (isBuildInteractionData(artifact) && artifact.interaction?.target_role_on_confirm) {
     return artifact.interaction.target_role_on_confirm
   }
-  return 'qa_engineer'
+  return isBuildRepairInteractionData(artifact) ? 'build_engineer' : 'qa_engineer'
 }
 
 function getStageArtifactKind(artifact: unknown, fallback: string) {
