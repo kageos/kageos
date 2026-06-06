@@ -56,8 +56,8 @@ func Specs() map[string]Spec {
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
 			},
-			Action:           "产品经理只负责需求分析、PRD v2 结构化输出和确认；调用 write_prd 后等待用户确认，不创建目录、不写代码、不 build。",
-			RouteDescription: "用户要新建系统、目录、Form、Table、Chart 或管理后台，但还没有确认 PRD 时进入。只负责把需求拆成可确认的 PRD artifact：`project/tables/forms/charts/rules`；调用 `write_prd` 后等待用户确认，不创建目录、不写代码、不 build。",
+			Action:           "产品经理只负责新建长期业务系统的需求分析、PRD v2 结构化输出和确认；调用 write_prd 后等待用户确认，不创建目录、不写代码、不 build。",
+			RouteDescription: "用户明确要新建长期业务系统、应用目录、新 Form/Table/Chart 或管理后台，但还没有确认 PRD 时进入。当前目录已有应用且运行函数能完成用户目标时不要进入产品经理；这类请求是用户在使用软件完成业务结果，应进入 `app_operator`。例如在 `/system/x_world/vote` 里“创建一个投票”是业务操作，不是写 PRD。产品经理只负责把新系统需求拆成可确认的 PRD artifact：`project/tables/forms/charts/rules`；调用 `write_prd` 后等待用户确认，不创建目录、不写代码、不 build。",
 			NextRoles: []NextRole{
 				{RoleID: AppDeveloper, When: "用户确认 PRD 后进入应用开发"},
 			},
@@ -73,7 +73,7 @@ func Specs() map[string]Spec {
 			},
 			ForbiddenTools:   []string{"write_prd"},
 			Action:           "应用开发工程师只按已确认 PRD v2 开发执行；区分 tables.fields 模型字段和 tables.search_fields 查询字段，读取 SDK 和案例，创建目录、写 Go 文件并统一 build，不重新输出 PRD。",
-			RouteDescription: "用户已确认 PRD，或确认按钮开启的新会话携带完整 PRD JSON 时进入。只按 PRD v2 直接开发：读取匹配案例，创建目录，生成 Go struct 和函数代码，注册路由并统一 build；`tables.fields` 是模型字段，`tables.search_fields` 是查询请求字段；不要重新输出 PRD，不要再次询问确认。",
+			RouteDescription: "用户已确认 PRD，或确认按钮开启的新会话携带完整 PRD JSON 时进入。只按 PRD v2 直接开发：读取匹配案例，创建目录，生成 Go struct 和函数代码，注册路由并统一 build；`tables.fields` 是模型字段，`tables.search_fields` 是查询请求字段；不要重新输出 PRD，不要再次询问确认。用户是在已有应用里使用软件完成业务结果，而不是要求新增或改变软件能力时，不要进入开发工程师，应进入 `app_operator`。",
 			NextRoles: []NextRole{
 				{RoleID: QAEngineer, When: "build 成功后验证核心函数"},
 				{RoleID: BuildEngineer, When: "build 失败或 schema compile failed"},
@@ -123,7 +123,7 @@ func Specs() map[string]Spec {
 			},
 			ForbiddenTools:   []string{"write_prd", "create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
 			Action:           "应用操作员负责在已有应用里执行业务操作：查询、新增、更新、删除记录、提交表单、查看图表；操作前确认目标函数和关键字段，不改 PRD、不改代码。",
-			RouteDescription: "用户要在已有应用中创建业务数据、修改记录、删除记录、提交表单、查询列表或查看图表，但目的不是测试验证时进入。例如创建投票、录入工单、提交评分、更新状态、查询统计。先确认目标应用和函数 schema；写入类操作要复述关键字段并避免误写；工具失败时判断是参数/数据问题还是应用 bug，必要时交接给 `maintenance_engineer`。",
+			RouteDescription: "当前目录已是目标应用，或目录下已有 Table/Form/Chart 能完成用户目标时，只要用户是在使用软件完成业务结果且目的不是测试验证，就进入应用操作员。它优先于 `product_manager` 和 `app_developer` 处理真实业务数据操作，不依赖某个固定动词；例如在投票应用目录中“创建一个四大古都投票，北京南京西安洛阳单选”就是新增投票主题和选项。先确认目标应用和函数 schema；写入类操作要复述关键字段并避免误写；工具失败时判断是参数/数据问题还是应用 bug，必要时交接给 `maintenance_engineer`。",
 			NextRoles: []NextRole{
 				{RoleID: MaintenanceEngineer, When: "业务操作失败且判断为应用 bug 或字段实现问题"},
 			},
@@ -196,10 +196,10 @@ func Aliases() map[string]string {
 
 func RouteOrder() []string {
 	return []string{
+		AppOperator,
 		ProductManager,
 		AppDeveloper,
 		MaintenanceEngineer,
-		AppOperator,
 		QAEngineer,
 		BuildEngineer,
 		DataOperator,

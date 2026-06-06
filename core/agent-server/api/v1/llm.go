@@ -86,6 +86,7 @@ func (h *LLM) List(c *gin.Context) {
 	}()
 
 	ctx := contextx.ToContext(c)
+	currentUser := contextx.GetRequestUser(ctx)
 	configs, total, err := h.service.ListLLMConfigs(ctx, req.Scope, req.Page, req.PageSize)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
@@ -99,6 +100,7 @@ func (h *LLM) List(c *gin.Context) {
 		if cfg.ExtraConfig != nil {
 			extraConfig = *cfg.ExtraConfig
 		}
+		isAdmin := cfg.IsAdminUser(currentUser)
 		apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, false)
 		llmInfos = append(llmInfos, dto.LLMInfo{
 			ID:          cfg.ID,
@@ -114,6 +116,7 @@ func (h *LLM) List(c *gin.Context) {
 			IsDefault:   cfg.IsDefault,
 			Visibility:  cfg.Visibility,
 			Admin:       cfg.Admin,
+			IsAdmin:     isAdmin,
 			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		})
@@ -167,7 +170,8 @@ func (h *LLM) Get(c *gin.Context) {
 	if cfg.ExtraConfig != nil {
 		extraConfig = *cfg.ExtraConfig
 	}
-	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, true)
+	isAdmin := cfg.IsAdminUser(contextx.GetRequestUser(ctx))
+	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, isAdmin)
 	resp = &dto.LLMGetResp{
 		LLMInfo: dto.LLMInfo{
 			ID:          cfg.ID,
@@ -183,6 +187,7 @@ func (h *LLM) Get(c *gin.Context) {
 			IsDefault:   cfg.IsDefault,
 			Visibility:  cfg.Visibility,
 			Admin:       cfg.Admin,
+			IsAdmin:     isAdmin,
 			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		},
@@ -224,7 +229,8 @@ func (h *LLM) GetDefault(c *gin.Context) {
 	if cfg.ExtraConfig != nil {
 		extraConfig = *cfg.ExtraConfig
 	}
-	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, true)
+	isAdmin := cfg.IsAdminUser(contextx.GetRequestUser(ctx))
+	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, isAdmin)
 	resp = &dto.LLMGetDefaultResp{
 		LLMInfo: dto.LLMInfo{
 			ID:          cfg.ID,
@@ -240,6 +246,7 @@ func (h *LLM) GetDefault(c *gin.Context) {
 			IsDefault:   cfg.IsDefault,
 			Visibility:  cfg.Visibility,
 			Admin:       cfg.Admin,
+			IsAdmin:     isAdmin,
 			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		},

@@ -81,7 +81,8 @@ func TestSaveAssistantMessageStoresLLMMetadata(t *testing.T) {
 		Model:      "gpt-4o-mini",
 	}
 
-	if err := svc.saveAssistantMessage(context.Background(), "session-llm", "ok", "tester", meta); err != nil {
+	usage := &llms.Usage{PromptTokens: 1200, CompletionTokens: 80, TotalTokens: 1280, CachedTokens: 1024, CachedTokensReported: true}
+	if err := svc.saveAssistantMessage(context.Background(), "session-llm", "ok", "tester", meta, usage); err != nil {
 		t.Fatalf("save assistant message: %v", err)
 	}
 	messages, err := messageRepo.ListBySessionID("session-llm")
@@ -94,6 +95,9 @@ func TestSaveAssistantMessageStoresLLMMetadata(t *testing.T) {
 	got := messages[0]
 	if got.LLMConfigID != meta.ConfigID || got.LLMConfigName != meta.ConfigName || got.LLMProvider != meta.Provider || got.LLMModel != meta.Model {
 		t.Fatalf("LLM metadata not stored: %#v", got)
+	}
+	if got.LLMUsage == nil || !strings.Contains(*got.LLMUsage, `"cached_tokens":1024`) || !strings.Contains(*got.LLMUsage, `"cached_tokens_reported":true`) {
+		t.Fatalf("LLM usage not stored: %#v", got.LLMUsage)
 	}
 }
 
@@ -128,6 +132,22 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	if err := sessionRepo.Create(source); err != nil {
 		t.Fatalf("create source: %v", err)
 	}
+	if err := messageRepo.Create(&model.AgentChatMessage{
+		SessionID: "source-session",
+		Role:      RoleUser,
+		Content:   "帮我做一个 NPS 回访问卷系统，优先让门店经理能快速提交，不要复杂审批。",
+		User:      "tester",
+	}); err != nil {
+		t.Fatalf("create source user message: %v", err)
+	}
+	if err := messageRepo.Create(&model.AgentChatMessage{
+		SessionID: "source-session",
+		Role:      RoleUser,
+		Content:   "字段需要评分、原因和门店；图表要按日期看趋势，后续可能按门店筛选。",
+		User:      "tester",
+	}); err != nil {
+		t.Fatalf("create source user message: %v", err)
+	}
 
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
 	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "tester")
@@ -136,8 +156,15 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 		FullCodePath:    "/liubeiluo/demo",
 		TargetRole:      WorkspaceRoleAppDeveloper,
 		ArtifactKind:    "agent_app_prd",
-		Artifact:        []byte(`{"kind":"agent_app_prd","project":{"name":"工单管理"}}`),
-		Remark:          "优先做列表",
+		Artifact: []byte(`{
+			"kind":"agent_app_prd",
+			"project":{"name":"NPS 回访","code":"nps_followup","summary":"记录门店回访评分并查看趋势"},
+			"tables":[{"name":"满意度记录","fields":[{"name":"门店"},{"name":"评分"},{"name":"原因"}],"search_fields":[{"name":"创建开始时间"},{"name":"创建结束时间"},{"name":"门店"}],"handlers":[]}],
+			"forms":[{"name":"提交评分","target_table":"满意度记录","request_fields":[{"name":"门店"},{"name":"评分"},{"name":"原因"}]}],
+			"charts":[{"name":"NPS 趋势","source_table":"满意度记录","chart_type":"line","dimension":"日期","metrics":["平均评分"]}],
+			"rules":["记录表默认只读，不要补人工新增编辑删除"]
+		}`),
+		Remark: "优先做列表",
 	})
 	if err != nil {
 		t.Fatalf("handoff: %v", err)
@@ -160,8 +187,37 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	if !strings.Contains(resp.Content, "tables.search_fields 是查询请求字段") {
 		t.Fatalf("content should include PRD v2 search field handoff rule, got %q", resp.Content)
 	}
+	if !strings.Contains(resp.Content, "PRD_EXECUTION_MARKDOWN") ||
+		!strings.Contains(resp.Content, "| 字段 | 组件 | 必填 | 说明 | 展示限制 |") ||
+		!strings.Contains(resp.Content, "## 业务规则与复杂逻辑") {
+		t.Fatalf("content should include rendered PRD execution markdown, got %q", resp.Content)
+	}
+	if strings.Contains(resp.Content, `"prd_execution_markdown"`) {
+		t.Fatalf("content should not duplicate PRD execution markdown inside context JSON, got %q", resp.Content)
+	}
 	if !strings.Contains(resp.Content, `"kind": "agent_app_prd"`) {
 		t.Fatalf("content should include formatted artifact JSON, got %q", resp.Content)
+	}
+	if !strings.Contains(resp.Content, "HANDOFF_CONTEXT JSON") || !strings.Contains(resp.Content, "latest_user_notes") {
+		t.Fatalf("content should include rich handoff context, got %q", resp.Content)
+	}
+	if !strings.Contains(resp.Content, "不要复杂审批") || !strings.Contains(resp.Content, "满意度记录") {
+		t.Fatalf("handoff context should preserve source constraints and artifact digest, got %q", resp.Content)
+	}
+	if !strings.Contains(resp.HandoffContext, "implementation_focus") || !strings.Contains(resp.HandoffContext, "图表要按日期看趋势") {
+		t.Fatalf("response should include rich handoff context, got %q", resp.HandoffContext)
+	}
+	if !strings.Contains(resp.HandoffContext, "prd_execution_markdown") ||
+		!strings.Contains(resp.HandoffContext, "记录表默认只读") {
+		t.Fatalf("handoff context should carry PRD execution markdown, got %q", resp.HandoffContext)
+	}
+	if !strings.Contains(resp.HandoffContext, `"target_app_directory": "/liubeiluo/demo/nps_followup"`) ||
+		!strings.Contains(resp.HandoffContext, `"execute_directory": "/liubeiluo/demo"`) ||
+		!strings.Contains(resp.HandoffContext, `"artifact_included": true`) {
+		t.Fatalf("handoff context should expose target app dir, execute dir and artifact status, got %q", resp.HandoffContext)
+	}
+	if !strings.Contains(resp.HandoffContext, "reference_docs") || !strings.Contains(resp.HandoffContext, "/system/prompt/sdk/agent-app-sdk-readme") || !strings.Contains(resp.HandoffContext, "/system/prompt/case_catalog") {
+		t.Fatalf("handoff context should include recommended reference docs, got %q", resp.HandoffContext)
 	}
 
 	archived, err := sessionRepo.GetBySessionID("source-session")
@@ -206,6 +262,12 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	}
 	if packet.TargetRole != WorkspaceRoleAppDeveloper || packet.ArtifactKind != "agent_app_prd" || !strings.Contains(packet.ArtifactJSON, `"project"`) {
 		t.Fatalf("handoff packet payload wrong: %#v", packet)
+	}
+	if !strings.Contains(packet.HandoffContextJSON, "product_manager_to_app_developer") || !strings.Contains(packet.HandoffContextJSON, "记录表默认只读") {
+		t.Fatalf("handoff packet context wrong: %#v", packet)
+	}
+	if !strings.Contains(packet.HandoffContextJSON, "reference_files") || !strings.Contains(packet.HandoffContextJSON, "/liubeiluo/demo") {
+		t.Fatalf("handoff packet should preserve reference files: %#v", packet)
 	}
 }
 
@@ -339,14 +401,149 @@ func TestBuildWorkspaceHandoffContentForQA(t *testing.T) {
 	})
 	for _, want := range []string{
 		"target_role 固定为 qa_engineer",
+		"change_role.execute_directory 必须固定",
 		"测试阶段要求",
-		"search_tools/read_dir",
+		"read_dir/search_tools/search_resources",
+		"禁止测试整个空间",
 		"创建开始时间/创建结束时间",
 		`"kind":"agent_app_build"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("content should include %q, got %q", want, got)
 		}
+	}
+
+	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
+		TargetRole:    WorkspaceRoleQAEngineer,
+		ArtifactKind:  workspaceBuildArtifactKind,
+		ArtifactJSON:  `{"kind":"agent_app_build","workspace_path":"/liubeiluo/nps","new_version":"v4"}`,
+		ContextPolicy: ContextPolicyArtifactOnly,
+	})
+	decisionText := strings.Join(ctx.KeyDecisions, "；")
+	constraintText := strings.Join(ctx.Constraints, "；")
+	if !strings.Contains(decisionText, "已确认构建产物") || strings.Contains(decisionText, "已确认 PRD") {
+		t.Fatalf("build handoff decisions should be build-specific, got %q", decisionText)
+	}
+	if !strings.Contains(constraintText, "测试阶段只验证") || strings.Contains(constraintText, "PRD v2") {
+		t.Fatalf("build handoff constraints should be QA-specific, got %q", constraintText)
+	}
+}
+
+func TestWorkspaceFirstTurnDirectoryRAGHint(t *testing.T) {
+	workspaceCtx := &dto.GetWorkspaceContextResp{
+		Directory: dto.WorkspaceContextDirectory{
+			Name:         "投票系统",
+			Code:         "vote",
+			FullCodePath: "/system/x_world/vote",
+			Type:         "package",
+		},
+	}
+	got := workspaceFirstTurnDirectoryRAGHint([]*model.AgentChatMessage{
+		{Role: RoleUser, Content: "帮我创建一个四大古都投票"},
+	}, workspaceCtx)
+	for _, want := range []string{
+		"首轮目录理解要求",
+		"函数描述和 Schema 摘要",
+		"使用当前软件",
+		"app_operator",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("first turn hint should contain %q, got:\n%s", want, got)
+		}
+	}
+	if got := workspaceFirstTurnDirectoryRAGHint([]*model.AgentChatMessage{
+		{Role: RoleUser, Content: "第一轮"},
+		{Role: RoleUser, Content: "第二轮"},
+	}, workspaceCtx); got != "" {
+		t.Fatalf("second turn should not include first-turn hint, got:\n%s", got)
+	}
+}
+
+func TestBuildWorkspaceHandoffContextForNewAppUsesWorkspaceRootExecuteDirectory(t *testing.T) {
+	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
+		FullCodePath:  "/system/x_world/ticket_management",
+		TargetRole:    WorkspaceRoleAppDeveloper,
+		ArtifactKind:  "agent_app_prd",
+		ArtifactJSON:  `{"kind":"agent_app_prd","project":{"name":"投票系统","code":"vote","summary":"创建投票主题、选项和记录"},"tables":[{"name":"投票主题","code":"vote_topic","fields":[{"name":"主题标题"},{"name":"开始时间"},{"name":"结束时间"}],"search_fields":[{"name":"主题标题"},{"name":"状态"}],"handlers":["OnTableAddRow","OnTableUpdateRow","OnTableDeleteRow"]},{"name":"投票记录","code":"vote_record","fields":[{"name":"用户"},{"name":"投票选项"}],"search_fields":[{"name":"用户"}],"handlers":[]}],"forms":[{"name":"提交投票","code":"submit_vote","target_table":"投票记录","request_fields":[{"name":"主题"},{"name":"选项"}],"response_fields":[{"name":"提交结果"}]}],"rules":["每个用户在同一主题下只能投一次"]}`,
+		ContextPolicy: ContextPolicyArtifactOnly,
+	})
+	if ctx.WorkspaceDirectory != "/system/x_world" {
+		t.Fatalf("workspace directory = %q", ctx.WorkspaceDirectory)
+	}
+	if ctx.TargetAppDirectory != "/system/x_world/vote" {
+		t.Fatalf("target app directory = %q", ctx.TargetAppDirectory)
+	}
+	if ctx.ExecuteDirectory != "/system/x_world" {
+		t.Fatalf("execute directory = %q", ctx.ExecuteDirectory)
+	}
+	if !containsWorkspaceRoleString(ctx.ReferenceFiles, "/system/x_world") ||
+		!containsWorkspaceRoleString(ctx.ReferenceFiles, "/system/x_world/vote") {
+		t.Fatalf("reference files should include workspace root and target app directory: %#v", ctx.ReferenceFiles)
+	}
+	if containsWorkspaceRoleString(ctx.ReferenceFiles, "/system/x_world/ticket_management") {
+		t.Fatalf("reference files should not carry stale sibling app directory: %#v", ctx.ReferenceFiles)
+	}
+	if !containsWorkspaceRoleString(ctx.ReferenceDocs, "/system/prompt/roles/app-developer") ||
+		!containsWorkspaceRoleString(ctx.ReferenceDocs, "/system/prompt/sdk/agent-app-sdk-readme") ||
+		!containsWorkspaceRoleString(ctx.ReferenceDocs, "/system/prompt/case_catalog") {
+		t.Fatalf("app developer handoff should carry development docs: %#v", ctx.ReferenceDocs)
+	}
+	if ctx.ArtifactDigest == nil || ctx.ArtifactDigest.ProjectCode != "vote" || len(ctx.ArtifactDigest.Tables) != 2 || len(ctx.ArtifactDigest.Forms) != 1 {
+		t.Fatalf("handoff should carry rich PRD digest, got %#v", ctx.ArtifactDigest)
+	}
+	if !strings.Contains(ctx.PRDExecutionMarkdown, "# 已确认 PRD：投票系统") ||
+		!strings.Contains(ctx.PRDExecutionMarkdown, "## Table：投票主题") ||
+		!strings.Contains(ctx.PRDExecutionMarkdown, "每个用户在同一主题下只能投一次") {
+		t.Fatalf("handoff should carry rendered PRD execution markdown, got:\n%s", ctx.PRDExecutionMarkdown)
+	}
+	if got := workspaceHandoffTargetSessionFullCodePath("/system/x_world/ticket_management", ctx.ExecuteDirectory, WorkspaceRoleAppDeveloper, "agent_app_prd"); got != "/system/x_world" {
+		t.Fatalf("target session full code path = %q, want /system/x_world", got)
+	}
+}
+
+func TestBuildWorkspaceHandoffContextNarrowsQAExecuteDirectoryFromSourceMessages(t *testing.T) {
+	resultData := `{"handoff":{"execute_directory":"/system/x_world","key_information":["改动文件：/system/x_world/ticket_management/ticket.go"]},"changed_files":["/system/x_world/ticket_management/ticket.go"],"artifact_refs":["/system/x_world/ticket_management/ticket_list.table"]}`
+	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
+		FullCodePath:  "/system/x_world",
+		TargetRole:    WorkspaceRoleQAEngineer,
+		ArtifactKind:  workspaceBuildArtifactKind,
+		ArtifactJSON:  `{"kind":"agent_app_build","workspace_path":"/system/x_world","new_version":"v4"}`,
+		ContextPolicy: ContextPolicyArtifactOnly,
+		Messages: []*model.AgentChatMessage{
+			{
+				Role:         RoleUser,
+				ContextUsage: MessageContextArtifact,
+				ArtifactKind: "agent_app_prd",
+				Content: "AGENT_APP_PRD JSON:\n```json\n" +
+					`{"kind":"agent_app_prd","project":{"name":"工单管理系统","code":"ticket_management"},"tables":[{"name":"工单","code":"ticket","fields":[{"name":"工单标题"},{"name":"工单状态"}],"search_fields":[{"name":"工单标题"},{"name":"创建开始时间"},{"name":"创建结束时间"}],"handlers":["OnTableAddRow","OnTableUpdateRow","OnTableDeleteRow"]}]}` +
+					"\n```",
+				User: "tester",
+			},
+			{
+				Role:       RoleTool,
+				ToolStatus: ToolCallStatusOK,
+				ResultData: &resultData,
+				User:       "tester",
+			},
+		},
+	})
+	if ctx.WorkspaceDirectory != "/system/x_world" {
+		t.Fatalf("workspace directory = %q", ctx.WorkspaceDirectory)
+	}
+	if ctx.TargetAppDirectory != "/system/x_world/ticket_management" {
+		t.Fatalf("target app directory = %q", ctx.TargetAppDirectory)
+	}
+	if ctx.ExecuteDirectory != "/system/x_world/ticket_management" {
+		t.Fatalf("execute directory = %q", ctx.ExecuteDirectory)
+	}
+	if !containsWorkspaceRoleString(ctx.ReferenceFiles, "/system/x_world/ticket_management") {
+		t.Fatalf("reference files should include target app directory: %#v", ctx.ReferenceFiles)
+	}
+	if ctx.ArtifactDigest == nil || ctx.ArtifactDigest.ProjectCode != "ticket_management" || len(ctx.ArtifactDigest.Tables) != 1 {
+		t.Fatalf("QA context should carry previous PRD digest, got %#v", ctx.ArtifactDigest)
+	}
+	if !containsWorkspaceRoleString(ctx.ArtifactDigest.Tables[0].SearchFields, "创建开始时间") {
+		t.Fatalf("QA context should preserve PRD search fields, got %#v", ctx.ArtifactDigest.Tables[0])
 	}
 }
 
@@ -386,9 +583,12 @@ func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
 	call.Function.Name = "change_role"
 	call.Function.Arguments = `{"target_role":"product_manager","user_input":"帮我做个系统"}`
 
-	summaries, err := svc.executeToolCalls(context.Background(), []llms.ToolCall{call}, "role-session", "/liubeiluo/demo", "tester", "", 0, func(string, interface{}) {})
+	summaries, nextFullCodePath, err := svc.executeToolCalls(context.Background(), []llms.ToolCall{call}, "role-session", "/liubeiluo/demo", "tester", "", 0, func(string, interface{}) {})
 	if err != nil {
 		t.Fatalf("execute tool calls: %v", err)
+	}
+	if nextFullCodePath != "/liubeiluo/demo" {
+		t.Fatalf("next full code path = %q, want /liubeiluo/demo", nextFullCodePath)
 	}
 	if len(summaries) != 1 || summaries[0].Status != ToolCallStatusOK {
 		t.Fatalf("unexpected summaries: %#v", summaries)
@@ -399,6 +599,90 @@ func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
 	}
 	if updated.RoleID != WorkspaceRoleProductManager || updated.RoleDisplayName != "产品经理" {
 		t.Fatalf("session role not persisted: %#v", updated)
+	}
+}
+
+func TestChangeRoleSetsModelContextAnchorOnRoleSwitch(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:          7,
+		FullCodePath:    "/liubeiluo/demo",
+		Source:          SourceWorkspace,
+		SessionID:       "anchor-session",
+		Title:           "开发转测试",
+		ModeCode:        "dev",
+		Status:          model.ChatSessionStatusGenerating,
+		RoleID:          WorkspaceRoleAppDeveloper,
+		RoleDisplayName: "应用开发工程师",
+		ContextPolicy:   ContextPolicyFull,
+		User:            "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	oldMsg := &model.AgentChatMessage{SessionID: "anchor-session", Role: RoleUser, Content: "旧开发讨论，不应再传给测试模型", User: "tester"}
+	if err := messageRepo.Create(oldMsg); err != nil {
+		t.Fatalf("create old message: %v", err)
+	}
+	currentMsg := &model.AgentChatMessage{SessionID: "anchor-session", Role: RoleUser, Content: "build 已通过，开始测试", User: "tester"}
+	if err := messageRepo.Create(currentMsg); err != nil {
+		t.Fatalf("create current message: %v", err)
+	}
+	svc := &WorkspaceChatService{
+		toolReg:     NewToolRegistry(),
+		sessionRepo: sessionRepo,
+		messageRepo: messageRepo,
+	}
+	call := llms.ToolCall{ID: "call-change-role-anchor", Type: "function"}
+	call.Function.Name = "change_role"
+	call.Function.Arguments = `{"target_role":"qa_engineer","execute_directory":"/liubeiluo/demo","task_context":["build 已通过","验证 Form 写入和图表统计"],"key_information":["重点检查记录表和图表"],"references":["/system/prompt/roles/qa-engineer","nps_submit.go"]}`
+
+	summaries, nextFullCodePath, err := svc.executeToolCalls(context.Background(), []llms.ToolCall{call}, "anchor-session", "/liubeiluo/demo", "tester", "", 0, func(string, interface{}) {})
+	if err != nil {
+		t.Fatalf("execute tool calls: %v", err)
+	}
+	if nextFullCodePath != "/liubeiluo/demo" {
+		t.Fatalf("next full code path = %q, want /liubeiluo/demo", nextFullCodePath)
+	}
+	if len(summaries) != 1 || summaries[0].Status != ToolCallStatusOK {
+		t.Fatalf("unexpected summaries: %#v", summaries)
+	}
+	updated, err := sessionRepo.GetBySessionID("anchor-session")
+	if err != nil {
+		t.Fatalf("get updated session: %v", err)
+	}
+	if updated.RoleID != WorkspaceRoleQAEngineer {
+		t.Fatalf("role not updated: %#v", updated)
+	}
+	if updated.FullCodePath != "/liubeiluo/demo" {
+		t.Fatalf("full code path not updated: %#v", updated)
+	}
+	if updated.ModelContextAnchorMessageID != oldMsg.ID {
+		t.Fatalf("anchor id = %d, want old message id %d", updated.ModelContextAnchorMessageID, oldMsg.ID)
+	}
+	filtered, err := messageRepo.ListBySessionID("anchor-session")
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	filtered = filterWorkspaceMessagesAfterAnchor(filtered, updated.ModelContextAnchorMessageID)
+	for _, msg := range filtered {
+		if strings.Contains(msg.Content, "旧开发讨论") {
+			t.Fatalf("old message should be filtered out: %#v", filtered)
+		}
+	}
+	if len(filtered) == 0 || filtered[0].ID != currentMsg.ID {
+		t.Fatalf("filtered messages should start from current user message: %#v", filtered)
 	}
 }
 
@@ -426,6 +710,7 @@ CREATE TABLE agent_chat_messages (
 	llm_config_name text,
 	llm_provider text,
 	llm_model text,
+	llm_usage text,
 	context_usage text DEFAULT 'include',
 	artifact_kind text,
 	user text NOT NULL

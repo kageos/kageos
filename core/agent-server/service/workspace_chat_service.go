@@ -117,9 +117,9 @@ type StreamEventSession struct {
 
 // StreamEventToolCall tool_call 事件数据
 type StreamEventToolCall struct {
-	ID         string                  `json:"id,omitempty"`        // tool_call_id（用于稳定合并同一次调用）
-	Index      int                     `json:"index"`               // 当前工具轮次内的调用序号
-	Round      int                     `json:"round"`               // 工具调用轮次，从 0 开始
+	ID         string                  `json:"id,omitempty"` // tool_call_id（用于稳定合并同一次调用）
+	Index      int                     `json:"index"`        // 当前工具轮次内的调用序号
+	Round      int                     `json:"round"`        // 工具调用轮次，从 0 开始
 	Name       string                  `json:"name"`
 	Status     string                  `json:"status"`                // ok / error / running / streaming
 	Arguments  string                  `json:"arguments"`             // 流式或最终参数（streaming 时逐段推送，供前端实时展示）
@@ -142,6 +142,7 @@ type StreamEventDone struct {
 	LLMConfigName string                             `json:"llm_config_name,omitempty"`
 	LLMProvider   string                             `json:"llm_provider,omitempty"`
 	LLMModel      string                             `json:"llm_model,omitempty"`
+	LLMUsage      *dto.LLMUsageInfo                  `json:"llm_usage,omitempty"`
 }
 
 type messageLLMMetadata struct {
@@ -190,7 +191,20 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		return s.handleError(sendEvent, fmt.Sprintf("不支持的 mode_code: %s", requestedModeCode), nil)
 	}
 
-	// 1) 获取工作台环境信息（包含目录详情、子节点等，一次性获取，避免重复调用）
+	// 1) 解析或创建 session。已有会话优先使用会话自身目录，避免阶段交接后被前端旧面板路径带回来源目录。
+	var session *model.AgentChatSession
+	if req.SessionID != "" {
+		var e error
+		session, e = s.sessionRepo.GetBySessionID(req.SessionID)
+		if e != nil || session == nil {
+			return s.handleError(sendEvent, fmt.Sprintf("会话不存在: %s", req.SessionID), e)
+		}
+		if sessionPath := strings.TrimSpace(session.FullCodePath); sessionPath != "" {
+			fullCodePath = sessionPath
+		}
+	}
+
+	// 2) 获取工作台环境信息（包含目录详情、子节点等，一次性获取，避免重复调用）
 	workspaceCtx, e := apicall.GetWorkspaceContext(ctx, fullCodePath, "")
 	if e != nil || workspaceCtx == nil {
 		return s.handleError(sendEvent, "无效的 full_code_path，无法解析目录", e)
@@ -200,15 +214,8 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		directoryName = workspaceCtx.Directory.Code
 	}
 
-	// 2) 解析或创建 session
-	var session *model.AgentChatSession
-	if req.SessionID != "" {
-		var e error
-		session, e = s.sessionRepo.GetBySessionID(req.SessionID)
-		if e != nil || session == nil {
-			return s.handleError(sendEvent, fmt.Sprintf("会话不存在: %s", req.SessionID), e)
-		}
-	} else {
+	// 3) 创建新 session
+	if req.SessionID == "" {
 		session = &model.AgentChatSession{
 			TreeID:        workspaceCtx.Directory.ID,
 			FullCodePath:  fullCodePath,

@@ -1186,6 +1186,14 @@ useTableViewLifecycle({
   overflow: hidden;
 }
 
+:deep(.table-data-column .files-table-cell),
+:deep(.table-data-column .files-table-preview-list),
+:deep(.table-data-column .files-select-display) {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+}
+
 .table-view :deep(.table-data-column .formatted-content),
 .table-view :deep(.table-data-column .text-content),
 .table-view :deep(.table-data-column .code-content),

@@ -22,6 +22,7 @@ type AgentChatMessage struct {
 	LLMConfigName  string  `gorm:"type:varchar(255);comment:生成该消息使用的LLM配置名称快照" json:"llm_config_name"`
 	LLMProvider    string  `gorm:"type:varchar(32);index;comment:生成该消息使用的LLM提供商" json:"llm_provider"`
 	LLMModel       string  `gorm:"type:varchar(128);index;comment:生成该消息使用的模型名称" json:"llm_model"`
+	LLMUsage       *string `gorm:"type:json;comment:生成该消息的LLM token用量JSON" json:"llm_usage"`
 	ContextUsage   string  `gorm:"type:varchar(32);not null;default:'include';index;comment:模型上下文用途(include/display_only/artifact)" json:"context_usage"`
 	ArtifactKind   string  `gorm:"type:varchar(64);index;comment:结构化产物类型" json:"artifact_kind"`
 	User           string  `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`

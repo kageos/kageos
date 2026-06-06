@@ -22,12 +22,13 @@ func (s *WorkspaceChatService) executeToolCalls(
 	files string,
 	round int,
 	sendEvent func(string, interface{}),
-) ([]dto.WorkspaceChatToolCallSummary, error) {
+) ([]dto.WorkspaceChatToolCallSummary, string, error) {
 	ctx = withAgentToolExecutionContext(ctx, sessionID)
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
 	logger.Infof(ctx, "[WorkspaceChatStream] 开始执行工具调用 - 工具数量: %d, SessionID: %s", len(allToolCalls), sessionID)
 	loadedGuideDocs := s.loadedGuideDocsForSession(ctx, sessionID)
 	activeRoleID := s.currentWorkspaceRoleForSession(ctx, sessionID)
+	activeFullCodePath := strings.TrimSpace(fullCodePath)
 
 	for i, tc := range allToolCalls {
 		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 执行工具调用 - ToolCallID: %s, ToolName: %s, Arguments: %q",
@@ -53,12 +54,19 @@ func (s *WorkspaceChatService) executeToolCalls(
 			st = ToolCallStatusError
 			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 角色工具门禁阻断 - RoleID: %s, ToolName: %s, Error: %s", i+1, len(allToolCalls), activeRoleID, tc.Function.Name, toolRes.Content)
 		} else {
-			toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
+			toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, activeFullCodePath, files, i+1, len(allToolCalls))
 		}
+		roleBeforeCall := activeRoleID
+		roleChanged := false
 		if st == ToolCallStatusOK && tc.Function.Name == "change_role" {
 			if nextRoleID := workspaceRoleFromToolResult(toolRes); nextRoleID != "" {
 				activeRoleID = nextRoleID
 				s.updateWorkspaceSessionRole(ctx, sessionID, nextRoleID, user)
+				roleChanged = roleBeforeCall != "" && roleBeforeCall != nextRoleID
+			}
+			if nextFullCodePath := workspaceChangeRoleExecuteDirectory(toolRes); nextFullCodePath != "" {
+				activeFullCodePath = nextFullCodePath
+				s.updateWorkspaceSessionFullCodePath(ctx, sessionID, nextFullCodePath, user)
 			}
 		}
 
@@ -96,7 +104,10 @@ func (s *WorkspaceChatService) executeToolCalls(
 		})
 		if err := s.saveToolMessage(ctx, sessionID, tc.ID, tc.Function.Name, st, toolRes, user); err != nil {
 			logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool 消息失败 ToolCallID=%s: %v（若为 Error 1366 请将表转为 utf8mb4）", tc.ID, err)
-			return toolSummaries, fmt.Errorf("保存 tool 消息失败: %w", err)
+			return toolSummaries, activeFullCodePath, fmt.Errorf("保存 tool 消息失败: %w", err)
+		}
+		if st == ToolCallStatusOK && tc.Function.Name == "change_role" {
+			s.updateWorkspaceModelContextAnchorAfterChangeRole(ctx, sessionID, toolRes, user, roleChanged)
 		}
 		updateLoadedGuideDocsAfterToolCall(loadedGuideDocs, tc.Function.Name, args, st)
 	}
@@ -111,7 +122,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 	}
 	logger.Infof(ctx, "[WorkspaceChatStream] 工具调用执行完成 - 总数量: %d, 成功: %d, 失败: %d, SessionID: %s",
 		len(allToolCalls), successCount, errorCount, sessionID)
-	return toolSummaries, nil
+	return toolSummaries, activeFullCodePath, nil
 }
 
 func withAgentToolExecutionContext(ctx context.Context, sessionID string) context.Context {

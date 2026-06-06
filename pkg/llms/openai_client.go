@@ -1,10 +1,13 @@
 package llms
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 
@@ -94,47 +97,56 @@ func (c *OpenAIClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan
 	if err := validateRequest(ctx, c.apiKey, req); err != nil {
 		return nil, err
 	}
+	options := normalizeClientOptions(c.options)
 
-	params, err := c.buildChatParams(req)
+	payload, err := c.buildChatStreamPayload(req)
 	if err != nil {
 		return nil, err
 	}
-	params.StreamOptions.IncludeUsage = openai.Bool(true)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("序列化 LLM 流式请求失败: %w", err)
+	}
 
-	callCtx, cancel := context.WithTimeout(ctx, resolveRequestTimeout(c.options, req))
-	stream := c.client.Chat.Completions.NewStreaming(callCtx, params)
+	timeout := resolveRequestTimeout(options, req)
+	callCtx, cancel := context.WithTimeout(ctx, timeout)
+	httpReq, err := http.NewRequestWithContext(callCtx, http.MethodPost, c.chatCompletionsURL(), bytes.NewReader(body))
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "text/event-stream")
+	if userAgent := strings.TrimSpace(options.UserAgent); userAgent != "" {
+		httpReq.Header.Set("User-Agent", userAgent)
+	}
+
+	httpClient := createHTTPClient(options, timeout)
+	resp, err := httpClient.Do(httpReq)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		_ = resp.Body.Close()
+		cancel()
+		return nil, formatOpenAICompatibleHTTPError(resp.StatusCode, raw)
+	}
+	if strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "application/json") {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		_ = resp.Body.Close()
+		cancel()
+		return nil, formatOpenAICompatibleHTTPError(resp.StatusCode, raw)
+	}
 
 	chunkChan := make(chan *StreamChunk)
 	go func() {
 		defer close(chunkChan)
 		defer cancel()
-		defer func() {
-			_ = stream.Close()
-		}()
-
-		var lastUsage *Usage
-		for stream.Next() {
-			chunk := stream.Current()
-			if usage := convertOpenAIUsage(chunk.Usage); usage != nil {
-				lastUsage = usage
-			}
-			for _, choice := range chunk.Choices {
-				out := &StreamChunk{
-					Content:   choice.Delta.Content,
-					ToolCalls: convertOpenAIDeltaToolCalls(choice.Delta.ToolCalls),
-					Done:      false,
-				}
-				if out.Content != "" || len(out.ToolCalls) > 0 {
-					chunkChan <- out
-				}
-			}
-		}
-
-		if err := stream.Err(); err != nil {
-			chunkChan <- &StreamChunk{Error: formatOpenAIError(err).Error(), Done: true, Usage: lastUsage}
-			return
-		}
-		chunkChan <- &StreamChunk{Done: true, Usage: lastUsage}
+		defer resp.Body.Close()
+		readOpenAICompatibleStream(callCtx, resp.Body, chunkChan)
 	}()
 
 	return chunkChan, nil
@@ -324,9 +336,11 @@ func convertOpenAIUsage(usage openai.CompletionUsage) *Usage {
 		return nil
 	}
 	return &Usage{
-		PromptTokens:     int(usage.PromptTokens),
-		CompletionTokens: int(usage.CompletionTokens),
-		TotalTokens:      int(usage.TotalTokens),
+		PromptTokens:         int(usage.PromptTokens),
+		CompletionTokens:     int(usage.CompletionTokens),
+		TotalTokens:          int(usage.TotalTokens),
+		CachedTokens:         int(usage.PromptTokensDetails.CachedTokens),
+		CachedTokensReported: usage.PromptTokensDetails.JSON.CachedTokens.Valid(),
 	}
 }
 

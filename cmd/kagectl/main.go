@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -22,6 +23,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/kageos/kageos/pkg/infra"
 	"gopkg.in/yaml.v3"
 )
 
@@ -1338,6 +1340,14 @@ func appendExternalDependencyChecks(checks []layerCheck, rt RuntimeConfig) []lay
 			check.Fn = func() error { return checkTCP("minio", host, port) }
 		}
 		checks = append(checks, check)
+		if err == nil {
+			checks = append(checks, layerCheck{
+				Layer:  layerInfra,
+				Name:   "external minio clock",
+				Target: minIOClockCheckURL(host, port, rt.MinIO.UseSSL),
+				Fn:     func() error { return checkMinIOClock(host, port, rt.MinIO.UseSSL) },
+			})
+		}
 	}
 	return checks
 }
@@ -1373,6 +1383,12 @@ func startupDependencyChecks(rt RuntimeConfig) []layerCheck {
 			Name:   "minio tcp",
 			Target: tcpTarget(rt.MinIOHostForMain, rt.MinIOPortForMain),
 			Fn:     func() error { return checkTCP("minio", rt.MinIOHostForMain, rt.MinIOPortForMain) },
+		})
+		checks = append(checks, layerCheck{
+			Layer:  layerInfra,
+			Name:   "minio clock",
+			Target: minIOClockCheckURL(rt.MinIOHostForMain, rt.MinIOPortForMain, rt.MinIO.UseSSL),
+			Fn:     func() error { return checkMinIOClock(rt.MinIOHostForMain, rt.MinIOPortForMain, rt.MinIO.UseSSL) },
 		})
 	}
 	return checks
@@ -2765,6 +2781,14 @@ func checkHTTP(rawURL string) error {
 		return fmt.Errorf("%s returned HTTP %d", rawURL, resp.StatusCode)
 	}
 	return nil
+}
+
+func minIOClockCheckURL(host string, port int, useSSL bool) string {
+	return infra.MinIOHealthURL(tcpTarget(host, port), useSSL)
+}
+
+func checkMinIOClock(host string, port int, useSSL bool) error {
+	return infra.CheckMinIOClockSkewWithDevPodmanRepair(context.Background(), minIOClockCheckURL(host, port, useSSL), infra.MinIOClockSkewThreshold, nil)
 }
 
 func checkLinuxHost() error {

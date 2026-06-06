@@ -40,6 +40,7 @@ type OperateLogEntry = {
 interface OperateLogChangeEntry {
   fieldCode: string
   fieldName: string
+  field: FieldConfig | null
   oldValue: any
   newValue: any
   hasOldValue: boolean
@@ -48,6 +49,7 @@ interface OperateLogChangeEntry {
 interface OperateLogValueEntry {
   fieldCode: string
   fieldName: string
+  field: FieldConfig | null
   value: any
 }
 
@@ -90,6 +92,7 @@ export function useOperateLogSection({
   const pageSize = ref(OPERATE_LOG_PAGE_SIZE)
   const total = ref(0)
   const expandedLogIds = ref<number[]>([])
+  const expandedLogRowKeys = computed(() => expandedLogIds.value.map((id) => String(id)))
   const functionDetailCache = ref<FunctionDetail | null>(null)
   const functionDetailMap = ref<Map<string, FunctionDetail>>(new Map())
   const userInfoMap = ref<Map<string, any>>(new Map())
@@ -318,7 +321,7 @@ export function useOperateLogSection({
       })
       logs.value = (response.logs || []).map(normalizeOperateLog)
       total.value = response.total || 0
-      expandedLogIds.value = []
+      expandedLogIds.value = scopeValue === 'directory' ? [] : logs.value.map((log) => log.id)
       await loadDirectoryFunctionDetails()
       await loadUserInfos()
       hasLoaded.value = true
@@ -530,13 +533,17 @@ export function useOperateLogSection({
     }
 
     const oldValues = parseJSON(log.old_values)
-    return Object.entries(updates).map(([fieldCode, newValue]) => ({
-      fieldCode,
-      fieldName: getFieldName(fieldCode, log.full_code_path),
-      oldValue: oldValues?.[fieldCode],
-      newValue,
-      hasOldValue: oldValues && Object.prototype.hasOwnProperty.call(oldValues, fieldCode),
-    }))
+    return Object.entries(updates).map(([fieldCode, newValue]) => {
+      const field = getFieldConfig(fieldCode, log.full_code_path)
+      return {
+        fieldCode,
+        fieldName: field?.name || String(fieldCode),
+        field,
+        oldValue: oldValues?.[fieldCode],
+        newValue,
+        hasOldValue: oldValues && Object.prototype.hasOwnProperty.call(oldValues, fieldCode),
+      }
+    })
   }
 
   const getValueEntries = (log: OperateLogEntry): OperateLogValueEntry[] => {
@@ -545,11 +552,15 @@ export function useOperateLogSection({
       return []
     }
 
-    return Object.entries(values).map(([fieldCode, value]) => ({
-      fieldCode,
-      fieldName: getFieldName(fieldCode, log.full_code_path),
-      value,
-    }))
+    return Object.entries(values).map(([fieldCode, value]) => {
+      const field = getFieldConfig(fieldCode, log.full_code_path)
+      return {
+        fieldCode,
+        fieldName: field?.name || String(fieldCode),
+        field,
+        value,
+      }
+    })
   }
 
   const getFormRequestEntries = (log: OperateLogEntry): OperateLogValueEntry[] => {
@@ -558,11 +569,15 @@ export function useOperateLogSection({
       return []
     }
 
-    return Object.entries(values).map(([fieldCode, value]) => ({
-      fieldCode,
-      fieldName: getFieldName(fieldCode, log.full_code_path),
-      value,
-    }))
+    return Object.entries(values).map(([fieldCode, value]) => {
+      const field = getFieldConfig(fieldCode, log.full_code_path)
+      return {
+        fieldCode,
+        fieldName: field?.name || String(fieldCode),
+        field,
+        value,
+      }
+    })
   }
 
   const getPrimaryEntries = (log: OperateLogEntry): OperateLogValueEntry[] => {
@@ -572,6 +587,7 @@ export function useOperateLogSection({
         .map((item) => ({
           fieldCode: item.fieldCode,
           fieldName: item.fieldName,
+          field: item.field,
           value: item.newValue,
         }))
     }
@@ -682,12 +698,20 @@ export function useOperateLogSection({
     return expandedLogIds.value.includes(logId)
   }
 
+  const getLogRowKey = (log: OperateLogEntry): string => {
+    return String(log.id)
+  }
+
   const toggleLogExpanded = (logId: number) => {
     if (isLogExpanded(logId)) {
       expandedLogIds.value = expandedLogIds.value.filter((id) => id !== logId)
       return
     }
     expandedLogIds.value = [...expandedLogIds.value, logId]
+  }
+
+  const handleLogExpandChange = (_log: OperateLogEntry, expandedRows: OperateLogEntry[]) => {
+    expandedLogIds.value = expandedRows.map((log) => log.id)
   }
 
   const canApplyFormLog = (log: OperateLogEntry): boolean => {
@@ -811,6 +835,8 @@ export function useOperateLogSection({
     currentPage,
     pageSize,
     total,
+    expandedLogIds,
+    expandedLogRowKeys,
     getUserInfo,
     getActionTagType,
     getActionLabel,
@@ -831,8 +857,10 @@ export function useOperateLogSection({
     formatDuration,
     canApplyFormLog,
     applyFormLog,
+    getLogRowKey,
     isLogExpanded,
     toggleLogExpanded,
+    handleLogExpandChange,
     handleSearch,
     handleActionChange,
     handleSourceChange,

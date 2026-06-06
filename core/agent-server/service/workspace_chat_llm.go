@@ -158,6 +158,11 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	if err != nil {
 		return nil, nil, err
 	}
+	if s.sessionRepo != nil {
+		if session, err := s.sessionRepo.GetBySessionID(sessionID); err == nil && session != nil && session.ModelContextAnchorMessageID > 0 {
+			list = filterWorkspaceMessagesAfterAnchor(list, session.ModelContextAnchorMessageID)
+		}
+	}
 	var toolNames []string
 	var systemPromptFragment string
 	if modeProvider != nil {
@@ -188,6 +193,12 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	system := "你是智能工作台的助手。\n\n" + envBlock
 	if systemPromptFragment != "" {
 		system += "\n\n" + systemPromptFragment
+	}
+	if hint := workspaceFirstTurnDirectoryRAGHint(list, workspaceCtx); hint != "" {
+		system += "\n\n" + hint
+	}
+	if dynamicTime := workspaceDynamicTimeHint(data); dynamicTime != "" {
+		system += "\n\n" + dynamicTime
 	}
 
 	msgs := []llms.Message{{Role: "system", Content: system}}
@@ -220,4 +231,57 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 		}
 	}
 	return msgs, llmTools, nil
+}
+
+func workspaceDynamicTimeHint(data *prompt.WorkspaceEnvData) string {
+	if data == nil || (data.CurrentDate == "" && data.CurrentTime == "") {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("# 本轮动态信息\n")
+	if data.CurrentDate != "" {
+		b.WriteString("- 当前日期：")
+		b.WriteString(data.CurrentDate)
+		b.WriteByte('\n')
+	}
+	if data.CurrentTime != "" {
+		b.WriteString("- 当前时间：")
+		b.WriteString(data.CurrentTime)
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func workspaceFirstTurnDirectoryRAGHint(messages []*model.AgentChatMessage, workspaceCtx *dto.GetWorkspaceContextResp) string {
+	if workspaceCtx == nil {
+		return ""
+	}
+	userMessages := 0
+	for _, msg := range messages {
+		if msg != nil && msg.Role == RoleUser && normalizeMessageContextUsage(msg.ContextUsage) != MessageContextDisplayOnly {
+			userMessages++
+		}
+	}
+	if userMessages != 1 {
+		return ""
+	}
+	return strings.Join([]string{
+		"## 首轮目录理解要求",
+		"",
+		"- 这是当前会话或阶段在本目录的首轮判断；先使用上方目录名称、目录说明、子节点、函数描述和 Schema 摘要理解这个软件能提供什么服务。",
+		"- 如果现有 Table/Form/Chart 能完成用户目标，优先按“使用当前软件”处理并进入 `app_operator`；不要先写 PRD 或进入开发。",
+		"- 只有用户明确要新增或改变软件能力，或现有运行函数无法满足目标时，才考虑产品、开发或维护角色。",
+	}, "\n")
+}
+
+func filterWorkspaceMessagesAfterAnchor(messages []*model.AgentChatMessage, anchorID int64) []*model.AgentChatMessage {
+	if anchorID <= 0 {
+		return messages
+	}
+	out := make([]*model.AgentChatMessage, 0, len(messages))
+	for _, msg := range messages {
+		if msg != nil && msg.ID > anchorID {
+			out = append(out, msg)
+		}
+	}
+	return out
 }

@@ -25,15 +25,15 @@ const (
 
 // RunStreamLoop 流式工具对话循环：从 BuildMessages 开始，调 LLM 流式，若有 tool_calls 则执行并递归，否则结束
 func RunStreamLoop(ctx context.Context, deps StreamLoopDeps) error {
-	return runStreamLoopRound(ctx, deps, 0, nil)
+	return runStreamLoopRound(ctx, deps, 0, nil, nil)
 }
 
-func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, previousSummaries []ToolCallSummary) error {
+func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, previousSummaries []ToolCallSummary, previousUsage *llms.Usage) error {
 	if round >= MaxToolRounds {
 		logger.Warnf(ctx, "[StreamLoop] 达到最大工具调用轮数 %d，停止循环", MaxToolRounds)
 		// 发一句提示，避免前端“戛然而止”显得乱
 		deps.SendEvent(EventContent, &contentData{Content: "\n\n---\n已达到本轮最大工具调用次数，如需继续请再次发送消息。"})
-		deps.OnDone(previousSummaries)
+		deps.OnDone(previousSummaries, previousUsage)
 		return nil
 	}
 
@@ -53,14 +53,15 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 		return err
 	}
 
-	content, allToolCalls, err := processStreamChunks(ctx, stream, deps.SendEvent, round)
+	content, allToolCalls, usage, err := processStreamChunks(ctx, stream, deps.SendEvent, round)
 	if err != nil {
 		deps.SendEvent(EventError, &errorData{Message: err.Error()})
 		return err
 	}
+	combinedUsage := addLLMUsage(previousUsage, usage)
 
 	if len(allToolCalls) > 0 {
-		if err := deps.SaveAssistantMessageWithToolCalls(ctx, content, allToolCalls); err != nil {
+		if err := deps.SaveAssistantMessageWithToolCalls(ctx, content, allToolCalls, usage); err != nil {
 			logger.Warnf(ctx, "[StreamLoop] 保存 assistant 消息失败: %v", err)
 			deps.SendEvent(EventError, &errorData{Message: "保存 assistant 消息失败: " + err.Error()})
 			return err
@@ -71,13 +72,13 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 			return err
 		}
 		combined := append(previousSummaries, summaries...)
-		return runStreamLoopRound(ctx, deps, round+1, combined)
+		return runStreamLoopRound(ctx, deps, round+1, combined, combinedUsage)
 	}
 
-	if err := deps.SaveAssistantMessage(ctx, content); err != nil {
+	if err := deps.SaveAssistantMessage(ctx, content, usage); err != nil {
 		logger.Warnf(ctx, "[StreamLoop] 保存 assistant 消息失败: %v", err)
 	}
-	deps.OnDone(previousSummaries)
+	deps.OnDone(previousSummaries, combinedUsage)
 	return nil
 }
 
@@ -107,10 +108,11 @@ func processStreamChunks(
 	stream <-chan *llms.StreamChunk,
 	sendEvent func(string, interface{}),
 	round int,
-) (string, []llms.ToolCall, error) {
+) (string, []llms.ToolCall, *llms.Usage, error) {
 	var buf strings.Builder
 	allToolCalls := make([]llms.ToolCall, 0)
 	toolCallsIndex := make(map[string]int)
+	var usage *llms.Usage
 
 	// 增量+节流：累积 delta，满足条件时 flush
 	pendingDeltas := make(map[int]string)
@@ -163,13 +165,15 @@ func processStreamChunks(
 		select {
 		case <-ctx.Done():
 			logger.Infof(ctx, "[StreamLoop] 上下文已取消，停止处理")
-			return "", nil, ctx.Err()
+			return "", nil, usage, ctx.Err()
 		default:
+		}
+		if ch.Usage != nil {
+			usage = ch.Usage
 		}
 		if ch.Error != "" {
 			flushToolCallsDelta()
-			sendEvent(EventError, &errorData{Message: "LLM 流式错误: " + ch.Error})
-			return "", nil, fmt.Errorf("LLM 流式错误: %s", ch.Error)
+			return "", nil, usage, fmt.Errorf("LLM 流式错误: %s", ch.Error)
 		}
 		if ch.Content != "" {
 			buf.WriteString(ch.Content)
@@ -245,7 +249,29 @@ func processStreamChunks(
 			logger.Warnf(ctx, "[StreamLoop] tool_call arguments 不是合法 JSON，ToolCallID: %s, ToolName: %s", tc.ID, tc.Function.Name)
 		}
 	}
-	return content, allToolCalls, nil
+	return content, allToolCalls, usage, nil
+}
+
+func addLLMUsage(a, b *llms.Usage) *llms.Usage {
+	if a == nil && b == nil {
+		return nil
+	}
+	out := &llms.Usage{}
+	if a != nil {
+		out.PromptTokens += a.PromptTokens
+		out.CompletionTokens += a.CompletionTokens
+		out.TotalTokens += a.TotalTokens
+		out.CachedTokens += a.CachedTokens
+		out.CachedTokensReported = out.CachedTokensReported || a.CachedTokensReported
+	}
+	if b != nil {
+		out.PromptTokens += b.PromptTokens
+		out.CompletionTokens += b.CompletionTokens
+		out.TotalTokens += b.TotalTokens
+		out.CachedTokens += b.CachedTokens
+		out.CachedTokensReported = out.CachedTokensReported || b.CachedTokensReported
+	}
+	return out
 }
 
 // appendToolCallArgs 仅当当前 arguments 还不是合法 JSON 时才追加 delta，避免兼容端先发完整 JSON 再发后缀导致重复拼接成无效 JSON。

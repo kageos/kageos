@@ -123,7 +123,7 @@
           <el-table-column label="操作" width="220" fixed="right">
             <template #default="{ row }">
               <el-button
-                v-if="!row.is_default"
+                v-if="row.is_admin && !row.is_default"
                 link
                 type="warning"
                 size="small"

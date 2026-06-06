@@ -1,6 +1,8 @@
 package model
 
 import (
+	"strings"
+
 	"github.com/kageos/kageos/pkg/gormx/models"
 	"gorm.io/gorm"
 )
@@ -27,6 +29,30 @@ type LLMConfig struct {
 // TableName 指定表名
 func (LLMConfig) TableName() string {
 	return "llm_configs"
+}
+
+// IsAdminUser reports whether username can manage this LLM config.
+func (llm *LLMConfig) IsAdminUser(username string) bool {
+	if llm == nil {
+		return false
+	}
+
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return false
+	}
+
+	if strings.TrimSpace(llm.CreatedBy) == username {
+		return true
+	}
+
+	for _, admin := range strings.Split(llm.Admin, ",") {
+		if strings.TrimSpace(admin) == username {
+			return true
+		}
+	}
+
+	return false
 }
 
 // AfterCreate GORM 钩子：设置默认管理员

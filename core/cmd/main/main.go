@@ -145,6 +145,12 @@ func main() {
 	fmt.Println("  检查基础设施连通性...")
 	if err := infra.Preflight(ctx); err != nil {
 		fmt.Printf("\n  ⚠️  预检警告: %v\n", err)
+		if infra.IsMinIOClockSkewError(err) {
+			fmt.Println("  检测到 MinIO 时间偏移，继续启动会导致 app-storage 签名失败，已停止。")
+			fmt.Println("  修复后重新执行启动命令即可。")
+			logger.Errorf(ctx, "启动预检失败: %v", err)
+			os.Exit(1)
+		}
 		fmt.Println("  部分基础设施可能不可用，服务启动后可能出现连接错误")
 		fmt.Println("  如需手动修复，请确保 Podman 已启动且基础设施容器存在")
 		logger.Warnf(ctx, "启动预检警告: %v", err)

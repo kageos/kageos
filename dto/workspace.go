@@ -68,23 +68,24 @@ type ListWorkspaceSessionsResp struct {
 
 // WorkspaceSessionItem 工作台会话项
 type WorkspaceSessionItem struct {
-	SessionID         string      `json:"session_id"`                    // 会话ID
-	Title             string      `json:"title"`                         // 会话标题
-	User              string      `json:"user"`                          // 创建该会话的用户
-	ModeCode          string      `json:"mode_code"`                     // 工作台模式代码
-	Status            string      `json:"status"`                        // 会话状态（active/generating/output/pending_confirmation/pending_test/done/cancelled）
-	RoleID            string      `json:"role_id,omitempty"`             // 当前工作台角色 ID
-	RoleDisplayName   string      `json:"role_display_name,omitempty"`   // 当前工作台角色展示名称
-	FullCodePath      string      `json:"full_code_path,omitempty"`      // 所属目录完整路径
-	DirectoryName     string      `json:"directory_name,omitempty"`      // 所属目录展示名称
-	ParentSessionID   string      `json:"parent_session_id,omitempty"`   // 阶段交接来源会话ID
-	HandoffKind       string      `json:"handoff_kind,omitempty"`        // 阶段交接产物类型
-	HandoffTargetRole string      `json:"handoff_target_role,omitempty"` // 阶段交接目标身份
-	ContextPolicy     string      `json:"context_policy,omitempty"`      // 模型上下文策略
-	ArchivedForModel  bool        `json:"archived_for_model,omitempty"`  // 是否已归档且不再进入模型上下文
-	ArchiveReason     string      `json:"archive_reason,omitempty"`      // 归档原因
-	CreatedAt         models.Time `json:"created_at"`                    // 创建时间
-	UpdatedAt         models.Time `json:"updated_at"`                    // 更新时间
+	SessionID                   string      `json:"session_id"`                                // 会话ID
+	Title                       string      `json:"title"`                                     // 会话标题
+	User                        string      `json:"user"`                                      // 创建该会话的用户
+	ModeCode                    string      `json:"mode_code"`                                 // 工作台模式代码
+	Status                      string      `json:"status"`                                    // 会话状态（active/generating/output/pending_confirmation/pending_test/done/cancelled）
+	RoleID                      string      `json:"role_id,omitempty"`                         // 当前工作台角色 ID
+	RoleDisplayName             string      `json:"role_display_name,omitempty"`               // 当前工作台角色展示名称
+	FullCodePath                string      `json:"full_code_path,omitempty"`                  // 所属目录完整路径
+	DirectoryName               string      `json:"directory_name,omitempty"`                  // 所属目录展示名称
+	ParentSessionID             string      `json:"parent_session_id,omitempty"`               // 阶段交接来源会话ID
+	HandoffKind                 string      `json:"handoff_kind,omitempty"`                    // 阶段交接产物类型
+	HandoffTargetRole           string      `json:"handoff_target_role,omitempty"`             // 阶段交接目标身份
+	ContextPolicy               string      `json:"context_policy,omitempty"`                  // 模型上下文策略
+	ModelContextAnchorMessageID int64       `json:"model_context_anchor_message_id,omitempty"` // 模型上下文锚点消息ID
+	ArchivedForModel            bool        `json:"archived_for_model,omitempty"`              // 是否已归档且不再进入模型上下文
+	ArchiveReason               string      `json:"archive_reason,omitempty"`                  // 归档原因
+	CreatedAt                   models.Time `json:"created_at"`                                // 创建时间
+	UpdatedAt                   models.Time `json:"updated_at"`                                // 更新时间
 }
 
 // WorkspaceHandoffReq 创建阶段交接会话请求。
@@ -111,6 +112,7 @@ type WorkspaceHandoffResp struct {
 	MessageID       int64  `json:"message_id,omitempty"`
 	Content         string `json:"content"`
 	DisplayContent  string `json:"display_content"`
+	HandoffContext  string `json:"handoff_context,omitempty"`
 }
 
 // ResolveWorkspacePendingInteractionReq 清除工作台会话的待交互状态。
@@ -147,9 +149,19 @@ type WorkspaceMessageInfo struct {
 	LLMConfigName  string                         `json:"llm_config_name,omitempty"` // assistant 消息生成时使用的 LLM 配置名称快照
 	LLMProvider    string                         `json:"llm_provider,omitempty"`    // assistant 消息生成时使用的 LLM provider
 	LLMModel       string                         `json:"llm_model,omitempty"`       // assistant 消息生成时使用的模型名称
+	LLMUsage       *LLMUsageInfo                  `json:"llm_usage,omitempty"`       // assistant 消息生成时的 token 用量
 	ContextUsage   string                         `json:"context_usage,omitempty"`   // 模型上下文用途
 	ArtifactKind   string                         `json:"artifact_kind,omitempty"`   // 结构化产物类型
 	CreatedAt      models.Time                    `json:"created_at"`                // 创建时间
+}
+
+// LLMUsageInfo LLM token 用量快照。
+type LLMUsageInfo struct {
+	PromptTokens         int  `json:"prompt_tokens"`
+	CompletionTokens     int  `json:"completion_tokens"`
+	TotalTokens          int  `json:"total_tokens"`
+	CachedTokens         int  `json:"cached_tokens"`
+	CachedTokensReported bool `json:"cached_tokens_reported"`
 }
 
 // ToolDef 工具定义（list_tools 返回、LLM tools 入参，即 MCP tool schema）

@@ -37,6 +37,8 @@ type callbackRequestEnvelope struct {
 	Type   string `json:"type"`
 }
 
+const privateRuntimePythonRouter = "/_runtime/python"
+
 // NewStandardAPI 创建标准接口处理器
 func NewStandardAPI(appService *service.AppService, teamAccessService *service.TeamAccessService) *StandardAPI {
 	return &StandardAPI{
@@ -61,6 +63,15 @@ func parseFullCodePath(fullCodePath string) (user, app string, router string, er
 	router = strings.Join(parts[2:], "/")
 
 	return user, app, router, nil
+}
+
+func parseWorkspaceRootPath(fullCodePath string) (user, app, root string, err error) {
+	root = access.NormalizeResourcePath(fullCodePath)
+	user, app, err = access.ParseUserApp(root)
+	if err != nil {
+		return "", "", "", err
+	}
+	return user, app, access.AppRootPath(user, app), nil
 }
 
 // needFillOldValues 判断 table/update 请求体是否缺少 old_values，需要内部自动查表填充
@@ -156,6 +167,56 @@ func (s *StandardAPI) buildRequestAppReq(c *gin.Context, fullCodePath string) (*
 	req.UrlQuery = c.Request.URL.RawQuery
 
 	return req, nil
+}
+
+func (s *StandardAPI) buildRuntimePythonRequestAppReq(c *gin.Context, fullCodePath string) (*dto.RequestAppReq, error) {
+	user, app, _, err := parseWorkspaceRootPath(fullCodePath)
+	if err != nil {
+		return nil, err
+	}
+
+	all, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return nil, err
+	}
+	defer c.Request.Body.Close()
+	if len(bytes.TrimSpace(all)) == 0 {
+		return nil, fmt.Errorf("请求体不能为空")
+	}
+
+	var runtimeReq dto.RunPythonRuntimeReq
+	if err := json.Unmarshal(all, &runtimeReq); err != nil {
+		return nil, fmt.Errorf("解析 run_python runtime 请求失败: %w", err)
+	}
+	if strings.TrimSpace(runtimeReq.PythonCode) == "" {
+		return nil, fmt.Errorf("python_code 不能为空")
+	}
+	normalizedBody, err := json.Marshal(runtimeReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.RequestAppReq{
+		User:            user,
+		App:             app,
+		Router:          privateRuntimePythonRouter,
+		Method:          http.MethodPost,
+		TraceId:         contextx.GetTraceId(c),
+		RequestUser:     contextx.GetRequestUser(c),
+		RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
+		Token:           contextx.GetToken(c),
+		ClientSource:    contextx.GetClientSource(c),
+		SourceType:      contextx.GetSourceType(c),
+		SourceRef:       contextx.GetSourceRef(c),
+		Body:            normalizedBody,
+	}, nil
+}
+
+func requireAgentToolRuntimeSource(c *gin.Context) error {
+	if contextx.GetSourceType(c) == contextx.SourceTypeAgentTool && contextx.GetClientSource(c) == contextx.ClientSourceAgent {
+		return nil
+	}
+	return fmt.Errorf("runtime python 仅允许 agent tool 内部调用")
 }
 
 // buildCallbackAppReq 构建 CallbackApp 请求对象
@@ -1039,6 +1100,59 @@ func (s *StandardAPI) FormSubmit(c *gin.Context) {
 	}
 
 	s.appService.IncrementFunctionRunCount(ctx, "/"+strings.TrimPrefix(fullCodePath, "/"))
+	response.OkWithData(c, resp.Result, metadata)
+}
+
+// RuntimePython 工作台 run_python 私有执行入口。
+// 它只把请求转发到目标工作区应用内置的 /_runtime/python，不作为用户可见 Form 暴露。
+func (s *StandardAPI) RuntimePython(c *gin.Context) {
+	fullCodePath := normalizeFullCodePathParam(c)
+	if fullCodePath == "" {
+		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAgentToolRuntimeSource(c); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	_, _, workspaceRoot, err := parseWorkspaceRootPath(fullCodePath)
+	if err != nil {
+		response.FailWithMessage(c, "解析工作区路径失败: "+err.Error())
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, workspaceRoot, access.ActionWrite); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	req, err := s.buildRuntimePythonRequestAppReq(c, workspaceRoot)
+	if err != nil {
+		response.FailWithMessage(c, "解析 run_python runtime 请求失败: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	now := time.Now()
+	resp, err := s.appService.RequestApp(ctx, req)
+	mill := time.Since(now).Milliseconds()
+
+	metadata := make(map[string]interface{})
+	metadata["trace_id"] = req.TraceId
+	metadata["app"] = req.App
+	if resp != nil {
+		metadata["version"] = resp.Version
+	}
+	metadata["total_cost_mill"] = mill
+
+	if err != nil {
+		response.FailWithMessage(c, err.Error(), metadata)
+		return
+	}
+	if resp.Error != "" {
+		response.Result(resp.ErrCode, nil, resp.Error, c, metadata)
+		return
+	}
+
 	response.OkWithData(c, resp.Result, metadata)
 }
 

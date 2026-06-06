@@ -129,6 +129,19 @@ func initRouter(a *App) {
 		Options:    nil,   // 系统路由没有 PackagePath
 		Template:   &FormTemplate{},
 	}
+
+	key = routerKey(runtimePythonRouter)
+	if _, exists := a.routerInfo[key]; exists {
+		panic(fmt.Errorf("路由 %s 已存在，不允许重复注册", runtimePythonRouter))
+	}
+
+	a.routerInfo[key] = &routerInfo{
+		HandleFunc: a.RuntimePython,
+		Router:     runtimePythonRouter,
+		Method:     "POST",
+		Options:    nil,
+		Template:   &FormTemplate{},
+	}
 }
 
 type CallbackRouterReq struct {

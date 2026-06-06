@@ -109,6 +109,9 @@
               stripe
               class="history-table form-history-table"
               :empty-text="t('operateLog.empty')"
+              :row-key="getLogRowKey"
+              :expand-row-keys="expandedLogRowKeys"
+              @expand-change="handleLogExpandChange"
             >
               <el-table-column type="expand" width="40">
                 <template #default="{ row }">
@@ -121,9 +124,17 @@
                         v-for="item in getFormRequestEntries(row)"
                         :key="item.fieldCode"
                         class="value-row"
+                        :class="{ 'is-file-value': isFilesField(item.field) }"
                       >
                         <span class="value-field">{{ item.fieldName }}</span>
-                        <span class="value-text">{{ formatLogValue(item.value) }}</span>
+                        <OperateLogFieldValue
+                          class="value-text"
+                          :field="item.field"
+                          :raw-value="item.value"
+                          :field-path="item.fieldCode"
+                          :empty-text="t('operateLog.emptyValue')"
+                          compact
+                        />
                       </div>
                     </div>
 
@@ -303,6 +314,9 @@
           stripe
           class="history-table table-history-table"
           :empty-text="t('operateLog.empty')"
+          :row-key="getLogRowKey"
+          :expand-row-keys="expandedLogRowKeys"
+          @expand-change="handleLogExpandChange"
         >
           <el-table-column type="expand" width="40">
             <template #default="{ row }">
@@ -311,19 +325,18 @@
                   v-if="row.action === 'OnTableUpdateRow' && getChangeEntries(row).length > 0"
                   class="change-list"
                 >
-                  <div
+                  <OperateLogFieldChange
                     v-for="item in getChangeEntries(row)"
                     :key="item.fieldCode"
-                    class="change-row"
-                  >
-                    <span class="change-field">{{ item.fieldName }}</span>
-                    <div class="change-values">
-                      <span v-if="item.hasOldValue" class="change-old">{{ formatLogValue(item.oldValue) }}</span>
-                      <span v-else class="change-old is-empty">{{ t('operateLog.noOldValue') }}</span>
-                      <span class="change-arrow">→</span>
-                      <span class="change-new">{{ formatLogValue(item.newValue) }}</span>
-                    </div>
-                  </div>
+                    :field-code="item.fieldCode"
+                    :field-name="item.fieldName"
+                    :field="item.field"
+                    :old-value="item.oldValue"
+                    :new-value="item.newValue"
+                    :has-old-value="item.hasOldValue"
+                    :empty-text="t('operateLog.emptyValue')"
+                    :no-old-value-text="t('operateLog.noOldValue')"
+                  />
                 </div>
 
                 <div
@@ -334,9 +347,17 @@
                     v-for="item in getValueEntries(row)"
                     :key="item.fieldCode"
                     class="value-row"
+                    :class="{ 'is-file-value': isFilesField(item.field) }"
                   >
                     <span class="value-field">{{ item.fieldName }}</span>
-                    <span class="value-text">{{ formatLogValue(item.value) }}</span>
+                    <OperateLogFieldValue
+                      class="value-text"
+                      :field="item.field"
+                      :raw-value="item.value"
+                      :field-path="item.fieldCode"
+                      :empty-text="t('operateLog.emptyValue')"
+                      compact
+                    />
                   </div>
                 </div>
 
@@ -355,33 +376,11 @@
             </template>
           </el-table-column>
 
-          <el-table-column :label="t('operateLog.action')" width="96">
+          <el-table-column :label="t('operateLog.executedAt')" min-width="170">
             <template #default="{ row }">
-              <el-tag :type="getActionTagType(row.action)" size="small" effect="light">
-                {{ getActionLabel(row.action) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-
-          <el-table-column :label="t('operateLog.result')" width="118" align="center">
-            <template #default="{ row }">
-              <div class="table-result-cell">
-                <el-tag :type="getLogStatusTagType(row)" size="small" effect="light">
-                  {{ getLogStatusLabel(row) }}
-                </el-tag>
-                <span class="table-duration-text">{{ formatDuration(getLogDuration(row)) }}</span>
-              </div>
-            </template>
-          </el-table-column>
-
-          <el-table-column :label="t('operateLog.recordColumn')" min-width="190">
-            <template #default="{ row }">
-              <div class="table-record-title">{{ getLogTitle(row) }}</div>
-              <div v-if="showRowIdColumn && row.row_id" class="table-record-meta">
-                {{ t('common.rowRecord', { id: row.row_id }) }}
-              </div>
-              <div v-if="showResourceColumn" class="table-record-path">
-                {{ row.full_code_path || '-' }}
+              <div class="time-cell">
+                <div class="time-primary">{{ formatDateTime(row.created_at) }}</div>
+                <div class="time-secondary">{{ formatRelativeTime(row.created_at) }}</div>
               </div>
             </template>
           </el-table-column>
@@ -398,6 +397,44 @@
             </template>
           </el-table-column>
 
+          <el-table-column :label="t('operateLog.action')" width="96">
+            <template #default="{ row }">
+              <el-tag :type="getActionTagType(row.action)" size="small" effect="light">
+                {{ getActionLabel(row.action) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('operateLog.recordColumn')" min-width="220">
+            <template #default="{ row }">
+              <div class="table-record-cell">
+                <div class="table-record-title">{{ getLogTitle(row) }}</div>
+                <div v-if="showRowIdColumn && row.row_id" class="table-record-meta">
+                  {{ t('common.rowRecord', { id: row.row_id }) }}
+                </div>
+                <div v-if="showResourceColumn" class="table-record-path">
+                  {{ row.full_code_path || '-' }}
+                </div>
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('operateLog.summary')" min-width="240" show-overflow-tooltip>
+            <template #default="{ row }">
+              <div class="table-summary-cell">
+                <div class="table-summary-text">{{ getLogSummary(row) }}</div>
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('operateLog.result')" width="96" align="center">
+            <template #default="{ row }">
+              <el-tag :type="getLogStatusTagType(row)" size="small" effect="light">
+                {{ getLogStatusLabel(row) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+
           <el-table-column :label="t('operateLog.source')" width="110" align="center">
             <template #default="{ row }">
               <el-tag :type="getSourceTagType(row.source)" size="small" effect="light">
@@ -406,24 +443,15 @@
             </template>
           </el-table-column>
 
-          <el-table-column :label="t('operateLog.executedAt')" min-width="170">
-            <template #default="{ row }">
-              <div class="time-cell">
-                <div class="time-primary">{{ formatDateTime(row.created_at) }}</div>
-                <div class="time-secondary">{{ formatRelativeTime(row.created_at) }}</div>
-              </div>
-            </template>
-          </el-table-column>
-
-          <el-table-column :label="t('operateLog.summary')" min-width="260" show-overflow-tooltip>
-            <template #default="{ row }">
-              <span class="table-summary-text">{{ getLogSummary(row) }}</span>
-            </template>
-          </el-table-column>
-
           <el-table-column :label="t('operateLog.version')" width="96" align="center">
             <template #default="{ row }">
               <span class="version-text">{{ row.version || '-' }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('operateLog.duration')" width="110" align="center">
+            <template #default="{ row }">
+              <span class="duration-text">{{ formatDuration(getLogDuration(row)) }}</span>
             </template>
           </el-table-column>
         </el-table>
@@ -522,8 +550,11 @@ import {
   ElTag
 } from 'element-plus'
 import type { TagProps } from 'element-plus'
+import { WidgetType } from '@/architecture/domain/constants/widget'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useOperateLogSection } from '@/architecture/presentation/composables/useOperateLogSection'
+import OperateLogFieldValue from './OperateLogFieldValue.vue'
+import OperateLogFieldChange from './OperateLogFieldChange.vue'
 
 interface Props {
   fullCodePath: string
@@ -569,12 +600,12 @@ const {
   currentPage,
   pageSize,
   total,
+  expandedLogRowKeys,
   getUserInfo,
   getActionTagType,
   getActionLabel,
   getSourceLabel,
   getSourceTagType,
-  formatLogValue,
   getChangeEntries,
   getValueEntries,
   getFormRequestEntries,
@@ -586,6 +617,8 @@ const {
   getLogStatusTagType,
   getLogMetaEntries,
   applyFormLog,
+  getLogRowKey,
+  handleLogExpandChange,
   handleSearch,
   handleActionChange,
   handleSourceChange,
@@ -694,6 +727,10 @@ function getFormResultSummary(log: any): string {
   if (result && typeof result === 'object') return t('operateLog.resultFields', { count: Object.keys(result).length })
   if (result !== undefined && result !== null && result !== '') return t('operateLog.resultValue', { value: String(result) })
   return log.status === 'failed' ? t('operateLog.responseErrorHint') : t('operateLog.responseCompleteHint')
+}
+
+function isFilesField(field: any): boolean {
+  return field?.widget?.type === WidgetType.FILES
 }
 
 function openPreviewDialog(log: any) {
@@ -956,12 +993,19 @@ defineExpose({
   padding: 10px 16px 12px 56px;
 }
 
+.table-record-cell,
+.table-summary-cell {
+  min-width: 0;
+}
+
 .table-record-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.35;
   color: var(--el-text-color-primary);
-  word-break: break-word;
 }
 
 .table-record-meta {
@@ -993,17 +1037,10 @@ defineExpose({
   white-space: nowrap;
 }
 
-.table-result-cell {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  line-height: 1.2;
-}
-
-.table-duration-text {
+.duration-text {
   color: var(--el-text-color-secondary);
   font-size: 12px;
+  font-weight: 600;
 }
 
 .result-cell {
@@ -1285,6 +1322,12 @@ defineExpose({
   background: var(--el-fill-color-blank);
 }
 
+.value-row.is-file-value {
+  grid-template-columns: 1fr;
+  gap: 7px;
+  padding: 10px;
+}
+
 .change-field,
 .value-field {
   color: var(--el-text-color-regular);
@@ -1292,6 +1335,10 @@ defineExpose({
   font-weight: 700;
   line-height: 24px;
   word-break: break-word;
+}
+
+.value-row.is-file-value .value-field {
+  line-height: 1.35;
 }
 
 .change-values {
@@ -1339,6 +1386,18 @@ defineExpose({
   color: var(--el-text-color-primary);
   font-size: 13px;
   line-height: 24px;
+}
+
+.value-row.is-file-value .value-text {
+  line-height: 1.5;
+}
+
+.value-row.is-file-value .value-text :deep(.files-widget),
+.value-row.is-file-value .value-text :deep(.detail-files),
+.value-row.is-file-value .value-text :deep(.uploaded-files),
+.value-row.is-file-value .value-text :deep(.files-list) {
+  width: 100%;
+  max-width: 100%;
 }
 
 .log-meta-grid {

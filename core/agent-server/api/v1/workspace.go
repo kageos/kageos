@@ -51,11 +51,6 @@ func (h *Workspace) ChatStream(c *gin.Context) {
 		err := h.wsChatSvc.WorkspaceChatStream(ctx, &req, eventChan)
 		if err != nil {
 			logger.Errorf(ctx, "[Workspace] WorkspaceChatStream 返回错误: %v", err)
-			// 发送错误事件
-			select {
-			case eventChan <- service.StreamEvent{Event: "error", Data: service.StreamEventError{Message: err.Error()}}:
-			case <-ctx.Done():
-			}
 		}
 		close(eventChan) // 关闭 channel，让主循环退出
 	}()
@@ -182,6 +177,12 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 			LLMModel:       msg.LLMModel,
 			ContextUsage:   msg.ContextUsage,
 			ArtifactKind:   msg.ArtifactKind,
+		}
+		if msg.LLMUsage != nil && *msg.LLMUsage != "" {
+			var usage dto.LLMUsageInfo
+			if err := json.Unmarshal([]byte(*msg.LLMUsage), &usage); err == nil {
+				info.LLMUsage = &usage
+			}
 		}
 		if msg.ToolCalls != nil && *msg.ToolCalls != "" {
 			// 解析 tool_calls JSON

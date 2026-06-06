@@ -7,8 +7,11 @@ import (
 )
 
 const (
-	ConfigModeDev  = "dev"
-	ConfigModeProd = "prod"
+	ConfigModeDev         = "dev"
+	ConfigModeProd        = "prod"
+	ConfigDevEngineAuto   = "auto"
+	ConfigDevEngineDocker = "docker"
+	ConfigDevEnginePodman = "podman"
 )
 
 // GetConfigEnv returns the local Kageos runtime mode.
@@ -22,6 +25,19 @@ func IsDevMode() bool {
 	return getConfigEnv() == ConfigModeDev
 }
 
+func GetDevEngine() string {
+	if !IsDevMode() {
+		return ""
+	}
+	if engine := normalizeDevEngine(os.Getenv("KAGEOS_DEV_ENGINE")); engine != "" {
+		return engine
+	}
+	if engine := discoverWorkspaceDevEngine(); engine != "" {
+		return engine
+	}
+	return ConfigDevEnginePodman
+}
+
 func getConfigEnv() string {
 	if mode := discoverWorkspaceMode(); mode != "" {
 		return mode
@@ -30,6 +46,14 @@ func getConfigEnv() string {
 }
 
 func discoverWorkspaceMode() string {
+	return discoverWorkspaceValue(readWorkspaceModeFromRoot)
+}
+
+func discoverWorkspaceDevEngine() string {
+	return discoverWorkspaceValue(readWorkspaceDevEngineFromRoot)
+}
+
+func discoverWorkspaceValue(read func(string) string) string {
 	seen := map[string]struct{}{}
 	candidates := make([]string, 0, 8)
 	addRoot := func(root string) {
@@ -58,14 +82,22 @@ func discoverWorkspaceMode() string {
 	}
 
 	for _, root := range candidates {
-		if mode := readWorkspaceModeFromRoot(root); mode != "" {
-			return mode
+		if value := read(root); value != "" {
+			return value
 		}
 	}
 	return ""
 }
 
 func readWorkspaceModeFromRoot(root string) string {
+	return normalizeConfigMode(readWorkspaceEnvValueFromRoot(root, "KAGEOS_MODE"))
+}
+
+func readWorkspaceDevEngineFromRoot(root string) string {
+	return normalizeDevEngine(readWorkspaceEnvValueFromRoot(root, "KAGEOS_DEV_ENGINE"))
+}
+
+func readWorkspaceEnvValueFromRoot(root string, wantKey string) string {
 	data, err := os.ReadFile(filepath.Join(root, ".kageos", "kageos.env"))
 	if err != nil {
 		return ""
@@ -76,10 +108,10 @@ func readWorkspaceModeFromRoot(root string) string {
 			continue
 		}
 		key, value, ok := strings.Cut(line, "=")
-		if !ok || strings.TrimSpace(key) != "KAGEOS_MODE" {
+		if !ok || strings.TrimSpace(key) != wantKey {
 			continue
 		}
-		return normalizeConfigMode(strings.Trim(strings.TrimSpace(value), `"'`))
+		return strings.Trim(strings.TrimSpace(value), `"'`)
 	}
 	return ""
 }
@@ -90,6 +122,19 @@ func normalizeConfigMode(mode string) string {
 		return ConfigModeDev
 	case ConfigModeProd:
 		return ConfigModeProd
+	default:
+		return ""
+	}
+}
+
+func normalizeDevEngine(engine string) string {
+	switch strings.ToLower(strings.TrimSpace(engine)) {
+	case ConfigDevEngineAuto:
+		return ConfigDevEngineAuto
+	case ConfigDevEngineDocker:
+		return ConfigDevEngineDocker
+	case ConfigDevEnginePodman:
+		return ConfigDevEnginePodman
 	default:
 		return ""
 	}

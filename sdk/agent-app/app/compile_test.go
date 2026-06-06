@@ -116,6 +116,31 @@ func TestCompileAndValidateAcceptsValidForm(t *testing.T) {
 	}
 }
 
+func TestInitRouterRegistersPrivateRuntimePython(t *testing.T) {
+	testApp := &App{routerInfo: map[string]*routerInfo{}}
+
+	initRouter(testApp)
+
+	info := testApp.routerInfo[routerKey(runtimePythonRouter)]
+	if info == nil {
+		t.Fatalf("runtime python route was not registered")
+	}
+	if info.Router != runtimePythonRouter || info.Method != "POST" || info.HandleFunc == nil {
+		t.Fatalf("unexpected runtime python route info: %#v", info)
+	}
+	if !info.IsDefaultRouter() {
+		t.Fatalf("runtime python route should be private/default")
+	}
+
+	apis, _, err := testApp.getApis()
+	if err != nil {
+		t.Fatalf("getApis() error = %v, want nil", err)
+	}
+	if len(apis) != 0 {
+		t.Fatalf("private runtime routes should not be exported, got %#v", apis)
+	}
+}
+
 func TestGetApisNormalizesConnectorEndpoints(t *testing.T) {
 	t.Parallel()
 

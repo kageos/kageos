@@ -76,6 +76,28 @@ func TestNormalizeRunPythonInputFileRefsValue(t *testing.T) {
 	}
 }
 
+func TestRunPythonWorkspaceRoot(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{name: "workspace root", path: "/alice/demo", want: "/alice/demo"},
+		{name: "nested function", path: "/alice/demo/tools/export.form", want: "/alice/demo"},
+		{name: "trim spaces and slashes", path: " alice/demo/tools/export.form/ ", want: "/alice/demo"},
+		{name: "empty", path: "", want: ""},
+		{name: "missing app", path: "/alice", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := runPythonWorkspaceRoot(tt.path); got != tt.want {
+				t.Fatalf("runPythonWorkspaceRoot(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestBuildPythonModelGuidanceForCommonFileMistakes(t *testing.T) {
 	guidance := buildPythonModelGuidance(map[string]interface{}{
 		"status": "失败",

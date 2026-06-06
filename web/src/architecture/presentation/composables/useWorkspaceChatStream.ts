@@ -7,7 +7,7 @@
  */
 
 import { ref, watch, onUnmounted, type Ref } from 'vue'
-import type { ToolResultMetadata } from '@/architecture/presentation/context/api/workspace'
+import type { LLMUsageInfo, ToolResultMetadata } from '@/architecture/presentation/context/api/workspace'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 
 export interface ChatMessageFile {
@@ -37,6 +37,7 @@ export interface ChatMessage {
   llm_config_name?: string
   llm_provider?: string
   llm_model?: string
+  llm_usage?: LLMUsageInfo
   /** assistant 专用：按顺序的 content / tool_calls 块，有则按块渲染，否则退化为上面整段 content + 下面整段 tool_calls */
   blocks?: AssistantBlock[]
   created_at?: string
@@ -304,7 +305,18 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     if (typeof data.llm_config_name === 'string') meta.llm_config_name = data.llm_config_name
     if (typeof data.llm_provider === 'string') meta.llm_provider = data.llm_provider
     if (typeof data.llm_model === 'string') meta.llm_model = data.llm_model
+    if (isLLMUsageInfo(data.llm_usage)) meta.llm_usage = data.llm_usage
     return meta
+  }
+
+  function isLLMUsageInfo(value: unknown): value is LLMUsageInfo {
+    if (!value || typeof value !== 'object') return false
+    const usage = value as Partial<Record<keyof LLMUsageInfo, unknown>>
+    return typeof usage.prompt_tokens === 'number' &&
+      typeof usage.completion_tokens === 'number' &&
+      typeof usage.total_tokens === 'number' &&
+      typeof usage.cached_tokens === 'number' &&
+      (usage.cached_tokens_reported === undefined || typeof usage.cached_tokens_reported === 'boolean')
   }
 
   async function send(content: string, streamFn: (onEvent: StreamEventHandler) => Promise<void>, files?: ChatMessageFile[]) {

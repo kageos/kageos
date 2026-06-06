@@ -69,6 +69,25 @@ func (r *RequestAppResp) IsError() bool {
 	return r.ErrCode != 0
 }
 
+// RunPythonRuntimeReq 是工作台 run_python 调用应用私有 Python runtime 的请求。
+// 该请求只用于平台内部转发到 SDK 默认私有路由，不作为用户可见 Form schema。
+type RunPythonRuntimeReq struct {
+	PythonCode         string                 `json:"python_code"`
+	Args               map[string]interface{} `json:"args,omitempty"`
+	InputFiles         string                 `json:"input_files,omitempty"`
+	Packages           string                 `json:"packages,omitempty"`
+	TimeoutSeconds     int                    `json:"timeout_seconds,omitempty"`
+	CollectOutputFiles bool                   `json:"collect_output_files,omitempty"`
+}
+
+// RunPythonRuntimeResp 保持现有 run_python 工具对外结果协议。
+type RunPythonRuntimeResp struct {
+	Output      string `json:"output"`
+	Status      string `json:"status"`
+	JSONResult  string `json:"json_result"`
+	OutputFiles string `json:"output_files,omitempty"`
+}
+
 // SourceFileWrite 源码文件写入描述
 // runtime 底层只关心“往某个目录写入一个源码文件”，不直接承载“函数”业务语义。
 type SourceFileWrite struct {

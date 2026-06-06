@@ -15,11 +15,11 @@ type StreamLoopDeps interface {
 	// SendEvent 向 SSE 发送事件（content / tool_calls_stream_delta / tool_call / error）
 	SendEvent(event string, data interface{})
 	// SaveAssistantMessage 保存纯文本 assistant 消息
-	SaveAssistantMessage(ctx context.Context, content string) error
+	SaveAssistantMessage(ctx context.Context, content string, usage *llms.Usage) error
 	// SaveAssistantMessageWithToolCalls 保存带 tool_calls 的 assistant 消息
-	SaveAssistantMessageWithToolCalls(ctx context.Context, content string, toolCalls []llms.ToolCall) error
+	SaveAssistantMessageWithToolCalls(ctx context.Context, content string, toolCalls []llms.ToolCall, usage *llms.Usage) error
 	// ExecuteToolCalls 按顺序执行工具、发 tool_call 事件、把每条 tool 结果写入 impl 的 store，返回摘要列表。
 	ExecuteToolCalls(ctx context.Context, allToolCalls []llms.ToolCall, round int, sendEvent func(string, interface{})) ([]ToolCallSummary, error)
 	// OnDone 发送 EventDone（payload 含 session_id、tool_calls 等，由实现方决定）
-	OnDone(summaries []ToolCallSummary)
+	OnDone(summaries []ToolCallSummary, usage *llms.Usage)
 }

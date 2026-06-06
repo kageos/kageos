@@ -88,6 +88,7 @@ func (s *WorkspaceChatService) buildWorkspaceSessionItems(ctx context.Context, s
 			HandoffKind:       session.HandoffKind,
 			HandoffTargetRole: session.HandoffTargetRole,
 			ContextPolicy:     session.ContextPolicy,
+			ModelContextAnchorMessageID: session.ModelContextAnchorMessageID,
 			ArchivedForModel:  session.ArchivedForModel,
 			ArchiveReason:     session.ArchiveReason,
 			CreatedAt:         session.CreatedAt,

@@ -704,6 +704,19 @@ async function handleSearch(query: string | unknown[], isByValue = false): Promi
       icon: item.icon
     }))
 
+    if (
+      isByValue &&
+      (props.mode === 'edit' || props.mode === 'search') &&
+      props.value?.raw &&
+      (!props.value.display || String(props.value.display) === String(props.value.raw))
+    ) {
+      const values = parseRawValue(props.value.raw)
+      if (values.length > 0) {
+        // 复用 setter 的 FieldValue 构造逻辑，确保搜索栏 URL 恢复后的 display/meta 也能回写到父层状态。
+        selectedValues.value = values
+      }
+    }
+
   } catch (error) {
     Logger.error('MultiSelectWidget', `${props.field.code} 回调失败:`, error)
     dynamicOptions.value = []

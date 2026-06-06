@@ -39,6 +39,10 @@
             @confirm="emit('confirm-prd', $event)"
           />
         </div>
+        <RoleHandoffCard
+          v-else-if="isRoleHandoffToolCall(tc)"
+          :tool-call="tc"
+        />
         <div
           v-else
           :class="['message-tool-calls-viewport', { 'message-tool-calls-viewport--first': idx === 0 }]"
@@ -81,6 +85,7 @@ import { Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
 import PrdPreview from './PrdPreview.vue'
+import RoleHandoffCard from './RoleHandoffCard.vue'
 import type { WorkspaceChatToolCallSummary } from '@/architecture/presentation/context/api/workspace'
 import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { extractAllDisplayFields } from '@/architecture/presentation/composables/useOutputDisplayFields'
@@ -231,6 +236,10 @@ function statusLabel(status: string): string {
 
 function isRenderablePrdToolCall(tc: WorkspaceChatToolCallSummary): boolean {
   return tc.name === 'write_prd' && tc.status === 'ok' && tc.result_data != null
+}
+
+function isRoleHandoffToolCall(tc: WorkspaceChatToolCallSummary): boolean {
+  return tc.name === 'change_role'
 }
 
 /** 把字符串里字面的 \n、\r 转成真实换行，这样嵌套 JSON 里的换行能正确展示 */
@@ -461,6 +470,11 @@ onBeforeUnmount(() => {
     border-top: none;
     border-radius: 0 0 var(--el-border-radius-base) var(--el-border-radius-base);
   }
+}
+
+.message-tool-calls-block :deep(.role-handoff-card) {
+  border-top: none;
+  border-radius: 0 0 var(--el-border-radius-base) var(--el-border-radius-base);
 }
 
 .message-tool-calls-output {

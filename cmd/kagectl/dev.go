@@ -157,6 +157,9 @@ func devDependencyChecks(paths Paths) []layerCheck {
 		{Layer: layerInfra, Name: "minio tcp", Target: "127.0.0.1:9000", Fn: func() error {
 			return checkTCP("minio", "127.0.0.1", 9000)
 		}},
+		{Layer: layerInfra, Name: "minio clock", Target: minIOClockCheckURL("127.0.0.1", 9000, false), Fn: func() error {
+			return checkMinIOClock("127.0.0.1", 9000, false)
+		}},
 	}
 }
 

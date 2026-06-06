@@ -91,6 +91,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/agent/openapi',
+      name: 'openapi-token-management',
+      component: () => import('@/architecture/presentation/features/agent/pages/OpenAPITokenManagementPage.vue'),
+      meta: {
+        titleKey: 'route.openapiConfig',
+        requireAuth: true,
+        feature: 'llmManagement'
+      }
+    },
+    {
       path: '/system/settings',
       name: 'system-settings',
       component: () => import('@/architecture/presentation/features/system/pages/SystemSettingsPage.vue'),

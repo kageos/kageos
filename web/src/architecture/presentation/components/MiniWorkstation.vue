@@ -1074,7 +1074,6 @@ async function handleConfirmPrd(payload: { remark: string; prd: unknown }) {
     return
   }
   markPrdConfirmed(payload.prd)
-  setMessages([])
   sessionId.value = handoff.session_id
   void sendTextToSession(
     handoff.session_id,
@@ -1106,7 +1105,6 @@ async function handleConfirmTestHandoff(payload: { artifact: unknown }) {
     return
   }
   markTestHandoffHandled(payload.artifact)
-  setMessages([])
   sessionId.value = handoff.session_id
   void sendTextToSession(
     handoff.session_id,

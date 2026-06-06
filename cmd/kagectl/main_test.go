@@ -1010,6 +1010,7 @@ func TestVerifyLayerChecksIncludeBundledSDKEndpoints(t *testing.T) {
 	checks := verifyLayerChecks(rt)
 	for _, want := range []string{
 		"mysql initialized",
+		"minio clock",
 		"main edge probe",
 		"main platform probe",
 		"main runtime probe",

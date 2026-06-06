@@ -12,6 +12,7 @@ func TestContractMarkdownDocumentsV2Shape(t *testing.T) {
 		"`project/tables/forms/charts/rules`",
 		"`search_fields` 只描述搜索参数",
 		"`创建开始时间`、`创建结束时间`",
+		"非 CRUD 逻辑必须先确认",
 		"## 代表性输出示例",
 	} {
 		if !strings.Contains(got, want) {

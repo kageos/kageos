@@ -123,9 +123,11 @@ type ChatResponse struct {
 
 // Usage 使用统计
 type Usage struct {
-	PromptTokens     int `json:"prompt_tokens"`     // 输入token数
-	CompletionTokens int `json:"completion_tokens"` // 输出token数
-	TotalTokens      int `json:"total_tokens"`      // 总token数
+	PromptTokens         int  `json:"prompt_tokens"`          // 输入token数
+	CompletionTokens     int  `json:"completion_tokens"`      // 输出token数
+	TotalTokens          int  `json:"total_tokens"`           // 总token数
+	CachedTokens         int  `json:"cached_tokens"`          // 命中 prompt cache 的输入 token 数
+	CachedTokensReported bool `json:"cached_tokens_reported"` // 上游是否真实返回 cached_tokens 字段
 }
 
 // StreamChunk 流式响应数据块

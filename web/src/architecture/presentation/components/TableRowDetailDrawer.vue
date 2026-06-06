@@ -11,7 +11,7 @@
   <el-drawer
     v-model="visible"
     :title="title"
-    size="60%"
+    :size="detailDrawerSize"
     destroy-on-close
     :modal="true"
     :close-on-click-modal="true"
@@ -156,7 +156,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, toRef } from 'vue'
+import { ref, computed, toRef, onMounted, onBeforeUnmount } from 'vue'
 import { Edit, ArrowLeft, ArrowRight, Grid, List } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import FormView from '@/architecture/presentation/views/FormView.vue'
@@ -204,12 +204,44 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
+const DETAIL_DRAWER_MAX_WIDTH = 1360
+const DETAIL_DRAWER_DESKTOP_RATIO = 0.78
+const DETAIL_DRAWER_TABLET_RATIO = 0.88
+const DETAIL_DRAWER_MOBILE_RATIO = 0.96
 
 const formViewRef = ref<InstanceType<typeof FormView> | null>(null)
+const viewportWidth = ref(typeof window === 'undefined' ? 1440 : window.innerWidth)
 const detailEditAccess = computed(() => {
   return resolveTableDetailEditAccess({
     supportsUpdate: props.supportsEdit
   })
+})
+
+const detailDrawerSize = computed(() => {
+  const width = viewportWidth.value
+
+  if (width <= 768) {
+    return `${Math.floor(width * DETAIL_DRAWER_MOBILE_RATIO)}px`
+  }
+
+  if (width <= 1200) {
+    return `${Math.floor(width * DETAIL_DRAWER_TABLET_RATIO)}px`
+  }
+
+  return `${Math.min(DETAIL_DRAWER_MAX_WIDTH, Math.floor(width * DETAIL_DRAWER_DESKTOP_RATIO))}px`
+})
+
+const updateViewportWidth = () => {
+  viewportWidth.value = window.innerWidth
+}
+
+onMounted(() => {
+  updateViewportWidth()
+  window.addEventListener('resize', updateViewportWidth)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateViewportWidth)
 })
 const {
   activeTab

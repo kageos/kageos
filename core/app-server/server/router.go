@@ -158,6 +158,11 @@ func (s *Server) setupRoutes() {
 	form.Use(middleware2.JWTAuth())
 	form.POST("/submit/*full-code-path", standardAPI.FormSubmit) // Form 提交
 
+	// 工作台私有 runtime 接口（agent tool -> 当前 workspace app）
+	runtime := apiV1.Group("/runtime")
+	runtime.Use(middleware2.JWTAuth())
+	runtime.POST("/python/*full-code-path", standardAPI.RuntimePython) // run_python 私有执行
+
 	// Chart 函数接口
 	chart := apiV1.Group("/chart")
 	chart.Use(middleware2.JWTAuth())

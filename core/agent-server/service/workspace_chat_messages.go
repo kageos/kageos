@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/kageos/kageos/core/agent-server/model"
+	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/llms"
 	"github.com/kageos/kageos/pkg/logger"
 )
@@ -65,6 +66,36 @@ func normalizeMessageContextUsage(usage string) string {
 	}
 }
 
+func llmUsageInfoFromUsage(usage *llms.Usage) *dto.LLMUsageInfo {
+	if usage == nil {
+		return nil
+	}
+	if usage.PromptTokens == 0 && usage.CompletionTokens == 0 && usage.TotalTokens == 0 && usage.CachedTokens == 0 {
+		return nil
+	}
+	return &dto.LLMUsageInfo{
+		PromptTokens:         usage.PromptTokens,
+		CompletionTokens:     usage.CompletionTokens,
+		TotalTokens:          usage.TotalTokens,
+		CachedTokens:         usage.CachedTokens,
+		CachedTokensReported: usage.CachedTokensReported,
+	}
+}
+
+func marshalLLMUsageField(ctx context.Context, usage *llms.Usage) *string {
+	info := llmUsageInfoFromUsage(usage)
+	if info == nil {
+		return nil
+	}
+	b, err := json.Marshal(info)
+	if err != nil {
+		logger.Warnf(ctx, "[WorkspaceChatStream] 保存 LLM usage 失败: %v", err)
+		return nil
+	}
+	out := string(b)
+	return &out
+}
+
 // sanitizeContentForMySQLUtf8 去掉 4 字节 UTF-8 字符（BMP 外），避免 MySQL utf8 列报 Error 1366；表为 utf8mb4 时无需此过滤。
 func sanitizeContentForMySQLUtf8(s string) string {
 	var b strings.Builder
@@ -117,6 +148,7 @@ func (s *WorkspaceChatService) saveAssistantMessageWithToolCalls(
 	allToolCalls []llms.ToolCall,
 	user string,
 	llmMeta messageLLMMetadata,
+	usage *llms.Usage,
 ) error {
 	toolCallsJSON, _ := json.Marshal(allToolCalls)
 	toolCallsStr := string(toolCallsJSON)
@@ -129,6 +161,7 @@ func (s *WorkspaceChatService) saveAssistantMessageWithToolCalls(
 		LLMConfigName: llmMeta.ConfigName,
 		LLMProvider:   llmMeta.Provider,
 		LLMModel:      llmMeta.Model,
+		LLMUsage:      marshalLLMUsageField(ctx, usage),
 		User:          user,
 	}
 	asstMsg.CreatedBy = user
@@ -147,8 +180,8 @@ func (s *WorkspaceChatService) saveAssistantMessage(
 	content string,
 	user string,
 	llmMeta messageLLMMetadata,
+	usage *llms.Usage,
 ) error {
-	_ = ctx
 	asstMsg := &model.AgentChatMessage{
 		SessionID:     sessionID,
 		Role:          RoleAssistant,
@@ -157,6 +190,7 @@ func (s *WorkspaceChatService) saveAssistantMessage(
 		LLMConfigName: llmMeta.ConfigName,
 		LLMProvider:   llmMeta.Provider,
 		LLMModel:      llmMeta.Model,
+		LLMUsage:      marshalLLMUsageField(ctx, usage),
 		User:          user,
 	}
 	asstMsg.CreatedBy = user

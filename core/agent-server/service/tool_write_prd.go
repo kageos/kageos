@@ -26,7 +26,7 @@ type writePRDArgs struct {
 	Tables  []writePRDTable `json:"tables,omitempty" schema_desc:"业务数据表和表格页语义；每个 table 直接包含 fields、search_fields、handlers、examples；纯处理型工具可不填"`
 	Forms   []writePRDForm  `json:"forms,omitempty" schema_desc:"独立提交入口；只描述 target_table、request_fields、response_fields 和 example"`
 	Charts  []writePRDChart `json:"charts,omitempty" schema_desc:"统计图表；只描述 source_table、chart_type、dimension、metrics、filters、examples"`
-	Rules   []string        `json:"rules,omitempty" schema_desc:"业务规则、计算口径、状态流转等自然语言规则"`
+	Rules   []string        `json:"rules,omitempty" schema_desc:"业务规则、计算口径、状态流转、权限只读、重复提交、跨表写入、异常边界等自然语言规则"`
 }
 
 type writePRDProject struct {

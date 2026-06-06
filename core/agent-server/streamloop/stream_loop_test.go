@@ -77,7 +77,7 @@ func TestProcessStreamChunksEmitsStableToolCallIdentity(t *testing.T) {
 	close(stream)
 
 	var events []toolCallsStreamDeltaData
-	_, calls, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
+	_, calls, _, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
 		if event != EventToolCallsStreamDelta {
 			return
 		}
@@ -99,6 +99,49 @@ func TestProcessStreamChunksEmitsStableToolCallIdentity(t *testing.T) {
 	update := events[0].Updates[0]
 	if update.ID != "call_1" || update.Index != 0 || update.Round != 3 || update.Name != "run_python" {
 		t.Fatalf("delta update identity = %#v, want id/index/round/name", update)
+	}
+}
+
+func TestProcessStreamChunksReturnsFinalUsage(t *testing.T) {
+	stream := make(chan *llms.StreamChunk, 2)
+	stream <- &llms.StreamChunk{Content: "ok"}
+	stream <- &llms.StreamChunk{Usage: &llms.Usage{
+		PromptTokens:         1200,
+		CompletionTokens:     80,
+		TotalTokens:          1280,
+		CachedTokens:         1024,
+		CachedTokensReported: true,
+	}}
+	close(stream)
+
+	content, calls, usage, err := processStreamChunks(context.Background(), stream, func(string, interface{}) {}, 0)
+	if err != nil {
+		t.Fatalf("processStreamChunks returned error: %v", err)
+	}
+	if content != "ok" || len(calls) != 0 {
+		t.Fatalf("content/calls = %q/%#v, want ok/no calls", content, calls)
+	}
+	if usage == nil || usage.CachedTokens != 1024 || usage.TotalTokens != 1280 || !usage.CachedTokensReported {
+		t.Fatalf("usage = %#v, want cached 1024 total 1280", usage)
+	}
+}
+
+func TestProcessStreamChunksReturnsLLMErrorWithoutEmittingErrorEvent(t *testing.T) {
+	stream := make(chan *llms.StreamChunk, 1)
+	stream <- &llms.StreamChunk{Error: "unexpected end of JSON input"}
+	close(stream)
+
+	errorEvents := 0
+	_, _, _, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
+		if event == EventError {
+			errorEvents++
+		}
+	}, 0)
+	if err == nil || err.Error() != "LLM 流式错误: unexpected end of JSON input" {
+		t.Fatalf("err = %v, want LLM stream error", err)
+	}
+	if errorEvents != 0 {
+		t.Fatalf("error events = %d, want 0 from processStreamChunks", errorEvents)
 	}
 }
 

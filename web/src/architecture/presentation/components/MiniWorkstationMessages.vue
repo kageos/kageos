@@ -30,6 +30,13 @@
         <div class="mini-msg-assistant-header">
           <span class="mini-msg-badge">工作台</span>
           <span v-if="getAssistantModelLabel(msg)" class="mini-msg-model">{{ getAssistantModelLabel(msg) }}</span>
+          <span
+            v-if="getAssistantCacheLabel(msg)"
+            class="mini-msg-cache"
+            :title="getAssistantCacheTitle(msg)"
+          >
+            {{ getAssistantCacheLabel(msg) }}
+          </span>
           <span class="mini-msg-time">{{ msg.created_at ? formatMessageTime(msg.created_at) : '—' }}</span>
           <span
             v-if="getAssistantDurationLabel(msg, i)"
@@ -81,6 +88,12 @@
                   @confirm="emit('confirm-prd', $event)"
                   class="mini-msg-prd-preview"
                 />
+                <RoleHandoffCard
+                  v-for="(tc, ri) in getRoleHandoffCallsFromCalls(block.calls)"
+                  :key="`role-${tc.name}-${ri}`"
+                  :tool-call="tc"
+                  class="mini-msg-role-handoff"
+                />
                 <OutputFilesDisplay
                   v-if="getFileGroupsFromCalls(block.calls).length"
                   :file-groups="getFileGroupsFromCalls(block.calls)"
@@ -117,6 +130,12 @@
               @confirm="emit('confirm-prd', $event)"
               class="mini-msg-prd-preview"
             />
+            <RoleHandoffCard
+              v-for="(tc, ri) in getRoleHandoffCallsFromCalls(msg.tool_calls)"
+              :key="`msg-role-${tc.name}-${ri}`"
+              :tool-call="tc"
+              class="mini-msg-role-handoff"
+            />
             <OutputFilesDisplay
               v-if="getFileGroupsFromCalls(msg.tool_calls).length"
               :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
@@ -147,6 +166,7 @@ import MessageToolCalls from './MessageToolCalls.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import PrdPreview from './PrdPreview.vue'
+import RoleHandoffCard from './RoleHandoffCard.vue'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 
@@ -291,12 +311,56 @@ function getPrdCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall
   return calls.filter((call) => call.name === 'write_prd' && call.status === 'ok' && call.result_data != null)
 }
 
+function getRoleHandoffCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
+  return calls.filter((call) => call.name === 'change_role')
+}
+
 function getAssistantModelLabel(message: ChatMessage): string {
   if (message.llm_config_name) return message.llm_config_name
   const provider = (message.llm_provider || '').trim()
   const model = (message.llm_model || '').trim()
   if (provider && model) return `${provider}/${model}`
   return model || provider
+}
+
+function getAssistantCacheLabel(message: ChatMessage): string {
+  const usage = message.llm_usage
+  if (!usage || usage.total_tokens <= 0) return ''
+  if (usage.cached_tokens_reported === false) return '缓存未上报'
+  const cached = Math.max(0, usage.cached_tokens || 0)
+  const prompt = Math.max(0, usage.prompt_tokens || 0)
+  const rate = prompt > 0 ? Math.round((cached / prompt) * 100) : 0
+  return `缓存 ${formatTokenCount(cached)} / ${rate}%`
+}
+
+function getAssistantCacheTitle(message: ChatMessage): string {
+  const usage = message.llm_usage
+  if (!usage) return ''
+  if (usage.cached_tokens_reported === false) {
+    return [
+      '上游未返回 prompt cache 命中字段',
+      `输入 ${formatTokenCount(usage.prompt_tokens)}`,
+      `输出 ${formatTokenCount(usage.completion_tokens)}`,
+      `总计 ${formatTokenCount(usage.total_tokens)}`
+    ].join(' · ')
+  }
+  return [
+    `输入 ${formatTokenCount(usage.prompt_tokens)}`,
+    `缓存 ${formatTokenCount(usage.cached_tokens)}`,
+    `输出 ${formatTokenCount(usage.completion_tokens)}`,
+    `总计 ${formatTokenCount(usage.total_tokens)}`
+  ].join(' · ')
+}
+
+function formatTokenCount(value: number): string {
+  const n = Math.max(0, Math.round(value || 0))
+  if (n >= 1_000_000) return `${trimTrailingZeros(n / 1_000_000)}m`
+  if (n >= 1000) return `${trimTrailingZeros(n / 1000)}k`
+  return String(n)
+}
+
+function trimTrailingZeros(value: number): string {
+  return value.toFixed(value >= 10 ? 0 : 1).replace(/\.0$/, '')
 }
 
 watch(
@@ -392,6 +456,18 @@ onBeforeUnmount(() => {
   font-weight: 700;
   line-height: 1.2;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini-msg-cache {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: 1px solid rgba(74, 222, 128, 0.22);
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.09);
+  color: rgba(187, 247, 208, 0.9);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
   white-space: nowrap;
 }
 .mini-msg-output-duration {
@@ -581,6 +657,20 @@ onBeforeUnmount(() => {
 .mini-msg-prd-preview {
   margin: 6px 0;
 }
+.mini-msg-role-handoff {
+  --el-text-color-primary: var(--mini-cyber-text, #d8f8ff);
+  --el-text-color-regular: rgba(216, 248, 255, 0.86);
+  --el-text-color-secondary: rgba(173, 220, 233, 0.68);
+  --el-text-color-placeholder: rgba(173, 220, 233, 0.42);
+  --el-border-color-lighter: rgba(96, 231, 255, 0.16);
+  --el-border-color-extra-light: rgba(96, 231, 255, 0.10);
+  --el-fill-color-blank: rgba(12, 31, 50, 0.82);
+  --el-fill-color-lighter: rgba(8, 22, 38, 0.62);
+
+  margin: 6px 0;
+  border-top: 1px solid rgba(96, 231, 255, 0.16);
+  border-radius: 8px;
+}
 .mini-msg-prd-preview :deep(.prd-preview) {
   --prd-bg: rgba(8, 22, 38, 0.66);
   --prd-surface: rgba(12, 31, 50, 0.82);
@@ -630,17 +720,21 @@ onBeforeUnmount(() => {
 .mini-msg-files :deep(.output-files-item) {
   padding: 6px;
   min-width: 120px;
-  max-width: 200px;
+  min-height: 0;
   border-color: rgba(96, 231, 255, 0.14);
   background: rgba(8, 22, 38, 0.62);
+}
+.mini-msg-files :deep(.output-files-main) {
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 8px;
 }
 .mini-msg-files :deep(.output-files-preview) {
   width: 40px;
   height: 40px;
 }
 .mini-msg-files :deep(.output-files-icon) {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   font-size: 18px;
 }
 .mini-msg-files :deep(.output-files-name) {
@@ -648,6 +742,12 @@ onBeforeUnmount(() => {
 }
 .mini-msg-files :deep(.output-files-meta) {
   font-size: 10px;
+}
+.mini-msg-files :deep(.output-files-footer) {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
 }
 .mini-msg-files :deep(.output-files-actions) {
   font-size: 11px;

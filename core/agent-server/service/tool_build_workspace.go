@@ -31,7 +31,7 @@ var undefinedSDKSelectorRe = regexp.MustCompile(`undefined:\s*((?:app|types|char
 
 var buildWorkspaceToolDef = toolDefinitionWithOutput[buildWorkspaceArgs, structuredToolResultSchema[buildWorkspaceResultData]](
 	"build_workspace",
-	"编译当前工作空间（Go 应用）。不写文件，仅基于当前已落盘的代码触发一次编译并部署。无需传参。连续写多个文件后可调用一次 build_workspace 再编译。构建成功后返回 agent_app_build 阶段产物和 pending_test 交互状态，前端应提示用户确认是否交接给 qa_engineer 测试工程师；构建失败时不要交接测试，应修复后重新 build。",
+	"编译当前工作空间（Go 应用）。不写文件，仅基于当前已落盘的代码触发一次编译并部署。无需传参。连续写多个文件后可调用一次 build_workspace 再编译。构建成功后返回 agent_app_build 阶段产物和 pending_test 交互状态，前端应提示用户确认是否交接给 qa_engineer 测试工程师；构建失败时不要交接测试，也不要凭直觉反复重写。先完整阅读错误，按 router/字段/文件定位同类问题；不清楚 SDK schema、widget、callback、审计字段或 API 写法时，先 read_doc /system/prompt/sdk/reference/build-validation、SDK 主文档或匹配案例，再批量修复后重新 build。",
 )
 
 func (t *BuildWorkspaceTool) Definition() dto.ToolDef {
@@ -104,10 +104,15 @@ func splitWorkspacePath(workspacePath string) (string, string) {
 func enrichWorkspaceBuildError(errText string, workspacePath ...string) string {
 	prefix := workspaceBuildScopeMessage(workspacePath...)
 	hints := workspaceBuildErrorHints(errText)
+	guidance := workspaceBuildFailureWorkflowHint()
 	if len(hints) == 0 {
-		return prefix + errText
+		return prefix + errText + guidance
 	}
-	return prefix + errText + "\n\n常见修复建议:\n- " + strings.Join(hints, "\n- ")
+	return prefix + errText + guidance + "\n\n常见修复建议:\n- " + strings.Join(hints, "\n- ")
+}
+
+func workspaceBuildFailureWorkflowHint() string {
+	return "\n\n下一步要求:\n- 先完整阅读错误，按 router/字段/文件定位同类问题并批量修复；不确定 SDK schema、widget、callback、审计字段或 API 写法时，先 read_doc(\"/system/prompt/sdk/reference/build-validation\")、SDK 主文档或匹配案例，不要想当然改 tag 或反复整文件重写。"
 }
 
 func workspaceBuildScopeMessage(workspacePath ...string) string {
@@ -156,6 +161,9 @@ func workspaceBuildErrorHints(errText string) []string {
 	if strings.Contains(errText, "OnSelectFuzzyMap field") || strings.Contains(errText, "must use select or multiselect widget") {
 		add("OnSelectFuzzyMap 的 key 必须对应 schema 中 type:select 或 type:multiselect 的字段；Table 新增/编辑要回调选择时，把外键字段定义在 Model 上并注册回调。")
 	}
+	if strings.Contains(errText, "requires options or OnSelectFuzzyMap entry") {
+		add("select/multiselect 字段必须有选项来源：静态 options，或字段 callback:\"OnSelectFuzzy\" 并在对应 Template.OnSelectFuzzyMap 注册；纯展示名称不要写成 select，改用 input 或补真实回调。")
+	}
 	if strings.Contains(errText, "GetPage undefined") || strings.Contains(errText, "GetPageSize undefined") ||
 		strings.Contains(errText, "unknown field Total") || strings.Contains(errText, "unknown field DataList") {
 		add("Table 列表先用 req.PageSortReq.GetOrder/GetOffset/GetLimit 显式排序分页并查询 total，再用 resp.Table(response.TableResult{Items: rows, TotalCount: total, PageInfo: &req.PageSortReq}).Build() 返回；不要调用 req.GetPageSize()，也不要手工构造 Total/DataList。")
@@ -175,6 +183,9 @@ func workspaceBuildErrorHints(errText string) []string {
 	}
 	if strings.Contains(errText, "redeclared in this block") {
 		add("同一个目录里的模型、函数和方法只能定义一次；共享模型应放在一个文件中，其他文件直接复用。")
+	}
+	if strings.Contains(errText, "audit field") {
+		add("系统审计字段必须按 SDK 规范写完整 tag：created_by/updated_by 用 widget type:user、hide:\"create,update\"，且 gorm column 必须与 json 名一致；CreatedBy 示例为 `gorm:\"column:created_by\" widget:\"name:创建人;type:user\" hide:\"create,update\"`。")
 	}
 	return hints
 }

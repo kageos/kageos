@@ -49,12 +49,19 @@ func TestRoutingMarkdownIsGeneratedFromSpecs(t *testing.T) {
 		"### `product_manager` 产品经理",
 		"### `app_developer` 应用开发工程师",
 		"### `app_operator` 应用操作员",
+		"当前目录已是目标应用",
+		"不依赖某个固定动词",
+		"使用软件完成业务结果",
+		"在 `/system/x_world/vote` 里“创建一个投票”是业务操作",
 		"`tables.fields` 是模型字段，`tables.search_fields` 是查询请求字段",
 		"### `reviewer` 代码审查分析师",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("routing markdown should contain %q, got:\n%s", want, got)
 		}
+	}
+	if strings.Index(got, "### `app_operator` 应用操作员") > strings.Index(got, "### `product_manager` 产品经理") {
+		t.Fatalf("app_operator should be shown before product_manager so existing-app operations are considered first:\n%s", got)
 	}
 }
 

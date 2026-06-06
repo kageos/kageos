@@ -56,6 +56,7 @@ export interface WorkspaceSessionItem {
   handoff_kind?: string
   handoff_target_role?: string
   context_policy?: string
+  model_context_anchor_message_id?: number
   archived_for_model?: boolean
   archive_reason?: string
   created_at: string
@@ -84,6 +85,7 @@ export interface WorkspaceHandoffResp {
   message_id?: number
   content: string
   display_content: string
+  handoff_context?: string
 }
 
 /** 获取工作台会话列表请求 */
@@ -110,6 +112,28 @@ export async function createWorkspaceHandoff(req: WorkspaceHandoffReq): Promise<
 
 /** 流式事件回调：event 为 session|tool_call|content|done|error，data 为对应负载 */
 export type WorkspaceChatStreamOnEvent = (event: string, data: Record<string, unknown>) => void
+
+function parseWorkspaceSSEBlock(block: string): { event: string; data: Record<string, unknown> } | null {
+  let event = ''
+  const dataLines: string[] = []
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) {
+      event = line.slice(6).trim()
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trim())
+    }
+  }
+  if (!event) return null
+
+  const dataStr = dataLines.join('\n').trim()
+  if (!dataStr) return { event, data: {} }
+  try {
+    const obj = JSON.parse(dataStr)
+    return { event, data: typeof obj === 'object' && obj != null ? obj : {} }
+  } catch {
+    return { event, data: { raw: dataStr } }
+  }
+}
 
 /**
  * 工作台对话流式接口（SSE）：通过 onEvent 逐步接收 session、tool_call、content、done、error
@@ -159,39 +183,17 @@ export async function workspaceChatStream(
     const { done, value } = await reader.read()
     if (done) break
     buf += dec.decode(value, { stream: true })
+    buf = buf.replace(/\r\n/g, '\n')
     const parts = buf.split('\n\n')
     buf = parts.pop() || ''
     for (const block of parts) {
-      let ev = ''
-      let dataStr = ''
-      for (const line of block.split('\n')) {
-        if (line.startsWith('event:')) ev = line.slice(6).trim()
-        else if (line.startsWith('data:')) dataStr = line.slice(5).trim()
-      }
-      if (!ev) continue
-      try {
-        const obj = dataStr ? JSON.parse(dataStr) : {}
-        onEvent(ev, typeof obj === 'object' && obj != null ? obj : {})
-      } catch {
-        onEvent(ev, { raw: dataStr })
-      }
+      const parsed = parseWorkspaceSSEBlock(block)
+      if (parsed) onEvent(parsed.event, parsed.data)
     }
   }
   if (buf.trim()) {
-    let ev = ''
-    let dataStr = ''
-    for (const line of buf.split('\n')) {
-      if (line.startsWith('event:')) ev = line.slice(6).trim()
-      else if (line.startsWith('data:')) dataStr = line.slice(5).trim()
-    }
-    if (ev) {
-      try {
-        const obj = dataStr ? JSON.parse(dataStr) : {}
-        onEvent(ev, typeof obj === 'object' && obj != null ? obj : {})
-      } catch {
-        onEvent(ev, { raw: dataStr })
-      }
-    }
+    const parsed = parseWorkspaceSSEBlock(buf.replace(/\r\n/g, '\n'))
+    if (parsed) onEvent(parsed.event, parsed.data)
   }
 }
 
@@ -217,9 +219,18 @@ export interface WorkspaceMessageInfo {
   llm_config_name?: string
   llm_provider?: string
   llm_model?: string
+  llm_usage?: LLMUsageInfo
   context_usage?: string
   artifact_kind?: string
   created_at: string
+}
+
+export interface LLMUsageInfo {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  cached_tokens: number
+  cached_tokens_reported?: boolean
 }
 
 /** 获取工作台会话消息列表请求 */
