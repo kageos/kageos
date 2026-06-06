@@ -88,7 +88,7 @@ func Specs() map[string]Spec {
 				[]string{"write_prd 已生成可确认 PRD artifact", "用户确认前保持 pending_confirmation"},
 				[]LifecycleHook{
 					hook("product_manager.prd_ready", "after_tool", "write_prd 后固化 PRD artifact，供前端确认和后续 handoff 使用。", []string{"write_prd structured data"}, []string{"agent_app_prd artifact", "pending_confirmation interaction"}),
-					hook("product_manager.to_app_developer", "before_handoff", "用户确认 PRD 后生成开发执行视图和交接摘要。", []string{"agent_app_prd JSON", "source session notes"}, []string{"PRD_EXECUTION_MARKDOWN", "artifact_digest", "handoff_context"}),
+					hook("product_manager.to_app_developer", "before_handoff", "用户确认 PRD 后生成开发执行视图和交接摘要。", []string{"agent_app_prd JSON", "source session notes"}, []string{"PRD_EXECUTION_MARKDOWN", "artifact_digest", "handoff_context", "executed_hooks"}),
 				},
 			),
 			Action:           "产品经理只负责新建长期业务系统的需求分析、PRD v2 结构化输出和确认；调用 write_prd 后等待用户确认，不创建目录、不写代码、不 build。",

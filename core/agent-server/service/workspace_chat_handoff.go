@@ -206,36 +206,37 @@ type workspaceHandoffContextInput struct {
 }
 
 type workspaceHandoffContext struct {
-	SourceSessionID      string                   `json:"source_session_id,omitempty"`
-	SourceTitle          string                   `json:"source_title,omitempty"`
-	FullCodePath         string                   `json:"full_code_path,omitempty"`
-	WorkspaceDirectory   string                   `json:"workspace_directory,omitempty"`
-	TargetAppDirectory   string                   `json:"target_app_directory,omitempty"`
-	ExecuteDirectory     string                   `json:"execute_directory,omitempty"`
-	Stage                string                   `json:"stage,omitempty"`
-	ArtifactKind         string                   `json:"artifact_kind,omitempty"`
-	TargetRole           string                   `json:"target_role,omitempty"`
-	ContextPolicy        string                   `json:"context_policy,omitempty"`
-	ArtifactIncluded     bool                     `json:"artifact_included,omitempty"`
-	StageSummary         string                   `json:"stage_summary,omitempty"`
-	UserGoal             string                   `json:"user_goal,omitempty"`
-	LatestUserNotes      []string                 `json:"latest_user_notes,omitempty"`
-	ConfirmedScope       []string                 `json:"confirmed_scope,omitempty"`
-	KeyDecisions         []string                 `json:"key_decisions,omitempty"`
-	Constraints          []string                 `json:"constraints,omitempty"`
-	NonGoals             []string                 `json:"non_goals,omitempty"`
-	UserPreferences      []string                 `json:"user_preferences,omitempty"`
-	WorkflowNotes        []string                 `json:"workflow_notes,omitempty"`
-	DataModelNotes       []string                 `json:"data_model_notes,omitempty"`
-	EdgeCases            []string                 `json:"edge_cases,omitempty"`
-	OpenQuestions        []string                 `json:"open_questions,omitempty"`
-	ImplementationFocus  []string                 `json:"implementation_focus,omitempty"`
-	VerificationFocus    []string                 `json:"verification_focus,omitempty"`
-	ReferenceDocs        []string                 `json:"reference_docs,omitempty"`
-	ReferenceFiles       []string                 `json:"reference_files,omitempty"`
-	Remark               string                   `json:"remark,omitempty"`
-	ArtifactDigest       *workspaceArtifactDigest `json:"artifact_digest,omitempty"`
-	PRDExecutionMarkdown string                   `json:"prd_execution_markdown,omitempty"`
+	SourceSessionID      string                      `json:"source_session_id,omitempty"`
+	SourceTitle          string                      `json:"source_title,omitempty"`
+	FullCodePath         string                      `json:"full_code_path,omitempty"`
+	WorkspaceDirectory   string                      `json:"workspace_directory,omitempty"`
+	TargetAppDirectory   string                      `json:"target_app_directory,omitempty"`
+	ExecuteDirectory     string                      `json:"execute_directory,omitempty"`
+	Stage                string                      `json:"stage,omitempty"`
+	ArtifactKind         string                      `json:"artifact_kind,omitempty"`
+	TargetRole           string                      `json:"target_role,omitempty"`
+	ContextPolicy        string                      `json:"context_policy,omitempty"`
+	ArtifactIncluded     bool                        `json:"artifact_included,omitempty"`
+	StageSummary         string                      `json:"stage_summary,omitempty"`
+	UserGoal             string                      `json:"user_goal,omitempty"`
+	LatestUserNotes      []string                    `json:"latest_user_notes,omitempty"`
+	ConfirmedScope       []string                    `json:"confirmed_scope,omitempty"`
+	KeyDecisions         []string                    `json:"key_decisions,omitempty"`
+	Constraints          []string                    `json:"constraints,omitempty"`
+	NonGoals             []string                    `json:"non_goals,omitempty"`
+	UserPreferences      []string                    `json:"user_preferences,omitempty"`
+	WorkflowNotes        []string                    `json:"workflow_notes,omitempty"`
+	DataModelNotes       []string                    `json:"data_model_notes,omitempty"`
+	EdgeCases            []string                    `json:"edge_cases,omitempty"`
+	OpenQuestions        []string                    `json:"open_questions,omitempty"`
+	ImplementationFocus  []string                    `json:"implementation_focus,omitempty"`
+	VerificationFocus    []string                    `json:"verification_focus,omitempty"`
+	ReferenceDocs        []string                    `json:"reference_docs,omitempty"`
+	ReferenceFiles       []string                    `json:"reference_files,omitempty"`
+	Remark               string                      `json:"remark,omitempty"`
+	ArtifactDigest       *workspaceArtifactDigest    `json:"artifact_digest,omitempty"`
+	PRDExecutionMarkdown string                      `json:"prd_execution_markdown,omitempty"`
+	ExecutedHooks        []workspaceExecutedRoleHook `json:"executed_hooks,omitempty"`
 }
 
 type workspaceArtifactDigest struct {
@@ -307,10 +308,18 @@ func buildWorkspaceHandoffContext(input workspaceHandoffContextInput) workspaceH
 	workspaceDirectory := workspaceHandoffWorkspaceDirectory(input.FullCodePath, artifactMap)
 	targetAppDirectory := workspaceHandoffTargetAppDirectory(input.FullCodePath, artifactMap, digest, input.Messages)
 	executeDirectory := workspaceHandoffExecuteDirectory(input.FullCodePath, input.ArtifactKind, input.TargetRole, workspaceDirectory, targetAppDirectory)
-	prdExecutionMarkdown := ""
-	if input.ArtifactKind == "agent_app_prd" && len(artifactMap) > 0 {
-		prdExecutionMarkdown = renderWorkspacePRDExecutionMarkdown(artifactMap, executeDirectory, targetAppDirectory)
-	}
+	hookOutput := runWorkspaceRoleHooks(workspaceRoleHookInput{
+		Stage:              workspaceRoleHookStageBeforeHandoff,
+		SourceRole:         workspaceSessionRoleID(input.Source),
+		TargetRole:         input.TargetRole,
+		ArtifactKind:       input.ArtifactKind,
+		Artifact:           artifactMap,
+		FullCodePath:       input.FullCodePath,
+		WorkspaceDirectory: workspaceDirectory,
+		TargetAppDirectory: targetAppDirectory,
+		ExecuteDirectory:   executeDirectory,
+		Messages:           input.Messages,
+	})
 
 	ctx := workspaceHandoffContext{
 		FullCodePath:         strings.TrimSpace(input.FullCodePath),
@@ -326,7 +335,8 @@ func buildWorkspaceHandoffContext(input workspaceHandoffContextInput) workspaceH
 		LatestUserNotes:      latestNotes,
 		Remark:               strings.TrimSpace(input.Remark),
 		ArtifactDigest:       digest,
-		PRDExecutionMarkdown: prdExecutionMarkdown,
+		PRDExecutionMarkdown: hookOutput.PRDExecutionMarkdown,
+		ExecutedHooks:        hookOutput.ExecutedHooks,
 	}
 	if input.Source != nil {
 		ctx.SourceSessionID = input.Source.SessionID

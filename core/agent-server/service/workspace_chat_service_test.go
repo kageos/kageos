@@ -119,15 +119,17 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	messageRepo := repository.NewChatMessageRepository(db)
 	handoffRepo := repository.NewWorkspaceHandoffPacketRepository(db)
 	source := &model.AgentChatSession{
-		TreeID:        7,
-		FullCodePath:  "/liubeiluo/demo",
-		Source:        SourceWorkspace,
-		SessionID:     "source-session",
-		Title:         "PRD 讨论",
-		ModeCode:      "dev",
-		Status:        model.ChatSessionStatusActive,
-		ContextPolicy: ContextPolicyFull,
-		User:          "tester",
+		TreeID:          7,
+		FullCodePath:    "/liubeiluo/demo",
+		Source:          SourceWorkspace,
+		SessionID:       "source-session",
+		Title:           "PRD 讨论",
+		ModeCode:        "dev",
+		Status:          model.ChatSessionStatusActive,
+		RoleID:          WorkspaceRoleProductManager,
+		RoleDisplayName: "产品经理",
+		ContextPolicy:   ContextPolicyFull,
+		User:            "tester",
 	}
 	if err := sessionRepo.Create(source); err != nil {
 		t.Fatalf("create source: %v", err)
@@ -210,6 +212,10 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	if !strings.Contains(resp.HandoffContext, "prd_execution_markdown") ||
 		!strings.Contains(resp.HandoffContext, "记录表默认只读") {
 		t.Fatalf("handoff context should carry PRD execution markdown, got %q", resp.HandoffContext)
+	}
+	if !strings.Contains(resp.HandoffContext, `"executed_hooks"`) ||
+		!strings.Contains(resp.HandoffContext, workspaceRoleHookProductManagerToDeveloper) {
+		t.Fatalf("handoff context should expose executed role hooks, got %q", resp.HandoffContext)
 	}
 	if !strings.Contains(resp.HandoffContext, `"target_app_directory": "/liubeiluo/demo/nps_followup"`) ||
 		!strings.Contains(resp.HandoffContext, `"execute_directory": "/liubeiluo/demo"`) ||
@@ -495,6 +501,12 @@ func TestBuildWorkspaceHandoffContextForNewAppUsesWorkspaceRootExecuteDirectory(
 		!strings.Contains(ctx.PRDExecutionMarkdown, "## Table：投票主题") ||
 		!strings.Contains(ctx.PRDExecutionMarkdown, "每个用户在同一主题下只能投一次") {
 		t.Fatalf("handoff should carry rendered PRD execution markdown, got:\n%s", ctx.PRDExecutionMarkdown)
+	}
+	if len(ctx.ExecutedHooks) != 1 ||
+		ctx.ExecutedHooks[0].ID != workspaceRoleHookProductManagerToDeveloper ||
+		ctx.ExecutedHooks[0].Stage != workspaceRoleHookStageBeforeHandoff ||
+		ctx.ExecutedHooks[0].Status != "ok" {
+		t.Fatalf("handoff should record executed PRD hook, got %#v", ctx.ExecutedHooks)
 	}
 	if got := workspaceHandoffTargetSessionFullCodePath("/system/x_world/ticket_management", ctx.ExecuteDirectory, WorkspaceRoleAppDeveloper, "agent_app_prd"); got != "/system/x_world" {
 		t.Fatalf("target session full code path = %q, want /system/x_world", got)

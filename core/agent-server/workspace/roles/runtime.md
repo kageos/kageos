@@ -19,13 +19,19 @@
 
 ## Hook 阶段
 
-第一阶段 Hook 先声明、可展示、可测试；后续再逐步实现为可执行函数。
+第一阶段 Hook 先声明、可展示、可测试；其中高价值链路逐步实现为可执行函数。
 
 - `before_enter`：进入角色前补齐角色所需上下文，例如应用操作员获取当前应用函数 schema。
 - `after_tool`：关键工具执行后整理产物或诊断，例如 build 失败生成错误诊断。
 - `before_handoff`：交接下一角色前把产物整理成下一角色的执行视图，例如 PRD 转开发 Markdown 表格。
 
 Hook 必须产出结构化数据，不能偷偷拼隐藏长提示词；必须声明读取内容和产出内容；必须受 `execute_directory` 限制。
+
+## 已执行 Hook
+
+- `product_manager.to_app_developer`：在用户确认 `agent_app_prd` 并交接给 `app_developer` 前执行，把结构化 PRD 渲染成 `PRD_EXECUTION_MARKDOWN`，同时在 handoff context 写入 `executed_hooks`，用于前端和日志观察本次交接到底产出了什么。
+
+后续 Hook 应按同一方式接入：主流程只调用 HookRunner，具体角色逻辑放在对应 Hook 内；Hook 输出必须可测试、可展示，不依赖旧会话完整历史。
 
 ## 上下文边界
 
