@@ -32,7 +32,7 @@
             耗时 {{ getToolDurationLabel(tc, idx) }}
           </span>
         </div>
-        <div v-if="isRenderablePrdToolCall(tc)" class="message-tool-calls-prd">
+        <div v-if="isRenderablePrdToolCall(tc)" class="message-tool-calls-prd mini-msg-prd-preview">
           <PrdPreview
             :data="tc.result_data"
             :confirm-disabled="confirmDisabled"
@@ -46,6 +46,7 @@
         <BuildWorkspaceDiagnosticsCard
           v-else-if="isBuildWorkspaceFailureToolCall(tc)"
           :tool-call="tc"
+          class="mini-msg-build-diagnostics"
         />
         <div
           v-else

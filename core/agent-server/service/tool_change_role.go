@@ -258,15 +258,23 @@ func handoffSuggestsFailedRetry(handoff roleHandoffData) bool {
 
 func normalizeRoleHandoffForTargetRole(targetRole string, handoff roleHandoffData, fallbackDirectory string) roleHandoffData {
 	targetRole = normalizeWorkspaceRole(targetRole)
+	fallback := normalizeWorkspacePath(fallbackDirectory)
+	executeDirectory := normalizeWorkspacePath(handoff.ExecuteDirectory)
+	if shouldKeepCurrentModuleExecuteDirectory(fallback, executeDirectory) {
+		handoff.ExecuteDirectory = fallback
+		handoff.KeyInformation = appendUniqueRoleHandoffStrings([]string{
+			"执行目录已固定为当前工作台模块：" + fallback,
+			"禁止把当前模块目录扩大到父目录或兄弟目录。",
+		}, handoff.KeyInformation...)
+		return handoff
+	}
 	if targetRole != WorkspaceRoleAppDeveloper {
 		return handoff
 	}
-	fallback := normalizeWorkspacePath(fallbackDirectory)
 	if fallback == "" {
 		return handoff
 	}
 	workspaceRoot := workspaceRootPath(fallback)
-	executeDirectory := normalizeWorkspacePath(handoff.ExecuteDirectory)
 	if workspaceRoot == "" || executeDirectory == "" || executeDirectory == workspaceRoot {
 		return handoff
 	}
@@ -277,13 +285,27 @@ func normalizeRoleHandoffForTargetRole(targetRole string, handoff roleHandoffDat
 		return handoff
 	}
 	targetDirectory := executeDirectory
-	handoff.ExecuteDirectory = workspaceRoot
-	handoff.References = pruneAppDeveloperHandoffReferences(handoff.References, workspaceRoot, targetDirectory)
+	parentDirectory := workspaceRoot
+	if fallback != "" && workspacePathHasPrefix(targetDirectory, fallback) && targetDirectory != fallback {
+		parentDirectory = fallback
+	}
+	handoff.ExecuteDirectory = parentDirectory
+	handoff.References = pruneAppDeveloperHandoffReferences(handoff.References, parentDirectory, targetDirectory)
 	handoff.KeyInformation = appendUniqueRoleHandoffStrings([]string{
 		"新建应用目标目录：" + targetDirectory,
-		"开发阶段先在已存在父目录 " + workspaceRoot + " 下创建目标目录，再在目标目录写代码。",
+		"开发阶段先在已存在父目录 " + parentDirectory + " 下创建目标目录，再在目标目录写代码。",
 	}, handoff.KeyInformation...)
 	return handoff
+}
+
+func shouldKeepCurrentModuleExecuteDirectory(fallback, executeDirectory string) bool {
+	if fallback == "" || executeDirectory == "" || fallback == executeDirectory {
+		return false
+	}
+	if !workspacePathHasPrefix(fallback, executeDirectory) {
+		return false
+	}
+	return workspaceModuleDirectory(workspaceRootPath(fallback), fallback) == fallback
 }
 
 func shouldNormalizeAppDeveloperNewAppHandoff(handoff roleHandoffData) bool {

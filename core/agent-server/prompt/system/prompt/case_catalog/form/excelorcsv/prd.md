@@ -437,8 +437,8 @@ type ExcelFillColumnItem struct {
 	// 框架标签：widget:"type:input" - 要填充的值
 	Value string `json:"value" widget:"name:填充值;type:input;placeholder:例如: 1、文本、2024-01-01" validate:"required"`
 
-	// 框架标签：widget:"type:number" - 填充的行数
-	RowCount int `json:"row_count" widget:"name:填充行数;type:number;render_default:1;placeholder:从第2行开始填充（第1行通常是表头）" validate:"required,min=1"`
+	// 框架标签：widget:"type:integer" - 填充的行数
+	RowCount int `json:"row_count" widget:"name:填充行数;type:integer;render_default:1;placeholder:从第2行开始填充（第1行通常是表头）" validate:"required,min=1"`
 }
 
 // ExcelFillColumnReq Excel列值填充请求结构体
@@ -452,8 +452,8 @@ type ExcelFillColumnReq struct {
 	// 框架标签：widget:"type:table" - 表格组件，用于配置多个列的填充规则
 	FillItems []ExcelFillColumnItem `json:"fill_items" widget:"name:列填充配置;type:table" validate:"required,min=1"`
 
-	// 框架标签：widget:"type:number" - 起始行号（默认2，即从第2行开始填充，第1行通常是表头）
-	StartRow int `json:"start_row" widget:"name:起始行号;type:number;render_default:2;placeholder:默认从第2行开始填充（第1行通常是表头）"`
+	// 框架标签：widget:"type:integer" - 起始行号（默认2，即从第2行开始填充，第1行通常是表头）
+	StartRow int `json:"start_row" widget:"name:起始行号;type:integer;render_default:2;placeholder:请输入起始行号（第1行通常是表头）"`
 }
 
 // ExcelFillColumnResp Excel列值填充响应结构体

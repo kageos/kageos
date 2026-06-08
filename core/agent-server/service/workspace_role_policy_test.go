@@ -151,3 +151,81 @@ func TestWorkspaceToolScopeGateRequiresScopedSearchForOperatorAndQA(t *testing.T
 		t.Fatalf("expected qa current_app search_resources to pass, blocked=%v res=%#v", blocked, res)
 	}
 }
+
+func TestWorkspaceToolScopeGateRestrictsDeveloperWritesToTargetAppDirectory(t *testing.T) {
+	scope := workspaceToolScope{
+		ExecuteDirectory:   "/system/ticket_sys/v1",
+		TargetAppDirectory: "/system/ticket_sys/v1/ticket",
+	}
+
+	res, blocked := workspaceToolScopeGateResultWithScope(WorkspaceRoleAppDeveloper, "write_go_file", map[string]interface{}{
+		"directory": "/system/ticket_sys/v1",
+		"file_name": "ticket.go",
+		"content":   "package ticket",
+	}, scope)
+	if !blocked || !res.IsError {
+		t.Fatalf("expected write_go_file in parent directory to be blocked, blocked=%v res=%#v", blocked, res)
+	}
+	if !strings.Contains(res.Content, "目标应用目录是 /system/ticket_sys/v1/ticket") {
+		t.Fatalf("scope error should mention target app directory, got %q", res.Content)
+	}
+
+	res, blocked = workspaceToolScopeGateResultWithScope(WorkspaceRoleAppDeveloper, "write_go_file", map[string]interface{}{
+		"directory": "/system/ticket_sys/v1/ticket",
+		"file_name": "ticket.go",
+		"content":   "package ticket",
+	}, scope)
+	if blocked || res.IsError {
+		t.Fatalf("expected write_go_file in target directory to pass, blocked=%v res=%#v", blocked, res)
+	}
+
+	res, blocked = workspaceToolScopeGateResultWithScope(WorkspaceRoleAppDeveloper, "write_go_file", map[string]interface{}{
+		"file_name": "ticket.go",
+		"content":   "package ticket",
+	}, scope)
+	if !blocked || !res.IsError {
+		t.Fatalf("expected default write_go_file to parent execute directory to be blocked, blocked=%v res=%#v", blocked, res)
+	}
+}
+
+func TestWorkspaceToolScopeGateAllowsCreatingOnlyTargetAppDirectory(t *testing.T) {
+	scope := workspaceToolScope{
+		ExecuteDirectory:   "/system/ticket_sys/v1",
+		TargetAppDirectory: "/system/ticket_sys/v1/ticket",
+	}
+
+	res, blocked := workspaceToolScopeGateResultWithScope(WorkspaceRoleAppDeveloper, "create_directory", map[string]interface{}{
+		"directory": "/system/ticket_sys/v1",
+		"name":      "工单管理系统",
+		"code":      "ticket",
+	}, scope)
+	if blocked || res.IsError {
+		t.Fatalf("expected creating target app directory to pass, blocked=%v res=%#v", blocked, res)
+	}
+
+	res, blocked = workspaceToolScopeGateResultWithScope(WorkspaceRoleAppDeveloper, "create_directory", map[string]interface{}{
+		"directory": "/system/ticket_sys/v1",
+		"name":      "其他系统",
+		"code":      "other",
+	}, scope)
+	if !blocked || !res.IsError {
+		t.Fatalf("expected creating unrelated sibling directory to be blocked, blocked=%v res=%#v", blocked, res)
+	}
+}
+
+func TestWorkspaceToolScopeGateBlocksBuildUntilExecuteDirectoryIsTargetApp(t *testing.T) {
+	scope := workspaceToolScope{
+		ExecuteDirectory:   "/system/ticket_sys/v1",
+		TargetAppDirectory: "/system/ticket_sys/v1/ticket",
+	}
+	res, blocked := workspaceToolScopeGateResultWithScope(WorkspaceRoleAppDeveloper, "build_workspace", map[string]interface{}{}, scope)
+	if !blocked || !res.IsError {
+		t.Fatalf("expected build_workspace from parent execute directory to be blocked, blocked=%v res=%#v", blocked, res)
+	}
+
+	scope.ExecuteDirectory = "/system/ticket_sys/v1/ticket"
+	res, blocked = workspaceToolScopeGateResultWithScope(WorkspaceRoleAppDeveloper, "build_workspace", map[string]interface{}{}, scope)
+	if blocked || res.IsError {
+		t.Fatalf("expected build_workspace from target execute directory to pass, blocked=%v res=%#v", blocked, res)
+	}
+}

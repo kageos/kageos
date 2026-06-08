@@ -8,7 +8,7 @@ import (
 	"github.com/kageos/kageos/dto"
 )
 
-func TestBuildWorkspaceSuccessResultExposesTestInteraction(t *testing.T) {
+func TestBuildWorkspaceSuccessResultDoesNotBlockForTestConfirmation(t *testing.T) {
 	got := buildWorkspaceSuccessResult("/liubeiluo/nps", &dto.UpdateAppResp{
 		User:       "liubeiluo",
 		App:        "nps",
@@ -19,12 +19,8 @@ func TestBuildWorkspaceSuccessResultExposesTestInteraction(t *testing.T) {
 	if got.Kind != workspaceBuildArtifactKind || got.WorkspacePath != "/liubeiluo/nps" || got.App != "nps" {
 		t.Fatalf("unexpected build result: %#v", got)
 	}
-	if got.Interaction == nil || got.Interaction.Status != "pending_test" || got.Interaction.TargetRoleOnConfirm != WorkspaceRoleQAEngineer {
-		t.Fatalf("unexpected build interaction: %#v", got.Interaction)
-	}
-	if !containsWorkspaceRoleString(got.Interaction.AllowedActions, "start_test") ||
-		!containsWorkspaceRoleString(got.Interaction.AllowedActions, "continue_development") {
-		t.Fatalf("interaction should expose test handoff actions: %#v", got.Interaction)
+	if got.Interaction != nil {
+		t.Fatalf("build success should not expose a pending test interaction: %#v", got.Interaction)
 	}
 	if len(got.Warnings) != 1 || got.Warnings[0] != "metadata sync delayed" {
 		t.Fatalf("warnings not copied: %#v", got.Warnings)
@@ -33,6 +29,25 @@ func TestBuildWorkspaceSuccessResultExposesTestInteraction(t *testing.T) {
 
 func TestBuildWorkspaceToolSchemaExposesStructuredResult(t *testing.T) {
 	def := (&BuildWorkspaceTool{}).Definition()
+	inputProps, ok := def.InputSchema["properties"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("input schema properties missing: %#v", def.InputSchema)
+	}
+	for _, name := range []string{"pre_build_review", "review_passed"} {
+		if _, ok := inputProps[name]; !ok {
+			t.Fatalf("build_workspace input schema should expose %q", name)
+		}
+	}
+	required, ok := def.InputSchema["required"].([]interface{})
+	if !ok {
+		t.Fatalf("input schema required missing: %#v", def.InputSchema)
+	}
+	for _, name := range []string{"pre_build_review", "review_passed"} {
+		if !containsInterfaceString(required, name) {
+			t.Fatalf("build_workspace input schema should require %q, required=%#v", name, required)
+		}
+	}
+
 	props, ok := def.OutputSchema["properties"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("output schema properties missing: %#v", def.OutputSchema)
@@ -52,6 +67,39 @@ func TestBuildWorkspaceToolSchemaExposesStructuredResult(t *testing.T) {
 	}
 }
 
+func TestValidateBuildWorkspacePreBuildReviewBlocksMissingOrFailedReview(t *testing.T) {
+	if got := validateBuildWorkspacePreBuildReview(buildWorkspaceArgs{}); !strings.Contains(got, "缺少 build 前模型代码审查") {
+		t.Fatalf("expected missing review block, got %q", got)
+	}
+	if got := validateBuildWorkspacePreBuildReview(buildWorkspaceArgs{
+		PreBuildReview: "已审文件：lead.go；需求对照：仅实现线索管理；入口闭环：Table/Form/Chart 均检查；伪实现检查：发现导入功能仍返回开发中；范围外功能：无新增；结论：不通过。",
+		ReviewPassed:   false,
+	}); !strings.Contains(got, "审查未通过") {
+		t.Fatalf("expected failed review block, got %q", got)
+	}
+	if got := validateBuildWorkspacePreBuildReview(buildWorkspaceArgs{
+		PreBuildReview: "已审文件：lead.go；结论：通过。",
+		ReviewPassed:   true,
+	}); !strings.Contains(got, "过短") {
+		t.Fatalf("expected short review block, got %q", got)
+	}
+	if got := validateBuildWorkspacePreBuildReview(buildWorkspaceArgs{
+		PreBuildReview: "已审文件：lead.go、lead_chart.go；需求对照：仅实现线索客户表、跟进表单和来源统计图，没有加入 PRD 外导入上传入口；入口闭环：Table 查询和写操作、Form 写入目标表、Chart 基于目标表聚合均有真实 handler；伪实现检查：未发现开发中、请稍后、TODO、未实现或占位返回；范围外功能检查：无审批、权限、外部集成；结论：通过，可以 build。",
+		ReviewPassed:   true,
+	}); got != "" {
+		t.Fatalf("expected review pass, got %q", got)
+	}
+}
+
+func containsInterfaceString(items []interface{}, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestWorkspaceBuildErrorHints(t *testing.T) {
 	errText := `app startup failed: SDK schema compile failed:
 router /auction/auction_item_list.table table schema decode failed: field Status widget tag "options_colors" contains invalid color "default"
@@ -59,7 +107,7 @@ failed to validate table request fields: table request field "session_id" confli
 failed to validate table callbacks: OnSelectFuzzyMap field "item_id" must use select or multiselect widget
 field CurrentPrice (current_price): unsupported widget tag "readonly" for widget "float"
 field Attachments (attachments): unsupported widget type "file"
-field AvgScore (avg_score): number widget requires integer Go type, got float64
+field AvgScore (avg_score): integer widget requires integer Go type, got float64
 field SupplierName (supplier_name): widget "select" requires options or OnSelectFuzzyMap entry
 field CreatedBy (created_by): audit field "created_by" hide tag must be "create,update", got ""
 namespace/auction/evaluation_object_list.go:62:9: req.Status undefined (type EvaluationObjectListReq has no field or method Status)
@@ -77,7 +125,7 @@ namespace/auction/auction_bid_list.go:15:6: AuctionBidRecord redeclared in this 
 		"不确定 SDK schema、widget、callback、审计字段或 API 写法时",
 		"options_colors 只支持不带 # 的 6 位十六进制 RRGGBB",
 		"widget 的 type 和配置 key 必须来自 SDK 主文档组件速查和运行时白名单",
-		"整数用 type:number",
+		"整数用 type:integer",
 		"Table 列表使用 query.PageSortReq",
 		"调整 Table Request 字段后",
 		"OnSelectFuzzyMap 的 key 必须对应 schema",
@@ -167,7 +215,10 @@ func TestWorkspaceBuildErrorMentionsScope(t *testing.T) {
 }
 
 func TestBuildWorkspaceToolReturnsStructuredDataOnLocalError(t *testing.T) {
-	got := (&BuildWorkspaceTool{}).Execute(context.Background(), ToolCall{})
+	got := (&BuildWorkspaceTool{}).Execute(context.Background(), ToolCall{Args: map[string]interface{}{
+		"pre_build_review": "已审文件：demo.go；需求对照：本测试只验证本地路径错误，不涉及业务 PRD；入口闭环：无业务入口需要构建；伪实现检查：未发现开发中、请稍后、TODO、未实现或占位返回；范围外功能检查：无新增功能；结论：通过，可以进入 build 路径校验。",
+		"review_passed":    true,
+	}})
 	if !got.IsError {
 		t.Fatalf("expected local path error, got %#v", got)
 	}

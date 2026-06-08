@@ -85,7 +85,7 @@ func Specs() map[string]Spec {
 			Runtime: runtimeContract(
 				[]string{"用户要新建长期业务系统、应用目录、Form/Table/Chart 或管理后台", "尚未确认结构化 PRD"},
 				[]string{"当前目录已有应用且运行函数能完成用户目标", "用户只是要操作现有软件完成业务结果"},
-				[]string{"先结合当前目录判断是新建系统还是使用现有应用", "读取必要案例并提炼业务对象、字段、搜索、提交入口、统计和规则", "调用 write_prd 输出 PRD v2", "等待用户确认，不创建目录、不写代码、不 build"},
+				[]string{"先结合当前目录判断是新建系统还是使用现有应用", "优先使用 file_profile、用户文件内容和样例数据提炼业务对象、字段、搜索、提交入口、统计和规则", "调用 write_prd 输出 PRD v2", "等待用户确认，不创建目录、不写代码、不 build"},
 				[]string{"write_prd 已生成可确认 PRD artifact", "用户确认前保持 pending_confirmation"},
 				[]LifecycleHook{
 					hook("product_manager.prd_ready", "after_tool", "write_prd 后固化 PRD artifact，供前端确认和后续 handoff 使用。", []string{"write_prd structured data"}, []string{"agent_app_prd artifact", "pending_confirmation interaction"}),
@@ -93,7 +93,7 @@ func Specs() map[string]Spec {
 				},
 			),
 			Action:           "产品经理只负责新建长期业务系统的需求分析、PRD v2 结构化输出和确认；调用 write_prd 后等待用户确认，不创建目录、不写代码、不 build。",
-			RouteDescription: "用户明确要新建长期业务系统、应用目录、新 Form/Table/Chart 或管理后台，但还没有确认 PRD 时进入。当前目录已有应用且运行函数能完成用户目标时不要进入产品经理；这类请求是用户在使用软件完成业务结果，应进入 `app_operator`。例如在 `/system/x_world/vote` 里“创建一个投票”是业务操作，不是写 PRD。产品经理只负责把新系统需求拆成可确认的 PRD artifact：`project/tables/forms/charts/rules`；调用 `write_prd` 后等待用户确认，不创建目录、不写代码、不 build。",
+			RouteDescription: "用户明确要新建长期业务系统、应用目录、新 Form/Table/Chart 或管理后台，但还没有确认 PRD 时进入。上传 Excel/CSV/JSON/Markdown/文本/代码并表达“做成系统/后台/应用”时，如果消息里已有 `file_profile` 或内容清楚，直接进入产品经理基于字段和样例生成 PRD，不要为了读取同一文件先绕到 `data_operator`。当前目录已有应用且运行函数能完成用户目标时不要进入产品经理；这类请求是用户在使用软件完成业务结果，应进入 `app_operator`。例如在 `/system/x_world/vote` 里“创建一个投票”是业务操作，不是写 PRD。产品经理只负责把新系统需求拆成可确认的 PRD artifact：`project/tables/forms/charts/rules`；调用 `write_prd` 后等待用户确认，不创建目录、不写代码、不 build。",
 			NextRoles: []NextRole{
 				{RoleID: AppDeveloper, When: "用户确认 PRD 后进入应用开发"},
 			},
@@ -111,15 +111,15 @@ func Specs() map[string]Spec {
 			Runtime: runtimeContract(
 				[]string{"用户已确认 PRD", "handoff 会话携带完整 agent_app_prd JSON", "用户明确要求新增或改变软件能力"},
 				[]string{"用户在已有应用里使用软件完成业务结果", "需求尚未确认 PRD 且不是小范围维护"},
-				[]string{"调用 change_role 并固定 execute_directory", "优先阅读 PRD_EXECUTION_MARKDOWN，细节以 PRD JSON 为准", "读取 SDK 主文档和匹配案例", "创建或修改目标目录代码", "统一调用 build_workspace"},
-				[]string{"build_workspace 成功并产生 agent_app_build artifact", "或 build/schema 失败并带完整错误交接给 build_engineer"},
+				[]string{"调用 change_role 并固定 execute_directory", "优先阅读 PRD_EXECUTION_MARKDOWN，细节以 PRD JSON 为准", "读取 SDK 主文档和匹配案例", "创建或修改目标目录代码", "build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed", "build 成功后不等待用户确认，立即交接 qa_engineer 并自动测试"},
+				[]string{"build_workspace 成功、已交接 qa_engineer 并完成核心函数测试", "或 build/schema 失败并带完整错误交接给 build_engineer"},
 				[]LifecycleHook{
 					hook("app_developer.before_enter_prd", "before_enter", "整理确认后的 PRD、执行目录和开发参考资料。", []string{"agent_app_prd JSON", "PRD_EXECUTION_MARKDOWN", "reference docs"}, []string{"developer_context_packet"}),
 					hook("app_developer.after_build", "after_tool", "build_workspace 后根据成功或失败决定 QA 或构建修复交接。", []string{"build_workspace result"}, []string{"agent_app_build artifact", "build_diagnostics"}),
 				},
 			),
-			Action:           "应用开发工程师只按已确认 PRD v2 开发执行；区分 tables.fields 模型字段和 tables.search_fields 查询字段，读取 SDK 和案例，创建目录、写 Go 文件并统一 build，不重新输出 PRD。",
-			RouteDescription: "用户已确认 PRD，或确认按钮开启的新会话携带完整 PRD JSON 时进入。只按 PRD v2 直接开发：读取匹配案例，创建目录，生成 Go struct 和函数代码，注册路由并统一 build；`tables.fields` 是模型字段，`tables.search_fields` 是查询请求字段；不要重新输出 PRD，不要再次询问确认。用户是在已有应用里使用软件完成业务结果，而不是要求新增或改变软件能力时，不要进入开发工程师，应进入 `app_operator`。",
+			Action:           "应用开发工程师只按已确认 PRD v2 开发执行；区分 tables.fields 模型字段和 tables.search_fields 查询字段，读取 SDK 和案例，创建目录、写 Go 文件；build 前必须模型 CR，确认无伪实现和范围外功能后再 build；build 成功后立即交接 QA 自动测试，不重新输出 PRD。",
+			RouteDescription: "用户已确认 PRD，或确认按钮开启的新会话携带完整 PRD JSON 时进入。只按 PRD v2 直接开发：读取匹配案例，创建目录，生成 Go struct 和函数代码，注册路由；`tables.fields` 是模型字段，`tables.search_fields` 是查询请求字段；build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed，确认无“开发中/未实现/占位”伪功能和 PRD 外入口；build 成功后必须立即进入 `qa_engineer` 自动测试，不等待用户确认。不要重新输出 PRD，不要再次询问确认。用户是在已有应用里使用软件完成业务结果，而不是要求新增或改变软件能力时，不要进入开发工程师，应进入 `app_operator`。",
 			NextRoles: []NextRole{
 				{RoleID: QAEngineer, When: "build 成功后验证核心函数"},
 				{RoleID: BuildEngineer, When: "build 失败或 schema compile failed"},
@@ -137,15 +137,15 @@ func Specs() map[string]Spec {
 			Runtime: runtimeContract(
 				[]string{"用户要修改已有应用、字段、搜索、选项、回调、图表或业务 bug", "测试或操作发现业务实现问题"},
 				[]string{"用户要重新设计新系统需求", "只是业务数据操作且当前应用可直接完成"},
-				[]string{"固定目标应用 execute_directory", "读取相关目录和源码", "小改局部替换，大改再写完整文件", "修改后 build_workspace", "失败时按错误类型补读文档或交接 build_engineer"},
-				[]string{"目标修改已落盘并 build 成功", "或构建问题已交接 build_engineer"},
+				[]string{"固定目标应用 execute_directory", "读取相关目录和源码", "小改局部替换，大改再写完整文件", "build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed", "build 成功后不等待用户确认，立即交接 qa_engineer 并自动测试", "失败时按错误类型补读文档或交接 build_engineer"},
+				[]string{"目标修改已落盘、build 成功并完成 QA 测试", "或构建问题已交接 build_engineer"},
 				[]LifecycleHook{
 					hook("maintenance.before_enter_scope", "before_enter", "收敛维护范围，避免扫描或修改无关应用。", []string{"execute_directory", "changed files", "bug report"}, []string{"maintenance_scope"}),
 					hook("maintenance.after_build", "after_tool", "构建后决定进入 QA 或构建修复。", []string{"build_workspace result"}, []string{"verification_focus", "build_diagnostics"}),
 				},
 			),
-			Action:           "应用维护工程师负责修改已有应用、字段、搜索、选项、回调、图表和业务 bug；区分业务字段和系统搜索字段，读取相关源码后修改并 build。",
-			RouteDescription: "用户要改已有应用、字段、选项、组件、回调、搜索、消息、跳转、图表或业务逻辑时进入。先识别修改类型和影响范围，读取当前目录与相关源码，只改用户目标和必要依赖。新增或修改搜索时区分业务字段和系统字段；小改优先局部替换，大改或新增能力再写完整文件；构建成功后建议进入 `qa_engineer`。",
+			Action:           "应用维护工程师负责修改已有应用、字段、搜索、选项、回调、图表和业务 bug；区分业务字段和系统搜索字段，读取相关源码后修改，build 前模型 CR，确认无伪实现和范围外功能后再 build。",
+			RouteDescription: "用户要改已有应用、字段、选项、组件、回调、搜索、消息、跳转、图表或业务逻辑时进入。先识别修改类型和影响范围，读取当前目录与相关源码，只改用户目标和必要依赖。新增或修改搜索时区分业务字段和系统字段；小改优先局部替换，大改或新增能力再写完整文件；build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed；构建成功后必须立即进入 `qa_engineer` 自动测试，不等待用户确认。",
 			NextRoles: []NextRole{
 				{RoleID: QAEngineer, When: "修改 build 成功后验证功能"},
 				{RoleID: BuildEngineer, When: "构建或 schema 校验失败"},
@@ -216,15 +216,15 @@ func Specs() map[string]Spec {
 			Runtime: runtimeContract(
 				[]string{"build_workspace 失败", "启动、schema、widget、路由后缀或 SDK API 相关错误"},
 				[]string{"业务功能本身需要重新设计", "只是测试数据或参数问题"},
-				[]string{"固定目标应用目录", "读取完整错误和相关源码", "按 router/字段/文件归类同类问题", "不确定先读 build-validation、SDK 主文档或案例", "批量修复后重新 build"},
-				[]string{"build_workspace 成功并可交接 QA", "或确认问题属于业务设计缺陷并交接维护角色"},
+				[]string{"固定目标应用目录", "读取完整错误和相关源码", "按 router/字段/文件归类同类问题", "不确定先读 build-validation、SDK 主文档或案例", "批量修复后、build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed", "build 成功后不等待用户确认，立即交接 qa_engineer 并自动测试"},
+				[]string{"build_workspace 成功、已交接 QA 并完成测试", "或确认问题属于业务设计缺陷并交接维护角色"},
 				[]LifecycleHook{
 					hook("build_engineer.before_enter_diagnostics", "before_enter", "解析构建错误并匹配修复策略和必读文档。", []string{"build error", "workspace path"}, []string{"build_diagnostics", "required_docs", "repair_policy", "executed_hooks"}),
 					hook("build_engineer.after_build", "after_tool", "重新构建后决定 QA 或继续修复。", []string{"build_workspace result"}, []string{"agent_app_build artifact", "remaining_errors"}),
 				},
 			),
-			Action:           "构建修复工程师负责构建、启动、schema、widget、搜索字段和 SDK API 排错；按错误类型批量修复并重新 build。",
-			RouteDescription: "构建失败、启动失败、schema 编译失败、widget 校验失败、路由后缀错误、SDK API 不确定时进入。读取完整错误，按错误类型归类，同类问题批量修复。遇到搜索字段错误时先判断是系统查询字段还是业务模型字段；不要猜不存在的 SDK API；不确定时回到完整 SDK 文档或源码确认。",
+			Action:           "构建修复工程师负责构建、启动、schema、widget、搜索字段和 SDK API 排错；按错误类型批量修复，build 前模型 CR 后再重新 build。",
+			RouteDescription: "构建失败、启动失败、schema 编译失败、widget 校验失败、路由后缀错误、SDK API 不确定时进入。读取完整错误，按错误类型归类，同类问题批量修复。重新 build_workspace 前必须先读回修复相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed；遇到搜索字段错误时先判断是系统查询字段还是业务模型字段；不要猜不存在的 SDK API；不确定时回到完整 SDK 文档或源码确认。",
 			NextRoles: []NextRole{
 				{RoleID: QAEngineer, When: "build 修复成功后验证功能"},
 				{RoleID: MaintenanceEngineer, When: "错误指向业务逻辑或字段设计缺陷"},
@@ -238,14 +238,14 @@ func Specs() map[string]Spec {
 			Runtime: runtimeContract(
 				[]string{"一次性文件、媒体、数据处理、格式转换、OCR、压缩、转码或临时图表生成"},
 				[]string{"用户明确要求沉淀为长期业务系统"},
-				[]string{"确认输入文件或数据", "优先复用已有工具和官方能力", "按常见默认值克制处理", "返回产物或简洁结果"},
+				[]string{"确认输入文件或数据", "优先复用已有工具和官方能力", "按常见默认值克制处理", "返回产物或简洁结果；如果目标是长期系统且已有 file_profile，则直接交接产品经理，不重复读取文件"},
 				[]string{"文件/数据处理完成并返回产物", "或需要长期系统时交接产品经理"},
 				[]LifecycleHook{
 					hook("data_operator.before_enter_inputs", "before_enter", "整理上传文件、目标格式和一次性处理参数。", []string{"attached files", "user request"}, []string{"processing_inputs"}),
 				},
 			),
 			Action:           "数据/文件处理工程师处理一次性文件、媒体和数据任务，不沉淀长期业务应用。",
-			RouteDescription: "用户要做一次性文件、媒体、数据处理、图表生成、格式转换、OCR、压缩、转码等杂活时进入。优先复用已有官方工具和运行工具，不要误判成长期应用开发。只有用户明确要求沉淀为业务系统、记录管理或统计看板时，才切到 `product_manager`。",
+			RouteDescription: "用户要做一次性文件、媒体、数据处理、图表生成、格式转换、OCR、压缩、转码等杂活时进入。优先复用已有官方工具和运行工具，不要误判成长期应用开发。用户明确要求沉淀为业务系统、记录管理、统计看板，或上传文件后表达“做成系统/后台/应用”时，应切到 `product_manager`；如果已有 `file_profile`，不要重复读取文件，只把画像作为交接关键信息。",
 			NextRoles: []NextRole{
 				{RoleID: ProductManager, When: "用户明确要求沉淀为长期业务系统"},
 			},

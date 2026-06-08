@@ -127,9 +127,9 @@ function baseData(): any {
   }
 }
 
-function mountPreview(data: any = baseData()) {
+function mountPreview(data: any = baseData(), extraProps: Record<string, unknown> = {}) {
   return mount(PrdPreview, {
-    props: { data },
+    props: { data, ...extraProps },
     global: {
       stubs: globalStubs(),
     },
@@ -185,10 +185,16 @@ describe('PrdPreview', () => {
     expect(wrapper.text()).toContain('结束时间')
   })
 
-  it('emits confirm payload with generated confirmation question and remark', async () => {
+  it('keeps confirmation controls hidden by default', () => {
     const wrapper = mountPreview()
 
-    expect(wrapper.text()).toContain('请确认是否按以上 PRD 创建目录和生成代码')
+    expect(wrapper.text()).not.toContain('请确认是否按以上 PRD 创建目录和生成代码')
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(wrapper.findAll('button').some(button => button.text().includes('确认 PRD'))).toBe(false)
+  })
+
+  it('emits confirm payload when confirmation controls are explicitly enabled', async () => {
+    const wrapper = mountPreview(baseData(), { showConfirmation: true })
 
     await wrapper.find('textarea').setValue('按这个做')
     const confirmButton = wrapper.findAll('button').find(button => button.text().includes('确认 PRD'))

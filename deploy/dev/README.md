@@ -158,7 +158,7 @@ go run ./cmd/kagectl build-app-base --image "kagebase:latest"
 go run ./cmd/kagectl build-app-base --force --no-cache
 ```
 
-dev 默认配置 [app-runtime.yaml](config/app-runtime.yaml) 里的 `container.image.base_image` 默认也是 `kagebase:latest`。如需临时切换运行时镜像，可在启动 app-runtime / core-server 时设置 `KAGEOS_APP_BASE_IMAGE`。
+dev 默认配置 `.kageos/dev/config/app-runtime.yaml` 里的 `container.image.base_image` 默认也是 `kagebase:latest`。如需临时切换运行时镜像，可在启动 app-runtime / core-server 时设置 `KAGEOS_APP_BASE_IMAGE`。
 
 ### 3. 起前端
 

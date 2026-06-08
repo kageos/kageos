@@ -195,6 +195,7 @@ func (r *ChatSessionRepository) ListFinishedByUser(user string, limit int) ([]*m
 				model.ChatSessionStatusOutput,
 				model.ChatSessionStatusPendingConfirmation,
 				model.ChatSessionStatusPendingTest,
+				model.ChatSessionStatusPendingBuildRepair,
 				model.ChatSessionStatusDone,
 				model.ChatSessionStatusCancelled,
 			}).

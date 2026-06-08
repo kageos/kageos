@@ -19,11 +19,12 @@ type WorkspaceChatReq struct {
 
 // WorkspaceMsg 工作台单条消息
 type WorkspaceMsg struct {
-	Content        string `json:"content" binding:"required"`
-	DisplayContent string `json:"display_content,omitempty"` // 前端展示内容，模型仍使用 content
-	Files          string `json:"files,omitempty"`           // 文件引用字符串，格式 bucket/object_key，多文件逗号分隔
-	ContextUsage   string `json:"context_usage,omitempty"`   // include/display_only/artifact
-	ArtifactKind   string `json:"artifact_kind,omitempty"`   // 结构化产物类型
+	Content           string `json:"content" binding:"required"`
+	DisplayContent    string `json:"display_content,omitempty"`    // 前端展示内容，模型仍使用 content
+	Files             string `json:"files,omitempty"`              // 文件引用字符串，格式 bucket/object_key，多文件逗号分隔
+	ContextUsage      string `json:"context_usage,omitempty"`      // include/display_only/artifact
+	ArtifactKind      string `json:"artifact_kind,omitempty"`      // 结构化产物类型
+	InteractionAction string `json:"interaction_action,omitempty"` // 处理阻塞交互的动作，如 revise_prd/continue_development
 }
 
 // WorkspaceChatResp 工作台对话响应
@@ -68,24 +69,45 @@ type ListWorkspaceSessionsResp struct {
 
 // WorkspaceSessionItem 工作台会话项
 type WorkspaceSessionItem struct {
-	SessionID                   string      `json:"session_id"`                                // 会话ID
-	Title                       string      `json:"title"`                                     // 会话标题
-	User                        string      `json:"user"`                                      // 创建该会话的用户
-	ModeCode                    string      `json:"mode_code"`                                 // 工作台模式代码
-	Status                      string      `json:"status"`                                    // 会话状态（active/generating/output/pending_confirmation/pending_test/done/cancelled）
-	RoleID                      string      `json:"role_id,omitempty"`                         // 当前工作台角色 ID
-	RoleDisplayName             string      `json:"role_display_name,omitempty"`               // 当前工作台角色展示名称
-	FullCodePath                string      `json:"full_code_path,omitempty"`                  // 所属目录完整路径
-	DirectoryName               string      `json:"directory_name,omitempty"`                  // 所属目录展示名称
-	ParentSessionID             string      `json:"parent_session_id,omitempty"`               // 阶段交接来源会话ID
-	HandoffKind                 string      `json:"handoff_kind,omitempty"`                    // 阶段交接产物类型
-	HandoffTargetRole           string      `json:"handoff_target_role,omitempty"`             // 阶段交接目标身份
-	ContextPolicy               string      `json:"context_policy,omitempty"`                  // 模型上下文策略
-	ModelContextAnchorMessageID int64       `json:"model_context_anchor_message_id,omitempty"` // 模型上下文锚点消息ID
-	ArchivedForModel            bool        `json:"archived_for_model,omitempty"`              // 是否已归档且不再进入模型上下文
-	ArchiveReason               string      `json:"archive_reason,omitempty"`                  // 归档原因
-	CreatedAt                   models.Time `json:"created_at"`                                // 创建时间
-	UpdatedAt                   models.Time `json:"updated_at"`                                // 更新时间
+	SessionID                   string                `json:"session_id"`                                // 会话ID
+	Title                       string                `json:"title"`                                     // 会话标题
+	User                        string                `json:"user"`                                      // 创建该会话的用户
+	ModeCode                    string                `json:"mode_code"`                                 // 工作台模式代码
+	Status                      string                `json:"status"`                                    // 会话状态（active/generating/output/pending_confirmation/pending_build_repair/done/cancelled；pending_test 为历史兼容）
+	RoleID                      string                `json:"role_id,omitempty"`                         // 当前工作台角色 ID
+	RoleDisplayName             string                `json:"role_display_name,omitempty"`               // 当前工作台角色展示名称
+	FullCodePath                string                `json:"full_code_path,omitempty"`                  // 所属目录完整路径
+	DirectoryName               string                `json:"directory_name,omitempty"`                  // 所属目录展示名称
+	ParentSessionID             string                `json:"parent_session_id,omitempty"`               // 阶段交接来源会话ID
+	HandoffKind                 string                `json:"handoff_kind,omitempty"`                    // 阶段交接产物类型
+	HandoffTargetRole           string                `json:"handoff_target_role,omitempty"`             // 阶段交接目标身份
+	ContextPolicy               string                `json:"context_policy,omitempty"`                  // 模型上下文策略
+	ModelContextAnchorMessageID int64                 `json:"model_context_anchor_message_id,omitempty"` // 模型上下文锚点消息ID
+	ArchivedForModel            bool                  `json:"archived_for_model,omitempty"`              // 是否已归档且不再进入模型上下文
+	ArchiveReason               string                `json:"archive_reason,omitempty"`                  // 归档原因
+	PendingInteraction          *WorkspaceInteraction `json:"pending_interaction,omitempty"`             // 当前会话等待用户处理的阻塞交互
+	CreatedAt                   models.Time           `json:"created_at"`                                // 创建时间
+	UpdatedAt                   models.Time           `json:"updated_at"`                                // 更新时间
+}
+
+// WorkspaceInteraction 描述工作台会话级交互闸门。blocking=true 时前端必须先处理该卡片，
+// 后端也会拒绝普通继续对话，避免卡片只成为提示摆设。
+type WorkspaceInteraction struct {
+	ID                  string      `json:"id,omitempty"`
+	CardType            string      `json:"card_type,omitempty"` // prd_confirmation/build_repair/question_batch/...
+	ArtifactKind        string      `json:"artifact_kind,omitempty"`
+	Status              string      `json:"status"`
+	Blocking            bool        `json:"blocking"`
+	Title               string      `json:"title,omitempty"`
+	Description         string      `json:"description,omitempty"`
+	HelpText            string      `json:"help_text,omitempty"`
+	ViewText            string      `json:"view_text,omitempty"`
+	ConfirmText         string      `json:"confirm_text,omitempty"`
+	ReviseText          string      `json:"revise_text,omitempty"`
+	CancelText          string      `json:"cancel_text,omitempty"`
+	TargetRoleOnConfirm string      `json:"target_role_on_confirm,omitempty"`
+	AllowedActions      []string    `json:"allowed_actions,omitempty"`
+	Artifact            interface{} `json:"artifact,omitempty"`
 }
 
 // WorkspaceHandoffReq 创建阶段交接会话请求。
@@ -118,6 +140,19 @@ type WorkspaceHandoffResp struct {
 // ResolveWorkspacePendingInteractionReq 清除工作台会话的待交互状态。
 type ResolveWorkspacePendingInteractionReq struct {
 	SessionID string `json:"session_id" binding:"required"`
+}
+
+// RecordWorkspaceInteractionEventReq 记录工作台交互卡片事件。
+// 该消息仅用于审计展示，不进入模型上下文。
+type RecordWorkspaceInteractionEventReq struct {
+	SessionID      string `json:"session_id" binding:"required"`
+	Action         string `json:"action" binding:"required"`
+	InteractionID  string `json:"interaction_id,omitempty"`
+	CardType       string `json:"card_type,omitempty"`
+	Status         string `json:"status,omitempty"`
+	ArtifactKind   string `json:"artifact_kind,omitempty"`
+	Content        string `json:"content,omitempty"`
+	DisplayContent string `json:"display_content,omitempty"`
 }
 
 // CancelWorkspaceChatReq 取消工作台会话执行请求

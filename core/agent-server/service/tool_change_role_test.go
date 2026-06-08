@@ -75,7 +75,7 @@ func TestBuildChangeRoleLoadsCreateDocs(t *testing.T) {
 	if containsWorkspaceRoleString(got.AllowedNextTools, "write_prd") {
 		t.Fatalf("app_developer should not plan PRD again, tools=%v", got.AllowedNextTools)
 	}
-	if !containsWorkspaceRoleString(got.RuntimeContract.DoneWhen, "build_workspace 成功并产生 agent_app_build artifact") {
+	if !containsWorkspaceRoleString(got.RuntimeContract.DoneWhen, "build_workspace 成功、已交接 qa_engineer 并完成核心函数测试") {
 		t.Fatalf("app_developer should expose done_when contract, runtime=%#v", got.RuntimeContract)
 	}
 	if len(got.RuntimeContract.Hooks) == 0 {
@@ -570,5 +570,22 @@ func TestChangeRoleRequiresExplicitTargetAndExecuteDirectory(t *testing.T) {
 	})
 	if !res.IsError || !strings.Contains(res.Content, "target_role") {
 		t.Fatalf("expected missing target_role to fail, got %#v", res)
+	}
+}
+
+func TestChangeRoleNormalizesNewAppTargetToSelectedParentDirectory(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		TargetRole:       WorkspaceRoleAppDeveloper,
+		ExecuteDirectory: "/system/ticket_sys/v1/ticket",
+		TaskContext:      []string{"已确认 PRD，开发工单管理系统"},
+		KeyInformation:   []string{"目标应用目录：/system/ticket_sys/v1/ticket"},
+	}, "/system/ticket_sys/v1")
+
+	if got.ExecuteDirectory != "/system/ticket_sys/v1" {
+		t.Fatalf("execute directory = %q, want /system/ticket_sys/v1", got.ExecuteDirectory)
+	}
+	if !containsWorkspaceRoleString(got.Handoff.KeyInformation, "新建应用目标目录：/system/ticket_sys/v1/ticket") ||
+		!containsWorkspaceRoleString(got.Handoff.KeyInformation, "开发阶段先在已存在父目录 /system/ticket_sys/v1 下创建目标目录，再在目标目录写代码。") {
+		t.Fatalf("handoff should preserve selected parent and target child, got %#v", got.Handoff.KeyInformation)
 	}
 }

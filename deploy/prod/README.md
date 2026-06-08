@@ -13,7 +13,7 @@ Kageos 的生产部署由 `kagectl` 统一控制。Compose 仍是底层容器执
 
 ## 部署分层
 
-完整定义见 [部署分层模型](../../docs/deployment-layers.md)。
+当前单机生产部署分层如下。
 
 ```mermaid
 flowchart TD

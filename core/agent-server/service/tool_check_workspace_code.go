@@ -557,6 +557,7 @@ func checkParsedGoFileSchemaPatterns(file parsedGoSourceFileForCheck) []checkWor
 	structs := collectStructTagFields(file.Parsed, file.FileSet)
 	modelNames := collectTableModelNames(file.Parsed)
 	issues := checkTableRequestModelDuplicateFields(file.Source.Name, structs, modelNames)
+	issues = append(issues, checkWidgetGoTypeCompatibility(file.Source.Name, structs)...)
 	issues = append(issues, checkOnSelectFuzzyMapKeys(file.Source.Name, structs, file.Parsed, file.FileSet)...)
 	return issues
 }
@@ -567,6 +568,7 @@ type structTagField struct {
 	Code       string
 	WidgetType string
 	TypeName   string
+	TypeExpr   string
 	Embedded   bool
 	Line       int
 }
@@ -618,6 +620,7 @@ func collectStructTagFields(parsed *ast.File, fset *token.FileSet) map[string][]
 					Code:       code,
 					WidgetType: widgetType,
 					TypeName:   astTypeName(field.Type),
+					TypeExpr:   astTypeExpr(field.Type),
 					Line:       fset.Position(field.Tag.Pos()).Line,
 				})
 			}
@@ -693,6 +696,56 @@ func requestStructUsesPageSortReq(fields []structTagField) bool {
 	return usesPageSortReq
 }
 
+func checkWidgetGoTypeCompatibility(fileName string, structs map[string][]structTagField) []checkWorkspaceCodeIssue {
+	var issues []checkWorkspaceCodeIssue
+	for _, fields := range structs {
+		for _, field := range fields {
+			if field.Embedded || field.WidgetType == "" || field.TypeExpr == "" {
+				continue
+			}
+			message := widgetGoTypeCompatibilityMessage(field)
+			if message == "" {
+				continue
+			}
+			issues = append(issues, checkWorkspaceCodeIssue{
+				File:     fileName,
+				Line:     field.Line,
+				Severity: "error",
+				Category: "widget_go_type",
+				Message:  message,
+			})
+		}
+	}
+	return issues
+}
+
+func widgetGoTypeCompatibilityMessage(field structTagField) string {
+	typeExpr := field.TypeExpr
+	switch field.WidgetType {
+	case widget.TypeFiles:
+		if isGoSliceOrArrayType(typeExpr) || isKnownNonStringScalarType(typeExpr) {
+			return fmt.Sprintf("字段 %s 使用 type:files 时 Go 类型必须是 string；多文件也用逗号分隔 refs 字符串，不要用 %s", field.FieldName, typeExpr)
+		}
+	case widget.TypeInteger:
+		if isGoFloatType(typeExpr) || isGoStringType(typeExpr) || isGoBoolType(typeExpr) || isGoSliceOrArrayType(typeExpr) {
+			return fmt.Sprintf("字段 %s 使用 type:integer 时 Go 类型必须是整数；小数请改用 type:float，当前是 %s", field.FieldName, typeExpr)
+		}
+	case widget.TypeFloat:
+		if isGoIntegerType(typeExpr) || isGoStringType(typeExpr) || isGoBoolType(typeExpr) || isGoSliceOrArrayType(typeExpr) {
+			return fmt.Sprintf("字段 %s 使用 type:float 时 Go 类型必须是 float32/float64；整数请改用 type:integer，当前是 %s", field.FieldName, typeExpr)
+		}
+	case widget.TypeSwitch:
+		if isKnownNonBoolType(typeExpr) {
+			return fmt.Sprintf("字段 %s 使用 type:switch 时 Go 类型必须是 bool，当前是 %s；字符串枚举请用 select/radio", field.FieldName, typeExpr)
+		}
+	case widget.TypeInput, widget.TypeText, widget.TypeTextArea, widget.TypeRichText, widget.TypeColor, widget.TypeLink, widget.TypeUser, widget.TypeDepartment:
+		if isGoSliceOrArrayType(typeExpr) || isKnownNonStringScalarType(typeExpr) {
+			return fmt.Sprintf("字段 %s 使用 type:%s 时 Go 类型必须是 string，当前是 %s", field.FieldName, field.WidgetType, typeExpr)
+		}
+	}
+	return ""
+}
+
 func astTypeName(expr ast.Expr) string {
 	switch t := expr.(type) {
 	case *ast.Ident:
@@ -704,6 +757,79 @@ func astTypeName(expr ast.Expr) string {
 	default:
 		return ""
 	}
+}
+
+func astTypeExpr(expr ast.Expr) string {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name
+	case *ast.SelectorExpr:
+		prefix := astTypeExpr(t.X)
+		if prefix == "" {
+			return t.Sel.Name
+		}
+		return prefix + "." + t.Sel.Name
+	case *ast.StarExpr:
+		inner := astTypeExpr(t.X)
+		if inner == "" {
+			return ""
+		}
+		return "*" + inner
+	case *ast.ArrayType:
+		inner := astTypeExpr(t.Elt)
+		if inner == "" {
+			return ""
+		}
+		return "[]" + inner
+	default:
+		return ""
+	}
+}
+
+func derefGoTypeExpr(typeExpr string) string {
+	typeExpr = strings.TrimSpace(typeExpr)
+	for strings.HasPrefix(typeExpr, "*") {
+		typeExpr = strings.TrimPrefix(typeExpr, "*")
+	}
+	return typeExpr
+}
+
+func isGoSliceOrArrayType(typeExpr string) bool {
+	return strings.HasPrefix(derefGoTypeExpr(typeExpr), "[]")
+}
+
+func isGoStringType(typeExpr string) bool {
+	return derefGoTypeExpr(typeExpr) == "string"
+}
+
+func isGoBoolType(typeExpr string) bool {
+	return derefGoTypeExpr(typeExpr) == "bool"
+}
+
+func isGoIntegerType(typeExpr string) bool {
+	switch derefGoTypeExpr(typeExpr) {
+	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "uintptr":
+		return true
+	default:
+		return false
+	}
+}
+
+func isGoFloatType(typeExpr string) bool {
+	switch derefGoTypeExpr(typeExpr) {
+	case "float32", "float64":
+		return true
+	default:
+		return false
+	}
+}
+
+func isKnownNonStringScalarType(typeExpr string) bool {
+	return isGoIntegerType(typeExpr) || isGoFloatType(typeExpr) || isGoBoolType(typeExpr)
+}
+
+func isKnownNonBoolType(typeExpr string) bool {
+	return isGoStringType(typeExpr) || isGoIntegerType(typeExpr) || isGoFloatType(typeExpr) || isGoSliceOrArrayType(typeExpr)
 }
 
 func modelCodesForRequest(requestStruct string, structs map[string][]structTagField, modelNames map[string]struct{}) map[string]string {

@@ -77,7 +77,7 @@ func (s *WorkspaceChatService) buildWorkspaceSessionItems(ctx context.Context, s
 	items := make([]*dto.WorkspaceSessionItem, 0, len(sessions))
 	for _, session := range sessions {
 		fullCodePath := strings.TrimSpace(session.FullCodePath)
-		items = append(items, &dto.WorkspaceSessionItem{
+		item := &dto.WorkspaceSessionItem{
 			SessionID:                   session.SessionID,
 			Title:                       session.Title,
 			User:                        session.User,
@@ -96,7 +96,9 @@ func (s *WorkspaceChatService) buildWorkspaceSessionItems(ctx context.Context, s
 			ArchiveReason:               session.ArchiveReason,
 			CreatedAt:                   session.CreatedAt,
 			UpdatedAt:                   session.UpdatedAt,
-		})
+		}
+		item.PendingInteraction = s.pendingInteractionForSession(session)
+		items = append(items, item)
 	}
 	return items
 }
@@ -231,8 +233,6 @@ func normalizeWorkspacePendingInteractionStatus(status string) string {
 	switch strings.TrimSpace(status) {
 	case model.ChatSessionStatusPendingConfirmation:
 		return model.ChatSessionStatusPendingConfirmation
-	case model.ChatSessionStatusPendingTest:
-		return model.ChatSessionStatusPendingTest
 	case model.ChatSessionStatusPendingBuildRepair:
 		return model.ChatSessionStatusPendingBuildRepair
 	default:

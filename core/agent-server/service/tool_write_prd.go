@@ -37,7 +37,7 @@ type writePRDProject struct {
 
 type writePRDField struct {
 	Name     string `json:"name" schema_desc:"用户可见字段名，例如：问卷标题" schema_required:"true"`
-	Widget   string `json:"widget" schema_desc:"简单组件类型，例如 input、text_area、number、select、datetime；不要写 widget tag" schema_required:"true"`
+	Widget   string `json:"widget" schema_desc:"简单组件类型，例如 input、text_area、richtext、integer、float、select、datetime；整数用 integer，金额/比例/均值/小数用 float，禁止使用 number；不要写 widget tag" schema_required:"true"`
 	Required bool   `json:"required" schema_desc:"是否必填" schema_required:"true"`
 	Desc     string `json:"desc" schema_desc:"用户能看懂的字段说明；选项、默认值、范围、数据来源、计算规则都写在这里" schema_required:"true"`
 	Hide     string `json:"hide,omitempty" schema_desc:"展示范围，例如 create,update；没有就不填"`

@@ -83,7 +83,7 @@ import { Logger } from '@/architecture/shared/logger'
 
 // 导入组件（按需导入，避免循环依赖）
 import InputWidget from '@/architecture/presentation/widgets/InputWidget.vue'
-import NumberWidget from '@/architecture/presentation/widgets/NumberWidget.vue'
+import IntegerWidget from '@/architecture/presentation/widgets/IntegerWidget.vue'
 import FloatWidget from '@/architecture/presentation/widgets/FloatWidget.vue'
 import TextAreaWidget from '@/architecture/presentation/widgets/TextAreaWidget.vue'
 import SwitchWidget from '@/architecture/presentation/widgets/SwitchWidget.vue'
@@ -123,8 +123,8 @@ function registerBasicComponents(): void {
   widgetComponentFactory.registerRequestComponent(WidgetType.ID, InputWidget)  // ID 字段
   widgetComponentFactory.registerResponseComponent(WidgetType.ID, InputWidget)
   
-  widgetComponentFactory.registerRequestComponent(WidgetType.NUMBER, NumberWidget)
-  widgetComponentFactory.registerResponseComponent(WidgetType.NUMBER, NumberWidget)
+  widgetComponentFactory.registerRequestComponent(WidgetType.INTEGER, IntegerWidget)
+  widgetComponentFactory.registerResponseComponent(WidgetType.INTEGER, IntegerWidget)
   widgetComponentFactory.registerRequestComponent(WidgetType.FLOAT, FloatWidget)
   widgetComponentFactory.registerResponseComponent(WidgetType.FLOAT, FloatWidget)
   

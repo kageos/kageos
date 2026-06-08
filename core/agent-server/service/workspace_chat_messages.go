@@ -12,7 +12,9 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 )
 
-const filesInstruction = "以上 <files> 标签中的 JSON 为本轮用户上传的文件引用。files 字段的新标准是 bucket/object_key 字符串；提交表单或表格时，直接把 refs 字符串填到对应 files 字段；调用 run_python 时把 refs 字符串填到工具顶层 input_files 参数，不要猜 URL。工具结果里的 files/output_files 会由工作台渲染成文件组件，最终回复不要手写下载文件名、Markdown 下载链接或伪 URL。"
+const filesInstruction = "以上 <files> 标签中的 JSON 为本轮用户上传的文件引用。files 字段的新标准是 bucket/object_key 字符串；提交表单或表格时，直接把 refs 字符串填到对应 files 字段；调用 run_python 时把 refs 字符串填到工具顶层 input_files 参数，不要猜 URL。若下方存在 <file_profile>，说明工作台已自动读取并采样了文件内容；需要基于文件生成系统、PRD、分析或代码时优先使用 file_profile，不要为了读取同一文件绕路切到 data_operator 或调用 run_python。工具结果里的 files/output_files 会由工作台渲染成文件组件，最终回复不要手写下载文件名、Markdown 下载链接或伪 URL。"
+
+const fileProfileInstruction = "以上 <file_profile> 是工作台自动生成的文件画像，只包含安全采样内容。表头、字段、枚举候选、样例行和文本预览已经可直接用于需求分析、PRD、实现或回答；只有画像缺失、明确标记截断且任务需要完整数据计算、或用户明确要求深度文件处理时，才再次调用文件处理工具。"
 
 // userContentForStorage 入库用：只保留用户文字到 Content，文件引用字符串单独到 Files。
 // 返回 (content, filesRefs)；无文件时 filesRefs 为 nil。
@@ -30,6 +32,18 @@ func userContentForStorage(files string, userContent string) (content string, fi
 
 // userContentForLLM 从库中取出的 user 消息：若有 Files 则拼出完整内容（<files>+说明+content）供 LLM 使用。
 func userContentForLLM(content string, filesRefs *string) string {
+	return userContentForLLMWithFileProfileBlock(content, filesRefs, "")
+}
+
+func userContentForLLMWithFileProfile(ctx context.Context, content string, filesRefs *string) string {
+	profileBlock := ""
+	if filesRefs != nil && strings.TrimSpace(*filesRefs) != "" {
+		profileBlock = workspaceFileProfileBlockForRefs(ctx, *filesRefs)
+	}
+	return userContentForLLMWithFileProfileBlock(content, filesRefs, profileBlock)
+}
+
+func userContentForLLMWithFileProfileBlock(content string, filesRefs *string, profileBlock string) string {
 	if filesRefs == nil || *filesRefs == "" {
 		return content
 	}
@@ -37,7 +51,15 @@ func userContentForLLM(content string, filesRefs *string) string {
 	if demand == "" {
 		demand = "用户需求：请处理上述文件"
 	}
-	return "<files>\n" + filesPayloadForLLM(*filesRefs) + "\n</files>\n\n" + filesInstruction + "\n\n" + demand
+	parts := []string{
+		"<files>\n" + filesPayloadForLLM(*filesRefs) + "\n</files>",
+		filesInstruction,
+	}
+	if strings.TrimSpace(profileBlock) != "" {
+		parts = append(parts, strings.TrimSpace(profileBlock))
+	}
+	parts = append(parts, demand)
+	return strings.Join(parts, "\n\n")
 }
 
 func filesPayloadForLLM(files string) string {

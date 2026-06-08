@@ -7,23 +7,23 @@ import (
 )
 
 func init() {
-	RegisterWidgetValidator(TypeNumber, validateNumberWidget)
+	RegisterWidgetValidator(TypeInteger, validateIntegerWidget)
 }
 
-// Number 整数输入组件。
+// Integer 整数输入组件，对应 SDK tag type:integer。
 //
 // 使用示例：
 //
-//	Count int `json:"count" widget:"name:数量;type:number;min:1;max:100;step:1;unit:个" validate:"required,min=1"`
+//	Count int `json:"count" widget:"name:数量;type:integer;min:1;max:100;step:1;unit:个" validate:"required,min=1"`
 //
 // 校验规则：
-// - 注册的是本文件的 validateNumberWidget；
+// - 注册的是本文件的 validateIntegerWidget；
 // - Go 字段必须是整数类型或整数指针，float 字段应使用 float 组件；
 // - min/max 必须是整数；
 // - 同时配置 min/max 时，min 不能大于 max；
 // - step 必须是正数；
 // - render_default 必须是整数，且配置 min/max 时必须落在范围内。
-type Number struct {
+type Integer struct {
 	Placeholder   string `json:"placeholder,omitempty"`    // 占位符文本
 	Min           *int   `json:"min,omitempty"`            // 最小值
 	Max           *int   `json:"max,omitempty"`            // 最大值
@@ -32,15 +32,15 @@ type Number struct {
 	Unit          string `json:"unit,omitempty"`           // 单位（如：件、个、元、kg等）
 }
 
-func (n *Number) Config() interface{} {
+func (n *Integer) Config() interface{} {
 	return n
 }
 
-func (n *Number) Type() string {
-	return TypeNumber
+func (n *Integer) Type() string {
+	return TypeInteger
 }
 
-// validateNumberWidget 是 number 组件的校验。
+// validateIntegerWidget 是 integer 组件的校验。
 //
 // 规则：
 // - Go 类型必须是整数类型，float 应使用 float 组件；
@@ -49,10 +49,10 @@ func (n *Number) Type() string {
 // - step 必须是正数，render_default 必须是整数且落在 min/max 范围内。
 //
 // 注意：step 允许小数形式，因为前端输入步长可以比 Go 整数承载值更细；最终提交值仍由 Go 字段整数类型约束。
-func validateNumberWidget(ctx ValidateContext) error {
+func validateIntegerWidget(ctx ValidateContext) error {
 	var errs []error
 	if !isIntegerType(ctx.GoType) {
-		errs = append(errs, fieldError(ctx, "number widget requires integer Go type, got %s", typeName(ctx.GoType)))
+		errs = append(errs, fieldError(ctx, "integer widget requires integer Go type, got %s", typeName(ctx.GoType)))
 	}
 	if err := validateIntTag(ctx, "min"); err != nil {
 		errs = append(errs, err)
@@ -75,7 +75,7 @@ func validateNumberWidget(ctx ValidateContext) error {
 	return errors.Join(errs...)
 }
 
-func (n *Number) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact {
+func (n *Integer) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFact {
 	facts := make([]SemanticFact, 0, 5)
 	if fact, ok := placeholderFact(n.Placeholder); ok {
 		facts = append(facts, fact)
@@ -102,34 +102,34 @@ func (n *Number) WidgetLLMFacts(field *Field, opts SummaryOptions) []SemanticFac
 	return facts
 }
 
-func newNumber(widgetParsed map[string]string) *Number {
-	number := &Number{}
+func newInteger(widgetParsed map[string]string) *Integer {
+	integer := &Integer{}
 
 	// 从widgetParsed中解析配置
 	if placeholder, exists := widgetParsed["placeholder"]; exists {
-		number.Placeholder = placeholder
+		integer.Placeholder = placeholder
 	}
 	if min, exists := widgetParsed["min"]; exists {
 		if val, err := strconv.Atoi(min); err == nil {
-			number.Min = &val
+			integer.Min = &val
 		}
 	}
 	if max, exists := widgetParsed["max"]; exists {
 		if val, err := strconv.Atoi(max); err == nil {
-			number.Max = &val
+			integer.Max = &val
 		}
 	}
 	if step, exists := widgetParsed["step"]; exists {
-		number.Step = step
+		integer.Step = step
 	}
 	if defaultValue, exists := getRenderDefault(widgetParsed); exists {
 		if val, err := strconv.Atoi(defaultValue); err == nil {
-			number.RenderDefault = &val
+			integer.RenderDefault = &val
 		}
 	}
 	if unit, exists := widgetParsed["unit"]; exists {
-		number.Unit = unit
+		integer.Unit = unit
 	}
 
-	return number
+	return integer
 }

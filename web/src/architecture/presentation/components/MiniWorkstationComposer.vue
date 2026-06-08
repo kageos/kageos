@@ -14,25 +14,27 @@
   <div class="mini-ws-input" data-testid="mini-workstation-composer">
     <div class="mini-composer-left-actions">
       <slot name="left-actions" />
-      <el-upload
-        :auto-upload="false"
-        :show-file-list="false"
-        :on-change="onFileChange"
-        :disabled="uploading"
-        class="mini-upload-btn"
-      >
+	      <el-upload
+	        :auto-upload="false"
+	        :show-file-list="false"
+	        :on-change="onFileChange"
+	        :disabled="uploading || blocked"
+	        class="mini-upload-btn"
+	      >
         <el-button :icon="Paperclip" link :loading="uploading" size="small" title="上传文件" />
       </el-upload>
     </div>
-    <div class="mini-input-wrap">
-      <span class="mini-path-pill" :title="fullCodePath">{{ displayPath }}</span>
-      <textarea
-        :ref="bindInputRef"
-        :value="inputText"
-        class="mini-input"
-        data-testid="mini-workstation-input"
-        placeholder="输入命令...（@搜用户，/搜目录/工具/文档，Enter 发送，Shift+Enter 换行）"
-        rows="1"
+	    <div class="mini-input-wrap">
+	      <span class="mini-path-pill" :title="fullCodePath">{{ displayPath }}</span>
+	      <span v-if="blocked" class="mini-blocked-pill" :title="blockedLabel || '等待确认'">{{ blockedLabel || '等待确认' }}</span>
+	      <textarea
+	        :ref="bindInputRef"
+	        :value="inputText"
+	        class="mini-input"
+	        data-testid="mini-workstation-input"
+	        :placeholder="blocked ? (blockedPlaceholder || '当前会话需要先处理交互卡片') : '输入命令...（@搜用户，/搜目录/工具/文档，Enter 发送，Shift+Enter 换行）'"
+	        :disabled="blocked"
+	        rows="1"
         @input="emitInput"
         @keydown="onTextareaKeydown"
         @keyup="onTextareaCursorChange"
@@ -150,11 +152,11 @@
           <el-icon><VideoPause /></el-icon>
           停止
         </el-button>
-        <el-button
-          type="primary"
-          size="small"
-          :disabled="!fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
-          data-testid="mini-workstation-send"
+	        <el-button
+	          type="primary"
+	          size="small"
+	          :disabled="blocked || !fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
+	          data-testid="mini-workstation-send"
           @click="$emit('send')"
           class="mini-send-btn"
         >
@@ -211,10 +213,13 @@ const props = defineProps<{
   sending: boolean
   stopping: boolean
   selectedLLMConfigId: number
-  llmList: LLMInfo[]
-  llmLoading: boolean
-  queuedCount: number
-  registerInputRef: (el: HTMLTextAreaElement | null) => void
+	  llmList: LLMInfo[]
+	  llmLoading: boolean
+	  queuedCount: number
+	  blocked?: boolean
+	  blockedLabel?: string
+	  blockedPlaceholder?: string
+	  registerInputRef: (el: HTMLTextAreaElement | null) => void
   onLLMSelectVisibleChange: (visible: boolean) => void
   onFileChange: (uploadFileObj: { raw?: File }) => void | Promise<void>
   removeFile: (index: number) => void
@@ -286,6 +291,7 @@ const mentionEmptyText = computed(() => {
 })
 
 function emitInput(event: Event) {
+  if (props.blocked) return
   const textarea = event.target as HTMLTextAreaElement
   emit('update:inputText', textarea.value)
   updateMentionFromTextarea(textarea)
@@ -697,6 +703,7 @@ function cancelMentionClose() {
   box-shadow: 0 0 18px rgba(55, 163, 255, 0.14);
 }
 .mini-input-wrap {
+  position: relative;
   min-width: 0;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -720,6 +727,26 @@ function cancelMentionClose() {
   border-radius: 8px;
   background: rgba(55, 163, 255, 0.13);
   color: #8ed0ff;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini-blocked-pill {
+  position: absolute;
+  right: 10px;
+  top: 5px;
+  z-index: 1;
+  max-width: min(180px, calc(100% - 116px));
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  overflow: hidden;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.1);
+  color: #f6c76b;
   font-size: 12px;
   font-weight: 700;
   text-overflow: ellipsis;
@@ -753,6 +780,12 @@ function cancelMentionClose() {
 }
 .mini-input::placeholder {
   color: #8291aa;
+}
+.mini-input:disabled {
+  padding-right: min(190px, 42%);
+  cursor: not-allowed;
+  color: rgba(230, 240, 255, 0.44);
+  -webkit-text-fill-color: rgba(230, 240, 255, 0.44);
 }
 .mini-mention-panel {
   position: absolute;

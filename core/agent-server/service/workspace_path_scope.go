@@ -115,19 +115,15 @@ func workspaceTargetDirectoryFromPRD(baseFullCodePath string, digest *workspaceA
 	if digest == nil || strings.TrimSpace(digest.ProjectCode) == "" {
 		return ""
 	}
-	base := normalizeWorkspacePath(baseFullCodePath)
-	root := workspaceRootPath(base)
-	if root == "" {
-		return ""
-	}
+	base := workspacePathDirectory(baseFullCodePath)
 	code := strings.Trim(strings.TrimSpace(digest.ProjectCode), "/")
-	if code == "" {
+	if base == "" || code == "" {
 		return ""
 	}
-	if module := workspaceModuleDirectory(root, base); module != "" && path.Base(module) == code {
-		return module
+	if path.Base(base) == code {
+		return base
 	}
-	return normalizeWorkspacePath(root + "/" + code)
+	return normalizeWorkspacePath(base + "/" + code)
 }
 
 func workspaceScopedSearchDirectory(rawDirectory, currentFullCodePath string) string {

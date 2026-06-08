@@ -25,6 +25,7 @@ interface SendWorkspaceMessageOptions {
   sessionIdOverride?: string
   contextUsage?: string
   artifactKind?: string
+  interactionAction?: string
   resume?: boolean
 }
 
@@ -89,6 +90,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
         ...(options.displayText ? { display_content: options.displayText } : {}),
         ...(options.contextUsage ? { context_usage: options.contextUsage } : {}),
         ...(options.artifactKind ? { artifact_kind: options.artifactKind } : {}),
+        ...(options.interactionAction ? { interaction_action: options.interactionAction } : {}),
         ...(files?.length ? { files: files.map(file => file.ref).filter(Boolean).join(',') } : {})
       }
     }
@@ -189,7 +191,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     return sendWorkspaceMessage(text, null, { newSession: true, displayText })
   }
 
-  async function sendTextToSession(targetSessionId: string, content: string, displayText?: string, meta?: { contextUsage?: string; artifactKind?: string; resume?: boolean }): Promise<boolean> {
+  async function sendTextToSession(targetSessionId: string, content: string, displayText?: string, meta?: { contextUsage?: string; artifactKind?: string; interactionAction?: string; resume?: boolean }): Promise<boolean> {
     const text = content.trim()
     if (!fullCodePath.value || !targetSessionId || !text || sending.value) {
       return false
@@ -199,6 +201,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
       displayText,
       contextUsage: meta?.contextUsage,
       artifactKind: meta?.artifactKind,
+      interactionAction: meta?.interactionAction,
       resume: meta?.resume
     })
   }

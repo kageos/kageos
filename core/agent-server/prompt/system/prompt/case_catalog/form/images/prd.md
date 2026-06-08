@@ -61,8 +61,8 @@ type ImagesColorsReq struct {
 	// 框架标签：widget:"type:files;accept:image/*;max_size:50MB;max_count:1" - 文件上传组件，只支持单文件上传
 	InputFiles string `json:"input_files" widget:"name:上传图片;type:files;accept:image/*;max_size:50MB;max_count:1" validate:"required"`
 
-	// 框架标签：widget:"type:number;min:0;max:1000;render_default:5;placeholder:0表示返回全部颜色" - 提取的颜色数量（0表示返回全部）
-	ColorCount int `json:"color_count" widget:"name:提取颜色数量;type:number;min:0;max:1000;render_default:5;placeholder:0表示返回全部颜色" validate:"min=0,max=1000"`
+	// 框架标签：widget:"type:integer;min:0;max:1000;render_default:5;placeholder:0表示返回全部颜色" - 提取的颜色数量（0表示返回全部）
+	ColorCount int `json:"color_count" widget:"name:提取颜色数量;type:integer;min:0;max:1000;render_default:5;placeholder:0表示返回全部颜色" validate:"min=0,max=1000"`
 }
 
 // ColorInfo 颜色信息结构体

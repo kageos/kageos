@@ -233,7 +233,7 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 		}
 		switch m.Role {
 		case RoleUser:
-			userContent := userContentForLLM(m.Content, m.Files)
+			userContent := userContentForLLMWithFileProfile(ctx, m.Content, m.Files)
 			msgs = append(msgs, llms.Message{Role: RoleUser, Content: userContent})
 			includedMessages = append(includedMessages, m)
 		case RoleAssistant:

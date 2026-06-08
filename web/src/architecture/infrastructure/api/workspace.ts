@@ -32,6 +32,7 @@ export interface WorkspaceChatReq {
     files?: string
     context_usage?: string
     artifact_kind?: string
+    interaction_action?: string
   }
   session_id?: string
   mode_code?: string
@@ -47,7 +48,7 @@ export interface WorkspaceSessionItem {
   title: string
   user?: string
   mode_code?: string
-  status: string // active | generating | output | pending_confirmation | pending_test | done | cancelled
+  status: string // active | generating | output | pending_confirmation | pending_build_repair | done | cancelled
   role_id?: string
   role_display_name?: string
   full_code_path?: string
@@ -59,8 +60,38 @@ export interface WorkspaceSessionItem {
   model_context_anchor_message_id?: number
   archived_for_model?: boolean
   archive_reason?: string
+  pending_interaction?: WorkspaceInteraction
   created_at: string
   updated_at: string
+}
+
+export interface WorkspaceInteraction {
+  id?: string
+  card_type?: string
+  artifact_kind?: string
+  status: string
+  blocking: boolean
+  title?: string
+  description?: string
+  help_text?: string
+  view_text?: string
+  confirm_text?: string
+  revise_text?: string
+  cancel_text?: string
+  target_role_on_confirm?: string
+  allowed_actions?: string[]
+  artifact?: unknown
+}
+
+export interface WorkspaceInteractionEventReq {
+  session_id: string
+  action: string
+  interaction_id?: string
+  card_type?: string
+  status?: string
+  artifact_kind?: string
+  content?: string
+  display_content?: string
 }
 
 export interface WorkspaceHandoffReq {
@@ -473,6 +504,11 @@ export async function getFinishedSessions(limit = 20): Promise<{ sessions: Works
 /** 清除会话的待确认/待测试状态 */
 export async function resolveWorkspaceSessionInteraction(sessionId: string): Promise<void> {
   await post('/agent/api/v1/workspace/sessions/interaction/resolve', { session_id: sessionId })
+}
+
+/** 记录工作台交互卡片事件，仅用于审计展示，不进入模型上下文 */
+export async function recordWorkspaceInteractionEvent(req: WorkspaceInteractionEventReq): Promise<void> {
+  await post('/agent/api/v1/workspace/sessions/interaction/event', req)
 }
 
 /** 取消执行中的工作台任务 */

@@ -32,7 +32,7 @@
         },
         {
           "name": "最多选择数",
-          "widget": "number",
+          "widget": "integer",
           "required": true,
           "desc": "多选时允许选择的最大选项数，单选时固定为 1。"
         },
@@ -69,7 +69,7 @@
         },
         {
           "name": "总选择次数",
-          "widget": "number",
+          "widget": "integer",
           "required": false,
           "hide": "create,update",
           "desc": "所有选项累计被选择的次数。"
@@ -128,14 +128,14 @@
         },
         {
           "name": "得票人数",
-          "widget": "number",
+          "widget": "integer",
           "required": false,
           "hide": "create,update",
           "desc": "该选项被选择的人数，由系统统计。"
         },
         {
           "name": "得票率",
-          "widget": "number",
+          "widget": "float",
           "required": false,
           "hide": "create,update",
           "desc": "该选项得票人数占总选择次数的比例。"

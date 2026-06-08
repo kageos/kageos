@@ -132,7 +132,7 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
 
     if (widgetType === WidgetType.DATETIME) return 180
     if (widgetType === WidgetType.SWITCH) return 110
-    if (widgetType === WidgetType.NUMBER || widgetType === WidgetType.FLOAT) return 130
+    if (widgetType === WidgetType.INTEGER || widgetType === WidgetType.FLOAT) return 130
     if (widgetType === WidgetType.PROGRESS || widgetType === WidgetType.SLIDER) return 220
     if (widgetType === WidgetType.TEXT_AREA || widgetType === WidgetType.RICH_TEXT) return 320
     if (widgetType === WidgetType.TEXT || widgetType === WidgetType.INPUT || widgetType === WidgetType.LINK) return 220

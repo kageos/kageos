@@ -148,6 +148,9 @@ func workspaceRolePacketKeyInformationFromContext(ctx workspaceHandoffContext) [
 	if ctx.TargetAppDirectory != "" {
 		out = appendUniqueRoleHandoffStrings(out, "目标应用目录："+ctx.TargetAppDirectory)
 	}
+	if placementDecision := workspaceHandoffDirectoryPlacementDecision(ctx); placementDecision != "" {
+		out = appendUniqueRoleHandoffStrings(out, placementDecision)
+	}
 	if digestSummary := workspaceRolePacketDigestSummary(ctx.ArtifactDigest); digestSummary != "" {
 		out = appendUniqueRoleHandoffStrings(out, digestSummary)
 	}

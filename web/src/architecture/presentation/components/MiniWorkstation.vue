@@ -158,7 +158,12 @@
                   :format-message-time="formatMessageTime"
                   :get-file-groups-from-calls="getFileGroupsFromCalls"
                   :get-display-fields-from-calls="getDisplayFieldsFromCalls"
+                  :pending-interaction="pendingInteraction"
                   @confirm-prd="handleConfirmPrd"
+                  @view="viewPendingInteraction"
+                  @revise="revisePendingInteraction"
+                  @cancel="cancelPendingInteraction"
+                  @confirm="confirmPendingInteraction"
                 />
               </div>
             </div>
@@ -198,28 +203,6 @@
           </div>
         </section>
 
-        <MiniWorkstationPendingActionBar
-          v-if="pendingPrd"
-          variant="prd"
-          :help-text="pendingPrdHelpText"
-          :sending="sending"
-          @view="focusPrdPreview"
-          @revise="prepareRevisePrd"
-          @cancel="cancelPendingPrd"
-          @confirm="confirmPendingPrd"
-        />
-
-        <MiniWorkstationPendingActionBar
-          v-else-if="pendingBuildHandoff"
-          :variant="pendingBuildHandoffVariant"
-          :help-text="pendingBuildHandoffHelpText"
-          :sending="sending"
-          @view="focusPrdPreview"
-          @revise="prepareContinueDevelopment"
-          @cancel="cancelPendingBuildHandoff"
-          @confirm="confirmPendingBuildHandoff"
-        />
-
         <MiniWorkstationComposer
           :full-code-path="fullCodePath"
           :dir-name="dirName || displayPath"
@@ -232,6 +215,9 @@
           :selected-l-l-m-config-id="selectedLLMConfigId"
           :llm-list="llmList"
           :llm-loading="llmLoading"
+          :blocked="composerBlocked"
+          :blocked-label="composerBlockedLabel"
+          :blocked-placeholder="composerBlockedPlaceholder"
           :register-input-ref="registerInputRef"
           :on-l-l-m-select-visible-change="onLLMSelectVisibleChange"
           :on-file-change="onFileChange"
@@ -323,7 +309,6 @@ import MiniWorkstationDisplayFieldPreviewDialog from './MiniWorkstationDisplayFi
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
 import MiniWorkstationDebugSettings from './MiniWorkstationDebugSettings.vue'
 import MiniWorkstationMessages from './MiniWorkstationMessages.vue'
-import MiniWorkstationPendingActionBar from './MiniWorkstationPendingActionBar.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { useMiniWorkstationPanel } from '../composables/useMiniWorkstationPanel'
 import { useMiniWorkstationSessions } from '../composables/useMiniWorkstationSessions'
@@ -346,7 +331,7 @@ import {
   type SessionFilterValue
 } from '../composables/useMiniWorkstationSessionView'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
-import { createWorkspaceHandoff, resolveWorkspaceSessionInteraction, type WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
+import { createWorkspaceHandoff, recordWorkspaceInteractionEvent, resolveWorkspaceSessionInteraction, type WorkspaceInteraction, type WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
@@ -387,8 +372,7 @@ const inputRef = ref<HTMLTextAreaElement>()
 const llmSelectOpen = ref(false)
 const settingsPopoverOpen = ref(false)
 const interactionOpen = computed(() => llmSelectOpen.value || settingsPopoverOpen.value)
-const confirmedPrdKeys = ref<Set<string>>(new Set())
-const confirmedBuildHandoffKeys = ref<Set<string>>(new Set())
+const handledInteractionKeys = ref<Set<string>>(new Set())
 const artifactPanelExpanded = ref(false)
 const collapsed = ref(props.initialExpanded === false)
 const suppressAutoSelectLatestSession = ref(false)
@@ -469,6 +453,7 @@ const {
   stopping,
   loadMiniSessions,
   loadGlobalSessions,
+  loadMiniSessionMessages,
   handleNewSession,
   handleStopSession,
   handleSelectSession,
@@ -585,6 +570,19 @@ const drawerSessionList = computed(() => {
 const lastDrawerSession = computed<WorkspaceSessionItem | null>(() => {
   return [...drawerSessionList.value]
     .sort((left, right) => getSessionTimestamp(right) - getSessionTimestamp(left))[0] || null
+})
+
+const currentSessionItem = computed<WorkspaceSessionItem | null>(() => {
+  if (!sessionId.value) return null
+  return miniSessionList.value.find(item => item.session_id === sessionId.value)
+    || globalSessionList.value.find(item => item.session_id === sessionId.value)
+    || null
+})
+
+const currentSessionDisablesPendingInteraction = computed(() => {
+  const session = currentSessionItem.value
+  const status = session?.status
+  return !!session?.archived_for_model || status === 'done' || status === 'cancelled'
 })
 
 watch(drawerSessionScope, (scope) => {
@@ -764,90 +762,62 @@ const {
   }
 })
 
-interface PrdInteractionData {
+type StageInteractionArtifact = Record<string, unknown> & {
   kind?: string
-  interaction?: {
-    artifact_kind?: string
-    status?: string
-    help_text?: string
-    target_role_on_confirm?: string
-    allowed_actions?: string[]
-  }
-  project?: {
-    name?: string
-    code?: string
-  }
+  interaction?: Partial<WorkspaceInteraction>
 }
 
-interface BuildInteractionData {
-  kind?: string
-  workspace_path?: string
-  app?: string
-  old_version?: string
-  new_version?: string
-  interaction?: {
-    artifact_kind?: string
-    status?: string
-    help_text?: string
-    target_role_on_confirm?: string
-    allowed_actions?: string[]
-  }
-}
-
-const pendingPrd = computed<PrdInteractionData | null>(() => {
+const pendingInteraction = computed<WorkspaceInteraction | null>(() => {
+  if (currentSessionDisablesPendingInteraction.value) return null
+  const auditedInteractionKeys = new Set<string>()
+  let hasUnscopedAuditAfter = false
   for (let i = messages.value.length - 1; i >= 0; i--) {
     const message = messages.value[i]
     if (!message) continue
+    const auditedKey = getWorkspaceInteractionAuditResolutionKey(message)
+    if (auditedKey !== undefined) {
+      if (auditedKey) {
+        auditedInteractionKeys.add(auditedKey)
+      } else {
+        hasUnscopedAuditAfter = true
+      }
+      continue
+    }
     const calls = collectMessageToolCalls(message)
     for (let j = calls.length - 1; j >= 0; j--) {
       const call = calls[j]
       if (!call) continue
-      if (call.name !== 'write_prd' || call.status !== 'ok' || !isPrdInteractionData(call.result_data)) continue
-      const key = getStageArtifactKey(call.result_data)
-      if (confirmedPrdKeys.value.has(key)) continue
-      return call.result_data
+      const interaction = buildWorkspaceInteractionFromArtifact(call.result_data)
+      if (!interaction) continue
+      const key = getInteractionKey(interaction)
+      if (handledInteractionKeys.value.has(key) || auditedInteractionKeys.has(key) || hasUnscopedAuditAfter) {
+        return null
+      }
+      return interaction
     }
   }
   return null
 })
 
-const pendingPrdHelpText = computed(() => {
-  return pendingPrd.value?.interaction?.help_text || 'PRD 已生成，请确认后进入开发；看不到按钮也可以直接回复：确认 PRD。'
+const composerBlocked = computed(() => !!pendingInteraction.value)
+const composerBlockedLabel = computed(() => {
+  const interaction = pendingInteraction.value
+  if (!interaction) return ''
+  if (interaction.card_type === 'prd_confirmation') return 'PRD 待确认'
+  if (interaction.card_type === 'build_repair') return '修复待确认'
+  return '等待确认'
 })
-
-const pendingBuildHandoff = computed<BuildInteractionData | null>(() => {
-  for (let i = messages.value.length - 1; i >= 0; i--) {
-    const message = messages.value[i]
-    if (!message) continue
-    const calls = collectMessageToolCalls(message)
-    for (let j = calls.length - 1; j >= 0; j--) {
-      const call = calls[j]
-      if (!call) continue
-      if (call.name !== 'build_workspace' || !isBuildInteractionData(call.result_data)) continue
-      const key = getStageArtifactKey(call.result_data)
-      if (confirmedBuildHandoffKeys.value.has(key)) continue
-      return call.result_data
-    }
-  }
-  return null
-})
-
-const pendingBuildHandoffHelpText = computed(() => {
-  if (pendingBuildHandoff.value?.interaction?.help_text) return pendingBuildHandoff.value.interaction.help_text
-  if (isBuildRepairInteractionData(pendingBuildHandoff.value)) return '构建失败，请确认是否交接给构建修复工程师。'
-  return '应用已编译部署，请确认是否进入测试工程师验证。'
-})
-
-const pendingBuildHandoffVariant = computed<'test' | 'repair'>(() => {
-  return isBuildRepairInteractionData(pendingBuildHandoff.value) ? 'repair' : 'test'
+const composerBlockedPlaceholder = computed(() => {
+  const interaction = pendingInteraction.value
+  if (!interaction) return '输入命令...'
+  return interaction.help_text || interaction.description || '当前会话需要先处理上方交互卡片。'
 })
 
 const hasCurrentOutputContent = computed(() => {
   return sending.value
     || messages.value.length > 0
     || artifactItems.value.length > 0
-    || !!pendingPrd.value
-    || !!pendingBuildHandoff.value
+    || !!pendingInteraction.value
 })
 
 const showCurrentOutput = computed(() => {
@@ -922,23 +892,31 @@ watch(sessionId, (current, previous) => {
   }
 })
 
-function isPrdInteractionData(value: unknown): value is PrdInteractionData {
-  if (!value || typeof value !== 'object') return false
-  const data = value as PrdInteractionData
-  return data.kind === 'agent_app_prd' && data.interaction?.status === 'pending_confirmation'
-}
-
-function isBuildInteractionData(value: unknown): value is BuildInteractionData {
-  if (!value || typeof value !== 'object') return false
-  const data = value as BuildInteractionData
-  return (data.kind === 'agent_app_build' && data.interaction?.status === 'pending_test') ||
-    (data.kind === 'agent_app_build_failure' && data.interaction?.status === 'pending_build_repair')
-}
-
-function isBuildRepairInteractionData(value: unknown): value is BuildInteractionData {
-  if (!value || typeof value !== 'object') return false
-  const data = value as BuildInteractionData
-  return data.kind === 'agent_app_build_failure' && data.interaction?.status === 'pending_build_repair'
+function buildWorkspaceInteractionFromArtifact(value: unknown): WorkspaceInteraction | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const artifact = value as StageInteractionArtifact
+  const rawInteraction = artifact.interaction
+  if (!rawInteraction || typeof rawInteraction !== 'object') return null
+  const status = typeof rawInteraction.status === 'string' ? rawInteraction.status.trim() : ''
+  if (!status.startsWith('pending_')) return null
+  const cardType = typeof rawInteraction.card_type === 'string' ? rawInteraction.card_type : fallbackCardType(artifact.kind, status)
+  return {
+    id: typeof rawInteraction.id === 'string' ? rawInteraction.id : getStageArtifactKey(artifact),
+    card_type: cardType,
+    artifact_kind: typeof rawInteraction.artifact_kind === 'string' ? rawInteraction.artifact_kind : artifact.kind,
+    status,
+    blocking: typeof rawInteraction.blocking === 'boolean' ? rawInteraction.blocking : true,
+    title: typeof rawInteraction.title === 'string' ? rawInteraction.title : fallbackInteractionTitle(cardType),
+    description: typeof rawInteraction.description === 'string' ? rawInteraction.description : undefined,
+    help_text: typeof rawInteraction.help_text === 'string' ? rawInteraction.help_text : undefined,
+    view_text: typeof rawInteraction.view_text === 'string' ? rawInteraction.view_text : undefined,
+    confirm_text: typeof rawInteraction.confirm_text === 'string' ? rawInteraction.confirm_text : undefined,
+    revise_text: typeof rawInteraction.revise_text === 'string' ? rawInteraction.revise_text : undefined,
+    cancel_text: typeof rawInteraction.cancel_text === 'string' ? rawInteraction.cancel_text : undefined,
+    target_role_on_confirm: typeof rawInteraction.target_role_on_confirm === 'string' ? rawInteraction.target_role_on_confirm : undefined,
+    allowed_actions: Array.isArray(rawInteraction.allowed_actions) ? rawInteraction.allowed_actions.map(String) : undefined,
+    artifact
+  }
 }
 
 function getStageArtifactKey(artifact: unknown) {
@@ -949,16 +927,62 @@ function getStageArtifactKey(artifact: unknown) {
   }
 }
 
-function markPrdConfirmed(prd: unknown) {
-  const next = new Set(confirmedPrdKeys.value)
-  next.add(getStageArtifactKey(prd))
-  confirmedPrdKeys.value = next
+function getInteractionKey(interaction: WorkspaceInteraction) {
+  return interaction.id || getStageArtifactKey(interaction.artifact) || `${interaction.status}:${interaction.card_type}`
 }
 
-function markBuildHandoffHandled(artifact: unknown) {
-  const next = new Set(confirmedBuildHandoffKeys.value)
-  next.add(getStageArtifactKey(artifact))
-  confirmedBuildHandoffKeys.value = next
+function getWorkspaceInteractionAuditResolutionKey(message: ChatMessage): string | undefined {
+  if (message.artifact_kind !== 'workspace_interaction_event') return undefined
+  const raw = (message.raw_content || '').trim()
+  if (!raw) return workspaceInteractionAuditDisplayResolves(message.content) ? '' : undefined
+  try {
+    const event = JSON.parse(raw) as { kind?: unknown; interaction_id?: unknown; action?: unknown }
+    if (event.kind === 'workspace_interaction_event') {
+      if (!workspaceInteractionAuditActionResolves(typeof event.action === 'string' ? event.action : '')) {
+        return undefined
+      }
+      return typeof event.interaction_id === 'string' ? event.interaction_id : ''
+    }
+  } catch {
+    return workspaceInteractionAuditDisplayResolves(message.content) ? '' : undefined
+  }
+  return workspaceInteractionAuditDisplayResolves(message.content) ? '' : undefined
+}
+
+function workspaceInteractionAuditActionResolves(action: string) {
+  return [
+    'confirm_prd',
+    'revise_prd',
+    'cancel_prd',
+    'start_build_repair',
+    'continue_development',
+    'skip_build_repair',
+  ].includes(action)
+}
+
+function workspaceInteractionAuditDisplayResolves(content: string) {
+  const text = content || ''
+  if (text.includes('查看 PRD') || text.includes('查看构建诊断')) return false
+  return text.includes('确认 PRD') ||
+    text.includes('修改 PRD') ||
+    text.includes('取消 PRD') ||
+    text.includes('交接构建修复') ||
+    text.includes('继续修改') ||
+    text.includes('暂不修复')
+}
+
+function markInteractionHandled(interaction: WorkspaceInteraction) {
+  const next = new Set(handledInteractionKeys.value)
+  next.add(getInteractionKey(interaction))
+  handledInteractionKeys.value = next
+}
+
+async function handleBeforeSend(_payload: { text: string; files: unknown[] | null }) {
+  if (pendingInteraction.value) {
+    ElMessage.warning('当前会话需要先处理交互卡片')
+    return true
+  }
+  return false
 }
 
 async function clearCurrentPendingInteractionStatus() {
@@ -972,112 +996,54 @@ async function clearCurrentPendingInteractionStatus() {
   }
 }
 
-async function handleBeforeSend(payload: { text: string; files: unknown[] | null }) {
-  const text = payload.text.trim()
-  if (payload.files?.length) return false
-  if (pendingPrd.value) {
-    if (isConfirmPrdText(text)) {
-      await handleConfirmPrd({ remark: '', prd: pendingPrd.value })
-      return true
-    }
-    if (isCancelPrdText(text)) {
-      markPrdConfirmed(pendingPrd.value)
-      await clearCurrentPendingInteractionStatus()
-      ElMessage.info('已取消本次 PRD 确认')
-      return true
-    }
+async function recordPendingInteractionAction(interaction: WorkspaceInteraction, action: string, displayContent?: string) {
+  if (!sessionId.value) return
+  const interactionKey = getInteractionKey(interaction)
+  try {
+    await recordWorkspaceInteractionEvent({
+      session_id: sessionId.value,
+      action,
+      interaction_id: interactionKey,
+      card_type: interaction.card_type,
+      status: interaction.status,
+      artifact_kind: interaction.artifact_kind,
+      content: JSON.stringify({
+        kind: 'workspace_interaction_event',
+        interaction_id: interactionKey,
+        action,
+        card_type: interaction.card_type,
+        status: interaction.status,
+        artifact_kind: interaction.artifact_kind,
+      }),
+      display_content: displayContent || interactionAuditText(interaction, action),
+    })
+    await loadMiniSessionMessages(sessionId.value)
+  } catch (error: any) {
+    ElMessage.warning(error?.message || '交互事件记录失败')
   }
-  if (pendingBuildHandoff.value) {
-    if (isStartBuildHandoffText(text, pendingBuildHandoff.value)) {
-      await handleConfirmBuildHandoff({ artifact: pendingBuildHandoff.value })
-      return true
-    }
-    if (isSkipBuildHandoffText(text, pendingBuildHandoff.value)) {
-      const repairing = isBuildRepairInteractionData(pendingBuildHandoff.value)
-      markBuildHandoffHandled(pendingBuildHandoff.value)
-      await clearCurrentPendingInteractionStatus()
-      ElMessage.info(repairing ? '已暂不进入构建修复' : '已暂不进入测试')
-      return true
-    }
+}
+
+async function viewPendingInteraction(target?: WorkspaceInteraction) {
+  const interaction = target || pendingInteraction.value
+  if (!interaction) return
+  await recordPendingInteractionAction(interaction, viewInteractionAction(interaction))
+  await nextTick()
+  focusInteractionArtifact(interaction)
+}
+
+function focusInteractionArtifact(interaction: WorkspaceInteraction) {
+  const root = outputRef.value
+  if (!root) return
+  const selector = interaction.card_type === 'build_repair'
+    ? '.mini-msg-build-diagnostics'
+    : '.mini-msg-prd-preview'
+  const targets = root.querySelectorAll(selector)
+  const target = targets[targets.length - 1]
+  if (target instanceof HTMLElement) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    return
   }
-  return false
-}
-
-function isConfirmPrdText(text: string) {
-  const normalized = text.replace(/\s+/g, '').toLowerCase()
-  return ['确认', '确认prd', '可以', '没问题', '按这个做', '开始开发'].includes(normalized)
-}
-
-function isCancelPrdText(text: string) {
-  const normalized = text.replace(/\s+/g, '').toLowerCase()
-  return ['取消', '取消prd', '先不做', '不用了'].includes(normalized)
-}
-
-function isStartTestText(text: string) {
-  const normalized = text.replace(/\s+/g, '').toLowerCase()
-  return ['开始测试', '测试', '进入测试', '切到测试', '切换到测试', '验证', '开始验证'].includes(normalized)
-}
-
-function isSkipTestText(text: string) {
-  const normalized = text.replace(/\s+/g, '').toLowerCase()
-  return ['暂不测试', '先不测试', '不用测试', '跳过测试'].includes(normalized)
-}
-
-function isStartRepairText(text: string) {
-  const normalized = text.replace(/\s+/g, '').toLowerCase()
-  return ['开始修复', '修复', '交接修复', '进入修复', '构建修复', '进入构建修复', '切到构建修复'].includes(normalized)
-}
-
-function isSkipRepairText(text: string) {
-  const normalized = text.replace(/\s+/g, '').toLowerCase()
-  return ['暂不修复', '先不修复', '不用修复', '跳过修复'].includes(normalized)
-}
-
-function isStartBuildHandoffText(text: string, artifact: unknown) {
-  return isBuildRepairInteractionData(artifact) ? isStartRepairText(text) : isStartTestText(text)
-}
-
-function isSkipBuildHandoffText(text: string, artifact: unknown) {
-  return isBuildRepairInteractionData(artifact) ? isSkipRepairText(text) : isSkipTestText(text)
-}
-
-function confirmPendingPrd() {
-  if (!pendingPrd.value) return
-  void handleConfirmPrd({ remark: '', prd: pendingPrd.value })
-}
-
-function confirmPendingBuildHandoff() {
-  if (!pendingBuildHandoff.value) return
-  void handleConfirmBuildHandoff({ artifact: pendingBuildHandoff.value })
-}
-
-function prepareRevisePrd() {
-  inputText.value = inputText.value.trim() || '修改 PRD：'
-  setTimeout(() => inputRef.value?.focus(), 0)
-}
-
-function prepareContinueDevelopment() {
-  inputText.value = inputText.value.trim() || '继续修改：'
-  setTimeout(() => inputRef.value?.focus(), 0)
-}
-
-async function cancelPendingPrd() {
-  if (!pendingPrd.value) return
-  markPrdConfirmed(pendingPrd.value)
-  await clearCurrentPendingInteractionStatus()
-  ElMessage.info('已取消本次 PRD 确认')
-}
-
-async function cancelPendingBuildHandoff() {
-  if (!pendingBuildHandoff.value) return
-  const repairing = isBuildRepairInteractionData(pendingBuildHandoff.value)
-  markBuildHandoffHandled(pendingBuildHandoff.value)
-  await clearCurrentPendingInteractionStatus()
-  ElMessage.info(repairing ? '已暂不进入构建修复' : '已暂不进入测试')
-}
-
-function focusPrdPreview() {
-  outputRef.value?.scrollTo({ top: outputRef.value.scrollHeight, behavior: 'smooth' })
+  root.scrollTo({ top: root.scrollHeight, behavior: 'smooth' })
 }
 
 function onLLMSelectVisibleChange(visible: boolean) {
@@ -1085,12 +1051,13 @@ function onLLMSelectVisibleChange(visible: boolean) {
   loadLLMOptionsOnVisibleChange(visible)
 }
 
-async function handleConfirmPrd(payload: { remark: string; prd: unknown }) {
+async function handleConfirmPrd(payload: { remark: string; prd: unknown }, options: { auditRecorded?: boolean } = {}) {
   const remark = payload.remark.trim()
   if (!sessionId.value || !props.fullCodePath || sending.value) {
     ElMessage.warning('当前会话还未准备好，暂时不能确认 PRD')
     return
   }
+  const interaction = buildWorkspaceInteractionFromArtifact(payload.prd)
   let handoff
   try {
     handoff = await createWorkspaceHandoff({
@@ -1106,8 +1073,12 @@ async function handleConfirmPrd(payload: { remark: string; prd: unknown }) {
     ElMessage.error(error?.message || '创建交接会话失败')
     return
   }
-  markPrdConfirmed(payload.prd)
+  if (interaction && !options.auditRecorded) {
+    await recordPendingInteractionAction(interaction, 'confirm_prd')
+  }
+  if (interaction) markInteractionHandled(interaction)
   sessionId.value = handoff.session_id
+  setMessages([])
   void sendTextToSession(
     handoff.session_id,
     handoff.content,
@@ -1117,9 +1088,8 @@ async function handleConfirmPrd(payload: { remark: string; prd: unknown }) {
 }
 
 async function handleConfirmBuildHandoff(payload: { artifact: unknown }) {
-  const repair = isBuildRepairInteractionData(payload.artifact)
   if (!sessionId.value || !props.fullCodePath || sending.value) {
-    ElMessage.warning(repair ? '当前会话还未准备好，暂时不能交接修复' : '当前会话还未准备好，暂时不能进入测试')
+    ElMessage.warning('当前会话还未准备好，暂时不能交接修复')
     return
   }
   let handoff
@@ -1128,17 +1098,18 @@ async function handleConfirmBuildHandoff(payload: { artifact: unknown }) {
       source_session_id: sessionId.value,
       full_code_path: props.fullCodePath,
       target_role: getBuildHandoffTargetRole(payload.artifact),
-      artifact_kind: getStageArtifactKind(payload.artifact, repair ? 'agent_app_build_failure' : 'agent_app_build'),
+      artifact_kind: getStageArtifactKind(payload.artifact, 'agent_app_build_failure'),
       artifact: payload.artifact,
       remark: '',
       context_policy: 'artifact_only',
-      display_content: repair ? '构建失败，交接构建修复。' : '已构建成功，开始测试验证。'
+      display_content: '构建失败，交接构建修复。'
     })
   } catch (error: any) {
-    ElMessage.error(error?.message || (repair ? '创建构建修复会话失败' : '创建测试会话失败'))
+    ElMessage.error(error?.message || '创建构建修复会话失败')
     return
   }
-  markBuildHandoffHandled(payload.artifact)
+  const interaction = buildWorkspaceInteractionFromArtifact(payload.artifact)
+  if (interaction) markInteractionHandled(interaction)
   sessionId.value = handoff.session_id
   void sendTextToSession(
     handoff.session_id,
@@ -1148,18 +1119,70 @@ async function handleConfirmBuildHandoff(payload: { artifact: unknown }) {
   )
 }
 
+function confirmPendingInteraction(target?: WorkspaceInteraction) {
+  const interaction = target || pendingInteraction.value
+  if (!interaction) return
+  if (interaction.card_type === 'build_repair') {
+    void (async () => {
+      await recordPendingInteractionAction(interaction, 'start_build_repair')
+      await handleConfirmBuildHandoff({ artifact: interaction.artifact })
+    })()
+    return
+  }
+  if (interaction.card_type === 'prd_confirmation') {
+    void (async () => {
+      await recordPendingInteractionAction(interaction, 'confirm_prd')
+      await handleConfirmPrd({ remark: '', prd: interaction.artifact }, { auditRecorded: true })
+    })()
+    return
+  }
+  ElMessage.warning('当前交互卡片暂未配置确认动作')
+}
+
+async function revisePendingInteraction(payload: { text: string; interaction?: WorkspaceInteraction }) {
+  const interaction = payload.interaction || pendingInteraction.value
+  const text = payload.text.trim()
+  if (!interaction || !sessionId.value || !text || sending.value) return
+  const isBuildRepair = interaction.card_type === 'build_repair'
+  if (!isBuildRepair && interaction.card_type !== 'prd_confirmation') {
+    ElMessage.warning('当前交互卡片暂未配置修改动作')
+    return
+  }
+  const prefix = isBuildRepair ? '继续修改' : '修改 PRD'
+  const action = isBuildRepair ? 'continue_development' : 'revise_prd'
+  await recordPendingInteractionAction(interaction, action, `${prefix}：${text}`)
+  markInteractionHandled(interaction)
+  await sendTextToSession(
+    sessionId.value,
+    `${prefix}：${text}`,
+    `${prefix}：${text}`,
+    { interactionAction: action }
+  )
+}
+
+async function cancelPendingInteraction(target?: WorkspaceInteraction) {
+  const interaction = target || pendingInteraction.value
+  if (!interaction) return
+  await recordPendingInteractionAction(interaction, cancelInteractionAction(interaction))
+  markInteractionHandled(interaction)
+  await clearCurrentPendingInteractionStatus()
+  ElMessage.info(interaction.card_type === 'build_repair' ? '已暂不进入构建修复' : '已取消本次确认')
+}
+
 function getPrdTargetRole(prd: unknown) {
-  if (isPrdInteractionData(prd) && prd.interaction?.target_role_on_confirm) {
-    return prd.interaction.target_role_on_confirm
+  const interaction = buildWorkspaceInteractionFromArtifact(prd)
+  if (interaction?.target_role_on_confirm) {
+    return interaction.target_role_on_confirm
   }
   return 'app_developer'
 }
 
 function getBuildHandoffTargetRole(artifact: unknown) {
-  if (isBuildInteractionData(artifact) && artifact.interaction?.target_role_on_confirm) {
-    return artifact.interaction.target_role_on_confirm
+  const interaction = buildWorkspaceInteractionFromArtifact(artifact)
+  if (interaction?.target_role_on_confirm) {
+    return interaction.target_role_on_confirm
   }
-  return isBuildRepairInteractionData(artifact) ? 'build_engineer' : 'qa_engineer'
+  return 'build_engineer'
 }
 
 function getStageArtifactKind(artifact: unknown, fallback: string) {
@@ -1168,6 +1191,46 @@ function getStageArtifactKind(artifact: unknown, fallback: string) {
     return data.interaction?.artifact_kind || data.kind || fallback
   }
   return fallback
+}
+
+function fallbackCardType(kind: unknown, status: string) {
+  if (kind === 'agent_app_build_failure' || status === 'pending_build_repair') return 'build_repair'
+  if (kind === 'agent_app_prd' || status === 'pending_confirmation') return 'prd_confirmation'
+  return 'stage_confirmation'
+}
+
+function fallbackInteractionTitle(cardType: string) {
+  if (cardType === 'build_repair') return '构建等待修复'
+  if (cardType === 'prd_confirmation') return 'PRD 等待确认'
+  return '等待确认'
+}
+
+function viewInteractionAction(interaction: WorkspaceInteraction) {
+  return interaction.card_type === 'build_repair' ? 'view_build_diagnostics' : 'view_prd'
+}
+
+function cancelInteractionAction(interaction: WorkspaceInteraction) {
+  return interaction.card_type === 'build_repair' ? 'skip_build_repair' : 'cancel_prd'
+}
+
+function interactionAuditText(interaction: WorkspaceInteraction, action: string) {
+  const label = interactionActionLabel(action)
+  const title = interaction.title || fallbackInteractionTitle(interaction.card_type || '')
+  return `处理了工作台交互卡片：${label}（${title}）`
+}
+
+function interactionActionLabel(action: string) {
+  const labels: Record<string, string> = {
+    view_prd: '查看 PRD',
+    confirm_prd: '确认 PRD',
+    revise_prd: '修改 PRD',
+    cancel_prd: '取消 PRD',
+    view_build_diagnostics: '查看构建诊断',
+    start_build_repair: '交接构建修复',
+    continue_development: '继续修改',
+    skip_build_repair: '暂不修复',
+  }
+  return labels[action] || action
 }
 
 watch(

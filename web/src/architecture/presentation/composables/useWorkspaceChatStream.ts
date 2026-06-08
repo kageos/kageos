@@ -42,9 +42,12 @@ export type AssistantBlock =
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  raw_content?: string
   user?: string
   /** 仅 user 消息：附带文件列表（发送时展示、加载会话时由接口解析） */
   files?: ChatMessageFile[]
+  context_usage?: string
+  artifact_kind?: string
   tool_calls?: ChatMessageToolCall[]
   llm_config_id?: number
   llm_config_name?: string

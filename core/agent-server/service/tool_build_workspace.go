@@ -13,7 +13,10 @@ import (
 
 type BuildWorkspaceTool struct{}
 
-type buildWorkspaceArgs struct{}
+type buildWorkspaceArgs struct {
+	PreBuildReview string `json:"pre_build_review" schema_desc:"build 前模型代码审查结论。必须说明已审文件、PRD/用户需求对照、可见入口到后端逻辑闭环、伪代码/占位/开发中返回检查、范围外功能检查和最终结论；发现问题时先修复，不要调用 build_workspace。" schema_required:"true"`
+	ReviewPassed   bool   `json:"review_passed" schema_desc:"build 前模型代码审查是否通过。只有确认无伪代码、无开发中/未实现/占位返回、无 PRD 外擅自新增功能，且可见 Table/Form/Chart/按钮/回调均有真实实现时才允许传 true。" schema_required:"true"`
+}
 
 type buildWorkspaceResultData struct {
 	Kind             string                     `json:"kind" schema_desc:"阶段产物类型" schema_required:"true"`
@@ -27,7 +30,7 @@ type buildWorkspaceResultData struct {
 	Warnings         []string                   `json:"warnings,omitempty" schema_desc:"非阻断构建告警"`
 	Error            string                     `json:"error,omitempty" schema_desc:"构建失败摘要"`
 	BuildDiagnostics *workspaceBuildDiagnostics `json:"build_diagnostics,omitempty" schema_desc:"构建失败诊断和修复策略"`
-	Interaction      *workspaceStageInteraction `json:"interaction,omitempty" schema_desc:"构建成功后的测试交互状态"`
+	Interaction      *workspaceStageInteraction `json:"interaction,omitempty" schema_desc:"构建失败后的修复交互状态"`
 }
 
 type workspaceBuildDiagnostics struct {
@@ -60,7 +63,7 @@ var workspaceBuildFieldIssueRe = regexp.MustCompile(`field\s+([A-Za-z0-9_]+)\s+\
 
 var buildWorkspaceToolDef = toolDefinitionWithOutput[buildWorkspaceArgs, structuredToolResultSchema[buildWorkspaceResultData]](
 	"build_workspace",
-	"编译当前工作空间（Go 应用）。不写文件，仅基于当前已落盘的代码触发一次编译并部署。无需传参。连续写多个文件后可调用一次 build_workspace 再编译。构建成功后返回 agent_app_build 阶段产物和 pending_test 交互状态，前端应提示用户确认是否交接给 qa_engineer 测试工程师；构建失败后返回 agent_app_build_failure、build_diagnostics 和 pending_build_repair 交互状态，前端应提示是否交接给 build_engineer。构建失败时不要交接测试，也不要凭直觉反复重写。先完整阅读错误，按 router/字段/文件定位同类问题；不清楚 SDK schema、widget、callback、审计字段或 API 写法时，先 read_doc /system/prompt/sdk/reference/build-validation、SDK 主文档或匹配案例，再批量修复后重新 build。",
+	"编译当前工作空间（Go 应用）。不写文件，仅基于当前已落盘的代码触发一次编译并部署。调用前必须先由当前模型完成 build 前代码审查，并在参数中提交 pre_build_review 和 review_passed=true；审查重点包括 PRD/用户需求对照、可见入口到后端逻辑闭环、伪代码/占位/开发中返回、PRD 外擅自新增功能。审查未通过、未审或发现问题时先修复，不得调用 build_workspace。构建成功后返回 agent_app_build 阶段产物，不等待用户确认，必须立即 change_role 到 qa_engineer 测试工程师并按目标目录函数 schema 自动测试；构建失败后返回 agent_app_build_failure、build_diagnostics 和 pending_build_repair 交互状态，前端应提示是否交接给 build_engineer。构建失败时不要交接测试，也不要凭直觉反复重写。先完整阅读错误，按 router/字段/文件定位同类问题；不清楚 SDK schema、widget、callback、审计字段或 API 写法时，先 read_doc /system/prompt/sdk/reference/build-validation、SDK 主文档或匹配案例，再批量修复后重新 build。",
 )
 
 func (t *BuildWorkspaceTool) Definition() dto.ToolDef {
@@ -68,11 +71,32 @@ func (t *BuildWorkspaceTool) Definition() dto.ToolDef {
 }
 
 func (t *BuildWorkspaceTool) Execute(ctx context.Context, call ToolCall) ToolResult {
+	args, err := decodeToolArgs[buildWorkspaceArgs](call.Args)
+	if err != nil {
+		return toolResult("build_workspace 参数解析失败: "+err.Error(), true)
+	}
+	if msg := validateBuildWorkspacePreBuildReview(args); msg != "" {
+		return toolResult(msg, true)
+	}
 	result, content, isError := runBuildWorkspaceTool(ctx, call.FullCodePath)
 	if isError {
 		return toolResultWithData(content, true, result)
 	}
 	return toolResultWithStructuredData(result, false, content)
+}
+
+func validateBuildWorkspacePreBuildReview(args buildWorkspaceArgs) string {
+	review := strings.TrimSpace(args.PreBuildReview)
+	if review == "" {
+		return "build_workspace 被阻断：缺少 build 前模型代码审查 pre_build_review。请先读回本轮相关源码，审查 PRD/用户需求对照、可见入口闭环、伪代码/占位/开发中返回和范围外功能，修复问题后再 build。"
+	}
+	if !args.ReviewPassed {
+		return "build_workspace 被阻断：build 前模型代码审查未通过。请先修复审查发现的问题，不要用 build 绕过伪代码、占位或未实现逻辑。"
+	}
+	if len([]rune(review)) < 80 {
+		return "build_workspace 被阻断：pre_build_review 过短，不能证明已完成 build 前代码审查。请写明已审文件、需求对照、入口闭环、伪实现检查和结论。"
+	}
+	return ""
 }
 
 // runBuildWorkspaceTool 编译当前工作空间（不写文件，仅触发编译并部署）；从当前工作目录解析 user/app，无需参数
@@ -95,7 +119,7 @@ func runBuildWorkspaceTool(ctx context.Context, currentFullCodePath string) (bui
 		return buildWorkspaceFailureResult(workspacePath, err.Error()), "build_workspace 调用失败: " + enrichWorkspaceBuildError(err.Error(), workspacePath), true
 	}
 	result := buildWorkspaceSuccessResult(workspacePath, resp)
-	content := fmt.Sprintf("工作空间已编译并部署: workspace=%s, app=%s, 旧版本=%s, 新版本=%s。请确认是否进入测试；看不到按钮也可以直接回复：开始测试 / 测试 / 暂不测试。", workspacePath, resp.App, resp.OldVersion, resp.NewVersion)
+	content := fmt.Sprintf("工作空间已编译并部署: workspace=%s, app=%s, 旧版本=%s, 新版本=%s。下一步必须立即进入 qa_engineer 自动测试，不要等待用户确认。", workspacePath, resp.App, resp.OldVersion, resp.NewVersion)
 	return result, content, false
 }
 
@@ -107,7 +131,6 @@ func buildWorkspaceSuccessResult(workspacePath string, resp *dto.UpdateAppResp) 
 		WorkspacePath: strings.TrimSpace(workspacePath),
 		User:          user,
 		App:           app,
-		Interaction:   pendingBuildTestInteraction(),
 	}
 	if resp == nil {
 		return result
@@ -251,7 +274,7 @@ func workspaceBuildErrorCategories(errText string) []string {
 	if strings.Contains(errText, "requires options or OnSelectFuzzyMap entry") || strings.Contains(errText, "OnSelectFuzzyMap") {
 		add("select_options")
 	}
-	if strings.Contains(errText, "unsupported widget") || strings.Contains(errText, "options_colors") || strings.Contains(errText, "invalid color") || strings.Contains(errText, "number widget requires") {
+	if strings.Contains(errText, "unsupported widget") || strings.Contains(errText, "options_colors") || strings.Contains(errText, "invalid color") || strings.Contains(errText, "requires integer Go type") {
 		add("widget")
 	}
 	if strings.Contains(errText, "table request field") || strings.Contains(errText, "Req has no field or method") {
@@ -368,8 +391,8 @@ func workspaceBuildErrorHints(errText string) []string {
 	if strings.Contains(errText, "unsupported widget type") || strings.Contains(errText, "unsupported widget tag") || strings.Contains(errText, "invalid tag format") {
 		add("widget 的 type 和配置 key 必须来自 SDK 主文档组件速查和运行时白名单；不要写 file/readonly/multiple 等未支持类型或参数。文件上传用 type:files + string，多文件用 max_count；图片/视频列表预览用 thumbnail:true;list_preview:true；只读展示用 hide:\"create,update\" 或 widget:\"-\" 控制场景。")
 	}
-	if strings.Contains(errText, "number widget requires integer Go type") {
-		add("数值组件的字段类型要匹配：整数用 type:number，小数、金额、评分、均值、比例用 type:float。")
+	if strings.Contains(errText, "requires integer Go type") {
+		add("数值组件的字段类型要匹配：整数用 type:integer，小数、金额、评分、均值、比例用 type:float；不要再使用 type:number。")
 	}
 	if strings.Contains(errText, "as *int64 value in argument") && strings.Contains(errText, ".Count") {
 		add("GORM Count 的参数必须是 *int64；声明 var total int64，再 Count(&total)。需要业务 int 时在计算处显式 int(total)。")

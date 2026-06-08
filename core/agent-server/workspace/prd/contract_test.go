@@ -11,8 +11,9 @@ func TestContractMarkdownDocumentsV2Shape(t *testing.T) {
 		"## PRD 规则",
 		"`project/tables/forms/charts/rules`",
 		"`search_fields` 只描述搜索参数",
+		"图文、富文本或可插图片内容用 `richtext`",
 		"`创建开始时间`、`创建结束时间`",
-		"非 CRUD 逻辑必须先确认",
+		"无法从用户数据、`file_profile` 或常见默认值推断，才先追问",
 		"## 代表性输出示例",
 	} {
 		if !strings.Contains(got, want) {
@@ -32,8 +33,8 @@ func TestApplyContractMarkdown(t *testing.T) {
 }
 
 func TestSupportedPRDContractValues(t *testing.T) {
-	if !IsSupportedWidget("text_area") || !IsSupportedWidget("TEXTAREA") {
-		t.Fatalf("text area aliases should be supported")
+	if !IsSupportedWidget("text_area") || !IsSupportedWidget("TEXTAREA") || !IsSupportedWidget("richtext") {
+		t.Fatalf("text area aliases and richtext should be supported")
 	}
 	if IsSupportedWidget("name:状态;type:select") {
 		t.Fatalf("widget tag should not be supported")

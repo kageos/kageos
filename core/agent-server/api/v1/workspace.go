@@ -135,6 +135,22 @@ func (h *Workspace) ResolvePendingInteraction(c *gin.Context) {
 	response.Ok(c)
 }
 
+// RecordInteractionEvent 记录工作台交互卡片事件，仅用于审计展示。
+// POST /agent/api/v1/workspace/sessions/interaction/event
+func (h *Workspace) RecordInteractionEvent(c *gin.Context) {
+	var req dto.RecordWorkspaceInteractionEventReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	ctx := contextx.ToContext(c)
+	if err := h.wsChatSvc.RecordWorkspaceInteractionEvent(ctx, &req); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.Ok(c)
+}
+
 // ListMessages 获取工作台会话消息列表
 // GET /agent/api/v1/workspace/messages
 func (h *Workspace) ListMessages(c *gin.Context) {

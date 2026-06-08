@@ -36,8 +36,8 @@
       "fields": [
         {"name": "商品名称", "widget": "input", "required": true, "desc": "商品显示名称。"},
         {"name": "商品分类", "widget": "select", "required": true, "desc": "例如饮料、零食、日用品、其他。"},
-        {"name": "单价", "widget": "number", "required": true, "desc": "商品销售单价，单位元。"},
-        {"name": "库存数量", "widget": "number", "required": true, "desc": "当前库存数量，必须为非负整数。"},
+        {"name": "单价", "widget": "float", "required": true, "desc": "商品销售单价，单位元。"},
+        {"name": "库存数量", "widget": "integer", "required": true, "desc": "当前库存数量，必须为非负整数。"},
         {"name": "上架状态", "widget": "select", "required": true, "desc": "有上架、下架两个选项，默认上架。"}
       ],
       "search_fields": [
@@ -57,7 +57,7 @@
         {"name": "订单号", "widget": "input", "required": true, "desc": "系统生成的支付订单号。"},
         {"name": "会员卡号", "widget": "input", "required": false, "desc": "本次支付关联的会员卡号。"},
         {"name": "消费明细", "widget": "text_area", "required": true, "desc": "商品名称、数量和单价组成的消费明细。"},
-        {"name": "实付金额", "widget": "number", "required": true, "desc": "实际支付金额。"},
+        {"name": "实付金额", "widget": "float", "required": true, "desc": "实际支付金额。"},
         {"name": "支付状态", "widget": "select", "required": true, "desc": "有支付成功、支付失败两个状态。"}
       ],
       "search_fields": [
@@ -83,7 +83,7 @@
       "response_fields": [
         {"name": "订单号", "widget": "input", "required": false, "desc": "支付成功后返回系统生成订单号。"},
         {"name": "支付结果", "widget": "input", "required": false, "desc": "展示支付成功或失败原因。"},
-        {"name": "实付金额", "widget": "number", "required": false, "desc": "本次订单实际支付金额。"}
+        {"name": "实付金额", "widget": "float", "required": false, "desc": "本次订单实际支付金额。"}
       ],
       "example": {
         "request": {"商品清单": "可口可乐×2，薯片×1", "会员卡号": "M001", "支付方式": "会员余额"},

@@ -33,9 +33,12 @@ function normalizeSessionMessages(rawMessages: any[]): ChatMessage[] {
         role: message.role as 'user' | 'assistant',
         user: message.user || message.created_by || '',
         content: displayContent,
+        raw_content: message.content || '',
         files: message.files
           ? parseFileRefs(message.files).map(ref => ({ ref, name: fileNameFromRef(ref), source_name: fileNameFromRef(ref) }))
           : [],
+        context_usage: message.context_usage || '',
+        artifact_kind: message.artifact_kind || '',
         tool_calls: message.tool_calls || [],
         llm_config_id: message.llm_config_id,
         llm_config_name: message.llm_config_name || '',
@@ -322,6 +325,7 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
     handleNewSession,
     handleStopSession,
     handleSelectSession,
+    loadMiniSessionMessages,
     formatRelativeTime,
     formatMessageTime,
     startMiniStreamListening,

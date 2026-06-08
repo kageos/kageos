@@ -1,5 +1,5 @@
 <!--
-  NumberWidget - 数字输入组件
+  IntegerWidget - 整数输入组件
   🔥 统一架构组件
 -->
 
@@ -58,7 +58,7 @@ import { ElInputNumber } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import type { NumberWidgetConfig } from '@/architecture/domain/types/widget-configs'
+import type { IntegerWidgetConfig } from '@/architecture/domain/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -73,7 +73,7 @@ const formDataStore = useFormDataStore()
 
 // 获取配置（带类型）
 const config = computed(() => {
-  return (props.field.widget?.config || {}) as NumberWidgetConfig
+  return (props.field.widget?.config || {}) as IntegerWidgetConfig
 })
 
 // 步长（从配置中读取，默认为 1）

@@ -146,7 +146,7 @@ export function useTableWidgetDisplay(
     if (type === WidgetType.SWITCH) {
       return 110
     }
-    if (type === WidgetType.NUMBER || type === WidgetType.FLOAT) {
+    if (type === WidgetType.INTEGER || type === WidgetType.FLOAT) {
       return 130
     }
     if (type === WidgetType.PROGRESS || type === WidgetType.SLIDER) {

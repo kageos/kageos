@@ -15,7 +15,7 @@
 | 单机生产部署 | [prod/README.md](prod/README.md) | 当前官方生产入口，基于 Compose |
 | 只想一眼看懂怎么部署 | [prod/QUICK_START.md](prod/QUICK_START.md) | 最短路径，直接照抄 |
 | 只想快速部署 | [prod/DEPLOY_TUTORIAL.md](prod/DEPLOY_TUTORIAL.md) | 一分钟部署版 |
-| 看部署分层与依赖图 | [../docs/deployment-layers.md](../docs/deployment-layers.md) | 单机生产部署的分层、依赖和排障心智模型 |
+| 看部署分层与依赖图 | [prod/README.md#部署分层](prod/README.md#部署分层) | 单机生产部署的分层、依赖和排障心智模型 |
 | 看生命周期 SOP | [../docs/kagectl-lifecycle-sop.md](../docs/kagectl-lifecycle-sop.md) | dev/prod 两种模式的统一 `kagectl` 入口 |
 | 找共享资源 | [base/README.md](base/README.md) | canonical Dockerfile、init SQL、共享脚本都在这里 |
 | 做容器防删限制 | [security/README.md](security/README.md) | 可选的 AppArmor / SELinux 安装资源 |

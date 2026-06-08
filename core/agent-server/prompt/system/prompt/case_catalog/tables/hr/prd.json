@@ -50,13 +50,13 @@
         },
         {
           "name": "最低薪资",
-          "widget": "number",
+          "widget": "float",
           "required": false,
           "desc": "单位元，必须大于等于 0。"
         },
         {
           "name": "最高薪资",
-          "widget": "number",
+          "widget": "float",
           "required": false,
           "desc": "单位元，必须大于等于最低薪资。"
         },
@@ -68,7 +68,7 @@
         },
         {
           "name": "招聘人数",
-          "widget": "number",
+          "widget": "integer",
           "required": true,
           "desc": "默认 1，必须大于 0。"
         },

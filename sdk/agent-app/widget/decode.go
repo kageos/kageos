@@ -498,7 +498,7 @@ func DecodeTable(fieldsCallback map[string][]string, request, tableModel interfa
 		}
 		if requestResult != nil {
 			requestTags = requestResult.Tags
-			if err := ValidateFieldTags(requestTags, fieldsCallback); err != nil {
+			if err := validateFieldTags(requestTags, fieldsCallback, validateFieldTagOptions{}); err != nil {
 				errs = append(errs, fmt.Errorf("failed to validate request model: %w", err))
 			}
 			requestFields = convertTagsToFields(requestResult.Tags, fieldsCallback, true)
@@ -611,7 +611,7 @@ func DecodeForm(fieldsCallback map[string][]string, request, response interface{
 		}
 		if requestResult != nil {
 			requestTags = requestResult.Tags
-			if err := ValidateFieldTags(requestTags, fieldsCallback); err != nil {
+			if err := validateFieldTags(requestTags, fieldsCallback, validateFieldTagOptions{}); err != nil {
 				errs = append(errs, fmt.Errorf("failed to validate request model: %w", err))
 			}
 			requestFields = convertTagsToFields(requestResult.Tags, fieldsCallback, true)
@@ -626,7 +626,7 @@ func DecodeForm(fieldsCallback map[string][]string, request, response interface{
 		}
 		if responseResult != nil {
 			responseTags = responseResult.Tags
-			if err := ValidateFieldTags(responseTags, fieldsCallback); err != nil {
+			if err := validateFieldTags(responseTags, fieldsCallback, validateFieldTagOptions{}); err != nil {
 				errs = append(errs, fmt.Errorf("failed to validate response model: %w", err))
 			}
 			responseFields = convertTagsToFields(responseResult.Tags, fieldsCallback, false)

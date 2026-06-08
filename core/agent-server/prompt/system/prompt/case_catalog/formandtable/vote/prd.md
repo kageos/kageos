@@ -76,7 +76,7 @@ type VoteOption struct {
 	DeletedAt  gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 	TopicID    int            `json:"topic_id" gorm:"column:topic_id;comment:主题ID;index" widget:"name:投票主题ID;type:select" validate:"required" callback:"OnSelectFuzzy"`
 	Content    string         `json:"content" gorm:"column:content;comment:选项内容" widget:"name:选项内容;type:input" validate:"required"`
-	VoteCount  int            `json:"vote_count" gorm:"column:vote_count;comment:得票人数;default:0" widget:"name:得票人数;type:number;unit:人"`
+	VoteCount  int            `json:"vote_count" gorm:"column:vote_count;comment:得票人数;default:0" widget:"name:得票人数;type:integer;unit:人"`
 	Percentage float64        `json:"percentage" gorm:"column:percentage;comment:得票率;default:0;type:decimal(5,2)" widget:"name:得票率%;type:progress;min:0;max:100;unit:%"`
 	Topic      *VoteTopic     `json:"-" widget:"-" gorm:"foreignKey:TopicID"`
 	TopicTitle string         `json:"topic_title" gorm:"-" widget:"name:投票主题;type:text" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
@@ -362,7 +362,7 @@ type VoteRecord struct {
 	DeletedAt     gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 	TopicID       int            `json:"topic_id" gorm:"column:topic_id;comment:主题ID;index" widget:"name:投票主题ID;type:select" callback:"OnSelectFuzzy" validate:"required"`
 	TopicTitle    string         `json:"topic_title" gorm:"-" widget:"name:投票标题;type:input" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
-	OptionID      int            `json:"option_id" gorm:"column:option_id;comment:选项ID;index" widget:"name:选项ID;type:number"`
+	OptionID      int            `json:"option_id" gorm:"column:option_id;comment:选项ID;index" widget:"name:选项ID;type:integer"`
 	OptionContent string         `json:"option_content" gorm:"-" widget:"name:选项内容;type:input" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	VoterName     string         `json:"voter_name" gorm:"column:voter_name;comment:投票人" widget:"name:投票人;type:user"`
 	IsAnonymous   bool           `json:"is_anonymous" gorm:"column:is_anonymous;comment:是否匿名;default:false" widget:"name:是否匿名;type:switch"`
@@ -512,7 +512,7 @@ type VoteResultReq struct {
 // VoteOptionResult 投票选项结果
 type VoteOptionResult struct {
 	Content    string  `json:"content" widget:"name:选项内容;type:input"`
-	VoteCount  int     `json:"vote_count" widget:"name:得票人数;type:number;unit:人"`
+	VoteCount  int     `json:"vote_count" widget:"name:得票人数;type:integer;unit:人"`
 	Percentage float64 `json:"percentage" widget:"name:得票率%;type:progress;min:0;max:100;unit:%"`
 }
 
@@ -524,7 +524,7 @@ type VoteResultResp struct {
 	Description string              `json:"description" widget:"name:投票描述;type:text_area"`
 	VoteType    string              `json:"vote_type" widget:"name:投票类型;type:input"`
 	Status      string              `json:"status" widget:"name:投票状态;type:select;options:未开始,进行中,已结束;options_colors:909399,409EFF,67C23A"`
-	TotalVotes  int                 `json:"total_votes" widget:"name:总选择次数;type:number;unit:次"`
+	TotalVotes  int                 `json:"total_votes" widget:"name:总选择次数;type:integer;unit:次"`
 	Options     []*VoteOptionResult `json:"options" widget:"name:投票选项统计;type:table"`
 	StartTime   string              `json:"start_time" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
 	EndTime     string              `json:"end_time" widget:"name:结束时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
@@ -1056,7 +1056,7 @@ type VoteTopic struct {
 	// required_if 不只是后端校验；前端也会按条件动态处理：
 	// 当 VoteType=多选 时，显示 MaxSelections 且标记为必填；否则隐藏该字段。
 	// 同类场景还可用 required_unless、required_with、required_without、excluded_* 等规则，详见 SDK 文档的 validate 标签说明。
-	MaxSelections   int              `json:"max_selections" gorm:"column:max_selections;comment:最多选择数" widget:"name:最多选择数;type:number;unit:个;render_default:1" validate:"required_if=VoteType 多选,min=1,max=10"`
+	MaxSelections   int              `json:"max_selections" gorm:"column:max_selections;comment:最多选择数" widget:"name:最多选择数;type:integer;unit:个;render_default:1" validate:"required_if=VoteType 多选,min=1,max=10"`
 	IsAnonymous     bool             `json:"is_anonymous" gorm:"column:is_anonymous;comment:是否匿名;default:false" widget:"name:是否匿名投票;type:switch"`
 	ShowResult      bool             `json:"show_result" gorm:"column:show_result;comment:是否显示结果;default:true" widget:"name:是否显示实时结果;type:switch"`
 	StartTime       types.Time            `json:"start_time" gorm:"column:start_time;type:datetime;comment:开始时间;index" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" validate:"required"`
@@ -1065,7 +1065,7 @@ type VoteTopic struct {
 	Content         string           `json:"content" gorm:"column:content;type:text" widget:"name:详细内容;type:richtext;height:420"`
 	OptionsLink     string           `json:"options_link" gorm:"-" widget:"name:选项列表;type:link;target:_blank" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	Status          string           `json:"status" gorm:"-" widget:"name:状态;type:select;options:未开始,进行中,已结束;options_colors:909399,409EFF,67C23A" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
-	TotalVotes      int              `json:"total_votes" gorm:"column:total_votes;comment:总选择次数;default:0" widget:"name:总选择次数;type:number;unit:次"`
+	TotalVotes      int              `json:"total_votes" gorm:"column:total_votes;comment:总选择次数;default:0" widget:"name:总选择次数;type:integer;unit:次"`
 	CreatedBy        string           `json:"created_by" gorm:"column:created_by;comment:创建人" widget:"name:创建人;type:user" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	VoteActionLink  string           `json:"vote_action_link" gorm:"-" widget:"name:投票操作;type:link;target:_blank" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	UserVoteRecords []*VoteRecord    `json:"-" widget:"-" gorm:"foreignKey:TopicID"`

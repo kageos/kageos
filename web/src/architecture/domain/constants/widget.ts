@@ -16,7 +16,7 @@ export const WidgetType = {
   DEPARTMENT: 'department',
   DEPARTMENTS: 'departments',
   ID: 'ID',
-  NUMBER: 'number',
+  INTEGER: 'integer',
   FLOAT: 'float',
   FILES: 'files',
   CHECKBOX: 'checkbox',

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/google/uuid"
@@ -406,6 +407,9 @@ func buildWorkspaceHandoffContext(input workspaceHandoffContextInput) workspaceH
 	ctx.StageSummary = workspaceHandoffStageSummary(ctx, digest)
 	ctx.ConfirmedScope = workspaceHandoffConfirmedScope(digest)
 	ctx.KeyDecisions = workspaceHandoffKeyDecisions(input.ArtifactKind, input.TargetRole, digest, input.Remark)
+	if placementDecision := workspaceHandoffDirectoryPlacementDecision(ctx); placementDecision != "" {
+		ctx.KeyDecisions = appendUniqueRoleHandoffStrings([]string{placementDecision}, ctx.KeyDecisions...)
+	}
 	ctx.KeyDecisions = append(ctx.KeyDecisions, workspaceHandoffBuildFailureDecisions(input.ArtifactKind, input.TargetRole, buildDiagnostics)...)
 	ctx.Constraints = workspaceHandoffConstraints(input.ArtifactKind, input.TargetRole, digest, latestNotes)
 	ctx.Constraints = append(ctx.Constraints, workspaceHandoffBuildFailureConstraints(input.ArtifactKind, input.TargetRole)...)
@@ -453,7 +457,7 @@ func workspaceHandoffTargetAppDirectory(fullCodePath string, artifact map[string
 func workspaceHandoffExecuteDirectory(fullCodePath, artifactKind, targetRole, workspaceDirectory, targetAppDirectory string) string {
 	role := normalizeWorkspaceRole(targetRole)
 	if artifactKind == "agent_app_prd" && role == WorkspaceRoleAppDeveloper {
-		return firstNonEmptyString(normalizeWorkspacePath(workspaceDirectory), normalizeWorkspacePath(fullCodePath))
+		return firstNonEmptyString(workspacePathDirectory(fullCodePath), normalizeWorkspacePath(workspaceDirectory), normalizeWorkspacePath(fullCodePath))
 	}
 	if artifactKind == workspaceBuildArtifactKind && role == WorkspaceRoleQAEngineer && targetAppDirectory != "" {
 		return targetAppDirectory
@@ -462,6 +466,21 @@ func workspaceHandoffExecuteDirectory(fullCodePath, artifactKind, targetRole, wo
 		return firstNonEmptyString(normalizeWorkspacePath(targetAppDirectory), normalizeWorkspacePath(workspaceDirectory), normalizeWorkspacePath(fullCodePath))
 	}
 	return normalizeWorkspacePath(fullCodePath)
+}
+
+func workspaceHandoffDirectoryPlacementDecision(ctx workspaceHandoffContext) string {
+	if ctx.ArtifactKind != "agent_app_prd" || normalizeWorkspaceRole(ctx.TargetRole) != WorkspaceRoleAppDeveloper {
+		return ""
+	}
+	target := normalizeWorkspacePath(ctx.TargetAppDirectory)
+	execute := normalizeWorkspacePath(ctx.ExecuteDirectory)
+	if target == "" {
+		return ""
+	}
+	if execute != "" && target != execute {
+		return fmt.Sprintf("目录落点决策：需要创建目标应用目录 %s；先在父目录 %s 下 create_directory(code=%q)，后续所有代码、预检和构建都必须限定在 %s。", target, execute, path.Base(target), target)
+	}
+	return fmt.Sprintf("目录落点决策：无需创建子目录；当前目录 %s 就是目标应用目录。", target)
 }
 
 func workspaceHandoffPathCandidatesFromMessages(messages []*model.AgentChatMessage) []string {
@@ -584,7 +603,7 @@ func summarizeWorkspaceSourceMessages(messages []*model.AgentChatMessage) (strin
 
 func workspaceHandoffLooksLikeInternalMessage(text string) bool {
 	compact := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(text)), " ", "")
-	for _, prefix := range []string{"已确认阶段交接产物", "已确认prd", "确认prd", "开始测试", "已构建成功"} {
+	for _, prefix := range []string{"已确认阶段交接产物", "已确认prd", "确认prd", "已构建成功"} {
 		if strings.HasPrefix(compact, strings.ReplaceAll(strings.ToLower(prefix), " ", "")) {
 			return true
 		}
@@ -1506,9 +1525,9 @@ func defaultWorkspaceHandoffDisplayContent(artifactKind, targetRole, remark stri
 		return "已确认 PRD，开始创建目录和生成代码。"
 	case workspaceBuildArtifactKind:
 		if strings.TrimSpace(remark) != "" {
-			return "已构建成功，开始测试验证。\n\n补充备注：\n" + strings.TrimSpace(remark)
+			return "已构建成功，进入自动测试验证。\n\n补充备注：\n" + strings.TrimSpace(remark)
 		}
-		return "已构建成功，开始测试验证。"
+		return "已构建成功，进入自动测试验证。"
 	case workspaceBuildFailureKind:
 		if strings.TrimSpace(remark) != "" {
 			return "构建失败，交接构建修复。\n\n补充备注：\n" + strings.TrimSpace(remark)

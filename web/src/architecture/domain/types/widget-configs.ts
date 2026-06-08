@@ -135,10 +135,10 @@ export interface ListWidgetConfig {
 }
 
 /**
- * Number Widget 配置
- * 对应后端：sdk/agent-app/widget/number.go
+ * Integer Widget 配置
+ * 对应后端：sdk/agent-app/widget/integer.go
  */
-export interface NumberWidgetConfig {
+export interface IntegerWidgetConfig {
   /** 占位符文本 */
   placeholder?: string
 
@@ -570,7 +570,7 @@ export type WidgetConfigMap = {
   select: SelectWidgetConfig
   multiselect: MultiSelectWidgetConfig
   list: ListWidgetConfig
-  number: NumberWidgetConfig
+  integer: IntegerWidgetConfig
   float: FloatWidgetConfig
   text_area: TextAreaWidgetConfig
   switch: SwitchWidgetConfig
@@ -613,7 +613,7 @@ export type AnyWidgetConfig =
   | SelectWidgetConfig
   | MultiSelectWidgetConfig
   | ListWidgetConfig
-  | NumberWidgetConfig
+  | IntegerWidgetConfig
   | FloatWidgetConfig
   | TextAreaWidgetConfig
   | SwitchWidgetConfig

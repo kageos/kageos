@@ -25,7 +25,7 @@ The project is currently licensed under the Business Source License 1.1. It is n
 | `sdk/agent-app` | Go SDK used by generated applications |
 | `web` | Vue 3 frontend |
 | `deploy` | Development, production, image, and security deployment material |
-| `docs` | Project documentation index and governance documents |
+| `docs` | Project documentation index and operating notes |
 
 ## Quick Start
 
@@ -52,7 +52,7 @@ npm run dev
 
 The frontend uses relative API paths by default. To point only the frontend at a remote backend, create `web/.env.development.local` from `web/.env.development.local.example` and set `VITE_PROXY_TARGET`.
 
-Detailed onboarding, dependency notes, smoke tests, and troubleshooting live in [docs/local-development.md](docs/local-development.md).
+Detailed onboarding, dependency notes, smoke tests, and troubleshooting live in [deploy/dev/README.md](deploy/dev/README.md).
 
 ## Verification
 
@@ -84,14 +84,13 @@ The same checks are wired into GitHub Actions in `.github/workflows/ci.yml`.
 ## Documentation
 
 - [Documentation index](docs/README.md)
-- [Local development](docs/local-development.md)
-- [Backend readiness](docs/backend-open-source-readiness.md)
-- [Examples and SDK guide](docs/examples/README.md)
+- [Local development](deploy/dev/README.md)
 - [Production deployment](deploy/prod/README.md)
-- [Release process](docs/governance/RELEASE_PROCESS.md)
+- [Kageos lifecycle SOP](docs/kagectl-lifecycle-sop.md)
+- [Product governance note](docs/product-thinking-ai-era-application-governance.md)
 
 ## Contributing And Security
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before opening issues or pull requests.
+Coordinate contribution, security, and conduct expectations with the repository maintainers before opening public issues or pull requests.
 
 Do not commit real `.env` files, production `kage.yaml`, customer licenses, generated deployment output, `namespace/`, `local/`, or other private workspaces. Use the example files and local overrides instead.

@@ -56,8 +56,8 @@ type JiebaSegmentReq struct {
 	// 框架标签：select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
 	Mode string `json:"mode" widget:"name:分词模式;type:select;options:精确模式,全模式,搜索引擎模式;options_colors:67C23A,409EFF,909399;render_default:精确模式"`
 
-	// 框架标签：widget:"type:number;placeholder:10" - 关键词数量
-	TopK int `json:"top_k" widget:"name:关键词数量;type:number;placeholder:10（默认10个）"`
+	// 框架标签：widget:"type:integer;render_default:10" - 关键词数量默认 10 个
+	TopK int `json:"top_k" widget:"name:关键词数量;type:integer;render_default:10;placeholder:请输入关键词数量"`
 
 	// 框架标签：widget:"type:switch" - 是否移除停用词；当前 switch 不支持 render_default，默认 true 需在业务逻辑里兜底
 	RemoveStopwords bool `json:"remove_stopwords" widget:"name:移除停用词;type:switch"`
@@ -66,13 +66,13 @@ type JiebaSegmentReq struct {
 // KeywordInfo 关键词信息
 type KeywordInfo struct {
 	Word   string  `json:"word" widget:"name:关键词;type:input"`
-	Weight float64 `json:"weight" widget:"name:权重;type:number"`
+	Weight float64 `json:"weight" widget:"name:权重;type:float"`
 }
 
 // WordFreqInfo 词频信息
 type WordFreqInfo struct {
 	Word  string `json:"word" widget:"name:词语;type:input"`
-	Count int    `json:"count" widget:"name:频次;type:number"`
+	Count int    `json:"count" widget:"name:频次;type:integer"`
 }
 
 // JiebaSegmentResp 中文分词响应结构体

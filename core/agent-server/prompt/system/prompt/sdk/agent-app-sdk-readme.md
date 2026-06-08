@@ -119,7 +119,7 @@ type ExcelOrCsvReq struct {
     File string `json:"file" widget:"name:上传文件;type:files" validate:"required"`
 }
 type ExcelOrCsvResp struct {
-    Rows int `json:"rows" widget:"name:解析行数;type:number"`
+    Rows int `json:"rows" widget:"name:解析行数;type:integer"`
 }
 
 func ExcelOrCsvHandler(ctx *app.Context, resp response.Response) error {
@@ -239,6 +239,8 @@ widget tag 内部格式是 `name:显示名;type:已支持组件类型;配置项:
 
 **静态枚举值一致性（重要）**：当前 widget tag 里的静态 `options`（包括 `select` / `multiselect` / `radio` / `checkbox`）默认就是**字符串列表**，前端实际提交值就是选项文本本身。生成 `validate:"oneof=..."`、`required_if`、`required_unless`、`excluded_if`、`excluded_unless` 等规则时，条件值必须与实际提交值**逐字一致**。不要写成“界面展示中文选项，但校验/条件值用英文 code”的混搭形式。
 
+**整数与小数**：整数数量、次数、行数、0-10 整数评分使用 `type:integer` + Go 整数类型；金额、比例、均值、可小数评分使用 `type:float` + `float32/float64`。禁止使用 `type:number`。
+
 **自由输入列表**：当用户需要直接输入多个值（如 `1,2,3` 或多行文本列表）时使用 `type:list`，并显式指定 `item_type`：
 
 ```go
@@ -267,7 +269,7 @@ type WidgetLookupExample struct {
     SourceChannels []string   `json:"source_channels" gorm:"-" widget:"name:来源渠道;type:checkbox;options:电话,邮件,在线;render_default:在线,邮件"`
     Status         string     `json:"status" gorm:"column:status" widget:"name:状态;type:select;options:待处理,进行中,已完成;options_colors:E6A23C,409EFF,67C23A;placeholder:请选择状态;render_default:待处理;creatable:true"`
     Tags           []string   `json:"tags" gorm:"-" widget:"name:标签;type:multiselect;options:紧急,重要,客户;options_colors:F56C6C,E6A23C,409EFF;placeholder:请选择标签;render_default:紧急,客户;max_count:3;creatable:true"`
-    Quantity       int        `json:"quantity" gorm:"column:quantity" widget:"name:数量;type:number;placeholder:请输入数量;min:0;max:999;step:1;render_default:1;unit:件"`
+    Quantity       int        `json:"quantity" gorm:"column:quantity" widget:"name:数量;type:integer;placeholder:请输入数量;min:0;max:999;step:1;render_default:1;unit:件"`
     Amount         float64    `json:"amount" gorm:"column:amount" widget:"name:金额;type:float;placeholder:请输入金额;min:0;max:999999;precision:2;step:0.01;render_default:0;unit:元"`
     ProgressEdit   int        `json:"progress_edit" gorm:"column:progress_edit" widget:"name:进度调整;type:slider;min:0;max:100;step:5;render_default:50;unit:%"`
     Rating         float64    `json:"rating" gorm:"column:rating" widget:"name:评分;type:rate;max:5;allow_half:true;render_default:4.5;texts:很差,较差,一般,满意,惊喜"`
@@ -289,7 +291,7 @@ type WidgetLookupExample struct {
 
 type WidgetLookupLine struct {
     Name      string  `json:"name" widget:"name:名称;type:input;placeholder:请输入名称"`
-    Count     int     `json:"count" widget:"name:数量;type:number;min:1;max:999;step:1;render_default:1;unit:件"`
+    Count     int     `json:"count" widget:"name:数量;type:integer;min:1;max:999;step:1;render_default:1;unit:件"`
     UnitPrice float64 `json:"unit_price" widget:"name:单价;type:float;min:0;precision:2;step:0.01;unit:元"`
 }
 
@@ -311,7 +313,7 @@ type WidgetLookupExtra struct {
 | `checkbox` | `options`、`render_default` | 固定选项复选 | 来源渠道、标签 |
 | `multiselect` | `options`、`options_colors`、`render_default`、`max_count`、`placeholder`、`creatable` | 下拉多选 | 标签、选项集合 |
 | `list` | `item_type`、`separator`、`placeholder`、`render_default`、`unique`、`max_count` | 自由输入列表 | `[]int` 数字数组、`[]string` 文本数组 |
-| `number` | `placeholder`、`min`、`max`、`step`、`render_default`、`unit` | 整数输入 | 数量、工时 |
+| `integer` | `placeholder`、`min`、`max`、`step`、`render_default`、`unit` | 整数输入，推荐新代码使用 | 数量、次数、整数评分 |
 | `float` | `placeholder`、`min`、`max`、`precision`、`step`、`render_default`、`unit` | 小数输入 | 价格、金额、折扣率 |
 | `slider` | `min`、`max`、`step`、`render_default`、`unit` | 可编辑滑块 | 进度、评分、百分比 |
 | `rate` | `max`、`allow_half`、`render_default`、`texts` | 星级评分 | 服务评价、满意度 |
@@ -472,7 +474,7 @@ Email string `validate:"required,email"`
 ```go
 type VoteSubmitReq struct {
     VoteType      string `json:"vote_type" widget:"name:投票类型;type:select;options:单选,多选;options_colors:409EFF,67C23A" validate:"required,oneof=单选 多选"`
-    MaxSelections int    `json:"max_selections" widget:"name:最多选择数;type:number" validate:"required_if=VoteType 多选,min=1,max=10"`
+    MaxSelections int    `json:"max_selections" widget:"name:最多选择数;type:integer" validate:"required_if=VoteType 多选,min=1,max=10"`
 }
 ```
 
@@ -512,7 +514,7 @@ Table 筛选字段写在 Request 中，Handler 显式处理查询条件。常见
 | in | 精确 IN | select、radio、user、department |
 | contains | FIND_IN_SET | multiselect、users、departments |
 | eq | 精确 = | ID、switch |
-| gte,lte | 范围 | datetime、number、float、slider |
+| gte,lte | 范围 | datetime、integer、float、slider |
 
 筛选字段按业务需要放入 Request；不要把所有 Model 字段都暴露成筛选项。
 
@@ -1044,7 +1046,7 @@ func voteOnSelectFuzzyOption(ctx *app.Context, req *callback.OnSelectFuzzyReq) (
 type CashierDeskReq struct {
     ProductQuantities []struct {
         ProductID int `json:"product_id" widget:"name:商品;type:select" validate:"required" callback:"OnSelectFuzzy"`
-        Quantity  int `json:"quantity" widget:"name:数量;type:number" validate:"required,min=1"`
+        Quantity  int `json:"quantity" widget:"name:数量;type:integer" validate:"required,min=1"`
     } `json:"product_quantities" widget:"name:商品清单;type:table"`
     MemberID int `json:"member_id" widget:"name:会员卡;type:select" validate:"required" callback:"OnSelectFuzzy"`
 }

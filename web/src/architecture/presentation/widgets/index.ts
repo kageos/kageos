@@ -5,7 +5,7 @@
 
 // Widget 组件
 export { default as InputWidget } from './InputWidget.vue'
-export { default as NumberWidget } from './NumberWidget.vue'
+export { default as IntegerWidget } from './IntegerWidget.vue'
 export { default as FloatWidget } from './FloatWidget.vue'
 export { default as TextAreaWidget } from './TextAreaWidget.vue'
 export { default as SwitchWidget } from './SwitchWidget.vue'

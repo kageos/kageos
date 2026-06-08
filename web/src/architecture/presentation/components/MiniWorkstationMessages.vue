@@ -60,13 +60,25 @@
               v-html="renderContentBlock(block.text, i, bi, msg.blocks.length)"
             ></div>
             <template v-else-if="block.type === 'tool_calls'">
-              <MessageToolCalls
-                v-if="maximized"
-                :tool-calls="block.calls"
-                :file-groups="getFileGroupsFromCalls(block.calls)"
-                :confirm-disabled="sending"
-                @confirm-prd="emit('confirm-prd', $event)"
-              />
+              <template v-if="maximized">
+                <MessageToolCalls
+                  :tool-calls="block.calls"
+                  :file-groups="getFileGroupsFromCalls(block.calls)"
+                  :confirm-disabled="sending"
+                  @confirm-prd="emit('confirm-prd', $event)"
+                />
+                <MiniWorkstationPendingActionBar
+                  v-for="(interaction, ii) in getInteractionCardsFromCalls(block.calls)"
+                  :key="`interaction-max-${interaction.id || ii}`"
+                  :interaction="interaction"
+                  :sending="sending"
+                  :readonly="!isActiveInteraction(interaction)"
+                  @view="emit('view', interaction)"
+                  @revise="emit('revise', { interaction, text: $event.text })"
+                  @cancel="emit('cancel', interaction)"
+                  @confirm="emit('confirm', interaction)"
+                />
+              </template>
               <template v-else>
                 <div class="mini-tools-block">
                   <div
@@ -106,6 +118,17 @@
                   :tool-call="tc"
                   class="mini-msg-build-diagnostics"
                 />
+                <MiniWorkstationPendingActionBar
+                  v-for="(interaction, ii) in getInteractionCardsFromCalls(block.calls)"
+                  :key="`interaction-${interaction.id || ii}`"
+                  :interaction="interaction"
+                  :sending="sending"
+                  :readonly="!isActiveInteraction(interaction)"
+                  @view="emit('view', interaction)"
+                  @revise="emit('revise', { interaction, text: $event.text })"
+                  @cancel="emit('cancel', interaction)"
+                  @confirm="emit('confirm', interaction)"
+                />
                 <OutputFilesDisplay
                   v-if="getFileGroupsFromCalls(block.calls).length"
                   :file-groups="getFileGroupsFromCalls(block.calls)"
@@ -126,13 +149,25 @@
             class="mini-msg-assistant mini-content-block mini-md-content"
             v-html="renderMarkdown(msg.content)"
           ></div>
-          <MessageToolCalls
-            v-if="maximized && msg.tool_calls?.length"
-            :tool-calls="msg.tool_calls"
-            :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
-            :confirm-disabled="sending"
-            @confirm-prd="emit('confirm-prd', $event)"
-          />
+          <template v-if="maximized && msg.tool_calls?.length">
+            <MessageToolCalls
+              :tool-calls="msg.tool_calls"
+              :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
+              :confirm-disabled="sending"
+              @confirm-prd="emit('confirm-prd', $event)"
+            />
+            <MiniWorkstationPendingActionBar
+              v-for="(interaction, ii) in getInteractionCardsFromCalls(msg.tool_calls)"
+              :key="`msg-interaction-max-${interaction.id || ii}`"
+              :interaction="interaction"
+              :sending="sending"
+              :readonly="!isActiveInteraction(interaction)"
+              @view="emit('view', interaction)"
+              @revise="emit('revise', { interaction, text: $event.text })"
+              @cancel="emit('cancel', interaction)"
+              @confirm="emit('confirm', interaction)"
+            />
+          </template>
           <template v-else-if="msg.tool_calls?.length">
             <PrdPreview
               v-for="(tc, pi) in getPrdCallsFromCalls(msg.tool_calls)"
@@ -153,6 +188,17 @@
               :key="`msg-build-failure-${tc.name}-${bi}`"
               :tool-call="tc"
               class="mini-msg-build-diagnostics"
+            />
+            <MiniWorkstationPendingActionBar
+              v-for="(interaction, ii) in getInteractionCardsFromCalls(msg.tool_calls)"
+              :key="`msg-interaction-${interaction.id || ii}`"
+              :interaction="interaction"
+              :sending="sending"
+              :readonly="!isActiveInteraction(interaction)"
+              @view="emit('view', interaction)"
+              @revise="emit('revise', { interaction, text: $event.text })"
+              @cancel="emit('cancel', interaction)"
+              @confirm="emit('confirm', interaction)"
             />
             <OutputFilesDisplay
               v-if="getFileGroupsFromCalls(msg.tool_calls).length"
@@ -187,8 +233,10 @@ import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import PrdPreview from './PrdPreview.vue'
 import RoleHandoffCard from './RoleHandoffCard.vue'
 import BuildWorkspaceDiagnosticsCard from './BuildWorkspaceDiagnosticsCard.vue'
+import MiniWorkstationPendingActionBar from './MiniWorkstationPendingActionBar.vue'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
+import type { WorkspaceInteraction } from '@/architecture/presentation/context/api/workspace'
 
 const authStore = useAuthStore()
 const currentUsername = authStore.user?.username || authStore.userName || ''
@@ -202,10 +250,15 @@ const props = defineProps<{
   formatMessageTime: (value: string) => string
   getFileGroupsFromCalls: (calls: ChatMessageToolCall[]) => OutputFileGroup[]
   getDisplayFieldsFromCalls: (calls: ChatMessageToolCall[]) => OutputDisplayField[]
+  pendingInteraction?: WorkspaceInteraction | null
 }>()
 
 const emit = defineEmits<{
   (e: 'confirm-prd', payload: { remark: string; prd: unknown }): void
+  (e: 'view', interaction: WorkspaceInteraction): void
+  (e: 'revise', payload: { interaction: WorkspaceInteraction; text: string }): void
+  (e: 'cancel', interaction: WorkspaceInteraction): void
+  (e: 'confirm', interaction: WorkspaceInteraction): void
 }>()
 
 interface RuntimeTimer {
@@ -345,6 +398,76 @@ function getBuildWorkspaceFailureCallsFromCalls(calls: ChatMessageToolCall[]): C
     typeof call.result_data === 'object' &&
     (call.result_data as { kind?: string }).kind === 'agent_app_build_failure'
   )
+}
+
+type StageInteractionArtifact = Record<string, unknown> & {
+  kind?: string
+  interaction?: Partial<WorkspaceInteraction>
+}
+
+function getInteractionCardsFromCalls(calls: ChatMessageToolCall[]): WorkspaceInteraction[] {
+  const interactions: WorkspaceInteraction[] = []
+  for (const call of calls) {
+    const interaction = buildWorkspaceInteractionFromArtifact(call.result_data)
+    if (interaction) interactions.push(interaction)
+  }
+  return interactions
+}
+
+function buildWorkspaceInteractionFromArtifact(value: unknown): WorkspaceInteraction | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const artifact = value as StageInteractionArtifact
+  const rawInteraction = artifact.interaction
+  if (!rawInteraction || typeof rawInteraction !== 'object') return null
+  const status = typeof rawInteraction.status === 'string' ? rawInteraction.status.trim() : ''
+  if (!status.startsWith('pending_')) return null
+  const cardType = typeof rawInteraction.card_type === 'string' ? rawInteraction.card_type : fallbackCardType(artifact.kind, status)
+  return {
+    id: typeof rawInteraction.id === 'string' ? rawInteraction.id : getStageArtifactKey(artifact),
+    card_type: cardType,
+    artifact_kind: typeof rawInteraction.artifact_kind === 'string' ? rawInteraction.artifact_kind : artifact.kind,
+    status,
+    blocking: typeof rawInteraction.blocking === 'boolean' ? rawInteraction.blocking : true,
+    title: typeof rawInteraction.title === 'string' ? rawInteraction.title : fallbackInteractionTitle(cardType),
+    description: typeof rawInteraction.description === 'string' ? rawInteraction.description : undefined,
+    help_text: typeof rawInteraction.help_text === 'string' ? rawInteraction.help_text : undefined,
+    view_text: typeof rawInteraction.view_text === 'string' ? rawInteraction.view_text : undefined,
+    confirm_text: typeof rawInteraction.confirm_text === 'string' ? rawInteraction.confirm_text : undefined,
+    revise_text: typeof rawInteraction.revise_text === 'string' ? rawInteraction.revise_text : undefined,
+    cancel_text: typeof rawInteraction.cancel_text === 'string' ? rawInteraction.cancel_text : undefined,
+    target_role_on_confirm: typeof rawInteraction.target_role_on_confirm === 'string' ? rawInteraction.target_role_on_confirm : undefined,
+    allowed_actions: Array.isArray(rawInteraction.allowed_actions) ? rawInteraction.allowed_actions.map(String) : undefined,
+    artifact
+  }
+}
+
+function isActiveInteraction(interaction: WorkspaceInteraction): boolean {
+  if (!props.pendingInteraction) return false
+  return getInteractionKey(interaction) === getInteractionKey(props.pendingInteraction)
+}
+
+function getInteractionKey(interaction: WorkspaceInteraction): string {
+  return interaction.id || getStageArtifactKey(interaction.artifact) || `${interaction.status}:${interaction.card_type}`
+}
+
+function getStageArtifactKey(artifact: unknown): string {
+  try {
+    return JSON.stringify(artifact)
+  } catch {
+    return String(artifact)
+  }
+}
+
+function fallbackCardType(kind: unknown, status: string): string {
+  if (kind === 'agent_app_build_failure' || status === 'pending_build_repair') return 'build_repair'
+  if (kind === 'agent_app_prd' || status === 'pending_confirmation') return 'prd_confirmation'
+  return 'stage_confirmation'
+}
+
+function fallbackInteractionTitle(cardType: string): string {
+  if (cardType === 'build_repair') return '构建等待修复'
+  if (cardType === 'prd_confirmation') return 'PRD 等待确认'
+  return '等待确认'
 }
 
 function getAssistantModelLabel(message: ChatMessage): string {

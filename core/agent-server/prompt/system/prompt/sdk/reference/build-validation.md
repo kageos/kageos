@@ -58,7 +58,7 @@ build_workspace
 - `types.Time has no field or method Format` 或 `Time.Format undefined`：使用 `t.Time().Format(...)`、`t.Time().After(...)`、`t.Time().Before(...)`。
 - `unsupported widget type` / `unsupported widget tag` / `invalid tag format`：widget 只能使用 SDK 主文档组件速查和运行时白名单中确认过的类型和 key。文件上传是 `type:files`，只读展示用 `hide:"create,update"` 或 `widget:"-"`，不要编造前端习惯参数。图片/视频 files 字段需要列表缩略图时，只使用已支持的 `thumbnail:true;list_preview:true`。
 - `widget "select" requires options or OnSelectFuzzyMap entry`：`select/multiselect` 必须有选项来源。简单固定枚举写静态 `options`；需要从表或接口查询时，字段写 `callback:"OnSelectFuzzy"` 并在对应 Template 的 `OnSelectFuzzyMap` 注册；纯展示名称不要写成 select，改用 input 或补真实回调。
-- `number widget requires integer Go type`：`type:number` 只用于整数；`float64` 的金额、均值、评分、比例用 `type:float`。
+- `integer widget requires integer Go type`：`type:integer` 必须配 Go 整数类型；`float64` 的金额、均值、评分、比例用 `type:float`。`type:number` 已废弃，出现时直接改成 `integer` 或 `float`。
 - `cannot use &x (value of type *int) as *int64 value ... Count`：GORM `Count` 必须传 `*int64`。写 `var total int64; db.Count(&total)`；需要传给业务函数时再 `int(total)`。
 - `assignment mismatch ... DateTimeBucketExpr returns 2 values` / `Group` 参数过多：`app.DateTimeBucketExpr` 返回两个表达式。写 `dateExpr, groupExpr := app.DateTimeBucketExpr(db, "created_at", app.TimeBucketDay)`；`Select` 用 `dateExpr`，`Group` 只传 `groupExpr`。
 - `req.X undefined ... Req has no field or method X`：删除 Request 字段后，Handler 里的手写 `req.X` 筛选也要同步删除；需要筛选时把字段显式放回 Request。

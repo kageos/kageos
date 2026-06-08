@@ -665,7 +665,7 @@ func generateExampleValueForRow(field *widget.Field, rowIndex int, maxRows int, 
 		}
 		return "否"
 
-	case widget.TypeNumber, widget.TypeFloat:
+	case widget.TypeInteger, widget.TypeFloat:
 		// 数字类型：使用默认值或示例数字
 		if ok {
 			if defaultVal, ok := config["default"]; ok {
