@@ -61,7 +61,7 @@
         },
         {
           "name": "提取颜色数量",
-          "widget": "number",
+          "widget": "integer",
           "required": false,
           "desc": "默认提取 5 个颜色，0 表示返回全部颜色。"
         }

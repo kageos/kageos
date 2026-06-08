@@ -8,14 +8,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/llms"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
 const (
-	EventContent              = "content"
-	EventToolCallsStreamDelta = "tool_calls_stream_delta" // 增量+节流，节省带宽
-	EventError                = "error"
+	EventContent              = dto.WorkspaceStreamEventContent
+	EventToolCallsStreamDelta = dto.WorkspaceStreamEventToolCallsStreamDelta // 增量+节流，节省带宽
+	EventError                = dto.WorkspaceStreamEventError
 	MaxToolRounds             = 100 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
 
 	// 节流参数：满足任一条件即 flush
@@ -25,15 +26,15 @@ const (
 
 // RunStreamLoop 流式工具对话循环：从 BuildMessages 开始，调 LLM 流式，若有 tool_calls 则执行并递归，否则结束
 func RunStreamLoop(ctx context.Context, deps StreamLoopDeps) error {
-	return runStreamLoopRound(ctx, deps, 0, nil)
+	return runStreamLoopRound(ctx, deps, 0, nil, nil)
 }
 
-func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, previousSummaries []ToolCallSummary) error {
+func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, previousSummaries []ToolCallSummary, previousUsage *llms.Usage) error {
 	if round >= MaxToolRounds {
 		logger.Warnf(ctx, "[StreamLoop] 达到最大工具调用轮数 %d，停止循环", MaxToolRounds)
 		// 发一句提示，避免前端“戛然而止”显得乱
 		deps.SendEvent(EventContent, &contentData{Content: "\n\n---\n已达到本轮最大工具调用次数，如需继续请再次发送消息。"})
-		deps.OnDone(previousSummaries)
+		deps.OnDone(previousSummaries, previousUsage)
 		return nil
 	}
 
@@ -53,47 +54,37 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 		return err
 	}
 
-	content, allToolCalls, err := processStreamChunks(ctx, stream, deps.SendEvent)
+	content, allToolCalls, usage, err := processStreamChunks(ctx, stream, deps.SendEvent, round)
 	if err != nil {
 		deps.SendEvent(EventError, &errorData{Message: err.Error()})
 		return err
 	}
+	combinedUsage := addLLMUsage(previousUsage, usage)
 
 	if len(allToolCalls) > 0 {
-		if err := deps.SaveAssistantMessageWithToolCalls(ctx, content, allToolCalls); err != nil {
+		if err := deps.SaveAssistantMessageWithToolCalls(ctx, content, allToolCalls, usage); err != nil {
 			logger.Warnf(ctx, "[StreamLoop] 保存 assistant 消息失败: %v", err)
 			deps.SendEvent(EventError, &errorData{Message: "保存 assistant 消息失败: " + err.Error()})
 			return err
 		}
-		summaries, err := deps.ExecuteToolCalls(ctx, allToolCalls, deps.SendEvent)
+		summaries, err := deps.ExecuteToolCalls(ctx, allToolCalls, round, deps.SendEvent)
 		if err != nil {
 			deps.SendEvent(EventError, &errorData{Message: err.Error()})
 			return err
 		}
 		combined := append(previousSummaries, summaries...)
-		return runStreamLoopRound(ctx, deps, round+1, combined)
+		return runStreamLoopRound(ctx, deps, round+1, combined, combinedUsage)
 	}
 
-	if err := deps.SaveAssistantMessage(ctx, content); err != nil {
+	if err := deps.SaveAssistantMessage(ctx, content, usage); err != nil {
 		logger.Warnf(ctx, "[StreamLoop] 保存 assistant 消息失败: %v", err)
 	}
-	deps.OnDone(previousSummaries)
+	deps.OnDone(previousSummaries, combinedUsage)
 	return nil
 }
 
 type contentData struct {
 	Content string `json:"content"`
-}
-
-// toolCallsStreamDeltaUpdate 增量更新项（index + 可选 name + delta）
-type toolCallsStreamDeltaUpdate struct {
-	Index int    `json:"index"`
-	Name  string `json:"name,omitempty"` // 仅新 tool_call 首次出现时
-	Delta string `json:"delta"`
-}
-
-type toolCallsStreamDeltaData struct {
-	Updates []toolCallsStreamDeltaUpdate `json:"updates"`
 }
 
 type errorData struct {
@@ -104,18 +95,24 @@ func processStreamChunks(
 	ctx context.Context,
 	stream <-chan *llms.StreamChunk,
 	sendEvent func(string, interface{}),
-) (string, []llms.ToolCall, error) {
+	round int,
+) (string, []llms.ToolCall, *llms.Usage, error) {
 	var buf strings.Builder
 	allToolCalls := make([]llms.ToolCall, 0)
 	toolCallsIndex := make(map[string]int)
+	finalToolCalls := make([]llms.ToolCall, 0)
+	finalToolCallsReceived := false
+	finishReason := ""
+	var usage *llms.Usage
 
 	// 增量+节流：累积 delta，满足条件时 flush
 	pendingDeltas := make(map[int]string)
 	pendingNames := make(map[int]string)
+	pendingIDs := make(map[int]string)
 	var lastSendTime time.Time
 
 	flushToolCallsDelta := func() {
-		if len(pendingDeltas) == 0 && len(pendingNames) == 0 {
+		if len(pendingDeltas) == 0 && len(pendingNames) == 0 && len(pendingIDs) == 0 {
 			return
 		}
 		seen := make(map[int]bool)
@@ -125,25 +122,32 @@ func processStreamChunks(
 		for idx := range pendingNames {
 			seen[idx] = true
 		}
+		for idx := range pendingIDs {
+			seen[idx] = true
+		}
 		indices := make([]int, 0, len(seen))
 		for idx := range seen {
 			indices = append(indices, idx)
 		}
 		sort.Ints(indices)
-		updates := make([]toolCallsStreamDeltaUpdate, 0, len(indices))
+		updates := make([]dto.WorkspaceStreamToolCallDeltaUpdate, 0, len(indices))
 		for _, idx := range indices {
 			delta := pendingDeltas[idx]
 			name := pendingNames[idx]
-			updates = append(updates, toolCallsStreamDeltaUpdate{Index: idx, Name: name, Delta: delta})
+			id := pendingIDs[idx]
+			updates = append(updates, dto.WorkspaceStreamToolCallDeltaUpdate{Index: idx, Round: round, ID: id, Name: name, Delta: delta})
 		}
 		if len(updates) > 0 {
-			sendEvent(EventToolCallsStreamDelta, &toolCallsStreamDeltaData{Updates: updates})
+			sendEvent(EventToolCallsStreamDelta, &dto.WorkspaceStreamToolCallDeltaData{Updates: updates})
 		}
 		for k := range pendingDeltas {
 			delete(pendingDeltas, k)
 		}
 		for k := range pendingNames {
 			delete(pendingNames, k)
+		}
+		for k := range pendingIDs {
+			delete(pendingIDs, k)
 		}
 		lastSendTime = time.Now()
 	}
@@ -152,26 +156,35 @@ func processStreamChunks(
 		select {
 		case <-ctx.Done():
 			logger.Infof(ctx, "[StreamLoop] 上下文已取消，停止处理")
-			return "", nil, ctx.Err()
+			return "", nil, usage, ctx.Err()
 		default:
+		}
+		if ch.Usage != nil {
+			usage = ch.Usage
+		}
+		if ch.FinishReason != "" {
+			finishReason = ch.FinishReason
 		}
 		if ch.Error != "" {
 			flushToolCallsDelta()
-			sendEvent(EventError, &errorData{Message: "LLM 流式错误: " + ch.Error})
-			return "", nil, fmt.Errorf("LLM 流式错误: %s", ch.Error)
+			return "", nil, usage, fmt.Errorf("LLM 流式错误: %s", ch.Error)
 		}
 		if ch.Content != "" {
 			buf.WriteString(ch.Content)
 			sendEvent(EventContent, &contentData{Content: ch.Content})
 		}
-		if len(ch.ToolCalls) > 0 {
+		if len(ch.ToolCallDeltas) > 0 {
 			prevArgs := make([]string, len(allToolCalls))
+			prevNames := make([]string, len(allToolCalls))
+			prevIDs := make([]string, len(allToolCalls))
 			for i := range allToolCalls {
 				prevArgs[i] = allToolCalls[i].Function.Arguments
+				prevNames[i] = allToolCalls[i].Function.Name
+				prevIDs[i] = allToolCalls[i].ID
 			}
 			prevLen := len(allToolCalls)
 
-			allToolCalls, toolCallsIndex = mergeToolCalls(ch.ToolCalls, allToolCalls, toolCallsIndex)
+			allToolCalls, toolCallsIndex = mergeToolCallDeltas(ch.ToolCallDeltas, allToolCalls, toolCallsIndex)
 
 			// 计算 delta 并累积
 			totalPending := 0
@@ -179,20 +192,31 @@ func processStreamChunks(
 				newArgs := allToolCalls[i].Function.Arguments
 				delta := ""
 				name := ""
+				id := ""
 				if i < prevLen {
 					oldLen := len(prevArgs[i])
 					if len(newArgs) > oldLen {
 						delta = newArgs[oldLen:]
 					}
+					if allToolCalls[i].Function.Name != "" && allToolCalls[i].Function.Name != prevNames[i] {
+						name = allToolCalls[i].Function.Name
+					}
+					if allToolCalls[i].ID != "" && allToolCalls[i].ID != prevIDs[i] {
+						id = allToolCalls[i].ID
+					}
 				} else {
 					name = allToolCalls[i].Function.Name
+					id = allToolCalls[i].ID
 					delta = newArgs
 				}
-				if delta != "" || name != "" {
+				if delta != "" || name != "" || id != "" {
 					pendingDeltas[i] += delta
 					totalPending += len(delta)
 					if name != "" {
 						pendingNames[i] = name
+					}
+					if id != "" {
+						pendingIDs[i] = id
 					}
 				}
 			}
@@ -205,18 +229,75 @@ func processStreamChunks(
 				lastSendTime = now
 			}
 		}
+		if ch.Done && len(ch.FinalToolCalls) > 0 {
+			finalToolCalls = append(finalToolCalls[:0], ch.FinalToolCalls...)
+			finalToolCallsReceived = true
+		}
 	}
 
 	// 流结束，flush 剩余
 	flushToolCallsDelta()
 
 	content := strings.TrimSpace(buf.String())
+	switch finishReason {
+	case "length":
+		return content, nil, usage, fmt.Errorf("LLM 响应因达到最大输出长度而中断，请调大 max_tokens 或缩短上下文后重试")
+	case "content_filter":
+		return content, nil, usage, fmt.Errorf("LLM 响应被内容安全策略截断")
+	}
+	if finalToolCallsReceived {
+		allToolCalls = finalToolCalls
+	} else {
+		allToolCalls = normalizeToolCalls(ctx, allToolCalls)
+	}
+	if finishReason == "tool_calls" && len(allToolCalls) == 0 {
+		return content, nil, usage, fmt.Errorf("LLM 结束原因为 tool_calls，但未返回完整工具调用")
+	}
+	if err := validateToolCallsForExecution(allToolCalls); err != nil {
+		return content, nil, usage, err
+	}
 	for _, tc := range allToolCalls {
 		if tc.Function.Arguments == "" {
 			logger.Warnf(ctx, "[StreamLoop] tool_call arguments 为空，ToolCallID: %s, ToolName: %s", tc.ID, tc.Function.Name)
+		} else if !json.Valid([]byte(strings.TrimSpace(tc.Function.Arguments))) {
+			logger.Warnf(ctx, "[StreamLoop] tool_call arguments 不是合法 JSON，ToolCallID: %s, ToolName: %s", tc.ID, tc.Function.Name)
 		}
 	}
-	return content, allToolCalls, nil
+	return content, allToolCalls, usage, nil
+}
+
+func validateToolCallsForExecution(toolCalls []llms.ToolCall) error {
+	for i, tc := range toolCalls {
+		if strings.TrimSpace(tc.ID) == "" {
+			return fmt.Errorf("LLM 返回的第 %d 个 tool_call 缺少 id", i)
+		}
+		if strings.TrimSpace(tc.Function.Name) == "" {
+			return fmt.Errorf("LLM 返回的第 %d 个 tool_call 缺少 function.name", i)
+		}
+	}
+	return nil
+}
+
+func addLLMUsage(a, b *llms.Usage) *llms.Usage {
+	if a == nil && b == nil {
+		return nil
+	}
+	out := &llms.Usage{}
+	if a != nil {
+		out.PromptTokens += a.PromptTokens
+		out.CompletionTokens += a.CompletionTokens
+		out.TotalTokens += a.TotalTokens
+		out.CachedTokens += a.CachedTokens
+		out.CachedTokensReported = out.CachedTokensReported || a.CachedTokensReported
+	}
+	if b != nil {
+		out.PromptTokens += b.PromptTokens
+		out.CompletionTokens += b.CompletionTokens
+		out.TotalTokens += b.TotalTokens
+		out.CachedTokens += b.CachedTokens
+		out.CachedTokensReported = out.CachedTokensReported || b.CachedTokensReported
+	}
+	return out
 }
 
 // appendToolCallArgs 仅当当前 arguments 还不是合法 JSON 时才追加 delta，避免兼容端先发完整 JSON 再发后缀导致重复拼接成无效 JSON。
@@ -231,67 +312,130 @@ func appendToolCallArgs(cur, delta string) string {
 	return cur + delta
 }
 
-func mergeToolCalls(chunkToolCalls []llms.ToolCall, allToolCalls []llms.ToolCall, toolCallsIndex map[string]int) ([]llms.ToolCall, map[string]int) {
+func mergeToolCallDeltas(chunkToolCalls []llms.ToolCallDelta, allToolCalls []llms.ToolCall, toolCallsIndex map[string]int) ([]llms.ToolCall, map[string]int) {
 	for _, tc := range chunkToolCalls {
 		if tc.Index != nil {
 			idx := *tc.Index
+			if tc.ID != "" {
+				if existingIdx, ok := toolCallsIndex[tc.ID]; ok {
+					idx = existingIdx
+				}
+			}
 			if idx < 0 {
 				idx = len(allToolCalls)
 			}
 			for len(allToolCalls) <= idx {
 				allToolCalls = append(allToolCalls, llms.ToolCall{Type: "function"})
 			}
-			if tc.ID != "" {
-				allToolCalls[idx].ID = tc.ID
-				toolCallsIndex[tc.ID] = idx
-			}
-			if tc.Type != "" {
-				allToolCalls[idx].Type = tc.Type
-			}
-			if tc.Function.Name != "" {
-				allToolCalls[idx].Function.Name = tc.Function.Name
-			}
-			if tc.Function.Arguments != "" {
-				allToolCalls[idx].Function.Arguments = appendToolCallArgs(allToolCalls[idx].Function.Arguments, tc.Function.Arguments)
+			mergeToolCallFields(&allToolCalls[idx], tc)
+			if allToolCalls[idx].ID != "" {
+				toolCallsIndex[allToolCalls[idx].ID] = idx
 			}
 			continue
 		}
 		if tc.ID != "" {
 			if idx, ok := toolCallsIndex[tc.ID]; ok {
-				if tc.Function.Name != "" {
-					allToolCalls[idx].Function.Name = tc.Function.Name
-				}
-				if tc.Function.Arguments != "" {
-					allToolCalls[idx].Function.Arguments = appendToolCallArgs(allToolCalls[idx].Function.Arguments, tc.Function.Arguments)
-				}
-			} else if len(allToolCalls) > 0 && allToolCalls[len(allToolCalls)-1].ID == "" {
+				mergeToolCallFields(&allToolCalls[idx], tc)
+			} else if lastIdx := lastAnonymousStartedToolCallIndex(allToolCalls); lastIdx >= 0 {
 				// 流式先发 name 再发 id（按 index 分片）：最后一条是 id 为空的同一 tool_call，合并到该条，避免出现两条（一条 id 空）导致 API 报 insufficient tool messages
-				lastIdx := len(allToolCalls) - 1
-				allToolCalls[lastIdx].ID = tc.ID
-				if tc.Function.Name != "" {
-					allToolCalls[lastIdx].Function.Name = tc.Function.Name
-				}
-				if tc.Function.Arguments != "" {
-					allToolCalls[lastIdx].Function.Arguments = appendToolCallArgs(allToolCalls[lastIdx].Function.Arguments, tc.Function.Arguments)
-				}
+				mergeToolCallFields(&allToolCalls[lastIdx], tc)
 				toolCallsIndex[tc.ID] = lastIdx
 			} else {
-				allToolCalls = append(allToolCalls, tc)
+				allToolCalls = append(allToolCalls, toolCallFromDelta(tc))
 				toolCallsIndex[tc.ID] = len(allToolCalls) - 1
 			}
 		} else if tc.Function.Arguments != "" {
-			if len(allToolCalls) > 0 {
-				lastIdx := len(allToolCalls) - 1
-				allToolCalls[lastIdx].Function.Arguments = appendToolCallArgs(allToolCalls[lastIdx].Function.Arguments, tc.Function.Arguments)
-			}
-			if len(allToolCalls) == 0 && tc.Function.Name != "" {
-				allToolCalls = append(allToolCalls, tc)
+			if idx := onlyOpenToolCallIndex(allToolCalls); idx >= 0 {
+				allToolCalls[idx].Function.Arguments = appendToolCallArgs(allToolCalls[idx].Function.Arguments, tc.Function.Arguments)
+			} else if len(allToolCalls) == 0 && tc.Function.Name != "" {
+				allToolCalls = append(allToolCalls, toolCallFromDelta(tc))
 			}
 		} else if tc.Function.Name != "" {
 			if len(allToolCalls) == 0 || allToolCalls[len(allToolCalls)-1].ID != "" {
-				allToolCalls = append(allToolCalls, tc)
+				allToolCalls = append(allToolCalls, toolCallFromDelta(tc))
 			}
 		}
 	}
 	return allToolCalls, toolCallsIndex
+}
+
+func toolCallFromDelta(delta llms.ToolCallDelta) llms.ToolCall {
+	tc := llms.ToolCall{ID: delta.ID, Type: delta.Type, Function: delta.Function}
+	if tc.Type == "" {
+		tc.Type = "function"
+	}
+	return tc
+}
+
+func mergeToolCallFields(dst *llms.ToolCall, src llms.ToolCallDelta) {
+	if dst.Type == "" {
+		dst.Type = "function"
+	}
+	if src.ID != "" {
+		dst.ID = src.ID
+	}
+	if src.Type != "" {
+		dst.Type = src.Type
+	}
+	if src.Function.Name != "" {
+		dst.Function.Name = src.Function.Name
+	}
+	if src.Function.Arguments != "" {
+		dst.Function.Arguments = appendToolCallArgs(dst.Function.Arguments, src.Function.Arguments)
+	}
+}
+
+func lastAnonymousStartedToolCallIndex(toolCalls []llms.ToolCall) int {
+	for i := len(toolCalls) - 1; i >= 0; i-- {
+		tc := toolCalls[i]
+		if strings.TrimSpace(tc.ID) != "" {
+			return -1
+		}
+		if strings.TrimSpace(tc.Function.Name) != "" || strings.TrimSpace(tc.Function.Arguments) != "" {
+			return i
+		}
+	}
+	return -1
+}
+
+func onlyOpenToolCallIndex(toolCalls []llms.ToolCall) int {
+	found := -1
+	for i, tc := range toolCalls {
+		if isBlankToolCall(tc) {
+			continue
+		}
+		args := strings.TrimSpace(tc.Function.Arguments)
+		if args == "" || !json.Valid([]byte(args)) {
+			if found >= 0 {
+				return -1
+			}
+			found = i
+		}
+	}
+	return found
+}
+
+func normalizeToolCalls(ctx context.Context, toolCalls []llms.ToolCall) []llms.ToolCall {
+	out := make([]llms.ToolCall, 0, len(toolCalls))
+	for i, tc := range toolCalls {
+		if isBlankToolCall(tc) {
+			continue
+		}
+		if tc.Type == "" {
+			tc.Type = "function"
+		}
+		if strings.TrimSpace(tc.ID) == "" {
+			tc.ID = fmt.Sprintf("call_local_%d", i)
+			logger.Warnf(ctx, "[StreamLoop] tool_call id 为空，已生成本地 ID: %s, ToolName: %s", tc.ID, tc.Function.Name)
+		}
+		out = append(out, tc)
+	}
+	return out
+}
+
+func isBlankToolCall(tc llms.ToolCall) bool {
+	return strings.TrimSpace(tc.ID) == "" &&
+		strings.TrimSpace(tc.Function.Name) == "" &&
+		strings.TrimSpace(tc.Function.Arguments) == "" &&
+		(strings.TrimSpace(tc.Type) == "" || strings.TrimSpace(tc.Type) == "function")
 }

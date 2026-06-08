@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -341,15 +342,10 @@ func (s *MinIOStorage) EnsureBucket(ctx context.Context, bucket, region string) 
 	// 先测试连接，列出所有bucket来验证权限
 	_, err := s.client.ListBuckets(ctx)
 	if err != nil {
-		errMsg := err.Error()
-		// 检查是否是时间同步问题
-		if strings.Contains(errMsg, "difference between the request time") ||
-			strings.Contains(errMsg, "time is too large") ||
-			strings.Contains(errMsg, "RequestTimeTooSkewed") {
-			// 记录当前系统时间，帮助诊断
+		if isMinIOTimeSkewError(err) {
 			currentTime := time.Now().Format("2006-01-02 15:04:05 MST")
 			logger.Errorf(ctx, "[MinIOStorage] 时间同步错误 - 当前系统时间: %s", currentTime)
-			return fmt.Errorf("时间同步错误：客户端与MinIO服务器的时间差过大（通常超过15分钟）。当前系统时间: %s。请检查系统时间是否正确，如果使用容器部署，请确保容器时间与宿主机同步。解决方案：1) 同步系统时间（macOS: sudo sntp -sS time.apple.com, Linux: sudo timedatectl set-ntp true）2) 容器挂载时区文件（-v /etc/localtime:/etc/localtime:ro）: %w", currentTime, err)
+			return fmt.Errorf("时间同步错误：客户端与 MinIO 服务器的时间差过大（通常超过15分钟）。当前系统时间: %s。请同步宿主机和容器运行时 VM 的时间；macOS 可执行 `sudo sntp -sS time.apple.com`，Podman 本地开发可执行 `podman machine stop && podman machine start`，Linux 可执行 `sudo timedatectl set-ntp true`。注意：TZ 或 /etc/localtime 只影响时区显示，不能修正绝对时间偏移: %w", currentTime, err)
 		}
 		return fmt.Errorf("无法连接到MinIO或权限不足，请检查access_key和secret_key配置: %w", err)
 	}
@@ -406,6 +402,22 @@ func (s *MinIOStorage) EnsureBucket(ctx context.Context, bucket, region string) 
 	}
 
 	return nil
+}
+
+func isMinIOTimeSkewError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var minioErr minio.ErrorResponse
+	if errors.As(err, &minioErr) && minioErr.Code == "RequestTimeTooSkewed" {
+		return true
+	}
+
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "difference between the request time") ||
+		strings.Contains(errMsg, "time is too large") ||
+		strings.Contains(errMsg, "RequestTimeTooSkewed")
 }
 
 // UploadObject 直接上传对象

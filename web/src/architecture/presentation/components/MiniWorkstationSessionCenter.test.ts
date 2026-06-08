@@ -101,4 +101,22 @@ describe('MiniWorkstationSessionCenter', () => {
 
     expect(wrapper.emitted('close')).toHaveLength(2)
   })
+
+  it('shows model context badges for archived sessions', () => {
+    const wrapper = mountCenter({
+      currentDirectorySessions: [
+        createSession({
+          archived_for_model: true,
+          context_policy: 'display_only',
+          model_context_anchor_message_id: 42,
+          status: 'done',
+        }),
+      ],
+      recentSessions: [],
+    })
+
+    expect(wrapper.text()).toContain('仅展示历史')
+    expect(wrapper.text()).toContain('不进模型')
+    expect(wrapper.text()).toContain('已裁剪上下文')
+  })
 })

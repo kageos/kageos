@@ -12,7 +12,7 @@ const (
 	TypeDepartment  = "department"
 	TypeDepartments = "departments"
 	TypeID          = "ID"
-	TypeNumber      = "number"
+	TypeInteger     = "integer"
 	TypeFloat       = "float"
 	TypeFiles       = "files"
 	TypeCheckbox    = "checkbox"
@@ -82,7 +82,7 @@ var supportedWidgetTypes = []string{
 	TypeDepartment,
 	TypeDepartments,
 	TypeID,
-	TypeNumber,
+	TypeInteger,
 	TypeFloat,
 	TypeFiles,
 	TypeCheckbox,
@@ -150,8 +150,8 @@ func NewWidget(widgetType string, widgetParsed map[string]string) Widget {
 		return newDepartments(widgetParsed)
 	case TypeID:
 		return newID(widgetParsed)
-	case TypeNumber:
-		return newNumber(widgetParsed)
+	case TypeInteger:
+		return newInteger(widgetParsed)
 	case TypeFloat:
 		return newFloat(widgetParsed)
 	case TypeCheckbox:

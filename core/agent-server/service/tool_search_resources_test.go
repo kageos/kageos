@@ -60,3 +60,32 @@ func TestFormatSearchResourcesOutputIncludesResourceMetadata(t *testing.T) {
 		}
 	}
 }
+
+func TestFilterSearchResourceItemsByDirectory(t *testing.T) {
+	items := []*dto.ResourceSearchResult{
+		{Name: "工单目录", FullCodePath: "/system/x_world/ticket_management", Type: "package"},
+		{Name: "工单列表", FullCodePath: "/system/x_world/ticket_management/ticket_list.table", Type: "function"},
+		{Name: "狼人杀", FullCodePath: "/system/x_world/werewolf/room_list.table", Type: "function"},
+	}
+	got := filterSearchResourceItemsByDirectory(items, "/system/x_world/ticket_management")
+	if len(got) != 2 {
+		t.Fatalf("expected two resources under ticket_management, got %#v", got)
+	}
+	if got[0].Name != "工单目录" || got[1].Name != "工单列表" {
+		t.Fatalf("unexpected filtered resources: %#v", got)
+	}
+}
+
+func TestFormatSearchResourcesMetaIncludesDirectory(t *testing.T) {
+	got := formatSearchResourcesMeta(searchResourcesResultData{
+		Scope:     searchScopeCurrentApp,
+		User:      "system",
+		App:       "x_world",
+		Directory: "/system/x_world/ticket_management",
+		Page:      1,
+		PageSize:  20,
+	})
+	if !strings.Contains(got, "directory=/system/x_world/ticket_management") {
+		t.Fatalf("expected directory in resources meta, got %q", got)
+	}
+}

@@ -33,7 +33,7 @@ type Msg struct {
 
 	RequestUser     string `json:"request_user" example:"beiluo"` // 请求用户（由中间件自动填充）
 	RequestUserDept string `json:"request_user_dept" example:"/org/xxx"`
-	ClientSource    string `json:"client_source,omitempty"`                    // 入口来源（browser、agent、api）
+	ClientSource    string `json:"client_source,omitempty"`                    // 入口来源（browser、agent、openapi）
 	Router          string `json:"router" binding:"required" example:"/users"` // 路由路径
 	Method          string `json:"method" example:"GET"`                       // 应用内部方法名（可选）
 

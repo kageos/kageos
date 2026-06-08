@@ -26,29 +26,33 @@
       <div v-for="(group, gIdx) in displayGroups" :key="gIdx" class="output-files-group">
         <div v-if="displayGroups.length > 1" class="output-files-group-label">{{ group.label }}</div>
         <div class="output-files-list">
-            <div
-              v-for="(file, fIdx) in group.files"
-              :key="fIdx"
-              class="output-files-item"
-            >
-            <div class="output-files-preview" v-if="filePreviewUrl(file)">
-              <a :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer" class="output-files-preview-link">
-                <img
-                  :src="filePreviewUrl(file)"
-                  :alt="fileDisplayName(file)"
-                  loading="lazy"
-                  class="output-files-img"
-                  @error="onImageError"
-                />
-              </a>
+          <div
+            v-for="(file, fIdx) in group.files"
+            :key="fIdx"
+            class="output-files-item"
+          >
+            <div class="output-files-main">
+              <div class="output-files-preview" v-if="filePreviewUrl(file)">
+                <a :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer" class="output-files-preview-link">
+                  <img
+                    :src="filePreviewUrl(file)"
+                    :alt="fileDisplayName(file)"
+                    loading="lazy"
+                    class="output-files-img"
+                    @error="onImageError"
+                  />
+                </a>
+              </div>
+              <div v-else class="output-files-icon">
+                <el-icon><Document /></el-icon>
+              </div>
+              <div class="output-files-info">
+                <a :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer" class="output-files-name">
+                  {{ fileDisplayName(file) }}
+                </a>
+              </div>
             </div>
-            <div v-else class="output-files-icon">
-              <el-icon><Document /></el-icon>
-            </div>
-            <div class="output-files-info">
-              <a :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer" class="output-files-name">
-                {{ fileDisplayName(file) }}
-              </a>
+            <div class="output-files-footer">
               <span class="output-files-meta">
                 <span v-if="fileFormat(file)" class="output-files-format">{{ fileFormat(file) }}</span>
                 <span v-if="file.size != null" class="output-files-size">{{ formatFileSize(file.size) }}</span>
@@ -379,27 +383,36 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
 }
 
 .output-files-list {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 12px;
 }
 
 .output-files-item {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  justify-content: space-between;
   gap: 10px;
-  padding: 10px;
+  min-width: 0;
+  min-height: 112px;
+  padding: 10px 12px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--el-border-radius-small);
-  min-width: 160px;
-  max-width: 280px;
+}
+
+.output-files-main {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
 }
 
 .output-files-preview {
   flex-shrink: 0;
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   border-radius: var(--el-border-radius-small);
   overflow: hidden;
   background: var(--el-fill-color);
@@ -423,8 +436,8 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
 
 .output-files-icon {
   flex-shrink: 0;
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -444,21 +457,36 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
 
 .output-files-name {
   font-size: 13px;
+  line-height: 1.45;
   color: var(--el-color-primary);
   text-decoration: none;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 
   &:hover {
     text-decoration: underline;
   }
 }
 
+.output-files-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--el-border-color-extra-light);
+}
+
 .output-files-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
@@ -474,8 +502,40 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
 
 .output-files-actions {
   display: flex;
-  gap: 12px;
-  margin-top: 4px;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  gap: 10px;
   font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .output-files-wrap {
+    padding: 8px;
+  }
+
+  .output-files-list {
+    gap: 8px;
+  }
+
+  .output-files-item {
+    min-height: 0;
+    padding: 9px 10px;
+  }
+
+  .output-files-main {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .output-files-preview,
+  .output-files-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .output-files-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
 }
 </style>

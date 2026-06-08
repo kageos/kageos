@@ -7,7 +7,20 @@
  */
 
 import { ref, watch, onUnmounted, type Ref } from 'vue'
-import type { ToolResultMetadata } from '@/architecture/presentation/context/api/workspace'
+import type {
+  LLMUsageInfo,
+  ToolResultMetadata,
+  WorkspaceModelContextPlan,
+  WorkspaceChatStreamOnEvent,
+  WorkspaceStreamContentPayload,
+  WorkspaceStreamDonePayload,
+  WorkspaceStreamErrorPayload,
+  WorkspaceStreamEventName,
+  WorkspaceStreamPayload,
+  WorkspaceStreamSessionPayload,
+  WorkspaceStreamToolCallPayload,
+  WorkspaceStreamToolCallsDeltaPayload
+} from '@/architecture/presentation/context/api/workspace'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 
 export interface ChatMessageFile {
@@ -29,20 +42,26 @@ export type AssistantBlock =
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  raw_content?: string
   user?: string
   /** 仅 user 消息：附带文件列表（发送时展示、加载会话时由接口解析） */
   files?: ChatMessageFile[]
+  context_usage?: string
+  artifact_kind?: string
   tool_calls?: ChatMessageToolCall[]
   llm_config_id?: number
   llm_config_name?: string
   llm_provider?: string
   llm_model?: string
+  llm_usage?: LLMUsageInfo
+  model_context_plan?: WorkspaceModelContextPlan
+  model_context_plans?: WorkspaceModelContextPlan[]
   /** assistant 专用：按顺序的 content / tool_calls 块，有则按块渲染，否则退化为上面整段 content + 下面整段 tool_calls */
   blocks?: AssistantBlock[]
   created_at?: string
 }
 
-export type StreamEventHandler = (event: string, data: Record<string, unknown>) => void
+export type StreamEventHandler = WorkspaceChatStreamOnEvent
 
 /** 流式时「已显示字符数」，用于打字机平滑（兼容端大块吐出时不再一卡一卡）；调小更丝滑、调大更快追上 */
 export const SMOOTH_CHARS_PER_TICK = 5
@@ -169,18 +188,33 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     })
   }
 
-  function handleEvent(event: string, data: Record<string, unknown>) {
-    if (event === 'session' && typeof data.session_id === 'string') {
-      sessionId.value = data.session_id
+  function handleEvent(event: WorkspaceStreamEventName, data: WorkspaceStreamPayload) {
+    if (event === 'session') {
+      const payload = data as WorkspaceStreamSessionPayload
+      if (typeof payload.session_id === 'string') {
+        sessionId.value = payload.session_id
+      }
     }
 
     const lastIdx = messages.value.length - 1
     const m = messages.value[lastIdx]
     if (!m || m.role !== 'assistant') return
 
+    if (event === 'model_context_plan') {
+      const payload = data as WorkspaceModelContextPlan
+      if (isWorkspaceModelContextPlan(payload)) {
+        messages.value[lastIdx] = {
+          ...m,
+          model_context_plan: payload,
+          model_context_plans: upsertWorkspaceModelContextPlan(m.model_context_plans, payload)
+        }
+      }
+    }
     // 增量协议：tool_calls_stream_delta（index + 可选 name + delta）
-    if (event === 'tool_calls_stream_delta' && Array.isArray(data.updates)) {
-      const updates = data.updates as Array<{ index?: number; name?: string; delta?: string }>
+    if (event === 'tool_calls_stream_delta') {
+      const payload = data as WorkspaceStreamToolCallsDeltaPayload
+      const updates = Array.isArray(payload.updates) ? payload.updates : []
+      if (updates.length === 0) return
       const blocks = m.blocks ?? []
       const prev = m.tool_calls || []
 
@@ -214,13 +248,15 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       const nextBlocks = updateToolCallsBlocks(blocks, list)
       messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
     }
-    if (event === 'tool_call' && typeof data.name === 'string') {
-      const status = String(data.status || 'ok')
-      const argumentsStr = (typeof data.arguments === 'string' && data.arguments.trim()) ? data.arguments : undefined
-      const resultStr = typeof data.result === 'string' ? data.result : undefined
-      const resultData = Object.prototype.hasOwnProperty.call(data, 'result_data') ? data.result_data : undefined
-      const metadata = Object.prototype.hasOwnProperty.call(data, 'metadata') ? data.metadata as ToolResultMetadata : undefined
-      const errorStr = typeof data.error === 'string' ? data.error : undefined
+    if (event === 'tool_call') {
+      const payload = data as WorkspaceStreamToolCallPayload
+      if (typeof payload.name !== 'string') return
+      const status = String(payload.status || 'ok')
+      const argumentsStr = (typeof payload.arguments === 'string' && payload.arguments.trim()) ? payload.arguments : undefined
+      const resultStr = typeof payload.result === 'string' ? payload.result : undefined
+      const resultData = Object.prototype.hasOwnProperty.call(payload, 'result_data') ? payload.result_data : undefined
+      const metadata = Object.prototype.hasOwnProperty.call(payload, 'metadata') ? payload.metadata as ToolResultMetadata : undefined
+      const errorStr = typeof payload.error === 'string' ? payload.error : undefined
       const blocks = m.blocks ?? []
       const prev = m.tool_calls || []
       const pendingIndex = prev.findIndex((t) => t.status === 'streaming' || t.status === 'running')
@@ -228,29 +264,32 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
         pendingIndex >= 0
           ? prev.map((t, i) =>
               i === pendingIndex
-                ? { name: data.name as string, status, arguments: argumentsStr ?? t.arguments, result: resultStr ?? t.result, result_data: resultData ?? t.result_data, metadata: metadata ?? t.metadata, error: errorStr ?? t.error }
+                ? { name: payload.name, status, arguments: argumentsStr ?? t.arguments, result: resultStr ?? t.result, result_data: resultData ?? t.result_data, metadata: metadata ?? t.metadata, error: errorStr ?? t.error }
                 : t
             )
-          : [...prev, { name: data.name as string, status, arguments: argumentsStr, result: resultStr, result_data: resultData, metadata, error: errorStr }]
+          : [...prev, { name: payload.name, status, arguments: argumentsStr, result: resultStr, result_data: resultData, metadata, error: errorStr }]
       const nextBlocks = updateLastToolCallsBlock(blocks, list)
       messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
     }
-    if (event === 'content' && typeof data.content === 'string') {
+    if (event === 'content') {
+      const payload = data as WorkspaceStreamContentPayload
+      if (typeof payload.content !== 'string') return
       const blocks = m.blocks ?? []
       const last = blocks[blocks.length - 1]
-      const newContent = m.content + data.content
+      const newContent = m.content + payload.content
       if (last && last.type === 'content') {
-        const next = [...blocks.slice(0, -1), { type: 'content' as const, text: last.text + data.content }]
+        const next = [...blocks.slice(0, -1), { type: 'content' as const, text: last.text + payload.content }]
         messages.value[lastIdx] = { ...m, content: newContent, blocks: next }
       } else {
-        messages.value[lastIdx] = { ...m, content: newContent, blocks: [...blocks, { type: 'content', text: data.content }] }
+        messages.value[lastIdx] = { ...m, content: newContent, blocks: [...blocks, { type: 'content', text: payload.content }] }
       }
     }
     if (event === 'done') {
+      const payload = data as WorkspaceStreamDonePayload
       sending.value = false
-      const llmMeta = extractLLMMetadata(data)
-      if (Array.isArray(data.tool_calls)) {
-        const doneList = data.tool_calls as ChatMessageToolCall[]
+      const llmMeta = extractLLMMetadata(payload, m)
+      if (Array.isArray(payload.tool_calls)) {
+        const doneList = payload.tool_calls as ChatMessageToolCall[]
         const prev = m.tool_calls || []
         const merged = prev.map((t, i) => {
           const dc = doneList[i]
@@ -279,7 +318,8 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       }
     }
     if (event === 'error') {
-      const rawErr = String(data.message || '请求失败')
+      const payload = data as WorkspaceStreamErrorPayload
+      const rawErr = String(payload.message || '请求失败')
       const isCancelled = /context canceled|cancelled|abort/i.test(rawErr)
       if (isCancelled) {
         const hint = '⏹ 任务已停止'
@@ -298,13 +338,52 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     }
   }
 
-  function extractLLMMetadata(data: Record<string, unknown>): Partial<ChatMessage> {
+  function extractLLMMetadata(data: WorkspaceStreamDonePayload, message?: ChatMessage): Partial<ChatMessage> {
     const meta: Partial<ChatMessage> = {}
     if (typeof data.llm_config_id === 'number') meta.llm_config_id = data.llm_config_id
     if (typeof data.llm_config_name === 'string') meta.llm_config_name = data.llm_config_name
     if (typeof data.llm_provider === 'string') meta.llm_provider = data.llm_provider
     if (typeof data.llm_model === 'string') meta.llm_model = data.llm_model
+    if (isLLMUsageInfo(data.llm_usage)) meta.llm_usage = data.llm_usage
+    if (isWorkspaceModelContextPlan(data.model_context_plan)) {
+      meta.model_context_plan = data.model_context_plan
+      meta.model_context_plans = upsertWorkspaceModelContextPlan(message?.model_context_plans, data.model_context_plan)
+    }
     return meta
+  }
+
+  function upsertWorkspaceModelContextPlan(list: WorkspaceModelContextPlan[] | undefined, plan: WorkspaceModelContextPlan): WorkspaceModelContextPlan[] {
+    const existing = Array.isArray(list) ? [...list] : []
+    const idx = existing.findIndex(item => item.round === plan.round && item.session_id === plan.session_id)
+    if (idx >= 0) {
+      existing[idx] = plan
+      return existing
+    }
+    return [...existing, plan].sort((left, right) => left.round - right.round)
+  }
+
+  function isWorkspaceModelContextPlan(value: unknown): value is WorkspaceModelContextPlan {
+    if (!value || typeof value !== 'object') return false
+    const plan = value as Partial<WorkspaceModelContextPlan>
+    return typeof plan.protocol_version === 'string' &&
+      typeof plan.session_id === 'string' &&
+      typeof plan.round === 'number' &&
+      !!plan.role &&
+      typeof plan.role === 'object' &&
+      !!plan.execution &&
+      typeof plan.execution === 'object' &&
+      !!plan.messages &&
+      typeof plan.messages === 'object'
+  }
+
+  function isLLMUsageInfo(value: unknown): value is LLMUsageInfo {
+    if (!value || typeof value !== 'object') return false
+    const usage = value as Partial<Record<keyof LLMUsageInfo, unknown>>
+    return typeof usage.prompt_tokens === 'number' &&
+      typeof usage.completion_tokens === 'number' &&
+      typeof usage.total_tokens === 'number' &&
+      typeof usage.cached_tokens === 'number' &&
+      (usage.cached_tokens_reported === undefined || typeof usage.cached_tokens_reported === 'boolean')
   }
 
   async function send(content: string, streamFn: (onEvent: StreamEventHandler) => Promise<void>, files?: ChatMessageFile[]) {

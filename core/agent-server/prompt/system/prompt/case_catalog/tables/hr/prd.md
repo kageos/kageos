@@ -64,11 +64,11 @@ type HrJob struct {
 	Experience   string `json:"experience" gorm:"column:experience;comment:工作经验;default:不限" widget:"name:工作经验;type:select;options:1-3年,3-5年,5-10年,10年以上,不限;options_colors:909399,409EFF,67C23A,E6A23C,9E9E9E;render_default:不限" validate:"required"`
 	Education    string `json:"education" gorm:"column:education;comment:学历要求;default:不限" widget:"name:学历要求;type:select;options:本科,硕士,博士,不限;options_colors:909399,409EFF,67C23A,9E9E9E;render_default:不限" validate:"required"`
 	Location     string `json:"location" gorm:"column:location;comment:工作地点" widget:"name:工作地点;type:input" validate:"required,min=2,max=100"`
-	MinSalary    int    `json:"min_salary" gorm:"column:min_salary;comment:最低薪资(元)" widget:"name:最低薪资;type:number" validate:"gte=0"`
-	MaxSalary    int    `json:"max_salary" gorm:"column:max_salary;comment:最高薪资(元)" widget:"name:最高薪资;type:number" validate:"gte=0"`
+	MinSalary    int    `json:"min_salary" gorm:"column:min_salary;comment:最低薪资(元)" widget:"name:最低薪资;type:integer" validate:"gte=0"`
+	MaxSalary    int    `json:"max_salary" gorm:"column:max_salary;comment:最高薪资(元)" widget:"name:最高薪资;type:integer" validate:"gte=0"`
 	Description  string `json:"description" gorm:"column:description;type:text;comment:职位描述" widget:"name:职位描述;type:text_area" validate:"required,min=10"`
 	Requirements string `json:"requirements" gorm:"column:requirements;type:text;comment:任职要求" widget:"name:任职要求;type:text_area"`
-	RecruitCount int    `json:"recruit_count" gorm:"column:recruit_count;comment:招聘人数;default:1" widget:"name:招聘人数;type:number" validate:"required,min=1"`
+	RecruitCount int    `json:"recruit_count" gorm:"column:recruit_count;comment:招聘人数;default:1" widget:"name:招聘人数;type:integer" validate:"required,min=1"`
 	Status       string `json:"status" gorm:"column:status;comment:招聘状态;default:招聘中" widget:"name:招聘状态;type:select;options:招聘中,已暂停,已关闭,已招满;options_colors:67C23A,E6A23C,F56C6C,909399;render_default:招聘中" validate:"required,oneof=招聘中 已暂停 已关闭 已招满"`
 	PublishTime  types.Time  `json:"publish_time" gorm:"column:publish_time;type:datetime;comment:发布时间" widget:"name:发布时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" validate:"required"`
 	Deadline     types.Time  `json:"deadline" gorm:"column:deadline;type:datetime;comment:截止时间" widget:"name:截止时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
@@ -315,7 +315,7 @@ type HrResume struct {
 	Phone           string       `json:"phone" gorm:"column:phone;comment:联系电话" widget:"name:联系电话;type:input" validate:"required,min=11,max=20"`
 	Email           string       `json:"email" gorm:"column:email;comment:邮箱" widget:"name:邮箱;type:input" validate:"required,email"`
 	Gender          string       `json:"gender" gorm:"column:gender;comment:性别" widget:"name:性别;type:select;options:男,女,其他;options_colors:409EFF,67C23A,909399"`
-	Age             int          `json:"age" gorm:"column:age;comment:年龄" widget:"name:年龄;type:number" validate:"min=18,max=100"`
+	Age             int          `json:"age" gorm:"column:age;comment:年龄" widget:"name:年龄;type:integer" validate:"min=18,max=100"`
 	Education       string       `json:"education" gorm:"column:education;comment:学历" widget:"name:学历;type:select;options:本科,硕士,博士,其他;options_colors:909399,409EFF,67C23A,9E9E9E"`
 	Experience      string       `json:"experience" gorm:"column:experience;comment:工作经验" widget:"name:工作经验;type:select;options:1-3年,3-5年,5-10年,10年以上,应届生;options_colors:909399,409EFF,67C23A,E6A23C,9E9E9E"`
 	CurrentCompany  string       `json:"current_company" gorm:"column:current_company;comment:当前公司" widget:"name:当前公司;type:input"`

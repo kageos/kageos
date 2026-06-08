@@ -826,8 +826,14 @@ function getTablePreviewUrl(file: FileItem): string {
 .files-table-cell {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
   gap: 4px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .file-names {
@@ -860,14 +866,26 @@ function getTablePreviewUrl(file: FileItem): string {
 .files-table-cell {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
   gap: 4px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 /* 🔥 完全照抄用户组件搜索框选中样式 */
 .files-select-display {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   background: var(--el-bg-color);
   border-radius: 4px;
   padding: 2px 8px;
@@ -889,8 +907,13 @@ function getTablePreviewUrl(file: FileItem): string {
 .files-table-preview-list {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 4px;
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .files-table-preview-item {

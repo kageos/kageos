@@ -18,6 +18,7 @@ type searchResourcesArgs struct {
 	Scope        string `json:"scope" schema_desc:"搜索范围：visible=当前用户可见资源（默认），system=官方/system 资源，current_user=当前用户下资源，current_app=当前工作区应用内资源" schema_enum:"visible,system,current_user,current_app"`
 	User         string `json:"user" schema_desc:"按用户名过滤；传入后优先于 scope 推导"`
 	App          string `json:"app" schema_desc:"按应用 code 过滤；通常和 user 搭配使用"`
+	Directory    string `json:"directory" schema_desc:"仅返回该目录或其子目录下资源；测试/操作交接后应传 change_role.execute_directory"`
 	Page         *int   `json:"page" schema_desc:"页码，默认 1"`
 	PageSize     *int   `json:"page_size" schema_desc:"每页条数，默认 20，最多 100"`
 }
@@ -28,6 +29,7 @@ type searchResourcesResultData struct {
 	Scope        string                      `json:"scope"`
 	User         string                      `json:"user,omitempty"`
 	App          string                      `json:"app,omitempty"`
+	Directory    string                      `json:"directory,omitempty"`
 	Page         int                         `json:"page"`
 	PageSize     int                         `json:"page_size"`
 	Total        int64                       `json:"total"`
@@ -36,7 +38,7 @@ type searchResourcesResultData struct {
 
 var searchResourcesToolDef = toolDefinition[searchResourcesArgs](
 	"search_resources",
-	"搜索服务树资源：目录、函数和文档。默认 scope=visible 搜当前用户可见资源；可用 scope=system 搜官方/system 资源，scope=current_app 搜当前工作区应用，或传 user/app 精确过滤。适合先找应用目录、文档、函数位置；若要执行函数，再用 search_tools 获取 schema 摘要后调用 run_form_submit/run_table_search/run_chart_query。",
+	"搜索服务树资源：目录、函数和文档。默认 scope=visible 搜当前用户可见资源；可用 scope=system 搜官方/system 资源，scope=current_app 搜当前工作区应用，或传 user/app 精确过滤。测试/操作某个交接应用时必须传 directory=change_role.execute_directory，仅返回该目录或子目录下资源，避免扫完整工作区。适合先找应用目录、文档、函数位置；若要执行函数，再用 search_tools 获取 schema 摘要后调用 run_form_submit/run_table_search/run_chart_query。",
 )
 
 func (t *SearchResourcesTool) Definition() dto.ToolDef {
@@ -66,14 +68,29 @@ func runSearchResourcesTool(ctx context.Context, args searchResourcesArgs, curre
 		}
 	}
 	user, app, scope := resolveSearchScopeUserApp(args.Scope, args.User, args.App, currentFullCodePath, searchScopeVisible)
+	directory := normalizeWorkspacePath(args.Directory)
+	if directory == "" && scope == searchScopeCurrentApp {
+		directory = workspaceScopedSearchDirectory("", currentFullCodePath)
+	}
+	apiKeyword := keyword
+	if apiKeyword == "" && directory != "" {
+		apiKeyword = workspaceDirectorySearchKeyword(directory)
+	}
+	displayKeyword := firstNonEmptyString(keyword, apiKeyword)
+	fetchPage := page
+	fetchPageSize := pageSize
+	if directory != "" {
+		fetchPage = 1
+		fetchPageSize = 100
+	}
 
 	resp, err := apicall.SearchResources(ctx, &dto.SearchResourcesReq{
 		User:         user,
 		App:          app,
-		Keyword:      keyword,
+		Keyword:      apiKeyword,
 		ResourceType: resourceType,
-		Page:         page,
-		PageSize:     pageSize,
+		Page:         fetchPage,
+		PageSize:     fetchPageSize,
 	})
 	if err != nil {
 		logger.Warnf(ctx, "[SearchResources] SearchResources err: %v", err)
@@ -81,11 +98,12 @@ func runSearchResourcesTool(ctx context.Context, args searchResourcesArgs, curre
 	}
 
 	data := searchResourcesResultData{
-		Keyword:      keyword,
+		Keyword:      displayKeyword,
 		ResourceType: resourceType,
 		Scope:        scope,
 		User:         user,
 		App:          app,
+		Directory:    directory,
 		Page:         page,
 		PageSize:     pageSize,
 	}
@@ -93,11 +111,51 @@ func runSearchResourcesTool(ctx context.Context, args searchResourcesArgs, curre
 		data.Total = resp.Total
 		data.Items = resp.Items
 	}
+	if directory != "" {
+		data.Items = filterSearchResourceItemsByDirectory(data.Items, directory)
+		data.Total = int64(len(data.Items))
+		data.Items = paginateSearchResourceItems(data.Items, page, pageSize)
+	}
 
 	if len(data.Items) == 0 {
 		return toolResultWithData(formatSearchResourcesMeta(data)+"\n\n未匹配到服务树资源。可调整 keyword、resource_type 或 scope 再试。", false, data)
 	}
 	return toolResultWithData(formatSearchResourcesOutput(data), false, data)
+}
+
+func filterSearchResourceItemsByDirectory(items []*dto.ResourceSearchResult, directory string) []*dto.ResourceSearchResult {
+	directory = normalizeWorkspacePath(directory)
+	if directory == "" {
+		return items
+	}
+	out := make([]*dto.ResourceSearchResult, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		if workspacePathHasPrefix(item.FullCodePath, directory) {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func paginateSearchResourceItems(items []*dto.ResourceSearchResult, page int, pageSize int) []*dto.ResourceSearchResult {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 || len(items) == 0 {
+		return items
+	}
+	start := (page - 1) * pageSize
+	if start >= len(items) {
+		return nil
+	}
+	end := start + pageSize
+	if end > len(items) {
+		end = len(items)
+	}
+	return items[start:end]
 }
 
 func normalizeSearchResourcesType(raw string) string {
@@ -124,6 +182,9 @@ func formatSearchResourcesMeta(data searchResourcesResultData) string {
 	}
 	if data.App != "" {
 		parts = append(parts, "app="+data.App)
+	}
+	if data.Directory != "" {
+		parts = append(parts, "directory="+data.Directory)
 	}
 	if data.ResourceType != "" && data.ResourceType != "all" {
 		parts = append(parts, "resource_type="+data.ResourceType)

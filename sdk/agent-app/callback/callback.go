@@ -45,7 +45,7 @@ func (r *OnSelectFuzzyReq) IsByKeyword() bool {
 }
 
 func (r *OnSelectFuzzyReq) GetValue() interface{} {
-	if r.ValueType == widget.TypeNumber {
+	if r.ValueType == widget.TypeInteger {
 		return int(r.Value.(float64))
 	}
 	return r.Value

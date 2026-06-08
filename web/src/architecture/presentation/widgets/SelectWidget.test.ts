@@ -177,6 +177,17 @@ describe('SelectWidget', () => {
     expect(wrapper.find('[data-testid="fuzzy-dialog"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('前端开发工程师 - 技术 (北京, 20000-35000元)')
     expect(wrapper.text()).not.toContain('>1<')
+
+    const emitted = wrapper.emitted('update:modelValue')
+    expect(emitted?.at(-1)?.[0]).toMatchObject({
+      raw: 1,
+      display: '前端开发工程师 - 技术 (北京, 20000-35000元)',
+      meta: {
+        displayInfo: {
+          部门: '技术'
+        }
+      }
+    })
   })
 
   it('allows clearing callback selections in search mode even when the field is required', async () => {

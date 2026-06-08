@@ -2,9 +2,13 @@ package storage
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/minio/minio-go/v7"
 )
 
 type testMinIOConfig struct {
@@ -61,5 +65,47 @@ func TestGenerateUploadCredentialsUsesServerEndpointForServerUpload(t *testing.T
 	}
 	if !strings.Contains(creds.ServerUploadURL, "host.containers.internal:9000") {
 		t.Fatalf("server upload URL should use server_endpoint, got %s", creds.ServerUploadURL)
+	}
+}
+
+func TestIsMinIOTimeSkewError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "sdk error code",
+			err:  minio.ErrorResponse{Code: "RequestTimeTooSkewed"},
+			want: true,
+		},
+		{
+			name: "wrapped sdk error code",
+			err:  fmt.Errorf("wrapped: %w", minio.ErrorResponse{Code: "RequestTimeTooSkewed"}),
+			want: true,
+		},
+		{
+			name: "minio message",
+			err:  errors.New("The difference between the request time and the server's time is too large."),
+			want: true,
+		},
+		{
+			name: "other error",
+			err:  errors.New("access denied"),
+			want: false,
+		},
+		{
+			name: "nil",
+			err:  nil,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isMinIOTimeSkewError(tt.err); got != tt.want {
+				t.Fatalf("isMinIOTimeSkewError() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

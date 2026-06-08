@@ -32,6 +32,7 @@ export interface WorkspaceChatReq {
     files?: string
     context_usage?: string
     artifact_kind?: string
+    interaction_action?: string
   }
   session_id?: string
   mode_code?: string
@@ -47,7 +48,7 @@ export interface WorkspaceSessionItem {
   title: string
   user?: string
   mode_code?: string
-  status: string // active | generating | output | pending_confirmation | pending_test | done | cancelled
+  status: string // active | generating | output | pending_confirmation | pending_build_repair | done | cancelled
   role_id?: string
   role_display_name?: string
   full_code_path?: string
@@ -56,10 +57,41 @@ export interface WorkspaceSessionItem {
   handoff_kind?: string
   handoff_target_role?: string
   context_policy?: string
+  model_context_anchor_message_id?: number
   archived_for_model?: boolean
   archive_reason?: string
+  pending_interaction?: WorkspaceInteraction
   created_at: string
   updated_at: string
+}
+
+export interface WorkspaceInteraction {
+  id?: string
+  card_type?: string
+  artifact_kind?: string
+  status: string
+  blocking: boolean
+  title?: string
+  description?: string
+  help_text?: string
+  view_text?: string
+  confirm_text?: string
+  revise_text?: string
+  cancel_text?: string
+  target_role_on_confirm?: string
+  allowed_actions?: string[]
+  artifact?: unknown
+}
+
+export interface WorkspaceInteractionEventReq {
+  session_id: string
+  action: string
+  interaction_id?: string
+  card_type?: string
+  status?: string
+  artifact_kind?: string
+  content?: string
+  display_content?: string
 }
 
 export interface WorkspaceHandoffReq {
@@ -84,6 +116,7 @@ export interface WorkspaceHandoffResp {
   message_id?: number
   content: string
   display_content: string
+  handoff_context?: string
 }
 
 /** 获取工作台会话列表请求 */
@@ -103,13 +136,232 @@ export interface ToolResultMetadata {
   display_file_fields?: string[]
 }
 
+export const workspaceStreamEvents = {
+  session: 'session',
+  modelContextPlan: 'model_context_plan',
+  toolCall: 'tool_call',
+  toolCallsStreamDelta: 'tool_calls_stream_delta',
+  content: 'content',
+  done: 'done',
+  error: 'error'
+} as const
+
+export type WorkspaceStreamEventName = typeof workspaceStreamEvents[keyof typeof workspaceStreamEvents]
+export type WorkspaceToolCallStatus = 'ok' | 'error' | 'running' | 'streaming'
+
+export interface WorkspaceStreamSessionPayload {
+  session_id: string
+}
+
+export interface WorkspaceStreamToolCallPayload {
+  id?: string
+  index: number
+  round: number
+  name: string
+  status: WorkspaceToolCallStatus
+  arguments?: string
+  result?: string
+  result_data?: unknown
+  metadata?: ToolResultMetadata
+  error?: string
+}
+
+export interface WorkspaceStreamToolCallDeltaUpdate {
+  index: number
+  round: number
+  id?: string
+  name?: string
+  delta: string
+}
+
+export interface WorkspaceStreamToolCallsDeltaPayload {
+  updates: WorkspaceStreamToolCallDeltaUpdate[]
+}
+
+export interface WorkspaceStreamContentPayload {
+  content: string
+}
+
+export interface WorkspaceModelContextPlan {
+  protocol_version: string
+  session_id: string
+  round: number
+  mode_code?: string
+  role: WorkspaceModelContextRole
+  execution: WorkspaceModelContextExecution
+  messages: WorkspaceModelContextMessages
+  handoff?: WorkspaceModelContextHandoff | null
+  docs: WorkspaceModelContextDocs
+  tools: WorkspaceModelContextTools
+  cache_plan: WorkspaceModelContextCachePlan
+  llm?: WorkspaceModelContextLLM | null
+}
+
+export interface WorkspaceModelContextRole {
+  id: string
+  display_name?: string
+  source?: string
+  responsibility?: string
+  handoff_required?: string[]
+  allowed_tools?: string[]
+  forbidden_tools?: string[]
+  allowed_transitions?: string[]
+}
+
+export interface WorkspaceModelContextExecution {
+  full_code_path: string
+  directory_name?: string
+  directory_code?: string
+  directory_type?: string
+  children_count: number
+  files_count: number
+  scope_policy: string
+}
+
+export interface WorkspaceModelContextMessages {
+  context_policy: string
+  model_context_anchor_message_id?: number
+  parent_session_id?: string
+  source_history_policy: string
+  system_messages: number
+  llm_messages: number
+  total_stored_messages: number
+  included_stored_messages: number
+  excluded_stored_messages: number
+  excluded_by_anchor: number
+  excluded_display_only: number
+  included?: WorkspaceModelContextMessageRef[]
+  excluded?: WorkspaceModelContextMessageRef[]
+  truncated?: boolean
+}
+
+export interface WorkspaceModelContextMessageRef {
+  id: number
+  role: string
+  context_usage?: string
+  artifact_kind?: string
+  reason?: string
+}
+
+export interface WorkspaceModelContextHandoff {
+  packet_version?: string
+  source_session_id?: string
+  source_role?: string
+  target_role?: string
+  artifact_kind?: string
+  execute_directory?: string
+  workspace_directory?: string
+  target_app_directory?: string
+  task_context?: string[]
+  key_information?: string[]
+  references?: string[]
+  validation_status?: string
+}
+
+export interface WorkspaceModelContextDocs {
+  document_package?: string[]
+  required_docs?: string[]
+  optional_docs?: string[]
+  loaded_docs?: string[]
+  missing_docs?: string[]
+}
+
+export interface WorkspaceModelContextTools {
+  requested_names?: string[]
+  llm_tools?: string[]
+  llm_tool_count: number
+  policy: string
+}
+
+export interface WorkspaceModelContextCachePlan {
+  stable_prefix_strategy: string
+  stable_prefix_items?: string[]
+  actual_usage_field: string
+  result?: WorkspaceModelContextCacheResult
+}
+
+export interface WorkspaceModelContextCacheResult {
+  status: string
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  cached_tokens: number
+  cache_hit_rate_percent: number
+  cached_tokens_reported: boolean
+  source: string
+}
+
+export interface WorkspaceModelContextLLM {
+  config_id?: number
+  config_name?: string
+  provider?: string
+  model?: string
+  request_model?: string
+  max_tokens?: number
+  message_count: number
+  tool_count: number
+}
+
+export interface WorkspaceStreamDonePayload {
+  session_id: string
+  tool_calls?: WorkspaceChatToolCallSummary[]
+  llm_config_id?: number
+  llm_config_name?: string
+  llm_provider?: string
+  llm_model?: string
+  llm_usage?: LLMUsageInfo
+  model_context_plan?: WorkspaceModelContextPlan
+}
+
+export interface WorkspaceStreamErrorPayload {
+  message: string
+}
+
+export interface WorkspaceStreamPayloadMap {
+  session: WorkspaceStreamSessionPayload
+  model_context_plan: WorkspaceModelContextPlan
+  tool_call: WorkspaceStreamToolCallPayload
+  tool_calls_stream_delta: WorkspaceStreamToolCallsDeltaPayload
+  content: WorkspaceStreamContentPayload
+  done: WorkspaceStreamDonePayload
+  error: WorkspaceStreamErrorPayload
+}
+
+export type WorkspaceStreamPayload = WorkspaceStreamPayloadMap[WorkspaceStreamEventName]
+
 /** 创建阶段交接会话：旧会话保留展示，新会话只携带结构化产物进入目标阶段 */
 export async function createWorkspaceHandoff(req: WorkspaceHandoffReq): Promise<WorkspaceHandoffResp> {
   return post<WorkspaceHandoffResp>('/agent/api/v1/workspace/sessions/handoff', req)
 }
 
-/** 流式事件回调：event 为 session|tool_call|content|done|error，data 为对应负载 */
-export type WorkspaceChatStreamOnEvent = (event: string, data: Record<string, unknown>) => void
+/** 流式事件回调：event 为 session|tool_call|tool_calls_stream_delta|content|done|error */
+export type WorkspaceChatStreamOnEvent = (event: WorkspaceStreamEventName, data: WorkspaceStreamPayload) => void
+
+function isWorkspaceStreamEventName(event: string): event is WorkspaceStreamEventName {
+  return Object.values(workspaceStreamEvents).includes(event as WorkspaceStreamEventName)
+}
+
+function parseWorkspaceSSEBlock(block: string): { event: WorkspaceStreamEventName; data: WorkspaceStreamPayload } | null {
+  let event = ''
+  const dataLines: string[] = []
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) {
+      event = line.slice(6).trim()
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trim())
+    }
+  }
+  if (!event || !isWorkspaceStreamEventName(event)) return null
+
+  const dataStr = dataLines.join('\n').trim()
+  if (!dataStr) return { event, data: {} as WorkspaceStreamPayload }
+  try {
+    const obj = JSON.parse(dataStr)
+    return { event, data: (typeof obj === 'object' && obj != null ? obj : {}) as WorkspaceStreamPayload }
+  } catch {
+    return { event, data: { message: dataStr } as WorkspaceStreamPayload }
+  }
+}
 
 /**
  * 工作台对话流式接口（SSE）：通过 onEvent 逐步接收 session、tool_call、content、done、error
@@ -136,7 +388,7 @@ export async function workspaceChatStream(
     } catch {
       if (t) msg = t.slice(0, 200)
     }
-    onEvent('error', { message: msg })
+    onEvent(workspaceStreamEvents.error, { message: msg })
     throw new Error(msg)
   }
 
@@ -144,13 +396,13 @@ export async function workspaceChatStream(
   if (contentType.includes('application/json')) {
     const j = await res.json().catch(() => null)
     const msg = j?.msg || j?.message || '工作台流式请求失败'
-    onEvent('error', { message: msg })
+    onEvent(workspaceStreamEvents.error, { message: msg })
     throw new Error(msg)
   }
 
   const reader = res.body?.getReader()
   if (!reader) {
-    onEvent('error', { message: '响应体不可读' })
+    onEvent(workspaceStreamEvents.error, { message: '响应体不可读' })
     throw new Error('响应体不可读')
   }
   const dec = new TextDecoder()
@@ -159,39 +411,17 @@ export async function workspaceChatStream(
     const { done, value } = await reader.read()
     if (done) break
     buf += dec.decode(value, { stream: true })
+    buf = buf.replace(/\r\n/g, '\n')
     const parts = buf.split('\n\n')
     buf = parts.pop() || ''
     for (const block of parts) {
-      let ev = ''
-      let dataStr = ''
-      for (const line of block.split('\n')) {
-        if (line.startsWith('event:')) ev = line.slice(6).trim()
-        else if (line.startsWith('data:')) dataStr = line.slice(5).trim()
-      }
-      if (!ev) continue
-      try {
-        const obj = dataStr ? JSON.parse(dataStr) : {}
-        onEvent(ev, typeof obj === 'object' && obj != null ? obj : {})
-      } catch {
-        onEvent(ev, { raw: dataStr })
-      }
+      const parsed = parseWorkspaceSSEBlock(block)
+      if (parsed) onEvent(parsed.event, parsed.data)
     }
   }
   if (buf.trim()) {
-    let ev = ''
-    let dataStr = ''
-    for (const line of buf.split('\n')) {
-      if (line.startsWith('event:')) ev = line.slice(6).trim()
-      else if (line.startsWith('data:')) dataStr = line.slice(5).trim()
-    }
-    if (ev) {
-      try {
-        const obj = dataStr ? JSON.parse(dataStr) : {}
-        onEvent(ev, typeof obj === 'object' && obj != null ? obj : {})
-      } catch {
-        onEvent(ev, { raw: dataStr })
-      }
-    }
+    const parsed = parseWorkspaceSSEBlock(buf.replace(/\r\n/g, '\n'))
+    if (parsed) onEvent(parsed.event, parsed.data)
   }
 }
 
@@ -217,9 +447,19 @@ export interface WorkspaceMessageInfo {
   llm_config_name?: string
   llm_provider?: string
   llm_model?: string
+  llm_usage?: LLMUsageInfo
+  model_context_plan?: WorkspaceModelContextPlan
   context_usage?: string
   artifact_kind?: string
   created_at: string
+}
+
+export interface LLMUsageInfo {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  cached_tokens: number
+  cached_tokens_reported?: boolean
 }
 
 /** 获取工作台会话消息列表请求 */
@@ -264,6 +504,11 @@ export async function getFinishedSessions(limit = 20): Promise<{ sessions: Works
 /** 清除会话的待确认/待测试状态 */
 export async function resolveWorkspaceSessionInteraction(sessionId: string): Promise<void> {
   await post('/agent/api/v1/workspace/sessions/interaction/resolve', { session_id: sessionId })
+}
+
+/** 记录工作台交互卡片事件，仅用于审计展示，不进入模型上下文 */
+export async function recordWorkspaceInteractionEvent(req: WorkspaceInteractionEventReq): Promise<void> {
+  await post('/agent/api/v1/workspace/sessions/interaction/event', req)
 }
 
 /** 取消执行中的工作台任务 */

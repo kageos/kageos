@@ -14,6 +14,7 @@ import (
 	appRuntimeRunner "github.com/kageos/kageos/core/app-runtime/runner"
 	appServerRunner "github.com/kageos/kageos/core/app-server/runner"
 	appStorageRunner "github.com/kageos/kageos/core/app-storage/runner"
+	connectorServerRunner "github.com/kageos/kageos/core/connector-server/runner"
 	hrServerRunner "github.com/kageos/kageos/core/hr-server/runner"
 
 	"github.com/kageos/kageos/pkg/infra"
@@ -73,7 +74,15 @@ func init() {
 		ReadyChannel: make(chan struct{}, 1),
 	})
 
-	// 5. App Server（应用服务，依赖 app-runtime）
+	// 5. Connector Server（连接器服务）
+	services = append(services, &ServiceInfo{
+		Name:         "connector-server",
+		Main:         connectorServerRunner.Main,
+		DependsOn:    nil,
+		ReadyChannel: make(chan struct{}, 1),
+	})
+
+	// 6. App Server（应用服务，依赖 app-runtime）
 	services = append(services, &ServiceInfo{
 		Name:         "app-server",
 		Main:         appServerRunner.Main,
@@ -86,10 +95,11 @@ func init() {
 		"app-storage",
 		"hr-server",
 		"agent-server",
+		"connector-server",
 		"app-server",
 	}
 
-	// 6. API Gateway（API 网关，最后启动，因为依赖其他服务）
+	// 7. API Gateway（API 网关，最后启动，因为依赖其他服务）
 	services = append(services, &ServiceInfo{
 		Name:         "api-gateway",
 		Main:         apiGatewayRunner.Main,
@@ -106,10 +116,9 @@ func main() {
 	fmt.Println("  Kageos - 统一启动入口")
 	fmt.Println("========================================")
 	fmt.Println("  说明：")
-	fmt.Println("  - 生产默认 prod：优先读 .kageos/prod/generated/config，缺失时回退到 deploy/prod/config/template")
-	fmt.Println("  - 开发：APP_ENV=dev 读 .kageos/dev/config")
-	fmt.Println("  - 正式部署入口：见 deploy/prod/README.md")
-	fmt.Println("  - 亦可拆分为各服务独立进程（各服务 cmd/app/main.go）或 K8s 分布式部署")
+	fmt.Println("  - 运行模式由 .kageos/kageos.env 决定")
+	fmt.Println("  - 开发初始化：kagectl init --dev")
+	fmt.Println("  - 正式部署：kagectl init && kagectl up")
 	fmt.Println("========================================")
 
 	// 初始化统一的日志系统（只初始化一次，所有服务共享）
@@ -131,11 +140,17 @@ func main() {
 
 	logger.Infof(ctx, "统一日志系统初始化完成")
 
-	// ⭐ 启动预检：确保 Podman Machine + 基础设施容器（MySQL/NATS/MinIO）就绪
+	// 启动预检：确保当前模式下的基础设施可达。
 	fmt.Println("\n[启动预检]")
-	fmt.Println("  检查 Podman 环境和基础设施容器...")
+	fmt.Println("  检查基础设施连通性...")
 	if err := infra.Preflight(ctx); err != nil {
 		fmt.Printf("\n  ⚠️  预检警告: %v\n", err)
+		if infra.IsMinIOClockSkewError(err) {
+			fmt.Println("  检测到 MinIO 时间偏移，继续启动会导致 app-storage 签名失败，已停止。")
+			fmt.Println("  修复后重新执行启动命令即可。")
+			logger.Errorf(ctx, "启动预检失败: %v", err)
+			os.Exit(1)
+		}
 		fmt.Println("  部分基础设施可能不可用，服务启动后可能出现连接错误")
 		fmt.Println("  如需手动修复，请确保 Podman 已启动且基础设施容器存在")
 		logger.Warnf(ctx, "启动预检警告: %v", err)

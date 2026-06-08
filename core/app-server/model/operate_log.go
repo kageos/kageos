@@ -23,7 +23,7 @@ type OperateLog struct {
 	OldValuesJSON json.RawMessage `json:"old_values_json" gorm:"type:json;comment:变更前结构化数据"`
 	NewValuesJSON json.RawMessage `json:"new_values_json" gorm:"type:json;comment:变更后结构化数据"`
 	Status        string          `json:"status" gorm:"type:varchar(30);index;comment:success/failed"`
-	Source        string          `json:"source" gorm:"type:varchar(80);comment:来源 browser/agent/api"`
+	Source        string          `json:"source" gorm:"type:varchar(80);comment:来源 browser/agent/openapi"`
 	IPAddress     string          `json:"ip_address" gorm:"type:varchar(50);comment:IP 地址"`
 	UserAgent     string          `json:"user_agent" gorm:"type:varchar(500);comment:User Agent"`
 	TraceID       string          `json:"trace_id" gorm:"type:varchar(100);index;comment:追踪 ID"`

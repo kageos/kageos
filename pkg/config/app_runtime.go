@@ -399,7 +399,7 @@ func loadYAMLConfig(filename string, config interface{}) error {
 	}
 	absPath, _ := filepath.Abs(configPath)
 	env := getConfigEnv()
-	fmt.Printf("[Config] APP_ENV=%s  %s <- %s\n", env, filepath.Base(filename), absPath)
+	fmt.Printf("[Config] mode=%s  %s <- %s\n", env, filepath.Base(filename), absPath)
 
 	// 读取文件
 	data, err := os.ReadFile(configPath)
@@ -427,15 +427,6 @@ func loadYAMLConfig(filename string, config interface{}) error {
 	}
 
 	return nil
-}
-
-// getConfigEnv 返回当前配置环境：仅 dev 为开发，其余（含未设）均为 prod。
-func getConfigEnv() string {
-	e := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
-	if e == "dev" {
-		return "dev"
-	}
-	return "prod" // 未设或任意其他值都当 prod
 }
 
 func configPathsForEnv(root, env, baseName string) []string {

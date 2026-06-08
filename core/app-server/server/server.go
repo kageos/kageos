@@ -261,6 +261,9 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
 	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.docService, s.teamAccessService)
+	if _, err := service.ReconcileAppRootServiceTrees(ctx, appRepo, serviceTreeRepo); err != nil {
+		return fmt.Errorf("reconcile app root service trees: %w", err)
+	}
 
 	// 初始化函数服务
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)

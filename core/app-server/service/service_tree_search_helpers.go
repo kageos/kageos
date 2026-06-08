@@ -348,12 +348,14 @@ func buildFunctionSearchResults(trees []*model.ServiceTree) []*dto.FunctionSearc
 	functionResults := make([]*dto.FunctionSearchResult, 0, len(trees))
 	for _, tree := range trees {
 		result := &dto.FunctionSearchResult{
-			Name:         tree.Name,
-			Code:         tree.Code,
-			Description:  tree.Description,
-			TemplateType: tree.TemplateType,
-			FullCodePath: tree.FullCodePath,
-			RunCount:     tree.RunCount,
+			Name:               tree.Name,
+			Code:               tree.Code,
+			Description:        tree.Description,
+			TemplateType:       tree.TemplateType,
+			FullCodePath:       tree.FullCodePath,
+			Connectors:         splitConnectorCodes(tree.Connectors),
+			ConnectorEndpoints: splitConnectorEndpoints(tree.ConnectorEndpoints),
+			RunCount:           tree.RunCount,
 		}
 		if tree.App != nil {
 			result.AppID = tree.AppID
@@ -363,6 +365,8 @@ func buildFunctionSearchResults(trees []*model.ServiceTree) []*dto.FunctionSearc
 		if tree.Function != nil {
 			result.ID = tree.Function.ID
 			result.FullCodePath = tree.Function.Router
+			result.Connectors = splitConnectorCodes(tree.Function.Connectors)
+			result.ConnectorEndpoints = splitConnectorEndpoints(tree.Function.ConnectorEndpoints)
 			result.Callbacks = tree.Function.GetCallbacks()
 			if schema, err := functionschema.Parse(tree.Function.Schema); err == nil {
 				result.Schema = schema

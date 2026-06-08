@@ -22,89 +22,138 @@
             :row-class-name="getEditRowClassName"
             class="table-widget-table"
           >
-        <el-table-column
-          v-for="itemField in itemFields"
-          :key="itemField.code"
-          :prop="itemField.code"
-          :label="itemField.name"
-          class-name="table-widget-data-column"
-          :min-width="getColumnWidth(itemField)"
-          :align="getColumnAlign(itemField)"
-          header-align="left"
-          show-overflow-tooltip
-        >
-          <template #default="{ row, $index }">
-            <template v-if="isNestedContainerField(itemField)">
-              <component
-                v-if="isEditRowFieldVisible($index, itemField)"
-                :is="getWidgetComponent(itemField.widget?.type, 'table-cell')"
-                :field="itemField"
-                :value="getRowFieldValue($index, itemField.code)"
-                :model-value="getRowFieldValue($index, itemField.code)"
-                @update:model-value="handleRowFieldModelUpdate($index, itemField.code, $event)"
-                :field-path="`${fieldPath}[${$index}].${itemField.code}`"
-                :form-manager="formManager"
-                :form-renderer="formRenderer"
-                mode="table-cell"
-                :parent-mode="mode"
-                :depth="(depth || 0) + 1"
-              />
-              <span v-else class="table-cell-hidden-placeholder">-</span>
-            </template>
-            <template v-else>
-              <template v-if="editMode.editingIndex.value === $index">
-                <component
-                  v-if="isEditRowFieldVisible($index, itemField)"
-                  :is="getWidgetComponent(itemField.widget?.type || 'input', 'edit')"
-                  :field="itemField"
-                  :value="getRowFieldValue($index, itemField.code)"
-                  :model-value="getRowFieldValue($index, itemField.code)"
-                  @update:model-value="handleRowFieldModelUpdate($index, itemField.code, $event)"
-                  :field-path="`${fieldPath}[${$index}].${itemField.code}`"
-                  :form-manager="formManager"
-                  :form-renderer="formRenderer"
-                  mode="edit"
-                  :depth="(depth || 0) + 1"
-                />
-                <span v-else class="table-cell-hidden-placeholder">-</span>
-              </template>
-              <template v-else>
-                <component
-                  v-if="isEditRowFieldVisible($index, itemField)"
-                  :is="getWidgetComponent(itemField.widget?.type || 'input', 'table-cell')"
-                  :field="itemField"
-                  :value="getRowFieldValue($index, itemField.code)"
-                  :model-value="getRowFieldValue($index, itemField.code)"
-                  :field-path="`${fieldPath}[${$index}].${itemField.code}`"
-                  mode="table-cell"
-                  :depth="(depth || 0) + 1"
-                />
-                <span v-else class="table-cell-hidden-placeholder">-</span>
-              </template>
-            </template>
-          </template>
-        </el-table-column>
-        
-        <!-- 操作列 -->
-          <el-table-column label="操作" width="150" fixed="right" header-align="left">
-            <template #default="{ $index }">
-              <div class="table-row-actions">
-                <template v-if="editMode.editingIndex.value === $index">
-                  <el-button size="small" type="primary" @click="handleSave($index)">保存</el-button>
-                  <el-button size="small" @click="editMode.cancelEditing()">取消</el-button>
+            <el-table-column
+              v-for="itemField in itemFields"
+              :key="itemField.code"
+              :prop="itemField.code"
+              :label="itemField.name"
+              class-name="table-widget-data-column"
+              :min-width="getColumnWidth(itemField)"
+              :align="getColumnAlign(itemField)"
+              header-align="left"
+              show-overflow-tooltip
+            >
+              <template #default="{ row, $index }">
+                <template v-if="isNestedContainerField(itemField)">
+                  <component
+                    v-if="isEditRowFieldVisible($index, itemField)"
+                    :is="getWidgetComponent(itemField.widget?.type, 'table-cell')"
+                    :field="itemField"
+                    :value="getRowFieldValue($index, itemField.code)"
+                    :model-value="getRowFieldValue($index, itemField.code)"
+                    @update:model-value="handleRowFieldModelUpdate($index, itemField.code, $event)"
+                    :field-path="`${fieldPath}[${$index}].${itemField.code}`"
+                    :form-manager="formManager"
+                    :form-renderer="formRenderer"
+                    mode="table-cell"
+                    :parent-mode="mode"
+                    :depth="(depth || 0) + 1"
+                  />
+                  <span v-else class="table-cell-hidden-placeholder">-</span>
                 </template>
                 <template v-else>
-                  <el-button size="small" @click="editMode.startEditing($index)">编辑</el-button>
-                  <el-button size="small" type="danger" @click="handleDelete($index)">删除</el-button>
+                  <template v-if="editMode.editingIndex.value === $index">
+                    <component
+                      v-if="isEditRowFieldVisible($index, itemField)"
+                      :is="getWidgetComponent(itemField.widget?.type || 'input', 'edit')"
+                      :field="itemField"
+                      :value="getRowFieldValue($index, itemField.code)"
+                      :model-value="getRowFieldValue($index, itemField.code)"
+                      @update:model-value="handleRowFieldModelUpdate($index, itemField.code, $event)"
+                      :field-path="`${fieldPath}[${$index}].${itemField.code}`"
+                      :form-manager="formManager"
+                      :form-renderer="formRenderer"
+                      mode="edit"
+                      :depth="(depth || 0) + 1"
+                    />
+                    <span v-else class="table-cell-hidden-placeholder">-</span>
+                  </template>
+                  <template v-else>
+                    <component
+                      v-if="isEditRowFieldVisible($index, itemField)"
+                      :is="getWidgetComponent(itemField.widget?.type || 'input', 'table-cell')"
+                      :field="itemField"
+                      :value="getRowFieldValue($index, itemField.code)"
+                      :model-value="getRowFieldValue($index, itemField.code)"
+                      :field-path="`${fieldPath}[${$index}].${itemField.code}`"
+                      mode="table-cell"
+                      :depth="(depth || 0) + 1"
+                    />
+                    <span v-else class="table-cell-hidden-placeholder">-</span>
+                  </template>
                 </template>
-              </div>
-            </template>
-          </el-table-column>
-      </el-table>
+              </template>
+            </el-table-column>
+            
+            <!-- 操作列 -->
+            <el-table-column
+              label="操作"
+              width="124"
+              fixed="right"
+              align="center"
+              header-align="center"
+              class-name="table-widget-actions-column"
+            >
+              <template #default="{ $index }">
+                <div class="table-row-actions">
+                  <template v-if="editMode.editingIndex.value === $index">
+                    <el-tooltip content="保存" placement="top">
+                      <el-button
+                        size="small"
+                        type="primary"
+                        class="table-icon-button"
+                        aria-label="保存"
+                        @click="handleSave($index)"
+                      >
+                        <el-icon><Check /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                    <el-tooltip content="取消" placement="top">
+                      <el-button
+                        size="small"
+                        class="table-icon-button"
+                        aria-label="取消"
+                        @click="editMode.cancelEditing()"
+                      >
+                        <el-icon><Close /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                  </template>
+                  <template v-else>
+                    <el-tooltip content="编辑" placement="top">
+                      <el-button
+                        size="small"
+                        class="table-icon-button"
+                        aria-label="编辑"
+                        @click="editMode.startEditing($index)"
+                      >
+                        <el-icon><EditPen /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                    <el-tooltip content="删除" placement="top">
+                      <el-button
+                        size="small"
+                        type="danger"
+                        plain
+                        class="table-icon-button"
+                        aria-label="删除"
+                        @click="handleDelete($index)"
+                      >
+                        <el-icon><DeleteIcon /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                  </template>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
       
       <!-- 新增按钮 -->
       <div class="table-actions">
-        <el-button type="primary" class="table-add-button" @click="editMode.startAdding()">新增</el-button>
+        <el-button type="primary" class="table-add-button" @click="editMode.startAdding()">
+          <el-icon><Plus /></el-icon>
+          <span>新增</span>
+        </el-button>
       </div>
 
       <FieldStatistics
@@ -310,8 +359,8 @@
 
 <script setup lang="ts">
 import { computed, inject } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElDrawer, ElIcon } from 'element-plus'
-import { View } from '@element-plus/icons-vue'
+import { ElTable, ElTableColumn, ElButton, ElDrawer, ElIcon, ElTooltip } from 'element-plus'
+import { Check, Close, Delete as DeleteIcon, EditPen, Plus, View } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useTableWidget } from '@/architecture/presentation/widgets/composables/useTableWidget'
 import { useTableEditMode } from '@/architecture/presentation/widgets/composables/useTableEditMode'
@@ -392,6 +441,10 @@ defineExpose({
   width: 100%;
   margin-bottom: 24px;
   overflow: hidden;
+  background-color: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .table-panel:last-child {
@@ -403,31 +456,47 @@ defineExpose({
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0;
 }
 
 .table-panel.is-response {
-  background-color: var(--el-bg-color-page);
+  background-color: var(--el-bg-color);
 }
 
 .table-actions {
   margin-top: 0;
-  padding: 16px 0 0;
-  border-top: 1px solid var(--el-border-color-extra-light);
+  padding: 10px 14px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  background: linear-gradient(180deg, var(--el-fill-color-lighter) 0%, var(--el-bg-color) 100%);
   display: flex;
   align-items: center;
   justify-content: flex-end;
 }
 
 .table-add-button {
-  min-width: 88px;
+  min-width: 82px;
+  height: 32px;
+  border-radius: 6px;
+  gap: 4px;
 }
 
 .table-row-actions {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.table-icon-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 6px;
+}
+
+.table-icon-button + .table-icon-button {
+  margin-left: 0;
 }
 
 .table-cell-value {
@@ -496,8 +565,8 @@ defineExpose({
 }
 
 :deep(.table-detail-content .table-actions) {
-  padding-left: 0;
-  padding-right: 0;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 :deep(.table-detail-panel > .table-widget > .table-panel),
@@ -527,12 +596,13 @@ defineExpose({
   color: var(--el-text-color-regular);
 }
 
-/* 🔥 表格样式（与 TableRenderer 一致，移除边框和斑马纹） */
+/* 🔥 表格样式：外层 panel 承载边框，表格内部保持轻量分隔 */
 :deep(.table-widget-table) {
+  --el-table-border-color: var(--el-border-color-lighter);
   background-color: var(--el-bg-color) !important;
 }
 
-/* 🔥 移除表格边框（左右竖线） */
+/* 🔥 移除内部竖向边框，避免和外层边框叠在一起 */
 :deep(.table-widget-table) {
   border: none !important;
 }
@@ -547,6 +617,28 @@ defineExpose({
 
 :deep(.table-widget-table .el-table__body-wrapper) {
   border: none !important;
+}
+
+:deep(.table-widget-table .el-table__inner-wrapper::before) {
+  display: none;
+}
+
+:deep(.table-widget-table thead),
+:deep(.table-widget-table th.el-table__cell) {
+  background: linear-gradient(180deg, var(--el-fill-color-lighter) 0%, var(--el-bg-color) 100%) !important;
+}
+
+:deep(.table-widget-table th.el-table__cell) {
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+  border-bottom: 1px solid var(--el-border-color-light) !important;
+}
+
+:deep(.table-widget-table th.el-table__cell .cell) {
+  font-size: 13px;
+  line-height: 20px;
+  padding-top: 11px;
+  padding-bottom: 11px;
 }
 
 :deep(.table-widget-table th),
@@ -567,6 +659,7 @@ defineExpose({
 
 :deep(.table-widget-table .el-table__body tr) {
   background-color: var(--el-bg-color) !important;
+  transition: background-color 0.16s ease;
 }
 
 /* 🔥 移除斑马纹：确保所有行背景色一致 */
@@ -579,7 +672,7 @@ defineExpose({
 }
 
 :deep(.table-widget-table .el-table__body tr:hover > td) {
-  background-color: var(--el-fill-color-light) !important;
+  background-color: var(--el-fill-color-lighter) !important;
 }
 
 
@@ -598,16 +691,20 @@ defineExpose({
   justify-content: flex-start !important;
   align-items: center !important;
   width: 100%;
-  min-height: 52px;
-  padding-top: 12px;
-  padding-bottom: 12px;
+  min-height: 48px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+:deep(.table-widget-table .el-table__body td.table-widget-actions-column .cell) {
+  justify-content: center !important;
 }
 
 :deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .cell) {
   min-width: 0;
-  white-space: nowrap;
+  line-height: 1.45;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 :deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .cell > *) {
@@ -615,18 +712,7 @@ defineExpose({
   max-width: 100%;
 }
 
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .input-widget),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .text-widget),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .table-cell-text),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .formatted-content),
 :deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .table-cell-value),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .text-content),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .code-content),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .html-table-cell),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .markdown-table-cell),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .csv-preview),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .csv-preview-text),
-:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .html-content-preview),
 :deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .files-display-text) {
   display: block;
   min-width: 0;
@@ -636,6 +722,31 @@ defineExpose({
   text-overflow: ellipsis;
 }
 
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .input-widget .table-cell-value),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .textarea-widget .table-cell-value),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .rich-text-widget .table-cell-value),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .text-widget .table-cell-value),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .table-cell-text),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .formatted-content),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .text-content),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .code-content),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .html-table-cell),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .markdown-table-cell),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .csv-preview),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .csv-preview-text),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .html-content-preview) {
+  display: -webkit-box;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 :deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .table-cell-multiselect),
 :deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .files-table-cell),
 :deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .files-select-display) {
@@ -643,6 +754,14 @@ defineExpose({
   max-width: 100%;
   flex-wrap: nowrap;
   overflow: hidden;
+}
+
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .files-table-cell),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .files-table-preview-list),
+:deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .files-select-display) {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
 }
 
 :deep(.table-widget-table .el-table__body tr:not(.is-editing-row) td.table-widget-data-column .formatted-content),
@@ -660,6 +779,10 @@ defineExpose({
   background-color: var(--el-fill-color-extra-light) !important;
 }
 
+:deep(.table-widget-table .is-editing-row > td:first-child) {
+  box-shadow: inset 3px 0 0 var(--el-color-primary);
+}
+
 :deep(.table-widget-table .is-editing-row:hover > td) {
   background-color: var(--el-fill-color-light) !important;
 }
@@ -675,6 +798,19 @@ defineExpose({
 :deep(.table-widget-table .is-editing-row .el-cascader) {
   width: 100%;
   max-width: 100%;
+}
+
+.table-widget-content > :deep(.field-statistics) {
+  width: auto;
+  margin: 14px;
+}
+
+:deep(.table-widget-table .el-table__empty-block) {
+  min-height: 88px;
+}
+
+:deep(.table-widget-table .el-table__empty-text) {
+  color: var(--el-text-color-secondary);
 }
 
 </style>

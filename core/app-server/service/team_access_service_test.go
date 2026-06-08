@@ -362,7 +362,11 @@ func TestTeamAccessListMembersSeparatesCurrentAndInherited(t *testing.T) {
 
 func TestTeamAccessAssignWritesOperateLog(t *testing.T) {
 	service, _, db := newTeamAccessTestService(t)
-	ctx := contextx.WithRequestInfo(actorContext("alice"), contextx.RequestInfo{CompanyCode: "acme"})
+	ctx := contextx.WithRequestInfo(actorContext("alice"), contextx.RequestInfo{
+		CompanyCode: "acme",
+		SourceType:  contextx.SourceTypeOpenAPIToken,
+		SourceRef:   "alice",
+	})
 	service.userLookup = func(ctx context.Context, username string) (*dto.UserInfo, error) {
 		return &dto.UserInfo{Username: username, CompanyCode: "acme"}, nil
 	}
@@ -387,6 +391,9 @@ func TestTeamAccessAssignWritesOperateLog(t *testing.T) {
 	}
 	if log.CompanyCode != "acme" {
 		t.Fatalf("company_code = %q", log.CompanyCode)
+	}
+	if log.Source != contextx.ClientSourceOpenAPI {
+		t.Fatalf("source = %q, want openapi", log.Source)
 	}
 
 	var newValues dto.TeamRoleAssignedValues

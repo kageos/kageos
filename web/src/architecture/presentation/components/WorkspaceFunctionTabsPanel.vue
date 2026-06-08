@@ -1,6 +1,10 @@
 <template>
   <div class="function-tabs-wrapper" data-testid="workspace-function-tabs">
     <div class="function-tabs-shell">
+      <FunctionConnectorBar
+        :current-function="currentFunction"
+        :function-detail="currentFunctionDetail"
+      />
       <el-tabs
         :model-value="activeTab"
         class="function-detail-tabs"
@@ -16,15 +20,7 @@
               :current-function="currentFunction"
               :function-detail="currentFunctionDetail"
               :form-view-ref-target="functionFormViewRef"
-            />
-          </div>
-        </el-tab-pane>
-
-        <el-tab-pane name="detail" :label="t('functionTabs.detail')">
-          <div class="tab-content">
-            <FunctionInfoPanel
-              :function-data="currentFunctionDetail"
-              :function-node="currentFunction"
+              :show-connector-bar="false"
             />
           </div>
         </el-tab-pane>
@@ -81,14 +77,14 @@ import { useI18n } from 'vue-i18n'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
-import FunctionInfoPanel from './FunctionInfoPanel.vue'
+import FunctionConnectorBar from './FunctionConnectorBar.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import TeamAccessPanel from './TeamAccessPanel.vue'
 import PublicSharePanel from './PublicSharePanel.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
 import { ElMessage } from 'element-plus'
 
-type FunctionTabName = 'content' | 'detail' | 'permission' | 'publicShare' | 'operateLog'
+type FunctionTabName = 'content' | 'permission' | 'publicShare' | 'operateLog'
 
 interface LoadableOperateLogSection {
   load: () => void
@@ -157,6 +153,18 @@ watch(
   () => props.activeTab,
   (tabName) => loadOperateLogTab(tabName),
   { immediate: true }
+)
+
+watch(
+  () => [
+    props.currentFunction?.full_code_path,
+    props.currentFunctionDetail?.full_code_path,
+  ],
+  () => {
+    if (props.activeTab === 'operateLog') {
+      loadOperateLogTab('operateLog')
+    }
+  }
 )
 </script>
 

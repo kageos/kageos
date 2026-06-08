@@ -11,7 +11,7 @@ type DataTypeTestStruct struct {
 	Name string `json:"name" widget:"name:名称;type:input"`
 
 	// 整数类型
-	Age int `json:"age" widget:"name:年龄;type:number"`
+	Age int `json:"age" widget:"name:年龄;type:integer"`
 
 	// 浮点数类型
 	Price float64 `json:"price" widget:"name:价格;type:float"`

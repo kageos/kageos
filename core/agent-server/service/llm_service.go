@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/kageos/kageos/core/agent-server/model"
 	"github.com/kageos/kageos/core/agent-server/repository"
@@ -32,6 +33,37 @@ func normalizeExtraConfig(extraConfig string) (*string, error) {
 
 	result := string(normalized)
 	return &result, nil
+}
+
+func normalizeAdminList(admins string) string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0)
+	for _, admin := range strings.Split(admins, ",") {
+		admin = strings.TrimSpace(admin)
+		if admin == "" {
+			continue
+		}
+		if _, ok := seen[admin]; ok {
+			continue
+		}
+		seen[admin] = struct{}{}
+		out = append(out, admin)
+	}
+	return strings.Join(out, ",")
+}
+
+func (s *LLMService) getManageableLLMConfig(ctx context.Context, id int64, action string) (*model.LLMConfig, error) {
+	cfg, err := s.repo.GetByID(id)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("LLM配置不存在")
+		}
+		return nil, fmt.Errorf("获取LLM配置失败: %w", err)
+	}
+	if !cfg.IsAdminUser(contextx.GetRequestUser(ctx)) {
+		return nil, fmt.Errorf("无权限%s该LLM配置", action)
+	}
+	return cfg, nil
 }
 
 // LLMService LLM 服务
@@ -94,7 +126,7 @@ func (s *LLMService) CreateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	if cfg.Name == "" {
 		return fmt.Errorf("配置名称不能为空")
 	}
-	cfg.Provider = "openai"
+	cfg.Provider = model.LLMProviderOpenAI
 	if cfg.Model == "" {
 		return fmt.Errorf("模型名称不能为空")
 	}
@@ -121,6 +153,7 @@ func (s *LLMService) CreateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	if cfg.Admin == "" {
 		cfg.Admin = user
 	}
+	cfg.Admin = normalizeAdminList(cfg.Admin)
 
 	// 先创建配置
 	if err := s.repo.Create(cfg); err != nil {
@@ -144,19 +177,16 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	cfg.UpdatedBy = user
 
 	// 检查权限：只有管理员可以修改资源
-	existing, err := s.repo.GetByID(cfg.ID)
+	existing, err := s.getManageableLLMConfig(ctx, cfg.ID, "修改")
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("LLM配置不存在")
-		}
-		return fmt.Errorf("获取LLM配置失败: %w", err)
+		return err
 	}
 
 	// 验证必填字段
 	if cfg.Name == "" {
 		return fmt.Errorf("配置名称不能为空")
 	}
-	cfg.Provider = "openai"
+	cfg.Provider = model.LLMProviderOpenAI
 	if cfg.Model == "" {
 		return fmt.Errorf("模型名称不能为空")
 	}
@@ -186,6 +216,7 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 			cfg.Admin = user
 		}
 	}
+	cfg.Admin = normalizeAdminList(cfg.Admin)
 
 	// 如果设置为默认，先取消其他默认配置
 	if cfg.IsDefault {
@@ -199,10 +230,16 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 
 // DeleteLLMConfig 删除 LLM 配置
 func (s *LLMService) DeleteLLMConfig(ctx context.Context, id int64) error {
+	if _, err := s.getManageableLLMConfig(ctx, id, "删除"); err != nil {
+		return err
+	}
 	return s.repo.Delete(id)
 }
 
 // SetDefaultLLMConfig 设置默认 LLM 配置
 func (s *LLMService) SetDefaultLLMConfig(ctx context.Context, id int64) error {
+	if _, err := s.getManageableLLMConfig(ctx, id, "设置默认"); err != nil {
+		return err
+	}
 	return s.repo.SetDefault(id)
 }

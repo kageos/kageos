@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -43,7 +44,7 @@ func TestConvertFunctionToRespNormalizesStoredFieldCodes(t *testing.T) {
 		Schema: schemaJSON,
 	}
 
-	resp := svc.convertFunctionToResp(function)
+	resp := svc.convertFunctionToResp(context.Background(), function)
 
 	requestFields := resp.Schema.Form.Request
 	responseFields := resp.Schema.Form.Response

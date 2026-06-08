@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -29,6 +30,14 @@ var (
 // 若均未找到则返回空字符串，配置解析将退化为仅相对 cwd 查找。
 func GetKageosRoot() string {
 	kageosRootOnce.Do(func() {
+		if explicitRoot := strings.TrimSpace(os.Getenv("KAGEOS_ROOT")); explicitRoot != "" {
+			if abs, err := filepath.Abs(explicitRoot); err == nil {
+				kageosRoot = filepath.Clean(abs)
+			} else {
+				kageosRoot = filepath.Clean(explicitRoot)
+			}
+			return
+		}
 		if _, file, _, ok := runtime.Caller(0); ok {
 			if root := discoverKageosRootFrom(filepath.Dir(file)); root != "" {
 				kageosRoot = root

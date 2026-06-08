@@ -728,7 +728,7 @@ describe('SearchInput', () => {
     }))
 
     const wrapper = mountSearchInput({
-      field: createField(WidgetType.NUMBER),
+      field: createField(WidgetType.INTEGER),
       searchType: `${SearchType.GTE},${SearchType.LTE}`,
       modelValue: { min: 1, max: 5 }
     })

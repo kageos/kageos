@@ -25,7 +25,7 @@
     
     <!-- 表格单元格模式 -->
     <span v-else-if="mode === 'table-cell'" class="table-cell-value">
-      {{ truncatedValue }}
+      {{ displayValue }}
     </span>
     
     <!-- 详情模式 -->
@@ -154,15 +154,6 @@ const displayValue = computed(() => {
   }
   
   return String(raw)
-})
-
-// 截断值（用于表格单元格）
-const truncatedValue = computed(() => {
-  const value = displayValue.value
-  if (value.length > 50) {
-    return value.substring(0, 50) + '...'
-  }
-  return value
 })
 
 function handleBlur(): void {

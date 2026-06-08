@@ -60,6 +60,10 @@ describe('useOperateLogSection', () => {
       expect(section.getLogSummary(log)).not.toContain('title:')
       expect(section.getLogSummary(log)).not.toContain('status:')
       expect(section.getLogSummary(log)).not.toContain('handler:')
+
+      const changes = section.getChangeEntries(log)
+      expect(changes[0]?.field?.code).toBe('title')
+      expect(changes[0]?.field?.widget?.type).toBe('input')
     } finally {
       scope.stop()
     }
@@ -111,6 +115,44 @@ describe('useOperateLogSection', () => {
         { label: 'Version', value: 'v10' },
         { label: 'Error', value: 'boom' },
       ]))
+    } finally {
+      scope.stop()
+    }
+  })
+
+  it('syncs expanded log row keys from table expand changes', () => {
+    const scope = effectScope()
+
+    try {
+      const section = scope.run(() => useOperateLogSection({
+        fullCodePath: ref('/alice/ops/tickets.table'),
+        rowId: ref(42),
+        functionDetail: ref({
+          template_type: 'table',
+          schema: { type: 'table', table: { fields: [] } }
+        }),
+        autoLoad: ref(false),
+        scope: ref('row')
+      }))!
+
+      const firstLog = {
+        id: 11,
+        tenant_user: 'alice',
+        request_user: 'alice',
+        action: 'OnTableUpdateRow',
+        app: 'ops',
+        full_code_path: '/alice/ops/tickets.table',
+        row_id: 42,
+        created_at: '2026-05-19T00:00:00Z'
+      }
+      const secondLog = {
+        ...firstLog,
+        id: 12
+      }
+
+      section.handleLogExpandChange(firstLog, [secondLog])
+
+      expect(section.expandedLogIds.value).toEqual([12])
     } finally {
       scope.stop()
     }

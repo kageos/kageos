@@ -30,10 +30,24 @@ const TokenHeader = "X-Token"
 // ClientSourceHeader HTTP Header 中的客户端来源 key（统一使用此名称）
 const ClientSourceHeader = "X-Client-Source"
 
+const (
+	ClientSourceBrowser     = "browser"
+	ClientSourceAgent       = "agent"
+	ClientSourceOpenAPI     = "openapi"
+	ClientSourcePublicShare = "public_share"
+	ClientSourceUnknown     = "unknown"
+)
+
 // SourceTypeHeader / SourceRefHeader 标记后台自动化、函数触发等调用来源。
 // 定时 Agent 会话先埋 ref，后续工具白名单可基于这些字段在工具入口统一控制。
 const SourceTypeHeader = "X-Source-Type"
 const SourceRefHeader = "X-Source-Ref"
+
+const (
+	SourceTypeOpenAPIToken = "openapi_token"
+	SourceTypePublicShare  = "public_share"
+	SourceTypeAgentTool    = "agent_tool"
+)
 
 const PubKeyHerder = "X-Pub-Key"
 
@@ -152,6 +166,38 @@ func GetClientSource(c context.Context) string {
 	return ""
 }
 
+// ResolveClientSource 返回审计使用的入口来源。优先使用 X-Client-Source；
+// 没有显式来源时根据 SourceType 推断 OpenAPI、公开分享或智能体工具。
+func ResolveClientSource(c context.Context) string {
+	source := strings.TrimSpace(GetClientSource(c))
+	switch strings.ToLower(source) {
+	case "api":
+		return ClientSourceOpenAPI
+	case "":
+	default:
+		return source
+	}
+
+	switch strings.TrimSpace(GetSourceType(c)) {
+	case SourceTypeOpenAPIToken:
+		return ClientSourceOpenAPI
+	case SourceTypePublicShare:
+		return ClientSourcePublicShare
+	case SourceTypeAgentTool:
+		return ClientSourceAgent
+	default:
+		return ""
+	}
+}
+
+// GetAuditClientSource 返回非空审计来源，避免 operate_logs.source 出现空值。
+func GetAuditClientSource(c context.Context) string {
+	if source := ResolveClientSource(c); source != "" {
+		return source
+	}
+	return ClientSourceUnknown
+}
+
 // GetSourceType 获取调用来源类型。
 func GetSourceType(c context.Context) string {
 	v, ok := c.(*gin.Context)
@@ -207,6 +253,22 @@ func WithClientSource(ctx context.Context, source string) context.Context {
 		return ctx
 	}
 	return context.WithValue(ctx, ClientSourceHeader, source)
+}
+
+// WithSourceInfo 为标准 context 写入调用来源类型和引用。
+func WithSourceInfo(ctx context.Context, sourceType, sourceRef string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	sourceType = strings.TrimSpace(sourceType)
+	sourceRef = strings.TrimSpace(sourceRef)
+	if sourceType != "" {
+		ctx = context.WithValue(ctx, SourceTypeHeader, sourceType)
+	}
+	if sourceRef != "" {
+		ctx = context.WithValue(ctx, SourceRefHeader, sourceRef)
+	}
+	return ctx
 }
 
 // PresignDefaultPort 当 Host 无端口且未收到 X-Forwarded-Port 时的默认端口（与当前默认 Web 入口端口一致）

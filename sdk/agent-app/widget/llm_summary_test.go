@@ -105,7 +105,7 @@ func TestFieldLLMSummaryLinesExpandNestedChildren(t *testing.T) {
 					Type   string      `json:"type"`
 					Config interface{} `json:"config,omitempty"`
 				}{
-					Type: TypeNumber,
+					Type: TypeInteger,
 				},
 			},
 		},

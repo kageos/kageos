@@ -73,7 +73,7 @@ type MeetingRoom struct {
 
 	Name      string `json:"name" gorm:"column:name;comment:会议室名称" widget:"name:会议室名称;type:input" validate:"required,min=2,max=50"`
 	Type      string `json:"type" gorm:"column:type;comment:会议室类型" widget:"name:会议室类型;type:select;options:小型,中型,大型,会议室,培训室,多功能厅;options_colors:909399,409EFF,67C23A,E6A23C,F56C6C,9C27B0" validate:"required"`
-	Capacity  int    `json:"capacity" gorm:"column:capacity;comment:容纳人数" widget:"name:容纳人数;type:number" validate:"required,min=1,max=1000"`
+	Capacity  int    `json:"capacity" gorm:"column:capacity;comment:容纳人数" widget:"name:容纳人数;type:integer" validate:"required,min=1,max=1000"`
 	Equipment string `json:"equipment" gorm:"column:equipment;type:text;comment:设备配置" widget:"name:设备配置;type:text_area"`
 	Location  string `json:"location" gorm:"column:location;comment:位置信息" widget:"name:位置信息;type:input" validate:"required,min=2,max=100"`
 	Status    string `json:"status" gorm:"column:status;comment:状态;default:可用" widget:"name:状态;type:select;options:可用,维护中,停用;options_colors:67C23A,E6A23C,F56C6C;render_default:可用" validate:"required,oneof=可用 维护中 停用"`
@@ -285,7 +285,7 @@ type MeetingRoomBooking struct {
 	Description   string `json:"description" gorm:"column:description;type:text;comment:会议描述" widget:"name:会议描述;type:text_area"`
 	StartTime     types.Time  `json:"start_time" gorm:"column:start_time;type:datetime;comment:开始时间;index" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss;render_default:CURRENT_TIMESTAMP" validate:"required"`
 	EndTime       types.Time  `json:"end_time" gorm:"column:end_time;type:datetime;comment:结束时间;index" widget:"name:结束时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" validate:"required"`
-	AttendeeCount int    `json:"attendee_count" gorm:"column:attendee_count;comment:参会人数" widget:"name:参会人数;type:number" validate:"required,min=1"`
+	AttendeeCount int    `json:"attendee_count" gorm:"column:attendee_count;comment:参会人数" widget:"name:参会人数;type:integer" validate:"required,min=1"`
 	Status        string `json:"status" gorm:"-" widget:"name:预约状态;type:select;options:待开始,进行中,已结束;options_colors:909399,409EFF,67C23A" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	Remark        string `json:"remark" gorm:"column:remark;type:text;comment:备注" widget:"name:备注;type:text_area"`
 }

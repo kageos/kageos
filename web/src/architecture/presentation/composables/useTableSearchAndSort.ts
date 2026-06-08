@@ -1,6 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { WidgetType } from '@/architecture/domain/constants/widget'
-import { hasSearchFieldValue } from '@/architecture/domain/utils/searchFieldValue'
+import { getSearchFieldRawValue, hasSearchFieldValue } from '@/architecture/domain/utils/searchFieldValue'
 import { resolveSearchFieldLayoutClass } from '../views/utils/searchFieldLayout'
 import type { FunctionDetail, FieldConfig } from '../../domain/types'
 import type { TableDomainService } from '../../domain/services/TableDomainService'
@@ -20,6 +20,32 @@ interface UseTableSearchAndSortOptions {
 }
 
 const STORAGE_KEY_PREFIX = 'table-search-bar-expanded:'
+
+function normalizeRawForComparison(value: unknown): string {
+  const raw = getSearchFieldRawValue(value)
+
+  if (raw === null || raw === undefined || raw === '') {
+    return ''
+  }
+
+  if (Array.isArray(raw)) {
+    return raw.map(item => String(item)).join(',')
+  }
+
+  if (typeof raw === 'object') {
+    try {
+      return JSON.stringify(raw)
+    } catch (_) {
+      return String(raw)
+    }
+  }
+
+  return String(raw)
+}
+
+function searchRawValueChanged(previousValue: unknown, nextValue: unknown): boolean {
+  return normalizeRawForComparison(previousValue) !== normalizeRawForComparison(nextValue)
+}
 
 export function useTableSearchAndSort(options: UseTableSearchAndSortOptions) {
   const searchBarStorageKey = computed(() => {
@@ -188,6 +214,7 @@ export function useTableSearchAndSort(options: UseTableSearchAndSortOptions) {
   const updateSearchValue = (field: FieldConfig, value: any, shouldSearch: boolean = false): void => {
     const currentState = options.stateManager.getState()
     const newSearchForm = { ...currentState.searchForm }
+    const rawChanged = searchRawValueChanged(currentState.searchForm[field.code], value)
 
     if (
       !hasSearchFieldValue(value)
@@ -198,8 +225,10 @@ export function useTableSearchAndSort(options: UseTableSearchAndSortOptions) {
     }
 
     options.stateManager.setState({ ...currentState, searchForm: newSearchForm })
-    options.syncToURL()
-    if (shouldSearch) {
+    if (rawChanged) {
+      options.syncToURL()
+    }
+    if (shouldSearch && rawChanged) {
       void options.loadTableData()
     }
   }

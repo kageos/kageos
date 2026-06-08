@@ -34,11 +34,13 @@ type OperateLogEntry = {
   details_json?: any
   old_values_json?: any
   new_values_json?: any
+  source?: string
 }
 
 interface OperateLogChangeEntry {
   fieldCode: string
   fieldName: string
+  field: FieldConfig | null
   oldValue: any
   newValue: any
   hasOldValue: boolean
@@ -47,6 +49,7 @@ interface OperateLogChangeEntry {
 interface OperateLogValueEntry {
   fieldCode: string
   fieldName: string
+  field: FieldConfig | null
   value: any
 }
 
@@ -81,6 +84,7 @@ export function useOperateLogSection({
   const loading = ref(false)
   const keyword = ref('')
   const actionFilter = ref('')
+  const sourceFilter = ref('')
   const userFilter = ref('')
   const userOptions = ref<Array<{ label: string; value: string; userInfo?: UserInfo }>>([])
   const userFilterLoading = ref(false)
@@ -88,6 +92,7 @@ export function useOperateLogSection({
   const pageSize = ref(OPERATE_LOG_PAGE_SIZE)
   const total = ref(0)
   const expandedLogIds = ref<number[]>([])
+  const expandedLogRowKeys = computed(() => expandedLogIds.value.map((id) => String(id)))
   const functionDetailCache = ref<FunctionDetail | null>(null)
   const functionDetailMap = ref<Map<string, FunctionDetail>>(new Map())
   const userInfoMap = ref<Map<string, any>>(new Map())
@@ -102,6 +107,14 @@ export function useOperateLogSection({
     { label: t('operateLog.add'), value: 'OnTableAddRow' },
     { label: t('operateLog.update'), value: 'OnTableUpdateRow' },
     { label: t('operateLog.delete'), value: 'OnTableDeleteRows' },
+  ])
+  const sourceOptions = computed(() => [
+    { label: t('operateLog.allSources'), value: '' },
+    { label: t('operateLog.sourceBrowser'), value: 'browser' },
+    { label: t('operateLog.sourceOpenAPI'), value: 'openapi' },
+    { label: t('operateLog.sourceAgent'), value: 'agent' },
+    { label: t('operateLog.sourcePublicShare'), value: 'public_share' },
+    { label: t('operateLog.sourceUnknown'), value: 'unknown' },
   ])
 
   const isFormOperateLog = computed(() => {
@@ -299,6 +312,7 @@ export function useOperateLogSection({
           : { resource_path: fullCodePath.value }),
         ...(scopeValue === 'row' ? { row_id: rowId.value } : {}),
         ...(actionFilter.value ? { action: actionFilter.value } : {}),
+        ...(sourceFilter.value ? { source: sourceFilter.value } : {}),
         ...(userFilter.value ? { actor_user: userFilter.value } : {}),
         ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
         page: currentPage.value,
@@ -307,7 +321,7 @@ export function useOperateLogSection({
       })
       logs.value = (response.logs || []).map(normalizeOperateLog)
       total.value = response.total || 0
-      expandedLogIds.value = []
+      expandedLogIds.value = scopeValue === 'directory' ? [] : logs.value.map((log) => log.id)
       await loadDirectoryFunctionDetails()
       await loadUserInfos()
       hasLoaded.value = true
@@ -352,6 +366,7 @@ export function useOperateLogSection({
     details_json: log.details_json,
     old_values_json: log.old_values_json,
     new_values_json: log.new_values_json,
+    source: log.source,
   })
 
   const readOperateLogRowId = (log: OperateLog): number => {
@@ -388,6 +403,44 @@ export function useOperateLogSection({
         return t('operateLog.delete')
       default:
         return action
+    }
+  }
+
+  const getSourceLabel = (source?: string): string => {
+    switch (source) {
+      case 'browser':
+        return t('operateLog.sourceBrowser')
+      case 'openapi':
+      case 'api':
+        return t('operateLog.sourceOpenAPI')
+      case 'agent':
+        return t('operateLog.sourceAgent')
+      case 'public_share':
+        return t('operateLog.sourcePublicShare')
+      case 'unknown':
+      case '':
+      case undefined:
+        return t('operateLog.sourceUnknown')
+      default:
+        return source
+    }
+  }
+
+  const getSourceTagType = (source?: string): TagProps['type'] => {
+    switch (source) {
+      case 'agent':
+        return 'warning'
+      case 'openapi':
+      case 'api':
+        return 'success'
+      case 'public_share':
+        return 'info'
+      case 'unknown':
+      case '':
+      case undefined:
+        return 'danger'
+      default:
+        return 'info'
     }
   }
 
@@ -480,13 +533,17 @@ export function useOperateLogSection({
     }
 
     const oldValues = parseJSON(log.old_values)
-    return Object.entries(updates).map(([fieldCode, newValue]) => ({
-      fieldCode,
-      fieldName: getFieldName(fieldCode, log.full_code_path),
-      oldValue: oldValues?.[fieldCode],
-      newValue,
-      hasOldValue: oldValues && Object.prototype.hasOwnProperty.call(oldValues, fieldCode),
-    }))
+    return Object.entries(updates).map(([fieldCode, newValue]) => {
+      const field = getFieldConfig(fieldCode, log.full_code_path)
+      return {
+        fieldCode,
+        fieldName: field?.name || String(fieldCode),
+        field,
+        oldValue: oldValues?.[fieldCode],
+        newValue,
+        hasOldValue: oldValues && Object.prototype.hasOwnProperty.call(oldValues, fieldCode),
+      }
+    })
   }
 
   const getValueEntries = (log: OperateLogEntry): OperateLogValueEntry[] => {
@@ -495,11 +552,32 @@ export function useOperateLogSection({
       return []
     }
 
-    return Object.entries(values).map(([fieldCode, value]) => ({
-      fieldCode,
-      fieldName: getFieldName(fieldCode, log.full_code_path),
-      value,
-    }))
+    return Object.entries(values).map(([fieldCode, value]) => {
+      const field = getFieldConfig(fieldCode, log.full_code_path)
+      return {
+        fieldCode,
+        fieldName: field?.name || String(fieldCode),
+        field,
+        value,
+      }
+    })
+  }
+
+  const getFormRequestEntries = (log: OperateLogEntry): OperateLogValueEntry[] => {
+    const values = parseJSON(log.old_values_json ?? log.old_values ?? log.details_json?.request_body)
+    if (!values || typeof values !== 'object' || Array.isArray(values)) {
+      return []
+    }
+
+    return Object.entries(values).map(([fieldCode, value]) => {
+      const field = getFieldConfig(fieldCode, log.full_code_path)
+      return {
+        fieldCode,
+        fieldName: field?.name || String(fieldCode),
+        field,
+        value,
+      }
+    })
   }
 
   const getPrimaryEntries = (log: OperateLogEntry): OperateLogValueEntry[] => {
@@ -509,6 +587,7 @@ export function useOperateLogSection({
         .map((item) => ({
           fieldCode: item.fieldCode,
           fieldName: item.fieldName,
+          field: item.field,
           value: item.newValue,
         }))
     }
@@ -610,6 +689,7 @@ export function useOperateLogSection({
     if (log.version) entries.push({ label: t('operateLog.version'), value: log.version })
     if (response?.error) entries.push({ label: t('operateLog.error'), value: String(response.error) })
     if (log.trace_id) entries.push({ label: 'Trace', value: log.trace_id })
+    if (log.source) entries.push({ label: t('operateLog.source'), value: getSourceLabel(log.source) })
     if (log.ip_address) entries.push({ label: 'IP', value: log.ip_address })
     return entries
   }
@@ -618,12 +698,20 @@ export function useOperateLogSection({
     return expandedLogIds.value.includes(logId)
   }
 
+  const getLogRowKey = (log: OperateLogEntry): string => {
+    return String(log.id)
+  }
+
   const toggleLogExpanded = (logId: number) => {
     if (isLogExpanded(logId)) {
       expandedLogIds.value = expandedLogIds.value.filter((id) => id !== logId)
       return
     }
     expandedLogIds.value = [...expandedLogIds.value, logId]
+  }
+
+  const handleLogExpandChange = (_log: OperateLogEntry, expandedRows: OperateLogEntry[]) => {
+    expandedLogIds.value = expandedRows.map((log) => log.id)
   }
 
   const canApplyFormLog = (log: OperateLogEntry): boolean => {
@@ -660,6 +748,10 @@ export function useOperateLogSection({
     resetAndLoad()
   }
 
+  const handleSourceChange = () => {
+    resetAndLoad()
+  }
+
   const handleUserChange = () => {
     resetAndLoad()
   }
@@ -684,6 +776,7 @@ export function useOperateLogSection({
         total.value = 0
         currentPage.value = 1
         userFilter.value = ''
+        sourceFilter.value = ''
         functionDetailMap.value = new Map()
       }
 
@@ -717,6 +810,7 @@ export function useOperateLogSection({
       total.value = 0
       currentPage.value = 1
       userFilter.value = ''
+      sourceFilter.value = ''
       functionDetailCache.value = null
       functionDetailMap.value = new Map()
     }
@@ -732,19 +826,26 @@ export function useOperateLogSection({
     formatRelativeTime,
     keyword,
     actionFilter,
+    sourceFilter,
     userFilter,
     userOptions,
     userFilterLoading,
     actionOptions,
+    sourceOptions,
     currentPage,
     pageSize,
     total,
+    expandedLogIds,
+    expandedLogRowKeys,
     getUserInfo,
     getActionTagType,
     getActionLabel,
+    getSourceLabel,
+    getSourceTagType,
     formatLogValue,
     getChangeEntries,
     getValueEntries,
+    getFormRequestEntries,
     getPrimaryEntries,
     getLogTitle,
     getLogEmptyText,
@@ -756,10 +857,13 @@ export function useOperateLogSection({
     formatDuration,
     canApplyFormLog,
     applyFormLog,
+    getLogRowKey,
     isLogExpanded,
     toggleLogExpanded,
+    handleLogExpandChange,
     handleSearch,
     handleActionChange,
+    handleSourceChange,
     handleUserChange,
     searchUserOptions,
     handlePageChange,

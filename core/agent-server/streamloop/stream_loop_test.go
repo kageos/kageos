@@ -1,8 +1,10 @@
 package streamloop
 
 import (
+	"context"
 	"testing"
 
+	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/llms"
 )
 
@@ -25,8 +27,8 @@ func TestAppendToolCallArgsIgnoresDeltaWhenCurrentIsValidJSON(t *testing.T) {
 func TestMergeToolCallsUsesOpenAIStreamIndex(t *testing.T) {
 	idx0 := 0
 	idx1 := 1
-	makeCall := func(index *int, id, name, args string) llms.ToolCall {
-		tc := llms.ToolCall{ID: id, Type: "function", Index: index}
+	makeCall := func(index *int, id, name, args string) llms.ToolCallDelta {
+		tc := llms.ToolCallDelta{ID: id, Type: "function", Index: index}
 		tc.Function.Name = name
 		tc.Function.Arguments = args
 		return tc
@@ -34,11 +36,11 @@ func TestMergeToolCallsUsesOpenAIStreamIndex(t *testing.T) {
 
 	var all []llms.ToolCall
 	indexByID := map[string]int{}
-	all, indexByID = mergeToolCalls([]llms.ToolCall{
+	all, indexByID = mergeToolCallDeltas([]llms.ToolCallDelta{
 		makeCall(&idx0, "call_a", "first_tool", `{"a":`),
 		makeCall(&idx1, "call_b", "second_tool", `{"b":`),
 	}, all, indexByID)
-	all, indexByID = mergeToolCalls([]llms.ToolCall{
+	all, indexByID = mergeToolCallDeltas([]llms.ToolCallDelta{
 		makeCall(&idx0, "", "", `1}`),
 		makeCall(&idx1, "", "", `2}`),
 	}, all, indexByID)
@@ -54,5 +56,164 @@ func TestMergeToolCallsUsesOpenAIStreamIndex(t *testing.T) {
 	}
 	if indexByID["call_a"] != 0 || indexByID["call_b"] != 1 {
 		t.Fatalf("indexByID = %#v, want call_a=0 call_b=1", indexByID)
+	}
+}
+
+func TestProcessStreamChunksEmitsStableToolCallIdentity(t *testing.T) {
+	idx0 := 0
+	makeCall := func(index *int, id, name, args string) llms.ToolCallDelta {
+		tc := llms.ToolCallDelta{ID: id, Type: "function", Index: index}
+		tc.Function.Name = name
+		tc.Function.Arguments = args
+		return tc
+	}
+
+	stream := make(chan *llms.StreamChunk, 2)
+	stream <- &llms.StreamChunk{ToolCallDeltas: []llms.ToolCallDelta{
+		makeCall(&idx0, "", "run_python", `{"code":"print(1)"}`),
+	}}
+	stream <- &llms.StreamChunk{ToolCallDeltas: []llms.ToolCallDelta{
+		makeCall(&idx0, "call_1", "", ""),
+	}}
+	close(stream)
+
+	var events []dto.WorkspaceStreamToolCallDeltaData
+	_, calls, _, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
+		if event != EventToolCallsStreamDelta {
+			return
+		}
+		payload, ok := data.(*dto.WorkspaceStreamToolCallDeltaData)
+		if !ok {
+			t.Fatalf("delta payload type = %T, want *dto.WorkspaceStreamToolCallDeltaData", data)
+		}
+		events = append(events, *payload)
+	}, 3)
+	if err != nil {
+		t.Fatalf("processStreamChunks returned error: %v", err)
+	}
+	if len(calls) != 1 || calls[0].ID != "call_1" {
+		t.Fatalf("calls = %#v, want one call with id call_1", calls)
+	}
+	if len(events) != 1 || len(events[0].Updates) != 1 {
+		t.Fatalf("events = %#v, want one delta update", events)
+	}
+	update := events[0].Updates[0]
+	if update.ID != "call_1" || update.Index != 0 || update.Round != 3 || update.Name != "run_python" {
+		t.Fatalf("delta update identity = %#v, want id/index/round/name", update)
+	}
+}
+
+func TestProcessStreamChunksReturnsFinalUsage(t *testing.T) {
+	stream := make(chan *llms.StreamChunk, 2)
+	stream <- &llms.StreamChunk{Content: "ok"}
+	stream <- &llms.StreamChunk{Usage: &llms.Usage{
+		PromptTokens:         1200,
+		CompletionTokens:     80,
+		TotalTokens:          1280,
+		CachedTokens:         1024,
+		CachedTokensReported: true,
+	}}
+	close(stream)
+
+	content, calls, usage, err := processStreamChunks(context.Background(), stream, func(string, interface{}) {}, 0)
+	if err != nil {
+		t.Fatalf("processStreamChunks returned error: %v", err)
+	}
+	if content != "ok" || len(calls) != 0 {
+		t.Fatalf("content/calls = %q/%#v, want ok/no calls", content, calls)
+	}
+	if usage == nil || usage.CachedTokens != 1024 || usage.TotalTokens != 1280 || !usage.CachedTokensReported {
+		t.Fatalf("usage = %#v, want cached 1024 total 1280", usage)
+	}
+}
+
+func TestProcessStreamChunksReturnsLLMErrorWithoutEmittingErrorEvent(t *testing.T) {
+	stream := make(chan *llms.StreamChunk, 1)
+	stream <- &llms.StreamChunk{Error: "unexpected end of JSON input"}
+	close(stream)
+
+	errorEvents := 0
+	_, _, _, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
+		if event == EventError {
+			errorEvents++
+		}
+	}, 0)
+	if err == nil || err.Error() != "LLM 流式错误: unexpected end of JSON input" {
+		t.Fatalf("err = %v, want LLM stream error", err)
+	}
+	if errorEvents != 0 {
+		t.Fatalf("error events = %d, want 0 from processStreamChunks", errorEvents)
+	}
+}
+
+func TestMergeToolCallsPrefersKnownIDWhenStreamIndexIsWrong(t *testing.T) {
+	idx0 := 0
+	idx1 := 1
+	makeCall := func(index *int, id, name, args string) llms.ToolCallDelta {
+		tc := llms.ToolCallDelta{ID: id, Type: "function", Index: index}
+		tc.Function.Name = name
+		tc.Function.Arguments = args
+		return tc
+	}
+
+	var all []llms.ToolCall
+	indexByID := map[string]int{}
+	all, indexByID = mergeToolCallDeltas([]llms.ToolCallDelta{
+		makeCall(&idx0, "call_a", "first_tool", `{"a":`),
+		makeCall(&idx1, "call_b", "second_tool", `{"b":`),
+	}, all, indexByID)
+	all, indexByID = mergeToolCallDeltas([]llms.ToolCallDelta{
+		makeCall(&idx0, "call_b", "", `2}`),
+	}, all, indexByID)
+
+	if all[0].Function.Arguments != `{"a":` {
+		t.Fatalf("first tool was corrupted by wrong index: %#v", all[0])
+	}
+	if all[1].Function.Arguments != `{"b":2}` {
+		t.Fatalf("second tool did not merge by known id: %#v", all[1])
+	}
+	if indexByID["call_b"] != 1 {
+		t.Fatalf("indexByID[call_b] = %d, want 1", indexByID["call_b"])
+	}
+}
+
+func TestMergeToolCallsDoesNotAppendAnonymousArgsWhenAmbiguous(t *testing.T) {
+	makeCall := func(id, name, args string) llms.ToolCallDelta {
+		tc := llms.ToolCallDelta{ID: id, Type: "function"}
+		tc.Function.Name = name
+		tc.Function.Arguments = args
+		return tc
+	}
+
+	var all []llms.ToolCall
+	indexByID := map[string]int{}
+	all, indexByID = mergeToolCallDeltas([]llms.ToolCallDelta{
+		makeCall("call_a", "first_tool", `{"a":`),
+		makeCall("call_b", "second_tool", `{"b":`),
+	}, all, indexByID)
+	all, _ = mergeToolCallDeltas([]llms.ToolCallDelta{
+		makeCall("", "", `1}`),
+	}, all, indexByID)
+
+	if all[0].Function.Arguments != `{"a":` || all[1].Function.Arguments != `{"b":` {
+		t.Fatalf("anonymous args were appended despite ambiguous target: %#v", all)
+	}
+}
+
+func TestNormalizeToolCallsDropsBlankPlaceholdersAndAssignsMissingID(t *testing.T) {
+	call := llms.ToolCall{Type: "function"}
+	call.Function.Name = "write_go_file"
+	call.Function.Arguments = `{}`
+
+	got := normalizeToolCalls(context.Background(), []llms.ToolCall{
+		{Type: "function"},
+		call,
+	})
+
+	if len(got) != 1 {
+		t.Fatalf("len(got) = %d, want 1: %#v", len(got), got)
+	}
+	if got[0].ID != "call_local_1" {
+		t.Fatalf("generated id = %q, want call_local_1", got[0].ID)
 	}
 }

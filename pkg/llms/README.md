@@ -1,11 +1,10 @@
 # LLMs
 
-`pkg/llms` is now a thin application-facing wrapper over `openai-go`.
+`pkg/llms` is a thin application-facing wrapper over `openai-go`.
 
-The package deliberately supports one protocol only: OpenAI Chat Completions. If a
-vendor, gateway, or local model service exposes an OpenAI-compatible `/v1`
-endpoint, configure it with `api_base` and `model`. If it does not, it is outside
-this layer.
+The package deliberately supports one protocol only: OpenAI Chat Completions.
+`api_base` is an OpenAI SDK endpoint override for proxies or controlled
+deployments; it is not a provider extension point.
 
 ## Import
 
@@ -35,7 +34,7 @@ resp, err := client.Chat(context.Background(), &llms.ChatRequest{
 })
 ```
 
-For OpenAI-compatible services:
+For OpenAI API base URL overrides:
 
 ```go
 opts := llms.DefaultClientOptions().

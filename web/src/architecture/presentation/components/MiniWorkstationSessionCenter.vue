@@ -56,6 +56,9 @@
               <span class="mini-session-row-copy">
                 <span class="mini-session-row-title">{{ getSessionTitle(item) }}</span>
                 <span class="mini-session-row-sub">{{ getSessionCenterSubtitle(item) }}</span>
+                <span v-if="getSessionContextBadges(item).length" class="mini-session-row-context">
+                  <span v-for="badge in getSessionContextBadges(item)" :key="badge">{{ badge }}</span>
+                </span>
               </span>
               <span class="mini-session-row-meta">{{ getSessionStatusLabel(item) }} · {{ formatRelativeTime(item.updated_at || item.created_at) }}</span>
               <span class="mini-session-open">打开</span>
@@ -86,6 +89,9 @@
               <span class="mini-session-row-copy">
                 <span class="mini-session-row-title">{{ getSessionTitle(item) }}</span>
                 <span class="mini-session-row-sub">{{ getSessionCenterSubtitle(item) }}</span>
+                <span v-if="getSessionContextBadges(item).length" class="mini-session-row-context">
+                  <span v-for="badge in getSessionContextBadges(item)" :key="badge">{{ badge }}</span>
+                </span>
               </span>
               <span class="mini-session-row-meta">{{ getSessionStatusLabel(item) }} · {{ formatRelativeTime(item.updated_at || item.created_at) }}</span>
               <span class="mini-session-open">打开</span>
@@ -138,6 +144,24 @@ const searchKeywordModel = computed({
   get: () => props.sessionSearchKeyword,
   set: (value) => emit('update:sessionSearchKeyword', value)
 })
+
+function getSessionContextBadges(session: WorkspaceSessionItem): string[] {
+  const badges: string[] = []
+  if (session.archived_for_model) badges.push('仅展示历史')
+  const policy = formatSessionContextPolicy(session.context_policy)
+  if (policy) badges.push(policy)
+  if ((session.model_context_anchor_message_id || 0) > 0) badges.push('已裁剪上下文')
+  return badges
+}
+
+function formatSessionContextPolicy(policy?: string): string {
+  const normalized = String(policy || '').trim()
+  if (!normalized) return ''
+  if (normalized === 'artifact_only') return '产物上下文'
+  if (normalized === 'display_only') return '不进模型'
+  if (normalized === 'full') return '完整上下文'
+  return normalized
+}
 </script>
 
 <style scoped>
@@ -506,6 +530,26 @@ const searchKeywordModel = computed({
   margin-top: 5px;
   color: #8798b5;
   font-size: 12px;
+}
+
+.mini-session-row-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.mini-session-row-context span {
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border: 1px solid rgba(83, 174, 255, 0.22);
+  border-radius: 6px;
+  background: rgba(37, 91, 145, 0.18);
+  color: #8ed0ff;
+  font-size: 11px;
+  line-height: 18px;
 }
 
 .mini-session-row-meta {

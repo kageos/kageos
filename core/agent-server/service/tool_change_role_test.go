@@ -2,8 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/functionschema"
+	"github.com/kageos/kageos/sdk/agent-app/widget"
 )
 
 func TestBuildChangeRoleLoadsPlanDocs(t *testing.T) {
@@ -70,6 +75,32 @@ func TestBuildChangeRoleLoadsCreateDocs(t *testing.T) {
 	if containsWorkspaceRoleString(got.AllowedNextTools, "write_prd") {
 		t.Fatalf("app_developer should not plan PRD again, tools=%v", got.AllowedNextTools)
 	}
+	if !containsWorkspaceRoleString(got.RuntimeContract.DoneWhen, "build_workspace 成功、已交接 qa_engineer 并完成核心函数测试") {
+		t.Fatalf("app_developer should expose done_when contract, runtime=%#v", got.RuntimeContract)
+	}
+	if len(got.RuntimeContract.Hooks) == 0 {
+		t.Fatalf("app_developer should expose lifecycle hooks, runtime=%#v", got.RuntimeContract)
+	}
+	if got.RuntimeContract.Hooks[0].ImplementationStatus == "" {
+		t.Fatalf("runtime hooks should expose implementation status, hooks=%#v", got.RuntimeContract.Hooks)
+	}
+}
+
+func TestBuildChangeRoleLoadsBuildRepairDocs(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		TargetRole:       WorkspaceRoleBuildEngineer,
+		ExecuteDirectory: "/u/app/nps",
+		TaskContext:      []string{"build_workspace 失败，需要修复 schema"},
+	})
+	for _, doc := range []string{
+		"/system/prompt/roles/build-engineer",
+		"/system/prompt/sdk/agent-app-sdk-readme",
+		"/system/prompt/sdk/reference/build-validation",
+	} {
+		if !containsWorkspaceRoleString(got.RequiredDocs, doc) {
+			t.Fatalf("build engineer should include %s, docs=%v", doc, got.RequiredDocs)
+		}
+	}
 }
 
 func TestBuildChangeRoleDoesNotInferFromUserInput(t *testing.T) {
@@ -119,6 +150,378 @@ func TestBuildChangeRoleSwitchesAndCarriesSummary(t *testing.T) {
 	}
 }
 
+func TestBuildChangeRoleUsesStandardHandoffBlocksAndDirectoryFallback(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		CurrentRole: WorkspaceRoleBuildEngineer,
+		TargetRole:  WorkspaceRoleQAEngineer,
+		TaskContext: []string{
+			"上一阶段 build_workspace 已通过",
+			"用户要验证 NPS 表单提交和趋势图",
+			"特殊 case：创建开始时间/创建结束时间必须按系统创建时间筛选",
+		},
+		KeyInformation: []string{"构建版本 v4", "Form: /liubeiluo/nps/submit_score", "Chart: /liubeiluo/nps/nps_trend"},
+		References:     []string{"/system/prompt/roles/qa-engineer", "nps_submit.go"},
+		ResetContext:   true,
+	}, "/liubeiluo/nps")
+	if got.ExecuteDirectory != "/liubeiluo/nps" || got.Directory != "/liubeiluo/nps" || got.Handoff.ExecuteDirectory != "/liubeiluo/nps" {
+		t.Fatalf("handoff should use fallback execute directory, got %#v", got.Handoff)
+	}
+	if !strings.Contains(got.ContextPolicy, "执行目录固定为 /liubeiluo/nps") {
+		t.Fatalf("context policy should pin execute directory, got %q", got.ContextPolicy)
+	}
+	if len(got.Handoff.TaskContext) != 3 || !strings.Contains(strings.Join(got.Handoff.TaskContext, "；"), "趋势图") {
+		t.Fatalf("handoff task context not preserved: %#v", got.Handoff)
+	}
+	if !containsWorkspaceRoleString(got.Handoff.KeyInformation, "构建版本 v4") || !containsWorkspaceRoleString(got.Handoff.References, "nps_submit.go") {
+		t.Fatalf("handoff key info/references not preserved: %#v", got.Handoff)
+	}
+	if got.HandoffPacket.Version != workspaceRoleHandoffPacketVersion ||
+		got.HandoffPacket.SourceRole != WorkspaceRoleBuildEngineer ||
+		got.HandoffPacket.TargetRole != WorkspaceRoleQAEngineer ||
+		got.HandoffPacket.ExecuteDirectory != "/liubeiluo/nps" {
+		t.Fatalf("typed handoff packet metadata wrong: %#v", got.HandoffPacket)
+	}
+	if !containsWorkspaceRoleString(got.HandoffPacket.TaskContext, "上一阶段 build_workspace 已通过") ||
+		!containsWorkspaceRoleString(got.HandoffPacket.KeyInformation, "构建版本 v4") ||
+		!containsWorkspaceRoleString(got.HandoffPacket.References, "nps_submit.go") {
+		t.Fatalf("typed handoff packet should mirror standard four blocks, got %#v", got.HandoffPacket)
+	}
+	if got.HandoffPacket.BuildDiagnostics != nil {
+		t.Fatalf("QA handoff packet should not carry build diagnostics, got %#v", got.HandoffPacket.BuildDiagnostics)
+	}
+}
+
+func TestBuildChangeRoleNormalizesNewAppDeveloperExecuteDirectoryToWorkspaceRoot(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		CurrentRole:      WorkspaceRoleProductManager,
+		TargetRole:       WorkspaceRoleAppDeveloper,
+		ExecuteDirectory: "/system/x_world/vote",
+		TaskContext:      []string{"PRD已确认，进入开发阶段", "目标：创建投票系统目录和 Go 代码"},
+		KeyInformation:   []string{"项目：投票系统 (vote)", "3个Table和2个Form"},
+		References:       []string{"/system/prompt/roles/app-developer", "/system/x_world/ticket_management", "/system/x_world/vote"},
+		ResetContext:     true,
+	}, "/system/x_world/ticket_management")
+	if got.ExecuteDirectory != "/system/x_world" || got.Handoff.ExecuteDirectory != "/system/x_world" {
+		t.Fatalf("new app developer should execute from workspace root, got %#v", got.Handoff)
+	}
+	if !containsWorkspaceRoleString(got.Handoff.KeyInformation, "新建应用目标目录：/system/x_world/vote") {
+		t.Fatalf("handoff should preserve target new directory as key info: %#v", got.Handoff.KeyInformation)
+	}
+	if containsWorkspaceRoleString(got.Handoff.References, "/system/x_world/ticket_management") {
+		t.Fatalf("handoff should prune stale sibling app references: %#v", got.Handoff.References)
+	}
+	if !containsWorkspaceRoleString(got.Handoff.References, "/system/x_world/vote") ||
+		!containsWorkspaceRoleString(got.Handoff.References, "/system/prompt/roles/app-developer") {
+		t.Fatalf("handoff should keep target directory and role docs: %#v", got.Handoff.References)
+	}
+	if !strings.Contains(got.ContextPolicy, "执行目录固定为 /system/x_world") {
+		t.Fatalf("context policy should pin workspace root execute directory, got %q", got.ContextPolicy)
+	}
+}
+
+func TestBuildChangeRoleDoesNotNormalizeAppDeveloperForBusinessOperation(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		CurrentRole:      WorkspaceRoleProductManager,
+		TargetRole:       WorkspaceRoleAppDeveloper,
+		ExecuteDirectory: "/system/x_world/vote",
+		TaskContext:      []string{"用户要直接创建四大古都投票", "直接通过表单提交创建投票主题和选项"},
+		References:       []string{"/system/prompt/roles/app-developer", "/system/x_world/vote"},
+		ResetContext:     true,
+	}, "/system/x_world/vote")
+	if got.ExecuteDirectory != "/system/x_world/vote" || got.Handoff.ExecuteDirectory != "/system/x_world/vote" {
+		t.Fatalf("business operation misrouted to app_developer should not be rewritten as new app development: %#v", got.Handoff)
+	}
+	for _, item := range got.Handoff.KeyInformation {
+		if strings.Contains(item, "新建应用目标目录") {
+			t.Fatalf("business operation should not receive new-app target directory hint: %#v", got.Handoff.KeyInformation)
+		}
+	}
+}
+
+func TestBuildChangeRoleAddsRoleSpecificNextStepAdvice(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		CurrentRole:      WorkspaceRoleBuildEngineer,
+		TargetRole:       WorkspaceRoleQAEngineer,
+		ExecuteDirectory: "/system/x_world/vote",
+		TaskContext:      []string{"build 已通过，进入测试"},
+		KeyInformation:   []string{"重点验证投票主题创建、提交投票和查看结果"},
+		ResetContext:     true,
+	})
+	keyInfo := strings.Join(got.Handoff.KeyInformation, "；")
+	for _, want := range []string{
+		"search_tools(directory=execute_directory)",
+		"主数据/配置表 -> Form 提交 -> 目标记录表 -> Chart/结果查询",
+		"参数、数据、schema、业务 bug 或构建问题",
+	} {
+		if !strings.Contains(keyInfo, want) {
+			t.Fatalf("QA handoff advice should contain %q, got %#v", want, got.Handoff.KeyInformation)
+		}
+	}
+}
+
+func TestBuildChangeRoleRunsAppOperatorCapabilityHook(t *testing.T) {
+	oldSearchFunctions := workspaceRoleHookSearchFunctions
+	t.Cleanup(func() {
+		workspaceRoleHookSearchFunctions = oldSearchFunctions
+	})
+	var gotReq *dto.SearchFunctionsReq
+	workspaceRoleHookSearchFunctions = func(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error) {
+		gotReq = req
+		return &dto.SearchFunctionsResp{
+			Functions: []*dto.FunctionSearchResult{
+				{
+					Name:         "投票主题",
+					Code:         "vote_topic_list",
+					FullCodePath: "/system/x_world/vote/vote_topic_list.table",
+					TemplateType: "table",
+					Callbacks:    []string{"OnTableAddRow"},
+					Schema: functionschema.NewTable(
+						[]*widget.Field{testSearchToolField("topic_title", "主题标题", "input", nil, "")},
+						[]*widget.Field{testSearchToolField("topic_title", "主题标题", "input", nil, "required")},
+						[]string{"OnTableAddRow"},
+					),
+				},
+				{
+					Name:         "提交投票",
+					Code:         "vote_submit",
+					FullCodePath: "/system/x_world/vote/vote_submit.form",
+					TemplateType: "form",
+					Schema: functionschema.NewForm(
+						[]*widget.Field{testSearchToolField("option_id", "选项", "select", nil, "required")},
+						nil,
+						nil,
+					),
+				},
+				{
+					Name:         "其他应用函数",
+					FullCodePath: "/system/x_world/ticket/ticket_list.table",
+					TemplateType: "table",
+				},
+			},
+		}, nil
+	}
+
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		TargetRole:       WorkspaceRoleAppOperator,
+		ExecuteDirectory: "/system/x_world/vote",
+		TaskContext:      []string{"用户要创建一个四大古都投票"},
+	}, "/system/x_world/vote")
+
+	if gotReq == nil || gotReq.User != "system" || gotReq.App != "x_world" || gotReq.Keyword != "vote" {
+		t.Fatalf("unexpected function search request: %#v", gotReq)
+	}
+	if got.AppCapabilities == nil || got.AppCapabilities.Status != "ok" {
+		t.Fatalf("expected app capability snapshot, got %#v", got.AppCapabilities)
+	}
+	if got.AppCapabilities.TotalFunctions != 2 || got.AppCapabilities.Counts.Tables != 1 || got.AppCapabilities.Counts.Forms != 1 {
+		t.Fatalf("unexpected app capability counts: %#v", got.AppCapabilities)
+	}
+	if len(got.ExecutedHooks) != 1 ||
+		got.ExecutedHooks[0].ID != workspaceRoleHookAppOperatorCapabilities ||
+		got.ExecutedHooks[0].Stage != workspaceRoleHookStageBeforeEnter {
+		t.Fatalf("expected app operator before_enter hook record, got %#v", got.ExecutedHooks)
+	}
+	keyInfo := strings.Join(got.Handoff.KeyInformation, "；")
+	for _, want := range []string{
+		"当前应用能力快照",
+		"/system/x_world/vote/vote_topic_list.table",
+		"run_table_create",
+		"/system/x_world/vote/vote_submit.form",
+		"search_tools(directory=change_role.execute_directory",
+	} {
+		if !strings.Contains(keyInfo, want) {
+			t.Fatalf("app operator handoff key info should contain %q, got %#v", want, got.Handoff.KeyInformation)
+		}
+	}
+}
+
+func TestBuildChangeRoleAppOperatorCapabilityHookDoesNotBlockOnSearchError(t *testing.T) {
+	oldSearchFunctions := workspaceRoleHookSearchFunctions
+	t.Cleanup(func() {
+		workspaceRoleHookSearchFunctions = oldSearchFunctions
+	})
+	workspaceRoleHookSearchFunctions = func(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error) {
+		return nil, errors.New("service tree unavailable")
+	}
+
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		TargetRole:       WorkspaceRoleAppOperator,
+		ExecuteDirectory: "/system/x_world/vote",
+		TaskContext:      []string{"用户要查询投票结果"},
+	}, "/system/x_world/vote")
+
+	if got.AppCapabilities == nil || got.AppCapabilities.Status != "error" {
+		t.Fatalf("expected error snapshot, got %#v", got.AppCapabilities)
+	}
+	if got.CurrentRole != WorkspaceRoleAppOperator || len(got.ExecutedHooks) != 1 {
+		t.Fatalf("change_role should still switch to app_operator and record hook, got %#v", got)
+	}
+	if !strings.Contains(strings.Join(got.Handoff.KeyInformation, "；"), "search_tools(directory=change_role.execute_directory)") {
+		t.Fatalf("error snapshot should carry search_tools fallback, got %#v", got.Handoff.KeyInformation)
+	}
+}
+
+func TestBuildChangeRoleAddsFailureAdviceBeforeRetrying(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		CurrentRole:      WorkspaceRoleAppDeveloper,
+		TargetRole:       WorkspaceRoleBuildEngineer,
+		ExecuteDirectory: "/system/x_world/vote",
+		TaskContext:      []string{"build 失败，多次重写后仍然报错"},
+		References:       []string{"/system/prompt/sdk/agent-app-sdk-readme", "/system/prompt/case_catalog/formandtable/vote"},
+		ResetContext:     true,
+	})
+	keyInfo := strings.Join(got.Handoff.KeyInformation, "；")
+	for _, want := range []string{
+		"不要猜不存在的 API",
+		"不要继续同一方案重试",
+		"先读取 references 中的 SDK、案例、源码或日志",
+	} {
+		if !strings.Contains(keyInfo, want) {
+			t.Fatalf("failure handoff advice should contain %q, got %#v", want, got.Handoff.KeyInformation)
+		}
+	}
+}
+
+func TestBuildChangeRoleRunsBuildEngineerDiagnosticsHook(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		CurrentRole:      WorkspaceRoleAppDeveloper,
+		TargetRole:       WorkspaceRoleBuildEngineer,
+		ExecuteDirectory: "/system/x_world/inventory",
+		TaskContext: []string{
+			"build_workspace 失败，进入构建修复阶段",
+			"app startup failed: SDK schema compile failed: router /inventory/purchase_inbound_list.table table schema decode failed",
+		},
+		KeyInformation: []string{
+			`field SupplierName (supplier_name): widget "select" requires options or OnSelectFuzzyMap entry`,
+			`field CreatedBy (created_by): audit field "created_by" hide tag must be "create,update", got ""`,
+		},
+		References:   []string{"/system/prompt/sdk/reference/build-validation"},
+		ResetContext: true,
+	}, "/system/x_world/inventory")
+
+	if got.BuildDiagnostics == nil {
+		t.Fatalf("expected build diagnostics, got %#v", got)
+	}
+	for _, want := range []string{"schema_validation", "select_options", "audit_field"} {
+		if !containsWorkspaceRoleString(got.BuildDiagnostics.Categories, want) {
+			t.Fatalf("expected diagnostics category %q, got %#v", want, got.BuildDiagnostics.Categories)
+		}
+	}
+	if !containsWorkspaceRoleString(got.BuildDiagnostics.Routers, "/inventory/purchase_inbound_list.table") {
+		t.Fatalf("expected router in diagnostics, got %#v", got.BuildDiagnostics.Routers)
+	}
+	if !workspaceBuildDiagnosticsHasFieldIssue(got.BuildDiagnostics, "CreatedBy", "created_by") {
+		t.Fatalf("expected CreatedBy field issue, got %#v", got.BuildDiagnostics.FieldIssues)
+	}
+	if len(got.ExecutedHooks) != 1 ||
+		got.ExecutedHooks[0].ID != workspaceRoleHookBuildEngineerDiagnostics ||
+		got.ExecutedHooks[0].Stage != workspaceRoleHookStageBeforeEnter {
+		t.Fatalf("expected build engineer diagnostics hook record, got %#v", got.ExecutedHooks)
+	}
+	if got.HandoffPacket.BuildDiagnostics == nil {
+		t.Fatalf("typed build engineer packet should carry build diagnostics, got %#v", got.HandoffPacket)
+	}
+	if !containsWorkspaceRoleString(got.HandoffPacket.BuildDiagnostics.Categories, "schema_validation") ||
+		!containsWorkspaceRoleString(got.HandoffPacket.References, "/system/prompt/sdk/reference/build-validation") {
+		t.Fatalf("typed build engineer packet should carry diagnostics and required docs, got %#v", got.HandoffPacket)
+	}
+	if len(got.HandoffPacket.ExecutedHooks) != 1 ||
+		got.HandoffPacket.ExecutedHooks[0].ID != workspaceRoleHookBuildEngineerDiagnostics {
+		t.Fatalf("typed build engineer packet should expose executed hooks, got %#v", got.HandoffPacket.ExecutedHooks)
+	}
+	keyInfo := strings.Join(got.Handoff.KeyInformation, "；")
+	for _, want := range []string{
+		"构建诊断",
+		"错误类型=schema_validation、audit_field、select_options",
+		"构建修复必读资料",
+		"同类错误第二次出现前",
+	} {
+		if !strings.Contains(keyInfo, want) {
+			t.Fatalf("build engineer handoff key info should contain %q, got %#v", want, got.Handoff.KeyInformation)
+		}
+	}
+}
+
+func TestBuildChangeRoleRunsMaintenanceScopeHook(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		CurrentRole:      WorkspaceRoleQAEngineer,
+		TargetRole:       WorkspaceRoleMaintenanceEngineer,
+		ExecuteDirectory: "/system/x_world/vote",
+		TaskContext:      []string{"投票提交测试失败，需要修复提交逻辑"},
+		KeyInformation:   []string{"失败函数：/system/x_world/vote/vote_submit.form", "相关文件：/system/x_world/vote/vote.go"},
+		ResetContext:     true,
+	})
+	if len(got.ExecutedHooks) != 1 ||
+		got.ExecutedHooks[0].ID != workspaceRoleHookMaintenanceScope ||
+		got.ExecutedHooks[0].Stage != workspaceRoleHookStageBeforeEnter {
+		t.Fatalf("expected maintenance scope hook record, got %#v", got.ExecutedHooks)
+	}
+	keyInfo := strings.Join(got.Handoff.KeyInformation, "；")
+	for _, want := range []string{
+		"维护范围",
+		"execute_directory=/system/x_world/vote",
+		"/system/x_world/vote/vote_submit.form",
+		"只读取、修改、构建该目录或其子目录",
+	} {
+		if !strings.Contains(keyInfo, want) {
+			t.Fatalf("maintenance handoff key info should contain %q, got %#v", want, got.Handoff.KeyInformation)
+		}
+	}
+}
+
+func TestBuildChangeRoleRunsQABeforeEnterSchemaHook(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		CurrentRole:      WorkspaceRoleBuildEngineer,
+		TargetRole:       WorkspaceRoleQAEngineer,
+		ExecuteDirectory: "/system/x_world/vote",
+		TaskContext:      []string{"build 已通过，进入测试"},
+		KeyInformation:   []string{"Form: /system/x_world/vote/vote_submit.form", "Table: /system/x_world/vote/vote_topic_list.table"},
+		ResetContext:     true,
+	})
+	if len(got.ExecutedHooks) != 1 ||
+		got.ExecutedHooks[0].ID != workspaceRoleHookQABeforeEnterSchema ||
+		got.ExecutedHooks[0].Stage != workspaceRoleHookStageBeforeEnter {
+		t.Fatalf("expected QA before_enter hook record, got %#v", got.ExecutedHooks)
+	}
+	keyInfo := strings.Join(got.Handoff.KeyInformation, "；")
+	for _, want := range []string{
+		"测试范围",
+		"execute_directory=/system/x_world/vote",
+		"候选测试函数",
+		"/system/x_world/vote/vote_submit.form",
+		"search_tools/search_resources/run_* 调用必须限定该目录",
+	} {
+		if !strings.Contains(keyInfo, want) {
+			t.Fatalf("QA handoff key info should contain %q, got %#v", want, got.Handoff.KeyInformation)
+		}
+	}
+}
+
+func TestBuildChangeRoleKeepsRichSummaryAcrossRoles(t *testing.T) {
+	summary := strings.Repeat("已确认范围=提交评分 Form、满意度记录只读表、NPS 趋势图；", 10) +
+		"关键约束=记录表由 Form 产生，不开放手工新增；验证重点=门店筛选和日期趋势。"
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		CurrentRole:    WorkspaceRoleQAEngineer,
+		TargetRole:     WorkspaceRoleMaintenanceEngineer,
+		TaskSummary:    summary,
+		ReferenceDocs:  []string{"/system/prompt/roles/maintenance-engineer", "/system/prompt/sdk/agent-app-sdk-readme"},
+		ReferenceFiles: []string{"nps_submit.go", "nps_chart.go"},
+		ResetContext:   true,
+	})
+	if !got.Switched || got.CurrentRole != WorkspaceRoleMaintenanceEngineer {
+		t.Fatalf("expected switch to maintenance engineer, got %#v", got)
+	}
+	if !strings.Contains(got.ContextPolicy, "关键约束=记录表由 Form 产生") || !strings.Contains(got.ContextPolicy, "验证重点=门店筛选和日期趋势") {
+		t.Fatalf("context policy should keep rich summary, got %q", got.ContextPolicy)
+	}
+	if !strings.Contains(got.ContextPolicy, "参考文档=/system/prompt/roles/maintenance-engineer") || !strings.Contains(got.ContextPolicy, "参考文件=nps_submit.go") {
+		t.Fatalf("context policy should keep references, got %q", got.ContextPolicy)
+	}
+	if len(got.ReferenceDocs) != 2 || len(got.ReferenceFiles) != 2 {
+		t.Fatalf("change_role should return explicit references, got %#v", got)
+	}
+}
+
 func TestBuildChangeRoleReportsBaseReadOnlyToolsForEveryRole(t *testing.T) {
 	got := buildChangeRole(context.Background(), changeRoleArgs{
 		TargetRole: WorkspaceRolePlatformEngineer,
@@ -145,5 +548,44 @@ func TestChangeRoleRejectsRetiredOrMalformedRoleID(t *testing.T) {
 	}
 	if !strings.Contains(res.Content, WorkspaceRoleQAEngineer) {
 		t.Fatalf("error should list canonical role ids, got %q", res.Content)
+	}
+}
+
+func TestChangeRoleRequiresExplicitTargetAndExecuteDirectory(t *testing.T) {
+	res := (&ChangeRoleTool{}).Execute(context.Background(), ToolCall{
+		FullCodePath: "/system/x_world/vote",
+		Args: map[string]interface{}{
+			"target_role": WorkspaceRoleAppOperator,
+		},
+	})
+	if !res.IsError || !strings.Contains(res.Content, "execute_directory") {
+		t.Fatalf("expected missing execute_directory to fail, got %#v", res)
+	}
+
+	res = (&ChangeRoleTool{}).Execute(context.Background(), ToolCall{
+		FullCodePath: "/system/x_world/vote",
+		Args: map[string]interface{}{
+			"execute_directory": "/system/x_world/vote",
+		},
+	})
+	if !res.IsError || !strings.Contains(res.Content, "target_role") {
+		t.Fatalf("expected missing target_role to fail, got %#v", res)
+	}
+}
+
+func TestChangeRoleNormalizesNewAppTargetToSelectedParentDirectory(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		TargetRole:       WorkspaceRoleAppDeveloper,
+		ExecuteDirectory: "/system/ticket_sys/v1/ticket",
+		TaskContext:      []string{"已确认 PRD，开发工单管理系统"},
+		KeyInformation:   []string{"目标应用目录：/system/ticket_sys/v1/ticket"},
+	}, "/system/ticket_sys/v1")
+
+	if got.ExecuteDirectory != "/system/ticket_sys/v1" {
+		t.Fatalf("execute directory = %q, want /system/ticket_sys/v1", got.ExecuteDirectory)
+	}
+	if !containsWorkspaceRoleString(got.Handoff.KeyInformation, "新建应用目标目录：/system/ticket_sys/v1/ticket") ||
+		!containsWorkspaceRoleString(got.Handoff.KeyInformation, "开发阶段先在已存在父目录 /system/ticket_sys/v1 下创建目标目录，再在目标目录写代码。") {
+		t.Fatalf("handoff should preserve selected parent and target child, got %#v", got.Handoff.KeyInformation)
 	}
 }

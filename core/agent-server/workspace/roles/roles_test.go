@@ -21,6 +21,43 @@ func TestSpecsExposeRoleContracts(t *testing.T) {
 		if len(spec.Docs) == 0 {
 			t.Fatalf("role spec %q should load at least one SOP doc", roleID)
 		}
+		if len(spec.Runtime.HandoffRequired) == 0 {
+			t.Fatalf("role spec %q should declare handoff required fields", roleID)
+		}
+		if len(spec.Runtime.SOP) == 0 {
+			t.Fatalf("role spec %q should declare runtime SOP", roleID)
+		}
+		if len(spec.Runtime.DoneWhen) == 0 {
+			t.Fatalf("role spec %q should declare done_when", roleID)
+		}
+	}
+}
+
+func TestRoleRuntimeContractsExposeLifecycleHooks(t *testing.T) {
+	specs := Specs()
+	for _, tc := range []struct {
+		roleID string
+		hookID string
+		stage  string
+	}{
+		{roleID: ProductManager, hookID: "product_manager.to_app_developer", stage: "before_handoff"},
+		{roleID: AppDeveloper, hookID: "app_developer.before_enter_prd", stage: "before_enter"},
+		{roleID: AppOperator, hookID: "app_operator.before_enter_capabilities", stage: "before_enter"},
+		{roleID: BuildEngineer, hookID: "build_engineer.before_enter_diagnostics", stage: "before_enter"},
+	} {
+		spec := specs[tc.roleID]
+		found := false
+		for _, h := range spec.Runtime.Hooks {
+			if h.ID == tc.hookID && h.Stage == tc.stage {
+				found = true
+				if strings.TrimSpace(h.Purpose) == "" || len(h.Produces) == 0 {
+					t.Fatalf("hook %s should declare purpose and outputs: %#v", tc.hookID, h)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("role %s should expose hook %s at %s, hooks=%#v", tc.roleID, tc.hookID, tc.stage, spec.Runtime.Hooks)
+		}
 	}
 }
 
@@ -49,12 +86,19 @@ func TestRoutingMarkdownIsGeneratedFromSpecs(t *testing.T) {
 		"### `product_manager` 产品经理",
 		"### `app_developer` 应用开发工程师",
 		"### `app_operator` 应用操作员",
+		"当前目录已是目标应用",
+		"不依赖某个固定动词",
+		"使用软件完成业务结果",
+		"在 `/system/x_world/vote` 里“创建一个投票”是业务操作",
 		"`tables.fields` 是模型字段，`tables.search_fields` 是查询请求字段",
 		"### `reviewer` 代码审查分析师",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("routing markdown should contain %q, got:\n%s", want, got)
 		}
+	}
+	if strings.Index(got, "### `app_operator` 应用操作员") > strings.Index(got, "### `product_manager` 产品经理") {
+		t.Fatalf("app_operator should be shown before product_manager so existing-app operations are considered first:\n%s", got)
 	}
 }
 

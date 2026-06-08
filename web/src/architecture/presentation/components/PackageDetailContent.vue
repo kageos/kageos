@@ -2,32 +2,6 @@
   <div class="detail-content">
     <div v-if="packageNode">
       <el-tabs v-model="activeTab" class="detail-tabs">
-        <el-tab-pane :label="t('packageDetail.detail')" name="detail">
-          <div class="tab-content">
-            <PackageDetailOverviewCard
-              :package-node="packageNode"
-              :total-run-count="totalRunCount"
-            />
-            <details
-              v-if="directoryMarkdown"
-              class="directory-markdown-detail"
-              @toggle="handleDirectoryDetailsToggle"
-            >
-              <summary class="directory-markdown-summary">
-                <span>{{ t('packageDetail.detail') }}</span>
-                <span class="directory-markdown-summary-hint">
-                  {{ directoryDetailsOpen ? t('packageDetail.collapse') : t('packageDetail.expand') }}
-                </span>
-              </summary>
-              <div class="directory-markdown-body" v-html="renderMarkdown(directoryMarkdown)" />
-            </details>
-            <PackageDetailChildrenGrid
-              :children="packageNode.children || []"
-              @select-child="$emit('select-child', $event)"
-            />
-          </div>
-        </el-tab-pane>
-
         <el-tab-pane :label="t('packageDetail.permission')" name="permission">
           <div class="tab-content access-tab-content">
             <TeamAccessPanel
@@ -58,6 +32,20 @@
             />
           </div>
         </el-tab-pane>
+
+        <el-tab-pane :label="t('packageDetail.detail')" name="detail">
+          <div class="tab-content directory-detail-tab-content">
+            <div
+              v-if="directoryMarkdown"
+              class="directory-markdown-body"
+              v-html="renderMarkdown(directoryMarkdown)"
+            />
+            <PackageDetailChildrenGrid
+              :children="packageNode.children || []"
+              @select-child="$emit('select-child', $event)"
+            />
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -67,14 +55,13 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ServiceTree } from '@/architecture/domain/types'
-import PackageDetailOverviewCard from './PackageDetailOverviewCard.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import TeamAccessPanel from './TeamAccessPanel.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { featureFlags } from '@/architecture/shared/config/features'
 
-type PackageTabName = 'detail' | 'permission' | 'operateLog'
+type PackageTabName = 'permission' | 'operateLog' | 'detail'
 
 interface LoadableOperateLogSection {
   load: () => void
@@ -86,7 +73,6 @@ interface LoadableAccessPanel {
 
 const props = defineProps<{
   packageNode: ServiceTree | null
-  totalRunCount: number
 }>()
 
 defineEmits<{
@@ -98,10 +84,9 @@ const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
 const { t } = useI18n()
 
-const activeTab = ref<PackageTabName>('detail')
+const activeTab = ref<PackageTabName>(featureFlags.operateLogs ? 'operateLog' : 'detail')
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
 const accessPanelRef = ref<LoadableAccessPanel | null>(null)
-const directoryDetailsOpen = ref(false)
 
 const directoryMarkdown = computed(() => {
   return props.packageNode?.description?.trim() || ''
@@ -114,10 +99,6 @@ function loadOperateLogTab(tabName: PackageTabName) {
   if (tabName === 'permission') {
     nextTick(() => accessPanelRef.value?.loadMembers())
   }
-}
-
-function handleDirectoryDetailsToggle(event: Event) {
-  directoryDetailsOpen.value = (event.currentTarget as HTMLDetailsElement).open
 }
 
 watch(
@@ -237,65 +218,25 @@ watch(
   padding: 0;
 }
 
+.directory-detail-tab-content,
 .operate-log-tab-content,
 .access-tab-content {
   min-height: 360px;
 }
 
-.directory-markdown-detail {
-  margin: -8px 0 24px;
-  border: 1px solid var(--app-shell-panel-border);
-  border-radius: 8px;
-  background: var(--app-shell-panel-bg-strong);
-  box-shadow: var(--app-shell-panel-shadow-soft);
-  overflow: hidden;
-}
-
-.directory-markdown-summary {
-  min-height: 44px;
-  padding: 0 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--el-text-color-primary);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
-}
-
-.directory-markdown-summary::-webkit-details-marker {
-  display: none;
-}
-
-.directory-markdown-summary::before {
-  content: '';
-  width: 0;
-  height: 0;
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  border-left: 6px solid var(--el-color-primary);
-  transition: transform 0.18s ease;
-}
-
-.directory-markdown-detail[open] .directory-markdown-summary::before {
-  transform: rotate(90deg);
-}
-
-.directory-markdown-summary-hint {
-  margin-left: auto;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  font-weight: 600;
-}
-
 .directory-markdown-body {
-  padding: 0 18px 18px 36px;
+  margin-bottom: 18px;
   color: var(--el-text-color-regular);
   font-size: 14px;
   line-height: 1.72;
+}
+
+.directory-detail-tab-content :deep(.children-section) {
+  margin-top: 0;
+}
+
+.directory-detail-tab-content :deep(.empty-state) {
+  margin-top: 18px;
 }
 
 .directory-markdown-body :deep(h1),

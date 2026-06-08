@@ -36,7 +36,7 @@ core/agent-server/
 
 ## 配置
 
-配置文件位于 `.kageos/dev/config/agent-server.yaml` 或 `deploy/prod/config/{runtime|template}/agent-server.yaml`，由 `APP_ENV` 决定，默认 `prod`。
+配置文件位于 `.kageos/dev/config/agent-server.yaml` 或 `deploy/prod/config/{runtime|template}/agent-server.yaml`，由 `.kageos/kageos.env` 的 `KAGEOS_MODE` 决定；没有模式文件时默认 `prod`。
 
 Agent Server 复用 app-server 数据库。LLM provider/model/key 等运行时配置从数据库读取，不放在服务配置文件中。
 

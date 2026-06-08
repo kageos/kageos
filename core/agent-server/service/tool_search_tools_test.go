@@ -131,6 +131,37 @@ func TestFilterSearchToolFunctionsByCapability(t *testing.T) {
 	}
 }
 
+func TestFilterSearchToolFunctionsByDirectory(t *testing.T) {
+	functions := []*dto.FunctionSearchResult{
+		{Name: "工单", FullCodePath: "/system/x_world/ticket_management/ticket_list.table"},
+		{Name: "狼人杀", FullCodePath: "/system/x_world/werewolf/room_list.table"},
+		{Name: "工单图表", FullCodePath: "/system/x_world/ticket_management/stats/ticket_chart.chart"},
+	}
+	got := filterSearchToolFunctionsByDirectory(functions, "/system/x_world/ticket_management")
+	if len(got) != 2 {
+		t.Fatalf("expected two functions under ticket_management, got %#v", got)
+	}
+	for _, fn := range got {
+		if !strings.Contains(fn.FullCodePath, "/ticket_management") {
+			t.Fatalf("unexpected function outside target directory: %#v", got)
+		}
+	}
+}
+
+func TestFormatSearchToolsSearchMetaIncludesDirectory(t *testing.T) {
+	got := formatSearchToolsSearchMeta(searchToolsResultData{
+		Scope:     searchScopeCurrentApp,
+		User:      "system",
+		App:       "x_world",
+		Directory: "/system/x_world/ticket_management",
+		Page:      1,
+		PageSize:  20,
+	})
+	if !strings.Contains(got, "directory=/system/x_world/ticket_management") {
+		t.Fatalf("expected directory in search meta, got %q", got)
+	}
+}
+
 func TestPaginateSearchToolFunctions(t *testing.T) {
 	functions := []*dto.FunctionSearchResult{
 		{Name: "A"},

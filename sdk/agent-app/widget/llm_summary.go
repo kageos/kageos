@@ -408,8 +408,8 @@ func decodeWidgetSemanticProvider(f *Field) WidgetSemanticProvider {
 		if cfg, ok := decodeWidgetConfig[TextArea](f.Widget.Config); ok {
 			return cfg
 		}
-	case TypeNumber:
-		if cfg, ok := decodeWidgetConfig[Number](f.Widget.Config); ok {
+	case TypeInteger:
+		if cfg, ok := decodeWidgetConfig[Integer](f.Widget.Config); ok {
 			return cfg
 		}
 	case TypeFloat:

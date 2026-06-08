@@ -740,8 +740,12 @@ async function handleSearch(query: string | number | SelectValue, isByValue: boo
           if (props.mode === 'detail') {
             detailDisplayValue.value = matchedOption.label
           }
-          // 🔥 在编辑模式下，如果 value.display 为空或等于 raw，更新 display 值
-          if (props.mode === 'edit' && (!props.value.display || String(props.value.display) === String(props.value.raw))) {
+          // 🔥 在编辑/搜索模式下，如果 value.display 为空或等于 raw，更新 display 值。
+          // 搜索栏从 URL 恢复时只有 raw，必须把回显结果 emit 给父层，否则下一次状态同步会退回 raw value。
+          if (
+            (props.mode === 'edit' || props.mode === 'search') &&
+            (!props.value.display || String(props.value.display) === String(props.value.raw))
+          ) {
             // 🔥 使用工具函数创建 FieldValue，确保包含 dataType 和 widgetType
             const newFieldValue = createFieldValue(
               props.field,

@@ -13,7 +13,6 @@
         <el-input
           v-model="filters.keyword"
           class="history-search"
-          size="small"
           clearable
           :prefix-icon="Search"
           placeholder="搜索标题、描述、链接 ID"
@@ -23,7 +22,6 @@
         <el-input
           v-model="filters.createdBy"
           class="history-user-select"
-          size="small"
           clearable
           placeholder="创建人"
           @keyup.enter="load"
@@ -32,7 +30,6 @@
         <el-select
           v-model="filters.status"
           class="history-action-select"
-          size="small"
           clearable
           placeholder="状态"
           @change="load"
@@ -41,8 +38,8 @@
           <el-option label="已关闭" value="disabled" />
           <el-option label="已过期" value="expired" />
         </el-select>
-        <el-button size="small" type="primary" plain :icon="Search" @click="load">筛选</el-button>
-        <el-button size="small" link :icon="Refresh" :loading="loading" @click="resetFilters">重置</el-button>
+        <el-button type="primary" plain :icon="Search" @click="load">筛选</el-button>
+        <el-button plain :icon="Refresh" :loading="loading" @click="resetFilters">重置</el-button>
       </div>
 
       <div v-loading="loading" class="mobile-share-list">
@@ -657,26 +654,56 @@ watch(fullCodePath, load)
 }
 
 .form-history-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(150px, 190px) minmax(140px, 170px) auto auto;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--el-border-color-extra-light);
-  background: var(--el-fill-color-lighter);
+  background: var(--app-shell-panel-bg-strong, var(--el-bg-color));
 }
 
 .history-search {
-  flex: 1 1 320px;
-  min-width: 220px;
+  min-width: 0;
 }
 
+.history-action-select,
 .history-user-select {
-  width: 180px;
+  width: 100%;
+  min-width: 0;
 }
 
-.history-action-select {
-  width: 140px;
+.form-history-toolbar > .el-button {
+  min-width: 78px;
+  height: 36px;
+  border-radius: 10px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.form-history-toolbar :deep(.el-input__wrapper),
+.form-history-toolbar :deep(.el-select__wrapper) {
+  min-height: 36px;
+  border-radius: 10px;
+  background: var(--app-shell-panel-bg-strong, var(--el-bg-color));
+  box-shadow: 0 0 0 1px var(--app-shell-panel-border, var(--el-border-color-light)) inset;
+  transition: box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.form-history-toolbar :deep(.el-input__wrapper:hover),
+.form-history-toolbar :deep(.el-select__wrapper:hover) {
+  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.28) inset;
+}
+
+.form-history-toolbar :deep(.el-input__wrapper.is-focus),
+.form-history-toolbar :deep(.el-select__wrapper.is-focused) {
+  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.45) inset, 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.1);
+}
+
+.form-history-toolbar :deep(.el-input__inner),
+.form-history-toolbar :deep(.el-select__placeholder),
+.form-history-toolbar :deep(.el-select__selected-item) {
+  font-size: 13px;
 }
 
 .history-table {
@@ -872,13 +899,14 @@ watch(fullCodePath, load)
   .section-header,
   .form-history-toolbar {
     align-items: stretch;
-    flex-direction: column;
   }
 
-  .history-search,
-  .history-user-select,
-  .history-action-select {
-    width: 100%;
+  .form-history-toolbar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .history-search {
+    grid-column: 1 / -1;
   }
 
   .section-header {
@@ -1035,6 +1063,12 @@ watch(fullCodePath, load)
 
   .qr-footer-actions .el-button {
     width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .form-history-toolbar {
+    grid-template-columns: 1fr;
   }
 }
 </style>

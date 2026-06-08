@@ -125,6 +125,13 @@ func FormSubmit(ctx context.Context, fullCodePath string, body interface{}) (map
 	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
+// RunWorkspacePython 调用当前工作区应用内置的私有 Python runtime。
+// fullCodePath 可传工作区根路径 /user/app，服务端只取 user/app 并转发到 /_runtime/python。
+func RunWorkspacePython(ctx context.Context, fullCodePath string, body *dto.RunPythonRuntimeReq) (map[string]interface{}, error) {
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/runtime/python", fullCodePath)
+	return PostAPI[*dto.RunPythonRuntimeReq, map[string]interface{}](ctx, path, body)
+}
+
 // ChartQuery 调用工作区 Chart 查询接口（GET chart/query/{full-code-path}）
 // fullCodePath 如 /luobei/myapp/charts/sales；queryParams 为图表查询条件
 func ChartQuery(ctx context.Context, fullCodePath string, queryParams url.Values) (map[string]interface{}, error) {

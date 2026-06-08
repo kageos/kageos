@@ -136,28 +136,56 @@ func (q *serviceTreeQueryView) GetServiceTreeDetail(ctx context.Context, req *dt
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if message := q.missingAppRootMessage(req.FullCodePath); message != "" {
+				return nil, fmt.Errorf("%s", message)
+			}
 			return nil, fmt.Errorf("服务目录不存在")
 		}
 		return nil, fmt.Errorf("获取服务目录失败: %w", err)
 	}
 
 	resp := &dto.GetServiceTreeDetailResp{
-		ID:           tree.ID,
-		Name:         tree.Name,
-		Code:         tree.Code,
-		Type:         tree.Type,
-		Description:  tree.Description,
-		Tags:         tree.Tags,
-		AppID:        tree.AppID,
-		RefID:        tree.RefID,
-		FullCodePath: tree.FullCodePath,
-		TemplateType: tree.TemplateType,
-		Version:      tree.Version,
-		VersionNum:   tree.VersionNum,
-		RunCount:     tree.RunCount,
+		ID:                 tree.ID,
+		Name:               tree.Name,
+		Code:               tree.Code,
+		Type:               tree.Type,
+		Description:        tree.Description,
+		Tags:               tree.Tags,
+		Connectors:         splitConnectorCodes(tree.Connectors),
+		ConnectorEndpoints: splitConnectorEndpoints(tree.ConnectorEndpoints),
+		AppID:              tree.AppID,
+		RefID:              tree.RefID,
+		FullCodePath:       tree.FullCodePath,
+		TemplateType:       tree.TemplateType,
+		Version:            tree.Version,
+		VersionNum:         tree.VersionNum,
+		RunCount:           tree.RunCount,
 	}
 
 	return resp, nil
+}
+
+func (q *serviceTreeQueryView) missingAppRootMessage(fullCodePath string) string {
+	user, appCode, rootPath, ok := parseAppRootFullCodePath(fullCodePath)
+	if !ok || q.appRepo == nil {
+		return ""
+	}
+	appModel, err := q.appRepo.GetAppByUserName(user, appCode)
+	if err != nil || appModel == nil {
+		return ""
+	}
+	return fmt.Sprintf("工作空间根节点缺失: %s（应用存在但 service_tree 根节点不存在，请执行应用根节点初始化修复）", rootPath)
+}
+
+func parseAppRootFullCodePath(fullCodePath string) (user string, app string, rootPath string, ok bool) {
+	trimmed := strings.Trim(strings.TrimSpace(fullCodePath), "/")
+	parts := strings.Split(trimmed, "/")
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		return "", "", "", false
+	}
+	user = strings.TrimSpace(parts[0])
+	app = strings.TrimSpace(parts[1])
+	return user, app, "/" + user + "/" + app, true
 }
 
 func (q *serviceTreeQueryView) permissionsByPath(ctx context.Context, appModel *model.App, trees []*model.ServiceTree) (map[string]*access.Result, error) {
@@ -191,21 +219,23 @@ func collectServiceTreePaths(trees []*model.ServiceTree) []string {
 
 func (q *serviceTreeQueryView) convertToGetServiceTreeResp(tree *model.ServiceTree, permissionsByPath map[string]*access.Result) *dto.GetServiceTreeResp {
 	resp := &dto.GetServiceTreeResp{
-		ID:           tree.ID,
-		Name:         tree.Name,
-		Code:         tree.Code,
-		RefID:        tree.RefID,
-		Type:         tree.Type,
-		Description:  tree.Description,
-		Tags:         tree.Tags,
-		Admins:       tree.Admins,
-		Owner:        tree.CreatedBy,
-		AppID:        tree.AppID,
-		FullCodePath: tree.FullCodePath,
-		TemplateType: tree.TemplateType,
-		Version:      tree.Version,
-		VersionNum:   tree.VersionNum,
-		RunCount:     tree.RunCount,
+		ID:                 tree.ID,
+		Name:               tree.Name,
+		Code:               tree.Code,
+		RefID:              tree.RefID,
+		Type:               tree.Type,
+		Description:        tree.Description,
+		Tags:               tree.Tags,
+		Connectors:         splitConnectorCodes(tree.Connectors),
+		ConnectorEndpoints: splitConnectorEndpoints(tree.ConnectorEndpoints),
+		Admins:             tree.Admins,
+		Owner:              tree.CreatedBy,
+		AppID:              tree.AppID,
+		FullCodePath:       tree.FullCodePath,
+		TemplateType:       tree.TemplateType,
+		Version:            tree.Version,
+		VersionNum:         tree.VersionNum,
+		RunCount:           tree.RunCount,
 	}
 	if permissionResult := permissionsByPath[access.NormalizeResourcePath(tree.FullCodePath)]; permissionResult != nil {
 		resp.Permissions = permissionResult.Permissions

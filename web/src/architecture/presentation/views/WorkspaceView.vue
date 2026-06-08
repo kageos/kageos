@@ -226,9 +226,12 @@
       :initial-expanded="mini.initialExpanded"
       :initial-maximized="mini.initialMaximized"
       :path-name-map="workspacePathNameMap"
+      :current-full-code-path="workstationContext?.fullCodePath"
+      :current-dir-name="workstationContext?.dirName"
       :toggle-shortcut-label="MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL"
       @minimize="handleMiniMinimize(mini.id)"
       @close="handleMiniRemove(mini.id)"
+      @open-current-new-session="openCurrentWorkstationNewSession"
       @expanded-change="(payload) => handleMiniExpandedChange(mini.id, payload)"
       @maximize-change="(payload) => handleMiniMaximizeChange(mini.id, payload)"
       @task-started="(sessionId) => handleMiniTaskStarted(mini.id, sessionId)"
@@ -612,6 +615,16 @@ function openCurrentWorkstation() {
     full_code_path: ctx.fullCodePath,
     directory_name: ctx.dirName,
     open_as_mini: true
+  })
+}
+
+function openCurrentWorkstationNewSession(payload: { fullCodePath: string; dirName: string }) {
+  handleWorkspaceOpenWorkstation({
+    full_code_path: payload.fullCodePath,
+    directory_name: payload.dirName,
+    initial_maximized: true,
+    open_as_mini: true,
+    force_new: true
   })
 }
 

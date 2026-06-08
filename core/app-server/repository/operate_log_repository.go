@@ -61,6 +61,9 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 	if req.Status != "" {
 		query = query.Where("status = ?", req.Status)
 	}
+	if req.Source != "" {
+		query = query.Where("source = ?", req.Source)
+	}
 	if req.RowID > 0 {
 		query = query.Where("target_id = ?", fmt.Sprintf("%d", req.RowID))
 	}

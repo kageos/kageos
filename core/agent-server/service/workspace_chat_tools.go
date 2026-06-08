@@ -8,6 +8,7 @@ import (
 
 	"github.com/kageos/kageos/core/agent-server/model"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/llms"
 	"github.com/kageos/kageos/pkg/logger"
 )
@@ -19,34 +20,65 @@ func (s *WorkspaceChatService) executeToolCalls(
 	sessionID, fullCodePath string,
 	user string,
 	files string,
+	round int,
 	sendEvent func(string, interface{}),
-) ([]dto.WorkspaceChatToolCallSummary, error) {
+) ([]dto.WorkspaceChatToolCallSummary, string, error) {
 	ctx = withAgentToolExecutionContext(ctx, sessionID)
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
 	logger.Infof(ctx, "[WorkspaceChatStream] 开始执行工具调用 - 工具数量: %d, SessionID: %s", len(allToolCalls), sessionID)
 	loadedGuideDocs := s.loadedGuideDocsForSession(ctx, sessionID)
 	activeRoleID := s.currentWorkspaceRoleForSession(ctx, sessionID)
+	activeFullCodePath := strings.TrimSpace(fullCodePath)
+	activeToolScope := s.currentWorkspaceToolScope(ctx, sessionID, activeFullCodePath)
 
 	for i, tc := range allToolCalls {
 		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 执行工具调用 - ToolCallID: %s, ToolName: %s, Arguments: %q",
 			i+1, len(allToolCalls), tc.ID, tc.Function.Name, tc.Function.Arguments)
 
-		sendEvent(EventToolCall, StreamEventToolCall{Name: tc.Function.Name, Status: ToolCallStatusRunning, Arguments: tc.Function.Arguments})
+		sendEvent(EventToolCall, StreamEventToolCall{
+			ID:        tc.ID,
+			Index:     i,
+			Round:     round,
+			Name:      tc.Function.Name,
+			Status:    ToolCallStatusRunning,
+			Arguments: tc.Function.Arguments,
+		})
 
-		args := s.parseToolCallArgs(ctx, tc)
+		args, parseErr := s.parseToolCallArgs(ctx, tc)
 		var toolRes ToolResult
 		var st string
-		if blockedRes, blocked := workspaceRoleToolGateResult(activeRoleID, tc.Function.Name); blocked {
+		if parseErr != nil {
+			toolRes = invalidToolArgumentsResult(tc, parseErr)
+			st = ToolCallStatusError
+		} else if blockedRes, blocked := workspaceRoleToolGateResult(activeRoleID, tc.Function.Name); blocked {
 			toolRes = blockedRes
 			st = ToolCallStatusError
 			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 角色工具门禁阻断 - RoleID: %s, ToolName: %s, Error: %s", i+1, len(allToolCalls), activeRoleID, tc.Function.Name, toolRes.Content)
+		} else if blockedRes, blocked := workspaceToolScopeGateResultWithScope(activeRoleID, tc.Function.Name, args, activeToolScope); blocked {
+			toolRes = blockedRes
+			st = ToolCallStatusError
+			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 工具目录门禁阻断 - RoleID: %s, ToolName: %s, ExecuteDirectory: %s, TargetAppDirectory: %s, Error: %s", i+1, len(allToolCalls), activeRoleID, tc.Function.Name, activeToolScope.ExecuteDirectory, activeToolScope.TargetAppDirectory, toolRes.Content)
 		} else {
-			toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, fullCodePath, files, i+1, len(allToolCalls))
+			toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, activeFullCodePath, files, i+1, len(allToolCalls))
 		}
+		roleBeforeCall := activeRoleID
+		roleChanged := false
 		if st == ToolCallStatusOK && tc.Function.Name == "change_role" {
 			if nextRoleID := workspaceRoleFromToolResult(toolRes); nextRoleID != "" {
 				activeRoleID = nextRoleID
 				s.updateWorkspaceSessionRole(ctx, sessionID, nextRoleID, user)
+				roleChanged = roleBeforeCall != "" && roleBeforeCall != nextRoleID
+			}
+			if nextFullCodePath := workspaceChangeRoleExecuteDirectory(toolRes); nextFullCodePath != "" {
+				activeFullCodePath = nextFullCodePath
+				activeToolScope.ExecuteDirectory = nextFullCodePath
+				s.updateWorkspaceSessionFullCodePath(ctx, sessionID, nextFullCodePath, user)
+			}
+		} else if st == ToolCallStatusOK && tc.Function.Name == "create_directory" {
+			if targetPath := workspaceCreateDirectoryTargetPath(args, activeFullCodePath); targetPath != "" && normalizeWorkspacePath(activeToolScope.TargetAppDirectory) == targetPath {
+				activeFullCodePath = targetPath
+				activeToolScope.ExecuteDirectory = targetPath
+				s.updateWorkspaceSessionFullCodePath(ctx, sessionID, targetPath, user)
 			}
 		}
 
@@ -59,14 +91,35 @@ func (s *WorkspaceChatService) executeToolCalls(
 			errStr = toolRes.Content
 		}
 		toolSummaries = append(toolSummaries, dto.WorkspaceChatToolCallSummary{
-			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Metadata: toolRes.Metadata, Error: errStr,
+			ID:         tc.ID,
+			Index:      i,
+			Round:      round,
+			Name:       tc.Function.Name,
+			Status:     st,
+			Arguments:  tc.Function.Arguments,
+			Result:     resultStr,
+			ResultData: resultData,
+			Metadata:   toolRes.Metadata,
+			Error:      errStr,
 		})
 		sendEvent(EventToolCall, StreamEventToolCall{
-			Name: tc.Function.Name, Status: st, Arguments: tc.Function.Arguments, Result: resultStr, ResultData: resultData, Metadata: toolRes.Metadata, Error: errStr,
+			ID:         tc.ID,
+			Index:      i,
+			Round:      round,
+			Name:       tc.Function.Name,
+			Status:     st,
+			Arguments:  tc.Function.Arguments,
+			Result:     resultStr,
+			ResultData: resultData,
+			Metadata:   toolRes.Metadata,
+			Error:      errStr,
 		})
 		if err := s.saveToolMessage(ctx, sessionID, tc.ID, tc.Function.Name, st, toolRes, user); err != nil {
 			logger.Warnf(ctx, "[WorkspaceChatStream] 保存 tool 消息失败 ToolCallID=%s: %v（若为 Error 1366 请将表转为 utf8mb4）", tc.ID, err)
-			return toolSummaries, fmt.Errorf("保存 tool 消息失败: %w", err)
+			return toolSummaries, activeFullCodePath, fmt.Errorf("保存 tool 消息失败: %w", err)
+		}
+		if st == ToolCallStatusOK && tc.Function.Name == "change_role" {
+			s.updateWorkspaceModelContextAnchorAfterChangeRole(ctx, sessionID, toolRes, user, roleChanged)
 		}
 		updateLoadedGuideDocsAfterToolCall(loadedGuideDocs, tc.Function.Name, args, st)
 	}
@@ -81,30 +134,60 @@ func (s *WorkspaceChatService) executeToolCalls(
 	}
 	logger.Infof(ctx, "[WorkspaceChatStream] 工具调用执行完成 - 总数量: %d, 成功: %d, 失败: %d, SessionID: %s",
 		len(allToolCalls), successCount, errorCount, sessionID)
-	return toolSummaries, nil
+	return toolSummaries, activeFullCodePath, nil
 }
 
 func withAgentToolExecutionContext(ctx context.Context, sessionID string) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	_ = sessionID
-	return withAgentToolClientSource(ctx)
+	ctx = withAgentToolClientSource(ctx)
+	return contextx.WithSourceInfo(ctx, contextx.SourceTypeAgentTool, sessionID)
 }
 
-// parseToolCallArgs 解析 tool_call 的 arguments JSON，解析失败时返回空 map
-func (s *WorkspaceChatService) parseToolCallArgs(ctx context.Context, tc llms.ToolCall) map[string]interface{} {
-	argumentsStr := tc.Function.Arguments
+// parseToolCallArgs 解析 tool_call 的 arguments JSON，解析失败时返回错误，由调用方保存一条 tool error，避免坏参数继续执行真实工具。
+func (s *WorkspaceChatService) parseToolCallArgs(ctx context.Context, tc llms.ToolCall) (map[string]interface{}, error) {
+	argumentsStr := strings.TrimSpace(tc.Function.Arguments)
 	if argumentsStr == "" {
-		argumentsStr = "{}"
 		logger.Warnf(ctx, "[WorkspaceChatStream] tool_call arguments 为空，使用空对象，ToolCallID: %s, ToolName: %s", tc.ID, tc.Function.Name)
+		return map[string]interface{}{}, nil
 	}
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(argumentsStr), &args); err != nil {
 		logger.Warnf(ctx, "[WorkspaceChatStream] 解析 tool_call arguments 失败: %v, ToolCallID: %s, ToolName: %s", err, tc.ID, tc.Function.Name)
-		args = make(map[string]interface{})
+		return map[string]interface{}{}, err
 	}
-	return args
+	if args == nil {
+		args = map[string]interface{}{}
+	}
+	return args, nil
+}
+
+func invalidToolArgumentsResult(tc llms.ToolCall, err error) ToolResult {
+	toolName := strings.TrimSpace(tc.Function.Name)
+	if toolName == "" {
+		toolName = "工具"
+	}
+	return toolResult(fmt.Sprintf("%s 参数不是合法 JSON，本次未执行工具。请重新调用该工具，并提供完整 JSON 参数。解析错误: %v", toolName, err), true)
+}
+
+func (s *WorkspaceChatService) currentWorkspaceToolScope(ctx context.Context, sessionID string, executeDirectory string) workspaceToolScope {
+	scope := workspaceToolScope{ExecuteDirectory: normalizeWorkspacePath(executeDirectory)}
+	if s == nil || s.messageRepo == nil || strings.TrimSpace(sessionID) == "" {
+		return scope
+	}
+	messages, err := s.messageRepo.ListBySessionID(sessionID)
+	if err != nil {
+		logger.Warnf(ctx, "[WorkspaceChatStream] 查询会话交接包失败 SessionID=%s: %v", sessionID, err)
+		return scope
+	}
+	if handoff := latestWorkspaceModelContextHandoff(messages); handoff != nil {
+		if scope.ExecuteDirectory == "" {
+			scope.ExecuteDirectory = normalizeWorkspacePath(handoff.ExecuteDirectory)
+		}
+		scope.TargetAppDirectory = normalizeWorkspacePath(handoff.TargetAppDirectory)
+	}
+	return scope
 }
 
 // callOtherTool 调用 ToolRegistry 中的内置工作台工具。

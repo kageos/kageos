@@ -24,19 +24,23 @@
     <!-- list 模式：列表行，图标 + 名称 + 大小 + 链接 -->
     <ul v-else class="file-list">
       <li v-for="(f, idx) in displayFiles" :key="keyFor(f, idx)" class="file-list-item">
-        <el-icon class="file-list-icon"><component :is="fileIcon(f)" /></el-icon>
-        <span class="file-list-name" :title="displayName(f)">{{ displayName(f) }}</span>
-        <span v-if="showSize && f.size != null" class="file-list-size">{{ formatSize(f.size) }}</span>
-        <el-link
-          v-if="f.url && showLink"
-          type="primary"
-          :href="f.url"
-          target="_blank"
-          rel="noopener"
-          class="file-list-link"
-        >
-          打开
-        </el-link>
+        <div class="file-list-main">
+          <el-icon class="file-list-icon"><component :is="fileIcon(f)" /></el-icon>
+          <span class="file-list-name" :title="displayName(f)">{{ displayName(f) }}</span>
+        </div>
+        <div class="file-list-footer">
+          <span v-if="showSize && f.size != null" class="file-list-size">{{ formatSize(f.size) }}</span>
+          <el-link
+            v-if="f.url && showLink"
+            type="primary"
+            :href="f.url"
+            target="_blank"
+            rel="noopener"
+            class="file-list-link"
+          >
+            打开
+          </el-link>
+        </div>
       </li>
       <li v-if="overflowCount > 0" class="file-list-overflow">等 {{ overflowCount }} 个文件</li>
     </ul>
@@ -165,14 +169,30 @@ function openFile(f: DisplayFileItem): void {
 }
 .file-list-item {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
   padding: 6px 0;
   border-bottom: 1px solid var(--el-border-color-lighter);
   font-size: 13px;
+  min-width: 0;
 }
 .file-list-item:last-child {
   border-bottom: none;
+}
+.file-list-main,
+.file-list-footer {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.file-list-main {
+  gap: 8px;
+}
+.file-list-footer {
+  justify-content: space-between;
+  gap: 10px;
+  padding-left: 26px;
 }
 .file-list-icon {
   flex-shrink: 0;
@@ -183,8 +203,10 @@ function openFile(f: DisplayFileItem): void {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 .file-list-size {
   flex-shrink: 0;

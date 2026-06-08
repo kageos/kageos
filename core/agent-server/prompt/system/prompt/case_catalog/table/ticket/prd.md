@@ -180,8 +180,8 @@ type Ticket struct {
 	Source string `json:"source" gorm:"column:source" widget:"name:工单来源;type:radio;options:电话,邮件,在线,现场,其他;render_default:在线" validate:"required,oneof=电话 邮件 在线 现场 其他"`
 
 	// 预期处理时长：预计处理该工单需要的时间（单位：分钟）
-	// 框架标签：widget:"type:number;step:1;unit:分钟;render_default:60" - 数字输入组件，默认60分钟（1小时）
-	ExpectedDuration int `json:"expected_duration" gorm:"column:expected_duration;default:60" widget:"name:预期处理时长;type:number;step:1;unit:分钟;render_default:60" validate:"min=1,max=10080"` // 最大10080分钟（7天）
+	// 框架标签：widget:"type:integer;step:1;unit:分钟;render_default:60" - 数字输入组件，默认60分钟（1小时）
+	ExpectedDuration int `json:"expected_duration" gorm:"column:expected_duration;default:60" widget:"name:预期处理时长;type:integer;step:1;unit:分钟;render_default:60" validate:"min=1,max=10080"` // 最大10080分钟（7天）
 
 	// 处理耗时：实际处理该工单花费的时间（单位：分钟，自动计算，只读）
 	// 框架标签：widget:"type:float;precision:2;unit:分钟" - 浮点数组件，保留两位小数

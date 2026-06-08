@@ -1,6 +1,9 @@
 package service
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestCheckWorkspaceGoSourcesDetectsCommonSDKIssues(t *testing.T) {
 	result := checkWorkspaceGoSources("/u/app/nps", []goSourceFileForCheck{
@@ -35,7 +38,7 @@ func TestCheckWorkspaceGoSourcesPassesCleanFile(t *testing.T) {
 
 type NpsRecord struct {
 	Status string ` + "`json:\"status\" widget:\"name:状态;type:select;options:开放,关闭;options_colors:67C23A,F56C6C\"`" + `
-	Score int ` + "`json:\"score\" widget:\"name:评分;type:number\"`" + `
+	Score int ` + "`json:\"score\" widget:\"name:评分;type:integer\"`" + `
 }
 `,
 		},
@@ -138,6 +141,32 @@ type NpsRecord struct {
 	}
 }
 
+func TestCheckWorkspaceGoSourcesDetectsWidgetGoTypeMismatch(t *testing.T) {
+	result := checkWorkspaceGoSources("/u/app/files", []goSourceFileForCheck{
+		{
+			Name: "files.go",
+			Content: `package files
+
+type ConvertReq struct {
+	InputFiles []string ` + "`json:\"input_files\" widget:\"name:输入文件;type:files;max_count:3\"`" + `
+	Enabled string ` + "`json:\"enabled\" widget:\"name:启用;type:switch\"`" + `
+	Score float64 ` + "`json:\"score\" widget:\"name:评分;type:integer\"`" + `
+	Amount int ` + "`json:\"amount\" widget:\"name:金额;type:float\"`" + `
+	Owner int ` + "`json:\"owner\" widget:\"name:负责人;type:user\"`" + `
+}
+`,
+		},
+	})
+	if !hasCheckIssueCategory(result.Issues, "widget_go_type") {
+		t.Fatalf("expected widget_go_type issue, got %#v", result.Issues)
+	}
+	for _, want := range []string{"type:files", "type:switch", "type:integer", "type:float", "type:user"} {
+		if !hasCheckIssueMessage(result.Issues, want) {
+			t.Fatalf("expected issue message containing %q, got %#v", want, result.Issues)
+		}
+	}
+}
+
 func TestCheckWorkspaceGoSourcesDetectsUnknownSDKSelector(t *testing.T) {
 	result := checkWorkspaceGoSources("/u/app/nps", []goSourceFileForCheck{
 		{
@@ -175,6 +204,15 @@ func ok(req *callback.OnSelectFuzzyReq) {}
 func hasCheckIssueCategory(issues []checkWorkspaceCodeIssue, category string) bool {
 	for _, issue := range issues {
 		if issue.Category == category {
+			return true
+		}
+	}
+	return false
+}
+
+func hasCheckIssueMessage(issues []checkWorkspaceCodeIssue, text string) bool {
+	for _, issue := range issues {
+		if strings.Contains(issue.Message, text) {
 			return true
 		}
 	}

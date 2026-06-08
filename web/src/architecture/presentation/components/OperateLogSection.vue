@@ -40,7 +40,6 @@
               <el-input
                 v-model="keyword"
                 class="history-search"
-                size="small"
                 clearable
                 :placeholder="t('operateLog.keywordPlaceholder')"
                 :prefix-icon="Search"
@@ -50,7 +49,6 @@
               <el-select
                 v-model="userFilter"
                 class="history-user-select"
-                size="small"
                 filterable
                 remote
                 reserve-keyword
@@ -71,7 +69,6 @@
               <el-select
                 v-model="actionFilter"
                 class="history-action-select"
-                size="small"
                 :placeholder="t('operateLog.actionPlaceholder')"
                 clearable
                 @change="handleActionChange"
@@ -83,8 +80,21 @@
                   :value="option.value"
                 />
               </el-select>
+              <el-select
+                v-model="sourceFilter"
+                class="history-source-select"
+                :placeholder="t('operateLog.sourcePlaceholder')"
+                clearable
+                @change="handleSourceChange"
+              >
+                <el-option
+                  v-for="option in sourceOptions"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
               <el-button
-                size="small"
                 type="primary"
                 plain
                 :icon="Search"
@@ -97,9 +107,52 @@
             <el-table
               :data="logs"
               stripe
-              class="history-table"
+              class="history-table form-history-table"
               :empty-text="t('operateLog.empty')"
+              :row-key="getLogRowKey"
+              :expand-row-keys="expandedLogRowKeys"
+              @expand-change="handleLogExpandChange"
             >
+              <el-table-column type="expand" width="40">
+                <template #default="{ row }">
+                  <div class="table-log-details">
+                    <div
+                      v-if="getFormRequestEntries(row).length > 0"
+                      class="value-list"
+                    >
+                      <div
+                        v-for="item in getFormRequestEntries(row)"
+                        :key="item.fieldCode"
+                        class="value-row"
+                        :class="{ 'is-file-value': isFilesField(item.field) }"
+                      >
+                        <span class="value-field">{{ item.fieldName }}</span>
+                        <OperateLogFieldValue
+                          class="value-text"
+                          :field="item.field"
+                          :raw-value="item.value"
+                          :field-path="item.fieldCode"
+                          :empty-text="t('operateLog.emptyValue')"
+                          compact
+                        />
+                      </div>
+                    </div>
+
+                    <div v-else class="text-muted">{{ getLogEmptyText(row) }}</div>
+
+                    <div class="log-meta-grid">
+                      <span
+                        v-for="item in getLogMetaEntries(row)"
+                        :key="`${item.label}:${item.value}`"
+                      >
+                        {{ item.label }}: {{ item.value }}
+                      </span>
+                      <span v-if="row.user_agent">UA: {{ row.user_agent }}</span>
+                    </div>
+                  </div>
+                </template>
+              </el-table-column>
+
               <el-table-column :label="t('operateLog.result')" min-width="260">
                 <template #default="{ row }">
                   <div class="result-cell">
@@ -123,6 +176,14 @@
                     layout="horizontal"
                     size="small"
                   />
+                </template>
+              </el-table-column>
+
+              <el-table-column :label="t('operateLog.source')" min-width="110" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="getSourceTagType(row.source)" size="small" effect="light">
+                    {{ getSourceLabel(row.source) }}
+                  </el-tag>
                 </template>
               </el-table-column>
 
@@ -183,7 +244,6 @@
           <el-input
             v-model="keyword"
             class="operate-log-search"
-            size="small"
             clearable
             :placeholder="t('operateLog.keywordPlaceholder')"
             :prefix-icon="Search"
@@ -193,7 +253,6 @@
           <el-select
             v-model="userFilter"
             class="operate-log-user-select"
-            size="small"
             filterable
             remote
             reserve-keyword
@@ -214,7 +273,6 @@
           <el-select
             v-model="actionFilter"
             class="operate-log-action-select"
-            size="small"
             :placeholder="t('operateLog.actionPlaceholder')"
             clearable
             @change="handleActionChange"
@@ -226,8 +284,21 @@
               :value="option.value"
             />
           </el-select>
+          <el-select
+            v-model="sourceFilter"
+            class="operate-log-source-select"
+            :placeholder="t('operateLog.sourcePlaceholder')"
+            clearable
+            @change="handleSourceChange"
+          >
+            <el-option
+              v-for="option in sourceOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
           <el-button
-            size="small"
             type="primary"
             plain
             :icon="Search"
@@ -243,6 +314,9 @@
           stripe
           class="history-table table-history-table"
           :empty-text="t('operateLog.empty')"
+          :row-key="getLogRowKey"
+          :expand-row-keys="expandedLogRowKeys"
+          @expand-change="handleLogExpandChange"
         >
           <el-table-column type="expand" width="40">
             <template #default="{ row }">
@@ -251,19 +325,18 @@
                   v-if="row.action === 'OnTableUpdateRow' && getChangeEntries(row).length > 0"
                   class="change-list"
                 >
-                  <div
+                  <OperateLogFieldChange
                     v-for="item in getChangeEntries(row)"
                     :key="item.fieldCode"
-                    class="change-row"
-                  >
-                    <span class="change-field">{{ item.fieldName }}</span>
-                    <div class="change-values">
-                      <span v-if="item.hasOldValue" class="change-old">{{ formatLogValue(item.oldValue) }}</span>
-                      <span v-else class="change-old is-empty">{{ t('operateLog.noOldValue') }}</span>
-                      <span class="change-arrow">→</span>
-                      <span class="change-new">{{ formatLogValue(item.newValue) }}</span>
-                    </div>
-                  </div>
+                    :field-code="item.fieldCode"
+                    :field-name="item.fieldName"
+                    :field="item.field"
+                    :old-value="item.oldValue"
+                    :new-value="item.newValue"
+                    :has-old-value="item.hasOldValue"
+                    :empty-text="t('operateLog.emptyValue')"
+                    :no-old-value-text="t('operateLog.noOldValue')"
+                  />
                 </div>
 
                 <div
@@ -274,9 +347,17 @@
                     v-for="item in getValueEntries(row)"
                     :key="item.fieldCode"
                     class="value-row"
+                    :class="{ 'is-file-value': isFilesField(item.field) }"
                   >
                     <span class="value-field">{{ item.fieldName }}</span>
-                    <span class="value-text">{{ formatLogValue(item.value) }}</span>
+                    <OperateLogFieldValue
+                      class="value-text"
+                      :field="item.field"
+                      :raw-value="item.value"
+                      :field-path="item.fieldCode"
+                      :empty-text="t('operateLog.emptyValue')"
+                      compact
+                    />
                   </div>
                 </div>
 
@@ -295,33 +376,11 @@
             </template>
           </el-table-column>
 
-          <el-table-column :label="t('operateLog.action')" width="96">
+          <el-table-column :label="t('operateLog.executedAt')" min-width="170">
             <template #default="{ row }">
-              <el-tag :type="getActionTagType(row.action)" size="small" effect="light">
-                {{ getActionLabel(row.action) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-
-          <el-table-column :label="t('operateLog.result')" width="118" align="center">
-            <template #default="{ row }">
-              <div class="table-result-cell">
-                <el-tag :type="getLogStatusTagType(row)" size="small" effect="light">
-                  {{ getLogStatusLabel(row) }}
-                </el-tag>
-                <span class="table-duration-text">{{ formatDuration(getLogDuration(row)) }}</span>
-              </div>
-            </template>
-          </el-table-column>
-
-          <el-table-column :label="t('operateLog.recordColumn')" min-width="190">
-            <template #default="{ row }">
-              <div class="table-record-title">{{ getLogTitle(row) }}</div>
-              <div v-if="showRowIdColumn && row.row_id" class="table-record-meta">
-                {{ t('common.rowRecord', { id: row.row_id }) }}
-              </div>
-              <div v-if="showResourceColumn" class="table-record-path">
-                {{ row.full_code_path || '-' }}
+              <div class="time-cell">
+                <div class="time-primary">{{ formatDateTime(row.created_at) }}</div>
+                <div class="time-secondary">{{ formatRelativeTime(row.created_at) }}</div>
               </div>
             </template>
           </el-table-column>
@@ -338,24 +397,61 @@
             </template>
           </el-table-column>
 
-          <el-table-column :label="t('operateLog.executedAt')" min-width="170">
+          <el-table-column :label="t('operateLog.action')" width="96">
             <template #default="{ row }">
-              <div class="time-cell">
-                <div class="time-primary">{{ formatDateTime(row.created_at) }}</div>
-                <div class="time-secondary">{{ formatRelativeTime(row.created_at) }}</div>
+              <el-tag :type="getActionTagType(row.action)" size="small" effect="light">
+                {{ getActionLabel(row.action) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('operateLog.recordColumn')" min-width="220">
+            <template #default="{ row }">
+              <div class="table-record-cell">
+                <div class="table-record-title">{{ getLogTitle(row) }}</div>
+                <div v-if="showRowIdColumn && row.row_id" class="table-record-meta">
+                  {{ t('common.rowRecord', { id: row.row_id }) }}
+                </div>
+                <div v-if="showResourceColumn" class="table-record-path">
+                  {{ row.full_code_path || '-' }}
+                </div>
               </div>
             </template>
           </el-table-column>
 
-          <el-table-column :label="t('operateLog.summary')" min-width="260" show-overflow-tooltip>
+          <el-table-column :label="t('operateLog.summary')" min-width="240" show-overflow-tooltip>
             <template #default="{ row }">
-              <span class="table-summary-text">{{ getLogSummary(row) }}</span>
+              <div class="table-summary-cell">
+                <div class="table-summary-text">{{ getLogSummary(row) }}</div>
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('operateLog.result')" width="96" align="center">
+            <template #default="{ row }">
+              <el-tag :type="getLogStatusTagType(row)" size="small" effect="light">
+                {{ getLogStatusLabel(row) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('operateLog.source')" width="110" align="center">
+            <template #default="{ row }">
+              <el-tag :type="getSourceTagType(row.source)" size="small" effect="light">
+                {{ getSourceLabel(row.source) }}
+              </el-tag>
             </template>
           </el-table-column>
 
           <el-table-column :label="t('operateLog.version')" width="96" align="center">
             <template #default="{ row }">
               <span class="version-text">{{ row.version || '-' }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('operateLog.duration')" width="110" align="center">
+            <template #default="{ row }">
+              <span class="duration-text">{{ formatDuration(getLogDuration(row)) }}</span>
             </template>
           </el-table-column>
         </el-table>
@@ -454,8 +550,11 @@ import {
   ElTag
 } from 'element-plus'
 import type { TagProps } from 'element-plus'
+import { WidgetType } from '@/architecture/domain/constants/widget'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useOperateLogSection } from '@/architecture/presentation/composables/useOperateLogSection'
+import OperateLogFieldValue from './OperateLogFieldValue.vue'
+import OperateLogFieldChange from './OperateLogFieldChange.vue'
 
 interface Props {
   fullCodePath: string
@@ -492,19 +591,24 @@ const {
   formatRelativeTime,
   keyword,
   actionFilter,
+  sourceFilter,
   userFilter,
   userOptions,
   userFilterLoading,
   actionOptions,
+  sourceOptions,
   currentPage,
   pageSize,
   total,
+  expandedLogRowKeys,
   getUserInfo,
   getActionTagType,
   getActionLabel,
-  formatLogValue,
+  getSourceLabel,
+  getSourceTagType,
   getChangeEntries,
   getValueEntries,
+  getFormRequestEntries,
   getLogTitle,
   getLogEmptyText,
   getLogSummary,
@@ -513,8 +617,11 @@ const {
   getLogStatusTagType,
   getLogMetaEntries,
   applyFormLog,
+  getLogRowKey,
+  handleLogExpandChange,
   handleSearch,
   handleActionChange,
+  handleSourceChange,
   handleUserChange,
   searchUserOptions,
   handlePageChange,
@@ -622,6 +729,10 @@ function getFormResultSummary(log: any): string {
   return log.status === 'failed' ? t('operateLog.responseErrorHint') : t('operateLog.responseCompleteHint')
 }
 
+function isFilesField(field: any): boolean {
+  return field?.widget?.type === WidgetType.FILES
+}
+
 function openPreviewDialog(log: any) {
   previewLog.value = log
   previewActiveTab.value = 'request'
@@ -699,24 +810,31 @@ defineExpose({
 }
 
 .operate-log-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 200px) minmax(140px, 170px) minmax(130px, 160px) auto;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
+  border-radius: 12px;
+  background: var(--app-shell-panel-bg-strong, var(--el-bg-color));
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight, rgba(255, 255, 255, 0.65));
 }
 
 .operate-log-search {
-  flex: 1 1 280px;
-  min-width: 220px;
+  min-width: 0;
 }
 
-.operate-log-action-select {
-  width: 132px;
-}
-
+.operate-log-action-select,
+.operate-log-source-select,
 .operate-log-user-select {
-  width: 180px;
+  width: 100%;
+  min-width: 0;
+}
+
+.operate-log-toolbar > .el-button {
+  min-width: 86px;
 }
 
 .form-operate-log-section {
@@ -760,26 +878,70 @@ defineExpose({
 }
 
 .form-history-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 200px) minmax(140px, 170px) minmax(130px, 160px) auto;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--el-border-color-extra-light);
-  background: var(--el-fill-color-lighter);
+  background: var(--app-shell-panel-bg-strong, var(--el-bg-color));
 }
 
 .history-search {
-  flex: 1 1 320px;
-  min-width: 220px;
+  min-width: 0;
 }
 
-.history-action-select {
-  width: 140px;
-}
-
+.history-action-select,
+.history-source-select,
 .history-user-select {
-  width: 180px;
+  width: 100%;
+  min-width: 0;
+}
+
+.form-history-toolbar > .el-button {
+  min-width: 86px;
+}
+
+.operate-log-toolbar :deep(.el-input__wrapper),
+.operate-log-toolbar :deep(.el-select__wrapper),
+.form-history-toolbar :deep(.el-input__wrapper),
+.form-history-toolbar :deep(.el-select__wrapper) {
+  min-height: 36px;
+  border-radius: 10px;
+  background: var(--app-shell-panel-bg-strong, var(--el-bg-color));
+  box-shadow: 0 0 0 1px var(--app-shell-panel-border, var(--el-border-color-light)) inset;
+  transition: box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.operate-log-toolbar :deep(.el-input__wrapper:hover),
+.operate-log-toolbar :deep(.el-select__wrapper:hover),
+.form-history-toolbar :deep(.el-input__wrapper:hover),
+.form-history-toolbar :deep(.el-select__wrapper:hover) {
+  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.28) inset;
+}
+
+.operate-log-toolbar :deep(.el-input__wrapper.is-focus),
+.operate-log-toolbar :deep(.el-select__wrapper.is-focused),
+.form-history-toolbar :deep(.el-input__wrapper.is-focus),
+.form-history-toolbar :deep(.el-select__wrapper.is-focused) {
+  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.45) inset, 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.1);
+}
+
+.operate-log-toolbar :deep(.el-input__inner),
+.operate-log-toolbar :deep(.el-select__placeholder),
+.operate-log-toolbar :deep(.el-select__selected-item),
+.form-history-toolbar :deep(.el-input__inner),
+.form-history-toolbar :deep(.el-select__placeholder),
+.form-history-toolbar :deep(.el-select__selected-item) {
+  font-size: 13px;
+}
+
+.operate-log-toolbar > .el-button,
+.form-history-toolbar > .el-button {
+  height: 36px;
+  border-radius: 10px;
+  font-weight: 600;
+  box-shadow: none;
 }
 
 .history-table {
@@ -816,16 +978,34 @@ defineExpose({
   background: var(--el-fill-color-lighter);
 }
 
+.form-history-table {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.form-history-table :deep(.el-table__expanded-cell) {
+  padding: 0;
+  background: var(--el-fill-color-lighter);
+}
+
 .table-log-details {
   padding: 10px 16px 12px 56px;
 }
 
+.table-record-cell,
+.table-summary-cell {
+  min-width: 0;
+}
+
 .table-record-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.35;
   color: var(--el-text-color-primary);
-  word-break: break-word;
 }
 
 .table-record-meta {
@@ -857,17 +1037,10 @@ defineExpose({
   white-space: nowrap;
 }
 
-.table-result-cell {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  line-height: 1.2;
-}
-
-.table-duration-text {
+.duration-text {
   color: var(--el-text-color-secondary);
   font-size: 12px;
+  font-weight: 600;
 }
 
 .result-cell {
@@ -1149,6 +1322,12 @@ defineExpose({
   background: var(--el-fill-color-blank);
 }
 
+.value-row.is-file-value {
+  grid-template-columns: 1fr;
+  gap: 7px;
+  padding: 10px;
+}
+
 .change-field,
 .value-field {
   color: var(--el-text-color-regular);
@@ -1156,6 +1335,10 @@ defineExpose({
   font-weight: 700;
   line-height: 24px;
   word-break: break-word;
+}
+
+.value-row.is-file-value .value-field {
+  line-height: 1.35;
 }
 
 .change-values {
@@ -1205,6 +1388,18 @@ defineExpose({
   line-height: 24px;
 }
 
+.value-row.is-file-value .value-text {
+  line-height: 1.5;
+}
+
+.value-row.is-file-value .value-text :deep(.files-widget),
+.value-row.is-file-value .value-text :deep(.detail-files),
+.value-row.is-file-value .value-text :deep(.uploaded-files),
+.value-row.is-file-value .value-text :deep(.files-list) {
+  width: 100%;
+  max-width: 100%;
+}
+
 .log-meta-grid {
   display: flex;
   flex-wrap: wrap;
@@ -1236,6 +1431,21 @@ defineExpose({
 }
 
 @media (max-width: 720px) {
+  .operate-log-toolbar,
+  .form-history-toolbar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .operate-log-search,
+  .history-search {
+    grid-column: 1 / -1;
+  }
+
+  .operate-log-toolbar > .el-button,
+  .form-history-toolbar > .el-button {
+    width: 100%;
+  }
+
   .log-card-head {
     flex-direction: column;
   }
@@ -1246,6 +1456,13 @@ defineExpose({
 
   .change-row,
   .value-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .operate-log-toolbar,
+  .form-history-toolbar {
     grid-template-columns: 1fr;
   }
 }

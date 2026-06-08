@@ -24,14 +24,30 @@
           <el-tag v-else :type="tc.status === 'ok' ? 'success' : 'danger'" size="small" class="block-head-status">
             {{ statusLabel(tc.status) }}
           </el-tag>
+          <span
+            v-if="getToolDurationLabel(tc, idx)"
+            :class="['block-head-duration', { 'block-head-duration--running': isToolTimerRunning(tc, idx) }]"
+          >
+            <span v-if="isToolTimerRunning(tc, idx)" class="block-head-duration-dot"></span>
+            耗时 {{ getToolDurationLabel(tc, idx) }}
+          </span>
         </div>
-        <div v-if="isRenderablePrdToolCall(tc)" class="message-tool-calls-prd">
+        <div v-if="isRenderablePrdToolCall(tc)" class="message-tool-calls-prd mini-msg-prd-preview">
           <PrdPreview
             :data="tc.result_data"
             :confirm-disabled="confirmDisabled"
             @confirm="emit('confirm-prd', $event)"
           />
         </div>
+        <RoleHandoffCard
+          v-else-if="isRoleHandoffToolCall(tc)"
+          :tool-call="tc"
+        />
+        <BuildWorkspaceDiagnosticsCard
+          v-else-if="isBuildWorkspaceFailureToolCall(tc)"
+          :tool-call="tc"
+          class="mini-msg-build-diagnostics"
+        />
         <div
           v-else
           :class="['message-tool-calls-viewport', { 'message-tool-calls-viewport--first': idx === 0 }]"
@@ -69,11 +85,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
 import PrdPreview from './PrdPreview.vue'
+import RoleHandoffCard from './RoleHandoffCard.vue'
+import BuildWorkspaceDiagnosticsCard from './BuildWorkspaceDiagnosticsCard.vue'
 import type { WorkspaceChatToolCallSummary } from '@/architecture/presentation/context/api/workspace'
 import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { extractAllDisplayFields } from '@/architecture/presentation/composables/useOutputDisplayFields'
@@ -110,6 +128,109 @@ const hasRunning = computed(() =>
   props.toolCalls.some((t) => t.status === 'streaming' || t.status === 'running')
 )
 
+interface RuntimeTimer {
+  startedAt: number
+  completedAt?: number
+}
+
+const toolTimers = new Map<string, RuntimeTimer>()
+const timerNow = ref(Date.now())
+let timerInterval: ReturnType<typeof setInterval> | null = null
+
+function isToolPending(status: string): boolean {
+  return status === 'streaming' || status === 'running'
+}
+
+function isToolDone(status: string): boolean {
+  return status === 'ok' || status === 'error'
+}
+
+function getToolTimerKey(tc: WorkspaceChatToolCallSummary, idx: number): string {
+  return tc.id ? `id:${tc.id}` : `idx:${idx}:${tc.name}`
+}
+
+function hasActiveToolTimer(): boolean {
+  for (const timer of toolTimers.values()) {
+    if (timer.completedAt == null) return true
+  }
+  return false
+}
+
+function syncTimerInterval() {
+  if (hasActiveToolTimer()) {
+    if (timerInterval == null) {
+      timerInterval = setInterval(() => {
+        timerNow.value = Date.now()
+      }, 250)
+    }
+    return
+  }
+  if (timerInterval != null) {
+    clearInterval(timerInterval)
+    timerInterval = null
+  }
+}
+
+function syncToolTimers() {
+  const now = Date.now()
+  const visibleKeys = new Set<string>()
+  let changed = false
+
+  props.toolCalls.forEach((tc, idx) => {
+    const key = getToolTimerKey(tc, idx)
+    visibleKeys.add(key)
+    const existing = toolTimers.get(key)
+
+    if (isToolPending(tc.status)) {
+      if (!existing) {
+        toolTimers.set(key, { startedAt: now })
+        changed = true
+      } else if (existing.completedAt != null) {
+        delete existing.completedAt
+        changed = true
+      }
+      return
+    }
+
+    if (isToolDone(tc.status) && existing && existing.completedAt == null) {
+      existing.completedAt = now
+      changed = true
+    }
+  })
+
+  for (const key of toolTimers.keys()) {
+    if (!visibleKeys.has(key)) {
+      toolTimers.delete(key)
+      changed = true
+    }
+  }
+
+  if (changed) timerNow.value = now
+  syncTimerInterval()
+}
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  if (hours > 0) return `${hours}时${minutes}分${seconds}秒`
+  if (minutes > 0) return `${minutes}分${seconds}秒`
+  return `${seconds}秒`
+}
+
+function getToolDurationLabel(tc: WorkspaceChatToolCallSummary, idx: number): string {
+  const timer = toolTimers.get(getToolTimerKey(tc, idx))
+  if (!timer) return ''
+  const end = timer.completedAt ?? timerNow.value
+  return formatDuration(end - timer.startedAt)
+}
+
+function isToolTimerRunning(tc: WorkspaceChatToolCallSummary, idx: number): boolean {
+  const timer = toolTimers.get(getToolTimerKey(tc, idx))
+  return !!timer && timer.completedAt == null && isToolPending(tc.status)
+}
+
 /** 状态中文 */
 function statusLabel(status: string): string {
   if (status === 'streaming') return '解析中…'
@@ -121,6 +242,17 @@ function statusLabel(status: string): string {
 
 function isRenderablePrdToolCall(tc: WorkspaceChatToolCallSummary): boolean {
   return tc.name === 'write_prd' && tc.status === 'ok' && tc.result_data != null
+}
+
+function isRoleHandoffToolCall(tc: WorkspaceChatToolCallSummary): boolean {
+  return tc.name === 'change_role'
+}
+
+function isBuildWorkspaceFailureToolCall(tc: WorkspaceChatToolCallSummary): boolean {
+  return tc.name === 'build_workspace' &&
+    tc.result_data != null &&
+    typeof tc.result_data === 'object' &&
+    (tc.result_data as { kind?: string }).kind === 'agent_app_build_failure'
 }
 
 /** 把字符串里字面的 \n、\r 转成真实换行，这样嵌套 JSON 里的换行能正确展示 */
@@ -211,6 +343,14 @@ watch(
 watch(hasRunning, (running) => {
   if (running) scrollAllViewportsToBottom()
 })
+watch(
+  () => props.toolCalls.map((t, idx) => `${getToolTimerKey(t, idx)}:${t.status}`).join('|'),
+  syncToolTimers,
+  { immediate: true }
+)
+onBeforeUnmount(() => {
+  if (timerInterval != null) clearInterval(timerInterval)
+})
 </script>
 
 <style scoped lang="scss">
@@ -284,12 +424,39 @@ watch(hasRunning, (running) => {
 }
 
 .block-head-name {
+  min-width: 0;
+  overflow: hidden;
   font-weight: 500;
   color: var(--el-text-color-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .block-head-status {
   flex-shrink: 0;
+}
+
+.block-head-duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.block-head-duration--running {
+  color: var(--el-color-primary);
+}
+
+.block-head-duration-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px rgba(64, 158, 255, 0.42);
 }
 
 /* 每个工具一块 viewport，约 4-5 行高度，内容可滚动 */
@@ -316,6 +483,11 @@ watch(hasRunning, (running) => {
     border-top: none;
     border-radius: 0 0 var(--el-border-radius-base) var(--el-border-radius-base);
   }
+}
+
+.message-tool-calls-block :deep(.role-handoff-card) {
+  border-top: none;
+  border-radius: 0 0 var(--el-border-radius-base) var(--el-border-radius-base);
 }
 
 .message-tool-calls-output {

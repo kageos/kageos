@@ -315,6 +315,14 @@ func (r *AppRepository) GetAppsByUser(user string) ([]*model.App, error) {
 	return apps, nil
 }
 
+func (r *AppRepository) GetAllApps() ([]*model.App, error) {
+	var apps []*model.App
+	if err := r.db.Order("id ASC").Find(&apps).Error; err != nil {
+		return nil, err
+	}
+	return apps, nil
+}
+
 // GetAppsByUserWithPage 根据用户获取分页应用列表（支持搜索）
 // 保留此方法以保持向后兼容
 func (r *AppRepository) GetAppsByUserWithPage(user string, page, pageSize int, search string) ([]*model.App, int64, error) {

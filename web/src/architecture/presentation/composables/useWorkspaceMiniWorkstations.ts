@@ -55,6 +55,20 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       || '工作台'
   }
 
+  function findPreferredMiniForPath(fullCodePath: string, sessionId = '') {
+    const normalizedPath = normalizeFullCodePath(fullCodePath)
+    const normalizedSessionId = sessionId.trim()
+    const candidates = [...miniWsList.value]
+      .reverse()
+      .filter((mini: MiniWsInstance) => normalizeFullCodePath(mini.fullCodePath) === normalizedPath)
+
+    if (normalizedSessionId) {
+      return candidates.find((mini: MiniWsInstance) => mini.initialSessionId === normalizedSessionId)
+    }
+
+    return candidates.find((mini: MiniWsInstance) => !!mini.initialSessionId) || candidates[0]
+  }
+
   function upsertPrimaryMiniWs(
     fullCodePath: string,
     dirName: string,
@@ -97,7 +111,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       return nextMini
     }
 
-    const nextInitialMaximized = initialMaximized ?? false
+    const nextInitialMaximized = initialMaximized ?? true
     const nextInitialExpanded = initialExpanded ?? true
     const nextMini: MiniWsInstance = {
       id: String(++miniIdCounter),
@@ -134,6 +148,9 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       }
       return
     }
+    if (visibleMini) {
+      return
+    }
 
     const existingIndex = miniWsList.value.findIndex((mini: MiniWsInstance) =>
       mini.fullCodePath === fullCodePath && !mini.initialSessionId
@@ -152,12 +169,12 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     }
     if (existingIndex >= 0) {
       miniWsList.value = miniWsList.value.map((mini: MiniWsInstance, index: number) =>
-        index === existingIndex ? ambientMini : { ...mini, visible: false }
+        index === existingIndex ? ambientMini : mini
       )
       return
     }
     miniWsList.value = [
-      ...miniWsList.value.map((mini: MiniWsInstance) => ({ ...mini, visible: false })),
+      ...miniWsList.value,
       ambientMini
     ]
   }
@@ -167,7 +184,8 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     overridePath?: string,
     overrideName?: string,
     initialMaximized?: boolean,
-    initialExpanded?: boolean
+    initialExpanded?: boolean,
+    forceNew = false
   ) {
     const ctx = workstationContext.value
     const fullCodePath = overridePath || ctx?.fullCodePath
@@ -184,10 +202,8 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
         initialExpanded,
         (mini: MiniWsInstance) => mini.fullCodePath === fullCodePath && mini.initialSessionId === normalizedSessionId
       )
-    } else {
-      const existingForPath = [...miniWsList.value]
-        .reverse()
-        .find((mini: MiniWsInstance) => mini.fullCodePath === fullCodePath)
+    } else if (!forceNew) {
+      const existingForPath = findPreferredMiniForPath(fullCodePath)
       if (existingForPath?.initialSessionId) {
         return upsertPrimaryMiniWs(
           fullCodePath,
@@ -200,6 +216,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       }
       return upsertPrimaryMiniWs(fullCodePath, dirName, '', initialMaximized, initialExpanded)
     }
+    return upsertPrimaryMiniWs(fullCodePath, dirName, '', initialMaximized, initialExpanded)
   }
 
   function normalizeRouteBool(value: unknown, defaultValue: boolean) {
@@ -353,23 +370,27 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     directory_name?: string
     initial_maximized?: boolean
     open_as_mini?: boolean
+    force_new?: boolean
   }) {
     const fullCodePath = (payload?.full_code_path || '').trim()
     if (!fullCodePath) return
 
     const targetPath = buildWorkspacePath(fullCodePath)
     const normalizedSessionId = (payload.session_id || '').trim()
-    const existingMini = normalizedSessionId
-      ? miniWsList.value.find((mini: MiniWsInstance) =>
-          mini.fullCodePath === fullCodePath && mini.initialSessionId === normalizedSessionId
-        )
-      : [...miniWsList.value].reverse().find((mini: MiniWsInstance) => mini.fullCodePath === fullCodePath)
+    const existingMini = findPreferredMiniForPath(fullCodePath, normalizedSessionId)
     const dirName = payload.directory_name || existingMini?.dirName || resolveDirName(fullCodePath)
     const openMini = () => {
       const initialMaximized = payload.initial_maximized === undefined
         ? true
         : !!payload.initial_maximized
-      const openedMini = openNewMiniWs(payload.session_id || undefined, fullCodePath, dirName, initialMaximized, true)
+      const openedMini = openNewMiniWs(
+        payload.session_id || undefined,
+        fullCodePath,
+        dirName,
+        initialMaximized,
+        true,
+        !!payload.force_new
+      )
       const nextSessionId = payload.session_id || openedMini?.initialSessionId || undefined
       syncMiniWsQueryParam(true, {
         sessionId: nextSessionId,
@@ -406,7 +427,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
         dirName: mwsName || undefined,
         sessionId: mwsSid || undefined,
         initialExpanded,
-        initialMaximized: normalizeRouteBool(route.query._mws_maximized, false),
+        initialMaximized: normalizeRouteBool(route.query._mws_maximized, true),
       })
     }
   }

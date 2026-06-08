@@ -26,7 +26,7 @@ type validatorDynamicSelectReq struct {
 
 type validatorDynamicNestedItem struct {
 	ProductID int `json:"product_id" widget:"name:商品;type:select"`
-	Quantity  int `json:"quantity" widget:"name:数量;type:number"`
+	Quantity  int `json:"quantity" widget:"name:数量;type:integer"`
 }
 
 type validatorDynamicNestedReq struct {
@@ -52,7 +52,7 @@ type validatorOptionsSelectReq struct {
 
 type validatorAggregateReq struct {
 	InputFiles []string `json:"input_files" widget:"name:输入文件;type:files;max_count:-1"`
-	Age        int      `json:"age" widget:"name:年龄;type:number"`
+	Age        int      `json:"age" widget:"name:年龄;type:integer"`
 }
 
 type validatorAggregateResp struct {
@@ -75,14 +75,22 @@ type validatorBadListReq struct {
 }
 
 type validatorBadNumericReq struct {
-	Amount float64 `json:"amount" widget:"name:金额;type:number"`
+	Amount float64 `json:"amount" widget:"name:金额;type:integer"`
 	Count  int     `json:"count" widget:"name:数量;type:float"`
-	Score  int     `json:"score" widget:"name:评分;type:number;min:10;max:1"`
+	Score  int     `json:"score" widget:"name:评分;type:integer;min:10;max:1"`
+}
+
+type validatorIntegerReq struct {
+	Count int `json:"count" widget:"name:数量;type:integer;min:1;max:10;render_default:1"`
+}
+
+type validatorBadIntegerReq struct {
+	Amount float64 `json:"amount" widget:"name:金额;type:integer"`
 }
 
 type validatorBadUnknownWidgetTagReq struct {
 	Title string `json:"title" widget:"name:标题;type:input;placehoder:请输入标题"`
-	Count int    `json:"count" widget:"name:数量;type:number;maxcount:10"`
+	Count int    `json:"count" widget:"name:数量;type:integer;maxcount:10"`
 }
 
 type validatorTextAreaRowsReq struct {
@@ -94,7 +102,7 @@ type validatorBadTextAreaRowsReq struct {
 }
 
 type validatorBadNumericDefaultRangeReq struct {
-	Count  int     `json:"count" widget:"name:数量;type:number;min:1;max:5;render_default:6"`
+	Count  int     `json:"count" widget:"name:数量;type:integer;min:1;max:5;render_default:6"`
 	Amount float64 `json:"amount" widget:"name:金额;type:float;min:0;max:10;render_default:-1"`
 	Level  int     `json:"level" widget:"name:等级;type:slider;render_default:120"`
 	Score  float64 `json:"score" widget:"name:评分;type:rate;render_default:6"`
@@ -180,7 +188,7 @@ type validatorAuditGoodReq struct {
 }
 
 type validatorBadAuditReq struct {
-	ID        int           `json:"id" gorm:"primaryKey;column:id" widget:"name:ID;type:number" hide:"list,update"`
+	ID        int           `json:"id" gorm:"primaryKey;column:id" widget:"name:ID;type:integer" hide:"list,update"`
 	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_on;type:datetime" widget:"name:创建时间;type:input;format:YYYY-MM-DD" hide:"list,update"`
 	CreatedBy string        `json:"created_by" gorm:"column:creator" widget:"name:创建人;type:input"`
 	DeletedAt string        `json:"deleted_at" gorm:"column:deleted_at" widget:"name:删除时间;type:datetime"`
@@ -230,9 +238,26 @@ type validatorPageSortReqTableConflictReq struct {
 	query.PageSortReq
 }
 
+type validatorAuditFilterPageSortReq struct {
+	CreatedAt string `json:"created_at" form:"created_at" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
+	UpdatedAt string `json:"updated_at" form:"updated_at" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
+	CreatedBy string `json:"created_by" form:"created_by" widget:"name:创建人;type:user"`
+	UpdatedBy string `json:"updated_by" form:"updated_by" widget:"name:更新人;type:user"`
+	DeletedAt string `json:"deleted_at" form:"deleted_at" widget:"name:删除时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
+	query.PageSortReq
+}
+
 type validatorTableConflictModel struct {
 	Status string `json:"status" widget:"name:状态;type:select;options:A,B"`
 	Title  string `json:"title" widget:"name:标题;type:input"`
+}
+
+type validatorAuditFilterTableModel struct {
+	ID        int           `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:ID;type:ID" hide:"create,update"`
+	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"`
+	UpdatedAt apptypes.Time `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"`
+	CreatedBy string        `json:"created_by" gorm:"column:created_by" widget:"name:创建人;type:user" hide:"create,update"`
+	UpdatedBy string        `json:"updated_by" gorm:"column:updated_by" widget:"name:更新人;type:user" hide:"create,update"`
 }
 
 func TestWidgetValidatorRejectsInvalidComponentParams(t *testing.T) {
@@ -275,7 +300,7 @@ func TestWidgetValidatorRejectsInvalidComponentParams(t *testing.T) {
 		{
 			name:  "number and float widgets must match numeric kind",
 			model: &validatorBadNumericReq{},
-			want:  "number widget requires integer Go type",
+			want:  "integer widget requires integer Go type",
 		},
 		{
 			name:      "unknown callback target",
@@ -453,6 +478,30 @@ func TestDecodeTableAllowsPageSortReqRequestAndTableFieldCodeOverlap(t *testing.
 	}
 }
 
+func TestDecodeTableAllowsAuditFieldCodeFiltersInPageSortRequest(t *testing.T) {
+	requestFields, _, err := DecodeTable(nil, &validatorAuditFilterPageSortReq{}, &validatorAuditFilterTableModel{})
+	if err != nil {
+		t.Fatalf("DecodeTable() error = %v, want nil", err)
+	}
+	if len(requestFields) != 5 {
+		t.Fatalf("request fields len = %d, want 5", len(requestFields))
+	}
+	for _, want := range []string{"created_at", "updated_at", "created_by", "updated_by", "deleted_at"} {
+		if !hasFieldCode(requestFields, want) {
+			t.Fatalf("request fields missing %q: %#v", want, requestFields)
+		}
+	}
+}
+
+func hasFieldCode(fields []*Field, code string) bool {
+	for _, field := range fields {
+		if field != nil && field.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
 func TestWidgetValidatorRejectsUnsupportedWidgetTags(t *testing.T) {
 	_, _, err := DecodeForm(nil, &validatorBadUnknownWidgetTagReq{}, nil)
 	if err == nil {
@@ -460,7 +509,7 @@ func TestWidgetValidatorRejectsUnsupportedWidgetTags(t *testing.T) {
 	}
 	for _, want := range []string{
 		`unsupported widget tag "placehoder" for widget "input"`,
-		`unsupported widget tag "maxcount" for widget "number"`,
+		`unsupported widget tag "maxcount" for widget "integer"`,
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("DecodeForm() error = %v, want substring %q", err, want)
@@ -602,13 +651,33 @@ func TestWidgetValidatorRejectsNumericKindAndRangeDrift(t *testing.T) {
 		t.Fatal("DecodeForm() error = nil, want error")
 	}
 	for _, want := range []string{
-		"number widget requires integer Go type",
+		"integer widget requires integer Go type",
 		"float widget requires float32/float64 Go type",
 		"widget min must be <= max",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("DecodeForm() error = %v, want substring %q", err, want)
 		}
+	}
+}
+
+func TestWidgetValidatorAcceptsIntegerWidget(t *testing.T) {
+	fields, _, err := DecodeForm(nil, &validatorIntegerReq{}, nil)
+	if err != nil {
+		t.Fatalf("DecodeForm() error = %v", err)
+	}
+	if len(fields) != 1 || fields[0].Widget.Type != TypeInteger {
+		t.Fatalf("DecodeForm() fields = %#v, want integer widget", fields)
+	}
+}
+
+func TestWidgetValidatorRejectsFloatForIntegerWidget(t *testing.T) {
+	_, _, err := DecodeForm(nil, &validatorBadIntegerReq{}, nil)
+	if err == nil {
+		t.Fatal("DecodeForm() error = nil, want error")
+	}
+	if want := "integer widget requires integer Go type"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("DecodeForm() error = %v, want substring %q", err, want)
 	}
 }
 

@@ -53,7 +53,7 @@ func (f *FunctionService) GetFunctionByFullCodePath(ctx context.Context, fullCod
 		return nil, fmt.Errorf("获取函数失败: %w", err)
 	}
 
-	return f.convertFunctionToResp(function), nil
+	return f.convertFunctionToResp(ctx, function), nil
 }
 
 // GetFunction 获取函数详情（根据 ID，保留给内部旧调用方）。
@@ -68,25 +68,30 @@ func (f *FunctionService) GetFunction(ctx context.Context, functionID int64) (*d
 		return nil, fmt.Errorf("获取函数失败: %w", err)
 	}
 
-	return f.convertFunctionToResp(function), nil
+	return f.convertFunctionToResp(ctx, function), nil
 }
 
 // convertFunctionToResp 将函数模型转换为响应格式
-func (f *FunctionService) convertFunctionToResp(function *model.Function) *dto.GetFunctionResp {
+func (f *FunctionService) convertFunctionToResp(ctx context.Context, function *model.Function) *dto.GetFunctionResp {
+	connectors := splitConnectorCodes(function.Connectors)
+	connectorEndpoints := splitConnectorEndpoints(function.ConnectorEndpoints)
 
 	resp := &dto.GetFunctionResp{
-		ID:           function.ID,
-		AppID:        function.AppID,
-		TreeID:       function.TreeID,
-		Method:       function.Method,
-		Router:       function.Router,
-		HasConfig:    function.HasConfig,
-		CreateTables: function.CreateTables,
-		TemplateType: function.TemplateType,
-		CreatedAt:    time.Time(function.CreatedAt).Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:    time.Time(function.UpdatedAt).Format("2006-01-02T15:04:05Z"),
-		CreatedBy:    function.CreatedBy, // 创建者用户名
-		FullCodePath: function.Router,    // Router 存储的就是 full-code-path
+		ID:                 function.ID,
+		AppID:              function.AppID,
+		TreeID:             function.TreeID,
+		Method:             function.Method,
+		Router:             function.Router,
+		HasConfig:          function.HasConfig,
+		CreateTables:       function.CreateTables,
+		Connectors:         connectors,
+		ConnectorEndpoints: connectorEndpoints,
+		ConnectorStatus:    functionConnectorStatuses(ctx, function.Router, connectors, connectorEndpoints),
+		TemplateType:       function.TemplateType,
+		CreatedAt:          time.Time(function.CreatedAt).Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:          time.Time(function.UpdatedAt).Format("2006-01-02T15:04:05Z"),
+		CreatedBy:          function.CreatedBy, // 创建者用户名
+		FullCodePath:       function.Router,    // Router 存储的就是 full-code-path
 	}
 
 	schema, err := functionschema.Parse(function.Schema)
@@ -114,17 +119,19 @@ func (f *FunctionService) GetFunctionsByApp(ctx context.Context, appID int64) (*
 	functionInfos := make([]dto.FunctionInfo, len(functions))
 	for i, function := range functions {
 		functionInfos[i] = dto.FunctionInfo{
-			ID:           function.ID,
-			AppID:        function.AppID,
-			TreeID:       function.TreeID,
-			Method:       function.Method,
-			Router:       function.Router,
-			HasConfig:    function.HasConfig,
-			CreateTables: function.CreateTables,
-			Callbacks:    function.GetCallbacks(),
-			TemplateType: function.TemplateType,
-			CreatedAt:    time.Time(function.CreatedAt).Format("2006-01-02T15:04:05Z"),
-			UpdatedAt:    time.Time(function.UpdatedAt).Format("2006-01-02T15:04:05Z"),
+			ID:                 function.ID,
+			AppID:              function.AppID,
+			TreeID:             function.TreeID,
+			Method:             function.Method,
+			Router:             function.Router,
+			HasConfig:          function.HasConfig,
+			CreateTables:       function.CreateTables,
+			Connectors:         splitConnectorCodes(function.Connectors),
+			ConnectorEndpoints: splitConnectorEndpoints(function.ConnectorEndpoints),
+			Callbacks:          function.GetCallbacks(),
+			TemplateType:       function.TemplateType,
+			CreatedAt:          time.Time(function.CreatedAt).Format("2006-01-02T15:04:05Z"),
+			UpdatedAt:          time.Time(function.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 		}
 	}
 

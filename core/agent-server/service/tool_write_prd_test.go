@@ -117,6 +117,32 @@ func TestWritePRDToolRejectsWidgetTagsAndInvalidExamples(t *testing.T) {
 	}
 }
 
+func TestWritePRDToolAcceptsRichTextWidget(t *testing.T) {
+	reg := NewToolRegistry()
+	args := validNPSPRDArgs()
+	tables := args["tables"].([]map[string]interface{})
+	tableFields := tables[0]["fields"].([]map[string]interface{})
+	tableFields[1]["widget"] = "richtext"
+	forms := args["forms"].([]map[string]interface{})
+	requestFields := forms[0]["request_fields"].([]map[string]interface{})
+	requestFields[3]["widget"] = "richtext"
+
+	result := reg.CallTool(context.Background(), "write_prd", args, "/liubeiluo/ccc", "")
+	if result.IsError {
+		t.Fatalf("write_prd should accept richtext widget: %s", result.Content)
+	}
+	data, ok := result.Data.(writePRDResultData)
+	if !ok {
+		t.Fatalf("write_prd data type = %T, want writePRDResultData", result.Data)
+	}
+	if got := data.Tables[0].Fields[1].Widget; got != "richtext" {
+		t.Fatalf("table rich text widget = %q, want richtext", got)
+	}
+	if got := data.Forms[0].RequestFields[3].Widget; got != "richtext" {
+		t.Fatalf("form rich text widget = %q, want richtext", got)
+	}
+}
+
 func TestWritePRDToolRejectsInvalidReferences(t *testing.T) {
 	reg := NewToolRegistry()
 	args := validNPSPRDArgs()
@@ -351,7 +377,7 @@ func validNPSPRDArgs() map[string]interface{} {
 					{"name": "问卷标题", "widget": "input", "required": true, "desc": "调研问卷的标题，建议简短清晰。"},
 					{"name": "问卷描述", "widget": "text_area", "required": false, "desc": "说明本次调研目的和填写说明。"},
 					{"name": "状态", "widget": "select", "required": true, "desc": "问卷状态，有待发送、收集中、已结束三个选项，默认待发送。"},
-					{"name": "评分数量", "widget": "number", "required": false, "hide": "create,update", "desc": "该问卷收到的评分记录数量，由系统统计。"},
+					{"name": "评分数量", "widget": "integer", "required": false, "hide": "create,update", "desc": "该问卷收到的评分记录数量，由系统统计。"},
 				},
 				"search_fields": []map[string]interface{}{
 					{"name": "问卷标题", "widget": "input", "required": false, "desc": "按问卷标题模糊搜索。"},
@@ -372,7 +398,7 @@ func validNPSPRDArgs() map[string]interface{} {
 				"fields": []map[string]interface{}{
 					{"name": "问卷", "widget": "select", "required": true, "desc": "关联的 NPS 问卷，从 NPS问卷 中选择。"},
 					{"name": "评分人", "widget": "input", "required": false, "desc": "提交评分的用户。"},
-					{"name": "NPS分数", "widget": "number", "required": true, "desc": "0 到 10 的整数评分，0 表示完全不推荐，10 表示非常愿意推荐。"},
+					{"name": "NPS分数", "widget": "integer", "required": true, "desc": "0 到 10 的整数评分，0 表示完全不推荐，10 表示非常愿意推荐。"},
 					{"name": "评分类型", "widget": "select", "required": false, "hide": "create,update", "desc": "根据 NPS分数 自动计算，有推荐者、中立者、贬损者三个类型：0-6 为贬损者，7-8 为中立者，9-10 为推荐者。"},
 					{"name": "推荐理由", "widget": "text_area", "required": false, "desc": "用户推荐或不推荐的具体原因。"},
 					{"name": "评分时间", "widget": "datetime", "required": false, "hide": "create,update", "desc": "评分提交时间，由系统记录。"},
@@ -398,7 +424,7 @@ func validNPSPRDArgs() map[string]interface{} {
 				"request_fields": []map[string]interface{}{
 					{"name": "问卷", "widget": "select", "required": true, "desc": "选择要评价的 NPS 问卷。"},
 					{"name": "评分人", "widget": "input", "required": false, "desc": "提交评分的用户，默认当前用户。"},
-					{"name": "NPS分数", "widget": "number", "required": true, "desc": "0 到 10 的整数评分，提交后系统按评分计算评分类型。"},
+					{"name": "NPS分数", "widget": "integer", "required": true, "desc": "0 到 10 的整数评分，提交后系统按评分计算评分类型。"},
 					{"name": "推荐理由", "widget": "text_area", "required": false, "desc": "填写推荐或不推荐的原因。"},
 				},
 				"response_fields": []map[string]interface{}{

@@ -11,7 +11,7 @@ import (
 	"github.com/kageos/kageos/pkg/contextx"
 )
 
-const agentToolClientSource = "agent"
+const agentToolClientSource = contextx.ClientSourceAgent
 
 // decodeToolArgs 将 tool args 反序列化到强类型结构体；未知字段保持忽略，避免对旧调用方过于敏感。
 func decodeToolArgs[T any](args map[string]interface{}) (T, error) {

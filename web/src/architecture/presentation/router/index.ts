@@ -91,11 +91,48 @@ const router = createRouter({
       }
     },
     {
+      path: '/agent/openapi',
+      name: 'openapi-token-management',
+      component: () => import('@/architecture/presentation/features/agent/pages/OpenAPITokenManagementPage.vue'),
+      meta: {
+        titleKey: 'route.openapiConfig',
+        requireAuth: true,
+        feature: 'llmManagement'
+      }
+    },
+    {
       path: '/system/settings',
       name: 'system-settings',
       component: () => import('@/architecture/presentation/features/system/pages/SystemSettingsPage.vue'),
       meta: {
         titleKey: 'route.systemSettings',
+        requireAuth: true
+      }
+    },
+    {
+      path: '/connectors',
+      redirect: '/connectors/providers',
+      meta: {
+        titleKey: 'route.connectorManagement',
+        requireAuth: true
+      }
+    },
+    {
+      path: '/connectors/providers',
+      name: 'connector-provider-management',
+      component: () => import('@/architecture/presentation/features/connector/pages/ConnectorProviderManagementPage.vue'),
+      meta: {
+        titleKey: 'route.connectorManagement',
+        requireAuth: true
+      }
+    },
+    {
+      path: '/permissions/access',
+      alias: '/permissions/apply',
+      name: 'permission-access',
+      component: () => import('@/architecture/presentation/features/access/pages/TeamAccessPage.vue'),
+      meta: {
+        titleKey: 'access.title',
         requireAuth: true
       }
     },

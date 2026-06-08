@@ -65,6 +65,28 @@ func TestBuildWorkspaceEnvDataIncludesFunctionRequestSummary(t *testing.T) {
 	}
 }
 
+func TestWorkspaceEnvBlockIncludesDirectoryIntentHint(t *testing.T) {
+	t.Parallel()
+
+	data := BuildWorkspaceEnvData(&WorkspaceEnvInput{
+		DirName:      "投票系统",
+		DirCode:      "vote",
+		FullCodePath: "/system/x_world/vote",
+	}, "vote", "/system/x_world/vote", timeNowForTest())
+	got := BuildWorkspaceEnvBlock(data, true, "vote", "/system/x_world/vote")
+	for _, want := range []string{
+		"### 当前目录语义",
+		"选择角色前必须先结合当前目录",
+		"使用这个软件完成业务结果",
+		"不要先写 PRD 或进入开发",
+		"新增或改变软件能力",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("workspace env block should contain %q, got:\n%s", want, got)
+		}
+	}
+}
+
 func timeNowForTest() time.Time {
 	return time.Date(2026, 4, 21, 12, 0, 0, 0, time.UTC)
 }

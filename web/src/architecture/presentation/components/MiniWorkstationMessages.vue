@@ -30,8 +30,28 @@
         <div class="mini-msg-assistant-header">
           <span class="mini-msg-badge">工作台</span>
           <span v-if="getAssistantModelLabel(msg)" class="mini-msg-model">{{ getAssistantModelLabel(msg) }}</span>
+          <span
+            v-if="getAssistantCacheLabel(msg)"
+            class="mini-msg-cache"
+            :title="getAssistantCacheTitle(msg)"
+          >
+            {{ getAssistantCacheLabel(msg) }}
+          </span>
           <span class="mini-msg-time">{{ msg.created_at ? formatMessageTime(msg.created_at) : '—' }}</span>
+          <span
+            v-if="getAssistantDurationLabel(msg, i)"
+            :class="['mini-msg-output-duration', { 'mini-msg-output-duration--running': isAssistantTimerRunning(msg, i) }]"
+          >
+            <span v-if="isAssistantTimerRunning(msg, i)" class="mini-msg-output-duration-dot"></span>
+            输出耗时 {{ getAssistantDurationLabel(msg, i) }}
+          </span>
         </div>
+        <ModelContextPlanCard
+          v-if="msg.model_context_plan"
+          :plan="msg.model_context_plan"
+          :plans="msg.model_context_plans"
+          class="mini-msg-model-context"
+        />
         <div v-if="msg.blocks?.length" class="mini-msg-assistant">
           <template v-for="(block, bi) in msg.blocks" :key="bi">
             <div
@@ -40,13 +60,25 @@
               v-html="renderContentBlock(block.text, i, bi, msg.blocks.length)"
             ></div>
             <template v-else-if="block.type === 'tool_calls'">
-              <MessageToolCalls
-                v-if="maximized"
-                :tool-calls="block.calls"
-                :file-groups="getFileGroupsFromCalls(block.calls)"
-                :confirm-disabled="sending"
-                @confirm-prd="emit('confirm-prd', $event)"
-              />
+              <template v-if="maximized">
+                <MessageToolCalls
+                  :tool-calls="block.calls"
+                  :file-groups="getFileGroupsFromCalls(block.calls)"
+                  :confirm-disabled="sending"
+                  @confirm-prd="emit('confirm-prd', $event)"
+                />
+                <MiniWorkstationPendingActionBar
+                  v-for="(interaction, ii) in getInteractionCardsFromCalls(block.calls)"
+                  :key="`interaction-max-${interaction.id || ii}`"
+                  :interaction="interaction"
+                  :sending="sending"
+                  :readonly="!isActiveInteraction(interaction)"
+                  @view="emit('view', interaction)"
+                  @revise="emit('revise', { interaction, text: $event.text })"
+                  @cancel="emit('cancel', interaction)"
+                  @confirm="emit('confirm', interaction)"
+                />
+              </template>
               <template v-else>
                 <div class="mini-tools-block">
                   <div
@@ -74,6 +106,29 @@
                   @confirm="emit('confirm-prd', $event)"
                   class="mini-msg-prd-preview"
                 />
+                <RoleHandoffCard
+                  v-for="(tc, ri) in getRoleHandoffCallsFromCalls(block.calls)"
+                  :key="`role-${tc.name}-${ri}`"
+                  :tool-call="tc"
+                  class="mini-msg-role-handoff"
+                />
+                <BuildWorkspaceDiagnosticsCard
+                  v-for="(tc, bi) in getBuildWorkspaceFailureCallsFromCalls(block.calls)"
+                  :key="`build-failure-${tc.name}-${bi}`"
+                  :tool-call="tc"
+                  class="mini-msg-build-diagnostics"
+                />
+                <MiniWorkstationPendingActionBar
+                  v-for="(interaction, ii) in getInteractionCardsFromCalls(block.calls)"
+                  :key="`interaction-${interaction.id || ii}`"
+                  :interaction="interaction"
+                  :sending="sending"
+                  :readonly="!isActiveInteraction(interaction)"
+                  @view="emit('view', interaction)"
+                  @revise="emit('revise', { interaction, text: $event.text })"
+                  @cancel="emit('cancel', interaction)"
+                  @confirm="emit('confirm', interaction)"
+                />
                 <OutputFilesDisplay
                   v-if="getFileGroupsFromCalls(block.calls).length"
                   :file-groups="getFileGroupsFromCalls(block.calls)"
@@ -94,13 +149,25 @@
             class="mini-msg-assistant mini-content-block mini-md-content"
             v-html="renderMarkdown(msg.content)"
           ></div>
-          <MessageToolCalls
-            v-if="maximized && msg.tool_calls?.length"
-            :tool-calls="msg.tool_calls"
-            :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
-            :confirm-disabled="sending"
-            @confirm-prd="emit('confirm-prd', $event)"
-          />
+          <template v-if="maximized && msg.tool_calls?.length">
+            <MessageToolCalls
+              :tool-calls="msg.tool_calls"
+              :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
+              :confirm-disabled="sending"
+              @confirm-prd="emit('confirm-prd', $event)"
+            />
+            <MiniWorkstationPendingActionBar
+              v-for="(interaction, ii) in getInteractionCardsFromCalls(msg.tool_calls)"
+              :key="`msg-interaction-max-${interaction.id || ii}`"
+              :interaction="interaction"
+              :sending="sending"
+              :readonly="!isActiveInteraction(interaction)"
+              @view="emit('view', interaction)"
+              @revise="emit('revise', { interaction, text: $event.text })"
+              @cancel="emit('cancel', interaction)"
+              @confirm="emit('confirm', interaction)"
+            />
+          </template>
           <template v-else-if="msg.tool_calls?.length">
             <PrdPreview
               v-for="(tc, pi) in getPrdCallsFromCalls(msg.tool_calls)"
@@ -109,6 +176,29 @@
               :confirm-disabled="sending"
               @confirm="emit('confirm-prd', $event)"
               class="mini-msg-prd-preview"
+            />
+            <RoleHandoffCard
+              v-for="(tc, ri) in getRoleHandoffCallsFromCalls(msg.tool_calls)"
+              :key="`msg-role-${tc.name}-${ri}`"
+              :tool-call="tc"
+              class="mini-msg-role-handoff"
+            />
+            <BuildWorkspaceDiagnosticsCard
+              v-for="(tc, bi) in getBuildWorkspaceFailureCallsFromCalls(msg.tool_calls)"
+              :key="`msg-build-failure-${tc.name}-${bi}`"
+              :tool-call="tc"
+              class="mini-msg-build-diagnostics"
+            />
+            <MiniWorkstationPendingActionBar
+              v-for="(interaction, ii) in getInteractionCardsFromCalls(msg.tool_calls)"
+              :key="`msg-interaction-${interaction.id || ii}`"
+              :interaction="interaction"
+              :sending="sending"
+              :readonly="!isActiveInteraction(interaction)"
+              @view="emit('view', interaction)"
+              @revise="emit('revise', { interaction, text: $event.text })"
+              @cancel="emit('cancel', interaction)"
+              @confirm="emit('confirm', interaction)"
             />
             <OutputFilesDisplay
               v-if="getFileGroupsFromCalls(msg.tool_calls).length"
@@ -131,16 +221,22 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { CircleCheck, CircleClose, Loading } from '@element-plus/icons-vue'
 import type { OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import type { ChatMessage, ChatMessageToolCall } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import MessageToolCalls from './MessageToolCalls.vue'
+import ModelContextPlanCard from './ModelContextPlanCard.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import PrdPreview from './PrdPreview.vue'
+import RoleHandoffCard from './RoleHandoffCard.vue'
+import BuildWorkspaceDiagnosticsCard from './BuildWorkspaceDiagnosticsCard.vue'
+import MiniWorkstationPendingActionBar from './MiniWorkstationPendingActionBar.vue'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
+import type { WorkspaceInteraction } from '@/architecture/presentation/context/api/workspace'
 
 const authStore = useAuthStore()
 const currentUsername = authStore.user?.username || authStore.userName || ''
@@ -154,11 +250,129 @@ const props = defineProps<{
   formatMessageTime: (value: string) => string
   getFileGroupsFromCalls: (calls: ChatMessageToolCall[]) => OutputFileGroup[]
   getDisplayFieldsFromCalls: (calls: ChatMessageToolCall[]) => OutputDisplayField[]
+  pendingInteraction?: WorkspaceInteraction | null
 }>()
 
 const emit = defineEmits<{
   (e: 'confirm-prd', payload: { remark: string; prd: unknown }): void
+  (e: 'view', interaction: WorkspaceInteraction): void
+  (e: 'revise', payload: { interaction: WorkspaceInteraction; text: string }): void
+  (e: 'cancel', interaction: WorkspaceInteraction): void
+  (e: 'confirm', interaction: WorkspaceInteraction): void
 }>()
+
+interface RuntimeTimer {
+  messageIndex: number
+  createdAt: string
+  startedAt: number
+  completedAt?: number
+}
+
+const assistantTimer = ref<RuntimeTimer | null>(null)
+const assistantTimerNow = ref(Date.now())
+let assistantTimerInterval: ReturnType<typeof setInterval> | null = null
+
+function getAssistantOutputSize(message: ChatMessage): number {
+  let size = message.content?.length ?? 0
+  if (message.blocks?.length) {
+    for (const block of message.blocks) {
+      if (block.type === 'content') {
+        size += block.text.length
+      } else {
+        size += block.calls.length
+        for (const call of block.calls) {
+          size += (call.arguments?.length ?? 0) + (call.result?.length ?? 0) + (call.error?.length ?? 0)
+        }
+      }
+    }
+  }
+  if (message.tool_calls?.length) {
+    size += message.tool_calls.length
+    for (const call of message.tool_calls) {
+      size += (call.arguments?.length ?? 0) + (call.result?.length ?? 0) + (call.error?.length ?? 0)
+    }
+  }
+  if (message.model_context_plans?.length || message.model_context_plan) {
+    size += message.model_context_plans?.length || 1
+  }
+  return size
+}
+
+function hasAssistantVisibleOutput(message: ChatMessage): boolean {
+  return message.role === 'assistant' && getAssistantOutputSize(message) > 0
+}
+
+function isAssistantTimerTarget(message: ChatMessage, msgIndex: number): boolean {
+  const timer = assistantTimer.value
+  return !!timer && message.role === 'assistant' && timer.messageIndex === msgIndex && timer.createdAt === (message.created_at || '')
+}
+
+function syncAssistantTimerInterval() {
+  const timer = assistantTimer.value
+  if (timer && timer.completedAt == null) {
+    if (assistantTimerInterval == null) {
+      assistantTimerInterval = setInterval(() => {
+        assistantTimerNow.value = Date.now()
+      }, 250)
+    }
+    return
+  }
+  if (assistantTimerInterval != null) {
+    clearInterval(assistantTimerInterval)
+    assistantTimerInterval = null
+  }
+}
+
+function syncAssistantTimer() {
+  const now = Date.now()
+  const lastIndex = props.messages.length - 1
+  const lastMessage = props.messages[lastIndex]
+
+  if (props.sending && lastMessage?.role === 'assistant' && hasAssistantVisibleOutput(lastMessage)) {
+    const createdAt = lastMessage.created_at || ''
+    const timer = assistantTimer.value
+    if (!timer || timer.messageIndex !== lastIndex || timer.createdAt !== createdAt || timer.completedAt != null) {
+      assistantTimer.value = { messageIndex: lastIndex, createdAt, startedAt: now }
+      assistantTimerNow.value = now
+    }
+  } else if (!props.sending && assistantTimer.value && assistantTimer.value.completedAt == null) {
+    assistantTimer.value = { ...assistantTimer.value, completedAt: now }
+    assistantTimerNow.value = now
+  }
+
+  const timer = assistantTimer.value
+  if (timer) {
+    const targetMessage = props.messages[timer.messageIndex]
+    if (!targetMessage || targetMessage.role !== 'assistant' || (targetMessage.created_at || '') !== timer.createdAt) {
+      assistantTimer.value = null
+    }
+  }
+
+  syncAssistantTimerInterval()
+}
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  if (hours > 0) return `${hours}时${minutes}分${seconds}秒`
+  if (minutes > 0) return `${minutes}分${seconds}秒`
+  return `${seconds}秒`
+}
+
+function getAssistantDurationLabel(message: ChatMessage, msgIndex: number): string {
+  if (!isAssistantTimerTarget(message, msgIndex)) return ''
+  const timer = assistantTimer.value
+  if (!timer) return ''
+  const end = timer.completedAt ?? assistantTimerNow.value
+  return formatDuration(end - timer.startedAt)
+}
+
+function isAssistantTimerRunning(message: ChatMessage, msgIndex: number): boolean {
+  const timer = assistantTimer.value
+  return isAssistantTimerTarget(message, msgIndex) && !!timer && timer.completedAt == null
+}
 
 function renderContentBlock(text: string, msgIndex: number, blockIndex: number, blockCount: number): string {
   const isStreamingTail =
@@ -173,6 +387,89 @@ function getPrdCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall
   return calls.filter((call) => call.name === 'write_prd' && call.status === 'ok' && call.result_data != null)
 }
 
+function getRoleHandoffCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
+  return calls.filter((call) => call.name === 'change_role')
+}
+
+function getBuildWorkspaceFailureCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
+  return calls.filter((call) =>
+    call.name === 'build_workspace' &&
+    call.result_data != null &&
+    typeof call.result_data === 'object' &&
+    (call.result_data as { kind?: string }).kind === 'agent_app_build_failure'
+  )
+}
+
+type StageInteractionArtifact = Record<string, unknown> & {
+  kind?: string
+  interaction?: Partial<WorkspaceInteraction>
+}
+
+function getInteractionCardsFromCalls(calls: ChatMessageToolCall[]): WorkspaceInteraction[] {
+  const interactions: WorkspaceInteraction[] = []
+  for (const call of calls) {
+    const interaction = buildWorkspaceInteractionFromArtifact(call.result_data)
+    if (interaction) interactions.push(interaction)
+  }
+  return interactions
+}
+
+function buildWorkspaceInteractionFromArtifact(value: unknown): WorkspaceInteraction | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const artifact = value as StageInteractionArtifact
+  const rawInteraction = artifact.interaction
+  if (!rawInteraction || typeof rawInteraction !== 'object') return null
+  const status = typeof rawInteraction.status === 'string' ? rawInteraction.status.trim() : ''
+  if (!status.startsWith('pending_')) return null
+  const cardType = typeof rawInteraction.card_type === 'string' ? rawInteraction.card_type : fallbackCardType(artifact.kind, status)
+  return {
+    id: typeof rawInteraction.id === 'string' ? rawInteraction.id : getStageArtifactKey(artifact),
+    card_type: cardType,
+    artifact_kind: typeof rawInteraction.artifact_kind === 'string' ? rawInteraction.artifact_kind : artifact.kind,
+    status,
+    blocking: typeof rawInteraction.blocking === 'boolean' ? rawInteraction.blocking : true,
+    title: typeof rawInteraction.title === 'string' ? rawInteraction.title : fallbackInteractionTitle(cardType),
+    description: typeof rawInteraction.description === 'string' ? rawInteraction.description : undefined,
+    help_text: typeof rawInteraction.help_text === 'string' ? rawInteraction.help_text : undefined,
+    view_text: typeof rawInteraction.view_text === 'string' ? rawInteraction.view_text : undefined,
+    confirm_text: typeof rawInteraction.confirm_text === 'string' ? rawInteraction.confirm_text : undefined,
+    revise_text: typeof rawInteraction.revise_text === 'string' ? rawInteraction.revise_text : undefined,
+    cancel_text: typeof rawInteraction.cancel_text === 'string' ? rawInteraction.cancel_text : undefined,
+    target_role_on_confirm: typeof rawInteraction.target_role_on_confirm === 'string' ? rawInteraction.target_role_on_confirm : undefined,
+    allowed_actions: Array.isArray(rawInteraction.allowed_actions) ? rawInteraction.allowed_actions.map(String) : undefined,
+    artifact
+  }
+}
+
+function isActiveInteraction(interaction: WorkspaceInteraction): boolean {
+  if (!props.pendingInteraction) return false
+  return getInteractionKey(interaction) === getInteractionKey(props.pendingInteraction)
+}
+
+function getInteractionKey(interaction: WorkspaceInteraction): string {
+  return interaction.id || getStageArtifactKey(interaction.artifact) || `${interaction.status}:${interaction.card_type}`
+}
+
+function getStageArtifactKey(artifact: unknown): string {
+  try {
+    return JSON.stringify(artifact)
+  } catch {
+    return String(artifact)
+  }
+}
+
+function fallbackCardType(kind: unknown, status: string): string {
+  if (kind === 'agent_app_build_failure' || status === 'pending_build_repair') return 'build_repair'
+  if (kind === 'agent_app_prd' || status === 'pending_confirmation') return 'prd_confirmation'
+  return 'stage_confirmation'
+}
+
+function fallbackInteractionTitle(cardType: string): string {
+  if (cardType === 'build_repair') return '构建等待修复'
+  if (cardType === 'prd_confirmation') return 'PRD 等待确认'
+  return '等待确认'
+}
+
 function getAssistantModelLabel(message: ChatMessage): string {
   if (message.llm_config_name) return message.llm_config_name
   const provider = (message.llm_provider || '').trim()
@@ -180,6 +477,60 @@ function getAssistantModelLabel(message: ChatMessage): string {
   if (provider && model) return `${provider}/${model}`
   return model || provider
 }
+
+function getAssistantCacheLabel(message: ChatMessage): string {
+  const usage = message.llm_usage
+  if (!usage || usage.total_tokens <= 0) return ''
+  if (usage.cached_tokens_reported === false) return '缓存未上报'
+  const cached = Math.max(0, usage.cached_tokens || 0)
+  const prompt = Math.max(0, usage.prompt_tokens || 0)
+  const rate = prompt > 0 ? Math.round((cached / prompt) * 100) : 0
+  return `缓存 ${formatTokenCount(cached)} / ${rate}%`
+}
+
+function getAssistantCacheTitle(message: ChatMessage): string {
+  const usage = message.llm_usage
+  if (!usage) return ''
+  if (usage.cached_tokens_reported === false) {
+    return [
+      '上游未返回 prompt cache 命中字段',
+      `输入 ${formatTokenCount(usage.prompt_tokens)}`,
+      `输出 ${formatTokenCount(usage.completion_tokens)}`,
+      `总计 ${formatTokenCount(usage.total_tokens)}`
+    ].join(' · ')
+  }
+  return [
+    `输入 ${formatTokenCount(usage.prompt_tokens)}`,
+    `缓存 ${formatTokenCount(usage.cached_tokens)}`,
+    `输出 ${formatTokenCount(usage.completion_tokens)}`,
+    `总计 ${formatTokenCount(usage.total_tokens)}`
+  ].join(' · ')
+}
+
+function formatTokenCount(value: number): string {
+  const n = Math.max(0, Math.round(value || 0))
+  if (n >= 1_000_000) return `${trimTrailingZeros(n / 1_000_000)}m`
+  if (n >= 1000) return `${trimTrailingZeros(n / 1000)}k`
+  return String(n)
+}
+
+function trimTrailingZeros(value: number): string {
+  return value.toFixed(value >= 10 ? 0 : 1).replace(/\.0$/, '')
+}
+
+watch(
+  () => [
+    props.sending ? 'sending' : 'idle',
+    props.messages.length,
+    props.messages.map((message, index) => `${index}:${message.role}:${message.created_at || ''}:${getAssistantOutputSize(message)}`).join('|')
+  ].join(':'),
+  syncAssistantTimer,
+  { immediate: true }
+)
+
+onBeforeUnmount(() => {
+  if (assistantTimerInterval != null) clearInterval(assistantTimerInterval)
+})
 </script>
 
 <style scoped>
@@ -243,9 +594,11 @@ function getAssistantModelLabel(message: ChatMessage): string {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   margin-bottom: 4px;
 }
 .mini-msg-model {
+  flex-shrink: 1;
   min-width: 0;
   max-width: 220px;
   overflow: hidden;
@@ -259,6 +612,46 @@ function getAssistantModelLabel(message: ChatMessage): string {
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.mini-msg-cache {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: 1px solid rgba(74, 222, 128, 0.22);
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.09);
+  color: rgba(187, 247, 208, 0.9);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.mini-msg-model-context {
+  margin-bottom: 6px;
+}
+.mini-msg-output-duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: 1px solid rgba(96, 231, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(34, 211, 238, 0.08);
+  color: rgba(184, 225, 235, 0.74);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.mini-msg-output-duration--running {
+  border-color: rgba(96, 231, 255, 0.26);
+  color: #bff8ff;
+}
+.mini-msg-output-duration-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px rgba(96, 231, 255, 0.5);
 }
 .mini-msg-assistant-header .mini-msg-badge {
   border-color: rgba(246, 199, 107, 0.3);
@@ -422,6 +815,32 @@ function getAssistantModelLabel(message: ChatMessage): string {
 .mini-msg-prd-preview {
   margin: 6px 0;
 }
+.mini-msg-role-handoff {
+  --el-text-color-primary: var(--mini-cyber-text, #d8f8ff);
+  --el-text-color-regular: rgba(216, 248, 255, 0.86);
+  --el-text-color-secondary: rgba(173, 220, 233, 0.68);
+  --el-text-color-placeholder: rgba(173, 220, 233, 0.42);
+  --el-border-color-lighter: rgba(96, 231, 255, 0.16);
+  --el-border-color-extra-light: rgba(96, 231, 255, 0.10);
+  --el-fill-color-blank: rgba(12, 31, 50, 0.82);
+  --el-fill-color-lighter: rgba(8, 22, 38, 0.62);
+
+  margin: 6px 0;
+  border-top: 1px solid rgba(96, 231, 255, 0.16);
+  border-radius: 8px;
+}
+.mini-msg-build-diagnostics {
+  --el-text-color-primary: var(--mini-cyber-text, #d8f8ff);
+  --el-text-color-regular: rgba(216, 248, 255, 0.86);
+  --el-text-color-secondary: rgba(173, 220, 233, 0.68);
+  --el-border-color-lighter: rgba(248, 113, 113, 0.28);
+  --el-border-color-extra-light: rgba(248, 113, 113, 0.14);
+  --el-fill-color-blank: rgba(34, 18, 30, 0.82);
+  --el-fill-color-lighter: rgba(18, 12, 24, 0.64);
+
+  margin: 6px 0;
+  border-radius: 8px;
+}
 .mini-msg-prd-preview :deep(.prd-preview) {
   --prd-bg: rgba(8, 22, 38, 0.66);
   --prd-surface: rgba(12, 31, 50, 0.82);
@@ -471,17 +890,21 @@ function getAssistantModelLabel(message: ChatMessage): string {
 .mini-msg-files :deep(.output-files-item) {
   padding: 6px;
   min-width: 120px;
-  max-width: 200px;
+  min-height: 0;
   border-color: rgba(96, 231, 255, 0.14);
   background: rgba(8, 22, 38, 0.62);
+}
+.mini-msg-files :deep(.output-files-main) {
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 8px;
 }
 .mini-msg-files :deep(.output-files-preview) {
   width: 40px;
   height: 40px;
 }
 .mini-msg-files :deep(.output-files-icon) {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   font-size: 18px;
 }
 .mini-msg-files :deep(.output-files-name) {
@@ -489,6 +912,12 @@ function getAssistantModelLabel(message: ChatMessage): string {
 }
 .mini-msg-files :deep(.output-files-meta) {
   font-size: 10px;
+}
+.mini-msg-files :deep(.output-files-footer) {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
 }
 .mini-msg-files :deep(.output-files-actions) {
   font-size: 11px;

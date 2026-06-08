@@ -51,11 +51,6 @@ func (h *Workspace) ChatStream(c *gin.Context) {
 		err := h.wsChatSvc.WorkspaceChatStream(ctx, &req, eventChan)
 		if err != nil {
 			logger.Errorf(ctx, "[Workspace] WorkspaceChatStream 返回错误: %v", err)
-			// 发送错误事件
-			select {
-			case eventChan <- service.StreamEvent{Event: "error", Data: service.StreamEventError{Message: err.Error()}}:
-			case <-ctx.Done():
-			}
 		}
 		close(eventChan) // 关闭 channel，让主循环退出
 	}()
@@ -140,6 +135,22 @@ func (h *Workspace) ResolvePendingInteraction(c *gin.Context) {
 	response.Ok(c)
 }
 
+// RecordInteractionEvent 记录工作台交互卡片事件，仅用于审计展示。
+// POST /agent/api/v1/workspace/sessions/interaction/event
+func (h *Workspace) RecordInteractionEvent(c *gin.Context) {
+	var req dto.RecordWorkspaceInteractionEventReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	ctx := contextx.ToContext(c)
+	if err := h.wsChatSvc.RecordWorkspaceInteractionEvent(ctx, &req); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.Ok(c)
+}
+
 // ListMessages 获取工作台会话消息列表
 // GET /agent/api/v1/workspace/messages
 func (h *Workspace) ListMessages(c *gin.Context) {
@@ -183,14 +194,28 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 			ContextUsage:   msg.ContextUsage,
 			ArtifactKind:   msg.ArtifactKind,
 		}
+		if msg.LLMUsage != nil && *msg.LLMUsage != "" {
+			var usage dto.LLMUsageInfo
+			if err := json.Unmarshal([]byte(*msg.LLMUsage), &usage); err == nil {
+				info.LLMUsage = &usage
+			}
+		}
+		if msg.ModelContextPlan != nil && *msg.ModelContextPlan != "" {
+			var plan dto.WorkspaceModelContextPlan
+			if err := json.Unmarshal([]byte(*msg.ModelContextPlan), &plan); err == nil {
+				info.ModelContextPlan = &plan
+			}
+		}
 		if msg.ToolCalls != nil && *msg.ToolCalls != "" {
 			// 解析 tool_calls JSON
 			var toolCalls []llms.ToolCall
 			if err := json.Unmarshal([]byte(*msg.ToolCalls), &toolCalls); err == nil {
 				// 转换为前端需要的格式，包含完整信息
-				for _, tc := range toolCalls {
+				for i, tc := range toolCalls {
 					toolCallSummary := dto.WorkspaceChatToolCallSummary{
 						ID:        tc.ID,
+						Index:     i,
+						Round:     0,
 						Name:      tc.Function.Name,
 						Arguments: tc.Function.Arguments, // 包含参数 JSON 字符串
 						Status:    "ok",                  // 默认状态

@@ -42,7 +42,6 @@ ARG APT_USE_MIRROR=1
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
 ENV LANG=C.UTF-8
-ENV APP_ENV=prod
 
 # 共享 helper：运行阶段依然沿用同一份 APT mirror 配置逻辑。
 COPY deploy/base/scripts/configure-debian-apt-mirror.sh /usr/local/bin/configure-debian-apt-mirror

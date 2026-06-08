@@ -82,7 +82,9 @@ export default defineConfig(({ command, mode }) => {
     },
   },
   server: {
-    host: true, // 允许通过局域网 IP 访问（如 http://192.168.3.19:5173）
+    host: '127.0.0.1',
+    port: 5173,
+    strictPort: true,
     proxy: {
       // Workspace API 通过网关代理（必须在 Vue Router 之前处理）
       // 注意：只代理 /workspace/api/* 路径，不代理 /workspace 页面路由
@@ -113,6 +115,15 @@ export default defineConfig(({ command, mode }) => {
       },
       // HR API 通过网关代理（只代理 API 请求，不代理页面路由）
       '/hr/api': {
+        target: proxyTarget,
+        changeOrigin: true,
+      },
+      // Connector API / OAuth callback 通过网关代理
+      '/connector/api': {
+        target: proxyTarget,
+        changeOrigin: true,
+      },
+      '/connector/oauth': {
         target: proxyTarget,
         changeOrigin: true,
       },

@@ -7,20 +7,29 @@
 ## 执行步骤
 
 1. 先调用 `change_role` 进入或沿用 `maintenance_engineer`。
-2. 判断修改类型和影响范围，读取当前目录与相关源码。
-3. 字段、组件、选项、搜索、回调、跳转、图表、新增函数和业务 bug 都在当前角色内处理，不切回产品经理，除非用户要求重新设计需求。
-4. 修改前先读相关 Go 文件；字段或 SDK 用法不确定时读取 `/system/prompt/sdk/agent-app-sdk-readme`。
-5. 小改优先局部替换；大改或新增能力再写完整文件。
-6. 修改后统一调用 `build_workspace`。
-7. build 成功后交接给 `qa_engineer`；构建问题交接给 `build_engineer`。
+2. `change_role.execute_directory` 必须是目标应用目录；读取、修改、构建都围绕该目录或其子目录，不能递归扫描整个工作区根目录。
+3. 判断修改类型和影响范围，读取当前目录与相关源码。
+4. 字段、组件、选项、搜索、回调、跳转、图表、新增函数和业务 bug 都在当前角色内处理，不切回产品经理，除非用户要求重新设计需求。
+5. 修改前先读相关 Go 文件；字段或 SDK 用法不确定时读取 `/system/prompt/sdk/agent-app-sdk-readme`。
+6. 小改优先局部替换；大改或新增能力再写完整文件。
+7. 修改后、调用 `build_workspace` 前，必须先做一轮模型代码审查（CR）：读回本轮改动文件，对照用户修改目标检查是否只改必要范围、可见入口是否都有真实实现、是否存在“开发中、稍后支持、TODO、未实现、占位”返回、是否擅自新增用户没要求的批量导入/上传/审批/权限/外部集成。
+8. CR 发现问题时先修复并重新审查；只有 CR 通过后才能调用 `build_workspace`，并在参数里填写 `pre_build_review` 和 `review_passed:true`。
+9. build/schema 失败时先完整阅读错误并按类型批量修，涉及 widget、callback、审计字段或 SDK API 不确定时读取 `/system/prompt/sdk/reference/build-validation` 和匹配案例，不要凭直觉反复重写。
+10. build 成功后必须立即调用 `change_role` 交接给 `qa_engineer` 并自动测试；不要等待任何用户确认，也不要询问是否测试。构建问题交接给 `build_engineer`。
 
 ## 修改规则
 
+- 生产级交付红线：应用中可见的 Table、Form、Chart、按钮、导入/上传入口和回调必须有真实实现；发现“开发中、稍后支持、TODO、未实现、占位”这类假功能时，应删除入口或补齐完整实现并重新 build。
+- 不要擅自新增用户没要求的批量导入、批量上传、审批、权限或外部集成功能。
+- build 前 CR 是硬门禁；不能用可编译的空实现、静态示例、固定“开发中/请稍后”返回或 PRD 外入口来绕过真实业务逻辑。
 - 修改搜索能力时沿用 PRD v2 语义：`search_fields` 是查询请求字段，不一定是业务模型字段。
 - 表格默认创建时间筛选使用 `创建开始时间/创建结束时间`，映射到系统创建时间；不要为了它们新增业务列。
 - 用户筛选优先使用业务语义字段，例如 `提交人`、`处理人`、`评分人`、`申请人`；没有明确业务用户时才用系统 `创建人`。
 - 裸写 `开始时间/结束时间` 只适合业务字段或 Chart 统计区间；表格搜索默认不要这样命名。
 - 为只读记录表加筛选时，不要顺手开启新增、编辑、删除。
+- `created_by/updated_by` 等系统审计字段必须带 SDK 规定的 widget、hide 和 gorm column；`select/multiselect` 必须有静态 options 或 OnSelectFuzzyMap，不确定先看文档和案例。
+- 数值 widget 必须按 Go 类型匹配：整数 Go 字段用 SDK tag `type:integer`，`float32/float64` 字段用 `type:float`；金额、比例、均值、可小数评分不要写成 `type:integer`，禁止使用 `type:number`。
+- 同类 build 错误第二次出现时，先补读文档/案例/源码，再小范围修改，不要继续整文件重写。
 
 ## 允许工具
 

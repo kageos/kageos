@@ -21,6 +21,7 @@ type searchToolsArgs struct {
 	Scope        string `json:"scope" schema_desc:"搜索范围：system=官方/system 函数（默认，兼容旧行为），visible=当前用户可见函数，current_user=当前用户下函数，current_app=当前工作区应用内函数" schema_enum:"system,visible,current_user,current_app"`
 	User         string `json:"user" schema_desc:"按用户名过滤；传入后优先于 scope 推导"`
 	App          string `json:"app" schema_desc:"按应用 code 过滤；通常和 user 搭配使用"`
+	Directory    string `json:"directory" schema_desc:"仅返回该目录或其子目录下函数；测试/操作交接后应传 change_role.execute_directory"`
 	Capability   string `json:"capability" schema_desc:"函数能力过滤：form 支持 submit；chart 支持 query；table 支持 read/create/update/delete/read-only" schema_enum:"read,read-only,create,update,delete,submit,query"`
 	Page         *int   `json:"page" schema_desc:"页码，默认 1"`
 	PageSize     *int   `json:"page_size" schema_desc:"每页条数，默认使用 limit 或 20，最多 100"`
@@ -30,7 +31,7 @@ type searchToolsArgs struct {
 
 var searchToolsToolDef = toolDefinition[searchToolsArgs](
 	"search_tools",
-	"按关键词搜索可执行工具：返回「内置工具」与已注册的表单/表格/图表函数。默认 scope=system 搜官方/system 函数；可用 scope=visible 搜当前用户可见函数，scope=current_app 搜当前工作区应用，或传 user/app 精确过滤。keyword 可选：不传则按调用次数返回高频函数；多关键词用竖线 | 分隔（OR 语义）。可用 template_type 和 capability 缩小到 form/table/chart 或 read/create/update/delete/submit/query 等能力。执行表单/表格/图表前用 schema_output=summary 或 both 获取字段摘要，确认字段名、必填项、枚举值和文件字段后再调用执行工具。",
+	"按关键词搜索可执行工具：返回「内置工具」与已注册的表单/表格/图表函数。默认 scope=system 搜官方/system 函数；可用 scope=visible 搜当前用户可见函数，scope=current_app 搜当前工作区应用，或传 user/app 精确过滤。测试/操作某个交接应用时必须传 directory=change_role.execute_directory，仅返回该目录或子目录下函数，避免扫完整工作区。keyword 可选：不传则按调用次数返回高频函数；多关键词用竖线 | 分隔（OR 语义）。可用 template_type 和 capability 缩小到 form/table/chart 或 read/create/update/delete/submit/query 等能力。执行表单/表格/图表前用 schema_output=summary 或 both 获取字段摘要，确认字段名、必填项、枚举值和文件字段后再调用执行工具。",
 )
 
 func (t *SearchToolsTool) Definition() dto.ToolDef {
@@ -84,6 +85,7 @@ type searchToolsResultData struct {
 	Scope        string                      `json:"scope"`
 	User         string                      `json:"user,omitempty"`
 	App          string                      `json:"app,omitempty"`
+	Directory    string                      `json:"directory,omitempty"`
 	TemplateType string                      `json:"template_type,omitempty"`
 	Capability   string                      `json:"capability,omitempty"`
 	Page         int                         `json:"page"`
@@ -125,11 +127,20 @@ func runSearchToolsTool(ctx context.Context, registry *ToolRegistry, args search
 	pageSize := normalizeSearchToolsPageSize(args)
 	fetchPage := page
 	fetchPageSize := pageSize
-	if capability != "" {
+	user, app, scope := resolveSearchScopeUserApp(args.Scope, args.User, args.App, currentFullCodePath, searchScopeSystem)
+	directory := normalizeWorkspacePath(args.Directory)
+	if directory == "" && scope == searchScopeCurrentApp {
+		directory = workspaceScopedSearchDirectory("", currentFullCodePath)
+	}
+	apiKeyword := keywordRaw
+	if apiKeyword == "" && directory != "" {
+		apiKeyword = workspaceDirectorySearchKeyword(directory)
+	}
+	displayKeyword := firstNonEmptyString(keywordRaw, apiKeyword)
+	if capability != "" || directory != "" {
 		fetchPage = 1
 		fetchPageSize = 100
 	}
-	user, app, scope := resolveSearchScopeUserApp(args.Scope, args.User, args.App, currentFullCodePath, searchScopeSystem)
 
 	matchedTools := make([]dto.ToolDef, 0)
 	if len(keywords) > 0 && registry != nil {
@@ -152,7 +163,7 @@ func runSearchToolsTool(ctx context.Context, registry *ToolRegistry, args search
 	resp, err := apicall.SearchFunctions(ctx, &dto.SearchFunctionsReq{
 		User:         user,
 		App:          app,
-		Keyword:      keywordRaw,
+		Keyword:      apiKeyword,
 		TemplateType: templateType,
 		Page:         fetchPage,
 		PageSize:     fetchPageSize,
@@ -165,17 +176,24 @@ func runSearchToolsTool(ctx context.Context, registry *ToolRegistry, args search
 		functions = resp.Functions
 		total = resp.Total
 	}
+	if directory != "" {
+		functions = filterSearchToolFunctionsByDirectory(functions, directory)
+		total = int64(len(functions))
+	}
 	if capability != "" {
 		functions = filterSearchToolFunctionsByCapability(functions, capability)
 		total = int64(len(functions))
+	}
+	if capability != "" || directory != "" {
 		functions = paginateSearchToolFunctions(functions, page, pageSize)
 	}
 
 	data := searchToolsResultData{
-		Keyword:      keywordRaw,
+		Keyword:      displayKeyword,
 		Scope:        scope,
 		User:         user,
 		App:          app,
+		Directory:    directory,
 		TemplateType: templateType,
 		Capability:   capability,
 		Page:         page,
@@ -186,12 +204,12 @@ func runSearchToolsTool(ctx context.Context, registry *ToolRegistry, args search
 	}
 
 	if len(functions) == 0 && len(matchedTools) == 0 {
-		if keywordRaw == "" {
+		if displayKeyword == "" {
 			return toolResultWithData(formatSearchToolsNoResultMessage(data, "当前搜索范围下暂无已注册函数；可传 keyword 按关键词搜索。"), false, data)
 		}
 		return toolResultWithData(formatSearchToolsNoResultMessage(data, "未匹配到任何可用工具（内置工具或已注册函数）。如果用户要新建长期应用，先 change_role 到产品经理（product_manager），输出 PRD 并等用户确认后再进入应用开发工程师（app_developer）写代码。"), false, data)
 	}
-	content := formatSearchToolsOutput(keywordRaw, matchedTools, functions, requestOutput)
+	content := formatSearchToolsOutput(displayKeyword, matchedTools, functions, requestOutput)
 	content = formatSearchToolsSearchMeta(data) + "\n\n" + content
 	return toolResultWithData(content, false, data)
 }
@@ -260,6 +278,23 @@ func filterSearchToolFunctionsByCapability(functions []*dto.FunctionSearchResult
 	return out
 }
 
+func filterSearchToolFunctionsByDirectory(functions []*dto.FunctionSearchResult, directory string) []*dto.FunctionSearchResult {
+	directory = normalizeWorkspacePath(directory)
+	if directory == "" {
+		return functions
+	}
+	out := make([]*dto.FunctionSearchResult, 0, len(functions))
+	for _, fn := range functions {
+		if fn == nil {
+			continue
+		}
+		if workspacePathHasPrefix(fn.FullCodePath, directory) {
+			out = append(out, fn)
+		}
+	}
+	return out
+}
+
 func paginateSearchToolFunctions(functions []*dto.FunctionSearchResult, page int, pageSize int) []*dto.FunctionSearchResult {
 	if page <= 0 {
 		page = 1
@@ -316,6 +351,9 @@ func formatSearchToolsSearchMeta(data searchToolsResultData) string {
 	}
 	if data.App != "" {
 		parts = append(parts, "app="+data.App)
+	}
+	if data.Directory != "" {
+		parts = append(parts, "directory="+data.Directory)
 	}
 	if data.TemplateType != "" {
 		parts = append(parts, "template_type="+data.TemplateType)

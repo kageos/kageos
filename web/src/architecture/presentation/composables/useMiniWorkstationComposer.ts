@@ -1,7 +1,7 @@
 import { ElMessage } from 'element-plus'
 import { computed, ref, watch, type Ref } from 'vue'
 import { getLLMList, type LLMInfo } from '@/architecture/presentation/context/api/agent'
-import { workspaceChatStream, type WorkspaceChatMessageFile, type WorkspaceChatReq } from '@/architecture/presentation/context/api/workspace'
+import { workspaceChatStream, type WorkspaceChatMessageFile, type WorkspaceChatReq, type WorkspaceChatStreamOnEvent } from '@/architecture/presentation/context/api/workspace'
 import type { ChatMessageFile } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 
 export interface UseMiniWorkstationComposerOptions {
@@ -12,7 +12,7 @@ export interface UseMiniWorkstationComposerOptions {
   inputRef: Ref<HTMLTextAreaElement | undefined>
   attachedFiles: Ref<WorkspaceChatMessageFile[]>
   sending: Ref<boolean>
-  sendMessage: (content: string, streamFn: (onEvent: (event: string, data: Record<string, unknown>) => Promise<void> | void) => Promise<void>, files?: ChatMessageFile[]) => Promise<void>
+  sendMessage: (content: string, streamFn: (onEvent: WorkspaceChatStreamOnEvent) => Promise<void>, files?: ChatMessageFile[]) => Promise<void>
   beforeSend?: (payload: { text: string; files: WorkspaceChatMessageFile[] | null }) => boolean | Promise<boolean>
   onTaskStarted?: (sessionId: string) => void
   onToolCallOk?: (payload: { name: string }) => void
@@ -25,6 +25,7 @@ interface SendWorkspaceMessageOptions {
   sessionIdOverride?: string
   contextUsage?: string
   artifactKind?: string
+  interactionAction?: string
   resume?: boolean
 }
 
@@ -89,6 +90,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
         ...(options.displayText ? { display_content: options.displayText } : {}),
         ...(options.contextUsage ? { context_usage: options.contextUsage } : {}),
         ...(options.artifactKind ? { artifact_kind: options.artifactKind } : {}),
+        ...(options.interactionAction ? { interaction_action: options.interactionAction } : {}),
         ...(files?.length ? { files: files.map(file => file.ref).filter(Boolean).join(',') } : {})
       }
     }
@@ -105,21 +107,23 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
       payload.resume = true
     }
 
-    const streamFn = async (onEvent: (event: string, data: Record<string, unknown>) => Promise<void> | void) => {
+    const streamFn = async (onEvent: WorkspaceChatStreamOnEvent) => {
       await workspaceChatStream(payload, (event, data) => {
-        void onEvent(event, data as Record<string, unknown>)
-        if (event === 'session' && typeof data.session_id === 'string') {
-          onTaskStarted?.(data.session_id as string)
-          if (maximized.value) {
-            onMaximizedSessionStarted?.(data.session_id as string)
+        void onEvent(event, data)
+        if (event === 'session') {
+          const sessionData = data as { session_id?: unknown }
+          if (typeof sessionData.session_id === 'string') {
+            onTaskStarted?.(sessionData.session_id)
+            if (maximized.value) {
+              onMaximizedSessionStarted?.(sessionData.session_id)
+            }
           }
         }
-        if (
-          event === 'tool_call'
-          && (data as { status?: string })?.status === 'ok'
-          && typeof (data as { name?: string })?.name === 'string'
-        ) {
-          onToolCallOk?.({ name: (data as { name: string }).name })
+        if (event === 'tool_call') {
+          const toolCallData = data as { status?: unknown; name?: unknown }
+          if (toolCallData.status === 'ok' && typeof toolCallData.name === 'string') {
+            onToolCallOk?.({ name: toolCallData.name })
+          }
         }
       })
     }
@@ -187,7 +191,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     return sendWorkspaceMessage(text, null, { newSession: true, displayText })
   }
 
-  async function sendTextToSession(targetSessionId: string, content: string, displayText?: string, meta?: { contextUsage?: string; artifactKind?: string; resume?: boolean }): Promise<boolean> {
+  async function sendTextToSession(targetSessionId: string, content: string, displayText?: string, meta?: { contextUsage?: string; artifactKind?: string; interactionAction?: string; resume?: boolean }): Promise<boolean> {
     const text = content.trim()
     if (!fullCodePath.value || !targetSessionId || !text || sending.value) {
       return false
@@ -197,6 +201,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
       displayText,
       contextUsage: meta?.contextUsage,
       artifactKind: meta?.artifactKind,
+      interactionAction: meta?.interactionAction,
       resume: meta?.resume
     })
   }

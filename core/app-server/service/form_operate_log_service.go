@@ -60,6 +60,8 @@ func (a *AppService) RecordFormOperateLog(ctx context.Context, req *dto.RecordFo
 		Method:         req.FunctionMethod,
 		Version:        version,
 		DurationMillis: req.DurationMillis,
+		SourceType:     contextx.GetSourceType(ctx),
+		SourceRef:      contextx.GetSourceRef(ctx),
 		RequestBody:    rawMessageObjectWithFields(req.RequestBody, requestFields),
 		ResponseBody:   rawMessageObjectWithFields(req.ResponseBody, responseFields),
 	}
@@ -78,7 +80,7 @@ func (a *AppService) RecordFormOperateLog(ctx context.Context, req *dto.RecordFo
 		OldValuesJSON: sanitizeOperateLogRawMessageWithFields(req.RequestBody, requestFields),
 		NewValuesJSON: sanitizeOperateLogRawMessageWithFields(req.ResponseBody, responseFields),
 		Status:        status,
-		Source:        contextx.GetClientSource(ctx),
+		Source:        contextx.GetAuditClientSource(ctx),
 		IPAddress:     req.IPAddress,
 		UserAgent:     req.UserAgent,
 		TraceID:       req.TraceID,

@@ -280,19 +280,22 @@ func (a *App) buildApiInfo(info *routerInfo) (*ApiInfo, []interface{}, error) {
 		return nil, nil, fmt.Errorf("router %s base config is nil", info.Router)
 	}
 
+	connectorEndpoints := normalizeConnectorEndpoints(base.ConnectorEndpoints)
 	api := &ApiInfo{
-		Code:           info.getCode(),
-		Name:           base.Name,
-		Desc:           base.Desc,
-		Tags:           base.Tags,
-		Router:         info.Router,
-		Method:         info.Method,
-		User:           env.User,
-		App:            env.App,
-		FullCodePath:   fmt.Sprintf("/%s/%s/%s", env.User, env.App, strings.Trim(info.Router, "/")),
-		AddedVersion:   "",         // 不预设版本，让diff逻辑来正确设置
-		UpdateVersions: []string{}, // 初始化空的更新版本列表
-		routerInfo:     info,
+		Code:               info.getCode(),
+		Name:               base.Name,
+		Desc:               base.Desc,
+		Tags:               base.Tags,
+		Router:             info.Router,
+		Method:             info.Method,
+		Connectors:         normalizeConnectorCodes(append(append([]string{}, base.Connectors...), connectorCodesFromEndpoints(connectorEndpoints)...)),
+		ConnectorEndpoints: connectorEndpoints,
+		User:               env.User,
+		App:                env.App,
+		FullCodePath:       fmt.Sprintf("/%s/%s/%s", env.User, env.App, strings.Trim(info.Router, "/")),
+		AddedVersion:       "",         // 不预设版本，让diff逻辑来正确设置
+		UpdateVersions:     []string{}, // 初始化空的更新版本列表
+		routerInfo:         info,
 	}
 
 	fieldsCallback := make(map[string][]string)

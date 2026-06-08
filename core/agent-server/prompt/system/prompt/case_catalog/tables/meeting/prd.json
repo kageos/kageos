@@ -26,7 +26,7 @@
         },
         {
           "name": "容纳人数",
-          "widget": "number",
+          "widget": "integer",
           "required": true,
           "desc": "会议室最多容纳人数，必须大于 0。"
         },
@@ -122,7 +122,7 @@
         },
         {
           "name": "参会人数",
-          "widget": "number",
+          "widget": "integer",
           "required": true,
           "desc": "不能超过所选会议室容纳人数。"
         },

@@ -67,7 +67,7 @@ export function shouldUseWidgetSearchRenderer(options: {
   switch (widgetType) {
     case WidgetType.INPUT:
     case WidgetType.ID:
-    case WidgetType.NUMBER:
+    case WidgetType.INTEGER:
     case WidgetType.FLOAT:
     case WidgetType.TEXT_AREA:
     case WidgetType.COLOR:

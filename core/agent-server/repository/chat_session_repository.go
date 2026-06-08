@@ -96,9 +96,71 @@ func (r *ChatSessionRepository) ListByFullCodePath(fullCodePath string, offset, 
 	return sessions, total, nil
 }
 
+// ListByFullCodePathAndUser 根据 FullCodePath 和用户获取会话列表（工作台使用）。
+func (r *ChatSessionRepository) ListByFullCodePathAndUser(fullCodePath string, user string, offset, limit int) ([]*model.AgentChatSession, int64, error) {
+	var sessions []*model.AgentChatSession
+	var total int64
+
+	query := r.db.Model(&model.AgentChatSession{}).Where("full_code_path = ? AND user = ?", fullCodePath, user)
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err := query.
+		Offset(offset).
+		Limit(limit).
+		Order("created_at DESC").
+		Find(&sessions).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return sessions, total, nil
+}
+
 // Update 更新会话
 func (r *ChatSessionRepository) Update(session *model.AgentChatSession) error {
 	return r.db.Save(session).Error
+}
+
+// TryMarkGenerating 只在会话当前未生成时把状态标记为 generating，避免同一会话并发进入模型。
+func (r *ChatSessionRepository) TryMarkGenerating(sessionID string, user string, modeCode string) (bool, error) {
+	updates := map[string]interface{}{
+		"status": model.ChatSessionStatusGenerating,
+	}
+	if user != "" {
+		updates["updated_by"] = user
+	}
+	if modeCode != "" {
+		updates["mode_code"] = modeCode
+	}
+	res := r.db.Model(&model.AgentChatSession{}).
+		Where("session_id = ? AND status <> ?", sessionID, model.ChatSessionStatusGenerating).
+		Updates(updates)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+// ArchiveForModelIfActive 只在来源会话尚未归档时归档，避免重复 handoff 创建多个目标会话。
+func (r *ChatSessionRepository) ArchiveForModelIfActive(sessionID string, targetRoleName string, user string) (bool, error) {
+	updates := map[string]interface{}{
+		"archived_for_model": true,
+		"context_policy":     "display_only",
+		"archive_reason":     "已交接到" + targetRoleName + "，会话仅保留展示历史",
+		"status":             model.ChatSessionStatusDone,
+	}
+	if user != "" {
+		updates["updated_by"] = user
+	}
+	res := r.db.Model(&model.AgentChatSession{}).
+		Where("session_id = ? AND archived_for_model = ?", sessionID, false).
+		Updates(updates)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
 }
 
 // Delete 删除会话（根据 SessionID）
@@ -133,6 +195,7 @@ func (r *ChatSessionRepository) ListFinishedByUser(user string, limit int) ([]*m
 				model.ChatSessionStatusOutput,
 				model.ChatSessionStatusPendingConfirmation,
 				model.ChatSessionStatusPendingTest,
+				model.ChatSessionStatusPendingBuildRepair,
 				model.ChatSessionStatusDone,
 				model.ChatSessionStatusCancelled,
 			}).

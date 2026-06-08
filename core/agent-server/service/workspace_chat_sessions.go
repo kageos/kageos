@@ -19,6 +19,9 @@ func (s *WorkspaceChatService) CancelSession(ctx context.Context, sessionID stri
 	if err != nil {
 		return fmt.Errorf("会话不存在: %w", err)
 	}
+	if err := ensureWorkspaceSessionOwner(ctx, session); err != nil {
+		return err
+	}
 	if session.Status != model.ChatSessionStatusGenerating {
 		return fmt.Errorf("会话未在执行中（当前状态: %s）", session.Status)
 	}
@@ -74,25 +77,28 @@ func (s *WorkspaceChatService) buildWorkspaceSessionItems(ctx context.Context, s
 	items := make([]*dto.WorkspaceSessionItem, 0, len(sessions))
 	for _, session := range sessions {
 		fullCodePath := strings.TrimSpace(session.FullCodePath)
-		items = append(items, &dto.WorkspaceSessionItem{
-			SessionID:         session.SessionID,
-			Title:             session.Title,
-			User:              session.User,
-			ModeCode:          normalizeWorkspaceModeCode(session.ModeCode),
-			Status:            session.Status,
-			RoleID:            workspaceSessionRoleID(session),
-			RoleDisplayName:   workspaceSessionRoleDisplayName(session),
-			FullCodePath:      session.FullCodePath,
-			DirectoryName:     directoryNames[fullCodePath],
-			ParentSessionID:   session.ParentSessionID,
-			HandoffKind:       session.HandoffKind,
-			HandoffTargetRole: session.HandoffTargetRole,
-			ContextPolicy:     session.ContextPolicy,
-			ArchivedForModel:  session.ArchivedForModel,
-			ArchiveReason:     session.ArchiveReason,
-			CreatedAt:         session.CreatedAt,
-			UpdatedAt:         session.UpdatedAt,
-		})
+		item := &dto.WorkspaceSessionItem{
+			SessionID:                   session.SessionID,
+			Title:                       session.Title,
+			User:                        session.User,
+			ModeCode:                    normalizeWorkspaceModeCode(session.ModeCode),
+			Status:                      session.Status,
+			RoleID:                      workspaceSessionRoleID(session),
+			RoleDisplayName:             workspaceSessionRoleDisplayName(session),
+			FullCodePath:                session.FullCodePath,
+			DirectoryName:               directoryNames[fullCodePath],
+			ParentSessionID:             session.ParentSessionID,
+			HandoffKind:                 session.HandoffKind,
+			HandoffTargetRole:           session.HandoffTargetRole,
+			ContextPolicy:               session.ContextPolicy,
+			ModelContextAnchorMessageID: session.ModelContextAnchorMessageID,
+			ArchivedForModel:            session.ArchivedForModel,
+			ArchiveReason:               session.ArchiveReason,
+			CreatedAt:                   session.CreatedAt,
+			UpdatedAt:                   session.UpdatedAt,
+		}
+		item.PendingInteraction = s.pendingInteractionForSession(session)
+		items = append(items, item)
 	}
 	return items
 }
@@ -151,9 +157,6 @@ func workspaceSessionStatusFromToolSummaries(summaries []streamloop.ToolCallSumm
 
 func workspaceInteractionSessionStatusFromToolSummaries(summaries []streamloop.ToolCallSummary) string {
 	for i := len(summaries) - 1; i >= 0; i-- {
-		if summaries[i].Status != ToolCallStatusOK {
-			continue
-		}
 		if status := workspaceInteractionSessionStatusFromResultData(summaries[i].ResultData); status != "" {
 			return status
 		}
@@ -230,8 +233,8 @@ func normalizeWorkspacePendingInteractionStatus(status string) string {
 	switch strings.TrimSpace(status) {
 	case model.ChatSessionStatusPendingConfirmation:
 		return model.ChatSessionStatusPendingConfirmation
-	case model.ChatSessionStatusPendingTest:
-		return model.ChatSessionStatusPendingTest
+	case model.ChatSessionStatusPendingBuildRepair:
+		return model.ChatSessionStatusPendingBuildRepair
 	default:
 		return ""
 	}
@@ -251,7 +254,7 @@ func (s *WorkspaceChatService) ResolveWorkspacePendingInteraction(ctx context.Co
 		return fmt.Errorf("不能操作其他用户的会话")
 	}
 	switch session.Status {
-	case model.ChatSessionStatusPendingConfirmation, model.ChatSessionStatusPendingTest:
+	case model.ChatSessionStatusPendingConfirmation, model.ChatSessionStatusPendingTest, model.ChatSessionStatusPendingBuildRepair:
 		session.Status = model.ChatSessionStatusActive
 		session.UpdatedBy = user
 		if err := s.sessionRepo.Update(session); err != nil {
@@ -275,7 +278,15 @@ func (s *WorkspaceChatService) ListSessions(ctx context.Context, fullCodePath st
 	}
 
 	offset := (page - 1) * pageSize
-	sessions, total, err := s.sessionRepo.ListByFullCodePath(fullCodePath, offset, pageSize)
+	user := contextx.GetRequestUser(ctx)
+	var sessions []*model.AgentChatSession
+	var total int64
+	var err error
+	if user != "" {
+		sessions, total, err = s.sessionRepo.ListByFullCodePathAndUser(fullCodePath, user, offset, pageSize)
+	} else {
+		sessions, total, err = s.sessionRepo.ListByFullCodePath(fullCodePath, offset, pageSize)
+	}
 	if err != nil {
 		return nil, 0, fmt.Errorf("获取会话列表失败: %w", err)
 	}
@@ -287,8 +298,25 @@ func (s *WorkspaceChatService) ListSessions(ctx context.Context, fullCodePath st
 
 // ListMessages 根据 sessionID 获取消息列表
 func (s *WorkspaceChatService) ListMessages(ctx context.Context, sessionID string) ([]*model.AgentChatMessage, error) {
-	_ = ctx
+	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	if err != nil || session == nil {
+		return nil, fmt.Errorf("会话不存在: %s", sessionID)
+	}
+	if err := ensureWorkspaceSessionOwner(ctx, session); err != nil {
+		return nil, err
+	}
 	return s.messageRepo.ListBySessionID(sessionID)
+}
+
+func ensureWorkspaceSessionOwner(ctx context.Context, session *model.AgentChatSession) error {
+	if session == nil {
+		return fmt.Errorf("会话不存在")
+	}
+	user := contextx.GetRequestUser(ctx)
+	if user != "" && session.User != "" && session.User != user {
+		return fmt.Errorf("不能操作其他用户的会话")
+	}
+	return nil
 }
 
 func (s *WorkspaceChatService) ensureWorkspaceSessionHasRunnableMessage(sessionID string) error {

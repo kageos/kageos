@@ -120,3 +120,43 @@ func TestGetOperateLogsFiltersByCompanyCode(t *testing.T) {
 		t.Fatalf("expected only acme logs, total=%d logs=%+v", total, logs)
 	}
 }
+
+func TestGetOperateLogsFiltersBySource(t *testing.T) {
+	db := newOperateLogRepositoryTestDB(t)
+	repo := NewOperateLogRepository(db)
+	ctx := context.Background()
+
+	for _, item := range []struct {
+		source string
+		trace  string
+	}{
+		{source: "agent", trace: "trace-agent"},
+		{source: "openapi", trace: "trace-openapi"},
+	} {
+		if err := repo.CreateOperateLog(ctx, &model.OperateLog{
+			TenantUser:   "owner",
+			App:          "ops",
+			ActorUser:    "alice",
+			Action:       "form_submit",
+			ResourceType: "form",
+			ResourcePath: "/owner/ops/export.form",
+			Status:       "success",
+			Source:       item.source,
+			TraceID:      item.trace,
+		}); err != nil {
+			t.Fatalf("create log: %v", err)
+		}
+	}
+
+	logs, total, err := repo.GetOperateLogs(ctx, &dto.GetOperateLogsReq{
+		Source:   "openapi",
+		Page:     1,
+		PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("query logs: %v", err)
+	}
+	if total != 1 || len(logs) != 1 || logs[0].Source != "openapi" {
+		t.Fatalf("expected only openapi logs, total=%d logs=%+v", total, logs)
+	}
+}

@@ -1,0 +1,27 @@
+server:
+  port: 9096
+  listen_host: "127.0.0.1"
+  log_level: "info"
+  debug: false
+  enable_pprof: false
+
+db:
+  type: "mysql"
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: "${MYSQL_ROOT_PASSWORD}"
+  name: "connector-server"
+  max_idle_conns: 10
+  max_open_conns: 100
+  max_lifetime: 300
+  log_level: "warn"
+  slow_threshold: 200
+
+oauth:
+  callback_base_url: "${CANONICAL_BASE_URL}"
+  state_ttl_seconds: 600
+  provider_admins:
+    - "system"
+  token_encryption_secret: ""
+  providers: []

@@ -280,7 +280,7 @@
       <el-empty description="暂无功能预览" />
     </section>
 
-    <div v-if="confirmationQuestion" class="prd-confirmation">
+    <div v-if="props.showConfirmation && confirmationQuestion" class="prd-confirmation">
       <div class="prd-confirmation-text">{{ confirmationQuestion }}</div>
       <div class="prd-remark-box">
         <textarea
@@ -408,8 +408,10 @@ interface PrdFunctionCard {
 const props = withDefaults(defineProps<{
   data: unknown
   confirmDisabled?: boolean
+  showConfirmation?: boolean
 }>(), {
   confirmDisabled: false,
+  showConfirmation: false,
 })
 
 const emit = defineEmits<{
@@ -665,7 +667,7 @@ function fieldPreviewText(field: PreviewField): string {
   const options = fieldOptions(field)
   if (options.length > 0) return options[0] || `请选择${field.name}`
   if (/日期|时间|datetime|date/i.test(field.type)) return '2025-01-20 11:30'
-  if (/数字|金额|数量|number/i.test(field.type)) return '0'
+  if (/数字|金额|数量|integer|number|float/i.test(field.type)) return '0'
   if (/表格|table/i.test(field.type)) return '表格明细'
   if (/文件|上传|files/i.test(field.type)) return '点击上传'
   if (/多行|textarea/i.test(field.type)) return `请输入${field.name}`
@@ -677,7 +679,7 @@ function fieldKindClass(field: PreviewField): string {
   const type = field.type.toLowerCase()
   if (/select|下拉|选择/.test(type) || fieldOptions(field).length > 0) return 'is-select'
   if (/datetime|date|日期|时间/.test(type)) return 'is-datetime'
-  if (/number|数字|金额|数量/.test(type)) return 'is-number'
+  if (/integer|number|float|数字|金额|数量/.test(type)) return 'is-number'
   if (/table|表格/.test(type)) return 'is-table'
   if (/files|文件|上传/.test(type)) return 'is-files'
   if (/textarea|多行/.test(type)) return 'is-textarea'
@@ -689,7 +691,7 @@ function sampleValueForField(field: PreviewField): unknown {
   const options = fieldOptions(field)
   if (options.length > 0) return options[0]
   if (/日期|时间|datetime|date/i.test(field.type)) return '2025-01-20 11:30'
-  if (/数字|金额|数量|number/i.test(field.type)) return '1'
+  if (/数字|金额|数量|integer|number|float/i.test(field.type)) return '1'
   if (/文件|上传|files/i.test(field.type)) return '未选择文件'
   if (/开关|是否|switch/i.test(field.type)) return '是'
   return `示例${field.name}`
@@ -707,7 +709,7 @@ function normalizeFieldType(type: unknown): string {
   if (lower === 'select') return '下拉选择'
   if (lower === 'multiselect') return '多选'
   if (lower === 'datetime' || lower === 'date') return '日期时间'
-  if (lower === 'number' || lower === 'float' || lower === 'int') return '数字'
+  if (lower === 'integer' || lower === 'number' || lower === 'float' || lower === 'int') return '数字'
   if (lower === 'files') return '文件上传'
   if (lower === 'switch') return '开关'
   if (lower === 'radio') return '单选'
@@ -718,7 +720,7 @@ function normalizeFieldType(type: unknown): string {
 
 function inferFieldType(text: string): string {
   if (/日期|时间|date|time/i.test(text)) return '日期时间'
-  if (/数量|金额|价格|分数|比例|占比|率|number/i.test(text)) return '数字'
+  if (/数量|金额|价格|分数|比例|占比|率|integer|number|float/i.test(text)) return '数字'
   if (/状态|分类|类型|选择|下拉|人员|部门|select/i.test(text)) return '下拉选择'
   if (/文件|附件|上传|files/i.test(text)) return '文件上传'
   if (/是否|启用|开关|switch/i.test(text)) return '开关'

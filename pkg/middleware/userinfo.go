@@ -43,7 +43,9 @@ func WithUserInfo() gin.HandlerFunc {
 						c.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
 						c.Request.Header.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
 					}
-					c.Request.Header.Set(contextx.SourceTypeHeader, "openapi_token")
+					c.Set(contextx.ClientSourceHeader, contextx.ClientSourceOpenAPI)
+					c.Request.Header.Set(contextx.ClientSourceHeader, contextx.ClientSourceOpenAPI)
+					c.Request.Header.Set(contextx.SourceTypeHeader, contextx.SourceTypeOpenAPIToken)
 					c.Request.Header.Set(contextx.SourceRefHeader, principal.Username)
 				} else {
 					logger.Warnf(c, "[WithUserInfo] OpenAPI token 解析失败 - Path: %s, Error: %v", c.Request.URL.Path, err)

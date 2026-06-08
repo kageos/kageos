@@ -3,16 +3,26 @@ import { describe, expect, it } from 'vitest'
 import MiniWorkstationPendingActionBar from './MiniWorkstationPendingActionBar.vue'
 
 const ButtonStub = {
-  props: ['loading', 'type', 'size'],
+  props: ['loading', 'type', 'size', 'disabled'],
   emits: ['click'],
-  template: '<button type="button" :data-loading="loading ? \'true\' : undefined" @click="$emit(\'click\')"><slot /></button>',
+  template: '<button type="button" :disabled="disabled" :data-loading="loading ? \'true\' : undefined" @click="$emit(\'click\')"><slot /></button>',
 }
 
 function mountBar(props: Record<string, unknown> = {}) {
   return mount(MiniWorkstationPendingActionBar, {
     props: {
-      variant: 'prd',
-      helpText: '请确认需求是否完整',
+      interaction: {
+        id: 'prd-1',
+        card_type: 'prd_confirmation',
+        status: 'pending_confirmation',
+        blocking: true,
+        title: 'PRD 等待确认',
+        description: '请确认需求是否完整',
+        view_text: '查看 PRD',
+        revise_text: '修改 PRD',
+        cancel_text: '取消 PRD',
+        confirm_text: '确认 PRD',
+      },
       sending: false,
       ...props,
     },
@@ -25,36 +35,62 @@ function mountBar(props: Record<string, unknown> = {}) {
 }
 
 describe('MiniWorkstationPendingActionBar', () => {
-  it('renders PRD actions and emits commands', async () => {
+  it('renders interaction actions and emits commands', async () => {
     const wrapper = mountBar()
     const buttons = wrapper.findAll('button')
 
-    expect(wrapper.attributes('data-testid')).toBe('mini-prd-confirm-bar')
+    expect(wrapper.attributes('data-testid')).toBe('mini-interaction-gate-prd_confirmation')
     expect(wrapper.text()).toContain('PRD 等待确认')
-    expect(wrapper.text()).toContain('确认 PRD')
+    expect(wrapper.text()).toContain('需要处理')
 
     await buttons[0]!.trigger('click')
-    await buttons[1]!.trigger('click')
     await buttons[2]!.trigger('click')
     await buttons[3]!.trigger('click')
 
     expect(wrapper.emitted('view')).toHaveLength(1)
-    expect(wrapper.emitted('revise')).toHaveLength(1)
     expect(wrapper.emitted('cancel')).toHaveLength(1)
     expect(wrapper.emitted('confirm')).toHaveLength(1)
   })
 
-  it('renders test handoff actions', () => {
+  it('submits revision text from the gate', async () => {
+    const wrapper = mountBar()
+
+    await wrapper.findAll('button')[1]!.trigger('click')
+    await wrapper.find('[data-testid="mini-interaction-revision-input"]').setValue('增加审批状态')
+    await wrapper.findAll('button').find(button => button.text().includes('提交修改'))!.trigger('click')
+
+    expect(wrapper.emitted('revise')?.[0]?.[0]).toEqual({ text: '增加审批状态' })
+  })
+
+  it('renders build repair labels', () => {
     const wrapper = mountBar({
-      variant: 'test',
-      helpText: '进入测试工程师验证',
+      interaction: {
+        id: 'build-1',
+        card_type: 'build_repair',
+        status: 'pending_build_repair',
+        blocking: true,
+        title: '构建等待修复',
+        description: '交接构建修复工程师',
+        view_text: '查看诊断',
+        revise_text: '继续修改',
+        cancel_text: '暂不修复',
+        confirm_text: '交接修复',
+      },
       sending: true,
     })
 
-    expect(wrapper.attributes('data-testid')).toBe('mini-test-confirm-bar')
-    expect(wrapper.text()).toContain('应用等待测试')
-    expect(wrapper.text()).toContain('查看构建结果')
-    expect(wrapper.text()).toContain('暂不测试')
+    expect(wrapper.attributes('data-testid')).toBe('mini-interaction-gate-build_repair')
+    expect(wrapper.text()).toContain('构建等待修复')
+    expect(wrapper.text()).toContain('查看诊断')
+    expect(wrapper.text()).toContain('暂不修复')
     expect(wrapper.findAll('button')[3]!.attributes('data-loading')).toBe('true')
+  })
+
+  it('keeps historical cards read-only for audit', async () => {
+    const wrapper = mountBar({ readonly: true })
+
+    expect(wrapper.text()).toContain('已记录')
+    expect(wrapper.findAll('button')).toHaveLength(0)
+    expect(wrapper.find('[data-testid="mini-interaction-revision-input"]').exists()).toBe(false)
   })
 })

@@ -243,7 +243,7 @@
         :prop="idField.code"
         label=""
         fixed="left"
-        width="120"
+        width="132"
         class-name="control-column"
         :label-class-name="getSortHeaderClass(idField.code)"
         :sortable="getSortableConfig(idField)"
@@ -253,11 +253,11 @@
           <button
             type="button"
             class="detail-icon-button"
-            :title="`查看详情 ${row[idField.code]}`"
+            :title="getDetailIdTitle(row[idField.code])"
             @click.stop="handleDetail(row)"
           >
             <el-icon><View /></el-icon>
-            <span class="detail-id-text">{{ row[idField.code] }}</span>
+            <span class="detail-id-text">{{ getDetailIdText(row[idField.code]) }}</span>
           </button>
         </template>
       </el-table-column>
@@ -566,6 +566,34 @@ const getRowFieldValue = (row: TableRow, field: FieldConfig): FieldValue => {
     return createEmptyRawFieldValue()
   }
   return createAutoFieldValue(value, field)
+}
+
+const getDetailIdText = (value: unknown): string => {
+  if (value === null || value === undefined || value === '') {
+    return '-'
+  }
+
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint' ||
+    typeof value === 'symbol' ||
+    typeof value === 'function'
+  ) {
+    return String(value)
+  }
+
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+const getDetailIdTitle = (value: unknown): string => {
+  const text = getDetailIdText(value)
+  return text === '-' ? '查看详情' : `查看详情 ${text}`
 }
 
 /**
@@ -1104,9 +1132,9 @@ useTableViewLifecycle({
 :deep(.table-data-column .cell) {
   display: block;
   min-width: 0;
-  white-space: nowrap;
+  line-height: 1.45;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 :deep(.table-data-column .cell > *) {
@@ -1114,18 +1142,7 @@ useTableViewLifecycle({
   max-width: 100%;
 }
 
-:deep(.table-data-column .input-widget),
-:deep(.table-data-column .text-widget),
-:deep(.table-data-column .table-cell-text),
-:deep(.table-data-column .formatted-content),
 :deep(.table-data-column .table-cell-value),
-:deep(.table-data-column .text-content),
-:deep(.table-data-column .code-content),
-:deep(.table-data-column .html-table-cell),
-:deep(.table-data-column .markdown-table-cell),
-:deep(.table-data-column .csv-preview),
-:deep(.table-data-column .csv-preview-text),
-:deep(.table-data-column .html-content-preview),
 :deep(.table-data-column .files-display-text) {
   display: block;
   min-width: 0;
@@ -1135,6 +1152,31 @@ useTableViewLifecycle({
   text-overflow: ellipsis;
 }
 
+:deep(.table-data-column .input-widget .table-cell-value),
+:deep(.table-data-column .textarea-widget .table-cell-value),
+:deep(.table-data-column .rich-text-widget .table-cell-value),
+:deep(.table-data-column .text-widget .table-cell-value),
+:deep(.table-data-column .table-cell-text),
+:deep(.table-data-column .formatted-content),
+:deep(.table-data-column .text-content),
+:deep(.table-data-column .code-content),
+:deep(.table-data-column .html-table-cell),
+:deep(.table-data-column .markdown-table-cell),
+:deep(.table-data-column .csv-preview),
+:deep(.table-data-column .csv-preview-text),
+:deep(.table-data-column .html-content-preview) {
+  display: -webkit-box;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 :deep(.table-data-column .table-cell-multiselect),
 :deep(.table-data-column .files-table-cell),
 :deep(.table-data-column .files-select-display) {
@@ -1142,6 +1184,14 @@ useTableViewLifecycle({
   max-width: 100%;
   flex-wrap: nowrap;
   overflow: hidden;
+}
+
+:deep(.table-data-column .files-table-cell),
+:deep(.table-data-column .files-table-preview-list),
+:deep(.table-data-column .files-select-display) {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
 }
 
 .table-view :deep(.table-data-column .formatted-content),
@@ -1155,8 +1205,15 @@ useTableViewLifecycle({
   box-shadow: none;
 }
 
+:deep(.control-column .cell) {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .detail-icon-button {
   min-width: 44px;
+  width: 100%;
+  max-width: 100%;
   height: 32px;
   padding: 0 8px;
   border: none;
@@ -1165,10 +1222,14 @@ useTableViewLifecycle({
   color: var(--el-color-primary);
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 6px;
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.detail-icon-button .el-icon {
+  flex: 0 0 auto;
 }
 
 .detail-icon-button:hover {
@@ -1181,6 +1242,10 @@ useTableViewLifecycle({
 }
 
 .detail-id-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
   line-height: 1;

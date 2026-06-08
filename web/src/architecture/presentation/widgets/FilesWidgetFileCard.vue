@@ -11,135 +11,141 @@
       :class="{ 'file-clickable': canOpenInBrowser }"
       @click="handleCardClick"
     >
-      <div v-if="showUploadUser && file.upload_user" class="file-upload-user" @click.stop>
-        <UserDisplay
-          :user-info="uploadUserInfo"
-          :username="file.upload_user"
-          mode="card"
-          layout="vertical"
-          :size="24"
-        />
-      </div>
-
-      <div class="file-thumbnail">
-        <el-image
-          v-if="enableImagePreviewList && isImage && file.is_uploaded && imageSrc"
-          :src="imageSrc"
-          fit="contain"
-          class="thumbnail-image"
-          :preview-src-list="previewImageList"
-          :initial-index="previewIndex"
-          preview-teleported
-          hide-on-click-modal
-          @click.stop
-        />
-        <el-image
-          v-else-if="isImage && file.is_uploaded && imageSrc"
-          :src="imageSrc"
-          fit="contain"
-          class="thumbnail-image"
-        />
-        <el-icon
-          v-else
-          :size="32"
-          :style="{ color: iconColor }"
-          class="thumbnail-icon"
-        >
-          <component :is="iconComponent" />
-        </el-icon>
-      </div>
-
-      <div class="file-info">
-        <div
-          class="file-name"
-          :class="{ 'file-name-clickable': canOpenInBrowser }"
-          :title="file.name"
-        >
-          {{ file.name }}
-        </div>
-
-        <div
-          v-if="file.description && file.description.trim() && !showInlineDescriptionEditor"
-          class="file-description-text"
-        >
-          <el-icon :size="12" class="description-icon">
-            <Edit />
-          </el-icon>
-          <span class="description-content">{{ file.description }}</span>
-        </div>
-
-        <div
-          v-else-if="showDescriptionPlaceholder && file.is_uploaded && !showInlineDescriptionEditor"
-          class="file-description-placeholder"
-        >
-          <el-icon :size="12" class="description-icon">
-            <Edit />
-          </el-icon>
-          <span class="description-hint">直接在当前文件卡片里补充描述</span>
-        </div>
-
-        <div class="file-meta">
-          <span class="file-size">{{ sizeText }}</span>
-          <el-tag
-            v-if="canOpenInBrowser"
-            size="small"
-            type="success"
-            effect="plain"
-            class="preview-tag"
+      <div class="file-card-main">
+        <div class="file-thumbnail">
+          <el-image
+            v-if="enableImagePreviewList && isImage && file.is_uploaded && imageSrc"
+            :src="imageSrc"
+            fit="contain"
+            class="thumbnail-image"
+            :preview-src-list="previewImageList"
+            :initial-index="previewIndex"
+            preview-teleported
+            hide-on-click-modal
+            @click.stop
+          />
+          <el-image
+            v-else-if="isImage && file.is_uploaded && imageSrc"
+            :src="imageSrc"
+            fit="contain"
+            class="thumbnail-image"
+          />
+          <el-icon
+            v-else
+            :size="32"
+            :style="{ color: iconColor }"
+            class="thumbnail-icon"
           >
-            <el-icon :size="12" class="meta-tag-icon">
-              <View />
+            <component :is="iconComponent" />
+          </el-icon>
+        </div>
+
+        <div class="file-info">
+          <div
+            class="file-name"
+            :class="{ 'file-name-clickable': canOpenInBrowser }"
+            :title="file.name"
+          >
+            {{ file.name }}
+          </div>
+
+          <div
+            v-if="file.description && file.description.trim() && !showInlineDescriptionEditor"
+            class="file-description-text"
+          >
+            <el-icon :size="12" class="description-icon">
+              <Edit />
             </el-icon>
-            可预览
-          </el-tag>
-          <el-tag v-if="showUploadStatusTag" size="small" :type="file.is_uploaded ? 'success' : 'info'">
-            {{ file.is_uploaded ? '已上传' : '本地' }}
-          </el-tag>
-          <span v-if="showUploadTime && uploadTimeText" class="file-upload-time">
-            {{ uploadTimeText }}
-          </span>
+            <span class="description-content">{{ file.description }}</span>
+          </div>
+
+          <div
+            v-else-if="showDescriptionPlaceholder && file.is_uploaded && !showInlineDescriptionEditor"
+            class="file-description-placeholder"
+          >
+            <el-icon :size="12" class="description-icon">
+              <Edit />
+            </el-icon>
+            <span class="description-hint">直接在当前文件卡片里补充描述</span>
+          </div>
         </div>
       </div>
 
-      <div v-if="hasActions" class="file-actions">
-        <el-button
-          v-if="showPreviewAction && file.is_uploaded && isImage"
-          size="small"
-          :icon="View"
-          @click.stop="emit('preview-image')"
-        >
-          预览
-        </el-button>
-        <el-button
-          v-if="showEditDescriptionAction && file.is_uploaded"
-          size="small"
-          :type="file.description && file.description.trim() ? 'default' : 'primary'"
-          :plain="!(file.description && file.description.trim())"
-          :icon="Edit"
-          @click.stop="emit('edit-description')"
-        >
-          {{ showInlineDescriptionEditor ? '收起描述' : file.description?.trim() ? '编辑描述' : '添加描述' }}
-        </el-button>
-        <el-button
-          v-if="showDownloadAction && file.is_uploaded"
-          size="small"
-          type="primary"
-          :icon="Download"
-          @click.stop="emit('download-file')"
-        >
-          下载
-        </el-button>
-        <el-popconfirm
-          v-if="showDeleteAction"
-          title="确定删除此文件？"
-          @confirm="emit('delete-file')"
-        >
-          <template #reference>
-            <el-button size="small" type="danger" :icon="Delete" @click.stop>
-              删除
-            </el-button>
-          </template>
-        </el-popconfirm>
+      <div class="file-card-footer">
+        <div class="file-card-meta-area">
+          <div v-if="showUploadUser && file.upload_user" class="file-upload-user" @click.stop>
+            <span class="file-meta-label">上传人</span>
+            <UserDisplay
+              :user-info="uploadUserInfo"
+              :username="file.upload_user"
+              mode="card"
+              layout="horizontal"
+              size="small"
+            />
+          </div>
+          <div class="file-meta">
+            <span class="file-size">{{ sizeText }}</span>
+            <el-tag
+              v-if="canOpenInBrowser"
+              size="small"
+              type="success"
+              effect="plain"
+              class="preview-tag"
+            >
+              <el-icon :size="12" class="meta-tag-icon">
+                <View />
+              </el-icon>
+              可预览
+            </el-tag>
+            <el-tag v-if="showUploadStatusTag" size="small" :type="file.is_uploaded ? 'success' : 'info'">
+              {{ file.is_uploaded ? '已上传' : '本地' }}
+            </el-tag>
+            <span v-if="showUploadTime && uploadTimeText" class="file-upload-time">
+              {{ uploadTimeText }}
+            </span>
+          </div>
+        </div>
+
+        <div v-if="hasActions" class="file-actions">
+          <el-button
+            v-if="showPreviewAction && file.is_uploaded && isImage"
+            size="small"
+            :icon="View"
+            @click.stop="emit('preview-image')"
+          >
+            预览
+          </el-button>
+          <el-button
+            v-if="showEditDescriptionAction && file.is_uploaded"
+            size="small"
+            :type="file.description && file.description.trim() ? 'default' : 'primary'"
+            :plain="!(file.description && file.description.trim())"
+            :icon="Edit"
+            @click.stop="emit('edit-description')"
+          >
+            {{ showInlineDescriptionEditor ? '收起描述' : file.description?.trim() ? '编辑描述' : '添加描述' }}
+          </el-button>
+          <el-button
+            v-if="showDownloadAction && file.is_uploaded"
+            size="small"
+            type="primary"
+            :icon="Download"
+            @click.stop="emit('download-file')"
+          >
+            下载
+          </el-button>
+          <el-popconfirm
+            v-if="showDeleteAction"
+            title="确定删除此文件？"
+            @confirm="emit('delete-file')"
+          >
+            <template #reference>
+              <el-button size="small" type="danger" :icon="Delete" @click.stop>
+                删除
+              </el-button>
+            </template>
+          </el-popconfirm>
+        </div>
       </div>
     </div>
 
@@ -269,16 +275,68 @@ function handleCardClick(): void {
 
 .file-list-item {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
   padding: 12px 14px;
   background-color: transparent;
+  min-width: 0;
+}
+
+.file-card-main {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+}
+
+.file-card-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--el-border-color-extra-light);
+}
+
+.file-card-meta-area {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
 }
 
 .file-upload-user {
-  flex-shrink: 0;
-  margin-right: 12px;
-  min-width: 80px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--el-text-color-secondary);
+}
+
+.file-upload-user :deep(.user-display-wrapper),
+.file-upload-user :deep(.user-display-simple),
+.file-upload-user :deep(.user-display-card) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.file-upload-user :deep(.user-name) {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-meta-label {
+  flex: 0 0 auto;
+  color: var(--el-text-color-placeholder);
+  font-size: 12px;
+  line-height: 1;
 }
 
 .file-thumbnail {
@@ -327,7 +385,7 @@ function handleCardClick(): void {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 5px;
 }
 
 .file-name {
@@ -335,8 +393,11 @@ function handleCardClick(): void {
   font-weight: 500;
   color: var(--el-text-color-primary);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.45;
 }
 
 .file-name-clickable {
@@ -392,10 +453,11 @@ function handleCardClick(): void {
 .file-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .file-size {
@@ -419,8 +481,15 @@ function handleCardClick(): void {
 .file-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 6px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  max-width: min(100%, 320px);
+}
+
+.file-actions :deep(.el-button) {
+  margin-left: 0;
 }
 
 .file-description-editor {
@@ -456,21 +525,14 @@ function handleCardClick(): void {
 
 @media (max-width: 700px) {
   .file-list-item {
-    align-items: flex-start;
-    flex-wrap: wrap;
     gap: 10px;
     padding: 10px;
     min-width: 0;
   }
 
-  .file-upload-user {
-    width: 100%;
-    min-width: 0;
-    margin: 0 0 8px;
-  }
-
-  .file-list-item:has(.file-upload-user) {
-    flex-wrap: wrap;
+  .file-card-main {
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 10px;
   }
 
   .file-thumbnail {
@@ -485,20 +547,14 @@ function handleCardClick(): void {
   }
 
   .file-info {
-    width: calc(100% - 54px);
     min-width: 0;
     max-width: 100%;
-    flex: 0 1 calc(100% - 54px);
   }
 
   .file-name {
     width: 100%;
     max-width: 100%;
-    white-space: normal;
     word-break: break-all;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
   }
 
   .file-description-text,
@@ -524,19 +580,29 @@ function handleCardClick(): void {
     white-space: nowrap;
   }
 
+  .file-card-footer {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .file-card-meta-area {
+    width: 100%;
+  }
+
+  .file-upload-user :deep(.user-name) {
+    max-width: 190px;
+  }
+
   .file-actions {
-    flex: 0 0 100%;
     width: 100%;
     justify-content: flex-end;
-    flex-wrap: wrap;
     gap: 6px;
-    margin-top: 8px;
-    padding-left: 54px;
+    max-width: none;
   }
 
   .file-actions :deep(.el-button) {
     min-width: 0;
-    margin-left: 0;
     padding: 0 8px;
   }
 

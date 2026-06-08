@@ -88,13 +88,22 @@
                 <span class="user-menu-desc">{{ t('workspace.llmDesc') }}</span>
               </span>
             </el-dropdown-item>
+            <el-dropdown-item v-if="featureFlags.llmManagement" command="openapi" class="user-dropdown-action">
+              <span class="user-menu-icon user-menu-icon--openapi">
+                <el-icon><Key /></el-icon>
+              </span>
+              <span class="user-menu-copy">
+                <span class="user-menu-title">{{ t('workspace.openapiConfig') }}</span>
+                <span class="user-menu-desc">{{ t('workspace.openapiDesc') }}</span>
+              </span>
+            </el-dropdown-item>
             <el-dropdown-item v-if="isSystemUser" command="system-settings" class="user-dropdown-action">
               <span class="user-menu-icon user-menu-icon--profile">
                 <el-icon><Setting /></el-icon>
               </span>
               <span class="user-menu-copy">
-                <span class="user-menu-title">System settings</span>
-                <span class="user-menu-desc">Email and registration policy</span>
+                <span class="user-menu-title">{{ t('route.systemSettings') }}</span>
+                <span class="user-menu-desc">{{ t('workspace.systemSettingsDesc') }}</span>
               </span>
             </el-dropdown-item>
 
@@ -165,6 +174,7 @@ import {
   ArrowDown,
   UserFilled,
   Cpu,
+  Key,
   Setting,
   Search,
   Moon,
@@ -246,6 +256,9 @@ const handleUserCommand = (command: string) => {
       break
     case 'agent':
       router.push('/agent/llm')
+      break
+    case 'openapi':
+      router.push('/agent/openapi')
       break
     case 'system-settings':
       router.push('/system/settings')
@@ -588,6 +601,16 @@ defineExpose({
 .user-menu-icon--llm {
   background: rgba(14, 165, 233, 0.12);
   color: #0284c7;
+}
+
+.user-menu-icon--openapi {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+
+.user-menu-icon--connector {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
 }
 
 .user-menu-icon--role {

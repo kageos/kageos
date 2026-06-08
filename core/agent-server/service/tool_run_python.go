@@ -7,6 +7,7 @@ import (
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
@@ -27,8 +28,6 @@ const runPythonPreinstallDoc = `**生产镜像已预装、可直接 import 的�
 **若 import 报错：** 优先改用上面列表或标准库；需要新依赖时请管理员更新 Dockerfile / 基础镜像 requirements.txt 并重打镜像。不可在本工具参数里指定 pip 包。
 **环境差异：** 本地非 Docker 运行时以本机 python 为准，可能与镜像不一致。`
 
-const runPythonFormPath = "/system/tools/runtime/python.form"
-
 type RunPythonTool struct{}
 
 type runPythonArgs struct {
@@ -42,14 +41,14 @@ var runPythonToolDef = toolDefinition[runPythonArgs](
 	"run_python",
 	runPythonPreinstallDoc+`
 
-**执行环境：** Python 跑在 **应用运行时容器内**（Podman 等业务容器，**不是宿主机**）。本工具调用工具库路径 **/system/tools/runtime/python.form**，由 **system/tools** 应用对应容器执行；脚本在 **临时目录** 中运行，不把工作区源码树当作工作目录。
+**执行环境：** Python 跑在 **当前工作区应用运行时容器内**（Podman 等业务容器，**不是宿主机**）。本工具会根据当前工作台上下文调用对应应用的私有 runtime 路由 **/_runtime/python**；该路由不进入服务树/schema。脚本在 **临时目录** 中运行，不把工作区源码树当作工作目录。
 
 **固定入口协议：**
 - python_code **必须定义**：def kageos_entry(args, output_dir): ...
 - 第一个参数 args 为传入的对象参数；第二个参数 output_dir 为受控输出目录
 - 若本轮用户上传了附件，系统会在执行前自动下载到容器本地，并注入 args["input_files"]：本地文件路径列表。单文件取 args["input_files"][0]。Python 代码应直接 open 本地路径，不要 requests.get 文件引用或猜 URL；不要把文件引用数组再塞进 args["input_files"]。
 - 若继续处理历史消息里的上传文件，请把 <files> 里的 refs 原样传给本工具顶层 input_files 参数；不要拆成 bucket/key 放进 args，也不要自行拼 COS URL。
-- input_files 也可以直接传入上一步工具返回的 output_files 文件引用（bucket/object_key，如 kageos/system/tools/runtime/python.form/.../result.csv）。平台会像处理用户上传附件一样自动从 COS/对象存储下载到容器本地，并注入 args["input_files"] 本地路径列表；这用于多步骤流水线，避免手动下载再上传。
+- input_files 也可以直接传入上一步工具返回的 output_files 文件引用（bucket/object_key，如 kageos/.../result.csv）。平台会像处理用户上传附件一样自动从 COS/对象存储下载到容器本地，并注入 args["input_files"] 本地路径列表；这用于多步骤流水线，避免手动下载再上传。
 - 返回值 **必须是 dict**，仅允许：
   - data: JSON 可序列化结果
   - output_files: 输出文件列表，每项至少含 path
@@ -69,7 +68,7 @@ var runPythonToolDef = toolDefinition[runPythonArgs](
 - 输出图片、Excel、PDF 等文件时，统一写到 output_dir，再在 output_files 里声明绝对路径。
 - 如果上一轮出现 SyntaxError 或 IndentationError，不要局部修补旧长脚本；请重新生成一份更短、更扁平、缩进完整的 python_code。
 
-**输出结果：** 工具库执行端会解析 kageos_entry 的返回值；若返回里有 **output_files**，Go 侧会负责校验、上传并构造成最终 string，工作台自动展示文件组件（预览、打开、下载等能力由组件提供）。最终回复只需说明已生成/已处理，不要手写“下载文件：xxx”、Markdown 下载链接或伪 URL。
+**输出结果：** 工具库执行端会解析 kageos_entry 的返回值；若返回里有 **output_files**，Go 侧会负责校验、上传并构造成最终 string，工作台自动展示文件组件（预览、打开、下载等能力由组件提供）。最终回复按任务复杂度给高密度结果：简单处理 1-2 句话，分析类任务保留关键结论、风险和下一步；不要手写“下载文件：xxx”、Markdown 下载链接或伪 URL，不要复述脚本逻辑、文件参数和工具执行过程。
 
 **文件流转能力（重要）：**
 - output_files 返回的文件引用可以直接作为下一次 run_python 的 input_files 参数。
@@ -98,27 +97,32 @@ func (t *RunPythonTool) Execute(ctx context.Context, call ToolCall) ToolResult {
 	if err != nil {
 		return toolResult("run_python 参数解析失败: "+err.Error(), true)
 	}
-	content, isError, data := runPythonTool(ctx, args, call.Files)
+	content, isError, data := runPythonTool(ctx, args, call.Files, call.FullCodePath)
 	return toolResultWithDataAndMetadata(content, isError, data, metadataForDisplayFileFields("output_files"))
 }
 
-// runPythonTool 调用 system/tools 的 Python 执行 Form
-func runPythonTool(ctx context.Context, args runPythonArgs, attachedFiles string) (string, bool, map[string]interface{}) {
+// runPythonTool 调用当前工作区应用内置的私有 Python runtime。
+func runPythonTool(ctx context.Context, args runPythonArgs, attachedFiles string, currentFullCodePath string) (string, bool, map[string]interface{}) {
 	// python_code 必须按原文透传。历史上尝试清理 BOM/控制字符/缩进会让真实错误更难定位，
 	// 也可能改变 Python 源码语义；这里仅判空，不做任何隐式修复。
 	code := args.PythonCode
 	if strings.TrimSpace(code) == "" {
 		return "run_python 需传 python_code。", true, nil
 	}
-	body := map[string]interface{}{
-		"python_code":          code,
-		"collect_output_files": true,
+	workspaceRoot := runPythonWorkspaceRoot(currentFullCodePath)
+	if workspaceRoot == "" {
+		return "run_python 需要当前工作区上下文（full_code_path 至少包含 /user/app）。", true, nil
+	}
+
+	body := &dto.RunPythonRuntimeReq{
+		PythonCode:         code,
+		CollectOutputFiles: true,
 	}
 	if len(args.Args) > 0 {
-		body["args"] = args.Args
+		body.Args = args.Args
 	}
 	if inputFiles := resolvePythonInputFiles(args.InputFiles, attachedFiles, args.Args); inputFiles != "" {
-		body["input_files"] = inputFiles
+		body.InputFiles = inputFiles
 	}
 	timeoutSec := 120
 	if args.TimeoutSeconds != nil && *args.TimeoutSeconds > 0 {
@@ -127,11 +131,12 @@ func runPythonTool(ctx context.Context, args runPythonArgs, attachedFiles string
 	if timeoutSec > 300 {
 		timeoutSec = 300
 	}
-	body["timeout_seconds"] = timeoutSec
+	body.TimeoutSeconds = timeoutSec
 
-	result, err := apicall.FormSubmit(ctx, runPythonFormPath, body)
+	runtimeCtx := withRunPythonRuntimeSource(ctx)
+	result, err := apicall.RunWorkspacePython(runtimeCtx, workspaceRoot, body)
 	if err != nil {
-		logger.Errorf(ctx, "[RunPython] FormSubmit 失败: %v", err)
+		logger.Errorf(ctx, "[RunPython] RunWorkspacePython 失败: %v", err)
 		return "run_python 调用失败: " + err.Error() + "\n\n【给模型】可检查 python_code 是否过长、args 是否为合法对象；网络或权限问题可稍后重试。", true, nil
 	}
 	out := make(map[string]interface{}, len(result)+1)
@@ -143,6 +148,23 @@ func runPythonTool(ctx context.Context, args runPythonArgs, attachedFiles string
 	}
 	content, isError := formatJSONResult(out)
 	return content, isError, out
+}
+
+func withRunPythonRuntimeSource(ctx context.Context) context.Context {
+	ctx = withAgentToolClientSource(ctx)
+	return contextx.WithSourceInfo(ctx, contextx.SourceTypeAgentTool, contextx.GetSourceRef(ctx))
+}
+
+func runPythonWorkspaceRoot(currentFullCodePath string) string {
+	trimmed := strings.Trim(strings.TrimSpace(currentFullCodePath), "/")
+	if trimmed == "" {
+		return ""
+	}
+	parts := strings.Split(trimmed, "/")
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		return ""
+	}
+	return "/" + parts[0] + "/" + parts[1]
 }
 
 func resolvePythonInputFiles(explicit string, attached string, args map[string]interface{}) string {

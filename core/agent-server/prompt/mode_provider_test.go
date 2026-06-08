@@ -27,8 +27,13 @@ func TestDevModePromptIsShortAndDoesNotAppendAllInOne(t *testing.T) {
 	}
 	if !strings.Contains(got, "### `product_manager` 产品经理") ||
 		!strings.Contains(got, "### `app_operator` 应用操作员") ||
+		!strings.Contains(got, "使用当前软件完成事情") ||
+		!strings.Contains(got, "不要因为用户说“创建、处理、生成、提交、更新、整理、查看”等动词就默认写 PRD 或开发") ||
 		!strings.Contains(got, "`tables.fields` 是模型字段，`tables.search_fields` 是查询请求字段") {
 		t.Fatalf("dev prompt should include generated role routing:\n%s", got)
+	}
+	if strings.Index(got, "### `app_operator` 应用操作员") > strings.Index(got, "### `product_manager` 产品经理") {
+		t.Fatalf("dev prompt should present app_operator before product_manager:\n%s", got)
 	}
 	if strings.Contains(got, "全家桶") || strings.Contains(got, "## 二十、Agent-App SDK README 全文") {
 		t.Fatalf("dev prompt should not append all-in-one prompt:\n%s", got)

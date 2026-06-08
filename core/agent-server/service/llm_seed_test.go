@@ -74,7 +74,7 @@ func TestInitLLMSeedsDoesNotWipeExistingKeyWhenEnvMissing(t *testing.T) {
 	if err := repo.Create(&model.LLMConfig{
 		Code:      "main",
 		Name:      "旧模型",
-		Provider:  "openai",
+		Provider:  model.LLMProviderOpenAI,
 		Model:     "gpt-4o-mini",
 		APIKey:    "existing-secret",
 		APIBase:   "https://old.example/v1",

@@ -43,19 +43,21 @@ const (
 
 // 工具调用状态常量
 const (
-	ToolCallStatusOK        = "ok"
-	ToolCallStatusError     = "error"
-	ToolCallStatusRunning   = "running"   // 工具正在执行，用于流式反馈到前端
-	ToolCallStatusStreaming = "streaming" // LLM 流式输出 tool_call（name/arguments 逐段到达），推送到前端实时展示
+	ToolCallStatusOK        = dto.WorkspaceToolCallStatusOK
+	ToolCallStatusError     = dto.WorkspaceToolCallStatusError
+	ToolCallStatusRunning   = dto.WorkspaceToolCallStatusRunning
+	ToolCallStatusStreaming = dto.WorkspaceToolCallStatusStreaming
 )
 
 // 流式事件类型常量
 const (
-	EventSession  = "session"
-	EventToolCall = "tool_call"
-	EventContent  = "content"
-	EventDone     = "done"
-	EventError    = "error"
+	EventSession              = dto.WorkspaceStreamEventSession
+	EventModelContextPlan     = dto.WorkspaceStreamEventModelContextPlan
+	EventToolCall             = dto.WorkspaceStreamEventToolCall
+	EventToolCallsStreamDelta = dto.WorkspaceStreamEventToolCallsStreamDelta
+	EventContent              = dto.WorkspaceStreamEventContent
+	EventDone                 = dto.WorkspaceStreamEventDone
+	EventError                = dto.WorkspaceStreamEventError
 )
 
 // WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；只认 LLM + 单模式（dev）
@@ -94,10 +96,7 @@ func NewWorkspaceChatService(
 }
 
 // StreamEvent 流式事件：用于 SSE 传输
-type StreamEvent struct {
-	Event string      `json:"event"` // session|tool_call|content|done|error
-	Data  interface{} `json:"data"`  // 对应负载（具体类型见下方各事件结构体）
-}
+type StreamEvent = dto.WorkspaceStreamEvent
 
 // WorkspaceChatEventSink 接收工作台执行事件。SSE 与后台任务共用同一执行链路。
 type WorkspaceChatEventSink interface {
@@ -111,35 +110,16 @@ func (f workspaceChatEventSinkFunc) Send(event string, data interface{}) {
 }
 
 // StreamEventSession session 事件数据
-type StreamEventSession struct {
-	SessionID string `json:"session_id"`
-}
+type StreamEventSession = dto.WorkspaceStreamSession
 
 // StreamEventToolCall tool_call 事件数据
-type StreamEventToolCall struct {
-	Name       string                  `json:"name"`
-	Status     string                  `json:"status"`                // ok / error / running / streaming
-	Arguments  string                  `json:"arguments"`             // 流式或最终参数（streaming 时逐段推送，供前端实时展示）
-	Result     string                  `json:"result"`                // 工具返回结果（status=ok 时可选）
-	ResultData interface{}             `json:"result_data,omitempty"` // 结构化工具结果（供前端直接消费）
-	Metadata   *dto.ToolResultMetadata `json:"metadata,omitempty"`    // 工具结果元数据（供前端按字段渲染）
-	Error      string                  `json:"error"`                 // 错误信息（status=error 时可选）
-}
+type StreamEventToolCall = dto.WorkspaceStreamToolCall
 
 // StreamEventContent content 事件数据
-type StreamEventContent struct {
-	Content string `json:"content"`
-}
+type StreamEventContent = dto.WorkspaceStreamContent
 
 // StreamEventDone done 事件数据
-type StreamEventDone struct {
-	SessionID     string                             `json:"session_id"`
-	ToolCalls     []dto.WorkspaceChatToolCallSummary `json:"tool_calls"`
-	LLMConfigID   int64                              `json:"llm_config_id,omitempty"`
-	LLMConfigName string                             `json:"llm_config_name,omitempty"`
-	LLMProvider   string                             `json:"llm_provider,omitempty"`
-	LLMModel      string                             `json:"llm_model,omitempty"`
-}
+type StreamEventDone = dto.WorkspaceStreamDone
 
 type messageLLMMetadata struct {
 	ConfigID   int64
@@ -149,9 +129,7 @@ type messageLLMMetadata struct {
 }
 
 // StreamEventError error 事件数据
-type StreamEventError struct {
-	Message string `json:"message"`
-}
+type StreamEventError = dto.WorkspaceStreamError
 
 // WorkspaceChatStream 工作台对话流式入口：通过 eventChan 发送 SSE 事件（session、tool_call、content、done、error）
 // eventChan 为只写 channel，由调用方在 goroutine 中读取并写 SSE，避免 Flush 阻塞 LLM stream 消费
@@ -187,7 +165,23 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		return s.handleError(sendEvent, fmt.Sprintf("不支持的 mode_code: %s", requestedModeCode), nil)
 	}
 
-	// 1) 获取工作台环境信息（包含目录详情、子节点等，一次性获取，避免重复调用）
+	// 1) 解析或创建 session。已有会话优先使用会话自身目录，避免阶段交接后被前端旧面板路径带回来源目录。
+	var session *model.AgentChatSession
+	if req.SessionID != "" {
+		var e error
+		session, e = s.sessionRepo.GetBySessionID(req.SessionID)
+		if e != nil || session == nil {
+			return s.handleError(sendEvent, fmt.Sprintf("会话不存在: %s", req.SessionID), e)
+		}
+		if e := ensureWorkspaceSessionOwner(ctx, session); e != nil {
+			return s.handleError(sendEvent, e.Error(), e)
+		}
+		if sessionPath := strings.TrimSpace(session.FullCodePath); sessionPath != "" {
+			fullCodePath = sessionPath
+		}
+	}
+
+	// 2) 获取工作台环境信息（包含目录详情、子节点等，一次性获取，避免重复调用）
 	workspaceCtx, e := apicall.GetWorkspaceContext(ctx, fullCodePath, "")
 	if e != nil || workspaceCtx == nil {
 		return s.handleError(sendEvent, "无效的 full_code_path，无法解析目录", e)
@@ -197,15 +191,8 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		directoryName = workspaceCtx.Directory.Code
 	}
 
-	// 2) 解析或创建 session
-	var session *model.AgentChatSession
-	if req.SessionID != "" {
-		var e error
-		session, e = s.sessionRepo.GetBySessionID(req.SessionID)
-		if e != nil || session == nil {
-			return s.handleError(sendEvent, fmt.Sprintf("会话不存在: %s", req.SessionID), e)
-		}
-	} else {
+	// 3) 创建新 session
+	if req.SessionID == "" {
 		session = &model.AgentChatSession{
 			TreeID:        workspaceCtx.Directory.ID,
 			FullCodePath:  fullCodePath,
@@ -230,8 +217,23 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	if session.ArchivedForModel {
 		return s.handleError(sendEvent, "该会话已归档为展示历史，不再进入模型上下文；请从新的阶段交接会话继续。", nil)
 	}
-	if session.ModeCode != modeCode {
-		session.ModeCode = modeCode
+	if session.Status == model.ChatSessionStatusGenerating {
+		return s.handleError(sendEvent, "该会话正在执行中，请等待当前任务完成，或先取消后再继续。", nil)
+	}
+	if !req.Resume && workspaceSessionHasPendingInteractionStatus(session.Status) {
+		pendingInteraction := s.pendingInteractionForSession(session)
+		if pendingInteraction == nil {
+			pendingInteraction = workspaceFallbackPendingInteraction(session.Status)
+		}
+		interactionAction := strings.TrimSpace(req.Message.InteractionAction)
+		if pendingInteraction != nil && pendingInteraction.Blocking &&
+			(!workspaceInteractionActionCanRunModel(interactionAction) || !workspaceInteractionAllowsAction(pendingInteraction, interactionAction)) {
+			title := strings.TrimSpace(pendingInteraction.Title)
+			if title == "" {
+				title = "当前会话有待处理确认"
+			}
+			return s.handleError(sendEvent, title+"，请先处理工作台交互卡片后再继续。", nil)
+		}
 	}
 	modeProvider := requestedModeProvider
 	if modeCode != requestedModeCode || modeProvider == nil {
@@ -256,11 +258,18 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	s.sseConnections.Store(sessionID, struct{}{})
 
 	// ⭐ 标记会话为 generating（后台执行中）
-	session.Status = model.ChatSessionStatusGenerating
-	session.UpdatedBy = user
-	if e := s.sessionRepo.Update(session); e != nil {
+	markedGenerating, e := s.sessionRepo.TryMarkGenerating(sessionID, user, modeCode)
+	if e != nil {
 		logger.Warnf(ctx, "[WorkspaceChatStream] 标记 generating 失败: %v", e)
+		s.sseConnections.Delete(sessionID)
+		return s.handleError(sendEvent, "标记会话执行中失败", e)
+	} else if !markedGenerating {
+		s.sseConnections.Delete(sessionID)
+		return s.handleError(sendEvent, "该会话正在执行中，请等待当前任务完成，或先取消后再继续。", nil)
 	}
+	session.Status = model.ChatSessionStatusGenerating
+	session.ModeCode = modeCode
+	session.UpdatedBy = user
 
 	// ⭐ 创建可取消的 context 并注册到 runningCancels，供 CancelSession 使用
 	runCtx, runCancel := context.WithCancel(ctx)

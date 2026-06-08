@@ -14,13 +14,13 @@ func TestUnifiedStartupUsesCoreMVPServices(t *testing.T) {
 		serviceByName[svc.Name] = svc
 	}
 
-	for _, name := range []string{"app-runtime", "app-storage", "hr-server", "agent-server", "app-server", "api-gateway"} {
+	for _, name := range []string{"app-runtime", "app-storage", "hr-server", "agent-server", "connector-server", "app-server", "api-gateway"} {
 		if serviceByName[name] == nil {
 			t.Fatalf("%s is not registered in unified startup", name)
 		}
 	}
 
-	if len(serviceByName) != 6 {
+	if len(serviceByName) != 7 {
 		t.Fatalf("unexpected service count in MVP unified startup: %d", len(serviceByName))
 	}
 
@@ -35,7 +35,7 @@ func TestUnifiedStartupUsesCoreMVPServices(t *testing.T) {
 	}
 
 	apiGateway := serviceByName["api-gateway"]
-	for _, dep := range []string{"app-runtime", "app-storage", "hr-server", "agent-server", "app-server"} {
+	for _, dep := range []string{"app-runtime", "app-storage", "hr-server", "agent-server", "connector-server", "app-server"} {
 		if apiGateway == nil || !hasDependency(apiGateway, dep) {
 			t.Fatalf("api-gateway should wait for %s", dep)
 		}

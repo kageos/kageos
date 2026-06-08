@@ -276,4 +276,69 @@ describe('MultiSelectWidget', () => {
     expect(wrapper.find('[data-testid="fuzzy-dialog"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('前端')
   })
+
+  it('hydrates callback multiselect display metadata in search mode', async () => {
+    selectFuzzyMock.mockResolvedValue({
+      error_msg: '',
+      items: [
+        {
+          label: '前端',
+          value: 1,
+          display_info: {
+            部门: '技术'
+          }
+        }
+      ]
+    })
+
+    const wrapper = mount(MultiSelectWidget, {
+      props: {
+        field: {
+          code: 'job_ids',
+          name: '职位',
+          callbacks: ['OnSelectFuzzy'],
+          widget: {
+            type: WidgetType.MULTI_SELECT,
+            config: {}
+          },
+          data: {
+            type: '[]int'
+          }
+        } as any,
+        value: {
+          raw: [1],
+          display: '1',
+          meta: {}
+        },
+        mode: 'search',
+        fieldPath: 'job_ids',
+        functionMethod: 'GET',
+        functionRouter: '/jobs'
+      },
+      global: {
+        stubs: {
+          ElSelect: ElSelectStub,
+          ElOption: ElOptionStub,
+          FuzzySearchDialog: FuzzySearchDialogStub,
+          ElTag: ElTagStub,
+          ElIcon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const emitted = wrapper.emitted('update:modelValue')
+    expect(emitted?.at(-1)?.[0]).toMatchObject({
+      raw: ['1'],
+      display: '前端',
+      meta: {
+        displayInfo: [
+          {
+            部门: '技术'
+          }
+        ]
+      }
+    })
+  })
 })

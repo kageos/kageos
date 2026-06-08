@@ -37,7 +37,7 @@ type RequestAppReq struct {
 	RequestUserDept string `json:"request_user_dept" swaggerignore:"true"`         // 请求用户部门（由中间件自动填充）
 	Token           string `json:"token" swaggerignore:"true"`                     // 认证 Token（由中间件自动填充，透传到 SDK）
 	AnonymousToken  string `json:"anonymous_token,omitempty" swaggerignore:"true"` // 公开分享匿名 Token（只用于 public_share 场景）
-	ClientSource    string `json:"client_source,omitempty" swaggerignore:"true"`   // 客户端来源（browser、agent、api）
+	ClientSource    string `json:"client_source,omitempty" swaggerignore:"true"`   // 客户端来源（browser、agent、openapi）
 	SourceType      string `json:"source_type,omitempty" swaggerignore:"true"`     // 调用来源类型
 	SourceRef       string `json:"source_ref,omitempty" swaggerignore:"true"`      // 调用来源引用
 	User            string `json:"user" binding:"required" example:"beiluo"`       // 租户用户名（应用所有者）
@@ -67,6 +67,25 @@ type RequestAppResp struct {
 
 func (r *RequestAppResp) IsError() bool {
 	return r.ErrCode != 0
+}
+
+// RunPythonRuntimeReq 是工作台 run_python 调用应用私有 Python runtime 的请求。
+// 该请求只用于平台内部转发到 SDK 默认私有路由，不作为用户可见 Form schema。
+type RunPythonRuntimeReq struct {
+	PythonCode         string                 `json:"python_code"`
+	Args               map[string]interface{} `json:"args,omitempty"`
+	InputFiles         string                 `json:"input_files,omitempty"`
+	Packages           string                 `json:"packages,omitempty"`
+	TimeoutSeconds     int                    `json:"timeout_seconds,omitempty"`
+	CollectOutputFiles bool                   `json:"collect_output_files,omitempty"`
+}
+
+// RunPythonRuntimeResp 保持现有 run_python 工具对外结果协议。
+type RunPythonRuntimeResp struct {
+	Output      string `json:"output"`
+	Status      string `json:"status"`
+	JSONResult  string `json:"json_result"`
+	OutputFiles string `json:"output_files,omitempty"`
 }
 
 // SourceFileWrite 源码文件写入描述
@@ -234,13 +253,15 @@ func (a *ApiInfo) GetPackageChain() []string {
 }
 
 type ApiInfo struct {
-	Code         string   `json:"code"`
-	Name         string   `json:"name"`
-	Desc         string   `json:"desc"`
-	Tags         []string `json:"tags"`
-	Router       string   `json:"router"`
-	Method       string   `json:"method"`
-	CreateTables []string `json:"create_tables"`
+	Code               string              `json:"code"`
+	Name               string              `json:"name"`
+	Desc               string              `json:"desc"`
+	Tags               []string            `json:"tags"`
+	Router             string              `json:"router"`
+	Method             string              `json:"method"`
+	CreateTables       []string            `json:"create_tables"`
+	Connectors         []string            `json:"connectors,omitempty"`
+	ConnectorEndpoints []ConnectorEndpoint `json:"connector_endpoints,omitempty"`
 	// FunctionGroupCode 和 FunctionGroupName 已移除，不再需要
 
 	Schema         *functionschema.FunctionSchema `json:"schema"`

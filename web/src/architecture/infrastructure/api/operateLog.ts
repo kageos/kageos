@@ -35,6 +35,7 @@ export interface GetOperateLogsParams {
   resource_path_prefix?: string
   action?: string
   status?: string
+  source?: string
   row_id?: number
   keyword?: string
   page?: number

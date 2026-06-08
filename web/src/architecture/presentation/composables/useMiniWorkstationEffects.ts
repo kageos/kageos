@@ -56,7 +56,7 @@ export function useMiniWorkstationEffects(options: UseMiniWorkstationEffectsOpti
   watch(() => messages.value.length, scrollToBottomIfNeeded)
   watch(() => {
     const last = messages.value[messages.value.length - 1]
-    return (last?.content?.length ?? 0) + (last?.blocks?.length ?? 0) + (last?.tool_calls?.length ?? 0)
+    return (last?.content?.length ?? 0) + (last?.blocks?.length ?? 0) + (last?.tool_calls?.length ?? 0) + (last?.model_context_plans?.length ?? (last?.model_context_plan ? 1 : 0))
   }, scrollToBottomIfNeeded)
 
   watch(

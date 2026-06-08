@@ -15,6 +15,9 @@ func TestBuildCallbackAppReqEncodesBodyForSDKCallbackRouter(t *testing.T) {
 
 	body := `{"code":"topic_id","type":"by_keyword","value":"","request":{"topic_id":null,"option_ids":[],"remark":""},"value_type":"int"}`
 	req := httptest.NewRequest(http.MethodPost, "/workspace/api/v1/callback/on_select_fuzzy/liubeiluo/ee/vote/vote_submit.form", strings.NewReader(body))
+	req.Header.Set("X-Client-Source", "agent")
+	req.Header.Set("X-Source-Type", "agent_tool")
+	req.Header.Set("X-Source-Ref", "session-1")
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Request = req
 
@@ -45,5 +48,55 @@ func TestBuildCallbackAppReqEncodesBodyForSDKCallbackRouter(t *testing.T) {
 	}
 	if string(sdkReq.Body) != body {
 		t.Fatalf("Body = %s, want %s", string(sdkReq.Body), body)
+	}
+	if appReq.ClientSource != "agent" || appReq.SourceType != "agent_tool" || appReq.SourceRef != "session-1" {
+		t.Fatalf("source context mismatch: source=%q type=%q ref=%q", appReq.ClientSource, appReq.SourceType, appReq.SourceRef)
+	}
+}
+
+func TestBuildRuntimePythonRequestAppReqUsesPrivateRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := `{"python_code":"def kageos_entry(args, output_dir):\n    return {\"data\":{\"ok\": True}}","args":{"name":"demo"},"timeout_seconds":30,"collect_output_files":true}`
+	req := httptest.NewRequest(http.MethodPost, "/workspace/api/v1/runtime/python/liubeiluo/ee/vote/vote_submit.form", strings.NewReader(body))
+	req.Header.Set("X-Client-Source", "agent")
+	req.Header.Set("X-Source-Type", "agent_tool")
+	req.Header.Set("X-Source-Ref", "session-1")
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = req
+
+	api := &StandardAPI{}
+	appReq, err := api.buildRuntimePythonRequestAppReq(ctx, "/liubeiluo/ee/vote/vote_submit.form")
+	if err != nil {
+		t.Fatalf("buildRuntimePythonRequestAppReq() error = %v", err)
+	}
+
+	if appReq.User != "liubeiluo" || appReq.App != "ee" {
+		t.Fatalf("target app mismatch: user=%q app=%q", appReq.User, appReq.App)
+	}
+	if appReq.Router != privateRuntimePythonRouter {
+		t.Fatalf("Router = %q, want %q", appReq.Router, privateRuntimePythonRouter)
+	}
+	if appReq.Method != http.MethodPost {
+		t.Fatalf("Method = %q, want POST", appReq.Method)
+	}
+	if appReq.ClientSource != "agent" || appReq.SourceType != "agent_tool" || appReq.SourceRef != "session-1" {
+		t.Fatalf("source context mismatch: source=%q type=%q ref=%q", appReq.ClientSource, appReq.SourceType, appReq.SourceRef)
+	}
+
+	var runtimeReq struct {
+		PythonCode         string                 `json:"python_code"`
+		Args               map[string]interface{} `json:"args"`
+		TimeoutSeconds     int                    `json:"timeout_seconds"`
+		CollectOutputFiles bool                   `json:"collect_output_files"`
+	}
+	if err := json.Unmarshal(appReq.Body, &runtimeReq); err != nil {
+		t.Fatalf("json.Unmarshal(appReq.Body) error = %v; body = %s", err, string(appReq.Body))
+	}
+	if !strings.Contains(runtimeReq.PythonCode, "kageos_entry") || runtimeReq.Args["name"] != "demo" {
+		t.Fatalf("unexpected runtime body: %#v", runtimeReq)
+	}
+	if runtimeReq.TimeoutSeconds != 30 || !runtimeReq.CollectOutputFiles {
+		t.Fatalf("runtime options mismatch: %#v", runtimeReq)
 	}
 }

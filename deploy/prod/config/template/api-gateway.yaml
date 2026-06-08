@@ -38,5 +38,11 @@ routes:
       - url: "http://127.0.0.1:9097"
     timeout: 300
 
+  - path: "/connector"
+    service_name: "connector"
+    targets:
+      - url: "http://127.0.0.1:9096"
+    timeout: 300
+
 timeouts:
   default: 300

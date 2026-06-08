@@ -1,57 +1,90 @@
 <template>
-  <div class="app-switcher" :class="{ 'app-switcher-compact': compact }" data-testid="app-switcher">
-    <div class="app-container" data-testid="app-switcher-container">
-      <div 
-        class="app-current" 
-        v-if="currentApp"
-        @click="handleOpenDialog"
-        data-testid="app-switcher-current"
-      >
-          <div class="app-avatar">
-            <div class="app-icon" :style="{ backgroundColor: getAppColor(currentApp) }">
-              {{ getAppInitial(currentApp.name || currentApp.code) }}
+  <div
+    ref="switcherRootRef"
+    class="app-switcher"
+    :class="{ 'app-switcher-compact': compact }"
+    data-testid="app-switcher"
+  >
+    <el-popover
+      :visible="popoverVisible"
+      trigger="click"
+      placement="bottom-start"
+      :width="760"
+      :show-arrow="false"
+      :offset="10"
+      :popper-style="{ width: 'min(760px, calc(100vw - 32px))' }"
+      :teleported="true"
+      :disabled="workspaceListForceSelect"
+      popper-class="workspace-switcher-popover"
+    >
+      <template #reference>
+        <div class="app-container" data-testid="app-switcher-container">
+          <div
+            v-if="currentApp"
+            class="app-current"
+            data-testid="app-switcher-current"
+            @click="handleTriggerClick"
+          >
+            <div class="app-avatar">
+              <div class="app-icon" :style="{ backgroundColor: getAppColor(currentApp) }">
+                {{ getAppInitial(currentApp.name || currentApp.code) }}
+              </div>
+              <div class="status-indicator" v-if="!compact"></div>
             </div>
-            <div class="status-indicator" v-if="!compact"></div>
+            <div class="app-info">
+              <div class="app-name">{{ currentApp.name || currentApp.code }}</div>
+              <div class="app-path" v-if="!compact">
+                <el-icon class="path-icon"><FolderOpened /></el-icon>
+                <span>{{ currentApp.user }}/{{ currentApp.code }}</span>
+              </div>
+            </div>
+            <div class="expand-section" v-if="!compact">
+              <el-icon class="expand-icon">
+                <ArrowUp />
+              </el-icon>
+            </div>
+            <el-icon v-else class="expand-icon-inline"><ArrowDown /></el-icon>
           </div>
-          <div class="app-info">
-            <div class="app-name">{{ currentApp.name || currentApp.code }}</div>
-            <div class="app-path" v-if="!compact">
-              <el-icon class="path-icon"><FolderOpened /></el-icon>
-              <span>{{ currentApp.user }}/{{ currentApp.code }}</span>
+          <div
+            v-else
+            class="app-current"
+            data-testid="app-switcher-empty"
+            @click="handleTriggerClick"
+          >
+            <div class="app-avatar">
+              <div class="app-icon app-icon--placeholder">?</div>
+            </div>
+            <div class="app-info">
+              <div class="app-name">选择工作空间</div>
+              <div class="app-path" v-if="!compact">
+                <el-icon class="path-icon"><FolderOpened /></el-icon>
+                <span>点击选择</span>
+              </div>
+            </div>
+            <el-icon v-if="compact" class="expand-icon-inline"><ArrowDown /></el-icon>
+            <div v-else class="expand-section">
+              <el-icon class="expand-icon"><ArrowUp /></el-icon>
             </div>
           </div>
-          <div class="expand-section" v-if="!compact">
-            <el-icon class="expand-icon">
-              <ArrowUp />
-            </el-icon>
-          </div>
-          <el-icon v-else class="expand-icon-inline"><ArrowDown /></el-icon>
         </div>
-      <div 
-        class="app-current" 
-        v-else
-        @click="handleOpenDialog"
-        data-testid="app-switcher-empty"
-      >
-          <div class="app-avatar">
-            <div class="app-icon app-icon--placeholder">?</div>
-          </div>
-          <div class="app-info">
-            <div class="app-name">选择工作空间</div>
-            <div class="app-path" v-if="!compact">
-              <el-icon class="path-icon"><FolderOpened /></el-icon>
-              <span>点击选择</span>
-            </div>
-          </div>
-          <el-icon v-if="compact" class="expand-icon-inline"><ArrowDown /></el-icon>
-          <div v-else class="expand-section">
-            <el-icon class="expand-icon"><ArrowUp /></el-icon>
-          </div>
-        </div>
-    </div>
+      </template>
 
-    <!-- 工作空间列表弹窗 -->
+      <WorkspaceListPanel
+        v-if="popoverVisible"
+        :current-app="currentApp"
+        :visible="popoverVisible"
+        surface="popover"
+        show-header
+        @switch-app="handleSwitchApp"
+        @create-app="handleCreateApp"
+        @update-app="handleUpdateApp"
+        @delete-app="handleDeleteApp"
+        @close="closeWorkspacePopover"
+      />
+    </el-popover>
+
     <WorkspaceListDialog
+      v-if="dialogVisible || workspaceListForceSelect"
       v-model="dialogVisible"
       :current-app="currentApp"
       :force-select="workspaceListForceSelect"
@@ -64,10 +97,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ArrowUp, ArrowDown, FolderOpened } from '@element-plus/icons-vue'
 import type { App } from '@/architecture/domain/types'
 import WorkspaceListDialog from './WorkspaceListDialog.vue'
+import WorkspaceListPanel from './WorkspaceListPanel.vue'
 
 interface Props {
   currentApp: App | null
@@ -88,6 +122,8 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const dialogVisible = ref(false)
+const popoverVisible = ref(false)
+const switcherRootRef = ref<HTMLElement | null>(null)
 /** 本次打开工作空间列表是否强制必须选择/创建（从 /workspace/:user 进入时为 true） */
 const workspaceListForceSelect = ref(false)
 
@@ -109,20 +145,36 @@ const getAppInitial = (text: string) => {
   return text.charAt(0).toUpperCase()
 }
 
-// 打开弹窗
-const handleOpenDialog = () => {
-  dialogVisible.value = true
-  emit('load-apps')
+const handleTriggerClick = () => {
+  if (workspaceListForceSelect.value) {
+    dialogVisible.value = true
+    emit('load-apps')
+    return
+  }
+
+  popoverVisible.value = !popoverVisible.value
+  if (popoverVisible.value) {
+    emit('load-apps')
+  }
+}
+
+const closeWorkspacePopover = () => {
+  popoverVisible.value = false
 }
 
 // 切换应用
 const handleSwitchApp = (app: App) => {
   emit('switch-app', app)
+  workspaceListForceSelect.value = false
+  popoverVisible.value = false
+  dialogVisible.value = false
 }
 
 // 创建应用
 const handleCreateApp = () => {
+  workspaceListForceSelect.value = false
   dialogVisible.value = false
+  popoverVisible.value = false
   emit('create-app')
 }
 
@@ -140,9 +192,39 @@ const handleDeleteApp = (app: App) => {
 // forceSelect: 为 true 时弹窗不可关闭，必须选择或创建一个工作空间
 function openWorkspaceListDialog(forceSelect = false) {
   workspaceListForceSelect.value = forceSelect
-  dialogVisible.value = true
+  popoverVisible.value = false
+  dialogVisible.value = forceSelect
+  if (!forceSelect) {
+    popoverVisible.value = true
+  }
   emit('load-apps')
 }
+
+const handleDocumentPointerDown = (event: PointerEvent) => {
+  if (!popoverVisible.value) {
+    return
+  }
+
+  const target = event.target
+  if (!(target instanceof Node)) {
+    return
+  }
+
+  const popoverEl = document.querySelector('.workspace-switcher-popover')
+  if (switcherRootRef.value?.contains(target) || popoverEl?.contains(target)) {
+    return
+  }
+
+  closeWorkspacePopover()
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleDocumentPointerDown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleDocumentPointerDown)
+})
 
 // 弹窗关闭后重置强制选择状态，避免下次从侧边栏打开时仍不可关闭
 watch(dialogVisible, (val) => {
@@ -292,5 +374,22 @@ defineExpose({
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 0;
+}
+
+:global(.workspace-switcher-popover.el-popper) {
+  max-width: calc(100vw - 32px) !important;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.18);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(var(--el-color-primary-rgb), 0.1), transparent 112px),
+    var(--app-shell-panel-bg);
+  box-shadow: 0 18px 42px rgba(2, 6, 23, 0.28);
+  backdrop-filter: blur(18px);
+}
+
+:global(.workspace-switcher-popover.el-popper.is-light) {
+  border-color: rgba(var(--el-color-primary-rgb), 0.18);
 }
 </style>

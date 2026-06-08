@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -11,13 +12,15 @@ import (
 
 // ApiInfo API信息结构
 type ApiInfo struct {
-	Code         string   `json:"code"`
-	Name         string   `json:"name"`
-	Desc         string   `json:"desc"`
-	Tags         []string `json:"tags"`
-	Router       string   `json:"router"`
-	Method       string   `json:"method"`
-	CreateTables []string `json:"create_tables"`
+	Code               string              `json:"code"`
+	Name               string              `json:"name"`
+	Desc               string              `json:"desc"`
+	Tags               []string            `json:"tags"`
+	Router             string              `json:"router"`
+	Method             string              `json:"method"`
+	CreateTables       []string            `json:"create_tables"`
+	Connectors         []string            `json:"connectors,omitempty"`
+	ConnectorEndpoints []ConnectorEndpoint `json:"connector_endpoints,omitempty"`
 
 	Schema         *functionschema.FunctionSchema `json:"schema"`
 	AddedVersion   string                         `json:"added_version"`   // API首次添加的版本
@@ -111,7 +114,7 @@ func (a *ApiInfo) GetPackageChain() []string {
 }
 
 // IsEqual 比较当前API与另一个API是否相等（排除版本信息）
-// 比较的字段包括：Name, Desc, Tags, CreateTables, TemplateType, Schema
+// 比较的字段包括：Name, Desc, Tags, CreateTables, Connectors, ConnectorEndpoints, TemplateType, Schema
 func (a *ApiInfo) IsEqual(other *ApiInfo) bool {
 	if other == nil {
 		return false
@@ -122,6 +125,8 @@ func (a *ApiInfo) IsEqual(other *ApiInfo) bool {
 		a.Desc != other.Desc ||
 		!equalStrings(a.Tags, other.Tags) ||
 		!equalStrings(a.CreateTables, other.CreateTables) ||
+		!equalStrings(a.Connectors, other.Connectors) ||
+		!reflect.DeepEqual(a.ConnectorEndpoints, other.ConnectorEndpoints) ||
 		a.TemplateType != other.TemplateType {
 		return false
 	}

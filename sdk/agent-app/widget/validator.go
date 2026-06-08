@@ -12,13 +12,14 @@ import (
 )
 
 type ValidateContext struct {
-	Field       *FieldTags
-	FieldCode   string
-	FieldName   string
-	GoType      reflect.Type
-	WidgetType  string
-	SiblingCode map[string]struct{}
-	Callbacks   map[string][]string
+	Field                  *FieldTags
+	FieldCode              string
+	FieldName              string
+	GoType                 reflect.Type
+	WidgetType             string
+	SiblingCode            map[string]struct{}
+	Callbacks              map[string][]string
+	EnforceAuditConvention bool
 }
 
 // WidgetValidator 是每个 widget 组件的启动期契约校验函数。
@@ -79,13 +80,23 @@ func validateWidgetValidatorRegistry() error {
 }
 
 func ValidateFieldTags(tags []*FieldTags, fieldsCallback map[string][]string) error {
+	return validateFieldTags(tags, fieldsCallback, validateFieldTagOptions{
+		enforceAuditConvention: true,
+	})
+}
+
+type validateFieldTagOptions struct {
+	enforceAuditConvention bool
+}
+
+func validateFieldTags(tags []*FieldTags, fieldsCallback map[string][]string, opts validateFieldTagOptions) error {
 	if len(tags) == 0 {
 		return nil
 	}
 	if err := ValidateWidgetValidatorRegistry(); err != nil {
 		return err
 	}
-	return validateFieldTagLevel(tags, fieldsCallback)
+	return validateFieldTagLevel(tags, fieldsCallback, opts)
 }
 
 func ValidateFieldCallbackTargets(tags []*FieldTags, fieldsCallback map[string][]string) error {
@@ -110,7 +121,7 @@ func ValidateFieldCallbackTargets(tags []*FieldTags, fieldsCallback map[string][
 	return errors.Join(errs...)
 }
 
-func validateFieldTagLevel(tags []*FieldTags, fieldsCallback map[string][]string) error {
+func validateFieldTagLevel(tags []*FieldTags, fieldsCallback map[string][]string, opts validateFieldTagOptions) error {
 	siblingCodes := make(map[string]struct{}, len(tags))
 	codeFields := make(map[string]string, len(tags))
 	var errs []error
@@ -132,19 +143,20 @@ func validateFieldTagLevel(tags []*FieldTags, fieldsCallback map[string][]string
 			continue
 		}
 		ctx := ValidateContext{
-			Field:       tags,
-			FieldCode:   tags.GetCode(),
-			FieldName:   tags.FieldName,
-			GoType:      tags.Type,
-			WidgetType:  strings.TrimSpace(tags.WidgetParsed["type"]),
-			SiblingCode: siblingCodes,
-			Callbacks:   fieldsCallback,
+			Field:                  tags,
+			FieldCode:              tags.GetCode(),
+			FieldName:              tags.FieldName,
+			GoType:                 tags.Type,
+			WidgetType:             strings.TrimSpace(tags.WidgetParsed["type"]),
+			SiblingCode:            siblingCodes,
+			Callbacks:              fieldsCallback,
+			EnforceAuditConvention: opts.enforceAuditConvention,
 		}
 		if err := validateFieldTag(ctx); err != nil {
 			errs = append(errs, err)
 		}
 		if len(tags.Children) > 0 {
-			if err := validateFieldTagLevel(tags.Children, fieldsCallback); err != nil {
+			if err := validateFieldTagLevel(tags.Children, fieldsCallback, opts); err != nil {
 				errs = append(errs, err)
 			}
 		}
@@ -154,8 +166,10 @@ func validateFieldTagLevel(tags []*FieldTags, fieldsCallback map[string][]string
 
 func validateFieldTag(ctx ValidateContext) error {
 	var errs []error
-	if err := validateAuditFieldConvention(ctx); err != nil {
-		errs = append(errs, err)
+	if ctx.EnforceAuditConvention {
+		if err := validateAuditFieldConvention(ctx); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	if ctx.WidgetType == "" {
 		if strings.TrimSpace(ctx.Field.Widget) != "" {
@@ -410,7 +424,7 @@ func buildAllowedWidgetTagKeysCache() map[string]map[string]struct{} {
 		TypeDepartment:  {renderDefaultTagKey},
 		TypeDepartments: {renderDefaultTagKey, "max_count"},
 		TypeID:          {},
-		TypeNumber:      {"placeholder", "min", "max", "step", renderDefaultTagKey, "unit"},
+		TypeInteger:     {"placeholder", "min", "max", "step", renderDefaultTagKey, "unit"},
 		TypeFloat:       {"placeholder", "min", "max", "precision", "step", renderDefaultTagKey, "unit"},
 		TypeFiles:       {"accept", "max_size", "max_count", "thumbnail", "list_preview"},
 		TypeCheckbox:    {"options", renderDefaultTagKey},

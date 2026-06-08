@@ -26,13 +26,13 @@
         },
         {
           "name": "单价",
-          "widget": "number",
+          "widget": "float",
           "required": true,
           "desc": "商品销售单价，单位元。"
         },
         {
           "name": "库存数量",
-          "widget": "number",
+          "widget": "integer",
           "required": true,
           "desc": "当前库存数量，必须为非负整数。"
         },
@@ -103,7 +103,7 @@
         },
         {
           "name": "账户余额",
-          "widget": "number",
+          "widget": "float",
           "required": true,
           "desc": "会员账户余额，单位元。"
         },
@@ -187,19 +187,19 @@
         },
         {
           "name": "商品总额",
-          "widget": "number",
+          "widget": "float",
           "required": true,
           "desc": "折扣前商品金额合计。"
         },
         {
           "name": "折扣金额",
-          "widget": "number",
+          "widget": "float",
           "required": true,
           "desc": "会员折扣产生的优惠金额。"
         },
         {
           "name": "实付金额",
-          "widget": "number",
+          "widget": "float",
           "required": true,
           "desc": "实际支付金额。"
         },
@@ -298,7 +298,7 @@
         },
         {
           "name": "实付金额",
-          "widget": "number",
+          "widget": "float",
           "required": false,
           "desc": "本次订单实际支付金额。"
         }

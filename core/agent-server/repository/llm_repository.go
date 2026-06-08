@@ -60,7 +60,18 @@ func (r *LLMRepository) List(scope string, currentUser string, offset, limit int
 	// 权限过滤：根据 scope 参数
 	if scope == "mine" {
 		// 我的：显示当前用户是管理员的资源（公开+私有）
-		query = query.Where("FIND_IN_SET(?, admin) > 0", currentUser)
+		if strings.TrimSpace(currentUser) == "" {
+			query = query.Where("1 = 0")
+		} else {
+			query = query.Where(
+				"created_by = ? OR REPLACE(admin, ' ', '') = ? OR REPLACE(admin, ' ', '') LIKE ? OR REPLACE(admin, ' ', '') LIKE ? OR REPLACE(admin, ' ', '') LIKE ?",
+				currentUser,
+				currentUser,
+				currentUser+",%",
+				"%,"+currentUser,
+				"%,"+currentUser+",%",
+			)
+		}
 	} else if scope == "market" {
 		// 市场：显示所有公开的资源
 		query = query.Where("visibility = ?", 0)

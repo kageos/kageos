@@ -32,6 +32,7 @@ import {
   readTablePageSizePreference,
   resolveTablePageSizeForRestore
 } from '../views/utils/tablePageSizePreference'
+import { hydrateTableSearchFuzzyDisplay } from '../views/utils/tableSearchFuzzyHydration'
 
 export interface UseTableInitializationOptions {
   functionDetail: FunctionDetail | { value: FunctionDetail }
@@ -95,6 +96,23 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
     }
   }
 
+  const hydrateSearchFormDisplay = async (): Promise<void> => {
+    const functionDetailValue = 'value' in functionDetail ? functionDetail.value : functionDetail
+    const currentState = stateManager.getState()
+    const hydratedSearchForm = await hydrateTableSearchFuzzyDisplay({
+      functionDetail: functionDetailValue,
+      searchForm: currentState.searchForm
+    })
+
+    if (hydratedSearchForm !== currentState.searchForm) {
+      const latestState = stateManager.getState()
+      stateManager.setState({
+        ...latestState,
+        searchForm: hydratedSearchForm
+      })
+    }
+  }
+
   /**
    * 检查路径是否匹配当前函数
    */
@@ -109,6 +127,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
    */
   const restoreFromURLAndSync = async (): Promise<void> => {
     const restoreResult = restoreFromURL()
+    await hydrateSearchFormDisplay()
     // 🔥 等待状态更新完成，确保 restoreFromURL 的状态已经应用到 stateManager
     // 注意：stateManager.setState() 是同步的，但 Vue 的响应式更新是异步的，需要一个 tick
     await nextTick()
@@ -211,6 +230,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       // - 如果 Tab 有保存的状态（searchForm 不为空），说明是 Tab 切换，使用 Tab 的状态，不从 URL 恢复
       // - 如果 Tab 没有保存的状态（searchForm 为空），且 URL 有参数，说明是 link 跳转，从 URL 恢复
       await decideRestoreStrategy(router || '')
+      await hydrateSearchFormDisplay()
       
       // 🔥 时机 1：预加载搜索表单中的用户信息
       // 此时 searchForm 已经包含了从 URL 解析出来的所有搜索条件（如 in=created_by:luobei）
@@ -276,6 +296,7 @@ export function useTableInitialization(options: UseTableInitializationOptions) {
       isRestoringFromURL.value = true
       try {
         const restoreResult = restoreFromURL()
+        await hydrateSearchFormDisplay()
         if (restoreResult.shouldSyncPageSizeToURL && !isSyncingToURL.value) {
           isSyncingToURL.value = true
           syncToURL()

@@ -14,7 +14,7 @@ type OrderItem struct {
 	ID       int     `json:"id" widget:"name:商品ID;type:ID"`
 	Name     string  `json:"name" widget:"name:商品名称;type:input"`
 	Price    float64 `json:"price" widget:"name:价格;type:float"`
-	Quantity int     `json:"quantity" widget:"name:数量;type:number"`
+	Quantity int     `json:"quantity" widget:"name:数量;type:integer"`
 }
 
 type OrderDetail struct {
@@ -70,7 +70,7 @@ type RenderDefaultFieldSample struct {
 
 type VoteOptionItemSample struct {
 	Content string `json:"content" widget:"name:选项内容;type:input"`
-	Sort    int    `json:"sort" widget:"name:排序;type:number"`
+	Sort    int    `json:"sort" widget:"name:排序;type:integer"`
 }
 
 type HideCreateTableFieldSample struct {
@@ -414,7 +414,7 @@ func TestDecodeTable(t *testing.T) {
 // 测试收银台结构体（用于验证 callback 标签在嵌套结构体中的解析）
 type CashierProductQuantity struct {
 	ProductID int `json:"product_id" widget:"name:商品;type:select" validate:"required" callback:"OnSelectFuzzy"`
-	Quantity  int `json:"quantity" widget:"name:数量;type:number" validate:"required,min=1"`
+	Quantity  int `json:"quantity" widget:"name:数量;type:integer" validate:"required,min=1"`
 }
 
 type CashierDeskReq struct {

@@ -202,6 +202,77 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
   })
 
+  it('opens a blank workstation draft when force_new is requested', async () => {
+    const { api, route, router } = createHarness()
+    route.path = '/workspace/user/app/a'
+
+    api.openNewMiniWs('session-a', '/user/app/a', 'A')
+
+    api.handleWorkspaceOpenWorkstation({
+      full_code_path: '/user/app/a',
+      directory_name: 'A',
+      force_new: true,
+      open_as_mini: true
+    })
+
+    await nextTick()
+
+    expect(api.miniWsList.value).toHaveLength(2)
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')).toMatchObject({
+      visible: false
+    })
+    expect(api.miniWsList.value.find(item => item.initialSessionId === '')).toMatchObject({
+      fullCodePath: '/user/app/a',
+      dirName: 'A',
+      initialExpanded: true,
+      initialMaximized: true,
+      visible: true
+    })
+    expect(router.replace).toHaveBeenLastCalledWith({
+      path: '/workspace/user/app/a',
+      query: {
+        _mws: 'open',
+        _mws_path: '/user/app/a',
+        _mws_name: 'A',
+        _mws_expanded: '1',
+        _mws_maximized: '1'
+      }
+    })
+  })
+
+  it('prefers the last real session over an ambient draft when reopening a directory', async () => {
+    const { api, route, router } = createHarness()
+    route.path = '/workspace/user/app/a'
+
+    api.openNewMiniWs('session-a', '/user/app/a', 'A')
+    api.handleMiniMinimize(api.miniWsList.value[0]!.id)
+    api.openAmbientMiniWs('/user/app/a', 'A')
+
+    api.handleWorkspaceOpenWorkstation({
+      full_code_path: '/user/app/a',
+      open_as_mini: true
+    })
+
+    await nextTick()
+
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')).toMatchObject({
+      initialExpanded: true,
+      initialMaximized: true,
+      visible: true
+    })
+    expect(router.replace).toHaveBeenLastCalledWith({
+      path: '/workspace/user/app/a',
+      query: {
+        _mws: 'open',
+        _mws_sid: 'session-a',
+        _mws_path: '/user/app/a',
+        _mws_name: 'A',
+        _mws_expanded: '1',
+        _mws_maximized: '1'
+      }
+    })
+  })
+
   it('allows an explicit maximized override when reopening an existing workstation', async () => {
     const { api, route, router } = createHarness()
     route.path = '/workspace/user/app/a'
@@ -250,11 +321,12 @@ describe('useWorkspaceMiniWorkstations', () => {
         _mws_path: '/user/app/a',
         _mws_name: 'A',
         _mws_expanded: '1',
-        _mws_maximized: '0'
+        _mws_maximized: '1'
       }
     })
     expect(api.miniWsList.value[0]).toMatchObject({
       initialExpanded: true,
+      initialMaximized: true,
       visible: true
     })
   })
@@ -364,6 +436,21 @@ describe('useWorkspaceMiniWorkstations', () => {
       initialExpanded: false,
       visible: false
     })
+    expect(router.replace).not.toHaveBeenCalled()
+  })
+
+  it('keeps the visible workstation open when the selected directory changes', () => {
+    const { api, router } = createHarness({ fullCodePath: '/user/app/a', dirName: 'A' })
+
+    api.openNewMiniWs('session-a', '/user/app/a', 'A')
+    api.openAmbientMiniWs('/user/app/b', 'B')
+
+    expect(api.miniWsList.value).toHaveLength(1)
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')).toMatchObject({
+      fullCodePath: '/user/app/a',
+      visible: true
+    })
+    expect(api.miniWsList.value.find(item => item.fullCodePath === '/user/app/b')).toBeUndefined()
     expect(router.replace).not.toHaveBeenCalled()
   })
 

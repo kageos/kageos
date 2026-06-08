@@ -9,13 +9,18 @@
     </div>
     <div class="mini-ws-file-card__info">
       <span class="mini-ws-file-card__name" :title="file.name">{{ file.name }}</span>
-      <div class="mini-ws-file-card__actions">
-        <el-button link size="small" type="primary" @click.stop="$emit('preview', file)">
-          <el-icon :size="compact ? 11 : 12"><View /></el-icon> 预览
-        </el-button>
-        <el-button link size="small" type="primary" @click.stop="$emit('download', file)">
-          <el-icon :size="compact ? 11 : 12"><Download /></el-icon> 下载
-        </el-button>
+      <div class="mini-ws-file-card__footer">
+        <span class="mini-ws-file-card__meta">
+          {{ sourceLabel }}<template v-if="extension"> · {{ extension }}</template>
+        </span>
+        <div class="mini-ws-file-card__actions">
+          <el-button link size="small" type="primary" @click.stop="$emit('preview', file)">
+            <el-icon :size="compact ? 11 : 12"><View /></el-icon> 预览
+          </el-button>
+          <el-button link size="small" type="primary" @click.stop="$emit('download', file)">
+            <el-icon :size="compact ? 11 : 12"><Download /></el-icon> 下载
+          </el-button>
+        </div>
       </div>
     </div>
   </div>
@@ -39,6 +44,7 @@ defineEmits<{
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'])
 
 const extension = computed(() => ((props.file.name || '').match(/\.(\w+)$/)?.[1] || '').toUpperCase())
+const sourceLabel = computed(() => props.file.source === 'upload' ? '上传文件' : '输出文件')
 const isImageFile = computed(() => {
   const ext = (props.file.name || '').toLowerCase().match(/\.\w+$/)?.[0] || ''
   return IMAGE_EXTS.has(ext)
@@ -48,6 +54,7 @@ const isImageFile = computed(() => {
 <style scoped>
 .mini-ws-file-card {
   display: flex;
+  align-items: flex-start;
   gap: 8px;
   padding: 8px;
   margin-bottom: 6px;
@@ -130,26 +137,46 @@ const isImageFile = computed(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: space-between;
+  align-self: stretch;
+  gap: 6px;
 }
 
 .mini-ws-file-card__name {
   font-size: 12px;
   color: var(--mini-cyber-text, #d8f8ff);
   overflow: hidden;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.4;
+}
+
+.mini-ws-file-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mini-ws-file-card__meta {
+  min-width: 0;
+  color: var(--mini-cyber-muted, rgba(184, 225, 235, 0.68));
+  font-size: 10px;
+  line-height: 1.2;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.4;
 }
 
 .mini-ws-file-card__actions {
   display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
-  margin-top: 4px;
-}
-
-.mini-ws-file-card--compact .mini-ws-file-card__actions {
-  margin-top: 2px;
 }
 
 .mini-ws-file-card--compact .mini-ws-file-card__actions :deep(.el-button) {
@@ -160,5 +187,13 @@ const isImageFile = computed(() => {
 }
 .mini-ws-file-card__actions :deep(.el-button:hover) {
   color: #ffffff;
+}
+
+@media (max-width: 520px) {
+  .mini-ws-file-card__footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
 }
 </style>
