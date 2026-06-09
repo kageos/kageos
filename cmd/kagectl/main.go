@@ -1066,8 +1066,8 @@ func cmdUp(paths Paths, args []string) error {
 		}
 	}
 
-	fmt.Println("[L2-L4] 启动应用服务栈")
-	if err := runCompose(rt.Paths.GeneratedDir, "up", "-d", "--no-build"); err != nil {
+	fmt.Println("[L2-L4] 启动/更新主应用服务")
+	if err := runCompose(rt.Paths.GeneratedDir, "up", "-d", "--no-build", "--force-recreate", "main"); err != nil {
 		return err
 	}
 	if opts.SkipVerify {
