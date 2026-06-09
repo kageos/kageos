@@ -55,6 +55,7 @@ Compose
 - 默认数据目录 `~/.kageos/storage/prod` 可写；也可以在 `.kageos/prod/kage.yaml` 中把 `storage.root` 改成其他绝对路径。
 - `main` 服务需要 `privileged: true`。
 - 宿主机 80 端口未被占用；如果启用容器内 HTTPS，443 端口也必须空闲。
+- bundled MinIO 默认只绑定宿主机 `127.0.0.1:9000`；生产用户 App 容器由 `main` 内的 Podman 以 host network 启动，因此 SDK/server 下载地址也使用 `127.0.0.1:9000`。
 
 ## 一分钟部署
 

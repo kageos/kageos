@@ -1481,7 +1481,7 @@ func appendSDKEndpointChecks(checks []layerCheck, rt RuntimeConfig) []layerCheck
 			Layer:  layerApps,
 			Name:   "sdk minio endpoint",
 			Target: rt.SDKMinIOEndpoint,
-			Fn:     func() error { return requireContains(rt.SDKMinIOEndpoint, "host.containers.internal") },
+			Fn:     func() error { return requireContains(rt.SDKMinIOEndpoint, "127.0.0.1") },
 		})
 	}
 	return checks
@@ -1973,7 +1973,7 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 	rt.SDKMinIOEndpoint = sdkMinIOEndpoint(cfg.MinIO.Endpoint)
 	if cfg.MinIO.Mode == "bundled" {
 		rt.MinIOEndpoint = "127.0.0.1:9000"
-		rt.SDKMinIOEndpoint = "host.containers.internal:9000"
+		rt.SDKMinIOEndpoint = "127.0.0.1:9000"
 	}
 	minioHost, minioPort, err := splitHostPortDefault(rt.MinIOEndpoint, 9000)
 	if err != nil {
@@ -1998,8 +1998,12 @@ func sdkMinIOEndpoint(endpoint string) string {
 	if err != nil {
 		return endpoint
 	}
+	// Production app containers are started by the nested Podman inside main.
+	// deploy/prod/Dockerfile sets containers.conf netns=host, so local MinIO is
+	// reachable on loopback. host.containers.internal resolves to a bridge
+	// gateway and cannot reach services bound to 127.0.0.1.
 	if isLocalHostForContainer(host) {
-		return net.JoinHostPort("host.containers.internal", strconv.Itoa(port))
+		return net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 	}
 	return endpoint
 }

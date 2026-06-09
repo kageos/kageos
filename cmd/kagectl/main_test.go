@@ -130,8 +130,8 @@ func TestRenderBundledConfig(t *testing.T) {
 	}
 
 	appStorageConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-storage.yaml"))
-	if !strings.Contains(appStorageConfig, `server_endpoint: "host.containers.internal:9000"`) {
-		t.Fatalf("generated app-storage config should include container MinIO endpoint, got:\n%s", appStorageConfig)
+	if !strings.Contains(appStorageConfig, `server_endpoint: "127.0.0.1:9000"`) {
+		t.Fatalf("generated app-storage config should include prod runtime MinIO endpoint, got:\n%s", appStorageConfig)
 	}
 
 	connectorServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "connector-server.yaml"))
@@ -467,11 +467,11 @@ func TestWorkspaceConfigRoundTrip(t *testing.T) {
 	}
 }
 
-func TestSDKMinIOEndpointUsesContainerHostForLocalEndpoints(t *testing.T) {
+func TestSDKMinIOEndpointUsesLoopbackForProdHostNetworkContainers(t *testing.T) {
 	t.Parallel()
 
-	for _, endpoint := range []string{"127.0.0.1:9000", "localhost:9000"} {
-		if got := sdkMinIOEndpoint(endpoint); got != "host.containers.internal:9000" {
+	for _, endpoint := range []string{"127.0.0.1:9000", "localhost:9000", "host.containers.internal:9000"} {
+		if got := sdkMinIOEndpoint(endpoint); got != "127.0.0.1:9000" {
 			t.Fatalf("sdkMinIOEndpoint(%q) = %q", endpoint, got)
 		}
 	}
