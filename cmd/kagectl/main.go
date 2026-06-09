@@ -30,11 +30,11 @@ import (
 var defaultCompanyCodePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 const (
-	defaultProdDir     = ".kageos/prod"
-	defaultConfigName  = "kage.yaml"
-	defaultGenerated   = "generated"
-	defaultDevConfig   = ".kageos/dev/config"
-	defaultStorageRoot = "/data/kageos"
+	defaultProdDir    = ".kageos/prod"
+	defaultConfigName = "kage.yaml"
+	defaultGenerated  = "generated"
+	defaultDevConfig  = ".kageos/dev/config"
+	composeEngineEnv  = "KAGEOS_COMPOSE_ENGINE"
 
 	defaultMainImage    = "localhost/kageos-main:latest"
 	defaultAppBaseImage = "kagebase:latest"
@@ -45,6 +45,31 @@ const (
 	defaultUpVerifyTimeout  = 5 * time.Minute
 	defaultUpVerifyInterval = 5 * time.Second
 )
+
+const defaultStorageRootFallback = "/data/kageos"
+
+var (
+	execLookPath = exec.LookPath
+	execRun      = func(name string, args ...string) error {
+		return exec.Command(name, args...).Run()
+	}
+	execOutput = func(name string, args ...string) (string, error) {
+		output, err := exec.Command(name, args...).CombinedOutput()
+		return string(output), err
+	}
+)
+
+func defaultStorageRoot() string {
+	home, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		return defaultStorageRootFallback
+	}
+	return defaultStorageRootForHome(home)
+}
+
+func defaultStorageRootForHome(home string) string {
+	return filepath.Join(home, ".kageos", "storage", "prod")
+}
 
 type Config struct {
 	Site       SiteConfig       `yaml:"site"`
@@ -686,6 +711,9 @@ Modes:
   prod is the default and writes .kageos/kageos.env KAGEOS_MODE=prod.
   init --dev writes .kageos/kageos.env KAGEOS_MODE=dev; later up/status/down/logs use that mode.
 
+Environment:
+  KAGEOS_COMPOSE_ENGINE=podman|docker forces the production compose engine.
+
 Compose remains the container execution engine; kagectl owns config rendering, orchestration, and diagnostics.`)
 }
 
@@ -1301,6 +1329,7 @@ func doctorLayerChecks(rt RuntimeConfig) []layerCheck {
 	checks := []layerCheck{
 		{Layer: layerControl, Name: "config validation", Target: rt.Paths.ConfigPath, Fn: func() error { return validateConfig(rt) }},
 		{Layer: layerControl, Name: "compose command", Target: "podman compose / docker compose", Fn: checkComposeCommand},
+		{Layer: layerControl, Name: "compose runtime", Target: "compose ls", Fn: checkComposeRuntime},
 		{Layer: layerControl, Name: "linux host", Target: runtime.GOOS, Fn: checkLinuxHost},
 		{Layer: layerInfra, Name: "storage root parent", Target: rt.Storage.Root, Fn: func() error { return checkStorageRoot(rt.Storage.Root) }},
 	}
@@ -1644,7 +1673,7 @@ func defaultConfig() (Config, error) {
 			NATS:    defaultNATSImage,
 			MinIO:   defaultMinIOImage,
 		},
-		Storage: StorageConfig{Root: defaultStorageRoot},
+		Storage: StorageConfig{Root: defaultStorageRoot()},
 		MySQL: MySQLConfig{
 			Mode:              "bundled",
 			Host:              "127.0.0.1",
@@ -1717,7 +1746,7 @@ func defaultDevDeploymentConfig(secrets devSecrets) Config {
 			NATS:    defaultNATSImage,
 			MinIO:   defaultMinIOImage,
 		},
-		Storage: StorageConfig{Root: defaultStorageRoot},
+		Storage: StorageConfig{Root: defaultStorageRoot()},
 		MySQL: MySQLConfig{
 			Mode:              "external",
 			Host:              "127.0.0.1",
@@ -1799,7 +1828,7 @@ func applyDefaults(cfg *Config) {
 		cfg.Images.MinIO = defaultMinIOImage
 	}
 	if cfg.Storage.Root == "" {
-		cfg.Storage.Root = defaultStorageRoot
+		cfg.Storage.Root = defaultStorageRoot()
 	}
 	if cfg.Company.Code == "" {
 		cfg.Company.Code = "default"
@@ -2649,17 +2678,32 @@ func mysqlIdent(v string) string {
 }
 
 func detectComposeCommand() ([]string, error) {
-	if _, err := exec.LookPath("podman"); err == nil {
-		if err := exec.Command("podman", "compose", "version").Run(); err == nil {
-			return []string{"podman", "compose"}, nil
-		}
+	if forced := strings.TrimSpace(os.Getenv(composeEngineEnv)); forced != "" {
+		return detectComposeCommandForEngine(forced)
 	}
-	if _, err := exec.LookPath("docker"); err == nil {
-		if err := exec.Command("docker", "compose", "version").Run(); err == nil {
-			return []string{"docker", "compose"}, nil
-		}
+	if compose, err := detectComposeCommandForEngine("podman"); err == nil {
+		return compose, nil
 	}
-	return nil, fmt.Errorf("podman compose or docker compose is required")
+	if compose, err := detectComposeCommandForEngine("docker"); err == nil {
+		return compose, nil
+	}
+	return nil, fmt.Errorf("podman compose or docker compose is required; set %s=podman or %s=docker to force one engine", composeEngineEnv, composeEngineEnv)
+}
+
+func detectComposeCommandForEngine(engine string) ([]string, error) {
+	engine = strings.TrimSpace(engine)
+	switch engine {
+	case "podman", "docker":
+	default:
+		return nil, fmt.Errorf("%s must be podman or docker, got %q", composeEngineEnv, engine)
+	}
+	if _, err := execLookPath(engine); err != nil {
+		return nil, fmt.Errorf("%s not found: %w", engine, err)
+	}
+	if err := execRun(engine, "compose", "version"); err != nil {
+		return nil, fmt.Errorf("%s compose is not available: %w", engine, err)
+	}
+	return []string{engine, "compose"}, nil
 }
 
 func checkComposeCommand() error {
@@ -2672,10 +2716,88 @@ func checkDevComposeCommand(engine string) error {
 	if engine == "auto" {
 		return checkComposeCommand()
 	}
-	if _, err := exec.LookPath(engine); err != nil {
+	_, err := detectComposeCommandForEngine(engine)
+	return err
+}
+
+func checkComposeRuntime() error {
+	compose, err := detectComposeCommand()
+	if err != nil {
 		return err
 	}
-	return exec.Command(engine, "compose", "version").Run()
+	_, err = checkComposeRuntimeForCommand(compose)
+	return err
+}
+
+func checkComposeRuntimeForCommand(compose []string) (string, error) {
+	if len(compose) == 0 {
+		return "", fmt.Errorf("compose command is empty")
+	}
+	engine := compose[0]
+	args := append(append([]string{}, compose[1:]...), "ls")
+	output, err := execOutput(engine, args...)
+	if err == nil {
+		return strings.Join(compose, " "), nil
+	}
+	if isComposeListUnsupported(output) {
+		if infoErr := execRun(engine, "info"); infoErr == nil {
+			return strings.Join(compose, " "), nil
+		} else {
+			return "", formatComposeRuntimeError(engine, output, infoErr)
+		}
+	}
+	return "", formatComposeRuntimeError(engine, output, err)
+}
+
+func isComposeListUnsupported(output string) bool {
+	normalized := strings.ToLower(output)
+	return strings.Contains(normalized, "unknown command") ||
+		strings.Contains(normalized, "no such command") ||
+		strings.Contains(normalized, "unrecognized command") ||
+		strings.Contains(normalized, "invalid choice")
+}
+
+func formatComposeRuntimeError(engine, output string, err error) error {
+	message := strings.TrimSpace(output)
+	if message != "" {
+		return fmt.Errorf("compose runtime is not ready for %s: %w; output: %s; %s", engine, err, oneLine(message), composeRuntimeHint(engine))
+	}
+	return fmt.Errorf("compose runtime is not ready for %s: %w; %s", engine, err, composeRuntimeHint(engine))
+}
+
+func composeRuntimeHint(engine string) string {
+	switch engine {
+	case "podman":
+		return fmt.Sprintf("for rootless Podman run `systemctl --user enable --now podman.socket` and `sudo loginctl enable-linger %s`; expected socket: %s; use `%s=docker` to force Docker", currentUserName(), podmanSocketPath(), composeEngineEnv)
+	case "docker":
+		if host := strings.TrimSpace(os.Getenv("DOCKER_HOST")); host != "" {
+			return fmt.Sprintf("Docker is using DOCKER_HOST=%s; start that daemon/socket or use `%s=podman` to force Podman", host, composeEngineEnv)
+		}
+		return fmt.Sprintf("start the Docker daemon or use `%s=podman` to force Podman", composeEngineEnv)
+	default:
+		return fmt.Sprintf("check container engine daemon/socket or set `%s=podman|docker`", composeEngineEnv)
+	}
+}
+
+func currentUserName() string {
+	if user := strings.TrimSpace(os.Getenv("USER")); user != "" {
+		return user
+	}
+	return strconv.Itoa(os.Getuid())
+}
+
+func podmanSocketPath() string {
+	if host := strings.TrimSpace(os.Getenv("DOCKER_HOST")); strings.HasPrefix(host, "unix://") {
+		return strings.TrimPrefix(host, "unix://")
+	}
+	if runtimeDir := strings.TrimSpace(os.Getenv("XDG_RUNTIME_DIR")); runtimeDir != "" {
+		return filepath.Join(runtimeDir, "podman", "podman.sock")
+	}
+	return filepath.Join("/run", "user", strconv.Itoa(os.Getuid()), "podman", "podman.sock")
+}
+
+func oneLine(value string) string {
+	return strings.Join(strings.Fields(value), " ")
 }
 
 func runCompose(workDir string, args ...string) error {

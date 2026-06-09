@@ -6,7 +6,7 @@
 
 - Linux
 - 已安装 `podman compose` 或 `docker compose`
-- `/data` 可写
+- 默认数据目录 `~/.kageos/storage/prod` 可写，或在 `.kageos/prod/kage.yaml` 中配置其他可写的绝对路径
 - `80` 端口空闲；如果容器自己做 HTTPS，`443` 也要空闲
 
 ## 最短路径
@@ -80,7 +80,7 @@ go run ./cmd/kagectl uninstall
 go run ./cmd/kagectl uninstall --purge-data --force
 ```
 
-`down` 只停服务；`uninstall` 会移除 Compose 栈和可再生的 `.kageos/prod/generated/`。来回测试想清数据库/对象存储/业务数据但不重建用户应用基础镜像，用 `--purge-data --force`，它默认保留 `/data/kageos/podman_storage`。
+`down` 只停服务；`uninstall` 会移除 Compose 栈和可再生的 `.kageos/prod/generated/`。来回测试想清数据库/对象存储/业务数据但不重建用户应用基础镜像，用 `--purge-data --force`，它默认保留 `<storage.root>/podman_storage`。
 
 ## 生成物
 

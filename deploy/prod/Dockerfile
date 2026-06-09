@@ -19,11 +19,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=1 GOOS=linux go build \
+RUN GOCACHE=/tmp/go-build CGO_ENABLED=1 GOOS=linux go build \
     -tags "exclude_graphdriver_btrfs" \
     -ldflags="-s -w" \
     -o /out/core-server \
-    ./core/cmd/main/main.go
+    ./core/cmd/main/main.go \
+    && rm -rf /tmp/go-build /root/.cache/go-build
 
 # ========== Web 静态 ==========
 FROM docker.io/library/node:20-bookworm AS webbuilder
