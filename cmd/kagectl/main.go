@@ -1026,6 +1026,20 @@ func cmdUp(paths Paths, args []string) error {
 		return err
 	}
 
+	if infraServices := composeServicesForLayer(rt, layerInfra); len(infraServices) > 0 {
+		fmt.Printf("[L1 基础设施层] 启动基础设施服务: %s\n", strings.Join(infraServices, ", "))
+		args := append([]string{"up", "-d", "--no-build"}, infraServices...)
+		if err := runCompose(rt.Paths.GeneratedDir, args...); err != nil {
+			return err
+		}
+	}
+	if checks := startupDependencyChecks(rt); len(checks) > 0 {
+		fmt.Printf("[L1 基础设施层] 等待基础设施可用（timeout %s）\n", opts.VerifyTimeout)
+		if err := waitLayerChecks("startup dependencies", checks, opts.VerifyTimeout, defaultUpVerifyInterval); err != nil {
+			return err
+		}
+	}
+
 	switch {
 	case opts.UseImage:
 		fmt.Println("[L3 平台服务层] 拉取主镜像")
@@ -1044,20 +1058,6 @@ func cmdUp(paths Paths, args []string) error {
 	fmt.Println("[L4 运行时管理层] 准备用户应用基础镜像")
 	if err := runCompose(rt.Paths.GeneratedDir, "run", "--rm", "--no-deps", "-e", "KAGEOS_APP_BASE_ACTION=ensure", "-e", "KAGEOS_APP_BASE_BUILD_NO_CACHE=0", "--entrypoint", "/app/entrypoint-app-base.sh", "main"); err != nil {
 		return err
-	}
-
-	if infraServices := composeServicesForLayer(rt, layerInfra); len(infraServices) > 0 {
-		fmt.Printf("[L1 基础设施层] 启动基础设施服务: %s\n", strings.Join(infraServices, ", "))
-		args := append([]string{"up", "-d", "--no-build"}, infraServices...)
-		if err := runCompose(rt.Paths.GeneratedDir, args...); err != nil {
-			return err
-		}
-	}
-	if checks := startupDependencyChecks(rt); len(checks) > 0 {
-		fmt.Printf("[L1 基础设施层] 等待基础设施可用（timeout %s）\n", opts.VerifyTimeout)
-		if err := waitLayerChecks("startup dependencies", checks, opts.VerifyTimeout, defaultUpVerifyInterval); err != nil {
-			return err
-		}
 	}
 
 	fmt.Println("[L2-L4] 启动应用服务栈")
