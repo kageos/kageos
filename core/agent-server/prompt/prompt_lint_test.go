@@ -77,10 +77,8 @@ func TestPromptAndSeedDoNotExposeRetiredPlatformCapabilities(t *testing.T) {
 		"quick_link",
 		"config_management",
 	}
-	for _, seedPath := range []string{
-		"../../app-server/system-seed/system/openapi/平台接口.capability-bundle.json",
-		"../../app-server/system-seed/system/tools/工具库.capability-bundle.json",
-	} {
+	seedPaths := collectSeedBundlePaths(t)
+	for _, seedPath := range seedPaths {
 		data, err := os.ReadFile(seedPath)
 		if err != nil {
 			t.Fatalf("read seed bundle %s: %v", seedPath, err)
@@ -114,6 +112,31 @@ func TestPromptAndSeedDoNotExposeRetiredPlatformCapabilities(t *testing.T) {
 			}
 		}
 	})
+}
+
+func collectSeedBundlePaths(t *testing.T) []string {
+	t.Helper()
+
+	seedRoot := "../../app-server/system-seed/system"
+	var seedPaths []string
+	if err := filepath.WalkDir(seedRoot, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(entry.Name(), ".capability-bundle.json") {
+			seedPaths = append(seedPaths, path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("walk seed bundles: %v", err)
+	}
+	if len(seedPaths) == 0 {
+		t.Fatalf("no seed capability bundles found under %s", seedRoot)
+	}
+	return seedPaths
 }
 
 func TestPromptMarkdownDoesNotUseRouteSuffixAsGoFileName(t *testing.T) {

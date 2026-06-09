@@ -739,6 +739,134 @@ func TestParseOutputFlags(t *testing.T) {
 	}
 }
 
+func TestDefaultStorageRootUsesUserHome(t *testing.T) {
+	t.Parallel()
+
+	got := defaultStorageRootForHome("/home/ubuntu")
+	want := filepath.Join("/home/ubuntu", ".kageos", "storage", "prod")
+	if got != want {
+		t.Fatalf("defaultStorageRootForHome() = %q, want %q", got, want)
+	}
+}
+
+func TestDetectComposeCommandHonorsForcedEngine(t *testing.T) {
+	t.Setenv(composeEngineEnv, "docker")
+	restoreExecMocks := mockExecForComposeTests(t)
+	defer restoreExecMocks()
+
+	execLookPath = func(file string) (string, error) {
+		if file == "docker" {
+			return "/usr/bin/docker", nil
+		}
+		return "", errors.New("not found")
+	}
+	execRun = func(name string, args ...string) error {
+		if name == "docker" && strings.Join(args, " ") == "compose version" {
+			return nil
+		}
+		t.Fatalf("unexpected command: %s %s", name, strings.Join(args, " "))
+		return nil
+	}
+
+	compose, err := detectComposeCommand()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(compose, " ") != "docker compose" {
+		t.Fatalf("compose command = %v, want docker compose", compose)
+	}
+}
+
+func TestCheckComposeRuntimeReportsPodmanSocketHint(t *testing.T) {
+	t.Setenv("USER", "ubuntu")
+	t.Setenv("XDG_RUNTIME_DIR", "/run/user/1000")
+	t.Setenv("DOCKER_HOST", "")
+	restoreExecMocks := mockExecForComposeTests(t)
+	defer restoreExecMocks()
+
+	execLookPath = func(file string) (string, error) {
+		if file == "podman" {
+			return "/usr/bin/podman", nil
+		}
+		return "", errors.New("not found")
+	}
+	execRun = func(name string, args ...string) error {
+		if name == "podman" && strings.Join(args, " ") == "compose version" {
+			return nil
+		}
+		t.Fatalf("unexpected command: %s %s", name, strings.Join(args, " "))
+		return nil
+	}
+	execOutput = func(name string, args ...string) (string, error) {
+		if name == "podman" && strings.Join(args, " ") == "compose ls" {
+			return "failed to connect to the docker API at unix:///run/user/1000/podman/podman.sock", errors.New("exit status 1")
+		}
+		t.Fatalf("unexpected output command: %s %s", name, strings.Join(args, " "))
+		return "", nil
+	}
+
+	err := checkComposeRuntime()
+	if err == nil {
+		t.Fatal("expected compose runtime check to fail")
+	}
+	for _, want := range []string{
+		"podman.socket",
+		"loginctl enable-linger ubuntu",
+		"/run/user/1000/podman/podman.sock",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("compose runtime error missing %q: %v", want, err)
+		}
+	}
+}
+
+func TestCheckComposeRuntimeFallsBackToEngineInfoWhenComposeLsUnsupported(t *testing.T) {
+	restoreExecMocks := mockExecForComposeTests(t)
+	defer restoreExecMocks()
+
+	execLookPath = func(file string) (string, error) {
+		if file == "podman" {
+			return "/usr/bin/podman", nil
+		}
+		return "", errors.New("not found")
+	}
+	execRun = func(name string, args ...string) error {
+		if name != "podman" {
+			t.Fatalf("unexpected command name: %s", name)
+		}
+		switch strings.Join(args, " ") {
+		case "compose version", "info":
+			return nil
+		default:
+			t.Fatalf("unexpected command args: %s", strings.Join(args, " "))
+			return nil
+		}
+	}
+	execOutput = func(name string, args ...string) (string, error) {
+		if name == "podman" && strings.Join(args, " ") == "compose ls" {
+			return "unknown command \"ls\"", errors.New("exit status 1")
+		}
+		t.Fatalf("unexpected output command: %s %s", name, strings.Join(args, " "))
+		return "", nil
+	}
+
+	if err := checkComposeRuntime(); err != nil {
+		t.Fatalf("compose runtime should fall back to podman info: %v", err)
+	}
+}
+
+func mockExecForComposeTests(t *testing.T) func() {
+	t.Helper()
+	oldLookPath := execLookPath
+	oldRun := execRun
+	oldOutput := execOutput
+	return func() {
+		execLookPath = oldLookPath
+		execRun = oldRun
+		execOutput = oldOutput
+	}
+}
+
 func TestParseUpFlags(t *testing.T) {
 	t.Parallel()
 

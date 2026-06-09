@@ -49,7 +49,7 @@ Compose
 
 - Linux 宿主机。
 - 已安装 `podman compose` 或 `docker compose`。
-- `/data` 可写；`kagectl up` 会创建 `/data/kageos`。
+- 默认数据目录 `~/.kageos/storage/prod` 可写；也可以在 `.kageos/prod/kage.yaml` 中把 `storage.root` 改成其他绝对路径。
 - `main` 服务需要 `privileged: true`。
 - 宿主机 80 端口未被占用；如果启用容器内 HTTPS，443 端口也必须空闲。
 
@@ -133,18 +133,18 @@ tail -f .kageos/prod/kagectl-up.log
 
 ## 持久卷
 
-生产环境统一使用 `/data/kageos` 宿主机固定目录挂载。
+生产环境默认使用当前部署用户家目录下的 `~/.kageos/storage/prod` 作为宿主机持久化根目录。若使用独立数据盘，可在 `.kageos/prod/kage.yaml` 中把 `storage.root` 改为 `/srv/kageos`、`/data/kageos` 等由部署用户可写的绝对路径。
 
 | 宿主机目录 | 容器挂载点 | 用途 |
 |------|--------|------|
-| `/data/kageos/mysql` | `/var/lib/mysql` | MySQL 数据目录 |
-| `/data/kageos/minio` | `/data` | MinIO 数据目录 |
-| `/data/kageos/namespace` | `/app/namespace` | 用户应用空间 |
-| `/data/kageos/data` | `/app/data` | 应用侧本地数据目录 |
-| `/data/kageos/logs` | `/app/logs` | 平台日志 |
-| `/data/kageos/podman_storage` | `/var/lib/containers` | 容器内 Podman 存储 |
+| `<storage.root>/mysql` | `/var/lib/mysql` | MySQL 数据目录 |
+| `<storage.root>/minio` | `/data` | MinIO 数据目录 |
+| `<storage.root>/namespace` | `/app/namespace` | 用户应用空间 |
+| `<storage.root>/data` | `/app/data` | 应用侧本地数据目录 |
+| `<storage.root>/logs` | `/app/logs` | 平台日志 |
+| `<storage.root>/podman_storage` | `/var/lib/containers` | 容器内 Podman 存储 |
 
-备份时直接备份 `/data/kageos` 下对应目录。不要对该目录做未经验证的清理。
+备份时直接备份 `storage.root` 下对应目录。不要对该目录做未经验证的清理。
 
 ## 文件说明
 
