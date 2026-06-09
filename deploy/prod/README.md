@@ -39,11 +39,14 @@ flowchart TD
 ```text
 Compose
   ├─ mysql / nats / minio（bundled 时启用）
+  ├─ app-base-builder（profile: build，一次性构建 kagebase）
   └─ main 容器（network_mode: host）
        ├─ Nginx :80 / :443
        ├─ core-server
        └─ Podman API
 ```
+
+`kagectl up` 的启动顺序是：生成配置 -> 启动并等待基础设施 -> 运行 `app-base-builder` 准备 `kagebase` -> 最后构建/拉取并启动 `main`。
 
 ## 前置条件
 

@@ -54,6 +54,21 @@ services:
     networks: [aos]
 {{- end }}
 
+  app-base-builder:
+    profiles: ["build"]
+    build:
+      context: ../../..
+      dockerfile: deploy/prod/app-base-builder.Dockerfile
+    image: {{ q .AppBaseBuilderImage }}
+    network_mode: host
+    privileged: true
+    environment:
+      KAGEOS_APP_BASE_IMAGE: {{ q .Images.AppBase }}
+      KAGEOS_APP_BASE_ACTION: "ensure"
+      KAGEOS_APP_BASE_BUILD_NO_CACHE: "0"
+    volumes:
+      - {{ .Storage.Root }}/podman_storage:/var/lib/containers
+
   main:
     build:
       context: ../../..
