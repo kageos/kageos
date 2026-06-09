@@ -36,11 +36,12 @@ const (
 	defaultDevConfig  = ".kageos/dev/config"
 	composeEngineEnv  = "KAGEOS_COMPOSE_ENGINE"
 
-	defaultMainImage    = "localhost/kageos-main:latest"
-	defaultAppBaseImage = "kagebase:latest"
-	defaultMySQLImage   = "docker.io/library/mysql:8.0"
-	defaultNATSImage    = "docker.io/library/nats:2.10-alpine"
-	defaultMinIOImage   = "docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
+	defaultMainImage           = "localhost/kageos-main:latest"
+	defaultAppBaseBuilderImage = "localhost/kageos-app-base-builder:latest"
+	defaultAppBaseImage        = "kagebase:latest"
+	defaultMySQLImage          = "docker.io/library/mysql:8.0"
+	defaultNATSImage           = "docker.io/library/nats:2.10-alpine"
+	defaultMinIOImage          = "docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
 
 	defaultUpVerifyTimeout  = 5 * time.Minute
 	defaultUpVerifyInterval = 5 * time.Second
@@ -204,29 +205,30 @@ type Paths struct {
 
 type RuntimeConfig struct {
 	Config
-	Paths             Paths
-	MySQLHostForMain  string
-	MySQLPortForMain  int
-	NATSHostForMain   string
-	NATSPortForMain   int
-	MinIOHostForMain  string
-	MinIOPortForMain  int
-	MySQLAddress      string
-	NATSURL           string
-	SDKNATSURL        string
-	SDKGatewayURL     string
-	MinIOEndpoint     string
-	SDKMinIOEndpoint  string
-	TLSCertsHostDir   string
-	IncludeMySQL      bool
-	IncludeNATS       bool
-	IncludeMinIO      bool
-	NATSAuthUser      string
-	NATSAuthPassword  string
-	ComposeConfigPath string
-	LLMSeedEnvVars    []string
-	EnvFilePath       string
-	SummaryPath       string
+	Paths               Paths
+	MySQLHostForMain    string
+	MySQLPortForMain    int
+	NATSHostForMain     string
+	NATSPortForMain     int
+	MinIOHostForMain    string
+	MinIOPortForMain    int
+	MySQLAddress        string
+	NATSURL             string
+	SDKNATSURL          string
+	SDKGatewayURL       string
+	MinIOEndpoint       string
+	SDKMinIOEndpoint    string
+	TLSCertsHostDir     string
+	IncludeMySQL        bool
+	IncludeNATS         bool
+	IncludeMinIO        bool
+	NATSAuthUser        string
+	NATSAuthPassword    string
+	ComposeConfigPath   string
+	AppBaseBuilderImage string
+	LLMSeedEnvVars      []string
+	EnvFilePath         string
+	SummaryPath         string
 }
 
 func main() {
@@ -1040,6 +1042,15 @@ func cmdUp(paths Paths, args []string) error {
 		}
 	}
 
+	fmt.Println("[L4 运行时管理层] 构建用户应用基础镜像工具")
+	if err := runCompose(rt.Paths.GeneratedDir, "build", "app-base-builder"); err != nil {
+		return err
+	}
+	fmt.Println("[L4 运行时管理层] 准备用户应用基础镜像")
+	if err := runCompose(rt.Paths.GeneratedDir, "run", "--rm", "--no-deps", "app-base-builder"); err != nil {
+		return err
+	}
+
 	switch {
 	case opts.UseImage:
 		fmt.Println("[L3 平台服务层] 拉取主镜像")
@@ -1053,11 +1064,6 @@ func cmdUp(paths Paths, args []string) error {
 		if err := runCompose(rt.Paths.GeneratedDir, "build", "main"); err != nil {
 			return err
 		}
-	}
-
-	fmt.Println("[L4 运行时管理层] 准备用户应用基础镜像")
-	if err := runCompose(rt.Paths.GeneratedDir, "run", "--rm", "--no-deps", "-e", "KAGEOS_APP_BASE_ACTION=ensure", "-e", "KAGEOS_APP_BASE_BUILD_NO_CACHE=0", "--entrypoint", "/app/entrypoint-app-base.sh", "main"); err != nil {
-		return err
 	}
 
 	fmt.Println("[L2-L4] 启动应用服务栈")
@@ -1940,11 +1946,12 @@ func applyEnvOverrides(cfg *Config) {
 
 func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 	rt := RuntimeConfig{
-		Config:       cfg,
-		Paths:        paths,
-		IncludeMySQL: cfg.MySQL.Mode == "bundled",
-		IncludeNATS:  cfg.NATS.Mode == "bundled",
-		IncludeMinIO: cfg.MinIO.Mode == "bundled",
+		Config:              cfg,
+		Paths:               paths,
+		IncludeMySQL:        cfg.MySQL.Mode == "bundled",
+		IncludeNATS:         cfg.NATS.Mode == "bundled",
+		IncludeMinIO:        cfg.MinIO.Mode == "bundled",
+		AppBaseBuilderImage: defaultAppBaseBuilderImage,
 	}
 
 	rt.TLSCertsHostDir = filepath.Join(paths.GeneratedDir, "tls")

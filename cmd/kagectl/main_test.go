@@ -63,6 +63,11 @@ func TestRenderBundledConfig(t *testing.T) {
 		`SYSTEM_USER_PASSWORD: "` + cfg.SystemUser.Password + `"`,
 		`SMTP_MODE: "smtp"`,
 		`OPENAI_API_KEY: "${OPENAI_API_KEY:-}"`,
+		`app-base-builder:`,
+		`profiles: ["build"]`,
+		`dockerfile: deploy/prod/app-base-builder.Dockerfile`,
+		`image: "localhost/kageos-app-base-builder:latest"`,
+		`KAGEOS_APP_BASE_IMAGE: "kagebase:latest"`,
 	} {
 		if !strings.Contains(compose, want) {
 			t.Fatalf("generated compose missing %q", want)
