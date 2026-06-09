@@ -84,9 +84,8 @@ COPY --from=gobuilder /src/dto/ /app/dto/
 COPY --from=gobuilder /src/core/ /app/core/
 COPY --from=gobuilder /go/pkg/mod /go/pkg/mod
 
-# 共享 canonical 资源：用户应用运行时基础镜像
-COPY deploy/base/images/app-base/Dockerfile /app/app-base/Dockerfile
-COPY deploy/base/images/app-base/start.sh /app/app-base/start.sh
+# 共享 canonical 资源：用户应用运行时基础镜像构建上下文
+COPY deploy/base/images/app-base/ /app/app-base/
 
 # prod 专属资源：配置模板、healthcheck、Nginx、entrypoint
 COPY deploy/prod/config/template/ /app/config.prod.template/
