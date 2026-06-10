@@ -188,6 +188,7 @@ CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.StorageDatabase }} CHARACTER 
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.AgentDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.ConnectorDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.HRDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.TimerDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 `
 
 const globalConfigTemplate = `
@@ -263,9 +264,46 @@ routes:
     targets:
       - url: "http://127.0.0.1:9096"
     timeout: 300
+  - path: "/timer"
+    service_name: "timer"
+    targets:
+      - url: "http://127.0.0.1:9098"
+    timeout: 300
 
 timeouts:
   default: 300
+`
+
+const timerSchedulerConfigTemplate = `
+server:
+  port: 9098
+  listen_host: "127.0.0.1"
+  log_level: "info"
+  debug: false
+  enable_pprof: false
+
+db:
+  type: "mysql"
+  host: {{ q .MySQLHostForMain }}
+  port: {{ .MySQLPortForMain }}
+  user: {{ q .MySQL.User }}
+  password: {{ q .MySQL.Password }}
+  name: {{ q .MySQL.TimerDatabase }}
+  max_idle_conns: 10
+  max_open_conns: 100
+  max_lifetime: 300
+  log_level: "warn"
+  slow_threshold: 200
+
+scheduler:
+  poll_interval_millis: 1000
+  batch_size: 50
+  dispatch_lease_seconds: 30
+  execution_lease_seconds: 3600
+  queue_ack_timeout_seconds: 120
+  max_dispatch_attempts: 3
+  max_outbox_attempts: 8
+  payload_limit_bytes: 262144
 `
 
 const appRuntimeConfigTemplate = `

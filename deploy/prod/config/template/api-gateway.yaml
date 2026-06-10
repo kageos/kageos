@@ -44,5 +44,11 @@ routes:
       - url: "http://127.0.0.1:9096"
     timeout: 300
 
+  - path: "/timer"
+    service_name: "timer"
+    targets:
+      - url: "http://127.0.0.1:9098"
+    timeout: 300
+
 timeouts:
   default: 300

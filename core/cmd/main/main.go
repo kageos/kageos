@@ -16,6 +16,7 @@ import (
 	appStorageRunner "github.com/kageos/kageos/core/app-storage/runner"
 	connectorServerRunner "github.com/kageos/kageos/core/connector-server/runner"
 	hrServerRunner "github.com/kageos/kageos/core/hr-server/runner"
+	timerSchedulerRunner "github.com/kageos/kageos/core/timer-scheduler/runner"
 
 	"github.com/kageos/kageos/pkg/infra"
 	"github.com/kageos/kageos/pkg/logger"
@@ -82,7 +83,15 @@ func init() {
 		ReadyChannel: make(chan struct{}, 1),
 	})
 
-	// 6. App Server（应用服务，依赖 app-runtime）
+	// 6. Timer Scheduler（定时调度服务，独立平台服务）
+	services = append(services, &ServiceInfo{
+		Name:         "timer-scheduler",
+		Main:         timerSchedulerRunner.Main,
+		DependsOn:    nil,
+		ReadyChannel: make(chan struct{}, 1),
+	})
+
+	// 7. App Server（应用服务，依赖 app-runtime）
 	services = append(services, &ServiceInfo{
 		Name:         "app-server",
 		Main:         appServerRunner.Main,
@@ -96,10 +105,11 @@ func init() {
 		"hr-server",
 		"agent-server",
 		"connector-server",
+		"timer-scheduler",
 		"app-server",
 	}
 
-	// 7. API Gateway（API 网关，最后启动，因为依赖其他服务）
+	// 8. API Gateway（API 网关，最后启动，因为依赖其他服务）
 	services = append(services, &ServiceInfo{
 		Name:         "api-gateway",
 		Main:         apiGatewayRunner.Main,

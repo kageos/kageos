@@ -119,6 +119,7 @@ type MySQLConfig struct {
 	ConnectorDatabase string `yaml:"connector_database"`
 	StorageDatabase   string `yaml:"storage_database"`
 	HRDatabase        string `yaml:"hr_database"`
+	TimerDatabase     string `yaml:"timer_database"`
 	CreateBundledSQL  bool   `yaml:"create_bundled_sql"`
 }
 
@@ -1691,6 +1692,7 @@ func defaultConfig() (Config, error) {
 			ConnectorDatabase: "connector-server",
 			StorageDatabase:   "app-storage",
 			HRDatabase:        "hr-server",
+			TimerDatabase:     "timer-scheduler",
 			CreateBundledSQL:  true,
 		},
 		NATS: NATSConfig{
@@ -1764,6 +1766,7 @@ func defaultDevDeploymentConfig(secrets devSecrets) Config {
 			ConnectorDatabase: "connector-server",
 			StorageDatabase:   "app-storage",
 			HRDatabase:        "hr-server",
+			TimerDatabase:     "timer-scheduler",
 			CreateBundledSQL:  true,
 		},
 		NATS: NATSConfig{
@@ -1869,6 +1872,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.MySQL.HRDatabase == "" {
 		cfg.MySQL.HRDatabase = "hr-server"
+	}
+	if cfg.MySQL.TimerDatabase == "" {
+		cfg.MySQL.TimerDatabase = "timer-scheduler"
 	}
 	if cfg.NATS.Mode == "" {
 		cfg.NATS.Mode = "bundled"
@@ -2243,6 +2249,7 @@ func renderAll(rt RuntimeConfig) error {
 		"infra/mysql-init.sql":         renderTemplate(mysqlInitTemplate, rt),
 		"config/global.yaml":           renderTemplate(globalConfigTemplate, rt),
 		"config/api-gateway.yaml":      renderTemplate(apiGatewayConfigTemplate, rt),
+		"config/timer-scheduler.yaml":  renderTemplate(timerSchedulerConfigTemplate, rt),
 		"config/app-runtime.yaml":      renderTemplate(appRuntimeConfigTemplate, rt),
 		"config/app-server.yaml":       renderTemplate(appServerConfigTemplate, rt),
 		"config/app-storage.yaml":      renderTemplate(appStorageConfigTemplate, rt),
@@ -2303,6 +2310,7 @@ func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, company
 	files := map[string]string{
 		"global.yaml":           renderTemplate(globalConfigTemplate, rt),
 		"api-gateway.yaml":      renderTemplate(apiGatewayConfigTemplate, rt),
+		"timer-scheduler.yaml":  renderTemplate(timerSchedulerConfigTemplate, rt),
 		"app-runtime.yaml":      renderTemplate(appRuntimeConfigTemplate, rt),
 		"app-server.yaml":       renderTemplate(appServerConfigTemplate, rt),
 		"app-storage.yaml":      renderTemplate(appStorageConfigTemplate, rt),
@@ -2986,6 +2994,7 @@ func requiredMySQLDatabases(rt RuntimeConfig) []string {
 		rt.MySQL.AgentDatabase,
 		rt.MySQL.ConnectorDatabase,
 		rt.MySQL.HRDatabase,
+		rt.MySQL.TimerDatabase,
 	})
 }
 
