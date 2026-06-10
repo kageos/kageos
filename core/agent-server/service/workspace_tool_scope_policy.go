@@ -112,6 +112,7 @@ func workspaceTargetAppScopeGateResult(toolName string, args map[string]interfac
 func workspaceToolRequiresTargetAppDirectory(roleID string, toolName string) bool {
 	switch normalizeWorkspaceToolName(toolName) {
 	case "write_go_file",
+		"write_doc",
 		"search_replace_file",
 		"delete_file",
 		"build_workspace",
@@ -131,7 +132,7 @@ func workspaceToolRequiresTargetAppDirectory(roleID string, toolName string) boo
 
 func workspaceToolDefaultsToExecuteDirectory(toolName string) bool {
 	switch normalizeWorkspaceToolName(toolName) {
-	case "write_go_file", "search_replace_file", "delete_file", "check_workspace_code":
+	case "write_go_file", "write_doc", "search_replace_file", "delete_file", "check_workspace_code":
 		return true
 	default:
 		return false
@@ -184,6 +185,7 @@ func workspaceToolUsesWorkbenchPath(toolName string) bool {
 		"search_tools",
 		"search_resources",
 		"create_directory",
+		"write_doc",
 		"write_go_file",
 		"search_replace_file",
 		"delete_file",

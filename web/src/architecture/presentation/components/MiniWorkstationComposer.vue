@@ -141,7 +141,7 @@
       </el-select>
       <div class="mini-action-row">
         <el-button
-          v-if="sending"
+          v-if="sending || sessionRunning"
           type="danger"
           size="small"
           :loading="stopping"
@@ -155,7 +155,7 @@
 	        <el-button
 	          type="primary"
 	          size="small"
-	          :disabled="blocked || !fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
+	          :disabled="blocked || sessionRunning || !fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
 	          data-testid="mini-workstation-send"
           @click="$emit('send')"
           class="mini-send-btn"
@@ -211,6 +211,7 @@ const props = defineProps<{
   uploading: boolean
   inputText: string
   sending: boolean
+  sessionRunning?: boolean
   stopping: boolean
   selectedLLMConfigId: number
 	  llmList: LLMInfo[]

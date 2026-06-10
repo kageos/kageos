@@ -78,7 +78,7 @@ func Specs() map[string]Spec {
 			Optional:     []string{"/system/prompt/case_catalog"},
 			AllowedTools: []string{"change_role", "read_doc", "read_dir", "write_prd"},
 			ForbiddenTools: []string{
-				"create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace",
+				"create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace",
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
 			},
@@ -105,7 +105,7 @@ func Specs() map[string]Spec {
 			Optional:    []string{"/system/prompt/case_catalog"},
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "read_go_file", "read_go_file_lines",
-				"create_directory", "write_go_file", "search_replace_file", "read_app_log", "build_workspace",
+				"create_directory", "write_doc", "write_go_file", "search_replace_file", "read_app_log", "build_workspace",
 			},
 			ForbiddenTools: []string{"write_prd"},
 			Runtime: runtimeContract(
@@ -131,7 +131,7 @@ func Specs() map[string]Spec {
 			Docs:        []string{"/system/prompt/roles/maintenance-engineer"},
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "read_go_file", "read_go_file_lines",
-				"create_directory", "write_go_file", "search_replace_file", "delete_file", "read_app_log", "build_workspace",
+				"create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "read_app_log", "build_workspace",
 			},
 			ForbiddenTools: []string{"write_prd"},
 			Runtime: runtimeContract(
@@ -160,7 +160,7 @@ func Specs() map[string]Spec {
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
 			},
-			ForbiddenTools: []string{"write_prd", "create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
+			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
 			Runtime: runtimeContract(
 				[]string{"需要测试刚构建的应用", "需要验证已有函数是否符合预期"},
 				[]string{"需要修改代码", "用户只是要完成真实业务操作且不是测试验证"},
@@ -187,7 +187,7 @@ func Specs() map[string]Spec {
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
 			},
-			ForbiddenTools: []string{"write_prd", "create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
+			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
 			Runtime: runtimeContract(
 				[]string{"当前目录已有应用且用户要查询、新增、更新、删除、提交表单或查看图表", "用户意图是使用软件完成业务结果"},
 				[]string{"用户要新增或改变软件能力", "用户要测试刚构建应用而不是真实业务操作"},
@@ -212,7 +212,7 @@ func Specs() map[string]Spec {
 				"change_role", "summarize_task_state", "read_doc", "read_go_file", "read_go_file_lines",
 				"search_replace_file", "write_go_file", "read_app_log", "build_workspace",
 			},
-			ForbiddenTools: []string{"write_prd", "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query"},
+			ForbiddenTools: []string{"write_prd", "write_doc", "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query"},
 			Runtime: runtimeContract(
 				[]string{"build_workspace 失败", "启动、schema、widget、路由后缀或 SDK API 相关错误"},
 				[]string{"业务功能本身需要重新设计", "只是测试数据或参数问题"},
@@ -272,7 +272,7 @@ func Specs() map[string]Spec {
 			DisplayName:    "代码审查分析师",
 			Docs:           []string{"/system/prompt/roles/reviewer"},
 			AllowedTools:   []string{"change_role", "summarize_task_state", "read_doc", "read_dir", "read_go_file", "read_go_file_lines"},
-			ForbiddenTools: []string{"write_prd", "create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "run_form_submit"},
+			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "run_form_submit"},
 			Runtime: runtimeContract(
 				[]string{"用户要解释、review、查问题、读代码或做方案评估"},
 				[]string{"用户明确要求直接修改、构建或执行业务操作"},

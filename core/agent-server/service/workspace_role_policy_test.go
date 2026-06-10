@@ -41,6 +41,9 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "write_go_file"); blocked || res.IsError {
 		t.Fatalf("app_developer should allow write_go_file, blocked=%v res=%#v", blocked, res)
 	}
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "write_doc"); blocked || res.IsError {
+		t.Fatalf("app_developer should allow write_doc, blocked=%v res=%#v", blocked, res)
+	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "write_prd"); !blocked || !res.IsError {
 		t.Fatalf("app_developer should block write_prd, blocked=%v res=%#v", blocked, res)
 	}
@@ -52,6 +55,9 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "write_go_file"); !blocked || !res.IsError {
 		t.Fatalf("app_operator should block write_go_file, blocked=%v res=%#v", blocked, res)
+	}
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "write_doc"); !blocked || !res.IsError {
+		t.Fatalf("app_operator should block write_doc, blocked=%v res=%#v", blocked, res)
 	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleQAEngineer, "write_go_file"); !blocked || !res.IsError {
 		t.Fatalf("qa_engineer should block write_go_file, blocked=%v res=%#v", blocked, res)
@@ -185,6 +191,35 @@ func TestWorkspaceToolScopeGateRestrictsDeveloperWritesToTargetAppDirectory(t *t
 	}, scope)
 	if !blocked || !res.IsError {
 		t.Fatalf("expected default write_go_file to parent execute directory to be blocked, blocked=%v res=%#v", blocked, res)
+	}
+
+	res, blocked = workspaceToolScopeGateResultWithScope(WorkspaceRoleAppDeveloper, "write_doc", map[string]interface{}{
+		"directory": "/system/ticket_sys/v1",
+		"name":      "工单说明",
+		"code":      "readme",
+		"content":   "# readme",
+	}, scope)
+	if !blocked || !res.IsError {
+		t.Fatalf("expected write_doc in parent directory to be blocked, blocked=%v res=%#v", blocked, res)
+	}
+
+	res, blocked = workspaceToolScopeGateResultWithScope(WorkspaceRoleAppDeveloper, "write_doc", map[string]interface{}{
+		"directory": "/system/ticket_sys/v1/ticket",
+		"name":      "工单说明",
+		"code":      "readme",
+		"content":   "# readme",
+	}, scope)
+	if blocked || res.IsError {
+		t.Fatalf("expected write_doc in target directory to pass, blocked=%v res=%#v", blocked, res)
+	}
+
+	res, blocked = workspaceToolScopeGateResultWithScope(WorkspaceRoleAppDeveloper, "write_doc", map[string]interface{}{
+		"name":    "工单说明",
+		"code":    "readme",
+		"content": "# readme",
+	}, scope)
+	if !blocked || !res.IsError {
+		t.Fatalf("expected default write_doc to parent execute directory to be blocked, blocked=%v res=%#v", blocked, res)
 	}
 }
 

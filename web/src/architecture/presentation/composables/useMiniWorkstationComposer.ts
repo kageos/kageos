@@ -55,6 +55,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
   const selectedLLMConfigId = ref<number>(0)
   const queuedMessages = ref<QueuedWorkspaceMessage[]>([])
   const queuedCount = computed(() => queuedMessages.value.length)
+  let activeStreamAbortController: AbortController | null = null
 
   async function loadLLMs() {
     llmLoading.value = true
@@ -108,24 +109,32 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     }
 
     const streamFn = async (onEvent: WorkspaceChatStreamOnEvent) => {
-      await workspaceChatStream(payload, (event, data) => {
-        void onEvent(event, data)
-        if (event === 'session') {
-          const sessionData = data as { session_id?: unknown }
-          if (typeof sessionData.session_id === 'string') {
-            onTaskStarted?.(sessionData.session_id)
-            if (maximized.value) {
-              onMaximizedSessionStarted?.(sessionData.session_id)
+      const controller = new AbortController()
+      activeStreamAbortController = controller
+      try {
+        await workspaceChatStream(payload, (event, data) => {
+          void onEvent(event, data)
+          if (event === 'session') {
+            const sessionData = data as { session_id?: unknown }
+            if (typeof sessionData.session_id === 'string') {
+              onTaskStarted?.(sessionData.session_id)
+              if (maximized.value) {
+                onMaximizedSessionStarted?.(sessionData.session_id)
+              }
             }
           }
-        }
-        if (event === 'tool_call') {
-          const toolCallData = data as { status?: unknown; name?: unknown }
-          if (toolCallData.status === 'ok' && typeof toolCallData.name === 'string') {
-            onToolCallOk?.({ name: toolCallData.name })
+          if (event === 'tool_call') {
+            const toolCallData = data as { status?: unknown; name?: unknown }
+            if (toolCallData.status === 'ok' && typeof toolCallData.name === 'string') {
+              onToolCallOk?.({ name: toolCallData.name })
+            }
           }
+        }, { signal: controller.signal })
+      } finally {
+        if (activeStreamAbortController === controller) {
+          activeStreamAbortController = null
         }
-      })
+      }
     }
 
     try {
@@ -206,6 +215,14 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     })
   }
 
+  function abortActiveStream() {
+    if (!activeStreamAbortController) {
+      return
+    }
+    activeStreamAbortController.abort()
+    activeStreamAbortController = null
+  }
+
   return {
     inputText,
     inputRef,
@@ -218,6 +235,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     handleSend,
     sendText,
     sendTextInNewSession,
-    sendTextToSession
+    sendTextToSession,
+    abortActiveStream
   }
 }

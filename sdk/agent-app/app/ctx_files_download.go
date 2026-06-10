@@ -2,6 +2,9 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,8 +19,10 @@ import (
 
 type resolvedDownloadFile struct {
 	name              string
+	ref               string
 	key               string
 	hash              string
+	errorMessage      string
 	downloadURL       string
 	serverDownloadURL string
 }
@@ -25,6 +30,24 @@ type resolvedDownloadFile struct {
 type downloadStats struct {
 	downloadCount int
 	skipCount     int
+}
+
+type DownloadFilesResult struct {
+	Paths         []string
+	Refs          []string
+	ResolvedCount int
+	DownloadCount int
+	SkipCount     int
+	Issues        []string
+}
+
+func (r DownloadFilesResult) ErrorMessage() string {
+	return strings.Join(compactNonEmptyStrings(r.Issues), "；")
+}
+
+type downloadCandidate struct {
+	label string
+	url   string
 }
 
 func (c *FS) prepareDownloadDir() (string, string, bool) {
@@ -45,7 +68,7 @@ func (c *FS) prepareDownloadDir() (string, string, bool) {
 func (c *FS) resolveDownloadFiles(refs []string) ([]resolvedDownloadFile, bool) {
 	req := &dto.ResolveFileRefsReq{
 		Refs:     refs,
-		Audience: "server",
+		Audience: "all",
 	}
 	ctx := c.resolveFileRefsContext()
 	var resolveResp *dto.ResolveFileRefsResp
@@ -57,6 +80,10 @@ func (c *FS) resolveDownloadFiles(refs []string) ([]resolvedDownloadFile, bool) 
 	}
 	if err != nil {
 		logger.Errorf(c.ctx, "[DownloadFiles] 解析文件引用失败: %v", err)
+		return nil, false
+	}
+	if resolveResp == nil {
+		logger.Errorf(c.ctx, "[DownloadFiles] 解析文件引用失败: storage 返回空响应")
 		return nil, false
 	}
 	return toResolvedDownloadFiles(resolveResp.Files), true
@@ -84,9 +111,11 @@ func toResolvedDownloadFiles(files []dto.ResolvedFile) []resolvedDownloadFile {
 	resolvedFiles := make([]resolvedDownloadFile, 0, len(files))
 	for _, item := range files {
 		resolvedFiles = append(resolvedFiles, resolvedDownloadFile{
+			ref:               item.Ref,
 			name:              item.Name,
 			key:               item.Key,
 			hash:              item.Hash,
+			errorMessage:      item.Error,
 			downloadURL:       item.DownloadURL,
 			serverDownloadURL: item.ServerDownloadURL,
 		})
@@ -94,50 +123,84 @@ func toResolvedDownloadFiles(files []dto.ResolvedFile) []resolvedDownloadFile {
 	return resolvedFiles
 }
 
-func (c *FS) downloadResolvedFiles(files []resolvedDownloadFile, downloadDir string) ([]string, downloadStats) {
+func (c *FS) downloadResolvedFiles(files []resolvedDownloadFile, downloadDir string) ([]string, downloadStats, []string) {
 	var wg sync.WaitGroup
 	localPaths := make([]string, len(files))
+	issues := make([]string, len(files))
 	stats := downloadStats{}
 
 	for i, file := range files {
-		downloadURL := file.preferredDownloadURL()
-		if downloadURL == "" {
-			logger.Warnf(c.ctx, "[DownloadFiles] 文件 %s 没有可用下载地址，跳过", file.name)
+		if file.errorMessage != "" {
+			issues[i] = fmt.Sprintf("文件 %s 解析失败: %s", file.label(), file.errorMessage)
+			logger.Warnf(c.ctx, "[DownloadFiles] %s", issues[i])
+			stats.skipCount++
+			continue
+		}
+		if len(file.downloadCandidates()) == 0 {
+			issues[i] = fmt.Sprintf("文件 %s 没有可用下载地址", file.label())
+			logger.Warnf(c.ctx, "[DownloadFiles] %s，跳过", issues[i])
 			stats.skipCount++
 			continue
 		}
 
 		stats.downloadCount++
 		wg.Add(1)
-		go func(idx int, f resolvedDownloadFile, url string) {
+		go func(idx int, f resolvedDownloadFile) {
 			defer wg.Done()
 
-			localPath, err := c.downloadResolvedFile(f, url, downloadDir)
+			localPath, err := c.downloadResolvedFile(f, downloadDir)
 			if err != nil {
-				logger.Errorf(c.ctx, "[DownloadFiles] 下载文件失败 %s: %v", f.name, err)
+				issues[idx] = fmt.Sprintf("文件 %s 下载失败: %v", f.label(), err)
+				logger.Errorf(c.ctx, "[DownloadFiles] %s", issues[idx])
 				return
 			}
 
 			localPaths[idx] = localPath
 			if f.hash != "" {
-				logger.Infof(c.ctx, "[DownloadFiles] 下载文件完成(缓存): %s", f.name)
+				logger.Infof(c.ctx, "[DownloadFiles] 下载文件完成(缓存): %s", f.label())
 			} else {
-				logger.Infof(c.ctx, "[DownloadFiles] 下载文件完成(无hash不缓存): %s", f.name)
+				logger.Infof(c.ctx, "[DownloadFiles] 下载文件完成(无hash不缓存): %s", f.label())
 			}
-		}(i, file, downloadURL)
+		}(i, file)
 	}
 
 	wg.Wait()
-	return localPaths, stats
+	return localPaths, stats, compactNonEmptyStrings(issues)
 }
 
-func (c *FS) downloadResolvedFile(file resolvedDownloadFile, downloadURL string, downloadDir string) (string, error) {
+func (c *FS) downloadResolvedFile(file resolvedDownloadFile, downloadDir string) (string, error) {
 	targetPath := filepath.Join(downloadDir, file.targetFileName())
-	if file.hash != "" {
-		localPath, _, err := c.fileCache.GetOrDownload(c.ctx, file.hash, downloadURL, targetPath)
-		return localPath, err
+	failures := make([]string, 0, 2)
+	for _, candidate := range file.downloadCandidates() {
+		if file.hash != "" {
+			localPath, _, err := c.fileCache.GetOrDownload(c.ctx, file.hash, candidate.url, targetPath)
+			if err == nil {
+				return localPath, nil
+			}
+			failures = append(failures, fmt.Sprintf("%s URL: %s", candidate.label, summarizeDownloadError(err)))
+			continue
+		}
+		localPath, err := c.fileCache.DownloadOnly(c.ctx, candidate.url, targetPath)
+		if err == nil {
+			return localPath, nil
+		}
+		failures = append(failures, fmt.Sprintf("%s URL: %s", candidate.label, summarizeDownloadError(err)))
 	}
-	return c.fileCache.DownloadOnly(c.ctx, downloadURL, targetPath)
+	return "", errors.New(strings.Join(failures, "; "))
+}
+
+func summarizeDownloadError(err error) string {
+	if err == nil {
+		return ""
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		if urlErr.Err != nil {
+			return fmt.Sprintf("%s: %v", urlErr.Op, urlErr.Err)
+		}
+		return urlErr.Op
+	}
+	return err.Error()
 }
 
 func (f resolvedDownloadFile) preferredDownloadURL() string {
@@ -147,11 +210,40 @@ func (f resolvedDownloadFile) preferredDownloadURL() string {
 	return f.downloadURL
 }
 
+func (f resolvedDownloadFile) downloadCandidates() []downloadCandidate {
+	candidates := make([]downloadCandidate, 0, 2)
+	seen := make(map[string]struct{}, 2)
+	for _, candidate := range []downloadCandidate{
+		{label: "server", url: strings.TrimSpace(f.serverDownloadURL)},
+		{label: "browser", url: strings.TrimSpace(f.downloadURL)},
+	} {
+		if candidate.url == "" {
+			continue
+		}
+		if _, ok := seen[candidate.url]; ok {
+			continue
+		}
+		seen[candidate.url] = struct{}{}
+		candidates = append(candidates, candidate)
+	}
+	return candidates
+}
+
 func (f resolvedDownloadFile) targetFileName() string {
 	if f.name != "" {
 		return f.name
 	}
 	return filepath.Base(f.key)
+}
+
+func (f resolvedDownloadFile) label() string {
+	for _, value := range []string{f.name, f.ref, f.key} {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return "unknown"
 }
 
 func compactNonEmptyStrings(values []string) []string {

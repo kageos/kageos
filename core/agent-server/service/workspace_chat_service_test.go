@@ -49,6 +49,53 @@ func TestWithAgentToolExecutionContextMarksSource(t *testing.T) {
 	}
 }
 
+func TestCancelSessionCancelsRegisteredRunEvenWhenStatusIsActive(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate sessions: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        1,
+		FullCodePath:  "/system/x_world/vote",
+		Source:        SourceWorkspace,
+		SessionID:     "stale-running-session",
+		Title:         "运行中会话",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusActive,
+		ContextPolicy: ContextPolicyFull,
+		User:          "alice",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	runCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
+	svc.runningCancels.Store("stale-running-session", cancel)
+	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "alice")
+
+	if err := svc.CancelSession(ctx, "stale-running-session"); err != nil {
+		t.Fatalf("cancel session: %v", err)
+	}
+	if runCtx.Err() == nil {
+		t.Fatal("registered run context should be cancelled")
+	}
+	latest, err := sessionRepo.GetBySessionID("stale-running-session")
+	if err != nil {
+		t.Fatalf("get latest session: %v", err)
+	}
+	if latest.Status != model.ChatSessionStatusCancelled {
+		t.Fatalf("status = %s, want cancelled", latest.Status)
+	}
+	if err := svc.CancelSession(ctx, "stale-running-session"); err != nil {
+		t.Fatalf("second cancel should be idempotent, got %v", err)
+	}
+}
+
 func TestParseToolCallArgsRejectsInvalidJSON(t *testing.T) {
 	svc := &WorkspaceChatService{}
 	call := llms.ToolCall{ID: "call_bad", Type: "function"}

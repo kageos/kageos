@@ -70,8 +70,10 @@ func workspaceRoleGateSuggestion(roleID string, toolName string) string {
 	switch toolName {
 	case "write_prd":
 		return "如需重新设计 PRD，请交接给「产品经理」。"
+	case "write_doc":
+		return "如需创建或修改文档，请交接给「应用开发工程师」或「应用维护工程师」。"
 	case "create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace":
-		return "如需创建或修改代码，请交接给「应用开发工程师」「应用维护工程师」或「构建修复工程师」。"
+		return "如需创建或修改应用内容，请交接给「应用开发工程师」「应用维护工程师」或「构建修复工程师」。"
 	case "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query", "run_on_select_fuzzy":
 		return "如需执行业务操作，请交接给「应用操作员」；如需验证功能，请交接给「测试工程师」。"
 	default:

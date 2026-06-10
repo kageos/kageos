@@ -14,6 +14,8 @@ import (
 	"github.com/kageos/kageos/pkg/servicetree"
 )
 
+const writeDocCodeSuffix = ".docs"
+
 type writeDocCommand struct {
 	FullCodePath string
 	Name         string
@@ -53,14 +55,30 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 	if fullCodePath == "" {
 		return "write_doc full_code_path 无效", true
 	}
-	// 若传了 code，则 full_code_path 视为父目录，文档路径 = full_code_path/code；创建时节点 Code=code，Name=name（不填则用 code）
+	legacyFullCodePath := fullCodePath
+	// 若传了 code，则 full_code_path 视为父目录，文档路径 = full_code_path/code.docs；
+	// 创建请求仍传裸 code，让 app-server 继续按既有规则补 .docs 后缀。
 	if docCode != "" {
-		fullCodePath = fullCodePath + "/" + strings.Trim(docCode, "/")
+		rawCode := strings.Trim(docCode, "/")
+		fullCodePath = fullCodePath + "/" + withWriteDocSuffix(rawCode)
+		legacyFullCodePath = legacyFullCodePath + "/" + rawCode
+	} else {
+		parts := strings.Split(fullCodePath, "/")
+		last := parts[len(parts)-1]
+		canonicalLast := withWriteDocSuffix(last)
+		if canonicalLast != last {
+			parts[len(parts)-1] = canonicalLast
+			fullCodePath = strings.Join(parts, "/")
+		}
 	}
 	pathForAPI := "/" + fullCodePath
+	legacyPathForAPI := "/" + legacyFullCodePath
+	if legacyPathForAPI == pathForAPI {
+		legacyPathForAPI = ""
+	}
 
 	// 先查节点是否已存在且为 docs 类型
-	detail, err := apicall.GetServiceTreeDetailByFullCodePath(ctx, pathForAPI)
+	detail, err := getWriteDocDetail(ctx, pathForAPI, legacyPathForAPI)
 	if err == nil && detail != nil && detail.Type == servicetree.TypeDocs {
 		// 已存在 docs 节点：更新内容
 		contentPtr := &docContent
@@ -97,14 +115,15 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 	// 节点必有 code（URL 标识）和 name（中文描述）：Code=segmentCode，Name=doc_name 若传了则用，否则用 segmentCode
 	nodeName := docName
 	if nodeName == "" {
-		nodeName = segmentCode
+		nodeName = withoutWriteDocSuffix(segmentCode)
 	}
+	createCode := withoutWriteDocSuffix(segmentCode)
 
 	req := &dto.CreateDocsReq{
 		User:               user,
 		App:                app,
 		Name:               nodeName,
-		Code:               segmentCode,
+		Code:               createCode,
 		ParentFullCodePath: parentPath,
 		Content:            docContent,
 		Format:             format,
@@ -113,7 +132,7 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 	if err != nil {
 		// 节点已存在（如先有 package「docs」文件夹，或已有 docs 节点）：尝试更新或给出明确提示
 		if strings.Contains(err.Error(), "already exists") {
-			existDetail, getErr := apicall.GetServiceTreeDetailByFullCodePath(ctx, pathForAPI)
+			existDetail, getErr := getWriteDocDetail(ctx, pathForAPI, legacyPathForAPI)
 			if getErr == nil && existDetail != nil {
 				if existDetail.Type == servicetree.TypeDocs {
 					contentPtr := &docContent
@@ -135,6 +154,31 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 	}
 	logger.Infof(ctx, "[WriteDocTool] 文档已创建 - FullCodePath: %s, ID: %d", resp.FullCodePath, resp.ID)
 	return fmt.Sprintf("文档已创建: %s", resp.FullCodePath), false
+}
+
+func withWriteDocSuffix(code string) string {
+	code = strings.Trim(strings.TrimSpace(code), "/")
+	if code == "" || strings.HasSuffix(code, writeDocCodeSuffix) {
+		return code
+	}
+	return code + writeDocCodeSuffix
+}
+
+func withoutWriteDocSuffix(code string) string {
+	code = strings.Trim(strings.TrimSpace(code), "/")
+	return strings.TrimSuffix(code, writeDocCodeSuffix)
+}
+
+func getWriteDocDetail(ctx context.Context, canonicalPath string, legacyPath string) (*dto.GetServiceTreeDetailResp, error) {
+	detail, err := apicall.GetServiceTreeDetailByFullCodePath(ctx, canonicalPath)
+	if err == nil || legacyPath == "" {
+		return detail, err
+	}
+	legacyDetail, legacyErr := apicall.GetServiceTreeDetailByFullCodePath(ctx, legacyPath)
+	if legacyErr == nil {
+		return legacyDetail, nil
+	}
+	return detail, err
 }
 
 // runCreateDirectoryCommand 在 directory（父目录）下创建子目录。
