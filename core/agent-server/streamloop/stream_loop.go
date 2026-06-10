@@ -30,6 +30,9 @@ func RunStreamLoop(ctx context.Context, deps StreamLoopDeps) error {
 }
 
 func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, previousSummaries []ToolCallSummary, previousUsage *llms.Usage) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if round >= MaxToolRounds {
 		logger.Warnf(ctx, "[StreamLoop] 达到最大工具调用轮数 %d，停止循环", MaxToolRounds)
 		// 发一句提示，避免前端“戛然而止”显得乱
@@ -43,9 +46,15 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 		deps.SendEvent(EventError, &errorData{Message: err.Error()})
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	client, chatReq, err := deps.PrepareLLM(ctx, msgs, tools)
 	if err != nil {
 		deps.SendEvent(EventError, &errorData{Message: err.Error()})
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	stream, err := client.ChatStream(ctx, chatReq)
@@ -69,7 +78,9 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 		}
 		summaries, err := deps.ExecuteToolCalls(ctx, allToolCalls, round, deps.SendEvent)
 		if err != nil {
-			deps.SendEvent(EventError, &errorData{Message: err.Error()})
+			if ctx.Err() == nil {
+				deps.SendEvent(EventError, &errorData{Message: err.Error()})
+			}
 			return err
 		}
 		combined := append(previousSummaries, summaries...)

@@ -73,27 +73,41 @@ func (c *FS) GetTraceOutputDir() string {
 // DownloadFiles 下载 files 字符串中的文件到本地，返回本地文件路径列表。
 // 根据TraceId创建目录，使用文件缓存机制避免重复下载相同hash的文件
 func (c *FS) DownloadFiles(fileRefs string) []string {
+	return c.DownloadFilesDetailed(fileRefs).Paths
+}
+
+func (c *FS) DownloadFilesDetailed(fileRefs string) DownloadFilesResult {
 	refs := types.ParseFileRefs(fileRefs)
 	if len(refs) == 0 {
 		logger.Warnf(c.ctx, "[DownloadFiles] 文件列表为空，跳过下载")
-		return nil
+		return DownloadFilesResult{Issues: []string{"文件列表为空"}}
 	}
 
 	traceID, downloadDir, ok := c.prepareDownloadDir()
 	if !ok {
-		return nil
+		return DownloadFilesResult{Refs: refs, Issues: []string{"创建下载目录失败"}}
 	}
 
 	logger.Infof(c.ctx, "[DownloadFiles] 开始下载文件，TraceId=%s, 目录=%s, 文件数量=%d", traceID, downloadDir, len(refs))
 
 	resolvedFiles, ok := c.resolveDownloadFiles(refs)
 	if !ok {
-		return nil
+		return DownloadFilesResult{Refs: refs, Issues: []string{"解析文件引用失败"}}
+	}
+	if len(resolvedFiles) == 0 {
+		return DownloadFilesResult{Refs: refs, Issues: []string{"文件引用解析结果为空"}}
 	}
 
-	localPaths, stats := c.downloadResolvedFiles(resolvedFiles, downloadDir)
+	localPaths, stats, issues := c.downloadResolvedFiles(resolvedFiles, downloadDir)
 	logger.Infof(c.ctx, "[DownloadFiles] 下载完成: 总文件数=%d, 下载=%d, 跳过=%d", len(resolvedFiles), stats.downloadCount, stats.skipCount)
-	return compactNonEmptyStrings(localPaths)
+	return DownloadFilesResult{
+		Paths:         compactNonEmptyStrings(localPaths),
+		Refs:          refs,
+		ResolvedCount: len(resolvedFiles),
+		DownloadCount: stats.downloadCount,
+		SkipCount:     stats.skipCount,
+		Issues:        issues,
+	}
 }
 
 // RemoveFiles 删除 DownloadFiles 下载到本地的文件。

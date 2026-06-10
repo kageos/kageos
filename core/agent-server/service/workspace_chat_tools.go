@@ -32,6 +32,10 @@ func (s *WorkspaceChatService) executeToolCalls(
 	activeToolScope := s.currentWorkspaceToolScope(ctx, sessionID, activeFullCodePath)
 
 	for i, tc := range allToolCalls {
+		if err := ctx.Err(); err != nil {
+			logger.Infof(ctx, "[WorkspaceChatStream] 工具调用队列已取消 - SessionID: %s, Round: %d", sessionID, round)
+			return toolSummaries, activeFullCodePath, err
+		}
 		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 执行工具调用 - ToolCallID: %s, ToolName: %s, Arguments: %q",
 			i+1, len(allToolCalls), tc.ID, tc.Function.Name, tc.Function.Arguments)
 
@@ -60,6 +64,10 @@ func (s *WorkspaceChatService) executeToolCalls(
 			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 工具目录门禁阻断 - RoleID: %s, ToolName: %s, ExecuteDirectory: %s, TargetAppDirectory: %s, Error: %s", i+1, len(allToolCalls), activeRoleID, tc.Function.Name, activeToolScope.ExecuteDirectory, activeToolScope.TargetAppDirectory, toolRes.Content)
 		} else {
 			toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, activeFullCodePath, files, i+1, len(allToolCalls))
+		}
+		if err := ctx.Err(); err != nil {
+			logger.Infof(ctx, "[WorkspaceChatStream] 工具调用已取消 - SessionID: %s, ToolName: %s", sessionID, tc.Function.Name)
+			return toolSummaries, activeFullCodePath, err
 		}
 		roleBeforeCall := activeRoleID
 		roleChanged := false

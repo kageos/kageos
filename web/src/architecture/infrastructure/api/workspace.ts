@@ -337,6 +337,10 @@ export async function createWorkspaceHandoff(req: WorkspaceHandoffReq): Promise<
 /** 流式事件回调：event 为 session|tool_call|tool_calls_stream_delta|content|done|error */
 export type WorkspaceChatStreamOnEvent = (event: WorkspaceStreamEventName, data: WorkspaceStreamPayload) => void
 
+export interface WorkspaceChatStreamOptions {
+  signal?: AbortSignal
+}
+
 function isWorkspaceStreamEventName(event: string): event is WorkspaceStreamEventName {
   return Object.values(workspaceStreamEvents).includes(event as WorkspaceStreamEventName)
 }
@@ -368,7 +372,8 @@ function parseWorkspaceSSEBlock(block: string): { event: WorkspaceStreamEventNam
  */
 export async function workspaceChatStream(
   data: WorkspaceChatReq,
-  onEvent: WorkspaceChatStreamOnEvent
+  onEvent: WorkspaceChatStreamOnEvent,
+  options: WorkspaceChatStreamOptions = {}
 ): Promise<void> {
   const base = getApiBaseURL()
   const url = `${base}/agent/api/v1/workspace/chat/stream`
@@ -378,6 +383,7 @@ export async function workspaceChatStream(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(data),
+    signal: options.signal,
   })
   if (!res.ok) {
     const t = await res.text()
@@ -408,6 +414,10 @@ export async function workspaceChatStream(
   const dec = new TextDecoder()
   let buf = ''
   for (;;) {
+    if (options.signal?.aborted) {
+      await reader.cancel().catch(() => undefined)
+      throw new DOMException('The operation was aborted.', 'AbortError')
+    }
     const { done, value } = await reader.read()
     if (done) break
     buf += dec.decode(value, { stream: true })

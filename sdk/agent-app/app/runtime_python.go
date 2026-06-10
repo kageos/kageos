@@ -87,11 +87,16 @@ func (a *App) RuntimePython(ctx *Context, resp response.Response) error {
 
 	if inputFileRefs := runtimePythonInputFileRefs(req.InputFiles, requestData); inputFileRefs != "" {
 		fs := ctx.GetFS()
-		downloadedInputFiles := fs.DownloadFiles(inputFileRefs)
+		downloadResult := fs.DownloadFilesDetailed(inputFileRefs)
+		downloadedInputFiles := downloadResult.Paths
 		defer fs.RemoveFiles(downloadedInputFiles)
 		if len(downloadedInputFiles) == 0 {
+			detail := downloadResult.ErrorMessage()
+			if detail != "" {
+				detail = "原因：" + detail + "。"
+			}
 			return resp.Form(&dto.RunPythonRuntimeResp{
-				Output:     "输入文件下载失败：未能把文件引用下载到容器本地路径。请确认 input_files 为 bucket/object_key 字符串，且文件已上传完成。",
+				Output:     "输入文件下载失败：未能把文件引用下载到容器本地路径。" + detail + "请确认 input_files 为 bucket/object_key 字符串，且文件已上传完成。",
 				Status:     "失败",
 				JSONResult: "（无结构化结果）",
 			}).Build()

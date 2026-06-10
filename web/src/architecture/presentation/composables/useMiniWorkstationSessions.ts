@@ -21,6 +21,7 @@ export interface UseMiniWorkstationSessionsOptions {
   sending: Ref<boolean>
   sessionId: Ref<string | undefined>
   setMessages: (messages: ChatMessage[]) => void
+  abortActiveStream?: () => void
   onSelectMaximizedSession?: (sessionId: string) => void
 }
 
@@ -70,7 +71,7 @@ function normalizeSessionMessages(rawMessages: any[]): ChatMessage[] {
 }
 
 export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOptions) {
-  const { fullCodePath, initialSessionId, maximized, sending, sessionId, setMessages, onSelectMaximizedSession } = options
+  const { fullCodePath, initialSessionId, maximized, sending, sessionId, setMessages, abortActiveStream, onSelectMaximizedSession } = options
 
   const miniSessionList = ref<WorkspaceSessionItem[]>([])
   const globalSessionList = ref<WorkspaceSessionItem[]>([])
@@ -132,20 +133,24 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
   }
 
   async function handleStopSession() {
-    if (!sessionId.value || stopping.value) {
+    const targetSessionId = sessionId.value
+    if (!targetSessionId || stopping.value) {
       return
     }
 
     stopping.value = true
     try {
-      await cancelWorkspaceChat(sessionId.value)
+      await cancelWorkspaceChat(targetSessionId)
+      abortActiveStream?.()
       sending.value = false
       stopMiniPoll()
       stopMiniStreamListening()
       ElMessage.success('已停止')
-      if (maximized.value) {
-        void loadMiniSessions()
-      }
+      await Promise.allSettled([
+        loadMiniSessions(),
+        loadGlobalSessions(),
+        loadMiniSessionMessages(targetSessionId)
+      ])
     } catch (error: any) {
       ElMessage.error(error?.message || '停止失败')
     } finally {

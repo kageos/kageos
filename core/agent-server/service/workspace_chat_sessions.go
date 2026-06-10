@@ -22,7 +22,11 @@ func (s *WorkspaceChatService) CancelSession(ctx context.Context, sessionID stri
 	if err := ensureWorkspaceSessionOwner(ctx, session); err != nil {
 		return err
 	}
-	if session.Status != model.ChatSessionStatusGenerating {
+	cancelFn, hasRunningCancel := s.runningCancels.Load(sessionID)
+	if session.Status != model.ChatSessionStatusGenerating && !hasRunningCancel {
+		if session.Status == model.ChatSessionStatusCancelled {
+			return nil
+		}
 		return fmt.Errorf("会话未在执行中（当前状态: %s）", session.Status)
 	}
 
@@ -35,7 +39,8 @@ func (s *WorkspaceChatService) CancelSession(ctx context.Context, sessionID stri
 	}
 
 	// 触发 cancelFunc，让 streamloop 尽快退出
-	if cancelFn, ok := s.runningCancels.LoadAndDelete(sessionID); ok {
+	if hasRunningCancel {
+		s.runningCancels.Delete(sessionID)
 		cancelFn.(context.CancelFunc)()
 		logger.Infof(ctx, "[WorkspaceChatStream] 会话已取消 - SessionID: %s", sessionID)
 	}

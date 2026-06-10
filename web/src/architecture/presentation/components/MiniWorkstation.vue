@@ -210,6 +210,7 @@
           :uploading="uploading"
           :input-text="inputText"
           :sending="sending"
+          :session-running="currentSessionRunning"
           :stopping="stopping"
           :queued-count="queuedCount"
           :selected-l-l-m-config-id="selectedLLMConfigId"
@@ -378,6 +379,7 @@ const collapsed = ref(props.initialExpanded === false)
 const suppressAutoSelectLatestSession = ref(false)
 const sessionSearchKeyword = ref('')
 const sessionFilter = ref<SessionFilterValue>('all')
+const abortActiveWorkspaceStream = ref<(() => void) | null>(null)
 type DrawerSessionScope = 'current' | 'all'
 const DRAWER_SESSION_SCOPE_STORAGE_KEY = 'workspace-mini-session-scope'
 const drawerSessionScope = ref<DrawerSessionScope>(readStoredDrawerSessionScope())
@@ -469,6 +471,7 @@ const {
   sending,
   sessionId,
   setMessages,
+  abortActiveStream: () => abortActiveWorkspaceStream.value?.(),
   onSelectMaximizedSession: (targetSessionId) => {
     emit('maximize-change', { maximized: true, sessionId: targetSessionId })
   }
@@ -577,6 +580,20 @@ const currentSessionItem = computed<WorkspaceSessionItem | null>(() => {
   return miniSessionList.value.find(item => item.session_id === sessionId.value)
     || globalSessionList.value.find(item => item.session_id === sessionId.value)
     || null
+})
+
+const currentSessionRunning = computed(() => {
+  if (sending.value) return false
+  const status = currentSessionItem.value?.status || ''
+  return [
+    'generating',
+    'running',
+    'tool_running',
+    'thinking',
+    'streaming',
+    'processing',
+    'executing'
+  ].includes(status)
 })
 
 const currentSessionDisablesPendingInteraction = computed(() => {
@@ -729,16 +746,7 @@ const {
   sessionId
 })
 
-const {
-  llmList,
-  llmLoading,
-  selectedLLMConfigId,
-  queuedCount,
-  onLLMSelectVisibleChange: loadLLMOptionsOnVisibleChange,
-  onInputEnter,
-  handleSend,
-  sendTextToSession
-} = useMiniWorkstationComposer({
+const composer = useMiniWorkstationComposer({
   fullCodePath: fullCodePathRef,
   sessionId,
   maximized,
@@ -761,6 +769,19 @@ const {
     emit('tool-call-ok', payload)
   }
 })
+
+abortActiveWorkspaceStream.value = composer.abortActiveStream
+
+const {
+  llmList,
+  llmLoading,
+  selectedLLMConfigId,
+  queuedCount,
+  onLLMSelectVisibleChange: loadLLMOptionsOnVisibleChange,
+  onInputEnter,
+  handleSend,
+  sendTextToSession
+} = composer
 
 type StageInteractionArtifact = Record<string, unknown> & {
   kind?: string

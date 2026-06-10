@@ -1,6 +1,10 @@
 package app
 
 import (
+	"errors"
+	"fmt"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/kageos/kageos/dto"
@@ -23,6 +27,29 @@ func TestResolvedDownloadFilePreferredDownloadURL(t *testing.T) {
 	}
 }
 
+func TestResolvedDownloadFileDownloadCandidatesPreferServer(t *testing.T) {
+	file := resolvedDownloadFile{
+		downloadURL:       "http://browser.example/file",
+		serverDownloadURL: "http://server.example/file",
+	}
+	candidates := file.downloadCandidates()
+	if len(candidates) != 2 {
+		t.Fatalf("expected two candidates, got %#v", candidates)
+	}
+	if candidates[0].label != "server" || candidates[0].url != "http://server.example/file" {
+		t.Fatalf("unexpected first candidate: %#v", candidates[0])
+	}
+	if candidates[1].label != "browser" || candidates[1].url != "http://browser.example/file" {
+		t.Fatalf("unexpected second candidate: %#v", candidates[1])
+	}
+
+	file.downloadURL = file.serverDownloadURL
+	candidates = file.downloadCandidates()
+	if len(candidates) != 1 || candidates[0].label != "server" {
+		t.Fatalf("expected duplicate URL to be de-duplicated, got %#v", candidates)
+	}
+}
+
 func TestResolvedDownloadFileTargetFileName(t *testing.T) {
 	if got := (resolvedDownloadFile{name: "report.xlsx", key: "objects/fallback.txt"}).targetFileName(); got != "report.xlsx" {
 		t.Fatalf("expected explicit name, got %s", got)
@@ -36,6 +63,45 @@ func TestCompactNonEmptyStrings(t *testing.T) {
 	got := compactNonEmptyStrings([]string{"a", "", "b", ""})
 	if len(got) != 2 || got[0] != "a" || got[1] != "b" {
 		t.Fatalf("unexpected compact result: %#v", got)
+	}
+}
+
+func TestDownloadResolvedFilesReportsMissingURL(t *testing.T) {
+	fs := &FS{
+		ctx: &Context{
+			msg: &trace.Msg{TraceId: "trace-1"},
+		},
+		fileCache: GetFileCache(),
+	}
+
+	paths, stats, issues := fs.downloadResolvedFiles([]resolvedDownloadFile{{
+		ref:          "kageos/workspace/chat/a.png",
+		key:          "workspace/chat/a.png",
+		errorMessage: "object not found",
+	}}, t.TempDir())
+	if got := compactNonEmptyStrings(paths); len(got) != 0 {
+		t.Fatalf("expected no paths, got %#v", paths)
+	}
+	if stats.skipCount != 1 || stats.downloadCount != 0 {
+		t.Fatalf("unexpected stats: %#v", stats)
+	}
+	if len(issues) != 1 || issues[0] == "" {
+		t.Fatalf("expected one issue, got %#v", issues)
+	}
+}
+
+func TestSummarizeDownloadErrorRedactsPresignedURL(t *testing.T) {
+	err := fmt.Errorf("下载请求失败: %w", &url.Error{
+		Op:  "Get",
+		URL: "http://storage.example/kageos/a.png?X-Amz-Signature=secret",
+		Err: errors.New("connection refused"),
+	})
+	got := summarizeDownloadError(err)
+	if strings.Contains(got, "X-Amz-Signature") || strings.Contains(got, "storage.example") {
+		t.Fatalf("expected redacted error, got %q", got)
+	}
+	if !strings.Contains(got, "connection refused") {
+		t.Fatalf("expected root error, got %q", got)
 	}
 }
 
