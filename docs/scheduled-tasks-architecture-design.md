@@ -34,11 +34,11 @@
 2. executor 只负责执行。
    `app-server` 不计算下一次执行时间，`agent-server` 也不计算。它们只把一次执行结果回报给 scheduler。
 
-3. 业务侧只保存配置和业务摘要。
-   比如 agent 的 `goal/mode/files`，app 的 `full_code_path/action/payload`，以及 execution 对应的 `session_id/trace_id/request/response`。
+3. `executor_payload` 是业务和 executor 的私有协议。
+   业务可以 inline 传小参数，也可以传 `binding_id/business_ref`，还可以传外部引用；scheduler 不解析、不校验业务字段、不负责改业务配置。
 
-4. 调度事件只带引用，不塞大 payload。
-   `timer_task.executor_payload` 只放 `binding_id` 或 `business_ref`，真实业务配置从对应服务读取。
+4. scheduler 只做通用调度和投递约束。
+   它可以限制 JSON 合法性、payload 大小、幂等键、鉴权元信息和投递状态，但不判断 payload 里的业务参数是否合适。
 
 5. 创建、取消、执行必须可幂等。
    网络失败、重复点击、NATS 重投递都不能导致重复任务或重复副作用。
@@ -145,7 +145,7 @@ flowchart TB
 
 | 模块 | 可以知道 | 不应该知道 |
 | --- | --- | --- |
-| `timer-scheduler` | 时间规则、执行器 key、payload 引用、执行状态 | app 函数 schema、工作台 session、workflow 节点 |
+| `timer-scheduler` | 时间规则、执行器 key、opaque `executor_payload`、执行状态 | app 函数 schema、工作台 session、workflow 节点 |
 | `agent-server` | 定时会话配置、WorkspaceChatService、执行摘要 | scheduler 的 next_run_at 计算细节 |
 | `app-server` | 函数路径、schema、权限、RequestApp、操作日志 | scheduler 内部租约和 due scan 细节 |
 | `workflow-server` | workflow 定义、输入映射、运行记录 | app/agent 的内部执行细节 |
@@ -153,7 +153,7 @@ flowchart TB
 
 ## 数据归属
 
-新设计把 scheduler 状态和业务配置拆开。
+新设计把 scheduler 状态和业务执行数据拆开。下面的业务配置表只是某类 executor 选择 binding 模式时的可选实现，不是 scheduler 的协议要求。
 
 ```mermaid
 erDiagram
@@ -161,9 +161,9 @@ erDiagram
   TIMER_EXECUTION ||--o| AGENT_EXECUTION_DETAIL : "optional detail"
   TIMER_EXECUTION ||--o| APP_EXECUTION_DETAIL : "optional detail"
   TIMER_EXECUTION ||--o| WORKFLOW_EXECUTION_DETAIL : "future detail"
-  AGENT_SCHEDULE_CONFIG ||--|| TIMER_TASK : references
-  APP_FUNCTION_SCHEDULE_CONFIG ||--|| TIMER_TASK : references
-  WORKFLOW_SCHEDULE_CONFIG ||--|| TIMER_TASK : references
+  TIMER_TASK ||--o| AGENT_SCHEDULE_CONFIG : "optional business config"
+  TIMER_TASK ||--o| APP_FUNCTION_SCHEDULE_CONFIG : "optional business config"
+  TIMER_TASK ||--o| WORKFLOW_SCHEDULE_CONFIG : "optional business config"
 
   TIMER_TASK {
     bigint id
@@ -173,12 +173,15 @@ erDiagram
     datetime run_at
     string cron_expr
     int interval_seconds
+    string timezone
     int max_runs
     datetime next_run_at
     int run_count
     string status
     string source_type
     string source_ref
+    string resource_scope
+    string resource_key
     string request_user
     string request_user_dept
   }
@@ -220,20 +223,69 @@ erDiagram
   }
 ```
 
-归属规则：
+状态和业务数据归属规则：
 
-| 数据 | 唯一来源 | 说明 |
+| 数据 | 归属 | 说明 |
 | --- | --- | --- |
 | `next_run_at` | `timer_task` | 业务侧只读展示，不重复计算 |
 | `run_count` | `timer_task` | 包含自动触发；是否包含 run_now 需明确 |
 | 任务状态 | `timer_task` | `pending/paused/done/failed/cancelled` |
 | 执行状态 | `timer_execution` | `queued/running/success/failed/timeout/cancelled` |
-| agent 目标 | `agent_schedule_config` | `goal/mode/files/policies` |
-| app 函数入参 | `app_function_schedule_config` | `payload/action/method` |
+| `executor_payload` schema | executor 所属业务服务 | scheduler 只持久化和透传，字段语义由 executor 定义 |
+| agent 目标 | `agent.session` executor | 可 inline，也可落 `agent_schedule_config` 后在 payload 里传引用 |
+| app 函数入参 | `app.function` executor | 可 inline，也可落 `app_function_schedule_config` 后在 payload 里传引用 |
 | session_id | `agent_execution_detail` | 以 `timer_execution_id` 关联 |
 | app trace/request/response | `app_execution_detail` | 以 `timer_execution_id` 关联 |
 
 不建议继续让 `scheduled_agent_task` 和 `scheduled_task` 自己保存 `status/run_count/next_run_at`。如果前端需要列表聚合，可以通过查询 scheduler 或做只读缓存，但缓存不能参与执行判断。
+
+## Payload 边界
+
+`timer_task.executor_payload` 对 scheduler 是 opaque JSON。scheduler 不知道它是 binding、业务参数快照，还是外部引用；真正的 schema 由 `executor_key` 对应的 consumer 定义和维护。
+
+| payload 形态 | 示例 | 谁决定 | 适合场景 |
+| --- | --- | --- | --- |
+| inline 参数 | `{"full_code_path":"...","action":"submit","payload":{...}}` | 业务 executor | 参数较小、希望创建后固定快照 |
+| binding 引用 | `{"binding_type":"agent_schedule_config","binding_id":123}` | 业务 executor | 参数较大、敏感、需要业务侧独立管理 |
+| 外部引用 | `{"ref_type":"artifact","ref_id":"..."}` | 业务 executor | 输入来自文件、对象存储、第三方系统 |
+
+```mermaid
+flowchart LR
+  Task["timer_task\nexecutor_key\nexecutor_payload opaque"] --> Event["execution.requested\nsame opaque payload"]
+  Event --> SDK["scheduledsdk worker"]
+  SDK --> Handler["executor handler\nDecode(payload)"]
+  Handler --> Shape{"payload shape\nowned by executor"}
+  Shape -->|"inline"| Inline["execute with inline params"]
+  Shape -->|"binding"| Binding["load business config"]
+  Shape -->|"external_ref"| External["fetch external resource"]
+  Inline --> Finish["MarkFinished"]
+  Binding --> Finish
+  External --> Finish
+```
+
+scheduler 可以做的校验只限通用层：payload 必须是合法 JSON、大小不超过平台限制、事件包含 `execution_id/task_id/executor_key/trace_id` 等投递元信息。它不判断 `goal`、`full_code_path`、`action`、`payload` 是否合理，这些都由对应业务服务负责。
+
+## 任务类型和资源隔离
+
+后续接入更多任务类型时，scheduler 不新增业务判断分支，而是按通用维度隔离：
+
+| 维度 | 字段/协议 | 说明 |
+| --- | --- | --- |
+| 任务类型 | `executor_key` | 例如 `agent.session`、`app.function`、`workflow.run`。这是 worker 路由和消费组隔离的主键 |
+| 业务来源 | `source_type/source_ref` | 由创建方填写，用于列表聚合、审计、幂等 reconcile；scheduler 不解析业务含义 |
+| 资源范围 | `resource_scope/resource_key` | 可选通用标签，例如 workspace、目录节点、租户、用户；用于限流、查询过滤、配额 |
+| 消费隔离 | NATS subject/queue group | 按 `executor_key` 分 subject 或 metadata route，不同 executor 不抢同一类任务 |
+| 配额隔离 | `executor_key + resource_scope + request_user` | 防止单个用户、目录节点或任务类型压垮系统 |
+
+```mermaid
+flowchart TB
+  Task["timer_task"] --> Type["executor_key\nwhat to run"]
+  Task --> Source["source_type/source_ref\nwho created it"]
+  Task --> Resource["resource_scope/resource_key\nwhere it belongs"]
+  Type --> Route["NATS route / queue group"]
+  Resource --> Quota["quota and rate limit"]
+  Source --> Audit["audit and reconcile"]
+```
 
 ## 创建链路
 
@@ -250,13 +302,22 @@ sequenceDiagram
 
   User->>Agent: create_scheduled_agent_task(goal, full_code_path, schedule)
   Agent->>Agent: validate path, request_user, policy, min interval
-  Agent->>AgentDB: insert agent_schedule_config(status=registering)
-  Agent->>SDK: CreateTask(executor_key=agent.session, payload={binding_id})
+  Agent->>Agent: decide executor_payload schema
+  opt agent chooses binding mode
+    Agent->>AgentDB: insert agent_schedule_config(status=registering)
+    Agent->>Agent: executor_payload contains binding reference
+  end
+  opt agent chooses inline mode
+    Agent->>Agent: executor_payload contains small execution params
+  end
+  Agent->>SDK: CreateTask(executor_key=agent.session, executor_payload)
   SDK->>Timer: POST /timer/api/v1/tasks
-  Timer->>TimerDB: insert timer_task(idempotency_key, schedule, next_run_at)
+  Timer->>TimerDB: insert timer_task(idempotency_key, schedule, next_run_at, executor_payload)
   Timer-->>SDK: timer_task_id
   SDK-->>Agent: timer_task
-  Agent->>AgentDB: update config(timer_task_id, status=active)
+  opt business config exists
+    Agent->>AgentDB: update config(timer_task_id, status=active)
+  end
   Agent-->>User: task summary
 ```
 
@@ -275,12 +336,21 @@ sequenceDiagram
   App->>App: load function schema by full_code_path
   App->>Permission: check delegated user permission
   Permission-->>App: allowed/denied
-  App->>AppDB: insert app_function_schedule_config(status=registering)
-  App->>SDK: CreateTask(executor_key=app.function, payload={binding_id})
+  App->>App: decide executor_payload schema
+  opt app chooses binding mode
+    App->>AppDB: insert app_function_schedule_config(status=registering)
+    App->>App: executor_payload contains binding reference
+  end
+  opt app chooses inline mode
+    App->>App: executor_payload contains function params
+  end
+  App->>SDK: CreateTask(executor_key=app.function, executor_payload)
   SDK->>Timer: POST /timer/api/v1/tasks
   Timer-->>SDK: timer_task_id
   SDK-->>App: timer_task
-  App->>AppDB: update config(timer_task_id, status=active)
+  opt business config exists
+    App->>AppDB: update config(timer_task_id, status=active)
+  end
   App-->>User: task summary
 ```
 
@@ -288,8 +358,8 @@ sequenceDiagram
 
 | 失败点 | 处理 |
 | --- | --- |
-| 业务配置写入失败 | 直接返回失败，不创建 timer task |
-| Timer 创建失败 | 配置保留 `register_failed` 或回滚，不能假装成功 |
+| 业务侧 payload/config 准备失败 | 直接返回失败，不创建 timer task |
+| Timer 创建失败 | 如果已写业务配置，配置保留 `register_failed` 或回滚，不能假装成功 |
 | Timer 创建成功但回填失败 | 用 `idempotency_key/source_ref` 定期 reconcile |
 | 用户重复提交 | 通过 `idempotency_key` 返回同一个 task 或明确报冲突 |
 
@@ -311,9 +381,11 @@ sequenceDiagram
   Loop->>TimerDB: create timer_execution(status=queued)
   Loop->>Outbox: insert execution_requested event
   Loop->>NATS: publish pending outbox
-  NATS-->>Worker: execution_requested
+  NATS-->>Worker: execution_requested(execution_id, executor_key, executor_payload)
   Worker->>TimerAPI: MarkExecutionStarted
   TimerAPI->>TimerDB: execution queued -> running, set lease
+  Worker->>Worker: SDK routes to executor handler
+  Worker->>Worker: handler decodes opaque payload by executor-owned schema
   Worker->>Worker: execute domain-specific handler
   Worker->>TimerAPI: MarkExecutionFinished(result)
   TimerAPI->>TimerDB: finish execution, clear inflight, compute next_run_at
@@ -330,9 +402,14 @@ sequenceDiagram
   participant Workspace as WorkspaceChatService
   participant Timer as timer-scheduler
 
-  NATS-->>Worker: execution_requested(executor_key=agent.session, binding_id)
+  NATS-->>Worker: execution_requested(executor_key=agent.session, executor_payload)
   Worker->>Timer: MarkExecutionStarted
-  Worker->>AgentDB: load agent_schedule_config(binding_id)
+  Worker->>Worker: decode payload with agent.session schema
+  alt payload references business config
+    Worker->>AgentDB: load agent_schedule_config
+  else payload is inline
+    Worker->>Worker: use inline goal/path/files/mode
+  end
   Worker->>Worker: validate enabled, request_user, budget, current permission
   Worker->>Workspace: RunWorkspaceChat(full_code_path, goal, files, mode)
   Workspace-->>Worker: session_id, stream result
@@ -351,9 +428,14 @@ sequenceDiagram
   participant Runtime as app runtime
   participant Timer as timer-scheduler
 
-  NATS-->>Worker: execution_requested(executor_key=app.function, binding_id)
+  NATS-->>Worker: execution_requested(executor_key=app.function, executor_payload)
   Worker->>Timer: MarkExecutionStarted
-  Worker->>AppDB: load app_function_schedule_config(binding_id)
+  Worker->>Worker: decode payload with app.function schema
+  alt payload references business config
+    Worker->>AppDB: load app_function_schedule_config
+  else payload is inline
+    Worker->>Worker: use inline full_code_path/action/payload
+  end
   Worker->>AppDB: load function schema(full_code_path)
   Worker->>Permission: re-check request_user permission
   Worker->>Worker: build RequestAppReq with delegated context
@@ -373,14 +455,44 @@ sequenceDiagram
   participant Executor as workflow executor
   participant Timer as timer-scheduler
 
-  NATS-->>Worker: execution_requested(executor_key=workflow.run, binding_id)
+  NATS-->>Worker: execution_requested(executor_key=workflow.run, executor_payload)
   Worker->>Timer: MarkExecutionStarted
-  Worker->>WorkflowDB: load workflow_schedule_config + workflow version
+  Worker->>Worker: decode payload with workflow.run schema
+  opt payload references workflow config
+    Worker->>WorkflowDB: load workflow_schedule_config + workflow version
+  end
   Worker->>Executor: RunWorkflow(input, version)
   Executor-->>Worker: workflow_run_id, result
   Worker->>WorkflowDB: insert workflow_execution_detail
   Worker->>Timer: MarkExecutionFinished(success/failed, executor_run_id=workflow_run_id)
 ```
+
+## SDK 消费约定
+
+消费方建议通过 `pkg/scheduledsdk` 注册 worker，而不是每个业务服务自己手写 NATS 订阅和回报逻辑。SDK 是平台契约层，业务 handler 只关心自己能理解的 `executor_payload`。
+
+```mermaid
+flowchart LR
+  Business["business service\nRegisterWorker(executor_key)"] --> SDK["scheduledsdk"]
+  SDK --> NATS["subscribe NATS\nby executor_key"]
+  SDK --> Timer["MarkStarted\nHeartbeat\nMarkFinished"]
+  SDK --> Handler["business handler\npayload = json.RawMessage"]
+  Handler --> BusinessDB["optional business DB"]
+  Handler --> Runtime["domain runtime"]
+```
+
+worker handler 的输入建议只包含通用执行上下文和 opaque payload：
+
+| 字段 | 说明 |
+| --- | --- |
+| `task_id/execution_id` | scheduler 生成，用于幂等和回报 |
+| `executor_key` | 当前 handler 注册的类型 |
+| `executor_payload` | `json.RawMessage`，由 handler 自己 decode |
+| `scheduled_at/trace_id` | 追踪和审计 |
+| `source_type/source_ref/resource_scope/resource_key` | 通用查询、审计、限流标签 |
+| `request_user/request_user_dept` | delegated run 身份上下文 |
+
+SDK 负责 NATS queue group、重投递幂等、`MarkStarted`、heartbeat、`MarkFinished` 和错误转换。业务服务可以保留逃生口直接消费 NATS，但默认接入方式应该是 SDK，这样不同 executor 的行为一致，scheduler 也不用耦合任何业务服务。
 
 ## 状态机
 
@@ -493,6 +605,18 @@ flowchart LR
 | `POST` | `/timer/api/v1/executions/heartbeat` | worker 心跳 |
 | `POST` | `/timer/api/v1/executions/finished` | worker 标记结束 |
 
+`POST /timer/api/v1/tasks` 的核心请求字段：
+
+| 字段 | 归属 | 说明 |
+| --- | --- | --- |
+| `executor_key` | scheduler 协议 | worker 路由键，例如 `agent.session` |
+| `executor_payload` | 业务 executor | opaque JSON，scheduler 原样保存和投递 |
+| `schedule_type/run_at/cron_expr/interval_seconds/timezone` | scheduler 协议 | 计算 `next_run_at` |
+| `idempotency_key` | 创建方 | 避免重复创建 |
+| `source_type/source_ref` | 创建方 | 业务来源和 reconcile 标识 |
+| `resource_scope/resource_key` | 创建方 | 可选资源隔离、查询、配额标签 |
+| `request_user/request_user_dept` | 创建方 | delegated run 身份上下文 |
+
 业务 API 不直接暴露 timer 内部字段，返回聚合视图：
 
 - `agent-server`: `/agent/api/v1/scheduled_agent_tasks`
@@ -548,7 +672,7 @@ flowchart LR
 
 ### Phase 2: 定时会话 `agent.session`
 
-- agent-server 新增 `agent_schedule_config`。
+- agent-server 定义 `agent.session` payload schema；如果选择 binding 模式，再新增 `agent_schedule_config`。
 - 注册 `agent.session` worker。
 - 接 `WorkspaceChatService.RunWorkspaceChat`。
 - Agent 工具支持创建、查询、立即执行、取消。
@@ -556,7 +680,7 @@ flowchart LR
 
 ### Phase 3: 定时函数 `app.function`
 
-- app-server 新增 `app_function_schedule_config`。
+- app-server 定义 `app.function` payload schema；如果选择 binding 模式，再新增 `app_function_schedule_config`。
 - 实现薄 executor：校验 schema、重新校验权限、构造 RequestApp。
 - 支持 Form submit、Chart query、Table callback。
 - 加操作日志和幂等 key。
@@ -564,7 +688,7 @@ flowchart LR
 ### Phase 4: 定时 workflow `workflow.run`
 
 - workflow-server 实现运行 API 和 worker。
-- schedule 配置引用 workflow version。
+- payload schema 可以 inline workflow 输入，也可以引用 workflow version/config。
 - workflow 稳定后可以由 scheduler 触发。
 
 ## 需要避免的旧坑
@@ -574,7 +698,8 @@ flowchart LR
 | scheduler 和业务侧都算 `next_run_at` | 只由 scheduler 算 |
 | outbox publish 失败后不自动重试 | retry/backoff/dead letter |
 | 业务 execution 和 timer execution 双记录不清晰 | timer execution 是主记录，业务 detail 关联它 |
-| executor 适配器太胖 | 拆薄为 load config、validate、execute、record detail |
+| scheduler 规定 payload 必须是 binding | `executor_payload` 对 scheduler opaque，业务自行选择 inline、binding 或外部引用 |
+| executor 适配器太胖 | 拆薄为 decode/resolve payload、validate、execute、record detail |
 | 执行身份容易模糊 | delegated run 模型，创建和执行都校验权限 |
 | run_now 是否影响周期不清楚 | 第一版规定不改变原 `next_run_at`，但写 execution |
 | NATS 重投递可能产生重复副作用 | execution_id/idempotency_key 传入业务执行 |
