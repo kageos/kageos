@@ -33,7 +33,7 @@
         <el-icon><Search /></el-icon>
         {{ t('workspace.search') }}
       </el-button>
-      <WorkspaceInbox />
+      <WorkspaceInbox :service-tree="serviceTree || []" />
       <div
         v-if="companyName || companyCode"
         class="company-badge"
@@ -184,7 +184,7 @@ import {
   SwitchButton
 } from '@element-plus/icons-vue'
 import AppSwitcher from '@/architecture/presentation/shared/components/AppSwitcher.vue'
-import type { App } from '@/architecture/domain/types'
+import type { App, ServiceTree } from '@/architecture/domain/types'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
 import DebugDialog from './DebugDialog.vue'
@@ -198,7 +198,7 @@ defineProps<{
   currentApp: App | null
   appList: App[]
   loadingApps: boolean
-  serviceTree?: unknown[]
+  serviceTree?: ServiceTree[]
 }>()
 
 defineEmits<{

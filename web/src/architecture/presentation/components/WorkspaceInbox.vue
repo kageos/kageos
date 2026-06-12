@@ -65,54 +65,85 @@
 
         <div class="inbox-layout">
           <section class="inbox-list-pane" v-loading="listLoading">
-            <el-empty
-              v-if="!listLoading && inboxThreads.length === 0"
-              description="暂无站内信"
-              :image-size="80"
-            />
+            <template v-if="showServiceTreeInbox">
+              <el-tree
+                class="inbox-source-tree"
+                :data="props.serviceTree"
+                :props="sourceTreeProps"
+                node-key="full_code_path"
+                :expand-on-click-node="false"
+                :highlight-current="false"
+                @node-click="handleSourceTreeNodeClick"
+              >
+                <template #default="{ data }">
+                  <span
+                    class="inbox-source-tree-node"
+                    :class="{ 'is-active': isSourceTreeNodeActive(data), 'has-unread': hasSourceTreeUnread(data) }"
+                  >
+                    <span class="source-tree-icon">
+                      <el-icon><component :is="sourceTreeNodeIcon(data)" /></el-icon>
+                    </span>
+                    <span class="source-tree-name">{{ data.name || data.code || data.full_code_path }}</span>
+                    <el-badge
+                      v-if="hasSourceTreeUnread(data)"
+                      class="source-tree-badge"
+                      :value="sourceTreeUnreadCount(data)"
+                      :max="99"
+                    />
+                  </span>
+                </template>
+              </el-tree>
+            </template>
+            <template v-else>
+              <el-empty
+                v-if="!listLoading && inboxThreads.length === 0"
+                description="暂无站内信"
+                :image-size="80"
+              />
 
-            <button
-              v-for="thread in inboxThreads"
-              :key="thread.key"
-              type="button"
-              class="inbox-list-item"
-              :class="{ 'is-active': selectedThread?.key === thread.key, 'is-unread': thread.unreadCount > 0 }"
-              @click="selectThread(thread)"
-            >
-              <span class="thread-avatar">
-                <el-icon><component :is="threadIcon(thread)" /></el-icon>
-              </span>
-              <span class="inbox-list-copy">
-                <span class="thread-title-row">
-                  <span class="inbox-list-title">{{ thread.title }}</span>
-                  <span v-if="thread.unreadCount > 0" class="thread-unread-count">{{ thread.unreadCount }}</span>
+              <button
+                v-for="thread in inboxThreads"
+                :key="thread.key"
+                type="button"
+                class="inbox-list-item"
+                :class="{ 'is-active': selectedThread?.key === thread.key, 'is-unread': thread.unreadCount > 0 }"
+                @click="selectThread(thread)"
+              >
+                <span class="thread-avatar">
+                  <el-icon><component :is="threadIcon(thread)" /></el-icon>
                 </span>
-                <span class="inbox-list-preview">{{ previewText(thread.lastMessage.content) }}</span>
-                <span class="inbox-list-meta">
-                  <span>{{ thread.subtitle }}</span>
-                  <span class="thread-time" :title="formatExactTime(thread.lastMessage.created_at)">
-                    {{ formatRelativeTime(thread.lastMessage.created_at) }}
+                <span class="inbox-list-copy">
+                  <span class="thread-title-row">
+                    <span class="inbox-list-title">{{ thread.title }}</span>
+                    <span v-if="thread.unreadCount > 0" class="thread-unread-count">{{ thread.unreadCount }}</span>
+                  </span>
+                  <span class="inbox-list-preview">{{ previewText(thread.lastMessage.content) }}</span>
+                  <span class="inbox-list-meta">
+                    <span>{{ thread.subtitle }}</span>
+                    <span class="thread-time" :title="formatExactTime(thread.lastMessage.created_at)">
+                      {{ formatRelativeTime(thread.lastMessage.created_at) }}
+                    </span>
                   </span>
                 </span>
-              </span>
-            </button>
+              </button>
 
-            <div v-if="total > pageSize" class="inbox-pagination">
-              <el-pagination
-                v-model:current-page="page"
-                :page-size="pageSize"
-                :total="total"
-                small
-                layout="prev, pager, next"
-                @current-change="loadInbox"
-              />
-            </div>
+              <div v-if="total > pageSize" class="inbox-pagination">
+                <el-pagination
+                  v-model:current-page="page"
+                  :page-size="pageSize"
+                  :total="total"
+                  small
+                  layout="prev, pager, next"
+                  @current-change="loadInbox"
+                />
+              </div>
+            </template>
           </section>
 
           <section class="inbox-detail-pane" v-loading="detailLoading">
             <el-empty
               v-if="!selectedThread"
-              description="选择一个消息源查看通知"
+              :description="sourceFilter ? '当前节点暂无通知' : '选择一个消息源查看通知'"
               :image-size="96"
             />
 
@@ -253,18 +284,23 @@ import {
   getMessageInboxItem,
   getMessageInboxUnreadCount,
   listMessageInbox,
+  listMessageInboxSourceCounts,
   listMessageInboxThreads,
   markAllMessageInboxItemsRead,
   markMessageInboxItemRead,
   type MessageInboxItem,
+  type MessageInboxSourceCount,
   type MessageInboxThread,
   type MessageInboxStatus,
 } from '@/architecture/presentation/context/api/message'
+import type { ServiceTree } from '@/architecture/domain/types'
 
 const props = withDefaults(defineProps<{
   showTrigger?: boolean
+  serviceTree?: ServiceTree[]
 }>(), {
-  showTrigger: true
+  showTrigger: true,
+  serviceTree: () => []
 })
 
 const emit = defineEmits<{
@@ -291,6 +327,12 @@ interface SourceFilter {
   kind?: MessageInboxThread['kind']
 }
 
+interface SourceTreeSummary {
+  unread_count?: number
+  message_count?: number
+  latest_at?: string
+}
+
 const router = useRouter()
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
@@ -314,6 +356,33 @@ const statusOptions = [
   { label: '未读', value: 'unread' },
 ]
 const sourceFilter = ref<SourceFilter | null>(null)
+const sourceCountMap = ref<Record<string, MessageInboxSourceCount>>({})
+const sourceTreeProps = {
+  children: 'children',
+  label: 'name',
+}
+const showServiceTreeInbox = computed(() => props.showTrigger && props.serviceTree.length > 0)
+const sourceTreeSummaries = computed<Record<string, SourceTreeSummary>>(() => {
+  const summaries: Record<string, SourceTreeSummary> = {}
+  const walk = (node: ServiceTree): SourceTreeSummary => {
+    const path = normalizeSourceTreePath(node.full_code_path)
+    const summary: SourceTreeSummary = {}
+    if (path) {
+      mergeSourceSummary(summary, sourceCountMap.value[path])
+    }
+    for (const child of node.children || []) {
+      mergeSourceSummary(summary, walk(child))
+    }
+    if (path) {
+      summaries[path] = summary
+    }
+    return summary
+  }
+  for (const node of props.serviceTree || []) {
+    walk(node)
+  }
+  return summaries
+})
 const drawerTitle = computed(() => {
   if (!sourceFilter.value) return '站内信'
   return `${sourceFilter.value.title || '节点通知'} · 通知`
@@ -325,7 +394,7 @@ const selectedThread = computed(() => {
 })
 const currentScopeUnreadCount = computed(() => {
   if (sourceFilter.value) {
-    return selectedThread.value?.unreadCount || 0
+    return selectedThread.value ? selectedThread.value.unreadCount : sourceFilterUnreadCount()
   }
   return unreadCount.value
 })
@@ -387,8 +456,19 @@ async function loadInbox(resetPage = false) {
   listLoading.value = true
   errorMessage.value = ''
   try {
+    if (showServiceTreeInbox.value) {
+      await loadSourceCounts()
+    }
     if (sourceFilter.value?.sourcePath) {
       await loadSourceInbox()
+      return
+    }
+    if (showServiceTreeInbox.value) {
+      inboxThreads.value = []
+      threadMessages.value = []
+      selectedThreadKey.value = ''
+      selectedMessage.value = null
+      total.value = 0
       return
     }
     const resp = await listMessageInboxThreads({
@@ -416,6 +496,24 @@ async function loadInbox(resetPage = false) {
   }
 }
 
+async function loadSourceCounts() {
+  try {
+    const resp = await listMessageInboxSourceCounts()
+    const next: Record<string, MessageInboxSourceCount> = {}
+    for (const item of resp.list || []) {
+      const path = normalizeSourceTreePath(item.source_path)
+      if (!path) continue
+      next[path] = {
+        ...item,
+        source_path: path,
+      }
+    }
+    sourceCountMap.value = next
+  } catch {
+    sourceCountMap.value = {}
+  }
+}
+
 async function loadSourceInbox() {
   const filter = sourceFilter.value
   if (!filter?.sourcePath) return
@@ -437,7 +535,7 @@ async function loadSourceInbox() {
   }
   const firstMessage = messages[0]
   if (!firstMessage) return
-  const unreadCount = messages.filter(item => !item.read_at).length
+  const unreadCount = sourceFilterUnreadCount() || messages.filter(item => !item.read_at).length
   const thread: InboxThread = {
     key: sourceFilterThreadKey(filter),
     title: filter.title || sourcePrimaryText(firstMessage),
@@ -495,6 +593,9 @@ async function selectMessage(item: MessageInboxItem) {
       selectedMessage.value = { ...detail, read_at: new Date().toISOString() }
       updateListReadState(item.id)
       await loadUnreadCount()
+      if (showServiceTreeInbox.value) {
+        await loadSourceCounts()
+      }
       emit('messages-updated')
     }
   } catch (error) {
@@ -530,6 +631,9 @@ async function markThreadRead(thread: InboxThread) {
       selectedMessage.value = { ...selectedMessage.value, read_at: selectedMessage.value.read_at || now }
     }
     await loadUnreadCount()
+    if (showServiceTreeInbox.value) {
+      await loadSourceCounts()
+    }
     emit('messages-updated')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '标记已读失败')
@@ -544,6 +648,9 @@ async function markMessageRead(id: number) {
       selectedMessage.value = { ...selectedMessage.value, read_at: new Date().toISOString() }
     }
     await loadUnreadCount()
+    if (showServiceTreeInbox.value) {
+      await loadSourceCounts()
+    }
     emit('messages-updated')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '标记已读失败')
@@ -551,8 +658,10 @@ async function markMessageRead(id: number) {
 }
 
 async function markCurrentScopeRead() {
-  if (sourceFilter.value && selectedThread.value) {
-    await markThreadRead(selectedThread.value)
+  if (sourceFilter.value) {
+    if (selectedThread.value) {
+      await markThreadRead(selectedThread.value)
+    }
     return
   }
   await markAllRead()
@@ -572,6 +681,9 @@ async function markAllRead() {
       selectedMessage.value = { ...selectedMessage.value, read_at: selectedMessage.value.read_at || now }
     }
     unreadCount.value = 0
+    if (showServiceTreeInbox.value) {
+      await loadSourceCounts()
+    }
     ElMessage.success('已全部标记为已读')
     emit('messages-updated')
   } catch (error) {
@@ -619,6 +731,65 @@ function apiThreadToInboxThread(thread: MessageInboxThread): InboxThread {
 
 function sourceFilterThreadKey(filter: SourceFilter) {
   return `source:${filter.sourcePath}:${filter.includeChildren ? 'children' : 'direct'}`
+}
+
+function normalizeSourceTreePath(path?: string) {
+  return (path || '').trim().replace(/\/+$/g, '')
+}
+
+function mergeSourceSummary(target: SourceTreeSummary, source?: SourceTreeSummary | MessageInboxSourceCount) {
+  if (!source) return target
+  target.unread_count = Number(target.unread_count || 0) + Number(source.unread_count || 0)
+  target.message_count = Number(target.message_count || 0) + Number(source.message_count || 0)
+  if (!target.latest_at || (source.latest_at && source.latest_at > target.latest_at)) {
+    target.latest_at = source.latest_at
+  }
+  return target
+}
+
+function sourceTreeSummaryByPath(path?: string) {
+  const normalized = normalizeSourceTreePath(path)
+  if (!normalized) return undefined
+  return sourceTreeSummaries.value[normalized] || sourceCountMap.value[normalized]
+}
+
+function getSourceTreeSummary(node: ServiceTree) {
+  return sourceTreeSummaryByPath(node.full_code_path)
+}
+
+function sourceFilterUnreadCount() {
+  const filter = sourceFilter.value
+  if (!filter?.sourcePath) return 0
+  return Number(sourceTreeSummaryByPath(filter.sourcePath)?.unread_count || 0)
+}
+
+function hasSourceTreeUnread(node: ServiceTree) {
+  return Number(getSourceTreeSummary(node)?.unread_count || 0) > 0
+}
+
+function sourceTreeUnreadCount(node: ServiceTree) {
+  return getSourceTreeSummary(node)?.unread_count || ''
+}
+
+function isSourceTreeNodeActive(node: ServiceTree) {
+  return normalizeSourceTreePath(node.full_code_path) === normalizeSourceTreePath(sourceFilter.value?.sourcePath)
+}
+
+function sourceTreeNodeIcon(node: ServiceTree) {
+  if (node.type === 'package') return FolderOpened
+  return DocumentIcon
+}
+
+function handleSourceTreeNodeClick(node: ServiceTree) {
+  const sourcePath = normalizeSourceTreePath(node.full_code_path)
+  if (!sourcePath) return
+  sourceFilter.value = {
+    sourcePath,
+    title: node.name || node.code || sourcePath,
+    includeChildren: node.type === 'package',
+    kind: node.type === 'package' ? 'directory' : 'function',
+  }
+  void loadInbox(true)
 }
 
 function messageTime(item: MessageInboxItem) {
@@ -906,6 +1077,80 @@ defineExpose({
 
 .inbox-list-pane {
   padding: 8px;
+}
+
+.inbox-source-tree {
+  background: transparent;
+
+  :deep(.el-tree-node__content) {
+    height: 40px;
+    margin: 2px 0;
+    border-radius: 10px;
+    transition: background 0.16s ease, color 0.16s ease;
+  }
+
+  :deep(.el-tree-node__content:hover) {
+    background: rgba(var(--el-color-primary-rgb), 0.07);
+  }
+
+  :deep(.el-tree-node__expand-icon) {
+    color: var(--el-text-color-placeholder);
+  }
+}
+
+.inbox-source-tree-node {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding-right: 8px;
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  line-height: 1;
+
+  &.is-active {
+    color: var(--el-color-primary);
+    font-weight: 750;
+  }
+
+  &.has-unread .source-tree-name {
+    font-weight: 780;
+  }
+}
+
+.source-tree-icon {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 8px;
+  background: var(--app-shell-panel-bg);
+  color: var(--el-color-primary);
+  font-size: 15px;
+}
+
+.inbox-source-tree-node.is-active .source-tree-icon {
+  border-color: rgba(var(--el-color-primary-rgb), 0.28);
+  background: rgba(var(--el-color-primary-rgb), 0.12);
+}
+
+.source-tree-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-tree-badge {
+  flex-shrink: 0;
+
+  :deep(.el-badge__content) {
+    border: 0;
+    box-shadow: 0 0 0 2px var(--app-shell-panel-muted-bg);
+  }
 }
 
 .inbox-list-item {
