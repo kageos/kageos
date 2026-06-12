@@ -85,7 +85,9 @@
                 <span class="inbox-list-preview">{{ previewText(thread.lastMessage.content) }}</span>
                 <span class="inbox-list-meta">
                   <span>{{ thread.subtitle }}</span>
-                  <span>{{ formatTime(thread.lastMessage.created_at) }}</span>
+                  <span class="thread-time" :title="formatExactTime(thread.lastMessage.created_at)">
+                    {{ formatRelativeTime(thread.lastMessage.created_at) }}
+                  </span>
                 </span>
               </span>
             </button>
@@ -174,7 +176,9 @@
                       </el-tag>
                       <el-tag v-if="!message.read_at" size="small" type="primary">未读</el-tag>
                     </div>
-                    <span>{{ formatTime(message.created_at) }}</span>
+                    <span :title="formatExactTime(message.created_at)">
+                      {{ formatRelativeTime(message.created_at) }}
+                    </span>
                   </header>
                   <div class="message-card-source">{{ sourceSecondaryText(message) }}</div>
                   <div class="inbox-content">{{ message.content }}</div>
@@ -306,7 +310,7 @@ const selectedThread = computed(() => {
 const selectedThreadMessages = computed(() => {
   return selectedThread.value?.messages
     .slice()
-    .sort((a, b) => messageTime(a) - messageTime(b)) || []
+    .sort((a, b) => messageTime(b) - messageTime(a)) || []
 })
 
 onMounted(() => {
@@ -569,10 +573,34 @@ async function openWorkspaceSession(item: MessageInboxItem) {
   })
 }
 
-function formatTime(value?: string) {
+function formatExactTime(value?: string) {
   if (!value) return '-'
   const parsed = dayjs(value)
   return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm') : value
+}
+
+function formatRelativeTime(value?: string) {
+  if (!value) return '-'
+  const parsed = dayjs(value)
+  if (!parsed.isValid()) return value
+
+  const diffMs = Date.now() - parsed.valueOf()
+  const absDiffMs = Math.abs(diffMs)
+  const minute = 60 * 1000
+  const hour = 60 * minute
+  const day = 24 * hour
+
+  if (absDiffMs < minute) return '刚刚'
+  if (diffMs < 0) {
+    if (absDiffMs < hour) return `${Math.floor(absDiffMs / minute)}分钟后`
+    if (absDiffMs < day) return `${Math.floor(absDiffMs / hour)}小时后`
+    return parsed.format('MM-DD HH:mm')
+  }
+  if (diffMs < hour) return `${Math.floor(diffMs / minute)}分钟前`
+  if (diffMs < day) return `${Math.floor(diffMs / hour)}小时前`
+  if (diffMs < 30 * day) return `${Math.floor(diffMs / day)}天前`
+  if (diffMs < 365 * day) return parsed.format('MM-DD HH:mm')
+  return parsed.format('YYYY-MM-DD')
 }
 </script>
 
@@ -652,6 +680,7 @@ function formatTime(value?: string) {
   width: 100%;
   grid-template-columns: 42px minmax(0, 1fr);
   gap: 10px;
+  align-items: flex-start;
   padding: 12px 10px;
   border: 1px solid transparent;
   border-radius: 11px;
@@ -676,6 +705,7 @@ function formatTime(value?: string) {
   display: grid;
   width: 42px;
   height: 42px;
+  margin-top: 1px;
   place-items: center;
   border: 1px solid rgba(var(--el-color-primary-rgb), 0.18);
   border-radius: 10px;
@@ -694,6 +724,7 @@ function formatTime(value?: string) {
 .thread-title-row {
   display: flex;
   min-width: 0;
+  min-height: 22px;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -725,6 +756,7 @@ function formatTime(value?: string) {
   min-width: 0;
   font-size: 13px;
   font-weight: 650;
+  line-height: 22px;
 }
 
 .inbox-list-preview {
@@ -734,10 +766,22 @@ function formatTime(value?: string) {
 
 .inbox-list-meta {
   display: flex;
+  min-width: 0;
   justify-content: space-between;
   gap: 8px;
   color: var(--el-text-color-placeholder);
   font-size: 11px;
+
+  span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.thread-time {
+  flex-shrink: 0;
 }
 
 .inbox-pagination {
