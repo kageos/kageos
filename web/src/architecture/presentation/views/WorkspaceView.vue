@@ -191,6 +191,8 @@
     <WorkspaceInbox
       ref="nodeInboxRef"
       :show-trigger="false"
+      :sync-route="false"
+      :service-tree="serviceTree"
       @messages-updated="refreshMessageCounts"
     />
 

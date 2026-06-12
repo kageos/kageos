@@ -4,6 +4,10 @@ import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/shared/logger'
 import type { ServiceTree } from '../../domain/types'
 import { featureFlags } from '@/architecture/shared/config/features'
+import {
+  clearOperateLogRouteQuery,
+  clearScheduledRouteQuery,
+} from '@/architecture/shared/routing/platformRouteParams'
 
 type FunctionTabName = 'content' | 'permission' | 'publicShare' | 'operateLog' | 'scheduledTask'
 
@@ -62,6 +66,12 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
       nextQuery._panel = nextTab
     } else {
       delete nextQuery._panel
+    }
+    if (nextTab !== 'scheduledTask') {
+      clearScheduledRouteQuery(nextQuery)
+    }
+    if (nextTab !== 'operateLog') {
+      clearOperateLogRouteQuery(nextQuery)
     }
 
     router.replace({

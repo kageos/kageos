@@ -77,6 +77,14 @@ import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
 import TeamAccessPanel from './TeamAccessPanel.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { featureFlags } from '@/architecture/shared/config/features'
+import {
+  isOperateLogPanelQuery,
+  isScheduledPanelQuery,
+  PLATFORM_PANEL_QUERY_KEY,
+  PLATFORM_SCHEDULED_EXECUTION_ID_QUERY_KEY,
+  PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY,
+  readStringQuery,
+} from '@/architecture/shared/routing/platformRouteParams'
 
 type PackageTabName = 'permission' | 'operateLog' | 'scheduledAgentTask' | 'detail'
 
@@ -109,8 +117,8 @@ const accessPanelRef = ref<LoadableAccessPanel | null>(null)
 const directoryMarkdown = computed(() => {
   return props.packageNode?.description?.trim() || ''
 })
-const scheduledFocusTaskID = computed(() => String(route.query._scheduled_task_id || ''))
-const scheduledFocusExecutionID = computed(() => String(route.query._scheduled_execution_id || ''))
+const scheduledFocusTaskID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY))
+const scheduledFocusExecutionID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_EXECUTION_ID_QUERY_KEY))
 
 function loadOperateLogTab(tabName: PackageTabName) {
   if (tabName === 'operateLog' && featureFlags.operateLogs) {
@@ -137,10 +145,27 @@ watch(
 )
 
 watch(
-  () => [route.query._scheduled, route.query._scheduled_kind, route.query._scheduled_task_id, props.packageNode?.full_code_path],
-  ([scheduled, kind, taskID]) => {
-    if (scheduled === 'open' && kind === 'agent' && taskID && featureFlags.scheduledTasks) {
+  () => [
+    route.query._open,
+    route.query._scheduled,
+    route.query._scheduled_kind,
+    route.query[PLATFORM_PANEL_QUERY_KEY],
+    route.query[PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY],
+    props.packageNode?.full_code_path,
+  ],
+  () => {
+    if (isScheduledPanelQuery(route.query, 'agent') && scheduledFocusTaskID.value && featureFlags.scheduledTasks) {
       activeTab.value = 'scheduledAgentTask'
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => [route.query._open, route.query[PLATFORM_PANEL_QUERY_KEY], props.packageNode?.full_code_path],
+  () => {
+    if (isOperateLogPanelQuery(route.query) && featureFlags.operateLogs) {
+      activeTab.value = 'operateLog'
     }
   },
   { immediate: true }

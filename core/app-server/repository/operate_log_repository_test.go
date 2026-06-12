@@ -36,6 +36,48 @@ func TestNormalizeOperateLogOrderByWhitelist(t *testing.T) {
 	}
 }
 
+func TestGetOperateLogsFiltersByID(t *testing.T) {
+	db := newOperateLogRepositoryTestDB(t)
+	repo := NewOperateLogRepository(db)
+	ctx := context.Background()
+
+	first := &model.OperateLog{
+		TenantUser:   "alice",
+		App:          "ops",
+		ActorUser:    "alice",
+		Action:       "form_submit",
+		ResourceType: "form",
+		ResourcePath: "/alice/ops/export.form",
+		Status:       "success",
+	}
+	if err := repo.CreateOperateLog(ctx, first); err != nil {
+		t.Fatalf("create first log: %v", err)
+	}
+	if err := repo.CreateOperateLog(ctx, &model.OperateLog{
+		TenantUser:   "alice",
+		App:          "ops",
+		ActorUser:    "bob",
+		Action:       "form_submit",
+		ResourceType: "form",
+		ResourcePath: "/alice/ops/export.form",
+		Status:       "success",
+	}); err != nil {
+		t.Fatalf("create second log: %v", err)
+	}
+
+	logs, total, err := repo.GetOperateLogs(ctx, &dto.GetOperateLogsReq{
+		ID:       first.ID,
+		Page:     1,
+		PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("query logs: %v", err)
+	}
+	if total != 1 || len(logs) != 1 || logs[0].ID != first.ID {
+		t.Fatalf("expected only id=%d, total=%d logs=%+v", first.ID, total, logs)
+	}
+}
+
 func TestGetOperateLogsFiltersRowIDByTargetID(t *testing.T) {
 	db := newOperateLogRepositoryTestDB(t)
 	repo := NewOperateLogRepository(db)

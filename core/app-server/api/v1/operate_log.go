@@ -27,6 +27,7 @@ func NewOperateLog(operateLogService *service.OperateLogService, teamAccessServi
 // @Accept json
 // @Produce json
 // @Param X-Token header string true "JWT Token"
+// @Param id query int false "操作日志 ID"
 // @Param tenant_user query string false "租户用户（app 的所有者）"
 // @Param company_code query string false "企业代码（默认当前登录企业）"
 // @Param actor_user query string false "执行用户"

@@ -1,5 +1,18 @@
 import { nextTick, ref, watch, type ComputedRef } from 'vue'
 import type { RouteLocationNormalizedLoaded, Router } from 'vue-router'
+import {
+  LEGACY_MINI_WORKSTATION_EXPANDED_QUERY_KEY,
+  LEGACY_MINI_WORKSTATION_MAXIMIZED_QUERY_KEY,
+  LEGACY_MINI_WORKSTATION_NAME_QUERY_KEY,
+  LEGACY_MINI_WORKSTATION_OPEN_QUERY_KEY,
+  LEGACY_MINI_WORKSTATION_PATH_QUERY_KEY,
+  LEGACY_MINI_WORKSTATION_SESSION_ID_QUERY_KEY,
+  PLATFORM_FOCUS_QUERY_KEY,
+  PLATFORM_OPEN_QUERY_KEY,
+  PLATFORM_SESSION_ID_QUERY_KEY,
+  PLATFORM_SOURCE_PATH_QUERY_KEY,
+  readStringQuery,
+} from '@/architecture/shared/routing/platformRouteParams'
 
 export interface MiniWsInstance {
   id: string
@@ -233,26 +246,39 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     if (open && state.expanded !== false) {
       // mini 工作台状态只给前端/平台使用，必须用 `_` key，
       // 不能占用 sdk-app 业务参数名。
-      query._mws = 'open'
+      query[PLATFORM_OPEN_QUERY_KEY] = 'session'
+      query[PLATFORM_FOCUS_QUERY_KEY] = 'workspace_session'
+      query[LEGACY_MINI_WORKSTATION_OPEN_QUERY_KEY] = 'open'
       if (state.sessionId) {
-        query._mws_sid = state.sessionId
+        query[PLATFORM_SESSION_ID_QUERY_KEY] = state.sessionId
+        query[LEGACY_MINI_WORKSTATION_SESSION_ID_QUERY_KEY] = state.sessionId
       } else {
-        delete query._mws_sid
+        delete query[PLATFORM_SESSION_ID_QUERY_KEY]
+        delete query[LEGACY_MINI_WORKSTATION_SESSION_ID_QUERY_KEY]
       }
       const ctx = state.ctx || workstationContext.value
       if (ctx) {
-        query._mws_path = ctx.fullCodePath
-        query._mws_name = resolveDirName(ctx.fullCodePath, ctx.dirName)
+        query[PLATFORM_SOURCE_PATH_QUERY_KEY] = ctx.fullCodePath
+        query[LEGACY_MINI_WORKSTATION_PATH_QUERY_KEY] = ctx.fullCodePath
+        query[LEGACY_MINI_WORKSTATION_NAME_QUERY_KEY] = resolveDirName(ctx.fullCodePath, ctx.dirName)
       }
-      query._mws_expanded = '1'
-      query._mws_maximized = state.maximized ? '1' : '0'
+      query[LEGACY_MINI_WORKSTATION_EXPANDED_QUERY_KEY] = '1'
+      query[LEGACY_MINI_WORKSTATION_MAXIMIZED_QUERY_KEY] = state.maximized ? '1' : '0'
     } else {
-      delete query._mws
-      delete query._mws_sid
-      delete query._mws_path
-      delete query._mws_name
-      delete query._mws_expanded
-      delete query._mws_maximized
+      if (query[PLATFORM_OPEN_QUERY_KEY] === 'session') {
+        delete query[PLATFORM_OPEN_QUERY_KEY]
+      }
+      if (query[PLATFORM_FOCUS_QUERY_KEY] === 'workspace_session') {
+        delete query[PLATFORM_FOCUS_QUERY_KEY]
+      }
+      delete query[PLATFORM_SESSION_ID_QUERY_KEY]
+      delete query[PLATFORM_SOURCE_PATH_QUERY_KEY]
+      delete query[LEGACY_MINI_WORKSTATION_OPEN_QUERY_KEY]
+      delete query[LEGACY_MINI_WORKSTATION_SESSION_ID_QUERY_KEY]
+      delete query[LEGACY_MINI_WORKSTATION_PATH_QUERY_KEY]
+      delete query[LEGACY_MINI_WORKSTATION_NAME_QUERY_KEY]
+      delete query[LEGACY_MINI_WORKSTATION_EXPANDED_QUERY_KEY]
+      delete query[LEGACY_MINI_WORKSTATION_MAXIMIZED_QUERY_KEY]
     }
     router.replace({ path: route.path, query })
   }
@@ -413,11 +439,15 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
   }
 
   function initializeFromRoute() {
-    if (route.query._mws === 'open') {
-      const mwsSid = typeof route.query._mws_sid === 'string' ? route.query._mws_sid : ''
-      const mwsPath = typeof route.query._mws_path === 'string' ? route.query._mws_path : ''
-      const mwsName = typeof route.query._mws_name === 'string' ? route.query._mws_name : ''
-      const initialExpanded = normalizeRouteBool(route.query._mws_expanded, true)
+    const canonicalOpen = readStringQuery(route.query, PLATFORM_OPEN_QUERY_KEY) === 'session'
+    const legacyOpen = readStringQuery(route.query, LEGACY_MINI_WORKSTATION_OPEN_QUERY_KEY) === 'open'
+    if (canonicalOpen || legacyOpen) {
+      const mwsSid = readStringQuery(route.query, PLATFORM_SESSION_ID_QUERY_KEY)
+        || readStringQuery(route.query, LEGACY_MINI_WORKSTATION_SESSION_ID_QUERY_KEY)
+      const mwsPath = readStringQuery(route.query, PLATFORM_SOURCE_PATH_QUERY_KEY)
+        || readStringQuery(route.query, LEGACY_MINI_WORKSTATION_PATH_QUERY_KEY)
+      const mwsName = readStringQuery(route.query, LEGACY_MINI_WORKSTATION_NAME_QUERY_KEY)
+      const initialExpanded = normalizeRouteBool(route.query[LEGACY_MINI_WORKSTATION_EXPANDED_QUERY_KEY], true)
       if (!initialExpanded) {
         syncMiniWsQueryParam(false)
         return
@@ -427,7 +457,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
         dirName: mwsName || undefined,
         sessionId: mwsSid || undefined,
         initialExpanded,
-        initialMaximized: normalizeRouteBool(route.query._mws_maximized, true),
+        initialMaximized: normalizeRouteBool(route.query[LEGACY_MINI_WORKSTATION_MAXIMIZED_QUERY_KEY], true),
       })
     }
   }

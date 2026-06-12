@@ -240,6 +240,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CaretRight, Close, Delete, Plus, Refresh, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import type { FunctionDetail } from '@/architecture/domain/types'
@@ -264,6 +265,9 @@ import {
   taskStatusLabel,
   taskStatusTag,
 } from './utils/timerSchedule'
+import {
+  buildScheduledExecutionRoute,
+} from '@/architecture/shared/routing/platformRouteParams'
 import ScheduledTaskDialog from './ScheduledTaskDialog.vue'
 
 interface ExecutionState {
@@ -295,6 +299,8 @@ const emit = defineEmits<{
   (e: 'total-change', value: number): void
 }>()
 
+const route = useRoute()
+const router = useRouter()
 const loading = ref(false)
 const list = ref<TimerTask[]>([])
 const total = ref(0)
@@ -412,7 +418,7 @@ function handleSelectedExecutionPageChange(nextPage: number) {
   void loadSelectedExecutions()
 }
 
-async function openTaskDrawer(task: TimerTask) {
+async function openTaskDrawer(task: TimerTask, syncRoute = true) {
   selectedTask.value = task
   selectedExecutionState.page = 1
   selectedExecutionState.status = ''
@@ -421,6 +427,16 @@ async function openTaskDrawer(task: TimerTask) {
   selectedExecutionState.total = 0
   selectedExecutionState.error = ''
   drawerVisible.value = true
+  if (syncRoute && props.resourcePath) {
+    await router.replace({
+      path: route.path,
+      query: buildScheduledExecutionRoute({
+        fullCodePath: props.resourcePath,
+        kind: 'function',
+        taskId: task.id,
+      }).query,
+    })
+  }
   await loadSelectedExecutions()
 }
 
@@ -443,7 +459,7 @@ async function openFocusedTaskIfNeeded() {
   if (!task) return
   appliedFocusKey.value = key
   focusedExecutionId.value = normalizeFocusID(props.focusExecutionId)
-  await openTaskDrawer(task)
+  await openTaskDrawer(task, false)
 }
 
 async function ensureFocusedExecutionLoaded() {

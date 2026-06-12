@@ -28,6 +28,7 @@
       :z-index="Z_INDEX.globalOverlay"
       class="workspace-inbox-drawer"
       @open="handleDrawerOpen"
+      @closed="handleDrawerClosed"
     >
       <div class="inbox-shell">
         <header class="inbox-toolbar">
@@ -264,8 +265,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage } from 'element-plus'
 import {
@@ -280,6 +281,23 @@ import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { escapeHtml, sanitizeHtml } from '@/architecture/shared/sanitizeHtml'
 import ServiceTreeNodeContent from './ServiceTreeNodeContent.vue'
+import {
+  buildMessageSourceRoute,
+  buildInboxRouteQuery,
+  buildScheduledExecutionRoute,
+  buildWorkspaceSessionRoute,
+  clearInboxRouteQuery,
+  clearOperateLogRouteQuery,
+  clearScheduledRouteQuery,
+  isInboxOpenQuery,
+  normalizeWorkspaceFullCodePath,
+  readNumberQuery,
+  readStringQuery,
+  workspaceRoutePath,
+  PLATFORM_MESSAGE_ID_QUERY_KEY,
+  PLATFORM_SOURCE_PATH_QUERY_KEY,
+  PLATFORM_TRACE_ID_QUERY_KEY,
+} from '@/architecture/shared/routing/platformRouteParams'
 import {
   getMessageInboxItem,
   getMessageInboxUnreadCount,
@@ -297,9 +315,11 @@ import type { ServiceTree } from '@/architecture/domain/types'
 
 const props = withDefaults(defineProps<{
   showTrigger?: boolean
+  syncRoute?: boolean
   serviceTree?: ServiceTree[]
 }>(), {
   showTrigger: true,
+  syncRoute: true,
   serviceTree: () => []
 })
 
@@ -338,6 +358,7 @@ interface LoadInboxOptions {
 }
 
 const router = useRouter()
+const route = useRoute()
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
 const drawerVisible = ref(false)
@@ -362,6 +383,7 @@ const statusOptions = [
 const sourceFilter = ref<SourceFilter | null>(null)
 const markSourceReadOnOpen = ref(false)
 const sourceCountMap = ref<Record<string, MessageInboxSourceCount>>({})
+const appliedRouteInboxKey = ref('')
 const sourceTreeProps = {
   children: 'children',
   label: 'name',
@@ -444,6 +466,20 @@ onMounted(() => {
   void loadUnreadCount()
 })
 
+watch(
+  () => [
+    route.query._open,
+    route.query[PLATFORM_MESSAGE_ID_QUERY_KEY],
+    route.query[PLATFORM_SOURCE_PATH_QUERY_KEY],
+    route.query[PLATFORM_TRACE_ID_QUERY_KEY],
+    props.showTrigger,
+  ],
+  () => {
+    void openInboxFromRouteIntent()
+  },
+  { immediate: true }
+)
+
 async function loadUnreadCount() {
   countLoading.value = true
   try {
@@ -459,7 +495,36 @@ async function loadUnreadCount() {
 function openDrawer() {
   sourceFilter.value = null
   markSourceReadOnOpen.value = false
+  void syncInboxRoute()
   drawerVisible.value = true
+}
+
+async function openInboxFromRouteIntent() {
+  if (!props.showTrigger || !props.syncRoute || !isInboxOpenQuery(route.query)) return
+  const messageID = readNumberQuery(route.query, PLATFORM_MESSAGE_ID_QUERY_KEY)
+  const sourcePath = normalizeSourceTreePath(readStringQuery(route.query, PLATFORM_SOURCE_PATH_QUERY_KEY))
+  const key = `${sourcePath}:${messageID}`
+  if (appliedRouteInboxKey.value === key && drawerVisible.value) return
+  appliedRouteInboxKey.value = key
+
+  if (sourcePath) {
+    const sourceNode = findServiceTreeNodeByPath(sourcePath)
+    sourceFilter.value = {
+      sourcePath,
+      title: sourceNode?.name || sourceNode?.code || sourcePath,
+      includeChildren: false,
+      kind: sourceNode?.type === 'package' ? 'directory' : 'function',
+    }
+  } else {
+    sourceFilter.value = null
+  }
+
+  markSourceReadOnOpen.value = false
+  drawerVisible.value = true
+  await loadInbox(true)
+  if (messageID) {
+    await focusMessageByID(messageID)
+  }
 }
 
 function openForSource(filter: SourceFilter) {
@@ -471,6 +536,7 @@ function openForSource(filter: SourceFilter) {
   }
   const wasVisible = drawerVisible.value
   markSourceReadOnOpen.value = !wasVisible
+  void syncInboxRoute({ sourcePath })
   drawerVisible.value = true
   if (wasVisible) {
     void loadInbox(true, { markSourceRead: true })
@@ -480,6 +546,7 @@ function openForSource(filter: SourceFilter) {
 function clearSourceFilter() {
   sourceFilter.value = null
   markSourceReadOnOpen.value = false
+  void syncInboxRoute()
   void loadInbox(true)
 }
 
@@ -488,6 +555,14 @@ function handleDrawerOpen() {
   markSourceReadOnOpen.value = false
   void loadInbox(true, { markSourceRead })
   void loadUnreadCount()
+}
+
+function handleDrawerClosed() {
+  if (!props.syncRoute || !isInboxOpenQuery(route.query)) return
+  appliedRouteInboxKey.value = ''
+  const query = { ...route.query }
+  clearInboxRouteQuery(query)
+  void router.replace({ path: route.path, query })
 }
 
 async function loadInbox(resetPage = false, options: LoadInboxOptions = {}) {
@@ -632,10 +707,49 @@ async function selectMessage(item: MessageInboxItem) {
   try {
     const detail = await getMessageInboxItem(item.id)
     selectedMessage.value = detail
+    void syncInboxRoute({
+      messageId: detail.id,
+      sourcePath: sourcePathForMessage(detail) || sourceFilter.value?.sourcePath,
+      traceId: detail.trace_id,
+    })
     if (!detail.read_at) {
       await markMessageInboxItemRead(item.id)
       selectedMessage.value = { ...detail, read_at: new Date().toISOString() }
       updateListReadState(item.id)
+      await loadUnreadCount()
+      if (showServiceTreeInbox.value) {
+        await loadSourceCounts()
+      }
+      emit('messages-updated')
+    }
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '加载消息详情失败'
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+async function focusMessageByID(id: number) {
+  const existing = threadMessages.value.find(item => item.id === id)
+  if (existing) {
+    await selectMessage(existing)
+    return
+  }
+
+  detailLoading.value = true
+  errorMessage.value = ''
+  try {
+    const detail = await getMessageInboxItem(id)
+    selectedMessage.value = detail
+    if (!threadMessages.value.some(item => item.id === detail.id)) {
+      threadMessages.value = [detail, ...threadMessages.value]
+    }
+    if (!detail.read_at) {
+      await markMessageInboxItemRead(detail.id)
+      const readDetail = { ...detail, read_at: new Date().toISOString() }
+      selectedMessage.value = readDetail
+      threadMessages.value = threadMessages.value.map(item => item.id === detail.id ? readDetail : item)
+      updateListReadState(detail.id)
       await loadUnreadCount()
       if (showServiceTreeInbox.value) {
         await loadSourceCounts()
@@ -778,7 +892,21 @@ function sourceFilterThreadKey(filter: SourceFilter) {
 }
 
 function normalizeSourceTreePath(path?: string) {
-  return (path || '').trim().replace(/\/+$/g, '')
+  return normalizeWorkspaceFullCodePath(path)
+}
+
+function findServiceTreeNodeByPath(fullCodePath: string): ServiceTree | null {
+  const target = normalizeSourceTreePath(fullCodePath)
+  if (!target) return null
+  const walk = (nodes: ServiceTree[]): ServiceTree | null => {
+    for (const node of nodes) {
+      if (normalizeSourceTreePath(node.full_code_path) === target) return node
+      const child = walk(node.children || [])
+      if (child) return child
+    }
+    return null
+  }
+  return walk(props.serviceTree || [])
 }
 
 function sourceTreeSummaryByPath(path?: string) {
@@ -826,6 +954,7 @@ function handleSourceTreeNodeClick(node: ServiceTree) {
     includeChildren: false,
     kind: node.type === 'package' ? 'directory' : 'function',
   }
+  void syncInboxRoute({ sourcePath })
   void loadInbox(true, { markSourceRead: true })
 }
 
@@ -927,36 +1056,52 @@ function workspacePathForMessage(item: MessageInboxItem) {
   return sourceParentPathForMessage(item) || sourcePathForMessage(item)
 }
 
-function workspaceRoutePath(fullCodePath?: string) {
-  const normalized = (fullCodePath || '').trim()
-  if (!normalized) return ''
-  return `/workspace${normalized.startsWith('/') ? normalized : `/${normalized}`}`
+async function syncInboxRoute(options: {
+  messageId?: number | string
+  sourcePath?: string
+  traceId?: string
+} = {}) {
+  if (!props.syncRoute) return
+  const sourcePath = normalizeSourceTreePath(options.sourcePath)
+  const messageID = options.messageId ? String(options.messageId) : ''
+  appliedRouteInboxKey.value = `${sourcePath}:${messageID ? Number(messageID) || messageID : 0}`
+  const query = { ...route.query }
+  clearScheduledRouteQuery(query)
+  clearOperateLogRouteQuery(query)
+  clearInboxRouteQuery(query)
+  Object.assign(query, buildInboxRouteQuery({
+    messageId: options.messageId,
+    sourcePath,
+    traceId: options.traceId,
+  }))
+  await router.replace({ path: route.path, query })
 }
 
 async function openSourcePath(item: MessageInboxItem) {
-  const path = workspaceRoutePath(sourcePathForMessage(item))
-  if (!path) return
+  const sourcePath = sourcePathForMessage(item)
+  const target = buildMessageSourceRoute({
+    fullCodePath: sourcePath,
+    sourcePath,
+    messageId: item.id,
+    traceId: item.trace_id,
+  })
+  if (!target.path) return
   drawerVisible.value = false
-  await router.push({ path })
+  await router.push(target)
 }
 
 async function openWorkspaceSession(item: MessageInboxItem) {
   const sessionId = (item.workspace_session_id || '').trim()
   const fullCodePath = workspacePathForMessage(item)
-  const path = workspaceRoutePath(fullCodePath)
-  if (!sessionId || !path) return
+  if (!sessionId || !workspaceRoutePath(fullCodePath)) return
   drawerVisible.value = false
-  await router.push({
-    path,
-    query: {
-      _mws: 'open',
-      _mws_sid: sessionId,
-      _mws_path: fullCodePath,
-      _mws_name: sourcePrimaryText(item),
-      _mws_expanded: '1',
-      _mws_maximized: '1',
-    },
-  })
+  await router.push(buildWorkspaceSessionRoute({
+    fullCodePath,
+    sessionId,
+    sourceName: sourcePrimaryText(item),
+    sourcePath: sourcePathForMessage(item),
+    traceId: item.trace_id,
+  }))
 }
 
 async function openScheduledExecution(item: MessageInboxItem) {
@@ -964,18 +1109,16 @@ async function openScheduledExecution(item: MessageInboxItem) {
   if (!taskID) return
   const executionID = item.scheduled_execution_id || selectedThread.value?.scheduledExecutionID || 0
   const fullCodePath = workspacePathForMessage(item)
-  const path = workspaceRoutePath(fullCodePath)
-  if (!path) return
+  if (!workspaceRoutePath(fullCodePath)) return
   drawerVisible.value = false
-  await router.push({
-    path,
-    query: {
-      _scheduled: 'open',
-      _scheduled_task_id: String(taskID),
-      ...(executionID ? { _scheduled_execution_id: String(executionID) } : {}),
-      _scheduled_kind: item.workspace_session_id ? 'agent' : 'function',
-    },
-  })
+  await router.push(buildScheduledExecutionRoute({
+    fullCodePath,
+    kind: item.workspace_session_id || item.source_type === 'agent_session' ? 'agent' : 'function',
+    taskId: taskID,
+    executionId: executionID || undefined,
+    sourcePath: sourcePathForMessage(item),
+    traceId: item.trace_id,
+  }))
 }
 
 function renderMessageContent(item: MessageInboxItem) {

@@ -66,6 +66,8 @@ interface UseOperateLogSectionOptions {
   functionDetail: Ref<any>
   autoLoad: Ref<boolean>
   scope?: Ref<OperateLogScope>
+  focusLogId?: Ref<number | string>
+  focusTraceId?: Ref<string>
   onApplyFormLog?: (requestBody: Record<string, any>, responseBody: Record<string, any> | null) => void
 }
 
@@ -75,6 +77,8 @@ export function useOperateLogSection({
   functionDetail,
   autoLoad,
   scope,
+  focusLogId,
+  focusTraceId,
   onApplyFormLog,
 }: UseOperateLogSectionOptions) {
   const t = translate
@@ -313,21 +317,29 @@ export function useOperateLogSection({
     try {
       await loadFunctionDetail()
       const resourceType = scopeValue === 'row' ? 'table' : ''
+      const focusedLogID = readPositiveID(focusLogId?.value)
+      const focusedTraceID = (focusTraceId?.value || '').trim()
+      const effectiveKeyword = keyword.value.trim() || (!focusedLogID ? focusedTraceID : '')
       const response = await getOperateLogs({
+        ...(focusedLogID ? { id: focusedLogID } : {}),
         ...(resourceType ? { resource_type: resourceType } : {}),
         ...(scopeValue === 'directory' ? { resource_path_prefix: fullCodePath.value } : { resource_path: fullCodePath.value }),
         ...(scopeValue === 'row' ? { row_id: rowId.value } : {}),
         ...(actionFilter.value ? { action: actionFilter.value } : {}),
         ...(sourceFilter.value ? { source: sourceFilter.value } : {}),
         ...(userFilter.value ? { actor_user: userFilter.value } : {}),
-        ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
+        ...(effectiveKeyword ? { keyword: effectiveKeyword } : {}),
         page: currentPage.value,
         page_size: pageSize.value,
         order_by: 'created_at DESC',
       })
       logs.value = (response.logs || []).map(normalizeOperateLog)
       total.value = response.total || 0
-      expandedLogIds.value = scopeValue === 'directory' ? [] : logs.value.map((log) => log.id)
+      if (focusedLogID && logs.value.some((log) => log.id === focusedLogID)) {
+        expandedLogIds.value = [focusedLogID]
+      } else {
+        expandedLogIds.value = scopeValue === 'directory' ? [] : logs.value.map((log) => log.id)
+      }
       await loadDirectoryFunctionDetails()
       await loadUserInfos()
       hasLoaded.value = true
@@ -379,6 +391,15 @@ export function useOperateLogSection({
     const raw = log.details_json?.row_id ?? log.target_id
     if (typeof raw === 'number' && Number.isFinite(raw)) return raw
     if (typeof raw === 'string' && raw.trim() !== '' && !Number.isNaN(Number(raw))) return Number(raw)
+    return 0
+  }
+
+  const readPositiveID = (value: unknown): number => {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
+    if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) {
+      const parsed = Number(value)
+      return parsed > 0 ? parsed : 0
+    }
     return 0
   }
 
@@ -802,6 +823,10 @@ export function useOperateLogSection({
     return String(log.id)
   }
 
+  const getLogRowClassName = ({ row }: { row: OperateLogEntry }): string => {
+    return readPositiveID(focusLogId?.value) === row.id ? 'is-focused-log' : ''
+  }
+
   const toggleLogExpanded = (logId: number) => {
     if (isLogExpanded(logId)) {
       expandedLogIds.value = expandedLogIds.value.filter((id) => id !== logId)
@@ -862,13 +887,14 @@ export function useOperateLogSection({
   }
 
   watch(
-    [fullCodePath, rowId, functionDetail, scope || ref<OperateLogScope>('row')],
+    [fullCodePath, rowId, functionDetail, scope || ref<OperateLogScope>('row'), focusLogId || ref(''), focusTraceId || ref('')],
     (
-      [newFullCodePath, newRowId, newFunctionDetail, newScope],
-      [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail, oldScope = 'row'],
+      [newFullCodePath, newRowId, newFunctionDetail, newScope, newFocusLogId, newFocusTraceId],
+      [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail, oldScope = 'row', oldFocusLogId = '', oldFocusTraceId = ''],
     ) => {
       const canLoad = Boolean(newFullCodePath) && (newScope !== 'row' || Boolean(newRowId))
-      const paramsChanged = newFullCodePath !== oldFullCodePath || newRowId !== oldRowId || newScope !== oldScope
+      const focusChanged = newFocusLogId !== oldFocusLogId || newFocusTraceId !== oldFocusTraceId
+      const paramsChanged = newFullCodePath !== oldFullCodePath || newRowId !== oldRowId || newScope !== oldScope || focusChanged
 
       if (canLoad && paramsChanged) {
         hasLoaded.value = false
@@ -885,7 +911,7 @@ export function useOperateLogSection({
         functionDetailCache.value = null
       }
 
-      if (!autoLoad.value) {
+      if (!autoLoad.value && !focusChanged) {
         return
       }
 
@@ -899,11 +925,13 @@ export function useOperateLogSection({
   )
 
   const load = () => {
+    const hasFocusFilter = readPositiveID(focusLogId?.value) > 0 || Boolean((focusTraceId?.value || '').trim())
     const paramsChanged =
       !lastLoadParams.value ||
       lastLoadParams.value.fullCodePath !== fullCodePath.value ||
       lastLoadParams.value.rowId !== rowId.value ||
-      lastLoadParams.value.scope !== currentScope()
+      lastLoadParams.value.scope !== currentScope() ||
+      hasFocusFilter
 
     if (paramsChanged) {
       hasLoaded.value = false
@@ -959,6 +987,7 @@ export function useOperateLogSection({
     canApplyFormLog,
     applyFormLog,
     getLogRowKey,
+    getLogRowClassName,
     isLogExpanded,
     toggleLogExpanded,
     handleLogExpandChange,

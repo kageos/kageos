@@ -100,6 +100,13 @@ import TeamAccessPanel from './TeamAccessPanel.vue'
 import PublicSharePanel from './PublicSharePanel.vue'
 import ScheduledTaskList from './ScheduledTaskList.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
+import {
+  isScheduledPanelQuery,
+  PLATFORM_PANEL_QUERY_KEY,
+  PLATFORM_SCHEDULED_EXECUTION_ID_QUERY_KEY,
+  PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY,
+  readStringQuery,
+} from '@/architecture/shared/routing/platformRouteParams'
 import { ElMessage } from 'element-plus'
 
 type FunctionTabName = 'content' | 'permission' | 'publicShare' | 'operateLog' | 'scheduledTask'
@@ -136,8 +143,8 @@ const emit = defineEmits<{
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
 const accessPanelRef = ref<LoadableAccessPanel | null>(null)
 const isFormFunction = computed(() => props.currentFunctionDetail?.template_type === 'form' || props.currentFunction?.template_type === 'form')
-const scheduledFocusTaskID = computed(() => String(route.query._scheduled_task_id || ''))
-const scheduledFocusExecutionID = computed(() => String(route.query._scheduled_execution_id || ''))
+const scheduledFocusTaskID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY))
+const scheduledFocusExecutionID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_EXECUTION_ID_QUERY_KEY))
 
 function loadOperateLogTab(tabName: FunctionTabName) {
   if (tabName === 'operateLog' && featureFlags.operateLogs) {
@@ -189,9 +196,17 @@ watch(
 )
 
 watch(
-  () => [route.query._scheduled, route.query._scheduled_kind, route.query._scheduled_task_id, props.currentFunction?.full_code_path, props.currentFunctionDetail?.full_code_path],
-  ([scheduled, kind, taskID]) => {
-    if (scheduled === 'open' && kind !== 'agent' && taskID && featureFlags.scheduledTasks) {
+  () => [
+    route.query._open,
+    route.query._scheduled,
+    route.query._scheduled_kind,
+    route.query[PLATFORM_PANEL_QUERY_KEY],
+    route.query[PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY],
+    props.currentFunction?.full_code_path,
+    props.currentFunctionDetail?.full_code_path,
+  ],
+  () => {
+    if (isScheduledPanelQuery(route.query, 'function') && scheduledFocusTaskID.value && featureFlags.scheduledTasks) {
       emit('update:activeTab', 'scheduledTask')
       props.onFunctionTabChange('scheduledTask')
     }
