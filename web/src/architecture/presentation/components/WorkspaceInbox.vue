@@ -369,19 +369,14 @@ const sourceTreeProps = {
 const showServiceTreeInbox = computed(() => props.showTrigger && props.serviceTree.length > 0)
 const sourceTreeSummaries = computed<Record<string, SourceTreeSummary>>(() => {
   const summaries: Record<string, SourceTreeSummary> = {}
-  const walk = (node: ServiceTree): SourceTreeSummary => {
+  const walk = (node: ServiceTree) => {
     const path = normalizeSourceTreePath(node.full_code_path)
-    const summary: SourceTreeSummary = {}
     if (path) {
-      mergeSourceSummary(summary, sourceCountMap.value[path])
+      summaries[path] = sourceCountMap.value[path] || {}
     }
     for (const child of node.children || []) {
-      mergeSourceSummary(summary, walk(child))
+      walk(child)
     }
-    if (path) {
-      summaries[path] = summary
-    }
-    return summary
   }
   for (const node of props.serviceTree || []) {
     walk(node)
@@ -566,7 +561,7 @@ async function loadSourceInbox(options: { markRead?: boolean } = {}) {
   const resp = await listMessageInbox({
     status: statusFilter.value === 'unread' ? 'unread' : undefined,
     source_path: filter.sourcePath,
-    include_children: Boolean(filter.includeChildren),
+    include_children: false,
     page: page.value,
     page_size: 100,
   })
@@ -585,7 +580,7 @@ async function loadSourceInbox(options: { markRead?: boolean } = {}) {
   const thread: InboxThread = {
     key: sourceFilterThreadKey(filter),
     title: filter.title || sourcePrimaryText(firstMessage),
-    subtitle: filter.includeChildren ? '当前节点及子节点通知' : '当前节点通知',
+    subtitle: '当前节点通知',
     path: filter.sourcePath,
     kind: filter.kind || threadKind(firstMessage),
     lastMessage: firstMessage,
@@ -779,21 +774,11 @@ function apiThreadToInboxThread(thread: MessageInboxThread): InboxThread {
 }
 
 function sourceFilterThreadKey(filter: SourceFilter) {
-  return `source:${filter.sourcePath}:${filter.includeChildren ? 'children' : 'direct'}`
+  return `source:${filter.sourcePath}:direct`
 }
 
 function normalizeSourceTreePath(path?: string) {
   return (path || '').trim().replace(/\/+$/g, '')
-}
-
-function mergeSourceSummary(target: SourceTreeSummary, source?: SourceTreeSummary | MessageInboxSourceCount) {
-  if (!source) return target
-  target.unread_count = Number(target.unread_count || 0) + Number(source.unread_count || 0)
-  target.message_count = Number(target.message_count || 0) + Number(source.message_count || 0)
-  if (!target.latest_at || (source.latest_at && source.latest_at > target.latest_at)) {
-    target.latest_at = source.latest_at
-  }
-  return target
 }
 
 function sourceTreeSummaryByPath(path?: string) {
@@ -838,7 +823,7 @@ function handleSourceTreeNodeClick(node: ServiceTree) {
   sourceFilter.value = {
     sourcePath,
     title: node.name || node.code || sourcePath,
-    includeChildren: node.type === 'package',
+    includeChildren: false,
     kind: node.type === 'package' ? 'directory' : 'function',
   }
   void loadInbox(true, { markSourceRead: true })

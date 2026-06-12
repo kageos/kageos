@@ -324,28 +324,14 @@ const getRuntimeSummaryTitle = (node: ServiceTree): string => {
 const notificationSummaries = computed<Record<string, ServiceTreeNotificationCount>>(() => {
   const summaries: Record<string, ServiceTreeNotificationCount> = {}
   const normalizePath = (path?: string) => (path || '').trim().replace(/\/+$/g, '')
-  const merge = (target: ServiceTreeNotificationCount, source?: ServiceTreeNotificationCount) => {
-    if (!source) return target
-    target.unread_count = Number(target.unread_count || 0) + Number(source.unread_count || 0)
-    target.message_count = Number(target.message_count || 0) + Number(source.message_count || 0)
-    if (!target.latest_at || (source.latest_at && source.latest_at > target.latest_at)) {
-      target.latest_at = source.latest_at
-    }
-    return target
-  }
-  const walk = (node: ServiceTree): ServiceTreeNotificationCount => {
+  const walk = (node: ServiceTree) => {
     const path = normalizePath(node.full_code_path)
-    const summary: ServiceTreeNotificationCount = {}
     if (path) {
-      merge(summary, props.messageCounts?.[path])
+      summaries[path] = props.messageCounts?.[path] || {}
     }
     for (const child of node.children || []) {
-      merge(summary, walk(child))
+      walk(child)
     }
-    if (path) {
-      summaries[path] = summary
-    }
-    return summary
   }
   for (const node of props.treeData || []) {
     walk(node)

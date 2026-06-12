@@ -785,7 +785,7 @@ function handleOpenNodeNotifications(node: ServiceTreeType) {
   nodeInboxRef.value?.openForSource({
     sourcePath,
     title: node.name || resolveWorkspacePathName(sourcePath) || sourcePath,
-    includeChildren: node.type === 'package',
+    includeChildren: false,
     kind: node.type === 'package' ? 'directory' : node.type === 'function' ? 'function' : 'sender',
   })
 }
