@@ -43,10 +43,6 @@ func (r *MessageRepository) Create(ctx context.Context, meta dto.MessageSendMeta
 		SourceParentPath:      strings.TrimSpace(meta.SourceParentPath),
 		SourceParentTitle:     strings.TrimSpace(meta.SourceParentTitle),
 		SourceTemplateType:    strings.TrimSpace(meta.SourceTemplateType),
-		SourceIcon:            strings.TrimSpace(meta.SourceIcon),
-		SourceColor:           strings.TrimSpace(meta.SourceColor),
-		SourceParentIcon:      strings.TrimSpace(meta.SourceParentIcon),
-		SourceParentColor:     strings.TrimSpace(meta.SourceParentColor),
 		WorkspaceSessionID:    strings.TrimSpace(meta.WorkspaceSessionID),
 		WorkspaceSessionTitle: strings.TrimSpace(meta.WorkspaceSessionTitle),
 		WorkspaceRole:         strings.TrimSpace(meta.WorkspaceRole),
@@ -263,10 +259,6 @@ func inboxSelectColumns() string {
 		"m.source_parent_path",
 		"m.source_parent_title",
 		"m.source_template_type",
-		"m.source_icon",
-		"m.source_color",
-		"m.source_parent_icon",
-		"m.source_parent_color",
 		"m.workspace_session_id",
 		"m.workspace_session_title",
 		"m.workspace_role",
@@ -318,15 +310,12 @@ func buildInboxThread(row inboxThreadRow, lastMessage dto.MessageInboxItem) dto.
 	title := threadTitle(lastMessage)
 	subtitle := threadSubtitle(lastMessage, row.MessageCount)
 	path := threadPath(lastMessage)
-	icon, color := threadVisual(lastMessage)
 	return dto.MessageInboxThread{
 		Key:                  key,
 		Kind:                 threadKind(lastMessage),
 		Title:                title,
 		Subtitle:             subtitle,
 		Path:                 path,
-		Icon:                 icon,
-		Color:                color,
 		UnreadCount:          row.UnreadCount,
 		MessageCount:         row.MessageCount,
 		LatestAt:             lastMessage.CreatedAt,
@@ -363,12 +352,8 @@ func hydrateMessageSourceDisplay(item *dto.MessageInboxItem) {
 		Type:               strings.TrimSpace(item.SourceType),
 		TemplateType:       strings.TrimSpace(item.SourceTemplateType),
 		FullCodePath:       sourcePath,
-		Icon:               strings.TrimSpace(item.SourceIcon),
-		Color:              strings.TrimSpace(item.SourceColor),
 		ParentName:         strings.TrimSpace(item.SourceParentTitle),
 		ParentFullCodePath: strings.TrimSpace(item.SourceParentPath),
-		ParentIcon:         strings.TrimSpace(item.SourceParentIcon),
-		ParentColor:        strings.TrimSpace(item.SourceParentColor),
 		ThreadKey:          strings.TrimSpace(item.ThreadKey),
 	}
 }
@@ -447,21 +432,6 @@ func threadPath(item dto.MessageInboxItem) string {
 		return path
 	}
 	return strings.TrimSpace(item.FullCodePath)
-}
-
-func threadVisual(item dto.MessageInboxItem) (string, string) {
-	if item.SourceDisplay != nil {
-		if item.SourceDisplay.ParentIcon != "" || item.SourceDisplay.ParentColor != "" {
-			return strings.TrimSpace(item.SourceDisplay.ParentIcon), strings.TrimSpace(item.SourceDisplay.ParentColor)
-		}
-		if item.SourceDisplay.Icon != "" || item.SourceDisplay.Color != "" {
-			return strings.TrimSpace(item.SourceDisplay.Icon), strings.TrimSpace(item.SourceDisplay.Color)
-		}
-	}
-	if item.SourceParentIcon != "" || item.SourceParentColor != "" {
-		return strings.TrimSpace(item.SourceParentIcon), strings.TrimSpace(item.SourceParentColor)
-	}
-	return strings.TrimSpace(item.SourceIcon), strings.TrimSpace(item.SourceColor)
 }
 
 func threadKind(item dto.MessageInboxItem) string {

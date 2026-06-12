@@ -48,10 +48,6 @@ const SourceTitleHeader = "X-Source-Title"
 const SourceParentPathHeader = "X-Source-Parent-Path"
 const SourceParentTitleHeader = "X-Source-Parent-Title"
 const SourceTemplateTypeHeader = "X-Source-Template-Type"
-const SourceIconHeader = "X-Source-Icon"
-const SourceColorHeader = "X-Source-Color"
-const SourceParentIconHeader = "X-Source-Parent-Icon"
-const SourceParentColorHeader = "X-Source-Parent-Color"
 
 const WorkspaceSessionIDHeader = "X-Workspace-Session-Id"
 const WorkspaceSessionTitleHeader = "X-Workspace-Session-Title"
@@ -254,22 +250,6 @@ func GetSourceTemplateType(c context.Context) string {
 	return getStringFromContextOrHeader(c, SourceTemplateTypeHeader)
 }
 
-func GetSourceIcon(c context.Context) string {
-	return getStringFromContextOrHeader(c, SourceIconHeader)
-}
-
-func GetSourceColor(c context.Context) string {
-	return getStringFromContextOrHeader(c, SourceColorHeader)
-}
-
-func GetSourceParentIcon(c context.Context) string {
-	return getStringFromContextOrHeader(c, SourceParentIconHeader)
-}
-
-func GetSourceParentColor(c context.Context) string {
-	return getStringFromContextOrHeader(c, SourceParentColorHeader)
-}
-
 func GetWorkspaceSessionID(c context.Context) string {
 	return getStringFromContextOrHeader(c, WorkspaceSessionIDHeader)
 }
@@ -337,24 +317,6 @@ func WithSourceDisplay(ctx context.Context, sourcePath, sourceTitle, parentPath,
 		SourceParentPathHeader:   strings.TrimSpace(parentPath),
 		SourceParentTitleHeader:  strings.TrimSpace(parentTitle),
 		SourceTemplateTypeHeader: strings.TrimSpace(templateType),
-	}
-	for key, value := range values {
-		if value != "" {
-			ctx = context.WithValue(ctx, key, value)
-		}
-	}
-	return ctx
-}
-
-func WithSourceVisual(ctx context.Context, sourceIcon, sourceColor, parentIcon, parentColor string) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	values := map[string]string{
-		SourceIconHeader:        strings.TrimSpace(sourceIcon),
-		SourceColorHeader:       strings.TrimSpace(sourceColor),
-		SourceParentIconHeader:  strings.TrimSpace(parentIcon),
-		SourceParentColorHeader: strings.TrimSpace(parentColor),
 	}
 	for key, value := range values {
 		if value != "" {
@@ -533,10 +495,6 @@ func ToContext(c *gin.Context) context.Context {
 		SourceParentPathHeader,
 		SourceParentTitleHeader,
 		SourceTemplateTypeHeader,
-		SourceIconHeader,
-		SourceColorHeader,
-		SourceParentIconHeader,
-		SourceParentColorHeader,
 		WorkspaceSessionIDHeader,
 		WorkspaceSessionTitleHeader,
 		WorkspaceRoleHeader,
@@ -591,10 +549,6 @@ func NatsTraceContext(msg *nats.Msg) context.Context {
 		SourceParentPathHeader,
 		SourceParentTitleHeader,
 		SourceTemplateTypeHeader,
-		SourceIconHeader,
-		SourceColorHeader,
-		SourceParentIconHeader,
-		SourceParentColorHeader,
 		WorkspaceSessionIDHeader,
 		WorkspaceSessionTitleHeader,
 		WorkspaceRoleHeader,
@@ -646,10 +600,6 @@ func CtxToTraceNats(c context.Context, subject string) *nats.Msg {
 		{SourceParentPathHeader, GetSourceParentPath(c)},
 		{SourceParentTitleHeader, GetSourceParentTitle(c)},
 		{SourceTemplateTypeHeader, GetSourceTemplateType(c)},
-		{SourceIconHeader, GetSourceIcon(c)},
-		{SourceColorHeader, GetSourceColor(c)},
-		{SourceParentIconHeader, GetSourceParentIcon(c)},
-		{SourceParentColorHeader, GetSourceParentColor(c)},
 		{WorkspaceSessionIDHeader, GetWorkspaceSessionID(c)},
 		{WorkspaceSessionTitleHeader, GetWorkspaceSessionTitle(c)},
 		{WorkspaceRoleHeader, GetWorkspaceRole(c)},
@@ -679,10 +629,6 @@ type RequestInfo struct {
 	SourceParentPath      string
 	SourceParentTitle     string
 	SourceTemplateType    string
-	SourceIcon            string
-	SourceColor           string
-	SourceParentIcon      string
-	SourceParentColor     string
 	WorkspaceSessionID    string
 	WorkspaceSessionTitle string
 	WorkspaceRole         string
@@ -721,7 +667,6 @@ func WithRequestInfo(ctx context.Context, info RequestInfo) context.Context {
 		ctx = context.WithValue(ctx, SourceRefHeader, info.SourceRef)
 	}
 	ctx = WithSourceDisplay(ctx, info.SourcePath, info.SourceTitle, info.SourceParentPath, info.SourceParentTitle, info.SourceTemplateType)
-	ctx = WithSourceVisual(ctx, info.SourceIcon, info.SourceColor, info.SourceParentIcon, info.SourceParentColor)
 	ctx = WithWorkspaceSession(ctx, info.WorkspaceSessionID, info.WorkspaceSessionTitle, info.WorkspaceRole)
 	return ctx
 }

@@ -115,8 +115,6 @@ type ServiceTreeNodeLogValues struct {
 	Code         string `json:"code"`
 	Description  string `json:"description,omitempty"`
 	Tags         string `json:"tags,omitempty"`
-	Icon         string `json:"icon,omitempty"`
-	Color        string `json:"color,omitempty"`
 	Admins       string `json:"admins,omitempty"`
 	AppID        int64  `json:"app_id"`
 	RefID        int64  `json:"ref_id,omitempty"`

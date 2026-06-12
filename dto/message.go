@@ -19,10 +19,6 @@ type MessageSendMeta struct {
 	SourceParentPath      string `json:"source_parent_path,omitempty"`
 	SourceParentTitle     string `json:"source_parent_title,omitempty"`
 	SourceTemplateType    string `json:"source_template_type,omitempty"`
-	SourceIcon            string `json:"source_icon,omitempty"`
-	SourceColor           string `json:"source_color,omitempty"`
-	SourceParentIcon      string `json:"source_parent_icon,omitempty"`
-	SourceParentColor     string `json:"source_parent_color,omitempty"`
 	WorkspaceSessionID    string `json:"workspace_session_id,omitempty"`
 	WorkspaceSessionTitle string `json:"workspace_session_title,omitempty"`
 	WorkspaceRole         string `json:"workspace_role,omitempty"`
@@ -76,10 +72,6 @@ type MessageInboxItem struct {
 	SourceParentPath      string                `json:"source_parent_path"`
 	SourceParentTitle     string                `json:"source_parent_title"`
 	SourceTemplateType    string                `json:"source_template_type"`
-	SourceIcon            string                `json:"source_icon"`
-	SourceColor           string                `json:"source_color"`
-	SourceParentIcon      string                `json:"source_parent_icon"`
-	SourceParentColor     string                `json:"source_parent_color"`
 	WorkspaceSessionID    string                `json:"workspace_session_id"`
 	WorkspaceSessionTitle string                `json:"workspace_session_title"`
 	WorkspaceRole         string                `json:"workspace_role"`
@@ -99,12 +91,8 @@ type MessageSourceDisplay struct {
 	Type               string `json:"type"`
 	TemplateType       string `json:"template_type,omitempty"`
 	FullCodePath       string `json:"full_code_path,omitempty"`
-	Icon               string `json:"icon,omitempty"`
-	Color              string `json:"color,omitempty"`
 	ParentName         string `json:"parent_name,omitempty"`
 	ParentFullCodePath string `json:"parent_full_code_path,omitempty"`
-	ParentIcon         string `json:"parent_icon,omitempty"`
-	ParentColor        string `json:"parent_color,omitempty"`
 	ThreadKey          string `json:"thread_key,omitempty"`
 }
 
@@ -121,8 +109,6 @@ type MessageInboxThread struct {
 	Title                string           `json:"title"`
 	Subtitle             string           `json:"subtitle"`
 	Path                 string           `json:"path"`
-	Icon                 string           `json:"icon,omitempty"`
-	Color                string           `json:"color,omitempty"`
 	UnreadCount          int64            `json:"unread_count"`
 	MessageCount         int64            `json:"message_count"`
 	LatestAt             time.Time        `json:"latest_at"`

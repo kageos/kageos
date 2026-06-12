@@ -1,6 +1,6 @@
 import { get, patch, post } from '@/architecture/infrastructure/apiClient/request'
 
-export type MessageContentType = 'markdown' | 'text' | string
+export type MessageContentType = 'markdown' | 'html' | 'text' | string
 export type MessageInboxStatus = 'all' | 'unread'
 
 export interface MessageSendMeta {
@@ -17,10 +17,6 @@ export interface MessageSendMeta {
   source_parent_path?: string
   source_parent_title?: string
   source_template_type?: string
-  source_icon?: string
-  source_color?: string
-  source_parent_icon?: string
-  source_parent_color?: string
   workspace_session_id?: string
   workspace_session_title?: string
   workspace_role?: string
@@ -61,12 +57,8 @@ export interface MessageSourceDisplay {
   type: string
   template_type?: string
   full_code_path?: string
-  icon?: string
-  color?: string
   parent_name?: string
   parent_full_code_path?: string
-  parent_icon?: string
-  parent_color?: string
   thread_key?: string
 }
 
@@ -86,10 +78,6 @@ export interface MessageInboxItem {
   source_parent_path?: string
   source_parent_title?: string
   source_template_type?: string
-  source_icon?: string
-  source_color?: string
-  source_parent_icon?: string
-  source_parent_color?: string
   workspace_session_id?: string
   workspace_session_title?: string
   workspace_role?: string
@@ -128,8 +116,6 @@ export interface MessageInboxThread {
   title: string
   subtitle: string
   path?: string
-  icon?: string
-  color?: string
   unread_count: number
   message_count: number
   latest_at: string

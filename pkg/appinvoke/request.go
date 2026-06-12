@@ -27,10 +27,6 @@ type RequestMeta struct {
 	SourceParentPath      string
 	SourceParentTitle     string
 	SourceTemplateType    string
-	SourceIcon            string
-	SourceColor           string
-	SourceParentIcon      string
-	SourceParentColor     string
 	WorkspaceSessionID    string
 	WorkspaceSessionTitle string
 	WorkspaceRole         string
@@ -66,10 +62,6 @@ func BuildRuntimeRequestMsg(req *dto.RequestAppReq) (*nats.Msg, error) {
 		SourceParentPath:      req.SourceParentPath,
 		SourceParentTitle:     req.SourceParentTitle,
 		SourceTemplateType:    req.SourceTemplateType,
-		SourceIcon:            req.SourceIcon,
-		SourceColor:           req.SourceColor,
-		SourceParentIcon:      req.SourceParentIcon,
-		SourceParentColor:     req.SourceParentColor,
 		WorkspaceSessionID:    req.WorkspaceSessionID,
 		WorkspaceSessionTitle: req.WorkspaceSessionTitle,
 		WorkspaceRole:         req.WorkspaceRole,
@@ -109,10 +101,6 @@ func ParseRuntimeRequest(msg *nats.Msg) (*RequestMeta, error) {
 		SourceParentPath:      msg.Header.Get(contextx.SourceParentPathHeader),
 		SourceParentTitle:     msg.Header.Get(contextx.SourceParentTitleHeader),
 		SourceTemplateType:    msg.Header.Get(contextx.SourceTemplateTypeHeader),
-		SourceIcon:            msg.Header.Get(contextx.SourceIconHeader),
-		SourceColor:           msg.Header.Get(contextx.SourceColorHeader),
-		SourceParentIcon:      msg.Header.Get(contextx.SourceParentIconHeader),
-		SourceParentColor:     msg.Header.Get(contextx.SourceParentColorHeader),
 		WorkspaceSessionID:    msg.Header.Get(contextx.WorkspaceSessionIDHeader),
 		WorkspaceSessionTitle: msg.Header.Get(contextx.WorkspaceSessionTitleHeader),
 		WorkspaceRole:         msg.Header.Get(contextx.WorkspaceRoleHeader),
@@ -200,10 +188,6 @@ func (m *RequestMeta) ApplyHeaders(header nats.Header) {
 		{contextx.SourceParentPathHeader, m.SourceParentPath},
 		{contextx.SourceParentTitleHeader, m.SourceParentTitle},
 		{contextx.SourceTemplateTypeHeader, m.SourceTemplateType},
-		{contextx.SourceIconHeader, m.SourceIcon},
-		{contextx.SourceColorHeader, m.SourceColor},
-		{contextx.SourceParentIconHeader, m.SourceParentIcon},
-		{contextx.SourceParentColorHeader, m.SourceParentColor},
 		{contextx.WorkspaceSessionIDHeader, m.WorkspaceSessionID},
 		{contextx.WorkspaceSessionTitleHeader, m.WorkspaceSessionTitle},
 		{contextx.WorkspaceRoleHeader, m.WorkspaceRole},

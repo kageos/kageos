@@ -66,18 +66,6 @@ func (t *appInvokeTransport) requestApp(ctx context.Context, natsID int64, req *
 	if invokeReq.SourceTemplateType == "" {
 		invokeReq.SourceTemplateType = contextx.GetSourceTemplateType(ctx)
 	}
-	if invokeReq.SourceIcon == "" {
-		invokeReq.SourceIcon = contextx.GetSourceIcon(ctx)
-	}
-	if invokeReq.SourceColor == "" {
-		invokeReq.SourceColor = contextx.GetSourceColor(ctx)
-	}
-	if invokeReq.SourceParentIcon == "" {
-		invokeReq.SourceParentIcon = contextx.GetSourceParentIcon(ctx)
-	}
-	if invokeReq.SourceParentColor == "" {
-		invokeReq.SourceParentColor = contextx.GetSourceParentColor(ctx)
-	}
 	if invokeReq.WorkspaceSessionID == "" {
 		invokeReq.WorkspaceSessionID = contextx.GetWorkspaceSessionID(ctx)
 	}

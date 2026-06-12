@@ -22,10 +22,6 @@ func TestListInboxScansMessageInboxDTO(t *testing.T) {
 		SourceParentPath:   "/alice/hr",
 		SourceParentTitle:  "人事系统",
 		SourceTemplateType: "form",
-		SourceIcon:         "Document",
-		SourceColor:        "#67C23A",
-		SourceParentIcon:   "FolderOpened",
-		SourceParentColor:  "#409EFF",
 		SourceRef:          "timer_task:12:execution:34",
 		WorkspaceSessionID: "session-1",
 	}, dto.MessageSendPayload{
@@ -61,9 +57,6 @@ func TestListInboxScansMessageInboxDTO(t *testing.T) {
 	if list[0].SourceDisplay.Name != "请假审批" || list[0].SourceDisplay.ParentName != "人事系统" || list[0].SourceDisplay.TemplateType != "form" {
 		t.Fatalf("source_display = %#v", list[0].SourceDisplay)
 	}
-	if list[0].SourceDisplay.Icon != "Document" || list[0].SourceDisplay.ParentIcon != "FolderOpened" {
-		t.Fatalf("source_display visual = %#v", list[0].SourceDisplay)
-	}
 }
 
 func TestListInboxThreadsGroupsByParentSource(t *testing.T) {
@@ -77,7 +70,6 @@ func TestListInboxThreadsGroupsByParentSource(t *testing.T) {
 			SourceTitle:       title,
 			SourceParentPath:  "/system/demos/meeting",
 			SourceParentTitle: "智能会议室",
-			SourceParentIcon:  "Calendar",
 			SourceRef:         "timer_task:9:execution:10",
 		}, dto.MessageSendPayload{
 			Title:   title,
@@ -99,7 +91,7 @@ func TestListInboxThreadsGroupsByParentSource(t *testing.T) {
 	if thread.Title != "智能会议室" || thread.MessageCount != 2 || thread.UnreadCount != 2 {
 		t.Fatalf("thread = %#v", thread)
 	}
-	if thread.Kind != "directory" || thread.Path != "/system/demos/meeting" || thread.Icon != "Calendar" {
+	if thread.Kind != "directory" || thread.Path != "/system/demos/meeting" {
 		t.Fatalf("thread source = %#v", thread)
 	}
 	if thread.ScheduledTaskID != 9 || thread.ScheduledExecutionID != 10 {

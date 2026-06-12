@@ -23,8 +23,6 @@ type ServiceTree struct {
 	Type               string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), docs(文档), api(API接口), servicenpm run(服务), module(模块)
 	Description        string `json:"description,omitempty"`
 	Tags               string `json:"tags"`
-	Icon               string `json:"icon" gorm:"size:128;comment:节点图标"`
-	Color              string `json:"color" gorm:"size:64;comment:节点主题色"`
 	Connectors         string `json:"connectors" gorm:"type:text;column:connectors"`                                 // 函数依赖的连接器 provider 列表，逗号分隔
 	ConnectorEndpoints string `json:"connector_endpoints" gorm:"type:text;column:connector_endpoints"`               // 函数声明使用的连接器 API 端点，JSON
 	Admins             string `json:"admins" gorm:"type:varchar(150);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表

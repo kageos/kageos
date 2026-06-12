@@ -74,7 +74,7 @@
               :class="{ 'is-active': selectedThread?.key === thread.key, 'is-unread': thread.unreadCount > 0 }"
               @click="selectThread(thread)"
             >
-              <span class="thread-avatar" :style="threadAvatarStyle(thread)">
+              <span class="thread-avatar">
                 <el-icon><component :is="threadIcon(thread)" /></el-icon>
               </span>
               <span class="inbox-list-copy">
@@ -136,7 +136,7 @@
               </header>
 
               <section class="inbox-source-card">
-                <div class="source-avatar" :style="threadAvatarStyle(selectedThread, true)">
+                <div class="source-avatar">
                   <el-icon><component :is="threadIcon(selectedThread)" /></el-icon>
                 </div>
                 <div class="source-copy">
@@ -234,13 +234,11 @@ import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage } from 'element-plus'
 import {
-  Bell,
   ChatDotRound,
   Document as DocumentIcon,
   FolderOpened,
   Message as MessageIcon,
   Refresh,
-  Tickets,
   Timer,
 } from '@element-plus/icons-vue'
 import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
@@ -263,8 +261,6 @@ interface InboxThread {
   title: string
   subtitle: string
   path?: string
-  icon?: string
-  color?: string
   kind: MessageInboxThread['kind']
   lastMessage: MessageInboxItem
   unreadCount: number
@@ -500,8 +496,6 @@ function apiThreadToInboxThread(thread: MessageInboxThread): InboxThread {
     title: thread.title || threadTitle(thread.last_message),
     subtitle: thread.subtitle || threadSubtitle(thread.last_message, thread.message_count || 1),
     path: thread.path || threadPath(thread.last_message),
-    icon: thread.icon || thread.last_message.source_display?.parent_icon || thread.last_message.source_display?.icon,
-    color: thread.color || thread.last_message.source_display?.parent_color || thread.last_message.source_display?.color,
     kind: thread.kind || threadKind(thread.last_message),
     lastMessage: thread.last_message,
     unreadCount: Number(thread.unread_count || 0),
@@ -552,47 +546,10 @@ function threadKind(item: MessageInboxItem): InboxThread['kind'] {
 }
 
 function threadIcon(thread: InboxThread) {
-  const namedIcon = iconComponentByName(thread.icon)
-  if (namedIcon) return namedIcon
   if (thread.kind === 'directory') return FolderOpened
   if (thread.kind === 'session') return ChatDotRound
   if (thread.lastMessage.source_type === 'scheduled_task') return Timer
   return DocumentIcon
-}
-
-function iconComponentByName(name?: string) {
-  const key = (name || '').trim().toLowerCase()
-  const map: Record<string, typeof FolderOpened> = {
-    bell: Bell,
-    calendar: Timer,
-    chat: ChatDotRound,
-    chatdotround: ChatDotRound,
-    document: DocumentIcon,
-    file: DocumentIcon,
-    folder: FolderOpened,
-    folderopened: FolderOpened,
-    message: MessageIcon,
-    tickets: Tickets,
-    timer: Timer,
-  }
-  return map[key]
-}
-
-function threadAvatarStyle(thread?: InboxThread | null, solid = false) {
-  const color = (thread?.color || '').trim()
-  if (!color) return undefined
-  if (solid) {
-    return {
-      background: color,
-      borderColor: color,
-      color: '#fff',
-    }
-  }
-  return {
-    borderColor: color,
-    color,
-    background: `color-mix(in srgb, ${color} 10%, var(--app-shell-panel-bg))`,
-  }
 }
 
 function sourcePrimaryText(item?: MessageInboxItem | null) {
