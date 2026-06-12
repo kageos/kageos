@@ -108,7 +108,7 @@ import { ElDatePicker, ElTimePicker } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import { formatDateTimeValue } from '@/architecture/shared/date'
+import { createRelativeDateTimeShortcuts, formatDateTimeValue } from '@/architecture/shared/date'
 import type { DateTimeWidgetConfig } from '@/architecture/domain/types/widget-configs'
 import { resolveWidgetSearchType } from '@/architecture/presentation/widgets/utils/searchType'
 
@@ -148,36 +148,7 @@ const shortcuts = computed(() => {
     return undefined
   }
 
-  const now = new Date()
-  return [
-    { text: '现在', value: () => new Date(now) },
-    {
-      text: '今天',
-      value: () => {
-        const date = new Date(now)
-        date.setHours(0, 0, 0, 0)
-        return date
-      }
-    },
-    {
-      text: '明天',
-      value: () => {
-        const date = new Date(now)
-        date.setDate(date.getDate() + 1)
-        date.setHours(0, 0, 0, 0)
-        return date
-      }
-    },
-    {
-      text: '昨天',
-      value: () => {
-        const date = new Date(now)
-        date.setDate(date.getDate() - 1)
-        date.setHours(0, 0, 0, 0)
-        return date
-      }
-    }
-  ]
+  return createRelativeDateTimeShortcuts()
 })
 
 const isRangeSearch = computed(() => {
@@ -317,7 +288,7 @@ const displayValue = computed(() => {
   return formatDateTimeDisplay(raw as DateTimeRawValue)
 })
 
-function handleChange(_value: DateTimeModelInput): void {
+function handleChange(): void {
   // v-model setter already commits the value.
 }
 

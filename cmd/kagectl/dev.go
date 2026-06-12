@@ -173,6 +173,8 @@ func devVerifyChecks(paths Paths) []layerCheck {
 		layerCheck{Layer: layerPlatform, Name: "agent-server", Target: "http://127.0.0.1:9095/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9095/health") }},
 		layerCheck{Layer: layerPlatform, Name: "connector-server", Target: "http://127.0.0.1:9096/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9096/health") }},
 		layerCheck{Layer: layerPlatform, Name: "hr-server", Target: "http://127.0.0.1:9097/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9097/health") }},
+		layerCheck{Layer: layerPlatform, Name: "timer-scheduler", Target: "http://127.0.0.1:9098/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9098/health") }},
+		layerCheck{Layer: layerPlatform, Name: "message-server", Target: "http://127.0.0.1:9099/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9099/health") }},
 	)
 	return checks
 }

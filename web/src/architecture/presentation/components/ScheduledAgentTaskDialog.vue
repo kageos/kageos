@@ -65,6 +65,7 @@
           placeholder="选择执行时间"
           format="YYYY-MM-DD HH:mm"
           value-format="YYYY-MM-DD HH:mm:ss"
+          :shortcuts="dateTimeShortcuts"
           style="width: 100%"
         />
       </el-form-item>
@@ -103,6 +104,7 @@ import { createTimerTask, updateTimerTask, type TimerTask } from '@/architecture
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
 import { useMiniWorkstationUploads } from '@/architecture/presentation/composables/useMiniWorkstationUploads'
+import { createRelativeDateTimeShortcuts } from '@/architecture/shared/date'
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
 import {
   buildTimerSchedule,
@@ -153,6 +155,7 @@ const messageInputRef = ref<HTMLTextAreaElement>()
 const isEditing = computed(() => !!props.editTask)
 const dialogTitle = computed(() => isEditing.value ? '编辑定时会话' : '定时会话')
 const submitButtonText = computed(() => isEditing.value ? '保存' : '创建')
+const dateTimeShortcuts = createRelativeDateTimeShortcuts()
 const fullCodePathRef = computed(() => resolvedFullCodePath.value)
 const resolvedFullCodePath = computed(() => {
   const payloadPath = stringFromRecord(getTaskPayload(props.editTask), 'full_code_path')
@@ -232,7 +235,7 @@ function registerMessageInputRef(element: HTMLTextAreaElement | null) {
 
 function noop() {}
 
-function noopInputEnter(_event: KeyboardEvent) {}
+function noopInputEnter() {}
 
 function defaultTaskTitle(): string {
   const message = (props.initialMessage || '').trim()

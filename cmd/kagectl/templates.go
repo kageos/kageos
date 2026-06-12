@@ -189,6 +189,7 @@ CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.AgentDatabase }} CHARACTER SE
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.ConnectorDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.HRDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.TimerDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.MessageDatabase }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 `
 
 const globalConfigTemplate = `
@@ -269,6 +270,11 @@ routes:
     targets:
       - url: "http://127.0.0.1:9098"
     timeout: 300
+  - path: "/message"
+    service_name: "message"
+    targets:
+      - url: "http://127.0.0.1:9099"
+    timeout: 300
 
 timeouts:
   default: 300
@@ -304,6 +310,29 @@ scheduler:
   max_dispatch_attempts: 3
   max_outbox_attempts: 8
   payload_limit_bytes: 262144
+`
+
+const messageServerConfigTemplate = `
+server:
+  port: 9099
+  listen_host: "127.0.0.1"
+  log_level: "info"
+  debug: false
+  enable_pprof: false
+  allow_nats_degraded_startup: false
+
+db:
+  type: "mysql"
+  host: {{ q .MySQLHostForMain }}
+  port: {{ .MySQLPortForMain }}
+  user: {{ q .MySQL.User }}
+  password: {{ q .MySQL.Password }}
+  name: {{ q .MySQL.MessageDatabase }}
+  max_idle_conns: 10
+  max_open_conns: 100
+  max_lifetime: 300
+  log_level: "warn"
+  slow_threshold: 200
 `
 
 const appRuntimeConfigTemplate = `

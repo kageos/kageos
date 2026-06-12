@@ -434,6 +434,21 @@ describe('SearchInput', () => {
     expect(wrapper.find('[data-testid="widget-search"]').exists()).toBe(true)
   })
 
+  it('uses widget renderer for integer search fields when search type is omitted', () => {
+    hasRequestComponent.mockReturnValue(true)
+
+    const wrapper = mountSearchInput({
+      field: createField(WidgetType.INTEGER, {
+        code: 'id',
+        name: '会议室ID'
+      }),
+      searchType: ''
+    })
+
+    expect(wrapper.find('[data-testid="widget-search"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="search-input"]').exists()).toBe(false)
+  })
+
   it('uses widget renderer for users contains search in search bar', () => {
     hasRequestComponent.mockReturnValue(true)
 

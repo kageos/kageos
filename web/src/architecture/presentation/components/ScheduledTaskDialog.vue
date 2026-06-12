@@ -38,6 +38,7 @@
           placeholder="选择执行时间"
           format="YYYY-MM-DD HH:mm"
           value-format="YYYY-MM-DD HH:mm:ss"
+          :shortcuts="dateTimeShortcuts"
           style="width: 100%"
         />
       </el-form-item>
@@ -75,6 +76,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import { createTimerTask } from '@/architecture/presentation/context/api/timer'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
+import { createRelativeDateTimeShortcuts } from '@/architecture/shared/date'
 import {
   buildTimerSchedule,
   createDefaultTimerScheduleForm,
@@ -118,6 +120,7 @@ const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const authStore = useAuthStore()
 const usesExternalPayload = computed(() => typeof props.getPayload === 'function')
+const dateTimeShortcuts = createRelativeDateTimeShortcuts()
 
 const form = reactive<ScheduledFunctionForm>({
   title: '',

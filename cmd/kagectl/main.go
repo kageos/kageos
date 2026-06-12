@@ -120,6 +120,7 @@ type MySQLConfig struct {
 	StorageDatabase   string `yaml:"storage_database"`
 	HRDatabase        string `yaml:"hr_database"`
 	TimerDatabase     string `yaml:"timer_database"`
+	MessageDatabase   string `yaml:"message_database"`
 	CreateBundledSQL  bool   `yaml:"create_bundled_sql"`
 }
 
@@ -1450,6 +1451,8 @@ func verifyLayerChecks(rt RuntimeConfig) []layerCheck {
 		layerCheck{Layer: layerPlatform, Name: "agent-server", Target: "http://127.0.0.1:9095/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9095/health") }},
 		layerCheck{Layer: layerPlatform, Name: "connector-server", Target: "http://127.0.0.1:9096/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9096/health") }},
 		layerCheck{Layer: layerPlatform, Name: "hr-server", Target: "http://127.0.0.1:9097/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9097/health") }},
+		layerCheck{Layer: layerPlatform, Name: "timer-scheduler", Target: "http://127.0.0.1:9098/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9098/health") }},
+		layerCheck{Layer: layerPlatform, Name: "message-server", Target: "http://127.0.0.1:9099/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9099/health") }},
 		layerCheck{Layer: layerPlatform, Name: "main platform probe", Target: "compose exec main /app/health/platform.sh", Fn: func() error {
 			return runComposeCapture(rt.Paths.GeneratedDir, "exec", "-T", "main", "/app/health/platform.sh")
 		}},
@@ -1693,6 +1696,7 @@ func defaultConfig() (Config, error) {
 			StorageDatabase:   "app-storage",
 			HRDatabase:        "hr-server",
 			TimerDatabase:     "timer-scheduler",
+			MessageDatabase:   "message-server",
 			CreateBundledSQL:  true,
 		},
 		NATS: NATSConfig{
@@ -1767,6 +1771,7 @@ func defaultDevDeploymentConfig(secrets devSecrets) Config {
 			StorageDatabase:   "app-storage",
 			HRDatabase:        "hr-server",
 			TimerDatabase:     "timer-scheduler",
+			MessageDatabase:   "message-server",
 			CreateBundledSQL:  true,
 		},
 		NATS: NATSConfig{
@@ -1875,6 +1880,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.MySQL.TimerDatabase == "" {
 		cfg.MySQL.TimerDatabase = "timer-scheduler"
+	}
+	if cfg.MySQL.MessageDatabase == "" {
+		cfg.MySQL.MessageDatabase = "message-server"
 	}
 	if cfg.NATS.Mode == "" {
 		cfg.NATS.Mode = "bundled"
@@ -2250,6 +2258,7 @@ func renderAll(rt RuntimeConfig) error {
 		"config/global.yaml":           renderTemplate(globalConfigTemplate, rt),
 		"config/api-gateway.yaml":      renderTemplate(apiGatewayConfigTemplate, rt),
 		"config/timer-scheduler.yaml":  renderTemplate(timerSchedulerConfigTemplate, rt),
+		"config/message-server.yaml":   renderTemplate(messageServerConfigTemplate, rt),
 		"config/app-runtime.yaml":      renderTemplate(appRuntimeConfigTemplate, rt),
 		"config/app-server.yaml":       renderTemplate(appServerConfigTemplate, rt),
 		"config/app-storage.yaml":      renderTemplate(appStorageConfigTemplate, rt),
@@ -2311,6 +2320,7 @@ func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, company
 		"global.yaml":           renderTemplate(globalConfigTemplate, rt),
 		"api-gateway.yaml":      renderTemplate(apiGatewayConfigTemplate, rt),
 		"timer-scheduler.yaml":  renderTemplate(timerSchedulerConfigTemplate, rt),
+		"message-server.yaml":   renderTemplate(messageServerConfigTemplate, rt),
 		"app-runtime.yaml":      renderTemplate(appRuntimeConfigTemplate, rt),
 		"app-server.yaml":       renderTemplate(appServerConfigTemplate, rt),
 		"app-storage.yaml":      renderTemplate(appStorageConfigTemplate, rt),
@@ -2364,7 +2374,7 @@ func printDevInitSummary(paths Paths, opts initDevOptions) {
 		{"MySQL port", values["MYSQL_PORT"]},
 		{"MySQL user", "root"},
 		{"MySQL password", values["MYSQL_ROOT_PASSWORD"]},
-		{"MySQL databases", "app-server, agent-server, app-storage, connector-server, hr-server"},
+		{"MySQL databases", "app-server, agent-server, app-storage, connector-server, hr-server, timer-scheduler, message-server"},
 		{"NATS URL", values["NATS_URL"]},
 		{"NATS user", values["NATS_SEED_USER"]},
 		{"NATS password", values["NATS_SEED_PASSWORD"]},
@@ -2995,6 +3005,7 @@ func requiredMySQLDatabases(rt RuntimeConfig) []string {
 		rt.MySQL.ConnectorDatabase,
 		rt.MySQL.HRDatabase,
 		rt.MySQL.TimerDatabase,
+		rt.MySQL.MessageDatabase,
 	})
 }
 
