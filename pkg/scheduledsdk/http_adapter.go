@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/kageos/kageos/pkg/contextx"
 )
 
 var _ Adapter = (*HTTPAdapter)(nil)
@@ -55,6 +57,10 @@ func (a *HTTPAdapter) ResumeTask(ctx context.Context, taskID int64) error {
 
 func (a *HTTPAdapter) CancelTask(ctx context.Context, taskID int64) error {
 	return a.doJSON(ctx, http.MethodPost, fmt.Sprintf("/tasks/%d/cancel", taskID), nil, nil, nil)
+}
+
+func (a *HTTPAdapter) DeleteTask(ctx context.Context, taskID int64) error {
+	return a.doJSON(ctx, http.MethodDelete, fmt.Sprintf("/tasks/%d", taskID), nil, nil, nil)
 }
 
 func (a *HTTPAdapter) RunNow(ctx context.Context, taskID int64) (*Execution, error) {
@@ -149,6 +155,7 @@ func (a *HTTPAdapter) doJSON(ctx context.Context, method, path string, query url
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Accept", "application/json")
+	applyContextHeaders(req, ctx)
 
 	resp, err := a.client.Do(req)
 	if err != nil {
@@ -172,6 +179,39 @@ func (a *HTTPAdapter) doJSON(ctx context.Context, method, path string, query url
 		return nil
 	}
 	return json.Unmarshal(data, out)
+}
+
+func applyContextHeaders(req *http.Request, ctx context.Context) {
+	if token := contextx.GetToken(ctx); token != "" {
+		req.Header.Set(contextx.TokenHeader, token)
+	}
+	if traceID := contextx.GetTraceId(ctx); traceID != "" {
+		req.Header.Set(contextx.TraceIdHeader, traceID)
+	}
+	if requestUser := contextx.GetRequestUser(ctx); requestUser != "" {
+		req.Header.Set(contextx.RequestUserHeader, requestUser)
+	}
+	if departmentFullPath := contextx.GetRequestDepartmentFullPath(ctx); departmentFullPath != "" {
+		req.Header.Set(contextx.DepartmentFullPathHeader, departmentFullPath)
+	}
+	if companyCode := contextx.GetRequestCompanyCode(ctx); companyCode != "" {
+		req.Header.Set(contextx.CompanyCodeHeader, companyCode)
+	}
+	if companyName := contextx.GetRequestCompanyName(ctx); companyName != "" {
+		req.Header.Set(contextx.CompanyNameHeader, companyName)
+	}
+	if companyLogoURL := contextx.GetRequestCompanyLogoURL(ctx); companyLogoURL != "" {
+		req.Header.Set(contextx.CompanyLogoURLHeader, companyLogoURL)
+	}
+	if clientSource := contextx.GetClientSource(ctx); clientSource != "" {
+		req.Header.Set(contextx.ClientSourceHeader, clientSource)
+	}
+	if sourceType := contextx.GetSourceType(ctx); sourceType != "" {
+		req.Header.Set(contextx.SourceTypeHeader, sourceType)
+	}
+	if sourceRef := contextx.GetSourceRef(ctx); sourceRef != "" {
+		req.Header.Set(contextx.SourceRefHeader, sourceRef)
+	}
 }
 
 func setQuery(query url.Values, key, value string) {

@@ -66,6 +66,14 @@ func (c *Client) CancelTask(ctx context.Context, taskID int64) error {
 	return adapter.CancelTask(ctx, taskID)
 }
 
+func (c *Client) DeleteTask(ctx context.Context, taskID int64) error {
+	adapter, err := c.adapterOrErr()
+	if err != nil {
+		return err
+	}
+	return adapter.DeleteTask(ctx, taskID)
+}
+
 func (c *Client) RunNow(ctx context.Context, taskID int64) (*Execution, error) {
 	adapter, err := c.adapterOrErr()
 	if err != nil {

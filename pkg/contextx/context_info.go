@@ -31,11 +31,12 @@ const TokenHeader = "X-Token"
 const ClientSourceHeader = "X-Client-Source"
 
 const (
-	ClientSourceBrowser     = "browser"
-	ClientSourceAgent       = "agent"
-	ClientSourceOpenAPI     = "openapi"
-	ClientSourcePublicShare = "public_share"
-	ClientSourceUnknown     = "unknown"
+	ClientSourceBrowser       = "browser"
+	ClientSourceAgent         = "agent"
+	ClientSourceOpenAPI       = "openapi"
+	ClientSourcePublicShare   = "public_share"
+	ClientSourceScheduledTask = "scheduled_task"
+	ClientSourceUnknown       = "unknown"
 )
 
 // SourceTypeHeader / SourceRefHeader 标记后台自动化、函数触发等调用来源。
@@ -44,9 +45,10 @@ const SourceTypeHeader = "X-Source-Type"
 const SourceRefHeader = "X-Source-Ref"
 
 const (
-	SourceTypeOpenAPIToken = "openapi_token"
-	SourceTypePublicShare  = "public_share"
-	SourceTypeAgentTool    = "agent_tool"
+	SourceTypeOpenAPIToken  = "openapi_token"
+	SourceTypePublicShare   = "public_share"
+	SourceTypeAgentTool     = "agent_tool"
+	SourceTypeScheduledTask = "scheduled_task"
 )
 
 const PubKeyHerder = "X-Pub-Key"
@@ -185,6 +187,8 @@ func ResolveClientSource(c context.Context) string {
 		return ClientSourcePublicShare
 	case SourceTypeAgentTool:
 		return ClientSourceAgent
+	case SourceTypeScheduledTask:
+		return ClientSourceScheduledTask
 	default:
 		return ""
 	}

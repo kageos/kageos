@@ -17,3 +17,19 @@ func TestNormalizeTimerSubjectSuffix(t *testing.T) {
 		t.Fatalf("NormalizeTimerSubjectSuffix() = %q, want %q", got, want)
 	}
 }
+
+func TestTimerExecutionControlSubjects(t *testing.T) {
+	tests := map[string]string{
+		"started":   TimerExecutionStartedCommandSubject,
+		"heartbeat": TimerExecutionHeartbeatCommandSubject,
+		"finished":  TimerExecutionFinishedCommandSubject,
+	}
+	for name, subject := range tests {
+		if subject == "" {
+			t.Fatalf("%s subject is empty", name)
+		}
+	}
+	if TimerExecutionControlQueueGroup == "" {
+		t.Fatal("TimerExecutionControlQueueGroup is empty")
+	}
+}

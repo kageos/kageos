@@ -284,7 +284,7 @@ func (r *ServiceTreeRepository) GetServiceTreeByFullPath(fullPath string) (*mode
 	return &serviceTree, nil
 }
 
-// IncrementRunCountByFullCodePath 将指定 full_code_path 的 function 节点运行次数 +1（用于 search_tools 按热度排序）
+// IncrementRunCountByFullCodePath 将指定 full_code_path 的 function 节点运行次数 +1（用于 search 按热度排序）
 func (r *ServiceTreeRepository) IncrementRunCountByFullCodePath(ctx context.Context, fullPath string) error {
 	fullPath = normalizeFullCodePath(fullPath)
 	if fullPath == "" {
@@ -506,7 +506,7 @@ func splitSearchKeywords(keyword string) []string {
 
 // SearchFunctions 搜索函数节点：只查 ServiceTree（type=function），按 code/name/description/tags/full_code_path 匹配，预加载 App、Function
 // user 非空时先查 app 表该 user 的 app id 列表，再用 app_id IN 限定，避免 JOIN 导致查不到
-func (r *ServiceTreeRepository) SearchFunctions(currentUser, user, app, keyword, templateType string, page, pageSize int) ([]*model.ServiceTree, int64, error) {
+func (r *ServiceTreeRepository) SearchFunctions(currentUser, user, app, keyword, fullCodePath, templateType string, page, pageSize int) ([]*model.ServiceTree, int64, error) {
 	query := r.db.Model(&model.ServiceTree{}).
 		Where("service_tree.type = ?", model.ServiceTreeTypeFunction)
 
@@ -523,6 +523,10 @@ func (r *ServiceTreeRepository) SearchFunctions(currentUser, user, app, keyword,
 	}
 	if templateType != "" {
 		query = query.Where("service_tree.template_type = ?", templateType)
+	}
+	if fullCodePath != "" {
+		fullCodePath = normalizeFullCodePath(fullCodePath)
+		query = query.Where("(service_tree.full_code_path = ? OR service_tree.full_code_path LIKE ?)", fullCodePath, fullCodePath+"/%")
 	}
 	if keyword != "" {
 		keywords := splitSearchKeywords(keyword)
@@ -562,7 +566,7 @@ func (r *ServiceTreeRepository) SearchFunctions(currentUser, user, app, keyword,
 
 // SearchResources 搜索服务树资源节点：目录、函数、文档。
 // 文档节点额外 JOIN docs 表，支持按文档摘要/正文命中。
-func (r *ServiceTreeRepository) SearchResources(currentUser, user, app, keyword string, nodeTypes []string, page, pageSize int) ([]*model.ServiceTree, int64, error) {
+func (r *ServiceTreeRepository) SearchResources(currentUser, user, app, keyword, fullCodePath string, nodeTypes []string, page, pageSize int) ([]*model.ServiceTree, int64, error) {
 	query := r.db.Model(&model.ServiceTree{}).
 		Joins("LEFT JOIN docs ON docs.tree_id = service_tree.id")
 
@@ -579,6 +583,10 @@ func (r *ServiceTreeRepository) SearchResources(currentUser, user, app, keyword 
 	} else if currentUser != "" && app != "" {
 		subq := r.db.Model(&model.App{}).Select("id").Where("code = ?", app)
 		query = query.Where("service_tree.app_id IN (?)", subq)
+	}
+	if fullCodePath != "" {
+		fullCodePath = normalizeFullCodePath(fullCodePath)
+		query = query.Where("(service_tree.full_code_path = ? OR service_tree.full_code_path LIKE ?)", fullCodePath, fullCodePath+"/%")
 	}
 
 	if keyword != "" {

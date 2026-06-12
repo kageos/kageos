@@ -165,6 +165,16 @@
           <el-icon><Promotion /></el-icon>
           提交
         </el-button>
+        <el-button
+          v-if="canCreateScheduledSubmit"
+          size="large"
+          :disabled="submitting"
+          @click="showScheduledTaskDialog = true"
+          data-testid="form-schedule-submit"
+        >
+          <el-icon><Clock /></el-icon>
+          定时提交
+        </el-button>
         <el-button v-if="showResetButton" size="large" @click="handleReset">
           <el-icon><RefreshLeft /></el-icon>
           重置
@@ -391,6 +401,15 @@
       </el-tabs>
     </el-dialog>
 
+    <ScheduledTaskDialog
+      v-if="showScheduledTaskDialog && canCreateScheduledSubmit"
+      v-model="showScheduledTaskDialog"
+      :full-code-path="scheduledFunctionPath"
+      :function-detail="functionDetail"
+      fixed-action="execute"
+      :get-payload="buildScheduledSubmitPayload"
+    />
+
       </div>
     </div>
   </div>
@@ -399,14 +418,16 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled } from '@element-plus/icons-vue'
+import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Clock } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElEmpty } from 'element-plus'
 import { eventBus } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
+import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
 import { getErrorMessage } from '@/architecture/shared/apiError'
 import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { getChangedFields } from '@/architecture/domain/utils/objectDiff'
+import { featureFlags } from '@/architecture/shared/config/features'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import { formDataStoreKey } from '@/architecture/presentation/context/formRuntimeContext'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
@@ -484,6 +505,13 @@ const {
 
 const currentFunctionNode = computed(() => {
   return workspaceStateManager.getCurrentFunction()
+})
+const showScheduledTaskDialog = ref(false)
+const scheduledFunctionPath = computed(() => {
+  return functionDetail.value?.full_code_path || currentFunctionNode.value?.full_code_path || ''
+})
+const canCreateScheduledSubmit = computed(() => {
+  return featureFlags.scheduledTasks && props.showSubmitButton && !!scheduledFunctionPath.value
 })
 
 // 🔥 移除 formInitialData computed，改为使用统一的数据初始化框架
@@ -644,6 +672,19 @@ function validateForm(): boolean {
   
   const fields = getFormRequestFields(functionDetail.value) as FieldConfig[]
   return domainService.validateForm(fields)
+}
+
+async function buildScheduledSubmitPayload(): Promise<Record<string, unknown>> {
+  if (!functionDetail.value) {
+    throw new Error('函数详情未加载完成，请稍后重试')
+  }
+
+  const isValid = validateForm()
+  if (!isValid) {
+    throw new Error('请先修正表单校验错误')
+  }
+
+  return prepareSubmitDataWithTypeConversion()
 }
 
 async function applyOperateLog(requestBody: Record<string, any>, responseBody?: Record<string, any> | null): Promise<void> {

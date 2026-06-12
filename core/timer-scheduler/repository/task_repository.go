@@ -1,6 +1,9 @@
 package repository
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
+	"fmt"
 	"strings"
 	"time"
 
@@ -59,6 +62,25 @@ func (r *TimerTaskRepository) GetByIdempotencyKey(key string) (*model.TimerTask,
 		return nil, err
 	}
 	return &task, nil
+}
+
+func (r *TimerTaskRepository) ReleaseIdempotencyKey(id int64, key string) error {
+	key = strings.TrimSpace(key)
+	if id <= 0 || key == "" {
+		return nil
+	}
+	result := r.db.Model(&model.TimerTask{}).
+		Where("id = ? AND idempotency_key = ?", id, key).
+		Update("idempotency_key", releasedIdempotencyKey(id, key))
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
+}
+
+func releasedIdempotencyKey(id int64, key string) string {
+	sum := sha1.Sum([]byte(key))
+	return fmt.Sprintf("terminal:%d:%s", id, hex.EncodeToString(sum[:])[:24])
 }
 
 func (r *TimerTaskRepository) List(req ListTasksFilter) ([]*model.TimerTask, int64, error) {
@@ -203,4 +225,8 @@ func (r *TimerTaskRepository) Cancel(id int64) error {
 			"lease_owner":           "",
 			"lease_until":           nil,
 		}).Error
+}
+
+func (r *TimerTaskRepository) Delete(task *model.TimerTask) error {
+	return r.db.Delete(task).Error
 }

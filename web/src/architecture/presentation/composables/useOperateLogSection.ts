@@ -104,6 +104,15 @@ export function useOperateLogSection({
   const actionOptions = computed(() => [
     { label: t('operateLog.allActions'), value: '' },
     ...(isFormOperateLog.value ? [{ label: t('operateLog.submit'), value: 'form_submit' }] : []),
+    ...(isFormOperateLog.value ? [{ label: t('operateLog.publicSubmit'), value: 'public_form_submit' }] : []),
+    { label: t('operateLog.scheduledExecute'), value: 'scheduled_function_execute' },
+    ...(currentScope() === 'directory'
+      ? [
+          { label: t('operateLog.resourceCreate'), value: 'service_tree.node.created' },
+          { label: t('operateLog.resourceUpdate'), value: 'service_tree.node.updated' },
+          { label: t('operateLog.resourceDelete'), value: 'service_tree.node.deleted' },
+        ]
+      : []),
     { label: t('operateLog.add'), value: 'OnTableAddRow' },
     { label: t('operateLog.update'), value: 'OnTableUpdateRow' },
     { label: t('operateLog.delete'), value: 'OnTableDeleteRows' },
@@ -114,6 +123,7 @@ export function useOperateLogSection({
     { label: t('operateLog.sourceOpenAPI'), value: 'openapi' },
     { label: t('operateLog.sourceAgent'), value: 'agent' },
     { label: t('operateLog.sourcePublicShare'), value: 'public_share' },
+    { label: t('operateLog.sourceScheduledTask'), value: 'scheduled_task' },
     { label: t('operateLog.sourceUnknown'), value: 'unknown' },
   ])
 
@@ -302,14 +312,10 @@ export function useOperateLogSection({
     loading.value = true
     try {
       await loadFunctionDetail()
-      const resourceType = scopeValue === 'directory'
-        ? ''
-        : (isFormOperateLog.value ? 'form' : 'table')
+      const resourceType = scopeValue === 'row' ? 'table' : ''
       const response = await getOperateLogs({
         ...(resourceType ? { resource_type: resourceType } : {}),
-        ...(scopeValue === 'directory'
-          ? { resource_path_prefix: fullCodePath.value }
-          : { resource_path: fullCodePath.value }),
+        ...(scopeValue === 'directory' ? { resource_path_prefix: fullCodePath.value } : { resource_path: fullCodePath.value }),
         ...(scopeValue === 'row' ? { row_id: rowId.value } : {}),
         ...(actionFilter.value ? { action: actionFilter.value } : {}),
         ...(sourceFilter.value ? { source: sourceFilter.value } : {}),
@@ -376,15 +382,51 @@ export function useOperateLogSection({
     return 0
   }
 
+  const isFormSubmitAction = (action: string): boolean => {
+    return action === 'form_submit' || action === 'public_form_submit'
+  }
+
+  const isServiceTreeAction = (action: string): boolean => {
+    return action === 'service_tree.node.created' || action === 'service_tree.node.updated' || action === 'service_tree.node.deleted'
+  }
+
+  const getServiceTreeResourceTypeLabel = (log: OperateLogEntry): string => {
+    const rawType = String(log.details_json?.node_type || log.resource_type || '').trim()
+    switch (rawType) {
+      case 'package':
+      case 'directory':
+        return t('operateLog.resourceDirectory')
+      case 'function':
+        return t('operateLog.resourceFunction')
+      case 'docs':
+      case 'doc':
+        return t('operateLog.resourceDocs')
+      case 'table':
+        return t('operateLog.resourceTable')
+      case 'form':
+        return t('operateLog.resourceForm')
+      case 'chart':
+        return t('operateLog.resourceChart')
+      default:
+        return t('operateLog.resourceNode')
+    }
+  }
+
   const getActionTagType = (action: string): TagProps['type'] => {
     switch (action) {
       case 'form_submit':
+      case 'public_form_submit':
         return 'success'
+      case 'scheduled_function_execute':
+        return 'info'
       case 'OnTableAddRow':
+      case 'service_tree.node.created':
         return 'success'
       case 'OnTableUpdateRow':
+      case 'service_tree.node.updated':
         return 'warning'
       case 'OnTableDeleteRows':
+      case 'service_tree.node.deleted':
         return 'danger'
       default:
         return 'info'
@@ -396,10 +438,19 @@ export function useOperateLogSection({
       case 'OnTableAddRow':
         return t('operateLog.add')
       case 'form_submit':
+      case 'public_form_submit':
         return t('operateLog.submit')
+      case 'scheduled_function_execute':
+        return t('operateLog.scheduledExecute')
       case 'OnTableUpdateRow':
         return t('operateLog.update')
       case 'OnTableDeleteRows':
+        return t('operateLog.delete')
+      case 'service_tree.node.created':
+        return t('operateLog.create')
+      case 'service_tree.node.updated':
+        return t('operateLog.update')
+      case 'service_tree.node.deleted':
         return t('operateLog.delete')
       default:
         return action
@@ -417,6 +468,8 @@ export function useOperateLogSection({
         return t('operateLog.sourceAgent')
       case 'public_share':
         return t('operateLog.sourcePublicShare')
+      case 'scheduled_task':
+        return t('operateLog.sourceScheduledTask')
       case 'unknown':
       case '':
       case undefined:
@@ -434,6 +487,8 @@ export function useOperateLogSection({
       case 'api':
         return 'success'
       case 'public_share':
+        return 'info'
+      case 'scheduled_task':
         return 'info'
       case 'unknown':
       case '':
@@ -595,8 +650,22 @@ export function useOperateLogSection({
   }
 
   const getLogTitle = (log: OperateLogEntry): string => {
-    if (log.action === 'form_submit') {
+    if (isFormSubmitAction(log.action)) {
+      if (log.action === 'public_form_submit' || log.source === 'public_share') {
+        return log.status === 'failed' ? t('operateLog.publicFormSubmitFailed') : t('operateLog.publicFormSubmitted')
+      }
       return log.status === 'failed' ? t('operateLog.formSubmitFailed') : t('operateLog.formSubmitted')
+    }
+    if (isServiceTreeAction(log.action)) {
+      const typeLabel = getServiceTreeResourceTypeLabel(log)
+      switch (log.action) {
+        case 'service_tree.node.created':
+          return t('operateLog.serviceTreeCreated', { type: typeLabel })
+        case 'service_tree.node.updated':
+          return t('operateLog.serviceTreeUpdated', { type: typeLabel })
+        case 'service_tree.node.deleted':
+          return t('operateLog.serviceTreeDeleted', { type: typeLabel })
+      }
     }
     const recordName = log.row_id ? t('common.rowRecord', { id: log.row_id }) : t('operateLog.record')
     switch (log.action) {
@@ -620,30 +689,48 @@ export function useOperateLogSection({
       case 'OnTableDeleteRows':
         return t('operateLog.deleteEmpty')
       case 'form_submit':
+      case 'public_form_submit':
         return t('operateLog.formSubmitEmpty')
+      case 'service_tree.node.created':
+      case 'service_tree.node.updated':
+      case 'service_tree.node.deleted':
+        return t('operateLog.serviceTreeEmpty')
       default:
         return t('operateLog.detailEmpty')
     }
   }
 
   const getLogSummary = (log: OperateLogEntry): string => {
-    if (log.action === 'form_submit' && log.summary) {
+    if (isFormSubmitAction(log.action) && log.summary) {
       return log.summary
+    }
+    if (isServiceTreeAction(log.action)) {
+      const typeLabel = getServiceTreeResourceTypeLabel(log)
+      const path = String(log.details_json?.full_code_path || log.full_code_path || '').trim()
+      switch (log.action) {
+        case 'service_tree.node.created':
+          return t('operateLog.serviceTreeCreatedSummary', { type: typeLabel, path })
+        case 'service_tree.node.updated':
+          return t('operateLog.serviceTreeUpdatedSummary', { type: typeLabel, path })
+        case 'service_tree.node.deleted':
+          return t('operateLog.serviceTreeDeletedSummary', { type: typeLabel, path })
+      }
     }
     const response = getLogResponseBody(log)
     if (log.status === 'failed' && response?.error) {
       return String(response.error)
     }
-    if (log.summary && (log.resource_type === 'team_access' || !['OnTableAddRow', 'OnTableUpdateRow', 'OnTableDeleteRows'].includes(log.action))) {
+    if (
+      log.summary &&
+      (log.resource_type === 'team_access' || !['OnTableAddRow', 'OnTableUpdateRow', 'OnTableDeleteRows'].includes(log.action))
+    ) {
       return log.summary
     }
     const entries = getPrimaryEntries(log)
     if (entries.length === 0) {
       return getLogEmptyText(log)
     }
-    return entries
-      .map((entry) => `${entry.fieldName}: ${formatLogValue(entry.value)}`)
-      .join(' · ')
+    return entries.map((entry) => `${entry.fieldName}: ${formatLogValue(entry.value)}`).join(' · ')
   }
 
   const readNumber = (value: unknown): number | null => {
@@ -727,9 +814,7 @@ export function useOperateLogSection({
     }
     onApplyFormLog?.(
       requestBody as Record<string, any>,
-      responseBody && typeof responseBody === 'object' && !Array.isArray(responseBody)
-        ? responseBody as Record<string, any>
-        : null
+      responseBody && typeof responseBody === 'object' && !Array.isArray(responseBody) ? (responseBody as Record<string, any>) : null,
     )
   }
 
@@ -765,7 +850,10 @@ export function useOperateLogSection({
 
   watch(
     [fullCodePath, rowId, functionDetail, scope || ref<OperateLogScope>('row')],
-    ([newFullCodePath, newRowId, newFunctionDetail, newScope], [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail, oldScope = 'row']) => {
+    (
+      [newFullCodePath, newRowId, newFunctionDetail, newScope],
+      [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail, oldScope = 'row'],
+    ) => {
       const canLoad = Boolean(newFullCodePath) && (newScope !== 'row' || Boolean(newRowId))
       const paramsChanged = newFullCodePath !== oldFullCodePath || newRowId !== oldRowId || newScope !== oldScope
 
@@ -794,7 +882,7 @@ export function useOperateLogSection({
         void loadOperateLogs()
       }
     },
-    { immediate: true }
+    { immediate: true },
   )
 
   const load = () => {

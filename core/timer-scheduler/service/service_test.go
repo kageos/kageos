@@ -3,12 +3,14 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/kageos/kageos/core/timer-scheduler/model"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -41,7 +43,10 @@ func newTestService(t *testing.T, now *time.Time) (*Service, *gorm.DB) {
 func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, db := newTestService(t, &now)
-	ctx := context.Background()
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
+		CompanyCode: "acme",
+		CompanyName: "Acme",
+	})
 	payload := json.RawMessage(`{"hello":"timer"}`)
 
 	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
@@ -76,6 +81,17 @@ func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 	}
 	if outboxCount != 1 {
 		t.Fatalf("requested outbox count = %d, want 1", outboxCount)
+	}
+	var requestedEvent model.TimerOutboxEvent
+	if err := db.Where("event_type = ?", eventTypeRequested).First(&requestedEvent).Error; err != nil {
+		t.Fatal(err)
+	}
+	var event scheduledsdk.ExecutionRequestedEvent
+	if err := json.Unmarshal(requestedEvent.Payload, &event); err != nil {
+		t.Fatal(err)
+	}
+	if event.Metadata[scheduledsdk.MetadataCompanyCode] != "acme" || event.Metadata[scheduledsdk.MetadataCompanyName] != "Acme" {
+		t.Fatalf("company metadata was not propagated: %+v", event.Metadata)
 	}
 
 	if err := svc.MarkExecutionStarted(ctx, scheduledsdk.MarkExecutionStartedRequest{
@@ -168,6 +184,96 @@ func TestServiceRequeuesQueuedExecutionBeforeTimeout(t *testing.T) {
 	}
 }
 
+func TestRecoverStaleExecutionsHandlesOrphansAndContinues(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	ctx := context.Background()
+	staleLease := now.Add(-2 * time.Minute)
+
+	orphanRequeue := &model.TimerExecution{
+		TaskID:           999001,
+		ExecutorKey:      "test.executor",
+		Status:           string(scheduledsdk.ExecutionStatusQueued),
+		TriggerType:      triggerScheduled,
+		ScheduledAt:      staleLease,
+		LeaseUntil:       &staleLease,
+		Attempt:          1,
+		LastDispatchedAt: &staleLease,
+		TraceID:          "orphan-requeue",
+	}
+	orphanTimeout := &model.TimerExecution{
+		TaskID:           999002,
+		ExecutorKey:      "test.executor",
+		Status:           string(scheduledsdk.ExecutionStatusQueued),
+		TriggerType:      triggerScheduled,
+		ScheduledAt:      staleLease,
+		LeaseUntil:       &staleLease,
+		Attempt:          svc.opts.MaxDispatchAttempts,
+		LastDispatchedAt: &staleLease,
+		TraceID:          "orphan-timeout",
+	}
+	if err := db.Create(orphanRequeue).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(orphanTimeout).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.At(now.Add(-time.Second)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	execs, err := svc.DispatchDue(ctx, "owner-1", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(execs) != 1 {
+		t.Fatalf("dispatched executions = %d, want 1", len(execs))
+	}
+
+	now = now.Add(2 * time.Minute)
+	recovered, err := svc.RecoverStaleExecutions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered != 3 {
+		t.Fatalf("recovered = %d, want 3", recovered)
+	}
+
+	var gotOrphanRequeue model.TimerExecution
+	if err := db.First(&gotOrphanRequeue, orphanRequeue.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if gotOrphanRequeue.Status != string(scheduledsdk.ExecutionStatusTimeout) || gotOrphanRequeue.LeaseUntil != nil {
+		t.Fatalf("orphan requeue was not timed out: %+v", gotOrphanRequeue)
+	}
+	if gotOrphanRequeue.ErrorMessage != "timer-scheduler task not found during recovery" {
+		t.Fatalf("orphan requeue error = %q", gotOrphanRequeue.ErrorMessage)
+	}
+
+	var gotOrphanTimeout model.TimerExecution
+	if err := db.First(&gotOrphanTimeout, orphanTimeout.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if gotOrphanTimeout.Status != string(scheduledsdk.ExecutionStatusTimeout) || gotOrphanTimeout.LeaseUntil != nil {
+		t.Fatalf("orphan timeout was not timed out: %+v", gotOrphanTimeout)
+	}
+	if gotOrphanTimeout.ErrorMessage != "timer-scheduler execution was not picked up before timeout" {
+		t.Fatalf("orphan timeout error = %q", gotOrphanTimeout.ErrorMessage)
+	}
+
+	gotExec, err := svc.GetExecution(ctx, task.ID, execs[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotExec.Status != scheduledsdk.ExecutionStatusQueued || gotExec.Attempt != 2 {
+		t.Fatalf("valid stale execution was not requeued: %+v", gotExec)
+	}
+}
+
 func TestRunNowDoesNotChangeScheduledCadence(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, _ := newTestService(t, &now)
@@ -218,6 +324,154 @@ func TestRunNowDoesNotChangeScheduledCadence(t *testing.T) {
 	}
 	if gotTask.Status != scheduledsdk.TaskStatusPending {
 		t.Fatalf("task status = %s, want pending", gotTask.Status)
+	}
+}
+
+func TestCreateTaskReusesActiveIdempotencyKey(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, _ := newTestService(t, &now)
+	ctx := context.Background()
+
+	first, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		Title:          "first",
+		IdempotencyKey: "same-live-task",
+		ExecutorKey:    "test.executor",
+		Schedule:       scheduledsdk.Every(60),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		Title:          "second",
+		IdempotencyKey: "same-live-task",
+		ExecutorKey:    "test.executor",
+		Schedule:       scheduledsdk.Every(120),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ID != first.ID || second.Title != "first" {
+		t.Fatalf("active idempotency should return first task, first=%+v second=%+v", first, second)
+	}
+}
+
+func TestCreateTaskRecreatesAfterCancelledIdempotencyKey(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	ctx := context.Background()
+	key := "same-after-cancel"
+
+	first, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		Title:          "first",
+		IdempotencyKey: key,
+		ExecutorKey:    "test.executor",
+		Schedule:       scheduledsdk.Every(60),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.CancelTask(ctx, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	second, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		Title:          "second",
+		IdempotencyKey: key,
+		ExecutorKey:    "test.executor",
+		Schedule:       scheduledsdk.Every(120),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ID == first.ID {
+		t.Fatalf("cancelled idempotency should create a new task, got same id %d", second.ID)
+	}
+	if second.Status != scheduledsdk.TaskStatusPending || second.IdempotencyKey != key {
+		t.Fatalf("unexpected recreated task: %+v", second)
+	}
+
+	var oldTask model.TimerTask
+	if err := db.First(&oldTask, first.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if oldTask.IdempotencyKey == nil || *oldTask.IdempotencyKey == key {
+		t.Fatalf("old terminal task should release original idempotency key, got %#v", oldTask.IdempotencyKey)
+	}
+}
+
+func TestDeleteTaskSoftDeletesAndReleasesIdempotencyKey(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	ctx := context.Background()
+	key := "same-after-delete"
+
+	first, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		Title:          "first",
+		IdempotencyKey: key,
+		ExecutorKey:    "test.executor",
+		Schedule:       scheduledsdk.Every(60),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DeleteTask(ctx, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.GetTask(ctx, first.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("deleted task should be hidden, got err=%v", err)
+	}
+	resp, err := svc.ListTasks(ctx, scheduledsdk.ListTasksRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Total != 0 || len(resp.List) != 0 {
+		t.Fatalf("deleted task should not be listed: %+v", resp)
+	}
+
+	second, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		Title:          "second",
+		IdempotencyKey: key,
+		ExecutorKey:    "test.executor",
+		Schedule:       scheduledsdk.Every(120),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ID == first.ID || second.IdempotencyKey != key {
+		t.Fatalf("deleted idempotency should create new task with original key, first=%+v second=%+v", first, second)
+	}
+
+	var deleted model.TimerTask
+	if err := db.Unscoped().First(&deleted, first.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !deleted.DeletedAt.Valid {
+		t.Fatalf("task should be soft deleted: %+v", deleted)
+	}
+	if deleted.IdempotencyKey == nil || *deleted.IdempotencyKey == key {
+		t.Fatalf("deleted task should release original idempotency key, got %#v", deleted.IdempotencyKey)
+	}
+}
+
+func TestDeleteTaskRejectsInflightExecution(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, _ := newTestService(t, &now)
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(60),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.RunNow(ctx, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DeleteTask(ctx, task.ID); !errors.Is(err, ErrTaskBusy) {
+		t.Fatalf("delete inflight task err=%v, want ErrTaskBusy", err)
+	}
+	if _, err := svc.GetTask(ctx, task.ID); err != nil {
+		t.Fatalf("busy task should still exist: %v", err)
 	}
 }
 

@@ -35,7 +35,7 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 		query = query.Where("tenant_user = ?", req.TenantUser)
 	}
 	if req.CompanyCode != "" {
-		query = query.Where("company_code = ?", req.CompanyCode)
+		query = query.Where("(company_code = ? OR company_code = '' OR company_code IS NULL)", req.CompanyCode)
 	}
 	if req.ActorUser != "" {
 		query = query.Where("actor_user = ?", req.ActorUser)

@@ -21,7 +21,7 @@
 
 ## 允许工具
 
-`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`read_go_file`、`read_go_file_lines`。
+`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`read_go_file`、`read_go_file_lines`、`read_app_log`、`search`、`web_search`。
 
 ## 禁止事项
 

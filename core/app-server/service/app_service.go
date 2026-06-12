@@ -205,7 +205,7 @@ func (a *AppService) requireFunctionConnectors(ctx context.Context, req *dto.Req
 	return nil
 }
 
-// IncrementFunctionRunCount 将指定 full_code_path 的 function 运行次数 +1（成功执行 Form/Table/Chart 后调用，用于 search_tools 按热度排序）
+// IncrementFunctionRunCount 将指定 full_code_path 的 function 运行次数 +1（成功执行 Form/Table/Chart 后调用，用于 search 按热度排序）
 func (a *AppService) IncrementFunctionRunCount(ctx context.Context, fullCodePath string) {
 	if fullCodePath == "" {
 		return

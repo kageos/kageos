@@ -54,6 +54,33 @@ func TestBuildChangeRoleLoadsPlanDocs(t *testing.T) {
 	}
 }
 
+func TestChangeRoleToolSchemaMentionsAutomationOperator(t *testing.T) {
+	def := (&ChangeRoleTool{}).Definition()
+	properties := def.InputSchema["properties"].(map[string]interface{})
+	targetRole := properties["target_role"].(map[string]interface{})
+	description, _ := targetRole["description"].(string)
+	if !strings.Contains(description, WorkspaceRoleAutomationOperator) {
+		t.Fatalf("target_role schema should mention %s, description=%q", WorkspaceRoleAutomationOperator, description)
+	}
+}
+
+func TestChangeRoleInvalidRoleHintMentionsAutomationOperator(t *testing.T) {
+	res := (&ChangeRoleTool{}).Execute(context.Background(), ToolCall{
+		Args: map[string]interface{}{
+			"target_role":       "unknown_role",
+			"execute_directory": "/system/x_world/vote",
+		},
+	})
+	if !res.IsError {
+		t.Fatalf("unknown target_role should return error: %#v", res)
+	}
+	for _, roleID := range workspaceStandardRoleIDs() {
+		if !strings.Contains(res.Content, roleID) {
+			t.Fatalf("invalid role hint should mention %s, content=%q", roleID, res.Content)
+		}
+	}
+}
+
 func TestBuildChangeRoleLoadsCreateDocs(t *testing.T) {
 	got := buildChangeRole(context.Background(), changeRoleArgs{
 		TargetRole: WorkspaceRoleAppDeveloper,
@@ -249,7 +276,7 @@ func TestBuildChangeRoleAddsRoleSpecificNextStepAdvice(t *testing.T) {
 	})
 	keyInfo := strings.Join(got.Handoff.KeyInformation, "；")
 	for _, want := range []string{
-		"search_tools(directory=execute_directory)",
+		"search(full_code_path=execute_directory",
 		"主数据/配置表 -> Form 提交 -> 目标记录表 -> Chart/结果查询",
 		"参数、数据、schema、业务 bug 或构建问题",
 	} {
@@ -276,8 +303,8 @@ func TestBuildChangeRoleRunsAppOperatorCapabilityHook(t *testing.T) {
 					TemplateType: "table",
 					Callbacks:    []string{"OnTableAddRow"},
 					Schema: functionschema.NewTable(
-						[]*widget.Field{testSearchToolField("topic_title", "主题标题", "input", nil, "")},
-						[]*widget.Field{testSearchToolField("topic_title", "主题标题", "input", nil, "required")},
+						[]*widget.Field{testSearchField("topic_title", "主题标题", "input", nil, "")},
+						[]*widget.Field{testSearchField("topic_title", "主题标题", "input", nil, "required")},
 						[]string{"OnTableAddRow"},
 					),
 				},
@@ -287,7 +314,7 @@ func TestBuildChangeRoleRunsAppOperatorCapabilityHook(t *testing.T) {
 					FullCodePath: "/system/x_world/vote/vote_submit.form",
 					TemplateType: "form",
 					Schema: functionschema.NewForm(
-						[]*widget.Field{testSearchToolField("option_id", "选项", "select", nil, "required")},
+						[]*widget.Field{testSearchField("option_id", "选项", "select", nil, "required")},
 						nil,
 						nil,
 					),
@@ -307,7 +334,7 @@ func TestBuildChangeRoleRunsAppOperatorCapabilityHook(t *testing.T) {
 		TaskContext:      []string{"用户要创建一个四大古都投票"},
 	}, "/system/x_world/vote")
 
-	if gotReq == nil || gotReq.User != "system" || gotReq.App != "x_world" || gotReq.Keyword != "vote" {
+	if gotReq == nil || gotReq.FullCodePath != "/system/x_world/vote" || gotReq.User != "" || gotReq.App != "" || gotReq.Keyword != "" {
 		t.Fatalf("unexpected function search request: %#v", gotReq)
 	}
 	if got.AppCapabilities == nil || got.AppCapabilities.Status != "ok" {
@@ -327,7 +354,7 @@ func TestBuildChangeRoleRunsAppOperatorCapabilityHook(t *testing.T) {
 		"/system/x_world/vote/vote_topic_list.table",
 		"run_table_create",
 		"/system/x_world/vote/vote_submit.form",
-		"search_tools(directory=change_role.execute_directory",
+		"search(full_code_path=change_role.execute_directory",
 	} {
 		if !strings.Contains(keyInfo, want) {
 			t.Fatalf("app operator handoff key info should contain %q, got %#v", want, got.Handoff.KeyInformation)
@@ -356,8 +383,8 @@ func TestBuildChangeRoleAppOperatorCapabilityHookDoesNotBlockOnSearchError(t *te
 	if got.CurrentRole != WorkspaceRoleAppOperator || len(got.ExecutedHooks) != 1 {
 		t.Fatalf("change_role should still switch to app_operator and record hook, got %#v", got)
 	}
-	if !strings.Contains(strings.Join(got.Handoff.KeyInformation, "；"), "search_tools(directory=change_role.execute_directory)") {
-		t.Fatalf("error snapshot should carry search_tools fallback, got %#v", got.Handoff.KeyInformation)
+	if !strings.Contains(strings.Join(got.Handoff.KeyInformation, "；"), "search(full_code_path=change_role.execute_directory") {
+		t.Fatalf("error snapshot should carry search fallback, got %#v", got.Handoff.KeyInformation)
 	}
 }
 
@@ -489,7 +516,7 @@ func TestBuildChangeRoleRunsQABeforeEnterSchemaHook(t *testing.T) {
 		"execute_directory=/system/x_world/vote",
 		"候选测试函数",
 		"/system/x_world/vote/vote_submit.form",
-		"search_tools/search_resources/run_* 调用必须限定该目录",
+		"search(full_code_path=execute_directory",
 	} {
 		if !strings.Contains(keyInfo, want) {
 			t.Fatalf("QA handoff key info should contain %q, got %#v", want, got.Handoff.KeyInformation)
@@ -527,7 +554,7 @@ func TestBuildChangeRoleReportsBaseReadOnlyToolsForEveryRole(t *testing.T) {
 		TargetRole: WorkspaceRolePlatformEngineer,
 		UserInput:  "全链路测试 openapi",
 	})
-	for _, tool := range []string{"read_dir", "read_go_file", "read_go_file_lines", "read_app_log", "search_tools"} {
+	for _, tool := range []string{"read_dir", "read_go_file", "read_go_file_lines", "read_app_log", "search"} {
 		if !containsWorkspaceRoleString(got.AllowedNextTools, tool) {
 			t.Fatalf("platform engineer should report base read-only tool %s, tools=%v", tool, got.AllowedNextTools)
 		}
@@ -570,6 +597,44 @@ func TestChangeRoleRequiresExplicitTargetAndExecuteDirectory(t *testing.T) {
 	})
 	if !res.IsError || !strings.Contains(res.Content, "target_role") {
 		t.Fatalf("expected missing target_role to fail, got %#v", res)
+	}
+}
+
+func TestChangeRoleUsesScheduledAgentWorkspaceRootWhenDirectoryMissing(t *testing.T) {
+	ctx := contextWithScheduledAgentWorkspaceRoot(context.Background(), "/system/test22/hot_news")
+	res := (&ChangeRoleTool{}).Execute(ctx, ToolCall{
+		FullCodePath: "/system/test22/hot_news",
+		Args: map[string]interface{}{
+			"target_role": WorkspaceRoleAppOperator,
+		},
+	})
+	if res.IsError {
+		t.Fatalf("scheduled change_role should fill execute_directory from task root, got %q", res.Content)
+	}
+	data, ok := res.Data.(changeRoleData)
+	if !ok {
+		t.Fatalf("expected changeRoleData, got %T", res.Data)
+	}
+	if data.ExecuteDirectory != "/system/test22/hot_news" || data.Handoff.ExecuteDirectory != "/system/test22/hot_news" {
+		t.Fatalf("execute directory should be task root, got %#v", data.Handoff)
+	}
+}
+
+func TestBuildChangeRoleLocksScheduledAgentDirectoryToTaskRoot(t *testing.T) {
+	ctx := contextWithScheduledAgentWorkspaceRoot(context.Background(), "/system/test22/hot_news")
+	got := buildChangeRole(ctx, changeRoleArgs{
+		TargetRole:       WorkspaceRoleAppOperator,
+		ExecuteDirectory: "/system/hot_news",
+		TaskContext:      []string{"定时执行热点情报推送"},
+	}, "/system/test22/hot_news")
+
+	if got.ExecuteDirectory != "/system/test22/hot_news" || got.Handoff.ExecuteDirectory != "/system/test22/hot_news" {
+		t.Fatalf("scheduled handoff should be locked to task root, got %#v", got.Handoff)
+	}
+	keyInfo := strings.Join(got.Handoff.KeyInformation, "；")
+	if !strings.Contains(keyInfo, "模型请求切换到 /system/hot_news") ||
+		!strings.Contains(keyInfo, "任务绑定目录是 /system/test22/hot_news") {
+		t.Fatalf("handoff should explain directory guard, got %#v", got.Handoff.KeyInformation)
 	}
 }
 

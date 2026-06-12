@@ -16,6 +16,7 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/natsx"
+	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
@@ -41,6 +42,7 @@ type Server struct {
 	toolRegistry         *service.ToolRegistry
 	runtimeStateStore    service.RuntimeStateStore
 	workspaceChatService *service.WorkspaceChatService
+	scheduledAgentWorker *scheduledsdk.Worker
 
 	// 上下文
 	ctx context.Context
@@ -72,14 +74,19 @@ func NewServer(cfg *config.AgentServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init router: %w", err)
 	}
 
-	// 当前 agent-server 不注册 NATS 订阅，回调通过 HTTP 处理。
-
 	return s, nil
 }
 
 // Start 启动服务器
 func (s *Server) Start(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Starting agent-server...")
+
+	if s.scheduledAgentWorker != nil {
+		if err := s.scheduledAgentWorker.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start scheduled agent worker: %w", err)
+		}
+		logger.Infof(ctx, "[Server] Scheduled agent session worker started")
+	}
 
 	// 启动 HTTP 服务器
 	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.GetPort()))
@@ -102,6 +109,15 @@ func (s *Server) Start(ctx context.Context) error {
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping agent-server...")
+
+	// 先停止定时任务 worker，避免退订过程中继续接新执行。
+	if s.scheduledAgentWorker != nil {
+		if err := s.scheduledAgentWorker.Stop(); err != nil {
+			logger.Warnf(ctx, "[Server] Scheduled agent session worker stop failed: %v", err)
+		} else {
+			logger.Infof(ctx, "[Server] Scheduled agent session worker stopped")
+		}
+	}
 
 	// 关闭数据库连接
 	if s.db != nil {
@@ -187,6 +203,11 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 智能工作台 ToolRegistry、WorkspaceChatService（只认 LLM，单模式；已移除插件）
 	s.toolRegistry = service.NewToolRegistry()
 	s.workspaceChatService = service.NewWorkspaceChatService(s.toolRegistry, sessionRepo, messageRepo, s.llmRepo, s.runtimeStateStore)
+	scheduledAgentWorker, err := service.NewScheduledAgentSessionWorker(s.natsConn, s.workspaceChatService)
+	if err != nil {
+		return fmt.Errorf("failed to init scheduled agent worker: %w", err)
+	}
+	s.scheduledAgentWorker = scheduledAgentWorker
 
 	logger.Infof(ctx, "[Server] Services initialized successfully")
 	return nil

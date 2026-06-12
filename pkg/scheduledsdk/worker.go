@@ -119,6 +119,7 @@ func (w *Worker) handleMessage(msg *nats.Msg) {
 		w.reportError(ctx, fmt.Errorf("scheduledsdk: received executor_key %q on worker %q", event.ExecutorKey, w.executorKey))
 		return
 	}
+	ctx = event.WithAuditContext(ctx)
 
 	startedAt := time.Now()
 	if err := w.client.MarkExecutionStarted(ctx, MarkExecutionStartedRequest{

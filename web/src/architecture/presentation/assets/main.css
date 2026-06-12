@@ -5,6 +5,7 @@
   --aos-z-mini-workstation: 2500;
   --aos-z-image-preview: 3000;
   --aos-z-floating-popper: 10010;
+  --aos-z-global-overlay: 10040;
   --aos-z-critical-preview: 10060;
 }
 
@@ -36,6 +37,12 @@
 
 .mini-workstation-tooltip-popper.el-popper {
   z-index: var(--aos-z-floating-popper) !important;
+}
+
+/* 站内信是全局入口，必须压过函数详情等页面级 drawer。 */
+.workspace-inbox-modal.el-overlay,
+.workspace-inbox-modal .workspace-inbox-drawer {
+  z-index: var(--aos-z-global-overlay) !important;
 }
 
 a,

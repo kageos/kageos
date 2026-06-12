@@ -73,6 +73,7 @@ var workspaceRolePlannedHookIDs = map[string]struct{}{
 	"app_developer.before_enter_prd":    {},
 	"app_developer.after_build":         {},
 	"maintenance.after_build":           {},
+	"automation.before_enter_scope":     {},
 	"qa.after_run":                      {},
 	"app_operator.after_run":            {},
 	"build_engineer.after_build":        {},
@@ -385,13 +386,13 @@ func workspaceQAVerificationPlanHandoffLines(input workspaceRoleHookInput) []str
 		return []string{"测试范围：execute_directory 为空；重新调用 change_role 固定目标应用目录后再查询 schema 或运行测试。"}
 	}
 	lines := []string{
-		fmt.Sprintf("测试范围：execute_directory=%s；所有 search_tools/search_resources/run_* 调用必须限定该目录或其子目录，禁止测试整个工作区。", executeDirectory),
+		fmt.Sprintf("测试范围：execute_directory=%s；当前应用 search/run_* 调用必须围绕该目录或其子函数；需要目录内函数 schema 时调用 search(full_code_path=execute_directory, resource_type=function, schema_output=both)。", executeDirectory),
 	}
 	functionPaths := workspaceFunctionPaths(workspaceScopedPathsFromHandoff(input, executeDirectory))
 	if len(functionPaths) > 0 {
 		lines = append(lines, "候选测试函数："+strings.Join(trimRoleHandoffStrings(functionPaths, 10), "、"))
 	} else {
-		lines = append(lines, "候选测试函数：交接信息未提取到具体 .table/.form/.chart；先调用 search_tools(directory=change_role.execute_directory, schema_output=both) 获取函数 schema。")
+		lines = append(lines, "候选测试函数：交接信息未提取到具体 .table/.form/.chart；先调用 search(full_code_path=change_role.execute_directory, resource_type=function, schema_output=both) 获取函数 schema。")
 	}
 	lines = append(lines, "验证顺序：先主数据/配置表，再 Form 提交，再目标记录表，再 Chart/结果查询；失败后归因为参数、数据、schema、业务 bug 或环境问题。")
 	lines = append(lines, "测试前必须确认 Request 字段、必填项、枚举、文件字段、关联 ID 和时间/用户筛选；不要根据函数名猜 body。")
@@ -567,26 +568,18 @@ func buildWorkspaceAppOperatorCapabilitySnapshot(ctx context.Context, input work
 		return snapshot
 	}
 
-	currentPath := firstNonEmptyString(input.FullCodePath, executeDirectory)
-	user, app, scope := resolveSearchScopeUserApp(searchScopeCurrentApp, "", "", currentPath, searchScopeVisible)
-	keyword := workspaceDirectorySearchKeyword(executeDirectory)
-	snapshot.Scope = scope
-	snapshot.User = user
-	snapshot.App = app
-	snapshot.Keyword = keyword
+	snapshot.Keyword = executeDirectory
 
 	resp, err := workspaceRoleHookSearchFunctions(ctx, &dto.SearchFunctionsReq{
-		User:     user,
-		App:      app,
-		Keyword:  keyword,
-		Page:     1,
-		PageSize: 100,
+		FullCodePath: executeDirectory,
+		Page:         1,
+		PageSize:     100,
 	})
 	if err != nil {
 		snapshot.Status = "error"
 		snapshot.Error = err.Error()
 		snapshot.Guidance = []string{
-			"能力快照获取失败；下一步先调用 search_tools，并且 directory 必须等于 change_role.execute_directory。",
+			"能力快照获取失败；下一步先调用 search(full_code_path=change_role.execute_directory, resource_type=function, schema_output=both)。",
 			"在拿到函数 schema 前，不要编造 full_code_path、字段名、枚举值或关联 ID。",
 		}
 		return snapshot
@@ -595,7 +588,7 @@ func buildWorkspaceAppOperatorCapabilitySnapshot(ctx context.Context, input work
 	if resp != nil {
 		functions = resp.Functions
 	}
-	functions = filterSearchToolFunctionsByDirectory(functions, executeDirectory)
+	functions = filterSearchFunctionsByFullCodePath(functions, executeDirectory)
 	return buildWorkspaceAppCapabilitySnapshotFromFunctions(snapshot, functions, 12)
 }
 
@@ -611,7 +604,7 @@ func buildWorkspaceAppCapabilitySnapshotFromFunctions(snapshot *workspaceAppCapa
 	if len(functions) == 0 {
 		snapshot.Status = "empty"
 		snapshot.Guidance = []string{
-			"当前 execute_directory 下未发现已注册函数；先用 read_dir/search_resources 确认目录是否选错。",
+			"当前 execute_directory 下未发现已注册函数；先用 read_dir/search 确认目录是否选错。",
 			"如果目录确实没有函数，用户目标可能不是业务操作，需要重新判断是否进入产品或开发角色。",
 		}
 		return snapshot
@@ -637,23 +630,23 @@ func buildWorkspaceAppCapabilitySnapshotFromFunctions(snapshot *workspaceAppCapa
 	snapshot.DisplayedFunctions = len(snapshot.Functions)
 	snapshot.Guidance = []string{
 		"用户在当前目录下的新增、提交、查询、更新、删除、查看图表，优先解释为使用现有软件完成业务结果。",
-		"业务运行只能调用 execute_directory 或其子目录下函数；需要完整 schema 时继续 search_tools(directory=execute_directory, schema_output=both)。",
+		"业务运行只能调用 execute_directory 或其子目录下函数；当前应用完整 schema 用 search(full_code_path=execute_directory, resource_type=function, schema_output=both)。",
 		"写入前必须确认必填字段、枚举、文件字段和关联 ID；必要时先查询或调用 run_on_select_fuzzy。",
 	}
 	return snapshot
 }
 
 func workspaceAppFunctionCapabilityFromSearchResult(fn *dto.FunctionSearchResult) workspaceAppFunctionCapability {
-	summary := summarizeSearchToolSchema(fn.Schema)
+	summary := summarizeSearchSchema(fn.Schema)
 	if len(summary) > 6 {
-		summary = append(summary[:6], fmt.Sprintf("... 还有 %d 行字段摘要，完整 schema 用 search_tools(schema_output=both) 查看", len(summary)-6))
+		summary = append(summary[:6], fmt.Sprintf("... 还有 %d 行字段摘要，完整 schema 用 search(schema_output=both) 查看", len(summary)-6))
 	}
 	return workspaceAppFunctionCapability{
 		Name:          compactText(fn.Name, 80),
 		Code:          strings.TrimSpace(fn.Code),
 		FullCodePath:  strings.TrimSpace(fn.FullCodePath),
 		Type:          strings.TrimSpace(fn.TemplateType),
-		Capabilities:  formatSearchToolFunctionCapabilities(fn.TemplateType, fn.Callbacks),
+		Capabilities:  formatSearchFunctionCapabilities(fn.TemplateType, fn.Callbacks),
 		RunTools:      workspaceAppRunToolsForFunction(fn),
 		Description:   compactText(fn.Description, 140),
 		SchemaSummary: trimRoleHandoffStrings(summary, 7),
@@ -671,13 +664,13 @@ func workspaceAppRunToolsForFunction(fn *dto.FunctionSearchResult) []string {
 		return []string{"run_chart_query"}
 	case functionschema.TypeTable:
 		tools := []string{"run_table_search"}
-		if hasSearchToolCallback(fn.Callbacks, "OnTableAddRow") {
+		if hasSearchCallback(fn.Callbacks, "OnTableAddRow") {
 			tools = append(tools, "run_table_create")
 		}
-		if hasSearchToolCallback(fn.Callbacks, "OnTableUpdateRow") {
+		if hasSearchCallback(fn.Callbacks, "OnTableUpdateRow") {
 			tools = append(tools, "run_table_update")
 		}
-		if hasSearchToolCallback(fn.Callbacks, "OnTableDeleteRows") {
+		if hasSearchCallback(fn.Callbacks, "OnTableDeleteRows") {
 			tools = append(tools, "run_table_delete")
 		}
 		return tools
@@ -713,17 +706,17 @@ func workspaceAppCapabilityHandoffLines(snapshot *workspaceAppCapabilitySnapshot
 				fn.FullCodePath,
 				firstNonEmptyString(fn.Capabilities, "-"),
 				strings.Join(fn.RunTools, "、"),
-				firstNonEmptyString(strings.Join(fn.SchemaSummary, " / "), "需用 search_tools 查看"),
+				firstNonEmptyString(strings.Join(fn.SchemaSummary, " / "), "需用 search 查看"),
 			), 300))
 		}
 		if snapshot.TotalFunctions > 8 {
-			lines = append(lines, fmt.Sprintf("当前目录还有 %d 个函数未写入交接摘要；如需选择其他函数，继续用 search_tools(directory=change_role.execute_directory) 查询。", snapshot.TotalFunctions-8))
+			lines = append(lines, fmt.Sprintf("当前目录还有 %d 个函数未写入交接摘要；如需选择其他函数，继续用 search(full_code_path=change_role.execute_directory, resource_type=function) 查询。", snapshot.TotalFunctions-8))
 		}
-		lines = append(lines, "需要完整 schema 时调用 search_tools(directory=change_role.execute_directory, schema_output=both)；不要测试或操作整个工作区。")
+		lines = append(lines, "需要完整 schema 时调用 search(full_code_path=change_role.execute_directory, resource_type=function, schema_output=both)。")
 	case "empty":
 		lines = append(lines, "当前应用能力快照：execute_directory 下未发现已注册函数；先确认目录是否选错，不要直接当作新建系统。")
 	case "error":
-		lines = append(lines, "当前应用能力快照获取失败："+compactText(snapshot.Error, 180)+"；下一步先用 search_tools(directory=change_role.execute_directory) 重新确认函数 schema。")
+		lines = append(lines, "当前应用能力快照获取失败："+compactText(snapshot.Error, 180)+"；下一步先用 search(full_code_path=change_role.execute_directory, resource_type=function) 重新确认函数 schema。")
 	default:
 		lines = append(lines, "当前应用能力快照未生成；重新调用 change_role 时必须明确 execute_directory。")
 	}
@@ -740,7 +733,7 @@ func workspaceAppCapabilityHookNote(snapshot *workspaceAppCapabilitySnapshot) st
 	case "empty":
 		return "当前目录未发现已注册函数。"
 	case "error":
-		return "能力快照获取失败，已给出 search_tools 兜底建议。"
+		return "能力快照获取失败，已给出 search 兜底建议。"
 	default:
 		return "能力快照被跳过。"
 	}

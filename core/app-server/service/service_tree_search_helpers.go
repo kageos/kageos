@@ -32,8 +32,8 @@ func normalizeSearchResourcesPagination(page, pageSize int) (int, int) {
 	return page, pageSize
 }
 
-func calculateSearchFunctionsFetchSize(page, pageSize int, keyword string) int {
-	if keyword == "" || page != 1 {
+func calculateSearchFunctionsFetchSize(page, pageSize int, keyword string, fullCodePath ...string) int {
+	if (keyword == "" && firstSearchFullCodePath(fullCodePath) == "") || page != 1 {
 		return pageSize
 	}
 
@@ -44,8 +44,8 @@ func calculateSearchFunctionsFetchSize(page, pageSize int, keyword string) int {
 	return fetchSize
 }
 
-func calculateSearchResourcesFetchSize(page, pageSize int, keyword string) int {
-	if keyword == "" || page != 1 {
+func calculateSearchResourcesFetchSize(page, pageSize int, keyword string, fullCodePath ...string) int {
+	if (keyword == "" && firstSearchFullCodePath(fullCodePath) == "") || page != 1 {
 		return pageSize
 	}
 
@@ -54,6 +54,13 @@ func calculateSearchResourcesFetchSize(page, pageSize int, keyword string) int {
 		fetchSize = pageSize * 10
 	}
 	return fetchSize
+}
+
+func firstSearchFullCodePath(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(values[0])
 }
 
 func splitSearchKeywordsForRelevance(keyword string) []string {

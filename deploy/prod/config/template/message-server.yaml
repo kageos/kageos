@@ -1,0 +1,20 @@
+server:
+  port: 9099
+  listen_host: "127.0.0.1"
+  log_level: "info"
+  debug: false
+  enable_pprof: false
+  allow_nats_degraded_startup: false
+
+db:
+  type: "mysql"
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: "${MYSQL_ROOT_PASSWORD}"
+  name: "message-server"
+  max_idle_conns: 10
+  max_open_conns: 100
+  max_lifetime: 300
+  log_level: "warn"
+  slow_threshold: 200

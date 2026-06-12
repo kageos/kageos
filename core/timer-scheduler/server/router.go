@@ -21,6 +21,7 @@ func NewRouter(service *timerservice.Service) *gin.Engine {
 	api.GET("/tasks", listTasks(service))
 	api.GET("/tasks/:id", getTask(service))
 	api.PUT("/tasks/:id", updateTask(service))
+	api.DELETE("/tasks/:id", deleteTask(service))
 	api.POST("/tasks/:id/pause", pauseTask(service))
 	api.POST("/tasks/:id/resume", resumeTask(service))
 	api.POST("/tasks/:id/cancel", cancelTask(service))
@@ -115,6 +116,16 @@ func cancelTask(service *timerservice.Service) gin.HandlerFunc {
 			return
 		}
 		writeResult(c, gin.H{"ok": true}, service.CancelTask(c.Request.Context(), id))
+	}
+}
+
+func deleteTask(service *timerservice.Service) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, ok := pathInt64(c, "id")
+		if !ok {
+			return
+		}
+		writeResult(c, gin.H{"ok": true}, service.DeleteTask(c.Request.Context(), id))
 	}
 }
 

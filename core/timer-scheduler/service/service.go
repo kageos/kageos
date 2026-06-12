@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kageos/kageos/core/timer-scheduler/model"
 	"github.com/kageos/kageos/core/timer-scheduler/repository"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/subjects"
 	"gorm.io/gorm"
@@ -20,7 +21,7 @@ const (
 	defaultListPageSize        = 20
 	maxListPageSize            = 100
 	defaultDispatchLease       = 30 * time.Second
-	defaultExecutionLease      = time.Hour
+	defaultExecutionLease      = 3 * time.Minute
 	defaultQueueAckTimeout     = 2 * time.Minute
 	defaultMaxDispatchAttempts = 3
 	defaultMaxOutboxAttempts   = 8
@@ -90,13 +91,28 @@ func NewService(db *gorm.DB, opts Options) *Service {
 	}
 }
 
+func scheduledTaskMetadataWithContext(ctx context.Context, metadata map[string]string) map[string]string {
+	out := make(map[string]string, len(metadata)+3)
+	for key, value := range metadata {
+		out[key] = value
+	}
+	if companyCode := strings.TrimSpace(contextx.GetRequestCompanyCode(ctx)); companyCode != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyCode]) == "" {
+		out[scheduledsdk.MetadataCompanyCode] = companyCode
+	}
+	if companyName := strings.TrimSpace(contextx.GetRequestCompanyName(ctx)); companyName != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyName]) == "" {
+		out[scheduledsdk.MetadataCompanyName] = companyName
+	}
+	if companyLogoURL := strings.TrimSpace(contextx.GetRequestCompanyLogoURL(ctx)); companyLogoURL != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyLogoURL]) == "" {
+		out[scheduledsdk.MetadataCompanyLogoURL] = companyLogoURL
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskRequest) (*scheduledsdk.Task, error) {
 	if err := validateCreateTaskRequest(req, s.opts.PayloadLimitBytes); err != nil {
-		return nil, err
-	}
-	if existing, err := s.taskRepo.GetByIdempotencyKey(req.IdempotencyKey); err == nil {
-		return taskToSDK(existing), nil
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
 	idempotencyKey := strings.TrimSpace(req.IdempotencyKey)
@@ -113,38 +129,59 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 	if createdBy == "" {
 		createdBy = strings.TrimSpace(req.RequestUser)
 	}
-	task := &model.TimerTask{
-		Title:           strings.TrimSpace(req.Title),
-		Description:     strings.TrimSpace(req.Description),
-		Category:        strings.TrimSpace(req.Category),
-		TagsJSON:        mustJSON(req.Tags),
-		IdempotencyKey:  idempotencyKeyPtr,
-		ExecutorKey:     strings.TrimSpace(req.ExecutorKey),
-		ExecutorPayload: cloneRaw(req.ExecutorPayload),
-		MetadataJSON:    mustJSON(req.Metadata),
-		ScheduleType:    string(req.Schedule.Type),
-		CronExpr:        strings.TrimSpace(req.Schedule.CronExpr),
-		IntervalSeconds: req.Schedule.IntervalSeconds,
-		Timezone:        strings.TrimSpace(req.Schedule.Timezone),
-		MaxRuns:         req.Schedule.MaxRuns,
-		NextRunAt:       nextRunAt,
-		Status:          string(scheduledsdk.TaskStatusPending),
-		SourceType:      strings.TrimSpace(req.SourceType),
-		SourceRef:       strings.TrimSpace(req.SourceRef),
-		ResourceScope:   strings.TrimSpace(req.ResourceScope),
-		ResourceKey:     strings.TrimSpace(req.ResourceKey),
-		RequestUser:     strings.TrimSpace(req.RequestUser),
-		RequestUserDept: strings.TrimSpace(req.RequestUserDept),
-		CreatedBy:       createdBy,
-	}
-	if !req.Schedule.RunAt.IsZero() {
-		runAt := req.Schedule.RunAt
-		task.RunAt = &runAt
-	}
-	if err := s.taskRepo.Create(task); err != nil {
+	metadata := scheduledTaskMetadataWithContext(ctx, req.Metadata)
+	var created *model.TimerTask
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		taskRepo := s.taskRepo.WithDB(tx)
+		if existing, err := taskRepo.GetByIdempotencyKey(req.IdempotencyKey); err == nil {
+			if !isTerminalTaskStatus(existing.Status) {
+				created = existing
+				return nil
+			}
+			if err := taskRepo.ReleaseIdempotencyKey(existing.ID, idempotencyKey); err != nil {
+				return err
+			}
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		task := &model.TimerTask{
+			Title:           strings.TrimSpace(req.Title),
+			Description:     strings.TrimSpace(req.Description),
+			Category:        strings.TrimSpace(req.Category),
+			TagsJSON:        mustJSON(req.Tags),
+			IdempotencyKey:  idempotencyKeyPtr,
+			ExecutorKey:     strings.TrimSpace(req.ExecutorKey),
+			ExecutorPayload: cloneRaw(req.ExecutorPayload),
+			MetadataJSON:    mustJSON(metadata),
+			ScheduleType:    string(req.Schedule.Type),
+			CronExpr:        strings.TrimSpace(req.Schedule.CronExpr),
+			IntervalSeconds: req.Schedule.IntervalSeconds,
+			Timezone:        strings.TrimSpace(req.Schedule.Timezone),
+			MaxRuns:         req.Schedule.MaxRuns,
+			NextRunAt:       nextRunAt,
+			Status:          string(scheduledsdk.TaskStatusPending),
+			SourceType:      strings.TrimSpace(req.SourceType),
+			SourceRef:       strings.TrimSpace(req.SourceRef),
+			ResourceScope:   strings.TrimSpace(req.ResourceScope),
+			ResourceKey:     strings.TrimSpace(req.ResourceKey),
+			RequestUser:     strings.TrimSpace(req.RequestUser),
+			RequestUserDept: strings.TrimSpace(req.RequestUserDept),
+			CreatedBy:       createdBy,
+		}
+		if !req.Schedule.RunAt.IsZero() {
+			runAt := req.Schedule.RunAt
+			task.RunAt = &runAt
+		}
+		if err := taskRepo.Create(task); err != nil {
+			return err
+		}
+		created = task
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
-	return taskToSDK(task), nil
+	return taskToSDK(created), nil
 }
 
 func (s *Service) UpdateTask(ctx context.Context, taskID int64, req scheduledsdk.UpdateTaskRequest) (*scheduledsdk.Task, error) {
@@ -174,7 +211,7 @@ func (s *Service) UpdateTask(ctx context.Context, taskID int64, req scheduledsdk
 		task.ExecutorPayload = cloneRaw(req.ExecutorPayload)
 	}
 	if req.Metadata != nil {
-		task.MetadataJSON = mustJSON(*req.Metadata)
+		task.MetadataJSON = mustJSON(scheduledTaskMetadataWithContext(ctx, *req.Metadata))
 	}
 	if req.SourceType != nil {
 		task.SourceType = strings.TrimSpace(*req.SourceType)
@@ -238,6 +275,26 @@ func (s *Service) ResumeTask(ctx context.Context, taskID int64) error {
 
 func (s *Service) CancelTask(ctx context.Context, taskID int64) error {
 	return s.taskRepo.Cancel(taskID)
+}
+
+func (s *Service) DeleteTask(ctx context.Context, taskID int64) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		taskRepo := s.taskRepo.WithDB(tx)
+		task, err := taskRepo.GetByID(taskID)
+		if err != nil {
+			return err
+		}
+		if task.InflightExecutionID != 0 {
+			return ErrTaskBusy
+		}
+		if task.IdempotencyKey != nil {
+			if err := taskRepo.ReleaseIdempotencyKey(task.ID, *task.IdempotencyKey); err != nil {
+				return err
+			}
+			task.IdempotencyKey = nil
+		}
+		return taskRepo.Delete(task)
+	})
 }
 
 func (s *Service) RunNow(ctx context.Context, taskID int64) (*scheduledsdk.Execution, error) {
@@ -339,28 +396,38 @@ func (s *Service) RecoverStaleExecutions(ctx context.Context, limit int) (int, e
 		return 0, err
 	}
 	recovered := 0
+	var recoverErr error
 	for _, exec := range execs {
 		switch exec.Status {
 		case string(scheduledsdk.ExecutionStatusQueued):
 			if exec.Attempt < s.opts.MaxDispatchAttempts {
 				if err := s.requeueExecution(ctx, exec, now); err != nil {
-					return recovered, err
+					if !errors.Is(err, ErrInvalidTaskStatus) {
+						recoverErr = errors.Join(recoverErr, err)
+					}
+					continue
 				}
 				recovered++
 				continue
 			}
 			if err := s.timeoutExecution(ctx, exec, now, "timer-scheduler execution was not picked up before timeout"); err != nil {
-				return recovered, err
+				if !errors.Is(err, ErrInvalidTaskStatus) {
+					recoverErr = errors.Join(recoverErr, err)
+				}
+				continue
 			}
 			recovered++
 		case string(scheduledsdk.ExecutionStatusRunning):
 			if err := s.timeoutExecution(ctx, exec, now, "timer-scheduler execution heartbeat expired"); err != nil {
-				return recovered, err
+				if !errors.Is(err, ErrInvalidTaskStatus) {
+					recoverErr = errors.Join(recoverErr, err)
+				}
+				continue
 			}
 			recovered++
 		}
 	}
-	return recovered, nil
+	return recovered, recoverErr
 }
 
 func (s *Service) MarkExecutionStarted(ctx context.Context, req scheduledsdk.MarkExecutionStartedRequest) error {
@@ -569,6 +636,9 @@ func (s *Service) requeueExecution(ctx context.Context, exec *model.TimerExecuti
 		outboxRepo := s.outboxRepo.WithDB(tx)
 		task, err := taskRepo.GetByID(exec.TaskID)
 		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return s.timeoutOrphanExecutionWithRepo(execRepo, exec, now, "timer-scheduler task not found during recovery")
+			}
 			return err
 		}
 		ok, err := execRepo.TryRequeueQueued(exec, now, now.Add(s.opts.QueueAckTimeout))
@@ -590,7 +660,7 @@ func (s *Service) timeoutExecution(ctx context.Context, exec *model.TimerExecuti
 	if exec.StartedAt != nil && now.After(*exec.StartedAt) {
 		durationMillis = now.Sub(*exec.StartedAt).Milliseconds()
 	}
-	return s.MarkExecutionFinished(ctx, scheduledsdk.MarkExecutionFinishedRequest{
+	err := s.MarkExecutionFinished(ctx, scheduledsdk.MarkExecutionFinishedRequest{
 		TaskID:         exec.TaskID,
 		ExecutionID:    exec.ID,
 		Status:         scheduledsdk.ExecutionStatusTimeout,
@@ -598,6 +668,35 @@ func (s *Service) timeoutExecution(ctx context.Context, exec *model.TimerExecuti
 		DurationMillis: durationMillis,
 		ErrorMessage:   message,
 	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return s.timeoutOrphanExecution(exec, now, message)
+	}
+	return err
+}
+
+func (s *Service) timeoutOrphanExecution(exec *model.TimerExecution, now time.Time, message string) error {
+	return s.timeoutOrphanExecutionWithRepo(s.executionRepo, exec, now, message)
+}
+
+func (s *Service) timeoutOrphanExecutionWithRepo(execRepo *repository.TimerExecutionRepository, exec *model.TimerExecution, now time.Time, message string) error {
+	durationMillis := int64(0)
+	if exec.StartedAt != nil && now.After(*exec.StartedAt) {
+		durationMillis = now.Sub(*exec.StartedAt).Milliseconds()
+	}
+	ok, err := execRepo.TryFinish(exec.TaskID, exec.ID, map[string]interface{}{
+		"status":          string(scheduledsdk.ExecutionStatusTimeout),
+		"finished_at":     now,
+		"duration_millis": durationMillis,
+		"error_message":   strings.TrimSpace(message),
+		"lease_until":     nil,
+	})
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrInvalidTaskStatus
+	}
+	return nil
 }
 
 func (s *Service) executionRequestedOutbox(task *model.TimerTask, exec *model.TimerExecution) *model.TimerOutboxEvent {
@@ -631,4 +730,13 @@ func (s *Service) executionRequestedOutbox(task *model.TimerTask, exec *model.Ti
 
 func ptrTime(t time.Time) *time.Time {
 	return &t
+}
+
+func isTerminalTaskStatus(status string) bool {
+	switch scheduledsdk.TaskStatus(strings.TrimSpace(status)) {
+	case scheduledsdk.TaskStatusCancelled, scheduledsdk.TaskStatusDone, scheduledsdk.TaskStatusFailed:
+		return true
+	default:
+		return false
+	}
 }

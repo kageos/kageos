@@ -33,6 +33,19 @@
           </div>
         </el-tab-pane>
 
+        <el-tab-pane
+          v-if="featureFlags.scheduledTasks"
+          :label="t('packageDetail.scheduledAgentTask')"
+          name="scheduledAgentTask"
+        >
+          <div class="tab-content scheduled-agent-tab-content">
+            <ScheduledAgentTaskList
+              :resource-path="packageNode.full_code_path || ''"
+              :auto-load="activeTab === 'scheduledAgentTask'"
+            />
+          </div>
+        </el-tab-pane>
+
         <el-tab-pane :label="t('packageDetail.detail')" name="detail">
           <div class="tab-content directory-detail-tab-content">
             <div
@@ -57,11 +70,12 @@ import { useI18n } from 'vue-i18n'
 import type { ServiceTree } from '@/architecture/domain/types'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 import OperateLogSection from './OperateLogSection.vue'
+import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
 import TeamAccessPanel from './TeamAccessPanel.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { featureFlags } from '@/architecture/shared/config/features'
 
-type PackageTabName = 'permission' | 'operateLog' | 'detail'
+type PackageTabName = 'permission' | 'operateLog' | 'scheduledAgentTask' | 'detail'
 
 interface LoadableOperateLogSection {
   load: () => void
@@ -220,6 +234,7 @@ watch(
 
 .directory-detail-tab-content,
 .operate-log-tab-content,
+.scheduled-agent-tab-content,
 .access-tab-content {
   min-height: 360px;
 }

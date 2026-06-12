@@ -19,6 +19,68 @@ func validateToolArguments(schema map[string]interface{}, args map[string]interf
 	return validateToolSchemaValue(schema, args, "arguments")
 }
 
+func normalizeToolArgumentsForSchema(schema map[string]interface{}, args map[string]interface{}) map[string]interface{} {
+	if len(schema) == 0 || args == nil {
+		return args
+	}
+	normalized, ok := normalizeToolSchemaValue(schema, args).(map[string]interface{})
+	if !ok {
+		return args
+	}
+	return normalized
+}
+
+func normalizeToolSchemaValue(schema map[string]interface{}, value interface{}) interface{} {
+	if len(schema) == 0 || value == nil {
+		return value
+	}
+	switch firstSchemaType(schema) {
+	case "object":
+		obj, ok := toolSchemaObjectMap(value)
+		if !ok {
+			return value
+		}
+		properties, _ := schema["properties"].(map[string]interface{})
+		additional, hasAdditional := schemaMap(schema["additionalProperties"])
+		out := make(map[string]interface{}, len(obj))
+		for name, raw := range obj {
+			if prop, ok := schemaMap(properties[name]); ok {
+				out[name] = normalizeToolSchemaValue(prop, raw)
+				continue
+			}
+			if hasAdditional {
+				out[name] = normalizeToolSchemaValue(additional, raw)
+				continue
+			}
+			out[name] = raw
+		}
+		return out
+	case "array":
+		items, ok := schemaMap(schema["items"])
+		if !ok {
+			return value
+		}
+		arr, ok := toolSchemaArray(value)
+		if !ok {
+			return value
+		}
+		out := make([]interface{}, 0, len(arr))
+		for _, item := range arr {
+			out = append(out, normalizeToolSchemaValue(items, item))
+		}
+		return out
+	case "integer":
+		if parsed, ok := parseToolSchemaIntegerString(value); ok {
+			return parsed
+		}
+	case "number":
+		if parsed, ok := parseToolSchemaNumberString(value); ok {
+			return parsed
+		}
+	}
+	return value
+}
+
 func validateToolSchemaValue(schema map[string]interface{}, value interface{}, path string) error {
 	if len(schema) == 0 || value == nil {
 		return nil
@@ -241,6 +303,22 @@ func isToolSchemaInteger(value interface{}) bool {
 	}
 }
 
+func parseToolSchemaIntegerString(value interface{}) (int64, bool) {
+	raw, ok := value.(string)
+	if !ok {
+		return 0, false
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
 func isToolSchemaNumber(value interface{}) bool {
 	switch value.(type) {
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
@@ -248,6 +326,25 @@ func isToolSchemaNumber(value interface{}) bool {
 	default:
 		return false
 	}
+}
+
+func parseToolSchemaNumberString(value interface{}) (float64, bool) {
+	raw, ok := value.(string)
+	if !ok {
+		return 0, false
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, false
+	}
+	n, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, false
+	}
+	if math.IsNaN(n) || math.IsInf(n, 0) {
+		return 0, false
+	}
+	return n, true
 }
 
 func toolSchemaValueType(value interface{}) string {

@@ -29,11 +29,12 @@
 - 为只读记录表加筛选时，不要顺手开启新增、编辑、删除。
 - `created_by/updated_by` 等系统审计字段必须带 SDK 规定的 widget、hide 和 gorm column；`select/multiselect` 必须有静态 options 或 OnSelectFuzzyMap，不确定先看文档和案例。
 - 数值 widget 必须按 Go 类型匹配：整数 Go 字段用 SDK tag `type:integer`，`float32/float64` 字段用 `type:float`；金额、比例、均值、可小数评分不要写成 `type:integer`，禁止使用 `type:number`。
+- 用户要求新增或修复通知逻辑时，读取 `/system/prompt/sdk/reference/runtime-capabilities` 的“消息通知”，使用 `ctx.SendMessage` 异步交给 message-service；普通业务成功后通知失败只记录日志，不要阻塞主业务返回。不要在业务代码里直接耦合飞书、邮件、企业微信等渠道。
 - 同类 build 错误第二次出现时，先补读文档/案例/源码，再小范围修改，不要继续整文件重写。
 
 ## 允许工具
 
-`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`read_go_file`、`read_go_file_lines`、`create_directory`、`write_go_file`、`search_replace_file`、`delete_file`、`read_app_log`、`build_workspace`。
+`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`read_go_file`、`read_go_file_lines`、`read_app_log`、`search`、`web_search`、`create_directory`、`write_go_file`、`search_replace_file`、`delete_file`、`build_workspace`。
 
 ## 禁止事项
 

@@ -22,7 +22,7 @@ scheduler:
   poll_interval_millis: 1000
   batch_size: 50
   dispatch_lease_seconds: 30
-  execution_lease_seconds: 3600
+  execution_lease_seconds: 180
   queue_ack_timeout_seconds: 120
   max_dispatch_attempts: 3
   max_outbox_attempts: 8

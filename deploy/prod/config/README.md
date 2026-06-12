@@ -37,3 +37,4 @@
 - `server.enable_pprof`：是否启用 `/debug/pprof`。生产模板默认 `false`。
 - `runtime.listen_host`：`app-runtime` 的监听地址。生产模板默认 `127.0.0.1`。
 - `timer-scheduler.yaml`：独立定时调度服务配置，默认监听 `127.0.0.1:9098`，数据库名为 `timer-scheduler`。
+- `message-server.yaml`：独立消息服务配置，默认监听 `127.0.0.1:9099`，数据库名为 `message-server`，MVP 只写站内信。

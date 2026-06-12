@@ -60,8 +60,8 @@ func workspaceRoleBaseReadOnlyTools() []string {
 		"read_go_file",
 		"read_go_file_lines",
 		"read_app_log",
-		"search_tools",
-		"search_resources",
+		"search",
+		"web_search",
 		"summarize_task_state",
 	}
 }
@@ -76,6 +76,8 @@ func workspaceRoleGateSuggestion(roleID string, toolName string) string {
 		return "如需创建或修改应用内容，请交接给「应用开发工程师」「应用维护工程师」或「构建修复工程师」。"
 	case "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query", "run_on_select_fuzzy":
 		return "如需执行业务操作，请交接给「应用操作员」；如需验证功能，请交接给「测试工程师」。"
+	case "create_scheduled_function_task", "create_scheduled_agent_task", "list_scheduled_tasks", "manage_scheduled_task", "list_scheduled_task_executions":
+		return "如需创建或管理定时任务，请交接给「自动化操作员」。"
 	default:
 		if roleID == WorkspaceRoleProductManager {
 			return "产品经理只负责需求分析、PRD 和确认。"

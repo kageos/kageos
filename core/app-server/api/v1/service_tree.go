@@ -610,6 +610,7 @@ func (s *ServiceTree) InstallCapabilityBundleFromURL(c *gin.Context) {
 // @Param user query string false "用户名（可选，用于过滤应用）"
 // @Param app query string false "应用名（可选，用于过滤应用）"
 // @Param keyword query string false "搜索关键词（可选，用于搜索名称和路径）"
+// @Param full_code_path query string false "完整路径（可选，精确或目录前缀搜索）"
 // @Param template_type query string false "模板类型过滤（可选，如：form、table、chart）"
 // @Param page query int true "页码" default(1)
 // @Param page_size query int true "每页数量" default(10)
@@ -658,6 +659,7 @@ func (s *ServiceTree) SearchFunctions(c *gin.Context) {
 // @Param user query string false "用户名（可选，用于过滤应用）"
 // @Param app query string false "应用名（可选，用于过滤应用）"
 // @Param keyword query string false "搜索关键词"
+// @Param full_code_path query string false "完整路径（可选，精确或目录前缀搜索）"
 // @Param resource_type query string false "资源类型（all/package/function/docs）"
 // @Param page query int true "页码" default(1)
 // @Param page_size query int true "每页数量" default(20)

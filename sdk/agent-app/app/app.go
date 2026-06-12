@@ -340,6 +340,14 @@ func (a *App) sendErrResponse(resp *dto.RequestAppResp) {
 	}
 }
 
+// PublishMessage sends a message command to message-service through NATS.
+func (a *App) PublishMessage(ctx context.Context, envelope *dto.MessageSendEnvelope) error {
+	if a == nil || a.transport == nil {
+		return fmt.Errorf("app transport 未初始化")
+	}
+	return a.transport.PublishMessageCommand(ctx, envelope)
+}
+
 // handleDiscovery 处理发现消息
 func (a *App) handleDiscovery(msg *nats.Msg) {
 	discoveryMsg, err := a.transport.ParseDiscoveryRequest(msg)

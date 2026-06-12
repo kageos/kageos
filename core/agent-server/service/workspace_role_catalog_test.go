@@ -57,6 +57,33 @@ func TestWorkspaceRoleSpecAppOperator(t *testing.T) {
 	}
 }
 
+func TestWorkspaceRoleSpecAutomationOperator(t *testing.T) {
+	got, ok := workspaceRoleSpecFor(WorkspaceRoleAutomationOperator)
+	if !ok {
+		t.Fatal("automation_operator spec missing")
+	}
+	if !containsWorkspaceRoleString(got.Docs, "/system/prompt/roles/automation-operator") {
+		t.Fatalf("automation_operator should require role SOP, docs=%v", got.Docs)
+	}
+	for _, tool := range []string{
+		"create_scheduled_function_task",
+		"create_scheduled_agent_task",
+		"list_scheduled_tasks",
+		"manage_scheduled_task",
+		"list_scheduled_task_executions",
+	} {
+		if !containsWorkspaceRoleString(got.AllowedTools, tool) {
+			t.Fatalf("automation_operator should allow %s, tools=%v", tool, got.AllowedTools)
+		}
+	}
+	if containsWorkspaceRoleString(got.AllowedTools, "run_form_submit") {
+		t.Fatalf("automation_operator should not directly run business tools, tools=%v", got.AllowedTools)
+	}
+	if !strings.Contains(got.RouteDescription, "以后自动执行") {
+		t.Fatalf("automation_operator route description should distinguish scheduled work from immediate operations: %q", got.RouteDescription)
+	}
+}
+
 func TestWorkspaceRoleSpecBuildEngineer(t *testing.T) {
 	got, ok := workspaceRoleSpecFor(WorkspaceRoleBuildEngineer)
 	if !ok || got.ID != WorkspaceRoleBuildEngineer {

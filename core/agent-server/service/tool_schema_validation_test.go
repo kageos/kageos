@@ -30,7 +30,7 @@ func TestValidateToolArgumentsRejectsTypeAndEnum(t *testing.T) {
 	}
 
 	err := validateToolArguments(schema, map[string]interface{}{
-		"page":   "1",
+		"page":   "one",
 		"format": "grid",
 	})
 	if err == nil {
@@ -38,6 +38,47 @@ func TestValidateToolArgumentsRejectsTypeAndEnum(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "arguments.page 类型错误") || !strings.Contains(err.Error(), "arguments.format 值") {
 		t.Fatalf("validateToolArguments() error = %v, want type and enum errors", err)
+	}
+}
+
+func TestNormalizeToolArgumentsForSchemaCoercesNumericStrings(t *testing.T) {
+	schema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"page":       map[string]interface{}{"type": "integer"},
+			"confidence": map[string]interface{}{"type": "number"},
+			"payload": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"ids": map[string]interface{}{
+						"type":  "array",
+						"items": map[string]interface{}{"type": "integer"},
+					},
+				},
+			},
+		},
+	}
+
+	got := normalizeToolArgumentsForSchema(schema, map[string]interface{}{
+		"page":       "3",
+		"confidence": "0.75",
+		"payload": map[string]interface{}{
+			"ids": []interface{}{"1", "2"},
+		},
+	})
+	if err := validateToolArguments(schema, got); err != nil {
+		t.Fatalf("normalized args should validate: %v", err)
+	}
+	if got["page"] != int64(3) {
+		t.Fatalf("page=%#v, want int64(3)", got["page"])
+	}
+	if got["confidence"] != 0.75 {
+		t.Fatalf("confidence=%#v, want 0.75", got["confidence"])
+	}
+	payload := got["payload"].(map[string]interface{})
+	ids := payload["ids"].([]interface{})
+	if ids[0] != int64(1) || ids[1] != int64(2) {
+		t.Fatalf("ids=%#v, want normalized integer values", ids)
 	}
 }
 

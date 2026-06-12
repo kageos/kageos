@@ -11,6 +11,7 @@
 --   connector-server -> connector-server
 --   hr-server    -> hr-server
 --   timer-scheduler -> timer-scheduler
+--   message-server -> message-server
 
 CREATE DATABASE IF NOT EXISTS `app-server` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS `app-storage` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -18,3 +19,4 @@ CREATE DATABASE IF NOT EXISTS `agent-server` CHARACTER SET utf8mb4 COLLATE utf8m
 CREATE DATABASE IF NOT EXISTS `connector-server` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS `hr-server` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS `timer-scheduler` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS `message-server` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

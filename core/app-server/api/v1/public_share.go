@@ -362,7 +362,7 @@ func (a *PublicShareAPI) recordPublicSubmitLog(ctx context.Context, c *gin.Conte
 		RequestUser:    req.RequestUser,
 		App:            req.App,
 		Router:         req.Router,
-		Action:         "public_form_submit",
+		Action:         "form_submit",
 		FunctionMethod: req.Method,
 		RequestBody:    req.Body,
 		ResponseBody:   buildFormOperateLogResponseBody(resp, err, durationMillis),

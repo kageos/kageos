@@ -8,6 +8,7 @@ type Adapter interface {
 	PauseTask(context.Context, int64) error
 	ResumeTask(context.Context, int64) error
 	CancelTask(context.Context, int64) error
+	DeleteTask(context.Context, int64) error
 	RunNow(context.Context, int64) (*Execution, error)
 	GetTask(context.Context, int64) (*Task, error)
 	ListTasks(context.Context, ListTasksRequest) (*ListTasksResponse, error)

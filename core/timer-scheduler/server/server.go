@@ -26,6 +26,7 @@ type Server struct {
 	natsConn   *nats.Conn
 	service    *timerservice.Service
 	publisher  timerservice.OutboxPublisher
+	natsSubs   []*nats.Subscription
 	httpServer *http.Server
 	done       chan struct{}
 	cancel     context.CancelFunc
@@ -71,6 +72,12 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
+	natsSubs, err := startTimerNATSControl(s.natsConn, s.service)
+	if err != nil {
+		cancel()
+		return err
+	}
+	s.natsSubs = natsSubs
 	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.GetPort()))
 	s.httpServer = &http.Server{
 		Addr:    addr,
@@ -84,6 +91,7 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}()
 	logger.Infof(ctx, "[timer-scheduler] started on %s", addr)
+	logger.Infof(ctx, "[timer-scheduler] nats execution control started")
 	return nil
 }
 
@@ -103,6 +111,10 @@ func (s *Server) Stop(ctx context.Context) error {
 		<-s.done
 		s.done = nil
 	}
+	for _, sub := range s.natsSubs {
+		_ = sub.Unsubscribe()
+	}
+	s.natsSubs = nil
 	if s.db != nil {
 		sqlDB, err := s.db.DB()
 		if err == nil {

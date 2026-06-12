@@ -7,10 +7,11 @@
 业务代码只写业务规则，不重造平台能力：
 
 - 平台接口：用 `ctx.APICall(...)` 或 `/system/openapi`，不要裸写 HTTP client、硬编码 token、直连平台库。
-- 通用权限、审批、评论、收藏、通知中心不属于 MVP 应用侧能力，不在每个业务系统自造。
+- 消息通知：需要通知用户时使用 SDK `ctx.SendMessage`，由 message-service 异步写站内信并在服务侧扩展渠道；业务代码不要直接耦合飞书、邮件、企业微信等渠道，也不要让普通业务等待通知投递完成。
+- 通用权限、审批、评论、收藏不属于 MVP 应用侧能力，不在每个业务系统自造。
 - Table 更新日志由平台记录；业务上确实需要流水、操作记录、支付记录、投票记录时，可以建只读业务 Table。
 - 运行上下文：从 `ctx` 取当前用户、部门、trace、full_code_path，不让用户表单伪造。
-- 定时任务、后台调度、全局消息和备份控制面已从 MVP 删除，不要引用 `/scheduled_tasks`、`/scheduled_agent_tasks` 等旧平台 API。
+- 定时任务和后台调度由 timer-scheduler 独立服务承载；业务应用不要自造调度器，也不要引用 `/scheduled_tasks`、`/scheduled_agent_tasks` 等旧平台 API。
 
 ## 平台 API
 
@@ -41,6 +42,31 @@ if err := ctx.APICall(http.MethodGet, "/workspace/api/v1/operate_log/general?"+q
 - 伪造平台运行上下文。
 
 操作日志等平台领域，优先走 `platform_engineer` 角色和 `/system/openapi` 函数。
+
+## 消息通知
+
+应用函数需要通知用户时，使用 SDK 的 `ctx.SendMessage`。message-service 负责收件箱存储和后续渠道分发，应用侧只表达“发给哪些用户、标题、内容”，不要关心飞书、邮件、企业微信等具体渠道。`ctx.SendMessage` 是异步投递命令：成功只表示消息命令已发布到 NATS，不等待 message-service 落库或渠道投递完成。组织架构通知暂不暴露，不要使用部门作为消息接收方。
+
+```go
+err := ctx.SendMessage(&app.SendMessageOpts{
+    ToUsers:     "alice,bob",
+    Title:       "工单处理完成",
+    Content:     "工单 #123 已处理完成，请查看详情。",
+    ContentType: "markdown",
+})
+if err != nil {
+    logger.Errorf(ctx, "[Notify] send message failed: %v", err)
+}
+```
+
+规则：
+
+- `ToUsers` 必填；多个用户用逗号分隔。
+- `ContentType` 默认 `markdown`，也可用 `text` 或 `html`。
+- 对普通业务函数，通知失败只记录日志，不要阻塞主业务返回；只有函数本身就是“发送通知/消息”时，才把发布失败作为业务错误返回。
+- 发送人、部门、trace、full_code_path 等上下文由 SDK 自动带上，不要让用户表单填写。
+- 组织架构功能隐藏期间，不要使用部门作为消息接收方。
+- 需要“定时通知”时，优先把通知逻辑放在被定时执行的函数里，或让定时会话在 message 中明确完成后如何通知；不要在业务表里自造通知队列。
 
 ## 当前用户和上下文
 
@@ -76,13 +102,14 @@ clientSource := ctx.GetClientSource()
 
 ## 平台治理边界
 
-通用权限、审批、通知中心、定时任务和后台调度已退出 MVP 主链路。业务代码不要为了补齐平台治理而自造通用模块。
+通用权限、审批、评论、收藏和备份控制面不属于应用侧能力。业务代码不要为了补齐平台治理而自造通用模块。
 
 - 不要默认给每个业务表加审批状态、审批人、审批意见、审批记录表。
 - 不要在业务代码里自己造审批按钮、审批流、审批权限。
 - 如果用户只是要管理“审批单据”这种业务对象，可以按普通 Table/Form 建模；这不等于平台通用审批。
 - 如果用户要求“新增/修改/删除必须审批后执行”，应说明这是平台侧流程控制能力，MVP 暂不内置。
-- 如果用户要求“每天/每周自动执行”，应说明 MVP 暂不内置平台定时任务；可以先做手动运行的 Form/Table，或把调度需求记录为后续平台能力。
+- 如果用户要求“每天/每周自动执行”，不要在业务应用里自造 cron；应交给 `automation_operator` 使用 timer-scheduler 创建定时函数或定时会话。
+- 如果用户要求“发消息/通知某人”，不要自建通知表或硬连具体渠道；应使用 `ctx.SendMessage` 交给 message-service。按部门通知暂不暴露。
 
 操作日志：
 

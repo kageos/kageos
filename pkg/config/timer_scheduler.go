@@ -117,7 +117,7 @@ func (c *TimerSchedulerConfig) GetDispatchLeaseDuration() time.Duration {
 
 func (c *TimerSchedulerConfig) GetExecutionLeaseDuration() time.Duration {
 	if c == nil || c.Scheduler.ExecutionLeaseSeconds <= 0 {
-		return time.Hour
+		return 3 * time.Minute
 	}
 	return time.Duration(c.Scheduler.ExecutionLeaseSeconds) * time.Second
 }

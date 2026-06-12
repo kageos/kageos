@@ -1563,7 +1563,7 @@ func buildWorkspaceHandoffContent(input workspaceHandoffContentInput) string {
 	}
 	if input.ArtifactKind == workspaceBuildArtifactKind && normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleQAEngineer {
 		lines = append(lines,
-			"测试阶段要求：不要修改代码，不要重新 build；先调用 change_role 进入 qa_engineer，并把 execute_directory 固定为本目录；read_dir/search_tools/search_resources 必须显式使用该目录，禁止测试整个空间。按业务操作顺序验证：先主数据/配置表，再 Form 提交，再目标记录表，再 Chart；重点覆盖创建开始时间/创建结束时间和用户筛选。测试失败时判断是测试数据问题、业务 bug 还是构建/schema 问题，并交接给 maintenance_engineer 或 build_engineer。",
+			"测试阶段要求：不要修改代码，不要重新 build；先调用 change_role 进入 qa_engineer，并把 execute_directory 固定为本目录；read_dir/search 必须显式使用该目录，禁止测试整个空间。按业务操作顺序验证：先主数据/配置表，再 Form 提交，再目标记录表，再 Chart；重点覆盖创建开始时间/创建结束时间和用户筛选。测试失败时判断是测试数据问题、业务 bug 还是构建/schema 问题，并交接给 maintenance_engineer 或 build_engineer。",
 		)
 	}
 	if input.ArtifactKind == workspaceBuildFailureKind && normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleBuildEngineer {

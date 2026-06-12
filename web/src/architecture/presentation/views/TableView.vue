@@ -366,6 +366,7 @@
       :fields="getTableCreateFields(props.functionDetail)"
       mode="create"
       :router="props.functionDetail.router ?? ''"
+      :full-code-path="props.functionDetail.full_code_path || props.functionDetail.router || ''"
       :method="props.functionDetail.method || 'POST'"
       @submit="handleCreateSubmit"
       @close="handleCreateDialogClose"

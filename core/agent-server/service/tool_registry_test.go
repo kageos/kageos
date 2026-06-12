@@ -69,6 +69,28 @@ func TestModeToolNamesResolveInRegistry(t *testing.T) {
 	}
 }
 
+func TestScheduledTaskToolsAreRegistered(t *testing.T) {
+	reg := NewToolRegistry()
+	for _, name := range []string{
+		"create_scheduled_function_task",
+		"create_scheduled_agent_task",
+		"list_scheduled_tasks",
+		"manage_scheduled_task",
+		"list_scheduled_task_executions",
+	} {
+		if _, ok := reg.tools[name]; !ok {
+			t.Fatalf("%s should be registered", name)
+		}
+	}
+}
+
+func TestWebSearchToolIsRegistered(t *testing.T) {
+	reg := NewToolRegistry()
+	if _, ok := reg.tools["web_search"]; !ok {
+		t.Fatal("web_search should be registered")
+	}
+}
+
 func TestToolSchemasAreWellFormed(t *testing.T) {
 	reg := NewToolRegistry()
 	defs, err := reg.ListTools(context.Background(), nil)
@@ -97,6 +119,23 @@ func TestToolSchemasAreWellFormed(t *testing.T) {
 			if _, exists := properties[name]; !exists {
 				t.Fatalf("tool %q schema required %q not found in properties", def.Name, name)
 			}
+		}
+	}
+}
+
+func TestScheduledTaskCreateSchemasExposeScheduleFields(t *testing.T) {
+	reg := NewToolRegistry()
+	for _, name := range []string{"create_scheduled_function_task", "create_scheduled_agent_task"} {
+		schema := reg.tools[name].Definition().InputSchema
+		properties := schema["properties"].(map[string]interface{})
+		for _, field := range []string{"schedule_type", "run_at", "cron_expr", "interval_seconds", "timezone", "max_runs"} {
+			if _, ok := properties[field]; !ok {
+				t.Fatalf("%s schema should expose %s, properties=%v", name, field, properties)
+			}
+		}
+		required := schema["required"].([]interface{})
+		if containsInterfaceString(required, "schedule_type") {
+			t.Fatalf("%s schema should allow schedule_type inference, required=%v", name, required)
 		}
 	}
 }

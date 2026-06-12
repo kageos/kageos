@@ -33,6 +33,7 @@
         <el-icon><Search /></el-icon>
         {{ t('workspace.search') }}
       </el-button>
+      <WorkspaceInbox />
       <div
         v-if="companyName || companyCode"
         class="company-badge"
@@ -188,6 +189,7 @@ import { ElMessageBox } from 'element-plus'
 import { useAuthStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
 import DebugDialog from './DebugDialog.vue'
 import GlobalResourceSearchDialog from './GlobalResourceSearchDialog.vue'
+import WorkspaceInbox from './WorkspaceInbox.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
 import LanguageSwitcher from './LanguageSwitcher.vue'
 import defaultCompanyLogo from '@/architecture/presentation/assets/logo.svg'

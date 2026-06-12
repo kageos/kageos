@@ -179,6 +179,9 @@ func resolveTypedFunctionFullCodePathArg(fullCodePath string, defaultPath string
 }
 
 func withAgentToolClientSource(ctx context.Context) context.Context {
+	if contextx.ResolveClientSource(ctx) == contextx.ClientSourceScheduledTask {
+		return ctx
+	}
 	return contextx.WithClientSource(ctx, agentToolClientSource)
 }
 

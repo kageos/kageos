@@ -222,7 +222,7 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 	workspaceCtx.Directory.Code = "vote"
 	workspaceCtx.Directory.Type = "package"
 
-	msgs, tools, plan, err := svc.buildLLMMessagesWithPlan(context.Background(), session.SessionID, "/liubeiluo/vote", "投票系统", workspaceCtx, nil, []string{"read_doc", "search_tools"}, "fallback", 2)
+	msgs, tools, plan, err := svc.buildLLMMessagesWithPlan(context.Background(), session.SessionID, "/liubeiluo/vote", "投票系统", workspaceCtx, nil, []string{"read_doc", "search"}, "fallback", 2)
 	if err != nil {
 		t.Fatalf("build messages: %v", err)
 	}
@@ -253,7 +253,7 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 	if !containsWorkspaceRoleString(plan.Docs.MissingDocs, "/system/prompt/roles/qa-engineer") {
 		t.Fatalf("missing docs should include qa guide: %#v", plan.Docs.MissingDocs)
 	}
-	if !containsWorkspaceRoleString(plan.Tools.LLMTools, "read_doc") || !containsWorkspaceRoleString(plan.Tools.LLMTools, "search_tools") {
+	if !containsWorkspaceRoleString(plan.Tools.LLMTools, "read_doc") || !containsWorkspaceRoleString(plan.Tools.LLMTools, "search") {
 		t.Fatalf("bad tool plan: %#v", plan.Tools)
 	}
 }
@@ -891,7 +891,7 @@ func TestBuildWorkspaceHandoffContentForQA(t *testing.T) {
 		"target_role 固定为 qa_engineer",
 		"change_role.execute_directory 必须固定",
 		"测试阶段要求",
-		"read_dir/search_tools/search_resources",
+		"read_dir/search",
 		"禁止测试整个空间",
 		"创建开始时间/创建结束时间",
 		`"kind":"agent_app_build"`,

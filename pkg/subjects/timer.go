@@ -6,7 +6,11 @@ import (
 )
 
 const (
-	TimerExecutionFinishedSubject = "timer.v1.event.execution.finished"
+	TimerExecutionStartedCommandSubject   = "timer.v1.cmd.execution.started"
+	TimerExecutionHeartbeatCommandSubject = "timer.v1.cmd.execution.heartbeat"
+	TimerExecutionFinishedCommandSubject  = "timer.v1.cmd.execution.finished"
+	TimerExecutionControlQueueGroup       = "timer.scheduler.execution-control"
+	TimerExecutionFinishedSubject         = "timer.v1.event.execution.finished"
 )
 
 func TimerExecutionRequestedSubject(executorKey string) string {

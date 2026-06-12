@@ -87,6 +87,7 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 		return toolResult("tool not found: "+name, true)
 	}
 	definition := tool.Definition()
+	args = normalizeToolArgumentsForSchema(definition.InputSchema, args)
 	if err := validateToolArguments(definition.InputSchema, args); err != nil {
 		return toolResult("tool 参数校验失败: "+err.Error(), true)
 	}

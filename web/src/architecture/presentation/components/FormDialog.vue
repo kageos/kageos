@@ -33,18 +33,36 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="handleClose">取消</el-button>
+        <el-button
+          v-if="canCreateScheduledTask"
+          :disabled="submitting"
+          @click="openScheduledTaskDialog"
+        >
+          定时提交
+        </el-button>
         <el-button type="primary" @click="handleSubmit" :loading="submitting">
           确定
         </el-button>
       </span>
     </template>
+    <ScheduledTaskDialog
+      v-if="showScheduledTaskDialog && canCreateScheduledTask"
+      v-model="showScheduledTaskDialog"
+      :full-code-path="scheduledFullCodePath"
+      :function-detail="formFunctionDetail"
+      table-mode
+      fixed-action="table_create"
+      :get-payload="buildScheduledPayload"
+    />
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import FormView from '@/architecture/presentation/views/FormView.vue'
+import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
 import { Logger } from '@/architecture/shared/logger'
+import { featureFlags } from '@/architecture/shared/config/features'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
 
 interface Props {
@@ -53,6 +71,7 @@ interface Props {
   fields: FieldConfig[]  // 表单字段
   mode: 'create' | 'update'  // 模式：新增或编辑
   router: string  // ✨ 函数路由（用于文件上传等）
+  fullCodePath?: string
   method?: string  // 🔥 原函数的 HTTP 方法（用于 OnSelectFuzzy 回调）
   initialData?: Record<string, any>  // 初始数据（编辑模式）
   width?: string | number  // 对话框宽度
@@ -61,7 +80,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   width: '1200px',
   initialData: () => ({}),
-  router: ''
+  router: '',
+  fullCodePath: ''
 })
 
 const emit = defineEmits<{
@@ -81,6 +101,14 @@ const formViewRef = ref<InstanceType<typeof FormView>>()
 
 // 提交状态
 const submitting = ref(false)
+const showScheduledTaskDialog = ref(false)
+const scheduledFullCodePath = computed(() => props.fullCodePath || props.router || '')
+const canCreateScheduledTask = computed(() => {
+  return featureFlags.scheduledTasks &&
+    props.mode === 'create' &&
+    !!scheduledFullCodePath.value &&
+    !!formFunctionDetail.value
+})
 
 /**
  * 🔥 将 fields 包装成 FunctionDetail 格式，供 FormRenderer 使用
@@ -122,7 +150,7 @@ const formFunctionDetail = computed<FunctionDetail | null>(() => {
     },
     created_at: '',
     updated_at: '',
-    full_code_path: ''
+    full_code_path: scheduledFullCodePath.value
   }
 })
 
@@ -165,6 +193,23 @@ const handleSubmit = async () => {
 const handleClose = () => {
   emit('close')
   emit('update:modelValue', false)
+}
+
+const openScheduledTaskDialog = () => {
+  showScheduledTaskDialog.value = true
+}
+
+const buildScheduledPayload = async (): Promise<Record<string, unknown>> => {
+  if (!formViewRef.value) {
+    throw new Error('表单尚未就绪，无法创建定时任务')
+  }
+
+  const isValid = formViewRef.value.validateForm()
+  if (!isValid) {
+    throw new Error('请先修正表单校验错误')
+  }
+
+  return await formViewRef.value.prepareSubmitDataWithTypeConversion()
 }
 
 /**

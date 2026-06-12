@@ -50,5 +50,11 @@ routes:
       - url: "http://127.0.0.1:9098"
     timeout: 300
 
+  - path: "/message"
+    service_name: "message"
+    targets:
+      - url: "http://127.0.0.1:9099"
+    timeout: 300
+
 timeouts:
   default: 300

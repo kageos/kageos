@@ -55,6 +55,14 @@ func TestResolveClientSourceInfersOpenAPI(t *testing.T) {
 	}
 }
 
+func TestResolveClientSourceInfersScheduledTask(t *testing.T) {
+	ctx := WithSourceInfo(context.Background(), SourceTypeScheduledTask, "timer_task:1:execution:2")
+
+	if got := ResolveClientSource(ctx); got != ClientSourceScheduledTask {
+		t.Fatalf("ResolveClientSource(ctx) = %q, want scheduled_task", got)
+	}
+}
+
 func TestGetAuditClientSourceFallsBackToUnknown(t *testing.T) {
 	if got := GetAuditClientSource(context.Background()); got != ClientSourceUnknown {
 		t.Fatalf("GetAuditClientSource(ctx) = %q, want unknown", got)

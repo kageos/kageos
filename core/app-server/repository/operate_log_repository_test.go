@@ -121,6 +121,55 @@ func TestGetOperateLogsFiltersByCompanyCode(t *testing.T) {
 	}
 }
 
+func TestGetOperateLogsIncludesLegacyEmptyCompanyLogs(t *testing.T) {
+	db := newOperateLogRepositoryTestDB(t)
+	repo := NewOperateLogRepository(db)
+	ctx := context.Background()
+
+	for _, item := range []struct {
+		companyCode string
+		source      string
+		trace       string
+	}{
+		{companyCode: "acme", source: "browser", trace: "trace-acme"},
+		{companyCode: "", source: "scheduled_task", trace: "trace-legacy-scheduled"},
+		{companyCode: "other", source: "scheduled_task", trace: "trace-other"},
+	} {
+		if err := repo.CreateOperateLog(ctx, &model.OperateLog{
+			TenantUser:   "owner",
+			CompanyCode:  item.companyCode,
+			App:          "ops",
+			ActorUser:    "alice",
+			Action:       "scheduled_function_execute",
+			ResourceType: "function",
+			ResourcePath: "/owner/ops/report.chart",
+			Status:       "success",
+			Source:       item.source,
+			TraceID:      item.trace,
+		}); err != nil {
+			t.Fatalf("create log: %v", err)
+		}
+	}
+
+	logs, total, err := repo.GetOperateLogs(ctx, &dto.GetOperateLogsReq{
+		CompanyCode:  "acme",
+		ResourcePath: "/owner/ops/report.chart",
+		Page:         1,
+		PageSize:     20,
+	})
+	if err != nil {
+		t.Fatalf("query logs: %v", err)
+	}
+	if total != 2 || len(logs) != 2 {
+		t.Fatalf("expected acme + legacy empty company logs, total=%d logs=%+v", total, logs)
+	}
+	for _, log := range logs {
+		if log.CompanyCode == "other" {
+			t.Fatalf("other company log should not be returned: %+v", log)
+		}
+	}
+}
+
 func TestGetOperateLogsFiltersBySource(t *testing.T) {
 	db := newOperateLogRepositoryTestDB(t)
 	repo := NewOperateLogRepository(db)

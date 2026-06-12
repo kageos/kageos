@@ -66,6 +66,20 @@
           </div>
         </el-tab-pane>
 
+        <el-tab-pane
+          v-if="featureFlags.scheduledTasks"
+          name="scheduledTask"
+          label="定时函数"
+        >
+          <div class="tab-content">
+            <ScheduledTaskList
+              :resource-path="currentFunction?.full_code_path || currentFunctionDetail?.full_code_path || ''"
+              :function-detail="currentFunctionDetail"
+              :auto-load="activeTab === 'scheduledTask'"
+            />
+          </div>
+        </el-tab-pane>
+
       </el-tabs>
     </div>
   </div>
@@ -81,10 +95,11 @@ import FunctionConnectorBar from './FunctionConnectorBar.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import TeamAccessPanel from './TeamAccessPanel.vue'
 import PublicSharePanel from './PublicSharePanel.vue'
+import ScheduledTaskList from './ScheduledTaskList.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
 import { ElMessage } from 'element-plus'
 
-type FunctionTabName = 'content' | 'permission' | 'publicShare' | 'operateLog'
+type FunctionTabName = 'content' | 'permission' | 'publicShare' | 'operateLog' | 'scheduledTask'
 
 interface LoadableOperateLogSection {
   load: () => void
