@@ -32,7 +32,7 @@ func TestListInboxScansMessageInboxDTO(t *testing.T) {
 		t.Fatalf("create message: %v", err)
 	}
 
-	list, total, err := repo.ListInbox(context.Background(), "bob", "", "", 0, 20)
+	list, total, err := repo.ListInbox(context.Background(), "bob", InboxListFilter{}, 0, 20)
 	if err != nil {
 		t.Fatalf("list inbox: %v", err)
 	}
@@ -98,12 +98,71 @@ func TestListInboxThreadsGroupsByParentSource(t *testing.T) {
 		t.Fatalf("thread scheduled ids = %d/%d, want 9/10", thread.ScheduledTaskID, thread.ScheduledExecutionID)
 	}
 
-	messages, messageTotal, err := repo.ListInbox(context.Background(), "bob", "", thread.Key, 0, 20)
+	messages, messageTotal, err := repo.ListInbox(context.Background(), "bob", InboxListFilter{ThreadKey: thread.Key}, 0, 20)
 	if err != nil {
 		t.Fatalf("list inbox by thread: %v", err)
 	}
 	if messageTotal != 2 || len(messages) != 2 {
 		t.Fatalf("messages total=%d len=%d, want 2", messageTotal, len(messages))
+	}
+}
+
+func TestListInboxBySourcePathAndSourceCounts(t *testing.T) {
+	repo := newTestMessageRepo(t)
+
+	fixtures := []struct {
+		sourcePath string
+		title      string
+	}{
+		{"/system/demos/meeting", "目录巡检提醒"},
+		{"/system/demos/meeting/meeting_room_notify_soon.form", "会议即将开始提醒"},
+		{"/system/demos/meeting/meeting_room_list.table", "会议室列表提醒"},
+		{"/system/demos/other/notify.form", "其他系统提醒"},
+	}
+	for _, fixture := range fixtures {
+		_, err := repo.Create(context.Background(), dto.MessageSendMeta{
+			From:       "system",
+			SourcePath: fixture.sourcePath,
+		}, dto.MessageSendPayload{
+			Title:   fixture.title,
+			Content: fixture.title,
+		}, []string{"bob"})
+		if err != nil {
+			t.Fatalf("create message %s: %v", fixture.sourcePath, err)
+		}
+	}
+
+	counts, err := repo.ListSourceCounts(context.Background(), "bob", "")
+	if err != nil {
+		t.Fatalf("list source counts: %v", err)
+	}
+	countByPath := make(map[string]dto.MessageInboxSourceCount, len(counts))
+	for _, count := range counts {
+		countByPath[count.SourcePath] = count
+	}
+	if countByPath["/system/demos/meeting/meeting_room_notify_soon.form"].UnreadCount != 1 {
+		t.Fatalf("function source count = %#v", countByPath["/system/demos/meeting/meeting_room_notify_soon.form"])
+	}
+
+	list, total, err := repo.ListInbox(context.Background(), "bob", InboxListFilter{
+		SourcePath:      "/system/demos/meeting",
+		IncludeChildren: true,
+	}, 0, 20)
+	if err != nil {
+		t.Fatalf("list inbox by source path: %v", err)
+	}
+	if total != 3 || len(list) != 3 {
+		t.Fatalf("source subtree total=%d len=%d, want 3", total, len(list))
+	}
+
+	direct, directTotal, err := repo.ListInbox(context.Background(), "bob", InboxListFilter{
+		SourcePath: "/system/demos/meeting",
+	}, 0, 20)
+	if err != nil {
+		t.Fatalf("list inbox by direct source path: %v", err)
+	}
+	if directTotal != 1 || len(direct) != 1 || direct[0].Title != "目录巡检提醒" {
+		t.Fatalf("direct source list total=%d list=%#v", directTotal, direct)
 	}
 }
 

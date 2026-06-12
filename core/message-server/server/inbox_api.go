@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos/core/message-server/repository"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/ginx/response"
 )
@@ -23,9 +24,16 @@ func (s *Server) listInboxMessages(c *gin.Context) {
 	}
 	status := strings.TrimSpace(c.Query("status"))
 	threadKey := strings.TrimSpace(c.Query("thread_key"))
+	sourcePath := strings.TrimSpace(c.Query("source_path"))
+	includeChildren := parseBoolQuery(c.Query("include_children"))
 	offset := (page - 1) * pageSize
 
-	list, total, err := s.messageRepo.ListInbox(c.Request.Context(), username, status, threadKey, offset, pageSize)
+	list, total, err := s.messageRepo.ListInbox(c.Request.Context(), username, repository.InboxListFilter{
+		Status:          status,
+		ThreadKey:       threadKey,
+		SourcePath:      sourcePath,
+		IncludeChildren: includeChildren,
+	}, offset, pageSize)
 	if err != nil {
 		response.FailWithMessage(c, "获取消息列表失败: "+err.Error())
 		return
@@ -63,6 +71,21 @@ func (s *Server) listInboxThreads(c *gin.Context) {
 		Page:     page,
 		PageSize: pageSize,
 	})
+}
+
+func (s *Server) listInboxSourceCounts(c *gin.Context) {
+	username, err := s.resolveInboxUsername(c)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	status := strings.TrimSpace(c.Query("status"))
+	list, err := s.messageRepo.ListSourceCounts(c.Request.Context(), username, status)
+	if err != nil {
+		response.FailWithMessage(c, "获取消息节点统计失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, dto.MessageInboxSourceCountResp{List: list})
 }
 
 func (s *Server) getInboxMessage(c *gin.Context) {
@@ -154,4 +177,13 @@ func parsePositiveInt(raw string, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+func parseBoolQuery(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
 }

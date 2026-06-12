@@ -1,6 +1,6 @@
 <template>
   <div class="workspace-inbox">
-    <el-tooltip content="站内信" placement="bottom" effect="light">
+    <el-tooltip v-if="props.showTrigger" content="站内信" placement="bottom" effect="light">
       <el-badge
         :value="unreadCount"
         :hidden="unreadCount <= 0"
@@ -19,7 +19,7 @@
 
     <el-drawer
       v-model="drawerVisible"
-      title="站内信"
+      :title="drawerTitle"
       direction="rtl"
       size="min(1120px, 96vw)"
       :destroy-on-close="false"
@@ -38,13 +38,18 @@
               size="small"
               @change="loadInbox(true)"
             />
+            <div v-if="sourceFilter" class="source-filter-chip">
+              <el-tag size="small" effect="plain">节点通知</el-tag>
+              <span :title="sourceFilter.sourcePath">{{ sourceFilter.title || sourceFilter.sourcePath }}</span>
+              <el-button size="small" text @click="clearSourceFilter">查看全部</el-button>
+            </div>
           </div>
           <div class="inbox-actions">
             <el-button :icon="Refresh" :loading="listLoading" @click="loadInbox(true)">
               刷新
             </el-button>
-            <el-button :disabled="unreadCount <= 0" @click="markAllRead">
-              全部已读
+            <el-button :disabled="currentScopeUnreadCount <= 0" @click="markCurrentScopeRead">
+              {{ sourceFilter ? '当前节点已读' : '全部已读' }}
             </el-button>
           </div>
         </header>
@@ -256,6 +261,16 @@ import {
   type MessageInboxStatus,
 } from '@/architecture/presentation/context/api/message'
 
+const props = withDefaults(defineProps<{
+  showTrigger?: boolean
+}>(), {
+  showTrigger: true
+})
+
+const emit = defineEmits<{
+  (e: 'messages-updated'): void
+}>()
+
 interface InboxThread {
   key: string
   title: string
@@ -267,6 +282,13 @@ interface InboxThread {
   count: number
   scheduledTaskID?: number
   scheduledExecutionID?: number
+}
+
+interface SourceFilter {
+  sourcePath: string
+  title?: string
+  includeChildren?: boolean
+  kind?: MessageInboxThread['kind']
 }
 
 const router = useRouter()
@@ -291,10 +313,21 @@ const statusOptions = [
   { label: '全部', value: 'all' },
   { label: '未读', value: 'unread' },
 ]
+const sourceFilter = ref<SourceFilter | null>(null)
+const drawerTitle = computed(() => {
+  if (!sourceFilter.value) return '站内信'
+  return `${sourceFilter.value.title || '节点通知'} · 通知`
+})
 const selectedThread = computed(() => {
   return inboxThreads.value.find(thread => thread.key === selectedThreadKey.value)
     || inboxThreads.value[0]
     || null
+})
+const currentScopeUnreadCount = computed(() => {
+  if (sourceFilter.value) {
+    return selectedThread.value?.unreadCount || 0
+  }
+  return unreadCount.value
 })
 const selectedThreadMessages = computed(() => {
   return threadMessages.value
@@ -319,7 +352,27 @@ async function loadUnreadCount() {
 }
 
 function openDrawer() {
+  sourceFilter.value = null
   drawerVisible.value = true
+}
+
+function openForSource(filter: SourceFilter) {
+  const sourcePath = (filter.sourcePath || '').trim()
+  if (!sourcePath) return
+  sourceFilter.value = {
+    ...filter,
+    sourcePath,
+  }
+  const wasVisible = drawerVisible.value
+  drawerVisible.value = true
+  if (wasVisible) {
+    void loadInbox(true)
+  }
+}
+
+function clearSourceFilter() {
+  sourceFilter.value = null
+  void loadInbox(true)
 }
 
 function handleDrawerOpen() {
@@ -334,6 +387,10 @@ async function loadInbox(resetPage = false) {
   listLoading.value = true
   errorMessage.value = ''
   try {
+    if (sourceFilter.value?.sourcePath) {
+      await loadSourceInbox()
+      return
+    }
     const resp = await listMessageInboxThreads({
       status: statusFilter.value === 'unread' ? 'unread' : undefined,
       page: page.value,
@@ -359,6 +416,45 @@ async function loadInbox(resetPage = false) {
   }
 }
 
+async function loadSourceInbox() {
+  const filter = sourceFilter.value
+  if (!filter?.sourcePath) return
+  const resp = await listMessageInbox({
+    status: statusFilter.value === 'unread' ? 'unread' : undefined,
+    source_path: filter.sourcePath,
+    include_children: Boolean(filter.includeChildren),
+    page: page.value,
+    page_size: 100,
+  })
+  const messages = resp.list || []
+  threadMessages.value = messages
+  total.value = resp.total || 0
+  if (messages.length === 0) {
+    inboxThreads.value = []
+    selectedThreadKey.value = ''
+    selectedMessage.value = null
+    return
+  }
+  const firstMessage = messages[0]
+  if (!firstMessage) return
+  const unreadCount = messages.filter(item => !item.read_at).length
+  const thread: InboxThread = {
+    key: sourceFilterThreadKey(filter),
+    title: filter.title || sourcePrimaryText(firstMessage),
+    subtitle: filter.includeChildren ? '当前节点及子节点通知' : '当前节点通知',
+    path: filter.sourcePath,
+    kind: filter.kind || threadKind(firstMessage),
+    lastMessage: firstMessage,
+    unreadCount,
+    count: Number(resp.total || messages.length),
+    scheduledTaskID: firstMessage.scheduled_task_id,
+    scheduledExecutionID: firstMessage.scheduled_execution_id,
+  }
+  inboxThreads.value = [thread]
+  selectedThreadKey.value = thread.key
+  selectedMessage.value = firstMessage
+}
+
 function selectThread(thread: InboxThread) {
   selectedThreadKey.value = thread.key
   selectedMessage.value = thread.lastMessage
@@ -369,6 +465,10 @@ async function loadThreadMessages(thread: InboxThread) {
   detailLoading.value = true
   errorMessage.value = ''
   try {
+    if (sourceFilter.value?.sourcePath) {
+      await loadSourceInbox()
+      return
+    }
     const resp = await listMessageInbox({
       thread_key: thread.key,
       page: 1,
@@ -395,6 +495,7 @@ async function selectMessage(item: MessageInboxItem) {
       selectedMessage.value = { ...detail, read_at: new Date().toISOString() }
       updateListReadState(item.id)
       await loadUnreadCount()
+      emit('messages-updated')
     }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '加载消息详情失败'
@@ -429,6 +530,7 @@ async function markThreadRead(thread: InboxThread) {
       selectedMessage.value = { ...selectedMessage.value, read_at: selectedMessage.value.read_at || now }
     }
     await loadUnreadCount()
+    emit('messages-updated')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '标记已读失败')
   }
@@ -442,9 +544,18 @@ async function markMessageRead(id: number) {
       selectedMessage.value = { ...selectedMessage.value, read_at: new Date().toISOString() }
     }
     await loadUnreadCount()
+    emit('messages-updated')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '标记已读失败')
   }
+}
+
+async function markCurrentScopeRead() {
+  if (sourceFilter.value && selectedThread.value) {
+    await markThreadRead(selectedThread.value)
+    return
+  }
+  await markAllRead()
 }
 
 async function markAllRead() {
@@ -462,6 +573,7 @@ async function markAllRead() {
     }
     unreadCount.value = 0
     ElMessage.success('已全部标记为已读')
+    emit('messages-updated')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '全部已读失败')
   }
@@ -503,6 +615,10 @@ function apiThreadToInboxThread(thread: MessageInboxThread): InboxThread {
     scheduledTaskID: thread.scheduled_task_id || thread.last_message.scheduled_task_id,
     scheduledExecutionID: thread.scheduled_execution_id || thread.last_message.scheduled_execution_id,
   }
+}
+
+function sourceFilterThreadKey(filter: SourceFilter) {
+  return `source:${filter.sourcePath}:${filter.includeChildren ? 'children' : 'direct'}`
 }
 
 function messageTime(item: MessageInboxItem) {
@@ -691,6 +807,11 @@ function formatRelativeTime(value?: string) {
   if (diffMs < 365 * day) return parsed.format('MM-DD HH:mm')
   return parsed.format('YYYY-MM-DD')
 }
+
+defineExpose({
+  openDrawer,
+  openForSource,
+})
 </script>
 
 <style scoped lang="scss">
@@ -731,6 +852,29 @@ function formatRelativeTime(value?: string) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.inbox-filter {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.source-filter-chip {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+
+  span:not(.el-tag__content) {
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .inbox-actions {

@@ -143,6 +143,15 @@
               :title="getRuntimeSummaryTitle(data)"
             />
 
+            <el-badge
+              v-if="hasNotificationBadge(data)"
+              :value="getNotificationBadgeText(data)"
+              :max="99"
+              class="notification-count-badge"
+              :title="getNotificationSummaryTitle(data)"
+              @click.stop="openNodeNotifications(data)"
+            />
+
             <!-- 更多操作按钮 - 鼠标悬停时显示（与右键菜单并存，点击也可打开） -->
             <el-dropdown
               v-if="!multiSelectMode"
@@ -226,10 +235,12 @@ interface Props {
   currentNodeId?: number | string | null
   currentFunction?: ServiceTree | null  // 当前选中的节点（用于判断是否可以克隆）
   expandedKeys?: number[] // ⭐ 需要自动展开的节点ID列表（从后端返回）
+  messageCounts?: Record<string, ServiceTreeNotificationCount>
 }
 
 interface Emits {
   (e: 'node-click', node: ServiceTree): void
+  (e: 'open-notifications', node: ServiceTree): void
   (e: 'create-directory', parentNode?: ServiceTree): void
   (e: 'create-docs', parentNode?: ServiceTree): void
   (e: 'delete-doc', node: ServiceTree): void
@@ -238,6 +249,12 @@ interface Emits {
   (e: 'bulk-delete', nodes: ServiceTree[]): void
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
   (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
+}
+
+interface ServiceTreeNotificationCount {
+  unread_count?: number
+  message_count?: number
+  latest_at?: string
 }
 
 const props = defineProps<Props>()
@@ -357,6 +374,67 @@ const getRuntimeSummaryTitle = (node: ServiceTree): string => {
   if (summary.tool_running_count > 0) parts.push(t('serviceTree.toolRunning', { count: summary.tool_running_count }))
   if (summary.failed_recent_count > 0) parts.push(t('serviceTree.recentFailed', { count: summary.failed_recent_count }))
   return parts.join('，')
+}
+
+const notificationSummaries = computed<Record<string, ServiceTreeNotificationCount>>(() => {
+  const summaries: Record<string, ServiceTreeNotificationCount> = {}
+  const normalizePath = (path?: string) => (path || '').trim().replace(/\/+$/g, '')
+  const merge = (target: ServiceTreeNotificationCount, source?: ServiceTreeNotificationCount) => {
+    if (!source) return target
+    target.unread_count = Number(target.unread_count || 0) + Number(source.unread_count || 0)
+    target.message_count = Number(target.message_count || 0) + Number(source.message_count || 0)
+    if (!target.latest_at || (source.latest_at && source.latest_at > target.latest_at)) {
+      target.latest_at = source.latest_at
+    }
+    return target
+  }
+  const walk = (node: ServiceTree): ServiceTreeNotificationCount => {
+    const path = normalizePath(node.full_code_path)
+    const summary: ServiceTreeNotificationCount = {}
+    if (path) {
+      merge(summary, props.messageCounts?.[path])
+    }
+    for (const child of node.children || []) {
+      merge(summary, walk(child))
+    }
+    if (path) {
+      summaries[path] = summary
+    }
+    return summary
+  }
+  for (const node of props.treeData || []) {
+    walk(node)
+  }
+  return summaries
+})
+
+const getNotificationSummary = (node: ServiceTree): ServiceTreeNotificationCount | undefined => {
+  const path = (node.full_code_path || '').trim().replace(/\/+$/g, '')
+  if (!path) return undefined
+  return notificationSummaries.value[path]
+}
+
+const hasNotificationBadge = (node: ServiceTree): boolean => {
+  return Number(getNotificationSummary(node)?.unread_count || 0) > 0
+}
+
+const getNotificationBadgeText = (node: ServiceTree): string | number => {
+  return getNotificationSummary(node)?.unread_count || ''
+}
+
+const getNotificationSummaryTitle = (node: ServiceTree): string => {
+  const summary = getNotificationSummary(node)
+  const unread = Number(summary?.unread_count || 0)
+  const total = Number(summary?.message_count || 0)
+  if (unread > 0) {
+    return `${unread} 条未读通知，${total} 条通知`
+  }
+  return `${total} 条通知`
+}
+
+function openNodeNotifications(node: ServiceTree) {
+  if (!node.full_code_path) return
+  emit('open-notifications', node)
 }
 
 // 重命名目录
@@ -1055,6 +1133,18 @@ defineExpose({
   .runtime-state-badge-failed :deep(.el-badge__content) {
     background: #ef4444;
     box-shadow: 0 0 12px rgba(239, 68, 68, 0.42);
+  }
+
+  .notification-count-badge {
+    flex-shrink: 0;
+    margin-left: 6px;
+    cursor: pointer;
+  }
+
+  .notification-count-badge :deep(.el-badge__content) {
+    border: none;
+    background: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.12);
   }
 
   .node-more-actions {

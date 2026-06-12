@@ -50,7 +50,9 @@
             :current-node-id="currentFunction?.id || null"
             :current-function="currentFunction"
             :expanded-keys="expandedKeys"
+            :message-counts="messageCountsByPath"
             @node-click="handleNodeClick"
+            @open-notifications="handleOpenNodeNotifications"
             @create-directory="handleCreateDirectory"
             @create-docs="handleCreateDocs"
             @delete-doc="handleDeleteDoc"
@@ -186,6 +188,12 @@
       @close="handleCloseCreateDirectoryDialog"
     />
 
+    <WorkspaceInbox
+      ref="nodeInboxRef"
+      :show-trigger="false"
+      @messages-updated="refreshMessageCounts"
+    />
+
     <!-- 变更记录对话框 -->
     <DirectoryUpdateHistoryDialog
       v-if="featureFlags.operateLogs && updateHistoryDialogVisible"
@@ -256,6 +264,7 @@ import WorkspaceCreateDirectoryDialog from '../components/WorkspaceCreateDirecto
 import WorkspaceCreateDocsDialog from '../components/WorkspaceCreateDocsDialog.vue'
 import WorkspaceFunctionRenderer from '../components/WorkspaceFunctionRenderer.vue'
 import WorkspaceFunctionTabsPanel from '../components/WorkspaceFunctionTabsPanel.vue'
+import WorkspaceInbox from '../components/WorkspaceInbox.vue'
 import type { App } from '../../domain/types'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
@@ -275,6 +284,7 @@ import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
 import { useAfterCreateNode } from '../composables/useAfterCreateNode'
 import { getFormRequestFields, getFunctionCallbacks } from '@/architecture/domain/utils/functionSchemaSelectors'
 import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
+import { listMessageInboxSourceCounts, type MessageInboxSourceCount } from '@/architecture/presentation/context/api/message'
 import { featureFlags } from '@/architecture/shared/config/features'
 
 const route = useRoute()
@@ -513,6 +523,8 @@ const editInitialData = computed(() => {
 // ServiceTreePanel 引用（用于展开路径）
 const serviceTreePanelRef = ref<InstanceType<typeof ServiceTreePanel> | null>(null)
 const workspaceHeaderRef = ref<InstanceType<typeof WorkspaceHeader> | null>(null)
+const nodeInboxRef = ref<InstanceType<typeof WorkspaceInbox> | null>(null)
+const messageCountsByPath = ref<Record<string, MessageInboxSourceCount>>({})
 
 // 左侧服务目录树显示状态
 const showLeftSidebar = ref(true)
@@ -677,6 +689,7 @@ function handleWorkspaceShortcutKeydown(event: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener('keydown', handleWorkspaceShortcutKeydown)
+  void refreshMessageCounts()
 })
 
 onBeforeUnmount(() => {
@@ -690,6 +703,13 @@ watch(
     openAmbientMiniWs(ctx.fullCodePath, ctx.dirName)
   },
   { immediate: true }
+)
+
+watch(
+  () => currentApp.value?.id,
+  () => {
+    void refreshMessageCounts()
+  }
 )
 
 function openWorkspaceSession(session: WorkspaceSessionItem) {
@@ -741,6 +761,33 @@ const handleRefreshTree = async () => {
   if (app) {
     await domainService.loadServiceTree(app)
   }
+  await refreshMessageCounts()
+}
+
+async function refreshMessageCounts() {
+  try {
+    const resp = await listMessageInboxSourceCounts()
+    const next: Record<string, MessageInboxSourceCount> = {}
+    for (const item of resp.list || []) {
+      const path = normalizeFullCodePath(item.source_path || '')
+      if (!path) continue
+      next[path] = item
+    }
+    messageCountsByPath.value = next
+  } catch {
+    messageCountsByPath.value = {}
+  }
+}
+
+function handleOpenNodeNotifications(node: ServiceTreeType) {
+  const sourcePath = normalizeFullCodePath(node.full_code_path || '')
+  if (!sourcePath) return
+  nodeInboxRef.value?.openForSource({
+    sourcePath,
+    title: node.name || resolveWorkspacePathName(sourcePath) || sourcePath,
+    includeChildren: node.type === 'package',
+    kind: node.type === 'package' ? 'directory' : node.type === 'function' ? 'function' : 'sender',
+  })
 }
 
 // 创建节点后的统一处理：刷新树 + 选中新节点（需在 handleRefreshTree 之后定义）

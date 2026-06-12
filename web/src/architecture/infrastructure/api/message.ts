@@ -95,6 +95,8 @@ export interface MessageInboxItem {
 export interface ListMessageInboxParams {
   status?: MessageInboxStatus
   thread_key?: string
+  source_path?: string
+  include_children?: boolean
   page?: number
   page_size?: number
 }
@@ -108,6 +110,17 @@ export interface ListMessageInboxResp {
 
 export interface MessageUnreadCountResp {
   unread_count: number
+}
+
+export interface MessageInboxSourceCount {
+  source_path: string
+  unread_count: number
+  message_count: number
+  latest_at?: string
+}
+
+export interface ListMessageInboxSourceCountsResp {
+  list: MessageInboxSourceCount[]
 }
 
 export interface MessageInboxThread {
@@ -145,6 +158,10 @@ export function listMessageInbox(params: ListMessageInboxParams = {}): Promise<L
 
 export function listMessageInboxThreads(params: ListMessageInboxParams = {}): Promise<ListMessageInboxThreadsResp> {
   return get<ListMessageInboxThreadsResp>('/message/api/v1/inbox/threads', params)
+}
+
+export function listMessageInboxSourceCounts(params: Pick<ListMessageInboxParams, 'status'> = {}): Promise<ListMessageInboxSourceCountsResp> {
+  return get<ListMessageInboxSourceCountsResp>('/message/api/v1/inbox/source_counts', params)
 }
 
 export function getMessageInboxUnreadCount(): Promise<MessageUnreadCountResp> {

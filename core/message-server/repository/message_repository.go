@@ -16,6 +16,13 @@ type MessageRepository struct {
 	db *gorm.DB
 }
 
+type InboxListFilter struct {
+	Status          string
+	ThreadKey       string
+	SourcePath      string
+	IncludeChildren bool
+}
+
 func NewMessageRepository(db *gorm.DB) *MessageRepository {
 	return &MessageRepository{db: db}
 }
@@ -80,9 +87,9 @@ func (r *MessageRepository) Create(ctx context.Context, meta dto.MessageSendMeta
 	return entry, nil
 }
 
-func (r *MessageRepository) ListInbox(ctx context.Context, username, status, threadKey string, offset, limit int) ([]dto.MessageInboxItem, int64, error) {
+func (r *MessageRepository) ListInbox(ctx context.Context, username string, filter InboxListFilter, offset, limit int) ([]dto.MessageInboxItem, int64, error) {
 	var list []dto.MessageInboxItem
-	query := r.inboxQuery(ctx, username, status, threadKey)
+	query := r.inboxQuery(ctx, username, filter)
 
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
@@ -108,7 +115,7 @@ func (r *MessageRepository) ListInboxThreads(ctx context.Context, username, stat
 		limit = 20
 	}
 	threadExpr := inboxThreadKeySQL()
-	countQuery := r.inboxQuery(ctx, username, status, "").
+	countQuery := r.inboxQuery(ctx, username, InboxListFilter{Status: status}).
 		Select(threadExpr + " AS thread_key").
 		Group(threadExpr)
 	var total int64
@@ -117,7 +124,7 @@ func (r *MessageRepository) ListInboxThreads(ctx context.Context, username, stat
 	}
 
 	var rows []inboxThreadRow
-	if err := r.inboxQuery(ctx, username, status, "").
+	if err := r.inboxQuery(ctx, username, InboxListFilter{Status: status}).
 		Select(strings.Join([]string{
 			threadExpr + " AS thread_key",
 			"MAX(m.id) AS last_message_id",
@@ -161,6 +168,37 @@ func (r *MessageRepository) ListInboxThreads(ctx context.Context, username, stat
 		threads = append(threads, thread)
 	}
 	return threads, total, nil
+}
+
+func (r *MessageRepository) ListSourceCounts(ctx context.Context, username, status string) ([]dto.MessageInboxSourceCount, error) {
+	sourceExpr := inboxSourcePathSQL()
+	var rows []inboxSourceCountRow
+	if err := r.inboxQuery(ctx, username, InboxListFilter{Status: status}).
+		Select(strings.Join([]string{
+			sourceExpr + " AS source_path",
+			"MAX(m.created_at) AS latest_at",
+			"COUNT(*) AS message_count",
+			"SUM(CASE WHEN r.read_at IS NULL THEN 1 ELSE 0 END) AS unread_count",
+		}, ", ")).
+		Group(sourceExpr).
+		Order("latest_at DESC").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]dto.MessageInboxSourceCount, 0, len(rows))
+	for _, row := range rows {
+		sourcePath := normalizeMessageSourcePath(row.SourcePath)
+		if sourcePath == "" {
+			continue
+		}
+		out = append(out, dto.MessageInboxSourceCount{
+			SourcePath:   sourcePath,
+			UnreadCount:  row.UnreadCount,
+			MessageCount: row.MessageCount,
+			LatestAt:     parseInboxLatestAt(row.LatestAt),
+		})
+	}
+	return out, nil
 }
 
 func (r *MessageRepository) GetInboxMessage(ctx context.Context, username string, messageID int64) (*dto.MessageInboxItem, error) {
@@ -224,13 +262,27 @@ func (r *MessageRepository) MarkAllRead(ctx context.Context, username string) er
 		Update("read_at", now).Error
 }
 
-func (r *MessageRepository) inboxQuery(ctx context.Context, username, status, threadKey string) *gorm.DB {
+func (r *MessageRepository) inboxQuery(ctx context.Context, username string, filter InboxListFilter) *gorm.DB {
 	query := r.inboxBaseQuery(ctx, username)
-	if strings.EqualFold(strings.TrimSpace(status), "unread") {
+	if strings.EqualFold(strings.TrimSpace(filter.Status), "unread") {
 		query = query.Where("r.read_at IS NULL")
 	}
-	if threadKey = strings.TrimSpace(threadKey); threadKey != "" {
+	if threadKey := strings.TrimSpace(filter.ThreadKey); threadKey != "" {
 		query = query.Where("("+inboxThreadKeySQL()+" = ? OR m.thread_key = ?)", threadKey, threadKey)
+	}
+	if sourcePath := normalizeMessageSourcePath(filter.SourcePath); sourcePath != "" {
+		sourceExpr := inboxSourcePathSQL()
+		conditions := make([]string, 0, 4)
+		args := make([]interface{}, 0, 4)
+		for _, variant := range messageSourcePathVariants(sourcePath) {
+			conditions = append(conditions, sourceExpr+" = ?")
+			args = append(args, variant)
+			if filter.IncludeChildren {
+				conditions = append(conditions, sourceExpr+" LIKE ?")
+				args = append(args, variant+"/%")
+			}
+		}
+		query = query.Where("("+strings.Join(conditions, " OR ")+")", args...)
 	}
 	return query
 }
@@ -279,8 +331,61 @@ type inboxThreadRow struct {
 	UnreadCount   int64
 }
 
+type inboxSourceCountRow struct {
+	SourcePath   string
+	LatestAt     string
+	MessageCount int64
+	UnreadCount  int64
+}
+
 func inboxThreadKeySQL() string {
 	return "COALESCE(NULLIF(m.source_parent_path, ''), NULLIF(m.thread_key, ''), NULLIF(m.source_path, ''), NULLIF(m.full_code_path, ''), NULLIF(m.workspace_session_id, ''), NULLIF(m.`from`, ''), 'system')"
+}
+
+func inboxSourcePathSQL() string {
+	return "COALESCE(NULLIF(m.source_path, ''), NULLIF(m.full_code_path, ''), NULLIF(m.source_parent_path, ''))"
+}
+
+func normalizeMessageSourcePath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return strings.TrimRight(path, "/")
+}
+
+func messageSourcePathVariants(path string) []string {
+	path = normalizeMessageSourcePath(path)
+	if path == "" {
+		return nil
+	}
+	withoutLeadingSlash := strings.TrimPrefix(path, "/")
+	if withoutLeadingSlash == path || withoutLeadingSlash == "" {
+		return []string{path}
+	}
+	return []string{path, withoutLeadingSlash}
+}
+
+func parseInboxLatestAt(raw string) time.Time {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}
+	}
+	for _, layout := range []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999-07:00",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05",
+	} {
+		if parsed, err := time.Parse(layout, raw); err == nil {
+			return parsed
+		}
+	}
+	return time.Time{}
 }
 
 func buildMessageThreadKey(sourceParentPath, sourcePath, fullCodePath, sessionID string) string {

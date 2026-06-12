@@ -103,6 +103,17 @@ type MessageInboxListResp struct {
 	PageSize int                `json:"page_size"`
 }
 
+type MessageInboxSourceCount struct {
+	SourcePath   string    `json:"source_path"`
+	UnreadCount  int64     `json:"unread_count"`
+	MessageCount int64     `json:"message_count"`
+	LatestAt     time.Time `json:"latest_at"`
+}
+
+type MessageInboxSourceCountResp struct {
+	List []MessageInboxSourceCount `json:"list"`
+}
+
 type MessageInboxThread struct {
 	Key                  string           `json:"key"`
 	Kind                 string           `json:"kind"`
