@@ -333,6 +333,10 @@ interface SourceTreeSummary {
   latest_at?: string
 }
 
+interface LoadInboxOptions {
+  markSourceRead?: boolean
+}
+
 const router = useRouter()
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
@@ -356,6 +360,7 @@ const statusOptions = [
   { label: '未读', value: 'unread' },
 ]
 const sourceFilter = ref<SourceFilter | null>(null)
+const markSourceReadOnOpen = ref(false)
 const sourceCountMap = ref<Record<string, MessageInboxSourceCount>>({})
 const sourceTreeProps = {
   children: 'children',
@@ -458,6 +463,7 @@ async function loadUnreadCount() {
 
 function openDrawer() {
   sourceFilter.value = null
+  markSourceReadOnOpen.value = false
   drawerVisible.value = true
 }
 
@@ -469,23 +475,27 @@ function openForSource(filter: SourceFilter) {
     sourcePath,
   }
   const wasVisible = drawerVisible.value
+  markSourceReadOnOpen.value = !wasVisible
   drawerVisible.value = true
   if (wasVisible) {
-    void loadInbox(true)
+    void loadInbox(true, { markSourceRead: true })
   }
 }
 
 function clearSourceFilter() {
   sourceFilter.value = null
+  markSourceReadOnOpen.value = false
   void loadInbox(true)
 }
 
 function handleDrawerOpen() {
-  void loadInbox(true)
+  const markSourceRead = markSourceReadOnOpen.value
+  markSourceReadOnOpen.value = false
+  void loadInbox(true, { markSourceRead })
   void loadUnreadCount()
 }
 
-async function loadInbox(resetPage = false) {
+async function loadInbox(resetPage = false, options: LoadInboxOptions = {}) {
   if (resetPage) {
     page.value = 1
   }
@@ -496,7 +506,7 @@ async function loadInbox(resetPage = false) {
       await loadSourceCounts()
     }
     if (sourceFilter.value?.sourcePath) {
-      await loadSourceInbox()
+      await loadSourceInbox({ markRead: options.markSourceRead })
       return
     }
     if (showServiceTreeInbox.value) {
@@ -550,7 +560,7 @@ async function loadSourceCounts() {
   }
 }
 
-async function loadSourceInbox() {
+async function loadSourceInbox(options: { markRead?: boolean } = {}) {
   const filter = sourceFilter.value
   if (!filter?.sourcePath) return
   const resp = await listMessageInbox({
@@ -587,6 +597,9 @@ async function loadSourceInbox() {
   inboxThreads.value = [thread]
   selectedThreadKey.value = thread.key
   selectedMessage.value = firstMessage
+  if (options.markRead && unreadCount > 0) {
+    await markThreadRead(thread)
+  }
 }
 
 function selectThread(thread: InboxThread) {
@@ -828,7 +841,7 @@ function handleSourceTreeNodeClick(node: ServiceTree) {
     includeChildren: node.type === 'package',
     kind: node.type === 'package' ? 'directory' : 'function',
   }
-  void loadInbox(true)
+  void loadInbox(true, { markSourceRead: true })
 }
 
 function messageTime(item: MessageInboxItem) {
