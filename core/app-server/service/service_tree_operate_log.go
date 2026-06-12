@@ -110,6 +110,8 @@ func serviceTreeNodeLogValues(node *model.ServiceTree) *dto.ServiceTreeNodeLogVa
 		Code:         node.Code,
 		Description:  node.Description,
 		Tags:         node.Tags,
+		Icon:         node.Icon,
+		Color:        node.Color,
 		Admins:       node.Admins,
 		AppID:        node.AppID,
 		RefID:        node.RefID,

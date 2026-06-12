@@ -87,6 +87,10 @@ func resolveRequestMessageMeta(c *gin.Context, incoming *dto.MessageSendMeta) (c
 		SourceParentPath:      strings.TrimSpace(contextx.GetSourceParentPath(ctx)),
 		SourceParentTitle:     strings.TrimSpace(contextx.GetSourceParentTitle(ctx)),
 		SourceTemplateType:    strings.TrimSpace(contextx.GetSourceTemplateType(ctx)),
+		SourceIcon:            strings.TrimSpace(contextx.GetSourceIcon(ctx)),
+		SourceColor:           strings.TrimSpace(contextx.GetSourceColor(ctx)),
+		SourceParentIcon:      strings.TrimSpace(contextx.GetSourceParentIcon(ctx)),
+		SourceParentColor:     strings.TrimSpace(contextx.GetSourceParentColor(ctx)),
 		WorkspaceSessionID:    strings.TrimSpace(contextx.GetWorkspaceSessionID(ctx)),
 		WorkspaceSessionTitle: strings.TrimSpace(contextx.GetWorkspaceSessionTitle(ctx)),
 		WorkspaceRole:         strings.TrimSpace(contextx.GetWorkspaceRole(ctx)),
@@ -112,6 +116,18 @@ func resolveRequestMessageMeta(c *gin.Context, incoming *dto.MessageSendMeta) (c
 		}
 		if meta.SourceTemplateType == "" {
 			meta.SourceTemplateType = strings.TrimSpace(incoming.SourceTemplateType)
+		}
+		if meta.SourceIcon == "" {
+			meta.SourceIcon = strings.TrimSpace(incoming.SourceIcon)
+		}
+		if meta.SourceColor == "" {
+			meta.SourceColor = strings.TrimSpace(incoming.SourceColor)
+		}
+		if meta.SourceParentIcon == "" {
+			meta.SourceParentIcon = strings.TrimSpace(incoming.SourceParentIcon)
+		}
+		if meta.SourceParentColor == "" {
+			meta.SourceParentColor = strings.TrimSpace(incoming.SourceParentColor)
 		}
 		if meta.WorkspaceSessionID == "" {
 			meta.WorkspaceSessionID = strings.TrimSpace(incoming.WorkspaceSessionID)

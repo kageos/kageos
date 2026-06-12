@@ -22,6 +22,11 @@ func TestListInboxScansMessageInboxDTO(t *testing.T) {
 		SourceParentPath:   "/alice/hr",
 		SourceParentTitle:  "人事系统",
 		SourceTemplateType: "form",
+		SourceIcon:         "Document",
+		SourceColor:        "#67C23A",
+		SourceParentIcon:   "FolderOpened",
+		SourceParentColor:  "#409EFF",
+		SourceRef:          "timer_task:12:execution:34",
 		WorkspaceSessionID: "session-1",
 	}, dto.MessageSendPayload{
 		Title:   "请假审批",
@@ -31,7 +36,7 @@ func TestListInboxScansMessageInboxDTO(t *testing.T) {
 		t.Fatalf("create message: %v", err)
 	}
 
-	list, total, err := repo.ListInbox(context.Background(), "bob", "", 0, 20)
+	list, total, err := repo.ListInbox(context.Background(), "bob", "", "", 0, 20)
 	if err != nil {
 		t.Fatalf("list inbox: %v", err)
 	}
@@ -41,8 +46,11 @@ func TestListInboxScansMessageInboxDTO(t *testing.T) {
 	if got := list[0].FullCodePath; got != "/alice/hr/leave.form" {
 		t.Fatalf("full_code_path = %q, want /alice/hr/leave.form", got)
 	}
-	if list[0].ThreadKey != "source:/alice/hr/leave.form" {
+	if list[0].ThreadKey != "directory:/alice/hr" {
 		t.Fatalf("thread_key = %q", list[0].ThreadKey)
+	}
+	if list[0].ScheduledTaskID != 12 || list[0].ScheduledExecutionID != 34 {
+		t.Fatalf("scheduled ids = %d/%d, want 12/34", list[0].ScheduledTaskID, list[0].ScheduledExecutionID)
 	}
 	if list[0].WorkspaceSessionID != "session-1" {
 		t.Fatalf("workspace_session_id = %q", list[0].WorkspaceSessionID)
@@ -52,6 +60,58 @@ func TestListInboxScansMessageInboxDTO(t *testing.T) {
 	}
 	if list[0].SourceDisplay.Name != "请假审批" || list[0].SourceDisplay.ParentName != "人事系统" || list[0].SourceDisplay.TemplateType != "form" {
 		t.Fatalf("source_display = %#v", list[0].SourceDisplay)
+	}
+	if list[0].SourceDisplay.Icon != "Document" || list[0].SourceDisplay.ParentIcon != "FolderOpened" {
+		t.Fatalf("source_display visual = %#v", list[0].SourceDisplay)
+	}
+}
+
+func TestListInboxThreadsGroupsByParentSource(t *testing.T) {
+	repo := newTestMessageRepo(t)
+
+	for _, title := range []string{"会议提醒 A", "会议提醒 B"} {
+		_, err := repo.Create(context.Background(), dto.MessageSendMeta{
+			From:              "system",
+			SourceType:        "scheduled_task",
+			SourcePath:        "/system/demos/meeting/notify.form",
+			SourceTitle:       title,
+			SourceParentPath:  "/system/demos/meeting",
+			SourceParentTitle: "智能会议室",
+			SourceParentIcon:  "Calendar",
+			SourceRef:         "timer_task:9:execution:10",
+		}, dto.MessageSendPayload{
+			Title:   title,
+			Content: "会议即将开始",
+		}, []string{"bob"})
+		if err != nil {
+			t.Fatalf("create message: %v", err)
+		}
+	}
+
+	threads, total, err := repo.ListInboxThreads(context.Background(), "bob", "", 0, 20)
+	if err != nil {
+		t.Fatalf("list inbox threads: %v", err)
+	}
+	if total != 1 || len(threads) != 1 {
+		t.Fatalf("got total=%d len=%d, want 1", total, len(threads))
+	}
+	thread := threads[0]
+	if thread.Title != "智能会议室" || thread.MessageCount != 2 || thread.UnreadCount != 2 {
+		t.Fatalf("thread = %#v", thread)
+	}
+	if thread.Kind != "directory" || thread.Path != "/system/demos/meeting" || thread.Icon != "Calendar" {
+		t.Fatalf("thread source = %#v", thread)
+	}
+	if thread.ScheduledTaskID != 9 || thread.ScheduledExecutionID != 10 {
+		t.Fatalf("thread scheduled ids = %d/%d, want 9/10", thread.ScheduledTaskID, thread.ScheduledExecutionID)
+	}
+
+	messages, messageTotal, err := repo.ListInbox(context.Background(), "bob", "", thread.Key, 0, 20)
+	if err != nil {
+		t.Fatalf("list inbox by thread: %v", err)
+	}
+	if messageTotal != 2 || len(messages) != 2 {
+		t.Fatalf("messages total=%d len=%d, want 2", messageTotal, len(messages))
 	}
 }
 

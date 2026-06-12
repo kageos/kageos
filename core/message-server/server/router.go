@@ -18,6 +18,7 @@ func (s *Server) setupRoutes() {
 	message.POST("/send", s.sendMessage)
 	message.POST("/send/users", s.sendMessageToUsers)
 	message.GET("/inbox", s.listInboxMessages)
+	message.GET("/inbox/threads", s.listInboxThreads)
 	message.GET("/inbox/unread_count", s.getUnreadCount)
 	message.GET("/inbox/:id", s.getInboxMessage)
 	message.PATCH("/inbox/read_all", s.markAllInboxMessagesRead)

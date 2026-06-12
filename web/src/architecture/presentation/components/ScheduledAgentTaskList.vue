@@ -220,7 +220,7 @@
             <article
               v-for="execution in selectedExecutionState.list"
               :key="execution.id"
-              :class="['execution-card', executionCardClass(execution)]"
+              :class="['execution-card', executionCardClass(execution), { 'is-focused': execution.id === focusedExecutionId }]"
             >
               <div class="execution-card-rail" />
               <div class="execution-card-main">
@@ -292,6 +292,7 @@ import { CaretRight, Close, Delete, EditPen, Plus, Refresh, VideoPause, VideoPla
 import {
   cancelTimerTask,
   deleteTimerTask,
+  getTimerExecution,
   listTimerExecutions,
   listTimerTasks,
   pauseTimerTask,
@@ -326,9 +327,13 @@ interface ExecutionState {
 const props = withDefaults(defineProps<{
   resourcePath?: string
   autoLoad?: boolean
+  focusTaskId?: number | string
+  focusExecutionId?: number | string
 }>(), {
   resourcePath: '',
   autoLoad: false,
+  focusTaskId: '',
+  focusExecutionId: '',
 })
 
 const emit = defineEmits<{
@@ -346,6 +351,8 @@ const showEditDialog = ref(false)
 const editingTask = ref<TimerTask | null>(null)
 const drawerVisible = ref(false)
 const selectedTask = ref<TimerTask | null>(null)
+const focusedExecutionId = ref(0)
+const appliedFocusKey = ref('')
 const executionStates = reactive<Record<number, ExecutionState>>({})
 
 const selectedExecutionState = reactive<ExecutionState>({
@@ -396,6 +403,7 @@ async function loadList() {
     list.value = resp.list || []
     total.value = Number(resp.total || 0)
     emit('total-change', total.value)
+    await openFocusedTaskIfNeeded()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '加载定时会话失败')
   } finally {
@@ -436,6 +444,7 @@ async function loadSelectedExecutions(reset = false) {
       page_size: selectedExecutionState.pageSize,
     })
     selectedExecutionState.list = resp.list || []
+    await ensureFocusedExecutionLoaded()
     selectedExecutionState.total = Number(resp.total || 0)
     selectedExecutionState.loaded = true
   } catch (error) {
@@ -450,7 +459,7 @@ function handleSelectedExecutionPageChange(nextPage: number) {
   void loadSelectedExecutions()
 }
 
-function openTaskDrawer(task: TimerTask) {
+async function openTaskDrawer(task: TimerTask) {
   selectedTask.value = task
   selectedExecutionState.page = 1
   selectedExecutionState.status = ''
@@ -459,7 +468,40 @@ function openTaskDrawer(task: TimerTask) {
   selectedExecutionState.total = 0
   selectedExecutionState.error = ''
   drawerVisible.value = true
-  void loadSelectedExecutions()
+  await loadSelectedExecutions()
+}
+
+function normalizeFocusID(value?: number | string): number {
+  const num = Number(value || 0)
+  return Number.isFinite(num) && num > 0 ? num : 0
+}
+
+function currentFocusKey(): string {
+  const taskID = normalizeFocusID(props.focusTaskId)
+  if (!taskID) return ''
+  return `${taskID}:${normalizeFocusID(props.focusExecutionId)}`
+}
+
+async function openFocusedTaskIfNeeded() {
+  const key = currentFocusKey()
+  if (!key || appliedFocusKey.value === key) return
+  const taskID = normalizeFocusID(props.focusTaskId)
+  const task = list.value.find(item => item.id === taskID)
+  if (!task) return
+  appliedFocusKey.value = key
+  focusedExecutionId.value = normalizeFocusID(props.focusExecutionId)
+  await openTaskDrawer(task)
+}
+
+async function ensureFocusedExecutionLoaded() {
+  if (!selectedTask.value || !focusedExecutionId.value) return
+  if (selectedExecutionState.list.some(item => item.id === focusedExecutionId.value)) return
+  try {
+    const execution = await getTimerExecution(selectedTask.value.id, focusedExecutionId.value)
+    selectedExecutionState.list = [execution, ...selectedExecutionState.list]
+  } catch {
+    // 聚焦执行可能已被删除或不属于当前任务，忽略即可。
+  }
 }
 
 function getTaskRowKey(task: TimerTask): string {
@@ -720,6 +762,14 @@ watch(
     }
   },
   { immediate: true }
+)
+
+watch(
+  () => [props.focusTaskId, props.focusExecutionId],
+  () => {
+    appliedFocusKey.value = ''
+    void openFocusedTaskIfNeeded()
+  }
 )
 
 defineExpose({ load: loadList })
@@ -989,6 +1039,11 @@ defineExpose({ load: loadList })
   border-radius: 10px;
   background: var(--el-bg-color, #fff);
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.execution-card.is-focused {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--el-color-primary) 18%, transparent);
 }
 
 .execution-card:hover {

@@ -42,6 +42,8 @@
             <ScheduledAgentTaskList
               :resource-path="packageNode.full_code_path || ''"
               :auto-load="activeTab === 'scheduledAgentTask'"
+              :focus-task-id="scheduledFocusTaskID"
+              :focus-execution-id="scheduledFocusExecutionID"
             />
           </div>
         </el-tab-pane>
@@ -67,6 +69,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import type { ServiceTree } from '@/architecture/domain/types'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 import OperateLogSection from './OperateLogSection.vue'
@@ -97,6 +100,7 @@ defineEmits<{
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
 const { t } = useI18n()
+const route = useRoute()
 
 const activeTab = ref<PackageTabName>(featureFlags.operateLogs ? 'operateLog' : 'detail')
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
@@ -105,6 +109,8 @@ const accessPanelRef = ref<LoadableAccessPanel | null>(null)
 const directoryMarkdown = computed(() => {
   return props.packageNode?.description?.trim() || ''
 })
+const scheduledFocusTaskID = computed(() => String(route.query._scheduled_task_id || ''))
+const scheduledFocusExecutionID = computed(() => String(route.query._scheduled_execution_id || ''))
 
 function loadOperateLogTab(tabName: PackageTabName) {
   if (tabName === 'operateLog' && featureFlags.operateLogs) {
@@ -128,6 +134,16 @@ watch(
       loadOperateLogTab('operateLog')
     }
   }
+)
+
+watch(
+  () => [route.query._scheduled, route.query._scheduled_kind, route.query._scheduled_task_id, props.packageNode?.full_code_path],
+  ([scheduled, kind, taskID]) => {
+    if (scheduled === 'open' && kind === 'agent' && taskID && featureFlags.scheduledTasks) {
+      activeTab.value = 'scheduledAgentTask'
+    }
+  },
+  { immediate: true }
 )
 
 </script>

@@ -87,6 +87,8 @@ export interface ServiceTree {
   type: 'package' | 'function' | 'docs'
   description: string
   tags: string
+  icon?: string
+  color?: string
   connectors?: string[]
   connector_endpoints?: FunctionConnectorEndpoint[]
   admins?: string  // 节点管理员列表，逗号分隔的用户名

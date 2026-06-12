@@ -25,6 +25,10 @@ type MessageEntry struct {
 	SourceParentPath      string `json:"source_parent_path" gorm:"size:500;index;comment:消息来源父目录路径"`
 	SourceParentTitle     string `json:"source_parent_title" gorm:"size:500;comment:消息来源父目录展示名"`
 	SourceTemplateType    string `json:"source_template_type" gorm:"size:64;comment:来源函数模板类型"`
+	SourceIcon            string `json:"source_icon" gorm:"size:128;comment:消息来源图标"`
+	SourceColor           string `json:"source_color" gorm:"size:64;comment:消息来源颜色"`
+	SourceParentIcon      string `json:"source_parent_icon" gorm:"size:128;comment:消息来源父目录图标"`
+	SourceParentColor     string `json:"source_parent_color" gorm:"size:64;comment:消息来源父目录颜色"`
 	WorkspaceSessionID    string `json:"workspace_session_id" gorm:"size:128;index;comment:关联工作台会话 ID"`
 	WorkspaceSessionTitle string `json:"workspace_session_title" gorm:"size:500;comment:关联工作台会话标题"`
 	WorkspaceRole         string `json:"workspace_role" gorm:"size:128;comment:关联工作台角色"`

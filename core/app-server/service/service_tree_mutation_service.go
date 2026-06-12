@@ -57,6 +57,12 @@ func (m *serviceTreeMutationService) UpdateServiceTreeMetadata(ctx context.Conte
 	if req.Tags != nil {
 		serviceTree.Tags = *req.Tags
 	}
+	if req.Icon != nil {
+		serviceTree.Icon = *req.Icon
+	}
+	if req.Color != nil {
+		serviceTree.Color = *req.Color
+	}
 	if req.Admins != nil {
 		serviceTree.Admins = *req.Admins
 	}
@@ -76,6 +82,8 @@ func (m *serviceTreeMutationService) UpdatePackage(ctx context.Context, req *dto
 		Code:        req.Code,
 		Description: req.Description,
 		Tags:        req.Tags,
+		Icon:        req.Icon,
+		Color:       req.Color,
 		Admins:      req.Admins,
 	})
 }
@@ -87,6 +95,8 @@ func (m *serviceTreeMutationService) UpdateFunction(ctx context.Context, req *dt
 		Code:        req.Code,
 		Description: req.Description,
 		Tags:        req.Tags,
+		Icon:        req.Icon,
+		Color:       req.Color,
 	})
 }
 

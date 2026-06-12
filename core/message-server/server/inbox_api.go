@@ -22,14 +22,42 @@ func (s *Server) listInboxMessages(c *gin.Context) {
 		pageSize = 100
 	}
 	status := strings.TrimSpace(c.Query("status"))
+	threadKey := strings.TrimSpace(c.Query("thread_key"))
 	offset := (page - 1) * pageSize
 
-	list, total, err := s.messageRepo.ListInbox(c.Request.Context(), username, status, offset, pageSize)
+	list, total, err := s.messageRepo.ListInbox(c.Request.Context(), username, status, threadKey, offset, pageSize)
 	if err != nil {
 		response.FailWithMessage(c, "获取消息列表失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, dto.MessageInboxListResp{
+		List:     list,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	})
+}
+
+func (s *Server) listInboxThreads(c *gin.Context) {
+	username, err := s.resolveInboxUsername(c)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	page := parsePositiveInt(c.Query("page"), 1)
+	pageSize := parsePositiveInt(c.Query("page_size"), 20)
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	status := strings.TrimSpace(c.Query("status"))
+	offset := (page - 1) * pageSize
+
+	list, total, err := s.messageRepo.ListInboxThreads(c.Request.Context(), username, status, offset, pageSize)
+	if err != nil {
+		response.FailWithMessage(c, "获取消息会话列表失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, dto.MessageInboxThreadListResp{
 		List:     list,
 		Total:    total,
 		Page:     page,

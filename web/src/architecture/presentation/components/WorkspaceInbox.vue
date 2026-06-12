@@ -74,7 +74,7 @@
               :class="{ 'is-active': selectedThread?.key === thread.key, 'is-unread': thread.unreadCount > 0 }"
               @click="selectThread(thread)"
             >
-              <span class="thread-avatar">
+              <span class="thread-avatar" :style="threadAvatarStyle(thread)">
                 <el-icon><component :is="threadIcon(thread)" /></el-icon>
               </span>
               <span class="inbox-list-copy">
@@ -136,7 +136,7 @@
               </header>
 
               <section class="inbox-source-card">
-                <div class="source-avatar">
+                <div class="source-avatar" :style="threadAvatarStyle(selectedThread, true)">
                   <el-icon><component :is="threadIcon(selectedThread)" /></el-icon>
                 </div>
                 <div class="source-copy">
@@ -181,8 +181,17 @@
                     </span>
                   </header>
                   <div class="message-card-source">{{ sourceSecondaryText(message) }}</div>
-                  <div class="inbox-content">{{ message.content }}</div>
+                  <div class="inbox-content inbox-rich-content" v-html="renderMessageContent(message)" />
                   <footer class="message-card-actions">
+                    <el-button
+                      v-if="message.scheduled_task_id || selectedThread?.scheduledTaskID"
+                      size="small"
+                      type="primary"
+                      plain
+                      @click.stop="openScheduledExecution(message)"
+                    >
+                      查看执行
+                    </el-button>
                     <el-button
                       v-if="message.workspace_session_id"
                       size="small"
@@ -225,21 +234,27 @@ import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage } from 'element-plus'
 import {
+  Bell,
   ChatDotRound,
   Document as DocumentIcon,
   FolderOpened,
   Message as MessageIcon,
   Refresh,
+  Tickets,
   Timer,
 } from '@element-plus/icons-vue'
 import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
+import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
+import { escapeHtml, sanitizeHtml } from '@/architecture/shared/sanitizeHtml'
 import {
   getMessageInboxItem,
   getMessageInboxUnreadCount,
   listMessageInbox,
+  listMessageInboxThreads,
   markAllMessageInboxItemsRead,
   markMessageInboxItemRead,
   type MessageInboxItem,
+  type MessageInboxThread,
   type MessageInboxStatus,
 } from '@/architecture/presentation/context/api/message'
 
@@ -247,22 +262,28 @@ interface InboxThread {
   key: string
   title: string
   subtitle: string
-  path: string
-  kind: 'directory' | 'function' | 'session' | 'sender'
+  path?: string
+  icon?: string
+  color?: string
+  kind: MessageInboxThread['kind']
   lastMessage: MessageInboxItem
-  messages: MessageInboxItem[]
   unreadCount: number
   count: number
+  scheduledTaskID?: number
+  scheduledExecutionID?: number
 }
 
 const router = useRouter()
+const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
+void preloadMarkdown()
 const drawerVisible = ref(false)
 const countLoading = ref(false)
 const listLoading = ref(false)
 const detailLoading = ref(false)
 const errorMessage = ref('')
 const unreadCount = ref(0)
-const inboxItems = ref<MessageInboxItem[]>([])
+const inboxThreads = ref<InboxThread[]>([])
+const threadMessages = ref<MessageInboxItem[]>([])
 const selectedMessage = ref<MessageInboxItem | null>(null)
 const selectedId = computed(() => selectedMessage.value?.id ?? null)
 const selectedThreadKey = ref('')
@@ -274,41 +295,13 @@ const statusOptions = [
   { label: '全部', value: 'all' },
   { label: '未读', value: 'unread' },
 ]
-const inboxThreads = computed<InboxThread[]>(() => {
-  const groups = new Map<string, MessageInboxItem[]>()
-  for (const item of inboxItems.value) {
-    const key = threadKeyForMessage(item)
-    const group = groups.get(key) || []
-    group.push(item)
-    groups.set(key, group)
-  }
-
-  const threads: InboxThread[] = []
-  for (const [key, messages] of groups.entries()) {
-    const sorted = [...messages].sort((a, b) => messageTime(b) - messageTime(a))
-    const lastMessage = sorted[0]
-    if (!lastMessage) continue
-    threads.push({
-      key,
-      title: threadTitle(lastMessage),
-      subtitle: threadSubtitle(lastMessage, sorted.length),
-      path: threadPath(lastMessage),
-      kind: threadKind(lastMessage),
-      lastMessage,
-      messages: sorted,
-      unreadCount: sorted.filter(item => !item.read_at).length,
-      count: sorted.length,
-    })
-  }
-  return threads.sort((a, b) => messageTime(b.lastMessage) - messageTime(a.lastMessage))
-})
 const selectedThread = computed(() => {
   return inboxThreads.value.find(thread => thread.key === selectedThreadKey.value)
     || inboxThreads.value[0]
     || null
 })
 const selectedThreadMessages = computed(() => {
-  return selectedThread.value?.messages
+  return threadMessages.value
     .slice()
     .sort((a, b) => messageTime(b) - messageTime(a)) || []
 })
@@ -345,18 +338,23 @@ async function loadInbox(resetPage = false) {
   listLoading.value = true
   errorMessage.value = ''
   try {
-    const resp = await listMessageInbox({
+    const resp = await listMessageInboxThreads({
       status: statusFilter.value === 'unread' ? 'unread' : undefined,
       page: page.value,
       page_size: pageSize,
     })
-    inboxItems.value = resp.list || []
+    inboxThreads.value = (resp.list || []).map(apiThreadToInboxThread)
     total.value = resp.total || 0
     if (!inboxThreads.value.some(thread => thread.key === selectedThreadKey.value)) {
       selectedThreadKey.value = inboxThreads.value[0]?.key || ''
     }
-    if (selectedMessage.value && !inboxItems.value.some(item => item.id === selectedMessage.value?.id)) {
+    const current = selectedThread.value
+    if (current) {
+      selectedMessage.value = current.lastMessage
+      await loadThreadMessages(current)
+    } else {
       selectedMessage.value = null
+      threadMessages.value = []
     }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '加载站内信失败'
@@ -368,7 +366,25 @@ async function loadInbox(resetPage = false) {
 function selectThread(thread: InboxThread) {
   selectedThreadKey.value = thread.key
   selectedMessage.value = thread.lastMessage
-  void markThreadRead(thread)
+  void loadThreadMessages(thread).then(() => markThreadRead(thread))
+}
+
+async function loadThreadMessages(thread: InboxThread) {
+  detailLoading.value = true
+  errorMessage.value = ''
+  try {
+    const resp = await listMessageInbox({
+      thread_key: thread.key,
+      page: 1,
+      page_size: 100,
+    })
+    threadMessages.value = resp.list || []
+  } catch (error) {
+    threadMessages.value = [thread.lastMessage]
+    errorMessage.value = error instanceof Error ? error.message : '加载消息会话失败'
+  } finally {
+    detailLoading.value = false
+  }
 }
 
 async function selectMessage(item: MessageInboxItem) {
@@ -392,15 +408,26 @@ async function selectMessage(item: MessageInboxItem) {
 }
 
 async function markThreadRead(thread: InboxThread) {
-  const unreadMessages = thread.messages.filter(item => !item.read_at)
+  const unreadMessages = (selectedThreadKey.value === thread.key ? threadMessages.value : [thread.lastMessage])
+    .filter(item => !item.read_at)
   if (unreadMessages.length === 0) return
   try {
     await Promise.all(unreadMessages.map(item => markMessageInboxItemRead(item.id)))
     const now = new Date().toISOString()
     const ids = new Set(unreadMessages.map(item => item.id))
-    inboxItems.value = inboxItems.value.map(item => {
+    threadMessages.value = threadMessages.value.map(item => {
       if (!ids.has(item.id)) return item
       return { ...item, read_at: item.read_at || now }
+    })
+    inboxThreads.value = inboxThreads.value.map(item => {
+      if (item.key !== thread.key) return item
+      return {
+        ...item,
+        unreadCount: 0,
+        lastMessage: ids.has(item.lastMessage.id)
+          ? { ...item.lastMessage, read_at: item.lastMessage.read_at || now }
+          : item.lastMessage,
+      }
     })
     if (selectedMessage.value && ids.has(selectedMessage.value.id)) {
       selectedMessage.value = { ...selectedMessage.value, read_at: selectedMessage.value.read_at || now }
@@ -427,9 +454,15 @@ async function markMessageRead(id: number) {
 async function markAllRead() {
   try {
     await markAllMessageInboxItemsRead()
-    inboxItems.value = inboxItems.value.map(item => ({ ...item, read_at: item.read_at || new Date().toISOString() }))
+    const now = new Date().toISOString()
+    threadMessages.value = threadMessages.value.map(item => ({ ...item, read_at: item.read_at || now }))
+    inboxThreads.value = inboxThreads.value.map(thread => ({
+      ...thread,
+      unreadCount: 0,
+      lastMessage: { ...thread.lastMessage, read_at: thread.lastMessage.read_at || now },
+    }))
     if (selectedMessage.value) {
-      selectedMessage.value = { ...selectedMessage.value, read_at: selectedMessage.value.read_at || new Date().toISOString() }
+      selectedMessage.value = { ...selectedMessage.value, read_at: selectedMessage.value.read_at || now }
     }
     unreadCount.value = 0
     ElMessage.success('已全部标记为已读')
@@ -439,15 +472,43 @@ async function markAllRead() {
 }
 
 function updateListReadState(id: number) {
-  inboxItems.value = inboxItems.value.map(item => {
+  threadMessages.value = threadMessages.value.map(item => {
     if (item.id !== id) return item
     return { ...item, read_at: item.read_at || new Date().toISOString() }
+  })
+  inboxThreads.value = inboxThreads.value.map(thread => {
+    if (thread.lastMessage.id !== id && thread.key !== selectedThreadKey.value) return thread
+    const decrement = thread.key === selectedThreadKey.value && thread.unreadCount > 0 ? 1 : 0
+    return {
+      ...thread,
+      unreadCount: Math.max(0, thread.unreadCount - decrement),
+      lastMessage: thread.lastMessage.id === id
+        ? { ...thread.lastMessage, read_at: thread.lastMessage.read_at || new Date().toISOString() }
+        : thread.lastMessage,
+    }
   })
 }
 
 function previewText(content?: string) {
-  const text = (content || '').replace(/\s+/g, ' ').trim()
+  const text = stripHtml(content || '').replace(/\s+/g, ' ').trim()
   return text.length > 90 ? `${text.slice(0, 90)}...` : text || '无内容'
+}
+
+function apiThreadToInboxThread(thread: MessageInboxThread): InboxThread {
+  return {
+    key: thread.key,
+    title: thread.title || threadTitle(thread.last_message),
+    subtitle: thread.subtitle || threadSubtitle(thread.last_message, thread.message_count || 1),
+    path: thread.path || threadPath(thread.last_message),
+    icon: thread.icon || thread.last_message.source_display?.parent_icon || thread.last_message.source_display?.icon,
+    color: thread.color || thread.last_message.source_display?.parent_color || thread.last_message.source_display?.color,
+    kind: thread.kind || threadKind(thread.last_message),
+    lastMessage: thread.last_message,
+    unreadCount: Number(thread.unread_count || 0),
+    count: Number(thread.message_count || 0),
+    scheduledTaskID: thread.scheduled_task_id || thread.last_message.scheduled_task_id,
+    scheduledExecutionID: thread.scheduled_execution_id || thread.last_message.scheduled_execution_id,
+  }
 }
 
 function messageTime(item: MessageInboxItem) {
@@ -491,10 +552,47 @@ function threadKind(item: MessageInboxItem): InboxThread['kind'] {
 }
 
 function threadIcon(thread: InboxThread) {
+  const namedIcon = iconComponentByName(thread.icon)
+  if (namedIcon) return namedIcon
   if (thread.kind === 'directory') return FolderOpened
   if (thread.kind === 'session') return ChatDotRound
   if (thread.lastMessage.source_type === 'scheduled_task') return Timer
   return DocumentIcon
+}
+
+function iconComponentByName(name?: string) {
+  const key = (name || '').trim().toLowerCase()
+  const map: Record<string, typeof FolderOpened> = {
+    bell: Bell,
+    calendar: Timer,
+    chat: ChatDotRound,
+    chatdotround: ChatDotRound,
+    document: DocumentIcon,
+    file: DocumentIcon,
+    folder: FolderOpened,
+    folderopened: FolderOpened,
+    message: MessageIcon,
+    tickets: Tickets,
+    timer: Timer,
+  }
+  return map[key]
+}
+
+function threadAvatarStyle(thread?: InboxThread | null, solid = false) {
+  const color = (thread?.color || '').trim()
+  if (!color) return undefined
+  if (solid) {
+    return {
+      background: color,
+      borderColor: color,
+      color: '#fff',
+    }
+  }
+  return {
+    borderColor: color,
+    color,
+    background: `color-mix(in srgb, ${color} 10%, var(--app-shell-panel-bg))`,
+  }
 }
 
 function sourcePrimaryText(item?: MessageInboxItem | null) {
@@ -571,6 +669,40 @@ async function openWorkspaceSession(item: MessageInboxItem) {
       _mws_maximized: '1',
     },
   })
+}
+
+async function openScheduledExecution(item: MessageInboxItem) {
+  const taskID = item.scheduled_task_id || selectedThread.value?.scheduledTaskID || 0
+  if (!taskID) return
+  const executionID = item.scheduled_execution_id || selectedThread.value?.scheduledExecutionID || 0
+  const fullCodePath = workspacePathForMessage(item)
+  const path = workspaceRoutePath(fullCodePath)
+  if (!path) return
+  drawerVisible.value = false
+  await router.push({
+    path,
+    query: {
+      _scheduled: 'open',
+      _scheduled_task_id: String(taskID),
+      ...(executionID ? { _scheduled_execution_id: String(executionID) } : {}),
+      _scheduled_kind: item.workspace_session_id ? 'agent' : 'function',
+    },
+  })
+}
+
+function renderMessageContent(item: MessageInboxItem) {
+  const content = item.content || ''
+  const type = (item.content_type || 'markdown').toLowerCase()
+  if (type === 'html') return sanitizeHtml(content)
+  if (type === 'text' || type === 'plain') return escapeHtml(content).replace(/\n/g, '<br>')
+  return renderMarkdown(content)
+}
+
+function stripHtml(content: string) {
+  if (!content.includes('<')) return content
+  if (typeof DOMParser === 'undefined') return content.replace(/<[^>]*>/g, ' ')
+  const doc = new DOMParser().parseFromString(sanitizeHtml(content), 'text/html')
+  return doc.body.textContent || ''
 }
 
 function formatExactTime(value?: string) {
@@ -832,6 +964,82 @@ function formatRelativeTime(value?: string) {
   color: var(--el-text-color-primary);
   font-size: 14px;
   line-height: 1.72;
+}
+
+.inbox-rich-content {
+  white-space: normal;
+
+  :deep(p) {
+    margin: 0 0 8px;
+  }
+
+  :deep(p:last-child) {
+    margin-bottom: 0;
+  }
+
+  :deep(a) {
+    color: var(--el-color-primary);
+    text-decoration: none;
+  }
+
+  :deep(a:hover) {
+    text-decoration: underline;
+  }
+
+  :deep(ul),
+  :deep(ol) {
+    margin: 6px 0 8px;
+    padding-left: 20px;
+  }
+
+  :deep(blockquote) {
+    margin: 8px 0;
+    padding: 8px 10px;
+    border-left: 3px solid var(--el-color-primary-light-5);
+    background: var(--app-shell-panel-muted-bg);
+    color: var(--el-text-color-secondary);
+  }
+
+  :deep(code) {
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: var(--app-shell-panel-muted-bg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+  }
+
+  :deep(pre) {
+    overflow: auto;
+    margin: 8px 0;
+    padding: 10px;
+    border-radius: 8px;
+    background: var(--app-shell-panel-muted-bg);
+  }
+
+  :deep(pre code) {
+    padding: 0;
+    background: transparent;
+  }
+
+  :deep(table) {
+    display: block;
+    max-width: 100%;
+    overflow: auto;
+    border-collapse: collapse;
+    margin: 8px 0;
+  }
+
+  :deep(th),
+  :deep(td) {
+    padding: 6px 8px;
+    border: 1px solid var(--app-shell-panel-border);
+  }
+
+  :deep(img),
+  :deep(video) {
+    max-width: 100%;
+    border-radius: 8px;
+  }
 }
 
 .inbox-source-card {

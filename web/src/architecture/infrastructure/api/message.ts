@@ -17,6 +17,10 @@ export interface MessageSendMeta {
   source_parent_path?: string
   source_parent_title?: string
   source_template_type?: string
+  source_icon?: string
+  source_color?: string
+  source_parent_icon?: string
+  source_parent_color?: string
   workspace_session_id?: string
   workspace_session_title?: string
   workspace_role?: string
@@ -57,8 +61,12 @@ export interface MessageSourceDisplay {
   type: string
   template_type?: string
   full_code_path?: string
+  icon?: string
+  color?: string
   parent_name?: string
   parent_full_code_path?: string
+  parent_icon?: string
+  parent_color?: string
   thread_key?: string
 }
 
@@ -78,10 +86,16 @@ export interface MessageInboxItem {
   source_parent_path?: string
   source_parent_title?: string
   source_template_type?: string
+  source_icon?: string
+  source_color?: string
+  source_parent_icon?: string
+  source_parent_color?: string
   workspace_session_id?: string
   workspace_session_title?: string
   workspace_role?: string
   thread_key?: string
+  scheduled_task_id?: number
+  scheduled_execution_id?: number
   title?: string
   content: string
   content_type?: MessageContentType
@@ -92,6 +106,7 @@ export interface MessageInboxItem {
 
 export interface ListMessageInboxParams {
   status?: MessageInboxStatus
+  thread_key?: string
   page?: number
   page_size?: number
 }
@@ -107,6 +122,29 @@ export interface MessageUnreadCountResp {
   unread_count: number
 }
 
+export interface MessageInboxThread {
+  key: string
+  kind: 'directory' | 'function' | 'session' | 'sender' | string
+  title: string
+  subtitle: string
+  path?: string
+  icon?: string
+  color?: string
+  unread_count: number
+  message_count: number
+  latest_at: string
+  last_message: MessageInboxItem
+  scheduled_task_id?: number
+  scheduled_execution_id?: number
+}
+
+export interface ListMessageInboxThreadsResp {
+  list: MessageInboxThread[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export function sendMessage(data: MessageSendEnvelope): Promise<MessageSendResp> {
   return post<MessageSendResp>('/message/api/v1/send', data)
 }
@@ -117,6 +155,10 @@ export function sendMessageToUsers(data: MessageSendToUsersReq): Promise<Message
 
 export function listMessageInbox(params: ListMessageInboxParams = {}): Promise<ListMessageInboxResp> {
   return get<ListMessageInboxResp>('/message/api/v1/inbox', params)
+}
+
+export function listMessageInboxThreads(params: ListMessageInboxParams = {}): Promise<ListMessageInboxThreadsResp> {
+  return get<ListMessageInboxThreadsResp>('/message/api/v1/inbox/threads', params)
 }
 
 export function getMessageInboxUnreadCount(): Promise<MessageUnreadCountResp> {

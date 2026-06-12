@@ -255,7 +255,7 @@ describe('useOperateLogSection', () => {
         created_at: '2026-05-22T08:41:13Z',
       }
 
-      expect(section.getActionLabel(log.action)).toBe('Submit')
+      expect(section.getActionLabel(log.action)).toBe('Public submit')
       expect(section.getLogTitle(log)).toBe('Submitted public form')
       expect(section.getLogSummary(log)).toBe('Public form submitted')
       expect(section.actionOptions.value).toEqual(expect.arrayContaining([{ label: 'Public submit', value: 'public_form_submit' }]))

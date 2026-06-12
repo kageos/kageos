@@ -76,6 +76,8 @@
               :resource-path="currentFunction?.full_code_path || currentFunctionDetail?.full_code_path || ''"
               :function-detail="currentFunctionDetail"
               :auto-load="activeTab === 'scheduledTask'"
+              :focus-task-id="scheduledFocusTaskID"
+              :focus-execution-id="scheduledFocusExecutionID"
             />
           </div>
         </el-tab-pane>
@@ -88,6 +90,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
@@ -123,6 +126,7 @@ const props = withDefaults(defineProps<{
 }>(), {})
 
 const { t } = useI18n()
+const route = useRoute()
 
 const emit = defineEmits<{
   (e: 'update:activeTab', value: FunctionTabName): void
@@ -132,6 +136,8 @@ const emit = defineEmits<{
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
 const accessPanelRef = ref<LoadableAccessPanel | null>(null)
 const isFormFunction = computed(() => props.currentFunctionDetail?.template_type === 'form' || props.currentFunction?.template_type === 'form')
+const scheduledFocusTaskID = computed(() => String(route.query._scheduled_task_id || ''))
+const scheduledFocusExecutionID = computed(() => String(route.query._scheduled_execution_id || ''))
 
 function loadOperateLogTab(tabName: FunctionTabName) {
   if (tabName === 'operateLog' && featureFlags.operateLogs) {
@@ -180,6 +186,17 @@ watch(
       loadOperateLogTab('operateLog')
     }
   }
+)
+
+watch(
+  () => [route.query._scheduled, route.query._scheduled_kind, route.query._scheduled_task_id, props.currentFunction?.full_code_path, props.currentFunctionDetail?.full_code_path],
+  ([scheduled, kind, taskID]) => {
+    if (scheduled === 'open' && kind !== 'agent' && taskID && featureFlags.scheduledTasks) {
+      emit('update:activeTab', 'scheduledTask')
+      props.onFunctionTabChange('scheduledTask')
+    }
+  },
+  { immediate: true }
 )
 </script>
 

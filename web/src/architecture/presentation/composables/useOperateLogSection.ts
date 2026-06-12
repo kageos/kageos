@@ -438,8 +438,9 @@ export function useOperateLogSection({
       case 'OnTableAddRow':
         return t('operateLog.add')
       case 'form_submit':
-      case 'public_form_submit':
         return t('operateLog.submit')
+      case 'public_form_submit':
+        return t('operateLog.publicSubmit')
       case 'scheduled_function_execute':
         return t('operateLog.scheduledExecute')
       case 'OnTableUpdateRow':
@@ -453,8 +454,20 @@ export function useOperateLogSection({
       case 'service_tree.node.deleted':
         return t('operateLog.delete')
       default:
-        return action
+        return humanizeAction(action)
     }
+  }
+
+  const humanizeAction = (action: string): string => {
+    const value = String(action || '').trim()
+    if (!value) return t('operateLog.action')
+    return value
+      .replace(/^service_tree\.node\./, '资源 ')
+      .replace(/^OnTable/, '')
+      .replace(/_/g, ' ')
+      .replace(/\./g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .trim()
   }
 
   const getSourceLabel = (source?: string): string => {
@@ -676,7 +689,7 @@ export function useOperateLogSection({
       case 'OnTableDeleteRows':
         return t('operateLog.deleted', { record: recordName })
       default:
-        return t('operateLog.executed', { action: log.action })
+        return t('operateLog.executed', { action: getActionLabel(log.action) })
     }
   }
 

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,6 +43,10 @@ func (r *MessageRepository) Create(ctx context.Context, meta dto.MessageSendMeta
 		SourceParentPath:      strings.TrimSpace(meta.SourceParentPath),
 		SourceParentTitle:     strings.TrimSpace(meta.SourceParentTitle),
 		SourceTemplateType:    strings.TrimSpace(meta.SourceTemplateType),
+		SourceIcon:            strings.TrimSpace(meta.SourceIcon),
+		SourceColor:           strings.TrimSpace(meta.SourceColor),
+		SourceParentIcon:      strings.TrimSpace(meta.SourceParentIcon),
+		SourceParentColor:     strings.TrimSpace(meta.SourceParentColor),
 		WorkspaceSessionID:    strings.TrimSpace(meta.WorkspaceSessionID),
 		WorkspaceSessionTitle: strings.TrimSpace(meta.WorkspaceSessionTitle),
 		WorkspaceRole:         strings.TrimSpace(meta.WorkspaceRole),
@@ -57,7 +62,7 @@ func (r *MessageRepository) Create(ctx context.Context, meta dto.MessageSendMeta
 		entry.SourcePath = entry.FullCodePath
 	}
 	if entry.ThreadKey == "" {
-		entry.ThreadKey = buildMessageThreadKey(entry.SourcePath, entry.FullCodePath, entry.WorkspaceSessionID)
+		entry.ThreadKey = buildMessageThreadKey(entry.SourceParentPath, entry.SourcePath, entry.FullCodePath, entry.WorkspaceSessionID)
 	}
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -79,9 +84,9 @@ func (r *MessageRepository) Create(ctx context.Context, meta dto.MessageSendMeta
 	return entry, nil
 }
 
-func (r *MessageRepository) ListInbox(ctx context.Context, username, status string, offset, limit int) ([]dto.MessageInboxItem, int64, error) {
+func (r *MessageRepository) ListInbox(ctx context.Context, username, status, threadKey string, offset, limit int) ([]dto.MessageInboxItem, int64, error) {
 	var list []dto.MessageInboxItem
-	query := r.inboxQuery(ctx, username, status)
+	query := r.inboxQuery(ctx, username, status, threadKey)
 
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
@@ -102,6 +107,66 @@ func (r *MessageRepository) ListInbox(ctx context.Context, username, status stri
 	return list, total, nil
 }
 
+func (r *MessageRepository) ListInboxThreads(ctx context.Context, username, status string, offset, limit int) ([]dto.MessageInboxThread, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	threadExpr := inboxThreadKeySQL()
+	countQuery := r.inboxQuery(ctx, username, status, "").
+		Select(threadExpr + " AS thread_key").
+		Group(threadExpr)
+	var total int64
+	if err := r.db.WithContext(ctx).Table("(?) AS inbox_threads", countQuery).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var rows []inboxThreadRow
+	if err := r.inboxQuery(ctx, username, status, "").
+		Select(strings.Join([]string{
+			threadExpr + " AS thread_key",
+			"MAX(m.id) AS last_message_id",
+			"MAX(m.created_at) AS latest_at",
+			"COUNT(*) AS message_count",
+			"SUM(CASE WHEN r.read_at IS NULL THEN 1 ELSE 0 END) AS unread_count",
+		}, ", ")).
+		Group(threadExpr).
+		Order("latest_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	if len(rows) == 0 {
+		return []dto.MessageInboxThread{}, total, nil
+	}
+
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row.LastMessageID > 0 {
+			ids = append(ids, row.LastMessageID)
+		}
+	}
+	items, err := r.listInboxByMessageIDs(ctx, username, ids)
+	if err != nil {
+		return nil, 0, err
+	}
+	itemByID := make(map[int64]dto.MessageInboxItem, len(items))
+	for _, item := range items {
+		itemByID[item.ID] = item
+	}
+
+	threads := make([]dto.MessageInboxThread, 0, len(rows))
+	for _, row := range rows {
+		lastMessage, ok := itemByID[row.LastMessageID]
+		if !ok {
+			continue
+		}
+		thread := buildInboxThread(row, lastMessage)
+		threads = append(threads, thread)
+	}
+	return threads, total, nil
+}
+
 func (r *MessageRepository) GetInboxMessage(ctx context.Context, username string, messageID int64) (*dto.MessageInboxItem, error) {
 	var item dto.MessageInboxItem
 	result := r.inboxBaseQuery(ctx, username).
@@ -117,6 +182,21 @@ func (r *MessageRepository) GetInboxMessage(ctx context.Context, username string
 	}
 	hydrateMessageSourceDisplay(&item)
 	return &item, nil
+}
+
+func (r *MessageRepository) listInboxByMessageIDs(ctx context.Context, username string, messageIDs []int64) ([]dto.MessageInboxItem, error) {
+	if len(messageIDs) == 0 {
+		return []dto.MessageInboxItem{}, nil
+	}
+	var list []dto.MessageInboxItem
+	if err := r.inboxBaseQuery(ctx, username).
+		Where("m.id IN ?", messageIDs).
+		Select(inboxSelectColumns()).
+		Scan(&list).Error; err != nil {
+		return nil, err
+	}
+	hydrateMessageSourceDisplays(list)
+	return list, nil
 }
 
 func (r *MessageRepository) CountUnread(ctx context.Context, username string) (int64, error) {
@@ -148,10 +228,13 @@ func (r *MessageRepository) MarkAllRead(ctx context.Context, username string) er
 		Update("read_at", now).Error
 }
 
-func (r *MessageRepository) inboxQuery(ctx context.Context, username, status string) *gorm.DB {
+func (r *MessageRepository) inboxQuery(ctx context.Context, username, status, threadKey string) *gorm.DB {
 	query := r.inboxBaseQuery(ctx, username)
 	if strings.EqualFold(strings.TrimSpace(status), "unread") {
 		query = query.Where("r.read_at IS NULL")
+	}
+	if threadKey = strings.TrimSpace(threadKey); threadKey != "" {
+		query = query.Where("("+inboxThreadKeySQL()+" = ? OR m.thread_key = ?)", threadKey, threadKey)
 	}
 	return query
 }
@@ -180,6 +263,10 @@ func inboxSelectColumns() string {
 		"m.source_parent_path",
 		"m.source_parent_title",
 		"m.source_template_type",
+		"m.source_icon",
+		"m.source_color",
+		"m.source_parent_icon",
+		"m.source_parent_color",
 		"m.workspace_session_id",
 		"m.workspace_session_title",
 		"m.workspace_role",
@@ -192,7 +279,22 @@ func inboxSelectColumns() string {
 	}, ", ")
 }
 
-func buildMessageThreadKey(sourcePath, fullCodePath, sessionID string) string {
+type inboxThreadRow struct {
+	ThreadKey     string
+	LastMessageID int64
+	LatestAt      string
+	MessageCount  int64
+	UnreadCount   int64
+}
+
+func inboxThreadKeySQL() string {
+	return "COALESCE(NULLIF(m.source_parent_path, ''), NULLIF(m.thread_key, ''), NULLIF(m.source_path, ''), NULLIF(m.full_code_path, ''), NULLIF(m.workspace_session_id, ''), NULLIF(m.`from`, ''), 'system')"
+}
+
+func buildMessageThreadKey(sourceParentPath, sourcePath, fullCodePath, sessionID string) string {
+	if sourceParentPath = strings.TrimSpace(sourceParentPath); sourceParentPath != "" {
+		return "directory:" + sourceParentPath
+	}
 	if sourcePath = strings.TrimSpace(sourcePath); sourcePath != "" {
 		return "source:" + sourcePath
 	}
@@ -205,6 +307,35 @@ func buildMessageThreadKey(sourcePath, fullCodePath, sessionID string) string {
 	return ""
 }
 
+func buildInboxThread(row inboxThreadRow, lastMessage dto.MessageInboxItem) dto.MessageInboxThread {
+	key := strings.TrimSpace(row.ThreadKey)
+	if key == "" {
+		key = strings.TrimSpace(lastMessage.ThreadKey)
+	}
+	if key == "" {
+		key = buildMessageThreadKey(lastMessage.SourceParentPath, lastMessage.SourcePath, lastMessage.FullCodePath, lastMessage.WorkspaceSessionID)
+	}
+	title := threadTitle(lastMessage)
+	subtitle := threadSubtitle(lastMessage, row.MessageCount)
+	path := threadPath(lastMessage)
+	icon, color := threadVisual(lastMessage)
+	return dto.MessageInboxThread{
+		Key:                  key,
+		Kind:                 threadKind(lastMessage),
+		Title:                title,
+		Subtitle:             subtitle,
+		Path:                 path,
+		Icon:                 icon,
+		Color:                color,
+		UnreadCount:          row.UnreadCount,
+		MessageCount:         row.MessageCount,
+		LatestAt:             lastMessage.CreatedAt,
+		LastMessage:          lastMessage,
+		ScheduledTaskID:      lastMessage.ScheduledTaskID,
+		ScheduledExecutionID: lastMessage.ScheduledExecutionID,
+	}
+}
+
 func hydrateMessageSourceDisplays(items []dto.MessageInboxItem) {
 	for i := range items {
 		hydrateMessageSourceDisplay(&items[i])
@@ -215,6 +346,7 @@ func hydrateMessageSourceDisplay(item *dto.MessageInboxItem) {
 	if item == nil {
 		return
 	}
+	item.ScheduledTaskID, item.ScheduledExecutionID = parseScheduledSourceRef(item.SourceRef)
 	sourcePath := strings.TrimSpace(item.SourcePath)
 	if sourcePath == "" {
 		sourcePath = strings.TrimSpace(item.FullCodePath)
@@ -231,10 +363,137 @@ func hydrateMessageSourceDisplay(item *dto.MessageInboxItem) {
 		Type:               strings.TrimSpace(item.SourceType),
 		TemplateType:       strings.TrimSpace(item.SourceTemplateType),
 		FullCodePath:       sourcePath,
+		Icon:               strings.TrimSpace(item.SourceIcon),
+		Color:              strings.TrimSpace(item.SourceColor),
 		ParentName:         strings.TrimSpace(item.SourceParentTitle),
 		ParentFullCodePath: strings.TrimSpace(item.SourceParentPath),
+		ParentIcon:         strings.TrimSpace(item.SourceParentIcon),
+		ParentColor:        strings.TrimSpace(item.SourceParentColor),
 		ThreadKey:          strings.TrimSpace(item.ThreadKey),
 	}
+}
+
+func threadTitle(item dto.MessageInboxItem) string {
+	display := item.SourceDisplay
+	var displayParentName, displayName string
+	if display != nil {
+		displayParentName = display.ParentName
+		displayName = display.Name
+	}
+	for _, value := range []string{
+		displayParentName,
+		item.SourceParentTitle,
+		displayName,
+		item.SourceTitle,
+		item.From,
+		"system",
+	} {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return "system"
+}
+
+func threadSubtitle(item dto.MessageInboxItem, count int64) string {
+	sourceName := sourceSecondaryText(item)
+	if count > 1 {
+		return fmt.Sprintf("%s · %d 条消息", sourceName, count)
+	}
+	return sourceName
+}
+
+func sourceSecondaryText(item dto.MessageInboxItem) string {
+	var displayName, displayParentName string
+	if item.SourceDisplay != nil {
+		displayName = item.SourceDisplay.Name
+		displayParentName = item.SourceDisplay.ParentName
+	}
+	functionName := strings.TrimSpace(displayName)
+	if functionName == "" {
+		functionName = strings.TrimSpace(item.SourceTitle)
+	}
+	parentName := strings.TrimSpace(displayParentName)
+	if parentName == "" {
+		parentName = strings.TrimSpace(item.SourceParentTitle)
+	}
+	if functionName != "" && functionName != parentName {
+		return functionName
+	}
+	if strings.TrimSpace(item.WorkspaceSessionTitle) != "" {
+		return strings.TrimSpace(item.WorkspaceSessionTitle)
+	}
+	for _, value := range []string{item.SourcePath, item.FullCodePath, item.From, "-"} {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return "-"
+}
+
+func threadPath(item dto.MessageInboxItem) string {
+	if item.SourceDisplay != nil {
+		if path := strings.TrimSpace(item.SourceDisplay.ParentFullCodePath); path != "" {
+			return path
+		}
+		if path := strings.TrimSpace(item.SourceDisplay.FullCodePath); path != "" {
+			return path
+		}
+	}
+	if path := strings.TrimSpace(item.SourceParentPath); path != "" {
+		return path
+	}
+	if path := strings.TrimSpace(item.SourcePath); path != "" {
+		return path
+	}
+	return strings.TrimSpace(item.FullCodePath)
+}
+
+func threadVisual(item dto.MessageInboxItem) (string, string) {
+	if item.SourceDisplay != nil {
+		if item.SourceDisplay.ParentIcon != "" || item.SourceDisplay.ParentColor != "" {
+			return strings.TrimSpace(item.SourceDisplay.ParentIcon), strings.TrimSpace(item.SourceDisplay.ParentColor)
+		}
+		if item.SourceDisplay.Icon != "" || item.SourceDisplay.Color != "" {
+			return strings.TrimSpace(item.SourceDisplay.Icon), strings.TrimSpace(item.SourceDisplay.Color)
+		}
+	}
+	if item.SourceParentIcon != "" || item.SourceParentColor != "" {
+		return strings.TrimSpace(item.SourceParentIcon), strings.TrimSpace(item.SourceParentColor)
+	}
+	return strings.TrimSpace(item.SourceIcon), strings.TrimSpace(item.SourceColor)
+}
+
+func threadKind(item dto.MessageInboxItem) string {
+	displayParentPath := ""
+	if item.SourceDisplay != nil {
+		displayParentPath = item.SourceDisplay.ParentFullCodePath
+	}
+	if strings.TrimSpace(item.SourceParentPath) != "" || strings.TrimSpace(displayParentPath) != "" {
+		return "directory"
+	}
+	if strings.TrimSpace(item.WorkspaceSessionID) != "" {
+		return "session"
+	}
+	if strings.TrimSpace(item.SourcePath) != "" || strings.TrimSpace(item.FullCodePath) != "" {
+		return "function"
+	}
+	return "sender"
+}
+
+func parseScheduledSourceRef(sourceRef string) (int64, int64) {
+	parts := strings.Split(strings.TrimSpace(sourceRef), ":")
+	var taskID int64
+	var executionID int64
+	for i := 0; i < len(parts)-1; i++ {
+		switch parts[i] {
+		case "timer_task":
+			taskID, _ = strconv.ParseInt(parts[i+1], 10, 64)
+		case "execution", "timer_execution":
+			executionID, _ = strconv.ParseInt(parts[i+1], 10, 64)
+		}
+	}
+	return taskID, executionID
 }
 
 func pathBaseName(path string) string {

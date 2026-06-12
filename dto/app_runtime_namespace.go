@@ -45,6 +45,10 @@ type RequestAppReq struct {
 	SourceParentPath      string `json:"source_parent_path,omitempty" swaggerignore:"true"`      // 来源父目录路径
 	SourceParentTitle     string `json:"source_parent_title,omitempty" swaggerignore:"true"`     // 来源父目录展示名
 	SourceTemplateType    string `json:"source_template_type,omitempty" swaggerignore:"true"`    // 来源函数模板类型
+	SourceIcon            string `json:"source_icon,omitempty" swaggerignore:"true"`             // 来源函数/节点图标
+	SourceColor           string `json:"source_color,omitempty" swaggerignore:"true"`            // 来源函数/节点颜色
+	SourceParentIcon      string `json:"source_parent_icon,omitempty" swaggerignore:"true"`      // 来源父目录图标
+	SourceParentColor     string `json:"source_parent_color,omitempty" swaggerignore:"true"`     // 来源父目录颜色
 	WorkspaceSessionID    string `json:"workspace_session_id,omitempty" swaggerignore:"true"`    // 工作台会话 ID
 	WorkspaceSessionTitle string `json:"workspace_session_title,omitempty" swaggerignore:"true"` // 工作台会话标题
 	WorkspaceRole         string `json:"workspace_role,omitempty" swaggerignore:"true"`          // 工作台角色

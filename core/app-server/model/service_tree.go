@@ -23,6 +23,8 @@ type ServiceTree struct {
 	Type               string `json:"type"` // 节点类型: package(服务目录/包), function(函数/文件), docs(文档), api(API接口), servicenpm run(服务), module(模块)
 	Description        string `json:"description,omitempty"`
 	Tags               string `json:"tags"`
+	Icon               string `json:"icon" gorm:"size:128;comment:节点图标"`
+	Color              string `json:"color" gorm:"size:64;comment:节点主题色"`
 	Connectors         string `json:"connectors" gorm:"type:text;column:connectors"`                                 // 函数依赖的连接器 provider 列表，逗号分隔
 	ConnectorEndpoints string `json:"connector_endpoints" gorm:"type:text;column:connector_endpoints"`               // 函数声明使用的连接器 API 端点，JSON
 	Admins             string `json:"admins" gorm:"type:varchar(150);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表
@@ -43,7 +45,7 @@ type ServiceTree struct {
 	UpdateVersionNum int            `json:"update_version_num"`                                                                          // 更新版本号（数字部分，如 v2 -> 2），用于版本回滚时过滤
 	Version          string         `json:"version" gorm:"type:varchar(50);comment:节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等"` // 节点当前版本号
 	VersionNum       int            `json:"version_num" gorm:"comment:节点当前版本号（数字部分）"`                                                    // 节点当前版本号（数字部分）
-	RunCount         int            `json:"run_count" gorm:"default:0;comment:函数运行次数，仅 type=function 有意义，用于 search 按热度排序"`         // 运行次数 +1 后搜索按此排序
+	RunCount         int            `json:"run_count" gorm:"default:0;comment:函数运行次数，仅 type=function 有意义，用于 search 按热度排序"`               // 运行次数 +1 后搜索按此排序
 	SearchDocSummary string         `json:"-" gorm:"column:search_doc_summary;->;-:migration"`                                           // 搜索结果临时字段：docs.summary
 	Children         []*ServiceTree `json:"children" gorm:"-"`
 }

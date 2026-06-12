@@ -19,6 +19,8 @@ type CreateServiceTreeReq struct {
 	Type               string `json:"type" example:"package"`                        // 节点类型: package(服务目录/包), docs(文档), function(函数/文件)
 	Description        string `json:"description" example:"用户相关的API接口"`              // 描述
 	Tags               string `json:"tags" example:"user,management"`                // 标签
+	Icon               string `json:"icon,omitempty" example:"Folder"`               // 图标
+	Color              string `json:"color,omitempty" example:"#409EFF"`             // 主题色
 	Admins             string `json:"admins" example:"user1,user2"`                  // 管理员列表，逗号分隔的用户名
 	// ⭐ 文档相关字段（仅当 type=docs 时使用）
 	DocContent string `json:"doc_content" example:"# 文档内容\n\n这是文档内容..."` // 文档内容（仅 docs 类型）
@@ -34,6 +36,8 @@ type CreateServiceTreeResp struct {
 	Type         string `json:"type" example:"package"`                      // 节点类型
 	Description  string `json:"description" example:"用户相关的API接口"`            // 描述
 	Tags         string `json:"tags" example:"user,management"`              // 标签
+	Icon         string `json:"icon,omitempty" example:"Folder"`             // 图标
+	Color        string `json:"color,omitempty" example:"#409EFF"`           // 主题色
 	AppID        int64  `json:"app_id" example:"1"`                          // 应用ID
 	RefID        int64  `json:"ref_id" example:"0"`                          // 引用ID
 	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径（父路径可由此推导）
@@ -51,6 +55,8 @@ type GetServiceTreeResp struct {
 	Type               string                `json:"type,omitempty" example:"package"`                      // 节点类型
 	Description        string                `json:"description,omitempty" example:"用户相关的API接口"`            // 描述
 	Tags               string                `json:"tags,omitempty" example:"user,management"`              // 标签
+	Icon               string                `json:"icon,omitempty" example:"Folder"`                       // 图标
+	Color              string                `json:"color,omitempty" example:"#409EFF"`                     // 主题色
 	Connectors         []string              `json:"connectors,omitempty" example:"github,google"`          // 函数依赖的连接器 provider 列表
 	ConnectorEndpoints []ConnectorEndpoint   `json:"connector_endpoints,omitempty"`                         // 函数声明使用的连接器 API 端点
 	Admins             string                `json:"admins,omitempty" example:"user1,user2"`                // 节点管理员列表，逗号分隔的用户名
@@ -84,6 +90,8 @@ type GetServiceTreeDetailResp struct {
 	Type               string              `json:"type" example:"package"`                       // 节点类型
 	Description        string              `json:"description" example:"用户相关的API接口"`             // 描述
 	Tags               string              `json:"tags" example:"user,management"`               // 标签
+	Icon               string              `json:"icon,omitempty" example:"Folder"`              // 图标
+	Color              string              `json:"color,omitempty" example:"#409EFF"`            // 主题色
 	Connectors         []string            `json:"connectors,omitempty" example:"github,google"` // 函数依赖的连接器 provider 列表
 	ConnectorEndpoints []ConnectorEndpoint `json:"connector_endpoints,omitempty"`                // 函数声明使用的连接器 API 端点
 	AppID              int64               `json:"app_id" example:"1"`                           // 应用ID
@@ -103,6 +111,8 @@ type UpdateServiceTreeMetadataReq struct {
 	Code        *string `json:"code,omitempty" example:"user"`              // 服务目录代码（暂不支持修改；nil=不更新）
 	Description *string `json:"description,omitempty" example:"用户相关的API接口"` // 描述（指针类型，nil=不更新，""=清空）
 	Tags        *string `json:"tags,omitempty" example:"user,management"`   // 标签（指针类型，nil=不更新，""=清空）
+	Icon        *string `json:"icon,omitempty" example:"Folder"`            // 图标（指针类型，nil=不更新，""=清空）
+	Color       *string `json:"color,omitempty" example:"#409EFF"`          // 主题色（指针类型，nil=不更新，""=清空）
 	Admins      *string `json:"admins,omitempty" example:"user1,user2"`     // 管理员列表（指针类型，nil=不更新，""=清空）
 }
 
@@ -115,6 +125,8 @@ type UpdatePackageReq struct {
 	Code        *string `json:"code,omitempty" example:"user"`              // 目录代码（暂不支持修改；nil=不更新）
 	Description *string `json:"description,omitempty" example:"用户相关的API接口"` // 描述（指针类型，nil=不更新，""=清空）
 	Tags        *string `json:"tags,omitempty" example:"user,management"`   // 标签（指针类型，nil=不更新，""=清空）
+	Icon        *string `json:"icon,omitempty" example:"Folder"`            // 图标（指针类型，nil=不更新，""=清空）
+	Color       *string `json:"color,omitempty" example:"#409EFF"`          // 主题色（指针类型，nil=不更新，""=清空）
 	Admins      *string `json:"admins,omitempty" example:"user1,user2"`     // 管理员列表（指针类型，nil=不更新，""=清空）
 }
 
@@ -125,6 +137,8 @@ type UpdateFunctionReq struct {
 	Code        *string `json:"code,omitempty" example:"user_list"`     // 函数代码（暂不支持修改；nil=不更新）
 	Description *string `json:"description,omitempty" example:"获取用户列表"` // 描述（指针类型，nil=不更新，""=清空）
 	Tags        *string `json:"tags,omitempty" example:"user,list"`     // 标签（指针类型，nil=不更新，""=清空）
+	Icon        *string `json:"icon,omitempty" example:"Document"`      // 图标（指针类型，nil=不更新，""=清空）
+	Color       *string `json:"color,omitempty" example:"#409EFF"`      // 主题色（指针类型，nil=不更新，""=清空）
 }
 
 // UpdateDocsReq 更新 docs 类型节点请求（ID 由 path /docs/crud/:id 提供，body 可不传）
@@ -224,6 +238,8 @@ type ResourceSearchResult struct {
 	FullCodePath string `json:"full_code_path" example:"/system/app/a"` // 完整路径
 	Description  string `json:"description,omitempty"`                  // 描述
 	Tags         string `json:"tags,omitempty"`                         // 标签
+	Icon         string `json:"icon,omitempty"`                         // 图标
+	Color        string `json:"color,omitempty"`                        // 主题色
 	TemplateType string `json:"template_type,omitempty"`                // 函数模板类型
 	AppID        int64  `json:"app_id,omitempty"`                       // 应用 ID
 	AppUser      string `json:"app_user,omitempty"`                     // 应用所属用户
@@ -241,6 +257,8 @@ type FunctionSearchResult struct {
 	FullCodePath       string                         `json:"full_code_path" example:"/system/tools/table/inspect.form"`    // 完整代码路径
 	Description        string                         `json:"description" example:"解析Excel/CSV文件为Markdown表格"`               // 函数描述
 	TemplateType       string                         `json:"template_type" example:"form"`                                 // 模板类型（form、table、chart）
+	Icon               string                         `json:"icon,omitempty" example:"Document"`                            // 图标
+	Color              string                         `json:"color,omitempty" example:"#409EFF"`                            // 主题色
 	Callbacks          []string                       `json:"callbacks,omitempty" example:"OnTableAddRow,OnTableUpdateRow"` // 函数回调能力摘要
 	Connectors         []string                       `json:"connectors,omitempty" example:"github,google"`                 // 函数依赖的连接器 provider 列表
 	ConnectorEndpoints []ConnectorEndpoint            `json:"connector_endpoints,omitempty"`                                // 函数声明使用的连接器 API 端点
@@ -267,6 +285,8 @@ type CreatePackageReq struct {
 	ParentFullCodePath string `json:"parent_full_code_path" example:"/beiluo/myapp"` // 父目录完整路径，空字符串表示根目录
 	Description        string `json:"description" example:"用户相关的API接口"`              // 描述
 	Tags               string `json:"tags" example:"user,management"`                // 标签
+	Icon               string `json:"icon,omitempty" example:"Folder"`               // 图标
+	Color              string `json:"color,omitempty" example:"#409EFF"`             // 主题色
 	Admins             string `json:"admins" example:"user1,user2"`                  // 管理员列表，逗号分隔的用户名
 }
 
@@ -278,6 +298,8 @@ type CreatePackageResp struct {
 	Type         string `json:"type" example:"package"`                      // 节点类型（固定为 package）
 	Description  string `json:"description" example:"用户相关的API接口"`            // 描述
 	Tags         string `json:"tags" example:"user,management"`              // 标签
+	Icon         string `json:"icon,omitempty" example:"Folder"`             // 图标
+	Color        string `json:"color,omitempty" example:"#409EFF"`           // 主题色
 	AppID        int64  `json:"app_id" example:"1"`                          // 应用ID
 	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/user"` // 完整代码路径（父路径可由此推导）
 	Version      string `json:"version" example:"v1"`                        // 目录版本号
@@ -296,6 +318,8 @@ type CreateFunctionReq struct {
 	SourceCode    string `json:"source_code" binding:"required"`                                 // 源代码内容
 	Description   string `json:"description" example:"获取用户列表"`                                   // 描述
 	Tags          string `json:"tags" example:"user,list"`                                       // 标签
+	Icon          string `json:"icon,omitempty" example:"Document"`                              // 图标
+	Color         string `json:"color,omitempty" example:"#409EFF"`                              // 主题色
 }
 
 // CreateFunctionResp 创建 function 类型节点响应
@@ -307,6 +331,8 @@ type CreateFunctionResp struct {
 	TemplateType string `json:"template_type" example:"table"`                         // 模板类型
 	Description  string `json:"description" example:"获取用户列表"`                          // 描述
 	Tags         string `json:"tags" example:"user,list"`                              // 标签
+	Icon         string `json:"icon,omitempty" example:"Document"`                     // 图标
+	Color        string `json:"color,omitempty" example:"#409EFF"`                     // 主题色
 	AppID        int64  `json:"app_id" example:"1"`                                    // 应用ID
 	RefID        int64  `json:"ref_id" example:"1"`                                    // 引用ID（指向 Function 表）
 	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/user/user_list"` // 完整代码路径（父路径可由此推导）
@@ -323,6 +349,8 @@ type CreateDocsReq struct {
 	ParentFullCodePath string `json:"parent_full_code_path" example:"/beiluo/myapp"` // 父目录完整路径，空字符串表示根目录
 	Description        string `json:"description" example:"API接口文档"`                 // 描述
 	Tags               string `json:"tags" example:"api,docs"`                       // 标签
+	Icon               string `json:"icon,omitempty" example:"Document"`             // 图标
+	Color              string `json:"color,omitempty" example:"#409EFF"`             // 主题色
 	Admins             string `json:"admins" example:"user1,user2"`                  // 管理员列表，逗号分隔的用户名
 	Content            string `json:"content" example:"# 文档内容\n\n这是文档内容..."`         // 文档内容
 	Format             string `json:"format" example:"markdown"`                     // 文档格式（默认为 markdown）
@@ -337,6 +365,8 @@ type CreateDocsResp struct {
 	Type         string `json:"type" example:"docs"`                             // 节点类型（固定为 docs）
 	Description  string `json:"description" example:"API接口文档"`                   // 描述
 	Tags         string `json:"tags" example:"api,docs"`                         // 标签
+	Icon         string `json:"icon,omitempty" example:"Document"`               // 图标
+	Color        string `json:"color,omitempty" example:"#409EFF"`               // 主题色
 	AppID        int64  `json:"app_id" example:"1"`                              // 应用ID
 	FullCodePath string `json:"full_code_path" example:"/beiluo/myapp/api_docs"` // 完整代码路径（父路径可由此推导）
 	Admins       string `json:"admins" example:"user1,user2"`                    // 管理员列表

@@ -210,11 +210,25 @@ func (a *AppService) applyRequestSourceContext(ctx context.Context, req *dto.Req
 		if req.SourceTemplateType == "" {
 			req.SourceTemplateType = source.TemplateType
 		}
+		if req.SourceIcon == "" {
+			req.SourceIcon = source.Icon
+		}
+		if req.SourceColor == "" {
+			req.SourceColor = source.Color
+		}
 	}
 	if parentPath != "" {
 		req.SourceParentPath = parentPath
-		if parent := nodes[parentPath]; parent != nil && req.SourceParentTitle == "" {
-			req.SourceParentTitle = parent.Name
+		if parent := nodes[parentPath]; parent != nil {
+			if req.SourceParentTitle == "" {
+				req.SourceParentTitle = parent.Name
+			}
+			if req.SourceParentIcon == "" {
+				req.SourceParentIcon = parent.Icon
+			}
+			if req.SourceParentColor == "" {
+				req.SourceParentColor = parent.Color
+			}
 		}
 	}
 }
