@@ -207,11 +207,15 @@
                       </el-tag>
                       <el-tag v-if="!message.read_at" size="small" type="primary">未读</el-tag>
                     </div>
-                    <span :title="formatExactTime(message.created_at)">
-                      {{ formatRelativeTime(message.created_at) }}
+                    <span class="message-card-time" :title="formatExactTime(message.created_at)">
+                      <span>{{ formatRelativeTime(message.created_at) }}</span>
+                      <small>{{ formatExactTime(message.created_at) }}</small>
                     </span>
                   </header>
-                  <div class="message-card-source">{{ sourceSecondaryText(message) }}</div>
+                  <div class="message-card-meta">
+                    <span>发送人：{{ messageSenderText(message) }}</span>
+                    <span>来源：{{ sourceSecondaryText(message) }}</span>
+                  </div>
                   <div class="inbox-content inbox-rich-content" v-html="renderMessageContent(message)" />
                   <footer class="message-card-actions">
                     <el-button
@@ -893,6 +897,13 @@ function sourceSecondaryText(item?: MessageInboxItem | null) {
   return item.source_path || item.full_code_path || item.from || '-'
 }
 
+function messageSenderText(item?: MessageInboxItem | null) {
+  const sender = (item?.from || item?.request_user || '').trim()
+  if (!sender) return 'system'
+  if (sender === 'system') return 'system(系统)'
+  return sender
+}
+
 function sourceTypeText(item?: MessageInboxItem | null) {
   const type = (item?.source_type || item?.client_source || '').trim()
   const map: Record<string, string> = {
@@ -1477,6 +1488,7 @@ defineExpose({
 .message-card-title {
   display: flex;
   min-width: 0;
+  flex: 1;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
@@ -1492,9 +1504,36 @@ defineExpose({
   }
 }
 
-.message-card-source {
+.message-card-time {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.2;
+
+  small {
+    color: var(--el-text-color-placeholder);
+    font-size: 11px;
+    font-weight: 500;
+  }
+}
+
+.message-card-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px 12px;
   color: var(--el-text-color-secondary);
   font-size: 12px;
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .message-card-actions {
