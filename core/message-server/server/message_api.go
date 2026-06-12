@@ -75,19 +75,59 @@ func resolveRequestMessageMeta(c *gin.Context, incoming *dto.MessageSendMeta) (c
 		return ctx, dto.MessageSendMeta{}, fmt.Errorf("无法解析发送人")
 	}
 	meta := dto.MessageSendMeta{
-		From:               sender,
-		RequestUser:        sender,
-		DepartmentFullPath: strings.TrimSpace(contextx.GetRequestDepartmentFullPath(ctx)),
-		TraceID:            strings.TrimSpace(contextx.GetTraceId(ctx)),
-		ClientSource:       strings.TrimSpace(contextx.GetClientSource(ctx)),
-		SourceType:         strings.TrimSpace(contextx.GetSourceType(ctx)),
-		SourceRef:          strings.TrimSpace(contextx.GetSourceRef(ctx)),
+		From:                  sender,
+		RequestUser:           sender,
+		DepartmentFullPath:    strings.TrimSpace(contextx.GetRequestDepartmentFullPath(ctx)),
+		TraceID:               strings.TrimSpace(contextx.GetTraceId(ctx)),
+		ClientSource:          strings.TrimSpace(contextx.GetClientSource(ctx)),
+		SourceType:            strings.TrimSpace(contextx.GetSourceType(ctx)),
+		SourceRef:             strings.TrimSpace(contextx.GetSourceRef(ctx)),
+		SourcePath:            strings.TrimSpace(contextx.GetSourcePath(ctx)),
+		SourceTitle:           strings.TrimSpace(contextx.GetSourceTitle(ctx)),
+		SourceParentPath:      strings.TrimSpace(contextx.GetSourceParentPath(ctx)),
+		SourceParentTitle:     strings.TrimSpace(contextx.GetSourceParentTitle(ctx)),
+		SourceTemplateType:    strings.TrimSpace(contextx.GetSourceTemplateType(ctx)),
+		WorkspaceSessionID:    strings.TrimSpace(contextx.GetWorkspaceSessionID(ctx)),
+		WorkspaceSessionTitle: strings.TrimSpace(contextx.GetWorkspaceSessionTitle(ctx)),
+		WorkspaceRole:         strings.TrimSpace(contextx.GetWorkspaceRole(ctx)),
 	}
 	if strings.HasPrefix(meta.SourceRef, "/") {
 		meta.FullCodePath = meta.SourceRef
 	}
 	if incoming != nil && meta.FullCodePath == "" {
 		meta.FullCodePath = strings.TrimSpace(incoming.FullCodePath)
+	}
+	if incoming != nil {
+		if meta.SourcePath == "" {
+			meta.SourcePath = strings.TrimSpace(incoming.SourcePath)
+		}
+		if meta.SourceTitle == "" {
+			meta.SourceTitle = strings.TrimSpace(incoming.SourceTitle)
+		}
+		if meta.SourceParentPath == "" {
+			meta.SourceParentPath = strings.TrimSpace(incoming.SourceParentPath)
+		}
+		if meta.SourceParentTitle == "" {
+			meta.SourceParentTitle = strings.TrimSpace(incoming.SourceParentTitle)
+		}
+		if meta.SourceTemplateType == "" {
+			meta.SourceTemplateType = strings.TrimSpace(incoming.SourceTemplateType)
+		}
+		if meta.WorkspaceSessionID == "" {
+			meta.WorkspaceSessionID = strings.TrimSpace(incoming.WorkspaceSessionID)
+		}
+		if meta.WorkspaceSessionTitle == "" {
+			meta.WorkspaceSessionTitle = strings.TrimSpace(incoming.WorkspaceSessionTitle)
+		}
+		if meta.WorkspaceRole == "" {
+			meta.WorkspaceRole = strings.TrimSpace(incoming.WorkspaceRole)
+		}
+		if meta.ThreadKey == "" {
+			meta.ThreadKey = strings.TrimSpace(incoming.ThreadKey)
+		}
+	}
+	if meta.SourcePath == "" {
+		meta.SourcePath = meta.FullCodePath
 	}
 	return ctx, meta, nil
 }

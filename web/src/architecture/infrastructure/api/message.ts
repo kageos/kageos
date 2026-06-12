@@ -12,6 +12,15 @@ export interface MessageSendMeta {
   client_source?: string
   source_type?: string
   source_ref?: string
+  source_path?: string
+  source_title?: string
+  source_parent_path?: string
+  source_parent_title?: string
+  source_template_type?: string
+  workspace_session_id?: string
+  workspace_session_title?: string
+  workspace_role?: string
+  thread_key?: string
 }
 
 export interface MessageSendPayload {
@@ -48,6 +57,9 @@ export interface MessageSourceDisplay {
   type: string
   template_type?: string
   full_code_path?: string
+  parent_name?: string
+  parent_full_code_path?: string
+  thread_key?: string
 }
 
 export interface MessageInboxItem {
@@ -61,6 +73,15 @@ export interface MessageInboxItem {
   client_source?: string
   source_type?: string
   source_ref?: string
+  source_path?: string
+  source_title?: string
+  source_parent_path?: string
+  source_parent_title?: string
+  source_template_type?: string
+  workspace_session_id?: string
+  workspace_session_title?: string
+  workspace_role?: string
+  thread_key?: string
   title?: string
   content: string
   content_type?: MessageContentType

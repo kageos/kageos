@@ -95,6 +95,18 @@ func normalizeMessageMeta(meta dto.MessageSendMeta) dto.MessageSendMeta {
 	meta.ClientSource = strings.TrimSpace(meta.ClientSource)
 	meta.SourceType = strings.TrimSpace(meta.SourceType)
 	meta.SourceRef = strings.TrimSpace(meta.SourceRef)
+	meta.SourcePath = strings.TrimSpace(meta.SourcePath)
+	meta.SourceTitle = strings.TrimSpace(meta.SourceTitle)
+	meta.SourceParentPath = strings.TrimSpace(meta.SourceParentPath)
+	meta.SourceParentTitle = strings.TrimSpace(meta.SourceParentTitle)
+	meta.SourceTemplateType = strings.TrimSpace(meta.SourceTemplateType)
+	meta.WorkspaceSessionID = strings.TrimSpace(meta.WorkspaceSessionID)
+	meta.WorkspaceSessionTitle = strings.TrimSpace(meta.WorkspaceSessionTitle)
+	meta.WorkspaceRole = strings.TrimSpace(meta.WorkspaceRole)
+	meta.ThreadKey = strings.TrimSpace(meta.ThreadKey)
+	if meta.SourcePath == "" {
+		meta.SourcePath = meta.FullCodePath
+	}
 	if meta.From == "" {
 		meta.From = meta.RequestUser
 	}

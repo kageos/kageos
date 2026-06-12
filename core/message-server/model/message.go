@@ -12,14 +12,23 @@ type MessageEntry struct {
 	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 
-	From               string `json:"from" gorm:"size:255;index;comment:发送人"`
-	RequestUser        string `json:"request_user" gorm:"size:255;index;comment:请求用户"`
-	DepartmentFullPath string `json:"department_full_path" gorm:"size:500;comment:发送人部门路径"`
-	FullCodePath       string `json:"full_code_path" gorm:"size:500;index;comment:来源目录或函数路径"`
-	TraceID            string `json:"trace_id" gorm:"size:128;index;comment:链路追踪 ID"`
-	ClientSource       string `json:"client_source" gorm:"size:64;comment:入口来源"`
-	SourceType         string `json:"source_type" gorm:"size:64;index;comment:来源类型"`
-	SourceRef          string `json:"source_ref" gorm:"size:255;index;comment:来源引用"`
+	From                  string `json:"from" gorm:"size:255;index;comment:发送人"`
+	RequestUser           string `json:"request_user" gorm:"size:255;index;comment:请求用户"`
+	DepartmentFullPath    string `json:"department_full_path" gorm:"size:500;comment:发送人部门路径"`
+	FullCodePath          string `json:"full_code_path" gorm:"size:500;index;comment:来源目录或函数路径"`
+	TraceID               string `json:"trace_id" gorm:"size:128;index;comment:链路追踪 ID"`
+	ClientSource          string `json:"client_source" gorm:"size:64;comment:入口来源"`
+	SourceType            string `json:"source_type" gorm:"size:64;index;comment:来源类型"`
+	SourceRef             string `json:"source_ref" gorm:"size:255;index;comment:来源引用"`
+	SourcePath            string `json:"source_path" gorm:"size:500;index;comment:消息来源路径"`
+	SourceTitle           string `json:"source_title" gorm:"size:500;comment:消息来源展示名"`
+	SourceParentPath      string `json:"source_parent_path" gorm:"size:500;index;comment:消息来源父目录路径"`
+	SourceParentTitle     string `json:"source_parent_title" gorm:"size:500;comment:消息来源父目录展示名"`
+	SourceTemplateType    string `json:"source_template_type" gorm:"size:64;comment:来源函数模板类型"`
+	WorkspaceSessionID    string `json:"workspace_session_id" gorm:"size:128;index;comment:关联工作台会话 ID"`
+	WorkspaceSessionTitle string `json:"workspace_session_title" gorm:"size:500;comment:关联工作台会话标题"`
+	WorkspaceRole         string `json:"workspace_role" gorm:"size:128;comment:关联工作台角色"`
+	ThreadKey             string `json:"thread_key" gorm:"size:700;index;comment:站内信聚合线程键"`
 
 	Title       string `json:"title" gorm:"size:500;comment:标题"`
 	Content     string `json:"content" gorm:"type:longtext;comment:正文"`

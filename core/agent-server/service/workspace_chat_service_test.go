@@ -36,7 +36,7 @@ func TestGuideDocPathsFromReadDocArgsSupportsCommaSeparatedPaths(t *testing.T) {
 func TestWithAgentToolExecutionContextMarksSource(t *testing.T) {
 	base := contextx.WithClientSource(context.Background(), "browser")
 
-	ctx := withAgentToolExecutionContext(base, "session-1")
+	ctx := withAgentToolExecutionContext(base, "session-1", "测试会话", "app_operator")
 
 	if got := contextx.GetClientSource(ctx); got != "agent" {
 		t.Fatalf("client source = %q, want agent", got)

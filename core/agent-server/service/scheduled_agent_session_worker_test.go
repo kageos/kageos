@@ -120,7 +120,7 @@ func TestAgentToolExecutionContextPreservesScheduledTaskSource(t *testing.T) {
 		SourceType:   contextx.SourceTypeScheduledTask,
 		SourceRef:    "timer_task:1:execution:2",
 	})
-	got := withAgentToolExecutionContext(ctx, "session-1")
+	got := withAgentToolExecutionContext(ctx, "session-1", "定时会话", "automation_operator")
 
 	if source := contextx.GetClientSource(got); source != contextx.ClientSourceScheduledTask {
 		t.Fatalf("client source = %q, want scheduled_task", source)

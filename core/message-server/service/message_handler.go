@@ -73,6 +73,30 @@ func fillMessageMetaFromContext(ctx context.Context, meta *dto.MessageSendMeta) 
 	if strings.TrimSpace(meta.SourceRef) == "" {
 		meta.SourceRef = strings.TrimSpace(contextx.GetSourceRef(ctx))
 	}
+	if strings.TrimSpace(meta.SourcePath) == "" {
+		meta.SourcePath = strings.TrimSpace(contextx.GetSourcePath(ctx))
+	}
+	if strings.TrimSpace(meta.SourceTitle) == "" {
+		meta.SourceTitle = strings.TrimSpace(contextx.GetSourceTitle(ctx))
+	}
+	if strings.TrimSpace(meta.SourceParentPath) == "" {
+		meta.SourceParentPath = strings.TrimSpace(contextx.GetSourceParentPath(ctx))
+	}
+	if strings.TrimSpace(meta.SourceParentTitle) == "" {
+		meta.SourceParentTitle = strings.TrimSpace(contextx.GetSourceParentTitle(ctx))
+	}
+	if strings.TrimSpace(meta.SourceTemplateType) == "" {
+		meta.SourceTemplateType = strings.TrimSpace(contextx.GetSourceTemplateType(ctx))
+	}
+	if strings.TrimSpace(meta.WorkspaceSessionID) == "" {
+		meta.WorkspaceSessionID = strings.TrimSpace(contextx.GetWorkspaceSessionID(ctx))
+	}
+	if strings.TrimSpace(meta.WorkspaceSessionTitle) == "" {
+		meta.WorkspaceSessionTitle = strings.TrimSpace(contextx.GetWorkspaceSessionTitle(ctx))
+	}
+	if strings.TrimSpace(meta.WorkspaceRole) == "" {
+		meta.WorkspaceRole = strings.TrimSpace(contextx.GetWorkspaceRole(ctx))
+	}
 }
 
 func respondMessageSendSuccess(ctx context.Context, msg *nats.Msg, envelope *dto.MessageSendEnvelope) {

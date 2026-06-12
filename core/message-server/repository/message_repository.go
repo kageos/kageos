@@ -29,20 +29,35 @@ func (r *MessageRepository) Create(ctx context.Context, meta dto.MessageSendMeta
 	}
 
 	entry := &model.MessageEntry{
-		From:               strings.TrimSpace(meta.From),
-		RequestUser:        strings.TrimSpace(meta.RequestUser),
-		DepartmentFullPath: strings.TrimSpace(meta.DepartmentFullPath),
-		FullCodePath:       strings.TrimSpace(meta.FullCodePath),
-		TraceID:            strings.TrimSpace(meta.TraceID),
-		ClientSource:       strings.TrimSpace(meta.ClientSource),
-		SourceType:         strings.TrimSpace(meta.SourceType),
-		SourceRef:          strings.TrimSpace(meta.SourceRef),
-		Title:              strings.TrimSpace(payload.Title),
-		Content:            strings.TrimSpace(payload.Content),
-		ContentType:        strings.TrimSpace(payload.ContentType),
+		From:                  strings.TrimSpace(meta.From),
+		RequestUser:           strings.TrimSpace(meta.RequestUser),
+		DepartmentFullPath:    strings.TrimSpace(meta.DepartmentFullPath),
+		FullCodePath:          strings.TrimSpace(meta.FullCodePath),
+		TraceID:               strings.TrimSpace(meta.TraceID),
+		ClientSource:          strings.TrimSpace(meta.ClientSource),
+		SourceType:            strings.TrimSpace(meta.SourceType),
+		SourceRef:             strings.TrimSpace(meta.SourceRef),
+		SourcePath:            strings.TrimSpace(meta.SourcePath),
+		SourceTitle:           strings.TrimSpace(meta.SourceTitle),
+		SourceParentPath:      strings.TrimSpace(meta.SourceParentPath),
+		SourceParentTitle:     strings.TrimSpace(meta.SourceParentTitle),
+		SourceTemplateType:    strings.TrimSpace(meta.SourceTemplateType),
+		WorkspaceSessionID:    strings.TrimSpace(meta.WorkspaceSessionID),
+		WorkspaceSessionTitle: strings.TrimSpace(meta.WorkspaceSessionTitle),
+		WorkspaceRole:         strings.TrimSpace(meta.WorkspaceRole),
+		ThreadKey:             strings.TrimSpace(meta.ThreadKey),
+		Title:                 strings.TrimSpace(payload.Title),
+		Content:               strings.TrimSpace(payload.Content),
+		ContentType:           strings.TrimSpace(payload.ContentType),
 	}
 	if entry.ContentType == "" {
 		entry.ContentType = "markdown"
+	}
+	if entry.SourcePath == "" {
+		entry.SourcePath = entry.FullCodePath
+	}
+	if entry.ThreadKey == "" {
+		entry.ThreadKey = buildMessageThreadKey(entry.SourcePath, entry.FullCodePath, entry.WorkspaceSessionID)
 	}
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -83,6 +98,7 @@ func (r *MessageRepository) ListInbox(ctx context.Context, username, status stri
 		Scan(&list).Error; err != nil {
 		return nil, 0, err
 	}
+	hydrateMessageSourceDisplays(list)
 	return list, total, nil
 }
 
@@ -99,6 +115,7 @@ func (r *MessageRepository) GetInboxMessage(ctx context.Context, username string
 	if result.RowsAffected == 0 {
 		return nil, gorm.ErrRecordNotFound
 	}
+	hydrateMessageSourceDisplay(&item)
 	return &item, nil
 }
 
@@ -158,12 +175,75 @@ func inboxSelectColumns() string {
 		"m.client_source",
 		"m.source_type",
 		"m.source_ref",
+		"m.source_path",
+		"m.source_title",
+		"m.source_parent_path",
+		"m.source_parent_title",
+		"m.source_template_type",
+		"m.workspace_session_id",
+		"m.workspace_session_title",
+		"m.workspace_role",
+		"m.thread_key",
 		"m.title",
 		"m.content",
 		"m.content_type",
 		"r.read_at",
 		"m.created_at",
 	}, ", ")
+}
+
+func buildMessageThreadKey(sourcePath, fullCodePath, sessionID string) string {
+	if sourcePath = strings.TrimSpace(sourcePath); sourcePath != "" {
+		return "source:" + sourcePath
+	}
+	if fullCodePath = strings.TrimSpace(fullCodePath); fullCodePath != "" {
+		return "source:" + fullCodePath
+	}
+	if sessionID = strings.TrimSpace(sessionID); sessionID != "" {
+		return "session:" + sessionID
+	}
+	return ""
+}
+
+func hydrateMessageSourceDisplays(items []dto.MessageInboxItem) {
+	for i := range items {
+		hydrateMessageSourceDisplay(&items[i])
+	}
+}
+
+func hydrateMessageSourceDisplay(item *dto.MessageInboxItem) {
+	if item == nil {
+		return
+	}
+	sourcePath := strings.TrimSpace(item.SourcePath)
+	if sourcePath == "" {
+		sourcePath = strings.TrimSpace(item.FullCodePath)
+	}
+	name := strings.TrimSpace(item.SourceTitle)
+	if name == "" {
+		name = pathBaseName(sourcePath)
+	}
+	if sourcePath == "" && name == "" {
+		return
+	}
+	item.SourceDisplay = &dto.MessageSourceDisplay{
+		Name:               name,
+		Type:               strings.TrimSpace(item.SourceType),
+		TemplateType:       strings.TrimSpace(item.SourceTemplateType),
+		FullCodePath:       sourcePath,
+		ParentName:         strings.TrimSpace(item.SourceParentTitle),
+		ParentFullCodePath: strings.TrimSpace(item.SourceParentPath),
+		ThreadKey:          strings.TrimSpace(item.ThreadKey),
+	}
+}
+
+func pathBaseName(path string) string {
+	path = strings.Trim(strings.TrimSpace(path), "/")
+	if path == "" {
+		return ""
+	}
+	parts := strings.Split(path, "/")
+	return parts[len(parts)-1]
 }
 
 func normalizeUsernames(usernames []string) []string {

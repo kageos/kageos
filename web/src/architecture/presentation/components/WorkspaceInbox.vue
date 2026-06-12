@@ -76,10 +76,11 @@
             >
               <span class="inbox-unread-dot"></span>
               <span class="inbox-list-copy">
+                <span class="inbox-list-source">{{ sourcePrimaryText(item) }}</span>
                 <span class="inbox-list-title">{{ item.title || '无标题消息' }}</span>
                 <span class="inbox-list-preview">{{ previewText(item.content) }}</span>
                 <span class="inbox-list-meta">
-                  <span>{{ item.from || 'system' }}</span>
+                  <span>{{ sourceSecondaryText(item) }}</span>
                   <span>{{ formatTime(item.created_at) }}</span>
                 </span>
               </span>
@@ -109,7 +110,7 @@
                 <div>
                   <h3>{{ selectedMessage.title || '无标题消息' }}</h3>
                   <div class="inbox-detail-meta">
-                    <span>来自 {{ selectedMessage.from || 'system' }}</span>
+                    <span>来自 {{ sourcePrimaryText(selectedMessage) }}</span>
                     <span>{{ formatTime(selectedMessage.created_at) }}</span>
                     <el-tag v-if="selectedMessage.read_at" size="small" type="info">已读</el-tag>
                     <el-tag v-else size="small" type="primary">未读</el-tag>
@@ -126,11 +127,50 @@
                 </el-button>
               </header>
 
+              <section v-if="hasSourceCard(selectedMessage)" class="inbox-source-card">
+                <div class="source-avatar">{{ sourceInitial(selectedMessage) }}</div>
+                <div class="source-copy">
+                  <div class="source-title-row">
+                    <strong>{{ sourcePrimaryText(selectedMessage) }}</strong>
+                    <el-tag v-if="sourceTypeText(selectedMessage)" size="small" effect="plain">
+                      {{ sourceTypeText(selectedMessage) }}
+                    </el-tag>
+                  </div>
+                  <div class="source-subtitle">{{ sourceSecondaryText(selectedMessage) }}</div>
+                  <div v-if="selectedMessage.workspace_session_id" class="source-session">
+                    会话：{{ selectedMessage.workspace_session_title || selectedMessage.workspace_session_id }}
+                  </div>
+                </div>
+                <div class="source-actions">
+                  <el-button
+                    v-if="selectedMessage.workspace_session_id"
+                    size="small"
+                    type="primary"
+                    plain
+                    @click="openWorkspaceSession(selectedMessage)"
+                  >
+                    查看会话
+                  </el-button>
+                  <el-button
+                    v-if="sourcePathForMessage(selectedMessage)"
+                    size="small"
+                    plain
+                    @click="openSourcePath(selectedMessage)"
+                  >
+                    查看来源
+                  </el-button>
+                </div>
+              </section>
+
               <div class="inbox-content">{{ selectedMessage.content }}</div>
 
-              <dl class="inbox-source" v-if="selectedMessage.full_code_path || selectedMessage.source_type || selectedMessage.trace_id">
-                <dt v-if="selectedMessage.full_code_path">来源路径</dt>
-                <dd v-if="selectedMessage.full_code_path">{{ selectedMessage.full_code_path }}</dd>
+              <dl class="inbox-source" v-if="selectedMessage.full_code_path || selectedMessage.source_path || selectedMessage.source_type || selectedMessage.trace_id">
+                <dt v-if="selectedMessage.source_path || selectedMessage.full_code_path">来源路径</dt>
+                <dd v-if="selectedMessage.source_path || selectedMessage.full_code_path">{{ selectedMessage.source_path || selectedMessage.full_code_path }}</dd>
+                <dt v-if="selectedMessage.source_parent_path">来源目录</dt>
+                <dd v-if="selectedMessage.source_parent_path">{{ selectedMessage.source_parent_path }}</dd>
+                <dt v-if="selectedMessage.workspace_session_id">会话 ID</dt>
+                <dd v-if="selectedMessage.workspace_session_id">{{ selectedMessage.workspace_session_id }}</dd>
                 <dt v-if="selectedMessage.source_type">来源类型</dt>
                 <dd v-if="selectedMessage.source_type">{{ selectedMessage.source_type }}</dd>
                 <dt v-if="selectedMessage.trace_id">Trace</dt>
@@ -146,6 +186,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage } from 'element-plus'
 import { Message as MessageIcon, Refresh } from '@element-plus/icons-vue'
@@ -160,6 +201,7 @@ import {
   type MessageInboxStatus,
 } from '@/architecture/presentation/context/api/message'
 
+const router = useRouter()
 const drawerVisible = ref(false)
 const countLoading = ref(false)
 const listLoading = ref(false)
@@ -291,6 +333,96 @@ function previewText(content?: string) {
   return text.length > 90 ? `${text.slice(0, 90)}...` : text || '无内容'
 }
 
+function sourcePrimaryText(item?: MessageInboxItem | null) {
+  if (!item) return 'system'
+  return item.source_display?.parent_name
+    || item.source_parent_title
+    || item.source_display?.name
+    || item.source_title
+    || item.from
+    || 'system'
+}
+
+function sourceSecondaryText(item?: MessageInboxItem | null) {
+  if (!item) return '-'
+  const functionName = item.source_display?.name || item.source_title || ''
+  const parentName = item.source_display?.parent_name || item.source_parent_title || ''
+  if (functionName && functionName !== parentName) return functionName
+  if (item.workspace_session_title) return item.workspace_session_title
+  return item.source_path || item.full_code_path || item.from || '-'
+}
+
+function sourceTypeText(item?: MessageInboxItem | null) {
+  const type = (item?.source_type || item?.client_source || '').trim()
+  const map: Record<string, string> = {
+    scheduled_task: '定时任务',
+    agent_session: '定时会话',
+    agent_tool: '智能体',
+    public_share: '公开分享',
+    openapi_token: 'OpenAPI',
+    sdk_function: '函数',
+  }
+  return map[type] || type
+}
+
+function sourceInitial(item?: MessageInboxItem | null) {
+  const text = sourcePrimaryText(item).trim()
+  return text ? text.slice(0, 1).toUpperCase() : 'S'
+}
+
+function sourcePathForMessage(item?: MessageInboxItem | null) {
+  return item?.source_display?.full_code_path || item?.source_path || item?.full_code_path || ''
+}
+
+function sourceParentPathForMessage(item?: MessageInboxItem | null) {
+  return item?.source_display?.parent_full_code_path || item?.source_parent_path || ''
+}
+
+function workspacePathForMessage(item: MessageInboxItem) {
+  return sourceParentPathForMessage(item) || sourcePathForMessage(item)
+}
+
+function hasSourceCard(item?: MessageInboxItem | null) {
+  return Boolean(item && (
+    sourcePathForMessage(item)
+    || item.workspace_session_id
+    || item.source_display
+    || item.source_type
+  ))
+}
+
+function workspaceRoutePath(fullCodePath?: string) {
+  const normalized = (fullCodePath || '').trim()
+  if (!normalized) return ''
+  return `/workspace${normalized.startsWith('/') ? normalized : `/${normalized}`}`
+}
+
+async function openSourcePath(item: MessageInboxItem) {
+  const path = workspaceRoutePath(sourcePathForMessage(item))
+  if (!path) return
+  drawerVisible.value = false
+  await router.push({ path })
+}
+
+async function openWorkspaceSession(item: MessageInboxItem) {
+  const sessionId = (item.workspace_session_id || '').trim()
+  const fullCodePath = workspacePathForMessage(item)
+  const path = workspaceRoutePath(fullCodePath)
+  if (!sessionId || !path) return
+  drawerVisible.value = false
+  await router.push({
+    path,
+    query: {
+      _mws: 'open',
+      _mws_sid: sessionId,
+      _mws_path: fullCodePath,
+      _mws_name: sourcePrimaryText(item),
+      _mws_expanded: '1',
+      _mws_maximized: '1',
+    },
+  })
+}
+
 function formatTime(value?: string) {
   if (!value) return '-'
   const parsed = dayjs(value)
@@ -414,10 +546,17 @@ function formatTime(value?: string) {
 }
 
 .inbox-list-title,
+.inbox-list-source,
 .inbox-list-preview {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.inbox-list-source {
+  color: var(--el-color-primary);
+  font-size: 11px;
+  font-weight: 750;
 }
 
 .inbox-list-title {
@@ -488,6 +627,74 @@ function formatTime(value?: string) {
   line-height: 1.72;
 }
 
+.inbox-source-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.18);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--app-shell-panel-bg) 84%, var(--el-color-primary-light-9));
+}
+
+.source-avatar {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--el-color-primary);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.source-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.source-title-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+
+  strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--el-text-color-primary);
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.source-subtitle,
+.source-session {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-session {
+  color: var(--el-text-color-placeholder);
+}
+
+.source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .inbox-source {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr);
@@ -526,6 +733,15 @@ function formatTime(value?: string) {
 
   .inbox-list-pane {
     max-height: 38vh;
+  }
+
+  .inbox-source-card {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .source-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
   }
 }
 </style>

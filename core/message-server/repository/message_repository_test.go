@@ -14,9 +14,15 @@ func TestListInboxScansMessageInboxDTO(t *testing.T) {
 	repo := newTestMessageRepo(t)
 
 	_, err := repo.Create(context.Background(), dto.MessageSendMeta{
-		From:         "alice",
-		FullCodePath: "/alice/hr/leave.form",
-		SourceType:   "function",
+		From:               "alice",
+		FullCodePath:       "/alice/hr/leave.form",
+		SourceType:         "scheduled_task",
+		SourcePath:         "/alice/hr/leave.form",
+		SourceTitle:        "请假审批",
+		SourceParentPath:   "/alice/hr",
+		SourceParentTitle:  "人事系统",
+		SourceTemplateType: "form",
+		WorkspaceSessionID: "session-1",
 	}, dto.MessageSendPayload{
 		Title:   "请假审批",
 		Content: "请审批",
@@ -34,6 +40,18 @@ func TestListInboxScansMessageInboxDTO(t *testing.T) {
 	}
 	if got := list[0].FullCodePath; got != "/alice/hr/leave.form" {
 		t.Fatalf("full_code_path = %q, want /alice/hr/leave.form", got)
+	}
+	if list[0].ThreadKey != "source:/alice/hr/leave.form" {
+		t.Fatalf("thread_key = %q", list[0].ThreadKey)
+	}
+	if list[0].WorkspaceSessionID != "session-1" {
+		t.Fatalf("workspace_session_id = %q", list[0].WorkspaceSessionID)
+	}
+	if list[0].SourceDisplay == nil {
+		t.Fatal("source_display is nil")
+	}
+	if list[0].SourceDisplay.Name != "请假审批" || list[0].SourceDisplay.ParentName != "人事系统" || list[0].SourceDisplay.TemplateType != "form" {
+		t.Fatalf("source_display = %#v", list[0].SourceDisplay)
 	}
 }
 

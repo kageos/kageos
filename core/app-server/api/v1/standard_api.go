@@ -151,6 +151,7 @@ func (s *StandardAPI) buildRequestAppReq(c *gin.Context, fullCodePath string) (*
 		ClientSource:    contextx.GetClientSource(c),
 		SourceType:      contextx.GetSourceType(c),
 		SourceRef:       contextx.GetSourceRef(c),
+		SourcePath:      fullCodePath,
 	}
 
 	// 绑定请求体（POST、PUT、PATCH、DELETE 等方法通常有请求体）
@@ -238,6 +239,7 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 		ClientSource:    contextx.GetClientSource(c),
 		SourceType:      contextx.GetSourceType(c),
 		SourceRef:       contextx.GetSourceRef(c),
+		SourcePath:      fullCodePath,
 	}
 
 	// 读取请求体

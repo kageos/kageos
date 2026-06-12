@@ -67,6 +67,30 @@ func (a *App) handleMessage(msg *nats.Msg) {
 	if req.SourceRef == "" {
 		req.SourceRef = msg.Header.Get(contextx.SourceRefHeader)
 	}
+	if req.SourcePath == "" {
+		req.SourcePath = msg.Header.Get(contextx.SourcePathHeader)
+	}
+	if req.SourceTitle == "" {
+		req.SourceTitle = msg.Header.Get(contextx.SourceTitleHeader)
+	}
+	if req.SourceParentPath == "" {
+		req.SourceParentPath = msg.Header.Get(contextx.SourceParentPathHeader)
+	}
+	if req.SourceParentTitle == "" {
+		req.SourceParentTitle = msg.Header.Get(contextx.SourceParentTitleHeader)
+	}
+	if req.SourceTemplateType == "" {
+		req.SourceTemplateType = msg.Header.Get(contextx.SourceTemplateTypeHeader)
+	}
+	if req.WorkspaceSessionID == "" {
+		req.WorkspaceSessionID = msg.Header.Get(contextx.WorkspaceSessionIDHeader)
+	}
+	if req.WorkspaceSessionTitle == "" {
+		req.WorkspaceSessionTitle = msg.Header.Get(contextx.WorkspaceSessionTitleHeader)
+	}
+	if req.WorkspaceRole == "" {
+		req.WorkspaceRole = msg.Header.Get(contextx.WorkspaceRoleHeader)
+	}
 
 	logger.Infof(ctx, "[SDK:handleMessage] received: traceId=%s, method=%s, router=%s, user=%s, source=%s, bodyLen=%d",
 		req.TraceId, req.Method, req.Router, req.RequestUser, req.ClientSource, len(req.Body))

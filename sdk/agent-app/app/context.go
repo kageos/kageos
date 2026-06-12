@@ -54,13 +54,21 @@ func (a *App) NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context,
 	//	return nil, err
 	//}
 	ctx = contextx.WithRequestInfo(ctx, contextx.RequestInfo{
-		TraceId:            msgInfo.TraceId,
-		RequestUser:        msgInfo.RequestUser,
-		Token:              req.Token,
-		DepartmentFullPath: msgInfo.RequestUserDept,
-		ClientSource:       msgInfo.ClientSource,
-		SourceType:         strings.TrimSpace(req.SourceType),
-		SourceRef:          strings.TrimSpace(req.SourceRef),
+		TraceId:               msgInfo.TraceId,
+		RequestUser:           msgInfo.RequestUser,
+		Token:                 req.Token,
+		DepartmentFullPath:    msgInfo.RequestUserDept,
+		ClientSource:          msgInfo.ClientSource,
+		SourceType:            strings.TrimSpace(req.SourceType),
+		SourceRef:             strings.TrimSpace(req.SourceRef),
+		SourcePath:            strings.TrimSpace(req.SourcePath),
+		SourceTitle:           strings.TrimSpace(req.SourceTitle),
+		SourceParentPath:      strings.TrimSpace(req.SourceParentPath),
+		SourceParentTitle:     strings.TrimSpace(req.SourceParentTitle),
+		SourceTemplateType:    strings.TrimSpace(req.SourceTemplateType),
+		WorkspaceSessionID:    strings.TrimSpace(req.WorkspaceSessionID),
+		WorkspaceSessionTitle: strings.TrimSpace(req.WorkspaceSessionTitle),
+		WorkspaceRole:         strings.TrimSpace(req.WorkspaceRole),
 	})
 	token := req.Token
 	anonymousToken := strings.TrimSpace(req.AnonymousToken)
@@ -161,6 +169,27 @@ func (ctx *Context) GetFullCodePath() string {
 		return ctx.msg.GetFullRouter()
 	}
 	return ""
+}
+
+func (ctx *Context) GetWorkspaceSessionID() string {
+	if ctx == nil || ctx.Context == nil {
+		return ""
+	}
+	return contextx.GetWorkspaceSessionID(ctx.Context)
+}
+
+func (ctx *Context) GetWorkspaceSessionTitle() string {
+	if ctx == nil || ctx.Context == nil {
+		return ""
+	}
+	return contextx.GetWorkspaceSessionTitle(ctx.Context)
+}
+
+func (ctx *Context) GetWorkspaceRole() string {
+	if ctx == nil || ctx.Context == nil {
+		return ""
+	}
+	return contextx.GetWorkspaceRole(ctx.Context)
 }
 
 // GetRouterGroup 获取当前请求的 RouterGroup

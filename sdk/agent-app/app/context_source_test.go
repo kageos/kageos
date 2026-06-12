@@ -56,6 +56,40 @@ func TestNewContextCarriesRequestInfo(t *testing.T) {
 	}
 }
 
+func TestNewContextCarriesSourceDisplayAndWorkspaceSession(t *testing.T) {
+	a := &App{}
+
+	ctx, err := a.NewContext(context.Background(), &dto.RequestAppReq{
+		SourcePath:            "/system/demos/meeting/meeting_room_notify_soon.form",
+		SourceTitle:           "会议即将开始提醒",
+		SourceParentPath:      "/system/demos/meeting",
+		SourceParentTitle:     "智能会议室系统",
+		SourceTemplateType:    "form",
+		WorkspaceSessionID:    "session-1",
+		WorkspaceSessionTitle: "定时会议巡检",
+		WorkspaceRole:         "automation_operator",
+	})
+	if err != nil {
+		t.Fatalf("NewContext returned error: %v", err)
+	}
+
+	if got := contextx.GetSourcePath(ctx); got != "/system/demos/meeting/meeting_room_notify_soon.form" {
+		t.Fatalf("source path = %q", got)
+	}
+	if got := contextx.GetSourceParentTitle(ctx); got != "智能会议室系统" {
+		t.Fatalf("source parent title = %q", got)
+	}
+	if got := ctx.GetWorkspaceSessionID(); got != "session-1" {
+		t.Fatalf("workspace session id = %q", got)
+	}
+	if got := ctx.GetWorkspaceSessionTitle(); got != "定时会议巡检" {
+		t.Fatalf("workspace session title = %q", got)
+	}
+	if got := ctx.GetWorkspaceRole(); got != "automation_operator" {
+		t.Fatalf("workspace role = %q", got)
+	}
+}
+
 func TestNewContextCarriesPublicShareContext(t *testing.T) {
 	a := &App{}
 

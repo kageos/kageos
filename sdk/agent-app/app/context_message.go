@@ -66,13 +66,30 @@ func (c *Context) messageSendMeta() dto.MessageSendMeta {
 		}
 	}
 	return dto.MessageSendMeta{
-		From:               from,
-		RequestUser:        requestUser,
-		DepartmentFullPath: strings.TrimSpace(c.GetRequestUserDept()),
-		FullCodePath:       strings.TrimSpace(c.GetFullCodePath()),
-		TraceID:            strings.TrimSpace(c.GetTraceId()),
-		ClientSource:       strings.TrimSpace(c.GetClientSource()),
-		SourceType:         sourceType,
-		SourceRef:          sourceRef,
+		From:                  from,
+		RequestUser:           requestUser,
+		DepartmentFullPath:    strings.TrimSpace(c.GetRequestUserDept()),
+		FullCodePath:          strings.TrimSpace(c.GetFullCodePath()),
+		TraceID:               strings.TrimSpace(c.GetTraceId()),
+		ClientSource:          strings.TrimSpace(c.GetClientSource()),
+		SourceType:            sourceType,
+		SourceRef:             sourceRef,
+		SourcePath:            firstNonEmpty(strings.TrimSpace(contextx.GetSourcePath(sourceCtx)), strings.TrimSpace(c.GetFullCodePath())),
+		SourceTitle:           strings.TrimSpace(contextx.GetSourceTitle(sourceCtx)),
+		SourceParentPath:      strings.TrimSpace(contextx.GetSourceParentPath(sourceCtx)),
+		SourceParentTitle:     strings.TrimSpace(contextx.GetSourceParentTitle(sourceCtx)),
+		SourceTemplateType:    strings.TrimSpace(contextx.GetSourceTemplateType(sourceCtx)),
+		WorkspaceSessionID:    strings.TrimSpace(contextx.GetWorkspaceSessionID(sourceCtx)),
+		WorkspaceSessionTitle: strings.TrimSpace(contextx.GetWorkspaceSessionTitle(sourceCtx)),
+		WorkspaceRole:         strings.TrimSpace(contextx.GetWorkspaceRole(sourceCtx)),
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
