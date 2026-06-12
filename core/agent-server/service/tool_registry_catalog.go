@@ -6,18 +6,39 @@ import (
 	"slices"
 
 	"github.com/kageos/kageos/dto"
+	"github.com/nats-io/nats.go"
 )
+
+type toolMessagePublisher interface {
+	PublishMsg(*nats.Msg) error
+}
+
+type ToolRegistryOption func(*ToolRegistry)
 
 // ToolRegistry 工作台工具注册与调用（仅内置工具，已移除插件）
 type ToolRegistry struct {
-	tools     map[string]Tool
-	toolOrder []string
+	tools            map[string]Tool
+	toolOrder        []string
+	messagePublisher toolMessagePublisher
+}
+
+func WithToolMessagePublisher(publisher toolMessagePublisher) ToolRegistryOption {
+	return func(r *ToolRegistry) {
+		if r != nil {
+			r.messagePublisher = publisher
+		}
+	}
 }
 
 // NewToolRegistry 创建 ToolRegistry。
-func NewToolRegistry() *ToolRegistry {
+func NewToolRegistry(options ...ToolRegistryOption) *ToolRegistry {
 	r := &ToolRegistry{
 		tools: make(map[string]Tool, 32),
+	}
+	for _, option := range options {
+		if option != nil {
+			option(r)
+		}
 	}
 	r.registerBuiltinTools()
 	return r
@@ -87,6 +108,7 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, args map[strin
 		return toolResult("tool not found: "+name, true)
 	}
 	definition := tool.Definition()
+	args = normalizeToolArgumentsForSchema(definition.InputSchema, args)
 	if err := validateToolArguments(definition.InputSchema, args); err != nil {
 		return toolResult("tool 参数校验失败: "+err.Error(), true)
 	}

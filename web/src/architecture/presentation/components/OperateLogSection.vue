@@ -110,8 +110,9 @@
               class="history-table form-history-table"
               :empty-text="t('operateLog.empty')"
               :row-key="getLogRowKey"
+              :row-class-name="getLogRowClassName"
               :expand-row-keys="expandedLogRowKeys"
-              @expand-change="handleLogExpandChange"
+              @expand-change="handleLogExpandChangeWithRoute"
             >
               <el-table-column type="expand" width="40">
                 <template #default="{ row }">
@@ -315,8 +316,9 @@
           class="history-table table-history-table"
           :empty-text="t('operateLog.empty')"
           :row-key="getLogRowKey"
+          :row-class-name="getLogRowClassName"
           :expand-row-keys="expandedLogRowKeys"
-          @expand-change="handleLogExpandChange"
+          @expand-change="handleLogExpandChangeWithRoute"
         >
           <el-table-column type="expand" width="40">
             <template #default="{ row }">
@@ -531,6 +533,7 @@
 
 <script setup lang="ts">
 import { computed, ref, toRef } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Clock, Refresh, Search } from '@element-plus/icons-vue'
 import {
@@ -555,6 +558,12 @@ import UserDisplay from '@/architecture/presentation/shared/components/UserDispl
 import { useOperateLogSection } from '@/architecture/presentation/composables/useOperateLogSection'
 import OperateLogFieldValue from './OperateLogFieldValue.vue'
 import OperateLogFieldChange from './OperateLogFieldChange.vue'
+import {
+  buildOperateLogRoute,
+  PLATFORM_LOG_ID_QUERY_KEY,
+  PLATFORM_TRACE_ID_QUERY_KEY,
+  readStringQuery,
+} from '@/architecture/shared/routing/platformRouteParams'
 
 interface Props {
   fullCodePath: string
@@ -580,9 +589,13 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const previewDialogVisible = ref(false)
 const previewActiveTab = ref('request')
 const previewLog = ref<any | null>(null)
+const focusLogId = computed(() => readStringQuery(route.query, PLATFORM_LOG_ID_QUERY_KEY))
+const focusTraceId = computed(() => readStringQuery(route.query, PLATFORM_TRACE_ID_QUERY_KEY))
 
 const {
   logs,
@@ -618,6 +631,7 @@ const {
   getLogMetaEntries,
   applyFormLog,
   getLogRowKey,
+  getLogRowClassName,
   handleLogExpandChange,
   handleSearch,
   handleActionChange,
@@ -635,6 +649,8 @@ const {
   functionDetail: toRef(props, 'functionDetail'),
   autoLoad: toRef(props, 'autoLoad'),
   scope: toRef(props, 'scope'),
+  focusLogId,
+  focusTraceId,
   onApplyFormLog: props.onApplyFormLog,
 })
 
@@ -734,9 +750,34 @@ function isFilesField(field: any): boolean {
 }
 
 function openPreviewDialog(log: any) {
+  syncOperateLogRoute(log)
   previewLog.value = log
   previewActiveTab.value = 'request'
   previewDialogVisible.value = true
+}
+
+function handleLogExpandChangeWithRoute(log: any, expandedRows: any[]) {
+  handleLogExpandChange(log, expandedRows)
+  if (expandedRows.some((item) => item.id === log.id)) {
+    syncOperateLogRoute(log)
+  }
+}
+
+function syncOperateLogRoute(log: any) {
+  if (!props.fullCodePath || !log?.id) return
+  const target = buildOperateLogRoute({
+    fullCodePath: props.fullCodePath,
+    logId: log.id,
+    traceId: log.trace_id,
+    sourcePath: log.full_code_path || props.fullCodePath,
+  })
+  router.replace({
+    path: route.path,
+    query: {
+      ...route.query,
+      ...target.query,
+    },
+  })
 }
 
 function handlePreviewApply() {
@@ -965,6 +1006,10 @@ defineExpose({
 .history-table :deep(.cell) {
   padding-top: 8px;
   padding-bottom: 8px;
+}
+
+.history-table :deep(.el-table__row.is-focused-log > td.el-table__cell) {
+  background: color-mix(in srgb, var(--el-color-primary) 9%, var(--el-bg-color));
 }
 
 .table-history-table {

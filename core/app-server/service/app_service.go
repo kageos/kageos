@@ -152,6 +152,7 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 	}
 	dbElapsed := time.Since(start)
 	req.Version = app.Version
+	a.applyRequestSourceContext(ctx, req)
 	logger.Infof(ctx, "[AppService:RequestApp] start: traceId=%s, %s/%s/%s, method=%s, router=%s, natsId=%d, dbElapsed=%s",
 		req.TraceId, req.User, req.App, req.Version, req.Method, req.Router, app.NatsID, dbElapsed.Truncate(time.Millisecond))
 
@@ -172,6 +173,75 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 		req.TraceId, req.User, req.App, req.Version, resp.Error != "", totalElapsed.Truncate(time.Millisecond))
 	resp.Version = req.Version
 	return resp, nil
+}
+
+func (a *AppService) applyRequestSourceContext(ctx context.Context, req *dto.RequestAppReq) {
+	if a == nil || a.serviceTreeRepo == nil || req == nil {
+		return
+	}
+	if req.SourcePath == "" {
+		req.SourcePath = requestAppFullCodePath(req)
+	}
+	if req.SourcePath == "" {
+		return
+	}
+	if req.SourceTitle != "" && req.SourceParentTitle != "" && req.SourceTemplateType != "" {
+		return
+	}
+
+	sourcePath := access.NormalizeResourcePath(req.SourcePath)
+	parentPath := strings.TrimSpace(req.SourceParentPath)
+	if parentPath == "" {
+		parentPath = parentFullCodePath(sourcePath)
+	}
+	paths := []string{sourcePath}
+	if parentPath != "" {
+		paths = append(paths, parentPath)
+	}
+	nodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(paths)
+	if err != nil {
+		logger.Warnf(ctx, "[AppService:RequestApp] resolve source display failed: source_path=%s err=%v", sourcePath, err)
+		return
+	}
+	if source := nodes[sourcePath]; source != nil {
+		if req.SourceTitle == "" {
+			req.SourceTitle = source.Name
+		}
+		if req.SourceTemplateType == "" {
+			req.SourceTemplateType = source.TemplateType
+		}
+	}
+	if parentPath != "" {
+		req.SourceParentPath = parentPath
+		if parent := nodes[parentPath]; parent != nil {
+			if req.SourceParentTitle == "" {
+				req.SourceParentTitle = parent.Name
+			}
+		}
+	}
+}
+
+func requestAppFullCodePath(req *dto.RequestAppReq) string {
+	if req == nil {
+		return ""
+	}
+	router := strings.Trim(strings.TrimSpace(req.Router), "/")
+	if router == "" || strings.HasPrefix(router, "_") {
+		return ""
+	}
+	return access.NormalizeResourcePath(fmt.Sprintf("/%s/%s/%s", strings.TrimSpace(req.User), strings.TrimSpace(req.App), router))
+}
+
+func parentFullCodePath(fullCodePath string) string {
+	fullCodePath = strings.Trim(strings.TrimSpace(fullCodePath), "/")
+	if fullCodePath == "" {
+		return ""
+	}
+	parts := strings.Split(fullCodePath, "/")
+	if len(parts) <= 2 {
+		return ""
+	}
+	return "/" + strings.Join(parts[:len(parts)-1], "/")
 }
 
 func (a *AppService) requireFunctionConnectors(ctx context.Context, req *dto.RequestAppReq) error {
@@ -205,7 +275,7 @@ func (a *AppService) requireFunctionConnectors(ctx context.Context, req *dto.Req
 	return nil
 }
 
-// IncrementFunctionRunCount 将指定 full_code_path 的 function 运行次数 +1（成功执行 Form/Table/Chart 后调用，用于 search_tools 按热度排序）
+// IncrementFunctionRunCount 将指定 full_code_path 的 function 运行次数 +1（成功执行 Form/Table/Chart 后调用，用于 search 按热度排序）
 func (a *AppService) IncrementFunctionRunCount(ctx context.Context, fullCodePath string) {
 	if fullCodePath == "" {
 		return

@@ -2,6 +2,73 @@
  * 日期/时间工具函数
  */
 
+export interface DateTimeShortcut {
+  text: string
+  value: () => Date
+}
+
+const MINUTE_MS = 60 * 1000
+const HOUR_MS = 60 * MINUTE_MS
+const DAY_MS = 24 * HOUR_MS
+
+/**
+ * 创建单点日期时间快捷选项。
+ * value 使用函数，确保用户点击时才基于当前时间计算。
+ */
+export function createRelativeDateTimeShortcuts(): DateTimeShortcut[] {
+  return [
+    { text: '现在', value: () => new Date() },
+    { text: '10分钟后', value: () => fromNow(10 * MINUTE_MS) },
+    { text: '15分钟后', value: () => fromNow(15 * MINUTE_MS) },
+    { text: '30分钟后', value: () => fromNow(30 * MINUTE_MS) },
+    { text: '1小时后', value: () => fromNow(HOUR_MS) },
+    { text: '2小时后', value: () => fromNow(2 * HOUR_MS) },
+    { text: '3小时后', value: () => fromNow(3 * HOUR_MS) },
+    { text: '6小时后', value: () => fromNow(6 * HOUR_MS) },
+    { text: '12小时后', value: () => fromNow(12 * HOUR_MS) },
+    { text: '今天18:00', value: () => todayAt(18, 0) },
+    { text: '明早09:00', value: () => daysFromNowAt(1, 9, 0) },
+    { text: '明晚18:00', value: () => daysFromNowAt(1, 18, 0) },
+    { text: '明天现在', value: () => shiftCalendarDays(1) },
+    { text: '后天09:00', value: () => daysFromNowAt(2, 9, 0) },
+    { text: '一天后', value: () => fromNow(DAY_MS) },
+    { text: '一周后', value: () => shiftCalendarDays(7) },
+    { text: '下周一09:00', value: () => nextWeekdayAt(1, 9, 0) },
+    { text: '昨天现在', value: () => shiftCalendarDays(-1) },
+  ]
+}
+
+function fromNow(offsetMilliseconds: number): Date {
+  return new Date(Date.now() + offsetMilliseconds)
+}
+
+function todayAt(hours: number, minutes: number): Date {
+  const date = new Date()
+  date.setHours(hours, minutes, 0, 0)
+  return date
+}
+
+function daysFromNowAt(days: number, hours: number, minutes: number): Date {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  date.setHours(hours, minutes, 0, 0)
+  return date
+}
+
+function shiftCalendarDays(days: number): Date {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return date
+}
+
+function nextWeekdayAt(weekday: number, hours: number, minutes: number): Date {
+  const date = new Date()
+  const daysUntilWeekday = (weekday + 7 - date.getDay()) % 7 || 7
+  date.setDate(date.getDate() + daysUntilWeekday)
+  date.setHours(hours, minutes, 0, 0)
+  return date
+}
+
 /**
  * 格式化时间值
  * 

@@ -31,22 +31,33 @@ const TokenHeader = "X-Token"
 const ClientSourceHeader = "X-Client-Source"
 
 const (
-	ClientSourceBrowser     = "browser"
-	ClientSourceAgent       = "agent"
-	ClientSourceOpenAPI     = "openapi"
-	ClientSourcePublicShare = "public_share"
-	ClientSourceUnknown     = "unknown"
+	ClientSourceBrowser       = "browser"
+	ClientSourceAgent         = "agent"
+	ClientSourceOpenAPI       = "openapi"
+	ClientSourcePublicShare   = "public_share"
+	ClientSourceScheduledTask = "scheduled_task"
+	ClientSourceUnknown       = "unknown"
 )
 
 // SourceTypeHeader / SourceRefHeader 标记后台自动化、函数触发等调用来源。
 // 定时 Agent 会话先埋 ref，后续工具白名单可基于这些字段在工具入口统一控制。
 const SourceTypeHeader = "X-Source-Type"
 const SourceRefHeader = "X-Source-Ref"
+const SourcePathHeader = "X-Source-Path"
+const SourceTitleHeader = "X-Source-Title"
+const SourceParentPathHeader = "X-Source-Parent-Path"
+const SourceParentTitleHeader = "X-Source-Parent-Title"
+const SourceTemplateTypeHeader = "X-Source-Template-Type"
+
+const WorkspaceSessionIDHeader = "X-Workspace-Session-Id"
+const WorkspaceSessionTitleHeader = "X-Workspace-Session-Title"
+const WorkspaceRoleHeader = "X-Workspace-Role"
 
 const (
-	SourceTypeOpenAPIToken = "openapi_token"
-	SourceTypePublicShare  = "public_share"
-	SourceTypeAgentTool    = "agent_tool"
+	SourceTypeOpenAPIToken  = "openapi_token"
+	SourceTypePublicShare   = "public_share"
+	SourceTypeAgentTool     = "agent_tool"
+	SourceTypeScheduledTask = "scheduled_task"
 )
 
 const PubKeyHerder = "X-Pub-Key"
@@ -185,6 +196,8 @@ func ResolveClientSource(c context.Context) string {
 		return ClientSourcePublicShare
 	case SourceTypeAgentTool:
 		return ClientSourceAgent
+	case SourceTypeScheduledTask:
+		return ClientSourceScheduledTask
 	default:
 		return ""
 	}
@@ -214,16 +227,39 @@ func GetSourceType(c context.Context) string {
 
 // GetSourceRef 获取调用来源引用。
 func GetSourceRef(c context.Context) string {
-	v, ok := c.(*gin.Context)
-	if ok {
-		return v.GetHeader(SourceRefHeader)
-	}
-	if value := c.Value(SourceRefHeader); value != nil {
-		if sourceRef, ok := value.(string); ok && sourceRef != "" {
-			return sourceRef
-		}
-	}
-	return ""
+	return getStringFromContextOrHeader(c, SourceRefHeader)
+}
+
+func GetSourcePath(c context.Context) string {
+	return getStringFromContextOrHeader(c, SourcePathHeader)
+}
+
+func GetSourceTitle(c context.Context) string {
+	return getStringFromContextOrHeader(c, SourceTitleHeader)
+}
+
+func GetSourceParentPath(c context.Context) string {
+	return getStringFromContextOrHeader(c, SourceParentPathHeader)
+}
+
+func GetSourceParentTitle(c context.Context) string {
+	return getStringFromContextOrHeader(c, SourceParentTitleHeader)
+}
+
+func GetSourceTemplateType(c context.Context) string {
+	return getStringFromContextOrHeader(c, SourceTemplateTypeHeader)
+}
+
+func GetWorkspaceSessionID(c context.Context) string {
+	return getStringFromContextOrHeader(c, WorkspaceSessionIDHeader)
+}
+
+func GetWorkspaceSessionTitle(c context.Context) string {
+	return getStringFromContextOrHeader(c, WorkspaceSessionTitleHeader)
+}
+
+func GetWorkspaceRole(c context.Context) string {
+	return getStringFromContextOrHeader(c, WorkspaceRoleHeader)
 }
 
 // GetToken 获取认证 Token
@@ -267,6 +303,42 @@ func WithSourceInfo(ctx context.Context, sourceType, sourceRef string) context.C
 	}
 	if sourceRef != "" {
 		ctx = context.WithValue(ctx, SourceRefHeader, sourceRef)
+	}
+	return ctx
+}
+
+func WithSourceDisplay(ctx context.Context, sourcePath, sourceTitle, parentPath, parentTitle, templateType string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	values := map[string]string{
+		SourcePathHeader:         strings.TrimSpace(sourcePath),
+		SourceTitleHeader:        strings.TrimSpace(sourceTitle),
+		SourceParentPathHeader:   strings.TrimSpace(parentPath),
+		SourceParentTitleHeader:  strings.TrimSpace(parentTitle),
+		SourceTemplateTypeHeader: strings.TrimSpace(templateType),
+	}
+	for key, value := range values {
+		if value != "" {
+			ctx = context.WithValue(ctx, key, value)
+		}
+	}
+	return ctx
+}
+
+func WithWorkspaceSession(ctx context.Context, sessionID, sessionTitle, role string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	values := map[string]string{
+		WorkspaceSessionIDHeader:    strings.TrimSpace(sessionID),
+		WorkspaceSessionTitleHeader: strings.TrimSpace(sessionTitle),
+		WorkspaceRoleHeader:         strings.TrimSpace(role),
+	}
+	for key, value := range values {
+		if value != "" {
+			ctx = context.WithValue(ctx, key, value)
+		}
 	}
 	return ctx
 }
@@ -417,6 +489,22 @@ func ToContext(c *gin.Context) context.Context {
 		c.Request.Header.Set(SourceRefHeader, sourceRef)
 	}
 
+	for _, key := range []string{
+		SourcePathHeader,
+		SourceTitleHeader,
+		SourceParentPathHeader,
+		SourceParentTitleHeader,
+		SourceTemplateTypeHeader,
+		WorkspaceSessionIDHeader,
+		WorkspaceSessionTitleHeader,
+		WorkspaceRoleHeader,
+	} {
+		if value := c.GetHeader(key); value != "" {
+			ctx = context.WithValue(ctx, key, value)
+			c.Request.Header.Set(key, value)
+		}
+	}
+
 	// 8. PresignHost：优先 X-Forwarded-Host（含端口），无端口时用 X-Forwarded-Port 或 PresignDefaultPort 补全，与浏览器 PUT 的 Host 一致避免 403
 	presignHost := c.GetHeader("X-Forwarded-Host")
 	if presignHost == "" {
@@ -455,6 +543,20 @@ func NatsTraceContext(msg *nats.Msg) context.Context {
 	if sourceRef := msg.Header.Get(SourceRefHeader); sourceRef != "" {
 		ctx = context.WithValue(ctx, SourceRefHeader, sourceRef)
 	}
+	for _, key := range []string{
+		SourcePathHeader,
+		SourceTitleHeader,
+		SourceParentPathHeader,
+		SourceParentTitleHeader,
+		SourceTemplateTypeHeader,
+		WorkspaceSessionIDHeader,
+		WorkspaceSessionTitleHeader,
+		WorkspaceRoleHeader,
+	} {
+		if value := msg.Header.Get(key); value != "" {
+			ctx = context.WithValue(ctx, key, value)
+		}
+	}
 
 	return ctx
 }
@@ -489,22 +591,47 @@ func CtxToTraceNats(c context.Context, subject string) *nats.Msg {
 	if sourceRef := GetSourceRef(c); sourceRef != "" {
 		msg.Header.Set(SourceRefHeader, sourceRef)
 	}
+	for _, item := range []struct {
+		key   string
+		value string
+	}{
+		{SourcePathHeader, GetSourcePath(c)},
+		{SourceTitleHeader, GetSourceTitle(c)},
+		{SourceParentPathHeader, GetSourceParentPath(c)},
+		{SourceParentTitleHeader, GetSourceParentTitle(c)},
+		{SourceTemplateTypeHeader, GetSourceTemplateType(c)},
+		{WorkspaceSessionIDHeader, GetWorkspaceSessionID(c)},
+		{WorkspaceSessionTitleHeader, GetWorkspaceSessionTitle(c)},
+		{WorkspaceRoleHeader, GetWorkspaceRole(c)},
+	} {
+		if item.value != "" {
+			msg.Header.Set(item.key, item.value)
+		}
+	}
 	return msg
 
 }
 
 // RequestInfo 无 HTTP 请求时的请求信息，与 ToContext 透传字段一致
 type RequestInfo struct {
-	TraceId            string
-	RequestUser        string
-	Token              string
-	DepartmentFullPath string
-	CompanyCode        string
-	CompanyName        string
-	CompanyLogoURL     string
-	ClientSource       string
-	SourceType         string
-	SourceRef          string
+	TraceId               string
+	RequestUser           string
+	Token                 string
+	DepartmentFullPath    string
+	CompanyCode           string
+	CompanyName           string
+	CompanyLogoURL        string
+	ClientSource          string
+	SourceType            string
+	SourceRef             string
+	SourcePath            string
+	SourceTitle           string
+	SourceParentPath      string
+	SourceParentTitle     string
+	SourceTemplateType    string
+	WorkspaceSessionID    string
+	WorkspaceSessionTitle string
+	WorkspaceRole         string
 }
 
 // WithRequestInfo 一次性注入与 ToContext 一致的 context（用于后台任务等无 HTTP 请求场景）
@@ -539,6 +666,8 @@ func WithRequestInfo(ctx context.Context, info RequestInfo) context.Context {
 	if info.SourceRef != "" {
 		ctx = context.WithValue(ctx, SourceRefHeader, info.SourceRef)
 	}
+	ctx = WithSourceDisplay(ctx, info.SourcePath, info.SourceTitle, info.SourceParentPath, info.SourceParentTitle, info.SourceTemplateType)
+	ctx = WithWorkspaceSession(ctx, info.WorkspaceSessionID, info.WorkspaceSessionTitle, info.WorkspaceRole)
 	return ctx
 }
 

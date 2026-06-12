@@ -70,6 +70,19 @@ type FormOperateLogDetails struct {
 	ResponseBody   interface{} `json:"response_body,omitempty"`
 }
 
+// FunctionExecutionLogDetails 是函数级执行日志的固定结构。
+type FunctionExecutionLogDetails struct {
+	Router          string      `json:"router"`
+	Method          string      `json:"method"`
+	TemplateType    string      `json:"template_type,omitempty"`
+	ScheduledAction string      `json:"scheduled_action,omitempty"`
+	DurationMillis  int64       `json:"duration_millis,omitempty"`
+	SourceType      string      `json:"source_type,omitempty"`
+	SourceRef       string      `json:"source_ref,omitempty"`
+	RequestPayload  interface{} `json:"request_payload,omitempty"`
+	ResponseBody    interface{} `json:"response_body,omitempty"`
+}
+
 // AppCallLogResponseBody 是 Form/Table 审计中记录应用回调响应的固定结构。
 type AppCallLogResponseBody struct {
 	Code          int         `json:"code"`

@@ -180,6 +180,7 @@ type SearchFunctionsReq struct {
 	User         string `json:"user" form:"user"`                        // 用户名（可选，用于过滤应用）
 	App          string `json:"app" form:"app"`                          // 应用名（可选，用于过滤应用）
 	Keyword      string `json:"keyword" form:"keyword"`                  // 搜索关键词（可选，用于搜索名称和路径）
+	FullCodePath string `json:"full_code_path" form:"full_code_path"`    // 完整路径（可选，精确/目录前缀搜索）
 	TemplateType string `json:"template_type" form:"template_type"`      // 模板类型过滤（可选，如：form、table、chart）
 	Page         int    `json:"page" form:"page"  example:"1"`           // 页码
 	PageSize     int    `json:"page_size" form:"page_size" example:"10"` // 每页数量
@@ -199,6 +200,7 @@ type SearchResourcesReq struct {
 	User         string `json:"user" form:"user"`                        // 用户名（可选，用于过滤应用）
 	App          string `json:"app" form:"app"`                          // 应用名（可选，用于过滤应用）
 	Keyword      string `json:"keyword" form:"keyword"`                  // 搜索关键词
+	FullCodePath string `json:"full_code_path" form:"full_code_path"`    // 完整路径（可选，精确/目录前缀搜索）
 	ResourceType string `json:"resource_type" form:"resource_type"`      // 资源类型：all/package/function/docs
 	Page         int    `json:"page" form:"page" example:"1"`            // 页码
 	PageSize     int    `json:"page_size" form:"page_size" example:"20"` // 每页数量
@@ -245,7 +247,7 @@ type FunctionSearchResult struct {
 	AppID              int64                          `json:"app_id" example:"1"`                                           // 应用ID
 	AppUser            string                         `json:"app_user" example:"system"`                                    // 应用所属用户
 	AppCode            string                         `json:"app_code" example:"tools"`                                     // 应用代码
-	RunCount           int                            `json:"run_count,omitempty"`                                          // 运行次数（用于 search_tools 按热度排序）
+	RunCount           int                            `json:"run_count,omitempty"`                                          // 运行次数（用于 search 按热度排序）
 	Schema             *functionschema.FunctionSchema `json:"schema,omitempty"`                                             // 函数 schema 摘要
 }
 

@@ -108,6 +108,23 @@ func applyCommonHeaders(req *http.Request, ctx context.Context) {
 	if sourceRef := contextx.GetSourceRef(ctx); sourceRef != "" {
 		req.Header.Set(contextx.SourceRefHeader, sourceRef)
 	}
+	for _, item := range []struct {
+		key   string
+		value string
+	}{
+		{contextx.SourcePathHeader, contextx.GetSourcePath(ctx)},
+		{contextx.SourceTitleHeader, contextx.GetSourceTitle(ctx)},
+		{contextx.SourceParentPathHeader, contextx.GetSourceParentPath(ctx)},
+		{contextx.SourceParentTitleHeader, contextx.GetSourceParentTitle(ctx)},
+		{contextx.SourceTemplateTypeHeader, contextx.GetSourceTemplateType(ctx)},
+		{contextx.WorkspaceSessionIDHeader, contextx.GetWorkspaceSessionID(ctx)},
+		{contextx.WorkspaceSessionTitleHeader, contextx.GetWorkspaceSessionTitle(ctx)},
+		{contextx.WorkspaceRoleHeader, contextx.GetWorkspaceRole(ctx)},
+	} {
+		if item.value != "" {
+			req.Header.Set(item.key, item.value)
+		}
+	}
 	if anonymousToken, ok := ctx.Value(publicshare.AnonymousTokenHeader).(string); ok && strings.TrimSpace(anonymousToken) != "" {
 		req.Header.Set(publicshare.AnonymousTokenHeader, strings.TrimSpace(anonymousToken))
 	}

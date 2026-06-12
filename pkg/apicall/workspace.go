@@ -34,6 +34,7 @@ func SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.Sea
 		withTrimmedQueryValue("user", req.User),
 		withTrimmedQueryValue("app", req.App),
 		withTrimmedQueryValue("keyword", req.Keyword),
+		withFullCodePathQuery(req.FullCodePath),
 		withTrimmedQueryValue("template_type", req.TemplateType),
 	))
 }
@@ -45,7 +46,15 @@ func SearchResources(ctx context.Context, req *dto.SearchResourcesReq) (*dto.Sea
 		withTrimmedQueryValue("user", req.User),
 		withTrimmedQueryValue("app", req.App),
 		withTrimmedQueryValue("keyword", req.Keyword),
+		withFullCodePathQuery(req.FullCodePath),
 		withTrimmedQueryValue("resource_type", req.ResourceType),
+	))
+}
+
+// MyPermissions 查询当前用户对资源的权限。
+func MyPermissions(ctx context.Context, resourcePath string) (*dto.MyPermissionsResp, error) {
+	return GetAPI[*dto.MyPermissionsResp](ctx, "/workspace/api/v1/team_access/my_permissions", buildQueryParams(
+		withTrimmedQueryValue("resource_path", resourcePath),
 	))
 }
 

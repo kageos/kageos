@@ -25,6 +25,7 @@ export interface OperateLog {
 }
 
 export interface GetOperateLogsParams {
+  id?: number
   tenant_user?: string
   company_code?: string
   actor_user?: string

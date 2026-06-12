@@ -232,6 +232,19 @@
           @collapse="hideWorkstation"
         >
           <template #left-actions>
+            <el-button
+              v-if="featureFlags.scheduledTasks"
+              link
+              size="small"
+              class="mini-settings-btn"
+              title="定时会话"
+              data-testid="mini-workstation-schedule"
+              :disabled="!fullCodePath"
+              @mousedown.stop
+              @click.stop="openScheduledAgentTaskDialog"
+            >
+              <el-icon :size="15"><Calendar /></el-icon>
+            </el-button>
             <el-popover
               trigger="click"
               placement="top-start"
@@ -284,6 +297,16 @@
     @update:content="dfPreviewContent = $event"
   />
 
+  <ScheduledAgentTaskDialog
+    v-if="featureFlags.scheduledTasks"
+    v-model="showScheduledAgentTaskDialog"
+    :full-code-path="fullCodePath"
+    :initial-message="scheduledDraftMessage"
+    :initial-files="scheduledDraftFiles"
+    :initial-attached-files="attachedFiles"
+    :initial-l-l-m-config-id="scheduledDraftLLMConfigId"
+  />
+
 </template>
 
 <script setup lang="ts">
@@ -293,6 +316,7 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUp,
+  Calendar,
   Clock,
   Close,
   Plus,
@@ -310,6 +334,7 @@ import MiniWorkstationDisplayFieldPreviewDialog from './MiniWorkstationDisplayFi
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
 import MiniWorkstationDebugSettings from './MiniWorkstationDebugSettings.vue'
 import MiniWorkstationMessages from './MiniWorkstationMessages.vue'
+import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { useMiniWorkstationPanel } from '../composables/useMiniWorkstationPanel'
 import { useMiniWorkstationSessions } from '../composables/useMiniWorkstationSessions'
@@ -333,6 +358,7 @@ import {
 } from '../composables/useMiniWorkstationSessionView'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import { createWorkspaceHandoff, recordWorkspaceInteractionEvent, resolveWorkspaceSessionInteraction, type WorkspaceInteraction, type WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
+import { featureFlags } from '@/architecture/shared/config/features'
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
@@ -372,6 +398,10 @@ const inputText = ref('')
 const inputRef = ref<HTMLTextAreaElement>()
 const llmSelectOpen = ref(false)
 const settingsPopoverOpen = ref(false)
+const showScheduledAgentTaskDialog = ref(false)
+const scheduledDraftMessage = ref('')
+const scheduledDraftFiles = ref('')
+const scheduledDraftLLMConfigId = ref(0)
 const interactionOpen = computed(() => llmSelectOpen.value || settingsPopoverOpen.value)
 const handledInteractionKeys = ref<Set<string>>(new Set())
 const artifactPanelExpanded = ref(false)
@@ -511,6 +541,13 @@ const {
   fullCodePath: fullCodePathRef,
   inputText,
   inputRef
+})
+
+const attachedFileRefs = computed(() => {
+  return attachedFiles.value
+    .map((file) => file.ref)
+    .filter((ref): ref is string => !!ref)
+    .join(',')
 })
 
 const artifactItems = computed<MiniArtifactItem[]>(() => {
@@ -782,6 +819,13 @@ const {
   handleSend,
   sendTextToSession
 } = composer
+
+function openScheduledAgentTaskDialog() {
+  scheduledDraftMessage.value = inputText.value.trim()
+  scheduledDraftFiles.value = attachedFileRefs.value
+  scheduledDraftLLMConfigId.value = selectedLLMConfigId.value || 0
+  showScheduledAgentTaskDialog.value = true
+}
 
 type StageInteractionArtifact = Record<string, unknown> & {
   kind?: string

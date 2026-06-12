@@ -81,6 +81,12 @@ func TestRenderBundledConfig(t *testing.T) {
 	if !strings.Contains(mysqlInit, "CREATE DATABASE IF NOT EXISTS `connector-server`") {
 		t.Fatalf("mysql init should create connector-server database, got:\n%s", mysqlInit)
 	}
+	if !strings.Contains(mysqlInit, "CREATE DATABASE IF NOT EXISTS `timer-scheduler`") {
+		t.Fatalf("mysql init should create timer-scheduler database, got:\n%s", mysqlInit)
+	}
+	if !strings.Contains(mysqlInit, "CREATE DATABASE IF NOT EXISTS `message-server`") {
+		t.Fatalf("mysql init should create message-server database, got:\n%s", mysqlInit)
+	}
 
 	appServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-server.yaml"))
 	if strings.Contains(appServerConfig, `scheduled_task_db`) {
@@ -145,6 +151,28 @@ func TestRenderBundledConfig(t *testing.T) {
 		}
 	}
 
+	timerSchedulerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "timer-scheduler.yaml"))
+	for _, want := range []string{
+		`port: 9098`,
+		`name: "timer-scheduler"`,
+		`poll_interval_millis: 1000`,
+	} {
+		if !strings.Contains(timerSchedulerConfig, want) {
+			t.Fatalf("generated timer-scheduler config missing %q, got:\n%s", want, timerSchedulerConfig)
+		}
+	}
+
+	messageServerConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "message-server.yaml"))
+	for _, want := range []string{
+		`port: 9099`,
+		`name: "message-server"`,
+		`allow_nats_degraded_startup: false`,
+	} {
+		if !strings.Contains(messageServerConfig, want) {
+			t.Fatalf("generated message-server config missing %q, got:\n%s", want, messageServerConfig)
+		}
+	}
+
 	for _, want := range []string{
 		`system_user:`,
 		`password: "` + cfg.SystemUser.Password + `"`,
@@ -161,7 +189,13 @@ func TestRenderBundledConfig(t *testing.T) {
 	if !strings.Contains(apiGatewayConfig, `path: "/connector"`) {
 		t.Fatalf("generated api-gateway config should proxy connector APIs, got:\n%s", apiGatewayConfig)
 	}
-	for _, retired := range []string{`path: "/message"`, `path: "/control"`} {
+	if !strings.Contains(apiGatewayConfig, `path: "/timer"`) {
+		t.Fatalf("generated api-gateway config should proxy timer APIs, got:\n%s", apiGatewayConfig)
+	}
+	if !strings.Contains(apiGatewayConfig, `path: "/message"`) {
+		t.Fatalf("generated api-gateway config should proxy message APIs, got:\n%s", apiGatewayConfig)
+	}
+	for _, retired := range []string{`path: "/control"`} {
 		if strings.Contains(apiGatewayConfig, retired) {
 			t.Fatalf("generated api-gateway config should not include retired route %q, got:\n%s", retired, apiGatewayConfig)
 		}
@@ -504,6 +538,12 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 	if !strings.Contains(apiGatewayConfig, `path: "/connector"`) {
 		t.Fatalf("dev api-gateway config should proxy connector APIs, got:\n%s", apiGatewayConfig)
 	}
+	if !strings.Contains(apiGatewayConfig, `path: "/timer"`) {
+		t.Fatalf("dev api-gateway config should proxy timer APIs, got:\n%s", apiGatewayConfig)
+	}
+	if !strings.Contains(apiGatewayConfig, `path: "/message"`) {
+		t.Fatalf("dev api-gateway config should proxy message APIs, got:\n%s", apiGatewayConfig)
+	}
 	connectorServerConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "connector-server.yaml"))
 	for _, want := range []string{
 		`port: 9096`,
@@ -517,6 +557,26 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 	appRuntimeConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "app-runtime.yaml"))
 	if !strings.Contains(appRuntimeConfig, `base_image: "kagebase:latest"`) {
 		t.Fatalf("dev app-runtime config should use default base image, got:\n%s", appRuntimeConfig)
+	}
+	timerSchedulerConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "timer-scheduler.yaml"))
+	for _, want := range []string{
+		`port: 9098`,
+		`port: 3318`,
+		`name: "timer-scheduler"`,
+	} {
+		if !strings.Contains(timerSchedulerConfig, want) {
+			t.Fatalf("dev timer-scheduler config missing %q, got:\n%s", want, timerSchedulerConfig)
+		}
+	}
+	messageServerConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "message-server.yaml"))
+	for _, want := range []string{
+		`port: 9099`,
+		`port: 3318`,
+		`name: "message-server"`,
+	} {
+		if !strings.Contains(messageServerConfig, want) {
+			t.Fatalf("dev message-server config missing %q, got:\n%s", want, messageServerConfig)
+		}
 	}
 	envFile := filepath.Join(repoRoot, ".kageos", "dev", "env", "kageos.env")
 	if !fileExists(envFile) {
@@ -1169,12 +1229,14 @@ func TestRequiredMySQLDatabases(t *testing.T) {
 				AgentDatabase:     "agent-server",
 				ConnectorDatabase: "connector-server",
 				HRDatabase:        "hr-server",
+				TimerDatabase:     "timer-scheduler",
+				MessageDatabase:   "message-server",
 			},
 		},
 	}
 
 	got := requiredMySQLDatabases(rt)
-	for _, want := range []string{"app-server", "app-storage", "agent-server", "connector-server", "hr-server"} {
+	for _, want := range []string{"app-server", "app-storage", "agent-server", "connector-server", "hr-server", "timer-scheduler", "message-server"} {
 		if !containsString(got, want) {
 			t.Fatalf("required MySQL databases missing %q: %#v", want, got)
 		}

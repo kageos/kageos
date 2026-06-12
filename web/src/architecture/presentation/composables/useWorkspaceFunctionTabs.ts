@@ -4,8 +4,12 @@ import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/shared/logger'
 import type { ServiceTree } from '../../domain/types'
 import { featureFlags } from '@/architecture/shared/config/features'
+import {
+  clearOperateLogRouteQuery,
+  clearScheduledRouteQuery,
+} from '@/architecture/shared/routing/platformRouteParams'
 
-type FunctionTabName = 'content' | 'permission' | 'publicShare' | 'operateLog'
+type FunctionTabName = 'content' | 'permission' | 'publicShare' | 'operateLog' | 'scheduledTask'
 
 type FunctionFormViewRef = Record<string, unknown>
 
@@ -45,6 +49,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     if (functionActiveTab.value === 'permission') return 'permission'
     if (functionActiveTab.value === 'publicShare') return 'publicShare'
     if (functionActiveTab.value === 'operateLog') return 'operateLog'
+    if (functionActiveTab.value === 'scheduledTask') return 'scheduledTask'
     return undefined
   }
 
@@ -62,6 +67,12 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     } else {
       delete nextQuery._panel
     }
+    if (nextTab !== 'scheduledTask') {
+      clearScheduledRouteQuery(nextQuery)
+    }
+    if (nextTab !== 'operateLog') {
+      clearOperateLogRouteQuery(nextQuery)
+    }
 
     router.replace({
       path: route.path,
@@ -73,6 +84,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     if (tabName === 'permission') functionActiveTab.value = 'permission'
     else if (tabName === 'publicShare') functionActiveTab.value = 'publicShare'
     else if (tabName === 'operateLog' && featureFlags.operateLogs) functionActiveTab.value = 'operateLog'
+    else if (tabName === 'scheduledTask' && featureFlags.scheduledTasks) functionActiveTab.value = 'scheduledTask'
     else functionActiveTab.value = 'content'
     syncFunctionTabQuery()
   }
@@ -92,6 +104,11 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
 
     if (normalizedTab === 'operateLog' && featureFlags.operateLogs && currentFunction.value?.type === 'function') {
       functionActiveTab.value = 'operateLog'
+      return
+    }
+
+    if (normalizedTab === 'scheduledTask' && featureFlags.scheduledTasks && currentFunction.value?.type === 'function') {
+      functionActiveTab.value = 'scheduledTask'
       return
     }
 

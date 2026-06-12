@@ -27,6 +27,8 @@ mysql:
   connector_database: "connector-server"
   storage_database: "app-storage"
   hr_database: "hr-server"
+  timer_database: "timer-scheduler"
+  message_database: "message-server"
   create_bundled_sql: true
 
 nats:

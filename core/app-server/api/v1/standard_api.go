@@ -140,17 +140,25 @@ func (s *StandardAPI) buildRequestAppReq(c *gin.Context, fullCodePath string) (*
 	}
 
 	req := &dto.RequestAppReq{
-		User:            user,
-		App:             app,
-		Router:          router,
-		Method:          c.Request.Method,
-		TraceId:         contextx.GetTraceId(c),
-		RequestUser:     contextx.GetRequestUser(c),
-		RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
-		Token:           contextx.GetToken(c),
-		ClientSource:    contextx.GetClientSource(c),
-		SourceType:      contextx.GetSourceType(c),
-		SourceRef:       contextx.GetSourceRef(c),
+		User:                  user,
+		App:                   app,
+		Router:                router,
+		Method:                c.Request.Method,
+		TraceId:               contextx.GetTraceId(c),
+		RequestUser:           contextx.GetRequestUser(c),
+		RequestUserDept:       contextx.GetRequestDepartmentFullPath(c),
+		Token:                 contextx.GetToken(c),
+		ClientSource:          contextx.GetClientSource(c),
+		SourceType:            contextx.GetSourceType(c),
+		SourceRef:             contextx.GetSourceRef(c),
+		SourcePath:            fullCodePath,
+		SourceTitle:           contextx.GetSourceTitle(c),
+		SourceParentPath:      contextx.GetSourceParentPath(c),
+		SourceParentTitle:     contextx.GetSourceParentTitle(c),
+		SourceTemplateType:    contextx.GetSourceTemplateType(c),
+		WorkspaceSessionID:    contextx.GetWorkspaceSessionID(c),
+		WorkspaceSessionTitle: contextx.GetWorkspaceSessionTitle(c),
+		WorkspaceRole:         contextx.GetWorkspaceRole(c),
 	}
 
 	// 绑定请求体（POST、PUT、PATCH、DELETE 等方法通常有请求体）
@@ -227,17 +235,25 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 	}
 
 	req := &dto.RequestAppReq{
-		User:            user,
-		App:             app,
-		Router:          "/_callback",
-		Method:          c.Request.Method,
-		TraceId:         contextx.GetTraceId(c),
-		RequestUser:     contextx.GetRequestUser(c),
-		RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
-		Token:           contextx.GetToken(c),
-		ClientSource:    contextx.GetClientSource(c),
-		SourceType:      contextx.GetSourceType(c),
-		SourceRef:       contextx.GetSourceRef(c),
+		User:                  user,
+		App:                   app,
+		Router:                "/_callback",
+		Method:                c.Request.Method,
+		TraceId:               contextx.GetTraceId(c),
+		RequestUser:           contextx.GetRequestUser(c),
+		RequestUserDept:       contextx.GetRequestDepartmentFullPath(c),
+		Token:                 contextx.GetToken(c),
+		ClientSource:          contextx.GetClientSource(c),
+		SourceType:            contextx.GetSourceType(c),
+		SourceRef:             contextx.GetSourceRef(c),
+		SourcePath:            fullCodePath,
+		SourceTitle:           contextx.GetSourceTitle(c),
+		SourceParentPath:      contextx.GetSourceParentPath(c),
+		SourceParentTitle:     contextx.GetSourceParentTitle(c),
+		SourceTemplateType:    contextx.GetSourceTemplateType(c),
+		WorkspaceSessionID:    contextx.GetWorkspaceSessionID(c),
+		WorkspaceSessionTitle: contextx.GetWorkspaceSessionTitle(c),
+		WorkspaceRole:         contextx.GetWorkspaceRole(c),
 	}
 
 	// 读取请求体

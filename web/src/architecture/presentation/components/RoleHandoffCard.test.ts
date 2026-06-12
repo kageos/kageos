@@ -10,6 +10,7 @@ const TagStub = {
 function mountCard(resultData: Record<string, unknown>, args: Record<string, unknown> = {}) {
   return mount(RoleHandoffCard, {
     props: {
+      defaultCollapsed: false,
       toolCall: {
         id: 'call-change-role',
         index: 0,
@@ -54,7 +55,7 @@ function mountCard(resultData: Record<string, unknown>, args: Record<string, unk
             id: 'qa_engineer',
             display_name: '测试工程师',
             responsibility: '测试工程师确认 schema 后按实际功能顺序验证 Table/Form/Chart；不直接改代码。',
-            allowed_tools: ['change_role', 'read_doc', 'search_tools', 'run_form_submit'],
+            allowed_tools: ['change_role', 'read_doc', 'search', 'run_form_submit'],
             forbidden_tools: ['write_go_file', 'build_workspace'],
             runtime_contract: {
               sop: ['固定 execute_directory', '确认 schema', '调用 run_* 工具验证'],

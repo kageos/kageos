@@ -8,6 +8,11 @@ func runtimeTools(r *ToolRegistry) []Tool {
 		&RunTableCreateTool{},
 		&RunTableUpdateTool{},
 		&RunTableDeleteTool{},
+		&CreateScheduledFunctionTaskTool{},
+		&CreateScheduledAgentTaskTool{},
+		&ListScheduledTasksTool{},
+		&ManageScheduledTaskTool{},
+		&ListScheduledTaskExecutionsTool{},
 		&RunPythonTool{},
 		&RunOnSelectFuzzyTool{},
 	}

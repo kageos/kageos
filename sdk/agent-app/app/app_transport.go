@@ -61,6 +61,29 @@ func (t *AppTransport) PublishInvokeResponse(resp *dto.RequestAppResp, success b
 	return nil
 }
 
+func (t *AppTransport) PublishMessageCommand(ctx context.Context, envelope *dto.MessageSendEnvelope) error {
+	if t.conn == nil {
+		return fmt.Errorf("NATS connection is nil")
+	}
+	if envelope == nil {
+		return fmt.Errorf("message envelope is nil")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	msg, err := msgx.BuildJSONRequest(ctx, subjects.MessageSendCommandSubject, envelope)
+	if err != nil {
+		return fmt.Errorf("build message command: %w", err)
+	}
+	if err := t.conn.PublishMsg(msg); err != nil {
+		return fmt.Errorf("publish message command to %s: %w", subjects.MessageSendCommandSubject, err)
+	}
+	logger.Infof(ctx, "[PublishMessage] published async to %s, from=%s full_code_path=%s to_users=%s title=%s",
+		subjects.MessageSendCommandSubject, envelope.Meta.From, envelope.Meta.FullCodePath, envelope.Message.ToUsers, envelope.Message.Title)
+	return nil
+}
+
 func (t *AppTransport) PublishDiscoveryResponse(runtimeID string, startTime time.Time) error {
 	responseData := map[string]interface{}{
 		"type":       "response",

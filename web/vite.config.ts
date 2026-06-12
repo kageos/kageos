@@ -127,6 +127,16 @@ export default defineConfig(({ command, mode }) => {
         target: proxyTarget,
         changeOrigin: true,
       },
+      // Timer Scheduler API 通过网关代理
+      '/timer/api': {
+        target: proxyTarget,
+        changeOrigin: true,
+      },
+      // Message API 通过网关代理
+      '/message/api': {
+        target: proxyTarget,
+        changeOrigin: true,
+      },
       // 统一通过网关代理所有 API 请求（兜底，用于兼容旧路径）
       '/api': {
         target: proxyTarget,

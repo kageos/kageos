@@ -13,6 +13,7 @@ const (
 	WorkspaceRoleBuildEngineer       = workspaceroles.BuildEngineer
 	WorkspaceRoleQAEngineer          = workspaceroles.QAEngineer
 	WorkspaceRoleAppOperator         = workspaceroles.AppOperator
+	WorkspaceRoleAutomationOperator  = workspaceroles.AutomationOperator
 	WorkspaceRoleMaintenanceEngineer = workspaceroles.MaintenanceEngineer
 	WorkspaceRolePlatformEngineer    = workspaceroles.PlatformEngineer
 	WorkspaceRoleDataOperator        = workspaceroles.DataOperator
@@ -41,6 +42,10 @@ func isKnownWorkspaceRole(role string) bool {
 
 func workspaceRoleSpecFor(role string) (workspaceRoleSpec, bool) {
 	return workspaceroles.SpecFor(role)
+}
+
+func workspaceStandardRoleIDs() []string {
+	return append([]string(nil), workspaceroles.RouteOrder()...)
 }
 
 func workspaceRoleDisplayName(role string) string {

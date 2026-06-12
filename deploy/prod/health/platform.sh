@@ -12,3 +12,5 @@ check_http 9092
 check_http 9095
 check_http 9096
 check_http 9097
+check_http 9098
+check_http 9099

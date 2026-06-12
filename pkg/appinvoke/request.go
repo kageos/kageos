@@ -14,19 +14,27 @@ import (
 
 // RequestMeta 描述 runtime -> app invoke 请求的路由与调用头信息。
 type RequestMeta struct {
-	TraceID         string
-	RequestUser     string
-	RequestUserDept string
-	Token           string
-	AnonymousToken  string
-	ClientSource    string
-	SourceType      string
-	SourceRef       string
-	User            string
-	App             string
-	Version         string
-	Method          string
-	Router          string
+	TraceID               string
+	RequestUser           string
+	RequestUserDept       string
+	Token                 string
+	AnonymousToken        string
+	ClientSource          string
+	SourceType            string
+	SourceRef             string
+	SourcePath            string
+	SourceTitle           string
+	SourceParentPath      string
+	SourceParentTitle     string
+	SourceTemplateType    string
+	WorkspaceSessionID    string
+	WorkspaceSessionTitle string
+	WorkspaceRole         string
+	User                  string
+	App                   string
+	Version               string
+	Method                string
+	Router                string
 }
 
 // BuildRuntimeRequestMsg 构建发往 runtime 的 invoke 请求消息。
@@ -41,19 +49,27 @@ func BuildRuntimeRequestMsg(req *dto.RequestAppReq) (*nats.Msg, error) {
 	}
 
 	meta := RequestMeta{
-		TraceID:         req.TraceId,
-		RequestUser:     req.RequestUser,
-		RequestUserDept: req.RequestUserDept,
-		Token:           req.Token,
-		AnonymousToken:  req.AnonymousToken,
-		ClientSource:    req.ClientSource,
-		SourceType:      req.SourceType,
-		SourceRef:       req.SourceRef,
-		User:            req.User,
-		App:             req.App,
-		Version:         req.Version,
-		Method:          req.Method,
-		Router:          req.Router,
+		TraceID:               req.TraceId,
+		RequestUser:           req.RequestUser,
+		RequestUserDept:       req.RequestUserDept,
+		Token:                 req.Token,
+		AnonymousToken:        req.AnonymousToken,
+		ClientSource:          req.ClientSource,
+		SourceType:            req.SourceType,
+		SourceRef:             req.SourceRef,
+		SourcePath:            req.SourcePath,
+		SourceTitle:           req.SourceTitle,
+		SourceParentPath:      req.SourceParentPath,
+		SourceParentTitle:     req.SourceParentTitle,
+		SourceTemplateType:    req.SourceTemplateType,
+		WorkspaceSessionID:    req.WorkspaceSessionID,
+		WorkspaceSessionTitle: req.WorkspaceSessionTitle,
+		WorkspaceRole:         req.WorkspaceRole,
+		User:                  req.User,
+		App:                   req.App,
+		Version:               req.Version,
+		Method:                req.Method,
+		Router:                req.Router,
 	}
 
 	msg := &nats.Msg{
@@ -72,19 +88,27 @@ func ParseRuntimeRequest(msg *nats.Msg) (*RequestMeta, error) {
 	}
 
 	meta := &RequestMeta{
-		TraceID:         msg.Header.Get(contextx.TraceIdHeader),
-		RequestUser:     msg.Header.Get(contextx.RequestUserHeader),
-		RequestUserDept: msg.Header.Get(contextx.DepartmentFullPathHeader),
-		Token:           msg.Header.Get(contextx.TokenHeader),
-		AnonymousToken:  msg.Header.Get("X-Public-Anonymous-Token"),
-		ClientSource:    msg.Header.Get(contextx.ClientSourceHeader),
-		SourceType:      msg.Header.Get(contextx.SourceTypeHeader),
-		SourceRef:       msg.Header.Get(contextx.SourceRefHeader),
-		User:            msg.Header.Get("user"),
-		App:             msg.Header.Get("app"),
-		Version:         msg.Header.Get("version"),
-		Method:          msg.Header.Get("method"),
-		Router:          msg.Header.Get("router"),
+		TraceID:               msg.Header.Get(contextx.TraceIdHeader),
+		RequestUser:           msg.Header.Get(contextx.RequestUserHeader),
+		RequestUserDept:       msg.Header.Get(contextx.DepartmentFullPathHeader),
+		Token:                 msg.Header.Get(contextx.TokenHeader),
+		AnonymousToken:        msg.Header.Get("X-Public-Anonymous-Token"),
+		ClientSource:          msg.Header.Get(contextx.ClientSourceHeader),
+		SourceType:            msg.Header.Get(contextx.SourceTypeHeader),
+		SourceRef:             msg.Header.Get(contextx.SourceRefHeader),
+		SourcePath:            msg.Header.Get(contextx.SourcePathHeader),
+		SourceTitle:           msg.Header.Get(contextx.SourceTitleHeader),
+		SourceParentPath:      msg.Header.Get(contextx.SourceParentPathHeader),
+		SourceParentTitle:     msg.Header.Get(contextx.SourceParentTitleHeader),
+		SourceTemplateType:    msg.Header.Get(contextx.SourceTemplateTypeHeader),
+		WorkspaceSessionID:    msg.Header.Get(contextx.WorkspaceSessionIDHeader),
+		WorkspaceSessionTitle: msg.Header.Get(contextx.WorkspaceSessionTitleHeader),
+		WorkspaceRole:         msg.Header.Get(contextx.WorkspaceRoleHeader),
+		User:                  msg.Header.Get("user"),
+		App:                   msg.Header.Get("app"),
+		Version:               msg.Header.Get("version"),
+		Method:                msg.Header.Get("method"),
+		Router:                msg.Header.Get("router"),
 	}
 	if err := meta.Validate(); err != nil {
 		return nil, err
@@ -154,5 +178,22 @@ func (m *RequestMeta) ApplyHeaders(header nats.Header) {
 	}
 	if m.SourceRef != "" {
 		header.Set(contextx.SourceRefHeader, m.SourceRef)
+	}
+	for _, item := range []struct {
+		key   string
+		value string
+	}{
+		{contextx.SourcePathHeader, m.SourcePath},
+		{contextx.SourceTitleHeader, m.SourceTitle},
+		{contextx.SourceParentPathHeader, m.SourceParentPath},
+		{contextx.SourceParentTitleHeader, m.SourceParentTitle},
+		{contextx.SourceTemplateTypeHeader, m.SourceTemplateType},
+		{contextx.WorkspaceSessionIDHeader, m.WorkspaceSessionID},
+		{contextx.WorkspaceSessionTitleHeader, m.WorkspaceSessionTitle},
+		{contextx.WorkspaceRoleHeader, m.WorkspaceRole},
+	} {
+		if item.value != "" {
+			header.Set(item.key, item.value)
+		}
 	}
 }

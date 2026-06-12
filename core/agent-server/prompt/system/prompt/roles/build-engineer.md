@@ -29,7 +29,7 @@
 
 ## 允许工具
 
-`change_role`、`summarize_task_state`、`read_doc`、`read_go_file`、`read_go_file_lines`、`search_replace_file`、`write_go_file`、`read_app_log`、`build_workspace`。
+`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`read_go_file`、`read_go_file_lines`、`read_app_log`、`search`、`web_search`、`search_replace_file`、`write_go_file`、`build_workspace`。
 
 ## 禁止事项
 

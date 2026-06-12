@@ -8,8 +8,8 @@
     "read_go_file_lines",
     "read_doc",
     "read_dir",
-    "search_tools",
-    "search_resources",
+    "search",
+    "web_search",
     "write_prd",
     "write_doc",
     "write_go_file",
@@ -25,7 +25,8 @@
     "run_form_submit",
     "run_chart_query",
     "run_on_select_fuzzy",
-    "run_python"
+    "run_python",
+    "send_notification"
   ],
   "system_prompt_file": "system_prompt.md",
   "system_prompt_append_files": []

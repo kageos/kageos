@@ -1,5 +1,26 @@
 <template>
   <div class="role-handoff-card">
+    <!-- 折叠态：极简 chip，只透出角色切换与状态 -->
+    <div
+      v-if="collapsed"
+      class="role-handoff-chip"
+      role="button"
+      tabindex="0"
+      @click="collapsed = false"
+      @keydown.enter.prevent="collapsed = false"
+      @keydown.space.prevent="collapsed = false"
+    >
+      <span class="role-handoff-chip-icon" aria-hidden="true">⇄</span>
+      <span class="role-handoff-chip-text">
+        <span v-if="roleLabel" class="role-handoff-chip-role">{{ roleLabel }}</span>
+        <span v-else>角色交接</span>
+      </span>
+      <el-tag size="small" :type="statusType" class="role-handoff-chip-status">{{ statusLabel }}</el-tag>
+      <span class="role-handoff-chip-hint">展开详情</span>
+    </div>
+
+    <!-- 展开态：完整 debug 信息 -->
+    <template v-else>
     <div class="role-handoff-head">
       <div class="role-handoff-title">
         <span>角色交接</span>
@@ -186,11 +207,18 @@
         <span v-if="!appCapabilityFunctions.length && !appCapabilityGuidance.length" class="role-handoff-empty">未提供</span>
       </section>
     </div>
+
+    <div class="role-handoff-collapse-footer">
+      <button type="button" class="role-handoff-collapse-btn" @click="collapsed = true">
+        收起详情
+      </button>
+    </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { WorkspaceChatToolCallSummary } from '@/architecture/presentation/context/api/workspace'
 
 type UnknownRecord = Record<string, unknown>
@@ -235,9 +263,17 @@ interface BuildDiagnosticFieldIssueView {
   message: string
 }
 
-const props = defineProps<{
-  toolCall: WorkspaceChatToolCallSummary
-}>()
+const props = withDefaults(
+  defineProps<{
+    toolCall: WorkspaceChatToolCallSummary
+    defaultCollapsed?: boolean
+  }>(),
+  {
+    defaultCollapsed: true,
+  }
+)
+
+const collapsed = ref(props.defaultCollapsed)
 
 const args = computed<UnknownRecord>(() => parseJSONRecord(props.toolCall.arguments))
 const resultData = computed<UnknownRecord>(() => asRecord(props.toolCall.result_data))
@@ -653,6 +689,119 @@ function uniqueStrings(items: string[]): string[] {
   background: var(--el-fill-color-blank);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
+
+  // 折叠态：去掉卡片感，变成内敛的 inline chip
+  &:has(.role-handoff-chip) {
+    display: inline-flex;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+  }
+}
+
+.role-handoff-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+    border-color: var(--el-color-primary-light-5);
+
+    .role-handoff-chip-hint {
+      opacity: 1;
+      color: var(--el-color-primary);
+    }
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--el-color-primary-light-7);
+  }
+}
+
+.role-handoff-chip-icon {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  opacity: 0.7;
+
+  .role-handoff-chip:hover & {
+    color: var(--el-color-primary);
+    opacity: 1;
+  }
+}
+
+.role-handoff-chip-text {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 280px;
+}
+
+.role-handoff-chip-role {
+  overflow: hidden;
+  color: var(--el-text-color-regular);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  .role-handoff-chip:hover & {
+    color: var(--el-color-primary);
+  }
+}
+
+.role-handoff-chip-status {
+  flex-shrink: 0;
+}
+
+.role-handoff-chip-hint {
+  color: var(--el-text-color-placeholder);
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.role-handoff-collapse-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--el-border-color-lighter);
+}
+
+.role-handoff-collapse-btn {
+  padding: 4px 10px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  background: transparent;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+    border-color: var(--el-color-primary-light-5);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--el-color-primary-light-7);
+  }
 }
 
 .role-handoff-head {

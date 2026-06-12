@@ -144,3 +144,27 @@ func workspaceDirectorySearchKeyword(directory string) string {
 	}
 	return parts[len(parts)-1]
 }
+
+func workspaceCreateDirectoryTargetPath(args map[string]interface{}, executeDirectory string) string {
+	if args == nil {
+		return ""
+	}
+	parent := firstWorkspacePathStringArg(args, "directory", "full_code_path")
+	parent = normalizeWorkspacePath(firstNonEmptyString(parent, executeDirectory))
+	code := strings.Trim(firstWorkspacePathStringArg(args, "code"), "/")
+	if parent == "" || code == "" {
+		return ""
+	}
+	return normalizeWorkspacePath(parent + "/" + code)
+}
+
+func firstWorkspacePathStringArg(args map[string]interface{}, keys ...string) string {
+	for _, key := range keys {
+		if value, ok := args[key].(string); ok {
+			if value = strings.TrimSpace(value); value != "" {
+				return value
+			}
+		}
+	}
+	return ""
+}

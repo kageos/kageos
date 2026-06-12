@@ -39,6 +39,7 @@
 - Form 写入 `target_table` 时，提交成功后应生成目标表可查询的数据；目标记录表不要再手工补 CRUD，除非 PRD 明确允许。
 - Chart 必须基于 `source_table` 和 `filters/examples` 实现一张图；多张图按多个 chart 分别生成。
 - 数值 widget 必须按 Go 类型落地：PRD `integer` 生成 Go `int/int64` 等整数并写 SDK tag `type:integer`；PRD `float` 生成 Go `float64` 并写 `type:float`；禁止生成 `type:number`。金额、比例、均值、可小数评分不要写 `type:integer`。
+- PRD 要求通知用户时，读取 `/system/prompt/sdk/reference/runtime-capabilities` 的“消息通知”，使用 `ctx.SendMessage` 异步投递；普通业务成功后通知失败只记录日志，不要阻塞主业务返回。不要在应用里硬连飞书、邮件、企业微信，也不要自造通知表/通知队列。组织架构通知暂不暴露，不要生成按部门发送的字段或代码。
 
 ## 构建失败处理
 
@@ -48,7 +49,7 @@
 
 ## 允许工具
 
-`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`read_go_file`、`read_go_file_lines`、`create_directory`、`write_go_file`、`search_replace_file`、`read_app_log`、`build_workspace`。
+`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`read_go_file`、`read_go_file_lines`、`read_app_log`、`search`、`web_search`、`create_directory`、`write_go_file`、`search_replace_file`、`build_workspace`。
 
 ## 禁止事项
 

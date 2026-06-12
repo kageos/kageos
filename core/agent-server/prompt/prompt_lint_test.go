@@ -95,7 +95,6 @@ func TestPromptAndSeedDoNotExposeRetiredPlatformCapabilities(t *testing.T) {
 	}
 
 	forbiddenPromptPatterns := []string{
-		"SendMessage",
 		"FormOperateLog",
 		"UpgradeEnterprise",
 		"OnTableCreateInBatches",

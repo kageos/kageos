@@ -66,6 +66,8 @@ interface UseOperateLogSectionOptions {
   functionDetail: Ref<any>
   autoLoad: Ref<boolean>
   scope?: Ref<OperateLogScope>
+  focusLogId?: Ref<number | string>
+  focusTraceId?: Ref<string>
   onApplyFormLog?: (requestBody: Record<string, any>, responseBody: Record<string, any> | null) => void
 }
 
@@ -75,6 +77,8 @@ export function useOperateLogSection({
   functionDetail,
   autoLoad,
   scope,
+  focusLogId,
+  focusTraceId,
   onApplyFormLog,
 }: UseOperateLogSectionOptions) {
   const t = translate
@@ -104,6 +108,15 @@ export function useOperateLogSection({
   const actionOptions = computed(() => [
     { label: t('operateLog.allActions'), value: '' },
     ...(isFormOperateLog.value ? [{ label: t('operateLog.submit'), value: 'form_submit' }] : []),
+    ...(isFormOperateLog.value ? [{ label: t('operateLog.publicSubmit'), value: 'public_form_submit' }] : []),
+    { label: t('operateLog.scheduledExecute'), value: 'scheduled_function_execute' },
+    ...(currentScope() === 'directory'
+      ? [
+          { label: t('operateLog.resourceCreate'), value: 'service_tree.node.created' },
+          { label: t('operateLog.resourceUpdate'), value: 'service_tree.node.updated' },
+          { label: t('operateLog.resourceDelete'), value: 'service_tree.node.deleted' },
+        ]
+      : []),
     { label: t('operateLog.add'), value: 'OnTableAddRow' },
     { label: t('operateLog.update'), value: 'OnTableUpdateRow' },
     { label: t('operateLog.delete'), value: 'OnTableDeleteRows' },
@@ -114,6 +127,7 @@ export function useOperateLogSection({
     { label: t('operateLog.sourceOpenAPI'), value: 'openapi' },
     { label: t('operateLog.sourceAgent'), value: 'agent' },
     { label: t('operateLog.sourcePublicShare'), value: 'public_share' },
+    { label: t('operateLog.sourceScheduledTask'), value: 'scheduled_task' },
     { label: t('operateLog.sourceUnknown'), value: 'unknown' },
   ])
 
@@ -302,26 +316,30 @@ export function useOperateLogSection({
     loading.value = true
     try {
       await loadFunctionDetail()
-      const resourceType = scopeValue === 'directory'
-        ? ''
-        : (isFormOperateLog.value ? 'form' : 'table')
+      const resourceType = scopeValue === 'row' ? 'table' : ''
+      const focusedLogID = readPositiveID(focusLogId?.value)
+      const focusedTraceID = (focusTraceId?.value || '').trim()
+      const effectiveKeyword = keyword.value.trim() || (!focusedLogID ? focusedTraceID : '')
       const response = await getOperateLogs({
+        ...(focusedLogID ? { id: focusedLogID } : {}),
         ...(resourceType ? { resource_type: resourceType } : {}),
-        ...(scopeValue === 'directory'
-          ? { resource_path_prefix: fullCodePath.value }
-          : { resource_path: fullCodePath.value }),
+        ...(scopeValue === 'directory' ? { resource_path_prefix: fullCodePath.value } : { resource_path: fullCodePath.value }),
         ...(scopeValue === 'row' ? { row_id: rowId.value } : {}),
         ...(actionFilter.value ? { action: actionFilter.value } : {}),
         ...(sourceFilter.value ? { source: sourceFilter.value } : {}),
         ...(userFilter.value ? { actor_user: userFilter.value } : {}),
-        ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
+        ...(effectiveKeyword ? { keyword: effectiveKeyword } : {}),
         page: currentPage.value,
         page_size: pageSize.value,
         order_by: 'created_at DESC',
       })
       logs.value = (response.logs || []).map(normalizeOperateLog)
       total.value = response.total || 0
-      expandedLogIds.value = scopeValue === 'directory' ? [] : logs.value.map((log) => log.id)
+      if (focusedLogID && logs.value.some((log) => log.id === focusedLogID)) {
+        expandedLogIds.value = [focusedLogID]
+      } else {
+        expandedLogIds.value = scopeValue === 'directory' ? [] : logs.value.map((log) => log.id)
+      }
       await loadDirectoryFunctionDetails()
       await loadUserInfos()
       hasLoaded.value = true
@@ -376,15 +394,60 @@ export function useOperateLogSection({
     return 0
   }
 
+  const readPositiveID = (value: unknown): number => {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
+    if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) {
+      const parsed = Number(value)
+      return parsed > 0 ? parsed : 0
+    }
+    return 0
+  }
+
+  const isFormSubmitAction = (action: string): boolean => {
+    return action === 'form_submit' || action === 'public_form_submit'
+  }
+
+  const isServiceTreeAction = (action: string): boolean => {
+    return action === 'service_tree.node.created' || action === 'service_tree.node.updated' || action === 'service_tree.node.deleted'
+  }
+
+  const getServiceTreeResourceTypeLabel = (log: OperateLogEntry): string => {
+    const rawType = String(log.details_json?.node_type || log.resource_type || '').trim()
+    switch (rawType) {
+      case 'package':
+      case 'directory':
+        return t('operateLog.resourceDirectory')
+      case 'function':
+        return t('operateLog.resourceFunction')
+      case 'docs':
+      case 'doc':
+        return t('operateLog.resourceDocs')
+      case 'table':
+        return t('operateLog.resourceTable')
+      case 'form':
+        return t('operateLog.resourceForm')
+      case 'chart':
+        return t('operateLog.resourceChart')
+      default:
+        return t('operateLog.resourceNode')
+    }
+  }
+
   const getActionTagType = (action: string): TagProps['type'] => {
     switch (action) {
       case 'form_submit':
+      case 'public_form_submit':
         return 'success'
+      case 'scheduled_function_execute':
+        return 'info'
       case 'OnTableAddRow':
+      case 'service_tree.node.created':
         return 'success'
       case 'OnTableUpdateRow':
+      case 'service_tree.node.updated':
         return 'warning'
       case 'OnTableDeleteRows':
+      case 'service_tree.node.deleted':
         return 'danger'
       default:
         return 'info'
@@ -397,13 +460,35 @@ export function useOperateLogSection({
         return t('operateLog.add')
       case 'form_submit':
         return t('operateLog.submit')
+      case 'public_form_submit':
+        return t('operateLog.publicSubmit')
+      case 'scheduled_function_execute':
+        return t('operateLog.scheduledExecute')
       case 'OnTableUpdateRow':
         return t('operateLog.update')
       case 'OnTableDeleteRows':
         return t('operateLog.delete')
+      case 'service_tree.node.created':
+        return t('operateLog.create')
+      case 'service_tree.node.updated':
+        return t('operateLog.update')
+      case 'service_tree.node.deleted':
+        return t('operateLog.delete')
       default:
-        return action
+        return humanizeAction(action)
     }
+  }
+
+  const humanizeAction = (action: string): string => {
+    const value = String(action || '').trim()
+    if (!value) return t('operateLog.action')
+    return value
+      .replace(/^service_tree\.node\./, '资源 ')
+      .replace(/^OnTable/, '')
+      .replace(/_/g, ' ')
+      .replace(/\./g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .trim()
   }
 
   const getSourceLabel = (source?: string): string => {
@@ -417,6 +502,8 @@ export function useOperateLogSection({
         return t('operateLog.sourceAgent')
       case 'public_share':
         return t('operateLog.sourcePublicShare')
+      case 'scheduled_task':
+        return t('operateLog.sourceScheduledTask')
       case 'unknown':
       case '':
       case undefined:
@@ -434,6 +521,8 @@ export function useOperateLogSection({
       case 'api':
         return 'success'
       case 'public_share':
+        return 'info'
+      case 'scheduled_task':
         return 'info'
       case 'unknown':
       case '':
@@ -595,8 +684,22 @@ export function useOperateLogSection({
   }
 
   const getLogTitle = (log: OperateLogEntry): string => {
-    if (log.action === 'form_submit') {
+    if (isFormSubmitAction(log.action)) {
+      if (log.action === 'public_form_submit' || log.source === 'public_share') {
+        return log.status === 'failed' ? t('operateLog.publicFormSubmitFailed') : t('operateLog.publicFormSubmitted')
+      }
       return log.status === 'failed' ? t('operateLog.formSubmitFailed') : t('operateLog.formSubmitted')
+    }
+    if (isServiceTreeAction(log.action)) {
+      const typeLabel = getServiceTreeResourceTypeLabel(log)
+      switch (log.action) {
+        case 'service_tree.node.created':
+          return t('operateLog.serviceTreeCreated', { type: typeLabel })
+        case 'service_tree.node.updated':
+          return t('operateLog.serviceTreeUpdated', { type: typeLabel })
+        case 'service_tree.node.deleted':
+          return t('operateLog.serviceTreeDeleted', { type: typeLabel })
+      }
     }
     const recordName = log.row_id ? t('common.rowRecord', { id: log.row_id }) : t('operateLog.record')
     switch (log.action) {
@@ -607,7 +710,7 @@ export function useOperateLogSection({
       case 'OnTableDeleteRows':
         return t('operateLog.deleted', { record: recordName })
       default:
-        return t('operateLog.executed', { action: log.action })
+        return t('operateLog.executed', { action: getActionLabel(log.action) })
     }
   }
 
@@ -620,30 +723,48 @@ export function useOperateLogSection({
       case 'OnTableDeleteRows':
         return t('operateLog.deleteEmpty')
       case 'form_submit':
+      case 'public_form_submit':
         return t('operateLog.formSubmitEmpty')
+      case 'service_tree.node.created':
+      case 'service_tree.node.updated':
+      case 'service_tree.node.deleted':
+        return t('operateLog.serviceTreeEmpty')
       default:
         return t('operateLog.detailEmpty')
     }
   }
 
   const getLogSummary = (log: OperateLogEntry): string => {
-    if (log.action === 'form_submit' && log.summary) {
+    if (isFormSubmitAction(log.action) && log.summary) {
       return log.summary
+    }
+    if (isServiceTreeAction(log.action)) {
+      const typeLabel = getServiceTreeResourceTypeLabel(log)
+      const path = String(log.details_json?.full_code_path || log.full_code_path || '').trim()
+      switch (log.action) {
+        case 'service_tree.node.created':
+          return t('operateLog.serviceTreeCreatedSummary', { type: typeLabel, path })
+        case 'service_tree.node.updated':
+          return t('operateLog.serviceTreeUpdatedSummary', { type: typeLabel, path })
+        case 'service_tree.node.deleted':
+          return t('operateLog.serviceTreeDeletedSummary', { type: typeLabel, path })
+      }
     }
     const response = getLogResponseBody(log)
     if (log.status === 'failed' && response?.error) {
       return String(response.error)
     }
-    if (log.summary && (log.resource_type === 'team_access' || !['OnTableAddRow', 'OnTableUpdateRow', 'OnTableDeleteRows'].includes(log.action))) {
+    if (
+      log.summary &&
+      (log.resource_type === 'team_access' || !['OnTableAddRow', 'OnTableUpdateRow', 'OnTableDeleteRows'].includes(log.action))
+    ) {
       return log.summary
     }
     const entries = getPrimaryEntries(log)
     if (entries.length === 0) {
       return getLogEmptyText(log)
     }
-    return entries
-      .map((entry) => `${entry.fieldName}: ${formatLogValue(entry.value)}`)
-      .join(' · ')
+    return entries.map((entry) => `${entry.fieldName}: ${formatLogValue(entry.value)}`).join(' · ')
   }
 
   const readNumber = (value: unknown): number | null => {
@@ -702,6 +823,10 @@ export function useOperateLogSection({
     return String(log.id)
   }
 
+  const getLogRowClassName = ({ row }: { row: OperateLogEntry }): string => {
+    return readPositiveID(focusLogId?.value) === row.id ? 'is-focused-log' : ''
+  }
+
   const toggleLogExpanded = (logId: number) => {
     if (isLogExpanded(logId)) {
       expandedLogIds.value = expandedLogIds.value.filter((id) => id !== logId)
@@ -727,9 +852,7 @@ export function useOperateLogSection({
     }
     onApplyFormLog?.(
       requestBody as Record<string, any>,
-      responseBody && typeof responseBody === 'object' && !Array.isArray(responseBody)
-        ? responseBody as Record<string, any>
-        : null
+      responseBody && typeof responseBody === 'object' && !Array.isArray(responseBody) ? (responseBody as Record<string, any>) : null,
     )
   }
 
@@ -764,10 +887,14 @@ export function useOperateLogSection({
   }
 
   watch(
-    [fullCodePath, rowId, functionDetail, scope || ref<OperateLogScope>('row')],
-    ([newFullCodePath, newRowId, newFunctionDetail, newScope], [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail, oldScope = 'row']) => {
+    [fullCodePath, rowId, functionDetail, scope || ref<OperateLogScope>('row'), focusLogId || ref(''), focusTraceId || ref('')],
+    (
+      [newFullCodePath, newRowId, newFunctionDetail, newScope, newFocusLogId, newFocusTraceId],
+      [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail, oldScope = 'row', oldFocusLogId = '', oldFocusTraceId = ''],
+    ) => {
       const canLoad = Boolean(newFullCodePath) && (newScope !== 'row' || Boolean(newRowId))
-      const paramsChanged = newFullCodePath !== oldFullCodePath || newRowId !== oldRowId || newScope !== oldScope
+      const focusChanged = newFocusLogId !== oldFocusLogId || newFocusTraceId !== oldFocusTraceId
+      const paramsChanged = newFullCodePath !== oldFullCodePath || newRowId !== oldRowId || newScope !== oldScope || focusChanged
 
       if (canLoad && paramsChanged) {
         hasLoaded.value = false
@@ -784,7 +911,7 @@ export function useOperateLogSection({
         functionDetailCache.value = null
       }
 
-      if (!autoLoad.value) {
+      if (!autoLoad.value && !focusChanged) {
         return
       }
 
@@ -794,15 +921,17 @@ export function useOperateLogSection({
         void loadOperateLogs()
       }
     },
-    { immediate: true }
+    { immediate: true },
   )
 
   const load = () => {
+    const hasFocusFilter = readPositiveID(focusLogId?.value) > 0 || Boolean((focusTraceId?.value || '').trim())
     const paramsChanged =
       !lastLoadParams.value ||
       lastLoadParams.value.fullCodePath !== fullCodePath.value ||
       lastLoadParams.value.rowId !== rowId.value ||
-      lastLoadParams.value.scope !== currentScope()
+      lastLoadParams.value.scope !== currentScope() ||
+      hasFocusFilter
 
     if (paramsChanged) {
       hasLoaded.value = false
@@ -858,6 +987,7 @@ export function useOperateLogSection({
     canApplyFormLog,
     applyFormLog,
     getLogRowKey,
+    getLogRowClassName,
     isLogExpanded,
     toggleLogExpanded,
     handleLogExpandChange,

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/kageos/kageos/core/agent-server/prompt"
@@ -12,7 +13,7 @@ type ChangeRoleTool struct{}
 
 type changeRoleArgs struct {
 	CurrentRole      string   `json:"current_role" schema_desc:"当前身份 ID；没有则留空"`
-	TargetRole       string   `json:"target_role" schema_desc:"目标身份 ID，例如 product_manager/app_developer/app_operator/qa_engineer；沿用身份时也明确传当前身份" schema_required:"true"`
+	TargetRole       string   `json:"target_role" schema_desc:"目标身份 ID，例如 product_manager/app_developer/app_operator/automation_operator/qa_engineer；沿用身份时也明确传当前身份" schema_required:"true"`
 	ExecuteDirectory string   `json:"execute_directory" schema_desc:"下一身份所有读取、构建、测试、运行都必须限定的工作台目录完整路径；新建应用开发阶段传已存在父目录，例如 /user/app，目标新目录放入 key_information；测试/维护/操作阶段传目标应用目录；不能写“当前目录”" schema_required:"true"`
 	TaskContext      []string `json:"task_context" schema_desc:"交接上下文：上一阶段做了什么、用户原始目标/需求、必须满足的要求、特殊 case 或未决问题；3-6 条短句"`
 	KeyInformation   []string `json:"key_information" schema_desc:"下一身份必须知道的关键信息：PRD 摘要、构建版本、函数/表单/表格/图表路径、测试重点、失败现象等"`
@@ -82,10 +83,13 @@ func (t *ChangeRoleTool) Execute(ctx context.Context, call ToolCall) ToolResult 
 		return toolResult("change_role 参数解析失败: "+err.Error(), true)
 	}
 	if strings.TrimSpace(args.TargetRole) != "" && !isKnownWorkspaceRole(args.TargetRole) {
-		return toolResult("target_role 不支持: "+strings.TrimSpace(args.TargetRole)+"。请使用标准角色 ID：product_manager、app_developer、maintenance_engineer、app_operator、qa_engineer、build_engineer、data_operator、platform_engineer、reviewer。", true)
+		return toolResult("target_role 不支持: "+strings.TrimSpace(args.TargetRole)+"。请使用标准角色 ID："+strings.Join(workspaceStandardRoleIDs(), "、")+"。", true)
 	}
 	if strings.TrimSpace(args.TargetRole) == "" {
 		return toolResult("change_role 必须显式传 target_role；沿用身份时也要传当前标准角色 ID。", true)
+	}
+	if strings.TrimSpace(args.ExecuteDirectory) == "" {
+		args.ExecuteDirectory = scheduledAgentWorkspaceRootFromContext(ctx)
 	}
 	if strings.TrimSpace(args.ExecuteDirectory) == "" {
 		return toolResult("change_role 必须显式传 execute_directory，且必须是下一角色唯一允许读取、构建、测试、运行的工作台完整路径；不能省略、不能写“当前目录”。", true)
@@ -131,6 +135,7 @@ func buildChangeRole(ctx context.Context, args changeRoleArgs, fallbackDirectory
 	referenceFiles := trimStringSlice(args.ReferenceFiles)
 	handoff := buildRoleHandoff(args, firstNonEmptyString(fallbackDirectory...))
 	handoff = normalizeRoleHandoffForTargetRole(target, handoff, firstNonEmptyString(fallbackDirectory...))
+	handoff = lockScheduledAgentRoleHandoffDirectory(ctx, handoff)
 	handoff = appendRoleHandoffAdvice(target, handoff)
 	hookOutput := runWorkspaceRoleBeforeEnterHooks(ctx, workspaceRoleHookInput{
 		Stage:            workspaceRoleHookStageBeforeEnter,
@@ -200,6 +205,30 @@ func buildRoleHandoff(args changeRoleArgs, fallbackDirectory string) roleHandoff
 	}
 }
 
+func lockScheduledAgentRoleHandoffDirectory(ctx context.Context, handoff roleHandoffData) roleHandoffData {
+	root := scheduledAgentWorkspaceRootFromContext(ctx)
+	if root == "" {
+		return handoff
+	}
+	requested := normalizeWorkspacePath(handoff.ExecuteDirectory)
+	if requested == "" {
+		handoff.ExecuteDirectory = root
+		handoff.KeyInformation = appendUniqueRoleHandoffStrings([]string{
+			"定时会话执行目录已固定为任务绑定目录：" + root,
+		}, handoff.KeyInformation...)
+		return handoff
+	}
+	if workspacePathHasPrefix(requested, root) {
+		return handoff
+	}
+	handoff.ExecuteDirectory = root
+	handoff.KeyInformation = appendUniqueRoleHandoffStrings([]string{
+		fmt.Sprintf("定时会话目录护栏：模型请求切换到 %s，但任务绑定目录是 %s，已固定回任务目录。", requested, root),
+		"定时会话执行时不要根据标题或路径片段猜目录；始终使用任务绑定的 full_code_path。",
+	}, handoff.KeyInformation...)
+	return handoff
+}
+
 func appendRoleHandoffAdvice(targetRole string, handoff roleHandoffData) roleHandoffData {
 	advice := roleHandoffAdvice(targetRole, handoff)
 	if len(advice) == 0 {
@@ -226,7 +255,7 @@ func roleHandoffAdvice(targetRole string, handoff roleHandoffData) []string {
 	case WorkspaceRoleProductManager:
 		out = append(out, "下一步建议：先确认当前目录现有函数是否已能满足目标；能满足就交接给 app_operator，不能满足且用户要长期系统时再写 PRD。")
 	case WorkspaceRoleAppOperator:
-		out = append(out, "下一步建议：先用 search_tools/search_resources 限定 execute_directory 确认函数 schema、必填项、枚举和写入能力；不要编造关联 ID，必要时先查询或调用 run_on_select_fuzzy。")
+		out = append(out, "下一步建议：先用 search(full_code_path=execute_directory, resource_type=function, schema_output=both) 确认函数 schema、必填项、枚举和写入能力；不要编造关联 ID，必要时先查询或调用 run_on_select_fuzzy。")
 	case WorkspaceRoleAppDeveloper:
 		out = append(out, "下一步建议：先读 SDK 主文档和匹配案例，再按 PRD 写代码；生成或构建失败时不要反复整文件重写，先补读错误相关文档/案例/源码。")
 	case WorkspaceRoleMaintenanceEngineer:
@@ -234,7 +263,7 @@ func roleHandoffAdvice(targetRole string, handoff roleHandoffData) []string {
 	case WorkspaceRoleBuildEngineer:
 		out = append(out, "下一步建议：先读完整构建/schema 错误和相关 SDK/案例/源码，按错误类型批量修复；不要猜不存在的 API 或反复用同一方案重试。")
 	case WorkspaceRoleQAEngineer:
-		out = append(out, "下一步建议：先用 search_tools(directory=execute_directory) 确认函数 schema；按主数据/配置表 -> Form 提交 -> 目标记录表 -> Chart/结果查询顺序测试，并把失败分类为参数、数据、schema、业务 bug 或构建问题。")
+		out = append(out, "下一步建议：先用 search(full_code_path=execute_directory, resource_type=function, schema_output=both) 确认函数 schema；按主数据/配置表 -> Form 提交 -> 目标记录表 -> Chart/结果查询顺序测试，并把失败分类为参数、数据、schema、业务 bug 或构建问题。")
 	}
 	if handoffSuggestsFailedRetry(handoff) {
 		out = append(out, "失败处理建议：当前上下文已有失败/阻塞信号，不要继续同一方案重试；先读取 references 中的 SDK、案例、源码或日志，再决定修复路径。")

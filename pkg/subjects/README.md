@@ -44,6 +44,12 @@
 - `gateway.v1.cmd.token.invalidate`
 - `gateway.v1.cmd.token.remove-blacklist`
 
+### timer
+
+- `timer.v1.cmd.execution.requested.{executor_key}`：执行请求，按 `executor_key` 分 subject。
+- `timer.v1.event.execution.finished`：执行结束广播事件。
+- queue group：`timer.worker.{executor_key}`，由 `pkg/subjects.TimerWorkerQueueGroup` 统一生成。
+
 ## 文档同步要求
 
 如果主题名发生调整，需要同时更新：

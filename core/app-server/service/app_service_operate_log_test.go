@@ -177,6 +177,51 @@ func TestRecordTableActionLogUsesContextAuditSource(t *testing.T) {
 	}
 }
 
+func TestRecordTableActionLogUsesScheduledTaskAuditSource(t *testing.T) {
+	service, db := newAppServiceOperateLogTest(t)
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
+		ClientSource: contextx.ClientSourceScheduledTask,
+		SourceType:   contextx.SourceTypeScheduledTask,
+		SourceRef:    "timer_task:7:execution:9",
+	})
+
+	err := service.RecordTableActionLog(ctx, &dto.RecordTableActionLogReq{
+		TenantUser:  "alice",
+		RequestUser: "system",
+		App:         "ops",
+		Router:      "tickets.table",
+		Action:      "OnTableAddRow",
+		Body:        json.RawMessage(`{"title":"scheduled"}`),
+		TraceID:     "trace-scheduled-table",
+	})
+	if err != nil {
+		t.Fatalf("record scheduled table action log: %v", err)
+	}
+
+	var log model.OperateLog
+	deadline := time.Now().Add(time.Second)
+	for {
+		queryErr := db.Where("trace_id = ?", "trace-scheduled-table").First(&log).Error
+		if queryErr == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("log was not persisted: %v", queryErr)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if log.Source != contextx.ClientSourceScheduledTask {
+		t.Fatalf("source = %q, want scheduled_task", log.Source)
+	}
+	var details dto.TableActionLogDetails
+	if err := json.Unmarshal(log.DetailsJSON, &details); err != nil {
+		t.Fatalf("unmarshal details: %v", err)
+	}
+	if details.SourceType != contextx.SourceTypeScheduledTask || details.SourceRef != "timer_task:7:execution:9" {
+		t.Fatalf("source details mismatch: %+v", details)
+	}
+}
+
 func TestRecordFormOperateLogInfersOpenAPISource(t *testing.T) {
 	service, db := newAppServiceOperateLogTest(t)
 	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
@@ -221,5 +266,103 @@ func TestRecordFormOperateLogInfersOpenAPISource(t *testing.T) {
 	}
 	if details.SourceType != contextx.SourceTypeOpenAPIToken || details.SourceRef != "bob" {
 		t.Fatalf("source details mismatch: %+v", details)
+	}
+}
+
+func TestRecordFormOperateLogUsesScheduledTaskAuditSource(t *testing.T) {
+	service, db := newAppServiceOperateLogTest(t)
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
+		ClientSource: contextx.ClientSourceScheduledTask,
+		SourceType:   contextx.SourceTypeScheduledTask,
+		SourceRef:    "timer_task:8:execution:10",
+	})
+
+	err := service.RecordFormOperateLog(ctx, &dto.RecordFormOperateLogReq{
+		TenantUser:     "alice",
+		RequestUser:    "system",
+		App:            "ops",
+		Router:         "tools/remind.form",
+		Action:         "form_submit",
+		FunctionMethod: "POST",
+		RequestBody:    json.RawMessage(`{"lead_minutes":5}`),
+		ResponseBody:   json.RawMessage(`{"ok":true}`),
+		TraceID:        "trace-scheduled-form",
+		Status:         "success",
+	})
+	if err != nil {
+		t.Fatalf("record scheduled form operate log: %v", err)
+	}
+
+	var log model.OperateLog
+	deadline := time.Now().Add(time.Second)
+	for {
+		queryErr := db.Where("trace_id = ?", "trace-scheduled-form").First(&log).Error
+		if queryErr == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("log was not persisted: %v", queryErr)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if log.Source != contextx.ClientSourceScheduledTask {
+		t.Fatalf("source = %q, want scheduled_task", log.Source)
+	}
+	var details dto.FormOperateLogDetails
+	if err := json.Unmarshal(log.DetailsJSON, &details); err != nil {
+		t.Fatalf("unmarshal details: %v", err)
+	}
+	if details.SourceType != contextx.SourceTypeScheduledTask || details.SourceRef != "timer_task:8:execution:10" {
+		t.Fatalf("source details mismatch: %+v", details)
+	}
+}
+
+func TestRecordScheduledFunctionOperateLogPersistsGenericEntry(t *testing.T) {
+	service, db := newAppServiceOperateLogTest(t)
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
+		TraceId:      "trace-scheduled-function",
+		RequestUser:  "system",
+		ClientSource: contextx.ClientSourceScheduledTask,
+		SourceType:   contextx.SourceTypeScheduledTask,
+		SourceRef:    "timer_task:9:execution:11",
+	})
+
+	err := service.recordScheduledFunctionOperateLog(ctx, scheduledFunctionPayload{
+		FullCodePath: "/alice/ops/reports.chart",
+		TemplateType: "chart",
+		Action:       "execute",
+		Payload:      json.RawMessage(`{"page":1}`),
+	}, scheduledFunctionRunResult{
+		Content: `{"ok":true}`,
+		Data: map[string]interface{}{
+			"ok": true,
+		},
+	}, nil, 42)
+	if err != nil {
+		t.Fatalf("record scheduled function operate log: %v", err)
+	}
+
+	var log model.OperateLog
+	if err := db.Where("trace_id = ?", "trace-scheduled-function").First(&log).Error; err != nil {
+		t.Fatalf("log was not persisted: %v", err)
+	}
+	if log.Action != "scheduled_function_execute" || log.ResourceType != "function" {
+		t.Fatalf("unexpected action/resource: action=%q resource_type=%q", log.Action, log.ResourceType)
+	}
+	if log.Source != contextx.ClientSourceScheduledTask {
+		t.Fatalf("source = %q, want scheduled_task", log.Source)
+	}
+	if log.ResourcePath != "/alice/ops/reports.chart" || log.Status != "success" {
+		t.Fatalf("unexpected log path/status: path=%q status=%q", log.ResourcePath, log.Status)
+	}
+	var details dto.FunctionExecutionLogDetails
+	if err := json.Unmarshal(log.DetailsJSON, &details); err != nil {
+		t.Fatalf("unmarshal details: %v", err)
+	}
+	if details.SourceType != contextx.SourceTypeScheduledTask || details.SourceRef != "timer_task:9:execution:11" {
+		t.Fatalf("source details mismatch: %+v", details)
+	}
+	if details.TemplateType != "chart" || details.Method != "GET" || details.DurationMillis != 42 {
+		t.Fatalf("unexpected function details: %+v", details)
 	}
 }

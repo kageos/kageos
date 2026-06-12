@@ -321,30 +321,6 @@ field CreatedBy (created_by): audit field "created_by" hide tag must be "create,
 	}
 }
 
-func TestWorkspaceRoleAcceptanceQAScopeIsCurrentAppOnly(t *testing.T) {
-	if res, blocked := workspaceToolScopeGateResult(WorkspaceRoleQAEngineer, "search_resources", map[string]interface{}{}, "/system/x_world/vote"); !blocked || !res.IsError {
-		t.Fatalf("qa search_resources without scope/current app should be blocked, blocked=%v res=%#v", blocked, res)
-	} else if !strings.Contains(res.Content, "directory=change_role.execute_directory") || !strings.Contains(res.Content, "不要搜索整个工作空间") {
-		t.Fatalf("qa search_resources block message should explain current-app scope, got: %s", res.Content)
-	}
-	if res, blocked := workspaceToolScopeGateResult(WorkspaceRoleQAEngineer, "search_tools", map[string]interface{}{"scope": "current_app"}, "/system/x_world/vote"); blocked || res.IsError {
-		t.Fatalf("qa search_tools scope=current_app should pass, blocked=%v res=%#v", blocked, res)
-	}
-	if res, blocked := workspaceToolScopeGateResult(WorkspaceRoleQAEngineer, "run_form_submit", map[string]interface{}{
-		"full_code_path": "/system/x_world/ticket/submit_ticket.form",
-	}, "/system/x_world/vote"); !blocked || !res.IsError {
-		t.Fatalf("qa run_form_submit outside execute_directory should be blocked, blocked=%v res=%#v", blocked, res)
-	} else if !strings.Contains(res.Content, "/system/x_world/ticket/submit_ticket.form") ||
-		!strings.Contains(res.Content, "/system/x_world/vote") {
-		t.Fatalf("qa scope block should name requested path and execute_directory, got: %s", res.Content)
-	}
-	if res, blocked := workspaceToolScopeGateResult(WorkspaceRoleQAEngineer, "run_form_submit", map[string]interface{}{
-		"full_code_path": "/system/x_world/vote/submit_vote.form",
-	}, "/system/x_world/vote"); blocked || res.IsError {
-		t.Fatalf("qa run_form_submit inside execute_directory should pass, blocked=%v res=%#v", blocked, res)
-	}
-}
-
 func TestWorkspaceRoleAcceptanceArchivedHistoryExcludedFromModelContext(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {

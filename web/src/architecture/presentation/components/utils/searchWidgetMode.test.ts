@@ -16,6 +16,14 @@ describe('searchWidgetMode', () => {
     })).toBe(true)
   })
 
+  it('uses widget search mode for integer fields when search type is omitted', () => {
+    expect(shouldUseWidgetSearchRenderer({
+      widgetType: WidgetType.INTEGER,
+      searchType: '',
+      hasRegisteredWidget: true
+    })).toBe(true)
+  })
+
   it('maps select IN search to multiselect renderer', () => {
     expect(resolveWidgetTypeForSearchRenderer({
       widgetType: WidgetType.SELECT,

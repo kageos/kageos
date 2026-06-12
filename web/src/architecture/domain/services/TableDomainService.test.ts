@@ -72,6 +72,34 @@ function createDeferred<T>() {
 }
 
 describe('TableDomainService URL restore', () => {
+  it('keeps integer request fields searchable for table search bars', () => {
+    const service = createService()
+    const functionDetail = {
+      schema: {
+        version: 1,
+        type: 'table',
+        table: {
+          request: [
+            {
+              code: 'id',
+              name: '会议室ID',
+              widget: { type: 'integer' },
+              data: { type: 'int' }
+            },
+            {
+              code: 'name',
+              name: '会议室名称',
+              widget: { type: 'input' }
+            }
+          ],
+          fields: []
+        }
+      }
+    } as any
+
+    expect(service.getSearchableFields(functionDetail).map(field => field.code)).toEqual(['id', 'name'])
+  })
+
   it('restores request search fields from raw query keys', () => {
     const service = createService()
     const functionDetail = {

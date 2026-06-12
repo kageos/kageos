@@ -77,98 +77,55 @@
             popper-class="service-tree-contextmenu-popper"
             @command="(command: ServiceTreeNodeActionCommand) => handleNodeAction(command, data)"
           >
-            <span
-              class="tree-node"
+            <ServiceTreeNodeContent
               :data-testid="`service-tree-node-${data.id}`"
               :data-node-id="String(data.id)"
               :data-node-type="data.type"
               :data-root-node="isRootNode(data) ? 'true' : 'false'"
-              :class="{ 'tree-node-draggable': !multiSelectMode && (data.type === 'function' || data.type === 'package') }"
               :draggable="!multiSelectMode && (data.type === 'function' || data.type === 'package')"
+              :node="data"
+              :label="node.label"
+              :active="String(currentNodeId || '') === String(data.id || '')"
+              :show-runtime-badge="hasRuntimeBadge(data)"
+              :runtime-badge-value="getRuntimeBadgeText(data)"
+              :runtime-badge-class="getRuntimeBadgeClass(data)"
+              :runtime-badge-title="getRuntimeSummaryTitle(data)"
+              :show-notification-badge="hasNotificationBadge(data)"
+              :notification-badge-value="getNotificationBadgeText(data)"
+              :notification-badge-title="getNotificationSummaryTitle(data)"
               @dragstart="onTreeNodeDragStart($event, data)"
               @contextmenu.prevent
+              @notification-click="openNodeNotifications(data)"
               :title="multiSelectMode ? t('serviceTree.clickSelect') : t('serviceTree.rightClickMenu')"
             >
-            <!-- 根节点：使用工作空间图标（package 类型且为根节点） -->
-            <img 
-              v-if="data.type === 'package' && isRootNode(data)" 
-              src="/service-tree/custom-folder.svg" 
-              :alt="t('serviceTree.workspaceAlt')"
-              class="node-icon app-icon-img"
-              :class="getNodeIconClass(data)"
-            />
-            <!-- package 类型：统一使用目录图标 -->
-            <img 
-              v-else-if="data.type === 'package'" 
-              src="/service-tree/custom-folder.svg" 
-              :alt="t('serviceTree.directoryAlt')"
-              class="node-icon package-icon-img"
-              :class="getNodeIconClass(data)"
-            />
-            <!-- function 类型：根据 template_type 显示不同图标 -->
-            <template v-else-if="data.type === 'function'">
-              <!-- 表单类型：使用编辑图标 -->
-              <img 
-                v-if="data.template_type === TEMPLATE_TYPE.FORM"
-                src="/service-tree/编辑.svg" 
-                :alt="t('serviceTree.formAlt')"
-                class="node-icon form-icon-img"
-                :class="getNodeIconClass(data)"
-              />
-              <!-- 其他类型：使用组件图标 -->
-              <el-icon v-else 
-                       class="node-icon" 
-                       :class="getNodeIconClass(data)">
-                <component :is="getFunctionIcon(data)" />
-              </el-icon>
-            </template>
-            <!-- docs 类型：使用文档图标 -->
-            <img 
-              v-else-if="data.type === 'docs'" 
-              src="/文档.svg" 
-              :alt="t('serviceTree.docsAlt')"
-              class="node-icon docs-icon-img"
-              :class="getNodeIconClass(data)"
-            />
-            <!-- 其他类型：显示 fx 文本 -->
-            <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
-            <span class="node-label">{{ node.label }}</span>
-
-            <!-- 运行态 badge：来自 agent-server state 接口，表示当前目录及子目录正在运行的会话数 -->
-            <el-badge
-              v-if="hasRuntimeBadge(data)"
-              :value="getRuntimeBadgeText(data)"
-              :max="99"
-              :class="getRuntimeBadgeClass(data)"
-              :title="getRuntimeSummaryTitle(data)"
-            />
-
-            <!-- 更多操作按钮 - 鼠标悬停时显示（与右键菜单并存，点击也可打开） -->
-            <el-dropdown
-              v-if="!multiSelectMode"
-              trigger="click"
-              :teleported="true"
-              popper-class="service-tree-contextmenu-popper"
-              @click.stop
-              class="node-more-actions"
-              @command="(command: ServiceTreeNodeActionCommand) => handleNodeAction(command, data)"
-            >
-              <el-icon class="more-icon" :data-testid="`service-tree-more-${data.id}`" @click.stop><MoreFilled /></el-icon>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    v-for="action in getNodeActions(data)"
-                    :key="action.command"
-                    :data-testid="buildServiceTreeNodeActionTestId(action.command, data)"
-                    :command="action.command"
-                  >
-                    <el-icon><component :is="action.icon" /></el-icon>
-                    {{ action.label }}
-                  </el-dropdown-item>
-                </el-dropdown-menu>
+              <template #actions>
+                <!-- 更多操作按钮 - 鼠标悬停时显示（与右键菜单并存，点击也可打开） -->
+                <el-dropdown
+                  v-if="!multiSelectMode"
+                  trigger="click"
+                  :teleported="true"
+                  popper-class="service-tree-contextmenu-popper"
+                  @click.stop
+                  class="node-more-actions"
+                  @command="(command: ServiceTreeNodeActionCommand) => handleNodeAction(command, data)"
+                >
+                  <el-icon class="more-icon" :data-testid="`service-tree-more-${data.id}`" @click.stop><MoreFilled /></el-icon>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item
+                        v-for="action in getNodeActions(data)"
+                        :key="action.command"
+                        :data-testid="buildServiceTreeNodeActionTestId(action.command, data)"
+                        :command="action.command"
+                      >
+                        <el-icon><component :is="action.icon" /></el-icon>
+                        {{ action.label }}
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
               </template>
-            </el-dropdown>
-            </span>
+            </ServiceTreeNodeContent>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item
@@ -199,14 +156,10 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { MoreFilled, Document, Download, Delete, Search, Select, Close } from '@element-plus/icons-vue'
-import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
-import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
-import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'
+import { MoreFilled, Download, Delete, Search, Select, Close } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { isRootNode } from '@/architecture/domain/utils/tree-utils'
-import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { exportCapabilityBundle, installCapabilityBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/architecture/presentation/context/api/service-tree'
 import { getRuntimeStateSummary, type RuntimeStateSummary } from '@/architecture/presentation/context/api/state'
 import { downloadCapabilityBundleFile, parseCapabilityBundleJson } from '@/architecture/presentation/utils/directoryBundleFile'
@@ -219,6 +172,7 @@ import {
   type ServiceTreeNodeActionCommand
 } from '../utils/serviceTreeNodeActions'
 import { featureFlags } from '@/architecture/shared/config/features'
+import ServiceTreeNodeContent from './ServiceTreeNodeContent.vue'
 
 interface Props {
   treeData: ServiceTree[]
@@ -226,10 +180,12 @@ interface Props {
   currentNodeId?: number | string | null
   currentFunction?: ServiceTree | null  // 当前选中的节点（用于判断是否可以克隆）
   expandedKeys?: number[] // ⭐ 需要自动展开的节点ID列表（从后端返回）
+  messageCounts?: Record<string, ServiceTreeNotificationCount>
 }
 
 interface Emits {
   (e: 'node-click', node: ServiceTree): void
+  (e: 'open-notifications', node: ServiceTree): void
   (e: 'create-directory', parentNode?: ServiceTree): void
   (e: 'create-docs', parentNode?: ServiceTree): void
   (e: 'delete-doc', node: ServiceTree): void
@@ -238,6 +194,12 @@ interface Emits {
   (e: 'bulk-delete', nodes: ServiceTree[]): void
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
   (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
+}
+
+interface ServiceTreeNotificationCount {
+  unread_count?: number
+  message_count?: number
+  latest_at?: string
 }
 
 const props = defineProps<Props>()
@@ -357,6 +319,53 @@ const getRuntimeSummaryTitle = (node: ServiceTree): string => {
   if (summary.tool_running_count > 0) parts.push(t('serviceTree.toolRunning', { count: summary.tool_running_count }))
   if (summary.failed_recent_count > 0) parts.push(t('serviceTree.recentFailed', { count: summary.failed_recent_count }))
   return parts.join('，')
+}
+
+const notificationSummaries = computed<Record<string, ServiceTreeNotificationCount>>(() => {
+  const summaries: Record<string, ServiceTreeNotificationCount> = {}
+  const normalizePath = (path?: string) => (path || '').trim().replace(/\/+$/g, '')
+  const walk = (node: ServiceTree) => {
+    const path = normalizePath(node.full_code_path)
+    if (path) {
+      summaries[path] = props.messageCounts?.[path] || {}
+    }
+    for (const child of node.children || []) {
+      walk(child)
+    }
+  }
+  for (const node of props.treeData || []) {
+    walk(node)
+  }
+  return summaries
+})
+
+const getNotificationSummary = (node: ServiceTree): ServiceTreeNotificationCount | undefined => {
+  const path = (node.full_code_path || '').trim().replace(/\/+$/g, '')
+  if (!path) return undefined
+  return notificationSummaries.value[path]
+}
+
+const hasNotificationBadge = (node: ServiceTree): boolean => {
+  return Number(getNotificationSummary(node)?.unread_count || 0) > 0
+}
+
+const getNotificationBadgeText = (node: ServiceTree): string | number => {
+  return getNotificationSummary(node)?.unread_count || ''
+}
+
+const getNotificationSummaryTitle = (node: ServiceTree): string => {
+  const summary = getNotificationSummary(node)
+  const unread = Number(summary?.unread_count || 0)
+  const total = Number(summary?.message_count || 0)
+  if (unread > 0) {
+    return `${unread} 条未读通知，${total} 条通知`
+  }
+  return `${total} 条通知`
+}
+
+function openNodeNotifications(node: ServiceTree) {
+  if (!node.full_code_path) return
+  emit('open-notifications', node)
 }
 
 // 重命名目录
@@ -746,39 +755,6 @@ const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTr
   }
 }
 
-// 获取函数图标组件（根据 template_type）
-const getFunctionIcon = (data: ServiceTree) => {
-  if (data.template_type === TEMPLATE_TYPE.TABLE) {
-    return TableIcon
-  } else if (data.template_type === TEMPLATE_TYPE.FORM) {
-    return FormIcon
-  } else if (data.template_type === TEMPLATE_TYPE.CHART) {
-    return ChartIcon
-  }
-  // 默认使用 Document 图标（如果没有 template_type 或不是已知类型）
-  return Document
-}
-
-// 获取节点图标样式类
-const getNodeIconClass = (data: ServiceTree) => {
-  if (data.type === 'package') {
-    return 'package-icon'
-  } else if (data.type === 'function') {
-    // 根据 template_type 返回不同的样式类
-    if (data.template_type === TEMPLATE_TYPE.TABLE) {
-      return 'table-icon'
-    } else if (data.template_type === TEMPLATE_TYPE.FORM) {
-      return 'form-icon'
-    } else if (data.template_type === TEMPLATE_TYPE.CHART) {
-      return 'chart-icon'
-    }
-    return 'function-icon'
-  } else if (data.type === 'docs') {
-    return 'docs-icon'
-  }
-  return 'function-icon'
-}
-
 // 暴露方法给父组件
 defineExpose({
   treeRef,
@@ -918,159 +894,17 @@ defineExpose({
   justify-content: center;
 }
 
-.tree-node {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  width: 100%;
-  min-width: 0; /* ⭐ 允许 flexbox 子元素正确收缩 */
-  
-  &.tree-node-draggable {
-    cursor: grab;
-    &:active {
-      cursor: grabbing;
-    }
-  }
-  
-  .node-icon {
-    width: 16px;
-    height: 16px;
-    margin-right: 8px;
-    color: #6366f1;  /* ✅ 统一主题色（indigo-500） */
-    opacity: 0.8;
-    flex-shrink: 0;
-    transition: color 0.2s ease;
-    
-    &.package-icon {
-      color: #6366f1;
-      opacity: 0.8;
-    }
-    
-    &.package-icon-img {
-      width: 16px;
-      height: 16px;
-      object-fit: contain;
-      opacity: 0.9;
-    }
-    
-    &.table-icon {
-      color: #10b981; /* green-500 - 表格用绿色 */
-      opacity: 0.9;
-    }
-    
-    &.form-icon {
-      color: #3b82f6; /* blue-500 - 表单用蓝色 */
-      opacity: 0.9;
-    }
-    
-    &.form-icon-img {
-      width: 16px;
-      height: 16px;
-      object-fit: contain;
-      opacity: 0.9;
-    }
-    
-    &.function-icon {
-      color: #6366f1; /* indigo-500 - 默认函数图标 */
-      opacity: 0.8;
-    }
-    
-    &.fx-icon {
-      font-size: 12px;
-      font-weight: 600;
-      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-      font-style: italic;
-      color: #6366f1;
-      opacity: 0.8;
-    }
-    
-    &.group-icon {
-      color: #909399;
-      opacity: 0.9;
-    }
-    
-    &.group-icon-img {
-      width: 16px;
-      height: 16px;
-      object-fit: contain;
-      opacity: 0.9;
-    }
-  }
-  
-  .group-label {
-    font-weight: 500;
-    color: var(--el-text-color-regular);
-  }
-  
-  .group-tag {
-    margin-left: 8px;
-    font-size: 11px;
-  }
-  
-  .node-label {
-    font-size: 14px;
-    color: var(--el-text-color-primary);
-    flex: 1;
-    min-width: 0; /* ⭐ 允许文本正确收缩并显示省略号 */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    
-  }
-  
-  /* ⭐ 待审批数量 badge - 防止被挤压 */
-  .pending-count-badge {
-    flex-shrink: 0;
-    margin-left: 6px;
+.node-more-actions {
+  .more-icon {
+    padding: 4px;
+    color: var(--el-text-color-secondary);
     cursor: pointer;
-  }
+    font-size: 14px;
 
-  .runtime-state-badge {
-    flex-shrink: 0;
-    margin-left: 6px;
-  }
-
-  .runtime-state-badge :deep(.el-badge__content) {
-    border: none;
-    background: #0ea5e9;
-    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.12);
-  }
-
-  .runtime-state-badge-thinking :deep(.el-badge__content) {
-    background: #38bdf8;
-    box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
-  }
-
-  .runtime-state-badge-tool :deep(.el-badge__content) {
-    background: #f59e0b;
-    box-shadow: 0 0 12px rgba(245, 158, 11, 0.42);
-  }
-
-  .runtime-state-badge-approval :deep(.el-badge__content) {
-    background: #a855f7;
-    box-shadow: 0 0 12px rgba(168, 85, 247, 0.42);
-  }
-
-  .runtime-state-badge-failed :deep(.el-badge__content) {
-    background: #ef4444;
-    box-shadow: 0 0 12px rgba(239, 68, 68, 0.42);
-  }
-
-  .node-more-actions {
-    flex-shrink: 0;
-    margin-left: auto; /* 靠右对齐 */
-    opacity: 0;
-    transition: opacity 0.2s;
-    .more-icon {
-      font-size: 14px;
-      color: var(--el-text-color-secondary);
-      cursor: pointer;
-      padding: 4px;
-      &:hover { color: var(--el-color-primary); }
+    &:hover {
+      color: var(--el-color-primary);
     }
   }
-  &:hover .node-more-actions { opacity: 1; }
 }
 
 :deep(.el-tree-node__content) {
@@ -1083,7 +917,6 @@ defineExpose({
   
   &:hover {
     background-color: var(--el-fill-color-light);
-    .tree-node .node-more-actions { opacity: 1; }
   }
 }
 
@@ -1098,19 +931,6 @@ defineExpose({
 :deep(.el-tree-node.is-current > .el-tree-node__content) {
   background-color: rgba(99, 102, 241, 0.15) !important;
   border-left: 2px solid #6366f1;
-  
-  .tree-node {
-    .node-label {
-      color: var(--el-text-color-primary);
-      font-weight: 500;
-    }
-    
-    .node-icon {
-      color: #6366f1;
-      opacity: 0.8;
-    }
-    .node-more-actions { opacity: 1 !important; }
-  }
 }
 
 /* 确保子节点不受父节点选中状态影响 */

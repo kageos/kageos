@@ -51,6 +51,30 @@ func (t *appInvokeTransport) requestApp(ctx context.Context, natsID int64, req *
 	if invokeReq.SourceRef == "" {
 		invokeReq.SourceRef = contextx.GetSourceRef(ctx)
 	}
+	if invokeReq.SourcePath == "" {
+		invokeReq.SourcePath = contextx.GetSourcePath(ctx)
+	}
+	if invokeReq.SourceTitle == "" {
+		invokeReq.SourceTitle = contextx.GetSourceTitle(ctx)
+	}
+	if invokeReq.SourceParentPath == "" {
+		invokeReq.SourceParentPath = contextx.GetSourceParentPath(ctx)
+	}
+	if invokeReq.SourceParentTitle == "" {
+		invokeReq.SourceParentTitle = contextx.GetSourceParentTitle(ctx)
+	}
+	if invokeReq.SourceTemplateType == "" {
+		invokeReq.SourceTemplateType = contextx.GetSourceTemplateType(ctx)
+	}
+	if invokeReq.WorkspaceSessionID == "" {
+		invokeReq.WorkspaceSessionID = contextx.GetWorkspaceSessionID(ctx)
+	}
+	if invokeReq.WorkspaceSessionTitle == "" {
+		invokeReq.WorkspaceSessionTitle = contextx.GetWorkspaceSessionTitle(ctx)
+	}
+	if invokeReq.WorkspaceRole == "" {
+		invokeReq.WorkspaceRole = contextx.GetWorkspaceRole(ctx)
+	}
 	msg, err := appinvoke.BuildRuntimeRequestMsg(&invokeReq)
 	if err != nil {
 		return nil, err

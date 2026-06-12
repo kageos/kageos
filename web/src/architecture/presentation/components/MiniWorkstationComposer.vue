@@ -11,7 +11,11 @@
     </el-tag>
   </div>
 
-  <div class="mini-ws-input" data-testid="mini-workstation-composer">
+  <div
+    class="mini-ws-input"
+    :class="{ 'mini-ws-input--schedule': variant === 'schedule' }"
+    data-testid="mini-workstation-composer"
+  >
     <div class="mini-composer-left-actions">
       <slot name="left-actions" />
 	      <el-upload
@@ -25,14 +29,14 @@
       </el-upload>
     </div>
 	    <div class="mini-input-wrap">
-	      <span class="mini-path-pill" :title="fullCodePath">{{ displayPath }}</span>
+	      <span v-if="variant !== 'schedule'" class="mini-path-pill" :title="fullCodePath">{{ displayPath }}</span>
 	      <span v-if="blocked" class="mini-blocked-pill" :title="blockedLabel || '等待确认'">{{ blockedLabel || '等待确认' }}</span>
 	      <textarea
 	        :ref="bindInputRef"
 	        :value="inputText"
 	        class="mini-input"
 	        data-testid="mini-workstation-input"
-	        :placeholder="blocked ? (blockedPlaceholder || '当前会话需要先处理交互卡片') : '输入命令...（@搜用户，/搜目录/工具/文档，Enter 发送，Shift+Enter 换行）'"
+	        :placeholder="composerPlaceholder"
 	        :disabled="blocked"
 	        rows="1"
         @input="emitInput"
@@ -115,7 +119,7 @@
         </button>
       </div>
     </div>
-    <div class="mini-action-stack">
+    <div v-if="variant !== 'schedule'" class="mini-action-stack">
       <el-select
         :model-value="selectedLLMConfigId"
         placeholder="默认模型"
@@ -204,7 +208,7 @@ import {
 import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   fullCodePath: string
   dirName?: string
   attachedFiles: WorkspaceChatMessageFile[]
@@ -226,7 +230,12 @@ const props = defineProps<{
   removeFile: (index: number) => void
   onInputEnter: (event: KeyboardEvent) => void
   toggleShortcutLabel?: string
-}>()
+  variant?: 'chat' | 'schedule'
+  placeholder?: string
+}>(), {
+  variant: 'chat',
+  placeholder: ''
+})
 
 const emit = defineEmits<{
   (e: 'update:inputText', value: string): void
@@ -243,6 +252,20 @@ const modelSelectPopperOptions = {
 const miniHideShortcutHint = computed(() => {
   const toggleShortcut = (props.toggleShortcutLabel || '').trim()
   return toggleShortcut ? `关闭工作台，任务继续后台执行 (Esc / ${toggleShortcut})` : '关闭工作台，任务继续后台执行 (Esc)'
+})
+
+const composerPlaceholder = computed(() => {
+  if (props.blocked) {
+    return props.blockedPlaceholder || '当前会话需要先处理交互卡片'
+  }
+  const placeholder = props.placeholder.trim()
+  if (placeholder) {
+    return placeholder
+  }
+  if (props.variant === 'schedule') {
+    return '告诉 Agent 到时间后要完成什么（@搜用户，/搜目录、工具或文档）'
+  }
+  return '输入命令...（@搜用户，/搜目录/工具/文档，Enter 发送，Shift+Enter 换行）'
 })
 
 const displayPath = computed(() => {
@@ -678,6 +701,14 @@ function cancelMentionClose() {
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(24px) saturate(140%);
 }
+.mini-ws-input--schedule {
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 88px;
+  align-items: stretch;
+  background:
+    linear-gradient(180deg, rgba(12, 18, 32, 0.9), rgba(8, 12, 22, 0.76)),
+    rgba(8, 12, 22, 0.78);
+}
 .mini-composer-left-actions {
   flex-shrink: 0;
   min-width: 142px;
@@ -686,6 +717,9 @@ function cancelMentionClose() {
   align-items: center;
   align-self: center;
   gap: 8px;
+}
+.mini-ws-input--schedule .mini-composer-left-actions {
+  min-width: auto;
 }
 .mini-upload-btn {
   flex-shrink: 0;
@@ -716,6 +750,11 @@ function cancelMentionClose() {
   border: 1px solid rgba(124, 146, 189, 0.16);
   border-radius: 10px;
   background: rgba(10, 16, 29, 0.32);
+}
+.mini-ws-input--schedule .mini-input-wrap {
+  height: auto;
+  min-height: 76px;
+  grid-template-columns: minmax(0, 1fr);
 }
 .mini-path-pill {
   max-width: 148px;
@@ -775,6 +814,10 @@ function cancelMentionClose() {
   overflow-y: hidden;
   box-shadow: none;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+.mini-ws-input--schedule .mini-input {
+  height: 66px;
+  resize: vertical;
 }
 .mini-input:focus {
   box-shadow: none;

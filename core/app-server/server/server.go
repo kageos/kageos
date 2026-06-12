@@ -18,6 +18,7 @@ import (
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/natsx"
 	"github.com/kageos/kageos/pkg/openapitoken"
+	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/kageos/kageos/pkg/waiter"
 	"github.com/nats-io/nats.go"
@@ -46,6 +47,7 @@ type Server struct {
 	functionSensitiveFieldService *service.FunctionSensitiveFieldService
 	publicShareService            *service.PublicShareService
 	appRepo                       *repository.AppRepository // ⭐ 应用仓储（用于其他服务）
+	scheduledFuncWorker           *scheduledsdk.Worker
 
 	// 上游服务
 	natsConnPool *service.NATSConnPool
@@ -106,6 +108,13 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 func (s *Server) Start(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Starting app-server...")
 
+	if s.scheduledFuncWorker != nil {
+		if err := s.scheduledFuncWorker.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start scheduled function worker: %w", err)
+		}
+		logger.Infof(ctx, "[Server] Scheduled function worker started")
+	}
+
 	if err := s.StartHTTP(ctx); err != nil {
 		return err
 	}
@@ -133,6 +142,14 @@ func (s *Server) StartHTTP(ctx context.Context) error {
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping server...")
+
+	if s.scheduledFuncWorker != nil {
+		if err := s.scheduledFuncWorker.Stop(); err != nil {
+			logger.Warnf(ctx, "[Server] Scheduled function worker stop failed: %v", err)
+		} else {
+			logger.Infof(ctx, "[Server] Scheduled function worker stopped")
+		}
+	}
 
 	// 关闭 appcall 客户端（取消 NATS 订阅）
 	if s.appCall != nil {
@@ -253,6 +270,11 @@ func (s *Server) initServices(ctx context.Context) error {
 	}
 	s.appService.SetTeamAccessService(s.teamAccessService)
 	s.appService.SetFunctionSensitiveFieldService(s.functionSensitiveFieldService)
+	scheduledFuncWorker, err := service.NewScheduledFunctionWorker(s.natsConn, s.appService)
+	if err != nil {
+		return fmt.Errorf("failed to init scheduled function worker: %w", err)
+	}
+	s.scheduledFuncWorker = scheduledFuncWorker
 
 	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
 	docRepo := repository.NewDocRepository(s.db)

@@ -25,4 +25,4 @@
 
 ## 允许工具
 
-`change_role`、`read_doc`、`search_tools`、`search_resources`、`run_form_submit`、`run_python`。
+`change_role`、`read_doc`、`read_dir`、`search`、`web_search`、`run_form_submit`、`run_python`。

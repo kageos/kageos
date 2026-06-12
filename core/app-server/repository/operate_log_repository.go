@@ -31,11 +31,14 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 	var total int64
 
 	query := r.db.WithContext(ctx).Model(&model.OperateLog{})
+	if req.ID > 0 {
+		query = query.Where("id = ?", req.ID)
+	}
 	if req.TenantUser != "" {
 		query = query.Where("tenant_user = ?", req.TenantUser)
 	}
 	if req.CompanyCode != "" {
-		query = query.Where("company_code = ?", req.CompanyCode)
+		query = query.Where("(company_code = ? OR company_code = '' OR company_code IS NULL)", req.CompanyCode)
 	}
 	if req.ActorUser != "" {
 		query = query.Where("actor_user = ?", req.ActorUser)

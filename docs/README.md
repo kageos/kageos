@@ -6,6 +6,10 @@ This directory collects product thinking, architecture notes, operating guides, 
 
 - [Kageos 项目说明：AI 时代的企业轻应用治理与目录分发](product-thinking-ai-era-application-governance.md)
 
+## Architecture
+
+- [KageOS 定时能力架构设计](scheduled-tasks-architecture-design.md)
+
 ## Runtime Operations
 
 - [Kageos 生命周期 SOP](kagectl-lifecycle-sop.md)

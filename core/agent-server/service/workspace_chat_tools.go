@@ -23,13 +23,13 @@ func (s *WorkspaceChatService) executeToolCalls(
 	round int,
 	sendEvent func(string, interface{}),
 ) ([]dto.WorkspaceChatToolCallSummary, string, error) {
-	ctx = withAgentToolExecutionContext(ctx, sessionID)
+	sessionTitle, sessionRole := s.workspaceSessionMessageContext(sessionID)
+	ctx = withAgentToolExecutionContext(ctx, sessionID, sessionTitle, sessionRole)
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
 	logger.Infof(ctx, "[WorkspaceChatStream] 开始执行工具调用 - 工具数量: %d, SessionID: %s", len(allToolCalls), sessionID)
 	loadedGuideDocs := s.loadedGuideDocsForSession(ctx, sessionID)
 	activeRoleID := s.currentWorkspaceRoleForSession(ctx, sessionID)
 	activeFullCodePath := strings.TrimSpace(fullCodePath)
-	activeToolScope := s.currentWorkspaceToolScope(ctx, sessionID, activeFullCodePath)
 
 	for i, tc := range allToolCalls {
 		if err := ctx.Err(); err != nil {
@@ -58,10 +58,6 @@ func (s *WorkspaceChatService) executeToolCalls(
 			toolRes = blockedRes
 			st = ToolCallStatusError
 			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 角色工具门禁阻断 - RoleID: %s, ToolName: %s, Error: %s", i+1, len(allToolCalls), activeRoleID, tc.Function.Name, toolRes.Content)
-		} else if blockedRes, blocked := workspaceToolScopeGateResultWithScope(activeRoleID, tc.Function.Name, args, activeToolScope); blocked {
-			toolRes = blockedRes
-			st = ToolCallStatusError
-			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 工具目录门禁阻断 - RoleID: %s, ToolName: %s, ExecuteDirectory: %s, TargetAppDirectory: %s, Error: %s", i+1, len(allToolCalls), activeRoleID, tc.Function.Name, activeToolScope.ExecuteDirectory, activeToolScope.TargetAppDirectory, toolRes.Content)
 		} else {
 			toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, activeFullCodePath, files, i+1, len(allToolCalls))
 		}
@@ -79,13 +75,11 @@ func (s *WorkspaceChatService) executeToolCalls(
 			}
 			if nextFullCodePath := workspaceChangeRoleExecuteDirectory(toolRes); nextFullCodePath != "" {
 				activeFullCodePath = nextFullCodePath
-				activeToolScope.ExecuteDirectory = nextFullCodePath
 				s.updateWorkspaceSessionFullCodePath(ctx, sessionID, nextFullCodePath, user)
 			}
 		} else if st == ToolCallStatusOK && tc.Function.Name == "create_directory" {
-			if targetPath := workspaceCreateDirectoryTargetPath(args, activeFullCodePath); targetPath != "" && normalizeWorkspacePath(activeToolScope.TargetAppDirectory) == targetPath {
+			if targetPath := workspaceCreateDirectoryTargetPath(args, activeFullCodePath); targetPath != "" {
 				activeFullCodePath = targetPath
-				activeToolScope.ExecuteDirectory = targetPath
 				s.updateWorkspaceSessionFullCodePath(ctx, sessionID, targetPath, user)
 			}
 		}
@@ -145,9 +139,24 @@ func (s *WorkspaceChatService) executeToolCalls(
 	return toolSummaries, activeFullCodePath, nil
 }
 
-func withAgentToolExecutionContext(ctx context.Context, sessionID string) context.Context {
+func (s *WorkspaceChatService) workspaceSessionMessageContext(sessionID string) (string, string) {
+	if s == nil || s.sessionRepo == nil || strings.TrimSpace(sessionID) == "" {
+		return "", ""
+	}
+	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	if err != nil || session == nil {
+		return "", ""
+	}
+	return strings.TrimSpace(session.Title), workspaceSessionRoleID(session)
+}
+
+func withAgentToolExecutionContext(ctx context.Context, sessionID, sessionTitle, role string) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	ctx = contextx.WithWorkspaceSession(ctx, sessionID, sessionTitle, role)
+	if contextx.ResolveClientSource(ctx) == contextx.ClientSourceScheduledTask {
+		return ctx
 	}
 	ctx = withAgentToolClientSource(ctx)
 	return contextx.WithSourceInfo(ctx, contextx.SourceTypeAgentTool, sessionID)
@@ -177,25 +186,6 @@ func invalidToolArgumentsResult(tc llms.ToolCall, err error) ToolResult {
 		toolName = "工具"
 	}
 	return toolResult(fmt.Sprintf("%s 参数不是合法 JSON，本次未执行工具。请重新调用该工具，并提供完整 JSON 参数。解析错误: %v", toolName, err), true)
-}
-
-func (s *WorkspaceChatService) currentWorkspaceToolScope(ctx context.Context, sessionID string, executeDirectory string) workspaceToolScope {
-	scope := workspaceToolScope{ExecuteDirectory: normalizeWorkspacePath(executeDirectory)}
-	if s == nil || s.messageRepo == nil || strings.TrimSpace(sessionID) == "" {
-		return scope
-	}
-	messages, err := s.messageRepo.ListBySessionID(sessionID)
-	if err != nil {
-		logger.Warnf(ctx, "[WorkspaceChatStream] 查询会话交接包失败 SessionID=%s: %v", sessionID, err)
-		return scope
-	}
-	if handoff := latestWorkspaceModelContextHandoff(messages); handoff != nil {
-		if scope.ExecuteDirectory == "" {
-			scope.ExecuteDirectory = normalizeWorkspacePath(handoff.ExecuteDirectory)
-		}
-		scope.TargetAppDirectory = normalizeWorkspacePath(handoff.TargetAppDirectory)
-	}
-	return scope
 }
 
 // callOtherTool 调用 ToolRegistry 中的内置工作台工具。
