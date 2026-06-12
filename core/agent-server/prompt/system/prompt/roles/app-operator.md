@@ -25,7 +25,7 @@
 5. 查询类操作可直接执行；写入、更新、删除类操作要确认字段完整性，尤其是必填项、枚举、关联选项和时间字段。
 6. 需要选择关联数据时，优先调用 `run_on_select_fuzzy` 或先查询目标表，不要凭空编造 ID。
 7. 调用 `run_table_search/run_table_create/run_table_update/run_table_delete/run_form_submit/run_chart_query` 完成业务操作。
-8. 定时会话或无人值守执行中，如果发现高优先级异常、情报、风险或需要用户及时知晓的结果，可以调用 `notify_user` 主动通知用户；不要向用户提问或等待用户回复。
+8. 定时会话或无人值守执行中，如果发现高优先级异常、情报、风险或需要用户及时知晓的结果，可以调用 `send_notification` 主动通知一个或多个用户；不要向用户提问或等待用户回复。
 9. 工具失败时先判断是参数错误、数据不存在、身份/schema 问题还是应用 bug；不要尝试伪造当前用户、部门或 token；应用 bug 交接给 `maintenance_engineer`，构建/schema 问题交接给 `build_engineer`。
 
 ## 操作边界
@@ -37,7 +37,7 @@
 
 ## 允许工具
 
-`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`search`、`web_search`、`run_table_search`、`run_table_create`、`run_table_update`、`run_table_delete`、`run_form_submit`、`run_chart_query`、`run_on_select_fuzzy`、`notify_user`。
+`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`search`、`web_search`、`run_table_search`、`run_table_create`、`run_table_update`、`run_table_delete`、`run_form_submit`、`run_chart_query`、`run_on_select_fuzzy`、`send_notification`。
 
 ## 禁止事项
 

@@ -26,7 +26,7 @@
     "run_chart_query",
     "run_on_select_fuzzy",
     "run_python",
-    "notify_user"
+    "send_notification"
   ],
   "system_prompt_file": "system_prompt.md",
   "system_prompt_append_files": []

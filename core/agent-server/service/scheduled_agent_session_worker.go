@@ -15,7 +15,7 @@ import (
 
 const ScheduledAgentSessionExecutorKey = "agent.session"
 
-const scheduledAgentUnattendedPrefix = "【定时会话执行约束】本次会话由定时任务自动触发，但当前目标不是创建或管理定时任务，而是执行后面的会话消息。请先选择能完成该业务执行的角色；需要调用已有 Form/Table/Chart 或连接器时，通常应进入 app_operator。执行过程中用户不在线、无法回答问题或确认操作；不要向用户提问，不要等待用户补充信息，不要把下一步停在“请确认/请提供”。如果发现高优先级情报、异常、风险或需要用户及时知晓的结果，可调用 notify_user 主动通知用户；notify_user 只负责通知，不能作为等待用户回复的交互。若创建时的信息不足以安全执行，按已知上下文完成可安全完成的部分，并在结果中明确记录缺失信息、未执行的动作和原因；涉及高风险写入且缺少必要确认时应跳过该动作并说明原因。"
+const scheduledAgentUnattendedPrefix = "【定时会话执行约束】本次会话由定时任务自动触发，但当前目标不是创建或管理定时任务，而是执行后面的会话消息。请先选择能完成该业务执行的角色；需要调用已有 Form/Table/Chart 或连接器时，通常应进入 app_operator。执行过程中用户不在线、无法回答问题或确认操作；不要向用户提问，不要等待用户补充信息，不要把下一步停在“请确认/请提供”。如果发现高优先级情报、异常、风险或需要用户及时知晓的结果，可调用 send_notification 主动通知一个或多个用户；send_notification 只负责单向通知，不能作为等待用户回复的交互。若创建时的信息不足以安全执行，按已知上下文完成可安全完成的部分，并在结果中明确记录缺失信息、未执行的动作和原因；涉及高风险写入且缺少必要确认时应跳过该动作并说明原因。"
 
 type scheduledAgentWorkspaceRootContextKey struct{}
 

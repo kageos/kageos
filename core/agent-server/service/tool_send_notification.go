@@ -13,21 +13,22 @@ import (
 	"github.com/kageos/kageos/pkg/subjects"
 )
 
-type NotifyUserTool struct {
+type SendNotificationTool struct {
 	publisher toolMessagePublisher
 }
 
-type notifyUserArgs struct {
-	ToUsers     string `json:"to_users" schema_desc:"接收用户 username，多个用逗号分隔。定时会话里建议显式传真实用户；不传时仅在当前请求用户不是 system 时默认发送给当前请求用户。"`
+type sendNotificationArgs struct {
+	ToUsers     string `json:"to_users" schema_desc:"接收用户 username，支持一个或多个；多个用逗号分隔，例如 alice,bob。定时会话里建议显式传真实用户；不传时仅在当前请求用户不是 system 时默认发送给当前请求用户。"`
 	Title       string `json:"title" schema_desc:"通知标题，简短说明发生了什么" schema_required:"true"`
 	Message     string `json:"message" schema_desc:"通知正文。支持 Markdown；content_type=html 时可以传已生成的 HTML 片段" schema_required:"true"`
 	ContentType string `json:"content_type" schema_desc:"正文格式：markdown、html 或 text；默认 markdown" schema_enum:"markdown,html,text"`
 	Level       string `json:"level" schema_desc:"通知级别：info=普通提醒，warning=需要注意，critical=高优先级；默认 info" schema_enum:"info,warning,critical"`
 }
 
-type notifyUserResultData struct {
+type sendNotificationResultData struct {
 	Status             string `json:"status" schema_desc:"提交状态" schema_required:"true"`
 	ToUsers            string `json:"to_users" schema_desc:"接收用户" schema_required:"true"`
+	RecipientCount     int    `json:"recipient_count" schema_desc:"接收用户数量" schema_required:"true"`
 	Title              string `json:"title" schema_desc:"最终通知标题" schema_required:"true"`
 	ContentType        string `json:"content_type" schema_desc:"正文格式" schema_required:"true"`
 	Level              string `json:"level" schema_desc:"通知级别" schema_required:"true"`
@@ -40,41 +41,41 @@ type notifyUserResultData struct {
 	WorkspaceSessionID string `json:"workspace_session_id,omitempty" schema_desc:"关联工作台会话 ID"`
 }
 
-var notifyUserToolDef = toolDefinitionWithOutput[notifyUserArgs, structuredToolResultSchema[notifyUserResultData]](
-	"notify_user",
-	"向用户发送站内通知。适合定时会话或无人值守 Agent 在发现高优先级情报、风险、异常或需要用户知晓的结果时主动提醒用户；不要用它询问用户并等待回复。通知来源会继承当前工作台/定时任务上下文，不会归到某个通知函数目录。content_type=html 时站内信会按安全清洗后的 HTML 渲染。",
+var sendNotificationToolDef = toolDefinitionWithOutput[sendNotificationArgs, structuredToolResultSchema[sendNotificationResultData]](
+	"send_notification",
+	"发送一条单向通知给一个或多个用户，不等待回复。适合定时会话或无人值守 Agent 在发现高优先级情报、风险、异常或需要用户知晓的结果时主动提醒用户；不要用它询问用户并等待回复。to_users 支持多个 username，用逗号分隔。通知来源会继承当前工作台/定时任务上下文，不会归到某个通知函数目录。content_type=html 时站内信会按安全清洗后的 HTML 渲染。",
 )
 
-func (t *NotifyUserTool) Definition() dto.ToolDef {
-	return notifyUserToolDef
+func (t *SendNotificationTool) Definition() dto.ToolDef {
+	return sendNotificationToolDef
 }
 
-func (t *NotifyUserTool) Execute(ctx context.Context, call ToolCall) ToolResult {
-	args, err := decodeToolArgs[notifyUserArgs](call.Args)
+func (t *SendNotificationTool) Execute(ctx context.Context, call ToolCall) ToolResult {
+	args, err := decodeToolArgs[sendNotificationArgs](call.Args)
 	if err != nil {
-		return toolResult("notify_user 参数解析失败: "+err.Error(), true)
+		return toolResult("send_notification 参数解析失败: "+err.Error(), true)
 	}
-	return runNotifyUserTool(ctx, t.publisher, args, call.FullCodePath)
+	return runSendNotificationTool(ctx, t.publisher, args, call.FullCodePath)
 }
 
-func runNotifyUserTool(ctx context.Context, publisher toolMessagePublisher, args notifyUserArgs, currentFullCodePath string) ToolResult {
+func runSendNotificationTool(ctx context.Context, publisher toolMessagePublisher, args sendNotificationArgs, currentFullCodePath string) ToolResult {
 	if publisher == nil {
-		return toolResult("notify_user 当前不可用：message-service NATS 发送器未初始化。", true)
+		return toolResult("send_notification 当前不可用：message-service NATS 发送器未初始化。", true)
 	}
 	title := normalizeNotifyTitle(args.Title, args.Level)
 	message := strings.TrimSpace(args.Message)
 	if title == "" {
-		return toolResult("notify_user 需传 title。", true)
+		return toolResult("send_notification 需传 title。", true)
 	}
 	if message == "" {
-		return toolResult("notify_user 需传 message。", true)
+		return toolResult("send_notification 需传 message。", true)
 	}
 	contentType, err := normalizeNotifyContentType(args.ContentType)
 	if err != nil {
 		return toolResult(err.Error(), true)
 	}
 	level := normalizeNotifyLevel(args.Level)
-	toUsers, err := resolveNotifyUsers(ctx, args.ToUsers)
+	toUsers, recipientCount, err := resolveNotifyUsers(ctx, args.ToUsers)
 	if err != nil {
 		return toolResult(err.Error(), true)
 	}
@@ -91,15 +92,16 @@ func runNotifyUserTool(ctx context.Context, publisher toolMessagePublisher, args
 	}
 	msg, err := msgx.BuildJSONRequest(ctx, subjects.MessageSendCommandSubject, envelope)
 	if err != nil {
-		return toolResult("notify_user 构建消息失败: "+err.Error(), true)
+		return toolResult("send_notification 构建消息失败: "+err.Error(), true)
 	}
 	if err := publisher.PublishMsg(msg); err != nil {
-		return toolResult("notify_user 提交消息失败: "+err.Error(), true)
+		return toolResult("send_notification 提交消息失败: "+err.Error(), true)
 	}
 
-	data := notifyUserResultData{
+	data := sendNotificationResultData{
 		Status:             "submitted",
 		ToUsers:            toUsers,
+		RecipientCount:     recipientCount,
 		Title:              title,
 		ContentType:        contentType,
 		Level:              level,
@@ -111,7 +113,7 @@ func runNotifyUserTool(ctx context.Context, publisher toolMessagePublisher, args
 		ThreadKey:          meta.ThreadKey,
 		WorkspaceSessionID: meta.WorkspaceSessionID,
 	}
-	logger.Infof(ctx, "[NotifyUserTool] submitted to_users=%s title=%s source_type=%s source_ref=%s thread_key=%s",
+	logger.Infof(ctx, "[SendNotificationTool] submitted to_users=%s title=%s source_type=%s source_ref=%s thread_key=%s",
 		toUsers, title, meta.SourceType, meta.SourceRef, meta.ThreadKey)
 	return toolResultWithStructuredData(data, false, "通知已提交给 message-service。")
 }
@@ -125,7 +127,7 @@ func normalizeNotifyContentType(contentType string) (string, error) {
 	case "markdown", "html", "text":
 		return contentType, nil
 	default:
-		return "", fmt.Errorf("notify_user content_type 只支持 markdown、html、text。")
+		return "", fmt.Errorf("send_notification content_type 只支持 markdown、html、text。")
 	}
 }
 
@@ -154,16 +156,50 @@ func normalizeNotifyTitle(title string, level string) string {
 	return title
 }
 
-func resolveNotifyUsers(ctx context.Context, toUsers string) (string, error) {
-	toUsers = strings.TrimSpace(toUsers)
-	if toUsers != "" {
-		return toUsers, nil
+func resolveNotifyUsers(ctx context.Context, toUsers string) (string, int, error) {
+	users := normalizeNotifyUsers(toUsers)
+	if users != "" {
+		return users, countNotifyUsers(users), nil
 	}
 	requestUser := strings.TrimSpace(contextx.GetRequestUser(ctx))
 	if requestUser == "" || requestUser == "system" {
-		return "", fmt.Errorf("notify_user 需要传 to_users；当前上下文无法推断真实接收用户。定时会话里请显式指定要通知的 username。")
+		return "", 0, fmt.Errorf("send_notification 需要传 to_users；当前上下文无法推断真实接收用户。定时会话里请显式指定要通知的 username，多个用户用逗号分隔。")
 	}
-	return requestUser, nil
+	users = normalizeNotifyUsers(requestUser)
+	return users, countNotifyUsers(users), nil
+}
+
+func normalizeNotifyUsers(toUsers string) string {
+	toUsers = strings.NewReplacer(
+		"，", ",",
+		"、", ",",
+		";", ",",
+		"；", ",",
+		"\n", ",",
+		"\t", ",",
+	).Replace(strings.TrimSpace(toUsers))
+	parts := strings.Split(toUsers, ",")
+	seen := make(map[string]struct{}, len(parts))
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		user := strings.TrimSpace(part)
+		if user == "" {
+			continue
+		}
+		if _, ok := seen[user]; ok {
+			continue
+		}
+		seen[user] = struct{}{}
+		out = append(out, user)
+	}
+	return strings.Join(out, ",")
+}
+
+func countNotifyUsers(toUsers string) int {
+	if toUsers = strings.TrimSpace(toUsers); toUsers == "" {
+		return 0
+	}
+	return len(strings.Split(toUsers, ","))
 }
 
 func buildNotifyMessageMeta(ctx context.Context, title string, currentFullCodePath string) dto.MessageSendMeta {

@@ -10,17 +10,17 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-type fakeNotifyPublisher struct {
+type fakeNotificationPublisher struct {
 	msgs []*nats.Msg
 }
 
-func (p *fakeNotifyPublisher) PublishMsg(msg *nats.Msg) error {
+func (p *fakeNotificationPublisher) PublishMsg(msg *nats.Msg) error {
 	p.msgs = append(p.msgs, msg)
 	return nil
 }
 
-func TestNotifyUserPublishesWithScheduledSource(t *testing.T) {
-	publisher := &fakeNotifyPublisher{}
+func TestSendNotificationPublishesWithScheduledSource(t *testing.T) {
+	publisher := &fakeNotificationPublisher{}
 	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
 		RequestUser:  "alice",
 		ClientSource: contextx.ClientSourceScheduledTask,
@@ -31,8 +31,8 @@ func TestNotifyUserPublishesWithScheduledSource(t *testing.T) {
 	})
 	ctx = contextx.WithWorkspaceSession(ctx, "session-1", "热点情报定时推送", "app_operator")
 
-	result := runNotifyUserTool(ctx, publisher, notifyUserArgs{
-		ToUsers:     "bob",
+	result := runSendNotificationTool(ctx, publisher, sendNotificationArgs{
+		ToUsers:     "bob，carol,bob",
 		Title:       "发现重要情报",
 		Message:     "<b>需要关注</b>",
 		ContentType: "html",
@@ -40,7 +40,7 @@ func TestNotifyUserPublishesWithScheduledSource(t *testing.T) {
 	}, "/system/test22/hot_news")
 
 	if result.IsError {
-		t.Fatalf("notify_user returned error: %s", result.Content)
+		t.Fatalf("send_notification returned error: %s", result.Content)
 	}
 	if len(publisher.msgs) != 1 {
 		t.Fatalf("published messages = %d, want 1", len(publisher.msgs))
@@ -53,7 +53,7 @@ func TestNotifyUserPublishesWithScheduledSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}
-	if envelope.Message.ToUsers != "bob" {
+	if envelope.Message.ToUsers != "bob,carol" {
 		t.Fatalf("to_users = %q", envelope.Message.ToUsers)
 	}
 	if envelope.Message.ContentType != "html" {
@@ -79,19 +79,19 @@ func TestNotifyUserPublishesWithScheduledSource(t *testing.T) {
 	}
 }
 
-func TestNotifyUserRequiresRecipientWhenRequestUserIsSystem(t *testing.T) {
-	publisher := &fakeNotifyPublisher{}
+func TestSendNotificationRequiresRecipientWhenRequestUserIsSystem(t *testing.T) {
+	publisher := &fakeNotificationPublisher{}
 	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
 		RequestUser: "system",
 	})
 
-	result := runNotifyUserTool(ctx, publisher, notifyUserArgs{
+	result := runSendNotificationTool(ctx, publisher, sendNotificationArgs{
 		Title:   "提醒",
 		Message: "需要通知",
 	}, "/system/test22/hot_news")
 
 	if !result.IsError {
-		t.Fatalf("notify_user should fail without explicit recipient under system context")
+		t.Fatalf("send_notification should fail without explicit recipient under system context")
 	}
 	if len(publisher.msgs) != 0 {
 		t.Fatalf("published messages = %d, want 0", len(publisher.msgs))

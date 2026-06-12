@@ -91,10 +91,10 @@ func TestWebSearchToolIsRegistered(t *testing.T) {
 	}
 }
 
-func TestNotifyUserToolIsRegistered(t *testing.T) {
+func TestSendNotificationToolIsRegistered(t *testing.T) {
 	reg := NewToolRegistry()
-	if _, ok := reg.tools["notify_user"]; !ok {
-		t.Fatal("notify_user should be registered")
+	if _, ok := reg.tools["send_notification"]; !ok {
+		t.Fatal("send_notification should be registered")
 	}
 }
 
