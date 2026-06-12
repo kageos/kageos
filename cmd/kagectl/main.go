@@ -60,6 +60,15 @@ var (
 	}
 )
 
+var runtimeSourceSnapshotEntries = []string{
+	"go.mod",
+	"go.sum",
+	"sdk",
+	"pkg",
+	"dto",
+	filepath.Join("core", "hr-server", "model"),
+}
+
 func defaultStorageRoot() string {
 	home, err := os.UserHomeDir()
 	if err != nil || strings.TrimSpace(home) == "" {
@@ -955,6 +964,9 @@ func cmdRender(paths Paths) error {
 	if err := renderAll(rt); err != nil {
 		return err
 	}
+	if err := syncRuntimeSourceSnapshot(rt); err != nil {
+		return err
+	}
 	fmt.Printf("rendered deployment files: %s\n", paths.GeneratedDir)
 	fmt.Printf("compose file: %s\n", filepath.Join(paths.GeneratedDir, "docker-compose.yaml"))
 	return nil
@@ -1027,6 +1039,9 @@ func cmdUp(paths Paths, args []string) error {
 		return err
 	}
 	if err := renderAll(rt); err != nil {
+		return err
+	}
+	if err := syncRuntimeSourceSnapshot(rt); err != nil {
 		return err
 	}
 
@@ -2279,6 +2294,125 @@ func renderAll(rt RuntimeConfig) error {
 		return err
 	}
 	return nil
+}
+
+func syncRuntimeSourceSnapshot(rt RuntimeConfig) error {
+	for _, rel := range runtimeSourceSnapshotEntries {
+		if err := syncRuntimeSourceSnapshotEntry(rt.Paths.RepoRoot, rt.Storage.Root, rel); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func syncRuntimeSourceSnapshotEntry(repoRoot, storageRoot, rel string) error {
+	cleanRel := filepath.Clean(rel)
+	if cleanRel == "." || strings.HasPrefix(cleanRel, "..") || filepath.IsAbs(cleanRel) {
+		return fmt.Errorf("invalid runtime source snapshot entry: %s", rel)
+	}
+
+	src := filepath.Join(repoRoot, cleanRel)
+	dst := filepath.Join(storageRoot, cleanRel)
+	info, err := os.Stat(src)
+	if err != nil {
+		return fmt.Errorf("stat runtime source snapshot entry %s: %w", src, err)
+	}
+	srcAbs, err := filepath.Abs(src)
+	if err != nil {
+		return err
+	}
+	dstAbs, err := filepath.Abs(dst)
+	if err != nil {
+		return err
+	}
+	if srcAbs == dstAbs {
+		return nil
+	}
+	if pathIsInside(dstAbs, srcAbs) {
+		return fmt.Errorf("runtime source snapshot destination %s is inside source %s", dstAbs, srcAbs)
+	}
+
+	if info.IsDir() {
+		if err := os.RemoveAll(dst); err != nil {
+			return fmt.Errorf("remove old runtime source snapshot %s: %w", dst, err)
+		}
+		return copyDirSnapshot(src, dst)
+	}
+	return copyFileSnapshot(src, dst, info.Mode().Perm())
+}
+
+func pathIsInside(path, parent string) bool {
+	rel, err := filepath.Rel(parent, path)
+	if err != nil {
+		return false
+	}
+	return rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func copyDirSnapshot(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if entry.IsDir() {
+			if entry.Name() == ".git" || entry.Name() == "node_modules" {
+				return filepath.SkipDir
+			}
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			return os.MkdirAll(target, info.Mode().Perm())
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		if !entry.Type().IsRegular() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		return copyFileSnapshot(path, target, info.Mode().Perm())
+	})
+}
+
+func copyFileSnapshot(src, dst string, mode os.FileMode) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	tmp := dst + ".tmp"
+	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	if copyErr != nil {
+		_ = os.Remove(tmp)
+		return copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(tmp)
+		return closeErr
+	}
+	if err := os.Chmod(tmp, mode); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, dst)
 }
 
 func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, companyName string) error {
