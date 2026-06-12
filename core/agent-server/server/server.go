@@ -201,7 +201,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.runtimeStateStore = service.NewInMemoryRuntimeStateStore()
 
 	// 智能工作台 ToolRegistry、WorkspaceChatService（只认 LLM，单模式；已移除插件）
-	s.toolRegistry = service.NewToolRegistry()
+	s.toolRegistry = service.NewToolRegistry(service.WithToolMessagePublisher(s.natsConn))
 	s.workspaceChatService = service.NewWorkspaceChatService(s.toolRegistry, sessionRepo, messageRepo, s.llmRepo, s.runtimeStateStore)
 	scheduledAgentWorker, err := service.NewScheduledAgentSessionWorker(s.natsConn, s.workspaceChatService)
 	if err != nil {

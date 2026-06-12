@@ -91,6 +91,13 @@ func TestWebSearchToolIsRegistered(t *testing.T) {
 	}
 }
 
+func TestNotifyUserToolIsRegistered(t *testing.T) {
+	reg := NewToolRegistry()
+	if _, ok := reg.tools["notify_user"]; !ok {
+		t.Fatal("notify_user should be registered")
+	}
+}
+
 func TestToolSchemasAreWellFormed(t *testing.T) {
 	reg := NewToolRegistry()
 	defs, err := reg.ListTools(context.Background(), nil)

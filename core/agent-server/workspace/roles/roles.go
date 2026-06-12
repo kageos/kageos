@@ -159,7 +159,7 @@ func Specs() map[string]Spec {
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "search",
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
-				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
+				"run_form_submit", "run_chart_query", "run_on_select_fuzzy", "notify_user",
 			},
 			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
 			Runtime: runtimeContract(
@@ -186,7 +186,7 @@ func Specs() map[string]Spec {
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "search",
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
-				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
+				"run_form_submit", "run_chart_query", "run_on_select_fuzzy", "notify_user",
 			},
 			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
 			Runtime: runtimeContract(
@@ -213,7 +213,7 @@ func Specs() map[string]Spec {
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "search",
 				"create_scheduled_function_task", "create_scheduled_agent_task",
-				"list_scheduled_tasks", "manage_scheduled_task", "list_scheduled_task_executions",
+				"list_scheduled_tasks", "manage_scheduled_task", "list_scheduled_task_executions", "notify_user",
 			},
 			ForbiddenTools: []string{
 				"write_prd", "create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace",
@@ -266,7 +266,7 @@ func Specs() map[string]Spec {
 			ID:           DataOperator,
 			DisplayName:  "数据/文件处理工程师",
 			Docs:         []string{"/system/prompt/roles/data-operator"},
-			AllowedTools: []string{"change_role", "read_doc", "search", "run_form_submit", "run_python"},
+			AllowedTools: []string{"change_role", "read_doc", "search", "run_form_submit", "run_python", "notify_user"},
 			Runtime: runtimeContract(
 				[]string{"一次性文件、媒体、数据处理、格式转换、OCR、压缩、转码或临时图表生成"},
 				[]string{"用户明确要求沉淀为长期业务系统"},
@@ -286,7 +286,7 @@ func Specs() map[string]Spec {
 			ID:           PlatformEngineer,
 			DisplayName:  "平台集成工程师",
 			Docs:         []string{"/system/prompt/roles/platform-engineer"},
-			AllowedTools: []string{"change_role", "read_doc", "search", "run_form_submit"},
+			AllowedTools: []string{"change_role", "read_doc", "search", "run_form_submit", "notify_user"},
 			Runtime: runtimeContract(
 				[]string{"需要平台 OpenAPI、权限、审计、组织、文件或平台集成能力"},
 				[]string{"业务应用内普通 CRUD、测试或一次性文件处理"},

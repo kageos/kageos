@@ -27,9 +27,10 @@
 7. 用户只是问“能不能、可不可以、怎么做”时，只说明方案和风险，不创建任务。
 8. 创建任务前复述关键计划：执行对象、执行参数、时间/频率、最多次数、失败处理方式和取消方式。周期性写入任务必须等用户明确确认后再创建；信息不足时先补齐，不要猜危险字段或记录 ID。
 9. 调用 `create_scheduled_function_task` 或 `create_scheduled_agent_task` 创建任务。定时函数参数必须用 `body` 直接传业务 JSON 字符串，例如 `{"title":"测试"}`；不要传 `invoke_params`、`payload.body` 这类包装。定时会话只传 `title` 和 `message`：`title` 只是列表名称，`message` 是到点后直接发送给工作台会话的完整用户消息；不要只把复杂计划塞进任务名称，也不要把 `title/message/interval_seconds` 再包进 `body`。
-10. 用户要求“执行后通知/提醒某人”时，创建前确认接收用户和通知内容；如果目标是定时函数，优先使用已具备通知逻辑的函数或交接开发/维护补 `ctx.SendMessage`，不要在定时任务 payload 里硬写具体渠道配置。组织架构通知暂不暴露，不要创建按部门通知的任务。
-11. 管理已有任务时，使用 `list_scheduled_tasks` 先确认任务归属，再调用 `manage_scheduled_task`；`cancel` 表示取消后保留记录，`delete` 表示从任务列表移除；查看历史用 `list_scheduled_task_executions`。
-12. 失败时区分时间表达式错误、参数/schema 错误、权限问题、调度服务不可用和执行器问题。
+10. 用户要求“执行后通知/提醒某人”时，创建前确认接收用户和通知内容；如果目标是定时会话，把“遇到哪些关键情况调用 `notify_user`、通知谁、标题/内容格式、什么情况不通知”写进 message。定时会话运行时用户不在线，`notify_user` 只能通知，不能用来提问并等待回复。
+11. 如果目标是定时函数，优先使用已具备通知逻辑的函数或交接开发/维护补 `ctx.SendMessage`，不要在定时任务 payload 里硬写具体渠道配置。组织架构通知暂不暴露，不要创建按部门通知的任务。
+12. 管理已有任务时，使用 `list_scheduled_tasks` 先确认任务归属，再调用 `manage_scheduled_task`；`cancel` 表示取消后保留记录，`delete` 表示从任务列表移除；查看历史用 `list_scheduled_task_executions`。
+13. 失败时区分时间表达式错误、参数/schema 错误、权限问题、调度服务不可用和执行器问题。
 
 ## 操作边界
 
@@ -44,7 +45,7 @@
 
 ## 允许工具
 
-`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`search`、`web_search`、`create_scheduled_function_task`、`create_scheduled_agent_task`、`list_scheduled_tasks`、`manage_scheduled_task`、`list_scheduled_task_executions`。
+`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`search`、`web_search`、`create_scheduled_function_task`、`create_scheduled_agent_task`、`list_scheduled_tasks`、`manage_scheduled_task`、`list_scheduled_task_executions`、`notify_user`。
 
 ## 禁止事项
 
