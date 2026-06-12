@@ -67,10 +67,12 @@
           <section class="inbox-list-pane" v-loading="listLoading">
             <template v-if="showServiceTreeInbox">
               <el-tree
+                :key="sourceTreeRenderKey"
                 class="inbox-source-tree"
                 :data="props.serviceTree"
                 :props="sourceTreeProps"
                 node-key="full_code_path"
+                :default-expanded-keys="sourceTreeExpandedKeys"
                 :expand-on-click-node="false"
                 :highlight-current="false"
                 @node-click="handleSourceTreeNodeClick"
@@ -376,6 +378,42 @@ const sourceTreeSummaries = computed<Record<string, SourceTreeSummary>>(() => {
     walk(node)
   }
   return summaries
+})
+const sourceTreeExpandedKeys = computed(() => {
+  const expanded = new Set<string>()
+
+  const addChain = (chain: string[]) => {
+    for (const path of chain) {
+      if (path) expanded.add(path)
+    }
+  }
+
+  const selectedPath = normalizeSourceTreePath(sourceFilter.value?.sourcePath)
+  const walk = (node: ServiceTree, ancestors: string[]) => {
+    const path = normalizeSourceTreePath(node.full_code_path)
+    const chain = path ? [...ancestors, path] : ancestors
+    const summary = sourceTreeSummaryByPath(path)
+    const hasMessages = Number(summary?.message_count || 0) > 0 || Number(summary?.unread_count || 0) > 0
+    const isRoot = ancestors.length === 0 && path
+    const isSelectedChain = Boolean(selectedPath && path && (selectedPath === path || selectedPath.startsWith(`${path}/`)))
+
+    if (isRoot || hasMessages || isSelectedChain) {
+      addChain(chain)
+    }
+
+    for (const child of node.children || []) {
+      walk(child, chain)
+    }
+  }
+
+  for (const node of props.serviceTree || []) {
+    walk(node, [])
+  }
+
+  return [...expanded]
+})
+const sourceTreeRenderKey = computed(() => {
+  return sourceTreeExpandedKeys.value.join('|') || 'empty'
 })
 const drawerTitle = computed(() => {
   if (!sourceFilter.value) return '站内信'
