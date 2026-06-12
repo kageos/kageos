@@ -76,21 +76,14 @@
                 @node-click="handleSourceTreeNodeClick"
               >
                 <template #default="{ data }">
-                  <span
-                    class="inbox-source-tree-node"
-                    :class="{ 'is-active': isSourceTreeNodeActive(data), 'has-unread': hasSourceTreeUnread(data) }"
-                  >
-                    <span class="source-tree-icon">
-                      <el-icon><component :is="sourceTreeNodeIcon(data)" /></el-icon>
-                    </span>
-                    <span class="source-tree-name">{{ data.name || data.code || data.full_code_path }}</span>
-                    <el-badge
-                      v-if="hasSourceTreeUnread(data)"
-                      class="source-tree-badge"
-                      :value="sourceTreeUnreadCount(data)"
-                      :max="99"
-                    />
-                  </span>
+                  <ServiceTreeNodeContent
+                    :node="data"
+                    :active="isSourceTreeNodeActive(data)"
+                    :show-notification-badge="hasSourceTreeUnread(data)"
+                    :notification-badge-value="sourceTreeUnreadCount(data)"
+                    :notification-badge-title="getSourceTreeNotificationTitle(data)"
+                    @notification-click="handleSourceTreeNodeClick(data)"
+                  />
                 </template>
               </el-tree>
             </template>
@@ -280,6 +273,7 @@ import {
 import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { escapeHtml, sanitizeHtml } from '@/architecture/shared/sanitizeHtml'
+import ServiceTreeNodeContent from './ServiceTreeNodeContent.vue'
 import {
   getMessageInboxItem,
   getMessageInboxUnreadCount,
@@ -771,13 +765,16 @@ function sourceTreeUnreadCount(node: ServiceTree) {
   return getSourceTreeSummary(node)?.unread_count || ''
 }
 
-function isSourceTreeNodeActive(node: ServiceTree) {
-  return normalizeSourceTreePath(node.full_code_path) === normalizeSourceTreePath(sourceFilter.value?.sourcePath)
+function getSourceTreeNotificationTitle(node: ServiceTree) {
+  const summary = getSourceTreeSummary(node)
+  const unread = Number(summary?.unread_count || 0)
+  const total = Number(summary?.message_count || 0)
+  if (unread > 0) return `${unread} 条未读通知，${total} 条通知`
+  return `${total} 条通知`
 }
 
-function sourceTreeNodeIcon(node: ServiceTree) {
-  if (node.type === 'package') return FolderOpened
-  return DocumentIcon
+function isSourceTreeNodeActive(node: ServiceTree) {
+  return normalizeSourceTreePath(node.full_code_path) === normalizeSourceTreePath(sourceFilter.value?.sourcePath)
 }
 
 function handleSourceTreeNodeClick(node: ServiceTree) {
@@ -1095,61 +1092,6 @@ defineExpose({
 
   :deep(.el-tree-node__expand-icon) {
     color: var(--el-text-color-placeholder);
-  }
-}
-
-.inbox-source-tree-node {
-  display: grid;
-  width: 100%;
-  min-width: 0;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-  padding-right: 8px;
-  color: var(--el-text-color-primary);
-  font-size: 13px;
-  line-height: 1;
-
-  &.is-active {
-    color: var(--el-color-primary);
-    font-weight: 750;
-  }
-
-  &.has-unread .source-tree-name {
-    font-weight: 780;
-  }
-}
-
-.source-tree-icon {
-  display: grid;
-  width: 26px;
-  height: 26px;
-  place-items: center;
-  border: 1px solid var(--app-shell-panel-border);
-  border-radius: 8px;
-  background: var(--app-shell-panel-bg);
-  color: var(--el-color-primary);
-  font-size: 15px;
-}
-
-.inbox-source-tree-node.is-active .source-tree-icon {
-  border-color: rgba(var(--el-color-primary-rgb), 0.28);
-  background: rgba(var(--el-color-primary-rgb), 0.12);
-}
-
-.source-tree-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.source-tree-badge {
-  flex-shrink: 0;
-
-  :deep(.el-badge__content) {
-    border: 0;
-    box-shadow: 0 0 0 2px var(--app-shell-panel-muted-bg);
   }
 }
 
