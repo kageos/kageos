@@ -21,7 +21,7 @@
       v-model="drawerVisible"
       title="站内信"
       direction="rtl"
-      size="min(860px, 92vw)"
+      size="min(1120px, 96vw)"
       :destroy-on-close="false"
       append-to-body
       modal-class="workspace-inbox-modal"
@@ -61,27 +61,31 @@
         <div class="inbox-layout">
           <section class="inbox-list-pane" v-loading="listLoading">
             <el-empty
-              v-if="!listLoading && inboxItems.length === 0"
+              v-if="!listLoading && inboxThreads.length === 0"
               description="暂无站内信"
               :image-size="80"
             />
 
             <button
-              v-for="item in inboxItems"
-              :key="item.id"
+              v-for="thread in inboxThreads"
+              :key="thread.key"
               type="button"
               class="inbox-list-item"
-              :class="{ 'is-active': selectedId === item.id, 'is-unread': !item.read_at }"
-              @click="selectMessage(item)"
+              :class="{ 'is-active': selectedThread?.key === thread.key, 'is-unread': thread.unreadCount > 0 }"
+              @click="selectThread(thread)"
             >
-              <span class="inbox-unread-dot"></span>
+              <span class="thread-avatar">
+                <el-icon><component :is="threadIcon(thread)" /></el-icon>
+              </span>
               <span class="inbox-list-copy">
-                <span class="inbox-list-source">{{ sourcePrimaryText(item) }}</span>
-                <span class="inbox-list-title">{{ item.title || '无标题消息' }}</span>
-                <span class="inbox-list-preview">{{ previewText(item.content) }}</span>
+                <span class="thread-title-row">
+                  <span class="inbox-list-title">{{ thread.title }}</span>
+                  <span v-if="thread.unreadCount > 0" class="thread-unread-count">{{ thread.unreadCount }}</span>
+                </span>
+                <span class="inbox-list-preview">{{ previewText(thread.lastMessage.content) }}</span>
                 <span class="inbox-list-meta">
-                  <span>{{ sourceSecondaryText(item) }}</span>
-                  <span>{{ formatTime(item.created_at) }}</span>
+                  <span>{{ thread.subtitle }}</span>
+                  <span>{{ formatTime(thread.lastMessage.created_at) }}</span>
                 </span>
               </span>
             </button>
@@ -100,82 +104,109 @@
 
           <section class="inbox-detail-pane" v-loading="detailLoading">
             <el-empty
-              v-if="!selectedMessage"
-              description="选择一条消息查看详情"
+              v-if="!selectedThread"
+              description="选择一个消息源查看通知"
               :image-size="96"
             />
 
             <article v-else class="inbox-detail">
               <header class="inbox-detail-header">
                 <div>
-                  <h3>{{ selectedMessage.title || '无标题消息' }}</h3>
+                  <h3>{{ selectedThread.title }}</h3>
                   <div class="inbox-detail-meta">
-                    <span>来自 {{ sourcePrimaryText(selectedMessage) }}</span>
-                    <span>{{ formatTime(selectedMessage.created_at) }}</span>
-                    <el-tag v-if="selectedMessage.read_at" size="small" type="info">已读</el-tag>
-                    <el-tag v-else size="small" type="primary">未读</el-tag>
+                    <span>{{ selectedThread.subtitle }}</span>
+                    <span>{{ selectedThread.count }} 条消息</span>
+                    <el-tag v-if="selectedThread.unreadCount > 0" size="small" type="primary">
+                      {{ selectedThread.unreadCount }} 条未读
+                    </el-tag>
+                    <el-tag v-else size="small" type="info">已读</el-tag>
                   </div>
                 </div>
                 <el-button
-                  v-if="!selectedMessage.read_at"
+                  v-if="selectedThread.unreadCount > 0"
                   size="small"
                   type="primary"
                   plain
-                  @click="markSelectedRead"
+                  @click="markThreadRead(selectedThread)"
                 >
-                  标记已读
+                  全部已读
                 </el-button>
               </header>
 
-              <section v-if="hasSourceCard(selectedMessage)" class="inbox-source-card">
-                <div class="source-avatar">{{ sourceInitial(selectedMessage) }}</div>
+              <section class="inbox-source-card">
+                <div class="source-avatar">
+                  <el-icon><component :is="threadIcon(selectedThread)" /></el-icon>
+                </div>
                 <div class="source-copy">
                   <div class="source-title-row">
-                    <strong>{{ sourcePrimaryText(selectedMessage) }}</strong>
-                    <el-tag v-if="sourceTypeText(selectedMessage)" size="small" effect="plain">
-                      {{ sourceTypeText(selectedMessage) }}
+                    <strong>{{ selectedThread.title }}</strong>
+                    <el-tag v-if="sourceTypeText(selectedThread.lastMessage)" size="small" effect="plain">
+                      {{ sourceTypeText(selectedThread.lastMessage) }}
                     </el-tag>
                   </div>
-                  <div class="source-subtitle">{{ sourceSecondaryText(selectedMessage) }}</div>
-                  <div v-if="selectedMessage.workspace_session_id" class="source-session">
-                    会话：{{ selectedMessage.workspace_session_title || selectedMessage.workspace_session_id }}
-                  </div>
+                  <div class="source-subtitle">{{ selectedThread.path || selectedThread.subtitle }}</div>
                 </div>
                 <div class="source-actions">
                   <el-button
-                    v-if="selectedMessage.workspace_session_id"
-                    size="small"
-                    type="primary"
-                    plain
-                    @click="openWorkspaceSession(selectedMessage)"
-                  >
-                    查看会话
-                  </el-button>
-                  <el-button
-                    v-if="sourcePathForMessage(selectedMessage)"
+                    v-if="sourcePathForMessage(selectedThread.lastMessage)"
                     size="small"
                     plain
-                    @click="openSourcePath(selectedMessage)"
+                    @click="openSourcePath(selectedThread.lastMessage)"
                   >
                     查看来源
                   </el-button>
                 </div>
               </section>
 
-              <div class="inbox-content">{{ selectedMessage.content }}</div>
-
-              <dl class="inbox-source" v-if="selectedMessage.full_code_path || selectedMessage.source_path || selectedMessage.source_type || selectedMessage.trace_id">
-                <dt v-if="selectedMessage.source_path || selectedMessage.full_code_path">来源路径</dt>
-                <dd v-if="selectedMessage.source_path || selectedMessage.full_code_path">{{ selectedMessage.source_path || selectedMessage.full_code_path }}</dd>
-                <dt v-if="selectedMessage.source_parent_path">来源目录</dt>
-                <dd v-if="selectedMessage.source_parent_path">{{ selectedMessage.source_parent_path }}</dd>
-                <dt v-if="selectedMessage.workspace_session_id">会话 ID</dt>
-                <dd v-if="selectedMessage.workspace_session_id">{{ selectedMessage.workspace_session_id }}</dd>
-                <dt v-if="selectedMessage.source_type">来源类型</dt>
-                <dd v-if="selectedMessage.source_type">{{ selectedMessage.source_type }}</dd>
-                <dt v-if="selectedMessage.trace_id">Trace</dt>
-                <dd v-if="selectedMessage.trace_id">{{ selectedMessage.trace_id }}</dd>
-              </dl>
+              <div class="inbox-message-stream">
+                <article
+                  v-for="message in selectedThreadMessages"
+                  :key="message.id"
+                  class="inbox-message-card"
+                  :class="{ 'is-unread': !message.read_at, 'is-active': selectedId === message.id }"
+                  @click="selectMessage(message)"
+                >
+                  <header class="message-card-header">
+                    <div class="message-card-title">
+                      <strong>{{ message.title || '无标题消息' }}</strong>
+                      <el-tag v-if="sourceTypeText(message)" size="small" effect="plain">
+                        {{ sourceTypeText(message) }}
+                      </el-tag>
+                      <el-tag v-if="!message.read_at" size="small" type="primary">未读</el-tag>
+                    </div>
+                    <span>{{ formatTime(message.created_at) }}</span>
+                  </header>
+                  <div class="message-card-source">{{ sourceSecondaryText(message) }}</div>
+                  <div class="inbox-content">{{ message.content }}</div>
+                  <footer class="message-card-actions">
+                    <el-button
+                      v-if="message.workspace_session_id"
+                      size="small"
+                      type="primary"
+                      plain
+                      @click.stop="openWorkspaceSession(message)"
+                    >
+                      查看会话
+                    </el-button>
+                    <el-button
+                      v-if="sourcePathForMessage(message)"
+                      size="small"
+                      plain
+                      @click.stop="openSourcePath(message)"
+                    >
+                      查看来源
+                    </el-button>
+                    <el-button
+                      v-if="!message.read_at"
+                      size="small"
+                      plain
+                      @click.stop="markMessageRead(message.id)"
+                    >
+                      标记已读
+                    </el-button>
+                  </footer>
+                </article>
+              </div>
             </article>
           </section>
         </div>
@@ -189,7 +220,14 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage } from 'element-plus'
-import { Message as MessageIcon, Refresh } from '@element-plus/icons-vue'
+import {
+  ChatDotRound,
+  Document as DocumentIcon,
+  FolderOpened,
+  Message as MessageIcon,
+  Refresh,
+  Timer,
+} from '@element-plus/icons-vue'
 import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 import {
   getMessageInboxItem,
@@ -201,6 +239,18 @@ import {
   type MessageInboxStatus,
 } from '@/architecture/presentation/context/api/message'
 
+interface InboxThread {
+  key: string
+  title: string
+  subtitle: string
+  path: string
+  kind: 'directory' | 'function' | 'session' | 'sender'
+  lastMessage: MessageInboxItem
+  messages: MessageInboxItem[]
+  unreadCount: number
+  count: number
+}
+
 const router = useRouter()
 const drawerVisible = ref(false)
 const countLoading = ref(false)
@@ -211,6 +261,7 @@ const unreadCount = ref(0)
 const inboxItems = ref<MessageInboxItem[]>([])
 const selectedMessage = ref<MessageInboxItem | null>(null)
 const selectedId = computed(() => selectedMessage.value?.id ?? null)
+const selectedThreadKey = ref('')
 const page = ref(1)
 const pageSize = 20
 const total = ref(0)
@@ -219,6 +270,44 @@ const statusOptions = [
   { label: '全部', value: 'all' },
   { label: '未读', value: 'unread' },
 ]
+const inboxThreads = computed<InboxThread[]>(() => {
+  const groups = new Map<string, MessageInboxItem[]>()
+  for (const item of inboxItems.value) {
+    const key = threadKeyForMessage(item)
+    const group = groups.get(key) || []
+    group.push(item)
+    groups.set(key, group)
+  }
+
+  const threads: InboxThread[] = []
+  for (const [key, messages] of groups.entries()) {
+    const sorted = [...messages].sort((a, b) => messageTime(b) - messageTime(a))
+    const lastMessage = sorted[0]
+    if (!lastMessage) continue
+    threads.push({
+      key,
+      title: threadTitle(lastMessage),
+      subtitle: threadSubtitle(lastMessage, sorted.length),
+      path: threadPath(lastMessage),
+      kind: threadKind(lastMessage),
+      lastMessage,
+      messages: sorted,
+      unreadCount: sorted.filter(item => !item.read_at).length,
+      count: sorted.length,
+    })
+  }
+  return threads.sort((a, b) => messageTime(b.lastMessage) - messageTime(a.lastMessage))
+})
+const selectedThread = computed(() => {
+  return inboxThreads.value.find(thread => thread.key === selectedThreadKey.value)
+    || inboxThreads.value[0]
+    || null
+})
+const selectedThreadMessages = computed(() => {
+  return selectedThread.value?.messages
+    .slice()
+    .sort((a, b) => messageTime(a) - messageTime(b)) || []
+})
 
 onMounted(() => {
   void loadUnreadCount()
@@ -259,6 +348,9 @@ async function loadInbox(resetPage = false) {
     })
     inboxItems.value = resp.list || []
     total.value = resp.total || 0
+    if (!inboxThreads.value.some(thread => thread.key === selectedThreadKey.value)) {
+      selectedThreadKey.value = inboxThreads.value[0]?.key || ''
+    }
     if (selectedMessage.value && !inboxItems.value.some(item => item.id === selectedMessage.value?.id)) {
       selectedMessage.value = null
     }
@@ -267,6 +359,12 @@ async function loadInbox(resetPage = false) {
   } finally {
     listLoading.value = false
   }
+}
+
+function selectThread(thread: InboxThread) {
+  selectedThreadKey.value = thread.key
+  selectedMessage.value = thread.lastMessage
+  void markThreadRead(thread)
 }
 
 async function selectMessage(item: MessageInboxItem) {
@@ -289,9 +387,24 @@ async function selectMessage(item: MessageInboxItem) {
   }
 }
 
-async function markSelectedRead() {
-  if (!selectedMessage.value) return
-  await markMessageRead(selectedMessage.value.id)
+async function markThreadRead(thread: InboxThread) {
+  const unreadMessages = thread.messages.filter(item => !item.read_at)
+  if (unreadMessages.length === 0) return
+  try {
+    await Promise.all(unreadMessages.map(item => markMessageInboxItemRead(item.id)))
+    const now = new Date().toISOString()
+    const ids = new Set(unreadMessages.map(item => item.id))
+    inboxItems.value = inboxItems.value.map(item => {
+      if (!ids.has(item.id)) return item
+      return { ...item, read_at: item.read_at || now }
+    })
+    if (selectedMessage.value && ids.has(selectedMessage.value.id)) {
+      selectedMessage.value = { ...selectedMessage.value, read_at: selectedMessage.value.read_at || now }
+    }
+    await loadUnreadCount()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '标记已读失败')
+  }
 }
 
 async function markMessageRead(id: number) {
@@ -333,6 +446,53 @@ function previewText(content?: string) {
   return text.length > 90 ? `${text.slice(0, 90)}...` : text || '无内容'
 }
 
+function messageTime(item: MessageInboxItem) {
+  const parsed = dayjs(item.created_at)
+  return parsed.isValid() ? parsed.valueOf() : 0
+}
+
+function threadKeyForMessage(item: MessageInboxItem) {
+  const parentPath = sourceParentPathForMessage(item)
+  if (parentPath) return `directory:${parentPath}`
+  const sourcePath = sourcePathForMessage(item)
+  if (sourcePath) return `source:${sourcePath}`
+  if (item.workspace_session_id) return `session:${item.workspace_session_id}`
+  return `sender:${item.from || 'system'}`
+}
+
+function threadTitle(item: MessageInboxItem) {
+  return item.source_display?.parent_name
+    || item.source_parent_title
+    || item.source_display?.name
+    || item.source_title
+    || item.from
+    || 'system'
+}
+
+function threadSubtitle(item: MessageInboxItem, count: number) {
+  const sourceName = sourceSecondaryText(item)
+  const suffix = count > 1 ? ` · ${count} 条消息` : ''
+  return `${sourceName}${suffix}`
+}
+
+function threadPath(item: MessageInboxItem) {
+  return sourceParentPathForMessage(item) || sourcePathForMessage(item)
+}
+
+function threadKind(item: MessageInboxItem): InboxThread['kind'] {
+  if (sourceParentPathForMessage(item)) return 'directory'
+  if (item.workspace_session_id) return 'session'
+  if (sourcePathForMessage(item)) return 'function'
+  return 'sender'
+}
+
+function threadIcon(thread: InboxThread) {
+  if (thread.kind === 'directory') return FolderOpened
+  if (thread.kind === 'session') return ChatDotRound
+  if (thread.lastMessage.source_type === 'scheduled_task') return Timer
+  return DocumentIcon
+}
+
 function sourcePrimaryText(item?: MessageInboxItem | null) {
   if (!item) return 'system'
   return item.source_display?.parent_name
@@ -365,11 +525,6 @@ function sourceTypeText(item?: MessageInboxItem | null) {
   return map[type] || type
 }
 
-function sourceInitial(item?: MessageInboxItem | null) {
-  const text = sourcePrimaryText(item).trim()
-  return text ? text.slice(0, 1).toUpperCase() : 'S'
-}
-
 function sourcePathForMessage(item?: MessageInboxItem | null) {
   return item?.source_display?.full_code_path || item?.source_path || item?.full_code_path || ''
 }
@@ -380,15 +535,6 @@ function sourceParentPathForMessage(item?: MessageInboxItem | null) {
 
 function workspacePathForMessage(item: MessageInboxItem) {
   return sourceParentPathForMessage(item) || sourcePathForMessage(item)
-}
-
-function hasSourceCard(item?: MessageInboxItem | null) {
-  return Boolean(item && (
-    sourcePathForMessage(item)
-    || item.workspace_session_id
-    || item.source_display
-    || item.source_type
-  ))
 }
 
 function workspaceRoutePath(fullCodePath?: string) {
@@ -484,7 +630,7 @@ function formatTime(value?: string) {
   display: grid;
   min-height: 0;
   flex: 1;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
   gap: 14px;
 }
 
@@ -504,9 +650,9 @@ function formatTime(value?: string) {
 .inbox-list-item {
   display: grid;
   width: 100%;
-  grid-template-columns: 10px minmax(0, 1fr);
-  gap: 8px;
-  padding: 11px 10px;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px 10px;
   border: 1px solid transparent;
   border-radius: 11px;
   background: transparent;
@@ -524,18 +670,18 @@ function formatTime(value?: string) {
   &.is-unread .inbox-list-title {
     font-weight: 800;
   }
-
-  &.is-unread .inbox-unread-dot {
-    background: var(--el-color-primary);
-  }
 }
 
-.inbox-unread-dot {
-  width: 8px;
-  height: 8px;
-  margin-top: 6px;
-  border-radius: 999px;
-  background: transparent;
+.thread-avatar {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.18);
+  border-radius: 10px;
+  background: var(--app-shell-panel-bg);
+  color: var(--el-color-primary);
+  font-size: 19px;
 }
 
 .inbox-list-copy {
@@ -545,21 +691,38 @@ function formatTime(value?: string) {
   gap: 5px;
 }
 
+.thread-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.thread-unread-count {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--el-color-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .inbox-list-title,
-.inbox-list-source,
 .inbox-list-preview {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.inbox-list-source {
-  color: var(--el-color-primary);
-  font-size: 11px;
-  font-weight: 750;
-}
-
 .inbox-list-title {
+  min-width: 0;
   font-size: 13px;
   font-weight: 650;
 }
@@ -646,7 +809,7 @@ function formatTime(value?: string) {
   border-radius: 10px;
   background: var(--el-color-primary);
   color: #fff;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
 }
 
@@ -689,6 +852,74 @@ function formatTime(value?: string) {
 }
 
 .source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.inbox-message-stream {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inbox-message-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 12px;
+  background: var(--app-shell-panel-bg);
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+
+  &:hover,
+  &.is-active {
+    border-color: rgba(var(--el-color-primary-rgb), 0.28);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  }
+
+  &.is-unread {
+    border-color: rgba(var(--el-color-primary-rgb), 0.32);
+  }
+}
+
+.message-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--el-text-color-placeholder);
+  font-size: 12px;
+}
+
+.message-card-title {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+
+  strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--el-text-color-primary);
+    font-size: 14px;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.message-card-source {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.message-card-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
