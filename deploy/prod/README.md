@@ -60,10 +60,13 @@ Compose
 ## 一分钟部署
 
 ```bash
-go run ./cmd/kagectl bootstrap --base-url http://your-ip-or-domain
+sudo ./install.sh --base-url http://your-ip-or-domain
+tail -f .kageos/prod/kagectl-up.log
 ```
 
-执行 `kagectl init` / `bootstrap` 时会自动生成 MySQL、NATS、MinIO、JWT、system 初始密码，并在终端打印英文表格。生产默认 `auth.registration_mode=admin_only`：先用 `system` 登录后台，在 `System settings` 配置并测试 SMTP 后，再开启 `email_code` 自助注册。
+`install.sh` 会选择 sudo 调用者作为部署用户，自动处理 rootless Podman 生产环境需要的 linger；如果 `.kageos/prod/kage.yaml` 不存在，会先执行 `kagectl init` 创建生产配置，然后通过 `prod-up.sh` 后台启动部署。
+
+执行 `kagectl init` 时会自动生成 MySQL、NATS、MinIO、JWT、system 初始密码，并在终端打印英文表格。生产默认 `auth.registration_mode=admin_only`：先用 `system` 登录后台，在 `System settings` 配置并测试 SMTP 后，再开启 `email_code` 自助注册。
 
 最小 `kage.yaml`：
 
@@ -106,13 +109,12 @@ go run ./cmd/kagectl up
 ## 常用命令
 
 ```bash
-go run ./cmd/kagectl init --base-url http://your-ip-or-domain
-go run ./cmd/kagectl doctor
-go run ./cmd/kagectl up
-go run ./cmd/kagectl verify
+./prod-up.sh
+tail -f .kageos/prod/kagectl-up.log
 go run ./cmd/kagectl status
+go run ./cmd/kagectl verify
 go run ./cmd/kagectl logs --layer L3
-go run ./cmd/kagectl down
+./prod-stop.sh
 go run ./cmd/kagectl uninstall --dry-run
 go run ./cmd/kagectl uninstall --purge-data --force
 ```

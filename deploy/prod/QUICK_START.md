@@ -9,16 +9,16 @@
 - 默认数据目录 `~/.kageos/storage/prod` 可写，或在 `.kageos/prod/kage.yaml` 中配置其他可写的绝对路径
 - `80` 端口空闲；如果本机终止 HTTPS，`443` 也要空闲
 
-## 首次部署
+## 首次部署（一键）
 
 在仓库根目录执行：
 
 ```bash
-go run ./cmd/kagectl init --base-url http://your-ip-or-domain
-go run ./cmd/kagectl doctor
-go run ./cmd/kagectl up
-go run ./cmd/kagectl verify
+sudo ./install.sh --base-url http://your-ip-or-domain
+tail -f .kageos/prod/kagectl-up.log
 ```
+
+`install.sh` 会选择 sudo 调用者作为部署用户，自动处理 rootless Podman 生产环境需要的 linger，并在缺少生产配置时创建 `.kageos/prod/kage.yaml`，最后调用 `./prod-up.sh` 后台启动部署。
 
 `init` 会在终端打印需要保存的账号、密码、JWT、MinIO、NATS 等英文表格。默认只有 `system` 能登录；需要开放注册时，先进入 `System settings` 配置 SMTP 并发送测试邮件，再开启邮箱验证码注册。
 
