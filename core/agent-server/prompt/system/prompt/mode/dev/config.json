@@ -26,6 +26,11 @@
     "run_chart_query",
     "run_on_select_fuzzy",
     "run_python",
+    "create_scheduled_function_task",
+    "create_scheduled_agent_task",
+    "list_scheduled_tasks",
+    "manage_scheduled_task",
+    "list_scheduled_task_executions",
     "send_notification"
   ],
   "system_prompt_file": "system_prompt.md",
