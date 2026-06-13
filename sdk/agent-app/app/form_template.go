@@ -2,6 +2,7 @@ package app
 
 type FormTemplate struct {
 	BaseConfig
+	Schedules []FormSchedule `json:"schedules,omitempty"`
 }
 
 func (t *FormTemplate) GetBaseConfig() *BaseConfig {

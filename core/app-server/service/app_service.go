@@ -455,6 +455,11 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 	if err := a.syncUpdatedAPIs(ctx, state, diffData.Update); err != nil {
 		return err
 	}
+	scheduledAPIs := append([]*dto.ApiInfo{}, diffData.Add...)
+	scheduledAPIs = append(scheduledAPIs, diffData.Update...)
+	if err := a.reconcileFormSchedules(ctx, state, scheduledAPIs); err != nil {
+		return fmt.Errorf("同步默认定时任务失败: %w", err)
+	}
 
 	// 处理删除的API
 	if len(diffData.Delete) > 0 {

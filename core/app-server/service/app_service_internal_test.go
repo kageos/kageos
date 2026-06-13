@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/scheduledsdk"
 )
 
 func TestSyncUpdatedAppMetadataSkipsWhenDiffMissing(t *testing.T) {
@@ -25,6 +27,63 @@ func TestFinalizeReleasedAppMetadataRequiresApp(t *testing.T) {
 	}
 	if err.Error() != "应用不存在" {
 		t.Fatalf("unexpected err: %v", err)
+	}
+}
+
+func TestBuildFormScheduleTaskRequestSupportsCron(t *testing.T) {
+	req, err := buildFormScheduleTaskRequest(context.Background(), &appMetadataSyncState{
+		app:         &model.App{User: "system", Code: "demo"},
+		requestUser: "system",
+	}, &dto.ApiInfo{
+		Name:         "会议即将开始提醒",
+		TemplateType: "form",
+		FullCodePath: "/system/demo/meeting/meeting_room_notify_soon.form",
+	}, dto.FormScheduleConfig{
+		Code:     "meeting_reminder_soon",
+		Title:    "会议即将开始提醒",
+		CronExpr: "*/2 * * * *",
+		Timezone: "Asia/Shanghai",
+		MaxRuns:  3,
+		Body:     json.RawMessage(`{"lead_minutes":5}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.ExecutorKey != ScheduledFunctionExecutorKey || req.Schedule.Type != scheduledsdk.ScheduleCron {
+		t.Fatalf("unexpected scheduled request: %#v", req)
+	}
+	if req.Schedule.CronExpr != "*/2 * * * *" || req.Schedule.Timezone != "Asia/Shanghai" || req.Schedule.MaxRuns != 3 {
+		t.Fatalf("unexpected cron schedule: %#v", req.Schedule)
+	}
+	if req.IdempotencyKey == "" || req.SourceRef != "/system/demo/meeting/meeting_room_notify_soon.form" {
+		t.Fatalf("missing stable identity/source: %#v", req)
+	}
+	var payload struct {
+		FullCodePath string          `json:"full_code_path"`
+		TemplateType string          `json:"template_type"`
+		Action       string          `json:"action"`
+		Method       string          `json:"method"`
+		Payload      json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal(req.ExecutorPayload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.FullCodePath != req.SourceRef || payload.TemplateType != "form" || payload.Action != "execute" || payload.Method != "POST" {
+		t.Fatalf("unexpected executor payload: %#v", payload)
+	}
+	if string(payload.Payload) != `{"lead_minutes":5}` {
+		t.Fatalf("payload body = %s", payload.Payload)
+	}
+}
+
+func TestScheduledSDKScheduleFromFormScheduleRejectsAmbiguousInput(t *testing.T) {
+	_, err := scheduledSDKScheduleFromFormSchedule(dto.FormScheduleConfig{
+		Code:         "bad",
+		CronExpr:     "*/2 * * * *",
+		EverySeconds: 120,
+	})
+	if err == nil {
+		t.Fatal("expected ambiguous schedule error")
 	}
 }
 

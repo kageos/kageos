@@ -116,6 +116,75 @@ func TestCompileAndValidateAcceptsValidForm(t *testing.T) {
 	}
 }
 
+func TestFormTemplateSchedulesCompileIntoApiInfo(t *testing.T) {
+	t.Parallel()
+
+	testApp := newCompileTestApp("/demo/remind.form", &FormTemplate{
+		BaseConfig: BaseConfig{
+			Name:    "提醒",
+			Request: compileTestReq{},
+		},
+		Schedules: []FormSchedule{
+			{
+				Code:         "remind_every_2m",
+				Title:        "每 2 分钟提醒",
+				EverySeconds: 120,
+				Body:         map[string]interface{}{"title": "hello"},
+			},
+			{
+				Code:     "remind_cron",
+				Title:    "Cron 提醒",
+				CronExpr: "*/5 * * * *",
+				Timezone: "Asia/Shanghai",
+				Body:     map[string]interface{}{"title": "cron"},
+			},
+		},
+	})
+
+	if err := testApp.CompileAndValidate(); err != nil {
+		t.Fatalf("CompileAndValidate() error = %v, want nil", err)
+	}
+	apis, _, err := testApp.getApis()
+	if err != nil {
+		t.Fatalf("getApis() error = %v", err)
+	}
+	if len(apis) != 1 || len(apis[0].Schedules) != 2 {
+		t.Fatalf("expected one api with two schedules, got %#v", apis)
+	}
+	if got := string(apis[0].Schedules[0].Body); got != `{"title":"hello"}` {
+		t.Fatalf("schedule body = %s, want compact JSON body", got)
+	}
+	if apis[0].Schedules[1].CronExpr != "*/5 * * * *" || apis[0].Schedules[1].Timezone != "Asia/Shanghai" {
+		t.Fatalf("cron schedule not compiled: %#v", apis[0].Schedules[1])
+	}
+}
+
+func TestFormTemplateSchedulesRejectAmbiguousSchedule(t *testing.T) {
+	t.Parallel()
+
+	testApp := newCompileTestApp("/demo/remind.form", &FormTemplate{
+		BaseConfig: BaseConfig{
+			Request: compileTestReq{},
+		},
+		Schedules: []FormSchedule{
+			{
+				Code:         "bad",
+				CronExpr:     "*/5 * * * *",
+				EverySeconds: 120,
+				Body:         map[string]interface{}{"title": "bad"},
+			},
+		},
+	})
+
+	err := testApp.CompileAndValidate()
+	if err == nil {
+		t.Fatal("CompileAndValidate() error = nil, want schedule error")
+	}
+	if !strings.Contains(err.Error(), "must set exactly one of cron_expr or every_seconds") {
+		t.Fatalf("CompileAndValidate() error = %v, want ambiguous schedule error", err)
+	}
+}
+
 func TestInitRouterRegistersPrivateRuntimePython(t *testing.T) {
 	testApp := &App{routerInfo: map[string]*routerInfo{}}
 

@@ -335,10 +335,20 @@ func (a *App) buildApiInfo(info *routerInfo) (*ApiInfo, []interface{}, error) {
 		api.Schema = functionschema.NewTable(requestFields, responseFields, callback)
 
 	case TemplateTypeForm:
+		template, ok := info.Template.(*FormTemplate)
+		if !ok {
+			errs = append(errs, fmt.Errorf("router %s declares template type %q but template is not *FormTemplate", info.Router, templateType))
+			break
+		}
 		fields, responseFields, err := widget.DecodeForm(fieldsCallback, base.Request, base.Response)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("router %s form schema decode failed: %w", info.Router, err))
 		}
+		schedules, err := compileFormSchedules(info.Router, template.Schedules)
+		if err != nil {
+			errs = append(errs, err)
+		}
+		api.Schedules = schedules
 		api.Schema = functionschema.NewForm(fields, responseFields, nil)
 
 	case TemplateTypeChart:

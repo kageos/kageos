@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -261,15 +262,16 @@ func (a *ApiInfo) GetPackageChain() []string {
 }
 
 type ApiInfo struct {
-	Code               string              `json:"code"`
-	Name               string              `json:"name"`
-	Desc               string              `json:"desc"`
-	Tags               []string            `json:"tags"`
-	Router             string              `json:"router"`
-	Method             string              `json:"method"`
-	CreateTables       []string            `json:"create_tables"`
-	Connectors         []string            `json:"connectors,omitempty"`
-	ConnectorEndpoints []ConnectorEndpoint `json:"connector_endpoints,omitempty"`
+	Code               string               `json:"code"`
+	Name               string               `json:"name"`
+	Desc               string               `json:"desc"`
+	Tags               []string             `json:"tags"`
+	Router             string               `json:"router"`
+	Method             string               `json:"method"`
+	CreateTables       []string             `json:"create_tables"`
+	Connectors         []string             `json:"connectors,omitempty"`
+	ConnectorEndpoints []ConnectorEndpoint  `json:"connector_endpoints,omitempty"`
+	Schedules          []FormScheduleConfig `json:"schedules,omitempty"`
 	// FunctionGroupCode 和 FunctionGroupName 已移除，不再需要
 
 	Schema         *functionschema.FunctionSchema `json:"schema"`
@@ -281,6 +283,17 @@ type ApiInfo struct {
 	FullCodePath   string                         `json:"full_code_path"`
 	TreeID         int64                          `json:"tree_id"` // ServiceTree节点ID，创建tree后赋值，方便后续写快照时入库
 
+}
+
+type FormScheduleConfig struct {
+	Code         string          `json:"code"`
+	Title        string          `json:"title,omitempty"`
+	Description  string          `json:"description,omitempty"`
+	EverySeconds int64           `json:"every_seconds,omitempty"`
+	CronExpr     string          `json:"cron_expr,omitempty"`
+	Timezone     string          `json:"timezone,omitempty"`
+	MaxRuns      int             `json:"max_runs,omitempty"`
+	Body         json.RawMessage `json:"body,omitempty"`
 }
 
 // DeleteAppReq 删除应用请求

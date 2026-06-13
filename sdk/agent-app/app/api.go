@@ -12,15 +12,16 @@ import (
 
 // ApiInfo API信息结构
 type ApiInfo struct {
-	Code               string              `json:"code"`
-	Name               string              `json:"name"`
-	Desc               string              `json:"desc"`
-	Tags               []string            `json:"tags"`
-	Router             string              `json:"router"`
-	Method             string              `json:"method"`
-	CreateTables       []string            `json:"create_tables"`
-	Connectors         []string            `json:"connectors,omitempty"`
-	ConnectorEndpoints []ConnectorEndpoint `json:"connector_endpoints,omitempty"`
+	Code               string                 `json:"code"`
+	Name               string                 `json:"name"`
+	Desc               string                 `json:"desc"`
+	Tags               []string               `json:"tags"`
+	Router             string                 `json:"router"`
+	Method             string                 `json:"method"`
+	CreateTables       []string               `json:"create_tables"`
+	Connectors         []string               `json:"connectors,omitempty"`
+	ConnectorEndpoints []ConnectorEndpoint    `json:"connector_endpoints,omitempty"`
+	Schedules          []CompiledFormSchedule `json:"schedules,omitempty"`
 
 	Schema         *functionschema.FunctionSchema `json:"schema"`
 	AddedVersion   string                         `json:"added_version"`   // API首次添加的版本
@@ -127,6 +128,7 @@ func (a *ApiInfo) IsEqual(other *ApiInfo) bool {
 		!equalStrings(a.CreateTables, other.CreateTables) ||
 		!equalStrings(a.Connectors, other.Connectors) ||
 		!reflect.DeepEqual(a.ConnectorEndpoints, other.ConnectorEndpoints) ||
+		!reflect.DeepEqual(a.Schedules, other.Schedules) ||
 		a.TemplateType != other.TemplateType {
 		return false
 	}

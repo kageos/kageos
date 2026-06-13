@@ -109,7 +109,7 @@ List 可先对 `queryDB` 做 Where、Joins、Preload 等，再用 `PageSortReq.G
 
 1. **定义请求/响应结构体**：字段加 `widget`、`validate`；请求体可含 files、input、select、table 等。
 2. **写处理函数**：`ctx.ShouldBindValidate(&req)`，业务逻辑，`return resp.Form(&respStruct).Build()`；系统错误需加 `[系统错误]` 前缀并带详细参数（见第六节「系统错误」）。
-3. **配置 FormTemplate**：`BaseConfig`（Name、Request、Response）+ 可选 `OnSelectFuzzyMap` 等。
+3. **配置 FormTemplate**：`BaseConfig`（Name、Request、Response）+ 可选 `OnSelectFuzzyMap`、`Schedules` 等。
 4. **注册**：`init()` 中 `packageContext.POST("路由名", Handler, FormTemplate)`。
 
 最小可用片段示例：
@@ -136,6 +136,23 @@ func init() {
         BaseConfig: app.BaseConfig{Name: "Excel/CSV 解析", Request: &ExcelOrCsvReq{}, Response: &ExcelOrCsvResp{}},
     })
 }
+```
+
+Form 可声明默认定时执行策略，构建/发布后由平台幂等同步到 timer-scheduler；运行状态、执行次数和下次执行时间不在业务代码里维护。MVP 只支持 FormTemplate，不支持 TableTemplate/ChartTemplate。`CronExpr` 与 `EverySeconds` 必须二选一，body 直接写表单请求 JSON：
+
+```go
+packageContext.POST("meeting_room_notify_soon.form", NotifySoon, &app.FormTemplate{
+    BaseConfig: app.BaseConfig{Name: "会议即将开始提醒", Request: &NotifySoonReq{}, Response: &NotifySoonResp{}},
+    Schedules: []app.FormSchedule{
+        {
+            Code:             "meeting_reminder_soon",
+            Title:            "会议即将开始提醒",
+            CronExpr:         "*/2 * * * *",
+            Timezone:         "Asia/Shanghai",
+            Body:             map[string]any{"lead_minutes": 5},
+        },
+    },
+})
 ```
 
 单 Form 完整示例：`read_doc("/system/prompt/case_catalog/form/excelorcsv")`。
@@ -881,7 +898,7 @@ func calculateBookingStatus(startTime, endTime types.Time) string {
 - **处理函数**：`ctx.ShouldBindValidate(&req)`；业务逻辑；成功 `return resp.Form(&respStruct).Build()`。涉及文件读写时见下「文件上传、下载与存储」。
 - **事务要求**：一次提交若会同时改动多张表，尤其是余额、库存、数量、状态、流水这类强一致数据，必须使用 `db.Transaction(...)`，并在事务内做条件更新或再次校验，避免并发下超卖、透支或部分成功部分失败。
 - **数据库兼容**：工作区应用默认是 **SQLite**；若后续可能切到 MySQL，涉及 Raw SQL、日期格式化、字符串拼接、upsert、JSON 函数时，必须先看 `db.Dialector.Name()` 分支处理，不要写死单一数据库语法。优先用 GORM 和 Go 代码做计算，实在需要 SQL 方言时再分支。**时间分组优先复用 SDK helper**：`app.DateTimeBucketExpr(db, "created_at", app.TimeBucketDay)`。
-- **FormTemplate**：`BaseConfig` 含 Name、Request、Response；若请求中有下拉需联动后端数据，配 `OnSelectFuzzyMap`。
+- **FormTemplate**：`BaseConfig` 含 Name、Request、Response；若请求中有下拉需联动后端数据，配 `OnSelectFuzzyMap`。需要应用发布后自动创建默认定时执行时，只在 `FormTemplate.Schedules` 声明，支持 `CronExpr` 或 `EverySeconds` 二选一；不要把定时配置放进 `BaseConfig`、Table 或 Chart。
 - **注册**：`packageContext.POST("路由名", Handler, FormTemplate)`。
 
 #### 数据库兼容（SQLite 默认，MySQL 可切换）
