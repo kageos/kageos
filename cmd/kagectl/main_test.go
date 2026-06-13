@@ -62,6 +62,8 @@ func TestRenderBundledConfig(t *testing.T) {
 		`NATS_SEED_PASSWORD: "`,
 		`SYSTEM_USER_PASSWORD: "` + cfg.SystemUser.Password + `"`,
 		`SMTP_MODE: "smtp"`,
+		`HTTP_PORT: "80"`,
+		`HTTPS_PORT: "443"`,
 		`OPENAI_API_KEY: "${OPENAI_API_KEY:-}"`,
 		`app-base-builder:`,
 		`profiles: ["build"]`,
@@ -250,6 +252,8 @@ func TestRenderTLSFromBase64Config(t *testing.T) {
 	for _, want := range []string{
 		"CANONICAL_BASE_URL=https://example.com",
 		"TLS_MODE=redirect",
+		"HTTP_PORT=80",
+		"HTTPS_PORT=443",
 		"KAGEOS_REGISTRATION_MODE=admin_only",
 		"SMTP_MODE=smtp",
 		"KAGEOS_TLS_CERT_PEM_B64=" + cfg.Site.TLSCertPEMB64,
@@ -1004,19 +1008,19 @@ func TestUninstallDataTargetsKeepPodmanStorageByDefault(t *testing.T) {
 func TestParseInitAndBootstrapFlags(t *testing.T) {
 	t.Parallel()
 
-	initOpts, err := parseInitFlags("init", []string{"--force", "--base-url", "http://example.com", "--mysql-mode", "bundled", "--company-code", "acme", "--company-name", "Acme Inc"})
+	initOpts, err := parseInitFlags("init", []string{"--force", "--base-url", "http://example.com:8080", "--http-port", "8080", "--https-port", "8443", "--mysql-mode", "bundled", "--company-code", "acme", "--company-name", "Acme Inc"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !initOpts.Force || initOpts.BaseURL != "http://example.com" || initOpts.MySQLMode != "bundled" || initOpts.CompanyCode != "acme" || initOpts.CompanyName != "Acme Inc" {
+	if !initOpts.Force || initOpts.BaseURL != "http://example.com:8080" || initOpts.HTTPPort != 8080 || initOpts.HTTPSPort != 8443 || initOpts.MySQLMode != "bundled" || initOpts.CompanyCode != "acme" || initOpts.CompanyName != "Acme Inc" {
 		t.Fatalf("unexpected init opts: %#v", initOpts)
 	}
 
-	bootstrapOpts, err := parseBootstrapFlags([]string{"--base-url", "http://example.com", "--skip-verify", "--wait-timeout", "30s"})
+	bootstrapOpts, err := parseBootstrapFlags([]string{"--base-url", "http://example.com:8080", "--http-port", "8080", "--skip-verify", "--wait-timeout", "30s"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bootstrapOpts.Init.BaseURL != "http://example.com" || strings.Join(bootstrapOpts.UpArgs, " ") != "--skip-verify --wait-timeout 30s" {
+	if bootstrapOpts.Init.BaseURL != "http://example.com:8080" || bootstrapOpts.Init.HTTPPort != 8080 || strings.Join(bootstrapOpts.UpArgs, " ") != "--skip-verify --wait-timeout 30s" {
 		t.Fatalf("unexpected bootstrap opts: %#v", bootstrapOpts)
 	}
 
@@ -1034,6 +1038,9 @@ func TestParseInitAndBootstrapFlags(t *testing.T) {
 	if _, err := parseBootstrapDevFlags([]string{"--image"}); err == nil {
 		t.Fatal("expected bootstrap --dev to reject --image")
 	}
+	if _, err := parseInitFlags("init", []string{"--http-port", "70000"}); err == nil {
+		t.Fatal("expected init to reject invalid http port")
+	}
 }
 
 func TestWriteInitialConfig(t *testing.T) {
@@ -1046,7 +1053,7 @@ func TestWriteInitialConfig(t *testing.T) {
 		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
 		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
 	}
-	created, err := writeInitialConfig(paths, initOptions{BaseURL: "http://example.com", MySQLMode: "bundled", CompanyCode: "acme", CompanyName: "Acme Inc", RegistrationMode: "email_code", SMTPMode: "smtp"})
+	created, err := writeInitialConfig(paths, initOptions{BaseURL: "http://example.com:8080", HTTPPort: 8080, HTTPSPort: 8443, MySQLMode: "bundled", CompanyCode: "acme", CompanyName: "Acme Inc", RegistrationMode: "email_code", SMTPMode: "smtp"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1057,8 +1064,11 @@ func TestWriteInitialConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Site.BaseURL != "http://example.com" {
+	if cfg.Site.BaseURL != "http://example.com:8080" {
 		t.Fatalf("unexpected base url: %s", cfg.Site.BaseURL)
+	}
+	if cfg.Site.HTTPPort != 8080 || cfg.Site.HTTPSPort != 8443 {
+		t.Fatalf("unexpected site ports: http=%d https=%d", cfg.Site.HTTPPort, cfg.Site.HTTPSPort)
 	}
 	if cfg.Company.Code != "acme" || cfg.Company.Name != "Acme Inc" {
 		t.Fatalf("unexpected company config: %#v", cfg.Company)
@@ -1215,6 +1225,47 @@ func TestVerifyLayerChecksIncludeBundledSDKEndpoints(t *testing.T) {
 		if !hasLayerCheckByName(checks, want) {
 			t.Fatalf("verify checks missing %s: %#v", want, checks)
 		}
+	}
+}
+
+func TestSitePortsCanBeInferredFromBaseURL(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Site.BaseURL = "http://127.0.0.1:8080"
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.Site.HTTPPort != 8080 {
+		t.Fatalf("HTTPPort = %d, want inferred 8080", rt.Site.HTTPPort)
+	}
+	if rt.Site.HTTPSPort != 443 {
+		t.Fatalf("HTTPSPort = %d, want default 443", rt.Site.HTTPSPort)
+	}
+	checks := verifyLayerChecks(rt)
+	found := false
+	for _, check := range checks {
+		if check.Name == "nginx http listener" {
+			found = true
+			if check.Target != "127.0.0.1:8080" {
+				t.Fatalf("nginx http listener target = %q, want 127.0.0.1:8080", check.Target)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("verify checks missing nginx http listener")
 	}
 }
 

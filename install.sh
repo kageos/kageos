@@ -4,6 +4,8 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_PATH="${KAGEOS_CONFIG:-.kageos/prod/kage.yaml}"
 BASE_URL="${KAGEOS_BASE_URL:-}"
+HTTP_PORT="${KAGEOS_HTTP_PORT:-}"
+HTTPS_PORT="${KAGEOS_HTTPS_PORT:-}"
 DEPLOY_USER="${KAGEOS_DEPLOY_USER:-}"
 SKIP_UP=0
 UP_ARGS=()
@@ -14,9 +16,12 @@ Kageos production installer
 
 Usage:
   sudo ./install.sh --base-url http://your-ip-or-domain
+  sudo ./install.sh --base-url http://your-ip-or-domain:8080 --http-port 8080
 
 Options:
   --base-url URL   Create .kageos/prod/kage.yaml when it does not exist.
+  --http-port PORT HTTP listen port. Defaults to 80, or the port in --base-url.
+  --https-port PORT HTTPS listen port. Defaults to 443, or the port in --base-url.
   --user USER      Deploy as USER. Defaults to the sudo caller, then current user.
   --skip-up        Prepare the host and config, but do not start deployment.
   --help           Show this help.
@@ -24,9 +29,20 @@ Options:
 
 Environment:
   KAGEOS_BASE_URL      Same as --base-url.
+  KAGEOS_HTTP_PORT     Same as --http-port.
+  KAGEOS_HTTPS_PORT    Same as --https-port.
   KAGEOS_DEPLOY_USER   Same as --user.
   KAGEOS_CONFIG        Config path, default .kageos/prod/kage.yaml.
 EOF
+}
+
+validate_port() {
+  local name="$1"
+  local value="$2"
+  if [[ ! "$value" =~ ^[0-9]+$ || "$value" -lt 1 || "$value" -gt 65535 ]]; then
+    echo "ERROR: $name must be a TCP port between 1 and 65535" >&2
+    exit 1
+  fi
 }
 
 while [[ $# -gt 0 ]]; do
@@ -38,6 +54,24 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       BASE_URL="$1"
+      ;;
+    --http-port)
+      shift
+      if [[ $# -eq 0 || -z "$1" ]]; then
+        echo "ERROR: --http-port requires a value" >&2
+        exit 1
+      fi
+      validate_port "--http-port" "$1"
+      HTTP_PORT="$1"
+      ;;
+    --https-port)
+      shift
+      if [[ $# -eq 0 || -z "$1" ]]; then
+        echo "ERROR: --https-port requires a value" >&2
+        exit 1
+      fi
+      validate_port "--https-port" "$1"
+      HTTPS_PORT="$1"
       ;;
     --user)
       shift
@@ -67,6 +101,13 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+if [[ -n "$HTTP_PORT" ]]; then
+  validate_port "KAGEOS_HTTP_PORT/--http-port" "$HTTP_PORT"
+fi
+if [[ -n "$HTTPS_PORT" ]]; then
+  validate_port "KAGEOS_HTTPS_PORT/--https-port" "$HTTPS_PORT"
+fi
 
 current_user() {
   id -un
@@ -126,6 +167,12 @@ echo "Kageos production install"
 echo "repo:        $ROOT_DIR"
 echo "deploy user: $DEPLOY_USER"
 echo "config:      $CONFIG_PATH"
+if [[ -n "$HTTP_PORT" ]]; then
+  echo "http port:   $HTTP_PORT"
+fi
+if [[ -n "$HTTPS_PORT" ]]; then
+  echo "https port:  $HTTPS_PORT"
+fi
 echo
 
 if [[ "$DEPLOY_USER" != "root" ]] && command -v loginctl >/dev/null 2>&1; then
@@ -178,7 +225,14 @@ if [[ ! -f "$CONFIG_ABS" ]]; then
     exit 1
   fi
   echo "Creating prod config..."
-  run_in_repo go run ./cmd/kagectl init --base-url "$BASE_URL"
+  init_args=(init --base-url "$BASE_URL")
+  if [[ -n "$HTTP_PORT" ]]; then
+    init_args+=(--http-port "$HTTP_PORT")
+  fi
+  if [[ -n "$HTTPS_PORT" ]]; then
+    init_args+=(--https-port "$HTTPS_PORT")
+  fi
+  run_in_repo go run ./cmd/kagectl "${init_args[@]}"
 else
   echo "config:      exists"
 fi
@@ -190,7 +244,14 @@ fi
 
 echo
 echo "Starting production deployment..."
-run_in_repo env KAGEOS_CONFIG="$CONFIG_PATH" ./prod-up.sh "${UP_ARGS[@]}"
+deploy_env=(KAGEOS_CONFIG="$CONFIG_PATH")
+if [[ -n "$HTTP_PORT" ]]; then
+  deploy_env+=(KAGEOS_HTTP_PORT="$HTTP_PORT")
+fi
+if [[ -n "$HTTPS_PORT" ]]; then
+  deploy_env+=(KAGEOS_HTTPS_PORT="$HTTPS_PORT")
+fi
+run_in_repo env "${deploy_env[@]}" ./prod-up.sh "${UP_ARGS[@]}"
 echo
 echo "Follow logs:"
 echo "  tail -f .kageos/prod/kagectl-up.log"

@@ -108,6 +108,8 @@ services:
       {{ . }}: {{ q (printf "${%s:-}" .) }}
 {{- end }}
       TLS_MODE: {{ q .Site.TLSMode }}
+      HTTP_PORT: {{ q (printf "%d" .Site.HTTPPort) }}
+      HTTPS_PORT: {{ q (printf "%d" .Site.HTTPSPort) }}
       TLS_CERT_FILE: {{ q .Site.CertFile }}
       TLS_KEY_FILE: {{ q .Site.KeyFile }}
       KAGEOS_APP_BASE_IMAGE: {{ q .Images.AppBase }}
@@ -133,6 +135,8 @@ networks:
 const envTemplate = `
 CANONICAL_BASE_URL={{ .Site.BaseURL }}
 TLS_MODE={{ .Site.TLSMode }}
+HTTP_PORT={{ .Site.HTTPPort }}
+HTTPS_PORT={{ .Site.HTTPSPort }}
 TLS_CERT_FILE={{ .Site.CertFile }}
 TLS_KEY_FILE={{ .Site.KeyFile }}
 KAGEOS_TLS_CERT_PEM_B64={{ .Site.TLSCertPEMB64 }}

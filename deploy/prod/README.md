@@ -41,7 +41,7 @@ Compose
   ├─ mysql / nats / minio（bundled 时启用）
   ├─ app-base-builder（profile: build，一次性构建 kagebase）
   └─ main 容器（network_mode: host）
-       ├─ Nginx :80 / :443
+       ├─ Nginx（默认 :80 / :443，可配置）
        ├─ core-server
        └─ Podman API
 ```
@@ -54,7 +54,7 @@ Compose
 - 已安装 `podman compose` 或 `docker compose`。
 - 默认数据目录 `~/.kageos/storage/prod` 可写；也可以在 `.kageos/prod/kage.yaml` 中把 `storage.root` 改成其他绝对路径。
 - `main` 服务需要 `privileged: true`。
-- 宿主机 80 端口未被占用；如果启用容器内 HTTPS，443 端口也必须空闲。
+- 默认需要宿主机 80 端口未被占用；如果该端口不可用，可以配置 `site.http_port` 或安装时传 `--http-port`。如果启用容器内 HTTPS，对应的 `site.https_port` 也必须空闲，默认 443。
 - bundled MinIO 默认只绑定宿主机 `127.0.0.1:9000`；生产用户 App 容器由 `main` 内的 Podman 以 host network 启动，因此 SDK/server 下载地址也使用 `127.0.0.1:9000`。
 
 ## 一分钟部署
@@ -62,6 +62,12 @@ Compose
 ```bash
 sudo ./install.sh --base-url http://your-ip-or-domain
 tail -f .kageos/prod/kagectl-up.log
+```
+
+宿主机 80 端口不可用时：
+
+```bash
+sudo ./install.sh --base-url http://your-ip-or-domain:8080 --http-port 8080
 ```
 
 `install.sh` 会选择 sudo 调用者作为部署用户，自动处理 rootless Podman 生产环境需要的 linger；如果 `.kageos/prod/kage.yaml` 不存在，会先执行 `kagectl init` 创建生产配置，然后通过 `prod-up.sh` 后台启动部署。
@@ -75,6 +81,17 @@ site:
   base_url: "http://your-ip-or-domain"
   tls_mode: "http"
 ```
+
+如果宿主机 80 端口不可用，可以直接把公网访问地址和监听端口改成同一个端口：
+
+```yaml
+site:
+  base_url: "http://your-ip-or-domain:8080"
+  tls_mode: "http"
+  http_port: 8080
+```
+
+`http_port` 不填时默认 80；如果 `base_url` 已显式带端口，比如 `:8080`，也会自动按该端口监听。
 
 前面已有 LB / CDN 做 HTTPS：
 

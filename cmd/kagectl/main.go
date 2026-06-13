@@ -81,6 +81,36 @@ func defaultStorageRootForHome(home string) string {
 	return filepath.Join(home, ".kageos", "storage", "prod")
 }
 
+func defaultSiteHTTPPort(site SiteConfig) int {
+	if p := explicitURLPort(site.BaseURL, "http"); p > 0 {
+		return p
+	}
+	return 80
+}
+
+func defaultSiteHTTPSPort(site SiteConfig) int {
+	if p := explicitURLPort(site.BaseURL, "https"); p > 0 {
+		return p
+	}
+	return 443
+}
+
+func explicitURLPort(rawURL string, scheme string) int {
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || u.Scheme != scheme {
+		return 0
+	}
+	port := strings.TrimSpace(u.Port())
+	if port == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(port)
+	if err != nil || n <= 0 || n > 65535 {
+		return 0
+	}
+	return n
+}
+
 type Config struct {
 	Site       SiteConfig       `yaml:"site"`
 	Images     ImageConfig      `yaml:"images"`
@@ -99,6 +129,8 @@ type Config struct {
 type SiteConfig struct {
 	BaseURL       string `yaml:"base_url"`
 	TLSMode       string `yaml:"tls_mode"`
+	HTTPPort      int    `yaml:"http_port,omitempty"`
+	HTTPSPort     int    `yaml:"https_port,omitempty"`
 	CertFile      string `yaml:"cert_file"`
 	KeyFile       string `yaml:"key_file"`
 	TLSCertPEMB64 string `yaml:"tls_cert_pem_b64,omitempty"`
@@ -328,6 +360,8 @@ type uninstallOptions struct {
 type initOptions struct {
 	Force            bool
 	BaseURL          string
+	HTTPPort         int
+	HTTPSPort        int
 	MySQLMode        string
 	CompanyCode      string
 	CompanyName      string
@@ -490,6 +524,26 @@ func parseInitFlags(command string, args []string) (initOptions, error) {
 				return opts, fmt.Errorf("--base-url requires a value")
 			}
 			opts.BaseURL = args[i]
+		case "--http-port":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--http-port requires a value")
+			}
+			port, err := parseTCPPortValue("--http-port", args[i])
+			if err != nil {
+				return opts, err
+			}
+			opts.HTTPPort = port
+		case "--https-port":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--https-port requires a value")
+			}
+			port, err := parseTCPPortValue("--https-port", args[i])
+			if err != nil {
+				return opts, err
+			}
+			opts.HTTPSPort = port
 		case "--mysql-mode":
 			i++
 			if i >= len(args) {
@@ -548,6 +602,26 @@ func parseBootstrapFlags(args []string) (bootstrapOptions, error) {
 				return opts, fmt.Errorf("--base-url requires a value")
 			}
 			opts.Init.BaseURL = args[i]
+		case "--http-port":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--http-port requires a value")
+			}
+			port, err := parseTCPPortValue("--http-port", args[i])
+			if err != nil {
+				return opts, err
+			}
+			opts.Init.HTTPPort = port
+		case "--https-port":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--https-port requires a value")
+			}
+			port, err := parseTCPPortValue("--https-port", args[i])
+			if err != nil {
+				return opts, err
+			}
+			opts.Init.HTTPSPort = port
 		case "--mysql-mode":
 			i++
 			if i >= len(args) {
@@ -591,6 +665,14 @@ func parseBootstrapFlags(args []string) (bootstrapOptions, error) {
 		return opts, err
 	}
 	return opts, nil
+}
+
+func parseTCPPortValue(name string, value string) (int, error) {
+	port, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || port <= 0 || port > 65535 {
+		return 0, fmt.Errorf("%s must be a TCP port between 1 and 65535", name)
+	}
+	return port, nil
 }
 
 func parseBootstrapDevFlags(args []string) (bootstrapDevOptions, error) {
@@ -705,9 +787,9 @@ func printUsage() {
 	fmt.Println(`kagectl manages Kageos lifecycle.
 
 Usage:
-  kagectl init [--force] [--base-url URL] [--mysql-mode bundled|external] [--company-code CODE] [--company-name NAME] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log]
+  kagectl init [--force] [--base-url URL] [--http-port PORT] [--https-port PORT] [--mysql-mode bundled|external] [--company-code CODE] [--company-name NAME] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log]
   kagectl init --dev [--engine podman|docker|auto] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME]
-  kagectl bootstrap --base-url URL [--mysql-mode bundled|external] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
+  kagectl bootstrap --base-url URL [--http-port PORT] [--https-port PORT] [--mysql-mode bundled|external] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
   kagectl bootstrap --dev [--engine podman|docker|auto] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME] [--skip-verify] [--wait-timeout 5m]
   kagectl build-app-base [--image IMAGE] [--force] [--no-cache]
   kagectl render [--config .kageos/prod/kage.yaml]
@@ -726,6 +808,7 @@ Modes:
 
 Environment:
   KAGEOS_COMPOSE_ENGINE=podman|docker forces the production compose engine.
+  KAGEOS_HTTP_PORT/KAGEOS_HTTPS_PORT override the production edge listen ports.
 
 Compose remains the container execution engine; kagectl owns config rendering, orchestration, and diagnostics.`)
 }
@@ -906,6 +989,12 @@ func writeInitialConfig(paths Paths, opts initOptions) (bool, error) {
 		return false, err
 	}
 	cfg.Site.BaseURL = opts.BaseURL
+	if opts.HTTPPort > 0 {
+		cfg.Site.HTTPPort = opts.HTTPPort
+	}
+	if opts.HTTPSPort > 0 {
+		cfg.Site.HTTPSPort = opts.HTTPSPort
+	}
 	cfg.MySQL.Mode = opts.MySQLMode
 	if opts.CompanyCode != "" {
 		cfg.Company.Code = opts.CompanyCode
@@ -920,6 +1009,7 @@ func writeInitialConfig(paths Paths, opts initOptions) (bool, error) {
 		cfg.SMTP.Mode = opts.SMTPMode
 	}
 	applyEnvOverrides(&cfg)
+	applyDefaults(&cfg)
 	if opts.MySQLMode == "external" {
 		cfg.MySQL.Host = ""
 		cfg.MySQL.User = ""
@@ -1450,14 +1540,14 @@ func verifyLayerChecks(rt RuntimeConfig) []layerCheck {
 	checks := []layerCheck{
 		{Layer: layerControl, Name: "config validation", Target: rt.Paths.ConfigPath, Fn: func() error { return validateConfig(rt) }},
 		{Layer: layerControl, Name: "rendered compose", Target: rt.ComposeConfigPath, Fn: func() error { return requireGeneratedCompose(rt.Paths) }},
-		{Layer: layerEdge, Name: "nginx http listener", Target: "127.0.0.1:80", Fn: func() error { return checkTCP("nginx", "127.0.0.1", 80) }},
+		{Layer: layerEdge, Name: "nginx http listener", Target: tcpTarget("127.0.0.1", rt.Site.HTTPPort), Fn: func() error { return checkTCP("nginx", "127.0.0.1", rt.Site.HTTPPort) }},
 		{Layer: layerEdge, Name: "main edge probe", Target: "compose exec main /app/health/edge.sh", Fn: func() error {
 			return runComposeCapture(rt.Paths.GeneratedDir, "exec", "-T", "main", "/app/health/edge.sh")
 		}},
 	}
 	checks = append(checks[:2], append(startupDependencyChecks(rt), checks[2:]...)...)
 	if rt.Site.TLSMode == "https" || rt.Site.TLSMode == "redirect" {
-		checks = append(checks, layerCheck{Layer: layerEdge, Name: "nginx https listener", Target: "127.0.0.1:443", Fn: func() error { return checkTCP("nginx", "127.0.0.1", 443) }})
+		checks = append(checks, layerCheck{Layer: layerEdge, Name: "nginx https listener", Target: tcpTarget("127.0.0.1", rt.Site.HTTPSPort), Fn: func() error { return checkTCP("nginx", "127.0.0.1", rt.Site.HTTPSPort) }})
 	}
 	checks = append(checks,
 		layerCheck{Layer: layerPlatform, Name: "api-gateway", Target: "http://127.0.0.1:9090/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9090/health") }},
@@ -1841,6 +1931,12 @@ func applyDefaults(cfg *Config) {
 	if cfg.Site.KeyFile == "" {
 		cfg.Site.KeyFile = "/app/tls/privkey.pem"
 	}
+	if cfg.Site.HTTPPort == 0 {
+		cfg.Site.HTTPPort = defaultSiteHTTPPort(cfg.Site)
+	}
+	if cfg.Site.HTTPSPort == 0 {
+		cfg.Site.HTTPSPort = defaultSiteHTTPSPort(cfg.Site)
+	}
 	if cfg.Images.Main == "" {
 		cfg.Images.Main = defaultMainImage
 	}
@@ -1944,6 +2040,16 @@ func applyEnvOverrides(cfg *Config) {
 	if v := strings.TrimSpace(os.Getenv("KAGEOS_BASE_URL")); v != "" {
 		cfg.Site.BaseURL = v
 	}
+	if port, ok, err := parsePortEnv("KAGEOS_HTTP_PORT"); err != nil {
+		fmt.Printf("WARN: %v\n", err)
+	} else if ok {
+		cfg.Site.HTTPPort = port
+	}
+	if port, ok, err := parsePortEnv("KAGEOS_HTTPS_PORT"); err != nil {
+		fmt.Printf("WARN: %v\n", err)
+	} else if ok {
+		cfg.Site.HTTPSPort = port
+	}
 	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_BASE_IMAGE")); v != "" {
 		cfg.Images.AppBase = v
 	}
@@ -1973,7 +2079,20 @@ func applyEnvOverrides(cfg *Config) {
 	}
 }
 
+func parsePortEnv(name string) (int, bool, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return 0, false, nil
+	}
+	port, err := strconv.Atoi(value)
+	if err != nil || port <= 0 || port > 65535 {
+		return 0, false, fmt.Errorf("%s must be a TCP port between 1 and 65535, got %q", name, value)
+	}
+	return port, true, nil
+}
+
 func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
+	applyDefaults(&cfg)
 	rt := RuntimeConfig{
 		Config:              cfg,
 		Paths:               paths,
@@ -2050,6 +2169,12 @@ func validateConfig(rt RuntimeConfig) error {
 	var errs []error
 	if !strings.HasPrefix(rt.Site.BaseURL, "http://") && !strings.HasPrefix(rt.Site.BaseURL, "https://") {
 		errs = append(errs, fmt.Errorf("site.base_url must start with http:// or https://"))
+	}
+	if err := validateTCPPort("site.http_port", rt.Site.HTTPPort); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateTCPPort("site.https_port", rt.Site.HTTPSPort); err != nil {
+		errs = append(errs, err)
 	}
 	switch rt.Site.TLSMode {
 	case "http", "https", "redirect", "external":
@@ -2146,6 +2271,13 @@ func validateConfig(rt RuntimeConfig) error {
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
+}
+
+func validateTCPPort(name string, port int) error {
+	if port <= 0 || port > 65535 {
+		return fmt.Errorf("%s must be between 1 and 65535", name)
+	}
+	return nil
 }
 
 func validateRegistrationMode(mode string) error {
@@ -2782,6 +2914,8 @@ func printProdInitSummary(paths Paths, cfg Config) {
 		{"Mode env", workspaceEnvPath(paths)},
 		{"Config file", paths.ConfigPath},
 		{"Access URL", cfg.Site.BaseURL},
+		{"HTTP port", strconv.Itoa(rt.Site.HTTPPort)},
+		{"HTTPS port", strconv.Itoa(rt.Site.HTTPSPort)},
 		{"Admin username", "system"},
 		{"Initial password", cfg.SystemUser.Password},
 		{"Registration mode", cfg.Auth.RegistrationMode},

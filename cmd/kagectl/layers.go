@@ -103,7 +103,7 @@ func deploymentComponents(rt RuntimeConfig) []deploymentComponent {
 		{Layer: layerInfra, Name: infraComponentName("nats", rt.NATS.Mode), Role: "平台和用户 App 消息总线"},
 		{Layer: layerInfra, Name: infraComponentName("minio", rt.MinIO.Mode), Role: "对象存储和文件上传下载"},
 		{Layer: layerInfra, Name: rt.Storage.Root, Role: "宿主机持久化根目录"},
-		{Layer: layerEdge, Name: "nginx", Role: "容器内入口，host 网络监听 80/443"},
+		{Layer: layerEdge, Name: "nginx", Role: fmt.Sprintf("容器内入口，host 网络监听 HTTP:%d / HTTPS:%d", rt.Site.HTTPPort, rt.Site.HTTPSPort)},
 		{Layer: layerPlatform, Name: "core-server", Role: "统一承载 gateway/app/agent/hr/storage"},
 		{Layer: layerRuntime, Name: "app-runtime", Role: "用户 App 生命周期控制"},
 		{Layer: layerRuntime, Name: "podman-api", Role: "main 容器内 Podman socket"},

@@ -1,6 +1,10 @@
 site:
   base_url: "http://your-ip-or-domain"
   tls_mode: "http"
+  # Optional. Defaults to 80, or to the explicit port in base_url.
+  http_port: 80
+  # Optional. Used only when tls_mode is https/redirect. Defaults to 443.
+  https_port: 443
   cert_file: "/app/tls/fullchain.pem"
   key_file: "/app/tls/privkey.pem"
   tls_cert_pem_b64: ""

@@ -7,7 +7,7 @@
 - Linux
 - 已安装 `podman compose` 或 `docker compose`
 - 默认数据目录 `~/.kageos/storage/prod` 可写，或在 `.kageos/prod/kage.yaml` 中配置其他可写的绝对路径
-- `80` 端口空闲；如果容器自己做 HTTPS，`443` 也要空闲
+- 默认需要 `80` 端口空闲；如果该端口不可用，可以配置 `site.http_port` 或安装时传 `--http-port`。如果容器自己做 HTTPS，对应的 `site.https_port` 也要空闲，默认 `443`。
 
 ## 最短路径
 
@@ -21,6 +21,12 @@ go run ./cmd/kagectl up
 go run ./cmd/kagectl verify
 ```
 
+如果宿主机 `80` 被占用，首次部署可以直接指定监听端口：
+
+```bash
+sudo ./install.sh --base-url http://your-ip-or-domain:8080 --http-port 8080
+```
+
 `kagectl init` 会生成 `.kageos/prod/kage.yaml`，里面包含数据库密码、NATS 密码、JWT 密钥、system 初始密码等敏感配置，默认不入库。
 
 ## 改公网地址或 TLS
@@ -31,6 +37,15 @@ go run ./cmd/kagectl verify
 site:
   base_url: "http://your-ip-or-domain"
   tls_mode: "http"
+```
+
+宿主机 80 被占用时，可改用其他端口：
+
+```yaml
+site:
+  base_url: "http://your-ip-or-domain:8080"
+  tls_mode: "http"
+  http_port: 8080
 ```
 
 前面已有 LB / CDN / Ingress 做 HTTPS：

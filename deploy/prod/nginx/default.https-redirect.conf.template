@@ -1,21 +1,21 @@
-# 由 entrypoint envsubst 生成；变量：CANONICAL_HOST、TLS_CERT_FILE、TLS_KEY_FILE
-# main 容器使用 host 网络，80 仅做 HTTPS 跳转，主流量走 443
+# 由 entrypoint envsubst 生成；变量：CANONICAL_HOST、CANONICAL_SERVER_NAME、HTTP_PORT、HTTPS_PORT、TLS_CERT_FILE、TLS_KEY_FILE
+# main 容器使用 host 网络，HTTP_PORT 仅做 HTTPS 跳转，主流量走 HTTPS_PORT
 
 server {
-    listen 80;
-    server_name www.${CANONICAL_HOST};
+    listen ${HTTP_PORT};
+    server_name www.${CANONICAL_SERVER_NAME};
     return 301 https://${CANONICAL_HOST}$request_uri;
 }
 
 server {
-    listen 80 default_server;
-    server_name ${CANONICAL_HOST} _;
+    listen ${HTTP_PORT} default_server;
+    server_name ${CANONICAL_SERVER_NAME} _;
     return 301 https://${CANONICAL_HOST}$request_uri;
 }
 
 server {
-    listen 443 ssl http2;
-    server_name www.${CANONICAL_HOST};
+    listen ${HTTPS_PORT} ssl http2;
+    server_name www.${CANONICAL_SERVER_NAME};
     ssl_certificate ${TLS_CERT_FILE};
     ssl_certificate_key ${TLS_KEY_FILE};
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -25,8 +25,8 @@ server {
 }
 
 server {
-    listen 443 ssl http2 default_server;
-    server_name ${CANONICAL_HOST} _;
+    listen ${HTTPS_PORT} ssl http2 default_server;
+    server_name ${CANONICAL_SERVER_NAME} _;
 
     ssl_certificate ${TLS_CERT_FILE};
     ssl_certificate_key ${TLS_KEY_FILE};

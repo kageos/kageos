@@ -13,6 +13,8 @@ require_env JWT_SECRET "环境变量 JWT_SECRET 未设置或为空（须由 Comp
 mkdir -p /app/deploy/prod/config
 set_smtp_defaults
 TLS_MODE="${TLS_MODE:-http}"
+HTTP_PORT="${HTTP_PORT:-80}"
+HTTPS_PORT="${HTTPS_PORT:-443}"
 TLS_CERT_FILE="${TLS_CERT_FILE:-/app/tls/fullchain.pem}"
 TLS_KEY_FILE="${TLS_KEY_FILE:-/app/tls/privkey.pem}"
 KAGEOS_APP_BASE_IMAGE="${KAGEOS_APP_BASE_IMAGE:-kagebase:latest}"
@@ -35,6 +37,29 @@ export NATS_PASSWORD
 export NATS_URL
 export MINIO_HOST
 export MINIO_PORT
+export HTTP_PORT
+export HTTPS_PORT
+
+case "$HTTP_PORT" in
+  ''|*[!0-9]*)
+    echo "ERROR: HTTP_PORT 必须是数字端口，当前值: ${HTTP_PORT}" >&2
+    exit 1
+    ;;
+esac
+if [ "$HTTP_PORT" -lt 1 ] || [ "$HTTP_PORT" -gt 65535 ]; then
+  echo "ERROR: HTTP_PORT 必须在 1-65535 之间，当前值: ${HTTP_PORT}" >&2
+  exit 1
+fi
+case "$HTTPS_PORT" in
+  ''|*[!0-9]*)
+    echo "ERROR: HTTPS_PORT 必须是数字端口，当前值: ${HTTPS_PORT}" >&2
+    exit 1
+    ;;
+esac
+if [ "$HTTPS_PORT" -lt 1 ] || [ "$HTTPS_PORT" -gt 65535 ]; then
+  echo "ERROR: HTTPS_PORT 必须在 1-65535 之间，当前值: ${HTTPS_PORT}" >&2
+  exit 1
+fi
 
 echo "==> 等待依赖（MySQL / NATS / MinIO）..."
 wait_tcp "$MYSQL_HOST" "$MYSQL_PORT" "MySQL"
@@ -48,10 +73,13 @@ CANONICAL_BASE_URL="${CANONICAL_BASE_URL}"
 export CANONICAL_BASE_URL
 export CANONICAL_SCHEME
 export CANONICAL_HOST
+export CANONICAL_SERVER_NAME
 CANONICAL_SCHEME=$(echo "$CANONICAL_BASE_URL" | sed -E 's|^(https?).*|\1|')
 CANONICAL_HOST=$(echo "$CANONICAL_BASE_URL" | sed -E 's|^https?://([^/]+).*|\1|')
+CANONICAL_SERVER_NAME=$(echo "$CANONICAL_HOST" | sed -E 's|:[0-9]+$||')
 export CANONICAL_SCHEME
 export CANONICAL_HOST
+export CANONICAL_SERVER_NAME
 
 case "$TLS_MODE" in
   http|https|redirect|external) ;;
@@ -62,7 +90,7 @@ case "$TLS_MODE" in
 esac
 
 NGINX_TEMPLATE="/app/deploy/prod/nginx/default.conf.template"
-NGINX_MODE_DESC="80 HTTP"
+NGINX_MODE_DESC="${HTTP_PORT} HTTP"
 
 if [[ "$TLS_MODE" == "https" || "$TLS_MODE" == "redirect" ]]; then
   if [[ ! -f "$TLS_CERT_FILE" ]]; then
@@ -84,16 +112,16 @@ if [[ "$TLS_MODE" == "https" || "$TLS_MODE" == "redirect" ]]; then
       exit 1
     fi
     NGINX_TEMPLATE="/app/deploy/prod/nginx/default.https-redirect.conf.template"
-    NGINX_MODE_DESC="80 -> 443 重定向 + 443 HTTPS"
+    NGINX_MODE_DESC="${HTTP_PORT} -> ${HTTPS_PORT} 重定向 + ${HTTPS_PORT} HTTPS"
   else
     NGINX_TEMPLATE="/app/deploy/prod/nginx/default.https.conf.template"
-    NGINX_MODE_DESC="80 HTTP + 443 HTTPS"
+    NGINX_MODE_DESC="${HTTP_PORT} HTTP + ${HTTPS_PORT} HTTPS"
   fi
 elif [[ "$TLS_MODE" == "external" ]]; then
   if [[ "$CANONICAL_SCHEME" != "https" ]]; then
     echo "WARN: TLS_MODE=external 通常建议配合 https:// 的 CANONICAL_BASE_URL；当前为 ${CANONICAL_BASE_URL}"
   fi
-  NGINX_MODE_DESC="80 HTTP（外部 TLS 终止）"
+  NGINX_MODE_DESC="${HTTP_PORT} HTTP（外部 TLS 终止）"
 elif [[ "$CANONICAL_SCHEME" == "https" ]]; then
   echo "WARN: TLS_MODE=http 但 CANONICAL_BASE_URL 使用 https://；如果前面有 TLS 终止，请改成 TLS_MODE=external"
 fi
@@ -103,8 +131,8 @@ cp /app/deploy/prod/nginx/common.server.inc /etc/nginx/snippets/kageos-common.co
 
 export TLS_CERT_FILE
 export TLS_KEY_FILE
-echo "==> 生成 Nginx（${NGINX_MODE_DESC}，www → 裸域 301）canonical_host=${CANONICAL_HOST} scheme=${CANONICAL_SCHEME}"
-envsubst '${CANONICAL_HOST} ${CANONICAL_SCHEME} ${TLS_CERT_FILE} ${TLS_KEY_FILE}' < "${NGINX_TEMPLATE}" > /etc/nginx/sites-enabled/default
+echo "==> 生成 Nginx（${NGINX_MODE_DESC}，www → 裸域 301）canonical_host=${CANONICAL_HOST} server_name=${CANONICAL_SERVER_NAME} scheme=${CANONICAL_SCHEME}"
+envsubst '${CANONICAL_HOST} ${CANONICAL_SERVER_NAME} ${CANONICAL_SCHEME} ${HTTP_PORT} ${HTTPS_PORT} ${TLS_CERT_FILE} ${TLS_KEY_FILE}' < "${NGINX_TEMPLATE}" > /etc/nginx/sites-enabled/default
 nginx -t
 
 echo "==> 启动 Nginx（host 网络直接监听 ${NGINX_MODE_DESC}）..."

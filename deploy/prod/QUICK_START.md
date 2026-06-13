@@ -7,7 +7,7 @@
 - Linux
 - 已安装 `podman compose` 或 `docker compose`
 - 默认数据目录 `~/.kageos/storage/prod` 可写，或在 `.kageos/prod/kage.yaml` 中配置其他可写的绝对路径
-- `80` 端口空闲；如果本机终止 HTTPS，`443` 也要空闲
+- 默认需要 `80` 端口空闲；如果该端口不可用，可以配置 `site.http_port` 或安装时传 `--http-port`。如果本机终止 HTTPS，对应的 `site.https_port` 也要空闲，默认 `443`。
 
 ## 首次部署（一键）
 
@@ -16,6 +16,12 @@
 ```bash
 sudo ./install.sh --base-url http://your-ip-or-domain
 tail -f .kageos/prod/kagectl-up.log
+```
+
+宿主机 `80` 被占用时：
+
+```bash
+sudo ./install.sh --base-url http://your-ip-or-domain:8080 --http-port 8080
 ```
 
 `install.sh` 会选择 sudo 调用者作为部署用户，自动处理 rootless Podman 生产环境需要的 linger，并在缺少生产配置时创建 `.kageos/prod/kage.yaml`，最后调用 `./prod-up.sh` 后台启动部署。
@@ -27,6 +33,8 @@ tail -f .kageos/prod/kagectl-up.log
 ```text
 http://your-ip-or-domain
 ```
+
+如果安装时用了自定义端口，就访问对应端口，例如 `http://your-ip-or-domain:8080`。
 
 ## 常用命令
 
