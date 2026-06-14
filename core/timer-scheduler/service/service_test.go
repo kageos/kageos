@@ -464,6 +464,72 @@ func TestRunNowDoesNotChangeScheduledCadence(t *testing.T) {
 	}
 }
 
+func TestRunNowRecoversMissingInflightReference(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(3600),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const missingExecutionID int64 = 4453
+	if err := db.Model(&model.TimerTask{}).
+		Where("id = ?", task.ID).
+		Updates(map[string]interface{}{
+			"inflight_execution_id": missingExecutionID,
+			"last_execution_id":     missingExecutionID,
+		}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	exec, err := svc.RunNow(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exec.TriggerType != triggerManual {
+		t.Fatalf("trigger_type = %q, want manual", exec.TriggerType)
+	}
+	gotTask, err := svc.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotTask.InflightExecutionID != exec.ID {
+		t.Fatalf("task inflight = %d, want new execution %d", gotTask.InflightExecutionID, exec.ID)
+	}
+}
+
+func TestRunNowRejectsValidInflightExecution(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, _ := newTestService(t, &now)
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(3600),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := svc.RunNow(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.RunNow(ctx, task.ID); !errors.Is(err, ErrTaskBusy) {
+		t.Fatalf("second run now err=%v, want ErrTaskBusy", err)
+	}
+	gotTask, err := svc.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotTask.InflightExecutionID != first.ID {
+		t.Fatalf("task inflight = %d, want first execution %d", gotTask.InflightExecutionID, first.ID)
+	}
+}
+
 func TestCreateTaskReusesActiveIdempotencyKey(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, _ := newTestService(t, &now)

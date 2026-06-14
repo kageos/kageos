@@ -87,42 +87,24 @@ func (s *WorkspaceChatService) updateWorkspaceSessionFullCodePath(ctx context.Co
 }
 
 func (s *WorkspaceChatService) updateWorkspaceModelContextAnchorAfterChangeRole(ctx context.Context, sessionID string, result ToolResult, user string, force bool) {
-	if s == nil || s.sessionRepo == nil || s.messageRepo == nil || strings.TrimSpace(sessionID) == "" {
+	if s == nil || s.sessionRepo == nil || strings.TrimSpace(sessionID) == "" {
 		return
 	}
-	if !force && !workspaceChangeRoleShouldResetModelContext(result) {
-		return
-	}
-	messages, err := s.messageRepo.ListBySessionID(sessionID)
-	if err != nil {
-		logger.Warnf(ctx, "[WorkspaceRole] 读取会话消息以设置上下文锚点失败 SessionID=%s: %v", sessionID, err)
-		return
-	}
-	latestUserID := int64(0)
-	for _, msg := range messages {
-		if msg != nil && msg.Role == RoleUser && msg.ID > latestUserID {
-			latestUserID = msg.ID
-		}
-	}
-	if latestUserID <= 0 {
-		return
-	}
-	anchorID := latestUserID - 1
 	session, err := s.sessionRepo.GetBySessionID(sessionID)
 	if err != nil || session == nil {
-		logger.Warnf(ctx, "[WorkspaceRole] 查询会话以设置上下文锚点失败 SessionID=%s: %v", sessionID, err)
+		logger.Warnf(ctx, "[WorkspaceRole] 查询会话以保留完整上下文失败 SessionID=%s: %v", sessionID, err)
 		return
 	}
-	if anchorID <= session.ModelContextAnchorMessageID {
+	if session.ModelContextAnchorMessageID == 0 && session.ContextPolicy == ContextPolicyFull {
 		return
 	}
-	session.ModelContextAnchorMessageID = anchorID
-	session.ContextPolicy = ContextPolicyArtifactOnly
+	session.ModelContextAnchorMessageID = 0
+	session.ContextPolicy = ContextPolicyFull
 	if user != "" {
 		session.UpdatedBy = user
 	}
 	if err := s.sessionRepo.Update(session); err != nil {
-		logger.Warnf(ctx, "[WorkspaceRole] 更新上下文锚点失败 SessionID=%s AnchorID=%d: %v", sessionID, anchorID, err)
+		logger.Warnf(ctx, "[WorkspaceRole] 恢复完整上下文失败 SessionID=%s: %v", sessionID, err)
 	}
 }
 
@@ -159,17 +141,17 @@ func workspaceChangeRoleShouldResetModelContext(result ToolResult) bool {
 	}
 	switch data := result.Data.(type) {
 	case changeRoleData:
-		return data.Switched || strings.Contains(data.ContextPolicy, "丢弃旧细节")
+		return data.Switched || strings.Contains(data.ContextPolicy, "当前阶段执行重点")
 	case *changeRoleData:
 		if data == nil {
 			return false
 		}
-		return data.Switched || strings.Contains(data.ContextPolicy, "丢弃旧细节")
+		return data.Switched || strings.Contains(data.ContextPolicy, "当前阶段执行重点")
 	case map[string]interface{}:
 		if switched, _ := data["switched"].(bool); switched {
 			return true
 		}
-		if policy, _ := data["context_policy"].(string); strings.Contains(policy, "丢弃旧细节") {
+		if policy, _ := data["context_policy"].(string); strings.Contains(policy, "当前阶段执行重点") {
 			return true
 		}
 	}

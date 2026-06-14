@@ -57,7 +57,7 @@
                 text
                 type="primary"
                 :icon="VideoPlay"
-                :disabled="isTerminal(row.status) || !!row.inflight_execution_id"
+                :disabled="isTerminal(row.status)"
                 @click.stop="handleRunNow(row)"
               />
             </el-tooltip>

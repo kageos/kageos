@@ -18,7 +18,7 @@ type changeRoleArgs struct {
 	TaskContext      []string `json:"task_context" schema_desc:"交接上下文：上一阶段做了什么、用户原始目标/需求、必须满足的要求、特殊 case 或未决问题；3-6 条短句"`
 	KeyInformation   []string `json:"key_information" schema_desc:"下一身份必须知道的关键信息：PRD 摘要、构建版本、函数/表单/表格/图表路径、测试重点、失败现象等"`
 	References       []string `json:"references" schema_desc:"参考资料：PRD/构建产物、示例案例、系统文档、SDK 文档、源码文件、日志或外部 URL；只放真正要看的资料"`
-	ResetContext     bool     `json:"reset_context" schema_desc:"是否建议丢弃旧细节，只保留本次四块交接信息进入新身份"`
+	ResetContext     bool     `json:"reset_context" schema_desc:"是否建议重置当前阶段执行重点；完整历史仍保留，只强化本次四块交接信息进入新身份"`
 
 	UserInput      string   `json:"user_input" schema_ignore:"true"`
 	TaskSummary    string   `json:"task_summary" schema_ignore:"true"`
@@ -476,15 +476,15 @@ func buildRoleContextPolicy(switched bool, reset bool, summary string, reference
 	}
 	if reset {
 		if summary == "" {
-			return strings.TrimSpace("已进入新身份；丢弃旧细节，只保留标准四块交接信息、用户最新目标和必要文件路径。" + directoryText + referenceText)
+			return strings.TrimSpace("已进入新身份；保留完整历史对话，同时用标准四块交接信息、用户最新目标和必要文件路径作为当前阶段执行重点。" + directoryText + referenceText)
 		}
-		return "已进入新身份；丢弃旧细节，只保留标准四块交接信息、用户最新目标和必要文件路径。" + directoryText + "摘要：" + compactText(summary, 1200) + referenceText
+		return "已进入新身份；保留完整历史对话，同时用标准四块交接信息、用户最新目标和必要文件路径作为当前阶段执行重点。" + directoryText + "摘要：" + compactText(summary, 1200) + referenceText
 	}
 	if switched {
 		if summary == "" {
-			return strings.TrimSpace("已切换身份；旧上下文只作背景，决策以标准四块交接、当前身份文档包、用户最新目标和当前源码为准。" + directoryText + referenceText)
+			return strings.TrimSpace("已切换身份；完整历史继续进入模型上下文，决策以标准四块交接、当前身份文档包、用户最新目标和当前源码为当前阶段重点。" + directoryText + referenceText)
 		}
-		return "已切换身份；旧上下文只作背景，优先携带标准四块交接并按当前身份文档包执行。" + directoryText + "摘要：" + compactText(summary, 1200) + referenceText
+		return "已切换身份；完整历史继续进入模型上下文，优先携带标准四块交接并按当前身份文档包执行。" + directoryText + "摘要：" + compactText(summary, 1200) + referenceText
 	}
 	return strings.TrimSpace("沿用当前身份；继续以当前身份文档包、用户最新目标和当前源码为准。" + directoryText + referenceText)
 }

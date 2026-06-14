@@ -158,6 +158,19 @@ func (r *TimerTaskRepository) ListBrokenInflightReferences(limit int) ([]*model.
 	return list, nil
 }
 
+func (r *TimerTaskRepository) GetBrokenInflightReferenceByID(id int64) (*model.TimerTask, error) {
+	var task model.TimerTask
+	err := r.db.Model(&model.TimerTask{}).
+		Joins("LEFT JOIN timer_execution AS inflight_exec ON inflight_exec.id = timer_task.inflight_execution_id AND inflight_exec.task_id = timer_task.id").
+		Where("timer_task.id = ? AND timer_task.inflight_execution_id <> 0", id).
+		Where("(inflight_exec.id IS NULL OR inflight_exec.status NOT IN ? OR inflight_exec.lease_until IS NULL)", []string{"queued", "running"}).
+		First(&task).Error
+	if err != nil {
+		return nil, err
+	}
+	return &task, nil
+}
+
 func (r *TimerTaskRepository) TryAcquireDispatch(id int64, owner string, now, leaseUntil time.Time) (bool, error) {
 	result := r.db.Model(&model.TimerTask{}).
 		Where("id = ? AND status = ? AND next_run_at IS NOT NULL AND next_run_at <= ? AND inflight_execution_id = 0 AND (lease_until IS NULL OR lease_until < ?)", id, "pending", now, now).

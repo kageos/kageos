@@ -340,7 +340,16 @@ func (s *Service) RunNow(ctx context.Context, taskID int64) (*scheduledsdk.Execu
 		return nil, err
 	}
 	if task.InflightExecutionID != 0 {
-		return nil, ErrTaskBusy
+		if _, err := s.recoverBrokenInflightReferenceForTask(taskID); err != nil {
+			return nil, err
+		}
+		task, err = s.taskRepo.GetByID(taskID)
+		if err != nil {
+			return nil, err
+		}
+		if task.InflightExecutionID != 0 {
+			return nil, ErrTaskBusy
+		}
 	}
 	exec, err := s.dispatchTask(ctx, task, "", s.now(), triggerManual)
 	if err != nil {
@@ -720,6 +729,22 @@ func (s *Service) recoverBrokenInflightReferences(limit int) (int, error) {
 		}
 	}
 	return recovered, recoverErr
+}
+
+func (s *Service) recoverBrokenInflightReferenceForTask(taskID int64) (bool, error) {
+	task, err := s.taskRepo.GetBrokenInflightReferenceByID(taskID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	executionID := task.InflightExecutionID
+	if executionID == 0 {
+		return false, nil
+	}
+	message := fmt.Sprintf("timer-scheduler cleared stale inflight execution reference: execution_id=%d", executionID)
+	return s.taskRepo.TryClearInflight(task.ID, executionID, message)
 }
 
 func (s *Service) timeoutExecution(ctx context.Context, exec *model.TimerExecution, now time.Time, message string) error {

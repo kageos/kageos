@@ -215,7 +215,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		modeCode = normalizeWorkspaceModeCode(session.ModeCode)
 	}
 	if session.ArchivedForModel {
-		return s.handleError(sendEvent, "该会话已归档为展示历史，不再进入模型上下文；请从新的阶段交接会话继续。", nil)
+		return s.handleError(sendEvent, "该会话已归档为展示历史，不再进入模型上下文；请刷新当前会话后继续。", nil)
 	}
 	if session.Status == model.ChatSessionStatusGenerating {
 		return s.handleError(sendEvent, "该会话正在执行中，请等待当前任务完成，或先取消后再继续。", nil)

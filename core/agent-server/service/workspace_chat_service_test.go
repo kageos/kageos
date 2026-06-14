@@ -438,7 +438,7 @@ func TestAttachLLMUsageToWorkspaceModelContextPlanReportsCacheResult(t *testing.
 	}
 }
 
-func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testing.T) {
+func TestCreateWorkspaceHandoffInjectsIntoCurrentSessionAndPreservesHistory(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -509,11 +509,11 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	if err != nil {
 		t.Fatalf("handoff: %v", err)
 	}
-	if resp.SessionID == "" || resp.SessionID == source.SessionID {
-		t.Fatalf("unexpected target session id: %q", resp.SessionID)
+	if resp.SessionID != source.SessionID {
+		t.Fatalf("handoff should stay in source session, got %q want %q", resp.SessionID, source.SessionID)
 	}
-	if resp.ContextPolicy != ContextPolicyArtifactOnly {
-		t.Fatalf("context policy=%q want %q", resp.ContextPolicy, ContextPolicyArtifactOnly)
+	if resp.ContextPolicy != ContextPolicyFull {
+		t.Fatalf("context policy=%q want %q", resp.ContextPolicy, ContextPolicyFull)
 	}
 	if resp.MessageID == 0 {
 		t.Fatal("expected handoff response to include initial message id")
@@ -598,44 +598,41 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 		t.Fatalf("handoff context should include recommended reference docs, got %q", resp.HandoffContext)
 	}
 
-	archived, err := sessionRepo.GetBySessionID("source-session")
+	updatedSource, err := sessionRepo.GetBySessionID("source-session")
 	if err != nil {
 		t.Fatalf("get source: %v", err)
 	}
-	if !archived.ArchivedForModel || archived.ContextPolicy != ContextPolicyDisplayOnly {
-		t.Fatalf("source not archived for model: %#v", archived)
+	if updatedSource.ArchivedForModel || updatedSource.ContextPolicy != ContextPolicyFull || updatedSource.ModelContextAnchorMessageID != 0 {
+		t.Fatalf("source should keep full model context: %#v", updatedSource)
 	}
-	if archived.Status != model.ChatSessionStatusDone {
-		t.Fatalf("source status = %q, want %q", archived.Status, model.ChatSessionStatusDone)
+	if updatedSource.Status != model.ChatSessionStatusActive {
+		t.Fatalf("source status = %q, want %q", updatedSource.Status, model.ChatSessionStatusActive)
 	}
-	target, err := sessionRepo.GetBySessionID(resp.SessionID)
-	if err != nil {
-		t.Fatalf("get target: %v", err)
+	if updatedSource.ParentSessionID != "" || updatedSource.HandoffKind != "agent_app_prd" || updatedSource.HandoffTargetRole != WorkspaceRoleAppDeveloper {
+		t.Fatalf("source handoff metadata wrong: %#v", updatedSource)
 	}
-	if target.ParentSessionID != source.SessionID || target.HandoffKind != "agent_app_prd" || target.HandoffTargetRole != WorkspaceRoleAppDeveloper {
-		t.Fatalf("target handoff metadata wrong: %#v", target)
-	}
-	if target.RoleID != WorkspaceRoleAppDeveloper || target.RoleDisplayName != "应用开发工程师" {
-		t.Fatalf("target role metadata wrong: %#v", target)
+	if updatedSource.RoleID != WorkspaceRoleAppDeveloper || updatedSource.RoleDisplayName != "应用开发工程师" {
+		t.Fatalf("source role metadata wrong: %#v", updatedSource)
 	}
 	messages, err := messageRepo.ListBySessionID(resp.SessionID)
 	if err != nil {
-		t.Fatalf("list target messages: %v", err)
+		t.Fatalf("list session messages: %v", err)
 	}
-	if len(messages) != 1 {
-		t.Fatalf("expected one initial handoff message, got %d", len(messages))
+	if len(messages) != 3 {
+		t.Fatalf("expected two historical messages plus one handoff message, got %d", len(messages))
 	}
-	if messages[0].ID != resp.MessageID || messages[0].Role != RoleUser || messages[0].ContextUsage != MessageContextArtifact || messages[0].ArtifactKind != "agent_app_prd" {
-		t.Fatalf("initial message metadata wrong: %#v", messages[0])
+	injected := messages[len(messages)-1]
+	if injected.ID != resp.MessageID || injected.Role != RoleUser || injected.ContextUsage != MessageContextArtifact || injected.ArtifactKind != "agent_app_prd" {
+		t.Fatalf("injected handoff message metadata wrong: %#v", injected)
 	}
-	if !strings.Contains(messages[0].Content, `"kind": "agent_app_prd"`) || !strings.Contains(messages[0].DisplayContent, "优先做列表") {
-		t.Fatalf("initial handoff message content wrong: %#v", messages[0])
+	if !strings.Contains(injected.Content, `"kind": "agent_app_prd"`) || !strings.Contains(injected.DisplayContent, "优先做列表") {
+		t.Fatalf("injected handoff message content wrong: %#v", injected)
 	}
 	packet, err := handoffRepo.GetByTargetSessionID(resp.SessionID)
 	if err != nil {
 		t.Fatalf("get handoff packet: %v", err)
 	}
-	if packet.ID != resp.HandoffPacketID || packet.SourceSessionID != source.SessionID || packet.TargetSessionID != resp.SessionID || packet.InitialMessageID != resp.MessageID {
+	if packet.ID != resp.HandoffPacketID || packet.SourceSessionID != source.SessionID || packet.TargetSessionID != source.SessionID || packet.InitialMessageID != resp.MessageID {
 		t.Fatalf("handoff packet metadata wrong: %#v", packet)
 	}
 	if packet.TargetRole != WorkspaceRoleAppDeveloper || packet.ArtifactKind != "agent_app_prd" || !strings.Contains(packet.ArtifactJSON, `"project"`) {
@@ -672,12 +669,19 @@ func TestCreateWorkspaceHandoffArchivesSourceAndCreatesArtifactSession(t *testin
 	if handoffCount != 1 {
 		t.Fatalf("duplicate handoff should not create another packet, got %d", handoffCount)
 	}
-	var targetCount int64
-	if err := db.Model(&model.AgentChatSession{}).Where("parent_session_id = ?", "source-session").Count(&targetCount).Error; err != nil {
-		t.Fatalf("count target sessions: %v", err)
+	var currentSessionCount int64
+	if err := db.Model(&model.AgentChatSession{}).Where("session_id = ?", "source-session").Count(&currentSessionCount).Error; err != nil {
+		t.Fatalf("count current sessions: %v", err)
 	}
-	if targetCount != 1 {
-		t.Fatalf("duplicate handoff should not create another target session, got %d", targetCount)
+	if currentSessionCount != 1 {
+		t.Fatalf("handoff should keep one current session row, got %d", currentSessionCount)
+	}
+	var childCount int64
+	if err := db.Model(&model.AgentChatSession{}).Where("parent_session_id = ?", "source-session").Count(&childCount).Error; err != nil {
+		t.Fatalf("count child sessions: %v", err)
+	}
+	if childCount != 0 {
+		t.Fatalf("handoff should not create child sessions, got %d", childCount)
 	}
 }
 
@@ -1399,7 +1403,7 @@ func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
 	}
 }
 
-func TestChangeRoleSetsModelContextAnchorOnRoleSwitch(t *testing.T) {
+func TestChangeRolePreservesModelContextOnRoleSwitch(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -1428,7 +1432,7 @@ func TestChangeRoleSetsModelContextAnchorOnRoleSwitch(t *testing.T) {
 	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	oldMsg := &model.AgentChatMessage{SessionID: "anchor-session", Role: RoleUser, Content: "旧开发讨论，不应再传给测试模型", User: "tester"}
+	oldMsg := &model.AgentChatMessage{SessionID: "anchor-session", Role: RoleUser, Content: "旧开发讨论，仍应保留给测试模型", User: "tester"}
 	if err := messageRepo.Create(oldMsg); err != nil {
 		t.Fatalf("create old message: %v", err)
 	}
@@ -1465,21 +1469,26 @@ func TestChangeRoleSetsModelContextAnchorOnRoleSwitch(t *testing.T) {
 	if updated.FullCodePath != "/liubeiluo/demo" {
 		t.Fatalf("full code path not updated: %#v", updated)
 	}
-	if updated.ModelContextAnchorMessageID != oldMsg.ID {
-		t.Fatalf("anchor id = %d, want old message id %d", updated.ModelContextAnchorMessageID, oldMsg.ID)
+	if updated.ModelContextAnchorMessageID != 0 {
+		t.Fatalf("anchor id = %d, want 0 so history is preserved", updated.ModelContextAnchorMessageID)
 	}
-	filtered, err := messageRepo.ListBySessionID("anchor-session")
+	if updated.ContextPolicy != ContextPolicyFull {
+		t.Fatalf("context policy = %q, want %q", updated.ContextPolicy, ContextPolicyFull)
+	}
+	messages, err := messageRepo.ListBySessionID("anchor-session")
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
 	}
-	filtered = filterWorkspaceMessagesAfterAnchor(filtered, updated.ModelContextAnchorMessageID)
-	for _, msg := range filtered {
-		if strings.Contains(msg.Content, "旧开发讨论") {
-			t.Fatalf("old message should be filtered out: %#v", filtered)
-		}
+	var joined strings.Builder
+	for _, msg := range messages {
+		joined.WriteString(msg.Content)
+		joined.WriteString("\n")
 	}
-	if len(filtered) == 0 || filtered[0].ID != currentMsg.ID {
-		t.Fatalf("filtered messages should start from current user message: %#v", filtered)
+	if !strings.Contains(joined.String(), "旧开发讨论") || !strings.Contains(joined.String(), "build 已通过") {
+		t.Fatalf("role switch should preserve old and current messages: %#v", messages)
+	}
+	if len(messages) < 2 || messages[0].ID != oldMsg.ID || messages[1].ID != currentMsg.ID {
+		t.Fatalf("messages should retain original order: %#v", messages)
 	}
 }
 

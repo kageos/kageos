@@ -9,7 +9,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/kageos/kageos/core/agent-server/model"
 	"github.com/kageos/kageos/core/agent-server/repository"
 	"github.com/kageos/kageos/dto"
@@ -18,8 +17,8 @@ import (
 
 var errWorkspaceHandoffAlreadyProcessed = errors.New("workspace handoff already processed")
 
-// CreateWorkspaceHandoff freezes the source conversation for model context and
-// creates a clean target session that starts from one structured artifact.
+// CreateWorkspaceHandoff injects a stage-transition artifact into the current
+// conversation. It preserves prior history and updates the active role in-place.
 func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *dto.WorkspaceHandoffReq) (*dto.WorkspaceHandoffResp, error) {
 	if req == nil {
 		return nil, fmt.Errorf("handoff 请求不能为空")
@@ -83,7 +82,7 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 	executeDirectory := firstNonEmptyString(handoffContext.ExecuteDirectory, fullCodePath)
 	targetFullCodePath := workspaceHandoffTargetSessionFullCodePath(fullCodePath, executeDirectory, targetRole, artifactKind)
 
-	targetSessionID := uuid.New().String()
+	targetSessionID := source.SessionID
 	displayContent := strings.TrimSpace(req.DisplayContent)
 	if displayContent == "" {
 		displayContent = defaultWorkspaceHandoffDisplayContent(artifactKind, targetRole, req.Remark)
@@ -96,27 +95,6 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 		runes := []rune(title)
 		title = string(runes[:50]) + "..."
 	}
-	target := &model.AgentChatSession{
-		TreeID:            source.TreeID,
-		FullCodePath:      targetFullCodePath,
-		Source:            SourceWorkspace,
-		SessionID:         targetSessionID,
-		Title:             title,
-		ModeCode:          modeCode,
-		Status:            model.ChatSessionStatusActive,
-		RoleID:            targetRole,
-		RoleDisplayName:   workspaceRoleDisplayName(targetRole),
-		ParentSessionID:   source.SessionID,
-		HandoffKind:       artifactKind,
-		HandoffTargetRole: targetRole,
-		ContextPolicy:     contextPolicy,
-		User:              user,
-	}
-	if target.User == "" {
-		target.User = source.User
-	}
-	target.CreatedBy = user
-	target.UpdatedBy = user
 	content := buildWorkspaceHandoffContent(workspaceHandoffContentInput{
 		ArtifactKind:         artifactKind,
 		ArtifactJSON:         artifactJSON,
@@ -135,7 +113,7 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 		DisplayContent: displayContent,
 		ContextUsage:   MessageContextArtifact,
 		ArtifactKind:   artifactKind,
-		User:           target.User,
+		User:           firstNonEmptyString(user, source.User),
 	}
 	initialMessage.CreatedBy = user
 	initialMessage.UpdatedBy = user
@@ -149,45 +127,46 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 		HandoffContextJSON: handoffContextJSON,
 		Remark:             strings.TrimSpace(req.Remark),
 		ContextPolicy:      contextPolicy,
-		User:               target.User,
+		User:               firstNonEmptyString(user, source.User),
 	}
 	handoffPacket.CreatedBy = user
 	handoffPacket.UpdatedBy = user
 	var existingResp *dto.WorkspaceHandoffResp
 	if err := s.sessionRepo.TransactionWithMessagesAndHandoffPackets(func(sessionTx *repository.ChatSessionRepository, messageTx *repository.ChatMessageRepository, handoffTx *repository.WorkspaceHandoffPacketRepository) error {
-		if packet, err := handoffTx.FindLatestBySourceAndTarget(source.SessionID, artifactKind, targetRole, target.User); err != nil {
+		if packet, err := handoffTx.FindLatestBySourceAndTarget(source.SessionID, artifactKind, targetRole, firstNonEmptyString(user, source.User)); err != nil {
 			return fmt.Errorf("查询已有交接包失败: %w", err)
 		} else if packet != nil {
 			existingResp = buildExistingWorkspaceHandoffResp(packet, sessionTx, messageTx)
 			return nil
 		}
-		archived, err := sessionTx.ArchiveForModelIfActive(source.SessionID, workspaceRoleDisplayName(targetRole), user)
-		if err != nil {
-			return fmt.Errorf("归档来源会话失败: %w", err)
+		source.FullCodePath = firstNonEmptyString(normalizeWorkspacePath(targetFullCodePath), fullCodePath, source.FullCodePath)
+		source.Status = model.ChatSessionStatusActive
+		source.RoleID = targetRole
+		source.RoleDisplayName = workspaceRoleDisplayName(targetRole)
+		source.HandoffKind = artifactKind
+		source.HandoffTargetRole = targetRole
+		source.ContextPolicy = contextPolicy
+		source.ModelContextAnchorMessageID = 0
+		source.ArchivedForModel = false
+		source.ArchiveReason = ""
+		source.UpdatedBy = user
+		if strings.TrimSpace(source.Title) == "" {
+			source.Title = title
 		}
-		if !archived {
-			if packet, err := handoffTx.FindLatestBySourceAndTarget(source.SessionID, artifactKind, targetRole, target.User); err != nil {
-				return fmt.Errorf("查询已有交接包失败: %w", err)
-			} else if packet != nil {
-				existingResp = buildExistingWorkspaceHandoffResp(packet, sessionTx, messageTx)
-				return nil
-			}
-			return errWorkspaceHandoffAlreadyProcessed
-		}
-		if err := sessionTx.Create(target); err != nil {
-			return fmt.Errorf("创建交接会话失败: %w", err)
+		if err := sessionTx.Update(source); err != nil {
+			return fmt.Errorf("更新当前会话阶段信息失败: %w", err)
 		}
 		if err := messageTx.Create(initialMessage); err != nil {
-			return fmt.Errorf("创建交接消息失败: %w", err)
+			return fmt.Errorf("创建阶段注入消息失败: %w", err)
 		}
 		handoffPacket.InitialMessageID = initialMessage.ID
 		if err := handoffTx.Create(handoffPacket); err != nil {
-			return fmt.Errorf("创建交接包失败: %w", err)
+			return fmt.Errorf("创建阶段注入包失败: %w", err)
 		}
 		return nil
 	}); err != nil {
 		if errors.Is(err, errWorkspaceHandoffAlreadyProcessed) {
-			return nil, fmt.Errorf("该阶段交接已处理，请刷新会话列表后从新的阶段会话继续")
+			return nil, fmt.Errorf("该阶段注入已处理，请刷新当前会话后继续")
 		}
 		return nil, err
 	}
@@ -1507,12 +1486,10 @@ func firstNonEmptyString(items ...string) string {
 
 func normalizeWorkspaceHandoffContextPolicy(policy string) string {
 	switch strings.TrimSpace(policy) {
-	case ContextPolicyFull:
-		return ContextPolicyFull
 	case ContextPolicyDisplayOnly:
 		return ContextPolicyDisplayOnly
 	default:
-		return ContextPolicyArtifactOnly
+		return ContextPolicyFull
 	}
 }
 
@@ -1550,10 +1527,10 @@ func buildWorkspaceHandoffContent(input workspaceHandoffContentInput) string {
 	lines := []string{
 		"已确认阶段交接产物，进入下一阶段。",
 		"",
-		fmt.Sprintf("这是阶段交接后的执行会话。请先调用 change_role，target_role 固定为 %s。", input.TargetRole),
+		fmt.Sprintf("这是当前会话内的阶段注入消息。历史对话仍然是模型上下文的一部分；请先调用 change_role，target_role 固定为 %s。", input.TargetRole),
 		fmt.Sprintf("change_role.execute_directory 必须固定为 %s；后续读取、构建、测试、运行只能围绕该目录或该目录下函数。", firstNonEmptyString(input.ExecuteDirectory, "当前工作台目录")),
 		"change_role 只携带四块交接信息：execute_directory、task_context、key_information、references。",
-		fmt.Sprintf("上下文策略：%s。优先以本消息中的 HANDOFF_PACKET JSON 为准；HANDOFF_CONTEXT JSON 仅作补充证据，不要依赖来源会话的完整历史讨论。", input.ContextPolicy),
+		fmt.Sprintf("上下文策略：%s。本消息中的 HANDOFF_PACKET JSON 和 HANDOFF_CONTEXT JSON 是对当前历史的结构化补充；不要丢弃用户在前文给过的关键背景、限制和偏好。", input.ContextPolicy),
 		"不要重复产出已确认的设计文档；除非产物本身缺失关键字段，否则直接执行目标阶段任务。",
 	}
 	if input.ArtifactKind == "agent_app_prd" && normalizeWorkspaceRole(input.TargetRole) == WorkspaceRoleAppDeveloper {

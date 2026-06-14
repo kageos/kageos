@@ -1153,10 +1153,10 @@ async function handleConfirmPrd(payload: { remark: string; prd: unknown }, optio
       artifact_kind: 'agent_app_prd',
       artifact: payload.prd,
       remark,
-      context_policy: 'artifact_only'
+      context_policy: 'full'
     })
   } catch (error: any) {
-    ElMessage.error(error?.message || '创建交接会话失败')
+    ElMessage.error(error?.message || '确认 PRD 失败')
     return
   }
   if (interaction && !options.auditRecorded) {
@@ -1164,7 +1164,6 @@ async function handleConfirmPrd(payload: { remark: string; prd: unknown }, optio
   }
   if (interaction) markInteractionHandled(interaction)
   sessionId.value = handoff.session_id
-  setMessages([])
   void sendTextToSession(
     handoff.session_id,
     handoff.content,
@@ -1187,7 +1186,7 @@ async function handleConfirmBuildHandoff(payload: { artifact: unknown }) {
       artifact_kind: getStageArtifactKind(payload.artifact, 'agent_app_build_failure'),
       artifact: payload.artifact,
       remark: '',
-      context_policy: 'artifact_only',
+      context_policy: 'full',
       display_content: '构建失败，交接构建修复。'
     })
   } catch (error: any) {
