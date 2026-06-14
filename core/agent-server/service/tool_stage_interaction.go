@@ -48,7 +48,7 @@ func pendingBuildRepairInteraction() *workspaceStageInteraction {
 		CardType:            "build_repair",
 		ArtifactKind:        workspaceBuildFailureKind,
 		Status:              model.ChatSessionStatusPendingBuildRepair,
-		Blocking:            true,
+		Blocking:            false,
 		Title:               "构建等待修复",
 		Description:         "构建失败后建议交接给构建修复工程师；也可以先继续手动修改。",
 		TargetRoleOnConfirm: WorkspaceRoleBuildEngineer,

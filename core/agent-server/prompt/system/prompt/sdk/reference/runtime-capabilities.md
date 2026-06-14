@@ -108,7 +108,7 @@ clientSource := ctx.GetClientSource()
 - 不要在业务代码里自己造审批按钮、审批流、审批权限。
 - 如果用户只是要管理“审批单据”这种业务对象，可以按普通 Table/Form 建模；这不等于平台通用审批。
 - 如果用户要求“新增/修改/删除必须审批后执行”，应说明这是平台侧流程控制能力，MVP 暂不内置。
-- 如果用户要求“每天/每周自动执行”，不要在业务应用里自造 cron；已明确是某个 Form 的内置运营逻辑时，可用 `FormTemplate.Schedules` 声明默认调度，否则交给 `automation_operator` 使用 timer-scheduler 创建定时函数或定时会话。
+- 如果用户要求“每天/每周自动执行”，不要在业务应用里自造 cron；已明确是某个 Form 的内置运营逻辑时，可用 `FormTemplate.Schedules` 声明默认调度，否则交给 `automation_operator` 使用 timer-scheduler 创建定时函数或定时会话。默认按平台部署时区执行，不要主动填写 `Timezone`。
 - 如果用户要求“发消息/通知某人”，不要自建通知表或硬连具体渠道；应使用 `ctx.SendMessage` 交给 message-service。按部门通知暂不暴露。
 
 操作日志：

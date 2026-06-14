@@ -18,7 +18,7 @@ type SendNotificationTool struct {
 }
 
 type sendNotificationArgs struct {
-	ToUsers     string `json:"to_users" schema_desc:"接收用户 username，支持一个或多个；多个用逗号分隔，例如 alice,bob。定时会话里建议显式传真实用户；不传时仅在当前请求用户不是 system 时默认发送给当前请求用户。"`
+	ToUsers     string `json:"to_users" schema_desc:"接收用户 username，多个用逗号分隔，例如 alice,bob。普通工作台会话通知当前请求用户时可省略；定时会话或后台任务必须显式填写，通常填任务创建人/请求用户。不要为了给当前用户发通知而追问用户是谁。"`
 	Title       string `json:"title" schema_desc:"通知标题，简短说明发生了什么" schema_required:"true"`
 	Message     string `json:"message" schema_desc:"通知正文。支持 Markdown；content_type=html 时可以传已生成的 HTML 片段" schema_required:"true"`
 	ContentType string `json:"content_type" schema_desc:"正文格式：markdown、html 或 text；默认 markdown" schema_enum:"markdown,html,text"`
@@ -43,7 +43,7 @@ type sendNotificationResultData struct {
 
 var sendNotificationToolDef = toolDefinitionWithOutput[sendNotificationArgs, structuredToolResultSchema[sendNotificationResultData]](
 	"send_notification",
-	"发送一条单向通知给一个或多个用户，不等待回复。适合定时会话或无人值守 Agent 在发现高优先级情报、风险、异常或需要用户知晓的结果时主动提醒用户；不要用它询问用户并等待回复。to_users 支持多个 username，用逗号分隔。通知来源会继承当前工作台/定时任务上下文，不会归到某个通知函数目录。content_type=html 时站内信会按安全清洗后的 HTML 渲染。",
+	"发送一条单向通知给用户，不等待回复。适合定时会话或无人值守 Agent 在发现高优先级情报、风险、异常，或任务明确要求通知时主动提醒用户；不要用它询问用户并等待回复。普通工作台会话通知当前请求用户时 to_users 可省略；定时会话或后台任务必须显式传 to_users，通常填任务创建人/请求用户。首次基准记录、无变化结果、普通状态报告默认不通知。多个 username 用逗号分隔。通知来源会继承当前工作台/定时任务上下文，不会归到某个通知函数目录。content_type=html 时站内信会按安全清洗后的 HTML 渲染。",
 )
 
 func (t *SendNotificationTool) Definition() dto.ToolDef {
@@ -163,7 +163,7 @@ func resolveNotifyUsers(ctx context.Context, toUsers string) (string, int, error
 	}
 	requestUser := strings.TrimSpace(contextx.GetRequestUser(ctx))
 	if requestUser == "" || requestUser == "system" {
-		return "", 0, fmt.Errorf("send_notification 需要传 to_users；当前上下文无法推断真实接收用户。定时会话里请显式指定要通知的 username，多个用户用逗号分隔。")
+		return "", 0, fmt.Errorf("send_notification 无法默认接收人：当前上下文没有真实请求用户。普通工作台会话可省略 to_users；定时会话或后台任务请显式传 to_users，多个用户用逗号分隔。")
 	}
 	users = normalizeNotifyUsers(requestUser)
 	return users, countNotifyUsers(users), nil

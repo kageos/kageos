@@ -49,6 +49,9 @@ func TestWorkspaceRoleSpecAppOperator(t *testing.T) {
 		!containsWorkspaceRoleString(got.AllowedTools, "run_form_submit") {
 		t.Fatalf("app_operator should allow business run tools, tools=%v", got.AllowedTools)
 	}
+	if !containsWorkspaceRoleString(got.AllowedTools, "run_python") {
+		t.Fatalf("app_operator should allow run_python for lightweight calculation and file processing, tools=%v", got.AllowedTools)
+	}
 	if containsWorkspaceRoleString(got.AllowedTools, "write_go_file") {
 		t.Fatalf("app_operator should not write code, tools=%v", got.AllowedTools)
 	}
@@ -81,6 +84,10 @@ func TestWorkspaceRoleSpecAutomationOperator(t *testing.T) {
 	}
 	if !strings.Contains(got.RouteDescription, "以后自动执行") {
 		t.Fatalf("automation_operator route description should distinguish scheduled work from immediate operations: %q", got.RouteDescription)
+	}
+	if !strings.Contains(got.RouteDescription, "当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数") ||
+		!strings.Contains(got.RouteDescription, "不要把示例规则机械套到所有任务") {
+		t.Fatalf("automation_operator route description should explain scheduled session resource orchestration and scenario-specific quality control: %q", got.RouteDescription)
 	}
 }
 

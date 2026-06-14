@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/serviceconfig"
 )
@@ -66,7 +68,7 @@ func buildFormScheduleTaskRequest(ctx context.Context, state *appMetadataSyncSta
 	if code == "" {
 		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("默认定时任务 %s 缺少 code", fullCodePath)
 	}
-	schedule, err := scheduledSDKScheduleFromFormSchedule(formSchedule)
+	schedule, err := scheduledSDKScheduleFromFormSchedule(ctx, fullCodePath, code, formSchedule)
 	if err != nil {
 		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("默认定时任务 %s/%s 计划错误: %w", fullCodePath, code, err)
 	}
@@ -125,7 +127,7 @@ func buildFormScheduleTaskRequest(ctx context.Context, state *appMetadataSyncSta
 	}, nil
 }
 
-func scheduledSDKScheduleFromFormSchedule(formSchedule dto.FormScheduleConfig) (scheduledsdk.Schedule, error) {
+func scheduledSDKScheduleFromFormSchedule(ctx context.Context, fullCodePath string, code string, formSchedule dto.FormScheduleConfig) (scheduledsdk.Schedule, error) {
 	cronExpr := strings.TrimSpace(formSchedule.CronExpr)
 	hasCron := cronExpr != ""
 	hasEvery := formSchedule.EverySeconds > 0
@@ -136,18 +138,26 @@ func scheduledSDKScheduleFromFormSchedule(formSchedule dto.FormScheduleConfig) (
 		MaxRuns: formSchedule.MaxRuns,
 	}
 	if hasCron {
-		timezone := strings.TrimSpace(formSchedule.Timezone)
-		if timezone == "" {
-			timezone = "Asia/Shanghai"
-		}
 		schedule.Type = scheduledsdk.ScheduleCron
 		schedule.CronExpr = cronExpr
-		schedule.Timezone = timezone
+		schedule.Timezone = formScheduleTimezone(ctx, fullCodePath, code, formSchedule.Timezone)
 		return schedule, schedule.Validate()
 	}
 	schedule.Type = scheduledsdk.ScheduleEvery
 	schedule.IntervalSeconds = formSchedule.EverySeconds
 	return schedule, schedule.Validate()
+}
+
+func formScheduleTimezone(ctx context.Context, fullCodePath string, code string, timezone string) string {
+	timezone = strings.TrimSpace(timezone)
+	if timezone == "" {
+		return ""
+	}
+	if _, err := time.LoadLocation(timezone); err != nil {
+		logger.Warnf(ctx, "[FormSchedule] invalid timezone, fallback to runtime local timezone: full_code_path=%s code=%s timezone=%q error=%v", fullCodePath, code, timezone, err)
+		return ""
+	}
+	return timezone
 }
 
 func normalizeFormScheduleBody(body json.RawMessage) (json.RawMessage, error) {

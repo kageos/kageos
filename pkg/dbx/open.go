@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/glebarez/sqlite"
 	appconfig "github.com/kageos/kageos/pkg/config"
 	"gorm.io/driver/mysql"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )

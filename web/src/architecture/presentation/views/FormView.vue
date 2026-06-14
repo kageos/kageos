@@ -90,15 +90,16 @@
     :class="{ 'form-view-flat': flatSurface }"
     data-testid="form-view"
   >
-    <el-alert
+    <div
       v-if="submitFeedback"
-      :title="submitFeedback.message"
-      :type="submitFeedback.type"
-      :closable="true"
-      show-icon
-      class="submit-feedback-alert"
-      @close="submitFeedback = null"
-    />
+      :class="['submit-feedback', `is-${submitFeedback.type}`]"
+      role="alert"
+    >
+      <span class="submit-feedback-message">{{ submitFeedback.message }}</span>
+      <button type="button" class="submit-feedback-close" aria-label="关闭提示" @click="submitFeedback = null">
+        ×
+      </button>
+    </div>
     <!-- 主内容区域：使用 flex 布局，左侧表单，右侧详情 -->
     <div class="form-view-container">
       <!-- 左侧：表单内容 -->
@@ -584,14 +585,6 @@ const submitForm = async (): Promise<boolean> => {
       message: errorMessage
     }
 
-    ElNotification.error({
-      title: '提交失败',
-      message: errorMessage,
-      duration: 8000,
-      position: 'top-right',
-      showClose: true
-    })
-
     return false
   }
 }
@@ -893,8 +886,44 @@ const lifecycle = useFormViewLifecycle({
   box-shadow: none !important;
 }
 
-.submit-feedback-alert {
-  margin-bottom: 16px;
+.submit-feedback {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--el-color-danger-light-7);
+  border-radius: 6px;
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger-dark-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.submit-feedback-message {
+  min-width: 0;
+  word-break: break-word;
+}
+
+.submit-feedback-close {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: currentColor;
+  font-size: 16px;
+  line-height: 18px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.submit-feedback-close:hover {
+  background: color-mix(in srgb, var(--el-color-danger) 10%, transparent);
+  opacity: 1;
 }
 
 /* 长 label：label 在上方 */

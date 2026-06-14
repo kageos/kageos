@@ -864,7 +864,10 @@ const pendingInteraction = computed<WorkspaceInteraction | null>(() => {
   return null
 })
 
-const composerBlocked = computed(() => !!pendingInteraction.value)
+const composerBlocked = computed(() => {
+  const interaction = pendingInteraction.value
+  return !!interaction && isComposerBlockingInteraction(interaction)
+})
 const composerBlockedLabel = computed(() => {
   const interaction = pendingInteraction.value
   if (!interaction) return ''
@@ -1043,11 +1046,29 @@ function markInteractionHandled(interaction: WorkspaceInteraction) {
 }
 
 async function handleBeforeSend(_payload: { text: string; files: unknown[] | null }) {
-  if (pendingInteraction.value) {
+  const interaction = pendingInteraction.value
+  if (!interaction) {
+    return false
+  }
+  if (isComposerBlockingInteraction(interaction)) {
     ElMessage.warning('当前会话需要先处理交互卡片')
-    return true
+    return { cancel: true, preserveDraft: true }
+  }
+  if (interaction.card_type === 'build_repair') {
+    await recordPendingInteractionAction(
+      interaction,
+      'continue_development',
+      _payload.text ? `继续修改：${_payload.text}` : undefined
+    )
+    markInteractionHandled(interaction)
+    return { interactionAction: 'continue_development' }
   }
   return false
+}
+
+function isComposerBlockingInteraction(interaction: WorkspaceInteraction) {
+  if (interaction.card_type === 'build_repair') return false
+  return interaction.blocking
 }
 
 async function clearCurrentPendingInteractionStatus() {

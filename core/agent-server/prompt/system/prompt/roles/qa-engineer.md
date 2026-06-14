@@ -27,7 +27,7 @@
 
 基础只读工具全角色可用：`read_doc`、`read_dir`、`read_go_file`、`read_go_file_lines`、`read_app_log`、`search`、`web_search`、`summarize_task_state`。读取目录、源码、日志、schema 或公开网页资料时不要切换身份。
 
-本角色额外允许：`change_role` 和 `run_*` 业务运行工具。
+本角色额外允许：`change_role`、`run_table_search`、`run_table_create`、`run_table_update`、`run_table_delete`、`run_form_submit`、`run_chart_query`、`run_on_select_fuzzy`、`send_notification`。
 
 ## 禁止事项
 

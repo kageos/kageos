@@ -258,6 +258,149 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 	}
 }
 
+func TestBuildLLMMessagesWithPlanSynthesizesMissingToolResultAfterCancel(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate sessions: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/assets",
+		Source:        SourceWorkspace,
+		SessionID:     "cancelled-tool-session",
+		Title:         "中断工具会话",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusActive,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "测试资产列表", User: "tester"}); err != nil {
+		t.Fatalf("create user message: %v", err)
+	}
+	call := llms.ToolCall{ID: "call_search", Type: "function"}
+	call.Function.Name = "run_table_search"
+	call.Function.Arguments = `{"full_code_path":"/system/demos/ai_asset_manager/asset_list.table"}`
+	rawToolCalls, err := json.Marshal([]llms.ToolCall{call})
+	if err != nil {
+		t.Fatalf("marshal tool calls: %v", err)
+	}
+	toolCalls := string(rawToolCalls)
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleAssistant, ToolCalls: &toolCalls, User: "tester"}); err != nil {
+		t.Fatalf("create assistant message: %v", err)
+	}
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "继续测试", User: "tester"}); err != nil {
+		t.Fatalf("create next user message: %v", err)
+	}
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
+	workspaceCtx := &dto.GetWorkspaceContextResp{}
+	workspaceCtx.Directory.Name = "资产管理"
+	workspaceCtx.Directory.Code = "assets"
+	workspaceCtx.Directory.Type = "package"
+
+	msgs, _, _, err := svc.buildLLMMessagesWithPlan(context.Background(), session.SessionID, "/liubeiluo/assets", "资产管理", workspaceCtx, nil, nil, "fallback", 0)
+	if err != nil {
+		t.Fatalf("build messages: %v", err)
+	}
+	if len(msgs) != 5 {
+		t.Fatalf("llm messages = %d, want system/user/assistant/synthetic-tool/user: %#v", len(msgs), msgs)
+	}
+	if msgs[2].Role != RoleAssistant || len(msgs[2].ToolCalls) != 1 {
+		t.Fatalf("assistant tool_calls missing: %#v", msgs[2])
+	}
+	if msgs[3].Role != RoleTool || msgs[3].ToolCallID != "call_search" || !strings.Contains(msgs[3].Content, "被用户中断") {
+		t.Fatalf("synthetic tool result = %#v, want interrupted tool result", msgs[3])
+	}
+	if msgs[4].Role != RoleUser || !strings.Contains(msgs[4].Content, "继续测试") {
+		t.Fatalf("next user message = %#v", msgs[4])
+	}
+}
+
+func TestBuildLLMMessagesWithPlanDropsOrphanToolAfterAnchorTrim(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate sessions: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/assets",
+		Source:        SourceWorkspace,
+		SessionID:     "anchor-orphan-tool-session",
+		Title:         "锚点裁剪工具会话",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusActive,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "旧消息", User: "tester"}); err != nil {
+		t.Fatalf("create old user message: %v", err)
+	}
+	call := llms.ToolCall{ID: "call_search", Type: "function"}
+	call.Function.Name = "run_table_search"
+	call.Function.Arguments = `{}`
+	rawToolCalls, err := json.Marshal([]llms.ToolCall{call})
+	if err != nil {
+		t.Fatalf("marshal tool calls: %v", err)
+	}
+	toolCalls := string(rawToolCalls)
+	assistantMsg := &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleAssistant, ToolCalls: &toolCalls, User: "tester"}
+	if err := messageRepo.Create(assistantMsg); err != nil {
+		t.Fatalf("create assistant message: %v", err)
+	}
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleTool, ToolCallID: "call_search", Content: "{}", User: "tester"}); err != nil {
+		t.Fatalf("create tool message: %v", err)
+	}
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "锚点后继续", User: "tester"}); err != nil {
+		t.Fatalf("create current user message: %v", err)
+	}
+	session.ModelContextAnchorMessageID = assistantMsg.ID
+	if err := sessionRepo.Update(session); err != nil {
+		t.Fatalf("update anchor: %v", err)
+	}
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
+	workspaceCtx := &dto.GetWorkspaceContextResp{}
+	workspaceCtx.Directory.Name = "资产管理"
+	workspaceCtx.Directory.Code = "assets"
+	workspaceCtx.Directory.Type = "package"
+
+	msgs, _, _, err := svc.buildLLMMessagesWithPlan(context.Background(), session.SessionID, "/liubeiluo/assets", "资产管理", workspaceCtx, nil, nil, "fallback", 0)
+	if err != nil {
+		t.Fatalf("build messages: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("llm messages = %d, want system + current user after orphan tool is dropped: %#v", len(msgs), msgs)
+	}
+	if msgs[1].Role != RoleUser || !strings.Contains(msgs[1].Content, "锚点后继续") {
+		t.Fatalf("remaining message = %#v", msgs[1])
+	}
+	for _, msg := range msgs {
+		if msg.Role == RoleTool {
+			t.Fatalf("orphan tool should be dropped: %#v", msgs)
+		}
+	}
+}
+
 func TestAttachLLMUsageToWorkspaceModelContextPlanReportsCacheResult(t *testing.T) {
 	plan := &dto.WorkspaceModelContextPlan{
 		CachePlan: dto.WorkspaceModelContextCachePlan{
@@ -822,6 +965,29 @@ func TestWorkspacePendingInteractionFromMessagesBuildsGenericInteraction(t *test
 	}
 	if !workspaceInteractionActionCanRunModel("revise_prd") {
 		t.Fatal("revise_prd should be allowed to enter model loop")
+	}
+}
+
+func TestWorkspaceBuildRepairInteractionIsNonBlockingByDefault(t *testing.T) {
+	raw := []byte(`{
+		"kind": "agent_app_build_failure",
+		"interaction": {
+			"status": "pending_build_repair",
+			"allowed_actions": ["start_build_repair", "continue_development", "skip_build_repair", "view_build_diagnostics"]
+		}
+	}`)
+	interaction := workspaceInteractionFromResultData(raw)
+	if interaction == nil {
+		t.Fatal("interaction should be derived")
+	}
+	if interaction.CardType != "build_repair" || interaction.Blocking {
+		t.Fatalf("unexpected build repair interaction: %+v", interaction)
+	}
+	if !workspaceInteractionAllowsAction(interaction, "continue_development") {
+		t.Fatal("continue_development should be allowed")
+	}
+	if !workspaceInteractionActionCanRunModel("continue_development") {
+		t.Fatal("continue_development should enter model loop")
 	}
 }
 

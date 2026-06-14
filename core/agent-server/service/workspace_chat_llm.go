@@ -223,43 +223,8 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 	}
 
 	msgs := []llms.Message{{Role: "system", Content: system}}
-	includedMessages := make([]*model.AgentChatMessage, 0, len(list))
-	excludedDisplayOnly := make([]*model.AgentChatMessage, 0)
-	excludedUnsupported := make([]*model.AgentChatMessage, 0)
-	for _, m := range list {
-		if normalizeMessageContextUsage(m.ContextUsage) == MessageContextDisplayOnly {
-			excludedDisplayOnly = append(excludedDisplayOnly, m)
-			continue
-		}
-		switch m.Role {
-		case RoleUser:
-			userContent := userContentForLLMWithFileProfile(ctx, m.Content, m.Files)
-			msgs = append(msgs, llms.Message{Role: RoleUser, Content: userContent})
-			includedMessages = append(includedMessages, m)
-		case RoleAssistant:
-			// 检查是否有 tool_calls（从 ToolCalls JSON 字段解析）
-			msg := llms.Message{Role: RoleAssistant, Content: m.Content}
-			if m.ToolCalls != nil && *m.ToolCalls != "" {
-				// 解析 tool_calls JSON（如果存在）
-				var toolCalls []llms.ToolCall
-				if err := json.Unmarshal([]byte(*m.ToolCalls), &toolCalls); err == nil {
-					msg.ToolCalls = toolCalls
-				}
-			}
-			msgs = append(msgs, msg)
-			includedMessages = append(includedMessages, m)
-		case RoleTool:
-			// 使用标准的 tool 角色消息
-			msgs = append(msgs, llms.Message{
-				Role:       RoleTool,
-				ToolCallID: m.ToolCallID,
-				Content:    m.Content,
-			})
-			includedMessages = append(includedMessages, m)
-		default:
-			excludedUnsupported = append(excludedUnsupported, m)
-		}
-	}
+	historyMessages, includedMessages, excludedDisplayOnly, excludedUnsupported := buildWorkspaceLLMHistory(ctx, list)
+	msgs = append(msgs, historyMessages...)
 	plan := s.buildWorkspaceModelContextPlan(ctx, workspaceModelContextPlanInput{
 		SessionID:                   sessionID,
 		Round:                       round,
@@ -283,6 +248,191 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 		LLMToolCount:                len(llmTools),
 	})
 	return msgs, llmTools, plan, nil
+}
+
+type workspaceLLMHistoryEntry struct {
+	msg    llms.Message
+	source *model.AgentChatMessage
+}
+
+func buildWorkspaceLLMHistory(ctx context.Context, messages []*model.AgentChatMessage) ([]llms.Message, []*model.AgentChatMessage, []*model.AgentChatMessage, []*model.AgentChatMessage) {
+	entries := make([]workspaceLLMHistoryEntry, 0, len(messages))
+	includedMessages := make([]*model.AgentChatMessage, 0, len(messages))
+	excludedDisplayOnly := make([]*model.AgentChatMessage, 0)
+	excludedUnsupported := make([]*model.AgentChatMessage, 0)
+
+	for _, m := range messages {
+		if m == nil {
+			continue
+		}
+		if normalizeMessageContextUsage(m.ContextUsage) == MessageContextDisplayOnly {
+			excludedDisplayOnly = append(excludedDisplayOnly, m)
+			continue
+		}
+		switch m.Role {
+		case RoleUser:
+			userContent := userContentForLLMWithFileProfile(ctx, m.Content, m.Files)
+			if strings.TrimSpace(userContent) == "" {
+				excludedUnsupported = append(excludedUnsupported, m)
+				continue
+			}
+			entries = append(entries, workspaceLLMHistoryEntry{
+				msg:    llms.Message{Role: RoleUser, Content: userContent},
+				source: m,
+			})
+		case RoleAssistant:
+			msg := llms.Message{Role: RoleAssistant, Content: m.Content}
+			if toolCalls, ok := storedToolCallsForLLM(m.ToolCalls); ok {
+				msg.ToolCalls = toolCalls
+			} else if strings.TrimSpace(msg.Content) == "" {
+				excludedUnsupported = append(excludedUnsupported, m)
+				continue
+			}
+			if strings.TrimSpace(msg.Content) == "" && len(msg.ToolCalls) == 0 {
+				excludedUnsupported = append(excludedUnsupported, m)
+				continue
+			}
+			entries = append(entries, workspaceLLMHistoryEntry{msg: msg, source: m})
+		case RoleTool:
+			if strings.TrimSpace(m.ToolCallID) == "" {
+				excludedUnsupported = append(excludedUnsupported, m)
+				continue
+			}
+			content := m.Content
+			if strings.TrimSpace(content) == "" {
+				content = "工具调用没有返回内容。"
+			}
+			entries = append(entries, workspaceLLMHistoryEntry{
+				msg: llms.Message{
+					Role:       RoleTool,
+					ToolCallID: strings.TrimSpace(m.ToolCallID),
+					Content:    content,
+				},
+				source: m,
+			})
+		default:
+			excludedUnsupported = append(excludedUnsupported, m)
+		}
+	}
+
+	historyMessages, sanitizedIncluded, sanitizedExcluded := sanitizeWorkspaceLLMToolSequence(entries)
+	includedMessages = append(includedMessages, sanitizedIncluded...)
+	excludedUnsupported = append(excludedUnsupported, sanitizedExcluded...)
+	return historyMessages, includedMessages, excludedDisplayOnly, excludedUnsupported
+}
+
+func storedToolCallsForLLM(raw *string) ([]llms.ToolCall, bool) {
+	if raw == nil || strings.TrimSpace(*raw) == "" {
+		return nil, true
+	}
+	var toolCalls []llms.ToolCall
+	if err := json.Unmarshal([]byte(*raw), &toolCalls); err != nil {
+		return nil, false
+	}
+	out := make([]llms.ToolCall, 0, len(toolCalls))
+	seen := make(map[string]struct{}, len(toolCalls))
+	for _, tc := range toolCalls {
+		id := strings.TrimSpace(tc.ID)
+		name := strings.TrimSpace(tc.Function.Name)
+		if id == "" || name == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		tc.ID = id
+		tc.Function.Name = name
+		if strings.TrimSpace(tc.Type) == "" {
+			tc.Type = "function"
+		}
+		out = append(out, tc)
+	}
+	return out, true
+}
+
+func sanitizeWorkspaceLLMToolSequence(entries []workspaceLLMHistoryEntry) ([]llms.Message, []*model.AgentChatMessage, []*model.AgentChatMessage) {
+	out := make([]llms.Message, 0, len(entries))
+	included := make([]*model.AgentChatMessage, 0, len(entries))
+	excluded := make([]*model.AgentChatMessage, 0)
+	pending := make(map[string]llms.ToolCall)
+	pendingOrder := make([]string, 0)
+
+	flushMissingToolResults := func() {
+		if len(pendingOrder) == 0 {
+			return
+		}
+		for _, id := range pendingOrder {
+			tc, ok := pending[id]
+			if !ok {
+				continue
+			}
+			out = append(out, llms.Message{
+				Role:       RoleTool,
+				ToolCallID: id,
+				Content:    missingWorkspaceToolResultContent(tc),
+			})
+			delete(pending, id)
+		}
+		pendingOrder = pendingOrder[:0]
+	}
+
+	for _, entry := range entries {
+		role := strings.ToLower(strings.TrimSpace(entry.msg.Role))
+		if role != RoleTool {
+			flushMissingToolResults()
+		}
+
+		switch role {
+		case RoleTool:
+			id := strings.TrimSpace(entry.msg.ToolCallID)
+			if _, ok := pending[id]; !ok {
+				excluded = append(excluded, entry.source)
+				continue
+			}
+			msg := entry.msg
+			msg.ToolCallID = id
+			if strings.TrimSpace(msg.Content) == "" {
+				msg.Content = "工具调用没有返回内容。"
+			}
+			out = append(out, msg)
+			included = append(included, entry.source)
+			delete(pending, id)
+			if len(pending) == 0 {
+				pendingOrder = pendingOrder[:0]
+			}
+		case RoleAssistant:
+			out = append(out, entry.msg)
+			included = append(included, entry.source)
+			if len(entry.msg.ToolCalls) == 0 {
+				continue
+			}
+			for _, tc := range entry.msg.ToolCalls {
+				id := strings.TrimSpace(tc.ID)
+				if id == "" {
+					continue
+				}
+				if _, ok := pending[id]; ok {
+					continue
+				}
+				pending[id] = tc
+				pendingOrder = append(pendingOrder, id)
+			}
+		default:
+			out = append(out, entry.msg)
+			included = append(included, entry.source)
+		}
+	}
+	flushMissingToolResults()
+	return out, included, excluded
+}
+
+func missingWorkspaceToolResultContent(tc llms.ToolCall) string {
+	name := strings.TrimSpace(tc.Function.Name)
+	if name == "" {
+		name = "工具"
+	}
+	return fmt.Sprintf("%s 未返回工具结果：上一轮可能被用户中断，或历史被上下文锚点裁剪。不要假设该工具已经成功执行；请结合后续用户消息继续。", name)
 }
 
 func workspaceDynamicTimeHint(data *prompt.WorkspaceEnvData) string {

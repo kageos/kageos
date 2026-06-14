@@ -68,6 +68,34 @@ func TestValidateRequestAllowsAssistantToolCallsWithoutContent(t *testing.T) {
 	}
 }
 
+func TestValidateRequestRejectsOrphanToolMessage(t *testing.T) {
+	err := validateRequest(context.Background(), "test-key", &ChatRequest{
+		Messages: []Message{
+			{Role: "user", Content: "hi"},
+			{Role: "tool", ToolCallID: "call_1", Content: "{}"},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "tool 结果没有紧邻") {
+		t.Fatalf("validateRequest error = %v, want orphan tool error", err)
+	}
+}
+
+func TestValidateRequestRejectsAssistantToolCallsWithoutResults(t *testing.T) {
+	tc := ToolCall{ID: "call_1", Type: "function"}
+	tc.Function.Name = "lookup"
+	tc.Function.Arguments = "{}"
+
+	err := validateRequest(context.Background(), "test-key", &ChatRequest{
+		Messages: []Message{
+			{Role: "assistant", ToolCalls: []ToolCall{tc}},
+			{Role: "user", Content: "continue"},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "缺少 tool 结果") {
+		t.Fatalf("validateRequest error = %v, want missing tool result error", err)
+	}
+}
+
 func TestSanitizeToolCallArgumentsFallsBackForInvalidJSON(t *testing.T) {
 	got := sanitizeToolCallArguments(`{"content":"unterminated`)
 	if got != "{}" {

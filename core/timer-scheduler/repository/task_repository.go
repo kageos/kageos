@@ -142,6 +142,22 @@ func (r *TimerTaskRepository) ListDue(now time.Time, limit int) ([]*model.TimerT
 	return list, nil
 }
 
+func (r *TimerTaskRepository) ListBrokenInflightReferences(limit int) ([]*model.TimerTask, error) {
+	query := r.db.Model(&model.TimerTask{}).
+		Joins("LEFT JOIN timer_execution AS inflight_exec ON inflight_exec.id = timer_task.inflight_execution_id AND inflight_exec.task_id = timer_task.id").
+		Where("timer_task.inflight_execution_id <> 0").
+		Where("(inflight_exec.id IS NULL OR inflight_exec.status NOT IN ? OR inflight_exec.lease_until IS NULL)", []string{"queued", "running"}).
+		Order("timer_task.updated_at ASC, timer_task.id ASC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	var list []*model.TimerTask
+	if err := query.Find(&list).Error; err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
 func (r *TimerTaskRepository) TryAcquireDispatch(id int64, owner string, now, leaseUntil time.Time) (bool, error) {
 	result := r.db.Model(&model.TimerTask{}).
 		Where("id = ? AND status = ? AND next_run_at IS NOT NULL AND next_run_at <= ? AND inflight_execution_id = 0 AND (lease_until IS NULL OR lease_until < ?)", id, "pending", now, now).
@@ -149,6 +165,24 @@ func (r *TimerTaskRepository) TryAcquireDispatch(id int64, owner string, now, le
 			"lease_owner": owner,
 			"lease_until": leaseUntil,
 		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+func (r *TimerTaskRepository) TryClearInflight(id, executionID int64, lastError string) (bool, error) {
+	updates := map[string]interface{}{
+		"inflight_execution_id": 0,
+		"lease_owner":           "",
+		"lease_until":           nil,
+	}
+	if strings.TrimSpace(lastError) != "" {
+		updates["last_error_message"] = strings.TrimSpace(lastError)
+	}
+	result := r.db.Model(&model.TimerTask{}).
+		Where("id = ? AND inflight_execution_id = ?", id, executionID).
+		Updates(updates)
 	if result.Error != nil {
 		return false, result.Error
 	}

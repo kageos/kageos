@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -101,6 +102,68 @@ func TestSearchSchemaAcceptsFullCodePathAndHasNoScope(t *testing.T) {
 	for _, oldField := range []string{"scope", "directory", "user", "app"} {
 		if _, ok := properties[oldField]; ok {
 			t.Fatalf("search schema should not expose %s: %#v", oldField, schema)
+		}
+	}
+}
+
+func TestSearchPromptDocPathMatchesLooseContentTokens(t *testing.T) {
+	result := runSearchTool(context.Background(), nil, searchArgs{
+		Keyword:      "callback OnSelectFuzzy",
+		FullCodePath: "/system/prompt/case_catalog/tables/hr",
+		ResourceType: "tool",
+	})
+	if result.IsError {
+		t.Fatalf("search should not error: %#v", result)
+	}
+	for _, want := range []string{
+		"【内置文档内容命中】",
+		"/system/prompt/case_catalog/tables/hr",
+		`callback:"OnSelectFuzzy"`,
+		"read_doc(directory=<full_code_path>)",
+		"不要用 read_go_file/read_go_file_lines",
+	} {
+		if !strings.Contains(result.Content, want) {
+			t.Fatalf("search output should contain %q, got:\n%s", want, result.Content)
+		}
+	}
+}
+
+func TestSearchPromptDocPseudoFilePathFallsBackToCaseDoc(t *testing.T) {
+	result := runSearchTool(context.Background(), nil, searchArgs{
+		Keyword:      "callback OnSelectFuzzy",
+		FullCodePath: "/system/prompt/case_catalog/tables/hr/hr_resume_list.go",
+		ResourceType: "tool",
+	})
+	if result.IsError {
+		t.Fatalf("search should not error: %#v", result)
+	}
+	for _, want := range []string{
+		"【内置文档内容命中】",
+		"full_code_path: /system/prompt/case_catalog/tables/hr",
+		`callback:"OnSelectFuzzy"`,
+	} {
+		if !strings.Contains(result.Content, want) {
+			t.Fatalf("search output should contain %q, got:\n%s", want, result.Content)
+		}
+	}
+}
+
+func TestSearchPromptDocPathNoMatchSuggestsReadDoc(t *testing.T) {
+	result := runSearchTool(context.Background(), nil, searchArgs{
+		Keyword:      "definitely-not-in-hr-case",
+		FullCodePath: "/system/prompt/case_catalog/tables/hr",
+		ResourceType: "tool",
+	})
+	if result.IsError {
+		t.Fatalf("search should not error: %#v", result)
+	}
+	for _, want := range []string{
+		"未在内置文档/案例 /system/prompt/case_catalog/tables/hr 中命中内容",
+		`read_doc(directory="/system/prompt/case_catalog/tables/hr")`,
+		"不要用 read_go_file/read_go_file_lines",
+	} {
+		if !strings.Contains(result.Content, want) {
+			t.Fatalf("search miss output should contain %q, got:\n%s", want, result.Content)
 		}
 	}
 }

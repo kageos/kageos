@@ -232,6 +232,7 @@ func TestBuildWorkspaceToolReturnsStructuredDataOnLocalError(t *testing.T) {
 	if data.Interaction == nil ||
 		data.Interaction.Status != "pending_build_repair" ||
 		data.Interaction.TargetRoleOnConfirm != WorkspaceRoleBuildEngineer ||
+		data.Interaction.Blocking ||
 		!containsWorkspaceRoleString(data.Interaction.AllowedActions, "start_build_repair") {
 		t.Fatalf("unexpected build repair interaction: %#v", data.Interaction)
 	}

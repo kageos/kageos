@@ -797,8 +797,16 @@ func podmanRunBaseArgs(name, hostPath, containerPath string) []string {
 		"run", "-d",
 		"--name", name,
 		"-v", fmt.Sprintf("%s:%s", hostPath, containerPath),
-		"-e", "TZ=Asia/Shanghai",
+		"-e", "TZ=" + runtimeTimezone(),
 	}
+}
+
+func runtimeTimezone() string {
+	timezone := strings.TrimSpace(os.Getenv("TZ"))
+	if timezone == "" {
+		return "Asia/Shanghai"
+	}
+	return timezone
 }
 
 // IsContainerRunning 检查容器是否正在运行

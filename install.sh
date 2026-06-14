@@ -6,6 +6,7 @@ CONFIG_PATH="${KAGEOS_CONFIG:-.kageos/prod/kage.yaml}"
 BASE_URL="${KAGEOS_BASE_URL:-}"
 HTTP_PORT="${KAGEOS_HTTP_PORT:-}"
 HTTPS_PORT="${KAGEOS_HTTPS_PORT:-}"
+TIMEZONE="${KAGEOS_TIMEZONE:-}"
 DEPLOY_USER="${KAGEOS_DEPLOY_USER:-}"
 SKIP_UP=0
 UP_ARGS=()
@@ -17,9 +18,11 @@ Kageos production installer
 Usage:
   sudo ./install.sh --base-url http://your-ip-or-domain
   sudo ./install.sh --base-url http://your-ip-or-domain:8080 --http-port 8080
+  sudo ./install.sh --base-url http://your-ip-or-domain --timezone Asia/Shanghai
 
 Options:
   --base-url URL   Create .kageos/prod/kage.yaml when it does not exist.
+  --timezone TZ    Deployment timezone. Defaults to Asia/Shanghai.
   --http-port PORT HTTP listen port. Defaults to 80, or the port in --base-url.
   --https-port PORT HTTPS listen port. Defaults to 443, or the port in --base-url.
   --user USER      Deploy as USER. Defaults to the sudo caller, then current user.
@@ -29,6 +32,7 @@ Options:
 
 Environment:
   KAGEOS_BASE_URL      Same as --base-url.
+  KAGEOS_TIMEZONE      Same as --timezone.
   KAGEOS_HTTP_PORT     Same as --http-port.
   KAGEOS_HTTPS_PORT    Same as --https-port.
   KAGEOS_DEPLOY_USER   Same as --user.
@@ -63,6 +67,14 @@ while [[ $# -gt 0 ]]; do
       fi
       validate_port "--http-port" "$1"
       HTTP_PORT="$1"
+      ;;
+    --timezone)
+      shift
+      if [[ $# -eq 0 || -z "$1" ]]; then
+        echo "ERROR: --timezone requires a value" >&2
+        exit 1
+      fi
+      TIMEZONE="$1"
       ;;
     --https-port)
       shift
@@ -108,7 +120,6 @@ fi
 if [[ -n "$HTTPS_PORT" ]]; then
   validate_port "KAGEOS_HTTPS_PORT/--https-port" "$HTTPS_PORT"
 fi
-
 current_user() {
   id -un
 }
@@ -173,6 +184,9 @@ fi
 if [[ -n "$HTTPS_PORT" ]]; then
   echo "https port:  $HTTPS_PORT"
 fi
+if [[ -n "$TIMEZONE" ]]; then
+  echo "timezone:    $TIMEZONE"
+fi
 echo
 
 if [[ "$DEPLOY_USER" != "root" ]] && command -v loginctl >/dev/null 2>&1; then
@@ -232,6 +246,9 @@ if [[ ! -f "$CONFIG_ABS" ]]; then
   if [[ -n "$HTTPS_PORT" ]]; then
     init_args+=(--https-port "$HTTPS_PORT")
   fi
+  if [[ -n "$TIMEZONE" ]]; then
+    init_args+=(--timezone "$TIMEZONE")
+  fi
   run_in_repo go run ./cmd/kagectl "${init_args[@]}"
 else
   echo "config:      exists"
@@ -250,6 +267,9 @@ if [[ -n "$HTTP_PORT" ]]; then
 fi
 if [[ -n "$HTTPS_PORT" ]]; then
   deploy_env+=(KAGEOS_HTTPS_PORT="$HTTPS_PORT")
+fi
+if [[ -n "$TIMEZONE" ]]; then
+  deploy_env+=(KAGEOS_TIMEZONE="$TIMEZONE")
 fi
 run_in_repo env "${deploy_env[@]}" ./prod-up.sh "${UP_ARGS[@]}"
 echo

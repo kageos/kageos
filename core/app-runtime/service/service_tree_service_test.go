@@ -365,6 +365,43 @@ func TestWriteSourceFilesRejectsMissingAppWithoutMutatingDisk(t *testing.T) {
 	}
 }
 
+func TestWriteSourceFilesRejectsSQLiteDriverImportWithoutMutatingDisk(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	workspaceFiles := newWorkspaceFileTestService(basePath)
+	appPaths := newRuntimeAppPaths(basePath, "luobei", "demo")
+	if err := os.MkdirAll(appPaths.AppDir(), 0755); err != nil {
+		t.Fatalf("mkdir app dir: %v", err)
+	}
+
+	_, err := workspaceFiles.writeSourceFiles(context.Background(), "luobei", "demo", []*dto.SourceFileWrite{
+		{
+			DirectoryPath: "ticket_system",
+			FileName:      "importer",
+			SourceCode: `package ticket_system
+
+import _ "github.com/mattn/go-sqlite3"
+`,
+		},
+	})
+	if err == nil {
+		t.Fatal("expected sqlite driver import to fail")
+	}
+	if !strings.Contains(err.Error(), "源码规范校验失败") || !strings.Contains(err.Error(), "KageOS SDK 已全局注册") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	filePath := filepath.Join(appPaths.APIDir(), "ticket_system", "importer.go")
+	if _, statErr := os.Stat(filePath); !os.IsNotExist(statErr) {
+		t.Fatalf("expected rejected file to remain absent, got err=%v", statErr)
+	}
+	packageDir := filepath.Dir(filePath)
+	if _, statErr := os.Stat(packageDir); !os.IsNotExist(statErr) {
+		t.Fatalf("expected rejected package dir to remain absent, got err=%v", statErr)
+	}
+}
+
 func TestWriteBatchFilesToDiskRollsBackOnError(t *testing.T) {
 	t.Parallel()
 

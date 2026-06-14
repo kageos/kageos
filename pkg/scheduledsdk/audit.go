@@ -13,6 +13,9 @@ const (
 	MetadataCompanyCode    = "company_code"
 	MetadataCompanyName    = "company_name"
 	MetadataCompanyLogoURL = "company_logo_url"
+	MetadataRequestUserID  = "request_user_id"
+	MetadataRequestEmail   = "request_email"
+	MetadataLeaderUsername = "leader_username"
 )
 
 // AuditSourceRef returns the stable provenance reference used by operate logs.
@@ -42,6 +45,7 @@ func (e ExecutionRequestedEvent) WithAuditContext(parent context.Context) contex
 	return contextx.WithRequestInfo(parent, contextx.RequestInfo{
 		TraceId:            e.TraceID,
 		RequestUser:        e.RequestUser,
+		Token:              e.Token,
 		DepartmentFullPath: e.RequestUserDept,
 		CompanyCode:        strings.TrimSpace(e.Metadata[MetadataCompanyCode]),
 		CompanyName:        strings.TrimSpace(e.Metadata[MetadataCompanyName]),
@@ -67,6 +71,9 @@ func (e ExecutionRequestedEvent) ApplyAuditHeaders(header http.Header) {
 	}
 	if requestUser := strings.TrimSpace(e.RequestUser); requestUser != "" {
 		header.Set(contextx.RequestUserHeader, requestUser)
+	}
+	if token := strings.TrimSpace(e.Token); token != "" {
+		header.Set(contextx.TokenHeader, token)
 	}
 	if requestUserDept := strings.TrimSpace(e.RequestUserDept); requestUserDept != "" {
 		header.Set(contextx.DepartmentFullPathHeader, requestUserDept)

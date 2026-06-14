@@ -51,6 +51,9 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "run_table_create"); blocked || res.IsError {
 		t.Fatalf("app_operator should allow run_table_create, blocked=%v res=%#v", blocked, res)
 	}
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "run_python"); blocked || res.IsError {
+		t.Fatalf("app_operator should allow run_python, blocked=%v res=%#v", blocked, res)
+	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "write_go_file"); !blocked || !res.IsError {
 		t.Fatalf("app_operator should block write_go_file, blocked=%v res=%#v", blocked, res)
 	}

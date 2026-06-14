@@ -6,6 +6,8 @@ import (
 )
 
 func TestPodmanRunBaseArgsDoNotInjectDockerHostGateway(t *testing.T) {
+	t.Setenv("TZ", "Asia/Tokyo")
+
 	args := podmanRunBaseArgs("runtime-1", "/host/work", "/app/work")
 	joined := strings.Join(args, " ")
 
@@ -17,8 +19,16 @@ func TestPodmanRunBaseArgsDoNotInjectDockerHostGateway(t *testing.T) {
 	if !containsArg(args, "-v") || !containsArg(args, "/host/work:/app/work") {
 		t.Fatalf("podman run args missing mount: %#v", args)
 	}
-	if !containsArg(args, "-e") || !containsArg(args, "TZ=Asia/Shanghai") {
+	if !containsArg(args, "-e") || !containsArg(args, "TZ=Asia/Tokyo") {
 		t.Fatalf("podman run args missing timezone env: %#v", args)
+	}
+}
+
+func TestRuntimeTimezoneDefaultsToShanghai(t *testing.T) {
+	t.Setenv("TZ", "")
+
+	if got := runtimeTimezone(); got != "Asia/Shanghai" {
+		t.Fatalf("runtimeTimezone() = %q, want Asia/Shanghai", got)
 	}
 }
 

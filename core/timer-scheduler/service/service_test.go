@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/kageos/kageos/core/timer-scheduler/model"
+	"github.com/kageos/kageos/pkg/auth"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"gorm.io/driver/sqlite"
@@ -40,12 +42,36 @@ func newTestService(t *testing.T, now *time.Time) (*Service, *gorm.DB) {
 	return svc, db
 }
 
+func TestScheduledExecutionTokenSkipsSystemUser(t *testing.T) {
+	task := &model.TimerTask{
+		RequestUser: "system",
+		CreatedBy:   "system",
+	}
+	if token := scheduledExecutionToken(task); token != "" {
+		t.Fatalf("system task should not receive delegated token, got %q", token)
+	}
+}
+
 func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, db := newTestService(t, &now)
+	createToken, err := auth.NewJWTService().GenerateAccessTokenWithContext(auth.UserTokenContext{
+		UserID:             42,
+		Username:           "alice",
+		Email:              "alice@example.com",
+		CompanyCode:        "acme",
+		CompanyName:        "Acme",
+		DepartmentFullPath: "/org/dev",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
-		CompanyCode: "acme",
-		CompanyName: "Acme",
+		Token:              createToken,
+		RequestUser:        "alice",
+		DepartmentFullPath: "/org/dev",
+		CompanyCode:        "acme",
+		CompanyName:        "Acme",
 	})
 	payload := json.RawMessage(`{"hello":"timer"}`)
 
@@ -57,7 +83,8 @@ func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 		SourceType:      "test",
 		ResourceScope:   "workspace",
 		ResourceKey:     "root",
-		RequestUser:     "system",
+		RequestUser:     "alice",
+		RequestUserDept: "/org/dev",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -92,6 +119,25 @@ func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 	}
 	if event.Metadata[scheduledsdk.MetadataCompanyCode] != "acme" || event.Metadata[scheduledsdk.MetadataCompanyName] != "Acme" {
 		t.Fatalf("company metadata was not propagated: %+v", event.Metadata)
+	}
+	if event.RequestUser != "alice" || event.RequestUserDept != "/org/dev" {
+		t.Fatalf("request user was not propagated: user=%q dept=%q", event.RequestUser, event.RequestUserDept)
+	}
+	if strings.TrimSpace(event.Token) == "" {
+		t.Fatal("scheduled execution event should include delegated token")
+	}
+	claims, err := auth.NewJWTService().ValidateToken(event.Token)
+	if err != nil {
+		t.Fatalf("scheduled execution token should validate: %v", err)
+	}
+	if claims.UserID != 42 || claims.Username != "alice" || claims.Email != "alice@example.com" || claims.Subject != "access_42" {
+		t.Fatalf("unexpected scheduled token claims: user_id=%d username=%q email=%q subject=%q", claims.UserID, claims.Username, claims.Email, claims.Subject)
+	}
+	if claims.DepartmentFullPath == nil || *claims.DepartmentFullPath != "/org/dev" {
+		t.Fatalf("scheduled token should include department, claims=%+v", claims)
+	}
+	if claims.CompanyCode != "acme" || claims.CompanyName != "Acme" {
+		t.Fatalf("scheduled token should include company metadata, claims=%+v", claims)
 	}
 
 	if err := svc.MarkExecutionStarted(ctx, scheduledsdk.MarkExecutionStartedRequest{
@@ -271,6 +317,97 @@ func TestRecoverStaleExecutionsHandlesOrphansAndContinues(t *testing.T) {
 	}
 	if gotExec.Status != scheduledsdk.ExecutionStatusQueued || gotExec.Attempt != 2 {
 		t.Fatalf("valid stale execution was not requeued: %+v", gotExec)
+	}
+}
+
+func TestRecoverStaleExecutionsClearsMissingInflightReference(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(3600),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const missingExecutionID int64 = 12345
+	if err := db.Model(&model.TimerTask{}).
+		Where("id = ?", task.ID).
+		Updates(map[string]interface{}{
+			"inflight_execution_id": missingExecutionID,
+			"last_execution_id":     missingExecutionID,
+		}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	recovered, err := svc.RecoverStaleExecutions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered != 1 {
+		t.Fatalf("recovered = %d, want 1", recovered)
+	}
+	gotTask, err := svc.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotTask.InflightExecutionID != 0 {
+		t.Fatalf("task inflight = %d, want 0", gotTask.InflightExecutionID)
+	}
+	if !strings.Contains(gotTask.LastErrorMessage, "stale inflight execution reference") {
+		t.Fatalf("last error = %q, want stale inflight message", gotTask.LastErrorMessage)
+	}
+}
+
+func TestRecoverStaleExecutionsClearsTerminalInflightReference(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(3600),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := &model.TimerExecution{
+		TaskID:      task.ID,
+		ExecutorKey: "test.executor",
+		Status:      string(scheduledsdk.ExecutionStatusFailed),
+		TriggerType: triggerManual,
+		ScheduledAt: now,
+		FinishedAt:  &now,
+		Attempt:     1,
+		TraceID:     "terminal-inflight",
+	}
+	if err := db.Create(exec).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.TimerTask{}).
+		Where("id = ?", task.ID).
+		Updates(map[string]interface{}{
+			"inflight_execution_id": exec.ID,
+			"last_execution_id":     exec.ID,
+		}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	recovered, err := svc.RecoverStaleExecutions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered != 1 {
+		t.Fatalf("recovered = %d, want 1", recovered)
+	}
+	gotTask, err := svc.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotTask.InflightExecutionID != 0 {
+		t.Fatalf("task inflight = %d, want 0", gotTask.InflightExecutionID)
 	}
 }
 

@@ -8,7 +8,7 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: {{ q .MySQL.Password }}
-      TZ: Asia/Shanghai
+      TZ: {{ q .Timezone }}
     command: >
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
@@ -45,7 +45,7 @@ services:
     environment:
       MINIO_ROOT_USER: {{ q .MinIO.RootUser }}
       MINIO_ROOT_PASSWORD: {{ q .MinIO.RootPassword }}
-      TZ: Asia/Shanghai
+      TZ: {{ q .Timezone }}
     command: server /data --console-address ":9001"
     ports:
       - "127.0.0.1:9000:9000"
@@ -78,6 +78,7 @@ services:
     privileged: true
     restart: unless-stopped
     environment:
+      TZ: {{ q .Timezone }}
       CANONICAL_BASE_URL: {{ q .Site.BaseURL }}
       MYSQL_HOST: {{ q .MySQLHostForMain }}
       MYSQL_PORT: {{ q .MySQLPortForMain }}
@@ -134,6 +135,7 @@ networks:
 
 const envTemplate = `
 CANONICAL_BASE_URL={{ .Site.BaseURL }}
+TZ={{ .Timezone }}
 TLS_MODE={{ .Site.TLSMode }}
 HTTP_PORT={{ .Site.HTTPPort }}
 HTTPS_PORT={{ .Site.HTTPSPort }}

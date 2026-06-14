@@ -62,6 +62,7 @@ func TestRenderBundledConfig(t *testing.T) {
 		`NATS_SEED_PASSWORD: "`,
 		`SYSTEM_USER_PASSWORD: "` + cfg.SystemUser.Password + `"`,
 		`SMTP_MODE: "smtp"`,
+		`TZ: "Asia/Shanghai"`,
 		`HTTP_PORT: "80"`,
 		`HTTPS_PORT: "443"`,
 		`OPENAI_API_KEY: "${OPENAI_API_KEY:-}"`,
@@ -251,6 +252,7 @@ func TestRenderTLSFromBase64Config(t *testing.T) {
 	envFile := mustReadFile(t, filepath.Join(paths.GeneratedDir, "env", "kageos.env"))
 	for _, want := range []string{
 		"CANONICAL_BASE_URL=https://example.com",
+		"TZ=Asia/Shanghai",
 		"TLS_MODE=redirect",
 		"HTTP_PORT=80",
 		"HTTPS_PORT=443",
@@ -383,6 +385,7 @@ func TestDeploymentLayersExposeRuntimeBoundary(t *testing.T) {
 
 func TestAppBaseImageEnvOverride(t *testing.T) {
 	t.Setenv("KAGEOS_APP_BASE_IMAGE", "registry.example.com/kagebase:stable")
+	t.Setenv("KAGEOS_TIMEZONE", "Asia/Tokyo")
 
 	cfg, err := defaultConfig()
 	if err != nil {
@@ -392,6 +395,15 @@ func TestAppBaseImageEnvOverride(t *testing.T) {
 
 	if got := cfg.Images.AppBase; got != "registry.example.com/kagebase:stable" {
 		t.Fatalf("Images.AppBase = %q, want env override", got)
+	}
+	if got := cfg.Timezone; got != "Asia/Tokyo" {
+		t.Fatalf("Timezone = %q, want env override", got)
+	}
+}
+
+func TestParseInitFlagsRejectsInvalidTimezone(t *testing.T) {
+	if _, err := parseInitFlags("init", []string{"--timezone", "Mars/Phobos"}); err == nil {
+		t.Fatal("parseInitFlags() error = nil, want invalid timezone error")
 	}
 }
 

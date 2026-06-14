@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/kageos/kageos/core/timer-scheduler/model"
 	"github.com/kageos/kageos/core/timer-scheduler/repository"
+	"github.com/kageos/kageos/pkg/auth"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/subjects"
@@ -96,6 +98,28 @@ func scheduledTaskMetadataWithContext(ctx context.Context, metadata map[string]s
 	for key, value := range metadata {
 		out[key] = value
 	}
+	if token := strings.TrimSpace(contextx.GetToken(ctx)); token != "" {
+		if claims, err := auth.NewJWTService().ValidateToken(token); err == nil && claims != nil {
+			if claims.UserID > 0 && strings.TrimSpace(out[scheduledsdk.MetadataRequestUserID]) == "" {
+				out[scheduledsdk.MetadataRequestUserID] = strconv.FormatInt(claims.UserID, 10)
+			}
+			if claims.Email != "" && strings.TrimSpace(out[scheduledsdk.MetadataRequestEmail]) == "" {
+				out[scheduledsdk.MetadataRequestEmail] = claims.Email
+			}
+			if claims.LeaderUsername != nil && strings.TrimSpace(*claims.LeaderUsername) != "" && strings.TrimSpace(out[scheduledsdk.MetadataLeaderUsername]) == "" {
+				out[scheduledsdk.MetadataLeaderUsername] = strings.TrimSpace(*claims.LeaderUsername)
+			}
+			if claims.CompanyCode != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyCode]) == "" {
+				out[scheduledsdk.MetadataCompanyCode] = claims.CompanyCode
+			}
+			if claims.CompanyName != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyName]) == "" {
+				out[scheduledsdk.MetadataCompanyName] = claims.CompanyName
+			}
+			if claims.CompanyLogoURL != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyLogoURL]) == "" {
+				out[scheduledsdk.MetadataCompanyLogoURL] = claims.CompanyLogoURL
+			}
+		}
+	}
 	if companyCode := strings.TrimSpace(contextx.GetRequestCompanyCode(ctx)); companyCode != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyCode]) == "" {
 		out[scheduledsdk.MetadataCompanyCode] = companyCode
 	}
@@ -125,9 +149,22 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 	if err != nil {
 		return nil, err
 	}
+	requestUser := strings.TrimSpace(req.RequestUser)
+	if requestUser == "" {
+		requestUser = strings.TrimSpace(contextx.GetRequestUser(ctx))
+	}
+	requestUserDept := strings.TrimSpace(req.RequestUserDept)
+	if requestUserDept == "" {
+		requestUserDept = strings.TrimSpace(contextx.GetRequestDepartmentFullPath(ctx))
+	}
+	if requestUserDept == "" {
+		if claims, err := auth.NewJWTService().ValidateToken(strings.TrimSpace(contextx.GetToken(ctx))); err == nil && claims != nil && claims.DepartmentFullPath != nil {
+			requestUserDept = strings.TrimSpace(*claims.DepartmentFullPath)
+		}
+	}
 	createdBy := strings.TrimSpace(req.CreatedBy)
 	if createdBy == "" {
-		createdBy = strings.TrimSpace(req.RequestUser)
+		createdBy = requestUser
 	}
 	metadata := scheduledTaskMetadataWithContext(ctx, req.Metadata)
 	var created *model.TimerTask
@@ -164,8 +201,8 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 			SourceRef:       strings.TrimSpace(req.SourceRef),
 			ResourceScope:   strings.TrimSpace(req.ResourceScope),
 			ResourceKey:     strings.TrimSpace(req.ResourceKey),
-			RequestUser:     strings.TrimSpace(req.RequestUser),
-			RequestUserDept: strings.TrimSpace(req.RequestUserDept),
+			RequestUser:     requestUser,
+			RequestUserDept: requestUserDept,
 			CreatedBy:       createdBy,
 		}
 		if !req.Schedule.RunAt.IsZero() {
@@ -427,6 +464,11 @@ func (s *Service) RecoverStaleExecutions(ctx context.Context, limit int) (int, e
 			recovered++
 		}
 	}
+	cleared, err := s.recoverBrokenInflightReferences(limit)
+	if err != nil {
+		recoverErr = errors.Join(recoverErr, err)
+	}
+	recovered += cleared
 	return recovered, recoverErr
 }
 
@@ -599,7 +641,7 @@ func (s *Service) dispatchTask(ctx context.Context, task *model.TimerTask, owner
 			SourceRef:        task.SourceRef,
 			ResourceScope:    task.ResourceScope,
 			ResourceKey:      task.ResourceKey,
-			RequestUser:      task.RequestUser,
+			RequestUser:      scheduledTaskRequestUser(task),
 			RequestUserDept:  task.RequestUserDept,
 		}
 		if err := execRepo.Create(exec); err != nil {
@@ -653,6 +695,31 @@ func (s *Service) requeueExecution(ctx context.Context, exec *model.TimerExecuti
 		exec.LastDispatchedAt = &now
 		return outboxRepo.Create(s.executionRequestedOutbox(task, exec))
 	})
+}
+
+func (s *Service) recoverBrokenInflightReferences(limit int) (int, error) {
+	tasks, err := s.taskRepo.ListBrokenInflightReferences(limit)
+	if err != nil {
+		return 0, err
+	}
+	recovered := 0
+	var recoverErr error
+	for _, task := range tasks {
+		executionID := task.InflightExecutionID
+		if executionID == 0 {
+			continue
+		}
+		message := fmt.Sprintf("timer-scheduler cleared stale inflight execution reference: execution_id=%d", executionID)
+		ok, err := s.taskRepo.TryClearInflight(task.ID, executionID, message)
+		if err != nil {
+			recoverErr = errors.Join(recoverErr, err)
+			continue
+		}
+		if ok {
+			recovered++
+		}
+	}
+	return recovered, recoverErr
 }
 
 func (s *Service) timeoutExecution(ctx context.Context, exec *model.TimerExecution, now time.Time, message string) error {
@@ -712,7 +779,8 @@ func (s *Service) executionRequestedOutbox(task *model.TimerTask, exec *model.Ti
 		SourceRef:       task.SourceRef,
 		ResourceScope:   task.ResourceScope,
 		ResourceKey:     task.ResourceKey,
-		RequestUser:     task.RequestUser,
+		Token:           scheduledExecutionToken(task),
+		RequestUser:     scheduledTaskRequestUser(task),
 		RequestUserDept: task.RequestUserDept,
 		Metadata:        decodeStringMap(task.MetadataJSON),
 		ExecutorPayload: cloneRaw(task.ExecutorPayload),
@@ -730,6 +798,45 @@ func (s *Service) executionRequestedOutbox(task *model.TimerTask, exec *model.Ti
 
 func ptrTime(t time.Time) *time.Time {
 	return &t
+}
+
+func scheduledTaskRequestUser(task *model.TimerTask) string {
+	if task == nil {
+		return ""
+	}
+	if user := strings.TrimSpace(task.RequestUser); user != "" {
+		return user
+	}
+	return strings.TrimSpace(task.CreatedBy)
+}
+
+func scheduledExecutionToken(task *model.TimerTask) string {
+	if task == nil {
+		return ""
+	}
+	requestUser := scheduledTaskRequestUser(task)
+	if requestUser == "" || requestUser == "system" {
+		return ""
+	}
+	metadata := decodeStringMap(task.MetadataJSON)
+	userID, err := strconv.ParseInt(strings.TrimSpace(metadata[scheduledsdk.MetadataRequestUserID]), 10, 64)
+	if err != nil || userID <= 0 {
+		return ""
+	}
+	token, err := auth.NewJWTService().GenerateAccessTokenWithContext(auth.UserTokenContext{
+		UserID:             userID,
+		Username:           requestUser,
+		Email:              strings.TrimSpace(metadata[scheduledsdk.MetadataRequestEmail]),
+		DepartmentFullPath: strings.TrimSpace(task.RequestUserDept),
+		LeaderUsername:     strings.TrimSpace(metadata[scheduledsdk.MetadataLeaderUsername]),
+		CompanyCode:        strings.TrimSpace(metadata[scheduledsdk.MetadataCompanyCode]),
+		CompanyName:        strings.TrimSpace(metadata[scheduledsdk.MetadataCompanyName]),
+		CompanyLogoURL:     strings.TrimSpace(metadata[scheduledsdk.MetadataCompanyLogoURL]),
+	})
+	if err != nil {
+		return ""
+	}
+	return token
 }
 
 func isTerminalTaskStatus(status string) bool {

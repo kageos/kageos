@@ -186,13 +186,13 @@ func Specs() map[string]Spec {
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "search",
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
-				"run_form_submit", "run_chart_query", "run_on_select_fuzzy", "send_notification",
+				"run_form_submit", "run_chart_query", "run_on_select_fuzzy", "run_python", "send_notification",
 			},
 			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
 			Runtime: runtimeContract(
 				[]string{"当前目录已有应用且用户要查询、新增、更新、删除、提交表单或查看图表", "用户意图是使用软件完成业务结果"},
 				[]string{"用户要新增或改变软件能力", "用户要测试刚构建应用而不是真实业务操作"},
-				[]string{"固定目标应用 execute_directory", "先获取函数 schema、必填项、枚举、文件字段和写入能力", "必要时先查询关联数据或调用 OnSelectFuzzy", "调用 run_* 完成业务操作", "失败时区分参数/数据问题和应用 bug"},
+				[]string{"固定目标应用 execute_directory", "先获取函数 schema、必填项、枚举、文件字段和写入能力", "必要时先查询关联数据或调用 OnSelectFuzzy", "需要轻量计算、解析附件、清洗或整理中间数据时可调用 run_python，但真实业务写入仍走 run_* 函数", "调用 run_* 完成业务操作", "失败时区分参数/数据问题和应用 bug"},
 				[]string{"业务操作完成并返回结果", "或失败原因已分类并交接维护角色"},
 				[]LifecycleHook{
 					hook("app_operator.before_enter_capabilities", "before_enter", "进入操作角色前生成当前应用能力快照。", []string{"execute_directory", "registered functions"}, []string{"available_capabilities", "operation_schema_summary", "app_capabilities", "executed_hooks"}),
@@ -223,14 +223,14 @@ func Specs() map[string]Spec {
 			Runtime: runtimeContract(
 				[]string{"用户要把已有应用函数、已有业务操作或已有工作台目录配置成指定时间、周期、提醒、巡检或自动会话", "用户要查询、暂停、恢复、取消或立即运行已有定时任务"},
 				[]string{"用户只是要立即查询、提交、更新或删除真实业务数据", "用户想定时执行但目标能力尚不存在、函数未确认或需要新增/修改软件能力", "用户要测试刚构建应用"},
-				[]string{"固定目标应用 execute_directory", "先区分任务类型：固定 Form/Table/Chart 调用用定时函数，需要 Agent 判断/巡检/分析/总结/多步骤用定时会话", "先用 search 确认目标函数或目录，不搜索整个工作区", "把用户自然语言计划转换为 atime、cron 或 every，并复述关键时间、频率和最多次数", "用户只是问能不能或怎么做时只说明方案，不创建任务", "创建任务前确认执行参数来自用户输入或已验证 schema，不猜必填字段、枚举或记录 ID；周期性写入任务必须等用户明确确认", "调用定时任务工具创建或管理任务", "返回 task_id、下次执行时间、执行来源和取消方式"},
+				[]string{"固定目标应用 execute_directory", "先区分任务类型：固定 Form/Table/Chart 调用用定时函数，需要 Agent 判断/巡检/分析/总结/维护长期数据或多步骤用定时会话", "先用 search 确认目标函数或目录，不搜索整个工作区", "定时会话可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须按无人值守 SOP 写清场景、长期目标、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式和通知规则；不要把示例规则机械套到所有任务", "把用户自然语言计划转换为 atime、cron 或 every，并复述关键时间、频率和最多次数", "用户只是问能不能或怎么做时只说明方案，不创建任务", "创建任务前确认执行参数来自用户输入或已验证 schema，不猜必填字段、枚举或记录 ID；周期性写入任务必须等用户明确确认", "调用定时任务工具创建或管理任务", "返回 task_id、下次执行时间、执行来源和取消方式"},
 				[]string{"定时函数或定时会话已创建并返回 task_id/next_run_at", "或任务已暂停、恢复、取消、立即运行、执行记录已查询", "失败原因已区分为时间表达式、权限、参数/schema 或调度服务问题"},
 				[]LifecycleHook{
 					hook("automation.before_enter_scope", "before_enter", "进入自动化角色前收敛目标应用、候选函数和计划类型。", []string{"execute_directory", "user schedule intent", "function schema"}, []string{"automation_scope", "schedule_plan"}),
 				},
 			),
 			Action:           "自动化操作员负责把已有业务操作配置成未来或周期自动执行，并管理定时函数、定时会话和执行记录；不直接修改代码，不直接执行真实业务写入。",
-			RouteDescription: "用户要“定时、每天、每周、周期、提醒、自动跑、定期巡检、到点提交、定时会话”且目标是已有应用函数、已有业务操作或已有工作台目录时进入。它负责把已有能力配置成 timer-scheduler 任务，并管理暂停、恢复、取消、立即运行和执行记录。先区分两类任务：目标是一个明确 Form/Table/Chart 和固定参数时，用定时函数；目标需要 Agent 到点后判断、巡检、分析、总结、选择多个工具或临场决策时，用定时会话。它不同于 `app_operator`：应用操作员负责现在执行一次真实业务操作；自动化操作员负责以后自动执行。它也不同于 `product_manager/app_developer/maintenance_engineer`：如果用户想定时执行的能力还不存在、函数 schema 还不确定，或需要新增/修改软件能力，先进入产品、开发或维护，不要直接进入自动化。用户只是问“能不能/怎么做”时只说明方案和风险；周期性写入任务必须等用户明确确认后再创建。创建任务前必须确认目标函数/目录、计划时间、执行参数和权限边界；不设计 PRD、不写代码、不 build、不直接调用 run_* 完成真实业务写入。",
+			RouteDescription: "用户要“定时、每天、每周、周期、提醒、自动跑、定期巡检、到点提交、定时会话”且目标是已有应用函数、已有业务操作或已有工作台目录时进入。它负责把已有能力配置成 timer-scheduler 任务，并管理暂停、恢复、取消、立即运行和执行记录。先区分两类任务：目标是一个明确 Form/Table/Chart 和固定参数时，用定时函数；目标需要 Agent 到点后判断、巡检、分析、总结、维护长期数据、选择多个工具或临场决策时，用定时会话。定时会话可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须写成无人值守 SOP：场景/长期目标、绑定目录、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式、通知规则；不要把示例规则机械套到所有任务。它不同于 `app_operator`：应用操作员负责现在执行一次真实业务操作；自动化操作员负责以后自动执行。它也不同于 `product_manager/app_developer/maintenance_engineer`：如果用户想定时执行的能力还不存在、函数 schema 还不确定，或需要新增/修改软件能力，先进入产品、开发或维护，不要直接进入自动化。用户只是问“能不能/怎么做”时只说明方案和风险；周期性写入任务必须等用户明确确认后再创建。创建任务前必须确认目标函数/目录、计划时间、执行参数和权限边界；不设计 PRD、不写代码、不 build、不直接调用 run_* 完成真实业务写入。",
 			NextRoles: []NextRole{
 				{RoleID: AppOperator, When: "用户要求先立即执行一次业务操作验证参数"},
 				{RoleID: MaintenanceEngineer, When: "定时执行失败且判断为应用 bug 或字段实现问题"},

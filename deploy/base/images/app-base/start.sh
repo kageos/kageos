@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# 设置时区
-export TZ=Asia/Shanghai
+# 继承平台部署时区；未配置时使用北京时间。
+export TZ="${TZ:-Asia/Shanghai}"
 
 # 加载 Python 已安装包列表环境变量（用于快速检查包是否已安装）
 if [ -f /etc/profile.d/python-packages.sh ]; then
@@ -86,16 +86,6 @@ fi
 # 启动应用（直接使用 releases 目录下的版本化可执行文件）
 echo "启动应用: releases/$BINARY_NAME"
 
-# 启动当前版本（后台运行，不使用 exec）
-# tini 作为 PID 1，start.sh 保持运行以便 tini 管理子进程
-./"releases/$BINARY_NAME" &
-APP_PID=$!
-
-echo "应用已启动，PID: $APP_PID"
-echo "容器将保持运行，支持灰度发布（多版本共存）"
-
-# 保持脚本运行，让 tini 管理所有子进程
-# 这样即使应用版本切换，容器也不会退出
-while true; do
-    sleep 3600
-done
+# 让应用进程成为容器主进程。应用 panic/退出时，容器状态必须同步变为失败/退出，
+# runtime 才能及时感知启动失败。
+exec ./"releases/$BINARY_NAME"

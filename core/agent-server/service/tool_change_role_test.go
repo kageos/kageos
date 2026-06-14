@@ -62,6 +62,17 @@ func TestChangeRoleToolSchemaMentionsAutomationOperator(t *testing.T) {
 	if !strings.Contains(description, WorkspaceRoleAutomationOperator) {
 		t.Fatalf("target_role schema should mention %s, description=%q", WorkspaceRoleAutomationOperator, description)
 	}
+	executeDirectory := properties["execute_directory"].(map[string]interface{})
+	executeDescription, _ := executeDirectory["description"].(string)
+	for _, want := range []string{
+		"主执行目录/绑定目录",
+		"其他空间函数或连接器函数完整路径",
+		"权限由平台统一判断",
+	} {
+		if !strings.Contains(executeDescription, want) {
+			t.Fatalf("execute_directory schema should contain %q, description=%q", want, executeDescription)
+		}
+	}
 }
 
 func TestChangeRoleInvalidRoleHintMentionsAutomationOperator(t *testing.T) {
@@ -193,7 +204,7 @@ func TestBuildChangeRoleUsesStandardHandoffBlocksAndDirectoryFallback(t *testing
 	if got.ExecuteDirectory != "/liubeiluo/nps" || got.Directory != "/liubeiluo/nps" || got.Handoff.ExecuteDirectory != "/liubeiluo/nps" {
 		t.Fatalf("handoff should use fallback execute directory, got %#v", got.Handoff)
 	}
-	if !strings.Contains(got.ContextPolicy, "执行目录固定为 /liubeiluo/nps") {
+	if !strings.Contains(got.ContextPolicy, "主执行目录/绑定目录为 /liubeiluo/nps") {
 		t.Fatalf("context policy should pin execute directory, got %q", got.ContextPolicy)
 	}
 	if len(got.Handoff.TaskContext) != 3 || !strings.Contains(strings.Join(got.Handoff.TaskContext, "；"), "趋势图") {
@@ -241,7 +252,7 @@ func TestBuildChangeRoleNormalizesNewAppDeveloperExecuteDirectoryToWorkspaceRoot
 		!containsWorkspaceRoleString(got.Handoff.References, "/system/prompt/roles/app-developer") {
 		t.Fatalf("handoff should keep target directory and role docs: %#v", got.Handoff.References)
 	}
-	if !strings.Contains(got.ContextPolicy, "执行目录固定为 /system/x_world") {
+	if !strings.Contains(got.ContextPolicy, "主执行目录/绑定目录为 /system/x_world") {
 		t.Fatalf("context policy should pin workspace root execute directory, got %q", got.ContextPolicy)
 	}
 }

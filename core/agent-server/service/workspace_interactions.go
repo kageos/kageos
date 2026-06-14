@@ -75,7 +75,7 @@ func workspaceInteractionFromResultData(raw []byte) *dto.WorkspaceInteraction {
 	)
 	blocking, hasBlocking := interactionRaw["blocking"].(bool)
 	if !hasBlocking {
-		blocking = true
+		blocking = status != model.ChatSessionStatusPendingBuildRepair
 	}
 	out := &dto.WorkspaceInteraction{
 		ID:                  workspaceInteractionID(status, raw),
@@ -200,11 +200,15 @@ func workspaceFallbackPendingInteraction(status string) *dto.WorkspaceInteractio
 	} else if status == model.ChatSessionStatusPendingBuildRepair {
 		allowedActions = []string{"start_build_repair", "continue_development", "skip_build_repair", "view_build_diagnostics"}
 	}
+	blocking := true
+	if status == model.ChatSessionStatusPendingBuildRepair {
+		blocking = false
+	}
 	return &dto.WorkspaceInteraction{
 		ID:             status + ":fallback",
 		CardType:       cardType,
 		Status:         status,
-		Blocking:       true,
+		Blocking:       blocking,
 		Title:          workspaceInteractionTitle(cardType, status),
 		ViewText:       workspaceInteractionViewText(cardType),
 		AllowedActions: allowedActions,

@@ -79,6 +79,61 @@ func TestSendNotificationPublishesWithScheduledSource(t *testing.T) {
 	}
 }
 
+func TestSendNotificationDefaultsRecipientToRequestUser(t *testing.T) {
+	publisher := &fakeNotificationPublisher{}
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
+		RequestUser:  "alice",
+		ClientSource: contextx.ClientSourceAgent,
+		SourceType:   contextx.SourceTypeAgentTool,
+		SourceRef:    "session-1",
+	})
+	ctx = contextx.WithWorkspaceSession(ctx, "session-1", "情报巡检", "app_operator")
+
+	result := runSendNotificationTool(ctx, publisher, sendNotificationArgs{
+		Title:   "发现重要情报",
+		Message: "需要关注",
+	}, "/system/test22/hot_news")
+
+	if result.IsError {
+		t.Fatalf("send_notification returned error: %s", result.Content)
+	}
+	if len(publisher.msgs) != 1 {
+		t.Fatalf("published messages = %d, want 1", len(publisher.msgs))
+	}
+	envelope, err := decodeNotifyEnvelope(publisher.msgs[0].Data)
+	if err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	if envelope.Message.ToUsers != "alice" {
+		t.Fatalf("to_users = %q, want alice", envelope.Message.ToUsers)
+	}
+}
+
+func TestSendNotificationSchemaDoesNotRequireToUsers(t *testing.T) {
+	def := (&SendNotificationTool{}).Definition()
+	required, ok := def.InputSchema["required"].([]interface{})
+	if !ok {
+		t.Fatalf("input schema required missing: %#v", def.InputSchema)
+	}
+	if containsInterfaceString(required, "to_users") {
+		t.Fatalf("send_notification should not require to_users, required=%#v", required)
+	}
+	properties, ok := def.InputSchema["properties"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("input schema properties missing: %#v", def.InputSchema)
+	}
+	toUsers, ok := properties["to_users"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("to_users schema missing: %#v", properties)
+	}
+	desc, _ := toUsers["description"].(string)
+	for _, want := range []string{"普通工作台会话", "定时会话或后台任务必须显式填写", "任务创建人/请求用户"} {
+		if !strings.Contains(desc, want) {
+			t.Fatalf("to_users description should contain %q, got %q", want, desc)
+		}
+	}
+}
+
 func TestSendNotificationRequiresRecipientWhenRequestUserIsSystem(t *testing.T) {
 	publisher := &fakeNotificationPublisher{}
 	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{

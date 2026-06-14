@@ -95,6 +95,10 @@ func (s *JWTService) generateTokenWithContext(userContext UserTokenContext, subj
 	if !expiresAt.IsZero() {
 		registeredClaims.ExpiresAt = jwt.NewNumericDate(expiresAt)
 	}
+	return s.generateTokenWithClaims(userContext, registeredClaims)
+}
+
+func (s *JWTService) generateTokenWithClaims(userContext UserTokenContext, registeredClaims jwt.RegisteredClaims) (string, error) {
 	claims := JWTClaims{
 		UserID:           userContext.UserID,
 		Username:         userContext.Username,

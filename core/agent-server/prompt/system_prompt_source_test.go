@@ -176,11 +176,46 @@ func TestAppDeveloperRoleExecutesConfirmedPRD(t *testing.T) {
 		"写代码前必须先读取 1 到多个与当前需求匹配的案例",
 		"/system/prompt/case_catalog/table/ticket",
 		"/system/prompt/case_catalog/form_table_chart/cashier",
+		"`write_doc`",
 		"qa_engineer",
 		"build_engineer",
 	} {
 		if !strings.Contains(content, needle) {
 			t.Fatalf("app_developer role doc should contain %q, got: %q", needle, content)
+		}
+	}
+}
+
+func TestAutomationOperatorRoleDocumentsScheduledAgentSOP(t *testing.T) {
+	_, content := GetPromptDocContent(nil, "/system/prompt/roles/automation-operator")
+	for _, needle := range []string{
+		"自动化操作员 automation_operator",
+		"定时会话的典型场景",
+		"长期数据维护",
+		"情报/新闻日报",
+		"周报/月报",
+		"业务巡检",
+		"定时会话 message 标准 SOP",
+		"预期工具清单",
+		"`run_table_search`",
+		"`run_table_create` / `run_table_update`",
+		"`web_search`",
+		"`send_notification`",
+		"定时会话/后台任务必须显式填写 `to_users`",
+		"任务创建人 username",
+		"首次基准记录",
+		"模型库巡检示例 message",
+		"场景化 owner 意识",
+		"不是固定清单",
+		"不要把示例规则机械套到所有任务",
+		"跨资源工作流类",
+		"其他目录函数或连接器",
+		"可信度与写入规则",
+		"证据不足",
+		"禁止调用 `write_prd`、`create_directory`、`write_doc`、`write_go_file`、`search_replace_file`、`delete_file`、`build_workspace` 和任何业务 `run_*` 工具",
+	} {
+		if !strings.Contains(content, needle) {
+			t.Fatalf("automation_operator role doc should contain %q, got: %q", needle, content)
 		}
 	}
 }
@@ -200,7 +235,9 @@ func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 			"`run_table_search`",
 			"`run_table_create`",
 			"`run_form_submit`",
-			"不重新输出 PRD，不创建目录，不写 Go 文件，不 build",
+			"不重新输出 PRD，不创建目录，不写文档，不写 Go 文件，不 build",
+			"`run_python`",
+			"定时会话/后台任务必须显式传 `to_users`",
 		},
 		"/system/prompt/roles/maintenance-engineer": {
 			"应用维护工程师 maintenance_engineer",
@@ -208,6 +245,7 @@ func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 			"`创建开始时间/创建结束时间`",
 			"不要为了它们新增业务列",
 			"裸写 `开始时间/结束时间` 只适合业务字段或 Chart 统计区间",
+			"`write_doc`",
 		},
 		"/system/prompt/roles/build-engineer": {
 			"构建修复工程师 build_engineer",
@@ -222,6 +260,35 @@ func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 			"`创建开始时间/创建结束时间/创建人` 应映射系统字段查询",
 		},
 	} {
+		_, content := GetPromptDocContent(nil, docPath)
+		for _, needle := range needles {
+			if !strings.Contains(content, needle) {
+				t.Fatalf("%s should contain %q, got: %q", docPath, needle, content)
+			}
+		}
+	}
+}
+
+func TestRoleToolDocsMentionRuntimeAllowedNotificationsAndExactRunTools(t *testing.T) {
+	cases := map[string][]string{
+		"/system/prompt/roles/qa-engineer": {
+			"`run_table_search`",
+			"`run_form_submit`",
+			"`run_on_select_fuzzy`",
+			"`send_notification`",
+		},
+		"/system/prompt/roles/data-operator": {
+			"基础只读工具全角色可用",
+			"`run_python`",
+			"`send_notification`",
+		},
+		"/system/prompt/roles/platform-engineer": {
+			"基础只读工具全角色可用",
+			"`run_form_submit`",
+			"`send_notification`",
+		},
+	}
+	for docPath, needles := range cases {
 		_, content := GetPromptDocContent(nil, docPath)
 		for _, needle := range needles {
 			if !strings.Contains(content, needle) {

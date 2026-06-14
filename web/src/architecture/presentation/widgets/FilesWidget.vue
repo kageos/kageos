@@ -6,10 +6,9 @@
   <div class="files-widget">
     <!-- 编辑模式 -->
     <template v-if="mode === 'edit'">
-      <div v-if="!isDisabled" class="files-editor-shell">
+      <div v-if="!isDisabled && !isMaxReached" class="files-editor-shell">
         <!-- 上传区域 -->
         <div
-          v-if="!isDisabled && !isMaxReached"
           class="upload-area"
           @drop.prevent="handleDrop"
           @dragover.prevent="handleDragOver"
@@ -53,10 +52,6 @@
               </div>
             </div>
           </el-upload>
-        </div>
-        <div v-else-if="!isDisabled && isMaxReached" class="upload-limit-tip">
-          <el-icon class="limit-tip-icon"><Document /></el-icon>
-          <span>已达到上传上限（{{ currentFiles.length }}/{{ maxCount }}），请先删除已有文件</span>
         </div>
 
       </div>
@@ -611,24 +606,6 @@ function getTablePreviewUrl(file: FileItem): string {
   color: var(--el-text-color-secondary);
   font-size: 10px;
   line-height: 1.2;
-}
-
-.upload-limit-tip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
-  padding: 14px 16px;
-  border-radius: 12px;
-  border: 1px solid var(--el-border-color-light);
-  background: var(--el-fill-color-light);
-  color: var(--el-text-color-regular);
-  font-size: 13px;
-}
-
-.limit-tip-icon {
-  color: var(--el-color-warning);
-  flex-shrink: 0;
 }
 
 .upload-dragger-content {

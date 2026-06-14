@@ -138,7 +138,7 @@ func init() {
 }
 ```
 
-Form 可声明默认定时执行策略，构建/发布后由平台幂等同步到 timer-scheduler；运行状态、执行次数和下次执行时间不在业务代码里维护。MVP 只支持 FormTemplate，不支持 TableTemplate/ChartTemplate。`CronExpr` 与 `EverySeconds` 必须二选一，body 直接写表单请求 JSON：
+Form 可声明默认定时执行策略，构建/发布后由平台幂等同步到 timer-scheduler；运行状态、执行次数和下次执行时间不在业务代码里维护。MVP 只支持 FormTemplate，不支持 TableTemplate/ChartTemplate。`CronExpr` 与 `EverySeconds` 必须二选一，body 直接写表单请求 JSON。一般不要写 `Timezone`，默认按平台部署时区执行；只有明确跨时区业务才填写 IANA 时区：
 
 ```go
 packageContext.POST("meeting_room_notify_soon.form", NotifySoon, &app.FormTemplate{
@@ -148,7 +148,6 @@ packageContext.POST("meeting_room_notify_soon.form", NotifySoon, &app.FormTempla
             Code:             "meeting_reminder_soon",
             Title:            "会议即将开始提醒",
             CronExpr:         "*/2 * * * *",
-            Timezone:         "Asia/Shanghai",
             Body:             map[string]any{"lead_minutes": 5},
         },
     },
@@ -445,7 +444,7 @@ functionLink, _ := ctx.BuildFunctionUrlWithText("vote_result.form", params, "查
 return resp.Form(&VoteSubmitResp{..., FunctionLink: functionLink}).Build()
 ```
 
-完整示例：`read_doc("/system/prompt/case_catalog/tables/meeting")`（预约列表会议室详情 link）、`read_doc("/system/prompt/case_catalog/tables/hr")`（职位/简历列表 link、_tab=OnTableAddRow）、`read_doc("/system/prompt/case_catalog/formandtable/vote")`（投票操作/选项列表/提交结果 link）。
+完整示例：`read_doc("/system/prompt/case_catalog/tables/meeting")`（预约列表会议室详情 link、空闲会议室一键预约 link）、`read_doc("/system/prompt/case_catalog/tables/hr")`（职位/简历列表 link、_tab=OnTableAddRow）、`read_doc("/system/prompt/case_catalog/formandtable/vote")`（投票操作/选项列表/提交结果 link）。
 
 - **隐藏字段**：`widget:"-"` 表示该字段**被前端直接忽略**，不参与列表/表单的渲染，也不会被提交；常用于系统字段（如 DeletedAt、DeletedBy）或内部关联（如 `json:"-"` 的关联表）。
 - **展示场景**：用 `hide.scenes` 声明隐藏场景，例如 `create,update` 表示仅列表展示、`list,update` 表示仅新增表单展示，见下节。
@@ -798,7 +797,7 @@ func TaskList(ctx *app.Context, resp response.Response) error {
 
 **示例二：查询前处理 + 返回前处理（会议室预约）**
 
-请求里包含**外表筛选**（会议室名称）和**计算字段筛选**（预约状态：待开始/进行中/已结束，由开始/结束时间与当前时间算出）。需在查询前对 `queryDB` 做 Where；返回前填充不落库字段（会议室名称、状态、详情 link）。参考：`read_doc("/system/prompt/case_catalog/tables/meeting")`（见 meeting_room_booking.go）。
+请求里包含**外表筛选**（会议室名称）和**计算字段筛选**（预约状态：待开始/进行中/已结束，由开始/结束时间与当前时间算出）。需在查询前对 `queryDB` 做 Where；返回前填充不落库字段（会议室名称、状态、详情 link）。参考：`read_doc("/system/prompt/case_catalog/tables/meeting")`。
 
 ```go
 // 列表结构体：RoomName、Status、RoomLink 为不落库展示字段（gorm:"-"）
@@ -1215,7 +1214,7 @@ func onSelectFuzzyMeetingRoom(ctx *app.Context, req *callback.OnSelectFuzzyReq) 
 }
 ```
 
-完整示例：`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`（Form + table 子表 OnSelectFuzzy + 聚合计算）、`read_doc("/system/prompt/case_catalog/tables/meeting")`（**Table 模式**预约选会议室 OnSelectFuzzy，见 meeting_room_booking.go）。
+完整示例：`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`（Form + table 子表 OnSelectFuzzy + 聚合计算）、`read_doc("/system/prompt/case_catalog/tables/meeting")`（**Table 模式**预约选会议室 OnSelectFuzzy）。
 
 Form 请求中 table 子表、OnSelectFuzzy、多 POST 同目录等：`read_doc("/system/prompt/case_catalog/form/excelorcsv")`、`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`（收银台）、`read_doc("/system/prompt/case_catalog/formandtable/vote")`（投票提交：**BindCurrentFormData** 先选主题再选选项的依赖下拉示例）。
 
@@ -1347,7 +1346,7 @@ return resp.Chart(c).Build()
 
 - **单 Table**：`/system/prompt/case_catalog/table/ticket`
 - **单 Form**：`/system/prompt/case_catalog/form/excelorcsv`、`/system/prompt/case_catalog/form/images`、`/system/prompt/case_catalog/form/pdf`、`/system/prompt/case_catalog/form/nlp`、`/system/prompt/case_catalog/form/videos`
-- **多 Table**：`/system/prompt/case_catalog/tables/meeting`、`/system/prompt/case_catalog/tables/hr`
+- **多 Table / 资源预约**：`/system/prompt/case_catalog/tables/meeting`、`/system/prompt/case_catalog/tables/hr`
 - **Table + Form**：`/system/prompt/case_catalog/formandtable/vote`
 - **Table + Form + Chart**：`/system/prompt/case_catalog/form_table_chart/cashier` （全部类型的图表都有在这个里面呈现）
 

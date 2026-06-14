@@ -21,7 +21,7 @@ type readGoFileLinesArgs struct {
 
 var readGoFileLinesToolDef = toolDefinition[readGoFileLinesArgs](
 	"read_go_file_lines",
-	"按指定行号范围读取工作区内的 Go 代码文件，输出带行号，便于对照编译错误信息。参数：directory（可选）、file_name（必填）、line_ranges（可选，如 \"10-12,20-30\" 表示第 10-12 行和第 20-30 行；不传则返回整个文件并带行号）。",
+	"按指定行号范围读取工作区真实应用目录下的 Go 代码文件，输出带行号，便于对照编译错误信息。参数：directory（可选）、file_name（必填）、line_ranges（可选，如 \"10-12,20-30\" 表示第 10-12 行和第 20-30 行；不传则返回整个文件并带行号）。/system/prompt 下的 SDK 和案例是文档路径，完整阅读用 read_doc，不要用本工具。",
 )
 
 func (t *ReadGoFileLinesTool) Definition() dto.ToolDef {

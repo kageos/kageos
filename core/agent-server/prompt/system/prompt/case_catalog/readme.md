@@ -13,7 +13,7 @@
 | 需求场景 | 读取路径 |
 | --- | --- |
 | 单表 CRUD、列表筛选、新增编辑删除 | `/system/prompt/case_catalog/table/ticket` |
-| 多表关联、预约、资源占用、明细展示 | `/system/prompt/case_catalog/tables/meeting` |
+| 多表关联、预约、资源占用、空闲查询、定时提醒 | `/system/prompt/case_catalog/tables/meeting` |
 | 多表管理、人员/职位/候选人管理后台 | `/system/prompt/case_catalog/tables/hr` |
 | 问卷、投票、表单提交后进入列表统计 | `/system/prompt/case_catalog/formandtable/vote` |
 | Form + Table + Chart、库存、经营统计、图表组合 | `/system/prompt/case_catalog/form_table_chart/cashier` |

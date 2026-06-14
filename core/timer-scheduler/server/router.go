@@ -1,11 +1,13 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	timerservice "github.com/kageos/kageos/core/timer-scheduler/service"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/serverx"
 )
@@ -40,14 +42,14 @@ func createTask(service *timerservice.Service) gin.HandlerFunc {
 		if !bindJSON(c, &req) {
 			return
 		}
-		task, err := service.CreateTask(c.Request.Context(), req)
+		task, err := service.CreateTask(requestContext(c), req)
 		writeResult(c, task, err)
 	}
 }
 
 func listTasks(service *timerservice.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		resp, err := service.ListTasks(c.Request.Context(), scheduledsdk.ListTasksRequest{
+		resp, err := service.ListTasks(requestContext(c), scheduledsdk.ListTasksRequest{
 			ExecutorKey:   c.Query("executor_key"),
 			Status:        c.Query("status"),
 			Category:      c.Query("category"),
@@ -69,7 +71,7 @@ func getTask(service *timerservice.Service) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		task, err := service.GetTask(c.Request.Context(), id)
+		task, err := service.GetTask(requestContext(c), id)
 		writeResult(c, task, err)
 	}
 }
@@ -84,7 +86,7 @@ func updateTask(service *timerservice.Service) gin.HandlerFunc {
 		if !bindJSON(c, &req) {
 			return
 		}
-		task, err := service.UpdateTask(c.Request.Context(), id, req)
+		task, err := service.UpdateTask(requestContext(c), id, req)
 		writeResult(c, task, err)
 	}
 }
@@ -95,7 +97,7 @@ func pauseTask(service *timerservice.Service) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		writeResult(c, gin.H{"ok": true}, service.PauseTask(c.Request.Context(), id))
+		writeResult(c, gin.H{"ok": true}, service.PauseTask(requestContext(c), id))
 	}
 }
 
@@ -105,7 +107,7 @@ func resumeTask(service *timerservice.Service) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		writeResult(c, gin.H{"ok": true}, service.ResumeTask(c.Request.Context(), id))
+		writeResult(c, gin.H{"ok": true}, service.ResumeTask(requestContext(c), id))
 	}
 }
 
@@ -115,7 +117,7 @@ func cancelTask(service *timerservice.Service) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		writeResult(c, gin.H{"ok": true}, service.CancelTask(c.Request.Context(), id))
+		writeResult(c, gin.H{"ok": true}, service.CancelTask(requestContext(c), id))
 	}
 }
 
@@ -125,7 +127,7 @@ func deleteTask(service *timerservice.Service) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		writeResult(c, gin.H{"ok": true}, service.DeleteTask(c.Request.Context(), id))
+		writeResult(c, gin.H{"ok": true}, service.DeleteTask(requestContext(c), id))
 	}
 }
 
@@ -135,7 +137,7 @@ func runNow(service *timerservice.Service) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		exec, err := service.RunNow(c.Request.Context(), id)
+		exec, err := service.RunNow(requestContext(c), id)
 		writeResult(c, exec, err)
 	}
 }
@@ -146,7 +148,7 @@ func listExecutions(service *timerservice.Service) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		resp, err := service.ListExecutions(c.Request.Context(), taskID, scheduledsdk.ListExecutionsRequest{
+		resp, err := service.ListExecutions(requestContext(c), taskID, scheduledsdk.ListExecutionsRequest{
 			Status:   c.Query("status"),
 			Page:     queryInt(c, "page"),
 			PageSize: queryInt(c, "page_size"),
@@ -165,7 +167,7 @@ func getExecution(service *timerservice.Service) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		exec, err := service.GetExecution(c.Request.Context(), taskID, executionID)
+		exec, err := service.GetExecution(requestContext(c), taskID, executionID)
 		writeResult(c, exec, err)
 	}
 }
@@ -176,7 +178,7 @@ func markExecutionStarted(service *timerservice.Service) gin.HandlerFunc {
 		if !bindJSON(c, &req) {
 			return
 		}
-		writeResult(c, gin.H{"ok": true}, service.MarkExecutionStarted(c.Request.Context(), req))
+		writeResult(c, gin.H{"ok": true}, service.MarkExecutionStarted(requestContext(c), req))
 	}
 }
 
@@ -186,7 +188,7 @@ func markExecutionHeartbeat(service *timerservice.Service) gin.HandlerFunc {
 		if !bindJSON(c, &req) {
 			return
 		}
-		writeResult(c, gin.H{"ok": true}, service.MarkExecutionHeartbeat(c.Request.Context(), req))
+		writeResult(c, gin.H{"ok": true}, service.MarkExecutionHeartbeat(requestContext(c), req))
 	}
 }
 
@@ -196,8 +198,15 @@ func markExecutionFinished(service *timerservice.Service) gin.HandlerFunc {
 		if !bindJSON(c, &req) {
 			return
 		}
-		writeResult(c, gin.H{"ok": true}, service.MarkExecutionFinished(c.Request.Context(), req))
+		writeResult(c, gin.H{"ok": true}, service.MarkExecutionFinished(requestContext(c), req))
 	}
+}
+
+func requestContext(c *gin.Context) context.Context {
+	if c == nil {
+		return context.Background()
+	}
+	return contextx.ToContext(c)
 }
 
 func bindJSON(c *gin.Context, out interface{}) bool {

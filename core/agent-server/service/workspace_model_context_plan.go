@@ -375,9 +375,9 @@ func workspaceModelContextScopePolicy(roleID string, fullCodePath string, handof
 	}
 	switch roleID {
 	case WorkspaceRoleQAEngineer, WorkspaceRoleAppOperator:
-		return "runtime_tools_must_scope_to_execute_directory_or_current_app:" + dir
+		return "runtime_tools_default_scope_execute_directory_or_current_app:" + dir
 	case WorkspaceRoleAppDeveloper, WorkspaceRoleMaintenanceEngineer, WorkspaceRoleBuildEngineer:
-		return "read_write_build_scope_execute_directory:" + dir
+		return "read_write_build_default_scope_execute_directory:" + dir
 	default:
 		return "route_or_read_only_scope_current_directory:" + dir
 	}

@@ -41,6 +41,18 @@ func TestBuildScheduledTaskScheduleInfersCron(t *testing.T) {
 	}
 }
 
+func TestBuildScheduledTaskScheduleCronUsesRuntimeTimezoneByDefault(t *testing.T) {
+	got, err := buildScheduledTaskSchedule(scheduledTaskScheduleArgs{
+		CronExpr: "* * * * *",
+	})
+	if err != nil {
+		t.Fatalf("buildScheduledTaskSchedule returned error: %v", err)
+	}
+	if got.Type != scheduledsdk.ScheduleCron || got.Timezone != "" {
+		t.Fatalf("cron without timezone should use timer runtime local timezone, got %#v", got)
+	}
+}
+
 func TestBuildScheduledTaskScheduleValidatesEvery(t *testing.T) {
 	_, err := buildScheduledTaskSchedule(scheduledTaskScheduleArgs{
 		ScheduleType:    "every",
@@ -114,6 +126,20 @@ func TestCreateScheduledAgentTaskSchemaAcceptsMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("message should be accepted by schema validation: %v", err)
 	}
+	properties, ok := schema["properties"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("schema properties missing: %#v", schema)
+	}
+	messageSchema, ok := properties["message"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("message schema missing: %#v", properties)
+	}
+	desc, _ := messageSchema["description"].(string)
+	for _, want := range []string{"注入任务创建人/请求用户", "必须显式传 to_users", "首次基准记录"} {
+		if !strings.Contains(desc, want) {
+			t.Fatalf("message schema should contain %q, got %q", want, desc)
+		}
+	}
 }
 
 func TestCreateScheduledAgentTaskRejectsUnknownArgs(t *testing.T) {
@@ -126,13 +152,33 @@ func TestCreateScheduledAgentTaskRejectsUnknownArgs(t *testing.T) {
 		{"cron": "*/5 * * * *"},
 		{"name": "热点信息自动追踪与推送"},
 		{"task_name": "热点信息自动追踪与推送"},
-		{"directory": "/system/test22/hot_news"},
 		{"max_executions": 10},
 	} {
 		res := tool.Execute(context.Background(), ToolCall{Args: args})
 		if !res.IsError || !strings.Contains(res.Content, "不支持参数") {
 			t.Fatalf("unknown arg should be rejected: args=%#v res=%#v", args, res)
 		}
+	}
+}
+
+func TestCreateScheduledAgentTaskAllowsDirectoryAlias(t *testing.T) {
+	tool := &CreateScheduledAgentTaskTool{}
+	res := tool.Execute(context.Background(), ToolCall{Args: map[string]interface{}{
+		"directory": "/system/test22/hot_news",
+	}})
+	if !res.IsError {
+		t.Fatalf("expected missing message error, got %#v", res)
+	}
+	if strings.Contains(res.Content, "不支持参数") || strings.Contains(res.Content, "需传 full_code_path") {
+		t.Fatalf("directory should be accepted as full_code_path alias, got %#v", res)
+	}
+
+	got := normalizeCreateScheduledAgentTaskArgs(createScheduledAgentTaskArgs{
+		Directory:       "/system/test22/hot_news",
+		IntervalSeconds: 300,
+	})
+	if got.FullCodePath != "/system/test22/hot_news" || got.ScheduleType != "every" {
+		t.Fatalf("directory alias not normalized: %#v", got)
 	}
 }
 
@@ -193,9 +239,13 @@ func TestScheduledTaskToolDescriptionsDistinguishFunctionAndAgentTasks(t *testin
 		"核心参数是 title + message",
 		"interval_seconds=300",
 		"不要把这些参数包进 body",
-		"需要 Agent 判断、查询、总结或组合多个动作",
+		"需要 Agent 判断、查询、总结、维护长期数据或组合多个动作",
 		"运行时用户无法回答问题",
 		"全部写进 message",
+		"预期使用工具清单",
+		"change_role、read_dir/search、web_search",
+		"定时会话可以编排当前目录、本空间其他目录、其他空间函数",
+		"质量规则要结合业务",
 		"不要用于已明确的单个 Form/Table/Chart 函数调用",
 	} {
 		if !strings.Contains(agentDesc, want) {

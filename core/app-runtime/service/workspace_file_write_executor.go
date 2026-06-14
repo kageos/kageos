@@ -8,6 +8,7 @@ import (
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/sourcepolicy"
 )
 
 type fileRollbackEntry struct {
@@ -55,6 +56,12 @@ func (s *WorkspaceFileService) writeDirectoryTreeFiles(
 			return nil, fmt.Errorf("非法文件写入目标 (%s): %w", item.FullCodePath, err)
 		}
 
+		if filepath.Ext(filePath) == ".go" {
+			if err := sourcepolicy.ValidateAppGoSource(filePath, item.Content); err != nil {
+				s.rollbackWriteState(ctx, state)
+				return nil, fmt.Errorf("源码规范校验失败 (%s): %w", filePath, err)
+			}
+		}
 		if err := s.ensureDirectoryTreeWithRollback(apiDir, packageDir, state); err != nil {
 			s.rollbackWriteState(ctx, state)
 			return nil, fmt.Errorf("创建目录失败: %w", err)

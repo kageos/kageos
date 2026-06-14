@@ -71,5 +71,58 @@ func validateRequest(ctx context.Context, apiKey string, req *ChatRequest) error
 			}
 		}
 	}
+	if err := validateToolMessageOrder(req.Messages); err != nil {
+		return err
+	}
 	return nil
+}
+
+func validateToolMessageOrder(messages []Message) error {
+	pending := make(map[string]struct{})
+	pendingOrder := make([]string, 0)
+	for i, msg := range messages {
+		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		if len(pending) > 0 {
+			if role != "tool" {
+				return fmt.Errorf("消息 %d 之前的 assistant tool_calls 缺少 tool 结果: %s", i, strings.Join(pendingOrder, ", "))
+			}
+			id := strings.TrimSpace(msg.ToolCallID)
+			if _, ok := pending[id]; !ok {
+				return fmt.Errorf("消息 %d 的 tool_call_id %q 未匹配上一条 assistant tool_calls", i, msg.ToolCallID)
+			}
+			delete(pending, id)
+			pendingOrder = removePendingToolCallID(pendingOrder, id)
+			continue
+		}
+		if role == "tool" {
+			return fmt.Errorf("消息 %d 的 tool 结果没有紧邻的 assistant tool_calls", i)
+		}
+		if role != "assistant" || len(msg.ToolCalls) == 0 {
+			continue
+		}
+		for _, tc := range msg.ToolCalls {
+			id := strings.TrimSpace(tc.ID)
+			if id == "" {
+				return fmt.Errorf("消息 %d 的 assistant tool_calls 包含空 tool_call id", i)
+			}
+			if _, exists := pending[id]; exists {
+				return fmt.Errorf("消息 %d 的 assistant tool_calls 包含重复 tool_call id %q", i, id)
+			}
+			pending[id] = struct{}{}
+			pendingOrder = append(pendingOrder, id)
+		}
+	}
+	if len(pending) > 0 {
+		return fmt.Errorf("最后一条 assistant tool_calls 缺少 tool 结果: %s", strings.Join(pendingOrder, ", "))
+	}
+	return nil
+}
+
+func removePendingToolCallID(ids []string, id string) []string {
+	for i, v := range ids {
+		if v == id {
+			return append(ids[:i], ids[i+1:]...)
+		}
+	}
+	return ids
 }

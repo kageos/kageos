@@ -46,3 +46,23 @@ func TestWriteGoFileRejectsTestFileName(t *testing.T) {
 		})
 	}
 }
+
+func TestWriteGoFileRejectsSQLiteDriverImport(t *testing.T) {
+	msg, isErr := runWriteGoFileTool(context.Background(), writeGoFileArgs{
+		FileName: "importer.go",
+		Content: `package demo
+
+import "gorm.io/driver/sqlite"
+
+var _ = sqlite.Open
+`,
+	}, "/user/app/demo")
+	if !isErr {
+		t.Fatal("expected sqlite driver import to fail")
+	}
+	for _, want := range []string{"源码规范校验失败", "本次未落盘", "KageOS SDK 已全局注册", `sql.Open("sqlite3", path)`} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("expected %q in %q", want, msg)
+		}
+	}
+}

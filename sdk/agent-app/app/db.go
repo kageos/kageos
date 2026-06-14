@@ -13,6 +13,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/sdk/agent-app/env"
+	_ "github.com/ncruces/go-sqlite3/driver" // register database/sql driver "sqlite3" for uploaded SQLite files
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
 )

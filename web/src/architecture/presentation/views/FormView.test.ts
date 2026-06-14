@@ -1,5 +1,4 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { ElNotification } from 'element-plus'
 import { createPinia } from 'pinia'
 import { computed, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
@@ -189,9 +188,7 @@ describe('FormView', () => {
     expect(submitButtons.at(0)?.text()).toBe('提交')
   })
 
-  it('shows inline and viewport error feedback when submit returns a business error', async () => {
-    const notificationErrorSpy = vi.spyOn(ElNotification, 'error').mockImplementation(() => undefined as any)
-
+  it('shows compact inline error feedback when submit returns a business error', async () => {
     formGatewaySubmitMock.mockResolvedValueOnce({
       code: -1,
       data: null,
@@ -205,7 +202,6 @@ describe('FormView', () => {
       global: {
         plugins: [createPinia()],
         stubs: {
-          ElAlert: { template: '<div class="el-alert">{{ title }}</div>', props: ['title', 'type'] },
           ElForm: { template: '<form><slot /></form>' },
           ElFormItem: { template: '<div class="form-item"><slot /></div>' },
           ElButton: { template: '<button><slot /></button>' },
@@ -223,13 +219,7 @@ describe('FormView', () => {
     await wrapper.find('[data-testid="form-submit"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.find('.el-alert').text()).toContain('余额不足，请充值后重试')
-    expect(notificationErrorSpy).toHaveBeenCalledWith(expect.objectContaining({
-      title: '提交失败',
-      message: '余额不足，请充值后重试',
-      position: 'top-right'
-    }))
-
-    notificationErrorSpy.mockRestore()
+    expect(wrapper.find('.submit-feedback').text()).toContain('余额不足，请充值后重试')
+    expect(wrapper.find('.submit-feedback').text()).not.toContain('提交失败')
   })
 })

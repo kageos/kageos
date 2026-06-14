@@ -8,6 +8,7 @@ import (
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/sourcepolicy"
 )
 
 type addFunctionsCommand struct {
@@ -25,6 +26,9 @@ func runAddFunctionsCommand(ctx context.Context, cmd addFunctionsCommand, fullCo
 	}
 	if strings.TrimSpace(fullCodePath) == "" {
 		return "write_go_file 需要 directory（当前目录）", true
+	}
+	if err := sourcepolicy.ValidateAppGoSource(fileName, sourceCode); err != nil {
+		return "write_go_file 源码规范校验失败，本次未落盘：\n" + err.Error(), true
 	}
 
 	// 租户由 app-server 从 full_code_path 解析出的目录所属应用确定，不传 User

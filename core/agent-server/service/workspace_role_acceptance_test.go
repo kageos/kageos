@@ -164,7 +164,7 @@ func TestWorkspaceRoleAcceptancePRDConfirmHandoffCarriesDeveloperPacket(t *testi
 	}
 	keyInfo := strings.Join(packet.KeyInformation, "；")
 	for _, want := range []string{
-		"执行目录固定为：/system/x_world",
+		"主执行目录/绑定目录：/system/x_world",
 		"目标应用目录：/system/x_world/vote",
 		"实现重点",
 		"Table=投票主题、投票记录",

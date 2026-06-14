@@ -13,6 +13,7 @@ func TestExecutionRequestedEventWithAuditContext(t *testing.T) {
 		TaskID:          123,
 		ExecutionID:     456,
 		TraceID:         "trace-1",
+		Token:           "token-1",
 		RequestUser:     "alice",
 		RequestUserDept: "/org/dev",
 		Metadata: map[string]string{
@@ -39,6 +40,9 @@ func TestExecutionRequestedEventWithAuditContext(t *testing.T) {
 	if got := contextx.GetRequestUser(ctx); got != "alice" {
 		t.Fatalf("request user = %q, want alice", got)
 	}
+	if got := contextx.GetToken(ctx); got != "token-1" {
+		t.Fatalf("token = %q, want token-1", got)
+	}
 	if got := contextx.GetRequestDepartmentFullPath(ctx); got != "/org/dev" {
 		t.Fatalf("request dept = %q, want /org/dev", got)
 	}
@@ -58,6 +62,7 @@ func TestExecutionRequestedEventApplyAuditHeaders(t *testing.T) {
 		TaskID:      123,
 		ExecutionID: 456,
 		TraceID:     "trace-1",
+		Token:       "token-1",
 		RequestUser: "alice",
 		Metadata: map[string]string{
 			MetadataCompanyCode: "acme",
@@ -81,6 +86,9 @@ func TestExecutionRequestedEventApplyAuditHeaders(t *testing.T) {
 	}
 	if got := header.Get(contextx.RequestUserHeader); got != "alice" {
 		t.Fatalf("request user header = %q, want alice", got)
+	}
+	if got := header.Get(contextx.TokenHeader); got != "token-1" {
+		t.Fatalf("token header = %q, want token-1", got)
 	}
 	if got := header.Get(contextx.CompanyCodeHeader); got != "acme" {
 		t.Fatalf("company code header = %q, want acme", got)

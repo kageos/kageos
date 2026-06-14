@@ -204,40 +204,31 @@ func (s *AppManageService) waitForUpdatedVersionStartup(
 	startupTimeout := s.appStartupNotificationTimeout()
 	logger.Infof(ctx, "[UpdateApp] Waiting for startup notification for %s/%s/%s (first handshake, timeout: %s)", user, app, newVersion, startupTimeout)
 
-	select {
-	case notification := <-waiterChan:
-		if notification.Status != "" && notification.Status != "running" {
-			if notification.Error != "" {
-				return fmt.Errorf("app startup failed: %s", notification.Error)
-			}
-			return fmt.Errorf("app startup failed with status: %s", notification.Status)
-		}
-		logStr.WriteString(fmt.Sprintf("Startup confirmed at %s\t", notification.StartTime.Format(time.DateTime)))
-		logger.Infof(ctx, "[UpdateApp] ✅ Startup confirmed: %s/%s/%s (first handshake completed)", user, app, newVersion)
-		if err := s.updateAppStatusToActive(ctx, user, app); err != nil {
-			logger.Warnf(ctx, "[UpdateApp] Failed to update app status to active: %v", err)
-		} else {
-			logger.Infof(ctx, "[UpdateApp] App status updated to active: %s/%s", user, app)
-		}
-		return nil
-	case <-time.After(startupTimeout):
-		running, err := s.runtimeDriver.IsAppVersionRunning(ctx, AppVersionRef{User: user, App: app, Version: newVersion})
-		if err != nil {
-			logger.Warnf(ctx, "[UpdateApp] Failed to check runtime after startup timeout: %v", err)
-		}
-		if running {
-			logStr.WriteString("Startup notification missed but runtime is running\t")
-			logger.Infof(ctx, "[UpdateApp] Runtime %s/%s/%s is running after missed startup notification; treating as started", user, app, newVersion)
-			if err := s.updateAppStatusToActive(ctx, user, app); err != nil {
-				logger.Warnf(ctx, "[UpdateApp] Failed to update app status to active: %v", err)
-			} else {
-				logger.Infof(ctx, "[UpdateApp] App status updated to active: %s/%s", user, app)
-			}
-			return nil
-		}
-		logStr.WriteString("Startup timeout\t")
-		return fmt.Errorf("timeout waiting for app startup notification: %s/%s/%s", user, app, newVersion)
+	notification, err := s.waitForStartupNotificationOrRuntimeExit(
+		ctx,
+		AppVersionRef{User: user, App: app, Version: newVersion},
+		waiterChan,
+		startupTimeout,
+	)
+	if err != nil {
+		logStr.WriteString(fmt.Sprintf("Startup wait failed: %v\t", err))
+		return err
 	}
+
+	if notification.Status != "" && notification.Status != "running" {
+		if notification.Error != "" {
+			return fmt.Errorf("app startup failed: %s", notification.Error)
+		}
+		return fmt.Errorf("app startup failed with status: %s", notification.Status)
+	}
+	logStr.WriteString(fmt.Sprintf("Startup confirmed at %s\t", notification.StartTime.Format(time.DateTime)))
+	logger.Infof(ctx, "[UpdateApp] ✅ Startup confirmed: %s/%s/%s (first handshake completed)", user, app, newVersion)
+	if err := s.updateAppStatusToActive(ctx, user, app); err != nil {
+		logger.Warnf(ctx, "[UpdateApp] Failed to update app status to active: %v", err)
+	} else {
+		logger.Infof(ctx, "[UpdateApp] App status updated to active: %s/%s", user, app)
+	}
+	return nil
 }
 
 func (s *AppManageService) stopPreviousVersionAfterUpdate(

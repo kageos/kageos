@@ -13,7 +13,7 @@ type workspaceRoleHandoffPacket struct {
 	SourceRole         string                        `json:"source_role,omitempty" schema_desc:"来源角色 ID"`
 	TargetRole         string                        `json:"target_role" schema_desc:"目标角色 ID" schema_required:"true"`
 	ArtifactKind       string                        `json:"artifact_kind,omitempty" schema_desc:"阶段产物类型"`
-	ExecuteDirectory   string                        `json:"execute_directory" schema_desc:"目标角色唯一执行目录" schema_required:"true"`
+	ExecuteDirectory   string                        `json:"execute_directory" schema_desc:"目标角色主执行目录/绑定目录" schema_required:"true"`
 	WorkspaceDirectory string                        `json:"workspace_directory,omitempty" schema_desc:"工作空间根目录"`
 	TargetAppDirectory string                        `json:"target_app_directory,omitempty" schema_desc:"目标应用目录"`
 	TaskContext        []string                      `json:"task_context" schema_desc:"上一阶段和用户需求摘要" schema_required:"true"`
@@ -140,7 +140,7 @@ func workspaceRolePacketTaskContextFromContext(ctx workspaceHandoffContext) []st
 func workspaceRolePacketKeyInformationFromContext(ctx workspaceHandoffContext) []string {
 	out := []string{}
 	if ctx.ExecuteDirectory != "" {
-		out = appendUniqueRoleHandoffStrings(out, "执行目录固定为："+ctx.ExecuteDirectory)
+		out = appendUniqueRoleHandoffStrings(out, "主执行目录/绑定目录："+ctx.ExecuteDirectory)
 	}
 	if ctx.WorkspaceDirectory != "" {
 		out = appendUniqueRoleHandoffStrings(out, "工作空间根目录："+ctx.WorkspaceDirectory)

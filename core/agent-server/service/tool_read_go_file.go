@@ -37,7 +37,7 @@ type readGoFileResultFile struct {
 
 var readGoFileToolDef = toolDefinitionWithOutput[readGoFileArgs, structuredToolResultSchema[readGoFileResultData]](
 	"read_go_file",
-	"读取工作区内指定目录下的 Go 代码文件内容。参数：directory（可选，不传则当前工作目录）、file_name（可选，单文件如 a.go，或多文件逗号分隔如 a.go,b.go；不传则返回该目录下所有代码文件）。",
+	"读取工作区真实应用目录下的 Go 代码文件内容。参数：directory（可选，不传则当前工作目录）、file_name（可选，单文件如 a.go，或多文件逗号分隔如 a.go,b.go；不传则返回该目录下所有代码文件）。/system/prompt 下的 SDK 和案例是文档路径，完整阅读用 read_doc，不要用本工具。",
 )
 
 func (t *ReadGoFileTool) Definition() dto.ToolDef {

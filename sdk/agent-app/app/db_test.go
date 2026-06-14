@@ -1,7 +1,9 @@
 package app
 
 import (
+	"database/sql"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -29,5 +31,19 @@ func TestDBLogFilePath(t *testing.T) {
 	want := filepath.Join("/tmp", "agent", "orders.log")
 	if got != want {
 		t.Fatalf("want %s, got %s", want, got)
+	}
+}
+
+func TestSQLite3DatabaseSQLDriverIsRegisteredByDefault(t *testing.T) {
+	if !slices.Contains(sql.Drivers(), "sqlite3") {
+		t.Fatal("sqlite3 driver should be registered by the SDK for uploaded SQLite files")
+	}
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("open sqlite3: %v", err)
+	}
+	defer db.Close()
+	if err := db.Ping(); err != nil {
+		t.Fatalf("ping sqlite3: %v", err)
 	}
 }

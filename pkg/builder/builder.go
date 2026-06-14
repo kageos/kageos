@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/sourcepolicy"
 )
 
 // Builder 应用构建器
@@ -67,6 +68,10 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 	opts.User = user
 	opts.App = app
 	opts.Version = version
+
+	if err := sourcepolicy.ValidateAppGoSourceDir(opts.SourceDir); err != nil {
+		return nil, err
+	}
 
 	// opts.OutputDir 和 opts.SourceDir 都是绝对路径
 	// 确保输出目录存在（必须在编译前创建，否则 go build 可能创建错误的目录）

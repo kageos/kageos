@@ -14,7 +14,7 @@ type ChangeRoleTool struct{}
 type changeRoleArgs struct {
 	CurrentRole      string   `json:"current_role" schema_desc:"当前身份 ID；没有则留空"`
 	TargetRole       string   `json:"target_role" schema_desc:"目标身份 ID，例如 product_manager/app_developer/app_operator/automation_operator/qa_engineer；沿用身份时也明确传当前身份" schema_required:"true"`
-	ExecuteDirectory string   `json:"execute_directory" schema_desc:"下一身份所有读取、构建、测试、运行都必须限定的工作台目录完整路径；新建应用开发阶段传已存在父目录，例如 /user/app，目标新目录放入 key_information；测试/维护/操作阶段传目标应用目录；不能写“当前目录”" schema_required:"true"`
+	ExecuteDirectory string   `json:"execute_directory" schema_desc:"下一身份的主执行目录/绑定目录完整路径；新建应用开发阶段传已存在父目录，例如 /user/app，目标新目录放入 key_information；测试/维护/操作阶段传目标应用目录；不能写“当前目录”。默认围绕该目录读取、构建、测试、运行；若用户或 SOP 明确给出外部目录、其他空间函数或连接器函数完整路径，可以按完整路径搜索或调用，权限由平台统一判断" schema_required:"true"`
 	TaskContext      []string `json:"task_context" schema_desc:"交接上下文：上一阶段做了什么、用户原始目标/需求、必须满足的要求、特殊 case 或未决问题；3-6 条短句"`
 	KeyInformation   []string `json:"key_information" schema_desc:"下一身份必须知道的关键信息：PRD 摘要、构建版本、函数/表单/表格/图表路径、测试重点、失败现象等"`
 	References       []string `json:"references" schema_desc:"参考资料：PRD/构建产物、示例案例、系统文档、SDK 文档、源码文件、日志或外部 URL；只放真正要看的资料"`
@@ -35,7 +35,7 @@ type changeRoleData struct {
 	CurrentRole      string                          `json:"current_role" schema_desc:"当前身份" schema_required:"true"`
 	Switched         bool                            `json:"switched" schema_desc:"是否发生身份切换" schema_required:"true"`
 	Reason           string                          `json:"reason" schema_desc:"选择或切换原因" schema_required:"true"`
-	ExecuteDirectory string                          `json:"execute_directory" schema_desc:"下一身份执行目录" schema_required:"true"`
+	ExecuteDirectory string                          `json:"execute_directory" schema_desc:"下一身份主执行目录/绑定目录" schema_required:"true"`
 	Directory        string                          `json:"directory,omitempty" schema_desc:"工作目录"`
 	Handoff          roleHandoffData                 `json:"handoff" schema_desc:"标准四块角色交接信息" schema_required:"true"`
 	HandoffPacket    workspaceRoleHandoffPacket      `json:"handoff_packet" schema_desc:"标准角色交接协议包；优先使用该字段，旧 handoff 仅作兼容" schema_required:"true"`
@@ -62,7 +62,7 @@ type changeRoleDoc struct {
 }
 
 type roleHandoffData struct {
-	ExecuteDirectory string   `json:"execute_directory" schema_desc:"执行目录" schema_required:"true"`
+	ExecuteDirectory string   `json:"execute_directory" schema_desc:"主执行目录/绑定目录" schema_required:"true"`
 	TaskContext      []string `json:"task_context" schema_desc:"上一阶段和用户需求摘要" schema_required:"true"`
 	KeyInformation   []string `json:"key_information,omitempty" schema_desc:"关键信息"`
 	References       []string `json:"references,omitempty" schema_desc:"参考资料"`
@@ -70,7 +70,7 @@ type roleHandoffData struct {
 
 var changeRoleToolDef = toolDefinitionWithOutput[changeRoleArgs, structuredToolResultSchema[changeRoleData]](
 	"change_role",
-	"根据用户最新需求选择或切换工作台身份，并返回该身份需要的文档包正文。每轮开始执行前必须先用它明确当前身份。必须使用四块标准交接：execute_directory、task_context、key_information、references；下一身份只能在 execute_directory 指定目录内读取、构建、测试或运行。",
+	"根据用户最新需求选择或切换工作台身份，并返回该身份需要的文档包正文。会话没有明确角色、当前角色不匹配、角色文档缺失，或准备执行有副作用工具但角色不明确时必须调用；当前角色仍匹配且文档已加载时可沿用。必须使用四块标准交接：execute_directory、task_context、key_information、references；execute_directory 是主执行目录/绑定目录，默认围绕该目录行动，但已明确的外部目录、其他空间函数或连接器函数可按完整路径搜索或调用，权限由平台统一判断。",
 )
 
 func (t *ChangeRoleTool) Definition() dto.ToolDef {
@@ -92,7 +92,7 @@ func (t *ChangeRoleTool) Execute(ctx context.Context, call ToolCall) ToolResult 
 		args.ExecuteDirectory = scheduledAgentWorkspaceRootFromContext(ctx)
 	}
 	if strings.TrimSpace(args.ExecuteDirectory) == "" {
-		return toolResult("change_role 必须显式传 execute_directory，且必须是下一角色唯一允许读取、构建、测试、运行的工作台完整路径；不能省略、不能写“当前目录”。", true)
+		return toolResult("change_role 必须显式传 execute_directory，且必须是下一角色的主执行目录/绑定目录完整路径；不能省略、不能写“当前目录”。", true)
 	}
 	data := buildChangeRole(ctx, args, call.FullCodePath)
 	if workspaceRoleHandoffPacketHasValidationErrors(&data.HandoffPacket) {
@@ -472,7 +472,7 @@ func buildRoleContextPolicy(switched bool, reset bool, summary string, reference
 	referenceText := buildRoleReferenceText(referenceDocs, referenceFiles)
 	directoryText := ""
 	if handoff.ExecuteDirectory != "" {
-		directoryText = "执行目录固定为 " + handoff.ExecuteDirectory + "；所有读取、构建、测试、运行都必须限定在该目录或该目录下函数。"
+		directoryText = "主执行目录/绑定目录为 " + handoff.ExecuteDirectory + "；默认围绕该目录或该目录下函数读取、构建、测试、运行。若用户或 SOP 明确给出外部目录、其他空间函数或连接器函数完整路径，可按完整路径搜索或调用，权限由平台统一判断。"
 	}
 	if reset {
 		if summary == "" {

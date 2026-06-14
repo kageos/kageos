@@ -1114,24 +1114,22 @@ func (s *AppManageService) StartAppVersion(ctx context.Context, user, app, versi
 	startupTimeout := s.appStartupNotificationTimeout()
 	logger.Infof(ctx, "[StartAppVersion] Waiting for startup notification from version %s (timeout: %s)...", version, startupTimeout)
 
-	select {
-	case notification := <-waiterChan:
-		logger.Infof(ctx, "[StartAppVersion] Received startup notification: %s/%s/%s, status=%s",
-			notification.User, notification.App, notification.Version, notification.Status)
-
-		if notification.Status == "running" {
-			logger.Infof(ctx, "[StartAppVersion] Version %s started successfully", version)
-			return nil
-		}
-		if notification.Error != "" {
-			return fmt.Errorf("app startup failed: %s", notification.Error)
-		}
-		return fmt.Errorf("app started but status is not running: %s", notification.Status)
-
-	case <-time.After(startupTimeout):
-		logger.Warnf(ctx, "[StartAppVersion] Timeout waiting for startup notification from version %s after %s", version, startupTimeout)
-		return fmt.Errorf("timeout waiting for app startup notification")
+	notification, err := s.waitForStartupNotificationOrRuntimeExit(ctx, ref, waiterChan, startupTimeout)
+	if err != nil {
+		logger.Warnf(ctx, "[StartAppVersion] Failed waiting for startup notification from version %s after %s: %v", version, startupTimeout, err)
+		return err
 	}
+	logger.Infof(ctx, "[StartAppVersion] Received startup notification: %s/%s/%s, status=%s",
+		notification.User, notification.App, notification.Version, notification.Status)
+
+	if notification.Status == "running" {
+		logger.Infof(ctx, "[StartAppVersion] Version %s started successfully", version)
+		return nil
+	}
+	if notification.Error != "" {
+		return fmt.Errorf("app startup failed: %s", notification.Error)
+	}
+	return fmt.Errorf("app started but status is not running: %s", notification.Status)
 }
 
 func (s *AppManageService) appStartupNotificationTimeout() time.Duration {

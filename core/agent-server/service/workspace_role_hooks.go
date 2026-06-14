@@ -386,7 +386,7 @@ func workspaceQAVerificationPlanHandoffLines(input workspaceRoleHookInput) []str
 		return []string{"测试范围：execute_directory 为空；重新调用 change_role 固定目标应用目录后再查询 schema 或运行测试。"}
 	}
 	lines := []string{
-		fmt.Sprintf("测试范围：execute_directory=%s；当前应用 search/run_* 调用必须围绕该目录或其子函数；需要目录内函数 schema 时调用 search(full_code_path=execute_directory, resource_type=function, schema_output=both)。", executeDirectory),
+		fmt.Sprintf("测试范围：execute_directory=%s；当前应用 search/run_* 调用默认围绕该目录或其子函数；需要目录内函数 schema 时调用 search(full_code_path=execute_directory, resource_type=function, schema_output=both)。", executeDirectory),
 	}
 	functionPaths := workspaceFunctionPaths(workspaceScopedPathsFromHandoff(input, executeDirectory))
 	if len(functionPaths) > 0 {
@@ -403,14 +403,14 @@ func workspaceMaintenanceScopeHookNote(input workspaceRoleHookInput) string {
 	if normalizeWorkspacePath(input.ExecuteDirectory) == "" {
 		return "execute_directory 为空，已要求重新固定维护目录。"
 	}
-	return "已收敛维护范围，后续读取、修改和构建必须限定在 execute_directory。"
+	return "已收敛维护范围，后续源码修改和构建必须限定在 execute_directory；读取参考资料可按明确完整路径进行。"
 }
 
 func workspaceQABeforeEnterSchemaHookNote(input workspaceRoleHookInput) string {
 	if normalizeWorkspacePath(input.ExecuteDirectory) == "" {
 		return "execute_directory 为空，已要求重新固定测试目录。"
 	}
-	return "已生成测试范围和 schema 查询计划，后续运行工具必须限定在 execute_directory。"
+	return "已生成测试范围和 schema 查询计划，后续运行工具默认围绕 execute_directory；交接中明确列出的外部函数可按完整路径调用。"
 }
 
 func workspaceScopedPathsFromHandoff(input workspaceRoleHookInput, executeDirectory string) []string {
@@ -687,7 +687,7 @@ func workspaceAppCapabilityHandoffLines(snapshot *workspaceAppCapabilitySnapshot
 	switch snapshot.Status {
 	case "ok":
 		lines = append(lines, fmt.Sprintf(
-			"当前应用能力快照：%s 下共 %d 个函数（Table %d / Form %d / Chart %d），已展示 %d 个；业务操作必须限定在这些函数或子目录函数内。",
+			"当前应用能力快照：%s 下共 %d 个函数（Table %d / Form %d / Chart %d），已展示 %d 个；业务操作默认优先使用这些函数或子目录函数，若用户或 SOP 明确给出外部函数完整路径，可按完整路径调用并由平台权限判断。",
 			firstNonEmptyString(snapshot.ExecuteDirectory, "未指定目录"),
 			snapshot.TotalFunctions,
 			snapshot.Counts.Tables,

@@ -133,3 +133,63 @@ func (s *AppManageService) waitForStartup(ctx context.Context, user, app, versio
 		return nil, ctx.Err()
 	}
 }
+
+func (s *AppManageService) waitForStartupNotificationOrRuntimeExit(
+	ctx context.Context,
+	ref AppVersionRef,
+	waiterChan <-chan *StartupNotification,
+	timeout time.Duration,
+) (*StartupNotification, error) {
+	if s.runtimeDriver == nil {
+		return nil, fmt.Errorf("app runtime driver not available")
+	}
+	if timeout <= 0 {
+		timeout = s.appStartupNotificationTimeout()
+	}
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	ticker := time.NewTicker(startupRuntimePollInterval(timeout))
+	defer ticker.Stop()
+
+	for {
+		select {
+		case notification, ok := <-waiterChan:
+			if !ok || notification == nil {
+				return nil, fmt.Errorf("startup waiter closed before notification: %s/%s/%s", ref.User, ref.App, ref.Version)
+			}
+			return notification, nil
+		case <-ticker.C:
+			running, err := s.runtimeDriver.IsAppVersionRunning(ctx, ref)
+			if err != nil {
+				continue
+			}
+			if !running {
+				return nil, fmt.Errorf("app runtime exited before startup notification: %s/%s/%s", ref.User, ref.App, ref.Version)
+			}
+		case <-timer.C:
+			running, err := s.runtimeDriver.IsAppVersionRunning(ctx, ref)
+			if err != nil {
+				return nil, fmt.Errorf("timeout waiting for app startup notification: %s/%s/%s (failed to check runtime status: %w)", ref.User, ref.App, ref.Version, err)
+			}
+			if !running {
+				return nil, fmt.Errorf("app runtime exited before startup notification: %s/%s/%s", ref.User, ref.App, ref.Version)
+			}
+			return nil, fmt.Errorf("timeout waiting for app startup notification: %s/%s/%s (runtime still running)", ref.User, ref.App, ref.Version)
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
+func startupRuntimePollInterval(timeout time.Duration) time.Duration {
+	switch {
+	case timeout <= 100*time.Millisecond:
+		return 10 * time.Millisecond
+	case timeout <= time.Second:
+		return 50 * time.Millisecond
+	default:
+		return time.Second
+	}
+}

@@ -42,7 +42,6 @@ func TestBuildFormScheduleTaskRequestSupportsCron(t *testing.T) {
 		Code:     "meeting_reminder_soon",
 		Title:    "会议即将开始提醒",
 		CronExpr: "*/2 * * * *",
-		Timezone: "Asia/Shanghai",
 		MaxRuns:  3,
 		Body:     json.RawMessage(`{"lead_minutes":5}`),
 	})
@@ -52,7 +51,7 @@ func TestBuildFormScheduleTaskRequestSupportsCron(t *testing.T) {
 	if req.ExecutorKey != ScheduledFunctionExecutorKey || req.Schedule.Type != scheduledsdk.ScheduleCron {
 		t.Fatalf("unexpected scheduled request: %#v", req)
 	}
-	if req.Schedule.CronExpr != "*/2 * * * *" || req.Schedule.Timezone != "Asia/Shanghai" || req.Schedule.MaxRuns != 3 {
+	if req.Schedule.CronExpr != "*/2 * * * *" || req.Schedule.Timezone != "" || req.Schedule.MaxRuns != 3 {
 		t.Fatalf("unexpected cron schedule: %#v", req.Schedule)
 	}
 	if req.IdempotencyKey == "" || req.SourceRef != "/system/demo/meeting/meeting_room_notify_soon.form" {
@@ -77,13 +76,27 @@ func TestBuildFormScheduleTaskRequestSupportsCron(t *testing.T) {
 }
 
 func TestScheduledSDKScheduleFromFormScheduleRejectsAmbiguousInput(t *testing.T) {
-	_, err := scheduledSDKScheduleFromFormSchedule(dto.FormScheduleConfig{
+	_, err := scheduledSDKScheduleFromFormSchedule(context.Background(), "/system/demo/test.form", "bad", dto.FormScheduleConfig{
 		Code:         "bad",
 		CronExpr:     "*/2 * * * *",
 		EverySeconds: 120,
 	})
 	if err == nil {
 		t.Fatal("expected ambiguous schedule error")
+	}
+}
+
+func TestScheduledSDKScheduleFromFormScheduleFallsBackForInvalidTimezone(t *testing.T) {
+	schedule, err := scheduledSDKScheduleFromFormSchedule(context.Background(), "/system/demo/test.form", "bad_timezone", dto.FormScheduleConfig{
+		Code:     "bad_timezone",
+		CronExpr: "*/2 * * * *",
+		Timezone: "Mars/Phobos",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if schedule.Timezone != "" {
+		t.Fatalf("invalid timezone should fall back to runtime local timezone, got %#v", schedule)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/gofmt"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/sourcepolicy"
 )
 
 // WorkspaceFileService 管理工作区源码文件读写，不承载编译、发布等生命周期语义。
@@ -70,6 +71,10 @@ func (s *WorkspaceFileService) writeSourceFiles(
 		if err != nil {
 			s.rollbackWriteState(ctx, state)
 			return nil, fmt.Errorf("非法源码写入目标 (%s/%s): %w", file.DirectoryPath, file.FileName, err)
+		}
+		if err := sourcepolicy.ValidateAppGoSource(targetFilePath, file.SourceCode); err != nil {
+			s.rollbackWriteState(ctx, state)
+			return nil, fmt.Errorf("源码规范校验失败 (%s): %w", targetFilePath, err)
 		}
 		if err := s.ensureDirectoryTreeWithRollback(appPaths.APIDir(), packageDir, state); err != nil {
 			s.rollbackWriteState(ctx, state)
@@ -210,6 +215,9 @@ func (s *WorkspaceFileService) ReplaceInFileBatch(
 	if current == string(content) {
 		logger.Infof(ctx, "[WorkspaceFileService] 未发生替换: %s", filePath)
 		return 0, current, nil, nil
+	}
+	if err := sourcepolicy.ValidateAppGoSource(filePath, current); err != nil {
+		return 0, "", nil, fmt.Errorf("源码规范校验失败 (%s): %w", filePath, err)
 	}
 	if err := writeFileAtomic(filePath, []byte(current), 0644); err != nil {
 		return 0, "", nil, err

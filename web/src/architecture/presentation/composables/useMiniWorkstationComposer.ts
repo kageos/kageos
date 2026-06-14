@@ -13,10 +13,16 @@ export interface UseMiniWorkstationComposerOptions {
   attachedFiles: Ref<WorkspaceChatMessageFile[]>
   sending: Ref<boolean>
   sendMessage: (content: string, streamFn: (onEvent: WorkspaceChatStreamOnEvent) => Promise<void>, files?: ChatMessageFile[]) => Promise<void>
-  beforeSend?: (payload: { text: string; files: WorkspaceChatMessageFile[] | null }) => boolean | Promise<boolean>
+  beforeSend?: (payload: { text: string; files: WorkspaceChatMessageFile[] | null }) => BeforeSendDecision | Promise<BeforeSendDecision>
   onTaskStarted?: (sessionId: string) => void
   onToolCallOk?: (payload: { name: string }) => void
   onMaximizedSessionStarted?: (sessionId: string) => void
+}
+
+type BeforeSendDecision = boolean | {
+  cancel?: boolean
+  preserveDraft?: boolean
+  interactionAction?: string
 }
 
 interface SendWorkspaceMessageOptions {
@@ -162,15 +168,34 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
       ElMessage.success('已加入发送队列')
       return
     }
-    if (beforeSend && await beforeSend({ text, files })) {
-      inputText.value = ''
-      attachedFiles.value = []
+    const beforeSendDecision = beforeSend ? await beforeSend({ text, files }) : false
+    if (shouldCancelSend(beforeSendDecision)) {
+      if (!shouldPreserveDraft(beforeSendDecision)) {
+        inputText.value = ''
+        attachedFiles.value = []
+      }
       return
     }
+    const interactionAction = getBeforeSendInteractionAction(beforeSendDecision)
 
     inputText.value = ''
     attachedFiles.value = []
-    await sendWorkspaceMessage(text, files)
+    await sendWorkspaceMessage(text, files, { interactionAction })
+  }
+
+  function shouldCancelSend(decision: BeforeSendDecision): boolean {
+    if (decision === true) return true
+    if (!decision || typeof decision !== 'object') return false
+    return !!decision.cancel
+  }
+
+  function shouldPreserveDraft(decision: BeforeSendDecision): boolean {
+    return !!decision && typeof decision === 'object' && !!decision.preserveDraft
+  }
+
+  function getBeforeSendInteractionAction(decision: BeforeSendDecision): string | undefined {
+    if (!decision || typeof decision !== 'object') return undefined
+    return decision.interactionAction
   }
 
   watch(sending, (isSending) => {

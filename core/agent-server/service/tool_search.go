@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 	"strings"
+	"unicode"
 
+	"github.com/kageos/kageos/core/agent-server/prompt"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
 	"github.com/kageos/kageos/pkg/functionschema"
@@ -16,7 +19,7 @@ import (
 type SearchTool struct{ registry *ToolRegistry }
 
 type searchArgs struct {
-	Keyword      string `json:"keyword" schema_desc:"搜索关键词。普通短语可以原样传；多个候选关键词只用竖线 | 分隔表示 OR，不要按空格拆词"`
+	Keyword      string `json:"keyword" schema_desc:"搜索关键词，自然写即可；多个候选关键词可用竖线 | 表示 OR。已知完整路径时优先传 full_code_path"`
 	FullCodePath string `json:"full_code_path" schema_desc:"已知完整路径时直接传这里，支持精确资源路径或目录前缀；例如 /system/demos/weixin/wechat_articles/search_articles.form"`
 	ResourceType string `json:"resource_type" schema_desc:"搜索类型：all=全部资源，function=可执行函数，directory=目录，docs=文档，tool=内置工具" schema_enum:"all,function,directory,docs,tool"`
 	TemplateType string `json:"template_type" schema_desc:"函数类型过滤，仅搜索可执行函数时使用" schema_enum:"form,table,chart"`
@@ -29,7 +32,7 @@ type searchArgs struct {
 
 var searchToolDef = toolDefinition[searchArgs](
 	"search",
-	"统一搜索工具：可以搜工作台目录、文档、可执行函数（Form/Table/Chart）和内置工具。默认搜索当前账号有权限看到的全局资源；权限由平台统一判断，不需要也不要传 scope、directory、user 或 app。已知路径时传 full_code_path，不要把完整路径塞进 keyword；full_code_path 支持精确函数/文档路径，也支持目录前缀。resource_type=function 时会返回函数 schema 摘要，可用 schema_output=both 查看原始 JSON；执行 run_form_submit/run_table_search/run_chart_query 等工具前先用 search 确认字段名、必填项、枚举、文件字段和能力。keyword 普通短语可以原样传；多个备选关键词只用竖线 | 分隔表示 OR，不要按空格拆词。",
+	"统一搜索工具：可以搜工作台目录、文档、可执行函数（Form/Table/Chart）和内置工具。默认搜索当前账号有权限看到的全局资源；权限由平台统一判断，不需要也不要传 scope、directory、user 或 app。已知路径时传 full_code_path，不要把完整路径塞进 keyword；full_code_path 支持精确函数/文档路径，也支持目录前缀。resource_type=function 时会返回函数 schema 摘要，可用 schema_output=both 查看原始 JSON；执行 run_form_submit/run_table_search/run_chart_query 等工具前先用 search 确认字段名、必填项、枚举、文件字段和能力。keyword 自然写即可；多个备选关键词可用竖线 | 表示 OR。/system/prompt 下的 SDK 和案例是文档路径，search 会返回内容命中行，完整阅读用 read_doc。",
 )
 
 func (t *SearchTool) Definition() dto.ToolDef {
@@ -88,6 +91,14 @@ type searchResultData struct {
 	MatchedTools []dto.ToolDef               `json:"matched_tools,omitempty"`
 	Functions    []*dto.FunctionSearchResult `json:"functions,omitempty"`
 	Items        []*dto.ResourceSearchResult `json:"items,omitempty"`
+	DocMatches   []searchDocMatch            `json:"doc_matches,omitempty"`
+}
+
+type searchDocMatch struct {
+	Name         string `json:"name,omitempty"`
+	FullCodePath string `json:"full_code_path,omitempty"`
+	Line         int    `json:"line,omitempty"`
+	Snippet      string `json:"snippet,omitempty"`
 }
 
 func normalizeSearchPageSize(args searchArgs) int {
@@ -171,6 +182,8 @@ func runSearchTool(ctx context.Context, registry *ToolRegistry, args searchArgs)
 		}
 	}
 
+	docMatches := searchPromptDocMatches(ctx, fullCodePath, keywordRaw, pageSize)
+
 	data := searchResultData{
 		Keyword:      displayKeyword,
 		FullCodePath: fullCodePath,
@@ -182,18 +195,128 @@ func runSearchTool(ctx context.Context, registry *ToolRegistry, args searchArgs)
 		MatchedTools: matchedTools,
 		Functions:    functions,
 		Items:        items,
+		DocMatches:   docMatches,
 	}
-	data.Total = int64(len(matchedTools) + len(functions) + len(items))
+	data.Total = int64(len(matchedTools) + len(functions) + len(items) + len(docMatches))
 
 	if data.Total == 0 {
-		message := "未匹配到资源。已知完整路径时传 full_code_path；需要找函数 schema 时用 resource_type=function；关键词短语不要按空格拆词，多个候选词用 | 分隔。"
+		message := "未匹配到资源。已知完整路径时传 full_code_path；需要找函数 schema 时用 resource_type=function；多个候选词可用 | 分隔。"
 		if displayKeyword == "" {
 			message = "未传 keyword 或 full_code_path，当前没有可展示的搜索结果。可以传关键词、完整路径，或 resource_type=tool 查看内置工具。"
+		} else if prompt.IsPromptDocPath(fullCodePath) {
+			docPath := fullCodePath
+			if resolvedPath, _, _ := resolvePromptDocSearchContent(ctx, fullCodePath); resolvedPath != "" {
+				docPath = resolvedPath
+			}
+			message = fmt.Sprintf("未在内置文档/案例 %s 中命中内容。需要完整查看该案例时直接调用 read_doc(directory=%q)；不要用 read_go_file/read_go_file_lines 读取 /system/prompt 案例路径。", docPath, docPath)
 		}
 		return toolResultWithData(formatSearchMeta(data)+"\n\n"+message, false, data)
 	}
 
 	return toolResultWithData(formatSearchOutput(data, requestOutput), false, data)
+}
+
+func searchPromptDocMatches(ctx context.Context, fullCodePath string, keyword string, limit int) []searchDocMatch {
+	docPath, name, content := resolvePromptDocSearchContent(ctx, fullCodePath)
+	if docPath == "" {
+		return nil
+	}
+	if limit <= 0 || limit > 20 {
+		limit = 20
+	}
+	matches := make([]searchDocMatch, 0, limit)
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if !searchTextMatchesQuery(line, keyword) {
+			continue
+		}
+		matches = append(matches, searchDocMatch{
+			Name:         firstNonEmptyString(name, docPath),
+			FullCodePath: docPath,
+			Line:         i + 1,
+			Snippet:      compactSearchSnippet(line, 240),
+		})
+		if len(matches) >= limit {
+			break
+		}
+	}
+	if len(matches) == 0 && strings.TrimSpace(keyword) == "" {
+		matches = append(matches, searchDocMatch{
+			Name:         firstNonEmptyString(name, docPath),
+			FullCodePath: docPath,
+			Line:         1,
+			Snippet:      "这是内置文档/案例路径；需要完整内容时调用 read_doc(directory=\"" + docPath + "\")。",
+		})
+	}
+	return matches
+}
+
+func resolvePromptDocSearchContent(ctx context.Context, fullCodePath string) (docPath string, name string, content string) {
+	docPath = prompt.NormalizePromptDocPath(fullCodePath)
+	if docPath == "" || !prompt.IsPromptDocPath(docPath) {
+		return "", "", ""
+	}
+	for {
+		name, content = prompt.GetPromptDocContent(ctx, docPath)
+		if strings.TrimSpace(content) != "" {
+			return docPath, name, content
+		}
+		if docPath == prompt.SystemPromptRootPath {
+			return "", "", ""
+		}
+		parent := path.Dir(docPath)
+		if parent == "." || parent == "/" || parent == docPath || !strings.HasPrefix(parent, prompt.SystemPromptRootPath) {
+			return "", "", ""
+		}
+		docPath = parent
+	}
+}
+
+func searchTextMatchesQuery(text string, query string) bool {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return false
+	}
+	lowerText := strings.ToLower(text)
+	for _, part := range splitSearchKeywords(query) {
+		lowerPart := strings.ToLower(strings.TrimSpace(part))
+		if lowerPart == "" {
+			continue
+		}
+		if strings.Contains(lowerText, lowerPart) {
+			return true
+		}
+		tokens := searchContentTokens(lowerPart)
+		if len(tokens) == 0 {
+			continue
+		}
+		allMatched := true
+		for _, token := range tokens {
+			if !strings.Contains(lowerText, token) {
+				allMatched = false
+				break
+			}
+		}
+		if allMatched {
+			return true
+		}
+	}
+	return false
+}
+
+func searchContentTokens(s string) []string {
+	return strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_')
+	})
+}
+
+func compactSearchSnippet(line string, limit int) string {
+	line = strings.TrimSpace(line)
+	if limit <= 0 || len([]rune(line)) <= limit {
+		return line
+	}
+	runes := []rune(line)
+	return string(runes[:limit]) + "..."
 }
 
 func shouldSearchBuiltinTools(resourceType string, keyword string) bool {
@@ -429,7 +552,8 @@ func formatSearchOutput(data searchResultData, requestOutput searchRequestOutput
 	buf.WriteString("\n")
 	buf.WriteString(fmt.Sprintf("- 匹配到 %d 个内置工具\n", len(data.MatchedTools)))
 	buf.WriteString(fmt.Sprintf("- 匹配到 %d 个可执行函数\n", len(data.Functions)))
-	buf.WriteString(fmt.Sprintf("- 匹配到 %d 个目录/文档资源\n\n", len(data.Items)))
+	buf.WriteString(fmt.Sprintf("- 匹配到 %d 个目录/文档资源\n", len(data.Items)))
+	buf.WriteString(fmt.Sprintf("- 匹配到 %d 条内置文档内容\n\n", len(data.DocMatches)))
 
 	if len(data.MatchedTools) > 0 {
 		buf.WriteString("【内置工具】\n")
@@ -456,6 +580,15 @@ func formatSearchOutput(data searchResultData, requestOutput searchRequestOutput
 		buf.WriteString("【目录/文档资源】\n")
 		for i, item := range data.Items {
 			buf.WriteString(formatSearchResourceSummary(i, item))
+		}
+		buf.WriteString("\n")
+	}
+
+	if len(data.DocMatches) > 0 {
+		buf.WriteString("【内置文档内容命中】\n")
+		buf.WriteString("完整查看：read_doc(directory=<full_code_path>)。/system/prompt 案例是文档案例，不要用 read_go_file/read_go_file_lines 读取。\n")
+		for i, item := range data.DocMatches {
+			buf.WriteString(formatSearchDocMatchSummary(i, item))
 		}
 	}
 
@@ -499,6 +632,23 @@ func formatSearchFunctionSchemaJSON(functions []*dto.FunctionSearchResult) strin
 				buf.WriteString("\n")
 			}
 		}
+	}
+	return buf.String()
+}
+
+func formatSearchDocMatchSummary(index int, item searchDocMatch) string {
+	var buf strings.Builder
+	buf.WriteString(fmt.Sprintf("%d. %s\n", index+1, firstNonEmptyString(item.Name, item.FullCodePath)))
+	buf.WriteString("   full_code_path: ")
+	buf.WriteString(item.FullCodePath)
+	buf.WriteString("\n")
+	if item.Line > 0 {
+		buf.WriteString(fmt.Sprintf("   line: %d\n", item.Line))
+	}
+	if item.Snippet != "" {
+		buf.WriteString("   snippet: ")
+		buf.WriteString(item.Snippet)
+		buf.WriteString("\n")
 	}
 	return buf.String()
 }
