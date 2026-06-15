@@ -1,7 +1,7 @@
 # Kageos - 前端架构文档
 
 > 状态：执行口径
-> 更新时间：2026-05-17
+> 更新时间：2026-06-15
 > 负责人窗口：事项 6 / codex/frontend-type-debt-next
 
 > **本文档是前端项目的核心指南，所有开发工作必须遵循本文档的架构设计和开发规范。**
@@ -37,29 +37,30 @@
 - ✅ **领域导向的工程组织**：主业务页面、流程编排、领域逻辑、基础设施分层清晰
 - ✅ **统一架构根**：前端源码统一收口在 `src/architecture/`，展示、领域、应用、基础设施与运行时底座各自归层
 - ✅ **事件驱动架构**：组件间通过事件总线解耦
+- ✅ **平台横切能力入口**：Service Tree、工作台会话、站内信、操作日志和定时任务在统一路由与面板中协作
 
 ### 1.3 当前状态说明
 
 - 前端源码入口已经统一收口到 `src/architecture/`
 - `src/architecture/presentation/` 承载页面、业务入口、共享展示组件、Widget 和样式资源
 - 领域规则、提取器、表达式、配置和无状态工具已经分别收口到 `domain`、`shared`、`infrastructure`、`presentation`
-- 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs 和 LLM 管理；操作日志、企业升级、能力包等少量入口由 `src/architecture/shared/config/features.ts` 统一控制
+- 默认启用产品聚焦模式，普通用户入口优先保留工作空间、服务树、工作台、Form/Table/Chart、Docs、站内信、操作日志、定时任务和 LLM 管理；能力包等少量入口由 `src/architecture/shared/config/features.ts` 统一控制
 - 因此前端当前真实状态是：**源码目录已经统一到 `architecture/`，不再保留顶层新旧混合入口**
 
 ### 1.4 产品聚焦模式
 
-前端通过 `src/architecture/shared/config/features.ts` 管理可见能力。`VITE_AOS_FOCUSED_MODE` 默认开启；组织、消息中心、平台调度和讨论区入口已从当前 MVP 中删除。
+前端通过 `src/architecture/shared/config/features.ts` 管理可见能力。`VITE_AOS_FOCUSED_MODE` 默认开启；组织、讨论区等入口仍隐藏，站内信、操作日志、定时任务和工作台会话属于当前主线能力。
 
 常用开关：
 
 | 环境变量 | 默认行为 |
 |---|---|
 | `VITE_AOS_FOCUSED_MODE` | 默认 `true`，测试环境默认 `false` |
-| `VITE_AOS_FEATURE_OPERATE_LOGS` | 未设置时仅完整模式开启 |
-| `VITE_AOS_FEATURE_ENTERPRISE_UPGRADE` | 未设置时仅完整模式开启 |
+| `VITE_AOS_FEATURE_OPERATE_LOGS` | 默认开启 |
 | `VITE_AOS_FEATURE_CAPABILITY_BUNDLE` | 默认开启 |
 | `VITE_AOS_FEATURE_DOCS` | 默认开启 |
 | `VITE_AOS_FEATURE_LLM_MANAGEMENT` | 默认开启 |
+| `VITE_AOS_FEATURE_SCHEDULED_TASKS` | 默认开启 |
 
 ---
 

@@ -9,7 +9,7 @@ Kageos 的生产部署由 `kagectl` 统一控制。Compose 仍是底层容器执
 - [QUICK_START.md](QUICK_START.md)
 - [DEPLOY_TUTORIAL.md](DEPLOY_TUTORIAL.md)
 
-**范围**：主站、中间件（MySQL / NATS / MinIO）、内置 Nginx、容器内 Podman 用户应用运行时。不包含企业 License、控制面、消息中心或备份控制面。
+**范围**：主站、中间件（MySQL / NATS / MinIO）、内置 Nginx、容器内 Podman 用户应用运行时、站内信消息服务和定时调度服务。不包含企业 License、外部通知渠道、旧控制面或备份控制面。
 
 ## 部署分层
 

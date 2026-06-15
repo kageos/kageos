@@ -10,7 +10,7 @@
 
 约束如下：
 
-- `target`：主题主要由谁消费或归谁负责，例如 `runtime`、`app`、`gateway`
+- `target`：主题主要由谁消费或归谁负责，例如 `runtime`、`app`、`gateway`、`timer`、`message`
 - `version`：当前固定为 `v1`
 - `kind`：固定使用 `cmd`、`query`、`event`、`reply`
 - 静态 token：统一使用小写 kebab-case
@@ -47,8 +47,17 @@
 ### timer
 
 - `timer.v1.cmd.execution.requested.{executor_key}`：执行请求，按 `executor_key` 分 subject。
+- `timer.v1.cmd.execution.started`：executor 回报执行已开始。
+- `timer.v1.cmd.execution.heartbeat`：executor 回报执行心跳。
+- `timer.v1.cmd.execution.finished`：executor 回报执行完成。
 - `timer.v1.event.execution.finished`：执行结束广播事件。
 - queue group：`timer.worker.{executor_key}`，由 `pkg/subjects.TimerWorkerQueueGroup` 统一生成。
+- control queue group：`timer.scheduler.execution-control`。
+
+### message
+
+- `message.v1.cmd.send`：提交消息发送命令，由 `message-server` 消费并写入站内信。
+- queue group：`message.v1.cmd.send`。
 
 ## 文档同步要求
 

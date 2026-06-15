@@ -104,7 +104,7 @@ podman compose --env-file .kageos/dev/env/kageos.env -f deploy/dev/compose/docke
 .kageos/dev/config/
 ```
 
-当前服务配置加载会读取 `.kageos/dev/config/*.yaml`。备份、消息和控制面服务已从 MVP 删除，本地开发不再需要它们的独立配置。
+当前服务配置加载会读取 `.kageos/dev/config/*.yaml`。`message-server` 和 `timer-scheduler` 已经是主线平台服务，本地开发配置里应保留对应 YAML；本地基础设施仍只需要 MySQL、NATS 和 MinIO。历史备份控制面和旧控制面服务不属于当前本地开发必需项。
 
 ### 2. 单独起后端
 

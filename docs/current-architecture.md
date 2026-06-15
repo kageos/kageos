@@ -483,6 +483,35 @@ sequenceDiagram
   SDK->>NATS: Publish close lifecycle event
 ```
 
+## 工作台会话链路
+
+工作台会话是 `agent-server` 的持久化能力，不只是一次临时 SSE 请求。前端发起 `/agent/api/v1/workspace/chat/stream` 后，`agent-server` 会保存 session、message、工具调用状态、pending interaction、运行中/已完成状态和阶段交接记录。普通用户对话、代码生成修复、定时会话执行，都会落在这套 session/message 模型上。
+
+```mermaid
+sequenceDiagram
+  participant Web as Workspace UI
+  participant Gateway as api-gateway
+  participant Agent as agent-server
+  participant DB as MySQL agent-server
+  participant Tools as ToolRegistry
+  participant AppServer as app-server
+  participant Timer as timer-scheduler
+
+  Web->>Gateway: POST /agent/api/v1/workspace/chat/stream
+  Gateway->>Agent: Proxy SSE request
+  Agent->>DB: Create or resume workspace session
+  Agent->>DB: Persist user message
+  Agent->>Tools: Run role routing and tool calls
+  Tools->>AppServer: Read tree write files build invoke functions
+  Agent->>DB: Persist assistant/tool messages and session state
+  Agent-->>Web: SSE message/tool/status events
+  Web->>Gateway: GET /agent/api/v1/workspace/messages
+  Gateway->>Agent: Query session messages
+  Agent->>DB: Load message history
+  Timer-->>Agent: agent.session execution request
+  Agent->>DB: Create unattended scheduled session
+```
+
 ## 定时任务链路
 
 定时能力是独立平台横切层。`timer-scheduler` 是唯一调度状态源，负责 `timer_task`、`timer_execution`、租约、超时恢复和 outbox。业务执行由 executor 所属服务完成：`agent-server` 消费 `agent.session`，`app-server` 消费 `app.function`。
@@ -532,6 +561,48 @@ flowchart LR
   bus -.->|"timer.v1.cmd.execution control"| timer
 ```
 
+## 消息和站内信链路
+
+消息能力由 `message-server` 统一承载。生成应用通过 SDK `ctx.SendMessage` 发布消息命令，Agent 通过 `send_notification` 工具发布通知命令，二者最终都进入 `message.v1.cmd.send`。`message-server` 消费后落库为站内信，并提供 inbox、thread、source counts、workspace counts 和 unread count 给前端抽屉和 Service Tree 使用。
+
+```mermaid
+flowchart LR
+  subgraph producers ["Message Producers"]
+    sdk["User App SDK ctx.SendMessage"]
+    agentTool["Agent send_notification"]
+    scheduledSession["Scheduled agent session"]
+  end
+
+  subgraph async ["Async Bus"]
+    subject["NATS message.v1.cmd.send"]
+  end
+
+  subgraph service ["message-server"]
+    consumer["Message command consumer"]
+    inboxApi["Inbox HTTP API"]
+  end
+
+  subgraph store ["Store"]
+    messageDb["MySQL message entries recipients read state"]
+  end
+
+  subgraph frontend ["Web"]
+    drawer["Workspace Inbox drawer"]
+    tree["Service Tree message badges"]
+    workspaceTabs["Workspace tabs with counts"]
+  end
+
+  sdk --> subject
+  agentTool --> subject
+  scheduledSession --> agentTool
+  subject --> consumer
+  consumer --> messageDb
+  drawer -->|"/message/api/v1/inbox/threads"| inboxApi
+  tree -->|"/message/api/v1/inbox/source_counts"| inboxApi
+  workspaceTabs -->|"/message/api/v1/inbox/workspace_counts"| inboxApi
+  inboxApi --> messageDb
+```
+
 ## 开发环境端口
 
 | 组件 | 端口 | 说明 |
@@ -555,11 +626,11 @@ flowchart LR
 | --- | --- |
 | `api-gateway` | HTTP 反向代理、Trace、鉴权头透传、token blacklist NATS 订阅、Swagger 聚合 |
 | `app-server` | 工作区 API、Service Tree、能力包安装导出、权限、操作日志、函数元数据、用户 App 调用编排 |
-| `agent-server` | 工作台会话、消息、LLM 配置、ToolRegistry、PRD/代码生成和定时会话 worker |
+| `agent-server` | 工作台会话、会话消息、LLM 配置、ToolRegistry、PRD/代码生成、通知工具和定时会话 worker |
 | `app-runtime` | App 创建/更新/删除、源码文件和版本元数据、容器生命周期、NATS runtime handler、App discovery |
 | `sdk/agent-app` | 生成 App 的运行时 SDK，注册 Form/Table/Chart/Callback 路由并通过 NATS 接收调用 |
 | `timer-scheduler` | 唯一调度状态源，业务 payload 不解析，只按 executor_key 投递 |
-| `message-server` | 站内信持久化和 `message.v1.cmd.send` 消费 |
+| `message-server` | 站内信持久化、线程、已读状态、source/workspace 统计和 `message.v1.cmd.send` 消费 |
 | `app-storage` | MinIO 预签名上传下载、文件元数据和公开分享文件解析 |
 | `connector-server` | OAuth provider、connection、directory binding 和外部 API proxy |
 
@@ -567,6 +638,7 @@ flowchart LR
 
 - `README.md`
 - `docs/product-thinking-ai-era-application-governance.md`
+- `docs/platform-capabilities.md`
 - `docs/scheduled-tasks-architecture-design.md`
 - `deploy/dev/README.md`
 - `deploy/prod/README.md`
