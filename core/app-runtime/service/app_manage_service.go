@@ -69,6 +69,7 @@ type AppManageService struct {
 	appRepo              *repository.AppRepository   // 应用数据访问层
 	appDiscoveryService  *AppDiscoveryService        // 应用发现服务，用于获取运行状态
 	appControlClient     *AppControlClient           // runtime -> app 控制调用
+	appDatabaseService   *AppDatabaseService         // runtime-managed app DB capability issuer
 	QPSTracker           *QPSTracker                 // QPS 跟踪器
 	workspaceFileService *WorkspaceFileService       // 工作区源码文件服务
 
@@ -140,6 +141,10 @@ func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageSe
 		cleanupDone:          make(chan struct{}),
 		containerCleanupDone: make(chan struct{}),
 	}
+}
+
+func (s *AppManageService) SetAppDatabaseService(appDatabaseService *AppDatabaseService) {
+	s.appDatabaseService = appDatabaseService
 }
 
 // CreateApp 创建应用目录结构
@@ -372,12 +377,20 @@ func (s *AppManageService) sendUpdateCallbackAndWait(ctx context.Context, user, 
 	}
 
 	// 构建更新回调请求
+	data := map[string]interface{}{"trigger": "update_callback"}
+	if s.appDatabaseService != nil && s.appDatabaseService.IsEnabled() {
+		capability, err := s.appDatabaseService.IssueCapability(user, app, version, "")
+		if err != nil {
+			return nil, fmt.Errorf("issue app database capability: %w", err)
+		}
+		data["db_capability"] = capability
+	}
 	request := subjects.Message{
 		Type:      subjects.MessageTypeStatusOnAppUpdate,
 		User:      user,
 		App:       app,
 		Version:   version,
-		Data:      map[string]interface{}{"trigger": "update_callback"},
+		Data:      data,
 		Timestamp: time.Now(),
 	}
 
@@ -533,10 +546,29 @@ func (s *AppManageService) buildAppVersionSpec(ctx context.Context, ref AppVersi
 		logger.Infof(ctx, "[buildAppVersionSpec] Injecting %s=%s into app runtime (SDK config)", key, value)
 	}
 
-	// 注入版本信息到环境变量（新架构：每个容器对应特定版本）
-	// 这样启动脚本可以通过环境变量读取版本，而不依赖可能被更新的文件
-	envVars = append(envVars, fmt.Sprintf("APP_VERSION=%s", ref.Version))
-	logger.Infof(ctx, "[buildAppVersionSpec] Injecting APP_VERSION=%s into app runtime", ref.Version)
+	binaryName := s.appBinaryName(ref.User, ref.App, ref.Version)
+	containerWorkDir := filepath.ToSlash(filepath.Join(containerPath, "workplace", "bin"))
+	containerBinDir := filepath.ToSlash(filepath.Join(containerPath, "workplace", "bin", "releases"))
+	runtimeID := s.runtimeInstanceID()
+
+	// 注入版本信息到环境变量（新架构：每个容器对应特定版本）。
+	// 启动脚本优先消费这些 env，metadata 文件仅做兼容兜底。
+	envVars = append(envVars,
+		fmt.Sprintf("KAGEOS_APP_USER=%s", ref.User),
+		fmt.Sprintf("KAGEOS_APP_NAME=%s", ref.App),
+		fmt.Sprintf("APP_VERSION=%s", ref.Version),
+		fmt.Sprintf("APP_BINARY_NAME=%s", binaryName),
+		fmt.Sprintf("KAGEOS_APP_WORK_DIR=%s", containerWorkDir),
+		fmt.Sprintf("KAGEOS_APP_BIN_DIR=%s", containerBinDir),
+	)
+	if runtimeID != "" {
+		envVars = append(envVars, fmt.Sprintf("KAGEOS_RUNTIME_INSTANCE_ID=%s", runtimeID))
+	}
+	logger.Infof(ctx, "[buildAppVersionSpec] Injecting app runtime env: user=%s, app=%s, version=%s, binary=%s, work_dir=%s, bin_dir=%s", ref.User, ref.App, ref.Version, binaryName, containerWorkDir, containerBinDir)
+	if s.appDatabaseService != nil && s.appDatabaseService.IsEnabled() {
+		envVars = append(envVars, "KAGEOS_APP_DB_DIALECT=mysql")
+		logger.Infof(ctx, "[buildAppVersionSpec] Injecting KAGEOS_APP_DB_DIALECT=mysql into app runtime")
+	}
 
 	return AppVersionSpec{
 		Ref:           ref,

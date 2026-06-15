@@ -32,6 +32,8 @@ export interface WorkspaceApplicationServiceOptions {
  * 工作空间应用服务
  */
 export class WorkspaceApplicationService {
+  private nodeClickSeq = 0
+
   constructor(
     private domainService: WorkspaceDomainService,
     private eventBus: IEventBus,
@@ -61,10 +63,15 @@ export class WorkspaceApplicationService {
    * - 点击函数节点：直接加载函数详情，不先切换目录（避免闪烁）
    */
   async handleNodeClick(node: ServiceTree): Promise<void> {
+    const nodeClickSeq = ++this.nodeClickSeq
+
     if (node.type === 'function') {
       // 函数节点：直接加载函数详情
       try {
-        const detail = await this.domainService.loadFunction(node)
+        await this.domainService.loadFunction(node)
+        if (nodeClickSeq !== this.nodeClickSeq) {
+          return
+        }
         
         // 加载完成后，一次性设置目录和函数，避免中间状态
         const functionDirectory = this.getFunctionDirectory(node)
@@ -76,6 +83,9 @@ export class WorkspaceApplicationService {
         // 然后设置函数（这会触发函数详情显示）
         this.domainService.setCurrentFunction(node)
       } catch {
+        if (nodeClickSeq !== this.nodeClickSeq) {
+          return
+        }
         // currentFunction 已经在 loadFunction 中设置了，这里保留函数上下文。
         const functionDirectory = this.getFunctionDirectory(node)
         if (functionDirectory) {

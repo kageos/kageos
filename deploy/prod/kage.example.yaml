@@ -57,6 +57,7 @@ minio:
 
 secrets:
   jwt_secret: "0123456789abcdef0123456789abcdef"
+  app_db_secret: "abcdef0123456789abcdef0123456789"
   generated_by_kagectl: false
   generated_at_unix_seconds: 0
 

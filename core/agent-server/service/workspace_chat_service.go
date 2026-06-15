@@ -214,8 +214,18 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	if req.SessionID != "" && strings.TrimSpace(req.ModeCode) == "" {
 		modeCode = normalizeWorkspaceModeCode(session.ModeCode)
 	}
-	if session.ArchivedForModel {
-		return s.handleError(sendEvent, "该会话已归档为展示历史，不再进入模型上下文；请刷新当前会话后继续。", nil)
+	if session.ArchivedForModel || session.ContextPolicy != ContextPolicyFull || session.ModelContextAnchorMessageID != 0 {
+		session.ArchivedForModel = false
+		session.ArchiveReason = ""
+		session.ContextPolicy = ContextPolicyFull
+		session.ModelContextAnchorMessageID = 0
+		if session.Status == model.ChatSessionStatusDone {
+			session.Status = model.ChatSessionStatusActive
+		}
+		session.UpdatedBy = user
+		if e := s.sessionRepo.Update(session); e != nil {
+			return s.handleError(sendEvent, "恢复完整会话上下文失败", e)
+		}
 	}
 	if session.Status == model.ChatSessionStatusGenerating {
 		return s.handleError(sendEvent, "该会话正在执行中，请等待当前任务完成，或先取消后再继续。", nil)

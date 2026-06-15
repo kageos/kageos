@@ -112,7 +112,7 @@
               :row-key="getLogRowKey"
               :row-class-name="getLogRowClassName"
               :expand-row-keys="expandedLogRowKeys"
-              @expand-change="handleLogExpandChangeWithRoute"
+              @expand-change="handleLogExpandChange"
             >
               <el-table-column type="expand" width="40">
                 <template #default="{ row }">
@@ -318,7 +318,7 @@
           :row-key="getLogRowKey"
           :row-class-name="getLogRowClassName"
           :expand-row-keys="expandedLogRowKeys"
-          @expand-change="handleLogExpandChangeWithRoute"
+          @expand-change="handleLogExpandChange"
         >
           <el-table-column type="expand" width="40">
             <template #default="{ row }">
@@ -754,13 +754,6 @@ function openPreviewDialog(log: any) {
   previewLog.value = log
   previewActiveTab.value = 'request'
   previewDialogVisible.value = true
-}
-
-function handleLogExpandChangeWithRoute(log: any, expandedRows: any[]) {
-  handleLogExpandChange(log, expandedRows)
-  if (expandedRows.some((item) => item.id === log.id)) {
-    syncOperateLogRoute(log)
-  }
 }
 
 function syncOperateLogRoute(log: any) {

@@ -94,6 +94,8 @@ services:
       NATS_SEED_USER: {{ q .NATSAuthUser }}
       NATS_SEED_PASSWORD: {{ q .NATSAuthPassword }}
       JWT_SECRET: {{ q .Secrets.JWTSecret }}
+      KAGEOS_APP_DB_SECRET_KEY: {{ q .Secrets.AppDBSecret }}
+      KAGEOS_APP_DB_CLUSTER_KEY: {{ q .AppDBClusterKey }}
       SYSTEM_USER_PASSWORD: {{ q .SystemUser.Password }}
       KAGEOS_COMPANY_CODE: {{ q .Company.Code }}
       KAGEOS_COMPANY_NAME: {{ q .Company.Name }}
@@ -149,6 +151,8 @@ MYSQL_MODE={{ .MySQL.Mode }}
 MYSQL_HOST={{ .MySQLHostForMain }}
 MYSQL_PORT={{ .MySQLPortForMain }}
 MYSQL_ROOT_PASSWORD={{ .MySQL.Password }}
+KAGEOS_APP_DB_SECRET_KEY={{ .Secrets.AppDBSecret }}
+KAGEOS_APP_DB_CLUSTER_KEY={{ .AppDBClusterKey }}
 NATS_MODE={{ .NATS.Mode }}
 NATS_HOST={{ .NATSHostForMain }}
 NATS_PORT={{ .NATSPortForMain }}
@@ -358,6 +362,23 @@ container:
   timeout: 30
   image:
     base_image: {{ q .Images.AppBase }}
+
+app_database:
+  enabled: true
+  dialect: "mysql"
+  host: {{ q .MySQLHostForMain }}
+  port: {{ .MySQLPortForMain }}
+  admin_user: {{ q .MySQL.User }}
+  admin_password: {{ q .MySQL.Password }}
+  grant_host: "%"
+  secret_key: {{ q .Secrets.AppDBSecret }}
+  cluster_key: {{ q .AppDBClusterKey }}
+  database_prefix: "kgo_"
+  user_prefix: "kgu_"
+  max_open_conns: 2
+  max_idle_conns: 0
+  max_idle_time: 30
+  max_lifetime: 600
 `
 
 const appServerConfigTemplate = `

@@ -19,7 +19,7 @@ type writeGoFileArgs struct {
 
 var writeGoFileToolDef = toolDefinition[writeGoFileArgs](
 	"write_go_file",
-	"在当前工作目录或指定 directory 下写入一个普通 .go 代码文件，不能写入 _test.go 文件；测试文件不会参与应用 API 注册。必填：file_name（如 attendance.go）、content（代码全文）。可选：directory（目标目录）。调用前要求：创建系统/新增 Form/Table/Chart 时，先由 product_manager 通过 write_prd 输出结构化 PRD 并得到用户确认；进入 app_developer 后按已确认 PRD 读取 1 到多个匹配案例，再生成结构体和函数代码。复杂图表、消息、事务、平台 API 等专项写法按当前角色 SOP 的明确 read_doc 路径读取。修改已有应用时，先读取目录和相关代码文件；search_replace_file 匹配失败后必须重新 read_go_file，再基于实际内容修改。注意：write_go_file 只落盘、不编译；写入成功后会自动附带文件级非阻断代码诊断。创建或修改复杂系统时，不要因单个文件的非阻断诊断中断后续文件写入；先写完整轮次涉及的全部代码文件，再批量修复诊断并统一调用 build_workspace。若本工具返回 error，本次文件未落盘，必须先修正参数或内容，不要声称文件已创建。",
+	"在当前工作目录或指定 directory 下写入一个普通 .go 代码文件，不能写入 _test.go 文件；测试文件不会参与应用 API 注册。必填：file_name（如 attendance.go）、content（代码全文）。可选：directory（目标目录）。调用前要求：创建系统/新增 Form/Table/Chart 时，先由 product_manager 通过 write_prd 输出结构化 PRD 并得到用户确认；进入 app_developer 后按已确认 PRD 读取 1 到多个匹配案例，再生成结构体和函数代码。复杂图表、消息、事务、平台 API 等专项写法按当前角色 SOP 的明确 read_doc 路径读取。修改已有应用时，先读取目录和相关代码文件；search_replace_file 匹配失败后必须重新 read_go_file，再基于实际内容修改。数据库安全：ctx.GetGormDB() 的 db 只能在当前目录业务代码内直接使用，禁止传给第三方库/外部 package/全局变量/struct 字段/return，禁止 Raw/Exec/Unscoped/Migrator/DB/AutoMigrate。注意：write_go_file 只落盘、不编译；写入成功后会自动附带文件级非阻断代码诊断。创建或修改复杂系统时，不要因单个文件的非阻断诊断中断后续文件写入；先写完整轮次涉及的全部代码文件，再批量修复诊断并统一调用 build_workspace。若本工具返回 error，本次文件未落盘，必须先修正参数或内容，不要声称文件已创建。",
 )
 
 func (t *WriteGoFileTool) Definition() dto.ToolDef {

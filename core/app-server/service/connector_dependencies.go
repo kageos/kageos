@@ -240,7 +240,9 @@ func requestFunctionFullCodePath(req *dto.RequestAppReq) string {
 	}
 	router := strings.TrimSpace(req.Router)
 	if strings.Trim(router, "/") == "_callback" {
-		if callbackRouter := callbackTargetRouter(req.Body); callbackRouter != "" {
+		if callbackRouter := strings.TrimSpace(req.TargetRouter); callbackRouter != "" {
+			router = callbackRouter
+		} else if callbackRouter := callbackTargetRouter(req.Body); callbackRouter != "" {
 			router = callbackRouter
 		}
 	}

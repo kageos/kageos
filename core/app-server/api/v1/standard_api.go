@@ -238,6 +238,7 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 		User:                  user,
 		App:                   app,
 		Router:                "/_callback",
+		TargetRouter:          router,
 		Method:                c.Request.Method,
 		TraceId:               contextx.GetTraceId(c),
 		RequestUser:           contextx.GetRequestUser(c),

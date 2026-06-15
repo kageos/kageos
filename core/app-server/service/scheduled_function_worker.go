@@ -507,6 +507,7 @@ func buildScheduledCallbackAppReq(ctx context.Context, fullCodePath, method, cal
 		return nil, err
 	}
 	req := buildScheduledBaseRequestAppReq(ctx, user, app, "/_callback", method)
+	req.TargetRouter = router
 	req.UrlQuery = rawQuery
 	envelope := scheduledCallbackRequestEnvelope{
 		Method: method,

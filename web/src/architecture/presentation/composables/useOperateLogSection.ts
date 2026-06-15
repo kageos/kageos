@@ -887,14 +887,16 @@ export function useOperateLogSection({
   }
 
   watch(
-    [fullCodePath, rowId, functionDetail, scope || ref<OperateLogScope>('row'), focusLogId || ref(''), focusTraceId || ref('')],
+    [fullCodePath, rowId, functionDetail, scope || ref<OperateLogScope>('row'), focusLogId || ref(''), focusTraceId || ref(''), autoLoad],
     (
-      [newFullCodePath, newRowId, newFunctionDetail, newScope, newFocusLogId, newFocusTraceId],
-      [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail, oldScope = 'row', oldFocusLogId = '', oldFocusTraceId = ''],
+      [newFullCodePath, newRowId, newFunctionDetail, newScope, newFocusLogId, newFocusTraceId, newAutoLoad],
+      [oldFullCodePath = '', oldRowId = 0, oldFunctionDetail, oldScope = 'row', oldFocusLogId = '', oldFocusTraceId = '', oldAutoLoad = false],
     ) => {
       const canLoad = Boolean(newFullCodePath) && (newScope !== 'row' || Boolean(newRowId))
       const focusChanged = newFocusLogId !== oldFocusLogId || newFocusTraceId !== oldFocusTraceId
       const paramsChanged = newFullCodePath !== oldFullCodePath || newRowId !== oldRowId || newScope !== oldScope || focusChanged
+      const autoLoadEnabled = Boolean(newAutoLoad)
+      const autoLoadChangedToTrue = autoLoadEnabled && !oldAutoLoad
 
       if (canLoad && paramsChanged) {
         hasLoaded.value = false
@@ -911,11 +913,11 @@ export function useOperateLogSection({
         functionDetailCache.value = null
       }
 
-      if (!autoLoad.value && !focusChanged) {
+      if (!autoLoadEnabled && !focusChanged) {
         return
       }
 
-      if (canLoad && paramsChanged) {
+      if (canLoad && (paramsChanged || (autoLoadChangedToTrue && !hasLoaded.value))) {
         void loadOperateLogs()
       } else if (canLoad && !oldFullCodePath && !oldRowId) {
         void loadOperateLogs()

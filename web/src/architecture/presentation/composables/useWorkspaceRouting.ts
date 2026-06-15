@@ -304,10 +304,13 @@ export function useWorkspaceRouting(
   // 这样可以避免程序触发的路由更新导致循环，并且不需要防抖
   const setupRouteWatch = () => {
     // 监听路由变化（用户操作：浏览器前进/后退）
-    eventBus.on(RouteEvent.routeChanged, async (payload: { path: string, query: any, source: string }) => {
+    eventBus.on(RouteEvent.routeChanged, async (payload: { path: string, oldPath?: string, query: any, source: string }) => {
       // 🔥 只处理用户操作（浏览器前进/后退）或外部变化，不处理程序触发的更新
       // 注意：程序触发的更新不会发出事件（RouteManager.isUpdating 为 true 时）
       if (payload.source === 'router-change') {
+        if (payload.oldPath === payload.path) {
+          return
+        }
         syncRouteToTab()
       }
     })

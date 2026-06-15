@@ -72,6 +72,10 @@ func (p runtimeAppPaths) CurrentAppPath() string {
 	return filepath.Join(p.MetadataDir(), "current_app.txt")
 }
 
+func (p runtimeAppPaths) RuntimeManifestPath() string {
+	return filepath.Join(p.MetadataDir(), "runtime-manifest.json")
+}
+
 func (p runtimeAppPaths) LogsDir() string {
 	return p.WorkplaceSubDir("logs")
 }

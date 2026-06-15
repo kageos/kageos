@@ -166,6 +166,78 @@ func TestListInboxBySourcePathAndSourceCounts(t *testing.T) {
 	}
 }
 
+func TestListWorkspaceCountsGroupsByWorkspacePath(t *testing.T) {
+	repo := newTestMessageRepo(t)
+
+	readEntry, err := repo.Create(context.Background(), dto.MessageSendMeta{
+		From:       "system",
+		SourcePath: "/system/demos/inventory/supplier_list.table",
+	}, dto.MessageSendPayload{
+		Title:   "供应商提醒",
+		Content: "供应商有更新",
+	}, []string{"bob"})
+	if err != nil {
+		t.Fatalf("create read message: %v", err)
+	}
+	if err := repo.MarkRead(context.Background(), "bob", readEntry.ID); err != nil {
+		t.Fatalf("mark read: %v", err)
+	}
+
+	_, err = repo.Create(context.Background(), dto.MessageSendMeta{
+		From:       "system",
+		SourcePath: "/system/demos/inventory/order_list.table",
+	}, dto.MessageSendPayload{
+		Title:   "订单提醒",
+		Content: "订单有更新",
+	}, []string{"bob"})
+	if err != nil {
+		t.Fatalf("create unread message: %v", err)
+	}
+
+	_, err = repo.Create(context.Background(), dto.MessageSendMeta{
+		From:       "system",
+		SourcePath: "/alice/crm/customer_list.table",
+	}, dto.MessageSendPayload{
+		Title:   "客户提醒",
+		Content: "客户有更新",
+	}, []string{"bob"})
+	if err != nil {
+		t.Fatalf("create other workspace message: %v", err)
+	}
+
+	counts, err := repo.ListWorkspaceCounts(context.Background(), "bob", "")
+	if err != nil {
+		t.Fatalf("list workspace counts: %v", err)
+	}
+	countByWorkspace := make(map[string]dto.MessageInboxWorkspaceCount, len(counts))
+	for _, count := range counts {
+		countByWorkspace[count.WorkspaceKey] = count
+	}
+
+	systemDemos := countByWorkspace["/system/demos"]
+	if systemDemos.WorkspaceUser != "system" || systemDemos.WorkspaceCode != "demos" {
+		t.Fatalf("system workspace identity = %#v", systemDemos)
+	}
+	if systemDemos.MessageCount != 2 || systemDemos.UnreadCount != 1 {
+		t.Fatalf("system workspace count = %#v, want total=2 unread=1", systemDemos)
+	}
+	if countByWorkspace["/alice/crm"].MessageCount != 1 || countByWorkspace["/alice/crm"].UnreadCount != 1 {
+		t.Fatalf("alice workspace count = %#v", countByWorkspace["/alice/crm"])
+	}
+
+	unreadCounts, err := repo.ListWorkspaceCounts(context.Background(), "bob", "unread")
+	if err != nil {
+		t.Fatalf("list unread workspace counts: %v", err)
+	}
+	unreadByWorkspace := make(map[string]dto.MessageInboxWorkspaceCount, len(unreadCounts))
+	for _, count := range unreadCounts {
+		unreadByWorkspace[count.WorkspaceKey] = count
+	}
+	if unreadByWorkspace["/system/demos"].MessageCount != 1 || unreadByWorkspace["/system/demos"].UnreadCount != 1 {
+		t.Fatalf("system unread workspace count = %#v", unreadByWorkspace["/system/demos"])
+	}
+}
+
 func TestMarkReadAndUnreadCount(t *testing.T) {
 	repo := newTestMessageRepo(t)
 	entry, err := repo.Create(context.Background(), dto.MessageSendMeta{From: "alice"}, dto.MessageSendPayload{

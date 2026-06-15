@@ -51,7 +51,7 @@
       v-if="showNotificationBadge"
       :value="notificationBadgeValue"
       :max="99"
-      class="notification-count-badge"
+      :class="['notification-count-badge', notificationBadgeClass]"
       :title="notificationBadgeTitle"
       @click.stop="$emit('notification-click')"
     />
@@ -85,6 +85,7 @@ const props = withDefaults(defineProps<{
   runtimeBadgeTitle?: string
   showNotificationBadge?: boolean
   notificationBadgeValue?: string | number
+  notificationBadgeClass?: string
   notificationBadgeTitle?: string
 }>(), {
   label: '',
@@ -97,6 +98,7 @@ const props = withDefaults(defineProps<{
   runtimeBadgeTitle: '',
   showNotificationBadge: false,
   notificationBadgeValue: '',
+  notificationBadgeClass: '',
   notificationBadgeTitle: '',
 })
 
@@ -262,6 +264,12 @@ const nodeIconClass = computed(() => {
   border: none;
   background: #ef4444;
   box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.12);
+}
+
+.notification-count-badge.is-history :deep(.el-badge__content) {
+  background: #94a3b8;
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.14);
 }
 
 :slotted(.node-more-actions) {

@@ -32,6 +32,12 @@ func NewWorkspaceChangeService(
 	}
 }
 
+func (s *WorkspaceChangeService) SetAppDatabaseService(appDatabaseService *AppDatabaseService) {
+	if s != nil && s.packageScaffold != nil {
+		s.packageScaffold.SetAppDatabaseService(appDatabaseService)
+	}
+}
+
 // DeleteServiceTree 删除服务目录（删磁盘目录，并从 main.go 移除该包的 import）
 func (s *WorkspaceChangeService) DeleteServiceTree(ctx context.Context, user, app, serviceTreeName string) error {
 	return s.packageScaffold.DeleteServiceTree(ctx, user, app, serviceTreeName)

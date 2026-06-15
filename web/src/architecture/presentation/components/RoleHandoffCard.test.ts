@@ -78,13 +78,12 @@ describe('RoleHandoffCard', () => {
   it('renders model context policy observability', () => {
     const wrapper = mountCard({
       switched: true,
-      context_policy: '已切换身份；旧上下文只作背景，优先携带标准四块交接并按当前身份文档包执行。执行目录固定为 /system/x_world/vote；所有读取、构建、测试、运行都必须限定在该目录或该目录下函数。',
+      context_policy: '已切换身份；完整历史继续进入模型上下文，优先携带标准四块交接并按当前身份文档包执行。执行目录固定为 /system/x_world/vote；所有读取、构建、测试、运行都必须限定在该目录或该目录下函数。',
     })
 
     expect(wrapper.text()).toContain('模型上下文策略')
     expect(wrapper.text()).toContain('角色已切换')
-    expect(wrapper.text()).toContain('旧细节已裁剪')
-    expect(wrapper.text()).toContain('旧上下文仅作背景')
+    expect(wrapper.text()).toContain('完整历史保留')
     expect(wrapper.text()).toContain('四块交接生效')
     expect(wrapper.text()).toContain('目录已固定')
     expect(wrapper.text()).toContain('执行目录固定为 /system/x_world/vote')
@@ -107,7 +106,7 @@ describe('RoleHandoffCard', () => {
         task_context: ['packet task context'],
         key_information: ['packet key information'],
         references: ['packet-reference.table'],
-        context_policy: '已切换身份；旧上下文只作背景，优先携带标准四块交接。执行目录固定为 /system/x_world/vote_packet。',
+        context_policy: '已切换身份；完整历史继续进入模型上下文，优先携带标准四块交接。执行目录固定为 /system/x_world/vote_packet。',
         executed_hooks: [
           {
             id: 'qa.before_enter_schema',

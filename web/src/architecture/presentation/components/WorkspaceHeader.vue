@@ -33,7 +33,11 @@
         <el-icon><Search /></el-icon>
         {{ t('workspace.search') }}
       </el-button>
-      <WorkspaceInbox :service-tree="serviceTree || []" />
+      <WorkspaceInbox
+        :service-tree="serviceTree || []"
+        :current-app="currentApp"
+        :app-list="appList"
+      />
       <div
         v-if="companyName || companyCode"
         class="company-badge"

@@ -20,8 +20,8 @@
         <div class="model-context-chip-row">
           <span>{{ contextPolicyLabel }}</span>
           <span>{{ messageCountLabel }}</span>
-          <span v-if="plan.messages.excluded_by_anchor > 0">锚点裁剪 {{ plan.messages.excluded_by_anchor }}</span>
-          <span v-if="plan.messages.excluded_display_only > 0">仅展示 {{ plan.messages.excluded_display_only }}</span>
+          <span v-if="plan.messages.excluded_by_anchor > 0">历史锚点已忽略 {{ plan.messages.excluded_by_anchor }}</span>
+          <span v-if="plan.messages.excluded_display_only > 0">展示标签已保留 {{ plan.messages.excluded_display_only }}</span>
           <span v-if="plan.messages.truncated">列表已截断</span>
         </div>
         <div class="model-context-subtle">{{ sourceHistoryLabel }}</div>
@@ -107,9 +107,9 @@ const executionSummary = computed(() => {
 const contextPolicyLabel = computed(() => {
   switch (props.plan.messages.context_policy) {
     case 'artifact_only':
-      return '产物优先'
+      return '完整上下文 · 产物重点'
     case 'display_only':
-      return '仅展示'
+      return '完整上下文 · 展示标签'
     default:
       return '完整上下文'
   }
@@ -122,14 +122,10 @@ const messageCountLabel = computed(() => {
 
 const sourceHistoryLabel = computed(() => {
   switch (props.plan.messages.source_history_policy) {
-    case 'parent_session_display_only_and_anchor_trimmed':
-      return '来源会话只展示；本会话已按锚点裁剪旧历史。'
-    case 'parent_session_display_only':
-      return '来源会话只展示，不进入模型上下文。'
-    case 'same_session_anchor_trimmed':
-      return '同一会话已按上下文锚点裁剪旧历史。'
+    case 'same_session_full_with_parent_reference':
+      return '同一会话保留完整历史；父会话信息仅作来源引用。'
     default:
-      return '同一会话历史按上下文用途进入模型。'
+      return '同一会话保留完整历史进入模型。'
   }
 })
 

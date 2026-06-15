@@ -171,15 +171,10 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 	if s.sessionRepo != nil {
 		if gotSession, err := s.sessionRepo.GetBySessionID(sessionID); err == nil && gotSession != nil {
 			session = gotSession
-			contextPolicy = normalizeWorkspaceModelContextPolicy(session.ContextPolicy)
+			contextPolicy = ContextPolicyFull
 			parentSessionID = strings.TrimSpace(session.ParentSessionID)
-			modelContextAnchorMessageID = session.ModelContextAnchorMessageID
-			if session.ModelContextAnchorMessageID > 0 {
-				list = filterWorkspaceMessagesAfterAnchor(list, session.ModelContextAnchorMessageID)
-			}
 		}
 	}
-	excludedByAnchor := countWorkspaceMessagesAtOrBeforeAnchor(allMessages, modelContextAnchorMessageID)
 	var toolNames []string
 	var systemPromptFragment string
 	if modeProvider != nil {
@@ -223,7 +218,7 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 	}
 
 	msgs := []llms.Message{{Role: "system", Content: system}}
-	historyMessages, includedMessages, excludedDisplayOnly, excludedUnsupported := buildWorkspaceLLMHistory(ctx, list)
+	historyMessages, includedMessages, excludedUnsupported := buildWorkspaceLLMHistory(ctx, list)
 	msgs = append(msgs, historyMessages...)
 	plan := s.buildWorkspaceModelContextPlan(ctx, workspaceModelContextPlanInput{
 		SessionID:                   sessionID,
@@ -239,9 +234,7 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 		AllMessages:                 allMessages,
 		ScopedMessages:              list,
 		IncludedMessages:            includedMessages,
-		ExcludedDisplayOnly:         excludedDisplayOnly,
 		ExcludedUnsupported:         excludedUnsupported,
-		ExcludedByAnchor:            excludedByAnchor,
 		RequestedToolNames:          toolNames,
 		LLMToolNames:                llmToolNames,
 		LLMMessageCount:             len(msgs),
@@ -255,18 +248,13 @@ type workspaceLLMHistoryEntry struct {
 	source *model.AgentChatMessage
 }
 
-func buildWorkspaceLLMHistory(ctx context.Context, messages []*model.AgentChatMessage) ([]llms.Message, []*model.AgentChatMessage, []*model.AgentChatMessage, []*model.AgentChatMessage) {
+func buildWorkspaceLLMHistory(ctx context.Context, messages []*model.AgentChatMessage) ([]llms.Message, []*model.AgentChatMessage, []*model.AgentChatMessage) {
 	entries := make([]workspaceLLMHistoryEntry, 0, len(messages))
 	includedMessages := make([]*model.AgentChatMessage, 0, len(messages))
-	excludedDisplayOnly := make([]*model.AgentChatMessage, 0)
 	excludedUnsupported := make([]*model.AgentChatMessage, 0)
 
 	for _, m := range messages {
 		if m == nil {
-			continue
-		}
-		if normalizeMessageContextUsage(m.ContextUsage) == MessageContextDisplayOnly {
-			excludedDisplayOnly = append(excludedDisplayOnly, m)
 			continue
 		}
 		switch m.Role {
@@ -318,7 +306,7 @@ func buildWorkspaceLLMHistory(ctx context.Context, messages []*model.AgentChatMe
 	historyMessages, sanitizedIncluded, sanitizedExcluded := sanitizeWorkspaceLLMToolSequence(entries)
 	includedMessages = append(includedMessages, sanitizedIncluded...)
 	excludedUnsupported = append(excludedUnsupported, sanitizedExcluded...)
-	return historyMessages, includedMessages, excludedDisplayOnly, excludedUnsupported
+	return historyMessages, includedMessages, excludedUnsupported
 }
 
 func storedToolCallsForLLM(raw *string) ([]llms.ToolCall, bool) {
@@ -432,7 +420,7 @@ func missingWorkspaceToolResultContent(tc llms.ToolCall) string {
 	if name == "" {
 		name = "工具"
 	}
-	return fmt.Sprintf("%s 未返回工具结果：上一轮可能被用户中断，或历史被上下文锚点裁剪。不要假设该工具已经成功执行；请结合后续用户消息继续。", name)
+	return fmt.Sprintf("%s 未返回工具结果：上一轮可能被用户中断或工具回传缺失。不要假设该工具已经成功执行；请结合后续用户消息继续。", name)
 }
 
 func workspaceDynamicTimeHint(data *prompt.WorkspaceEnvData) string {
@@ -459,7 +447,7 @@ func workspaceFirstTurnDirectoryRAGHint(messages []*model.AgentChatMessage, work
 	}
 	userMessages := 0
 	for _, msg := range messages {
-		if msg != nil && msg.Role == RoleUser && normalizeMessageContextUsage(msg.ContextUsage) != MessageContextDisplayOnly {
+		if msg != nil && msg.Role == RoleUser {
 			userMessages++
 		}
 	}
@@ -474,17 +462,4 @@ func workspaceFirstTurnDirectoryRAGHint(messages []*model.AgentChatMessage, work
 		"- 如果用户要把已有函数、已有业务操作或已有工作台目录定时执行，进入 `automation_operator`；如果要定时的能力还不存在，先走产品、开发或维护。",
 		"- 只有用户明确要新增或改变软件能力，或现有运行函数无法满足目标时，才考虑产品、开发或维护角色。",
 	}, "\n")
-}
-
-func filterWorkspaceMessagesAfterAnchor(messages []*model.AgentChatMessage, anchorID int64) []*model.AgentChatMessage {
-	if anchorID <= 0 {
-		return messages
-	}
-	out := make([]*model.AgentChatMessage, 0, len(messages))
-	for _, msg := range messages {
-		if msg != nil && msg.ID > anchorID {
-			out = append(out, msg)
-		}
-	}
-	return out
 }

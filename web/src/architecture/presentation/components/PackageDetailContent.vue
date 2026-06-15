@@ -28,7 +28,7 @@
               embedded
               show-refresh
               :title="t('packageDetail.directoryOperateLog')"
-              :auto-load="false"
+              :auto-load="activeTab === 'operateLog'"
             />
           </div>
         </el-tab-pane>

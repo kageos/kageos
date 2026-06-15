@@ -72,3 +72,31 @@ func TestRuntimeRequestCarriesPublicShareContext(t *testing.T) {
 		t.Fatalf("parsed public share meta mismatch: %+v", meta)
 	}
 }
+
+func TestRuntimeRequestCarriesTargetRouter(t *testing.T) {
+	req := &dto.RequestAppReq{
+		TraceId:      "trace-1",
+		User:         "alice",
+		App:          "crm",
+		Version:      "v1",
+		Method:       "POST",
+		Router:       "/_callback",
+		TargetRouter: "sales/leads.table",
+	}
+
+	msg, err := BuildRuntimeRequestMsg(req)
+	if err != nil {
+		t.Fatalf("BuildRuntimeRequestMsg returned error: %v", err)
+	}
+	if got := msg.Header.Get(TargetRouterHeader); got != "sales/leads.table" {
+		t.Fatalf("target router header = %q, want sales/leads.table", got)
+	}
+
+	meta, err := ParseRuntimeRequest(msg)
+	if err != nil {
+		t.Fatalf("ParseRuntimeRequest returned error: %v", err)
+	}
+	if meta.TargetRouter != "sales/leads.table" {
+		t.Fatalf("meta.TargetRouter = %q, want sales/leads.table", meta.TargetRouter)
+	}
+}

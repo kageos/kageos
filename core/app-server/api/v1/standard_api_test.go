@@ -46,6 +46,9 @@ func TestBuildCallbackAppReqEncodesBodyForSDKCallbackRouter(t *testing.T) {
 	if sdkReq.Router != "vote/vote_submit.form" {
 		t.Fatalf("Router = %q, want vote/vote_submit.form", sdkReq.Router)
 	}
+	if appReq.TargetRouter != "vote/vote_submit.form" {
+		t.Fatalf("TargetRouter = %q, want vote/vote_submit.form", appReq.TargetRouter)
+	}
 	if string(sdkReq.Body) != body {
 		t.Fatalf("Body = %s, want %s", string(sdkReq.Body), body)
 	}

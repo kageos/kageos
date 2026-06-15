@@ -229,8 +229,8 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 	if plan == nil {
 		t.Fatal("plan is nil")
 	}
-	if len(msgs) != 2 {
-		t.Fatalf("llm messages = %d, want system + handoff", len(msgs))
+	if len(msgs) != 4 {
+		t.Fatalf("llm messages = %d, want system + old + handoff + display-tagged history", len(msgs))
 	}
 	if len(tools) != 2 {
 		t.Fatalf("tools = %d, want 2", len(tools))
@@ -241,10 +241,10 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 	if plan.Role.ID != WorkspaceRoleQAEngineer || plan.Role.Source != "session" {
 		t.Fatalf("bad role plan: %#v", plan.Role)
 	}
-	if plan.Messages.ContextPolicy != ContextPolicyArtifactOnly || plan.Messages.ExcludedByAnchor != 1 || plan.Messages.ExcludedDisplayOnly != 1 {
+	if plan.Messages.ContextPolicy != ContextPolicyFull || plan.Messages.ExcludedByAnchor != 0 || plan.Messages.ExcludedDisplayOnly != 0 {
 		t.Fatalf("bad message policy: %#v", plan.Messages)
 	}
-	if plan.Messages.SourceHistoryPolicy != "parent_session_display_only_and_anchor_trimmed" {
+	if plan.Messages.SourceHistoryPolicy != "same_session_full_with_parent_reference" {
 		t.Fatalf("source history policy = %q", plan.Messages.SourceHistoryPolicy)
 	}
 	if plan.Handoff == nil || plan.Handoff.TargetRole != WorkspaceRoleQAEngineer || plan.Handoff.ExecuteDirectory != "/liubeiluo/vote" {
@@ -326,7 +326,7 @@ func TestBuildLLMMessagesWithPlanSynthesizesMissingToolResultAfterCancel(t *test
 	}
 }
 
-func TestBuildLLMMessagesWithPlanDropsOrphanToolAfterAnchorTrim(t *testing.T) {
+func TestBuildLLMMessagesWithPlanPreservesHistoryDespiteLegacyAnchor(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -344,7 +344,7 @@ func TestBuildLLMMessagesWithPlanDropsOrphanToolAfterAnchorTrim(t *testing.T) {
 		FullCodePath:  "/liubeiluo/assets",
 		Source:        SourceWorkspace,
 		SessionID:     "anchor-orphan-tool-session",
-		Title:         "锚点裁剪工具会话",
+		Title:         "历史保留工具会话",
 		ModeCode:      "dev",
 		Status:        model.ChatSessionStatusActive,
 		ContextPolicy: ContextPolicyFull,
@@ -388,16 +388,15 @@ func TestBuildLLMMessagesWithPlanDropsOrphanToolAfterAnchorTrim(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build messages: %v", err)
 	}
-	if len(msgs) != 2 {
-		t.Fatalf("llm messages = %d, want system + current user after orphan tool is dropped: %#v", len(msgs), msgs)
+	if len(msgs) != 5 {
+		t.Fatalf("llm messages = %d, want system + full historical tool sequence + current user: %#v", len(msgs), msgs)
 	}
-	if msgs[1].Role != RoleUser || !strings.Contains(msgs[1].Content, "锚点后继续") {
-		t.Fatalf("remaining message = %#v", msgs[1])
+	joined := joinLLMMessageContents(msgs)
+	if !strings.Contains(joined, "旧消息") || !strings.Contains(joined, "锚点后继续") {
+		t.Fatalf("history should be preserved despite legacy anchor: %#v", msgs)
 	}
-	for _, msg := range msgs {
-		if msg.Role == RoleTool {
-			t.Fatalf("orphan tool should be dropped: %#v", msgs)
-		}
+	if msgs[2].Role != RoleAssistant || len(msgs[2].ToolCalls) != 1 || msgs[3].Role != RoleTool {
+		t.Fatalf("historical tool sequence should remain valid: %#v", msgs)
 	}
 }
 

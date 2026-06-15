@@ -118,6 +118,10 @@ func (s *AppManageService) updateReleaseVersionMetadata(
 	if err := s.updateVersionJson(appPaths.AppDir(), user, app, newVersion); err != nil {
 		logger.Warnf(ctx, "[%s] 更新版本信息失败: %v，继续执行", logPrefix, err)
 	}
+
+	if err := s.writeBuiltRuntimeManifest(user, app, appPaths, newVersion); err != nil {
+		logger.Warnf(ctx, "[%s] 写入 runtime manifest 失败: %v，继续执行", logPrefix, err)
+	}
 }
 
 func (s *AppManageService) commitRelease(

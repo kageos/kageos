@@ -354,7 +354,7 @@ func TestWorkspaceRoleAcceptanceArchivedHistoryExcludedFromModelContext(t *testi
 	oldMsg := &model.AgentChatMessage{
 		SessionID: session.SessionID,
 		Role:      RoleUser,
-		Content:   "旧会话误导信息：把当前投票应用重新开发成一个全新的投票系统",
+		Content:   "旧会话关键约束：保留投票主题、提交投票、统计结果三块能力",
 		User:      "tester",
 	}
 	if err := messageRepo.Create(oldMsg); err != nil {
@@ -394,7 +394,7 @@ func TestWorkspaceRoleAcceptanceArchivedHistoryExcludedFromModelContext(t *testi
 	displayOnlyMsg := &model.AgentChatMessage{
 		SessionID:    session.SessionID,
 		Role:         RoleUser,
-		Content:      "旧会话展示卡片：用户仍可看到，但不能进入模型上下文",
+		Content:      "旧会话展示卡片：用户仍可看到，也要作为历史背景保留",
 		ContextUsage: MessageContextDisplayOnly,
 		User:         "tester",
 	}
@@ -429,13 +429,13 @@ func TestWorkspaceRoleAcceptanceArchivedHistoryExcludedFromModelContext(t *testi
 		t.Fatalf("build llm messages: %v", err)
 	}
 	joined := joinLLMMessageContents(msgs)
-	for _, forbidden := range []string{
-		"旧会话误导信息",
-		"重新开发成一个全新的投票系统",
+	for _, required := range []string{
+		"旧会话关键约束",
+		"保留投票主题、提交投票、统计结果三块能力",
 		"旧会话展示卡片",
 	} {
-		if strings.Contains(joined, forbidden) {
-			t.Fatalf("archived/display-only content should not enter model context; found %q in:\n%s", forbidden, joined)
+		if !strings.Contains(joined, required) {
+			t.Fatalf("historical content should remain in model context; missing %q in:\n%s", required, joined)
 		}
 	}
 	if !strings.Contains(joined, "HANDOFF_PACKET JSON") ||
@@ -445,16 +445,10 @@ func TestWorkspaceRoleAcceptanceArchivedHistoryExcludedFromModelContext(t *testi
 	if plan == nil {
 		t.Fatal("model context plan is nil")
 	}
-	if plan.Messages.ExcludedByAnchor != 1 ||
-		plan.Messages.ExcludedDisplayOnly != 1 ||
-		plan.Messages.SourceHistoryPolicy != "parent_session_display_only_and_anchor_trimmed" {
-		t.Fatalf("model context plan should report archived/display-only exclusion, got %#v", plan.Messages)
-	}
-	if !workspaceContextPlanHasExcludedReason(plan.Messages.Excluded, oldMsg.ID, "before_model_context_anchor") {
-		t.Fatalf("model context plan should expose anchor exclusion reason for old message, got %#v", plan.Messages.Excluded)
-	}
-	if !workspaceContextPlanHasExcludedReason(plan.Messages.Excluded, displayOnlyMsg.ID, "display_only") {
-		t.Fatalf("model context plan should expose display-only exclusion reason, got %#v", plan.Messages.Excluded)
+	if plan.Messages.ExcludedByAnchor != 0 ||
+		plan.Messages.ExcludedDisplayOnly != 0 ||
+		plan.Messages.SourceHistoryPolicy != "same_session_full_with_parent_reference" {
+		t.Fatalf("model context plan should preserve legacy anchor/display-tagged history, got %#v", plan.Messages)
 	}
 	if plan.Handoff == nil ||
 		plan.Handoff.TargetRole != WorkspaceRoleAppDeveloper ||

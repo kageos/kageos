@@ -344,6 +344,7 @@ func (a *PublicShareAPI) buildPublicCallbackAppReq(c *gin.Context, share *model.
 		User:           tenantUser,
 		App:            app,
 		Router:         "/_callback",
+		TargetRouter:   router,
 		Method:         http.MethodPost,
 		TraceId:        traceID,
 		RequestUser:    actorID,

@@ -1,7 +1,9 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -44,5 +46,36 @@ func TestScheduledFunctionPayloadURLQueryFromString(t *testing.T) {
 	}
 	if got != "status=open&page=1" {
 		t.Fatalf("query = %q", got)
+	}
+}
+
+func TestBuildScheduledCallbackAppReqSetsTargetRouter(t *testing.T) {
+	req, err := buildScheduledCallbackAppReq(
+		context.Background(),
+		"/alice/crm/sales/leads.table",
+		http.MethodPost,
+		"OnTableAddRow",
+		[]byte(`{"name":"Ada"}`),
+		"",
+	)
+	if err != nil {
+		t.Fatalf("buildScheduledCallbackAppReq() error = %v", err)
+	}
+	if req.Router != "/_callback" {
+		t.Fatalf("Router = %q, want /_callback", req.Router)
+	}
+	if req.TargetRouter != "sales/leads.table" {
+		t.Fatalf("TargetRouter = %q, want sales/leads.table", req.TargetRouter)
+	}
+
+	var envelope struct {
+		Router string `json:"router"`
+		Type   string `json:"type"`
+	}
+	if err := json.Unmarshal(req.Body, &envelope); err != nil {
+		t.Fatalf("unmarshal callback envelope: %v", err)
+	}
+	if envelope.Router != req.TargetRouter || envelope.Type != "OnTableAddRow" {
+		t.Fatalf("callback envelope mismatch: %#v target=%q", envelope, req.TargetRouter)
 	}
 }

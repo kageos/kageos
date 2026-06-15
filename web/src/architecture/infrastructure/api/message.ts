@@ -123,6 +123,23 @@ export interface ListMessageInboxSourceCountsResp {
   list: MessageInboxSourceCount[]
 }
 
+export interface MessageInboxWorkspaceCount {
+  workspace_key: string
+  workspace_user?: string
+  workspace_code?: string
+  workspace_path?: string
+  title?: string
+  unread_count: number
+  message_count: number
+  latest_at?: string
+  latest_source_path?: string
+  latest_source_title?: string
+}
+
+export interface ListMessageInboxWorkspaceCountsResp {
+  list: MessageInboxWorkspaceCount[]
+}
+
 export interface MessageInboxThread {
   key: string
   kind: 'directory' | 'function' | 'session' | 'sender' | string
@@ -162,6 +179,10 @@ export function listMessageInboxThreads(params: ListMessageInboxParams = {}): Pr
 
 export function listMessageInboxSourceCounts(params: Pick<ListMessageInboxParams, 'status'> = {}): Promise<ListMessageInboxSourceCountsResp> {
   return get<ListMessageInboxSourceCountsResp>('/message/api/v1/inbox/source_counts', params)
+}
+
+export function listMessageInboxWorkspaceCounts(params: Pick<ListMessageInboxParams, 'status'> = {}): Promise<ListMessageInboxWorkspaceCountsResp> {
+  return get<ListMessageInboxWorkspaceCountsResp>('/message/api/v1/inbox/workspace_counts', params)
 }
 
 export function getMessageInboxUnreadCount(): Promise<MessageUnreadCountResp> {

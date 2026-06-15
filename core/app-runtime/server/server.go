@@ -36,6 +36,7 @@ type Server struct {
 	containerService       service.ContainerOperator
 	appManageService       *service.AppManageService
 	appDiscoveryService    *service.AppDiscoveryService
+	appDatabaseService     *service.AppDatabaseService
 	workspaceChangeService *service.WorkspaceChangeService
 	workspaceFileService   *service.WorkspaceFileService
 
@@ -194,6 +195,13 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化应用仓库
 	appRepo := repository.NewAppRepository(s.db)
 
+	appDatabaseService, err := service.NewAppDatabaseService(s.db, s.cfg.GetAppDatabaseConfig())
+	if err != nil {
+		return fmt.Errorf("failed to init app database service: %w", err)
+	}
+	s.appDatabaseService = appDatabaseService
+	logger.Infof(ctx, "[Server] App database service enabled=%v", appDatabaseService.IsEnabled())
+
 	// 初始化应用发现服务（需要在 AppManageService 之前）
 	runtimeID := s.cfg.GetRuntimeInstanceID()
 	s.appDiscoveryService = service.NewAppDiscoveryServiceWithRuntimeID(s.natsConn, s.cfg.AppManage.GetBasePath(), runtimeID)
@@ -224,6 +232,7 @@ func (s *Server) initServices(ctx context.Context) error {
 		s.natsConn,
 		s.workspaceFileService,
 	)
+	s.appManageService.SetAppDatabaseService(s.appDatabaseService)
 
 	// 启动 QPS 跟踪器清理任务
 	go s.appManageService.QPSTracker.StartCleanup(ctx)
@@ -233,6 +242,7 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化工作区变更编排服务
 	s.workspaceChangeService = service.NewWorkspaceChangeService(&s.cfg.AppManage, s.appManageService, s.workspaceFileService)
+	s.workspaceChangeService.SetAppDatabaseService(s.appDatabaseService)
 
 	// 启动基础设施看门狗（以 NATS 连接状态为探针，1 秒轮询，断开时触发恢复）
 	watchdog := service.NewInfraWatchdog(s.natsConn, s.containerService)
@@ -296,9 +306,10 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 	appH := v1.NewAppHandler(s.appManageService)
 	workspaceChangeH := v1.NewWorkspaceChangeHandler(s.workspaceChangeService)
 	workspaceH := v1.NewWorkspaceHandler(s.appManageService, s.workspaceFileService)
-	requestTransport := NewAppRequestTransport(s.natsConn, s.appManageService, s.appDiscoveryService)
+	requestTransport := NewAppRequestTransport(s.natsConn, s.appManageService, s.appDiscoveryService, s.appDatabaseService)
 	requestH := v1.NewRequestHandler(s.appManageService, requestTransport)
-	if err := RegisterNATS(ctx, s.natsConn, &s.subscriptions, appH, workspaceChangeH, workspaceH, requestH); err != nil {
+	appDatabaseH := v1.NewAppDatabaseHandler(s.appDatabaseService)
+	if err := RegisterNATS(ctx, s.natsConn, &s.subscriptions, appH, workspaceChangeH, workspaceH, requestH, appDatabaseH); err != nil {
 		return err
 	}
 	// Runtime 生命周期事件主题由 AppDiscoveryService 统一处理，不需要在此订阅

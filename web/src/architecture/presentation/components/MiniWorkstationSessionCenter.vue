@@ -147,18 +147,18 @@ const searchKeywordModel = computed({
 
 function getSessionContextBadges(session: WorkspaceSessionItem): string[] {
   const badges: string[] = []
-  if (session.archived_for_model) badges.push('仅展示历史')
+  if (session.archived_for_model) badges.push('历史兼容标记')
   const policy = formatSessionContextPolicy(session.context_policy)
   if (policy) badges.push(policy)
-  if ((session.model_context_anchor_message_id || 0) > 0) badges.push('已裁剪上下文')
+  if ((session.model_context_anchor_message_id || 0) > 0) badges.push('锚点已忽略')
   return badges
 }
 
 function formatSessionContextPolicy(policy?: string): string {
   const normalized = String(policy || '').trim()
   if (!normalized) return ''
-  if (normalized === 'artifact_only') return '产物上下文'
-  if (normalized === 'display_only') return '不进模型'
+  if (normalized === 'artifact_only') return '完整上下文 · 产物重点'
+  if (normalized === 'display_only') return '完整上下文 · 展示标签'
   if (normalized === 'full') return '完整上下文'
   return normalized
 }

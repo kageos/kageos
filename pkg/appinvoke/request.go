@@ -12,6 +12,8 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+const TargetRouterHeader = "X-Kageos-Target-Router"
+
 // RequestMeta 描述 runtime -> app invoke 请求的路由与调用头信息。
 type RequestMeta struct {
 	TraceID               string
@@ -35,6 +37,7 @@ type RequestMeta struct {
 	Version               string
 	Method                string
 	Router                string
+	TargetRouter          string
 }
 
 // BuildRuntimeRequestMsg 构建发往 runtime 的 invoke 请求消息。
@@ -70,6 +73,7 @@ func BuildRuntimeRequestMsg(req *dto.RequestAppReq) (*nats.Msg, error) {
 		Version:               req.Version,
 		Method:                req.Method,
 		Router:                req.Router,
+		TargetRouter:          req.TargetRouter,
 	}
 
 	msg := &nats.Msg{
@@ -109,6 +113,7 @@ func ParseRuntimeRequest(msg *nats.Msg) (*RequestMeta, error) {
 		Version:               msg.Header.Get("version"),
 		Method:                msg.Header.Get("method"),
 		Router:                msg.Header.Get("router"),
+		TargetRouter:          msg.Header.Get(TargetRouterHeader),
 	}
 	if err := meta.Validate(); err != nil {
 		return nil, err
@@ -164,6 +169,9 @@ func (m *RequestMeta) ApplyHeaders(header nats.Header) {
 	header.Set("app", m.App)
 	header.Set("user", m.User)
 	header.Set("version", m.Version)
+	if m.TargetRouter != "" {
+		header.Set(TargetRouterHeader, m.TargetRouter)
+	}
 	if m.Token != "" {
 		header.Set(contextx.TokenHeader, m.Token)
 	}

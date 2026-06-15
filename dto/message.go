@@ -114,6 +114,23 @@ type MessageInboxSourceCountResp struct {
 	List []MessageInboxSourceCount `json:"list"`
 }
 
+type MessageInboxWorkspaceCount struct {
+	WorkspaceKey      string    `json:"workspace_key"`
+	WorkspaceUser     string    `json:"workspace_user"`
+	WorkspaceCode     string    `json:"workspace_code"`
+	WorkspacePath     string    `json:"workspace_path"`
+	Title             string    `json:"title"`
+	UnreadCount       int64     `json:"unread_count"`
+	MessageCount      int64     `json:"message_count"`
+	LatestAt          time.Time `json:"latest_at"`
+	LatestSourcePath  string    `json:"latest_source_path"`
+	LatestSourceTitle string    `json:"latest_source_title"`
+}
+
+type MessageInboxWorkspaceCountResp struct {
+	List []MessageInboxWorkspaceCount `json:"list"`
+}
+
 type MessageInboxThread struct {
 	Key                  string           `json:"key"`
 	Kind                 string           `json:"kind"`

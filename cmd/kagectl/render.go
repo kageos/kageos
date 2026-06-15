@@ -342,6 +342,10 @@ func generateDevSecrets() (devSecrets, error) {
 	if err != nil {
 		return devSecrets{}, err
 	}
+	appDBSecret, err := randomHex(32)
+	if err != nil {
+		return devSecrets{}, err
+	}
 	systemPass, err := randomHex(24)
 	if err != nil {
 		return devSecrets{}, err
@@ -353,6 +357,7 @@ func generateDevSecrets() (devSecrets, error) {
 		MinIORootUser:      "minioadmin",
 		MinIORootPassword:  minioPass,
 		JWTSecret:          jwt,
+		AppDBSecret:        appDBSecret,
 		SystemUserPassword: systemPass,
 	}, nil
 }
@@ -376,6 +381,14 @@ func mergeDevSecrets(values map[string]string) (devSecrets, error) {
 	if len(missing) > 0 {
 		return devSecrets{}, fmt.Errorf("dev env is incomplete, missing %s; refusing to generate replacement secrets implicitly", strings.Join(missing, ", "))
 	}
+	appDBSecret := strings.TrimSpace(values["KAGEOS_APP_DB_SECRET_KEY"])
+	if appDBSecret == "" {
+		generated, err := randomHex(32)
+		if err != nil {
+			return devSecrets{}, err
+		}
+		appDBSecret = generated
+	}
 	return devSecrets{
 		MySQLRootPassword:  strings.TrimSpace(values["MYSQL_ROOT_PASSWORD"]),
 		NATSUser:           strings.TrimSpace(values["NATS_SEED_USER"]),
@@ -383,6 +396,7 @@ func mergeDevSecrets(values map[string]string) (devSecrets, error) {
 		MinIORootUser:      strings.TrimSpace(values["MINIO_ROOT_USER"]),
 		MinIORootPassword:  strings.TrimSpace(values["MINIO_ROOT_PASSWORD"]),
 		JWTSecret:          strings.TrimSpace(values["JWT_SECRET"]),
+		AppDBSecret:        appDBSecret,
 		SystemUserPassword: strings.TrimSpace(values["SYSTEM_USER_PASSWORD"]),
 	}, nil
 }

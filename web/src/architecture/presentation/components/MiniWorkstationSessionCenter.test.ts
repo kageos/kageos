@@ -115,8 +115,8 @@ describe('MiniWorkstationSessionCenter', () => {
       recentSessions: [],
     })
 
-    expect(wrapper.text()).toContain('仅展示历史')
-    expect(wrapper.text()).toContain('不进模型')
-    expect(wrapper.text()).toContain('已裁剪上下文')
+    expect(wrapper.text()).toContain('历史兼容标记')
+    expect(wrapper.text()).toContain('完整上下文 · 展示标签')
+    expect(wrapper.text()).toContain('锚点已忽略')
   })
 })

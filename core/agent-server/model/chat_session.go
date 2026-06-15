@@ -20,9 +20,9 @@ type AgentChatSession struct {
 	ParentSessionID             string `gorm:"type:varchar(64);index;comment:阶段交接来源会话ID" json:"parent_session_id"`
 	HandoffKind                 string `gorm:"type:varchar(64);index;comment:阶段交接产物类型" json:"handoff_kind"`
 	HandoffTargetRole           string `gorm:"type:varchar(64);comment:阶段交接目标身份" json:"handoff_target_role"`
-	ContextPolicy               string `gorm:"type:varchar(64);not null;default:'full';index;comment:模型上下文策略(full/artifact_only/display_only)" json:"context_policy"`
-	ModelContextAnchorMessageID int64  `gorm:"type:bigint;not null;default:0;index;comment:模型上下文锚点消息ID，只读取该ID之后的消息" json:"model_context_anchor_message_id"`
-	ArchivedForModel            bool   `gorm:"not null;default:false;index;comment:是否已归档且不再进入模型上下文" json:"archived_for_model"`
+	ContextPolicy               string `gorm:"type:varchar(64);not null;default:'full';index;comment:模型上下文策略；历史兼容字段，运行时默认保留完整上下文" json:"context_policy"`
+	ModelContextAnchorMessageID int64  `gorm:"type:bigint;not null;default:0;index;comment:历史兼容锚点字段，运行时不再用于裁剪上下文" json:"model_context_anchor_message_id"`
+	ArchivedForModel            bool   `gorm:"not null;default:false;index;comment:历史兼容归档字段，运行时会恢复完整上下文" json:"archived_for_model"`
 	ArchiveReason               string `gorm:"type:varchar(255);comment:会话归档原因" json:"archive_reason"`
 	User                        string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`
 }

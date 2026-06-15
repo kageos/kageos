@@ -25,16 +25,17 @@ func init() {
 	defaultValidator = validator.New()
 }
 
-func newCallbackContext(info *routerInfo) *Context {
+func newCallbackContext(info *routerInfo, dbCapability *dto.AppDBCapability) *Context {
 	msgInfo := trace.Msg{
 		User:    env.User,
 		App:     env.App,
 		Version: env.Version,
 	}
 	return &Context{
-		msg:        &msgInfo,
-		routerInfo: info,
-		token:      "", // 回调context可能没有token
+		msg:          &msgInfo,
+		routerInfo:   info,
+		dbCapability: cloneDBCapability(dbCapability),
+		token:        "", // 回调context可能没有token
 	}
 }
 func (a *App) NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context, error) {
@@ -85,6 +86,7 @@ func (a *App) NewContext(ctx context.Context, req *dto.RequestAppReq) (*Context,
 		msg:            &msgInfo,
 		token:          token,          // ✨ 保存token，用于调用存储服务
 		anonymousToken: anonymousToken, // 公开分享匿名 token，不作为 X-Token 使用
+		dbCapability:   cloneDBCapability(req.DBCapability),
 	}, nil
 }
 
@@ -96,6 +98,7 @@ type Context struct {
 	token          string      // ✨ Token（用于调用存储服务等）
 	anonymousToken string      // 公开分享匿名 token
 	routerInfo     *routerInfo // 当前请求对应的路由信息（包含 PackagePath）
+	dbCapability   *dto.AppDBCapability
 }
 
 func (c *Context) ShouldBind(req interface{}) error {

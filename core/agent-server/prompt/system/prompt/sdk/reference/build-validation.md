@@ -40,8 +40,9 @@ build_workspace
 
 1. Go 编译错误：先修 import、类型、变量、语法。
 2. SDK schema 错误：修 route、Template、widget、validate、筛选字段、Response 类型。
-3. Runtime 启动错误：查启动日志和 lifecycle failed message。
-4. 业务执行错误：build 通过后再用 run 工具验证。
+3. 源码规范错误：先按安全规则修复，不要试图绕过 `write_go_file` / build 前校验。
+4. Runtime 启动错误：查启动日志和 lifecycle failed message。
+5. 业务执行错误：build 通过后再用 run 工具验证。
 
 ## 构建错误处理原则
 
@@ -61,6 +62,7 @@ build_workspace
 - `integer widget requires integer Go type`：`type:integer` 必须配 Go 整数类型；`float64` 的金额、均值、评分、比例用 `type:float`。`type:number` 已废弃，出现时直接改成 `integer` 或 `float`。
 - `cannot use &x (value of type *int) as *int64 value ... Count`：GORM `Count` 必须传 `*int64`。写 `var total int64; db.Count(&total)`；需要传给业务函数时再 `int(total)`。
 - `assignment mismatch ... DateTimeBucketExpr returns 2 values` / `Group` 参数过多：`app.DateTimeBucketExpr` 返回两个表达式。写 `dateExpr, groupExpr := app.DateTimeBucketExpr(db, "created_at", app.TimeBucketDay)`；`Select` 用 `dateExpr`，`Group` 只传 `groupExpr`。
+- `源码规范校验失败` / `应用数据库对象`：`ctx.GetGormDB()` 得到的 `db` 不能传给第三方库、外部 package、全局变量、struct 字段或 return；也不能调用 `Raw`、`Exec`、`Unscoped`、`Migrator`、`DB`、`AutoMigrate`。改为在当前文件/当前目录内直接写 GORM 链式查询、插入、更新和软删除；建表/加字段交给 Template `CreateTables`。
 - `req.X undefined ... Req has no field or method X`：删除 Request 字段后，Handler 里的手写 `req.X` 筛选也要同步删除；需要筛选时把字段显式放回 Request。
 - `does not implement chart.Charter`：传给 `resp.Chart(...)` 的必须是 SDK chart 包里的具体图表对象，不是自定义响应结构体；附加指标放 `Metadata`，多图拆多路由。
 - `resp.Charts undefined`：SDK 没有 `resp.Charts`。一个 Chart 路由只返回一张图，使用 `resp.Chart(chart).Build()`；多图拆成多个 `.chart` 路由。

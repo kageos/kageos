@@ -31,6 +31,9 @@ func TestRuntimeAppPathsBuildExpectedLocations(t *testing.T) {
 	if got := paths.CurrentAppPath(); got != filepath.Join("namespace", "alice", "demo", "workplace", "metadata", "current_app.txt") {
 		t.Fatalf("CurrentAppPath() = %s", got)
 	}
+	if got := paths.RuntimeManifestPath(); got != filepath.Join("namespace", "alice", "demo", "workplace", "metadata", "runtime-manifest.json") {
+		t.Fatalf("RuntimeManifestPath() = %s", got)
+	}
 	if got := paths.LogFileName("v7"); got != "alice_demo_v7.log" {
 		t.Fatalf("LogFileName() = %s", got)
 	}

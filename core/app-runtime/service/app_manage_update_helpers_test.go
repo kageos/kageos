@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	appconfig "github.com/kageos/kageos/pkg/config"
 )
 
 func TestBuildWriteOnlyUpdateRespKeepsCurrentVersion(t *testing.T) {
@@ -53,6 +55,42 @@ func TestCreateVersionContainerReusesRunningRuntime(t *testing.T) {
 	if driver.createCalled {
 		t.Fatal("expected create to be skipped when runtime is already running")
 	}
+}
+
+func TestBuildAppVersionSpecInjectsPinnedStartupEnv(t *testing.T) {
+	t.Parallel()
+
+	service := &AppManageService{
+		config: &appconfig.AppManageServiceConfig{
+			Build: appconfig.BuildConfig{
+				BinaryNameFormat: "{user}-{app}-{version}",
+			},
+		},
+		runtimeConfig: &appconfig.AppRuntimeConfig{
+			Runtime: appconfig.RuntimeConfig{
+				InstanceID: "rt-dev",
+			},
+			Container: appconfig.ContainerServiceConfig{
+				Image: appconfig.ImageConfig{
+					BaseImage:     "kagebase:test",
+					ContainerPath: "/srv/app",
+				},
+			},
+		},
+	}
+
+	spec, err := service.buildAppVersionSpec(context.Background(), AppVersionRef{User: "alice", App: "demo", Version: "v9"}, ".")
+	if err != nil {
+		t.Fatalf("buildAppVersionSpec: %v", err)
+	}
+
+	requireEnv(t, spec.EnvVars, "KAGEOS_APP_USER=alice")
+	requireEnv(t, spec.EnvVars, "KAGEOS_APP_NAME=demo")
+	requireEnv(t, spec.EnvVars, "APP_VERSION=v9")
+	requireEnv(t, spec.EnvVars, "APP_BINARY_NAME=alice-demo-v9")
+	requireEnv(t, spec.EnvVars, "KAGEOS_APP_WORK_DIR=/srv/app/workplace/bin")
+	requireEnv(t, spec.EnvVars, "KAGEOS_APP_BIN_DIR=/srv/app/workplace/bin/releases")
+	requireEnv(t, spec.EnvVars, "KAGEOS_RUNTIME_INSTANCE_ID=rt-dev")
 }
 
 func TestWaitForStartupNotificationReturnsNotification(t *testing.T) {
@@ -148,4 +186,15 @@ func (d *stubAppRuntimeDriver) IsAppVersionRunning(context.Context, AppVersionRe
 
 func (d *stubAppRuntimeDriver) ListAppVersions(context.Context) ([]AppRuntimeInstance, error) {
 	return nil, nil
+}
+
+func requireEnv(t *testing.T, envVars []string, want string) {
+	t.Helper()
+
+	for _, envVar := range envVars {
+		if envVar == want {
+			return
+		}
+	}
+	t.Fatalf("missing env %q in %#v", want, envVars)
 }

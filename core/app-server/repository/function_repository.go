@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"fmt"
+
 	"github.com/kageos/kageos/core/app-server/model"
 	"gorm.io/gorm"
 )
@@ -18,7 +20,76 @@ func (r *FunctionRepository) CreateFunctions(functions []*model.Function) error 
 	if len(functions) == 0 {
 		return nil
 	}
-	return r.db.Create(&functions).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		for _, function := range functions {
+			if function == nil {
+				continue
+			}
+			if err := createOrUpdateActiveFunction(tx, function); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func createOrUpdateActiveFunction(tx *gorm.DB, function *model.Function) error {
+	var activeFunctions []model.Function
+	if err := tx.
+		Where("app_id = ? AND method = ? AND router = ?", function.AppID, function.Method, function.Router).
+		Order("id DESC").
+		Find(&activeFunctions).Error; err != nil {
+		return fmt.Errorf("query active function: app_id=%d method=%s router=%s: %w", function.AppID, function.Method, function.Router, err)
+	}
+
+	if len(activeFunctions) == 0 {
+		return tx.Create(function).Error
+	}
+
+	keep := activeFunctions[0]
+	if len(activeFunctions) > 1 {
+		duplicateIDs := make([]int64, 0, len(activeFunctions)-1)
+		for _, duplicate := range activeFunctions[1:] {
+			duplicateIDs = append(duplicateIDs, duplicate.ID)
+		}
+		if err := softDeleteDuplicateActiveFunctions(tx, keep.ID, duplicateIDs); err != nil {
+			return err
+		}
+	}
+
+	updates := map[string]interface{}{
+		"schema":              function.Schema,
+		"has_config":          function.HasConfig,
+		"create_tables":       function.CreateTables,
+		"connectors":          function.Connectors,
+		"connector_endpoints": function.ConnectorEndpoints,
+		"template_type":       function.TemplateType,
+		"updated_by":          function.UpdatedBy,
+	}
+	if err := tx.Model(&model.Function{}).
+		Where("id = ?", keep.ID).
+		Updates(updates).Error; err != nil {
+		return fmt.Errorf("update active function: id=%d app_id=%d method=%s router=%s: %w", keep.ID, function.AppID, function.Method, function.Router, err)
+	}
+	function.ID = keep.ID
+	return nil
+}
+
+func softDeleteDuplicateActiveFunctions(tx *gorm.DB, keepID int64, duplicateIDs []int64) error {
+	if len(duplicateIDs) == 0 {
+		return nil
+	}
+	if tx.Migrator().HasTable(&model.ServiceTree{}) {
+		if err := tx.Table((&model.ServiceTree{}).TableName()).
+			Where("ref_id IN ?", duplicateIDs).
+			Update("ref_id", keepID).Error; err != nil {
+			return fmt.Errorf("repoint duplicate function service tree refs: %w", err)
+		}
+	}
+	if err := tx.Where("id IN ?", duplicateIDs).Delete(&model.Function{}).Error; err != nil {
+		return fmt.Errorf("soft delete duplicate active functions: %w", err)
+	}
+	return nil
 }
 
 // UpdateFunctions 批量更新函数记录

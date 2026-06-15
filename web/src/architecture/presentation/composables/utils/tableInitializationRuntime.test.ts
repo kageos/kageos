@@ -172,6 +172,48 @@ describe('tableInitializationRuntime', () => {
     ).toBe(true)
   })
 
+  it('skips table reload when only internal panel route state changes', () => {
+    expect(
+      shouldSkipTableReloadOnRouteChange({
+        source: 'router-change',
+        pathMatches: true,
+        isMounted: true,
+        isSyncingToURL: false,
+        isRestoringFromURL: false,
+        isInitializing: false,
+        newQuery: {
+          page: '1',
+          page_size: '20',
+          _open: 'operate_log',
+          _panel: 'operateLog',
+          _focus: 'operate_log',
+          _log_id: '856',
+          _trace_id: '1f9ba85c-08bc-418e-8d45-5771077d4366',
+          _source_path: '/system/demos/inventory/supplier_list.table'
+        },
+        oldQuery: {
+          page: '1',
+          page_size: '20'
+        }
+      })
+    ).toBe(true)
+  })
+
+  it('skips table reload when only generated display params change', () => {
+    expect(
+      shouldSkipTableReloadOnRouteChange({
+        source: 'router-change',
+        pathMatches: true,
+        isMounted: true,
+        isSyncingToURL: false,
+        isRestoringFromURL: false,
+        isInitializing: false,
+        newQuery: { page: '1', supplier_id: '12', supplier_id__display: 'Acme' },
+        oldQuery: { page: '1', supplier_id: '12' }
+      })
+    ).toBe(true)
+  })
+
   it('allows table reload for real route changes', () => {
     expect(
       shouldSkipTableReloadOnRouteChange({
@@ -183,6 +225,19 @@ describe('tableInitializationRuntime', () => {
         isInitializing: false,
         newQuery: { page: '2' },
         oldQuery: { page: '1' }
+      })
+    ).toBe(false)
+
+    expect(
+      shouldSkipTableReloadOnRouteChange({
+        source: 'router-change',
+        pathMatches: true,
+        isMounted: true,
+        isSyncingToURL: false,
+        isRestoringFromURL: false,
+        isInitializing: false,
+        newQuery: { page: '1', page_size: '20', supplier_id: '12' },
+        oldQuery: { page: '1', page_size: '20', supplier_id: '11' }
       })
     ).toBe(false)
   })

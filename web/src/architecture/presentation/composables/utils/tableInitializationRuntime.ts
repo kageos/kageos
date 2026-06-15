@@ -1,4 +1,8 @@
 import type { TableState } from '@/architecture/domain/types'
+import {
+  isGeneratedFieldQueryKey,
+  isPlatformStateQueryKey
+} from '@/architecture/shared/routing/queryParamKeys'
 
 type TableRouteQueryValue = string | number | boolean | null | undefined
 export type TableRouteQuery = Record<string, TableRouteQueryValue | TableRouteQueryValue[]>
@@ -142,6 +146,37 @@ export function isOnlyDetailParamsChanged(
   return JSON.stringify(omitDetailParams(oldQuery)) === JSON.stringify(omitDetailParams(newQuery))
 }
 
+export function omitNonTableReloadParams(query: TableRouteQuery): TableRouteQuery {
+  const result: TableRouteQuery = {}
+
+  Object.keys(query || {}).forEach(key => {
+    if (isPlatformStateQueryKey(key) || isGeneratedFieldQueryKey(key)) {
+      return
+    }
+
+    result[key] = query[key]
+  })
+
+  return result
+}
+
+function serializeComparableQuery(query: TableRouteQuery): string {
+  const result: TableRouteQuery = {}
+
+  Object.keys(query || {}).sort().forEach(key => {
+    result[key] = query[key]
+  })
+
+  return JSON.stringify(result)
+}
+
+export function isOnlyNonTableReloadParamsChanged(
+  oldQuery: TableRouteQuery,
+  newQuery: TableRouteQuery
+): boolean {
+  return serializeComparableQuery(omitNonTableReloadParams(oldQuery)) === serializeComparableQuery(omitNonTableReloadParams(newQuery))
+}
+
 export function shouldSkipTableReloadOnRouteChange(
   options: TableRouteReloadGuardOptions
 ): boolean {
@@ -162,6 +197,10 @@ export function shouldSkipTableReloadOnRouteChange(
   }
 
   if (isOnlyDetailParamsChanged(options.oldQuery, options.newQuery)) {
+    return true
+  }
+
+  if (isOnlyNonTableReloadParamsChanged(options.oldQuery, options.newQuery)) {
     return true
   }
 

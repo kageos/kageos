@@ -11,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/functionschema"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/subjects"
 	"github.com/kageos/kageos/sdk/agent-app/callback"
 
 	"github.com/kageos/kageos/sdk/agent-app/env"
@@ -462,7 +464,8 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 		return
 	}
 
-	if err := a.executeOnAppUpdate(ctx, msg); err != nil {
+	dbCapability := appDBCapabilityFromControlMessage(msg)
+	if err := a.executeOnAppUpdate(ctx, msg, dbCapability); err != nil {
 		logger.Errorf(ctx, "[onAppUpdate] FAILED: %v", err)
 		a.respondUpdateError(msg, err.Error())
 		return
@@ -471,13 +474,13 @@ func (a *App) onAppUpdate(msg *nats.Msg) {
 	logger.Infof(ctx, "[onAppUpdate] ✅ All done! Response sent successfully")
 }
 
-func (a *App) executeOnAppUpdate(ctx context.Context, msg *nats.Msg) error {
+func (a *App) executeOnAppUpdate(ctx context.Context, msg *nats.Msg, dbCapability *dto.AppDBCapability) error {
 	currentApis, err := a.loadCurrentApisForUpdate(ctx)
 	if err != nil {
 		return err
 	}
 
-	if err := a.migrateUpdateDatabases(ctx, currentApis); err != nil {
+	if err := a.migrateUpdateDatabases(ctx, currentApis, dbCapability); err != nil {
 		return err
 	}
 
@@ -490,7 +493,7 @@ func (a *App) executeOnAppUpdate(ctx context.Context, msg *nats.Msg) error {
 		return err
 	}
 
-	if err := a.runOnAPICreateCallbacks(ctx, diffData.Add); err != nil {
+	if err := a.runOnAPICreateCallbacks(ctx, diffData.Add, dbCapability); err != nil {
 		return err
 	}
 
@@ -508,10 +511,10 @@ func (a *App) loadCurrentApisForUpdate(ctx context.Context) ([]*ApiInfo, error) 
 	return currentApis, nil
 }
 
-func (a *App) migrateUpdateDatabases(ctx context.Context, currentApis []*ApiInfo) error {
+func (a *App) migrateUpdateDatabases(ctx context.Context, currentApis []*ApiInfo, dbCapability *dto.AppDBCapability) error {
 	logger.Infof(ctx, "[onAppUpdate] Step 2: Initializing databases...")
 	for i, api := range currentApis {
-		if err := a.migrateUpdateDatabaseForAPI(ctx, i, api); err != nil {
+		if err := a.migrateUpdateDatabaseForAPI(ctx, i, api, dbCapability); err != nil {
 			return err
 		}
 	}
@@ -519,18 +522,29 @@ func (a *App) migrateUpdateDatabases(ctx context.Context, currentApis []*ApiInfo
 	return nil
 }
 
-func (a *App) migrateUpdateDatabaseForAPI(ctx context.Context, index int, api *ApiInfo) error {
+func (a *App) migrateUpdateDatabaseForAPI(ctx context.Context, index int, api *ApiInfo, dbCapability *dto.AppDBCapability) error {
 	if api.routerInfo.Options == nil {
 		logger.Infof(ctx, "[onAppUpdate] Step 2: API %d (%s) has no options, skipping DB init", index, api.Name)
 		return nil
 	}
 
 	name := api.routerInfo.Options.GetDBName(env.User, env.App)
+	packagePath := strings.Trim(api.routerInfo.Options.PackagePath, "/")
 	logger.Infof(ctx, "[onAppUpdate] Step 2: API %d (%s) opening DB: %s", index, api.Name, name)
-	db, err := getOrInitDB(name)
+	var (
+		db interface {
+			AutoMigrate(dst ...interface{}) error
+		}
+		err error
+	)
+	if isRuntimeMySQLAppDBEnabled() || dbCapability != nil {
+		db, err = getOrInitMySQLMigrationDB(packagePath, dbCapability)
+	} else {
+		db, err = getOrInitDB(name)
+	}
 	if err != nil {
-		logger.Errorf(ctx, "[onAppUpdate] Step 2 FAILED: getOrInitDB(%s): %v", name, err)
-		return fmt.Errorf("Failed to getOrInitDB: %v", err)
+		logger.Errorf(ctx, "[onAppUpdate] Step 2 FAILED: get DB for package=%s name=%s: %v", packagePath, name, err)
+		return fmt.Errorf("Failed to get DB: %v", err)
 	}
 
 	for _, createTable := range api.CreateTableModels {
@@ -573,10 +587,10 @@ func (a *App) buildUpdateDiffData(ctx context.Context, currentApis []*ApiInfo) (
 	}, nil
 }
 
-func (a *App) runOnAPICreateCallbacks(ctx context.Context, addedApis []*ApiInfo) error {
+func (a *App) runOnAPICreateCallbacks(ctx context.Context, addedApis []*ApiInfo, dbCapability *dto.AppDBCapability) error {
 	logger.Infof(ctx, "[onAppUpdate] Step 5: Running OnApiCreate callbacks...")
 	for _, aa := range addedApis {
-		if err := a.runOnAPICreateCallback(ctx, aa); err != nil {
+		if err := a.runOnAPICreateCallback(ctx, aa, dbCapability); err != nil {
 			return err
 		}
 	}
@@ -584,7 +598,7 @@ func (a *App) runOnAPICreateCallbacks(ctx context.Context, addedApis []*ApiInfo)
 	return nil
 }
 
-func (a *App) runOnAPICreateCallback(ctx context.Context, api *ApiInfo) error {
+func (a *App) runOnAPICreateCallback(ctx context.Context, api *ApiInfo, dbCapability *dto.AppDBCapability) error {
 	router, err := a.getRoute(api.Router)
 	if err != nil {
 		logger.Errorf(ctx, "[onAppUpdate] Step 5 FAILED: getRoute(%s): %v", api.Router, err)
@@ -597,12 +611,33 @@ func (a *App) runOnAPICreateCallback(ctx context.Context, api *ApiInfo) error {
 	}
 
 	var req callback.OnApiCreateReq
-	if _, err := create(newCallbackContext(router), &req); err != nil {
+	if _, err := create(newCallbackContext(router, dbCapability), &req); err != nil {
 		logger.Errorf(ctx, "[onAppUpdate] Step 5 FAILED: OnApiCreate(%s): %v", api.Router, err)
 		return fmt.Errorf("Failed to create api: %v", err)
 	}
 
 	return nil
+}
+
+func appDBCapabilityFromControlMessage(msg *nats.Msg) *dto.AppDBCapability {
+	if msg == nil || len(msg.Data) == 0 {
+		return nil
+	}
+	var message subjects.Message
+	if err := json.Unmarshal(msg.Data, &message); err != nil {
+		return nil
+	}
+	data, err := json.Marshal(message.Data)
+	if err != nil {
+		return nil
+	}
+	var payload struct {
+		DBCapability *dto.AppDBCapability `json:"db_capability"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil
+	}
+	return cloneDBCapability(payload.DBCapability)
 }
 
 func (a *App) respondUpdateSuccess(ctx context.Context, msg *nats.Msg, diffData *DiffData) error {

@@ -1485,12 +1485,7 @@ func firstNonEmptyString(items ...string) string {
 }
 
 func normalizeWorkspaceHandoffContextPolicy(policy string) string {
-	switch strings.TrimSpace(policy) {
-	case ContextPolicyDisplayOnly:
-		return ContextPolicyDisplayOnly
-	default:
-		return ContextPolicyFull
-	}
+	return ContextPolicyFull
 }
 
 func defaultWorkspaceHandoffDisplayContent(artifactKind, targetRole, remark string) string {

@@ -14,3 +14,20 @@ container:
   timeout: 30
   image:
     base_image: "${KAGEOS_APP_BASE_IMAGE}"
+
+app_database:
+  enabled: true
+  dialect: "mysql"
+  host: "${MYSQL_HOST}"
+  port: ${MYSQL_PORT}
+  admin_user: "root"
+  admin_password: "${MYSQL_ROOT_PASSWORD}"
+  grant_host: "%"
+  secret_key: "${KAGEOS_APP_DB_SECRET_KEY}"
+  cluster_key: "${KAGEOS_APP_DB_CLUSTER_KEY}"
+  database_prefix: "kgo_"
+  user_prefix: "kgu_"
+  max_open_conns: 2
+  max_idle_conns: 0
+  max_idle_time: 30
+  max_lifetime: 600

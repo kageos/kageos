@@ -371,8 +371,8 @@ const hasBuildDiagnostics = computed(() =>
 const contextPolicyBadges = computed(() => {
   const badges: string[] = []
   if (booleanValue(resultData.value.switched)) badges.push('角色已切换')
-  if (booleanValue(args.value.reset_context) || contextPolicy.value.includes('丢弃旧细节')) badges.push('旧细节已裁剪')
-  if (contextPolicy.value.includes('旧上下文只作背景')) badges.push('旧上下文仅作背景')
+  if (booleanValue(args.value.reset_context) || contextPolicy.value.includes('当前阶段执行重点')) badges.push('阶段重点已更新')
+  if (contextPolicy.value.includes('完整历史继续进入模型上下文') || contextPolicy.value.includes('保留完整历史')) badges.push('完整历史保留')
   if (contextPolicy.value.includes('标准四块交接')) badges.push('四块交接生效')
   if (executeDirectory.value) badges.push('目录已固定')
   return uniqueStrings(badges)

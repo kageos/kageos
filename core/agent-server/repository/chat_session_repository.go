@@ -143,26 +143,6 @@ func (r *ChatSessionRepository) TryMarkGenerating(sessionID string, user string,
 	return res.RowsAffected > 0, nil
 }
 
-// ArchiveForModelIfActive 只在来源会话尚未归档时归档，避免重复 handoff 创建多个目标会话。
-func (r *ChatSessionRepository) ArchiveForModelIfActive(sessionID string, targetRoleName string, user string) (bool, error) {
-	updates := map[string]interface{}{
-		"archived_for_model": true,
-		"context_policy":     "display_only",
-		"archive_reason":     "已交接到" + targetRoleName + "，会话仅保留展示历史",
-		"status":             model.ChatSessionStatusDone,
-	}
-	if user != "" {
-		updates["updated_by"] = user
-	}
-	res := r.db.Model(&model.AgentChatSession{}).
-		Where("session_id = ? AND archived_for_model = ?", sessionID, false).
-		Updates(updates)
-	if res.Error != nil {
-		return false, res.Error
-	}
-	return res.RowsAffected > 0, nil
-}
-
 // Delete 删除会话（根据 SessionID）
 func (r *ChatSessionRepository) Delete(sessionID string) error {
 	return r.db.Where("session_id = ?", sessionID).Delete(&model.AgentChatSession{}).Error

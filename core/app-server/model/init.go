@@ -43,6 +43,10 @@ func localNatsHosts() []string {
 }
 
 func InitTables(db *gorm.DB) error {
+	if err := dropLegacyFunctionNaturalKeyIndex(db); err != nil {
+		return err
+	}
+
 	// 先迁移外键父表，再迁移子表，避免外键约束错误
 	err := db.AutoMigrate(
 		&Nats{},
@@ -72,6 +76,20 @@ func InitTables(db *gorm.DB) error {
 
 	// 创建默认的NATS和Host记录
 	return initDefaultData(db)
+}
+
+func dropLegacyFunctionNaturalKeyIndex(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&Function{}) {
+		return nil
+	}
+	const legacyIndexName = "idx_function_app_method_router"
+	if !db.Migrator().HasIndex(&Function{}, legacyIndexName) {
+		return nil
+	}
+	if err := db.Migrator().DropIndex(&Function{}, legacyIndexName); err != nil {
+		return fmt.Errorf("failed to drop legacy function natural key index: %w", err)
+	}
+	return nil
 }
 
 // initDefaultData 初始化默认数据

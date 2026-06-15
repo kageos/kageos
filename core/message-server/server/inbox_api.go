@@ -88,6 +88,21 @@ func (s *Server) listInboxSourceCounts(c *gin.Context) {
 	response.OkWithData(c, dto.MessageInboxSourceCountResp{List: list})
 }
 
+func (s *Server) listInboxWorkspaceCounts(c *gin.Context) {
+	username, err := s.resolveInboxUsername(c)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	status := strings.TrimSpace(c.Query("status"))
+	list, err := s.messageRepo.ListWorkspaceCounts(c.Request.Context(), username, status)
+	if err != nil {
+		response.FailWithMessage(c, "获取消息工作空间统计失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, dto.MessageInboxWorkspaceCountResp{List: list})
+}
+
 func (s *Server) getInboxMessage(c *gin.Context) {
 	username, err := s.resolveInboxUsername(c)
 	if err != nil {

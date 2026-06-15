@@ -8,5 +8,6 @@ func InitTables(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&App{},
 		&AppVersion{},
+		&AppDatabase{},
 	)
 }

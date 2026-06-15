@@ -31,9 +31,7 @@ type workspaceModelContextPlanInput struct {
 	AllMessages                 []*model.AgentChatMessage
 	ScopedMessages              []*model.AgentChatMessage
 	IncludedMessages            []*model.AgentChatMessage
-	ExcludedDisplayOnly         []*model.AgentChatMessage
 	ExcludedUnsupported         []*model.AgentChatMessage
-	ExcludedByAnchor            int
 	RequestedToolNames          []string
 	LLMToolNames                []string
 	LLMMessageCount             int
@@ -72,8 +70,8 @@ func (s *WorkspaceChatService) buildWorkspaceModelContextPlan(ctx context.Contex
 		modeCode = input.ModeProvider.Code()
 	}
 	includedRefs, includedTruncated := workspaceModelContextMessageRefs(input.IncludedMessages, "included", workspaceModelContextRefLimit)
-	excludedRefs, excludedTruncated := workspaceModelContextExcludedMessageRefs(input.AllMessages, input.ModelContextAnchorMessageID, input.ExcludedDisplayOnly, input.ExcludedUnsupported, workspaceModelContextRefLimit)
-	excludedStored := input.ExcludedByAnchor + len(input.ExcludedDisplayOnly) + len(input.ExcludedUnsupported)
+	excludedRefs, excludedTruncated := workspaceModelContextMessageRefs(input.ExcludedUnsupported, "unsupported_role", workspaceModelContextRefLimit)
+	excludedStored := len(input.ExcludedUnsupported)
 
 	return &dto.WorkspaceModelContextPlan{
 		ProtocolVersion: workspaceModelContextPlanVersion,
@@ -100,8 +98,8 @@ func (s *WorkspaceChatService) buildWorkspaceModelContextPlan(ctx context.Contex
 			TotalStoredMessages:         len(input.AllMessages),
 			IncludedStoredMessages:      len(input.IncludedMessages),
 			ExcludedStoredMessages:      excludedStored,
-			ExcludedByAnchor:            input.ExcludedByAnchor,
-			ExcludedDisplayOnly:         len(input.ExcludedDisplayOnly),
+			ExcludedByAnchor:            0,
+			ExcludedDisplayOnly:         0,
 			Included:                    includedRefs,
 			Excluded:                    excludedRefs,
 			Truncated:                   includedTruncated || excludedTruncated,
@@ -143,19 +141,6 @@ func workspaceModelContextTransitionIDs(transitions []nextWorkspaceRole) []strin
 	return out
 }
 
-func countWorkspaceMessagesAtOrBeforeAnchor(messages []*model.AgentChatMessage, anchorID int64) int {
-	if anchorID <= 0 {
-		return 0
-	}
-	count := 0
-	for _, msg := range messages {
-		if msg != nil && msg.ID <= anchorID {
-			count++
-		}
-	}
-	return count
-}
-
 func toolNamesFromWorkspaceToolDefs(tools []dto.ToolDef) []string {
 	out := make([]string, 0, len(tools))
 	for _, tool := range tools {
@@ -187,44 +172,6 @@ func workspaceModelContextMessageRefs(messages []*model.AgentChatMessage, reason
 		})
 	}
 	return out, len(messages) > len(out)
-}
-
-func workspaceModelContextExcludedMessageRefs(allMessages []*model.AgentChatMessage, anchorID int64, displayOnly []*model.AgentChatMessage, unsupported []*model.AgentChatMessage, limit int) ([]dto.WorkspaceModelContextMessageRef, bool) {
-	out := make([]dto.WorkspaceModelContextMessageRef, 0)
-	truncated := false
-	appendRefs := func(messages []*model.AgentChatMessage, reason string) {
-		if truncated {
-			return
-		}
-		for _, msg := range messages {
-			if msg == nil {
-				continue
-			}
-			if len(out) >= limit {
-				truncated = true
-				return
-			}
-			out = append(out, dto.WorkspaceModelContextMessageRef{
-				ID:           msg.ID,
-				Role:         msg.Role,
-				ContextUsage: normalizeMessageContextUsage(msg.ContextUsage),
-				ArtifactKind: strings.TrimSpace(msg.ArtifactKind),
-				Reason:       reason,
-			})
-		}
-	}
-	if anchorID > 0 {
-		anchored := make([]*model.AgentChatMessage, 0)
-		for _, msg := range allMessages {
-			if msg != nil && msg.ID <= anchorID {
-				anchored = append(anchored, msg)
-			}
-		}
-		appendRefs(anchored, "before_model_context_anchor")
-	}
-	appendRefs(displayOnly, "display_only")
-	appendRefs(unsupported, "unsupported_role")
-	return out, truncated
 }
 
 func latestWorkspaceModelContextHandoff(messages []*model.AgentChatMessage) *dto.WorkspaceModelContextHandoff {
@@ -344,27 +291,10 @@ func workspaceModelContextFilesCount(workspaceCtx *dto.GetWorkspaceContextResp) 
 }
 
 func workspaceModelContextSourceHistoryPolicy(parentSessionID string, anchorID int64) string {
-	switch {
-	case strings.TrimSpace(parentSessionID) != "" && anchorID > 0:
-		return "parent_session_display_only_and_anchor_trimmed"
-	case strings.TrimSpace(parentSessionID) != "":
-		return "parent_session_display_only"
-	case anchorID > 0:
-		return "same_session_anchor_trimmed"
-	default:
-		return "same_session_full"
+	if strings.TrimSpace(parentSessionID) != "" {
+		return "same_session_full_with_parent_reference"
 	}
-}
-
-func normalizeWorkspaceModelContextPolicy(policy string) string {
-	switch strings.TrimSpace(policy) {
-	case ContextPolicyArtifactOnly:
-		return ContextPolicyArtifactOnly
-	case ContextPolicyDisplayOnly:
-		return ContextPolicyDisplayOnly
-	default:
-		return ContextPolicyFull
-	}
+	return "same_session_full"
 }
 
 func workspaceModelContextScopePolicy(roleID string, fullCodePath string, handoff *dto.WorkspaceModelContextHandoff) string {

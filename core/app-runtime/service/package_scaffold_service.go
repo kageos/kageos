@@ -13,12 +13,17 @@ import (
 
 // PackageScaffoldService 管理 package 目录脚手架，包括目录创建、init_.go 维护和 main.go import 同步。
 type PackageScaffoldService struct {
-	config *config.AppManageServiceConfig
+	config             *config.AppManageServiceConfig
+	appDatabaseService *AppDatabaseService
 }
 
 // NewPackageScaffoldService 创建 package 脚手架服务。
 func NewPackageScaffoldService(config *config.AppManageServiceConfig) *PackageScaffoldService {
 	return &PackageScaffoldService{config: config}
+}
+
+func (s *PackageScaffoldService) SetAppDatabaseService(appDatabaseService *AppDatabaseService) {
+	s.appDatabaseService = appDatabaseService
 }
 
 // DeleteServiceTree 删除目录脚手架，并从 main.go 移除 blank import。
@@ -80,6 +85,11 @@ func (s *PackageScaffoldService) BatchCreateDirectoryTree(
 
 		if err := os.MkdirAll(packageDir, 0755); err != nil {
 			return nil, fmt.Errorf("创建目录失败 (%s): %w", item.FullCodePath, err)
+		}
+		if s.appDatabaseService != nil && s.appDatabaseService.IsEnabled() && packagePath != "" {
+			if err := s.appDatabaseService.EnsureDatabaseForPackage(ctx, req.User, req.App, packagePath); err != nil {
+				return nil, fmt.Errorf("创建目录数据库失败 (%s): %w", item.FullCodePath, err)
+			}
 		}
 		directoryCount++
 		createdPaths = append(createdPaths, item.FullCodePath)

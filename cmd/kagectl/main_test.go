@@ -571,8 +571,18 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 		}
 	}
 	appRuntimeConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "app-runtime.yaml"))
-	if !strings.Contains(appRuntimeConfig, `base_image: "kagebase:latest"`) {
-		t.Fatalf("dev app-runtime config should use default base image, got:\n%s", appRuntimeConfig)
+	for _, want := range []string{
+		`base_image: "kagebase:latest"`,
+		`app_database:`,
+		`enabled: true`,
+		`port: 3318`,
+		`admin_user: "root"`,
+		`cluster_key: "mysql_`,
+		`database_prefix: "kgo_"`,
+	} {
+		if !strings.Contains(appRuntimeConfig, want) {
+			t.Fatalf("dev app-runtime config missing %q, got:\n%s", want, appRuntimeConfig)
+		}
 	}
 	timerSchedulerConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "timer-scheduler.yaml"))
 	for _, want := range []string{
@@ -604,6 +614,12 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 	}
 	if !strings.Contains(envContent, "MYSQL_PORT=3318") {
 		t.Fatalf("dev env should use isolated mysql port 3318, got:\n%s", envContent)
+	}
+	if !strings.Contains(envContent, "KAGEOS_APP_DB_SECRET_KEY=") {
+		t.Fatalf("dev env should include app database secret, got:\n%s", envContent)
+	}
+	if !strings.Contains(envContent, "KAGEOS_APP_DB_CLUSTER_KEY=mysql_") {
+		t.Fatalf("dev env should include app database cluster key, got:\n%s", envContent)
 	}
 }
 
@@ -652,6 +668,7 @@ func TestRenderDevConfigPreservesExistingSecrets(t *testing.T) {
 		"MINIO_ROOT_USER=existing-minio",
 		"MINIO_ROOT_PASSWORD=existing-minio-pass",
 		"JWT_SECRET=existing-jwt-secret-existing-jwt-secret",
+		"KAGEOS_APP_DB_SECRET_KEY=existing-app-db-secret-existing-app-db",
 		"SYSTEM_USER_PASSWORD=existing-system-pass",
 		"",
 	}, "\n")
@@ -666,6 +683,10 @@ func TestRenderDevConfigPreservesExistingSecrets(t *testing.T) {
 	appServerConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "app-server.yaml"))
 	if !strings.Contains(appServerConfig, `password: "existing-mysql"`) {
 		t.Fatalf("dev config should preserve existing mysql password, got:\n%s", appServerConfig)
+	}
+	appRuntimeConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "app-runtime.yaml"))
+	if !strings.Contains(appRuntimeConfig, `secret_key: "existing-app-db-secret-existing-app-db"`) {
+		t.Fatalf("dev app-runtime config should preserve app db secret, got:\n%s", appRuntimeConfig)
 	}
 }
 

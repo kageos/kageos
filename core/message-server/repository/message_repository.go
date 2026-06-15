@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -201,6 +202,52 @@ func (r *MessageRepository) ListSourceCounts(ctx context.Context, username, stat
 	return out, nil
 }
 
+func (r *MessageRepository) ListWorkspaceCounts(ctx context.Context, username, status string) ([]dto.MessageInboxWorkspaceCount, error) {
+	var rows []inboxWorkspaceCountSourceRow
+	if err := r.inboxQuery(ctx, username, InboxListFilter{Status: status}).
+		Select(strings.Join([]string{
+			"m.source_path",
+			"m.full_code_path",
+			"m.source_parent_path",
+			"m.source_title",
+			"m.source_parent_title",
+			"r.read_at",
+			"m.created_at",
+		}, ", ")).
+		Order("m.created_at DESC").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	groups := make(map[string]*dto.MessageInboxWorkspaceCount)
+	for _, row := range rows {
+		workspace := messageWorkspaceFromPaths(row.SourcePath, row.FullCodePath, row.SourceParentPath)
+		group := groups[workspace.WorkspaceKey]
+		if group == nil {
+			group = &workspace
+			groups[workspace.WorkspaceKey] = group
+		}
+		group.MessageCount += 1
+		if row.ReadAt == nil {
+			group.UnreadCount += 1
+		}
+		if group.LatestAt.IsZero() || row.CreatedAt.After(group.LatestAt) {
+			group.LatestAt = row.CreatedAt
+			group.LatestSourcePath = firstNonEmptyStringForRepository(row.SourcePath, row.FullCodePath, row.SourceParentPath)
+			group.LatestSourceTitle = firstNonEmptyStringForRepository(row.SourceTitle, row.SourceParentTitle, group.Title)
+		}
+	}
+
+	out := make([]dto.MessageInboxWorkspaceCount, 0, len(groups))
+	for _, group := range groups {
+		out = append(out, *group)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].LatestAt.After(out[j].LatestAt)
+	})
+	return out, nil
+}
+
 func (r *MessageRepository) GetInboxMessage(ctx context.Context, username string, messageID int64) (*dto.MessageInboxItem, error) {
 	var item dto.MessageInboxItem
 	result := r.inboxBaseQuery(ctx, username).
@@ -338,6 +385,16 @@ type inboxSourceCountRow struct {
 	UnreadCount  int64
 }
 
+type inboxWorkspaceCountSourceRow struct {
+	SourcePath        string
+	FullCodePath      string
+	SourceParentPath  string
+	SourceTitle       string
+	SourceParentTitle string
+	ReadAt            *time.Time
+	CreatedAt         time.Time
+}
+
 func inboxThreadKeySQL() string {
 	return "COALESCE(NULLIF(m.source_parent_path, ''), NULLIF(m.thread_key, ''), NULLIF(m.source_path, ''), NULLIF(m.full_code_path, ''), NULLIF(m.workspace_session_id, ''), NULLIF(m.`from`, ''), 'system')"
 }
@@ -367,6 +424,52 @@ func messageSourcePathVariants(path string) []string {
 		return []string{path}
 	}
 	return []string{path, withoutLeadingSlash}
+}
+
+func messageWorkspaceFromPaths(paths ...string) dto.MessageInboxWorkspaceCount {
+	for _, path := range paths {
+		workspacePath, workspaceUser, workspaceCode := messageWorkspacePath(path)
+		if workspacePath == "" {
+			continue
+		}
+		return dto.MessageInboxWorkspaceCount{
+			WorkspaceKey:  workspacePath,
+			WorkspaceUser: workspaceUser,
+			WorkspaceCode: workspaceCode,
+			WorkspacePath: workspacePath,
+			Title:         workspaceUser + "/" + workspaceCode,
+		}
+	}
+	return dto.MessageInboxWorkspaceCount{
+		WorkspaceKey: "global",
+		Title:        "全局消息",
+	}
+}
+
+func messageWorkspacePath(path string) (string, string, string) {
+	path = normalizeMessageSourcePath(path)
+	if path == "" {
+		return "", "", ""
+	}
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) < 2 {
+		return "", "", ""
+	}
+	user := strings.TrimSpace(parts[0])
+	code := strings.TrimSpace(parts[1])
+	if user == "" || code == "" {
+		return "", "", ""
+	}
+	return "/" + user + "/" + code, user, code
+}
+
+func firstNonEmptyStringForRepository(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func parseInboxLatestAt(raw string) time.Time {

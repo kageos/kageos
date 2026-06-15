@@ -336,9 +336,7 @@ func (s *WorkspaceChatService) ensureWorkspaceSessionHasRunnableMessage(sessionI
 		if msg == nil || msg.Role != RoleUser {
 			continue
 		}
-		if normalizeMessageContextUsage(msg.ContextUsage) != MessageContextDisplayOnly {
-			return nil
-		}
+		return nil
 	}
 	return fmt.Errorf("会话没有可进入模型上下文的用户消息，无法续跑")
 }

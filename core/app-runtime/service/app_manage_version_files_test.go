@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	appconfig "github.com/kageos/kageos/pkg/config"
 )
@@ -75,6 +76,121 @@ func TestUpdateVersionJSONUsesConfiguredBasePathForCurrentVersionFiles(t *testin
 	}
 	if versionData.CurrentVersion != "v2" || versionData.LatestVersion != "v2" {
 		t.Fatalf("unexpected version data: %+v", versionData)
+	}
+}
+
+func TestWriteBuiltRuntimeManifestCreatesObservableFile(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	service := newVersionFileTestService(basePath)
+	appPaths := newRuntimeAppPaths(basePath, "alice", "demo")
+
+	if err := service.writeBuiltRuntimeManifest("alice", "demo", appPaths, "v7"); err != nil {
+		t.Fatalf("writeBuiltRuntimeManifest: %v", err)
+	}
+
+	manifest, err := service.readRuntimeManifest(appPaths.RuntimeManifestPath())
+	if err != nil {
+		t.Fatalf("readRuntimeManifest: %v", err)
+	}
+	if manifest.SchemaVersion != "1" {
+		t.Fatalf("SchemaVersion = %q, want 1", manifest.SchemaVersion)
+	}
+	if manifest.User != "alice" || manifest.App != "demo" || manifest.Version != "v7" {
+		t.Fatalf("unexpected identity: %+v", manifest)
+	}
+	if manifest.VersionNum != 7 {
+		t.Fatalf("VersionNum = %d, want 7", manifest.VersionNum)
+	}
+	if manifest.BinaryName != "alice_demo_v7" {
+		t.Fatalf("BinaryName = %q, want alice_demo_v7", manifest.BinaryName)
+	}
+	if manifest.BinaryPath != "/app/workplace/bin/releases/alice_demo_v7" {
+		t.Fatalf("BinaryPath = %q, want container binary path", manifest.BinaryPath)
+	}
+	if manifest.HostBinaryPath != filepath.Join(basePath, "alice", "demo", "workplace", "bin", "releases", "alice_demo_v7") {
+		t.Fatalf("HostBinaryPath = %q", manifest.HostBinaryPath)
+	}
+	if manifest.Status != "built" {
+		t.Fatalf("Status = %q, want built", manifest.Status)
+	}
+	if manifest.CreatedAt == "" || manifest.BuiltAt == "" || manifest.UpdatedAt == "" {
+		t.Fatalf("expected timestamps to be populated: %+v", manifest)
+	}
+}
+
+func TestUpdateRuntimeManifestStartupPreservesBuildInfo(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	service := newVersionFileTestService(basePath)
+	appPaths := newRuntimeAppPaths(basePath, "alice", "demo")
+	builtAt := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
+	manifest := service.buildRuntimeManifest("alice", "demo", appPaths, "v2", builtAt)
+	if err := os.MkdirAll(appPaths.MetadataDir(), 0o755); err != nil {
+		t.Fatalf("mkdir metadata dir: %v", err)
+	}
+	if err := service.writeRuntimeManifest(appPaths.RuntimeManifestPath(), &manifest); err != nil {
+		t.Fatalf("writeRuntimeManifest: %v", err)
+	}
+
+	startedAt := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	if err := service.updateRuntimeManifestStartup(&StartupNotification{
+		User:      "alice",
+		App:       "demo",
+		Version:   "v2",
+		Status:    "started",
+		StartTime: startedAt,
+	}); err != nil {
+		t.Fatalf("updateRuntimeManifestStartup: %v", err)
+	}
+
+	got, err := service.readRuntimeManifest(appPaths.RuntimeManifestPath())
+	if err != nil {
+		t.Fatalf("readRuntimeManifest: %v", err)
+	}
+	if got.Status != "running" {
+		t.Fatalf("Status = %q, want running", got.Status)
+	}
+	if got.StartedAt != startedAt.Format(time.RFC3339) {
+		t.Fatalf("StartedAt = %q, want %q", got.StartedAt, startedAt.Format(time.RFC3339))
+	}
+	if got.BuiltAt != builtAt.Format(time.RFC3339) || got.CreatedAt != builtAt.Format(time.RFC3339) {
+		t.Fatalf("expected build timestamps to be preserved: %+v", got)
+	}
+}
+
+func TestUpdateRuntimeManifestStartupSkipsDifferentVersion(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	service := newVersionFileTestService(basePath)
+	appPaths := newRuntimeAppPaths(basePath, "alice", "demo")
+	manifest := service.buildRuntimeManifest("alice", "demo", appPaths, "v3", time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC))
+	if err := os.MkdirAll(appPaths.MetadataDir(), 0o755); err != nil {
+		t.Fatalf("mkdir metadata dir: %v", err)
+	}
+	if err := service.writeRuntimeManifest(appPaths.RuntimeManifestPath(), &manifest); err != nil {
+		t.Fatalf("writeRuntimeManifest: %v", err)
+	}
+
+	if err := service.updateRuntimeManifestStartup(&StartupNotification{
+		User:      "alice",
+		App:       "demo",
+		Version:   "v2",
+		Status:    "running",
+		StartTime: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("updateRuntimeManifestStartup: %v", err)
+	}
+
+	got, err := service.readRuntimeManifest(appPaths.RuntimeManifestPath())
+	if err != nil {
+		t.Fatalf("readRuntimeManifest: %v", err)
+	}
+	if got.Version != "v3" || got.Status != "built" || got.StartedAt != "" {
+		t.Fatalf("expected different-version startup to be ignored: %+v", got)
 	}
 }
 

@@ -1,9 +1,12 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -46,10 +49,11 @@ type NatsConfig struct {
 
 // AppRuntimeConfig app-runtime 配置
 type AppRuntimeConfig struct {
-	Runtime   RuntimeConfig           `mapstructure:"runtime"`
-	Timeouts  AppRuntimeTimeoutConfig `mapstructure:"timeouts"`
-	AppManage AppManageServiceConfig  `mapstructure:"app_manage"`
-	Container ContainerServiceConfig  `mapstructure:"container"`
+	Runtime     RuntimeConfig           `mapstructure:"runtime"`
+	Timeouts    AppRuntimeTimeoutConfig `mapstructure:"timeouts"`
+	AppManage   AppManageServiceConfig  `mapstructure:"app_manage"`
+	Container   ContainerServiceConfig  `mapstructure:"container"`
+	AppDatabase AppDatabaseConfig       `mapstructure:"app_database"`
 	// 注意：NATS 配置已移至全局配置，不再在此处配置
 }
 
@@ -76,6 +80,19 @@ const (
 	defaultAppArmorProfile         = "kageos-app"
 	defaultContainerBaseImage      = "kagebase:latest"
 	defaultContainerPath           = "/app"
+)
+
+const (
+	defaultAppDatabaseDialect      = "mysql"
+	defaultAppDatabaseHost         = "127.0.0.1"
+	defaultAppDatabasePort         = 3306
+	defaultAppDatabaseGrantHost    = "%"
+	defaultAppDatabaseNamePrefix   = "kgo_"
+	defaultAppDatabaseUserPrefix   = "kgu_"
+	defaultAppDatabaseMaxOpenConns = 2
+	defaultAppDatabaseMaxIdleConns = 0
+	defaultAppDatabaseMaxIdleTime  = 30
+	defaultAppDatabaseMaxLifetime  = 600
 )
 
 // AppRuntimeTimeoutConfig App Runtime 超时配置
@@ -118,6 +135,27 @@ type BuildConfig struct {
 // GitConfig Git 配置
 type GitConfig struct {
 	EmailSuffix string `mapstructure:"email_suffix"` // Git 邮箱后缀（如 "kageos.com"）
+}
+
+// AppDatabaseConfig controls runtime-managed per-package databases for SDK
+// apps. Admin credentials stay in app-runtime and are never injected into app
+// containers.
+type AppDatabaseConfig struct {
+	Enabled        bool   `mapstructure:"enabled"`
+	Dialect        string `mapstructure:"dialect"`
+	Host           string `mapstructure:"host"`
+	Port           int    `mapstructure:"port"`
+	AdminUser      string `mapstructure:"admin_user"`
+	AdminPassword  string `mapstructure:"admin_password"`
+	GrantHost      string `mapstructure:"grant_host"`
+	SecretKey      string `mapstructure:"secret_key"`
+	ClusterKey     string `mapstructure:"cluster_key"`
+	DatabasePrefix string `mapstructure:"database_prefix"`
+	UserPrefix     string `mapstructure:"user_prefix"`
+	MaxOpenConns   int    `mapstructure:"max_open_conns"`
+	MaxIdleConns   int    `mapstructure:"max_idle_conns"`
+	MaxIdleTime    int    `mapstructure:"max_idle_time"` // seconds
+	MaxLifetime    int    `mapstructure:"max_lifetime"`  // seconds
 }
 
 func (c *AppManageServiceConfig) GetBasePath() string {
@@ -323,6 +361,109 @@ func (c *AppRuntimeConfig) GetContainerPath() string {
 		return (&ContainerServiceConfig{}).GetContainerPath()
 	}
 	return c.Container.GetContainerPath()
+}
+
+func (c *AppRuntimeConfig) GetAppDatabaseConfig() AppDatabaseConfig {
+	if c == nil {
+		return AppDatabaseConfig{}
+	}
+	return c.AppDatabase.WithDefaults()
+}
+
+func (c AppDatabaseConfig) WithDefaults() AppDatabaseConfig {
+	if envEnabled := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_ENABLED")); envEnabled != "" {
+		c.Enabled = strings.EqualFold(envEnabled, "true") || envEnabled == "1" || strings.EqualFold(envEnabled, "yes")
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_HOST")); v != "" {
+		c.Host = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_PORT")); v != "" {
+		if port, err := strconv.Atoi(v); err == nil {
+			c.Port = port
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_ADMIN_USER")); v != "" {
+		c.AdminUser = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_ADMIN_PASSWORD")); v != "" {
+		c.AdminPassword = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_SECRET_KEY")); v != "" {
+		c.SecretKey = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_CLUSTER_KEY")); v != "" {
+		c.ClusterKey = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_GRANT_HOST")); v != "" {
+		c.GrantHost = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_DATABASE_PREFIX")); v != "" {
+		c.DatabasePrefix = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_USER_PREFIX")); v != "" {
+		c.UserPrefix = v
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_MAX_OPEN_CONNS")); v != "" {
+		if value, err := strconv.Atoi(v); err == nil {
+			c.MaxOpenConns = value
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_MAX_IDLE_CONNS")); v != "" {
+		if value, err := strconv.Atoi(v); err == nil {
+			c.MaxIdleConns = value
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_MAX_IDLE_TIME")); v != "" {
+		if value, err := strconv.Atoi(v); err == nil {
+			c.MaxIdleTime = value
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_MAX_LIFETIME")); v != "" {
+		if value, err := strconv.Atoi(v); err == nil {
+			c.MaxLifetime = value
+		}
+	}
+
+	if c.Dialect == "" {
+		c.Dialect = defaultAppDatabaseDialect
+	}
+	if c.Host == "" {
+		c.Host = defaultAppDatabaseHost
+	}
+	if c.Port <= 0 {
+		c.Port = defaultAppDatabasePort
+	}
+	if c.GrantHost == "" {
+		c.GrantHost = defaultAppDatabaseGrantHost
+	}
+	if c.ClusterKey == "" {
+		c.ClusterKey = defaultAppDatabaseClusterKey(c.Host, c.Port)
+	}
+	if c.DatabasePrefix == "" {
+		c.DatabasePrefix = defaultAppDatabaseNamePrefix
+	}
+	if c.UserPrefix == "" {
+		c.UserPrefix = defaultAppDatabaseUserPrefix
+	}
+	if c.MaxOpenConns <= 0 {
+		c.MaxOpenConns = defaultAppDatabaseMaxOpenConns
+	}
+	if c.MaxIdleConns < 0 {
+		c.MaxIdleConns = defaultAppDatabaseMaxIdleConns
+	}
+	if c.MaxIdleTime <= 0 {
+		c.MaxIdleTime = defaultAppDatabaseMaxIdleTime
+	}
+	if c.MaxLifetime <= 0 {
+		c.MaxLifetime = defaultAppDatabaseMaxLifetime
+	}
+	return c
+}
+
+func defaultAppDatabaseClusterKey(host string, port int) string {
+	value := fmt.Sprintf("%s:%d", strings.ToLower(strings.TrimSpace(host)), port)
+	sum := sha256.Sum256([]byte(value))
+	return "mysql_" + hex.EncodeToString(sum[:])[:12]
 }
 
 func (c *ContainerServiceConfig) GetRuntime() string {

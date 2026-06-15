@@ -185,6 +185,7 @@ type AuthConfig struct {
 
 type SecretsConfig struct {
 	JWTSecret              string `yaml:"jwt_secret"`
+	AppDBSecret            string `yaml:"app_db_secret"`
 	GeneratedByKageCtl     bool   `yaml:"generated_by_kagectl"`
 	GeneratedAtUnixSeconds int64  `yaml:"generated_at_unix_seconds"`
 }
@@ -242,6 +243,7 @@ type RuntimeConfig struct {
 	MinIOHostForMain    string
 	MinIOPortForMain    int
 	MySQLAddress        string
+	AppDBClusterKey     string
 	NATSURL             string
 	SDKNATSURL          string
 	SDKGatewayURL       string
@@ -267,5 +269,6 @@ type devSecrets struct {
 	MinIORootUser      string
 	MinIORootPassword  string
 	JWTSecret          string
+	AppDBSecret        string
 	SystemUserPassword string
 }

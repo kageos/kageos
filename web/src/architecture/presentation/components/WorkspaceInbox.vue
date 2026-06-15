@@ -55,6 +55,28 @@
           </div>
         </header>
 
+        <div v-if="shouldShowWorkspaceTabs" class="inbox-workspace-tabs">
+          <button
+            v-for="workspace in workspaceTabs"
+            :key="workspace.workspace_key"
+            type="button"
+            class="workspace-tab"
+            :class="{ 'is-active': isWorkspaceTabActive(workspace), 'has-unread': Number(workspace.unread_count || 0) > 0 }"
+            @click="handleWorkspaceTabClick(workspace)"
+          >
+            <span class="workspace-tab-copy">
+              <span class="workspace-tab-title">{{ workspaceTabTitle(workspace) }}</span>
+              <span class="workspace-tab-path">{{ workspaceTabPath(workspace) }}</span>
+            </span>
+            <span class="workspace-tab-counts">
+              <span v-if="Number(workspace.unread_count || 0) > 0" class="workspace-tab-unread">
+                {{ workspace.unread_count }}
+              </span>
+              <span class="workspace-tab-total">{{ workspace.message_count }} 条</span>
+            </span>
+          </button>
+        </div>
+
         <el-alert
           v-if="errorMessage"
           :title="errorMessage"
@@ -65,7 +87,7 @@
         />
 
         <div class="inbox-layout">
-          <section class="inbox-list-pane" v-loading="listLoading">
+          <section class="inbox-list-pane" v-loading="!showServiceTreeInbox && listLoading">
             <template v-if="showServiceTreeInbox">
               <el-tree
                 :key="sourceTreeRenderKey"
@@ -75,15 +97,17 @@
                 node-key="full_code_path"
                 :default-expanded-keys="sourceTreeExpandedKeys"
                 :expand-on-click-node="false"
-                :highlight-current="false"
+                :highlight-current="true"
+                :current-node-key="activeSourceTreeKey"
                 @node-click="handleSourceTreeNodeClick"
               >
                 <template #default="{ data }">
                   <ServiceTreeNodeContent
                     :node="data"
                     :active="isSourceTreeNodeActive(data)"
-                    :show-notification-badge="hasSourceTreeUnread(data)"
-                    :notification-badge-value="sourceTreeUnreadCount(data)"
+                    :show-notification-badge="hasSourceTreeMessages(data)"
+                    :notification-badge-value="sourceTreeNotificationCount(data)"
+                    :notification-badge-class="sourceTreeNotificationClass(data)"
                     :notification-badge-title="getSourceTreeNotificationTitle(data)"
                     @notification-click="handleSourceTreeNodeClick(data)"
                   />
@@ -136,7 +160,7 @@
             </template>
           </section>
 
-          <section class="inbox-detail-pane" v-loading="detailLoading">
+          <section class="inbox-detail-pane" v-loading="detailLoading || (showServiceTreeInbox && listLoading)">
             <el-empty
               v-if="!selectedThread"
               :description="sourceFilter ? '当前节点暂无通知' : '选择一个消息源查看通知'"
@@ -304,23 +328,29 @@ import {
   listMessageInbox,
   listMessageInboxSourceCounts,
   listMessageInboxThreads,
+  listMessageInboxWorkspaceCounts,
   markAllMessageInboxItemsRead,
   markMessageInboxItemRead,
   type MessageInboxItem,
   type MessageInboxSourceCount,
   type MessageInboxThread,
+  type MessageInboxWorkspaceCount,
   type MessageInboxStatus,
 } from '@/architecture/presentation/context/api/message'
-import type { ServiceTree } from '@/architecture/domain/types'
+import type { App, ServiceTree } from '@/architecture/domain/types'
 
 const props = withDefaults(defineProps<{
   showTrigger?: boolean
   syncRoute?: boolean
   serviceTree?: ServiceTree[]
+  currentApp?: App | null
+  appList?: App[]
 }>(), {
   showTrigger: true,
   syncRoute: true,
-  serviceTree: () => []
+  serviceTree: () => [],
+  currentApp: null,
+  appList: () => []
 })
 
 const emit = defineEmits<{
@@ -383,12 +413,30 @@ const statusOptions = [
 const sourceFilter = ref<SourceFilter | null>(null)
 const markSourceReadOnOpen = ref(false)
 const sourceCountMap = ref<Record<string, MessageInboxSourceCount>>({})
+const workspaceCounts = ref<MessageInboxWorkspaceCount[]>([])
 const appliedRouteInboxKey = ref('')
+let inboxLoadSeq = 0
+let detailLoadSeq = 0
 const sourceTreeProps = {
   children: 'children',
   label: 'name',
 }
 const showServiceTreeInbox = computed(() => props.showTrigger && props.serviceTree.length > 0)
+const activeSourceTreeKey = computed(() => normalizeSourceTreePath(sourceFilter.value?.sourcePath))
+const currentWorkspaceKey = computed(() => {
+  return workspaceKeyFromRoutePath(route.path) || workspaceKeyFromApp(props.currentApp)
+})
+const workspaceTabs = computed(() => {
+  return workspaceCounts.value
+    .filter(item => workspaceKeyForCount(item))
+    .sort((a, b) => messageTimeFromString(b.latest_at) - messageTimeFromString(a.latest_at))
+})
+const shouldShowWorkspaceTabs = computed(() => {
+  const tabs = workspaceTabs.value
+  if (tabs.length > 1) return true
+  const onlyTab = tabs[0]
+  return Boolean(onlyTab && workspaceKeyForCount(onlyTab) !== currentWorkspaceKey.value)
+})
 const sourceTreeSummaries = computed<Record<string, SourceTreeSummary>>(() => {
   const summaries: Record<string, SourceTreeSummary> = {}
   const walk = (node: ServiceTree) => {
@@ -503,7 +551,7 @@ async function openInboxFromRouteIntent() {
   if (!props.showTrigger || !props.syncRoute || !isInboxOpenQuery(route.query)) return
   const messageID = readNumberQuery(route.query, PLATFORM_MESSAGE_ID_QUERY_KEY)
   const sourcePath = normalizeSourceTreePath(readStringQuery(route.query, PLATFORM_SOURCE_PATH_QUERY_KEY))
-  const key = `${sourcePath}:${messageID}`
+  const key = `${currentWorkspaceKey.value}:${sourcePath}:${messageID}`
   if (appliedRouteInboxKey.value === key && drawerVisible.value) return
   appliedRouteInboxKey.value = key
 
@@ -566,20 +614,27 @@ function handleDrawerClosed() {
 }
 
 async function loadInbox(resetPage = false, options: LoadInboxOptions = {}) {
+  const loadSeq = ++inboxLoadSeq
+  detailLoadSeq += 1
+  detailLoading.value = false
   if (resetPage) {
     page.value = 1
   }
   listLoading.value = true
   errorMessage.value = ''
   try {
+    await loadWorkspaceCounts()
+    if (loadSeq !== inboxLoadSeq) return
     if (showServiceTreeInbox.value) {
       await loadSourceCounts()
+      if (loadSeq !== inboxLoadSeq) return
     }
     if (sourceFilter.value?.sourcePath) {
-      await loadSourceInbox({ markRead: options.markSourceRead })
+      await loadSourceInbox({ markRead: options.markSourceRead, loadSeq })
       return
     }
     if (showServiceTreeInbox.value) {
+      if (loadSeq !== inboxLoadSeq) return
       inboxThreads.value = []
       threadMessages.value = []
       selectedThreadKey.value = ''
@@ -592,6 +647,7 @@ async function loadInbox(resetPage = false, options: LoadInboxOptions = {}) {
       page: page.value,
       page_size: pageSize,
     })
+    if (loadSeq !== inboxLoadSeq) return
     inboxThreads.value = (resp.list || []).map(apiThreadToInboxThread)
     total.value = resp.total || 0
     if (!inboxThreads.value.some(thread => thread.key === selectedThreadKey.value)) {
@@ -606,9 +662,31 @@ async function loadInbox(resetPage = false, options: LoadInboxOptions = {}) {
       threadMessages.value = []
     }
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '加载站内信失败'
+    if (loadSeq === inboxLoadSeq) {
+      errorMessage.value = error instanceof Error ? error.message : '加载站内信失败'
+    }
   } finally {
-    listLoading.value = false
+    if (loadSeq === inboxLoadSeq) {
+      listLoading.value = false
+    }
+  }
+}
+
+async function loadWorkspaceCounts() {
+  try {
+    const resp = await listMessageInboxWorkspaceCounts()
+    workspaceCounts.value = (resp.list || [])
+      .map(item => {
+        const workspaceKey = workspaceKeyForCount(item)
+        return {
+          ...item,
+          workspace_key: workspaceKey,
+          workspace_path: workspaceKey,
+        }
+      })
+      .filter(item => item.workspace_key)
+  } catch {
+    workspaceCounts.value = []
   }
 }
 
@@ -630,7 +708,7 @@ async function loadSourceCounts() {
   }
 }
 
-async function loadSourceInbox(options: { markRead?: boolean } = {}) {
+async function loadSourceInbox(options: { markRead?: boolean; loadSeq?: number } = {}) {
   const filter = sourceFilter.value
   if (!filter?.sourcePath) return
   const resp = await listMessageInbox({
@@ -640,6 +718,7 @@ async function loadSourceInbox(options: { markRead?: boolean } = {}) {
     page: page.value,
     page_size: 100,
   })
+  if (options.loadSeq && options.loadSeq !== inboxLoadSeq) return
   const messages = resp.list || []
   threadMessages.value = messages
   total.value = resp.total || 0
@@ -675,37 +754,51 @@ async function loadSourceInbox(options: { markRead?: boolean } = {}) {
 function selectThread(thread: InboxThread) {
   selectedThreadKey.value = thread.key
   selectedMessage.value = thread.lastMessage
-  void loadThreadMessages(thread).then(() => markThreadRead(thread))
+  void loadThreadMessages(thread).then((loaded) => {
+    if (loaded) {
+      void markThreadRead(thread)
+    }
+  })
 }
 
-async function loadThreadMessages(thread: InboxThread) {
+async function loadThreadMessages(thread: InboxThread): Promise<boolean> {
+  const loadSeq = ++detailLoadSeq
   detailLoading.value = true
   errorMessage.value = ''
   try {
     if (sourceFilter.value?.sourcePath) {
       await loadSourceInbox()
-      return
+      return loadSeq === detailLoadSeq
     }
     const resp = await listMessageInbox({
       thread_key: thread.key,
       page: 1,
       page_size: 100,
     })
+    if (loadSeq !== detailLoadSeq) return false
     threadMessages.value = resp.list || []
+    return true
   } catch (error) {
-    threadMessages.value = [thread.lastMessage]
-    errorMessage.value = error instanceof Error ? error.message : '加载消息会话失败'
+    if (loadSeq === detailLoadSeq) {
+      threadMessages.value = [thread.lastMessage]
+      errorMessage.value = error instanceof Error ? error.message : '加载消息会话失败'
+    }
+    return false
   } finally {
-    detailLoading.value = false
+    if (loadSeq === detailLoadSeq) {
+      detailLoading.value = false
+    }
   }
 }
 
 async function selectMessage(item: MessageInboxItem) {
+  const loadSeq = ++detailLoadSeq
   selectedMessage.value = item
   detailLoading.value = true
   errorMessage.value = ''
   try {
     const detail = await getMessageInboxItem(item.id)
+    if (loadSeq !== detailLoadSeq) return
     selectedMessage.value = detail
     void syncInboxRoute({
       messageId: detail.id,
@@ -717,15 +810,20 @@ async function selectMessage(item: MessageInboxItem) {
       selectedMessage.value = { ...detail, read_at: new Date().toISOString() }
       updateListReadState(item.id)
       await loadUnreadCount()
+      await loadWorkspaceCounts()
       if (showServiceTreeInbox.value) {
         await loadSourceCounts()
       }
       emit('messages-updated')
     }
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '加载消息详情失败'
+    if (loadSeq === detailLoadSeq) {
+      errorMessage.value = error instanceof Error ? error.message : '加载消息详情失败'
+    }
   } finally {
-    detailLoading.value = false
+    if (loadSeq === detailLoadSeq) {
+      detailLoading.value = false
+    }
   }
 }
 
@@ -736,10 +834,12 @@ async function focusMessageByID(id: number) {
     return
   }
 
+  const loadSeq = ++detailLoadSeq
   detailLoading.value = true
   errorMessage.value = ''
   try {
     const detail = await getMessageInboxItem(id)
+    if (loadSeq !== detailLoadSeq) return
     selectedMessage.value = detail
     if (!threadMessages.value.some(item => item.id === detail.id)) {
       threadMessages.value = [detail, ...threadMessages.value]
@@ -751,15 +851,20 @@ async function focusMessageByID(id: number) {
       threadMessages.value = threadMessages.value.map(item => item.id === detail.id ? readDetail : item)
       updateListReadState(detail.id)
       await loadUnreadCount()
+      await loadWorkspaceCounts()
       if (showServiceTreeInbox.value) {
         await loadSourceCounts()
       }
       emit('messages-updated')
     }
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '加载消息详情失败'
+    if (loadSeq === detailLoadSeq) {
+      errorMessage.value = error instanceof Error ? error.message : '加载消息详情失败'
+    }
   } finally {
-    detailLoading.value = false
+    if (loadSeq === detailLoadSeq) {
+      detailLoading.value = false
+    }
   }
 }
 
@@ -789,6 +894,7 @@ async function markThreadRead(thread: InboxThread) {
       selectedMessage.value = { ...selectedMessage.value, read_at: selectedMessage.value.read_at || now }
     }
     await loadUnreadCount()
+    await loadWorkspaceCounts()
     if (showServiceTreeInbox.value) {
       await loadSourceCounts()
     }
@@ -806,6 +912,7 @@ async function markMessageRead(id: number) {
       selectedMessage.value = { ...selectedMessage.value, read_at: new Date().toISOString() }
     }
     await loadUnreadCount()
+    await loadWorkspaceCounts()
     if (showServiceTreeInbox.value) {
       await loadSourceCounts()
     }
@@ -839,6 +946,7 @@ async function markAllRead() {
       selectedMessage.value = { ...selectedMessage.value, read_at: selectedMessage.value.read_at || now }
     }
     unreadCount.value = 0
+    await loadWorkspaceCounts()
     if (showServiceTreeInbox.value) {
       await loadSourceCounts()
     }
@@ -925,12 +1033,21 @@ function sourceFilterUnreadCount() {
   return Number(sourceTreeSummaryByPath(filter.sourcePath)?.unread_count || 0)
 }
 
-function hasSourceTreeUnread(node: ServiceTree) {
-  return Number(getSourceTreeSummary(node)?.unread_count || 0) > 0
+function hasSourceTreeMessages(node: ServiceTree) {
+  const summary = getSourceTreeSummary(node)
+  return Number(summary?.message_count || 0) > 0 || Number(summary?.unread_count || 0) > 0
 }
 
-function sourceTreeUnreadCount(node: ServiceTree) {
-  return getSourceTreeSummary(node)?.unread_count || ''
+function sourceTreeNotificationCount(node: ServiceTree) {
+  const summary = getSourceTreeSummary(node)
+  const unread = Number(summary?.unread_count || 0)
+  if (unread > 0) return unread
+  return Number(summary?.message_count || 0) || ''
+}
+
+function sourceTreeNotificationClass(node: ServiceTree) {
+  const unread = Number(getSourceTreeSummary(node)?.unread_count || 0)
+  return unread > 0 ? 'is-unread' : 'is-history'
 }
 
 function getSourceTreeNotificationTitle(node: ServiceTree) {
@@ -948,11 +1065,19 @@ function isSourceTreeNodeActive(node: ServiceTree) {
 function handleSourceTreeNodeClick(node: ServiceTree) {
   const sourcePath = normalizeSourceTreePath(node.full_code_path)
   if (!sourcePath) return
+  const previousSourcePath = normalizeSourceTreePath(sourceFilter.value?.sourcePath)
   sourceFilter.value = {
     sourcePath,
     title: node.name || node.code || sourcePath,
     includeChildren: false,
     kind: node.type === 'package' ? 'directory' : 'function',
+  }
+  if (previousSourcePath !== sourcePath) {
+    inboxThreads.value = []
+    threadMessages.value = []
+    selectedThreadKey.value = ''
+    selectedMessage.value = null
+    total.value = 0
   }
   void syncInboxRoute({ sourcePath })
   void loadInbox(true, { markSourceRead: true })
@@ -961,6 +1086,75 @@ function handleSourceTreeNodeClick(node: ServiceTree) {
 function messageTime(item: MessageInboxItem) {
   const parsed = dayjs(item.created_at)
   return parsed.isValid() ? parsed.valueOf() : 0
+}
+
+function messageTimeFromString(value?: string) {
+  const parsed = dayjs(value)
+  return parsed.isValid() ? parsed.valueOf() : 0
+}
+
+function workspaceKeyFromApp(app?: App | null) {
+  if (!app?.user || !app?.code) return ''
+  return `/${app.user}/${app.code}`
+}
+
+function workspaceKeyFromRoutePath(path: string) {
+  const normalized = path.replace(/^\/workspace\/?/, '').split('?')[0] || ''
+  const parts = normalized.split('/').filter(Boolean)
+  if (parts.length < 2) return ''
+  return `/${parts[0]}/${parts[1]}`
+}
+
+function workspaceKeyForCount(item: MessageInboxWorkspaceCount) {
+  const raw = normalizeSourceTreePath(item.workspace_path || item.workspace_key)
+  if (!raw || raw === 'global') return ''
+  const key = raw.startsWith('/') ? raw : `/${raw}`
+  const parts = key.split('/').filter(Boolean)
+  return parts.length >= 2 ? `/${parts[0]}/${parts[1]}` : ''
+}
+
+function workspaceAppForCount(item: MessageInboxWorkspaceCount) {
+  const keyParts = workspaceKeyForCount(item).split('/').filter(Boolean)
+  const user = item.workspace_user || keyParts[0]
+  const code = item.workspace_code || keyParts[1]
+  if (!user || !code) return null
+  return (props.appList || []).find(app => app.user === user && app.code === code) || null
+}
+
+function workspaceTabTitle(item: MessageInboxWorkspaceCount) {
+  const app = workspaceAppForCount(item)
+  return app?.name || item.title || workspaceTabPath(item) || '全局消息'
+}
+
+function workspaceTabPath(item: MessageInboxWorkspaceCount) {
+  const key = workspaceKeyForCount(item)
+  if (!key) return item.title || ''
+  return key.replace(/^\//, '')
+}
+
+function isWorkspaceTabActive(item: MessageInboxWorkspaceCount) {
+  return workspaceKeyForCount(item) === currentWorkspaceKey.value
+}
+
+async function handleWorkspaceTabClick(item: MessageInboxWorkspaceCount) {
+  const workspacePath = workspaceKeyForCount(item)
+  if (!workspacePath) return
+  sourceFilter.value = null
+  markSourceReadOnOpen.value = false
+  if (workspacePath === currentWorkspaceKey.value) {
+    void syncInboxRoute()
+    void loadInbox(true)
+    return
+  }
+  inboxThreads.value = []
+  threadMessages.value = []
+  selectedThreadKey.value = ''
+  selectedMessage.value = null
+  total.value = 0
+  await router.push({
+    path: workspaceRoutePath(workspacePath),
+    query: buildInboxRouteQuery(),
+  })
 }
 
 function threadKeyForMessage(item: MessageInboxItem) {
@@ -1064,7 +1258,7 @@ async function syncInboxRoute(options: {
   if (!props.syncRoute) return
   const sourcePath = normalizeSourceTreePath(options.sourcePath)
   const messageID = options.messageId ? String(options.messageId) : ''
-  appliedRouteInboxKey.value = `${sourcePath}:${messageID ? Number(messageID) || messageID : 0}`
+  appliedRouteInboxKey.value = `${currentWorkspaceKey.value}:${sourcePath}:${messageID ? Number(messageID) || messageID : 0}`
   const query = { ...route.query }
   clearScheduledRouteQuery(query)
   clearOperateLogRouteQuery(query)
@@ -1241,6 +1435,93 @@ defineExpose({
   gap: 8px;
 }
 
+.inbox-workspace-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 4px;
+}
+
+.workspace-tab {
+  display: inline-flex;
+  min-width: 180px;
+  max-width: 260px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 10px;
+  background: var(--app-shell-panel-muted-bg);
+  color: var(--el-text-color-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+
+  &:hover {
+    border-color: rgba(var(--el-color-primary-rgb), 0.28);
+    background: rgba(var(--el-color-primary-rgb), 0.06);
+  }
+
+  &.is-active {
+    border-color: rgba(var(--el-color-primary-rgb), 0.4);
+    background: rgba(var(--el-color-primary-rgb), 0.1);
+    box-shadow: inset 3px 0 0 var(--el-color-primary);
+  }
+}
+
+.workspace-tab-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.workspace-tab-title,
+.workspace-tab-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-tab-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workspace-tab-path {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.workspace-tab-counts {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.workspace-tab-unread {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.workspace-tab-total {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .inbox-error {
   flex-shrink: 0;
 }
@@ -1282,6 +1563,21 @@ defineExpose({
 
   :deep(.el-tree-node__expand-icon) {
     color: var(--el-text-color-placeholder);
+  }
+
+  :deep(.el-tree-node.is-current > .el-tree-node__content) {
+    border: 1px solid rgba(var(--el-color-primary-rgb), 0.28);
+    background: rgba(var(--el-color-primary-rgb), 0.12);
+    box-shadow: inset 3px 0 0 var(--el-color-primary);
+  }
+
+  :deep(.tree-node.is-active .node-label) {
+    color: var(--el-color-primary);
+    font-weight: 800;
+  }
+
+  :deep(.tree-node.is-active .node-icon) {
+    opacity: 1;
   }
 }
 

@@ -120,6 +120,7 @@ export class RouteManager {
   private route: RouteLocationNormalized
   private eventBus: IEventBus
   private isUpdating = false  // 防止循环更新
+  private pendingUpdateRequest: RouteUpdateRequest | null = null
   private enableDebugLog = false  // 调试日志开关
   private stopRouteWatch: (() => void) | null = null
   private removeUpdateListener: (() => void) | null = null
@@ -218,6 +219,7 @@ export class RouteManager {
    * 清理监听器
    */
   destroy(): void {
+    this.pendingUpdateRequest = null
     this.removeUpdateListener?.()
     this.removeUpdateListener = null
     this.stopRouteWatch?.()
@@ -230,7 +232,8 @@ export class RouteManager {
    */
   private async handleUpdateRequest(request: RouteUpdateRequest): Promise<void> {
     if (this.isUpdating) {
-      this.log('路由更新中，跳过重复请求', { source: request.source })
+      this.pendingUpdateRequest = request
+      this.log('路由更新中，暂存最后一次请求', { source: request.source })
       return
     }
     
@@ -281,6 +284,12 @@ export class RouteManager {
       // 使用 nextTick 确保路由更新完成后再重置标志
       await nextTick()
       this.isUpdating = false
+
+      const pendingRequest = this.pendingUpdateRequest
+      this.pendingUpdateRequest = null
+      if (pendingRequest) {
+        void this.handleUpdateRequest(pendingRequest)
+      }
     }
   }
   

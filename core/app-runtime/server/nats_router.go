@@ -17,6 +17,7 @@ func RegisterNATS(ctx context.Context, conn *nats.Conn, subs *[]*nats.Subscripti
 	workspaceChangeH *v1.WorkspaceChangeHandler,
 	workspaceH *v1.WorkspaceHandler,
 	requestH *v1.RequestHandler,
+	appDatabaseH *v1.AppDatabaseHandler,
 ) error {
 	var err error
 	var sub *nats.Subscription
@@ -88,6 +89,13 @@ func RegisterNATS(ctx context.Context, conn *nats.Conn, subs *[]*nats.Subscripti
 	sub, err = conn.QueueSubscribe(subjects.RuntimeAppInvokeCommandSubjectPattern, subjects.RuntimeAppInvokeQueueGroup, requestH.HandleAppServerInvokeRequest)
 	if err != nil {
 		return fmt.Errorf("subscribe app-server invoke request: %w", err)
+	}
+	*subs = append(*subs, sub)
+
+	// ---------- App Database ----------
+	sub, err = conn.QueueSubscribe(subjects.RuntimeAppDBResolveQuerySubject, subjects.RuntimeAppDBResolveQueueGroup, appDatabaseH.HandleResolve)
+	if err != nil {
+		return fmt.Errorf("subscribe app database resolve: %w", err)
 	}
 	*subs = append(*subs, sub)
 

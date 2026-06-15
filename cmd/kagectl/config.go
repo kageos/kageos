@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -65,6 +67,10 @@ func requireGeneratedCompose(paths Paths) error {
 
 func defaultConfig() (Config, error) {
 	jwt, err := randomHex(32)
+	if err != nil {
+		return Config{}, err
+	}
+	appDBSecret, err := randomHex(32)
 	if err != nil {
 		return Config{}, err
 	}
@@ -143,6 +149,7 @@ func defaultConfig() (Config, error) {
 		},
 		Secrets: SecretsConfig{
 			JWTSecret:              jwt,
+			AppDBSecret:            appDBSecret,
 			GeneratedByKageCtl:     true,
 			GeneratedAtUnixSeconds: time.Now().Unix(),
 		},
@@ -220,6 +227,7 @@ func defaultDevDeploymentConfig(secrets devSecrets) Config {
 		},
 		Secrets: SecretsConfig{
 			JWTSecret:              secrets.JWTSecret,
+			AppDBSecret:            secrets.AppDBSecret,
 			GeneratedByKageCtl:     true,
 			GeneratedAtUnixSeconds: time.Now().Unix(),
 		},
@@ -283,6 +291,9 @@ func applyDefaults(cfg *Config) {
 		} else {
 			cfg.Auth.RegistrationMode = "admin_only"
 		}
+	}
+	if cfg.Secrets.AppDBSecret == "" {
+		cfg.Secrets.AppDBSecret = cfg.Secrets.JWTSecret
 	}
 	if cfg.MySQL.Mode == "" {
 		cfg.MySQL.Mode = "bundled"
@@ -430,6 +441,7 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 		rt.MySQLPortForMain = 3306
 	}
 	rt.MySQLAddress = net.JoinHostPort(rt.MySQLHostForMain, strconv.Itoa(rt.MySQLPortForMain))
+	rt.AppDBClusterKey = appDBClusterKey(rt.MySQLHostForMain, rt.MySQLPortForMain)
 
 	rt.NATSHostForMain, rt.NATSPortForMain = natsHostPort(cfg)
 	rt.NATSURL = natsURLForMain(cfg)
@@ -458,6 +470,12 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 	rt.SummaryPath = filepath.Join(paths.GeneratedDir, "kageos-deployment-summary.md")
 	rt.LLMSeedEnvVars = uniqueLLMSeedEnvVars(cfg.LLMs.Configs)
 	return rt, nil
+}
+
+func appDBClusterKey(host string, port int) string {
+	value := strings.ToLower(strings.TrimSpace(host)) + ":" + strconv.Itoa(port)
+	sum := sha256.Sum256([]byte(value))
+	return "mysql_" + hex.EncodeToString(sum[:])[:12]
 }
 
 func sdkMinIOEndpoint(endpoint string) string {
@@ -585,6 +603,9 @@ func validateConfig(rt RuntimeConfig) error {
 	}
 	if len(rt.Secrets.JWTSecret) < 32 {
 		errs = append(errs, fmt.Errorf("secrets.jwt_secret must be at least 32 chars"))
+	}
+	if len(rt.Secrets.AppDBSecret) < 32 {
+		errs = append(errs, fmt.Errorf("secrets.app_db_secret must be at least 32 chars"))
 	}
 	if rt.SystemUser.Password == "" {
 		errs = append(errs, fmt.Errorf("system_user.password is required"))

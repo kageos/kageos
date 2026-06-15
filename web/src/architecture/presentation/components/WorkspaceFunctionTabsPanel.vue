@@ -60,7 +60,7 @@
               embedded
               show-refresh
               :title="t('functionTabs.functionOperateLog')"
-              :auto-load="false"
+              :auto-load="activeTab === 'operateLog'"
               :on-apply-form-log="handleApplyFormLog"
             />
           </div>
