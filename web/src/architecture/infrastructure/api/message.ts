@@ -1,4 +1,4 @@
-import { get, patch, post } from '@/architecture/infrastructure/apiClient/request'
+import { del, get, patch, post, put } from '@/architecture/infrastructure/apiClient/request'
 
 export type MessageContentType = 'markdown' | 'html' | 'text' | string
 export type MessageInboxStatus = 'all' | 'unread'
@@ -112,6 +112,45 @@ export interface MessageUnreadCountResp {
   unread_count: number
 }
 
+export type MessageNotificationChannel = 'feishu' | 'wecom' | 'dingtalk' | string
+
+export interface MessageNotificationChannelInfo {
+  channel: MessageNotificationChannel
+  enabled: boolean
+  delivery_type: string
+  display_name?: string
+  has_webhook_url: boolean
+  has_secret: boolean
+  metadata?: Record<string, string>
+  updated_at?: string
+  last_success_at?: string
+  last_failed_at?: string
+  last_test_at?: string
+  last_error?: string
+  fail_count?: number
+}
+
+export interface MessageNotificationChannelListResp {
+  list: MessageNotificationChannelInfo[]
+}
+
+export interface UpsertMessageNotificationChannelReq {
+  channel?: MessageNotificationChannel
+  enabled?: boolean
+  delivery_type?: string
+  display_name?: string
+  webhook_url?: string
+  secret?: string
+  clear_webhook_url?: boolean
+  clear_secret?: boolean
+  metadata?: Record<string, string>
+}
+
+export interface TestMessageNotificationChannelResp {
+  message: string
+  channel: MessageNotificationChannel
+}
+
 export interface MessageInboxSourceCount {
   source_path: string
   unread_count: number
@@ -191,6 +230,25 @@ export function getMessageInboxUnreadCount(): Promise<MessageUnreadCountResp> {
 
 export function getMessageInboxItem(id: number): Promise<MessageInboxItem> {
   return get<MessageInboxItem>(`/message/api/v1/inbox/${id}`)
+}
+
+export function listMessageNotificationChannels(): Promise<MessageNotificationChannelListResp> {
+  return get<MessageNotificationChannelListResp>('/message/api/v1/notification_channels')
+}
+
+export function upsertMessageNotificationChannel(
+  channel: MessageNotificationChannel,
+  data: UpsertMessageNotificationChannelReq
+): Promise<MessageNotificationChannelInfo> {
+  return put<MessageNotificationChannelInfo>(`/message/api/v1/notification_channels/${channel}`, data)
+}
+
+export function deleteMessageNotificationChannel(channel: MessageNotificationChannel): Promise<void> {
+  return del<void>(`/message/api/v1/notification_channels/${channel}`)
+}
+
+export function testMessageNotificationChannel(channel: MessageNotificationChannel): Promise<TestMessageNotificationChannelResp> {
+  return post<TestMessageNotificationChannelResp>(`/message/api/v1/notification_channels/${channel}/test`)
 }
 
 export function markMessageInboxItemRead(id: number): Promise<void> {

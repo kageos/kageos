@@ -1,5 +1,8 @@
 # 客户一键部署（Docker Compose）— 全局
 # 模板由容器 entrypoint 使用 envsubst 渲染
+site:
+  base_url: "${CANONICAL_BASE_URL}"
+
 gateway:
   host: "0.0.0.0"
   port: 9090

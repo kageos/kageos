@@ -2,9 +2,6 @@ package service
 
 import (
 	"context"
-
-	"github.com/kageos/kageos/core/message-server/model"
-	"github.com/kageos/kageos/dto"
 )
 
 type ResolvedRecipient struct {
@@ -12,19 +9,27 @@ type ResolvedRecipient struct {
 	Email    string
 }
 
-type ChannelProvider interface {
-	Channel() string
-	Deliver(ctx context.Context, entry *model.MessageEntry, payload dto.MessageSendPayload, recipient ResolvedRecipient) error
+type NotificationTarget struct {
+	Recipient  ResolvedRecipient
+	Channel    string
+	WebhookURL string
+	Secret     string
+	Metadata   map[string]string
 }
 
-// InboxChannelProvider marks the default MVP channel. Inbox persistence happens
-// before provider delivery, so this provider intentionally has no side effect.
+type ChannelProvider interface {
+	Channel() string
+	Deliver(ctx context.Context, target NotificationTarget, card NotificationCard) error
+}
+
+// InboxChannelProvider is kept for compatibility with early call sites. Inbox
+// persistence is the message-server main path, not an external provider.
 type InboxChannelProvider struct{}
 
 func (InboxChannelProvider) Channel() string {
 	return "inbox"
 }
 
-func (InboxChannelProvider) Deliver(context.Context, *model.MessageEntry, dto.MessageSendPayload, ResolvedRecipient) error {
+func (InboxChannelProvider) Deliver(context.Context, NotificationTarget, NotificationCard) error {
 	return nil
 }

@@ -565,10 +565,6 @@ func (s *AppManageService) buildAppVersionSpec(ctx context.Context, ref AppVersi
 		envVars = append(envVars, fmt.Sprintf("KAGEOS_RUNTIME_INSTANCE_ID=%s", runtimeID))
 	}
 	logger.Infof(ctx, "[buildAppVersionSpec] Injecting app runtime env: user=%s, app=%s, version=%s, binary=%s, work_dir=%s, bin_dir=%s", ref.User, ref.App, ref.Version, binaryName, containerWorkDir, containerBinDir)
-	if s.appDatabaseService != nil && s.appDatabaseService.IsEnabled() {
-		envVars = append(envVars, "KAGEOS_APP_DB_DIALECT=mysql")
-		logger.Infof(ctx, "[buildAppVersionSpec] Injecting KAGEOS_APP_DB_DIALECT=mysql into app runtime")
-	}
 
 	return AppVersionSpec{
 		Ref:           ref,

@@ -155,3 +155,40 @@ type MessageInboxThreadListResp struct {
 type MessageUnreadCountResp struct {
 	UnreadCount int64 `json:"unread_count"`
 }
+
+type MessageNotificationChannelInfo struct {
+	Channel       string            `json:"channel"`
+	Enabled       bool              `json:"enabled"`
+	DeliveryType  string            `json:"delivery_type"`
+	DisplayName   string            `json:"display_name"`
+	HasWebhookURL bool              `json:"has_webhook_url"`
+	HasSecret     bool              `json:"has_secret"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+	UpdatedAt     time.Time         `json:"updated_at"`
+	LastSuccessAt *time.Time        `json:"last_success_at,omitempty"`
+	LastFailedAt  *time.Time        `json:"last_failed_at,omitempty"`
+	LastTestAt    *time.Time        `json:"last_test_at,omitempty"`
+	LastError     string            `json:"last_error,omitempty"`
+	FailCount     int               `json:"fail_count"`
+}
+
+type MessageNotificationChannelListResp struct {
+	List []MessageNotificationChannelInfo `json:"list"`
+}
+
+type UpsertMessageNotificationChannelReq struct {
+	Channel         string            `json:"channel"`
+	Enabled         *bool             `json:"enabled"`
+	DeliveryType    string            `json:"delivery_type"`
+	DisplayName     string            `json:"display_name"`
+	WebhookURL      string            `json:"webhook_url"`
+	Secret          string            `json:"secret"`
+	ClearWebhookURL bool              `json:"clear_webhook_url"`
+	ClearSecret     bool              `json:"clear_secret"`
+	Metadata        map[string]string `json:"metadata"`
+}
+
+type TestMessageNotificationChannelResp struct {
+	Message string `json:"message"`
+	Channel string `json:"channel"`
+}

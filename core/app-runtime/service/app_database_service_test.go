@@ -142,3 +142,90 @@ func TestNormalizeAppDBAccess(t *testing.T) {
 		t.Fatal("unsupported access should fail")
 	}
 }
+
+func TestNormalizeAppDBPackagePath(t *testing.T) {
+	tests := map[string]string{
+		"":               appDBRootPackage,
+		"/":              appDBRootPackage,
+		appDBRootPackage: appDBRootPackage,
+		"/sales/leads/":  "sales/leads",
+	}
+	for input, want := range tests {
+		got, err := normalizeAppDBPackagePath(input)
+		if err != nil {
+			t.Fatalf("normalizeAppDBPackagePath(%q): %v", input, err)
+		}
+		if got != want {
+			t.Fatalf("normalizeAppDBPackagePath(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestNormalizeAppDBPackagePathRejectsUnsafePaths(t *testing.T) {
+	for _, input := range []string{
+		" sales/leads",
+		"sales/leads ",
+		"sales//leads",
+		"sales/./leads",
+		"sales/../admin",
+		`sales\leads`,
+	} {
+		if _, err := normalizeAppDBPackagePath(input); err == nil {
+			t.Fatalf("normalizeAppDBPackagePath(%q) should fail", input)
+		}
+	}
+}
+
+func TestPackagePathFromRouter(t *testing.T) {
+	tests := map[string]string{
+		"":                            appDBRootPackage,
+		"/list":                       appDBRootPackage,
+		"list":                        appDBRootPackage,
+		"/sales/leads/list":           "sales/leads",
+		"/sales/leads/list-by-status": "sales/leads",
+	}
+	for input, want := range tests {
+		got, err := packagePathFromRouter(input)
+		if err != nil {
+			t.Fatalf("packagePathFromRouter(%q): %v", input, err)
+		}
+		if got != want {
+			t.Fatalf("packagePathFromRouter(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestPackagePathFromRouterRejectsUnsafePaths(t *testing.T) {
+	for _, input := range []string{
+		" /sales/leads/list",
+		"/sales/leads/list ",
+		"/sales//leads/list",
+		"/sales/./leads/list",
+		"/sales/../admin/list",
+		`sales\leads\list`,
+	} {
+		if _, err := packagePathFromRouter(input); err == nil {
+			t.Fatalf("packagePathFromRouter(%q) should fail", input)
+		}
+	}
+}
+
+func TestAppDatabaseCapabilityRejectsUnsafePackagePath(t *testing.T) {
+	svc := newTestAppDatabaseService(t)
+	capability, err := svc.IssueCapability("alice", "crm", "v1", "/sales/leads/list")
+	if err != nil {
+		t.Fatalf("IssueCapability: %v", err)
+	}
+
+	err = svc.validateCapability(&dto.AppDBResolveReq{
+		Capability:  capability,
+		User:        "alice",
+		App:         "crm",
+		Version:     "v1",
+		PackagePath: "sales/../admin",
+		Access:      dto.AppDBAccessRuntime,
+	})
+	if err == nil {
+		t.Fatal("unsafe package path should be rejected")
+	}
+}

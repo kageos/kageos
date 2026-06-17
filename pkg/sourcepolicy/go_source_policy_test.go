@@ -76,6 +76,7 @@ type Ticket struct {
 	ID        int64
 	Title     string
 	DeletedAt gorm.DeletedAt
+	DeletedBy string
 }
 
 func listTickets(ctx *app.Context) error {
@@ -89,11 +90,14 @@ func listTickets(ctx *app.Context) error {
 	if err := query.Order("id desc").Find(&rows).Error; err != nil {
 		return err
 	}
-	return markDeleted(db, 1)
+	return markDeleted(db, 1, ctx.GetRequestUser())
 }
 
-func markDeleted(db *gorm.DB, id int64) error {
-	return db.Model(&Ticket{}).Where("id = ?", id).Update("deleted_at", time.Now()).Error
+func markDeleted(db *gorm.DB, id int64, user string) error {
+	return db.Model(&Ticket{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"deleted_at": time.Now(),
+		"deleted_by": user,
+	}).Error
 }
 `
 	if err := ValidateAppGoSource("good.go", source); err != nil {
@@ -171,7 +175,6 @@ func handler(ctx *app.Context) error {
 func TestValidateAppGoSourceRejectsDangerousAppDBMethods(t *testing.T) {
 	tests := map[string]string{
 		"Exec":        `return ctx.GetGormDB().Exec("DELETE FROM tickets").Error`,
-		"Raw":         `return ctx.GetGormDB().Raw("SELECT * FROM tickets").Error`,
 		"Unscoped":    `return ctx.GetGormDB().Unscoped().Where("id = ?", 1).Delete(&Ticket{}).Error`,
 		"Migrator":    `return ctx.GetGormDB().Migrator().DropTable(&Ticket{})`,
 		"DB":          `_, err := ctx.GetGormDB().DB(); return err`,
@@ -196,6 +199,67 @@ func handler(ctx *app.Context) error {
 			}
 			if !strings.Contains(err.Error(), "禁止使用 db."+name) && !strings.Contains(err.Error(), "禁止在业务代码中调用 db."+name) {
 				t.Fatalf("expected method %s in error, got %v", name, err)
+			}
+		})
+	}
+}
+
+func TestValidateAppGoSourceAllowsReadOnlyRawAppDBQuery(t *testing.T) {
+	source := `package demo
+
+import "github.com/kageos/kageos/sdk/agent-app/app"
+
+const ticketStatsSQL = ` + "`" + `
+WITH stats AS (
+	SELECT status, COUNT(*) AS count
+	FROM tickets
+	WHERE deleted_at IS NULL AND created_by = ?
+	GROUP BY status
+)
+SELECT status, count FROM stats WHERE count > ?
+` + "`" + `
+
+type TicketStat struct {
+	Status string
+	Count int64
+}
+
+func handler(ctx *app.Context, owner string) error {
+	var rows []TicketStat
+	return ctx.GetGormDB().Raw(ticketStatsSQL, owner, 0).Scan(&rows).Error
+}
+`
+	if err := ValidateAppGoSource("good.go", source); err != nil {
+		t.Fatalf("ValidateAppGoSource() error = %v", err)
+	}
+}
+
+func TestValidateAppGoSourceRejectsNonReadOnlyRawAppDBQuery(t *testing.T) {
+	tests := map[string]string{
+		"update":  `return ctx.GetGormDB().Raw("UPDATE tickets SET status = ? WHERE id = ?", "done", 1).Error`,
+		"delete":  `return ctx.GetGormDB().Raw("DELETE FROM tickets WHERE id = ?", 1).Error`,
+		"ddl":     `return ctx.GetGormDB().Raw("CREATE TEMPORARY TABLE tmp_stats (id bigint)").Error`,
+		"set":     `return ctx.GetGormDB().Raw("SET sql_mode = ''").Error`,
+		"dynamic": `sql := "SELECT * FROM tickets"; return ctx.GetGormDB().Raw(sql).Error`,
+		"concat":  `return ctx.GetGormDB().Raw("SELECT * FROM tickets ORDER BY " + orderBy).Error`,
+	}
+
+	for name, body := range tests {
+		t.Run(name, func(t *testing.T) {
+			source := `package demo
+
+import "github.com/kageos/kageos/sdk/agent-app/app"
+
+func handler(ctx *app.Context, orderBy string) error {
+	` + body + `
+}
+`
+			err := ValidateAppGoSource("bad.go", source)
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+			if !strings.Contains(err.Error(), "db.Raw") {
+				t.Fatalf("expected Raw policy error, got %v", err)
 			}
 		})
 	}

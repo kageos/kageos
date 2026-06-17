@@ -14,7 +14,7 @@ import (
 )
 
 const sqlitePolicyHint = "KageOS SDK 已全局注册 database/sql driver \"sqlite3\"。读取用户上传的 SQLite 文件时，请直接使用 database/sql + sql.Open(\"sqlite3\", path)；应用内置数据库请使用 ctx.GetGormDB()。不要在应用代码里额外导入或注册 sqlite3 driver，否则可能在启动时 panic: sql: Register called twice for driver sqlite3。"
-const appDBPolicyHint = "KageOS 应用数据库安全规则：ctx.GetGormDB() 得到的数据库对象只能在当前目录业务代码内直接使用；禁止传给第三方库、外部 package、全局变量、struct 字段或 return 出去；禁止 Raw/Exec/Unscoped/Migrator/DB/AutoMigrate。删除记录必须走软删除语义，表结构迁移由 SDK/runtime 生命周期处理。"
+const appDBPolicyHint = "KageOS 应用数据库安全规则：ctx.GetGormDB() 得到的数据库对象只能在当前目录业务代码内直接使用；禁止传给第三方库、外部 package、全局变量、struct 字段或 return 出去；db.Raw 仅允许字符串字面量或 const 形式的 SELECT/WITH 只读查询，用户输入必须通过 ? 参数传入；禁止 Exec/Unscoped/Migrator/DB/AutoMigrate。删除记录必须走软删除语义，并同时写入 deleted_at 和 deleted_by；表结构迁移由 SDK/runtime 生命周期处理。"
 
 var forbiddenSQLiteImports = map[string]string{
 	"github.com/mattn/go-sqlite3":          "该包会注册 database/sql driver \"sqlite3\"，会和 KageOS SDK 的全局注册冲突。",
@@ -24,7 +24,6 @@ var forbiddenSQLiteImports = map[string]string{
 
 var forbiddenAppDBMethods = map[string]string{
 	"Exec":        "禁止使用 db.Exec：应用代码不能执行原始 SQL 直通，避免绕过软删除和迁移边界。",
-	"Raw":         "禁止使用 db.Raw：应用代码不能执行原始 SQL 直通，避免绕过 GORM 查询约束。",
 	"Unscoped":    "禁止使用 db.Unscoped：应用记录必须保留软删除语义。",
 	"Migrator":    "禁止使用 db.Migrator：表结构迁移只能由 SDK/runtime 生命周期处理。",
 	"DB":          "禁止使用 db.DB：应用代码不能拿到底层 *sql.DB 后绕过 SDK/GORM 约束。",
@@ -184,6 +183,7 @@ type appDBPolicyAnalyzer struct {
 	gormImportNames map[string]struct{}
 	localFuncs      map[string]*ast.FuncDecl
 	globalVars      map[string]struct{}
+	stringConsts    map[string]string
 	appDBNames      map[string]struct{}
 	issues          []string
 }
@@ -193,6 +193,7 @@ func findAppDBPolicyIssues(file *ast.File) []string {
 		gormImportNames: map[string]struct{}{},
 		localFuncs:      map[string]*ast.FuncDecl{},
 		globalVars:      map[string]struct{}{},
+		stringConsts:    map[string]string{},
 		appDBNames:      map[string]struct{}{},
 	}
 	analyzer.collectImportsAndFunctions(file)
@@ -237,17 +238,19 @@ func (a *appDBPolicyAnalyzer) collectImportsAndFunctions(file *ast.File) {
 				a.localFuncs[d.Name.Name] = d
 			}
 		case *ast.GenDecl:
-			if d.Tok != token.VAR {
-				continue
-			}
 			for _, spec := range d.Specs {
 				valueSpec, ok := spec.(*ast.ValueSpec)
 				if !ok {
 					continue
 				}
-				for _, name := range valueSpec.Names {
-					if name != nil && name.Name != "_" {
-						a.globalVars[name.Name] = struct{}{}
+				switch d.Tok {
+				case token.CONST:
+					a.collectStringConsts(valueSpec)
+				case token.VAR:
+					for _, name := range valueSpec.Names {
+						if name != nil && name.Name != "_" {
+							a.globalVars[name.Name] = struct{}{}
+						}
 					}
 				}
 			}
@@ -268,6 +271,19 @@ func (a *appDBPolicyAnalyzer) recordGORMDBParams(fields *ast.FieldList) {
 				a.trackAppDBName(name.Name)
 			}
 		}
+	}
+}
+
+func (a *appDBPolicyAnalyzer) collectStringConsts(spec *ast.ValueSpec) {
+	for i, name := range spec.Names {
+		if name == nil || name.Name == "_" || i >= len(spec.Values) {
+			continue
+		}
+		value, ok := stringLiteralValue(spec.Values[i])
+		if !ok {
+			continue
+		}
+		a.stringConsts[name.Name] = value
 	}
 }
 
@@ -353,6 +369,12 @@ func (a *appDBPolicyAnalyzer) inspectReturnStmt(stmt *ast.ReturnStmt) {
 
 func (a *appDBPolicyAnalyzer) inspectCallExpr(call *ast.CallExpr) {
 	if method, ok := a.appDBMethodName(call.Fun); ok {
+		if method == "Raw" {
+			for _, issue := range runtimeAppDBRawSQLPolicy.ValidateCall(call, a.stringConsts) {
+				a.addIssue(issue)
+			}
+			return
+		}
 		if reason, forbidden := forbiddenAppDBMethods[method]; forbidden {
 			a.addIssue(reason)
 		}

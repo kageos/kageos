@@ -32,6 +32,7 @@ type Server struct {
 	messageRepo            *msgrepo.MessageRepository
 	messageConsumerService *service.MessageConsumerService
 	messageCommandHandler  *service.MessageCommandHandler
+	notificationVault      *service.NotificationSecretVault
 	subscriptions          []*nats.Subscription
 }
 
@@ -150,8 +151,19 @@ func (s *Server) initNATS(ctx context.Context) error {
 }
 
 func (s *Server) initServices(ctx context.Context) error {
+	vault, err := service.NewNotificationSecretVault(s.cfg.GetNotificationEncryptionSecret())
+	if err != nil {
+		return fmt.Errorf("failed to init notification secret vault: %w", err)
+	}
+	s.notificationVault = vault
 	s.messageRepo = msgrepo.NewMessageRepository(s.db)
-	s.messageConsumerService = service.NewMessageConsumerService(s.messageRepo)
+	targetResolver := service.NewUserNotificationTargetResolver(s.messageRepo, s.notificationVault)
+	s.messageConsumerService = service.NewMessageConsumerService(
+		s.messageRepo,
+		service.WithNotificationCardBaseURL(config.GetPublicSiteBaseURL()),
+		service.WithNotificationTargetResolver(targetResolver),
+		service.WithChannelProviders(service.NewDefaultNotificationChannelProviders(s.cfg.GetNotificationWebhookTimeout())...),
+	)
 	s.messageCommandHandler = service.NewMessageCommandHandler(s.messageConsumerService)
 	logger.Infof(ctx, "[message-server] services initialized")
 	return nil

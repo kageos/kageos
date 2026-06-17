@@ -13,10 +13,22 @@ import (
 
 type runtimeWorkspaceBridge struct {
 	appRepo *repository.AppRepository
-	appCall *appcall.Client
+	appCall runtimeWorkspaceClient
 }
 
-func newRuntimeWorkspaceBridge(appRepo *repository.AppRepository, appCall *appcall.Client) *runtimeWorkspaceBridge {
+type runtimeWorkspaceClient interface {
+	BatchCreateDirectoryTree(ctx context.Context, hostID int64, req *dto.BatchCreateDirectoryTreeRuntimeReq) (*dto.BatchCreateDirectoryTreeRuntimeResp, error)
+	BatchWriteFiles(ctx context.Context, hostID int64, req *dto.BatchWriteFilesRuntimeReq) (*dto.BatchWriteFilesRuntimeResp, error)
+	DeleteServiceTree(ctx context.Context, hostID int64, req *dto.DeleteServiceTreeRuntimeReq) (*dto.DeleteServiceTreeRuntimeResp, error)
+	ReadDirectoryFiles(ctx context.Context, hostID int64, req *dto.ReadDirectoryFilesRuntimeReq) (*dto.ReadDirectoryFilesRuntimeResp, error)
+	ReplaceInFileBatch(ctx context.Context, hostID int64, req *dto.ReplaceInFileBatchReq) (*dto.ReplaceInFileBatchResp, error)
+	DeleteFile(ctx context.Context, hostID int64, req *dto.DeleteFileRuntimeReq) (*dto.DeleteFileRuntimeResp, error)
+	ReadAppLog(ctx context.Context, hostID int64, req *dto.ReadAppLogRuntimeReq) (*dto.ReadAppLogRuntimeResp, error)
+}
+
+var _ runtimeWorkspaceClient = (*appcall.Client)(nil)
+
+func newRuntimeWorkspaceBridge(appRepo *repository.AppRepository, appCall runtimeWorkspaceClient) *runtimeWorkspaceBridge {
 	return &runtimeWorkspaceBridge{
 		appRepo: appRepo,
 		appCall: appCall,

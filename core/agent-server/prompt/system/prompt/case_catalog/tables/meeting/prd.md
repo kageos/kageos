@@ -94,6 +94,7 @@ type MeetingRoom struct {
 	CreatedAt types.Time     `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	UpdatedAt types.Time     `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
+	DeletedBy string         `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`
 
 	Name      string `json:"name" gorm:"column:name;comment:会议室名称" widget:"name:会议室名称;type:input" validate:"required,min=2,max=50"`
 	Type      string `json:"type" gorm:"column:type;comment:会议室类型" widget:"name:会议室类型;type:select;options:小型,中型,大型,会议室,培训室,多功能厅;options_colors:909399,409EFF,67C23A,E6A23C,F56C6C,9C27B0" validate:"required"`
@@ -218,7 +219,10 @@ var MeetingRoomListTemplate = &app.TableTemplate{
 		if activeBookingCount > 0 {
 			return nil, fmt.Errorf("会议室存在未结束的预约，请先处理预约或将会议室状态改为停用")
 		}
-		if err := db.Model(&MeetingRoom{}).Delete(&MeetingRoom{}, "id in ?", req.GetIds()).Error; err != nil {
+		if err := db.Model(&MeetingRoom{}).Where("id in ?", req.GetIds()).Updates(map[string]interface{}{
+			"deleted_at": time.Now(),
+			"deleted_by": ctx.GetRequestUser(),
+		}).Error; err != nil {
 			logger.Errorf(ctx, "Delete meeting_room err: %v", err)
 			return nil, err
 		}
@@ -303,6 +307,7 @@ type MeetingRoomBooking struct {
 	CreatedAt types.Time     `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	UpdatedAt types.Time     `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
+	DeletedBy string         `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`
 
 	RoomID   int          `json:"room_id" gorm:"column:room_id;comment:会议室ID;index" widget:"name:会议室;type:select" validate:"required" callback:"OnSelectFuzzy"`
 	Room     *MeetingRoom `json:"-" widget:"-" gorm:"foreignKey:RoomID;references:ID"`
@@ -521,7 +526,10 @@ var MeetingRoomBookingListTemplate = &app.TableTemplate{
 			}
 		}
 
-		if err := db.Model(&MeetingRoomBooking{}).Delete(&MeetingRoomBooking{}, "id in ?", req.GetIds()).Error; err != nil {
+		if err := db.Model(&MeetingRoomBooking{}).Where("id in ?", req.GetIds()).Updates(map[string]interface{}{
+			"deleted_at": time.Now(),
+			"deleted_by": ctx.GetRequestUser(),
+		}).Error; err != nil {
 			logger.Errorf(ctx, "Delete meeting_room_booking err: %v", err)
 			return nil, err
 		}

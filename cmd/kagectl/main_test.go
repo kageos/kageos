@@ -106,6 +106,7 @@ func TestRenderBundledConfig(t *testing.T) {
 		t.Fatalf("generated global config should not include timer scheduler config, got:\n%s", globalConfig)
 	}
 	for _, want := range []string{
+		`base_url: "http://127.0.0.1"`,
 		`nats_url: "nats://aos:`,
 		`@127.0.0.1:4222"`,
 		`gateway_url: "http://127.0.0.1:9090"`,
@@ -559,6 +560,16 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 	}
 	if !strings.Contains(apiGatewayConfig, `path: "/message"`) {
 		t.Fatalf("dev api-gateway config should proxy message APIs, got:\n%s", apiGatewayConfig)
+	}
+	globalConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "global.yaml"))
+	for _, want := range []string{
+		`site:`,
+		`base_url: "http://localhost:5173"`,
+		`gateway_url: "http://127.0.0.1:9090"`,
+	} {
+		if !strings.Contains(globalConfig, want) {
+			t.Fatalf("dev global config missing %q, got:\n%s", want, globalConfig)
+		}
 	}
 	connectorServerConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "connector-server.yaml"))
 	for _, want := range []string{

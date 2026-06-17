@@ -135,7 +135,7 @@ func TestCreateScheduledAgentTaskSchemaAcceptsMessage(t *testing.T) {
 		t.Fatalf("message schema missing: %#v", properties)
 	}
 	desc, _ := messageSchema["description"].(string)
-	for _, want := range []string{"注入任务创建人/请求用户", "必须显式传 to_users", "首次基准记录"} {
+	for _, want := range []string{"注入任务创建人/请求用户", "可省略 to_users", "首次基准记录"} {
 		if !strings.Contains(desc, want) {
 			t.Fatalf("message schema should contain %q, got %q", want, desc)
 		}

@@ -26,6 +26,7 @@ func ExampleDecodeTable() {
 		CreatedAt     apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 		UpdatedAt     apptypes.Time `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 		DeletedAt     string        `json:"deleted_at" gorm:"column:deleted_at" widget:"-"`                                                                                                    // 隐藏字段
+		DeletedBy     string        `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`                                                                                                    // 隐藏字段
 		Title         string        `json:"title" gorm:"column:title" widget:"name:工单标题;type:input" validate:"required,min=2,max=200"`
 		Description   string        `json:"description" gorm:"column:description" widget:"name:问题描述;type:text_area" validate:"required,min=10"`
 		Priority      string        `json:"priority" gorm:"column:priority" widget:"name:优先级;type:select;options:低,中,高;render_default:中" validate:"required,oneof=低 中 高"`

@@ -69,11 +69,12 @@ func (r *TimerExecutionRepository) ListStale(now time.Time, limit int) ([]*model
 
 func (r *TimerExecutionRepository) TryMarkRunning(taskID, executionID int64, workerID, executorRunID string, startedAt, leaseUntil time.Time) (bool, error) {
 	updates := map[string]interface{}{
-		"status":       "running",
-		"started_at":   startedAt,
-		"worker_id":    workerID,
-		"heartbeat_at": startedAt,
-		"lease_until":  leaseUntil,
+		"status":           "running",
+		"started_at":       startedAt,
+		"worker_id":        workerID,
+		"heartbeat_at":     startedAt,
+		"heartbeat_misses": 0,
+		"lease_until":      leaseUntil,
 	}
 	if executorRunID != "" {
 		updates["executor_run_id"] = executorRunID
@@ -94,9 +95,23 @@ func (r *TimerExecutionRepository) TryHeartbeat(taskID, executionID int64, worke
 		query = query.Where("worker_id = ?", workerID)
 	}
 	result := query.Updates(map[string]interface{}{
-		"heartbeat_at": heartbeatAt,
-		"lease_until":  leaseUntil,
+		"heartbeat_at":     heartbeatAt,
+		"heartbeat_misses": 0,
+		"lease_until":      leaseUntil,
 	})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+func (r *TimerExecutionRepository) TryRecordHeartbeatMiss(exec *model.TimerExecution, now, leaseUntil time.Time, heartbeatMisses int) (bool, error) {
+	result := r.db.Model(&model.TimerExecution{}).
+		Where("task_id = ? AND id = ? AND status = ? AND lease_until IS NOT NULL AND lease_until < ?", exec.TaskID, exec.ID, "running", now).
+		Updates(map[string]interface{}{
+			"heartbeat_misses": heartbeatMisses,
+			"lease_until":      leaseUntil,
+		})
 	if result.Error != nil {
 		return false, result.Error
 	}

@@ -50,6 +50,7 @@ type TimerSchedulerLoopConfig struct {
 	ExecutionLeaseSeconds  int `mapstructure:"execution_lease_seconds"`
 	QueueAckTimeoutSeconds int `mapstructure:"queue_ack_timeout_seconds"`
 	MaxDispatchAttempts    int `mapstructure:"max_dispatch_attempts"`
+	MaxHeartbeatMisses     int `mapstructure:"max_heartbeat_misses"`
 	MaxOutboxAttempts      int `mapstructure:"max_outbox_attempts"`
 	PayloadLimitBytes      int `mapstructure:"payload_limit_bytes"`
 }
@@ -134,6 +135,13 @@ func (c *TimerSchedulerConfig) GetMaxDispatchAttempts() int {
 		return 3
 	}
 	return c.Scheduler.MaxDispatchAttempts
+}
+
+func (c *TimerSchedulerConfig) GetMaxHeartbeatMisses() int {
+	if c == nil || c.Scheduler.MaxHeartbeatMisses <= 0 {
+		return 3
+	}
+	return c.Scheduler.MaxHeartbeatMisses
 }
 
 func (c *TimerSchedulerConfig) GetMaxOutboxAttempts() int {

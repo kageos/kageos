@@ -69,6 +69,7 @@ func executionToSDK(exec *model.TimerExecution) *scheduledsdk.Execution {
 		WorkerID:         exec.WorkerID,
 		LeaseUntil:       exec.LeaseUntil,
 		HeartbeatAt:      exec.HeartbeatAt,
+		HeartbeatMisses:  exec.HeartbeatMisses,
 		Attempt:          exec.Attempt,
 		DurationMillis:   exec.DurationMillis,
 		OutputSummary:    exec.OutputSummary,

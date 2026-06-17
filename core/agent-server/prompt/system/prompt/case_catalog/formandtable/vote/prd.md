@@ -57,6 +57,7 @@ package vote
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/kageos/kageos/pkg/gormx/query"
 	"github.com/kageos/kageos/pkg/logger"
@@ -74,6 +75,7 @@ type VoteOption struct {
 	ID         int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:选项ID;type:ID" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	CreatedAt  types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt  gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
+	DeletedBy  string         `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`
 	TopicID    int            `json:"topic_id" gorm:"column:topic_id;comment:主题ID;index" widget:"name:投票主题ID;type:select" validate:"required" callback:"OnSelectFuzzy"`
 	Content    string         `json:"content" gorm:"column:content;comment:选项内容" widget:"name:选项内容;type:input" validate:"required"`
 	VoteCount  int            `json:"vote_count" gorm:"column:vote_count;comment:得票人数;default:0" widget:"name:得票人数;type:integer;unit:人"`
@@ -322,7 +324,10 @@ var VoteOptionListTemplate = &app.TableTemplate{
 			}
 		}
 
-		err := db.Where("id IN ?", req.GetIds()).Delete(&VoteOption{}).Error
+		err := db.Model(&VoteOption{}).Where("id IN ?", req.GetIds()).Updates(map[string]interface{}{
+			"deleted_at": time.Now(),
+			"deleted_by": currentUser,
+		}).Error
 		if err != nil {
 			logger.Errorf(ctx, "Delete vote option err: %v", err)
 			return nil, err
@@ -360,6 +365,7 @@ type VoteRecord struct {
 	ID            int            `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:记录ID;type:ID" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	CreatedAt     types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:投票时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt     gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
+	DeletedBy     string         `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`
 	TopicID       int            `json:"topic_id" gorm:"column:topic_id;comment:主题ID;index" widget:"name:投票主题ID;type:select" callback:"OnSelectFuzzy" validate:"required"`
 	TopicTitle    string         `json:"topic_title" gorm:"-" widget:"name:投票标题;type:input" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	OptionID      int            `json:"option_id" gorm:"column:option_id;comment:选项ID;index" widget:"name:选项ID;type:integer"`
@@ -1049,6 +1055,7 @@ type VoteTopic struct {
 	CreatedAt   types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	UpdatedAt   types.Time          `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt   gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
+	DeletedBy   string         `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`
 	Title       string         `json:"title" gorm:"column:title;comment:投票标题" widget:"name:投票标题;type:input" validate:"required,min=2,max=100"`
 	Description string         `json:"description" gorm:"column:description;comment:投票描述" widget:"name:投票描述;type:text_area" validate:"required,min=5,max=500"`
 	// select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
@@ -1324,11 +1331,26 @@ var VoteTopicListTemplate = &app.TableTemplate{
 
 	OnTableDeleteRows: func(ctx *app.Context, req *callback.OnTableDeleteRowsReq) (*callback.OnTableDeleteRowsResp, error) {
 		db := ctx.GetGormDB()
+		deletedBy := ctx.GetRequestUser()
+		if deletedBy == "" {
+			return nil, fmt.Errorf("获取用户信息失败，请重新登录")
+		}
+		deletedAt := time.Now()
+		updates := map[string]interface{}{
+			"deleted_at": deletedAt,
+			"deleted_by": deletedBy,
+		}
 
 		err := db.Transaction(func(tx *gorm.DB) error {
-			tx.Where("topic_id IN ?", req.GetIds()).Delete(&VoteRecord{})
-			tx.Where("topic_id IN ?", req.GetIds()).Delete(&VoteOption{})
-			tx.Where("id IN ?", req.GetIds()).Delete(&VoteTopic{})
+			if err := tx.Model(&VoteRecord{}).Where("topic_id IN ?", req.GetIds()).Updates(updates).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&VoteOption{}).Where("topic_id IN ?", req.GetIds()).Updates(updates).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&VoteTopic{}).Where("id IN ?", req.GetIds()).Updates(updates).Error; err != nil {
+				return err
+			}
 			return nil
 		})
 

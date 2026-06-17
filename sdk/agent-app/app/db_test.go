@@ -2,37 +2,10 @@ package app
 
 import (
 	"database/sql"
-	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
-
-func TestSanitizeDBName(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{name: "adds suffix", in: "orders", want: filepath.Join(getDataDir(), "orders.db")},
-		{name: "keeps db suffix", in: "orders.db", want: filepath.Join(getDataDir(), "orders.db")},
-		{name: "drops traversal directory", in: "../secrets/orders.db", want: filepath.Join(getDataDir(), "orders.db")},
-		{name: "uses base name", in: "nested/orders.db", want: filepath.Join(getDataDir(), "orders.db")},
-	}
-
-	for _, tt := range tests {
-		if got := sanitizeDBName(tt.in); got != tt.want {
-			t.Fatalf("%s: want %s, got %s", tt.name, tt.want, got)
-		}
-	}
-}
-
-func TestDBLogFilePath(t *testing.T) {
-	got := dbLogFilePath(filepath.Join("/tmp", "agent", "orders.db"))
-	want := filepath.Join("/tmp", "agent", "orders.log")
-	if got != want {
-		t.Fatalf("want %s, got %s", want, got)
-	}
-}
 
 func TestSQLite3DatabaseSQLDriverIsRegisteredByDefault(t *testing.T) {
 	if !slices.Contains(sql.Drivers(), "sqlite3") {
@@ -45,5 +18,18 @@ func TestSQLite3DatabaseSQLDriverIsRegisteredByDefault(t *testing.T) {
 	defer db.Close()
 	if err := db.Ping(); err != nil {
 		t.Fatalf("ping sqlite3: %v", err)
+	}
+}
+
+func TestGetDBByPackagePathRequiresContextCapability(t *testing.T) {
+	db, err := GetDBByPackagePath("sales/leads")
+	if err == nil {
+		t.Fatal("GetDBByPackagePath should reject capability-less business DB access")
+	}
+	if db != nil {
+		t.Fatalf("expected nil db, got %#v", db)
+	}
+	if !strings.Contains(err.Error(), "ctx.GetGormDB()") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

@@ -1,12 +1,14 @@
 # KageOS 定时能力架构设计
 
+> 当前主线已上线 `agent.session` 定时会话和 `app.function` 定时函数。`workflow.run`、`workflow-server` 和 `/workflow/api/v1/scheduled_workflows` 只表示未来预留设计，当前未上线、没有主线用户入口。
+
 ## 目标
 
 定时能力要作为 KageOS 的平台横切层，而不是 app-server 里的一个 cron 插件。它应该让目录树上的能力都能被时间触发：
 
 - `agent.session`：在未来某个时间主动发起一轮工作台会话。
 - `app.function`：定时执行 Form、Table、Chart 等标准函数。
-- `workflow.run`：未来定时触发稳定的 workflow 图。
+- `workflow.run`：未上线，未来用于定时触发稳定的 workflow 图。
 
 第一版目标是恢复并重做历史能力里的正确部分：独立调度器、执行器模型、执行记录、取消、一次性和周期性调度。第一版也要明确吸取旧实现的教训，避免 scheduler、app-server、agent-server 各自维护一份运行状态。
 
@@ -47,7 +49,7 @@
    定时任务不是匿名系统任务，而是由用户授权的 delegated run。执行时需要重新校验权限。
 
 7. 先接价值最高且耦合较小的链路。
-   第一阶段优先 `agent.session`，第二阶段再接 `app.function`，第三阶段接 `workflow.run`。
+   当前主线已接 `agent.session` 和 `app.function`；`workflow.run` 是后续阶段，未上线。
 
 ## 总体架构
 
@@ -62,7 +64,7 @@ flowchart LR
   subgraph Domain["业务服务"]
     AgentAPI["agent-server\nagent.schedule API"]
     AppAPI["app-server\napp.function schedule API"]
-    WorkflowAPI["workflow-server\nworkflow.run schedule API"]
+    WorkflowAPI["workflow-server\nworkflow.run schedule API\nfuture only"]
   end
 
   subgraph Scheduler["timer-scheduler"]
@@ -79,7 +81,7 @@ flowchart LR
   subgraph Executors["执行器 worker"]
     AgentWorker["agent-server worker\nexecutor_key=agent.session"]
     AppWorker["app-server worker\nexecutor_key=app.function"]
-    WorkflowWorker["workflow-server worker\nexecutor_key=workflow.run"]
+    WorkflowWorker["workflow-server worker\nexecutor_key=workflow.run\nfuture only"]
   end
 
   UI --> AgentAPI
@@ -151,7 +153,7 @@ flowchart TB
 | `timer-scheduler` | 时间规则、执行器 key、opaque `executor_payload`、执行状态 | app 函数 schema、工作台 session、workflow 节点 |
 | `agent-server` | 定时会话配置、WorkspaceChatService、执行摘要 | scheduler 的 next_run_at 计算细节 |
 | `app-server` | 函数路径、schema、权限、RequestApp、操作日志 | scheduler 内部租约和 due scan 细节 |
-| `workflow-server` | workflow 定义、输入映射、运行记录 | app/agent 的内部执行细节 |
+| `workflow-server` | 未上线；未来负责 workflow 定义、输入映射、运行记录 | app/agent 的内部执行细节 |
 | `scheduledsdk` | HTTP 控制面 client、NATS worker/状态回写协议、事件结构 | 任何业务模型 |
 
 ## 数据归属
@@ -274,7 +276,7 @@ scheduler 可以做的校验只限通用层：payload 必须是合法 JSON、大
 
 | 维度 | 字段/协议 | 说明 |
 | --- | --- | --- |
-| 任务类型 | `executor_key` | 例如 `agent.session`、`app.function`、`workflow.run`。这是 worker 路由和消费组隔离的主键 |
+| 任务类型 | `executor_key` | 当前主线为 `agent.session`、`app.function`；`workflow.run` 是未上线预留。这是 worker 路由和消费组隔离的主键 |
 | 业务来源 | `source_type/source_ref` | 由创建方填写，用于列表聚合、审计、幂等 reconcile；scheduler 不解析业务含义 |
 | 资源范围 | `resource_scope/resource_key` | 可选通用标签，例如 workspace、目录节点、租户、用户；用于限流、查询过滤、配额 |
 | 消费隔离 | NATS subject/queue group | 按 `executor_key` 分 subject 或 metadata route，不同 executor 不抢同一类任务 |
@@ -368,7 +370,7 @@ sequenceDiagram
   participant SDK as scheduledsdk
   participant Timer as timer-scheduler
 
-  User->>App: create_scheduled_function(full_code_path, action, payload, schedule)
+  User->>App: create_scheduled_function_task(full_code_path, action, body, schedule)
   App->>App: load function schema by full_code_path
   App->>Permission: check delegated user permission
   Permission-->>App: allowed/denied
@@ -492,7 +494,7 @@ sequenceDiagram
   NATS->>TimerControl: execution.finished
 ```
 
-### Future `workflow.run` 执行
+### Future `workflow.run` 执行（未上线）
 
 ```mermaid
 sequenceDiagram
@@ -705,22 +707,29 @@ SDK worker 默认使用下面的 NATS request/reply subjects 回写执行状态�
 | `resource_scope/resource_key` | 创建方 | 可选资源隔离、查询、配额标签 |
 | `request_user/request_user_dept` | 创建方 | delegated run 身份上下文 |
 
-业务 API 不直接暴露 timer 内部字段，返回聚合视图：
+当前主线入口：
+
+- `timer-scheduler`: `/timer/api/v1/tasks`、`/timer/api/v1/tasks/:id/*`、`/timer/api/v1/tasks/:id/executions`
+- Agent tools：`create_scheduled_agent_task`、`create_scheduled_function_task`、`list_scheduled_tasks`、`manage_scheduled_task`、`list_scheduled_task_executions`
+
+旧业务聚合 API 不属于当前主线，不要按这些路径开发：
 
 - `agent-server`: `/agent/api/v1/scheduled_agent_tasks`
 - `app-server`: `/workspace/api/v1/scheduled_functions`
+
+未来预留 API，当前未上线：
+
 - `workflow-server`: `/workflow/api/v1/scheduled_workflows`
 
-Agent 工具第一版：
+当前 Agent 工具：
 
 | 工具 | 作用 |
 | --- | --- |
 | `create_scheduled_agent_task` | 创建定时会话 |
-| `list_scheduled_agent_tasks` | 查询定时会话 |
-| `run_scheduled_agent_task_now` | 立即跑一次定时会话 |
-| `cancel_scheduled_agent_task` | 取消定时会话 |
-| `create_scheduled_function_task` | 创建定时函数任务，第二阶段 |
-| `list_scheduled_function_tasks` | 查询定时函数任务，第二阶段 |
+| `create_scheduled_function_task` | 创建定时函数任务 |
+| `list_scheduled_tasks` | 按 kind/status/path 查询定时任务 |
+| `manage_scheduled_task` | pause/resume/cancel/delete/run_now |
+| `list_scheduled_task_executions` | 查询任务执行记录 |
 
 ## 前端入口
 
@@ -729,7 +738,7 @@ flowchart LR
   Tree["ServiceTree 节点"] --> Panel["Scheduled panel"]
   Panel --> AgentTab["定时会话"]
   Panel --> FunctionTab["定时函数"]
-  Panel --> WorkflowTab["定时工作流 future"]
+  Panel --> WorkflowTab["定时工作流 future not launched"]
   AgentTab --> Detail["任务详情 + 执行记录"]
   FunctionTab --> Detail
   WorkflowTab --> Detail
@@ -773,7 +782,7 @@ flowchart LR
 - 支持 Form submit、Chart query、Table callback。
 - 加操作日志和幂等 key。
 
-### Phase 4: 定时 workflow `workflow.run`
+### Phase 4: 定时 workflow `workflow.run`（未上线）
 
 - workflow-server 实现运行 API 和 worker。
 - payload schema 可以 inline workflow 输入，也可以引用 workflow version/config。

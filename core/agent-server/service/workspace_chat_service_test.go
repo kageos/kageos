@@ -49,6 +49,47 @@ func TestWithAgentToolExecutionContextMarksSource(t *testing.T) {
 	}
 }
 
+func TestWorkspaceContextWithSessionRequestUserFallsBackToSessionOwner(t *testing.T) {
+	session := &model.AgentChatSession{User: "alice"}
+
+	gotCtx, gotUser := workspaceContextWithSessionRequestUser(context.Background(), session)
+
+	if gotUser != "alice" {
+		t.Fatalf("user = %q, want alice", gotUser)
+	}
+	if got := contextx.GetRequestUser(gotCtx); got != "alice" {
+		t.Fatalf("request user = %q, want alice", got)
+	}
+}
+
+func TestWorkspaceContextWithSessionRequestUserKeepsSystemRequestUser(t *testing.T) {
+	session := &model.AgentChatSession{User: "alice"}
+	ctx := contextx.WithRequestUser(context.Background(), "system")
+
+	gotCtx, gotUser := workspaceContextWithSessionRequestUser(ctx, session)
+
+	if gotUser != "system" {
+		t.Fatalf("user = %q, want system", gotUser)
+	}
+	if got := contextx.GetRequestUser(gotCtx); got != "system" {
+		t.Fatalf("request user = %q, want system", got)
+	}
+}
+
+func TestWorkspaceContextWithSessionRequestUserKeepsRealRequestUser(t *testing.T) {
+	session := &model.AgentChatSession{User: "alice"}
+	ctx := contextx.WithRequestUser(context.Background(), "bob")
+
+	gotCtx, gotUser := workspaceContextWithSessionRequestUser(ctx, session)
+
+	if gotUser != "bob" {
+		t.Fatalf("user = %q, want bob", gotUser)
+	}
+	if got := contextx.GetRequestUser(gotCtx); got != "bob" {
+		t.Fatalf("request user = %q, want bob", got)
+	}
+}
+
 func TestCancelSessionCancelsRegisteredRunEvenWhenStatusIsActive(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {

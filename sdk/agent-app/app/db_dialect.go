@@ -9,7 +9,6 @@ import (
 type DBDialect string
 
 const (
-	DBDialectSQLite  DBDialect = "sqlite"
 	DBDialectMySQL   DBDialect = "mysql"
 	DBDialectUnknown DBDialect = "unknown"
 )
@@ -35,9 +34,9 @@ func DateTimeBucketExpr(db *gorm.DB, column string, bucket TimeBucket) (selectEx
 	return DateTimeBucketExprForDialect(DetectDBDialect(db), column, bucket)
 }
 
-// DateTimeBucketExprForDialect is the dialect-specific version of DateTimeBucketExpr.
-// It expects the column to be a real datetime/time column, or SQLite text in "YYYY-MM-DD HH:mm:ss" format.
-func DateTimeBucketExprForDialect(dialect DBDialect, column string, bucket TimeBucket) (selectExpr, groupExpr string) {
+// DateTimeBucketExprForDialect returns MySQL expressions for the runtime-managed app business DB.
+// The dialect argument is kept for source compatibility; KageOS app business DB is MySQL-only.
+func DateTimeBucketExprForDialect(_ DBDialect, column string, bucket TimeBucket) (selectExpr, groupExpr string) {
 	column = strings.TrimSpace(column)
 	if column == "" {
 		column = "created_at"
@@ -46,26 +45,11 @@ func DateTimeBucketExprForDialect(dialect DBDialect, column string, bucket TimeB
 	var expr string
 	switch normalizeTimeBucket(bucket) {
 	case TimeBucketHour:
-		switch dialect {
-		case DBDialectMySQL:
-			expr = "DATE_FORMAT(" + column + ", '%Y-%m-%d %H:00:00')"
-		default:
-			expr = "strftime('%Y-%m-%d %H:00:00', " + column + ")"
-		}
+		expr = "DATE_FORMAT(" + column + ", '%Y-%m-%d %H:00:00')"
 	case TimeBucketMonth:
-		switch dialect {
-		case DBDialectMySQL:
-			expr = "DATE_FORMAT(" + column + ", '%Y-%m')"
-		default:
-			expr = "strftime('%Y-%m', " + column + ")"
-		}
+		expr = "DATE_FORMAT(" + column + ", '%Y-%m')"
 	default:
-		switch dialect {
-		case DBDialectMySQL:
-			expr = "DATE_FORMAT(" + column + ", '%Y-%m-%d')"
-		default:
-			expr = "strftime('%Y-%m-%d', " + column + ")"
-		}
+		expr = "DATE_FORMAT(" + column + ", '%Y-%m-%d')"
 	}
 
 	return expr, expr
@@ -73,8 +57,6 @@ func DateTimeBucketExprForDialect(dialect DBDialect, column string, bucket TimeB
 
 func detectDBDialectName(name string) DBDialect {
 	switch strings.ToLower(strings.TrimSpace(name)) {
-	case string(DBDialectSQLite):
-		return DBDialectSQLite
 	case string(DBDialectMySQL):
 		return DBDialectMySQL
 	default:

@@ -15,7 +15,7 @@
 - **本 SDK 文档**：框架怎么用——结构体与标签、Table/Form/Chart 模式、注册方式、目录约定。
 - **案例文档**（`/system/prompt/case_catalog/xxx`）：具体业务长什么样——PRD + 完整 Go 代码。系统消息中「可读的目录」会列出各案例路径与说明；需要单表 CRUD、多表、Form、图表等时，read_doc 对应案例获取 PRD 与代码。
 - **平台横切能力边界**：Table 更新日志由平台记录，业务代码不要重复造通用操作日志；消息通知使用 SDK `ctx.SendMessage` 异步交给 message-service，默认站内信，渠道由平台扩展，普通业务不要等待通知投递完成；定时任务和后台调度交给 timer-scheduler/自动化操作员。通用权限、审批、评论、收藏不属于 MVP 应用侧能力。业务代码只管业务数据本身，不要硬连具体通知渠道或自造调度器。
-- **数据库安全铁律**：`ctx.GetGormDB()` 返回的 `*gorm.DB` 只能在当前目录业务代码内直接使用。禁止传给第三方库、外部 package、全局变量、struct 字段或 return 出去；禁止 `Raw`、`Exec`、`Unscoped`、`Migrator`、`DB`、`AutoMigrate`。记录只允许软删除，表结构只允许由 SDK/runtime 生命周期按 `CreateTables` 做安全迁移。
+- **数据库安全铁律**：`ctx.GetGormDB()` 返回的 `*gorm.DB` 只能在当前目录业务代码内直接使用。禁止传给第三方库、外部 package、全局变量、struct 字段或 return 出去；`Raw` 只允许字符串字面量或 const 的 `SELECT` / `WITH` 只读查询，用户输入必须通过 `?` 参数传入；禁止 `Exec`、`Unscoped`、`Migrator`、`DB`、`AutoMigrate`。记录只允许软删除，表结构只允许由 SDK/runtime 生命周期按 `CreateTables` 做安全迁移。
 
 ## 按需参考文档
 
@@ -248,7 +248,7 @@ widget tag 内部格式是 `name:显示名;type:已支持组件类型;配置项:
 
 同一层结构体字段的 `json` code 不能重复。可选 `data` 标签只允许 `format`、`example`，用于补充 schema 数据格式和示例，不替代 widget 配置。
 
-**敏感字段约定**：字段可以写 `sensitive:"true"`，表示该字段在平台操作日志中会被移除，不进入 `operate_logs` 的 request/response/old/new JSON。它不表示业务数据库加密，不改变用户应用自己的 SQLite/GORM 落库行为。需要密文存储时，由业务代码自行加密后再写入；当前不要在 widget 标签中生成 `password:true` 配置。
+**敏感字段约定**：字段可以写 `sensitive:"true"`，表示该字段在平台操作日志中会被移除，不进入 `operate_logs` 的 request/response/old/new JSON。它不表示业务数据库加密，不改变用户应用自己的 MySQL/GORM 落库行为。需要密文存储时，由业务代码自行加密后再写入；当前不要在 widget 标签中生成 `password:true` 配置。
 
 **select / multiselect 与 options_colors（提示词约定，按必填处理）**：生成静态 `select` 或静态 `multiselect` 时配置 `options_colors`，与 `options` 一一对应（逗号分隔，顺序一致），前端会用颜色标签区分选项。动态 OnSelectFuzzy 下拉不写 `options`，也不要写 `options_colors`。`options_colors` 只支持 6 位十六进制 `RRGGBB`，不带 `#`，如 `FF9800`、`9C27B0`、`4CAF50`。不要生成 `primary`、`success`、`warning`、`danger`、`info`、`default`、`secondary`、`#FF9800` 或 `rgb(...)`。示例：`options:待处理,进行中,已完成` 对应 `options_colors:E6A23C,409EFF,67C23A`；`options:VIP,普通,体验` 对应 `options_colors:E91E63,9E9E9E,4CAF50`。
 
@@ -354,7 +354,7 @@ type WidgetLookupExtra struct {
 
 `datetime` 的 `render_default` 可以写静态时间字符串（如 `2026-05-01 10:30:00`），也可以写前端可解析的动态表达式：`CURRENT_TIMESTAMP`、`CURRENT_DATE`、`DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 HOUR)`、`DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY)`。不要写 `NOW()` 或缺少 `INTERVAL` 的表达式，启动期会失败。
 
-**系统记录字段启动期约束**：`id` 主键字段必须 `type:ID`、`hide:"create,update"`，且 `gorm` 包含 `primaryKey`、`autoIncrement`、`column:id`；`created_at` / `updated_at` 必须是 `datetime` + `format:YYYY-MM-DD HH:mm:ss` + `hide:"create,update"`，并分别包含 `autoCreateTime` / `autoUpdateTime`；`created_by` / `updated_by` 必须是 `type:user` + `hide:"create,update"`，且 `gorm column` 与 `json` 名一致；`deleted_at` / `deleted_by` 必须 `widget:"-"` 或 `json:"-"`，不要进入前端 schema。需要按这些字段筛选时，在 Table Request 里显式声明筛选字段。
+**系统记录字段启动期约束**：`id` 主键字段必须 `type:ID`、`hide:"create,update"`，且 `gorm` 包含 `primaryKey`、`autoIncrement`、`column:id`；`created_at` / `updated_at` 必须是 `datetime` + `format:YYYY-MM-DD HH:mm:ss` + `hide:"create,update"`，并分别包含 `autoCreateTime` / `autoUpdateTime`；`created_by` / `updated_by` 必须是 `type:user` + `hide:"create,update"`，且 `gorm column` 与 `json` 名一致；软删除字段必须成对包含 `deleted_at` / `deleted_by`，且必须 `widget:"-"` 或 `json:"-"`，不要进入前端 schema。需要按这些字段筛选时，在 Table Request 里显式声明筛选字段。
 
 `types.Time` 是对 `time.Time` 的包装类型，给结构体字段赋值时必须显式转换，不能直接把 `time.Now()` 赋给 `types.Time` 字段。
 不要生成未在当前已读文档、案例或 SDK 源码中确认存在的 SDK 类型、函数、常量或结构体字段；遇到 `undefined: <sdk package>.<symbol>` 先回到对应知识点或源码确认真实 API。
@@ -382,7 +382,7 @@ row.ExpenseDate = types.Time{}
 row.ExpenseDate = time.Now()
 ```
 
-只有 `gorm.DeletedAt` 这类 GORM 软删除字段才常见 `deleted_at: time.Now()`；如果目标字段本身是 `types.Time`，优先写 `types.Time(time.Now())`，避免类型不匹配。
+只有 `gorm.DeletedAt` 这类 GORM 软删除字段才常见 `deleted_at: time.Now()`；写软删除时必须同时写 `deleted_by: ctx.GetRequestUser()`。如果目标字段本身是 `types.Time`，优先写 `types.Time(time.Now())`，避免类型不匹配。
 
 **form / table 结构约定（禁止 map，必读）**：使用 `type:form`（子表单）或 `type:table`（子表）时，**字段必须是具名、固定字段的结构体类型**，**禁止使用 `map[string]interface{}`**。前端和 SDK 依赖结构体标签（如 `widget`、`json`）来生成表单/表格列；map 的键在编译期不确定，无法解析出固定 schema，会导致展示异常或无法正确渲染。
 
@@ -550,7 +550,7 @@ type CrmTicket struct {
     UpdatedAt types.Time `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
     // 软删除：gorm.DeletedAt + widget:"-" 不在前端展示，GORM 查询时自动过滤已删除记录
     DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"` // 不做展示
-    DeletedBy string         `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`       // 删除操作人，不做展示（可选）
+    DeletedBy string         `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`       // 删除操作人，不做展示
 
     // 业务字段：未配 display 时前端会在列表/新增/编辑三个场景都展示。
     Title       string `json:"title" gorm:"column:title" widget:"name:工单标题;type:input"`
@@ -701,7 +701,7 @@ OnTableUpdateRow: func(ctx *app.Context, req *callback.OnTableUpdateRowReq) (*ca
 
 ### 3. OnTableDeleteRows（删除行）
 
-- **作用**：批量删除；推荐软删除并记录 `deleted_by`、`deleted_at`，便于恢复和追溯。
+- **作用**：批量删除；必须软删除并同时记录 `deleted_by`、`deleted_at`，便于恢复和追溯。
 - **关键 API**：`req.GetIds()`、`ctx.GetRequestUser()`。
 
 ```go
@@ -897,33 +897,27 @@ func calculateBookingStatus(startTime, endTime types.Time) string {
 - **请求/响应结构体**：字段加 `widget`、`validate`；请求可含 `type:table`（子表）、`type:select` + `callback:"OnSelectFuzzy"` 等。
 - **处理函数**：`ctx.ShouldBindValidate(&req)`；业务逻辑；成功 `return resp.Form(&respStruct).Build()`。涉及文件读写时见下「文件上传、下载与存储」。
 - **事务要求**：一次提交若会同时改动多张表，尤其是余额、库存、数量、状态、流水这类强一致数据，必须使用 `db.Transaction(...)`，并在事务内做条件更新或再次校验，避免并发下超卖、透支或部分成功部分失败。
-- **数据库兼容**：工作区应用默认是 **SQLite**；若后续可能切到 MySQL，涉及 Raw SQL、日期格式化、字符串拼接、upsert、JSON 函数时，必须先看 `db.Dialector.Name()` 分支处理，不要写死单一数据库语法。优先用 GORM 和 Go 代码做计算，实在需要 SQL 方言时再分支。**时间分组优先复用 SDK helper**：`app.DateTimeBucketExpr(db, "created_at", app.TimeBucketDay)`。
+- **数据库规则**：工作区应用业务库固定走 runtime 托管的 **MySQL**，只能通过当前请求或回调里的 `ctx.GetGormDB()` 获取；不要在 init、全局变量、后台黑盒任务里自行拿业务库连接。优先用 GORM 和 Go 代码做计算；复杂 BI/Chart 查询可用只读 `db.Raw`，SQL 必须是字符串字面量或 const 的 `SELECT` / `WITH`，用户输入走 `?` 参数。**时间分组优先复用 SDK helper**：`app.DateTimeBucketExpr(db, "created_at", app.TimeBucketDay)`。
 - **FormTemplate**：`BaseConfig` 含 Name、Request、Response；若请求中有下拉需联动后端数据，配 `OnSelectFuzzyMap`。需要应用发布后自动创建默认定时执行时，只在 `FormTemplate.Schedules` 声明，支持 `CronExpr` 或 `EverySeconds` 二选一；不要把定时配置放进 `BaseConfig`、Table 或 Chart。
 - **注册**：`packageContext.POST("路由名", Handler, FormTemplate)`。
 
-#### 数据库兼容（SQLite 默认，MySQL 可切换）
+#### 数据库规则（MySQL-only）
 
-工作区应用默认使用 SQLite。大部分 CRUD、筛选、排序、事务，直接用 GORM 就能同时兼容 SQLite/MySQL；真正容易踩坑的是**写 Raw SQL 或数据库函数**的时候。
+工作区应用业务库固定使用 runtime 托管的 MySQL。数据库能力是按当前路由 package 下发的短期 capability，生成代码只能在 handler/callback 内直接调用 `ctx.GetGormDB()` 并就地使用，不要跨 package 传递、保存到全局/struct 字段、return 出去，也不要通过 `PackageContext.GetGormDB()` 或自建连接绕过 Context。
 
 **建议顺序**
 
 1. 先用 GORM
 2. GORM 不够，再用 Go 代码补计算
-3. 还不够，再按 `db.Dialector.Name()` 分支写 SQL
+3. 还不够，再用只读 `db.Raw` 写 MySQL `SELECT` / `WITH` 查询；SQL 用字符串字面量或 const，用户输入通过 `?` 参数传入
 
-**典型差异**
+**注意**
 
-- **按天分组/时间格式化**
-  - MySQL：`DATE_FORMAT(created_at, '%Y-%m-%d')`
-  - SQLite：`strftime('%Y-%m-%d', created_at)`
-- **字符串拼接**
-  - MySQL：`CONCAT(a, b)`
-  - SQLite：`a || b`
-- **upsert**
-  - MySQL：`ON DUPLICATE KEY UPDATE`
-  - SQLite：`ON CONFLICT DO UPDATE`
-- **JSON 函数**
-  - 两边函数名和支持度不完全一致；不是刚需就尽量别在 Raw SQL 里直接写 JSON 函数
+- 普通 CRUD、筛选、排序、事务优先写 GORM 链式调用。
+- 涉及日期分组时，优先用 SDK helper；复杂聚合、窗口函数、CTE、多表统计可以用 `db.Raw(...).Scan(&rows)`。
+- `db.Raw` 只用于只读查询；不要写 `UPDATE`、`INSERT`、`DELETE`、`CREATE`、`SET` 等语句，也不要用 `fmt.Sprintf` / 字符串拼接拼 SQL。
+- 不要再写 SQLite/MySQL 双分支兼容逻辑；应用业务库没有 SQLite fallback。
+- 用户上传的 `.db/.sqlite` 文件属于文件处理场景，使用 `database/sql + sql.Open("sqlite3", path)`，不要和应用业务库混用。
 
 示例（日期分组，优先复用 SDK helper）：
 

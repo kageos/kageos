@@ -40,7 +40,7 @@ func (p *PackageContext) BuildFullRouter(router string) string {
 	return fmt.Sprintf("/%s/%s", packagePath, strings.Trim(router, "/"))
 }
 
-// GetGormDB 获取当前包对应的 DB（与请求里 ctx.GetGormDB() 同源），用于 init 里后台任务等无请求上下文的场景
+// GetGormDB 已废弃。应用业务数据库必须通过请求或回调 Context 的 ctx.GetGormDB() 获取。
 func (p *PackageContext) GetGormDB() (*gorm.DB, error) {
 	return GetDBByPackagePath(p.RouterGroup)
 }

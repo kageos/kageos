@@ -119,9 +119,9 @@ func (s *AppDatabaseService) Resolve(ctx context.Context, req *dto.AppDBResolveR
 		return nil, err
 	}
 
-	packagePath := cleanPackagePath(req.PackagePath)
-	if packagePath == "" {
-		packagePath = appDBRootPackage
+	packagePath, err := normalizeAppDBPackagePath(req.PackagePath)
+	if err != nil {
+		return nil, err
 	}
 
 	record, passwords, err := s.ensurePackageDatabase(ctx, req.User, req.App, packagePath)
@@ -162,13 +162,16 @@ func (s *AppDatabaseService) EnsureDatabaseForPackage(ctx context.Context, user,
 }
 
 func (s *AppDatabaseService) ensurePackageDatabase(ctx context.Context, user, app, packagePath string) (*model.AppDatabase, appDatabasePasswords, error) {
-	packagePath = cleanPackagePath(packagePath)
+	packagePath, err := normalizeAppDBPackagePath(packagePath)
+	if err != nil {
+		return nil, appDatabasePasswords{}, err
+	}
 	lock := s.lockFor(user + "/" + app + "/" + packagePath)
 	lock.Lock()
 	defer lock.Unlock()
 
 	var record model.AppDatabase
-	err := s.db.Where("user = ? AND app = ? AND package_path = ?", user, app, packagePath).First(&record).Error
+	err = s.db.Where("user = ? AND app = ? AND package_path = ?", user, app, packagePath).First(&record).Error
 	if err == nil {
 		if record.ClusterKey == "" {
 			record.ClusterKey = s.cfg.ClusterKey
@@ -390,10 +393,13 @@ func (s *AppDatabaseService) validateCapability(req *dto.AppDBResolveReq) error 
 		return fmt.Errorf("app database migration access requires lifecycle capability")
 	}
 	if capability.Router != "" {
-		expectedPackagePath := packagePathFromRouter(capability.Router)
-		actualPackagePath := cleanPackagePath(req.PackagePath)
-		if actualPackagePath == "" {
-			actualPackagePath = appDBRootPackage
+		expectedPackagePath, err := packagePathFromRouter(capability.Router)
+		if err != nil {
+			return err
+		}
+		actualPackagePath, err := normalizeAppDBPackagePath(req.PackagePath)
+		if err != nil {
+			return err
 		}
 		if expectedPackagePath != actualPackagePath {
 			return fmt.Errorf("app database capability package mismatch")
@@ -463,13 +469,41 @@ func (s *AppDatabaseService) lockFor(key string) *sync.Mutex {
 	return lock
 }
 
-func cleanPackagePath(packagePath string) string {
-	packagePath = strings.TrimSpace(packagePath)
-	packagePath = strings.Trim(packagePath, "/")
-	if packagePath == "" {
-		return ""
+func normalizeAppDBPackagePath(packagePath string) (string, error) {
+	cleanPath, err := cleanPackagePath(packagePath)
+	if err != nil {
+		return "", err
 	}
-	return path.Clean(packagePath)
+	if cleanPath == "" {
+		return appDBRootPackage, nil
+	}
+	return cleanPath, nil
+}
+
+func cleanPackagePath(packagePath string) (string, error) {
+	if packagePath != strings.TrimSpace(packagePath) {
+		return "", fmt.Errorf("invalid app database package path %q: leading or trailing spaces are not allowed", packagePath)
+	}
+	cleanPath := strings.Trim(packagePath, "/")
+	if cleanPath == "" || cleanPath == appDBRootPackage {
+		return "", nil
+	}
+	if strings.Contains(cleanPath, `\`) {
+		return "", fmt.Errorf("invalid app database package path %q: backslash is not allowed", packagePath)
+	}
+	if strings.Contains(cleanPath, "//") {
+		return "", fmt.Errorf("invalid app database package path %q: empty path segment is not allowed", packagePath)
+	}
+	if normalized := path.Clean(cleanPath); normalized != cleanPath {
+		return "", fmt.Errorf("invalid app database package path %q: dot segments are not allowed", packagePath)
+	}
+	parts := strings.Split(cleanPath, "/")
+	for _, part := range parts {
+		if err := validateGoPackagePathSegment(part); err != nil {
+			return "", fmt.Errorf("invalid app database package path %q: %w", packagePath, err)
+		}
+	}
+	return strings.Join(parts, "/"), nil
 }
 
 func normalizeAppDBAccess(access string) (string, error) {
@@ -493,18 +527,42 @@ func migrationDatabaseUserName(prefix, suffix string) string {
 	return prefix + "m_" + suffix
 }
 
-func packagePathFromRouter(router string) string {
-	router = strings.TrimSpace(router)
-	router = strings.Trim(router, "/")
-	if router == "" {
-		return appDBRootPackage
+func packagePathFromRouter(router string) (string, error) {
+	if router != strings.TrimSpace(router) {
+		return "", fmt.Errorf("invalid app database router %q: leading or trailing spaces are not allowed", router)
 	}
-	router = path.Clean(router)
-	idx := strings.LastIndex(router, "/")
-	if idx <= 0 {
-		return appDBRootPackage
+	cleanRouter := strings.Trim(router, "/")
+	if cleanRouter == "" {
+		return appDBRootPackage, nil
 	}
-	return router[:idx]
+	if strings.Contains(cleanRouter, `\`) {
+		return "", fmt.Errorf("invalid app database router %q: backslash is not allowed", router)
+	}
+	if strings.Contains(cleanRouter, "//") {
+		return "", fmt.Errorf("invalid app database router %q: empty path segment is not allowed", router)
+	}
+	if normalized := path.Clean(cleanRouter); normalized != cleanRouter {
+		return "", fmt.Errorf("invalid app database router %q: dot segments are not allowed", router)
+	}
+	parts := strings.Split(cleanRouter, "/")
+	for _, part := range parts {
+		if part != strings.TrimSpace(part) {
+			return "", fmt.Errorf("invalid app database router %q: path segment spaces are not allowed", router)
+		}
+		if part == "" || part == "." || part == ".." {
+			return "", fmt.Errorf("invalid app database router %q: invalid path segment %q", router, part)
+		}
+	}
+	if len(parts) <= 1 {
+		return appDBRootPackage, nil
+	}
+	packageParts := parts[:len(parts)-1]
+	for _, part := range packageParts {
+		if err := validateGoPackagePathSegment(part); err != nil {
+			return "", fmt.Errorf("invalid app database router %q: %w", router, err)
+		}
+	}
+	return strings.Join(packageParts, "/"), nil
 }
 
 func randomToken(n int) (string, error) {

@@ -185,6 +185,9 @@ type validatorAuditGoodReq struct {
 	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"`
 	UpdatedAt apptypes.Time `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"`
 	CreatedBy string        `json:"created_by" gorm:"column:created_by" widget:"name:创建人;type:user" hide:"create,update"`
+	UpdatedBy string        `json:"updated_by" gorm:"column:updated_by" widget:"name:更新人;type:user" hide:"create,update"`
+	DeletedAt string        `json:"deleted_at" gorm:"column:deleted_at" widget:"-"`
+	DeletedBy string        `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`
 }
 
 type validatorBadAuditReq struct {
@@ -192,6 +195,7 @@ type validatorBadAuditReq struct {
 	CreatedAt apptypes.Time `json:"created_at" gorm:"column:created_on;type:datetime" widget:"name:创建时间;type:input;format:YYYY-MM-DD" hide:"list,update"`
 	CreatedBy string        `json:"created_by" gorm:"column:creator" widget:"name:创建人;type:input"`
 	DeletedAt string        `json:"deleted_at" gorm:"column:deleted_at" widget:"name:删除时间;type:datetime"`
+	DeletedBy string        `json:"deleted_by" gorm:"column:deleted_by" widget:"name:删除人;type:user"`
 }
 
 type validatorFieldTagItem struct {
@@ -244,6 +248,7 @@ type validatorAuditFilterPageSortReq struct {
 	CreatedBy string `json:"created_by" form:"created_by" widget:"name:创建人;type:user"`
 	UpdatedBy string `json:"updated_by" form:"updated_by" widget:"name:更新人;type:user"`
 	DeletedAt string `json:"deleted_at" form:"deleted_at" widget:"name:删除时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
+	DeletedBy string `json:"deleted_by" form:"deleted_by" widget:"name:删除人;type:user"`
 	query.PageSortReq
 }
 
@@ -258,6 +263,8 @@ type validatorAuditFilterTableModel struct {
 	UpdatedAt apptypes.Time `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"`
 	CreatedBy string        `json:"created_by" gorm:"column:created_by" widget:"name:创建人;type:user" hide:"create,update"`
 	UpdatedBy string        `json:"updated_by" gorm:"column:updated_by" widget:"name:更新人;type:user" hide:"create,update"`
+	DeletedAt string        `json:"deleted_at" gorm:"column:deleted_at" widget:"-"`
+	DeletedBy string        `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`
 }
 
 func TestWidgetValidatorRejectsInvalidComponentParams(t *testing.T) {
@@ -396,6 +403,7 @@ func TestWidgetValidatorEnforcesAuditFieldConventions(t *testing.T) {
 		`audit field "created_by" hide tag must be "create,update"`,
 		`audit field "created_by" gorm column must be "created_by"`,
 		`audit field "deleted_at" must be hidden with widget:"-" or json:"-"`,
+		`audit field "deleted_by" must be hidden with widget:"-" or json:"-"`,
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("DecodeTable() error = %v, want substring %q", err, want)
@@ -483,10 +491,10 @@ func TestDecodeTableAllowsAuditFieldCodeFiltersInPageSortRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeTable() error = %v, want nil", err)
 	}
-	if len(requestFields) != 5 {
-		t.Fatalf("request fields len = %d, want 5", len(requestFields))
+	if len(requestFields) != 6 {
+		t.Fatalf("request fields len = %d, want 6", len(requestFields))
 	}
-	for _, want := range []string{"created_at", "updated_at", "created_by", "updated_by", "deleted_at"} {
+	for _, want := range []string{"created_at", "updated_at", "created_by", "updated_by", "deleted_at", "deleted_by"} {
 		if !hasFieldCode(requestFields, want) {
 			t.Fatalf("request fields missing %q: %#v", want, requestFields)
 		}

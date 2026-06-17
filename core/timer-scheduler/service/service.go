@@ -26,6 +26,7 @@ const (
 	defaultExecutionLease      = 3 * time.Minute
 	defaultQueueAckTimeout     = 2 * time.Minute
 	defaultMaxDispatchAttempts = 3
+	defaultMaxHeartbeatMisses  = 3
 	defaultMaxOutboxAttempts   = 8
 	defaultPayloadLimitBytes   = 256 * 1024
 
@@ -46,6 +47,7 @@ type Options struct {
 	ExecutionLeaseDuration time.Duration
 	QueueAckTimeout        time.Duration
 	MaxDispatchAttempts    int
+	MaxHeartbeatMisses     int
 	MaxOutboxAttempts      int
 	PayloadLimitBytes      int
 	Now                    func() time.Time
@@ -72,6 +74,9 @@ func NewService(db *gorm.DB, opts Options) *Service {
 	}
 	if opts.MaxDispatchAttempts <= 0 {
 		opts.MaxDispatchAttempts = defaultMaxDispatchAttempts
+	}
+	if opts.MaxHeartbeatMisses <= 0 {
+		opts.MaxHeartbeatMisses = defaultMaxHeartbeatMisses
 	}
 	if opts.MaxOutboxAttempts <= 0 {
 		opts.MaxOutboxAttempts = defaultMaxOutboxAttempts
@@ -464,13 +469,16 @@ func (s *Service) RecoverStaleExecutions(ctx context.Context, limit int) (int, e
 			}
 			recovered++
 		case string(scheduledsdk.ExecutionStatusRunning):
-			if err := s.timeoutExecution(ctx, exec, now, "timer-scheduler execution heartbeat expired"); err != nil {
+			handled, err := s.handleExpiredRunningExecution(ctx, exec, now)
+			if err != nil {
 				if !errors.Is(err, ErrInvalidTaskStatus) {
 					recoverErr = errors.Join(recoverErr, err)
 				}
 				continue
 			}
-			recovered++
+			if handled {
+				recovered++
+			}
 		}
 	}
 	cleared, err := s.recoverBrokenInflightReferences(limit)
@@ -479,6 +487,18 @@ func (s *Service) RecoverStaleExecutions(ctx context.Context, limit int) (int, e
 	}
 	recovered += cleared
 	return recovered, recoverErr
+}
+
+func (s *Service) handleExpiredRunningExecution(ctx context.Context, exec *model.TimerExecution, now time.Time) (bool, error) {
+	misses := exec.HeartbeatMisses + 1
+	if misses < s.opts.MaxHeartbeatMisses {
+		ok, err := s.executionRepo.TryRecordHeartbeatMiss(exec, now, now.Add(s.opts.ExecutionLeaseDuration), misses)
+		if err != nil || !ok {
+			return ok, err
+		}
+		return true, nil
+	}
+	return true, s.timeoutExecution(ctx, exec, now, "timer-scheduler execution heartbeat expired")
 }
 
 func (s *Service) MarkExecutionStarted(ctx context.Context, req scheduledsdk.MarkExecutionStartedRequest) error {
@@ -840,7 +860,7 @@ func scheduledExecutionToken(task *model.TimerTask) string {
 		return ""
 	}
 	requestUser := scheduledTaskRequestUser(task)
-	if requestUser == "" || requestUser == "system" {
+	if requestUser == "" {
 		return ""
 	}
 	metadata := decodeStringMap(task.MetadataJSON)

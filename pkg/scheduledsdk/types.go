@@ -67,6 +67,7 @@ type Execution struct {
 	WorkerID         string          `json:"worker_id,omitempty"`
 	LeaseUntil       *time.Time      `json:"lease_until,omitempty"`
 	HeartbeatAt      *time.Time      `json:"heartbeat_at,omitempty"`
+	HeartbeatMisses  int             `json:"heartbeat_misses,omitempty"`
 	Attempt          int             `json:"attempt,omitempty"`
 	DurationMillis   int64           `json:"duration_millis,omitempty"`
 	OutputSummary    string          `json:"output_summary,omitempty"`

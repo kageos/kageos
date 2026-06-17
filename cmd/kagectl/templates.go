@@ -203,6 +203,9 @@ CREATE DATABASE IF NOT EXISTS {{ mysqlIdent .MySQL.MessageDatabase }} CHARACTER 
 `
 
 const globalConfigTemplate = `
+site:
+  base_url: {{ q .Site.BaseURL }}
+
 gateway:
   host: "0.0.0.0"
   port: 9090
@@ -318,6 +321,7 @@ scheduler:
   execution_lease_seconds: 3600
   queue_ack_timeout_seconds: 120
   max_dispatch_attempts: 3
+  max_heartbeat_misses: 3
   max_outbox_attempts: 8
   payload_limit_bytes: 262144
 `

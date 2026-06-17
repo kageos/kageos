@@ -53,6 +53,7 @@ func NewServer(cfg *config.TimerSchedulerConfig) (*Server, error) {
 		ExecutionLeaseDuration: cfg.GetExecutionLeaseDuration(),
 		QueueAckTimeout:        cfg.GetQueueAckTimeout(),
 		MaxDispatchAttempts:    cfg.GetMaxDispatchAttempts(),
+		MaxHeartbeatMisses:     cfg.GetMaxHeartbeatMisses(),
 		MaxOutboxAttempts:      cfg.GetMaxOutboxAttempts(),
 		PayloadLimitBytes:      cfg.GetPayloadLimitBytes(),
 	})

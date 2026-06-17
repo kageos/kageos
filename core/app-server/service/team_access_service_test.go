@@ -176,6 +176,50 @@ func TestTeamAccessAdminCanGrantMember(t *testing.T) {
 	}
 }
 
+func TestTeamAccessBatchAssignGrantsEveryCombination(t *testing.T) {
+	service, _, db := newTeamAccessTestService(t)
+
+	if err := service.BatchAssign(actorContext("alice"), access.BatchAssignRoleRequest{
+		TenantUser:    "alice",
+		App:           "ops",
+		Usernames:     []string{"bob", "cora"},
+		ResourcePaths: []string{"/alice/ops/ticket", "/alice/ops/report"},
+		RoleCodes:     []access.RoleCode{access.RoleViewer, access.RoleMember},
+		CreatedBy:     "alice",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var count int64
+	if err := db.Model(&appmodel.WorkspaceRoleAssignment{}).Count(&count).Error; err != nil {
+		t.Fatalf("count assignments: %v", err)
+	}
+	if count != 8 {
+		t.Fatalf("assignment count = %d, want 8", count)
+	}
+
+	for _, username := range []string{"bob", "cora"} {
+		result, err := service.Resolve(context.Background(), "alice", "ops", username, "/alice/ops/ticket/sub/items.table")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !access.HasPermission(result.Permissions, access.ActionUpdate) {
+			t.Fatalf("%s should have inherited member update permission: %#v", username, result)
+		}
+		if access.HasPermission(result.Permissions, access.ActionDelete) {
+			t.Fatalf("%s should not receive delete permission: %#v", username, result)
+		}
+	}
+
+	ok, err := service.Can(context.Background(), "alice", "ops", "bob", "/alice/ops/other", access.ActionRead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("batch assignment should not leak read permission to unrelated paths")
+	}
+}
+
 func TestTeamAccessAssignValidatesTargetUserWhenCompanyContextExists(t *testing.T) {
 	service, _, _ := newTeamAccessTestService(t)
 	ctx := contextx.WithRequestInfo(actorContext("alice"), contextx.RequestInfo{

@@ -10,8 +10,8 @@ func TestDetectDBDialectName(t *testing.T) {
 		in   string
 		want DBDialect
 	}{
-		{name: "sqlite", in: "sqlite", want: DBDialectSQLite},
 		{name: "mysql uppercase", in: " MySQL ", want: DBDialectMySQL},
+		{name: "sqlite is not an app business dialect", in: "sqlite", want: DBDialectUnknown},
 		{name: "unknown", in: "postgres", want: DBDialectUnknown},
 		{name: "blank", in: "", want: DBDialectUnknown},
 	}
@@ -38,11 +38,11 @@ func TestDateTimeBucketExprForDialect(t *testing.T) {
 		wantSelect string
 	}{
 		{
-			name:       "sqlite day",
-			dialect:    DBDialectSQLite,
+			name:       "mysql day",
+			dialect:    DBDialectMySQL,
 			column:     "created_at",
 			bucket:     TimeBucketDay,
-			wantSelect: "strftime('%Y-%m-%d', created_at)",
+			wantSelect: "DATE_FORMAT(created_at, '%Y-%m-%d')",
 		},
 		{
 			name:       "mysql hour",
@@ -53,10 +53,10 @@ func TestDateTimeBucketExprForDialect(t *testing.T) {
 		},
 		{
 			name:       "blank column defaults to created_at",
-			dialect:    DBDialectSQLite,
+			dialect:    DBDialectUnknown,
 			column:     "",
 			bucket:     TimeBucketMonth,
-			wantSelect: "strftime('%Y-%m', created_at)",
+			wantSelect: "DATE_FORMAT(created_at, '%Y-%m')",
 		},
 	}
 

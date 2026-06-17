@@ -25,5 +25,6 @@ scheduler:
   execution_lease_seconds: 180
   queue_ack_timeout_seconds: 120
   max_dispatch_attempts: 3
+  max_heartbeat_misses: 3
   max_outbox_attempts: 8
   payload_limit_bytes: 262144

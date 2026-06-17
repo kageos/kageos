@@ -14,7 +14,7 @@ import (
 type BuildWorkspaceTool struct{}
 
 type buildWorkspaceArgs struct {
-	PreBuildReview string `json:"pre_build_review" schema_desc:"build 前模型代码审查结论。必须说明已审文件、PRD/用户需求对照、可见入口到后端逻辑闭环、伪代码/占位/开发中返回检查、范围外功能检查、数据库安全检查（未外传 db、无 Raw/Exec/Unscoped/Migrator/DB/AutoMigrate）和最终结论；发现问题时先修复，不要调用 build_workspace。" schema_required:"true"`
+	PreBuildReview string `json:"pre_build_review" schema_desc:"build 前模型代码审查结论。必须说明已审文件、PRD/用户需求对照、可见入口到后端逻辑闭环、伪代码/占位/开发中返回检查、范围外功能检查、数据库安全检查（未外传 db；Raw 仅用于只读 SELECT/WITH 且参数化；无 Exec/Unscoped/Migrator/DB/AutoMigrate）和最终结论；发现问题时先修复，不要调用 build_workspace。" schema_required:"true"`
 	ReviewPassed   bool   `json:"review_passed" schema_desc:"build 前模型代码审查是否通过。只有确认无伪代码、无开发中/未实现/占位返回、无 PRD 外擅自新增功能，且可见 Table/Form/Chart/按钮/回调均有真实实现时才允许传 true。" schema_required:"true"`
 }
 
@@ -324,9 +324,9 @@ func workspaceBuildRepairPolicyForCategories(categories []string) []string {
 	for _, category := range categories {
 		switch category {
 		case "source_policy":
-			policy = appendUniqueRoleHandoffStrings(policy, "源码规范或数据库安全错误不能绕过；移除 db 外传、Raw/Exec/Unscoped/Migrator/DB/AutoMigrate，改为当前目录内 GORM 链式查询/更新。")
+			policy = appendUniqueRoleHandoffStrings(policy, "源码规范或数据库安全错误不能绕过；移除 db 外传和 Exec/Unscoped/Migrator/DB/AutoMigrate；Raw 只能保留字符串字面量或 const 的 SELECT/WITH 只读查询，用户输入走 ? 参数。")
 		case "audit_field":
-			policy = appendUniqueRoleHandoffStrings(policy, "审计字段必须按标准 tag 修复：created_by/updated_by 的 hide 和 gorm column 要与 SDK 规范一致，不要删除系统字段绕过校验。")
+			policy = appendUniqueRoleHandoffStrings(policy, "审计字段必须按标准 tag 修复：created_by/updated_by 的 hide 和 gorm column 要与 SDK 规范一致；deleted_at/deleted_by 必须成对保留并隐藏，软删除更新必须同时写删除时间和删除人，不要删除系统字段绕过校验。")
 		case "select_options":
 			policy = appendUniqueRoleHandoffStrings(policy, "select/multiselect 必须有静态 options 或 OnSelectFuzzyMap；纯展示名称改为 input 或补真实回调。")
 		case "widget":
@@ -438,7 +438,7 @@ func workspaceBuildErrorHints(errText string) []string {
 		add("同一个目录里的模型、函数和方法只能定义一次；共享模型应放在一个文件中，其他文件直接复用。")
 	}
 	if strings.Contains(errText, "audit field") {
-		add("系统审计字段必须按 SDK 规范写完整 tag：created_by/updated_by 用 widget type:user、hide:\"create,update\"，且 gorm column 必须与 json 名一致；CreatedBy 示例为 `gorm:\"column:created_by\" widget:\"name:创建人;type:user\" hide:\"create,update\"`。")
+		add("系统审计字段必须按 SDK 规范写完整 tag：created_by/updated_by 用 widget type:user、hide:\"create,update\"，且 gorm column 必须与 json 名一致；deleted_at/deleted_by 必须成对存在并用 widget:\"-\" 或 json:\"-\" 隐藏；软删除更新必须同时写 deleted_at 和 deleted_by。CreatedBy 示例为 `gorm:\"column:created_by\" widget:\"name:创建人;type:user\" hide:\"create,update\"`。")
 	}
 	return hints
 }

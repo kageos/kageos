@@ -18,7 +18,7 @@ type SendNotificationTool struct {
 }
 
 type sendNotificationArgs struct {
-	ToUsers     string `json:"to_users" schema_desc:"接收用户 username，多个用逗号分隔，例如 alice,bob。普通工作台会话通知当前请求用户时可省略；定时会话或后台任务必须显式填写，通常填任务创建人/请求用户。不要为了给当前用户发通知而追问用户是谁。"`
+	ToUsers     string `json:"to_users" schema_desc:"接收用户 username，多个用逗号分隔，例如 alice,bob。当前上下文有请求用户或会话创建人时，通知当前用户/创建人/我可省略；没有默认用户时才必须显式填写。不要为了给当前用户发通知而追问用户是谁。"`
 	Title       string `json:"title" schema_desc:"通知标题，简短说明发生了什么" schema_required:"true"`
 	Message     string `json:"message" schema_desc:"通知正文。支持 Markdown；content_type=html 时可以传已生成的 HTML 片段" schema_required:"true"`
 	ContentType string `json:"content_type" schema_desc:"正文格式：markdown、html 或 text；默认 markdown" schema_enum:"markdown,html,text"`
@@ -43,7 +43,7 @@ type sendNotificationResultData struct {
 
 var sendNotificationToolDef = toolDefinitionWithOutput[sendNotificationArgs, structuredToolResultSchema[sendNotificationResultData]](
 	"send_notification",
-	"发送一条单向通知给用户，不等待回复。适合定时会话或无人值守 Agent 在发现高优先级情报、风险、异常，或任务明确要求通知时主动提醒用户；不要用它询问用户并等待回复。普通工作台会话通知当前请求用户时 to_users 可省略；定时会话或后台任务必须显式传 to_users，通常填任务创建人/请求用户。首次基准记录、无变化结果、普通状态报告默认不通知。多个 username 用逗号分隔。通知来源会继承当前工作台/定时任务上下文，不会归到某个通知函数目录。content_type=html 时站内信会按安全清洗后的 HTML 渲染。",
+	"发送一条单向通知给用户，不等待回复。适合定时会话或无人值守 Agent 在发现高优先级情报、风险、异常，或任务明确要求通知时主动提醒用户；不要用它询问用户并等待回复。当前上下文有请求用户或会话创建人时，通知当前用户/创建人/我可省略 to_users；没有默认用户时才必须显式传 to_users。首次基准记录、无变化结果、普通状态报告默认不通知。多个 username 用逗号分隔。通知来源会继承当前工作台/定时任务上下文，不会归到某个通知函数目录。content_type=html 时站内信会按安全清洗后的 HTML 渲染。",
 )
 
 func (t *SendNotificationTool) Definition() dto.ToolDef {
@@ -162,11 +162,33 @@ func resolveNotifyUsers(ctx context.Context, toUsers string) (string, int, error
 		return users, countNotifyUsers(users), nil
 	}
 	requestUser := strings.TrimSpace(contextx.GetRequestUser(ctx))
-	if requestUser == "" || requestUser == "system" {
-		return "", 0, fmt.Errorf("send_notification 无法默认接收人：当前上下文没有真实请求用户。普通工作台会话可省略 to_users；定时会话或后台任务请显式传 to_users，多个用户用逗号分隔。")
+	if !hasWorkspaceRequestUser(requestUser) {
+		return "", 0, fmt.Errorf("send_notification 无法默认接收人：当前上下文没有请求用户或会话创建人。请显式传 to_users，多个用户用逗号分隔。%s", notifyRecipientContextHint(ctx, requestUser))
 	}
 	users = normalizeNotifyUsers(requestUser)
 	return users, countNotifyUsers(users), nil
+}
+
+func notifyRecipientContextHint(ctx context.Context, requestUser string) string {
+	parts := []string{
+		"context_user=" + defaultNotifyHintValue(requestUser),
+		"client_source=" + defaultNotifyHintValue(contextx.GetAuditClientSource(ctx)),
+		"source_type=" + defaultNotifyHintValue(contextx.GetSourceType(ctx)),
+		"source_ref=" + defaultNotifyHintValue(contextx.GetSourceRef(ctx)),
+		"workspace_session_id=" + defaultNotifyHintValue(contextx.GetWorkspaceSessionID(ctx)),
+	}
+	if title := strings.TrimSpace(contextx.GetWorkspaceSessionTitle(ctx)); title != "" {
+		parts = append(parts, "workspace_session_title="+title)
+	}
+	return "当前上下文：" + strings.Join(parts, "，") + "。"
+}
+
+func defaultNotifyHintValue(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "<empty>"
+	}
+	return value
 }
 
 func normalizeNotifyUsers(toUsers string) string {

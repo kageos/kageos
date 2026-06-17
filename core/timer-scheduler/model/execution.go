@@ -22,6 +22,7 @@ type TimerExecution struct {
 	WorkerID         string     `json:"worker_id" gorm:"size:128;index"`
 	LeaseUntil       *time.Time `json:"lease_until" gorm:"index"`
 	HeartbeatAt      *time.Time `json:"heartbeat_at" gorm:"index"`
+	HeartbeatMisses  int        `json:"heartbeat_misses" gorm:"default:0"`
 	Attempt          int        `json:"attempt" gorm:"default:0"`
 	LastDispatchedAt *time.Time `json:"last_dispatched_at" gorm:"index"`
 	DurationMillis   int64      `json:"duration_millis" gorm:"default:0"`

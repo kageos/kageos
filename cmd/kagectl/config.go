@@ -170,7 +170,7 @@ func defaultDevDeploymentConfig(secrets devSecrets) Config {
 	return Config{
 		Timezone: defaultTimezone,
 		Site: SiteConfig{
-			BaseURL:  "http://127.0.0.1:9090",
+			BaseURL:  "http://localhost:5173",
 			TLSMode:  "http",
 			CertFile: "/app/tls/fullchain.pem",
 			KeyFile:  "/app/tls/privkey.pem",

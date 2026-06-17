@@ -173,6 +173,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		if e != nil || session == nil {
 			return s.handleError(sendEvent, fmt.Sprintf("会话不存在: %s", req.SessionID), e)
 		}
+		ctx, user = workspaceContextWithSessionRequestUser(ctx, session)
 		if e := ensureWorkspaceSessionOwner(ctx, session); e != nil {
 			return s.handleError(sendEvent, e.Error(), e)
 		}
@@ -363,6 +364,30 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		service:              s,
 	}
 	return streamloop.RunStreamLoop(runCtx, deps)
+}
+
+func workspaceContextWithSessionRequestUser(ctx context.Context, session *model.AgentChatSession) (context.Context, string) {
+	requestUser := strings.TrimSpace(contextx.GetRequestUser(ctx))
+	if hasWorkspaceRequestUser(requestUser) {
+		return ctx, requestUser
+	}
+	owner := workspaceSessionOwner(session)
+	if hasWorkspaceRequestUser(owner) {
+		return contextx.WithRequestUser(ctx, owner), owner
+	}
+	return ctx, requestUser
+}
+
+func workspaceSessionOwner(session *model.AgentChatSession) string {
+	if session == nil {
+		return ""
+	}
+	return firstNonEmptyString(session.User, session.CreatedBy, session.UpdatedBy)
+}
+
+func hasWorkspaceRequestUser(user string) bool {
+	user = strings.TrimSpace(user)
+	return user != ""
 }
 
 // RunWorkspaceChat 后台执行工作台对话；用于定时 Agent 会话等无浏览器连接场景。

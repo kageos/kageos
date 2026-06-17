@@ -2,8 +2,10 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -30,8 +32,9 @@ func GetMessageServerConfig() *MessageServerConfig {
 }
 
 type MessageServerConfig struct {
-	Server MessageServerHTTPConfig `mapstructure:"server"`
-	DB     DBConfig                `mapstructure:"db"`
+	Server        MessageServerHTTPConfig         `mapstructure:"server"`
+	DB            DBConfig                        `mapstructure:"db"`
+	Notifications MessageServerNotificationConfig `mapstructure:"notifications"`
 }
 
 type MessageServerHTTPConfig struct {
@@ -41,6 +44,11 @@ type MessageServerHTTPConfig struct {
 	Debug                    bool   `mapstructure:"debug"`
 	EnablePprof              *bool  `mapstructure:"enable_pprof"`
 	AllowNATSDegradedStartup bool   `mapstructure:"allow_nats_degraded_startup"`
+}
+
+type MessageServerNotificationConfig struct {
+	EncryptionSecret      string `mapstructure:"encryption_secret"`
+	WebhookTimeoutSeconds int    `mapstructure:"webhook_timeout_seconds"`
 }
 
 func (c *MessageServerConfig) GetPort() int {
@@ -84,6 +92,27 @@ func (c *MessageServerConfig) GetDB() DBConfig {
 		return DBConfig{Type: "sqlite", Name: "data/message-server.db"}
 	}
 	return normalizeMessageDB(c.DB, "message-server")
+}
+
+func (c *MessageServerConfig) GetNotificationEncryptionSecret() string {
+	if c != nil && strings.TrimSpace(c.Notifications.EncryptionSecret) != "" {
+		return strings.TrimSpace(c.Notifications.EncryptionSecret)
+	}
+	if value := strings.TrimSpace(os.Getenv("KAGEOS_MESSAGE_NOTIFICATION_SECRET")); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(GetGlobalSharedConfig().JWT.Secret); value != "" {
+		return value
+	}
+	return "kageos-message-notification-dev-secret"
+}
+
+func (c *MessageServerConfig) GetNotificationWebhookTimeout() time.Duration {
+	seconds := 5
+	if c != nil && c.Notifications.WebhookTimeoutSeconds > 0 {
+		seconds = c.Notifications.WebhookTimeoutSeconds
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 func normalizeMessageDB(db DBConfig, defaultName string) DBConfig {

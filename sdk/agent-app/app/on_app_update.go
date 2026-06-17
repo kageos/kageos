@@ -528,22 +528,11 @@ func (a *App) migrateUpdateDatabaseForAPI(ctx context.Context, index int, api *A
 		return nil
 	}
 
-	name := api.routerInfo.Options.GetDBName(env.User, env.App)
 	packagePath := strings.Trim(api.routerInfo.Options.PackagePath, "/")
-	logger.Infof(ctx, "[onAppUpdate] Step 2: API %d (%s) opening DB: %s", index, api.Name, name)
-	var (
-		db interface {
-			AutoMigrate(dst ...interface{}) error
-		}
-		err error
-	)
-	if isRuntimeMySQLAppDBEnabled() || dbCapability != nil {
-		db, err = getOrInitMySQLMigrationDB(packagePath, dbCapability)
-	} else {
-		db, err = getOrInitDB(name)
-	}
+	logger.Infof(ctx, "[onAppUpdate] Step 2: API %d (%s) opening MySQL app DB for package: %s", index, api.Name, packagePath)
+	db, err := getOrInitMySQLMigrationDB(packagePath, dbCapability)
 	if err != nil {
-		logger.Errorf(ctx, "[onAppUpdate] Step 2 FAILED: get DB for package=%s name=%s: %v", packagePath, name, err)
+		logger.Errorf(ctx, "[onAppUpdate] Step 2 FAILED: get MySQL app DB for package=%s: %v", packagePath, err)
 		return fmt.Errorf("Failed to get DB: %v", err)
 	}
 

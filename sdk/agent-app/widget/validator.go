@@ -223,8 +223,8 @@ func validateAuditFieldConvention(ctx ValidateContext) error {
 		return validateAuditUserField(ctx, ctx.FieldCode)
 	case "updated_by":
 		return validateAuditUserField(ctx, ctx.FieldCode)
-	case "deleted_at":
-		return fieldError(ctx, `audit field "deleted_at" must be hidden with widget:"-" or json:"-"`)
+	case "deleted_at", "deleted_by":
+		return fieldError(ctx, `audit field %q must be hidden with widget:"-" or json:"-"`, ctx.FieldCode)
 	default:
 		return nil
 	}

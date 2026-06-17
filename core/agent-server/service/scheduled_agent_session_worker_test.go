@@ -61,7 +61,7 @@ func TestScheduledAgentSessionWorkspaceRequestUsesMessageDirectly(t *testing.T) 
 	if strings.Contains(req.Message.Content, "每日热点推送") {
 		t.Fatalf("title/display content should not be used as runtime message, got %q", req.Message.Content)
 	}
-	for _, want := range []string{"定时会话执行约束", "不是创建或管理定时任务", "app_operator", "不要向用户提问", "必须显式传 to_users", "创建人/默认通知对象：alice", `to_users: "alice"`, "首次基准记录", "本次任务绑定工作台目录：/system/test22/hot_news", "搜索今天 AI 热点", "发送企业微信群"} {
+	for _, want := range []string{"定时会话执行约束", "不是创建或管理定时任务", "app_operator", "不要向用户提问", "可省略 to_users", "创建人/默认通知对象：alice", `to_users: "alice"`, "首次基准记录", "本次任务绑定工作台目录：/system/test22/hot_news", "搜索今天 AI 热点", "发送企业微信群"} {
 		if !strings.Contains(req.Message.Content, want) {
 			t.Fatalf("message content should contain %q, got %q", want, req.Message.Content)
 		}
@@ -76,18 +76,37 @@ func TestScheduledAgentSessionWorkspaceRequestExplainsMissingNotificationRecipie
 	raw, _ := json.Marshal(payload)
 	req, _, err := scheduledAgentSessionWorkspaceRequest(scheduledsdk.ExecutionRequestedEvent{
 		ExecutorPayload: raw,
-		RequestUser:     "system",
 	})
 	if err != nil {
 		t.Fatalf("scheduledAgentSessionWorkspaceRequest() error = %v", err)
 	}
-	for _, want := range []string{"没有真实创建人/请求用户", "必须显式传 to_users"} {
+	for _, want := range []string{"没有创建人/请求用户", "必须显式传 to_users"} {
 		if !strings.Contains(req.Message.Content, want) {
 			t.Fatalf("message content should contain %q, got %q", want, req.Message.Content)
 		}
 	}
 	if strings.Contains(req.Message.Content, "创建人/默认通知对象：") {
-		t.Fatalf("system-triggered task should not claim a default recipient, got %q", req.Message.Content)
+		t.Fatalf("task without request user should not claim a default recipient, got %q", req.Message.Content)
+	}
+}
+
+func TestScheduledAgentSessionWorkspaceRequestTreatsSystemAsDefaultRecipient(t *testing.T) {
+	payload := map[string]interface{}{
+		"full_code_path": "/system/test22/hot_news",
+		"message":        "检查版本变化，必要时通知。",
+	}
+	raw, _ := json.Marshal(payload)
+	req, _, err := scheduledAgentSessionWorkspaceRequest(scheduledsdk.ExecutionRequestedEvent{
+		ExecutorPayload: raw,
+		RequestUser:     "system",
+	})
+	if err != nil {
+		t.Fatalf("scheduledAgentSessionWorkspaceRequest() error = %v", err)
+	}
+	for _, want := range []string{"创建人/默认通知对象：system", "可省略 to_users", `to_users: "system"`} {
+		if !strings.Contains(req.Message.Content, want) {
+			t.Fatalf("message content should contain %q, got %q", want, req.Message.Content)
+		}
 	}
 }
 

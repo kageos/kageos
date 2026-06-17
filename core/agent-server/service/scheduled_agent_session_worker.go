@@ -15,7 +15,7 @@ import (
 
 const ScheduledAgentSessionExecutorKey = "agent.session"
 
-const scheduledAgentUnattendedPrefix = "【定时会话执行约束】本次会话由定时任务自动触发，但当前目标不是创建或管理定时任务，而是执行后面的会话消息。请先选择能完成该业务执行的角色；需要调用已有 Form/Table/Chart 或连接器时，通常应进入 app_operator。执行过程中用户不在线、无法回答问题或确认操作；不要向用户提问，不要等待用户补充信息，不要把下一步停在“请确认/请提供”。如果发现高优先级情报、异常、风险或任务消息明确要求通知用户，可调用 send_notification 主动通知；定时会话和后台任务调用 send_notification 时必须显式传 to_users；send_notification 只负责单向通知，不能作为等待用户回复的交互。首次基准记录、无变化结果、普通状态报告默认不通知，只在执行摘要中记录。若创建时的信息不足以安全执行，按已知上下文完成可安全完成的部分，并在结果中明确记录缺失信息、未执行的动作和原因；涉及高风险写入且缺少必要确认时应跳过该动作并说明原因。"
+const scheduledAgentUnattendedPrefix = "【定时会话执行约束】本次会话由定时任务自动触发，但当前目标不是创建或管理定时任务，而是执行后面的会话消息。请先选择能完成该业务执行的角色；需要调用已有 Form/Table/Chart 或连接器时，通常应进入 app_operator。执行过程中用户不在线、无法回答问题或确认操作；不要向用户提问，不要等待用户补充信息，不要把下一步停在“请确认/请提供”。如果发现高优先级情报、异常、风险或任务消息明确要求通知用户，可调用 send_notification 主动通知；send_notification 只负责单向通知，不能作为等待用户回复的交互。首次基准记录、无变化结果、普通状态报告默认不通知，只在执行摘要中记录。若创建时的信息不足以安全执行，按已知上下文完成可安全完成的部分，并在结果中明确记录缺失信息、未执行的动作和原因；涉及高风险写入且缺少必要确认时应跳过该动作并说明原因。"
 
 type scheduledAgentWorkspaceRootContextKey struct{}
 
@@ -61,6 +61,7 @@ func NewScheduledAgentSessionWorker(natsConn *nats.Conn, chatSvc *WorkspaceChatS
 
 // RunScheduledAgentSession executes one timer-scheduler agent.session event.
 func (s *WorkspaceChatService) RunScheduledAgentSession(ctx context.Context, event scheduledsdk.ExecutionRequestedEvent) (*scheduledsdk.ExecutionResult, error) {
+	ctx = event.WithAuditContext(ctx)
 	req, payload, err := scheduledAgentSessionWorkspaceRequest(event)
 	if err != nil {
 		return nil, err
@@ -174,10 +175,10 @@ func scheduledAgentSessionMessageContent(event scheduledsdk.ExecutionRequestedEv
 
 func scheduledAgentNotificationInstruction(event scheduledsdk.ExecutionRequestedEvent) string {
 	requestUser := strings.TrimSpace(event.RequestUser)
-	if requestUser == "" || requestUser == "system" {
-		return "\n【定时会话通知规则】本次定时会话没有真实创建人/请求用户可作为默认接收人。只有任务消息明确给出接收人 username，或已经从任务上下文可靠获得接收人时，才可调用 send_notification；调用时必须显式传 to_users。"
+	if requestUser == "" {
+		return "\n【定时会话通知规则】本次定时会话没有创建人/请求用户可作为默认接收人。只有任务消息明确给出接收人 username，或已经从任务上下文可靠获得接收人时，才可调用 send_notification；调用时必须显式传 to_users。"
 	}
-	return fmt.Sprintf("\n【定时会话通知规则】本次定时会话创建人/默认通知对象：%s。如果任务要求通知创建人、当前用户或“我”，调用 send_notification 时必须显式传 to_users: %q。", requestUser, requestUser)
+	return fmt.Sprintf("\n【定时会话通知规则】本次定时会话创建人/默认通知对象：%s。如果任务要求通知创建人、当前用户或“我”，调用 send_notification 时可省略 to_users；如果显式传，请使用 to_users: %q。", requestUser, requestUser)
 }
 
 func scheduledAgentSessionDisplayContent(payload scheduledAgentSessionPayload) string {

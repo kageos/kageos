@@ -42,13 +42,39 @@ func newTestService(t *testing.T, now *time.Time) (*Service, *gorm.DB) {
 	return svc, db
 }
 
-func TestScheduledExecutionTokenSkipsSystemUser(t *testing.T) {
+func TestScheduledExecutionTokenSkipsTaskWithoutRequestUserID(t *testing.T) {
 	task := &model.TimerTask{
 		RequestUser: "system",
 		CreatedBy:   "system",
 	}
 	if token := scheduledExecutionToken(task); token != "" {
-		t.Fatalf("system task should not receive delegated token, got %q", token)
+		t.Fatalf("task without request_user_id should not receive delegated token, got %q", token)
+	}
+}
+
+func TestScheduledExecutionTokenSupportsSystemUser(t *testing.T) {
+	task := &model.TimerTask{
+		RequestUser:     "system",
+		CreatedBy:       "system",
+		RequestUserDept: "/system",
+		MetadataJSON:    json.RawMessage(`{"request_user_id":"1","request_email":"system@example.com","company_code":"kageos"}`),
+	}
+	token := scheduledExecutionToken(task)
+	if token == "" {
+		t.Fatal("system task with request_user_id should receive delegated token")
+	}
+	claims, err := auth.NewJWTService().ValidateToken(token)
+	if err != nil {
+		t.Fatalf("system delegated token should validate: %v", err)
+	}
+	if claims.UserID != 1 || claims.Username != "system" || claims.Email != "system@example.com" {
+		t.Fatalf("unexpected claims: user_id=%d username=%q email=%q", claims.UserID, claims.Username, claims.Email)
+	}
+	if claims.DepartmentFullPath == nil || *claims.DepartmentFullPath != "/system" {
+		t.Fatalf("expected department in system token, claims=%+v", claims)
+	}
+	if claims.CompanyCode != "kageos" {
+		t.Fatalf("company code = %q, want kageos", claims.CompanyCode)
 	}
 }
 
@@ -227,6 +253,169 @@ func TestServiceRequeuesQueuedExecutionBeforeTimeout(t *testing.T) {
 	}
 	if outboxCount != 2 {
 		t.Fatalf("requested outbox count = %d, want 2", outboxCount)
+	}
+}
+
+func TestRecoverStaleRunningExecutionExtendsLeaseBeforeTimeout(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	svc.opts.ExecutionLeaseDuration = time.Minute
+	svc.opts.MaxHeartbeatMisses = 3
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(3600),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.TimerTask{}).Where("id = ?", task.ID).Update("next_run_at", now.Add(-time.Second)).Error; err != nil {
+		t.Fatal(err)
+	}
+	execs, err := svc.DispatchDue(ctx, "owner-1", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(execs) != 1 {
+		t.Fatalf("dispatched executions = %d, want 1", len(execs))
+	}
+	exec := execs[0]
+	if err := svc.MarkExecutionStarted(ctx, scheduledsdk.MarkExecutionStartedRequest{
+		TaskID:      task.ID,
+		ExecutionID: exec.ID,
+		WorkerID:    "worker-1",
+		StartedAt:   now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	now = now.Add(2 * time.Minute)
+	recovered, err := svc.RecoverStaleExecutions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered != 1 {
+		t.Fatalf("recovered = %d, want 1", recovered)
+	}
+
+	var gotExec model.TimerExecution
+	if err := db.First(&gotExec, exec.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if gotExec.Status != string(scheduledsdk.ExecutionStatusRunning) {
+		t.Fatalf("execution status = %s, want running", gotExec.Status)
+	}
+	if gotExec.HeartbeatMisses != 1 {
+		t.Fatalf("heartbeat_misses = %d, want 1", gotExec.HeartbeatMisses)
+	}
+	if gotExec.LeaseUntil == nil || !gotExec.LeaseUntil.Equal(now.Add(time.Minute)) {
+		t.Fatalf("lease_until = %v, want %v", gotExec.LeaseUntil, now.Add(time.Minute))
+	}
+
+	gotTask, err := svc.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotTask.InflightExecutionID != exec.ID {
+		t.Fatalf("task inflight = %d, want %d", gotTask.InflightExecutionID, exec.ID)
+	}
+
+	now = now.Add(30 * time.Second)
+	if err := svc.MarkExecutionHeartbeat(ctx, scheduledsdk.MarkExecutionHeartbeatRequest{
+		TaskID:      task.ID,
+		ExecutionID: exec.ID,
+		WorkerID:    "worker-1",
+		HeartbeatAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.First(&gotExec, exec.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if gotExec.HeartbeatMisses != 0 {
+		t.Fatalf("heartbeat_misses after heartbeat = %d, want 0", gotExec.HeartbeatMisses)
+	}
+}
+
+func TestRecoverStaleRunningExecutionTimesOutAfterHeartbeatMissLimit(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	svc.opts.ExecutionLeaseDuration = time.Minute
+	svc.opts.MaxHeartbeatMisses = 2
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(3600),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.TimerTask{}).Where("id = ?", task.ID).Update("next_run_at", now.Add(-time.Second)).Error; err != nil {
+		t.Fatal(err)
+	}
+	execs, err := svc.DispatchDue(ctx, "owner-1", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(execs) != 1 {
+		t.Fatalf("dispatched executions = %d, want 1", len(execs))
+	}
+	exec := execs[0]
+	if err := svc.MarkExecutionStarted(ctx, scheduledsdk.MarkExecutionStartedRequest{
+		TaskID:      task.ID,
+		ExecutionID: exec.ID,
+		WorkerID:    "worker-1",
+		StartedAt:   now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	now = now.Add(2 * time.Minute)
+	recovered, err := svc.RecoverStaleExecutions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered != 1 {
+		t.Fatalf("first recovered = %d, want 1", recovered)
+	}
+
+	var gotExec model.TimerExecution
+	if err := db.First(&gotExec, exec.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if gotExec.Status != string(scheduledsdk.ExecutionStatusRunning) || gotExec.HeartbeatMisses != 1 {
+		t.Fatalf("execution after first miss = status %s misses %d, want running/1", gotExec.Status, gotExec.HeartbeatMisses)
+	}
+
+	now = now.Add(2 * time.Minute)
+	recovered, err = svc.RecoverStaleExecutions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered != 1 {
+		t.Fatalf("second recovered = %d, want 1", recovered)
+	}
+	gotSDKExec, err := svc.GetExecution(ctx, task.ID, exec.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotSDKExec.Status != scheduledsdk.ExecutionStatusTimeout {
+		t.Fatalf("execution status = %s, want timeout", gotSDKExec.Status)
+	}
+	if gotSDKExec.ErrorMessage != "timer-scheduler execution heartbeat expired" {
+		t.Fatalf("error_message = %q", gotSDKExec.ErrorMessage)
+	}
+	gotTask, err := svc.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotTask.InflightExecutionID != 0 {
+		t.Fatalf("task inflight = %d, want 0", gotTask.InflightExecutionID)
+	}
+	if gotTask.Status != scheduledsdk.TaskStatusPending {
+		t.Fatalf("task status = %s, want pending", gotTask.Status)
 	}
 }
 

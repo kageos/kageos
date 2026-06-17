@@ -2,6 +2,10 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
+	"os"
+	"strings"
 	"sync"
 )
 
@@ -32,11 +36,42 @@ func GetGlobalSharedConfig() *GlobalSharedConfig {
 
 // GlobalSharedConfig 全局共享配置
 type GlobalSharedConfig struct {
+	Site    SiteConfig    `mapstructure:"site"`
 	Gateway GatewayConfig `mapstructure:"gateway"`
 	Nats    NatsConfig    `mapstructure:"nats"`
 	JWT     JWTConfig     `mapstructure:"jwt"`
 	SDK     SDKConfig     `mapstructure:"sdk"`
 	// 注意：数据库配置不在全局配置中，每个服务可以单独配置自己的数据库
+}
+
+// SiteConfig 是用户浏览器可访问的主站配置。
+// 它用于通知卡片、分享链接、邮件链接等“给人点击”的绝对 URL。
+type SiteConfig struct {
+	BaseURL string `mapstructure:"base_url"`
+}
+
+func (g *GlobalSharedConfig) GetPublicSiteBaseURL() string {
+	if g != nil {
+		if v := normalizePublicBaseURL(g.Site.BaseURL); v != "" {
+			return v
+		}
+	}
+	if v := normalizePublicBaseURL(os.Getenv(EnvCanonicalBaseURL)); v != "" {
+		return v
+	}
+	if v := normalizePublicBaseURL(os.Getenv("KAGEOS_BASE_URL")); v != "" {
+		return v
+	}
+	if g != nil {
+		if v := normalizePublicBaseURL(g.Gateway.GetBaseURL()); v != "" && !isLocalServiceBaseURL(v) {
+			return v
+		}
+	}
+	return "http://localhost:5173"
+}
+
+func GetPublicSiteBaseURL() string {
+	return GetGlobalSharedConfig().GetPublicSiteBaseURL()
 }
 
 // GatewayConfig 网关配置
@@ -78,6 +113,41 @@ func (g *GatewayConfig) GetInternalURL() string {
 func GetGatewayURL() string {
 	global := GetGlobalSharedConfig()
 	return global.Gateway.GetBaseURL()
+}
+
+func normalizePublicBaseURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return ""
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/")
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return strings.TrimRight(parsed.String(), "/")
+}
+
+func isLocalServiceBaseURL(raw string) bool {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(strings.Trim(parsed.Hostname(), "[]"))
+	switch host {
+	case "", "localhost", "0.0.0.0":
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsUnspecified()
 }
 
 // SDKConfig SDK 配置（专门用于 runtime 构建 SDK app 时注入到容器中）

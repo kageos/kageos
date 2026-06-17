@@ -57,6 +57,7 @@ type HrJob struct {
 	CreatedAt types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:创建时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	UpdatedAt types.Time          `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
+	DeletedBy string         `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`
 
 	Title        string `json:"title" gorm:"column:title;comment:职位名称" widget:"name:职位名称;type:input" validate:"required,min=2,max=100"`
 	Department   string `json:"department" gorm:"column:department;comment:部门" widget:"name:部门;type:select;options:技术,产品,设计,运营,市场,销售,人事,财务,其他;options_colors:409EFF,67C23A,E6A23C,909399,F56C6C,9C27B0,FF9800,607D8B" validate:"required"`
@@ -261,7 +262,10 @@ var HrJobListTemplate = &app.TableTemplate{
 			return nil, fmt.Errorf("该职位下已有 %d 份简历投递，无法删除。请先处理简历投递记录", count)
 		}
 
-		err := db.Model(&HrJob{}).Delete(&HrJob{}, "id in ?", req.GetIds()).Error
+		err := db.Model(&HrJob{}).Where("id in ?", req.GetIds()).Updates(map[string]interface{}{
+			"deleted_at": time.Now(),
+			"deleted_by": ctx.GetRequestUser(),
+		}).Error
 		if err != nil {
 			logger.Errorf(ctx, "Delete hr_job err: %v", err)
 			return nil, err
@@ -304,6 +308,7 @@ type HrResume struct {
 	CreatedAt types.Time          `json:"created_at" gorm:"column:created_at;type:datetime;autoCreateTime" widget:"name:投递时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	UpdatedAt types.Time          `json:"updated_at" gorm:"column:updated_at;type:datetime;autoUpdateTime" widget:"name:更新时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
+	DeletedBy string         `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`
 
 	JobID         int    `json:"job_id" gorm:"column:job_id;comment:职位ID;index" widget:"name:投递职位;type:select" validate:"required" callback:"OnSelectFuzzy"`
 	Job           *HrJob `json:"-" widget:"-" gorm:"foreignKey:JobID;references:ID"`
@@ -509,7 +514,10 @@ var HrResumeListTemplate = &app.TableTemplate{
 	},
 	OnTableDeleteRows: func(ctx *app.Context, req *callback.OnTableDeleteRowsReq) (*callback.OnTableDeleteRowsResp, error) {
 		db := ctx.GetGormDB()
-		err := db.Model(&HrResume{}).Delete(&HrResume{}, "id in ?", req.GetIds()).Error
+		err := db.Model(&HrResume{}).Where("id in ?", req.GetIds()).Updates(map[string]interface{}{
+			"deleted_at": time.Now(),
+			"deleted_by": ctx.GetRequestUser(),
+		}).Error
 		if err != nil {
 			logger.Errorf(ctx, "Delete hr_resume err: %v", err)
 			return nil, err

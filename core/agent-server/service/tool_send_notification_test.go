@@ -127,14 +127,14 @@ func TestSendNotificationSchemaDoesNotRequireToUsers(t *testing.T) {
 		t.Fatalf("to_users schema missing: %#v", properties)
 	}
 	desc, _ := toUsers["description"].(string)
-	for _, want := range []string{"普通工作台会话", "定时会话或后台任务必须显式填写", "任务创建人/请求用户"} {
+	for _, want := range []string{"请求用户", "会话创建人", "没有默认用户时才必须显式填写"} {
 		if !strings.Contains(desc, want) {
 			t.Fatalf("to_users description should contain %q, got %q", want, desc)
 		}
 	}
 }
 
-func TestSendNotificationRequiresRecipientWhenRequestUserIsSystem(t *testing.T) {
+func TestSendNotificationDefaultsRecipientWhenRequestUserIsSystem(t *testing.T) {
 	publisher := &fakeNotificationPublisher{}
 	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
 		RequestUser: "system",
@@ -145,13 +145,38 @@ func TestSendNotificationRequiresRecipientWhenRequestUserIsSystem(t *testing.T) 
 		Message: "需要通知",
 	}, "/system/test22/hot_news")
 
+	if result.IsError {
+		t.Fatalf("send_notification should accept system as a recipient: %s", result.Content)
+	}
+	if len(publisher.msgs) != 1 {
+		t.Fatalf("published messages = %d, want 1", len(publisher.msgs))
+	}
+	envelope, err := decodeNotifyEnvelope(publisher.msgs[0].Data)
+	if err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	if envelope.Message.ToUsers != "system" {
+		t.Fatalf("to_users = %q, want system", envelope.Message.ToUsers)
+	}
+}
+
+func TestSendNotificationRequiresRecipientWhenRequestUserIsEmpty(t *testing.T) {
+	publisher := &fakeNotificationPublisher{}
+
+	result := runSendNotificationTool(context.Background(), publisher, sendNotificationArgs{
+		Title:   "提醒",
+		Message: "需要通知",
+	}, "/system/test22/hot_news")
+
 	if !result.IsError {
-		t.Fatalf("send_notification should fail without explicit recipient under system context")
+		t.Fatalf("send_notification should fail without explicit recipient under empty context")
 	}
 	if len(publisher.msgs) != 0 {
 		t.Fatalf("published messages = %d, want 0", len(publisher.msgs))
 	}
-	if !strings.Contains(result.Content, "to_users") {
-		t.Fatalf("error should mention to_users, got %q", result.Content)
+	for _, want := range []string{"to_users", "context_user=<empty>", "client_source", "workspace_session_id"} {
+		if !strings.Contains(result.Content, want) {
+			t.Fatalf("error should contain context hint %q, got %q", want, result.Content)
+		}
 	}
 }

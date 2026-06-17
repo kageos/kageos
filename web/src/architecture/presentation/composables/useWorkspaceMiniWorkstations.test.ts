@@ -35,6 +35,26 @@ function createHarness(
   return { api, context, route, router }
 }
 
+function openMiniWsQuery(input: {
+  sessionId?: string
+  fullCodePath: string
+  name: string
+  maximized?: '0' | '1'
+}) {
+  return {
+    _open: 'session',
+    _focus: 'workspace_session',
+    ...(input.sessionId ? { _session_id: input.sessionId } : {}),
+    _source_path: input.fullCodePath,
+    _mws: 'open',
+    ...(input.sessionId ? { _mws_sid: input.sessionId } : {}),
+    _mws_path: input.fullCodePath,
+    _mws_name: input.name,
+    _mws_expanded: '1',
+    _mws_maximized: input.maximized ?? '1'
+  }
+}
+
 describe('useWorkspaceMiniWorkstations', () => {
   it('keeps previous session workstations mounted but hidden when switching sessions', () => {
     const { api } = createHarness()
@@ -79,14 +99,7 @@ describe('useWorkspaceMiniWorkstations', () => {
 
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/current',
-      query: {
-        _mws: 'open',
-        _mws_sid: 'session-a',
-        _mws_path: '/user/app/other',
-        _mws_name: 'Other',
-        _mws_expanded: '1',
-        _mws_maximized: '1'
-      }
+      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/other', name: 'Other' })
     })
   })
 
@@ -155,14 +168,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/a',
-      query: {
-        _mws: 'open',
-        _mws_sid: 'session-a',
-        _mws_path: '/user/app/a',
-        _mws_name: 'A',
-        _mws_expanded: '1',
-        _mws_maximized: '1'
-      }
+      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/a', name: 'A' })
     })
   })
 
@@ -191,14 +197,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/a',
-      query: {
-        _mws: 'open',
-        _mws_sid: 'session-a',
-        _mws_path: '/user/app/a',
-        _mws_name: 'A',
-        _mws_expanded: '1',
-        _mws_maximized: '1'
-      }
+      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/a', name: 'A' })
     })
   })
 
@@ -230,13 +229,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/a',
-      query: {
-        _mws: 'open',
-        _mws_path: '/user/app/a',
-        _mws_name: 'A',
-        _mws_expanded: '1',
-        _mws_maximized: '1'
-      }
+      query: openMiniWsQuery({ fullCodePath: '/user/app/a', name: 'A' })
     })
   })
 
@@ -262,14 +255,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/a',
-      query: {
-        _mws: 'open',
-        _mws_sid: 'session-a',
-        _mws_path: '/user/app/a',
-        _mws_name: 'A',
-        _mws_expanded: '1',
-        _mws_maximized: '1'
-      }
+      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/a', name: 'A' })
     })
   })
 
@@ -294,14 +280,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/a',
-      query: {
-        _mws: 'open',
-        _mws_sid: 'session-a',
-        _mws_path: '/user/app/a',
-        _mws_name: 'A',
-        _mws_expanded: '1',
-        _mws_maximized: '0'
-      }
+      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/a', name: 'A', maximized: '0' })
     })
   })
 
@@ -315,14 +294,7 @@ describe('useWorkspaceMiniWorkstations', () => {
 
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/current',
-      query: {
-        _mws: 'open',
-        _mws_sid: 'session-a',
-        _mws_path: '/user/app/a',
-        _mws_name: 'A',
-        _mws_expanded: '1',
-        _mws_maximized: '1'
-      }
+      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/a', name: 'A' })
     })
     expect(api.miniWsList.value[0]).toMatchObject({
       initialExpanded: true,
@@ -349,6 +321,31 @@ describe('useWorkspaceMiniWorkstations', () => {
     expect(api.miniWsList.value[0]).toMatchObject({
       fullCodePath: '/user/app/a',
       dirName: 'A',
+      initialSessionId: 'session-a',
+      initialExpanded: true,
+      initialMaximized: true,
+      visible: true
+    })
+  })
+
+  it('restores expanded and maximized state from canonical platform route params', async () => {
+    const { api, route } = createHarness()
+    route.query = {
+      _open: 'session',
+      _focus: 'workspace_session',
+      _session_id: 'session-a',
+      _source_path: '/user/app/a',
+      _mws_expanded: '1',
+      _mws_maximized: '1'
+    }
+
+    api.initializeFromRoute()
+    await nextTick()
+
+    expect(api.miniWsList.value).toHaveLength(1)
+    expect(api.miniWsList.value[0]).toMatchObject({
+      fullCodePath: '/user/app/a',
+      dirName: 'a',
       initialSessionId: 'session-a',
       initialExpanded: true,
       initialMaximized: true,
@@ -390,14 +387,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/b',
-      query: {
-        _mws: 'open',
-        _mws_sid: 'session-b',
-        _mws_path: '/user/app/b',
-        _mws_name: 'b',
-        _mws_expanded: '1',
-        _mws_maximized: '1'
-      }
+      query: openMiniWsQuery({ sessionId: 'session-b', fullCodePath: '/user/app/b', name: 'b' })
     })
   })
 
@@ -477,14 +467,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/customer_admin',
-      query: {
-        _mws: 'open',
-        _mws_sid: 'session-customer',
-        _mws_path: '/user/app/customer_admin',
-        _mws_name: '客户管理',
-        _mws_expanded: '1',
-        _mws_maximized: '1'
-      }
+      query: openMiniWsQuery({ sessionId: 'session-customer', fullCodePath: '/user/app/customer_admin', name: '客户管理' })
     })
   })
 
@@ -509,14 +492,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/customer_admin',
-      query: {
-        _mws: 'open',
-        _mws_sid: 'session-customer',
-        _mws_path: '/user/app/customer_admin',
-        _mws_name: '客户管理',
-        _mws_expanded: '1',
-        _mws_maximized: '1'
-      }
+      query: openMiniWsQuery({ sessionId: 'session-customer', fullCodePath: '/user/app/customer_admin', name: '客户管理' })
     })
   })
 
@@ -541,14 +517,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/customer_admin',
-      query: {
-        _mws: 'open',
-        _mws_sid: 'session-customer',
-        _mws_path: '/user/app/customer_admin',
-        _mws_name: '客户管理',
-        _mws_expanded: '1',
-        _mws_maximized: '1'
-      }
+      query: openMiniWsQuery({ sessionId: 'session-customer', fullCodePath: '/user/app/customer_admin', name: '客户管理' })
     })
   })
 })
