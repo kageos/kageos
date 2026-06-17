@@ -306,7 +306,6 @@ import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables
 import { escapeHtml, sanitizeHtml } from '@/architecture/shared/sanitizeHtml'
 import ServiceTreeNodeContent from './ServiceTreeNodeContent.vue'
 import {
-  buildMessageSourceRoute,
   buildInboxRouteQuery,
   buildScheduledExecutionRoute,
   buildWorkspaceSessionRoute,
@@ -417,6 +416,7 @@ const workspaceCounts = ref<MessageInboxWorkspaceCount[]>([])
 const appliedRouteInboxKey = ref('')
 let inboxLoadSeq = 0
 let detailLoadSeq = 0
+let routeIntentOpening = false
 const sourceTreeProps = {
   children: 'children',
   label: 'name',
@@ -548,7 +548,7 @@ function openDrawer() {
 }
 
 async function openInboxFromRouteIntent() {
-  if (!props.showTrigger || !props.syncRoute || !isInboxOpenQuery(route.query)) return
+  if (!props.syncRoute || !isInboxOpenQuery(route.query)) return
   const messageID = readNumberQuery(route.query, PLATFORM_MESSAGE_ID_QUERY_KEY)
   const sourcePath = normalizeSourceTreePath(readStringQuery(route.query, PLATFORM_SOURCE_PATH_QUERY_KEY))
   const key = `${currentWorkspaceKey.value}:${sourcePath}:${messageID}`
@@ -568,10 +568,15 @@ async function openInboxFromRouteIntent() {
   }
 
   markSourceReadOnOpen.value = false
+  routeIntentOpening = true
   drawerVisible.value = true
-  await loadInbox(true)
-  if (messageID) {
-    await focusMessageByID(messageID)
+  try {
+    await loadInbox(true)
+    if (messageID) {
+      await focusMessageByID(messageID)
+    }
+  } finally {
+    routeIntentOpening = false
   }
 }
 
@@ -599,6 +604,10 @@ function clearSourceFilter() {
 }
 
 function handleDrawerOpen() {
+  if (routeIntentOpening) {
+    void loadUnreadCount()
+    return
+  }
   const markSourceRead = markSourceReadOnOpen.value
   markSourceReadOnOpen.value = false
   void loadInbox(true, { markSourceRead })
@@ -841,6 +850,7 @@ async function focusMessageByID(id: number) {
     const detail = await getMessageInboxItem(id)
     if (loadSeq !== detailLoadSeq) return
     selectedMessage.value = detail
+    upsertFocusedThread(detail)
     if (!threadMessages.value.some(item => item.id === detail.id)) {
       threadMessages.value = [detail, ...threadMessages.value]
     }
@@ -866,6 +876,38 @@ async function focusMessageByID(id: number) {
       detailLoading.value = false
     }
   }
+}
+
+function upsertFocusedThread(detail: MessageInboxItem) {
+  const filter = sourceFilter.value
+  const key = filter?.sourcePath ? sourceFilterThreadKey(filter) : threadKeyForMessage(detail)
+  if (!key) return
+  const thread: InboxThread = {
+    key,
+    title: filter?.title || sourcePrimaryText(detail),
+    subtitle: filter?.sourcePath ? '当前节点通知' : threadSubtitle(detail, 1),
+    path: filter?.sourcePath || threadPath(detail),
+    kind: filter?.kind || threadKind(detail),
+    lastMessage: detail,
+    unreadCount: detail.read_at ? 0 : 1,
+    count: Math.max(1, Number(total.value || 0)),
+    scheduledTaskID: detail.scheduled_task_id,
+    scheduledExecutionID: detail.scheduled_execution_id,
+  }
+  const existingIndex = inboxThreads.value.findIndex(item => item.key === key)
+  if (existingIndex >= 0) {
+    const existing = inboxThreads.value[existingIndex]
+    if (!existing) return
+    inboxThreads.value.splice(existingIndex, 1, {
+      ...existing,
+      lastMessage: existing.lastMessage?.id === detail.id ? detail : existing.lastMessage,
+      scheduledTaskID: existing.scheduledTaskID || detail.scheduled_task_id,
+      scheduledExecutionID: existing.scheduledExecutionID || detail.scheduled_execution_id,
+    })
+  } else {
+    inboxThreads.value = [thread, ...inboxThreads.value]
+  }
+  selectedThreadKey.value = key
 }
 
 async function markThreadRead(thread: InboxThread) {
@@ -1273,15 +1315,14 @@ async function syncInboxRoute(options: {
 
 async function openSourcePath(item: MessageInboxItem) {
   const sourcePath = sourcePathForMessage(item)
-  const target = buildMessageSourceRoute({
-    fullCodePath: sourcePath,
-    sourcePath,
-    messageId: item.id,
-    traceId: item.trace_id,
-  })
-  if (!target.path) return
+  const targetPath = workspaceRoutePath(sourcePath)
+  if (!targetPath) return
+  const query = { ...route.query }
+  clearScheduledRouteQuery(query)
+  clearOperateLogRouteQuery(query)
+  clearInboxRouteQuery(query)
   drawerVisible.value = false
-  await router.push(target)
+  await router.push({ path: targetPath, query })
 }
 
 async function openWorkspaceSession(item: MessageInboxItem) {

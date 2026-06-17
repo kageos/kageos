@@ -337,7 +337,7 @@ function connectorResourcePath(): string {
 
 async function handleConnectConnector(provider: string, scopes: string[] = [], connectionId = '') {
   try {
-    const redirectAfter = `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`
+    const redirectAfter = `${window.location.pathname}${window.location.search}${window.location.hash}`
     const resp = await startConnectorOAuth({
       provider,
       resource_path: connectorResourcePath(),
