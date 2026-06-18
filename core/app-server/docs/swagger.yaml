@@ -195,6 +195,9 @@ definitions:
     type: object
   dto.CopyDirectoryReq:
     properties:
+      replace_existing:
+        description: 同名目录已存在时是否完全替换
+        type: boolean
       source_directory_path:
         description: 源目录完整路径
         example: /luobei/app_a/hr
@@ -203,9 +206,13 @@ definitions:
         description: 目标应用ID
         example: 123
         type: integer
+      target_directory_name:
+        description: 复制后根目录中文展示名
+        example: 人事管理
+        type: string
       target_directory_path:
-        description: 目标目录完整路径
-        example: /luobei/app_b/hr
+        description: 目标父目录完整路径
+        example: /luobei/app_b
         type: string
     required:
     - source_directory_path
@@ -237,6 +244,12 @@ definitions:
       old_version:
         description: 旧版本号
         example: v3
+        type: string
+      replaced:
+        description: 是否执行了同名目录完全替换
+        type: boolean
+      target_directory_path:
+        description: 最终目标目录完整路径
         type: string
     type: object
   dto.CreateAppReq:
@@ -2805,14 +2818,14 @@ paths:
     post:
       consumes:
       - application/json
-      description: 递归复制服务目录及其所有子目录到目标目录，保持目录结构
+      description: 递归复制服务目录及其所有子目录到目标父目录下；target_directory_name 可修改复制后根目录中文展示名，同名目录已存在时可通过 replace_existing 完全替换
       parameters:
       - description: JWT Token
         in: header
         name: X-Token
         required: true
         type: string
-      - description: 复制请求，source_directory_path=源目录完整路径，target_directory_path=目标目录完整路径
+      - description: 复制请求，source_directory_path=源目录完整路径，target_directory_path=目标父目录完整路径，target_directory_name=复制后根目录中文展示名，replace_existing=是否覆盖同名目录
         in: body
         name: request
         required: true

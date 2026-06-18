@@ -96,3 +96,12 @@ func (c *Client) BatchWriteFiles(ctx context.Context, hostID int64, req *dto.Bat
 	}
 	return &resp, nil
 }
+
+// ReplaceDirectoryTree 完全替换同名目录（subject: runtime.v1.cmd.directory-tree.replace）
+func (c *Client) ReplaceDirectoryTree(ctx context.Context, hostID int64, req *dto.ReplaceDirectoryTreeRuntimeReq) (*dto.ReplaceDirectoryTreeRuntimeResp, error) {
+	var resp dto.ReplaceDirectoryTreeRuntimeResp
+	if err := c.runtime.requestByHost(ctx, hostID, subjects.RuntimeDirectoryTreeReplaceCommandSubject, req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}

@@ -15,6 +15,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/minio/minio-go/v7 v7.0.95
 	github.com/mitchellh/mapstructure v1.5.0
+	github.com/mozillazg/go-pinyin v0.21.0
 	github.com/nats-io/nats.go v1.47.0
 	github.com/ncruces/go-sqlite3 v0.35.0
 	github.com/openai/openai-go/v3 v3.36.0

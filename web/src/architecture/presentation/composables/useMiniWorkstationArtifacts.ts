@@ -60,11 +60,12 @@ export function buildFileArtifactItem(file: FilePanelItem, index: number): MiniA
   const ext = getArtifactExtension(file.name)
   const profile = getFileArtifactProfile(file)
   const extLabel = ext ? ext.toUpperCase() : ''
+  const sourceLabel = file.source === 'upload' ? '输入文件' : '输出文件'
 
   return {
-    key: `file:${file.href}:${index}`,
+    key: `file:${file.source}:${file.href}:${index}`,
     name: file.name,
-    meta: [extLabel, '输出文件'].filter(Boolean).join(' · '),
+    meta: [extLabel, sourceLabel].filter(Boolean).join(' · '),
     tag: profile.tag,
     ext: extLabel,
     tone: profile.tone,
@@ -72,6 +73,17 @@ export function buildFileArtifactItem(file: FilePanelItem, index: number): MiniA
     previewUrl: profile.previewUrl,
     file
   }
+}
+
+export function buildMiniArtifactItems(params: {
+  uploadedFiles: FilePanelItem[]
+  outputFiles: FilePanelItem[]
+  displayFields: OutputDisplayField[]
+}): MiniArtifactItem[] {
+  const uploaded = params.uploadedFiles.map((file, index) => buildFileArtifactItem(file, index))
+  const outputs = params.outputFiles.map((file, index) => buildFileArtifactItem(file, index))
+  const fields = params.displayFields.map((field, index) => buildDisplayFieldArtifactItem(field, index))
+  return [...outputs, ...fields, ...uploaded]
 }
 
 export function buildDisplayFieldArtifactItem(field: OutputDisplayField, index: number): MiniArtifactItem {

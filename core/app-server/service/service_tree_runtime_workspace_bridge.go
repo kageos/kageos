@@ -19,6 +19,7 @@ type runtimeWorkspaceBridge struct {
 type runtimeWorkspaceClient interface {
 	BatchCreateDirectoryTree(ctx context.Context, hostID int64, req *dto.BatchCreateDirectoryTreeRuntimeReq) (*dto.BatchCreateDirectoryTreeRuntimeResp, error)
 	BatchWriteFiles(ctx context.Context, hostID int64, req *dto.BatchWriteFilesRuntimeReq) (*dto.BatchWriteFilesRuntimeResp, error)
+	ReplaceDirectoryTree(ctx context.Context, hostID int64, req *dto.ReplaceDirectoryTreeRuntimeReq) (*dto.ReplaceDirectoryTreeRuntimeResp, error)
 	DeleteServiceTree(ctx context.Context, hostID int64, req *dto.DeleteServiceTreeRuntimeReq) (*dto.DeleteServiceTreeRuntimeResp, error)
 	ReadDirectoryFiles(ctx context.Context, hostID int64, req *dto.ReadDirectoryFilesRuntimeReq) (*dto.ReadDirectoryFilesRuntimeResp, error)
 	ReplaceInFileBatch(ctx context.Context, hostID int64, req *dto.ReplaceInFileBatchReq) (*dto.ReplaceInFileBatchResp, error)
@@ -153,6 +154,38 @@ func (b *runtimeWorkspaceBridge) batchWriteFiles(
 		OperationLabel: operationLabel,
 	}
 	runtimeResp, err := b.appCall.BatchWriteFiles(ctx, appModel.HostID, runtimeReq)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%s失败: %w", operationLabel, err)
+	}
+
+	return appModel, runtimeResp, nil
+}
+
+func (b *runtimeWorkspaceBridge) replaceDirectoryTree(
+	ctx context.Context,
+	req *dto.ReplaceDirectoryTreeReq,
+) (*model.App, *dto.ReplaceDirectoryTreeRuntimeResp, error) {
+	operationLabel := strings.TrimSpace(req.OperationLabel)
+	if operationLabel == "" {
+		operationLabel = "替换目录"
+	}
+
+	appModel, err := b.getRuntimeBoundAppByUserApp(req.User, req.App, operationLabel)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	runtimeReq := &dto.ReplaceDirectoryTreeRuntimeReq{
+		User:                   req.User,
+		App:                    req.App,
+		TargetRootFullCodePath: req.TargetRootFullCodePath,
+		Items:                  req.Items,
+		Files:                  req.Files,
+		ForceDiff:              req.ForceDiff,
+		OperationName:          req.OperationName,
+		OperationLabel:         operationLabel,
+	}
+	runtimeResp, err := b.appCall.ReplaceDirectoryTree(ctx, appModel.HostID, runtimeReq)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s失败: %w", operationLabel, err)
 	}

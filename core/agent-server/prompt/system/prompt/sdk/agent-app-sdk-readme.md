@@ -15,7 +15,7 @@
 - **本 SDK 文档**：框架怎么用——结构体与标签、Table/Form/Chart 模式、注册方式、目录约定。
 - **案例文档**（`/system/prompt/case_catalog/xxx`）：具体业务长什么样——PRD + 完整 Go 代码。系统消息中「可读的目录」会列出各案例路径与说明；需要单表 CRUD、多表、Form、图表等时，read_doc 对应案例获取 PRD 与代码。
 - **平台横切能力边界**：Table 更新日志由平台记录，业务代码不要重复造通用操作日志；消息通知使用 SDK `ctx.SendMessage` 异步交给 message-service，默认站内信，渠道由平台扩展，普通业务不要等待通知投递完成；定时任务和后台调度交给 timer-scheduler/自动化操作员。通用权限、审批、评论、收藏不属于 MVP 应用侧能力。业务代码只管业务数据本身，不要硬连具体通知渠道或自造调度器。
-- **数据库安全铁律**：`ctx.GetGormDB()` 返回的 `*gorm.DB` 只能在当前目录业务代码内直接使用。禁止传给第三方库、外部 package、全局变量、struct 字段或 return 出去；`Raw` 只允许字符串字面量或 const 的 `SELECT` / `WITH` 只读查询，用户输入必须通过 `?` 参数传入；禁止 `Exec`、`Unscoped`、`Migrator`、`DB`、`AutoMigrate`。记录只允许软删除，表结构只允许由 SDK/runtime 生命周期按 `CreateTables` 做安全迁移。
+- **数据库安全**：数据库代码可按业务需要使用 `ctx.GetGormDB()`、GORM 链式 API、事务、`Raw`/`Exec` 等能力；用户输入必须通过参数传入，不要拼接 SQL。涉及写入、删除、迁移或跨模块传递 DB 时，先确认权限边界和业务影响。
 
 ## 按需参考文档
 
@@ -897,7 +897,7 @@ func calculateBookingStatus(startTime, endTime types.Time) string {
 - **请求/响应结构体**：字段加 `widget`、`validate`；请求可含 `type:table`（子表）、`type:select` + `callback:"OnSelectFuzzy"` 等。
 - **处理函数**：`ctx.ShouldBindValidate(&req)`；业务逻辑；成功 `return resp.Form(&respStruct).Build()`。涉及文件读写时见下「文件上传、下载与存储」。
 - **事务要求**：一次提交若会同时改动多张表，尤其是余额、库存、数量、状态、流水这类强一致数据，必须使用 `db.Transaction(...)`，并在事务内做条件更新或再次校验，避免并发下超卖、透支或部分成功部分失败。
-- **数据库规则**：工作区应用业务库固定走 runtime 托管的 **MySQL**，只能通过当前请求或回调里的 `ctx.GetGormDB()` 获取；不要在 init、全局变量、后台黑盒任务里自行拿业务库连接。优先用 GORM 和 Go 代码做计算；复杂 BI/Chart 查询可用只读 `db.Raw`，SQL 必须是字符串字面量或 const 的 `SELECT` / `WITH`，用户输入走 `?` 参数。**时间分组优先复用 SDK helper**：`app.DateTimeBucketExpr(db, "created_at", app.TimeBucketDay)`。
+- **数据库规则**：工作区应用业务库固定走 runtime 托管的 **MySQL**，通常通过当前请求或回调里的 `ctx.GetGormDB()` 获取。优先用 GORM 和 Go 代码做计算；复杂 BI/Chart 查询可用 `db.Raw`，用户输入走 `?` 参数。**时间分组优先复用 SDK helper**：`app.DateTimeBucketExpr(db, "created_at", app.TimeBucketDay)`。
 - **FormTemplate**：`BaseConfig` 含 Name、Request、Response；若请求中有下拉需联动后端数据，配 `OnSelectFuzzyMap`。需要应用发布后自动创建默认定时执行时，只在 `FormTemplate.Schedules` 声明，支持 `CronExpr` 或 `EverySeconds` 二选一；不要把定时配置放进 `BaseConfig`、Table 或 Chart。
 - **注册**：`packageContext.POST("路由名", Handler, FormTemplate)`。
 
@@ -909,13 +909,13 @@ func calculateBookingStatus(startTime, endTime types.Time) string {
 
 1. 先用 GORM
 2. GORM 不够，再用 Go 代码补计算
-3. 还不够，再用只读 `db.Raw` 写 MySQL `SELECT` / `WITH` 查询；SQL 用字符串字面量或 const，用户输入通过 `?` 参数传入
+3. 还不够，再用 `db.Raw` 写 MySQL 查询；用户输入通过 `?` 参数传入
 
 **注意**
 
 - 普通 CRUD、筛选、排序、事务优先写 GORM 链式调用。
 - 涉及日期分组时，优先用 SDK helper；复杂聚合、窗口函数、CTE、多表统计可以用 `db.Raw(...).Scan(&rows)`。
-- `db.Raw` 只用于只读查询；不要写 `UPDATE`、`INSERT`、`DELETE`、`CREATE`、`SET` 等语句，也不要用 `fmt.Sprintf` / 字符串拼接拼 SQL。
+- `db.Raw`/`db.Exec` 可按业务需要使用；用户输入必须通过 `?` 参数传入，不要用 `fmt.Sprintf` 或字符串拼接拼 SQL。
 - 不要再写 SQLite/MySQL 双分支兼容逻辑；应用业务库没有 SQLite fallback。
 - 用户上传的 `.db/.sqlite` 文件属于文件处理场景，使用 `database/sql + sql.Open("sqlite3", path)`，不要和应用业务库混用。
 

@@ -65,6 +65,7 @@ var runPythonToolDef = toolDefinition[runPythonArgs](
 - 返回值里的 data 必须保持 JSON 可序列化：dict key 只能是字符串；不要把 tuple、Timestamp、numpy 标量、集合直接塞进 data。pandas 聚合后优先用 as_index=False 或 reset_index()，最终用 to_dict('records') 返回。
 - 构造复杂返回值时，先把中间结果赋给变量，再 return；不要在 return 里塞很长的多层字典/列表字面量。
 - 删除 DataFrame 列前先确认列存在；不确定时优先显式选择需要的列，而不是 drop 一组临时列。
+- 使用 matplotlib 生成图表时，不要设置 font.family、font.sans-serif 或其他字体相关 rcParams；按运行环境默认值即可。只需在需要时设置 axes.unicode_minus=False。
 - 输出图片、Excel、PDF 等文件时，统一写到 output_dir，再在 output_files 里声明绝对路径。
 - 如果上一轮出现 SyntaxError 或 IndentationError，不要局部修补旧长脚本；请重新生成一份更短、更扁平、缩进完整的 python_code。
 

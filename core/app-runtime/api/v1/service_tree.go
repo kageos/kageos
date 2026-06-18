@@ -60,6 +60,28 @@ func (h *WorkspaceChangeHandler) HandleBatchWriteFiles(msg *nats.Msg) {
 	logger.Infof(ctx, "[HandleBatchWriteFiles] Done: fileCount=%d, newVersion=%s", resp.FileCount, resp.NewVersion)
 }
 
+// HandleReplaceDirectoryTree 处理完全替换同名目录请求
+func (h *WorkspaceChangeHandler) HandleReplaceDirectoryTree(msg *nats.Msg) {
+	ctx := handlerContext(msg)
+	req, ok := decodeRequest[dto.ReplaceDirectoryTreeRuntimeReq](ctx, msg, "HandleReplaceDirectoryTree")
+	if !ok {
+		return
+	}
+	logger.Infof(ctx, "[HandleReplaceDirectoryTree] Received: user=%s, app=%s, target=%s, dirCount=%d, fileCount=%d",
+		req.User, req.App, req.TargetRootFullCodePath, len(req.Items), len(req.Files))
+	resp, err := h.workspaceChangeService.ReplaceDirectoryTree(ctx, req)
+	if err != nil {
+		logger.Errorf(ctx, "[HandleReplaceDirectoryTree] Failed: %v", err)
+		respondFailure(ctx, msg, "HandleReplaceDirectoryTree", err)
+		return
+	}
+	if !respondSuccess(ctx, msg, "HandleReplaceDirectoryTree", resp) {
+		return
+	}
+	logger.Infof(ctx, "[HandleReplaceDirectoryTree] Done: target=%s, fileCount=%d, newVersion=%s",
+		resp.TargetDirectoryPath, resp.FileCount, resp.NewVersion)
+}
+
 // HandleServiceTreeDelete 处理删除服务目录请求（删磁盘目录并从 main.go 移除 import）
 func (h *WorkspaceChangeHandler) HandleServiceTreeDelete(msg *nats.Msg) {
 	ctx := handlerContext(msg)

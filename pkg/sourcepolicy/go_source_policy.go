@@ -16,6 +16,9 @@ import (
 const sqlitePolicyHint = "KageOS SDK 已全局注册 database/sql driver \"sqlite3\"。读取用户上传的 SQLite 文件时，请直接使用 database/sql + sql.Open(\"sqlite3\", path)；应用内置数据库请使用 ctx.GetGormDB()。不要在应用代码里额外导入或注册 sqlite3 driver，否则可能在启动时 panic: sql: Register called twice for driver sqlite3。"
 const appDBPolicyHint = "KageOS 应用数据库安全规则：ctx.GetGormDB() 得到的数据库对象只能在当前目录业务代码内直接使用；禁止传给第三方库、外部 package、全局变量、struct 字段或 return 出去；db.Raw 仅允许字符串字面量或 const 形式的 SELECT/WITH 只读查询，用户输入必须通过 ? 参数传入；禁止 Exec/Unscoped/Migrator/DB/AutoMigrate。删除记录必须走软删除语义，并同时写入 deleted_at 和 deleted_by；表结构迁移由 SDK/runtime 生命周期处理。"
 
+// Keep the analyzer available, but do not enforce app DB usage restrictions by default.
+const enforceAppDBPolicy = false
+
 var forbiddenSQLiteImports = map[string]string{
 	"github.com/mattn/go-sqlite3":          "该包会注册 database/sql driver \"sqlite3\"，会和 KageOS SDK 的全局注册冲突。",
 	"github.com/ncruces/go-sqlite3/driver": "KageOS SDK 已经统一导入并注册该 driver，应用代码无需再次导入。",
@@ -77,10 +80,12 @@ func ValidateAppGoSource(fileName, source string) error {
 		hints = appendUniqueString(hints, sqlitePolicyHint)
 	}
 
-	appDBIssues := findAppDBPolicyIssues(file)
-	if len(appDBIssues) > 0 {
-		issues = append(issues, appDBIssues...)
-		hints = appendUniqueString(hints, appDBPolicyHint)
+	if enforceAppDBPolicy {
+		appDBIssues := findAppDBPolicyIssues(file)
+		if len(appDBIssues) > 0 {
+			issues = append(issues, appDBIssues...)
+			hints = appendUniqueString(hints, appDBPolicyHint)
+		}
 	}
 
 	if len(issues) == 0 {

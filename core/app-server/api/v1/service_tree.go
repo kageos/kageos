@@ -438,13 +438,13 @@ func (s *ServiceTree) DeleteDocs(c *gin.Context) {
 
 // CopyServiceTree 复制服务目录（递归复制目录及其所有子目录）
 // @Summary 复制服务目录
-// @Description 递归复制服务目录及其所有子目录到目标目录，保持目录结构
+// @Description 递归复制服务目录及其所有子目录到目标父目录下；target_directory_name 可修改复制后根目录中文展示名，同名目录已存在时可通过 replace_existing 完全替换
 // @Tags 服务目录
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
 // @Param X-Token header string true "JWT Token"
-// @Param request body dto.CopyDirectoryReq true "复制请求，source_directory_path=源目录完整路径，target_directory_path=目标目录完整路径"
+// @Param request body dto.CopyDirectoryReq true "复制请求，source_directory_path=源目录完整路径，target_directory_path=目标父目录完整路径，target_directory_name=复制后根目录中文展示名，replace_existing=是否覆盖同名目录"
 // @Success 200 {object} dto.CopyDirectoryResp "复制成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"

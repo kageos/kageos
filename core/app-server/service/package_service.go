@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/core/app-server/repository"
@@ -34,7 +35,11 @@ func (s *serviceTreePackageService) CreatePackage(ctx context.Context, req *dto.
 	if req == nil {
 		return nil, fmt.Errorf("创建目录请求不能为空")
 	}
+	codeProvided := strings.TrimSpace(req.Code) != ""
 	req.Code = naming.NormalizeGoPackageName(req.Code)
+	if !codeProvided {
+		req.Code = naming.DeriveGoPackageName(req.Name, "directory")
+	}
 	if err := naming.ValidateGoPackageName(req.Code, "目录英文标识"); err != nil {
 		return nil, err
 	}
@@ -55,14 +60,21 @@ func (s *serviceTreePackageService) CreatePackage(ctx context.Context, req *dto.
 		}
 	}
 
-	fullCodePath := fmt.Sprintf("/%s/%s/%s", app.User, app.Code, req.Code)
-	if parentTree != nil {
-		fullCodePath = parentTree.FullCodePath + "/" + req.Code
-	}
-
 	parentPath := ""
 	if parentTree != nil {
 		parentPath = parentTree.FullCodePath
+	}
+
+	if !codeProvided {
+		req.Code, err = s.nextAvailablePackageCode(parentPath, app.ID, req.Code)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	fullCodePath := fmt.Sprintf("/%s/%s/%s", app.User, app.Code, req.Code)
+	if parentTree != nil {
+		fullCodePath = parentTree.FullCodePath + "/" + req.Code
 	}
 
 	exists, err := s.serviceTreeRepo.CheckNameExistsByPath(parentPath, req.Code, app.ID)
@@ -114,6 +126,23 @@ func (s *serviceTreePackageService) CreatePackage(ctx context.Context, req *dto.
 		VersionNum:   serviceTree.VersionNum,
 		Admins:       serviceTree.Admins,
 	}, nil
+}
+
+func (s *serviceTreePackageService) nextAvailablePackageCode(parentPath string, appID int64, baseCode string) (string, error) {
+	for index := 1; index <= 1000; index++ {
+		candidate := baseCode
+		if index > 1 {
+			candidate = naming.GoPackageNameWithNumericSuffix(baseCode, index)
+		}
+		exists, err := s.serviceTreeRepo.CheckNameExistsByPath(parentPath, candidate, appID)
+		if err != nil {
+			return "", fmt.Errorf("failed to check generated directory code exists: %w", err)
+		}
+		if !exists {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("自动生成目录英文标识失败，请手动填写")
 }
 
 func (s *serviceTreePackageService) sendCreatePackageMessage(ctx context.Context, user, app string, serviceTree *model.ServiceTree) error {

@@ -121,11 +121,18 @@ export function copyDirectory(data: {
   source_directory_path: string
   target_directory_path: string
   target_app_id: number
+  target_directory_name?: string
+  replace_existing?: boolean
 }) {
   return post<{
     message: string
     directory_count: number
     file_count: number
+    replaced?: boolean
+    target_directory_path?: string
+    old_version?: string
+    new_version?: string
+    git_commit_hash?: string
   }>('/workspace/api/v1/service_tree/copy', data)
 }
 

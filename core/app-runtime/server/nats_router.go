@@ -60,6 +60,12 @@ func RegisterNATS(ctx context.Context, conn *nats.Conn, subs *[]*nats.Subscripti
 	}
 	*subs = append(*subs, sub)
 
+	sub, err = conn.QueueSubscribe(subjects.RuntimeDirectoryTreeReplaceCommandSubject, subjects.RuntimeDirectoryTreeReplaceQueueGroup, workspaceChangeH.HandleReplaceDirectoryTree)
+	if err != nil {
+		return fmt.Errorf("subscribe replace directory tree: %w", err)
+	}
+	*subs = append(*subs, sub)
+
 	// ---------- Workspace (read/replace/delete file) ----------
 	sub, err = conn.QueueSubscribe(subjects.RuntimeDirectoryFilesReadQuerySubject, subjects.RuntimeDirectoryFilesReadQueueGroup, workspaceH.HandleReadDirectoryFiles)
 	if err != nil {

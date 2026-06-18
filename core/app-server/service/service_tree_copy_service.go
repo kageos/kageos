@@ -51,6 +51,13 @@ func (h *serviceTreeCopyService) batchWriteFiles(
 	return executeBatchWriteFiles(ctx, h.runtimeWorkspace, h.appService, req)
 }
 
+func (h *serviceTreeCopyService) replaceDirectoryTree(
+	ctx context.Context,
+	req *dto.ReplaceDirectoryTreeReq,
+) (*model.App, *dto.ReplaceDirectoryTreeResp, error) {
+	return executeReplaceDirectoryTree(ctx, h.runtimeWorkspace, h.appService, req)
+}
+
 func (h *serviceTreeCopyService) getDirectoryFilesFromRuntimeRecursively(
 	ctx context.Context,
 	appID int64,

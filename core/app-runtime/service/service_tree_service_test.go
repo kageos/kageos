@@ -487,3 +487,61 @@ func TestWriteDirectoryTreeFilesRollsBackCreatedDirectoriesOnError(t *testing.T)
 		t.Fatalf("expected api dir to be removed, got err=%v", statErr)
 	}
 }
+
+func TestDirectoryReplaceRollbackRestoresOldDirectoryAndMain(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	workspaceFiles := newWorkspaceFileTestService(basePath)
+	appPaths := newRuntimeAppPaths(basePath, "luobei", "demo")
+	targetDir := filepath.Join(appPaths.APIDir(), "tools", "a")
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		t.Fatalf("mkdir target dir: %v", err)
+	}
+	oldFile := filepath.Join(targetDir, "old.go")
+	if err := os.WriteFile(oldFile, []byte("package a\n\nconst Old = true\n"), 0644); err != nil {
+		t.Fatalf("write old file: %v", err)
+	}
+	mainPath := appPaths.MainGoPath()
+	originalMain := []byte("package main\n\nimport _ \"github.com/kageos/kageos/namespace/luobei/demo/code/api/tools/a\"\n")
+	if err := os.MkdirAll(filepath.Dir(mainPath), 0755); err != nil {
+		t.Fatalf("mkdir main dir: %v", err)
+	}
+	if err := os.WriteFile(mainPath, originalMain, 0644); err != nil {
+		t.Fatalf("write main: %v", err)
+	}
+
+	state, _, err := workspaceFiles.beginDirectoryReplace(context.Background(), "luobei", "demo", "/luobei/demo/tools/a")
+	if err != nil {
+		t.Fatalf("beginDirectoryReplace: %v", err)
+	}
+	if _, err := os.Stat(oldFile); !os.IsNotExist(err) {
+		t.Fatalf("expected old target to be moved out of compile path, got err=%v", err)
+	}
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		t.Fatalf("mkdir replacement dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(targetDir, "new.go"), []byte("package a\n\nconst New = true\n"), 0644); err != nil {
+		t.Fatalf("write new file: %v", err)
+	}
+
+	workspaceFiles.rollbackDirectoryReplace(context.Background(), state)
+
+	gotOld, err := os.ReadFile(oldFile)
+	if err != nil {
+		t.Fatalf("read restored old file: %v", err)
+	}
+	if !strings.Contains(string(gotOld), "Old = true") {
+		t.Fatalf("unexpected restored old file: %s", string(gotOld))
+	}
+	if _, err := os.Stat(filepath.Join(targetDir, "new.go")); !os.IsNotExist(err) {
+		t.Fatalf("expected replacement file to be removed, got err=%v", err)
+	}
+	gotMain, err := os.ReadFile(mainPath)
+	if err != nil {
+		t.Fatalf("read restored main: %v", err)
+	}
+	if string(gotMain) != string(originalMain) {
+		t.Fatalf("main.go was not restored: got %q want %q", string(gotMain), string(originalMain))
+	}
+}

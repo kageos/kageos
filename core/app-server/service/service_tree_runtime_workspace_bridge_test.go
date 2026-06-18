@@ -17,6 +17,10 @@ type fakeRuntimeWorkspaceClient struct {
 	batchWriteReq    *dto.BatchWriteFilesRuntimeReq
 	batchWriteResp   *dto.BatchWriteFilesRuntimeResp
 
+	replaceHostID int64
+	replaceReq    *dto.ReplaceDirectoryTreeRuntimeReq
+	replaceResp   *dto.ReplaceDirectoryTreeRuntimeResp
+
 	deleteTreeHostID int64
 	deleteTreeReq    *dto.DeleteServiceTreeRuntimeReq
 	deleteTreeResp   *dto.DeleteServiceTreeRuntimeResp
@@ -37,6 +41,15 @@ func (c *fakeRuntimeWorkspaceClient) BatchWriteFiles(_ context.Context, hostID i
 		return c.batchWriteResp, nil
 	}
 	return &dto.BatchWriteFilesRuntimeResp{}, nil
+}
+
+func (c *fakeRuntimeWorkspaceClient) ReplaceDirectoryTree(_ context.Context, hostID int64, req *dto.ReplaceDirectoryTreeRuntimeReq) (*dto.ReplaceDirectoryTreeRuntimeResp, error) {
+	c.replaceHostID = hostID
+	c.replaceReq = req
+	if c.replaceResp != nil {
+		return c.replaceResp, nil
+	}
+	return &dto.ReplaceDirectoryTreeRuntimeResp{}, nil
 }
 
 func (c *fakeRuntimeWorkspaceClient) DeleteServiceTree(_ context.Context, hostID int64, req *dto.DeleteServiceTreeRuntimeReq) (*dto.DeleteServiceTreeRuntimeResp, error) {

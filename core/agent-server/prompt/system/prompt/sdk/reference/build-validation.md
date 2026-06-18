@@ -62,7 +62,7 @@ build_workspace
 - `integer widget requires integer Go type`：`type:integer` 必须配 Go 整数类型；`float64` 的金额、均值、评分、比例用 `type:float`。`type:number` 已废弃，出现时直接改成 `integer` 或 `float`。
 - `cannot use &x (value of type *int) as *int64 value ... Count`：GORM `Count` 必须传 `*int64`。写 `var total int64; db.Count(&total)`；需要传给业务函数时再 `int(total)`。
 - `assignment mismatch ... DateTimeBucketExpr returns 2 values` / `Group` 参数过多：`app.DateTimeBucketExpr` 返回两个表达式。写 `dateExpr, groupExpr := app.DateTimeBucketExpr(db, "created_at", app.TimeBucketDay)`；`Select` 用 `dateExpr`，`Group` 只传 `groupExpr`。
-- `源码规范校验失败` / `应用数据库对象`：`ctx.GetGormDB()` 得到的 `db` 不能传给第三方库、外部 package、全局变量、struct 字段或 return；`Raw` 只允许字符串字面量或 const 的 `SELECT` / `WITH` 只读查询，用户输入必须走 `?` 参数；不能调用 `Exec`、`Unscoped`、`Migrator`、`DB`、`AutoMigrate`。普通写入改为当前文件/当前目录内直接写 GORM 链式插入、更新和软删除；软删除必须同时写 `deleted_at` 和 `deleted_by`；建表/加字段交给 Template `CreateTables`。
+- `源码规范校验失败`：先按具体报错定位文件和语句。数据库代码可按业务需要使用 `ctx.GetGormDB()`、GORM 链式 API、事务、`Raw`/`Exec` 等能力；重点检查用户输入必须参数化、权限边界清晰、写入语义符合业务预期。
 - `req.X undefined ... Req has no field or method X`：删除 Request 字段后，Handler 里的手写 `req.X` 筛选也要同步删除；需要筛选时把字段显式放回 Request。
 - `does not implement chart.Charter`：传给 `resp.Chart(...)` 的必须是 SDK chart 包里的具体图表对象，不是自定义响应结构体；附加指标放 `Metadata`，多图拆多路由。
 - `resp.Charts undefined`：SDK 没有 `resp.Charts`。一个 Chart 路由只返回一张图，使用 `resp.Chart(chart).Build()`；多图拆成多个 `.chart` 路由。

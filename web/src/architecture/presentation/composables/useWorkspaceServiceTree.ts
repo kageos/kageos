@@ -18,6 +18,7 @@ import type { ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@
 import ServiceTreePanel from '@/architecture/presentation/components/ServiceTreePanel.vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import { normalizeGoPackageName, validateGoPackageName } from '@/architecture/domain/utils/goPackageName'
+import { buildUniqueGoPackageCode, createGoPackageCodeFromLabel } from '@/architecture/domain/utils/goPackageCode'
 
 export function useWorkspaceServiceTree(
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
@@ -104,12 +105,16 @@ export function useWorkspaceServiceTree(
     }
     
     const name = createDirectoryForm.value.name.trim()
-    const code = normalizeGoPackageName(createDirectoryForm.value.code)
+    let code = normalizeGoPackageName(createDirectoryForm.value.code)
+    if (!code) {
+      const existingCodes = (currentParentNode.value?.children || []).map(child => child.code || '').filter(Boolean)
+      code = buildUniqueGoPackageCode(createGoPackageCodeFromLabel(name), existingCodes)
+    }
 
-    if (!name || !code) {
+    if (!name) {
       ElNotification.warning({
         title: '提示',
-        message: '请输入目录名称和英文标识'
+        message: '请输入目录名称'
       })
       return
     }

@@ -15,6 +15,7 @@
           show-word-limit
           clearable
           data-testid="create-directory-name"
+          @input="handleNameInput"
         />
       </el-form-item>
       <el-form-item label="目录英文标识" required>
@@ -25,7 +26,7 @@
           show-word-limit
           clearable
           data-testid="create-directory-code"
-          @input="form.code = form.code.toLowerCase()"
+          @input="handleCodeInput"
         />
         <div class="form-tip">
           <el-icon><InfoFilled /></el-icon>
@@ -64,9 +65,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
 import type { CreateServiceTreeRequest, ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
+import { buildUniqueGoPackageCode, createGoPackageCodeFromLabel } from '@/architecture/domain/utils/goPackageCode'
 
 const props = defineProps<{
   visible: boolean
@@ -85,4 +87,32 @@ const dialogVisible = computed({
   get: () => props.visible,
   set: (value: boolean) => emit('update:visible', value)
 })
+
+const codeManuallyEdited = ref(false)
+
+watch(
+  () => props.visible,
+  (visible) => {
+    if (visible) {
+      codeManuallyEdited.value = Boolean(props.form.code)
+    }
+  }
+)
+
+function handleNameInput(value: string) {
+  if (codeManuallyEdited.value) return
+  const baseCode = createGoPackageCodeFromLabel(value)
+  props.form.code = buildUniqueGoPackageCode(baseCode, siblingCodes())
+}
+
+function handleCodeInput(value: string) {
+  codeManuallyEdited.value = true
+  props.form.code = value.toLowerCase()
+}
+
+function siblingCodes(): string[] {
+  return (props.parentNode?.children || [])
+    .map(child => child.code || '')
+    .filter(Boolean)
+}
 </script>

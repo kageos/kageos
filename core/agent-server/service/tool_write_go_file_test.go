@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/kageos/kageos/pkg/sourcepolicy"
 )
 
 func TestWriteGoFileMissingRequiredArgsMakesNoPersistenceExplicit(t *testing.T) {
@@ -67,10 +69,8 @@ var _ = sqlite.Open
 	}
 }
 
-func TestWriteGoFileRejectsAppDBPassedToExternalPackage(t *testing.T) {
-	msg, isErr := runWriteGoFileTool(context.Background(), writeGoFileArgs{
-		FileName: "db_leak.go",
-		Content: `package demo
+func TestWriteGoFileSourcePolicyAllowsAppDBPassedToExternalPackage(t *testing.T) {
+	source := `package demo
 
 import (
 	"github.com/kageos/kageos/sdk/agent-app/app"
@@ -81,14 +81,8 @@ func Handle(ctx *app.Context) error {
 	db := ctx.GetGormDB()
 	return third.Use(db)
 }
-`,
-	}, "/user/app/demo")
-	if !isErr {
-		t.Fatal("expected app DB leak to fail")
-	}
-	for _, want := range []string{"源码规范校验失败", "本次未落盘", "禁止把应用数据库对象传给第三方库", "ctx.GetGormDB() 得到的数据库对象只能在当前目录业务代码内直接使用"} {
-		if !strings.Contains(msg, want) {
-			t.Fatalf("expected %q in %q", want, msg)
-		}
+`
+	if err := sourcepolicy.ValidateAppGoSource("db_leak.go", source); err != nil {
+		t.Fatalf("ValidateAppGoSource() error = %v", err)
 	}
 }

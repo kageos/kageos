@@ -170,7 +170,7 @@ function onKeyInfoDropdownVisibleChange(visible: boolean) {
 }
 
 .mini-artifact-item + .mini-artifact-item {
-  display: none;
+  margin-top: 8px;
 }
 
 .mini-artifact-panel.is-maximized .mini-artifact-item {
@@ -178,11 +178,6 @@ function onKeyInfoDropdownVisibleChange(visible: boolean) {
   min-height: 66px;
   padding: 10px;
   grid-template-columns: 48px minmax(0, 1fr) auto;
-  margin-bottom: 8px;
-}
-
-.mini-artifact-panel.is-maximized .mini-artifact-item + .mini-artifact-item {
-  display: grid;
 }
 
 .mini-artifact-preview {

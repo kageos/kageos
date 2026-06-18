@@ -342,8 +342,7 @@ import { useMiniWorkstationUploads } from '../composables/useMiniWorkstationUplo
 import { useMiniWorkstationComposer } from '../composables/useMiniWorkstationComposer'
 import { useMiniWorkstationEffects } from '../composables/useMiniWorkstationEffects'
 import {
-  buildDisplayFieldArtifactItem,
-  buildFileArtifactItem,
+  buildMiniArtifactItems,
   isGeneratedArtifactToolCall,
   type MiniArtifactItem
 } from '../composables/useMiniWorkstationArtifacts'
@@ -551,9 +550,11 @@ const attachedFileRefs = computed(() => {
 })
 
 const artifactItems = computed<MiniArtifactItem[]>(() => {
-  const files = outputFiles.value.map((file, index) => buildFileArtifactItem(file, index))
-  const fields = allPanelDisplayFields.value.map((field, index) => buildDisplayFieldArtifactItem(field, index))
-  return [...files, ...fields]
+  return buildMiniArtifactItems({
+    uploadedFiles: uploadedFiles.value,
+    outputFiles: outputFiles.value,
+    displayFields: allPanelDisplayFields.value
+  })
 })
 
 const artifactToggleCount = computed(() => Math.max(artifactItems.value.length, panelItemCount.value))

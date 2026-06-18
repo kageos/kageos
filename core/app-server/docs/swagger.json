@@ -1904,7 +1904,7 @@
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "递归复制服务目录及其所有子目录到目标目录，保持目录结构",
+                "description": "递归复制服务目录及其所有子目录到目标父目录下；target_directory_name 可修改复制后根目录中文展示名，同名目录已存在时可通过 replace_existing 完全替换",
                 "consumes": [
                     "application/json"
                 ],
@@ -1924,7 +1924,7 @@
                         "required": true
                     },
                     {
-                        "description": "复制请求，source_directory_path=源目录完整路径，target_directory_path=目标目录完整路径",
+                        "description": "复制请求，source_directory_path=源目录完整路径，target_directory_path=目标父目录完整路径，target_directory_name=复制后根目录中文展示名，replace_existing=是否覆盖同名目录",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -2881,6 +2881,10 @@
                 "target_directory_path"
             ],
             "properties": {
+                "replace_existing": {
+                    "description": "同名目录已存在时是否完全替换",
+                    "type": "boolean"
+                },
                 "source_directory_path": {
                     "description": "源目录完整路径",
                     "type": "string",
@@ -2891,10 +2895,15 @@
                     "type": "integer",
                     "example": 123
                 },
-                "target_directory_path": {
-                    "description": "目标目录完整路径",
+                "target_directory_name": {
+                    "description": "复制后根目录中文展示名",
                     "type": "string",
-                    "example": "/luobei/app_b/hr"
+                    "example": "人事管理"
+                },
+                "target_directory_path": {
+                    "description": "目标父目录完整路径",
+                    "type": "string",
+                    "example": "/luobei/app_b"
                 }
             }
         },
@@ -2930,6 +2939,14 @@
                     "description": "旧版本号",
                     "type": "string",
                     "example": "v3"
+                },
+                "replaced": {
+                    "description": "是否执行了同名目录完全替换",
+                    "type": "boolean"
+                },
+                "target_directory_path": {
+                    "description": "最终目标目录完整路径",
+                    "type": "string"
                 }
             }
         },

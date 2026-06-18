@@ -196,3 +196,56 @@ func buildBatchWriteFilesResp(
 		Warnings:      warnings,
 	}
 }
+
+func executeReplaceDirectoryTree(
+	ctx context.Context,
+	runtimeWorkspace *runtimeWorkspaceBridge,
+	appService *AppService,
+	req *dto.ReplaceDirectoryTreeReq,
+) (*model.App, *dto.ReplaceDirectoryTreeResp, error) {
+	app, runtimeResp, err := runtimeWorkspace.replaceDirectoryTree(ctx, req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	operationName := strings.TrimSpace(req.OperationName)
+	if operationName == "" {
+		operationName = "ReplaceDirectoryTree"
+	}
+
+	warnings, err := appService.finalizeReleasedAppMetadata(
+		ctx,
+		operationName,
+		app,
+		req.User,
+		req.App,
+		runtimeResp.NewVersion,
+		runtimeResp.Diff,
+	)
+	if err != nil {
+		return app, nil, err
+	}
+
+	return app, buildReplaceDirectoryTreeResp(runtimeResp, warnings), nil
+}
+
+func buildReplaceDirectoryTreeResp(
+	runtimeResp *dto.ReplaceDirectoryTreeRuntimeResp,
+	warnings []string,
+) *dto.ReplaceDirectoryTreeResp {
+	if runtimeResp == nil {
+		return &dto.ReplaceDirectoryTreeResp{Warnings: warnings}
+	}
+
+	return &dto.ReplaceDirectoryTreeResp{
+		DirectoryCount:      runtimeResp.DirectoryCount,
+		FileCount:           runtimeResp.FileCount,
+		TargetDirectoryPath: runtimeResp.TargetDirectoryPath,
+		WrittenPaths:        runtimeResp.WrittenPaths,
+		Diff:                runtimeResp.Diff,
+		OldVersion:          runtimeResp.OldVersion,
+		NewVersion:          runtimeResp.NewVersion,
+		GitCommitHash:       runtimeResp.GitCommitHash,
+		Warnings:            warnings,
+	}
+}

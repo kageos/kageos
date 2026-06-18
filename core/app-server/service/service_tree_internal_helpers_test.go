@@ -165,6 +165,79 @@ func TestPlanCopyDirectoryTargets_MapsRootAndDescendants(t *testing.T) {
 	}
 }
 
+func TestBuildCopyDirectoryPlan_OverridesRootDisplayName(t *testing.T) {
+	source := &copyDirectorySource{
+		treesByPath: map[string]*model.ServiceTree{
+			"/alice/source/tools":       {FullCodePath: "/alice/source/tools", Name: "工具", Code: "tools"},
+			"/alice/source/tools/image": {FullCodePath: "/alice/source/tools/image", Name: "图片", Code: "image"},
+		},
+		directoryFiles: map[string][]*model.FileSnapshot{},
+	}
+
+	plan, err := buildCopyDirectoryPlan("/alice/source/tools", "/bob/target", "新工具", source)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if plan.targetRootPath != "/bob/target/tools" {
+		t.Fatalf("unexpected target root: %s", plan.targetRootPath)
+	}
+	if len(plan.directoryItems) != 2 {
+		t.Fatalf("expected 2 directory items, got %d", len(plan.directoryItems))
+	}
+	if plan.directoryItems[0].Name != "新工具" {
+		t.Fatalf("expected root display name override, got %s", plan.directoryItems[0].Name)
+	}
+	if plan.directoryItems[1].Name != "图片" {
+		t.Fatalf("expected child display name to stay copied, got %s", plan.directoryItems[1].Name)
+	}
+}
+
+func TestValidateCopyDirectoryPlacementRejectsSelfAndNestedTargets(t *testing.T) {
+	tests := []struct {
+		name         string
+		source       string
+		targetParent string
+		targetRoot   string
+	}{
+		{
+			name:         "same final target",
+			source:       "/alice/demo/tools/a",
+			targetParent: "/alice/demo/tools",
+			targetRoot:   "/alice/demo/tools/a",
+		},
+		{
+			name:         "paste into source descendant",
+			source:       "/alice/demo/tools/a",
+			targetParent: "/alice/demo/tools/a/copy",
+			targetRoot:   "/alice/demo/tools/a/copy/a",
+		},
+		{
+			name:         "descendant replaces parent",
+			source:       "/alice/demo/tools/a/copy/a",
+			targetParent: "/alice/demo/tools",
+			targetRoot:   "/alice/demo/tools/a",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := validateCopyDirectoryPlacement(tt.source, tt.targetParent, tt.targetRoot); err == nil {
+				t.Fatal("expected placement to be rejected")
+			}
+		})
+	}
+}
+
+func TestValidateCopyDirectoryPlacementAllowsSiblingRoundTrip(t *testing.T) {
+	if err := validateCopyDirectoryPlacement(
+		"/alice/demo/tools/copy/a",
+		"/alice/demo/tools",
+		"/alice/demo/tools/a",
+	); err != nil {
+		t.Fatalf("expected sibling copy to original parent to be allowed: %v", err)
+	}
+}
+
 func TestBuildCopyFileItems_SkipsInitAndPreservesRelativeTargets(t *testing.T) {
 	files := map[string][]*model.FileSnapshot{
 		"/alice/source/tools": {

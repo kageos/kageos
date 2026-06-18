@@ -45,18 +45,22 @@ type ForkFunctionGroupRuntimeResp struct {
 // CopyDirectoryReq 复制目录请求（支持递归复制本地目录及其所有子目录）
 type CopyDirectoryReq struct {
 	SourceDirectoryPath string `json:"source_directory_path" binding:"required" example:"/luobei/app_a/hr"` // 源目录完整路径
-	TargetDirectoryPath string `json:"target_directory_path" binding:"required" example:"/luobei/app_b/hr"` // 目标目录完整路径
+	TargetDirectoryPath string `json:"target_directory_path" binding:"required" example:"/luobei/app_b"`    // 目标父目录完整路径
 	TargetAppID         int64  `json:"target_app_id" binding:"required" example:"123"`                      // 目标应用ID
+	TargetDirectoryName string `json:"target_directory_name,omitempty" example:"人事管理"`                      // 复制后根目录中文展示名
+	ReplaceExisting     bool   `json:"replace_existing,omitempty"`                                          // 同名目录已存在时是否完全替换
 }
 
 // CopyDirectoryResp 复制目录响应
 type CopyDirectoryResp struct {
-	Message        string `json:"message" example:"复制目录成功，共复制 3 个目录，15 个文件"`  // 响应消息
-	DirectoryCount int    `json:"directory_count" example:"3"`                // 复制的目录数
-	FileCount      int    `json:"file_count" example:"15"`                    // 复制的文件数
-	OldVersion     string `json:"old_version,omitempty" example:"v3"`         // 旧版本号
-	NewVersion     string `json:"new_version,omitempty" example:"v4"`         // 新版本号
-	GitCommitHash  string `json:"git_commit_hash,omitempty" example:"abc123"` // Git 提交哈希
+	Message             string `json:"message" example:"复制目录成功，共复制 3 个目录，15 个文件"`  // 响应消息
+	DirectoryCount      int    `json:"directory_count" example:"3"`                // 复制的目录数
+	FileCount           int    `json:"file_count" example:"15"`                    // 复制的文件数
+	Replaced            bool   `json:"replaced,omitempty"`                         // 是否执行了同名目录完全替换
+	TargetDirectoryPath string `json:"target_directory_path,omitempty"`            // 最终目标目录完整路径
+	OldVersion          string `json:"old_version,omitempty" example:"v3"`         // 旧版本号
+	NewVersion          string `json:"new_version,omitempty" example:"v4"`         // 新版本号
+	GitCommitHash       string `json:"git_commit_hash,omitempty" example:"abc123"` // Git 提交哈希
 }
 
 // CreateDirectoryReq 创建目录请求

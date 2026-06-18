@@ -63,3 +63,27 @@ type BatchWriteFilesRuntimeResp struct {
 	NewVersion    string    `json:"new_version"`               // 新版本号
 	GitCommitHash string    `json:"git_commit_hash,omitempty"` // Git 提交哈希
 }
+
+// ReplaceDirectoryTreeRuntimeReq 完全替换同名目录运行时请求。
+type ReplaceDirectoryTreeRuntimeReq struct {
+	User                   string                   `json:"user"`                       // 用户名
+	App                    string                   `json:"app"`                        // 应用名
+	TargetRootFullCodePath string                   `json:"target_root_full_code_path"` // 最终被替换目录完整路径
+	Items                  []*DirectoryScaffoldItem `json:"items"`                      // 替换后的目录脚手架项列表
+	Files                  []*FileWriteItem         `json:"files"`                      // 替换后的文件写入项列表
+	ForceDiff              bool                     `json:"force_diff,omitempty"`       // 是否清理 api-logs，让本次更新重新产生 add diff
+	OperationName          string                   `json:"operation_name,omitempty"`   // 内部操作名，用于日志和发布元数据
+	OperationLabel         string                   `json:"operation_label,omitempty"`  // 操作中文名，用于错误信息
+}
+
+// ReplaceDirectoryTreeRuntimeResp 完全替换同名目录运行时响应。
+type ReplaceDirectoryTreeRuntimeResp struct {
+	DirectoryCount      int       `json:"directory_count"`                 // 创建/恢复的目录数量
+	FileCount           int       `json:"file_count"`                      // 写入的文件数量
+	TargetDirectoryPath string    `json:"target_directory_path,omitempty"` // 最终目标目录完整路径
+	WrittenPaths        []string  `json:"written_paths"`                   // 写入的文件路径列表
+	Diff                *DiffData `json:"diff,omitempty"`                  // API diff 信息（编译后）
+	OldVersion          string    `json:"old_version"`                     // 旧版本号
+	NewVersion          string    `json:"new_version"`                     // 新版本号
+	GitCommitHash       string    `json:"git_commit_hash,omitempty"`       // Git 提交哈希
+}

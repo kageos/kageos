@@ -65,6 +65,7 @@
     "monaco-editor": "^0.54.0",
     "pinia": "^3.0.3",
     "pinia-plugin-persistedstate": "^4.5.0",
+    "pinyin-pro": "^3.28.1",
     "prosemirror-transform": "^1.10.5",
     "qrcode": "^1.5.4",
     "turndown": "^7.2.2",

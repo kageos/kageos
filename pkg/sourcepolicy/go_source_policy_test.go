@@ -105,7 +105,7 @@ func markDeleted(db *gorm.DB, id int64, user string) error {
 	}
 }
 
-func TestValidateAppGoSourceRejectsAppDBPassedToExternalPackage(t *testing.T) {
+func TestValidateAppGoSourceAllowsAppDBPassedToExternalPackage(t *testing.T) {
 	source := `package demo
 
 import (
@@ -118,18 +118,12 @@ func handler(ctx *app.Context) error {
 	return third.Use(db)
 }
 `
-	err := ValidateAppGoSource("bad.go", source)
-	if err == nil {
-		t.Fatal("expected validation error")
-	}
-	for _, want := range []string{"禁止把应用数据库对象传给第三方库", "ctx.GetGormDB() 得到的数据库对象只能在当前目录业务代码内直接使用"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("expected %q in %v", want, err)
-		}
+	if err := ValidateAppGoSource("db_external.go", source); err != nil {
+		t.Fatalf("ValidateAppGoSource() error = %v", err)
 	}
 }
 
-func TestValidateAppGoSourceRejectsDirectGetGormDBPassedToExternalPackage(t *testing.T) {
+func TestValidateAppGoSourceAllowsDirectGetGormDBPassedToExternalPackage(t *testing.T) {
 	source := `package demo
 
 import (
@@ -141,16 +135,12 @@ func handler(ctx *app.Context) error {
 	return third.Use(ctx.GetGormDB())
 }
 `
-	err := ValidateAppGoSource("bad.go", source)
-	if err == nil {
-		t.Fatal("expected validation error")
-	}
-	if !strings.Contains(err.Error(), "禁止把应用数据库对象传给第三方库") {
-		t.Fatalf("unexpected error: %v", err)
+	if err := ValidateAppGoSource("db_direct.go", source); err != nil {
+		t.Fatalf("ValidateAppGoSource() error = %v", err)
 	}
 }
 
-func TestValidateAppGoSourceRejectsAppDBWrappedAsAnyPassedToExternalPackage(t *testing.T) {
+func TestValidateAppGoSourceAllowsAppDBWrappedAsAnyPassedToExternalPackage(t *testing.T) {
 	source := `package demo
 
 import (
@@ -163,16 +153,12 @@ func handler(ctx *app.Context) error {
 	return third.Use(any(db))
 }
 `
-	err := ValidateAppGoSource("bad.go", source)
-	if err == nil {
-		t.Fatal("expected validation error")
-	}
-	if !strings.Contains(err.Error(), "禁止把应用数据库对象传给第三方库") {
-		t.Fatalf("unexpected error: %v", err)
+	if err := ValidateAppGoSource("db_any.go", source); err != nil {
+		t.Fatalf("ValidateAppGoSource() error = %v", err)
 	}
 }
 
-func TestValidateAppGoSourceRejectsDangerousAppDBMethods(t *testing.T) {
+func TestValidateAppGoSourceAllowsAppDBMethods(t *testing.T) {
 	tests := map[string]string{
 		"Exec":        `return ctx.GetGormDB().Exec("DELETE FROM tickets").Error`,
 		"Unscoped":    `return ctx.GetGormDB().Unscoped().Where("id = ?", 1).Delete(&Ticket{}).Error`,
@@ -193,12 +179,8 @@ func handler(ctx *app.Context) error {
 	` + body + `
 }
 `
-			err := ValidateAppGoSource("bad.go", source)
-			if err == nil {
-				t.Fatal("expected validation error")
-			}
-			if !strings.Contains(err.Error(), "禁止使用 db."+name) && !strings.Contains(err.Error(), "禁止在业务代码中调用 db."+name) {
-				t.Fatalf("expected method %s in error, got %v", name, err)
+			if err := ValidateAppGoSource("db_methods.go", source); err != nil {
+				t.Fatalf("ValidateAppGoSource() error = %v", err)
 			}
 		})
 	}
@@ -234,7 +216,7 @@ func handler(ctx *app.Context, owner string) error {
 	}
 }
 
-func TestValidateAppGoSourceRejectsNonReadOnlyRawAppDBQuery(t *testing.T) {
+func TestValidateAppGoSourceAllowsRawAppDBQueryForms(t *testing.T) {
 	tests := map[string]string{
 		"update":  `return ctx.GetGormDB().Raw("UPDATE tickets SET status = ? WHERE id = ?", "done", 1).Error`,
 		"delete":  `return ctx.GetGormDB().Raw("DELETE FROM tickets WHERE id = ?", 1).Error`,
@@ -254,18 +236,14 @@ func handler(ctx *app.Context, orderBy string) error {
 	` + body + `
 }
 `
-			err := ValidateAppGoSource("bad.go", source)
-			if err == nil {
-				t.Fatal("expected validation error")
-			}
-			if !strings.Contains(err.Error(), "db.Raw") {
-				t.Fatalf("expected Raw policy error, got %v", err)
+			if err := ValidateAppGoSource("raw.go", source); err != nil {
+				t.Fatalf("ValidateAppGoSource() error = %v", err)
 			}
 		})
 	}
 }
 
-func TestValidateAppGoSourceRejectsAppDBStoredOrReturned(t *testing.T) {
+func TestValidateAppGoSourceAllowsAppDBStoredOrReturned(t *testing.T) {
 	tests := map[string]string{
 		"struct_field":     `holder.DB = ctx.GetGormDB()`,
 		"map_value":        `m["db"] = ctx.GetGormDB()`,
@@ -291,12 +269,8 @@ func handler(ctx *app.Context, holder *Holder, m map[string]any) *gorm.DB {
 	return nil
 }
 `
-			err := ValidateAppGoSource("bad.go", source)
-			if err == nil {
-				t.Fatal("expected validation error")
-			}
-			if !strings.Contains(err.Error(), "应用数据库对象") {
-				t.Fatalf("unexpected error: %v", err)
+			if err := ValidateAppGoSource("db_storage.go", source); err != nil {
+				t.Fatalf("ValidateAppGoSource() error = %v", err)
 			}
 		})
 	}

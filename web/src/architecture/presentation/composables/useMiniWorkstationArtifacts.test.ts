@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest'
 import {
   buildDisplayFieldArtifactItem,
   buildFileArtifactItem,
+  buildMiniArtifactItems,
   isGeneratedArtifactToolCall
 } from './useMiniWorkstationArtifacts'
 
 describe('useMiniWorkstationArtifacts', () => {
   it('classifies output files by extension', () => {
     expect(buildFileArtifactItem({ name: 'chart.PNG', href: '/files/chart.PNG', source: 'output' }, 0)).toMatchObject({
+      key: 'file:output:/files/chart.PNG:0',
+      meta: 'PNG · 输出文件',
       tag: '图片',
       tone: 'image',
       ext: 'PNG',
@@ -25,6 +28,31 @@ describe('useMiniWorkstationArtifacts', () => {
       tone: 'archive',
       ext: 'ZIP'
     })
+  })
+
+  it('marks uploaded files as input artifacts', () => {
+    expect(buildFileArtifactItem({ name: 'source.csv', href: '/files/source.csv', source: 'upload' }, 0)).toMatchObject({
+      key: 'file:upload:/files/source.csv:0',
+      meta: 'CSV · 输入文件',
+      tag: '数据',
+      tone: 'data'
+    })
+  })
+
+  it('builds one artifact list from output files, display fields, and uploads', () => {
+    const items = buildMiniArtifactItems({
+      uploadedFiles: [{ name: 'input.pdf', href: '/files/input.pdf', source: 'upload' }],
+      outputFiles: [{ name: 'result.xlsx', href: '/files/result.xlsx', source: 'output' }],
+      displayFields: [{
+        fieldKey: 'summary',
+        label: '摘要',
+        value: '已完成',
+        type: 'text'
+      }]
+    })
+
+    expect(items.map(item => item.name)).toEqual(['result.xlsx', '摘要', 'input.pdf'])
+    expect(items.map(item => item.meta)).toEqual(['XLSX · 输出文件', '已完成', 'PDF · 输入文件'])
   })
 
   it('builds display field artifacts with compact metadata', () => {
