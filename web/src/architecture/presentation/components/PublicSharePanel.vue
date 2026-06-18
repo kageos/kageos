@@ -3,10 +3,10 @@
     <div class="history-card">
       <div class="section-header">
         <div class="section-heading">
-          <div class="section-title">公开链接</div>
-          <div class="section-subtitle">管理这个 Form 的外部提交入口。</div>
+          <div class="section-title">{{ t('publicSharePanel.title') }}</div>
+          <div class="section-subtitle">{{ t('publicSharePanel.subtitle') }}</div>
         </div>
-        <el-button type="primary" size="small" @click="openCreateDialog">创建公开链接</el-button>
+        <el-button type="primary" size="small" @click="openCreateDialog">{{ t('publicSharePanel.createShare') }}</el-button>
       </div>
 
       <div class="form-history-toolbar">
@@ -15,7 +15,7 @@
           class="history-search"
           clearable
           :prefix-icon="Search"
-          placeholder="搜索标题、描述、链接 ID"
+          :placeholder="t('publicSharePanel.searchPlaceholder')"
           @keyup.enter="load"
           @clear="load"
         />
@@ -23,7 +23,7 @@
           v-model="filters.createdBy"
           class="history-user-select"
           clearable
-          placeholder="创建人"
+          :placeholder="t('publicSharePanel.createdBy')"
           @keyup.enter="load"
           @clear="load"
         />
@@ -31,23 +31,23 @@
           v-model="filters.status"
           class="history-action-select"
           clearable
-          placeholder="状态"
+          :placeholder="t('publicSharePanel.status')"
           @change="load"
         >
-          <el-option label="启用中" value="enabled" />
-          <el-option label="已关闭" value="disabled" />
-          <el-option label="已过期" value="expired" />
+          <el-option :label="t('publicSharePanel.statusEnabled')" value="enabled" />
+          <el-option :label="t('publicSharePanel.statusDisabled')" value="disabled" />
+          <el-option :label="t('publicSharePanel.statusExpired')" value="expired" />
         </el-select>
-        <el-button type="primary" plain :icon="Search" @click="load">筛选</el-button>
-        <el-button plain :icon="Refresh" :loading="loading" @click="resetFilters">重置</el-button>
+        <el-button type="primary" plain :icon="Search" @click="load">{{ t('publicSharePanel.filter') }}</el-button>
+        <el-button plain :icon="Refresh" :loading="loading" @click="resetFilters">{{ t('common.reset') }}</el-button>
       </div>
 
       <div v-loading="loading" class="mobile-share-list">
-        <el-empty v-if="shares.length === 0" description="还没有公开链接" :image-size="80" />
+        <el-empty v-if="shares.length === 0" :description="t('publicSharePanel.empty')" :image-size="80" />
         <article v-for="row in shares" :key="row.share_id" class="mobile-share-card">
           <div class="mobile-share-head">
             <div class="mobile-share-title">
-              <div class="title-name">{{ row.title || '未命名公开链接' }}</div>
+              <div class="title-name">{{ shareDisplayTitle(row) }}</div>
               <div v-if="row.description" class="link-description">{{ row.description }}</div>
             </div>
             <el-tag size="small" :type="statusTagType(row)" effect="light" round>
@@ -61,22 +61,22 @@
 
           <div class="mobile-share-meta">
             <div>
-              <span>提交</span>
+              <span>{{ t('publicSharePanel.submissions') }}</span>
               <strong>{{ row.use_count }}</strong>
-              <em>{{ row.max_uses > 0 ? `最多 ${row.max_uses}` : '不限次数' }}</em>
+              <em>{{ usageLimitText(row.max_uses) }}</em>
             </div>
             <div>
-              <span>过期</span>
-              <strong>{{ row.expires_at ? expiryHint(row.expires_at) : '永久有效' }}</strong>
-              <em>{{ row.expires_at ? formatDate(row.expires_at) : '不过期' }}</em>
+              <span>{{ t('publicSharePanel.expiration') }}</span>
+              <strong>{{ row.expires_at ? expiryHint(row.expires_at) : t('publicSharePanel.permanent') }}</strong>
+              <em>{{ row.expires_at ? formatDate(row.expires_at) : t('publicSharePanel.neverExpires') }}</em>
             </div>
           </div>
 
           <div class="mobile-share-foot">
             <span>{{ row.created_by || '-' }} · {{ formatDate(row.created_at) }}</span>
             <div class="mobile-share-actions">
-              <el-button size="small" text @click="copyLink(publicLink(row))">复制</el-button>
-              <el-button size="small" text @click="openQrDialog(row)">二维码</el-button>
+              <el-button size="small" text @click="copyLink(publicLink(row))">{{ t('publicSharePanel.copy') }}</el-button>
+              <el-button size="small" text @click="openQrDialog(row)">{{ t('publicSharePanel.qrCode') }}</el-button>
               <el-button
                 v-if="row.enabled"
                 size="small"
@@ -85,7 +85,7 @@
                 :loading="disablingId === row.share_id"
                 @click="disableShare(row.share_id)"
               >
-                关闭
+                {{ t('publicSharePanel.close') }}
               </el-button>
             </div>
           </div>
@@ -97,18 +97,18 @@
         :data="shares"
         stripe
         class="history-table"
-        empty-text="还没有公开链接"
+        :empty-text="t('publicSharePanel.empty')"
       >
-        <el-table-column label="标题" min-width="220">
+        <el-table-column :label="t('publicSharePanel.shareTitle')" min-width="220">
           <template #default="{ row }">
             <div class="title-cell">
-              <div class="title-name">{{ row.title || '未命名公开链接' }}</div>
+              <div class="title-name">{{ shareDisplayTitle(row) }}</div>
               <div v-if="row.description" class="link-description">{{ row.description }}</div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="公开链接" min-width="260">
+        <el-table-column :label="t('publicSharePanel.publicLink')" min-width="260">
           <template #default="{ row }">
             <button class="url-cell" type="button" @click="copyLink(publicLink(row))">
               {{ publicLink(row) }}
@@ -116,7 +116,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column :label="t('publicSharePanel.status')" width="100" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="statusTagType(row)" effect="light" round>
               {{ statusLabel(row) }}
@@ -124,31 +124,31 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="创建人" width="150">
+        <el-table-column :label="t('publicSharePanel.createdBy')" width="150">
           <template #default="{ row }">
             <span class="muted-text">{{ row.created_by || '-' }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="提交次数" width="130" align="center">
+        <el-table-column :label="t('publicSharePanel.submissionCount')" width="130" align="center">
           <template #default="{ row }">
             <div class="count-cell">
               <div>{{ row.use_count }}</div>
-              <span>{{ row.max_uses > 0 ? `最多 ${row.max_uses}` : '不限次数' }}</span>
+              <span>{{ usageLimitText(row.max_uses) }}</span>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="过期时间" width="190">
+        <el-table-column :label="t('publicSharePanel.expirationTime')" width="190">
           <template #default="{ row }">
             <div class="time-cell">
-              <div>{{ row.expires_at ? formatDate(row.expires_at) : '永久有效' }}</div>
-              <span>{{ row.expires_at ? expiryHint(row.expires_at) : '不过期' }}</span>
+              <div>{{ row.expires_at ? formatDate(row.expires_at) : t('publicSharePanel.permanent') }}</div>
+              <span>{{ row.expires_at ? expiryHint(row.expires_at) : t('publicSharePanel.neverExpires') }}</span>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="创建时间" width="180">
+        <el-table-column :label="t('publicSharePanel.createdAt')" width="180">
           <template #default="{ row }">
             <div class="time-cell">
               <div>{{ formatDate(row.created_at) }}</div>
@@ -156,11 +156,11 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="190" align="right" fixed="right">
+        <el-table-column :label="t('common.operation')" width="190" align="right" fixed="right">
           <template #default="{ row }">
             <div class="action-cell">
-              <el-button text @click="copyLink(publicLink(row))">复制</el-button>
-              <el-button text @click="openQrDialog(row)">二维码</el-button>
+              <el-button text @click="copyLink(publicLink(row))">{{ t('publicSharePanel.copy') }}</el-button>
+              <el-button text @click="openQrDialog(row)">{{ t('publicSharePanel.qrCode') }}</el-button>
               <el-button
                 v-if="row.enabled"
                 text
@@ -168,7 +168,7 @@
                 :loading="disablingId === row.share_id"
                 @click="disableShare(row.share_id)"
               >
-                关闭
+                {{ t('publicSharePanel.close') }}
               </el-button>
             </div>
           </template>
@@ -178,44 +178,44 @@
 
     <el-dialog
       v-model="dialogVisible"
-      title="创建公开链接"
+      :title="t('publicSharePanel.createDialogTitle')"
       :width="createDialogWidth"
       :close-on-click-modal="false"
       class="public-share-dialog"
     >
       <el-form label-position="top">
-        <el-form-item label="标题">
-          <el-input v-model="createForm.title" maxlength="80" show-word-limit placeholder="可选，用于区分不同公开链接" />
+        <el-form-item :label="t('publicSharePanel.shareTitle')">
+          <el-input v-model="createForm.title" maxlength="80" show-word-limit :placeholder="t('publicSharePanel.titlePlaceholder')" />
         </el-form-item>
-        <el-form-item label="描述">
+        <el-form-item :label="t('publicSharePanel.description')">
           <el-input
             v-model="createForm.description"
             type="textarea"
             :rows="3"
             maxlength="300"
             show-word-limit
-            placeholder="可选，会展示在公开表单页面"
+            :placeholder="t('publicSharePanel.descriptionPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="过期时间">
+        <el-form-item :label="t('publicSharePanel.expirationTime')">
           <el-radio-group v-model="expireMode">
-            <el-radio-button label="never">不过期</el-radio-button>
-            <el-radio-button label="custom">自定义</el-radio-button>
+            <el-radio-button label="never">{{ t('publicSharePanel.neverExpires') }}</el-radio-button>
+            <el-radio-button label="custom">{{ t('publicSharePanel.custom') }}</el-radio-button>
           </el-radio-group>
           <el-date-picker
             v-if="expireMode === 'custom'"
             v-model="customExpiresAt"
             type="datetime"
-            placeholder="选择过期时间"
+            :placeholder="t('publicSharePanel.expirationPlaceholder')"
             class="custom-expire-picker"
             value-format="YYYY-MM-DDTHH:mm:ssZ"
           />
         </el-form-item>
 
-        <el-form-item label="提交次数">
+        <el-form-item :label="t('publicSharePanel.submissionCount')">
           <el-radio-group v-model="limitMode">
-            <el-radio-button label="unlimited">不限次数</el-radio-button>
-            <el-radio-button label="limited">限制次数</el-radio-button>
+            <el-radio-button label="unlimited">{{ t('publicSharePanel.unlimited') }}</el-radio-button>
+            <el-radio-button label="limited">{{ t('publicSharePanel.limited') }}</el-radio-button>
           </el-radio-group>
           <el-input-number
             v-if="limitMode === 'limited'"
@@ -229,43 +229,43 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="creating" @click="createShare">创建并生成二维码</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="creating" @click="createShare">{{ t('publicSharePanel.createAndGenerateQr') }}</el-button>
       </template>
     </el-dialog>
 
     <el-dialog
       v-model="qrDialogVisible"
-      title="公开链接二维码"
+      :title="t('publicSharePanel.qrDialogTitle')"
       :width="qrDialogWidth"
       class="public-share-qr-dialog"
     >
       <div class="qr-dialog-body">
-        <div class="qr-title">{{ qrShare?.title || '未命名公开链接' }}</div>
+        <div class="qr-title">{{ qrShare ? shareDisplayTitle(qrShare) : t('publicSharePanel.untitled') }}</div>
         <div class="qr-box">
           <el-skeleton v-if="qrGenerating" :rows="5" animated />
-          <img v-else-if="qrDataUrl" class="qr-image" :src="qrDataUrl" alt="公开链接二维码" />
-          <el-empty v-else description="二维码生成失败" :image-size="80" />
+          <img v-else-if="qrDataUrl" class="qr-image" :src="qrDataUrl" :alt="t('publicSharePanel.qrAlt')" />
+          <el-empty v-else :description="t('publicSharePanel.qrGenerateFailed')" :image-size="80" />
         </div>
         <div class="qr-storage">
           <el-tag v-if="qrUploading" size="small" type="info" effect="light">
-            正在上传二维码 {{ qrUploadPercent }}%
+            {{ t('publicSharePanel.qrUploading', { percent: qrUploadPercent }) }}
           </el-tag>
           <el-tag v-else-if="qrStorageUrl" size="small" type="success" effect="light">
-            已上传到存储
+            {{ t('publicSharePanel.qrUploaded') }}
           </el-tag>
           <el-tag v-else-if="qrUploadError" size="small" type="warning" effect="light">
             {{ qrUploadError }}
           </el-tag>
         </div>
         <div class="qr-link-group">
-          <div class="qr-link-label">扫码链接</div>
+          <div class="qr-link-label">{{ t('publicSharePanel.scanLink') }}</div>
           <button class="qr-link" type="button" @click="copyLink(currentQrLink)">
             {{ currentQrLink }}
           </button>
         </div>
         <div v-if="backendQrLink && backendQrLink !== currentQrLink" class="qr-link-group">
-          <div class="qr-link-label">后端链接</div>
+          <div class="qr-link-label">{{ t('publicSharePanel.backendLink') }}</div>
           <button class="qr-link" type="button" @click="copyLink(backendQrLink)">
             {{ backendQrLink }}
           </button>
@@ -273,14 +273,14 @@
         <button v-if="qrStorageUrl" class="qr-link" type="button" @click="copyLink(qrStorageUrl)">
           {{ qrStorageUrl }}
         </button>
-        <div v-if="qrStorageRef" class="qr-ref">文件引用：{{ qrStorageRef }}</div>
+        <div v-if="qrStorageRef" class="qr-ref">{{ t('publicSharePanel.fileRef', { ref: qrStorageRef }) }}</div>
       </div>
 
       <template #footer>
         <div class="qr-footer-actions">
-          <el-button @click="copyLink(currentQrLink)">复制链接</el-button>
-          <el-button :disabled="!qrStorageUrl" @click="copyLink(qrStorageUrl)">复制图片地址</el-button>
-          <el-button :disabled="!qrDataUrl" @click="downloadQrCode">下载二维码</el-button>
+          <el-button @click="copyLink(currentQrLink)">{{ t('publicSharePanel.copyLink') }}</el-button>
+          <el-button :disabled="!qrStorageUrl" @click="copyLink(qrStorageUrl)">{{ t('publicSharePanel.copyImageUrl') }}</el-button>
+          <el-button :disabled="!qrDataUrl" @click="downloadQrCode">{{ t('publicSharePanel.downloadQr') }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -289,6 +289,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import QRCode from 'qrcode'
 import { Refresh, Search } from '@element-plus/icons-vue'
@@ -305,6 +306,8 @@ const props = defineProps<{
   functionDetail: FunctionDetail | null
   functionNode: ServiceTree | null
 }>()
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const creating = ref(false)
@@ -360,6 +363,16 @@ function publicLink(row: PublicShareItem) {
   return officialPublicLink(row) || pageURL(row.share_id)
 }
 
+function shareDisplayTitle(row: Pick<PublicShareItem, 'title' | 'share_id'>) {
+  return row.title || t('publicSharePanel.untitled')
+}
+
+function usageLimitText(maxUses: number) {
+  return maxUses > 0
+    ? t('publicSharePanel.maxUses', { count: maxUses })
+    : t('publicSharePanel.unlimited')
+}
+
 function officialPublicLink(row: PublicShareItem) {
   return normalizePublicURL(row.public_url || '')
 }
@@ -401,11 +414,11 @@ function openCreateDialog() {
 
 async function createShare() {
   if (!fullCodePath.value) {
-    ElMessage.warning('当前表单路径未加载完成')
+    ElMessage.warning(t('publicSharePanel.pathNotReady'))
     return
   }
   if (expireMode.value === 'custom' && !customExpiresAt.value) {
-    ElMessage.warning('请选择过期时间')
+    ElMessage.warning(t('publicSharePanel.expirationRequired'))
     return
   }
   creating.value = true
@@ -421,7 +434,7 @@ async function createShare() {
     dialogVisible.value = false
     await copyLink(publicLink(share))
     await openQrDialog(share)
-    ElMessage.success('公开链接已创建，可扫码提交表单')
+    ElMessage.success(t('publicSharePanel.createSuccess'))
   } finally {
     creating.value = false
   }
@@ -432,7 +445,7 @@ async function disableShare(shareId: string) {
   try {
     await disablePublicShare(shareId)
     await load()
-    ElMessage.success('公开链接已关闭')
+    ElMessage.success(t('publicSharePanel.closeSuccess'))
   } finally {
     disablingId.value = ''
   }
@@ -443,7 +456,7 @@ async function copyLink(link: string) {
     return
   }
   await navigator.clipboard.writeText(link)
-  ElMessage.success('链接已复制')
+  ElMessage.success(t('publicSharePanel.linkCopied'))
 }
 
 const currentQrLink = computed(() => {
@@ -478,7 +491,7 @@ async function openQrDialog(share: PublicShareItem) {
       await uploadQrCode(share, qrDataUrl.value)
     }
   } catch (error) {
-    ElMessage.error('二维码生成失败')
+    ElMessage.error(t('publicSharePanel.qrGenerateFailed'))
   } finally {
     qrGenerating.value = false
   }
@@ -509,7 +522,7 @@ async function uploadQrCode(share: PublicShareItem, dataUrl: string) {
     })
     const fileInfo = uploadResult.fileInfo
     if (!fileInfo) {
-      throw new Error('二维码上传结果缺少文件信息')
+      throw new Error(t('publicSharePanel.qrUploadMissingFile'))
     }
     const complete = await notifyUploadComplete({
       key: fileInfo.key,
@@ -517,7 +530,7 @@ async function uploadQrCode(share: PublicShareItem, dataUrl: string) {
       success: true,
       router: fileInfo.router,
       file_name: fileInfo.file_name,
-      description: `公开链接二维码：${share.title || share.share_id}`,
+      description: t('publicSharePanel.qrFileDescription', { title: shareDisplayTitle(share) }),
       file_size: fileInfo.file_size,
       content_type: fileInfo.content_type,
       hash: fileInfo.hash,
@@ -525,7 +538,7 @@ async function uploadQrCode(share: PublicShareItem, dataUrl: string) {
     })
 
     if (!complete?.download_url) {
-      throw new Error('二维码上传完成但未返回图片地址')
+      throw new Error(t('publicSharePanel.qrUploadMissingUrl'))
     }
 
     qrStorageUrl.value = complete.download_url
@@ -535,7 +548,7 @@ async function uploadQrCode(share: PublicShareItem, dataUrl: string) {
       ref: qrStorageRef.value,
     })
   } catch (error) {
-    qrUploadError.value = '上传存储失败，可先下载二维码'
+    qrUploadError.value = t('publicSharePanel.qrUploadFailed')
   } finally {
     qrUploading.value = false
   }
@@ -544,7 +557,7 @@ async function uploadQrCode(share: PublicShareItem, dataUrl: string) {
 function dataUrlToBlob(dataUrl: string) {
   const [header, base64Data] = dataUrl.split(',')
   if (!header || !base64Data) {
-    throw new Error('无效的二维码图片数据')
+    throw new Error(t('publicSharePanel.invalidQrData'))
   }
   const mimeMatch = header.match(/^data:(.*?);base64$/)
   const mime = mimeMatch?.[1] || 'image/png'
@@ -582,9 +595,9 @@ function isExpired(value?: string) {
 }
 
 function statusLabel(row: PublicShareItem) {
-  if (!row.enabled) return '已关闭'
-  if (isExpired(row.expires_at)) return '已过期'
-  return '启用中'
+  if (!row.enabled) return t('publicSharePanel.statusDisabled')
+  if (isExpired(row.expires_at)) return t('publicSharePanel.statusExpired')
+  return t('publicSharePanel.statusEnabled')
 }
 
 function statusTagType(row: PublicShareItem) {
@@ -596,10 +609,10 @@ function statusTagType(row: PublicShareItem) {
 function expiryHint(value: string) {
   const diff = new Date(value).getTime() - Date.now()
   if (diff <= 0) {
-    return '已过期'
+    return t('publicSharePanel.statusExpired')
   }
   const days = Math.ceil(diff / (24 * 60 * 60 * 1000))
-  return `${days} 天后过期`
+  return t('publicSharePanel.expiresInDays', { count: days })
 }
 
 function formatDate(value: string) {

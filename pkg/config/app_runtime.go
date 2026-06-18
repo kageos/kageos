@@ -76,6 +76,7 @@ const (
 	defaultRuntimeBinaryNameFormat = "{user}_{app}_{version}"
 	defaultRuntimeGitEmailSuffix   = "kageos.com"
 	defaultContainerRuntime        = "podman"
+	defaultContainerNetworkMode    = ""
 	defaultContainerLSMMode        = "auto"
 	defaultAppArmorProfile         = "kageos-app"
 	defaultContainerBaseImage      = "kagebase:latest"
@@ -220,9 +221,10 @@ func (c *AppManageServiceConfig) GetGitEmailSuffix() string {
 
 // ContainerServiceConfig 容器服务配置
 type ContainerServiceConfig struct {
-	Runtime string `mapstructure:"runtime"` // 当前仅支持 podman
-	Socket  string `mapstructure:"socket"`  // 容器运行时 socket 路径
-	Timeout int    `mapstructure:"timeout"` // 连接超时时间（秒）
+	Runtime     string `mapstructure:"runtime"`      // 当前仅支持 podman
+	Socket      string `mapstructure:"socket"`       // 容器运行时 socket 路径
+	Timeout     int    `mapstructure:"timeout"`      // 连接超时时间（秒）
+	NetworkMode string `mapstructure:"network_mode"` // 用户 App 容器网络模式；生产单机默认显式 host
 	// LSM 模式：为后续内核级安全（如防删 code/workplace）做准备。
 	// - auto: 启动时检测宿主机 LSM（同机读 /sys，Mac/Win 起临时容器探测），结果缓存，后续只启用匹配的一种。
 	// - apparmor / selinux: 强制使用该 LSM（不检测）。
@@ -258,6 +260,7 @@ func (c *AppRuntimeConfig) Validate() error {
 	}
 	c.Container.Runtime = runtimeName
 	c.Container.Socket = c.Container.GetSocket()
+	c.Container.NetworkMode = c.Container.GetNetworkMode()
 	c.Container.LSMMode = c.Container.GetLSMMode()
 	c.Container.AppArmorProfile = c.Container.GetAppArmorProfile()
 	c.Container.Image.BaseImage = c.Container.GetBaseImage()
@@ -354,6 +357,13 @@ func (c *AppRuntimeConfig) GetContainerSocket() string {
 		return (&ContainerServiceConfig{}).GetSocket()
 	}
 	return c.Container.GetSocket()
+}
+
+func (c *AppRuntimeConfig) GetContainerNetworkMode() string {
+	if c == nil {
+		return (&ContainerServiceConfig{}).GetNetworkMode()
+	}
+	return c.Container.GetNetworkMode()
 }
 
 func (c *AppRuntimeConfig) GetContainerPath() string {
@@ -481,6 +491,13 @@ func (c *ContainerServiceConfig) GetSocket() string {
 		return ""
 	}
 	return strings.TrimSpace(c.Socket)
+}
+
+func (c *ContainerServiceConfig) GetNetworkMode() string {
+	if c == nil {
+		return defaultContainerNetworkMode
+	}
+	return strings.TrimSpace(c.NetworkMode)
 }
 
 func (c *ContainerServiceConfig) GetLSMMode() string {

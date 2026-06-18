@@ -377,17 +377,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 .logo {
   width: 80px;
   height: 80px;
-  filter: brightness(0) invert(1);
-  animation: rotate 20s linear infinite;
-}
-
-@keyframes rotate {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  filter: drop-shadow(0 16px 32px rgba(103, 232, 249, 0.22));
 }
 
 .brand-title {

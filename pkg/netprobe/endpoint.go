@@ -80,6 +80,26 @@ func ResolveTCPEndpointCached(ctx context.Context, label, endpoint string, timeo
 	return entry.value, entry.err
 }
 
+// ResolveHTTPURLHostCached resolves only the host:port part of a local URL and
+// preserves the original scheme, path, query, auth, and fragment. It is useful
+// for presigned object URLs where probing the full URL would download content.
+func ResolveHTTPURLHostCached(ctx context.Context, label, rawURL string, timeout time.Duration) (string, error) {
+	parsed, endpoint, err := localURLTCPEndpoint(rawURL)
+	if err != nil {
+		return strings.TrimSpace(rawURL), err
+	}
+	if endpoint == "" {
+		return strings.TrimSpace(rawURL), nil
+	}
+	resolvedEndpoint, err := ResolveTCPEndpointCached(ctx, label, endpoint, timeout)
+	if err != nil {
+		return strings.TrimSpace(rawURL), err
+	}
+	next := *parsed
+	next.Host = resolvedEndpoint
+	return next.String(), nil
+}
+
 func ResolveTCPEndpoint(ctx context.Context, endpoint string, timeout time.Duration) (string, error) {
 	candidates := EndpointCandidates(endpoint)
 	if len(candidates) == 0 {
@@ -94,6 +114,28 @@ func ResolveTCPEndpoint(ctx context.Context, endpoint string, timeout time.Durat
 		}
 	}
 	return candidates[0], fmt.Errorf("all endpoint candidates failed: %s", strings.Join(failures, "; "))
+}
+
+func localURLTCPEndpoint(rawURL string) (*url.URL, string, error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return nil, "", fmt.Errorf("empty URL")
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, "", err
+	}
+	if parsed.Host == "" || !isLocalRuntimeHost(parsed.Hostname()) {
+		return parsed, "", nil
+	}
+	port := parsed.Port()
+	if port == "" {
+		port = defaultPortForScheme(parsed.Scheme)
+	}
+	if port == "" {
+		return parsed, "", nil
+	}
+	return parsed, net.JoinHostPort(parsed.Hostname(), port), nil
 }
 
 func ResolveHTTPBaseURLCached(ctx context.Context, label, rawURL, healthPath string, timeout time.Duration) (string, error) {

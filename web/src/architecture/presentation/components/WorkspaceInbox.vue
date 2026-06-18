@@ -1329,14 +1329,19 @@ async function openWorkspaceSession(item: MessageInboxItem) {
   const sessionId = (item.workspace_session_id || '').trim()
   const fullCodePath = workspacePathForMessage(item)
   if (!sessionId || !workspaceRoutePath(fullCodePath)) return
-  drawerVisible.value = false
-  await router.push(buildWorkspaceSessionRoute({
+  const target = buildWorkspaceSessionRoute({
     fullCodePath,
     sessionId,
     sourceName: sourcePrimaryText(item),
     sourcePath: sourcePathForMessage(item),
     traceId: item.trace_id,
-  }))
+  })
+  const opened = window.open(router.resolve(target).href, '_blank')
+  if (opened) {
+    opened.opener = null
+    return
+  }
+  await router.push(target)
 }
 
 async function openScheduledExecution(item: MessageInboxItem) {

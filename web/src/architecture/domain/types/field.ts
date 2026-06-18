@@ -156,12 +156,20 @@ export interface FunctionConnectorStatus {
   provider_logo_url?: string
   provider_brand_color?: string
   provider_account_url?: string
+  capabilities?: ConnectorProviderCapabilities
   profile?: ConnectorConnectionProfile
   resolved_from?: string
   required_scopes?: string[]
   granted_scopes?: string[]
   missing_scopes?: string[]
   message?: string
+}
+
+export interface ConnectorProviderCapabilities {
+  oauth_supported?: boolean
+  proxy_supported?: boolean
+  profile_supported?: boolean
+  resource_summary_supported?: boolean
 }
 
 export interface ConnectorResourceSummary {

@@ -722,7 +722,7 @@ func (s *PodmanService) RunContainerWithMount(ctx context.Context, image, name, 
 
 	// 使用 podman 命令行工具运行容器并挂载目录
 	logger.Infof(ctx, "Creating container with mount: %s", name)
-	args := podmanRunBaseArgs(name, hostPath, containerPath)
+	args := podmanRunBaseArgs(name, hostPath, containerPath, s.config.GetNetworkMode())
 	args = append(args,
 		image,
 		"tail", "-f", "/dev/null", // 保持容器运行
@@ -749,7 +749,7 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 	logger.Infof(ctx, "Creating container with mount and command: %s", name)
 
 	// 构建命令参数
-	args := podmanRunBaseArgs(name, hostPath, containerPath)
+	args := podmanRunBaseArgs(name, hostPath, containerPath, s.config.GetNetworkMode())
 
 	// 按 LSM 检测结果施加内核级安全策略（禁止容器内删除 code/workplace）
 	switch s.GetDetectedLSM() {
@@ -792,13 +792,17 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 	return nil
 }
 
-func podmanRunBaseArgs(name, hostPath, containerPath string) []string {
-	return []string{
+func podmanRunBaseArgs(name, hostPath, containerPath string, networkMode string) []string {
+	args := []string{
 		"run", "-d",
 		"--name", name,
 		"-v", fmt.Sprintf("%s:%s", hostPath, containerPath),
 		"-e", "TZ=" + runtimeTimezone(),
 	}
+	if networkMode = strings.TrimSpace(networkMode); networkMode != "" {
+		args = append(args, "--network", networkMode)
+	}
+	return args
 }
 
 func runtimeTimezone() string {

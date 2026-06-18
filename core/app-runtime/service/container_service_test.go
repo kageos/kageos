@@ -8,10 +8,10 @@ import (
 func TestPodmanRunBaseArgsDoNotInjectDockerHostGateway(t *testing.T) {
 	t.Setenv("TZ", "Asia/Tokyo")
 
-	args := podmanRunBaseArgs("runtime-1", "/host/work", "/app/work")
+	args := podmanRunBaseArgs("runtime-1", "/host/work", "/app/work", "")
 	joined := strings.Join(args, " ")
 
-	for _, forbidden := range []string{"--add-host", "host-gateway"} {
+	for _, forbidden := range []string{"--add-host", "host-gateway", "--network"} {
 		if strings.Contains(joined, forbidden) {
 			t.Fatalf("podman run args must not contain %q: %#v", forbidden, args)
 		}
@@ -21,6 +21,13 @@ func TestPodmanRunBaseArgsDoNotInjectDockerHostGateway(t *testing.T) {
 	}
 	if !containsArg(args, "-e") || !containsArg(args, "TZ=Asia/Tokyo") {
 		t.Fatalf("podman run args missing timezone env: %#v", args)
+	}
+}
+
+func TestPodmanRunBaseArgsHonorsNetworkMode(t *testing.T) {
+	args := podmanRunBaseArgs("runtime-1", "/host/work", "/app/work", "host")
+	if !containsArg(args, "--network") || !containsArg(args, "host") {
+		t.Fatalf("podman run args missing host network mode: %#v", args)
 	}
 }
 

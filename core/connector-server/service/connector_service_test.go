@@ -511,6 +511,9 @@ func TestOAuthProviderManagementEncryptsSecretAndOverridesRuntimeConfig(t *testi
 	if info.Code != "custom" || info.ClientID != "custom-client" {
 		t.Fatalf("unexpected provider info: %#v", info)
 	}
+	if !info.Capabilities.OAuthSupported || info.Capabilities.ProxySupported {
+		t.Fatalf("custom provider should support oauth only by default: %#v", info.Capabilities)
+	}
 	if info.AuthType != model.ConnectorAuthTypeOAuth2User {
 		t.Fatalf("auth_type = %s, want %s", info.AuthType, model.ConnectorAuthTypeOAuth2User)
 	}
@@ -624,6 +627,17 @@ func TestSeedOAuthProviderSettingsInitializesBuiltInProviders(t *testing.T) {
 	}
 
 	github := byCode["github"]
+	if !github.Capabilities.OAuthSupported || !github.Capabilities.ProxySupported || !github.Capabilities.ProfileSupported {
+		t.Fatalf("github should expose implemented API capabilities: %#v", github.Capabilities)
+	}
+	notion := byCode["notion"]
+	if !notion.Capabilities.OAuthSupported || !notion.Capabilities.ProxySupported || !notion.Capabilities.ResourceSummarySupported {
+		t.Fatalf("notion should expose implemented API capabilities: %#v", notion.Capabilities)
+	}
+	google := byCode["google"]
+	if !google.Capabilities.OAuthSupported || google.Capabilities.ProxySupported {
+		t.Fatalf("google should be seeded as oauth-only until an adapter is implemented: %#v", google.Capabilities)
+	}
 	if len(github.Scopes) != 0 {
 		t.Fatalf("github built-in provider should not request broad scopes by default: %#v", github.Scopes)
 	}
@@ -640,6 +654,41 @@ func TestSeedOAuthProviderSettingsInitializesBuiltInProviders(t *testing.T) {
 	}
 	if updated.AuthURL != github.AuthURL || updated.TokenURL != github.TokenURL {
 		t.Fatalf("configured github should preserve initialized endpoints: %#v", updated)
+	}
+}
+
+func TestOAuthProviderRegistryBuildsConnectorDefinitions(t *testing.T) {
+	registry := NewOAuthProviderRegistry(config.ConnectorOAuthConfig{
+		Providers: []config.ConnectorOAuthProviderConfig{{
+			Code:        "custom",
+			Name:        "Custom",
+			AuthURL:     "https://custom.test/oauth/authorize",
+			TokenURL:    "https://custom.test/oauth/token",
+			UserInfoURL: "https://custom.test/userinfo",
+		}},
+	})
+
+	definitions := registry.Definitions()
+	github, ok := definitions["github"]
+	if !ok {
+		t.Fatalf("github definition missing: %#v", definitions)
+	}
+	if github.Provider.Name != "GitHub" || !github.Capabilities.ProxySupported {
+		t.Fatalf("github definition should include provider metadata and proxy capability: %#v", github)
+	}
+	google, ok := definitions["google"]
+	if !ok {
+		t.Fatalf("google definition missing: %#v", definitions)
+	}
+	if !google.Capabilities.OAuthSupported || google.Capabilities.ProxySupported {
+		t.Fatalf("google should stay oauth-only until an adapter is implemented: %#v", google.Capabilities)
+	}
+	custom, ok := definitions["custom"]
+	if !ok {
+		t.Fatalf("custom definition missing: %#v", definitions)
+	}
+	if custom.Provider.Name != "Custom" || !custom.Capabilities.OAuthSupported || custom.Capabilities.ProxySupported {
+		t.Fatalf("custom provider should be represented as oauth-only definition: %#v", custom)
 	}
 }
 

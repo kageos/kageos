@@ -235,31 +235,32 @@ type Paths struct {
 
 type RuntimeConfig struct {
 	Config
-	Paths               Paths
-	MySQLHostForMain    string
-	MySQLPortForMain    int
-	NATSHostForMain     string
-	NATSPortForMain     int
-	MinIOHostForMain    string
-	MinIOPortForMain    int
-	MySQLAddress        string
-	AppDBClusterKey     string
-	NATSURL             string
-	SDKNATSURL          string
-	SDKGatewayURL       string
-	MinIOEndpoint       string
-	SDKMinIOEndpoint    string
-	TLSCertsHostDir     string
-	IncludeMySQL        bool
-	IncludeNATS         bool
-	IncludeMinIO        bool
-	NATSAuthUser        string
-	NATSAuthPassword    string
-	ComposeConfigPath   string
-	AppBaseBuilderImage string
-	LLMSeedEnvVars      []string
-	EnvFilePath         string
-	SummaryPath         string
+	Paths                   Paths
+	MySQLHostForMain        string
+	MySQLPortForMain        int
+	NATSHostForMain         string
+	NATSPortForMain         int
+	MinIOHostForMain        string
+	MinIOPortForMain        int
+	MySQLAddress            string
+	AppDBClusterKey         string
+	NATSURL                 string
+	SDKNATSURL              string
+	SDKGatewayURL           string
+	MinIOEndpoint           string
+	SDKMinIOEndpoint        string
+	TLSCertsHostDir         string
+	IncludeMySQL            bool
+	IncludeNATS             bool
+	IncludeMinIO            bool
+	NATSAuthUser            string
+	NATSAuthPassword        string
+	ComposeConfigPath       string
+	AppBaseBuilderImage     string
+	AppContainerNetworkMode string
+	LLMSeedEnvVars          []string
+	EnvFilePath             string
+	SummaryPath             string
 }
 
 type devSecrets struct {

@@ -23,6 +23,15 @@ func (notionProviderAdapter) Code() string {
 	return "notion"
 }
 
+func (notionProviderAdapter) Capabilities() dto.ConnectorProviderCapabilities {
+	return dto.ConnectorProviderCapabilities{
+		OAuthSupported:           true,
+		ProxySupported:           true,
+		ProfileSupported:         true,
+		ResourceSummarySupported: true,
+	}
+}
+
 func (notionProviderAdapter) ProxyBaseURL() string {
 	return "https://api.notion.com"
 }

@@ -158,7 +158,7 @@ func (u *MinIOUploader) uploadWithHTTP(ctx context.Context, creds *dto.GetUpload
 	}
 
 	// ✨ 服务端上传使用 ServerURL（内部访问URL）
-	uploadURL := resolveUploadURL(creds)
+	uploadURL := resolveUploadURL(ctx, creds)
 
 	// 验证必要的字段
 	if uploadURL == "" {
@@ -234,11 +234,23 @@ func (u *MinIOUploader) uploadWithHTTP(ctx context.Context, creds *dto.GetUpload
 	return result, nil
 }
 
-func resolveUploadURL(creds *dto.GetUploadTokenResp) string {
-	if creds.ServerUploadURL != "" {
-		return creds.ServerUploadURL
+func resolveUploadURL(ctx context.Context, creds *dto.GetUploadTokenResp) string {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	return creds.UploadURL
+	if creds == nil {
+		return ""
+	}
+	var uploadURL string
+	if creds.ServerUploadURL != "" {
+		uploadURL = creds.ServerUploadURL
+	} else {
+		uploadURL = creds.UploadURL
+	}
+	if resolvedURL, err := netprobe.ResolveHTTPURLHostCached(ctx, "minio-http-upload", uploadURL, time.Second); err == nil && resolvedURL != "" {
+		return resolvedURL
+	}
+	return uploadURL
 }
 
 func getUploadContentType(creds *dto.GetUploadTokenResp) string {

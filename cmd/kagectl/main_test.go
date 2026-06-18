@@ -100,6 +100,9 @@ func TestRenderBundledConfig(t *testing.T) {
 	if !strings.Contains(appRuntimeConfig, `app_startup_notification: 300`) {
 		t.Fatalf("generated app-runtime config should include startup notification timeout, got:\n%s", appRuntimeConfig)
 	}
+	if !strings.Contains(appRuntimeConfig, `network_mode: "host"`) {
+		t.Fatalf("generated app-runtime config should run prod app containers with host network, got:\n%s", appRuntimeConfig)
+	}
 
 	globalConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "global.yaml"))
 	if strings.Contains(globalConfig, `timer_scheduler`) {
@@ -531,6 +534,19 @@ func TestSDKMinIOEndpointUsesLoopbackForProdHostNetworkContainers(t *testing.T) 
 	}
 }
 
+func TestDevSDKMinIOEndpointUsesContainerHost(t *testing.T) {
+	t.Parallel()
+
+	for _, endpoint := range []string{"127.0.0.1:9000", "localhost:9000", "host.containers.internal:9000"} {
+		if got := devSDKMinIOEndpoint(endpoint); got != "host.containers.internal:9000" {
+			t.Fatalf("devSDKMinIOEndpoint(%q) = %q", endpoint, got)
+		}
+	}
+	if got := devSDKMinIOEndpoint("minio.example.com:9000"); got != "minio.example.com:9000" {
+		t.Fatalf("devSDKMinIOEndpoint(remote) = %q", got)
+	}
+}
+
 func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 	repoRoot := t.TempDir()
 	paths := Paths{
@@ -582,6 +598,9 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 		}
 	}
 	appRuntimeConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "app-runtime.yaml"))
+	if strings.Contains(appRuntimeConfig, `network_mode: "host"`) {
+		t.Fatalf("dev app-runtime config should not force host network, got:\n%s", appRuntimeConfig)
+	}
 	for _, want := range []string{
 		`base_image: "kagebase:latest"`,
 		`app_database:`,
@@ -593,6 +612,15 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 	} {
 		if !strings.Contains(appRuntimeConfig, want) {
 			t.Fatalf("dev app-runtime config missing %q, got:\n%s", want, appRuntimeConfig)
+		}
+	}
+	appStorageConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "app-storage.yaml"))
+	for _, want := range []string{
+		`endpoint: "127.0.0.1:9000"`,
+		`server_endpoint: "host.containers.internal:9000"`,
+	} {
+		if !strings.Contains(appStorageConfig, want) {
+			t.Fatalf("dev app-storage config missing %q, got:\n%s", want, appStorageConfig)
 		}
 	}
 	timerSchedulerConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "timer-scheduler.yaml"))
@@ -1202,6 +1230,34 @@ func TestRunLayerChecksReport(t *testing.T) {
 	}
 	if len(report.Checks) != 2 || report.Checks[1].Error != "boom" {
 		t.Fatalf("unexpected checks: %#v", report.Checks)
+	}
+}
+
+func TestCheckStorageRootCreatesMissingDirectory(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join(t.TempDir(), "missing", "storage", "prod")
+	if err := checkStorageRoot(root); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.IsDir() {
+		t.Fatalf("expected %s to be a directory", root)
+	}
+}
+
+func TestCheckStorageRootRejectsFile(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join(t.TempDir(), "storage-file")
+	if err := os.WriteFile(root, []byte("not a directory"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkStorageRoot(root); err == nil {
+		t.Fatal("expected file-backed storage root to fail")
 	}
 }
 

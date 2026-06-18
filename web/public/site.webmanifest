@@ -1,11 +1,11 @@
 {
   "name": "Kageos",
-  "short_name": "AI Agent",
+  "short_name": "Kageos",
   "description": "下一代软件开发与运行平台",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#6366f1",
+  "background_color": "#020617",
+  "theme_color": "#020617",
   "icons": [
     {
       "src": "/favicon.svg",
@@ -25,4 +25,3 @@
     }
   ]
 }
-

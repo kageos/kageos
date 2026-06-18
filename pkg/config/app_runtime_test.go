@@ -15,7 +15,8 @@ func TestAppRuntimeValidateAppliesContainerDefaults(t *testing.T) {
 			ContainerCleanup: 10,
 		},
 		Container: ContainerServiceConfig{
-			Timeout: 30,
+			Timeout:     30,
+			NetworkMode: "host",
 			Image: ImageConfig{
 				BaseImage: "custom-runtime:latest",
 			},
@@ -40,6 +41,9 @@ func TestAppRuntimeValidateAppliesContainerDefaults(t *testing.T) {
 	}
 	if got := cfg.Container.Image.BaseImage; got != "custom-runtime:latest" {
 		t.Fatalf("Container.Image.BaseImage = %q, want custom-runtime:latest", got)
+	}
+	if got := cfg.Container.NetworkMode; got != "host" {
+		t.Fatalf("Container.NetworkMode = %q, want host", got)
 	}
 }
 

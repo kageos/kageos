@@ -132,23 +132,31 @@ type RefreshConnectorOAuthTokenResp struct {
 }
 
 type ConnectorOAuthProviderInfo struct {
-	ID                 int64    `json:"id,omitempty"`
-	Code               string   `json:"code"`
-	Name               string   `json:"name"`
-	AuthType           string   `json:"auth_type"`
-	ClientID           string   `json:"client_id,omitempty"`
-	HasClientSecret    bool     `json:"has_client_secret"`
-	AuthURL            string   `json:"auth_url,omitempty"`
-	TokenURL           string   `json:"token_url,omitempty"`
-	Scopes             []string `json:"scopes,omitempty"`
-	ProviderAccountURL string   `json:"provider_account_url,omitempty"`
-	LogoURL            string   `json:"logo_url,omitempty"`
-	BrandColor         string   `json:"brand_color,omitempty"`
-	Enabled            bool     `json:"enabled"`
-	Active             bool     `json:"active"`
-	Managed            bool     `json:"managed"`
-	CreatedAt          string   `json:"created_at,omitempty"`
-	UpdatedAt          string   `json:"updated_at,omitempty"`
+	ID                 int64                         `json:"id,omitempty"`
+	Code               string                        `json:"code"`
+	Name               string                        `json:"name"`
+	AuthType           string                        `json:"auth_type"`
+	ClientID           string                        `json:"client_id,omitempty"`
+	HasClientSecret    bool                          `json:"has_client_secret"`
+	AuthURL            string                        `json:"auth_url,omitempty"`
+	TokenURL           string                        `json:"token_url,omitempty"`
+	Scopes             []string                      `json:"scopes,omitempty"`
+	ProviderAccountURL string                        `json:"provider_account_url,omitempty"`
+	LogoURL            string                        `json:"logo_url,omitempty"`
+	BrandColor         string                        `json:"brand_color,omitempty"`
+	Enabled            bool                          `json:"enabled"`
+	Active             bool                          `json:"active"`
+	Managed            bool                          `json:"managed"`
+	Capabilities       ConnectorProviderCapabilities `json:"capabilities"`
+	CreatedAt          string                        `json:"created_at,omitempty"`
+	UpdatedAt          string                        `json:"updated_at,omitempty"`
+}
+
+type ConnectorProviderCapabilities struct {
+	OAuthSupported           bool `json:"oauth_supported"`
+	ProxySupported           bool `json:"proxy_supported"`
+	ProfileSupported         bool `json:"profile_supported"`
+	ResourceSummarySupported bool `json:"resource_summary_supported"`
 }
 
 type UpsertConnectorOAuthProviderReq struct {

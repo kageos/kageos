@@ -182,6 +182,7 @@ func applyConnectorProviderDisplay(status *dto.FunctionConnectorStatus, provider
 	status.ProviderLogoURL = strings.TrimSpace(provider.LogoURL)
 	status.ProviderBrandColor = strings.TrimSpace(provider.BrandColor)
 	status.ProviderAccountURL = strings.TrimSpace(provider.ProviderAccountURL)
+	status.Capabilities = provider.Capabilities
 }
 
 func missingConnectorProviders(statuses []dto.FunctionConnectorStatus) []string {

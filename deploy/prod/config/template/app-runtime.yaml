@@ -12,6 +12,7 @@ timeouts:
 
 container:
   timeout: 30
+  network_mode: "host"
   image:
     base_image: "${KAGEOS_APP_BASE_IMAGE}"
 

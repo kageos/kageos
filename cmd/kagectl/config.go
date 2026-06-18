@@ -424,12 +424,13 @@ func parsePortEnv(name string) (int, bool, error) {
 func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 	applyDefaults(&cfg)
 	rt := RuntimeConfig{
-		Config:              cfg,
-		Paths:               paths,
-		IncludeMySQL:        cfg.MySQL.Mode == "bundled",
-		IncludeNATS:         cfg.NATS.Mode == "bundled",
-		IncludeMinIO:        cfg.MinIO.Mode == "bundled",
-		AppBaseBuilderImage: defaultAppBaseBuilderImage,
+		Config:                  cfg,
+		Paths:                   paths,
+		IncludeMySQL:            cfg.MySQL.Mode == "bundled",
+		IncludeNATS:             cfg.NATS.Mode == "bundled",
+		IncludeMinIO:            cfg.MinIO.Mode == "bundled",
+		AppBaseBuilderImage:     defaultAppBaseBuilderImage,
+		AppContainerNetworkMode: "host",
 	}
 
 	rt.TLSCertsHostDir = filepath.Join(paths.GeneratedDir, "tls")
@@ -489,6 +490,17 @@ func sdkMinIOEndpoint(endpoint string) string {
 	// gateway and cannot reach services bound to 127.0.0.1.
 	if isLocalHostForContainer(host) {
 		return net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	}
+	return endpoint
+}
+
+func devSDKMinIOEndpoint(endpoint string) string {
+	host, port, err := splitHostPortDefault(endpoint, 9000)
+	if err != nil {
+		return endpoint
+	}
+	if isLocalHostForContainer(host) {
+		return net.JoinHostPort("host.containers.internal", strconv.Itoa(port))
 	}
 	return endpoint
 }

@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -70,7 +69,7 @@ func doctorLayerChecks(rt RuntimeConfig) []layerCheck {
 		{Layer: layerControl, Name: "compose command", Target: "podman compose / docker compose", Fn: checkComposeCommand},
 		{Layer: layerControl, Name: "compose runtime", Target: "compose ls", Fn: checkComposeRuntime},
 		{Layer: layerControl, Name: "linux host", Target: runtime.GOOS, Fn: checkLinuxHost},
-		{Layer: layerInfra, Name: "storage root parent", Target: rt.Storage.Root, Fn: func() error { return checkStorageRoot(rt.Storage.Root) }},
+		{Layer: layerInfra, Name: "storage root", Target: rt.Storage.Root, Fn: func() error { return checkStorageRoot(rt.Storage.Root) }},
 	}
 	checks = appendExternalDependencyChecks(checks, rt)
 	return checks
@@ -259,16 +258,15 @@ func checkLinuxHost() error {
 }
 
 func checkStorageRoot(root string) error {
-	if fileExists(root) {
-		return nil
+	if err := os.MkdirAll(root, 0755); err != nil {
+		return fmt.Errorf("create storage root %s: %w", root, err)
 	}
-	parent := filepath.Dir(root)
-	info, err := os.Stat(parent)
+	info, err := os.Stat(root)
 	if err != nil {
 		return err
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("%s is not a directory", parent)
+		return fmt.Errorf("%s is not a directory", root)
 	}
 	return nil
 }

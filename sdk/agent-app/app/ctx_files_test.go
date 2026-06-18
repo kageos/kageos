@@ -1,8 +1,11 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -32,7 +35,7 @@ func TestResolvedDownloadFileDownloadCandidatesPreferServer(t *testing.T) {
 		downloadURL:       "http://browser.example/file",
 		serverDownloadURL: "http://server.example/file",
 	}
-	candidates := file.downloadCandidates()
+	candidates := file.downloadCandidates(context.Background())
 	if len(candidates) != 2 {
 		t.Fatalf("expected two candidates, got %#v", candidates)
 	}
@@ -44,9 +47,37 @@ func TestResolvedDownloadFileDownloadCandidatesPreferServer(t *testing.T) {
 	}
 
 	file.downloadURL = file.serverDownloadURL
-	candidates = file.downloadCandidates()
+	candidates = file.downloadCandidates(context.Background())
 	if len(candidates) != 1 || candidates[0].label != "server" {
 		t.Fatalf("expected duplicate URL to be de-duplicated, got %#v", candidates)
+	}
+}
+
+func TestResolvedDownloadFileDownloadCandidatesResolveAbsoluteServerURL(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	file := resolvedDownloadFile{
+		downloadURL:       "/kageos/workspace/chat/a.png",
+		serverDownloadURL: strings.Replace(server.URL, "127.0.0.1", "localhost", 1) + "/kageos/workspace/chat/a.png?X-Amz-Signature=secret",
+	}
+	candidates := file.downloadCandidates(t.Context())
+	if len(candidates) != 1 {
+		t.Fatalf("expected one resolved server URL candidate, got %#v", candidates)
+	}
+	parsed, err := url.Parse(candidates[0].url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Path != "/kageos/workspace/chat/a.png" || parsed.RawQuery != "X-Amz-Signature=secret" {
+		t.Fatalf("resolved candidate should preserve path/query, got %s", candidates[0].url)
+	}
+	for _, candidate := range candidates {
+		if strings.HasPrefix(candidate.url, "/") {
+			t.Fatalf("relative browser URL should not be a SDK download candidate: %#v", candidates)
+		}
 	}
 }
 

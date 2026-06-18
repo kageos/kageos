@@ -11,12 +11,12 @@
                 class="back-button"
                 @click="handleBack"
               >
-                返回
+                {{ t('userSettings.back') }}
               </el-button>
-              <h2>个人设置</h2>
+              <h2>{{ t('userSettings.title') }}</h2>
             </div>
             <el-button :icon="Refresh" :loading="notificationsLoading" @click="loadNotificationChannels">
-              刷新
+              {{ t('common.refresh') }}
             </el-button>
           </div>
         </template>
@@ -25,8 +25,8 @@
           <section class="settings-section">
             <div class="section-heading">
               <div>
-                <h3>个人资料</h3>
-                <p>头像、昵称和基础展示信息</p>
+                <h3>{{ t('userSettings.profileTitle') }}</h3>
+                <p>{{ t('userSettings.profileSubtitle') }}</p>
               </div>
               <el-tag v-if="currentUser?.username" type="info" effect="plain">
                 {{ currentUser.username }}
@@ -40,7 +40,7 @@
               label-width="100px"
               class="settings-form"
             >
-              <el-form-item label="头像">
+              <el-form-item :label="t('userSettings.avatar')">
                 <div class="avatar-section">
                   <CommonUpload
                     v-model="formData.avatar"
@@ -49,55 +49,55 @@
                     max-size="2MB"
                     @change="handleAvatarChange"
                   />
-                  <p class="form-tip">支持 JPG、PNG 格式，最大 2MB</p>
+                  <p class="form-tip">{{ t('userSettings.avatarTip') }}</p>
                 </div>
               </el-form-item>
 
-              <el-form-item label="用户名">
+              <el-form-item :label="t('userSettings.username')">
                 <el-input
                   :value="currentUser?.username"
                   disabled
                   class="disabled-input"
                 />
-                <p class="form-tip">用户名不可修改</p>
+                <p class="form-tip">{{ t('userSettings.usernameReadonly') }}</p>
               </el-form-item>
 
-              <el-form-item label="邮箱">
+              <el-form-item :label="t('userSettings.email')">
                 <el-input
                   :value="currentUser?.email"
                   disabled
                   class="disabled-input"
                 />
-                <p class="form-tip">邮箱不可修改</p>
+                <p class="form-tip">{{ t('userSettings.emailReadonly') }}</p>
               </el-form-item>
 
-              <el-form-item label="昵称" prop="nickname">
+              <el-form-item :label="t('userSettings.nickname')" prop="nickname">
                 <el-input
                   v-model="formData.nickname"
-                  placeholder="请输入昵称"
+                  :placeholder="t('userSettings.nicknamePlaceholder')"
                   maxlength="50"
                   show-word-limit
                   clearable
                 />
               </el-form-item>
 
-              <el-form-item label="个人签名" prop="signature">
+              <el-form-item :label="t('userSettings.signature')" prop="signature">
                 <el-input
                   v-model="formData.signature"
                   type="textarea"
                   :rows="4"
-                  placeholder="请输入个人签名/简介"
+                  :placeholder="t('userSettings.signaturePlaceholder')"
                   maxlength="200"
                   show-word-limit
                 />
               </el-form-item>
 
-              <el-form-item label="性别" prop="gender">
+              <el-form-item :label="t('userSettings.gender')" prop="gender">
                 <el-radio-group v-model="formData.gender">
-                  <el-radio label="">不设置</el-radio>
-                  <el-radio label="male">男</el-radio>
-                  <el-radio label="female">女</el-radio>
-                  <el-radio label="other">其他</el-radio>
+                  <el-radio label="">{{ t('userSettings.genderUnset') }}</el-radio>
+                  <el-radio label="male">{{ t('userSettings.genderMale') }}</el-radio>
+                  <el-radio label="female">{{ t('userSettings.genderFemale') }}</el-radio>
+                  <el-radio label="other">{{ t('userSettings.genderOther') }}</el-radio>
                 </el-radio-group>
               </el-form-item>
 
@@ -108,9 +108,9 @@
                   :loading="submitting"
                   @click="handleSubmit"
                 >
-                  保存
+                  {{ t('userSettings.save') }}
                 </el-button>
-                <el-button @click="handleReset">重置</el-button>
+                <el-button @click="handleReset">{{ t('common.reset') }}</el-button>
               </el-form-item>
             </el-form>
           </section>
@@ -120,8 +120,8 @@
           <section class="settings-section">
             <div class="section-heading">
               <div>
-                <h3>消息触达</h3>
-                <p>站内信会始终保留，启用外部渠道后同步推送标准卡片</p>
+                <h3>{{ t('userSettings.notificationsTitle') }}</h3>
+                <p>{{ t('userSettings.notificationsSubtitle') }}</p>
               </div>
             </div>
 
@@ -148,8 +148,8 @@
                   <el-switch
                     v-model="notificationForms[definition.channel].enabled"
                     inline-prompt
-                    active-text="启用"
-                    inactive-text="停用"
+                    :active-text="t('userSettings.enabled')"
+                    :inactive-text="t('userSettings.disabled')"
                   />
                 </div>
 
@@ -158,7 +158,7 @@
                   label-width="110px"
                   class="channel-form"
                 >
-                  <el-form-item label="显示名称">
+                  <el-form-item :label="t('userSettings.displayName')">
                     <el-input
                       v-model="notificationForms[definition.channel].display_name"
                       :placeholder="definition.name"
@@ -180,7 +180,7 @@
                         plain
                         @click="toggleClearWebhook(definition.channel)"
                       >
-                        {{ notificationForms[definition.channel].clear_webhook_url ? '保留地址' : '清除地址' }}
+                      {{ notificationForms[definition.channel].clear_webhook_url ? t('userSettings.keepWebhook') : t('userSettings.clearWebhook') }}
                       </el-button>
                     </div>
                     <p class="form-tip">
@@ -188,7 +188,7 @@
                     </p>
                   </el-form-item>
 
-                  <el-form-item label="签名 Secret">
+                  <el-form-item :label="t('userSettings.signingSecret')">
                     <div class="secret-row">
                       <el-input
                         v-model="notificationForms[definition.channel].secret"
@@ -204,7 +204,7 @@
                         plain
                         @click="toggleClearSecret(definition.channel)"
                       >
-                        {{ notificationForms[definition.channel].clear_secret ? '保留密钥' : '清除密钥' }}
+                        {{ notificationForms[definition.channel].clear_secret ? t('userSettings.keepSecret') : t('userSettings.clearSecret') }}
                       </el-button>
                     </div>
                     <p class="form-tip">
@@ -220,7 +220,7 @@
                         :loading="savingNotification[definition.channel]"
                         @click="saveNotificationChannel(definition.channel)"
                       >
-                        保存配置
+                        {{ t('userSettings.saveConfig') }}
                       </el-button>
                       <el-button
                         :icon="Promotion"
@@ -228,7 +228,7 @@
                         :disabled="deletingNotification[definition.channel]"
                         @click="testNotificationChannelConfig(definition.channel)"
                       >
-                        测试发送
+                        {{ t('userSettings.testSend') }}
                       </el-button>
                       <el-button
                         text
@@ -237,10 +237,10 @@
                         :loading="deletingNotification[definition.channel]"
                         @click="deleteNotificationChannelConfig(definition.channel)"
                       >
-                        删除配置
+                        {{ t('userSettings.deleteConfig') }}
                       </el-button>
                       <span v-if="notificationForms[definition.channel].updated_at" class="updated-at">
-                        更新于 {{ formatDateTime(notificationForms[definition.channel].updated_at) }}
+                        {{ t('userSettings.updatedAt', { time: formatDateTime(notificationForms[definition.channel].updated_at) }) }}
                       </span>
                     </div>
                     <div class="delivery-status">
@@ -248,10 +248,10 @@
                         {{ deliveryStatusLabel(notificationForms[definition.channel]) }}
                       </el-tag>
                       <span v-if="notificationForms[definition.channel].last_success_at">
-                        最近成功 {{ formatDateTime(notificationForms[definition.channel].last_success_at) }}
+                        {{ t('userSettings.lastSuccessAt', { time: formatDateTime(notificationForms[definition.channel].last_success_at) }) }}
                       </span>
                       <span v-if="notificationForms[definition.channel].last_test_at">
-                        最近测试 {{ formatDateTime(notificationForms[definition.channel].last_test_at) }}
+                        {{ t('userSettings.lastTestAt', { time: formatDateTime(notificationForms[definition.channel].last_test_at) }) }}
                       </span>
                       <span v-if="notificationForms[definition.channel].last_error" class="delivery-error">
                         {{ notificationForms[definition.channel].last_error }}
@@ -270,6 +270,7 @@
 
 <script setup lang="ts">
 import { reactive, computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { ArrowLeft, Check, Delete, Promotion, Refresh } from '@element-plus/icons-vue'
@@ -314,6 +315,7 @@ interface NotificationFormState {
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
@@ -333,38 +335,38 @@ const formData = reactive({
   gender: '' as '' | 'male' | 'female' | 'other'
 })
 
-const rules: FormRules = {
+const rules = computed<FormRules>(() => ({
   nickname: [
-    { max: 50, message: '昵称长度不能超过50个字符', trigger: 'blur' }
+    { max: 50, message: t('userSettings.nicknameMax'), trigger: 'blur' }
   ],
   signature: [
-    { max: 200, message: '个人签名长度不能超过200个字符', trigger: 'blur' }
+    { max: 200, message: t('userSettings.signatureMax'), trigger: 'blur' }
   ]
-}
+}))
 
-const channelDefinitions: ChannelDefinition[] = [
+const channelDefinitions = computed<ChannelDefinition[]>(() => [
   {
     channel: 'feishu',
-    name: '飞书',
-    mark: '飞',
-    hint: '自定义机器人 Webhook，使用飞书 Card 2.0',
-    guide: '在飞书群里添加自定义机器人，复制 Webhook；如开启签名校验，请填写 Secret。'
+    name: t('userSettings.channelFeishu'),
+    mark: t('userSettings.channelFeishuMark'),
+    hint: t('userSettings.channelFeishuHint'),
+    guide: t('userSettings.channelFeishuGuide')
   },
   {
     channel: 'wecom',
-    name: '企业微信',
-    mark: '企',
-    hint: '群机器人 Webhook，使用 template_card',
-    guide: '在企业微信群里添加群机器人，复制 Webhook；企业微信通常不需要签名密钥。'
+    name: t('userSettings.channelWecom'),
+    mark: t('userSettings.channelWecomMark'),
+    hint: t('userSettings.channelWecomHint'),
+    guide: t('userSettings.channelWecomGuide')
   },
   {
     channel: 'dingtalk',
-    name: '钉钉',
-    mark: '钉',
-    hint: '自定义机器人 Webhook，使用 ActionCard，支持加签',
-    guide: '在钉钉群智能助手里添加自定义机器人，复制 Webhook；如启用加签，请填写 Secret。'
+    name: t('userSettings.channelDingtalk'),
+    mark: t('userSettings.channelDingtalkMark'),
+    hint: t('userSettings.channelDingtalkHint'),
+    guide: t('userSettings.channelDingtalkGuide')
   }
-]
+])
 
 const notificationForms = reactive<Record<ChannelCode, NotificationFormState>>({
   feishu: createDefaultNotificationForm('feishu'),
@@ -394,7 +396,7 @@ function createDefaultNotificationForm(channel: ChannelCode): NotificationFormSt
   return {
     channel,
     enabled: false,
-    display_name: `${channelLabel(channel)}通知`,
+    display_name: channelDefaultDisplayName(channel),
     webhook_url: '',
     secret: '',
     has_webhook_url: false,
@@ -407,9 +409,13 @@ function createDefaultNotificationForm(channel: ChannelCode): NotificationFormSt
 }
 
 function channelLabel(channel: ChannelCode): string {
-  if (channel === 'feishu') return '飞书'
-  if (channel === 'wecom') return '企业微信'
-  return '钉钉'
+  if (channel === 'feishu') return t('userSettings.channelFeishu')
+  if (channel === 'wecom') return t('userSettings.channelWecom')
+  return t('userSettings.channelDingtalk')
+}
+
+function channelDefaultDisplayName(channel: ChannelCode): string {
+  return t('userSettings.channelDefaultName', { channel: channelLabel(channel) })
 }
 
 function initFormData() {
@@ -455,16 +461,16 @@ async function handleSubmit() {
     }
 
     if (Object.keys(updateData).length === 0) {
-      ElMessage.info('没有需要更新的内容')
+      ElMessage.info(t('userSettings.noChanges'))
       return
     }
 
     await authStore.updateUser(updateData)
-    ElMessage.success('更新成功')
+    ElMessage.success(t('common.updateSuccess'))
   } catch (error: any) {
     console.error('更新用户信息失败:', error)
     if (error?.message && !error.message.includes('validate')) {
-      ElMessage.error(error.message || '更新失败')
+      ElMessage.error(error.message || t('common.updateFailed'))
     }
   } finally {
     submitting.value = false
@@ -491,7 +497,7 @@ function applyNotificationInfo(info: MessageNotificationChannelInfo) {
   }
   const form = notificationForms[channel]
   form.enabled = Boolean(info.enabled)
-  form.display_name = info.display_name || `${channelLabel(channel)}通知`
+  form.display_name = info.display_name || channelDefaultDisplayName(channel)
   form.webhook_url = ''
   form.secret = ''
   form.has_webhook_url = Boolean(info.has_webhook_url)
@@ -517,12 +523,12 @@ function normalizeChannel(channel: string): ChannelCode | null {
 async function loadNotificationChannels() {
   notificationsLoading.value = true
   try {
-    channelDefinitions.forEach((definition) => resetNotificationForm(definition.channel))
+    channelDefinitions.value.forEach((definition) => resetNotificationForm(definition.channel))
     const resp = await listMessageNotificationChannels()
     const list = resp.list || []
     list.forEach(applyNotificationInfo)
   } catch (error: any) {
-    ElMessage.error(error?.response?.data?.msg || error?.message || '获取通知配置失败')
+    ElMessage.error(error?.response?.data?.msg || error?.message || t('userSettings.loadNotificationsFailed'))
   } finally {
     notificationsLoading.value = false
   }
@@ -531,12 +537,12 @@ async function loadNotificationChannels() {
 async function saveNotificationChannel(channel: ChannelCode, options: { silent?: boolean } = {}): Promise<boolean> {
   const form = notificationForms[channel]
   if (form.enabled && !hasWebhook(form)) {
-    ElMessage.warning(`启用${channelLabel(channel)}前请填写 Webhook 地址`)
+    ElMessage.warning(t('userSettings.webhookRequiredBeforeEnable', { channel: channelLabel(channel) }))
     return false
   }
   const webhookURL = form.webhook_url.trim()
   if (webhookURL && !isValidWebhookURL(channel, webhookURL)) {
-    ElMessage.warning(`${channelLabel(channel)} Webhook 地址格式不正确`)
+    ElMessage.warning(t('userSettings.webhookInvalid', { channel: channelLabel(channel) }))
     return false
   }
 
@@ -546,7 +552,7 @@ async function saveNotificationChannel(channel: ChannelCode, options: { silent?:
       channel,
       enabled: form.enabled,
       delivery_type: 'webhook',
-      display_name: form.display_name.trim() || `${channelLabel(channel)}通知`,
+      display_name: form.display_name.trim() || channelDefaultDisplayName(channel),
       webhook_url: webhookURL,
       secret: form.secret.trim(),
       clear_webhook_url: form.clear_webhook_url,
@@ -555,11 +561,11 @@ async function saveNotificationChannel(channel: ChannelCode, options: { silent?:
     })
     applyNotificationInfo(info)
     if (!options.silent) {
-      ElMessage.success(`${channelLabel(channel)}配置已保存`)
+      ElMessage.success(t('userSettings.configSaved', { channel: channelLabel(channel) }))
     }
     return true
   } catch (error: any) {
-    ElMessage.error(error?.response?.data?.msg || error?.message || `${channelLabel(channel)}配置保存失败`)
+    ElMessage.error(error?.response?.data?.msg || error?.message || t('userSettings.configSaveFailed', { channel: channelLabel(channel) }))
     return false
   } finally {
     savingNotification[channel] = false
@@ -575,9 +581,9 @@ async function testNotificationChannelConfig(channel: ChannelCode) {
   testingNotification[channel] = true
   try {
     await testMessageNotificationChannel(channel)
-    ElMessage.success(`${channelLabel(channel)}测试通知已发送`)
+    ElMessage.success(t('userSettings.testSent', { channel: channelLabel(channel) }))
   } catch (error: any) {
-    ElMessage.error(error?.response?.data?.msg || error?.message || `${channelLabel(channel)}测试发送失败`)
+    ElMessage.error(error?.response?.data?.msg || error?.message || t('userSettings.testFailed', { channel: channelLabel(channel) }))
   } finally {
     testingNotification[channel] = false
   }
@@ -586,9 +592,9 @@ async function testNotificationChannelConfig(channel: ChannelCode) {
 async function deleteNotificationChannelConfig(channel: ChannelCode) {
   try {
     await ElMessageBox.confirm(
-      `确定删除${channelLabel(channel)}通知配置吗？`,
-      '删除通知配置',
-      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+      t('userSettings.deleteConfirm', { channel: channelLabel(channel) }),
+      t('userSettings.deleteConfirmTitle'),
+      { type: 'warning', confirmButtonText: t('common.delete'), cancelButtonText: t('common.cancel') }
     )
   } catch {
     return
@@ -598,9 +604,9 @@ async function deleteNotificationChannelConfig(channel: ChannelCode) {
   try {
     await deleteMessageNotificationChannel(channel)
     resetNotificationForm(channel)
-    ElMessage.success(`${channelLabel(channel)}配置已删除`)
+    ElMessage.success(t('userSettings.configDeleted', { channel: channelLabel(channel) }))
   } catch (error: any) {
-    ElMessage.error(error?.response?.data?.msg || error?.message || `${channelLabel(channel)}配置删除失败`)
+    ElMessage.error(error?.response?.data?.msg || error?.message || t('userSettings.configDeleteFailed', { channel: channelLabel(channel) }))
   } finally {
     deletingNotification[channel] = false
   }
@@ -631,12 +637,12 @@ function hasWebhook(form: NotificationFormState): boolean {
 
 function channelStatusLabel(form: NotificationFormState): string {
   if (form.enabled && hasWebhook(form)) {
-    return '已启用'
+    return t('userSettings.statusEnabled')
   }
   if (hasWebhook(form)) {
-    return '已停用'
+    return t('userSettings.statusDisabled')
   }
-  return '未配置'
+  return t('userSettings.statusNotConfigured')
 }
 
 function channelStatusType(form: NotificationFormState): 'success' | 'warning' | 'info' {
@@ -651,15 +657,17 @@ function channelStatusType(form: NotificationFormState): 'success' | 'warning' |
 
 function deliveryStatusLabel(form: NotificationFormState): string {
   if (form.last_error) {
-    return form.fail_count > 0 ? `投递失败 ${form.fail_count} 次` : '投递失败'
+    return form.fail_count > 0
+      ? t('userSettings.deliveryFailedCount', { count: form.fail_count })
+      : t('userSettings.deliveryFailed')
   }
   if (form.last_success_at) {
-    return '投递正常'
+    return t('userSettings.deliveryHealthy')
   }
   if (form.last_test_at) {
-    return '已测试'
+    return t('userSettings.deliveryTested')
   }
-  return '未投递'
+  return t('userSettings.deliveryNotSent')
 }
 
 function deliveryStatusType(form: NotificationFormState): 'success' | 'danger' | 'info' {
@@ -692,7 +700,7 @@ function isValidWebhookURL(channel: ChannelCode, raw: string): boolean {
 
 function webhookPlaceholder(channel: ChannelCode): string {
   if (notificationForms[channel].has_webhook_url) {
-    return '已配置，留空则保留当前地址'
+    return t('userSettings.webhookConfiguredPlaceholder')
   }
   if (channel === 'feishu') {
     return 'https://open.feishu.cn/open-apis/bot/v2/hook/...'
@@ -705,37 +713,37 @@ function webhookPlaceholder(channel: ChannelCode): string {
 
 function secretPlaceholder(channel: ChannelCode): string {
   if (notificationForms[channel].has_secret) {
-    return '已配置，留空则保留当前密钥'
+    return t('userSettings.secretConfiguredPlaceholder')
   }
-  if (channel === 'feishu') return '飞书签名校验 Secret，可选'
-  if (channel === 'dingtalk') return '钉钉加签 Secret，可选；机器人启用加签时必填'
-  return '企业微信通常不需要填写'
+  if (channel === 'feishu') return t('userSettings.feishuSecretPlaceholder')
+  if (channel === 'dingtalk') return t('userSettings.dingtalkSecretPlaceholder')
+  return t('userSettings.wecomSecretPlaceholder')
 }
 
 function webhookStateText(form: NotificationFormState): string {
   if (form.clear_webhook_url) {
-    return '保存后会清除已配置的 Webhook 地址'
+    return t('userSettings.webhookWillClear')
   }
   if (form.has_webhook_url && !form.webhook_url.trim()) {
-    return 'Webhook 地址已保存，不会在前端回显'
+    return t('userSettings.webhookSavedHidden')
   }
   if (form.webhook_url.trim()) {
-    return '保存后会覆盖当前 Webhook 地址'
+    return t('userSettings.webhookWillOverwrite')
   }
-  return '未保存 Webhook 地址'
+  return t('userSettings.webhookNotSaved')
 }
 
 function secretStateText(form: NotificationFormState): string {
   if (form.clear_secret) {
-    return '保存后会清除已配置的签名密钥'
+    return t('userSettings.secretWillClear')
   }
   if (form.has_secret && !form.secret.trim()) {
-    return '签名密钥已保存，不会在前端回显'
+    return t('userSettings.secretSavedHidden')
   }
   if (form.secret.trim()) {
-    return '保存后会覆盖当前签名密钥'
+    return t('userSettings.secretWillOverwrite')
   }
-  return '未保存签名密钥'
+  return t('userSettings.secretNotSaved')
 }
 
 function formatDateTime(value?: string): string {

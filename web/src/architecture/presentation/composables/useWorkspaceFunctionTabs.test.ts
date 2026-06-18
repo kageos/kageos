@@ -105,4 +105,37 @@ describe('useWorkspaceFunctionTabs', () => {
       scope.stop()
     }
   })
+
+  it('does not clear package panel queries when the current node is a package', () => {
+    const scope = effectScope()
+
+    try {
+      const route = {
+        path: '/workspace/demo/app/directory',
+        query: {
+          _panel: 'detail'
+        }
+      } as any
+      const router = {
+        replace: vi.fn()
+      } as any
+      const currentFunction = computed(() => ({
+        type: 'package',
+        full_code_path: '/demo/app/directory'
+      }) as any)
+      const currentFunctionDetail = ref(null)
+
+      const tabs = scope.run(() => useWorkspaceFunctionTabs({
+        route,
+        router,
+        currentFunction,
+        currentFunctionDetail
+      }))!
+
+      expect(tabs.functionActiveTab.value).toBe('content')
+      expect(router.replace).not.toHaveBeenCalled()
+    } finally {
+      scope.stop()
+    }
+  })
 })

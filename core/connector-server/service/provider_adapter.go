@@ -12,6 +12,7 @@ import (
 
 type connectorProviderAdapter interface {
 	Code() string
+	Capabilities() dto.ConnectorProviderCapabilities
 	ProxyBaseURL() string
 	UseAccessTypeOffline() bool
 	BuildAuthorizeURL(provider config.ConnectorOAuthProviderConfig, redirectURL, state, codeChallenge string, scopes []string) string
@@ -38,6 +39,10 @@ func connectorAdapterFor(provider string) connectorProviderAdapter {
 	return defaultProviderAdapter{code: code}
 }
 
+func connectorProviderCapabilities(provider string) dto.ConnectorProviderCapabilities {
+	return connectorAdapterFor(provider).Capabilities()
+}
+
 func decorateProviderAPIRequest(provider string, req *http.Request) {
 	if req == nil {
 		return
@@ -51,6 +56,12 @@ type defaultProviderAdapter struct {
 
 func (a defaultProviderAdapter) Code() string {
 	return a.code
+}
+
+func (a defaultProviderAdapter) Capabilities() dto.ConnectorProviderCapabilities {
+	return dto.ConnectorProviderCapabilities{
+		OAuthSupported: true,
+	}
 }
 
 func (a defaultProviderAdapter) ProxyBaseURL() string {

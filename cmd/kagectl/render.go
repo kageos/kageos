@@ -208,6 +208,8 @@ func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, company
 	if err != nil {
 		return err
 	}
+	rt.AppContainerNetworkMode = ""
+	rt.SDKMinIOEndpoint = devSDKMinIOEndpoint(rt.MinIOEndpoint)
 
 	configDir := filepath.Join(paths.RepoRoot, defaultDevConfig)
 	for _, dir := range []string{configDir, envDir} {

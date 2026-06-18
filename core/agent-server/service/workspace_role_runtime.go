@@ -10,6 +10,22 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 )
 
+func defaultWorkspaceSessionRoleID() string {
+	return WorkspaceRoleAppOperator
+}
+
+func defaultWorkspaceSessionRoleDisplayName() string {
+	return workspaceRoleDisplayName(defaultWorkspaceSessionRoleID())
+}
+
+func applyDefaultWorkspaceSessionRole(session *model.AgentChatSession) {
+	if session == nil || workspaceSessionRoleID(session) != "" {
+		return
+	}
+	session.RoleID = defaultWorkspaceSessionRoleID()
+	session.RoleDisplayName = defaultWorkspaceSessionRoleDisplayName()
+}
+
 func (s *WorkspaceChatService) currentWorkspaceRoleForSession(ctx context.Context, sessionID string) string {
 	if s == nil || strings.TrimSpace(sessionID) == "" {
 		return ""

@@ -36,9 +36,9 @@ func (s *ConnectorService) ListOAuthProviders(ctx context.Context) ([]dto.Connec
 	}
 	items := make([]dto.ConnectorOAuthProviderInfo, 0, len(providers))
 	for code, provider := range providers {
-		info := providerConfigToInfo(provider)
+		info := s.providerConfigToInfo(provider)
 		if row := managed[code]; row != nil {
-			info = providerConfigToInfo(provider)
+			info = s.providerConfigToInfo(provider)
 			applyProviderSettingMetadata(&info, row)
 			info.Managed = true
 		}
@@ -65,7 +65,7 @@ func (s *ConnectorService) GetOAuthProvider(ctx context.Context, code string) (*
 		if base, ok := s.oauth.Lookup(code); ok {
 			provider = mergeOAuthProvider(base, provider)
 		}
-		info := providerConfigToInfo(provider)
+		info := s.providerConfigToInfo(provider)
 		applyProviderSettingMetadata(&info, row)
 		return &info, nil
 	}
@@ -76,7 +76,7 @@ func (s *ConnectorService) GetOAuthProvider(ctx context.Context, code string) (*
 	if !ok {
 		return nil, fmt.Errorf("未配置 OAuth provider: %s", code)
 	}
-	info := providerConfigToInfo(provider)
+	info := s.providerConfigToInfo(provider)
 	return &info, nil
 }
 
@@ -84,15 +84,15 @@ func (s *ConnectorService) SeedOAuthProviderSettings(ctx context.Context) error 
 	if err := s.ensureOAuthReady(); err != nil {
 		return err
 	}
-	providers := s.oauth.List()
-	codes := make([]string, 0, len(providers))
-	for code := range providers {
+	definitions := s.oauth.Definitions()
+	codes := make([]string, 0, len(definitions))
+	for code := range definitions {
 		codes = append(codes, code)
 	}
 	sort.Strings(codes)
 
 	for _, code := range codes {
-		setting, err := s.providerConfigToSeedSetting(providers[code])
+		setting, err := s.providerConfigToSeedSetting(definitions[code].OAuthProvider())
 		if err != nil {
 			return err
 		}
@@ -392,9 +392,17 @@ func (s *ConnectorService) providerSettingToMergedInfo(row *model.ConnectorOAuth
 	if base, ok := s.oauth.Lookup(row.Code); ok {
 		provider = mergeOAuthProvider(base, provider)
 	}
-	info := providerConfigToInfo(provider)
+	info := s.providerConfigToInfo(provider)
 	applyProviderSettingMetadata(&info, row)
 	return info, nil
+}
+
+func (s *ConnectorService) providerConfigToInfo(provider config.ConnectorOAuthProviderConfig) dto.ConnectorOAuthProviderInfo {
+	info := providerConfigToInfo(provider)
+	if s != nil && s.oauth != nil {
+		info.Capabilities = s.oauth.Capabilities(provider.Code)
+	}
+	return info
 }
 
 func providerSettingToInfo(row *model.ConnectorOAuthProviderSetting) dto.ConnectorOAuthProviderInfo {
@@ -414,6 +422,7 @@ func providerSettingToInfo(row *model.ConnectorOAuthProviderSetting) dto.Connect
 		Enabled:            row.Enabled,
 		Active:             row.Enabled && row.ClientID != "" && row.ClientSecretCipher != "" && row.AuthURL != "" && row.TokenURL != "",
 		Managed:            true,
+		Capabilities:       connectorProviderCapabilities(row.Code),
 		CreatedAt:          formatModelTime(row.CreatedAt),
 		UpdatedAt:          formatModelTime(row.UpdatedAt),
 	}
@@ -438,6 +447,7 @@ func providerConfigToInfo(provider config.ConnectorOAuthProviderConfig) dto.Conn
 		Enabled:            true,
 		Active:             clientID != "" && hasClientSecret && strings.TrimSpace(provider.AuthURL) != "" && strings.TrimSpace(provider.TokenURL) != "",
 		Managed:            false,
+		Capabilities:       connectorProviderCapabilities(provider.Code),
 	}
 }
 

@@ -25,7 +25,8 @@ const (
 )
 
 type OAuthProviderRegistry struct {
-	providers map[string]config.ConnectorOAuthProviderConfig
+	definitions map[string]ConnectorDefinition
+	providers   map[string]config.ConnectorOAuthProviderConfig
 }
 
 type OAuthTokenPayload struct {
@@ -38,7 +39,8 @@ type OAuthTokenPayload struct {
 }
 
 func NewOAuthProviderRegistry(cfg config.ConnectorOAuthConfig) *OAuthProviderRegistry {
-	providers := builtInOAuthProviders()
+	definitions := builtInConnectorDefinitions()
+	providers := oauthProvidersFromDefinitions(definitions)
 	for _, provider := range cfg.Providers {
 		provider.Code = normalizeProvider(provider.Code)
 		if provider.Code == "" {
@@ -46,8 +48,12 @@ func NewOAuthProviderRegistry(cfg config.ConnectorOAuthConfig) *OAuthProviderReg
 		}
 		base := providers[provider.Code]
 		providers[provider.Code] = mergeOAuthProvider(base, provider)
+		definitions[provider.Code] = ConnectorDefinition{
+			Provider:     providers[provider.Code],
+			Capabilities: connectorProviderCapabilities(provider.Code),
+		}
 	}
-	return &OAuthProviderRegistry{providers: providers}
+	return &OAuthProviderRegistry{definitions: definitions, providers: providers}
 }
 
 func (r *OAuthProviderRegistry) Get(code string) (config.ConnectorOAuthProviderConfig, error) {
@@ -75,6 +81,15 @@ func (r *OAuthProviderRegistry) List() map[string]config.ConnectorOAuthProviderC
 	for code, provider := range r.providers {
 		provider.Code = code
 		out[code] = provider
+	}
+	return out
+}
+
+func (r *OAuthProviderRegistry) Definitions() map[string]ConnectorDefinition {
+	out := make(map[string]ConnectorDefinition, len(r.definitions))
+	for code, definition := range r.definitions {
+		definition.Provider.Code = code
+		out[code] = definition
 	}
 	return out
 }
@@ -644,153 +659,6 @@ func mergeOAuthProvider(base, override config.ConnectorOAuthProviderConfig) conf
 	}
 	base.Code = override.Code
 	return base
-}
-
-func builtInOAuthProviders() map[string]config.ConnectorOAuthProviderConfig {
-	trueValue := true
-	falseValue := false
-	return map[string]config.ConnectorOAuthProviderConfig{
-		"github": {
-			Code:               "github",
-			Name:               "GitHub",
-			ClientIDEnv:        "KAGEOS_OAUTH_GITHUB_CLIENT_ID",
-			ClientSecretEnv:    "KAGEOS_OAUTH_GITHUB_CLIENT_SECRET",
-			AuthURL:            "https://github.com/login/oauth/authorize",
-			TokenURL:           "https://github.com/login/oauth/access_token",
-			UserInfoURL:        "https://api.github.com/user",
-			UsePKCE:            &trueValue,
-			ExternalIDField:    "id",
-			DisplayNameField:   "login",
-			ProviderAccountURL: "https://github.com",
-			LogoURL:            "https://github.githubassets.com/favicons/favicon.svg",
-			BrandColor:         "#24292f",
-		},
-		"notion": {
-			Code:               "notion",
-			Name:               "Notion",
-			ClientIDEnv:        "KAGEOS_OAUTH_NOTION_CLIENT_ID",
-			ClientSecretEnv:    "KAGEOS_OAUTH_NOTION_CLIENT_SECRET",
-			AuthURL:            "https://api.notion.com/v1/oauth/authorize",
-			TokenURL:           "https://api.notion.com/v1/oauth/token",
-			UserInfoURL:        "https://api.notion.com/v1/users/me",
-			TokenRequestMode:   tokenRequestModeJSONBasic,
-			UsePKCE:            &falseValue,
-			ExtraAuthParams:    map[string]string{"owner": "user"},
-			ExternalIDField:    "id",
-			DisplayNameField:   "name",
-			ProviderAccountURL: "https://www.notion.so",
-			LogoURL:            "https://www.notion.so/images/favicon.ico",
-			BrandColor:         "#000000",
-		},
-		"gitlab": {
-			Code:               "gitlab",
-			Name:               "GitLab",
-			ClientIDEnv:        "KAGEOS_OAUTH_GITLAB_CLIENT_ID",
-			ClientSecretEnv:    "KAGEOS_OAUTH_GITLAB_CLIENT_SECRET",
-			AuthURL:            "https://gitlab.com/oauth/authorize",
-			TokenURL:           "https://gitlab.com/oauth/token",
-			UserInfoURL:        "https://gitlab.com/api/v4/user",
-			Scopes:             []string{"read_user"},
-			UsePKCE:            &trueValue,
-			ExternalIDField:    "id",
-			DisplayNameField:   "username",
-			ProviderAccountURL: "https://gitlab.com",
-			LogoURL:            "https://about.gitlab.com/ico/favicon.ico",
-			BrandColor:         "#fc6d26",
-		},
-		"google": {
-			Code:               "google",
-			Name:               "Google",
-			ClientIDEnv:        "KAGEOS_OAUTH_GOOGLE_CLIENT_ID",
-			ClientSecretEnv:    "KAGEOS_OAUTH_GOOGLE_CLIENT_SECRET",
-			AuthURL:            "https://accounts.google.com/o/oauth2/v2/auth",
-			TokenURL:           "https://oauth2.googleapis.com/token",
-			UserInfoURL:        "https://openidconnect.googleapis.com/v1/userinfo",
-			Scopes:             []string{"openid", "email", "profile"},
-			UsePKCE:            &trueValue,
-			ExtraAuthParams:    map[string]string{"prompt": "consent"},
-			ExternalIDField:    "sub",
-			DisplayNameField:   "email",
-			ProviderAccountURL: "https://myaccount.google.com",
-			LogoURL:            "https://www.google.com/favicon.ico",
-			BrandColor:         "#4285f4",
-		},
-		"microsoft": {
-			Code:               "microsoft",
-			Name:               "Microsoft",
-			ClientIDEnv:        "KAGEOS_OAUTH_MICROSOFT_CLIENT_ID",
-			ClientSecretEnv:    "KAGEOS_OAUTH_MICROSOFT_CLIENT_SECRET",
-			AuthURL:            "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-			TokenURL:           "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-			UserInfoURL:        "https://graph.microsoft.com/v1.0/me",
-			Scopes:             []string{"openid", "offline_access", "profile", "email", "User.Read"},
-			UsePKCE:            &trueValue,
-			ExternalIDField:    "id",
-			DisplayNameField:   "userPrincipalName",
-			ProviderAccountURL: "https://account.microsoft.com",
-			LogoURL:            "https://www.microsoft.com/favicon.ico",
-			BrandColor:         "#5e5e5e",
-		},
-		"slack": {
-			Code:               "slack",
-			Name:               "Slack",
-			ClientIDEnv:        "KAGEOS_OAUTH_SLACK_CLIENT_ID",
-			ClientSecretEnv:    "KAGEOS_OAUTH_SLACK_CLIENT_SECRET",
-			AuthURL:            "https://slack.com/oauth/v2/authorize",
-			TokenURL:           "https://slack.com/api/oauth.v2.access",
-			Scopes:             []string{"identity.basic"},
-			UsePKCE:            &falseValue,
-			ProviderAccountURL: "https://slack.com",
-			LogoURL:            "https://a.slack-edge.com/80588/marketing/img/meta/favicon-32.png",
-			BrandColor:         "#4a154b",
-		},
-		"feishu": {
-			Code:               "feishu",
-			Name:               "飞书",
-			ClientIDEnv:        "KAGEOS_OAUTH_FEISHU_CLIENT_ID",
-			ClientSecretEnv:    "KAGEOS_OAUTH_FEISHU_CLIENT_SECRET",
-			AuthURL:            "https://accounts.feishu.cn/open-apis/authen/v1/authorize",
-			TokenURL:           "https://open.feishu.cn/open-apis/authen/v2/oauth/token",
-			TokenRequestMode:   tokenRequestModeJSON,
-			UsePKCE:            &trueValue,
-			ExternalIDField:    "open_id",
-			DisplayNameField:   "name",
-			ProviderAccountURL: "https://www.feishu.cn",
-			BrandColor:         "#00d6b9",
-		},
-		"lark": {
-			Code:               "lark",
-			Name:               "Lark",
-			ClientIDEnv:        "KAGEOS_OAUTH_LARK_CLIENT_ID",
-			ClientSecretEnv:    "KAGEOS_OAUTH_LARK_CLIENT_SECRET",
-			AuthURL:            "https://accounts.larksuite.com/open-apis/authen/v1/authorize",
-			TokenURL:           "https://open.larksuite.com/open-apis/authen/v2/oauth/token",
-			TokenRequestMode:   tokenRequestModeJSON,
-			UsePKCE:            &trueValue,
-			ExternalIDField:    "open_id",
-			DisplayNameField:   "name",
-			ProviderAccountURL: "https://www.larksuite.com",
-			BrandColor:         "#00d6b9",
-		},
-		"dingtalk": {
-			Code:               "dingtalk",
-			Name:               "钉钉",
-			ClientIDEnv:        "KAGEOS_OAUTH_DINGTALK_CLIENT_ID",
-			ClientSecretEnv:    "KAGEOS_OAUTH_DINGTALK_CLIENT_SECRET",
-			AuthURL:            "https://login.dingtalk.com/oauth2/auth",
-			TokenURL:           "https://api.dingtalk.com/v1.0/oauth2/userAccessToken",
-			TokenRequestMode:   tokenRequestModeJSON,
-			ClientIDParam:      "clientId",
-			ClientSecretParam:  "clientSecret",
-			GrantTypeParam:     "grantType",
-			RefreshTokenParam:  "refreshToken",
-			UsePKCE:            &falseValue,
-			ExternalIDField:    "unionId",
-			DisplayNameField:   "nick",
-			ProviderAccountURL: "https://www.dingtalk.com",
-			BrandColor:         "#1677ff",
-		},
-	}
 }
 
 func safeRedirectAfter(value string) string {

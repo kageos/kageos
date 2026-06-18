@@ -9,11 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/netprobe"
 	"github.com/kageos/kageos/pkg/publicshare"
 )
 
@@ -136,7 +138,8 @@ func (c *FS) downloadResolvedFiles(files []resolvedDownloadFile, downloadDir str
 			stats.skipCount++
 			continue
 		}
-		if len(file.downloadCandidates()) == 0 {
+		candidates := file.downloadCandidates(c.downloadContext())
+		if len(candidates) == 0 {
 			issues[i] = fmt.Sprintf("文件 %s 没有可用下载地址", file.label())
 			logger.Warnf(c.ctx, "[DownloadFiles] %s，跳过", issues[i])
 			stats.skipCount++
@@ -145,10 +148,10 @@ func (c *FS) downloadResolvedFiles(files []resolvedDownloadFile, downloadDir str
 
 		stats.downloadCount++
 		wg.Add(1)
-		go func(idx int, f resolvedDownloadFile) {
+		go func(idx int, f resolvedDownloadFile, candidates []downloadCandidate) {
 			defer wg.Done()
 
-			localPath, err := c.downloadResolvedFile(f, downloadDir)
+			localPath, err := c.downloadResolvedFile(f, candidates, downloadDir)
 			if err != nil {
 				issues[idx] = fmt.Sprintf("文件 %s 下载失败: %v", f.label(), err)
 				logger.Errorf(c.ctx, "[DownloadFiles] %s", issues[idx])
@@ -161,17 +164,24 @@ func (c *FS) downloadResolvedFiles(files []resolvedDownloadFile, downloadDir str
 			} else {
 				logger.Infof(c.ctx, "[DownloadFiles] 下载文件完成(无hash不缓存): %s", f.label())
 			}
-		}(i, file)
+		}(i, file, candidates)
 	}
 
 	wg.Wait()
 	return localPaths, stats, compactNonEmptyStrings(issues)
 }
 
-func (c *FS) downloadResolvedFile(file resolvedDownloadFile, downloadDir string) (string, error) {
+func (c *FS) downloadContext() context.Context {
+	if c == nil || c.ctx == nil || c.ctx.Context == nil {
+		return context.Background()
+	}
+	return c.ctx.Context
+}
+
+func (c *FS) downloadResolvedFile(file resolvedDownloadFile, candidates []downloadCandidate, downloadDir string) (string, error) {
 	targetPath := filepath.Join(downloadDir, file.targetFileName())
 	failures := make([]string, 0, 2)
-	for _, candidate := range file.downloadCandidates() {
+	for _, candidate := range candidates {
 		if file.hash != "" {
 			localPath, _, err := c.fileCache.GetOrDownload(c.ctx, file.hash, candidate.url, targetPath)
 			if err == nil {
@@ -210,9 +220,9 @@ func (f resolvedDownloadFile) preferredDownloadURL() string {
 	return f.downloadURL
 }
 
-func (f resolvedDownloadFile) downloadCandidates() []downloadCandidate {
-	candidates := make([]downloadCandidate, 0, 2)
-	seen := make(map[string]struct{}, 2)
+func (f resolvedDownloadFile) downloadCandidates(ctx context.Context) []downloadCandidate {
+	candidates := make([]downloadCandidate, 0, 6)
+	seen := make(map[string]struct{}, 6)
 	for _, candidate := range []downloadCandidate{
 		{label: "server", url: strings.TrimSpace(f.serverDownloadURL)},
 		{label: "browser", url: strings.TrimSpace(f.downloadURL)},
@@ -220,13 +230,35 @@ func (f resolvedDownloadFile) downloadCandidates() []downloadCandidate {
 		if candidate.url == "" {
 			continue
 		}
-		if _, ok := seen[candidate.url]; ok {
-			continue
+		for idx, candidateURL := range expandDownloadCandidateURLs(ctx, candidate.url) {
+			if _, ok := seen[candidateURL]; ok {
+				continue
+			}
+			seen[candidateURL] = struct{}{}
+			label := candidate.label
+			if idx > 0 {
+				label += " fallback"
+			}
+			candidates = append(candidates, downloadCandidate{label: label, url: candidateURL})
 		}
-		seen[candidate.url] = struct{}{}
-		candidates = append(candidates, candidate)
 	}
 	return candidates
+}
+
+func expandDownloadCandidateURLs(ctx context.Context, rawURL string) []string {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return nil
+	}
+	normalized := parsed.String()
+	resolved, err := netprobe.ResolveHTTPURLHostCached(ctx, "sdk-download", normalized, 500*time.Millisecond)
+	if err == nil && strings.TrimSpace(resolved) != "" {
+		return []string{resolved}
+	}
+	return netprobe.URLCandidates(normalized)
 }
 
 func (f resolvedDownloadFile) targetFileName() string {

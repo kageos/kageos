@@ -3,6 +3,7 @@ package netprobe
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -54,6 +55,37 @@ func TestResolveHTTPBaseURLReturnsReachableCandidate(t *testing.T) {
 	}
 	if got == "" {
 		t.Fatal("expected resolved URL")
+	}
+}
+
+func TestResolveHTTPURLHostCachedPreservesURLParts(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	rawURL := strings.Replace(server.URL, "127.0.0.1", "localhost", 1) + "/kageos/a.png?X-Amz-Signature=secret#frag"
+	got, err := ResolveHTTPURLHostCached(t.Context(), t.Name(), rawURL, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := url.Parse(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Path != "/kageos/a.png" || parsed.RawQuery != "X-Amz-Signature=secret" || parsed.Fragment != "frag" {
+		t.Fatalf("resolved URL did not preserve path/query/fragment: %s", got)
+	}
+}
+
+func TestResolveHTTPURLHostCachedKeepsExternalURL(t *testing.T) {
+	rawURL := "https://files.example.com/kageos/a.png?x=1"
+	got, err := ResolveHTTPURLHostCached(t.Context(), t.Name(), rawURL, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != rawURL {
+		t.Fatalf("ResolveHTTPURLHostCached external = %q, want %q", got, rawURL)
 	}
 }
 

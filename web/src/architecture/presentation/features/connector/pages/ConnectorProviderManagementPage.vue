@@ -44,6 +44,10 @@
             <span class="summary-value">{{ secretCount }}</span>
             <span class="summary-label">{{ t('connectorProvider.secretCount') }}</span>
           </div>
+          <div class="summary-item">
+            <span class="summary-value">{{ supportedCount }}</span>
+            <span class="summary-label">{{ t('connectorProvider.apiSupportedCount') }}</span>
+          </div>
         </div>
 
         <div class="toolbar">
@@ -123,6 +127,14 @@
             <template #default="{ row }">
               <el-tag :type="providerStatusType(row)">
                 {{ providerStatusLabel(row) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('connectorProvider.capability')" width="130" align="center">
+            <template #default="{ row }">
+              <el-tag :type="providerCapabilityType(row)" effect="plain">
+                {{ providerCapabilityLabel(row) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -350,6 +362,7 @@ const filteredProviders = computed(() => {
 const activeCount = computed(() => providers.value.filter((item) => item.active).length)
 const managedCount = computed(() => providers.value.filter((item) => item.managed).length)
 const secretCount = computed(() => providers.value.filter((item) => item.has_client_secret).length)
+const supportedCount = computed(() => providers.value.filter((item) => isProviderProxySupported(item)).length)
 
 const rules: FormRules<ProviderFormState> = {
   code: [
@@ -430,6 +443,20 @@ function providerStatusLabel(row: ConnectorOAuthProviderInfo) {
     return t('connectorProvider.disabled')
   }
   return row.active ? t('connectorProvider.active') : t('connectorProvider.pending')
+}
+
+function isProviderProxySupported(row: ConnectorOAuthProviderInfo) {
+  return Boolean(row.capabilities?.proxy_supported)
+}
+
+function providerCapabilityType(row: ConnectorOAuthProviderInfo) {
+  return isProviderProxySupported(row) ? 'success' : 'info'
+}
+
+function providerCapabilityLabel(row: ConnectorOAuthProviderInfo) {
+  return isProviderProxySupported(row)
+    ? t('connectorProvider.apiSupported')
+    : t('connectorProvider.apiPending')
 }
 
 function providerLogo(row: ConnectorOAuthProviderInfo) {

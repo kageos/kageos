@@ -4,18 +4,18 @@
       <template #header>
         <div class="card-header">
           <div>
-            <h2>LLM 管理</h2>
-            <p class="header-desc">管理模型配置、默认模型与公开可见性。</p>
+            <h2>{{ t('llmManagement.title') }}</h2>
+            <p class="header-desc">{{ t('llmManagement.subtitle') }}</p>
           </div>
           <div class="header-actions">
-            <el-button :icon="Refresh" @click="handleRefresh">刷新</el-button>
+            <el-button :icon="Refresh" @click="handleRefresh">{{ t('common.refresh') }}</el-button>
             <el-button
               v-if="activeScope === 'mine'"
               type="primary"
               :icon="Plus"
               @click="handleCreate"
             >
-              新建配置
+              {{ t('llmManagement.createConfig') }}
             </el-button>
           </div>
         </div>
@@ -23,7 +23,7 @@
 
       <div class="page-body">
         <div class="default-panel" v-loading="defaultLoading">
-          <div class="default-panel-label">当前默认配置</div>
+          <div class="default-panel-label">{{ t('llmManagement.currentDefault') }}</div>
           <template v-if="defaultConfig">
             <div class="default-panel-main">
               <div>
@@ -33,7 +33,7 @@
                 </div>
               </div>
               <div class="default-tags">
-                <el-tag type="warning">默认</el-tag>
+                <el-tag type="warning">{{ t('llmManagement.defaultTag') }}</el-tag>
                 <el-tag :type="defaultConfig.visibility === 0 ? 'success' : 'info'">
                   {{ visibilityLabel(defaultConfig.visibility) }}
                 </el-tag>
@@ -41,20 +41,20 @@
             </div>
           </template>
           <template v-else>
-            <div class="default-empty">当前没有可见的默认 LLM 配置。</div>
+            <div class="default-empty">{{ t('llmManagement.noDefault') }}</div>
           </template>
         </div>
 
         <el-tabs v-model="activeScope" class="scope-tabs" @tab-change="handleScopeChange">
-          <el-tab-pane label="我的配置" name="mine" />
-          <el-tab-pane label="公开市场" name="market" />
+          <el-tab-pane :label="t('llmManagement.myConfigs')" name="mine" />
+          <el-tab-pane :label="t('llmManagement.publicMarket')" name="market" />
         </el-tabs>
 
         <div class="toolbar">
           <el-input
             v-model="keyword"
             clearable
-            placeholder="按名称、模型、API Base 或管理员过滤当前列表"
+            :placeholder="t('llmManagement.searchPlaceholder')"
             class="toolbar-search"
           >
             <template #prefix>
@@ -62,8 +62,8 @@
             </template>
           </el-input>
           <div class="toolbar-summary">
-            共 {{ filteredConfigs.length }} 条
-            <span v-if="keyword">（已过滤）</span>
+            {{ t('llmManagement.total', { count: filteredConfigs.length }) }}
+            <span v-if="keyword">{{ t('llmManagement.filtered') }}</span>
           </div>
         </div>
 
@@ -72,22 +72,22 @@
           :data="filteredConfigs"
           stripe
           style="width: 100%"
-          empty-text="暂无 LLM 配置"
+          :empty-text="t('llmManagement.empty')"
         >
-          <el-table-column label="配置" min-width="240">
+          <el-table-column :label="t('llmManagement.config')" min-width="240">
             <template #default="{ row }">
               <div class="name-cell">
                 <div class="name-line">
                   <span class="config-name">{{ row.name }}</span>
-                  <el-tag v-if="row.is_default" type="warning" size="small">默认</el-tag>
-                  <el-tag v-if="row.is_admin" type="primary" size="small">可管理</el-tag>
+                  <el-tag v-if="row.is_default" type="warning" size="small">{{ t('llmManagement.defaultTag') }}</el-tag>
+                  <el-tag v-if="row.is_admin" type="primary" size="small">{{ t('llmManagement.manageable') }}</el-tag>
                 </div>
                 <div class="meta-line">{{ row.model }}</div>
               </div>
             </template>
           </el-table-column>
 
-          <el-table-column label="可见性" width="120" align="center">
+          <el-table-column :label="t('llmManagement.visibility')" width="120" align="center">
             <template #default="{ row }">
               <el-tag :type="row.visibility === 0 ? 'success' : 'info'">
                 {{ visibilityLabel(row.visibility) }}
@@ -98,29 +98,29 @@
           <el-table-column label="API Key" width="110" align="center">
             <template #default="{ row }">
               <el-tag :type="row.has_api_key ? 'success' : 'info'">
-                {{ row.has_api_key ? '已配置' : '未配置' }}
+                {{ row.has_api_key ? t('llmManagement.configured') : t('llmManagement.notConfigured') }}
               </el-tag>
             </template>
           </el-table-column>
 
           <el-table-column prop="api_base" label="API Base" min-width="220" show-overflow-tooltip />
 
-          <el-table-column label="超时/Token" width="140" align="center">
+          <el-table-column :label="t('llmManagement.timeoutToken')" width="140" align="center">
             <template #default="{ row }">
               <div>{{ row.timeout }}s</div>
               <div class="muted-line">{{ row.max_tokens }} tokens</div>
             </template>
           </el-table-column>
 
-          <el-table-column prop="admin" label="管理员" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="admin" :label="t('llmManagement.admin')" min-width="180" show-overflow-tooltip />
 
-          <el-table-column label="更新时间" width="180">
+          <el-table-column :label="t('llmManagement.updatedAt')" width="180">
             <template #default="{ row }">
               {{ formatDateTime(row.updated_at) }}
             </template>
           </el-table-column>
 
-          <el-table-column label="操作" width="220" fixed="right">
+          <el-table-column :label="t('common.operation')" width="220" fixed="right">
             <template #default="{ row }">
               <el-button
                 v-if="row.is_admin && !row.is_default"
@@ -129,7 +129,7 @@
                 size="small"
                 @click="handleSetDefault(row)"
               >
-                设为默认
+                {{ t('llmManagement.setDefault') }}
               </el-button>
               <el-button
                 v-if="row.is_admin"
@@ -138,7 +138,7 @@
                 size="small"
                 @click="handleEdit(row)"
               >
-                编辑
+                {{ t('llmManagement.edit') }}
               </el-button>
               <el-button
                 v-if="row.is_admin"
@@ -147,7 +147,7 @@
                 size="small"
                 @click="handleDelete(row)"
               >
-                删除
+                {{ t('common.delete') }}
               </el-button>
             </template>
           </el-table-column>
@@ -157,7 +157,7 @@
 
     <el-dialog
       v-model="dialogVisible"
-      :title="dialogMode === 'create' ? '新建 LLM 配置' : '编辑 LLM 配置'"
+      :title="dialogMode === 'create' ? t('llmManagement.createDialogTitle') : t('llmManagement.editDialogTitle')"
       width="720px"
       :close-on-click-modal="false"
       destroy-on-close
@@ -169,12 +169,12 @@
           :rules="rules"
           label-width="110px"
         >
-          <el-form-item label="配置名称" prop="name">
-            <el-input v-model="form.name" placeholder="例如：OpenAI GPT-4.1" />
+          <el-form-item :label="t('llmManagement.configName')" prop="name">
+            <el-input v-model="form.name" :placeholder="t('llmManagement.configNamePlaceholder')" />
           </el-form-item>
 
-          <el-form-item label="模型" prop="model">
-            <el-input v-model="form.model" placeholder="例如：gpt-4.1、gpt-4o-mini" />
+          <el-form-item :label="t('llmManagement.model')" prop="model">
+            <el-input v-model="form.model" :placeholder="t('llmManagement.modelPlaceholder')" />
           </el-form-item>
 
           <el-form-item label="API Key">
@@ -182,56 +182,56 @@
               v-model="form.api_key"
               type="password"
               show-password
-              placeholder="编辑时会加载当前值；清空后保存表示删除当前 Key"
+              :placeholder="t('llmManagement.apiKeyPlaceholder')"
             />
           </el-form-item>
 
           <el-form-item label="API Base">
-            <el-input v-model="form.api_base" placeholder="例如：https://api.openai.com/v1" />
+            <el-input v-model="form.api_base" :placeholder="t('llmManagement.apiBasePlaceholder')" />
           </el-form-item>
 
-          <el-form-item label="超时时间">
+          <el-form-item :label="t('llmManagement.timeout')">
             <el-input-number v-model="form.timeout" :min="1" :max="3600" style="width: 180px" />
-            <span class="form-suffix">秒</span>
+            <span class="form-suffix">{{ t('llmManagement.seconds') }}</span>
           </el-form-item>
 
-          <el-form-item label="最大 Token">
+          <el-form-item :label="t('llmManagement.maxToken')">
             <el-input-number v-model="form.max_tokens" :min="1" :max="1048576" style="width: 180px" />
           </el-form-item>
 
-          <el-form-item label="可见性">
+          <el-form-item :label="t('llmManagement.visibility')">
             <el-radio-group v-model="form.visibility">
-              <el-radio :value="0">公开</el-radio>
-              <el-radio :value="1">私有</el-radio>
+              <el-radio :value="0">{{ t('llmManagement.public') }}</el-radio>
+              <el-radio :value="1">{{ t('llmManagement.private') }}</el-radio>
             </el-radio-group>
           </el-form-item>
 
-          <el-form-item label="管理员">
+          <el-form-item :label="t('llmManagement.admin')">
             <el-input
               v-model="form.admin"
-              placeholder="多个用户名用英文逗号分隔；留空默认当前用户"
+              :placeholder="t('llmManagement.adminPlaceholder')"
             />
           </el-form-item>
 
-          <el-form-item label="设为默认">
+          <el-form-item :label="t('llmManagement.setAsDefault')">
             <el-switch v-model="form.is_default" />
           </el-form-item>
 
-          <el-form-item label="额外配置" prop="extra_config">
+          <el-form-item :label="t('llmManagement.extraConfig')" prop="extra_config">
             <el-input
               v-model="form.extra_config"
               type="textarea"
               :rows="6"
-              placeholder='请输入 JSON，例如：{"temperature":0.2}'
+              :placeholder="t('llmManagement.extraConfigPlaceholder')"
             />
           </el-form-item>
         </el-form>
       </div>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="submitting" @click="handleSubmit">
-          {{ dialogMode === 'create' ? '创建' : '保存' }}
+          {{ dialogMode === 'create' ? t('llmManagement.create') : t('llmManagement.save') }}
         </el-button>
       </template>
     </el-dialog>
@@ -240,6 +240,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
@@ -275,6 +276,7 @@ interface LLMFormState {
 
 const DEFAULT_TIMEOUT = 300
 const DEFAULT_MAX_TOKENS = 8196
+const { t } = useI18n()
 
 const activeScope = ref<Scope>('mine')
 const keyword = ref('')
@@ -304,12 +306,12 @@ const filteredConfigs = computed(() => {
   })
 })
 
-const rules: FormRules<LLMFormState> = {
+const rules = computed<FormRules<LLMFormState>>(() => ({
   name: [
-    { required: true, message: '请输入配置名称', trigger: 'blur' }
+    { required: true, message: t('llmManagement.nameRequired'), trigger: 'blur' }
   ],
   model: [
-    { required: true, message: '请输入模型名称', trigger: 'blur' }
+    { required: true, message: t('llmManagement.modelRequired'), trigger: 'blur' }
   ],
   extra_config: [
     {
@@ -323,13 +325,13 @@ const rules: FormRules<LLMFormState> = {
           JSON.parse(text)
           callback()
         } catch {
-          callback(new Error('额外配置必须是合法 JSON'))
+          callback(new Error(t('llmManagement.extraConfigInvalid')))
         }
       },
       trigger: 'blur'
     }
   ]
-}
+}))
 
 function createDefaultForm(): LLMFormState {
   return {
@@ -367,7 +369,7 @@ function applyForm(info: Partial<LLMInfo>) {
 }
 
 function visibilityLabel(visibility: number) {
-  return visibility === 1 ? '私有' : '公开'
+  return visibility === 1 ? t('llmManagement.private') : t('llmManagement.public')
 }
 
 function formatDateTime(value: string) {
@@ -386,7 +388,7 @@ async function loadConfigs() {
     configs.value = resp.configs || []
   } catch (error: any) {
     console.error('加载 LLM 配置失败:', error)
-    ElMessage.error(error?.message || '加载 LLM 配置失败')
+    ElMessage.error(error?.message || t('llmManagement.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -429,7 +431,7 @@ async function handleEdit(row: LLMInfo) {
     applyForm(detail)
   } catch (error: any) {
     console.error('加载 LLM 配置详情失败:', error)
-    ElMessage.error(error?.message || '加载 LLM 配置详情失败')
+    ElMessage.error(error?.message || t('llmManagement.loadDetailFailed'))
     dialogVisible.value = false
   } finally {
     dialogLoading.value = false
@@ -467,10 +469,10 @@ async function handleSubmit() {
 
     if (dialogMode.value === 'create') {
       await createLLM(buildCreatePayload())
-      ElMessage.success('LLM 配置创建成功')
+      ElMessage.success(t('llmManagement.createSuccess'))
     } else {
       await updateLLM(buildUpdatePayload())
-      ElMessage.success('LLM 配置保存成功')
+      ElMessage.success(t('llmManagement.saveSuccess'))
     }
 
     dialogVisible.value = false
@@ -478,7 +480,7 @@ async function handleSubmit() {
   } catch (error: any) {
     if (error?.message && !String(error.message).includes('validate')) {
       console.error('提交 LLM 配置失败:', error)
-      ElMessage.error(error.message || '提交失败')
+      ElMessage.error(error.message || t('llmManagement.submitFailed'))
     }
   } finally {
     submitting.value = false
@@ -488,33 +490,33 @@ async function handleSubmit() {
 async function handleDelete(row: LLMInfo) {
   try {
     await ElMessageBox.confirm(
-      `确定删除 LLM 配置「${row.name}」吗？`,
-      '删除确认',
+      t('llmManagement.deleteConfirm', { name: row.name }),
+      t('llmManagement.deleteTitle'),
       {
         type: 'warning',
-        confirmButtonText: '删除',
-        cancelButtonText: '取消'
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel')
       }
     )
 
     await deleteLLM({ id: row.id })
-    ElMessage.success('LLM 配置已删除')
+    ElMessage.success(t('llmManagement.deleteSuccess'))
     await handleRefresh()
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
     console.error('删除 LLM 配置失败:', error)
-    ElMessage.error(error?.message || '删除失败')
+    ElMessage.error(error?.message || t('llmManagement.deleteFailed'))
   }
 }
 
 async function handleSetDefault(row: LLMInfo) {
   try {
     await setDefaultLLM({ id: row.id })
-    ElMessage.success(`已将「${row.name}」设为默认 LLM`)
+    ElMessage.success(t('llmManagement.setDefaultSuccess', { name: row.name }))
     await handleRefresh()
   } catch (error: any) {
     console.error('设置默认 LLM 失败:', error)
-    ElMessage.error(error?.message || '设置默认 LLM 失败')
+    ElMessage.error(error?.message || t('llmManagement.setDefaultFailed'))
   }
 }
 

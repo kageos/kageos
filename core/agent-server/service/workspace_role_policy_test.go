@@ -1,6 +1,10 @@
 package service
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/kageos/kageos/core/agent-server/model"
+)
 
 func TestWorkspaceRoleAliasesResolveToCanonicalRoles(t *testing.T) {
 	cases := map[string]string{
@@ -26,6 +30,35 @@ func TestWorkspaceRoleDoesNotAcceptRetiredRoleIDs(t *testing.T) {
 		if isKnownWorkspaceRole(input) {
 			t.Fatalf("retired role id %q should not be a known workspace role", input)
 		}
+	}
+}
+
+func TestApplyDefaultWorkspaceSessionRoleUsesAppOperator(t *testing.T) {
+	session := &model.AgentChatSession{}
+
+	applyDefaultWorkspaceSessionRole(session)
+
+	if session.RoleID != WorkspaceRoleAppOperator || session.RoleDisplayName != "应用操作员" {
+		t.Fatalf("default role = %q/%q, want app_operator/应用操作员", session.RoleID, session.RoleDisplayName)
+	}
+}
+
+func TestApplyDefaultWorkspaceSessionRolePreservesExistingRole(t *testing.T) {
+	session := &model.AgentChatSession{
+		RoleID:          WorkspaceRoleQAEngineer,
+		RoleDisplayName: "测试工程师",
+	}
+
+	applyDefaultWorkspaceSessionRole(session)
+
+	if session.RoleID != WorkspaceRoleQAEngineer || session.RoleDisplayName != "测试工程师" {
+		t.Fatalf("existing role should be preserved, got %#v", session)
+	}
+
+	handoffSession := &model.AgentChatSession{HandoffTargetRole: WorkspaceRoleAppDeveloper}
+	applyDefaultWorkspaceSessionRole(handoffSession)
+	if handoffSession.RoleID != "" || handoffSession.HandoffTargetRole != WorkspaceRoleAppDeveloper {
+		t.Fatalf("handoff target role should be preserved without injecting default, got %#v", handoffSession)
 	}
 }
 

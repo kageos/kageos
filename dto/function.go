@@ -28,21 +28,22 @@ type GetFunctionResp struct {
 }
 
 type FunctionConnectorStatus struct {
-	Provider           string                      `json:"provider"`
-	Required           bool                        `json:"required"`
-	Connected          bool                        `json:"connected"`
-	ConnectionID       string                      `json:"connection_id,omitempty"`
-	DisplayName        string                      `json:"display_name,omitempty"`
-	ProviderName       string                      `json:"provider_name,omitempty"`
-	ProviderLogoURL    string                      `json:"provider_logo_url,omitempty"`
-	ProviderBrandColor string                      `json:"provider_brand_color,omitempty"`
-	ProviderAccountURL string                      `json:"provider_account_url,omitempty"`
-	Profile            *ConnectorConnectionProfile `json:"profile,omitempty"`
-	ResolvedFrom       string                      `json:"resolved_from,omitempty"`
-	RequiredScopes     []string                    `json:"required_scopes,omitempty"`
-	GrantedScopes      []string                    `json:"granted_scopes,omitempty"`
-	MissingScopes      []string                    `json:"missing_scopes,omitempty"`
-	Message            string                      `json:"message,omitempty"`
+	Provider           string                        `json:"provider"`
+	Required           bool                          `json:"required"`
+	Connected          bool                          `json:"connected"`
+	ConnectionID       string                        `json:"connection_id,omitempty"`
+	DisplayName        string                        `json:"display_name,omitempty"`
+	ProviderName       string                        `json:"provider_name,omitempty"`
+	ProviderLogoURL    string                        `json:"provider_logo_url,omitempty"`
+	ProviderBrandColor string                        `json:"provider_brand_color,omitempty"`
+	ProviderAccountURL string                        `json:"provider_account_url,omitempty"`
+	Capabilities       ConnectorProviderCapabilities `json:"capabilities,omitempty"`
+	Profile            *ConnectorConnectionProfile   `json:"profile,omitempty"`
+	ResolvedFrom       string                        `json:"resolved_from,omitempty"`
+	RequiredScopes     []string                      `json:"required_scopes,omitempty"`
+	GrantedScopes      []string                      `json:"granted_scopes,omitempty"`
+	MissingScopes      []string                      `json:"missing_scopes,omitempty"`
+	Message            string                        `json:"message,omitempty"`
 }
 
 // GetFunctionsByAppReq 获取应用下所有函数请求

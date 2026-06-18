@@ -364,6 +364,9 @@ timeouts:
 
 container:
   timeout: 30
+{{- if .AppContainerNetworkMode }}
+  network_mode: {{ q .AppContainerNetworkMode }}
+{{- end }}
   image:
     base_image: {{ q .Images.AppBase }}
 

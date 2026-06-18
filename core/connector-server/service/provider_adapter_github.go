@@ -16,6 +16,14 @@ func (githubProviderAdapter) Code() string {
 	return "github"
 }
 
+func (githubProviderAdapter) Capabilities() dto.ConnectorProviderCapabilities {
+	return dto.ConnectorProviderCapabilities{
+		OAuthSupported:   true,
+		ProxySupported:   true,
+		ProfileSupported: true,
+	}
+}
+
 func (githubProviderAdapter) ProxyBaseURL() string {
 	return "https://api.github.com"
 }

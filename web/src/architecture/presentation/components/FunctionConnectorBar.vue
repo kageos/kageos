@@ -4,8 +4,8 @@
       <span class="connector-title-icon">
         <el-icon><Connection /></el-icon>
       </span>
-      <span class="connector-title-text">连接器</span>
-      <em>{{ readyConnectorCount }}/{{ connectorItems.length }} 可用</em>
+      <span class="connector-title-text">{{ t('connectorBar.title') }}</span>
+      <em>{{ t('connectorBar.readyCount', { ready: readyConnectorCount, total: connectorItems.length }) }}</em>
     </div>
     <div class="connector-bar-list">
       <div
@@ -70,14 +70,14 @@
         </div>
 
         <el-button
-          v-if="!isConnectorReady(item)"
+          v-if="shouldShowConnectorAction(item)"
           class="connector-action"
           size="small"
           :type="hasMissingScopes(item) ? 'danger' : 'primary'"
           plain
           @click.stop="handleConnectConnector(item.provider, connectorAuthorizeScopes(item), item.connection_id)"
         >
-          {{ hasMissingScopes(item) ? '补授权' : '连接' }}
+          {{ hasMissingScopes(item) ? t('connectorBar.reauthorize') : t('connectorBar.connect') }}
         </el-button>
       </div>
     </div>
@@ -86,6 +86,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Connection } from '@element-plus/icons-vue'
 import type { FunctionConnectorEndpoint, FunctionConnectorStatus, FunctionDetail, ServiceTree } from '@/architecture/domain/types'
@@ -101,9 +102,11 @@ const props = defineProps<{
   functionDetail: FunctionDetail | null
 }>()
 
+const { t } = useI18n()
+
 type ConnectorProviderDisplay = Pick<
   ConnectorOAuthProviderInfo,
-  'code' | 'name' | 'logo_url' | 'brand_color' | 'provider_account_url'
+  'code' | 'name' | 'logo_url' | 'brand_color' | 'provider_account_url' | 'capabilities'
 >
 
 const connectorProviderDisplays = ref<Map<string, ConnectorProviderDisplay>>(new Map())
@@ -193,7 +196,8 @@ function withConnectorProviderDisplay(item: FunctionConnectorStatus): FunctionCo
     provider_name: item.provider_name || display.name || item.provider,
     provider_logo_url: item.provider_logo_url || display.logo_url || '',
     provider_brand_color: item.provider_brand_color || display.brand_color || '',
-    provider_account_url: item.provider_account_url || display.provider_account_url || ''
+    provider_account_url: item.provider_account_url || display.provider_account_url || '',
+    capabilities: hasConnectorCapabilities(item.capabilities) ? item.capabilities : display.capabilities
   }
 }
 
@@ -217,36 +221,64 @@ function hasMissingScopes(item: FunctionConnectorStatus): boolean {
   return Boolean(item.connected && item.missing_scopes?.length)
 }
 
+function hasConnectorCapabilities(capabilities: FunctionConnectorStatus['capabilities']): boolean {
+  return Boolean(
+    capabilities && (
+      capabilities.oauth_supported ||
+      capabilities.proxy_supported ||
+      capabilities.profile_supported ||
+      capabilities.resource_summary_supported
+    )
+  )
+}
+
+function isConnectorProxySupported(item: FunctionConnectorStatus): boolean {
+  return hasConnectorCapabilities(item.capabilities)
+    ? item.capabilities?.proxy_supported === true
+    : true
+}
+
 function isConnectorReady(item: FunctionConnectorStatus): boolean {
-  return Boolean(item.connected && !item.missing_scopes?.length)
+  return Boolean(isConnectorProxySupported(item) && item.connected && !item.missing_scopes?.length)
+}
+
+function shouldShowConnectorAction(item: FunctionConnectorStatus): boolean {
+  return isConnectorProxySupported(item) && !isConnectorReady(item)
 }
 
 function connectorCardClass(item: FunctionConnectorStatus) {
   return {
     'is-ready': isConnectorReady(item),
+    'is-unsupported': !isConnectorProxySupported(item),
     'is-scope-missing': hasMissingScopes(item),
-    'is-disconnected': !item.connected
+    'is-disconnected': isConnectorProxySupported(item) && !item.connected
   }
 }
 
 function connectorStateLabel(item: FunctionConnectorStatus): string {
+  if (!isConnectorProxySupported(item)) {
+    return t('connectorBar.unsupported')
+  }
   if (hasMissingScopes(item)) {
-    return '需补授权'
+    return t('connectorBar.reauthorizationNeeded')
   }
   if (isConnectorReady(item)) {
-    return '已连接'
+    return t('connectorBar.connected')
   }
-  return '未连接'
+  return t('connectorBar.disconnected')
 }
 
 function connectorStatusText(item: FunctionConnectorStatus): string {
+  if (!isConnectorProxySupported(item)) {
+    return t('connectorBar.unsupportedStatus')
+  }
   if (hasMissingScopes(item)) {
-    return `权限不足：${item.missing_scopes?.join('、')}`
+    return t('connectorBar.missingScopes', { scopes: item.missing_scopes?.join(t('connectorBar.scopeListSeparator')) })
   }
   if (item.connected) {
-    return connectorProfileName(item) || item.display_name || item.resolved_from || '已连接'
+    return connectorProfileName(item) || item.display_name || item.resolved_from || t('connectorBar.connected')
   }
-  return item.message || '未连接'
+  return item.message || t('connectorBar.disconnected')
 }
 
 function connectorProfileName(item: FunctionConnectorStatus): string {
@@ -313,12 +345,12 @@ function connectorProfileDetail(item: FunctionConnectorStatus): string {
   }
   if (summary?.page_count || summary?.database_count) {
     const resourceParts: string[] = []
-    if (summary.page_count) resourceParts.push(`${summary.page_count} 页面`)
-    if (summary.database_count) resourceParts.push(`${summary.database_count} 数据库`)
+    if (summary.page_count) resourceParts.push(t('connectorBar.pageCount', { count: summary.page_count }))
+    if (summary.database_count) resourceParts.push(t('connectorBar.databaseCount', { count: summary.database_count }))
     parts.push(resourceParts.join(' / '))
   }
   if (!parts.length && item.resolved_from) {
-    parts.push(`绑定 ${item.resolved_from}`)
+    parts.push(t('connectorBar.boundResource', { name: item.resolved_from }))
   }
   return parts.join(' · ')
 }
@@ -347,7 +379,7 @@ async function handleConnectConnector(provider: string, scopes: string[] = [], c
     })
     window.location.href = resp.authorize_url
   } catch (error) {
-    const message = error instanceof Error ? error.message : '发起连接器授权失败'
+    const message = error instanceof Error ? error.message : t('connectorBar.oauthStartFailed')
     ElMessage.error(message)
   }
 }
@@ -439,6 +471,10 @@ async function handleConnectConnector(provider: string, scopes: string[] = [], c
 
 .connector-card.is-scope-missing {
   border-color: color-mix(in srgb, var(--el-color-danger) 24%, var(--el-border-color-lighter) 76%);
+}
+
+.connector-card.is-unsupported {
+  border-color: color-mix(in srgb, var(--el-text-color-placeholder) 24%, var(--el-border-color-lighter) 76%);
 }
 
 .connector-card.is-disconnected {
@@ -601,6 +637,12 @@ async function handleConnectConnector(provider: string, scopes: string[] = [], c
   border-color: color-mix(in srgb, var(--el-color-danger) 26%, var(--el-border-color-lighter) 74%);
   background: color-mix(in srgb, var(--el-color-danger) 9%, var(--el-fill-color-blank) 91%);
   color: var(--el-color-danger);
+}
+
+.connector-card.is-unsupported .connector-state-pill {
+  border-color: color-mix(in srgb, var(--el-text-color-placeholder) 24%, var(--el-border-color-lighter) 76%);
+  background: color-mix(in srgb, var(--el-text-color-placeholder) 8%, var(--el-fill-color-blank) 92%);
+  color: var(--el-text-color-secondary);
 }
 
 .connector-status {

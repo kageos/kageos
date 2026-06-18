@@ -1,7 +1,11 @@
 <template>
   <div class="detail-content">
     <div v-if="packageNode">
-      <el-tabs v-model="activeTab" class="detail-tabs">
+      <el-tabs
+        :model-value="activeTab"
+        class="detail-tabs"
+        @tab-change="handlePackageTabChange"
+      >
         <el-tab-pane :label="t('packageDetail.permission')" name="permission">
           <div class="tab-content access-tab-content">
             <TeamAccessPanel
@@ -69,24 +73,20 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import type { ServiceTree } from '@/architecture/domain/types'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
 import TeamAccessPanel from './TeamAccessPanel.vue'
+import { usePackageDetailTabs, type PackageTabName } from '@/architecture/presentation/composables/usePackageDetailTabs'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { featureFlags } from '@/architecture/shared/config/features'
 import {
-  isOperateLogPanelQuery,
-  isScheduledPanelQuery,
-  PLATFORM_PANEL_QUERY_KEY,
   PLATFORM_SCHEDULED_EXECUTION_ID_QUERY_KEY,
   PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY,
   readStringQuery,
 } from '@/architecture/shared/routing/platformRouteParams'
-
-type PackageTabName = 'permission' | 'operateLog' | 'scheduledAgentTask' | 'detail'
 
 interface LoadableOperateLogSection {
   load: () => void
@@ -109,8 +109,14 @@ const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 
-const activeTab = ref<PackageTabName>(featureFlags.operateLogs ? 'operateLog' : 'detail')
+const packageNodeRef = computed(() => props.packageNode)
+const { activeTab, handlePackageTabChange } = usePackageDetailTabs({
+  route,
+  router,
+  currentPackageNode: packageNodeRef,
+})
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
 const accessPanelRef = ref<LoadableAccessPanel | null>(null)
 
@@ -142,33 +148,6 @@ watch(
       loadOperateLogTab('operateLog')
     }
   }
-)
-
-watch(
-  () => [
-    route.query._open,
-    route.query._scheduled,
-    route.query._scheduled_kind,
-    route.query[PLATFORM_PANEL_QUERY_KEY],
-    route.query[PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY],
-    props.packageNode?.full_code_path,
-  ],
-  () => {
-    if (isScheduledPanelQuery(route.query, 'agent') && scheduledFocusTaskID.value && featureFlags.scheduledTasks) {
-      activeTab.value = 'scheduledAgentTask'
-    }
-  },
-  { immediate: true }
-)
-
-watch(
-  () => [route.query._open, route.query[PLATFORM_PANEL_QUERY_KEY], props.packageNode?.full_code_path],
-  () => {
-    if (isOperateLogPanelQuery(route.query) && featureFlags.operateLogs) {
-      activeTab.value = 'operateLog'
-    }
-  },
-  { immediate: true }
 )
 
 </script>

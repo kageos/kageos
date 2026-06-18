@@ -127,7 +127,6 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
     () => {
       if (currentFunction.value?.type !== 'function') {
         functionActiveTab.value = 'content'
-        syncFunctionTabQuery()
       }
     },
     { immediate: true }

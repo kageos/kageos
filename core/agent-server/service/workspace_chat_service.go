@@ -205,6 +205,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 			ContextPolicy: ContextPolicyFull,
 			User:          user,
 		}
+		applyDefaultWorkspaceSessionRole(session)
 		session.CreatedBy = user
 		session.UpdatedBy = user
 		if e := s.sessionRepo.Create(session); e != nil {

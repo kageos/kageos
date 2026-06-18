@@ -22,6 +22,13 @@ export interface ConnectorConnectionProfile {
   last_enriched_at?: string
 }
 
+export interface ConnectorProviderCapabilities {
+  oauth_supported?: boolean
+  proxy_supported?: boolean
+  profile_supported?: boolean
+  resource_summary_supported?: boolean
+}
+
 export interface ConnectorConnectionInfo {
   id: number
   connection_id: string
@@ -108,6 +115,7 @@ export interface ConnectorOAuthProviderInfo {
   enabled: boolean
   active: boolean
   managed: boolean
+  capabilities?: ConnectorProviderCapabilities
   created_at?: string
   updated_at?: string
 }
