@@ -28,12 +28,10 @@ vendor
 logs/
 *.log
 data/
-namespace/**
-!namespace/
-!namespace/*/
-!namespace/*/*/
-!namespace/*/*/code/
-!namespace/*/*/code/**
+namespace/*/*/workplace/
+namespace/*/*/workplace/**
+namespace/**/node_modules/
+namespace/**/.git/
 *.db
 
 # 本地生产部署生成物
