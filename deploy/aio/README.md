@@ -129,18 +129,18 @@ Secret:
 然后打版本 tag：
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.3
+git push origin v0.1.3
 ```
 
 同一个 tag 会触发两条发布：
 
 ```text
-qiayanai/kagebase:0.1.0
-qiayanai/kageos:0.1.0
+qiayanai/kagebase:0.1.3
+qiayanai/kageos:0.1.3
 ```
 
-`qiayanai/kageos:0.1.0` 内置默认值会指向 `docker.io/qiayanai/kagebase:0.1.0`。用户运行 `kageos` 时不需要手动选择架构，也不需要单独指定 `kagebase`。
+`qiayanai/kageos:0.1.3` 内置默认值会指向 `docker.io/qiayanai/kagebase:0.1.3`。用户运行 `kageos` 时不需要手动选择架构，也不需要单独指定 `kagebase`。
 
 发布完成后，用户只需要：
 
@@ -152,7 +152,7 @@ docker run -d \
   -p 8080:80 \
   -v kageos-data:/var/lib/kageos \
   -e CANONICAL_BASE_URL=http://localhost:8080 \
-  qiayanai/kageos:0.1.0
+  qiayanai/kageos:0.1.3
 ```
 
 Docker 会自动按机器选择 `linux/amd64` 或 `linux/arm64`。
@@ -162,13 +162,13 @@ Docker 会自动按机器选择 `linux/amd64` 或 `linux/arm64`。
 本地临时发布可以用：
 
 ```bash
-scripts/release-docker.sh 0.1.0
+scripts/release-docker.sh 0.1.3
 ```
 
 这个脚本需要 Docker Buildx，并会推送：
 
 ```text
-qiayanai/kageos:0.1.0
+qiayanai/kageos:0.1.3
 qiayanai/kageos:latest
 ```
 
@@ -183,8 +183,8 @@ docker login
 再推当前本地镜像。注意这种方式不是多架构，只适合内部临时测试：
 
 ```bash
-docker tag kageos:latest qiayanai/kageos:0.1.0-arm64
-docker push qiayanai/kageos:0.1.0-arm64
+docker tag kageos:latest qiayanai/kageos:0.1.3-arm64
+docker push qiayanai/kageos:0.1.3-arm64
 ```
 
 多架构发布完成后，用户可以直接运行：
@@ -197,7 +197,7 @@ docker run -d \
   -p 8080:80 \
   -v kageos-data:/var/lib/kageos \
   -e CANONICAL_BASE_URL=http://localhost:8080 \
-  qiayanai/kageos:0.1.0
+  qiayanai/kageos:0.1.3
 ```
 
 Docker Hub 上的公开镜像需要带命名空间，所以对外推荐 `qiayanai/kageos:latest`。如果只写 `docker run kageos`，Docker 会去找 Docker Official Images 里的 `library/kageos`，一般不是我们的仓库。
