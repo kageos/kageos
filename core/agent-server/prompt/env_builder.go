@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kageos/kageos/pkg/functionschema"
+	"github.com/kageos/kageos/pkg/sdkmodule"
 	"github.com/kageos/kageos/pkg/servicetree"
 	"github.com/kageos/kageos/sdk/agent-app/widget"
 )
@@ -65,7 +66,7 @@ func BuildInitGoContent(fullCodePath string, name, desc string) string {
 	return fmt.Sprintf(`package %s
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"%s"
 )
 
 var packageContext = &app.PackageContext{
@@ -73,7 +74,7 @@ var packageContext = &app.PackageContext{
 	Name:        %s,
 	Desc:        %s,
 }
-`, pkg, strconv.Quote(routerGroup), strconv.Quote(name), strconv.Quote(desc))
+`, pkg, sdkmodule.AgentAppImport("app"), strconv.Quote(routerGroup), strconv.Quote(name), strconv.Quote(desc))
 }
 
 // BuildWorkspaceEnvData 根据输入构建环境占位数据；in 为 nil 时用 directoryName/fullCodePath 填最小集，内部实现 ChildrenSection、FilesSection、DirectoryList 等。

@@ -25,6 +25,9 @@ func TestRuntimeAppPathsBuildExpectedLocations(t *testing.T) {
 	if got := paths.MainGoPath(); got != filepath.Join("namespace", "alice", "demo", "code", "cmd", "app", "main.go") {
 		t.Fatalf("MainGoPath() = %s", got)
 	}
+	if got := paths.GoModPath(); got != filepath.Join("namespace", "alice", "demo", "go.mod") {
+		t.Fatalf("GoModPath() = %s", got)
+	}
 	if got := paths.VersionJSONPath(); got != filepath.Join("namespace", "alice", "demo", "workplace", "metadata", "version.json") {
 		t.Fatalf("VersionJSONPath() = %s", got)
 	}
@@ -46,6 +49,9 @@ func TestRuntimeAppPathsNamespaceAPIImport(t *testing.T) {
 	t.Parallel()
 
 	paths := newRuntimeAppPaths("namespace", "alice", "demo")
+	if got := paths.AppModulePath(); got != "github.com/kageos/kageos/namespace/alice/demo" {
+		t.Fatalf("AppModulePath() = %s", got)
+	}
 	got := paths.NamespaceAPIImport("/ticket_system/order")
 	want := "github.com/kageos/kageos/namespace/alice/demo/code/api/ticket_system/order"
 	if got != want {

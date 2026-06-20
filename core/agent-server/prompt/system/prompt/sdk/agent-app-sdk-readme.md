@@ -184,7 +184,7 @@ packageContext.POST("meeting_room_notify_soon.form", NotifySoon, &app.FormTempla
 最小可用片段示例：
 
 ```go
-import "github.com/kageos/kageos/sdk/agent-app/chart"
+import "github.com/kageos/kageos-sdk/agent-app/chart"
 
 type SalesStatisticsReq struct {
     StartTime string `json:"start_time" form:"start_time" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
@@ -1105,7 +1105,7 @@ func onSelectFuzzyProduct(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*ca
 
 #### Statistics 与聚合计算（OnSelectFuzzyResp.Statistics）
 
-`OnSelectFuzzyResp.Statistics` 的键值对会在前端表单旁展示（如收银台「商品原价总额」「会员折扣后价格」「当前余额」等）。值可以是**静态字符串**，也可以是 **`statistics` 包**返回的表达式，由前端根据当前 **table 行数据**或**选中项**动态计算。仅当当前文件真实使用 `statistics.Value` 等符号时才导入 `github.com/kageos/kageos/sdk/agent-app/statistics`。
+`OnSelectFuzzyResp.Statistics` 的键值对会在前端表单旁展示（如收银台「商品原价总额」「会员折扣后价格」「当前余额」等）。值可以是**静态字符串**，也可以是 **`statistics` 包**返回的表达式，由前端根据当前 **table 行数据**或**选中项**动态计算。仅当当前文件真实使用 `statistics.Value` 等符号时才导入 `github.com/kageos/kageos-sdk/agent-app/statistics`。
 
 **1. table 子表场景（对当前 table 多行聚合）**
 
@@ -1232,8 +1232,8 @@ Chart 用于**只读的统计/图表**（BI），GET 请求。ChartTemplate、�
    - **正确**：使用具体类型 `&chart.LineChart{}`、`&chart.BarChart{}` 等，只填 Title、XAxis、Series（Name、Data、可选 Config），不填 ChartType 和 Series[].Type；框架会在 `resp.Chart()` 时自动注入。
 
 3. **误用 sdk/agent-app 下的 query 包**  
-   - **错误**：`import "github.com/kageos/kageos/sdk/agent-app/query"`，导致编译报错「包找不到」。  
-   - **正确**：查询/分页等应使用 `github.com/kageos/kageos/pkg/gormx/query`（或项目内实际提供的 query 包），不要使用 `sdk/agent-app/query`。
+   - **错误**：`import "github.com/kageos/kageos-sdk/agent-app/query"`，导致编译报错「包找不到」。
+   - **正确**：查询/分页等应使用 `github.com/kageos/kageos-sdk/pkg/gormx/query`（或项目内实际提供的 query 包），不要使用 `sdk/agent-app/query`。
 
 4. **不确定时先看案例**  
    - 图表个数、路由拆分、返回格式，以收银台案例为准：`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`，看每个图表是如何「一个 GET 路由 + 一个具体图表类型返回值」实现的。

@@ -56,7 +56,7 @@ persist_runtime_dir() {
     return 0
   fi
   if [[ -e "$link" ]]; then
-    cp -a "${link}/." "$target/" 2>/dev/null || true
+    cp -an "${link}/." "$target/" 2>/dev/null || true
     rm -rf "$link"
   fi
   ln -s "$target" "$link"

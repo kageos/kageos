@@ -45,10 +45,10 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	"github.com/kageos/kageos/sdk/agent-app/types"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/types"
 )
 
 // PdfExtractTextReq PDF 文本提取请求结构体
@@ -177,10 +177,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	"github.com/kageos/kageos/sdk/agent-app/types"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/types"
 )
 
 // PdfMergeReq PDF合并请求结构体
@@ -311,10 +311,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	"github.com/kageos/kageos/sdk/agent-app/types"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/types"
 )
 
 // PdfRunCommandReq 自定义命令请求：上传 PDF + 命令模板（占位符替换后执行），便于智能体灵活调用
@@ -453,10 +453,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	"github.com/kageos/kageos/sdk/agent-app/types"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/types"
 )
 
 // PdfToImagesReq PDF转图片请求结构体

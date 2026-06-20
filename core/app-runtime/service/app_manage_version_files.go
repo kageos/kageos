@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/sdkmodule"
 )
 
 // VersionInfo 版本信息结构体
@@ -356,6 +357,28 @@ func (s *AppManageService) updateCurrentVersionFiles(user, app, version string) 
 	return nil
 }
 
+func (s *AppManageService) ensureAppGoModFile(appPaths runtimeAppPaths) error {
+	goModPath := appPaths.GoModPath()
+	if _, err := os.Stat(goModPath); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to stat go.mod: %w", err)
+	}
+
+	content := fmt.Sprintf(`module %s
+
+go 1.25.0
+
+require %s %s
+
+// Keep legacy github.com/kageos/kageos imports buildable while existing
+// workspace source is migrated to github.com/kageos/kageos-sdk.
+replace %s => ../../..
+`, appPaths.AppModulePath(), sdkmodule.ModulePath, sdkmodule.Version, sdkmodule.LegacyModulePath)
+
+	return writeFileAtomic(goModPath, []byte(content), 0644)
+}
+
 // createMainGoFile 创建 main.go 文件（已存在则复用，不覆盖）
 func (s *AppManageService) createMainGoFile(mainGoPath, user, app string) error {
 	if _, err := os.Stat(mainGoPath); err == nil {
@@ -363,10 +386,10 @@ func (s *AppManageService) createMainGoFile(mainGoPath, user, app string) error 
 		return nil
 	}
 
-	content := []byte(`package main
+	content := []byte(fmt.Sprintf(`package main
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"%s"
 )
 
 func main() {
@@ -375,7 +398,7 @@ func main() {
 		panic(err)
 	}
 }
-`)
+`, sdkmodule.AgentAppImport("app")))
 
 	return writeFileAtomic(mainGoPath, content, 0644)
 }

@@ -48,6 +48,10 @@ func (p runtimeAppPaths) MainGoPath() string {
 	return filepath.Join(p.CmdAppDir(), "main.go")
 }
 
+func (p runtimeAppPaths) GoModPath() string {
+	return filepath.Join(p.appDir, "go.mod")
+}
+
 func (p runtimeAppPaths) WorkplaceDir() string {
 	return filepath.Join(p.appDir, "workplace")
 }
@@ -92,8 +96,12 @@ func (p runtimeAppPaths) BuildOutputDir(outputDir string) string {
 	return filepath.Join(p.appDir, outputDir)
 }
 
+func (p runtimeAppPaths) AppModulePath() string {
+	return fmt.Sprintf("github.com/kageos/kageos/namespace/%s/%s", p.user, p.app)
+}
+
 func (p runtimeAppPaths) NamespaceAPIImport(packagePath string) string {
-	base := fmt.Sprintf("github.com/kageos/kageos/namespace/%s/%s/code/api", p.user, p.app)
+	base := p.AppModulePath() + "/code/api"
 	cleanPackagePath := strings.Trim(packagePath, "/")
 	if cleanPackagePath == "" {
 		return base

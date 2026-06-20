@@ -10,6 +10,7 @@ import (
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/naming"
+	"github.com/kageos/kageos/pkg/sdkmodule"
 )
 
 func validateBatchWritePathSegment(segment string) error {
@@ -212,7 +213,7 @@ func writePackageInitFile(packageDir, packageCode, routerGroup, name, descriptio
 	content := fmt.Sprintf(`package %s
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"%s"
 )
 
 var packageContext = &app.PackageContext{
@@ -220,7 +221,7 @@ var packageContext = &app.PackageContext{
 	Name:        %s,
 	Desc:        %s,
 }
-`, packageCode, strconv.Quote(routerGroup), strconv.Quote(name), strconv.Quote(description))
+`, packageCode, sdkmodule.AgentAppImport("app"), strconv.Quote(routerGroup), strconv.Quote(name), strconv.Quote(description))
 
 	initFilePath := filepath.Join(packageDir, "init_.go")
 	if err := writeFileAtomic(initFilePath, []byte(content), 0644); err != nil {

@@ -59,10 +59,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	pythonRuntime "github.com/kageos/kageos/sdk/agent-app/runtime/python"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	pythonRuntime "github.com/kageos/kageos-sdk/agent-app/runtime/python"
 )
 
 // SandboxFileOutDemoReq 请求：用户只传标题，由 Python 生成一张说明图

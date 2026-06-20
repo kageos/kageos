@@ -50,10 +50,10 @@ import (
 	"os"
 
 	"github.com/EdlinOrg/prominentcolor"
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	"github.com/kageos/kageos/sdk/agent-app/types"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/types"
 )
 
 // ImagesColorsReq 图片颜色提取请求结构体
@@ -237,10 +237,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	"github.com/kageos/kageos/sdk/agent-app/types"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/types"
 )
 
 // ImagesConvertReq 图片格式转换请求结构体
@@ -393,10 +393,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	"github.com/kageos/kageos/sdk/agent-app/types"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/types"
 )
 
 // ImagesResizeReq 图片裁剪/缩放请求结构体
@@ -563,10 +563,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	"github.com/kageos/kageos/sdk/agent-app/types"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/types"
 )
 
 // ImagesRunCommandReq 自定义命令请求：上传图片 + 命令模板（占位符替换后执行），便于智能体灵活调用

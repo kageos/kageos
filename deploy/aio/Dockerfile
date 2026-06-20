@@ -90,6 +90,7 @@ COPY --from=gobuilder /src/sdk/ /app/sdk/
 COPY --from=gobuilder /src/pkg/ /app/pkg/
 COPY --from=gobuilder /src/dto/ /app/dto/
 COPY --from=gobuilder /src/core/ /app/core/
+COPY --from=gobuilder /src/namespace/ /app/namespace/
 COPY --from=gobuilder /go/pkg/mod /go/pkg/mod
 
 COPY deploy/base/images/app-base/ /app/app-base/

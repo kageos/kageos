@@ -183,6 +183,10 @@ func (s *AppManageService) CreateApp(ctx context.Context, user, app string, opts
 	// 这样可以避免创建时就写入版本信息
 	logger.Infof(ctx, "[CreateApp] Skipping version files creation, will be created on first build")
 
+	if err := s.ensureAppGoModFile(absPaths); err != nil {
+		return "", fmt.Errorf("failed to create go.mod file: %w", err)
+	}
+
 	// 6. 创建 main.go 文件
 	mainGoPath := absPaths.MainGoPath()
 	if err := s.createMainGoFile(mainGoPath, user, app); err != nil {
@@ -224,6 +228,10 @@ func (s *AppManageService) BuildApp(ctx context.Context, user, app string, opts 
 			LdFlags:          opt.LdFlags,
 			Env:              opt.Env,
 		}
+	}
+
+	if err := s.ensureAppGoModFile(newRuntimeAppPaths(s.config.GetBasePath(), user, app)); err != nil {
+		return nil, fmt.Errorf("failed to ensure app go.mod: %w", err)
 	}
 
 	// 执行编译

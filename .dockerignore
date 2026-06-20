@@ -28,7 +28,12 @@ vendor
 logs/
 *.log
 data/
-namespace/
+namespace/**
+!namespace/
+!namespace/*/
+!namespace/*/*/
+!namespace/*/*/code/
+!namespace/*/*/code/**
 *.db
 
 # 本地生产部署生成物

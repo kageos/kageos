@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/sdkmodule"
 	"github.com/kageos/kageos/pkg/sourcepolicy"
 )
 
@@ -96,19 +97,24 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 	//logger.Infof(ctx, "Source: %s", opts.SourceDir)
 	//logger.Infof(ctx, "Output: %s", binaryPath)
 
+	moduleRoot, err := findGoModuleRoot(opts.SourceDir)
+	if err != nil {
+		return nil, err
+	}
+
 	// 先执行 go mod tidy 确保依赖是最新的
-	if err := b.runGoModTidy(ctx, opts.SourceDir); err != nil {
+	if err := b.runGoModTidy(ctx, moduleRoot); err != nil {
 		logger.Warnf(ctx, "go mod tidy failed, continuing with build: %v", err)
 		return nil, err
 	}
 
 	// 构建 Go 命令
-	cmd := b.buildGoCommand(ctx, opts.SourceDir, binaryPath, platform, opts)
+	cmd := b.buildGoCommand(ctx, moduleRoot, opts.SourceDir, binaryPath, platform, opts)
 
 	// 执行编译
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("go mod tidy 失败： err:%s: output:%s ", err, string(output))
+		return nil, fmt.Errorf("go build failed: %w, output: %s", err, string(output))
 	}
 
 	// 获取文件信息
@@ -130,7 +136,7 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 
 // buildGoCommand 构建 Go 编译命令
 // platform 固定为 linux/当前架构，由 Build 内自动设置
-func (b *Builder) buildGoCommand(ctx context.Context, sourceDir, outputPath, platform string, opts *BuildOpts) *exec.Cmd {
+func (b *Builder) buildGoCommand(ctx context.Context, moduleRoot, sourceDir, outputPath, platform string, opts *BuildOpts) *exec.Cmd {
 	parts := strings.Split(platform, "/")
 	if len(parts) != 2 {
 		parts = []string{"linux", runtime.GOARCH}
@@ -166,12 +172,16 @@ func (b *Builder) buildGoCommand(ctx context.Context, sourceDir, outputPath, pla
 	// 使用绝对路径指定输出文件
 	args = append(args, "-o", outputPath)
 
-	// 使用绝对路径指定源代码目录
-	// 关键：不使用 "." 和 cmd.Dir，直接指定源代码绝对路径
-	args = append(args, sourceDir)
+	packageArg := sourceDir
+	if rel, err := filepath.Rel(moduleRoot, sourceDir); err == nil && rel != "." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != ".." {
+		packageArg = "./" + filepath.ToSlash(rel)
+	} else if rel == "." {
+		packageArg = "."
+	}
+	args = append(args, packageArg)
 
-	// 创建命令，不设置 cmd.Dir，在项目根目录执行
 	cmd := exec.CommandContext(ctx, "go", args...)
+	cmd.Dir = moduleRoot
 	cmd.Env = env
 
 	return cmd
@@ -185,19 +195,24 @@ func (b *Builder) buildLdFlags(opts *BuildOpts) []string {
 	ldFlags = append(ldFlags, opts.LdFlags...)
 
 	// 为 SDK 应用注入构建信息到 env 包
-	ldFlags = append(ldFlags, fmt.Sprintf("-X github.com/kageos/kageos/sdk/agent-app/env.User=%s", opts.User))
-	ldFlags = append(ldFlags, fmt.Sprintf("-X github.com/kageos/kageos/sdk/agent-app/env.App=%s", opts.App))
-	ldFlags = append(ldFlags, fmt.Sprintf("-X github.com/kageos/kageos/sdk/agent-app/env.Version=%s", opts.Version))
+	for _, importPath := range []string{
+		sdkmodule.AgentAppImport("env"),
+		sdkmodule.LegacyAgentAppImport("env"),
+	} {
+		ldFlags = append(ldFlags, fmt.Sprintf("-X %s.User=%s", importPath, opts.User))
+		ldFlags = append(ldFlags, fmt.Sprintf("-X %s.App=%s", importPath, opts.App))
+		ldFlags = append(ldFlags, fmt.Sprintf("-X %s.Version=%s", importPath, opts.Version))
+	}
 
 	return ldFlags
 }
 
 // runGoModTidy 执行 go mod tidy
-func (b *Builder) runGoModTidy(ctx context.Context, sourceDir string) error {
+func (b *Builder) runGoModTidy(ctx context.Context, moduleRoot string) error {
 	//logger.Infof(ctx, "Running go mod tidy in: %s", sourceDir)
 
 	cmd := exec.CommandContext(ctx, "go", "mod", "tidy")
-	cmd.Dir = sourceDir
+	cmd.Dir = moduleRoot
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -206,6 +221,32 @@ func (b *Builder) runGoModTidy(ctx context.Context, sourceDir string) error {
 
 	//logger.Infof(ctx, "go mod tidy completed successfully")
 	return nil
+}
+
+func findGoModuleRoot(startDir string) (string, error) {
+	dir, err := filepath.Abs(startDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve source directory: %w", err)
+	}
+	info, err := os.Stat(dir)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat source directory: %w", err)
+	}
+	if !info.IsDir() {
+		dir = filepath.Dir(dir)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
+		} else if !os.IsNotExist(err) {
+			return "", fmt.Errorf("failed to stat go.mod: %w", err)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("go.mod not found for source directory %s", startDir)
+		}
+		dir = parent
+	}
 }
 
 // generateVersion 生成版本号
