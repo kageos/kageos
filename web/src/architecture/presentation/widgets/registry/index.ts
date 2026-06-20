@@ -1,6 +1,8 @@
 import { defineAsyncComponent, type Component } from 'vue'
 import { widgetComponentFactory } from './factory'
 import { WidgetType } from '@/architecture/domain/constants/widget'
+import ProgressWidget from '@/architecture/presentation/widgets/ProgressWidget.vue'
+import SliderWidget from '@/architecture/presentation/widgets/SliderWidget.vue'
 
 type WidgetModuleLoader = () => Promise<{ default: Component }>
 
@@ -20,7 +22,6 @@ const CheckboxWidget = lazyWidget(() => import('@/architecture/presentation/widg
 const RadioWidget = lazyWidget(() => import('@/architecture/presentation/widgets/RadioWidget.vue'))
 const TextWidget = lazyWidget(() => import('@/architecture/presentation/widgets/TextWidget.vue'))
 const DateTimeWidget = lazyWidget(() => import('@/architecture/presentation/widgets/DateTimeWidget.vue'))
-const SliderWidget = lazyWidget(() => import('@/architecture/presentation/widgets/SliderWidget.vue'))
 const RateWidget = lazyWidget(() => import('@/architecture/presentation/widgets/RateWidget.vue'))
 const ColorWidget = lazyWidget(() => import('@/architecture/presentation/widgets/ColorWidget.vue'))
 const RichTextResponseWidget = lazyWidget(() => import('@/architecture/presentation/widgets/RichTextResponseWidget.vue'))
@@ -31,7 +32,6 @@ const UsersWidget = lazyWidget(() => import('@/architecture/presentation/shared/
 const DepartmentWidget = lazyWidget(() => import('@/architecture/presentation/widgets/DepartmentWidget.vue'))
 const DepartmentsWidget = lazyWidget(() => import('@/architecture/presentation/shared/components/DepartmentsWidget.vue'))
 const LinkWidget = lazyWidget(() => import('@/architecture/presentation/widgets/LinkWidget.vue'))
-const ProgressWidget = lazyWidget(() => import('@/architecture/presentation/widgets/ProgressWidget.vue'))
 const ListWidget = lazyWidget(() => import('@/architecture/presentation/widgets/ListWidget.vue'))
 const FormWidget = lazyWidget(() => import('@/architecture/presentation/widgets/FormWidget.vue'))
 const TableWidget = lazyWidget(() => import('@/architecture/presentation/widgets/TableWidget.vue'))
