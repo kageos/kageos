@@ -184,6 +184,40 @@ func (s *ServiceTree) GetServiceTreeDetail(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// GetDirectoryOverview 获取目录概览
+// @Summary 获取目录概览
+// @Description 汇总当前目录及可读子目录/函数的资源统计、定时函数和定时会话配置
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param full_code_path query string true "目录完整路径"
+// @Success 200 {object} dto.GetDirectoryOverviewResp "获取成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Router /workspace/api/v1/service_tree/overview [get]
+func (s *ServiceTree) GetDirectoryOverview(c *gin.Context) {
+	req := dto.GetDirectoryOverviewReq{
+		FullCodePath: c.Query("full_code_path"),
+	}
+	if req.FullCodePath == "" {
+		response.FailWithMessage(c, "必须提供 full_code_path 参数")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionRead); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	resp, err := s.serviceTreeService.GetDirectoryOverview(contextx.ToContext(c), &req)
+	if err != nil {
+		response.FailWithMessage(c, "获取目录概览失败: "+err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
 // UpdatePackage 更新 package 类型节点（专门的接口）
 // @Summary 更新目录
 // @Description 更新 package 类型的服务目录节点

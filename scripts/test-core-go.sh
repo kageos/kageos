@@ -8,6 +8,7 @@ cd "$ROOT_DIR"
 # `go test ./...` intentionally walks namespace/ and can fail on user apps that
 # are mid-generation or contain experimental code.
 go test \
+  -tags "${GO_TEST_TAGS:-exclude_graphdriver_btrfs}" \
   ./cmd/... \
   ./core/... \
   ./dto/... \

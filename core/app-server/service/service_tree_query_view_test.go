@@ -4,11 +4,13 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/core/app-server/repository"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -105,5 +107,107 @@ func TestGetServiceTreeDetailDoesNotRepairNestedMissingPath(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "服务目录不存在") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+type fakeDirectoryOverviewScheduleClient struct {
+	tasks map[string][]*scheduledsdk.Task
+}
+
+func (f fakeDirectoryOverviewScheduleClient) ListTasks(_ context.Context, req scheduledsdk.ListTasksRequest) (*scheduledsdk.ListTasksResponse, error) {
+	key := strings.Join([]string{req.ExecutorKey, req.ResourceScope, req.ResourceKey}, "|")
+	list := f.tasks[key]
+	return &scheduledsdk.ListTasksResponse{List: list, Total: int64(len(list))}, nil
+}
+
+func TestGetDirectoryOverviewAggregatesResourcesAndScheduledTasks(t *testing.T) {
+	queryView, db, app := newServiceTreeQueryViewTest(t)
+	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "alice")
+	if _, err := ReconcileAppRootServiceTrees(ctx, queryView.appRepo, queryView.serviceTreeRepo); err != nil {
+		t.Fatalf("ReconcileAppRootServiceTrees: %v", err)
+	}
+
+	hr := &model.ServiceTree{
+		Name:         "人事",
+		Code:         "hr",
+		Type:         model.ServiceTreeTypePackage,
+		AppID:        app.ID,
+		FullCodePath: "/alice/ops/hr",
+	}
+	remind := &model.ServiceTree{
+		Name:         "提醒表单",
+		Code:         "remind.form",
+		Type:         model.ServiceTreeTypeFunction,
+		AppID:        app.ID,
+		FullCodePath: "/alice/ops/hr/remind.form",
+		TemplateType: "form",
+		RunCount:     7,
+	}
+	readme := &model.ServiceTree{
+		Name:         "说明",
+		Code:         "readme",
+		Type:         model.ServiceTreeTypeDocs,
+		AppID:        app.ID,
+		FullCodePath: "/alice/ops/hr/readme",
+	}
+	if err := db.Create(hr).Error; err != nil {
+		t.Fatalf("create hr: %v", err)
+	}
+	if err := db.Create(remind).Error; err != nil {
+		t.Fatalf("create remind: %v", err)
+	}
+	if err := db.Create(readme).Error; err != nil {
+		t.Fatalf("create readme: %v", err)
+	}
+
+	nextRun := time.Now().Add(time.Hour).Truncate(time.Second)
+	oldClientFactory := newServiceTreeScheduleClient
+	newServiceTreeScheduleClient = func() serviceTreeScheduleClient {
+		return fakeDirectoryOverviewScheduleClient{tasks: map[string][]*scheduledsdk.Task{
+			"app.function|function|/alice/ops/hr/remind.form": {
+				{
+					ID:          11,
+					Title:       "提醒巡检",
+					ExecutorKey: ScheduledFunctionExecutorKey,
+					Status:      scheduledsdk.TaskStatusPending,
+					Schedule:    scheduledsdk.Every(60),
+					NextRunAt:   &nextRun,
+					ResourceKey: "/alice/ops/hr/remind.form",
+				},
+			},
+			"agent.session|workspace_directory|/alice/ops/hr": {
+				{
+					ID:                  21,
+					Title:               "日报会话",
+					ExecutorKey:         "agent.session",
+					Status:              scheduledsdk.TaskStatusPending,
+					Schedule:            scheduledsdk.Cron("0 9 * * *"),
+					NextRunAt:           &nextRun,
+					InflightExecutionID: 99,
+					ResourceKey:         "/alice/ops/hr",
+				},
+			},
+		}}
+	}
+	defer func() { newServiceTreeScheduleClient = oldClientFactory }()
+
+	resp, err := queryView.GetDirectoryOverview(ctx, &dto.GetDirectoryOverviewReq{FullCodePath: "/alice/ops"})
+	if err != nil {
+		t.Fatalf("GetDirectoryOverview: %v", err)
+	}
+	if resp.Stats.Directories != 1 || resp.Stats.Functions != 1 || resp.Stats.Docs != 1 {
+		t.Fatalf("unexpected resource stats: %+v", resp.Stats)
+	}
+	if resp.Stats.TotalRunCount != 7 {
+		t.Fatalf("unexpected total run count: %d", resp.Stats.TotalRunCount)
+	}
+	if resp.Stats.ScheduledFunctionTasks != 1 || resp.Stats.ScheduledAgentTasks != 1 || resp.Stats.RunningTasks != 1 {
+		t.Fatalf("unexpected scheduled stats: %+v", resp.Stats)
+	}
+	if len(resp.ScheduledFunctionTasks) != 1 || resp.ScheduledFunctionTasks[0].ResourcePath != "/alice/ops/hr/remind.form" {
+		t.Fatalf("unexpected function task resources: %+v", resp.ScheduledFunctionTasks)
+	}
+	if len(resp.ScheduledAgentTasks) != 1 || resp.ScheduledAgentTasks[0].ResourcePath != "/alice/ops/hr" {
+		t.Fatalf("unexpected agent task resources: %+v", resp.ScheduledAgentTasks)
 	}
 }

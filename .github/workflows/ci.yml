@@ -28,6 +28,15 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Install backend system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc \
+            libc6-dev \
+            libdevmapper-dev \
+            libgpgme-dev \
+            pkg-config
       - name: Test core packages
         run: bash scripts/test-core-go.sh
 

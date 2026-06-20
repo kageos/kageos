@@ -212,7 +212,8 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ChatLineRound, Clock, Folder, Operation, Refresh, Timer, VideoPlay } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
-import { listTimerTasks, type TimerTask } from '@/architecture/presentation/context/api/timer'
+import { getDirectoryOverview, type DirectoryOverviewResp, type DirectoryOverviewScheduledTask, type DirectoryOverviewStats } from '@/architecture/presentation/context/api/service-tree'
+import type { TimerTask } from '@/architecture/presentation/context/api/timer'
 import {
   formatDateTime,
   scheduleLabel,
@@ -221,52 +222,74 @@ import {
 } from './utils/timerSchedule'
 import { buildScheduledExecutionRoute } from '@/architecture/shared/routing/platformRouteParams'
 
-interface ResourceRef {
-  path: string
-  name: string
-}
-
-interface ScheduledOverviewItem {
+interface ScheduledOverviewItem extends DirectoryOverviewScheduledTask {
   key: string
-  kind: 'function' | 'agent'
-  task: TimerTask
   resourcePath: string
   resourceName: string
-}
-
-interface ResourceStats {
-  directories: number
-  functions: number
-  docs: number
-  totalRunCount: number
 }
 
 const props = defineProps<{
   packageNode: ServiceTree | null
 }>()
 
-const MAX_RESOURCE_PATHS = 80
-const TASK_PAGE_SIZE = 50
 const TASK_DISPLAY_LIMIT = 8
-const CONCURRENT_REQUESTS = 8
 
 const router = useRouter()
 const loading = ref(false)
 const loadSeq = ref(0)
-const functionTasks = ref<ScheduledOverviewItem[]>([])
-const agentTasks = ref<ScheduledOverviewItem[]>([])
-const scheduledFunctionTotal = ref(0)
-const scheduledAgentTotal = ref(0)
-const truncatedTaskCount = ref(0)
-const skippedResourceCount = ref(0)
+const overview = ref<DirectoryOverviewResp | null>(null)
 const errorMessage = ref('')
 
-const resourceStats = computed<ResourceStats>(() => {
-  const stats: ResourceStats = {
+const emptyStats: DirectoryOverviewStats = {
+  directories: 0,
+  functions: 0,
+  docs: 0,
+  total_run_count: 0,
+  scheduled_function_tasks: 0,
+  scheduled_agent_tasks: 0,
+  running_tasks: 0,
+  failed_tasks: 0,
+  paused_tasks: 0,
+}
+
+const overviewStats = computed(() => overview.value?.stats || emptyStats)
+
+const resourceStats = computed(() => ({
+  directories: overviewStats.value.directories,
+  functions: overviewStats.value.functions,
+  docs: overviewStats.value.docs,
+  totalRunCount: overviewStats.value.total_run_count,
+}))
+
+const scheduledFunctionTotal = computed(() => overviewStats.value.scheduled_function_tasks)
+const scheduledAgentTotal = computed(() => overviewStats.value.scheduled_agent_tasks)
+const runningTaskCount = computed(() => overviewStats.value.running_tasks)
+const nextRunLabel = computed(() => formatDateTime(overviewStats.value.next_run_at))
+const partialHint = computed(() => (overview.value?.warnings || []).join('；'))
+
+const displayFunctionTasks = computed(() => {
+  return (overview.value?.scheduled_function_tasks || [])
+    .map(normalizeOverviewTask)
+    .slice(0, TASK_DISPLAY_LIMIT)
+})
+
+const displayAgentTasks = computed(() => {
+  return (overview.value?.scheduled_agent_tasks || [])
+    .map(normalizeOverviewTask)
+    .slice(0, TASK_DISPLAY_LIMIT)
+})
+
+function fallbackStatsFromTree(): DirectoryOverviewStats {
+  const stats: DirectoryOverviewStats = {
     directories: 0,
     functions: 0,
     docs: 0,
-    totalRunCount: 0,
+    total_run_count: 0,
+    scheduled_function_tasks: 0,
+    scheduled_agent_tasks: 0,
+    running_tasks: 0,
+    failed_tasks: 0,
+    paused_tasks: 0,
   }
 
   function walk(node?: ServiceTree | null) {
@@ -277,7 +300,7 @@ const resourceStats = computed<ResourceStats>(() => {
         walk(child)
       } else if (child.type === 'function') {
         stats.functions += 1
-        stats.totalRunCount += Number(child.run_count || 0)
+        stats.total_run_count += Number(child.run_count || 0)
       } else if (child.type === 'docs') {
         stats.docs += 1
       }
@@ -286,149 +309,32 @@ const resourceStats = computed<ResourceStats>(() => {
 
   walk(props.packageNode)
   return stats
-})
-
-const displayFunctionTasks = computed(() => sortTaskItems(functionTasks.value).slice(0, TASK_DISPLAY_LIMIT))
-const displayAgentTasks = computed(() => sortTaskItems(agentTasks.value).slice(0, TASK_DISPLAY_LIMIT))
-
-const allLoadedTasks = computed(() => [...functionTasks.value, ...agentTasks.value])
-
-const runningTaskCount = computed(() => {
-  return allLoadedTasks.value.filter(item => !!item.task.inflight_execution_id).length
-})
-
-const nextRunLabel = computed(() => {
-  const next = allLoadedTasks.value
-    .filter(item => item.task.status === 'pending' && !!item.task.next_run_at)
-    .sort((a, b) => taskTimeValue(a.task.next_run_at) - taskTimeValue(b.task.next_run_at))[0]
-  return next ? formatDateTime(next.task.next_run_at) : '-'
-})
-
-const partialHint = computed(() => {
-  const hints: string[] = []
-  if (skippedResourceCount.value > 0) {
-    hints.push(`目录资源较多，已优先汇总前 ${MAX_RESOURCE_PATHS} 个路径`)
-  }
-  if (truncatedTaskCount.value > 0) {
-    hints.push(`有 ${truncatedTaskCount.value} 个任务未在概览清单中展开`)
-  }
-  return hints.join('；')
-})
-
-function collectResources(root: ServiceTree | null): { directories: ResourceRef[]; functions: ResourceRef[] } {
-  const directories: ResourceRef[] = []
-  const functions: ResourceRef[] = []
-
-  function pushResource(collection: ResourceRef[], node: ServiceTree) {
-    if (!node.full_code_path) return
-    collection.push({
-      path: node.full_code_path,
-      name: node.name || node.code || node.full_code_path,
-    })
-  }
-
-  function walk(node?: ServiceTree | null) {
-    if (!node) return
-    if (node.type === 'package') {
-      pushResource(directories, node)
-    } else if (node.type === 'function') {
-      pushResource(functions, node)
-    }
-    for (const child of node.children || []) {
-      walk(child)
-    }
-  }
-
-  walk(root)
-  return { directories, functions }
-}
-
-async function runInBatches<T, R>(items: T[], worker: (item: T) => Promise<R>): Promise<R[]> {
-  const output: R[] = []
-  for (let i = 0; i < items.length; i += CONCURRENT_REQUESTS) {
-    const batch = items.slice(i, i + CONCURRENT_REQUESTS)
-    output.push(...await Promise.all(batch.map(worker)))
-  }
-  return output
-}
-
-async function loadTasksForResources(
-  resources: ResourceRef[],
-  kind: 'function' | 'agent',
-): Promise<{ items: ScheduledOverviewItem[]; total: number; truncated: number; errors: string[] }> {
-  const executorKey = kind === 'function' ? 'app.function' : 'agent.session'
-  const resourceScope = kind === 'function' ? 'function' : 'workspace_directory'
-  const results = await runInBatches(resources, async (resource) => {
-    try {
-      const resp = await listTimerTasks({
-        executor_key: executorKey,
-        resource_scope: resourceScope,
-        resource_key: resource.path,
-        page: 1,
-        page_size: TASK_PAGE_SIZE,
-      })
-      const list = resp.list || []
-      const total = Number(resp.total || 0)
-      return {
-        items: list.map((task) => ({
-          key: `${kind}:${resource.path}:${task.id}`,
-          kind,
-          task,
-          resourcePath: task.resource_key || resource.path,
-          resourceName: resource.name,
-        })),
-        total,
-        truncated: Math.max(0, total - list.length),
-        error: '',
-      }
-    } catch (error) {
-      return {
-        items: [] as ScheduledOverviewItem[],
-        total: 0,
-        truncated: 0,
-        error: `${resource.name}: ${error instanceof Error ? error.message : '加载失败'}`,
-      }
-    }
-  })
-
-  return results.reduce(
-    (acc, result) => {
-      acc.items.push(...result.items)
-      acc.total += result.total
-      acc.truncated += result.truncated
-      if (result.error) acc.errors.push(result.error)
-      return acc
-    },
-    { items: [] as ScheduledOverviewItem[], total: 0, truncated: 0, errors: [] as string[] }
-  )
 }
 
 async function loadOverview() {
   const currentSeq = loadSeq.value + 1
   loadSeq.value = currentSeq
   errorMessage.value = ''
-  truncatedTaskCount.value = 0
-  skippedResourceCount.value = 0
-
-  const { directories, functions } = collectResources(props.packageNode)
-  skippedResourceCount.value = Math.max(0, directories.length - MAX_RESOURCE_PATHS)
-    + Math.max(0, functions.length - MAX_RESOURCE_PATHS)
+  if (!props.packageNode?.full_code_path) {
+    overview.value = null
+    return
+  }
 
   loading.value = true
   try {
-    const [functionResult, agentResult] = await Promise.all([
-      loadTasksForResources(functions.slice(0, MAX_RESOURCE_PATHS), 'function'),
-      loadTasksForResources(directories.slice(0, MAX_RESOURCE_PATHS), 'agent'),
-    ])
-
+    const resp = await getDirectoryOverview(props.packageNode.full_code_path)
     if (loadSeq.value !== currentSeq) return
-
-    functionTasks.value = functionResult.items
-    agentTasks.value = agentResult.items
-    scheduledFunctionTotal.value = functionResult.total
-    scheduledAgentTotal.value = agentResult.total
-    truncatedTaskCount.value = functionResult.truncated + agentResult.truncated
-    errorMessage.value = [...functionResult.errors, ...agentResult.errors].slice(0, 3).join('；')
+    overview.value = resp
+  } catch (error) {
+    if (loadSeq.value !== currentSeq) return
+    errorMessage.value = error instanceof Error ? error.message : '目录概览加载失败'
+    overview.value = {
+      stats: fallbackStatsFromTree(),
+      scheduled_function_tasks: [],
+      scheduled_agent_tasks: [],
+      warnings: [],
+      partial: true,
+    }
   } finally {
     if (loadSeq.value === currentSeq) {
       loading.value = false
@@ -436,24 +342,14 @@ async function loadOverview() {
   }
 }
 
-function sortTaskItems(items: ScheduledOverviewItem[]): ScheduledOverviewItem[] {
-  return [...items].sort((a, b) => {
-    const aRunning = a.task.inflight_execution_id ? 1 : 0
-    const bRunning = b.task.inflight_execution_id ? 1 : 0
-    if (aRunning !== bRunning) return bRunning - aRunning
-
-    const aTime = taskTimeValue(a.task.next_run_at)
-    const bTime = taskTimeValue(b.task.next_run_at)
-    if (aTime !== bTime) return aTime - bTime
-
-    return Number(b.task.id || 0) - Number(a.task.id || 0)
-  })
-}
-
-function taskTimeValue(value?: string): number {
-  if (!value) return Number.MAX_SAFE_INTEGER
-  const time = new Date(value).getTime()
-  return Number.isNaN(time) ? Number.MAX_SAFE_INTEGER : time
+function normalizeOverviewTask(item: DirectoryOverviewScheduledTask): ScheduledOverviewItem {
+  const resourcePath = item.resource_path || item.resource?.full_code_path || item.task.resource_key || ''
+  return {
+    ...item,
+    key: `${item.kind}:${resourcePath}:${item.task.id}`,
+    resourcePath,
+    resourceName: item.resource_name || item.resource?.name || item.resource?.code || resourcePath || '-',
+  }
 }
 
 function getAgentMessage(task: TimerTask): string {
@@ -476,10 +372,7 @@ function openTask(item: ScheduledOverviewItem) {
 watch(
   () => props.packageNode?.full_code_path,
   () => {
-    functionTasks.value = []
-    agentTasks.value = []
-    scheduledFunctionTotal.value = 0
-    scheduledAgentTotal.value = 0
+    overview.value = null
     void loadOverview()
   },
   { immediate: true }

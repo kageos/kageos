@@ -5,6 +5,7 @@ import (
 
 	"github.com/kageos/kageos/pkg/access"
 	"github.com/kageos/kageos/pkg/functionschema"
+	"github.com/kageos/kageos/pkg/scheduledsdk"
 )
 
 // 注意：DiffData 定义在 dto/app_runtime_namespace.go 中
@@ -93,6 +94,55 @@ type GetServiceTreeDetailResp struct {
 	Version            string              `json:"version" example:"v1"`                         // 节点当前版本号
 	VersionNum         int                 `json:"version_num" example:"1"`                      // 节点当前版本号（数字部分）
 	RunCount           int                 `json:"run_count,omitempty"`                          // ⭐ 运行次数（仅 function 类型有意义），用于展示「已使用 N 次」
+}
+
+// GetDirectoryOverviewReq 获取目录概览请求。
+type GetDirectoryOverviewReq struct {
+	FullCodePath string `json:"full_code_path" form:"full_code_path" binding:"required" example:"/beiluo/myapp/user"` // 目录完整路径
+}
+
+// DirectoryOverviewResource 是目录概览中的资源快照。
+type DirectoryOverviewResource struct {
+	ID           int64  `json:"id,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Code         string `json:"code,omitempty"`
+	Type         string `json:"type,omitempty"`
+	FullCodePath string `json:"full_code_path,omitempty"`
+	TemplateType string `json:"template_type,omitempty"`
+	RunCount     int    `json:"run_count,omitempty"`
+}
+
+// DirectoryOverviewStats 是当前目录及子目录的聚合统计。
+type DirectoryOverviewStats struct {
+	Directories            int        `json:"directories"`
+	Functions              int        `json:"functions"`
+	Docs                   int        `json:"docs"`
+	TotalRunCount          int        `json:"total_run_count"`
+	ScheduledFunctionTasks int        `json:"scheduled_function_tasks"`
+	ScheduledAgentTasks    int        `json:"scheduled_agent_tasks"`
+	RunningTasks           int        `json:"running_tasks"`
+	FailedTasks            int        `json:"failed_tasks"`
+	PausedTasks            int        `json:"paused_tasks"`
+	NextRunAt              *time.Time `json:"next_run_at,omitempty"`
+}
+
+// DirectoryOverviewScheduledTask 是目录概览中的定时任务条目，带上绑定资源信息。
+type DirectoryOverviewScheduledTask struct {
+	Kind         string                     `json:"kind"` // function 或 agent
+	Resource     *DirectoryOverviewResource `json:"resource"`
+	ResourcePath string                     `json:"resource_path"`
+	ResourceName string                     `json:"resource_name"`
+	Task         *scheduledsdk.Task         `json:"task"`
+}
+
+// GetDirectoryOverviewResp 是目录概览响应。
+type GetDirectoryOverviewResp struct {
+	Directory              *DirectoryOverviewResource        `json:"directory"`
+	Stats                  DirectoryOverviewStats            `json:"stats"`
+	ScheduledFunctionTasks []*DirectoryOverviewScheduledTask `json:"scheduled_function_tasks"`
+	ScheduledAgentTasks    []*DirectoryOverviewScheduledTask `json:"scheduled_agent_tasks"`
+	Partial                bool                              `json:"partial"`
+	Warnings               []string                          `json:"warnings,omitempty"`
 }
 
 // UpdateServiceTreeMetadataReq 更新服务目录元数据请求

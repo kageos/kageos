@@ -1,5 +1,6 @@
 import { get, post, put, del } from '@/architecture/infrastructure/apiClient/request'
 import type { CapabilityBundle, ServiceTree, CreateServiceTreeRequest, FunctionConnectorEndpoint, FunctionSchema } from '@/architecture/domain/types'
+import type { TimerTask } from './timer'
 
 // ⭐ 创建 package 类型节点（推荐使用）
 export function createPackage(data: CreateServiceTreeRequest) {
@@ -112,6 +113,52 @@ export interface ServiceTreeDetailResp extends ServiceTree {
 
 export function getServiceTreeDetail(fullCodePath: string) {
   return get<ServiceTreeDetailResp>('/workspace/api/v1/service_tree/detail', {
+    full_code_path: fullCodePath
+  })
+}
+
+export interface DirectoryOverviewResource {
+  id?: number
+  name?: string
+  code?: string
+  type?: string
+  full_code_path?: string
+  template_type?: string
+  run_count?: number
+}
+
+export interface DirectoryOverviewStats {
+  directories: number
+  functions: number
+  docs: number
+  total_run_count: number
+  scheduled_function_tasks: number
+  scheduled_agent_tasks: number
+  running_tasks: number
+  failed_tasks: number
+  paused_tasks: number
+  next_run_at?: string
+}
+
+export interface DirectoryOverviewScheduledTask {
+  kind: 'function' | 'agent'
+  resource?: DirectoryOverviewResource
+  resource_path?: string
+  resource_name?: string
+  task: TimerTask
+}
+
+export interface DirectoryOverviewResp {
+  directory?: DirectoryOverviewResource
+  stats: DirectoryOverviewStats
+  scheduled_function_tasks: DirectoryOverviewScheduledTask[]
+  scheduled_agent_tasks: DirectoryOverviewScheduledTask[]
+  partial?: boolean
+  warnings?: string[]
+}
+
+export function getDirectoryOverview(fullCodePath: string) {
+  return get<DirectoryOverviewResp>('/workspace/api/v1/service_tree/overview', {
     full_code_path: fullCodePath
   })
 }

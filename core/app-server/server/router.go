@@ -70,6 +70,7 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth := serviceTree.Group("")
 	serviceTreeAuth.Use(middleware2.JWTAuth())                                   // 服务目录管理需要JWT认证
 	serviceTreeAuth.GET("/detail", serviceTreeHandler.GetServiceTreeDetail)      // 获取服务目录详情
+	serviceTreeAuth.GET("/overview", serviceTreeHandler.GetDirectoryOverview)    // 获取目录概览
 	serviceTreeAuth.GET("/search_functions", serviceTreeHandler.SearchFunctions) // ⭐ 搜索函数
 	serviceTreeAuth.GET("/search_resources", serviceTreeHandler.SearchResources) // 全站资源搜索（目录/函数/文档）
 	serviceTreeAuth.POST("/copy", serviceTreeHandler.CopyServiceTree)            // 复制服务目录
