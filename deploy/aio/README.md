@@ -67,7 +67,19 @@ docker run -d \
 docker logs -f kageos
 ```
 
-查看初始密码：
+启动成功后日志会输出最终成功块：
+
+```text
+Kageos started successfully
+Access URL:
+  http://localhost:8080
+
+Login:
+  Username: system
+  Password: <generated password>
+```
+
+查看初始密码也可以直接读持久化文件：
 
 ```bash
 docker exec kageos cat /var/lib/kageos/secrets/SYSTEM_USER_PASSWORD
@@ -206,3 +218,4 @@ docker volume rm kageos-data
 | `KAGEOS_AIO_NATS_IMAGE` | `docker.io/library/nats:2.10-alpine` | Inner NATS image. |
 | `KAGEOS_AIO_MINIO_IMAGE` | `docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` | Inner MinIO image. |
 | `KAGEOS_APP_BASE_ACTION` | `ensure` | Use `rebuild` to rebuild the user app base image. |
+| `KAGEOS_AIO_PRINT_SECRETS` | `1` | Print generated credentials in the final success log. Set to `0` to hide plaintext secrets and only print file paths. |

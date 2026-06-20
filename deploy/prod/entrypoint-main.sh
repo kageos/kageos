@@ -41,6 +41,108 @@ export MINIO_PORT
 export HTTP_PORT
 export HTTPS_PORT
 
+is_aio_bundle() {
+  [[ -f /etc/kageos/aio-bundle ]]
+}
+
+aio_secret_value() {
+  local name="$1"
+  local data_dir="${KAGEOS_AIO_DATA_DIR:-/var/lib/kageos}"
+  local file="${data_dir}/secrets/${name}"
+  local value="${!name:-}"
+  if [[ -z "$value" && -r "$file" ]]; then
+    value="$(tr -d '\r\n' < "$file")"
+  fi
+  printf '%s' "$value"
+}
+
+wait_core_ready() {
+  local url="${KAGEOS_AIO_HEALTH_URL:-http://127.0.0.1:9090/health}"
+  local i=1
+  while [ "$i" -le 90 ]; do
+    if ! kill -0 "$CORE_PID" 2>/dev/null; then
+      echo "ERROR: core-server 在就绪前已退出" >&2
+      return 1
+    fi
+    if curl --silent --show-error --fail "$url" >/dev/null 2>&1; then
+      echo "==> Kageos API (${url}) 就绪"
+      return 0
+    fi
+    echo "    等待 Kageos API (${url}) ... ($i/90)"
+    sleep 2
+    i=$((i + 1))
+  done
+  echo "ERROR: 超时未连上 Kageos API ${url}" >&2
+  return 1
+}
+
+print_aio_success_summary() {
+  local data_dir="${KAGEOS_AIO_DATA_DIR:-/var/lib/kageos}"
+  local secrets_dir="${data_dir}/secrets"
+  local show_secrets="${KAGEOS_AIO_PRINT_SECRETS:-1}"
+  local system_password mysql_password minio_password nats_password jwt_secret app_db_secret
+
+  if [[ "$show_secrets" == "0" || "$show_secrets" == "false" ]]; then
+    system_password="(hidden; run: docker exec kageos cat ${secrets_dir}/SYSTEM_USER_PASSWORD)"
+    mysql_password="(hidden; ${secrets_dir}/MYSQL_ROOT_PASSWORD)"
+    minio_password="(hidden; ${secrets_dir}/MINIO_ROOT_PASSWORD)"
+    nats_password="(hidden; ${secrets_dir}/NATS_PASSWORD)"
+    jwt_secret="(hidden; ${secrets_dir}/JWT_SECRET)"
+    app_db_secret="(hidden; ${secrets_dir}/KAGEOS_APP_DB_SECRET_KEY)"
+  else
+    system_password="$(aio_secret_value SYSTEM_USER_PASSWORD)"
+    mysql_password="$(aio_secret_value MYSQL_ROOT_PASSWORD)"
+    minio_password="$(aio_secret_value MINIO_ROOT_PASSWORD)"
+    nats_password="$(aio_secret_value NATS_PASSWORD)"
+    jwt_secret="$(aio_secret_value JWT_SECRET)"
+    app_db_secret="$(aio_secret_value KAGEOS_APP_DB_SECRET_KEY)"
+  fi
+
+  cat <<EOF
+
+============================================================
+Kageos started successfully
+============================================================
+Access URL:
+  ${CANONICAL_BASE_URL}
+
+Login:
+  Username: system
+  Password: ${system_password}
+
+Data:
+  Data directory: ${data_dir}
+  Secrets directory: ${secrets_dir}
+  System password file: ${secrets_dir}/SYSTEM_USER_PASSWORD
+
+Internal services:
+  MySQL:
+    Host: ${MYSQL_HOST}
+    Port: ${MYSQL_PORT}
+    Username: root
+    Password: ${mysql_password}
+  MinIO:
+    API: http://${MINIO_HOST}:${MINIO_PORT}
+    Console: http://${MINIO_HOST}:9001
+    Username: ${MINIO_ROOT_USER}
+    Password: ${minio_password}
+  NATS:
+    URL: nats://${NATS_USER}:<password>@${NATS_HOST}:${NATS_PORT}
+    Username: ${NATS_USER}
+    Password: ${nats_password}
+
+Runtime secrets:
+  JWT_SECRET: ${jwt_secret}
+  KAGEOS_APP_DB_SECRET_KEY: ${app_db_secret}
+
+Useful commands:
+  docker logs -f kageos
+  docker exec kageos cat ${secrets_dir}/SYSTEM_USER_PASSWORD
+============================================================
+
+EOF
+}
+
 case "$HTTP_PORT" in
   ''|*[!0-9]*)
     echo "ERROR: HTTP_PORT 必须是数字端口，当前值: ${HTTP_PORT}" >&2
@@ -176,6 +278,17 @@ trap shutdown SIGTERM SIGINT
 echo "==> 启动 core-server（全服务）..."
 /app/core-server &
 CORE_PID=$!
+
+if is_aio_bundle; then
+  if ! wait_core_ready; then
+    kill -TERM "$CORE_PID" 2>/dev/null || true
+    kill -TERM "$PODMAN_PID" 2>/dev/null || true
+    nginx -s quit 2>/dev/null || true
+    wait "$CORE_PID" 2>/dev/null || true
+    exit 1
+  fi
+  print_aio_success_summary
+fi
 
 wait -n "$CORE_PID"
 echo "==> core-server 退出，关闭中..."
