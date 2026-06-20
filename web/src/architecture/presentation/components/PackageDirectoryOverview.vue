@@ -32,6 +32,16 @@
       </div>
 
       <div class="metric-item">
+        <div class="metric-icon metric-icon--docs">
+          <el-icon><Document /></el-icon>
+        </div>
+        <div class="metric-content">
+          <div class="metric-label">文档</div>
+          <div class="metric-value">{{ resourceStats.docs }}</div>
+        </div>
+      </div>
+
+      <div class="metric-item">
         <div class="metric-icon metric-icon--task">
           <el-icon><Timer /></el-icon>
         </div>
@@ -210,7 +220,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ChatLineRound, Clock, Folder, Operation, Refresh, Timer, VideoPlay } from '@element-plus/icons-vue'
+import { ChatLineRound, Clock, Document, Folder, Operation, Refresh, Timer, VideoPlay } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { getDirectoryOverview, type DirectoryOverviewResp, type DirectoryOverviewScheduledTask, type DirectoryOverviewStats } from '@/architecture/presentation/context/api/service-tree'
 import type { TimerTask } from '@/architecture/presentation/context/api/timer'
@@ -452,6 +462,11 @@ watch(
 .metric-icon--function {
   color: var(--el-color-success);
   background: rgba(16, 185, 129, 0.12);
+}
+
+.metric-icon--docs {
+  color: #0891b2;
+  background: rgba(8, 145, 178, 0.12);
 }
 
 .metric-icon--task {
