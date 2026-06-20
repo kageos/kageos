@@ -23,6 +23,7 @@ export class WorkspaceStateManager extends StateManagerImpl<WorkspaceState> impl
       currentDirectory: null,
       serviceTree: [],
       loading: false, // 🔥 默认 loading 为 false
+      accessError: null,
     }
 
     super({

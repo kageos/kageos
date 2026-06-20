@@ -2,8 +2,11 @@ package v1
 
 import (
 	"errors"
+	"io"
+	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kageos/kageos/core/hr-server/model"
@@ -19,6 +22,7 @@ var errSelfRegistrationDisabled = errors.New("self registration disabled")
 // Auth 认证相关API
 type Auth struct {
 	authService       *service.AuthService
+	authOAuthService  *service.AuthOAuthService
 	emailService      *service.EmailService
 	settingsService   *service.SystemSettingsService
 	userService       *service.UserService
@@ -26,9 +30,10 @@ type Auth struct {
 }
 
 // NewAuth 创建认证API（依赖注入）
-func NewAuth(authService *service.AuthService, emailService *service.EmailService, settingsService *service.SystemSettingsService, userService *service.UserService, departmentService *service.DepartmentService) *Auth {
+func NewAuth(authService *service.AuthService, authOAuthService *service.AuthOAuthService, emailService *service.EmailService, settingsService *service.SystemSettingsService, userService *service.UserService, departmentService *service.DepartmentService) *Auth {
 	return &Auth{
 		authService:       authService,
+		authOAuthService:  authOAuthService,
 		emailService:      emailService,
 		settingsService:   settingsService,
 		userService:       userService,
@@ -196,6 +201,102 @@ func (a *Auth) SearchCompanies(c *gin.Context) {
 	response.OkWithData(c, &dto.SearchCompaniesResp{Companies: options})
 }
 
+func (a *Auth) OAuthAuthorize(c *gin.Context) {
+	authURL, err := a.authOAuthService.StartAuthorize(contextx.ToContext(c), c.Param("provider"), c.Query("redirect_after"))
+	if err != nil {
+		c.Redirect(302, oauthErrorRedirect(err.Error()))
+		return
+	}
+	c.Redirect(302, authURL)
+}
+
+func (a *Auth) OAuthCallback(c *gin.Context) {
+	result, err := a.authOAuthService.FinishCallback(
+		contextx.ToContext(c),
+		c.Param("provider"),
+		c.Query("state"),
+		c.Query("code"),
+		firstNonEmpty(c.Query("error_description"), c.Query("error")),
+	)
+	if err != nil {
+		c.Redirect(302, oauthErrorRedirect(err.Error()))
+		return
+	}
+	if result.RegistrationRequired {
+		fragment := url.Values{}
+		fragment.Set("ticket", result.RegistrationTicket)
+		fragment.Set("redirect_after", result.RedirectAfter)
+		c.Redirect(302, "/auth/oauth/register#"+fragment.Encode())
+		return
+	}
+	fragment := url.Values{}
+	fragment.Set("token", result.Token)
+	fragment.Set("refresh_token", result.RefreshToken)
+	fragment.Set("redirect_after", result.RedirectAfter)
+	c.Redirect(302, "/auth/oauth/callback#"+fragment.Encode())
+}
+
+func (a *Auth) GetOAuthRegistrationIntent(c *gin.Context) {
+	intent, err := a.authOAuthService.GetRegistrationIntent(c.Param("ticket"))
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	resp := &dto.OAuthRegistrationIntentResp{
+		Ticket:          intent.Ticket,
+		ProviderCode:    intent.ProviderCode,
+		ProviderName:    intent.ProviderName,
+		Email:           intent.Email,
+		Nickname:        intent.Nickname,
+		Avatar:          intent.Avatar,
+		SuggestedCode:   intent.SuggestedCode,
+		CodeSuggestions: intent.CodeSuggestions,
+		RedirectAfter:   intent.RedirectAfter,
+		ExpiresAt:       intent.ExpiresAt.Format(time.RFC3339),
+	}
+	response.OkWithData(c, resp)
+}
+
+func (a *Auth) ConfirmOAuthRegistration(c *gin.Context) {
+	var req dto.ConfirmOAuthRegistrationReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	result, err := a.authOAuthService.ConfirmRegistration(c.Param("ticket"), req.Username, req.Nickname)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	ctx := contextx.ToContext(c)
+	userInfos := convertUsersToDTOBatch(ctx, []*model.User{result.User}, a.userService, a.departmentService)
+	if len(userInfos) == 0 {
+		response.FailWithMessage(c, "转换用户信息失败")
+		return
+	}
+	response.OkWithData(c, &dto.ConfirmOAuthRegistrationResp{
+		Token:         result.Token,
+		RefreshToken:  result.RefreshToken,
+		User:          *userInfos[0],
+		RedirectAfter: result.RedirectAfter,
+	})
+}
+
+func oauthErrorRedirect(message string) string {
+	values := url.Values{}
+	values.Set("oauth_error", message)
+	return "/login?" + values.Encode()
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 // CreateUserBySecret 超管一键创建用户（免邮箱验证，仅 system 用户可操作，用于创建测试用户）
 // @Summary 一键创建用户（仅 system 超管）
 // @Description 仅已登录的 system 用户可调用，直接创建用户无需邮箱验证。
@@ -344,17 +445,25 @@ func (a *Auth) Logout(c *gin.Context) {
 	var resp *dto.LogoutResp
 	var err error
 	defer func() {
-		logger.Infof(c, "Logout req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Infof(c, "Logout has_token=%v resp:%+v err:%v", req.Token != "" || c.GetHeader(contextx.TokenHeader) != "", resp, err)
 	}()
 
-	// 绑定请求参数
-	if err = c.ShouldBindJSON(&req); err != nil {
+	token := strings.TrimSpace(c.GetHeader(contextx.TokenHeader))
+	if err = c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	if bodyToken := strings.TrimSpace(req.Token); bodyToken != "" {
+		token = bodyToken
+	}
+	if token == "" {
+		err = errors.New("token is required")
+		response.FailWithMessage(c, "未提供认证令牌")
 		return
 	}
 
 	// 登出用户
-	err = a.authService.LogoutUser(req.Token)
+	err = a.authService.LogoutUser(token)
 	if err != nil {
 		response.FailWithMessage(c, "登出失败: "+err.Error())
 		return

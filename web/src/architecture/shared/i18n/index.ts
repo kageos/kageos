@@ -1,26 +1,8 @@
 import { createI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
-import 'dayjs/locale/en'
-import 'dayjs/locale/zh-cn'
-import 'dayjs/locale/ja'
-import 'dayjs/locale/ko'
-import 'dayjs/locale/es'
-import 'dayjs/locale/ar'
-import 'dayjs/locale/ru'
-import 'dayjs/locale/fr'
-import 'dayjs/locale/de'
-import 'dayjs/locale/pt-br'
-import 'dayjs/locale/it'
-import 'dayjs/locale/id'
-import 'dayjs/locale/tr'
-import 'dayjs/locale/hi'
-import 'dayjs/locale/nl'
-import 'dayjs/locale/pl'
-import 'dayjs/locale/vi'
-import 'dayjs/locale/th'
 import enUS from './locales/en-US'
 import zhCN from './locales/zh-CN'
-import { additionalLocaleMessages } from './locales/additional'
+import type { LocaleMessageOverrides } from './locales/additional'
 
 type LocaleChangedHandler = (locale: SupportedLocale) => void
 
@@ -78,6 +60,66 @@ export const LOCALE_META: Record<SupportedLocale, LocaleMeta> = {
   'th-TH': { label: 'Thai', nativeLabel: 'ไทย', flag: '🇹🇭', dayjsLocale: 'th' },
 }
 
+const dayjsLocaleLoaders: Partial<Record<SupportedLocale, () => Promise<unknown>>> = {
+  'zh-CN': () => import('dayjs/locale/zh-cn'),
+  'ja-JP': () => import('dayjs/locale/ja'),
+  'ko-KR': () => import('dayjs/locale/ko'),
+  'es-ES': () => import('dayjs/locale/es'),
+  'ar-SA': () => import('dayjs/locale/ar'),
+  'ru-RU': () => import('dayjs/locale/ru'),
+  'fr-FR': () => import('dayjs/locale/fr'),
+  'de-DE': () => import('dayjs/locale/de'),
+  'pt-BR': () => import('dayjs/locale/pt-br'),
+  'it-IT': () => import('dayjs/locale/it'),
+  'id-ID': () => import('dayjs/locale/id'),
+  'tr-TR': () => import('dayjs/locale/tr'),
+  'hi-IN': () => import('dayjs/locale/hi'),
+  'nl-NL': () => import('dayjs/locale/nl'),
+  'pl-PL': () => import('dayjs/locale/pl'),
+  'vi-VN': () => import('dayjs/locale/vi'),
+  'th-TH': () => import('dayjs/locale/th'),
+}
+
+const loadedDayjsLocales = new Set<string>(['en'])
+let pendingDayjsLocale = LOCALE_META[DEFAULT_LOCALE].dayjsLocale
+let additionalMessagesPromise: Promise<Record<string, LocaleMessageOverrides>> | null = null
+
+function syncDayjsLocale(locale: SupportedLocale) {
+  const dayjsLocale = LOCALE_META[locale].dayjsLocale
+  pendingDayjsLocale = dayjsLocale
+
+  const applyLocale = () => {
+    if (pendingDayjsLocale === dayjsLocale) {
+      dayjs.locale(dayjsLocale)
+    }
+  }
+
+  if (loadedDayjsLocales.has(dayjsLocale)) {
+    applyLocale()
+    return
+  }
+
+  const loader = dayjsLocaleLoaders[locale]
+  if (!loader) {
+    applyLocale()
+    return
+  }
+
+  loader()
+    .then(() => {
+      loadedDayjsLocales.add(dayjsLocale)
+      applyLocale()
+    })
+    .catch(applyLocale)
+}
+
+function loadAdditionalMessages(): Promise<Record<string, LocaleMessageOverrides>> {
+  if (!additionalMessagesPromise) {
+    additionalMessagesPromise = import('./locales/additional').then(module => module.additionalLocaleMessages)
+  }
+  return additionalMessagesPromise
+}
+
 function mergeMessages<T extends Record<string, any>>(base: T, overrides: Record<string, any> | undefined): T {
   if (!overrides) return { ...base }
   const result: Record<string, any> = { ...base }
@@ -99,12 +141,12 @@ function mergeMessages<T extends Record<string, any>>(base: T, overrides: Record
   return result as T
 }
 
-export const messages = SUPPORTED_LOCALES.reduce((acc, locale) => {
-  acc[locale] = locale === 'zh-CN'
-    ? zhCN
-    : mergeMessages(enUS, additionalLocaleMessages[locale])
-  return acc
-}, {} as Record<SupportedLocale, Record<string, any>>)
+export const messages = {
+  'en-US': enUS,
+  'zh-CN': zhCN,
+} satisfies Partial<Record<SupportedLocale, Record<string, any>>>
+
+const loadedMessageLocales = new Set<SupportedLocale>(['en-US', 'zh-CN'])
 
 const localeChangedHandlers = new Set<LocaleChangedHandler>()
 
@@ -144,7 +186,7 @@ export function syncRuntimeLocale(locale: SupportedLocale) {
   document.documentElement.setAttribute('lang', locale)
   document.documentElement.setAttribute('dir', LOCALE_META[locale].dir || 'ltr')
   localStorage.setItem(LOCALE_STORAGE_KEY, locale)
-  dayjs.locale(LOCALE_META[locale].dayjsLocale)
+  syncDayjsLocale(locale)
 }
 
 export const i18n = createI18n({
@@ -158,14 +200,32 @@ export const i18n = createI18n({
 const i18nGlobal = i18n.global as unknown as {
   locale: { value: string }
   t: (key: string, params?: Record<string, unknown>) => string
+  setLocaleMessage: (locale: string, message: Record<string, any>) => void
+}
+
+async function ensureLocaleMessages(locale: SupportedLocale): Promise<boolean> {
+  if (loadedMessageLocales.has(locale)) {
+    return false
+  }
+
+  const additionalLocaleMessages = await loadAdditionalMessages()
+  i18nGlobal.setLocaleMessage(locale, mergeMessages(enUS, additionalLocaleMessages[locale]))
+  loadedMessageLocales.add(locale)
+  return true
 }
 
 syncRuntimeLocale(i18nGlobal.locale.value as SupportedLocale)
+void ensureLocaleMessages(i18nGlobal.locale.value as SupportedLocale)
 
 export function setLocale(locale: SupportedLocale) {
   i18nGlobal.locale.value = locale
   syncRuntimeLocale(locale)
   localeChangedHandlers.forEach((handler) => handler(locale))
+  void ensureLocaleMessages(locale).then((loaded) => {
+    if (loaded && i18nGlobal.locale.value === locale) {
+      localeChangedHandlers.forEach((handler) => handler(locale))
+    }
+  })
 }
 
 export function getCurrentLocale(): SupportedLocale {

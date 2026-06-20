@@ -32,7 +32,7 @@ func (r *UserSessionRepository) CreateUserSession(userID int64, token, refreshTo
 // GetUserSessionByToken 根据token获取用户会话
 func (r *UserSessionRepository) GetUserSessionByToken(token string) (*model.UserSession, error) {
 	var session model.UserSession
-	err := r.db.Where("token = ? AND is_active = true AND expires_at > ?", token, models.Time{}).First(&session).Error
+	err := r.db.Where("token = ? AND is_active = true AND expires_at > ?", token, models.Time(time.Now())).First(&session).Error
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (r *UserSessionRepository) GetUserSessionByToken(token string) (*model.User
 // GetUserSessionByRefreshToken 根据refresh token获取用户会话
 func (r *UserSessionRepository) GetUserSessionByRefreshToken(refreshToken string) (*model.UserSession, error) {
 	var session model.UserSession
-	err := r.db.Where("refresh_token = ? AND is_active = true AND expires_at > ?", refreshToken, models.Time{}).First(&session).Error
+	err := r.db.Where("refresh_token = ? AND is_active = true AND expires_at > ?", refreshToken, models.Time(time.Now())).First(&session).Error
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (r *UserSessionRepository) DeactivateAllUserSessions(userID int64) error {
 
 // DeleteExpiredSessions 删除过期的会话
 func (r *UserSessionRepository) DeleteExpiredSessions() error {
-	return r.db.Where("expires_at < ?", models.Time{}).Delete(&model.UserSession{}).Error
+	return r.db.Where("expires_at < ?", models.Time(time.Now())).Delete(&model.UserSession{}).Error
 }
 
 // UpdateUserSessionTokens 更新用户会话的token和refresh token

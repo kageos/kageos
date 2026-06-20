@@ -70,7 +70,7 @@ export function useWorkspaceNodeNavigation(options: UseWorkspaceNodeNavigationOp
     if (!node.full_code_path) return
 
     const targetPath = buildWorkspacePath(node.full_code_path)
-    if (options.route.path === targetPath && !customQuery) {
+    if (options.route.path === targetPath && !customQuery && Object.keys(options.route.query).length === 0) {
       return
     }
 

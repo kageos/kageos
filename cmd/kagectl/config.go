@@ -399,7 +399,9 @@ func applyEnvOverrides(cfg *Config) {
 		cfg.SMTP.Mode = v
 	}
 	if v := strings.TrimSpace(os.Getenv("KAGEOS_TLS_MODE")); v != "" {
-		cfg.Site.TLSMode = v
+		if strings.ToLower(v) != tlsModeAuto {
+			cfg.Site.TLSMode = v
+		}
 	}
 	if v := strings.TrimSpace(os.Getenv("KAGEOS_TLS_CERT_PEM_B64")); v != "" {
 		cfg.Site.TLSCertPEMB64 = v
@@ -433,7 +435,7 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 		AppContainerNetworkMode: "host",
 	}
 
-	rt.TLSCertsHostDir = filepath.Join(paths.GeneratedDir, "tls")
+	rt.TLSCertsHostDir = filepath.Join(cfg.Storage.Root, "tls")
 
 	rt.MySQLHostForMain = cfg.MySQL.Host
 	rt.MySQLPortForMain = cfg.MySQL.Port
@@ -537,7 +539,9 @@ func validateConfig(rt RuntimeConfig) error {
 		errs = append(errs, fmt.Errorf("site.tls_mode=redirect requires https site.base_url"))
 	}
 	if rt.Site.TLSMode == "https" || rt.Site.TLSMode == "redirect" {
-		if strings.TrimSpace(rt.Site.TLSCertPEMB64) == "" || strings.TrimSpace(rt.Site.TLSKeyPEMB64) == "" {
+		if siteTLSCertsIncomplete(rt.Site) {
+			errs = append(errs, fmt.Errorf("site.tls_cert_pem_b64 and site.tls_key_pem_b64 must be provided together"))
+		} else if siteTLSCertsEmpty(rt.Site) && !rt.Site.AllowSelfSignedBootstrap {
 			errs = append(errs, fmt.Errorf("site.tls_mode=%s requires KAGEOS_TLS_CERT_PEM_B64 and KAGEOS_TLS_KEY_PEM_B64, or site.tls_cert_pem_b64/site.tls_key_pem_b64", rt.Site.TLSMode))
 		}
 	}

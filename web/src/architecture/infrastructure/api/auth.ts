@@ -1,6 +1,43 @@
 import { get, post } from '@/architecture/infrastructure/apiClient/request'
 import type { UserInfo, LoginRequest, RegisterRequest, CompanyOption } from '@/architecture/domain/types'
 
+export interface LoginMethodInfo {
+  provider: string
+  label: string
+  action: string
+  description?: string
+  authorize_path?: string
+}
+
+export interface ListLoginMethodsResp {
+  methods: LoginMethodInfo[]
+}
+
+export interface OAuthRegistrationIntent {
+  ticket: string
+  provider_code: string
+  provider_name: string
+  email: string
+  nickname: string
+  avatar: string
+  suggested_code: string
+  code_suggestions: string[]
+  redirect_after: string
+  expires_at: string
+}
+
+export interface ConfirmOAuthRegistrationRequest {
+  username: string
+  nickname: string
+}
+
+export interface ConfirmOAuthRegistrationResponse {
+  token: string
+  refresh_token: string
+  user: UserInfo
+  redirect_after: string
+}
+
 // 用户注册
 export function register(data: RegisterRequest) {
   return post('/hr/api/v1/auth/register', data)
@@ -70,6 +107,21 @@ export function login(data: LoginRequest) {
   }>('/hr/api/v1/auth/login', data)
 }
 
+export function listLoginMethods() {
+  return get<ListLoginMethodsResp>('/hr/api/v1/auth/methods')
+}
+
+export function getOAuthRegistrationIntent(ticket: string) {
+  return get<OAuthRegistrationIntent>(`/hr/api/v1/auth/oauth/registration/${encodeURIComponent(ticket)}`)
+}
+
+export function confirmOAuthRegistration(ticket: string, data: ConfirmOAuthRegistrationRequest) {
+  return post<ConfirmOAuthRegistrationResponse>(
+    `/hr/api/v1/auth/oauth/registration/${encodeURIComponent(ticket)}/confirm`,
+    data
+  )
+}
+
 // 刷新token（传入 refresh_token，返回新 token 与 refresh_token）
 export function refreshToken(refreshTokenValue: string) {
   return post<{
@@ -79,8 +131,8 @@ export function refreshToken(refreshTokenValue: string) {
 }
 
 // 用户登出
-export function logout() {
-  return post('/hr/api/v1/auth/logout')
+export function logout(token?: string) {
+  return post('/hr/api/v1/auth/logout', token ? { token } : undefined)
 }
 
 // 获取用户信息

@@ -12,7 +12,7 @@ type SendEmailCodeResp struct {
 
 // RegisterReq 用户注册请求
 type RegisterReq struct {
-	Username       string `json:"username" binding:"required,min=3,max=20" example:"beiluo"`            // 用户名
+	Username       string `json:"username" binding:"required,min=3,max=32" example:"beiluo"`            // 用户 code
 	Email          string `json:"email" binding:"required,email" example:"beiluo@example.com"`          // 邮箱
 	Password       string `json:"password" binding:"required,min=6" example:"123456"`                   // 密码
 	Code           string `json:"code" binding:"required,len=6" example:"123456"`                       // 验证码
@@ -49,6 +49,31 @@ type LoginResp struct {
 	Token        string   `json:"token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`                 // JWT Token
 	RefreshToken string   `json:"refresh_token" example:"refresh_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."` // 刷新Token
 	User         UserInfo `json:"user"`                                                                    // 用户信息
+}
+
+type OAuthRegistrationIntentResp struct {
+	Ticket          string   `json:"ticket"`
+	ProviderCode    string   `json:"provider_code"`
+	ProviderName    string   `json:"provider_name"`
+	Email           string   `json:"email"`
+	Nickname        string   `json:"nickname"`
+	Avatar          string   `json:"avatar"`
+	SuggestedCode   string   `json:"suggested_code"`
+	CodeSuggestions []string `json:"code_suggestions"`
+	RedirectAfter   string   `json:"redirect_after"`
+	ExpiresAt       string   `json:"expires_at"`
+}
+
+type ConfirmOAuthRegistrationReq struct {
+	Username string `json:"username" binding:"required,min=3,max=32" example:"beiluo"` // 用户 code
+	Nickname string `json:"nickname" binding:"max=100" example:"北落"`                   // 显示名称
+}
+
+type ConfirmOAuthRegistrationResp struct {
+	Token         string   `json:"token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	RefreshToken  string   `json:"refresh_token" example:"refresh_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	User          UserInfo `json:"user"`
+	RedirectAfter string   `json:"redirect_after"`
 }
 
 // UserInfo 用户信息
@@ -109,7 +134,7 @@ type ForgotPasswordResp struct {
 
 // CreateUserBySecretReq 超管一键创建用户请求（免邮箱验证，仅 system 用户可操作）
 type CreateUserBySecretReq struct {
-	Username string `json:"username" binding:"required,min=3,max=20" example:"testuser"` // 用户名
+	Username string `json:"username" binding:"required,min=3,max=32" example:"testuser"` // 用户 code
 	Password string `json:"password" binding:"required,min=6" example:"123456"`          // 密码
 }
 

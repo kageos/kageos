@@ -25,9 +25,10 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane name="permission" :label="t('functionTabs.permission')">
+        <el-tab-pane name="permission" :label="t('functionTabs.permission')" lazy>
           <div class="tab-content">
             <TeamAccessPanel
+              v-if="activeTab === 'permission'"
               ref="accessPanelRef"
               :node="currentFunction"
               embedded
@@ -36,9 +37,10 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane v-if="isFormFunction" name="publicShare" label="公开链接">
+        <el-tab-pane v-if="isFormFunction" name="publicShare" label="公开链接" lazy>
           <div class="tab-content">
             <PublicSharePanel
+              v-if="activeTab === 'publicShare'"
               :function-detail="currentFunctionDetail"
               :function-node="currentFunction"
             />
@@ -49,9 +51,11 @@
           v-if="featureFlags.operateLogs"
           name="operateLog"
           :label="t('functionTabs.operateLog')"
+          lazy
         >
           <div class="tab-content">
             <OperateLogSection
+              v-if="activeTab === 'operateLog'"
               ref="operateLogSectionRef"
               :full-code-path="currentFunction?.full_code_path || currentFunctionDetail?.full_code_path || ''"
               :row-id="0"
@@ -70,9 +74,11 @@
           v-if="featureFlags.scheduledTasks"
           name="scheduledTask"
           label="定时函数"
+          lazy
         >
           <div class="tab-content">
             <ScheduledTaskList
+              v-if="activeTab === 'scheduledTask'"
               :resource-path="currentFunction?.full_code_path || currentFunctionDetail?.full_code_path || ''"
               :function-detail="currentFunctionDetail"
               :auto-load="activeTab === 'scheduledTask'"
@@ -88,17 +94,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
 import FunctionConnectorBar from './FunctionConnectorBar.vue'
-import OperateLogSection from './OperateLogSection.vue'
-import TeamAccessPanel from './TeamAccessPanel.vue'
-import PublicSharePanel from './PublicSharePanel.vue'
-import ScheduledTaskList from './ScheduledTaskList.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
 import {
   isScheduledPanelQuery,
@@ -110,6 +112,11 @@ import {
 import { ElMessage } from 'element-plus'
 
 type FunctionTabName = 'content' | 'permission' | 'publicShare' | 'operateLog' | 'scheduledTask'
+
+const OperateLogSection = defineAsyncComponent(() => import('./OperateLogSection.vue'))
+const TeamAccessPanel = defineAsyncComponent(() => import('./TeamAccessPanel.vue'))
+const PublicSharePanel = defineAsyncComponent(() => import('./PublicSharePanel.vue'))
+const ScheduledTaskList = defineAsyncComponent(() => import('./ScheduledTaskList.vue'))
 
 interface LoadableOperateLogSection {
   load: () => void

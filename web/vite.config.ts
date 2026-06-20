@@ -39,10 +39,6 @@ export default defineConfig(({ command, mode }) => {
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('/src/architecture/presentation/views/FormView.vue')) {
-            return 'FormView'
-          }
-
           if (!id.includes('node_modules')) return
 
           // Vue / Element Plus / icons 之间耦合很重，强行手拆容易形成循环依赖。
@@ -64,12 +60,6 @@ export default defineConfig(({ command, mode }) => {
           }
           if (id.includes('echarts') || id.includes('vue-echarts')) {
             return 'vendor-echarts-core'
-          }
-          if (id.includes('vditor')) {
-            return 'vendor-vditor'
-          }
-          if (id.includes('@tiptap') || id.includes('prosemirror')) {
-            return 'vendor-tiptap'
           }
           if (id.includes('monaco-editor') || id.includes('@monaco-editor')) {
             return 'vendor-monaco'

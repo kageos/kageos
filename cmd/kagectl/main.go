@@ -41,6 +41,8 @@ func run(args []string) error {
 		return cmdBuildAppBase(paths, rest)
 	case "render":
 		return cmdRender(paths)
+	case "reload-tls":
+		return cmdReloadTLS(paths)
 	case "layers", "topology":
 		return cmdLayers(paths, rest)
 	case "doctor":

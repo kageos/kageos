@@ -6,6 +6,7 @@ import { Logger } from '@/architecture/shared/logger'
 import { getApiBaseURL } from '@/architecture/infrastructure/config/runtime'
 import { getCurrentRouteFullPath, getCurrentRoutePath, navigateTo } from '@/architecture/shared/routing/navigation'
 import type { ApiResponse } from '@/architecture/shared/apiTypes'
+import { isWorkspaceForbiddenError } from '@/architecture/shared/apiError'
 import { extractApiMessage, isAuthExpiredBusinessResponse, isRefreshRequestUrl } from './authSession'
 
 const CLIENT_SOURCE_HEADER = 'X-Client-Source'
@@ -258,19 +259,25 @@ service.interceptors.response.use(
       return data
     }
 
-    // 业务错误 - 记录错误信息
-    Logger.error('Request', '业务错误', {
-      code,
-      msg,
-      url: response.config.url,
-      method: response.config.method
-    })
-    
     // 🔥 不在这里显示错误消息，让调用方自己处理（避免重复提示）
     // ElMessage.error(msg || '请求失败')
     // 🔥 保留完整的错误信息，包括 response 对象
     const error = new Error(msg) as BusinessResponseError
     error.response = response
+
+    const logPayload = {
+      code,
+      msg,
+      url: response.config.url,
+      method: response.config.method
+    }
+
+    // workspace 无权限是页面可处理状态，不当作未处理异常噪音输出
+    if (isWorkspaceForbiddenError(error)) {
+      Logger.warn('Request', '业务拒绝', logPayload)
+    } else {
+      Logger.error('Request', '业务错误', logPayload)
+    }
 
     if (isAuthExpiredBusinessResponse(responsePayload)) {
       return retryWithFreshToken(response.config as AuthRetryAxiosRequestConfig, error)

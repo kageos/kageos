@@ -389,7 +389,6 @@ interface LoadInboxOptions {
 const router = useRouter()
 const route = useRoute()
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
-void preloadMarkdown()
 const drawerVisible = ref(false)
 const countLoading = ref(false)
 const listLoading = ref(false)
@@ -541,6 +540,7 @@ async function loadUnreadCount() {
 }
 
 function openDrawer() {
+  void preloadMarkdown()
   sourceFilter.value = null
   markSourceReadOnOpen.value = false
   void syncInboxRoute()
@@ -549,6 +549,7 @@ function openDrawer() {
 
 async function openInboxFromRouteIntent() {
   if (!props.syncRoute || !isInboxOpenQuery(route.query)) return
+  void preloadMarkdown()
   const messageID = readNumberQuery(route.query, PLATFORM_MESSAGE_ID_QUERY_KEY)
   const sourcePath = normalizeSourceTreePath(readStringQuery(route.query, PLATFORM_SOURCE_PATH_QUERY_KEY))
   const key = `${currentWorkspaceKey.value}:${sourcePath}:${messageID}`
@@ -583,6 +584,7 @@ async function openInboxFromRouteIntent() {
 function openForSource(filter: SourceFilter) {
   const sourcePath = (filter.sourcePath || '').trim()
   if (!sourcePath) return
+  void preloadMarkdown()
   sourceFilter.value = {
     ...filter,
     sourcePath,
@@ -604,6 +606,7 @@ function clearSourceFilter() {
 }
 
 function handleDrawerOpen() {
+  void preloadMarkdown()
   if (routeIntentOpening) {
     void loadUnreadCount()
     return

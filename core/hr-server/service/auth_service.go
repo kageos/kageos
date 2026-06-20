@@ -43,8 +43,18 @@ func NewAuthService(userRepo *repository.UserRepository, companyRepo *repository
 
 var companyCodePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
+const (
+	defaultRefreshTokenExpireSeconds  = 24 * 3600
+	rememberRefreshTokenExpireSeconds = 30 * 24 * 3600
+)
+
 // RegisterUser 注册用户
 func (s *AuthService) RegisterUser(username, email, password, companyAction, companyCode, companyName, companyLogoURL string) (int64, error) {
+	username = strings.ToLower(strings.TrimSpace(username))
+	if err := ValidateUserCode(username); err != nil {
+		return 0, err
+	}
+
 	// 检查用户名是否已存在
 	existingUser, err := s.userRepo.GetUserByUsername(username)
 	if err == nil && existingUser != nil {
@@ -145,6 +155,11 @@ func (s *AuthService) SearchCompaniesFuzzy(keyword string, limit int) ([]*model.
 
 // CreateUserBySecretKey 超管一键创建用户（免邮箱验证，仅 system 用户可调用，用于创建测试用户）
 func (s *AuthService) CreateUserBySecretKey(username, password string) (int64, error) {
+	username = strings.ToLower(strings.TrimSpace(username))
+	if err := ValidateUserCode(username); err != nil {
+		return 0, err
+	}
+
 	existingUser, err := s.userRepo.GetUserByUsername(username)
 	if err == nil && existingUser != nil {
 		return 0, fmt.Errorf("用户名已存在")
@@ -235,53 +250,61 @@ func (s *AuthService) LoginUser(username, password string, remember bool) (*mode
 		return nil, "", "", fmt.Errorf("用户名或密码错误")
 	}
 
-	// 根据"记住我"设置不同的Refresh Token有效期
-	jwtConfig := s.config.GetJWT()
-	refreshTokenExpire := jwtConfig.RefreshTokenExpire
-	if remember {
-		// 记住我：延长到30天
-		refreshTokenExpire = 30 * 24 * 3600 // 30天
+	token, refreshToken, err := s.IssueTokensForUser(user, remember)
+	if err != nil {
+		return nil, "", "", err
 	}
 
+	logger.Infof(nil, "[AuthService] User logged in successfully: %s (remember: %v)", username, remember)
+	return user, token, refreshToken, nil
+}
+
+func (s *AuthService) IssueTokensForUser(user *model.User, remember bool) (string, string, error) {
+	if user == nil {
+		return "", "", fmt.Errorf("用户不存在")
+	}
+	if !user.IsActive() {
+		logger.Warnf(nil, "[AuthService] User not active: %s, status: %s", user.Username, user.Status)
+		return "", "", fmt.Errorf("账户未激活，请联系管理员")
+	}
+
+	jwtConfig := s.config.GetJWT()
+	refreshTokenExpire := resolveRefreshTokenExpireSeconds(jwtConfig.RefreshTokenExpire, remember)
+
 	tokenContext := s.buildUserTokenContext(user)
+	refreshExpiresAt := time.Now().Add(time.Duration(refreshTokenExpire) * time.Second)
 
 	// 生成 JWT Token（包含企业、组织架构信息）
 	token, err := s.jwtService.GenerateAccessTokenWithContext(tokenContext)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to generate access token: %v", err)
-		return nil, "", "", fmt.Errorf("访问令牌生成失败")
+		return "", "", fmt.Errorf("访问令牌生成失败")
 	}
 
-	refreshToken, err := s.jwtService.GenerateRefreshTokenWithContext(tokenContext)
+	refreshToken, err := s.jwtService.GenerateRefreshTokenWithContextExpiresAt(tokenContext, refreshExpiresAt)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to generate refresh token: %v", err)
-		return nil, "", "", fmt.Errorf("刷新令牌生成失败")
-	}
-
-	// ⭐ 新增：查询用户的旧 token（用于移除黑名单）
-	oldSessions, err := s.userSessionRepo.GetActiveSessionsByUserID(user.ID)
-	if err != nil {
-		logger.Warnf(nil, "[AuthService] 查询旧会话失败: %v", err)
-		// 不返回错误，继续登录流程
+		return "", "", fmt.Errorf("刷新令牌生成失败")
 	}
 
 	// 保存用户会话（使用自定义的Refresh Token有效期）
-	err = s.saveUserSessionWithExpire(user.ID, token, refreshToken, refreshTokenExpire)
+	err = s.saveUserSessionWithExpiresAt(user.ID, token, refreshToken, refreshExpiresAt)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to save user session: %v", err)
 		// 不返回错误，继续执行
 	}
 
-	// ⭐ 新增：通过 NATS 通知网关，移除旧 token 的黑名单
-	if s.tokenPublisher != nil && len(oldSessions) > 0 {
-		if err := s.tokenPublisher.RemoveTokenFromBlacklist(nil, user.ID, user.Username, oldSessions); err != nil {
-			logger.Warnf(nil, "[AuthService] 发送移除黑名单通知失败: %v", err)
-			// 不返回错误，因为登录已成功
-		}
-	}
+	return token, refreshToken, nil
+}
 
-	logger.Infof(nil, "[AuthService] User logged in successfully: %s (remember: %v)", username, remember)
-	return user, token, refreshToken, nil
+func resolveRefreshTokenExpireSeconds(configured int, remember bool) int {
+	if configured <= 0 {
+		configured = defaultRefreshTokenExpireSeconds
+	}
+	if remember && configured < rememberRefreshTokenExpireSeconds {
+		return rememberRefreshTokenExpireSeconds
+	}
+	return configured
 }
 
 func (s *AuthService) buildUserTokenContext(user *model.User) auth.UserTokenContext {
@@ -331,12 +354,13 @@ func (s *AuthService) RefreshToken(refreshToken string) (string, string, error) 
 	}
 
 	tokenContext := s.buildUserTokenContext(user)
+	refreshExpiresAt := time.Time(session.ExpiresAt)
 	newAccessToken, err := s.jwtService.GenerateAccessTokenWithContext(tokenContext)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to refresh access token: %v", err)
 		return "", "", fmt.Errorf("Token刷新失败")
 	}
-	newRefreshToken, err := s.jwtService.GenerateRefreshTokenWithContext(tokenContext)
+	newRefreshToken, err := s.jwtService.GenerateRefreshTokenWithContextExpiresAt(tokenContext, refreshExpiresAt)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to refresh token: %v", err)
 		return "", "", fmt.Errorf("Token刷新失败")
@@ -355,6 +379,21 @@ func (s *AuthService) RefreshToken(refreshToken string) (string, string, error) 
 
 // LogoutUser 用户登出
 func (s *AuthService) LogoutUser(token string) error {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return fmt.Errorf("未提供认证令牌")
+	}
+
+	if s.tokenPublisher != nil {
+		if claims, err := s.jwtService.ValidateToken(token); err == nil {
+			if err := s.tokenPublisher.InvalidateToken(nil, claims.UserID, claims.Username, token, "logout"); err != nil {
+				logger.Warnf(nil, "[AuthService] 发送 logout token 失效通知失败: %v", err)
+			}
+		} else {
+			logger.Warnf(nil, "[AuthService] logout token 解析失败，仅停用会话: %v", err)
+		}
+	}
+
 	// 停用用户会话
 	err := s.userSessionRepo.DeactivateUserSession(token)
 	if err != nil {
@@ -383,10 +422,17 @@ func (s *AuthService) saveUserSession(userID int64, token, refreshToken string) 
 // saveUserSessionWithExpire 保存用户会话（自定义过期时间）
 func (s *AuthService) saveUserSessionWithExpire(userID int64, token, refreshToken string, expireSeconds int) error {
 	// 计算过期时间
-	expiresAt := models.Time(time.Now().Add(time.Duration(expireSeconds) * time.Second))
+	expiresAt := time.Now().Add(time.Duration(expireSeconds) * time.Second)
+
+	return s.saveUserSessionWithExpiresAt(userID, token, refreshToken, expiresAt)
+}
+
+// saveUserSessionWithExpiresAt 保存用户会话（指定绝对过期时间）
+func (s *AuthService) saveUserSessionWithExpiresAt(userID int64, token, refreshToken string, expiresAt time.Time) error {
+	modelExpiresAt := models.Time(expiresAt)
 
 	// 创建用户会话
-	err := s.userSessionRepo.CreateUserSession(userID, token, refreshToken, expiresAt, "", "")
+	err := s.userSessionRepo.CreateUserSession(userID, token, refreshToken, modelExpiresAt, "", "")
 	if err != nil {
 		return fmt.Errorf("会话保存失败: %w", err)
 	}

@@ -27,14 +27,20 @@ func (s *Server) setupRoutes() {
 
 	// 认证相关路由（不需要JWT验证）
 	auth := apiV1.Group("/auth")
-	authHandler := v1.NewAuth(s.authService, s.emailService, s.settingsService, s.userService, s.departmentService)
+	authHandler := v1.NewAuth(s.authService, s.authOAuthService, s.emailService, s.settingsService, s.userService, s.departmentService)
 	auth.POST("/send_email_code", authHandler.SendEmailCode)
 	auth.POST("/register", authHandler.Register)
 	auth.GET("/companies/search", authHandler.SearchCompanies)
+	auth.GET("/oauth/registration/:ticket", authHandler.GetOAuthRegistrationIntent)
+	auth.POST("/oauth/registration/:ticket/confirm", authHandler.ConfirmOAuthRegistration)
+	auth.GET("/:provider/authorize", authHandler.OAuthAuthorize)
+	auth.GET("/:provider/callback", authHandler.OAuthCallback)
 	auth.POST("/login", authHandler.Login)
 	auth.POST("/refresh", authHandler.RefreshToken)
 	auth.POST("/logout", authHandler.Logout)
 	auth.POST("/forgot_password", authHandler.ForgotPassword)
+	authProviderHandler := v1.NewAuthLoginProvider(s.authProviderService)
+	auth.GET("/methods", authProviderHandler.PublicMethods)
 
 	// 用户管理路由（需要JWT验证）
 	user := apiV1.Group("/user")
@@ -55,6 +61,15 @@ func (s *Server) setupRoutes() {
 	systemSettings.GET("", systemSettingsHandler.Get)
 	systemSettings.PUT("", systemSettingsHandler.Update)
 	systemSettings.POST("/email/test", systemSettingsHandler.TestEmail)
+	systemSettings.GET("/tls", systemSettingsHandler.GetTLS)
+	systemSettings.PUT("/tls", systemSettingsHandler.UpdateTLS)
+	systemSettings.POST("/tls/reload", systemSettingsHandler.ReloadTLS)
+
+	systemAuthProviders := apiV1.Group("/system/auth/providers")
+	systemAuthProviders.Use(middleware2.JWTAuth())
+	systemAuthProviders.GET("", authProviderHandler.List)
+	systemAuthProviders.PUT("/:code/config", authProviderHandler.UpdateConfig)
+	systemAuthProviders.PUT("/:code/enabled", authProviderHandler.SetEnabled)
 
 	// 批量获取用户（需要JWT验证）
 	users := apiV1.Group("/users")

@@ -60,9 +60,11 @@ Compose
 ## 一分钟部署
 
 ```bash
-sudo ./install.sh --base-url http://your-ip-or-domain
+sudo ./install.sh --base-url app.example.com
 tail -f .kageos/prod/kagectl-up.log
 ```
+
+`--tls-mode` 默认是 `auto`：传入域名时会启用 HTTPS pending，先用临时自签证书启动 `https://app.example.com`；传入 IP、`localhost` 或显式 `--tls-mode http` 时走 HTTP 尝鲜模式。
 
 宿主机 80 端口不可用时：
 
@@ -81,6 +83,17 @@ site:
   base_url: "http://your-ip-or-domain"
   tls_mode: "http"
 ```
+
+域名默认 HTTPS pending：
+
+```yaml
+site:
+  base_url: "https://app.example.com"
+  tls_mode: "redirect"
+  allow_self_signed_bootstrap: true
+```
+
+没有正式证书时，`kagectl render/up` 会在 `<storage.root>/tls/` 下生成临时自签证书让 Nginx 先启动 HTTPS。它不是可信证书，浏览器会报警；生产前应换成可信证书或使用外部 HTTPS 终止。
 
 如果宿主机 80 端口不可用，可以直接把公网访问地址和监听端口改成同一个端口：
 
@@ -113,7 +126,7 @@ site:
   tls_key_pem_b64: "base64-privkey-pem"
 ```
 
-也可以不写入 YAML，直接用环境变量传入，`kagectl` 会渲染到 `.kageos/prod/generated/tls/`：
+也可以不写入 YAML，直接用环境变量传入，`kagectl` 会渲染到 `<storage.root>/tls/`：
 
 ```bash
 KAGEOS_TLS_CERT_PEM_B64="$(base64 < fullchain.pem | tr -d '\n')" \
@@ -121,7 +134,13 @@ KAGEOS_TLS_KEY_PEM_B64="$(base64 < privkey.pem | tr -d '\n')" \
 go run ./cmd/kagectl up
 ```
 
-渲染后证书会落到 `.kageos/prod/generated/tls/`，最终注入容器的环境变量会落到 `.kageos/prod/generated/env/kageos.env`，便于后续运维查看和备份。
+渲染后证书会落到 `<storage.root>/tls/fullchain.pem` 和 `<storage.root>/tls/privkey.pem`，默认目录是 `~/.kageos/storage/prod/tls/`。如果只是替换证书，不需要重建容器，写入两个文件后执行：
+
+```bash
+go run ./cmd/kagectl reload-tls
+```
+
+最终注入容器的环境变量会落到 `.kageos/prod/generated/env/kageos.env`，便于后续运维查看和备份。
 
 ## 常用命令
 
@@ -130,6 +149,7 @@ go run ./cmd/kagectl up
 tail -f .kageos/prod/kagectl-up.log
 go run ./cmd/kagectl status
 go run ./cmd/kagectl verify
+go run ./cmd/kagectl reload-tls
 go run ./cmd/kagectl logs --layer L3
 ./prod-stop.sh
 go run ./cmd/kagectl uninstall --dry-run

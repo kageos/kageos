@@ -17,6 +17,7 @@ import (
 
 // TokenPublisher 定义 hr-server 向其他服务发布 token 相关命令的能力。
 type TokenPublisher interface {
+	InvalidateToken(ctx context.Context, userID int64, username string, token string, reason string) error
 	InvalidateUserToken(ctx context.Context, userID int64, username string, reason string, userSessionRepo *repository.UserSessionRepository) error
 	RemoveTokenFromBlacklist(ctx context.Context, userID int64, username string, oldSessions []*model.UserSession) error
 }
@@ -35,6 +36,33 @@ func NewGatewayTokenPublisher(conn *nats.Conn) *GatewayTokenPublisher {
 func hashToken(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(h[:])
+}
+
+// InvalidateToken 使单个 token 失效（通过 NATS 通知 gateway）。
+func (p *GatewayTokenPublisher) InvalidateToken(ctx context.Context, userID int64, username string, token string, reason string) error {
+	if p == nil || p.conn == nil {
+		return fmt.Errorf("NATS connection is nil")
+	}
+
+	message := map[string]interface{}{
+		"user_id":   userID,
+		"username":  username,
+		"tokens":    []string{hashToken(token)},
+		"reason":    reason,
+		"timestamp": time.Now().Unix(),
+	}
+
+	data, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("序列化消息失败: %w", err)
+	}
+
+	if err := p.conn.Publish(subjects.GatewayTokenInvalidateCommandSubject, data); err != nil {
+		return fmt.Errorf("发布消息失败: %w", err)
+	}
+
+	logger.Infof(ctx, "[GatewayTokenPublisher] 单 Token 失效通知已发送: userID=%d, reason=%s", userID, reason)
+	return nil
 }
 
 // InvalidateUserToken 使用户的 token 失效（通过 NATS 通知 gateway）。

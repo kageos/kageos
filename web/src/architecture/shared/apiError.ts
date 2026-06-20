@@ -2,12 +2,17 @@ import type { ApiResponse } from './apiTypes'
 
 type ApiResponseEnvelope<T = unknown> = ApiResponse<T>
 type ErrorLike = {
+  code?: unknown
   msg?: unknown
   message?: unknown
+  status?: unknown
   response?: {
+    status?: unknown
     data?: {
+      code?: unknown
       msg?: unknown
       message?: unknown
+      status?: unknown
     }
   }
 }
@@ -48,6 +53,46 @@ export function getErrorMessage(error: unknown, fallback: string = '操作失败
   }
 
   return fallback
+}
+
+export function getErrorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') {
+    return undefined
+  }
+
+  const errorLike = error as ErrorLike
+  const rawStatus = errorLike.response?.status ?? errorLike.response?.data?.status ?? errorLike.status
+  if (typeof rawStatus === 'number') {
+    return rawStatus
+  }
+  if (typeof rawStatus === 'string' && rawStatus.trim()) {
+    const parsed = Number(rawStatus)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
+
+export function getErrorCode(error: unknown): string | number | undefined {
+  if (!error || typeof error !== 'object') {
+    return undefined
+  }
+
+  const errorLike = error as ErrorLike
+  const rawCode = errorLike.response?.data?.code ?? errorLike.code
+  return typeof rawCode === 'string' || typeof rawCode === 'number' ? rawCode : undefined
+}
+
+export function isWorkspaceForbiddenError(error: unknown): boolean {
+  if (getErrorStatus(error) === 403) {
+    return true
+  }
+
+  const code = getErrorCode(error)
+  const message = getErrorMessage(error, '').toLowerCase()
+  const mentionsWorkspace = message.includes('workspace') || message.includes('工作空间')
+  const mentionsPermission = /无权限|权限不足|请求被拒绝|forbidden|permission|access denied/.test(message)
+
+  return code === 7 && mentionsWorkspace && mentionsPermission
 }
 
 export function createBusinessError(

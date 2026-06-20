@@ -54,6 +54,7 @@
 
         <el-tab-pane :label="t('packageDetail.detail')" name="detail">
           <div class="tab-content directory-detail-tab-content">
+            <PackageDirectoryOverview :package-node="packageNode" />
             <div
               v-if="directoryMarkdown"
               class="directory-markdown-body"
@@ -75,6 +76,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import type { ServiceTree } from '@/architecture/domain/types'
+import PackageDirectoryOverview from './PackageDirectoryOverview.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'

@@ -122,7 +122,7 @@ services:
       - {{ .Storage.Root }}/namespace:/app/namespace
       - {{ .Storage.Root }}/data:/app/data
       - ./config:/app/config.prod.template:ro
-      - {{ .TLSCertsHostDir }}:/app/tls:ro
+      - {{ .TLSCertsHostDir }}:/app/tls
     healthcheck:
       test: ["CMD", "/app/health/main.sh"]
       interval: 20s

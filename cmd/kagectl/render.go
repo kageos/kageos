@@ -434,6 +434,16 @@ func renderTLSFiles(rt RuntimeConfig) error {
 	certB64 := strings.TrimSpace(rt.Site.TLSCertPEMB64)
 	keyB64 := strings.TrimSpace(rt.Site.TLSKeyPEMB64)
 	if certB64 == "" && keyB64 == "" {
+		if (rt.Site.TLSMode == "https" || rt.Site.TLSMode == "redirect") && rt.Site.AllowSelfSignedBootstrap {
+			if tlsFilesExist(rt) {
+				return nil
+			}
+			cert, key, err := generateSelfSignedTLSPEM(rt.Site.BaseURL)
+			if err != nil {
+				return err
+			}
+			return writeTLSFiles(rt, cert, key)
+		}
 		return nil
 	}
 	if certB64 == "" || keyB64 == "" {
@@ -447,6 +457,14 @@ func renderTLSFiles(rt RuntimeConfig) error {
 	if err != nil {
 		return err
 	}
+	return writeTLSFiles(rt, cert, key)
+}
+
+func tlsFilesExist(rt RuntimeConfig) bool {
+	return fileExists(filepath.Join(rt.TLSCertsHostDir, "fullchain.pem")) && fileExists(filepath.Join(rt.TLSCertsHostDir, "privkey.pem"))
+}
+
+func writeTLSFiles(rt RuntimeConfig, cert []byte, key []byte) error {
 	if err := os.WriteFile(filepath.Join(rt.TLSCertsHostDir, "fullchain.pem"), cert, 0600); err != nil {
 		return err
 	}
@@ -523,6 +541,8 @@ func deploymentSummaryRows(rt RuntimeConfig, status string) [][2]string {
 	return [][2]string{
 		{"Status", status},
 		{"Access URL", rt.Site.BaseURL},
+		{"TLS mode", rt.Site.TLSMode},
+		{"Self-signed TLS bootstrap", fmt.Sprintf("%t", rt.Site.AllowSelfSignedBootstrap)},
 		{"Timezone", rt.Timezone},
 		{"Admin username", "system"},
 		{"Initial password", rt.SystemUser.Password},
@@ -565,6 +585,8 @@ func printProdInitSummary(paths Paths, cfg Config) {
 		{"Mode env", workspaceEnvPath(paths)},
 		{"Config file", paths.ConfigPath},
 		{"Access URL", cfg.Site.BaseURL},
+		{"TLS mode", rt.Site.TLSMode},
+		{"Self-signed TLS bootstrap", fmt.Sprintf("%t", rt.Site.AllowSelfSignedBootstrap)},
 		{"Timezone", rt.Timezone},
 		{"HTTP port", strconv.Itoa(rt.Site.HTTPPort)},
 		{"HTTPS port", strconv.Itoa(rt.Site.HTTPSPort)},

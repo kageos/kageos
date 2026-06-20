@@ -7,6 +7,18 @@ import type { UserInfo, LoginRequest } from '@/architecture/domain/types'
 import { translate } from '@/architecture/shared/i18n'
 import { getCurrentRoutePath, navigateTo } from '@/architecture/shared/routing/navigation'
 
+function normalizeOAuthRedirect(redirectAfter: string | undefined, username: string) {
+  const fallback = `/workspace/${username || 'me'}`
+  const raw = (redirectAfter || '').trim()
+  if (!raw || raw === '/workspace' || raw === '/login') {
+    return fallback
+  }
+  if (!raw.startsWith('/') || raw.startsWith('//')) {
+    return fallback
+  }
+  return raw
+}
+
 export const useAuthStore = defineStore('auth', () => {
   interface LogoutOptions {
     callApi?: boolean
@@ -72,6 +84,30 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function completeOAuthLogin(accessToken: string, refreshTokenValue: string, redirectAfter?: string) {
+    try {
+      isLoading.value = true
+      token.value = accessToken
+      refreshToken.value = refreshTokenValue
+      localStorage.setItem('token', accessToken)
+      if (refreshTokenValue) {
+        localStorage.setItem('refresh_token', refreshTokenValue)
+      }
+
+      const userInfo = await fetchUserInfo()
+      ElMessage.success(translate('auth.loginSuccess'))
+
+      const username = userInfo?.username || userName.value || 'me'
+      const target = normalizeOAuthRedirect(redirectAfter, username)
+      await navigateTo(target)
+    } catch (error) {
+      clearAuthState()
+      throw error
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   // 登出
   async function logout(options: LogoutOptions = {}) {
     const {
@@ -82,7 +118,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       if (callApi) {
-        await logoutApi()
+        await logoutApi(token.value)
       }
     } catch (error) {
       console.error('Logout request failed:', error)
@@ -199,6 +235,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     // 方法
     login,
+    completeOAuthLogin,
     logout,
     clearAuthState,
     fetchUserInfo,

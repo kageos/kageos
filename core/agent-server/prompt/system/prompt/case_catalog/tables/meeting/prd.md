@@ -4,10 +4,10 @@
 
 - **类型**：两张核心 Table（会议室、预约记录）+ 两个 POST Form（空闲查询、会前提醒），以多表资源占用为主，Form 作为业务动作补充。
 - **GET Table**：`meeting_room_list.table`（会议室管理）、`meeting_room_booking_list.table`（会议室预约管理）。
-- **POST Form**：`meeting_room_query_available.form`（查询空闲会议室 + 一键预约）、`meeting_room_notify_soon.form`（会前提醒，适合平台定时任务调用）。
+- **POST Form**：`meeting_room_query_available.form`（查询空闲会议室 + 一键预约）、`meeting_room_notify_soon.form`（会前提醒，内置默认调度，发布后开箱即用）。
 - **关系**：预约表关联会议室；预约时选会议室用 **OnSelectFuzzy**，只返回状态为「可用」的会议室；预约列表带「会议室详情」**link** 跳转到会议室列表。
 - **状态**：预约状态不落库，按开始/结束时间实时计算（待开始/进行中/已结束）；列表筛选「预约状态」时在 Handler 中拼时间条件。
-- **提醒**：会前提醒通过 `ctx.SendMessage` 发给预约人和参会人；发送前先条件更新 `reminder_sent` 做幂等 claim，失败时释放标记。
+- **提醒**：会前提醒通过 `ctx.SendMessage` 发给预约人和参会人；发送前先条件更新 `reminder_sent` 做幂等 claim，失败时释放标记；`FormTemplate.Schedules` 默认每 2 分钟扫描未来 5 分钟内即将开始的会议。
 - **适合参考**：中小企业资源预约、台账管理、跨表筛选、空闲资源查询、一键跳转、定时巡检、消息提醒等轻量业务闭环。
 
 ---
@@ -29,7 +29,7 @@
 - **预约列表筛「会议室名称」**：先用 `MeetingRoom.name LIKE ?` 查出 room_id，再用 `room_id IN ?` 过滤预约表；查不到时用 `1 = 0` 返回空结果。
 - **预约列表筛「预约状态」**：用当前时间与 start_time、end_time 比较：待开始 `start_time > now`，进行中 `start_time <= now AND end_time > now`，已结束 `end_time <= now`。
 - **查询空闲会议室**：按时间段查出已占用 room_id，再返回状态为「可用」且容量满足条件的会议室；每行生成跳转到预约新增页的一键预约链接并预填会议室和时间。
-- **会前提醒**：定时任务扫描未来 N 分钟内将开始且未提醒的会议；发送前条件更新标记为已提醒，发送失败或没有接收人时释放标记，避免重复提醒和漏提醒。
+- **会前提醒**：`meeting_room_notify_soon.form` 在 `FormTemplate.Schedules` 中声明默认调度；发布/安装应用后由平台幂等同步到 timer-scheduler。默认每 2 分钟扫描未来 5 分钟内将开始且未提醒的会议；发送前条件更新标记为已提醒，发送失败或没有接收人时释放标记，避免重复提醒和漏提醒。
 
 ---
 
@@ -39,7 +39,7 @@
 | --- | --- | --- |
 | init_.go | 包上下文 | RouterGroup `/meeting` |
 | meeting_room.go | 会议室管理、会议室选择 OnSelectFuzzy、删除保护 | GET meeting_room_list.table |
-| meeting_room_booking.go | 预约管理、时间冲突校验、状态计算、会前提醒 | GET meeting_room_booking_list.table；POST meeting_room_notify_soon.form |
+| meeting_room_booking.go | 预约管理、时间冲突校验、状态计算、会前提醒和默认调度 | GET meeting_room_booking_list.table；POST meeting_room_notify_soon.form |
 | meeting_room_query_available.go | 查询空闲会议室、一键预约链接 | POST meeting_room_query_available.form |
 
 **OnSelectFuzzyMap**：预约表 Template 中注册 `"room_id": onSelectFuzzyMeetingRoom`，会议室下拉只显示状态为「可用」的会议室；用户按名称、类型、位置搜索，前端实际提交会议室 ID。
@@ -766,20 +766,29 @@ func init() {
 		BaseConfig: app.BaseConfig{
 			Name: "会议即将开始提醒（定时任务）",
 			Desc: `## 功能说明
-会议即将开始提醒（定时任务） 用于巡检未来N分钟内将开始的会议，并给预约人和参会人发送提醒消息。建议平台侧配置定时任务调用。
+会议即将开始提醒（定时任务） 用于巡检未来N分钟内将开始的会议，并给预约人和参会人发送提醒消息。应用发布后会内置默认调度，开箱即用。
 
 ## 适用场景
-- 适合一次性提交参数并立即获得处理结果。
-- 适合文件转换、内容生成、批量处理、快捷登记或业务动作触发。
-- 可作为工作台智能体可直接调用的工具能力复用。
+- 适合会议室预约场景的自动会前提醒。
+- 适合平台发布后自动创建默认定时任务，减少人工配置。
+- 也可作为工作台智能体或管理员手动触发的巡检工具。
 
 ## 使用说明
-- 按表单字段填写输入参数，上传文件时使用平台返回的文件引用。
-- 提交后查看返回结果、生成文件或结构化响应。
-- 如果结果需要长期管理，应沉淀到对应表格或业务目录中。`,
+- 默认调度每 2 分钟执行一次，扫描未来 5 分钟内未提醒的会议。
+- 如需手动触发，可填写提前提醒分钟数并提交表单。
+- 发送成功后会标记已提醒，发送失败会释放标记，避免重复提醒或漏提醒。`,
 			Tags:     []string{"会议室系统", "消息提醒", "定时任务"},
 			Request:  &MeetingRoomNotifySoonReq{},
 			Response: &MeetingRoomNotifySoonResp{},
+		},
+		Schedules: []app.FormSchedule{
+			{
+				Code:        "meeting_reminder_soon",
+				Title:       "会议即将开始提醒",
+				Description: "每 2 分钟扫描未来 5 分钟内即将开始且未提醒的会议，并通知预约人和参会人。",
+				CronExpr:    "*/2 * * * *",
+				Body:        MeetingRoomNotifySoonReq{LeadMinutes: 5},
+			},
 		},
 	})
 }

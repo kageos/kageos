@@ -36,6 +36,7 @@ type uninstallOptions struct {
 type initOptions struct {
 	Force            bool
 	BaseURL          string
+	TLSMode          string
 	Timezone         string
 	HTTPPort         int
 	HTTPSPort        int
@@ -180,7 +181,7 @@ func parseUninstallFlags(args []string) (uninstallOptions, error) {
 }
 
 func parseInitFlags(command string, args []string) (initOptions, error) {
-	opts := initOptions{MySQLMode: "bundled"}
+	opts := initOptions{MySQLMode: "bundled", TLSMode: tlsModeAuto}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--force":
@@ -191,6 +192,12 @@ func parseInitFlags(command string, args []string) (initOptions, error) {
 				return opts, fmt.Errorf("--base-url requires a value")
 			}
 			opts.BaseURL = args[i]
+		case "--tls-mode":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--tls-mode requires auto, http, https, redirect, or external")
+			}
+			opts.TLSMode = strings.ToLower(strings.TrimSpace(args[i]))
 		case "--timezone":
 			i++
 			if i >= len(args) {
@@ -254,6 +261,9 @@ func parseInitFlags(command string, args []string) (initOptions, error) {
 	if err := validateMode("mysql.mode", opts.MySQLMode); err != nil {
 		return opts, err
 	}
+	if err := validateInitTLSMode(opts.TLSMode); err != nil {
+		return opts, err
+	}
 	if err := validateRegistrationMode(opts.RegistrationMode); err != nil {
 		return opts, err
 	}
@@ -267,7 +277,7 @@ func parseInitFlags(command string, args []string) (initOptions, error) {
 }
 
 func parseBootstrapFlags(args []string) (bootstrapOptions, error) {
-	opts := bootstrapOptions{Init: initOptions{MySQLMode: "bundled"}}
+	opts := bootstrapOptions{Init: initOptions{MySQLMode: "bundled", TLSMode: tlsModeAuto}}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--force":
@@ -278,6 +288,12 @@ func parseBootstrapFlags(args []string) (bootstrapOptions, error) {
 				return opts, fmt.Errorf("--base-url requires a value")
 			}
 			opts.Init.BaseURL = args[i]
+		case "--tls-mode":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--tls-mode requires auto, http, https, redirect, or external")
+			}
+			opts.Init.TLSMode = strings.ToLower(strings.TrimSpace(args[i]))
 		case "--timezone":
 			i++
 			if i >= len(args) {
@@ -335,6 +351,9 @@ func parseBootstrapFlags(args []string) (bootstrapOptions, error) {
 		}
 	}
 	if err := validateMode("mysql.mode", opts.Init.MySQLMode); err != nil {
+		return opts, err
+	}
+	if err := validateInitTLSMode(opts.Init.TLSMode); err != nil {
 		return opts, err
 	}
 	if err := validateRegistrationMode(opts.Init.RegistrationMode); err != nil {
@@ -472,12 +491,13 @@ func printUsage() {
 	fmt.Println(`kagectl manages Kageos lifecycle.
 
 Usage:
-  kagectl init [--force] [--base-url URL] [--timezone TZ] [--http-port PORT] [--https-port PORT] [--mysql-mode bundled|external] [--company-code CODE] [--company-name NAME] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log]
+  kagectl init [--force] [--base-url URL] [--tls-mode auto|http|https|redirect|external] [--timezone TZ] [--http-port PORT] [--https-port PORT] [--mysql-mode bundled|external] [--company-code CODE] [--company-name NAME] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log]
   kagectl init --dev [--engine podman|docker|auto] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME]
-  kagectl bootstrap --base-url URL [--timezone TZ] [--http-port PORT] [--https-port PORT] [--mysql-mode bundled|external] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
+  kagectl bootstrap --base-url URL [--tls-mode auto|http|https|redirect|external] [--timezone TZ] [--http-port PORT] [--https-port PORT] [--mysql-mode bundled|external] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
   kagectl bootstrap --dev [--engine podman|docker|auto] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME] [--skip-verify] [--wait-timeout 5m]
   kagectl build-app-base [--image IMAGE] [--force] [--no-cache]
   kagectl render [--config .kageos/prod/kage.yaml]
+  kagectl reload-tls [--config .kageos/prod/kage.yaml]
   kagectl layers [--config .kageos/prod/kage.yaml] [--json]
   kagectl doctor [--json]
   kagectl up [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
@@ -493,6 +513,7 @@ Modes:
 
 Environment:
   KAGEOS_COMPOSE_ENGINE=podman|docker forces the production compose engine.
+  KAGEOS_TLS_MODE=auto|http|https|redirect|external overrides initial TLS policy.
   KAGEOS_TIMEZONE sets the deployment timezone. Defaults to Asia/Shanghai.
   KAGEOS_HTTP_PORT/KAGEOS_HTTPS_PORT override the production edge listen ports.
 

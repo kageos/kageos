@@ -123,6 +123,9 @@ func writeInitialConfig(paths Paths, opts initOptions) (bool, error) {
 		return false, err
 	}
 	cfg.Site.BaseURL = opts.BaseURL
+	if opts.TLSMode != "" && opts.TLSMode != tlsModeAuto {
+		cfg.Site.TLSMode = opts.TLSMode
+	}
 	if opts.Timezone != "" {
 		cfg.Timezone = opts.Timezone
 	}
@@ -146,6 +149,13 @@ func writeInitialConfig(paths Paths, opts initOptions) (bool, error) {
 		cfg.SMTP.Mode = opts.SMTPMode
 	}
 	applyEnvOverrides(&cfg)
+	tlsMode := opts.TLSMode
+	if envTLSMode := strings.TrimSpace(os.Getenv("KAGEOS_TLS_MODE")); envTLSMode != "" {
+		tlsMode = envTLSMode
+	}
+	if err := applyInitialSitePolicy(&cfg.Site, tlsMode); err != nil {
+		return false, err
+	}
 	applyDefaults(&cfg)
 	if err := validateTimezoneValue("timezone", cfg.Timezone); err != nil {
 		return false, err
@@ -199,6 +209,40 @@ func cmdRender(paths Paths) error {
 	}
 	fmt.Printf("rendered deployment files: %s\n", paths.GeneratedDir)
 	fmt.Printf("compose file: %s\n", filepath.Join(paths.GeneratedDir, "docker-compose.yaml"))
+	return nil
+}
+
+func cmdReloadTLS(paths Paths) error {
+	if currentWorkspaceMode(paths) == workspaceModeDev {
+		return fmt.Errorf("reload-tls is only available in prod mode")
+	}
+	rt, err := loadRuntimeConfig(paths)
+	if err != nil {
+		return err
+	}
+	if rt.Site.TLSMode != "https" && rt.Site.TLSMode != "redirect" {
+		return fmt.Errorf("reload-tls requires site.tls_mode=https or redirect, got %q", rt.Site.TLSMode)
+	}
+	if err := validateConfig(rt); err != nil {
+		return err
+	}
+	if err := requireGeneratedCompose(paths); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(rt.TLSCertsHostDir, 0755); err != nil {
+		return fmt.Errorf("create TLS directory %s: %w", rt.TLSCertsHostDir, err)
+	}
+	if err := renderTLSFiles(rt); err != nil {
+		return err
+	}
+	if err := runComposeCapture(rt.Paths.GeneratedDir, "exec", "-T", "main", "nginx", "-t"); err != nil {
+		return err
+	}
+	if err := runComposeCapture(rt.Paths.GeneratedDir, "exec", "-T", "main", "nginx", "-s", "reload"); err != nil {
+		return err
+	}
+	fmt.Printf("TLS files ready: %s\n", rt.TLSCertsHostDir)
+	fmt.Println("Nginx TLS reloaded without recreating containers")
 	return nil
 }
 

@@ -15,11 +15,13 @@
 git clone <your-repo-url>
 cd kageos
 
-go run ./cmd/kagectl init --base-url http://your-ip-or-domain
+go run ./cmd/kagectl init --base-url app.example.com
 go run ./cmd/kagectl doctor
 go run ./cmd/kagectl up
 go run ./cmd/kagectl verify
 ```
+
+`--tls-mode` 默认为 `auto`：域名会生成 `https://app.example.com` + `tls_mode=redirect` + 临时自签证书；IP、`localhost` 或显式 `--tls-mode http` 保持 HTTP。
 
 如果宿主机 `80` 被占用，首次部署可以直接指定监听端口：
 
@@ -38,6 +40,23 @@ site:
   base_url: "http://your-ip-or-domain"
   tls_mode: "http"
 ```
+
+域名 HTTPS pending：
+
+```yaml
+site:
+  base_url: "https://app.example.com"
+  tls_mode: "redirect"
+  allow_self_signed_bootstrap: true
+```
+
+这会在没有正式证书时自动生成临时自签证书，方便先按 HTTPS 形态启动。证书文件落在 `<storage.root>/tls/`，默认是 `~/.kageos/storage/prod/tls/`。后续把正式证书写入 `fullchain.pem` 和 `privkey.pem` 后执行：
+
+```bash
+go run ./cmd/kagectl reload-tls
+```
+
+即可让 Nginx 热加载新证书，不需要重装。
 
 宿主机 80 被占用时，可改用其他端口：
 

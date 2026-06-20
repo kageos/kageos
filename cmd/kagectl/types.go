@@ -113,14 +113,15 @@ type Config struct {
 }
 
 type SiteConfig struct {
-	BaseURL       string `yaml:"base_url"`
-	TLSMode       string `yaml:"tls_mode"`
-	HTTPPort      int    `yaml:"http_port,omitempty"`
-	HTTPSPort     int    `yaml:"https_port,omitempty"`
-	CertFile      string `yaml:"cert_file"`
-	KeyFile       string `yaml:"key_file"`
-	TLSCertPEMB64 string `yaml:"tls_cert_pem_b64,omitempty"`
-	TLSKeyPEMB64  string `yaml:"tls_key_pem_b64,omitempty"`
+	BaseURL                  string `yaml:"base_url"`
+	TLSMode                  string `yaml:"tls_mode"`
+	AllowSelfSignedBootstrap bool   `yaml:"allow_self_signed_bootstrap,omitempty"`
+	HTTPPort                 int    `yaml:"http_port,omitempty"`
+	HTTPSPort                int    `yaml:"https_port,omitempty"`
+	CertFile                 string `yaml:"cert_file"`
+	KeyFile                  string `yaml:"key_file"`
+	TLSCertPEMB64            string `yaml:"tls_cert_pem_b64,omitempty"`
+	TLSKeyPEMB64             string `yaml:"tls_key_pem_b64,omitempty"`
 }
 
 type ImageConfig struct {

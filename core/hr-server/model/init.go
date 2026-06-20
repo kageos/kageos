@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/kageos/kageos/pkg/openapitoken"
 	"gorm.io/gorm"
@@ -15,9 +16,13 @@ func InitModels(db *gorm.DB) error {
 		// 第一层：基础表（不被其他表引用）
 		&Company{},
 		&SystemSetting{},
+		&AuthLoginProvider{},
+		&AuthOAuthState{},
+		&AuthOAuthRegistrationIntent{},
 		&User{}, // 被 UserSession、EmailVerification 引用
 
 		// 第二层：依赖 User 的表
+		&AuthExternalIdentity{},
 		&UserSession{},       // 引用 User
 		&EmailVerification{}, // 引用 User
 		&EmailCode{},         // 不引用其他表，但依赖 User 存在
@@ -33,6 +38,12 @@ func InitModels(db *gorm.DB) error {
 	if err := ensureCompanyLogoColumn(db); err != nil {
 		return err
 	}
+	if err := ensureUserEmailContactIndex(db); err != nil {
+		return err
+	}
+	if err := ensureOAuthRegistrationIntentEmailNullable(db); err != nil {
+		return err
+	}
 
 	return initDefaultCompany(db)
 }
@@ -40,6 +51,37 @@ func InitModels(db *gorm.DB) error {
 func ensureCompanyLogoColumn(db *gorm.DB) error {
 	if db.Migrator().HasColumn(&Company{}, "LogoURL") {
 		return db.Migrator().AlterColumn(&Company{}, "LogoURL")
+	}
+	return nil
+}
+
+func ensureUserEmailContactIndex(db *gorm.DB) error {
+	migrator := db.Migrator()
+	indexes, err := migrator.GetIndexes(&User{})
+	if err != nil {
+		return err
+	}
+	for _, index := range indexes {
+		unique, ok := index.Unique()
+		if !ok || !unique {
+			continue
+		}
+		columns := index.Columns()
+		if len(columns) == 1 && strings.EqualFold(columns[0], "email") {
+			if err := migrator.DropIndex(&User{}, index.Name()); err != nil {
+				return err
+			}
+		}
+	}
+	if migrator.HasIndex(&User{}, "idx_user_email") {
+		return nil
+	}
+	return migrator.CreateIndex(&User{}, "idx_user_email")
+}
+
+func ensureOAuthRegistrationIntentEmailNullable(db *gorm.DB) error {
+	if db.Migrator().HasColumn(&AuthOAuthRegistrationIntent{}, "Email") {
+		return db.Migrator().AlterColumn(&AuthOAuthRegistrationIntent{}, "Email")
 	}
 	return nil
 }

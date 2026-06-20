@@ -18,12 +18,22 @@ import type { IStateManager } from '../interfaces/IStateManager'
 import type { IEventBus } from '../interfaces/IEventBus'
 import type { IServiceTreeLoader } from '../interfaces/IServiceTreeLoader'
 import { WorkspaceEvent } from '../interfaces/IEventBus'
-import type { App, FunctionDetail, ServiceTree, WorkspaceState } from '../types'
+import type { App, FunctionDetail, ServiceTree, WorkspaceAccessError, WorkspaceState } from '../types'
 import { Logger } from '@/architecture/shared/logger'
+import { getErrorMessage, isWorkspaceForbiddenError } from '@/architecture/shared/apiError'
 export type { App, ServiceTree, WorkspaceState } from '../types'
 
 // 🔥 空服务树常量：避免每次创建新数组导致引用变化
 const EMPTY_SERVICE_TREE: ServiceTree[] = []
+
+function buildWorkspaceResourcePath(app: App): string {
+  const user = (app.user || '').trim()
+  const code = (app.code || '').trim()
+  if (!user || !code) {
+    return ''
+  }
+  return `/${user}/${code}`
+}
 
 /**
  * 工作空间领域服务
@@ -85,7 +95,8 @@ export class WorkspaceDomainService {
       currentFunction: null,
       currentDirectory: null,
       serviceTree: EMPTY_SERVICE_TREE, // 🔥 使用常量空数组，避免引用变化
-      loading: true    // 开始加载
+      loading: true,    // 开始加载
+      accessError: null
     })
 
     // 不在这里触发 appSwitched 事件，避免循环触发
@@ -105,7 +116,8 @@ export class WorkspaceDomainService {
       this.stateManager.setState({
         ...state,
         serviceTree: tree || [],
-        loading: false // 🔥 加载完成
+        loading: false, // 🔥 加载完成
+        accessError: null
       })
 
       // 触发事件（包含 expandedKeys）
@@ -113,18 +125,7 @@ export class WorkspaceDomainService {
 
       return tree || []
     } catch (error) {
-      Logger.error('[WorkspaceDomainService]', '设置服务目录树失败', { error })
-
-      // 更新状态：即使失败也要重置 loading
-      const state = this.stateManager.getState()
-      this.stateManager.setState({
-        ...state,
-        serviceTree: EMPTY_SERVICE_TREE, // 🔥 使用常量空数组，避免引用变化
-        loading: false // 🔥 加载失败，结束 loading
-      })
-
-      // 即使失败也要触发事件，确保 loading 状态能正确更新
-      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: EMPTY_SERVICE_TREE, expandedKeys: undefined })
+      this.recordWorkspaceLoadError(app, error, '设置服务目录树失败')
       return EMPTY_SERVICE_TREE
     }
   }
@@ -154,7 +155,8 @@ export class WorkspaceDomainService {
       this.stateManager.setState({
         ...state,
         serviceTree: tree,
-        loading: false // 🔥 加载完成
+        loading: false, // 🔥 加载完成
+        accessError: null
       })
 
       // 🔥 触发事件，包含 expandedKeys（如果后端返回了）
@@ -162,20 +164,36 @@ export class WorkspaceDomainService {
 
       return tree
     } catch (error) {
-      Logger.error('[WorkspaceDomainService]', '加载服务目录树失败', { error })
-      
-      // 更新状态：即使失败也要重置 loading
-      const state = this.stateManager.getState()
-      this.stateManager.setState({
-        ...state,
-        serviceTree: EMPTY_SERVICE_TREE, // 🔥 使用常量空数组，避免引用变化
-        loading: false // 🔥 加载失败，结束 loading
-      })
-      
-      // 即使失败也要触发事件，确保 loading 状态能正确更新
-      this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: EMPTY_SERVICE_TREE, expandedKeys: undefined })
+      this.recordWorkspaceLoadError(app, error, '加载服务目录树失败')
       return EMPTY_SERVICE_TREE
     }
+  }
+
+  recordWorkspaceLoadError(app: App, error: unknown, context: string = '加载工作空间失败'): void {
+    const accessError: WorkspaceAccessError = {
+      type: isWorkspaceForbiddenError(error) ? 'forbidden' : 'load_failed',
+      message: getErrorMessage(error, '工作空间加载失败，请稍后重试'),
+      resourcePath: buildWorkspaceResourcePath(app)
+    }
+
+    if (accessError.type === 'forbidden') {
+      Logger.warn('[WorkspaceDomainService]', context, { error })
+    } else {
+      Logger.error('[WorkspaceDomainService]', context, { error })
+    }
+
+    const state = this.stateManager.getState()
+    this.stateManager.setState({
+      ...state,
+      currentApp: app,
+      currentFunction: null,
+      currentDirectory: null,
+      serviceTree: EMPTY_SERVICE_TREE,
+      loading: false,
+      accessError
+    })
+
+    this.eventBus.emit(WorkspaceEvent.serviceTreeLoaded, { app, tree: EMPTY_SERVICE_TREE, expandedKeys: undefined })
   }
 
   /**
@@ -289,6 +307,10 @@ export class WorkspaceDomainService {
    */
   isLoading(): boolean {
     return this.stateManager.getState().loading
+  }
+
+  getWorkspaceAccessError(): WorkspaceAccessError | null {
+    return this.stateManager.getState().accessError
   }
 
   /**

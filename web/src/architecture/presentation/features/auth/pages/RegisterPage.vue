@@ -64,8 +64,8 @@ watch(normalizedCompanyLogoURL, () => {
 const rules = computed(() => ({
   username: [
     { required: true, message: t('auth.usernameRequired'), trigger: 'blur' },
-    { min: 2, max: 50, message: t('auth.usernameLength'), trigger: 'blur' },
-    { pattern: /^[a-zA-Z0-9_]+$/, message: t('auth.usernamePattern'), trigger: 'blur' }
+    { min: 3, max: 32, message: t('auth.usernameLength'), trigger: 'blur' },
+    { pattern: /^[a-z][a-z0-9_]{2,31}$/, message: t('auth.usernamePattern'), trigger: 'blur' }
   ],
   email: [
     { required: true, message: t('auth.emailRequired'), trigger: 'blur' },
@@ -101,6 +101,15 @@ const rules = computed(() => ({
   ],
   company_logo_url: []
 }))
+
+const normalizeUserCodeInput = (value: string | number) => {
+  registerForm.username = String(value ?? '')
+    .toLowerCase()
+    .replace(/[-.\s]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+    .replace(/_+/g, '_')
+    .replace(/^[^a-z]+/g, '')
+}
 
 const triggerLogoUpload = () => {
   logoInputRef.value?.click()
@@ -180,7 +189,7 @@ const handleRegister = async () => {
     loading.value = true
 
     const payload: RegisterRequest = {
-      username: registerForm.username.trim(),
+      username: registerForm.username.trim().toLowerCase(),
       email: registerForm.email.trim(),
       password: registerForm.password,
       code: registerForm.code,
@@ -342,12 +351,13 @@ const handleKeyPress = (event: KeyboardEvent) => {
         >
           <el-form-item prop="username">
             <el-input
-              v-model="registerForm.username"
+              :model-value="registerForm.username"
               :placeholder="t('auth.usernamePlaceholder')"
               :prefix-icon="User"
               clearable
               size="large"
               class="form-input"
+              @update:model-value="normalizeUserCodeInput"
             />
           </el-form-item>
 

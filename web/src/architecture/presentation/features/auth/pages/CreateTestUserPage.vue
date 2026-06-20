@@ -17,8 +17,8 @@ const loading = ref(false)
 
 const rules = {
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, max: 20, message: '用户名 3～20 个字符', trigger: 'blur' }
+    { required: true, message: '请输入用户 code', trigger: 'blur' },
+    { pattern: /^[a-z][a-z0-9_]{2,31}$/, message: '用户 code 只能使用 3-32 位小写字母、数字、下划线，且必须以小写字母开头', trigger: 'blur' }
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
@@ -26,12 +26,21 @@ const rules = {
   ]
 }
 
+const normalizeUserCodeInput = (value: string | number) => {
+  form.username = String(value ?? '')
+    .toLowerCase()
+    .replace(/[-.\s]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+    .replace(/_+/g, '_')
+    .replace(/^[^a-z]+/g, '')
+}
+
 const handleSubmit = async () => {
   try {
     await formRef.value?.validate()
     loading.value = true
     await createUserBySecret({
-      username: form.username,
+      username: form.username.trim().toLowerCase(),
       password: form.password
     })
     ElMessage.success('创建成功，可使用该账号登录')
@@ -68,10 +77,11 @@ const goLogin = () => router.push('/login')
         <el-form ref="formRef" :model="form" :rules="rules" label-width="0" size="large" class="form">
           <el-form-item prop="username">
             <el-input
-              v-model="form.username"
-              placeholder="用户名（3～20 字符）"
+              :model-value="form.username"
+              placeholder="用户 code（3～32 位小写字母、数字、下划线）"
               :prefix-icon="User"
               clearable
+              @update:model-value="normalizeUserCodeInput"
             />
           </el-form-item>
           <el-form-item prop="password">

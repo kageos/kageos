@@ -14,8 +14,16 @@
 在仓库根目录执行：
 
 ```bash
-sudo ./install.sh --base-url http://your-ip-or-domain
+sudo ./install.sh --base-url app.example.com
 tail -f .kageos/prod/kagectl-up.log
+```
+
+如果 `--base-url` 是域名，安装器默认启用 HTTPS pending：`site.base_url` 会写成 `https://app.example.com`，`tls_mode` 为 `redirect`，没有正式证书时先生成临时自签证书。浏览器会提示证书不受信任；后续把正式证书写入 `<storage.root>/tls/fullchain.pem` 和 `<storage.root>/tls/privkey.pem` 后，执行 `go run ./cmd/kagectl reload-tls` 即可热加载可信 HTTPS，不需要重装。
+
+只想用 IP 或临时 HTTP 尝鲜时：
+
+```bash
+sudo ./install.sh --base-url http://your-ip-or-domain --tls-mode http
 ```
 
 宿主机 `80` 被占用时：
@@ -31,7 +39,7 @@ sudo ./install.sh --base-url http://your-ip-or-domain:8080 --http-port 8080
 访问：
 
 ```text
-http://your-ip-or-domain
+https://app.example.com
 ```
 
 如果安装时用了自定义端口，就访问对应端口，例如 `http://your-ip-or-domain:8080`。
@@ -41,6 +49,7 @@ http://your-ip-or-domain
 ```bash
 go run ./cmd/kagectl status
 go run ./cmd/kagectl logs main
+go run ./cmd/kagectl reload-tls
 go run ./cmd/kagectl down
 go run ./cmd/kagectl uninstall --purge-data --force
 ```
@@ -51,4 +60,4 @@ go run ./cmd/kagectl uninstall --purge-data --force
 
 ## 生成物
 
-生成物位于 `.kageos/prod/generated/`，不要手工编辑；需要变更时修改 `.kageos/prod/kage.yaml` 后重新执行 `kagectl up`。
+生成物位于 `.kageos/prod/generated/`，不要手工编辑；TLS 证书位于 `<storage.root>/tls/`，默认是 `~/.kageos/storage/prod/tls/`。需要变更普通配置时修改 `.kageos/prod/kage.yaml` 后重新执行 `kagectl up`；只替换证书时执行 `kagectl reload-tls`。

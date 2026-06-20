@@ -11,13 +11,40 @@
       />
 
       <el-alert
-        v-else-if="loadError"
+        v-else-if="loadError && !treeAccessDenied"
         class="page-alert"
         type="error"
         :title="loadError"
         :closable="false"
         show-icon
       />
+
+      <section v-else-if="treeAccessDenied" v-loading="pageLoading" class="access-request-layout">
+        <section class="access-request-card">
+          <div class="access-request-icon">
+            <el-icon><Key /></el-icon>
+          </div>
+          <span class="access-request-kicker">{{ t('access.requestAccessKicker') }}</span>
+          <h2>{{ t('access.requestAccessTitle') }}</h2>
+          <p>{{ treeAccessDeniedMessage || t('access.requestAccessDesc') }}</p>
+
+          <div class="access-request-resource">
+            <span>{{ t('access.resource') }}</span>
+            <code>{{ activeResourcePath }}</code>
+          </div>
+
+          <p class="access-request-note">{{ t('access.requestAccessContactAdmin') }}</p>
+
+          <div class="access-request-actions">
+            <el-button type="primary" :icon="Document" @click="copyResourcePath">
+              {{ t('access.copyResourcePath') }}
+            </el-button>
+            <el-button @click="goBack">
+              {{ t('access.backToWorkspace') }}
+            </el-button>
+          </div>
+        </section>
+      </section>
 
       <section v-else v-loading="pageLoading" class="apply-layout">
         <aside class="apply-sidebar">
@@ -439,6 +466,7 @@ import UsersWidget from '@/architecture/presentation/shared/components/UsersWidg
 import { createStringFieldValue, extractStringFieldRaw } from '@/architecture/domain/utils/widgetFieldHelpers'
 import { buildAppResourcePath, normalizeResourcePath, parseResourcePath } from '@/architecture/shared/resourcePath'
 import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
+import { getErrorMessage, isWorkspaceForbiddenError } from '@/architecture/shared/apiError'
 
 type AccessTab = 'current' | 'inherited'
 type RoleTone = 'view' | 'edit' | 'admin' | 'owner'
@@ -497,6 +525,8 @@ const membersLoading = ref(false)
 const submitting = ref(false)
 const removingKey = ref('')
 const loadError = ref('')
+const treeAccessDenied = ref(false)
+const treeAccessDeniedMessage = ref('')
 const activeTab = ref<AccessTab>('current')
 const activeResourcePath = ref('')
 const selectedResourcePaths = ref<string[]>([])
@@ -604,7 +634,10 @@ const activeResource = computed(() => {
 
 const currentResourceKind = computed<ResourceKind>(() => {
   const node = activeResource.value
-  if (!node) return 'directory'
+  if (!node) {
+    const depth = activeResourcePath.value.split('/').filter(Boolean).length
+    return depth <= 2 ? 'app' : 'directory'
+  }
   if (node.type === 'docs') return 'docs'
   if (node.type === 'function') {
     if (node.template_type === TEMPLATE_TYPE.FORM) return 'form'
@@ -706,6 +739,8 @@ watch(requestedResourcePath, () => {
 async function reloadPage() {
   const parsed = parsedResource.value
   loadError.value = ''
+  treeAccessDenied.value = false
+  treeAccessDeniedMessage.value = ''
 
   if (!parsed) {
     appName.value = ''
@@ -735,12 +770,28 @@ async function reloadPage() {
     treeRef.value?.setCurrentKey?.(initialPath)
     await loadMembers()
   } catch (error: any) {
-    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('access.loadTreeFailed')
+    if (isWorkspaceForbiddenError(error)) {
+      showAccessRequestFallback(error)
+      return
+    }
+    const message = getErrorMessage(error, t('access.loadTreeFailed'))
     loadError.value = message
     ElMessage.error(message)
   } finally {
     pageLoading.value = false
   }
+}
+
+function showAccessRequestFallback(error: unknown) {
+  const parsed = parsedResource.value
+  appName.value = parsed?.app || ''
+  treeData.value = []
+  activeResourcePath.value = requestedResourcePath.value
+  selectedResourcePaths.value = requestedResourcePath.value ? [requestedResourcePath.value] : []
+  members.value = []
+  treeAccessDenied.value = true
+  treeAccessDeniedMessage.value = getErrorMessage(error, '')
+  resetGrantForm()
 }
 
 function buildTreeData(app: App, serviceTree: ServiceTree[]): ServiceTree[] {
@@ -839,6 +890,18 @@ function resetGrantForm() {
   grantRole.value = 'viewer'
   grantPermanent.value = true
   grantExpiresAt.value = null
+}
+
+async function copyResourcePath() {
+  const path = activeResourcePath.value || requestedResourcePath.value
+  if (!path) return
+
+  try {
+    await navigator.clipboard.writeText(path)
+    ElMessage.success(t('access.copyResourcePathSuccess'))
+  } catch {
+    ElMessage.warning(t('access.copyResourcePathFailed'))
+  }
 }
 
 function goBack() {
@@ -1637,6 +1700,101 @@ function formatExpiresAt(value?: string): string {
   min-height: 0;
   align-items: stretch;
   overflow: hidden;
+}
+
+.access-request-layout {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.access-request-card {
+  width: min(620px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 42px 36px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-bg-color);
+  text-align: center;
+  box-shadow: var(--el-box-shadow-light);
+}
+
+.access-request-icon {
+  width: 68px;
+  height: 68px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  border-radius: 8px;
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning);
+  font-size: 32px;
+}
+
+.access-request-kicker {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.access-request-card h2 {
+  margin: 10px 0 0;
+  color: var(--el-text-color-primary);
+  font-size: 24px;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.access-request-card p {
+  max-width: 520px;
+  margin: 12px 0 0;
+  color: var(--el-text-color-regular);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.access-request-resource {
+  width: 100%;
+  margin-top: 22px;
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+  text-align: left;
+}
+
+.access-request-resource span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.access-request-resource code {
+  display: block;
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.access-request-note {
+  color: var(--el-text-color-secondary) !important;
+}
+
+.access-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 24px;
 }
 
 .apply-sidebar,

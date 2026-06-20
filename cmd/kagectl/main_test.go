@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"errors"
 	"os"
 	"path/filepath"
@@ -24,6 +26,7 @@ func TestRenderBundledConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cfg.Storage.Root = filepath.Join(prodDir, "storage")
 	cfg.Site.BaseURL = "http://127.0.0.1"
 	cfg.NATS.AuthEnabled = true
 	cfg.LLMs = LLMSeedsConfig{
@@ -223,6 +226,7 @@ func TestRenderTLSFromBase64Config(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cfg.Storage.Root = filepath.Join(prodDir, "storage")
 	certPEM := "-----BEGIN CERTIFICATE-----\ntest-cert\n-----END CERTIFICATE-----\n"
 	keyPEM := "-----BEGIN PRIVATE KEY-----\ntest-key\n-----END PRIVATE KEY-----\n"
 	cfg.Site.BaseURL = "https://example.com"
@@ -242,14 +246,14 @@ func TestRenderTLSFromBase64Config(t *testing.T) {
 	}
 
 	compose := mustReadFile(t, filepath.Join(paths.GeneratedDir, "docker-compose.yaml"))
-	if !strings.Contains(compose, filepath.Join(paths.GeneratedDir, "tls")+":/app/tls:ro") {
-		t.Fatalf("generated compose should mount generated tls dir, got:\n%s", compose)
+	if !strings.Contains(compose, rt.TLSCertsHostDir+":/app/tls") {
+		t.Fatalf("generated compose should mount tls dir, got:\n%s", compose)
 	}
 
-	if got := mustReadFile(t, filepath.Join(paths.GeneratedDir, "tls", "fullchain.pem")); got != certPEM {
+	if got := mustReadFile(t, filepath.Join(rt.TLSCertsHostDir, "fullchain.pem")); got != certPEM {
 		t.Fatalf("generated cert = %q, want %q", got, certPEM)
 	}
-	if got := mustReadFile(t, filepath.Join(paths.GeneratedDir, "tls", "privkey.pem")); got != keyPEM {
+	if got := mustReadFile(t, filepath.Join(rt.TLSCertsHostDir, "privkey.pem")); got != keyPEM {
 		t.Fatalf("generated key = %q, want %q", got, keyPEM)
 	}
 
@@ -271,6 +275,235 @@ func TestRenderTLSFromBase64Config(t *testing.T) {
 	}
 }
 
+func TestRenderSelfSignedBootstrapTLSForDomain(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Storage.Root = filepath.Join(prodDir, "storage")
+	cfg.Site.BaseURL = "https://app.example.com"
+	cfg.Site.TLSMode = "redirect"
+	cfg.Site.AllowSelfSignedBootstrap = true
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateConfig(rt); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderAll(rt); err != nil {
+		t.Fatal(err)
+	}
+
+	certPEM := []byte(mustReadFile(t, filepath.Join(rt.TLSCertsHostDir, "fullchain.pem")))
+	block, _ := pem.Decode(certPEM)
+	if block == nil || block.Type != "CERTIFICATE" {
+		t.Fatalf("generated self-signed cert is not PEM certificate:\n%s", certPEM)
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatalf("parse generated self-signed cert: %v", err)
+	}
+	if !containsString(cert.DNSNames, "app.example.com") {
+		t.Fatalf("generated self-signed cert DNSNames = %#v, want app.example.com", cert.DNSNames)
+	}
+	keyPEM := mustReadFile(t, filepath.Join(rt.TLSCertsHostDir, "privkey.pem"))
+	if !strings.Contains(keyPEM, "-----BEGIN PRIVATE KEY-----") {
+		t.Fatalf("generated self-signed key should be PKCS#8 PEM, got:\n%s", keyPEM)
+	}
+}
+
+func TestRenderSelfSignedBootstrapKeepsExistingTLSFiles(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Storage.Root = filepath.Join(prodDir, "storage")
+	cfg.Site.BaseURL = "https://app.example.com"
+	cfg.Site.TLSMode = "redirect"
+	cfg.Site.AllowSelfSignedBootstrap = true
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(rt.TLSCertsHostDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	certPath := filepath.Join(rt.TLSCertsHostDir, "fullchain.pem")
+	keyPath := filepath.Join(rt.TLSCertsHostDir, "privkey.pem")
+	if err := os.WriteFile(certPath, []byte("real-cert\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyPath, []byte("real-key\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := validateConfig(rt); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderAll(rt); err != nil {
+		t.Fatal(err)
+	}
+	if got := mustReadFile(t, certPath); got != "real-cert\n" {
+		t.Fatalf("existing cert should not be overwritten, got %q", got)
+	}
+	if got := mustReadFile(t, keyPath); got != "real-key\n" {
+		t.Fatalf("existing key should not be overwritten, got %q", got)
+	}
+}
+
+func TestValidateTLSRequiresCertUnlessSelfSignedBootstrapAllowed(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Site.BaseURL = "https://app.example.com"
+	cfg.Site.TLSMode = "redirect"
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateConfig(rt); err == nil {
+		t.Fatal("validateConfig() error = nil, want missing TLS cert error")
+	}
+
+	cfg.Site.AllowSelfSignedBootstrap = true
+	rt, err = buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateConfig(rt); err != nil {
+		t.Fatalf("validateConfig() with self-signed bootstrap = %v", err)
+	}
+}
+
+func TestWriteInitialConfigInfersSiteTLSPolicy(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		baseURL   string
+		tlsMode   string
+		wantURL   string
+		wantTLS   string
+		wantSelf  bool
+		wantHTTP  int
+		wantHTTPS int
+	}{
+		{
+			name:      "domain_auto_https_pending",
+			baseURL:   "app.example.com",
+			tlsMode:   tlsModeAuto,
+			wantURL:   "https://app.example.com",
+			wantTLS:   "redirect",
+			wantSelf:  true,
+			wantHTTP:  80,
+			wantHTTPS: 443,
+		},
+		{
+			name:      "domain_http_scheme_still_auto_https_pending",
+			baseURL:   "http://app.example.com:8443",
+			tlsMode:   tlsModeAuto,
+			wantURL:   "https://app.example.com:8443",
+			wantTLS:   "redirect",
+			wantSelf:  true,
+			wantHTTP:  80,
+			wantHTTPS: 8443,
+		},
+		{
+			name:      "ip_auto_http",
+			baseURL:   "203.0.113.10:8080",
+			tlsMode:   tlsModeAuto,
+			wantURL:   "http://203.0.113.10:8080",
+			wantTLS:   "http",
+			wantHTTP:  8080,
+			wantHTTPS: 443,
+		},
+		{
+			name:     "domain_explicit_http",
+			baseURL:  "app.example.com",
+			tlsMode:  "http",
+			wantURL:  "http://app.example.com",
+			wantTLS:  "http",
+			wantHTTP: 80,
+		},
+		{
+			name:      "domain_explicit_external",
+			baseURL:   "app.example.com",
+			tlsMode:   "external",
+			wantURL:   "https://app.example.com",
+			wantTLS:   "external",
+			wantHTTP:  80,
+			wantHTTPS: 443,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			repoRoot := t.TempDir()
+			paths := Paths{
+				RepoRoot:     repoRoot,
+				ProdDir:      filepath.Join(repoRoot, defaultProdDir),
+				ConfigPath:   filepath.Join(repoRoot, defaultProdDir, defaultConfigName),
+				GeneratedDir: filepath.Join(repoRoot, defaultProdDir, defaultGenerated),
+			}
+			created, err := writeInitialConfig(paths, initOptions{
+				BaseURL:   tc.baseURL,
+				TLSMode:   tc.tlsMode,
+				MySQLMode: "bundled",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !created {
+				t.Fatal("writeInitialConfig created = false, want true")
+			}
+			cfg, err := loadConfig(paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Site.BaseURL != tc.wantURL || cfg.Site.TLSMode != tc.wantTLS || cfg.Site.AllowSelfSignedBootstrap != tc.wantSelf {
+				t.Fatalf("unexpected site config: %#v", cfg.Site)
+			}
+			if cfg.Site.HTTPPort != tc.wantHTTP {
+				t.Fatalf("HTTPPort = %d, want %d", cfg.Site.HTTPPort, tc.wantHTTP)
+			}
+			if tc.wantHTTPS > 0 && cfg.Site.HTTPSPort != tc.wantHTTPS {
+				t.Fatalf("HTTPSPort = %d, want %d", cfg.Site.HTTPSPort, tc.wantHTTPS)
+			}
+		})
+	}
+}
+
 func TestWriteDeploymentSummary(t *testing.T) {
 	t.Parallel()
 
@@ -285,6 +518,7 @@ func TestWriteDeploymentSummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cfg.Storage.Root = filepath.Join(prodDir, "storage")
 	cfg.Site.BaseURL = "http://127.0.0.1"
 
 	rt, err := buildRuntimeConfig(paths, cfg)
@@ -328,6 +562,7 @@ func TestRenderExternalNATSKeepsSDKURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cfg.Storage.Root = filepath.Join(prodDir, "storage")
 	cfg.Site.BaseURL = "http://127.0.0.1"
 	cfg.NATS.Mode = "external"
 	cfg.NATS.URL = "nats://nats.example.com:4222"
@@ -1125,7 +1360,7 @@ func TestWriteInitialConfig(t *testing.T) {
 		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
 		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
 	}
-	created, err := writeInitialConfig(paths, initOptions{BaseURL: "http://example.com:8080", HTTPPort: 8080, HTTPSPort: 8443, MySQLMode: "bundled", CompanyCode: "acme", CompanyName: "Acme Inc", RegistrationMode: "email_code", SMTPMode: "smtp"})
+	created, err := writeInitialConfig(paths, initOptions{BaseURL: "http://example.com:8080", TLSMode: "http", HTTPPort: 8080, HTTPSPort: 8443, MySQLMode: "bundled", CompanyCode: "acme", CompanyName: "Acme Inc", RegistrationMode: "email_code", SMTPMode: "smtp"})
 	if err != nil {
 		t.Fatal(err)
 	}

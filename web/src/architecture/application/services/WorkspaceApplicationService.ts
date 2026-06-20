@@ -17,6 +17,7 @@ import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { WorkspaceEvent } from '../../domain/interfaces/IEventBus'
 import type { App, ServiceTree } from '../../domain/types'
 import { Logger } from '@/architecture/shared/logger'
+import { isWorkspaceForbiddenError } from '@/architecture/shared/apiError'
 
 export interface WorkspaceTreeLoadResult {
   app?: App
@@ -185,8 +186,13 @@ export class WorkspaceApplicationService {
             this.eventBus.emit(WorkspaceEvent.appInfoUpdated, { app: appToSwitch })
           }
         } catch (error) {
-          Logger.error('WorkspaceApplicationService', '获取应用信息失败', error)
-          // 如果获取失败，继续使用原始的 app 对象
+          if (isWorkspaceForbiddenError(error)) {
+            Logger.warn('WorkspaceApplicationService', '无权限获取应用信息', error)
+          } else {
+            Logger.error('WorkspaceApplicationService', '获取应用信息失败', error)
+          }
+          this.domainService.recordWorkspaceLoadError(app, error, '获取应用信息失败')
+          return
         }
       }
       
@@ -215,8 +221,8 @@ export class WorkspaceApplicationService {
   /**
    * 触发应用切换事件（供 Presentation Layer 调用）
    */
-  triggerAppSwitch(app: App): void {
-    this.eventBus.emit(WorkspaceEvent.appSwitched, { app })
+  triggerAppSwitch(app: App): Promise<void> {
+    return this.handleAppSwitch(app)
   }
 
   /**

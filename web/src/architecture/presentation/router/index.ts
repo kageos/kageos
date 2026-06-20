@@ -43,6 +43,24 @@ const router = createRouter({
       }
     },
     {
+      path: '/auth/oauth/callback',
+      name: 'oauth-callback',
+      component: () => import('@/architecture/presentation/features/auth/pages/OAuthCallbackPage.vue'),
+      meta: {
+        titleKey: 'route.login',
+        requireAuth: false
+      }
+    },
+    {
+      path: '/auth/oauth/register',
+      name: 'oauth-register',
+      component: () => import('@/architecture/presentation/features/auth/pages/OAuthRegisterPage.vue'),
+      meta: {
+        titleKey: 'route.oauthRegister',
+        requireAuth: false
+      }
+    },
+    {
       path: '/create-test-user',
       name: 'create-test-user',
       component: () => import('@/architecture/presentation/features/auth/pages/CreateTestUserPage.vue'),

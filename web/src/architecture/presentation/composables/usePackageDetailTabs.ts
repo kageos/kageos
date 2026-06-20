@@ -29,7 +29,7 @@ function normalizePanelQuery(tab: LocationQueryValue | LocationQueryValue[] | un
 }
 
 function getDefaultPackageTab(): PackageTabName {
-  return featureFlags.operateLogs ? 'operateLog' : 'detail'
+  return 'detail'
 }
 
 function normalizePackageTab(tabName: string | number): PackageTabName {

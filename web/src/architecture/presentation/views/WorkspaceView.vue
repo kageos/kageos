@@ -24,9 +24,9 @@
       @load-apps="loadAppList"
     />
 
-    <div class="workspace-view">
+    <div class="workspace-view" :class="{ 'workspace-view--access-error': workspaceAccessError }">
       <!-- 左下角：隐藏/显示目录按钮 -->
-      <div class="sidebar-toggle-bottom-left">
+      <div v-if="!workspaceAccessError" class="sidebar-toggle-bottom-left">
         <el-button
           link
           @click="toggleLeftSidebar"
@@ -41,7 +41,7 @@
       </div>
 
       <!-- 左侧：目录树 -->
-      <div class="left-sidebar" :class="{ 'sidebar-collapsed': !showLeftSidebar }">
+      <div v-if="!workspaceAccessError" class="left-sidebar" :class="{ 'sidebar-collapsed': !showLeftSidebar }">
         <div class="left-sidebar-tree" data-testid="workspace-service-tree">
           <ServiceTreePanel
             ref="serviceTreePanelRef"
@@ -67,8 +67,40 @@
 
       <!-- 中间函数渲染区域 -->
       <div class="function-renderer" data-testid="workspace-function-renderer">
+        <div v-if="workspaceAccessError" class="workspace-access-state" data-testid="workspace-access-state">
+          <div class="workspace-access-state__icon">
+            <el-icon><Lock /></el-icon>
+          </div>
+          <p class="workspace-access-state__eyebrow">
+            {{ workspaceAccessError.type === 'forbidden' ? t('workspace.accessForbiddenEyebrow') : t('workspace.loadFailedEyebrow') }}
+          </p>
+          <h2>{{ workspaceAccessTitle }}</h2>
+          <p class="workspace-access-state__description">
+            {{ workspaceAccessError.message || workspaceAccessDescription }}
+          </p>
+          <div v-if="workspaceAccessError.resourcePath" class="workspace-access-state__path">
+            {{ workspaceAccessError.resourcePath }}
+          </div>
+          <div class="workspace-access-state__actions">
+            <el-button
+              v-if="workspaceAccessError.type === 'forbidden'"
+              type="primary"
+              :icon="Key"
+              @click="openWorkspaceAccessPage"
+            >
+              {{ t('workspace.applyAccess') }}
+            </el-button>
+            <el-button :icon="SwitchIcon" @click="openWorkspaceList">
+              {{ t('workspace.switchWorkspace') }}
+            </el-button>
+            <el-button :icon="Refresh" @click="retryWorkspaceLoad">
+              {{ t('workspace.retryLoad') }}
+            </el-button>
+          </div>
+        </div>
+
         <!-- 🔥 Create/Edit 模式：根据 queryTab 显示独立页面 -->
-        <template v-if="queryTab === 'create' && currentFunction && currentFunctionDetail">
+        <template v-else-if="queryTab === 'create' && currentFunction && currentFunctionDetail">
           <WorkspaceFormPage
             :title="t('workspace.createData')"
             :function-detail="currentFunctionDetail"
@@ -141,6 +173,7 @@
     </div>
 
     <WorkspaceCreateAppDialog
+      v-if="createAppDialogVisible"
       v-model:visible="createAppDialogVisible"
       :form="createAppForm"
       :creating="creatingApp"
@@ -150,6 +183,7 @@
 
     <!-- 详情抽屉 -->
     <TableRowDetailDrawer
+      v-if="detailDrawerVisible"
       v-model:visible="detailDrawerVisible"
       v-model:mode="detailDrawerMode"
       :title="detailDrawerTitle"
@@ -171,6 +205,7 @@
     />
 
     <WorkspaceCreateDocsDialog
+      v-if="createDocsDialogVisible"
       v-model:visible="createDocsDialogVisible"
       :parent-node="currentDocsParentNode"
       :form="createDocsForm"
@@ -180,6 +215,7 @@
     />
 
     <WorkspaceCreateDirectoryDialog
+      v-if="createDirectoryDialogVisible"
       v-model:visible="createDirectoryDialogVisible"
       :parent-node="currentParentNode"
       :form="createDirectoryForm"
@@ -254,16 +290,12 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Key, Lock, Refresh, Switch as SwitchIcon } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import ServiceTreePanel from '@/architecture/presentation/components/ServiceTreePanel.vue'
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
-import TableRowDetailDrawer from '../components/TableRowDetailDrawer.vue'
-import WorkspaceCreateAppDialog from '../components/WorkspaceCreateAppDialog.vue'
 import WorkspaceFormPage from '../components/WorkspaceFormPage.vue'
-import WorkspaceCreateDirectoryDialog from '../components/WorkspaceCreateDirectoryDialog.vue'
-import WorkspaceCreateDocsDialog from '../components/WorkspaceCreateDocsDialog.vue'
 import WorkspaceFunctionRenderer from '../components/WorkspaceFunctionRenderer.vue'
 import WorkspaceFunctionTabsPanel from '../components/WorkspaceFunctionTabsPanel.vue'
 import WorkspaceInbox from '../components/WorkspaceInbox.vue'
@@ -297,6 +329,10 @@ const isAppleShortcutPlatform = typeof navigator !== 'undefined'
 const MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL = isAppleShortcutPlatform ? '⌘.' : 'Ctrl+.'
 const DocView = defineAsyncComponent(() => import('../components/DocView.vue'))
 const PackageDetailView = defineAsyncComponent(() => import('../components/PackageDetailView.vue'))
+const TableRowDetailDrawer = defineAsyncComponent(() => import('../components/TableRowDetailDrawer.vue'))
+const WorkspaceCreateAppDialog = defineAsyncComponent(() => import('../components/WorkspaceCreateAppDialog.vue'))
+const WorkspaceCreateDirectoryDialog = defineAsyncComponent(() => import('../components/WorkspaceCreateDirectoryDialog.vue'))
+const WorkspaceCreateDocsDialog = defineAsyncComponent(() => import('../components/WorkspaceCreateDocsDialog.vue'))
 const MiniWorkstation = defineAsyncComponent(() => import('../components/MiniWorkstation.vue'))
 const DirectoryUpdateHistoryDialog = defineAsyncComponent(() => import('@/architecture/presentation/shared/components/DirectoryUpdateHistoryDialog.vue'))
 
@@ -309,6 +345,7 @@ const domainService = serviceProvider.getWorkspaceDomainService()
 const serviceTree = computed(() => domainService.getServiceTree())
 const currentFunction = computed(() => domainService.getCurrentFunction())
 const currentAppFromState = computed(() => domainService.getCurrentApp())
+const workspaceAccessError = computed(() => domainService.getWorkspaceAccessError())
 const workspacePathNameMap = computed<Record<string, string>>(() => {
   const map: Record<string, string> = {}
   fillWorkspacePathNameMap(serviceTree.value, map)
@@ -742,6 +779,52 @@ const supportsUpdateTable = computed(() => {
 
 // 转换 loadingTree 为 boolean (避免 computed 类型问题)
 const loading = computed(() => domainService.isLoading())
+
+const workspaceAccessTitle = computed(() => {
+  return workspaceAccessError.value?.type === 'forbidden'
+    ? t('workspace.accessForbiddenTitle')
+    : t('workspace.loadFailedTitle')
+})
+
+const workspaceAccessDescription = computed(() => {
+  return workspaceAccessError.value?.type === 'forbidden'
+    ? t('workspace.accessForbiddenDescription')
+    : t('workspace.loadFailedDescription')
+})
+
+function getWorkspaceAccessResourcePath() {
+  if (workspaceAccessError.value?.resourcePath) {
+    return workspaceAccessError.value.resourcePath
+  }
+  if (currentApp.value?.user && currentApp.value?.code) {
+    return `/${currentApp.value.user}/${currentApp.value.code}`
+  }
+  return ''
+}
+
+function openWorkspaceAccessPage() {
+  const resource = getWorkspaceAccessResourcePath()
+  void router.push({
+    path: '/permissions/access',
+    query: resource ? { resource } : {}
+  })
+}
+
+function openWorkspaceList() {
+  workspaceHeaderRef.value?.openWorkspaceListDialog(true)
+}
+
+async function retryWorkspaceLoad() {
+  if (currentApp.value) {
+    await applicationService.triggerAppSwitch({
+      ...normalizeApp(currentApp.value),
+      id: 0
+    })
+    return
+  }
+  await routingLoadAppFromRoute()
+}
+
 // 🔥 处理创建目录（使用 Composable）
 const handleCreateDirectory = (parentNode?: ServiceTreeType) => {
   serviceTreeHandleCreateDirectory(parentNode || null, () => currentApp.value)
@@ -895,6 +978,81 @@ useWorkspaceUiEffects({
   position: relative;
   min-height: 0;
   gap: 18px;
+}
+
+.workspace-view--access-error {
+  gap: 0;
+}
+
+.workspace-access-state {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.workspace-access-state__icon {
+  width: 72px;
+  height: 72px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  border: 1px solid rgba(239, 68, 68, 0.24);
+  border-radius: 20px;
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
+  font-size: 34px;
+}
+
+.workspace-access-state__eyebrow {
+  margin: 0 0 10px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.workspace-access-state h2 {
+  margin: 0;
+  color: var(--el-text-color-primary);
+  font-size: 24px;
+  font-weight: 760;
+  letter-spacing: 0;
+}
+
+.workspace-access-state__description {
+  max-width: 560px;
+  margin: 14px 0 0;
+  color: var(--el-text-color-regular);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.workspace-access-state__path {
+  max-width: min(560px, 100%);
+  margin-top: 18px;
+  padding: 8px 12px;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 8px;
+  background: var(--app-shell-panel-muted-bg);
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.workspace-access-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 26px;
 }
 
 .function-content-wrapper {

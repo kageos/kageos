@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import { computed, ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, reactive } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Check, Loading } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { LoginRequest } from '@/architecture/domain/types'
+import {
+  listLoginMethods,
+  type LoginMethodInfo
+} from '@/architecture/presentation/context/api/auth'
 import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const { t } = useI18n()
 
@@ -23,12 +28,14 @@ const loginFormRef = ref()
 
 // 加载状态
 const loading = ref(false)
+const methodsLoading = ref(false)
+const loginMethods = ref<LoginMethodInfo[]>([])
 
 // 表单验证规则
 const rules = computed(() => ({
   username: [
     { required: true, message: t('auth.usernameRequired'), trigger: 'blur' },
-    { min: 2, max: 50, message: t('auth.usernameLength'), trigger: 'blur' }
+    { min: 3, max: 32, message: t('auth.usernameLength'), trigger: 'blur' }
   ],
   password: [
     { required: true, message: t('auth.passwordRequired'), trigger: 'blur' },
@@ -56,6 +63,50 @@ const handleLogin = async () => {
   }
 }
 
+const loadLoginMethods = async () => {
+  methodsLoading.value = true
+  try {
+    const resp = await listLoginMethods()
+    loginMethods.value = resp.methods || []
+  } catch {
+    loginMethods.value = []
+  } finally {
+    methodsLoading.value = false
+  }
+}
+
+const providerMark = (provider: string) => {
+  const code = provider.toLowerCase()
+  if (code.includes('google')) return 'G'
+  if (code.includes('github')) return 'GH'
+  if (code.includes('wechat')) return '微'
+  return provider.slice(0, 2).toUpperCase()
+}
+
+const providerButtonClass = (provider: string) => {
+  const code = provider.toLowerCase()
+  if (code.includes('google')) return 'oauth-btn--google'
+  if (code.includes('github')) return 'oauth-btn--github'
+  if (code.includes('wechat')) return 'oauth-btn--wechat'
+  return 'oauth-btn--default'
+}
+
+const handleLoginMethod = (method: LoginMethodInfo) => {
+  if (method.action === 'redirect') {
+    const authorizePath = method.authorize_path || ''
+    if (!authorizePath) {
+      ElMessage.error(t('auth.oauthStartFailed'))
+      return
+    }
+    const params = new URLSearchParams()
+    const redirectAfter = typeof route.query.redirect === 'string' ? route.query.redirect : '/workspace'
+    params.set('redirect_after', redirectAfter)
+    window.location.assign(`${authorizePath}?${params.toString()}`)
+    return
+  }
+  ElMessage.info(t('auth.oauthFlowPending'))
+}
+
 // 跳转到注册页
 const goToRegister = () => {
   router.push('/register')
@@ -72,6 +123,13 @@ const handleKeyPress = (event: KeyboardEvent) => {
     handleLogin()
   }
 }
+
+onMounted(() => {
+  loadLoginMethods()
+  if (typeof route.query.oauth_error === 'string' && route.query.oauth_error) {
+    ElMessage.error(route.query.oauth_error)
+  }
+})
 </script>
 
 <template>
@@ -197,6 +255,24 @@ const handleKeyPress = (event: KeyboardEvent) => {
               <span v-else>{{ t('auth.loginLoading') }}</span>
             </el-button>
           </el-form-item>
+
+          <div v-if="loginMethods.length || methodsLoading" class="external-login">
+            <div class="login-divider">
+              <span>{{ t('auth.otherLoginMethods') }}</span>
+            </div>
+            <div class="oauth-methods">
+              <el-button
+                v-for="method in loginMethods"
+                :key="method.provider"
+                class="oauth-btn"
+                :class="providerButtonClass(method.provider)"
+                @click="handleLoginMethod(method)"
+              >
+                <span class="oauth-mark">{{ providerMark(method.provider) }}</span>
+                <span class="oauth-label">{{ method.label }}</span>
+              </el-button>
+            </div>
+          </div>
 
           <div class="login-footer">
             <div class="footer-top">
@@ -621,6 +697,89 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
 .login-btn:active {
   transform: translateY(0);
+}
+
+.external-login {
+  margin: -4px 0 28px;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  color: var(--auth-text-soft);
+  font-size: 13px;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  background: rgba(148, 163, 184, 0.34);
+}
+
+.oauth-methods {
+  display: grid;
+  gap: 10px;
+}
+
+.oauth-btn {
+  width: 100%;
+  min-height: 48px;
+  justify-content: center;
+  border-radius: 12px;
+  border-color: rgba(148, 163, 184, 0.32);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--auth-text);
+  font-weight: 700;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.oauth-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+}
+
+.oauth-mark {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.oauth-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oauth-btn--google .oauth-mark {
+  background: #fff;
+  color: #1a73e8;
+  border: 1px solid rgba(26, 115, 232, 0.22);
+}
+
+.oauth-btn--github .oauth-mark {
+  background: #111827;
+  color: #fff;
+}
+
+.oauth-btn--wechat .oauth-mark {
+  background: #16a34a;
+  color: #fff;
+}
+
+.oauth-btn--default .oauth-mark {
+  background: var(--auth-accent-soft);
+  color: var(--auth-accent);
 }
 
 .login-footer {

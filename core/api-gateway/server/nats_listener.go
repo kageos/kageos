@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/nats-io/nats.go"
 )
@@ -66,8 +67,11 @@ func (h *TokenCommandHandler) HandleRemoveBlacklist(msg *nats.Msg) {
 // handleTokenInvalidate 处理 token 失效消息
 func (h *TokenCommandHandler) handleTokenInvalidate(ctx context.Context, message *InvalidateTokenMessage) {
 	// 将所有 token hash 加入黑名单
-	// 注意：这里需要知道 token 的过期时间，可以从 JWT 解析或使用默认过期时间
-	defaultExpireTime := time.Now().Add(7 * 24 * time.Hour).Unix() // 默认7天过期
+	defaultExpireSeconds := config.GetGlobalSharedConfig().JWT.AccessTokenExpire
+	if defaultExpireSeconds <= 0 {
+		defaultExpireSeconds = 7 * 24 * 3600
+	}
+	defaultExpireTime := time.Now().Add(time.Duration(defaultExpireSeconds) * time.Second).Unix()
 
 	for _, tokenHash := range message.Tokens {
 		h.tokenBlacklist.AddTokenByHash(tokenHash, defaultExpireTime)

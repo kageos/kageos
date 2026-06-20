@@ -9,6 +9,7 @@
  */
 
 import { Logger } from '@/architecture/shared/logger'
+import { isWorkspaceForbiddenError } from '@/architecture/shared/apiError'
 import type { IApiClient } from '../../domain/interfaces/IApiClient'
 import type { IServiceTreeLoader, ServiceTreeLoadResult } from '../../domain/interfaces/IServiceTreeLoader'
 import type { App, ServiceTree } from '@/architecture/domain/types'
@@ -67,8 +68,12 @@ export class ServiceTreeLoaderImpl implements IServiceTreeLoader {
         
         return { tree, expandedKeys, app: appInfo || undefined }
       } catch (error) {
-        Logger.error('ServiceTreeLoader', '加载服务目录树失败', error)
-        return { tree: [] }
+        if (isWorkspaceForbiddenError(error)) {
+          Logger.warn('ServiceTreeLoader', '无权限加载服务目录树', error)
+        } else {
+          Logger.error('ServiceTreeLoader', '加载服务目录树失败', error)
+        }
+        throw error
       } finally {
         // 加载完成后，从 Map 中移除
         this.loadingPromises.delete(cacheKey)

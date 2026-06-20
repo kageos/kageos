@@ -46,7 +46,8 @@ describe('WorkspaceDomainService', () => {
       currentFunction: null,
       currentDirectory: null,
       serviceTree: [],
-      loading: false
+      loading: false,
+      accessError: null
     })
     const eventBus = createEventBus()
     const service = new WorkspaceDomainService(functionLoader, stateManager, eventBus)
@@ -84,7 +85,8 @@ describe('WorkspaceDomainService', () => {
       currentFunction: null,
       currentDirectory: null,
       serviceTree: [],
-      loading: false
+      loading: false,
+      accessError: null
     })
     const service = new WorkspaceDomainService(functionLoader, stateManager, createEventBus())
     const node = {

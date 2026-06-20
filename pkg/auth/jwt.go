@@ -138,7 +138,18 @@ func (s *JWTService) GenerateRefreshToken(userID int64, username, email string) 
 
 // GenerateRefreshTokenWithContext 生成刷新令牌，携带企业上下文，便于刷新时保持租户信息。
 func (s *JWTService) GenerateRefreshTokenWithContext(userContext UserTokenContext) (string, error) {
+	return s.GenerateRefreshTokenWithContextExpiresAt(
+		userContext,
+		time.Now().Add(time.Duration(s.config.RefreshTokenExpire)*time.Second),
+	)
+}
+
+// GenerateRefreshTokenWithContextExpiresAt 生成在指定时间失效的刷新令牌。
+func (s *JWTService) GenerateRefreshTokenWithContextExpiresAt(userContext UserTokenContext, expiresAt time.Time) (string, error) {
 	now := time.Now()
+	if expiresAt.IsZero() {
+		expiresAt = now.Add(time.Duration(s.config.RefreshTokenExpire) * time.Second)
+	}
 	claims := JWTClaims{
 		UserID:         userContext.UserID,
 		Username:       userContext.Username,
@@ -150,9 +161,15 @@ func (s *JWTService) GenerateRefreshTokenWithContext(userContext UserTokenContex
 			Issuer:    s.config.Issuer,
 			Subject:   fmt.Sprintf("refresh_%d", userContext.UserID),
 			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(s.config.RefreshTokenExpire) * time.Second)),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			NotBefore: jwt.NewNumericDate(now),
 		},
+	}
+	if userContext.DepartmentFullPath != "" {
+		claims.DepartmentFullPath = &userContext.DepartmentFullPath
+	}
+	if userContext.LeaderUsername != "" {
+		claims.LeaderUsername = &userContext.LeaderUsername
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

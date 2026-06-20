@@ -1,6 +1,10 @@
 site:
   base_url: "http://your-ip-or-domain"
   tls_mode: "http"
+  # When true and tls_mode is https/redirect without a trusted certificate,
+  # kagectl generates a temporary self-signed certificate so HTTPS can start.
+  # TLS files are stored under <storage.root>/tls on the host.
+  allow_self_signed_bootstrap: false
   # Optional. Defaults to 80, or to the explicit port in base_url.
   http_port: 80
   # Optional. Used only when tls_mode is https/redirect. Defaults to 443.

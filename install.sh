@@ -4,6 +4,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_PATH="${KAGEOS_CONFIG:-.kageos/prod/kage.yaml}"
 BASE_URL="${KAGEOS_BASE_URL:-}"
+TLS_MODE="${KAGEOS_TLS_MODE:-auto}"
 HTTP_PORT="${KAGEOS_HTTP_PORT:-}"
 HTTPS_PORT="${KAGEOS_HTTPS_PORT:-}"
 TIMEZONE="${KAGEOS_TIMEZONE:-}"
@@ -16,22 +17,25 @@ usage() {
 Kageos production installer
 
 Usage:
+  sudo ./install.sh --base-url app.example.com
   sudo ./install.sh --base-url http://your-ip-or-domain
   sudo ./install.sh --base-url http://your-ip-or-domain:8080 --http-port 8080
   sudo ./install.sh --base-url http://your-ip-or-domain --timezone Asia/Shanghai
 
 Options:
-  --base-url URL   Create .kageos/prod/kage.yaml when it does not exist.
-  --timezone TZ    Deployment timezone. Defaults to Asia/Shanghai.
-  --http-port PORT HTTP listen port. Defaults to 80, or the port in --base-url.
-  --https-port PORT HTTPS listen port. Defaults to 443, or the port in --base-url.
-  --user USER      Deploy as USER. Defaults to the sudo caller, then current user.
-  --skip-up        Prepare the host and config, but do not start deployment.
-  --help           Show this help.
-  --               Pass remaining arguments to ./prod-up.sh.
+  --base-url URL       Create .kageos/prod/kage.yaml when it does not exist.
+  --tls-mode MODE      auto, http, https, redirect, or external. Defaults to auto.
+  --timezone TZ        Deployment timezone. Defaults to Asia/Shanghai.
+  --http-port PORT     HTTP listen port. Defaults to 80, or the port in --base-url.
+  --https-port PORT    HTTPS listen port. Defaults to 443, or the port in --base-url.
+  --user USER          Deploy as USER. Defaults to the sudo caller, then current user.
+  --skip-up            Prepare the host and config, but do not start deployment.
+  --help               Show this help.
+  --                   Pass remaining arguments to ./prod-up.sh.
 
 Environment:
   KAGEOS_BASE_URL      Same as --base-url.
+  KAGEOS_TLS_MODE      Same as --tls-mode.
   KAGEOS_TIMEZONE      Same as --timezone.
   KAGEOS_HTTP_PORT     Same as --http-port.
   KAGEOS_HTTPS_PORT    Same as --https-port.
@@ -67,6 +71,22 @@ while [[ $# -gt 0 ]]; do
       fi
       validate_port "--http-port" "$1"
       HTTP_PORT="$1"
+      ;;
+    --tls-mode)
+      shift
+      if [[ $# -eq 0 || -z "$1" ]]; then
+        echo "ERROR: --tls-mode requires a value" >&2
+        exit 1
+      fi
+      case "$1" in
+        auto|http|https|redirect|external)
+          TLS_MODE="$1"
+          ;;
+        *)
+          echo "ERROR: --tls-mode must be auto, http, https, redirect, or external" >&2
+          exit 1
+          ;;
+      esac
       ;;
     --timezone)
       shift
@@ -187,6 +207,9 @@ fi
 if [[ -n "$TIMEZONE" ]]; then
   echo "timezone:    $TIMEZONE"
 fi
+if [[ -n "$TLS_MODE" ]]; then
+  echo "tls mode:    $TLS_MODE"
+fi
 echo
 
 if [[ "$DEPLOY_USER" != "root" ]] && command -v loginctl >/dev/null 2>&1; then
@@ -235,11 +258,11 @@ if [[ ! -f "$CONFIG_ABS" ]]; then
   if [[ -z "$BASE_URL" ]]; then
     echo "ERROR: prod config not found: $CONFIG_PATH" >&2
     echo "Pass --base-url for first install, for example:" >&2
-    echo "  sudo ./install.sh --base-url http://your-ip-or-domain" >&2
+    echo "  sudo ./install.sh --base-url app.example.com" >&2
     exit 1
   fi
   echo "Creating prod config..."
-  init_args=(init --base-url "$BASE_URL")
+  init_args=(init --base-url "$BASE_URL" --tls-mode "$TLS_MODE")
   if [[ -n "$HTTP_PORT" ]]; then
     init_args+=(--http-port "$HTTP_PORT")
   fi
@@ -262,6 +285,11 @@ fi
 echo
 echo "Starting production deployment..."
 deploy_env=(KAGEOS_CONFIG="$CONFIG_PATH")
+if [[ -n "$TLS_MODE" && "$TLS_MODE" != "auto" ]]; then
+  deploy_env+=(KAGEOS_TLS_MODE="$TLS_MODE")
+else
+  deploy_env+=(KAGEOS_TLS_MODE="")
+fi
 if [[ -n "$HTTP_PORT" ]]; then
   deploy_env+=(KAGEOS_HTTP_PORT="$HTTP_PORT")
 fi

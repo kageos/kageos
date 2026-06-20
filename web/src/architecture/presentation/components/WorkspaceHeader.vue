@@ -38,18 +38,6 @@
         :current-app="currentApp"
         :app-list="appList"
       />
-      <div
-        v-if="companyName || companyCode"
-        class="company-badge"
-        :title="companyTitle"
-        data-testid="workspace-header-company"
-      >
-        <el-avatar :size="28" :src="companyLogo" class="company-logo">
-          {{ companyInitials }}
-        </el-avatar>
-        <span class="company-name">{{ companyName }}</span>
-      </div>
-      <LanguageSwitcher />
 
       <el-dropdown
         @command="handleUserCommand"
@@ -73,6 +61,22 @@
               </span>
               <span class="user-account-badge">MVP</span>
             </el-dropdown-item>
+
+            <div
+              v-if="companyName || companyCode"
+              class="user-company-card"
+              :title="companyTitle"
+              data-testid="workspace-user-menu-company"
+              @click.stop
+            >
+              <el-avatar :size="34" :src="companyLogo" class="user-company-logo">
+                {{ companyInitials }}
+              </el-avatar>
+              <span class="user-company-copy">
+                <span class="user-company-label">{{ t('workspace.company') }}</span>
+                <span class="user-company-name">{{ companyTitle }}</span>
+              </span>
+            </div>
 
             <el-dropdown-item disabled class="user-dropdown-section-title">{{ t('workspace.account') }}</el-dropdown-item>
             <el-dropdown-item command="settings" class="user-dropdown-action">
@@ -111,6 +115,15 @@
                 <span class="user-menu-desc">{{ t('workspace.systemSettingsDesc') }}</span>
               </span>
             </el-dropdown-item>
+            <el-dropdown-item v-if="isSystemUser" command="system-login-settings" class="user-dropdown-action">
+              <span class="user-menu-icon user-menu-icon--profile">
+                <el-icon><Setting /></el-icon>
+              </span>
+              <span class="user-menu-copy">
+                <span class="user-menu-title">{{ t('workspace.loginConfig') }}</span>
+                <span class="user-menu-desc">{{ t('workspace.loginConfigDesc') }}</span>
+              </span>
+            </el-dropdown-item>
 
             <el-dropdown-item
               v-if="isDevelopment"
@@ -126,28 +139,41 @@
               </span>
             </el-dropdown-item>
 
-            <el-dropdown-item disabled class="user-dropdown-section-title user-dropdown-section-title--divided">{{ t('workspace.theme') }}</el-dropdown-item>
-            <el-dropdown-item
-              v-for="theme in availableThemes"
-              :key="theme.name"
-              :command="'theme_' + theme.name"
-              class="user-dropdown-action user-dropdown-theme-item"
-              :class="{ 'is-active-theme': currentThemeName === theme.name }"
-            >
-              <span class="user-menu-icon user-menu-icon--theme">
-                <el-icon>
-                  <Moon v-if="theme.mode === 'dark'" />
-                  <Sunny v-else />
-                </el-icon>
-              </span>
-              <span class="user-menu-copy">
-                <span class="user-menu-title">{{ theme.label }}</span>
-                <span class="user-menu-desc">{{ theme.mode === 'dark' ? t('workspace.darkUi') : t('workspace.lightUi') }}</span>
-              </span>
-              <span class="user-theme-check">
-                <el-icon v-if="currentThemeName === theme.name"><Check /></el-icon>
-              </span>
-            </el-dropdown-item>
+            <el-dropdown-item disabled class="user-dropdown-section-title user-dropdown-section-title--divided">{{ t('workspace.preferences') }}</el-dropdown-item>
+            <div class="user-preference-panel" @click.stop>
+              <div class="user-preference-row">
+                <span class="user-preference-label">{{ t('common.language') }}</span>
+                <el-select
+                  class="user-preference-select"
+                  size="small"
+                  :model-value="localeStore.currentLocale"
+                  @change="handleLocaleChange"
+                >
+                  <el-option
+                    v-for="option in localeStore.localeOptions"
+                    :key="option.value"
+                    :label="`${option.flag} ${option.nativeLabel}`"
+                    :value="option.value"
+                  />
+                </el-select>
+              </div>
+              <div class="user-preference-row">
+                <span class="user-preference-label">{{ t('workspace.theme') }}</span>
+                <el-select
+                  class="user-preference-select"
+                  size="small"
+                  :model-value="currentThemeName"
+                  @change="handleThemeChange"
+                >
+                  <el-option
+                    v-for="theme in availableThemes"
+                    :key="theme.name"
+                    :label="theme.label"
+                    :value="theme.name"
+                  />
+                </el-select>
+              </div>
+            </div>
 
             <el-dropdown-item command="logout" class="user-dropdown-action user-dropdown-action--logout">
               <span class="user-menu-icon user-menu-icon--logout">
@@ -164,15 +190,18 @@
     </div>
 
     <!-- Debug 弹窗 -->
-    <DebugDialog v-model="showDebugDialog" />
+    <DebugDialog v-if="showDebugDialog" v-model="showDebugDialog" />
 
-    <GlobalResourceSearchDialog v-model:visible="showGlobalSearchDialog" />
+    <GlobalResourceSearchDialog
+      v-if="showGlobalSearchDialog"
+      v-model:visible="showGlobalSearchDialog"
+    />
 
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -182,21 +211,19 @@ import {
   Key,
   Setting,
   Search,
-  Moon,
-  Sunny,
-  Check,
   SwitchButton
 } from '@element-plus/icons-vue'
 import AppSwitcher from '@/architecture/presentation/shared/components/AppSwitcher.vue'
 import type { App, ServiceTree } from '@/architecture/domain/types'
 import { ElMessageBox } from 'element-plus'
-import { useAuthStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
-import DebugDialog from './DebugDialog.vue'
-import GlobalResourceSearchDialog from './GlobalResourceSearchDialog.vue'
+import { useAuthStore, useLocaleStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
 import WorkspaceInbox from './WorkspaceInbox.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
-import LanguageSwitcher from './LanguageSwitcher.vue'
+import type { SupportedLocale } from '@/architecture/shared/i18n'
 import defaultCompanyLogo from '@/architecture/presentation/assets/logo.svg'
+
+const DebugDialog = defineAsyncComponent(() => import('./DebugDialog.vue'))
+const GlobalResourceSearchDialog = defineAsyncComponent(() => import('./GlobalResourceSearchDialog.vue'))
 
 defineProps<{
   currentApp: App | null
@@ -215,6 +242,7 @@ defineEmits<{
 
 const router = useRouter()
 const authStore = useAuthStore()
+const localeStore = useLocaleStore()
 const themeStore = useThemeStore()
 const { t } = useI18n()
 
@@ -244,15 +272,6 @@ const availableThemes = computed(() => themeStore.getAvailableThemes())
 const currentThemeName = computed(() => themeStore.currentTheme.name)
 
 const handleUserCommand = (command: string) => {
-  if (command.startsWith('theme_')) {
-    const themeName = command.replace('theme_', '')
-    const theme = themeStore.getAvailableThemes().find(t => t.name === themeName)
-    if (theme) {
-      themeStore.setTheme(theme)
-    }
-    return
-  }
-
   switch (command) {
     case 'logout':
       handleLogout()
@@ -269,11 +288,34 @@ const handleUserCommand = (command: string) => {
     case 'system-settings':
       router.push('/system/settings')
       break
+    case 'system-login-settings':
+      router.push({
+        path: '/system/settings',
+        query: { tab: 'login' }
+      })
+      break
     case 'debug':
       showDebugDialog.value = true
       break
     default:
       break
+  }
+}
+
+const handleLocaleChange = (value: string | number | boolean | object) => {
+  if (typeof value !== 'string') {
+    return
+  }
+  localeStore.setAppLocale(value as SupportedLocale)
+}
+
+const handleThemeChange = (themeName: string | number | boolean | object) => {
+  if (typeof themeName !== 'string') {
+    return
+  }
+  const theme = themeStore.getAvailableThemes().find(item => item.name === themeName)
+  if (theme) {
+    themeStore.setTheme(theme)
   }
 }
 
@@ -350,38 +392,6 @@ defineExpose({
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
-}
-
-.company-badge {
-  display: flex;
-  max-width: 220px;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border: 1px solid var(--app-shell-panel-border);
-  border-radius: 12px;
-  background: var(--app-shell-panel-muted-bg);
-  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
-  cursor: default;
-}
-
-.company-logo {
-  flex-shrink: 0;
-  border: 1px solid rgba(var(--el-color-primary-rgb), 0.16);
-  background: rgba(var(--el-color-primary-rgb), 0.1);
-  color: var(--el-color-primary);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.company-name {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--el-text-color-primary);
-  font-size: 13px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .user-profile {
@@ -539,6 +549,55 @@ defineExpose({
   font-weight: 700;
 }
 
+.user-company-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 8px 9px;
+  margin-bottom: 6px;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 14px;
+  background: var(--app-shell-panel-muted-bg);
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+}
+
+.user-company-logo {
+  flex-shrink: 0;
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.16);
+  background: rgba(var(--el-color-primary-rgb), 0.1);
+  color: var(--el-color-primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.user-company-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.user-company-label,
+.user-company-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-company-label {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.user-company-name {
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .user-dropdown-section-title {
   min-height: 22px;
   padding: 8px 8px 3px !important;
@@ -634,11 +693,6 @@ defineExpose({
   color: var(--el-text-color-secondary);
 }
 
-.user-menu-icon--theme {
-  background: var(--app-shell-panel-muted-bg);
-  color: var(--el-text-color-secondary);
-}
-
 .user-menu-copy {
   display: flex;
   min-width: 0;
@@ -666,38 +720,6 @@ defineExpose({
   font-weight: 500;
 }
 
-.user-dropdown-theme-item {
-  min-height: 42px;
-
-  &.is-active-theme {
-    background: rgba(var(--el-color-primary-rgb), 0.1) !important;
-    color: var(--el-color-primary) !important;
-    box-shadow: inset 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.18);
-
-    .user-menu-icon--theme {
-      background: rgba(var(--el-color-primary-rgb), 0.14);
-      color: var(--el-color-primary);
-    }
-  }
-}
-
-.user-theme-check {
-  display: inline-flex;
-  width: 18px;
-  flex-shrink: 0;
-  justify-content: center;
-  color: var(--el-color-primary);
-  font-size: 15px;
-}
-
-.header-right :deep(.el-button--primary) {
-  height: 40px;
-  padding: 0 18px;
-  border: none;
-  border-radius: 12px;
-  box-shadow: 0 14px 32px rgba(var(--el-color-primary-rgb), 0.22);
-}
-
 .header-search-button {
   height: 40px;
   padding: 0 14px;
@@ -719,16 +741,36 @@ defineExpose({
   }
 }
 
+.user-preference-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 9px 10px;
+  margin: 2px 0 4px;
+  border: 1px solid var(--app-shell-panel-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--app-shell-panel-muted-bg) 72%, transparent);
+}
+
+.user-preference-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.user-preference-label {
+  min-width: 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.user-preference-select {
+  width: 100%;
+}
+
 @media (max-width: 760px) {
-  .company-name {
-    display: none;
-  }
-
-  .company-badge {
-    max-width: none;
-    padding: 6px;
-  }
-
   .username {
     display: none;
   }

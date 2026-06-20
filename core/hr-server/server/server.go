@@ -32,13 +32,15 @@ type Server struct {
 	natsConn   *nats.Conn
 
 	// 服务
-	authService       *service.AuthService
-	emailService      *service.EmailService
-	settingsService   *service.SystemSettingsService
-	userService       *service.UserService
-	departmentService *service.DepartmentService
-	tokenPublisher    service.TokenPublisher
-	subscriptions     []*nats.Subscription
+	authService         *service.AuthService
+	authOAuthService    *service.AuthOAuthService
+	authProviderService *service.AuthLoginProviderService
+	emailService        *service.EmailService
+	settingsService     *service.SystemSettingsService
+	userService         *service.UserService
+	departmentService   *service.DepartmentService
+	tokenPublisher      service.TokenPublisher
+	subscriptions       []*nats.Subscription
 
 	// 上下文
 	ctx context.Context
@@ -69,6 +71,9 @@ func NewServer(cfg *config.HRServerConfig) (*Server, error) {
 
 	if err := s.initServices(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init services: %w", err)
+	}
+	if err := s.authProviderService.SeedDefaults(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed auth login providers: %w", err)
 	}
 
 	if err := service.InitDefaultCompany(ctx, s.db); err != nil {
@@ -193,6 +198,10 @@ func (s *Server) initServices(ctx context.Context) error {
 	emailCodeRepo := repository.NewEmailCodeRepository(s.db)
 	deptRepo := repository.NewDepartmentRepository(s.db)
 	settingRepo := repository.NewSystemSettingRepository(s.db)
+	authProviderRepo := repository.NewAuthLoginProviderRepository(s.db)
+	authOAuthStateRepo := repository.NewAuthOAuthStateRepository(s.db)
+	authOAuthRegistrationIntentRepo := repository.NewAuthOAuthRegistrationIntentRepository(s.db)
+	authExternalIdentityRepo := repository.NewAuthExternalIdentityRepository(s.db)
 
 	if s.natsConn != nil {
 		s.tokenPublisher = service.NewGatewayTokenPublisher(s.natsConn)
@@ -200,6 +209,8 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化认证服务
 	s.authService = service.NewAuthService(userRepo, companyRepo, userSessionRepo, s.tokenPublisher)
+	s.authProviderService = service.NewAuthLoginProviderService(authProviderRepo)
+	s.authOAuthService = service.NewAuthOAuthService(s.authService, s.authProviderService, authOAuthStateRepo, authOAuthRegistrationIntentRepo, authExternalIdentityRepo, userRepo)
 	s.settingsService = service.NewSystemSettingsService(settingRepo)
 
 	// 初始化邮件服务
