@@ -34,6 +34,7 @@ namespace/
 # 本地生产部署生成物
 deploy/prod/aos.yaml
 deploy/prod/.generated/
+.kageos/
 
 # 文档和笔记
 note/
