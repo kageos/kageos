@@ -213,7 +213,7 @@ export_defaults() {
   TLS_MODE="${TLS_MODE:-http}"
   HTTP_PORT="${HTTP_PORT:-80}"
   HTTPS_PORT="${HTTPS_PORT:-443}"
-  KAGEOS_APP_BASE_IMAGE="${KAGEOS_APP_BASE_IMAGE:-kagebase:latest}"
+  KAGEOS_APP_BASE_IMAGE="${KAGEOS_APP_BASE_IMAGE:-${KAGEOS_DEFAULT_APP_BASE_IMAGE:-docker.io/qiayanai/kagebase:latest}}"
 
   MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
   MYSQL_PORT="${MYSQL_PORT:-3306}"

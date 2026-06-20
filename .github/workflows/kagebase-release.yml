@@ -1,4 +1,4 @@
-name: Docker Release
+name: Kagebase Release
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
         required: true
         default: "0.1.0"
       push_latest:
-        description: "Also update qiayanai/kageos:latest"
+        description: "Also update qiayanai/kagebase:latest"
         required: true
         type: boolean
         default: true
@@ -20,11 +20,11 @@ permissions:
   contents: read
 
 env:
-  IMAGE_NAME: docker.io/qiayanai/kageos
+  IMAGE_NAME: docker.io/qiayanai/kagebase
 
 jobs:
   publish:
-    name: Publish multi-arch image
+    name: Publish app base image
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -75,21 +75,22 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
-          context: .
-          file: deploy/aio/Dockerfile
+          context: deploy/base/images/app-base
+          file: deploy/base/images/app-base/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.release.outputs.tags }}
           labels: |
-            org.opencontainers.image.title=Kageos
-            org.opencontainers.image.description=Kageos all-in-one local image
+            org.opencontainers.image.title=Kagebase
+            org.opencontainers.image.description=Kageos user application runtime base image
             org.opencontainers.image.version=${{ steps.release.outputs.version }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           build-args: |
-            APT_USE_MIRROR=0
-            GOPROXY=https://proxy.golang.org,direct
-            GOSUMDB=sum.golang.org
-            NPM_REGISTRY=https://registry.npmjs.org
-            KAGEOS_DEFAULT_APP_BASE_IMAGE=docker.io/qiayanai/kagebase:${{ steps.release.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            PIP_INDEX_URL=https://pypi.org/simple
+            PIP_DEFAULT_TIMEOUT=300
+            PIP_RETRIES=10
+            UBUNTU_APT_MIRROR=http://archive.ubuntu.com/ubuntu
+            UBUNTU_PORTS_APT_MIRROR=http://ports.ubuntu.com/ubuntu-ports
+            APT_CHECK_DATE=0
+          cache-from: type=gha,scope=kagebase
+          cache-to: type=gha,mode=max,scope=kagebase

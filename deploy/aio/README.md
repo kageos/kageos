@@ -2,6 +2,8 @@
 
 `deploy/aio` 是本地体验/单机演示镜像。外部只需要运行一个容器，容器内部会用 Podman 拉起 MySQL、NATS、MinIO，并启动 Kageos 主服务。
 
+用户应用运行时依赖单独发布为 `qiayanai/kagebase`。AIO 首次启动时会优先拉取匹配版本的 `kagebase`；如果拉取失败，会 fallback 到本地构建。
+
 > 这个镜像用于 Ubuntu VM、本地试用和演示，不建议作为正式生产部署入口。生产环境优先使用 `install.sh` / `kagectl` / Compose。
 
 ## Build
@@ -59,7 +61,8 @@ docker run -d \
   qiayanai/kageos:latest
 ```
 
-首次启动会在容器内部拉取并初始化 MySQL、NATS、MinIO，还会构建用户应用基础镜像 `kagebase:latest`，时间会比较久。
+首次启动会在容器内部拉取并初始化 MySQL、NATS、MinIO，并准备用户应用基础镜像。
+如果使用官方发布镜像，AIO 会优先拉取 `docker.io/qiayanai/kagebase:<version>`，通常比现场构建快很多；只有拉取失败时才会 fallback 到本地构建。
 
 查看日志：
 
@@ -129,6 +132,15 @@ Secret:
 git tag v0.1.0
 git push origin v0.1.0
 ```
+
+同一个 tag 会触发两条发布：
+
+```text
+qiayanai/kagebase:0.1.0
+qiayanai/kageos:0.1.0
+```
+
+`qiayanai/kageos:0.1.0` 内置默认值会指向 `docker.io/qiayanai/kagebase:0.1.0`。用户运行 `kageos` 时不需要手动选择架构，也不需要单独指定 `kagebase`。
 
 发布完成后，用户只需要：
 
@@ -217,5 +229,8 @@ docker volume rm kageos-data
 | `KAGEOS_AIO_MYSQL_IMAGE` | `docker.io/library/mysql:8.0` | Inner MySQL image. |
 | `KAGEOS_AIO_NATS_IMAGE` | `docker.io/library/nats:2.10-alpine` | Inner NATS image. |
 | `KAGEOS_AIO_MINIO_IMAGE` | `docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` | Inner MinIO image. |
+| `KAGEOS_APP_BASE_IMAGE` | `docker.io/qiayanai/kagebase:<version>` in release images, `docker.io/qiayanai/kagebase:latest` in local builds | User app runtime base image. |
 | `KAGEOS_APP_BASE_ACTION` | `ensure` | Use `rebuild` to rebuild the user app base image. |
+| `KAGEOS_APP_BASE_PULL` | `1` | Pull `KAGEOS_APP_BASE_IMAGE` before falling back to local build. |
+| `KAGEOS_APP_BASE_PULL_FALLBACK_BUILD` | `1` | Build locally if pulling the base image fails. Set to `0` to fail fast. |
 | `KAGEOS_AIO_PRINT_SECRETS` | `1` | Print generated credentials in the final success log. Set to `0` to hide plaintext secrets and only print file paths. |

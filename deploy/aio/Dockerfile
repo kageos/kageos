@@ -48,9 +48,11 @@ RUN npm run build-only
 FROM docker.io/library/debian:bookworm-slim
 
 ARG APT_USE_MIRROR=1
+ARG KAGEOS_DEFAULT_APP_BASE_IMAGE=docker.io/qiayanai/kagebase:latest
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
 ENV LANG=C.UTF-8
+ENV KAGEOS_DEFAULT_APP_BASE_IMAGE=${KAGEOS_DEFAULT_APP_BASE_IMAGE}
 
 COPY deploy/base/scripts/configure-debian-apt-mirror.sh /usr/local/bin/configure-debian-apt-mirror
 RUN chmod +x /usr/local/bin/configure-debian-apt-mirror && /usr/local/bin/configure-debian-apt-mirror

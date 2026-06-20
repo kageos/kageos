@@ -1,9 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-KAGEOS_APP_BASE_IMAGE="${KAGEOS_APP_BASE_IMAGE:-kagebase:latest}"
+KAGEOS_APP_BASE_IMAGE="${KAGEOS_APP_BASE_IMAGE:-${KAGEOS_DEFAULT_APP_BASE_IMAGE:-docker.io/qiayanai/kagebase:latest}}"
 KAGEOS_APP_BASE_ACTION="${KAGEOS_APP_BASE_ACTION:-ensure}"
 KAGEOS_APP_BASE_BUILD_NO_CACHE="${KAGEOS_APP_BASE_BUILD_NO_CACHE:-0}"
+KAGEOS_APP_BASE_PULL="${KAGEOS_APP_BASE_PULL:-1}"
+KAGEOS_APP_BASE_PULL_FALLBACK_BUILD="${KAGEOS_APP_BASE_PULL_FALLBACK_BUILD:-1}"
 
 case "$KAGEOS_APP_BASE_ACTION" in
   ensure|rebuild|check) ;;
@@ -17,6 +19,22 @@ case "$KAGEOS_APP_BASE_BUILD_NO_CACHE" in
   0|1) ;;
   *)
     echo "ERROR: KAGEOS_APP_BASE_BUILD_NO_CACHE 仅支持 0 或 1，当前值: ${KAGEOS_APP_BASE_BUILD_NO_CACHE}" >&2
+    exit 1
+    ;;
+esac
+
+case "$KAGEOS_APP_BASE_PULL" in
+  0|1) ;;
+  *)
+    echo "ERROR: KAGEOS_APP_BASE_PULL 仅支持 0 或 1，当前值: ${KAGEOS_APP_BASE_PULL}" >&2
+    exit 1
+    ;;
+esac
+
+case "$KAGEOS_APP_BASE_PULL_FALLBACK_BUILD" in
+  0|1) ;;
+  *)
+    echo "ERROR: KAGEOS_APP_BASE_PULL_FALLBACK_BUILD 仅支持 0 或 1，当前值: ${KAGEOS_APP_BASE_PULL_FALLBACK_BUILD}" >&2
     exit 1
     ;;
 esac
@@ -36,13 +54,29 @@ run_build() {
   fi
 }
 
+pull_base_image() {
+  echo "==> 拉取用户应用基础镜像: ${KAGEOS_APP_BASE_IMAGE}"
+  podman pull "${KAGEOS_APP_BASE_IMAGE}"
+}
+
 case "$KAGEOS_APP_BASE_ACTION" in
   ensure)
     if podman image exists "${KAGEOS_APP_BASE_IMAGE}" 2>/dev/null; then
       echo "==> 用户应用基础镜像已存在，跳过构建: ${KAGEOS_APP_BASE_IMAGE}"
       exit 0
     fi
-    echo "==> 初始化用户应用基础镜像 ${KAGEOS_APP_BASE_IMAGE}（首次约 10-20 分钟）..."
+    if [[ "$KAGEOS_APP_BASE_PULL" == "1" ]]; then
+      if pull_base_image; then
+        echo "==> 用户应用基础镜像已拉取: ${KAGEOS_APP_BASE_IMAGE}"
+        exit 0
+      fi
+      if [[ "$KAGEOS_APP_BASE_PULL_FALLBACK_BUILD" == "0" ]]; then
+        echo "ERROR: 拉取用户应用基础镜像失败，且已禁用本地 fallback 构建: ${KAGEOS_APP_BASE_IMAGE}" >&2
+        exit 1
+      fi
+      echo "WARN: 拉取用户应用基础镜像失败，改为本地构建 fallback: ${KAGEOS_APP_BASE_IMAGE}" >&2
+    fi
+    echo "==> 本地构建用户应用基础镜像 ${KAGEOS_APP_BASE_IMAGE}（首次约 10-20 分钟）..."
     run_build
     ;;
   rebuild)
