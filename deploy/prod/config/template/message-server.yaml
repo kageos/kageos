@@ -8,8 +8,8 @@ server:
 
 db:
   type: "mysql"
-  host: "127.0.0.1"
-  port: 3306
+  host: "${MYSQL_HOST}"
+  port: ${MYSQL_PORT}
   user: "root"
   password: "${MYSQL_ROOT_PASSWORD}"
   name: "message-server"

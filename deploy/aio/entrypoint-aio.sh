@@ -10,6 +10,7 @@ AIO_SECRETS_DIR="${AIO_DATA_DIR}/secrets"
 MYSQL_CONTAINER_NAME="${KAGEOS_AIO_MYSQL_CONTAINER_NAME:-kageos-mysql}"
 NATS_CONTAINER_NAME="${KAGEOS_AIO_NATS_CONTAINER_NAME:-kageos-nats}"
 MINIO_CONTAINER_NAME="${KAGEOS_AIO_MINIO_CONTAINER_NAME:-kageos-minio}"
+KAGEOS_AIO_RECREATE_INFRA="${KAGEOS_AIO_RECREATE_INFRA:-1}"
 
 MYSQL_IMAGE="${KAGEOS_AIO_MYSQL_IMAGE:-docker.io/library/mysql:8.0}"
 NATS_IMAGE="${KAGEOS_AIO_NATS_IMAGE:-docker.io/library/nats:2.10-alpine}"
@@ -99,7 +100,7 @@ SQL
 
   cat > "${AIO_INFRA_DIR}/nats-server.conf" <<EOF
 max_payload: 10485760
-port: 4222
+port: ${NATS_PORT}
 logtime: true
 authorization {
   user: "${NATS_USER}"
@@ -146,15 +147,16 @@ start_mysql() {
       -v "${AIO_DATA_DIR}/mysql:/var/lib/mysql" \
       -v "${AIO_INFRA_DIR}/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql:ro" \
       "$MYSQL_IMAGE" \
+      --port="${MYSQL_PORT}" \
       --character-set-server=utf8mb4 \
       --collation-server=utf8mb4_unicode_ci >/dev/null
   fi
 
-  wait_tcp "127.0.0.1" "3306" "MySQL"
+  wait_tcp "$MYSQL_HOST" "$MYSQL_PORT" "MySQL"
   for i in $(seq 1 90); do
-    if podman exec "$MYSQL_CONTAINER_NAME" mysql --protocol=TCP -h 127.0.0.1 -P 3306 -uroot -p"$MYSQL_ROOT_PASSWORD" -e 'SELECT 1' >/dev/null 2>&1; then
+    if podman exec "$MYSQL_CONTAINER_NAME" mysql --protocol=TCP -h "$MYSQL_HOST" -P "$MYSQL_PORT" -uroot -p"$MYSQL_ROOT_PASSWORD" -e 'SELECT 1' >/dev/null 2>&1; then
       echo "==> MySQL root 登录就绪"
-      podman exec -i "$MYSQL_CONTAINER_NAME" mysql --protocol=TCP -h 127.0.0.1 -P 3306 -uroot -p"$MYSQL_ROOT_PASSWORD" < "${AIO_INFRA_DIR}/mysql-init.sql"
+      podman exec -i "$MYSQL_CONTAINER_NAME" mysql --protocol=TCP -h "$MYSQL_HOST" -P "$MYSQL_PORT" -uroot -p"$MYSQL_ROOT_PASSWORD" < "${AIO_INFRA_DIR}/mysql-init.sql"
       return 0
     fi
     echo "    等待 MySQL 初始化账号 ... (${i}/90)"
@@ -182,7 +184,7 @@ start_nats() {
       -c /etc/nats/nats-server.conf >/dev/null
   fi
 
-  wait_tcp "127.0.0.1" "4222" "NATS"
+  wait_tcp "$NATS_HOST" "$NATS_PORT" "NATS"
 }
 
 start_minio() {
@@ -202,11 +204,11 @@ start_minio() {
       -e TZ="${TZ:-Asia/Shanghai}" \
       -v "${AIO_DATA_DIR}/minio:/data" \
       "$MINIO_IMAGE" \
-      server /data --console-address ":9001" >/dev/null
+      server /data --address ":${MINIO_PORT}" --console-address ":${MINIO_CONSOLE_PORT}" >/dev/null
   fi
 
-  wait_tcp "127.0.0.1" "9000" "MinIO"
-  wait_http "http://127.0.0.1:9000/minio/health/ready" "MinIO health"
+  wait_tcp "$MINIO_HOST" "$MINIO_PORT" "MinIO"
+  wait_http "http://${MINIO_HOST}:${MINIO_PORT}/minio/health/ready" "MinIO health"
 }
 
 export_defaults() {
@@ -217,9 +219,12 @@ export_defaults() {
   KAGEOS_APP_BASE_IMAGE="${KAGEOS_APP_BASE_IMAGE:-${KAGEOS_DEFAULT_APP_BASE_IMAGE:-docker.io/qiayanai/kagebase:latest}}"
 
   MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
-  MYSQL_PORT="${MYSQL_PORT:-3306}"
+  MYSQL_PORT="${MYSQL_PORT:-13306}"
+  NATS_HOST="${NATS_HOST:-127.0.0.1}"
+  NATS_PORT="${NATS_PORT:-14222}"
   MINIO_HOST="${MINIO_HOST:-127.0.0.1}"
-  MINIO_PORT="${MINIO_PORT:-9000}"
+  MINIO_PORT="${MINIO_PORT:-19000}"
+  MINIO_CONSOLE_PORT="${MINIO_CONSOLE_PORT:-19001}"
   MINIO_ROOT_USER="${MINIO_ROOT_USER:-minioadmin}"
   NATS_USER="${NATS_USER:-${NATS_SEED_USER:-aos}}"
   NATS_SEED_USER="${NATS_SEED_USER:-$NATS_USER}"
@@ -233,7 +238,7 @@ export_defaults() {
 
   export \
     CANONICAL_BASE_URL TLS_MODE HTTP_PORT HTTPS_PORT KAGEOS_APP_BASE_IMAGE \
-    MYSQL_HOST MYSQL_PORT MINIO_HOST MINIO_PORT MINIO_ROOT_USER \
+    MYSQL_HOST MYSQL_PORT NATS_HOST NATS_PORT MINIO_HOST MINIO_PORT MINIO_CONSOLE_PORT MINIO_ROOT_USER \
     NATS_USER NATS_SEED_USER KAGEOS_APP_DB_CLUSTER_KEY \
     KAGEOS_REGISTRATION_MODE SMTP_MODE \
     KAGEOS_COMPANY_CODE KAGEOS_COMPANY_NAME KAGEOS_COMPANY_LOGO_URL
@@ -248,7 +253,7 @@ prepare_secrets() {
   load_or_create_secret SYSTEM_USER_PASSWORD 24
 
   NATS_SEED_PASSWORD="${NATS_SEED_PASSWORD:-$NATS_PASSWORD}"
-  NATS_URL="${NATS_URL:-nats://${NATS_USER}:${NATS_PASSWORD}@127.0.0.1:4222}"
+  NATS_URL="${NATS_URL:-nats://${NATS_USER}:${NATS_PASSWORD}@${NATS_HOST}:${NATS_PORT}}"
 
   export NATS_PASSWORD NATS_SEED_PASSWORD NATS_URL
 }
