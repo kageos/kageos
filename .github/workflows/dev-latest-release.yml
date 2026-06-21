@@ -1,0 +1,74 @@
+name: Dev Latest Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: docker.io/qiayanai/kageos
+
+jobs:
+  publish:
+    name: Build and publish latest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push latest
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/aio/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:latest
+          labels: |
+            org.opencontainers.image.title=Kageos
+            org.opencontainers.image.description=Kageos all-in-one local image
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          build-args: |
+            APT_USE_MIRROR=0
+            GOPROXY=https://proxy.golang.org,direct
+            GOSUMDB=sum.golang.org
+            NPM_REGISTRY=https://registry.npmjs.org
+            KAGEOS_DEFAULT_APP_BASE_IMAGE=docker.io/qiayanai/kagebase:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Sync latest to Aliyun ACR
+        shell: bash
+        env:
+          ALIYUN_REGISTRY: ${{ vars.ALIYUN_REGISTRY }}
+          ALIYUN_NAMESPACE: ${{ vars.ALIYUN_NAMESPACE }}
+          ALIYUN_REGISTRY_USERNAME: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
+          ALIYUN_REGISTRY_PASSWORD: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${ALIYUN_REGISTRY:-}" || -z "${ALIYUN_NAMESPACE:-}" || -z "${ALIYUN_REGISTRY_USERNAME:-}" || -z "${ALIYUN_REGISTRY_PASSWORD:-}" ]]; then
+            echo "Aliyun registry is not configured; skipping image sync."
+            exit 0
+          fi
+
+          if ! command -v skopeo >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y skopeo
+          fi
+
+          printf '%s' "$ALIYUN_REGISTRY_PASSWORD" | skopeo login --username "$ALIYUN_REGISTRY_USERNAME" --password-stdin "$ALIYUN_REGISTRY"
+          skopeo copy --all "docker://${IMAGE_NAME}:latest" "docker://${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/kageos:latest"
