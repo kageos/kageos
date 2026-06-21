@@ -13,5 +13,4 @@ go test \
   ./core/... \
   ./dto/... \
   ./pkg/... \
-  ./sdk/... \
   ./scripts/sync-case-catalog/...

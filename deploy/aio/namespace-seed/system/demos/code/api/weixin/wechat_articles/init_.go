@@ -1,7 +1,7 @@
 package wechat_articles
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 )
 
 var packageContext = &app.PackageContext{

@@ -20,7 +20,7 @@ func TestUpdateMainFileImportsAddsBlankImportAndIsIdempotent(t *testing.T) {
 	mainFilePath := writeMainGoFixture(t, basePath, `package main
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 )
 
 func main() {
@@ -57,7 +57,7 @@ func TestRemoveMainFileImportRemovesOnlyTargetImport(t *testing.T) {
 import (
 	_ "github.com/kageos/kageos/namespace/alice/demo/code/api/keep/me"
 	_ "github.com/kageos/kageos/namespace/alice/demo/code/api/remove/me"
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 )
 
 func main() {
@@ -96,7 +96,7 @@ import (
 	_ "github.com/kageos/kageos/namespace/alice/demo/code/api/workspace/create-project"
 	_ "github.com/kageos/kageos/namespace/alice/demo/code/api/workspace/execute"
 	_ "github.com/kageos/kageos/namespace/alice/demo/code/api/workspace_extra/keep"
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 )
 
 func main() {

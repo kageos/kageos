@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 )
 
 // logViz 记录数据可视化各阶段耗时，便于排查网关/proxy 长时间无响应（如 context deadline exceeded）。

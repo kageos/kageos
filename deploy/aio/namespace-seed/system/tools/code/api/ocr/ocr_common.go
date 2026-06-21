@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 )
 
 // RunTesseractOnFile 对单个文件执行 tesseract 识别，输出到 stdout，返回识别文本

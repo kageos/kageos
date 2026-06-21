@@ -3,8 +3,8 @@ package notion
 import (
 	"net/http"
 
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
 )
 
 type NotionMeReq struct{}

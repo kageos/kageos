@@ -5,8 +5,8 @@ package message
 import (
 	"fmt"
 
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
 )
 
 // SendToDepartmentReq 发送给指定部门请求结构体

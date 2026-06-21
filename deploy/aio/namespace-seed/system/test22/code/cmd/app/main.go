@@ -8,7 +8,7 @@ import (
 	_ "github.com/kageos/kageos/namespace/system/test22/code/api/hot_news"
 	_ "github.com/kageos/kageos/namespace/system/test22/code/api/sales_leads"
 	_ "github.com/kageos/kageos/namespace/system/test22/code/api/ticket_management"
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 )
 
 func main() {

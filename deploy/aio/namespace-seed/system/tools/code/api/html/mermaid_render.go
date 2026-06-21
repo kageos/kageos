@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
 )
 
 type MermaidRenderReq struct {

@@ -1,10 +1,10 @@
 package inventory
 
 import (
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/chart"
-	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/chart"
+	"github.com/kageos/kageos-sdk/agent-app/response"
 )
 
 // 库存分布统计请求

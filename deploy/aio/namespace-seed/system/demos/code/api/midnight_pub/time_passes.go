@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
 )
 
 // TimePassesReq 时间流逝请求

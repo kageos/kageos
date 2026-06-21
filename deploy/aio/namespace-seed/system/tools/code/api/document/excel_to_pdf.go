@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	pythonRuntime "github.com/kageos/kageos/sdk/agent-app/runtime/python"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	pythonRuntime "github.com/kageos/kageos-sdk/agent-app/runtime/python"
 )
 
 type ExcelToPDFReq struct {

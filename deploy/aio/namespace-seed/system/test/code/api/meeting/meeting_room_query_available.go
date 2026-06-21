@@ -3,9 +3,9 @@ package meeting
 import (
 	"fmt"
 
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	"github.com/kageos/kageos/sdk/agent-app/types"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/types"
 )
 
 // QueryAvailableReq 查询空闲会议室请求

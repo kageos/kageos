@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	pythonRuntime "github.com/kageos/kageos/sdk/agent-app/runtime/python"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	pythonRuntime "github.com/kageos/kageos-sdk/agent-app/runtime/python"
 )
 
 // FlexibleJSONObject 兼容表单 text_area 提交的 JSON 字符串和工具调用提交的 JSON 对象。

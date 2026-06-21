@@ -3,6 +3,7 @@ package prompt
 import (
 	"encoding/json"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -13,7 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kageos/kageos/sdk/agent-app/widget"
+	"github.com/kageos/kageos-sdk/agent-app/widget"
+	"github.com/kageos/kageos/pkg/sdkmodule"
 )
 
 var promptRRGGBBPattern = regexp.MustCompile(`^[0-9A-Fa-f]{6}$`)
@@ -259,25 +261,46 @@ func walkPromptMarkdown(t *testing.T, visit func(path, content string)) {
 
 func exportedSDKSymbols(t *testing.T) map[string]map[string]struct{} {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("resolve test file")
-	}
-	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "../../.."))
+	sdkRoot := findSDKRootForPromptLint(t)
 	packages := map[string]string{
-		"app":        "sdk/agent-app/app",
-		"callback":   "sdk/agent-app/callback",
-		"chart":      "sdk/agent-app/chart",
-		"response":   "sdk/agent-app/response",
-		"statistics": "sdk/agent-app/statistics",
-		"types":      "sdk/agent-app/types",
+		"app":        "agent-app/app",
+		"callback":   "agent-app/callback",
+		"chart":      "agent-app/chart",
+		"response":   "agent-app/response",
+		"statistics": "agent-app/statistics",
+		"types":      "agent-app/types",
 	}
 
 	result := make(map[string]map[string]struct{}, len(packages))
 	for alias, relPath := range packages {
-		result[alias] = exportedSymbolsInDir(t, filepath.Join(repoRoot, relPath))
+		result[alias] = exportedSymbolsInDir(t, filepath.Join(sdkRoot, filepath.FromSlash(relPath)))
 	}
 	return result
+}
+
+func findSDKRootForPromptLint(t *testing.T) string {
+	t.Helper()
+	for _, root := range filepath.SplitList(build.Default.GOPATH) {
+		if root == "" {
+			continue
+		}
+		dir := filepath.Join(root, "pkg", "mod", sdkmodule.ModulePath+"@"+sdkmodule.Version)
+		if _, err := os.Stat(filepath.Join(dir, "agent-app")); err == nil {
+			return dir
+		}
+	}
+
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatalf("resolve test file for %s@%s", sdkmodule.ModulePath, sdkmodule.Version)
+	}
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "../../.."))
+	sibling := filepath.Join(filepath.Dir(repoRoot), "kageos-sdk")
+	if _, err := os.Stat(filepath.Join(sibling, "agent-app")); err == nil {
+		return sibling
+	}
+	t.Fatalf("cannot find %s@%s in GOPATH module cache or sibling repo %s", sdkmodule.ModulePath, sdkmodule.Version, sibling)
+	return ""
 }
 
 func exportedSymbolsInDir(t *testing.T, dir string) map[string]struct{} {

@@ -3,8 +3,8 @@ package wecom
 import (
 	"testing"
 
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/widget"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/widget"
 )
 
 func TestWeComTemplatesDecodeSchema(t *testing.T) {

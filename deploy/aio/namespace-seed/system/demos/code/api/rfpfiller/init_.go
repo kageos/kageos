@@ -1,6 +1,6 @@
 package rfpfiller
 
-import "github.com/kageos/kageos/sdk/agent-app/app"
+import "github.com/kageos/kageos-sdk/agent-app/app"
 
 var packageContext = &app.PackageContext{
 	RouterGroup: "/rfpfiller",

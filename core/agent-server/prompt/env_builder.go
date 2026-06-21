@@ -10,7 +10,7 @@ import (
 	"github.com/kageos/kageos/pkg/functionschema"
 	"github.com/kageos/kageos/pkg/sdkmodule"
 	"github.com/kageos/kageos/pkg/servicetree"
-	"github.com/kageos/kageos/sdk/agent-app/widget"
+	"github.com/kageos/kageos-sdk/agent-app/widget"
 )
 
 // WorkspaceEnvInput 构建环境数据所需的输入，调用方从 workspaceCtx 等填充后传入；nil 表示无上下文，仅用 directoryName/fullCodePath 做降级

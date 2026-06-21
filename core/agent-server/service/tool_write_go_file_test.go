@@ -73,7 +73,7 @@ func TestWriteGoFileSourcePolicyAllowsAppDBPassedToExternalPackage(t *testing.T)
 	source := `package demo
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 	third "github.com/acme/blackbox"
 )
 

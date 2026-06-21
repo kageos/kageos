@@ -76,8 +76,8 @@ GET 请求的 Query 会被 SDK 的 `ShouldBind` 解析到结构体。表格列�
 
 ```go
 import (
-    "github.com/kageos/kageos/pkg/gormx/query"
-    "github.com/kageos/kageos/sdk/agent-app/response"
+    "github.com/kageos/kageos-sdk/pkg/gormx/query"
+    "github.com/kageos/kageos-sdk/agent-app/response"
 )
 
 type MyListReq struct {

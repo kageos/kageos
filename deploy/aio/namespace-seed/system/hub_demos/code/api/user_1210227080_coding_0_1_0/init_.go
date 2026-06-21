@@ -1,7 +1,7 @@
 package user_1210227080_coding_0_1_0
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 )
 
 var packageContext = &app.PackageContext{

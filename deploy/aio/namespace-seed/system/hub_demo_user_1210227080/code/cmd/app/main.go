@@ -15,7 +15,7 @@ import (
 	_ "github.com/kageos/kageos/namespace/system/hub_demo_user_1210227080/code/api/nps_survey_management_0_1_0/nps"
 	_ "github.com/kageos/kageos/namespace/system/hub_demo_user_1210227080/code/api/printdrop_0_1_0"
 	_ "github.com/kageos/kageos/namespace/system/hub_demo_user_1210227080/code/api/printdrop_0_1_0/printdrop"
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 )
 
 func main() {

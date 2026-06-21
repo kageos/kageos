@@ -6,9 +6,9 @@ package rating
 import (
 	"fmt"
 
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/chart"
-	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/chart"
+	"github.com/kageos/kageos-sdk/agent-app/response"
 )
 
 // ================ 图表请求结构 ================

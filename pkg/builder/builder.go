@@ -195,14 +195,10 @@ func (b *Builder) buildLdFlags(opts *BuildOpts) []string {
 	ldFlags = append(ldFlags, opts.LdFlags...)
 
 	// 为 SDK 应用注入构建信息到 env 包
-	for _, importPath := range []string{
-		sdkmodule.AgentAppImport("env"),
-		sdkmodule.LegacyAgentAppImport("env"),
-	} {
-		ldFlags = append(ldFlags, fmt.Sprintf("-X %s.User=%s", importPath, opts.User))
-		ldFlags = append(ldFlags, fmt.Sprintf("-X %s.App=%s", importPath, opts.App))
-		ldFlags = append(ldFlags, fmt.Sprintf("-X %s.Version=%s", importPath, opts.Version))
-	}
+	importPath := sdkmodule.AgentAppImport("env")
+	ldFlags = append(ldFlags, fmt.Sprintf("-X %s.User=%s", importPath, opts.User))
+	ldFlags = append(ldFlags, fmt.Sprintf("-X %s.App=%s", importPath, opts.App))
+	ldFlags = append(ldFlags, fmt.Sprintf("-X %s.Version=%s", importPath, opts.Version))
 
 	return ldFlags
 }

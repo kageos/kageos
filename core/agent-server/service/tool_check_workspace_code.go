@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
 	"os"
@@ -16,10 +17,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/kageos/kageos-sdk/agent-app/widget"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
 	"github.com/kageos/kageos/pkg/sdkmodule"
-	"github.com/kageos/kageos/sdk/agent-app/widget"
 )
 
 type CheckWorkspaceCodeTool struct{}
@@ -215,13 +216,13 @@ func checkParsedGoFileSyntaxAndImports(file parsedGoSourceFileForCheck) []checkW
 
 	issues := checkGoFileStructurePatterns(file.Source.Name, parsed, fset)
 	for name, imp := range imports {
-		if imp.Path == sdkmodule.LegacyAgentAppImport("") || imp.Path == sdkmodule.AgentAppImport("") {
+		if imp.Path == sdkmodule.AgentAppImport("") {
 			issues = append(issues, checkWorkspaceCodeIssue{
 				File:     file.Source.Name,
 				Line:     imp.Line,
 				Severity: "warning",
 				Category: "sdk_import",
-				Message:  "不要导入 sdk/agent-app 根包；Context、Template、ChartType 用 sdk/agent-app/app，图表结构用 sdk/agent-app/chart，响应用 sdk/agent-app/response",
+				Message:  "不要导入 kageos-sdk/agent-app 根包；Context、Template、ChartType 用 kageos-sdk/agent-app/app，图表结构用 kageos-sdk/agent-app/chart，响应用 kageos-sdk/agent-app/response",
 			})
 		}
 		if _, ok := idents[name]; !ok {
@@ -310,18 +311,12 @@ var knownImportRoots = map[string]struct{}{
 }
 
 var sdkPackageDirsForSelectorCheck = map[string]string{
-	"github.com/kageos/kageos/sdk/agent-app/app":        "sdk/agent-app/app",
-	"github.com/kageos/kageos/sdk/agent-app/callback":   "sdk/agent-app/callback",
-	"github.com/kageos/kageos/sdk/agent-app/chart":      "sdk/agent-app/chart",
-	"github.com/kageos/kageos/sdk/agent-app/response":   "sdk/agent-app/response",
-	"github.com/kageos/kageos/sdk/agent-app/statistics": "sdk/agent-app/statistics",
-	"github.com/kageos/kageos/sdk/agent-app/types":      "sdk/agent-app/types",
-	"github.com/kageos/kageos-sdk/agent-app/app":        "sdk/agent-app/app",
-	"github.com/kageos/kageos-sdk/agent-app/callback":   "sdk/agent-app/callback",
-	"github.com/kageos/kageos-sdk/agent-app/chart":      "sdk/agent-app/chart",
-	"github.com/kageos/kageos-sdk/agent-app/response":   "sdk/agent-app/response",
-	"github.com/kageos/kageos-sdk/agent-app/statistics": "sdk/agent-app/statistics",
-	"github.com/kageos/kageos-sdk/agent-app/types":      "sdk/agent-app/types",
+	"github.com/kageos/kageos-sdk/agent-app/app":        "agent-app/app",
+	"github.com/kageos/kageos-sdk/agent-app/callback":   "agent-app/callback",
+	"github.com/kageos/kageos-sdk/agent-app/chart":      "agent-app/chart",
+	"github.com/kageos/kageos-sdk/agent-app/response":   "agent-app/response",
+	"github.com/kageos/kageos-sdk/agent-app/statistics": "agent-app/statistics",
+	"github.com/kageos/kageos-sdk/agent-app/types":      "agent-app/types",
 }
 
 var (
@@ -364,13 +359,13 @@ func checkSDKSelectors(fileName string, imports map[string]goImportForCheck, sel
 func loadSDKExportedSymbols() (map[string]map[string]struct{}, error) {
 	sdkExportedSymbolsOnce.Do(func() {
 		sdkExportedSymbols = map[string]map[string]struct{}{}
-		repoRoot, err := findRepoRootForSDKSelectorCheck()
+		sdkRoot, err := findSDKRootForSelectorCheck()
 		if err != nil {
 			sdkExportedSymbolsErr = err
 			return
 		}
 		for importPath, relDir := range sdkPackageDirsForSelectorCheck {
-			dir := filepath.Join(repoRoot, filepath.FromSlash(relDir))
+			dir := filepath.Join(sdkRoot, filepath.FromSlash(relDir))
 			symbols, err := exportedSymbolsInPackageDir(dir)
 			if err != nil {
 				sdkExportedSymbolsErr = err
@@ -382,21 +377,32 @@ func loadSDKExportedSymbols() (map[string]map[string]struct{}, error) {
 	return sdkExportedSymbols, sdkExportedSymbolsErr
 }
 
-func findRepoRootForSDKSelectorCheck() (string, error) {
+func findSDKRootForSelectorCheck() (string, error) {
+	for _, root := range filepath.SplitList(build.Default.GOPATH) {
+		if root == "" {
+			continue
+		}
+		dir := filepath.Join(root, "pkg", "mod", sdkmodule.ModulePath+"@"+sdkmodule.Version)
+		if _, err := os.Stat(filepath.Join(dir, "agent-app")); err == nil {
+			return dir, nil
+		}
+	}
+
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {
-		return "", fmt.Errorf("无法定位当前源码文件")
+		return "", fmt.Errorf("无法定位当前源码文件，也未找到 %s@%s", sdkmodule.ModulePath, sdkmodule.Version)
 	}
 	dir := filepath.Dir(currentFile)
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			if _, err := os.Stat(filepath.Join(dir, "sdk", "agent-app")); err == nil {
-				return dir, nil
+			sibling := filepath.Join(filepath.Dir(dir), "kageos-sdk")
+			if _, err := os.Stat(filepath.Join(sibling, "agent-app")); err == nil {
+				return sibling, nil
 			}
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("无法定位仓库根目录")
+			return "", fmt.Errorf("无法定位 %s@%s 源码", sdkmodule.ModulePath, sdkmodule.Version)
 		}
 		dir = parent
 	}

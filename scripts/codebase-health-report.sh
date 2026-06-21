@@ -76,7 +76,6 @@ top_bucket() {
     core/app-runtime/*) echo "core/app-runtime" ;;
     core/api-gateway/*) echo "core/api-gateway" ;;
     core/hr-server/*) echo "core/hr-server" ;;
-    sdk/agent-app/*) echo "sdk/agent-app" ;;
     pkg/*) echo "pkg" ;;
     dto/*) echo "dto" ;;
     deploy/*) echo "deploy" ;;

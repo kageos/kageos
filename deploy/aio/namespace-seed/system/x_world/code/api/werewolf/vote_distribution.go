@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/chart"
-	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/chart"
+	"github.com/kageos/kageos-sdk/agent-app/response"
 )
 
 // ================ 请求结构 ================

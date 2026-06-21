@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kageos/kageos/sdk/agent-app/env"
+	"github.com/kageos/kageos-sdk/agent-app/env"
 )
 
 const wecomSecretCipherPrefix = "v1:"

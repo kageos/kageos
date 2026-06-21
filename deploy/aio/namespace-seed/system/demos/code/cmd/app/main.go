@@ -13,7 +13,7 @@ import (
 	_ "github.com/kageos/kageos/namespace/system/demos/code/api/weixin"
 	_ "github.com/kageos/kageos/namespace/system/demos/code/api/weixin/wechat_articles"
 
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 )
 
 func main() {

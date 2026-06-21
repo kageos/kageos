@@ -78,10 +78,6 @@ WORKDIR /app
 # Go 二进制与运行时源码
 COPY --from=gobuilder /out/core-server /app/core-server
 COPY --from=gobuilder /src/go.mod /src/go.sum /app/
-COPY --from=gobuilder /src/sdk/ /app/sdk/
-COPY --from=gobuilder /src/pkg/ /app/pkg/
-COPY --from=gobuilder /src/dto/ /app/dto/
-COPY --from=gobuilder /src/core/ /app/core/
 COPY --from=gobuilder /go/pkg/mod /go/pkg/mod
 
 # 共享 canonical 资源：用户应用运行时基础镜像构建上下文

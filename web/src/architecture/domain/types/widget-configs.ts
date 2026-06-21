@@ -1,6 +1,6 @@
 /**
  * Widget 配置类型定义
- * 🔥 100% 对齐后端 sdk/agent-app/widget/ 中的结构体定义
+ * 🔥 100% 对齐后端 kageos-sdk/agent-app/widget/ 中的结构体定义
  * 
  * 设计原则：
  * - 每个组件都有独立的 Config 接口
@@ -20,7 +20,7 @@ export interface SelectOptionConfig {
 
 /**
  * Input Widget 配置
- * 对应后端：sdk/agent-app/widget/input.go
+ * 对应后端：kageos-sdk/agent-app/widget/input.go
  */
 export interface InputWidgetConfig {
   /** 占位符文本 */
@@ -45,7 +45,7 @@ export interface InputWidgetConfig {
 
 /**
  * Select Widget 配置
- * 对应后端：sdk/agent-app/widget/select.go
+ * 对应后端：kageos-sdk/agent-app/widget/select.go
  */
 export interface SelectWidgetConfig {
   /** 选项列表（静态选项） */
@@ -76,7 +76,7 @@ export interface SelectWidgetConfig {
 
 /**
  * MultiSelect Widget 配置
- * 对应后端：sdk/agent-app/widget/multiselect.go
+ * 对应后端：kageos-sdk/agent-app/widget/multiselect.go
  */
 export interface MultiSelectWidgetConfig {
   /** 选项列表（静态选项） */
@@ -109,7 +109,7 @@ export interface MultiSelectWidgetConfig {
 
 /**
  * List Widget 配置
- * 对应后端：sdk/agent-app/widget/list.go
+ * 对应后端：kageos-sdk/agent-app/widget/list.go
  */
 export interface ListWidgetConfig {
   /** 元素类型：number 表示数字列表，text 表示文本列表 */
@@ -136,7 +136,7 @@ export interface ListWidgetConfig {
 
 /**
  * Integer Widget 配置
- * 对应后端：sdk/agent-app/widget/integer.go
+ * 对应后端：kageos-sdk/agent-app/widget/integer.go
  */
 export interface IntegerWidgetConfig {
   /** 占位符文本 */
@@ -164,7 +164,7 @@ export interface IntegerWidgetConfig {
 
 /**
  * Float Widget 配置
- * 对应后端：sdk/agent-app/widget/float.go
+ * 对应后端：kageos-sdk/agent-app/widget/float.go
  */
 export interface FloatWidgetConfig {
   /** 占位符文本 */
@@ -195,7 +195,7 @@ export interface FloatWidgetConfig {
 
 /**
  * TextArea Widget 配置
- * 对应后端：sdk/agent-app/widget/text_area.go
+ * 对应后端：kageos-sdk/agent-app/widget/text_area.go
  */
 export interface TextAreaWidgetConfig {
   /** 占位符文本 */
@@ -214,7 +214,7 @@ export interface TextAreaWidgetConfig {
 
 /**
  * Switch Widget 配置
- * 对应后端：sdk/agent-app/widget/switch.go
+ * 对应后端：kageos-sdk/agent-app/widget/switch.go
  * 
  * 注意：当前 Switch 组件没有配置项（大道至简，MVP 产品）
  */
@@ -226,7 +226,7 @@ export interface SwitchWidgetConfig {
 
 /**
  * DateTime Widget 配置
- * 对应后端：sdk/agent-app/widget/datetime.go
+ * 对应后端：kageos-sdk/agent-app/widget/datetime.go
  *
  * raw value 为 "YYYY-MM-DD HH:mm:ss" 字符串，后端推荐用 types.Time 写入数据库 datetime/time 列。
  */
@@ -250,7 +250,7 @@ export interface DateTimeWidgetConfig {
 
 /**
  * Files Widget 配置
- * 对应后端：sdk/agent-app/widget/files.go
+ * 对应后端：kageos-sdk/agent-app/widget/files.go
  */
 export interface FilesWidgetConfig {
   /** 
@@ -292,7 +292,7 @@ export interface FilesWidgetConfig {
 
 /**
  * Slider Widget 配置
- * 对应后端：sdk/agent-app/widget/slider.go
+ * 对应后端：kageos-sdk/agent-app/widget/slider.go
  */
 export interface SliderWidgetConfig {
   /** 最小值（必需，默认 0） */
@@ -317,7 +317,7 @@ export interface SliderWidgetConfig {
 
 /**
  * Rate Widget 配置
- * 对应后端：sdk/agent-app/widget/rate.go
+ * 对应后端：kageos-sdk/agent-app/widget/rate.go
  */
 export interface RateWidgetConfig {
   /** 最大星级（默认 5） */
@@ -340,7 +340,7 @@ export interface RateWidgetConfig {
 
 /**
  * Color Widget 配置
- * 对应后端：sdk/agent-app/widget/color.go
+ * 对应后端：kageos-sdk/agent-app/widget/color.go
  */
 export interface ColorWidgetConfig {
   /** 
@@ -363,7 +363,7 @@ export interface ColorWidgetConfig {
 
 /**
  * RichText Widget 配置
- * 对应后端：sdk/agent-app/widget/richtext.go
+ * 对应后端：kageos-sdk/agent-app/widget/richtext.go
  */
 export interface RichTextWidgetConfig {
   /** 编辑器高度（单位：px，默认 300） */
@@ -372,7 +372,7 @@ export interface RichTextWidgetConfig {
 
 /**
  * Link Widget 配置
- * 对应后端：sdk/agent-app/widget/link.go
+ * 对应后端：kageos-sdk/agent-app/widget/link.go
  */
 export interface LinkWidgetConfig {
   /** 链接文本（可选，如果不设置则使用字段名称） */
@@ -390,7 +390,7 @@ export interface LinkWidgetConfig {
 
 /**
  * Progress Widget 配置
- * 对应后端：sdk/agent-app/widget/progress.go
+ * 对应后端：kageos-sdk/agent-app/widget/progress.go
  */
 export interface ProgressWidgetConfig {
   /** 最小值（默认 0） */
@@ -405,7 +405,7 @@ export interface ProgressWidgetConfig {
 
 /**
  * Checkbox Widget 配置
- * 对应后端：sdk/agent-app/widget/checkbox.go
+ * 对应后端：kageos-sdk/agent-app/widget/checkbox.go
  */
 export interface CheckboxWidgetConfig {
   /** 选项列表（逗号分隔） */
@@ -418,7 +418,7 @@ export interface CheckboxWidgetConfig {
 
 /**
  * Radio Widget 配置
- * 对应后端：sdk/agent-app/widget/radio.go
+ * 对应后端：kageos-sdk/agent-app/widget/radio.go
  */
 export interface RadioWidgetConfig {
   /** 选项列表（逗号分隔） */
@@ -431,7 +431,7 @@ export interface RadioWidgetConfig {
 
 /**
  * User Widget 配置
- * 对应后端：sdk/agent-app/widget/user.go
+ * 对应后端：kageos-sdk/agent-app/widget/user.go
  * 
  * 功能：
  * - 支持用户搜索和选择
@@ -453,7 +453,7 @@ export interface UserWidgetConfig {
 
 /**
  * Users Widget 配置
- * 对应后端：sdk/agent-app/widget/users.go
+ * 对应后端：kageos-sdk/agent-app/widget/users.go
  * 
  * 功能：
  * - 支持多个用户搜索和选择
@@ -480,7 +480,7 @@ export interface UsersWidgetConfig {
 
 /**
  * Department Widget 配置
- * 对应后端：sdk/agent-app/widget/department.go
+ * 对应后端：kageos-sdk/agent-app/widget/department.go
  * 
  * 功能：
  * - 支持组织架构搜索和选择
@@ -498,7 +498,7 @@ export interface DepartmentWidgetConfig {
 
 /**
  * Departments Widget 配置
- * 对应后端：sdk/agent-app/widget/departments.go
+ * 对应后端：kageos-sdk/agent-app/widget/departments.go
  * 
  * 功能：
  * - 支持多个组织架构搜索和选择
@@ -519,7 +519,7 @@ export interface DepartmentsWidgetConfig {
 
 /**
  * Text Widget 配置
- * 对应后端：sdk/agent-app/widget/text.go
+ * 对应后端：kageos-sdk/agent-app/widget/text.go
  * 
  * 注意：Text 组件一般用于输出参数中，支持格式化显示
  */
@@ -533,7 +533,7 @@ export interface TextWidgetConfig {
 
 /**
  * ID Widget 配置
- * 对应后端：sdk/agent-app/widget/id.go
+ * 对应后端：kageos-sdk/agent-app/widget/id.go
  * 
  * 注意：ID 组件用于显示 ID 字段，通常不需要配置
  */
@@ -543,7 +543,7 @@ export interface IDWidgetConfig {
 
 /**
  * Table Widget 配置
- * 对应后端：sdk/agent-app/widget/table.go
+ * 对应后端：kageos-sdk/agent-app/widget/table.go
  * 
  * 注意：Table 是容器组件，用于嵌套字段，通常不需要配置
  */
@@ -553,7 +553,7 @@ export interface TableWidgetConfig {
 
 /**
  * Form Widget 配置
- * 对应后端：sdk/agent-app/widget/form.go
+ * 对应后端：kageos-sdk/agent-app/widget/form.go
  * 
  * 注意：Form 是容器组件，用于嵌套字段，通常不需要配置
  */

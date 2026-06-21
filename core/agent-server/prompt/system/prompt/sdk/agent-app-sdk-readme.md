@@ -170,7 +170,7 @@ packageContext.POST("meeting_room_notify_soon.form", NotifySoon, &app.FormTempla
 
 1. **定义请求结构体**：筛选条件加 `widget` 标签。
 2. **写统计函数**：`ctx.ShouldBind(&req)` → 查库聚合 → 构造具体图表类型（只填 Title、XAxis、Series、Metadata，**响应体里的 ChartType 和 Series[].Type 由 `resp.Chart(...)` 注入，业务无需填**）→ `return resp.Chart(chart).Build()`。
-3. **配置 ChartTemplate**：`BaseConfig`（Name、Request、Response 填**与返回值一致的具体类型**，如 `Response: &chart.LineChart{}`）+ `ChartType`（必须填 `app.ChartTypeLine` / `app.ChartTypeBar` / `app.ChartTypePie` / `app.ChartTypeGauge`，不要写死字符串）。图表类型请使用 **`sdk/agent-app/chart`** 包（`chart.LineChart`、`chart.BarChart` 等），勿使用 `types` 包下的图表类型。
+3. **配置 ChartTemplate**：`BaseConfig`（Name、Request、Response 填**与返回值一致的具体类型**，如 `Response: &chart.LineChart{}`）+ `ChartType`（必须填 `app.ChartTypeLine` / `app.ChartTypeBar` / `app.ChartTypePie` / `app.ChartTypeGauge`，不要写死字符串）。图表类型请使用 **`kageos-sdk/agent-app/chart`** 包（`chart.LineChart`、`chart.BarChart` 等），勿使用 `types` 包下的图表类型。
 4. **注册**：`init()` 中 `packageContext.GET("路由名", ChartHandler, ChartTemplate)`。
 
 **多维图表推荐模式（重要）**：
@@ -1231,9 +1231,9 @@ Chart 用于**只读的统计/图表**（BI），GET 请求。ChartTemplate、�
    - **错误**：使用 `&chart.Chart{ ChartType: "line", ... }` 或给 Series 填 `Type: "line"`（chart 包无通用 Chart 结构体，只用具体类型）。
    - **正确**：使用具体类型 `&chart.LineChart{}`、`&chart.BarChart{}` 等，只填 Title、XAxis、Series（Name、Data、可选 Config），不填 ChartType 和 Series[].Type；框架会在 `resp.Chart()` 时自动注入。
 
-3. **误用 sdk/agent-app 下的 query 包**  
+3. **误用 kageos-sdk/agent-app 下的 query 包**
    - **错误**：`import "github.com/kageos/kageos-sdk/agent-app/query"`，导致编译报错「包找不到」。
-   - **正确**：查询/分页等应使用 `github.com/kageos/kageos-sdk/pkg/gormx/query`（或项目内实际提供的 query 包），不要使用 `sdk/agent-app/query`。
+   - **正确**：查询/分页等应使用 `github.com/kageos/kageos-sdk/pkg/gormx/query`（或项目内实际提供的 query 包），不要使用 `kageos-sdk/agent-app/query`。
 
 4. **不确定时先看案例**  
    - 图表个数、路由拆分、返回格式，以收银台案例为准：`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`，看每个图表是如何「一个 GET 路由 + 一个具体图表类型返回值」实现的。

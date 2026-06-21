@@ -3,9 +3,9 @@ package notion
 import (
 	"net/http"
 
-	"github.com/kageos/kageos/pkg/gormx/query"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/pkg/gormx/query"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
 )
 
 type NotionSearchReq struct {

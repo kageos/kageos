@@ -26,7 +26,7 @@ The project is currently licensed under the Business Source License 1.1. It is n
 | `core/hr-server` | Login, user, and basic organization data |
 | `core/timer-scheduler` | Shared schedule state, execution records, leases, and timer workers |
 | `core/message-server` | Station inbox, message threads, unread state, and notification command consumer |
-| `sdk/agent-app` | Go SDK used by generated applications |
+| `github.com/kageos/kageos-sdk/agent-app` | Go SDK module used by generated applications |
 | `pkg/scheduledsdk` | Timer HTTP/NATS client and executor contract shared by scheduler and workers |
 | `pkg/subjects` | NATS subject constants shared across services |
 | `web` | Vue 3 frontend |

@@ -44,6 +44,49 @@ func TestValidateAppGoSourceRejectsSQLiteDriverImports(t *testing.T) {
 	}
 }
 
+func TestValidateAppGoSourceRejectsMainRepoImports(t *testing.T) {
+	tests := []string{
+		`"github.com/kageos/kageos/sdk/agent-app/app"`,
+		`"github.com/kageos/kageos/pkg/logger"`,
+		`"github.com/kageos/kageos/pkg/gormx/query"`,
+		`"github.com/kageos/kageos/dto"`,
+		`"github.com/kageos/kageos/core/app-server/model"`,
+	}
+
+	for _, importLine := range tests {
+		t.Run(importLine, func(t *testing.T) {
+			source := "package demo\n\nimport " + importLine + "\n"
+			err := ValidateAppGoSource("bad_import.go", source)
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+			if !strings.Contains(err.Error(), "应用代码只能依赖 github.com/kageos/kageos-sdk") {
+				t.Fatalf("expected SDK boundary hint in %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateAppGoSourceAllowsKageOSSDKImports(t *testing.T) {
+	source := `package demo
+
+import (
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/pkg/gormx/query"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+)
+
+func handler(ctx *app.Context) error {
+	_ = query.PageSortReq{}
+	logger.Infof(ctx.Context, "ok")
+	return nil
+}
+`
+	if err := ValidateAppGoSource("good_import.go", source); err != nil {
+		t.Fatalf("ValidateAppGoSource() error = %v", err)
+	}
+}
+
 func TestValidateAppGoSourceRejectsSQLRegister(t *testing.T) {
 	source := `package demo
 
@@ -68,7 +111,7 @@ func TestValidateAppGoSourceAllowsLocalGORMUsage(t *testing.T) {
 import (
 	"time"
 
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 	"gorm.io/gorm"
 )
 
@@ -109,7 +152,7 @@ func TestValidateAppGoSourceAllowsAppDBPassedToExternalPackage(t *testing.T) {
 	source := `package demo
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 	third "github.com/acme/blackbox"
 )
 
@@ -127,7 +170,7 @@ func TestValidateAppGoSourceAllowsDirectGetGormDBPassedToExternalPackage(t *test
 	source := `package demo
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 	third "github.com/acme/blackbox"
 )
 
@@ -144,7 +187,7 @@ func TestValidateAppGoSourceAllowsAppDBWrappedAsAnyPassedToExternalPackage(t *te
 	source := `package demo
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 	third "github.com/acme/blackbox"
 )
 
@@ -171,7 +214,7 @@ func TestValidateAppGoSourceAllowsAppDBMethods(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			source := `package demo
 
-import "github.com/kageos/kageos/sdk/agent-app/app"
+import "github.com/kageos/kageos-sdk/agent-app/app"
 
 type Ticket struct{}
 
@@ -189,7 +232,7 @@ func handler(ctx *app.Context) error {
 func TestValidateAppGoSourceAllowsReadOnlyRawAppDBQuery(t *testing.T) {
 	source := `package demo
 
-import "github.com/kageos/kageos/sdk/agent-app/app"
+import "github.com/kageos/kageos-sdk/agent-app/app"
 
 const ticketStatsSQL = ` + "`" + `
 WITH stats AS (
@@ -230,7 +273,7 @@ func TestValidateAppGoSourceAllowsRawAppDBQueryForms(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			source := `package demo
 
-import "github.com/kageos/kageos/sdk/agent-app/app"
+import "github.com/kageos/kageos-sdk/agent-app/app"
 
 func handler(ctx *app.Context, orderBy string) error {
 	` + body + `
@@ -257,7 +300,7 @@ func TestValidateAppGoSourceAllowsAppDBStoredOrReturned(t *testing.T) {
 			source := `package demo
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 	"gorm.io/gorm"
 )
 

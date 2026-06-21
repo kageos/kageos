@@ -3,8 +3,8 @@ package wecom_group_robot
 import (
 	"testing"
 
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/widget"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/widget"
 )
 
 func TestWeComGroupRobotTemplatesDecodeSchema(t *testing.T) {

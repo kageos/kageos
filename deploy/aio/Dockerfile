@@ -86,10 +86,6 @@ WORKDIR /app
 
 COPY --from=gobuilder /out/core-server /app/core-server
 COPY --from=gobuilder /src/go.mod /src/go.sum /app/
-COPY --from=gobuilder /src/sdk/ /app/sdk/
-COPY --from=gobuilder /src/pkg/ /app/pkg/
-COPY --from=gobuilder /src/dto/ /app/dto/
-COPY --from=gobuilder /src/core/ /app/core/
 COPY --from=gobuilder /src/deploy/aio/namespace-seed/ /app/namespace/
 COPY --from=gobuilder /go/pkg/mod /go/pkg/mod
 

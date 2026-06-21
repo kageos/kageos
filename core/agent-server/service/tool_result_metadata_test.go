@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/kageos/kageos/sdk/agent-app/widget"
+	"github.com/kageos/kageos-sdk/agent-app/widget"
 )
 
 func TestMetadataForDisplayFileFields(t *testing.T) {

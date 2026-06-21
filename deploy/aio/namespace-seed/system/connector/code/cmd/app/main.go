@@ -8,7 +8,7 @@ import (
 	_ "github.com/kageos/kageos/namespace/system/connector/code/api/notion"
 	_ "github.com/kageos/kageos/namespace/system/connector/code/api/wecom"
 	_ "github.com/kageos/kageos/namespace/system/connector/code/api/wecom/wecom_group_robot"
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 )
 
 func main() {

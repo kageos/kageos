@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Image version, for example 0.1.0. A leading v is accepted."
+        description: "Image version, for example 0.2.0. A leading v is accepted."
         required: true
-        default: "0.1.0"
+        default: "0.2.0"
       push_latest:
         description: "Also update qiayanai/kagebase:latest"
         required: true
@@ -46,7 +46,7 @@ jobs:
           fi
 
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
-            echo "version must look like 0.1.0, got: $version" >&2
+            echo "version must look like 0.2.0, got: $version" >&2
             exit 1
           fi
 

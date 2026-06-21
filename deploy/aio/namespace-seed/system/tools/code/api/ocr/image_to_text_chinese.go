@@ -4,8 +4,8 @@
 package ocr
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
 )
 
 // ImageToTextChineseReq 识别图片中的中文请求（无语言参数，固定 chi_sim）

@@ -270,7 +270,7 @@ print(json.encode(data))
 **推荐使用 SDK 封装**：
 
 ```go
-import "github.com/kageos/kageos/sdk/agent-app/runtime/python"
+import "github.com/kageos/kageos-sdk/agent-app/runtime/python"
 
 // 执行 Python 代码并自动解析 JSON 输出
 code := `

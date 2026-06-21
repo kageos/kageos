@@ -1,6 +1,6 @@
 /**
  * Chart 相关类型定义
- * 与后端图表接口返回结构对齐（后端使用 sdk/agent-app/chart 包 chart.LineChart/BarChart/PieChart/GaugeChart，序列化后结构一致）
+ * 与后端图表接口返回结构对齐（后端使用 kageos-sdk/agent-app/chart 包 chart.LineChart/BarChart/PieChart/GaugeChart，序列化后结构一致）
  */
 
 /**

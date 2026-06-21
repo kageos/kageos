@@ -41,7 +41,7 @@ func TestAppendGoFileDiagnosticsSkipsNonGoFile(t *testing.T) {
 func TestAppendGoFileDiagnosticsDoesNotRunCrossFileOnSelectFuzzyCheck(t *testing.T) {
 	msg := appendGoFileDiagnostics("已落盘: nps_record_list.go。", "/u/app/nps", "nps_record_list.go", `package nps
 
-import "github.com/kageos/kageos/sdk/agent-app/app"
+import "github.com/kageos/kageos-sdk/agent-app/app"
 
 var T = &app.TableTemplate{
 	BaseConfig: app.BaseConfig{
@@ -59,7 +59,7 @@ var T = &app.TableTemplate{
 func TestAppendGoFileDiagnosticsWarnsImportShim(t *testing.T) {
 	msg := appendGoFileDiagnostics("已落盘: nps_types.go。", "/u/app/nps", "nps_types.go", `package nps
 
-import "github.com/kageos/kageos/sdk/agent-app/types"
+import "github.com/kageos/kageos-sdk/agent-app/types"
 
 // 此文件用于导出 types 包，供其他文件使用
 var _ = types.Time{}
@@ -74,11 +74,11 @@ var _ = types.Time{}
 func TestAppendGoFileDiagnosticsWarnsRootAgentAppImport(t *testing.T) {
 	msg := appendGoFileDiagnostics("已落盘: nps_distribution.go。", "/u/app/nps", "nps_distribution.go", `package nps
 
-import agentapp "github.com/kageos/kageos/sdk/agent-app"
+import agentapp "github.com/kageos/kageos-sdk/agent-app"
 
 var _ = agentapp.ChartTypePie
 `)
-	for _, want := range []string{"sdk_import", "不要导入 sdk/agent-app 根包"} {
+	for _, want := range []string{"sdk_import", "不要导入 kageos-sdk/agent-app 根包"} {
 		if !strings.Contains(msg, want) {
 			t.Fatalf("expected %q in %q", want, msg)
 		}

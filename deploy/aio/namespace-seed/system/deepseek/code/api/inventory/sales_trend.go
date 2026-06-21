@@ -3,9 +3,9 @@ package inventory
 import (
 	"fmt"
 
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/chart"
-	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/chart"
+	"github.com/kageos/kageos-sdk/agent-app/response"
 )
 
 // SalesTrendReq 销售趋势查询请求

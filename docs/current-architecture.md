@@ -66,7 +66,7 @@ flowchart TB
         appV2["user app version container v2"]
         startScript["/start.sh reads APP_VERSION current_app"]
         appBinary["versioned Go binary"]
-        sdkRuntime["sdk/agent-app NATS runtime"]
+        sdkRuntime["kageos-sdk/agent-app NATS runtime"]
         sdkRoutes["registered Form Table Chart Callback routes"]
         appLocalData["app workplace data logs uploads outputs"]
       end
@@ -628,7 +628,7 @@ flowchart LR
 | `app-server` | 工作区 API、Service Tree、能力包安装导出、权限、操作日志、函数元数据、用户 App 调用编排 |
 | `agent-server` | 工作台会话、会话消息、LLM 配置、ToolRegistry、PRD/代码生成、通知工具和定时会话 worker |
 | `app-runtime` | App 创建/更新/删除、源码文件和版本元数据、容器生命周期、NATS runtime handler、App discovery |
-| `sdk/agent-app` | 生成 App 的运行时 SDK，注册 Form/Table/Chart/Callback 路由并通过 NATS 接收调用 |
+| `github.com/kageos/kageos-sdk/agent-app` | 生成 App 的运行时 SDK，注册 Form/Table/Chart/Callback 路由并通过 NATS 接收调用 |
 | `timer-scheduler` | 唯一调度状态源，业务 payload 不解析，只按 executor_key 投递 |
 | `message-server` | 站内信持久化、线程、已读状态、source/workspace 统计和 `message.v1.cmd.send` 消费 |
 | `app-storage` | MinIO 预签名上传下载、文件元数据和公开分享文件解析 |
@@ -652,5 +652,5 @@ flowchart LR
 - `core/timer-scheduler/server/*.go`
 - `pkg/subjects/README.md`
 - `pkg/scheduledsdk/worker.go`
-- `sdk/agent-app/app/*.go`
+- `github.com/kageos/kageos-sdk/agent-app/app`
 - `web/vite.config.ts`

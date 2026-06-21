@@ -1,6 +1,6 @@
 /**
  * Widget 类型常量
- * 🔥 与后端 sdk/agent-app/widget/widget.go 中的常量对齐
+ * 🔥 与后端 kageos-sdk/agent-app/widget/widget.go 中的常量对齐
  */
 
 // Widget 类型常量（与后端 Type* 常量对齐）
@@ -35,7 +35,7 @@ export const WidgetType = {
 
 /**
  * 数据类型常量
- * 🔥 与后端 sdk/agent-app/widget/widget.go 中的 DataType* 常量对齐
+ * 🔥 与后端 kageos-sdk/agent-app/widget/widget.go 中的 DataType* 常量对齐
  */
 export const DataType = {
   STRING: 'string',

@@ -19,7 +19,7 @@ import (
 	"github.com/kageos/kageos/pkg/functionschema"
 	"github.com/kageos/kageos/pkg/ginx/response"
 	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/widget"
+	"github.com/kageos/kageos-sdk/agent-app/widget"
 	"github.com/xuri/excelize/v2"
 )
 

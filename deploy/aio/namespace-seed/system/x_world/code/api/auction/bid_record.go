@@ -3,10 +3,10 @@ package auction
 import (
 	"fmt"
 
-	"github.com/kageos/kageos/pkg/gormx/query"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	"github.com/kageos/kageos/sdk/agent-app/types"
+	"github.com/kageos/kageos-sdk/pkg/gormx/query"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/types"
 )
 
 // ================ 竞价记录查询 ================

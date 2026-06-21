@@ -1,9 +1,9 @@
 package inventory
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/chart"
-	"github.com/kageos/kageos/sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/chart"
+	"github.com/kageos/kageos-sdk/agent-app/response"
 )
 
 // InventoryDistReq 库存分布查询请求

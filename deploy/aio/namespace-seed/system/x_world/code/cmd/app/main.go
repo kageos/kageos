@@ -8,7 +8,7 @@ import (
 	_ "github.com/kageos/kageos/namespace/system/x_world/code/api/ticket_management"
 	_ "github.com/kageos/kageos/namespace/system/x_world/code/api/vote"
 	_ "github.com/kageos/kageos/namespace/system/x_world/code/api/werewolf"
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 )
 
 func main() {

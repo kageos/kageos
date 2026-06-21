@@ -9,7 +9,7 @@ import (
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/core/app-server/repository"
 	"github.com/kageos/kageos/pkg/functionschema"
-	"github.com/kageos/kageos/sdk/agent-app/widget"
+	"github.com/kageos/kageos-sdk/agent-app/widget"
 )
 
 const (

@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check sensitive file boundaries
         run: bash scripts/check-sensitive-files.sh
+      - name: Check SDK import boundaries
+        run: bash scripts/check-sdk-boundaries.sh
       - name: Check markdown links
         run: bash scripts/check-doc-links.sh
 

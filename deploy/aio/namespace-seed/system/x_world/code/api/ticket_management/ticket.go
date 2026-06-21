@@ -3,12 +3,12 @@ package ticket_management
 import (
 	"time"
 
-	"github.com/kageos/kageos/pkg/gormx/query"
-	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos/sdk/agent-app/app"
-	"github.com/kageos/kageos/sdk/agent-app/callback"
-	"github.com/kageos/kageos/sdk/agent-app/response"
-	"github.com/kageos/kageos/sdk/agent-app/types"
+	"github.com/kageos/kageos-sdk/pkg/gormx/query"
+	"github.com/kageos/kageos-sdk/pkg/logger"
+	"github.com/kageos/kageos-sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/callback"
+	"github.com/kageos/kageos-sdk/agent-app/response"
+	"github.com/kageos/kageos-sdk/agent-app/types"
 	"gorm.io/gorm"
 )
 

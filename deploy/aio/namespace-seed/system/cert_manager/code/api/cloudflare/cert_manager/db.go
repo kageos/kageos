@@ -3,7 +3,7 @@ package cert_manager
 import (
 	"fmt"
 
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 	"gorm.io/gorm"
 )
 

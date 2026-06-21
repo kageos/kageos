@@ -370,11 +370,7 @@ func (s *AppManageService) ensureAppGoModFile(appPaths runtimeAppPaths) error {
 go 1.25.0
 
 require %s %s
-
-// Keep legacy github.com/kageos/kageos imports buildable while existing
-// workspace source is migrated to github.com/kageos/kageos-sdk.
-replace %s => ../../..
-`, appPaths.AppModulePath(), sdkmodule.ModulePath, sdkmodule.Version, sdkmodule.LegacyModulePath)
+`, appPaths.AppModulePath(), sdkmodule.ModulePath, sdkmodule.Version)
 
 	return writeFileAtomic(goModPath, []byte(content), 0644)
 }

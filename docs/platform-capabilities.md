@@ -20,7 +20,7 @@
 | 工作台会话 | `agent-server` | 持久化 AI 工作台 session/message，支持 SSE 对话、工具调用、阶段交接、运行中/已结束任务查询和取消。 |
 | 消息/站内信 | `message-server` | 消费消息命令，落库收件箱、线程、已读状态、节点统计和工作空间统计。 |
 | 定时任务 | `timer-scheduler` | 统一保存调度状态、执行记录、租约、超时恢复和 outbox 投递。 |
-| 应用运行时 | `app-server` + `app-runtime` + `sdk/agent-app` | 调用 Form/Table/Chart/Callback，启动用户 App 版本容器，并把操作日志、trace、source 信息带回平台。 |
+| 应用运行时 | `app-server` + `app-runtime` + `kageos-sdk/agent-app` | 调用 Form/Table/Chart/Callback，启动用户 App 版本容器，并把操作日志、trace、source 信息带回平台。 |
 
 ## 工作台会话
 

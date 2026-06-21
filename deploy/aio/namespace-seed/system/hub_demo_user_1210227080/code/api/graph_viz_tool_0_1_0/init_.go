@@ -1,7 +1,7 @@
 package graph_viz_tool_0_1_0
 
 import (
-	"github.com/kageos/kageos/sdk/agent-app/app"
+	"github.com/kageos/kageos-sdk/agent-app/app"
 )
 
 var packageContext = &app.PackageContext{
