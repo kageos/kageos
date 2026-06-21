@@ -130,6 +130,16 @@ maybe_recreate_container() {
   fi
 }
 
+ensure_container_running() {
+  local name="$1"
+  local label="$2"
+  if ! podman_container_running "$name"; then
+    echo "ERROR: ${label} 容器未运行，可能是端口被占用或镜像启动失败: ${name}" >&2
+    podman logs --tail 120 "$name" >&2 || true
+    exit 1
+  fi
+}
+
 start_mysql() {
   maybe_recreate_container "$MYSQL_CONTAINER_NAME"
   if podman_container_running "$MYSQL_CONTAINER_NAME"; then
@@ -154,6 +164,7 @@ start_mysql() {
 
   wait_tcp "$MYSQL_HOST" "$MYSQL_PORT" "MySQL"
   for i in $(seq 1 90); do
+    ensure_container_running "$MYSQL_CONTAINER_NAME" "MySQL"
     if podman exec "$MYSQL_CONTAINER_NAME" mysql --protocol=TCP -h "$MYSQL_HOST" -P "$MYSQL_PORT" -uroot -p"$MYSQL_ROOT_PASSWORD" -e 'SELECT 1' >/dev/null 2>&1; then
       echo "==> MySQL root 登录就绪"
       podman exec -i "$MYSQL_CONTAINER_NAME" mysql --protocol=TCP -h "$MYSQL_HOST" -P "$MYSQL_PORT" -uroot -p"$MYSQL_ROOT_PASSWORD" < "${AIO_INFRA_DIR}/mysql-init.sql"
@@ -185,6 +196,7 @@ start_nats() {
   fi
 
   wait_tcp "$NATS_HOST" "$NATS_PORT" "NATS"
+  ensure_container_running "$NATS_CONTAINER_NAME" "NATS"
 }
 
 start_minio() {
@@ -208,6 +220,7 @@ start_minio() {
   fi
 
   wait_tcp "$MINIO_HOST" "$MINIO_PORT" "MinIO"
+  ensure_container_running "$MINIO_CONTAINER_NAME" "MinIO"
   wait_http "http://${MINIO_HOST}:${MINIO_PORT}/minio/health/ready" "MinIO health"
 }
 
