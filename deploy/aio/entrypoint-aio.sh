@@ -152,15 +152,16 @@ start_mysql() {
 
   wait_tcp "127.0.0.1" "3306" "MySQL"
   for i in $(seq 1 90); do
-    if podman exec "$MYSQL_CONTAINER_NAME" mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent >/dev/null 2>&1; then
+    if podman exec "$MYSQL_CONTAINER_NAME" mysql --protocol=TCP -h 127.0.0.1 -P 3306 -uroot -p"$MYSQL_ROOT_PASSWORD" -e 'SELECT 1' >/dev/null 2>&1; then
       echo "==> MySQL root 登录就绪"
-      podman exec -i "$MYSQL_CONTAINER_NAME" mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < "${AIO_INFRA_DIR}/mysql-init.sql"
+      podman exec -i "$MYSQL_CONTAINER_NAME" mysql --protocol=TCP -h 127.0.0.1 -P 3306 -uroot -p"$MYSQL_ROOT_PASSWORD" < "${AIO_INFRA_DIR}/mysql-init.sql"
       return 0
     fi
     echo "    等待 MySQL 初始化账号 ... (${i}/90)"
     sleep 2
   done
   echo "ERROR: MySQL 已监听但 root 登录未就绪" >&2
+  podman logs --tail 120 "$MYSQL_CONTAINER_NAME" >&2 || true
   exit 1
 }
 
