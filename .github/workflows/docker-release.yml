@@ -95,6 +95,37 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Sync image to Aliyun ACR
+        shell: bash
+        env:
+          ALIYUN_REGISTRY: ${{ vars.ALIYUN_REGISTRY }}
+          ALIYUN_NAMESPACE: ${{ vars.ALIYUN_NAMESPACE }}
+          ALIYUN_REGISTRY_USERNAME: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
+          ALIYUN_REGISTRY_PASSWORD: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${ALIYUN_REGISTRY:-}" || -z "${ALIYUN_NAMESPACE:-}" || -z "${ALIYUN_REGISTRY_USERNAME:-}" || -z "${ALIYUN_REGISTRY_PASSWORD:-}" ]]; then
+            echo "Aliyun registry is not configured; skipping image sync."
+            exit 0
+          fi
+
+          if ! command -v skopeo >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y skopeo
+          fi
+
+          version="${{ steps.release.outputs.version }}"
+          push_latest="${{ steps.release.outputs.push_latest }}"
+          source_image="${IMAGE_NAME}:${version}"
+          target_image="${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/kageos"
+
+          printf '%s' "$ALIYUN_REGISTRY_PASSWORD" | skopeo login --username "$ALIYUN_REGISTRY_USERNAME" --password-stdin "$ALIYUN_REGISTRY"
+          skopeo copy --all "docker://${source_image}" "docker://${target_image}:${version}"
+          if [[ "$push_latest" == "true" ]]; then
+            skopeo copy --all "docker://${source_image}" "docker://${target_image}:latest"
+          fi
+
       - name: Build release archives
         shell: bash
         env:

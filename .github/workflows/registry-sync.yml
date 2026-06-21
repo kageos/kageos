@@ -1,0 +1,98 @@
+name: Registry Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Image version to sync, for example 0.2.0. A leading v is accepted."
+        required: true
+        default: "0.2.0"
+      push_latest:
+        description: "Also update latest tags in the target registry."
+        required: true
+        type: boolean
+        default: true
+      sync_kageos:
+        description: "Sync qiayanai/kageos."
+        required: true
+        type: boolean
+        default: true
+      sync_kagebase:
+        description: "Sync qiayanai/kagebase."
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync published images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${{ inputs.version }}"
+          version="${version#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+            echo "version must look like 0.2.0, got: $version" >&2
+            exit 1
+          fi
+
+          {
+            echo "version=${version}"
+            echo "push_latest=${{ inputs.push_latest }}"
+            echo "sync_kageos=${{ inputs.sync_kageos }}"
+            echo "sync_kagebase=${{ inputs.sync_kagebase }}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install skopeo
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+      - name: Sync images to Aliyun ACR
+        shell: bash
+        env:
+          ALIYUN_REGISTRY: ${{ vars.ALIYUN_REGISTRY }}
+          ALIYUN_NAMESPACE: ${{ vars.ALIYUN_NAMESPACE }}
+          ALIYUN_REGISTRY_USERNAME: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
+          ALIYUN_REGISTRY_PASSWORD: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${ALIYUN_REGISTRY:-}" || -z "${ALIYUN_NAMESPACE:-}" || -z "${ALIYUN_REGISTRY_USERNAME:-}" || -z "${ALIYUN_REGISTRY_PASSWORD:-}" ]]; then
+            echo "Aliyun registry is not configured; skipping."
+            exit 0
+          fi
+
+          version="${{ steps.release.outputs.version }}"
+          push_latest="${{ steps.release.outputs.push_latest }}"
+
+          printf '%s' "$ALIYUN_REGISTRY_PASSWORD" | skopeo login --username "$ALIYUN_REGISTRY_USERNAME" --password-stdin "$ALIYUN_REGISTRY"
+
+          sync_image() {
+            local image="$1"
+            local source_image="docker.io/qiayanai/${image}:${version}"
+            local target_image="${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/${image}"
+
+            echo "Syncing ${source_image} -> ${target_image}:${version}"
+            skopeo copy --all "docker://${source_image}" "docker://${target_image}:${version}"
+            if [[ "$push_latest" == "true" ]]; then
+              skopeo copy --all "docker://${source_image}" "docker://${target_image}:latest"
+            fi
+          }
+
+          if [[ "${{ steps.release.outputs.sync_kageos }}" == "true" ]]; then
+            sync_image kageos
+          fi
+          if [[ "${{ steps.release.outputs.sync_kagebase }}" == "true" ]]; then
+            sync_image kagebase
+          fi
