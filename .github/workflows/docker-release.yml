@@ -52,6 +52,7 @@ jobs:
 
           {
             echo "version=${version}"
+            echo "push_latest=${push_latest}"
             echo "tags<<EOF"
             echo "${IMAGE_NAME}:${version}"
             if [[ "$push_latest" == "true" ]]; then
@@ -93,3 +94,82 @@ jobs:
             KAGEOS_DEFAULT_APP_BASE_IMAGE=docker.io/qiayanai/kagebase:${{ steps.release.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Build release archives
+        shell: bash
+        env:
+          R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          version="${{ steps.release.outputs.version }}"
+          release_dir="dist/r2/releases/v${version}"
+          public_base="${R2_PUBLIC_BASE_URL:-https://downloads.kageos.com}"
+          mkdir -p "$release_dir"
+
+          for arch in amd64 arm64; do
+            image_ref="${IMAGE_NAME}:${version}"
+            archive="kageos-linux-${arch}.tar.gz"
+
+            docker image rm "$image_ref" >/dev/null 2>&1 || true
+            docker pull --platform "linux/${arch}" "$image_ref"
+            docker save "$image_ref" | gzip -6 > "${release_dir}/${archive}"
+            sha256sum "${release_dir}/${archive}" > "${release_dir}/${archive}.sha256"
+            docker image rm "$image_ref" >/dev/null 2>&1 || true
+          done
+
+          amd64_sha="$(awk '{print $1}' "${release_dir}/kageos-linux-amd64.tar.gz.sha256")"
+          arm64_sha="$(awk '{print $1}' "${release_dir}/kageos-linux-arm64.tar.gz.sha256")"
+          cat > "${release_dir}/manifest.json" <<EOF
+          {
+            "version": "v${version}",
+            "image": "${IMAGE_NAME}:${version}",
+            "archives": {
+              "linux/amd64": {
+                "url": "${public_base%/}/releases/v${version}/kageos-linux-amd64.tar.gz",
+                "sha256": "${amd64_sha}"
+              },
+              "linux/arm64": {
+                "url": "${public_base%/}/releases/v${version}/kageos-linux-arm64.tar.gz",
+                "sha256": "${arm64_sha}"
+              }
+            }
+          }
+          EOF
+
+      - name: Upload release archives to R2
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${R2_ACCOUNT_ID:-}" || -z "${AWS_ACCESS_KEY_ID:-}" || -z "${AWS_SECRET_ACCESS_KEY:-}" ]]; then
+            echo "R2 credentials are not configured; skipping archive upload."
+            exit 0
+          fi
+
+          version="${{ steps.release.outputs.version }}"
+          push_latest="${{ steps.release.outputs.push_latest }}"
+          release_dir="dist/r2/releases/v${version}"
+          bucket="${R2_BUCKET:-kageos-releases}"
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+          if ! command -v aws >/dev/null 2>&1; then
+            python3 -m pip install --user awscli
+            export PATH="${HOME}/.local/bin:${PATH}"
+          fi
+
+          aws --endpoint-url "$endpoint" s3 sync "$release_dir" "s3://${bucket}/releases/v${version}/" \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable"
+
+          if [[ "$push_latest" == "true" ]]; then
+            mkdir -p dist/r2/releases
+            printf 'v%s\n' "$version" > dist/r2/releases/latest.txt
+            aws --endpoint-url "$endpoint" s3 cp dist/r2/releases/latest.txt "s3://${bucket}/releases/latest.txt" \
+              --cache-control "no-cache, max-age=60"
+          fi
