@@ -1,10 +1,10 @@
 # Kageos All-in-One Image
 
-`deploy/aio` 是本地体验/单机演示镜像。外部只需要运行一个容器，容器内部会用 Podman 拉起 MySQL、NATS、MinIO，并启动 Kageos 主服务。
+`deploy/aio` 是单容器部署镜像。外部只运行一个 Kageos 容器，容器内部会用 Podman 拉起 MySQL、NATS、MinIO，并启动 Kageos 主服务。
 
 用户应用运行时依赖单独发布为 `qiayanai/kagebase`。AIO 首次启动时会优先拉取匹配版本的 `kagebase`；如果拉取失败，会 fallback 到本地构建。
 
-> 这个镜像用于 Ubuntu VM、本地试用和演示，不建议作为正式生产部署入口。生产环境优先使用 `install.sh` / `kagectl` / Compose。
+> AIO 必须使用 Docker/Podman 的 bridge/slirp 网络，通过 `-p` 映射入口端口。不要使用 `--network host`，否则容器内部的 `9093`、`13306`、`14222`、`19000` 等监听会直接占用宿主机端口。
 
 ## Build
 
@@ -47,6 +47,8 @@ docker run -d \
   -e CANONICAL_BASE_URL=http://localhost:8080 \
   qiayanai/kageos:latest
 ```
+
+不要加 `--network host`。AIO 镜像启动时会默认检查外层网络是否隔离；检测到疑似 host 网络会直接退出，避免内部服务污染宿主机端口。
 
 Ubuntu VM 里如果希望局域网其他机器访问，把 `CANONICAL_BASE_URL` 改成 VM 的 IP：
 
@@ -109,6 +111,29 @@ podman run -d \
   -e CANONICAL_BASE_URL=http://localhost:8080 \
   qiayanai/kageos:latest
 ```
+
+同样不要使用 `--network host`。如果需要宿主机 80/443 端口，使用 `-p 80:80` / `-p 443:443`。
+
+## Network Model
+
+AIO 有两层网络：
+
+- 外层 Docker/Podman 容器必须是 bridge/slirp 网络，宿主机只通过 `-p` 暴露入口端口。
+- 内层 Podman 容器共享外层 Kageos 容器的网络命名空间，所以 MySQL/NATS/MinIO/用户 App 可以用 `127.0.0.1` 互通。
+
+这意味着官方部署方式是：
+
+```bash
+docker run ... -p 8080:80 qiayanai/kageos:latest
+```
+
+而不是：
+
+```bash
+docker run ... --network host qiayanai/kageos:latest
+```
+
+如果误用 host 网络，`app-runtime` 的 `127.0.0.1:9093` 会变成宿主机的 `127.0.0.1:9093`，同一台机器上再次启动或残留旧进程时就会出现端口冲突。
 
 ## Push To Docker Hub
 
@@ -225,7 +250,9 @@ docker volume rm kageos-data
 | --- | --- | --- |
 | `CANONICAL_BASE_URL` | `http://localhost:8080` | Browser-facing site URL. Set this to the Ubuntu VM IP when testing over LAN. |
 | `KAGEOS_AIO_DATA_DIR` | `/var/lib/kageos` | Persistent data root inside the container. |
-| `KAGEOS_AIO_RECREATE_INFRA` | `0` | Set to `1` to recreate inner MySQL/NATS/MinIO containers on next boot. |
+| `KAGEOS_AIO_RECREATE_INFRA` | `1` | Recreate inner MySQL/NATS/MinIO containers on each boot while keeping persisted data. Set to `0` to reuse existing inner containers. |
+| `KAGEOS_AIO_REQUIRE_BRIDGE` | `1` | Refuse to start when the outer container does not look like bridge/slirp networking. |
+| `KAGEOS_AIO_ALLOW_HOST_NETWORK` | `0` | Emergency override for the network guard. Setting it to `1` allows host networking but may expose internal ports on the host. |
 | `KAGEOS_AIO_MYSQL_IMAGE` | `docker.io/library/mysql:8.0` | Inner MySQL image. |
 | `KAGEOS_AIO_NATS_IMAGE` | `docker.io/library/nats:2.10-alpine` | Inner NATS image. |
 | `KAGEOS_AIO_MINIO_IMAGE` | `docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` | Inner MinIO image. |

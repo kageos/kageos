@@ -242,7 +242,7 @@ echo "==> 生成 Nginx（${NGINX_MODE_DESC}，www → 裸域 301）canonical_hos
 envsubst '${CANONICAL_HOST} ${CANONICAL_SERVER_NAME} ${CANONICAL_SCHEME} ${HTTP_PORT} ${HTTPS_PORT} ${TLS_CERT_FILE} ${TLS_KEY_FILE}' < "${NGINX_TEMPLATE}" > /etc/nginx/sites-enabled/default
 nginx -t
 
-echo "==> 启动 Nginx（host 网络直接监听 ${NGINX_MODE_DESC}）..."
+echo "==> 启动 Nginx（监听 ${NGINX_MODE_DESC}）..."
 nginx
 
 # Podman 需要明确的 runroot/graphroot（见 /etc/containers/storage.conf）；/run 每次启动需重建

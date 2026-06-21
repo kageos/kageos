@@ -11,6 +11,8 @@ MYSQL_CONTAINER_NAME="${KAGEOS_AIO_MYSQL_CONTAINER_NAME:-kageos-mysql}"
 NATS_CONTAINER_NAME="${KAGEOS_AIO_NATS_CONTAINER_NAME:-kageos-nats}"
 MINIO_CONTAINER_NAME="${KAGEOS_AIO_MINIO_CONTAINER_NAME:-kageos-minio}"
 KAGEOS_AIO_RECREATE_INFRA="${KAGEOS_AIO_RECREATE_INFRA:-1}"
+KAGEOS_AIO_REQUIRE_BRIDGE="${KAGEOS_AIO_REQUIRE_BRIDGE:-1}"
+KAGEOS_AIO_ALLOW_HOST_NETWORK="${KAGEOS_AIO_ALLOW_HOST_NETWORK:-0}"
 
 MYSQL_IMAGE="${KAGEOS_AIO_MYSQL_IMAGE:-docker.io/library/mysql:8.0}"
 NATS_IMAGE="${KAGEOS_AIO_NATS_IMAGE:-docker.io/library/nats:2.10-alpine}"
@@ -115,6 +117,62 @@ ensure_podman() {
     cat /tmp/kageos-aio-podman-info.log >&2 || true
     exit 1
   fi
+}
+
+outer_network_looks_isolated() {
+  local ifindex=""
+  local iflink=""
+
+  if [[ -r /sys/class/net/eth0/ifindex && -r /sys/class/net/eth0/iflink ]]; then
+    ifindex="$(cat /sys/class/net/eth0/ifindex 2>/dev/null || true)"
+    iflink="$(cat /sys/class/net/eth0/iflink 2>/dev/null || true)"
+  fi
+
+  # Docker/Podman bridge and slirp-style container networking usually expose
+  # eth0 as a veth endpoint where iflink differs from ifindex. Host networking
+  # normally exposes the host NIC directly, or no container eth0 at all.
+  [[ -n "$ifindex" && -n "$iflink" && "$ifindex" != "$iflink" ]]
+}
+
+assert_outer_network_supported() {
+  if [[ "$KAGEOS_AIO_ALLOW_HOST_NETWORK" == "1" || "$KAGEOS_AIO_ALLOW_HOST_NETWORK" == "true" ]]; then
+    echo "WARN: KAGEOS_AIO_ALLOW_HOST_NETWORK=1，跳过 AIO 外层网络隔离检查；内部端口可能暴露到宿主机。"
+    return 0
+  fi
+  if [[ "$KAGEOS_AIO_REQUIRE_BRIDGE" == "0" || "$KAGEOS_AIO_REQUIRE_BRIDGE" == "false" ]]; then
+    echo "WARN: KAGEOS_AIO_REQUIRE_BRIDGE=0，跳过 AIO 外层网络隔离检查。"
+    return 0
+  fi
+  if outer_network_looks_isolated; then
+    return 0
+  fi
+
+  cat >&2 <<'EOF'
+ERROR: Kageos AIO 不支持外层容器使用 host 网络。
+
+原因：
+  AIO 容器内部会启动 core-server、MySQL、NATS、MinIO 和用户 App 容器。
+  如果外层 docker/podman run 使用 --network host，这些内部监听端口
+  例如 9093、13306、14222、19000 会直接占用宿主机网络命名空间。
+
+请改用 bridge/slirp 容器网络，并只映射入口端口：
+  docker rm -f kageos
+  docker run -d \
+    --name kageos \
+    --privileged \
+    --restart unless-stopped \
+    -p 8080:80 \
+    -v kageos-data:/var/lib/kageos \
+    -e CANONICAL_BASE_URL=http://<host-or-ip>:8080 \
+    qiayanai/kageos:latest
+
+不要加：
+  --network host
+
+如果你非常确定要承担内部端口污染宿主机的风险，可显式设置：
+  -e KAGEOS_AIO_ALLOW_HOST_NETWORK=1
+EOF
+  exit 1
 }
 
 podman_container_running() {
@@ -286,6 +344,7 @@ main() {
   export_defaults
   prepare_secrets
   write_infra_files
+  assert_outer_network_supported
   ensure_podman
 
   start_mysql
