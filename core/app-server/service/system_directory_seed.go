@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -13,7 +12,6 @@ import (
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/logger"
-	"gorm.io/gorm"
 )
 
 const systemDirectorySeedRelDir = "core/app-server/system-seed"
@@ -164,7 +162,7 @@ func systemDirectorySeedAppCodeFromTargetPath(targetPath string) (string, error)
 	return appCode, nil
 }
 
-func systemDirectorySeedShouldInstall(serviceTreeService *ServiceTreeService, seedFile systemDirectorySeedFile, initialAppVersion string, appCreated bool) (bool, error) {
+func systemDirectorySeedShouldInstall(_ *ServiceTreeService, _ systemDirectorySeedFile, initialAppVersion string, appCreated bool) (bool, error) {
 	if appCreated {
 		return true, nil
 	}
@@ -172,32 +170,7 @@ func systemDirectorySeedShouldInstall(serviceTreeService *ServiceTreeService, se
 	if version == "" {
 		return true, nil
 	}
-	if version != "v1" {
-		return false, nil
-	}
-	hasChildren, err := systemDirectorySeedTargetHasChildren(serviceTreeService, seedFile.targetPath)
-	if err != nil {
-		return false, err
-	}
-	return !hasChildren, nil
-}
-
-func systemDirectorySeedTargetHasChildren(serviceTreeService *ServiceTreeService, targetPath string) (bool, error) {
-	if serviceTreeService == nil || serviceTreeService.capabilityBundle == nil || serviceTreeService.capabilityBundle.serviceTreeRepo == nil {
-		return false, fmt.Errorf("系统目录种子无法读取目标目录，serviceTreeService 未完整初始化")
-	}
-	tree, err := serviceTreeService.capabilityBundle.serviceTreeRepo.GetServiceTreeByFullPath(targetPath)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
-		}
-		return false, fmt.Errorf("查询系统目录种子目标目录失败: target=%s: %w", targetPath, err)
-	}
-	children, err := serviceTreeService.capabilityBundle.serviceTreeRepo.GetDirectChildrenByPath(tree.AppID, tree.FullCodePath)
-	if err != nil {
-		return false, fmt.Errorf("查询系统目录种子目标子节点失败: target=%s: %w", targetPath, err)
-	}
-	return len(children) > 0, nil
+	return version == "v1", nil
 }
 
 func systemDirectorySeedTargetPath(seedDir, filePath string) (string, error) {

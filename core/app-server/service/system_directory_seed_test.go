@@ -119,7 +119,7 @@ func TestSystemDirectorySeedAppCodeFromTargetPath(t *testing.T) {
 	}
 }
 
-func TestSystemDirectorySeedShouldInstallFreshAndEmptyV1(t *testing.T) {
+func TestSystemDirectorySeedShouldInstallUntilVersionAdvances(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -130,8 +130,7 @@ func TestSystemDirectorySeedShouldInstallFreshAndEmptyV1(t *testing.T) {
 
 	serviceTreeService := &ServiceTreeService{
 		capabilityBundle: &serviceTreeCapabilityBundleService{
-			appRepo:         repository.NewAppRepository(db),
-			serviceTreeRepo: repository.NewServiceTreeRepository(db),
+			appRepo: repository.NewAppRepository(db),
 		},
 	}
 	seedFile := systemDirectorySeedFile{appCode: "tools", targetPath: "/system/tools"}
@@ -142,6 +141,14 @@ func TestSystemDirectorySeedShouldInstallFreshAndEmptyV1(t *testing.T) {
 	}
 	if !got {
 		t.Fatal("empty initial app version should install")
+	}
+
+	got, err = systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "v1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got {
+		t.Fatal("v1 system seed should install so partial first-boot seeds can recover")
 	}
 
 	got, err = systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "v7", false)
@@ -158,40 +165,6 @@ func TestSystemDirectorySeedShouldInstallFreshAndEmptyV1(t *testing.T) {
 	}
 	if !got {
 		t.Fatal("app created in current boot should install even when CreateApp assigned v1")
-	}
-
-	if err := db.Create(&appmodel.ServiceTree{
-		AppID:        1,
-		FullCodePath: "/system/tools",
-		Type:         appmodel.ServiceTreeTypePackage,
-		Code:         "tools",
-		Name:         "官方工具",
-	}).Error; err != nil {
-		t.Fatalf("create root tree: %v", err)
-	}
-	got, err = systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "v1", false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !got {
-		t.Fatal("empty v1 system seed target should install to recover previously skipped seeds")
-	}
-
-	if err := db.Create(&appmodel.ServiceTree{
-		AppID:        1,
-		FullCodePath: "/system/tools/archive",
-		Type:         appmodel.ServiceTreeTypePackage,
-		Code:         "archive",
-		Name:         "压缩包工具",
-	}).Error; err != nil {
-		t.Fatalf("create child tree: %v", err)
-	}
-	got, err = systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "v1", false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got {
-		t.Fatal("v1 system seed target with existing children should skip")
 	}
 }
 
