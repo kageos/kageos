@@ -440,6 +440,7 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 		IncludeMinIO:            cfg.MinIO.Mode == "bundled",
 		AppBaseBuilderImage:     defaultAppBaseBuilderImage,
 		AppContainerNetworkMode: "host",
+		AppRuntimeBasePath:      "/app/namespace",
 		UseHostNetwork:          useHostNetwork,
 	}
 

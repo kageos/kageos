@@ -186,9 +186,8 @@ tail -f .kageos/prod/kagectl-up.log
 | `<storage.root>/data` | `/app/data` | 应用侧本地数据目录 |
 | `<storage.root>/logs` | `/app/logs` | 平台日志 |
 | `<storage.root>/podman_storage` | `/var/lib/containers` | 容器内 Podman 存储 |
-| `<storage.root>/go.mod`、`sdk/`、`pkg/`、`dto/`、`core/hr-server/model/` | 不挂载，宿主机源码快照 | 方便在宿主机从 `storage.root` 直接 `go build ./namespace/.../cmd/app` |
 
-源码快照由 `kagectl render/up` 从当前仓库自动刷新，是可再生内容；业务数据仍以 `mysql`、`minio`、`namespace`、`data`、`logs` 为准。备份时直接备份 `storage.root` 下对应目录。不要对该目录做未经验证的清理。
+`kagectl render/up` 只刷新 `.kageos/prod/generated/` 下的可再生配置，不再向 `storage.root` 同步主仓 `sdk/pkg/dto/core` 源码快照。用户应用源码、构建产物和运行元数据都位于 `<storage.root>/namespace`，应用构建只依赖公开的 `github.com/kageos/kageos-sdk` 包。备份时以 `mysql`、`minio`、`namespace`、`data`、`logs` 等持久目录为准，不要对这些目录做未经验证的清理。
 
 ## 文件说明
 

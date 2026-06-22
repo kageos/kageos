@@ -376,6 +376,10 @@ timeouts:
   app_startup_notification: 300
   container_cleanup: 10
 
+app_manage:
+  app_dir:
+    base_path: {{ q .AppRuntimeBasePath }}
+
 container:
   timeout: 30
 {{- if .AppContainerNetworkMode }}

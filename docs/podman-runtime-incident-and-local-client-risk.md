@@ -293,7 +293,7 @@ Linux 上仍然可能出现磁盘损坏、断电、文件系统 corruption、硬
 ```text
 .kageos/dev/data/mysql
 .kageos/dev/data/minio
-.kageos/dev/data/namespace
+.kageos/dev/namespace
 .kageos/dev/data/logs
 ```
 

@@ -125,7 +125,6 @@ bash deploy/base/scripts/build-app-base-image.sh --force --no-cache
 说明：
 
 - canonical `app-base` 是 Ubuntu 22.04，所以 ImageMagick 这里默认按 IM6 记忆：直接调用 `convert` / `identify`，不要假设有 `magick`
-- `Dockerfile.alpine` 安装的通常是 IM7；那边既可用 `magick`，也兼容 `convert`，但 canonical 文档以 Ubuntu 为准
 
 下面是常见调用示例：
 

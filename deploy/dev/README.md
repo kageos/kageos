@@ -106,6 +106,8 @@ podman compose --env-file .kageos/dev/env/kageos.env -f deploy/dev/compose/docke
 
 当前服务配置加载会读取 `.kageos/dev/config/*.yaml`。`message-server` 和 `timer-scheduler` 已经是主线平台服务，本地开发配置里应保留对应 YAML；本地基础设施仍只需要 MySQL、NATS 和 MinIO。历史备份控制面和旧控制面服务不属于当前本地开发必需项。
 
+用户应用源码、构建产物和运行元数据默认位于 `.kageos/dev/namespace/`。仓库根目录下的 `namespace/` 不是当前本地开发的 canonical 位置，只应视为旧运行数据或临时排障数据。
+
 ### 2. 单独起后端
 
 命令行启动：
@@ -174,4 +176,5 @@ npm run dev
 ## 开发配置约定
 
 - `.kageos/dev/config/` 和 `.kageos/dev/env/` 里的密钥、SMTP、系统用户密码都应视为本机私有值，不要提交。
+- `.kageos/dev/namespace/` 是本地用户应用运行目录，必要时先备份再清理。
 - 如果你本地确实要联通真实 SMTP / 其他外部服务，请改你自己的本地配置，不要把真实账号密码写回仓库。

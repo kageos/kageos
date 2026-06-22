@@ -12,5 +12,4 @@ go test \
   ./cmd/... \
   ./core/... \
   ./dto/... \
-  ./pkg/... \
-  ./scripts/sync-case-catalog/...
+  ./pkg/...

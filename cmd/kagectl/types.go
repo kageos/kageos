@@ -49,15 +49,6 @@ var (
 	}
 )
 
-var runtimeSourceSnapshotEntries = []string{
-	"go.mod",
-	"go.sum",
-	"sdk",
-	"pkg",
-	"dto",
-	filepath.Join("core", "hr-server", "model"),
-}
-
 func defaultStorageRoot() string {
 	home, err := os.UserHomeDir()
 	if err != nil || strings.TrimSpace(home) == "" {
@@ -271,6 +262,7 @@ type RuntimeConfig struct {
 	ComposeConfigPath       string
 	AppBaseBuilderImage     string
 	AppContainerNetworkMode string
+	AppRuntimeBasePath      string
 	UseHostNetwork          bool
 	LLMSeedEnvVars          []string
 	EnvFilePath             string

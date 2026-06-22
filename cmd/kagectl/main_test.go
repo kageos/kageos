@@ -123,6 +123,9 @@ func TestRenderBundledConfig(t *testing.T) {
 	if !strings.Contains(appRuntimeConfig, `network_mode: "host"`) {
 		t.Fatalf("generated app-runtime config should run prod app containers with host network, got:\n%s", appRuntimeConfig)
 	}
+	if !strings.Contains(appRuntimeConfig, `base_path: "/app/namespace"`) {
+		t.Fatalf("generated app-runtime config should use mounted prod namespace, got:\n%s", appRuntimeConfig)
+	}
 
 	globalConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "global.yaml"))
 	if strings.Contains(globalConfig, `timer_scheduler`) {
@@ -918,6 +921,7 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 	}
 	for _, want := range []string{
 		`base_image: "kagebase:latest"`,
+		`base_path: "` + filepath.Join(repoRoot, ".kageos", "dev", "namespace") + `"`,
 		`app_database:`,
 		`enabled: true`,
 		`port: 3318`,
@@ -1753,68 +1757,6 @@ func TestDeploymentLayersRedactSDKCredentials(t *testing.T) {
 	}
 	if got := redactURLCredentials("nats://aos:super-secret@host.containers.internal:4222"); got != "nats://aos:redacted@host.containers.internal:4222" {
 		t.Fatalf("unexpected redacted url: %s", got)
-	}
-}
-
-func TestSyncRuntimeSourceSnapshot(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	storageRoot := t.TempDir()
-	for _, item := range []struct {
-		path    string
-		content string
-	}{
-		{"go.mod", "module github.com/kageos/kageos\n"},
-		{"go.sum", "example.org/mod v1.0.0 h1:test\n"},
-		{filepath.Join("sdk", "agent-app", "app", "app.go"), "package app\n"},
-		{filepath.Join("pkg", "logger", "logger.go"), "package logger\n"},
-		{filepath.Join("dto", "message.go"), "package dto\n"},
-		{filepath.Join("core", "hr-server", "model", "user.go"), "package model\n"},
-	} {
-		path := filepath.Join(repoRoot, item.path)
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(item.content), 0644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	oldFile := filepath.Join(storageRoot, "sdk", "old.go")
-	if err := os.MkdirAll(filepath.Dir(oldFile), 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(oldFile, []byte("package old\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	rt := RuntimeConfig{
-		Config: Config{
-			Storage: StorageConfig{Root: storageRoot},
-		},
-		Paths: Paths{RepoRoot: repoRoot},
-	}
-	if err := syncRuntimeSourceSnapshot(rt); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, want := range []string{
-		"go.mod",
-		"go.sum",
-		filepath.Join("sdk", "agent-app", "app", "app.go"),
-		filepath.Join("pkg", "logger", "logger.go"),
-		filepath.Join("dto", "message.go"),
-		filepath.Join("core", "hr-server", "model", "user.go"),
-	} {
-		if !fileExists(filepath.Join(storageRoot, want)) {
-			t.Fatalf("runtime source snapshot missing %s", want)
-		}
-	}
-	if fileExists(oldFile) {
-		t.Fatalf("runtime source snapshot should remove stale directory contents: %s", oldFile)
-	}
-	if fileExists(filepath.Join(storageRoot, "core", "agent-server")) {
-		t.Fatal("runtime source snapshot should not copy unrelated core packages")
 	}
 }
 

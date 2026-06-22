@@ -204,9 +204,6 @@ func cmdRender(paths Paths) error {
 	if err := renderAll(rt); err != nil {
 		return err
 	}
-	if err := syncRuntimeSourceSnapshot(rt); err != nil {
-		return err
-	}
 	fmt.Printf("rendered deployment files: %s\n", paths.GeneratedDir)
 	fmt.Printf("compose file: %s\n", filepath.Join(paths.GeneratedDir, "docker-compose.yaml"))
 	return nil
@@ -313,9 +310,6 @@ func cmdUp(paths Paths, args []string) error {
 		return err
 	}
 	if err := renderAll(rt); err != nil {
-		return err
-	}
-	if err := syncRuntimeSourceSnapshot(rt); err != nil {
 		return err
 	}
 

@@ -50,10 +50,8 @@ type BuildResult struct {
 
 // Build 编译应用
 func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) (*BuildResult, error) {
-	// 生成版本号（如果未提供）
-	version := opts.Version
-	if version == "" {
-		version = b.generateVersion(user, app)
+	if opts == nil {
+		opts = &BuildOpts{}
 	}
 
 	// 设置默认值（目标固定为 Linux，架构与当前机器一致：本地 Mac 即 Mac 架构，线上 Linux 即服务器架构）
@@ -63,6 +61,12 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 	}
 	if opts.OutputDir == "" {
 		opts.OutputDir = filepath.Join(b.workDir, "namespace", user, app, "workplace", "bin", "releases")
+	}
+
+	// 生成版本号（如果未提供）
+	version := opts.Version
+	if version == "" {
+		version = b.generateVersion(user, app, opts.OutputDir)
 	}
 
 	// 设置构建信息
@@ -246,9 +250,11 @@ func findGoModuleRoot(startDir string) (string, error) {
 }
 
 // generateVersion 生成版本号
-func (b *Builder) generateVersion(user, app string) string {
+func (b *Builder) generateVersion(user, app, releasesDir string) string {
 	// 查找现有版本
-	releasesDir := filepath.Join(b.workDir, "namespace", user, app, "workplace", "bin", "releases")
+	if releasesDir == "" {
+		releasesDir = filepath.Join(b.workDir, "namespace", user, app, "workplace", "bin", "releases")
+	}
 
 	maxVersion := 0
 	if entries, err := os.ReadDir(releasesDir); err == nil {

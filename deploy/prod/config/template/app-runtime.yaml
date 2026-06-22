@@ -10,6 +10,10 @@ timeouts:
   app_startup_notification: 300
   container_cleanup: 10
 
+app_manage:
+  app_dir:
+    base_path: "/app/namespace"
+
 container:
   timeout: 30
   network_mode: "host"

@@ -210,27 +210,31 @@ func (s *AppManageService) CreateApp(ctx context.Context, user, app string, opts
 func (s *AppManageService) BuildApp(ctx context.Context, user, app string, opts ...*BuildOpts) (*builder.BuildResult, error) {
 	//logger.Infof(ctx, "[BuildApp] *** ENTRY *** user=%s, app=%s", user, app)
 
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), user, app)
+
 	// 设置默认编译选项（平台由 builder 内部固定为 linux/当前架构）
 	buildOpts := &builder.BuildOpts{
+		SourceDir:        appPaths.CmdAppDir(),
+		OutputDir:        appPaths.BuildOutputDir(s.config.GetBuildOutputDir()),
 		BinaryNameFormat: s.config.GetBinaryNameFormat(),
 	}
 
-	if opts != nil {
+	if len(opts) > 0 && opts[0] != nil {
 		opt := opts[0]
 		// 转换类型，保留所有字段（平台由 builder 内部固定为 linux/当前架构）
 		buildOpts = &builder.BuildOpts{
 			User:             user,
 			App:              app,
-			SourceDir:        opt.SourceDir,
-			OutputDir:        opt.OutputDir,
-			BinaryNameFormat: opt.BinaryNameFormat,
+			SourceDir:        nonEmpty(opt.SourceDir, buildOpts.SourceDir),
+			OutputDir:        nonEmpty(opt.OutputDir, buildOpts.OutputDir),
+			BinaryNameFormat: nonEmpty(opt.BinaryNameFormat, buildOpts.BinaryNameFormat),
 			BuildTags:        opt.BuildTags,
 			LdFlags:          opt.LdFlags,
 			Env:              opt.Env,
 		}
 	}
 
-	if err := s.ensureAppGoModFile(newRuntimeAppPaths(s.config.GetBasePath(), user, app)); err != nil {
+	if err := s.ensureAppGoModFile(appPaths); err != nil {
 		return nil, fmt.Errorf("failed to ensure app go.mod: %w", err)
 	}
 
