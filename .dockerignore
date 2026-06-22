@@ -28,10 +28,8 @@ vendor
 logs/
 *.log
 data/
-namespace/*/*/workplace/
-namespace/*/*/workplace/**
-namespace/**/node_modules/
-namespace/**/.git/
+namespace/
+deploy/aio/namespace-seed/
 *.db
 
 # 本地生产部署生成物

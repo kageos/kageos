@@ -86,7 +86,6 @@ WORKDIR /app
 
 COPY --from=gobuilder /out/core-server /app/core-server
 COPY --from=gobuilder /src/go.mod /src/go.sum /app/
-COPY --from=gobuilder /src/deploy/aio/namespace-seed/ /app/namespace/
 COPY --from=gobuilder /go/pkg/mod /go/pkg/mod
 
 COPY deploy/base/images/app-base/ /app/app-base/
@@ -109,6 +108,7 @@ RUN mkdir -p /app/deploy /app/logs /app/namespace \
     /app/data/runtime/app-runtime /app/data/tmp \
     /var/lib/kageos \
     && mkdir -p /var/www/web \
+    && test -z "$(find /app/namespace -mindepth 1 -print -quit)" \
     && rm -f /etc/nginx/sites-enabled/default
 
 COPY --from=webbuilder /src/web/dist /var/www/web/dist
