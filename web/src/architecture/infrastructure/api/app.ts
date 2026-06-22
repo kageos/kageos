@@ -8,8 +8,21 @@ export interface UpdateAppResponse {
   old_version: string
   new_version: string
   git_commit_hash?: string
+  diff?: {
+    add?: UpdateAppApiInfo[]
+    update?: UpdateAppApiInfo[]
+    delete?: UpdateAppApiInfo[]
+  }
   error?: string
   warnings?: string[]
+}
+
+export interface UpdateAppApiInfo {
+  code?: string
+  name?: string
+  router?: string
+  method?: string
+  full_code_path?: string
 }
 
 // 获取工作空间列表

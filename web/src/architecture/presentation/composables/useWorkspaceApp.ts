@@ -7,19 +7,174 @@
  * - 工作空间 CRUD 操作
  */
 
-import { ref } from 'vue'
+import { h, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElNotification, ElMessage, ElMessageBox } from 'element-plus'
+import { ElNotification, ElMessageBox } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import { eventBus, RouteEvent } from '../../infrastructure/eventBus'
 import type { App } from '../../domain/types'
 import type { App as AppType, CreateAppRequest } from '@/architecture/domain/types'
 import { createApp, deleteApp, getAppList, getAppWithServiceTree, updateApp } from '@/architecture/presentation/context/api/app'
+import type { UpdateAppApiInfo, UpdateAppResponse } from '@/architecture/presentation/context/api/app'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import { normalizeGoPackageName, validateGoPackageName } from '@/architecture/domain/utils/goPackageName'
 import { buildAppResourcePath } from '@/architecture/shared/resourcePath'
+import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
+import { RouteSource } from '@/architecture/shared/routing/routeSource'
 import { Logger } from '@/architecture/shared/logger'
+import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
+
+const UPDATE_DIFF_PREVIEW_LIMIT = 10
+const WORKSPACE_TASK_NOTIFICATION_CLASS = 'workspace-task-notification'
+
+type UpdateDiffKind = '新增' | '更新' | '删除'
+
+interface UpdateNotificationItem {
+  kind: UpdateDiffKind
+  name: string
+  fullCodePath?: string
+}
+
+function getUpdateApiDisplayName(api: UpdateAppApiInfo): string {
+  return api.name?.trim() || api.code?.trim() || '未命名函数'
+}
+
+function resolveUpdateApiFullCodePath(response: UpdateAppResponse, api: UpdateAppApiInfo): string {
+  const fullCodePath = api.full_code_path?.trim()
+  if (fullCodePath) {
+    return fullCodePath.startsWith('/') ? fullCodePath : `/${fullCodePath}`
+  }
+
+  const routerPath = api.router?.trim().replace(/^\/+|\/+$/g, '')
+  if (!routerPath || !response.user || !response.app) {
+    return ''
+  }
+
+  return `${buildAppResourcePath(response.user, response.app)}/${routerPath}`
+}
+
+function appendUpdateNotificationItems(
+  target: UpdateNotificationItem[],
+  response: UpdateAppResponse,
+  kind: UpdateDiffKind,
+  items?: UpdateAppApiInfo[]
+) {
+  if (!items?.length) {
+    return
+  }
+
+  target.push(...items.map((api) => ({
+    kind,
+    name: getUpdateApiDisplayName(api),
+    fullCodePath: kind === '删除' ? '' : resolveUpdateApiFullCodePath(response, api)
+  })))
+}
+
+function buildUpdateNotificationItems(response?: UpdateAppResponse): UpdateNotificationItem[] {
+  if (!response) {
+    return []
+  }
+
+  const items: UpdateNotificationItem[] = []
+  appendUpdateNotificationItems(items, response, '新增', response.diff?.add)
+  appendUpdateNotificationItems(items, response, '更新', response.diff?.update)
+  appendUpdateNotificationItems(items, response, '删除', response.diff?.delete)
+  return items
+}
+
+function navigateToUpdatedFunction(fullCodePath: string) {
+  const normalizedPath = fullCodePath.trim()
+  if (!normalizedPath) {
+    return
+  }
+
+  eventBus.emit(RouteEvent.updateRequested, {
+    path: resolveWorkspaceUrl(normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`),
+    query: {},
+    replace: false,
+    preserveParams: {
+      table: false,
+      search: false,
+      state: false,
+      linkNavigation: false
+    },
+    source: RouteSource.WORKSPACE_NODE_CLICK
+  })
+}
+
+function renderUpdateNotificationMessage(response?: UpdateAppResponse) {
+  const items = buildUpdateNotificationItems(response)
+  const visibleItems = items.slice(0, UPDATE_DIFF_PREVIEW_LIMIT)
+  const hiddenCount = Math.max(0, items.length - visibleItems.length)
+  const groupedVisibleItems: Array<[UpdateDiffKind, UpdateNotificationItem[]]> = (['新增', '更新', '删除'] as UpdateDiffKind[])
+    .map((kind) => [kind, visibleItems.filter((item) => item.kind === kind)] as [UpdateDiffKind, UpdateNotificationItem[]])
+    .filter(([, groupItems]) => groupItems.length > 0)
+  const metaLines: string[] = []
+
+  if (response?.old_version || response?.new_version) {
+    metaLines.push(`版本：${response.old_version || '-'} → ${response.new_version || '-'}`)
+  }
+  if (response?.git_commit_hash) {
+    metaLines.push(`提交：${response.git_commit_hash.slice(0, 12)}`)
+  }
+  if (response?.warnings?.length) {
+    const warnings = response.warnings.slice(0, 2).join('；')
+    const suffix = response.warnings.length > 2 ? ` 等 ${response.warnings.length} 条` : ''
+    metaLines.push(`提醒：${warnings}${suffix}`)
+  }
+
+  return h(
+    'div',
+    { class: 'workspace-update-notification' },
+    [
+      ...metaLines.map((line) => h('div', { class: 'workspace-update-notification-line' }, line)),
+      visibleItems.length
+        ? h(
+          'div',
+          { class: 'workspace-update-notification-groups' },
+          groupedVisibleItems.map(([kind, groupItems]) => h('div', { class: 'workspace-update-notification-group' }, [
+            h('div', { class: 'workspace-update-notification-group-title' }, kind),
+            h(
+              'ul',
+              { class: 'workspace-update-notification-list' },
+              groupItems.map((item) => h('li', { class: 'workspace-update-notification-item' }, [
+                item.fullCodePath
+                  ? h(
+                    'button',
+                    {
+                      class: 'workspace-update-notification-link',
+                      type: 'button',
+                      onClick: () => navigateToUpdatedFunction(item.fullCodePath || '')
+                    },
+                    item.name
+                  )
+                  : h('span', { class: 'workspace-update-notification-name' }, item.name)
+              ]))
+            )
+          ]))
+        )
+        : h('div', { class: 'workspace-update-notification-line' }, '函数列表已刷新，未检测到函数变更。'),
+      hiddenCount > 0
+        ? h('div', { class: 'workspace-update-notification-more' }, `还有 ${hiddenCount} 个变更未显示`)
+        : null
+    ]
+  )
+}
+
+function workspaceTaskNotificationOptions() {
+  return {
+    appendTo: 'body',
+    customClass: WORKSPACE_TASK_NOTIFICATION_CLASS,
+    offset: 72,
+    position: 'top-right' as const,
+    zIndex: Z_INDEX.notification
+  }
+}
+
+type NotificationHandle = {
+  close: () => void
+}
 
 export function useWorkspaceApp(
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
@@ -231,23 +386,53 @@ export function useWorkspaceApp(
 
   // 更新工作空间（重新编译）。统一通过 resource_path 标识目标工作空间
   const handleUpdateApp = async (app: AppType): Promise<void> => {
+    if (pendingAppId.value) {
+      ElNotification({
+        ...workspaceTaskNotificationOptions(),
+        type: 'warning',
+        title: '工作空间正在更新',
+        message: '已有更新任务在后台执行，请稍候完成后再试。',
+        duration: 3500
+      })
+      return
+    }
+    pendingAppId.value = app.id
+    const progressNotification = ElNotification({
+      ...workspaceTaskNotificationOptions(),
+      type: 'info',
+      title: '工作空间更新中',
+      message: `正在后台更新「${app.name || app.code}」，页面可以继续使用，完成后会自动刷新函数列表。`,
+      duration: 0,
+      showClose: true
+    }) as NotificationHandle
+
     try {
       const response = await updateApp(buildAppResourcePath(app.user, app.code))
-      if (response?.warnings?.length) {
-        ElNotification.warning({
-          title: '工作空间已更新',
-          message: response.warnings.join('\n')
-        })
-      } else {
-        ElMessage.success('工作空间更新成功')
-      }
+      await applicationService.refreshServiceTree()
+      await loadAppList()
+
+      progressNotification.close()
+      const updateNotificationItems = buildUpdateNotificationItems(response)
+      ElNotification({
+        ...workspaceTaskNotificationOptions(),
+        type: response?.warnings?.length ? 'warning' : 'success',
+        title: response?.warnings?.length ? '工作空间更新完成（有提醒）' : '工作空间更新完成',
+        message: renderUpdateNotificationMessage(response),
+        duration: response?.warnings?.length ? 0 : updateNotificationItems.length > 0 ? 15000 : 9000
+      })
     } catch (error: any) {
+      progressNotification.close()
       // 🔥 统一使用 msg 字段
       const errorMessage = error?.response?.data?.msg || '更新工作空间失败'
-      ElNotification.error({
-        title: '错误',
-        message: errorMessage
+      ElNotification({
+        ...workspaceTaskNotificationOptions(),
+        type: 'error',
+        title: '工作空间更新失败',
+        message: errorMessage,
+        duration: 0
       })
+    } finally {
+      pendingAppId.value = null
     }
   }
 

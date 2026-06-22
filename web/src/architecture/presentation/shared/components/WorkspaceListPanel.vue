@@ -8,7 +8,7 @@
     <div v-if="showHeader" class="panel-header">
       <div class="panel-heading">
         <div class="panel-title">{{ forceSelect ? '请选择工作空间' : '工作空间' }}</div>
-        <div class="panel-subtitle">{{ currentApp ? `${currentApp.user}/${currentApp.code}` : '选择一个工作空间进入' }}</div>
+        <div class="panel-subtitle">{{ currentApp ? currentWorkspaceDisplayName : '选择一个工作空间进入' }}</div>
       </div>
       <el-button
         v-if="surface === 'popover' && !forceSelect"
@@ -34,22 +34,36 @@
       <div class="current-workspace-main">
         <div class="current-workspace-avatar">
           <div class="current-workspace-avatar-icon">
-            {{ getAppInitial(currentApp.name || currentApp.code) }}
+            {{ getWorkspaceInitial(currentApp) }}
           </div>
         </div>
         <div class="current-workspace-info">
           <div class="current-workspace-eyebrow">当前工作空间</div>
           <div class="current-workspace-title-row">
-            <span class="current-workspace-title">{{ currentApp.name || currentApp.code }}</span>
+            <span class="current-workspace-title" :title="currentWorkspaceDisplayName">
+              {{ currentWorkspaceDisplayName }}
+            </span>
             <el-tag :type="currentWorkspaceStatusType" size="small" effect="light">
               {{ currentWorkspaceStatusLabel }}
             </el-tag>
           </div>
           <div class="current-workspace-path" :title="currentWorkspaceRoute">
             <el-icon><FolderOpened /></el-icon>
-            <span>{{ currentWorkspaceRoute }}</span>
+            <span>{{ currentWorkspaceMetaLine }}</span>
           </div>
         </div>
+      </div>
+
+      <div class="current-workspace-actions">
+        <el-button
+          type="primary"
+          plain
+          :icon="RefreshRight"
+          data-testid="workspace-current-update"
+          @click.stop="handleUpdateCurrentWorkspace"
+        >
+          {{ t('workspace.updateCurrentWorkspace') }}
+        </el-button>
       </div>
 
       <div class="current-workspace-meta-grid">
@@ -159,16 +173,20 @@
               <div class="card-header">
                 <div class="workspace-avatar">
                   <div class="avatar-icon">
-                    {{ getAppInitial(app.name || app.code) }}
+                    {{ getWorkspaceInitial(app) }}
                   </div>
                 </div>
                 <div class="workspace-info">
                   <div class="workspace-name">
-                    <span class="workspace-name-text">{{ app.name || app.code }}</span>
+                    <span class="workspace-name-text" :title="getWorkspaceDisplayName(app)">
+                      {{ getWorkspaceDisplayName(app) }}
+                    </span>
                   </div>
                   <div class="workspace-path">
                     <el-icon><FolderOpened /></el-icon>
-                    <span class="workspace-path-text">{{ app.user }}/{{ app.code }}</span>
+                    <span class="workspace-path-text" :title="getWorkspaceRoute(app)">
+                      {{ getWorkspaceMetaLine(app) }}
+                    </span>
                   </div>
                 </div>
                 <div v-if="currentApp && app.id === currentApp.id" class="active-badge">
@@ -226,12 +244,14 @@
               <div class="card-header">
                 <div class="workspace-avatar">
                   <div class="avatar-icon">
-                    {{ getAppInitial(app.name || app.code) }}
+                    {{ getWorkspaceInitial(app) }}
                   </div>
                 </div>
                 <div class="workspace-info">
                   <div class="workspace-name">
-                    <span class="workspace-name-text">{{ app.name || app.code }}</span>
+                    <span class="workspace-name-text" :title="getWorkspaceDisplayName(app)">
+                      {{ getWorkspaceDisplayName(app) }}
+                    </span>
                     <el-tooltip
                       v-if="app.type === 1"
                       content="官方认证工作空间"
@@ -246,7 +266,9 @@
                   </div>
                   <div class="workspace-path">
                     <el-icon><FolderOpened /></el-icon>
-                    <span class="workspace-path-text">{{ app.user }}/{{ app.code }}</span>
+                    <span class="workspace-path-text" :title="getWorkspaceRoute(app)">
+                      {{ getWorkspaceMetaLine(app) }}
+                    </span>
                   </div>
                 </div>
                 <div v-if="currentApp && app.id === currentApp.id" class="active-badge">
@@ -291,12 +313,14 @@
               <div class="card-header">
                 <div class="workspace-avatar">
                   <div class="avatar-icon">
-                    {{ getAppInitial(app.name || app.code) }}
+                    {{ getWorkspaceInitial(app) }}
                   </div>
                 </div>
                 <div class="workspace-info">
                   <div class="workspace-name">
-                    <span class="workspace-name-text">{{ app.name || app.code }}</span>
+                    <span class="workspace-name-text" :title="getWorkspaceDisplayName(app)">
+                      {{ getWorkspaceDisplayName(app) }}
+                    </span>
                     <el-tooltip content="官方认证工作空间" placement="top">
                       <img
                         src="/官方认证.svg"
@@ -307,7 +331,9 @@
                   </div>
                   <div class="workspace-path">
                     <el-icon><FolderOpened /></el-icon>
-                    <span class="workspace-path-text">{{ app.user }}/{{ app.code }}</span>
+                    <span class="workspace-path-text" :title="getWorkspaceRoute(app)">
+                      {{ getWorkspaceMetaLine(app) }}
+                    </span>
                   </div>
                 </div>
                 <div v-if="currentApp && app.id === currentApp.id" class="active-badge">
@@ -349,6 +375,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, type CSSProperties } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Search,
   Loading,
@@ -368,7 +395,7 @@ import {
 } from '@element-plus/icons-vue'
 import { getAppList } from '@/architecture/presentation/context/api/app'
 import type { App } from '@/architecture/domain/types'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 
 interface Props {
@@ -395,6 +422,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
+const { t } = useI18n()
 
 const activeTab = ref<'mine' | 'all' | 'system'>('mine')
 const searchKeyword = ref('')
@@ -404,7 +432,9 @@ const allWorkspaces = ref<App[]>([])
 const systemWorkspaces = ref<App[]>([])
 
 const showHeader = computed(() => props.showHeader)
+const currentWorkspaceDisplayName = computed(() => props.currentApp ? getWorkspaceDisplayName(props.currentApp) : '')
 const currentWorkspaceRoute = computed(() => props.currentApp ? `/workspace/${props.currentApp.user}/${props.currentApp.code}` : '')
+const currentWorkspaceMetaLine = computed(() => props.currentApp ? getWorkspaceMetaLine(props.currentApp) : '')
 const currentWorkspaceStyle = computed(() => props.currentApp ? workspaceCardStyle(props.currentApp) : undefined)
 const currentWorkspaceStatusLabel = computed(() => props.currentApp?.status === 'disabled' ? '已停用' : '运行中')
 const currentWorkspaceStatusType = computed(() => props.currentApp?.status === 'disabled' ? 'danger' : 'success')
@@ -427,6 +457,26 @@ const getAppColor = (app: App) => {
 const getAppInitial = (text: string) => {
   if (!text) return 'A'
   return text.charAt(0).toUpperCase()
+}
+
+const getWorkspaceDisplayName = (app: App) => {
+  const name = app.name?.trim()
+  return name || app.code || '未命名工作空间'
+}
+
+const getWorkspaceInitial = (app: App) => getAppInitial(getWorkspaceDisplayName(app))
+
+const getWorkspaceRoute = (app: App) => `/workspace/${app.user}/${app.code}`
+
+const getWorkspaceMetaLine = (app: App) => {
+  const parts = []
+  if (app.code) {
+    parts.push(`标识：${app.code}`)
+  }
+  if (app.user) {
+    parts.push(`所有者：${app.user}`)
+  }
+  return parts.join(' · ')
 }
 
 const workspaceCardStyle = (app: App): CSSProperties => ({
@@ -488,8 +538,36 @@ const handleSelectWorkspace = (app: App) => {
   emit('close')
 }
 
-const handleUpdateApp = (app: App) => {
-  emit('update-app', app)
+async function confirmUpdateWorkspace(app: App) {
+  try {
+    await ElMessageBox.confirm(
+      t('workspace.updateWorkspaceConfirm', { name: app.name || app.code }),
+      t('workspace.updateWorkspaceConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('workspace.updateWorkspaceConfirmButton'),
+        cancelButtonText: t('common.cancel')
+      }
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
+const handleUpdateApp = async (app: App) => {
+  if (await confirmUpdateWorkspace(app)) {
+    emit('update-app', app)
+  }
+}
+
+const handleUpdateCurrentWorkspace = async () => {
+  if (!props.currentApp) {
+    return
+  }
+  if (await confirmUpdateWorkspace(props.currentApp)) {
+    emit('update-app', props.currentApp)
+  }
 }
 
 const handleDeleteApp = (app: App) => {
@@ -673,6 +751,14 @@ watch(() => props.visible, (newVal: boolean) => {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+}
+
+.current-workspace-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 
 .current-workspace-meta-grid {

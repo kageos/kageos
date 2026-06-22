@@ -7,6 +7,7 @@
   --aos-z-floating-popper: 10010;
   --aos-z-global-overlay: 10040;
   --aos-z-critical-preview: 10060;
+  --aos-z-notification: 10120;
 }
 
 #app {
@@ -43,6 +44,84 @@
 .workspace-inbox-modal.el-overlay,
 .workspace-inbox-modal .workspace-inbox-drawer {
   z-index: var(--aos-z-global-overlay) !important;
+}
+
+/* 后台任务反馈必须浮在所有业务弹层之上。 */
+.workspace-task-notification.el-notification,
+.workspace-task-notification {
+  z-index: var(--aos-z-notification) !important;
+}
+
+.workspace-task-notification .workspace-update-notification {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 280px;
+}
+
+.workspace-task-notification .workspace-update-notification-line,
+.workspace-task-notification .workspace-update-notification-more {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.workspace-task-notification .workspace-update-notification-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workspace-task-notification .workspace-update-notification-group-title {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.workspace-task-notification .workspace-update-notification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workspace-task-notification .workspace-update-notification-item {
+  min-width: 0;
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.workspace-task-notification .workspace-update-notification-link {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--el-color-primary);
+  cursor: pointer;
+  font: inherit;
+  line-height: inherit;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-task-notification .workspace-update-notification-link:hover {
+  text-decoration: underline;
+}
+
+.workspace-task-notification .workspace-update-notification-name {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 a,

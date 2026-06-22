@@ -75,6 +75,8 @@
           size="small"
           :type="hasMissingScopes(item) ? 'danger' : 'primary'"
           plain
+          :loading="connectingConnectorKey === connectorActionKey(item.provider, item.connection_id)"
+          :disabled="Boolean(connectingConnectorKey) && connectingConnectorKey !== connectorActionKey(item.provider, item.connection_id)"
           @click.stop="handleConnectConnector(item.provider, connectorAuthorizeScopes(item), item.connection_id)"
         >
           {{ hasMissingScopes(item) ? t('connectorBar.reauthorize') : t('connectorBar.connect') }}
@@ -96,6 +98,7 @@ import {
   startConnectorOAuth,
   type ConnectorOAuthProviderInfo
 } from '@/architecture/presentation/context/api/connector'
+import { isPublicConnectorProvider } from '@/architecture/presentation/features/connector/supportedProviders'
 
 const props = defineProps<{
   currentFunction: ServiceTree | null
@@ -110,6 +113,7 @@ type ConnectorProviderDisplay = Pick<
 >
 
 const connectorProviderDisplays = ref<Map<string, ConnectorProviderDisplay>>(new Map())
+const connectingConnectorKey = ref('')
 
 const connectorEndpointItems = computed<FunctionConnectorEndpoint[]>(() => {
   const endpoints = Array.isArray(props.functionDetail?.connector_endpoints)
@@ -146,7 +150,7 @@ const connectorItems = computed<FunctionConnectorStatus[]>(() => {
 
   return required
     .map(provider => provider.trim().toLowerCase())
-    .filter(Boolean)
+    .filter(provider => Boolean(provider) && isPublicConnectorProvider(provider))
     .map(provider => {
       const status = statusMap.get(provider)
       if (status) {
@@ -367,7 +371,16 @@ function connectorResourcePath(): string {
   return CONNECTOR_GLOBAL_RESOURCE_PATH
 }
 
+function connectorActionKey(provider: string, connectionId = ''): string {
+  return `${provider.trim().toLowerCase()}::${connectionId || ''}`
+}
+
 async function handleConnectConnector(provider: string, scopes: string[] = [], connectionId = '') {
+  const actionKey = connectorActionKey(provider, connectionId)
+  if (connectingConnectorKey.value) {
+    return
+  }
+  connectingConnectorKey.value = actionKey
   try {
     const redirectAfter = `${window.location.pathname}${window.location.search}${window.location.hash}`
     const resp = await startConnectorOAuth({
@@ -381,6 +394,10 @@ async function handleConnectConnector(provider: string, scopes: string[] = [], c
   } catch (error) {
     const message = error instanceof Error ? error.message : t('connectorBar.oauthStartFailed')
     ElMessage.error(message)
+  } finally {
+    if (connectingConnectorKey.value === actionKey) {
+      connectingConnectorKey.value = ''
+    }
   }
 }
 </script>

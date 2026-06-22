@@ -97,15 +97,6 @@
                 <span class="user-menu-desc">{{ t('workspace.llmDesc') }}</span>
               </span>
             </el-dropdown-item>
-            <el-dropdown-item v-if="featureFlags.llmManagement" command="openapi" class="user-dropdown-action">
-              <span class="user-menu-icon user-menu-icon--openapi">
-                <el-icon><Key /></el-icon>
-              </span>
-              <span class="user-menu-copy">
-                <span class="user-menu-title">{{ t('workspace.openapiConfig') }}</span>
-                <span class="user-menu-desc">{{ t('workspace.openapiDesc') }}</span>
-              </span>
-            </el-dropdown-item>
             <el-dropdown-item v-if="isSystemUser" command="system-settings" class="user-dropdown-action">
               <span class="user-menu-icon user-menu-icon--profile">
                 <el-icon><Setting /></el-icon>
@@ -113,29 +104,6 @@
               <span class="user-menu-copy">
                 <span class="user-menu-title">{{ t('route.systemSettings') }}</span>
                 <span class="user-menu-desc">{{ t('workspace.systemSettingsDesc') }}</span>
-              </span>
-            </el-dropdown-item>
-            <el-dropdown-item v-if="isSystemUser" command="system-login-settings" class="user-dropdown-action">
-              <span class="user-menu-icon user-menu-icon--profile">
-                <el-icon><Setting /></el-icon>
-              </span>
-              <span class="user-menu-copy">
-                <span class="user-menu-title">{{ t('workspace.loginConfig') }}</span>
-                <span class="user-menu-desc">{{ t('workspace.loginConfigDesc') }}</span>
-              </span>
-            </el-dropdown-item>
-
-            <el-dropdown-item
-              v-if="isDevelopment"
-              command="debug"
-              class="user-dropdown-action user-dropdown-action--debug"
-            >
-              <span class="user-menu-icon user-menu-icon--debug">
-                <el-icon><Setting /></el-icon>
-              </span>
-              <span class="user-menu-copy">
-                <span class="user-menu-title">{{ t('workspace.devDebug') }}</span>
-                <span class="user-menu-desc">{{ t('workspace.devDebugDesc') }}</span>
               </span>
             </el-dropdown-item>
 
@@ -189,9 +157,6 @@
       </el-dropdown>
     </div>
 
-    <!-- Debug 弹窗 -->
-    <DebugDialog v-if="showDebugDialog" v-model="showDebugDialog" />
-
     <GlobalResourceSearchDialog
       v-if="showGlobalSearchDialog"
       v-model:visible="showGlobalSearchDialog"
@@ -208,7 +173,6 @@ import {
   ArrowDown,
   UserFilled,
   Cpu,
-  Key,
   Setting,
   Search,
   SwitchButton
@@ -222,7 +186,6 @@ import { featureFlags } from '@/architecture/shared/config/features'
 import type { SupportedLocale } from '@/architecture/shared/i18n'
 import defaultCompanyLogo from '@/architecture/presentation/assets/logo.svg'
 
-const DebugDialog = defineAsyncComponent(() => import('./DebugDialog.vue'))
 const GlobalResourceSearchDialog = defineAsyncComponent(() => import('./GlobalResourceSearchDialog.vue'))
 
 defineProps<{
@@ -282,20 +245,8 @@ const handleUserCommand = (command: string) => {
     case 'agent':
       router.push('/agent/llm')
       break
-    case 'openapi':
-      router.push('/agent/openapi')
-      break
     case 'system-settings':
       router.push('/system/settings')
-      break
-    case 'system-login-settings':
-      router.push({
-        path: '/system/settings',
-        query: { tab: 'login' }
-      })
-      break
-    case 'debug':
-      showDebugDialog.value = true
       break
     default:
       break
@@ -332,13 +283,6 @@ const handleLogout = async () => {
   }
 }
 
-// 🔥 开发工具：Debug 弹窗
-const isDevelopment = computed(() => {
-  // 检查是否是开发环境（可以通过环境变量或 URL 参数判断）
-  return import.meta.env.DEV || window.location.search.includes('dev=true')
-})
-
-const showDebugDialog = ref(false)
 const showGlobalSearchDialog = ref(false)
 
 const appSwitcherRef = ref<InstanceType<typeof AppSwitcher> | null>(null)
@@ -629,10 +573,6 @@ defineExpose({
   }
 }
 
-.user-dropdown-action--debug {
-  margin-top: 6px;
-}
-
 .user-dropdown-action--logout {
   margin-top: 8px;
   border-top: 1px solid var(--app-shell-panel-border);
@@ -668,11 +608,6 @@ defineExpose({
   color: #0284c7;
 }
 
-.user-menu-icon--openapi {
-  background: rgba(34, 197, 94, 0.12);
-  color: #16a34a;
-}
-
 .user-menu-icon--connector {
   background: rgba(22, 163, 74, 0.12);
   color: #15803d;
@@ -686,11 +621,6 @@ defineExpose({
 .user-menu-icon--logout {
   background: rgba(239, 68, 68, 0.1);
   color: var(--el-color-danger);
-}
-
-.user-menu-icon--debug {
-  background: rgba(100, 116, 139, 0.14);
-  color: var(--el-text-color-secondary);
 }
 
 .user-menu-copy {

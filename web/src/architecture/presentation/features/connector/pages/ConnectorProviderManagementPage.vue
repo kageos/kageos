@@ -1,17 +1,14 @@
 <template>
-  <div class="connector-provider-page">
-    <el-card shadow="hover" class="page-card">
-      <template #header>
+  <div class="connector-provider-page" :class="{ 'is-embedded': embedded }">
+    <component :is="embedded ? 'div' : ElCard" :shadow="embedded ? undefined : 'hover'" class="page-card">
+      <template v-if="!embedded" #header>
         <div class="card-header">
           <div>
             <h2>{{ t('connectorProvider.title') }}</h2>
             <p class="header-desc">{{ t('connectorProvider.subtitle') }}</p>
           </div>
           <div class="header-actions">
-            <el-button :icon="Refresh" @click="loadProviders">{{ t('common.refresh') }}</el-button>
-            <el-button type="primary" :icon="Plus" @click="handleCreate">
-              {{ t('connectorProvider.createProvider') }}
-            </el-button>
+            <el-button :icon="Refresh" :loading="loading" :disabled="loading" @click="loadProviders">{{ t('common.refresh') }}</el-button>
           </div>
         </div>
       </template>
@@ -194,7 +191,8 @@
                 type="danger"
                 size="small"
                 :icon="Delete"
-                :disabled="!row.managed"
+                :loading="deletingProviderCode === row.code"
+                :disabled="!row.managed || Boolean(deletingProviderCode)"
                 @click="handleDelete(row)"
               >
                 {{ t('connectorProvider.delete') }}
@@ -203,7 +201,7 @@
           </el-table-column>
         </el-table>
       </div>
-    </el-card>
+    </component>
 
     <el-dialog
       v-model="dialogVisible"
@@ -274,8 +272,8 @@
       </div>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">
+        <el-button :disabled="submitting" @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" :disabled="dialogLoading" @click="handleSubmit">
           {{ dialogMode === 'create' ? t('connectorProvider.create') : t('connectorProvider.save') }}
         </el-button>
       </template>
@@ -286,8 +284,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { CopyDocument, Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { ElCard, ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { CopyDocument, Delete, Edit, Refresh, Search } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import {
   deleteConnectorOAuthProvider,
@@ -297,8 +295,15 @@ import {
   type ConnectorOAuthProviderInfo,
   type UpsertConnectorOAuthProviderReq
 } from '@/architecture/presentation/context/api/connector'
+import { isPublicConnectorProvider } from '@/architecture/presentation/features/connector/supportedProviders'
 
 type DialogMode = 'create' | 'edit'
+
+withDefaults(defineProps<{
+  embedded?: boolean
+}>(), {
+  embedded: false
+})
 
 interface ProviderFormState {
   code: string
@@ -323,6 +328,7 @@ const dialogLoading = ref(false)
 const dialogVisible = ref(false)
 const dialogMode = ref<DialogMode>('create')
 const submitting = ref(false)
+const deletingProviderCode = ref('')
 const formRef = ref<FormInstance>()
 const form = reactive<ProviderFormState>(createDefaultForm())
 
@@ -496,10 +502,13 @@ async function copyCallbackURL() {
 }
 
 async function loadProviders() {
+  if (loading.value) {
+    return
+  }
   loading.value = true
   try {
     const resp = await listConnectorOAuthProviders()
-    providers.value = resp.providers || []
+    providers.value = (resp.providers || []).filter((provider) => isPublicConnectorProvider(provider.code))
   } catch (error: any) {
     ElMessage.error(error?.message || t('connectorProvider.loadFailed'))
   } finally {
@@ -586,6 +595,7 @@ async function handleDelete(row: ConnectorOAuthProviderInfo) {
         cancelButtonText: t('common.cancel')
       }
     )
+    deletingProviderCode.value = row.code
     await deleteConnectorOAuthProvider(row.code)
     ElMessage.success(t('connectorProvider.providerDeleted'))
     await loadProviders()
@@ -594,6 +604,8 @@ async function handleDelete(row: ConnectorOAuthProviderInfo) {
       return
     }
     ElMessage.error(error?.message || t('connectorProvider.deleteFailed'))
+  } finally {
+    deletingProviderCode.value = ''
   }
 }
 
@@ -608,6 +620,22 @@ onMounted(loadProviders)
 
   .page-card {
     border-radius: 8px;
+  }
+
+  &.is-embedded {
+    min-height: 0;
+    padding: 0;
+    background: transparent;
+
+    .page-card {
+      border: 0;
+      box-shadow: none;
+      background: transparent;
+    }
+
+    :deep(.el-card__body) {
+      padding: 0;
+    }
   }
 
   .card-header {

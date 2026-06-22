@@ -50,6 +50,30 @@ function removeHeader(config: InternalAxiosRequestConfig, key: string) {
   config.headers.delete(key)
 }
 
+function isLikelyHtmlResponse(response: AxiosResponse<ApiResponse | Blob>): boolean {
+  const contentType = String(response.headers?.['content-type'] || '').toLowerCase()
+  const data = response.data
+  return typeof data === 'string' && (
+    contentType.includes('text/html') ||
+    /^\s*(<!doctype html|<html[\s>])/i.test(data)
+  )
+}
+
+function rejectUnexpectedApiResponse(
+  response: AxiosResponse<ApiResponse | Blob>,
+  message: string
+): Promise<never> {
+  const error = new Error(message) as BusinessResponseError
+  error.response = response
+  Logger.error('Request', 'API 响应格式异常', {
+    url: response.config.url,
+    method: response.config.method,
+    status: response.status,
+    contentType: response.headers?.['content-type']
+  })
+  return Promise.reject(error)
+}
+
 function getRefreshTokenValue(): string {
   const authStore = useAuthStore()
   const storeRefreshToken = authStore.refreshToken
@@ -242,9 +266,16 @@ service.interceptors.response.use(
     if (response.data instanceof Blob) {
       return response
     }
+
+    if (isLikelyHtmlResponse(response)) {
+      return rejectUnexpectedApiResponse(response, '接口返回了页面内容，请检查前端代理或网关配置')
+    }
     
     // 普通 JSON 响应处理
     const responsePayload = response.data as ApiResponse<AxiosResponse<ApiResponse | Blob>>
+    if (!responsePayload || typeof responsePayload !== 'object' || !('code' in responsePayload)) {
+      return rejectUnexpectedApiResponse(response, '接口返回格式异常，请检查后端服务或网关配置')
+    }
     const { code, data, metadata } = responsePayload
     // 🔥 统一使用 msg 字段
     const msg = extractApiMessage(responsePayload) || '请求失败'

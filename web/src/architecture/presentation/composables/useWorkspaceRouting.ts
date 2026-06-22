@@ -33,6 +33,7 @@ export function useWorkspaceRouting(
   const router = useRouter()
   const stateManager = serviceProvider.getWorkspaceStateManager()
   const applicationService = serviceProvider.getWorkspaceApplicationService()
+  const domainService = serviceProvider.getWorkspaceDomainService()
 
   // 防重复调用保护
   let isLoadingAppFromRoute = false
@@ -52,6 +53,24 @@ export function useWorkspaceRouting(
     created_at: '',
     updated_at: ''
   })
+
+  const selectNodeFromCurrentRoute = async (functionPath: string) => {
+    await nextTick()
+
+    const tree = options.serviceTree()
+    if (!tree || tree.length === 0) {
+      return
+    }
+
+    const node = options.findNodeByPath(tree, functionPath)
+    if (!node) {
+      return
+    }
+
+    const serviceNode: ServiceTree = node
+    applicationService.triggerNodeClick(serviceNode)
+    options.expandCurrentRoutePath()
+  }
 
   // 从路由同步到当前函数（路由变化时调用）
   const syncRouteToTab = async () => {
@@ -147,7 +166,11 @@ export function useWorkspaceRouting(
       
       // 检查当前应用是否已经是目标应用（通过 user 和 code 匹配，因为 id 可能还没有）
       if (currentAppState && currentAppState.user === user && currentAppState.code === appCode) {
-        // 当前应用已经是目标应用，不需要切换
+        const functionPath = '/' + pathSegments.join('/')
+        const appForService = createPlaceholderApp(user, appCode, currentAppState.name || appCode)
+
+        await domainService.loadServiceTree(appForService)
+        await selectNodeFromCurrentRoute(functionPath)
         return
       }
       

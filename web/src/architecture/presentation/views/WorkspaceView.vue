@@ -375,6 +375,15 @@ function normalizeApp(app: Partial<AppType> & Pick<AppType, 'id' | 'user' | 'cod
   }
 }
 
+function pickWorkspaceName(code: string, ...candidates: Array<string | undefined>) {
+  const normalizedCode = code?.trim()
+  const cleaned = candidates
+    .map((name) => name?.trim())
+    .filter((name): name is string => Boolean(name))
+
+  return cleaned.find((name) => name !== normalizedCode) || cleaned[0] || normalizedCode
+}
+
 function getCurrentAppForTreeLoad(): App | null {
   return currentApp.value ? normalizeApp(currentApp.value) : null
 }
@@ -415,7 +424,23 @@ const currentApp = computed<AppType | null>(() => {
   if (!app) return null
   // 从 appList 中查找对应的应用（确保使用最新的应用数据）
   const foundApp = appList.value.find((a: AppType) => a.id === app.id || (a.user === app.user && a.code === app.code))
-  return foundApp ? normalizeApp(foundApp) : normalizeApp(app)
+  if (!foundApp) {
+    return normalizeApp({
+      ...app,
+      name: pickWorkspaceName(app.code, workspacePathNameMap.value[`/${app.user}/${app.code}`], app.name)
+    })
+  }
+
+  return normalizeApp({
+    ...app,
+    ...foundApp,
+    name: pickWorkspaceName(
+      foundApp.code || app.code,
+      workspacePathNameMap.value[`/${app.user}/${app.code}`],
+      foundApp.name,
+      app.name
+    )
+  })
 })
 
 const {
@@ -602,9 +627,13 @@ useWorkspaceViewLifecycle({
   queryTab: () => queryTab.value,
   loadNodeDetail: (node) => applicationService.handleNodeClick(node),
   updateAppInfo: (app) => {
-    const index = appList.value.findIndex((item: AppType) => item.code === app.code)
+    const index = appList.value.findIndex((item: AppType) => item.id === app.id || (item.user === app.user && item.code === app.code))
     if (index !== -1) {
-      appList.value[index] = { ...appList.value[index], ...app }
+      appList.value[index] = {
+        ...appList.value[index],
+        ...app,
+        name: pickWorkspaceName(app.code, app.name, appList.value[index]?.name)
+      }
     }
   },
   findNodeByPath,
@@ -844,7 +873,20 @@ const handleCloseCreateDirectoryDialog = () => {
 const handleRefreshTree = async () => {
   const app = getCurrentAppForTreeLoad()
   if (app) {
-    await domainService.loadServiceTree(app)
+    const previousNode = currentFunction.value
+    const previousPath = previousNode?.full_code_path || ''
+    const previousId = previousNode?.id
+    const refreshedTree = await domainService.loadServiceTree(app)
+    if (previousNode) {
+      const refreshedNode = previousPath
+        ? findNodeByPath(refreshedTree, previousPath)
+        : previousId
+          ? findNodeById(refreshedTree, Number(previousId))
+          : null
+      if (refreshedNode) {
+        domainService.setCurrentFunction(refreshedNode)
+      }
+    }
   }
   await refreshMessageCounts()
 }

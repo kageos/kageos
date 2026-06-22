@@ -1,5 +1,5 @@
 import { computed, onMounted, onUnmounted, ref, type ComputedRef } from 'vue'
-import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
+import { ElLoading, ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { copyDirectory, installCapabilityBundleFromURL } from '@/architecture/presentation/context/api/service-tree'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/shared/logger'
@@ -10,7 +10,7 @@ export interface UseServiceTreeClipboardOptions {
   treeData: ComputedRef<ServiceTree[]>
   currentFunction: ComputedRef<ServiceTree | null | undefined>
   currentNodeId: ComputedRef<number | string | null | undefined>
-  onRefreshTree: () => void
+  onRefreshTree: () => void | Promise<void>
 }
 
 function findNodeByIdInTree(nodes: ServiceTree[], id: number | string): ServiceTree | null {
@@ -127,6 +127,14 @@ function tokenizeInstallCommand(command: string): string[] {
   return tokens
 }
 
+function showBlockingLoading(text: string) {
+  return ElLoading.service({
+    lock: true,
+    text,
+    background: 'rgba(15, 23, 42, 0.36)'
+  })
+}
+
 export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions) {
   const { treeData, currentFunction, currentNodeId, onRefreshTree } = options
 
@@ -211,6 +219,9 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
   }
 
   const handlePaste = async (targetNode?: ServiceTree) => {
+    if (isPasting.value) {
+      return
+    }
     if (!copiedDirectory.value) {
       ElMessage.warning('没有可粘贴的目录')
       return
@@ -314,6 +325,7 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
         position: 'top-right',
         duration: 0
       })
+      const loadingInstance = showBlockingLoading(willReplace ? '正在覆盖同名目录，请稍候...' : '正在复制目录并更新函数列表，请稍候...')
 
       try {
         if (!finalTargetNode.app_id) {
@@ -334,14 +346,15 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
           message: willReplace ? `已替换 ${finalTargetPath}` : `已复制到 ${finalTargetPath}`,
           position: 'top-right'
         })
-        onRefreshTree()
+        await onRefreshTree()
       } catch (error: any) {
-        loadingNotify.close()
         if (error !== 'cancel' && error !== 'close') {
           const errorMessage = error?.response?.data?.message || error?.message || '复制失败'
           ElMessage.error(errorMessage)
         }
       } finally {
+        loadingNotify.close()
+        loadingInstance.close()
         isPasting.value = false
       }
     } catch {
@@ -350,6 +363,9 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
   }
 
   const handleHubInstallPaste = async (command: HubInstallCommand, targetNode?: ServiceTree) => {
+    if (isPasting.value) {
+      return
+    }
     const finalTargetNode = resolveTargetNode(targetNode)
     if (!finalTargetNode || finalTargetNode.type !== 'package') {
       ElMessage.warning('请先选择一个目录作为安装目标')
@@ -379,6 +395,7 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
         position: 'top-right',
         duration: 0
       })
+      const loadingInstance = showBlockingLoading('正在安装 Hub 应用并更新函数列表，请稍候...')
       try {
         const resp = await installCapabilityBundleFromURL({
           target_directory_path: finalTargetNode.full_code_path,
@@ -393,12 +410,13 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
           message: resp.message || `已安装到 ${resp.target_directory_path || finalTargetNode.full_code_path}`,
           position: 'top-right'
         })
-        onRefreshTree()
+        await onRefreshTree()
       } catch (error: any) {
-        loadingNotify.close()
         const errorMessage = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '安装失败'
         ElMessage.error(errorMessage)
       } finally {
+        loadingNotify.close()
+        loadingInstance.close()
         isPasting.value = false
       }
     } catch {
@@ -453,6 +471,7 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
 
   return {
     copiedDirectory: computed(() => copiedDirectory.value),
+    isPasting: computed(() => isPasting.value),
     handleCopy,
     handlePaste
   }

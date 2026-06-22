@@ -110,8 +110,10 @@ const router = createRouter({
     },
     {
       path: '/agent/openapi',
-      name: 'openapi-token-management',
-      component: () => import('@/architecture/presentation/features/agent/pages/OpenAPITokenManagementPage.vue'),
+      redirect: {
+        path: '/system/settings',
+        query: { tab: 'openapi' }
+      },
       meta: {
         titleKey: 'route.openapiConfig',
         requireAuth: true,
@@ -129,7 +131,10 @@ const router = createRouter({
     },
     {
       path: '/connectors',
-      redirect: '/connectors/providers',
+      redirect: {
+        path: '/system/settings',
+        query: { tab: 'connectors' }
+      },
       meta: {
         titleKey: 'route.connectorManagement',
         requireAuth: true
@@ -137,8 +142,10 @@ const router = createRouter({
     },
     {
       path: '/connectors/providers',
-      name: 'connector-provider-management',
-      component: () => import('@/architecture/presentation/features/connector/pages/ConnectorProviderManagementPage.vue'),
+      redirect: {
+        path: '/system/settings',
+        query: { tab: 'connectors' }
+      },
       meta: {
         titleKey: 'route.connectorManagement',
         requireAuth: true

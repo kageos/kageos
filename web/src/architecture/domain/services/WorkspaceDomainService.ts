@@ -140,6 +140,11 @@ export class WorkspaceDomainService {
 
     try {
       const state = this.stateManager.getState()
+      this.stateManager.setState({
+        ...state,
+        loading: true,
+        accessError: null
+      })
       
       // 从 ServiceTreeLoader 加载服务目录树（现在返回包含 expandedKeys 的结果）
       const result = await this.serviceTreeLoader.load(app)
@@ -152,8 +157,9 @@ export class WorkspaceDomainService {
       const updatedApp = appInfo || app
       
       // 更新状态
+      const nextState = this.stateManager.getState()
       this.stateManager.setState({
-        ...state,
+        ...nextState,
         serviceTree: tree,
         loading: false, // 🔥 加载完成
         accessError: null

@@ -1,5 +1,11 @@
 <template>
-  <div class="service-tree-panel" data-testid="service-tree-panel" v-loading="loading">
+  <div
+    class="service-tree-panel"
+    data-testid="service-tree-panel"
+    v-loading="panelLoading"
+    :element-loading-text="panelLoadingText"
+    element-loading-background="rgba(2, 6, 23, 0.18)"
+  >
     <div class="tree-header">
       <div class="tree-primary-row">
         <el-input
@@ -157,7 +163,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { MoreFilled, Download, Delete, Search, Select, Close } from '@element-plus/icons-vue'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElLoading, ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { isRootNode } from '@/architecture/domain/utils/tree-utils'
 import { exportCapabilityBundle, installCapabilityBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/architecture/presentation/context/api/service-tree'
@@ -244,9 +250,45 @@ const rootFullCodePath = computed(() => props.treeData[0]?.full_code_path || '')
 const multiSelectMode = ref(false)
 const selectedNodes = ref<ServiceTree[]>([])
 const bulkExporting = ref(false)
+const capabilityImporting = ref(false)
+const renamingNode = ref(false)
 const capabilityImportInputRef = ref<HTMLInputElement | null>(null)
 const capabilityImportTargetNode = ref<ServiceTree | null>(null)
+const pendingExpandPath = ref('')
 let unsubscribeRuntimeRefresh: (() => void) | null = null
+
+const panelLoading = computed(() => Boolean(props.loading) || bulkExporting.value || capabilityImporting.value || renamingNode.value)
+const panelLoadingText = computed(() => {
+  if (capabilityImporting.value) return '正在导入能力包并更新函数列表...'
+  if (renamingNode.value) return '正在更新目录...'
+  if (bulkExporting.value) return '正在导出能力包...'
+  return '正在刷新服务目录...'
+})
+
+function showBlockingLoading(text: string) {
+  return ElLoading.service({
+    lock: true,
+    text,
+    background: 'rgba(15, 23, 42, 0.36)'
+  })
+}
+
+function refreshTreeAndExpand(path?: string) {
+  pendingExpandPath.value = path || ''
+  emit('refresh-tree')
+}
+
+watch(
+  () => props.treeData,
+  async () => {
+    const path = pendingExpandPath.value
+    if (!path) return
+    pendingExpandPath.value = ''
+    await nextTick()
+    expandPaths([path])
+  },
+  { flush: 'post' }
+)
 
 const stopRuntimeSummaryPolling = () => {
   if (runtimeSummaryTimer) {
@@ -400,6 +442,8 @@ const handleRename = async (node: ServiceTree) => {
       return
     }
     
+    const loadingInstance = showBlockingLoading('正在更新目录，请稍候...')
+    renamingNode.value = true
     try {
       // ⭐ 根据节点类型调用对应的更新接口
       if (node.type === 'package') {
@@ -415,10 +459,13 @@ const handleRename = async (node: ServiceTree) => {
       ElMessage.success(t('serviceTree.renameSuccess'))
       
       // 刷新树
-      emit('refresh-tree')
+      refreshTreeAndExpand(node.full_code_path)
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || t('serviceTree.renameFailed')
       ElMessage.error(errorMessage)
+    } finally {
+      renamingNode.value = false
+      loadingInstance.close()
     }
   } catch (error) {
     // 用户取消了输入
@@ -670,6 +717,7 @@ async function handleCapabilityImportFileChange(event: Event) {
   input.value = ''
   const targetNode = capabilityImportTargetNode.value
   capabilityImportTargetNode.value = null
+  let loadingInstance: ReturnType<typeof showBlockingLoading> | null = null
 
   if (!file || !targetNode?.full_code_path) {
     return
@@ -686,6 +734,8 @@ async function handleCapabilityImportFileChange(event: Event) {
         type: 'warning'
       }
     )
+    capabilityImporting.value = true
+    loadingInstance = showBlockingLoading('正在导入能力包并更新函数列表，请稍候...')
     const resp = await installCapabilityBundle({
       target_directory_path: targetNode.full_code_path,
       overwrite: true,
@@ -693,13 +743,16 @@ async function handleCapabilityImportFileChange(event: Event) {
       bundle
     })
     ElMessage.success(resp.message || t('serviceTree.importSuccess'))
-    emit('refresh-tree')
+    refreshTreeAndExpand(targetNode.full_code_path)
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') {
       return
     }
     const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('serviceTree.importFailed')
     ElMessage.error(message)
+  } finally {
+    capabilityImporting.value = false
+    loadingInstance?.close()
   }
 }
 

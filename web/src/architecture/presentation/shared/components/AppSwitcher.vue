@@ -27,15 +27,17 @@
           >
             <div class="app-avatar">
               <div class="app-icon" :style="{ backgroundColor: getAppColor(currentApp) }">
-                {{ getAppInitial(currentApp.name || currentApp.code) }}
+                {{ getAppInitial(getWorkspaceDisplayName(currentApp)) }}
               </div>
               <div class="status-indicator" v-if="!compact"></div>
             </div>
             <div class="app-info">
-              <div class="app-name">{{ currentApp.name || currentApp.code }}</div>
+              <div class="app-name" :title="getWorkspaceDisplayName(currentApp)">
+                {{ getWorkspaceDisplayName(currentApp) }}
+              </div>
               <div class="app-path" v-if="!compact">
                 <el-icon class="path-icon"><FolderOpened /></el-icon>
-                <span>{{ currentApp.user }}/{{ currentApp.code }}</span>
+                <span :title="getWorkspaceRoute(currentApp)">{{ getWorkspaceMetaLine(currentApp) }}</span>
               </div>
             </div>
             <div class="expand-section" v-if="!compact">
@@ -145,6 +147,24 @@ const getAppInitial = (text: string) => {
   return text.charAt(0).toUpperCase()
 }
 
+const getWorkspaceDisplayName = (app: App) => {
+  const name = app.name?.trim()
+  return name || app.code || '未命名工作空间'
+}
+
+const getWorkspaceRoute = (app: App) => `/workspace/${app.user}/${app.code}`
+
+const getWorkspaceMetaLine = (app: App) => {
+  const parts = []
+  if (app.code) {
+    parts.push(`标识：${app.code}`)
+  }
+  if (app.user) {
+    parts.push(`所有者：${app.user}`)
+  }
+  return parts.join(' · ')
+}
+
 const handleTriggerClick = () => {
   if (workspaceListForceSelect.value) {
     dialogVisible.value = true
@@ -181,6 +201,8 @@ const handleCreateApp = () => {
 // 更新应用
 const handleUpdateApp = (app: App) => {
   emit('update-app', app)
+  popoverVisible.value = false
+  dialogVisible.value = false
 }
 
 // 删除应用
@@ -211,7 +233,14 @@ const handleDocumentPointerDown = (event: PointerEvent) => {
   }
 
   const popoverEl = document.querySelector('.workspace-switcher-popover')
-  if (switcherRootRef.value?.contains(target) || popoverEl?.contains(target)) {
+  const messageBoxEl = document.querySelector('.el-message-box')
+  const messageBoxOverlayEl = document.querySelector('.el-overlay-message-box')
+  if (
+    switcherRootRef.value?.contains(target) ||
+    popoverEl?.contains(target) ||
+    messageBoxEl?.contains(target) ||
+    messageBoxOverlayEl?.contains(target)
+  ) {
     return
   }
 
