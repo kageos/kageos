@@ -6,7 +6,7 @@
 
 业务代码只写业务规则，不重造平台能力：
 
-- 平台接口：用 `ctx.APICall(...)` 或 `/system/openapi`，不要裸写 HTTP client、硬编码 token、直连平台库。
+- 平台接口：用 `ctx.APICall(...)`；确需沉淀平台接口包装函数时放在 `/system/tools/openapi`，不要裸写 HTTP client、硬编码 token、直连平台库。
 - 消息通知：需要通知用户时使用 SDK `ctx.SendMessage`，由 message-service 异步写站内信并在服务侧扩展渠道；业务代码不要直接耦合飞书、邮件、企业微信等渠道，也不要让普通业务等待通知投递完成。
 - 通用权限、审批、评论、收藏不属于 MVP 应用侧能力，不在每个业务系统自造。
 - Table 更新日志由平台记录；业务上确实需要流水、操作记录、支付记录、投票记录时，可以建只读业务 Table。
@@ -41,7 +41,7 @@ if err := ctx.APICall(http.MethodGet, "/workspace/api/v1/operate_log/general?"+q
 - 直连平台数据库。
 - 伪造平台运行上下文。
 
-操作日志等平台领域，优先走 `platform_engineer` 角色和 `/system/openapi` 函数。
+操作日志等平台领域，优先走 `platform_engineer` 角色和 `ctx.APICall`；确需复用包装函数时使用 `/system/tools/openapi` 下的系统工具函数。
 
 ## 消息通知
 

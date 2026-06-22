@@ -58,9 +58,10 @@ func TestRenderBundledConfig(t *testing.T) {
 	compose := mustReadFile(t, filepath.Join(paths.GeneratedDir, "docker-compose.yaml"))
 	for _, want := range []string{
 		`image: "docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"`,
-		`MYSQL_HOST: "127.0.0.1"`,
-		`MINIO_HOST: "127.0.0.1"`,
+		`MYSQL_HOST: "mysql"`,
+		`MINIO_HOST: "minio"`,
 		`NATS_URL: "nats://aos:`,
+		`@nats:4222"`,
 		`NATS_SEED_USER: "aos"`,
 		`NATS_SEED_PASSWORD: "`,
 		`SYSTEM_USER_PASSWORD: "` + cfg.SystemUser.Password + `"`,
@@ -74,10 +75,26 @@ func TestRenderBundledConfig(t *testing.T) {
 		`dockerfile: deploy/prod/app-base-builder.Dockerfile`,
 		`image: "localhost/kageos-app-base-builder:latest"`,
 		`KAGEOS_APP_BASE_IMAGE: "kagebase:latest"`,
+		`ports:`,
+		`"80:80"`,
+		`networks: [aos]`,
 	} {
 		if !strings.Contains(compose, want) {
 			t.Fatalf("generated compose missing %q", want)
 		}
+	}
+	if strings.Contains(compose, `main:
+    build:
+      context: ../../..
+      dockerfile: deploy/prod/Dockerfile
+    image: "localhost/kageos-main:latest"
+    network_mode: host`) {
+		t.Fatalf("generated bridge compose should not run main with host network, got:\n%s", compose)
+	}
+
+	envFile := mustReadFile(t, filepath.Join(paths.GeneratedDir, "env", "kageos.env"))
+	if !strings.Contains(envFile, "KAGEOS_NETWORK_PROFILE=aio-bridge") {
+		t.Fatalf("generated env file should include bridge network profile, got:\n%s", envFile)
 	}
 
 	mysqlInit := mustReadFile(t, filepath.Join(paths.GeneratedDir, "infra", "mysql-init.sql"))
@@ -114,7 +131,7 @@ func TestRenderBundledConfig(t *testing.T) {
 	for _, want := range []string{
 		`base_url: "http://127.0.0.1"`,
 		`nats_url: "nats://aos:`,
-		`@127.0.0.1:4222"`,
+		`@nats:4222"`,
 		`gateway_url: "http://127.0.0.1:9090"`,
 	} {
 		if !strings.Contains(globalConfig, want) {
@@ -146,7 +163,7 @@ func TestRenderBundledConfig(t *testing.T) {
 	}
 
 	appStorageConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-storage.yaml"))
-	if !strings.Contains(appStorageConfig, `server_endpoint: "127.0.0.1:9000"`) {
+	if !strings.Contains(appStorageConfig, `server_endpoint: "minio:9000"`) {
 		t.Fatalf("generated app-storage config should include prod runtime MinIO endpoint, got:\n%s", appStorageConfig)
 	}
 
@@ -209,6 +226,68 @@ func TestRenderBundledConfig(t *testing.T) {
 		if strings.Contains(apiGatewayConfig, retired) {
 			t.Fatalf("generated api-gateway config should not include retired route %q, got:\n%s", retired, apiGatewayConfig)
 		}
+	}
+}
+
+func TestRenderLegacyHostNetworkProfile(t *testing.T) {
+	t.Parallel()
+
+	prodDir := t.TempDir()
+	paths := Paths{
+		RepoRoot:     filepath.Dir(filepath.Dir(prodDir)),
+		ProdDir:      prodDir,
+		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
+		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
+	}
+	cfg, err := defaultConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Network.Profile = networkProfileLegacyHost
+	cfg.Storage.Root = filepath.Join(prodDir, "storage")
+	cfg.Site.BaseURL = "http://127.0.0.1"
+
+	rt, err := buildRuntimeConfig(paths, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateConfig(rt); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderAll(rt); err != nil {
+		t.Fatal(err)
+	}
+
+	compose := mustReadFile(t, filepath.Join(paths.GeneratedDir, "docker-compose.yaml"))
+	for _, want := range []string{
+		`network_mode: host`,
+		`MYSQL_HOST: "127.0.0.1"`,
+		`MINIO_HOST: "127.0.0.1"`,
+		`NATS_URL: "nats://aos:`,
+		`@127.0.0.1:4222"`,
+	} {
+		if !strings.Contains(compose, want) {
+			t.Fatalf("generated legacy-host compose missing %q, got:\n%s", want, compose)
+		}
+	}
+	if strings.Contains(compose, `"80:80"`) {
+		t.Fatalf("generated legacy-host compose should not publish edge ports explicitly, got:\n%s", compose)
+	}
+
+	globalConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "global.yaml"))
+	for _, want := range []string{
+		`nats_url: "nats://aos:`,
+		`@127.0.0.1:4222"`,
+		`gateway_url: "http://127.0.0.1:9090"`,
+	} {
+		if !strings.Contains(globalConfig, want) {
+			t.Fatalf("generated legacy-host SDK config missing %q, got:\n%s", want, globalConfig)
+		}
+	}
+
+	appStorageConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "app-storage.yaml"))
+	if !strings.Contains(appStorageConfig, `server_endpoint: "127.0.0.1:9000"`) {
+		t.Fatalf("generated legacy-host app-storage config should keep loopback MinIO, got:\n%s", appStorageConfig)
 	}
 }
 
@@ -816,7 +895,8 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 	for _, want := range []string{
 		`site:`,
 		`base_url: "http://localhost:5173"`,
-		`gateway_url: "http://127.0.0.1:9090"`,
+		`gateway_url: "http://host.containers.internal:9090"`,
+		`@host.containers.internal:4222"`,
 	} {
 		if !strings.Contains(globalConfig, want) {
 			t.Fatalf("dev global config missing %q, got:\n%s", want, globalConfig)

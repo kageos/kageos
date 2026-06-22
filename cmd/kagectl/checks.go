@@ -137,25 +137,33 @@ func startupDependencyChecks(rt RuntimeConfig) []layerCheck {
 		})
 	}
 	if rt.IncludeNATS {
+		host, port := rt.NATSHostForMain, rt.NATSPortForMain
+		if !rt.UseHostNetwork {
+			host, port = "127.0.0.1", 4222
+		}
 		checks = append(checks, layerCheck{
 			Layer:  layerInfra,
 			Name:   "nats tcp",
-			Target: tcpTarget(rt.NATSHostForMain, rt.NATSPortForMain),
-			Fn:     func() error { return checkTCP("nats", rt.NATSHostForMain, rt.NATSPortForMain) },
+			Target: tcpTarget(host, port),
+			Fn:     func() error { return checkTCP("nats", host, port) },
 		})
 	}
 	if rt.IncludeMinIO {
+		host, port := rt.MinIOHostForMain, rt.MinIOPortForMain
+		if !rt.UseHostNetwork {
+			host, port = "127.0.0.1", 9000
+		}
 		checks = append(checks, layerCheck{
 			Layer:  layerInfra,
 			Name:   "minio tcp",
-			Target: tcpTarget(rt.MinIOHostForMain, rt.MinIOPortForMain),
-			Fn:     func() error { return checkTCP("minio", rt.MinIOHostForMain, rt.MinIOPortForMain) },
+			Target: tcpTarget(host, port),
+			Fn:     func() error { return checkTCP("minio", host, port) },
 		})
 		checks = append(checks, layerCheck{
 			Layer:  layerInfra,
 			Name:   "minio clock",
-			Target: minIOClockCheckURL(rt.MinIOHostForMain, rt.MinIOPortForMain, rt.MinIO.UseSSL),
-			Fn:     func() error { return checkMinIOClock(rt.MinIOHostForMain, rt.MinIOPortForMain, rt.MinIO.UseSSL) },
+			Target: minIOClockCheckURL(host, port, rt.MinIO.UseSSL),
+			Fn:     func() error { return checkMinIOClock(host, port, rt.MinIO.UseSSL) },
 		})
 	}
 	return checks
@@ -175,18 +183,18 @@ func verifyLayerChecks(rt RuntimeConfig) []layerCheck {
 		checks = append(checks, layerCheck{Layer: layerEdge, Name: "nginx https listener", Target: tcpTarget("127.0.0.1", rt.Site.HTTPSPort), Fn: func() error { return checkTCP("nginx", "127.0.0.1", rt.Site.HTTPSPort) }})
 	}
 	checks = append(checks,
-		layerCheck{Layer: layerPlatform, Name: "api-gateway", Target: "http://127.0.0.1:9090/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9090/health") }},
-		layerCheck{Layer: layerPlatform, Name: "app-server", Target: "http://127.0.0.1:9091/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9091/health") }},
-		layerCheck{Layer: layerPlatform, Name: "app-storage", Target: "http://127.0.0.1:9092/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9092/health") }},
-		layerCheck{Layer: layerPlatform, Name: "agent-server", Target: "http://127.0.0.1:9095/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9095/health") }},
-		layerCheck{Layer: layerPlatform, Name: "connector-server", Target: "http://127.0.0.1:9096/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9096/health") }},
-		layerCheck{Layer: layerPlatform, Name: "hr-server", Target: "http://127.0.0.1:9097/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9097/health") }},
-		layerCheck{Layer: layerPlatform, Name: "timer-scheduler", Target: "http://127.0.0.1:9098/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9098/health") }},
-		layerCheck{Layer: layerPlatform, Name: "message-server", Target: "http://127.0.0.1:9099/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9099/health") }},
+		mainHTTPHealthCheck(rt, layerPlatform, "api-gateway", 9090),
+		mainHTTPHealthCheck(rt, layerPlatform, "app-server", 9091),
+		mainHTTPHealthCheck(rt, layerPlatform, "app-storage", 9092),
+		mainHTTPHealthCheck(rt, layerPlatform, "agent-server", 9095),
+		mainHTTPHealthCheck(rt, layerPlatform, "connector-server", 9096),
+		mainHTTPHealthCheck(rt, layerPlatform, "hr-server", 9097),
+		mainHTTPHealthCheck(rt, layerPlatform, "timer-scheduler", 9098),
+		mainHTTPHealthCheck(rt, layerPlatform, "message-server", 9099),
 		layerCheck{Layer: layerPlatform, Name: "main platform probe", Target: "compose exec main /app/health/platform.sh", Fn: func() error {
 			return runComposeCapture(rt.Paths.GeneratedDir, "exec", "-T", "main", "/app/health/platform.sh")
 		}},
-		layerCheck{Layer: layerRuntime, Name: "app-runtime", Target: "http://127.0.0.1:9093/health", Fn: func() error { return checkHTTP("http://127.0.0.1:9093/health") }},
+		mainHTTPHealthCheck(rt, layerRuntime, "app-runtime", 9093),
 		layerCheck{Layer: layerRuntime, Name: "main runtime probe", Target: "compose exec main /app/health/runtime.sh", Fn: func() error {
 			return runComposeCapture(rt.Paths.GeneratedDir, "exec", "-T", "main", "/app/health/runtime.sh")
 		}},
@@ -195,7 +203,22 @@ func verifyLayerChecks(rt RuntimeConfig) []layerCheck {
 	return checks
 }
 
+func mainHTTPHealthCheck(rt RuntimeConfig, layer deploymentLayerID, name string, port int) layerCheck {
+	url := fmt.Sprintf("http://127.0.0.1:%d/health", port)
+	if rt.UseHostNetwork {
+		return layerCheck{Layer: layer, Name: name, Target: url, Fn: func() error { return checkHTTP(url) }}
+	}
+	target := fmt.Sprintf("compose exec main curl -fsS %s", url)
+	return layerCheck{Layer: layer, Name: name, Target: target, Fn: func() error {
+		return runComposeCapture(rt.Paths.GeneratedDir, "exec", "-T", "main", "curl", "--silent", "--show-error", "--fail", url)
+	}}
+}
+
 func appendSDKEndpointChecks(checks []layerCheck, rt RuntimeConfig) []layerCheck {
+	expectedHost := "127.0.0.1"
+	if !rt.UseHostNetwork {
+		expectedHost = "nats"
+	}
 	checks = append(checks, layerCheck{
 		Layer:  layerApps,
 		Name:   "sdk gateway endpoint",
@@ -207,15 +230,19 @@ func appendSDKEndpointChecks(checks []layerCheck, rt RuntimeConfig) []layerCheck
 			Layer:  layerApps,
 			Name:   "sdk nats endpoint",
 			Target: redactURLCredentials(rt.SDKNATSURL),
-			Fn:     func() error { return requireContains(rt.SDKNATSURL, "127.0.0.1") },
+			Fn:     func() error { return requireContains(rt.SDKNATSURL, expectedHost) },
 		})
 	}
 	if rt.MinIO.Mode == "bundled" {
+		expectedMinIOHost := "127.0.0.1"
+		if !rt.UseHostNetwork {
+			expectedMinIOHost = "minio"
+		}
 		checks = append(checks, layerCheck{
 			Layer:  layerApps,
 			Name:   "sdk minio endpoint",
 			Target: rt.SDKMinIOEndpoint,
-			Fn:     func() error { return requireContains(rt.SDKMinIOEndpoint, "127.0.0.1") },
+			Fn:     func() error { return requireContains(rt.SDKMinIOEndpoint, expectedMinIOHost) },
 		})
 	}
 	return checks

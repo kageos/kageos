@@ -209,6 +209,8 @@ func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, company
 		return err
 	}
 	rt.AppContainerNetworkMode = ""
+	rt.SDKGatewayURL = "http://host.containers.internal:9090"
+	rt.SDKNATSURL = devSDKNATSURL(rt.NATSURL)
 	rt.SDKMinIOEndpoint = devSDKMinIOEndpoint(rt.MinIOEndpoint)
 
 	configDir := filepath.Join(paths.RepoRoot, defaultDevConfig)
@@ -544,6 +546,7 @@ func deploymentSummaryRows(rt RuntimeConfig, status string) [][2]string {
 		{"TLS mode", rt.Site.TLSMode},
 		{"Self-signed TLS bootstrap", fmt.Sprintf("%t", rt.Site.AllowSelfSignedBootstrap)},
 		{"Timezone", rt.Timezone},
+		{"Network profile", rt.Network.Profile},
 		{"Admin username", "system"},
 		{"Initial password", rt.SystemUser.Password},
 		{"Registration mode", rt.Auth.RegistrationMode},
@@ -588,6 +591,7 @@ func printProdInitSummary(paths Paths, cfg Config) {
 		{"TLS mode", rt.Site.TLSMode},
 		{"Self-signed TLS bootstrap", fmt.Sprintf("%t", rt.Site.AllowSelfSignedBootstrap)},
 		{"Timezone", rt.Timezone},
+		{"Network profile", rt.Network.Profile},
 		{"HTTP port", strconv.Itoa(rt.Site.HTTPPort)},
 		{"HTTPS port", strconv.Itoa(rt.Site.HTTPSPort)},
 		{"Admin username", "system"},
@@ -601,10 +605,10 @@ func printProdInitSummary(paths Paths, cfg Config) {
 		{"MySQL address", rt.MySQLAddress},
 		{"MySQL user", cfg.MySQL.User},
 		{"MySQL password", cfg.MySQL.Password},
-		{"NATS URL", redactURLCredentials(natsURLForMain(cfg))},
+		{"NATS URL", redactURLCredentials(rt.NATSURL)},
 		{"NATS user", cfg.NATS.User},
 		{"NATS password", cfg.NATS.Password},
-		{"MinIO endpoint", cfg.MinIO.Endpoint},
+		{"MinIO endpoint", rt.MinIOEndpoint},
 		{"MinIO access key", cfg.MinIO.AccessKey},
 		{"MinIO secret key", cfg.MinIO.SecretKey},
 		{"JWT secret", cfg.Secrets.JWTSecret},

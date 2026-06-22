@@ -23,7 +23,7 @@
 
 - 取当前用户/部门、事务、副作用顺序、Python 运行时、Table 回调高级能力：`read_doc("/system/prompt/sdk/reference/runtime-capabilities")`
 - 构建失败、启动期 schema/widget/路由校验、未定义 SDK API 排查：`read_doc("/system/prompt/sdk/reference/build-validation")`
-- SDK 代码里调用平台 Web API 或包装 `/system/openapi` 函数：`read_doc("/system/prompt/sdk/reference/platform-api")`
+- SDK 代码里调用平台 Web API 或沉淀平台接口包装函数：`read_doc("/system/prompt/sdk/reference/platform-api")`
 
 这些参考文档不是默认注入内容；只有当前任务确实命中时才读取。
 

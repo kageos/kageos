@@ -21,6 +21,10 @@ const (
 	defaultTimezone   = "Asia/Shanghai"
 	composeEngineEnv  = "KAGEOS_COMPOSE_ENGINE"
 
+	networkProfileAIOBridge  = "aio-bridge"
+	networkProfileDevHost    = "dev-host"
+	networkProfileLegacyHost = "legacy-host"
+
 	defaultMainImage           = "localhost/kageos-main:latest"
 	defaultAppBaseBuilderImage = "localhost/kageos-app-base-builder:latest"
 	defaultAppBaseImage        = "kagebase:latest"
@@ -98,6 +102,7 @@ func explicitURLPort(rawURL string, scheme string) int {
 
 type Config struct {
 	Timezone   string           `yaml:"timezone"`
+	Network    NetworkConfig    `yaml:"network"`
 	Site       SiteConfig       `yaml:"site"`
 	Images     ImageConfig      `yaml:"images"`
 	Storage    StorageConfig    `yaml:"storage"`
@@ -110,6 +115,13 @@ type Config struct {
 	SystemUser SystemUserConfig `yaml:"system_user"`
 	LLMs       LLMSeedsConfig   `yaml:"llms"`
 	SMTP       SMTPConfig       `yaml:"smtp"`
+}
+
+type NetworkConfig struct {
+	// profile selects the address matrix rendered into compose/runtime configs.
+	// aio-bridge keeps main on the compose bridge network; legacy-host preserves
+	// the older host-network deployment for emergency rollback.
+	Profile string `yaml:"profile"`
 }
 
 type SiteConfig struct {
@@ -259,6 +271,7 @@ type RuntimeConfig struct {
 	ComposeConfigPath       string
 	AppBaseBuilderImage     string
 	AppContainerNetworkMode string
+	UseHostNetwork          bool
 	LLMSeedEnvVars          []string
 	EnvFilePath             string
 	SummaryPath             string

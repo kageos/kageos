@@ -93,6 +93,7 @@ func defaultConfig() (Config, error) {
 
 	cfg := Config{
 		Timezone: defaultTimezone,
+		Network:  NetworkConfig{Profile: networkProfileAIOBridge},
 		Site: SiteConfig{
 			TLSMode:  "http",
 			CertFile: "/app/tls/fullchain.pem",
@@ -169,6 +170,7 @@ func defaultConfig() (Config, error) {
 func defaultDevDeploymentConfig(secrets devSecrets) Config {
 	return Config{
 		Timezone: defaultTimezone,
+		Network:  NetworkConfig{Profile: networkProfileDevHost},
 		Site: SiteConfig{
 			BaseURL:  "http://localhost:5173",
 			TLSMode:  "http",
@@ -246,6 +248,7 @@ func applyDefaults(cfg *Config) {
 	if cfg.Timezone == "" {
 		cfg.Timezone = defaultTimezone
 	}
+	cfg.Network.Profile = normalizeNetworkProfile(cfg.Network.Profile)
 	if cfg.Site.TLSMode == "" {
 		cfg.Site.TLSMode = "http"
 	}
@@ -367,6 +370,9 @@ func applyEnvOverrides(cfg *Config) {
 	if v := strings.TrimSpace(os.Getenv("KAGEOS_TIMEZONE")); v != "" {
 		cfg.Timezone = v
 	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_NETWORK_PROFILE")); v != "" {
+		cfg.Network.Profile = v
+	}
 	if v := strings.TrimSpace(os.Getenv("KAGEOS_BASE_URL")); v != "" {
 		cfg.Site.BaseURL = v
 	}
@@ -425,6 +431,7 @@ func parsePortEnv(name string) (int, bool, error) {
 
 func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 	applyDefaults(&cfg)
+	useHostNetwork := cfg.Network.Profile == networkProfileLegacyHost
 	rt := RuntimeConfig{
 		Config:                  cfg,
 		Paths:                   paths,
@@ -433,6 +440,7 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 		IncludeMinIO:            cfg.MinIO.Mode == "bundled",
 		AppBaseBuilderImage:     defaultAppBaseBuilderImage,
 		AppContainerNetworkMode: "host",
+		UseHostNetwork:          useHostNetwork,
 	}
 
 	rt.TLSCertsHostDir = filepath.Join(cfg.Storage.Root, "tls")
@@ -440,22 +448,33 @@ func buildRuntimeConfig(paths Paths, cfg Config) (RuntimeConfig, error) {
 	rt.MySQLHostForMain = cfg.MySQL.Host
 	rt.MySQLPortForMain = cfg.MySQL.Port
 	if cfg.MySQL.Mode == "bundled" {
-		rt.MySQLHostForMain = "127.0.0.1"
+		rt.MySQLHostForMain = "mysql"
+		if useHostNetwork {
+			rt.MySQLHostForMain = "127.0.0.1"
+		}
 		rt.MySQLPortForMain = 3306
 	}
 	rt.MySQLAddress = net.JoinHostPort(rt.MySQLHostForMain, strconv.Itoa(rt.MySQLPortForMain))
 	rt.AppDBClusterKey = appDBClusterKey(rt.MySQLHostForMain, rt.MySQLPortForMain)
 
-	rt.NATSHostForMain, rt.NATSPortForMain = natsHostPort(cfg)
-	rt.NATSURL = natsURLForMain(cfg)
-	rt.SDKNATSURL = natsURLForSDK(cfg)
+	rt.NATSHostForMain, rt.NATSPortForMain = natsHostPortForProfile(cfg, useHostNetwork)
+	if cfg.NATS.Mode == "external" && strings.TrimSpace(cfg.NATS.URL) != "" {
+		rt.NATSURL = cfg.NATS.URL
+	} else {
+		rt.NATSURL = buildNATSURL(cfg, rt.NATSHostForMain, rt.NATSPortForMain)
+	}
+	rt.SDKNATSURL = rt.NATSURL
 	rt.SDKGatewayURL = "http://127.0.0.1:9090"
 
 	rt.MinIOEndpoint = cfg.MinIO.Endpoint
-	rt.SDKMinIOEndpoint = sdkMinIOEndpoint(cfg.MinIO.Endpoint)
+	rt.SDKMinIOEndpoint = sdkMinIOEndpointForProfile(cfg.MinIO.Endpoint, useHostNetwork)
 	if cfg.MinIO.Mode == "bundled" {
-		rt.MinIOEndpoint = "127.0.0.1:9000"
-		rt.SDKMinIOEndpoint = "127.0.0.1:9000"
+		rt.MinIOEndpoint = "minio:9000"
+		rt.SDKMinIOEndpoint = "minio:9000"
+		if useHostNetwork {
+			rt.MinIOEndpoint = "127.0.0.1:9000"
+			rt.SDKMinIOEndpoint = "127.0.0.1:9000"
+		}
 	}
 	minioHost, minioPort, err := splitHostPortDefault(rt.MinIOEndpoint, 9000)
 	if err != nil {
@@ -479,6 +498,36 @@ func appDBClusterKey(host string, port int) string {
 	value := strings.ToLower(strings.TrimSpace(host)) + ":" + strconv.Itoa(port)
 	sum := sha256.Sum256([]byte(value))
 	return "mysql_" + hex.EncodeToString(sum[:])[:12]
+}
+
+func normalizeNetworkProfile(profile string) string {
+	switch strings.ToLower(strings.TrimSpace(profile)) {
+	case "", "bridge", "aio", "aio-bridge", "compose-bridge":
+		return networkProfileAIOBridge
+	case "dev", "dev-host":
+		return networkProfileDevHost
+	case "host", "legacy", "legacy-host":
+		return networkProfileLegacyHost
+	default:
+		return strings.TrimSpace(profile)
+	}
+}
+
+func natsHostPortForProfile(cfg Config, useHostNetwork bool) (string, int) {
+	if cfg.NATS.Mode == "bundled" {
+		if useHostNetwork {
+			return "127.0.0.1", 4222
+		}
+		return "nats", 4222
+	}
+	return natsHostPort(cfg)
+}
+
+func sdkMinIOEndpointForProfile(endpoint string, useHostNetwork bool) string {
+	if useHostNetwork {
+		return sdkMinIOEndpoint(endpoint)
+	}
+	return endpoint
 }
 
 func sdkMinIOEndpoint(endpoint string) string {
@@ -507,6 +556,19 @@ func devSDKMinIOEndpoint(endpoint string) string {
 	return endpoint
 }
 
+func devSDKNATSURL(rawURL string) string {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Host == "" || !isLocalHostForContainer(parsed.Hostname()) {
+		return rawURL
+	}
+	port := parsed.Port()
+	if port == "" {
+		port = "4222"
+	}
+	parsed.Host = net.JoinHostPort("host.containers.internal", port)
+	return parsed.String()
+}
+
 func isLocalHostForContainer(host string) bool {
 	host = strings.ToLower(strings.Trim(strings.TrimSpace(host), "[]"))
 	if host == "localhost" || host == "host.containers.internal" || host == "host.docker.internal" {
@@ -519,6 +581,9 @@ func isLocalHostForContainer(host string) bool {
 func validateConfig(rt RuntimeConfig) error {
 	var errs []error
 	if err := validateTimezoneValue("timezone", rt.Timezone); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateNetworkProfile(rt.Network.Profile); err != nil {
 		errs = append(errs, err)
 	}
 	if !strings.HasPrefix(rt.Site.BaseURL, "http://") && !strings.HasPrefix(rt.Site.BaseURL, "https://") {
@@ -746,5 +811,14 @@ func validateMode(name, value string) error {
 		return nil
 	default:
 		return fmt.Errorf("%s must be bundled or external", name)
+	}
+}
+
+func validateNetworkProfile(profile string) error {
+	switch normalizeNetworkProfile(profile) {
+	case networkProfileAIOBridge, networkProfileDevHost, networkProfileLegacyHost:
+		return nil
+	default:
+		return fmt.Errorf("network.profile must be aio-bridge, dev-host, or legacy-host")
 	}
 }

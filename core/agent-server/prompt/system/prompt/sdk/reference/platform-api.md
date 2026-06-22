@@ -30,9 +30,9 @@ err := ctx.APICall(method, path, reqBody, respData)
 - 调用已删除的 `/scheduled_tasks`、`/scheduled_agent_tasks`、备份控制面或企业 License 接口。
 - 在业务代码里直接耦合飞书、邮件、企业微信等通知渠道；发送平台消息优先使用 SDK `ctx.SendMessage`。
 
-## /system/openapi
+## 平台接口包装函数
 
-`/system/openapi` 是官方平台接口工作空间。新增平台接口包装函数时：
+平台接口优先直接在业务函数中用 `ctx.APICall`。确需沉淀为可复用的官方系统工具时，放在 `/system/tools/openapi` 子目录，不再创建单独的 `/system/openapi` 工作空间。新增平台接口包装函数时：
 
 1. 按平台领域建目录，如 `operate_log`。
 2. 每个目录自己隔离 helper，不建公共 utils 目录。

@@ -60,7 +60,11 @@ services:
       context: ../../..
       dockerfile: deploy/prod/app-base-builder.Dockerfile
     image: {{ q .AppBaseBuilderImage }}
+{{- if .UseHostNetwork }}
     network_mode: host
+{{- else }}
+    networks: [aos]
+{{- end }}
     privileged: true
     environment:
       KAGEOS_APP_BASE_IMAGE: {{ q .Images.AppBase }}
@@ -74,7 +78,16 @@ services:
       context: ../../..
       dockerfile: deploy/prod/Dockerfile
     image: {{ q .Images.Main }}
+{{- if .UseHostNetwork }}
     network_mode: host
+{{- else }}
+    ports:
+      - {{ q (printf "%d:%d" .Site.HTTPPort .Site.HTTPPort) }}
+{{- if or (eq .Site.TLSMode "https") (eq .Site.TLSMode "redirect") }}
+      - {{ q (printf "%d:%d" .Site.HTTPSPort .Site.HTTPSPort) }}
+{{- end }}
+    networks: [aos]
+{{- end }}
     privileged: true
     restart: unless-stopped
     environment:
@@ -138,6 +151,7 @@ networks:
 const envTemplate = `
 CANONICAL_BASE_URL={{ .Site.BaseURL }}
 TZ={{ .Timezone }}
+KAGEOS_NETWORK_PROFILE={{ .Network.Profile }}
 TLS_MODE={{ .Site.TLSMode }}
 HTTP_PORT={{ .Site.HTTPPort }}
 HTTPS_PORT={{ .Site.HTTPSPort }}
