@@ -9,6 +9,7 @@ import {
   getOAuthRegistrationIntent,
   type OAuthRegistrationIntent
 } from '@/architecture/presentation/context/api/auth'
+import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -55,13 +56,6 @@ function normalizeCodeInput(value: string | number) {
     .replace(/_+/g, '_')
     .replace(/^[^a-z]+/g, '')
   form.username = normalized
-}
-
-function providerMark(provider: string) {
-  const code = provider.toLowerCase()
-  if (code.includes('google')) return 'G'
-  if (code.includes('github')) return 'GH'
-  return provider.slice(0, 2).toUpperCase()
 }
 
 function selectSuggestion(code: string) {
@@ -130,8 +124,7 @@ onMounted(loadIntent)
         <template v-if="intent">
           <div class="register-content">
             <div class="oauth-profile">
-              <el-avatar v-if="intent.avatar" :src="intent.avatar" :size="48" />
-              <div v-else class="provider-avatar">{{ providerMark(intent.provider_code) }}</div>
+              <UserAvatar :src="intent.avatar" :size="48" :alt="intent.email || intent.provider_name" />
               <div class="profile-main">
                 <div class="provider-name">{{ intent.provider_name }} 授权账号</div>
                 <div class="profile-email">{{ intent.email || '未提供邮箱' }}</div>
@@ -307,19 +300,6 @@ onMounted(loadIntent)
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 8px;
   background: linear-gradient(180deg, rgba(246, 250, 255, 0.86), rgba(237, 244, 252, 0.82));
-}
-
-.provider-avatar {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: 1px solid rgba(22, 119, 255, 0.2);
-  background: rgba(22, 119, 255, 0.11);
-  color: #1d5fbf;
-  font-weight: 800;
 }
 
 .profile-main {

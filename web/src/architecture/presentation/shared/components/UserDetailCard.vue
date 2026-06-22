@@ -10,9 +10,7 @@
   <div v-if="userInfo" class="user-detail-card" :class="{ compact: props.compact }">
     <!-- 用户头像和基本信息 -->
     <div class="user-header">
-      <el-avatar :size="72" :src="userInfo.avatar" class="user-avatar-large">
-        {{ userInfo.username?.[0]?.toUpperCase() || 'U' }}
-      </el-avatar>
+      <UserAvatar :size="72" :src="userInfo.avatar" :alt="userInfo.username" class="user-avatar-large" />
       <div class="user-basic-info">
         <div class="user-name-primary">
           {{ formatUserDisplayName(userInfo) }}
@@ -72,10 +70,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ElAvatar, ElIcon, ElTag } from 'element-plus'
+import { ElIcon, ElTag } from 'element-plus'
 import { OfficeBuilding, UserFilled, Message, User, EditPen, Male, Female } from '@element-plus/icons-vue'
 import type { UserInfo } from '@/architecture/domain/types'
 import { formatUserDisplayName } from '@/architecture/domain/utils/userInfo'
+import UserAvatar from './UserAvatar.vue'
 
 interface Props {
   userInfo: UserInfo | null

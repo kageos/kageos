@@ -18,21 +18,17 @@
   <div class="user-display-wrapper">
     <!-- 简单模式：只显示头像和名称 -->
     <div v-if="mode === 'simple'" class="user-display-simple" :class="[sizeClass, layoutClass]">
-      <el-avatar 
-        v-if="actualUserInfo" 
-        :src="actualUserInfo.avatar" 
+      <UserAvatar
+        v-if="actualUserInfo"
+        :src="actualUserInfo.avatar"
         :size="avatarSize"
         class="user-avatar"
-      >
-        {{ actualUserInfo.username?.[0]?.toUpperCase() || 'U' }}
-      </el-avatar>
-      <el-avatar 
-        v-else 
+      />
+      <UserAvatar
+        v-else
         :size="avatarSize"
         class="user-avatar"
-      >
-        {{ displayName?.[0]?.toUpperCase() || 'U' }}
-      </el-avatar>
+      />
       <span class="user-name">{{ displayName }}</span>
     </div>
     
@@ -47,13 +43,11 @@
       >
         <template #reference>
           <div class="user-display-simple user-display-card-trigger">
-            <el-avatar 
-              :src="actualUserInfo.avatar" 
+            <UserAvatar
+              :src="actualUserInfo.avatar"
               :size="avatarSize"
               class="user-avatar"
-            >
-              {{ actualUserInfo.username?.[0]?.toUpperCase() || 'U' }}
-            </el-avatar>
+            />
             <span class="user-name">{{ displayName }}</span>
           </div>
         </template>
@@ -61,12 +55,10 @@
       </el-popover>
       <!-- 如果没有用户信息，只显示头像和名称（不可点击） -->
       <div v-else class="user-display-simple" :class="[sizeClass, layoutClass]">
-        <el-avatar 
+        <UserAvatar
           :size="avatarSize"
           class="user-avatar"
-        >
-          {{ displayName?.[0]?.toUpperCase() || 'U' }}
-        </el-avatar>
+        />
         <span class="user-name">{{ displayName }}</span>
       </div>
     </div>
@@ -80,11 +72,12 @@
 
 <script setup lang="ts">
 import { computed, watch, ref } from 'vue'
-import { ElAvatar, ElPopover } from 'element-plus'
+import { ElPopover } from 'element-plus'
 import type { UserInfo } from '@/architecture/domain/types'
 import { formatUserDisplayName } from '@/architecture/domain/utils/userInfo'
 import { useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
 import UserDetailCard from './UserDetailCard.vue'
+import UserAvatar from './UserAvatar.vue'
 
 interface Props {
   /** 用户信息对象 */

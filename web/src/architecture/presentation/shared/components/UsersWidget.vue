@@ -21,21 +21,12 @@
             :key="user.username"
             class="selected-user-tag"
           >
-            <el-avatar 
-              v-if="user.avatar" 
-              :src="user.avatar" 
-              :size="20" 
+            <UserAvatar
+              :src="user.avatar"
+              :size="20"
+              :alt="user.username"
               class="user-avatar-small"
-            >
-              {{ user.username?.[0]?.toUpperCase() || 'U' }}
-            </el-avatar>
-            <el-avatar 
-              v-else
-              :size="20" 
-              class="user-avatar-small"
-            >
-              {{ user.username?.[0]?.toUpperCase() || 'U' }}
-            </el-avatar>
+            />
             <span class="user-display-text">
               {{ formatUserDisplayName(user) }}
             </span>
@@ -100,21 +91,12 @@
           popper-class="users-popover"
         >
           <template #reference>
-            <el-avatar 
-              v-if="user.avatar" 
-              :src="user.avatar" 
+            <UserAvatar
+              :src="user.avatar"
               :size="24"
+              :alt="user.username"
               class="user-avatar-item"
-            >
-              {{ user.username?.[0]?.toUpperCase() || 'U' }}
-            </el-avatar>
-            <el-avatar 
-              v-else
-              :size="24"
-              class="user-avatar-item"
-            >
-              {{ user.username?.[0]?.toUpperCase() || 'U' }}
-            </el-avatar>
+            />
           </template>
           <UserDetailCard :user-info="user" />
         </el-popover>
@@ -150,21 +132,12 @@
                 >
                   <template #reference>
                     <div class="user-item-content">
-                      <el-avatar 
-                        v-if="user.avatar" 
-                        :src="user.avatar" 
+                      <UserAvatar
+                        :src="user.avatar"
                         :size="40"
+                        :alt="user.username"
                         class="user-avatar"
-                      >
-                        {{ user.username?.[0]?.toUpperCase() || 'U' }}
-                      </el-avatar>
-                      <el-avatar 
-                        v-else
-                        :size="40"
-                        class="user-avatar"
-                      >
-                        {{ user.username?.[0]?.toUpperCase() || 'U' }}
-                      </el-avatar>
+                      />
                       <div class="user-info">
                         <div class="user-name">{{ user.username }}</div>
                         <div v-if="user.nickname" class="user-nickname">{{ user.nickname }}</div>
@@ -194,21 +167,12 @@
           popper-class="users-popover"
         >
           <template #reference>
-            <el-avatar 
-              v-if="user.avatar" 
-              :src="user.avatar" 
+            <UserAvatar
+              :src="user.avatar"
               :size="32"
+              :alt="user.username"
               class="user-avatar-item"
-            >
-              {{ user.username?.[0]?.toUpperCase() || 'U' }}
-            </el-avatar>
-            <el-avatar 
-              v-else
-              :size="32"
-              class="user-avatar-item"
-            >
-              {{ user.username?.[0]?.toUpperCase() || 'U' }}
-            </el-avatar>
+            />
           </template>
           <UserDetailCard :user-info="user" />
         </el-popover>
@@ -236,21 +200,12 @@
                 :key="user.username || index"
                 class="users-full-list-item"
               >
-                <el-avatar 
-                  v-if="user.avatar" 
-                  :src="user.avatar" 
+                <UserAvatar
+                  :src="user.avatar"
                   :size="40"
+                  :alt="user.username"
                   class="user-avatar"
-                >
-                  {{ user.username?.[0]?.toUpperCase() || 'U' }}
-                </el-avatar>
-                <el-avatar 
-                  v-else
-                  :size="40"
-                  class="user-avatar"
-                >
-                  {{ user.username?.[0]?.toUpperCase() || 'U' }}
-                </el-avatar>
+                />
                 <div class="user-info">
                   <div class="user-name">{{ user.username }}</div>
                   <div v-if="user.nickname" class="user-nickname">{{ user.nickname }}</div>
@@ -270,7 +225,8 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import UserDisplay from './UserDisplay.vue'
 import UserDetailCard from './UserDetailCard.vue'
 import UserPickerDialog from './UserPickerDialog.vue'
-import { ElAvatar, ElButton, ElIcon, ElPopover } from 'element-plus'
+import UserAvatar from './UserAvatar.vue'
+import { ElButton, ElIcon, ElPopover } from 'element-plus'
 import { User, Edit, Close } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits, FieldValue } from '@/architecture/presentation/shared/types/widget'
 import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'

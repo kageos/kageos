@@ -75,14 +75,13 @@
           @mousedown.prevent="applyMentionOption(option)"
         >
           <span :class="['mini-mention-icon', `is-${option.kind}`, option.iconClass]">
-            <el-avatar
+            <UserAvatar
               v-if="option.kind === 'user'"
               :src="option.avatar"
               :size="28"
+              :alt="option.label"
               class="mini-mention-avatar"
-            >
-              {{ option.initial }}
-            </el-avatar>
+            />
             <img
               v-else-if="option.iconSrc"
               :src="option.iconSrc"
@@ -207,6 +206,7 @@ import {
 } from './utils/miniComposerMention'
 import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
+import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar.vue'
 
 const props = withDefaults(defineProps<{
   fullCodePath: string

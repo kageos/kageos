@@ -45,7 +45,7 @@
         popper-class="workspace-user-dropdown-popper"
       >
         <span class="user-profile" data-testid="workspace-header-user-menu">
-          <el-avatar :size="32" :src="userAvatar || undefined">{{ userInitials }}</el-avatar>
+          <UserAvatar :size="32" :src="userAvatar" :alt="userName" />
           <span class="username">{{ userName }}</span>
           <el-icon class="el-icon--right"><ArrowDown /></el-icon>
         </span>
@@ -53,7 +53,7 @@
           <el-dropdown-menu class="workspace-user-dropdown">
             <el-dropdown-item disabled class="user-dropdown-account">
               <span class="user-account-avatar">
-                <el-avatar :size="42" :src="userAvatar || undefined">{{ userInitials }}</el-avatar>
+                <UserAvatar :size="42" :src="userAvatar" :alt="userName" />
               </span>
               <span class="user-account-copy">
                 <span class="user-account-name">{{ userName }}</span>
@@ -185,6 +185,7 @@ import WorkspaceInbox from './WorkspaceInbox.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
 import type { SupportedLocale } from '@/architecture/shared/i18n'
 import defaultCompanyLogo from '@/architecture/presentation/assets/logo.svg'
+import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar.vue'
 
 const GlobalResourceSearchDialog = defineAsyncComponent(() => import('./GlobalResourceSearchDialog.vue'))
 
@@ -214,10 +215,6 @@ const userName = computed(() => authStore.userName || 'User')
 const userEmail = computed(() => authStore.userEmail || '')
 const isSystemUser = computed(() => userName.value === 'system')
 const userAvatar = computed(() => authStore.user?.avatar || '')
-const userInitials = computed(() => {
-  const name = userName.value
-  return name ? name.substring(0, 2).toUpperCase() : 'US'
-})
 const companyName = computed(() => authStore.user?.company_name || authStore.user?.company_code || '')
 const companyCode = computed(() => authStore.user?.company_code || '')
 const companyLogo = computed(() => authStore.user?.company_logo_url || defaultCompanyLogo)

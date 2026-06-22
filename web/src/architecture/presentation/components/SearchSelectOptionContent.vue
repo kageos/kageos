@@ -1,8 +1,6 @@
 <template>
   <div v-if="userInfo" class="user-option">
-    <el-avatar :src="userInfo.avatar" :size="24" class="user-avatar">
-      {{ userInitial }}
-    </el-avatar>
+    <UserAvatar :src="userInfo.avatar" :size="24" :alt="userInfo.username || label" class="user-avatar" />
     <span class="user-name">{{ userInfo.username }}</span>
     <span v-if="userInfo.nickname" class="user-nickname">({{ userInfo.nickname }})</span>
   </div>
@@ -19,7 +17,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ElAvatar } from 'element-plus'
+import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar.vue'
 
 interface UserInfoLike {
   avatar?: string
@@ -38,10 +36,6 @@ const props = withDefaults(defineProps<Props>(), {
   userInfo: null,
   showColorIndicator: false,
   colorStyle: () => ({})
-})
-
-const userInitial = computed(() => {
-  return props.userInfo?.username?.[0]?.toUpperCase() || 'U'
 })
 
 const hasColorStyle = computed(() => {

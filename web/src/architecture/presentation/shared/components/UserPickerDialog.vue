@@ -43,9 +43,7 @@
           :key="user.username"
           class="selected-user-item"
         >
-          <el-avatar :src="user.avatar" :size="24" class="user-avatar">
-            {{ user.username?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
+          <UserAvatar :src="user.avatar" :size="24" :alt="user.username" class="user-avatar" />
           <span class="user-name">{{ formatUserDisplayName(user) }}</span>
           <el-icon class="remove-icon" @click="handleRemoveUser(user)">
             <Close />
@@ -91,9 +89,7 @@
             @change="handleToggleUser(user)"
             @click.stop
           />
-          <el-avatar :src="user.avatar" :size="40" class="user-avatar">
-            {{ user.username?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
+          <UserAvatar :src="user.avatar" :size="40" :alt="user.username" class="user-avatar" />
           <div class="user-info">
             <div class="user-name">{{ user.username }}</div>
             <div v-if="user.nickname" class="user-nickname">{{ user.nickname }}</div>
@@ -128,13 +124,14 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { ElAvatar, ElButton, ElCheckbox, ElDialog, ElEmpty, ElIcon, ElInput } from 'element-plus'
+import { ElButton, ElCheckbox, ElDialog, ElEmpty, ElIcon, ElInput } from 'element-plus'
 import { Check, Close, Loading, Search } from '@element-plus/icons-vue'
 import { searchUsersFuzzy } from '@/architecture/presentation/context/api/user'
 import { Logger } from '@/architecture/shared/logger'
 import { useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
 import type { UserInfo } from '@/architecture/domain/types'
 import { formatUserDisplayName } from '@/architecture/domain/utils/userInfo'
+import UserAvatar from './UserAvatar.vue'
 
 interface Props {
   modelValue: boolean

@@ -20,21 +20,12 @@
         @clear="handleClearSelection"
       >
         <template v-if="selectedUserForDisplay" #leading>
-          <el-avatar 
-            v-if="selectedUserForDisplay.avatar" 
-            :src="selectedUserForDisplay.avatar" 
-            :size="16" 
+          <UserAvatar
+            :src="selectedUserForDisplay.avatar"
+            :size="16"
+            :alt="selectedUserForDisplay.username"
             class="search-selected-avatar"
-          >
-            {{ selectedUserForDisplay.username?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
-          <el-avatar 
-            v-else
-            :size="16" 
-            class="search-selected-avatar"
-          >
-            {{ selectedUserForDisplay.username?.[0]?.toUpperCase() || 'U' }}
-          </el-avatar>
+          />
         </template>
       </SearchSingleSelectDisplay>
 
@@ -45,21 +36,12 @@
         :class="{ 'is-disabled': widgetConfig.disabled }"
         @click="!widgetConfig.disabled && handleOpenDialog()"
       >
-        <el-avatar 
-          v-if="selectedUserForDisplay.avatar" 
-          :src="selectedUserForDisplay.avatar" 
-          :size="24" 
+        <UserAvatar
+          :src="selectedUserForDisplay.avatar"
+          :size="24"
+          :alt="selectedUserForDisplay.username"
           class="user-avatar-small"
-        >
-          {{ selectedUserForDisplay.username?.[0]?.toUpperCase() || 'U' }}
-        </el-avatar>
-        <el-avatar 
-          v-else
-          :size="24" 
-          class="user-avatar-small"
-        >
-          {{ selectedUserForDisplay.username?.[0]?.toUpperCase() || 'U' }}
-        </el-avatar>
+        />
         <span class="user-display-text">
           {{ formatUserDisplayName(selectedUserForDisplay) }}
         </span>
@@ -126,8 +108,9 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import UserDisplay from './UserDisplay.vue'
 import UserPickerDialog from './UserPickerDialog.vue'
+import UserAvatar from './UserAvatar.vue'
 import SearchSingleSelectDisplay from './SearchSingleSelectDisplay.vue'
-import { ElAvatar, ElButton, ElIcon } from 'element-plus'
+import { ElButton, ElIcon } from 'element-plus'
 import { User, Edit } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/shared/types/widget'
 import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'

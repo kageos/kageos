@@ -1,8 +1,6 @@
 <template>
   <div class="user-filter-chip">
-    <el-avatar :src="avatar || undefined" :size="24" class="user-avatar">
-      {{ initial }}
-    </el-avatar>
+    <UserAvatar :src="avatar" :size="24" :alt="label" class="user-avatar" />
     <span class="user-name">{{ label }}</span>
     <el-icon class="user-chip-close" @click.stop="emit('remove')">
       <Close />
@@ -11,8 +9,9 @@
 </template>
 
 <script setup lang="ts">
-import { ElAvatar, ElIcon } from 'element-plus'
+import { ElIcon } from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
+import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar.vue'
 
 interface Props {
   label: string
