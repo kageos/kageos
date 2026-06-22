@@ -26,7 +26,12 @@ vendor
 
 # 日志和运行时数据
 logs/
+**/logs/
+**/api-logs/
 *.log
+**/*.log
+*.out
+**/*.out
 data/
 namespace/
 deploy/aio/namespace-seed/

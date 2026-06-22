@@ -108,6 +108,7 @@ RUN mkdir -p /app/deploy /app/logs /app/namespace \
     /app/data/runtime/app-runtime /app/data/tmp \
     /var/lib/kageos \
     && mkdir -p /var/www/web \
+    && test -z "$(find /app/logs -mindepth 1 -print -quit)" \
     && test -z "$(find /app/namespace -mindepth 1 -print -quit)" \
     && rm -f /etc/nginx/sites-enabled/default
 
