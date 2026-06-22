@@ -89,14 +89,6 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("failed to init services: %w", err)
 	}
 
-	// ⭐ 初始化系统工作空间
-	// 注意：system 用户应该在 hr-server 中初始化
-	// 在服务初始化之后，路由初始化之前
-	if err := service.InitSystemWorkspace(ctx, s.appService, s.serviceTreeService); err != nil {
-		logger.Warnf(ctx, "[Server] 初始化系统工作空间失败: %v", err)
-		// 不中断启动，记录警告即可
-	}
-
 	if err := s.initRouter(ctx); err != nil {
 		return nil, fmt.Errorf("failed to init router: %w", err)
 	}
@@ -119,9 +111,22 @@ func (s *Server) Start(ctx context.Context) error {
 		return err
 	}
 
+	s.startSystemWorkspaceInit(ctx)
+
 	logger.Infof(ctx, "[Server] App-server started successfully")
 	logger.Infof(ctx, "[Server] NATS subscriptions are active")
 	return nil
+}
+
+func (s *Server) startSystemWorkspaceInit(ctx context.Context) {
+	go func() {
+		logger.Infof(ctx, "[Server] 系统工作空间后台初始化开始")
+		if err := service.InitSystemWorkspace(ctx, s.appService, s.serviceTreeService); err != nil {
+			logger.Warnf(ctx, "[Server] 初始化系统工作空间失败: %v", err)
+			return
+		}
+		logger.Infof(ctx, "[Server] 系统工作空间后台初始化完成")
+	}()
 }
 
 func (s *Server) StartHTTP(ctx context.Context) error {
