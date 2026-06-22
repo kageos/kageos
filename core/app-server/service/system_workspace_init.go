@@ -33,10 +33,11 @@ func InitSystemWorkspace(ctx context.Context, appService *AppService, serviceTre
 	// 初始化内置应用（通过 AppService 创建，会调用 runtime）
 	// 设置 context 的 requestUser 为 system
 	systemCtx := context.WithValue(ctx, contextx.RequestUserHeader, SystemUsername)
-	if err := initSystemApps(systemCtx, appService); err != nil {
+	createdApps, err := initSystemApps(systemCtx, appService)
+	if err != nil {
 		return fmt.Errorf("初始化内置应用失败: %w", err)
 	}
-	if err := initSystemDirectorySeeds(systemCtx, serviceTreeService); err != nil {
+	if err := initSystemDirectorySeeds(systemCtx, serviceTreeService, createdApps); err != nil {
 		return fmt.Errorf("初始化系统目录种子失败: %w", err)
 	}
 
@@ -46,13 +47,16 @@ func InitSystemWorkspace(ctx context.Context, appService *AppService, serviceTre
 
 // initSystemApps 初始化 system 下的内置应用。
 // 通过 AppService.CreateApp 创建应用，会调用 runtime
-func initSystemApps(ctx context.Context, appService *AppService) error {
+func initSystemApps(ctx context.Context, appService *AppService) (map[string]bool, error) {
+	createdApps := make(map[string]bool)
 	for _, appDef := range systemAppDefinitions() {
-		if err := ensureSystemApp(ctx, appService, appDef); err != nil {
-			return err
+		created, err := ensureSystemApp(ctx, appService, appDef)
+		if err != nil {
+			return createdApps, err
 		}
+		createdApps[appDef.Code] = created
 	}
-	return nil
+	return createdApps, nil
 }
 
 func systemAppDefinitions() []systemAppDefinition {
@@ -61,7 +65,7 @@ func systemAppDefinitions() []systemAppDefinition {
 	}
 }
 
-func ensureSystemApp(ctx context.Context, appService *AppService, appDef systemAppDefinition) error {
+func ensureSystemApp(ctx context.Context, appService *AppService, appDef systemAppDefinition) (bool, error) {
 	appRepo := appService.appRepo
 
 	// 检查应用是否已存在
@@ -72,18 +76,18 @@ func ensureSystemApp(ctx context.Context, appService *AppService, appDef systemA
 			// 更新类型为系统空间
 			existingApp.Type = appmodel.AppTypeSystem
 			if err := appRepo.UpdateApp(existingApp); err != nil {
-				return fmt.Errorf("更新应用 %s/%s 类型失败: %w", SystemUsername, appDef.Code, err)
+				return false, fmt.Errorf("更新应用 %s/%s 类型失败: %w", SystemUsername, appDef.Code, err)
 			}
 			logger.Infof(ctx, "[SystemWorkspace] 已更新应用类型: %s/%s", SystemUsername, appDef.Code)
 		} else {
 			logger.Infof(ctx, "[SystemWorkspace] 应用已存在: %s/%s", SystemUsername, appDef.Code)
 		}
-		return nil
+		return false, nil
 	}
 
 	// 如果错误不是 record not found，说明是其他错误，需要返回
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return fmt.Errorf("查询应用 %s/%s 失败: %w", SystemUsername, appDef.Code, err)
+		return false, fmt.Errorf("查询应用 %s/%s 失败: %w", SystemUsername, appDef.Code, err)
 	}
 
 	// err == gorm.ErrRecordNotFound，说明应用不存在，需要创建
@@ -100,22 +104,22 @@ func ensureSystemApp(ctx context.Context, appService *AppService, appDef systemA
 
 	_, err = appService.CreateApp(ctx, createReq)
 	if err != nil {
-		return fmt.Errorf("创建应用 %s/%s 失败: %w", SystemUsername, appDef.Code, err)
+		return false, fmt.Errorf("创建应用 %s/%s 失败: %w", SystemUsername, appDef.Code, err)
 	}
 
 	// 创建后更新应用类型为系统空间
 	// 注意：CreateApp 返回的应用可能还没有 Type 字段，需要再次查询并更新
 	createdApp, err := appRepo.GetAppByUserName(SystemUsername, appDef.Code)
 	if err != nil {
-		return fmt.Errorf("查询刚创建的应用失败: %w", err)
+		return false, fmt.Errorf("查询刚创建的应用失败: %w", err)
 	}
 	if createdApp.Type != appmodel.AppTypeSystem {
 		createdApp.Type = appmodel.AppTypeSystem
 		if err := appRepo.UpdateApp(createdApp); err != nil {
-			return fmt.Errorf("更新应用类型为系统空间失败: %w", err)
+			return false, fmt.Errorf("更新应用类型为系统空间失败: %w", err)
 		}
 	}
 
 	logger.Infof(ctx, "[SystemWorkspace] 已创建应用: %s/%s", SystemUsername, appDef.Code)
-	return nil
+	return true, nil
 }
