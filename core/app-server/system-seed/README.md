@@ -5,7 +5,6 @@ Place built-in `capability.bundle.v1` JSON files here.
 Convention:
 
 - `system/tools/*.json` installs into `/system/tools`
-- `system/openapi/*.json` installs into `/system/openapi`
 - `system/tools/openapi/*.json` installs into `/system/tools/openapi`
 
 The app-server scans this directory on startup, but installs seed bundles only

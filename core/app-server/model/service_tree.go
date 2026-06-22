@@ -28,7 +28,7 @@ type ServiceTree struct {
 	Admins             string `json:"admins" gorm:"type:varchar(150);comment:节点管理员列表，逗号分隔的用户名（如 user1,user2,user3）"` // 节点管理员列表
 
 	// 是否标准库节点（自动对所有用户开放 read、write 权限）
-	// 标准库节点路径示例：/system/tools、/system/openapi
+	// 标准库节点路径示例：/system/tools
 	IsStandardLib bool `json:"is_standard_lib" gorm:"default:false;index;comment:是否标准库节点"`
 
 	AppID int64 `json:"app_id"`
@@ -397,9 +397,7 @@ func (st *ServiceTree) IsStandardLibNode() bool {
 // IsInStandardLib 判断节点是否在标准库路径下
 func (st *ServiceTree) IsInStandardLib() bool {
 	return st.FullCodePath == "/system/tools" ||
-		st.FullCodePath == "/system/openapi" ||
-		strings.HasPrefix(st.FullCodePath, "/system/tools/") ||
-		strings.HasPrefix(st.FullCodePath, "/system/openapi/")
+		strings.HasPrefix(st.FullCodePath, "/system/tools/")
 }
 
 // GetFunctionPath 获取function的完整路径（仅对function节点有效）

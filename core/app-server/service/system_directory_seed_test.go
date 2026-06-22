@@ -4,10 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	appmodel "github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/core/app-server/repository"
+	"github.com/kageos/kageos/dto"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -35,7 +37,7 @@ func TestSystemDirectorySeedTargetPathRejectsRootJSON(t *testing.T) {
 
 func TestListSystemDirectorySeedFilesSorted(t *testing.T) {
 	seedDir := t.TempDir()
-	for _, rel := range []string{"system/tools/z.json", "system/tools/a.json", "system/tools/readme.md", "system/openapi/platform.json"} {
+	for _, rel := range []string{"system/tools/z.json", "system/tools/a.json", "system/tools/readme.md", "system/tools/openapi/platform.json"} {
 		path := filepath.Join(seedDir, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			t.Fatal(err)
@@ -57,7 +59,7 @@ func TestListSystemDirectorySeedFilesSorted(t *testing.T) {
 		}
 		got = append(got, filepath.ToSlash(rel))
 	}
-	want := []string{"system/openapi/platform.json", "system/tools/a.json", "system/tools/z.json"}
+	want := []string{"system/tools/a.json", "system/tools/openapi/platform.json", "system/tools/z.json"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("files = %#v, want %#v", got, want)
 	}
@@ -93,7 +95,7 @@ func TestSystemDirectorySeedAppCodeFromTargetPath(t *testing.T) {
 		wantErr    bool
 	}{
 		{name: "system tools nested", targetPath: "/system/tools/openapi", want: "tools"},
-		{name: "system openapi root", targetPath: "/system/openapi", want: "openapi"},
+		{name: "system openapi root", targetPath: "/system/openapi", wantErr: true},
 		{name: "non system user", targetPath: "/alice/tools", wantErr: true},
 		{name: "unknown system app", targetPath: "/system/unknown", wantErr: true},
 	}
@@ -142,9 +144,6 @@ func TestInitialSystemDirectorySeedAppVersionsReadsUniqueApps(t *testing.T) {
 	if err := appRepo.CreateApp(&appmodel.App{User: SystemUsername, Code: "tools", Name: "官方工具", Version: "v7"}); err != nil {
 		t.Fatalf("create tools app: %v", err)
 	}
-	if err := appRepo.CreateApp(&appmodel.App{User: SystemUsername, Code: "openapi", Name: "平台接口"}); err != nil {
-		t.Fatalf("create openapi app: %v", err)
-	}
 
 	serviceTreeService := &ServiceTreeService{
 		capabilityBundle: &serviceTreeCapabilityBundleService{appRepo: appRepo},
@@ -152,16 +151,12 @@ func TestInitialSystemDirectorySeedAppVersionsReadsUniqueApps(t *testing.T) {
 	versions, err := initialSystemDirectorySeedAppVersions(serviceTreeService, []systemDirectorySeedFile{
 		{appCode: "tools"},
 		{appCode: "tools"},
-		{appCode: "openapi"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if versions["tools"] != "v7" {
 		t.Fatalf("tools version = %q, want v7", versions["tools"])
-	}
-	if versions["openapi"] != "" {
-		t.Fatalf("openapi version = %q, want empty", versions["openapi"])
 	}
 }
 
@@ -185,6 +180,37 @@ func TestSystemSeedBundlesUseCapabilitySchema(t *testing.T) {
 		}
 		if err := validateCapabilityBundle(bundle); err != nil {
 			t.Fatalf("invalid capability seed %s: %v", file, err)
+		}
+		assertSystemSeedBundlePathsAreRelativeToTarget(t, seedDir, file, bundle)
+	}
+}
+
+func assertSystemSeedBundlePathsAreRelativeToTarget(t *testing.T, seedDir, file string, bundle *dto.CapabilityBundle) {
+	t.Helper()
+
+	targetPath, err := systemDirectorySeedTargetPath(seedDir, file)
+	if err != nil {
+		t.Fatalf("invalid seed target for %s: %v", file, err)
+	}
+	appCode, err := systemDirectorySeedAppCodeFromTargetPath(targetPath)
+	if err != nil {
+		t.Fatalf("invalid seed app for %s: %v", file, err)
+	}
+	prefix := strings.Trim(appCode, "/") + "/"
+
+	for _, pkg := range bundle.Packages {
+		if pkg.Path == appCode || strings.HasPrefix(pkg.Path, prefix) {
+			t.Fatalf("seed bundle %s package path %q must be relative to target %s", file, pkg.Path, targetPath)
+		}
+	}
+	for _, sourceFile := range bundle.Files {
+		if sourceFile.PackagePath == appCode || strings.HasPrefix(sourceFile.PackagePath, prefix) {
+			t.Fatalf("seed bundle %s file package_path %q must be relative to target %s", file, sourceFile.PackagePath, targetPath)
+		}
+	}
+	for _, node := range bundle.TreeNodes {
+		if node.RelativePath == appCode || strings.HasPrefix(node.RelativePath, prefix) {
+			t.Fatalf("seed bundle %s tree node path %q must be relative to target %s", file, node.RelativePath, targetPath)
 		}
 	}
 }

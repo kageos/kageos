@@ -89,6 +89,7 @@ COPY --from=gobuilder /src/go.mod /src/go.sum /app/
 COPY --from=gobuilder /go/pkg/mod /go/pkg/mod
 
 COPY deploy/base/images/app-base/ /app/app-base/
+COPY core/app-server/system-seed/ /app/core/app-server/system-seed/
 
 COPY deploy/prod/config/template/ /app/config.prod.template/
 COPY deploy/prod/health/ /app/health/
@@ -108,6 +109,7 @@ RUN mkdir -p /app/deploy /app/logs /app/namespace \
     /app/data/runtime/app-runtime /app/data/tmp \
     /var/lib/kageos \
     && mkdir -p /var/www/web \
+    && test -f "/app/core/app-server/system-seed/system/tools/官方工具.capability-bundle.json" \
     && test -z "$(find /app/logs -mindepth 1 -print -quit)" \
     && test -z "$(find /app/namespace -mindepth 1 -print -quit)" \
     && rm -f /etc/nginx/sites-enabled/default

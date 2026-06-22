@@ -83,6 +83,9 @@ COPY --from=gobuilder /go/pkg/mod /go/pkg/mod
 # 共享 canonical 资源：用户应用运行时基础镜像构建上下文
 COPY deploy/base/images/app-base/ /app/app-base/
 
+# 内置系统能力种子：启动时用于初始化 /system/tools，不是运行期 namespace 数据。
+COPY core/app-server/system-seed/ /app/core/app-server/system-seed/
+
 # prod 专属资源：配置模板、healthcheck、Nginx、entrypoint
 COPY deploy/prod/config/template/ /app/config.prod.template/
 COPY deploy/prod/health/ /app/health/
@@ -96,6 +99,7 @@ RUN chmod +x /app/entrypoint-common.sh /app/entrypoint-main.sh /app/entrypoint-a
 RUN mkdir -p /app/deploy /app/logs /app/namespace \
     /app/data/runtime/app-runtime /app/data/tmp \
     && mkdir -p /var/www/web \
+    && test -f "/app/core/app-server/system-seed/system/tools/官方工具.capability-bundle.json" \
     && test -z "$(find /app/logs -mindepth 1 -print -quit)" \
     && test -z "$(find /app/namespace -mindepth 1 -print -quit)" \
     && rm -f /etc/nginx/sites-enabled/default

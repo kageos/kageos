@@ -58,7 +58,6 @@ func initSystemApps(ctx context.Context, appService *AppService) error {
 func systemAppDefinitions() []systemAppDefinition {
 	return []systemAppDefinition{
 		{Code: "tools", Name: "官方工具"},
-		{Code: "openapi", Name: "平台接口"},
 	}
 }
 
