@@ -6,7 +6,6 @@ cd "$ROOT_DIR"
 
 pattern='github\.com/kageos/kageos/(sdk/agent-app|pkg/(logger|gormx/query)|dto|core)'
 targets=(
-  "deploy/aio/namespace-seed"
   "core/app-server/system-seed"
   "core/agent-server/prompt/system/prompt"
 )
