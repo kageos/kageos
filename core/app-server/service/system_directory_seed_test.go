@@ -1,7 +1,9 @@
 package service
 
 import (
+	"encoding/json"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -119,7 +121,7 @@ func TestSystemDirectorySeedAppCodeFromTargetPath(t *testing.T) {
 	}
 }
 
-func TestSystemDirectorySeedShouldInstallUntilVersionAdvances(t *testing.T) {
+func TestSystemDirectorySeedShouldInstallUntilTargetMatchesBundle(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -128,12 +130,21 @@ func TestSystemDirectorySeedShouldInstallUntilVersionAdvances(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
+	serviceTreeRepo := repository.NewServiceTreeRepository(db)
 	serviceTreeService := &ServiceTreeService{
 		capabilityBundle: &serviceTreeCapabilityBundleService{
-			appRepo: repository.NewAppRepository(db),
+			appRepo:         repository.NewAppRepository(db),
+			serviceTreeRepo: serviceTreeRepo,
 		},
 	}
-	seedFile := systemDirectorySeedFile{appCode: "tools", targetPath: "/system/tools"}
+	seedFile := systemDirectorySeedFile{
+		appCode:    "tools",
+		targetPath: "/system/tools",
+		filePath: writeTestSystemDirectorySeedBundle(t, []*dto.CapabilityBundleTreeNode{
+			{RelativePath: "archive", Type: "package", Code: "archive"},
+			{RelativePath: "archive/create_zip.form", Type: "function", Code: "create_zip.form"},
+		}),
+	}
 
 	got, err := systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "", false)
 	if err != nil {
@@ -141,14 +152,6 @@ func TestSystemDirectorySeedShouldInstallUntilVersionAdvances(t *testing.T) {
 	}
 	if !got {
 		t.Fatal("empty initial app version should install")
-	}
-
-	got, err = systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "v1", false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !got {
-		t.Fatal("v1 system seed should install so partial first-boot seeds can recover")
 	}
 
 	got, err = systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "v7", false)
@@ -165,6 +168,60 @@ func TestSystemDirectorySeedShouldInstallUntilVersionAdvances(t *testing.T) {
 	}
 	if !got {
 		t.Fatal("app created in current boot should install even when CreateApp assigned v1")
+	}
+
+	got, err = systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "v1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got {
+		t.Fatal("v1 system seed should install so partial first-boot seeds can recover")
+	}
+
+	createTestServiceTreeNode(t, serviceTreeRepo, "/system/tools/archive", appmodel.ServiceTreeTypePackage)
+	createTestServiceTreeNode(t, serviceTreeRepo, "/system/tools/archive/create_zip.form", appmodel.ServiceTreeTypeFunction)
+
+	got, err = systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "v1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got {
+		t.Fatal("completed v1 system seed should skip on restart")
+	}
+}
+
+func writeTestSystemDirectorySeedBundle(t *testing.T, nodes []*dto.CapabilityBundleTreeNode) string {
+	t.Helper()
+	filePath := filepath.Join(t.TempDir(), "seed.json")
+	data, err := json.Marshal(&dto.CapabilityBundle{
+		SchemaVersion: dto.CapabilityBundleSchemaVersion,
+		TreeNodes:     nodes,
+		Packages: []*dto.CapabilityBundlePackage{
+			{Path: "archive"},
+		},
+		Files: []*dto.CapabilityBundleFile{
+			{PackagePath: "archive", Path: "create_zip.form.go", Content: "package archive\n"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal test bundle: %v", err)
+	}
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		t.Fatalf("write test bundle: %v", err)
+	}
+	return filePath
+}
+
+func createTestServiceTreeNode(t *testing.T, repo *repository.ServiceTreeRepository, fullPath, nodeType string) {
+	t.Helper()
+	if err := repo.Create(&appmodel.ServiceTree{
+		Name:         path.Base(fullPath),
+		Code:         path.Base(fullPath),
+		Type:         nodeType,
+		AppID:        1,
+		FullCodePath: fullPath,
+	}); err != nil {
+		t.Fatalf("create service tree node %s: %v", fullPath, err)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -162,7 +163,7 @@ func systemDirectorySeedAppCodeFromTargetPath(targetPath string) (string, error)
 	return appCode, nil
 }
 
-func systemDirectorySeedShouldInstall(_ *ServiceTreeService, _ systemDirectorySeedFile, initialAppVersion string, appCreated bool) (bool, error) {
+func systemDirectorySeedShouldInstall(serviceTreeService *ServiceTreeService, seedFile systemDirectorySeedFile, initialAppVersion string, appCreated bool) (bool, error) {
 	if appCreated {
 		return true, nil
 	}
@@ -170,7 +171,67 @@ func systemDirectorySeedShouldInstall(_ *ServiceTreeService, _ systemDirectorySe
 	if version == "" {
 		return true, nil
 	}
-	return version == "v1", nil
+	if version != "v1" {
+		return false, nil
+	}
+	complete, err := systemDirectorySeedTargetMatchesBundle(serviceTreeService, seedFile)
+	if err != nil {
+		return false, err
+	}
+	return !complete, nil
+}
+
+func systemDirectorySeedTargetMatchesBundle(serviceTreeService *ServiceTreeService, seedFile systemDirectorySeedFile) (bool, error) {
+	if serviceTreeService == nil || serviceTreeService.capabilityBundle == nil || serviceTreeService.capabilityBundle.serviceTreeRepo == nil {
+		return false, fmt.Errorf("系统目录种子无法检查目标目录，serviceTreeService 未完整初始化")
+	}
+	bundle, err := readCapabilityBundleFile(seedFile.filePath)
+	if err != nil {
+		return false, err
+	}
+	expectedPaths := systemDirectorySeedBundleTargetPaths(seedFile.targetPath, bundle)
+	if len(expectedPaths) == 0 {
+		return true, nil
+	}
+	existing, err := serviceTreeService.capabilityBundle.serviceTreeRepo.GetServiceTreeByFullPaths(expectedPaths)
+	if err != nil {
+		return false, fmt.Errorf("检查系统目录种子目标节点失败: %w", err)
+	}
+	for _, expectedPath := range expectedPaths {
+		if _, ok := existing[expectedPath]; !ok {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func systemDirectorySeedBundleTargetPaths(targetPath string, bundle *dto.CapabilityBundle) []string {
+	if bundle == nil {
+		return nil
+	}
+	targetPrefix := strings.Trim(targetPath, "/")
+	if targetPrefix == "" {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(bundle.TreeNodes))
+	paths := make([]string, 0, len(bundle.TreeNodes))
+	for _, node := range bundle.TreeNodes {
+		if node == nil {
+			continue
+		}
+		relativePath := strings.Trim(node.RelativePath, "/")
+		if relativePath == "" {
+			continue
+		}
+		fullPath := "/" + path.Join(targetPrefix, relativePath)
+		if _, exists := seen[fullPath]; exists {
+			continue
+		}
+		seen[fullPath] = struct{}{}
+		paths = append(paths, fullPath)
+	}
+	sort.Strings(paths)
+	return paths
 }
 
 func systemDirectorySeedTargetPath(seedDir, filePath string) (string, error) {
