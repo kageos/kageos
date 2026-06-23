@@ -37,6 +37,9 @@
               <h3>{{ currentSection.title }}</h3>
               <p>{{ currentSection.desc }}</p>
             </div>
+            <el-button :icon="QuestionFilled" @click="openCurrentDocs">
+              {{ t('systemSettings.viewDocs') }}
+            </el-button>
           </div>
 
           <div v-if="activeTab === 'email'" v-loading="loading" class="section-pane">
@@ -389,9 +392,10 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Check, CopyDocument, Message, Refresh } from '@element-plus/icons-vue'
+import { Check, CopyDocument, Message, QuestionFilled, Refresh } from '@element-plus/icons-vue'
 import { useLocaleStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
 import type { SupportedLocale } from '@/architecture/shared/i18n'
+import { getKageosDocsURL, openExternalURL, type KageosDocSlug } from '@/architecture/shared/config/externalLinks'
 import ConnectorProviderManagementPage from '@/architecture/presentation/features/connector/pages/ConnectorProviderManagementPage.vue'
 import OpenAPITokenManagementPage from '@/architecture/presentation/features/agent/pages/OpenAPITokenManagementPage.vue'
 import {
@@ -450,8 +454,22 @@ const settingsSections = computed<SettingsSection[]>(() => [
   { key: 'language', title: t('systemSettings.sections.languageTitle'), desc: t('systemSettings.sections.languageDesc') },
 ])
 
+const settingsDocSlugMap: Record<SettingsTab, KageosDocSlug> = {
+  email: 'runtime',
+  login: 'login',
+  tls: 'runtime',
+  connectors: 'connectors',
+  openapi: 'api',
+  appearance: 'docs',
+  language: 'docs',
+}
+
 const currentSection = computed(() => {
   return settingsSections.value.find((section) => section.key === activeTab.value) || settingsSections.value[0]!
+})
+
+const currentDocsURL = computed(() => {
+  return getKageosDocsURL(settingsDocSlugMap[activeTab.value], localeStore.currentLocale)
 })
 
 const availableThemes = computed(() => themeStore.getAvailableThemes())
@@ -597,6 +615,10 @@ function selectSettingsSection(tabName: SettingsTab) {
     path: route.path,
     query: { ...route.query, tab: tabName }
   })
+}
+
+function openCurrentDocs() {
+  openExternalURL(currentDocsURL.value)
 }
 
 function handleThemeChange(themeName: string) {

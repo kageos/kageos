@@ -5,6 +5,7 @@ import type {
   ChatMessage,
   ChatMessageToolCall
 } from '@/architecture/presentation/composables/useWorkspaceChatStream'
+import { translate } from '@/architecture/shared/i18n'
 
 export type CopyDebugMode = 'all' | 'last-turn' | 'all-tools' | 'error-tools' | 'success-tools'
 
@@ -71,7 +72,7 @@ export function useMiniWorkstationDebugCopy(options: UseMiniWorkstationDebugCopy
   async function copyDebugConversation(mode: CopyDebugMode) {
     const text = buildDebugCopyText(mode)
     if (!text.trim()) {
-      ElMessage.warning('当前没有可复制的调试内容')
+      ElMessage.warning(translate('miniWorkstation.debugNoCopyContent'))
       return
     }
 
@@ -79,34 +80,38 @@ export function useMiniWorkstationDebugCopy(options: UseMiniWorkstationDebugCopy
       await copyTextToClipboard(text)
       ElMessage.success(getCopySuccessLabel(mode))
     } catch {
-      ElMessage.error('复制失败')
+      ElMessage.error(translate('miniWorkstation.copyFailed'))
     }
   }
 
   async function copyDebugToolSummary() {
     const text = buildDebugToolSummaryText()
     if (!text.trim()) {
-      ElMessage.warning('当前没有工具调用记录')
+      ElMessage.warning(translate('miniWorkstation.debugNoToolCalls'))
       return
     }
 
     try {
       await copyTextToClipboard(text)
-      ElMessage.success('已复制调用摘要')
+      ElMessage.success(translate('miniWorkstation.copiedCallSummary'))
     } catch {
-      ElMessage.error('复制失败')
+      ElMessage.error(translate('miniWorkstation.copyFailed'))
     }
   }
 
   function buildDebugToolSummaryText() {
     if (debugToolSteps.value.length === 0) return ''
     return [
-      '# Mini 工具调用摘要',
-      `目录: ${options.fullCodePath() || '-'}`,
-      `目录名: ${options.dirName() || options.displayPath.value || '-'}`,
-      `会话ID: ${options.sessionId.value || '-'}`,
-      `工具调用: ${debugToolSteps.value.length} 步，成功 ${debugSuccessCount.value}，失败 ${debugErrorCount.value}`,
-      `复制时间: ${new Date().toISOString()}`,
+      `# ${translate('miniWorkstation.debugToolSummaryTitle')}`,
+      `${translate('miniWorkstation.directory')}: ${options.fullCodePath() || '-'}`,
+      `${translate('miniWorkstation.directoryName')}: ${options.dirName() || options.displayPath.value || '-'}`,
+      `${translate('miniWorkstation.sessionId')}: ${options.sessionId.value || '-'}`,
+      translate('miniWorkstation.debugToolSummaryStats', {
+        total: debugToolSteps.value.length,
+        success: debugSuccessCount.value,
+        error: debugErrorCount.value
+      }),
+      `${translate('miniWorkstation.copiedAt')}: ${new Date().toISOString()}`,
       '',
       debugToolSteps.value.map(step => step.copyText).join('\n\n')
     ].join('\n')
@@ -117,12 +122,12 @@ export function useMiniWorkstationDebugCopy(options: UseMiniWorkstationDebugCopy
     if (list.length === 0) return ''
 
     const header = [
-      '# Mini 工作台调试对话',
-      `目录: ${options.fullCodePath() || '-'}`,
-      `目录名: ${options.dirName() || options.displayPath.value || '-'}`,
-      `会话ID: ${options.sessionId.value || '-'}`,
-      `复制范围: ${getCopyModeLabel(mode)}`,
-      `复制时间: ${new Date().toISOString()}`,
+      `# ${translate('miniWorkstation.debugConversationTitle')}`,
+      `${translate('miniWorkstation.directory')}: ${options.fullCodePath() || '-'}`,
+      `${translate('miniWorkstation.directoryName')}: ${options.dirName() || options.displayPath.value || '-'}`,
+      `${translate('miniWorkstation.sessionId')}: ${options.sessionId.value || '-'}`,
+      `${translate('miniWorkstation.copyScope')}: ${getCopyModeLabel(mode)}`,
+      `${translate('miniWorkstation.copiedAt')}: ${new Date().toISOString()}`,
       ''
     ].join('\n')
 
@@ -161,10 +166,10 @@ function formatDebugToolStepForCopy(
   outputPreview: string,
   errorPreview: string
 ) {
-  const parts = [`## 第 ${index} 步 ${call.name || '(unknown)'} [${getToolStatusLabel(call.status || '-')}]`]
-  if (argumentsPreview) parts.push('', '参数:', fenceContent(argumentsPreview, 'json'))
-  if (outputPreview) parts.push('', '输出摘要:', fenceContent(outputPreview))
-  if (errorPreview) parts.push('', '错误摘要:', fenceContent(errorPreview))
+  const parts = [`## ${translate('miniWorkstation.step', { count: index })} ${call.name || '(unknown)'} [${getToolStatusLabel(call.status || '-')}]`]
+  if (argumentsPreview) parts.push('', `${translate('miniWorkstation.arguments')}:`, fenceContent(argumentsPreview, 'json'))
+  if (outputPreview) parts.push('', `${translate('miniWorkstation.debugOutputSummary')}:`, fenceContent(outputPreview))
+  if (errorPreview) parts.push('', `${translate('miniWorkstation.debugErrorSummary')}:`, fenceContent(errorPreview))
   return parts.join('\n')
 }
 
@@ -185,7 +190,7 @@ function truncateDebugPreview(value: string) {
     const omitted = lines.length - DEBUG_HEAD_LINES - DEBUG_TAIL_LINES
     return [
       ...lines.slice(0, DEBUG_HEAD_LINES),
-      `... 省略 ${omitted} 行 ...`,
+      translate('miniWorkstation.omittedLines', { count: omitted }),
       ...lines.slice(-DEBUG_TAIL_LINES)
     ].join('\n')
   }
@@ -193,17 +198,17 @@ function truncateDebugPreview(value: string) {
   if (lines.length === 1 && text.length > DEBUG_SINGLE_LINE_LIMIT) {
     const head = text.slice(0, 80)
     const tail = text.slice(-80)
-    return `${head}\n... 省略 ${text.length - 160} 字符 ...\n${tail}`
+    return `${head}\n${translate('miniWorkstation.omittedChars', { count: text.length - 160 })}\n${tail}`
   }
 
   return text
 }
 
 function getToolStatusLabel(status: string) {
-  if (status === 'streaming') return '解析中'
-  if (status === 'running') return '执行中'
-  if (status === 'ok' || status === 'success') return '成功'
-  if (status === 'error' || status === 'failed') return '失败'
+  if (status === 'streaming') return translate('miniWorkstation.toolStatusStreaming')
+  if (status === 'running') return translate('miniWorkstation.toolStatusRunning')
+  if (status === 'ok' || status === 'success') return translate('miniWorkstation.toolStatusSuccess')
+  if (status === 'error' || status === 'failed') return translate('miniWorkstation.toolStatusFailed')
   return status || '-'
 }
 
@@ -289,17 +294,17 @@ function formatMessageForCopy(
 ) {
   const title = message.role === 'user' ? '## User' : '## Assistant'
   const meta = [
-    message.user ? `用户: ${message.user}` : '',
-    message.created_at ? `时间: ${message.created_at}` : ''
+    message.user ? `${translate('miniWorkstation.user')}: ${message.user}` : '',
+    message.created_at ? `${translate('miniWorkstation.time')}: ${message.created_at}` : ''
   ].filter(Boolean)
 
-  const parts: string[] = [meta.length ? `${title} (${meta.join('，')})` : title]
+  const parts: string[] = [meta.length ? `${title} (${meta.join(', ')})` : title]
   if (message.role === 'user') {
     if (options.includeContent && message.content) {
       parts.push('', message.content.trim())
     }
     if (message.files?.length) {
-      parts.push('', '### 上传文件')
+      parts.push('', `### ${translate('miniWorkstation.uploadedFiles')}`)
       for (const file of message.files) {
         parts.push(`- ${file.name}${file.ref ? ` (${file.ref})` : ''}`)
       }
@@ -351,20 +356,20 @@ function formatToolCallsForCopy(
   const targetCalls = filter ? calls.filter(filter) : calls
   if (targetCalls.length === 0) return ''
 
-  const parts: string[] = ['### 工具调用']
+  const parts: string[] = [`### ${translate('miniWorkstation.toolCalls')}`]
   targetCalls.forEach((call, index) => {
     parts.push('', `#### ${index + 1}. ${call.name || '(unknown)'} [${call.status || '-'}]`)
     if (call.arguments) {
-      parts.push('', '参数:', fenceContent(formatMaybeJson(call.arguments), 'json'))
+      parts.push('', `${translate('miniWorkstation.arguments')}:`, fenceContent(formatMaybeJson(call.arguments), 'json'))
     }
     if (call.result) {
-      parts.push('', '结果:', fenceContent(formatLooseText(call.result)))
+      parts.push('', `${translate('miniWorkstation.result')}:`, fenceContent(formatLooseText(call.result)))
     }
     if (call.result_data != null) {
-      parts.push('', '结果数据:', fenceContent(formatJsonValue(call.result_data), 'json'))
+      parts.push('', `${translate('miniWorkstation.resultData')}:`, fenceContent(formatJsonValue(call.result_data), 'json'))
     }
     if (call.error) {
-      parts.push('', '错误:', fenceContent(formatLooseText(call.error)))
+      parts.push('', `${translate('miniWorkstation.error')}:`, fenceContent(formatLooseText(call.error)))
     }
   })
   return parts.join('\n')
@@ -416,15 +421,15 @@ async function copyTextToClipboard(text: string) {
 
 function getCopyModeLabel(mode: CopyDebugMode) {
   const map: Record<CopyDebugMode, string> = {
-    all: '全部对话',
-    'last-turn': '最后一轮',
-    'all-tools': '全部工具调用',
-    'error-tools': '失败工具调用',
-    'success-tools': '成功工具调用'
+    all: translate('miniWorkstation.copyModeAll'),
+    'last-turn': translate('miniWorkstation.copyModeLastTurn'),
+    'all-tools': translate('miniWorkstation.copyModeAllTools'),
+    'error-tools': translate('miniWorkstation.copyModeErrorTools'),
+    'success-tools': translate('miniWorkstation.copyModeSuccessTools')
   }
   return map[mode]
 }
 
 function getCopySuccessLabel(mode: CopyDebugMode) {
-  return `已复制${getCopyModeLabel(mode)}`
+  return translate('miniWorkstation.copiedMode', { mode: getCopyModeLabel(mode) })
 }

@@ -25,12 +25,12 @@
 	        :disabled="uploading || blocked"
 	        class="mini-upload-btn"
 	      >
-        <el-button :icon="Paperclip" link :loading="uploading" size="small" title="上传文件" />
+        <el-button :icon="Paperclip" link :loading="uploading" size="small" :title="t('miniWorkstation.uploadFile')" />
       </el-upload>
     </div>
 	    <div class="mini-input-wrap">
 	      <span v-if="variant !== 'schedule'" class="mini-path-pill" :title="fullCodePath">{{ displayPath }}</span>
-	      <span v-if="blocked" class="mini-blocked-pill" :title="blockedLabel || '等待确认'">{{ blockedLabel || '等待确认' }}</span>
+	      <span v-if="blocked" class="mini-blocked-pill" :title="blockedLabel || t('miniWorkstation.blockingGeneric')">{{ blockedLabel || t('miniWorkstation.blockingGeneric') }}</span>
 	      <textarea
 	        :ref="bindInputRef"
 	        :value="inputText"
@@ -60,7 +60,7 @@
         <span class="mini-mention-trigger">{{ mentionQuery?.trigger }}</span>
         <span>{{ mentionModeLabel }}</span>
       </div>
-      <div v-if="mentionLoading" class="mini-mention-state">搜索中...</div>
+      <div v-if="mentionLoading" class="mini-mention-state">{{ t('miniWorkstation.mentionSearching') }}</div>
       <div v-else-if="mentionOptions.length === 0" class="mini-mention-state">
         {{ mentionEmptyText }}
       </div>
@@ -121,7 +121,7 @@
     <div v-if="variant !== 'schedule'" class="mini-action-stack">
       <el-select
         :model-value="selectedLLMConfigId"
-        placeholder="默认模型"
+        :placeholder="t('miniWorkstation.defaultModel')"
         filterable
         :loading="llmLoading"
         teleported
@@ -134,7 +134,7 @@
         @update:model-value="emit('update:selectedLLMConfigId', Number($event))"
         @visible-change="onLLMSelectVisibleChange"
       >
-        <el-option label="默认模型" :value="0" />
+        <el-option :label="t('miniWorkstation.defaultModel')" :value="0" />
         <el-option
           v-for="llm in llmList"
           :key="llm.id"
@@ -153,7 +153,7 @@
           class="mini-stop-btn"
         >
           <el-icon><VideoPause /></el-icon>
-          停止
+          {{ t('miniWorkstation.stop') }}
         </el-button>
 	        <el-button
 	          type="primary"
@@ -163,7 +163,7 @@
           @click="$emit('send')"
           class="mini-send-btn"
         >
-          {{ sending ? (queuedCount > 0 ? `排队 ${queuedCount}` : '排队') : '发送' }}
+          {{ sending ? (queuedCount > 0 ? t('miniWorkstation.queuedShort', { count: queuedCount }) : t('miniWorkstation.queued')) : t('miniWorkstation.send') }}
         </el-button>
         <el-tooltip
           :content="miniHideShortcutHint"
@@ -188,6 +188,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, type Component } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Close, Document, Paperclip, VideoPause } from '@element-plus/icons-vue'
 import type { LLMInfo } from '@/architecture/presentation/context/api/agent'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
@@ -245,33 +246,37 @@ const emit = defineEmits<{
   (e: 'collapse'): void
 }>()
 
+const { t } = useI18n()
+
 const modelSelectPopperOptions = {
   strategy: 'fixed' as const,
 }
 
 const miniHideShortcutHint = computed(() => {
   const toggleShortcut = (props.toggleShortcutLabel || '').trim()
-  return toggleShortcut ? `关闭工作台，任务继续后台执行 (Esc / ${toggleShortcut})` : '关闭工作台，任务继续后台执行 (Esc)'
+  return toggleShortcut
+    ? t('miniWorkstation.closeBackgroundHintWithShortcut', { shortcut: toggleShortcut })
+    : t('miniWorkstation.closeBackgroundHint')
 })
 
 const composerPlaceholder = computed(() => {
   if (props.blocked) {
-    return props.blockedPlaceholder || '当前会话需要先处理交互卡片'
+    return props.blockedPlaceholder || t('miniWorkstation.blockedPlaceholder')
   }
   const placeholder = props.placeholder.trim()
   if (placeholder) {
     return placeholder
   }
   if (props.variant === 'schedule') {
-    return '告诉 Agent 到时间后要完成什么（@搜用户，/搜目录、工具或文档）'
+    return t('miniWorkstation.schedulePlaceholder')
   }
-  return '输入命令...（@搜用户，/搜目录/工具/文档，Enter 发送，Shift+Enter 换行）'
+  return t('miniWorkstation.chatPlaceholder')
 })
 
 const displayPath = computed(() => {
   const label = (props.dirName || '').trim()
   if (label) return label
-  if (!props.fullCodePath) return '未选择目录'
+  if (!props.fullCodePath) return t('miniWorkstation.noDirectorySelected')
   const parts = props.fullCodePath.split('/').filter(Boolean)
   return parts[parts.length - 1] || props.fullCodePath
 })
@@ -304,14 +309,14 @@ let mentionSearchSeq = 0
 let activeMentionSearchKey = ''
 
 const mentionPanelOpen = computed(() => !!mentionQuery.value)
-const mentionModeLabel = computed(() => mentionQuery.value?.kind === 'user' ? '搜索用户' : '搜索目录、工具和文档')
+const mentionModeLabel = computed(() => mentionQuery.value?.kind === 'user' ? t('miniWorkstation.mentionUserMode') : t('miniWorkstation.mentionResourceMode'))
 const mentionEmptyText = computed(() => {
   const query = mentionQuery.value
   if (!query) return ''
   if (!query.query.trim()) {
-    return query.kind === 'user' ? '继续输入用户名或邮箱' : '继续输入目录、工具或文档关键词'
+    return query.kind === 'user' ? t('miniWorkstation.mentionContinueUser') : t('miniWorkstation.mentionContinueResource')
   }
-  return query.kind === 'user' ? '没有匹配的用户' : '没有匹配的资源'
+  return query.kind === 'user' ? t('miniWorkstation.mentionNoUsers') : t('miniWorkstation.mentionNoResources')
 })
 
 function emitInput(event: Event) {

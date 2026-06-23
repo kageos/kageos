@@ -1,16 +1,27 @@
 import { computed, type Ref } from 'vue'
 import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
+import { translate } from '@/architecture/shared/i18n'
 
 export type SessionFilterValue = 'all' | 'running' | 'waiting' | 'output' | 'done'
 export type SessionStatusKind = 'running' | 'waiting' | 'done' | 'cancelled' | 'failed' | 'active' | 'output'
 
 export const miniWorkstationSessionFilters: Array<{ label: string; value: SessionFilterValue }> = [
-  { label: '全部', value: 'all' },
-  { label: '执行中', value: 'running' },
-  { label: '待确认', value: 'waiting' },
-  { label: '有产出', value: 'output' },
-  { label: '已完成', value: 'done' }
+  { label: translate('miniWorkstation.filterAll'), value: 'all' },
+  { label: translate('miniWorkstation.filterRunning'), value: 'running' },
+  { label: translate('miniWorkstation.filterWaiting'), value: 'waiting' },
+  { label: translate('miniWorkstation.filterOutput'), value: 'output' },
+  { label: translate('miniWorkstation.filterDone'), value: 'done' }
 ]
+
+export function getMiniWorkstationSessionFilters(): Array<{ label: string; value: SessionFilterValue }> {
+  return [
+    { label: translate('miniWorkstation.filterAll'), value: 'all' },
+    { label: translate('miniWorkstation.filterRunning'), value: 'running' },
+    { label: translate('miniWorkstation.filterWaiting'), value: 'waiting' },
+    { label: translate('miniWorkstation.filterOutput'), value: 'output' },
+    { label: translate('miniWorkstation.filterDone'), value: 'done' }
+  ]
+}
 
 interface UseMiniWorkstationSessionViewOptions {
   miniSessionList: Ref<WorkspaceSessionItem[]>
@@ -28,7 +39,7 @@ interface UseMiniWorkstationSessionViewOptions {
 
 export function useMiniWorkstationSessionView(options: UseMiniWorkstationSessionViewOptions) {
   const displayPath = computed(() => {
-    if (!options.fullCodePath.value) return '未选择目录'
+    if (!options.fullCodePath.value) return translate('miniWorkstation.noDirectorySelected')
     return resolvePathDisplayName(options.fullCodePath.value)
   })
 
@@ -44,7 +55,7 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
     const now = new Date().toISOString()
     return {
       session_id: options.sessionId.value,
-      title: options.firstUserMessagePreview.value || options.dirName() || displayPath.value || '新建会话',
+      title: options.firstUserMessagePreview.value || options.dirName() || displayPath.value || translate('miniWorkstation.newSession'),
       status: options.sending.value ? 'generating' : 'active',
       full_code_path: options.fullCodePath.value,
       directory_name: options.dirName() || displayPath.value,
@@ -166,7 +177,7 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
 
     const path = normalizeFullCodePath(session.full_code_path || options.fullCodePath.value || '')
     if (!path) {
-      return options.dirName() || displayPath.value || '当前目录'
+      return options.dirName() || displayPath.value || translate('miniWorkstation.currentDirectory')
     }
 
     const mappedName = getMappedPathName(path)
@@ -178,7 +189,7 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
       return options.dirName() || ''
     }
 
-    return resolvePathDisplayName(path) || options.dirName() || displayPath.value || '当前目录'
+    return resolvePathDisplayName(path) || options.dirName() || displayPath.value || translate('miniWorkstation.currentDirectory')
   }
 
   function getSessionSubtitle(session: WorkspaceSessionItem) {
@@ -188,7 +199,7 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
   function getSessionCenterSubtitle(session: WorkspaceSessionItem) {
     return [getSessionDirectoryPath(session), session.role_display_name || session.user || getSessionStatusLabel(session)]
       .filter(Boolean)
-      .join(' · ') || '当前目录'
+      .join(' · ') || translate('miniWorkstation.currentDirectory')
   }
 
   function getSessionStatusKind(session: WorkspaceSessionItem): SessionStatusKind {
@@ -225,17 +236,17 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
 
   function getSessionStatusLabel(session: WorkspaceSessionItem) {
     const status = getSessionRawStatus(session)
-    if (status === 'pending_confirmation') return 'PRD 待确认'
-    if (status === 'pending_test') return '待自动测试'
-    if (status === 'pending_build_repair') return '修复待确认'
+    if (status === 'pending_confirmation') return translate('miniWorkstation.statusPrdPending')
+    if (status === 'pending_test') return translate('miniWorkstation.statusAutoTestPending')
+    if (status === 'pending_build_repair') return translate('miniWorkstation.statusRepairPending')
     const labels: Record<SessionStatusKind, string> = {
-      running: '执行中',
-      waiting: '待确认',
-      done: '已完成',
-      cancelled: '已取消',
-      failed: '失败',
-      active: '会话',
-      output: '新文件'
+      running: translate('miniWorkstation.statusRunning'),
+      waiting: translate('miniWorkstation.statusWaiting'),
+      done: translate('miniWorkstation.statusDone'),
+      cancelled: translate('miniWorkstation.statusCancelled'),
+      failed: translate('miniWorkstation.statusFailed'),
+      active: translate('miniWorkstation.statusSession'),
+      output: translate('miniWorkstation.statusNewFile')
     }
     return labels[getSessionStatusKind(session)]
   }
@@ -286,7 +297,7 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
 }
 
 export function getSessionTitle(session: WorkspaceSessionItem) {
-  return session.title || session.role_display_name || '未命名会话'
+  return session.title || session.role_display_name || translate('miniWorkstation.unnamedSession')
 }
 
 export function getSessionTimestamp(session: WorkspaceSessionItem) {

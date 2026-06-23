@@ -176,6 +176,17 @@
           <el-icon><Clock /></el-icon>
           定时提交
         </el-button>
+        <el-button
+          v-if="canCopyWorkspaceInvocation"
+          size="large"
+          :disabled="submitting"
+          @click="handleCopyWorkspaceInvocation"
+          data-testid="form-copy-workspace-invocation"
+          title="复制后可粘贴到工作台让 AI 调用"
+        >
+          <el-icon><DocumentCopy /></el-icon>
+          复制给工作台
+        </el-button>
         <el-button v-if="showResetButton" size="large" @click="handleReset">
           <el-icon><RefreshLeft /></el-icon>
           重置
@@ -442,6 +453,11 @@ import { getFormRequestFields, getFormResponseFields } from '@/architecture/doma
 import { createDisplayAwareFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { widgetInitializerRegistry } from '@/architecture/presentation/widgets/initializers/WidgetInitializerRegistry'
 import type { IFormGateway } from '@/architecture/domain/interfaces/IFormGateway'
+import {
+  buildWorkspaceInvocationSnippet,
+  copyTextToClipboard,
+  filterEmptyInvocationParams,
+} from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
@@ -513,6 +529,9 @@ const scheduledFunctionPath = computed(() => {
 })
 const canCreateScheduledSubmit = computed(() => {
   return featureFlags.scheduledTasks && props.showSubmitButton && !!scheduledFunctionPath.value
+})
+const canCopyWorkspaceInvocation = computed(() => {
+  return props.showSubmitButton && !!scheduledFunctionPath.value
 })
 
 // 🔥 移除 formInitialData computed，改为使用统一的数据初始化框架
@@ -607,6 +626,26 @@ const handleReset = (): void => {
   const fields = requestFields.value
   if (fields.length > 0) {
     applicationService.initializeForm(fields)
+  }
+}
+
+async function handleCopyWorkspaceInvocation(): Promise<void> {
+  if (!functionDetail.value || !scheduledFunctionPath.value) {
+    ElMessage.warning('函数详情未加载完成，请稍后重试')
+    return
+  }
+
+  try {
+    const params = filterEmptyInvocationParams(prepareSubmitDataWithTypeConversion())
+    const snippet = buildWorkspaceInvocationSnippet({
+      tool: 'run_form_submit',
+      resourcePath: scheduledFunctionPath.value,
+      params,
+    })
+    await copyTextToClipboard(snippet)
+    ElMessage.success('已复制给工作台使用的函数调用')
+  } catch {
+    ElMessage.error('复制失败，请手动复制')
   }
 }
 

@@ -17,6 +17,20 @@
           :prefix-icon="Search"
           data-testid="service-tree-search"
         />
+        <el-tooltip
+          v-if="featureFlags.capabilityBundle && !multiSelectMode"
+          :content="t('serviceTree.importBundle')"
+          placement="bottom"
+        >
+          <el-button
+            class="tree-import-button"
+            size="small"
+            :icon="Upload"
+            :aria-label="t('serviceTree.importBundle')"
+            data-testid="service-tree-import-directory"
+            @click="openCurrentDirectoryImportDialog"
+          />
+        </el-tooltip>
         <el-tooltip v-if="!multiSelectMode" :content="t('serviceTree.multiSelect')" placement="bottom">
           <el-button
             class="tree-select-button"
@@ -115,7 +129,14 @@
                   class="node-more-actions"
                   @command="(command: ServiceTreeNodeActionCommand) => handleNodeAction(command, data)"
                 >
-                  <el-icon class="more-icon" :data-testid="`service-tree-more-${data.id}`" @click.stop><MoreFilled /></el-icon>
+                  <el-button
+                    class="node-more-button"
+                    text
+                    :icon="MoreFilled"
+                    :aria-label="t('serviceTree.moreActions')"
+                    :data-testid="`service-tree-more-${data.id}`"
+                    @click.stop
+                  />
                   <template #dropdown>
                     <el-dropdown-menu>
                       <el-dropdown-item
@@ -148,12 +169,12 @@
         </template>
       </el-tree>
     </div>
-    <input
-      ref="capabilityImportInputRef"
-      type="file"
-      accept=".json,application/json"
-      class="capability-import-input"
-      @change="handleCapabilityImportFileChange"
+
+    <WorkspaceImportDirectoryDialog
+      v-if="importDirectoryDialogVisible"
+      v-model:visible="importDirectoryDialogVisible"
+      :target-node="importDirectoryTargetNode"
+      @imported="handleDirectoryImported"
     />
   </div>
 </template>
@@ -162,13 +183,13 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { MoreFilled, Download, Delete, Search, Select, Close } from '@element-plus/icons-vue'
+import { MoreFilled, Download, Delete, Search, Select, Close, Upload } from '@element-plus/icons-vue'
 import { ElLoading, ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { isRootNode } from '@/architecture/domain/utils/tree-utils'
-import { exportCapabilityBundle, installCapabilityBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/architecture/presentation/context/api/service-tree'
+import { exportCapabilityBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/architecture/presentation/context/api/service-tree'
 import { getRuntimeStateSummary, type RuntimeStateSummary } from '@/architecture/presentation/context/api/state'
-import { downloadCapabilityBundleFile, parseCapabilityBundleJson } from '@/architecture/presentation/utils/directoryBundleFile'
+import { downloadCapabilityBundleFile } from '@/architecture/presentation/utils/directoryBundleFile'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import { useServiceTreeClipboard } from '../composables/useServiceTreeClipboard'
 import { useServiceTreeSearchExpand } from '../composables/useServiceTreeSearchExpand'
@@ -179,6 +200,7 @@ import {
 } from '../utils/serviceTreeNodeActions'
 import { featureFlags } from '@/architecture/shared/config/features'
 import ServiceTreeNodeContent from './ServiceTreeNodeContent.vue'
+import WorkspaceImportDirectoryDialog from './WorkspaceImportDirectoryDialog.vue'
 
 interface Props {
   treeData: ServiceTree[]
@@ -250,16 +272,14 @@ const rootFullCodePath = computed(() => props.treeData[0]?.full_code_path || '')
 const multiSelectMode = ref(false)
 const selectedNodes = ref<ServiceTree[]>([])
 const bulkExporting = ref(false)
-const capabilityImporting = ref(false)
 const renamingNode = ref(false)
-const capabilityImportInputRef = ref<HTMLInputElement | null>(null)
-const capabilityImportTargetNode = ref<ServiceTree | null>(null)
+const importDirectoryDialogVisible = ref(false)
+const importDirectoryTargetNode = ref<ServiceTree | null>(null)
 const pendingExpandPath = ref('')
 let unsubscribeRuntimeRefresh: (() => void) | null = null
 
-const panelLoading = computed(() => Boolean(props.loading) || bulkExporting.value || capabilityImporting.value || renamingNode.value)
+const panelLoading = computed(() => Boolean(props.loading) || bulkExporting.value || renamingNode.value)
 const panelLoadingText = computed(() => {
-  if (capabilityImporting.value) return '正在导入能力包并更新函数列表...'
   if (renamingNode.value) return '正在更新目录...'
   if (bulkExporting.value) return '正在导出能力包...'
   return '正在刷新服务目录...'
@@ -408,6 +428,53 @@ const getNotificationSummaryTitle = (node: ServiceTree): string => {
 function openNodeNotifications(node: ServiceTree) {
   if (!node.full_code_path) return
   emit('open-notifications', node)
+}
+
+function findPackageNodeById(nodes: ServiceTree[], id: number | string): ServiceTree | null {
+  for (const node of nodes) {
+    if (Number(node.id) === Number(id) && node.type === 'package') {
+      return node
+    }
+    if (node.children?.length) {
+      const found = findPackageNodeById(node.children, id)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+function resolveHeaderImportTarget(): ServiceTree | null {
+  if (props.currentFunction?.type === 'package') {
+    return props.currentFunction
+  }
+  if (props.currentNodeId != null) {
+    const node = findPackageNodeById(props.treeData, props.currentNodeId)
+    if (node) return node
+  }
+  const rootNode = props.treeData[0]
+  return rootNode?.type === 'package' ? rootNode : null
+}
+
+function openDirectoryImportDialog(node: ServiceTree | null | undefined) {
+  if (!featureFlags.capabilityBundle) return
+  if (!node || node.type !== 'package') {
+    ElMessage.warning(t('serviceTree.importOnlyDirectory'))
+    return
+  }
+  if (!node.full_code_path) {
+    ElMessage.warning(t('serviceTree.pathMissingRefresh'))
+    return
+  }
+  importDirectoryTargetNode.value = node
+  importDirectoryDialogVisible.value = true
+}
+
+function openCurrentDirectoryImportDialog() {
+  openDirectoryImportDialog(resolveHeaderImportTarget())
+}
+
+function handleDirectoryImported(path?: string) {
+  refreshTreeAndExpand(path || importDirectoryTargetNode.value?.full_code_path || '')
 }
 
 // 重命名目录
@@ -695,67 +762,6 @@ const handleExportJson = async (data: ServiceTree) => {
   }
 }
 
-function requestCapabilityJsonImport(data: ServiceTree) {
-  if (data.type !== 'package') {
-    ElMessage.warning(t('serviceTree.importOnlyDirectory'))
-    return
-  }
-  if (!data.full_code_path) {
-    ElMessage.warning(t('serviceTree.pathMissingRefresh'))
-    return
-  }
-  capabilityImportTargetNode.value = data
-  if (capabilityImportInputRef.value) {
-    capabilityImportInputRef.value.value = ''
-    capabilityImportInputRef.value.click()
-  }
-}
-
-async function handleCapabilityImportFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  const targetNode = capabilityImportTargetNode.value
-  capabilityImportTargetNode.value = null
-  let loadingInstance: ReturnType<typeof showBlockingLoading> | null = null
-
-  if (!file || !targetNode?.full_code_path) {
-    return
-  }
-
-  try {
-    const bundle = parseCapabilityBundleJson(await file.text())
-    await ElMessageBox.confirm(
-      t('serviceTree.importConfirm', { name: bundle.name || file.name, path: targetNode.full_code_path }),
-      t('serviceTree.importTitle'),
-      {
-        confirmButtonText: t('serviceTree.importOverwrite'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      }
-    )
-    capabilityImporting.value = true
-    loadingInstance = showBlockingLoading('正在导入能力包并更新函数列表，请稍候...')
-    const resp = await installCapabilityBundle({
-      target_directory_path: targetNode.full_code_path,
-      overwrite: true,
-      force_diff: true,
-      bundle
-    })
-    ElMessage.success(resp.message || t('serviceTree.importSuccess'))
-    refreshTreeAndExpand(targetNode.full_code_path)
-  } catch (error: any) {
-    if (error === 'cancel' || error === 'close') {
-      return
-    }
-    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('serviceTree.importFailed')
-    ElMessage.error(message)
-  } finally {
-    capabilityImporting.value = false
-    loadingInstance?.close()
-  }
-}
-
 const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTree) => {
   switch (command) {
     case 'create-directory':
@@ -773,8 +779,8 @@ const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTr
     case 'export-json':
       void handleExportJson(data)
       return
-    case 'import-json':
-      requestCapabilityJsonImport(data)
+    case 'import-directory':
+      openDirectoryImportDialog(data)
       return
     case 'paste':
       if (data.type === 'package') {
@@ -888,6 +894,15 @@ defineExpose({
     border-radius: 8px;
   }
 
+  .tree-import-button {
+    flex: 0 0 32px;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+  }
+
   .tree-bulk-toolbar {
     display: flex;
     align-items: center;
@@ -948,13 +963,17 @@ defineExpose({
 }
 
 .node-more-actions {
-  .more-icon {
-    padding: 4px;
+  .node-more-button {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 8px;
     color: var(--el-text-color-secondary);
-    cursor: pointer;
-    font-size: 14px;
+    font-size: 18px;
 
     &:hover {
+      background: var(--el-fill-color-light);
       color: var(--el-color-primary);
     }
   }
@@ -1102,7 +1121,4 @@ defineExpose({
   }
 }
 
-.capability-import-input {
-  display: none;
-}
 </style>

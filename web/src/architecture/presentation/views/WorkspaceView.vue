@@ -229,6 +229,8 @@
       :show-trigger="false"
       :sync-route="false"
       :service-tree="serviceTree"
+      :current-app="currentApp"
+      :app-list="appList"
       @messages-updated="refreshMessageCounts"
     />
 
@@ -681,11 +683,11 @@ const showMiniWorkstationLauncher = computed(() => {
   return !!workstationContext.value?.fullCodePath && !miniWsList.value.some(mini => mini.visible)
 })
 
-const miniWorkstationLauncherName = computed(() => workstationContext.value?.dirName || '当前目录')
+const miniWorkstationLauncherName = computed(() => workstationContext.value?.dirName || t('miniWorkstation.currentDirectory'))
 
 const miniWorkstationLauncherCount = computed(() => Math.max(miniWsList.value.length, 1))
 
-const miniWorkstationLauncherSummary = computed(() => `${miniWorkstationLauncherCount.value} 个会话`)
+const miniWorkstationLauncherSummary = computed(() => t('miniWorkstation.sessionCount', { count: miniWorkstationLauncherCount.value }))
 
 function openCurrentWorkstation() {
   const ctx = workstationContext.value

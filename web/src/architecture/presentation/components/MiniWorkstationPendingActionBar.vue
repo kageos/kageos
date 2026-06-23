@@ -29,7 +29,7 @@
         <div class="mini-interaction-revision-actions">
           <el-button size="default" :disabled="sending" @click="revisionOpen = false">
             <el-icon><Close /></el-icon>
-            收起
+            {{ t('miniWorkstation.hideRevision') }}
           </el-button>
           <el-button
             type="primary"
@@ -39,7 +39,7 @@
             @click="submitRevision"
           >
             <el-icon><CircleCheck /></el-icon>
-            提交修改
+            {{ t('miniWorkstation.submitRevision') }}
           </el-button>
         </div>
       </div>
@@ -68,6 +68,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { CircleCheck, CircleClose, Close, EditPen, View, WarningFilled } from '@element-plus/icons-vue'
 import type { WorkspaceInteraction } from '@/architecture/presentation/context/api/workspace'
 
@@ -86,13 +87,14 @@ const emit = defineEmits<{
 
 const revisionOpen = ref(false)
 const revisionText = ref('')
+const { t } = useI18n()
 
 const cardType = computed(() => props.interaction.card_type || 'stage_confirmation')
 const title = computed(() => props.interaction.title || defaultTitle(cardType.value))
 const description = computed(() => {
   return props.interaction.description ||
     props.interaction.help_text ||
-    '当前阶段需要你确认或补充信息后才能继续。'
+    t('miniWorkstation.interactionDefaultDesc')
 })
 const viewLabel = computed(() => props.interaction.view_text || defaultViewLabel(cardType.value))
 const reviseLabel = computed(() => props.interaction.revise_text || defaultReviseLabel(cardType.value))
@@ -100,16 +102,16 @@ const cancelLabel = computed(() => props.interaction.cancel_text || defaultCance
 const confirmLabel = computed(() => props.interaction.confirm_text || defaultConfirmLabel(cardType.value))
 const dataTestId = computed(() => `mini-interaction-gate-${cardType.value}`)
 const statusIcon = computed(() => props.readonly ? CircleCheck : WarningFilled)
-const eyebrowText = computed(() => props.readonly ? '历史交互记录' : '当前会话暂停')
+const eyebrowText = computed(() => props.readonly ? t('miniWorkstation.historicalInteraction') : t('miniWorkstation.currentSessionPaused'))
 const badgeText = computed(() => {
-  if (props.readonly) return '已记录'
-  if (props.interaction.blocking) return '需要处理'
+  if (props.readonly) return t('miniWorkstation.recorded')
+  if (props.interaction.blocking) return t('miniWorkstation.needsHandling')
   return ''
 })
 const revisionPlaceholder = computed(() => {
-  if (cardType.value === 'prd_confirmation') return '写清楚要改的 PRD 内容，例如：增加审批状态、删除统计图、字段改为...'
-  if (cardType.value === 'build_repair') return '写清楚你想继续怎么改；如果要自动修复，直接点交接修复。'
-  return '写清楚需要补充或修改的内容。'
+  if (cardType.value === 'prd_confirmation') return t('miniWorkstation.revisePrdPlaceholder')
+  if (cardType.value === 'build_repair') return t('miniWorkstation.reviseBuildPlaceholder')
+  return t('miniWorkstation.reviseGenericPlaceholder')
 })
 
 watch(() => props.interaction.id, () => {
@@ -135,32 +137,32 @@ function submitRevision() {
 }
 
 function defaultTitle(type: string) {
-  if (type === 'prd_confirmation') return 'PRD 等待确认'
-  if (type === 'build_repair') return '构建等待修复'
-  return '等待确认'
+  if (type === 'prd_confirmation') return t('miniWorkstation.interactionPrdTitle')
+  if (type === 'build_repair') return t('miniWorkstation.buildRepairTitle')
+  return t('miniWorkstation.interactionWaitingTitle')
 }
 
 function defaultViewLabel(type: string) {
-  if (type === 'prd_confirmation') return '查看 PRD'
-  if (type === 'build_repair') return '查看诊断'
-  return '查看详情'
+  if (type === 'prd_confirmation') return t('miniWorkstation.viewPrd')
+  if (type === 'build_repair') return t('miniWorkstation.viewDiagnostics')
+  return t('miniWorkstation.viewDetails')
 }
 
 function defaultReviseLabel(type: string) {
-  if (type === 'prd_confirmation') return '修改 PRD'
-  if (type === 'build_repair') return '继续修改'
-  return '补充说明'
+  if (type === 'prd_confirmation') return t('miniWorkstation.revisePrd')
+  if (type === 'build_repair') return t('miniWorkstation.continueDevelopment')
+  return t('miniWorkstation.supplement')
 }
 
 function defaultCancelLabel(type: string) {
-  if (type === 'build_repair') return '暂不修复'
-  return '取消'
+  if (type === 'build_repair') return t('miniWorkstation.skipRepair')
+  return t('scheduledTask.cancel')
 }
 
 function defaultConfirmLabel(type: string) {
-  if (type === 'prd_confirmation') return '确认 PRD'
-  if (type === 'build_repair') return '交接修复'
-  return '确认'
+  if (type === 'prd_confirmation') return t('miniWorkstation.confirmPrd')
+  if (type === 'build_repair') return t('miniWorkstation.repairHandoff')
+  return t('miniWorkstation.confirm')
 }
 </script>
 

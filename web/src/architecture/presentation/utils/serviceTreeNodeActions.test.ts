@@ -41,10 +41,10 @@ describe('serviceTreeNodeActions', () => {
       'rename',
       'copy',
       'export-json',
-      'import-json'
+      'import-directory'
     ])
     expect(actions.find(action => action.command === 'export-json')?.label).toBe('导出能力包')
-    expect(actions.find(action => action.command === 'import-json')?.label).toBe('导入能力包')
+    expect(actions.find(action => action.command === 'import-directory')?.label).toBe('导入目录')
   })
 
   it('shows permission management only for nodes with admin access', () => {
@@ -80,6 +80,6 @@ describe('serviceTreeNodeActions', () => {
   })
 
   it('builds stable test ids', () => {
-    expect(buildServiceTreeNodeActionTestId('import-json', node({ id: 42 }))).toBe('service-tree-action-import-json-42')
+    expect(buildServiceTreeNodeActionTestId('import-directory', node({ id: 42 }))).toBe('service-tree-action-import-directory-42')
   })
 })

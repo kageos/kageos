@@ -2,11 +2,11 @@
   <section v-if="packageNode" class="directory-overview" v-loading="loading">
     <div class="overview-head">
       <div class="overview-head-main">
-        <div class="overview-title">目录概览</div>
+        <div class="overview-title">{{ t('scheduledTask.overviewTitle') }}</div>
         <div class="overview-path">{{ packageNode.full_code_path || '-' }}</div>
       </div>
       <el-button :icon="Refresh" :loading="loading" @click="loadOverview">
-        刷新
+        {{ t('common.refresh') }}
       </el-button>
     </div>
 
@@ -16,7 +16,7 @@
           <el-icon><Folder /></el-icon>
         </div>
         <div class="metric-content">
-          <div class="metric-label">子目录</div>
+          <div class="metric-label">{{ t('scheduledTask.subdirectories') }}</div>
           <div class="metric-value">{{ resourceStats.directories }}</div>
         </div>
       </div>
@@ -26,7 +26,7 @@
           <el-icon><Operation /></el-icon>
         </div>
         <div class="metric-content">
-          <div class="metric-label">函数</div>
+          <div class="metric-label">{{ t('scheduledTask.functions') }}</div>
           <div class="metric-value">{{ resourceStats.functions }}</div>
         </div>
       </div>
@@ -36,7 +36,7 @@
           <el-icon><Document /></el-icon>
         </div>
         <div class="metric-content">
-          <div class="metric-label">文档</div>
+          <div class="metric-label">{{ t('scheduledTask.docs') }}</div>
           <div class="metric-value">{{ resourceStats.docs }}</div>
         </div>
       </div>
@@ -46,7 +46,7 @@
           <el-icon><Timer /></el-icon>
         </div>
         <div class="metric-content">
-          <div class="metric-label">定时函数</div>
+          <div class="metric-label">{{ t('scheduledTask.scheduledFunctions') }}</div>
           <div class="metric-value">{{ scheduledFunctionTotal }}</div>
         </div>
       </div>
@@ -56,7 +56,7 @@
           <el-icon><ChatLineRound /></el-icon>
         </div>
         <div class="metric-content">
-          <div class="metric-label">定时会话</div>
+          <div class="metric-label">{{ t('scheduledTask.scheduledAgents') }}</div>
           <div class="metric-value">{{ scheduledAgentTotal }}</div>
         </div>
       </div>
@@ -66,7 +66,7 @@
           <el-icon><VideoPlay /></el-icon>
         </div>
         <div class="metric-content">
-          <div class="metric-label">执行中</div>
+          <div class="metric-label">{{ t('scheduledTask.runningTasks') }}</div>
           <div class="metric-value">{{ runningTaskCount }}</div>
         </div>
       </div>
@@ -76,7 +76,7 @@
           <el-icon><Clock /></el-icon>
         </div>
         <div class="metric-content">
-          <div class="metric-label">最近触发</div>
+          <div class="metric-label">{{ t('scheduledTask.nextTrigger') }}</div>
           <div class="metric-value metric-value--time">{{ nextRunLabel }}</div>
         </div>
       </div>
@@ -106,9 +106,9 @@
           <div>
             <div class="scheduled-panel-title">
               <el-icon><Timer /></el-icon>
-              定时函数
+              {{ t('scheduledTask.scheduledFunctions') }}
             </div>
-            <div class="scheduled-panel-subtitle">当前目录及子目录内的函数定时配置</div>
+            <div class="scheduled-panel-subtitle">{{ t('scheduledTask.functionOverviewSubtitle') }}</div>
           </div>
           <el-tag size="small" type="primary">{{ scheduledFunctionTotal }}</el-tag>
         </div>
@@ -123,14 +123,14 @@
           >
             <span class="task-row-main">
               <span class="task-row-title">
-                {{ item.task.title || '未命名定时函数' }}
+                {{ item.task.title || t('scheduledTask.unnamedFunctionTask') }}
                 <el-tag
                   v-if="item.task.inflight_execution_id"
                   size="small"
                   type="primary"
                   effect="light"
                 >
-                  执行中
+                  {{ t('scheduledTask.running') }}
                 </el-tag>
               </span>
               <span class="task-row-path">{{ item.resourceName }} · {{ item.resourcePath }}</span>
@@ -150,7 +150,7 @@
 
         <el-empty
           v-else
-          description="暂无定时函数"
+          :description="t('scheduledTask.emptyFunctions')"
           :image-size="76"
           class="overview-empty"
         />
@@ -161,9 +161,9 @@
           <div>
             <div class="scheduled-panel-title">
               <el-icon><ChatLineRound /></el-icon>
-              定时会话
+              {{ t('scheduledTask.scheduledAgents') }}
             </div>
-            <div class="scheduled-panel-subtitle">当前目录及子目录内的工作台定时会话</div>
+            <div class="scheduled-panel-subtitle">{{ t('scheduledTask.agentOverviewSubtitle') }}</div>
           </div>
           <el-tag size="small" type="success">{{ scheduledAgentTotal }}</el-tag>
         </div>
@@ -178,14 +178,14 @@
           >
             <span class="task-row-main">
               <span class="task-row-title">
-                {{ item.task.title || '未命名定时会话' }}
+                {{ item.task.title || t('scheduledTask.unnamedAgentTask') }}
                 <el-tag
                   v-if="item.task.inflight_execution_id"
                   size="small"
                   type="primary"
                   effect="light"
                 >
-                  执行中
+                  {{ t('scheduledTask.running') }}
                 </el-tag>
               </span>
               <span class="task-row-path">{{ item.resourceName }} · {{ item.resourcePath }}</span>
@@ -208,7 +208,7 @@
 
         <el-empty
           v-else
-          description="暂无定时会话"
+          :description="t('scheduledTask.emptyAgents')"
           :image-size="76"
           class="overview-empty"
         />
@@ -219,6 +219,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ChatLineRound, Clock, Document, Folder, Operation, Refresh, Timer, VideoPlay } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
@@ -244,6 +245,7 @@ const props = defineProps<{
 
 const TASK_DISPLAY_LIMIT = 8
 
+const { t } = useI18n()
 const router = useRouter()
 const loading = ref(false)
 const loadSeq = ref(0)
@@ -337,7 +339,7 @@ async function loadOverview() {
     overview.value = resp
   } catch (error) {
     if (loadSeq.value !== currentSeq) return
-    errorMessage.value = error instanceof Error ? error.message : '目录概览加载失败'
+    errorMessage.value = error instanceof Error ? error.message : t('scheduledTask.overviewLoadFailed')
     overview.value = {
       stats: fallbackStatsFromTree(),
       scheduled_function_tasks: [],

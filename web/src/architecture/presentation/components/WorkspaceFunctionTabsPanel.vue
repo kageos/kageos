@@ -37,7 +37,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane v-if="isFormFunction" name="publicShare" label="公开链接" lazy>
+        <el-tab-pane v-if="isFormFunction" name="publicShare" :label="t('functionTabs.publicShare')" lazy>
           <div class="tab-content">
             <PublicSharePanel
               v-if="activeTab === 'publicShare'"
@@ -73,7 +73,7 @@
         <el-tab-pane
           v-if="featureFlags.scheduledTasks"
           name="scheduledTask"
-          label="定时函数"
+          :label="t('functionTabs.scheduledTask')"
           lazy
         >
           <div class="tab-content">

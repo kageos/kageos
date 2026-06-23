@@ -1,10 +1,10 @@
 <template>
-  <section class="mini-session-dock" aria-label="会话摘要">
+  <section class="mini-session-dock" :aria-label="t('miniWorkstation.sessionSummary')">
     <button type="button" class="mini-session-center-btn" @click="$emit('openCenter')">
       <span class="mini-count-badge">{{ centerCount }}</span>
-      <span>会话中心</span>
+      <span>{{ t('miniWorkstation.sessionCenter') }}</span>
     </button>
-    <button type="button" class="mini-session-new-btn" title="新建会话" @click="$emit('newSession')">
+    <button type="button" class="mini-session-new-btn" :title="t('miniWorkstation.newSession')" @click="$emit('newSession')">
       <el-icon :size="17"><Plus /></el-icon>
     </button>
     <div class="mini-session-summary-list">
@@ -16,7 +16,7 @@
       >
         <span class="mini-status-dot"></span>
         <span class="mini-session-summary-copy">
-          <span class="mini-session-summary-title">新建会话</span>
+          <span class="mini-session-summary-title">{{ t('miniWorkstation.newSession') }}</span>
           <span class="mini-session-summary-sub">{{ directoryLabel }}</span>
         </span>
       </button>
@@ -40,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Plus } from '@element-plus/icons-vue'
 import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 
@@ -59,6 +60,8 @@ defineEmits<{
   (e: 'newSession'): void
   (e: 'select', session: WorkspaceSessionItem): void
 }>()
+
+const { t } = useI18n()
 </script>
 
 <style scoped>

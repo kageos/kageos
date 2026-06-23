@@ -106,6 +106,35 @@
                 <span class="user-menu-desc">{{ t('workspace.systemSettingsDesc') }}</span>
               </span>
             </el-dropdown-item>
+            <el-dropdown-item v-if="isSystemUser" command="login-settings" class="user-dropdown-action">
+              <span class="user-menu-icon user-menu-icon--role">
+                <el-icon><Key /></el-icon>
+              </span>
+              <span class="user-menu-copy">
+                <span class="user-menu-title">{{ t('workspace.loginConfig') }}</span>
+                <span class="user-menu-desc">{{ t('workspace.loginConfigDesc') }}</span>
+              </span>
+            </el-dropdown-item>
+            <el-dropdown-item v-if="isSystemUser" command="connector-settings" class="user-dropdown-action">
+              <span class="user-menu-icon user-menu-icon--connector">
+                <el-icon><Connection /></el-icon>
+              </span>
+              <span class="user-menu-copy">
+                <span class="user-menu-title">{{ t('workspace.connectorConfig') }}</span>
+                <span class="user-menu-desc">{{ t('workspace.connectorConfigDesc') }}</span>
+              </span>
+            </el-dropdown-item>
+
+            <el-dropdown-item disabled class="user-dropdown-section-title user-dropdown-section-title--divided">{{ t('workspace.help') }}</el-dropdown-item>
+            <el-dropdown-item command="help-docs" class="user-dropdown-action">
+              <span class="user-menu-icon user-menu-icon--docs">
+                <el-icon><QuestionFilled /></el-icon>
+              </span>
+              <span class="user-menu-copy">
+                <span class="user-menu-title">{{ t('workspace.helpDocs') }}</span>
+                <span class="user-menu-desc">{{ t('workspace.helpDocsDesc') }}</span>
+              </span>
+            </el-dropdown-item>
 
             <el-dropdown-item disabled class="user-dropdown-section-title user-dropdown-section-title--divided">{{ t('workspace.preferences') }}</el-dropdown-item>
             <div class="user-preference-panel" @click.stop>
@@ -172,7 +201,10 @@ import { useI18n } from 'vue-i18n'
 import {
   ArrowDown,
   UserFilled,
+  Connection,
   Cpu,
+  Key,
+  QuestionFilled,
   Setting,
   Search,
   SwitchButton
@@ -183,6 +215,7 @@ import { ElMessageBox } from 'element-plus'
 import { useAuthStore, useLocaleStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
 import WorkspaceInbox from './WorkspaceInbox.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
+import { getKageosDocsURL, openExternalURL } from '@/architecture/shared/config/externalLinks'
 import type { SupportedLocale } from '@/architecture/shared/i18n'
 import defaultCompanyLogo from '@/architecture/presentation/assets/logo.svg'
 import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar.vue'
@@ -244,6 +277,15 @@ const handleUserCommand = (command: string) => {
       break
     case 'system-settings':
       router.push('/system/settings')
+      break
+    case 'login-settings':
+      router.push({ path: '/system/settings', query: { tab: 'login' } })
+      break
+    case 'connector-settings':
+      router.push({ path: '/system/settings', query: { tab: 'connectors' } })
+      break
+    case 'help-docs':
+      openExternalURL(getKageosDocsURL('docs', localeStore.currentLocale))
       break
     default:
       break
@@ -613,6 +655,11 @@ defineExpose({
 .user-menu-icon--role {
   background: rgba(99, 102, 241, 0.12);
   color: #4f46e5;
+}
+
+.user-menu-icon--docs {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
 }
 
 .user-menu-icon--logout {

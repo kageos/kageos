@@ -4,11 +4,11 @@
     :aria-hidden="open ? 'false' : 'true'"
     @click.self="$emit('close')"
   >
-    <div class="mini-session-dialog" role="dialog" aria-modal="true" aria-label="工作台会话中心">
+    <div class="mini-session-dialog" role="dialog" aria-modal="true" :aria-label="t('miniWorkstation.sessionCenter')">
       <header class="mini-session-dialog-head">
         <div class="mini-session-dialog-title">
-          <strong>工作台会话</strong>
-          <span>左侧是当前目录会话，右侧是跨目录最近会话。</span>
+          <strong>{{ t('miniWorkstation.workbenchSessions') }}</strong>
+          <span>{{ t('miniWorkstation.sessionCenterDesc') }}</span>
         </div>
         <button type="button" class="mini-session-close" @click="$emit('close')">
           <el-icon><Close /></el-icon>
@@ -16,12 +16,12 @@
       </header>
       <div class="mini-session-dialog-tools">
         <div class="mini-session-dialog-stat">
-          <span>当前目录 {{ currentDirectorySessions.length }}/{{ currentDirectoryTotal }}</span>
-          <span>最近会话 {{ recentSessions.length }}/{{ recentSourceTotal }}</span>
+          <span>{{ t('miniWorkstation.currentDirectoryStat', { current: currentDirectorySessions.length, total: currentDirectoryTotal }) }}</span>
+          <span>{{ t('miniWorkstation.recentSessionStat', { current: recentSessions.length, total: recentSourceTotal }) }}</span>
         </div>
         <label class="mini-session-search">
           <el-icon :size="14"><Search /></el-icon>
-          <input v-model="searchKeywordModel" placeholder="搜索目录、函数或需求..." />
+          <input v-model="searchKeywordModel" :placeholder="t('miniWorkstation.searchCenterPlaceholder')" />
         </label>
         <div class="mini-session-filters">
           <button
@@ -39,7 +39,7 @@
         <section class="mini-session-pane mini-session-pane--current" v-loading="loadingCurrent">
           <header class="mini-session-pane-head">
             <div>
-              <strong>当前目录</strong>
+              <strong>{{ t('miniWorkstation.currentDirectory') }}</strong>
               <span :title="fullCodePath">{{ directoryLabel }}</span>
             </div>
             <em>{{ currentDirectorySessions.length }}</em>
@@ -61,10 +61,10 @@
                 </span>
               </span>
               <span class="mini-session-row-meta">{{ getSessionStatusLabel(item) }} · {{ formatRelativeTime(item.updated_at || item.created_at) }}</span>
-              <span class="mini-session-open">打开</span>
+              <span class="mini-session-open">{{ t('miniWorkstation.openSession') }}</span>
             </button>
             <div v-if="currentDirectorySessions.length === 0 && !loadingCurrent" class="mini-session-empty">
-              没有匹配的当前目录会话
+              {{ t('miniWorkstation.noMatchingCurrentDirectorySessions') }}
             </div>
           </div>
         </section>
@@ -72,8 +72,8 @@
         <section class="mini-session-pane mini-session-pane--recent" v-loading="loadingRecent">
           <header class="mini-session-pane-head">
             <div>
-              <strong>最近会话</strong>
-              <span>可打开其他目录的工作台会话</span>
+              <strong>{{ t('miniWorkstation.recentSessions') }}</strong>
+              <span>{{ t('miniWorkstation.recentSessionsDesc') }}</span>
             </div>
             <em>{{ recentSessions.length }}</em>
           </header>
@@ -94,10 +94,10 @@
                 </span>
               </span>
               <span class="mini-session-row-meta">{{ getSessionStatusLabel(item) }} · {{ formatRelativeTime(item.updated_at || item.created_at) }}</span>
-              <span class="mini-session-open">打开</span>
+              <span class="mini-session-open">{{ t('miniWorkstation.openSession') }}</span>
             </button>
             <div v-if="recentSessions.length === 0 && !loadingRecent" class="mini-session-empty">
-              没有匹配的最近会话
+              {{ t('miniWorkstation.noMatchingRecentSessions') }}
             </div>
           </div>
         </section>
@@ -108,6 +108,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Close, Search } from '@element-plus/icons-vue'
 import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 import type { SessionFilterValue } from '../composables/useMiniWorkstationSessionView'
@@ -145,21 +146,23 @@ const searchKeywordModel = computed({
   set: (value) => emit('update:sessionSearchKeyword', value)
 })
 
+const { t } = useI18n()
+
 function getSessionContextBadges(session: WorkspaceSessionItem): string[] {
   const badges: string[] = []
-  if (session.archived_for_model) badges.push('历史兼容标记')
+  if (session.archived_for_model) badges.push(t('miniWorkstation.historicalCompatBadge'))
   const policy = formatSessionContextPolicy(session.context_policy)
   if (policy) badges.push(policy)
-  if ((session.model_context_anchor_message_id || 0) > 0) badges.push('锚点已忽略')
+  if ((session.model_context_anchor_message_id || 0) > 0) badges.push(t('miniWorkstation.anchorIgnored'))
   return badges
 }
 
 function formatSessionContextPolicy(policy?: string): string {
   const normalized = String(policy || '').trim()
   if (!normalized) return ''
-  if (normalized === 'artifact_only') return '完整上下文 · 产物重点'
-  if (normalized === 'display_only') return '完整上下文 · 展示标签'
-  if (normalized === 'full') return '完整上下文'
+  if (normalized === 'artifact_only') return t('miniWorkstation.contextArtifactOnly')
+  if (normalized === 'display_only') return t('miniWorkstation.contextDisplayOnly')
+  if (normalized === 'full') return t('miniWorkstation.contextFull')
   return normalized
 }
 </script>

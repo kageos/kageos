@@ -1,6 +1,7 @@
 /**
  * 日期/时间工具函数
  */
+import { translate } from './i18n'
 
 export interface DateTimeShortcut {
   text: string
@@ -17,24 +18,24 @@ const DAY_MS = 24 * HOUR_MS
  */
 export function createRelativeDateTimeShortcuts(): DateTimeShortcut[] {
   return [
-    { text: '现在', value: () => new Date() },
-    { text: '10分钟后', value: () => fromNow(10 * MINUTE_MS) },
-    { text: '15分钟后', value: () => fromNow(15 * MINUTE_MS) },
-    { text: '30分钟后', value: () => fromNow(30 * MINUTE_MS) },
-    { text: '1小时后', value: () => fromNow(HOUR_MS) },
-    { text: '2小时后', value: () => fromNow(2 * HOUR_MS) },
-    { text: '3小时后', value: () => fromNow(3 * HOUR_MS) },
-    { text: '6小时后', value: () => fromNow(6 * HOUR_MS) },
-    { text: '12小时后', value: () => fromNow(12 * HOUR_MS) },
-    { text: '今天18:00', value: () => todayAt(18, 0) },
-    { text: '明早09:00', value: () => daysFromNowAt(1, 9, 0) },
-    { text: '明晚18:00', value: () => daysFromNowAt(1, 18, 0) },
-    { text: '明天现在', value: () => shiftCalendarDays(1) },
-    { text: '后天09:00', value: () => daysFromNowAt(2, 9, 0) },
-    { text: '一天后', value: () => fromNow(DAY_MS) },
-    { text: '一周后', value: () => shiftCalendarDays(7) },
-    { text: '下周一09:00', value: () => nextWeekdayAt(1, 9, 0) },
-    { text: '昨天现在', value: () => shiftCalendarDays(-1) },
+    { text: translate('dateShortcuts.now'), value: () => new Date() },
+    { text: translate('dateShortcuts.inMinutes', { count: 10 }), value: () => fromNow(10 * MINUTE_MS) },
+    { text: translate('dateShortcuts.inMinutes', { count: 15 }), value: () => fromNow(15 * MINUTE_MS) },
+    { text: translate('dateShortcuts.inMinutes', { count: 30 }), value: () => fromNow(30 * MINUTE_MS) },
+    { text: translate('dateShortcuts.inHours', { count: 1 }), value: () => fromNow(HOUR_MS) },
+    { text: translate('dateShortcuts.inHours', { count: 2 }), value: () => fromNow(2 * HOUR_MS) },
+    { text: translate('dateShortcuts.inHours', { count: 3 }), value: () => fromNow(3 * HOUR_MS) },
+    { text: translate('dateShortcuts.inHours', { count: 6 }), value: () => fromNow(6 * HOUR_MS) },
+    { text: translate('dateShortcuts.inHours', { count: 12 }), value: () => fromNow(12 * HOUR_MS) },
+    { text: translate('dateShortcuts.todayAt', { time: '18:00' }), value: () => todayAt(18, 0) },
+    { text: translate('dateShortcuts.tomorrowMorning'), value: () => daysFromNowAt(1, 9, 0) },
+    { text: translate('dateShortcuts.tomorrowEvening'), value: () => daysFromNowAt(1, 18, 0) },
+    { text: translate('dateShortcuts.tomorrowNow'), value: () => shiftCalendarDays(1) },
+    { text: translate('dateShortcuts.dayAfterTomorrowAt'), value: () => daysFromNowAt(2, 9, 0) },
+    { text: translate('dateShortcuts.inOneDay'), value: () => fromNow(DAY_MS) },
+    { text: translate('dateShortcuts.inOneWeek'), value: () => shiftCalendarDays(7) },
+    { text: translate('dateShortcuts.nextMondayAt'), value: () => nextWeekdayAt(1, 9, 0) },
+    { text: translate('dateShortcuts.yesterdayNow'), value: () => shiftCalendarDays(-1) },
   ]
 }
 
