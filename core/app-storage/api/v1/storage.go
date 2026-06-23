@@ -225,7 +225,7 @@ func (s *Storage) PublicShareGetUploadToken(c *gin.Context) {
 	var resp *dto.GetUploadTokenResp
 	var err error
 	defer func() {
-		logger.Infof(c, "PublicShareGetUploadToken req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "PublicShareGetUploadToken req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	if err = c.ShouldBindJSON(&req); err != nil {
@@ -515,7 +515,7 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 	var resp *dto.GetUploadTokenResp
 	var err error
 	defer func() {
-		logger.Infof(c, "GetUploadToken req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "GetUploadToken req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	// 绑定请求参数

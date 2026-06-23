@@ -57,7 +57,7 @@ func (a *Auth) SendEmailCode(c *gin.Context) {
 	var resp *dto.SendEmailCodeResp
 	var err error
 	defer func() {
-		logger.Infof(c, "SendEmailCode req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "SendEmailCode req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	// 绑定请求参数
@@ -116,7 +116,7 @@ func (a *Auth) Register(c *gin.Context) {
 	var resp *dto.RegisterResp
 	var err error
 	defer func() {
-		logger.Infof(c, "Register username=%s email=%s company_action=%s company_code=%s resp:%+v err:%v",
+		logger.Debugf(c, "Register username=%s email=%s company_action=%s company_code=%s resp:%+v err:%v",
 			req.Username, req.Email, req.CompanyAction, req.CompanyCode, resp, err)
 	}()
 
@@ -320,7 +320,7 @@ func (a *Auth) CreateUserBySecret(c *gin.Context) {
 	var resp *dto.CreateUserBySecretResp
 	var err error
 	defer func() {
-		logger.Infof(c, "CreateUserBySecret req:{Username:%s} resp:%+v err:%v", req.Username, resp, err)
+		logger.Debugf(c, "CreateUserBySecret req:{Username:%s} resp:%+v err:%v", req.Username, resp, err)
 	}()
 
 	if err = c.ShouldBindJSON(&req); err != nil {
@@ -355,7 +355,7 @@ func (a *Auth) Login(c *gin.Context) {
 	var resp *dto.LoginResp
 	var err error
 	defer func() {
-		logger.Infof(c, "Login username=%s remember=%v err:%v", req.Username, req.Remember, err)
+		logger.Debugf(c, "Login username=%s remember=%v err:%v", req.Username, req.Remember, err)
 	}()
 
 	// 绑定请求参数
@@ -405,7 +405,7 @@ func (a *Auth) RefreshToken(c *gin.Context) {
 	var resp *dto.RefreshTokenResp
 	var err error
 	defer func() {
-		logger.Infof(c, "RefreshToken req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "RefreshToken req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	// 绑定请求参数
@@ -445,7 +445,7 @@ func (a *Auth) Logout(c *gin.Context) {
 	var resp *dto.LogoutResp
 	var err error
 	defer func() {
-		logger.Infof(c, "Logout has_token=%v resp:%+v err:%v", req.Token != "" || c.GetHeader(contextx.TokenHeader) != "", resp, err)
+		logger.Debugf(c, "Logout has_token=%v resp:%+v err:%v", req.Token != "" || c.GetHeader(contextx.TokenHeader) != "", resp, err)
 	}()
 
 	token := strings.TrimSpace(c.GetHeader(contextx.TokenHeader))
@@ -488,7 +488,7 @@ func (a *Auth) ForgotPassword(c *gin.Context) {
 	var resp *dto.ForgotPasswordResp
 	var err error
 	defer func() {
-		logger.Infof(c, "ForgotPassword req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "ForgotPassword req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	// 绑定请求参数

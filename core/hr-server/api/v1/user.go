@@ -47,7 +47,7 @@ func (u *User) GetUserInfo(c *gin.Context) {
 	var resp *dto.UserInfo
 	var err error
 	defer func() {
-		logger.Infof(c, "GetUserInfo resp:%+v err:%v", resp, err)
+		logger.Debugf(c, "GetUserInfo resp:%+v err:%v", resp, err)
 	}()
 
 	// 从context获取username（JWTAuth中间件已从header获取并设置到context）
@@ -98,7 +98,7 @@ func (u *User) QueryUser(c *gin.Context) {
 	var resp *dto.QueryUserResp
 	var err error
 	defer func() {
-		logger.Infof(c, "QueryUser req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "QueryUser req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	// 绑定请求参数
@@ -153,7 +153,7 @@ func (u *User) SearchUsersFuzzy(c *gin.Context) {
 	var resp *dto.SearchUsersFuzzyResp
 	var err error
 	defer func() {
-		logger.Infof(c, "SearchUsersFuzzy req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "SearchUsersFuzzy req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	// 绑定请求参数
@@ -214,7 +214,7 @@ func (u *User) GetUsersByUsernames(c *gin.Context) {
 	var resp *dto.GetUsersByUsernamesResp
 	var err error
 	defer func() {
-		logger.Infof(c, "GetUsersByUsernames req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "GetUsersByUsernames req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	// 绑定请求参数
@@ -269,7 +269,7 @@ func (u *User) UpdateUser(c *gin.Context) {
 	var resp *dto.UpdateUserResp
 	var err error
 	defer func() {
-		logger.Infof(c, "UpdateUser req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "UpdateUser req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	// 绑定请求参数
