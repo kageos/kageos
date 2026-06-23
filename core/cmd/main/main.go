@@ -19,6 +19,7 @@ import (
 	messageServerRunner "github.com/kageos/kageos/core/message-server/runner"
 	timerSchedulerRunner "github.com/kageos/kageos/core/timer-scheduler/runner"
 
+	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/infra"
 	"github.com/kageos/kageos/pkg/logger"
 )
@@ -146,11 +147,11 @@ func main() {
 	logConfig := logger.Config{
 		Level:      "info",
 		Filename:   "./logs/all-services.log",
-		MaxSize:    100,
-		MaxBackups: 3,
-		MaxAge:     7,
+		MaxSize:    logger.DefaultMaxSize,
+		MaxBackups: logger.DefaultMaxBackups,
+		MaxAge:     logger.DefaultMaxAge,
 		Compress:   true,
-		IsDev:      true,
+		IsDev:      config.IsDevMode(),
 	}
 
 	if err := logger.Init(logConfig); err != nil {
