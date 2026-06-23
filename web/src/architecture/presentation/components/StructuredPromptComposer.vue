@@ -252,7 +252,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
+import { computed, defineComponent, h, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { Document, EditPen, View } from '@element-plus/icons-vue'
 import type { UserInfo } from '@/architecture/domain/types'
 import { getUsersByUsernames, searchUsersFuzzy } from '@/architecture/presentation/context/api/user'
@@ -360,6 +360,8 @@ const SYSTEM_USER_META: PromptUserMeta = {
   description: '系统内置身份',
   metaItems: ['@system'],
 }
+const RAW_TABLE_ICON = markRaw(TableIcon)
+const RAW_CHART_ICON = markRaw(ChartIcon)
 
 const ResourceTokenIcon = defineComponent({
   name: 'ResourceTokenIcon',
@@ -1559,10 +1561,10 @@ function getResourceIconMeta(resource: ResourceSearchResult): Pick<StructuredMen
     return { iconSrc: '/service-tree/编辑.svg', iconClass: 'form-icon-img' }
   }
   if (resource.template_type === 'table') {
-    return { iconComponent: TableIcon, iconClass: 'table-icon' }
+    return { iconComponent: RAW_TABLE_ICON, iconClass: 'table-icon' }
   }
   if (resource.template_type === 'chart') {
-    return { iconComponent: ChartIcon, iconClass: 'chart-icon' }
+    return { iconComponent: RAW_CHART_ICON, iconClass: 'chart-icon' }
   }
   return { iconClass: 'function-icon' }
 }

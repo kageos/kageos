@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { searchUsersFuzzy } from '@/architecture/presentation/context/api/user'
+import { searchResources } from '@/architecture/presentation/context/api/service-tree'
 import StructuredPromptComposer from './StructuredPromptComposer.vue'
 
 vi.mock('@/architecture/presentation/context/api/user', () => ({
@@ -13,6 +14,24 @@ vi.mock('@/architecture/presentation/context/api/user', () => ({
       avatar: '',
       email: '',
       signature: '',
+    }],
+  })),
+}))
+
+vi.mock('@/architecture/presentation/context/api/service-tree', () => ({
+  getServiceTreeDetail: vi.fn(async () => {
+    throw new Error('not found')
+  }),
+  searchResources: vi.fn(async () => ({
+    items: [{
+      id: 1,
+      name: '订单表',
+      code: 'orders',
+      type: 'function',
+      full_code_path: '/system/app/orders.table',
+      description: '订单数据表',
+      template_type: 'table',
+      run_count: 0,
     }],
   })),
 }))
@@ -238,6 +257,38 @@ describe('StructuredPromptComposer', () => {
       expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toBe('@system ')
       expect(wrapper.find('.spc-editor-token.is-user').text()).toBe('@system(系统)')
     } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps resource mention icon components raw when rendering options', async () => {
+    vi.useFakeTimers()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const wrapper = mount(StructuredPromptComposer, {
+        props: {
+          modelValue: '',
+        },
+        global: {
+          stubs: {
+            ElIcon: IconStub,
+            EditPen: IconStub,
+            View: IconStub,
+          },
+        },
+      })
+      const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
+
+      editor.element.textContent = '/orders'
+      await editor.trigger('input')
+      await vi.advanceTimersByTimeAsync(230)
+      await nextTick()
+
+      expect(searchResources).toHaveBeenCalledWith(expect.objectContaining({ keyword: 'orders' }))
+      expect(wrapper.find('.spc-mention-resource-component').exists()).toBe(true)
+      expect(warnSpy.mock.calls.some((args) => args.join(' ').includes('Component that was made reactive'))).toBe(false)
+    } finally {
+      warnSpy.mockRestore()
       vi.useRealTimers()
     }
   })
