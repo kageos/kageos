@@ -14,9 +14,9 @@ KAGEOS_AIO_RECREATE_INFRA="${KAGEOS_AIO_RECREATE_INFRA:-1}"
 KAGEOS_AIO_REQUIRE_BRIDGE="${KAGEOS_AIO_REQUIRE_BRIDGE:-1}"
 KAGEOS_AIO_ALLOW_HOST_NETWORK="${KAGEOS_AIO_ALLOW_HOST_NETWORK:-0}"
 
-MYSQL_IMAGE="${KAGEOS_AIO_MYSQL_IMAGE:-docker.io/library/mysql:8.0}"
-NATS_IMAGE="${KAGEOS_AIO_NATS_IMAGE:-docker.io/library/nats:2.10-alpine}"
-MINIO_IMAGE="${KAGEOS_AIO_MINIO_IMAGE:-docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}"
+MYSQL_IMAGE="${KAGEOS_AIO_MYSQL_IMAGE:-docker.io/library/mysql:latest}"
+NATS_IMAGE="${KAGEOS_AIO_NATS_IMAGE:-docker.io/library/nats:latest}"
+MINIO_IMAGE="${KAGEOS_AIO_MINIO_IMAGE:-docker.io/minio/minio:latest}"
 
 random_hex() {
   local bytes="${1:-32}"

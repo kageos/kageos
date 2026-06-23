@@ -253,9 +253,9 @@ docker volume rm kageos-data
 | `KAGEOS_AIO_RECREATE_INFRA` | `1` | Recreate inner MySQL/NATS/MinIO containers on each boot while keeping persisted data. Set to `0` to reuse existing inner containers. |
 | `KAGEOS_AIO_REQUIRE_BRIDGE` | `1` | Refuse to start when the outer container does not look like bridge/slirp networking. |
 | `KAGEOS_AIO_ALLOW_HOST_NETWORK` | `0` | Emergency override for the network guard. Setting it to `1` allows host networking but may expose internal ports on the host. |
-| `KAGEOS_AIO_MYSQL_IMAGE` | `docker.io/library/mysql:8.0` | Inner MySQL image. |
-| `KAGEOS_AIO_NATS_IMAGE` | `docker.io/library/nats:2.10-alpine` | Inner NATS image. |
-| `KAGEOS_AIO_MINIO_IMAGE` | `docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` | Inner MinIO image. |
+| `KAGEOS_AIO_MYSQL_IMAGE` | `docker.io/library/mysql:latest` | Inner MySQL image. |
+| `KAGEOS_AIO_NATS_IMAGE` | `docker.io/library/nats:latest` | Inner NATS image. |
+| `KAGEOS_AIO_MINIO_IMAGE` | `docker.io/minio/minio:latest` | Inner MinIO image. |
 | `KAGEOS_APP_BASE_IMAGE` | `docker.io/qiayanai/kagebase:<version>` in release images, `docker.io/qiayanai/kagebase:latest` in local builds | User app runtime base image. |
 | `KAGEOS_APP_BASE_ACTION` | `ensure` | Use `rebuild` to rebuild the user app base image. |
 | `KAGEOS_APP_BASE_PULL` | `1` | Pull `KAGEOS_APP_BASE_IMAGE` before falling back to local build. |
