@@ -548,11 +548,13 @@ function handleEditorKeydown(event: KeyboardEvent) {
         moveMentionHighlight(-1)
         return
       }
-      if (event.key === 'Enter' || event.key === 'Tab') {
-        event.preventDefault()
+    }
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault()
+      if (mentionOptions.value.length > 0) {
         applyMentionOption(mentionOptions.value[highlightedMentionIndex.value] || mentionOptions.value[0])
-        return
       }
+      return
     }
   }
 
@@ -1034,7 +1036,7 @@ function cancelMentionClose() {
 }
 
 function getUserTokenLabel(username: string) {
-  const normalized = username.trim()
+  const normalized = normalizeMentionUsername(username)
   const meta = getUserMeta(normalized)
   return meta?.label && meta.label !== normalized
     ? `@${normalized}(${meta.label})`
@@ -1042,7 +1044,8 @@ function getUserTokenLabel(username: string) {
 }
 
 function getUserMeta(username: string): PromptUserMeta | undefined {
-  return userMetaByUsername.value[username] || (username === 'system' ? SYSTEM_USER_META : undefined)
+  const normalized = normalizeMentionUsername(username)
+  return userMetaByUsername.value[normalized] || (normalized === 'system' ? SYSTEM_USER_META : undefined)
 }
 
 function getResourceMeta(path: string): PromptResourceMeta | undefined {
@@ -1238,7 +1241,7 @@ function normalizeResourcePathForMeta(pathOrToken: string) {
 }
 
 function openInfoCardForUser(username: string, event: MouseEvent | KeyboardEvent) {
-  const normalized = username.trim()
+  const normalized = normalizeMentionUsername(username)
   const meta = getUserMeta(normalized) || {
     username: normalized,
     label: normalized,
@@ -1321,16 +1324,17 @@ function parseStructuredPromptSegments(text: string): StructuredPromptSegment[] 
   while ((userMatch = userMatcher.exec(source)) !== null) {
     const prefix = userMatch[1] || ''
     const raw = userMatch[2] || ''
+    const parsedMention = parseUserMentionToken(raw)
     const start = userMatch.index + prefix.length
     const end = start + raw.length
     const nextChar = source[end] || ''
-    if (raw.length <= 1 || (nextChar && !/\s/.test(nextChar))) {
+    if (!parsedMention || (nextChar && !/\s/.test(nextChar))) {
       continue
     }
     tokens.push({
       type: 'user',
-      text: raw,
-      username: raw.slice(1),
+      text: parsedMention.canonical,
+      username: parsedMention.username,
       start,
       end,
     })
@@ -1377,6 +1381,23 @@ function parseStructuredPromptSegments(text: string): StructuredPromptSegment[] 
   }
 
   return segments
+}
+
+function parseUserMentionToken(raw: string): { canonical: string; username: string } | null {
+  const body = String(raw || '').trim().replace(/^@/, '')
+  const username = normalizeMentionUsername(body)
+  if (!username) return null
+  return {
+    canonical: `@${username}`,
+    username,
+  }
+}
+
+function normalizeMentionUsername(username: string) {
+  const trimmed = String(username || '').trim().replace(/^@/, '')
+  const parenIndex = trimmed.indexOf('(')
+  const normalized = parenIndex >= 0 ? trimmed.slice(0, parenIndex) : trimmed
+  return normalized.trim()
 }
 
 function getPathTail(path: string) {

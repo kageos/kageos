@@ -1,6 +1,20 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { searchUsersFuzzy } from '@/architecture/presentation/context/api/user'
 import StructuredPromptComposer from './StructuredPromptComposer.vue'
+
+vi.mock('@/architecture/presentation/context/api/user', () => ({
+  getUsersByUsernames: vi.fn(async () => ({ users: [] })),
+  searchUsersFuzzy: vi.fn(async () => ({
+    users: [{
+      username: 'system',
+      nickname: '系统',
+      avatar: '',
+      email: '',
+      signature: '',
+    }],
+  })),
+}))
 
 const IconStub = {
   template: '<span><slot /></span>',
@@ -88,6 +102,74 @@ describe('StructuredPromptComposer', () => {
     expect(card.exists()).toBe(true)
     expect(card.text()).toContain('@system(系统)')
     expect(card.text()).toContain('@system')
+  })
+
+  it('normalizes already decorated user mentions instead of nesting labels', async () => {
+    const wrapper = mountComposer('交给 @system(system(系统)) 处理')
+    const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
+
+    const token = wrapper.find('.spc-editor-token.is-user')
+    expect(token.text()).toBe('@system(系统)')
+    expect(token.attributes('data-token-raw')).toBe('@system')
+
+    editor.element.appendChild(document.createTextNode('，谢谢'))
+    await editor.trigger('input')
+
+    expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toBe('交给 @system 处理，谢谢')
+  })
+
+  it('does not submit while mention search is open and waiting for options', async () => {
+    const wrapper = mount(StructuredPromptComposer, {
+      props: {
+        modelValue: '',
+        submitOnEnter: true,
+      },
+      global: {
+        stubs: {
+          ElIcon: IconStub,
+          EditPen: IconStub,
+          View: IconStub,
+        },
+      },
+    })
+    const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
+
+    editor.element.textContent = '@sys'
+    await editor.trigger('input')
+    await editor.trigger('keydown', { key: 'Enter' })
+
+    expect(wrapper.emitted('enter')).toBeUndefined()
+  })
+
+  it('selects the first mention option on enter by default', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mount(StructuredPromptComposer, {
+        props: {
+          modelValue: '',
+          submitOnEnter: true,
+        },
+        global: {
+          stubs: {
+            ElIcon: IconStub,
+            EditPen: IconStub,
+            View: IconStub,
+          },
+        },
+      })
+      const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
+
+      editor.element.textContent = '@sys'
+      await editor.trigger('input')
+      await vi.advanceTimersByTimeAsync(230)
+      await editor.trigger('keydown', { key: 'Enter' })
+
+      expect(searchUsersFuzzy).toHaveBeenCalledWith('sys', 8)
+      expect(wrapper.emitted('enter')).toBeUndefined()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toBe('@system ')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('emits enter when submit-on-enter is enabled', async () => {
