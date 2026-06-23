@@ -17,7 +17,7 @@ import (
 
 type OpenOptions struct {
 	LogMode                                  gormlogger.LogLevel
-	SlowThreshold                           time.Duration
+	SlowThreshold                            time.Duration
 	DisableForeignKeyConstraintWhenMigrating bool
 	DefaultMaxOpenConns                      int
 	DefaultMaxIdleConns                      int

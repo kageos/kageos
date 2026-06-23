@@ -88,8 +88,8 @@ func TestApplyDBLogOptions(t *testing.T) {
 		LogLevel:      "info",
 		SlowThreshold: 750,
 	}, OpenOptions{
-		LogMode:        gormlogger.Error,
-		SlowThreshold:  time.Second,
+		LogMode:       gormlogger.Error,
+		SlowThreshold: time.Second,
 	})
 	if overridden.LogMode != gormlogger.Error {
 		t.Fatalf("LogMode override = %v, want %v", overridden.LogMode, gormlogger.Error)
