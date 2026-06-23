@@ -82,7 +82,7 @@ func (h *LLM) List(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Infof(c, "LLM.List req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "LLM.List req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -153,10 +153,10 @@ func (h *LLM) Get(c *gin.Context) {
 		if resp != nil {
 			safeResp := *resp
 			safeResp.LLMInfo = sanitizeLLMInfoForLog(safeResp.LLMInfo)
-			logger.Infof(c, "LLM.Get req:%+v resp:%+v err:%v", req, safeResp, err)
+			logger.Debugf(c, "LLM.Get req:%+v resp:%+v err:%v", req, safeResp, err)
 			return
 		}
-		logger.Infof(c, "LLM.Get req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "LLM.Get req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -212,10 +212,10 @@ func (h *LLM) GetDefault(c *gin.Context) {
 		if resp != nil {
 			safeResp := *resp
 			safeResp.LLMInfo = sanitizeLLMInfoForLog(safeResp.LLMInfo)
-			logger.Infof(c, "LLM.GetDefault resp:%+v err:%v", safeResp, err)
+			logger.Debugf(c, "LLM.GetDefault resp:%+v err:%v", safeResp, err)
 			return
 		}
-		logger.Infof(c, "LLM.GetDefault resp:%+v err:%v", resp, err)
+		logger.Debugf(c, "LLM.GetDefault resp:%+v err:%v", resp, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -275,7 +275,7 @@ func (h *LLM) Create(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Infof(c, "LLM.Create req:%+v resp:%+v err:%v", sanitizeLLMReqForLog(req), resp, err)
+		logger.Debugf(c, "LLM.Create req:%+v resp:%+v err:%v", sanitizeLLMReqForLog(req), resp, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -323,7 +323,7 @@ func (h *LLM) Update(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Infof(c, "LLM.Update req:%+v resp:%+v err:%v", sanitizeLLMReqForLog(req), resp, err)
+		logger.Debugf(c, "LLM.Update req:%+v resp:%+v err:%v", sanitizeLLMReqForLog(req), resp, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -382,7 +382,7 @@ func (h *LLM) Delete(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Infof(c, "LLM.Delete req:%+v err:%v", req, err)
+		logger.Debugf(c, "LLM.Delete req:%+v err:%v", req, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -414,7 +414,7 @@ func (h *LLM) SetDefault(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Infof(c, "LLM.SetDefault req:%+v err:%v", req, err)
+		logger.Debugf(c, "LLM.SetDefault req:%+v err:%v", req, err)
 	}()
 
 	ctx := contextx.ToContext(c)

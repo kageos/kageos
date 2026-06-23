@@ -58,7 +58,7 @@ func (d *DirectoryUpdateHistory) GetAppVersionUpdateHistory(c *gin.Context) {
 	appVersion := c.Query("app_version")
 
 	defer func() {
-		logger.Infof(c, "GetAppVersionUpdateHistory app_id:%d app_version:%s resp:%+v err:%v", appID, appVersion, resp, err)
+		logger.Debugf(c, "GetAppVersionUpdateHistory app_id:%d app_version:%s resp:%+v err:%v", appID, appVersion, resp, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -126,7 +126,7 @@ func (d *DirectoryUpdateHistory) GetDirectoryUpdateHistory(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Infof(c, "GetDirectoryUpdateHistory app_id:%d full_code_path:%s page:%d page_size:%d resp:%+v err:%v", appID, fullCodePath, page, pageSize, resp, err)
+		logger.Debugf(c, "GetDirectoryUpdateHistory app_id:%d full_code_path:%s page:%d page_size:%d resp:%+v err:%v", appID, fullCodePath, page, pageSize, resp, err)
 	}()
 
 	ctx := contextx.ToContext(c)

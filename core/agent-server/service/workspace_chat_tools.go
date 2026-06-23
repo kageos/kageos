@@ -36,7 +36,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 			logger.Infof(ctx, "[WorkspaceChatStream] 工具调用队列已取消 - SessionID: %s, Round: %d", sessionID, round)
 			return toolSummaries, activeFullCodePath, err
 		}
-		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 执行工具调用 - ToolCallID: %s, ToolName: %s, Arguments: %q",
+		logger.Debugf(ctx, "[WorkspaceChatStream] [%d/%d] 执行工具调用 - ToolCallID: %s, ToolName: %s, Arguments: %q",
 			i+1, len(allToolCalls), tc.ID, tc.Function.Name, tc.Function.Arguments)
 
 		sendEvent(EventToolCall, StreamEventToolCall{
@@ -200,7 +200,7 @@ func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, a
 	} else if len(result.Content) > 200 {
 		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用成功 - ToolName: %s, ResultLength: %d", idx, total, name, len(result.Content))
 	} else {
-		logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用成功 - ToolName: %s, Result: %s", idx, total, name, result.Content)
+		logger.Debugf(ctx, "[WorkspaceChatStream] [%d/%d] 工具调用成功 - ToolName: %s, Result: %s", idx, total, name, result.Content)
 	}
 	return result, st
 }

@@ -28,9 +28,9 @@ func Main(ctx context.Context, stopCh <-chan struct{}, readyCh chan<- struct{}) 
 		logConfig := logger.Config{
 			Level:      cfg.GetLogLevel(),
 			Filename:   "./logs/app-storage.log",
-			MaxSize:    100,
-			MaxBackups: 3,
-			MaxAge:     7,
+			MaxSize:    logger.DefaultMaxSize,
+			MaxBackups: logger.DefaultMaxBackups,
+			MaxAge:     logger.DefaultMaxAge,
 			Compress:   true,
 			IsDev:      cfg.IsDebug(),
 		}

@@ -16,9 +16,9 @@ func ensureLogger(ctx context.Context, level string, isDev bool) error {
 	return logger.Init(logger.Config{
 		Level:      level,
 		Filename:   "./logs/timer-scheduler.log",
-		MaxSize:    100,
-		MaxBackups: 3,
-		MaxAge:     7,
+		MaxSize:    logger.DefaultMaxSize,
+		MaxBackups: logger.DefaultMaxBackups,
+		MaxAge:     logger.DefaultMaxAge,
 		Compress:   true,
 		IsDev:      isDev,
 	})

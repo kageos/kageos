@@ -25,9 +25,9 @@ func ensureLogger(ctx context.Context, level, filename string, isDev bool) error
 	logConfig := logger.Config{
 		Level:      level,
 		Filename:   filename,
-		MaxSize:    100,
-		MaxBackups: 3,
-		MaxAge:     7,
+		MaxSize:    logger.DefaultMaxSize,
+		MaxBackups: logger.DefaultMaxBackups,
+		MaxAge:     logger.DefaultMaxAge,
 		Compress:   true,
 		IsDev:      isDev,
 	}

@@ -20,7 +20,7 @@ func (s *AppManageService) fetchVersionDiffPayload(
 		return nil, callbackErr
 	}
 
-	logger.Infof(ctx, "[%s] ✅ 获取 diff 成功: %+v", logPrefix, updateCallbackResponse)
+	logger.Debugf(ctx, "[%s] ✅ 获取 diff 成功: %+v", logPrefix, updateCallbackResponse)
 	return updateCallbackResponse.Data, nil
 }
 
