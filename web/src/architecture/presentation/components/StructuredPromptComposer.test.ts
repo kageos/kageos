@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { searchUsersFuzzy } from '@/architecture/presentation/context/api/user'
 import StructuredPromptComposer from './StructuredPromptComposer.vue'
@@ -171,6 +172,39 @@ describe('StructuredPromptComposer', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('does not submit or rerender while Chinese IME composition is committing', async () => {
+    const wrapper = mount(StructuredPromptComposer, {
+      props: {
+        modelValue: '',
+        submitOnEnter: true,
+      },
+      global: {
+        stubs: {
+          ElIcon: IconStub,
+          EditPen: IconStub,
+          View: IconStub,
+        },
+      },
+    })
+    const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
+
+    await editor.trigger('compositionstart')
+    editor.element.textContent = 'ni'
+    await editor.trigger('input')
+
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+
+    editor.element.textContent = '你'
+    await editor.trigger('compositionend')
+    await nextTick()
+
+    expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toBe('你')
+
+    await editor.trigger('keydown', { key: 'Enter' })
+
+    expect(wrapper.emitted('enter')).toBeUndefined()
   })
 
   it('emits enter when submit-on-enter is enabled', async () => {

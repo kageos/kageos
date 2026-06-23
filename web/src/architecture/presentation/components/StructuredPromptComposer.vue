@@ -396,6 +396,8 @@ const ResourceTokenIcon = defineComponent({
   },
 })
 
+const POST_COMPOSITION_ENTER_SUPPRESS_MS = 260
+
 const props = withDefaults(defineProps<{
   modelValue: string
   placeholder?: string
@@ -449,6 +451,7 @@ let mentionSearchSeq = 0
 let activeMentionSearchKey = ''
 let metadataHydrateSeq = 0
 let rendering = false
+let lastCompositionEndAt = 0
 
 const structuredSegments = computed(() => parseStructuredPromptSegments(currentText.value))
 const resourceSegments = computed(() => structuredSegments.value.filter((segment): segment is StructuredPromptResourceSegment => segment.type === 'resource'))
@@ -507,8 +510,9 @@ function setMode(nextMode: ComposerMode) {
   }
 }
 
-function handleEditorInput() {
+function handleEditorInput(event?: Event) {
   if (rendering || props.disabled) return
+  if (composing.value || isComposingInputEvent(event)) return
   const editor = editorRef.value
   if (!editor) return
   commitText(serializeEditorContent(editor))
@@ -526,7 +530,14 @@ function handlePaste(event: ClipboardEvent) {
 }
 
 function handleEditorKeydown(event: KeyboardEvent) {
-  if (props.disabled || isIMEComposing(event)) {
+  if (props.disabled) {
+    return
+  }
+  if (isIMEComposing(event)) {
+    return
+  }
+  if (shouldSuppressPostCompositionEnter(event)) {
+    event.preventDefault()
     return
   }
 
@@ -622,11 +633,17 @@ function handleBlur() {
 
 function onCompositionStart() {
   composing.value = true
+  clearRenderTimer()
 }
 
 function onCompositionEnd() {
   composing.value = false
-  handleEditorInput()
+  lastCompositionEndAt = getNow()
+  void nextTick(() => {
+    if (!composing.value) {
+      handleEditorInput()
+    }
+  })
 }
 
 function isIMEComposing(event: KeyboardEvent) {
@@ -634,6 +651,20 @@ function isIMEComposing(event: KeyboardEvent) {
     || event.isComposing
     || event.key === 'Process'
     || (event as KeyboardEvent & { keyCode?: number }).keyCode === 229
+}
+
+function isComposingInputEvent(event?: Event) {
+  return !!event && 'isComposing' in event && Boolean((event as InputEvent).isComposing)
+}
+
+function shouldSuppressPostCompositionEnter(event: KeyboardEvent) {
+  if (event.key !== 'Enter') return false
+  if (!lastCompositionEndAt) return false
+  return getNow() - lastCompositionEndAt < POST_COMPOSITION_ENTER_SUPPRESS_MS
+}
+
+function getNow() {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now()
 }
 
 function commitText(value: string) {
@@ -646,6 +677,7 @@ function scheduleTokenRender() {
   renderTimer = setTimeout(() => {
     const editor = editorRef.value
     if (!editor || focused.value === false) return
+    if (composing.value) return
     if (mentionQuery.value) return
     const offset = getCaretTextOffset(editor)
     const text = serializeEditorContent(editor)
