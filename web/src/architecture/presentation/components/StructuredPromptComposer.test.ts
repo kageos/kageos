@@ -174,6 +174,74 @@ describe('StructuredPromptComposer', () => {
     }
   })
 
+  it('selects the first mention option when enter is pressed before search finishes', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mount(StructuredPromptComposer, {
+        props: {
+          modelValue: '',
+          submitOnEnter: true,
+        },
+        global: {
+          stubs: {
+            ElIcon: IconStub,
+            EditPen: IconStub,
+            View: IconStub,
+          },
+        },
+      })
+      const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
+
+      editor.element.textContent = '@sys'
+      await editor.trigger('input')
+      await editor.trigger('keydown', { key: 'Enter' })
+      await vi.advanceTimersByTimeAsync(230)
+
+      expect(searchUsersFuzzy).toHaveBeenCalledWith('sys', 8)
+      expect(wrapper.emitted('enter')).toBeUndefined()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toBe('@system ')
+      expect(wrapper.find('.spc-editor-token.is-user').text()).toBe('@system(系统)')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('selects the loaded mention option on the first enter after composition ends', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mount(StructuredPromptComposer, {
+        props: {
+          modelValue: '',
+          submitOnEnter: true,
+        },
+        global: {
+          stubs: {
+            ElIcon: IconStub,
+            EditPen: IconStub,
+            View: IconStub,
+          },
+        },
+      })
+      const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
+
+      await vi.advanceTimersByTimeAsync(10)
+      await editor.trigger('compositionstart')
+      editor.element.textContent = '@sys'
+      await editor.trigger('input')
+      await editor.trigger('compositionend')
+      await nextTick()
+      await vi.advanceTimersByTimeAsync(230)
+      await editor.trigger('keydown', { key: 'Enter' })
+
+      expect(searchUsersFuzzy).toHaveBeenCalledWith('sys', 8)
+      expect(wrapper.emitted('enter')).toBeUndefined()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toBe('@system ')
+      expect(wrapper.find('.spc-editor-token.is-user').text()).toBe('@system(系统)')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not submit or rerender while Chinese IME composition is committing', async () => {
     const wrapper = mount(StructuredPromptComposer, {
       props: {

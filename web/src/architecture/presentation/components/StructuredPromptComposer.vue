@@ -449,6 +449,7 @@ let mentionCloseTimer: ReturnType<typeof setTimeout> | null = null
 let metadataHydrateTimer: ReturnType<typeof setTimeout> | null = null
 let mentionSearchSeq = 0
 let activeMentionSearchKey = ''
+let pendingMentionCommitKey = ''
 let metadataHydrateSeq = 0
 let rendering = false
 let lastCompositionEndAt = 0
@@ -537,6 +538,8 @@ function handleEditorKeydown(event: KeyboardEvent) {
     return
   }
   if (shouldSuppressPostCompositionEnter(event)) {
+    updateMentionFromEditor()
+    commitMentionSelectionOrQueue()
     event.preventDefault()
     return
   }
@@ -561,9 +564,7 @@ function handleEditorKeydown(event: KeyboardEvent) {
     }
     if (event.key === 'Enter' || event.key === 'Tab') {
       event.preventDefault()
-      if (mentionOptions.value.length > 0) {
-        applyMentionOption(mentionOptions.value[highlightedMentionIndex.value] || mentionOptions.value[0])
-      }
+      commitMentionSelectionOrQueue()
       return
     }
   }
@@ -890,12 +891,14 @@ function updateMentionFromEditor() {
   highlightedMentionIndex.value = 0
 
   if (!query) {
+    pendingMentionCommitKey = ''
     resetMentionSearch()
     return
   }
 
   const keyword = query.query.trim()
   if (!keyword) {
+    pendingMentionCommitKey = ''
     resetMentionSearch()
     return
   }
@@ -910,6 +913,7 @@ function resetMentionSearch() {
   }
   mentionSearchSeq += 1
   activeMentionSearchKey = ''
+  pendingMentionCommitKey = ''
   mentionLoading.value = false
   mentionOptions.value = []
 }
@@ -929,6 +933,7 @@ function scheduleMentionSearch(query: MiniComposerMentionQuery) {
     clearTimeout(mentionSearchTimer)
   }
   mentionLoading.value = true
+  mentionOptions.value = []
   mentionSearchTimer = setTimeout(() => {
     void runMentionSearch(query, searchKey)
   }, 220)
@@ -961,7 +966,41 @@ async function runMentionSearch(query: MiniComposerMentionQuery, searchKey: stri
     if (currentSeq === mentionSearchSeq && activeMentionSearchKey === searchKey) {
       mentionLoading.value = false
       highlightedMentionIndex.value = 0
+      applyPendingMentionCommit(searchKey)
     }
+  }
+}
+
+function queueMentionCommit() {
+  const query = mentionQuery.value
+  if (!query || !query.query.trim()) {
+    return false
+  }
+  pendingMentionCommitKey = getMentionSearchKey(query)
+  return true
+}
+
+function commitMentionSelectionOrQueue() {
+  const query = mentionQuery.value
+  if (!query || !query.query.trim()) {
+    return false
+  }
+  const option = mentionOptions.value[highlightedMentionIndex.value] || mentionOptions.value[0]
+  if (option) {
+    applyMentionOption(option)
+    return true
+  }
+  return queueMentionCommit()
+}
+
+function applyPendingMentionCommit(searchKey: string) {
+  if (pendingMentionCommitKey !== searchKey) {
+    return
+  }
+  pendingMentionCommitKey = ''
+  const firstOption = mentionOptions.value[0]
+  if (firstOption) {
+    applyMentionOption(firstOption)
   }
 }
 
