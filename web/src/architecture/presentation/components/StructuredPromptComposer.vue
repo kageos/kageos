@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="rootRef"
     class="structured-prompt-composer"
     :class="{
       'is-disabled': disabled,
@@ -42,7 +43,7 @@
           class="spc-token-pill"
           :title="segment.path"
         >
-          {{ resourceDisplayName(segment.path || segment.text) }}
+          {{ getResourceDisplayLabel(segment.path || segment.text) }}
         </span>
         <span v-if="resourceSegments.length > 3" class="spc-token-count">
           +{{ resourceSegments.length - 3 }}
@@ -64,7 +65,7 @@
       @paste="handlePaste"
       @keydown="handleEditorKeydown"
       @keyup="handleEditorCursorChange"
-      @click="handleEditorCursorChange"
+      @click="handleEditorClick"
       @mouseup="handleEditorCursorChange"
       @focus="handleFocus"
       @blur="handleBlur"
@@ -81,8 +82,15 @@
         >
           <div class="spc-invocation-head">
             <span class="spc-invocation-tool">{{ block.tool || '函数调用' }}</span>
-            <span class="spc-invocation-resource" :title="block.resourcePath">
-              {{ resourceDisplayName(block.resourcePath) }}
+            <span
+              class="spc-invocation-resource"
+              :title="block.resourcePath"
+              role="button"
+              tabindex="0"
+              @click.stop="openInfoCardForResource(block.resourcePath, $event)"
+              @keydown.enter.stop.prevent="openInfoCardForResource(block.resourcePath, $event)"
+            >
+              {{ getResourceDisplayLabel(block.resourcePath) }}
             </span>
           </div>
           <div v-if="block.params.length > 0" class="spc-param-row">
@@ -105,18 +113,25 @@
             v-else-if="segment.type === 'user'"
             class="spc-user-chip"
             :title="segment.text"
+            role="button"
+            tabindex="0"
+            @click.stop="openInfoCardForUser(segment.username, $event)"
+            @keydown.enter.stop.prevent="openInfoCardForUser(segment.username, $event)"
           >
-            <span class="spc-user-mark">@</span>
-            <span class="spc-user-name">{{ segment.username }}</span>
+            <span class="spc-user-name">{{ getUserTokenLabel(segment.username) }}</span>
           </span>
           <span
             v-else
             class="spc-resource-chip"
             :title="segment.path"
             :data-path="segment.path"
+            role="button"
+            tabindex="0"
+            @click.stop="openInfoCardForResource(segment.path || '', $event)"
+            @keydown.enter.stop.prevent="openInfoCardForResource(segment.path || '', $event)"
           >
-            <span class="spc-resource-kind">{{ resourceKindLabel(segment.path || '') }}</span>
-            <span class="spc-resource-name">{{ resourceDisplayName(segment.path || segment.text) }}</span>
+            <ResourceTokenIcon :meta="getResourceMeta(segment.path || '')" :path="segment.path || ''" />
+            <span class="spc-resource-name">{{ getResourceDisplayLabel(segment.path || segment.text) }}</span>
           </span>
         </template>
       </div>
@@ -191,18 +206,62 @@
         </button>
       </div>
     </div>
+
+    <div
+      v-if="activeInfoCard"
+      class="spc-info-card"
+      :style="{ left: `${activeInfoCard.left}px`, top: `${activeInfoCard.top}px` }"
+      data-testid="structured-prompt-info-card"
+      @mousedown.stop
+      @click.stop
+    >
+      <div class="spc-info-head">
+        <span :class="['spc-info-icon', `is-${activeInfoCard.kind}`, activeInfoCard.iconClass]">
+          <UserAvatar
+            v-if="activeInfoCard.kind === 'user'"
+            :src="activeInfoCard.avatar"
+            :size="28"
+            :alt="activeInfoCard.title"
+            class="spc-info-avatar"
+          />
+          <img
+            v-else-if="activeInfoCard.iconSrc"
+            :src="activeInfoCard.iconSrc"
+            :alt="activeInfoCard.subtitle"
+            class="spc-info-img"
+          />
+          <component
+            :is="activeInfoCard.iconComponent"
+            v-else-if="activeInfoCard.iconComponent"
+            :size="18"
+            class="spc-info-component"
+          />
+          <el-icon v-else><Document /></el-icon>
+        </span>
+        <span class="spc-info-main">
+          <strong>{{ activeInfoCard.title }}</strong>
+          <span v-if="activeInfoCard.subtitle">{{ activeInfoCard.subtitle }}</span>
+        </span>
+      </div>
+      <div v-if="activeInfoCard.description" class="spc-info-desc">
+        {{ activeInfoCard.description }}
+      </div>
+      <code class="spc-info-raw">{{ activeInfoCard.raw }}</code>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { Document, EditPen, View } from '@element-plus/icons-vue'
 import type { UserInfo } from '@/architecture/domain/types'
 import { formatUserDisplayName } from '@/architecture/domain/utils/userInfo'
-import { searchUsersFuzzy } from '@/architecture/presentation/context/api/user'
+import { getUsersByUsernames, searchUsersFuzzy } from '@/architecture/presentation/context/api/user'
 import {
+  getServiceTreeDetail,
   searchResources,
   type ResourceSearchResult,
+  type ServiceTreeDetailResp,
 } from '@/architecture/presentation/context/api/service-tree'
 import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar.vue'
 import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
@@ -257,7 +316,86 @@ interface StructuredMentionOption {
   iconComponent?: Component
   iconClass?: string
   metaItems: string[]
+  userMeta?: PromptUserMeta
+  resourceMeta?: PromptResourceMeta
 }
+
+interface PromptUserMeta {
+  username: string
+  label: string
+  description?: string
+  avatar?: string
+  metaItems: string[]
+}
+
+interface PromptResourceMeta {
+  path: string
+  label: string
+  description?: string
+  typeLabel: string
+  resourceType?: ResourceSearchResult['type'] | ServiceTreeDetailResp['type'] | string
+  templateType?: string
+  iconSrc?: string
+  iconComponent?: Component
+  iconClass?: string
+  metaItems: string[]
+}
+
+interface PromptInfoCard {
+  kind: 'user' | 'resource'
+  title: string
+  subtitle: string
+  description: string
+  raw: string
+  left: number
+  top: number
+  avatar?: string
+  iconSrc?: string
+  iconComponent?: Component
+  iconClass?: string
+}
+
+const SYSTEM_USER_META: PromptUserMeta = {
+  username: 'system',
+  label: '系统',
+  description: '系统内置身份',
+  metaItems: ['@system'],
+}
+
+const ResourceTokenIcon = defineComponent({
+  name: 'ResourceTokenIcon',
+  props: {
+    meta: {
+      type: Object as () => PromptResourceMeta | undefined,
+      default: undefined,
+    },
+    path: {
+      type: String,
+      default: '',
+    },
+  },
+  setup(iconProps) {
+    return () => {
+      const meta = iconProps.meta
+      if (meta?.iconSrc) {
+        return h('img', {
+          class: 'spc-resource-icon-img',
+          src: meta.iconSrc,
+          alt: meta.typeLabel || '',
+        })
+      }
+      if (meta?.iconComponent) {
+        return h(meta.iconComponent as Component, {
+          class: 'spc-resource-icon-component',
+          size: 15,
+        })
+      }
+      return h('span', {
+        class: ['spc-resource-icon-fallback', `is-${resourceKind(iconProps.path)}`],
+      })
+    }
+  },
+})
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -291,6 +429,7 @@ const emit = defineEmits<{
   (e: 'enter', event: KeyboardEvent): void
 }>()
 
+const rootRef = ref<HTMLElement | null>(null)
 const editorRef = ref<HTMLElement | null>(null)
 const mode = ref<ComposerMode>('edit')
 const focused = ref(false)
@@ -300,11 +439,16 @@ const mentionOptions = ref<StructuredMentionOption[]>([])
 const mentionLoading = ref(false)
 const highlightedMentionIndex = ref(0)
 const composing = ref(false)
+const userMetaByUsername = ref<Record<string, PromptUserMeta>>({ system: SYSTEM_USER_META })
+const resourceMetaByPath = ref<Record<string, PromptResourceMeta>>({})
+const activeInfoCard = ref<PromptInfoCard | null>(null)
 let renderTimer: ReturnType<typeof setTimeout> | null = null
 let mentionSearchTimer: ReturnType<typeof setTimeout> | null = null
 let mentionCloseTimer: ReturnType<typeof setTimeout> | null = null
+let metadataHydrateTimer: ReturnType<typeof setTimeout> | null = null
 let mentionSearchSeq = 0
 let activeMentionSearchKey = ''
+let metadataHydrateSeq = 0
 let rendering = false
 
 const structuredSegments = computed(() => parseStructuredPromptSegments(currentText.value))
@@ -339,16 +483,21 @@ watch(() => props.modelValue, (value) => {
   if (!editor) return
   if (serializeEditorContent(editor) === value) return
   renderEditorContent(value)
+  scheduleMetadataHydration()
 })
 
 onMounted(() => {
   renderEditorContent(currentText.value)
+  scheduleMetadataHydration()
+  document.addEventListener('mousedown', handleDocumentMouseDown)
 })
 
 onBeforeUnmount(() => {
   clearRenderTimer()
   resetMentionSearch()
   cancelMentionClose()
+  clearMetadataHydration()
+  document.removeEventListener('mousedown', handleDocumentMouseDown)
 })
 
 function setMode(nextMode: ComposerMode) {
@@ -364,8 +513,10 @@ function handleEditorInput() {
   const editor = editorRef.value
   if (!editor) return
   commitText(serializeEditorContent(editor))
+  closeInfoCard()
   updateMentionFromEditor()
   scheduleTokenRender()
+  scheduleMetadataHydration()
 }
 
 function handlePaste(event: ClipboardEvent) {
@@ -433,6 +584,25 @@ function handleEditorCursorChange(event?: Event) {
     return
   }
   updateMentionFromEditor()
+}
+
+function handleEditorClick(event: MouseEvent) {
+  handleEditorCursorChange(event)
+  const token = event.target instanceof HTMLElement
+    ? event.target.closest('.spc-editor-token')
+    : null
+  if (!(token instanceof HTMLElement) || !editorRef.value?.contains(token)) {
+    closeInfoCard()
+    return
+  }
+
+  const username = token.dataset.username || ''
+  const path = token.dataset.path || ''
+  if (username) {
+    openInfoCardForUser(username, event)
+  } else if (path) {
+    openInfoCardForResource(path, event)
+  }
 }
 
 function handleFocus() {
@@ -503,6 +673,16 @@ function renderEditorContent(text: string) {
   rendering = false
 }
 
+function renderEditorContentPreservingCaret(text: string) {
+  const editor = editorRef.value
+  if (!editor) return
+  const offset = focused.value ? getCaretTextOffset(editor) : null
+  renderEditorContent(text)
+  if (offset !== null) {
+    void nextTick(() => restoreCaretTextOffset(editor, offset))
+  }
+}
+
 function buildEditorNodes(text: string): Node[] {
   const nodes: Node[] = []
   parseStructuredPromptSegments(text).forEach((segment) => {
@@ -526,7 +706,12 @@ function createResourceTokenNode(segment: StructuredPromptResourceSegment) {
   chip.contentEditable = 'false'
   chip.dataset.tokenRaw = segment.text
   chip.dataset.path = segment.path || ''
-  chip.textContent = resourceDisplayName(segment.path || segment.text)
+  const meta = getResourceMeta(segment.path || '')
+  const icon = createResourceIconElement(meta, segment.path || '')
+  const label = document.createElement('span')
+  label.className = 'spc-editor-token-label'
+  label.textContent = getResourceDisplayLabel(segment.path || segment.text)
+  chip.replaceChildren(icon, label)
   return chip
 }
 
@@ -536,7 +721,7 @@ function createUserTokenNode(segment: StructuredPromptUserSegment) {
   chip.contentEditable = 'false'
   chip.dataset.tokenRaw = segment.text
   chip.dataset.username = segment.username
-  chip.textContent = `@${segment.username}`
+  chip.textContent = getUserTokenLabel(segment.username)
   return chip
 }
 
@@ -748,25 +933,19 @@ async function runMentionSearch(query: MiniComposerMentionQuery, searchKey: stri
 }
 
 function mapUserMentionOption(user: UserInfo): StructuredMentionOption {
-  const username = user.username || ''
-  const department = user.department_full_name_path || user.department_name || ''
-  const company = user.company_name || user.company_code || ''
-  const signature = cleanMentionText(user.signature)
-  const email = cleanMentionText(user.email)
+  const meta = mapUserInfoToMeta(user)
+  const username = meta.username
 
   return {
     key: `user:${username}`,
     kind: 'user',
-    label: formatUserDisplayName(user),
+    label: meta.label,
     value: username,
-    description: email || signature || username,
+    description: meta.description || '',
     typeLabel: '用户',
     avatar: user.avatar,
-    metaItems: compactMetaItems([
-      username ? `@${username}` : '',
-      department,
-      company,
-    ]),
+    metaItems: meta.metaItems,
+    userMeta: meta,
   }
 }
 
@@ -775,21 +954,21 @@ function mapResourceMentionOption(resource: ResourceSearchResult): StructuredMen
   const description = cleanMentionText(resource.description)
     || cleanMentionText(resource.snippet)
     || getReadablePath(path)
+  const meta = mapResourceSearchResultToMeta(resource)
 
   return {
     key: `resource:${resource.type}:${resource.id}:${path}`,
     kind: 'resource',
-    label: resource.name || resource.code || getPathTail(path) || path,
+    label: meta.label,
     value: path,
     description,
-    typeLabel: getResourceTypeLabel(resource),
+    typeLabel: meta.typeLabel,
     resourceType: resource.type,
-    metaItems: compactMetaItems([
-      getReadablePath(path),
-      resource.match_source ? `命中 ${getMatchSourceLabel(resource.match_source)}` : '',
-      shouldShowResourceHeat(resource) ? `${formatCompactCount(resource.run_count || 0)} 次运行` : '',
-    ]),
-    ...getResourceIconMeta(resource),
+    metaItems: meta.metaItems,
+    resourceMeta: meta,
+    iconSrc: meta.iconSrc,
+    iconComponent: meta.iconComponent,
+    iconClass: meta.iconClass,
   }
 }
 
@@ -809,9 +988,23 @@ function applyMentionOption(option: StructuredMentionOption | undefined) {
     : wrapWorkspaceResourcePath(option.value)
   const result = replaceMiniComposerMention(currentText.value, mentionQuery.value, replacement)
 
+  if (option.userMeta?.username) {
+    userMetaByUsername.value = {
+      ...userMetaByUsername.value,
+      [option.userMeta.username]: option.userMeta,
+    }
+  }
+  if (option.resourceMeta?.path) {
+    resourceMetaByPath.value = {
+      ...resourceMetaByPath.value,
+      [option.resourceMeta.path]: option.resourceMeta,
+    }
+  }
+
   commitText(result.value)
   renderEditorContent(result.value)
   closeMentionPanel()
+  scheduleMetadataHydration()
 
   void nextTick(() => {
     const editor = editorRef.value
@@ -838,6 +1031,279 @@ function cancelMentionClose() {
     clearTimeout(mentionCloseTimer)
     mentionCloseTimer = null
   }
+}
+
+function getUserTokenLabel(username: string) {
+  const normalized = username.trim()
+  const meta = getUserMeta(normalized)
+  return meta?.label && meta.label !== normalized
+    ? `@${normalized}(${meta.label})`
+    : `@${normalized}`
+}
+
+function getUserMeta(username: string): PromptUserMeta | undefined {
+  return userMetaByUsername.value[username] || (username === 'system' ? SYSTEM_USER_META : undefined)
+}
+
+function getResourceMeta(path: string): PromptResourceMeta | undefined {
+  const normalized = normalizeResourcePathForMeta(path)
+  return normalized ? resourceMetaByPath.value[normalized] : undefined
+}
+
+function getResourceDisplayLabel(pathOrToken: string) {
+  const path = normalizeResourcePathForMeta(pathOrToken)
+  const meta = path ? getResourceMeta(path) : undefined
+  return meta?.label || resourceDisplayName(pathOrToken)
+}
+
+function createResourceIconElement(meta: PromptResourceMeta | undefined, path: string) {
+  if (meta?.iconSrc) {
+    const img = document.createElement('img')
+    img.className = 'spc-resource-icon-img'
+    img.src = meta.iconSrc
+    img.alt = meta.typeLabel || ''
+    return img
+  }
+
+  const icon = document.createElement('span')
+  icon.className = `spc-resource-icon-fallback is-${resourceKind(path)} ${meta?.iconClass || ''}`.trim()
+  return icon
+}
+
+function scheduleMetadataHydration() {
+  if (import.meta.env.MODE === 'test') {
+    return
+  }
+  clearMetadataHydration()
+  metadataHydrateTimer = setTimeout(() => {
+    void hydrateVisibleMetadata()
+  }, 320)
+}
+
+function clearMetadataHydration() {
+  if (metadataHydrateTimer) {
+    clearTimeout(metadataHydrateTimer)
+    metadataHydrateTimer = null
+  }
+}
+
+async function hydrateVisibleMetadata() {
+  const currentSeq = ++metadataHydrateSeq
+  const userNames = Array.from(new Set(
+    structuredSegments.value
+      .filter((segment): segment is StructuredPromptUserSegment => segment.type === 'user')
+      .map((segment) => segment.username)
+      .filter((username) => username && !getUserMeta(username))
+  )).slice(0, 40)
+  const resourcePaths = Array.from(new Set(
+    structuredSegments.value
+      .filter((segment): segment is StructuredPromptResourceSegment => segment.type === 'resource')
+      .map((segment) => normalizeResourcePathForMeta(segment.path || segment.text))
+      .filter((path) => path && !resourceMetaByPath.value[path])
+  )).slice(0, 20)
+
+  await Promise.all([
+    hydrateUserMetadata(userNames, currentSeq),
+    hydrateResourceMetadata(resourcePaths, currentSeq),
+  ])
+}
+
+async function hydrateUserMetadata(usernames: string[], seq: number) {
+  if (usernames.length === 0) return
+  try {
+    const response = await getUsersByUsernames(usernames)
+    if (seq !== metadataHydrateSeq) return
+    const next = { ...userMetaByUsername.value }
+    const users = response.users || []
+    users.forEach((user) => {
+      const meta = mapUserInfoToMeta(user)
+      if (meta.username) {
+        next[meta.username] = meta
+      }
+    })
+    userMetaByUsername.value = next
+    renderEditorContentPreservingCaret(currentText.value)
+  } catch {
+    // Metadata is display-only. Keep raw tokens if lookup fails.
+  }
+}
+
+async function hydrateResourceMetadata(paths: string[], seq: number) {
+  if (paths.length === 0) return
+  try {
+    const details = await Promise.all(paths.map(async (path) => {
+      try {
+        return await getServiceTreeDetail(path)
+      } catch {
+        return null
+      }
+    }))
+    if (seq !== metadataHydrateSeq) return
+    const next = { ...resourceMetaByPath.value }
+    details.forEach((detail, index) => {
+      const fallbackPath = paths[index] || ''
+      const meta = detail
+        ? mapResourceDetailToMeta(detail)
+        : createFallbackResourceMeta(fallbackPath)
+      next[meta.path] = meta
+    })
+    resourceMetaByPath.value = next
+    renderEditorContentPreservingCaret(currentText.value)
+  } catch {
+    // Metadata is display-only. Keep raw tokens if lookup fails.
+  }
+}
+
+function mapUserInfoToMeta(user: UserInfo): PromptUserMeta {
+  const username = user.username || ''
+  const department = user.department_full_name_path || user.department_name || ''
+  const company = user.company_name || user.company_code || ''
+  const signature = cleanMentionText(user.signature)
+  const email = cleanMentionText(user.email)
+  return {
+    username,
+    label: formatUserDisplayName(user),
+    description: email || signature || username,
+    avatar: user.avatar,
+    metaItems: compactMetaItems([
+      username ? `@${username}` : '',
+      department,
+      company,
+    ]),
+  }
+}
+
+function mapResourceSearchResultToMeta(resource: ResourceSearchResult): PromptResourceMeta {
+  const path = normalizeResourcePathForMeta(resource.full_code_path || '')
+  return {
+    path,
+    label: resource.name || resource.code || getPathTail(path) || path,
+    description: cleanMentionText(resource.description) || cleanMentionText(resource.snippet),
+    typeLabel: getResourceTypeLabel(resource),
+    resourceType: resource.type,
+    templateType: resource.template_type,
+    metaItems: compactMetaItems([
+      getReadablePath(path),
+      resource.match_source ? `命中 ${getMatchSourceLabel(resource.match_source)}` : '',
+      shouldShowResourceHeat(resource) ? `${formatCompactCount(resource.run_count || 0)} 次运行` : '',
+    ]),
+    ...getResourceIconMeta(resource),
+  }
+}
+
+function mapResourceDetailToMeta(detail: ServiceTreeDetailResp): PromptResourceMeta {
+  const path = normalizeResourcePathForMeta(detail.full_code_path || '')
+  const resourceLike: ResourceSearchResult = {
+    id: detail.id,
+    name: detail.name,
+    code: detail.code,
+    type: detail.type,
+    full_code_path: path,
+    description: detail.description,
+    tags: detail.tags,
+    template_type: detail.template_type,
+    app_id: detail.app_id,
+    run_count: detail.run_count,
+  }
+  return {
+    ...mapResourceSearchResultToMeta(resourceLike),
+    metaItems: compactMetaItems([
+      getReadablePath(path),
+      detail.owner ? `Owner ${detail.owner}` : '',
+      detail.run_count ? `${formatCompactCount(detail.run_count || 0)} 次运行` : '',
+    ]),
+  }
+}
+
+function createFallbackResourceMeta(path: string): PromptResourceMeta {
+  const normalized = normalizeResourcePathForMeta(path)
+  const resourceLike: ResourceSearchResult = {
+    id: 0,
+    name: resourceDisplayName(normalized),
+    code: getPathTail(normalized),
+    type: normalized.includes('/docs/') || normalized.endsWith('.docs') ? 'docs' : normalized.endsWith('/') ? 'package' : 'function',
+    full_code_path: normalized,
+    template_type: normalized.endsWith('.form') ? 'form' : normalized.endsWith('.table') ? 'table' : normalized.endsWith('.chart') ? 'chart' : '',
+  }
+  return mapResourceSearchResultToMeta(resourceLike)
+}
+
+function normalizeResourcePathForMeta(pathOrToken: string) {
+  const raw = String(pathOrToken || '').trim()
+  if (!raw) return ''
+  const stripped = raw.startsWith('<') && raw.endsWith('>')
+    ? raw.slice(1, -1).trim()
+    : raw
+  return stripped.startsWith('/') ? stripped : `/${stripped}`
+}
+
+function openInfoCardForUser(username: string, event: MouseEvent | KeyboardEvent) {
+  const normalized = username.trim()
+  const meta = getUserMeta(normalized) || {
+    username: normalized,
+    label: normalized,
+    description: '',
+    metaItems: [`@${normalized}`],
+  }
+  activeInfoCard.value = {
+    kind: 'user',
+    title: getUserTokenLabel(normalized),
+    subtitle: meta.metaItems.filter((item) => item !== `@${normalized}`).join(' / '),
+    description: meta.description || '',
+    raw: `@${normalized}`,
+    avatar: meta.avatar,
+    ...getInfoCardPosition(event),
+  }
+}
+
+function openInfoCardForResource(pathOrToken: string, event: MouseEvent | KeyboardEvent) {
+  const path = normalizeResourcePathForMeta(pathOrToken)
+  const meta = getResourceMeta(path) || createFallbackResourceMeta(path)
+  activeInfoCard.value = {
+    kind: 'resource',
+    title: meta.label,
+    subtitle: meta.metaItems[0] || meta.typeLabel,
+    description: meta.description || '',
+    raw: wrapWorkspaceResourcePath(path),
+    iconSrc: meta.iconSrc,
+    iconComponent: meta.iconComponent,
+    iconClass: meta.iconClass,
+    ...getInfoCardPosition(event),
+  }
+  if (!resourceMetaByPath.value[path]) {
+    resourceMetaByPath.value = {
+      ...resourceMetaByPath.value,
+      [path]: meta,
+    }
+  }
+}
+
+function getInfoCardPosition(event: MouseEvent | KeyboardEvent) {
+  const root = rootRef.value
+  if (!root) {
+    return { left: 0, top: 0 }
+  }
+  const rootRect = root.getBoundingClientRect()
+  const target = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const targetRect = target?.getBoundingClientRect()
+  const rawLeft = targetRect ? targetRect.left - rootRect.left : 12
+  const rawTop = targetRect ? targetRect.bottom - rootRect.top + 8 : 12
+  return {
+    left: Math.max(8, Math.min(rawLeft, Math.max(8, rootRect.width - 328))),
+    top: Math.max(8, rawTop),
+  }
+}
+
+function closeInfoCard() {
+  activeInfoCard.value = null
+}
+
+function handleDocumentMouseDown(event: MouseEvent) {
+  const root = rootRef.value
+  if (!root || !(event.target instanceof Node) || root.contains(event.target)) {
+    return
+  }
+  closeInfoCard()
 }
 
 function parseStructuredPromptSegments(text: string): StructuredPromptSegment[] {
@@ -991,15 +1457,6 @@ function resourceKind(path: string) {
   if (path.endsWith('.chart')) return 'chart'
   if (path.endsWith('.docs') || path.includes('/docs/')) return 'docs'
   return 'directory'
-}
-
-function resourceKindLabel(path: string) {
-  const kind = resourceKind(path)
-  if (kind === 'form') return '表单'
-  if (kind === 'table') return '表格'
-  if (kind === 'chart') return '图表'
-  if (kind === 'docs') return '文档'
-  return '目录'
 }
 
 function resourceDisplayName(path: string) {
@@ -1178,6 +1635,7 @@ defineExpose({
   line-height: 20px;
   vertical-align: baseline;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 :deep(.spc-editor-token.is-user),
@@ -1187,21 +1645,55 @@ defineExpose({
   color: #b9ffd9;
 }
 
-:deep(.spc-editor-token.is-table) {
+:deep(.spc-editor-token.is-table),
+.spc-resource-chip:has(.spc-resource-icon-fallback.is-table) {
   border-color: rgba(16, 185, 129, 0.2);
 }
 
-.spc-user-mark,
-.spc-resource-kind {
-  color: rgba(216, 248, 255, 0.62);
-  font-size: 11px;
-}
-
+:deep(.spc-editor-token-label),
 .spc-user-name,
 .spc-resource-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.spc-resource-icon-img,
+:deep(.spc-resource-icon-img),
+.spc-resource-icon-component,
+:deep(.spc-resource-icon-component) {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.spc-resource-icon-fallback,
+:deep(.spc-resource-icon-fallback) {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  background: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.spc-resource-icon-fallback.is-table,
+:deep(.spc-resource-icon-fallback.is-table) {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+}
+
+.spc-resource-icon-fallback.is-chart,
+:deep(.spc-resource-icon-fallback.is-chart) {
+  background: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12);
+}
+
+.spc-resource-icon-fallback.is-docs,
+:deep(.spc-resource-icon-fallback.is-docs) {
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
 }
 
 .spc-invocation-list {
@@ -1257,6 +1749,108 @@ defineExpose({
   background: rgba(255, 255, 255, 0.06);
   color: rgba(230, 240, 255, 0.78);
   font-size: 11px;
+}
+
+.spc-info-card {
+  position: absolute;
+  z-index: 32;
+  width: min(320px, calc(100% - 16px));
+  box-sizing: border-box;
+  border: 1px solid rgba(96, 231, 255, 0.22);
+  border-radius: 10px;
+  padding: 10px;
+  background:
+    linear-gradient(145deg, rgba(5, 17, 31, 0.98), rgba(9, 30, 48, 0.96)),
+    rgba(4, 12, 24, 0.98);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34), 0 0 24px rgba(34, 211, 238, 0.12);
+}
+
+.spc-info-head {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.spc-info-icon {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(96, 231, 255, 0.18);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(34, 211, 238, 0.08);
+  color: #22d3ee;
+}
+
+.spc-info-icon.is-user {
+  overflow: hidden;
+  color: #7cffc4;
+  background: rgba(124, 255, 196, 0.08);
+  border-color: rgba(124, 255, 196, 0.2);
+}
+
+.spc-info-avatar {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.spc-info-img,
+.spc-info-component {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.spc-info-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.spc-info-main strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #d8f8ff;
+  font-size: 13px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spc-info-main span {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(184, 225, 235, 0.66);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spc-info-desc {
+  margin-top: 9px;
+  color: rgba(230, 240, 255, 0.76);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.spc-info-raw {
+  display: block;
+  margin-top: 9px;
+  overflow: hidden;
+  border: 1px solid rgba(96, 231, 255, 0.13);
+  border-radius: 7px;
+  padding: 6px 7px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(216, 248, 255, 0.8);
+  font-size: 11px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .spc-mention-panel {

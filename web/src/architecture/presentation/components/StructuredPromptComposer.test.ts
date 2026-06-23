@@ -75,6 +75,21 @@ describe('StructuredPromptComposer', () => {
     expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toBe('请 @beiluo 协助处理，谢谢')
   })
 
+  it('shows system mentions with readable labels and a click card', async () => {
+    const wrapper = mountComposer('交给 @system 处理')
+
+    const token = wrapper.find('.spc-editor-token.is-user')
+    expect(token.text()).toBe('@system(系统)')
+    expect(token.attributes('data-token-raw')).toBe('@system')
+
+    await token.trigger('click')
+
+    const card = wrapper.find('[data-testid="structured-prompt-info-card"]')
+    expect(card.exists()).toBe(true)
+    expect(card.text()).toContain('@system(系统)')
+    expect(card.text()).toContain('@system')
+  })
+
   it('emits enter when submit-on-enter is enabled', async () => {
     const wrapper = mount(StructuredPromptComposer, {
       props: {
