@@ -546,6 +546,14 @@ function handleEditorKeydown(event: KeyboardEvent) {
     return
   }
 
+  if (isMentionCommitKey(event)) {
+    updateMentionFromEditor()
+    if (commitMentionSelectionOrQueue()) {
+      event.preventDefault()
+      return
+    }
+  }
+
   if (mentionPanelOpen.value) {
     if (event.key === 'Escape') {
       event.preventDefault()
@@ -564,7 +572,7 @@ function handleEditorKeydown(event: KeyboardEvent) {
         return
       }
     }
-    if (event.key === 'Enter' || event.key === 'Tab') {
+    if (isMentionCommitKey(event)) {
       event.preventDefault()
       commitMentionSelectionOrQueue()
       return
@@ -664,6 +672,10 @@ function shouldSuppressPostCompositionEnter(event: KeyboardEvent) {
   if (event.key !== 'Enter') return false
   if (!lastCompositionEndAt) return false
   return getNow() - lastCompositionEndAt < POST_COMPOSITION_ENTER_SUPPRESS_MS
+}
+
+function isMentionCommitKey(event: KeyboardEvent) {
+  return event.key === 'Enter' || event.key === 'Tab'
 }
 
 function getNow() {

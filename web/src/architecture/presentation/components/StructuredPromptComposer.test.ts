@@ -225,6 +225,37 @@ describe('StructuredPromptComposer', () => {
     }
   })
 
+  it('selects the first mention option when enter arrives before the mention panel opens', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mount(StructuredPromptComposer, {
+        props: {
+          modelValue: '',
+          submitOnEnter: true,
+        },
+        global: {
+          stubs: {
+            ElIcon: IconStub,
+            EditPen: IconStub,
+            View: IconStub,
+          },
+        },
+      })
+      const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
+
+      editor.element.textContent = '@sys'
+      await editor.trigger('keydown', { key: 'Enter' })
+      await vi.advanceTimersByTimeAsync(230)
+
+      expect(searchUsersFuzzy).toHaveBeenCalledWith('sys', 8)
+      expect(wrapper.emitted('enter')).toBeUndefined()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toBe('@system ')
+      expect(wrapper.find('.spc-editor-token.is-user').text()).toBe('@system(系统)')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('selects the loaded mention option on the first enter after composition ends', async () => {
     vi.useFakeTimers()
     try {
