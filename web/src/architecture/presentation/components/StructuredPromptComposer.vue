@@ -255,7 +255,6 @@
 import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { Document, EditPen, View } from '@element-plus/icons-vue'
 import type { UserInfo } from '@/architecture/domain/types'
-import { formatUserDisplayName } from '@/architecture/domain/utils/userInfo'
 import { getUsersByUsernames, searchUsersFuzzy } from '@/architecture/presentation/context/api/user'
 import {
   getServiceTreeDetail,
@@ -1038,8 +1037,9 @@ function cancelMentionClose() {
 function getUserTokenLabel(username: string) {
   const normalized = normalizeMentionUsername(username)
   const meta = getUserMeta(normalized)
-  return meta?.label && meta.label !== normalized
-    ? `@${normalized}(${meta.label})`
+  const label = normalizeUserDisplayLabel(normalized, meta?.label || '')
+  return label
+    ? `@${normalized}(${label})`
     : `@${normalized}`
 }
 
@@ -1163,9 +1163,10 @@ function mapUserInfoToMeta(user: UserInfo): PromptUserMeta {
   const company = user.company_name || user.company_code || ''
   const signature = cleanMentionText(user.signature)
   const email = cleanMentionText(user.email)
+  const label = normalizeUserDisplayLabel(username, user.nickname || '')
   return {
     username,
-    label: formatUserDisplayName(user),
+    label: label || username,
     description: email || signature || username,
     avatar: user.avatar,
     metaItems: compactMetaItems([
@@ -1398,6 +1399,29 @@ function normalizeMentionUsername(username: string) {
   const parenIndex = trimmed.indexOf('(')
   const normalized = parenIndex >= 0 ? trimmed.slice(0, parenIndex) : trimmed
   return normalized.trim()
+}
+
+function normalizeUserDisplayLabel(username: string, label: string) {
+  const normalizedUsername = normalizeMentionUsername(username)
+  const normalizedLabel = String(label || '').trim().replace(/^@/, '')
+  if (!normalizedLabel || normalizedLabel === normalizedUsername) {
+    return normalizedUsername === 'system' ? '系统' : ''
+  }
+  if (normalizedUsername === 'system') {
+    const systemInner = extractParenLabel(normalizedLabel)
+    return systemInner || (normalizedLabel.includes('system') ? '系统' : normalizedLabel)
+  }
+  if (normalizedLabel.startsWith(`${normalizedUsername}(`) && normalizedLabel.endsWith(')')) {
+    return extractParenLabel(normalizedLabel)
+  }
+  return normalizedLabel
+}
+
+function extractParenLabel(value: string) {
+  const start = value.indexOf('(')
+  const end = value.lastIndexOf(')')
+  if (start < 0 || end <= start) return ''
+  return value.slice(start + 1, end).trim()
 }
 
 function getPathTail(path: string) {

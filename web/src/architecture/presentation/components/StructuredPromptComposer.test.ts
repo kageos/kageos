@@ -8,7 +8,7 @@ vi.mock('@/architecture/presentation/context/api/user', () => ({
   searchUsersFuzzy: vi.fn(async () => ({
     users: [{
       username: 'system',
-      nickname: '系统',
+      nickname: 'system(系统)',
       avatar: '',
       email: '',
       signature: '',
@@ -167,6 +167,7 @@ describe('StructuredPromptComposer', () => {
       expect(searchUsersFuzzy).toHaveBeenCalledWith('sys', 8)
       expect(wrapper.emitted('enter')).toBeUndefined()
       expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toBe('@system ')
+      expect(wrapper.find('.spc-editor-token.is-user').text()).toBe('@system(系统)')
     } finally {
       vi.useRealTimers()
     }
