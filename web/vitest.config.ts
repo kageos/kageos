@@ -23,6 +23,7 @@ export default defineConfig(async () =>
       environment: 'jsdom',
       exclude: [...configDefaults.exclude, 'tests/e2e/**', 'e2e/**'],
       root: fileURLToPath(new URL('./', import.meta.url)),
+      setupFiles: [fileURLToPath(new URL('./src/test/setup.ts', import.meta.url))],
       server: {
         deps: {
           inline: ['element-plus', '@element-plus/icons-vue', 'vditor']

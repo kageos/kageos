@@ -1,7 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
-import { i18n } from '@/architecture/shared/i18n'
 
 const ButtonStub = {
   props: ['disabled', 'loading'],
@@ -36,7 +35,6 @@ function mountComposer(props: Record<string, unknown> = {}) {
       ...props,
     },
     global: {
-      plugins: [i18n],
       stubs: {
         ElButton: ButtonStub,
         ElUpload: UploadStub,
