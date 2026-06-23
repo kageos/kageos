@@ -10,7 +10,7 @@ export interface UseMiniWorkstationComposerOptions {
   sessionId: Ref<string | undefined>
   maximized: Ref<boolean>
   inputText: Ref<string>
-  inputRef: Ref<HTMLTextAreaElement | undefined>
+  inputRef: Ref<{ focus: () => void } | undefined>
   attachedFiles: Ref<WorkspaceChatMessageFile[]>
   sending: Ref<boolean>
   sendMessage: (content: string, streamFn: (onEvent: WorkspaceChatStreamOnEvent) => Promise<void>, files?: ChatMessageFile[]) => Promise<void>

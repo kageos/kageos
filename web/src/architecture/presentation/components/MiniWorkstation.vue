@@ -396,7 +396,7 @@ const { messages, sending, sessionId, streamingDisplayLength, send: sendMessage,
 const rootRef = ref<HTMLElement>()
 const outputRef = ref<HTMLElement>()
 const inputText = ref('')
-const inputRef = ref<HTMLTextAreaElement>()
+const inputRef = ref<{ focus: () => void }>()
 const llmSelectOpen = ref(false)
 const settingsPopoverOpen = ref(false)
 const showScheduledAgentTaskDialog = ref(false)
@@ -456,7 +456,7 @@ function resetOutputScrollState() {
   savedOutputWasNearBottom.value = true
 }
 
-function registerInputRef(element: HTMLTextAreaElement | null) {
+function registerInputRef(element: { focus: () => void } | null) {
   inputRef.value = element || undefined
 }
 

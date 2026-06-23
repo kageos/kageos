@@ -60,4 +60,38 @@ describe('StructuredPromptComposer', () => {
 
     expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toBe('调用 </system/app/search.form> 完成后总结')
   })
+
+  it('renders user mentions as chips while keeping raw @username text', async () => {
+    const wrapper = mountComposer('请 @beiluo 协助处理')
+    const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
+
+    const token = wrapper.find('.spc-editor-token.is-user')
+    expect(token.exists()).toBe(true)
+    expect(token.attributes('data-token-raw')).toBe('@beiluo')
+
+    editor.element.appendChild(document.createTextNode('，谢谢'))
+    await editor.trigger('input')
+
+    expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toBe('请 @beiluo 协助处理，谢谢')
+  })
+
+  it('emits enter when submit-on-enter is enabled', async () => {
+    const wrapper = mount(StructuredPromptComposer, {
+      props: {
+        modelValue: '执行任务',
+        submitOnEnter: true,
+      },
+      global: {
+        stubs: {
+          ElIcon: IconStub,
+          EditPen: IconStub,
+          View: IconStub,
+        },
+      },
+    })
+
+    await wrapper.find('[data-testid="structured-prompt-editor"]').trigger('keydown', { key: 'Enter' })
+
+    expect(wrapper.emitted('enter')).toHaveLength(1)
+  })
 })

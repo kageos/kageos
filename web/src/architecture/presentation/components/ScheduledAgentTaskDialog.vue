@@ -153,7 +153,7 @@ const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const authStore = useAuthStore()
 const { t } = useI18n()
-const messageInputRef = ref<HTMLTextAreaElement>()
+const messageInputRef = ref<{ focus: () => void }>()
 const isEditing = computed(() => !!props.editTask)
 const dialogTitle = computed(() => isEditing.value ? t('scheduledTask.editAgentDialogTitle') : t('scheduledTask.dialogAgentTitle'))
 const submitButtonText = computed(() => isEditing.value ? t('common.save') : t('common.create'))
@@ -231,7 +231,7 @@ function resetForm() {
   formRef.value?.clearValidate()
 }
 
-function registerMessageInputRef(element: HTMLTextAreaElement | null) {
+function registerMessageInputRef(element: { focus: () => void } | null) {
   messageInputRef.value = element || undefined
 }
 

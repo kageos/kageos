@@ -8,7 +8,7 @@ export interface UseMiniWorkstationEffectsOptions {
   messages: Ref<ChatMessage[]>
   sending: Ref<boolean>
   sessionId: Ref<string | undefined>
-  inputRef: Ref<HTMLTextAreaElement | undefined>
+  inputRef: Ref<{ focus: () => void } | undefined>
   outputRef: Ref<HTMLElement | undefined>
   stopMiniPoll: () => void
   loadMiniSessions: () => Promise<void> | void
