@@ -52,8 +52,8 @@ logger.Config{
     Level:      "info",
     Filename:   "./logs/app.log",
     MaxSize:    100,
-    MaxBackups: 3,
-    MaxAge:     7,
+    MaxBackups: 30,
+    MaxAge:     30,
     Compress:   true,
     IsDev:      true,
 }
@@ -82,8 +82,8 @@ func main() {
         Level:      "debug",
         Filename:   "./logs/app.log",
         MaxSize:    100,
-        MaxBackups: 3,
-        MaxAge:     7,
+        MaxBackups: 30,
+        MaxAge:     30,
         Compress:   true,
         IsDev:      true,
     })
@@ -104,8 +104,8 @@ func main() {
   "level": "info",
   "filename": "./logs/app.log",
   "max_size": 100,
-  "max_backups": 3,
-  "max_age": 7,
+  "max_backups": 30,
+  "max_age": 30,
   "compress": true,
   "is_dev": false
 }

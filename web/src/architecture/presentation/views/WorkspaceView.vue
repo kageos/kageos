@@ -229,6 +229,8 @@
       :show-trigger="false"
       :sync-route="false"
       :service-tree="serviceTree"
+      :current-app="currentApp"
+      :app-list="appList"
       @messages-updated="refreshMessageCounts"
     />
 
@@ -369,6 +371,7 @@ function normalizeApp(app: Partial<AppType> & Pick<AppType, 'id' | 'user' | 'cod
     type: app.type,
     version: app.version ?? '',
     is_public: app.is_public ?? false,
+    hide_unauthorized_nodes: app.hide_unauthorized_nodes ?? false,
     admins: app.admins ?? '',
     created_at: app.created_at ?? '',
     updated_at: app.updated_at ?? ''
@@ -681,11 +684,11 @@ const showMiniWorkstationLauncher = computed(() => {
   return !!workstationContext.value?.fullCodePath && !miniWsList.value.some(mini => mini.visible)
 })
 
-const miniWorkstationLauncherName = computed(() => workstationContext.value?.dirName || '当前目录')
+const miniWorkstationLauncherName = computed(() => workstationContext.value?.dirName || t('miniWorkstation.currentDirectory'))
 
 const miniWorkstationLauncherCount = computed(() => Math.max(miniWsList.value.length, 1))
 
-const miniWorkstationLauncherSummary = computed(() => `${miniWorkstationLauncherCount.value} 个会话`)
+const miniWorkstationLauncherSummary = computed(() => t('miniWorkstation.sessionCount', { count: miniWorkstationLauncherCount.value }))
 
 function openCurrentWorkstation() {
   const ctx = workstationContext.value

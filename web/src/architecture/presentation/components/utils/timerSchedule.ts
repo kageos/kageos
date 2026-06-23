@@ -1,4 +1,5 @@
 import type { TimerExecutionStatus, TimerSchedule, TimerScheduleType, TimerTaskStatus } from '@/architecture/presentation/context/api/timer'
+import { getCurrentLocale, translate } from '@/architecture/shared/i18n'
 
 export interface TimerScheduleForm {
   schedule_type: TimerScheduleType
@@ -104,7 +105,7 @@ export function formatDateTime(value?: string): string {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', { hour12: false })
+  return date.toLocaleString(getCurrentLocale(), { hour12: false })
 }
 
 export function formatDuration(milliseconds?: number): string {
@@ -117,21 +118,21 @@ export function formatDuration(milliseconds?: number): string {
 export function scheduleLabel(schedule?: TimerSchedule): string {
   if (!schedule) return '-'
   if (schedule.type === 'atime') {
-    return `一次 · ${formatDateTime(schedule.run_at)}`
+    return translate('scheduledTask.planOnce', { time: formatDateTime(schedule.run_at) })
   }
   if (schedule.type === 'cron') {
-    return `Cron · ${schedule.cron_expr || '-'}`
+    return translate('scheduledTask.planCron', { expr: schedule.cron_expr || '-' })
   }
-  return `每 ${schedule.interval_seconds || 0} 秒`
+  return translate('scheduledTask.planEvery', { seconds: schedule.interval_seconds || 0 })
 }
 
 export function taskStatusLabel(status?: string): string {
   const labels: Record<TimerTaskStatus, string> = {
-    pending: '待执行',
-    paused: '已暂停',
-    done: '已完成',
-    failed: '失败',
-    cancelled: '已取消',
+    pending: translate('scheduledTask.taskStatusPending'),
+    paused: translate('scheduledTask.taskStatusPaused'),
+    done: translate('scheduledTask.taskStatusDone'),
+    failed: translate('scheduledTask.taskStatusFailed'),
+    cancelled: translate('scheduledTask.taskStatusCancelled'),
   }
   return labels[status as TimerTaskStatus] || status || '-'
 }
@@ -146,12 +147,12 @@ export function taskStatusTag(status?: string): 'primary' | 'success' | 'warning
 
 export function executionStatusLabel(status?: string): string {
   const labels: Record<TimerExecutionStatus, string> = {
-    queued: '排队中',
-    running: '运行中',
-    success: '成功',
-    failed: '失败',
-    timeout: '超时',
-    cancelled: '已取消',
+    queued: translate('scheduledTask.executionStatusQueued'),
+    running: translate('scheduledTask.executionStatusRunning'),
+    success: translate('scheduledTask.executionStatusSuccess'),
+    failed: translate('scheduledTask.executionStatusFailed'),
+    timeout: translate('scheduledTask.executionStatusTimeout'),
+    cancelled: translate('scheduledTask.executionStatusCancelled'),
   }
   return labels[status as TimerExecutionStatus] || status || '-'
 }
@@ -171,7 +172,7 @@ export function parseJSONPayload(value: string): unknown {
     return JSON.parse(raw)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`JSON 格式不正确：${message}`)
+    throw new Error(translate('scheduledTask.invalidJSON', { message }))
   }
 }
 

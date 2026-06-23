@@ -52,20 +52,25 @@ func (a *AppService) buildInitialAppAndRoot(requestUser, tenantUser string, req 
 	if req.IsPublic != nil {
 		isPublic = *req.IsPublic
 	}
+	hideUnauthorizedNodes := false
+	if req.HideUnauthorizedNodes != nil {
+		hideUnauthorizedNodes = *req.HideUnauthorizedNodes
+	}
 
 	app := &model.App{
 		Base: models.Base{
 			CreatedBy: requestUser,
 		},
-		Version:  "v1",
-		Code:     req.Code,
-		Name:     req.Name,
-		User:     tenantUser,
-		NatsID:   selectedHost.NatsID,
-		HostID:   selectedHost.ID,
-		Status:   "enabled",
-		IsPublic: isPublic,
-		Admins:   req.Admins,
+		Version:               "v1",
+		Code:                  req.Code,
+		Name:                  req.Name,
+		User:                  tenantUser,
+		NatsID:                selectedHost.NatsID,
+		HostID:                selectedHost.ID,
+		Status:                "enabled",
+		IsPublic:              isPublic,
+		HideUnauthorizedNodes: hideUnauthorizedNodes,
+		Admins:                req.Admins,
 	}
 
 	rootNode := &model.ServiceTree{

@@ -41,6 +41,14 @@
           <el-switch v-model="form.is_public" />
         </el-tooltip>
       </el-form-item>
+      <el-form-item label="隐藏无权限节点">
+        <el-tooltip
+          content="开启后，服务目录树不会返回当前用户无 read 权限的节点"
+          placement="top"
+        >
+          <el-switch v-model="form.hide_unauthorized_nodes" />
+        </el-tooltip>
+      </el-form-item>
     </el-form>
 
     <template #footer>

@@ -39,7 +39,7 @@ func (u *UserAllocation) AssignUser(c *gin.Context) {
 	var resp *dto.AssignUserResp
 	var err error
 	defer func() {
-		logger.Infof(c, "AssignUser req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "AssignUser req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	// 绑定请求参数
@@ -82,7 +82,7 @@ func (u *UserAllocation) GetUsersByDepartment(c *gin.Context) {
 	var resp *dto.GetUsersByDepartmentResp
 	var err error
 	defer func() {
-		logger.Infof(c, "GetUsersByDepartment req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "GetUsersByDepartment req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	// 绑定请求参数

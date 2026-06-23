@@ -59,7 +59,7 @@ func (c *AppControlClient) RequestUpdateCallback(ctx context.Context, user, app,
 
 	subject := subjects.BuildAppControlSubject(user, app, version)
 	logger.Infof(ctx, "[AppControlClient] Sending update callback request to subject: %s", subject)
-	logger.Infof(ctx, "[AppControlClient] Request data: %+v", request)
+	logger.Debugf(ctx, "[AppControlClient] Request data: %+v", request)
 
 	requestData, err := json.Marshal(request)
 	if err != nil {

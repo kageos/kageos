@@ -55,20 +55,23 @@ describe('MiniWorkstationComposer', () => {
       blockedPlaceholder: '请先确认 PRD',
     })
 
-    const textarea = wrapper.find('[data-testid="mini-workstation-input"]')
-    expect(textarea.exists()).toBe(true)
-    expect(textarea.attributes('disabled')).toBeDefined()
-    expect(textarea.attributes('placeholder')).toBe('请先确认 PRD')
+    const editor = wrapper.find('[data-testid="mini-workstation-input"]')
+    expect(editor.exists()).toBe(true)
+    expect(editor.attributes('contenteditable')).toBe('false')
+    expect(editor.attributes('data-placeholder')).toBe('请先确认 PRD')
     expect(wrapper.text()).toContain('PRD 待确认')
 
-    await textarea.setValue('继续生成')
+    editor.element.textContent = '继续生成'
+    await editor.trigger('input')
     expect(wrapper.emitted('update:inputText')).toBeUndefined()
     expect(wrapper.find('[data-testid="upload"]').attributes('data-disabled')).toBe('true')
   })
 
   it('emits input updates when unblocked', async () => {
     const wrapper = mountComposer()
-    await wrapper.find('[data-testid="mini-workstation-input"]').setValue('继续生成')
+    const editor = wrapper.find('[data-testid="mini-workstation-input"]')
+    editor.element.textContent = '继续生成'
+    await editor.trigger('input')
 
     expect(wrapper.emitted('update:inputText')?.[0]?.[0]).toBe('继续生成')
   })

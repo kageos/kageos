@@ -2,30 +2,30 @@
   <div class="scheduled-agent-task-list" v-loading="loading">
     <div class="scheduled-list-header">
       <div>
-        <div class="scheduled-list-title">定时会话</div>
-        <div class="scheduled-list-subtitle">{{ resourcePath ? '当前工作空间' : '未选择工作空间' }}</div>
+        <div class="scheduled-list-title">{{ t('scheduledTask.agentTitle') }}</div>
+        <div class="scheduled-list-subtitle">{{ resourcePath ? t('scheduledTask.currentWorkspace') : t('scheduledTask.noWorkspaceSelected') }}</div>
       </div>
       <div class="scheduled-list-actions">
-        <span class="scheduled-total">共 {{ total }} 个</span>
-        <el-button :icon="Refresh" @click="loadList">刷新</el-button>
+        <span class="scheduled-total">{{ t('scheduledTask.totalCount', { count: total }) }}</span>
+        <el-button :icon="Refresh" @click="loadList">{{ t('common.refresh') }}</el-button>
         <el-button type="primary" :icon="Plus" :disabled="!resourcePath" @click="showCreateDialog = true">
-          新建
+          {{ t('scheduledTask.newTask') }}
         </el-button>
       </div>
     </div>
 
     <div class="scheduled-list-filter">
-      <el-select v-model="statusFilter" placeholder="全部状态" clearable style="width: 160px" @change="loadList">
-        <el-option label="全部状态" value="" />
-        <el-option label="待执行" value="pending" />
-        <el-option label="已暂停" value="paused" />
-        <el-option label="已完成" value="done" />
-        <el-option label="失败" value="failed" />
-        <el-option label="已取消" value="cancelled" />
+      <el-select v-model="statusFilter" :placeholder="t('scheduledTask.allStatuses')" clearable style="width: 160px" @change="loadList">
+        <el-option :label="t('scheduledTask.allStatuses')" value="" />
+        <el-option :label="t('scheduledTask.taskStatusPending')" value="pending" />
+        <el-option :label="t('scheduledTask.taskStatusPaused')" value="paused" />
+        <el-option :label="t('scheduledTask.taskStatusDone')" value="done" />
+        <el-option :label="t('scheduledTask.taskStatusFailed')" value="failed" />
+        <el-option :label="t('scheduledTask.taskStatusCancelled')" value="cancelled" />
       </el-select>
     </div>
 
-    <el-empty v-if="!loading && list.length === 0" description="暂无定时会话" />
+    <el-empty v-if="!loading && list.length === 0" :description="t('scheduledTask.emptyAgents')" />
 
     <el-table
       v-else
@@ -36,23 +36,23 @@
       :row-class-name="() => 'is-clickable'"
       @row-click="openTaskDrawer"
     >
-      <el-table-column prop="title" label="名称" min-width="200" show-overflow-tooltip />
-      <el-table-column label="计划" min-width="180" show-overflow-tooltip>
+      <el-table-column prop="title" :label="t('scheduledTask.name')" min-width="200" show-overflow-tooltip />
+      <el-table-column :label="t('scheduledTask.schedule')" min-width="180" show-overflow-tooltip>
         <template #default="{ row }">{{ scheduleLabel(row.schedule) }}</template>
       </el-table-column>
-      <el-table-column prop="next_run_at" label="下次执行" width="180">
+      <el-table-column prop="next_run_at" :label="t('scheduledTask.nextRun')" width="180">
         <template #default="{ row }">{{ formatDateTime(row.next_run_at) }}</template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="100">
+      <el-table-column prop="status" :label="t('scheduledTask.status')" width="100">
         <template #default="{ row }">
           <el-tag :type="taskStatusTag(row.status)" size="small">{{ taskStatusLabel(row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="run_count" label="次数" width="72" align="center" />
-      <el-table-column label="操作" width="192" fixed="right" align="center">
+      <el-table-column prop="run_count" :label="t('scheduledTask.runCount')" width="72" align="center" />
+      <el-table-column :label="t('scheduledTask.actions')" width="192" fixed="right" align="center">
         <template #default="{ row }">
           <div class="table-row-actions">
-            <el-tooltip content="编辑" placement="top" effect="light">
+            <el-tooltip :content="t('scheduledTask.edit')" placement="top" effect="light">
               <el-button
                 text
                 type="primary"
@@ -61,7 +61,7 @@
                 @click.stop="handleEdit(row)"
               />
             </el-tooltip>
-            <el-tooltip content="立即运行" placement="top" effect="light">
+            <el-tooltip :content="t('scheduledTask.runNow')" placement="top" effect="light">
               <el-button
                 text
                 type="primary"
@@ -70,10 +70,10 @@
                 @click.stop="handleRunNow(row)"
               />
             </el-tooltip>
-            <el-tooltip v-if="row.status === 'paused'" content="恢复" placement="top" effect="light">
+            <el-tooltip v-if="row.status === 'paused'" :content="t('scheduledTask.resume')" placement="top" effect="light">
               <el-button text type="primary" :icon="CaretRight" @click.stop="handleResume(row)" />
             </el-tooltip>
-            <el-tooltip v-else content="暂停" placement="top" effect="light">
+            <el-tooltip v-else :content="t('scheduledTask.pause')" placement="top" effect="light">
               <el-button
                 text
                 type="warning"
@@ -82,7 +82,7 @@
                 @click.stop="handlePause(row)"
               />
             </el-tooltip>
-            <el-tooltip content="取消" placement="top" effect="light">
+            <el-tooltip :content="t('scheduledTask.cancel')" placement="top" effect="light">
               <el-button
                 text
                 type="danger"
@@ -91,7 +91,7 @@
                 @click.stop="handleCancel(row)"
               />
             </el-tooltip>
-            <el-tooltip content="删除" placement="top" effect="light">
+            <el-tooltip :content="t('scheduledTask.delete')" placement="top" effect="light">
               <el-button
                 text
                 type="danger"
@@ -130,7 +130,7 @@
 
     <el-drawer
       v-model="drawerVisible"
-      :title="selectedTask?.title || '定时会话详情'"
+      :title="selectedTask?.title || t('scheduledTask.agentDetailTitle')"
       direction="rtl"
       size="680px"
       :destroy-on-close="false"
@@ -138,24 +138,24 @@
     >
       <template v-if="selectedTask">
         <section class="drawer-section">
-          <div class="drawer-section-title">任务信息</div>
+          <div class="drawer-section-title">{{ t('scheduledTask.taskInfo') }}</div>
           <dl class="drawer-info-grid">
-            <dt>计划</dt>
+            <dt>{{ t('scheduledTask.schedule') }}</dt>
             <dd>{{ scheduleLabel(selectedTask.schedule) }}</dd>
-            <dt>下次执行</dt>
+            <dt>{{ t('scheduledTask.nextRun') }}</dt>
             <dd>{{ formatDateTime(selectedTask.next_run_at) }}</dd>
-            <dt>状态</dt>
+            <dt>{{ t('scheduledTask.status') }}</dt>
             <dd>
               <el-tag :type="taskStatusTag(selectedTask.status)" size="small">
                 {{ taskStatusLabel(selectedTask.status) }}
               </el-tag>
             </dd>
-            <dt>执行次数</dt>
+            <dt>{{ t('scheduledTask.runCount') }}</dt>
             <dd>{{ selectedTask.run_count || 0 }}</dd>
-            <dt>目标目录</dt>
+            <dt>{{ t('scheduledTask.targetDirectory') }}</dt>
             <dd class="is-mono">{{ getTaskWorkspacePath(selectedTask) || '-' }}</dd>
             <template v-if="selectedTask.last_error_message">
-              <dt>最近错误</dt>
+              <dt>{{ t('scheduledTask.recentError') }}</dt>
               <dd class="is-error-text">{{ selectedTask.last_error_message }}</dd>
             </template>
           </dl>
@@ -163,7 +163,7 @@
 
         <section class="drawer-section">
           <div class="drawer-section-head">
-            <div class="drawer-section-title">会话消息</div>
+            <div class="drawer-section-title">{{ t('scheduledTask.sessionMessage') }}</div>
             <el-button
               link
               type="primary"
@@ -171,32 +171,32 @@
               :disabled="isTerminal(selectedTask.status)"
               @click="handleEdit(selectedTask)"
             >
-              编辑
+              {{ t('scheduledTask.edit') }}
             </el-button>
           </div>
-          <div class="drawer-message-body">{{ getAgentMessage(selectedTask) || '（未设置消息）' }}</div>
+          <div class="drawer-message-body">{{ getAgentMessage(selectedTask) || t('scheduledTask.noMessage') }}</div>
         </section>
 
         <section class="drawer-section is-executions">
           <div class="drawer-section-head">
-            <div class="drawer-section-title">执行记录</div>
+            <div class="drawer-section-title">{{ t('scheduledTask.executionRecords') }}</div>
             <div class="drawer-section-controls">
               <el-select
                 v-model="selectedExecutionState.status"
-                placeholder="全部状态"
+                :placeholder="t('scheduledTask.allStatuses')"
                 clearable
                 size="small"
                 style="width: 120px"
                 @change="loadSelectedExecutions(true)"
               >
-                <el-option label="全部状态" value="" />
-                <el-option label="排队中" value="queued" />
-                <el-option label="运行中" value="running" />
-                <el-option label="成功" value="success" />
-                <el-option label="失败" value="failed" />
-                <el-option label="超时" value="timeout" />
+                <el-option :label="t('scheduledTask.allStatuses')" value="" />
+                <el-option :label="t('scheduledTask.executionStatusQueued')" value="queued" />
+                <el-option :label="t('scheduledTask.executionStatusRunning')" value="running" />
+                <el-option :label="t('scheduledTask.executionStatusSuccess')" value="success" />
+                <el-option :label="t('scheduledTask.executionStatusFailed')" value="failed" />
+                <el-option :label="t('scheduledTask.executionStatusTimeout')" value="timeout" />
               </el-select>
-              <el-button size="small" :icon="Refresh" @click="loadSelectedExecutions(true)">刷新</el-button>
+              <el-button size="small" :icon="Refresh" @click="loadSelectedExecutions(true)">{{ t('common.refresh') }}</el-button>
             </div>
           </div>
 
@@ -212,7 +212,7 @@
 
           <el-empty
             v-else-if="selectedExecutionState.loaded && selectedExecutionState.list.length === 0"
-            description="暂无执行记录"
+            :description="t('scheduledTask.emptyExecutions')"
             :image-size="56"
           />
 
@@ -239,7 +239,7 @@
                     class="execution-open-session"
                     @click="openExecutionSession(selectedTask!, execution)"
                   >
-                    打开会话
+                    {{ t('scheduledTask.openSession') }}
                   </el-button>
                 </div>
 
@@ -247,7 +247,7 @@
 
                 <div class="execution-facts">
                   <span v-if="getExecutionOpenSessionID(execution)">
-                    会话 {{ shortSessionID(getExecutionOpenSessionID(execution)) }}
+                    {{ t('scheduledTask.session', { id: shortSessionID(getExecutionOpenSessionID(execution)) }) }}
                   </span>
                   <span>{{ executionToolStats(execution) }}</span>
                   <span v-if="execution.duration_millis">{{ formatDuration(execution.duration_millis) }}</span>
@@ -287,6 +287,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CaretRight, Close, Delete, EditPen, Plus, Refresh, VideoPause, VideoPlay } from '@element-plus/icons-vue'
@@ -344,6 +345,7 @@ const emit = defineEmits<{
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const loading = ref(false)
 const list = ref<TimerTask[]>([])
 const total = ref(0)
@@ -409,7 +411,7 @@ async function loadList() {
     emit('total-change', total.value)
     await openFocusedTaskIfNeeded()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载定时会话失败')
+    ElMessage.error(error instanceof Error ? error.message : t('scheduledTask.loadAgentsFailed'))
   } finally {
     loading.value = false
   }
@@ -430,7 +432,7 @@ async function loadExecutions(task: TimerTask, reset = false) {
     state.total = Number(resp.total || 0)
     state.loaded = true
   } catch (error) {
-    state.error = error instanceof Error ? error.message : '加载执行记录失败'
+    state.error = error instanceof Error ? error.message : t('scheduledTask.loadExecutionsFailed')
   } finally {
     state.loading = false
   }
@@ -452,7 +454,7 @@ async function loadSelectedExecutions(reset = false) {
     selectedExecutionState.total = Number(resp.total || 0)
     selectedExecutionState.loaded = true
   } catch (error) {
-    selectedExecutionState.error = error instanceof Error ? error.message : '加载执行记录失败'
+    selectedExecutionState.error = error instanceof Error ? error.message : t('scheduledTask.loadExecutionsFailed')
   } finally {
     selectedExecutionState.loading = false
   }
@@ -553,7 +555,7 @@ function getExecutionSessionID(execution: TimerExecution): string {
 }
 
 function executionTriggerLabel(execution: TimerExecution): string {
-  return execution.trigger_type === 'manual' ? '手动触发' : '计划触发'
+  return execution.trigger_type === 'manual' ? t('scheduledTask.manualTrigger') : t('scheduledTask.scheduledTrigger')
 }
 
 function shortSessionID(sessionID: string): string {
@@ -569,15 +571,17 @@ function executionCardClass(execution: TimerExecution): string {
 function executionToolStats(execution: TimerExecution): string {
   const summary = execution.output_summary || ''
   const match = summary.match(/工具调用\s*(\d+)\s*次，失败\s*(\d+)\s*次/)
-  if (match) return `工具 ${match[1]} 次 / 失败 ${match[2]} 次`
+  if (match) {
+    return t('scheduledTask.toolsSummary', { toolCalls: match[1], failures: match[2] })
+  }
 
   const payload = execution.result_payload
   if (payload && typeof payload === 'object') {
     const record = payload as Record<string, unknown>
     const toolCalls = record.tool_calls || record.toolCalls
-    if (typeof toolCalls === 'number') return `工具 ${toolCalls} 次`
+    if (typeof toolCalls === 'number') return t('scheduledTask.toolsCount', { toolCalls })
   }
-  return '工具 0 次'
+  return t('scheduledTask.toolsZero')
 }
 
 function executionHumanSummary(execution: TimerExecution): string {
@@ -596,10 +600,10 @@ function executionErrorMessage(execution: TimerExecution): string {
 
 function executionErrorTitle(execution: TimerExecution): string {
   const message = executionErrorMessage(execution)
-  if (message.includes('服务目录不存在')) return '工作台目录不存在'
-  if (message.includes('timeout') || execution.status === 'timeout') return '执行超时'
-  if (message.includes('权限')) return '权限校验失败'
-  return '执行失败'
+  if (message.includes('服务目录不存在')) return t('scheduledTask.directoryMissingTitle')
+  if (message.includes('timeout') || execution.status === 'timeout') return t('scheduledTask.timeoutTitle')
+  if (message.includes('权限')) return t('scheduledTask.permissionFailedTitle')
+  return t('scheduledTask.executionError')
 }
 
 function executionErrorHint(task: TimerTask, execution: TimerExecution): string {
@@ -607,11 +611,11 @@ function executionErrorHint(task: TimerTask, execution: TimerExecution): string 
   if (message.includes('服务目录不存在')) {
     const path = getTaskWorkspacePath(task)
     return path
-      ? `这个任务保存的目录是 ${path}，当前服务树查不到它。请编辑任务换成有效目录，或在目标目录重新创建。`
-      : '这个任务缺少有效工作台目录。请编辑任务换成有效目录，或删除后重新创建。'
+      ? t('scheduledTask.directoryMissingHint', { path })
+      : t('scheduledTask.workspaceMissingHint')
   }
-  if (message.includes('权限')) return '当前执行用户没有目标资源权限，请检查任务创建人和目录权限。'
-  return '可以打开会话查看模型执行过程，或按错误详情调整任务消息和目标目录。'
+  if (message.includes('权限')) return t('scheduledTask.permissionHint')
+  return t('scheduledTask.genericErrorHint')
 }
 
 function getExecutionOpenSessionID(execution: TimerExecution): string {
@@ -636,18 +640,18 @@ function getTaskWorkspacePath(task?: TimerTask | null): string {
 
 function getWorkspaceName(fullCodePath: string): string {
   const parts = fullCodePath.split('/').filter(Boolean)
-  return parts[parts.length - 1] || fullCodePath || '工作台'
+  return parts[parts.length - 1] || fullCodePath || t('scheduledTask.workspaceFallback')
 }
 
 function openExecutionSession(task: TimerTask, execution: TimerExecution) {
   const sessionID = getExecutionOpenSessionID(execution)
   if (!sessionID) {
-    ElMessage.warning('这条执行记录还没有可打开的会话')
+    ElMessage.warning(t('scheduledTask.noOpenSession'))
     return
   }
   const fullCodePath = getTaskWorkspacePath(task)
   if (!fullCodePath) {
-    ElMessage.warning('这条执行记录缺少工作台路径，无法打开会话')
+    ElMessage.warning(t('scheduledTask.missingSessionPath'))
     return
   }
 
@@ -667,66 +671,66 @@ function isTerminal(status: string): boolean {
 async function handleRunNow(task: TimerTask) {
   try {
     await runTimerTaskNow(task.id)
-    ElMessage.success('已提交立即运行')
+    ElMessage.success(t('scheduledTask.submittedRunNow'))
     await loadList()
     const state = getExecutionState(task.id)
     if (state.loaded) await loadExecutions(task, true)
     if (selectedTask.value?.id === task.id) await loadSelectedExecutions(true)
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '立即运行失败')
+    ElMessage.error(error instanceof Error ? error.message : t('scheduledTask.runNowFailed'))
   }
 }
 
 async function handlePause(task: TimerTask) {
   try {
     await pauseTimerTask(task.id)
-    ElMessage.success('已暂停')
+    ElMessage.success(t('scheduledTask.pausedSuccess'))
     await loadList()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '暂停失败')
+    ElMessage.error(error instanceof Error ? error.message : t('scheduledTask.pauseFailed'))
   }
 }
 
 async function handleResume(task: TimerTask) {
   try {
     await resumeTimerTask(task.id)
-    ElMessage.success('已恢复')
+    ElMessage.success(t('scheduledTask.resumedSuccess'))
     await loadList()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '恢复失败')
+    ElMessage.error(error instanceof Error ? error.message : t('scheduledTask.resumeFailed'))
   }
 }
 
 async function handleCancel(task: TimerTask) {
   try {
-    await ElMessageBox.confirm('确定取消这个定时会话吗？', '取消定时会话', {
+    await ElMessageBox.confirm(t('scheduledTask.cancelAgentConfirm'), t('scheduledTask.cancelAgentTitle'), {
       type: 'warning',
-      confirmButtonText: '取消任务',
-      cancelButtonText: '返回',
+      confirmButtonText: t('scheduledTask.cancelTaskButton'),
+      cancelButtonText: t('common.back'),
     })
     await cancelTimerTask(task.id)
-    ElMessage.success('已取消')
+    ElMessage.success(t('scheduledTask.cancelledSuccess'))
     await loadList()
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
-    ElMessage.error(error instanceof Error ? error.message : '取消失败')
+    ElMessage.error(error instanceof Error ? error.message : t('scheduledTask.cancelFailed'))
   }
 }
 
 async function handleDelete(task: TimerTask) {
   try {
     await ElMessageBox.confirm(
-      '确定删除这个定时会话吗？删除后会从列表移除，不能在这里恢复。',
-      '删除定时会话',
+      t('scheduledTask.deleteAgentConfirm'),
+      t('scheduledTask.deleteAgentTitle'),
       {
         type: 'warning',
-        confirmButtonText: '删除',
-        cancelButtonText: '返回',
+        confirmButtonText: t('scheduledTask.delete'),
+        cancelButtonText: t('common.back'),
         confirmButtonClass: 'el-button--danger',
       }
     )
     await deleteTimerTask(task.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('scheduledTask.deletedSuccess'))
     delete executionStates[task.id]
     if (selectedTask.value?.id === task.id) {
       drawerVisible.value = false
@@ -736,7 +740,7 @@ async function handleDelete(task: TimerTask) {
     await loadList()
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
-    ElMessage.error(error instanceof Error ? error.message : '删除失败')
+    ElMessage.error(error instanceof Error ? error.message : t('scheduledTask.deleteFailed'))
   }
 }
 

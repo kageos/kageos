@@ -74,6 +74,9 @@ export function createApp(data: CreateAppRequest) {
   if (data.is_public !== undefined) {
     payload.is_public = data.is_public
   }
+  if (data.hide_unauthorized_nodes !== undefined) {
+    payload.hide_unauthorized_nodes = data.hide_unauthorized_nodes
+  }
   if (data.admins !== undefined && data.admins !== '') {
     payload.admins = data.admins
   }
@@ -117,12 +120,13 @@ export function getAppWithServiceTree(resourcePath: string, nodeType?: string) {
 // 更新工作空间配置（只更新 MySQL 记录，不涉及容器更新，canonical 标识为 resource_path）
 export function updateWorkspace(
   resourcePath: string,
-  data: { admins?: string }
+  data: { admins?: string; hide_unauthorized_nodes?: boolean }
 ) {
   return put<{
     user: string
     app: string
     admins: string
+    hide_unauthorized_nodes: boolean
   }>('/workspace/api/v1/app/workspace', {
     resource_path: normalizeResourcePath(resourcePath),
     ...data

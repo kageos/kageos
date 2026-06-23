@@ -1,20 +1,20 @@
 <template>
   <div class="mini-settings-panel" @mousedown.stop @click.stop>
     <section class="mini-settings-section">
-      <div class="mini-settings-section-title">复制</div>
+      <div class="mini-settings-section-title">{{ t('miniWorkstation.copy') }}</div>
       <div class="mini-settings-copy-grid">
-        <button type="button" @click="$emit('copyConversation', 'all')">全部对话</button>
-        <button type="button" @click="$emit('copyConversation', 'last-turn')">最后一轮</button>
-        <button type="button" @click="$emit('copyConversation', 'all-tools')">全部工具</button>
-        <button type="button" @click="$emit('copyConversation', 'error-tools')">失败工具</button>
-        <button type="button" @click="$emit('copyConversation', 'success-tools')">成功工具</button>
+        <button type="button" @click="$emit('copyConversation', 'all')">{{ t('miniWorkstation.copyAllConversation') }}</button>
+        <button type="button" @click="$emit('copyConversation', 'last-turn')">{{ t('miniWorkstation.copyLastTurn') }}</button>
+        <button type="button" @click="$emit('copyConversation', 'all-tools')">{{ t('miniWorkstation.copyAllTools') }}</button>
+        <button type="button" @click="$emit('copyConversation', 'error-tools')">{{ t('miniWorkstation.copyErrorTools') }}</button>
+        <button type="button" @click="$emit('copyConversation', 'success-tools')">{{ t('miniWorkstation.copySuccessTools') }}</button>
       </div>
     </section>
     <section class="mini-settings-section">
       <header class="mini-debug-head">
         <div>
-          <span class="mini-debug-kicker">Tool Trace</span>
-          <strong>调用摘要</strong>
+          <span class="mini-debug-kicker">{{ t('miniWorkstation.toolTrace') }}</span>
+          <strong>{{ t('miniWorkstation.callSummary') }}</strong>
         </div>
         <button
           type="button"
@@ -22,13 +22,13 @@
           :disabled="debugToolSteps.length === 0"
           @click="$emit('copyToolSummary')"
         >
-          复制摘要
+          {{ t('miniWorkstation.copySummary') }}
         </button>
       </header>
       <div class="mini-debug-stats">
-        <span>{{ debugToolSteps.length }} 步</span>
-        <span>{{ debugSuccessCount }} 成功</span>
-        <span>{{ debugErrorCount }} 失败</span>
+        <span>{{ t('miniWorkstation.stepCount', { count: debugToolSteps.length }) }}</span>
+        <span>{{ t('miniWorkstation.successCount', { count: debugSuccessCount }) }}</span>
+        <span>{{ t('miniWorkstation.errorCount', { count: debugErrorCount }) }}</span>
       </div>
       <div v-if="debugToolSteps.length" class="mini-debug-list">
         <article
@@ -38,21 +38,22 @@
           :class="`is-${step.statusClass}`"
         >
           <div class="mini-debug-step-title">
-            <span>第 {{ step.index }} 步</span>
+            <span>{{ t('miniWorkstation.step', { count: step.index }) }}</span>
             <strong>{{ step.name }}</strong>
             <em>{{ step.statusLabel }}</em>
           </div>
-          <pre v-if="step.argumentsPreview" class="mini-debug-snippet">参数: {{ step.argumentsPreview }}</pre>
-          <pre v-if="step.outputPreview" class="mini-debug-snippet">输出: {{ step.outputPreview }}</pre>
-          <pre v-if="step.errorPreview" class="mini-debug-snippet mini-debug-snippet--error">错误: {{ step.errorPreview }}</pre>
+          <pre v-if="step.argumentsPreview" class="mini-debug-snippet">{{ t('miniWorkstation.arguments') }}: {{ step.argumentsPreview }}</pre>
+          <pre v-if="step.outputPreview" class="mini-debug-snippet">{{ t('miniWorkstation.output') }}: {{ step.outputPreview }}</pre>
+          <pre v-if="step.errorPreview" class="mini-debug-snippet mini-debug-snippet--error">{{ t('miniWorkstation.error') }}: {{ step.errorPreview }}</pre>
         </article>
       </div>
-      <div v-else class="mini-debug-empty">暂无工具调用记录</div>
+      <div v-else class="mini-debug-empty">{{ t('miniWorkstation.noToolCalls') }}</div>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type {
   CopyDebugMode,
   DebugToolStep
@@ -68,6 +69,8 @@ defineEmits<{
   (e: 'copyConversation', mode: CopyDebugMode): void
   (e: 'copyToolSummary'): void
 }>()
+
+const { t } = useI18n()
 </script>
 
 <style scoped>

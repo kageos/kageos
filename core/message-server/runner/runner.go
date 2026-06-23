@@ -15,9 +15,9 @@ func Main(ctx context.Context, stopCh <-chan struct{}, readyCh chan<- struct{}) 
 		if err := logger.Init(logger.Config{
 			Level:      cfg.GetLogLevel(),
 			Filename:   "./logs/message-server.log",
-			MaxSize:    100,
-			MaxBackups: 3,
-			MaxAge:     7,
+			MaxSize:    logger.DefaultMaxSize,
+			MaxBackups: logger.DefaultMaxBackups,
+			MaxAge:     logger.DefaultMaxAge,
 			Compress:   true,
 			IsDev:      cfg.IsDebug(),
 		}); err != nil {

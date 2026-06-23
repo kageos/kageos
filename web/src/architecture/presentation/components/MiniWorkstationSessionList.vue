@@ -1,8 +1,8 @@
 <template>
   <div class="mini-session-sidebar">
     <div class="mini-session-header">
-      <span class="mini-session-title">会话列表</span>
-      <el-button text :icon="Plus" size="small" @click="$emit('new')" title="新建会话" />
+      <span class="mini-session-title">{{ t('miniWorkstation.sessionList') }}</span>
+      <el-button text :icon="Plus" size="small" @click="$emit('new')" :title="t('miniWorkstation.newSession')" />
     </div>
     <div class="mini-session-list" v-loading="loading">
       <div
@@ -10,7 +10,7 @@
         @click="$emit('new')"
       >
         <el-icon class="mini-session-new-icon"><Plus /></el-icon>
-        <span>新建会话</span>
+        <span>{{ t('miniWorkstation.newSession') }}</span>
       </div>
       <div
         v-for="session in sessions"
@@ -27,7 +27,7 @@
           >
             <Loading />
           </el-icon>
-          <span class="mini-session-card-title">{{ session.title || '未命名会话' }}</span>
+          <span class="mini-session-card-title">{{ session.title || t('miniWorkstation.unnamedSession') }}</span>
         </div>
         <div v-if="session.role_display_name" class="mini-session-role">
           {{ session.role_display_name }}
@@ -49,13 +49,14 @@
         </div>
       </div>
       <div v-if="sessions.length === 0 && !loading" class="mini-session-empty">
-        <span>暂无会话</span>
+        <span>{{ t('miniWorkstation.noMatchingSessions') }}</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Loading, Plus } from '@element-plus/icons-vue'
 import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
@@ -71,6 +72,8 @@ defineEmits<{
   (e: 'new'): void
   (e: 'select', sessionId: string): void
 }>()
+
+const { t } = useI18n()
 
 function formatSessionTimestamp(value?: string): string {
   if (!value) return '—'
@@ -107,17 +110,17 @@ function getSessionStatusClass(status?: string): string {
 function getSessionStatusLabel(status?: string): string {
   const normalized = normalizeSessionStatus(status)
   const map: Record<string, string> = {
-    generating: '执行中',
-    output: '新文件',
-    new_file: '新文件',
-    new_output: '新文件',
-    has_output: '新文件',
-    pending_confirmation: 'PRD 待确认',
-    pending_test: '待自动测试',
-    pending_build_repair: '修复待确认',
-    done: '已完成',
-    cancelled: '已取消',
-    failed: '失败'
+    generating: t('miniWorkstation.statusRunning'),
+    output: t('miniWorkstation.statusNewFile'),
+    new_file: t('miniWorkstation.statusNewFile'),
+    new_output: t('miniWorkstation.statusNewFile'),
+    has_output: t('miniWorkstation.statusNewFile'),
+    pending_confirmation: t('miniWorkstation.statusPrdPending'),
+    pending_test: t('miniWorkstation.statusAutoTestPending'),
+    pending_build_repair: t('miniWorkstation.statusRepairPending'),
+    done: t('miniWorkstation.statusDone'),
+    cancelled: t('miniWorkstation.statusCancelled'),
+    failed: t('miniWorkstation.statusFailed')
   }
   return map[normalized] || ''
 }

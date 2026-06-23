@@ -60,6 +60,7 @@ export interface App {
   type?: number  // 应用类型：0=用户空间，1=系统空间
   version: string
   is_public: boolean
+  hide_unauthorized_nodes?: boolean
   admins?: string
   created_at: string
   updated_at: string
@@ -69,6 +70,7 @@ export interface CreateAppRequest {
   code: string
   name: string
   is_public?: boolean
+  hide_unauthorized_nodes?: boolean
   admins?: string
 }
 

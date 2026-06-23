@@ -1,6 +1,6 @@
 <template>
   <div class="workspace-inbox">
-    <el-tooltip v-if="props.showTrigger" content="站内信" placement="bottom" effect="light">
+    <el-tooltip v-if="props.showTrigger" :content="t('workspaceInbox.title')" placement="bottom" effect="light">
       <el-badge
         :value="unreadCount"
         :hidden="unreadCount <= 0"
@@ -40,17 +40,17 @@
               @change="loadInbox(true)"
             />
             <div v-if="sourceFilter" class="source-filter-chip">
-              <el-tag size="small" effect="plain">节点通知</el-tag>
+              <el-tag size="small" effect="plain">{{ t('workspaceInbox.nodeNotifications') }}</el-tag>
               <span :title="sourceFilter.sourcePath">{{ sourceFilter.title || sourceFilter.sourcePath }}</span>
-              <el-button size="small" text @click="clearSourceFilter">查看全部</el-button>
+              <el-button size="small" text @click="clearSourceFilter">{{ t('workspaceInbox.viewAll') }}</el-button>
             </div>
           </div>
           <div class="inbox-actions">
             <el-button :icon="Refresh" :loading="listLoading" @click="loadInbox(true)">
-              刷新
+              {{ t('common.refresh') }}
             </el-button>
             <el-button :disabled="currentScopeUnreadCount <= 0" @click="markCurrentScopeRead">
-              {{ sourceFilter ? '当前节点已读' : '全部已读' }}
+              {{ sourceFilter ? t('workspaceInbox.markCurrentNodeRead') : t('workspaceInbox.markAllRead') }}
             </el-button>
           </div>
         </header>
@@ -72,7 +72,7 @@
               <span v-if="Number(workspace.unread_count || 0) > 0" class="workspace-tab-unread">
                 {{ workspace.unread_count }}
               </span>
-              <span class="workspace-tab-total">{{ workspace.message_count }} 条</span>
+              <span class="workspace-tab-total">{{ t('workspaceInbox.messageCount', { count: workspace.message_count }) }}</span>
             </span>
           </button>
         </div>
@@ -117,7 +117,7 @@
             <template v-else>
               <el-empty
                 v-if="!listLoading && inboxThreads.length === 0"
-                description="暂无站内信"
+                :description="t('workspaceInbox.empty')"
                 :image-size="80"
               />
 
@@ -163,7 +163,7 @@
           <section class="inbox-detail-pane" v-loading="detailLoading || (showServiceTreeInbox && listLoading)">
             <el-empty
               v-if="!selectedThread"
-              :description="sourceFilter ? '当前节点暂无通知' : '选择一个消息源查看通知'"
+              :description="sourceFilter ? t('workspaceInbox.currentNodeEmpty') : t('workspaceInbox.selectSource')"
               :image-size="96"
             />
 
@@ -173,11 +173,11 @@
                   <h3>{{ selectedThread.title }}</h3>
                   <div class="inbox-detail-meta">
                     <span>{{ selectedThread.subtitle }}</span>
-                    <span>{{ selectedThread.count }} 条消息</span>
+                    <span>{{ t('workspaceInbox.messageCount', { count: selectedThread.count }) }}</span>
                     <el-tag v-if="selectedThread.unreadCount > 0" size="small" type="primary">
-                      {{ selectedThread.unreadCount }} 条未读
+                      {{ t('workspaceInbox.unreadMessageCount', { count: selectedThread.unreadCount }) }}
                     </el-tag>
-                    <el-tag v-else size="small" type="info">已读</el-tag>
+                    <el-tag v-else size="small" type="info">{{ t('workspaceInbox.read') }}</el-tag>
                   </div>
                 </div>
                 <el-button
@@ -187,7 +187,7 @@
                   plain
                   @click="markThreadRead(selectedThread)"
                 >
-                  全部已读
+                  {{ t('workspaceInbox.markAllRead') }}
                 </el-button>
               </header>
 
@@ -211,7 +211,7 @@
                     plain
                     @click="openSourcePath(selectedThread.lastMessage)"
                   >
-                    查看来源
+                    {{ t('workspaceInbox.viewSource') }}
                   </el-button>
                 </div>
               </section>
@@ -226,11 +226,11 @@
                 >
                   <header class="message-card-header">
                     <div class="message-card-title">
-                      <strong>{{ message.title || '无标题消息' }}</strong>
+                      <strong>{{ message.title || t('workspaceInbox.untitledMessage') }}</strong>
                       <el-tag v-if="sourceTypeText(message)" size="small" effect="plain">
                         {{ sourceTypeText(message) }}
                       </el-tag>
-                      <el-tag v-if="!message.read_at" size="small" type="primary">未读</el-tag>
+                      <el-tag v-if="!message.read_at" size="small" type="primary">{{ t('workspaceInbox.unread') }}</el-tag>
                     </div>
                     <span class="message-card-time" :title="formatExactTime(message.created_at)">
                       <span>{{ formatRelativeTime(message.created_at) }}</span>
@@ -238,8 +238,8 @@
                     </span>
                   </header>
                   <div class="message-card-meta">
-                    <span>发送人：{{ messageSenderText(message) }}</span>
-                    <span>来源：{{ sourceSecondaryText(message) }}</span>
+                    <span>{{ t('workspaceInbox.sender') }}: {{ messageSenderText(message) }}</span>
+                    <span>{{ t('workspaceInbox.source') }}: {{ sourceSecondaryText(message) }}</span>
                   </div>
                   <div class="inbox-content inbox-rich-content" v-html="renderMessageContent(message)" />
                   <footer class="message-card-actions">
@@ -250,7 +250,7 @@
                       plain
                       @click.stop="openScheduledExecution(message)"
                     >
-                      查看执行
+                      {{ t('workspaceInbox.viewExecution') }}
                     </el-button>
                     <el-button
                       v-if="message.workspace_session_id"
@@ -259,7 +259,7 @@
                       plain
                       @click.stop="openWorkspaceSession(message)"
                     >
-                      查看会话
+                      {{ t('workspaceInbox.viewSession') }}
                     </el-button>
                     <el-button
                       v-if="sourcePathForMessage(message)"
@@ -267,7 +267,7 @@
                       plain
                       @click.stop="openSourcePath(message)"
                     >
-                      查看来源
+                      {{ t('workspaceInbox.viewSource') }}
                     </el-button>
                     <el-button
                       v-if="!message.read_at"
@@ -275,7 +275,7 @@
                       plain
                       @click.stop="markMessageRead(message.id)"
                     >
-                      标记已读
+                      {{ t('workspaceInbox.markRead') }}
                     </el-button>
                   </footer>
                 </article>
@@ -291,6 +291,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
 import { ElMessage } from 'element-plus'
 import {
@@ -336,6 +337,7 @@ import {
   type MessageInboxWorkspaceCount,
   type MessageInboxStatus,
 } from '@/architecture/presentation/context/api/message'
+import { getAppList } from '@/architecture/presentation/context/api/app'
 import type { App, ServiceTree } from '@/architecture/domain/types'
 
 const props = withDefaults(defineProps<{
@@ -388,6 +390,7 @@ interface LoadInboxOptions {
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 const drawerVisible = ref(false)
 const countLoading = ref(false)
@@ -404,18 +407,21 @@ const page = ref(1)
 const pageSize = 20
 const total = ref(0)
 const statusFilter = ref<MessageInboxStatus>('all')
-const statusOptions = [
-  { label: '全部', value: 'all' },
-  { label: '未读', value: 'unread' },
-]
+const statusOptions = computed(() => [
+  { label: t('workspaceInbox.all'), value: 'all' },
+  { label: t('workspaceInbox.unread'), value: 'unread' },
+])
 const sourceFilter = ref<SourceFilter | null>(null)
 const markSourceReadOnOpen = ref(false)
 const sourceCountMap = ref<Record<string, MessageInboxSourceCount>>({})
 const workspaceCounts = ref<MessageInboxWorkspaceCount[]>([])
+const resolvedWorkspaceApps = ref<Record<string, App>>({})
 const appliedRouteInboxKey = ref('')
 let inboxLoadSeq = 0
 let detailLoadSeq = 0
 let routeIntentOpening = false
+let workspaceListHydratePromise: Promise<void> | null = null
+let workspaceListHydrated = false
 const sourceTreeProps = {
   children: 'children',
   label: 'name',
@@ -424,6 +430,24 @@ const showServiceTreeInbox = computed(() => props.showTrigger && props.serviceTr
 const activeSourceTreeKey = computed(() => normalizeSourceTreePath(sourceFilter.value?.sourcePath))
 const currentWorkspaceKey = computed(() => {
   return workspaceKeyFromRoutePath(route.path) || workspaceKeyFromApp(props.currentApp)
+})
+const workspaceAppLookup = computed<Record<string, App>>(() => {
+  const lookup: Record<string, App> = { ...resolvedWorkspaceApps.value }
+  const addApp = (app?: App | null) => {
+    const key = workspaceKeyFromApp(app)
+    if (!key || !app) return
+    lookup[key] = {
+      ...lookup[key],
+      ...app,
+      name: app.name?.trim() || lookup[key]?.name || app.code,
+    }
+  }
+
+  for (const app of props.appList || []) {
+    addApp(app)
+  }
+  addApp(props.currentApp)
+  return lookup
 })
 const workspaceTabs = computed(() => {
   return workspaceCounts.value
@@ -489,8 +513,10 @@ const sourceTreeRenderKey = computed(() => {
   return sourceTreeExpandedKeys.value.join('|') || 'empty'
 })
 const drawerTitle = computed(() => {
-  if (!sourceFilter.value) return '站内信'
-  return `${sourceFilter.value.title || '节点通知'} · 通知`
+  if (!sourceFilter.value) return t('workspaceInbox.title')
+  return t('workspaceInbox.sourceNotificationTitle', {
+    title: sourceFilter.value.title || t('workspaceInbox.nodeNotifications')
+  })
 })
 const selectedThread = computed(() => {
   return inboxThreads.value.find(thread => thread.key === selectedThreadKey.value)
@@ -675,7 +701,7 @@ async function loadInbox(resetPage = false, options: LoadInboxOptions = {}) {
     }
   } catch (error) {
     if (loadSeq === inboxLoadSeq) {
-      errorMessage.value = error instanceof Error ? error.message : '加载站内信失败'
+      errorMessage.value = error instanceof Error ? error.message : t('workspaceInbox.loadFailed')
     }
   } finally {
     if (loadSeq === inboxLoadSeq) {
@@ -687,7 +713,7 @@ async function loadInbox(resetPage = false, options: LoadInboxOptions = {}) {
 async function loadWorkspaceCounts() {
   try {
     const resp = await listMessageInboxWorkspaceCounts()
-    workspaceCounts.value = (resp.list || [])
+    const counts = (resp.list || [])
       .map(item => {
         const workspaceKey = workspaceKeyForCount(item)
         return {
@@ -697,6 +723,8 @@ async function loadWorkspaceCounts() {
         }
       })
       .filter(item => item.workspace_key)
+    workspaceCounts.value = counts
+    await hydrateWorkspaceAppsForCounts(counts)
   } catch {
     workspaceCounts.value = []
   }
@@ -746,7 +774,7 @@ async function loadSourceInbox(options: { markRead?: boolean; loadSeq?: number }
   const thread: InboxThread = {
     key: sourceFilterThreadKey(filter),
     title: filter.title || sourcePrimaryText(firstMessage),
-    subtitle: '当前节点通知',
+    subtitle: t('workspaceInbox.currentNodeNotifications'),
     path: filter.sourcePath,
     kind: filter.kind || threadKind(firstMessage),
     lastMessage: firstMessage,
@@ -793,7 +821,7 @@ async function loadThreadMessages(thread: InboxThread): Promise<boolean> {
   } catch (error) {
     if (loadSeq === detailLoadSeq) {
       threadMessages.value = [thread.lastMessage]
-      errorMessage.value = error instanceof Error ? error.message : '加载消息会话失败'
+      errorMessage.value = error instanceof Error ? error.message : t('workspaceInbox.loadThreadFailed')
     }
     return false
   } finally {
@@ -830,7 +858,7 @@ async function selectMessage(item: MessageInboxItem) {
     }
   } catch (error) {
     if (loadSeq === detailLoadSeq) {
-      errorMessage.value = error instanceof Error ? error.message : '加载消息详情失败'
+      errorMessage.value = error instanceof Error ? error.message : t('workspaceInbox.loadDetailFailed')
     }
   } finally {
     if (loadSeq === detailLoadSeq) {
@@ -872,7 +900,7 @@ async function focusMessageByID(id: number) {
     }
   } catch (error) {
     if (loadSeq === detailLoadSeq) {
-      errorMessage.value = error instanceof Error ? error.message : '加载消息详情失败'
+      errorMessage.value = error instanceof Error ? error.message : t('workspaceInbox.loadDetailFailed')
     }
   } finally {
     if (loadSeq === detailLoadSeq) {
@@ -888,7 +916,7 @@ function upsertFocusedThread(detail: MessageInboxItem) {
   const thread: InboxThread = {
     key,
     title: filter?.title || sourcePrimaryText(detail),
-    subtitle: filter?.sourcePath ? '当前节点通知' : threadSubtitle(detail, 1),
+    subtitle: filter?.sourcePath ? t('workspaceInbox.currentNodeNotifications') : threadSubtitle(detail, 1),
     path: filter?.sourcePath || threadPath(detail),
     kind: filter?.kind || threadKind(detail),
     lastMessage: detail,
@@ -945,7 +973,7 @@ async function markThreadRead(thread: InboxThread) {
     }
     emit('messages-updated')
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '标记已读失败')
+    ElMessage.error(error instanceof Error ? error.message : t('workspaceInbox.markReadFailed'))
   }
 }
 
@@ -963,7 +991,7 @@ async function markMessageRead(id: number) {
     }
     emit('messages-updated')
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '标记已读失败')
+    ElMessage.error(error instanceof Error ? error.message : t('workspaceInbox.markReadFailed'))
   }
 }
 
@@ -995,10 +1023,10 @@ async function markAllRead() {
     if (showServiceTreeInbox.value) {
       await loadSourceCounts()
     }
-    ElMessage.success('已全部标记为已读')
+    ElMessage.success(t('workspaceInbox.allReadSuccess'))
     emit('messages-updated')
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '全部已读失败')
+    ElMessage.error(error instanceof Error ? error.message : t('workspaceInbox.allReadFailed'))
   }
 }
 
@@ -1022,7 +1050,7 @@ function updateListReadState(id: number) {
 
 function previewText(content?: string) {
   const text = stripHtml(content || '').replace(/\s+/g, ' ').trim()
-  return text.length > 90 ? `${text.slice(0, 90)}...` : text || '无内容'
+  return text.length > 90 ? `${text.slice(0, 90)}...` : text || t('workspaceInbox.noContent')
 }
 
 function apiThreadToInboxThread(thread: MessageInboxThread): InboxThread {
@@ -1099,8 +1127,8 @@ function getSourceTreeNotificationTitle(node: ServiceTree) {
   const summary = getSourceTreeSummary(node)
   const unread = Number(summary?.unread_count || 0)
   const total = Number(summary?.message_count || 0)
-  if (unread > 0) return `${unread} 条未读通知，${total} 条通知`
-  return `${total} 条通知`
+  if (unread > 0) return t('workspaceInbox.notificationTitleUnread', { unread, total })
+  return t('workspaceInbox.notificationTitleTotal', { total })
 }
 
 function isSourceTreeNodeActive(node: ServiceTree) {
@@ -1138,6 +1166,48 @@ function messageTimeFromString(value?: string) {
   return parsed.isValid() ? parsed.valueOf() : 0
 }
 
+function cacheWorkspaceApps(apps: App[]) {
+  if (!apps.length) return
+  const next: Record<string, App> = { ...resolvedWorkspaceApps.value }
+  for (const app of apps) {
+    const key = workspaceKeyFromApp(app)
+    if (!key) continue
+    next[key] = {
+      ...next[key],
+      ...app,
+      name: app.name?.trim() || next[key]?.name || app.code,
+    }
+  }
+  resolvedWorkspaceApps.value = next
+}
+
+async function hydrateWorkspaceAppsForCounts(items: MessageInboxWorkspaceCount[]) {
+  const hasMissingWorkspaceName = items.some(item => {
+    const key = workspaceKeyForCount(item)
+    return key && !workspaceAppLookup.value[key]
+  })
+  if (!hasMissingWorkspaceName || workspaceListHydrated) return
+
+  if (!workspaceListHydratePromise) {
+    workspaceListHydratePromise = (async () => {
+      const [allApps, systemApps] = await Promise.all([
+        getAppList(500, undefined, true),
+        getAppList(500, undefined, false, 1),
+      ])
+      cacheWorkspaceApps([...allApps, ...systemApps])
+      workspaceListHydrated = true
+    })()
+  }
+
+  try {
+    await workspaceListHydratePromise
+  } catch {
+    // 非关键路径：接口失败时仍按 message-server 返回的 title/path 展示。
+  } finally {
+    workspaceListHydratePromise = null
+  }
+}
+
 function workspaceKeyFromApp(app?: App | null) {
   if (!app?.user || !app?.code) return ''
   return `/${app.user}/${app.code}`
@@ -1159,16 +1229,12 @@ function workspaceKeyForCount(item: MessageInboxWorkspaceCount) {
 }
 
 function workspaceAppForCount(item: MessageInboxWorkspaceCount) {
-  const keyParts = workspaceKeyForCount(item).split('/').filter(Boolean)
-  const user = item.workspace_user || keyParts[0]
-  const code = item.workspace_code || keyParts[1]
-  if (!user || !code) return null
-  return (props.appList || []).find(app => app.user === user && app.code === code) || null
+  return workspaceAppLookup.value[workspaceKeyForCount(item)] || null
 }
 
 function workspaceTabTitle(item: MessageInboxWorkspaceCount) {
   const app = workspaceAppForCount(item)
-  return app?.name || item.title || workspaceTabPath(item) || '全局消息'
+  return app?.name?.trim() || item.title || workspaceTabPath(item) || t('workspaceInbox.globalMessages')
 }
 
 function workspaceTabPath(item: MessageInboxWorkspaceCount) {
@@ -1222,7 +1288,7 @@ function threadTitle(item: MessageInboxItem) {
 
 function threadSubtitle(item: MessageInboxItem, count: number) {
   const sourceName = sourceSecondaryText(item)
-  const suffix = count > 1 ? ` · ${count} 条消息` : ''
+  const suffix = count > 1 ? ` · ${t('workspaceInbox.messageCount', { count })}` : ''
   return `${sourceName}${suffix}`
 }
 
@@ -1266,19 +1332,19 @@ function sourceSecondaryText(item?: MessageInboxItem | null) {
 function messageSenderText(item?: MessageInboxItem | null) {
   const sender = (item?.from || item?.request_user || '').trim()
   if (!sender) return 'system'
-  if (sender === 'system') return 'system(系统)'
+  if (sender === 'system') return t('workspaceInbox.systemSender')
   return sender
 }
 
 function sourceTypeText(item?: MessageInboxItem | null) {
   const type = (item?.source_type || item?.client_source || '').trim()
   const map: Record<string, string> = {
-    scheduled_task: '定时任务',
-    agent_session: '定时会话',
-    agent_tool: '智能体',
-    public_share: '公开分享',
+    scheduled_task: t('workspaceInbox.sourceTypeScheduledTask'),
+    agent_session: t('workspaceInbox.sourceTypeAgentSession'),
+    agent_tool: t('workspaceInbox.sourceTypeAgentTool'),
+    public_share: t('workspaceInbox.sourceTypePublicShare'),
     openapi_token: 'OpenAPI',
-    sdk_function: '函数',
+    sdk_function: t('workspaceInbox.sourceTypeSdkFunction'),
   }
   return map[type] || type
 }
@@ -1396,15 +1462,15 @@ function formatRelativeTime(value?: string) {
   const hour = 60 * minute
   const day = 24 * hour
 
-  if (absDiffMs < minute) return '刚刚'
+  if (absDiffMs < minute) return t('workspaceInbox.justNow')
   if (diffMs < 0) {
-    if (absDiffMs < hour) return `${Math.floor(absDiffMs / minute)}分钟后`
-    if (absDiffMs < day) return `${Math.floor(absDiffMs / hour)}小时后`
+    if (absDiffMs < hour) return t('workspaceInbox.inMinutes', { count: Math.floor(absDiffMs / minute) })
+    if (absDiffMs < day) return t('workspaceInbox.inHours', { count: Math.floor(absDiffMs / hour) })
     return parsed.format('MM-DD HH:mm')
   }
-  if (diffMs < hour) return `${Math.floor(diffMs / minute)}分钟前`
-  if (diffMs < day) return `${Math.floor(diffMs / hour)}小时前`
-  if (diffMs < 30 * day) return `${Math.floor(diffMs / day)}天前`
+  if (diffMs < hour) return t('workspaceInbox.minutesAgo', { count: Math.floor(diffMs / minute) })
+  if (diffMs < day) return t('workspaceInbox.hoursAgo', { count: Math.floor(diffMs / hour) })
+  if (diffMs < 30 * day) return t('workspaceInbox.daysAgo', { count: Math.floor(diffMs / day) })
   if (diffMs < 365 * day) return parsed.format('MM-DD HH:mm')
   return parsed.format('YYYY-MM-DD')
 }

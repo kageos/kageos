@@ -151,8 +151,3 @@ export function sendEmailCode(email: string, codeType: 'register' | 'forgot_pass
 export function forgotPassword(data: { email: string; code: string; password: string }) {
   return post('/hr/api/v1/auth/forgot_password', data)
 }
-
-/** 超管一键创建用户（免邮箱验证，仅已登录的 system 用户可调用） */
-export function createUserBySecret(data: { username: string; password: string }) {
-  return post<{ user_id: number }>('/hr/api/v1/user/create_user_by_secret', data)
-}

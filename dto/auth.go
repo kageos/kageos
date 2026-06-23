@@ -131,14 +131,3 @@ type ForgotPasswordReq struct {
 type ForgotPasswordResp struct {
 	// 使用统一的 response.Response 格式，无需额外字段
 }
-
-// CreateUserBySecretReq 超管一键创建用户请求（免邮箱验证，仅 system 用户可操作）
-type CreateUserBySecretReq struct {
-	Username string `json:"username" binding:"required,min=3,max=32" example:"testuser"` // 用户 code
-	Password string `json:"password" binding:"required,min=6" example:"123456"`          // 密码
-}
-
-// CreateUserBySecretResp 一键创建用户响应
-type CreateUserBySecretResp struct {
-	UserID int64 `json:"user_id" example:"1"` // 用户ID
-}

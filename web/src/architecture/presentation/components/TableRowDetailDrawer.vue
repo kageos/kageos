@@ -59,6 +59,16 @@
               保存
             </el-button>
             <el-button
+              v-if="mode === 'edit'"
+              size="small"
+              :disabled="submitting || !canCopyWorkspaceUpdateInvocation"
+              title="复制后可粘贴到工作台让 AI 调用"
+              @click="handleCopyWorkspaceUpdateInvocation"
+            >
+              <el-icon><CopyDocument /></el-icon>
+              复制给工作台
+            </el-button>
+            <el-button
               v-if="mode === 'edit' && featureFlags.scheduledTasks"
               size="small"
               :disabled="submitting || !canCreateScheduledUpdate"
@@ -174,7 +184,7 @@
 
 <script setup lang="ts">
 import { ref, computed, toRef, onMounted, onBeforeUnmount } from 'vue'
-import { Edit, ArrowLeft, ArrowRight, Grid, List } from '@element-plus/icons-vue'
+import { Edit, ArrowLeft, ArrowRight, Grid, List, CopyDocument } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
@@ -185,6 +195,11 @@ import { useTableRowDetailTabs } from '@/architecture/presentation/composables/u
 import { useTableRowDetailLayout } from '@/architecture/presentation/composables/useTableRowDetailLayout'
 import { resolveTableDetailEditAccess } from '../views/utils/tableViewActionRuntime'
 import { featureFlags } from '@/architecture/shared/config/features'
+import {
+  buildWorkspaceInvocationSnippet,
+  copyTextToClipboard,
+  filterEmptyInvocationParams,
+} from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
 
 interface Props {
   visible: boolean
@@ -358,6 +373,13 @@ const canCreateScheduledUpdate = computed(() => {
     rowId.value > 0
 })
 
+const canCopyWorkspaceUpdateInvocation = computed(() => {
+  return props.mode === 'edit' &&
+    isFormViewReady.value &&
+    !!fullCodePath.value &&
+    rowId.value > 0
+})
+
 const handleToggleMode = (newMode: 'read' | 'edit') => {
   if (newMode === 'edit' && detailEditAccess.value === 'unsupported') {
     ElMessage.info('当前表格不支持更新')
@@ -428,6 +450,43 @@ const buildScheduledUpdatePayload = async (): Promise<Record<string, unknown>> =
   return {
     id: rowId.value,
     updates
+  }
+}
+
+async function handleCopyWorkspaceUpdateInvocation(): Promise<void> {
+  if (!isFormViewReady.value || !formViewRef.value || !fullCodePath.value) {
+    ElMessage.warning('编辑表单尚未就绪，无法复制给工作台')
+    return
+  }
+  if (!rowId.value || rowId.value <= 0) {
+    ElMessage.warning('缺少有效行 ID，无法复制更新调用')
+    return
+  }
+
+  const isValid = formViewRef.value.validateForm()
+  if (!isValid) {
+    ElMessage.warning('请先修正表单校验错误')
+    return
+  }
+
+  try {
+    const updates = filterEmptyInvocationParams(await formViewRef.value.prepareUpdateData(filteredInitialData.value || {}))
+    if (Object.keys(updates).length === 0) {
+      ElMessage.warning('没有检测到需要保存的变更')
+      return
+    }
+
+    const snippet = buildWorkspaceInvocationSnippet({
+      tool: 'run_table_update',
+      resourcePath: fullCodePath.value,
+      params: {
+        body: [{ id: rowId.value, updates }],
+      },
+    })
+    await copyTextToClipboard(snippet)
+    ElMessage.success('已复制给工作台使用的更新调用')
+  } catch {
+    ElMessage.error('复制失败，请手动复制')
   }
 }
 

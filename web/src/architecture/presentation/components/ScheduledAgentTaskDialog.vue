@@ -9,11 +9,11 @@
     @close="handleClose"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="104px">
-      <el-form-item label="任务名称" prop="title">
-        <el-input v-model="form.title" maxlength="100" show-word-limit placeholder="例如：每日巡检工作区" />
+      <el-form-item :label="t('scheduledTask.taskName')" prop="title">
+        <el-input v-model="form.title" maxlength="100" show-word-limit :placeholder="t('scheduledTask.agentTaskNamePlaceholder')" />
       </el-form-item>
 
-      <el-form-item label="会话消息" prop="message">
+      <el-form-item :label="t('scheduledTask.agentMessage')" prop="message">
         <div
           class="scheduled-agent-composer"
           :class="{ 'is-dragging': dragOver }"
@@ -40,29 +40,29 @@
             :on-file-change="onFileChange"
             :remove-file="removeFile"
             :on-input-enter="noopInputEnter"
-            placeholder="到点后会把这段消息发送给工作台会话（@用户，/目录或工具）"
+            :placeholder="t('scheduledTask.agentMessagePlaceholder')"
             @update:input-text="form.message = $event"
             @update:selected-l-l-m-config-id="form.llm_config_id = $event"
           />
           <div v-if="dragOver" class="scheduled-agent-drop-hint">
-            松开上传文件
+            {{ t('scheduledTask.dropUpload') }}
           </div>
         </div>
       </el-form-item>
 
-      <el-form-item label="执行方式" prop="schedule_type">
+      <el-form-item :label="t('scheduledTask.scheduleType')" prop="schedule_type">
         <el-radio-group v-model="form.schedule_type">
-          <el-radio-button value="atime">指定时间一次</el-radio-button>
-          <el-radio-button value="cron">Cron 表达式</el-radio-button>
-          <el-radio-button value="every">每 N 秒</el-radio-button>
+          <el-radio-button value="atime">{{ t('scheduledTask.scheduleAtime') }}</el-radio-button>
+          <el-radio-button value="cron">{{ t('scheduledTask.scheduleCron') }}</el-radio-button>
+          <el-radio-button value="every">{{ t('scheduledTask.scheduleEvery') }}</el-radio-button>
         </el-radio-group>
       </el-form-item>
 
-      <el-form-item v-if="form.schedule_type === 'atime'" label="执行时间" prop="run_at">
+      <el-form-item v-if="form.schedule_type === 'atime'" :label="t('scheduledTask.runAt')" prop="run_at">
         <el-date-picker
           v-model="form.run_at"
           type="datetime"
-          placeholder="选择执行时间"
+          :placeholder="t('scheduledTask.runAtPlaceholder')"
           format="YYYY-MM-DD HH:mm"
           value-format="YYYY-MM-DD HH:mm:ss"
           :shortcuts="dateTimeShortcuts"
@@ -70,26 +70,26 @@
         />
       </el-form-item>
 
-      <el-form-item v-if="form.schedule_type === 'cron'" label="Cron" prop="cron_expr">
+      <el-form-item v-if="form.schedule_type === 'cron'" :label="t('scheduledTask.cron')" prop="cron_expr">
         <el-input v-model="form.cron_expr" placeholder="0 9 * * *" />
       </el-form-item>
 
       <div v-if="form.schedule_type === 'every'" class="scheduled-dialog-grid">
-        <el-form-item label="间隔秒数" prop="interval_seconds">
+        <el-form-item :label="t('scheduledTask.intervalSeconds')" prop="interval_seconds">
           <el-input-number v-model="form.interval_seconds" :min="1" :max="86400" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="最多次数">
+        <el-form-item :label="t('scheduledTask.maxRuns')">
           <el-input-number v-model="form.max_runs" :min="0" :max="1000000" style="width: 100%" />
         </el-form-item>
       </div>
 
-      <el-form-item v-if="form.schedule_type !== 'every'" label="最多次数">
+      <el-form-item v-if="form.schedule_type !== 'every'" :label="t('scheduledTask.maxRuns')">
         <el-input-number v-model="form.max_runs" :min="0" :max="1000000" style="width: 220px" />
       </el-form-item>
     </el-form>
 
     <template #footer>
-      <el-button @click="handleClose">取消</el-button>
+      <el-button @click="handleClose">{{ t('common.cancel') }}</el-button>
       <el-button type="primary" :loading="submitting" @click="handleSubmit">
         {{ submitButtonText }}
       </el-button>
@@ -99,6 +99,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { createTimerTask, updateTimerTask, type TimerTask } from '@/architecture/presentation/context/api/timer'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
@@ -151,11 +152,12 @@ const dialogVisible = computed({
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const authStore = useAuthStore()
-const messageInputRef = ref<HTMLTextAreaElement>()
+const { t } = useI18n()
+const messageInputRef = ref<{ focus: () => void }>()
 const isEditing = computed(() => !!props.editTask)
-const dialogTitle = computed(() => isEditing.value ? '编辑定时会话' : '定时会话')
-const submitButtonText = computed(() => isEditing.value ? '保存' : '创建')
-const dateTimeShortcuts = createRelativeDateTimeShortcuts()
+const dialogTitle = computed(() => isEditing.value ? t('scheduledTask.editAgentDialogTitle') : t('scheduledTask.dialogAgentTitle'))
+const submitButtonText = computed(() => isEditing.value ? t('common.save') : t('common.create'))
+const dateTimeShortcuts = computed(() => createRelativeDateTimeShortcuts())
 const fullCodePathRef = computed(() => resolvedFullCodePath.value)
 const resolvedFullCodePath = computed(() => {
   const payloadPath = stringFromRecord(getTaskPayload(props.editTask), 'full_code_path')
@@ -178,12 +180,12 @@ const messageTextRef = computed({
 })
 
 const rules: FormRules = {
-  title: [{ required: true, message: '请输入任务名称', trigger: 'blur' }],
-  message: [{ required: true, message: '请输入会话消息', trigger: 'blur' }],
-  schedule_type: [{ required: true, message: '请选择执行方式', trigger: 'change' }],
-  run_at: [{ required: true, message: '请选择执行时间', trigger: 'change' }],
-  cron_expr: [{ required: true, message: '请输入 Cron 表达式', trigger: 'blur' }],
-  interval_seconds: [{ required: true, message: '请输入间隔秒数', trigger: 'change' }],
+  title: [{ required: true, message: () => t('scheduledTask.taskTitleRequired'), trigger: 'blur' }],
+  message: [{ required: true, message: () => t('scheduledTask.agentMessageRequired'), trigger: 'blur' }],
+  schedule_type: [{ required: true, message: () => t('scheduledTask.scheduleTypeRequired'), trigger: 'change' }],
+  run_at: [{ required: true, message: () => t('scheduledTask.runAtRequired'), trigger: 'change' }],
+  cron_expr: [{ required: true, message: () => t('scheduledTask.cronRequired'), trigger: 'blur' }],
+  interval_seconds: [{ required: true, message: () => t('scheduledTask.intervalRequired'), trigger: 'change' }],
 }
 
 const {
@@ -229,7 +231,7 @@ function resetForm() {
   formRef.value?.clearValidate()
 }
 
-function registerMessageInputRef(element: HTMLTextAreaElement | null) {
+function registerMessageInputRef(element: { focus: () => void } | null) {
   messageInputRef.value = element || undefined
 }
 
@@ -242,8 +244,8 @@ function defaultTaskTitle(): string {
   if (message) {
     return `${message.slice(0, 18)}${message.length > 18 ? '…' : ''}`
   }
-  const name = resolvedFullCodePath.value.split('/').filter(Boolean).pop() || '工作台'
-  return `${name} 定时会话`
+  const name = resolvedFullCodePath.value.split('/').filter(Boolean).pop() || t('scheduledTask.defaultWorkspaceName')
+  return t('scheduledTask.defaultAgentTaskTitle', { name })
 }
 
 function buildExecutorPayload(): Record<string, unknown> {
@@ -274,7 +276,7 @@ function currentUsername(): string {
 
 async function handleSubmit() {
   if (!resolvedFullCodePath.value) {
-    ElMessage.warning('请选择工作空间')
+    ElMessage.warning(t('scheduledTask.selectWorkspace'))
     return
   }
 
@@ -300,7 +302,7 @@ async function handleSubmit() {
         resource_scope: 'workspace_directory',
         resource_key: resolvedFullCodePath.value,
       })
-      ElMessage.success('定时会话已保存')
+      ElMessage.success(t('scheduledTask.savedAgent'))
     } else {
       await createTimerTask({
         title,
@@ -317,12 +319,12 @@ async function handleSubmit() {
         request_user: currentUsername(),
         created_by: currentUsername(),
       })
-      ElMessage.success('定时会话已创建')
+      ElMessage.success(t('scheduledTask.createdAgent'))
     }
     emit('success')
     dialogVisible.value = false
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : isEditing.value ? '保存失败' : '创建失败')
+    ElMessage.error(error instanceof Error ? error.message : isEditing.value ? t('scheduledTask.saveFailed') : t('scheduledTask.createFailed'))
   } finally {
     submitting.value = false
   }

@@ -51,6 +51,30 @@
 
 创建定时会话时，只把 `title` 当列表名称；真正运行逻辑全部放在 `message`。不要把复杂计划只写在 title 里。
 
+## 工作台调用片段约定
+
+工作台里引用目录、文档、表单、表格或图表函数时，优先使用 `</full/code/path>` 这种轻量资源标记，例如 `</system/demos/weixin/wechat_articles/search_articles.form>`。不要把函数路径裸写成普通说明文本。
+
+当用户从 Form 或 Table 页面点击“复制给工作台”后，可能会粘贴下面这种轻量调用块。它是给工作台 AI 使用的、人可读的调用说明，不是 XML/JSON 协议；你要按其中的工具、函数路径和参数理解用户已经预填好的调用意图：
+
+```text
+函数调用：
+用途：复制后粘贴到工作台，AI 会按下面信息识别并调用。
+工具：run_form_submit
+函数：</system/demos/weixin/wechat_articles/search_articles.form>
+
+参数：
+keyword = AI人工智能最新热点
+page_size = 5
+groupid = 1（固定）
+```
+
+- `工具` 对应应使用的工作台工具，例如 `run_form_submit`、`run_table_create`、`run_table_update`。
+- `函数` 对应目标资源路径，仍然用 `</path>` 标记。
+- `参数` 是用户在页面上预填的字段；`（固定）` 表示不要擅自改这个值。
+- Table 新增通常会复制成 `run_table_create`，参数里有 `body = [...]`；Table 更新通常会复制成 `run_table_update`，参数里有 `body = [{"id": 行ID, "updates": {...}}]`。
+- 如果调用块不完整，先用 `search(full_code_path=...)` 或 `read_dir/search` 确认 schema 和权限；不要根据字段中文名猜危险字段。
+
 ## 场景化 owner 意识
 
 定时会话要像一个长期负责的操作员，但 owner 规则不是固定清单。下面是可按业务选择的控制点，不是每个任务都必须照搬：

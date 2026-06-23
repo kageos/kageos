@@ -20,33 +20,33 @@
       <section class="mini-shell">
         <header class="mini-drawer-head">
           <div class="mini-drawer-title">
-            <strong>工作台</strong>
+            <strong>{{ t('miniWorkstation.workbench') }}</strong>
             <span :title="fullCodePath">{{ dirName || displayPath }}</span>
           </div>
           <div class="mini-drawer-actions">
             <button
               type="button"
               class="mini-drawer-primary-action"
-              title="在当前工作台目录新建会话"
+              :title="t('miniWorkstation.newSessionTitle')"
               @click="startNewSession"
             >
               <el-icon><Plus /></el-icon>
-              <span>新建会话</span>
+              <span>{{ t('miniWorkstation.newSession') }}</span>
             </button>
             <button
               type="button"
               class="mini-drawer-secondary-action"
               :disabled="!lastDrawerSession"
-              :title="lastDrawerSession ? `打开：${getSessionTitle(lastDrawerSession)}` : '暂无可打开的上次会话'"
+              :title="lastDrawerSession ? t('miniWorkstation.openSessionTitle', { title: getSessionTitle(lastDrawerSession) }) : t('miniWorkstation.noPreviousSession')"
               @click="openLastDrawerSession"
             >
               <el-icon><Clock /></el-icon>
-              <span>打开上次</span>
+              <span>{{ t('miniWorkstation.openPrevious') }}</span>
             </button>
             <button
               type="button"
               class="mini-drawer-icon-action"
-              :title="maximized ? '收回右侧面板' : '全屏展示工作台'"
+              :title="maximized ? t('miniWorkstation.collapsePanel') : t('miniWorkstation.maximizePanel')"
               @click="toggleDrawerWidth"
             >
               <el-icon>
@@ -57,7 +57,7 @@
             <button
               type="button"
               class="mini-drawer-icon-action"
-              :title="`关闭工作台，任务会继续在后台执行（${toggleShortcutLabel || '快捷键'}）`"
+              :title="t('miniWorkstation.closePanelTitle', { shortcut: toggleShortcutLabel || t('miniWorkstation.shortcut') })"
               @click="hideWorkstation"
             >
               <el-icon><Close /></el-icon>
@@ -70,37 +70,37 @@
             <aside class="mini-current-meta">
               <header class="mini-current-session-head">
                 <div>
-                  <strong>会话列表</strong>
+                  <strong>{{ t('miniWorkstation.sessionList') }}</strong>
                   <span :title="fullCodePath">{{ dirName || displayPath }}</span>
                 </div>
                 <em>{{ drawerSessionList.length }}</em>
               </header>
               <div v-if="hasDifferentCurrentContext" class="mini-current-context-switch">
-                <span>当前页面</span>
+                <span>{{ t('miniWorkstation.currentPage') }}</span>
                 <strong :title="normalizedCurrentContextPath">{{ currentContextName }}</strong>
                 <button type="button" @click="openCurrentContextNewSession">
-                  当前目录新会话
+                  {{ t('miniWorkstation.currentDirectoryNewSession') }}
                 </button>
               </div>
-              <div class="mini-drawer-scope-tabs" role="tablist" aria-label="会话范围">
+              <div class="mini-drawer-scope-tabs" role="tablist" :aria-label="t('miniWorkstation.sessionList')">
                 <button
                   type="button"
                   :class="{ active: drawerSessionScope === 'current' }"
                   @click="setDrawerSessionScope('current')"
                 >
-                  当前目录
+                  {{ t('miniWorkstation.currentDirectory') }}
                 </button>
                 <button
                   type="button"
                   :class="{ active: drawerSessionScope === 'all' }"
                   @click="setDrawerSessionScope('all')"
                 >
-                  全部会话
+                  {{ t('miniWorkstation.allSessions') }}
                 </button>
               </div>
               <label class="mini-drawer-session-search">
                 <el-icon :size="14"><Search /></el-icon>
-                <input v-model="sessionSearchKeyword" placeholder="搜索会话、目录或角色" />
+                <input v-model="sessionSearchKeyword" :placeholder="t('miniWorkstation.searchSessionsPlaceholder')" />
               </label>
               <div class="mini-drawer-session-filters">
                 <button
@@ -139,13 +139,13 @@
                   <span class="mini-status-dot"></span>
                   <span class="mini-current-session-copy">
                     <span class="mini-current-session-title">
-                      {{ drawerSessionScope === 'current' ? '当前目录暂无会话' : '暂无匹配会话' }}
+                      {{ drawerSessionScope === 'current' ? t('miniWorkstation.noCurrentDirectorySessions') : t('miniWorkstation.noMatchingSessions') }}
                     </span>
-                    <span class="mini-current-session-sub">点击新建会话开始</span>
+                    <span class="mini-current-session-sub">{{ t('miniWorkstation.clickNewSession') }}</span>
                   </span>
                 </button>
               </div>
-              <div v-if="queuedCount > 0" class="mini-queue-chip">{{ queuedCount }} 条排队</div>
+              <div v-if="queuedCount > 0" class="mini-queue-chip">{{ t('miniWorkstation.queuedCount', { count: queuedCount }) }}</div>
             </aside>
             <div class="mini-current-stream">
               <div class="mini-ws-output" ref="outputRef" @scroll.passive="captureOutputScroll">
@@ -172,12 +172,12 @@
                 type="button"
                 class="mini-artifact-toggle"
                 :aria-expanded="artifactPanelExpanded"
-                title="展开或收起产物"
+                :title="t('miniWorkstation.expandArtifactsTitle')"
                 @click="toggleArtifactPanel"
               >
-                <span>产物</span>
-                <strong>{{ artifactToggleCount }} 项</strong>
-                <em>{{ artifactPanelExpanded ? '收起' : '展开' }}</em>
+                <span>{{ t('miniWorkstation.artifact') }}</span>
+                <strong>{{ t('miniWorkstation.itemCount', { count: artifactToggleCount }) }}</strong>
+                <em>{{ artifactPanelExpanded ? t('miniWorkstation.collapse') : t('miniWorkstation.expand') }}</em>
                 <el-icon>
                   <ArrowUp v-if="artifactPanelExpanded" />
                   <ArrowDown v-else />
@@ -237,7 +237,7 @@
               link
               size="small"
               class="mini-settings-btn"
-              title="定时会话"
+              :title="t('miniWorkstation.scheduledSession')"
               data-testid="mini-workstation-schedule"
               :disabled="!fullCodePath"
               @mousedown.stop
@@ -257,7 +257,7 @@
                   link
                   size="small"
                   class="mini-settings-btn"
-                  title="设置"
+                  :title="t('miniWorkstation.settings')"
                   data-testid="mini-workstation-settings"
                   @mousedown.stop
                   @click.stop
@@ -281,7 +281,7 @@
       <transition name="el-fade-in-linear">
         <div v-if="dragOver" class="mini-ws-drop-overlay">
           <el-icon :size="28"><UploadFilled /></el-icon>
-          <span>松开上传文件</span>
+          <span>{{ t('miniWorkstation.dropUpload') }}</span>
         </div>
       </transition>
 
@@ -311,6 +311,7 @@
 
 <script setup lang="ts">
 import { nextTick, onMounted, ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   ArrowDown,
   ArrowLeft,
@@ -351,7 +352,7 @@ import {
   useMiniWorkstationDebugCopy
 } from '../composables/useMiniWorkstationDebugCopy'
 import {
-  miniWorkstationSessionFilters,
+  getMiniWorkstationSessionFilters,
   useMiniWorkstationSessionView,
   type SessionFilterValue
 } from '../composables/useMiniWorkstationSessionView'
@@ -361,6 +362,7 @@ import { featureFlags } from '@/architecture/shared/config/features'
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
+const { t } = useI18n()
 
 const props = defineProps<{
   visible: boolean
@@ -394,7 +396,7 @@ const { messages, sending, sessionId, streamingDisplayLength, send: sendMessage,
 const rootRef = ref<HTMLElement>()
 const outputRef = ref<HTMLElement>()
 const inputText = ref('')
-const inputRef = ref<HTMLTextAreaElement>()
+const inputRef = ref<{ focus: () => void }>()
 const llmSelectOpen = ref(false)
 const settingsPopoverOpen = ref(false)
 const showScheduledAgentTaskDialog = ref(false)
@@ -454,7 +456,7 @@ function resetOutputScrollState() {
   savedOutputWasNearBottom.value = true
 }
 
-function registerInputRef(element: HTMLTextAreaElement | null) {
+function registerInputRef(element: { focus: () => void } | null) {
   inputRef.value = element || undefined
 }
 
@@ -564,7 +566,7 @@ const hasCurrentGeneratedArtifacts = computed(() => {
   return messages.value.some(messageHasGeneratedArtifacts)
 })
 
-const sessionFilters = miniWorkstationSessionFilters
+const sessionFilters = computed(() => getMiniWorkstationSessionFilters())
 
 const {
   displayPath,
@@ -596,7 +598,7 @@ const currentContextName = computed(() => {
   const label = (props.currentDirName || '').trim()
   if (label) return label
   const path = normalizedCurrentContextPath.value
-  return path.split('/').filter(Boolean).pop() || '当前目录'
+  return path.split('/').filter(Boolean).pop() || t('miniWorkstation.currentDirectory')
 })
 const hasDifferentCurrentContext = computed(() => {
   return !!normalizedCurrentContextPath.value && normalizedCurrentContextPath.value !== normalizedWorkbenchPath.value
@@ -872,14 +874,14 @@ const composerBlocked = computed(() => {
 const composerBlockedLabel = computed(() => {
   const interaction = pendingInteraction.value
   if (!interaction) return ''
-  if (interaction.card_type === 'prd_confirmation') return 'PRD 待确认'
-  if (interaction.card_type === 'build_repair') return '修复待确认'
-  return '等待确认'
+  if (interaction.card_type === 'prd_confirmation') return t('miniWorkstation.blockingPrd')
+  if (interaction.card_type === 'build_repair') return t('miniWorkstation.blockingRepair')
+  return t('miniWorkstation.blockingGeneric')
 })
 const composerBlockedPlaceholder = computed(() => {
   const interaction = pendingInteraction.value
-  if (!interaction) return '输入命令...'
-  return interaction.help_text || interaction.description || '当前会话需要先处理上方交互卡片。'
+  if (!interaction) return t('miniWorkstation.composerDefaultPlaceholder')
+  return interaction.help_text || interaction.description || t('miniWorkstation.interactionNeedAction')
 })
 
 const hasCurrentOutputContent = computed(() => {
@@ -1052,14 +1054,14 @@ async function handleBeforeSend(_payload: { text: string; files: unknown[] | nul
     return false
   }
   if (isComposerBlockingInteraction(interaction)) {
-    ElMessage.warning('当前会话需要先处理交互卡片')
+    ElMessage.warning(t('miniWorkstation.interactionHandleFirst'))
     return { cancel: true, preserveDraft: true }
   }
   if (interaction.card_type === 'build_repair') {
     await recordPendingInteractionAction(
       interaction,
       'continue_development',
-      _payload.text ? `继续修改：${_payload.text}` : undefined
+      _payload.text ? `${t('miniWorkstation.continueDevelopment')}：${_payload.text}` : undefined
     )
     markInteractionHandled(interaction)
     return { interactionAction: 'continue_development' }
@@ -1079,7 +1081,7 @@ async function clearCurrentPendingInteractionStatus() {
     void loadMiniSessions()
     void loadGlobalSessions()
   } catch (error: any) {
-    ElMessage.warning(error?.message || '待确认状态同步失败')
+    ElMessage.warning(error?.message || t('miniWorkstation.pendingSyncFailed'))
   }
 }
 
@@ -1106,7 +1108,7 @@ async function recordPendingInteractionAction(interaction: WorkspaceInteraction,
     })
     await loadMiniSessionMessages(sessionId.value)
   } catch (error: any) {
-    ElMessage.warning(error?.message || '交互事件记录失败')
+    ElMessage.warning(error?.message || t('miniWorkstation.interactionRecordFailed'))
   }
 }
 
@@ -1141,7 +1143,7 @@ function onLLMSelectVisibleChange(visible: boolean) {
 async function handleConfirmPrd(payload: { remark: string; prd: unknown }, options: { auditRecorded?: boolean } = {}) {
   const remark = payload.remark.trim()
   if (!sessionId.value || !props.fullCodePath || sending.value) {
-    ElMessage.warning('当前会话还未准备好，暂时不能确认 PRD')
+    ElMessage.warning(t('miniWorkstation.confirmPrdNotReady'))
     return
   }
   const interaction = buildWorkspaceInteractionFromArtifact(payload.prd)
@@ -1157,7 +1159,7 @@ async function handleConfirmPrd(payload: { remark: string; prd: unknown }, optio
       context_policy: 'full'
     })
   } catch (error: any) {
-    ElMessage.error(error?.message || '确认 PRD 失败')
+    ElMessage.error(error?.message || t('miniWorkstation.confirmPrdFailed'))
     return
   }
   if (interaction && !options.auditRecorded) {
@@ -1175,7 +1177,7 @@ async function handleConfirmPrd(payload: { remark: string; prd: unknown }, optio
 
 async function handleConfirmBuildHandoff(payload: { artifact: unknown }) {
   if (!sessionId.value || !props.fullCodePath || sending.value) {
-    ElMessage.warning('当前会话还未准备好，暂时不能交接修复')
+    ElMessage.warning(t('miniWorkstation.repairNotReady'))
     return
   }
   let handoff
@@ -1188,10 +1190,10 @@ async function handleConfirmBuildHandoff(payload: { artifact: unknown }) {
       artifact: payload.artifact,
       remark: '',
       context_policy: 'full',
-      display_content: '构建失败，交接构建修复。'
+      display_content: t('miniWorkstation.buildRepairDisplayContent')
     })
   } catch (error: any) {
-    ElMessage.error(error?.message || '创建构建修复会话失败')
+    ElMessage.error(error?.message || t('miniWorkstation.buildRepairCreateFailed'))
     return
   }
   const interaction = buildWorkspaceInteractionFromArtifact(payload.artifact)
@@ -1222,7 +1224,7 @@ function confirmPendingInteraction(target?: WorkspaceInteraction) {
     })()
     return
   }
-  ElMessage.warning('当前交互卡片暂未配置确认动作')
+  ElMessage.warning(t('miniWorkstation.confirmActionMissing'))
 }
 
 async function revisePendingInteraction(payload: { text: string; interaction?: WorkspaceInteraction }) {
@@ -1231,10 +1233,10 @@ async function revisePendingInteraction(payload: { text: string; interaction?: W
   if (!interaction || !sessionId.value || !text || sending.value) return
   const isBuildRepair = interaction.card_type === 'build_repair'
   if (!isBuildRepair && interaction.card_type !== 'prd_confirmation') {
-    ElMessage.warning('当前交互卡片暂未配置修改动作')
+    ElMessage.warning(t('miniWorkstation.reviseActionMissing'))
     return
   }
-  const prefix = isBuildRepair ? '继续修改' : '修改 PRD'
+  const prefix = isBuildRepair ? t('miniWorkstation.continueDevelopment') : t('miniWorkstation.revisePrd')
   const action = isBuildRepair ? 'continue_development' : 'revise_prd'
   await recordPendingInteractionAction(interaction, action, `${prefix}：${text}`)
   markInteractionHandled(interaction)
@@ -1252,7 +1254,7 @@ async function cancelPendingInteraction(target?: WorkspaceInteraction) {
   await recordPendingInteractionAction(interaction, cancelInteractionAction(interaction))
   markInteractionHandled(interaction)
   await clearCurrentPendingInteractionStatus()
-  ElMessage.info(interaction.card_type === 'build_repair' ? '已暂不进入构建修复' : '已取消本次确认')
+  ElMessage.info(interaction.card_type === 'build_repair' ? t('miniWorkstation.cancelBuildRepairInfo') : t('miniWorkstation.cancelConfirmationInfo'))
 }
 
 function getPrdTargetRole(prd: unknown) {
@@ -1286,9 +1288,9 @@ function fallbackCardType(kind: unknown, status: string) {
 }
 
 function fallbackInteractionTitle(cardType: string) {
-  if (cardType === 'build_repair') return '构建等待修复'
-  if (cardType === 'prd_confirmation') return 'PRD 等待确认'
-  return '等待确认'
+  if (cardType === 'build_repair') return t('miniWorkstation.buildRepairTitle')
+  if (cardType === 'prd_confirmation') return t('miniWorkstation.interactionPrdTitle')
+  return t('miniWorkstation.interactionWaitingTitle')
 }
 
 function viewInteractionAction(interaction: WorkspaceInteraction) {
@@ -1302,19 +1304,19 @@ function cancelInteractionAction(interaction: WorkspaceInteraction) {
 function interactionAuditText(interaction: WorkspaceInteraction, action: string) {
   const label = interactionActionLabel(action)
   const title = interaction.title || fallbackInteractionTitle(interaction.card_type || '')
-  return `处理了工作台交互卡片：${label}（${title}）`
+  return t('miniWorkstation.interactionAudit', { label, title })
 }
 
 function interactionActionLabel(action: string) {
   const labels: Record<string, string> = {
-    view_prd: '查看 PRD',
-    confirm_prd: '确认 PRD',
-    revise_prd: '修改 PRD',
-    cancel_prd: '取消 PRD',
-    view_build_diagnostics: '查看构建诊断',
-    start_build_repair: '交接构建修复',
-    continue_development: '继续修改',
-    skip_build_repair: '暂不修复',
+    view_prd: t('miniWorkstation.viewPrd'),
+    confirm_prd: t('miniWorkstation.confirmPrd'),
+    revise_prd: t('miniWorkstation.revisePrd'),
+    cancel_prd: t('miniWorkstation.cancelPrd'),
+    view_build_diagnostics: t('miniWorkstation.actionViewBuildDiagnostics'),
+    start_build_repair: t('miniWorkstation.actionStartBuildRepair'),
+    continue_development: t('miniWorkstation.continueDevelopment'),
+    skip_build_repair: t('miniWorkstation.skipRepair'),
   }
   return labels[action] || action
 }

@@ -20,6 +20,12 @@ var (
 	initialized bool
 )
 
+const (
+	DefaultMaxSize    = 100
+	DefaultMaxBackups = 30
+	DefaultMaxAge     = 30
+)
+
 // Config 日志配置
 type Config struct {
 	Level      string `json:"level"`       // debug, info, warn, error
@@ -148,9 +154,9 @@ func ensureInitialized() {
 		defaultConfig := Config{
 			Level:      "info",
 			Filename:   "./logs/app.log",
-			MaxSize:    100,
-			MaxBackups: 3,
-			MaxAge:     7,
+			MaxSize:    DefaultMaxSize,
+			MaxBackups: DefaultMaxBackups,
+			MaxAge:     DefaultMaxAge,
 			Compress:   true,
 			IsDev:      true, // 默认开发环境，输出到控制台
 		}

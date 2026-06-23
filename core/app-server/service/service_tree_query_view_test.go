@@ -9,6 +9,7 @@ import (
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/core/app-server/repository"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/access"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"gorm.io/driver/sqlite"
@@ -40,6 +41,98 @@ func newServiceTreeQueryViewTest(t *testing.T) (*serviceTreeQueryView, *gorm.DB,
 
 	serviceTreeRepo := repository.NewServiceTreeRepository(db)
 	return newServiceTreeQueryView(serviceTreeRepo, appRepo, nil), db, app
+}
+
+func newServiceTreeQueryViewAccessTest(t *testing.T, hideUnauthorizedNodes bool) (*serviceTreeQueryView, *gorm.DB, *model.App, *TeamAccessService) {
+	t.Helper()
+	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("get sql db: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	if err := db.AutoMigrate(&model.App{}, &model.ServiceTree{}, &model.WorkspaceRoleAssignment{}, &model.OperateLog{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	appRepo := repository.NewAppRepository(db)
+	app := &model.App{
+		User:                  "alice",
+		Code:                  "ops",
+		Name:                  "Ops",
+		Version:               "v1",
+		Admins:                "alice",
+		HideUnauthorizedNodes: hideUnauthorizedNodes,
+	}
+	app.CreatedBy = "alice"
+	if err := appRepo.CreateApp(app); err != nil {
+		t.Fatalf("create app: %v", err)
+	}
+
+	serviceTreeRepo := repository.NewServiceTreeRepository(db)
+	teamAccess := NewTeamAccessService(
+		repository.NewTeamAccessRepository(db),
+		repository.NewOperateLogRepository(db),
+		appRepo,
+	)
+	return newServiceTreeQueryView(serviceTreeRepo, appRepo, teamAccess), db, app, teamAccess
+}
+
+func seedServiceTreeVisibilityNodes(t *testing.T, db *gorm.DB, app *model.App) {
+	t.Helper()
+	nodes := []*model.ServiceTree{
+		{
+			Name:         "Ops",
+			Code:         "ops",
+			Type:         model.ServiceTreeTypePackage,
+			AppID:        app.ID,
+			RefID:        app.ID,
+			FullCodePath: "/alice/ops",
+		},
+		{
+			Name:         "人事",
+			Code:         "hr",
+			Type:         model.ServiceTreeTypePackage,
+			AppID:        app.ID,
+			FullCodePath: "/alice/ops/hr",
+		},
+		{
+			Name:         "说明",
+			Code:         "readme",
+			Type:         model.ServiceTreeTypeDocs,
+			AppID:        app.ID,
+			FullCodePath: "/alice/ops/hr/readme",
+		},
+		{
+			Name:         "保密目录",
+			Code:         "secret",
+			Type:         model.ServiceTreeTypePackage,
+			AppID:        app.ID,
+			FullCodePath: "/alice/ops/secret",
+		},
+	}
+	if err := db.Create(&nodes).Error; err != nil {
+		t.Fatalf("seed service tree nodes: %v", err)
+	}
+}
+
+func findServiceTreeRespByPath(nodes []*dto.GetServiceTreeResp, path string) *dto.GetServiceTreeResp {
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+		if node.FullCodePath == path {
+			return node
+		}
+		if found := findServiceTreeRespByPath(node.Children, path); found != nil {
+			return found
+		}
+	}
+	return nil
 }
 
 func TestReconcileAppRootServiceTreesCreatesMissingRoot(t *testing.T) {
@@ -107,6 +200,60 @@ func TestGetServiceTreeDetailDoesNotRepairNestedMissingPath(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "服务目录不存在") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGetAppWithServiceTreeKeepsUnauthorizedNodesByDefault(t *testing.T) {
+	queryView, db, app, teamAccess := newServiceTreeQueryViewAccessTest(t, false)
+	seedServiceTreeVisibilityNodes(t, db, app)
+	if err := teamAccess.Assign(actorContext("alice"), access.AssignRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Username:     "bob",
+		ResourcePath: "/alice/ops/hr/readme",
+		RoleCode:     access.RoleViewer,
+		CreatedBy:    "alice",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "bob")
+	resp, err := queryView.GetAppWithServiceTree(ctx, &dto.GetAppWithServiceTreeReq{ResourcePath: "/alice/ops"})
+	if err != nil {
+		t.Fatalf("GetAppWithServiceTree: %v", err)
+	}
+	if findServiceTreeRespByPath(resp.ServiceTree, "/alice/ops/secret") == nil {
+		t.Fatal("default tree should keep unauthorized nodes visible")
+	}
+}
+
+func TestGetAppWithServiceTreeHidesUnauthorizedNodesWhenEnabled(t *testing.T) {
+	queryView, db, app, teamAccess := newServiceTreeQueryViewAccessTest(t, true)
+	seedServiceTreeVisibilityNodes(t, db, app)
+	if err := teamAccess.Assign(actorContext("alice"), access.AssignRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Username:     "bob",
+		ResourcePath: "/alice/ops/hr/readme",
+		RoleCode:     access.RoleViewer,
+		CreatedBy:    "alice",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "bob")
+	resp, err := queryView.GetAppWithServiceTree(ctx, &dto.GetAppWithServiceTreeReq{ResourcePath: "/alice/ops"})
+	if err != nil {
+		t.Fatalf("GetAppWithServiceTree: %v", err)
+	}
+	if findServiceTreeRespByPath(resp.ServiceTree, "/alice/ops/secret") != nil {
+		t.Fatal("unauthorized branch should be hidden")
+	}
+	if findServiceTreeRespByPath(resp.ServiceTree, "/alice/ops/hr/readme") == nil {
+		t.Fatal("authorized child should remain visible")
+	}
+	if findServiceTreeRespByPath(resp.ServiceTree, "/alice/ops/hr") == nil {
+		t.Fatal("parent container for an authorized child should remain visible")
 	}
 }
 

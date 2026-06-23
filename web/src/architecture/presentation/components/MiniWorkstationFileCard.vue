@@ -15,10 +15,10 @@
         </span>
         <div class="mini-ws-file-card__actions">
           <el-button link size="small" type="primary" @click.stop="$emit('preview', file)">
-            <el-icon :size="compact ? 11 : 12"><View /></el-icon> 预览
+            <el-icon :size="compact ? 11 : 12"><View /></el-icon> {{ t('miniWorkstation.preview') }}
           </el-button>
           <el-button link size="small" type="primary" @click.stop="$emit('download', file)">
-            <el-icon :size="compact ? 11 : 12"><Download /></el-icon> 下载
+            <el-icon :size="compact ? 11 : 12"><Download /></el-icon> {{ t('miniWorkstation.download') }}
           </el-button>
         </div>
       </div>
@@ -29,6 +29,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Document, Download, View } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
 import type { FilePanelItem } from '../composables/useMiniWorkstationPanel'
 
 const props = defineProps<{
@@ -41,10 +42,14 @@ defineEmits<{
   (e: 'download', file: FilePanelItem): void
 }>()
 
+const { t } = useI18n()
+
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'])
 
 const extension = computed(() => ((props.file.name || '').match(/\.(\w+)$/)?.[1] || '').toUpperCase())
-const sourceLabel = computed(() => props.file.source === 'upload' ? '上传文件' : '输出文件')
+const sourceLabel = computed(() => props.file.source === 'upload'
+  ? t('miniWorkstation.uploadFile')
+  : t('miniWorkstation.outputFile'))
 const isImageFile = computed(() => {
   const ext = (props.file.name || '').toLowerCase().match(/\.\w+$/)?.[0] || ''
   return IMAGE_EXTS.has(ext)

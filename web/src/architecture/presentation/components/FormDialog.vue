@@ -40,6 +40,15 @@
         >
           定时提交
         </el-button>
+        <el-button
+          v-if="canCopyWorkspaceInvocation"
+          :disabled="submitting"
+          @click="handleCopyWorkspaceInvocation"
+          title="复制后可粘贴到工作台让 AI 调用"
+        >
+          <el-icon><CopyDocument /></el-icon>
+          复制给工作台
+        </el-button>
         <el-button type="primary" @click="handleSubmit" :loading="submitting">
           确定
         </el-button>
@@ -59,11 +68,18 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { ElMessage } from 'element-plus'
+import { CopyDocument } from '@element-plus/icons-vue'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
 import { Logger } from '@/architecture/shared/logger'
 import { featureFlags } from '@/architecture/shared/config/features'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
+import {
+  buildWorkspaceInvocationSnippet,
+  copyTextToClipboard,
+  filterEmptyInvocationParams,
+} from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
 
 interface Props {
   modelValue: boolean  // 对话框显示状态
@@ -108,6 +124,9 @@ const canCreateScheduledTask = computed(() => {
     props.mode === 'create' &&
     !!scheduledFullCodePath.value &&
     !!formFunctionDetail.value
+})
+const canCopyWorkspaceInvocation = computed(() => {
+  return props.mode === 'create' && !!scheduledFullCodePath.value && !!formFunctionDetail.value
 })
 
 /**
@@ -210,6 +229,28 @@ const buildScheduledPayload = async (): Promise<Record<string, unknown>> => {
   }
 
   return await formViewRef.value.prepareSubmitDataWithTypeConversion()
+}
+
+async function handleCopyWorkspaceInvocation(): Promise<void> {
+  if (!formViewRef.value || !scheduledFullCodePath.value) {
+    ElMessage.warning('表单尚未就绪，无法复制给工作台')
+    return
+  }
+
+  try {
+    const row = filterEmptyInvocationParams(await formViewRef.value.prepareSubmitDataWithTypeConversion())
+    const snippet = buildWorkspaceInvocationSnippet({
+      tool: 'run_table_create',
+      resourcePath: scheduledFullCodePath.value,
+      params: {
+        body: [row],
+      },
+    })
+    await copyTextToClipboard(snippet)
+    ElMessage.success('已复制给工作台使用的新增调用')
+  } catch {
+    ElMessage.error('复制失败，请手动复制')
+  }
 }
 
 /**

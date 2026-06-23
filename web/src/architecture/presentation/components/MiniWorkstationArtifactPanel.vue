@@ -2,11 +2,11 @@
   <aside
     class="mini-artifact-panel"
     :class="{ 'is-empty': artifactItems.length === 0, 'is-maximized': maximized }"
-    aria-label="当前产物"
+    :aria-label="t('miniWorkstation.currentArtifact')"
   >
     <div class="mini-artifact-head">
-      <span>{{ maximized ? '当前产物' : '产物' }}</span>
-      <strong>{{ artifactItems.length }} 项</strong>
+      <span>{{ maximized ? t('miniWorkstation.currentArtifact') : t('miniWorkstation.artifact') }}</span>
+      <strong>{{ t('miniWorkstation.itemCount', { count: artifactItems.length }) }}</strong>
       <span class="mini-artifact-actions">
         <el-dropdown
           v-if="panelHasContent"
@@ -17,13 +17,13 @@
           :hide-on-click="false"
           @visible-change="onKeyInfoDropdownVisibleChange"
         >
-          <button type="button" class="mini-icon-action" title="查看关键信息">
+          <button type="button" class="mini-icon-action" :title="t('miniWorkstation.viewKeyInfo')">
             <el-icon :size="14"><DocumentIcon /></el-icon>
             <span class="mini-header-files-count">{{ panelItemCount }}</span>
           </button>
           <template #dropdown>
             <div class="mini-files-dropdown-panel">
-              <div class="mini-files-dropdown-title">关键信息</div>
+              <div class="mini-files-dropdown-title">{{ t('miniWorkstation.keyInfo') }}</div>
               <MiniWorkstationKeyInfoSection
                 compact
                 :uploaded-files="uploadedFiles"
@@ -63,19 +63,20 @@
       </span>
       <span class="mini-artifact-tag">
         {{ item.tag }}
-        <span v-if="!maximized && artifactItems.length > 1" class="mini-artifact-mini-count">{{ artifactItems.length }}项</span>
+        <span v-if="!maximized && artifactItems.length > 1" class="mini-artifact-mini-count">{{ t('miniWorkstation.compactItemCount', { count: artifactItems.length }) }}</span>
       </span>
     </button>
 
     <div v-if="artifactItems.length === 0" class="mini-artifact-empty">
-      <span>暂无产物</span>
-      <em>等待</em>
+      <span>{{ t('miniWorkstation.noArtifacts') }}</span>
+      <em>{{ t('miniWorkstation.waiting') }}</em>
     </div>
   </aside>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Document as DocumentIcon } from '@element-plus/icons-vue'
 import type { OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 import type { FilePanelItem } from '../composables/useMiniWorkstationPanel'
@@ -102,6 +103,7 @@ defineEmits<{
 }>()
 
 const keyInfoDropdownRef = ref<any>(null)
+const { t } = useI18n()
 
 function onKeyInfoDropdownVisibleChange(visible: boolean) {
   if (!visible && props.displayFieldPreviewVisible) {

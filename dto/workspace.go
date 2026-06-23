@@ -215,15 +215,17 @@ type ToolDef struct {
 
 // UpdateWorkspaceReq 更新工作空间请求（只更新 MySQL 如 Admins；canonical 标识为 resource_path）
 type UpdateWorkspaceReq struct {
-	ResourcePath string `json:"resource_path,omitempty"` // 工作空间资源路径，规范为 /user/app
-	Admins       string `json:"admins"`                  // 管理员列表，逗号分隔
+	ResourcePath          string  `json:"resource_path,omitempty"`                           // 工作空间资源路径，规范为 /user/app
+	Admins                *string `json:"admins,omitempty"`                                  // 管理员列表，逗号分隔；nil 表示不更新
+	HideUnauthorizedNodes *bool   `json:"hide_unauthorized_nodes,omitempty" example:"false"` // 是否隐藏当前用户无 read 权限的目录节点；nil 表示不更新
 }
 
 // UpdateWorkspaceResp 更新工作空间响应
 type UpdateWorkspaceResp struct {
-	User   string `json:"user"`
-	App    string `json:"app"`
-	Admins string `json:"admins"`
+	User                  string `json:"user"`
+	App                   string `json:"app"`
+	Admins                string `json:"admins"`
+	HideUnauthorizedNodes bool   `json:"hide_unauthorized_nodes"`
 }
 
 // ----- 以下为工作台环境信息接口使用 -----

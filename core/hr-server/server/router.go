@@ -46,7 +46,6 @@ func (s *Server) setupRoutes() {
 	user := apiV1.Group("/user")
 	user.Use(middleware2.JWTAuth()) // 用户管理需要JWT认证
 	userHandler := v1.NewUser(s.userService, s.departmentService)
-	user.POST("/create_user_by_secret", authHandler.CreateUserBySecret) // 仅 system 超管可操作，一键创建用户（免邮箱）
 	user.GET("/info", userHandler.GetUserInfo)
 	user.GET("/query", userHandler.QueryUser)
 	user.GET("/search_fuzzy", userHandler.SearchUsersFuzzy)
@@ -70,6 +69,15 @@ func (s *Server) setupRoutes() {
 	systemAuthProviders.GET("", authProviderHandler.List)
 	systemAuthProviders.PUT("/:code/config", authProviderHandler.UpdateConfig)
 	systemAuthProviders.PUT("/:code/enabled", authProviderHandler.SetEnabled)
+
+	systemUsers := apiV1.Group("/system/users")
+	systemUsers.Use(middleware2.JWTAuth())
+	systemUserHandler := v1.NewSystemUser(s.userService, s.departmentService)
+	systemUsers.GET("", systemUserHandler.List)
+	systemUsers.POST("", systemUserHandler.Create)
+	systemUsers.PUT("/:username", systemUserHandler.Update)
+	systemUsers.POST("/:username/password", systemUserHandler.ResetPassword)
+	systemUsers.PUT("/:username/status", systemUserHandler.UpdateStatus)
 
 	// 批量获取用户（需要JWT验证）
 	users := apiV1.Group("/users")

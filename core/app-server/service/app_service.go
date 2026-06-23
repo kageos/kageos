@@ -1000,19 +1000,20 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 			continue
 		}
 		appInfos = append(appInfos, &dto.AppInfo{
-			ID:        app.ID,
-			User:      app.User,
-			Code:      app.Code,
-			Name:      app.Name,
-			Status:    app.Status,
-			Version:   app.Version,
-			NatsID:    app.NatsID,
-			HostID:    app.HostID,
-			IsPublic:  app.IsPublic,
-			Admins:    app.Admins,
-			Type:      int(app.Type),
-			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
-			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
+			ID:                    app.ID,
+			User:                  app.User,
+			Code:                  app.Code,
+			Name:                  app.Name,
+			Status:                app.Status,
+			Version:               app.Version,
+			NatsID:                app.NatsID,
+			HostID:                app.HostID,
+			IsPublic:              app.IsPublic,
+			HideUnauthorizedNodes: app.HideUnauthorizedNodes,
+			Admins:                app.Admins,
+			Type:                  int(app.Type),
+			CreatedAt:             time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
+			UpdatedAt:             time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		})
 	}
 
@@ -1107,19 +1108,20 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 
 	return &dto.GetAppDetailResp{
 		AppInfo: dto.AppInfo{
-			ID:        app.ID,
-			User:      app.User,
-			Code:      app.Code,
-			Name:      app.Name,
-			Status:    app.Status,
-			Version:   app.Version,
-			NatsID:    app.NatsID,
-			HostID:    app.HostID,
-			IsPublic:  app.IsPublic,
-			Admins:    app.Admins,
-			Type:      int(app.Type),
-			CreatedAt: time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
-			UpdatedAt: time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
+			ID:                    app.ID,
+			User:                  app.User,
+			Code:                  app.Code,
+			Name:                  app.Name,
+			Status:                app.Status,
+			Version:               app.Version,
+			NatsID:                app.NatsID,
+			HostID:                app.HostID,
+			IsPublic:              app.IsPublic,
+			HideUnauthorizedNodes: app.HideUnauthorizedNodes,
+			Admins:                app.Admins,
+			Type:                  int(app.Type),
+			CreatedAt:             time.Time(app.CreatedAt).Format("2006-01-02 15:04:05"),
+			UpdatedAt:             time.Time(app.UpdatedAt).Format("2006-01-02 15:04:05"),
 		},
 	}, nil
 }
@@ -1142,19 +1144,24 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 		return nil, fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
-	// 更新数据库中的管理员列表
-	app.Admins = req.Admins
+	if req.Admins != nil {
+		app.Admins = *req.Admins
+	}
+	if req.HideUnauthorizedNodes != nil {
+		app.HideUnauthorizedNodes = *req.HideUnauthorizedNodes
+	}
 	if err := a.appRepo.UpdateApp(app); err != nil {
 		return nil, fmt.Errorf("更新工作空间失败: %w", err)
 	}
 
-	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, admins=%s",
-		user, appCode, req.Admins)
+	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, admins=%s, hide_unauthorized_nodes=%t",
+		user, appCode, app.Admins, app.HideUnauthorizedNodes)
 
 	return &dto.UpdateWorkspaceResp{
-		User:   user,
-		App:    appCode,
-		Admins: req.Admins,
+		User:                  user,
+		App:                   appCode,
+		Admins:                app.Admins,
+		HideUnauthorizedNodes: app.HideUnauthorizedNodes,
 	}, nil
 }
 

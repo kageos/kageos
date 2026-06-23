@@ -6,21 +6,21 @@
   <div class="node-desc-container">
     <div class="node-desc-header">
       <span class="node-type-tag">{{ typeLabel }}</span>
-      <h2 class="node-name">{{ node?.name || '未命名' }}</h2>
+      <h2 class="node-name">{{ node?.name || t('nodeDesc.untitled') }}</h2>
     </div>
 
     <div v-if="node?.description" class="node-desc-section">
-      <h3>节点说明</h3>
+      <h3>{{ t('nodeDesc.description') }}</h3>
       <p class="node-description">{{ node.description }}</p>
     </div>
 
     <div v-if="node?.full_code_path" class="node-desc-section">
-      <h3>路径</h3>
+      <h3>{{ t('nodeDesc.path') }}</h3>
       <code class="node-path">{{ node.full_code_path }}</code>
     </div>
 
     <div v-if="node?.tags && node.tags.trim()" class="node-desc-section">
-      <h3>标签</h3>
+      <h3>{{ t('nodeDesc.tags') }}</h3>
       <div class="node-tags">
         <el-tag
           v-for="tag in tagsList"
@@ -35,13 +35,14 @@
     </div>
 
     <div v-if="!node?.description && !node?.full_code_path && !(node?.tags && node.tags.trim())" class="node-desc-empty">
-      <el-text type="info">暂无节点说明，可在服务树中编辑该节点补充描述。</el-text>
+      <el-text type="info">{{ t('nodeDesc.empty') }}</el-text>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ServiceTree } from '@/architecture/domain/types'
 
 interface Props {
@@ -49,12 +50,13 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { t } = useI18n()
 
 const typeLabel = computed(() => {
-  const t = props.node?.type
-  if (t === 'docs') return '文档'
-  if (t === 'package') return '目录'
-  return '节点'
+  const type = props.node?.type
+  if (type === 'docs') return t('nodeDesc.docs')
+  if (type === 'package') return t('nodeDesc.directory')
+  return t('nodeDesc.node')
 })
 
 const tagsList = computed(() => {

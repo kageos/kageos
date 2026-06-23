@@ -3,6 +3,7 @@ import { nextTick, ref, type Ref } from 'vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import { uploadFile, notifyUploadComplete, type UploadProgress } from '@/architecture/presentation/context/uploadContext'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
+import { wrapWorkspaceResourcePath } from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
 
 const UPLOAD_ROUTER = 'workspace/chat'
 
@@ -11,7 +12,7 @@ type ClipboardFileTransfer = Pick<DataTransfer, 'files' | 'items'>
 export interface UseMiniWorkstationUploadsOptions {
   fullCodePath: Ref<string>
   inputText: Ref<string>
-  inputRef: Ref<HTMLTextAreaElement | undefined>
+  inputRef: Ref<{ focus: () => void } | undefined>
 }
 
 export function extractClipboardFiles(dataTransfer: ClipboardFileTransfer | null | undefined): File[] {
@@ -156,7 +157,7 @@ export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOpti
         if (payload?.full_code_path) {
           const label = payload.type === 'package' ? '目录' : '函数'
           const name = payload.name || payload.full_code_path.split('/').pop() || payload.full_code_path
-          inputText.value = `请处理以下${label}：${name}（${payload.full_code_path}）`
+          inputText.value = `请处理以下${label}：${name} ${wrapWorkspaceResourcePath(payload.full_code_path)}`
           await nextTick()
           inputRef.value?.focus()
         }

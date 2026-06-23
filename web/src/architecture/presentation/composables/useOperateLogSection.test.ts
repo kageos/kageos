@@ -135,13 +135,13 @@ describe('useOperateLogSection', () => {
       }
 
       expect(section.getLogDuration(log)).toBe(35)
-      expect(section.getLogStatusLabel(log)).toBe('Failed')
+      expect(section.getLogStatusLabel(log)).toBe('失败')
       expect(section.getLogSummary(log)).toBe('boom')
       expect(section.getLogMetaEntries(log)).toEqual(
         expect.arrayContaining([
-          { label: 'Duration', value: '35ms' },
-          { label: 'Version', value: 'v10' },
-          { label: 'Error', value: 'boom' },
+          { label: '耗时', value: '35ms' },
+          { label: '版本', value: 'v10' },
+          { label: '错误', value: 'boom' },
         ]),
       )
     } finally {
@@ -166,8 +166,8 @@ describe('useOperateLogSection', () => {
         }),
       )!
 
-      expect(section.getSourceLabel('scheduled_task')).toBe('Scheduled task')
-      expect(section.sourceOptions.value).toEqual(expect.arrayContaining([{ label: 'Scheduled task', value: 'scheduled_task' }]))
+      expect(section.getSourceLabel('scheduled_task')).toBe('定时任务')
+      expect(section.sourceOptions.value).toEqual(expect.arrayContaining([{ label: '定时任务', value: 'scheduled_task' }]))
       expect(
         section.getLogMetaEntries({
           id: 3,
@@ -180,7 +180,7 @@ describe('useOperateLogSection', () => {
           created_at: '2026-05-19T00:00:00Z',
           source: 'scheduled_task',
         }),
-      ).toEqual(expect.arrayContaining([{ label: 'Source', value: 'Scheduled task' }]))
+      ).toEqual(expect.arrayContaining([{ label: '来源', value: '定时任务' }]))
     } finally {
       scope.stop()
     }
@@ -205,9 +205,9 @@ describe('useOperateLogSection', () => {
         }),
       )!
 
-      expect(section.getActionLabel('scheduled_function_execute')).toBe('Scheduled execution')
+      expect(section.getActionLabel('scheduled_function_execute')).toBe('定时执行')
       expect(section.actionOptions.value).toEqual(
-        expect.arrayContaining([{ label: 'Scheduled execution', value: 'scheduled_function_execute' }]),
+        expect.arrayContaining([{ label: '定时执行', value: 'scheduled_function_execute' }]),
       )
 
       section.load()
@@ -255,10 +255,10 @@ describe('useOperateLogSection', () => {
         created_at: '2026-05-22T08:41:13Z',
       }
 
-      expect(section.getActionLabel(log.action)).toBe('Public submit')
-      expect(section.getLogTitle(log)).toBe('Submitted public form')
+      expect(section.getActionLabel(log.action)).toBe('公开提交')
+      expect(section.getLogTitle(log)).toBe('提交了公开表单')
       expect(section.getLogSummary(log)).toBe('Public form submitted')
-      expect(section.actionOptions.value).toEqual(expect.arrayContaining([{ label: 'Public submit', value: 'public_form_submit' }]))
+      expect(section.actionOptions.value).toEqual(expect.arrayContaining([{ label: '公开提交', value: 'public_form_submit' }]))
     } finally {
       scope.stop()
     }
@@ -296,12 +296,12 @@ describe('useOperateLogSection', () => {
         created_at: '2026-06-12T00:58:55Z',
       }
 
-      expect(section.getActionLabel(log.action)).toBe('Create')
-      expect(section.getLogTitle(log)).toBe('Created directory')
-      expect(section.getLogSummary(log)).toBe('directory /system/demos/meeting was created')
+      expect(section.getActionLabel(log.action)).toBe('创建')
+      expect(section.getLogTitle(log)).toBe('创建了目录')
+      expect(section.getLogSummary(log)).toBe('目录 /system/demos/meeting 已创建')
       expect(section.getActionTagType(log.action)).toBe('success')
       expect(section.actionOptions.value).toEqual(
-        expect.arrayContaining([{ label: 'Resource created', value: 'service_tree.node.created' }]),
+        expect.arrayContaining([{ label: '资源创建', value: 'service_tree.node.created' }]),
       )
     } finally {
       scope.stop()

@@ -59,7 +59,7 @@ func (q *serviceTreeQueryView) getServiceTreeByAppModel(ctx context.Context, app
 	logger.Debugf(ctx, "[ServiceTreeService] 获取服务树成功: root_id=%d, app_id=%d, full_code_path=%s, children_count=%d",
 		rootNode.ID, appModel.ID, rootNode.FullCodePath, len(rootNode.Children))
 
-	logger.Debugf(ctx, "[ServiceTreeService] 按 MVP 模式返回全量可访问服务树: app_id=%d", appModel.ID)
+	logger.Debugf(ctx, "[ServiceTreeService] 加载服务树: app_id=%d, hide_unauthorized_nodes=%t", appModel.ID, appModel.HideUnauthorizedNodes)
 
 	permissionsByPath, err := q.permissionsByPath(ctx, appModel, trees)
 	if err != nil {
@@ -67,7 +67,9 @@ func (q *serviceTreeQueryView) getServiceTreeByAppModel(ctx context.Context, app
 	}
 
 	rootResp := q.convertToGetServiceTreeResp(rootNode, permissionsByPath)
-	rootResp = filterVisibleServiceTree(rootResp)
+	if appModel.HideUnauthorizedNodes {
+		rootResp = filterVisibleServiceTree(rootResp)
+	}
 	if rootResp == nil {
 		return []*dto.GetServiceTreeResp{}, nil
 	}
@@ -93,19 +95,20 @@ func (q *serviceTreeQueryView) GetAppWithServiceTree(ctx context.Context, req *d
 	}
 
 	appInfo := dto.AppInfo{
-		ID:        appModel.ID,
-		User:      appModel.User,
-		Code:      appModel.Code,
-		Name:      appModel.Name,
-		Status:    appModel.Status,
-		Version:   appModel.Version,
-		NatsID:    appModel.NatsID,
-		HostID:    appModel.HostID,
-		IsPublic:  appModel.IsPublic,
-		Admins:    appModel.Admins,
-		Type:      int(appModel.Type),
-		CreatedAt: time.Time(appModel.CreatedAt).Format("2006-01-02 15:04:05"),
-		UpdatedAt: time.Time(appModel.UpdatedAt).Format("2006-01-02 15:04:05"),
+		ID:                    appModel.ID,
+		User:                  appModel.User,
+		Code:                  appModel.Code,
+		Name:                  appModel.Name,
+		Status:                appModel.Status,
+		Version:               appModel.Version,
+		NatsID:                appModel.NatsID,
+		HostID:                appModel.HostID,
+		IsPublic:              appModel.IsPublic,
+		HideUnauthorizedNodes: appModel.HideUnauthorizedNodes,
+		Admins:                appModel.Admins,
+		Type:                  int(appModel.Type),
+		CreatedAt:             time.Time(appModel.CreatedAt).Format("2006-01-02 15:04:05"),
+		UpdatedAt:             time.Time(appModel.UpdatedAt).Format("2006-01-02 15:04:05"),
 	}
 
 	serviceTreeResp, err := q.getServiceTreeByAppModel(ctx, appModel, req.Type)

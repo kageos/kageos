@@ -15,7 +15,7 @@
       <div class="filter-card sci-fi-panel sci-fi-panel-expanded">
         <span class="sci-fi-accent-bar" />
         <div class="filter-card-inner">
-          <div class="filter-card-title">筛选条件</div>
+          <div class="filter-card-title">{{ t('chartRenderer.filters') }}</div>
         <el-form :model="filterForm" class="filter-form">
           <el-form-item
             v-for="field in requestFields"
@@ -52,10 +52,10 @@
           
           <el-form-item class="filter-actions">
             <el-button type="primary" @click="handleSearch" :loading="loading" :icon="Search">
-              查询
+              {{ t('chartRenderer.query') }}
             </el-button>
             <el-button @click="handleReset" :icon="Refresh">
-              重置
+              {{ t('chartRenderer.reset') }}
             </el-button>
           </el-form-item>
         </el-form>
@@ -68,10 +68,10 @@
       <template #header>
         <div class="chart-header">
           <span v-if="chartData?.title">{{ chartData.title }}</span>
-          <span v-else>图表</span>
+          <span v-else>{{ t('chartRenderer.chart') }}</span>
           <div class="chart-actions">
             <el-button text @click="handleRefresh" :loading="loading" :icon="Refresh">
-              刷新
+              {{ t('chartRenderer.refresh') }}
             </el-button>
           </div>
         </div>
@@ -89,7 +89,7 @@
           :style="{ width: '100%', height: chartHeight }"
         ></div>
         <div v-else class="empty-chart">
-          <el-empty description="暂无数据，请设置筛选条件后查询" />
+          <el-empty :description="t('chartRenderer.empty')" />
         </div>
       </div>
     </el-card>
@@ -114,6 +114,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElCard, ElForm, ElFormItem, ElButton, ElEmpty, ElRow, ElCol } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
@@ -137,6 +138,7 @@ const props = defineProps<{
   functionDetail: FunctionDetail
 }>()
 
+const { t } = useI18n()
 const chartData = ref<Chart | null>(null)
 const chartContainerRef = ref<HTMLElement | null>(null)
 const chartHeight = ref('600px')
@@ -166,7 +168,7 @@ const {
 
 const chartPlaceholderMessage = computed(() => {
   const data = chartData.value as RenderableChart | null
-  return data?.__placeholderMessage || '当前暂无图表数据，已按 0 值占位显示。'
+  return data?.__placeholderMessage || t('chartRenderer.placeholder')
 })
 
 const isPlaceholderChart = computed(() => {

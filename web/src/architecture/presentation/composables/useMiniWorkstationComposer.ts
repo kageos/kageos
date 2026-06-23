@@ -3,13 +3,14 @@ import { computed, ref, watch, type Ref } from 'vue'
 import { getLLMList, type LLMInfo } from '@/architecture/presentation/context/api/agent'
 import { workspaceChatStream, type WorkspaceChatMessageFile, type WorkspaceChatReq, type WorkspaceChatStreamOnEvent } from '@/architecture/presentation/context/api/workspace'
 import type { ChatMessageFile } from '@/architecture/presentation/composables/useWorkspaceChatStream'
+import { translate } from '@/architecture/shared/i18n'
 
 export interface UseMiniWorkstationComposerOptions {
   fullCodePath: Ref<string>
   sessionId: Ref<string | undefined>
   maximized: Ref<boolean>
   inputText: Ref<string>
-  inputRef: Ref<HTMLTextAreaElement | undefined>
+  inputRef: Ref<{ focus: () => void } | undefined>
   attachedFiles: Ref<WorkspaceChatMessageFile[]>
   sending: Ref<boolean>
   sendMessage: (content: string, streamFn: (onEvent: WorkspaceChatStreamOnEvent) => Promise<void>, files?: ChatMessageFile[]) => Promise<void>
@@ -147,10 +148,10 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
       const messageFiles: ChatMessageFile[] | undefined = files?.length
         ? files.map(file => ({ ...file }))
         : undefined
-      await sendMessage(options.displayText || text || (files?.length ? '已上传文件' : ''), streamFn, messageFiles)
+      await sendMessage(options.displayText || text || (files?.length ? translate('miniWorkstation.uploadedFileFallback') : ''), streamFn, messageFiles)
       return true
     } catch {
-      ElMessage.error('发送失败')
+      ElMessage.error(translate('miniWorkstation.sendFailed'))
       return false
     }
   }
@@ -165,7 +166,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
       queuedMessages.value.push({ text, files })
       inputText.value = ''
       attachedFiles.value = []
-      ElMessage.success('已加入发送队列')
+      ElMessage.success(translate('miniWorkstation.queuedSuccess'))
       return
     }
     const beforeSendDecision = beforeSend ? await beforeSend({ text, files }) : false

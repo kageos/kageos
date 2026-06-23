@@ -495,7 +495,7 @@ func (s *ServiceTree) CopyServiceTree(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Infof(c, "CopyServiceTree req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "CopyServiceTree req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 	if err := requireAccess(c, s.teamAccessService, req.SourceDirectoryPath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())

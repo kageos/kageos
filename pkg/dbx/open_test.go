@@ -4,6 +4,9 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	appconfig "github.com/kageos/kageos/pkg/config"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 func TestIsRetryableMySQLStartupError(t *testing.T) {
@@ -44,5 +47,54 @@ func TestWithMySQLConnectRetry(t *testing.T) {
 	}
 	if attempts != 2 {
 		t.Fatalf("attempts = %d, want 2", attempts)
+	}
+}
+
+func TestParseGORMLogLevel(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]gormlogger.LogLevel{
+		"":        gormlogger.Warn,
+		"silent":  gormlogger.Silent,
+		"error":   gormlogger.Error,
+		"warn":    gormlogger.Warn,
+		"warning": gormlogger.Warn,
+		"info":    gormlogger.Info,
+		"debug":   gormlogger.Info,
+		"nope":    gormlogger.Warn,
+	}
+	for input, want := range cases {
+		if got := parseGORMLogLevel(input); got != want {
+			t.Fatalf("parseGORMLogLevel(%q) = %v, want %v", input, got, want)
+		}
+	}
+}
+
+func TestApplyDBLogOptions(t *testing.T) {
+	t.Parallel()
+
+	got := applyDBLogOptions(appconfig.DBConfig{
+		LogLevel:      "silent",
+		SlowThreshold: 750,
+	}, OpenOptions{})
+	if got.LogMode != gormlogger.Silent {
+		t.Fatalf("LogMode = %v, want %v", got.LogMode, gormlogger.Silent)
+	}
+	if got.SlowThreshold != 750*time.Millisecond {
+		t.Fatalf("SlowThreshold = %v, want 750ms", got.SlowThreshold)
+	}
+
+	overridden := applyDBLogOptions(appconfig.DBConfig{
+		LogLevel:      "info",
+		SlowThreshold: 750,
+	}, OpenOptions{
+		LogMode:       gormlogger.Error,
+		SlowThreshold: time.Second,
+	})
+	if overridden.LogMode != gormlogger.Error {
+		t.Fatalf("LogMode override = %v, want %v", overridden.LogMode, gormlogger.Error)
+	}
+	if overridden.SlowThreshold != time.Second {
+		t.Fatalf("SlowThreshold override = %v, want 1s", overridden.SlowThreshold)
 	}
 }

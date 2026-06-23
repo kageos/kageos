@@ -25,7 +25,7 @@ export type ServiceTreeNodeActionCommand =
   | 'rename'
   | 'copy'
   | 'export-json'
-  | 'import-json'
+  | 'import-directory'
   | 'paste'
   | 'delete-function'
   | 'delete-doc'
@@ -97,7 +97,7 @@ export function getServiceTreeNodeActions(
       visible: featureFlags.capabilityBundle && data.type === 'package'
     },
     {
-      command: 'import-json',
+      command: 'import-directory',
       label: translate('serviceTree.importBundle'),
       icon: Upload,
       visible: featureFlags.capabilityBundle && data.type === 'package'

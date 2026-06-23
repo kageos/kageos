@@ -3,7 +3,7 @@
     <template v-if="uploadedFiles.length > 0">
       <div class="mini-file-section-title">
         <el-icon :size="compact ? 12 : 13"><UploadFilled /></el-icon>
-        上传文件 ({{ uploadedFiles.length }})
+        {{ t('miniWorkstation.uploadFile') }} ({{ uploadedFiles.length }})
       </div>
       <MiniWorkstationFileCard
         v-for="(file, index) in uploadedFiles"
@@ -18,7 +18,7 @@
     <template v-if="outputFiles.length > 0">
       <div class="mini-file-section-title">
         <el-icon :size="compact ? 12 : 13"><FolderOpened /></el-icon>
-        输出文件 ({{ outputFiles.length }})
+        {{ t('miniWorkstation.outputFile') }} ({{ outputFiles.length }})
       </div>
       <MiniWorkstationFileCard
         v-for="(file, index) in outputFiles"
@@ -33,7 +33,7 @@
     <template v-if="displayFields.length > 0">
       <div class="mini-file-section-title">
         <el-icon :size="compact ? 12 : 13"><Memo /></el-icon>
-        输出数据 ({{ displayFields.length }})
+        {{ t('miniWorkstation.outputData') }} ({{ displayFields.length }})
       </div>
       <MiniWorkstationDisplayFieldCard
         v-for="(field, index) in displayFields"
@@ -49,6 +49,7 @@
 
 <script setup lang="ts">
 import { FolderOpened, Memo, UploadFilled } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
 import type { OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 import MiniWorkstationDisplayFieldCard from './MiniWorkstationDisplayFieldCard.vue'
 import MiniWorkstationFileCard from './MiniWorkstationFileCard.vue'
@@ -69,6 +70,8 @@ defineEmits<{
   (e: 'preview-field', field: OutputDisplayField): void
   (e: 'copy-field', field: OutputDisplayField): void
 }>()
+
+const { t } = useI18n()
 </script>
 
 <style scoped>

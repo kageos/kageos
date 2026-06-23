@@ -40,7 +40,7 @@ func (d *Department) CreateDepartment(c *gin.Context) {
 	var resp *dto.CreateDepartmentResp
 	var err error
 	defer func() {
-		logger.Infof(c, "CreateDepartment req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "CreateDepartment req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	// 绑定请求参数
@@ -79,7 +79,7 @@ func (d *Department) UpdateDepartment(c *gin.Context) {
 	var resp *dto.UpdateDepartmentResp
 	var err error
 	defer func() {
-		logger.Infof(c, "UpdateDepartment req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "UpdateDepartment req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	// 解析部门ID
@@ -144,7 +144,7 @@ func (d *Department) GetDepartmentTree(c *gin.Context) {
 	var resp *dto.GetDepartmentTreeResp
 	var err error
 	defer func() {
-		logger.Infof(c, "GetDepartmentTree resp:%+v err:%v", resp, err)
+		logger.Debugf(c, "GetDepartmentTree resp:%+v err:%v", resp, err)
 	}()
 
 	// 调用服务层
@@ -174,7 +174,7 @@ func (d *Department) GetDepartmentByID(c *gin.Context) {
 	var resp *dto.GetDepartmentResp
 	var err error
 	defer func() {
-		logger.Infof(c, "GetDepartmentByID resp:%+v err:%v", resp, err)
+		logger.Debugf(c, "GetDepartmentByID resp:%+v err:%v", resp, err)
 	}()
 
 	// 解析部门ID
@@ -246,7 +246,7 @@ func (d *Department) GetDepartmentsByPaths(c *gin.Context) {
 	var resp *dto.GetDepartmentsByPathsResp
 	var err error
 	defer func() {
-		logger.Infof(c, "GetDepartmentsByPaths req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "GetDepartmentsByPaths req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 
 	// 绑定查询参数

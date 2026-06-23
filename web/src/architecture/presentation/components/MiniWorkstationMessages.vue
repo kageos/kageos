@@ -19,7 +19,7 @@
           <OutputFilesDisplay
             v-if="msg.files?.length"
             :file-groups="[{ label: '', files: msg.files }]"
-            section-title="上传的文件"
+            :section-title="t('miniWorkstation.uploadedFiles')"
             :archive-download="false"
             class="mini-msg-files"
           />
@@ -28,7 +28,7 @@
       </div>
       <template v-else>
         <div class="mini-msg-assistant-header">
-          <span class="mini-msg-badge">工作台</span>
+          <span class="mini-msg-badge">{{ t('miniWorkstation.workbench') }}</span>
           <span v-if="getAssistantModelLabel(msg)" class="mini-msg-model">{{ getAssistantModelLabel(msg) }}</span>
           <span
             v-if="getAssistantCacheLabel(msg)"
@@ -43,7 +43,7 @@
             :class="['mini-msg-output-duration', { 'mini-msg-output-duration--running': isAssistantTimerRunning(msg, i) }]"
           >
             <span v-if="isAssistantTimerRunning(msg, i)" class="mini-msg-output-duration-dot"></span>
-            输出耗时 {{ getAssistantDurationLabel(msg, i) }}
+            {{ t('miniWorkstation.outputDuration', { duration: getAssistantDurationLabel(msg, i) }) }}
           </span>
         </div>
         <ModelContextPlanCard
@@ -216,12 +216,13 @@
     </div>
   </template>
   <div v-else class="mini-ws-empty">
-    <span>输入命令开始工作</span>
+    <span>{{ t('miniWorkstation.startByCommand') }}</span>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { CircleCheck, CircleClose, Loading } from '@element-plus/icons-vue'
 import type { OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
@@ -237,6 +238,8 @@ import MiniWorkstationPendingActionBar from './MiniWorkstationPendingActionBar.v
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { WorkspaceInteraction } from '@/architecture/presentation/context/api/workspace'
+
+const { t } = useI18n()
 
 const authStore = useAuthStore()
 const currentUsername = authStore.user?.username || authStore.userName || ''
@@ -356,9 +359,9 @@ function formatDuration(ms: number): string {
   const hours = Math.floor(totalSeconds / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
-  if (hours > 0) return `${hours}时${minutes}分${seconds}秒`
-  if (minutes > 0) return `${minutes}分${seconds}秒`
-  return `${seconds}秒`
+  if (hours > 0) return t('miniWorkstation.durationHours', { hours, minutes, seconds })
+  if (minutes > 0) return t('miniWorkstation.durationMinutes', { minutes, seconds })
+  return t('miniWorkstation.durationSeconds', { seconds })
 }
 
 function getAssistantDurationLabel(message: ChatMessage, msgIndex: number): string {
@@ -465,9 +468,9 @@ function fallbackCardType(kind: unknown, status: string): string {
 }
 
 function fallbackInteractionTitle(cardType: string): string {
-  if (cardType === 'build_repair') return '构建等待修复'
-  if (cardType === 'prd_confirmation') return 'PRD 等待确认'
-  return '等待确认'
+  if (cardType === 'build_repair') return t('miniWorkstation.buildRepairTitle')
+  if (cardType === 'prd_confirmation') return t('miniWorkstation.interactionPrdTitle')
+  return t('miniWorkstation.interactionWaitingTitle')
 }
 
 function getAssistantModelLabel(message: ChatMessage): string {
@@ -481,11 +484,11 @@ function getAssistantModelLabel(message: ChatMessage): string {
 function getAssistantCacheLabel(message: ChatMessage): string {
   const usage = message.llm_usage
   if (!usage || usage.total_tokens <= 0) return ''
-  if (usage.cached_tokens_reported === false) return '缓存未上报'
+  if (usage.cached_tokens_reported === false) return t('miniWorkstation.cacheNotReported')
   const cached = Math.max(0, usage.cached_tokens || 0)
   const prompt = Math.max(0, usage.prompt_tokens || 0)
   const rate = prompt > 0 ? Math.round((cached / prompt) * 100) : 0
-  return `缓存 ${formatTokenCount(cached)} / ${rate}%`
+  return t('miniWorkstation.cacheLabel', { cached: formatTokenCount(cached), rate })
 }
 
 function getAssistantCacheTitle(message: ChatMessage): string {
@@ -493,17 +496,17 @@ function getAssistantCacheTitle(message: ChatMessage): string {
   if (!usage) return ''
   if (usage.cached_tokens_reported === false) {
     return [
-      '上游未返回 prompt cache 命中字段',
-      `输入 ${formatTokenCount(usage.prompt_tokens)}`,
-      `输出 ${formatTokenCount(usage.completion_tokens)}`,
-      `总计 ${formatTokenCount(usage.total_tokens)}`
+      t('miniWorkstation.cacheMissingTitle'),
+      t('miniWorkstation.inputTokens', { tokens: formatTokenCount(usage.prompt_tokens) }),
+      t('miniWorkstation.outputTokens', { tokens: formatTokenCount(usage.completion_tokens) }),
+      t('miniWorkstation.totalTokens', { tokens: formatTokenCount(usage.total_tokens) })
     ].join(' · ')
   }
   return [
-    `输入 ${formatTokenCount(usage.prompt_tokens)}`,
-    `缓存 ${formatTokenCount(usage.cached_tokens)}`,
-    `输出 ${formatTokenCount(usage.completion_tokens)}`,
-    `总计 ${formatTokenCount(usage.total_tokens)}`
+    t('miniWorkstation.inputTokens', { tokens: formatTokenCount(usage.prompt_tokens) }),
+    t('miniWorkstation.cachedTokens', { tokens: formatTokenCount(usage.cached_tokens) }),
+    t('miniWorkstation.outputTokens', { tokens: formatTokenCount(usage.completion_tokens) }),
+    t('miniWorkstation.totalTokens', { tokens: formatTokenCount(usage.total_tokens) })
   ].join(' · ')
 }
 
