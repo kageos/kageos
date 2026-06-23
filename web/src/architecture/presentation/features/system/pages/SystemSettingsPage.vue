@@ -350,6 +350,10 @@
             <OpenAPITokenManagementPage :key="openapiPanelKey" embedded />
           </div>
 
+          <div v-else-if="activeTab === 'users'" class="section-pane">
+            <SystemUserManagementPage :key="usersPanelKey" />
+          </div>
+
           <div v-else-if="activeTab === 'appearance'" class="section-pane">
             <div class="preference-grid">
               <button
@@ -398,6 +402,7 @@ import type { SupportedLocale } from '@/architecture/shared/i18n'
 import { getKageosDocsURL, openExternalURL, type KageosDocSlug } from '@/architecture/shared/config/externalLinks'
 import ConnectorProviderManagementPage from '@/architecture/presentation/features/connector/pages/ConnectorProviderManagementPage.vue'
 import OpenAPITokenManagementPage from '@/architecture/presentation/features/agent/pages/OpenAPITokenManagementPage.vue'
+import SystemUserManagementPage from '@/architecture/presentation/features/system/pages/SystemUserManagementPage.vue'
 import {
   getSystemSettings,
   getTLSSettings,
@@ -414,7 +419,7 @@ import {
   type TLSSettings
 } from '@/architecture/presentation/context/api/system-settings'
 
-type SettingsTab = 'email' | 'login' | 'tls' | 'connectors' | 'openapi' | 'appearance' | 'language'
+type SettingsTab = 'email' | 'login' | 'tls' | 'connectors' | 'openapi' | 'users' | 'appearance' | 'language'
 
 interface SettingsSection {
   key: SettingsTab
@@ -429,6 +434,7 @@ const testEmail = ref('')
 const activeTab = ref<SettingsTab>('email')
 const connectorPanelKey = ref(0)
 const openapiPanelKey = ref(0)
+const usersPanelKey = ref(0)
 const tlsLoading = ref(false)
 const tlsSaving = ref(false)
 const tlsReloading = ref(false)
@@ -447,6 +453,7 @@ const themeStore = useThemeStore()
 const settingsSections = computed<SettingsSection[]>(() => [
   { key: 'email', title: t('systemSettings.sections.emailTitle'), desc: t('systemSettings.sections.emailDesc') },
   { key: 'login', title: t('systemSettings.sections.loginTitle'), desc: t('systemSettings.sections.loginDesc') },
+  { key: 'users', title: t('systemSettings.sections.usersTitle'), desc: t('systemSettings.sections.usersDesc') },
   { key: 'openapi', title: t('systemSettings.sections.openapiTitle'), desc: t('systemSettings.sections.openapiDesc') },
   { key: 'tls', title: t('systemSettings.sections.tlsTitle'), desc: t('systemSettings.sections.tlsDesc') },
   { key: 'connectors', title: t('systemSettings.sections.connectorsTitle'), desc: t('systemSettings.sections.connectorsDesc') },
@@ -460,6 +467,7 @@ const settingsDocSlugMap: Record<SettingsTab, KageosDocSlug> = {
   tls: 'runtime',
   connectors: 'connectors',
   openapi: 'api',
+  users: 'runtime',
   appearance: 'docs',
   language: 'docs',
 }
@@ -587,6 +595,10 @@ async function refreshActiveTab() {
   }
   if (activeTab.value === 'openapi') {
     openapiPanelKey.value += 1
+    return
+  }
+  if (activeTab.value === 'users') {
+    usersPanelKey.value += 1
     return
   }
   if (activeTab.value === 'appearance' || activeTab.value === 'language') {
@@ -905,7 +917,8 @@ onMounted(() => {
 }
 
 .settings-card {
-  max-width: 1280px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
 }
 

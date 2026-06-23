@@ -188,7 +188,7 @@ export function useWorkspaceApp(
   const loadingApps = ref(false)
   const pendingAppId = ref<number | string | null>(null)
 
-  const createPlaceholderApp = (app: Pick<AppType, 'id' | 'user' | 'code' | 'name'>): App => ({
+  const createPlaceholderApp = (app: Pick<AppType, 'id' | 'user' | 'code' | 'name'> & Partial<Pick<AppType, 'hide_unauthorized_nodes'>>): App => ({
     id: app.id,
     user: app.user,
     code: app.code,
@@ -198,6 +198,7 @@ export function useWorkspaceApp(
     status: 'enabled',
     version: '',
     is_public: false,
+    hide_unauthorized_nodes: app.hide_unauthorized_nodes ?? false,
     created_at: '',
     updated_at: ''
   })
@@ -209,6 +210,7 @@ export function useWorkspaceApp(
     code: '',
     name: '',
     is_public: true, // 默认公开
+    hide_unauthorized_nodes: false, // 默认不隐藏无权限节点
     admins: '' // 管理员列表，逗号分隔的用户名
   })
 
@@ -288,6 +290,7 @@ export function useWorkspaceApp(
       code: '',
       name: '',
       is_public: true,
+      hide_unauthorized_nodes: false,
       admins: ''
     }
   }

@@ -145,7 +145,7 @@
       </el-input>
     </div>
 
-    <el-tabs v-model="activeTab" data-testid="workspace-list-tabs" @tab-change="handleTabChange">
+    <el-tabs v-model="activeTab" class="workspace-list-tabs" data-testid="workspace-list-tabs" @tab-change="handleTabChange">
       <el-tab-pane label="我的工作空间" name="mine">
         <div class="workspace-list-container">
           <div v-if="loading" class="loading-state">
@@ -846,30 +846,61 @@ watch(() => props.visible, (newVal: boolean) => {
   scrollbar-gutter: stable;
 }
 
+.workspace-list-tabs {
+  :deep(.el-tabs__header) {
+    margin: 0 0 12px;
+  }
+
+  :deep(.el-tabs__nav-wrap) {
+    display: flex;
+    justify-content: flex-start;
+  }
+
+  :deep(.el-tabs__nav-wrap::after),
+  :deep(.el-tabs__active-bar) {
+    display: none;
+  }
+
+  :deep(.el-tabs__nav-scroll) {
+    display: flex;
+    justify-content: flex-start;
+  }
+
+  :deep(.el-tabs__nav) {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid rgba(var(--el-color-primary-rgb), 0.16);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--el-color-primary) 6%, var(--app-auth-card-bg-strong));
+  }
+
+  :deep(.el-tabs__item) {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 8px;
+    color: var(--el-text-color-secondary);
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  :deep(.el-tabs__item.is-active) {
+    background: var(--el-fill-color-blank);
+    color: var(--el-color-primary);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  }
+}
+
 .workspace-list-panel--popover .workspace-list-container {
   min-height: 220px;
   max-height: clamp(220px, calc(100vh - 410px), 360px);
 }
 
-.workspace-list-panel--popover :deep(.el-tabs__header) {
-  margin-bottom: 12px;
-}
-
-.workspace-list-panel--popover :deep(.el-tabs__nav-wrap::after) {
-  height: 1px;
-  background: rgba(var(--el-color-primary-rgb), 0.16);
-}
-
-.workspace-list-panel--popover :deep(.el-tabs__item) {
-  height: 38px;
-  padding: 0 18px;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.workspace-list-panel--popover :deep(.el-tabs__item.is-active) {
-  color: var(--el-color-primary);
+.workspace-list-panel--popover .workspace-list-tabs {
+  :deep(.el-tabs__item) {
+    height: 30px;
+    padding: 0 10px;
+  }
 }
 
 .loading-state {

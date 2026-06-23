@@ -12,15 +12,7 @@ export type KageosDocSlug =
   | 'operations'
   | 'api'
 
-function normalizeBaseURL(value: unknown, fallback: string): string {
-  const trimmed = typeof value === 'string' ? value.trim() : ''
-  return (trimmed || fallback).replace(/\/+$/, '')
-}
-
-const kageosDocsBaseURL = normalizeBaseURL(
-  import.meta.env.VITE_KAGEOS_DOCS_BASE_URL || import.meta.env.VITE_KAGEOS_WEBSITE_URL,
-  'https://kageos.com'
-)
+const kageosDocsBaseURL = 'https://kageos.com'
 
 export function getKageosDocsURL(slug: KageosDocSlug = 'docs', locale?: SupportedLocale | string): string {
   const docsPrefix = locale?.toLowerCase().startsWith('zh') ? '/zh/docs' : '/docs'

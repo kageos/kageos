@@ -297,47 +297,6 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-// CreateUserBySecret 超管一键创建用户（免邮箱验证，仅 system 用户可操作，用于创建测试用户）
-// @Summary 一键创建用户（仅 system 超管）
-// @Description 仅已登录的 system 用户可调用，直接创建用户无需邮箱验证。
-// @Tags 认证管理
-// @Accept json
-// @Produce json
-// @Param request body dto.CreateUserBySecretReq true "创建请求"
-// @Success 200 {object} dto.CreateUserBySecretResp "创建成功"
-// @Failure 403 {string} string "仅 system 用户可操作"
-// @Failure 500 {string} string "服务器内部错误"
-// @Router /hr/api/v1/user/create_user_by_secret [post]
-func (a *Auth) CreateUserBySecret(c *gin.Context) {
-	currentUser := contextx.GetRequestUser(c)
-	if currentUser != "system" {
-		response.FailWithMessage(c, "仅 system 超管可操作")
-		c.Abort()
-		return
-	}
-
-	var req dto.CreateUserBySecretReq
-	var resp *dto.CreateUserBySecretResp
-	var err error
-	defer func() {
-		logger.Debugf(c, "CreateUserBySecret req:{Username:%s} resp:%+v err:%v", req.Username, resp, err)
-	}()
-
-	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
-		return
-	}
-
-	userID, err := a.authService.CreateUserBySecretKey(req.Username, req.Password)
-	if err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
-
-	resp = &dto.CreateUserBySecretResp{UserID: userID}
-	response.OkWithData(c, resp)
-}
-
 // Login 用户登录
 // @Summary 用户登录
 // @Description 使用用户名和密码登录

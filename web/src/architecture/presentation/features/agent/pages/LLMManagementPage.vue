@@ -614,6 +614,49 @@ onMounted(async () => {
 
   .scope-tabs {
     margin-top: -6px;
+
+    :deep(.el-tabs__header) {
+      margin: 0;
+    }
+
+    :deep(.el-tabs__nav-wrap) {
+      display: flex;
+      justify-content: flex-start;
+    }
+
+    :deep(.el-tabs__nav-wrap::after),
+    :deep(.el-tabs__active-bar) {
+      display: none;
+    }
+
+    :deep(.el-tabs__nav-scroll) {
+      display: flex;
+      justify-content: flex-start;
+    }
+
+    :deep(.el-tabs__nav) {
+      display: inline-flex;
+      gap: 2px;
+      padding: 3px;
+      border: 1px solid var(--el-border-color-lighter);
+      border-radius: 10px;
+      background: var(--el-fill-color-lighter);
+    }
+
+    :deep(.el-tabs__item) {
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 8px;
+      color: var(--el-text-color-secondary);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    :deep(.el-tabs__item.is-active) {
+      background: var(--el-fill-color-blank);
+      color: var(--el-color-primary);
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    }
   }
 
   .toolbar {

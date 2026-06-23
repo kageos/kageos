@@ -118,6 +118,50 @@ func (r *UserRepository) SearchUsersFuzzyByCompany(companyCode, keyword string, 
 	return users, err
 }
 
+// ListUsersForSystem 分页查询全局用户，仅供 system 管理入口使用。
+func (r *UserRepository) ListUsersForSystem(keyword, companyCode, status, registerType string, page, pageSize int) ([]*model.User, int64, error) {
+	var users []*model.User
+	var total int64
+
+	keyword = strings.ToLower(strings.TrimSpace(keyword))
+	companyCode = strings.TrimSpace(companyCode)
+	status = strings.TrimSpace(status)
+	registerType = strings.TrimSpace(registerType)
+
+	query := r.db.Model(&model.User{})
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("(LOWER(username) LIKE ? OR LOWER(email) LIKE ? OR LOWER(nickname) LIKE ?)", like, like, like)
+	}
+	if companyCode != "" {
+		query = query.Where("company_code = ?", companyCode)
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if registerType != "" {
+		query = query.Where("register_type = ?", registerType)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if total == 0 {
+		return []*model.User{}, 0, nil
+	}
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+	if err := query.Order("created_at DESC, id DESC").Offset(offset).Limit(pageSize).Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+	return users, total, nil
+}
+
 // GetUsersByUsernames 根据用户名列表批量获取用户信息
 func (r *UserRepository) GetUsersByUsernames(usernames []string) ([]*model.User, error) {
 	if len(usernames) == 0 {

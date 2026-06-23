@@ -18,6 +18,8 @@ type App struct {
 	Version  string `gorm:"column:version;type:varchar(50)" json:"version"`
 	IsPublic bool   `gorm:"column:is_public;type:boolean;default:true" json:"is_public"` // 是否公开，默认公开
 	Admins   string `gorm:"column:admins;type:text" json:"admins"`                       // 管理员列表，逗号分隔的用户名
+	// 是否在目录树返回时隐藏当前用户无 read 权限的节点，默认关闭。
+	HideUnauthorizedNodes bool `gorm:"column:hide_unauthorized_nodes;type:boolean;default:false" json:"hide_unauthorized_nodes"`
 
 	// ⭐ 新增：应用类型（0:用户空间, 1:系统空间）
 	Type AppType `json:"type" gorm:"column:type;type:tinyint;default:0;index;comment:应用类型(0:用户空间,1:系统空间)"`

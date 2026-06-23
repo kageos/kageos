@@ -116,3 +116,69 @@ export interface GetUsersByDepartmentResp {
 export function getUsersByDepartment(departmentFullPath: string) {
   return get<GetUsersByDepartmentResp>('/hr/api/v1/user/department', { department_full_path: departmentFullPath })
 }
+
+export interface SystemListUsersReq {
+  keyword?: string
+  company_code?: string
+  status?: string
+  register_type?: string
+  page?: number
+  page_size?: number
+}
+
+export interface SystemListUsersResp {
+  users: UserInfo[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface SystemCreateUserReq {
+  username: string
+  password: string
+  email?: string
+  nickname?: string
+  company_code?: string
+  company_name?: string
+  company_logo_url?: string
+  department_full_path?: string
+  leader_username?: string
+  status?: 'active' | 'pending' | 'disabled'
+}
+
+export interface SystemUserResp {
+  user: UserInfo
+}
+
+export interface SystemUpdateUserReq {
+  email?: string
+  nickname?: string
+  signature?: string
+  avatar?: string
+  gender?: string
+  company_code?: string
+  company_name?: string
+  company_logo_url?: string
+  department_full_path?: string
+  leader_username?: string
+}
+
+export function listSystemUsers(params: SystemListUsersReq = {}) {
+  return get<SystemListUsersResp>('/hr/api/v1/system/users', params)
+}
+
+export function createSystemUser(data: SystemCreateUserReq) {
+  return post<SystemUserResp>('/hr/api/v1/system/users', data)
+}
+
+export function updateSystemUser(username: string, data: SystemUpdateUserReq) {
+  return put<SystemUserResp>(`/hr/api/v1/system/users/${encodeURIComponent(username)}`, data)
+}
+
+export function resetSystemUserPassword(username: string, password: string) {
+  return post<SystemUserResp>(`/hr/api/v1/system/users/${encodeURIComponent(username)}/password`, { password })
+}
+
+export function updateSystemUserStatus(username: string, status: 'active' | 'pending' | 'disabled') {
+  return put<SystemUserResp>(`/hr/api/v1/system/users/${encodeURIComponent(username)}/status`, { status })
+}

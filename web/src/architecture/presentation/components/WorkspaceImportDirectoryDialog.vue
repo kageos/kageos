@@ -22,12 +22,12 @@
           </span>
         </template>
         <el-form label-position="top" class="import-source-form" @submit.prevent>
-          <el-form-item label="Hub 安装链接">
+          <el-form-item label="Hub 安装命令">
             <el-input
               v-model="hubInstallLink"
               type="textarea"
               :autosize="{ minRows: 3, maxRows: 5 }"
-              placeholder="https://hub.kageos.com/install/..."
+              placeholder="kageos install user_1210227080/meeting_room_booking:0.1.0 --key ..."
               maxlength="1200"
               show-word-limit
               clearable
@@ -106,13 +106,9 @@ import {
   installCapabilityBundleFromURL
 } from '@/architecture/presentation/context/api/service-tree'
 import { parseCapabilityBundleJson } from '@/architecture/presentation/utils/directoryBundleFile'
+import { parseHubInstallInput } from '@/architecture/presentation/utils/hubInstallCommand'
 
 type ImportSource = 'hub' | 'json'
-
-interface HubInstallInput {
-  bundleUrl: string
-  installKey?: string
-}
 
 const props = defineProps<{
   visible: boolean
@@ -166,94 +162,6 @@ function resetForm() {
   }
 }
 
-function tokenizeInstallCommand(command: string): string[] {
-  const tokens: string[] = []
-  let current = ''
-  let quote: '"' | "'" | '' = ''
-  let escaping = false
-
-  for (const char of command) {
-    if (escaping) {
-      current += char
-      escaping = false
-      continue
-    }
-    if (char === '\\') {
-      escaping = true
-      continue
-    }
-    if (quote) {
-      if (char === quote) {
-        quote = ''
-      } else {
-        current += char
-      }
-      continue
-    }
-    if (char === '"' || char === "'") {
-      quote = char
-      continue
-    }
-    if (/\s/.test(char)) {
-      if (current) {
-        tokens.push(current)
-        current = ''
-      }
-      continue
-    }
-    current += char
-  }
-  if (current) {
-    tokens.push(current)
-  }
-  return tokens
-}
-
-function readInstallKeyFromURL(bundleUrl: string): string {
-  try {
-    const url = new URL(bundleUrl)
-    return url.searchParams.get('install_key') || url.searchParams.get('key') || ''
-  } catch {
-    return ''
-  }
-}
-
-function parseHubInstallInput(input: string, explicitInstallKey = ''): HubInstallInput | null {
-  const trimmed = input.trim()
-  if (!trimmed) return null
-
-  const tokens = tokenizeInstallCommand(trimmed)
-  if (tokens.length >= 3 && tokens[0] === 'kageos' && tokens[1] === 'install') {
-    const bundleUrl = tokens[2] || ''
-    if (!/^https?:\/\//i.test(bundleUrl)) return null
-    let installKey = explicitInstallKey.trim()
-    for (let index = 3; index < tokens.length; index += 1) {
-      const token = tokens[index] || ''
-      if (token === '--key' || token === '--install-key') {
-        installKey = tokens[index + 1] || installKey
-        index += 1
-      } else if (token.startsWith('--key=')) {
-        installKey = token.slice('--key='.length)
-      } else if (token.startsWith('--install-key=')) {
-        installKey = token.slice('--install-key='.length)
-      }
-    }
-    return {
-      bundleUrl,
-      installKey: installKey || readInstallKeyFromURL(bundleUrl) || undefined
-    }
-  }
-
-  const urlMatch = trimmed.match(/https?:\/\/[^\s"'<>]+/i)
-  const bundleUrl = urlMatch?.[0]?.replace(/[),.;]+$/g, '') || ''
-  if (!bundleUrl) return null
-
-  return {
-    bundleUrl,
-    installKey: explicitInstallKey.trim() || readInstallKeyFromURL(bundleUrl) || undefined
-  }
-}
-
 function showBlockingLoading(text: string) {
   return ElLoading.service({
     lock: true,
@@ -288,13 +196,13 @@ async function submitHubImport() {
 
   const command = parseHubInstallInput(hubInstallLink.value, hubInstallKey.value)
   if (!command) {
-    ElMessage.warning('请输入有效的 Hub 安装链接')
+    ElMessage.warning('请输入有效的 Hub 安装命令')
     return
   }
 
   try {
     await ElMessageBox.confirm(
-      `确定要把 Hub 目录导入到「${targetLabel.value}」下吗？\n\n目标目录：${targetNode.full_code_path}\n来源：${command.bundleUrl}\n\n同名目录或文件会按导入规则覆盖。`,
+      `确定要把 Hub 目录导入到「${targetLabel.value}」下吗？\n\n目标目录：${targetNode.full_code_path}\n来源：${command.displaySource}\n\n同名目录或文件会按导入规则覆盖。`,
       'Hub 导入目录',
       {
         confirmButtonText: '导入',

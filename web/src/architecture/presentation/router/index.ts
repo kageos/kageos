@@ -61,15 +61,6 @@ const router = createRouter({
       }
     },
     {
-      path: '/create-test-user',
-      name: 'create-test-user',
-      component: () => import('@/architecture/presentation/features/auth/pages/CreateTestUserPage.vue'),
-      meta: {
-        titleKey: 'route.createTestUser',
-        requireAuth: true
-      }
-    },
-    {
       path: '/public/s/:shareId',
       name: 'public-share',
       component: () => import('@/architecture/presentation/features/public/pages/PublicSharePage.vue'),

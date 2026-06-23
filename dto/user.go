@@ -43,3 +43,64 @@ type UpdateUserReq struct {
 type UpdateUserResp struct {
 	User UserInfo `json:"user"` // 更新后的用户信息
 }
+
+// SystemListUsersReq system 用户管理：分页查询用户
+type SystemListUsersReq struct {
+	Keyword      string `json:"keyword" form:"keyword" example:"bei"`            // 搜索关键词：用户名、邮箱、昵称
+	CompanyCode  string `json:"company_code" form:"company_code" example:"acme"` // 企业代码
+	Status       string `json:"status" form:"status" example:"active"`           // 用户状态：active/pending/disabled
+	RegisterType string `json:"register_type" form:"register_type" example:"email"`
+	Page         int    `json:"page" form:"page" example:"1"`
+	PageSize     int    `json:"page_size" form:"page_size" example:"20"`
+}
+
+// SystemListUsersResp system 用户管理：分页用户列表
+type SystemListUsersResp struct {
+	Users    []UserInfo `json:"users"`
+	Total    int64      `json:"total"`
+	Page     int        `json:"page"`
+	PageSize int        `json:"page_size"`
+}
+
+// SystemCreateUserReq system 用户管理：创建用户
+type SystemCreateUserReq struct {
+	Username           string `json:"username" binding:"required,min=3,max=32" example:"newuser"`
+	Password           string `json:"password" binding:"required,min=6" example:"123456"`
+	Email              string `json:"email" example:"newuser@example.com"`
+	Nickname           string `json:"nickname" example:"新用户"`
+	CompanyCode        string `json:"company_code" example:"acme"`     // 为空时使用默认企业
+	CompanyName        string `json:"company_name" example:"Acme Inc"` // 企业不存在时必填，用于创建企业
+	CompanyLogoURL     string `json:"company_logo_url" example:"https://cdn.example.com/acme.png"`
+	DepartmentFullPath string `json:"department_full_path" example:"/org/unassigned"`
+	LeaderUsername     string `json:"leader_username" example:"leader1"`
+	Status             string `json:"status" example:"active"` // 为空默认 active；支持 active/pending/disabled
+}
+
+// SystemUserResp system 用户管理：单用户响应
+type SystemUserResp struct {
+	User UserInfo `json:"user"`
+}
+
+// SystemUpdateUserReq system 用户管理：更新用户基础信息
+type SystemUpdateUserReq struct {
+	Email              *string `json:"email,omitempty" example:"newuser@example.com"`
+	Nickname           *string `json:"nickname,omitempty" example:"新用户"`
+	Signature          *string `json:"signature,omitempty" example:"负责客户成功"`
+	Avatar             *string `json:"avatar,omitempty" example:"https://avatar.com/1.jpg"`
+	Gender             *string `json:"gender,omitempty" example:"other"`
+	CompanyCode        *string `json:"company_code,omitempty" example:"acme"`
+	CompanyName        *string `json:"company_name,omitempty" example:"Acme Inc"`
+	CompanyLogoURL     *string `json:"company_logo_url,omitempty" example:"https://cdn.example.com/acme.png"`
+	DepartmentFullPath *string `json:"department_full_path,omitempty" example:"/org/unassigned"`
+	LeaderUsername     *string `json:"leader_username,omitempty" example:"leader1"`
+}
+
+// SystemResetUserPasswordReq system 用户管理：重置用户密码
+type SystemResetUserPasswordReq struct {
+	Password string `json:"password" binding:"required,min=6" example:"123456"`
+}
+
+// SystemUpdateUserStatusReq system 用户管理：更新用户状态
+type SystemUpdateUserStatusReq struct {
+	Status string `json:"status" binding:"required,oneof=active pending disabled" example:"disabled"`
+}
