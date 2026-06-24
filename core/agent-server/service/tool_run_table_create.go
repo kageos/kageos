@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/functionschema"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
@@ -51,6 +53,20 @@ func runTableCreateTool(ctx context.Context, args runTableCreateArgs, currentFul
 	}
 	if len(bodyArr) == 0 {
 		return toolResult("run_table_create 的 body 不能为空数组。", true)
+	}
+	payloads := make([]runWriteValidationPayload, 0, len(bodyArr))
+	for i, row := range bodyArr {
+		rowMap, ok := row.(map[string]interface{})
+		if !ok || rowMap == nil {
+			return toolResult("run_table_create 的 body 写入前校验失败，本次未提交任何数据：每条必须为 JSON 对象，不能为 null、数组、数字或字符串。", true)
+		}
+		payloads = append(payloads, runWriteValidationPayload{
+			Label: fmt.Sprintf("[%d]", i),
+			Body:  rowMap,
+		})
+	}
+	if msg := runWritePreflight(ctx, "run_table_create", fullCodePath, functionschema.TypeTable, runWriteModeTableCreate, payloads); msg != "" {
+		return toolResult(msg, true)
 	}
 
 	dataList := make([]interface{}, 0, len(bodyArr))

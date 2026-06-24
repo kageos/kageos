@@ -119,6 +119,21 @@ IndexError: list index out of range`,
 
 	guidance = buildPythonModelGuidance(map[string]interface{}{
 		"status": "失败",
+		"output": "RuntimeError: python_code 必须定义函数 kageos_entry(args, output_dir)",
+	})
+	for _, want := range []string{
+		"【入口协议】",
+		"def kageos_entry(args, output_dir):",
+		"print 只做日志",
+		"/system/prompt/case_catalog/form/python_output",
+	} {
+		if !strings.Contains(guidance, want) {
+			t.Fatalf("expected missing entry guidance to contain %q, got %q", want, guidance)
+		}
+	}
+
+	guidance = buildPythonModelGuidance(map[string]interface{}{
+		"status": "失败",
 		"output": "requests.exceptions.ConnectionError: Failed to establish a new connection",
 	})
 	if !strings.Contains(guidance, "【文件读取】") {

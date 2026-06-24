@@ -76,6 +76,8 @@ func workspaceRoleGateSuggestion(roleID string, toolName string) string {
 		return "如需创建或修改应用内容，请交接给「应用开发工程师」「应用维护工程师」或「构建修复工程师」。"
 	case "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query", "run_on_select_fuzzy":
 		return "如需执行业务操作，请交接给「应用操作员」；如需验证功能，请交接给「测试工程师」。"
+	case "run_python":
+		return "如需临时计算、文件/数据处理或轻量脚本，请交接给「应用操作员」或「数据/文件处理工程师」；重试时 python_code 必须从 def kageos_entry(args, output_dir): 开始，返回值只包含 data、output_files、warnings。若只是分析 Go 源码、依赖字段或 SDK 用法，请用 read_go_file/search/read_doc 读取真实源码和文档，不要用 Python 模拟判断。"
 	case "send_notification":
 		return "如需在执行过程中通知用户，请切换到应用操作员、自动化操作员或其他具备通知权限的执行角色。"
 	case "create_scheduled_function_task", "create_scheduled_agent_task", "list_scheduled_tasks", "manage_scheduled_task", "list_scheduled_task_executions":

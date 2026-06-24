@@ -7,6 +7,7 @@ import (
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/functionschema"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
@@ -50,6 +51,13 @@ func runFormSubmitTool(ctx context.Context, args runFormSubmitArgs, currentFullC
 		}
 	} else {
 		body = map[string]interface{}{}
+	}
+	bodyMap, ok := body.(map[string]interface{})
+	if !ok {
+		return toolResult("run_form_submit 的 body 必须是 JSON 对象字符串，不能是数组、数字或字符串。", true)
+	}
+	if msg := runWritePreflight(ctx, "run_form_submit", fullCodePath, functionschema.TypeForm, runWriteModeFormSubmit, []runWriteValidationPayload{{Body: bodyMap}}); msg != "" {
+		return toolResult(msg, true)
 	}
 	result, err := apicall.FormSubmit(ctx, fullCodePath, body)
 	if err != nil {

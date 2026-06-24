@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/functionschema"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
@@ -51,6 +53,27 @@ func runTableUpdateTool(ctx context.Context, args runTableUpdateArgs, currentFul
 	}
 	if len(bodyArr) == 0 {
 		return toolResult("run_table_update 的 body 不能为空数组。", true)
+	}
+	payloads := make([]runWriteValidationPayload, 0, len(bodyArr))
+	for i, row := range bodyArr {
+		rowMap, ok := row.(map[string]interface{})
+		if !ok || rowMap == nil {
+			return toolResult("run_table_update 的 body 写入前校验失败，本次未提交任何数据：每项必须为 JSON 对象，且含 id 与 updates。", true)
+		}
+		if _, hasID := rowMap["id"]; !hasID {
+			return toolResult("run_table_update 的 body 写入前校验失败，本次未提交任何数据：存在记录缺少 id。", true)
+		}
+		updates, ok := rowMap["updates"].(map[string]interface{})
+		if !ok || updates == nil {
+			return toolResult("run_table_update 的 body 写入前校验失败，本次未提交任何数据：存在记录缺少 updates 或 updates 非对象。", true)
+		}
+		payloads = append(payloads, runWriteValidationPayload{
+			Label: fmt.Sprintf("[%d].updates", i),
+			Body:  updates,
+		})
+	}
+	if msg := runWritePreflight(ctx, "run_table_update", fullCodePath, functionschema.TypeTable, runWriteModeTableUpdate, payloads); msg != "" {
+		return toolResult(msg, true)
 	}
 
 	dataList := make([]interface{}, 0, len(bodyArr))

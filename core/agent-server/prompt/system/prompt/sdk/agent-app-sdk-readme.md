@@ -335,7 +335,7 @@ type WidgetLookupExtra struct {
 | `slider` | `min`、`max`、`step`、`render_default`、`unit` | 可编辑滑块 | 进度、评分、百分比 |
 | `rate` | `max`、`allow_half`、`render_default`、`texts` | 星级评分 | 服务评价、满意度 |
 | `switch` | `render_default` | 布尔开关；不要写未实现的 `true_label` / `false_label` | 是否启用、是否匿名 |
-| `datetime` | `format`、`render_default`、`disabled` | 日期时间；raw value 为 `"YYYY-MM-DD HH:mm:ss"`，数据库推荐 `types.Time` + `type:datetime`；默认值推荐 `CURRENT_TIMESTAMP` / `DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 HOUR)` | 创建时间、截止时间 |
+| `datetime` | `format`、`placeholder`、`render_default`、`disabled` | 日期时间；raw value 为 `"YYYY-MM-DD HH:mm:ss"`，数据库推荐 `types.Time` + `type:datetime`；默认值推荐 `CURRENT_TIMESTAMP` / `DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 HOUR)` | 创建时间、截止时间 |
 | `color` | `format`、`render_default`、`show_alpha` | 颜色选择 | 主题色、颜色值 |
 | `files` | `accept`、`max_size`、`max_count` | 文件上传/下载；字段类型必须为 `string` | 附件、图片、视频 |
 | `user / users` | `render_default`、`disabled`、`max_count` | 用户选择 | 负责人、抄送人 |

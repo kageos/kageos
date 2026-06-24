@@ -17,6 +17,23 @@ func GetUserByUsername(ctx context.Context, req *dto.QueryUserReq) (*dto.UserInf
 	return &result.User, nil
 }
 
+// GetUsersByUsernames 批量获取当前请求人企业内的用户信息。
+func GetUsersByUsernames(ctx context.Context, usernames []string) ([]dto.UserInfo, error) {
+	if len(usernames) == 0 {
+		return nil, nil
+	}
+	result, err := PostAPI[*dto.GetUsersByUsernamesReq, *dto.GetUsersByUsernamesResp](ctx, "/hr/api/v1/users", &dto.GetUsersByUsernamesReq{
+		Usernames: usernames,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, nil
+	}
+	return result.Users, nil
+}
+
 // GetDepartmentsByPaths 根据部门 full_code_path 列表批量获取部门信息（app-server -> hr-server）
 // 用于解析部门中文名称路径（FullNamePath）供展示；存储/逻辑仍用 full_code_path。
 func GetDepartmentsByPaths(ctx context.Context, fullCodePaths []string) (*dto.GetDepartmentsByPathsResp, error) {

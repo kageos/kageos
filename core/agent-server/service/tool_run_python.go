@@ -291,6 +291,10 @@ func buildPythonModelGuidance(raw map[string]interface{}) string {
 			appendLine("【重写建议】遇到 SyntaxError/IndentationError 时，不要局部修补旧长脚本；请重新生成一份更短、更扁平、统一 4 空格缩进的完整 python_code。")
 			appendLine("【缩进策略】优先减少 for/if/else 多层嵌套；能改成 pandas API、zip、列表推导式或先算中间变量再 return 的，就不要继续堆块。")
 		}
+		if strings.Contains(out, "必须定义函数 kageos_entry") || strings.Contains(out, "python_code 必须定义函数") {
+			appendLine("【入口协议】run_python 不是普通 Python REPL。请重写完整 python_code，从 def kageos_entry(args, output_dir): 开始；返回 dict 只包含 data、output_files、warnings，例如 {\"data\": {...}, \"warnings\": [], \"output_files\": []}。print 只做日志，不作为主结果。")
+			appendLine("【参考】需要固化为应用接口时，先 read_doc(\"/system/prompt/case_catalog/form/python_output\")；只是分析 Go 源码、依赖字段或 SDK 用法时，优先用 read_go_file/search/read_doc 读取真实代码，不要用 Python 模拟结论。")
+		}
 		if strings.Contains(out, "UnboundLocalError") {
 			appendLine("【作用域】请检查变量是否先使用后赋值；import 语句请放到文件顶部或函数体开头。")
 		}

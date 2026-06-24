@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/kageos/kageos/core/agent-server/model"
@@ -104,6 +105,23 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleQAEngineer, "write_go_file"); !blocked || !res.IsError {
 		t.Fatalf("qa_engineer should block write_go_file, blocked=%v res=%#v", blocked, res)
+	}
+}
+
+func TestWorkspaceRoleToolGateRunPythonGuidanceIsActionable(t *testing.T) {
+	res, blocked := workspaceRoleToolGateResult(WorkspaceRoleMaintenanceEngineer, "run_python")
+	if !blocked || !res.IsError {
+		t.Fatalf("maintenance_engineer should block run_python, blocked=%v res=%#v", blocked, res)
+	}
+	for _, want := range []string{
+		"应用操作员",
+		"数据/文件处理工程师",
+		"def kageos_entry(args, output_dir):",
+		"read_go_file/search/read_doc",
+	} {
+		if !strings.Contains(res.Content, want) {
+			t.Fatalf("run_python gate guidance should contain %q, got: %s", want, res.Content)
+		}
 	}
 }
 
