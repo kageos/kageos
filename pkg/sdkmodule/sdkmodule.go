@@ -4,7 +4,7 @@ import "strings"
 
 const (
 	ModulePath     = "github.com/kageos/kageos-sdk"
-	Version        = "v0.2.0"
+	Version        = "v0.2.1"
 	AgentAppPrefix = ModulePath + "/agent-app"
 )
 
