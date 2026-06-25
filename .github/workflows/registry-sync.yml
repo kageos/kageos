@@ -60,6 +60,7 @@ jobs:
 
       - name: Sync images to Aliyun ACR
         shell: bash
+        timeout-minutes: 300
         env:
           ALIYUN_REGISTRY: ${{ vars.ALIYUN_REGISTRY }}
           ALIYUN_NAMESPACE: ${{ vars.ALIYUN_NAMESPACE }}
@@ -78,15 +79,36 @@ jobs:
 
           printf '%s' "$ALIYUN_REGISTRY_PASSWORD" | skopeo login --username "$ALIYUN_REGISTRY_USERNAME" --password-stdin "$ALIYUN_REGISTRY"
 
+          copy_image() {
+            local source="$1"
+            local target="$2"
+            local attempt
+
+            for attempt in 1 2 3; do
+              echo "Copying ${source} -> ${target} (attempt ${attempt}/3)"
+              if timeout 30m skopeo copy --all "$source" "$target"; then
+                skopeo inspect --format 'Target digest: {{.Digest}}' "$target" || true
+                return 0
+              fi
+
+              echo "Copy failed for ${target}"
+              if [[ "$attempt" -lt 3 ]]; then
+                sleep $((attempt * 30))
+              fi
+            done
+
+            return 1
+          }
+
           sync_image() {
             local image="$1"
-            local source_image="docker.io/qiayanai/${image}:${version}"
-            local target_image="${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/${image}"
+            local source_image="docker://docker.io/qiayanai/${image}:${version}"
+            local target_image="docker://${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/${image}"
 
             echo "Syncing ${source_image} -> ${target_image}:${version}"
-            skopeo copy --all "docker://${source_image}" "docker://${target_image}:${version}"
+            copy_image "$source_image" "${target_image}:${version}"
             if [[ "$push_latest" == "true" ]]; then
-              skopeo copy --all "docker://${source_image}" "docker://${target_image}:latest"
+              copy_image "$source_image" "${target_image}:latest"
             fi
           }
 

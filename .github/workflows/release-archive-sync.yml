@@ -1,17 +1,14 @@
-name: Docker Release
+name: Release Archive Sync
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
       version:
-        description: "Image version, for example 0.2.0. A leading v is accepted."
+        description: "Image version to package, for example 0.2.0. A leading v is accepted."
         required: true
         default: "0.2.0"
       push_latest:
-        description: "Also update qiayanai/kageos:latest"
+        description: "Also update downloads.kageos.com/releases/latest.txt."
         required: true
         type: boolean
         default: true
@@ -24,27 +21,17 @@ env:
 
 jobs:
   publish:
-    name: Publish multi-arch image
+    name: Publish release archives
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Resolve tags
+      - name: Resolve version
         id: release
         shell: bash
         run: |
           set -euo pipefail
 
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            version="${GITHUB_REF_NAME#v}"
-            push_latest="true"
-          else
-            version="${{ inputs.version }}"
-            version="${version#v}"
-            push_latest="${{ inputs.push_latest }}"
-          fi
-
+          version="${{ inputs.version }}"
+          version="${version#v}"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
             echo "version must look like 0.2.0, got: $version" >&2
             exit 1
@@ -52,13 +39,7 @@ jobs:
 
           {
             echo "version=${version}"
-            echo "push_latest=${push_latest}"
-            echo "tags<<EOF"
-            echo "${IMAGE_NAME}:${version}"
-            if [[ "$push_latest" == "true" ]]; then
-              echo "${IMAGE_NAME}:latest"
-            fi
-            echo "EOF"
+            echo "push_latest=${{ inputs.push_latest }}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Log in to Docker Hub
@@ -66,34 +47,6 @@ jobs:
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Build and push
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: deploy/aio/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.release.outputs.tags }}
-          labels: |
-            org.opencontainers.image.title=Kageos
-            org.opencontainers.image.description=Kageos all-in-one local image
-            org.opencontainers.image.version=${{ steps.release.outputs.version }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          build-args: |
-            APT_USE_MIRROR=0
-            GOPROXY=https://proxy.golang.org,direct
-            GOSUMDB=sum.golang.org
-            NPM_REGISTRY=https://registry.npmjs.org
-            KAGEOS_DEFAULT_APP_BASE_IMAGE=docker.io/qiayanai/kagebase:${{ steps.release.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build release archives
         shell: bash
@@ -172,57 +125,4 @@ jobs:
             printf 'v%s\n' "$version" > dist/r2/releases/latest.txt
             aws --endpoint-url "$endpoint" s3 cp dist/r2/releases/latest.txt "s3://${bucket}/releases/latest.txt" \
               --cache-control "no-cache, max-age=60"
-          fi
-
-      - name: Sync image to Aliyun ACR
-        shell: bash
-        timeout-minutes: 190
-        env:
-          ALIYUN_REGISTRY: ${{ vars.ALIYUN_REGISTRY }}
-          ALIYUN_NAMESPACE: ${{ vars.ALIYUN_NAMESPACE }}
-          ALIYUN_REGISTRY_USERNAME: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
-          ALIYUN_REGISTRY_PASSWORD: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${ALIYUN_REGISTRY:-}" || -z "${ALIYUN_NAMESPACE:-}" || -z "${ALIYUN_REGISTRY_USERNAME:-}" || -z "${ALIYUN_REGISTRY_PASSWORD:-}" ]]; then
-            echo "Aliyun registry is not configured; skipping image sync."
-            exit 0
-          fi
-
-          if ! command -v skopeo >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y skopeo
-          fi
-
-          copy_image() {
-            local source="$1"
-            local target="$2"
-            local attempt
-
-            for attempt in 1 2 3; do
-              echo "Copying ${source} -> ${target} (attempt ${attempt}/3)"
-              if timeout 30m skopeo copy --all "$source" "$target"; then
-                skopeo inspect --format 'Target digest: {{.Digest}}' "$target" || true
-                return 0
-              fi
-
-              echo "Copy failed for ${target}"
-              if [[ "$attempt" -lt 3 ]]; then
-                sleep $((attempt * 30))
-              fi
-            done
-
-            return 1
-          }
-
-          version="${{ steps.release.outputs.version }}"
-          push_latest="${{ steps.release.outputs.push_latest }}"
-          source_image="docker://${IMAGE_NAME}:${version}"
-          target_image="docker://${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/kageos"
-
-          printf '%s' "$ALIYUN_REGISTRY_PASSWORD" | skopeo login --username "$ALIYUN_REGISTRY_USERNAME" --password-stdin "$ALIYUN_REGISTRY"
-          copy_image "$source_image" "${target_image}:${version}"
-          if [[ "$push_latest" == "true" ]]; then
-            copy_image "$source_image" "${target_image}:latest"
           fi

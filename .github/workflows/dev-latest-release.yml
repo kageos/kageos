@@ -52,6 +52,7 @@ jobs:
 
       - name: Sync latest to Aliyun ACR
         shell: bash
+        timeout-minutes: 100
         env:
           ALIYUN_REGISTRY: ${{ vars.ALIYUN_REGISTRY }}
           ALIYUN_NAMESPACE: ${{ vars.ALIYUN_NAMESPACE }}
@@ -70,5 +71,26 @@ jobs:
             sudo apt-get install -y skopeo
           fi
 
+          copy_image() {
+            local source="$1"
+            local target="$2"
+            local attempt
+
+            for attempt in 1 2 3; do
+              echo "Copying ${source} -> ${target} (attempt ${attempt}/3)"
+              if timeout 30m skopeo copy --all "$source" "$target"; then
+                skopeo inspect --format 'Target digest: {{.Digest}}' "$target" || true
+                return 0
+              fi
+
+              echo "Copy failed for ${target}"
+              if [[ "$attempt" -lt 3 ]]; then
+                sleep $((attempt * 30))
+              fi
+            done
+
+            return 1
+          }
+
           printf '%s' "$ALIYUN_REGISTRY_PASSWORD" | skopeo login --username "$ALIYUN_REGISTRY_USERNAME" --password-stdin "$ALIYUN_REGISTRY"
-          skopeo copy --all "docker://${IMAGE_NAME}:latest" "docker://${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/kageos:latest"
+          copy_image "docker://${IMAGE_NAME}:latest" "docker://${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/kageos:latest"

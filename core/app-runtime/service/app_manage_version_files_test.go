@@ -7,6 +7,8 @@ import (
 	"time"
 
 	appconfig "github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/sdkmodule"
+	"golang.org/x/mod/modfile"
 )
 
 func TestCreateVersionFilesAlsoCreatesCurrentVersionFiles(t *testing.T) {
@@ -194,6 +196,87 @@ func TestUpdateRuntimeManifestStartupSkipsDifferentVersion(t *testing.T) {
 	}
 }
 
+func TestEnsureAppGoModFileCreatesWithCurrentSDK(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	service := newVersionFileTestService(basePath)
+	appPaths := newRuntimeAppPaths(basePath, "alice", "demo")
+	if err := os.MkdirAll(appPaths.AppDir(), 0o755); err != nil {
+		t.Fatalf("mkdir app dir: %v", err)
+	}
+
+	if err := service.ensureAppGoModFile(appPaths); err != nil {
+		t.Fatalf("ensureAppGoModFile: %v", err)
+	}
+
+	if got := readGoModRequireVersion(t, appPaths.GoModPath(), sdkmodule.ModulePath); got != sdkmodule.Version {
+		t.Fatalf("SDK version = %q, want %q", got, sdkmodule.Version)
+	}
+}
+
+func TestEnsureAppGoModFileUpgradesOlderSDK(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	service := newVersionFileTestService(basePath)
+	appPaths := newRuntimeAppPaths(basePath, "alice", "demo")
+	if err := os.MkdirAll(appPaths.AppDir(), 0o755); err != nil {
+		t.Fatalf("mkdir app dir: %v", err)
+	}
+	goMod := `module namespace/alice/demo
+
+go 1.25.0
+
+require (
+	github.com/google/uuid v1.6.0
+	github.com/kageos/kageos-sdk v0.1.0
+)
+`
+	if err := os.WriteFile(appPaths.GoModPath(), []byte(goMod), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	if err := service.ensureAppGoModFile(appPaths); err != nil {
+		t.Fatalf("ensureAppGoModFile: %v", err)
+	}
+
+	if got := readGoModRequireVersion(t, appPaths.GoModPath(), sdkmodule.ModulePath); got != sdkmodule.Version {
+		t.Fatalf("SDK version = %q, want %q", got, sdkmodule.Version)
+	}
+	if got := readGoModRequireVersion(t, appPaths.GoModPath(), "github.com/google/uuid"); got != "v1.6.0" {
+		t.Fatalf("uuid version = %q, want v1.6.0", got)
+	}
+}
+
+func TestEnsureAppGoModFileDoesNotDowngradeNewerSDK(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	service := newVersionFileTestService(basePath)
+	appPaths := newRuntimeAppPaths(basePath, "alice", "demo")
+	if err := os.MkdirAll(appPaths.AppDir(), 0o755); err != nil {
+		t.Fatalf("mkdir app dir: %v", err)
+	}
+	goMod := `module namespace/alice/demo
+
+go 1.25.0
+
+require github.com/kageos/kageos-sdk v0.99.0
+`
+	if err := os.WriteFile(appPaths.GoModPath(), []byte(goMod), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	if err := service.ensureAppGoModFile(appPaths); err != nil {
+		t.Fatalf("ensureAppGoModFile: %v", err)
+	}
+
+	if got := readGoModRequireVersion(t, appPaths.GoModPath(), sdkmodule.ModulePath); got != "v0.99.0" {
+		t.Fatalf("SDK version = %q, want v0.99.0", got)
+	}
+}
+
 func newVersionFileTestService(basePath string) *AppManageService {
 	return &AppManageService{
 		config: &appconfig.AppManageServiceConfig{
@@ -214,4 +297,24 @@ func assertFileContent(t *testing.T, path string, want string) {
 	if string(data) != want {
 		t.Fatalf("unexpected file content for %s: got %q want %q", path, string(data), want)
 	}
+}
+
+func readGoModRequireVersion(t *testing.T, path, module string) string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read go.mod: %v", err)
+	}
+	file, err := modfile.Parse(path, data, nil)
+	if err != nil {
+		t.Fatalf("parse go.mod: %v", err)
+	}
+	for _, req := range file.Require {
+		if req.Mod.Path == module {
+			return req.Mod.Version
+		}
+	}
+	t.Fatalf("module %s not found in %s", module, path)
+	return ""
 }

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/sdkmodule"
+	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/semver"
 )
 
 // VersionInfo 版本信息结构体
@@ -359,10 +362,17 @@ func (s *AppManageService) updateCurrentVersionFiles(user, app, version string) 
 
 func (s *AppManageService) ensureAppGoModFile(appPaths runtimeAppPaths) error {
 	goModPath := appPaths.GoModPath()
-	if _, err := os.Stat(goModPath); err == nil {
+	if data, err := os.ReadFile(goModPath); err == nil {
+		updated, changed, err := ensureGoModSDKVersion(goModPath, data)
+		if err != nil {
+			return err
+		}
+		if changed {
+			return writeFileAtomic(goModPath, updated, 0644)
+		}
 		return nil
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("failed to stat go.mod: %w", err)
+		return fmt.Errorf("failed to read go.mod: %w", err)
 	}
 
 	content := fmt.Sprintf(`module %s
@@ -373,6 +383,41 @@ require %s %s
 `, appPaths.AppModulePath(), sdkmodule.ModulePath, sdkmodule.Version)
 
 	return writeFileAtomic(goModPath, []byte(content), 0644)
+}
+
+func ensureGoModSDKVersion(filename string, data []byte) ([]byte, bool, error) {
+	file, err := modfile.Parse(filename, data, nil)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to parse go.mod: %w", err)
+	}
+
+	var current string
+	for _, req := range file.Require {
+		if req.Mod.Path == sdkmodule.ModulePath {
+			current = req.Mod.Version
+			break
+		}
+	}
+
+	target := sdkmodule.Version
+	if current != "" && semver.IsValid(current) && semver.IsValid(target) && semver.Compare(current, target) >= 0 {
+		return nil, false, nil
+	}
+
+	if err := file.AddRequire(sdkmodule.ModulePath, target); err != nil {
+		return nil, false, fmt.Errorf("failed to update %s requirement: %w", sdkmodule.ModulePath, err)
+	}
+	file.Cleanup()
+
+	formatted, err := file.Format()
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to format go.mod: %w", err)
+	}
+	if bytes.Equal(formatted, data) {
+		return nil, false, nil
+	}
+
+	return formatted, true, nil
 }
 
 // createMainGoFile 创建 main.go 文件（已存在则复用，不覆盖）
