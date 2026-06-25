@@ -10,6 +10,7 @@ type ChartDataItem = string | number | boolean | null | ChartDataObject
 type SeriesConfig = Record<string, unknown>
 type TooltipParam = {
   axisValue?: string | number
+  axisValueLabel?: string | number
   name?: string
   value?: unknown
   seriesName?: string
@@ -23,6 +24,16 @@ type GaugeSeriesOption = SeriesConfig & {
   detail: SeriesConfig
   axisLabel: SeriesConfig
 }
+type CartesianDataZoomOption = SeriesConfig & {
+  type: 'inside' | 'slider'
+  xAxisIndex: number[]
+  start: number
+  end: number
+}
+
+const CARTESIAN_DATA_ZOOM_THRESHOLD = 80
+const CARTESIAN_DEFAULT_VISIBLE_POINTS = 160
+const DATE_TIME_AXIS_LABEL_RE = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2})?)?$/
 
 export type RenderableChart = Chart & {
   __placeholder?: boolean
@@ -37,7 +48,8 @@ export function formatChartMetadataValue(value: ChartMetadataValue): string {
   return String(value)
 }
 
-export function getChartMetadataSpan(_count: number): number {
+export function getChartMetadataSpan(count: number): number {
+  void count
   return 6
 }
 
@@ -51,20 +63,33 @@ const formatAxisValueLabel = (value: number): string => {
   return value.toString()
 }
 
+const escapeTooltipHtml = (value: unknown): string => {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 const isChartDataObject = (value: unknown): value is ChartDataObject => {
   return typeof value === 'object' && value !== null
 }
 
-const formatTooltipValue = (value: unknown): unknown => {
+const formatTooltipValue = (value: unknown): string => {
   if (typeof value === 'number') {
-    return value % 1 === 0 ? value : value.toFixed(2)
+    return value % 1 === 0 ? value.toString() : value.toFixed(2)
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => formatTooltipValue(item)).join(', ')
   }
 
   if (isChartDataObject(value) && value.value !== undefined) {
     return formatTooltipValue(value.value)
   }
 
-  return value
+  return escapeTooltipHtml(value ?? '-')
 }
 
 const formatSeriesTooltip = (params: TooltipParam | TooltipParam[] | null | undefined): string => {
@@ -77,10 +102,10 @@ const formatSeriesTooltip = (params: TooltipParam | TooltipParam[] | null | unde
       return '无数据'
     }
 
-    const title = params[0]?.axisValue || params[0]?.name || ''
+    const title = params[0]?.axisValueLabel || params[0]?.axisValue || params[0]?.name || ''
     const lines = params.map((param) => {
       const value = formatTooltipValue(param.value)
-      const name = param.seriesName || param.name || ''
+      const name = escapeTooltipHtml(param.seriesName || param.name || '数值')
       const color = param.color || '#5470c6'
 
       return `<div style="display: flex; align-items: center; margin-bottom: 4px;">
@@ -90,15 +115,15 @@ const formatSeriesTooltip = (params: TooltipParam | TooltipParam[] | null | unde
       </div>`
     }).join('')
 
-    return `<div style="font-weight: bold; margin-bottom: 8px;">${title}</div>${lines}`
+    return `<div style="font-weight: bold; margin-bottom: 8px;">${escapeTooltipHtml(title)}</div>${lines}`
   }
 
   const value = formatTooltipValue(params.value)
-  const title = params.name || params.axisValue || params.seriesName || ''
+  const title = params.name || params.axisValueLabel || params.axisValue || params.seriesName || ''
   const color = params.color || '#5470c6'
-  const name = params.seriesName || '数值'
+  const name = escapeTooltipHtml(params.seriesName || '数值')
 
-  return `<div style="font-weight: bold; margin-bottom: 8px;">${title}</div>
+  return `<div style="font-weight: bold; margin-bottom: 8px;">${escapeTooltipHtml(title)}</div>
     <div style="display: flex; align-items: center;">
       <span style="display: inline-block; width: 10px; height: 10px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></span>
       <span style="flex: 1;">${name}:</span>
@@ -125,13 +150,101 @@ const STRUCTURAL_SERIES_CONFIG_KEYS = new Set([
   'seriesLayoutBy',
 ])
 
-const createCartesianGridOption = () => ({
+const createCartesianGridOption = (hasDataZoom = false) => ({
   id: 'main-grid',
   left: '3%',
   right: '4%',
-  bottom: '3%',
+  bottom: hasDataZoom ? 72 : '3%',
   top: '15%',
   outerBoundsContain: 'axisLabel'
+})
+
+const shouldUseCartesianDataZoom = (xAxis?: string[]): boolean => {
+  return Array.isArray(xAxis) && xAxis.length > CARTESIAN_DATA_ZOOM_THRESHOLD
+}
+
+const resolveDataZoomStart = (pointCount: number): number => {
+  if (pointCount <= CARTESIAN_DEFAULT_VISIBLE_POINTS) {
+    return 0
+  }
+  return Math.max(0, ((pointCount - CARTESIAN_DEFAULT_VISIBLE_POINTS) / pointCount) * 100)
+}
+
+const createCartesianDataZoomOption = (pointCount: number): CartesianDataZoomOption[] => {
+  const start = resolveDataZoomStart(pointCount)
+  return [
+    {
+      type: 'inside',
+      xAxisIndex: [0],
+      start,
+      end: 100,
+      filterMode: 'none',
+      throttle: 50,
+      zoomOnMouseWheel: true,
+      moveOnMouseMove: true,
+      moveOnMouseWheel: true,
+    },
+    {
+      type: 'slider',
+      xAxisIndex: [0],
+      start,
+      end: 100,
+      height: 24,
+      bottom: 20,
+      filterMode: 'none',
+      brushSelect: false,
+      showDetail: false,
+    },
+  ]
+}
+
+const truncateAxisLabel = (label: string, maxLength: number): string => {
+  if (label.length <= maxLength) {
+    return label
+  }
+  return `${label.slice(0, Math.max(0, maxLength - 1))}…`
+}
+
+const formatCategoryAxisLabel = (value: string | number, pointCount: number): string => {
+  const label = String(value)
+  const match = label.match(DATE_TIME_AXIS_LABEL_RE)
+  if (match) {
+    const [, year, month, day, hour, minute] = match
+    if (hour && minute) {
+      if (pointCount <= 48) {
+        return `${hour}:${minute}`
+      }
+      if (pointCount <= 240) {
+        return `${month}-${day}\n${hour}:${minute}`
+      }
+      return `${month}-${day}`
+    }
+    if (pointCount > 90) {
+      return `${month}-${day}`
+    }
+    return year ? `${year}-${month}-${day}` : label
+  }
+
+  if (pointCount > 120) {
+    return truncateAxisLabel(label, 8)
+  }
+  if (pointCount > 40) {
+    return truncateAxisLabel(label, 12)
+  }
+  return truncateAxisLabel(label, 18)
+}
+
+const createCategoryAxisLabelOption = (xAxis: string[]) => ({
+  fontSize: 12,
+  color: '#374151',
+  hideOverlap: true,
+  margin: 10,
+  formatter: (value: string | number) => {
+    const pointCount = shouldUseCartesianDataZoom(xAxis)
+      ? Math.min(xAxis.length, CARTESIAN_DEFAULT_VISIBLE_POINTS)
+      : xAxis.length
+    return formatCategoryAxisLabel(value, pointCount)
+  },
 })
 
 const createSeriesId = (chartType: string, series: ChartSeries, index: number): string => {
@@ -319,15 +432,24 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
     }
   }
 
+  const xAxis = chart.x_axis || []
+  const hasCartesianDataZoom = shouldUseCartesianDataZoom(xAxis)
+
   switch (chart.chart_type) {
     case 'bar':
       option.grid = {
-        ...createCartesianGridOption(),
+        ...createCartesianGridOption(hasCartesianDataZoom),
         top: chart.title ? '15%' : '10%',
       }
       option.tooltip = {
         show: true,
-        trigger: 'item',
+        trigger: 'axis',
+        triggerOn: 'mousemove|click',
+        confine: true,
+        enterable: true,
+        axisPointer: {
+          type: 'shadow'
+        },
         backgroundColor: 'rgba(50, 50, 50, 0.9)',
         borderColor: '#333',
         borderWidth: 1,
@@ -343,16 +465,16 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
         id: 'main-x-axis',
         gridIndex: 0,
         type: 'category',
-        data: chart.x_axis || [],
-        axisLabel: {
-          fontSize: 12,
-          color: '#374151'
-        },
+        data: xAxis,
         axisLine: {
           lineStyle: {
             color: '#d1d5db'
           }
-        }
+        },
+        axisLabel: createCategoryAxisLabelOption(xAxis)
+      }
+      if (hasCartesianDataZoom) {
+        option.dataZoom = createCartesianDataZoomOption(xAxis.length)
       }
       option.yAxis = {
         id: 'main-y-axis',
@@ -389,12 +511,33 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
 
     case 'line':
       option.grid = {
-        ...createCartesianGridOption(),
+        ...createCartesianGridOption(hasCartesianDataZoom),
         top: chart.title ? '15%' : '10%',
       }
       option.tooltip = {
         show: true,
-        trigger: 'item',
+        trigger: 'axis',
+        triggerOn: 'mousemove|click',
+        confine: true,
+        enterable: true,
+        axisPointer: {
+          type: 'cross',
+          snap: true,
+          label: {
+            show: true,
+            backgroundColor: '#111827'
+          },
+          lineStyle: {
+            color: '#6b7280',
+            width: 1,
+            type: 'dashed'
+          },
+          crossStyle: {
+            color: '#6b7280',
+            width: 1,
+            type: 'dashed'
+          }
+        },
         backgroundColor: 'rgba(50, 50, 50, 0.9)',
         borderColor: '#333',
         borderWidth: 1,
@@ -406,14 +549,14 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
         },
         formatter: formatSeriesTooltip
       }
-      if (!chart.x_axis || chart.x_axis.length === 0) {
+      if (xAxis.length === 0) {
         return {
           ...option,
           grid: {
             ...createCartesianGridOption(),
             top: chart.title ? '15%' : '10%',
           },
-          xAxis: { id: 'main-x-axis', gridIndex: 0, type: 'category', data: [] },
+          xAxis: { id: 'main-x-axis', gridIndex: 0, type: 'category', data: [], axisLabel: createCategoryAxisLabelOption([]) },
           yAxis: { id: 'main-y-axis', gridIndex: 0, type: 'value' },
           series: []
         }
@@ -422,21 +565,22 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
         id: 'main-x-axis',
         gridIndex: 0,
         type: 'category',
-        data: chart.x_axis,
-        axisLabel: {
-          fontSize: 12,
-          color: '#374151'
-        },
+        data: xAxis,
+        axisLabel: createCategoryAxisLabelOption(xAxis),
         axisLine: {
           lineStyle: {
             color: '#d1d5db'
           }
         }
       }
+      if (hasCartesianDataZoom) {
+        option.dataZoom = createCartesianDataZoomOption(xAxis.length)
+      }
       option.yAxis = {
         id: 'main-y-axis',
         gridIndex: 0,
         type: 'value',
+        scale: true,
         axisLabel: {
           fontSize: 12,
           color: '#374151',
@@ -461,6 +605,14 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
         coordinateSystem: 'cartesian2d',
         xAxisIndex: 0,
         yAxisIndex: 0,
+        smooth: true,
+        showSymbol: !hasCartesianDataZoom,
+        symbolSize: hasCartesianDataZoom ? 5 : 6,
+        emphasis: {
+          focus: 'series',
+          scale: true
+        },
+        ...(xAxis.length > 800 ? { sampling: 'lttb' } : {}),
         data: series.data || [],
         ...getSafeSeriesConfig(series.config),
       }))

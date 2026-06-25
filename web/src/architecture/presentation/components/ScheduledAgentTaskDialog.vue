@@ -13,6 +13,17 @@
         <el-input v-model="form.title" maxlength="100" show-word-limit :placeholder="t('scheduledTask.agentTaskNamePlaceholder')" />
       </el-form-item>
 
+      <el-form-item :label="t('scheduledTask.agentDescription')" prop="description">
+        <el-input
+          v-model="form.description"
+          type="textarea"
+          :autosize="{ minRows: 2, maxRows: 5 }"
+          maxlength="500"
+          show-word-limit
+          :placeholder="t('scheduledTask.agentDescriptionPlaceholder')"
+        />
+      </el-form-item>
+
       <el-form-item :label="t('scheduledTask.agentMessage')" prop="message">
         <div
           class="scheduled-agent-composer"
@@ -116,6 +127,7 @@ import {
 
 interface ScheduledAgentForm extends TimerScheduleForm {
   title: string
+  description: string
   message: string
   mode_code: string
   files: string
@@ -165,6 +177,7 @@ const resolvedFullCodePath = computed(() => {
 })
 const form = reactive<ScheduledAgentForm>({
   title: '',
+  description: '',
   message: '',
   mode_code: 'dev',
   files: '',
@@ -216,6 +229,7 @@ function resetForm() {
   const payload = getTaskPayload(task)
   const schedule = task ? timerScheduleToForm(task.schedule) : createDefaultTimerScheduleForm()
   form.message = task ? getTaskMessage(task) : props.initialMessage || ''
+  form.description = task?.description?.trim() || ''
   form.title = task?.title || defaultTaskTitle()
   form.mode_code = task ? stringFromRecord(payload, 'mode_code') || 'dev' : 'dev'
   form.files = task ? stringFromRecord(payload, 'files') : props.initialFiles || ''
@@ -285,6 +299,7 @@ async function handleSubmit() {
   submitting.value = true
   try {
     const title = form.title.trim()
+    const description = form.description.trim()
     const executorPayload = buildExecutorPayload()
     const metadata = {
       ...(props.editTask?.metadata || {}),
@@ -294,6 +309,7 @@ async function handleSubmit() {
     if (props.editTask) {
       await updateTimerTask(props.editTask.id, {
         title,
+        description,
         executor_payload: executorPayload,
         metadata,
         schedule: buildTimerSchedule(form),
@@ -306,6 +322,7 @@ async function handleSubmit() {
     } else {
       await createTimerTask({
         title,
+        description,
         category: 'scheduled_agent_session',
         tags: ['agent', 'session'],
         executor_key: 'agent.session',
