@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/kageos/kageos-sdk/agent-app/widget"
 	"github.com/kageos/kageos/core/app-server/service"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/access"
@@ -19,7 +20,6 @@ import (
 	"github.com/kageos/kageos/pkg/functionschema"
 	"github.com/kageos/kageos/pkg/ginx/response"
 	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos-sdk/agent-app/widget"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -37,7 +37,15 @@ type callbackRequestEnvelope struct {
 	Type   string `json:"type"`
 }
 
-const privateRuntimePythonRouter = "/_runtime/python"
+const (
+	privateRuntimePythonRouter     = "/_runtime/python"
+	internalTableGetRowsCallback   = "__table_get_rows"
+	tableGetRowsCallbackHTTPMethod = http.MethodPost
+)
+
+type tableGetRowsCallbackReq struct {
+	IDs []int64 `json:"ids"`
+}
 
 // NewStandardAPI 创建标准接口处理器
 func NewStandardAPI(appService *service.AppService, teamAccessService *service.TeamAccessService) *StandardAPI {
@@ -86,15 +94,6 @@ func needFillOldValues(bodyData map[string]interface{}) bool {
 	return !ok || len(oldValues) == 0
 }
 
-// getBodyID 从 table/update body 中取出 id 的字符串形式（用于 eq=id:xxx）
-func getBodyID(bodyData map[string]interface{}) (string, bool) {
-	if bodyData == nil {
-		return "", false
-	}
-	id, ok := getBodyIDInt64(bodyData)
-	return strconv.FormatInt(id, 10), ok
-}
-
 // getBodyIDInt64 从 body 中解析 id（支持 float64/int）
 func getBodyIDInt64(bodyData map[string]interface{}) (int64, bool) {
 	if bodyData == nil {
@@ -112,24 +111,56 @@ func getBodyIDInt64(bodyData map[string]interface{}) (int64, bool) {
 	}
 }
 
-// extractFirstItemFromSearchResult 从 table/search 返回的 result 中取 items[0]，作为当前行（old_values）
-func extractFirstItemFromSearchResult(result interface{}) map[string]interface{} {
-	if result == nil {
-		return nil
+func tableRowID(row map[string]interface{}) (int64, bool) {
+	if row == nil {
+		return 0, false
 	}
-	m, ok := result.(map[string]interface{})
-	if !ok {
-		return nil
+	switch v := row["id"].(type) {
+	case float64:
+		return int64(v), true
+	case int:
+		return int64(v), true
+	case int64:
+		return v, true
+	case json.Number:
+		id, err := v.Int64()
+		return id, err == nil
+	case string:
+		id, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		return id, err == nil
+	default:
+		return 0, false
 	}
-	items, ok := m["items"].([]interface{})
-	if !ok || len(items) == 0 {
-		return nil
+}
+
+func findTableRowByID(rows []map[string]interface{}, id int64) map[string]interface{} {
+	for _, row := range rows {
+		rowID, ok := tableRowID(row)
+		if ok && rowID == id {
+			return row
+		}
 	}
-	first, ok := items[0].(map[string]interface{})
-	if !ok {
-		return nil
+	if len(rows) == 1 {
+		return rows[0]
 	}
-	return first
+	return nil
+}
+
+func extractTableGetRowsCallbackRows(result interface{}) ([]map[string]interface{}, error) {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("解析 %s 结果失败: %w", internalTableGetRowsCallback, err)
+	}
+	var payload struct {
+		Rows []map[string]interface{} `json:"rows"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, fmt.Errorf("解析 %s rows 失败: %w", internalTableGetRowsCallback, err)
+	}
+	if payload.Rows == nil {
+		return nil, fmt.Errorf("%s 未返回 rows", internalTableGetRowsCallback)
+	}
+	return payload.Rows, nil
 }
 
 // buildRequestAppReq 构建 RequestAppReq 请求对象
@@ -229,6 +260,16 @@ func requireAgentToolRuntimeSource(c *gin.Context) error {
 
 // buildCallbackAppReq 构建 CallbackApp 请求对象
 func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, callbackType string) (*dto.RequestAppReq, error) {
+	// 读取请求体
+	all, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return nil, err
+	}
+	defer c.Request.Body.Close()
+	return s.buildCallbackAppReqWithBody(c, fullCodePath, callbackType, c.Request.Method, all, c.Request.URL.RawQuery)
+}
+
+func (s *StandardAPI) buildCallbackAppReqWithBody(c *gin.Context, fullCodePath, callbackType, method string, body []byte, rawQuery string) (*dto.RequestAppReq, error) {
 	user, app, router, err := parseFullCodePath(fullCodePath)
 	if err != nil {
 		return nil, err
@@ -239,7 +280,7 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 		App:                   app,
 		Router:                "/_callback",
 		TargetRouter:          router,
-		Method:                c.Request.Method,
+		Method:                method,
 		TraceId:               contextx.GetTraceId(c),
 		RequestUser:           contextx.GetRequestUser(c),
 		RequestUserDept:       contextx.GetRequestDepartmentFullPath(c),
@@ -257,23 +298,16 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 		WorkspaceRole:         contextx.GetWorkspaceRole(c),
 	}
 
-	// 读取请求体
-	all, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		return nil, err
-	}
-	defer c.Request.Body.Close()
-
 	// 构建回调请求体
 	envelope := callbackRequestEnvelope{
-		Method: c.Request.Method,
+		Method: method,
 		Router: router,
-		Body:   all,
+		Body:   body,
 		Type:   callbackType,
 	}
 
 	// 绑定查询参数
-	req.UrlQuery = c.Request.URL.RawQuery
+	req.UrlQuery = rawQuery
 
 	// 将回调信息序列化为 JSON
 	marshal, err := json.Marshal(envelope)
@@ -283,6 +317,28 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 	req.Body = marshal
 
 	return req, nil
+}
+
+func (s *StandardAPI) fetchTableRowsByIDs(c *gin.Context, fullCodePath string, ids []int64) ([]map[string]interface{}, error) {
+	body, err := json.Marshal(tableGetRowsCallbackReq{IDs: ids})
+	if err != nil {
+		return nil, fmt.Errorf("构造 %s 请求失败: %w", internalTableGetRowsCallback, err)
+	}
+	req, err := s.buildCallbackAppReqWithBody(c, fullCodePath, internalTableGetRowsCallback, tableGetRowsCallbackHTTPMethod, body, "")
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.appService.RequestApp(contextx.ToContext(c), req)
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, fmt.Errorf("%s 返回空响应", internalTableGetRowsCallback)
+	}
+	if resp.Error != "" {
+		return nil, fmt.Errorf("%s 失败: %s", internalTableGetRowsCallback, resp.Error)
+	}
+	return extractTableGetRowsCallbackRows(resp.Result)
 }
 
 func (s *StandardAPI) ensureTableCallbackEnabled(c *gin.Context, fullCodePath, callbackType, denyMessage string) error {
@@ -785,43 +841,19 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 
 	// 能力下沉：若调用方未传 old_values，则内部按 id 查表取当前行并自动填充，方便上层只传 id + updates
 	if needFillOldValues(bodyData) {
-		ctx := contextx.ToContext(c)
-		idStr, ok := getBodyID(bodyData)
-		if !ok || idStr == "" {
+		id, ok := getBodyIDInt64(bodyData)
+		if !ok {
 			response.FailWithMessage(c, "请求体缺少有效 id，无法自动填充 old_values")
 			return
 		}
-		user, app, router, err := parseFullCodePath(fullCodePath)
-		if err != nil {
-			response.FailWithMessage(c, "解析路径失败: "+err.Error())
-			return
-		}
-		searchReq := &dto.RequestAppReq{
-			User:            user,
-			App:             app,
-			Router:          router,
-			Method:          http.MethodGet,
-			UrlQuery:        "eq=id:" + url.QueryEscape(idStr) + "&page=1&page_size=1",
-			TraceId:         contextx.GetTraceId(c),
-			RequestUser:     contextx.GetRequestUser(c),
-			RequestUserDept: contextx.GetRequestDepartmentFullPath(c),
-			Token:           contextx.GetToken(c),
-			ClientSource:    contextx.GetClientSource(c),
-			SourceType:      contextx.GetSourceType(c),
-			SourceRef:       contextx.GetSourceRef(c),
-		}
-		searchResp, err := s.appService.RequestApp(ctx, searchReq)
+		rows, err := s.fetchTableRowsByIDs(c, fullCodePath, []int64{id})
 		if err != nil {
 			response.FailWithMessage(c, "自动查询当前行失败: "+err.Error())
 			return
 		}
-		if searchResp.Error != "" {
-			response.FailWithMessage(c, "自动查询当前行失败: "+searchResp.Error)
-			return
-		}
-		oldRow := extractFirstItemFromSearchResult(searchResp.Result)
+		oldRow := findTableRowByID(rows, id)
 		if oldRow == nil {
-			response.FailWithMessage(c, "记录不存在（eq=id 未查到数据），无法填充 old_values")
+			response.FailWithMessage(c, "记录不存在（id 未查到数据），无法填充 old_values")
 			return
 		}
 		bodyData["old_values"] = oldRow

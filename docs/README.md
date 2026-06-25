@@ -12,7 +12,7 @@ This directory collects product thinking, architecture notes, operating guides, 
 
 - [Kageos 当前架构图](current-architecture.md)
 - [Kageos 平台能力总览](platform-capabilities.md)
-- [KageOS 定时能力架构设计](scheduled-tasks-architecture-design.md)
+- [Kageos 定时能力架构设计](scheduled-tasks-architecture-design.md)
 
 ## Runtime Operations
 

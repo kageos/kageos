@@ -94,6 +94,7 @@ type CreateTaskRequest struct {
 	ExecutorKey     string            `json:"executor_key"`
 	ExecutorPayload json.RawMessage   `json:"executor_payload,omitempty"`
 	Metadata        map[string]string `json:"metadata,omitempty"`
+	Status          TaskStatus        `json:"status,omitempty"`
 	Schedule        Schedule          `json:"schedule"`
 	SourceType      string            `json:"source_type,omitempty"`
 	SourceRef       string            `json:"source_ref,omitempty"`

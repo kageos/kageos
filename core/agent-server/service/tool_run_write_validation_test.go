@@ -333,6 +333,56 @@ func TestValidateRunWritePayloadsBatchesUserResolverOnce(t *testing.T) {
 	}
 }
 
+func TestValidateRunWritePayloadsSkipsEmptyOptionalUserFields(t *testing.T) {
+	fields := []*widget.Field{
+		testRunWriteField("owner", "负责人", widget.TypeUser, nil, ""),
+		testRunWriteField("reviewers", "评审人", widget.TypeUsers, nil, ""),
+	}
+	payloads := []runWriteValidationPayload{
+		{Label: "[0]", Body: map[string]interface{}{}},
+		{Label: "[1]", Body: map[string]interface{}{"owner": nil, "reviewers": nil}},
+		{Label: "[2]", Body: map[string]interface{}{"owner": "", "reviewers": "  "}},
+		{Label: "[3]", Body: map[string]interface{}{"owner": []interface{}{}, "reviewers": []interface{}{"", " "}}},
+		{Label: "[4]", Body: map[string]interface{}{"owner": []string{" "}, "reviewers": []string{}}},
+	}
+	callCount := 0
+	resolver := func(context.Context, []string) (map[string]struct{}, error) {
+		callCount++
+		return map[string]struct{}{}, nil
+	}
+
+	issues := validateRunWritePayloads(context.Background(), fields, payloads, true, runWriteValidationOptions{ResolveUsers: resolver})
+	if len(issues) != 0 {
+		t.Fatalf("expected no validation issues, got %v", issues)
+	}
+	if callCount != 0 {
+		t.Fatalf("expected empty optional user fields to skip user resolver, got %d calls", callCount)
+	}
+}
+
+func TestValidateRunWritePayloadsSkipsUserResolverForEmptyRequiredUserFields(t *testing.T) {
+	fields := []*widget.Field{
+		testRunWriteField("owner", "负责人", widget.TypeUser, nil, "required"),
+	}
+	payloads := []runWriteValidationPayload{{
+		Body: map[string]interface{}{"owner": ""},
+	}}
+	callCount := 0
+	resolver := func(context.Context, []string) (map[string]struct{}, error) {
+		callCount++
+		return map[string]struct{}{}, nil
+	}
+
+	issues := validateRunWritePayloads(context.Background(), fields, payloads, true, runWriteValidationOptions{ResolveUsers: resolver})
+	joined := joinRunWriteIssueMessages(issues)
+	if !strings.Contains(joined, "负责人 (owner) 必填") {
+		t.Fatalf("expected required issue, got:\n%s", joined)
+	}
+	if callCount != 0 {
+		t.Fatalf("expected empty required user field to skip user resolver, got %d calls", callCount)
+	}
+}
+
 func TestValidateRunWritePayloadsAcceptsValidUsersAndEnums(t *testing.T) {
 	fields := []*widget.Field{
 		testRunWriteField("owner", "负责人", widget.TypeUser, nil, "required"),

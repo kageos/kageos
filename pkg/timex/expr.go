@@ -163,26 +163,11 @@ func splitCommaOutsideParens(value string) []string {
 	return parts
 }
 
-// ReplaceTimeExprsInParamValue 将 param 值串中的时间表达式替换为查询协议值。
-// param 值格式为 field:value 或 field1:v1,field2:v2。
-// SQL 风格表达式输出 "YYYY-MM-DD HH:mm:ss"，适用于 datetime 字段。
+// ReplaceTimeExprsInParamValue 将 query 参数值里的 SQL 风格时间表达式替换为
+// "YYYY-MM-DD HH:mm:ss"，适用于 datetime 字段。
 func ReplaceTimeExprsInParamValue(paramValue string) string {
-	// 按逗号分割成多段 field:value
-	parts := splitCommaOutsideParens(paramValue)
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		idx := strings.Index(p, ":")
-		if idx <= 0 {
-			out = append(out, p)
-			continue
-		}
-		field, val := p[:idx], strings.TrimSpace(p[idx+1:])
-		if resolved, ok := ResolveDateTimeExpr(val); ok {
-			out = append(out, field+":"+resolved)
-		} else {
-			out = append(out, p)
-		}
+	if resolved, ok := ResolveDateTimeExpr(paramValue); ok {
+		return resolved
 	}
-	return strings.Join(out, ",")
+	return paramValue
 }

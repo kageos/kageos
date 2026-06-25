@@ -109,6 +109,7 @@ func (s *Server) initRouter(ctx context.Context) error {
 	s.httpServer = serverx.NewGin(
 		serverx.WithRecovery(),
 		serverx.WithMiddleware(middleware2.Cors()),
+		serverx.WithRegisteredMiddlewares(serverx.ServiceConnectorServer),
 	)
 	s.httpServer.GET("/health", s.healthHandler)
 	if s.cfg.IsPprofEnabled() {
@@ -136,6 +137,7 @@ func (s *Server) initRouter(ctx context.Context) error {
 	apiV1.DELETE("/directory_bindings", connectorHandler.DeleteDirectoryBinding)
 	apiV1.GET("/resolve", connectorHandler.ResolveDirectoryBinding)
 	apiV1.POST("/proxy", connectorHandler.Proxy)
+	serverx.ApplyRouteRegistrars(serverx.ServiceConnectorServer, s.httpServer)
 	logger.Infof(ctx, "[Server] connector routes initialized")
 	return nil
 }

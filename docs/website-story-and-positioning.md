@@ -3,31 +3,31 @@
 > 状态：官网与视频叙事草案
 > 日期：2026-06-16
 
-本文用于统一 Kageos 官网、演示视频、产品介绍和对外话术。核心目标是用最简单、最狠的话讲清楚：Kageos 不只是 AI 生成应用，也不只是应用管理器，而是把企业轻应用变成一张可管理、可互通、可被 AI 操作的目录网络。
+本文用于统一 Kageos 官网、演示视频、产品介绍和对外话术。核心目标是用最简单、最狠的话讲清楚：Kageos 不是“更便宜的 AI 生成应用”，而是一个开箱即用的业务目录网络。用户可以从 Hub 安装成熟目录，在自己的空间私有运行和改造，也可以自己创造目录并发布回生态。
 
 ## 一句话定位
 
-> 像管理文件一样，创建、管理、操作和连接你的业务应用。
+> 从 Hub 安装开箱即用的业务目录，再把自己的能力发布回生态。
 
 英文：
 
-> Manage business apps like files, and let AI operate them as a connected network.
+> Install ready-to-run business directories from Hub, customize them privately, and publish your own capabilities back.
 
 更产品化一点：
 
-> Kageos turns scattered business apps into an AI-operable application directory.
+> Kageos is a ready-to-run business directory network for installable, customizable, AI-operable capabilities.
 
 内部中文解释：
 
-> Kageos 把表单、表格、图表、文档、函数、消息、定时任务和 AI 工作台组织成一棵 Service Tree。每个应用都是有地址、有权限、有日志、有函数、有上下文的目录节点。人能打开，AI 能理解，其他目录能调用，平台能治理。
+> Kageos 把表单、表格、图表、文档、函数、消息、定时任务和 AI 工作台组织成一棵 Service Tree。Hub 负责分发成熟目录，工作区负责私有运行和个性化改造，Service Tree 负责治理和互通。每个目录都是有地址、有权限、有日志、有函数、有上下文的能力节点。人能打开，AI 能理解，其他目录能调用，平台能治理。
 
 ## 核心故事
 
 ### 两个版本的故事
 
-**版本 A：治理故事（给企业 IT 决策者）**
+**版本 A：Hub 目录网络故事（给企业 IT 决策者和团队负责人）**
 
-企业不缺应用，缺的是应用之间能互相理解。
+企业不缺应用，也不缺 AI 生成工具，缺的是可复用、可安装、可治理、可互通的业务能力供给网络。
 
 今天很多企业已经有表格、低代码应用、自动化脚本、业务系统和 AI 助手，但它们通常分散在不同地方：
 
@@ -35,6 +35,7 @@
 - 流程在群聊和人工习惯里。
 - 自动化在单独的脚本或工具里。
 - AI 在聊天框里，只能总结和建议。
+- AI 生成的新应用越来越多，但没有统一的安装、复用、发布和治理路径。
 - 应用之间互相看不见，也不知道应该怎么调用彼此。
 
 这造成两个根本问题：
@@ -46,33 +47,37 @@
 
 Kageos 的解法是：把应用变成目录，把目录变成协议，把协议交给 AI 和企业运行时。
 
-目录不是收纳应用的文件夹。目录是应用之间的连接协议。
+目录不是收纳应用的文件夹。目录是应用之间的连接协议，也是 Hub 上可以被安装、被派生、被发布的业务资产。
 
-**版本 B：自动化故事（给业务用户和小团队）**
+**版本 B：开箱即用故事（给业务用户和小团队）**
 
-你每天有多少重复的事要手动做？
+你不应该每次都从空白 prompt 开始造工具。
 
-- 每天早上把几个群的订单汇总到一张表里
-- 每隔几小时检查一下有没有异常工单
-- 每周整理一份行业动态报告发到群里
-- 定时查 CRM 看哪些客户该跟进了
+你应该先从 Hub 找到一个已经能跑的目录：
 
-这些事不难，但繁琐、容易忘、费时间。你不需要一个复杂的自动化平台，你需要的是：**告诉 AI 你要什么，它按时帮你做，做完推到手机上。**
+- 客户跟进目录
+- 文件处理目录
+- 工单和反馈目录
+- 内容日历目录
+- 行业情报推送目录
 
-Kageos 就能做这个。你不需要写代码、不需要配置工作流，只需要描述你要什么、多久做一次、结果发到哪里。然后它就会稳定地、反复地帮你做。每天 32 次、连续 486 次执行 0 失败的那种稳定。
+安装到自己的空间后，用自己的数据运行。需要个性化时，再让 AI 基于这个目录修改字段、逻辑、提示词和自动化，而不是重新生成一个孤立应用。
 
-> 让 AI 帮你做重复的事，做完推到手机上。不需要写代码，不需要配置工作流。
+如果你的版本变得更通用、更稳定，还可以发布回 Hub，成为别人开箱即用的目录。
+
+> 先安装能跑的目录，再用 AI 改成你的目录，最后把稳定能力发布回生态。
 
 ### 两个故事的统一
 
 这两个故事不是矛盾的，是同一个产品的两面：
 
-- 给懂治理的人讲：确定性做底座，不确定性做加速
-- 给想省事的人讲：告诉 AI 你要什么，它帮你做，做完推到手机
+- 给懂治理的人讲：Hub 目录网络 + 挂树即治理
+- 给想省事的人讲：别从零造，先安装一个能跑的目录
+- 给创造者讲：你做出的稳定目录，可以发布回 Hub，成为可分发资产
 
 统一版本：
 
-> Kageos 把业务能力变成确定性的目录——人能点页面用，AI 能定时帮你做，做完推到手机上。不用 AI 也能用，用了 AI 更快。
+> Kageos 把业务能力变成开箱即用的目录——Hub 可安装，工作区可私有运行，AI 可改造和执行，稳定版本可发布回生态。
 
 ## 最狠的 Hero 版本
 
@@ -80,41 +85,41 @@ Kageos 就能做这个。你不需要写代码、不需要配置工作流，只�
 
 标题：
 
-> 像管理文件一样，管理和连接你的业务应用。
+> 开箱即用的业务目录网络。
 
 副标题：
 
-> 每个应用都是一个目录。能打开，能复制，能安装，能被 AI 修改和执行，也能调用其他目录里的能力。权限、日志、版本、消息和定时任务自动跟上。
+> 从 Hub 安装已经能跑的业务目录，在自己的空间私有运行和改造；也可以创造新目录，发布回生态。每个目录都能被人使用、被 AI 调用、被平台治理。
 
 CTA：
 
-- 试用一个目录
-- 查看自托管部署
-- 看 3 分钟演示
+- 浏览 Hub
+- 安装一个目录
+- 发布你的目录
 
 ### 英文 Hero
 
 Headline:
 
-> Manage and connect business apps like files.
+> Ready-to-run business directories.
 
 Subheadline:
 
-> Kageos turns forms, tables, docs, functions, schedules, messages, and AI workspaces into a governed application directory. Humans can use it. AI can operate it. Apps can call each other.
+> Install proven directories from Hub, run and customize them in your private workspace, create new capabilities, and publish stable directories back to the ecosystem. Humans can use them. AI can operate them. The platform governs them.
 
 CTA:
 
-- Try a directory
-- Self-host Kageos
-- Watch the demo
+- Browse Hub
+- Install a directory
+- Publish yours
 
 ## 不是应用管理器，是应用网络
 
-“像管理文件一样管理应用”只是第一层。
+“AI 生成应用”只是创造目录的一条路，不能当主叙事。
 
-更关键的是第二层：
+更关键的是更高一层：
 
-> 像连接文件路径一样，连接应用能力。
+> 让业务能力像软件包一样被安装，像应用一样被使用，像 API 一样被调用，像资产一样被发布。
 
 在 Kageos 里，每个目录节点都可以拥有：
 
@@ -123,7 +128,7 @@ CTA:
 - 系统可调用的函数：标准表单提交、表格查询/新增/更新/删除、图表查询。
 - 平台可治理的记录：权限、操作日志、trace、版本、消息、定时任务。
 
-所以应用不再是孤立页面，而是企业能力网络里的一个节点。
+所以应用不再是孤立页面，也不再是 AI 生成后散落各处的半成品，而是 Hub 和工作区之间可流动的目录资产。
 
 ## 演示故事
 
@@ -298,11 +303,11 @@ AI 工作台能看到目录、文档、函数、日志、历史会话和当前�
 
 最狠的差异句：
 
-> Low-code builds apps. Automation connects actions. Agent platforms run AI. Kageos turns business apps into an AI-operable directory network.
+> Low-code builds apps. Automation connects actions. Agent platforms run AI. Kageos gives teams ready-to-run business directories they can install, customize, govern, and publish.
 
 中文：
 
-> 低代码负责搭应用，自动化负责串动作，Agent 平台负责跑 AI。Kageos 把业务应用变成 AI 能读、能调、能改、能治理的目录网络。
+> 低代码负责搭应用，自动化负责串动作，Agent 平台负责跑 AI。Kageos 提供开箱即用的业务目录，让团队可以安装、改造、治理和发布能力。
 
 ## 官网结构建议
 
@@ -310,11 +315,11 @@ AI 工作台能看到目录、文档、函数、日志、历史会话和当前�
 
 讲一句狠话：
 
-> 像管理文件一样，管理和连接你的业务应用。
+> 开箱即用的业务目录网络。
 
 马上补一句：
 
-> 每个应用都是一个目录。人能用，AI 能操作，目录之间能互相调用。
+> 从 Hub 安装成熟目录，在私有工作区运行和改造，再把稳定能力发布回生态。
 
 ### 2. Problem
 
@@ -350,7 +355,8 @@ AI 工作台能看到目录、文档、函数、日志、历史会话和当前�
 
 ### 5. Capability Blocks
 
-- Create：用 AI 生成 Form/Table/Chart/Docs。
+- Install：从 Hub 安装开箱即用目录。
+- Create：自己创造或用 AI 改造 Form/Table/Chart/Docs。
 - Organize：Service Tree 管理应用目录。
 - Operate：AI 工作台执行和修改应用。
 - Connect：目录与目录标准函数互通。
@@ -380,7 +386,7 @@ Kageos 可以自托管。业务数据和运行时留在自己的环境里，AI �
 
 ## 可以直接用的短句
 
-- 应用应该像文件一样好管理，像 API 一样好调用，像团队成员一样被 AI 操作。
+- 业务能力应该像软件包一样可安装，像应用一样可使用，像 API 一样可调用，像资产一样可发布。
 - 目录不是文件夹，是企业应用之间的连接协议。
 - 让每个应用都有地址，让每个 AI 都能找到事做。
 - 企业不缺应用，缺的是应用之间能互相理解。
@@ -401,7 +407,7 @@ Kageos 可以自托管。业务数据和运行时留在自己的环境里，AI �
 | 不建议 | 原因 | 替代表达 |
 | --- | --- | --- |
 | 全球唯一 | 容易被竞品反例攻击 | 一个新的 AI 应用目录平台类别 |
-| AI 生成应用平台 | 太泛，容易和现有 builder 混在一起 | AI-operable application directory |
+| AI 生成应用平台 | 太泛，容易和现有 builder 混在一起，也会掉进低价叙事 | ready-to-run business directory network |
 | 工作流已经完整上线 | 当前未上线 workflow 图 | workflow-ready / future workflow orchestration |
 | AI 自动操作所有系统 | 容易显得不可信 | AI can operate governed app directories through standard functions |
 | 无需开发 | Kageos 仍然有 SDK、运行时、生成代码和治理边界 | Start from runnable directories, then customize with AI |

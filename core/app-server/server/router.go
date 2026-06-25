@@ -4,6 +4,7 @@ import (
 	v1 "github.com/kageos/kageos/core/app-server/api/v1"
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/pprof"
+	"github.com/kageos/kageos/pkg/serverx"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -174,4 +175,5 @@ func (s *Server) setupRoutes() {
 	callbackStandard.Use(middleware2.JWTAuth())
 	callbackStandard.POST("/on_select_fuzzy/*full-code-path", standardAPI.CallbackOnSelectFuzzy) // 模糊搜索回调
 
+	serverx.ApplyRouteRegistrars(serverx.ServiceAppServer, s.httpServer)
 }

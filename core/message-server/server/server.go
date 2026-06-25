@@ -170,7 +170,10 @@ func (s *Server) initServices(ctx context.Context) error {
 }
 
 func (s *Server) initRouter() {
-	s.httpServer = serverx.NewGin(serverx.WithDebug(s.cfg.IsDebug()))
+	s.httpServer = serverx.NewGin(
+		serverx.WithDebug(s.cfg.IsDebug()),
+		serverx.WithRegisteredMiddlewares(serverx.ServiceMessageServer),
+	)
 	s.setupRoutes()
 }
 

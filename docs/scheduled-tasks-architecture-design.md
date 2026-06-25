@@ -1,10 +1,10 @@
-# KageOS 定时能力架构设计
+# Kageos 定时能力架构设计
 
 > 当前主线已上线 `agent.session` 定时会话和 `app.function` 定时函数。`workflow.run`、`workflow-server` 和 `/workflow/api/v1/scheduled_workflows` 只表示未来预留设计，当前未上线、没有主线用户入口。
 
 ## 目标
 
-定时能力要作为 KageOS 的平台横切层，而不是 app-server 里的一个 cron 插件。它应该让目录树上的能力都能被时间触发：
+定时能力要作为 Kageos 的平台横切层，而不是 app-server 里的一个 cron 插件。它应该让目录树上的能力都能被时间触发：
 
 - `agent.session`：在未来某个时间主动发起一轮工作台会话。
 - `app.function`：定时执行 Form、Table、Chart 等标准函数。

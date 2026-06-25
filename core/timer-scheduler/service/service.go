@@ -154,6 +154,7 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 	if err != nil {
 		return nil, err
 	}
+	initialStatus := createTaskInitialStatus(req.Status)
 	requestUser := strings.TrimSpace(req.RequestUser)
 	if requestUser == "" {
 		requestUser = strings.TrimSpace(contextx.GetRequestUser(ctx))
@@ -201,7 +202,7 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 			Timezone:        strings.TrimSpace(req.Schedule.Timezone),
 			MaxRuns:         req.Schedule.MaxRuns,
 			NextRunAt:       nextRunAt,
-			Status:          string(scheduledsdk.TaskStatusPending),
+			Status:          string(initialStatus),
 			SourceType:      strings.TrimSpace(req.SourceType),
 			SourceRef:       strings.TrimSpace(req.SourceRef),
 			ResourceScope:   strings.TrimSpace(req.ResourceScope),

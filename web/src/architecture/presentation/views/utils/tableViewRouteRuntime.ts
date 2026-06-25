@@ -78,12 +78,12 @@ export function buildTableCreateDialogCloseRequest(options: {
     return null
   }
 
-  delete query._tab
-  options.responseFieldCodes.forEach(fieldCode => {
-    // 关闭新增弹窗只删除 raw form-field 参数；table 搜索操作符参数和 `_`
-    // 平台状态由 preserveParams 保留。
-    deleteFieldQueryKey(query, fieldCode)
-  })
+	delete query._tab
+	options.responseFieldCodes.forEach(fieldCode => {
+		// 关闭新增弹窗只删除 raw form-field 参数；table 分页、业务筛选和平台状态
+		// 由 preserveParams 保留。
+		deleteFieldQueryKey(query, fieldCode)
+	})
 
   return {
     query,

@@ -258,7 +258,10 @@ func (s *Server) initRouter(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Initializing router...")
 
 	// 创建 Gin 引擎
-	s.httpServer = serverx.NewGin(serverx.WithDebug(s.cfg.IsDebug()))
+	s.httpServer = serverx.NewGin(
+		serverx.WithDebug(s.cfg.IsDebug()),
+		serverx.WithRegisteredMiddlewares(serverx.ServiceHRServer),
+	)
 
 	// 设置路由
 	s.setupRoutes()

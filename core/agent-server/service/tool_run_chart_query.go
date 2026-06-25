@@ -13,13 +13,13 @@ import (
 type RunChartQueryTool struct{}
 
 type runChartQueryArgs struct {
-	FullCodePath string `json:"full_code_path" schema_desc:"图表函数完整路径" schema_required:"true"`
+	FullCodePath string `json:"full_code_path" schema_desc:"图表函数路径；同目录图表可用 ./xxx.chart，相对当前 execute_directory 解析" schema_required:"true"`
 	URLQuery     string `json:"url_query" schema_desc:"完整查询串"`
 }
 
 var runChartQueryToolDef = toolDefinition[runChartQueryArgs](
 	"run_chart_query",
-	"执行工作区内 Chart 查询接口，返回图表数据。执行前必须已通过 search 字段摘要或 read_go_file 确认该 Chart 的 Request 字段名、必填项和枚举值；不要根据图表名或相似图表猜 url_query。full_code_path 必须为带 `.chart` 后缀的具体图表函数完整路径，如 /luobei/myapp/charts/sales_trend.chart。图表查询参数不固定，由具体 Chart 的 handler 定义（如 year、month、dimension 等）。传 url_query 为完整查询串（如 year=2024&month=1），不传则无额外参数。",
+	"执行工作区内 Chart 查询接口，返回图表数据。执行前必须已通过 search 字段摘要或 read_go_file 确认该 Chart 的 Request 字段名、必填项和枚举值；不要根据图表名或相似图表猜 url_query。full_code_path 必须为带 `.chart` 后缀的具体图表函数路径；同目录图表可用 `./xxx.chart`，跨目录使用完整路径，如 /luobei/myapp/charts/sales_trend.chart。图表查询参数不固定，由具体 Chart 的 handler 定义（如 year、month、dimension 等）。传 url_query 为完整查询串（如 year=2024&month=1），不传则无额外参数。",
 )
 
 func (t *RunChartQueryTool) Definition() dto.ToolDef {

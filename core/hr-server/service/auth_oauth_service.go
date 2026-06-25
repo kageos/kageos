@@ -14,7 +14,6 @@ import (
 
 	"github.com/kageos/kageos/core/hr-server/model"
 	"github.com/kageos/kageos/core/hr-server/repository"
-	"github.com/kageos/kageos/pkg/logger"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
@@ -33,14 +32,7 @@ type AuthOAuthService struct {
 	userRepo               *repository.UserRepository
 }
 
-type OAuthLoginResult struct {
-	User                 *model.User
-	Token                string
-	RefreshToken         string
-	RedirectAfter        string
-	RegistrationRequired bool
-	RegistrationTicket   string
-}
+type OAuthLoginResult = ExternalLoginResult
 
 type OAuthRegistrationIntentView struct {
 	Ticket          string
@@ -60,16 +52,6 @@ type OAuthRegistrationConfirmResult struct {
 	Token         string
 	RefreshToken  string
 	RedirectAfter string
-}
-
-type oauthProfile struct {
-	ProviderCode      string
-	ExternalID        string
-	Email             string
-	EmailVerified     bool
-	PreferredUsername string
-	Nickname          string
-	Avatar            string
 }
 
 func NewAuthOAuthService(
@@ -116,9 +98,9 @@ func (s *AuthOAuthService) StartAuthorize(ctx context.Context, providerAlias, re
 		return "", fmt.Errorf("创建授权状态失败: %w", err)
 	}
 
-	opts := []oauth2.AuthCodeOption{oauth2.SetAuthURLParam("prompt", "select_account")}
-	if providerCode == ProviderGitHubOAuth {
-		opts = nil
+	var opts []oauth2.AuthCodeOption
+	if factory, ok := GetOAuthProvider(providerCode); ok && factory.AuthCodeOptions != nil {
+		opts = factory.AuthCodeOptions(runtimeConfig.Values)
 	}
 	return conf.AuthCodeURL(state, opts...), nil
 }
@@ -154,31 +136,11 @@ func (s *AuthOAuthService) FinishCallback(ctx context.Context, providerAlias, st
 	if err != nil {
 		return nil, err
 	}
-	user, found, err := s.resolveExistingUserForProfile(profile)
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		intent, err := s.createRegistrationIntent(profile, runtimeConfig.Values, oauthState.RedirectAfter)
-		if err != nil {
-			return nil, err
-		}
-		return &OAuthLoginResult{
-			RedirectAfter:        oauthState.RedirectAfter,
-			RegistrationRequired: true,
-			RegistrationTicket:   intent.Ticket,
-		}, nil
-	}
-	accessToken, refreshToken, err := s.authService.IssueTokensForUser(user, false)
-	if err != nil {
-		return nil, err
-	}
-	return &OAuthLoginResult{
-		User:          user,
-		Token:         accessToken,
-		RefreshToken:  refreshToken,
-		RedirectAfter: oauthState.RedirectAfter,
-	}, nil
+	return s.CompleteExternalLogin(ctx, externalPrincipalFromOAuthProfile(profile), ExternalLoginOptions{
+		ShortCode:          oauthProviderShortCode(providerCode),
+		DefaultCompanyCode: runtimeConfig.Values["default_company_code"],
+		RedirectAfter:      oauthState.RedirectAfter,
+	})
 }
 
 func (s *AuthOAuthService) GetRegistrationIntent(ticket string) (*OAuthRegistrationIntentView, error) {
@@ -188,14 +150,14 @@ func (s *AuthOAuthService) GetRegistrationIntent(ticket string) (*OAuthRegistrat
 	}
 	view := oauthRegistrationIntentView(intent)
 	if shouldRefreshOAuthCodeSuggestions(view.CodeSuggestions) {
-		suggestions, err := s.suggestUserCodes(&oauthProfile{
+		suggestions, err := s.suggestExternalUserCodes(ExternalPrincipal{
 			ProviderCode:  intent.ProviderCode,
 			ExternalID:    intent.ExternalID,
 			Email:         intent.Email,
 			EmailVerified: intent.EmailVerified,
 			Nickname:      intent.Nickname,
 			Avatar:        intent.Avatar,
-		})
+		}, oauthProviderShortCode(intent.ProviderCode))
 		if err == nil && len(suggestions) > 0 {
 			view.SuggestedCode = suggestions[0]
 			view.CodeSuggestions = suggestions
@@ -246,7 +208,7 @@ func (s *AuthOAuthService) ConfirmRegistration(ticket, username, nickname string
 		ThirdPartyID:       intent.ExternalID,
 		Avatar:             intent.Avatar,
 		Nickname:           nickname,
-		DepartmentFullPath: "/org/unassigned",
+		DepartmentFullPath: defaultExternalDepartmentFullPath,
 		Type:               model.UserTypeNormal,
 	}
 	identity := &model.AuthExternalIdentity{
@@ -288,195 +250,33 @@ func (s *AuthOAuthService) activeRegistrationIntent(ticket string) (*model.AuthO
 }
 
 func (s *AuthOAuthService) oauth2Config(providerCode string, values map[string]string) (*oauth2.Config, error) {
-	clientID := strings.TrimSpace(values["client_id"])
-	clientSecret := strings.TrimSpace(values["client_secret"])
-	redirectURL := strings.TrimSpace(values["redirect_url"])
-	if clientID == "" || clientSecret == "" || redirectURL == "" {
-		return nil, fmt.Errorf("授权配置不完整")
-	}
-
-	switch providerCode {
-	case ProviderGoogleOAuth:
-		return &oauth2.Config{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			RedirectURL:  redirectURL,
-			Scopes:       []string{"openid", "email", "profile"},
-			Endpoint: oauth2.Endpoint{
-				AuthURL:  "https://accounts.google.com/o/oauth2/v2/auth",
-				TokenURL: "https://oauth2.googleapis.com/token",
-			},
-		}, nil
-	case ProviderGitHubOAuth:
-		scopes := strings.Fields(values["scopes"])
-		if len(scopes) == 0 {
-			scopes = []string{"read:user", "user:email"}
-		}
-		return &oauth2.Config{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			RedirectURL:  redirectURL,
-			Scopes:       scopes,
-			Endpoint: oauth2.Endpoint{
-				AuthURL:  "https://github.com/login/oauth/authorize",
-				TokenURL: "https://github.com/login/oauth/access_token",
-			},
-		}, nil
-	default:
+	factory, ok := GetOAuthProvider(providerCode)
+	if !ok {
 		return nil, fmt.Errorf("暂不支持该授权登录方式")
 	}
+	return factory.OAuth2Config(values)
 }
 
-func (s *AuthOAuthService) fetchProfile(ctx context.Context, providerCode string, client *http.Client) (*oauthProfile, error) {
-	switch providerCode {
-	case ProviderGoogleOAuth:
-		return fetchGoogleProfile(ctx, client)
-	case ProviderGitHubOAuth:
-		return fetchGitHubProfile(ctx, client)
-	default:
+func (s *AuthOAuthService) fetchProfile(ctx context.Context, providerCode string, client *http.Client) (*OAuthProfile, error) {
+	factory, ok := GetOAuthProvider(providerCode)
+	if !ok {
 		return nil, fmt.Errorf("暂不支持该授权登录方式")
 	}
-}
-
-func (s *AuthOAuthService) resolveExistingUserForProfile(profile *oauthProfile) (*model.User, bool, error) {
-	if profile == nil || profile.ExternalID == "" {
-		return nil, false, fmt.Errorf("授权用户信息不完整")
-	}
-
-	identity, err := s.identityRepo.GetByProviderSubject(profile.ProviderCode, profile.ExternalID)
-	if err != nil {
-		return nil, false, err
-	}
-	if identity != nil {
-		user, err := s.userRepo.GetUserByID(identity.UserID)
-		if err != nil {
-			return nil, false, fmt.Errorf("已绑定用户不存在，请联系管理员")
-		}
-		s.refreshIdentity(identity, profile)
-		return user, true, nil
-	}
-
-	return nil, false, nil
-}
-
-func (s *AuthOAuthService) createRegistrationIntent(profile *oauthProfile, values map[string]string, redirectAfter string) (*model.AuthOAuthRegistrationIntent, error) {
-	email := strings.ToLower(strings.TrimSpace(profile.Email))
-	ticket, err := newOAuthState()
+	profile, err := factory.FetchProfile(ctx, client)
 	if err != nil {
 		return nil, err
 	}
-	suggestions, err := s.suggestUserCodes(profile)
-	if err != nil {
-		return nil, err
+	if profile != nil && profile.ProviderCode == "" {
+		profile.ProviderCode = providerCode
 	}
-	if len(suggestions) == 0 {
-		return nil, fmt.Errorf("生成用户 code 建议失败")
-	}
-	companyCode := strings.TrimSpace(values["default_company_code"])
-	if companyCode == "" {
-		companyCode = model.DefaultCompanyCode
-	}
-	if s.authService != nil && s.authService.companyRepo != nil {
-		if _, err := s.authService.companyRepo.GetCompanyByCode(companyCode); err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("生成授权注册失败：企业代码 %s 不存在", companyCode)
-			}
-			return nil, fmt.Errorf("检查企业代码失败: %w", err)
-		}
-	}
-	suggestionsJSON, err := json.Marshal(suggestions)
-	if err != nil {
-		return nil, err
-	}
-	nickname := strings.TrimSpace(profile.Nickname)
-	if nickname == "" {
-		nickname = suggestions[0]
-	}
-	intent := &model.AuthOAuthRegistrationIntent{
-		Ticket:              ticket,
-		ProviderCode:        profile.ProviderCode,
-		ExternalID:          profile.ExternalID,
-		Email:               email,
-		EmailVerified:       email != "" && profile.EmailVerified,
-		Nickname:            nickname,
-		Avatar:              profile.Avatar,
-		SuggestedCode:       suggestions[0],
-		CodeSuggestionsJSON: string(suggestionsJSON),
-		RedirectAfter:       sanitizeRedirectAfter(redirectAfter),
-		CompanyCode:         companyCode,
-		ExpiresAt:           time.Now().Add(oauthRegistrationIntentTTL),
-	}
-	if err := s.registrationIntentRepo.Create(intent); err != nil {
-		return nil, fmt.Errorf("创建授权注册确认失败: %w", err)
-	}
-	return intent, nil
-}
-
-func (s *AuthOAuthService) suggestUserCodes(profile *oauthProfile) ([]string, error) {
-	seen := map[string]struct{}{}
-	out := make([]string, 0, 4)
-	addAvailable := func(raw string) error {
-		if strings.TrimSpace(raw) == "" {
-			return nil
-		}
-		base := NormalizeUserCodeCandidate(raw)
-		candidates := []string{
-			base,
-			trimUserCodeForSuffix(base, "_"+oauthProviderShortCode(profile.ProviderCode)) + "_" + oauthProviderShortCode(profile.ProviderCode),
-		}
-		for i := 2; i <= 50; i++ {
-			suffix := fmt.Sprintf("_%02d", i)
-			candidates = append(candidates, trimUserCodeForSuffix(base, suffix)+suffix)
-		}
-		for _, candidate := range candidates {
-			if len(out) >= 4 {
-				return nil
-			}
-			if _, ok := seen[candidate]; ok {
-				continue
-			}
-			seen[candidate] = struct{}{}
-			if err := ValidateUserCode(candidate); err != nil {
-				continue
-			}
-			if available, err := s.userCodeAvailable(candidate); err != nil {
-				return err
-			} else if available {
-				out = append(out, candidate)
-			}
-		}
-		return nil
-	}
-	for _, raw := range []string{profile.PreferredUsername, profile.Email, profile.Nickname, "user"} {
-		if err := addAvailable(raw); err != nil {
-			return nil, err
-		}
-		if len(out) >= 4 {
-			break
-		}
-	}
-	return out, nil
-}
-
-func (s *AuthOAuthService) userCodeAvailable(code string) (bool, error) {
-	if _, err := s.userRepo.GetUserByUsername(code); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return true, nil
-		}
-		return false, fmt.Errorf("检查用户 code 失败: %w", err)
-	}
-	return false, nil
+	return profile, nil
 }
 
 func oauthRegisterType(providerCode string) string {
-	switch providerCode {
-	case ProviderGoogleOAuth:
-		return "google"
-	case ProviderGitHubOAuth:
-		return "github"
-	default:
-		return "oauth"
+	if factory, ok := GetOAuthProvider(providerCode); ok && strings.TrimSpace(factory.RegisterType) != "" {
+		return strings.TrimSpace(factory.RegisterType)
 	}
+	return "oauth"
 }
 
 func userEmailVerified(email string, verified bool) bool {
@@ -545,49 +345,20 @@ func truncateRunes(value string, limit int) string {
 }
 
 func oauthProviderDisplayName(providerCode string) string {
-	switch providerCode {
-	case ProviderGoogleOAuth:
-		return "Google"
-	case ProviderGitHubOAuth:
-		return "GitHub"
-	default:
-		return providerCode
+	if factory, ok := GetOAuthProvider(providerCode); ok && strings.TrimSpace(factory.DisplayName) != "" {
+		return strings.TrimSpace(factory.DisplayName)
 	}
+	return providerCode
 }
 
 func oauthProviderShortCode(providerCode string) string {
-	switch providerCode {
-	case ProviderGoogleOAuth:
-		return "google"
-	case ProviderGitHubOAuth:
-		return "github"
-	default:
-		return "oauth"
+	if factory, ok := GetOAuthProvider(providerCode); ok && strings.TrimSpace(factory.ShortCode) != "" {
+		return strings.TrimSpace(factory.ShortCode)
 	}
+	return "oauth"
 }
 
-func (s *AuthOAuthService) refreshIdentity(identity *model.AuthExternalIdentity, profile *oauthProfile) {
-	changed := false
-	if email := strings.ToLower(strings.TrimSpace(profile.Email)); email != "" && identity.Email != email {
-		identity.Email = email
-		changed = true
-	}
-	if profile.Avatar != "" && identity.Avatar != profile.Avatar {
-		identity.Avatar = profile.Avatar
-		changed = true
-	}
-	if profile.Nickname != "" && identity.Nickname != profile.Nickname {
-		identity.Nickname = profile.Nickname
-		changed = true
-	}
-	if changed {
-		if err := s.identityRepo.Update(identity); err != nil {
-			logger.Warnf(nil, "[AuthOAuthService] 刷新授权身份失败: %v", err)
-		}
-	}
-}
-
-func fetchGoogleProfile(ctx context.Context, client *http.Client) (*oauthProfile, error) {
+func fetchGoogleProfile(ctx context.Context, client *http.Client) (*OAuthProfile, error) {
 	var payload struct {
 		Sub           string `json:"sub"`
 		Email         string `json:"email"`
@@ -598,7 +369,7 @@ func fetchGoogleProfile(ctx context.Context, client *http.Client) (*oauthProfile
 	if err := getJSON(ctx, client, "https://openidconnect.googleapis.com/v1/userinfo", &payload); err != nil {
 		return nil, fmt.Errorf("获取 Google 用户信息失败: %w", err)
 	}
-	return &oauthProfile{
+	return &OAuthProfile{
 		ProviderCode:  ProviderGoogleOAuth,
 		ExternalID:    payload.Sub,
 		Email:         strings.ToLower(strings.TrimSpace(payload.Email)),
@@ -608,7 +379,7 @@ func fetchGoogleProfile(ctx context.Context, client *http.Client) (*oauthProfile
 	}, nil
 }
 
-func fetchGitHubProfile(ctx context.Context, client *http.Client) (*oauthProfile, error) {
+func fetchGitHubProfile(ctx context.Context, client *http.Client) (*OAuthProfile, error) {
 	var userPayload struct {
 		ID        int64  `json:"id"`
 		Login     string `json:"login"`
@@ -643,7 +414,7 @@ func fetchGitHubProfile(ctx context.Context, client *http.Client) (*oauthProfile
 	if nickname == "" {
 		nickname = strings.TrimSpace(userPayload.Login)
 	}
-	return &oauthProfile{
+	return &OAuthProfile{
 		ProviderCode:      ProviderGitHubOAuth,
 		ExternalID:        fmt.Sprintf("%d", userPayload.ID),
 		Email:             email,
@@ -673,14 +444,10 @@ func getJSON(ctx context.Context, client *http.Client, endpoint string, out inte
 }
 
 func oauthProviderCode(alias string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(alias)) {
-	case "google", ProviderGoogleOAuth:
-		return ProviderGoogleOAuth, nil
-	case "github", ProviderGitHubOAuth:
-		return ProviderGitHubOAuth, nil
-	default:
-		return "", fmt.Errorf("暂不支持该授权登录方式")
+	if code, ok := LookupOAuthProviderCode(alias); ok {
+		return code, nil
 	}
+	return "", fmt.Errorf("暂不支持该授权登录方式")
 }
 
 func newOAuthState() (string, error) {
@@ -700,21 +467,4 @@ func sanitizeRedirectAfter(raw string) string {
 		return "/workspace"
 	}
 	return raw
-}
-
-func fillUserProfileFromOAuth(user *model.User, profile *oauthProfile) bool {
-	changed := false
-	if user.Avatar == "" && profile.Avatar != "" {
-		user.Avatar = profile.Avatar
-		changed = true
-	}
-	if user.Nickname == "" && profile.Nickname != "" {
-		user.Nickname = profile.Nickname
-		changed = true
-	}
-	if !user.EmailVerified && profile.EmailVerified && strings.EqualFold(user.Email, profile.Email) {
-		user.EmailVerified = true
-		changed = true
-	}
-	return changed
 }

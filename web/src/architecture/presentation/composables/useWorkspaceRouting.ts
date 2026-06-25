@@ -369,7 +369,7 @@ export function useWorkspaceRouting(
         // 并且设置 linkNavigation: true，确保 RouteManager 不会覆盖这些参数
         eventBus.emit(RouteEvent.updateRequested, {
           path: payload.path,
-          query: preservedQuery,  // 🔥 这里已经包含了 eq、in 等所有参数
+          query: preservedQuery,  // 🔥 这里已经包含了 link 跳转携带的业务参数
           replace: true,
           preserveParams: {
             linkNavigation: true  // 保持 linkNavigation: true，确保 RouteManager 不会覆盖 preservedQuery 中的参数

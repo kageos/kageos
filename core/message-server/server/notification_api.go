@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -198,10 +197,10 @@ func (s *Server) testNotificationChannel(c *gin.Context) {
 		RequestUser:        username,
 		FullCodePath:       "/" + username,
 		SourcePath:         "/" + username,
-		SourceTitle:        "KageOS 通知配置",
+		SourceTitle:        "Kageos 通知配置",
 		SourceType:         "notification_test",
-		Title:              "KageOS 通知测试",
-		Content:            "如果你看到这张卡片，说明 KageOS 已经可以通过该渠道触达你。后续业务、定时任务和 Agent 会话通知会使用同一张标准卡片携带目录、任务和会话上下文。",
+		Title:              "Kageos 通知测试",
+		Content:            "如果你看到这张卡片，说明 Kageos 已经可以通过该渠道触达你。后续业务、定时任务和 Agent 会话通知会使用同一张标准卡片携带目录、任务和会话上下文。",
 		ContentType:        "markdown",
 		WorkspaceSessionID: "",
 	}
@@ -252,29 +251,7 @@ func notificationTestProvider(channel string, timeout time.Duration) (service.Ch
 }
 
 func validateNotificationWebhookURLForServer(channel string, raw string) error {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" {
-		return fmt.Errorf("%s Webhook 地址格式不正确", channel)
-	}
-	host := strings.ToLower(parsed.Hostname())
-	path := parsed.EscapedPath()
-	switch channel {
-	case service.NotificationChannelFeishu:
-		if (host == "open.feishu.cn" || host == "open.larksuite.com") && strings.HasPrefix(path, "/open-apis/bot/") {
-			return nil
-		}
-	case service.NotificationChannelWeCom:
-		if host == "qyapi.weixin.qq.com" && path == "/cgi-bin/webhook/send" {
-			return nil
-		}
-	case service.NotificationChannelDingTalk:
-		if host == "oapi.dingtalk.com" && path == "/robot/send" {
-			return nil
-		}
-	default:
-		return fmt.Errorf("不支持的通知渠道: %s", channel)
-	}
-	return fmt.Errorf("%s Webhook 地址与当前渠道不匹配", channel)
+	return service.ValidateNotificationWebhookURL(channel, raw)
 }
 
 func notificationChannelToInfo(row *msgmodel.NotificationChannelSetting) dto.MessageNotificationChannelInfo {

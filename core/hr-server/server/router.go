@@ -4,6 +4,7 @@ import (
 	v1 "github.com/kageos/kageos/core/hr-server/api/v1"
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/pprof"
+	"github.com/kageos/kageos/pkg/serverx"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -104,4 +105,5 @@ func (s *Server) setupRoutes() {
 	user.POST("/assign", userAllocationHandler.AssignUser)
 	user.GET("/department", userAllocationHandler.GetUsersByDepartment)
 
+	serverx.ApplyRouteRegistrars(serverx.ServiceHRServer, s.httpServer)
 }

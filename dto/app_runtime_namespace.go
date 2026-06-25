@@ -150,11 +150,28 @@ type UpdateAppResp struct {
 
 // PackageInfo SDK 返回的 package 元信息，app-server 用于目录对账
 type PackageInfo struct {
-	Code        string `json:"code"`         // 目录名（如 "pdf"）
-	Name        string `json:"name"`         // 显示名称
-	Desc        string `json:"desc"`         // 描述
-	RouterGroup string `json:"router_group"` // 路由组路径（如 "/plugins/pdf"）
-	FullPath    string `json:"full_path"`    // 完整路径（如 "/user/app/plugins/pdf"）
+	Code        string            `json:"code"`                  // 目录名（如 "pdf"）
+	Name        string            `json:"name"`                  // 显示名称
+	Desc        string            `json:"desc"`                  // 描述
+	RouterGroup string            `json:"router_group"`          // 路由组路径（如 "/plugins/pdf"）
+	FullPath    string            `json:"full_path"`             // 完整路径（如 "/user/app/plugins/pdf"）
+	AgentTasks  []AgentTaskConfig `json:"agent_tasks,omitempty"` // package 出厂默认定时会话模板
+}
+
+type AgentTaskConfig struct {
+	Code               string `json:"code"`
+	Title              string `json:"title,omitempty"`
+	Description        string `json:"description,omitempty"`
+	Message            string `json:"message"`
+	Enabled            bool   `json:"enabled,omitempty"`
+	EverySeconds       int64  `json:"every_seconds,omitempty"`
+	CronExpr           string `json:"cron_expr,omitempty"`
+	Timezone           string `json:"timezone,omitempty"`
+	MaxRuns            int    `json:"max_runs,omitempty"`
+	ModeCode           string `json:"mode_code,omitempty"`
+	Files              string `json:"files,omitempty"`
+	LLMConfigID        int64  `json:"llm_config_id,omitempty"`
+	MaxDurationSeconds int64  `json:"max_duration_seconds,omitempty"`
 }
 
 type DiffData struct {
@@ -292,6 +309,7 @@ type FormScheduleConfig struct {
 	Code         string          `json:"code"`
 	Title        string          `json:"title,omitempty"`
 	Description  string          `json:"description,omitempty"`
+	Enabled      *bool           `json:"enabled,omitempty"`
 	EverySeconds int64           `json:"every_seconds,omitempty"`
 	CronExpr     string          `json:"cron_expr,omitempty"`
 	Timezone     string          `json:"timezone,omitempty"`

@@ -4,6 +4,7 @@ import (
 	v1 "github.com/kageos/kageos/core/app-storage/api/v1"
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/pprof"
+	"github.com/kageos/kageos/pkg/serverx"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -58,4 +59,6 @@ func (s *Server) setupRoutes() {
 	storageGroup.GET("/files", storageHandler.ListFiles)                   // 列举文件
 	storageGroup.GET("/stats", storageHandler.GetStorageStats)             // 存储统计
 	storageGroup.POST("/batch_delete", storageHandler.DeleteFilesByRouter) // 批量删除
+
+	serverx.ApplyRouteRegistrars(serverx.ServiceAppStorage, s.httpServer)
 }

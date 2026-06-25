@@ -98,7 +98,7 @@ func duckDuckGoHTMLSearch(ctx context.Context, query string, maxResults int) ([]
 	if err != nil {
 		return nil, "", err
 	}
-	req.Header.Set("User-Agent", "KageOS-Agent/1.0")
+	req.Header.Set("User-Agent", "Kageos-Agent/1.0")
 	resp, err := webSearchHTTPClient().Do(req)
 	if err != nil {
 		return nil, "", err
@@ -125,7 +125,7 @@ func duckDuckGoInstantAnswerSearch(ctx context.Context, query string, maxResults
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "KageOS-Agent/1.0")
+	req.Header.Set("User-Agent", "Kageos-Agent/1.0")
 	resp, err := webSearchHTTPClient().Do(req)
 	if err != nil {
 		return nil, err

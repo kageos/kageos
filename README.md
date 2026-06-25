@@ -1,13 +1,19 @@
 # Kageos
 
-Kageos is a source-available AI light-application workspace for individuals and small teams. Users describe an internal tool in natural language, confirm a lightweight PRD, and let the system generate runnable `Form`, `Table`, and `Chart` applications inside a governed Service Tree. The platform also provides persistent AI workstation sessions, scheduled automation, and unified station inbox notifications as shared runtime capabilities.
+Kageos is a source-available, self-hostable business application directory for individuals and small teams. It turns ready-to-run scenario directories into governed workspace capabilities: users can install mature directories from Hub, run them with private data, customize or fork them with AI, and publish stable capabilities back to the ecosystem. AI generation is one path into Kageos, but the product promise is higher-level: reusable business capabilities that are human-usable, AI-callable, and governed by the platform.
 
 The project is currently licensed under the Business Source License 1.1. It is not OSI open source today; see [LICENSE](LICENSE) for the exact grant, Hosted Service restriction, Change Date, and future Apache-2.0 change license.
 
+## Naming And Current Focus
+
+- Write the product name as `Kageos` in prose, UI copy, docs, SDK docs, and website content. Use lowercase `kageos` for package, module, path, and domain identifiers, and keep all-caps `KAGEOS_*` only for environment variables or config keys.
+- The current product and engineering focus is namespace scenario-package ecology: build, harden, publish, install, and reuse ready-to-run scenario directories. Do not position Kageos as a low-cost AI app generator; Hub-first installation, private customization, and directory reuse are the main narrative. Do not add new platform cross-cutting capabilities unless maintainers explicitly reopen that track; existing governance, message, timer, audit, and runtime capabilities should be reused by scenario packages.
+
 ## What It Does
 
-- AI workstation for requirement clarification, PRD generation, code generation, build repair, runtime verification, and persistent workspace sessions.
+- Hub-oriented directory lifecycle: install ready-to-run scenario directories, adapt them in a private workspace, fork useful variants, and publish stable capabilities back.
 - Service Tree for organizing application capabilities inside a workspace, with shared access, audit, operation-log, message, and schedule entry points.
+- AI workstation for requirement clarification, PRD generation, code generation, build repair, runtime verification, and persistent workspace sessions.
 - Dynamic UI rendering for generated forms, tables, details, charts, function panels, inbox threads, and operation logs.
 - Platform inbox and notification flow backed by `message-server`, `message.v1.cmd.send`, SDK `ctx.SendMessage`, and the Agent `send_notification` tool.
 - Scheduled automation backed by `timer-scheduler`, covering fixed Form/Table/Chart execution and unattended Agent workspace sessions.

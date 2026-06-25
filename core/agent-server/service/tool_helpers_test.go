@@ -35,6 +35,36 @@ func TestResolveTypedFunctionFullCodePathArg(t *testing.T) {
 			t.Fatalf("unexpected notice: %s", notice)
 		}
 	})
+
+	t.Run("resolves current package relative form path", func(t *testing.T) {
+		got, notice := resolveTypedFunctionFullCodePathArg("./sweep.form", "/system/democase/gold_watch", ".form")
+		if notice != "" {
+			t.Fatalf("unexpected notice: %s", notice)
+		}
+		if got != "/system/democase/gold_watch/sweep.form" {
+			t.Fatalf("unexpected path: %s", got)
+		}
+	})
+
+	t.Run("resolves relative table path from function default", func(t *testing.T) {
+		got, notice := resolveTypedFunctionFullCodePathArg("./signals.table", "/system/democase/gold_watch/sweep.form", ".table")
+		if notice != "" {
+			t.Fatalf("unexpected notice: %s", notice)
+		}
+		if got != "/system/democase/gold_watch/signals.table" {
+			t.Fatalf("unexpected path: %s", got)
+		}
+	})
+
+	t.Run("preserves query on relative path", func(t *testing.T) {
+		got, notice := resolveTypedFunctionFullCodePathArg("./snapshots.table?page=1&page_size=20", "/system/democase/gold_watch", ".table")
+		if notice != "" {
+			t.Fatalf("unexpected notice: %s", notice)
+		}
+		if got != "/system/democase/gold_watch/snapshots.table?page=1&page_size=20" {
+			t.Fatalf("unexpected path: %s", got)
+		}
+	})
 }
 
 func TestToolResultWithStructuredData(t *testing.T) {

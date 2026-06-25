@@ -316,6 +316,7 @@ func (s *Server) initRouter(ctx context.Context) error {
 	s.httpServer = serverx.NewGin(
 		serverx.WithRecovery(),
 		serverx.WithMiddleware(middleware2.Cors()),
+		serverx.WithRegisteredMiddlewares(serverx.ServiceAppServer),
 	)
 
 	// 设置路由

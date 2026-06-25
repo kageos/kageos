@@ -332,7 +332,7 @@ export class RouteManager {
           this.log('link 跳转（清除 _link_type）：直接使用 request.query，不合并当前路由参数', { 
             requestQuery: request.query 
           })
-          // 只过滤 table 参数，保留其他所有参数（包括 eq、in 等搜索参数）
+          // 只过滤 table 参数，保留其他所有业务筛选参数
           const result: Record<string, string | string[]> = {}
           const normalizedQuery = this.normalizeQuery(request.query)
           Object.keys(normalizedQuery).forEach(key => {
@@ -351,10 +351,10 @@ export class RouteManager {
         const result: Record<string, string | string[]> = {}
         
         // 🔥 修复：link 跳转时，优先使用 request.query 中的参数（这些参数来自 link URL，是用户明确指定的）
-        // 先处理 request.query 中的参数（保留所有参数，包括 eq、in 等搜索参数，只清除 table 参数）
+        // 先处理 request.query 中的参数（保留业务筛选参数，只清除 table 参数）
         const normalizedQuery = this.normalizeQuery(request.query)
         Object.keys(normalizedQuery).forEach(key => {
-          // 🔥 只过滤 table 参数（page, page_size, sorts），保留所有其他参数（包括 eq、in 等搜索参数）
+          // 🔥 只过滤 table 参数（page, page_size, sorts），保留其他业务筛选参数
           if (!isTableParamKey(key)) {
             const value = normalizedQuery[key]
             if (value !== undefined && value !== null && value !== '') {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kageos/kageos/core/hr-server/model"
@@ -14,13 +15,10 @@ import (
 )
 
 const (
-	ProviderGoogleOAuth     = "google_oauth"
-	ProviderGitHubOAuth     = "github_oauth"
-	ProviderWechatMPQR      = "wechat_mp_qr"
-	ProviderWechatOpenLogin = "wechat_open_login"
+	ProviderGoogleOAuth = "google_oauth"
+	ProviderGitHubOAuth = "github_oauth"
 
 	ProviderActionRedirect = "redirect"
-	ProviderActionQRCode   = "qrcode"
 
 	ProviderStatusUnconfigured = "unconfigured"
 	ProviderStatusDisabled     = "disabled"
@@ -31,7 +29,7 @@ type AuthLoginProviderService struct {
 	repo *repository.AuthLoginProviderRepository
 }
 
-type authProviderFieldDef struct {
+type AuthProviderFieldDef struct {
 	Key         string `json:"key"`
 	Label       string `json:"label"`
 	Type        string `json:"type"`
@@ -41,15 +39,16 @@ type authProviderFieldDef struct {
 	Placeholder string `json:"placeholder,omitempty"`
 }
 
-type authProviderSeed struct {
-	Code         string
-	Name         string
-	Description  string
-	Action       string
-	Fields       []authProviderFieldDef
-	CallbackPath string
-	DocsURL      string
-	SortOrder    int
+type AuthProviderSeed struct {
+	Code          string
+	Name          string
+	Description   string
+	Action        string
+	Fields        []AuthProviderFieldDef
+	AuthorizePath string
+	CallbackPath  string
+	DocsURL       string
+	SortOrder     int
 }
 
 type AuthLoginProviderRuntimeConfig struct {
@@ -58,12 +57,62 @@ type AuthLoginProviderRuntimeConfig struct {
 	Values map[string]string
 }
 
+var authProviderSeedRegistry = struct {
+	sync.RWMutex
+	seeds map[string]AuthProviderSeed
+}{
+	seeds: make(map[string]AuthProviderSeed),
+}
+
+func RegisterAuthProviderSeed(seed AuthProviderSeed) {
+	seed.Code = normalizeProviderCode(seed.Code)
+	if seed.Code == "" {
+		panic("auth provider seed code is empty")
+	}
+	if strings.TrimSpace(seed.Name) == "" {
+		panic(fmt.Sprintf("auth provider seed %s name is empty", seed.Code))
+	}
+	if strings.TrimSpace(seed.Action) == "" {
+		panic(fmt.Sprintf("auth provider seed %s action is empty", seed.Code))
+	}
+	authProviderSeedRegistry.Lock()
+	defer authProviderSeedRegistry.Unlock()
+	if _, exists := authProviderSeedRegistry.seeds[seed.Code]; exists {
+		panic(fmt.Sprintf("auth provider seed %s already registered", seed.Code))
+	}
+	authProviderSeedRegistry.seeds[seed.Code] = seed
+}
+
+func LookupAuthProviderSeed(code string) (AuthProviderSeed, bool) {
+	code = normalizeProviderCode(code)
+	authProviderSeedRegistry.RLock()
+	defer authProviderSeedRegistry.RUnlock()
+	seed, ok := authProviderSeedRegistry.seeds[code]
+	return seed, ok
+}
+
+func RegisteredAuthProviderSeeds() []AuthProviderSeed {
+	authProviderSeedRegistry.RLock()
+	seeds := make([]AuthProviderSeed, 0, len(authProviderSeedRegistry.seeds))
+	for _, seed := range authProviderSeedRegistry.seeds {
+		seeds = append(seeds, seed)
+	}
+	authProviderSeedRegistry.RUnlock()
+	sort.Slice(seeds, func(i, j int) bool {
+		if seeds[i].SortOrder == seeds[j].SortOrder {
+			return seeds[i].Code < seeds[j].Code
+		}
+		return seeds[i].SortOrder < seeds[j].SortOrder
+	})
+	return seeds
+}
+
 func NewAuthLoginProviderService(repo *repository.AuthLoginProviderRepository) *AuthLoginProviderService {
 	return &AuthLoginProviderService{repo: repo}
 }
 
 func (s *AuthLoginProviderService) SeedDefaults(ctx context.Context) error {
-	for _, seed := range defaultAuthProviderSeeds() {
+	for _, seed := range RegisteredAuthProviderSeeds() {
 		schema, err := json.Marshal(seed.Fields)
 		if err != nil {
 			return err
@@ -289,8 +338,8 @@ func (s *AuthLoginProviderService) toProviderResp(provider *model.AuthLoginProvi
 	}, nil
 }
 
-func parseProviderFields(raw string) ([]authProviderFieldDef, error) {
-	var fields []authProviderFieldDef
+func parseProviderFields(raw string) ([]AuthProviderFieldDef, error) {
+	var fields []AuthProviderFieldDef
 	if strings.TrimSpace(raw) == "" {
 		return fields, nil
 	}
@@ -309,7 +358,7 @@ func parseProviderValues(raw string) map[string]string {
 	return values
 }
 
-func providerConfigured(fields []authProviderFieldDef, values map[string]string) bool {
+func providerConfigured(fields []AuthProviderFieldDef, values map[string]string) bool {
 	for _, field := range fields {
 		if field.Required && strings.TrimSpace(values[field.Key]) == "" {
 			return false
@@ -323,82 +372,8 @@ func normalizeProviderCode(code string) string {
 }
 
 func providerAuthorizePath(code string) string {
-	switch normalizeProviderCode(code) {
-	case ProviderGoogleOAuth:
-		return "/hr/api/v1/auth/google/authorize"
-	case ProviderGitHubOAuth:
-		return "/hr/api/v1/auth/github/authorize"
-	default:
-		return ""
+	if seed, ok := LookupAuthProviderSeed(code); ok {
+		return strings.TrimSpace(seed.AuthorizePath)
 	}
-}
-
-func defaultAuthProviderSeeds() []authProviderSeed {
-	seeds := []authProviderSeed{
-		{
-			Code:         ProviderGoogleOAuth,
-			Name:         "Google 登录",
-			Description:  "使用 Google OAuth 账号登录。",
-			Action:       ProviderActionRedirect,
-			CallbackPath: "/hr/api/v1/auth/google/callback",
-			DocsURL:      "https://developers.google.com/identity/protocols/oauth2",
-			SortOrder:    10,
-			Fields: []authProviderFieldDef{
-				{Key: "client_id", Label: "Client ID", Type: "text", Required: true},
-				{Key: "client_secret", Label: "Client Secret", Type: "password", Required: true, Secret: true},
-				{Key: "redirect_url", Label: "Redirect URL", Type: "url", Required: true, Help: "需要和 Google Cloud Console 中配置的回调地址一致。"},
-				{Key: "default_company_code", Label: "默认企业代码", Type: "text", Required: false, Placeholder: model.DefaultCompanyCode, Help: "授权注册创建用户时归属的企业代码；留空使用 default。"},
-			},
-		},
-		{
-			Code:         ProviderGitHubOAuth,
-			Name:         "GitHub 登录",
-			Description:  "使用 GitHub OAuth 账号登录。",
-			Action:       ProviderActionRedirect,
-			CallbackPath: "/hr/api/v1/auth/github/callback",
-			DocsURL:      "https://docs.github.com/apps/oauth-apps",
-			SortOrder:    20,
-			Fields: []authProviderFieldDef{
-				{Key: "client_id", Label: "Client ID", Type: "text", Required: true},
-				{Key: "client_secret", Label: "Client Secret", Type: "password", Required: true, Secret: true},
-				{Key: "redirect_url", Label: "Redirect URL", Type: "url", Required: true, Help: "需要和 GitHub OAuth App 中配置的 Authorization callback URL 一致。"},
-				{Key: "scopes", Label: "Scopes", Type: "text", Required: false, Placeholder: "read:user user:email"},
-				{Key: "default_company_code", Label: "默认企业代码", Type: "text", Required: false, Placeholder: model.DefaultCompanyCode, Help: "授权注册创建用户时归属的企业代码；留空使用 default。"},
-			},
-		},
-		{
-			Code:         ProviderWechatMPQR,
-			Name:         "微信公众号扫码关注登录",
-			Description:  "使用认证服务号带参数二维码，支持扫码关注后登录或绑定。",
-			Action:       ProviderActionQRCode,
-			CallbackPath: "/hr/api/v1/auth/wechat_mp/events",
-			DocsURL:      "https://developers.weixin.qq.com/doc/service/api/qrcode/qrcodes/api_createqrcode.html",
-			SortOrder:    30,
-			Fields: []authProviderFieldDef{
-				{Key: "appid", Label: "AppID", Type: "text", Required: true},
-				{Key: "appsecret", Label: "AppSecret", Type: "password", Required: true, Secret: true},
-				{Key: "token", Label: "Token", Type: "password", Required: true, Secret: true},
-				{Key: "aes_key", Label: "EncodingAESKey", Type: "password", Required: false, Secret: true},
-				{Key: "callback_url", Label: "服务器回调 URL", Type: "url", Required: true, Help: "需要填入微信公众平台「服务器配置」中。"},
-			},
-		},
-		{
-			Code:         ProviderWechatOpenLogin,
-			Name:         "微信授权登录",
-			Description:  "使用微信开放平台网站应用授权登录。",
-			Action:       ProviderActionRedirect,
-			CallbackPath: "/hr/api/v1/auth/wechat_open/callback",
-			DocsURL:      "https://developers.weixin.qq.com/doc/oplatform/Website_App/WeChat_Login/Wechat_Login.html",
-			SortOrder:    40,
-			Fields: []authProviderFieldDef{
-				{Key: "appid", Label: "AppID", Type: "text", Required: true},
-				{Key: "appsecret", Label: "AppSecret", Type: "password", Required: true, Secret: true},
-				{Key: "redirect_url", Label: "Redirect URL", Type: "url", Required: true, Help: "需要和微信开放平台网站应用授权回调域一致。"},
-			},
-		},
-	}
-	sort.Slice(seeds, func(i, j int) bool {
-		return seeds[i].SortOrder < seeds[j].SortOrder
-	})
-	return seeds
+	return ""
 }

@@ -13,7 +13,10 @@ import (
 )
 
 func NewRouter(service *timerservice.Service) *gin.Engine {
-	router := serverx.NewGin(serverx.WithRecovery())
+	router := serverx.NewGin(
+		serverx.WithRecovery(),
+		serverx.WithRegisteredMiddlewares(serverx.ServiceTimerScheduler),
+	)
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "timer-scheduler"})
 	})
@@ -33,6 +36,7 @@ func NewRouter(service *timerservice.Service) *gin.Engine {
 	api.POST("/executions/started", markExecutionStarted(service))
 	api.POST("/executions/heartbeat", markExecutionHeartbeat(service))
 	api.POST("/executions/finished", markExecutionFinished(service))
+	serverx.ApplyRouteRegistrars(serverx.ServiceTimerScheduler, router)
 	return router
 }
 

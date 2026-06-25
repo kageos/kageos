@@ -57,6 +57,65 @@ func TestBuildCallbackAppReqEncodesBodyForSDKCallbackRouter(t *testing.T) {
 	}
 }
 
+func TestBuildCallbackAppReqWithBodyEncodesSystemTableGetRows(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"ids":[7]}`)
+	req := httptest.NewRequest(http.MethodPut, "/workspace/api/v1/table/update/liubeiluo/ee/vote/vote_topic.table", nil)
+	req.Header.Set("X-Client-Source", "agent")
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = req
+
+	api := &StandardAPI{}
+	appReq, err := api.buildCallbackAppReqWithBody(ctx, "/liubeiluo/ee/vote/vote_topic.table", internalTableGetRowsCallback, tableGetRowsCallbackHTTPMethod, body, "")
+	if err != nil {
+		t.Fatalf("buildCallbackAppReqWithBody() error = %v", err)
+	}
+
+	var sdkReq struct {
+		Type   string `json:"type"`
+		Method string `json:"method"`
+		Router string `json:"router"`
+		Body   []byte `json:"body"`
+	}
+	if err := json.Unmarshal(appReq.Body, &sdkReq); err != nil {
+		t.Fatalf("json.Unmarshal(appReq.Body) error = %v; body = %s", err, string(appReq.Body))
+	}
+
+	if sdkReq.Type != internalTableGetRowsCallback {
+		t.Fatalf("Type = %q, want %s", sdkReq.Type, internalTableGetRowsCallback)
+	}
+	if sdkReq.Method != tableGetRowsCallbackHTTPMethod {
+		t.Fatalf("Method = %q, want %s", sdkReq.Method, tableGetRowsCallbackHTTPMethod)
+	}
+	if sdkReq.Router != "vote/vote_topic.table" || appReq.TargetRouter != "vote/vote_topic.table" {
+		t.Fatalf("router mismatch: envelope=%q target=%q", sdkReq.Router, appReq.TargetRouter)
+	}
+	if string(sdkReq.Body) != string(body) {
+		t.Fatalf("Body = %s, want %s", string(sdkReq.Body), string(body))
+	}
+	if appReq.Router != "/_callback" {
+		t.Fatalf("Router = %q, want /_callback", appReq.Router)
+	}
+}
+
+func TestExtractTableGetRowsCallbackRowsFindsMatchingID(t *testing.T) {
+	result := map[string]interface{}{
+		"rows": []interface{}{
+			map[string]interface{}{"id": float64(1), "name": "first"},
+			map[string]interface{}{"id": float64(7), "name": "target"},
+		},
+	}
+	rows, err := extractTableGetRowsCallbackRows(result)
+	if err != nil {
+		t.Fatalf("extractTableGetRowsCallbackRows() error = %v, want nil", err)
+	}
+	row := findTableRowByID(rows, 7)
+	if row == nil || row["name"] != "target" {
+		t.Fatalf("findTableRowByID() = %#v, want target row", row)
+	}
+}
+
 func TestBuildRuntimePythonRequestAppReqUsesPrivateRoute(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

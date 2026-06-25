@@ -78,6 +78,32 @@ func TestScheduledExecutionTokenSupportsSystemUser(t *testing.T) {
 	}
 }
 
+func TestServiceCreateTaskSupportsPausedInitialStatus(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, _ := newTestService(t, &now)
+
+	task, err := svc.CreateTask(context.Background(), scheduledsdk.CreateTaskRequest{
+		Title:           "paused demo",
+		ExecutorKey:     "test.executor",
+		ExecutorPayload: json.RawMessage(`{"hello":"timer"}`),
+		Status:          scheduledsdk.TaskStatusPaused,
+		Schedule:        scheduledsdk.At(now.Add(-time.Minute)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status != scheduledsdk.TaskStatusPaused {
+		t.Fatalf("status = %q, want %q", task.Status, scheduledsdk.TaskStatusPaused)
+	}
+	execs, err := svc.DispatchDue(context.Background(), "owner-1", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(execs) != 0 {
+		t.Fatalf("paused task should not dispatch, got %d executions", len(execs))
+	}
+}
+
 func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, db := newTestService(t, &now)

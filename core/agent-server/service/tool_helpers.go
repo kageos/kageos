@@ -146,10 +146,49 @@ func normalizeAbsoluteToolPath(path string) string {
 }
 
 func resolveFullCodePathArg(fullCodePath string, defaultPath string) string {
-	if path := normalizeAbsoluteToolPath(fullCodePath); path != "" {
+	if path := normalizeToolPathWithDefault(fullCodePath, defaultPath); path != "" {
 		return path
 	}
-	return normalizeAbsoluteToolPath(defaultPath)
+	return normalizeToolPathWithDefault(defaultPath, "")
+}
+
+func normalizeToolPathWithDefault(raw string, defaultPath string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	pathPart, queryPart, hasQuery := strings.Cut(raw, "?")
+	resolved := normalizeToolPathPartWithDefault(pathPart, defaultPath)
+	if resolved == "" {
+		return ""
+	}
+	if hasQuery {
+		return resolved + "?" + queryPart
+	}
+	return resolved
+}
+
+func normalizeToolPathPartWithDefault(pathPart string, defaultPath string) string {
+	pathPart = strings.TrimSpace(pathPart)
+	if pathPart == "" {
+		return ""
+	}
+	if isRelativeToolPath(pathPart) {
+		base := workspacePathDirectory(defaultPath)
+		if base == "" {
+			return normalizeWorkspacePath(pathPart)
+		}
+		if pathPart == "." || pathPart == "./" {
+			return base
+		}
+		return normalizeWorkspacePath(pathpkg.Join(base, pathPart))
+	}
+	return normalizeAbsoluteToolPath(pathPart)
+}
+
+func isRelativeToolPath(pathPart string) bool {
+	pathPart = strings.TrimSpace(pathPart)
+	return pathPart == "." || pathPart == "./" || strings.HasPrefix(pathPart, "./") || strings.HasPrefix(pathPart, "../")
 }
 
 func resolveTypedFunctionFullCodePathArg(fullCodePath string, defaultPath string, expectedSuffix string) (string, string) {

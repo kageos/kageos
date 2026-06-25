@@ -37,9 +37,9 @@ func TestResolveDateTimeExprSupportsSQLStyleWhitelist(t *testing.T) {
 	}
 }
 
-func TestReplaceTimeExprsInParamValueKeepsSQLFunctionCommaTogether(t *testing.T) {
-	got := ReplaceTimeExprsInParamValue("created_at:DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY),status:处理中")
-	if !regexp.MustCompile(`^created_at:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},status:处理中$`).MatchString(got) {
+func TestReplaceTimeExprsInParamValueResolvesDirectSQLFunction(t *testing.T) {
+	got := ReplaceTimeExprsInParamValue("DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)")
+	if !regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$`).MatchString(got) {
 		t.Fatalf("unexpected output: %q", got)
 	}
 }

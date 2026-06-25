@@ -245,6 +245,7 @@ func (s *Server) initRouter(ctx context.Context) error {
 	s.httpServer = serverx.NewGin(
 		serverx.WithMiddleware(customRecovery),
 		serverx.WithMiddleware(middleware2.Cors(), middleware2.WithTraceId(), middleware2.AccessLog()),
+		serverx.WithRegisteredMiddlewares(serverx.ServiceAPIGateway),
 	) // 访问日志中间件，记录所有请求（包括 agent-server）
 
 	// 设置路由

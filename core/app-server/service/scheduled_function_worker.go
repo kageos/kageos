@@ -21,7 +21,11 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-const ScheduledFunctionExecutorKey = "app.function"
+const (
+	ScheduledFunctionExecutorKey   = "app.function"
+	internalTableGetRowsCallback   = "__table_get_rows"
+	tableGetRowsCallbackHTTPMethod = http.MethodPost
+)
 
 type scheduledFunctionPayload struct {
 	FullCodePath string          `json:"full_code_path"`
@@ -44,6 +48,10 @@ type scheduledCallbackRequestEnvelope struct {
 	Router string `json:"router"`
 	Body   []byte `json:"body"`
 	Type   string `json:"type"`
+}
+
+type scheduledTableGetRowsCallbackReq struct {
+	IDs []int64 `json:"ids"`
 }
 
 func NewScheduledFunctionWorker(natsConn *nats.Conn, appService *AppService) (*scheduledsdk.Worker, error) {
@@ -432,29 +440,17 @@ func (a *AppService) prepareScheduledTableUpdateBody(ctx context.Context, fullCo
 		return body, bodyData, nil
 	}
 
-	idStr, ok := getScheduledBodyID(bodyData)
-	if !ok || idStr == "" {
+	id, ok := getScheduledBodyIDInt64(bodyData)
+	if !ok {
 		return nil, nil, fmt.Errorf("请求体缺少有效 id，无法自动填充 old_values")
 	}
-	user, app, router, err := parseScheduledFunctionFullCodePath(fullCodePath)
-	if err != nil {
-		return nil, nil, err
-	}
-	searchReq := buildScheduledBaseRequestAppReq(ctx, user, app, router, http.MethodGet)
-	searchReq.UrlQuery = "eq=id:" + url.QueryEscape(idStr) + "&page=1&page_size=1"
-	searchResp, err := a.RequestApp(ctx, searchReq)
+	rows, err := a.fetchScheduledTableRowsByIDs(ctx, fullCodePath, []int64{id})
 	if err != nil {
 		return nil, nil, fmt.Errorf("自动查询当前行失败: %w", err)
 	}
-	if searchResp == nil {
-		return nil, nil, fmt.Errorf("自动查询当前行失败: app-runtime 返回空响应")
-	}
-	if searchResp.Error != "" {
-		return nil, nil, fmt.Errorf("自动查询当前行失败: %s", searchResp.Error)
-	}
-	oldRow := extractScheduledFirstItemFromSearchResult(searchResp.Result)
+	oldRow := findScheduledTableRowByID(rows, id)
 	if oldRow == nil {
-		return nil, nil, fmt.Errorf("记录不存在（eq=id 未查到数据），无法填充 old_values")
+		return nil, nil, fmt.Errorf("记录不存在（id 未查到数据），无法填充 old_values")
 	}
 	bodyData["old_values"] = oldRow
 	newBody, err := json.Marshal(bodyData)
@@ -462,6 +458,28 @@ func (a *AppService) prepareScheduledTableUpdateBody(ctx context.Context, fullCo
 		return nil, nil, fmt.Errorf("构造 old_values 后序列化失败: %w", err)
 	}
 	return newBody, bodyData, nil
+}
+
+func (a *AppService) fetchScheduledTableRowsByIDs(ctx context.Context, fullCodePath string, ids []int64) ([]map[string]interface{}, error) {
+	body, err := json.Marshal(scheduledTableGetRowsCallbackReq{IDs: ids})
+	if err != nil {
+		return nil, fmt.Errorf("构造 %s 请求失败: %w", internalTableGetRowsCallback, err)
+	}
+	req, err := buildScheduledCallbackAppReq(ctx, fullCodePath, tableGetRowsCallbackHTTPMethod, internalTableGetRowsCallback, body, "")
+	if err != nil {
+		return nil, err
+	}
+	resp, err := a.RequestApp(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, fmt.Errorf("%s 返回空响应", internalTableGetRowsCallback)
+	}
+	if resp.Error != "" {
+		return nil, fmt.Errorf("%s 失败: %s", internalTableGetRowsCallback, resp.Error)
+	}
+	return extractScheduledTableGetRowsCallbackRows(resp.Result)
 }
 
 func (a *AppService) requireScheduledFunctionAccess(ctx context.Context, fullCodePath, action string) error {
@@ -688,11 +706,6 @@ func needFillScheduledOldValues(bodyData map[string]interface{}) bool {
 	return !ok || len(oldValues) == 0
 }
 
-func getScheduledBodyID(bodyData map[string]interface{}) (string, bool) {
-	id, ok := getScheduledBodyIDInt64(bodyData)
-	return strconv.FormatInt(id, 10), ok
-}
-
 func getScheduledBodyIDInt64(bodyData map[string]interface{}) (int64, bool) {
 	if bodyData == nil {
 		return 0, false
@@ -709,23 +722,56 @@ func getScheduledBodyIDInt64(bodyData map[string]interface{}) (int64, bool) {
 	}
 }
 
-func extractScheduledFirstItemFromSearchResult(result interface{}) map[string]interface{} {
-	if result == nil {
-		return nil
+func scheduledTableRowID(row map[string]interface{}) (int64, bool) {
+	if row == nil {
+		return 0, false
 	}
-	m, ok := result.(map[string]interface{})
-	if !ok {
-		return nil
+	switch v := row["id"].(type) {
+	case float64:
+		return int64(v), true
+	case int:
+		return int64(v), true
+	case int64:
+		return v, true
+	case json.Number:
+		id, err := v.Int64()
+		return id, err == nil
+	case string:
+		id, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		return id, err == nil
+	default:
+		return 0, false
 	}
-	items, ok := m["items"].([]interface{})
-	if !ok || len(items) == 0 {
-		return nil
+}
+
+func findScheduledTableRowByID(rows []map[string]interface{}, id int64) map[string]interface{} {
+	for _, row := range rows {
+		rowID, ok := scheduledTableRowID(row)
+		if ok && rowID == id {
+			return row
+		}
 	}
-	first, ok := items[0].(map[string]interface{})
-	if !ok {
-		return nil
+	if len(rows) == 1 {
+		return rows[0]
 	}
-	return first
+	return nil
+}
+
+func extractScheduledTableGetRowsCallbackRows(result interface{}) ([]map[string]interface{}, error) {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("解析 %s 结果失败: %w", internalTableGetRowsCallback, err)
+	}
+	var payload struct {
+		Rows []map[string]interface{} `json:"rows"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, fmt.Errorf("解析 %s rows 失败: %w", internalTableGetRowsCallback, err)
+	}
+	if payload.Rows == nil {
+		return nil, fmt.Errorf("%s 未返回 rows", internalTableGetRowsCallback)
+	}
+	return payload.Rows, nil
 }
 
 func scheduledRowIDsFromDeleteBody(bodyData map[string]interface{}) []int64 {

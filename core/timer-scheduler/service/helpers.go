@@ -17,10 +17,24 @@ func validateCreateTaskRequest(req scheduledsdk.CreateTaskRequest, payloadLimit 
 	if strings.TrimSpace(req.ExecutorKey) == "" {
 		return fmt.Errorf("%w: executor_key is required", scheduledsdk.ErrInvalidRequest)
 	}
+	switch scheduledsdk.TaskStatus(strings.TrimSpace(string(req.Status))) {
+	case "", scheduledsdk.TaskStatusPending, scheduledsdk.TaskStatusPaused:
+	default:
+		return fmt.Errorf("%w: status must be pending or paused", scheduledsdk.ErrInvalidRequest)
+	}
 	if err := req.Schedule.Validate(); err != nil {
 		return err
 	}
 	return validatePayload(req.ExecutorPayload, payloadLimit)
+}
+
+func createTaskInitialStatus(status scheduledsdk.TaskStatus) scheduledsdk.TaskStatus {
+	switch scheduledsdk.TaskStatus(strings.TrimSpace(string(status))) {
+	case scheduledsdk.TaskStatusPaused:
+		return scheduledsdk.TaskStatusPaused
+	default:
+		return scheduledsdk.TaskStatusPending
+	}
 }
 
 func validatePayload(payload []byte, limit int) error {

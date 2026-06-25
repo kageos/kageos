@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestResolveExistingUserForProfileDoesNotAutoBindByEmail(t *testing.T) {
+func TestResolveExistingUserForPrincipalDoesNotAutoBindByEmail(t *testing.T) {
 	t.Parallel()
 
 	db := openOAuthServiceTestDB(t)
@@ -32,7 +33,7 @@ func TestResolveExistingUserForProfileDoesNotAutoBindByEmail(t *testing.T) {
 		identityRepo: identityRepo,
 		userRepo:     userRepo,
 	}
-	user, found, err := svc.resolveExistingUserForProfile(&oauthProfile{
+	user, found, err := svc.resolveExistingUserForPrincipal(ExternalPrincipal{
 		ProviderCode:  ProviderGitHubOAuth,
 		ExternalID:    "github-subject-1",
 		Email:         "same@example.com",
@@ -43,7 +44,7 @@ func TestResolveExistingUserForProfileDoesNotAutoBindByEmail(t *testing.T) {
 		t.Fatal(err)
 	}
 	if found || user != nil {
-		t.Fatalf("resolveExistingUserForProfile found user by email, got found=%v user=%v", found, user)
+		t.Fatalf("resolveExistingUserForPrincipal found user by email, got found=%v user=%v", found, user)
 	}
 
 	var identityCount int64
@@ -64,11 +65,15 @@ func TestCreateRegistrationIntentAllowsMissingEmail(t *testing.T) {
 		userRepo:               repository.NewUserRepository(db),
 	}
 
-	intent, err := svc.createRegistrationIntent(&oauthProfile{
+	intent, err := svc.createExternalRegistrationIntent(ExternalPrincipal{
 		ProviderCode: ProviderGitHubOAuth,
 		ExternalID:   "github-no-email",
 		Nickname:     "No Email User",
-	}, nil, "/workspace")
+	}, ExternalLoginOptions{
+		DefaultCompanyCode: model.DefaultCompanyCode,
+		ShortCode:          "github",
+		RedirectAfter:      "/workspace",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,6 +82,46 @@ func TestCreateRegistrationIntentAllowsMissingEmail(t *testing.T) {
 	}
 	if intent.EmailVerified {
 		t.Fatal("intent EmailVerified = true, want false for missing email")
+	}
+}
+
+func TestCompleteExternalLoginCreatesRegistrationIntentForUnknownPrincipal(t *testing.T) {
+	t.Parallel()
+
+	db := openOAuthServiceTestDB(t)
+	svc := &AuthOAuthService{
+		registrationIntentRepo: repository.NewAuthOAuthRegistrationIntentRepository(db),
+		identityRepo:           repository.NewAuthExternalIdentityRepository(db),
+		userRepo:               repository.NewUserRepository(db),
+	}
+
+	result, err := svc.CompleteExternalLogin(context.Background(), ExternalPrincipal{
+		ProviderCode: "custom_sso",
+		ExternalID:   "subject-1",
+		Username:     "alice",
+		Email:        "Alice@Example.COM",
+		Nickname:     "Alice",
+	}, ExternalLoginOptions{
+		DefaultCompanyCode: model.DefaultCompanyCode,
+		ShortCode:          "sso",
+		RedirectAfter:      "/workspace",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.RegistrationRequired || result.RegistrationTicket == "" {
+		t.Fatalf("registration result = %+v, want required with ticket", result)
+	}
+
+	intent, err := registrationIntentByTicket(db, result.RegistrationTicket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if intent.ProviderCode != "custom_sso" || intent.ExternalID != "subject-1" {
+		t.Fatalf("intent identity = %s/%s", intent.ProviderCode, intent.ExternalID)
+	}
+	if intent.Email != "alice@example.com" {
+		t.Fatalf("intent email = %q, want normalized email", intent.Email)
 	}
 }
 
@@ -134,4 +179,12 @@ func openOAuthServiceTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("migrate oauth service test db: %v", err)
 	}
 	return db
+}
+
+func registrationIntentByTicket(db *gorm.DB, ticket string) (*model.AuthOAuthRegistrationIntent, error) {
+	var intent model.AuthOAuthRegistrationIntent
+	if err := db.Where("ticket = ?", ticket).First(&intent).Error; err != nil {
+		return nil, err
+	}
+	return &intent, nil
 }

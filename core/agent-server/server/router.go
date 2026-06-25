@@ -4,6 +4,7 @@ import (
 	v1 "github.com/kageos/kageos/core/agent-server/api/v1"
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/pprof"
+	"github.com/kageos/kageos/pkg/serverx"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -61,4 +62,5 @@ func (s *Server) setupRoutes() {
 	workspace.POST("/chat/stream", workspaceChatHandler.ChatStream)
 	workspace.POST("/chat/cancel", workspaceChatHandler.CancelChat) // 取消执行中的任务
 
+	serverx.ApplyRouteRegistrars(serverx.ServiceAgentServer, s.httpServer)
 }

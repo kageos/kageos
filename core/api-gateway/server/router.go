@@ -23,6 +23,7 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/pprof"
 	"github.com/kageos/kageos/pkg/response"
+	"github.com/kageos/kageos/pkg/serverx"
 )
 
 // setupRoutes 设置路由
@@ -149,6 +150,8 @@ func (s *Server) setupRoutes() {
 		logger.Infof(s.ctx, "[Router] Registered catch-all route: %s -> %s (timeout: %ds)",
 			catchAllRoute.Path+"/*", catchAllRoute.Targets[0].URL, catchAllRoute.Timeout)
 	}
+
+	serverx.ApplyRouteRegistrars(serverx.ServiceAPIGateway, s.httpServer)
 }
 
 // createRouteProxy 创建路由代理（统一入口）

@@ -221,6 +221,7 @@ func (s *Server) initRouter(ctx context.Context) error {
 	s.httpServer = serverx.NewGin(
 		serverx.WithRecovery(),
 		serverx.WithMiddleware(middleware2.Cors()),
+		serverx.WithRegisteredMiddlewares(serverx.ServiceAgentServer),
 	)
 	// 注意：用户信息中间件在路由组中添加
 

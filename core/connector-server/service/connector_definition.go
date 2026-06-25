@@ -30,16 +30,17 @@ func oauthProvidersFromDefinitions(definitions map[string]ConnectorDefinition) m
 
 func (r *OAuthProviderRegistry) Capabilities(code string) dto.ConnectorProviderCapabilities {
 	code = normalizeProvider(code)
+	adapterCapabilities := connectorProviderCapabilities(code)
 	if definition, ok := r.definitions[code]; ok {
-		return definition.Capabilities
+		return mergeConnectorProviderCapabilities(definition.Capabilities, adapterCapabilities)
 	}
-	return connectorProviderCapabilities(code)
+	return adapterCapabilities
 }
 
 func builtInConnectorDefinitions() map[string]ConnectorDefinition {
 	trueValue := true
 	falseValue := false
-	return map[string]ConnectorDefinition{
+	definitions := map[string]ConnectorDefinition{
 		"github": {
 			Provider: config.ConnectorOAuthProviderConfig{
 				Code:               "github",
@@ -208,4 +209,9 @@ func builtInConnectorDefinitions() map[string]ConnectorDefinition {
 			Capabilities: connectorProviderCapabilities("dingtalk"),
 		},
 	}
+	for code, definition := range registeredConnectorDefinitions() {
+		definition.Capabilities = mergeConnectorProviderCapabilities(definition.Capabilities, connectorProviderCapabilities(code))
+		definitions[code] = definition
+	}
+	return definitions
 }

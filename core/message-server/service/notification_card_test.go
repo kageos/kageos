@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -102,7 +103,7 @@ func TestFeishuCardRendererProducesInteractiveCard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
 	}
-	for _, want := range []string{"schema\":\"2.0", "KageOS 自动通知", "查看详情", "打开目录", "打开会话", "任务/会话", "具体内容"} {
+	for _, want := range []string{"schema\":\"2.0", "Kageos 自动通知", "查看详情", "打开目录", "打开会话", "任务/会话", "具体内容"} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("feishu card missing %q:\n%s", want, string(raw))
 		}
@@ -158,7 +159,7 @@ func TestWeComTemplateCardRendererIncludesContextAndLinks(t *testing.T) {
 		t.Fatalf("card action url = %#v", action)
 	}
 	raw, _ := json.Marshal(payload)
-	for _, want := range []string{"来源目录", "线索巡检", "打开会话", "KageOS 自动通知"} {
+	for _, want := range []string{"来源目录", "线索巡检", "打开会话", "Kageos 自动通知"} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("wecom template card missing %q:\n%s", want, string(raw))
 		}
@@ -178,7 +179,7 @@ func TestDingTalkActionCardRendererIncludesContextAndButtons(t *testing.T) {
 		t.Fatalf("title = %v", actionCard["title"])
 	}
 	text := actionCard["text"].(string)
-	for _, want := range []string{"KageOS 自动通知", "来源目录：线索巡检", "alice/demo", "完整内容已保存到 KageOS 站内信"} {
+	for _, want := range []string{"Kageos 自动通知", "来源目录：线索巡检", "alice/demo", "完整内容已保存到 Kageos 站内信"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dingtalk content missing %q:\n%s", want, text)
 		}
@@ -209,6 +210,55 @@ func TestNotificationChannelProviderSupportsDingTalk(t *testing.T) {
 	if provider.Channel() != NotificationChannelDingTalk {
 		t.Fatalf("provider channel = %q", provider.Channel())
 	}
+}
+
+func TestRegisterNotificationChannelDefinitionIncludesWebhookValidation(t *testing.T) {
+	restoreNotificationChannelRegistryForTest(t)
+
+	RegisterNotificationChannel(NotificationChannelDefinition{
+		Channel: "slack_test",
+		ProviderFactory: func(time.Duration) ChannelProvider {
+			return &recordingChannelProvider{channel: "slack_test"}
+		},
+		ValidateWebhookURL: func(raw string) error {
+			if raw != "https://hooks.slack.com/services/test" {
+				return errors.New("invalid slack webhook")
+			}
+			return nil
+		},
+	})
+
+	if !IsSupportedNotificationChannel("slack_test") {
+		t.Fatal("slack_test should be supported")
+	}
+	provider, err := NewNotificationChannelProvider("slack_test", time.Second)
+	if err != nil {
+		t.Fatalf("new slack_test provider: %v", err)
+	}
+	if provider.Channel() != "slack_test" {
+		t.Fatalf("provider channel = %q", provider.Channel())
+	}
+	if err := ValidateNotificationWebhookURL("slack_test", "https://hooks.slack.com/services/test"); err != nil {
+		t.Fatalf("valid webhook rejected: %v", err)
+	}
+	if err := ValidateNotificationWebhookURL("slack_test", "https://example.com/hook"); err == nil {
+		t.Fatal("invalid webhook accepted")
+	}
+}
+
+func TestRegisterNotificationChannelRejectsDuplicateChannel(t *testing.T) {
+	restoreNotificationChannelRegistryForTest(t)
+
+	definition := NotificationChannelDefinition{
+		Channel: "slack_test",
+		ProviderFactory: func(time.Duration) ChannelProvider {
+			return &recordingChannelProvider{channel: "slack_test"}
+		},
+	}
+	RegisterNotificationChannel(definition)
+	mustPanic(t, func() {
+		RegisterNotificationChannel(definition)
+	})
 }
 
 func TestMessageConsumerDeliversExternalNotificationTargets(t *testing.T) {
@@ -333,4 +383,33 @@ func (p *recordingChannelProvider) Channel() string {
 func (p *recordingChannelProvider) Deliver(_ context.Context, target NotificationTarget, card NotificationCard) error {
 	p.calls = append(p.calls, recordingChannelCall{target: target, card: card})
 	return nil
+}
+
+func restoreNotificationChannelRegistryForTest(t *testing.T) {
+	t.Helper()
+
+	notificationChannelRegistry.RLock()
+	order := append([]string(nil), notificationChannelRegistry.order...)
+	channels := make(map[string]NotificationChannelDefinition, len(notificationChannelRegistry.channels))
+	for channel, definition := range notificationChannelRegistry.channels {
+		channels[channel] = definition
+	}
+	notificationChannelRegistry.RUnlock()
+
+	t.Cleanup(func() {
+		notificationChannelRegistry.Lock()
+		notificationChannelRegistry.order = order
+		notificationChannelRegistry.channels = channels
+		notificationChannelRegistry.Unlock()
+	})
+}
+
+func mustPanic(t *testing.T, fn func()) {
+	t.Helper()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	fn()
 }

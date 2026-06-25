@@ -62,7 +62,7 @@ var _ = sqlite.Open
 	if !isErr {
 		t.Fatal("expected sqlite driver import to fail")
 	}
-	for _, want := range []string{"源码规范校验失败", "本次未落盘", "KageOS SDK 已全局注册", `sql.Open("sqlite3", path)`} {
+	for _, want := range []string{"源码规范校验失败", "本次未落盘", "Kageos SDK 已全局注册", `sql.Open("sqlite3", path)`} {
 		if !strings.Contains(msg, want) {
 			t.Fatalf("expected %q in %q", want, msg)
 		}

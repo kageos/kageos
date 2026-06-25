@@ -19,6 +19,7 @@ import (
 type appScheduleClient interface {
 	CreateTask(context.Context, scheduledsdk.CreateTaskRequest) (*scheduledsdk.Task, error)
 	UpdateTask(context.Context, int64, scheduledsdk.UpdateTaskRequest) (*scheduledsdk.Task, error)
+	ListTasks(context.Context, scheduledsdk.ListTasksRequest) (*scheduledsdk.ListTasksResponse, error)
 }
 
 var newAppScheduleClient = func() appScheduleClient {
@@ -100,6 +101,13 @@ func buildFormScheduleTaskRequest(ctx context.Context, state *appMetadataSyncSta
 	if requestUser == "" {
 		requestUser = "system"
 	}
+	status := scheduledsdk.TaskStatus("")
+	if formSchedule.Enabled != nil {
+		status = scheduledsdk.TaskStatusPending
+		if !*formSchedule.Enabled {
+			status = scheduledsdk.TaskStatusPaused
+		}
+	}
 	return scheduledsdk.CreateTaskRequest{
 		Title:           title,
 		Description:     strings.TrimSpace(formSchedule.Description),
@@ -124,6 +132,7 @@ func buildFormScheduleTaskRequest(ctx context.Context, state *appMetadataSyncSta
 		RequestUser:     requestUser,
 		RequestUserDept: contextx.GetRequestDepartmentFullPath(ctx),
 		CreatedBy:       requestUser,
+		Status:          status,
 	}, nil
 }
 

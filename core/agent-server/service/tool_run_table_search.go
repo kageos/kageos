@@ -15,7 +15,7 @@ import (
 type RunTableSearchTool struct{}
 
 type runTableSearchArgs struct {
-	FullCodePath string `json:"full_code_path" schema_desc:"表格函数完整路径" schema_required:"true"`
+	FullCodePath string `json:"full_code_path" schema_desc:"表格函数路径；同目录表格可用 ./xxx.table，相对当前 execute_directory 解析" schema_required:"true"`
 	URLQuery     string `json:"url_query" schema_desc:"完整查询串"`
 	Page         *int   `json:"page" schema_desc:"页码"`
 	PageSize     *int   `json:"page_size" schema_desc:"每页条数"`
@@ -24,7 +24,7 @@ type runTableSearchArgs struct {
 
 var runTableSearchToolDef = toolDefinition[runTableSearchArgs](
 	"run_table_search",
-	"执行工作区内 Table 查询接口，返回分页表格数据。筛选前必须已通过字段摘要或 read_go_file 确认 Table Request 字段；不要猜可筛选字段或 url_query 格式。full_code_path 必须为带 `.table` 后缀的具体表格函数完整路径，包含函数名（如 .../nps/nps_questionnaire_list.table），不能只填包路径（如 .../nps），否则会查不到数据。若只知包路径，请先用 read_dir 看该包下 .go 文件，根据 init() 中 GET(\"xxx_list.table\",...) 确定函数名，再直接使用环境信息里带后缀的 full_code_path。查询参数使用 Request 字段名和值，例如 status=处理中&title=合同&page=1&page_size=20；排序用结构化 sorts，例如 [{\"field\":\"created_at\",\"order\":\"desc\"}]。可传 url_query 或单独传 page、page_size、sorts。datetime 字段可直接传 `YYYY-MM-DD HH:mm:ss`，也可用 SQL 风格白名单表达式如 CURRENT_TIMESTAMP、CURRENT_DATE、DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)。",
+	"执行工作区内 Table 查询接口，返回分页表格数据。筛选前必须已通过字段摘要或 read_go_file 确认 Table Request 字段；不要猜可筛选字段或 url_query 格式。full_code_path 必须为带 `.table` 后缀的具体表格函数路径，包含函数名（如 .../nps/nps_questionnaire_list.table）；同目录表格可用 `./xxx.table`，跨目录使用完整路径。不能只填包路径（如 .../nps），否则会查不到数据。若只知包路径，请先用 read_dir 看该包下 .go 文件，根据 init() 中 GET(\"xxx_list.table\",...) 确定函数名，再直接使用环境信息里带后缀的 full_code_path。查询参数使用 Request 字段名和值，例如 status=处理中&title=合同&page=1&page_size=20；排序用结构化 sorts，例如 [{\"field\":\"created_at\",\"order\":\"desc\"}]。可传 url_query 或单独传 page、page_size、sorts。datetime 字段可直接传 `YYYY-MM-DD HH:mm:ss`，也可用 SQL 风格白名单表达式如 CURRENT_TIMESTAMP、CURRENT_DATE、DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)。",
 )
 
 func (t *RunTableSearchTool) Definition() dto.ToolDef {

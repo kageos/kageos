@@ -692,6 +692,62 @@ func TestOAuthProviderRegistryBuildsConnectorDefinitions(t *testing.T) {
 	}
 }
 
+func TestRegisterConnectorProviderAddsDefinitionAndAdapter(t *testing.T) {
+	code := "registered-test"
+	unregisterConnectorProviderForTest(code)
+	t.Cleanup(func() { unregisterConnectorProviderForTest(code) })
+
+	adapter := registeredTestAdapter{DefaultConnectorProviderAdapter: NewDefaultConnectorProviderAdapter(code)}
+	if err := RegisterConnectorProvider(registeredTestProvider{code: code, adapter: adapter}); err != nil {
+		t.Fatalf("register connector provider: %v", err)
+	}
+
+	registry := NewOAuthProviderRegistry(config.ConnectorOAuthConfig{})
+	definition, ok := registry.Definitions()[code]
+	if !ok {
+		t.Fatalf("registered provider definition missing")
+	}
+	if definition.Provider.Name != "Registered Test" || !definition.Capabilities.ProxySupported {
+		t.Fatalf("registered definition not applied: %#v", definition)
+	}
+	provider, ok := registry.Lookup(code)
+	if !ok || provider.AuthURL != "https://registered.test/oauth/authorize" {
+		t.Fatalf("registered provider config missing: %#v ok=%v", provider, ok)
+	}
+	if baseURL := connectorAdapterFor(code).ProxyBaseURL(); baseURL != "https://registered.test/api" {
+		t.Fatalf("registered adapter proxy base = %s", baseURL)
+	}
+}
+
+func TestRegisterConnectorProviderDefinitionAndAdapterMergeCapabilities(t *testing.T) {
+	code := "registered-split-test"
+	unregisterConnectorProviderForTest(code)
+	t.Cleanup(func() { unregisterConnectorProviderForTest(code) })
+
+	if err := RegisterConnectorProviderDefinition(ConnectorDefinition{
+		Provider: config.ConnectorOAuthProviderConfig{
+			Code:     code,
+			Name:     "Registered Split Test",
+			AuthURL:  "https://registered-split.test/oauth/authorize",
+			TokenURL: "https://registered-split.test/oauth/token",
+		},
+	}); err != nil {
+		t.Fatalf("register connector provider definition: %v", err)
+	}
+	if err := RegisterConnectorProviderAdapter(registeredTestAdapter{DefaultConnectorProviderAdapter: NewDefaultConnectorProviderAdapter(code)}); err != nil {
+		t.Fatalf("register connector provider adapter: %v", err)
+	}
+
+	registry := NewOAuthProviderRegistry(config.ConnectorOAuthConfig{})
+	definition := registry.Definitions()[code]
+	if !definition.Capabilities.OAuthSupported || !definition.Capabilities.ProxySupported {
+		t.Fatalf("split registered capabilities not merged: %#v", definition.Capabilities)
+	}
+	if capabilities := registry.Capabilities(code); !capabilities.ProxySupported {
+		t.Fatalf("registry capabilities should include adapter support: %#v", capabilities)
+	}
+}
+
 func TestResolveDirectoryBindingReportsMissingScopes(t *testing.T) {
 	svc := newOAuthTestConnectorService(t, config.ConnectorOAuthConfig{
 		CallbackBaseURL: "http://kageos.test",
@@ -798,6 +854,45 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+type registeredTestProvider struct {
+	code    string
+	adapter ConnectorProviderAdapter
+}
+
+func (p registeredTestProvider) Code() string {
+	return p.code
+}
+
+func (p registeredTestProvider) Definition() ConnectorDefinition {
+	return ConnectorDefinition{
+		Provider: config.ConnectorOAuthProviderConfig{
+			Code:     p.code,
+			Name:     "Registered Test",
+			AuthURL:  "https://registered.test/oauth/authorize",
+			TokenURL: "https://registered.test/oauth/token",
+		},
+	}
+}
+
+func (p registeredTestProvider) Adapter() ConnectorProviderAdapter {
+	return p.adapter
+}
+
+type registeredTestAdapter struct {
+	DefaultConnectorProviderAdapter
+}
+
+func (a registeredTestAdapter) Capabilities() dto.ConnectorProviderCapabilities {
+	return dto.ConnectorProviderCapabilities{
+		OAuthSupported: true,
+		ProxySupported: true,
+	}
+}
+
+func (a registeredTestAdapter) ProxyBaseURL() string {
+	return "https://registered.test/api"
 }
 
 func newTestConnectorService(t *testing.T) *ConnectorService {

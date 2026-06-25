@@ -40,7 +40,7 @@ def _register_reportlab_cjk_fonts() -> None:
     # Helvetica-Bold becomes black squares. Registering these common names lets
     # generated scripts that use standard font names still render CJK text.
     names = (
-        "KageOS-CJK",
+        "Kageos-CJK",
         "Helvetica",
         "Helvetica-Bold",
         "Helvetica-Oblique",
@@ -81,7 +81,7 @@ def _patch_reportlab_ttfont_fallback() -> None:
 
     original_ttfont = ttfonts.TTFont
 
-    class KageOSTTFont(original_ttfont):
+    class KageosTTFont(original_ttfont):
         def __init__(self, name, filename, *args, **kwargs):
             try:
                 super().__init__(name, filename, *args, **kwargs)
@@ -90,7 +90,7 @@ def _patch_reportlab_ttfont_fallback() -> None:
                     raise
                 super().__init__(name, str(fallback_path), *args, **kwargs)
 
-    ttfonts.TTFont = KageOSTTFont
+    ttfonts.TTFont = KageosTTFont
 
 
 def _patch_pillow_default_font() -> None:

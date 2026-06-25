@@ -388,7 +388,7 @@ import _ "github.com/mattn/go-sqlite3"
 	if err == nil {
 		t.Fatal("expected sqlite driver import to fail")
 	}
-	if !strings.Contains(err.Error(), "源码规范校验失败") || !strings.Contains(err.Error(), "KageOS SDK 已全局注册") {
+	if !strings.Contains(err.Error(), "源码规范校验失败") || !strings.Contains(err.Error(), "Kageos SDK 已全局注册") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 

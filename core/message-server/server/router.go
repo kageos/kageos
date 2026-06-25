@@ -3,6 +3,7 @@ package server
 import (
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/pprof"
+	"github.com/kageos/kageos/pkg/serverx"
 )
 
 func (s *Server) setupRoutes() {
@@ -29,4 +30,6 @@ func (s *Server) setupRoutes() {
 	message.GET("/inbox/:id", s.getInboxMessage)
 	message.PATCH("/inbox/read_all", s.markAllInboxMessagesRead)
 	message.PATCH("/inbox/:id/read", s.markInboxMessageRead)
+
+	serverx.ApplyRouteRegistrars(serverx.ServiceMessageServer, s.httpServer)
 }

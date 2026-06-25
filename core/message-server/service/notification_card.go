@@ -83,7 +83,7 @@ func (DefaultNotificationCardBuilder) BuildNotificationCard(_ context.Context, e
 	if entry == nil {
 		entry = &model.MessageEntry{}
 	}
-	title := firstNonEmptyString(strings.TrimSpace(entry.Title), strings.TrimSpace(payload.Title), "KageOS 通知")
+	title := firstNonEmptyString(strings.TrimSpace(entry.Title), strings.TrimSpace(payload.Title), "Kageos 通知")
 	content := firstNonEmptyString(strings.TrimSpace(entry.Content), strings.TrimSpace(payload.Content))
 	contentType := strings.TrimSpace(entry.ContentType)
 	if contentType == "" {
