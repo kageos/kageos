@@ -14,7 +14,7 @@ describe('hubInstallCommand', () => {
 
   it('normalizes a Docker-like Hub reference with a version tag', () => {
     expect(parseHubInstallInput('kageos install user_1210227080/meeting_room_booking:0.1.0 --key abc')).toEqual({
-      bundleUrl: 'https://api.kageos.com/api/v1/applications/user_1210227080/meeting_room_booking/0.1.0/bundle',
+      bundleUrl: 'https://hub-api.kageos.com/api/v1/applications/user_1210227080/meeting_room_booking/0.1.0/bundle',
       installKey: 'abc',
       displaySource: 'user_1210227080/meeting_room_booking:0.1.0'
     })
@@ -22,7 +22,7 @@ describe('hubInstallCommand', () => {
 
   it('uses latest when the Docker-like reference omits a tag', () => {
     expect(parseHubInstallInput('user_1210227080/meeting_room_booking')).toEqual({
-      bundleUrl: 'https://api.kageos.com/api/v1/applications/user_1210227080/meeting_room_booking/latest/bundle',
+      bundleUrl: 'https://hub-api.kageos.com/api/v1/applications/user_1210227080/meeting_room_booking/latest/bundle',
       installKey: undefined,
       displaySource: 'user_1210227080/meeting_room_booking:latest'
     })
