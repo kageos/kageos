@@ -51,26 +51,28 @@ function openMiniWsQuery(input: {
     _mws_path: input.fullCodePath,
     _mws_name: input.name,
     _mws_expanded: '1',
-    _mws_maximized: input.maximized ?? '1'
+    _mws_maximized: input.maximized ?? '0'
   }
 }
 
 describe('useWorkspaceMiniWorkstations', () => {
-  it('keeps previous session workstations mounted but hidden when switching sessions', () => {
+  it('keeps previous session workstations visible when switching sessions', () => {
     const { api } = createHarness()
 
     api.openNewMiniWs('session-a', '/user/app/a', 'A')
     api.openNewMiniWs('session-b', '/user/app/b', 'B')
 
     expect(api.miniWsList.value).toHaveLength(2)
-    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')?.visible).toBe(false)
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')?.visible).toBe(true)
     expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-b')?.visible).toBe(true)
 
     api.openNewMiniWs('session-a', '/user/app/a', 'A')
 
     expect(api.miniWsList.value).toHaveLength(2)
     expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')?.visible).toBe(true)
-    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-b')?.visible).toBe(false)
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-b')?.visible).toBe(true)
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')?.offset).toBe(0)
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-b')?.offset).toBeGreaterThan(0)
   })
 
   it('does not replace an active session with an ambient draft for the same path', () => {
@@ -99,7 +101,7 @@ describe('useWorkspaceMiniWorkstations', () => {
 
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/current',
-      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/other', name: 'Other' })
+      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/other', name: 'Other', maximized: '1' })
     })
   })
 
@@ -121,7 +123,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
   })
 
-  it('hides the currently visible workstation from the shared shortcut path', () => {
+  it('hides all visible workstations from the shared shortcut path', () => {
     const { api, router } = createHarness()
 
     api.openNewMiniWs('session-a', '/user/app/a', 'A')
@@ -134,6 +136,36 @@ describe('useWorkspaceMiniWorkstations', () => {
       path: '/workspace/current',
       query: {}
     })
+  })
+
+  it('focuses a visible workstation and falls back to the next visible route state when minimized', () => {
+    const { api, router } = createHarness()
+
+    api.openNewMiniWs('session-a', '/user/app/a', 'A')
+    api.openNewMiniWs('session-b', '/user/app/b', 'B')
+    const firstMini = api.miniWsList.value.find(item => item.initialSessionId === 'session-a')!
+    const secondMini = api.miniWsList.value.find(item => item.initialSessionId === 'session-b')!
+
+    api.handleMiniFocus(firstMini.id)
+
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')?.offset).toBe(0)
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-b')?.offset).toBeGreaterThan(0)
+    expect(router.replace).toHaveBeenLastCalledWith({
+      path: '/workspace/current',
+      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/a', name: 'A' })
+    })
+
+    api.handleMiniMinimize(firstMini.id)
+
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')?.visible).toBe(false)
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-b')?.visible).toBe(true)
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-b')?.offset).toBe(0)
+    expect(router.replace).toHaveBeenLastCalledWith({
+      path: '/workspace/current',
+      query: openMiniWsQuery({ sessionId: 'session-b', fullCodePath: '/user/app/b', name: 'B' })
+    })
+
+    expect(secondMini).toBeTruthy()
   })
 
   it('reports false when shortcut hide has no visible workstation', () => {
@@ -168,7 +200,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/a',
-      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/a', name: 'A' })
+      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/a', name: 'A', maximized: '1' })
     })
   })
 
@@ -192,7 +224,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     expect(api.miniWsList.value[0]).toMatchObject({
       initialSessionId: 'session-a',
       initialExpanded: true,
-      initialMaximized: true,
+      initialMaximized: false,
       visible: true
     })
     expect(router.replace).toHaveBeenLastCalledWith({
@@ -218,13 +250,13 @@ describe('useWorkspaceMiniWorkstations', () => {
 
     expect(api.miniWsList.value).toHaveLength(2)
     expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')).toMatchObject({
-      visible: false
+      visible: true
     })
     expect(api.miniWsList.value.find(item => item.initialSessionId === '')).toMatchObject({
       fullCodePath: '/user/app/a',
       dirName: 'A',
       initialExpanded: true,
-      initialMaximized: true,
+      initialMaximized: false,
       visible: true
     })
     expect(router.replace).toHaveBeenLastCalledWith({
@@ -250,7 +282,7 @@ describe('useWorkspaceMiniWorkstations', () => {
 
     expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')).toMatchObject({
       initialExpanded: true,
-      initialMaximized: true,
+      initialMaximized: false,
       visible: true
     })
     expect(router.replace).toHaveBeenLastCalledWith({
@@ -298,7 +330,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(api.miniWsList.value[0]).toMatchObject({
       initialExpanded: true,
-      initialMaximized: true,
+      initialMaximized: false,
       visible: true
     })
   })
@@ -382,7 +414,7 @@ describe('useWorkspaceMiniWorkstations', () => {
       fullCodePath: '/user/app/b',
       initialSessionId: 'session-b',
       initialExpanded: true,
-      initialMaximized: true,
+      initialMaximized: false,
       visible: true
     })
     expect(router.replace).toHaveBeenLastCalledWith({
@@ -517,7 +549,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/customer_admin',
-      query: openMiniWsQuery({ sessionId: 'session-customer', fullCodePath: '/user/app/customer_admin', name: '客户管理' })
+      query: openMiniWsQuery({ sessionId: 'session-customer', fullCodePath: '/user/app/customer_admin', name: '客户管理', maximized: '1' })
     })
   })
 })

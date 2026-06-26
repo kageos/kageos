@@ -273,12 +273,14 @@
       :initial-position="mini.initialPosition"
       :initial-expanded="mini.initialExpanded"
       :initial-maximized="mini.initialMaximized"
+      :z-index="mini.zIndex"
       :path-name-map="workspacePathNameMap"
       :current-full-code-path="workstationContext?.fullCodePath"
       :current-dir-name="workstationContext?.dirName"
       :toggle-shortcut-label="MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL"
       @minimize="handleMiniMinimize(mini.id)"
       @close="handleMiniRemove(mini.id)"
+      @focus="handleMiniFocus(mini.id)"
       @open-current-new-session="openCurrentWorkstationNewSession"
       @expanded-change="(payload) => handleMiniExpandedChange(mini.id, payload)"
       @maximize-change="(payload) => handleMiniMaximizeChange(mini.id, payload)"
@@ -667,6 +669,7 @@ const {
   handleMiniMinimize,
   hideVisibleMiniWs,
   handleMiniRemove,
+  handleMiniFocus,
   handleMiniMaximizeChange,
   handleMiniExpandedChange,
   handleMiniTaskStarted,
@@ -681,7 +684,9 @@ const {
 })
 
 const showMiniWorkstationLauncher = computed(() => {
-  return !!workstationContext.value?.fullCodePath && !miniWsList.value.some(mini => mini.visible)
+  const currentPath = workstationContext.value?.fullCodePath
+  if (!currentPath) return false
+  return !miniWsList.value.some(mini => mini.visible && mini.fullCodePath === currentPath)
 })
 
 const miniWorkstationLauncherName = computed(() => workstationContext.value?.dirName || t('miniWorkstation.currentDirectory'))
@@ -705,7 +710,7 @@ function openCurrentWorkstationNewSession(payload: { fullCodePath: string; dirNa
   handleWorkspaceOpenWorkstation({
     full_code_path: payload.fullCodePath,
     directory_name: payload.dirName,
-    initial_maximized: true,
+    initial_maximized: false,
     open_as_mini: true,
     force_new: true
   })

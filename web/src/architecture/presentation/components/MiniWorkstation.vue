@@ -15,6 +15,7 @@
       @dragleave.prevent="onDragLeave"
       @drop.prevent="onDrop"
       @paste="onPaste"
+      @pointerdown.capture="focusWorkstation"
     >
       <div class="mini-workspace-backdrop" aria-hidden="true"></div>
       <section class="mini-shell">
@@ -377,6 +378,7 @@ const props = defineProps<{
   currentFullCodePath?: string
   currentDirName?: string
   toggleShortcutLabel?: string
+  zIndex?: number
 }>()
 
 const fullCodePathRef = computed(() => props.fullCodePath)
@@ -390,6 +392,7 @@ const emit = defineEmits<{
   (e: 'open-current-new-session', payload: { fullCodePath: string; dirName: string }): void
   (e: 'expanded-change', payload: { expanded: boolean; sessionId?: string }): void
   (e: 'maximize-change', payload: { maximized: boolean; sessionId?: string }): void
+  (e: 'focus'): void
 }>()
 
 const { messages, sending, sessionId, streamingDisplayLength, send: sendMessage, setMessages } = useWorkspaceChatStream()
@@ -416,7 +419,8 @@ const DRAWER_SESSION_SCOPE_STORAGE_KEY = 'workspace-mini-session-scope'
 const drawerSessionScope = ref<DrawerSessionScope>(readStoredDrawerSessionScope())
 
 const windowStyle = computed(() => ({
-  '--mini-stack-offset': `${props.initialOffset || 0}px`
+  '--mini-stack-offset': `${props.initialOffset || 0}px`,
+  '--mini-z-index': props.zIndex || undefined
 }))
 
 const OUTPUT_SCROLL_BOTTOM_THRESHOLD = 96
@@ -712,6 +716,10 @@ function setCollapsed(value: boolean, sessionIdOverride?: string) {
 function hideWorkstation() {
   captureOutputScroll()
   emit('minimize')
+}
+
+function focusWorkstation() {
+  emit('focus')
 }
 
 function toggleDrawerWidth() {
@@ -1374,7 +1382,7 @@ useMiniWorkstationEffects({
     0 0 44px rgba(34, 211, 238, 0.16);
   color: var(--mini-cyber-text);
   backdrop-filter: blur(22px) saturate(1.2);
-  z-index: var(--aos-z-mini-workstation);
+  z-index: calc(var(--aos-z-mini-workstation) + var(--mini-z-index, 0));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -2201,7 +2209,8 @@ useMiniWorkstationEffects({
 }
 
 .mini-ws--compact {
-  top: 88px;
+  top: calc(88px + var(--mini-stack-offset, 0px));
+  right: calc(18px + var(--mini-stack-offset, 0px));
   left: auto;
   width: clamp(560px, 44vw, 680px);
 }
