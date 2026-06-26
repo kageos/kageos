@@ -63,6 +63,8 @@ func workspaceRoleBaseReadOnlyTools() []string {
 		"search",
 		"web_search",
 		"summarize_task_state",
+		"list_scheduled_tasks",
+		"list_scheduled_task_executions",
 	}
 }
 
@@ -80,7 +82,7 @@ func workspaceRoleGateSuggestion(roleID string, toolName string) string {
 		return "如需临时计算、文件/数据处理或轻量脚本，请交接给「应用执行」或「数据/文件处理工程师」；重试时 python_code 必须从 def kageos_entry(args, output_dir): 开始，返回值只包含 data、output_files、warnings。若只是分析 Go 源码、依赖字段或 SDK 用法，请用 read_go_file/search/read_doc 读取真实源码和文档，不要用 Python 模拟判断。"
 	case "send_notification":
 		return "如需在执行过程中通知用户，请切换到应用执行、自动执行配置或其他具备通知权限的执行角色。"
-	case "create_scheduled_function_task", "create_scheduled_agent_task", "list_scheduled_tasks", "manage_scheduled_task", "list_scheduled_task_executions":
+	case "create_scheduled_function_task", "create_scheduled_agent_task", "manage_scheduled_task":
 		return "如需创建或管理定时任务，请交接给「自动执行配置」。"
 	default:
 		if roleID == WorkspaceRoleProductManager {

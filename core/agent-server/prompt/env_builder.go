@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kageos/kageos-sdk/agent-app/widget"
 	"github.com/kageos/kageos/pkg/functionschema"
 	"github.com/kageos/kageos/pkg/sdkmodule"
 	"github.com/kageos/kageos/pkg/servicetree"
-	"github.com/kageos/kageos-sdk/agent-app/widget"
 )
 
 // WorkspaceEnvInput 构建环境数据所需的输入，调用方从 workspaceCtx 等填充后传入；nil 表示无上下文，仅用 directoryName/fullCodePath 做降级
@@ -25,6 +25,7 @@ type WorkspaceEnvInput struct {
 	DirDescription         string
 	Children               []WorkspaceEnvNode
 	Files                  []WorkspaceEnvFile
+	ScheduledTasksSection  string
 }
 
 // WorkspaceEnvNode 环境子节点（目录或函数）
@@ -103,6 +104,7 @@ func BuildWorkspaceEnvDataWithCatalog(in *WorkspaceEnvInput, directoryName, full
 		data.ChildrenSection = buildChildrenSection(in.Children)
 		data.FunctionsSection = buildFunctionsSection(in.Children)
 		data.FilesSection = buildFilesSection(in.Files)
+		data.ScheduledTasksSection = strings.TrimSpace(in.ScheduledTasksSection)
 	}
 	if len(catalog) == 0 {
 		catalog = GetDocCatalog()
@@ -335,6 +337,7 @@ func FillWorkspaceEnvTemplateWithTemplate(data *WorkspaceEnvData, template strin
 		"CHILDREN_SECTION":          data.ChildrenSection,
 		"FUNCTIONS_SECTION":         data.FunctionsSection,
 		"FILES_SECTION":             data.FilesSection,
+		"SCHEDULED_TASKS_SECTION":   data.ScheduledTasksSection,
 		"DIRECTORY_LIST":            data.DirectoryList,
 		"INIT_GO_SECTION":           data.InitGoSection,
 	}

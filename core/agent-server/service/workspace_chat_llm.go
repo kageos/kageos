@@ -195,6 +195,7 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 	var envInput *prompt.WorkspaceEnvInput
 	if workspaceCtx != nil {
 		envInput = workspaceCtxToEnvInput(workspaceCtx)
+		envInput.ScheduledTasksSection = buildWorkspaceScheduledTasksSection(ctx, envInput.FullCodePath)
 	}
 	catalog := prompt.LoadPromptDocCatalog(ctx)
 	data := prompt.BuildWorkspaceEnvDataWithCatalog(envInput, directoryName, fullCodePath, now, catalog)

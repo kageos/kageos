@@ -88,6 +88,7 @@ func (a *HTTPAdapter) ListTasks(ctx context.Context, req ListTasksRequest) (*Lis
 	setQuery(query, "source_ref", req.SourceRef)
 	setQuery(query, "resource_scope", req.ResourceScope)
 	setQuery(query, "resource_key", req.ResourceKey)
+	setQuery(query, "resource_key_prefix", req.ResourceKeyPrefix)
 	setQuery(query, "created_by", req.CreatedBy)
 	setQueryInt(query, "page", req.Page)
 	setQueryInt(query, "page_size", req.PageSize)

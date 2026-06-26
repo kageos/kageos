@@ -1,8 +1,10 @@
 type ToolCallLike = {
   name?: string
+  arguments?: string
+  result_data?: unknown
 }
 
-const internalToolCallNames = new Set(['change_role'])
+const ROLE_CHANGE_TOOL_NAME = 'change_role'
 
 const workspaceRoleLabels: Record<string, string> = {
   router: '智能调度',
@@ -35,13 +37,71 @@ const workspaceRoleAliases: Record<string, string> = {
 }
 
 export function isInternalWorkspaceToolCall(call: ToolCallLike | null | undefined): boolean {
-  return internalToolCallNames.has(normalizeToolCallName(call?.name))
+  void call
+  return false
 }
 
 export function getVisibleWorkspaceToolCalls<T extends ToolCallLike>(
   calls: readonly T[] | null | undefined
 ): T[] {
-  return (calls ?? []).filter((call) => !isInternalWorkspaceToolCall(call))
+  return [...(calls ?? [])]
+}
+
+export function getWorkspaceToolCallDisplayName(call: ToolCallLike | null | undefined): string {
+  return String(call?.name || '').trim()
+}
+
+export function formatWorkspaceToolCallResultPreview(call: ToolCallLike | null | undefined): string {
+  if (normalizeToolCallName(call?.name) !== ROLE_CHANGE_TOOL_NAME) return ''
+
+  const data = asRecord(call?.result_data)
+  if (!data) return ''
+  const args = parseToolArguments(call?.arguments)
+
+  const previousRole = firstNonEmpty(
+    stringFromRecord(data, 'previous_role_name'),
+    formatWorkspaceRoleName(stringFromRecord(data, 'previous_role')),
+    formatWorkspaceRoleName(stringFromRecord(args, 'current_role'))
+  )
+  const currentRole = firstNonEmpty(
+    stringFromRecord(data, 'display_name'),
+    formatWorkspaceRoleName(stringFromRecord(data, 'role_id')),
+    formatWorkspaceRoleName(stringFromRecord(data, 'current_role')),
+    formatWorkspaceRoleName(stringFromRecord(args, 'target_role'))
+  )
+  const switched = boolFromRecord(data, 'switched')
+  const transition = previousRole && currentRole && previousRole !== currentRole
+    ? `${previousRole} -> ${currentRole}`
+    : currentRole || previousRole
+
+  const lines: string[] = []
+  if (transition) {
+    lines.push(`${switched === false ? '当前角色' : '已切换角色'}: ${transition}`)
+  } else {
+    lines.push('已调用角色切换')
+  }
+
+  const handoff = asRecord(data?.handoff)
+  const executeDirectory = firstNonEmpty(
+    stringFromRecord(data, 'execute_directory'),
+    stringFromRecord(handoff, 'execute_directory'),
+    stringFromRecord(args, 'execute_directory')
+  )
+  if (executeDirectory) lines.push(`执行目录: ${executeDirectory}`)
+
+  const reason = stringFromRecord(data, 'reason')
+  if (reason) lines.push(`原因: ${compactPreviewText(reason, 180)}`)
+
+  const nextAction = stringFromRecord(data, 'next_action')
+  if (nextAction) lines.push(`下一步: ${compactPreviewText(nextAction, 180)}`)
+
+  const loadedDocs = arrayFromRecord(data, 'loaded_docs')
+  const missingDocs = arrayFromRecord(data, 'missing_docs')
+  if (loadedDocs.length > 0 || missingDocs.length > 0) {
+    lines.push(`角色文档: 已加载 ${loadedDocs.length} 个${missingDocs.length > 0 ? `，缺失 ${missingDocs.length} 个` : ''}`)
+  }
+
+  return lines.join('\n')
 }
 
 export function formatWorkspaceRoleName(roleId?: string, displayName?: string): string {
@@ -75,4 +135,49 @@ function normalizeWorkspaceRoleId(value?: string): string {
 
 function compactRoleDisplayName(value: string): string {
   return value.trim().replace(/\s+/g, ' ')
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+function parseToolArguments(value?: string): Record<string, unknown> | null {
+  const text = String(value || '').trim()
+  if (!text) return null
+  try {
+    return asRecord(JSON.parse(text))
+  } catch {
+    return null
+  }
+}
+
+function stringFromRecord(record: Record<string, unknown> | null, key: string): string {
+  const value = record?.[key]
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function boolFromRecord(record: Record<string, unknown> | null, key: string): boolean | undefined {
+  const value = record?.[key]
+  return typeof value === 'boolean' ? value : undefined
+}
+
+function arrayFromRecord(record: Record<string, unknown> | null, key: string): unknown[] {
+  const value = record?.[key]
+  return Array.isArray(value) ? value : []
+}
+
+function firstNonEmpty(...values: string[]): string {
+  for (const value of values) {
+    const text = compactRoleDisplayName(value)
+    if (text) return text
+  }
+  return ''
+}
+
+function compactPreviewText(value: string, maxLength: number): string {
+  const text = compactRoleDisplayName(value)
+  if (text.length <= maxLength) return text
+  return `${text.slice(0, Math.max(0, maxLength - 1))}…`
 }

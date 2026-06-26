@@ -88,6 +88,12 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "run_python"); blocked || res.IsError {
 		t.Fatalf("app_operator should allow run_python, blocked=%v res=%#v", blocked, res)
 	}
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "list_scheduled_tasks"); blocked || res.IsError {
+		t.Fatalf("app_operator should allow read-only scheduled task listing, blocked=%v res=%#v", blocked, res)
+	}
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "list_scheduled_task_executions"); blocked || res.IsError {
+		t.Fatalf("app_operator should allow read-only scheduled execution listing, blocked=%v res=%#v", blocked, res)
+	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "write_go_file"); !blocked || !res.IsError {
 		t.Fatalf("app_operator should block write_go_file, blocked=%v res=%#v", blocked, res)
 	}
@@ -141,6 +147,8 @@ func TestWorkspaceRoleToolGateAllowsReadOnlyToolsAcrossRoles(t *testing.T) {
 		{WorkspaceRoleAppOperator, "web_search"},
 		{WorkspaceRoleAutomationOperator, "web_search"},
 		{WorkspaceRoleReviewer, "web_search"},
+		{WorkspaceRoleProductManager, "list_scheduled_tasks"},
+		{WorkspaceRoleQAEngineer, "list_scheduled_task_executions"},
 		{"", "read_go_file"},
 	}
 	for _, tc := range cases {

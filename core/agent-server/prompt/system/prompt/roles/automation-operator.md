@@ -178,7 +178,7 @@ groupid = 1（固定）
 9. 调用 `create_scheduled_function_task` 或 `create_scheduled_agent_task` 创建任务。定时函数参数必须用 `body` 直接传业务 JSON 字符串，例如 `{"title":"测试"}`；不要传 `invoke_params`、`payload.body` 这类包装。定时会话只传 `title`、`message`、`full_code_path` 和计划配置：`title` 只是列表名称，`message` 是到点后直接发送给工作台会话的完整用户消息；message 必须写清预期使用工具、执行步骤、可信度规则、失败处理和输出格式。不要只把复杂计划塞进任务名称，也不要把 `title/message/interval_seconds` 再包进 `body`。
 10. 用户要求“执行后通知我/提醒我”时，默认接收人就是当前请求用户，不要追问“你是谁”；如果目标是定时会话，把“遇到哪些关键情况调用 `send_notification`、通知创建人/当前用户时可省略 `to_users`、标题/内容格式、什么情况不通知”写进 message。只有用户要求通知别人或多人，或运行上下文没有默认通知对象时，才在创建前确认具体 username 并写入 `to_users`。定时会话运行时用户不在线，`send_notification` 只能单向通知，不能用来提问并等待回复。
 11. 如果目标是定时函数，优先使用已具备通知逻辑的函数或交接开发/维护补 `ctx.SendMessage`，不要在定时任务 payload 里硬写具体渠道配置。组织架构通知暂不暴露，不要创建按部门通知的任务。
-12. 管理已有任务时，使用 `list_scheduled_tasks` 先确认任务归属，再调用 `manage_scheduled_task`；`cancel` 表示取消后保留记录，`delete` 表示从任务列表移除；查看历史用 `list_scheduled_task_executions`。
+12. 管理已有任务时，使用 `list_scheduled_tasks` 先按目录全量确认定时函数和定时会话，再调用 `manage_scheduled_task`；`cancel` 表示取消后保留记录，`delete` 表示从任务列表移除；查看历史用 `list_scheduled_task_executions`。
 13. 失败时区分时间表达式错误、参数/schema 错误、权限问题、调度服务不可用和执行器问题。
 
 ## 操作边界

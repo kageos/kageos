@@ -18,7 +18,7 @@
           <el-icon v-if="tc.status === 'ok'" class="block-head-icon block-head-icon--ok"><CircleCheck /></el-icon>
           <el-icon v-else-if="tc.status === 'error'" class="block-head-icon block-head-icon--error"><CircleClose /></el-icon>
           <el-icon v-else class="block-head-icon block-head-icon--running"><Loading /></el-icon>
-          <span class="block-head-name">{{ tc.name }}</span>
+          <span class="block-head-name">{{ getToolDisplayName(tc) }}</span>
           <el-tag v-if="tc.status === 'streaming'" type="info" size="small" class="block-head-status">解析中</el-tag>
           <el-tag v-else-if="tc.status === 'running'" type="info" size="small" class="block-head-status">执行中</el-tag>
           <el-tag v-else :type="tc.status === 'ok' ? 'success' : 'danger'" size="small" class="block-head-status">
@@ -90,7 +90,11 @@ import BuildWorkspaceDiagnosticsCard from './BuildWorkspaceDiagnosticsCard.vue'
 import type { WorkspaceChatToolCallSummary } from '@/architecture/presentation/context/api/workspace'
 import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { extractAllDisplayFields } from '@/architecture/presentation/composables/useOutputDisplayFields'
-import { getVisibleWorkspaceToolCalls } from '@/architecture/presentation/utils/workspaceRoleDisplay'
+import {
+  formatWorkspaceToolCallResultPreview,
+  getVisibleWorkspaceToolCalls,
+  getWorkspaceToolCallDisplayName
+} from '@/architecture/presentation/utils/workspaceRoleDisplay'
 
 const props = withDefaults(defineProps<{
   toolCalls: WorkspaceChatToolCallSummary[]
@@ -251,6 +255,10 @@ function isBuildWorkspaceFailureToolCall(tc: WorkspaceChatToolCallSummary): bool
     (tc.result_data as { kind?: string }).kind === 'agent_app_build_failure'
 }
 
+function getToolDisplayName(tc: WorkspaceChatToolCallSummary): string {
+  return getWorkspaceToolCallDisplayName(tc)
+}
+
 /** 把字符串里字面的 \n、\r 转成真实换行，这样嵌套 JSON 里的换行能正确展示 */
 function unescapeNewlines(s: string): string {
   return s.replace(/\\n/g, '\n').replace(/\\r/g, '\r')
@@ -293,7 +301,10 @@ function getLinesForTool(tc: WorkspaceChatToolCallSummary): { text: string; type
     const argsPreview = formatArgsPreview(tc.arguments)
     if (argsPreview) lines.push({ text: `参数: ${argsPreview}`, type: 'args' })
   }
-  if (tc.result) {
+  const resultPreview = formatWorkspaceToolCallResultPreview(tc)
+  if (resultPreview) {
+    lines.push({ text: resultPreview, type: 'result' })
+  } else if (tc.result) {
     const preview = formatResultOrError(tc.result)
     if (preview) lines.push({ text: preview, type: 'result' })
   } else if (tc.result_data != null) {

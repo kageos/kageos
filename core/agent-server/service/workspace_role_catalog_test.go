@@ -52,6 +52,12 @@ func TestWorkspaceRoleSpecAppOperator(t *testing.T) {
 	if !containsWorkspaceRoleString(got.AllowedTools, "run_python") {
 		t.Fatalf("app_operator should allow run_python for lightweight calculation and file processing, tools=%v", got.AllowedTools)
 	}
+	if !containsWorkspaceRoleString(got.AllowedTools, "list_scheduled_tasks") {
+		t.Fatalf("app_operator should allow read-only scheduled task listing, tools=%v", got.AllowedTools)
+	}
+	if !containsWorkspaceRoleString(got.AllowedTools, "list_scheduled_task_executions") {
+		t.Fatalf("app_operator should allow read-only scheduled execution listing, tools=%v", got.AllowedTools)
+	}
 	if containsWorkspaceRoleString(got.AllowedTools, "write_go_file") {
 		t.Fatalf("app_operator should not write code, tools=%v", got.AllowedTools)
 	}

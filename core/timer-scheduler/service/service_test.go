@@ -234,6 +234,101 @@ func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 	}
 }
 
+func TestDispatchDueContinuesAfterOneTaskDispatchError(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	ctx := context.Background()
+
+	first, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		Title:       "broken first",
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.At(now.Add(-time.Second)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		Title:       "healthy second",
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.At(now.Add(-time.Second)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	triggerName := fmt.Sprintf("fail_timer_execution_task_%d", first.ID)
+	if err := db.Exec(fmt.Sprintf(
+		`CREATE TRIGGER %s BEFORE INSERT ON timer_execution WHEN NEW.task_id = %d BEGIN SELECT RAISE(ABORT, 'synthetic insert failure'); END`,
+		triggerName,
+		first.ID,
+	)).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	execs, err := svc.DispatchDue(ctx, "owner-1", 10)
+	if err == nil || !strings.Contains(err.Error(), "synthetic insert failure") {
+		t.Fatalf("DispatchDue err=%v, want synthetic task error", err)
+	}
+	if len(execs) != 1 {
+		t.Fatalf("dispatched executions = %d, want 1", len(execs))
+	}
+	if execs[0].TaskID != second.ID {
+		t.Fatalf("dispatched task_id = %d, want healthy second task %d", execs[0].TaskID, second.ID)
+	}
+	gotSecond, err := svc.GetTask(ctx, second.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotSecond.InflightExecutionID != execs[0].ID {
+		t.Fatalf("second task inflight = %d, want execution %d", gotSecond.InflightExecutionID, execs[0].ID)
+	}
+}
+
+func TestDispatchDueRunsMissedTaskEvenWithInflightExecution(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(60),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.TimerTask{}).Where("id = ?", task.ID).Update("next_run_at", now.Add(-time.Second)).Error; err != nil {
+		t.Fatal(err)
+	}
+	first, err := svc.DispatchDue(ctx, "owner-1", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 1 {
+		t.Fatalf("first dispatch executions = %d, want 1", len(first))
+	}
+
+	now = now.Add(2 * time.Minute)
+	second, err := svc.DispatchDue(ctx, "owner-1", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second) != 1 {
+		t.Fatalf("second dispatch executions = %d, want 1", len(second))
+	}
+	if second[0].ID == first[0].ID {
+		t.Fatalf("missed task should create a new execution, got same id %d", second[0].ID)
+	}
+	gotTask, err := svc.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotTask.InflightExecutionID != second[0].ID {
+		t.Fatalf("task inflight = %d, want latest scheduled execution %d", gotTask.InflightExecutionID, second[0].ID)
+	}
+	if gotTask.NextRunAt == nil || !gotTask.NextRunAt.After(now) {
+		t.Fatalf("next_run_at = %v, want advanced after %v", gotTask.NextRunAt, now)
+	}
+}
+
 func TestServiceRequeuesQueuedExecutionBeforeTimeout(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, db := newTestService(t, &now)
@@ -279,6 +374,60 @@ func TestServiceRequeuesQueuedExecutionBeforeTimeout(t *testing.T) {
 	}
 	if outboxCount != 2 {
 		t.Fatalf("requested outbox count = %d, want 2", outboxCount)
+	}
+}
+
+func TestRecoverStaleExecutionsTimesOutDetachedQueuedExecution(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	svc.opts.MaxDispatchAttempts = 1
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.At(now.Add(-time.Second)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	execs, err := svc.DispatchDue(ctx, "owner-1", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(execs) != 1 {
+		t.Fatalf("dispatched executions = %d, want 1", len(execs))
+	}
+	exec := execs[0]
+	if err := db.Model(&model.TimerTask{}).Where("id = ?", task.ID).Updates(map[string]interface{}{
+		"inflight_execution_id": 0,
+		"lease_owner":           "",
+		"lease_until":           nil,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	now = now.Add(2 * time.Minute)
+	recovered, err := svc.RecoverStaleExecutions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered != 1 {
+		t.Fatalf("recovered = %d, want 1", recovered)
+	}
+
+	gotExec, err := svc.GetExecution(ctx, task.ID, exec.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotExec.Status != scheduledsdk.ExecutionStatusTimeout {
+		t.Fatalf("detached execution status = %s, want timeout", gotExec.Status)
+	}
+	gotTask, err := svc.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotTask.InflightExecutionID != 0 {
+		t.Fatalf("task inflight = %d, want 0", gotTask.InflightExecutionID)
 	}
 }
 
@@ -717,7 +866,7 @@ func TestRunNowRecoversMissingInflightReference(t *testing.T) {
 	}
 }
 
-func TestRunNowRejectsValidInflightExecution(t *testing.T) {
+func TestRunNowIgnoresStaleInflightExecution(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, _ := newTestService(t, &now)
 	ctx := context.Background()
@@ -733,15 +882,89 @@ func TestRunNowRejectsValidInflightExecution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.RunNow(ctx, task.ID); !errors.Is(err, ErrTaskBusy) {
-		t.Fatalf("second run now err=%v, want ErrTaskBusy", err)
+
+	now = now.Add(2 * time.Minute)
+	second, err := svc.RunNow(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ID == first.ID {
+		t.Fatalf("stale inflight should create a new execution, got same id %d", second.ID)
+	}
+
+	oldExec, err := svc.GetExecution(ctx, task.ID, first.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oldExec.Status != scheduledsdk.ExecutionStatusQueued {
+		t.Fatalf("old execution status = %s, want queued", oldExec.Status)
 	}
 	gotTask, err := svc.GetTask(ctx, task.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotTask.InflightExecutionID != first.ID {
-		t.Fatalf("task inflight = %d, want first execution %d", gotTask.InflightExecutionID, first.ID)
+	if gotTask.InflightExecutionID != second.ID {
+		t.Fatalf("task inflight = %d, want new execution %d", gotTask.InflightExecutionID, second.ID)
+	}
+}
+
+func TestRunNowAllowsOverlappingInflightExecution(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, _ := newTestService(t, &now)
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(3600),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := svc.RunNow(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := svc.RunNow(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ID == first.ID {
+		t.Fatalf("overlapping run_now should create a new execution, got same id %d", second.ID)
+	}
+	gotTask, err := svc.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotTask.InflightExecutionID != second.ID {
+		t.Fatalf("task inflight = %d, want latest execution %d", gotTask.InflightExecutionID, second.ID)
+	}
+	if gotTask.LastExecutionID != second.ID {
+		t.Fatalf("task last_execution = %d, want overlapping execution %d", gotTask.LastExecutionID, second.ID)
+	}
+
+	if err := svc.MarkExecutionStarted(ctx, scheduledsdk.MarkExecutionStartedRequest{
+		TaskID:      task.ID,
+		ExecutionID: second.ID,
+		WorkerID:    "worker-2",
+		StartedAt:   now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.MarkExecutionFinished(ctx, scheduledsdk.MarkExecutionFinishedRequest{
+		TaskID:      task.ID,
+		ExecutionID: second.ID,
+		Status:      scheduledsdk.ExecutionStatusSuccess,
+		FinishedAt:  now.Add(time.Second),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	gotTask, err = svc.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotTask.InflightExecutionID != 0 {
+		t.Fatalf("finishing overlapping execution should clear observational inflight, got %d", gotTask.InflightExecutionID)
 	}
 }
 
@@ -870,7 +1093,7 @@ func TestDeleteTaskSoftDeletesAndReleasesIdempotencyKey(t *testing.T) {
 	}
 }
 
-func TestDeleteTaskRejectsInflightExecution(t *testing.T) {
+func TestDeleteTaskAllowsInflightExecution(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, _ := newTestService(t, &now)
 	ctx := context.Background()
@@ -885,11 +1108,120 @@ func TestDeleteTaskRejectsInflightExecution(t *testing.T) {
 	if _, err := svc.RunNow(ctx, task.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.DeleteTask(ctx, task.ID); !errors.Is(err, ErrTaskBusy) {
-		t.Fatalf("delete inflight task err=%v, want ErrTaskBusy", err)
+
+	if err := svc.DeleteTask(ctx, task.ID); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := svc.GetTask(ctx, task.ID); err != nil {
-		t.Fatalf("busy task should still exist: %v", err)
+	if _, err := svc.GetTask(ctx, task.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("deleted task should be hidden, got err=%v", err)
+	}
+}
+
+func TestListTasksResourceKeyPrefixIncludesDirectoryDescendantsOnly(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, _ := newTestService(t, &now)
+	ctx := context.Background()
+	for _, req := range []scheduledsdk.CreateTaskRequest{
+		{
+			Title:         "daily report",
+			ExecutorKey:   "agent.session",
+			Schedule:      scheduledsdk.Every(60),
+			ResourceScope: "workspace_directory",
+			ResourceKey:   "/system/app",
+		},
+		{
+			Title:         "collect",
+			ExecutorKey:   "app.function",
+			Schedule:      scheduledsdk.Every(60),
+			ResourceScope: "function",
+			ResourceKey:   "/system/app/collect.form",
+		},
+		{
+			Title:         "other app",
+			ExecutorKey:   "app.function",
+			Schedule:      scheduledsdk.Every(60),
+			ResourceScope: "function",
+			ResourceKey:   "/system/app2/collect.form",
+		},
+	} {
+		if _, err := svc.CreateTask(ctx, req); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resp, err := svc.ListTasks(ctx, scheduledsdk.ListTasksRequest{
+		ResourceKeyPrefix: "/system/app",
+		PageSize:          100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Total != 2 || len(resp.List) != 2 {
+		t.Fatalf("prefix list should include exact directory and descendants only, got total=%d list=%+v", resp.Total, resp.List)
+	}
+	for _, task := range resp.List {
+		if task.ResourceKey == "/system/app2/collect.form" {
+			t.Fatalf("prefix should not include sibling path: %+v", task)
+		}
+	}
+}
+
+func TestDeleteTaskDoesNotCheckInflightExecution(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, _ := newTestService(t, &now)
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(60),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.RunNow(ctx, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DeleteTask(ctx, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.GetTask(ctx, task.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("deleted task should be hidden, got err=%v", err)
+	}
+}
+
+func TestFinishExecutionAfterTaskDeleteDoesNotRollback(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, _ := newTestService(t, &now)
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(60),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec, err := svc.RunNow(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DeleteTask(ctx, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.MarkExecutionFinished(ctx, scheduledsdk.MarkExecutionFinishedRequest{
+		TaskID:      task.ID,
+		ExecutionID: exec.ID,
+		Status:      scheduledsdk.ExecutionStatusSuccess,
+		FinishedAt:  now.Add(time.Second),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	gotExec, err := svc.GetExecution(ctx, task.ID, exec.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotExec.Status != scheduledsdk.ExecutionStatusSuccess {
+		t.Fatalf("execution status = %s, want success", gotExec.Status)
 	}
 }
 

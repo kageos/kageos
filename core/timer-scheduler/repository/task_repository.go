@@ -16,16 +16,17 @@ type TimerTaskRepository struct {
 }
 
 type ListTasksFilter struct {
-	ExecutorKey   string
-	Status        string
-	Category      string
-	SourceType    string
-	SourceRef     string
-	ResourceScope string
-	ResourceKey   string
-	CreatedBy     string
-	Offset        int
-	Limit         int
+	ExecutorKey       string
+	Status            string
+	Category          string
+	SourceType        string
+	SourceRef         string
+	ResourceScope     string
+	ResourceKey       string
+	ResourceKeyPrefix string
+	CreatedBy         string
+	Offset            int
+	Limit             int
 }
 
 func NewTimerTaskRepository(db *gorm.DB) *TimerTaskRepository {
@@ -106,6 +107,10 @@ func (r *TimerTaskRepository) List(req ListTasksFilter) ([]*model.TimerTask, int
 	if req.ResourceKey != "" {
 		query = query.Where("resource_key = ?", req.ResourceKey)
 	}
+	if req.ResourceKeyPrefix != "" {
+		prefix := strings.TrimRight(req.ResourceKeyPrefix, "/")
+		query = query.Where("resource_key = ? OR resource_key LIKE ?", prefix, prefix+"/%")
+	}
 	if req.CreatedBy != "" {
 		query = query.Where("created_by = ?", req.CreatedBy)
 	}
@@ -130,7 +135,7 @@ func (r *TimerTaskRepository) List(req ListTasksFilter) ([]*model.TimerTask, int
 
 func (r *TimerTaskRepository) ListDue(now time.Time, limit int) ([]*model.TimerTask, error) {
 	query := r.db.
-		Where("status = ? AND next_run_at IS NOT NULL AND next_run_at <= ? AND inflight_execution_id = 0 AND (lease_until IS NULL OR lease_until < ?)", "pending", now, now).
+		Where("status = ? AND next_run_at IS NOT NULL AND next_run_at <= ? AND (lease_until IS NULL OR lease_until < ?)", "pending", now, now).
 		Order("next_run_at ASC, id ASC")
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -173,7 +178,7 @@ func (r *TimerTaskRepository) GetBrokenInflightReferenceByID(id int64) (*model.T
 
 func (r *TimerTaskRepository) TryAcquireDispatch(id int64, owner string, now, leaseUntil time.Time) (bool, error) {
 	result := r.db.Model(&model.TimerTask{}).
-		Where("id = ? AND status = ? AND next_run_at IS NOT NULL AND next_run_at <= ? AND inflight_execution_id = 0 AND (lease_until IS NULL OR lease_until < ?)", id, "pending", now, now).
+		Where("id = ? AND status = ? AND next_run_at IS NOT NULL AND next_run_at <= ? AND (lease_until IS NULL OR lease_until < ?)", id, "pending", now, now).
 		Updates(map[string]interface{}{
 			"lease_owner": owner,
 			"lease_until": leaseUntil,
@@ -202,12 +207,15 @@ func (r *TimerTaskRepository) TryClearInflight(id, executionID int64, lastError 
 	return result.RowsAffected > 0, nil
 }
 
-func (r *TimerTaskRepository) TrySetInflight(taskID, executionID int64, leaseOwner string) (bool, error) {
+func (r *TimerTaskRepository) TrySetInflight(taskID, executionID int64, leaseOwner string, nextRunAt *time.Time) (bool, error) {
 	result := r.db.Model(&model.TimerTask{}).
-		Where("id = ? AND status = ? AND inflight_execution_id = 0 AND lease_owner = ?", taskID, "pending", leaseOwner).
+		Where("id = ? AND status = ? AND lease_owner = ?", taskID, "pending", leaseOwner).
 		Updates(map[string]interface{}{
 			"inflight_execution_id": executionID,
 			"last_execution_id":     executionID,
+			"next_run_at":           nextRunAt,
+			"lease_owner":           "",
+			"lease_until":           nil,
 		})
 	if result.Error != nil {
 		return false, result.Error
@@ -217,7 +225,7 @@ func (r *TimerTaskRepository) TrySetInflight(taskID, executionID int64, leaseOwn
 
 func (r *TimerTaskRepository) TrySetManualInflight(taskID, executionID int64) (bool, error) {
 	result := r.db.Model(&model.TimerTask{}).
-		Where("id = ? AND status IN ? AND inflight_execution_id = 0", taskID, []string{"pending", "paused"}).
+		Where("id = ? AND status IN ?", taskID, []string{"pending", "paused"}).
 		Updates(map[string]interface{}{
 			"inflight_execution_id": executionID,
 			"last_execution_id":     executionID,
@@ -228,9 +236,19 @@ func (r *TimerTaskRepository) TrySetManualInflight(taskID, executionID int64) (b
 	return result.RowsAffected > 0, nil
 }
 
+func (r *TimerTaskRepository) RecordManualExecutionSubmitted(taskID, executionID int64) (bool, error) {
+	result := r.db.Model(&model.TimerTask{}).
+		Where("id = ? AND status IN ?", taskID, []string{"pending", "paused"}).
+		Update("last_execution_id", executionID)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
 func (r *TimerTaskRepository) TryCompleteExecution(task *model.TimerTask, executionID int64) (bool, error) {
 	result := r.db.Model(&model.TimerTask{}).
-		Where("id = ? AND inflight_execution_id = ?", task.ID, executionID).
+		Where("id = ?", task.ID).
 		Updates(map[string]interface{}{
 			"status":                task.Status,
 			"next_run_at":           task.NextRunAt,

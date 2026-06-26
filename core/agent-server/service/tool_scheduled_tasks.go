@@ -84,7 +84,7 @@ type listScheduledTasksArgs struct {
 
 type manageScheduledTaskArgs struct {
 	TaskID       int64  `json:"task_id" schema_desc:"定时任务 ID" schema_required:"true"`
-	Action       string `json:"action" schema_desc:"管理动作：pause 暂停、resume 恢复、cancel 取消但保留记录、delete 删除并从列表移除、run_now 立即运行一次" schema_enum:"pause,resume,cancel,delete,run_now" schema_required:"true"`
+	Action       string `json:"action" schema_desc:"管理动作：pause 暂停、resume 开启、cancel 取消但保留记录、delete 删除并从列表移除、run_now 立即运行一次" schema_enum:"pause,resume,cancel,delete,run_now" schema_required:"true"`
 	ResourcePath string `json:"resource_path" schema_desc:"可选资源路径；传入后会校验任务归属，避免误操作"`
 }
 
@@ -107,17 +107,17 @@ var createScheduledAgentTaskToolDef = toolDefinition[createScheduledAgentTaskArg
 
 var listScheduledTasksToolDef = toolDefinition[listScheduledTasksArgs](
 	"list_scheduled_tasks",
-	"查询当前用户创建的定时任务。kind=function 查定时函数，kind=agent_session 查定时会话，kind=all 查全部；默认按当前 execute_directory 查询，也可按资源路径和状态过滤。",
+	"查询指定目录下全部定时任务，不按创建人过滤。kind=function 查定时函数，kind=agent_session 查定时会话，kind=all 查全部；默认按当前 execute_directory 及其子资源查询，也可按 resource_path 和 status 过滤。目录路径会返回绑定到该目录的定时会话，以及目录下函数的定时函数。",
 )
 
 var manageScheduledTaskToolDef = toolDefinition[manageScheduledTaskArgs](
 	"manage_scheduled_task",
-	"管理当前用户创建的定时任务：pause 暂停、resume 恢复、cancel 取消但保留记录、delete 删除并从列表移除、run_now 立即运行一次。操作前先用 list_scheduled_tasks 确认 task_id 和资源归属；delete 不用于正在执行中的任务；run_now 会创建一次手动执行记录。",
+	"管理当前用户创建的定时任务：pause 暂停、resume 开启、cancel 取消但保留记录、delete 删除并从列表移除、run_now 立即强制运行一次。操作前先用 list_scheduled_tasks 确认 task_id 和资源归属；run_now 会创建一次新的手动执行记录，即使已有 inflight 执行也会继续提交；delete 只删除任务配置，不等待旧执行完成。",
 )
 
 var listScheduledTaskExecutionsToolDef = toolDefinition[listScheduledTaskExecutionsArgs](
 	"list_scheduled_task_executions",
-	"查询某个定时任务的执行记录，用于回答“最近跑了没、成功没、失败原因是什么”。可按 queued/running/success/failed/timeout/cancelled 过滤。",
+	"查询某个定时任务的执行记录，用于回答“最近跑了没、成功没、失败原因是什么”。这是只读诊断查询，不按创建人过滤；可按 queued/running/success/failed/timeout/cancelled 过滤。",
 )
 
 func (t *CreateScheduledFunctionTaskTool) Definition() dto.ToolDef {
@@ -348,32 +348,64 @@ func runCreateScheduledAgentTask(ctx context.Context, args createScheduledAgentT
 
 func runListScheduledTasks(ctx context.Context, args listScheduledTasksArgs, currentFullCodePath string) ToolResult {
 	ctx = withAgentToolClientSource(ctx)
-	user, err := scheduledTaskCurrentUser(ctx)
-	if err != nil {
-		return toolResult(err.Error(), true)
-	}
 	kind := normalizeScheduledTaskKind(args.Kind)
 	resourcePath := resolveFullCodePathArg(args.ResourcePath, currentFullCodePath)
+	req := listScheduledTasksRequest(kind, resourcePath, strings.TrimSpace(args.Status), args.Page, args.PageSize)
+	resp, err := listScheduledTasksAllPages(ctx, scheduledTaskClient(), req)
+	if err != nil {
+		return toolResult("list_scheduled_tasks 调用失败: "+err.Error(), true)
+	}
+	return toolResultWithStructuredData(resp, false)
+}
+
+func listScheduledTasksRequest(kind string, resourcePath string, status string, page int, pageSize int) scheduledsdk.ListTasksRequest {
 	req := scheduledsdk.ListTasksRequest{
-		CreatedBy: user,
-		Status:    strings.TrimSpace(args.Status),
-		Page:      args.Page,
-		PageSize:  args.PageSize,
+		Status:   strings.TrimSpace(status),
+		Page:     page,
+		PageSize: pageSize,
 	}
 	if kind != "all" {
 		req.ExecutorKey = scheduledExecutorKeyForKind(kind)
 	}
 	if resourcePath != "" {
-		req.ResourceKey = resourcePath
-		if kind != "all" {
-			req.ResourceScope = scheduledResourceScopeForKind(kind)
+		req.ResourceKeyPrefix = resourcePath
+	}
+	if kind != "all" {
+		req.ResourceScope = scheduledResourceScopeForKind(kind)
+	}
+	return req
+}
+
+func listScheduledTasksAllPages(ctx context.Context, client *scheduledsdk.Client, req scheduledsdk.ListTasksRequest) (*scheduledsdk.ListTasksResponse, error) {
+	if client == nil {
+		client = scheduledTaskClient()
+	}
+	if req.PageSize <= 0 || req.PageSize > 100 {
+		req.PageSize = 100
+	}
+	var out scheduledsdk.ListTasksResponse
+	for page := 1; ; page++ {
+		req.Page = page
+		resp, err := client.ListTasks(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		if resp == nil || len(resp.List) == 0 {
+			break
+		}
+		out.List = append(out.List, resp.List...)
+		out.Total = resp.Total
+		if resp.Total > 0 && int64(len(out.List)) >= resp.Total {
+			break
+		}
+		if len(resp.List) < req.PageSize {
+			break
 		}
 	}
-	resp, err := scheduledTaskClient().ListTasks(ctx, req)
-	if err != nil {
-		return toolResult("list_scheduled_tasks 调用失败: "+err.Error(), true)
+	if out.Total == 0 {
+		out.Total = int64(len(out.List))
 	}
-	return toolResultWithStructuredData(resp, false)
+	return &out, nil
 }
 
 func runManageScheduledTask(ctx context.Context, args manageScheduledTaskArgs) ToolResult {
@@ -444,12 +476,8 @@ func runListScheduledTaskExecutions(ctx context.Context, args listScheduledTaskE
 		return toolResult("list_scheduled_task_executions 需传合法 task_id。", true)
 	}
 	client := scheduledTaskClient()
-	task, err := client.GetTask(ctx, args.TaskID)
-	if err != nil {
+	if _, err := client.GetTask(ctx, args.TaskID); err != nil {
 		return toolResult("list_scheduled_task_executions 查询任务失败: "+err.Error(), true)
-	}
-	if err := ensureScheduledTaskOwnedByCurrentUser(ctx, task); err != nil {
-		return toolResult("list_scheduled_task_executions 权限校验失败: "+err.Error(), true)
 	}
 	resp, err := client.ListExecutions(ctx, args.TaskID, scheduledsdk.ListExecutionsRequest{
 		Status:   strings.TrimSpace(args.Status),
@@ -893,7 +921,7 @@ func scheduledManageActionLabel(action string) string {
 	case "pause":
 		return "暂停"
 	case "resume":
-		return "恢复"
+		return "开启"
 	case "cancel":
 		return "取消"
 	case "delete":

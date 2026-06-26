@@ -129,9 +129,13 @@ type ListTasksRequest struct {
 	SourceRef     string `json:"source_ref,omitempty"`
 	ResourceScope string `json:"resource_scope,omitempty"`
 	ResourceKey   string `json:"resource_key,omitempty"`
-	CreatedBy     string `json:"created_by,omitempty"`
-	Page          int    `json:"page,omitempty"`
-	PageSize      int    `json:"page_size,omitempty"`
+	// ResourceKeyPrefix matches tasks bound to this resource or its descendants.
+	// For example /system/app matches /system/app and /system/app/form.form,
+	// but not /system/app2.
+	ResourceKeyPrefix string `json:"resource_key_prefix,omitempty"`
+	CreatedBy         string `json:"created_by,omitempty"`
+	Page              int    `json:"page,omitempty"`
+	PageSize          int    `json:"page_size,omitempty"`
 }
 
 type ListTasksResponse struct {

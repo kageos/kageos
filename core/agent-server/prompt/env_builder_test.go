@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kageos/kageos/pkg/functionschema"
 	"github.com/kageos/kageos-sdk/agent-app/widget"
+	"github.com/kageos/kageos/pkg/functionschema"
 )
 
 func TestBuildInitGoContentUsesPackageRelativeRouterGroup(t *testing.T) {
@@ -84,6 +84,22 @@ func TestWorkspaceEnvBlockIncludesDirectoryIntentHint(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("workspace env block should contain %q, got:\n%s", want, got)
 		}
+	}
+}
+
+func TestWorkspaceEnvBlockIncludesScheduledTasksSection(t *testing.T) {
+	t.Parallel()
+
+	data := BuildWorkspaceEnvData(&WorkspaceEnvInput{
+		DirName:               "黄金盯盘助手",
+		DirCode:               "gold_watch",
+		FullCodePath:          "/system/democase/gold_watch",
+		ScheduledTasksSection: "### 当前目录自动执行摘要\n- id=25；类型=定时会话；标题=黄金盯盘日报",
+	}, "黄金盯盘助手", "/system/democase/gold_watch", timeNowForTest())
+	got := BuildWorkspaceEnvBlock(data, true, "黄金盯盘助手", "/system/democase/gold_watch")
+	if !strings.Contains(got, "### 当前目录自动执行摘要") ||
+		!strings.Contains(got, "标题=黄金盯盘日报") {
+		t.Fatalf("workspace env block should include scheduled task summary, got:\n%s", got)
 	}
 }
 

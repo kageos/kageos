@@ -126,6 +126,17 @@ func computeTaskNextState(task *model.TimerTask, success bool, now time.Time) (s
 	}
 }
 
+func nextRunAfterScheduledDispatch(task *model.TimerTask, now time.Time) (*time.Time, error) {
+	switch scheduledsdk.ScheduleType(task.ScheduleType) {
+	case scheduledsdk.ScheduleAt:
+		return nil, nil
+	case scheduledsdk.ScheduleCron, scheduledsdk.ScheduleEvery:
+		return nextRunForTask(task, now)
+	default:
+		return nil, fmt.Errorf("%w: unsupported schedule type %q", scheduledsdk.ErrInvalidRequest, task.ScheduleType)
+	}
+}
+
 func scheduledAtForTask(task *model.TimerTask, fallback time.Time) time.Time {
 	if task.NextRunAt != nil {
 		return *task.NextRunAt

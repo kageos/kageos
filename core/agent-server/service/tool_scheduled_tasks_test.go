@@ -219,6 +219,55 @@ func TestScheduledTaskSchemasAcceptNumericStringsAfterNormalization(t *testing.T
 	}
 }
 
+func TestListScheduledTasksRequestUsesDirectoryPrefixWithoutCreatedBy(t *testing.T) {
+	req := listScheduledTasksRequest("all", "/system/democase/gold_watch", "pending", 2, 50)
+	if req.CreatedBy != "" {
+		t.Fatalf("list_scheduled_tasks should not filter by created_by, got %q", req.CreatedBy)
+	}
+	if req.ResourceKey != "" {
+		t.Fatalf("directory listing should not use exact resource_key, got %q", req.ResourceKey)
+	}
+	if req.ResourceKeyPrefix != "/system/democase/gold_watch" {
+		t.Fatalf("resource_key_prefix=%q", req.ResourceKeyPrefix)
+	}
+	if req.ExecutorKey != "" || req.ResourceScope != "" {
+		t.Fatalf("kind=all should not narrow executor/scope, got %#v", req)
+	}
+	if req.Status != "pending" {
+		t.Fatalf("status=%q", req.Status)
+	}
+	if req.Page != 2 || req.PageSize != 50 {
+		t.Fatalf("page hints should be preserved before all-page collection, got %#v", req)
+	}
+}
+
+func TestWorkspaceScheduledTaskSummarySkipsExecutorPayloadContent(t *testing.T) {
+	task := &scheduledsdk.Task{
+		ID:              25,
+		Title:           "黄金盯盘日报",
+		Description:     "每天生成观察日报。",
+		ExecutorKey:     "agent.session",
+		ExecutorPayload: []byte(`{"message":"这是一大段无人值守运行手册，不应该进入模型环境摘要","display_content":"也不要注入"}`),
+		Metadata:        map[string]string{"kind": "scheduled_agent_session"},
+		Status:          scheduledsdk.TaskStatusPending,
+		Schedule:        scheduledsdk.Cron("0 8 * * *"),
+		ResourceKey:     "/system/democase/gold_watch",
+		RunCount:        1,
+		CreatedBy:       "system",
+	}
+	got := formatWorkspaceScheduledTaskSummary(task)
+	for _, want := range []string{"id=25", "类型=定时会话", "标题=黄金盯盘日报", "描述=每天生成观察日报"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("summary should contain %q, got %s", want, got)
+		}
+	}
+	for _, forbidden := range []string{"无人值守运行手册", "display_content", "executor_payload"} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("summary should not include payload content %q, got %s", forbidden, got)
+		}
+	}
+}
+
 func TestScheduledTaskToolDescriptionsDistinguishFunctionAndAgentTasks(t *testing.T) {
 	functionDesc := (&CreateScheduledFunctionTaskTool{}).Definition().Description
 	for _, want := range []string{
@@ -257,7 +306,8 @@ func TestScheduledTaskToolDescriptionsDistinguishFunctionAndAgentTasks(t *testin
 	for _, want := range []string{
 		"cancel 取消但保留记录",
 		"delete 删除并从列表移除",
-		"delete 不用于正在执行中的任务",
+		"delete 只删除任务配置",
+		"已有 inflight 执行也会继续提交",
 	} {
 		if !strings.Contains(manageDesc, want) {
 			t.Fatalf("manage task description should contain %q, got %q", want, manageDesc)

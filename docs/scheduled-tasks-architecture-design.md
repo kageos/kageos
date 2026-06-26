@@ -568,7 +568,7 @@ Agent 侧工具边界：
 | --- | --- | --- |
 | `create_scheduled_function_task` | 创建 `executor_key=app.function` 的定时函数任务 | 只创建 timer 任务，不直接调用 `run_*`；创建前校验当前用户对 `full_code_path` 的 delegated 权限 |
 | `create_scheduled_agent_task` | 创建 `executor_key=agent.session` 的定时会话任务 | 目标是工作台目录和自然语言 message，不修改代码、不 build |
-| `list_scheduled_tasks` | 查询当前用户创建的任务 | 默认按当前 `execute_directory` 查询，可按 kind/status 过滤 |
+| `list_scheduled_tasks` | 查询目录下全部任务 | 默认按当前 `execute_directory` 及其子资源全量查询，不按创建人过滤，可按 kind/status 过滤 |
 | `manage_scheduled_task` | 暂停、恢复、取消、立即运行 | 只能管理当前用户创建或代执行的任务；可用 `resource_path` 二次校验归属 |
 | `list_scheduled_task_executions` | 查询执行记录 | 先校验任务归属，再读执行记录 |
 

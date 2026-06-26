@@ -95,7 +95,7 @@
                     <el-icon v-else-if="tc.status === 'error'" :size="12" color="#f56c6c">
                       <CircleClose />
                     </el-icon>
-                    <span>{{ tc.name }}</span>
+                    <span>{{ getToolDisplayName(tc) }}</span>
                   </div>
                 </div>
                 <PrdPreview
@@ -225,7 +225,10 @@ import MiniWorkstationPendingActionBar from './MiniWorkstationPendingActionBar.v
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { WorkspaceInteraction } from '@/architecture/presentation/context/api/workspace'
-import { getVisibleWorkspaceToolCalls } from '@/architecture/presentation/utils/workspaceRoleDisplay'
+import {
+  getVisibleWorkspaceToolCalls,
+  getWorkspaceToolCallDisplayName
+} from '@/architecture/presentation/utils/workspaceRoleDisplay'
 
 const { t } = useI18n()
 
@@ -382,6 +385,10 @@ function getPrdCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall
 
 function getVisibleToolCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
   return getVisibleWorkspaceToolCalls(calls)
+}
+
+function getToolDisplayName(call: ChatMessageToolCall): string {
+  return getWorkspaceToolCallDisplayName(call)
 }
 
 function getBuildWorkspaceFailureCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {

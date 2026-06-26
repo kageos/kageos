@@ -187,6 +187,7 @@ func Specs() map[string]Spec {
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "search",
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy", "run_python", "send_notification",
+				"list_scheduled_tasks", "list_scheduled_task_executions",
 			},
 			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
 			Runtime: runtimeContract(

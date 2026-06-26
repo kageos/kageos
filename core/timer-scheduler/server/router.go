@@ -54,16 +54,17 @@ func createTask(service *timerservice.Service) gin.HandlerFunc {
 func listTasks(service *timerservice.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		resp, err := service.ListTasks(requestContext(c), scheduledsdk.ListTasksRequest{
-			ExecutorKey:   c.Query("executor_key"),
-			Status:        c.Query("status"),
-			Category:      c.Query("category"),
-			SourceType:    c.Query("source_type"),
-			SourceRef:     c.Query("source_ref"),
-			ResourceScope: c.Query("resource_scope"),
-			ResourceKey:   c.Query("resource_key"),
-			CreatedBy:     c.Query("created_by"),
-			Page:          queryInt(c, "page"),
-			PageSize:      queryInt(c, "page_size"),
+			ExecutorKey:       c.Query("executor_key"),
+			Status:            c.Query("status"),
+			Category:          c.Query("category"),
+			SourceType:        c.Query("source_type"),
+			SourceRef:         c.Query("source_ref"),
+			ResourceScope:     c.Query("resource_scope"),
+			ResourceKey:       c.Query("resource_key"),
+			ResourceKeyPrefix: c.Query("resource_key_prefix"),
+			CreatedBy:         c.Query("created_by"),
+			Page:              queryInt(c, "page"),
+			PageSize:          queryInt(c, "page_size"),
 		})
 		writeResult(c, resp, err)
 	}

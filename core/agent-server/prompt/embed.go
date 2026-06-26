@@ -49,6 +49,7 @@ type WorkspaceEnvData struct {
 	ChildrenSection        string // {{CHILDREN_SECTION}}
 	FunctionsSection       string // {{FUNCTIONS_SECTION}} 当前目录下的可执行函数（table/form/chart + full_code_path），执行模式可直接用
 	FilesSection           string // {{FILES_SECTION}}
+	ScheduledTasksSection  string // {{SCHEDULED_TASKS_SECTION}} 当前目录下定时函数/定时会话轻量摘要，不含定时会话 message/content
 	DirectoryList          string // {{DIRECTORY_LIST}}
 	InitGoSection          string // {{INIT_GO_SECTION}} 当前目录的 init_.go 内容（由 full_code_path 构造），便于模型知道已有该文件、无需再写
 }
