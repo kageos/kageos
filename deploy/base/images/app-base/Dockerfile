@@ -52,7 +52,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     file \
-    git \
     jq \
     less \
     mediainfo \
@@ -116,6 +115,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/* /usr/share/man /usr/share/doc /usr/share/info \
     && echo "✓ Runtime + CLI/image/PDF OCR tools + FFmpeg + Tesseract + fonts"
+
+# Git 单独安装：保持上方重型运行时依赖层可复用构建缓存，尤其降低 GitHub Actions arm64/qemu 重建压力。
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/* /usr/share/man /usr/share/doc /usr/share/info \
+    && git --version \
+    && echo "✓ Git"
 
 # 系统级默认字体替换：Linux 没有“一个覆盖所有语言的单字体”，系统原生做法是
 # fontconfig fallback 链。这里把 generic family 与常见西文字体名都强制 prepend 到
