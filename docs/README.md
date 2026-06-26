@@ -10,6 +10,7 @@ This directory collects product thinking, architecture notes, operating guides, 
 
 ## Architecture
 
+- [Kageos Blueprint](kageos-blueprint.md)
 - [Kageos 当前架构图](current-architecture.md)
 - [Kageos 平台能力总览](platform-capabilities.md)
 - [Kageos 定时能力架构设计](scheduled-tasks-architecture-design.md)
@@ -17,5 +18,6 @@ This directory collects product thinking, architecture notes, operating guides, 
 ## Runtime Operations
 
 - [Kageos 生命周期 SOP](kagectl-lifecycle-sop.md)
+- [Kageos 发布 SOP](release-sop.md)
 - [Podman Runtime 事故复盘与本地客户端风险评估](podman-runtime-incident-and-local-client-risk.md)
 - [Podman Machine XFS 损坏事故复盘：宿主机空间耗尽](podman-machine-xfs-space-exhaustion-incident-2026-06-21.md)

@@ -1,6 +1,6 @@
 # Kageos
 
-Kageos is a source-available, self-hostable business application directory for individuals and small teams. It turns ready-to-run scenario directories into governed workspace capabilities: users can install mature directories from Hub, run them with private data, customize or fork them with AI, and publish stable capabilities back to the ecosystem. AI generation is one path into Kageos, but the product promise is higher-level: reusable business capabilities that are human-usable, AI-callable, and governed by the platform.
+Kageos is a source-available, self-hostable business capability directory for individuals and teams. It turns ready-to-run scenario directories into governed workspace capabilities: users install mature directories from Hub, run them with private data, customize or fork them inside their own namespace, and publish stable capabilities back to the ecosystem.
 
 The project is currently licensed under the Business Source License 1.1. It is not OSI open source today; see [LICENSE](LICENSE) for the exact grant, Hosted Service restriction, Change Date, and future Apache-2.0 change license.
 
@@ -13,11 +13,11 @@ The project is currently licensed under the Business Source License 1.1. It is n
 
 - Hub-oriented directory lifecycle: install ready-to-run scenario directories, adapt them in a private workspace, fork useful variants, and publish stable capabilities back.
 - Service Tree for organizing application capabilities inside a workspace, with shared access, audit, operation-log, message, and schedule entry points.
-- AI workstation for requirement clarification, PRD generation, code generation, build repair, runtime verification, and persistent workspace sessions.
+- Workstation for requirement clarification, PRD drafting, code changes, build repair, runtime verification, and persistent workspace sessions.
 - Dynamic UI rendering for generated forms, tables, details, charts, function panels, inbox threads, and operation logs.
 - Platform inbox and notification flow backed by `message-server`, `message.v1.cmd.send`, SDK `ctx.SendMessage`, and the Agent `send_notification` tool.
 - Scheduled automation backed by `timer-scheduler`, covering fixed Form/Table/Chart execution and unattended Agent workspace sessions.
-- Go SDK for generated light applications.
+- Go SDK for workspace applications.
 - Single-machine development and production deployment paths based on Go, Vue, MySQL, NATS, MinIO, and containers.
 
 ## Repository Map
@@ -96,12 +96,14 @@ The same checks are wired into GitHub Actions in `.github/workflows/ci.yml`.
 ## Documentation
 
 - [Documentation index](docs/README.md)
+- [Kageos Blueprint](docs/kageos-blueprint.md)
 - [Current architecture](docs/current-architecture.md)
 - [Platform capabilities](docs/platform-capabilities.md)
 - [Scheduled task architecture](docs/scheduled-tasks-architecture-design.md)
 - [Local development](deploy/dev/README.md)
 - [Production deployment](deploy/prod/README.md)
 - [Kageos lifecycle SOP](docs/kagectl-lifecycle-sop.md)
+- [Kageos release SOP](docs/release-sop.md)
 - [Product governance note](docs/product-thinking-ai-era-application-governance.md)
 
 ## Contributing And Security

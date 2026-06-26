@@ -63,7 +63,7 @@
         :compact="variant !== 'schedule'"
         :min-rows="variant === 'schedule' ? 3 : 1"
         :max-rows="variant === 'schedule' ? 10 : 4"
-        mention-panel-placement="above"
+        :mention-panel-placement="mentionPanelPlacement"
         editor-test-id="mini-workstation-input"
         @update:model-value="emitInput"
         @enter="handleComposerEnter"
@@ -232,6 +232,7 @@ const props = withDefaults(defineProps<{
   expandedTitle?: string
   expandedSubtitle?: string
   expandedSaveLabel?: string
+  mentionPanelPlacement?: 'above' | 'below'
 }>(), {
   variant: 'chat',
   placeholder: '',
@@ -239,6 +240,7 @@ const props = withDefaults(defineProps<{
   expandedTitle: '',
   expandedSubtitle: '',
   expandedSaveLabel: '',
+  mentionPanelPlacement: 'above',
 })
 
 const emit = defineEmits<{

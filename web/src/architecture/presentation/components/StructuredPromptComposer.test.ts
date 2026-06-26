@@ -85,6 +85,29 @@ describe('StructuredPromptComposer', () => {
     expect(wrapper.text()).toContain('body')
   })
 
+  it('renders readonly preview without exposing edit mode', async () => {
+    const wrapper = mount(StructuredPromptComposer, {
+      props: {
+        modelValue: '请 @system 检查 </system/app/orders.table>',
+        readonlyPreview: true,
+        showToolbar: false,
+        disabled: true,
+      },
+      global: {
+        stubs: {
+          ElIcon: IconStub,
+          EditPen: IconStub,
+          View: IconStub,
+        },
+      },
+    })
+
+    expect(wrapper.find('[data-testid="structured-prompt-preview"]').isVisible()).toBe(true)
+    expect(wrapper.find('[data-testid="structured-prompt-editor"]').isVisible()).toBe(false)
+    expect(wrapper.find('.spc-user-chip').text()).toContain('@system')
+    expect(wrapper.find('.spc-resource-chip').text()).toContain('orders.table')
+  })
+
   it('emits serialized raw resource tokens when edited', async () => {
     const wrapper = mountComposer('调用 </system/app/search.form>')
     const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
@@ -316,8 +339,9 @@ describe('StructuredPromptComposer', () => {
       await nextTick()
 
       expect(searchResources).toHaveBeenCalledWith(expect.objectContaining({ keyword: 'orders' }))
-      expect(wrapper.find('.spc-mention-resource-component').exists()).toBe(true)
+      expect(document.body.querySelector('.spc-mention-resource-component')).not.toBeNull()
       expect(warnSpy.mock.calls.some((args) => args.join(' ').includes('Component that was made reactive'))).toBe(false)
+      wrapper.unmount()
     } finally {
       warnSpy.mockRestore()
       vi.useRealTimers()

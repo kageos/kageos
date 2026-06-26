@@ -7,8 +7,8 @@
       </div>
       <div class="scheduled-list-actions">
         <span class="scheduled-total">{{ t('scheduledTask.totalCount', { count: total }) }}</span>
-        <el-button :icon="Refresh" @click="loadList">{{ t('common.refresh') }}</el-button>
-        <el-button type="primary" :icon="Plus" :disabled="!resourcePath" @click="showCreateDialog = true">
+        <el-button :icon="Refresh" @click="handleListRefresh">{{ t('common.refresh') }}</el-button>
+        <el-button type="primary" :icon="Plus" :disabled="!resourcePath" @click="handleOpenCreate">
           {{ t('scheduledTask.newTask') }}
         </el-button>
       </div>
@@ -18,7 +18,7 @@
       <aside class="scheduled-agent-sidebar">
         <div class="scheduled-list-filter">
           <div class="scheduled-sidebar-title">{{ t('scheduledTask.sessionList') }}</div>
-          <el-select v-model="statusFilter" :placeholder="t('scheduledTask.allStatuses')" clearable size="small" @change="loadList">
+          <el-select v-model="statusFilter" :placeholder="t('scheduledTask.allStatuses')" clearable size="small" @change="handleStatusFilterChange">
             <el-option :label="t('scheduledTask.allStatuses')" value="" />
             <el-option :label="t('scheduledTask.taskStatusPending')" value="pending" />
             <el-option :label="t('scheduledTask.taskStatusPaused')" value="paused" />
@@ -76,7 +76,7 @@
             :page-size="pageSize"
             :total="total"
             layout="prev, pager, next"
-            @current-change="loadList"
+            @current-change="handlePageChange"
           />
         </div>
       </aside>
@@ -151,7 +151,7 @@
                     <MiniWorkstationComposer
                       variant="schedule"
                       :full-code-path="getTaskWorkspacePath(selectedTask)"
-                      :attached-files="attachedFiles"
+                      :attached-files="inlineComposerFiles"
                       :uploading="uploading"
                       :input-text="inlineForm.message"
                       :sending="false"
@@ -164,12 +164,13 @@
                       :register-input-ref="registerInlineMessageInputRef"
                       :on-l-l-m-select-visible-change="noop"
                       :on-file-change="onFileChange"
-                      :remove-file="removeFile"
+                      :remove-file="removeInlineComposerFile"
                       :on-input-enter="noopInputEnter"
                       :placeholder="t('scheduledTask.agentMessagePlaceholder')"
                       :expanded-title="inlineForm.title || t('scheduledTask.editAgentDialogTitle')"
                       :expanded-subtitle="getTaskWorkspacePath(selectedTask)"
                       :expanded-save-label="t('common.save')"
+                      mention-panel-placement="below"
                       @update:input-text="inlineForm.message = $event"
                       @expanded-save="handleInlineComposerExpandedSave"
                     />
@@ -201,7 +202,43 @@
                     </div>
                   </div>
                   <div class="detail-message-body">
-                    {{ getAgentMessage(selectedTask) || t('scheduledTask.noMessage') }}
+                    <StructuredPromptComposer
+                      v-if="getAgentMessage(selectedTask)"
+                      class="detail-message-preview"
+                      :model-value="getAgentMessage(selectedTask)"
+                      :placeholder="t('scheduledTask.noMessage')"
+                      :disabled="true"
+                      :show-toolbar="false"
+                      :enable-mentions="false"
+                      :readonly-preview="true"
+                      :min-rows="8"
+                      :max-rows="28"
+                    />
+                    <div v-else class="detail-message-empty">
+                      {{ t('scheduledTask.noMessage') }}
+                    </div>
+                  </div>
+                </section>
+
+                <section v-if="selectedTaskFiles.length > 0" class="detail-document-section is-files">
+                  <div class="detail-section-head">
+                    <div>
+                      <div class="detail-section-title">{{ t('scheduledTask.attachments') }}</div>
+                      <div class="detail-section-subtitle">{{ t('scheduledTask.attachmentsHint') }}</div>
+                    </div>
+                  </div>
+                  <div class="detail-file-list">
+                    <el-tag
+                      v-for="file in selectedTaskFiles"
+                      :key="file.ref"
+                      size="large"
+                      effect="plain"
+                      class="detail-file-tag"
+                      :title="file.ref"
+                    >
+                      <el-icon><Paperclip /></el-icon>
+                      <span>{{ fileDisplayName(file) }}</span>
+                    </el-tag>
                   </div>
                 </section>
               </template>
@@ -329,7 +366,7 @@
                     <el-button
                       type="primary"
                       :icon="VideoPlay"
-                      :disabled="isTerminal(selectedTask.status)"
+                      :disabled="inlineEditing || isTerminal(selectedTask.status)"
                       @click="handleRunNow(selectedTask)"
                     />
                   </el-tooltip>
@@ -341,7 +378,7 @@
                     <el-button
                       :type="selectedTask.status === 'paused' ? 'primary' : 'warning'"
                       :icon="selectedTask.status === 'paused' ? CaretRight : VideoPause"
-                      :disabled="isTerminal(selectedTask.status)"
+                      :disabled="inlineEditing || isTerminal(selectedTask.status)"
                       @click="selectedTask.status === 'paused' ? handleResume(selectedTask) : handlePause(selectedTask)"
                     />
                   </el-tooltip>
@@ -349,7 +386,7 @@
                     <el-button
                       type="danger"
                       :icon="Close"
-                      :disabled="isTerminal(selectedTask.status)"
+                      :disabled="inlineEditing || isTerminal(selectedTask.status)"
                       @click="handleCancel(selectedTask)"
                     />
                   </el-tooltip>
@@ -358,7 +395,7 @@
                       type="danger"
                       plain
                       :icon="Delete"
-                      :disabled="!!selectedTask.inflight_execution_id"
+                      :disabled="inlineEditing || !!selectedTask.inflight_execution_id"
                       @click="handleDelete(selectedTask)"
                     />
                   </el-tooltip>
@@ -449,7 +486,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CaretRight, Close, Delete, EditPen, Plus, Refresh, VideoPause, VideoPlay } from '@element-plus/icons-vue'
+import { CaretRight, Close, Delete, EditPen, Paperclip, Plus, Refresh, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import {
   cancelTimerTask,
   deleteTimerTask,
@@ -479,9 +516,12 @@ import {
 import { buildScheduledExecutionRoute } from '@/architecture/shared/routing/platformRouteParams'
 import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
+import StructuredPromptComposer from './StructuredPromptComposer.vue'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import { createRelativeDateTimeShortcuts } from '@/architecture/shared/date'
 import { useMiniWorkstationUploads } from '@/architecture/presentation/composables/useMiniWorkstationUploads'
+import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
+import { fileNameFromRef, parseFileRefs, stringifyFileRefs } from '@/architecture/presentation/widgets/filesWidgetTypes'
 
 interface ExecutionState {
   loading: boolean
@@ -526,6 +566,8 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = 20
 const statusFilter = ref('')
+const appliedStatusFilter = ref('')
+const appliedPage = ref(1)
 const showCreateDialog = ref(false)
 const selectedTask = ref<TimerTask | null>(null)
 const focusedExecutionId = ref(0)
@@ -533,6 +575,8 @@ const appliedFocusKey = ref('')
 const selectedTaskId = computed(() => selectedTask.value?.id || 0)
 const inlineEditing = ref(false)
 const inlineSaving = ref(false)
+const inlineInitialSnapshot = ref('')
+const existingFileRefs = ref<string[]>([])
 const dateTimeShortcuts = computed(() => createRelativeDateTimeShortcuts())
 const inlineForm = reactive<InlineScheduledAgentForm>({
   title: '',
@@ -577,11 +621,23 @@ const {
   inputRef: inlineMessageInputRef,
 })
 
-const attachedFileRefs = computed(() => {
-  return attachedFiles.value
-    .map((file) => file.ref)
-    .filter((ref): ref is string => !!ref)
-    .join(',')
+const currentInlineFileRefs = computed(() => {
+  return stringifyFileRefs([
+    ...existingFileRefs.value,
+    ...attachedFiles.value.map((file) => file.ref).filter((ref): ref is string => !!ref),
+  ])
+})
+const inlineComposerFiles = computed<WorkspaceChatMessageFile[]>(() => {
+  return [
+    ...existingFileRefs.value.map(fileRefToMessageFile),
+    ...attachedFiles.value,
+  ]
+})
+const selectedTaskFiles = computed<WorkspaceChatMessageFile[]>(() => {
+  return getTaskFileRefs(selectedTask.value).map(fileRefToMessageFile)
+})
+const hasUnsavedInlineChanges = computed(() => {
+  return inlineEditing.value && buildInlineSnapshot() !== inlineInitialSnapshot.value
 })
 
 async function loadList() {
@@ -589,8 +645,7 @@ async function loadList() {
     list.value = []
     total.value = 0
     selectedTask.value = null
-    inlineEditing.value = false
-    attachedFiles.value = []
+    discardInlineEdit()
     resetSelectedExecutionState()
     emit('total-change', 0)
     return
@@ -608,6 +663,8 @@ async function loadList() {
     })
     list.value = resp.list || []
     total.value = Number(resp.total || 0)
+    appliedStatusFilter.value = statusFilter.value
+    appliedPage.value = page.value
     emit('total-change', total.value)
     await syncSelectedTaskAfterListLoad()
   } catch (error) {
@@ -615,6 +672,42 @@ async function loadList() {
   } finally {
     loading.value = false
   }
+}
+
+async function handleListRefresh() {
+  if (!await confirmDiscardInlineChanges()) {
+    return
+  }
+  discardInlineEdit()
+  await loadList()
+}
+
+async function handleOpenCreate() {
+  if (!await confirmDiscardInlineChanges()) {
+    return
+  }
+  discardInlineEdit()
+  showCreateDialog.value = true
+}
+
+async function handleStatusFilterChange() {
+  if (!await confirmDiscardInlineChanges()) {
+    statusFilter.value = appliedStatusFilter.value
+    return
+  }
+  discardInlineEdit()
+  page.value = 1
+  await loadList()
+}
+
+async function handlePageChange(nextPage: number) {
+  if (!await confirmDiscardInlineChanges()) {
+    page.value = appliedPage.value
+    return
+  }
+  discardInlineEdit()
+  page.value = nextPage
+  await loadList()
 }
 
 async function loadSelectedExecutions(reset = false) {
@@ -673,6 +766,7 @@ async function syncSelectedTaskAfterListLoad() {
   }
 
   selectedTask.value = null
+  discardInlineEdit()
   resetSelectedExecutionState()
 }
 
@@ -681,8 +775,10 @@ async function selectTask(task: TimerTask, syncRoute = true) {
     selectedTask.value = task
     return
   }
-  inlineEditing.value = false
-  attachedFiles.value = []
+  if (!await confirmDiscardInlineChanges()) {
+    return
+  }
+  discardInlineEdit()
   selectedTask.value = task
   resetSelectedExecutionState()
   if (syncRoute && props.resourcePath) {
@@ -738,6 +834,42 @@ function getAgentPayload(task?: TimerTask | null): Record<string, unknown> {
     : {}
 }
 
+function getTaskFileRefs(task?: TimerTask | null): string[] {
+  const payload = getAgentPayload(task)
+  return parsePayloadFileRefs(payload.files)
+}
+
+function parsePayloadFileRefs(value: unknown): string[] {
+  if (typeof value === 'string') {
+    return parseFileRefs(value)
+  }
+  if (!Array.isArray(value)) {
+    return []
+  }
+  return stringifyFileRefs(value.map((item) => {
+    if (typeof item === 'string') return item
+    if (item && typeof item === 'object') {
+      const ref = (item as Record<string, unknown>).ref
+      return typeof ref === 'string' ? ref : ''
+    }
+    return ''
+  })).split(',').filter(Boolean)
+}
+
+function fileRefToMessageFile(ref: string): WorkspaceChatMessageFile {
+  const name = fileNameFromRef(ref)
+  return {
+    ref,
+    name,
+    source_name: name,
+    is_uploaded: true,
+  }
+}
+
+function fileDisplayName(file: WorkspaceChatMessageFile): string {
+  return file.source_name || file.name || fileNameFromRef(file.ref)
+}
+
 function getAgentMessage(task?: TimerTask | null): string {
   const payload = getAgentPayload(task)
   const value = payload.message
@@ -778,25 +910,81 @@ function applyInlineScheduleForm(scheduleForm: TimerScheduleForm) {
 function resetInlineForm(task: TimerTask) {
   const payload = getAgentPayload(task)
   const scheduleForm = timerScheduleToForm(task.schedule)
+  const fileRefs = getTaskFileRefs(task)
   inlineForm.title = task.title || ''
   inlineForm.description = getTaskDescription(task)
   inlineForm.message = getAgentMessage(task)
-  inlineForm.files = stringFromRecord(payload, 'files')
+  inlineForm.files = stringifyFileRefs(fileRefs)
+  existingFileRefs.value = fileRefs
+  attachedFiles.value = []
   applyInlineScheduleForm(scheduleForm)
+  inlineInitialSnapshot.value = buildInlineSnapshot()
 }
 
 function startInlineEdit(task: TimerTask) {
   resetInlineForm(task)
-  attachedFiles.value = []
   inlineEditing.value = true
 }
 
-function cancelInlineEdit() {
-  inlineEditing.value = false
-  attachedFiles.value = []
+async function cancelInlineEdit() {
+  if (!await confirmDiscardInlineChanges()) {
+    return
+  }
+  discardInlineEdit()
   if (selectedTask.value) {
     resetInlineForm(selectedTask.value)
   }
+}
+
+function discardInlineEdit() {
+  inlineEditing.value = false
+  attachedFiles.value = []
+  existingFileRefs.value = []
+  inlineInitialSnapshot.value = ''
+}
+
+async function confirmDiscardInlineChanges(): Promise<boolean> {
+  if (!hasUnsavedInlineChanges.value) {
+    return true
+  }
+  try {
+    await ElMessageBox.confirm(t('scheduledTask.discardEditConfirm'), t('scheduledTask.discardEditTitle'), {
+      type: 'warning',
+      confirmButtonText: t('scheduledTask.discardEditButton'),
+      cancelButtonText: t('common.back'),
+    })
+    return true
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') {
+      return false
+    }
+    throw error
+  }
+}
+
+function removeInlineComposerFile(index: number) {
+  if (index < existingFileRefs.value.length) {
+    existingFileRefs.value.splice(index, 1)
+    inlineForm.files = currentInlineFileRefs.value
+    return
+  }
+  removeFile(index - existingFileRefs.value.length)
+  inlineForm.files = currentInlineFileRefs.value
+}
+
+function buildInlineSnapshot(): string {
+  return JSON.stringify({
+    title: inlineForm.title,
+    description: inlineForm.description,
+    message: inlineForm.message,
+    files: currentInlineFileRefs.value,
+    schedule_type: inlineForm.schedule_type,
+    run_at: inlineForm.run_at,
+    cron_expr: inlineForm.cron_expr,
+    interval_seconds: Number(inlineForm.interval_seconds || 0),
+    timezone: inlineForm.timezone,
+    max_runs: Number(inlineForm.max_runs || 0),
+  })
 }
 
 function registerInlineMessageInputRef(element: { focus: () => void } | null) {
@@ -834,12 +1022,14 @@ function validateInlineEditForm(): boolean {
 function buildInlineExecutorPayload(task: TimerTask, fullCodePath: string): Record<string, unknown> {
   const payload = { ...getAgentPayload(task) }
   const message = inlineForm.message.trim()
-  const files = attachedFileRefs.value || inlineForm.files.trim()
+  const files = currentInlineFileRefs.value
   payload.full_code_path = fullCodePath
   payload.message = message
   payload.display_content = message
   if (files) {
     payload.files = files
+  } else {
+    delete payload.files
   }
   return payload
 }
@@ -876,8 +1066,7 @@ async function saveInlineEdit() {
     })
     selectedTask.value = updatedTask
     replaceTaskInList(updatedTask)
-    inlineEditing.value = false
-    attachedFiles.value = []
+    discardInlineEdit()
     ElMessage.success(t('scheduledTask.savedAgent'))
     await loadList()
   } catch (error) {
@@ -1079,7 +1268,7 @@ async function handleDelete(task: TimerTask) {
     ElMessage.success(t('scheduledTask.deletedSuccess'))
     if (selectedTask.value?.id === task.id) {
       selectedTask.value = null
-      inlineEditing.value = false
+      discardInlineEdit()
       resetSelectedExecutionState()
     }
     if (list.value.length <= 1 && page.value > 1) page.value -= 1
@@ -1455,6 +1644,7 @@ defineExpose({ load: loadList })
 .detail-inline-composer {
   position: relative;
   width: 100%;
+  z-index: 2;
 }
 
 .detail-inline-composer.is-dragging {
@@ -1475,6 +1665,14 @@ defineExpose({ load: loadList })
 .detail-inline-composer :deep(.mini-structured-input .spc-preview) {
   min-height: 190px !important;
   max-height: 520px !important;
+}
+
+.detail-inline-composer :deep(.structured-prompt-composer.is-focused) {
+  z-index: 30;
+}
+
+.detail-inline-composer :deep(.spc-mention-panel) {
+  z-index: 2600;
 }
 
 .detail-inline-drop-hint {
@@ -1553,8 +1751,86 @@ defineExpose({ load: loadList })
   box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight, rgba(255, 255, 255, 0.72));
 }
 
+.detail-message-preview {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.detail-message-preview.is-disabled {
+  opacity: 1;
+}
+
+.detail-message-preview :deep(.spc-preview) {
+  min-height: 0 !important;
+  padding: 0;
+  color: var(--el-text-color-regular);
+  line-height: 1.76;
+}
+
+.detail-message-preview :deep(.spc-preview-body) {
+  white-space: pre-wrap;
+}
+
+.detail-message-preview :deep(.spc-resource-chip),
+.detail-message-preview :deep(.spc-user-chip) {
+  border-color: color-mix(in srgb, var(--scheduled-session-accent) 26%, var(--scheduled-session-line));
+  background: color-mix(in srgb, var(--scheduled-session-accent) 9%, var(--scheduled-session-paper));
+  color: var(--scheduled-session-accent);
+  box-shadow: none;
+}
+
+.detail-message-preview :deep(.spc-user-chip) {
+  border-color: color-mix(in srgb, var(--el-color-success) 28%, var(--scheduled-session-line));
+  background: color-mix(in srgb, var(--el-color-success) 9%, var(--scheduled-session-paper));
+  color: var(--el-color-success);
+}
+
+.detail-message-preview :deep(.spc-invocation-card) {
+  border-color: color-mix(in srgb, var(--scheduled-session-accent) 18%, var(--scheduled-session-line));
+  background: color-mix(in srgb, var(--scheduled-session-accent) 6%, var(--scheduled-session-paper));
+}
+
+.detail-message-preview :deep(.spc-invocation-resource) {
+  color: var(--scheduled-session-ink);
+}
+
+.detail-message-preview :deep(.spc-param-chip) {
+  background: var(--scheduled-session-tint);
+  color: var(--scheduled-session-muted);
+}
+
+.detail-message-empty {
+  color: var(--scheduled-session-muted);
+}
+
 .detail-document-section.is-message .detail-message-body {
   min-height: 260px;
+}
+
+.detail-file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail-file-tag {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.detail-file-tag :deep(.el-tag__content) {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.detail-file-tag span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-aside {

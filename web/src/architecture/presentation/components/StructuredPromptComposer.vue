@@ -138,74 +138,89 @@
       <div v-else class="spc-preview-placeholder">{{ placeholder }}</div>
     </div>
 
-    <div
-      v-if="mentionPanelOpen"
-      class="spc-mention-panel"
-      data-testid="structured-prompt-mention-panel"
-      @mousedown.prevent="cancelMentionClose"
+    <el-popover
+      :visible="mentionPanelOpen"
+      trigger="manual"
+      virtual-triggering
+      :virtual-ref="mentionVirtualRef"
+      :placement="mentionPopoverPlacement"
+      :width="mentionPopoverWidth"
+      :offset="8"
+      :show-arrow="false"
+      :teleported="true"
+      :persistent="false"
+      :z-index="4200"
+      strategy="fixed"
+      popper-class="spc-mention-popover"
     >
-      <div class="spc-mention-header">
-        <span class="spc-mention-trigger">{{ mentionQuery?.trigger }}</span>
-        <span>{{ mentionModeLabel }}</span>
-      </div>
-      <div v-if="mentionLoading" class="spc-mention-state">搜索中...</div>
-      <div v-else-if="mentionOptions.length === 0" class="spc-mention-state">
-        {{ mentionEmptyText }}
-      </div>
-      <div v-else class="spc-mention-list">
-        <button
-          v-for="(option, index) in mentionOptions"
-          :key="option.key"
-          type="button"
-          :class="['spc-mention-option', { 'is-active': index === highlightedMentionIndex }]"
-          :data-testid="`structured-prompt-mention-option-${index}`"
-          @mouseenter="highlightedMentionIndex = index"
-          @mousedown.prevent="applyMentionOption(option)"
-        >
-          <span :class="['spc-mention-icon', `is-${option.kind}`, option.iconClass]">
-            <UserAvatar
-              v-if="option.kind === 'user'"
-              :src="option.avatar"
-              :size="28"
-              :alt="option.label"
-              class="spc-mention-avatar"
-            />
-            <img
-              v-else-if="option.iconSrc"
-              :src="option.iconSrc"
-              :alt="option.typeLabel"
-              class="spc-mention-resource-img"
-            />
-            <component
-              :is="option.iconComponent"
-              v-else-if="option.iconComponent"
-              :size="17"
-              class="spc-mention-resource-component"
-            />
-            <el-icon v-else><Document /></el-icon>
-          </span>
-          <span class="spc-mention-main">
-            <span class="spc-mention-title-row">
-              <span class="spc-mention-title" :title="option.label">{{ option.label }}</span>
-              <span class="spc-mention-type">{{ option.typeLabel }}</span>
+      <div
+        class="spc-mention-panel"
+        data-testid="structured-prompt-mention-panel"
+        @mousedown.prevent="cancelMentionClose"
+      >
+        <div class="spc-mention-header">
+          <span class="spc-mention-trigger">{{ mentionQuery?.trigger }}</span>
+          <span>{{ mentionModeLabel }}</span>
+        </div>
+        <div v-if="mentionLoading" class="spc-mention-state">搜索中...</div>
+        <div v-else-if="mentionOptions.length === 0" class="spc-mention-state">
+          {{ mentionEmptyText }}
+        </div>
+        <div v-else class="spc-mention-list">
+          <button
+            v-for="(option, index) in mentionOptions"
+            :key="option.key"
+            type="button"
+            :class="['spc-mention-option', { 'is-active': index === highlightedMentionIndex }]"
+            :data-testid="`structured-prompt-mention-option-${index}`"
+            @mouseenter="highlightedMentionIndex = index"
+            @mousedown.prevent="applyMentionOption(option)"
+          >
+            <span :class="['spc-mention-icon', `is-${option.kind}`, option.iconClass]">
+              <UserAvatar
+                v-if="option.kind === 'user'"
+                :src="option.avatar"
+                :size="28"
+                :alt="option.label"
+                class="spc-mention-avatar"
+              />
+              <img
+                v-else-if="option.iconSrc"
+                :src="option.iconSrc"
+                :alt="option.typeLabel"
+                class="spc-mention-resource-img"
+              />
+              <component
+                :is="option.iconComponent"
+                v-else-if="option.iconComponent"
+                :size="17"
+                class="spc-mention-resource-component"
+              />
+              <el-icon v-else><Document /></el-icon>
             </span>
-            <span v-if="option.description" class="spc-mention-desc" :title="option.description">
-              {{ option.description }}
-            </span>
-            <span v-if="option.metaItems.length > 0" class="spc-mention-meta-row">
-              <span
-                v-for="meta in option.metaItems"
-                :key="`${option.key}-${meta}`"
-                class="spc-mention-meta"
-                :title="meta"
-              >
-                {{ meta }}
+            <span class="spc-mention-main">
+              <span class="spc-mention-title-row">
+                <span class="spc-mention-title" :title="option.label">{{ option.label }}</span>
+                <span class="spc-mention-type">{{ option.typeLabel }}</span>
+              </span>
+              <span v-if="option.description" class="spc-mention-desc" :title="option.description">
+                {{ option.description }}
+              </span>
+              <span v-if="option.metaItems.length > 0" class="spc-mention-meta-row">
+                <span
+                  v-for="meta in option.metaItems"
+                  :key="`${option.key}-${meta}`"
+                  class="spc-mention-meta"
+                  :title="meta"
+                >
+                  {{ meta }}
+                </span>
               </span>
             </span>
-          </span>
-        </button>
+          </button>
+        </div>
       </div>
-    </div>
+    </el-popover>
 
     <div
       v-if="activeInfoCard"
@@ -411,6 +426,7 @@ const props = withDefaults(defineProps<{
   submitOnEnter?: boolean
   enableMentions?: boolean
   mentionPanelPlacement?: MentionPanelPlacement
+  readonlyPreview?: boolean
   editorTestId?: string
 }>(), {
   placeholder: '输入任务，可粘贴 </path> 资源引用或函数调用块',
@@ -422,6 +438,7 @@ const props = withDefaults(defineProps<{
   submitOnEnter: false,
   enableMentions: true,
   mentionPanelPlacement: 'below',
+  readonlyPreview: false,
   editorTestId: 'structured-prompt-editor',
 })
 
@@ -434,13 +451,14 @@ const emit = defineEmits<{
 
 const rootRef = ref<HTMLElement | null>(null)
 const editorRef = ref<HTMLElement | null>(null)
-const mode = ref<ComposerMode>('edit')
+const mode = ref<ComposerMode>(props.readonlyPreview ? 'preview' : 'edit')
 const focused = ref(false)
 const currentText = ref(props.modelValue)
 const mentionQuery = ref<MiniComposerMentionQuery | null>(null)
 const mentionOptions = ref<StructuredMentionOption[]>([])
 const mentionLoading = ref(false)
 const highlightedMentionIndex = ref(0)
+const mentionAnchorRect = ref<DOMRect>(createVirtualRect())
 const composing = ref(false)
 const userMetaByUsername = ref<Record<string, PromptUserMeta>>({ system: SYSTEM_USER_META })
 const resourceMetaByPath = ref<Record<string, PromptResourceMeta>>({})
@@ -460,6 +478,17 @@ const structuredSegments = computed(() => parseStructuredPromptSegments(currentT
 const resourceSegments = computed(() => structuredSegments.value.filter((segment): segment is StructuredPromptResourceSegment => segment.type === 'resource'))
 const invocationBlocks = computed(() => parseWorkspaceInvocationBlocks(currentText.value))
 const mentionPanelOpen = computed(() => props.enableMentions && mode.value === 'edit' && !!mentionQuery.value)
+const mentionPopoverPlacement = computed(() => props.mentionPanelPlacement === 'above' ? 'top-start' : 'bottom-start')
+const mentionPopoverWidth = computed(() => {
+  const rootWidth = rootRef.value?.getBoundingClientRect().width || 360
+  return Math.max(300, Math.min(rootWidth, 520))
+})
+const mentionVirtualRef = {
+  getBoundingClientRect: () => mentionAnchorRect.value,
+  get contextElement() {
+    return editorRef.value || rootRef.value || undefined
+  },
+}
 const mentionModeLabel = computed(() => mentionQuery.value?.kind === 'user' ? '选择用户' : '选择目录或工具')
 const mentionEmptyText = computed(() => {
   const query = mentionQuery.value
@@ -491,6 +520,14 @@ watch(() => props.modelValue, (value) => {
   scheduleMetadataHydration()
 })
 
+watch(() => props.readonlyPreview, (readonlyPreview) => {
+  if (readonlyPreview) {
+    mode.value = 'preview'
+  } else if (mode.value === 'preview' && !props.showToolbar) {
+    mode.value = 'edit'
+  }
+})
+
 onMounted(() => {
   renderEditorContent(currentText.value)
   scheduleMetadataHydration()
@@ -506,6 +543,9 @@ onBeforeUnmount(() => {
 })
 
 function setMode(nextMode: ComposerMode) {
+  if (props.readonlyPreview && nextMode === 'edit') {
+    return
+  }
   mode.value = nextMode
   closeMentionPanel()
   if (nextMode === 'edit') {
@@ -845,6 +885,61 @@ function getCaretTextOffset(root: HTMLElement): number {
   return serializeEditorContent(container).length
 }
 
+function createVirtualRect(left = 0, top = 0, width = 1, height = 24): DOMRect {
+  if (typeof DOMRect !== 'undefined') {
+    return new DOMRect(left, top, width, height)
+  }
+  return {
+    x: left,
+    y: top,
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+    toJSON: () => ({}),
+  } as DOMRect
+}
+
+function normalizeClientRect(rect: DOMRect | DOMRectReadOnly): DOMRect {
+  return createVirtualRect(
+    rect.left,
+    rect.top,
+    Math.max(1, rect.width || 1),
+    Math.max(20, rect.height || 20)
+  )
+}
+
+function isUsableClientRect(rect: DOMRect | DOMRectReadOnly | undefined): rect is DOMRect | DOMRectReadOnly {
+  return !!rect
+    && Number.isFinite(rect.left)
+    && Number.isFinite(rect.top)
+    && (rect.width > 0 || rect.height > 0 || rect.left > 0 || rect.top > 0)
+}
+
+function getMentionAnchorRect(editor: HTMLElement): DOMRect {
+  const selection = window.getSelection()
+  if (selection?.rangeCount) {
+    const range = selection.getRangeAt(0)
+    if (isRangeInside(editor, range)) {
+      const collapsedRange = range.cloneRange()
+      collapsedRange.collapse(true)
+      const clientRect = Array.from(collapsedRange.getClientRects()).find(isUsableClientRect)
+        || collapsedRange.getBoundingClientRect()
+      if (isUsableClientRect(clientRect)) {
+        return normalizeClientRect(clientRect)
+      }
+    }
+  }
+
+  const editorRect = editor.getBoundingClientRect()
+  const fallbackTop = props.mentionPanelPlacement === 'above'
+    ? editorRect.top
+    : Math.min(editorRect.bottom, editorRect.top + 44)
+  return createVirtualRect(editorRect.left + 12, fallbackTop, 1, 24)
+}
+
 function restoreCaretTextOffset(root: HTMLElement, targetOffset: number) {
   const range = document.createRange()
   const selection = window.getSelection()
@@ -901,6 +996,9 @@ function updateMentionFromEditor() {
 
   const text = serializeEditorContent(editor)
   const query = findMiniComposerMentionQuery(text, getCaretTextOffset(editor))
+  if (query) {
+    mentionAnchorRect.value = getMentionAnchorRect(editor)
+  }
   mentionQuery.value = query
   highlightedMentionIndex.value = 0
 
@@ -1596,6 +1694,9 @@ function resourceDisplayName(path: string) {
 }
 
 function focus() {
+  if (props.readonlyPreview) {
+    return
+  }
   mode.value = 'edit'
   void nextTick(() => {
     const editor = editorRef.value
@@ -1984,10 +2085,7 @@ defineExpose({
 }
 
 .spc-mention-panel {
-  position: absolute;
-  left: 0;
-  right: 0;
-  z-index: 24;
+  width: 100%;
   max-height: 338px;
   overflow: hidden;
   display: flex;
@@ -2000,12 +2098,14 @@ defineExpose({
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34), 0 0 24px rgba(34, 211, 238, 0.12);
 }
 
-.mention-below .spc-mention-panel {
-  top: calc(100% + 6px);
-}
-
-.mention-above .spc-mention-panel {
-  bottom: calc(100% + 6px);
+:global(.spc-mention-popover.el-popover.el-popper) {
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  min-width: min(520px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
 }
 
 .spc-mention-header {
