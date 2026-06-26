@@ -325,6 +325,7 @@ func runCreateScheduledAgentTask(ctx context.Context, args createScheduledAgentT
 			"kind":      "scheduled_agent_session",
 			"mode_code": modeCode,
 		},
+		Status:          scheduledsdk.TaskStatusPaused,
 		Schedule:        schedule,
 		SourceType:      "agent_session",
 		SourceRef:       fullCodePath,
@@ -341,7 +342,7 @@ func runCreateScheduledAgentTask(ctx context.Context, args createScheduledAgentT
 	return toolResultWithStructuredData(map[string]interface{}{
 		"task":        task,
 		"next_run_at": task.NextRunAt,
-		"message":     "定时会话已创建",
+		"message":     "定时会话已创建，默认暂停；需要启用后才会无人值守执行。",
 	}, false)
 }
 

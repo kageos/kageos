@@ -66,6 +66,9 @@
               <span>{{ t('scheduledTask.nextRun') }} {{ formatDateTime(task.next_run_at) }}</span>
               <span>{{ t('scheduledTask.runCount') }} {{ task.run_count || 0 }}</span>
             </span>
+            <span v-if="isTaskPaused(task)" class="agent-session-item-hint">
+              {{ t('scheduledTask.enableForUnattendedHint') }}
+            </span>
           </button>
         </div>
 
@@ -400,6 +403,14 @@
                     />
                   </el-tooltip>
                 </div>
+                <el-alert
+                  v-if="isTaskPaused(selectedTask)"
+                  class="detail-enable-hint"
+                  type="info"
+                  show-icon
+                  :closable="false"
+                  :title="t('scheduledTask.enableForUnattendedHint')"
+                />
               </section>
 
               <section class="detail-aside-card">
@@ -735,6 +746,10 @@ async function loadSelectedExecutions(reset = false) {
 function handleSelectedExecutionPageChange(nextPage: number) {
   selectedExecutionState.page = nextPage
   void loadSelectedExecutions()
+}
+
+function isTaskPaused(task?: TimerTask | null): boolean {
+  return task?.status === 'paused'
 }
 
 function resetSelectedExecutionState() {
@@ -1533,6 +1548,19 @@ defineExpose({ load: loadList })
   line-height: 1.45;
 }
 
+.agent-session-item-hint {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--scheduled-session-accent) 20%, var(--scheduled-session-line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--scheduled-session-accent) 7%, var(--scheduled-session-paper));
+  color: var(--scheduled-session-accent);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
 .scheduled-pagination {
   display: flex;
   justify-content: flex-end;
@@ -1898,6 +1926,10 @@ defineExpose({ load: loadList })
   height: 34px;
   padding: 0;
   margin: 0;
+}
+
+.detail-enable-hint {
+  margin-top: 12px;
 }
 
 .detail-property-list {

@@ -50,7 +50,7 @@ type writePRDTable struct {
 	Fields       []writePRDField          `json:"fields" schema_desc:"表字段；每项单行写 name/widget/required/desc/hide" schema_required:"true"`
 	SearchFields []writePRDField          `json:"search_fields,omitempty" schema_desc:"搜索参数；只描述字段，不需要 handlers；大多数业务表默认加 创建开始时间/创建结束时间 两个 datetime 用于按记录创建时间范围查询，并加一个用户筛选字段：优先用提交人/处理人/评分人/申请人等业务用户，没有明确业务用户时用创建人"`
 	Handlers     []string                 `json:"handlers,omitempty" schema_desc:"表格行操作能力，例如 OnTableAddRow、OnTableUpdateRow、OnTableDeleteRow；只查询时填空数组"`
-	Examples     []map[string]interface{} `json:"examples" schema_desc:"1-3 条用户可见示例记录；key 必须是 fields 中的业务字段名" schema_required:"true"`
+	Examples     []map[string]interface{} `json:"examples" schema_desc:"1-3 条用户可见示例记录；每条记录的 key 必须逐字等于同一个 table.fields[].name 中已声明的业务字段名；不要使用结构体字段、JSON 字段、数据库字段或系统字段，例如不要写 Title/Content/Attachment/Priority/Status/CreateTime，要写工单标题/详细内容/附件/优先级/工单状态等 fields.name" schema_required:"true"`
 }
 
 type writePRDForm struct {
@@ -63,8 +63,8 @@ type writePRDForm struct {
 }
 
 type writePRDFormExample struct {
-	Request  map[string]interface{} `json:"request" schema_desc:"表单提交示例；key 必须是 request_fields 的业务字段名" schema_required:"true"`
-	Response map[string]interface{} `json:"response" schema_desc:"表单返回示例；key 必须是 response_fields 的业务字段名；没有响应字段时可为空对象" schema_required:"true"`
+	Request  map[string]interface{} `json:"request" schema_desc:"表单提交示例；key 必须逐字等于 request_fields[].name 中已声明的业务字段名，不要使用结构体/JSON/数据库字段名" schema_required:"true"`
+	Response map[string]interface{} `json:"response" schema_desc:"表单返回示例；key 必须逐字等于 response_fields[].name 中已声明的业务字段名；没有响应字段时可为空对象；不要使用结构体/JSON/数据库字段名" schema_required:"true"`
 }
 
 type writePRDChart struct {

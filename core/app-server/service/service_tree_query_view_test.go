@@ -18,6 +18,12 @@ import (
 
 func newServiceTreeQueryViewTest(t *testing.T) (*serviceTreeQueryView, *gorm.DB, *model.App) {
 	t.Helper()
+	oldClientFactory := newServiceTreeScheduleClient
+	newServiceTreeScheduleClient = func() serviceTreeScheduleClient {
+		return fakeDirectoryOverviewScheduleClient{}
+	}
+	t.Cleanup(func() { newServiceTreeScheduleClient = oldClientFactory })
+
 	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
 	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
@@ -45,6 +51,12 @@ func newServiceTreeQueryViewTest(t *testing.T) (*serviceTreeQueryView, *gorm.DB,
 
 func newServiceTreeQueryViewAccessTest(t *testing.T, hideUnauthorizedNodes bool) (*serviceTreeQueryView, *gorm.DB, *model.App, *TeamAccessService) {
 	t.Helper()
+	oldClientFactory := newServiceTreeScheduleClient
+	newServiceTreeScheduleClient = func() serviceTreeScheduleClient {
+		return fakeDirectoryOverviewScheduleClient{}
+	}
+	t.Cleanup(func() { newServiceTreeScheduleClient = oldClientFactory })
+
 	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
 	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
@@ -133,6 +145,63 @@ func findServiceTreeRespByPath(nodes []*dto.GetServiceTreeResp, path string) *dt
 		}
 	}
 	return nil
+}
+
+func TestGetAppWithServiceTreeAnnotatesScheduledAgentTaskBadges(t *testing.T) {
+	queryView, db, app := newServiceTreeQueryViewTest(t)
+	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "alice")
+	if _, err := ReconcileAppRootServiceTrees(ctx, queryView.appRepo, queryView.serviceTreeRepo); err != nil {
+		t.Fatalf("ReconcileAppRootServiceTrees: %v", err)
+	}
+
+	nodes := []*model.ServiceTree{
+		{
+			Name:         "人事",
+			Code:         "hr",
+			Type:         model.ServiceTreeTypePackage,
+			AppID:        app.ID,
+			FullCodePath: "/alice/ops/hr",
+		},
+		{
+			Name:         "薪资",
+			Code:         "payroll",
+			Type:         model.ServiceTreeTypePackage,
+			AppID:        app.ID,
+			FullCodePath: "/alice/ops/hr/payroll",
+		},
+	}
+	if err := db.Create(&nodes).Error; err != nil {
+		t.Fatalf("create package nodes: %v", err)
+	}
+
+	oldClientFactory := newServiceTreeScheduleClient
+	newServiceTreeScheduleClient = func() serviceTreeScheduleClient {
+		return fakeDirectoryOverviewScheduleClient{tasks: map[string][]*scheduledsdk.Task{
+			"agent.session|workspace_directory|/alice/ops/hr": {
+				{ID: 21, ExecutorKey: "agent.session", Status: scheduledsdk.TaskStatusPaused, ResourceKey: "/alice/ops/hr"},
+			},
+			"agent.session|workspace_directory|/alice/ops/hr/payroll": {
+				{ID: 31, ExecutorKey: "agent.session", Status: scheduledsdk.TaskStatusPaused, ResourceKey: "/alice/ops/hr/payroll"},
+				{ID: 32, ExecutorKey: "agent.session", Status: scheduledsdk.TaskStatusPending, ResourceKey: "/alice/ops/hr/payroll"},
+			},
+		}}
+	}
+	defer func() { newServiceTreeScheduleClient = oldClientFactory }()
+
+	resp, err := queryView.GetAppWithServiceTree(ctx, &dto.GetAppWithServiceTreeReq{ResourcePath: "/alice/ops"})
+	if err != nil {
+		t.Fatalf("GetAppWithServiceTree: %v", err)
+	}
+
+	root := findServiceTreeRespByPath(resp.ServiceTree, "/alice/ops")
+	hr := findServiceTreeRespByPath(resp.ServiceTree, "/alice/ops/hr")
+	payroll := findServiceTreeRespByPath(resp.ServiceTree, "/alice/ops/hr/payroll")
+	if root == nil || hr == nil || payroll == nil {
+		t.Fatalf("expected root/hr/payroll nodes, got root=%v hr=%v payroll=%v", root, hr, payroll)
+	}
+	if root.ScheduledAgentTasks != 3 || hr.ScheduledAgentTasks != 3 || payroll.ScheduledAgentTasks != 2 {
+		t.Fatalf("unexpected scheduled agent task badges: root=%d hr=%d payroll=%d", root.ScheduledAgentTasks, hr.ScheduledAgentTasks, payroll.ScheduledAgentTasks)
+	}
 }
 
 func TestReconcileAppRootServiceTreesCreatesMissingRoot(t *testing.T) {

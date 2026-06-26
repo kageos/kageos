@@ -81,6 +81,7 @@ export interface CreateTimerTaskRequest {
   executor_key: string
   executor_payload?: unknown
   metadata?: Record<string, string>
+  status?: TimerTaskStatus
   schedule: TimerSchedule
   source_type?: string
   source_ref?: string

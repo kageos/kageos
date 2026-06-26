@@ -51,6 +51,15 @@
           >
             {{ getTemplateTypeText(child.template_type) }}
           </el-tag>
+          <el-tag
+            v-else-if="child.type === 'package' && getScheduledAgentCount(child) > 0"
+            size="small"
+            type="info"
+            class="child-type-tag child-scheduled-tag"
+            :title="t('packageDetail.scheduledAgentBadgeTitle', { count: getScheduledAgentCount(child) })"
+          >
+            {{ t('packageDetail.scheduledAgentTask') }} {{ getScheduledAgentCount(child) }}
+          </el-tag>
           <el-tag v-else-if="child.type === 'docs'" size="small" type="info" class="child-type-tag">{{ t('packageDetail.docs') }}</el-tag>
         </div>
 
@@ -112,6 +121,10 @@ function getTemplateTypeText(templateType?: string): string {
     chart: t('packageDetail.chart')
   }
   return templateType ? (typeMap[templateType] || t('packageDetail.function')) : t('packageDetail.function')
+}
+
+function getScheduledAgentCount(child: ServiceTree): number {
+  return Number(child.scheduled_agent_tasks || 0)
 }
 
 function getChildFunctionIcon(child: ServiceTree) {

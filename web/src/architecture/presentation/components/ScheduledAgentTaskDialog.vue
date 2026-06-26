@@ -328,6 +328,7 @@ async function handleSubmit() {
         executor_key: 'agent.session',
         executor_payload: executorPayload,
         metadata,
+        status: 'paused',
         schedule: buildTimerSchedule(form),
         source_type: 'agent_session',
         source_ref: resolvedFullCodePath.value,

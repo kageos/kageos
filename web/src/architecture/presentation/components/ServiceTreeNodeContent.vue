@@ -48,6 +48,14 @@
     />
 
     <el-badge
+      v-if="showScheduledAgentBadge"
+      :value="scheduledAgentBadgeValue"
+      :max="99"
+      class="scheduled-agent-badge"
+      :title="scheduledAgentBadgeTitle"
+    />
+
+    <el-badge
       v-if="showNotificationBadge"
       :value="notificationBadgeValue"
       :max="99"
@@ -83,6 +91,9 @@ const props = withDefaults(defineProps<{
   runtimeBadgeValue?: string | number
   runtimeBadgeClass?: string
   runtimeBadgeTitle?: string
+  showScheduledAgentBadge?: boolean
+  scheduledAgentBadgeValue?: string | number
+  scheduledAgentBadgeTitle?: string
   showNotificationBadge?: boolean
   notificationBadgeValue?: string | number
   notificationBadgeClass?: string
@@ -96,6 +107,9 @@ const props = withDefaults(defineProps<{
   runtimeBadgeValue: '',
   runtimeBadgeClass: '',
   runtimeBadgeTitle: '',
+  showScheduledAgentBadge: false,
+  scheduledAgentBadgeValue: '',
+  scheduledAgentBadgeTitle: '',
   showNotificationBadge: false,
   notificationBadgeValue: '',
   notificationBadgeClass: '',
@@ -252,6 +266,19 @@ const nodeIconClass = computed(() => {
 .runtime-state-badge-failed :deep(.el-badge__content) {
   background: #ef4444;
   box-shadow: 0 0 12px rgba(239, 68, 68, 0.42);
+}
+
+.scheduled-agent-badge {
+  flex-shrink: 0;
+  margin-left: 6px;
+  cursor: help;
+}
+
+.scheduled-agent-badge :deep(.el-badge__content) {
+  border: none;
+  background: #64748b;
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.14);
 }
 
 .notification-count-badge {

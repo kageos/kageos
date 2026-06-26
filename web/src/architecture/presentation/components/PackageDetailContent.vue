@@ -39,15 +39,27 @@
 
         <el-tab-pane
           v-if="featureFlags.scheduledTasks"
-          :label="t('packageDetail.scheduledAgentTask')"
           name="scheduledAgentTask"
         >
+          <template #label>
+            <span class="tab-label-with-badge">
+              <span>{{ t('packageDetail.scheduledAgentTask') }}</span>
+              <span
+                v-if="scheduledAgentBadgeCount > 0"
+                class="scheduled-session-tab-badge"
+                :title="t('packageDetail.scheduledAgentBadgeTitle', { count: scheduledAgentBadgeCount })"
+              >
+                {{ scheduledAgentBadgeCount }}
+              </span>
+            </span>
+          </template>
           <div class="tab-content scheduled-agent-tab-content">
             <ScheduledAgentTaskList
               :resource-path="packageNode.full_code_path || ''"
               :auto-load="activeTab === 'scheduledAgentTask'"
               :focus-task-id="scheduledFocusTaskID"
               :focus-execution-id="scheduledFocusExecutionID"
+              @total-change="handleScheduledAgentTotalChange"
             />
           </div>
         </el-tab-pane>
@@ -127,6 +139,18 @@ const directoryMarkdown = computed(() => {
 })
 const scheduledFocusTaskID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY))
 const scheduledFocusExecutionID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_EXECUTION_ID_QUERY_KEY))
+const scheduledAgentLoadedTotal = ref<number | null>(null)
+const scheduledAgentBadgeCount = computed(() => {
+  const directoryTotal = Number(props.packageNode?.scheduled_agent_tasks || 0)
+  if (directoryTotal > 0) {
+    return directoryTotal
+  }
+  return scheduledAgentLoadedTotal.value !== null ? scheduledAgentLoadedTotal.value : 0
+})
+
+function handleScheduledAgentTotalChange(value: number) {
+  scheduledAgentLoadedTotal.value = Number(value || 0)
+}
 
 function loadOperateLogTab(tabName: PackageTabName) {
   if (tabName === 'operateLog' && featureFlags.operateLogs) {
@@ -146,6 +170,7 @@ watch(
 watch(
   () => props.packageNode?.full_code_path,
   () => {
+    scheduledAgentLoadedTotal.value = null
     if (activeTab.value === 'operateLog') {
       loadOperateLogTab('operateLog')
     }
@@ -248,6 +273,28 @@ watch(
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
   }
+}
+
+.tab-label-with-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.scheduled-session-tab-badge {
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #64748b;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
 }
 
 .tab-content {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"gorm.io/gorm"
@@ -15,6 +16,7 @@ import (
 	"github.com/kageos/kageos/pkg/access"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/scheduledsdk"
 )
 
 type serviceTreeQueryView struct {
@@ -22,6 +24,11 @@ type serviceTreeQueryView struct {
 	appRepo         *repository.AppRepository
 	teamAccess      *TeamAccessService
 }
+
+const (
+	serviceTreeScheduledAgentBadgeTimeout     = 1500 * time.Millisecond
+	serviceTreeScheduledAgentBadgeConcurrency = 10
+)
 
 func newServiceTreeQueryView(
 	serviceTreeRepo *repository.ServiceTreeRepository,
@@ -73,6 +80,7 @@ func (q *serviceTreeQueryView) getServiceTreeByAppModel(ctx context.Context, app
 	if rootResp == nil {
 		return []*dto.GetServiceTreeResp{}, nil
 	}
+	q.annotateScheduledAgentTaskCounts(ctx, rootResp)
 
 	logger.Debugf(ctx, "[ServiceTreeService] 服务树转换完成: root_id=%d, children_count=%d",
 		rootNode.ID, len(rootResp.Children))
@@ -261,6 +269,112 @@ func (q *serviceTreeQueryView) convertToGetServiceTreeResp(tree *model.ServiceTr
 	}
 
 	return resp
+}
+
+func (q *serviceTreeQueryView) annotateScheduledAgentTaskCounts(ctx context.Context, root *dto.GetServiceTreeResp) {
+	if root == nil {
+		return
+	}
+	packages := collectPackageServiceTreeResp(root)
+	if len(packages) == 0 {
+		return
+	}
+	client := newServiceTreeScheduleClient()
+	if client == nil {
+		return
+	}
+
+	badgeCtx, cancel := context.WithTimeout(ctx, serviceTreeScheduledAgentBadgeTimeout)
+	defer cancel()
+	counts, failed := loadScheduledAgentTaskCountsByDirectory(badgeCtx, client, packages)
+	if failed > 0 {
+		logger.Debugf(ctx, "[ServiceTreeService] 定时会话徽章部分加载失败: failed=%d total=%d", failed, len(packages))
+	}
+	applyScheduledAgentTaskSubtreeCounts(root, counts)
+}
+
+func collectPackageServiceTreeResp(root *dto.GetServiceTreeResp) []*dto.GetServiceTreeResp {
+	out := make([]*dto.GetServiceTreeResp, 0)
+	var walk func(*dto.GetServiceTreeResp)
+	walk = func(node *dto.GetServiceTreeResp) {
+		if node == nil {
+			return
+		}
+		if node.Type == model.ServiceTreeTypePackage {
+			out = append(out, node)
+		}
+		for _, child := range node.Children {
+			walk(child)
+		}
+	}
+	walk(root)
+	return out
+}
+
+func loadScheduledAgentTaskCountsByDirectory(ctx context.Context, client serviceTreeScheduleClient, packages []*dto.GetServiceTreeResp) (map[string]int, int) {
+	counts := make(map[string]int, len(packages))
+	if client == nil || len(packages) == 0 {
+		return counts, 0
+	}
+
+	sem := make(chan struct{}, serviceTreeScheduledAgentBadgeConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	failed := 0
+
+	for _, node := range packages {
+		path := access.NormalizeResourcePath(node.FullCodePath)
+		if path == "" {
+			continue
+		}
+		wg.Add(1)
+		go func(resourcePath string) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				mu.Lock()
+				failed++
+				mu.Unlock()
+				return
+			}
+
+			resp, err := client.ListTasks(ctx, scheduledsdk.ListTasksRequest{
+				ExecutorKey:   ScheduledAgentSessionExecutorKey,
+				ResourceScope: "workspace_directory",
+				ResourceKey:   resourcePath,
+				Page:          1,
+				PageSize:      1,
+			})
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				failed++
+				return
+			}
+			if resp != nil {
+				counts[resourcePath] = int(resp.Total)
+			}
+		}(path)
+	}
+	wg.Wait()
+	return counts, failed
+}
+
+func applyScheduledAgentTaskSubtreeCounts(node *dto.GetServiceTreeResp, exactCounts map[string]int) int {
+	if node == nil {
+		return 0
+	}
+	total := 0
+	for _, child := range node.Children {
+		total += applyScheduledAgentTaskSubtreeCounts(child, exactCounts)
+	}
+	if node.Type == model.ServiceTreeTypePackage {
+		total += exactCounts[access.NormalizeResourcePath(node.FullCodePath)]
+		node.ScheduledAgentTasks = total
+	}
+	return total
 }
 
 func filterVisibleServiceTree(node *dto.GetServiceTreeResp) *dto.GetServiceTreeResp {

@@ -113,6 +113,9 @@
               :show-notification-badge="hasNotificationBadge(data)"
               :notification-badge-value="getNotificationBadgeText(data)"
               :notification-badge-title="getNotificationSummaryTitle(data)"
+              :show-scheduled-agent-badge="hasScheduledAgentBadge(data)"
+              :scheduled-agent-badge-value="getScheduledAgentBadgeText(data)"
+              :scheduled-agent-badge-title="getScheduledAgentBadgeTitle(data)"
               @dragstart="onTreeNodeDragStart($event, data)"
               @contextmenu.prevent
               @notification-click="openNodeNotifications(data)"
@@ -422,6 +425,22 @@ const getNotificationSummaryTitle = (node: ServiceTree): string => {
     return `${unread} 条未读通知，${total} 条通知`
   }
   return `${total} 条通知`
+}
+
+const getScheduledAgentTaskCount = (node: ServiceTree): number => {
+  return Number(node.scheduled_agent_tasks || 0)
+}
+
+const hasScheduledAgentBadge = (node: ServiceTree): boolean => {
+  return node.type === 'package' && getScheduledAgentTaskCount(node) > 0
+}
+
+const getScheduledAgentBadgeText = (node: ServiceTree): string | number => {
+  return getScheduledAgentTaskCount(node)
+}
+
+const getScheduledAgentBadgeTitle = (node: ServiceTree): string => {
+  return t('serviceTree.scheduledAgentBadgeTitle', { count: getScheduledAgentTaskCount(node) })
 }
 
 function openNodeNotifications(node: ServiceTree) {

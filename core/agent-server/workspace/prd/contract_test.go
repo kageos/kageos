@@ -12,6 +12,8 @@ func TestContractMarkdownDocumentsV2Shape(t *testing.T) {
 		"`project/tables/forms/charts/rules`",
 		"`search_fields` 只描述搜索参数",
 		"图文、富文本或可插图片内容用 `richtext`",
+		"key 必须逐字等于同一个 table 的 `fields[].name`",
+		"`Title/Content/Attachment/Priority/Status/CreateTime`",
 		"`创建开始时间`、`创建结束时间`",
 		"无法从用户数据、`file_profile` 或常见默认值推断，才先追问",
 		"## 代表性输出示例",
