@@ -21,7 +21,6 @@ export interface MiniWsInstance {
   initialSessionId: string
   visible: boolean
   offset: number
-  zIndex: number
   initialPosition?: 'center'
   initialExpanded?: boolean
   initialMaximized?: boolean
@@ -52,10 +51,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
 
   const miniWsList = ref<MiniWsInstance[]>([])
   let miniIdCounter = 0
-  let miniZIndexCounter = 0
   let pendingExplicitOpenPath = ''
-  const visibleOffsetStep = 30
-  const maxVisibleOffsetIndex = 4
 
   function normalizeFullCodePath(fullCodePath: string) {
     return (fullCodePath || '').trim().replace(/\/+$/g, '')
@@ -70,52 +66,6 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       || ctxName
       || normalizedPath.split('/').filter(Boolean).pop()
       || '工作台'
-  }
-
-  function nextMiniZIndex() {
-    miniZIndexCounter += 1
-    return miniZIndexCounter
-  }
-
-  function normalizeVisibleLayout(items: MiniWsInstance[]) {
-    const visibleByStack = [...items]
-      .filter((mini: MiniWsInstance) => mini.visible)
-      .sort((left: MiniWsInstance, right: MiniWsInstance) => right.zIndex - left.zIndex)
-    const offsetById = new Map<string, number>()
-    visibleByStack.forEach((mini: MiniWsInstance, index: number) => {
-      offsetById.set(mini.id, Math.min(index, maxVisibleOffsetIndex) * visibleOffsetStep)
-    })
-
-    return items.map((mini: MiniWsInstance) => ({
-      ...mini,
-      offset: offsetById.get(mini.id) ?? 0
-    }))
-  }
-
-  function focusMiniInList(items: MiniWsInstance[], id: string) {
-    return normalizeVisibleLayout(items.map((mini: MiniWsInstance) =>
-      mini.id === id ? { ...mini, zIndex: nextMiniZIndex() } : mini
-    ))
-  }
-
-  function routeStateForMini(mini: MiniWsInstance): MiniWsRouteState {
-    return {
-      sessionId: mini.initialSessionId || undefined,
-      ctx: { fullCodePath: mini.fullCodePath, dirName: mini.dirName },
-      expanded: mini.initialExpanded !== false,
-      maximized: !!mini.initialMaximized,
-    }
-  }
-
-  function syncTopVisibleMiniWsQuery() {
-    const visibleMini = [...miniWsList.value]
-      .filter((mini: MiniWsInstance) => mini.visible && mini.initialExpanded !== false)
-      .sort((left: MiniWsInstance, right: MiniWsInstance) => right.zIndex - left.zIndex)[0]
-    if (!visibleMini) {
-      syncMiniWsQueryParam(false)
-      return
-    }
-    syncMiniWsQueryParam(true, routeStateForMini(visibleMini))
   }
 
   function findPreferredMiniForPath(fullCodePath: string, sessionId = '') {
@@ -164,18 +114,17 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
         initialSessionId: normalizedSessionId,
         visible: nextInitialExpanded !== false,
         offset: 0,
-        zIndex: nextMiniZIndex(),
         initialPosition: nextInitialMaximized ? undefined : 'center',
         initialExpanded: nextInitialExpanded,
         initialMaximized: nextInitialMaximized,
       }
-      miniWsList.value = normalizeVisibleLayout(miniWsList.value.map((mini: MiniWsInstance, index: number) =>
-        index === existingIndex ? nextMini : mini
-      ))
+      miniWsList.value = miniWsList.value.map((mini: MiniWsInstance, index: number) =>
+        index === existingIndex ? nextMini : { ...mini, visible: false }
+      )
       return nextMini
     }
 
-    const nextInitialMaximized = initialMaximized ?? false
+    const nextInitialMaximized = initialMaximized ?? true
     const nextInitialExpanded = initialExpanded ?? true
     const nextMini: MiniWsInstance = {
       id: String(++miniIdCounter),
@@ -184,12 +133,14 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       initialSessionId: normalizedSessionId,
       visible: nextInitialExpanded !== false,
       offset: 0,
-      zIndex: nextMiniZIndex(),
       initialPosition: nextInitialMaximized ? undefined : 'center',
       initialExpanded: nextInitialExpanded,
       initialMaximized: nextInitialMaximized,
     }
-    miniWsList.value = normalizeVisibleLayout([...miniWsList.value, nextMini])
+    miniWsList.value = [
+      ...miniWsList.value.map((mini: MiniWsInstance) => ({ ...mini, visible: false })),
+      nextMini
+    ]
     return nextMini
   }
 
@@ -225,7 +176,6 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       initialSessionId: '',
       visible: false,
       offset: 0,
-      zIndex: existingIndex >= 0 ? miniWsList.value[existingIndex]!.zIndex : 0,
       initialPosition: 'center',
       initialExpanded: false,
       initialMaximized: false,
@@ -336,29 +286,19 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
   function handleMiniMinimize(id: string) {
     const mini = miniWsList.value.find((item: MiniWsInstance) => item.id === id)
     if (mini) mini.visible = false
-    miniWsList.value = normalizeVisibleLayout(miniWsList.value)
-    syncTopVisibleMiniWsQuery()
+    syncMiniWsQueryParam(false)
   }
 
   function hideVisibleMiniWs() {
-    if (!miniWsList.value.some((mini: MiniWsInstance) => mini.visible)) return false
-    miniWsList.value = normalizeVisibleLayout(miniWsList.value.map((mini: MiniWsInstance) => (
-      mini.visible ? { ...mini, visible: false } : mini
-    )))
-    syncMiniWsQueryParam(false)
+    const visibleMini = miniWsList.value.find((mini: MiniWsInstance) => mini.visible)
+    if (!visibleMini) return false
+    handleMiniMinimize(visibleMini.id)
     return true
   }
 
   function handleMiniRemove(id: string) {
-    miniWsList.value = normalizeVisibleLayout(miniWsList.value.filter((item: MiniWsInstance) => item.id !== id))
-    syncTopVisibleMiniWsQuery()
-  }
-
-  function handleMiniFocus(id: string) {
-    const mini = miniWsList.value.find((item: MiniWsInstance) => item.id === id)
-    if (!mini || !mini.visible) return
-    miniWsList.value = focusMiniInList(miniWsList.value, id)
-    syncTopVisibleMiniWsQuery()
+    miniWsList.value = miniWsList.value.filter((item: MiniWsInstance) => item.id !== id)
+    syncMiniWsQueryParam(false)
   }
 
   function handleMiniMaximizeChange(id: string, payload: { maximized: boolean; sessionId?: string }) {
@@ -366,7 +306,6 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     if (mini) {
       mini.initialMaximized = payload.maximized
     }
-    handleMiniFocus(id)
     const sessionId = payload.sessionId !== undefined ? payload.sessionId : mini?.initialSessionId
     syncMiniWsQueryParam(true, {
       sessionId,
@@ -383,26 +322,15 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       if (!payload.expanded) {
         mini.initialMaximized = false
         mini.visible = false
-      } else {
-        mini.visible = true
       }
     }
-    if (payload.expanded) {
-      handleMiniFocus(id)
-    } else {
-      miniWsList.value = normalizeVisibleLayout(miniWsList.value)
-    }
     const sessionId = payload.sessionId !== undefined ? payload.sessionId : mini?.initialSessionId
-    if (payload.expanded) {
-      syncMiniWsQueryParam(true, {
-        sessionId,
-        ctx: mini ? { fullCodePath: mini.fullCodePath, dirName: mini.dirName } : undefined,
-        expanded: payload.expanded,
-        maximized: !!mini?.initialMaximized,
-      })
-    } else {
-      syncTopVisibleMiniWsQuery()
-    }
+    syncMiniWsQueryParam(true, {
+      sessionId,
+      ctx: mini ? { fullCodePath: mini.fullCodePath, dirName: mini.dirName } : undefined,
+      expanded: payload.expanded,
+      maximized: !!mini?.initialMaximized,
+    })
   }
 
   function handleMiniTaskStarted(id: string, sessionId: string) {
@@ -415,11 +343,9 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
         ...mini,
         initialSessionId: normalizedSessionId,
         initialExpanded: true,
-        initialMaximized: mini.initialMaximized ?? false,
-        zIndex: nextMiniZIndex(),
+        initialMaximized: true,
       }
     })
-    miniWsList.value = normalizeVisibleLayout(miniWsList.value)
     const updatedMini = miniWsList.value.find((mini: MiniWsInstance) => mini.id === id)
     if (updatedMini?.visible) {
       syncMiniWsQueryParam(true, {
@@ -481,7 +407,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     const dirName = payload.directory_name || existingMini?.dirName || resolveDirName(fullCodePath)
     const openMini = () => {
       const initialMaximized = payload.initial_maximized === undefined
-        ? existingMini?.initialMaximized ?? false
+        ? true
         : !!payload.initial_maximized
       const openedMini = openNewMiniWs(
         payload.session_id || undefined,
@@ -531,7 +457,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
         dirName: mwsName || undefined,
         sessionId: mwsSid || undefined,
         initialExpanded,
-        initialMaximized: normalizeRouteBool(route.query[LEGACY_MINI_WORKSTATION_MAXIMIZED_QUERY_KEY], false),
+        initialMaximized: normalizeRouteBool(route.query[LEGACY_MINI_WORKSTATION_MAXIMIZED_QUERY_KEY], true),
       })
     }
   }
@@ -543,7 +469,6 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     handleMiniMinimize,
     hideVisibleMiniWs,
     handleMiniRemove,
-    handleMiniFocus,
     handleMiniMaximizeChange,
     handleMiniExpandedChange,
     handleMiniTaskStarted,
