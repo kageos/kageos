@@ -282,6 +282,8 @@ github.com/kageos/kageos-sdk v0.2.1 h1:ByvKmpPOfQdprl8JHaIQwvhmsrKvmI61bZj95LMV1
 github.com/kageos/kageos-sdk v0.2.1/go.mod h1:qquYAR6yoJQc6SidMutw5l1ykYhoDIG4xZZnE+74kUY=
 github.com/kageos/kageos-sdk v0.2.2 h1:U0twViczlLY3IrCbozFImCKcZdimLMuZP7i2flAKNsc=
 github.com/kageos/kageos-sdk v0.2.2/go.mod h1:qquYAR6yoJQc6SidMutw5l1ykYhoDIG4xZZnE+74kUY=
+github.com/kageos/kageos-sdk v0.2.3 h1:pKQGeFAJO3ASsT3vzH8m98ZpCyG7zW3w4rj2sI1New4=
+github.com/kageos/kageos-sdk v0.2.3/go.mod h1:qquYAR6yoJQc6SidMutw5l1ykYhoDIG4xZZnE+74kUY=
 github.com/kevinburke/ssh_config v1.2.0 h1:x584FjTGwHzMwvHx18PXxbBVzfnxogHaAReU4gf13a4=
 github.com/kevinburke/ssh_config v1.2.0/go.mod h1:CT57kijsi8u/K/BOFA39wgDQJ9CxiF4nAY/ojJ6r6mM=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=

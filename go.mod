@@ -13,7 +13,7 @@ require (
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
-	github.com/kageos/kageos-sdk v0.2.2
+	github.com/kageos/kageos-sdk v0.2.3
 	github.com/minio/minio-go/v7 v7.2.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/mozillazg/go-pinyin v0.21.0
