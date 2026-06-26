@@ -14,7 +14,6 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/sdkmodule"
 	"golang.org/x/mod/modfile"
-	"golang.org/x/mod/semver"
 )
 
 // VersionInfo 版本信息结构体
@@ -362,8 +361,9 @@ func (s *AppManageService) updateCurrentVersionFiles(user, app, version string) 
 
 func (s *AppManageService) ensureAppGoModFile(appPaths runtimeAppPaths) error {
 	goModPath := appPaths.GoModPath()
+	localSDKRoot, hasLocalSDK := findLocalSDKRootNear(appPaths.AppDir())
 	if data, err := os.ReadFile(goModPath); err == nil {
-		updated, changed, err := ensureGoModSDKVersion(goModPath, data)
+		updated, changed, err := ensureGoModSDKSettings(goModPath, data, appPaths.AppDir(), localSDKRoot, hasLocalSDK)
 		if err != nil {
 			return err
 		}
@@ -378,34 +378,41 @@ func (s *AppManageService) ensureAppGoModFile(appPaths runtimeAppPaths) error {
 	content := fmt.Sprintf(`module %s
 
 go 1.25.0
+`, appPaths.AppModulePath())
+	if hasLocalSDK {
+		rel, err := relativeSDKReplacePath(appPaths.AppDir(), localSDKRoot)
+		if err != nil {
+			return err
+		}
+		content += fmt.Sprintf(`
+replace %s => %s
 
 require %s %s
-`, appPaths.AppModulePath(), sdkmodule.ModulePath, sdkmodule.Version)
+`, sdkmodule.ModulePath, rel, sdkmodule.ModulePath, sdkmodule.LocalReplaceVersion)
+	}
 
 	return writeFileAtomic(goModPath, []byte(content), 0644)
 }
 
-func ensureGoModSDKVersion(filename string, data []byte) ([]byte, bool, error) {
+func ensureGoModSDKSettings(filename string, data []byte, appDir string, localSDKRoot string, hasLocalSDK bool) ([]byte, bool, error) {
 	file, err := modfile.Parse(filename, data, nil)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to parse go.mod: %w", err)
 	}
 
-	var current string
-	for _, req := range file.Require {
-		if req.Mod.Path == sdkmodule.ModulePath {
-			current = req.Mod.Version
-			break
-		}
-	}
-
-	target := sdkmodule.Version
-	if current != "" && semver.IsValid(current) && semver.IsValid(target) && semver.Compare(current, target) >= 0 {
+	if !hasLocalSDK {
 		return nil, false, nil
 	}
 
-	if err := file.AddRequire(sdkmodule.ModulePath, target); err != nil {
+	rel, err := relativeSDKReplacePath(appDir, localSDKRoot)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := file.AddRequire(sdkmodule.ModulePath, sdkmodule.LocalReplaceVersion); err != nil {
 		return nil, false, fmt.Errorf("failed to update %s requirement: %w", sdkmodule.ModulePath, err)
+	}
+	if err := file.AddReplace(sdkmodule.ModulePath, "", rel, ""); err != nil {
+		return nil, false, fmt.Errorf("failed to add local %s replace: %w", sdkmodule.ModulePath, err)
 	}
 	file.Cleanup()
 
@@ -418,6 +425,51 @@ func ensureGoModSDKVersion(filename string, data []byte) ([]byte, bool, error) {
 	}
 
 	return formatted, true, nil
+}
+
+func findLocalSDKRootNear(appDir string) (string, bool) {
+	dir, err := filepath.Abs(appDir)
+	if err != nil {
+		return "", false
+	}
+	for {
+		candidate := filepath.Join(dir, "kageos-sdk")
+		if isLocalSDKRoot(candidate) {
+			return candidate, true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", false
+		}
+		dir = parent
+	}
+}
+
+func isLocalSDKRoot(dir string) bool {
+	if _, err := os.Stat(filepath.Join(dir, "agent-app")); err != nil {
+		return false
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return false
+	}
+	file, err := modfile.Parse(filepath.Join(dir, "go.mod"), data, nil)
+	return err == nil && file.Module != nil && file.Module.Mod.Path == sdkmodule.ModulePath
+}
+
+func relativeSDKReplacePath(appDir string, sdkRoot string) (string, error) {
+	rel, err := filepath.Rel(appDir, sdkRoot)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve local %s replace path: %w", sdkmodule.ModulePath, err)
+	}
+	rel = filepath.ToSlash(rel)
+	if rel == "" {
+		return ".", nil
+	}
+	if strings.HasPrefix(rel, "../") || rel == ".." || strings.HasPrefix(rel, "./") || rel == "." {
+		return rel, nil
+	}
+	return "./" + rel, nil
 }
 
 // createMainGoFile 创建 main.go 文件（已存在则复用，不覆盖）

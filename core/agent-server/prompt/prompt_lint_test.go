@@ -280,6 +280,16 @@ func exportedSDKSymbols(t *testing.T) map[string]map[string]struct{} {
 
 func findSDKRootForPromptLint(t *testing.T) string {
 	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatalf("resolve test file for %s@%s", sdkmodule.ModulePath, sdkmodule.Version)
+	}
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "../../.."))
+	sibling := filepath.Join(filepath.Dir(repoRoot), "kageos-sdk")
+	if _, err := os.Stat(filepath.Join(sibling, "agent-app")); err == nil {
+		return sibling
+	}
+
 	for _, root := range filepath.SplitList(build.Default.GOPATH) {
 		if root == "" {
 			continue
@@ -290,15 +300,6 @@ func findSDKRootForPromptLint(t *testing.T) string {
 		}
 	}
 
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatalf("resolve test file for %s@%s", sdkmodule.ModulePath, sdkmodule.Version)
-	}
-	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "../../.."))
-	sibling := filepath.Join(filepath.Dir(repoRoot), "kageos-sdk")
-	if _, err := os.Stat(filepath.Join(sibling, "agent-app")); err == nil {
-		return sibling
-	}
 	t.Fatalf("cannot find %s@%s in GOPATH module cache or sibling repo %s", sdkmodule.ModulePath, sdkmodule.Version, sibling)
 	return ""
 }

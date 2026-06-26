@@ -14,6 +14,7 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/sdkmodule"
 	"github.com/kageos/kageos/pkg/sourcepolicy"
+	"golang.org/x/mod/modfile"
 )
 
 // Builder 应用构建器
@@ -106,7 +107,11 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 		return nil, err
 	}
 
-	// 先执行 go mod tidy 确保依赖是最新的
+	if err := b.runGoGetLatestSDK(ctx, moduleRoot); err != nil {
+		return nil, err
+	}
+
+	// 再执行 go mod tidy 清理依赖图
 	if err := b.runGoModTidy(ctx, moduleRoot); err != nil {
 		logger.Warnf(ctx, "go mod tidy failed, continuing with build: %v", err)
 		return nil, err
@@ -205,6 +210,40 @@ func (b *Builder) buildLdFlags(opts *BuildOpts) []string {
 	ldFlags = append(ldFlags, fmt.Sprintf("-X %s.Version=%s", importPath, opts.Version))
 
 	return ldFlags
+}
+
+func (b *Builder) runGoGetLatestSDK(ctx context.Context, moduleRoot string) error {
+	goModPath := filepath.Join(moduleRoot, "go.mod")
+	data, err := os.ReadFile(goModPath)
+	if err != nil {
+		return fmt.Errorf("failed to read go.mod before sdk sync: %w", err)
+	}
+	if goModHasSDKReplace(goModPath, data) {
+		logger.Infof(ctx, "go.mod has local/custom %s replace, skip go get @%s", sdkmodule.ModulePath, sdkmodule.LatestVersionQuery)
+		return nil
+	}
+
+	cmd := exec.CommandContext(ctx, "go", "get", sdkmodule.ModulePath+"@"+sdkmodule.LatestVersionQuery)
+	cmd.Dir = moduleRoot
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("go get %s@%s failed: %w, output: %s", sdkmodule.ModulePath, sdkmodule.LatestVersionQuery, err, string(output))
+	}
+	return nil
+}
+
+func goModHasSDKReplace(filename string, data []byte) bool {
+	file, err := modfile.Parse(filename, data, nil)
+	if err != nil {
+		return false
+	}
+	for _, replace := range file.Replace {
+		if replace.Old.Path == sdkmodule.ModulePath {
+			return true
+		}
+	}
+	return false
 }
 
 // runGoModTidy 执行 go mod tidy

@@ -101,12 +101,9 @@ func buildFormScheduleTaskRequest(ctx context.Context, state *appMetadataSyncSta
 	if requestUser == "" {
 		requestUser = "system"
 	}
-	status := scheduledsdk.TaskStatus("")
-	if formSchedule.Enabled != nil {
+	status := scheduledsdk.TaskStatusPaused
+	if formSchedule.Enabled {
 		status = scheduledsdk.TaskStatusPending
-		if !*formSchedule.Enabled {
-			status = scheduledsdk.TaskStatusPaused
-		}
 	}
 	return scheduledsdk.CreateTaskRequest{
 		Title:           title,

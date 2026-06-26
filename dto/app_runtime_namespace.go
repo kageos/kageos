@@ -309,7 +309,7 @@ type FormScheduleConfig struct {
 	Code         string          `json:"code"`
 	Title        string          `json:"title,omitempty"`
 	Description  string          `json:"description,omitempty"`
-	Enabled      *bool           `json:"enabled,omitempty"`
+	Enabled      bool            `json:"enabled"`
 	EverySeconds int64           `json:"every_seconds,omitempty"`
 	CronExpr     string          `json:"cron_expr,omitempty"`
 	Timezone     string          `json:"timezone,omitempty"`

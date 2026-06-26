@@ -378,6 +378,24 @@ func loadSDKExportedSymbols() (map[string]map[string]struct{}, error) {
 }
 
 func findSDKRootForSelectorCheck() (string, error) {
+	_, currentFile, _, ok := runtime.Caller(0)
+	if ok {
+		dir := filepath.Dir(currentFile)
+		for {
+			if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+				sibling := filepath.Join(filepath.Dir(dir), "kageos-sdk")
+				if _, err := os.Stat(filepath.Join(sibling, "agent-app")); err == nil {
+					return sibling, nil
+				}
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+
 	for _, root := range filepath.SplitList(build.Default.GOPATH) {
 		if root == "" {
 			continue
@@ -388,24 +406,10 @@ func findSDKRootForSelectorCheck() (string, error) {
 		}
 	}
 
-	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {
 		return "", fmt.Errorf("无法定位当前源码文件，也未找到 %s@%s", sdkmodule.ModulePath, sdkmodule.Version)
 	}
-	dir := filepath.Dir(currentFile)
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			sibling := filepath.Join(filepath.Dir(dir), "kageos-sdk")
-			if _, err := os.Stat(filepath.Join(sibling, "agent-app")); err == nil {
-				return sibling, nil
-			}
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", fmt.Errorf("无法定位 %s@%s 源码", sdkmodule.ModulePath, sdkmodule.Version)
-		}
-		dir = parent
-	}
+	return "", fmt.Errorf("无法定位 %s@%s 源码", sdkmodule.ModulePath, sdkmodule.Version)
 }
 
 func exportedSymbolsInPackageDir(dir string) (map[string]struct{}, error) {

@@ -196,10 +196,12 @@ func TestUpdateRuntimeManifestStartupSkipsDifferentVersion(t *testing.T) {
 	}
 }
 
-func TestEnsureAppGoModFileCreatesWithCurrentSDK(t *testing.T) {
+func TestEnsureAppGoModFileCreatesWithLocalSDKReplace(t *testing.T) {
 	t.Parallel()
 
-	basePath := t.TempDir()
+	workspaceRoot := t.TempDir()
+	basePath := filepath.Join(workspaceRoot, "kageos", "namespace")
+	createFakeLocalSDK(t, filepath.Join(workspaceRoot, "kageos-sdk"))
 	service := newVersionFileTestService(basePath)
 	appPaths := newRuntimeAppPaths(basePath, "alice", "demo")
 	if err := os.MkdirAll(appPaths.AppDir(), 0o755); err != nil {
@@ -210,15 +212,20 @@ func TestEnsureAppGoModFileCreatesWithCurrentSDK(t *testing.T) {
 		t.Fatalf("ensureAppGoModFile: %v", err)
 	}
 
-	if got := readGoModRequireVersion(t, appPaths.GoModPath(), sdkmodule.ModulePath); got != sdkmodule.Version {
-		t.Fatalf("SDK version = %q, want %q", got, sdkmodule.Version)
+	if got := readGoModRequireVersion(t, appPaths.GoModPath(), sdkmodule.ModulePath); got != sdkmodule.LocalReplaceVersion {
+		t.Fatalf("SDK version = %q, want %q", got, sdkmodule.LocalReplaceVersion)
+	}
+	if got := readGoModReplacePath(t, appPaths.GoModPath(), sdkmodule.ModulePath); got != "../../../../kageos-sdk" {
+		t.Fatalf("SDK replace = %q, want ../../../../kageos-sdk", got)
 	}
 }
 
-func TestEnsureAppGoModFileUpgradesOlderSDK(t *testing.T) {
+func TestEnsureAppGoModFileUsesLocalSDKReplaceForExistingGoMod(t *testing.T) {
 	t.Parallel()
 
-	basePath := t.TempDir()
+	workspaceRoot := t.TempDir()
+	basePath := filepath.Join(workspaceRoot, "kageos", "namespace")
+	createFakeLocalSDK(t, filepath.Join(workspaceRoot, "kageos-sdk"))
 	service := newVersionFileTestService(basePath)
 	appPaths := newRuntimeAppPaths(basePath, "alice", "demo")
 	if err := os.MkdirAll(appPaths.AppDir(), 0o755); err != nil {
@@ -241,8 +248,11 @@ require (
 		t.Fatalf("ensureAppGoModFile: %v", err)
 	}
 
-	if got := readGoModRequireVersion(t, appPaths.GoModPath(), sdkmodule.ModulePath); got != sdkmodule.Version {
-		t.Fatalf("SDK version = %q, want %q", got, sdkmodule.Version)
+	if got := readGoModRequireVersion(t, appPaths.GoModPath(), sdkmodule.ModulePath); got != sdkmodule.LocalReplaceVersion {
+		t.Fatalf("SDK version = %q, want %q", got, sdkmodule.LocalReplaceVersion)
+	}
+	if got := readGoModReplacePath(t, appPaths.GoModPath(), sdkmodule.ModulePath); got != "../../../../kageos-sdk" {
+		t.Fatalf("SDK replace = %q, want ../../../../kageos-sdk", got)
 	}
 	if got := readGoModRequireVersion(t, appPaths.GoModPath(), "github.com/google/uuid"); got != "v1.6.0" {
 		t.Fatalf("uuid version = %q, want v1.6.0", got)
@@ -277,6 +287,25 @@ require github.com/kageos/kageos-sdk v0.99.0
 	}
 }
 
+func TestEnsureAppGoModFileCreatesWithoutPinnedSDKWhenNoLocalSDK(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	service := newVersionFileTestService(basePath)
+	appPaths := newRuntimeAppPaths(basePath, "alice", "demo")
+	if err := os.MkdirAll(appPaths.AppDir(), 0o755); err != nil {
+		t.Fatalf("mkdir app dir: %v", err)
+	}
+
+	if err := service.ensureAppGoModFile(appPaths); err != nil {
+		t.Fatalf("ensureAppGoModFile: %v", err)
+	}
+
+	if got := readGoModRequireVersionIfPresent(t, appPaths.GoModPath(), sdkmodule.ModulePath); got != "" {
+		t.Fatalf("SDK version = %q, want empty until go get @latest", got)
+	}
+}
+
 func newVersionFileTestService(basePath string) *AppManageService {
 	return &AppManageService{
 		config: &appconfig.AppManageServiceConfig{
@@ -284,6 +313,17 @@ func newVersionFileTestService(basePath string) *AppManageService {
 				BasePath: basePath,
 			},
 		},
+	}
+}
+
+func createFakeLocalSDK(t *testing.T, sdkRoot string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(sdkRoot, "agent-app"), 0o755); err != nil {
+		t.Fatalf("mkdir fake sdk: %v", err)
+	}
+	goMod := "module github.com/kageos/kageos-sdk\n\ngo 1.25.0\n"
+	if err := os.WriteFile(filepath.Join(sdkRoot, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatalf("write fake sdk go.mod: %v", err)
 	}
 }
 
@@ -301,6 +341,15 @@ func assertFileContent(t *testing.T, path string, want string) {
 
 func readGoModRequireVersion(t *testing.T, path, module string) string {
 	t.Helper()
+	if version := readGoModRequireVersionIfPresent(t, path, module); version != "" {
+		return version
+	}
+	t.Fatalf("module %s not found in %s", module, path)
+	return ""
+}
+
+func readGoModRequireVersionIfPresent(t *testing.T, path, module string) string {
+	t.Helper()
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -315,6 +364,25 @@ func readGoModRequireVersion(t *testing.T, path, module string) string {
 			return req.Mod.Version
 		}
 	}
-	t.Fatalf("module %s not found in %s", module, path)
+	return ""
+}
+
+func readGoModReplacePath(t *testing.T, path, module string) string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read go.mod: %v", err)
+	}
+	file, err := modfile.Parse(path, data, nil)
+	if err != nil {
+		t.Fatalf("parse go.mod: %v", err)
+	}
+	for _, replace := range file.Replace {
+		if replace.Old.Path == module {
+			return replace.New.Path
+		}
+	}
+	t.Fatalf("replace %s not found in %s", module, path)
 	return ""
 }

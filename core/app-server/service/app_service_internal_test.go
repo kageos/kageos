@@ -144,7 +144,6 @@ func TestReconcilePackageAgentTasksPreservesExistingStatus(t *testing.T) {
 }
 
 func TestBuildFormScheduleTaskRequestSupportsCron(t *testing.T) {
-	disabled := false
 	req, err := buildFormScheduleTaskRequest(context.Background(), &appMetadataSyncState{
 		app:         &model.App{User: "system", Code: "demo"},
 		requestUser: "system",
@@ -155,7 +154,7 @@ func TestBuildFormScheduleTaskRequestSupportsCron(t *testing.T) {
 	}, dto.FormScheduleConfig{
 		Code:     "meeting_reminder_soon",
 		Title:    "会议即将开始提醒",
-		Enabled:  &disabled,
+		Enabled:  false,
 		CronExpr: "*/2 * * * *",
 		MaxRuns:  3,
 		Body:     json.RawMessage(`{"lead_minutes":5}`),
