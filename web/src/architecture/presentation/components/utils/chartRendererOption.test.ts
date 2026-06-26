@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildChartEChartsOption, type RenderableChart } from './chartRendererOption'
+import {
+  buildChartEChartsOption,
+  buildChartMetadataPreview,
+  formatChartMetadataValue,
+  type RenderableChart,
+} from './chartRendererOption'
 
 type CartesianOption = {
   tooltip?: {
@@ -13,7 +18,7 @@ type CartesianOption = {
   dataZoom?: Array<{ type?: string; start?: number }>
   grid?: { bottom?: string | number }
   xAxis?: { axisLabel?: { formatter?: (value: string | number) => string } }
-  yAxis?: { scale?: boolean }
+  yAxis?: { scale?: boolean; axisLabel?: { formatter?: (value: number) => string } }
   series?: Array<{ smooth?: boolean; showSymbol?: boolean; sampling?: string }>
 }
 
@@ -75,6 +80,65 @@ describe('chartRendererOption', () => {
     expect(option.series?.[0]?.showSymbol).toBe(true)
   })
 
+  it('formats duration values from y_axis.value_format', () => {
+    const chart: RenderableChart = {
+      chart_type: 'line',
+      x_axis: labels(2),
+      y_axis: { value_format: 'duration_ms' },
+      series: [
+        { name: '平均耗时', data: [1200, 3500] },
+      ],
+    }
+
+    const option = buildChartEChartsOption(chart) as CartesianOption
+    const tooltipHtml = option.tooltip?.formatter?.([
+      {
+        axisValue: '2026-06-26 01:23:45',
+        seriesName: '平均耗时',
+        value: 1200,
+        color: '#5470c6',
+      },
+    ])
+
+    expect(option.yAxis?.axisLabel?.formatter?.(950)).toBe('950ms')
+    expect(option.yAxis?.axisLabel?.formatter?.(1200)).toBe('1.2s')
+    expect(option.yAxis?.axisLabel?.formatter?.(65000)).toBe('1.08min')
+    expect(tooltipHtml).toContain('平均耗时')
+    expect(tooltipHtml).toContain('1.2s')
+  })
+
+  it('falls back when y_axis.value_format is missing or unsupported', () => {
+    const chart: RenderableChart = {
+      chart_type: 'line',
+      x_axis: labels(2),
+      y_axis: { value_format: 'duration_seconds' },
+      series: [
+        { name: '平均耗时', data: [1200, 3500] },
+      ],
+    }
+
+    const option = buildChartEChartsOption(chart) as CartesianOption
+    const tooltipHtml = option.tooltip?.formatter?.([
+      {
+        axisValue: '2026-06-26 01:23:45',
+        seriesName: '平均耗时',
+        value: 1200,
+        color: '#5470c6',
+      },
+    ])
+
+    expect(option.yAxis?.axisLabel?.formatter?.(1200)).toBe('1.2K')
+    expect(tooltipHtml).toContain('1200')
+    expect(tooltipHtml).not.toContain('1.2s')
+
+    const malformedChart = {
+      ...chart,
+      y_axis: 'duration_ms',
+    } as unknown as RenderableChart
+    const malformedOption = buildChartEChartsOption(malformedChart) as CartesianOption
+    expect(malformedOption.yAxis?.axisLabel?.formatter?.(1200)).toBe('1.2K')
+  })
+
   it('enables line sampling only for very large category series', () => {
     const chart: RenderableChart = {
       chart_type: 'line',
@@ -104,5 +168,19 @@ describe('chartRendererOption', () => {
     expect(option.tooltip?.trigger).toBe('axis')
     expect(option.dataZoom).toBeUndefined()
     expect(option.grid?.bottom).toBe('3%')
+  })
+
+  it('formats metadata values and compacts long previews', () => {
+    const longValue = 'GitHub登录页 (#2)、API 404场景 (#6)、API 延迟场景 (#7)、API 500场景 (#10)、天翼云服务器 (#1)'
+    const preview = buildChartMetadataPreview(longValue, 32)
+
+    expect(formatChartMetadataValue(['展示目标', 10])).toBe('["展示目标",10]')
+    expect(preview.truncated).toBe(true)
+    expect(preview.text.endsWith('...')).toBe(true)
+    expect(preview.text).not.toContain('API 500')
+    expect(buildChartMetadataPreview('最近24小时', 32)).toEqual({
+      text: '最近24小时',
+      truncated: false,
+    })
   })
 })

@@ -553,7 +553,7 @@ func (s *ServiceTree) AddFunctions(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
-// ExportCapabilityBundle 导出标准能力包 JSON。
+// ExportCapabilityBundle 导出标准目录 JSON。
 func (s *ServiceTree) ExportCapabilityBundle(c *gin.Context) {
 	var req dto.ExportCapabilityBundleReq
 	if c.Request.Method == http.MethodGet {
@@ -589,7 +589,7 @@ func (s *ServiceTree) ExportCapabilityBundle(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
-// InstallCapabilityBundle 将能力包安装到目标目录节点下。
+// InstallCapabilityBundle 将目录 JSON 导入到目标目录节点下。
 func (s *ServiceTree) InstallCapabilityBundle(c *gin.Context) {
 	var req dto.InstallCapabilityBundleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -611,7 +611,7 @@ func (s *ServiceTree) InstallCapabilityBundle(c *gin.Context) {
 	response.OkWithDetailed(c, resp, resp.Message)
 }
 
-// InstallCapabilityBundleFromURL 从远程 URL 下载能力包并安装到目标目录节点下。
+// InstallCapabilityBundleFromURL 从远程 URL 下载目录 JSON 并导入到目标目录节点下。
 func (s *ServiceTree) InstallCapabilityBundleFromURL(c *gin.Context) {
 	var req dto.InstallCapabilityBundleFromURLReq
 	if err := c.ShouldBindJSON(&req); err != nil {

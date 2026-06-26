@@ -39,6 +39,29 @@ func TestWaitTimeoutRemovesWaiter(t *testing.T) {
 	}
 }
 
+func TestRegisteredWaiterReceivesNotifyBeforeWait(t *testing.T) {
+	w := New()
+	key := "trace-fast-response"
+	registration := w.Register(key)
+
+	expected := &dto.RequestAppResp{TraceId: key, Result: "ok"}
+	if !w.Notify(key, expected) {
+		t.Fatal("expected notify to reach pre-registered waiter")
+	}
+
+	resp, err := registration.Wait(context.Background(), time.Second)
+	if err != nil {
+		t.Fatalf("expected registered waiter success, got %v", err)
+	}
+	if resp != expected {
+		t.Fatalf("unexpected response: %+v", resp)
+	}
+
+	if w.Notify(key, &dto.RequestAppResp{TraceId: key}) {
+		t.Fatal("expected registration to be removed after wait")
+	}
+}
+
 func TestOldWaiterCleanupDoesNotDeleteNewWaiter(t *testing.T) {
 	w := New()
 	key := "trace-reused"

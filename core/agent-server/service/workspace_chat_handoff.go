@@ -74,7 +74,7 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 		ContextPolicy: contextPolicy,
 	})
 	if workspaceRoleHandoffPacketHasValidationErrors(handoffContext.HandoffPacket) {
-		return nil, fmt.Errorf("交接协议校验失败: %s", workspaceRoleHandoffPacketValidationSummary(handoffContext.HandoffPacket))
+		return nil, fmt.Errorf("阶段交接校验失败: %s", workspaceRoleHandoffPacketValidationSummary(handoffContext.HandoffPacket))
 	}
 	handoffContextJSON := formatWorkspaceHandoffContextJSON(handoffContext)
 	handoffContextMessageJSON := formatWorkspaceHandoffContextJSON(workspaceHandoffContextForMessage(handoffContext))

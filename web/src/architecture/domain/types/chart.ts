@@ -15,6 +15,14 @@ export interface Chart {
   
   // X 轴数据（可选，某些图表类型不需要）
   x_axis?: string[]
+
+  // Y 轴显示配置（可选，仅 line/bar 等坐标轴图表使用）
+  // value_format 支持：
+  // - compact：默认数字缩写，1000 显示为 1.0K
+  // - plain：普通数字，不做 K/M 缩写
+  // - duration_ms：数据原始单位是毫秒，前端展示为 ms/s/min
+  // - percent：百分比数字，前端追加 %
+  y_axis?: ChartAxisConfig
   
   // 数据系列（必需）
   series: ChartSeries[]
@@ -25,6 +33,13 @@ export interface Chart {
   // 标识字段（用于类型识别）
   widget_type?: string  // 固定为 "chart"
   data_type?: string    // 固定为 "chart"
+}
+
+/**
+ * 坐标轴显示配置
+ */
+export interface ChartAxisConfig {
+  value_format?: 'compact' | 'plain' | 'duration_ms' | 'percent' | string
 }
 
 /**
@@ -47,4 +62,3 @@ export interface ChartSeries {
   // 系列配置（可选，用于单个系列的样式配置）
   config?: Record<string, any>
 }
-

@@ -87,7 +87,7 @@ func (s *serviceTreeCapabilityBundleService) ExportCapabilityBundle(ctx context.
 		if sourceAppID == 0 {
 			sourceAppID = rootTree.AppID
 		} else if sourceAppID != rootTree.AppID {
-			return nil, fmt.Errorf("一次能力包导出只能选择同一个应用内的目录")
+			return nil, fmt.Errorf("一次目录导出只能选择同一个应用内的目录")
 		}
 		if sourceRoot != nil {
 			if err := ensureCapabilitySourceWithinRoot(sourceRoot, rootTree); err != nil {
@@ -188,7 +188,7 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleRoot(
 			}
 			fileKey := capabilityFileKey(relativeDir, filePath)
 			if _, exists := seenFiles[fileKey]; exists {
-				return fmt.Errorf("能力包存在重复文件路径: %s", fileKey)
+				return fmt.Errorf("目录 JSON 存在重复文件路径: %s", fileKey)
 			}
 			seenFiles[fileKey] = struct{}{}
 			bundle.Files = append(bundle.Files, &dto.CapabilityBundleFile{
@@ -268,7 +268,7 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleFunction(
 
 		fileKey := capabilityFileKey(relativeDir, filePath)
 		if _, exists := seenFiles[fileKey]; exists {
-			return fmt.Errorf("能力包存在重复文件路径: %s", fileKey)
+			return fmt.Errorf("目录 JSON 存在重复文件路径: %s", fileKey)
 		}
 		seenFiles[fileKey] = struct{}{}
 		bundle.Files = append(bundle.Files, &dto.CapabilityBundleFile{
@@ -534,7 +534,7 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.runtimeWorkspace.requireRuntimeBinding(targetApp, "安装能力包"); err != nil {
+	if _, err := s.runtimeWorkspace.requireRuntimeBinding(targetApp, "导入目录"); err != nil {
 		return nil, err
 	}
 
@@ -556,7 +556,7 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 			Items: plan.directoryItems,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("创建能力包目录失败: %w", err)
+			return nil, fmt.Errorf("创建目录失败: %w", err)
 		}
 		if resp != nil {
 			createdPaths = resp.CreatedPaths
@@ -573,10 +573,10 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 			Files:          plan.fileItems,
 			ForceDiff:      opts.ForceDiff,
 			OperationName:  "CapabilityBundleInstall",
-			OperationLabel: "安装能力包",
+			OperationLabel: "导入目录",
 		})
 		if err != nil {
-			return nil, fmt.Errorf("写入能力包文件失败: %w", err)
+			return nil, fmt.Errorf("写入目录文件失败: %w", err)
 		}
 		if resp != nil {
 			writtenPaths = resp.WrittenPaths
@@ -590,7 +590,7 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 	if len(plan.docItems) > 0 {
 		createdDocPaths, err = s.installCapabilityBundleDocs(ctx, targetApp, plan.docItems, opts.Overwrite)
 		if err != nil {
-			return nil, fmt.Errorf("安装能力包文档失败: %w", err)
+			return nil, fmt.Errorf("导入目录文档失败: %w", err)
 		}
 		createdPaths = append(createdPaths, createdDocPaths...)
 	}
@@ -599,7 +599,7 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 		resp, err := s.appService.UpdateApp(ctx, &dto.UpdateAppReq{
 			ResourcePath:      fmt.Sprintf("/%s/%s", targetApp.User, targetApp.Code),
 			ForceDiff:         opts.ForceDiff,
-			ChangeDescription: "安装能力包目录和文档",
+			ChangeDescription: "导入目录和文档",
 		})
 		if err != nil {
 			return nil, fmt.Errorf("触发目标应用更新失败: %w", err)
@@ -613,7 +613,7 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 
 	logger.Infof(ctx, "[CapabilityBundle] 安装完成: target=%s, directories=%d, files=%d, docs=%d", plan.targetRootPath, len(plan.directoryItems), len(plan.fileItems), len(plan.docItems))
 	return &dto.InstallCapabilityBundleResp{
-		Message:             fmt.Sprintf("能力包安装成功，共创建 %d 个目录，写入 %d 个文件，导入 %d 份文档", len(plan.directoryItems), len(plan.fileItems), len(plan.docItems)),
+		Message:             fmt.Sprintf("目录导入成功，共创建 %d 个目录，写入 %d 个文件，导入 %d 份文档", len(plan.directoryItems), len(plan.fileItems), len(plan.docItems)),
 		DirectoryCount:      len(plan.directoryItems),
 		FileCount:           len(plan.fileItems),
 		DocCount:            len(plan.docItems),
@@ -645,11 +645,11 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundleFromURL(ctx 
 func readCapabilityBundleFile(filePath string) (*dto.CapabilityBundle, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("读取能力包 JSON 失败: %w", err)
+		return nil, fmt.Errorf("读取目录 JSON 失败: %w", err)
 	}
 	var bundle dto.CapabilityBundle
 	if err := json.Unmarshal(data, &bundle); err != nil {
-		return nil, fmt.Errorf("解析能力包 JSON 失败: file=%s: %w", filePath, err)
+		return nil, fmt.Errorf("解析目录 JSON 失败: file=%s: %w", filePath, err)
 	}
 	return &bundle, nil
 }
@@ -657,14 +657,14 @@ func readCapabilityBundleFile(filePath string) (*dto.CapabilityBundle, error) {
 func downloadCapabilityBundle(ctx context.Context, rawURL, installKey string) (*dto.CapabilityBundle, error) {
 	rawURL = strings.TrimSpace(rawURL)
 	if rawURL == "" {
-		return nil, fmt.Errorf("能力包 URL 不能为空")
+		return nil, fmt.Errorf("目录 URL 不能为空")
 	}
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("能力包 URL 无效: %w", err)
+		return nil, fmt.Errorf("目录 URL 无效: %w", err)
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return nil, fmt.Errorf("能力包 URL 仅支持 http/https")
+		return nil, fmt.Errorf("目录 URL 仅支持 http/https")
 	}
 	if installKey == "" {
 		rawPath := strings.Trim(parsed.EscapedPath(), "/")
@@ -683,7 +683,7 @@ func downloadCapabilityBundle(ctx context.Context, rawURL, installKey string) (*
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("创建能力包下载请求失败: %w", err)
+		return nil, fmt.Errorf("创建目录下载请求失败: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
 	if installKey = strings.TrimSpace(installKey); installKey != "" {
@@ -693,25 +693,25 @@ func downloadCapabilityBundle(ctx context.Context, rawURL, installKey string) (*
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("下载能力包失败: %w", err)
+		return nil, fmt.Errorf("下载目录失败: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("下载能力包失败: HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("下载目录失败: HTTP %d", resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxRemoteCapabilityBundleBytes+1))
 	if err != nil {
-		return nil, fmt.Errorf("读取能力包响应失败: %w", err)
+		return nil, fmt.Errorf("读取目录响应失败: %w", err)
 	}
 	if len(data) > maxRemoteCapabilityBundleBytes {
-		return nil, fmt.Errorf("能力包过大，最大支持 %d MB", maxRemoteCapabilityBundleBytes>>20)
+		return nil, fmt.Errorf("目录 JSON 过大，最大支持 %d MB", maxRemoteCapabilityBundleBytes>>20)
 	}
 
 	var bundle dto.CapabilityBundle
 	if err := json.Unmarshal(data, &bundle); err != nil {
-		return nil, fmt.Errorf("解析能力包 JSON 失败: %w", err)
+		return nil, fmt.Errorf("解析目录 JSON 失败: %w", err)
 	}
 	return &bundle, nil
 }
@@ -806,14 +806,14 @@ func capabilityRelativePackagePath(rootTree, dir *model.ServiceTree, includeRoot
 
 func validateCapabilityBundle(bundle *dto.CapabilityBundle) error {
 	if bundle == nil {
-		return fmt.Errorf("capability bundle 不能为空")
+		return fmt.Errorf("目录 JSON 不能为空")
 	}
 	if bundle.SchemaVersion != dto.CapabilityBundleSchemaVersion {
-		return fmt.Errorf("不支持的 capability bundle schema_version: %s", bundle.SchemaVersion)
+		return fmt.Errorf("不支持的目录 JSON schema_version: %s", bundle.SchemaVersion)
 	}
 	if len(bundle.Files) == 0 && len(bundle.Packages) == 0 {
 		if len(bundle.Docs) == 0 {
-			return fmt.Errorf("capability bundle 必须包含 files、packages 或 docs")
+			return fmt.Errorf("目录 JSON 必须包含 files、packages 或 docs")
 		}
 	}
 	if err := validateCapabilityBundleTreeNodes(bundle.TreeNodes); err != nil {
@@ -836,7 +836,7 @@ func validateCapabilityBundle(bundle *dto.CapabilityBundle) error {
 			return fmt.Errorf("packages[%d].path 必须使用规范相对路径: %s", index, pkg.Path)
 		}
 		if _, exists := seenPackages[normalized]; exists {
-			return fmt.Errorf("capability bundle 存在重复 package 路径: %s", normalized)
+			return fmt.Errorf("目录 JSON 存在重复 package 路径: %s", normalized)
 		}
 		seenPackages[normalized] = struct{}{}
 	}
@@ -867,7 +867,7 @@ func validateCapabilityBundle(bundle *dto.CapabilityBundle) error {
 		}
 		key := capabilityFileKey(packagePath, filePath)
 		if _, exists := seenFiles[key]; exists {
-			return fmt.Errorf("capability bundle 存在重复文件路径: %s", key)
+			return fmt.Errorf("目录 JSON 存在重复文件路径: %s", key)
 		}
 		seenFiles[key] = struct{}{}
 	}
@@ -895,7 +895,7 @@ func validateCapabilityBundleDocs(docs []*dto.CapabilityBundleDoc, treeNodes []*
 			return fmt.Errorf("docs[%d].relative_path 必须使用规范相对路径: %s", index, doc.RelativePath)
 		}
 		if _, exists := seen[relativePath]; exists {
-			return fmt.Errorf("capability bundle 存在重复 docs 路径: %s", relativePath)
+			return fmt.Errorf("目录 JSON 存在重复 docs 路径: %s", relativePath)
 		}
 		seen[relativePath] = struct{}{}
 		if len(nodesByPath) > 0 {
@@ -925,7 +925,7 @@ func validateCapabilityBundleTreeNodes(nodes []*dto.CapabilityBundleTreeNode) er
 			return fmt.Errorf("tree_nodes[%d].relative_path 必须使用规范相对路径: %s", index, node.RelativePath)
 		}
 		if _, exists := seen[relativePath]; exists {
-			return fmt.Errorf("capability bundle 存在重复 tree node 路径: %s", relativePath)
+			return fmt.Errorf("目录 JSON 存在重复 tree node 路径: %s", relativePath)
 		}
 		seen[relativePath] = struct{}{}
 		if node.Type != model.ServiceTreeTypePackage && node.Type != model.ServiceTreeTypeFunction && node.Type != model.ServiceTreeTypeDocs {

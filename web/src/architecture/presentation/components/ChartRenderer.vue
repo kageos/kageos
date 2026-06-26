@@ -62,7 +62,7 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 图表容器 -->
     <el-card class="chart-card">
       <template #header>
@@ -95,16 +95,31 @@
     </el-card>
     
     <!-- Metadata 信息展示 -->
-    <div v-if="chartData?.metadata && Object.keys(chartData.metadata).length > 0" class="metadata-card">
+    <div v-if="metadataItems.length > 0" class="metadata-card">
       <el-row :gutter="16">
-        <el-col 
-          v-for="(value, key) in chartData.metadata" 
-          :key="key"
-          :span="getMetadataSpan(Object.keys(chartData.metadata).length)"
+        <el-col
+          v-for="item in metadataItems"
+          :key="item.key"
+          :span="getMetadataSpan(metadataItems.length)"
         >
           <div class="metadata-item">
-            <div class="metadata-label">{{ key }}</div>
-            <div class="metadata-value">{{ formatMetadataValue(value) }}</div>
+            <div class="metadata-label">{{ item.key }}</div>
+            <el-tooltip
+              v-if="item.truncated"
+              :content="item.fullValue"
+              :show-after="300"
+              placement="top"
+              popper-class="chart-metadata-tooltip"
+            >
+              <div class="metadata-value is-long is-truncated">{{ item.previewValue }}</div>
+            </el-tooltip>
+            <div
+              v-else
+              class="metadata-value"
+              :class="{ 'is-long': item.isLong }"
+            >
+              {{ item.previewValue }}
+            </div>
           </div>
         </el-col>
       </el-row>
@@ -115,7 +130,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElCard, ElForm, ElFormItem, ElButton, ElEmpty, ElRow, ElCol } from 'element-plus'
+import { ElCard, ElForm, ElFormItem, ElButton, ElEmpty, ElRow, ElCol, ElTooltip } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
 import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent.vue'
@@ -126,6 +141,7 @@ import { useChartFilterState } from '@/architecture/presentation/composables/use
 import { useChartInstanceLifecycle } from '@/architecture/presentation/composables/useChartInstanceLifecycle'
 import {
   buildChartEChartsOption,
+  buildChartMetadataPreview,
   createPendingQueryChart,
   formatChartMetadataValue as formatMetadataValue,
   getChartMetadataSpan as getMetadataSpan,
@@ -142,6 +158,23 @@ const { t } = useI18n()
 const chartData = ref<Chart | null>(null)
 const chartContainerRef = ref<HTMLElement | null>(null)
 const chartHeight = ref('600px')
+
+const metadataItems = computed(() => {
+  const metadata = chartData.value?.metadata
+  if (!metadata) return []
+
+  return Object.entries(metadata).map(([key, value]) => {
+    const fullValue = formatMetadataValue(value)
+    const preview = buildChartMetadataPreview(fullValue)
+    return {
+      key,
+      fullValue,
+      previewValue: preview.text,
+      truncated: preview.truncated,
+      isLong: fullValue.length > 20,
+    }
+  })
+})
 
 const functionDetailRef = computed(() => props.functionDetail)
 let triggerChartReload: () => Promise<void> = async () => {}
@@ -384,20 +417,46 @@ triggerChartReload = loadChartData
     .metadata-item {
       text-align: center;
       padding: 12px 0;
+      min-width: 0;
       
       .metadata-label {
         font-size: 13px;
         color: var(--el-text-color-regular); // 使用 Element Plus 的常规文字色
         margin-bottom: 8px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       
       .metadata-value {
+        max-width: 100%;
         font-size: 24px;
         font-weight: 600;
         color: var(--el-color-primary); // 使用 Element Plus 的主色，更突出
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+      }
+
+      .metadata-value.is-long {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.45;
+        color: var(--el-text-color-primary);
+      }
+
+      .metadata-value.is-truncated {
+        cursor: help;
       }
     }
   }
+}
+
+:global(.chart-metadata-tooltip) {
+  max-width: min(720px, calc(100vw - 32px));
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 </style>

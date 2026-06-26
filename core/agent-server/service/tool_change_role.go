@@ -37,8 +37,8 @@ type changeRoleData struct {
 	Reason           string                          `json:"reason" schema_desc:"选择或切换原因" schema_required:"true"`
 	ExecuteDirectory string                          `json:"execute_directory" schema_desc:"下一身份主执行目录/绑定目录" schema_required:"true"`
 	Directory        string                          `json:"directory,omitempty" schema_desc:"工作目录"`
-	Handoff          roleHandoffData                 `json:"handoff" schema_desc:"标准四块角色交接信息" schema_required:"true"`
-	HandoffPacket    workspaceRoleHandoffPacket      `json:"handoff_packet" schema_desc:"标准角色交接协议包；优先使用该字段，旧 handoff 仅作兼容" schema_required:"true"`
+	Handoff          roleHandoffData                 `json:"handoff" schema_desc:"标准四块阶段交接信息" schema_required:"true"`
+	HandoffPacket    workspaceRoleHandoffPacket      `json:"handoff_packet" schema_desc:"标准阶段交接包；优先使用该字段，旧 handoff 仅作兼容" schema_required:"true"`
 	ContextPolicy    string                          `json:"context_policy" schema_desc:"上下文携带策略" schema_required:"true"`
 	ReferenceDocs    []string                        `json:"reference_docs,omitempty" schema_desc:"建议优先读取的参考文档"`
 	ReferenceFiles   []string                        `json:"reference_files,omitempty" schema_desc:"建议优先查看的参考文件"`
@@ -96,7 +96,7 @@ func (t *ChangeRoleTool) Execute(ctx context.Context, call ToolCall) ToolResult 
 	}
 	data := buildChangeRole(ctx, args, call.FullCodePath)
 	if workspaceRoleHandoffPacketHasValidationErrors(&data.HandoffPacket) {
-		return toolResult("change_role 交接协议校验失败: "+workspaceRoleHandoffPacketValidationSummary(&data.HandoffPacket), true)
+		return toolResult("change_role 阶段交接校验失败: "+workspaceRoleHandoffPacketValidationSummary(&data.HandoffPacket), true)
 	}
 	return toolResultWithStructuredData(data, false)
 }

@@ -31,7 +31,7 @@ function commands(actions: ReturnType<typeof getServiceTreeNodeActions>): Servic
 describe('serviceTreeNodeActions', () => {
   setLocale('zh-CN')
 
-  it('shows package actions with capability bundle wording', () => {
+  it('shows package actions with directory import/export wording', () => {
     const actions = getServiceTreeNodeActions(node({}))
 
     expect(commands(actions)).toEqual([
@@ -43,7 +43,7 @@ describe('serviceTreeNodeActions', () => {
       'export-json',
       'import-directory'
     ])
-    expect(actions.find(action => action.command === 'export-json')?.label).toBe('导出能力包')
+    expect(actions.find(action => action.command === 'export-json')?.label).toBe('导出目录')
     expect(actions.find(action => action.command === 'import-directory')?.label).toBe('导入目录')
   })
 

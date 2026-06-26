@@ -20,7 +20,7 @@ type workspaceRoleDefinition struct {
 	HandoffRequired    []string            `json:"handoff_required" schema_desc:"切换到该角色必须携带的交接字段" schema_required:"true"`
 	AllowedTransitions []nextWorkspaceRole `json:"allowed_transitions,omitempty" schema_desc:"该角色完成后建议切换的目标角色"`
 	DefaultNextAction  string              `json:"default_next_action" schema_desc:"进入角色后的默认下一步动作" schema_required:"true"`
-	ProtocolVersion    string              `json:"protocol_version" schema_desc:"角色协议版本" schema_required:"true"`
+	ProtocolVersion    string              `json:"protocol_version" schema_desc:"执行协议版本" schema_required:"true"`
 }
 
 const workspaceRoleDefinitionProtocolVersion = "role_definition.v1"

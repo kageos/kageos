@@ -33,7 +33,19 @@ type CartesianDataZoomOption = SeriesConfig & {
 
 const CARTESIAN_DATA_ZOOM_THRESHOLD = 80
 const CARTESIAN_DEFAULT_VISIBLE_POINTS = 160
+const CHART_METADATA_PREVIEW_MAX_LENGTH = 48
+const CHART_METADATA_PREVIEW_SUFFIX = '...'
 const DATE_TIME_AXIS_LABEL_RE = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2})?)?$/
+const VALUE_FORMAT_COMPACT = 'compact'
+const VALUE_FORMAT_PLAIN = 'plain'
+const VALUE_FORMAT_DURATION_MS = 'duration_ms'
+const VALUE_FORMAT_PERCENT = 'percent'
+const SUPPORTED_VALUE_FORMATS = new Set([
+  VALUE_FORMAT_COMPACT,
+  VALUE_FORMAT_PLAIN,
+  VALUE_FORMAT_DURATION_MS,
+  VALUE_FORMAT_PERCENT,
+])
 
 export type RenderableChart = Chart & {
   __placeholder?: boolean
@@ -48,19 +60,73 @@ export function formatChartMetadataValue(value: ChartMetadataValue): string {
   return String(value)
 }
 
+export function buildChartMetadataPreview(value: string, maxLength = CHART_METADATA_PREVIEW_MAX_LENGTH): { text: string; truncated: boolean } {
+  const normalizedValue = value.replace(/\s+/g, ' ').trim()
+  if (normalizedValue.length <= maxLength) {
+    return { text: normalizedValue, truncated: false }
+  }
+
+  const visibleLength = Math.max(0, maxLength - CHART_METADATA_PREVIEW_SUFFIX.length)
+  return {
+    text: `${normalizedValue.slice(0, visibleLength).trimEnd()}${CHART_METADATA_PREVIEW_SUFFIX}`,
+    truncated: true,
+  }
+}
+
 export function getChartMetadataSpan(count: number): number {
   void count
   return 6
 }
 
-const formatAxisValueLabel = (value: number): string => {
+const normalizeValueFormat = (value: unknown): string => {
+  if (typeof value !== 'string') return ''
+  return value.trim().toLowerCase()
+}
+
+const resolveYAxisValueFormat = (chart: RenderableChart): string => {
+  const valueFormat = normalizeValueFormat(chart.y_axis?.value_format)
+  return SUPPORTED_VALUE_FORMATS.has(valueFormat) ? valueFormat : ''
+}
+
+const formatDecimalValue = (value: number, maxFractionDigits = 2): string => {
+  if (!Number.isFinite(value)) return String(value)
+  if (Number.isInteger(value)) return value.toString()
+  return value.toFixed(maxFractionDigits).replace(/\.?0+$/, '')
+}
+
+const formatCompactAxisValueLabel = (value: number): string => {
   if (value >= 1000000) {
     return `${(value / 1000000).toFixed(1)}M`
   }
   if (value >= 1000) {
     return `${(value / 1000).toFixed(1)}K`
   }
-  return value.toString()
+  return formatDecimalValue(value)
+}
+
+const formatDurationMSValueLabel = (value: number): string => {
+  const absValue = Math.abs(value)
+  if (absValue < 1000) {
+    return `${formatDecimalValue(value)}ms`
+  }
+  if (absValue < 60000) {
+    return `${formatDecimalValue(value / 1000)}s`
+  }
+  return `${formatDecimalValue(value / 60000)}min`
+}
+
+const formatAxisValueLabel = (value: number, valueFormat?: unknown): string => {
+  switch (normalizeValueFormat(valueFormat)) {
+    case VALUE_FORMAT_PLAIN:
+      return formatDecimalValue(value)
+    case VALUE_FORMAT_DURATION_MS:
+      return formatDurationMSValueLabel(value)
+    case VALUE_FORMAT_PERCENT:
+      return `${formatDecimalValue(value)}%`
+    case VALUE_FORMAT_COMPACT:
+    default:
+      return formatCompactAxisValueLabel(value)
+  }
 }
 
 const escapeTooltipHtml = (value: unknown): string => {
@@ -76,23 +142,34 @@ const isChartDataObject = (value: unknown): value is ChartDataObject => {
   return typeof value === 'object' && value !== null
 }
 
-const formatTooltipValue = (value: unknown): string => {
+const formatTooltipValue = (value: unknown, valueFormat?: unknown): string => {
   if (typeof value === 'number') {
-    return value % 1 === 0 ? value.toString() : value.toFixed(2)
+    switch (normalizeValueFormat(valueFormat)) {
+      case VALUE_FORMAT_COMPACT:
+        return formatCompactAxisValueLabel(value)
+      case VALUE_FORMAT_PLAIN:
+        return formatDecimalValue(value)
+      case VALUE_FORMAT_DURATION_MS:
+        return formatDurationMSValueLabel(value)
+      case VALUE_FORMAT_PERCENT:
+        return `${formatDecimalValue(value)}%`
+      default:
+        return value % 1 === 0 ? value.toString() : value.toFixed(2)
+    }
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => formatTooltipValue(item)).join(', ')
+    return value.map((item) => formatTooltipValue(item, valueFormat)).join(', ')
   }
 
   if (isChartDataObject(value) && value.value !== undefined) {
-    return formatTooltipValue(value.value)
+    return formatTooltipValue(value.value, valueFormat)
   }
 
   return escapeTooltipHtml(value ?? '-')
 }
 
-const formatSeriesTooltip = (params: TooltipParam | TooltipParam[] | null | undefined): string => {
+const formatSeriesTooltip = (params: TooltipParam | TooltipParam[] | null | undefined, valueFormat?: unknown): string => {
   if (!params) {
     return '无数据'
   }
@@ -104,7 +181,7 @@ const formatSeriesTooltip = (params: TooltipParam | TooltipParam[] | null | unde
 
     const title = params[0]?.axisValueLabel || params[0]?.axisValue || params[0]?.name || ''
     const lines = params.map((param) => {
-      const value = formatTooltipValue(param.value)
+      const value = formatTooltipValue(param.value, valueFormat)
       const name = escapeTooltipHtml(param.seriesName || param.name || '数值')
       const color = param.color || '#5470c6'
 
@@ -118,7 +195,7 @@ const formatSeriesTooltip = (params: TooltipParam | TooltipParam[] | null | unde
     return `<div style="font-weight: bold; margin-bottom: 8px;">${escapeTooltipHtml(title)}</div>${lines}`
   }
 
-  const value = formatTooltipValue(params.value)
+  const value = formatTooltipValue(params.value, valueFormat)
   const title = params.name || params.axisValueLabel || params.axisValue || params.seriesName || ''
   const color = params.color || '#5470c6'
   const name = escapeTooltipHtml(params.seriesName || '数值')
@@ -433,6 +510,7 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
   }
 
   const xAxis = chart.x_axis || []
+  const yAxisValueFormat = resolveYAxisValueFormat(chart)
   const hasCartesianDataZoom = shouldUseCartesianDataZoom(xAxis)
 
   switch (chart.chart_type) {
@@ -459,7 +537,7 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
           fontSize: 13,
           lineHeight: 20
         },
-        formatter: formatSeriesTooltip
+        formatter: (params: TooltipParam | TooltipParam[]) => formatSeriesTooltip(params, yAxisValueFormat)
       }
       option.xAxis = {
         id: 'main-x-axis',
@@ -483,7 +561,7 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
         axisLabel: {
           fontSize: 12,
           color: '#374151',
-          formatter: (value: number) => formatAxisValueLabel(value)
+          formatter: (value: number) => formatAxisValueLabel(value, yAxisValueFormat)
         },
         axisLine: {
           lineStyle: {
@@ -547,7 +625,7 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
           fontSize: 13,
           lineHeight: 20
         },
-        formatter: formatSeriesTooltip
+        formatter: (params: TooltipParam | TooltipParam[]) => formatSeriesTooltip(params, yAxisValueFormat)
       }
       if (xAxis.length === 0) {
         return {
@@ -584,7 +662,7 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
         axisLabel: {
           fontSize: 12,
           color: '#374151',
-          formatter: (value: number) => formatAxisValueLabel(value)
+          formatter: (value: number) => formatAxisValueLabel(value, yAxisValueFormat)
         },
         axisLine: {
           lineStyle: {

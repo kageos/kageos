@@ -5,14 +5,14 @@
   - 输出文件仍在下方独立展示
 -->
 <template>
-  <div class="message-tool-calls">
+  <div v-if="hasVisibleContent" class="message-tool-calls">
     <div v-if="hasRunning" class="message-tool-calls-head">
       <span class="head-status head-status--running">
         <el-icon class="head-icon head-icon--spin"><Loading /></el-icon>
         正在执行工具…
       </span>
     </div>
-    <template v-for="(tc, idx) in toolCalls" :key="tc.id ?? `${idx}-${tc.name}`">
+    <template v-for="(tc, idx) in visibleToolCalls" :key="tc.id ?? `${idx}-${tc.name}`">
       <div :class="['message-tool-calls-block', { 'message-tool-calls-block--first': idx === 0 && !hasRunning }]">
         <div class="message-tool-calls-block-head">
           <el-icon v-if="tc.status === 'ok'" class="block-head-icon block-head-icon--ok"><CircleCheck /></el-icon>
@@ -39,10 +39,6 @@
             @confirm="emit('confirm-prd', $event)"
           />
         </div>
-        <RoleHandoffCard
-          v-else-if="isRoleHandoffToolCall(tc)"
-          :tool-call="tc"
-        />
         <BuildWorkspaceDiagnosticsCard
           v-else-if="isBuildWorkspaceFailureToolCall(tc)"
           :tool-call="tc"
@@ -62,7 +58,7 @@
               {{ line.text }}
             </div>
             <div
-              v-if="hasRunning && idx === toolCalls.length - 1"
+              v-if="hasRunning && idx === visibleToolCalls.length - 1"
               class="output-line output-line--cursor"
             >
               ▌
@@ -90,11 +86,11 @@ import { Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
 import PrdPreview from './PrdPreview.vue'
-import RoleHandoffCard from './RoleHandoffCard.vue'
 import BuildWorkspaceDiagnosticsCard from './BuildWorkspaceDiagnosticsCard.vue'
 import type { WorkspaceChatToolCallSummary } from '@/architecture/presentation/context/api/workspace'
 import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { extractAllDisplayFields } from '@/architecture/presentation/composables/useOutputDisplayFields'
+import { getVisibleWorkspaceToolCalls } from '@/architecture/presentation/utils/workspaceRoleDisplay'
 
 const props = withDefaults(defineProps<{
   toolCalls: WorkspaceChatToolCallSummary[]
@@ -108,7 +104,11 @@ const emit = defineEmits<{
   (e: 'confirm-prd', payload: { remark: string; prd: unknown }): void
 }>()
 
-const displayFields = computed(() => extractAllDisplayFields(props.toolCalls))
+const visibleToolCalls = computed(() => getVisibleWorkspaceToolCalls(props.toolCalls))
+const displayFields = computed(() => extractAllDisplayFields(visibleToolCalls.value))
+const hasVisibleContent = computed(() =>
+  visibleToolCalls.value.length > 0 || props.fileGroups.length > 0 || displayFields.value.length > 0
+)
 
 /** 每个工具一个 viewport，用数组存 DOM，滚动时滚最后一个 */
 const viewportRefs = ref<(HTMLElement | null)[]>([])
@@ -125,7 +125,7 @@ function setViewportRef(el: HTMLElement | null, idx: number) {
 }
 
 const hasRunning = computed(() =>
-  props.toolCalls.some((t) => t.status === 'streaming' || t.status === 'running')
+  visibleToolCalls.value.some((t) => t.status === 'streaming' || t.status === 'running')
 )
 
 interface RuntimeTimer {
@@ -176,7 +176,7 @@ function syncToolTimers() {
   const visibleKeys = new Set<string>()
   let changed = false
 
-  props.toolCalls.forEach((tc, idx) => {
+  visibleToolCalls.value.forEach((tc, idx) => {
     const key = getToolTimerKey(tc, idx)
     visibleKeys.add(key)
     const existing = toolTimers.get(key)
@@ -242,10 +242,6 @@ function statusLabel(status: string): string {
 
 function isRenderablePrdToolCall(tc: WorkspaceChatToolCallSummary): boolean {
   return tc.name === 'write_prd' && tc.status === 'ok' && tc.result_data != null
-}
-
-function isRoleHandoffToolCall(tc: WorkspaceChatToolCallSummary): boolean {
-  return tc.name === 'change_role'
 }
 
 function isBuildWorkspaceFailureToolCall(tc: WorkspaceChatToolCallSummary): boolean {
@@ -325,7 +321,7 @@ function scrollAllViewportsToBottom() {
 }
 
 watch(
-  () => props.toolCalls.map((t) => {
+  () => visibleToolCalls.value.map((t) => {
     const resultDataLen = t.result_data == null ? 0 : formatResultData(t.result_data).length
     return (t.arguments?.length ?? 0) + (t.result?.length ?? 0) + resultDataLen + (t.error?.length ?? 0)
   }),
@@ -333,7 +329,7 @@ watch(
   { deep: true }
 )
 watch(
-  () => props.toolCalls.length,
+  () => visibleToolCalls.value.length,
   (len) => {
     const arr = viewportRefs.value
     if (arr.length > len) viewportRefs.value = arr.slice(0, len)
@@ -344,7 +340,7 @@ watch(hasRunning, (running) => {
   if (running) scrollAllViewportsToBottom()
 })
 watch(
-  () => props.toolCalls.map((t, idx) => `${getToolTimerKey(t, idx)}:${t.status}`).join('|'),
+  () => visibleToolCalls.value.map((t, idx) => `${getToolTimerKey(t, idx)}:${t.status}`).join('|'),
   syncToolTimers,
   { immediate: true }
 )
@@ -483,11 +479,6 @@ onBeforeUnmount(() => {
     border-top: none;
     border-radius: 0 0 var(--el-border-radius-base) var(--el-border-radius-base);
   }
-}
-
-.message-tool-calls-block :deep(.role-handoff-card) {
-  border-top: none;
-  border-radius: 0 0 var(--el-border-radius-base) var(--el-border-radius-base);
 }
 
 .message-tool-calls-output {

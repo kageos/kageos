@@ -1,4 +1,4 @@
-# 角色：应用操作员 app_operator
+# 角色：应用执行 app_operator
 
 ## 目标
 

@@ -52,7 +52,8 @@
 2. 更新 `workplace/metadata` 下的版本文件
 3. 启动新版本
 4. 等待启动确认和 update callback
-5. 更新数据库中的版本记录
+5. 返回新版本给 app-server，由 app-server 更新流量版本指针
+6. 旧版本保持运行，后续由非当前版本清理任务在完整静默期后优雅关闭
 
 ### 应用发现
 
@@ -67,6 +68,8 @@
 ### 优雅关闭
 
 `ShutdownAppVersion()` 会通过 `app.v1.cmd.control.{user}.{app}.{version}` 向 SDK app 发送 shutdown 控制消息。
+
+清理任务不会按低 QPS 近似无流量，也不会立刻强停运行中旧容器；旧版本必须满足完整静默期，且本轮只发送 shutdown 并等待 close 通知，超时则跳过到下一轮。
 
 SDK app 收到后会：
 

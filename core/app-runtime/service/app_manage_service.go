@@ -690,21 +690,19 @@ func (s *AppManageService) ShutdownOldVersions(ctx context.Context, user, app st
 		return nil
 	}
 
-	// 关闭旧版本（基于 QPS 安全检查）
+	// 关闭旧版本（基于完整静默期，优先服务稳定）
 	// 注意：这里简化逻辑，因为内存中的版本信息不包含创建时间
 	// 实际应用中，应该根据业务需求决定关闭策略
 	versionsToShutdown := runningVersions[keepVersions:]
 	for _, version := range versionsToShutdown {
-		// 检查是否可以安全关闭
-		if !s.QPSTracker.IsSafeToShutdown(user, app, version) {
-			logger.Warnf(ctx, "[ShutdownOldVersions] Version %s still has traffic, skipping shutdown", version)
+		if !s.isVersionQuietForCleanup(ctx, user, app, version, "ShutdownOldVersions") {
 			continue
 		}
 
-		if err := s.ShutdownAppVersion(ctx, user, app, version); err != nil {
-			logger.Errorf(ctx, "[ShutdownOldVersions] Failed to shutdown version %s: %v", version, err)
+		if err := s.shutdownVersionGracefullyForCleanup(ctx, user, app, version, "ShutdownOldVersions"); err != nil {
+			logger.Warnf(ctx, "[ShutdownOldVersions] 本轮跳过版本 %s: %v", version, err)
 		} else {
-			logger.Infof(ctx, "[ShutdownOldVersions] Shutdown command sent to version %s", version)
+			logger.Infof(ctx, "[ShutdownOldVersions] Version %s closed gracefully", version)
 		}
 	}
 
@@ -838,8 +836,18 @@ func (s *AppManageService) getAllApps(ctx context.Context) ([]*model.App, error)
 	return s.appRepo.GetAllApps()
 }
 
-// maxKeepVersions 每个应用保留的最大容器版本数
-const maxKeepVersions = 3
+const (
+	// maxKeepVersions 每个应用保留的最大容器版本数
+	maxKeepVersions = 3
+
+	// versionShutdownQuietPeriod 是旧版本释放前必须满足的静默期。
+	// 宁可晚释放，也不能在 app-server 版本指针、缓存或长请求尚未稳定时释放旧实例。
+	versionShutdownQuietPeriod = 10 * time.Minute
+
+	// versionGracefulShutdownTimeout 只限制本轮清理等待 close 通知的时间。
+	// 超时后跳过本轮，不强杀，下一轮继续尝试。
+	versionGracefulShutdownTimeout = 45 * time.Second
+)
 
 // appContainerInfo 单个应用的容器信息（用于按版本排序清理）
 type appContainerInfo struct {
@@ -853,6 +861,9 @@ type appContainerInfo struct {
 func (s *AppManageService) maybeRunContainerLevelCleanup(ctx context.Context) {
 	s.containerCleanupMu.Lock()
 	dirty := s.containerCleanupDirty
+	if dirty {
+		s.containerCleanupDirty = false
+	}
 	s.containerCleanupMu.Unlock()
 
 	if !dirty {
@@ -861,10 +872,6 @@ func (s *AppManageService) maybeRunContainerLevelCleanup(ctx context.Context) {
 
 	logger.Infof(ctx, "[CleanupTask] 检测到版本/容器变动，执行一次完整清理（进程级→容器级）")
 	s.runAllCleanups(ctx)
-
-	s.containerCleanupMu.Lock()
-	s.containerCleanupDirty = false
-	s.containerCleanupMu.Unlock()
 }
 
 // MarkContainerCleanupDirty 标记“有容器/版本变动”，下次巡检周期会执行一次对账
@@ -872,6 +879,44 @@ func (s *AppManageService) MarkContainerCleanupDirty() {
 	s.containerCleanupMu.Lock()
 	defer s.containerCleanupMu.Unlock()
 	s.containerCleanupDirty = true
+}
+
+func (s *AppManageService) isVersionQuietForCleanup(ctx context.Context, user, app, version, logPrefix string) bool {
+	if s.QPSTracker == nil {
+		logger.Warnf(ctx, "[%s] QPS tracker unavailable, skip cleanup for %s/%s/%s", logPrefix, user, app, version)
+		return false
+	}
+	s.QPSTracker.ObserveVersion(user, app, version)
+	if !s.QPSTracker.IsIdleFor(user, app, version, versionShutdownQuietPeriod) {
+		logger.Infof(ctx, "[%s] Version is not quiet long enough, skip cleanup: %s/%s/%s quietPeriod=%s",
+			logPrefix, user, app, version, versionShutdownQuietPeriod)
+		s.MarkContainerCleanupDirty()
+		return false
+	}
+	return true
+}
+
+func (s *AppManageService) shutdownVersionGracefullyForCleanup(ctx context.Context, user, app, version, logPrefix string) error {
+	closeWaiterChan := s.registerCloseWaiter(user, app, version)
+	defer s.unregisterCloseWaiter(user, app, version)
+
+	if err := s.ShutdownAppVersion(ctx, user, app, version); err != nil {
+		s.MarkContainerCleanupDirty()
+		return fmt.Errorf("send shutdown command: %w", err)
+	}
+
+	select {
+	case notification := <-closeWaiterChan:
+		logger.Infof(ctx, "[%s] Received close notification for %s/%s/%s at %s",
+			logPrefix, notification.User, notification.App, notification.Version, notification.CloseTime.Format(time.DateTime))
+		s.MarkContainerCleanupDirty()
+		return nil
+	case <-time.After(versionGracefulShutdownTimeout):
+		s.MarkContainerCleanupDirty()
+		return fmt.Errorf("timeout waiting for close notification after %s", versionGracefulShutdownTimeout)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // containerLevelCleanup 运行时实例级对账巡检
@@ -979,32 +1024,21 @@ func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
 					cleanedExited++
 				}
 			} else {
-				if s.QPSTracker.IsSafeToShutdown(user, app, info.version) {
+				if s.isVersionQuietForCleanup(ctx, user, app, info.version, "ContainerCleanup") {
 					stopStart := time.Now()
-					logger.Infof(ctx, "[ContainerCleanup] 停止运行中的旧容器 | 容器=%s | 版本=%s（QPS=0，安全关闭）", info.containerName, info.version)
-					ref := AppVersionRef{User: user, App: app, Version: info.version}
-					stopErr := s.runtimeDriver.StopAppVersion(ctx, ref)
-					if stopErr != nil {
-						// 容器已不存在（可能已被外部删除或已退出），视为已清理，不记入失败
-						if strings.Contains(stopErr.Error(), "not found") {
-							logger.Infof(ctx, "[ContainerCleanup] 容器已不存在，视为已清理 | 容器=%s | 版本=%s", info.containerName, info.version)
-							_ = s.runtimeDriver.RemoveAppVersion(ctx, ref) // 无则 no-op
-						} else {
-							logger.Warnf(ctx, "[ContainerCleanup] ❌ 停止容器失败 | 容器=%s | 错误=%v", info.containerName, stopErr)
-							failedClean++
-						}
-						continue
-					}
-					if rmErr := s.runtimeDriver.RemoveAppVersion(ctx, ref); rmErr != nil {
-						logger.Warnf(ctx, "[ContainerCleanup] ❌ 删除容器失败 | 容器=%s | 错误=%v", info.containerName, rmErr)
+					logger.Infof(ctx, "[ContainerCleanup] 请求旧容器优雅退出 | 容器=%s | 版本=%s（静默期=%s）",
+						info.containerName, info.version, versionShutdownQuietPeriod)
+					if err := s.shutdownVersionGracefullyForCleanup(ctx, user, app, info.version, "ContainerCleanup"); err != nil {
+						logger.Warnf(ctx, "[ContainerCleanup] ⏭ 本轮跳过运行中容器 | 容器=%s | 版本=%s | 原因=%v",
+							info.containerName, info.version, err)
 						failedClean++
 					} else {
-						logger.Infof(ctx, "[ContainerCleanup] ✅ 已停止并删除运行容器 | 容器=%s | 版本=%s | 耗时=%s",
+						logger.Infof(ctx, "[ContainerCleanup] ✅ 旧容器已优雅退出，后续巡检删除已停止实例 | 容器=%s | 版本=%s | 耗时=%s",
 							info.containerName, info.version, time.Since(stopStart).Round(time.Millisecond))
 						cleanedRunning++
 					}
 				} else {
-					logger.Infof(ctx, "[ContainerCleanup] ⏭ 跳过运行中容器 | 容器=%s | 版本=%s | 原因=仍有流量（QPS>0）",
+					logger.Infof(ctx, "[ContainerCleanup] ⏭ 跳过运行中容器 | 容器=%s | 版本=%s | 原因=未满足静默期",
 						info.containerName, info.version)
 					skippedTraffic++
 				}
@@ -1040,8 +1074,8 @@ func sortContainersByVersion(containers []appContainerInfo) {
 	}
 }
 
-// CleanupNonCurrentVersions 清理非当前版本的无流量版本
-// 策略：只保留 current_version（metadata 中的当前版本），其他版本只要 QPS 为 0 就停掉
+// CleanupNonCurrentVersions 清理非当前版本的静默版本。
+// 策略：只保留 current_version（metadata 中的当前版本），其他版本满足完整静默期后才发起优雅关闭。
 func (s *AppManageService) CleanupNonCurrentVersions(ctx context.Context, user, app string) error {
 	//logger.Infof(ctx, "[CleanupNonCurrentVersions] Checking %s/%s", user, app)
 
@@ -1075,27 +1109,13 @@ func (s *AppManageService) CleanupNonCurrentVersions(ctx context.Context, user, 
 			continue
 		}
 
-		// 检查是否可以安全关闭（QPS 为 0）
-		if !s.QPSTracker.IsSafeToShutdown(user, app, version.Version) {
-			//logger.Infof(ctx, "[CleanupNonCurrentVersions] Version %s still has traffic, skipping", version.Version)
+		if !s.isVersionQuietForCleanup(ctx, user, app, version.Version, "CleanupNonCurrentVersions") {
 			continue
 		}
 
-		// 先发优雅关闭（NATS），再强制停运行时实例，确保非当前版本一定会被停掉
-		_ = s.ShutdownAppVersion(ctx, user, app, version.Version)
-		ref := AppVersionRef{User: user, App: app, Version: version.Version}
-		runtimeName := ref.RuntimeName()
-		if s.runtimeDriver != nil {
-			if err := s.runtimeDriver.StopAppVersion(ctx, ref); err != nil {
-				if strings.Contains(err.Error(), "not found") {
-					logger.Infof(ctx, "[CleanupNonCurrentVersions] 运行时实例已不存在，跳过 | %s/%s/%s", user, app, version.Version)
-				} else {
-					logger.Warnf(ctx, "[CleanupNonCurrentVersions] 停止运行时实例失败 | %s | 错误=%v", runtimeName, err)
-				}
-			} else {
-				logger.Infof(ctx, "[CleanupNonCurrentVersions] 已停止非当前版本运行时实例 | %s/%s/%s", user, app, version.Version)
-				s.MarkContainerCleanupDirty() // 触发后续运行时巡检，可清理已退出的实例
-			}
+		if err := s.shutdownVersionGracefullyForCleanup(ctx, user, app, version.Version, "CleanupNonCurrentVersions"); err != nil {
+			logger.Warnf(ctx, "[CleanupNonCurrentVersions] 本轮跳过非当前版本 | %s/%s/%s | 原因=%v", user, app, version.Version, err)
+			continue
 		}
 	}
 

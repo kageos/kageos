@@ -1406,7 +1406,7 @@ func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
 		FullCodePath:  "/liubeiluo/demo",
 		Source:        SourceWorkspace,
 		SessionID:     "role-session",
-		Title:         "角色切换",
+		Title:         "阶段交接",
 		ModeCode:      "dev",
 		Status:        model.ChatSessionStatusGenerating,
 		ContextPolicy: ContextPolicyFull,

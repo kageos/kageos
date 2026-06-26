@@ -1,16 +1,34 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    :title="dialogTitle"
-    width="560px"
+    width="min(640px, calc(100vw - 32px))"
     class="workspace-import-directory-dialog"
     :close-on-click-modal="false"
     @closed="resetForm"
   >
-    <div class="import-target" data-testid="import-directory-target">
+    <template #header>
+      <div class="import-dialog-header">
+        <span class="import-dialog-icon">
+          <el-icon><Upload /></el-icon>
+        </span>
+        <div class="import-dialog-title-block">
+          <div class="import-dialog-title">{{ dialogTitle }}</div>
+          <div class="import-dialog-subtitle">任务会在后台执行，完成后自动刷新目录。</div>
+        </div>
+      </div>
+    </template>
+
+    <section class="import-target" data-testid="import-directory-target">
       <span class="import-target-label">目标目录</span>
-      <strong>{{ targetLabel }}</strong>
-      <code>{{ targetPath || '-' }}</code>
+      <div class="import-target-main">
+        <strong>{{ targetLabel }}</strong>
+        <code>{{ targetPath || '-' }}</code>
+      </div>
+    </section>
+
+    <div class="import-notice">
+      <el-icon><InfoFilled /></el-icon>
+      <span>同名目录或文件会按导入规则覆盖。</span>
     </div>
 
     <el-tabs v-model="activeSource" class="import-source-tabs" data-testid="import-directory-tabs">
@@ -65,14 +83,14 @@
           />
           <el-icon class="json-import-icon"><UploadFilled /></el-icon>
           <div class="json-file-name">
-            {{ selectedJsonFile?.name || '选择 capability bundle JSON 文件' }}
+            {{ selectedJsonFile?.name || '选择目录 JSON 文件' }}
           </div>
           <el-button
             :icon="FolderOpened"
             data-testid="import-directory-json-select"
             @click="openJsonFilePicker"
           >
-            选择文件
+            选择 JSON
           </el-button>
         </div>
       </el-tab-pane>
@@ -89,7 +107,7 @@
           data-testid="import-directory-submit"
           @click="handleSubmit"
         >
-          导入
+          开始导入
         </el-button>
       </span>
     </template>
@@ -97,18 +115,32 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { ElLoading, ElMessage, ElMessageBox, ElNotification } from 'element-plus'
-import { FolderOpened, Link, Upload, UploadFilled } from '@element-plus/icons-vue'
-import type { ServiceTree } from '@/architecture/domain/types'
+import { computed, h, ref } from 'vue'
+import { ElMessage, ElNotification } from 'element-plus'
+import { FolderOpened, InfoFilled, Link, Upload, UploadFilled } from '@element-plus/icons-vue'
+import type { CapabilityBundle, ServiceTree } from '@/architecture/domain/types'
 import {
   installCapabilityBundle,
   installCapabilityBundleFromURL
 } from '@/architecture/presentation/context/api/service-tree'
 import { parseCapabilityBundleJson } from '@/architecture/presentation/utils/directoryBundleFile'
 import { parseHubInstallInput } from '@/architecture/presentation/utils/hubInstallCommand'
+import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 
 type ImportSource = 'hub' | 'json'
+type NotificationHandle = { close: () => void }
+
+interface InstallDirectoryResp {
+  message: string
+  directory_count: number
+  file_count: number
+  target_directory_path: string
+  created_paths?: string[]
+  written_paths?: string[]
+  old_version?: string
+  new_version?: string
+  warnings?: string[]
+}
 
 const props = defineProps<{
   visible: boolean
@@ -162,14 +194,6 @@ function resetForm() {
   }
 }
 
-function showBlockingLoading(text: string) {
-  return ElLoading.service({
-    lock: true,
-    text,
-    background: 'rgba(15, 23, 42, 0.36)'
-  })
-}
-
 function openJsonFilePicker() {
   jsonInputRef.value?.click()
 }
@@ -187,6 +211,84 @@ async function handleSubmit() {
   await submitJsonImport()
 }
 
+function directoryTaskNotificationOptions() {
+  return {
+    appendTo: 'body',
+    customClass: 'workspace-task-notification',
+    offset: 72,
+    position: 'top-right' as const,
+    zIndex: Z_INDEX.notification
+  }
+}
+
+function renderImportResultMessage(resp: InstallDirectoryResp, fallbackPath: string) {
+  const lines = [
+    `目标：${resp.target_directory_path || fallbackPath}`,
+    `写入：${resp.directory_count || 0} 个目录，${resp.file_count || 0} 个文件`
+  ]
+  if (resp.old_version || resp.new_version) {
+    lines.push(`版本：${resp.old_version || '-'} → ${resp.new_version || '-'}`)
+  }
+  if (resp.warnings?.length) {
+    const warnings = resp.warnings.slice(0, 2).join('；')
+    const suffix = resp.warnings.length > 2 ? ` 等 ${resp.warnings.length} 条` : ''
+    lines.push(`提醒：${warnings}${suffix}`)
+  }
+
+  return h(
+    'div',
+    { class: 'workspace-update-notification' },
+    lines.map((line) => h('div', { class: 'workspace-update-notification-line' }, line))
+  )
+}
+
+function getErrorMessage(error: any, fallback: string) {
+  return error?.response?.data?.msg || error?.response?.data?.message || error?.message || fallback
+}
+
+async function runDirectoryImportTask(options: {
+  targetPath: string
+  targetLabel: string
+  sourceLabel: string
+  request: () => Promise<InstallDirectoryResp>
+}) {
+  importing.value = true
+  dialogVisible.value = false
+
+  const progressNotification = ElNotification({
+    ...directoryTaskNotificationOptions(),
+    type: 'info',
+    title: '目录导入中',
+    message: `正在后台导入「${options.sourceLabel}」到「${options.targetLabel}」，页面可以继续使用。`,
+    duration: 0,
+    showClose: true
+  }) as NotificationHandle
+
+  try {
+    const resp = await options.request()
+    progressNotification.close()
+    ElNotification({
+      ...directoryTaskNotificationOptions(),
+      type: resp.warnings?.length ? 'warning' : 'success',
+      title: resp.warnings?.length ? '目录导入完成（有提醒）' : '目录导入完成',
+      message: renderImportResultMessage(resp, options.targetPath),
+      duration: resp.warnings?.length ? 0 : 9000
+    })
+    emit('imported', resp.target_directory_path || options.targetPath)
+  } catch (error: any) {
+    progressNotification.close()
+    ElNotification({
+      ...directoryTaskNotificationOptions(),
+      type: 'error',
+      title: '目录导入失败',
+      message: getErrorMessage(error, '导入失败'),
+      duration: 0
+    })
+  } finally {
+    importing.value = false
+  }
+}
+
 async function submitHubImport() {
   const targetNode = props.targetNode
   if (!targetNode?.full_code_path || targetNode.type !== 'package') {
@@ -200,54 +302,20 @@ async function submitHubImport() {
     return
   }
 
-  try {
-    await ElMessageBox.confirm(
-      `确定要把 Hub 目录导入到「${targetLabel.value}」下吗？\n\n目标目录：${targetNode.full_code_path}\n来源：${command.displaySource}\n\n同名目录或文件会按导入规则覆盖。`,
-      'Hub 导入目录',
-      {
-        confirmButtonText: '导入',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-
-    importing.value = true
-    const loadingNotify = ElNotification({
-      title: '导入中',
-      message: '正在从 Hub 下载并导入目录，请稍候...',
-      type: 'info',
-      position: 'top-right',
-      duration: 0
+  const targetPathSnapshot = targetNode.full_code_path
+  const targetLabelSnapshot = targetLabel.value
+  void runDirectoryImportTask({
+    targetPath: targetPathSnapshot,
+    targetLabel: targetLabelSnapshot,
+    sourceLabel: command.displaySource,
+    request: () => installCapabilityBundleFromURL({
+      target_directory_path: targetPathSnapshot,
+      overwrite: true,
+      force_diff: true,
+      bundle_url: command.bundleUrl,
+      install_key: command.installKey
     })
-    const loadingInstance = showBlockingLoading('正在从 Hub 导入目录并更新函数列表，请稍候...')
-
-    try {
-      const resp = await installCapabilityBundleFromURL({
-        target_directory_path: targetNode.full_code_path,
-        overwrite: true,
-        force_diff: true,
-        bundle_url: command.bundleUrl,
-        install_key: command.installKey
-      })
-      loadingNotify.close()
-      ElNotification.success({
-        title: '导入完成',
-        message: resp.message || `已导入到 ${resp.target_directory_path || targetNode.full_code_path}`,
-        position: 'top-right'
-      })
-      emit('imported', resp.target_directory_path || targetNode.full_code_path)
-      dialogVisible.value = false
-    } catch (error: any) {
-      const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导入失败'
-      ElMessage.error(message)
-    } finally {
-      loadingNotify.close()
-      loadingInstance.close()
-      importing.value = false
-    }
-  } catch {
-    // 用户取消
-  }
+  })
 }
 
 async function submitJsonImport() {
@@ -262,56 +330,106 @@ async function submitJsonImport() {
     return
   }
 
-  let loadingInstance: ReturnType<typeof showBlockingLoading> | null = null
+  let bundle: CapabilityBundle
   try {
-    const bundle = parseCapabilityBundleJson(await file.text())
-    await ElMessageBox.confirm(
-      `将能力包「${bundle.name || file.name}」导入到 ${targetNode.full_code_path}，同名文件会被覆盖。`,
-      'JSON 导入目录',
-      {
-        confirmButtonText: '覆盖导入',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
+    bundle = parseCapabilityBundleJson(await file.text())
+  } catch (error: any) {
+    ElMessage.error(getErrorMessage(error, 'JSON 文件格式不正确'))
+    return
+  }
 
-    importing.value = true
-    loadingInstance = showBlockingLoading('正在导入目录并更新函数列表，请稍候...')
-    const resp = await installCapabilityBundle({
-      target_directory_path: targetNode.full_code_path,
+  const targetPathSnapshot = targetNode.full_code_path
+  const targetLabelSnapshot = targetLabel.value
+  const sourceLabel = bundle.name || file.name
+  void runDirectoryImportTask({
+    targetPath: targetPathSnapshot,
+    targetLabel: targetLabelSnapshot,
+    sourceLabel,
+    request: () => installCapabilityBundle({
+      target_directory_path: targetPathSnapshot,
       overwrite: true,
       force_diff: true,
       bundle
     })
-    ElMessage.success(resp.message || '导入成功')
-    emit('imported', resp.target_directory_path || targetNode.full_code_path)
-    dialogVisible.value = false
-  } catch (error: any) {
-    if (error === 'cancel' || error === 'close') {
-      return
-    }
-    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || '导入失败'
-    ElMessage.error(message)
-  } finally {
-    importing.value = false
-    loadingInstance?.close()
-  }
+  })
 }
 </script>
 
 <style scoped lang="scss">
+:global(.workspace-import-directory-dialog.el-dialog) {
+  border-radius: 12px;
+  box-shadow: 0 24px 72px rgba(15, 23, 42, 0.22);
+}
+
+:global(.workspace-import-directory-dialog .el-dialog__header) {
+  padding: 20px 24px 12px;
+  margin-right: 0;
+}
+
+:global(.workspace-import-directory-dialog .el-dialog__body) {
+  padding: 0 24px 8px;
+}
+
+:global(.workspace-import-directory-dialog .el-dialog__footer) {
+  padding: 14px 24px 20px;
+}
+
+.import-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.import-dialog-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.18);
+  border-radius: 10px;
+  background: rgba(var(--el-color-primary-rgb), 0.08);
+  color: var(--el-color-primary);
+  font-size: 18px;
+}
+
+.import-dialog-title-block {
+  min-width: 0;
+}
+
+.import-dialog-title {
+  color: var(--el-text-color-primary);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.import-dialog-subtitle {
+  margin-top: 2px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .import-target {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px 10px;
-  padding: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
   margin-bottom: 14px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
-  background: var(--el-fill-color-lighter);
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.14);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(var(--el-color-primary-rgb), 0.06), rgba(var(--el-color-primary-rgb), 0.025));
+
+  .import-target-main {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
 
   strong,
   code {
+    display: block;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -319,20 +437,59 @@ async function submitJsonImport() {
   }
 
   code {
-    grid-column: 2;
+    margin-top: 3px;
     color: var(--el-text-color-secondary);
     font-size: 12px;
   }
 }
 
 .import-target-label {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--el-fill-color-blank);
   color: var(--el-text-color-secondary);
   font-size: 12px;
+  line-height: 1.5;
+}
+
+.import-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  margin-bottom: 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+
+  .el-icon {
+    flex: 0 0 auto;
+    color: var(--el-color-warning);
+  }
 }
 
 .import-source-tabs {
   :deep(.el-tabs__header) {
-    margin-bottom: 16px;
+    margin-bottom: 18px;
+  }
+
+  :deep(.el-tabs__nav-wrap::after) {
+    height: 1px;
+    background: var(--el-border-color-lighter);
+  }
+
+  :deep(.el-tabs__item) {
+    height: 36px;
+    color: var(--el-text-color-secondary);
+    font-weight: 650;
+  }
+
+  :deep(.el-tabs__item.is-active) {
+    color: var(--el-color-primary);
   }
 }
 
@@ -344,23 +501,41 @@ async function submitJsonImport() {
 
 .import-source-form {
   margin-bottom: -8px;
+
+  :deep(.el-form-item__label) {
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  :deep(.el-textarea__inner),
+  :deep(.el-input__wrapper) {
+    border-radius: 8px;
+    box-shadow: 0 0 0 1px var(--el-border-color-light) inset;
+  }
+
+  :deep(.el-textarea__inner:focus),
+  :deep(.el-input__wrapper.is-focus) {
+    box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.48) inset, 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.08);
+  }
 }
 
 .json-import-box {
   display: grid;
   place-items: center;
-  gap: 10px;
-  min-height: 188px;
+  gap: 12px;
+  min-height: 180px;
   padding: 24px;
-  border: 1px dashed var(--el-border-color);
-  border-radius: 8px;
+  border: 1px dashed var(--el-border-color-light);
+  border-radius: 10px;
   background: var(--el-fill-color-lighter);
   text-align: center;
-  transition: border-color 0.18s ease, background 0.18s ease;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 
   &.has-file {
     border-color: var(--el-color-primary);
     background: rgba(var(--el-color-primary-rgb), 0.06);
+    box-shadow: 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.08);
   }
 }
 
@@ -370,7 +545,7 @@ async function submitJsonImport() {
 
 .json-import-icon {
   color: var(--el-color-primary);
-  font-size: 28px;
+  font-size: 30px;
 }
 
 .json-file-name {
@@ -386,5 +561,9 @@ async function submitJsonImport() {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+
+  :deep(.el-button) {
+    border-radius: 8px;
+  }
 }
 </style>

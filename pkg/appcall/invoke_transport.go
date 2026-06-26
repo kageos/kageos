@@ -80,7 +80,7 @@ func (t *appInvokeTransport) requestApp(ctx context.Context, natsID int64, req *
 		return nil, err
 	}
 	subject := msg.Subject
-	logger.Infof(ctx, "[appcall:RequestApp] start: traceId=%s, subject=%s, method=%s, router=%s, user=%s, bodyLen=%d",
+	logger.Debugf(ctx, "[appcall:RequestApp] start: traceId=%s, subject=%s, method=%s, router=%s, user=%s, bodyLen=%d",
 		req.TraceId, subject, req.Method, req.Router, req.RequestUser, len(req.Body))
 
 	conn, err := t.connProvider.GetConnByNATSID(natsID)
@@ -90,17 +90,19 @@ func (t *appInvokeTransport) requestApp(ctx context.Context, natsID int64, req *
 		return nil, err
 	}
 
+	registration := t.waiter.Register(req.TraceId)
 	if err := conn.PublishMsg(msg); err != nil {
+		registration.Cancel()
 		logger.Errorf(ctx, "[appcall:RequestApp] PublishMsg failed: traceId=%s, subject=%s, err=%v, elapsed=%s",
 			req.TraceId, subject, err, time.Since(start).Truncate(time.Millisecond))
 		return nil, fmt.Errorf("publish request failed: %w", err)
 	}
 
 	publishElapsed := time.Since(start)
-	logger.Infof(ctx, "[appcall:RequestApp] published, waiting response: traceId=%s, publishElapsed=%s, waitTimeout=%s",
+	logger.Debugf(ctx, "[appcall:RequestApp] published, waiting response: traceId=%s, publishElapsed=%s, waitTimeout=%s",
 		req.TraceId, publishElapsed.Truncate(time.Millisecond), t.timeout)
 
-	resp, err := t.waiter.Wait(ctx, req.TraceId, t.timeout)
+	resp, err := registration.Wait(ctx, t.timeout)
 	totalElapsed := time.Since(start)
 	if err != nil {
 		logger.Errorf(ctx, "[appcall:RequestApp] Wait failed: traceId=%s, err=%v, totalElapsed=%s (publish=%s, wait=%s)",
@@ -109,7 +111,7 @@ func (t *appInvokeTransport) requestApp(ctx context.Context, natsID int64, req *
 		return nil, fmt.Errorf("wait response timeout: %w", err)
 	}
 
-	logger.Infof(ctx, "[appcall:RequestApp] done: traceId=%s, hasError=%v, totalElapsed=%s",
+	logger.Debugf(ctx, "[appcall:RequestApp] done: traceId=%s, hasError=%v, totalElapsed=%s",
 		req.TraceId, resp.Error != "", totalElapsed.Truncate(time.Millisecond))
 	return resp, nil
 }

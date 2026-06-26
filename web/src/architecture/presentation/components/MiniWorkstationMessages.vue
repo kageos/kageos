@@ -80,9 +80,9 @@
                 />
               </template>
               <template v-else>
-                <div class="mini-tools-block">
+                <div v-if="getVisibleToolCallsFromCalls(block.calls).length" class="mini-tools-block">
                   <div
-                    v-for="(tc, ti) in block.calls"
+                    v-for="(tc, ti) in getVisibleToolCallsFromCalls(block.calls)"
                     :key="`${tc.name}-${ti}`"
                     class="mini-tool-tag"
                   >
@@ -105,12 +105,6 @@
                   :confirm-disabled="sending"
                   @confirm="emit('confirm-prd', $event)"
                   class="mini-msg-prd-preview"
-                />
-                <RoleHandoffCard
-                  v-for="(tc, ri) in getRoleHandoffCallsFromCalls(block.calls)"
-                  :key="`role-${tc.name}-${ri}`"
-                  :tool-call="tc"
-                  class="mini-msg-role-handoff"
                 />
                 <BuildWorkspaceDiagnosticsCard
                   v-for="(tc, bi) in getBuildWorkspaceFailureCallsFromCalls(block.calls)"
@@ -177,12 +171,6 @@
               @confirm="emit('confirm-prd', $event)"
               class="mini-msg-prd-preview"
             />
-            <RoleHandoffCard
-              v-for="(tc, ri) in getRoleHandoffCallsFromCalls(msg.tool_calls)"
-              :key="`msg-role-${tc.name}-${ri}`"
-              :tool-call="tc"
-              class="mini-msg-role-handoff"
-            />
             <BuildWorkspaceDiagnosticsCard
               v-for="(tc, bi) in getBuildWorkspaceFailureCallsFromCalls(msg.tool_calls)"
               :key="`msg-build-failure-${tc.name}-${bi}`"
@@ -232,12 +220,12 @@ import ModelContextPlanCard from './ModelContextPlanCard.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
 import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import PrdPreview from './PrdPreview.vue'
-import RoleHandoffCard from './RoleHandoffCard.vue'
 import BuildWorkspaceDiagnosticsCard from './BuildWorkspaceDiagnosticsCard.vue'
 import MiniWorkstationPendingActionBar from './MiniWorkstationPendingActionBar.vue'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { WorkspaceInteraction } from '@/architecture/presentation/context/api/workspace'
+import { getVisibleWorkspaceToolCalls } from '@/architecture/presentation/utils/workspaceRoleDisplay'
 
 const { t } = useI18n()
 
@@ -282,16 +270,18 @@ function getAssistantOutputSize(message: ChatMessage): number {
       if (block.type === 'content') {
         size += block.text.length
       } else {
-        size += block.calls.length
-        for (const call of block.calls) {
+        const visibleCalls = getVisibleToolCallsFromCalls(block.calls)
+        size += visibleCalls.length
+        for (const call of visibleCalls) {
           size += (call.arguments?.length ?? 0) + (call.result?.length ?? 0) + (call.error?.length ?? 0)
         }
       }
     }
   }
   if (message.tool_calls?.length) {
-    size += message.tool_calls.length
-    for (const call of message.tool_calls) {
+    const visibleCalls = getVisibleToolCallsFromCalls(message.tool_calls)
+    size += visibleCalls.length
+    for (const call of visibleCalls) {
       size += (call.arguments?.length ?? 0) + (call.result?.length ?? 0) + (call.error?.length ?? 0)
     }
   }
@@ -390,8 +380,8 @@ function getPrdCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall
   return calls.filter((call) => call.name === 'write_prd' && call.status === 'ok' && call.result_data != null)
 }
 
-function getRoleHandoffCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
-  return calls.filter((call) => call.name === 'change_role')
+function getVisibleToolCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
+  return getVisibleWorkspaceToolCalls(calls)
 }
 
 function getBuildWorkspaceFailureCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
@@ -817,20 +807,6 @@ onBeforeUnmount(() => {
 
 .mini-msg-prd-preview {
   margin: 6px 0;
-}
-.mini-msg-role-handoff {
-  --el-text-color-primary: var(--mini-cyber-text, #d8f8ff);
-  --el-text-color-regular: rgba(216, 248, 255, 0.86);
-  --el-text-color-secondary: rgba(173, 220, 233, 0.68);
-  --el-text-color-placeholder: rgba(173, 220, 233, 0.42);
-  --el-border-color-lighter: rgba(96, 231, 255, 0.16);
-  --el-border-color-extra-light: rgba(96, 231, 255, 0.10);
-  --el-fill-color-blank: rgba(12, 31, 50, 0.82);
-  --el-fill-color-lighter: rgba(8, 22, 38, 0.62);
-
-  margin: 6px 0;
-  border-top: 1px solid rgba(96, 231, 255, 0.16);
-  border-radius: 8px;
 }
 .mini-msg-build-diagnostics {
   --el-text-color-primary: var(--mini-cyber-text, #d8f8ff);

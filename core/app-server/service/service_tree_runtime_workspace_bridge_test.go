@@ -137,7 +137,7 @@ func TestRuntimeWorkspaceBridgeBatchWriteFilesUsesRuntimeBoundHost(t *testing.T)
 		User:           "alice",
 		App:            "demo",
 		OperationName:  "install_capability_bundle",
-		OperationLabel: "安装能力包",
+		OperationLabel: "导入目录",
 		ForceDiff:      true,
 		Files: []*dto.FileWriteItem{
 			{FullCodePath: "/alice/demo/ticket", RelativePath: "ticket.go", Content: "package ticket"},
@@ -161,7 +161,7 @@ func TestRuntimeWorkspaceBridgeBatchWriteFilesUsesRuntimeBoundHost(t *testing.T)
 	if client.batchWriteReq.User != "alice" || client.batchWriteReq.App != "demo" || !client.batchWriteReq.ForceDiff {
 		t.Fatalf("unexpected runtime request: %#v", client.batchWriteReq)
 	}
-	if client.batchWriteReq.OperationLabel != "安装能力包" || client.batchWriteReq.OperationName != "install_capability_bundle" {
+	if client.batchWriteReq.OperationLabel != "导入目录" || client.batchWriteReq.OperationName != "install_capability_bundle" {
 		t.Fatalf("operation metadata not forwarded: %#v", client.batchWriteReq)
 	}
 }

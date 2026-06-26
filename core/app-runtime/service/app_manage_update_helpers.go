@@ -139,7 +139,7 @@ func (s *AppManageService) deployUpdatedVersion(
 	if err := s.waitForUpdatedVersionStartup(ctx, user, app, newVersion, waiterChan, logStr); err != nil {
 		return err
 	}
-	s.stopPreviousVersionAfterUpdate(ctx, user, app, state.oldVersion, logStr)
+	s.deferPreviousVersionCleanupAfterUpdate(ctx, user, app, state.oldVersion, logStr)
 
 	logStr.WriteString(fmt.Sprintf("Update completed: %s->%s", state.oldVersion, newVersion))
 	logger.Infof(ctx, logStr.String())
@@ -250,4 +250,25 @@ func (s *AppManageService) stopPreviousVersionAfterUpdate(
 
 	logStr.WriteString("Old container stopped gracefully\t")
 	logger.Infof(ctx, "[UpdateApp] ✅ Old container stopped gracefully: %s/%s/%s", user, app, oldVersion)
+}
+
+func (s *AppManageService) deferPreviousVersionCleanupAfterUpdate(
+	ctx context.Context,
+	user, app, oldVersion string,
+	logStr *strings.Builder,
+) {
+	if oldVersion == "" || oldVersion == "unknown" {
+		logger.Infof(ctx, "[UpdateApp] No old version to defer cleanup (oldVersion: %s)", oldVersion)
+		return
+	}
+
+	if s.runtimeDriver == nil {
+		logger.Warnf(ctx, "[UpdateApp] App runtime driver not available, old version cleanup will rely on external reconciliation")
+		return
+	}
+
+	logStr.WriteString("Old container left running for cutover\t")
+	logger.Infof(ctx, "[UpdateApp] Deferring old version shutdown until app-server switches traffic and cleanup observes a full quiet period: %s/%s/%s",
+		user, app, oldVersion)
+	s.MarkContainerCleanupDirty()
 }

@@ -30,7 +30,7 @@
       <section v-if="plan.handoff" class="model-context-section model-context-section--wide">
         <div class="model-context-label">交接包</div>
         <div class="model-context-chip-row">
-          <span v-if="plan.handoff.target_role">目标 {{ plan.handoff.target_role }}</span>
+          <span v-if="plan.handoff.target_role">目标 {{ formatWorkspaceRoleName(plan.handoff.target_role) }}</span>
           <span v-if="plan.handoff.artifact_kind">{{ plan.handoff.artifact_kind }}</span>
           <span v-if="plan.handoff.validation_status">校验 {{ plan.handoff.validation_status }}</span>
         </div>
@@ -82,6 +82,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { WorkspaceModelContextPlan } from '@/architecture/presentation/context/api/workspace'
+import { formatWorkspaceRoleName } from '@/architecture/presentation/utils/workspaceRoleDisplay'
 
 const props = defineProps<{
   plan: WorkspaceModelContextPlan
@@ -89,10 +90,23 @@ const props = defineProps<{
 }>()
 
 const roleLabel = computed(() => {
-  const display = props.plan.role.display_name || props.plan.role.id || ''
-  const source = props.plan.role.source ? ` · ${props.plan.role.source}` : ''
+  const display = formatWorkspaceRoleName(props.plan.role.id, props.plan.role.display_name)
+  const source = workspaceRoleSourceLabel(props.plan.role.source)
   return display ? `${display}${source}` : ''
 })
+
+function workspaceRoleSourceLabel(source?: string): string {
+  switch (String(source || '').trim()) {
+    case 'session':
+      return ' · 当前会话'
+    case 'messages':
+      return ' · 历史消息'
+    case 'default_router':
+      return ' · 默认'
+    default:
+      return source ? ` · ${source}` : ''
+  }
+}
 
 const executionSummary = computed(() => {
   const parts = [

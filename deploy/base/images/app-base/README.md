@@ -79,7 +79,7 @@ bash deploy/base/scripts/build-app-base-image.sh --force --no-cache
 - **pngquant / gifsicle / unpaper / LibRaw**：PNG 压缩、GIF 优化、扫描件预处理、RAW 图片工具
 - **Lua**：轻量级脚本语言（数据转换、验证、模板处理等）
 - **yt-dlp**：在线视频/音频资源抓取与元数据读取 CLI
-- **CLI 辅助工具**：`wget`、`mediainfo`、`7z`、`rsync`、`zstd`
+- **CLI 辅助工具**：`git`、`wget`、`mediainfo`、`7z`、`rsync`、`zstd`
 - **Python 3**：Python 解释器和 pip（用于执行 Python 代码）
 - **启动脚本**：`/start.sh`（用于启动用户应用）
 
@@ -115,6 +115,7 @@ bash deploy/base/scripts/build-app-base-image.sh --force --no-cache
 | LibRaw | `dcraw_emu` `raw-identify` | `raw-identify photo.cr2` |
 | Lua | `lua` | `lua script.lua` |
 | yt-dlp | `yt-dlp` | `yt-dlp --dump-json URL` |
+| Git | `git` | `git clone https://example.com/repo.git` |
 | wget | `wget` | `wget -O out.bin URL` |
 | MediaInfo | `mediainfo` | `mediainfo --Output=JSON input.mp4` |
 | p7zip | `7z` | `7z x archive.7z -oout` |
@@ -361,7 +362,7 @@ Python 包可以通过 `pip install` 动态安装，SDK 的 `WithPackages()` 方
 - **Lua**：MIT 许可证（非常宽松）
 - **yt-dlp**：Unlicense（使用时仍需遵守目标站点条款与版权要求）
 - **Python 3**：PSF 许可证（非常宽松）
-- **新增工具**：ExifTool、OCRmyPDF、libvips、libwebp、pngquant、gifsicle、unpaper、LibRaw、wget、MediaInfo、p7zip、rsync、zstd 请以各项目官方许可证说明为准
+- **新增工具**：ExifTool、OCRmyPDF、libvips、libwebp、pngquant、gifsicle、unpaper、LibRaw、Git、wget、MediaInfo、p7zip、rsync、zstd 请以各项目官方许可证说明为准
 
 用户代码可以保持闭源，详细的许可证信息请参考项目根目录的 `THIRD_PARTY_LICENSES.md`
 
@@ -386,6 +387,7 @@ podman run --rm kagebase:latest sh -c "
     gifsicle --version 2>&1 | head -n 1 && \
     unpaper --version 2>&1 | head -n 1 && \
     yt-dlp --version && \
+    git --version && \
     wget --version | head -n 1 && \
     mediainfo --Version && \
     7z i | head -n 2 && \

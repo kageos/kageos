@@ -189,7 +189,7 @@ func TestAppDeveloperRoleExecutesConfirmedPRD(t *testing.T) {
 func TestAutomationOperatorRoleDocumentsScheduledAgentSOP(t *testing.T) {
 	_, content := GetPromptDocContent(nil, "/system/prompt/roles/automation-operator")
 	for _, needle := range []string{
-		"自动化操作员 automation_operator",
+		"自动执行配置 automation_operator",
 		"定时会话的典型场景",
 		"长期数据维护",
 		"情报/新闻日报",
@@ -237,7 +237,7 @@ func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 			"Form 提交后必须到 `target_table` 对应 Table 查询验证记录确实产生",
 		},
 		"/system/prompt/roles/app-operator": {
-			"应用操作员 app_operator",
+			"应用执行 app_operator",
 			"这是业务操作角色，不是测试角色",
 			"`run_table_search`",
 			"`run_table_create`",

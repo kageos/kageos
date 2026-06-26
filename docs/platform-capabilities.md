@@ -103,6 +103,6 @@ flowchart LR
 
 - 业务应用发通知时使用 `ctx.SendMessage`，不要直接写 `message-server` 的表，也不要绑定具体外部渠道。
 - Agent 后台任务发通知时使用 `send_notification`。定时会话和后台上下文必须显式写 `to_users`，通知创建人/当前用户时使用任务创建人的 username。
-- 业务应用需要默认定时执行时使用 `FormTemplate.Schedules`；临时或运营型自动化由自动化操作员创建 `timer-scheduler` 任务。
+- 业务应用需要默认定时执行时使用 `FormTemplate.Schedules`；临时或运营型自动化由自动执行配置创建 `timer-scheduler` 任务。
 - Service Tree 路径、`full_code_path`、`source_path`、trace 和操作日志是平台排障与跳转的共同索引，新增能力时应完整传递，不要在前端用临时 URL 状态替代持久来源信息。
 - 权限是当前平台能力；审批、评论、收藏、外部通知渠道和备份控制面目前未上线，不应由单个业务 App 自造通用版本。

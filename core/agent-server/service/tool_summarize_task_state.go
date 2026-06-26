@@ -57,7 +57,7 @@ type taskStateSummaryData struct {
 
 var summarizeTaskStateToolDef = toolDefinitionWithOutput[summarizeTaskStateArgs, structuredToolResultSchema[taskStateSummaryData]](
 	"summarize_task_state",
-	"把当前任务阶段压缩成可传给 change_role 的四块标准交接信息。适用于所有角色切换：开发、构建、测试、维护、业务操作、平台集成、数据处理和 review。只读、无副作用；用于避免旧 PRD、旧错误和长上下文污染下一身份，同时保留执行目录、任务上下文、关键信息、参考资料和下一步目标。",
+	"把当前任务阶段压缩成可传给 change_role 的四块标准交接信息。适用于所有执行阶段交接：开发、构建、测试、维护、业务操作、平台集成、数据处理和 review。只读、无副作用；用于避免旧 PRD、旧错误和长上下文污染下一身份，同时保留执行目录、任务上下文、关键信息、参考资料和下一步目标。",
 )
 
 func (t *SummarizeTaskStateTool) Definition() dto.ToolDef {

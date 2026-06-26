@@ -1,6 +1,7 @@
 import { computed, type Ref } from 'vue'
 import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 import { translate } from '@/architecture/shared/i18n'
+import { formatWorkspaceRoleName } from '@/architecture/presentation/utils/workspaceRoleDisplay'
 
 export type SessionFilterValue = 'all' | 'running' | 'waiting' | 'output' | 'done'
 export type SessionStatusKind = 'running' | 'waiting' | 'done' | 'cancelled' | 'failed' | 'active' | 'output'
@@ -138,7 +139,9 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
     return [
       session.title,
       session.user,
+      getSessionRoleDisplayName(session),
       session.role_display_name,
+      session.role_id,
       session.directory_name,
       session.full_code_path,
       getSessionDirectoryPath(session)
@@ -197,9 +200,13 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
   }
 
   function getSessionCenterSubtitle(session: WorkspaceSessionItem) {
-    return [getSessionDirectoryPath(session), session.role_display_name || session.user || getSessionStatusLabel(session)]
+    return [getSessionDirectoryPath(session), getSessionRoleDisplayName(session) || session.user || getSessionStatusLabel(session)]
       .filter(Boolean)
       .join(' · ') || translate('miniWorkstation.currentDirectory')
+  }
+
+  function getSessionRoleDisplayName(session: WorkspaceSessionItem) {
+    return formatWorkspaceRoleName(session.role_id, session.role_display_name)
   }
 
   function getSessionStatusKind(session: WorkspaceSessionItem): SessionStatusKind {
@@ -297,7 +304,7 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
 }
 
 export function getSessionTitle(session: WorkspaceSessionItem) {
-  return session.title || session.role_display_name || translate('miniWorkstation.unnamedSession')
+  return session.title || formatWorkspaceRoleName(session.role_id, session.role_display_name) || translate('miniWorkstation.unnamedSession')
 }
 
 export function getSessionTimestamp(session: WorkspaceSessionItem) {

@@ -162,7 +162,7 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 	dbElapsed := time.Since(start)
 	req.Version = app.Version
 	a.applyRequestSourceContext(ctx, req)
-	logger.Infof(ctx, "[AppService:RequestApp] start: traceId=%s, %s/%s/%s, method=%s, router=%s, natsId=%d, dbElapsed=%s",
+	logger.Debugf(ctx, "[AppService:RequestApp] start: traceId=%s, %s/%s/%s, method=%s, router=%s, natsId=%d, dbElapsed=%s",
 		req.TraceId, req.User, req.App, req.Version, req.Method, req.Router, app.NatsID, dbElapsed.Truncate(time.Millisecond))
 
 	if err := a.requireFunctionConnectors(ctx, req); err != nil {
@@ -178,7 +178,7 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 			req.TraceId, req.User, req.App, req.Version, err, totalElapsed.Truncate(time.Millisecond))
 		return nil, err
 	}
-	logger.Infof(ctx, "[AppService:RequestApp] done: traceId=%s, %s/%s/%s, hasError=%v, totalElapsed=%s",
+	logger.Debugf(ctx, "[AppService:RequestApp] done: traceId=%s, %s/%s/%s, hasError=%v, totalElapsed=%s",
 		req.TraceId, req.User, req.App, req.Version, resp.Error != "", totalElapsed.Truncate(time.Millisecond))
 	resp.Version = req.Version
 	return resp, nil

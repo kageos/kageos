@@ -12,7 +12,7 @@ describe('directoryBundleFile', () => {
       files: []
     }
 
-    expect(buildCapabilityBundleFileName(bundle, '/system/tools/excel_tools')).toBe('excel_tools.capability-bundle.json')
+    expect(buildCapabilityBundleFileName(bundle, '/system/tools/excel_tools')).toBe('excel_tools.directory.json')
   })
 
   it('sanitizes path separators and whitespace', () => {
@@ -23,10 +23,10 @@ describe('directoryBundleFile', () => {
       files: []
     }
 
-    expect(buildCapabilityBundleFileName(bundle)).toBe('sales-report-2026.capability-bundle.json')
+    expect(buildCapabilityBundleFileName(bundle)).toBe('sales-report-2026.directory.json')
   })
 
-  it('parses capability bundle json', () => {
+  it('parses directory json', () => {
     const parsed = parseCapabilityBundleJson(JSON.stringify({
       schema_version: 'capability.bundle.v1',
       name: '消息能力',

@@ -26,14 +26,14 @@ func TestDevModePromptIsShortAndDoesNotAppendAllInOne(t *testing.T) {
 		t.Fatalf("dev prompt should expand role routing marker:\n%s", got)
 	}
 	if !strings.Contains(got, "### `product_manager` 产品经理") ||
-		!strings.Contains(got, "### `app_operator` 应用操作员") ||
+		!strings.Contains(got, "### `app_operator` 应用执行") ||
 		!strings.Contains(got, "## 工作台背景与能力地图") ||
 		!strings.Contains(got, "## 角色速查与选择") ||
-		!strings.Contains(got, "## 角色切换与交接协议") ||
+		!strings.Contains(got, "## 执行阶段与上下文交接") ||
 		!strings.Contains(got, "Kageos 工作台不是普通聊天窗口") ||
 		!strings.Contains(got, "能力地图") ||
 		!strings.Contains(got, "角色文档不是主路由入口") ||
-		!strings.Contains(got, "`automation_operator` 自动化操作员") ||
+		!strings.Contains(got, "`automation_operator` 自动执行配置") ||
 		!strings.Contains(got, "定时函数、定时会话") ||
 		!strings.Contains(got, "Form 默认调度") ||
 		!strings.Contains(got, "固定函数和固定参数用定时函数") ||
@@ -50,7 +50,7 @@ func TestDevModePromptIsShortAndDoesNotAppendAllInOne(t *testing.T) {
 		strings.Contains(got, "如果仍适合当前角色，也通过 `change_role` 明确沿用当前角色") {
 		t.Fatalf("dev prompt should not force ritual change_role calls when the current role still matches:\n%s", got)
 	}
-	if strings.Index(got, "### `app_operator` 应用操作员") > strings.Index(got, "### `product_manager` 产品经理") {
+	if strings.Index(got, "### `app_operator` 应用执行") > strings.Index(got, "### `product_manager` 产品经理") {
 		t.Fatalf("dev prompt should present app_operator before product_manager:\n%s", got)
 	}
 	if strings.Contains(got, "全家桶") || strings.Contains(got, "## 二十、Agent-App SDK README 全文") {

@@ -8,7 +8,7 @@ import (
 const workspaceRoleHandoffPacketVersion = "role_handoff.v1"
 
 type workspaceRoleHandoffPacket struct {
-	Version            string                        `json:"version" schema_desc:"交接协议版本" schema_required:"true"`
+	Version            string                        `json:"version" schema_desc:"阶段交接版本" schema_required:"true"`
 	SourceSessionID    string                        `json:"source_session_id,omitempty" schema_desc:"来源会话 ID"`
 	SourceRole         string                        `json:"source_role,omitempty" schema_desc:"来源角色 ID"`
 	TargetRole         string                        `json:"target_role" schema_desc:"目标角色 ID" schema_required:"true"`
@@ -24,7 +24,7 @@ type workspaceRoleHandoffPacket struct {
 	ArtifactDigest     *workspaceArtifactDigest      `json:"artifact_digest,omitempty" schema_desc:"产物摘要"`
 	BuildDiagnostics   *workspaceBuildDiagnostics    `json:"build_diagnostics,omitempty" schema_desc:"构建失败诊断，仅构建修复阶段出现"`
 	ExecutedHooks      []workspaceExecutedRoleHook   `json:"executed_hooks,omitempty" schema_desc:"已执行的角色生命周期 Hook"`
-	Validation         workspaceRolePacketValidation `json:"validation" schema_desc:"交接协议校验结果" schema_required:"true"`
+	Validation         workspaceRolePacketValidation `json:"validation" schema_desc:"阶段交接校验结果" schema_required:"true"`
 }
 
 type workspaceRolePacketArtifact struct {

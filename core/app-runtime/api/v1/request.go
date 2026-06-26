@@ -38,7 +38,7 @@ func (h *RequestHandler) HandleAppServerInvokeRequest(msg *nats.Msg) {
 		return
 	}
 
-	logger.Infof(ctx, "[HandleAppServerInvokeRequest] received: traceId=%s, %s/%s/%s, method=%s, router=%s, dataLen=%d",
+	logger.Debugf(ctx, "[HandleAppServerInvokeRequest] received: traceId=%s, %s/%s/%s, method=%s, router=%s, dataLen=%d",
 		req.TraceID, req.User, req.App, req.Version, req.Method, req.Router, len(msg.Data))
 
 	h.appManageService.QPSTracker.RecordRequest(req.User, req.App, req.Version)
@@ -50,7 +50,7 @@ func (h *RequestHandler) HandleAppServerInvokeRequest(msg *nats.Msg) {
 			logger.Errorf(ctx, "[HandleAppServerInvokeRequest] Ensure running failed: traceId=%s, err=%v, ensureElapsed=%s",
 				req.TraceID, err, time.Since(ensureStart).Truncate(time.Millisecond))
 		} else {
-			logger.Infof(ctx, "[HandleAppServerInvokeRequest] Ensure running done: traceId=%s, ensureElapsed=%s",
+			logger.Debugf(ctx, "[HandleAppServerInvokeRequest] Ensure running done: traceId=%s, ensureElapsed=%s",
 				req.TraceID, time.Since(ensureStart).Truncate(time.Millisecond))
 		}
 	}
@@ -59,6 +59,6 @@ func (h *RequestHandler) HandleAppServerInvokeRequest(msg *nats.Msg) {
 			req.TraceID, err, time.Since(start).Truncate(time.Millisecond))
 		return
 	}
-	logger.Infof(ctx, "[HandleAppServerInvokeRequest] forwarded: traceId=%s, %s/%s/%s, totalElapsed=%s",
+	logger.Debugf(ctx, "[HandleAppServerInvokeRequest] forwarded: traceId=%s, %s/%s/%s, totalElapsed=%s",
 		req.TraceID, req.User, req.App, req.Version, time.Since(start).Truncate(time.Millisecond))
 }

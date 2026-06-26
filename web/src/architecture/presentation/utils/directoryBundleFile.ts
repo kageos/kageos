@@ -1,6 +1,6 @@
 import type { CapabilityBundle } from '@/architecture/domain/types'
 
-const FALLBACK_CAPABILITY_BUNDLE_FILENAME = 'capability-bundle.json'
+const FALLBACK_CAPABILITY_BUNDLE_FILENAME = 'directory.json'
 
 function sanitizeFilenamePart(value: string): string {
   return value
@@ -18,7 +18,7 @@ export function buildCapabilityBundleFileName(bundle: CapabilityBundle, sourcePa
   if (!safeName) {
     return FALLBACK_CAPABILITY_BUNDLE_FILENAME
   }
-  return `${safeName}.capability-bundle.json`
+  return `${safeName}.directory.json`
 }
 
 export function downloadCapabilityBundleFile(bundle: CapabilityBundle, sourcePath?: string): void {
@@ -115,9 +115,9 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
     throw new Error('JSON 格式不正确')
   }
 
-  const object = ensurePlainObject(raw, '能力包')
+  const object = ensurePlainObject(raw, '目录 JSON')
   if (object.schema_version !== 'capability.bundle.v1') {
-    throw new Error('只支持 capability.bundle.v1')
+    throw new Error('只支持目录 JSON（capability.bundle.v1）')
   }
 
   const rawPackages = object.packages
@@ -220,7 +220,7 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
   }) : []
 
   if (packages.length === 0 && files.length === 0 && docs.length === 0) {
-    throw new Error('能力包必须包含 packages、files 或 docs')
+    throw new Error('目录 JSON 必须包含 packages、files 或 docs')
   }
 
   return {

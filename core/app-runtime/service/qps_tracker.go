@@ -19,13 +19,15 @@ type QPSTracker struct {
 
 // VersionQPS 单个版本的 QPS 记录
 type VersionQPS struct {
-	User      string    `json:"user"`
-	App       string    `json:"app"`
-	Version   string    `json:"version"`
-	Requests  []int64   `json:"requests"`   // 时间戳数组，记录请求时间
-	LastQPS   float64   `json:"last_qps"`   // 最近一次计算的 QPS
-	LastCheck time.Time `json:"last_check"` // 最后检查时间
-	mu        sync.RWMutex
+	User          string    `json:"user"`
+	App           string    `json:"app"`
+	Version       string    `json:"version"`
+	Requests      []int64   `json:"requests"`        // 时间戳数组，记录请求时间
+	ObservedAt    time.Time `json:"observed_at"`     // 首次被清理器观察到的时间
+	LastRequestAt time.Time `json:"last_request_at"` // 最近一次请求进入 runtime 的时间
+	LastQPS       float64   `json:"last_qps"`        // 最近一次计算的 QPS
+	LastCheck     time.Time `json:"last_check"`      // 最后检查时间
+	mu            sync.RWMutex
 }
 
 // NewQPSTracker 创建 QPS 跟踪器
@@ -40,7 +42,8 @@ func NewQPSTracker(windowSize, checkInterval time.Duration) *QPSTracker {
 // RecordRequest 记录请求
 func (q *QPSTracker) RecordRequest(user, app, version string) {
 	key := q.buildKey(user, app, version)
-	now := time.Now().Unix()
+	now := time.Now()
+	nowUnix := now.Unix()
 
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -48,17 +51,41 @@ func (q *QPSTracker) RecordRequest(user, app, version string) {
 	vqps, exists := q.versionQPS[key]
 	if !exists {
 		vqps = &VersionQPS{
-			User:     user,
-			App:      app,
-			Version:  version,
-			Requests: make([]int64, 0),
+			User:       user,
+			App:        app,
+			Version:    version,
+			Requests:   make([]int64, 0),
+			ObservedAt: now,
 		}
 		q.versionQPS[key] = vqps
 	}
 
 	vqps.mu.Lock()
-	vqps.Requests = append(vqps.Requests, now)
+	vqps.Requests = append(vqps.Requests, nowUnix)
+	vqps.LastRequestAt = now
 	vqps.mu.Unlock()
+}
+
+// ObserveVersion 标记清理器已经开始观察某个版本。
+// 这样没有任何请求的旧版本也必须先经历完整静默期，避免 runtime 重启后立刻误清理。
+func (q *QPSTracker) ObserveVersion(user, app, version string) {
+	key := q.buildKey(user, app, version)
+	now := time.Now()
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if _, exists := q.versionQPS[key]; exists {
+		return
+	}
+
+	q.versionQPS[key] = &VersionQPS{
+		User:       user,
+		App:        app,
+		Version:    version,
+		Requests:   make([]int64, 0),
+		ObservedAt: now,
+	}
 }
 
 // GetQPS 获取指定版本的当前 QPS
@@ -78,9 +105,39 @@ func (q *QPSTracker) GetQPS(user, app, version string) float64 {
 
 // IsSafeToShutdown 检查是否可以安全关闭指定版本
 func (q *QPSTracker) IsSafeToShutdown(user, app, version string) bool {
-	qps := q.GetQPS(user, app, version)
-	//logger.Infof(context.Background(), "[QPSTracker] Version %s/%s/%s current QPS: %.2f", user, app, version, qps)
-	return qps < 0.1 // QPS 小于 0.1 认为可以安全关闭
+	return q.IsIdleFor(user, app, version, q.windowSize)
+}
+
+// IsIdleFor 判断版本是否已经完整静默一段时间。
+// 必须满足两个条件：统计窗口内没有请求，且距离最近一次请求/首次观察已超过 quietPeriod。
+func (q *QPSTracker) IsIdleFor(user, app, version string, quietPeriod time.Duration) bool {
+	if quietPeriod <= 0 {
+		quietPeriod = q.windowSize
+	}
+
+	key := q.buildKey(user, app, version)
+	q.mu.RLock()
+	vqps, exists := q.versionQPS[key]
+	q.mu.RUnlock()
+	if !exists {
+		return false
+	}
+
+	if q.calculateQPS(vqps) > 0 {
+		return false
+	}
+
+	vqps.mu.RLock()
+	lastActivity := vqps.LastRequestAt
+	if lastActivity.IsZero() {
+		lastActivity = vqps.ObservedAt
+	}
+	vqps.mu.RUnlock()
+
+	if lastActivity.IsZero() {
+		return false
+	}
+	return time.Since(lastActivity) >= quietPeriod
 }
 
 // calculateQPS 计算 QPS
@@ -149,10 +206,14 @@ func (q *QPSTracker) cleanup() {
 			}
 		}
 		vqps.Requests = validRequests
+		lastActivity := vqps.LastRequestAt
+		if lastActivity.IsZero() {
+			lastActivity = vqps.ObservedAt
+		}
 		vqps.mu.Unlock()
 
 		// 如果长时间没有请求，删除记录
-		if len(validRequests) == 0 && time.Since(vqps.LastCheck) > q.windowSize*2 {
+		if len(validRequests) == 0 && !lastActivity.IsZero() && time.Since(lastActivity) > q.windowSize*24 {
 			delete(q.versionQPS, key)
 		}
 	}
@@ -172,10 +233,12 @@ func (q *QPSTracker) GetVersionStats(user, app, version string) *VersionQPS {
 
 	// 返回副本
 	return &VersionQPS{
-		User:      vqps.User,
-		App:       vqps.App,
-		Version:   vqps.Version,
-		LastQPS:   vqps.LastQPS,
-		LastCheck: vqps.LastCheck,
+		User:          vqps.User,
+		App:           vqps.App,
+		Version:       vqps.Version,
+		ObservedAt:    vqps.ObservedAt,
+		LastRequestAt: vqps.LastRequestAt,
+		LastQPS:       vqps.LastQPS,
+		LastCheck:     vqps.LastCheck,
 	}
 }

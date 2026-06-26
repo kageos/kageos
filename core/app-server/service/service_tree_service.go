@@ -131,7 +131,7 @@ func (s *ServiceTreeService) ExportCapabilityBundle(ctx context.Context, req *dt
 
 func (s *ServiceTreeService) InstallCapabilityBundle(ctx context.Context, req *dto.InstallCapabilityBundleReq) (*dto.InstallCapabilityBundleResp, error) {
 	if req == nil {
-		return nil, fmt.Errorf("安装能力包请求不能为空")
+		return nil, fmt.Errorf("导入目录请求不能为空")
 	}
 	opts := req.InstallCapabilityOptions
 	return s.capabilityBundle.InstallCapabilityBundle(ctx, &opts, req.Bundle)
@@ -143,7 +143,7 @@ func (s *ServiceTreeService) InstallCapabilityBundleFromFile(ctx context.Context
 
 func (s *ServiceTreeService) InstallCapabilityBundleFromURL(ctx context.Context, req *dto.InstallCapabilityBundleFromURLReq) (*dto.InstallCapabilityBundleResp, error) {
 	if req == nil {
-		return nil, fmt.Errorf("通过 URL 安装能力包请求不能为空")
+		return nil, fmt.Errorf("通过 URL 导入目录请求不能为空")
 	}
 	opts := req.InstallCapabilityOptions
 	return s.capabilityBundle.InstallCapabilityBundleFromURL(ctx, &opts, req.BundleURL, req.InstallKey)

@@ -39,8 +39,8 @@ func TestApplyDefaultWorkspaceSessionRoleUsesAppOperator(t *testing.T) {
 
 	applyDefaultWorkspaceSessionRole(session)
 
-	if session.RoleID != WorkspaceRoleAppOperator || session.RoleDisplayName != "应用操作员" {
-		t.Fatalf("default role = %q/%q, want app_operator/应用操作员", session.RoleID, session.RoleDisplayName)
+	if session.RoleID != WorkspaceRoleAppOperator || session.RoleDisplayName != "应用执行" {
+		t.Fatalf("default role = %q/%q, want app_operator/应用执行", session.RoleID, session.RoleDisplayName)
 	}
 }
 
@@ -114,7 +114,7 @@ func TestWorkspaceRoleToolGateRunPythonGuidanceIsActionable(t *testing.T) {
 		t.Fatalf("maintenance_engineer should block run_python, blocked=%v res=%#v", blocked, res)
 	}
 	for _, want := range []string{
-		"应用操作员",
+		"应用执行",
 		"数据/文件处理工程师",
 		"def kageos_entry(args, output_dir):",
 		"read_go_file/search/read_doc",

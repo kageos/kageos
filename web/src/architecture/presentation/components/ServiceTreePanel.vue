@@ -171,7 +171,6 @@
     </div>
 
     <WorkspaceImportDirectoryDialog
-      v-if="importDirectoryDialogVisible"
       v-model:visible="importDirectoryDialogVisible"
       :target-node="importDirectoryTargetNode"
       @imported="handleDirectoryImported"
@@ -281,7 +280,7 @@ let unsubscribeRuntimeRefresh: (() => void) | null = null
 const panelLoading = computed(() => Boolean(props.loading) || bulkExporting.value || renamingNode.value)
 const panelLoadingText = computed(() => {
   if (renamingNode.value) return '正在更新目录...'
-  if (bulkExporting.value) return '正在导出能力包...'
+  if (bulkExporting.value) return '正在导出目录...'
   return '正在刷新服务目录...'
 })
 

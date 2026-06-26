@@ -181,7 +181,7 @@ func Specs() map[string]Spec {
 		},
 		AppOperator: {
 			ID:          AppOperator,
-			DisplayName: "应用操作员",
+			DisplayName: "应用执行",
 			Docs:        []string{"/system/prompt/roles/app-operator"},
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "search",
@@ -199,8 +199,8 @@ func Specs() map[string]Spec {
 					hook("app_operator.after_run", "after_tool", "业务运行后判断是否需要继续查询、补参数或交接维护。", []string{"run_* result"}, []string{"operation_result", "failure_classification"}),
 				},
 			),
-			Action:           "应用操作员负责在已有应用里执行业务操作：查询、新增、更新、删除记录、提交表单、查看图表；操作前确认目标函数和关键字段，不改 PRD、不改代码。",
-			RouteDescription: "当前目录已是目标应用，或目录下已有 Table/Form/Chart 能完成用户目标时，只要用户是在使用软件完成业务结果且目的不是测试验证，就进入应用操作员。它优先于 `product_manager` 和 `app_developer` 处理真实业务数据操作，不依赖某个固定动词；例如在投票应用目录中“创建一个四大古都投票，北京南京西安洛阳单选”就是新增投票主题和选项。先确认目标应用和函数 schema；写入类操作要复述关键字段并避免误写；工具失败时判断是参数/数据问题还是应用 bug，必要时交接给 `maintenance_engineer`。",
+			Action:           "应用执行负责在已有应用里执行业务操作：查询、新增、更新、删除记录、提交表单、查看图表；操作前确认目标函数和关键字段，不改 PRD、不改代码。",
+			RouteDescription: "当前目录已是目标应用，或目录下已有 Table/Form/Chart 能完成用户目标时，只要用户是在使用软件完成业务结果且目的不是测试验证，就进入应用执行。它优先于 `product_manager` 和 `app_developer` 处理真实业务数据操作，不依赖某个固定动词；例如在投票应用目录中“创建一个四大古都投票，北京南京西安洛阳单选”就是新增投票主题和选项。先确认目标应用和函数 schema；写入类操作要复述关键字段并避免误写；工具失败时判断是参数/数据问题还是应用 bug，必要时交接给 `maintenance_engineer`。",
 			NextRoles: []NextRole{
 				{RoleID: MaintenanceEngineer, When: "业务操作失败且判断为应用 bug 或字段实现问题"},
 				{RoleID: AutomationOperator, When: "用户要把当前业务操作保存为未来或周期自动执行"},
@@ -208,7 +208,7 @@ func Specs() map[string]Spec {
 		},
 		AutomationOperator: {
 			ID:          AutomationOperator,
-			DisplayName: "自动化操作员",
+			DisplayName: "自动执行配置",
 			Docs:        []string{"/system/prompt/roles/automation-operator"},
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "search",
@@ -229,8 +229,8 @@ func Specs() map[string]Spec {
 					hook("automation.before_enter_scope", "before_enter", "进入自动化角色前收敛目标应用、候选函数和计划类型。", []string{"execute_directory", "user schedule intent", "function schema"}, []string{"automation_scope", "schedule_plan"}),
 				},
 			),
-			Action:           "自动化操作员负责把已有业务操作配置成未来或周期自动执行，并管理定时函数、定时会话和执行记录；不直接修改代码，不直接执行真实业务写入。",
-			RouteDescription: "用户要“定时、每天、每周、周期、提醒、自动跑、定期巡检、到点提交、定时会话”且目标是已有应用函数、已有业务操作或已有工作台目录时进入。它负责把已有能力配置成 timer-scheduler 任务，并管理暂停、恢复、取消、立即运行和执行记录。先区分两类任务：目标是一个明确 Form/Table/Chart 和固定参数时，用定时函数；目标需要 Agent 到点后判断、巡检、分析、总结、维护长期数据、选择多个工具或临场决策时，用定时会话。定时会话可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须写成无人值守 SOP：场景/长期目标、绑定目录、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式、通知规则；不要把示例规则机械套到所有任务。它不同于 `app_operator`：应用操作员负责现在执行一次真实业务操作；自动化操作员负责以后自动执行。它也不同于 `product_manager/app_developer/maintenance_engineer`：如果用户想定时执行的能力还不存在、函数 schema 还不确定，或需要新增/修改软件能力，先进入产品、开发或维护，不要直接进入自动化。用户只是问“能不能/怎么做”时只说明方案和风险；周期性写入任务必须等用户明确确认后再创建。创建任务前必须确认目标函数/目录、计划时间、执行参数和权限边界；不设计 PRD、不写代码、不 build、不直接调用 run_* 完成真实业务写入。",
+			Action:           "自动执行配置负责把已有业务操作配置成未来或周期自动执行，并管理定时函数、定时会话和执行记录；不直接修改代码，不直接执行真实业务写入。",
+			RouteDescription: "用户要“定时、每天、每周、周期、提醒、自动跑、定期巡检、到点提交、定时会话”且目标是已有应用函数、已有业务操作或已有工作台目录时进入。它负责把已有能力配置成 timer-scheduler 任务，并管理暂停、恢复、取消、立即运行和执行记录。先区分两类任务：目标是一个明确 Form/Table/Chart 和固定参数时，用定时函数；目标需要 Agent 到点后判断、巡检、分析、总结、维护长期数据、选择多个工具或临场决策时，用定时会话。定时会话可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须写成无人值守 SOP：场景/长期目标、绑定目录、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式、通知规则；不要把示例规则机械套到所有任务。它不同于 `app_operator`：应用执行负责现在执行一次真实业务操作；自动执行配置负责以后自动执行。它也不同于 `product_manager/app_developer/maintenance_engineer`：如果用户想定时执行的能力还不存在、函数 schema 还不确定，或需要新增/修改软件能力，先进入产品、开发或维护，不要直接进入自动化。用户只是问“能不能/怎么做”时只说明方案和风险；周期性写入任务必须等用户明确确认后再创建。创建任务前必须确认目标函数/目录、计划时间、执行参数和权限边界；不设计 PRD、不写代码、不 build、不直接调用 run_* 完成真实业务写入。",
 			NextRoles: []NextRole{
 				{RoleID: AppOperator, When: "用户要求先立即执行一次业务操作验证参数"},
 				{RoleID: MaintenanceEngineer, When: "定时执行失败且判断为应用 bug 或字段实现问题"},

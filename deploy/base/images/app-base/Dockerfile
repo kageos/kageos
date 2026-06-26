@@ -52,6 +52,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     file \
+    git \
     jq \
     less \
     mediainfo \
@@ -296,6 +297,7 @@ RUN echo "=== 验证安装 ===" && \
     grep -x chi_sim /tmp/tesseract-langs.txt && \
     echo "Graphviz:" && dot -V 2>&1 | head -n 1 && \
     echo "CLI (子进程常用):" && \
+    git --version && \
     jq --version && \
     curl --version | head -n 1 && \
     command -v wget && wget --version | head -n 1 && \

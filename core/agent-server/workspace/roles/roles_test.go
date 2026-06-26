@@ -86,12 +86,12 @@ func TestRoutingMarkdownIsGeneratedFromSpecs(t *testing.T) {
 		"## 角色路由",
 		"### `product_manager` 产品经理",
 		"### `app_developer` 应用开发工程师",
-		"### `app_operator` 应用操作员",
-		"### `automation_operator` 自动化操作员",
+		"### `app_operator` 应用执行",
+		"### `automation_operator` 自动执行配置",
 		"当前目录已是目标应用",
 		"不依赖某个固定动词",
 		"使用软件完成业务结果",
-		"自动化操作员负责以后自动执行",
+		"自动执行配置负责以后自动执行",
 		"已有应用函数、已有业务操作或已有工作台目录",
 		"维护长期数据",
 		"当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数",
@@ -107,7 +107,7 @@ func TestRoutingMarkdownIsGeneratedFromSpecs(t *testing.T) {
 			t.Fatalf("routing markdown should contain %q, got:\n%s", want, got)
 		}
 	}
-	if strings.Index(got, "### `app_operator` 应用操作员") > strings.Index(got, "### `product_manager` 产品经理") {
+	if strings.Index(got, "### `app_operator` 应用执行") > strings.Index(got, "### `product_manager` 产品经理") {
 		t.Fatalf("app_operator should be shown before product_manager so existing-app operations are considered first:\n%s", got)
 	}
 }

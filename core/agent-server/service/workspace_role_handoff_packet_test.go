@@ -72,7 +72,7 @@ func TestChangeRoleRejectsPlaceholderExecuteDirectoryAfterNormalization(t *testi
 	if !res.IsError {
 		t.Fatalf("expected placeholder execute directory to fail, got %#v", res)
 	}
-	if !strings.Contains(res.Content, "交接协议校验失败") || !strings.Contains(res.Content, "execute_directory") {
+	if !strings.Contains(res.Content, "阶段交接校验失败") || !strings.Contains(res.Content, "execute_directory") {
 		t.Fatalf("error should mention handoff packet validation and execute_directory, got %q", res.Content)
 	}
 }

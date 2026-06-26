@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kageos/kageos/dto"
+	waiterpkg "github.com/kageos/kageos/pkg/waiter"
 	"github.com/nats-io/nats.go"
 )
 
@@ -19,6 +20,7 @@ type ConnProvider interface {
 
 // Waiter RequestApp 发 Publish 后 Wait 等响应，响应回调里 Notify；需同一实例。
 type Waiter interface {
+	Register(key string) waiterpkg.Registration
 	Wait(ctx context.Context, key string, timeout time.Duration) (*dto.RequestAppResp, error)
 	Notify(key string, resp *dto.RequestAppResp) bool
 }

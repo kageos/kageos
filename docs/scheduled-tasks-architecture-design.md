@@ -548,7 +548,7 @@ SDK 负责 NATS queue group、重投递幂等、`MarkStarted`、heartbeat、`Mar
 
 ## Agent 工作台接入
 
-工作台里新增专门的 `automation_operator`（自动化操作员）角色，负责创建和管理定时函数、定时会话以及执行记录。它是 `app_operator` 的后续角色之一：应用操作员负责“现在执行一次”，自动化操作员负责“以后自动执行”。
+工作台里新增专门的 `automation_operator`（自动执行配置）角色，负责创建和管理定时函数、定时会话以及执行记录。它是 `app_operator` 的后续角色之一：应用执行负责“现在执行一次”，自动执行配置负责“以后自动执行”。
 
 ```mermaid
 flowchart LR
@@ -572,7 +572,7 @@ Agent 侧工具边界：
 | `manage_scheduled_task` | 暂停、恢复、取消、立即运行 | 只能管理当前用户创建或代执行的任务；可用 `resource_path` 二次校验归属 |
 | `list_scheduled_task_executions` | 查询执行记录 | 先校验任务归属，再读执行记录 |
 
-角色门禁要求自动化操作员不能直接调用 `run_table_*`、`run_form_submit`、`run_chart_query` 等业务执行工具。具体资源能否执行交给已有权限系统和对应业务工具判断，timer-scheduler 和工作台循环不再额外叠加目录门禁。这样 Agent 能帮用户创建自动化，但不会绕开现有应用操作、权限和审计边界。
+角色门禁要求自动执行配置不能直接调用 `run_table_*`、`run_form_submit`、`run_chart_query` 等业务执行工具。具体资源能否执行交给已有权限系统和对应业务工具判断，timer-scheduler 和工作台循环不再额外叠加目录门禁。这样 Agent 能帮用户创建自动化，但不会绕开现有应用操作、权限和审计边界。
 
 ## 状态机
 
