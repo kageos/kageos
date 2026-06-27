@@ -1,14 +1,25 @@
 <template>
   <div class="model-context-card">
-    <div class="model-context-head">
+    <button
+      type="button"
+      class="model-context-head"
+      :aria-expanded="expanded"
+      @click="expanded = !expanded"
+    >
       <div class="model-context-title">
         <span>模型上下文</span>
         <span v-if="roleLabel" class="model-context-role">{{ roleLabel }}</span>
       </div>
-      <span class="model-context-version">{{ plan.protocol_version }} · 第 {{ plan.round + 1 }} 轮</span>
-    </div>
+      <span class="model-context-meta">
+        <span class="model-context-version">{{ plan.protocol_version }} · 第 {{ plan.round + 1 }} 轮</span>
+        <el-icon :size="13" class="model-context-toggle-icon">
+          <ArrowUp v-if="expanded" />
+          <ArrowDown v-else />
+        </el-icon>
+      </span>
+    </button>
 
-    <div class="model-context-grid">
+    <div v-if="expanded" class="model-context-grid">
       <section class="model-context-section">
         <div class="model-context-label">执行目录</div>
         <code>{{ plan.execution.full_code_path || '未指定' }}</code>
@@ -80,7 +91,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import type { WorkspaceModelContextPlan } from '@/architecture/presentation/context/api/workspace'
 import { formatWorkspaceRoleName } from '@/architecture/presentation/utils/workspaceRoleDisplay'
 
@@ -88,6 +100,8 @@ const props = defineProps<{
   plan: WorkspaceModelContextPlan
   plans?: WorkspaceModelContextPlan[]
 }>()
+
+const expanded = ref(false)
 
 const roleLabel = computed(() => {
   const display = formatWorkspaceRoleName(props.plan.role.id, props.plan.role.display_name)
@@ -210,19 +224,36 @@ function trimTrailingZeros(value: number): string {
 <style scoped>
 .model-context-card {
   margin: 0 0 8px;
-  padding: 8px;
+  padding: 0;
   border: 1px solid rgba(96, 231, 255, 0.16);
   border-radius: 8px;
   background: rgba(6, 18, 30, 0.54);
   color: var(--mini-cyber-text, #d8f8ff);
+  overflow: hidden;
 }
 
 .model-context-head {
+  width: 100%;
+  border: 0;
+  padding: 7px 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 7px;
+  font: inherit;
+  text-align: left;
+}
+
+.model-context-head:hover {
+  background: rgba(34, 211, 238, 0.06);
+}
+
+.model-context-head:focus-visible {
+  outline: 1px solid rgba(96, 231, 255, 0.52);
+  outline-offset: -2px;
 }
 
 .model-context-title {
@@ -246,14 +277,28 @@ function trimTrailingZeros(value: number): string {
   white-space: nowrap;
 }
 
-.model-context-version {
+.model-context-meta {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.model-context-version {
+  flex-shrink: 1;
+}
+
+.model-context-toggle-icon {
+  flex-shrink: 0;
+  color: rgba(184, 225, 235, 0.72);
 }
 
 .model-context-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 7px;
+  padding: 0 8px 8px;
 }
 
 .model-context-section {

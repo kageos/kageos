@@ -34,11 +34,11 @@
   --border-lighter: rgba(148, 163, 184, 0.08);
   
   // 字体
-  --font-family-base: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
   --font-size-base: 16px;
   --font-weight-normal: 400;
   --font-weight-medium: 500;
-  --font-weight-bold: 700;
+  --font-weight-bold: 600; // 600 is usually better for bold than 700
   
   // 间距
   --spacing-xs: 4px;
@@ -47,28 +47,35 @@
   --spacing-lg: 24px;
   --spacing-xl: 32px;
   
-  // 圆角
-  --border-radius-sm: 4px;
-  --border-radius-base: 6px;
-  --border-radius-lg: 10px;
+  // 圆角 (稍微柔和)
+  --border-radius-sm: 6px;
+  --border-radius-base: 8px;
+  --border-radius-lg: 12px;
   --border-radius-xl: 16px;
   --border-radius-full: 9999px;
-  --border-radius-input: 12px;  /* 登录页输入框圆角是 12px */
+  --border-radius-input: 12px;
   
+  // 微动画和过渡 (Micro-animations)
+  --transition-base: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --hover-transform-lift: translateY(-2px);
+  --hover-shadow-lift: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
+
   // 阴影 - 采用极浅、高扩散的 macOS 风格阴影
   --box-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-  --box-shadow-base: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  --box-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
-  --app-panel-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.05);
+  --box-shadow-base: 0 4px 12px -2px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --box-shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  --app-panel-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.08);
   
-  // 工作台大架构专属变量（去掉毛玻璃，增强层次感）
+  // 工作台大架构专属变量
   --app-shell-bg: #eef2f6; // 加深背景色，增强与面板的对比度，避免死白
-  --app-shell-panel-bg: #ffffff; // 面板使用纯白实色，彻底去掉毛玻璃
+  --app-shell-panel-bg: rgba(255, 255, 255, 0.95); // 稍微透出背景色
   --app-shell-panel-bg-strong: #f8fafc;
   --app-shell-panel-muted-bg: #f1f5f9;
-  --app-shell-panel-border: rgba(148, 163, 184, 0.3); // 边框稍微加深
-  --app-shell-panel-shadow: 0 24px 60px rgba(15, 23, 42, 0.14); // 完全使用登录页的深投影
-  --app-shell-panel-shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.08);
+  --app-shell-panel-border: rgba(148, 163, 184, 0.2); // 边框稍微淡化
+  --app-shell-panel-backdrop: blur(12px); // 添加毛玻璃效果滤镜
+  --app-shell-panel-shadow: 0 24px 60px rgba(15, 23, 42, 0.10); // 完全使用登录页的深投影
+  --app-shell-panel-shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.06);
   --app-shell-panel-highlight: rgba(255, 255, 255, 0.95);
   
   // Auth 变量保留

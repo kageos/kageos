@@ -50,7 +50,11 @@ watch(
 <template>
   <el-config-provider :locale="elementLocale">
     <!-- 🔥 移除 MainLayout，所有页面自己管理布局 -->
-    <RouterView />
+    <RouterView v-slot="{ Component }">
+      <Transition name="fade-page" mode="out-in">
+        <component :is="Component" />
+      </Transition>
+    </RouterView>
   </el-config-provider>
 </template>
 
@@ -66,11 +70,29 @@ html,
 body {
   height: 100%;
   overflow-y: auto;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+  color: var(--text-primary);
+  background-color: var(--bg-page);
 }
 
 #app {
   min-height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+  font-family: inherit;
+}
+
+/* 页面切换动画 */
+.fade-page-enter-active,
+.fade-page-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fade-page-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.fade-page-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 </style>
