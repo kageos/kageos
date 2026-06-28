@@ -592,12 +592,10 @@ defineExpose({ load: loadList })
   gap: 14px;
   overflow: hidden;
   padding: 16px;
-  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
-  border-radius: 14px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--app-shell-panel-muted-bg, #f1f5f9) 78%, #fff 22%), color-mix(in srgb, var(--app-shell-bg, #eef2f6) 92%, #fff 8%)),
-    var(--app-shell-bg, var(--el-bg-color-page));
-  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight, rgba(255, 255, 255, 0.8));
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-lg);
+  background: var(--bg-primary);
+  box-shadow: var(--app-shell-panel-shadow-soft);
 }
 
 .scheduled-list-header {
@@ -607,10 +605,9 @@ defineExpose({ load: loadList })
   align-items: center;
   flex-shrink: 0;
   padding: 14px 16px;
-  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
-  border-radius: 12px;
-  background: var(--app-shell-panel-bg-strong, var(--el-bg-color));
-  box-shadow: var(--app-shell-panel-shadow-soft, 0 10px 24px rgba(15, 23, 42, 0.06));
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-base);
+  background: var(--bg-secondary);
 }
 
 .scheduled-list-title {

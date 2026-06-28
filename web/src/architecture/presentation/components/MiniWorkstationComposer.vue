@@ -377,16 +377,27 @@ function cancelExpandedEditor() {
   grid-template-columns: auto minmax(0, 1fr);
   min-height: 88px;
   align-items: stretch;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-base);
+  background: var(--bg-tertiary);
+  border: 1px solid transparent;
   box-shadow: none;
   backdrop-filter: none;
-  border-radius: var(--border-radius-base);
+  border-radius: var(--border-radius-lg);
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+
+  &:hover {
+    background: var(--el-fill-color);
+  }
+  
+  &:focus-within {
+    background: var(--el-fill-color-blank);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.15);
+  }
 }
 
 html.dark .mini-ws-input--schedule {
   background: var(--bg-tertiary);
-  border-color: var(--border-light);
+  border-color: transparent;
 }
 
 .mini-ws-input--schedule .mini-structured-input :deep(.spc-editor),
@@ -397,14 +408,14 @@ html.dark .mini-ws-input--schedule {
 
 .mini-ws-input--schedule .mini-upload-btn :deep(.el-button) {
   background: transparent;
-  border-color: var(--border-base);
-  color: var(--text-regular);
+  border-color: transparent;
+  color: var(--text-secondary);
 }
 
 .mini-ws-input--schedule .mini-upload-btn :deep(.el-button):hover {
   background: var(--bg-tertiary);
   color: var(--color-primary);
-  border-color: var(--color-primary);
+  border-color: transparent;
   box-shadow: none;
 }
 

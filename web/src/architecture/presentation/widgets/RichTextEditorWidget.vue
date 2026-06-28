@@ -560,11 +560,22 @@ watch(
 }
 
 .editor-container {
-  border: 1px solid var(--el-border-color);
-  border-radius: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-lg);
   overflow: hidden;
-  background-color: var(--el-bg-color);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background-color: var(--el-fill-color-light);
+  box-shadow: none;
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.editor-container:hover {
+  background-color: var(--el-fill-color);
+}
+
+.editor-container:focus-within {
+  background-color: var(--el-fill-color-blank);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.15);
 }
 
 :global(.form-view-flat) .editor-container {

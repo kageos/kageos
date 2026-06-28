@@ -867,12 +867,14 @@ html.dark {
   // 对话框组件 - 统一主题
   .el-dialog {
     background-color: var(--bg-primary) !important;
-    border: 1px solid var(--border-base);
-    border-radius: 12px;
+    border: 1px solid transparent; // 移除生硬边框
+    border-radius: var(--border-radius-xl); // 更大的圆角
     
     .el-dialog__header {
-      border-bottom: 1px solid var(--border-base);
+      border-bottom: 1px solid var(--border-light);
       background-color: var(--bg-primary);
+      padding: 20px 24px;
+      margin-right: 0;
     }
     .el-dialog__title {
       color: var(--text-primary);
@@ -881,6 +883,11 @@ html.dark {
     .el-dialog__body {
       color: var(--text-regular);
       background-color: var(--bg-primary);
+      padding: 24px;
+    }
+    .el-dialog__footer {
+      border-top: 1px solid var(--border-light);
+      padding: 16px 24px;
     }
   }
   
