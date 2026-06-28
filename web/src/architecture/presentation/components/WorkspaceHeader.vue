@@ -340,12 +340,12 @@ defineExpose({
   display: flex;
   justify-content: space-between;
   align-items: center;
-  min-height: 72px;
-  padding: 14px 22px;
+  min-height: 64px;
+  padding: 10px 20px;
   background: var(--app-shell-panel-bg);
   border: 1px solid var(--app-shell-panel-border);
-  border-radius: 22px;
-  box-shadow: var(--app-shell-panel-shadow);
+  border-radius: 12px;
+  box-shadow: var(--app-shell-panel-shadow-soft);
   position: relative;
   overflow: visible;
   isolation: isolate;

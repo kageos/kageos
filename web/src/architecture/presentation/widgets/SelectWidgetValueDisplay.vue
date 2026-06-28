@@ -4,12 +4,12 @@
       v-if="currentOptionColor"
       :style="getTagStyle(currentOptionColor)"
       size="small"
-      effect="light"
+      effect="plain"
       class="select-tag"
     >
       {{ displayValue }}
     </el-tag>
-    <span v-else>{{ displayValue }}</span>
+    <el-tag v-else size="small" type="info" effect="plain" class="select-tag">{{ displayValue }}</el-tag>
   </span>
 
   <div v-else-if="mode === 'table-cell'" class="table-cell-value">
@@ -17,24 +17,24 @@
       v-if="currentOptionColor"
       :style="getTagStyle(currentOptionColor)"
       size="small"
-      effect="light"
+      effect="plain"
       class="select-tag"
     >
       {{ displayValue }}
     </el-tag>
-    <span v-else>{{ displayValue }}</span>
+    <el-tag v-else size="small" type="info" effect="plain" class="select-tag">{{ displayValue }}</el-tag>
   </div>
 
   <div v-else class="detail-value">
     <el-tag
       v-if="currentOptionColor"
       :style="getTagStyle(currentOptionColor)"
-      effect="light"
+      effect="plain"
       class="select-tag"
     >
       {{ displayValue }}
     </el-tag>
-    <span v-else class="detail-content">{{ displayValue }}</span>
+    <el-tag v-else type="info" effect="plain" class="select-tag">{{ displayValue }}</el-tag>
   </div>
 </template>
 
@@ -80,10 +80,26 @@ function getTagStyle(color: string | null): Record<string, string> {
 
 .select-tag {
   font-weight: 500;
-  border: 1px solid currentColor;
-  box-shadow: none;
-  opacity: 0.9;
-  transition: opacity 0.2s;
+  border-radius: 4px;
+  background-color: transparent !important;
+  border: 1px solid var(--border-base);
+  opacity: 0.95;
+  transition: all 0.2s;
+}
+
+.select-tag.el-tag--info {
+  border-color: var(--border-base) !important;
+  color: var(--text-regular) !important;
+}
+
+.select-tag[style*="color:"] {
+  border-color: currentColor !important;
+}
+
+.select-tag[style*="background-color"] {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  filter: none;
 }
 
 .select-tag:hover {
@@ -94,6 +110,7 @@ function getTagStyle(color: string | null): Record<string, string> {
 .table-cell-value :deep(.el-tag),
 .detail-value :deep(.el-tag) {
   font-weight: 500;
+  background-color: transparent !important;
   box-shadow: none;
 }
 

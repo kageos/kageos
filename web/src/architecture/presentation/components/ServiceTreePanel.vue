@@ -1000,13 +1000,16 @@ defineExpose({
 :deep(.el-tree-node__content) {
   height: 32px;
   padding: 0 8px;
+  margin: 2px 8px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   position: relative; /* 确保下拉菜单定位正确 */
   overflow: visible; /* 确保下拉菜单不被裁剪 */
+  transition: background-color 0.15s ease;
   
   &:hover {
-    background-color: var(--el-fill-color-light);
+    background-color: var(--bg-tertiary);
   }
 }
 
@@ -1019,14 +1022,20 @@ defineExpose({
 }
 
 :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background-color: rgba(99, 102, 241, 0.15) !important;
-  border-left: 2px solid #6366f1;
+  background-color: var(--el-fill-color) !important;
+  color: var(--color-primary);
+  font-weight: 500;
 }
 
 /* 确保子节点不受父节点选中状态影响 */
 :deep(.el-tree-node.is-current .el-tree-node__children .el-tree-node__content) {
   background-color: transparent;
-  border-left: none;
+  color: var(--text-primary);
+  font-weight: 400;
+  
+  &:hover {
+    background-color: var(--bg-tertiary);
+  }
 }
 
 /* 右键/三点菜单样式 */
@@ -1052,90 +1061,61 @@ defineExpose({
 <!-- 科幻风格右键菜单（全局样式，popper teleported 到 body） -->
 <style lang="scss">
 .service-tree-contextmenu-popper {
-  --ctx-bg: #0d1321;
-  --ctx-bg-hover: rgba(0, 212, 255, 0.12);
-  --ctx-border: rgba(0, 212, 255, 0.4);
-  --ctx-glow: #00d4ff;
-  --ctx-glow-rgb: 0, 212, 255;
-  --ctx-text: #e2e8f0;
-  --ctx-text-muted: #94a3b8;
-
   &.el-popper {
-    padding: 0 !important;
-    background: var(--ctx-bg) !important;
-    border: 1px solid var(--ctx-border) !important;
-    box-shadow: 0 0 24px rgba(var(--ctx-glow-rgb), 0.2), 0 4px 20px rgba(0, 0, 0, 0.4) !important;
-    border-radius: 8px !important;
+    padding: 4px !important;
+    background: var(--bg-primary) !important;
+    border: 1px solid var(--border-base) !important;
+    box-shadow: var(--box-shadow-lg) !important;
+    border-radius: var(--border-radius-base) !important;
     overflow: hidden;
     position: relative;
-
-    /* 顶部流光条 */
-    &::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--ctx-glow), transparent);
-      opacity: 0.7;
-    }
-
-    /* 淡网格背景 */
-    &::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background-image: linear-gradient(rgba(var(--ctx-glow-rgb), 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(var(--ctx-glow-rgb), 0.03) 1px, transparent 1px);
-      background-size: 12px 12px;
-      pointer-events: none;
-    }
+    backdrop-filter: blur(8px);
   }
 
   .el-dropdown-menu {
     background: transparent !important;
     border: none !important;
-    padding: 8px 0 !important;
+    padding: 4px 0 !important;
     min-width: 180px !important;
     position: relative;
     z-index: 1;
   }
 
   .el-dropdown-menu__item {
-    color: var(--ctx-text) !important;
-    padding: 10px 16px !important;
-    margin: 0 4px !important;
-    border-radius: 6px !important;
-    transition: all 0.2s ease !important;
+    color: var(--text-primary) !important;
+    padding: 8px 12px !important;
+    margin: 2px 4px !important;
+    border-radius: 4px !important;
+    transition: all 0.15s ease !important;
 
     .el-icon {
-      color: var(--ctx-glow) !important;
+      color: var(--text-secondary) !important;
       opacity: 0.9;
     }
 
     &:not(.is-disabled):hover {
-      background: var(--ctx-bg-hover) !important;
-      color: var(--ctx-glow) !important;
-      box-shadow: inset 0 0 12px rgba(var(--ctx-glow-rgb), 0.08) !important;
+      background: var(--bg-tertiary) !important;
+      color: var(--color-primary) !important;
 
       .el-icon {
-        color: var(--ctx-glow) !important;
+        color: var(--color-primary) !important;
         opacity: 1;
       }
     }
 
     &.is-disabled {
-      color: var(--ctx-text-muted) !important;
+      color: var(--text-disabled) !important;
       opacity: 0.5;
     }
   }
 
   /* 分隔线 */
   .el-dropdown-menu__item--divided {
-    margin-top: 4px;
-    padding-top: 4px;
-    border-top: 1px solid rgba(var(--ctx-glow-rgb), 0.2);
+    margin-top: 4px !important;
+    border-top: 1px solid var(--border-light) !important;
+    &::before {
+      display: none !important;
+    }
   }
 }
 

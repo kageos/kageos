@@ -5,9 +5,10 @@
       :key="index"
       class="tag-item"
       :size="mode === 'table-cell' ? 'small' : undefined"
-      :type="getOptionColorType(value)"
+      :type="getOptionColorType(value) || 'info'"
       :color="getOptionColorValue(value)"
       :style="getOptionTagStyle(value)"
+      effect="plain"
     >
       {{ getOptionLabel(value) }}
     </el-tag>
@@ -47,41 +48,40 @@ const containerClass = computed(() => {
 }
 
 .table-cell-multiselect .tag-item,
-.detail-multiselect .tag-item {
-  font-weight: 500;
-  border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  margin: 0;
-  opacity: 0.9;
-}
-
-.table-cell-multiselect .tag-item[style*="background-color"],
-.detail-multiselect .tag-item[style*="background-color"] {
-  font-weight: 500;
-  filter: brightness(0.95) saturate(0.9);
-}
-
-.table-cell-multiselect .tag-item.el-tag--success,
-.table-cell-multiselect .tag-item.el-tag--warning,
-.table-cell-multiselect .tag-item.el-tag--danger,
-.table-cell-multiselect .tag-item.el-tag--info,
-.table-cell-multiselect .tag-item.el-tag--primary,
-.detail-multiselect .tag-item.el-tag--success,
-.detail-multiselect .tag-item.el-tag--warning,
-.detail-multiselect .tag-item.el-tag--danger,
-.detail-multiselect .tag-item.el-tag--info,
-.detail-multiselect .tag-item.el-tag--primary {
-  font-weight: 500;
-  border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  opacity: 0.9;
-}
-
+.detail-multiselect .tag-item,
 .response-multiselect .tag-item {
-  margin-right: 4px;
+  font-weight: 500;
+  border-radius: 4px;
+  margin: 0;
+  background-color: transparent !important;
+  border: 1px solid var(--border-base);
+}
+
+.table-cell-multiselect .tag-item.el-tag--info,
+.detail-multiselect .tag-item.el-tag--info,
+.response-multiselect .tag-item.el-tag--info {
+  border-color: var(--border-base) !important;
+  color: var(--text-regular) !important;
+}
+
+/* 如果有具体颜色覆盖，使用 currentColor */
+.table-cell-multiselect .tag-item[style*="color:"],
+.detail-multiselect .tag-item[style*="color:"],
+.response-multiselect .tag-item[style*="color:"] {
+  border-color: currentColor !important;
+}
+
+/* 如果有背景色，隐藏背景 */
+.table-cell-multiselect .tag-item[style*="background-color"],
+.detail-multiselect .tag-item[style*="background-color"],
+.response-multiselect .tag-item[style*="background-color"] {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  filter: none;
 }
 
 .empty-text {
-  color: #999;
+  color: var(--text-disabled);
+  font-style: italic;
 }
 </style>

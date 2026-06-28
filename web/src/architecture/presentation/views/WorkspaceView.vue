@@ -1009,8 +1009,8 @@ useWorkspaceUiEffects({
   display: flex;
   flex-direction: column;
   height: 100vh;
-  padding: 16px 18px 18px;
-  gap: 18px;
+  padding: 12px 14px 14px;
+  gap: 14px;
   box-sizing: border-box;
   background: var(--app-shell-bg);
   background-attachment: fixed;
@@ -1022,7 +1022,7 @@ useWorkspaceUiEffects({
   overflow: hidden; /* 防止双滚动条 */
   position: relative;
   min-height: 0;
-  gap: 18px;
+  gap: 14px;
 }
 
 .workspace-view--access-error {
@@ -1287,9 +1287,9 @@ useWorkspaceUiEffects({
     display: flex;
     flex-direction: column;
     border: 1px solid var(--app-shell-panel-border);
-    border-radius: 22px;
+    border-radius: 12px;
     background: var(--app-shell-panel-bg);
-    box-shadow: var(--app-shell-panel-shadow);
+    box-shadow: var(--app-shell-panel-shadow-soft);
 
   &.sidebar-collapsed {
     width: 0;
@@ -1317,9 +1317,9 @@ useWorkspaceUiEffects({
   min-height: 0;
   position: relative;
   border: 1px solid var(--app-shell-panel-border);
-  border-radius: 24px;
+  border-radius: 12px;
   background: var(--app-shell-panel-bg);
-  box-shadow: var(--app-shell-panel-shadow);
+  box-shadow: var(--app-shell-panel-shadow-soft);
 }
 
 .function-renderer::before {

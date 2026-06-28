@@ -377,9 +377,35 @@ function cancelExpandedEditor() {
   grid-template-columns: auto minmax(0, 1fr);
   min-height: 88px;
   align-items: stretch;
-  background:
-    linear-gradient(180deg, rgba(12, 18, 32, 0.9), rgba(8, 12, 22, 0.76)),
-    rgba(8, 12, 22, 0.78);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-base);
+  box-shadow: none;
+  backdrop-filter: none;
+  border-radius: var(--border-radius-base);
+}
+
+html.dark .mini-ws-input--schedule {
+  background: var(--bg-tertiary);
+  border-color: var(--border-light);
+}
+
+.mini-ws-input--schedule .mini-structured-input :deep(.spc-editor),
+.mini-ws-input--schedule .mini-structured-input :deep(.spc-preview) {
+  color: var(--text-primary);
+  -webkit-text-fill-color: var(--text-primary);
+}
+
+.mini-ws-input--schedule .mini-upload-btn :deep(.el-button) {
+  background: transparent;
+  border-color: var(--border-base);
+  color: var(--text-regular);
+}
+
+.mini-ws-input--schedule .mini-upload-btn :deep(.el-button):hover {
+  background: var(--bg-tertiary);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  box-shadow: none;
 }
 
 .mini-composer-left-actions {

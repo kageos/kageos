@@ -48,12 +48,12 @@
   --spacing-xl: 32px;
   
   // 圆角 (稍微柔和)
-  --border-radius-sm: 6px;
-  --border-radius-base: 8px;
-  --border-radius-lg: 12px;
-  --border-radius-xl: 16px;
+  --border-radius-sm: 4px;
+  --border-radius-base: 6px;
+  --border-radius-lg: 8px;
+  --border-radius-xl: 12px;
   --border-radius-full: 9999px;
-  --border-radius-input: 12px;
+  --border-radius-input: 8px;
   
   // 微动画和过渡 (Micro-animations)
   --transition-base: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -63,19 +63,19 @@
 
   // 阴影 - 采用极浅、高扩散的 macOS 风格阴影
   --box-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-  --box-shadow-base: 0 4px 12px -2px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  --box-shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
-  --app-panel-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.08);
+  --box-shadow-base: 0 2px 8px -2px rgba(0, 0, 0, 0.05), 0 1px 4px -1px rgba(0, 0, 0, 0.03);
+  --box-shadow-lg: 0 8px 16px -4px rgba(0, 0, 0, 0.06), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+  --app-panel-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.05);
   
   // 工作台大架构专属变量
   --app-shell-bg: #eef2f6; // 加深背景色，增强与面板的对比度，避免死白
-  --app-shell-panel-bg: rgba(255, 255, 255, 0.95); // 稍微透出背景色
+  --app-shell-panel-bg: rgba(255, 255, 255, 0.98); // 稍微透出背景色，减轻过度透明感
   --app-shell-panel-bg-strong: #f8fafc;
   --app-shell-panel-muted-bg: #f1f5f9;
-  --app-shell-panel-border: rgba(148, 163, 184, 0.2); // 边框稍微淡化
-  --app-shell-panel-backdrop: blur(12px); // 添加毛玻璃效果滤镜
-  --app-shell-panel-shadow: 0 24px 60px rgba(15, 23, 42, 0.10); // 完全使用登录页的深投影
-  --app-shell-panel-shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.06);
+  --app-shell-panel-border: rgba(148, 163, 184, 0.15); // 边框稍微淡化
+  --app-shell-panel-backdrop: blur(8px); // 添加毛玻璃效果滤镜，稍弱一点
+  --app-shell-panel-shadow: 0 8px 30px rgba(15, 23, 42, 0.06); // 完全使用登录页的深投影
+  --app-shell-panel-shadow-soft: 0 4px 12px rgba(15, 23, 42, 0.04);
   --app-shell-panel-highlight: rgba(255, 255, 255, 0.95);
   
   // Auth 变量保留
@@ -365,12 +365,12 @@ html.dark {
   --box-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
   --app-panel-shadow: 0 18px 40px rgba(2, 6, 23, 0.42);
   --app-shell-bg: #0f172a;
-  --app-shell-panel-bg: rgba(15, 23, 42, 0.82);
-  --app-shell-panel-bg-strong: rgba(15, 23, 42, 0.92);
+  --app-shell-panel-bg: rgba(15, 23, 42, 0.88);
+  --app-shell-panel-bg-strong: rgba(15, 23, 42, 0.95);
   --app-shell-panel-muted-bg: rgba(30, 41, 59, 0.86);
-  --app-shell-panel-border: rgba(129, 140, 248, 0.16);
-  --app-shell-panel-shadow: 0 28px 60px rgba(2, 6, 23, 0.42);
-  --app-shell-panel-shadow-soft: 0 18px 40px rgba(2, 6, 23, 0.3);
+  --app-shell-panel-border: rgba(129, 140, 248, 0.12);
+  --app-shell-panel-shadow: 0 16px 40px rgba(2, 6, 23, 0.42);
+  --app-shell-panel-shadow-soft: 0 8px 24px rgba(2, 6, 23, 0.3);
   --app-shell-panel-highlight: rgba(148, 163, 184, 0.16);
   --app-auth-surface-bg: rgba(30, 41, 59, 0.88);
   --app-auth-card-bg: rgba(15, 23, 42, 0.82);
@@ -589,10 +589,15 @@ html.dark {
     
     // 表头
     th {
-      background-color: var(--bg-primary) !important;
-      border-bottom: 1px solid var(--border-base);
+      background-color: var(--bg-secondary) !important;
+      border-bottom: 1px solid var(--border-light);
+      padding: 8px 0;
       .cell {
-        color: var(--text-primary);
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
       }
     }
     
@@ -602,9 +607,11 @@ html.dark {
       
       td {
         background-color: var(--bg-primary) !important;
-        border-bottom: 1px solid var(--border-base);
+        border-bottom: 1px solid var(--border-lighter);
+        padding: 10px 0;
         .cell {
           color: var(--text-regular);
+          font-size: 14px;
         }
       }
     }
@@ -837,6 +844,34 @@ html.dark {
 }
 .text-disabled {
   color: var(--text-disabled);
+}
+
+// ==========================================
+// 全局滚动条美化 (Mac-like Scrollbars)
+// ==========================================
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.45);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.15);
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.3);
 }
 
 // 全局样式
