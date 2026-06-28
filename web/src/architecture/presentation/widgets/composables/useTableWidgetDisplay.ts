@@ -142,13 +142,14 @@ export function useTableWidgetDisplay(
     const code = (field.code || '').toLowerCase()
     const name = field.name || ''
 
-    // 智能推断：根据表头中文字符数给一个基础缓冲宽度 (每个汉字大约 14px + 表头排序图标和 padding 大约 40px)
+    // 智能推断：根据表头中文字符数给一个基础缓冲宽度 
+    // (每个汉字约 16px，英文字符约 10px，表头 padding + 排序图标等额外预留 56px，确保绝对不会拥挤)
     const nameStr = String(name)
     let charWidth = 0
     for (let i = 0; i < nameStr.length; i++) {
-      charWidth += nameStr.charCodeAt(i) > 255 ? 15 : 9
+      charWidth += nameStr.charCodeAt(i) > 255 ? 16 : 10
     }
-    const headerWidth = charWidth + 40 
+    const headerWidth = charWidth + 56
 
     // 动态嗅探数据内容长度 (只嗅探 response 模式下的数据)
     let maxDataCharLength = 0

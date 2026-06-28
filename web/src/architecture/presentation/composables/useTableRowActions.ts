@@ -132,13 +132,14 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
     const code = (field.code || '').toLowerCase()
     const name = field.name || ''
 
-    // 智能推断：根据表头中文字符数给一个基础缓冲宽度 (每个汉字大约 14px + 表头排序图标和 padding 大约 40px)
+    // 智能推断：根据表头中文字符数给一个基础缓冲宽度 
+    // (每个汉字约 16px，英文字符约 10px，表头 padding + 排序图标等额外预留 56px，确保绝对不会拥挤)
     const nameStr = String(name)
     let charWidth = 0
     for (let i = 0; i < nameStr.length; i++) {
-      charWidth += nameStr.charCodeAt(i) > 255 ? 15 : 9
+      charWidth += nameStr.charCodeAt(i) > 255 ? 16 : 10
     }
-    const headerWidth = charWidth + 40 
+    const headerWidth = charWidth + 56 
 
     // 动态嗅探数据内容长度
     let maxDataCharLength = 0
@@ -167,18 +168,18 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
     // 1. 空值倾向很高的字段
     if (/^(remark|desc|description|summary|reason|cause|degrade_reason|.*_reason|source_note)$/.test(code) || 
         /(备注|说明|描述|摘要|原因|理由)/.test(name)) {
-      if (!hasData) return Math.max(headerWidth, 80)
+      if (!hasData) return Math.max(headerWidth, 90)
     }
 
     // 2. 系统级字段（ID、创建人、更新时间等）
     if (/^(id|created_at|updated_at|create_time|update_time|creator|updater|modifier|created_by)$/.test(code) || 
         /(ID|创建|更新|修改)(时间|人)/.test(name)) {
-      if (type === WidgetType.DATETIME) return Math.max(headerWidth, 175)
-      return Math.max(headerWidth, 75)
+      if (type === WidgetType.DATETIME) return Math.max(headerWidth, 180)
+      return Math.max(headerWidth, 80)
     }
 
     if (!hasData) {
-      return Math.max(headerWidth, 75)
+      return Math.max(headerWidth, 80)
     }
 
     const dataWidth = hasData ? Math.min(maxDataCharLength + 32, 350) : 0

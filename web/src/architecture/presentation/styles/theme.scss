@@ -598,6 +598,9 @@ html.dark {
         font-size: 13px;
         text-transform: uppercase;
         letter-spacing: 0.5px;
+        white-space: nowrap !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
     }
     
