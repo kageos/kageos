@@ -9,7 +9,7 @@
     >
       {{ displayValue }}
     </el-tag>
-    <el-tag v-else size="small" type="info" effect="plain" class="select-tag">{{ displayValue }}</el-tag>
+    <el-tag v-else size="small" type="primary" effect="light" class="select-tag default-tag">{{ displayValue }}</el-tag>
   </span>
 
   <div v-else-if="mode === 'table-cell'" class="table-cell-value">
@@ -22,7 +22,7 @@
     >
       {{ displayValue }}
     </el-tag>
-    <el-tag v-else size="small" type="info" effect="plain" class="select-tag">{{ displayValue }}</el-tag>
+    <el-tag v-else size="small" type="primary" effect="light" class="select-tag default-tag">{{ displayValue }}</el-tag>
   </div>
 
   <div v-else class="detail-value">
@@ -34,7 +34,7 @@
     >
       {{ displayValue }}
     </el-tag>
-    <el-tag v-else type="info" effect="plain" class="select-tag">{{ displayValue }}</el-tag>
+    <el-tag v-else type="primary" effect="light" class="select-tag default-tag">{{ displayValue }}</el-tag>
   </div>
 </template>
 
@@ -82,16 +82,14 @@ function getTagStyle(color: string | null): Record<string, string> {
 .select-tag {
   font-weight: 500;
   border-radius: 4px;
-  border: 1px solid var(--border-base) !important;
+  border: 1px solid var(--border-base);
   opacity: 0.95;
   transition: all 0.2s;
 }
 
-/* 默认标签：给一个极简浅灰底，避免“透明白”的鬼影 */
-.select-tag.el-tag--info {
-  background-color: var(--el-fill-color-light) !important;
-  border-color: var(--border-base) !important;
-  color: var(--text-secondary) !important;
+/* 默认标签：移除强制变灰的逻辑，直接享受 Primary 带来的淡蓝色 */
+.select-tag.default-tag {
+  border-color: rgba(var(--color-primary-rgb), 0.3) !important;
 }
 
 /* 移除强制透明，允许内联 style 生效 */

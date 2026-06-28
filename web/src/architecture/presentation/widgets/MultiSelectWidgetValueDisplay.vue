@@ -5,7 +5,7 @@
       :key="index"
       class="tag-item"
       :size="mode === 'table-cell' ? 'small' : undefined"
-      :type="getOptionColorType(value) ? getOptionColorType(value) : 'info'"
+      :type="getOptionColorType(value) ? getOptionColorType(value) : 'primary'"
       :color="getOptionColorValue(value)"
       :style="getOptionTagStyle(value)"
       effect="light"
@@ -53,16 +53,13 @@ const containerClass = computed(() => {
   font-weight: 500;
   border-radius: 4px;
   margin: 0;
-  border: 1px solid var(--border-base) !important;
+  border: 1px solid var(--border-base);
 }
 
-/* 如果没有具体颜色覆盖，给默认标签一个极简的浅色底板，避免“透明白”的鬼影感 */
-.table-cell-multiselect .tag-item.el-tag--info,
-.detail-multiselect .tag-item.el-tag--info,
-.response-multiselect .tag-item.el-tag--info {
-  background-color: var(--el-fill-color-light) !important;
-  border-color: var(--border-base) !important;
-  color: var(--text-secondary) !important;
+.table-cell-multiselect .tag-item.el-tag--primary,
+.detail-multiselect .tag-item.el-tag--primary,
+.response-multiselect .tag-item.el-tag--primary {
+  border-color: rgba(var(--color-primary-rgb), 0.3) !important;
 }
 
 /* 恢复带背景色的浅色色板渲染，避免空心透明感 */
