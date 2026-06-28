@@ -5,7 +5,7 @@
       :key="index"
       class="tag-item"
       :size="mode === 'table-cell' ? 'small' : undefined"
-      :type="getOptionColorType(value) || 'info'"
+      :type="getOptionColorType(value) ? getOptionColorType(value) : 'info'"
       :color="getOptionColorValue(value)"
       :style="getOptionTagStyle(value)"
       effect="plain"
@@ -53,8 +53,9 @@ const containerClass = computed(() => {
   font-weight: 500;
   border-radius: 4px;
   margin: 0;
-  background-color: transparent !important;
-  border: 1px solid var(--border-base);
+  background-color: var(--el-fill-color-light) !important;
+  border: 1px solid var(--border-base) !important;
+  color: var(--text-secondary) !important;
 }
 
 /* 如果没有具体颜色覆盖，给默认标签一个极简的浅色底板，避免“透明白”的鬼影感 */
@@ -66,10 +67,13 @@ const containerClass = computed(() => {
   color: var(--text-secondary) !important;
 }
 
-/* 如果有具体颜色覆盖，隐藏背景并保留 border-color 和 color */
+/* 如果有具体颜色覆盖，重置相关样式以保证效果独立 */
 .table-cell-multiselect .tag-item[style*="border-color:"],
 .detail-multiselect .tag-item[style*="border-color:"],
-.response-multiselect .tag-item[style*="border-color:"] {
+.response-multiselect .tag-item[style*="border-color:"],
+.table-cell-multiselect .tag-item[style*="color:"],
+.detail-multiselect .tag-item[style*="color:"],
+.response-multiselect .tag-item[style*="color:"] {
   background-color: transparent !important;
   box-shadow: none !important;
   filter: none;

@@ -81,8 +81,9 @@ function getTagStyle(color: string | null): Record<string, string> {
 .select-tag {
   font-weight: 500;
   border-radius: 4px;
-  background-color: transparent !important;
-  border: 1px solid var(--border-base);
+  background-color: var(--el-fill-color-light) !important;
+  border: 1px solid var(--border-base) !important;
+  color: var(--text-secondary) !important;
   opacity: 0.95;
   transition: all 0.2s;
 }
@@ -94,6 +95,8 @@ function getTagStyle(color: string | null): Record<string, string> {
   color: var(--text-secondary) !important;
 }
 
+/* 如果有具体颜色覆盖，隐藏背景并保留具体的边框和颜色 */
+.select-tag[style*="border-color:"],
 .select-tag[style*="color:"] {
   background-color: transparent !important;
 }

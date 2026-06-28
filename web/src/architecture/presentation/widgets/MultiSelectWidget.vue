@@ -38,7 +38,7 @@
               <el-tag
                 v-for="value in selectionSummary.visibleValues"
                 :key="value"
-                :type="getOptionColorType(value)"
+                :type="getOptionColorType(value) ? getOptionColorType(value) : 'info'"
                 :color="getOptionColorValue(value)"
                 effect="light"
                 :style="getOptionTagStyle(value)"
