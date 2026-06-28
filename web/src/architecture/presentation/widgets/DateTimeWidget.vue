@@ -399,18 +399,34 @@ watch(
 
 <style scoped>
 .date-text {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  display: block;
   font-variant-numeric: tabular-nums;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px !important;
   color: var(--text-secondary);
 }
 
+.date-text.table-cell-value {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.date-text.response-value,
+.date-text.detail-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .date-icon {
   font-size: 14px;
   color: var(--text-disabled);
+  vertical-align: middle;
+  margin-right: 4px;
+  position: relative;
+  top: -1px;
 }
 
 .datetime-widget {

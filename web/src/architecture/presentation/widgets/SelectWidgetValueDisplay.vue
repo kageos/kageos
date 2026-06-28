@@ -68,11 +68,6 @@ function getTagStyle(color: string | null): Record<string, string> {
   color: var(--el-text-color-regular);
 }
 
-.table-cell-value {
-  display: inline-flex;
-  align-items: center;
-}
-
 .detail-value {
   margin-bottom: 16px;
   display: inline-flex;
@@ -85,6 +80,13 @@ function getTagStyle(color: string | null): Record<string, string> {
   border: 1px solid var(--border-base);
   opacity: 0.95;
   transition: all 0.2s;
+  max-width: 100%;
+}
+
+.select-tag :deep(.el-tag__content) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 默认标签：移除强制变灰的逻辑，直接享受 Primary 带来的淡蓝色 */
