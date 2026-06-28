@@ -128,19 +128,80 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
   }
 
   const getColumnWidth = (field: FieldConfig): number => {
-    const widgetType = normalizeWidgetType(field.widget?.type)
+    const type = normalizeWidgetType(field.widget?.type)
+    const code = (field.code || '').toLowerCase()
+    const name = field.name || ''
 
-    if (widgetType === WidgetType.DATETIME) return 180
-    if (widgetType === WidgetType.SWITCH) return 110
-    if (widgetType === WidgetType.INTEGER || widgetType === WidgetType.FLOAT) return 130
-    if (widgetType === WidgetType.PROGRESS || widgetType === WidgetType.SLIDER) return 220
-    if (widgetType === WidgetType.TEXT_AREA || widgetType === WidgetType.RICH_TEXT) return 320
-    if (widgetType === WidgetType.TEXT || widgetType === WidgetType.INPUT || widgetType === WidgetType.LINK) return 220
-    if (widgetType === WidgetType.FILES && isWidgetConfigFlagEnabled(field.widget?.config?.list_preview)) return 200
-    if (widgetType === WidgetType.FILES) return 180
-    if (widgetType === WidgetType.DEPARTMENT || widgetType === WidgetType.DEPARTMENTS) return 300
-    if (widgetType === WidgetType.USER || widgetType === WidgetType.USERS) return 250
-    return 180
+    // 智能推断：根据表头中文字符数给一个基础缓冲宽度 (每个汉字大约 13px + 表头 padding 24px)
+    const nameStr = String(name)
+    let charWidth = 0
+    for (let i = 0; i < nameStr.length; i++) {
+      charWidth += nameStr.charCodeAt(i) > 255 ? 13 : 8
+    }
+    const headerWidth = charWidth + 24 
+
+    // 动态嗅探数据内容长度
+    let maxDataCharLength = 0
+    let hasData = false
+    const tableData = options.stateManager.getState().data || []
+    
+    if (Array.isArray(tableData) && tableData.length > 0) {
+      for (const row of tableData) {
+        let val = row[code]
+        if (val !== undefined && val !== null && val !== '') {
+          const strVal = String(val).trim()
+          if (strVal !== '-' && strVal !== '[]' && strVal !== '{}') {
+            hasData = true
+            let currLen = 0
+            for (let i = 0; i < strVal.length; i++) {
+               currLen += strVal.charCodeAt(i) > 255 ? 13 : 8
+            }
+            if (currLen > maxDataCharLength) {
+              maxDataCharLength = currLen
+            }
+          }
+        }
+      }
+    }
+
+    // 1. 空值倾向很高的字段
+    if (/^(remark|desc|description|summary|reason|cause|degrade_reason|.*_reason|source_note)$/.test(code) || 
+        /(备注|说明|描述|摘要|原因|理由)/.test(name)) {
+      if (!hasData) return Math.max(headerWidth, 60)
+    }
+
+    // 2. 系统级字段（ID、创建人、更新时间等）
+    if (/^(id|created_at|updated_at|create_time|update_time|creator|updater|modifier|created_by)$/.test(code) || 
+        /(ID|创建|更新|修改)(时间|人)/.test(name)) {
+      if (type === WidgetType.DATETIME) return Math.max(headerWidth, 135)
+      return Math.max(headerWidth, 60)
+    }
+
+    if (!hasData) {
+      return Math.max(headerWidth, 60)
+    }
+
+    const dataWidth = hasData ? Math.min(maxDataCharLength + 32, 280) : 0
+    const dataBasedWidth = Math.max(headerWidth, dataWidth)
+
+    let minWidth = 60
+    if (type === WidgetType.DATETIME) {
+      minWidth = 135
+    } else if (type === WidgetType.SWITCH) {
+      minWidth = 60
+    } else if (type === WidgetType.INTEGER || type === WidgetType.FLOAT) {
+      minWidth = Math.max(headerWidth, 60)
+    } else if (type === WidgetType.PROGRESS || type === WidgetType.SLIDER) {
+      minWidth = 120
+    } else if (type === WidgetType.FILES) {
+      minWidth = 100
+    } else if (type === WidgetType.TEXT_AREA || type === WidgetType.RICH_TEXT) {
+      minWidth = Math.max(headerWidth, 100)
+    } else if (type === WidgetType.SELECT || type === WidgetType.MULTI_SELECT) {
+      minWidth = Math.max(headerWidth, 80)
+    }
+
+    return Math.max(headerWidth, Math.min(Math.max(minWidth, dataBasedWidth), 280))
   }
 
   return {
