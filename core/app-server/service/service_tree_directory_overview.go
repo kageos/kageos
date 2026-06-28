@@ -116,13 +116,13 @@ func (q *serviceTreeQueryView) GetDirectoryOverview(ctx context.Context, req *dt
 		resp.Warnings = append(resp.Warnings, fmt.Sprintf("函数资源较多，已优先检查前 %d 个函数的定时任务", directoryOverviewMaxResources))
 	}
 	if len(directories) > directoryOverviewMaxResources {
-		resp.Warnings = append(resp.Warnings, fmt.Sprintf("目录资源较多，已优先检查前 %d 个目录的定时会话", directoryOverviewMaxResources))
+		resp.Warnings = append(resp.Warnings, fmt.Sprintf("目录资源较多，已优先检查前 %d 个目录的 Agent 任务", directoryOverviewMaxResources))
 	}
 	if len(functionTasks) > len(resp.ScheduledFunctionTasks) {
-		resp.Warnings = append(resp.Warnings, fmt.Sprintf("定时函数较多，清单仅返回前 %d 个", directoryOverviewMaxTasksPerKind))
+		resp.Warnings = append(resp.Warnings, fmt.Sprintf("函数任务较多，清单仅返回前 %d 个", directoryOverviewMaxTasksPerKind))
 	}
 	if len(agentTasks) > len(resp.ScheduledAgentTasks) {
-		resp.Warnings = append(resp.Warnings, fmt.Sprintf("定时会话较多，清单仅返回前 %d 个", directoryOverviewMaxTasksPerKind))
+		resp.Warnings = append(resp.Warnings, fmt.Sprintf("Agent 任务较多，清单仅返回前 %d 个", directoryOverviewMaxTasksPerKind))
 	}
 	resp.Partial = len(resp.Warnings) > 0
 

@@ -64,12 +64,17 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 
 // UpdateApp 更新应用（更新应用代码并重新编译部署）
 func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto.UpdateAppResp, error) {
+	start := time.Now()
 	user, appCode, app, err := a.resolveUpdateTargetApp(req)
 	if err != nil {
+		logger.Errorf(ctx, "[AppService:UpdateApp] resolve target failed: resource_path=%s, err=%v, elapsed=%s",
+			req.ResourcePath, err, time.Since(start).Truncate(time.Millisecond))
 		return nil, err
 	}
+	resolveElapsed := time.Since(start)
 
 	// 调用 app-runtime 更新应用，使用应用所属的 HostID
+	runtimeStart := time.Now()
 	resp, err := a.appCall.UpdateApp(ctx, app.HostID, &dto.UpdateAppRuntimeReq{
 		User:              user,
 		App:               appCode,
@@ -80,16 +85,40 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 		ForceDiff:         req.ForceDiff,
 	})
 	if err != nil {
+		logger.Errorf(ctx, "[AppService:UpdateApp] runtime update failed: user=%s, app=%s, hostID=%d, err=%v, resolveElapsed=%s, runtimeElapsed=%s, totalElapsed=%s",
+			user, appCode, app.HostID, err,
+			resolveElapsed.Truncate(time.Millisecond),
+			time.Since(runtimeStart).Truncate(time.Millisecond),
+			time.Since(start).Truncate(time.Millisecond))
 		return nil, err
 	}
+	runtimeElapsed := time.Since(runtimeStart)
 
+	finalizeStart := time.Now()
 	warnings, err := a.finalizeReleasedAppMetadata(ctx, "AppService:UpdateApp", app, user, appCode, resp.NewVersion, resp.Diff)
 	if err != nil {
+		logger.Errorf(ctx, "[AppService:UpdateApp] finalize metadata failed: user=%s, app=%s, newVersion=%s, err=%v, finalizeElapsed=%s, totalElapsed=%s",
+			user, appCode, resp.NewVersion, err,
+			time.Since(finalizeStart).Truncate(time.Millisecond),
+			time.Since(start).Truncate(time.Millisecond))
 		return nil, err
 	}
 	resp.Warnings = append(resp.Warnings, warnings...)
+	logger.Infof(ctx, "[AppService:UpdateApp] completed: user=%s, app=%s, oldVersion=%s, newVersion=%s, trace_id=%s, resolveElapsed=%s, runtimeElapsed=%s, finalizeElapsed=%s, totalElapsed=%s",
+		user, appCode, resp.OldVersion, resp.NewVersion, updateAppTraceID(resp),
+		resolveElapsed.Truncate(time.Millisecond),
+		runtimeElapsed.Truncate(time.Millisecond),
+		time.Since(finalizeStart).Truncate(time.Millisecond),
+		time.Since(start).Truncate(time.Millisecond))
 
 	return resp, nil
+}
+
+func updateAppTraceID(resp *dto.UpdateAppResp) string {
+	if resp == nil || resp.BuildTrace == nil {
+		return ""
+	}
+	return resp.BuildTrace.TraceID
 }
 
 func (a *AppService) resolveUpdateTargetApp(req *dto.UpdateAppReq) (string, string, *model.App, error) {
@@ -470,7 +499,7 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 		return fmt.Errorf("同步默认定时任务失败: %w", err)
 	}
 	if err := a.reconcilePackageAgentTasks(ctx, state, diffData.Packages); err != nil {
-		return fmt.Errorf("同步默认定时会话失败: %w", err)
+		return fmt.Errorf("同步默认 Agent 任务失败: %w", err)
 	}
 
 	// 处理删除的API

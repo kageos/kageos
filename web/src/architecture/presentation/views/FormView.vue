@@ -1015,10 +1015,10 @@ const lifecycle = useFormViewLifecycle({
   flex: 1;
   min-width: 0; // 防止 flex 子元素溢出
   padding: 32px 34px 34px;
-  background: var(--app-auth-card-bg);
-  border: 1px solid var(--app-auth-card-border);
-  border-radius: 22px;
-  box-shadow: var(--app-auth-card-shadow);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(var(--color-primary-rgb), 0.04);
 }
 
 .form-view-flat .form-view-main {
@@ -1317,109 +1317,53 @@ const lifecycle = useFormViewLifecycle({
 
 .form-view-main :deep(.el-form .el-form-item__label) {
   color: var(--text-primary);
-  font-weight: 600;
-}
-
-.form-view-main :deep(.el-input__wrapper),
-.form-view-main :deep(.el-select__wrapper),
-.form-view-main :deep(.el-date-editor .el-input__wrapper),
-.form-view-main :deep(.department-select-display),
-.form-view-main :deep(.user-search-display) {
-  background: var(--app-auth-input-bg);
-  border-color: var(--app-auth-input-border);
-  box-shadow: none;
-  border-radius: 12px;
-  transition: all 0.3s ease;
-}
-
-.form-view-main :deep(.el-textarea__inner) {
-  background: var(--app-auth-input-bg);
-  border: 1px solid var(--app-auth-input-border);
-  border-radius: 12px;
-  box-shadow: none;
-  transition: all 0.3s ease;
-}
-
-.form-view-main :deep(.el-input__wrapper:hover),
-.form-view-main :deep(.el-select__wrapper:hover),
-.form-view-main :deep(.el-textarea__inner:hover),
-.form-view-main :deep(.el-date-editor .el-input__wrapper:hover),
-.form-view-main :deep(.department-select-display:hover),
-.form-view-main :deep(.user-search-display:hover) {
-  border-color: rgba(var(--el-color-primary-rgb), 0.42);
-  box-shadow: var(--app-auth-input-shadow-hover);
-}
-
-.form-view-main :deep(.el-input__wrapper.is-focus),
-.form-view-main :deep(.el-select__wrapper.is-focused),
-.form-view-main :deep(.el-textarea__inner:focus),
-.form-view-main :deep(.el-date-editor .el-input__wrapper.is-focus),
-.form-view-main :deep(.department-select-display.is-focus),
-.form-view-main :deep(.user-search-display.is-focus) {
-  border-color: var(--el-color-primary);
-  box-shadow: var(--app-auth-input-shadow-focus);
-}
-
-.form-view-main :deep(.el-input__inner),
-.form-view-main :deep(.el-textarea__inner),
-.form-view-main :deep(.el-select__selected-item:not(.el-select__placeholder)),
-.form-view-main :deep(.el-select__placeholder:not(.is-transparent)),
-.form-view-main :deep(.department-select-display),
-.form-view-main :deep(.user-search-display) {
-  color: var(--text-primary);
-}
-
-.form-view-main :deep(.el-input__inner::placeholder),
-.form-view-main :deep(.el-textarea__inner::placeholder),
-.form-view-main :deep(.el-select__placeholder.is-transparent),
-.form-view-main :deep(.el-select__input::placeholder) {
-  color: var(--text-disabled);
-  -webkit-text-fill-color: var(--text-disabled);
+  font-weight: 500;
 }
 
 .form-view-main :deep(.vditor) {
-  border-radius: 14px;
-  border: 1px solid var(--app-auth-input-border);
-  background: var(--app-auth-input-bg);
+  border-radius: var(--border-radius-input);
+  border: 1px solid var(--border-light);
+  background: transparent;
   box-shadow: none;
   overflow: hidden;
   transition: all 0.3s ease;
 }
 
 .form-view-main :deep(.vditor:hover) {
-  border-color: rgba(var(--el-color-primary-rgb), 0.42);
-  box-shadow: var(--app-auth-input-shadow-hover);
+  background: var(--el-fill-color-light);
+  border-color: var(--border-base);
 }
 
 .form-view-main :deep(.vditor:focus-within) {
-  border-color: var(--el-color-primary);
-  box-shadow: var(--app-auth-input-shadow-focus);
+  background: transparent;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.2);
 }
 
 .form-view-main :deep(.vditor-toolbar) {
-  background: rgba(248, 250, 252, 0.92);
-  border-bottom: 1px solid rgba(203, 213, 225, 0.9);
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-light);
   padding: 10px 12px;
 }
 
 .form-view-main :deep(.vditor-toolbar button) {
-  border-radius: 10px;
+  border-radius: 8px;
   color: var(--text-secondary);
   transition: all 0.2s ease;
 }
 
 .form-view-main :deep(.vditor-toolbar button:hover) {
-  color: var(--el-color-primary);
-  background: rgba(var(--el-color-primary-rgb), 0.1);
+  color: var(--text-primary);
+  background: var(--el-fill-color-light);
 }
 
 .form-view-main :deep(.vditor-toolbar button.vditor-toolbar__item--current) {
-  color: var(--el-color-primary);
-  background: rgba(var(--el-color-primary-rgb), 0.14);
+  color: var(--color-primary);
+  background: var(--el-fill-color);
 }
 
 .form-view-main :deep(.vditor-toolbar .vditor-toolbar__divider) {
-  background: rgba(203, 213, 225, 0.9);
+  background: var(--border-light);
 }
 
 .form-view-main :deep(.vditor-ir),
@@ -1436,23 +1380,23 @@ const lifecycle = useFormViewLifecycle({
 }
 
 .form-view-main :deep(.vditor-counter) {
-  background: rgba(248, 250, 252, 0.92);
-  border-top: 1px solid rgba(203, 213, 225, 0.9);
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border-light);
   color: var(--text-secondary);
 }
 
 .form-view-main :deep(.files-editor-shell),
 .form-view-main :deep(.upload-area),
 .form-view-main :deep(.file-upload-trigger) {
-  border-radius: 12px;
-  border-color: var(--app-auth-input-border);
-  background: var(--app-auth-input-bg);
+  border-radius: var(--border-radius-input);
+  border-color: var(--border-light);
+  background: transparent;
 }
 
 .form-view-main :deep(.upload-area:hover),
 .form-view-main :deep(.upload-area.is-dragging) {
-  border-color: color-mix(in srgb, var(--el-color-primary) 40%, var(--app-auth-input-border));
-  background: color-mix(in srgb, var(--el-color-primary) 8%, var(--app-auth-input-bg));
+  border-color: var(--border-base);
+  background: var(--el-fill-color-light);
 }
 
 @media (max-width: 700px) {

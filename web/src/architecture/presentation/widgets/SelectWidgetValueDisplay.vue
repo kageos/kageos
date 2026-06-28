@@ -9,7 +9,7 @@
     >
       {{ displayValue }}
     </el-tag>
-    <span v-else>{{ displayValue }}</span>
+    <el-tag v-else size="small" type="primary" effect="light" class="select-tag default-tag">{{ displayValue }}</el-tag>
   </span>
 
   <div v-else-if="mode === 'table-cell'" class="table-cell-value">
@@ -22,7 +22,7 @@
     >
       {{ displayValue }}
     </el-tag>
-    <span v-else>{{ displayValue }}</span>
+    <el-tag v-else size="small" type="primary" effect="light" class="select-tag default-tag">{{ displayValue }}</el-tag>
   </div>
 
   <div v-else class="detail-value">
@@ -34,7 +34,7 @@
     >
       {{ displayValue }}
     </el-tag>
-    <span v-else class="detail-content">{{ displayValue }}</span>
+    <el-tag v-else type="primary" effect="light" class="select-tag default-tag">{{ displayValue }}</el-tag>
   </div>
 </template>
 
@@ -54,6 +54,7 @@ function getTagStyle(color: string | null): Record<string, string> {
     return {}
   }
 
+  // 恢复带背景色的浅色色板渲染，避免空心透明感
   return {
     backgroundColor: lightPalette.backgroundColor,
     borderColor: lightPalette.borderColor,
@@ -67,11 +68,6 @@ function getTagStyle(color: string | null): Record<string, string> {
   color: var(--el-text-color-regular);
 }
 
-.table-cell-value {
-  display: inline-flex;
-  align-items: center;
-}
-
 .detail-value {
   margin-bottom: 16px;
   display: inline-flex;
@@ -80,10 +76,33 @@ function getTagStyle(color: string | null): Record<string, string> {
 
 .select-tag {
   font-weight: 500;
-  border: 1px solid currentColor;
-  box-shadow: none;
-  opacity: 0.9;
-  transition: opacity 0.2s;
+  border-radius: 4px;
+  border: 1px solid var(--border-base);
+  opacity: 0.95;
+  transition: all 0.2s;
+  max-width: 100%;
+}
+
+.select-tag :deep(.el-tag__content) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 默认标签：移除强制变灰的逻辑，直接享受 Primary 带来的淡蓝色 */
+.select-tag.default-tag {
+  border-color: rgba(var(--color-primary-rgb), 0.3) !important;
+}
+
+/* 移除强制透明，允许内联 style 生效 */
+.select-tag[style*="border-color:"],
+.select-tag[style*="color:"] {
+}
+
+/* 移除强制透明，允许内联 style 生效 */
+.select-tag[style*="background-color"] {
+  box-shadow: none !important;
+  filter: none;
 }
 
 .select-tag:hover {

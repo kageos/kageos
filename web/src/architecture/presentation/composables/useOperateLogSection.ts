@@ -338,7 +338,7 @@ export function useOperateLogSection({
       if (focusedLogID && logs.value.some((log) => log.id === focusedLogID)) {
         expandedLogIds.value = [focusedLogID]
       } else {
-        expandedLogIds.value = scopeValue === 'directory' ? [] : logs.value.map((log) => log.id)
+        expandedLogIds.value = []
       }
       await loadDirectoryFunctionDetails()
       await loadUserInfos()

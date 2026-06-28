@@ -28,16 +28,21 @@
       @change="handleChange"
     />
 
-    <span v-else-if="mode === 'response'" class="response-value">
+    <span v-else-if="mode === 'response'" class="response-value date-text">
+      <el-icon v-if="displayValue" class="date-icon"><Timer /></el-icon>
       {{ displayValue }}
     </span>
 
-    <span v-else-if="mode === 'table-cell'" class="table-cell-value">
+    <span v-else-if="mode === 'table-cell'" class="table-cell-value date-text">
+      <el-icon v-if="displayValue" class="date-icon"><Timer /></el-icon>
       {{ displayValue }}
     </span>
 
-    <div v-else-if="mode === 'detail'" class="detail-value">
-      <div class="detail-content">{{ displayValue }}</div>
+    <div v-else-if="mode === 'detail'" class="detail-value date-text">
+      <div class="detail-content">
+        <el-icon v-if="displayValue" class="date-icon"><Timer /></el-icon>
+        {{ displayValue }}
+      </div>
     </div>
 
     <div v-else-if="mode === 'search' && isRangeSearch" class="datetime-range-search">
@@ -104,7 +109,8 @@
 
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { ElDatePicker, ElTimePicker } from 'element-plus'
+import { ElDatePicker, ElTimePicker, ElIcon } from 'element-plus'
+import { Timer } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
@@ -285,7 +291,26 @@ const displayValue = computed(() => {
     return '-'
   }
 
-  return formatDateTimeDisplay(raw as DateTimeRawValue)
+  const formatted = formatDateTimeDisplay(raw as DateTimeRawValue)
+  
+  // 如果是当前年份的时间（如 2026-06-28 13:14:00），智能隐藏年份，节省显示空间
+  if (props.mode === 'table-cell' || props.mode === 'response') {
+    try {
+      const currentYear = new Date().getFullYear().toString()
+      // 处理常见格式如 YYYY-MM-DD HH:mm:ss 或 YYYY/MM/DD
+      if (formatted.startsWith(currentYear + '-')) {
+        return formatted.substring(currentYear.length + 1)
+      } else if (formatted.startsWith(currentYear + '/')) {
+        return formatted.substring(currentYear.length + 1)
+      } else if (formatted.startsWith(currentYear + '年')) {
+        return formatted.substring(currentYear.length + 1)
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  
+  return formatted
 })
 
 function handleChange(): void {
@@ -373,6 +398,37 @@ watch(
 </script>
 
 <style scoped>
+.date-text {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px !important;
+  color: var(--text-secondary);
+}
+
+.date-text.table-cell-value {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.date-text.response-value,
+.date-text.detail-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.date-icon {
+  font-size: 14px;
+  color: var(--text-disabled);
+  vertical-align: middle;
+  margin-right: 4px;
+  position: relative;
+  top: -1px;
+}
+
 .datetime-widget {
   width: 100%;
 }

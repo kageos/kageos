@@ -391,8 +391,8 @@ defineEmits<{
   align-items: center;
   gap: 0;
   padding: 8px 12px;
-  background: linear-gradient(to bottom, var(--el-fill-color-lighter), var(--el-fill-color));
-  border-bottom: 1px solid var(--el-border-color);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-light);
   flex-wrap: wrap;
 }
 
@@ -414,9 +414,9 @@ defineEmits<{
 
 .toolbar-divider {
   width: 1px;
-  height: 24px;
-  background-color: var(--el-border-color);
-  margin: 0 8px;
+  height: 20px;
+  background-color: var(--border-light);
+  margin: 0 10px;
 }
 
 :global(.form-view-flat) .toolbar-divider {
@@ -431,12 +431,12 @@ defineEmits<{
   height: 32px;
   padding: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   background-color: transparent;
-  color: var(--el-text-color-regular);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 16px;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 :global(.form-view-flat) .toolbar-button {
@@ -444,13 +444,13 @@ defineEmits<{
 }
 
 .toolbar-button:hover:not(:disabled) {
-  background-color: var(--el-fill-color);
-  color: var(--el-color-primary);
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .toolbar-button.is-active {
-  background-color: var(--el-color-primary);
-  color: var(--el-color-white);
+  background-color: var(--color-primary-light-9);
+  color: var(--color-primary);
 }
 
 .toolbar-button:disabled {

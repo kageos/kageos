@@ -27,7 +27,7 @@ func (a *AppService) reconcilePackageAgentTasks(ctx context.Context, state *appM
 		}
 		existing, err := listManifestAgentTasksForPackage(ctx, client, pkg.FullPath)
 		if err != nil {
-			return fmt.Errorf("查询默认定时会话 %s 失败: %w", pkg.FullPath, err)
+			return fmt.Errorf("查询默认 Agent 任务 %s 失败: %w", pkg.FullPath, err)
 		}
 		for _, taskConfig := range pkg.AgentTasks {
 			req, err := buildPackageAgentTaskRequest(ctx, state, pkg, taskConfig)
@@ -38,10 +38,10 @@ func (a *AppService) reconcilePackageAgentTasks(ctx context.Context, state *appM
 			if current == nil {
 				task, err := client.CreateTask(ctx, req)
 				if err != nil {
-					return fmt.Errorf("创建默认定时会话 %s/%s 失败: %w", pkg.FullPath, taskConfig.Code, err)
+					return fmt.Errorf("创建默认 Agent 任务 %s/%s 失败: %w", pkg.FullPath, taskConfig.Code, err)
 				}
 				if task == nil || task.ID <= 0 {
-					return fmt.Errorf("创建默认定时会话 %s/%s 未返回有效 task_id", pkg.FullPath, taskConfig.Code)
+					return fmt.Errorf("创建默认 Agent 任务 %s/%s 未返回有效 task_id", pkg.FullPath, taskConfig.Code)
 				}
 				continue
 			}
@@ -51,7 +51,7 @@ func (a *AppService) reconcilePackageAgentTasks(ctx context.Context, state *appM
 				continue
 			}
 			if _, err := client.UpdateTask(ctx, current.ID, updateTaskRequestFromCreate(req)); err != nil {
-				return fmt.Errorf("更新默认定时会话 %s/%s 失败: %w", pkg.FullPath, taskConfig.Code, err)
+				return fmt.Errorf("更新默认 Agent 任务 %s/%s 失败: %w", pkg.FullPath, taskConfig.Code, err)
 			}
 		}
 	}
@@ -94,23 +94,23 @@ func listManifestAgentTasksForPackage(ctx context.Context, client appScheduleCli
 
 func buildPackageAgentTaskRequest(ctx context.Context, state *appMetadataSyncState, pkg *dto.PackageInfo, task dto.AgentTaskConfig) (scheduledsdk.CreateTaskRequest, error) {
 	if pkg == nil {
-		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("默认定时会话缺少 package")
+		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("默认 Agent 任务缺少 package")
 	}
 	fullCodePath := strings.TrimSpace(pkg.FullPath)
 	if fullCodePath == "" {
-		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("默认定时会话 %q 缺少目录路径", task.Code)
+		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("默认 Agent 任务 %q 缺少目录路径", task.Code)
 	}
 	code := strings.TrimSpace(task.Code)
 	if code == "" {
-		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("默认定时会话 %s 缺少 code", fullCodePath)
+		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("默认 Agent 任务 %s 缺少 code", fullCodePath)
 	}
 	message := strings.TrimSpace(task.Message)
 	if message == "" {
-		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("默认定时会话 %s/%s 缺少 message", fullCodePath, code)
+		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("默认 Agent 任务 %s/%s 缺少 message", fullCodePath, code)
 	}
 	schedule, err := scheduledSDKScheduleFromAgentTask(ctx, fullCodePath, code, task)
 	if err != nil {
-		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("默认定时会话 %s/%s 计划错误: %w", fullCodePath, code, err)
+		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("默认 Agent 任务 %s/%s 计划错误: %w", fullCodePath, code, err)
 	}
 	modeCode := strings.TrimSpace(task.ModeCode)
 	if modeCode == "" {
@@ -138,7 +138,7 @@ func buildPackageAgentTaskRequest(ctx context.Context, state *appMetadataSyncSta
 		title = strings.TrimSpace(pkg.Name)
 	}
 	if title == "" {
-		title = "默认定时会话"
+		title = "默认 Agent 任务"
 	}
 	requestUser := requestUserForPackageAgentTask(ctx, state)
 	status := scheduledsdk.TaskStatusPaused

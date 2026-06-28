@@ -213,7 +213,7 @@ import AppSwitcher from '@/architecture/presentation/shared/components/AppSwitch
 import type { App, ServiceTree } from '@/architecture/domain/types'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore, useLocaleStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
-import WorkspaceInbox from './WorkspaceInbox.vue'
+const WorkspaceInbox = defineAsyncComponent(() => import('./WorkspaceInbox.vue'))
 import { featureFlags } from '@/architecture/shared/config/features'
 import { getKageosDocsURL, openExternalURL } from '@/architecture/shared/config/externalLinks'
 import type { SupportedLocale } from '@/architecture/shared/i18n'
@@ -340,12 +340,12 @@ defineExpose({
   display: flex;
   justify-content: space-between;
   align-items: center;
-  min-height: 72px;
-  padding: 14px 22px;
+  min-height: 64px;
+  padding: 10px 20px;
   background: var(--app-shell-panel-bg);
   border: 1px solid var(--app-shell-panel-border);
-  border-radius: 22px;
-  box-shadow: var(--app-shell-panel-shadow);
+  border-radius: 12px;
+  box-shadow: var(--app-shell-panel-shadow-soft);
   position: relative;
   overflow: visible;
   isolation: isolate;

@@ -94,7 +94,7 @@ func TestWorkspaceEnvBlockIncludesScheduledTasksSection(t *testing.T) {
 		DirName:               "黄金盯盘助手",
 		DirCode:               "gold_watch",
 		FullCodePath:          "/system/democase/gold_watch",
-		ScheduledTasksSection: "### 当前目录自动执行摘要\n- id=25；类型=定时会话；标题=黄金盯盘日报",
+		ScheduledTasksSection: "### 当前目录自动执行摘要\n- id=25；类型=Agent 任务；标题=黄金盯盘日报",
 	}, "黄金盯盘助手", "/system/democase/gold_watch", timeNowForTest())
 	got := BuildWorkspaceEnvBlock(data, true, "黄金盯盘助手", "/system/democase/gold_watch")
 	if !strings.Contains(got, "### 当前目录自动执行摘要") ||

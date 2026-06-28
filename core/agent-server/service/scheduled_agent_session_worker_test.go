@@ -61,7 +61,7 @@ func TestScheduledAgentSessionWorkspaceRequestUsesMessageDirectly(t *testing.T) 
 	if strings.Contains(req.Message.Content, "每日热点推送") {
 		t.Fatalf("title/display content should not be used as runtime message, got %q", req.Message.Content)
 	}
-	for _, want := range []string{"定时会话执行约束", "不是创建或管理定时任务", "app_operator", "不要向用户提问", "可省略 to_users", "创建人/默认通知对象：alice", `to_users: "alice"`, "首次基准记录", "本次任务绑定工作台目录：/system/test22/hot_news", "搜索今天 AI 热点", "发送企业微信群"} {
+	for _, want := range []string{"Agent 任务执行约束", "不是创建或管理定时任务", "app_operator", "不要向用户提问", "可省略 to_users", "创建人/默认通知对象：alice", `to_users: "alice"`, "首次基准记录", "本次任务绑定工作台目录：/system/test22/hot_news", "搜索今天 AI 热点", "发送企业微信群"} {
 		if !strings.Contains(req.Message.Content, want) {
 			t.Fatalf("message content should contain %q, got %q", want, req.Message.Content)
 		}
@@ -147,7 +147,7 @@ func TestScheduledAgentSessionRunErrorExplainsMissingDirectory(t *testing.T) {
 		t.Fatal("expected wrapped error")
 	}
 	for _, want := range []string{
-		"定时会话配置的工作台目录不存在",
+		"Agent 任务配置的工作台目录不存在",
 		"/system/test22/hot_news",
 		"编辑任务换成有效目录",
 	} {
@@ -163,7 +163,7 @@ func TestAgentToolExecutionContextPreservesScheduledTaskSource(t *testing.T) {
 		SourceType:   contextx.SourceTypeScheduledTask,
 		SourceRef:    "timer_task:1:execution:2",
 	})
-	got := withAgentToolExecutionContext(ctx, "session-1", "定时会话", "automation_operator")
+	got := withAgentToolExecutionContext(ctx, "session-1", "Agent 任务", "automation_operator")
 
 	if source := contextx.GetClientSource(got); source != contextx.ClientSourceScheduledTask {
 		t.Fatalf("client source = %q, want scheduled_task", source)

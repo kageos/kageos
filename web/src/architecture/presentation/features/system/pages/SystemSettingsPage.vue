@@ -51,7 +51,7 @@
               :closable="false"
             />
 
-            <el-form ref="formRef" :model="form" label-width="180px" class="settings-form">
+            <el-form ref="formRef" :model="form" label-width="120px" class="settings-form">
               <el-divider content-position="left">{{ t('systemSettings.registration') }}</el-divider>
               <el-form-item :label="t('systemSettings.registrationMode')">
                 <el-radio-group v-model="form.registration_mode">
@@ -179,7 +179,7 @@
                 <el-form
                   v-if="providerConfigs[provider.code]"
                   :model="providerConfigs[provider.code]"
-                  label-width="160px"
+                  label-width="120px"
                   class="provider-form"
                 >
                   <el-form-item
@@ -298,7 +298,7 @@
                 </el-descriptions-item>
               </el-descriptions>
 
-              <el-form label-width="150px" class="tls-form">
+              <el-form label-width="120px" class="tls-form">
                 <el-form-item :label="t('systemSettings.certificatePem')">
                   <el-input
                     v-model="tlsForm.certificate_pem"
@@ -912,14 +912,18 @@ onMounted(() => {
 <style scoped>
 .system-settings-page {
   min-height: 100vh;
-  padding: 24px;
-  background: var(--el-bg-color-page);
+  padding: 32px 40px;
+  background: var(--bg-primary);
 }
 
 .settings-card {
   width: 100%;
-  max-width: none;
+  max-width: 1440px;
   margin: 0 auto;
+  border-radius: var(--border-radius-xl);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--app-shell-panel-shadow-soft);
+  background: var(--bg-secondary);
 }
 
 .card-header {
@@ -927,16 +931,21 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding: 24px 32px;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .card-header h2 {
   margin: 0 0 6px;
   font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .card-header p {
   margin: 0;
-  color: var(--el-text-color-secondary);
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 
 .header-actions,
@@ -949,87 +958,90 @@ onMounted(() => {
 
 .settings-layout {
   display: grid;
-  grid-template-columns: 252px minmax(0, 1fr);
-  gap: 22px;
-  align-items: start;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 0;
+  align-items: stretch;
 }
 
 .settings-sidebar {
+  border-right: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  position: sticky;
-  top: 16px;
-  padding: 8px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--el-fill-color-light) 55%, var(--el-bg-color) 45%);
+  gap: 6px;
+  border-radius: var(--border-radius-xl) 0 0 var(--border-radius-xl);
 }
 
 .settings-nav-item {
   width: 100%;
   min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   padding: 12px 14px;
   border: 1px solid transparent;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--el-bg-color) 88%, var(--el-fill-color-light) 12%);
-  color: var(--el-text-color-regular);
-  text-align: left;
+  border-radius: var(--border-radius-base);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  text-align: left;
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .settings-nav-item:hover {
-  border-color: color-mix(in srgb, var(--el-color-primary) 18%, var(--el-border-color-light) 82%);
-  background: color-mix(in srgb, var(--el-color-primary) 6%, var(--el-bg-color) 94%);
+  background: var(--el-fill-color);
 }
 
 .settings-nav-item.is-active {
-  border-color: color-mix(in srgb, var(--el-color-primary) 42%, var(--el-border-color) 58%);
-  background: color-mix(in srgb, var(--el-color-primary) 14%, var(--el-bg-color) 86%);
-  color: var(--el-color-primary);
-  box-shadow: inset 3px 0 0 var(--el-color-primary);
+  background: var(--el-fill-color-blank);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.1);
 }
 
 .settings-nav-title {
   display: block;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.3;
 }
 
 .settings-nav-desc {
   display: block;
-  margin-top: 5px;
-  color: var(--el-text-color-secondary);
+  margin-top: 4px;
+  color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.35;
 }
 
 .settings-content {
   min-width: 0;
+  background: transparent;
+  border-radius: 0 var(--border-radius-xl) var(--border-radius-xl) 0;
+  padding: 32px 40px;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 16px;
-  padding-bottom: 16px;
-  margin-bottom: 18px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  padding-bottom: 20px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .section-header h3 {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
   font-size: 18px;
-  color: var(--el-text-color-primary);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .section-header p {
   margin: 0;
-  color: var(--el-text-color-secondary);
+  color: var(--text-secondary);
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -1123,13 +1135,13 @@ onMounted(() => {
 
 .provider-name {
   font-size: 16px;
-  font-weight: 700;
-  color: var(--el-text-color-primary);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .provider-heading p {
   margin: 8px 0 0;
-  color: var(--el-text-color-secondary);
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 
@@ -1140,7 +1152,7 @@ onMounted(() => {
   gap: 8px;
   margin-top: 10px;
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-secondary);
 }
 
 .callback-path {
@@ -1152,14 +1164,14 @@ onMounted(() => {
   padding: 2px 6px;
   border-radius: 4px;
   background: var(--el-fill-color-light);
-  color: var(--el-text-color-primary);
+  color: var(--text-primary);
 }
 
 .provider-enable {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
@@ -1207,24 +1219,25 @@ onMounted(() => {
 
 .preference-card {
   min-height: 82px;
-  padding: 14px 16px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
-  background: var(--el-bg-color);
-  color: var(--el-text-color-regular);
+  padding: 16px 20px;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-lg);
+  background: var(--bg-tertiary);
+  color: var(--text-regular);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .preference-card:hover {
-  border-color: var(--el-color-primary-light-5);
+  background: var(--el-fill-color);
 }
 
 .preference-card.is-active {
-  border-color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
+  background: var(--el-fill-color-blank);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.15);
+  color: var(--color-primary);
 }
 
 .preference-card-title {

@@ -344,6 +344,14 @@
           </el-dropdown>
         </template>
       </el-table-column>
+      
+      <!-- 空数据占位符 -->
+      <template #empty>
+        <el-empty 
+          description="暂无数据"
+          :image-size="120"
+        />
+      </template>
     </el-table>
 
     <!-- 分页 -->

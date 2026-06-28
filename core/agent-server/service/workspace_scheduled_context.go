@@ -24,12 +24,12 @@ func buildWorkspaceScheduledTasksSection(ctx context.Context, fullCodePath strin
 		return "### 当前目录自动执行摘要\n- 定时任务摘要加载失败；需要确认时调用 `list_scheduled_tasks` 重新查询。"
 	}
 	if resp == nil || len(resp.List) == 0 {
-		return "### 当前目录自动执行摘要\n- 当前目录没有已配置的定时函数或定时会话。"
+		return "### 当前目录自动执行摘要\n- 当前目录没有已配置的函数任务或 Agent 任务。"
 	}
 
 	var b strings.Builder
 	b.WriteString("### 当前目录自动执行摘要\n")
-	b.WriteString("以下只注入定时函数/定时会话的轻量元信息；未注入定时会话 message、display_content 或 executor_payload 正文。\n")
+	b.WriteString("以下只注入函数任务 / Agent 任务的轻量元信息；未注入 Agent 任务 message、display_content 或 executor_payload 正文。\n")
 	for _, task := range resp.List {
 		if task == nil {
 			continue
@@ -84,18 +84,18 @@ func workspaceScheduledTaskKindLabel(task *scheduledsdk.Task) string {
 	if kind := strings.TrimSpace(task.Metadata["kind"]); kind != "" {
 		switch kind {
 		case "scheduled_function":
-			return "定时函数"
+			return "函数任务"
 		case "scheduled_agent_session":
-			return "定时会话"
+			return "Agent 任务"
 		default:
 			return kind
 		}
 	}
 	switch strings.TrimSpace(task.ExecutorKey) {
 	case "app.function":
-		return "定时函数"
+		return "函数任务"
 	case "agent.session":
-		return "定时会话"
+		return "Agent 任务"
 	default:
 		return "定时任务"
 	}

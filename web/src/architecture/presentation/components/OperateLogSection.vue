@@ -6,15 +6,17 @@
         <el-icon class="operate-log-icon"><Clock /></el-icon>
         <span class="operate-log-title">{{ title || t('operateLog.title') }}</span>
       </div>
-      <el-button
-        v-if="showRefresh"
-        size="small"
-        :icon="Refresh"
-        :loading="loading"
-        @click="load"
-      >
-        {{ t('common.refresh') }}
-      </el-button>
+      <div>
+        <el-button
+          v-if="showRefresh"
+          size="small"
+          :icon="Refresh"
+          :loading="loading"
+          @click="load"
+        >
+          {{ t('common.refresh') }}
+        </el-button>
+      </div>
     </div>
     <div v-loading="loading" class="operate-log-content">
       <template v-if="isFormOperateLog">
@@ -470,8 +472,7 @@
         />
       </div>
       </template>
-    </div>
-
+        </div>
     <el-dialog
       v-model="previewDialogVisible"
       :title="t('operateLog.previewTitle')"
@@ -535,7 +536,9 @@
 import { computed, ref, toRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Clock, Refresh, Search } from '@element-plus/icons-vue'
+import { Clock, Refresh, Search, ArrowDown } from '@element-plus/icons-vue'
+
+const isCollapsed = ref(true)
 import {
   ElButton,
   ElDialog,

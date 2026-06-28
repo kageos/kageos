@@ -5,9 +5,10 @@
       :key="index"
       class="tag-item"
       :size="mode === 'table-cell' ? 'small' : undefined"
-      :type="getOptionColorType(value)"
+      :type="getOptionColorType(value) ? getOptionColorType(value) : 'primary'"
       :color="getOptionColorValue(value)"
       :style="getOptionTagStyle(value)"
+      effect="light"
     >
       {{ getOptionLabel(value) }}
     </el-tag>
@@ -47,41 +48,34 @@ const containerClass = computed(() => {
 }
 
 .table-cell-multiselect .tag-item,
-.detail-multiselect .tag-item {
-  font-weight: 500;
-  border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  margin: 0;
-  opacity: 0.9;
-}
-
-.table-cell-multiselect .tag-item[style*="background-color"],
-.detail-multiselect .tag-item[style*="background-color"] {
-  font-weight: 500;
-  filter: brightness(0.95) saturate(0.9);
-}
-
-.table-cell-multiselect .tag-item.el-tag--success,
-.table-cell-multiselect .tag-item.el-tag--warning,
-.table-cell-multiselect .tag-item.el-tag--danger,
-.table-cell-multiselect .tag-item.el-tag--info,
-.table-cell-multiselect .tag-item.el-tag--primary,
-.detail-multiselect .tag-item.el-tag--success,
-.detail-multiselect .tag-item.el-tag--warning,
-.detail-multiselect .tag-item.el-tag--danger,
-.detail-multiselect .tag-item.el-tag--info,
-.detail-multiselect .tag-item.el-tag--primary {
-  font-weight: 500;
-  border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  opacity: 0.9;
-}
-
+.detail-multiselect .tag-item,
 .response-multiselect .tag-item {
-  margin-right: 4px;
+  font-weight: 500;
+  border-radius: 4px;
+  margin: 0;
+  border: 1px solid var(--border-base);
 }
+
+.table-cell-multiselect .tag-item.el-tag--primary,
+.detail-multiselect .tag-item.el-tag--primary,
+.response-multiselect .tag-item.el-tag--primary {
+  border-color: rgba(var(--color-primary-rgb), 0.3) !important;
+}
+
+/* 恢复带背景色的浅色色板渲染，避免空心透明感 */
+.table-cell-multiselect .tag-item[style*="border-color:"],
+.detail-multiselect .tag-item[style*="border-color:"],
+.response-multiselect .tag-item[style*="border-color:"],
+.table-cell-multiselect .tag-item[style*="color:"],
+.detail-multiselect .tag-item[style*="color:"],
+.response-multiselect .tag-item[style*="color:"] {
+  box-shadow: none !important;
+  filter: none;
+}
+
 
 .empty-text {
-  color: #999;
+  color: var(--text-disabled);
+  font-style: italic;
 }
 </style>

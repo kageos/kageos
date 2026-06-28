@@ -256,7 +256,7 @@ func TestWorkspaceScheduledTaskSummarySkipsExecutorPayloadContent(t *testing.T) 
 		CreatedBy:       "system",
 	}
 	got := formatWorkspaceScheduledTaskSummary(task)
-	for _, want := range []string{"id=25", "类型=定时会话", "标题=黄金盯盘日报", "描述=每天生成观察日报"} {
+	for _, want := range []string{"id=25", "类型=Agent 任务", "标题=黄金盯盘日报", "描述=每天生成观察日报"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("summary should contain %q, got %s", want, got)
 		}
@@ -284,7 +284,7 @@ func TestScheduledTaskToolDescriptionsDistinguishFunctionAndAgentTasks(t *testin
 	agentDesc := (&CreateScheduledAgentTaskTool{}).Definition().Description
 	for _, want := range []string{
 		"启动一个 Agent 工作台会话",
-		"message 当作用户消息直接发给该会话",
+		"message 当作执行说明交给工作台 Agent",
 		"核心参数是 title + message",
 		"interval_seconds=300",
 		"不要把这些参数包进 body",
@@ -293,7 +293,7 @@ func TestScheduledTaskToolDescriptionsDistinguishFunctionAndAgentTasks(t *testin
 		"全部写进 message",
 		"预期使用工具清单",
 		"change_role、read_dir/search、web_search",
-		"定时会话可以编排当前目录、本空间其他目录、其他空间函数",
+		"Agent 任务可以编排当前目录、本空间其他目录、其他空间函数",
 		"质量规则要结合业务",
 		"不要用于已明确的单个 Form/Table/Chart 函数调用",
 	} {

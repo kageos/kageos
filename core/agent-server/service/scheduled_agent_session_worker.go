@@ -15,7 +15,7 @@ import (
 
 const ScheduledAgentSessionExecutorKey = "agent.session"
 
-const scheduledAgentUnattendedPrefix = "【定时会话执行约束】本次会话由定时任务自动触发，但当前目标不是创建或管理定时任务，而是执行后面的会话消息。请先选择能完成该业务执行的角色；需要调用已有 Form/Table/Chart 或连接器时，通常应进入 app_operator。执行过程中用户不在线、无法回答问题或确认操作；不要向用户提问，不要等待用户补充信息，不要把下一步停在“请确认/请提供”。如果发现高优先级情报、异常、风险或任务消息明确要求通知用户，可调用 send_notification 主动通知；send_notification 只负责单向通知，不能作为等待用户回复的交互。首次基准记录、无变化结果、普通状态报告默认不通知，只在执行摘要中记录。若创建时的信息不足以安全执行，按已知上下文完成可安全完成的部分，并在结果中明确记录缺失信息、未执行的动作和原因；涉及高风险写入且缺少必要确认时应跳过该动作并说明原因。"
+const scheduledAgentUnattendedPrefix = "【Agent 任务执行约束】本次 Agent 任务由自动执行触发，但当前目标不是创建或管理定时任务，而是执行后面的任务说明。请先选择能完成该业务执行的角色；需要调用已有 Form/Table/Chart 或连接器时，通常应进入 app_operator。执行过程中用户不在线、无法回答问题或确认操作；不要向用户提问，不要等待用户补充信息，不要把下一步停在“请确认/请提供”。如果发现高优先级情报、异常、风险或任务说明明确要求通知用户，可调用 send_notification 主动通知；send_notification 只负责单向通知，不能作为等待用户回复的交互。首次基准记录、无变化结果、普通状态报告默认不通知，只在执行摘要中记录。若创建时的信息不足以安全执行，按已知上下文完成可安全完成的部分，并在结果中明确记录缺失信息、未执行的动作和原因；涉及高风险写入且缺少必要确认时应跳过该动作并说明原因。"
 
 type scheduledAgentWorkspaceRootContextKey struct{}
 
@@ -97,9 +97,9 @@ func scheduledAgentSessionRunError(fullCodePath string, err error) error {
 	if strings.Contains(message, "服务目录不存在") || strings.Contains(message, "无效的 full_code_path") {
 		path := strings.TrimSpace(fullCodePath)
 		if path == "" {
-			return fmt.Errorf("定时会话配置的工作台目录不存在。请编辑任务换成有效目录，或删除后在目标目录重新创建: %w", err)
+			return fmt.Errorf("Agent 任务配置的工作台目录不存在。请编辑任务换成有效目录，或删除后在目标目录重新创建: %w", err)
 		}
-		return fmt.Errorf("定时会话配置的工作台目录不存在（full_code_path=%s）。请编辑任务换成有效目录，或删除后在目标目录重新创建: %w", path, err)
+		return fmt.Errorf("Agent 任务配置的工作台目录不存在（full_code_path=%s）。请编辑任务换成有效目录，或删除后在目标目录重新创建: %w", path, err)
 	}
 	return err
 }
@@ -176,9 +176,9 @@ func scheduledAgentSessionMessageContent(event scheduledsdk.ExecutionRequestedEv
 func scheduledAgentNotificationInstruction(event scheduledsdk.ExecutionRequestedEvent) string {
 	requestUser := strings.TrimSpace(event.RequestUser)
 	if requestUser == "" {
-		return "\n【定时会话通知规则】本次定时会话没有创建人/请求用户可作为默认接收人。只有任务消息明确给出接收人 username，或已经从任务上下文可靠获得接收人时，才可调用 send_notification；调用时必须显式传 to_users。"
+		return "\n【Agent 任务通知规则】本次 Agent 任务没有创建人/请求用户可作为默认接收人。只有任务说明明确给出接收人 username，或已经从任务上下文可靠获得接收人时，才可调用 send_notification；调用时必须显式传 to_users。"
 	}
-	return fmt.Sprintf("\n【定时会话通知规则】本次定时会话创建人/默认通知对象：%s。如果任务要求通知创建人、当前用户或“我”，调用 send_notification 时可省略 to_users；如果显式传，请使用 to_users: %q。", requestUser, requestUser)
+	return fmt.Sprintf("\n【Agent 任务通知规则】本次 Agent 任务创建人/默认通知对象：%s。如果任务要求通知创建人、当前用户或“我”，调用 send_notification 时可省略 to_users；如果显式传，请使用 to_users: %q。", requestUser, requestUser)
 }
 
 func scheduledAgentSessionDisplayContent(payload scheduledAgentSessionPayload) string {
@@ -297,7 +297,7 @@ func scheduledAgentSessionSummary(sessionID string, content string, toolCalls []
 		parts = append(parts, "错误: "+strings.Join(errors, "；"))
 	}
 	if len(parts) == 0 {
-		return "定时会话执行完成"
+		return "Agent 任务执行完成"
 	}
 	return strings.Join(parts, "；")
 }

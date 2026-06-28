@@ -592,12 +592,10 @@ defineExpose({ load: loadList })
   gap: 14px;
   overflow: hidden;
   padding: 16px;
-  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
-  border-radius: 14px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--app-shell-panel-muted-bg, #f1f5f9) 78%, #fff 22%), color-mix(in srgb, var(--app-shell-bg, #eef2f6) 92%, #fff 8%)),
-    var(--app-shell-bg, var(--el-bg-color-page));
-  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight, rgba(255, 255, 255, 0.8));
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-lg);
+  background: var(--bg-secondary);
+  box-shadow: var(--app-shell-panel-shadow-soft);
 }
 
 .scheduled-list-header {
@@ -607,10 +605,9 @@ defineExpose({ load: loadList })
   align-items: center;
   flex-shrink: 0;
   padding: 14px 16px;
-  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
-  border-radius: 12px;
-  background: var(--app-shell-panel-bg-strong, var(--el-bg-color));
-  box-shadow: var(--app-shell-panel-shadow-soft, 0 10px 24px rgba(15, 23, 42, 0.06));
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-base);
+  background: var(--bg-secondary);
 }
 
 .scheduled-list-title {
@@ -663,10 +660,9 @@ defineExpose({ load: loadList })
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
-  border-radius: 12px;
-  background: var(--app-shell-panel-bg-strong, var(--el-bg-color));
-  box-shadow: var(--app-shell-panel-shadow-soft, 0 10px 24px rgba(15, 23, 42, 0.06));
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-lg);
+  background: transparent;
 }
 
 .scheduled-table :deep(.el-table__inner-wrapper::before) {
@@ -675,20 +671,20 @@ defineExpose({ load: loadList })
 
 .scheduled-table :deep(.el-table__header-wrapper th) {
   height: 44px;
-  background: var(--app-shell-panel-muted-bg, var(--el-fill-color-light));
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .scheduled-table :deep(.el-table__row) {
-  background: color-mix(in srgb, var(--app-shell-panel-bg-strong, #fff) 92%, var(--app-shell-panel-muted-bg, #f1f5f9) 8%);
+  background: transparent;
 }
 
 .scheduled-table :deep(.el-table__row--striped td.el-table__cell) {
-  background: color-mix(in srgb, var(--app-shell-panel-muted-bg, #f1f5f9) 46%, #fff 54%);
+  background: var(--bg-tertiary);
 }
 
 .scheduled-table :deep(.el-table__row.is-clickable) {
@@ -696,11 +692,11 @@ defineExpose({ load: loadList })
 }
 
 .scheduled-table :deep(.el-table__row:hover > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-primary) 7%, var(--app-shell-panel-bg-strong, #fff));
+  background: var(--bg-tertiary);
 }
 
 .scheduled-table :deep(.el-table__cell) {
-  border-bottom-color: color-mix(in srgb, var(--app-shell-panel-border, #cbd5e1) 58%, transparent);
+  border-bottom: 1px solid var(--border-light);
 }
 
 .table-row-actions {

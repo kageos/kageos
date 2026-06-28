@@ -248,16 +248,23 @@ watch(
 </script>
 
 <style scoped lang="scss">
+.scheduled-function-dialog {
+  :deep(.el-dialog__body) {
+    padding: 24px 32px;
+  }
+}
+
 .scheduled-dialog-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
+  gap: 16px;
 }
 
 .payload-textarea :deep(.el-textarea__inner) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
+  font-family: var(--font-family-mono);
+  font-size: 13px;
   line-height: 1.6;
+  background-color: var(--bg-tertiary) !important;
 }
 
 @media (max-width: 720px) {

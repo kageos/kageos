@@ -160,6 +160,17 @@
       </el-option>
     </el-select>
 
+    <!-- 🔥 开关组件 -->
+    <el-switch
+      v-else-if="inputConfig.component === SearchComponent.EL_SWITCH"
+      class="search-control"
+      v-model="switchValue"
+      inline-prompt
+      :active-text="inputConfig.props?.activeText"
+      :inactive-text="inputConfig.props?.inactiveText"
+      @change="handleInput"
+    />
+
     <!-- 🔥 数字范围输入 -->
     <div v-else-if="inputConfig.component === SearchComponent.NUMBER_RANGE_INPUT" class="number-range">
       <el-input-number
@@ -393,6 +404,7 @@ const {
   localValue,
   shouldShowValue,
   selectValue,
+  switchValue,
   dateRangeValue,
   rangeValue,
   handleInput,

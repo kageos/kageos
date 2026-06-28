@@ -138,14 +138,15 @@ type UpdateAppRuntimeReq struct {
 
 // UpdateAppResp 更新应用响应
 type UpdateAppResp struct {
-	User          string    `json:"user" example:"beiluo"`     // 用户名
-	App           string    `json:"app" example:"myapp"`       // 应用名
-	OldVersion    string    `json:"old_version" example:"v1"`  // 旧版本号
-	NewVersion    string    `json:"new_version" example:"v2"`  // 新版本号
-	GitCommitHash string    `json:"git_commit_hash,omitempty"` // Git 提交哈希（用于回滚）
-	Diff          *DiffData `json:"diff,omitempty"`            // API diff 信息
-	Error         string    `json:"error,omitempty"`           // 回调过程中的错误信息
-	Warnings      []string  `json:"warnings,omitempty"`        // 非阻断告警（如发布成功但元数据同步失败）
+	User          string      `json:"user" example:"beiluo"`     // 用户名
+	App           string      `json:"app" example:"myapp"`       // 应用名
+	OldVersion    string      `json:"old_version" example:"v1"`  // 旧版本号
+	NewVersion    string      `json:"new_version" example:"v2"`  // 新版本号
+	GitCommitHash string      `json:"git_commit_hash,omitempty"` // Git 提交哈希（用于回滚）
+	Diff          *DiffData   `json:"diff,omitempty"`            // API diff 信息
+	Error         string      `json:"error,omitempty"`           // 回调过程中的错误信息
+	Warnings      []string    `json:"warnings,omitempty"`        // 非阻断告警（如发布成功但元数据同步失败）
+	BuildTrace    *BuildTrace `json:"build_trace,omitempty"`     // 构建/更新阶段耗时追踪
 }
 
 // PackageInfo SDK 返回的 package 元信息，app-server 用于目录对账
@@ -155,7 +156,7 @@ type PackageInfo struct {
 	Desc        string            `json:"desc"`                  // 描述
 	RouterGroup string            `json:"router_group"`          // 路由组路径（如 "/plugins/pdf"）
 	FullPath    string            `json:"full_path"`             // 完整路径（如 "/user/app/plugins/pdf"）
-	AgentTasks  []AgentTaskConfig `json:"agent_tasks,omitempty"` // package 出厂默认定时会话模板
+	AgentTasks  []AgentTaskConfig `json:"agent_tasks,omitempty"` // package 出厂默认 Agent 任务模板
 }
 
 type AgentTaskConfig struct {

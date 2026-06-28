@@ -5,7 +5,7 @@ import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types
 import type { FormStateManager } from '../../infrastructure/stateManager/FormStateManager'
 import { getFieldPresenceState } from '@/architecture/domain/utils/conditionEvaluator'
 import { createAutoFieldValue, createDisplayAwareFieldValue, createEmptyFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
-import { FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '../utils/formLayout'
+import { FORM_QUESTIONNAIRE_TRIGGER_CHARS, getVisualLength } from '../utils/formLayout'
 import { getFormRequestFields, getFormResponseFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 
 interface UseFormViewStateOptions {
@@ -45,11 +45,11 @@ export function useFormViewState(options: UseFormViewStateOptions) {
   )
 
   const requestLabelsOnTop = computed(() =>
-    visibleRequestFields.value.some((field) => (field.name?.length ?? 0) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
+    visibleRequestFields.value.some((field) => getVisualLength(field.name) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
   )
 
   const responseLabelsOnTop = computed(() =>
-    responseFields.value.some((field) => (field.name?.length ?? 0) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
+    responseFields.value.some((field) => getVisualLength(field.name) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
   )
 
   const fieldValues = computed(() => {

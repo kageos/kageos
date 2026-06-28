@@ -18,6 +18,7 @@ import (
 	"github.com/kageos/kageos/core/app-runtime/model"
 	"github.com/kageos/kageos/core/app-runtime/repository"
 	"github.com/kageos/kageos/pkg/builder"
+	"github.com/kageos/kageos/pkg/buildtrace"
 	appconfig "github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/gitx"
@@ -234,16 +235,25 @@ func (s *AppManageService) BuildApp(ctx context.Context, user, app string, opts 
 		}
 	}
 
+	ensureSpan := buildtrace.Start(ctx, "runtime.ensure_go_mod", buildtrace.String("go_mod", appPaths.GoModPath()))
 	if err := s.ensureAppGoModFile(appPaths); err != nil {
+		ensureSpan.Finish(err)
 		return nil, fmt.Errorf("failed to ensure app go.mod: %w", err)
 	}
+	ensureSpan.Finish(nil)
 
 	// 执行编译
+	buildSpan := buildtrace.Start(ctx, "runtime.builder_build_app",
+		buildtrace.String("source_dir", buildOpts.SourceDir),
+		buildtrace.String("output_dir", buildOpts.OutputDir),
+	)
 	result, err := s.builder.Build(ctx, user, app, buildOpts)
 	if err != nil {
+		buildSpan.Finish(err)
 		logger.Errorf(ctx, "[BuildApp] *** FAILED *** user=%s, app=%s, error=%v", user, app, err)
 		return nil, err
 	}
+	buildSpan.Finish(nil)
 
 	return result, nil
 }
@@ -313,25 +323,53 @@ func (s *AppManageService) DeleteApp(ctx context.Context, user, app string) erro
 // UpdateApp 更新应用（写入源码文件并重新编译部署）
 // 如果提供了 sourceFiles，先执行源码文件写入。
 // writeOnly 为 true 时仅写文件，不编译不部署。
-func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, sourceFiles []*sharedDto.SourceFileWrite, requirement, changeDescription string, writeOnly bool, forceDiff bool) (*sharedDto.UpdateAppResp, error) {
+func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, sourceFiles []*sharedDto.SourceFileWrite, requirement, changeDescription string, writeOnly bool, forceDiff bool) (resp *sharedDto.UpdateAppResp, err error) {
+	ctx, trace := buildtrace.Ensure(ctx, "runtime.update_app", user, app)
+	defer func() {
+		traceSnapshot := trace.Finalize(err)
+		if path, persistErr := s.persistUpdateBuildTrace(ctx, user, app, trace); persistErr != nil {
+			logger.Warnf(ctx, "[UpdateApp] build trace persist failed: trace_id=%s, error=%v", traceSnapshot.TraceID, persistErr)
+		} else if path != "" {
+			traceSnapshot = trace.Snapshot()
+		}
+		if resp != nil {
+			resp.BuildTrace = traceSnapshot
+		}
+		logger.Infof(ctx, "[UpdateApp] build trace summary: trace_id=%s, status=%s, %s",
+			traceSnapshot.TraceID, traceSnapshot.Status, buildtrace.Summary(traceSnapshot, 6))
+	}()
+
 	logStr := strings.Builder{}
 	logStr.WriteString(fmt.Sprintf("[UpdateApp] Starting update: %s/%s\t", user, app))
 
+	prepareSpan := buildtrace.Start(ctx, "runtime.prepare_update_state", buildtrace.String("user", user), buildtrace.String("app", app))
 	state, err := s.prepareUpdateAppState(ctx, user, app)
 	if err != nil {
+		prepareSpan.Finish(err)
 		return nil, err
 	}
+	prepareSpan.Finish(nil)
 	s.noteUnknownUpdateVersion(state, &logStr)
 
+	writeSpan := buildtrace.Start(ctx, "runtime.write_source_files", buildtrace.Int("file_count", len(sourceFiles)))
 	sourceWriteState, err := s.writeSourceFilesForUpdate(ctx, user, app, sourceFiles)
 	if err != nil {
+		writeSpan.Finish(err)
 		return nil, err
 	}
+	writeSpan.Finish(nil)
 
 	if writeOnly {
-		return s.buildWriteOnlyUpdateResp(ctx, user, app, state.oldVersion), nil
+		writeOnlySpan := buildtrace.Start(ctx, "runtime.write_only_response")
+		resp = s.buildWriteOnlyUpdateResp(ctx, user, app, state.oldVersion)
+		writeOnlySpan.Finish(nil)
+		return resp, nil
 	}
 
+	releaseSpan := buildtrace.Start(ctx, "runtime.build_and_deploy_release",
+		buildtrace.String("old_version", state.oldVersion),
+		buildtrace.Bool("force_diff", forceDiff),
+	)
 	release, err := s.buildAndDeployUpdatedRelease(
 		ctx,
 		user,
@@ -344,10 +382,18 @@ func (s *AppManageService) UpdateApp(ctx context.Context, user, app string, sour
 		&logStr,
 	)
 	if err != nil {
+		releaseSpan.Finish(err)
 		return nil, err
 	}
+	releaseSpan.Finish(nil)
 
-	return s.completeUpdatedRelease(ctx, user, app, release)
+	completeSpan := buildtrace.Start(ctx, "runtime.complete_update_release", buildtrace.String("new_version", release.newVersion))
+	resp, err = s.completeUpdatedRelease(ctx, user, app, release)
+	completeSpan.Finish(err)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 // updateAppStatusToActive 将应用状态更新为active（已激活）
@@ -499,23 +545,35 @@ func (s *AppManageService) createVersionContainer(ctx context.Context, user, app
 	}
 
 	// 检查运行时实例是否已存在
+	checkSpan := buildtrace.Start(ctx, "runtime.check_version_running", buildtrace.String("runtime_name", runtimeName))
 	exists, err := s.runtimeDriver.IsAppVersionRunning(ctx, ref)
 	if err != nil {
+		checkSpan.Finish(err)
 		return fmt.Errorf("failed to check app runtime instance existence: %w", err)
 	}
+	checkSpan.Finish(nil)
 
 	if exists {
 		logger.Infof(ctx, "[createVersionContainer] App runtime instance %s already exists and is running; reusing it", runtimeName)
 		return nil
 	}
 
+	specSpan := buildtrace.Start(ctx, "runtime.build_app_version_spec", buildtrace.String("runtime_name", runtimeName))
 	spec, err := s.buildAppVersionSpec(ctx, ref, appDir)
 	if err != nil {
+		specSpan.Finish(err)
 		return err
 	}
+	specSpan.Finish(nil)
+	createSpan := buildtrace.Start(ctx, "runtime.driver_create_app_version",
+		buildtrace.String("runtime_name", runtimeName),
+		buildtrace.String("image", spec.Image),
+	)
 	if err := s.runtimeDriver.CreateAppVersion(ctx, spec); err != nil {
+		createSpan.Finish(err)
 		return err
 	}
+	createSpan.Finish(nil)
 	logger.Infof(ctx, "App runtime instance started successfully with runtime image %s", spec.Image)
 	s.MarkContainerCleanupDirty() // 有新运行时实例，下次巡检周期会做对账
 	return nil

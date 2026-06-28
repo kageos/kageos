@@ -27,7 +27,7 @@
           >
             <div class="app-avatar">
               <div class="app-icon" :style="{ backgroundColor: getAppColor(currentApp) }">
-                {{ getAppInitial(getWorkspaceDisplayName(currentApp)) }}
+                <el-icon><Monitor /></el-icon>
               </div>
               <div class="status-indicator" v-if="!compact"></div>
             </div>
@@ -100,7 +100,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ArrowUp, ArrowDown, FolderOpened } from '@element-plus/icons-vue'
+import { ArrowUp, ArrowDown, FolderOpened, Monitor } from '@element-plus/icons-vue'
 import type { App } from '@/architecture/domain/types'
 import WorkspaceListDialog from './WorkspaceListDialog.vue'
 import WorkspaceListPanel from './WorkspaceListPanel.vue'
@@ -294,18 +294,18 @@ defineExpose({
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: var(--el-fill-color-blank);
+  background: transparent;
   border: 1px solid var(--el-border-color-light);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: var(--box-shadow-sm);
+  box-shadow: none;
   min-width: 0;
 
   &:hover {
     background: var(--el-fill-color-light);
     border-color: rgba(var(--el-color-primary-rgb, 69, 88, 200), 0.38);
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   }
 }
 
@@ -323,8 +323,8 @@ defineExpose({
   justify-content: center;
   color: var(--el-color-white, white);
   font-weight: 600;
-  font-size: 14px;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);
+  font-size: 20px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
 }
 
 .app-icon--placeholder {
@@ -396,7 +396,7 @@ defineExpose({
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 16px;
 }
 
 .app-switcher-compact .app-name {

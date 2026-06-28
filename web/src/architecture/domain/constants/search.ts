@@ -23,6 +23,7 @@ export const SearchType = {
 export const SearchComponent = {
   EL_INPUT: 'ElInput',
   EL_SELECT: 'ElSelect',
+  EL_SWITCH: 'ElSwitch',
   EL_DATE_PICKER: 'ElDatePicker',
   RANGE_INPUT: 'RangeInput',
   NUMBER_RANGE_INPUT: 'NumberRangeInput'

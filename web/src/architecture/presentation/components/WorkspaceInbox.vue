@@ -64,6 +64,9 @@
             :class="{ 'is-active': isWorkspaceTabActive(workspace), 'has-unread': Number(workspace.unread_count || 0) > 0 }"
             @click="handleWorkspaceTabClick(workspace)"
           >
+            <div class="workspace-tab-logo">
+              <el-icon><Monitor /></el-icon>
+            </div>
             <span class="workspace-tab-copy">
               <span class="workspace-tab-title">{{ workspaceTabTitle(workspace) }}</span>
               <span class="workspace-tab-path">{{ workspaceTabPath(workspace) }}</span>
@@ -301,6 +304,7 @@ import {
   Message as MessageIcon,
   Refresh,
   Timer,
+  Monitor
 } from '@element-plus/icons-vue'
 import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
@@ -1563,32 +1567,49 @@ defineExpose({
   max-width: 260px;
   flex-shrink: 0;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   padding: 9px 10px;
-  border: 1px solid var(--app-shell-panel-border);
-  border-radius: 10px;
-  background: var(--app-shell-panel-muted-bg);
-  color: var(--el-text-color-primary);
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-base);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
 
   &:hover {
-    border-color: rgba(var(--el-color-primary-rgb), 0.28);
-    background: rgba(var(--el-color-primary-rgb), 0.06);
+    background: var(--el-fill-color);
   }
 
   &.is-active {
-    border-color: rgba(var(--el-color-primary-rgb), 0.4);
-    background: rgba(var(--el-color-primary-rgb), 0.1);
-    box-shadow: inset 3px 0 0 var(--el-color-primary);
+    background: var(--el-fill-color-blank);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.1);
   }
+}
+
+.workspace-tab-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+  color: var(--text-secondary);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.workspace-tab.is-active .workspace-tab-logo {
+  background: var(--color-primary-light-9);
+  color: var(--color-primary);
 }
 
 .workspace-tab-copy {
   display: flex;
   min-width: 0;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
 }
@@ -1653,9 +1674,9 @@ defineExpose({
 .inbox-detail-pane {
   min-height: 0;
   overflow: auto;
-  border: 1px solid var(--app-shell-panel-border);
-  border-radius: 14px;
-  background: var(--app-shell-panel-muted-bg);
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-lg);
+  background: var(--bg-secondary);
 }
 
 .inbox-list-pane {
@@ -1681,9 +1702,9 @@ defineExpose({
   }
 
   :deep(.el-tree-node.is-current > .el-tree-node__content) {
-    border: 1px solid rgba(var(--el-color-primary-rgb), 0.28);
-    background: rgba(var(--el-color-primary-rgb), 0.12);
-    box-shadow: inset 3px 0 0 var(--el-color-primary);
+    border-color: transparent;
+    background: var(--el-fill-color);
+    box-shadow: none;
   }
 
   :deep(.tree-node.is-active .node-label) {
@@ -1713,12 +1734,12 @@ defineExpose({
 
   &:hover,
   &.is-active {
-    border-color: rgba(var(--el-color-primary-rgb), 0.2);
-    background: rgba(var(--el-color-primary-rgb), 0.08);
+    border-color: transparent;
+    background: var(--el-fill-color);
   }
 
   &.is-unread .inbox-list-title {
-    font-weight: 800;
+    font-weight: 700;
   }
 }
 
@@ -1728,10 +1749,10 @@ defineExpose({
   height: 42px;
   margin-top: 1px;
   place-items: center;
-  border: 1px solid rgba(var(--el-color-primary-rgb), 0.18);
-  border-radius: 10px;
-  background: var(--app-shell-panel-bg);
-  color: var(--el-color-primary);
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-base);
+  background: var(--bg-tertiary);
+  color: var(--color-primary);
   font-size: 19px;
 }
 
@@ -1812,7 +1833,7 @@ defineExpose({
 }
 
 .inbox-detail-pane {
-  padding: 18px;
+  padding: 18px 24px;
 }
 
 .inbox-detail {
@@ -1828,7 +1849,7 @@ defineExpose({
   justify-content: space-between;
   gap: 14px;
   padding-bottom: 14px;
-  border-bottom: 1px solid var(--app-shell-panel-border);
+  border-bottom: 1px solid var(--border-light);
 
   h3 {
     margin: 0 0 8px;
@@ -1936,10 +1957,10 @@ defineExpose({
   grid-template-columns: 42px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  padding: 12px;
-  border: 1px solid rgba(var(--el-color-primary-rgb), 0.18);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--app-shell-panel-bg) 84%, var(--el-color-primary-light-9));
+  padding: 14px 16px;
+  border: 1px solid var(--color-primary-light-8);
+  border-radius: var(--border-radius-lg);
+  background: var(--color-primary-light-9);
 }
 
 .source-avatar {
@@ -2010,21 +2031,22 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px;
-  border: 1px solid var(--app-shell-panel-border);
-  border-radius: 12px;
-  background: var(--app-shell-panel-bg);
+  padding: 16px;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-lg);
+  background: var(--bg-tertiary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   cursor: pointer;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
 
   &:hover,
   &.is-active {
-    border-color: rgba(var(--el-color-primary-rgb), 0.28);
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
   }
 
   &.is-unread {
-    border-color: rgba(var(--el-color-primary-rgb), 0.32);
+    border-color: var(--color-primary-light-6);
   }
 }
 

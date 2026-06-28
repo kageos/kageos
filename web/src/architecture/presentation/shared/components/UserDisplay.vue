@@ -229,6 +229,9 @@ const displayName = computed(() => {
   color: var(--el-text-color-primary);
   font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .user-display-card-trigger:hover .user-name {

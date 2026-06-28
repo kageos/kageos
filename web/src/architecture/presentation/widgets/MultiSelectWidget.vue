@@ -38,7 +38,7 @@
               <el-tag
                 v-for="value in selectionSummary.visibleValues"
                 :key="value"
-                :type="getOptionColorType(value)"
+                :type="getOptionColorType(value) ? getOptionColorType(value) : 'info'"
                 :color="getOptionColorValue(value)"
                 effect="light"
                 :style="getOptionTagStyle(value)"
@@ -548,6 +548,7 @@ function getOptionTagStyle(value: unknown): Record<string, string> {
     return {}
   }
 
+  // 恢复带背景色的浅色色板渲染，避免空心透明感
   return {
     backgroundColor: lightPalette.backgroundColor,
     borderColor: lightPalette.borderColor,

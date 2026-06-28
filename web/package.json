@@ -31,6 +31,8 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
     "@monaco-editor/loader": "^1.6.1",
     "@tiptap/extension-code": "^3.11.0",
     "@tiptap/extension-code-block": "^3.11.0",
