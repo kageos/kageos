@@ -6,6 +6,21 @@
         class="detail-tabs"
         @tab-change="handlePackageTabChange"
       >
+        <el-tab-pane :label="t('packageDetail.detail')" name="detail">
+          <div class="tab-content directory-detail-tab-content">
+            <PackageDirectoryOverview :package-node="packageNode" />
+            <div
+              v-if="directoryMarkdown"
+              class="directory-markdown-body"
+              v-html="renderMarkdown(directoryMarkdown)"
+            />
+            <PackageDetailChildrenGrid
+              :children="packageNode.children || []"
+              @select-child="$emit('select-child', $event)"
+            />
+          </div>
+        </el-tab-pane>
+
         <el-tab-pane :label="t('packageDetail.permission')" name="permission">
           <div class="tab-content access-tab-content">
             <TeamAccessPanel
@@ -60,21 +75,6 @@
               :focus-task-id="scheduledFocusTaskID"
               :focus-execution-id="scheduledFocusExecutionID"
               @total-change="handleScheduledAgentTotalChange"
-            />
-          </div>
-        </el-tab-pane>
-
-        <el-tab-pane :label="t('packageDetail.detail')" name="detail">
-          <div class="tab-content directory-detail-tab-content">
-            <PackageDirectoryOverview :package-node="packageNode" />
-            <div
-              v-if="directoryMarkdown"
-              class="directory-markdown-body"
-              v-html="renderMarkdown(directoryMarkdown)"
-            />
-            <PackageDetailChildrenGrid
-              :children="packageNode.children || []"
-              @select-child="$emit('select-child', $event)"
             />
           </div>
         </el-tab-pane>

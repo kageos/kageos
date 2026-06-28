@@ -12,7 +12,7 @@ import {
   readStringQuery,
 } from '@/architecture/shared/routing/platformRouteParams'
 
-export type PackageTabName = 'permission' | 'operateLog' | 'scheduledAgentTask' | 'detail'
+export type PackageTabName = 'detail' | 'permission' | 'operateLog' | 'scheduledAgentTask'
 
 export interface UsePackageDetailTabsOptions {
   route: RouteLocationNormalizedLoaded

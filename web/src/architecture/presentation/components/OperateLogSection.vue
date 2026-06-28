@@ -1,12 +1,12 @@
 <template>
   <div class="operate-log-section" :class="{ 'is-embedded': embedded }">
     <el-divider v-if="!embedded" />
-    <div v-if="!isFormOperateLog" class="operate-log-header" @click="isCollapsed = !isCollapsed" style="cursor: pointer;">
+    <div v-if="!isFormOperateLog" class="operate-log-header">
       <div class="operate-log-title-group">
-        <el-icon class="operate-log-icon" :style="{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }"><ArrowDown /></el-icon>
+        <el-icon class="operate-log-icon"><Clock /></el-icon>
         <span class="operate-log-title">{{ title || t('operateLog.title') }}</span>
       </div>
-      <div @click.stop>
+      <div>
         <el-button
           v-if="showRefresh"
           size="small"
@@ -18,9 +18,7 @@
         </el-button>
       </div>
     </div>
-    <el-collapse-transition>
-      <div v-show="!(!isFormOperateLog && isCollapsed)">
-        <div v-loading="loading" class="operate-log-content">
+    <div v-loading="loading" class="operate-log-content">
       <template v-if="isFormOperateLog">
         <div class="form-operate-log-section">
           <div class="history-card">
@@ -475,9 +473,6 @@
       </div>
       </template>
         </div>
-      </div>
-    </el-collapse-transition>
-
     <el-dialog
       v-model="previewDialogVisible"
       :title="t('operateLog.previewTitle')"
