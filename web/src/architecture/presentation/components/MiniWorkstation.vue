@@ -25,6 +25,17 @@
           </div>
           <div class="mini-drawer-actions">
             <button
+              v-if="panelHasContent"
+              type="button"
+              class="mini-drawer-secondary-action"
+              :class="{ 'is-active': artifactPanelExpanded }"
+              :title="artifactPanelExpanded ? t('miniWorkstation.collapse') : t('miniWorkstation.expandArtifactsTitle')"
+              @click="toggleArtifactPanel"
+            >
+              <el-icon><DataBoard /></el-icon>
+              <span>{{ t('miniWorkstation.artifact') }} ({{ artifactToggleCount }})</span>
+            </button>
+            <button
               type="button"
               class="mini-drawer-primary-action"
               :title="t('miniWorkstation.newSessionTitle')"
@@ -167,24 +178,8 @@
                 />
               </div>
             </div>
-            <section :class="['mini-artifact-drawer', { 'is-open': artifactPanelExpanded }]">
-              <button
-                type="button"
-                class="mini-artifact-toggle"
-                :aria-expanded="artifactPanelExpanded"
-                :title="t('miniWorkstation.expandArtifactsTitle')"
-                @click="toggleArtifactPanel"
-              >
-                <span>{{ t('miniWorkstation.artifact') }}</span>
-                <strong>{{ t('miniWorkstation.itemCount', { count: artifactToggleCount }) }}</strong>
-                <em>{{ artifactPanelExpanded ? t('miniWorkstation.collapse') : t('miniWorkstation.expand') }}</em>
-                <el-icon>
-                  <ArrowUp v-if="artifactPanelExpanded" />
-                  <ArrowDown v-else />
-                </el-icon>
-              </button>
+            <section v-if="artifactPanelExpanded" :class="['mini-artifact-drawer', { 'is-open': artifactPanelExpanded }]">
               <MiniWorkstationArtifactPanel
-                v-if="artifactPanelExpanded"
                 :artifact-items="artifactItems"
                 :maximized="maximized"
                 :panel-has-content="panelHasContent"
@@ -1578,8 +1573,8 @@ useMiniWorkstationEffects({
   min-height: 0;
   font-size: 12px;
   line-height: 1.6;
-  background: var(--bg-secondary);
-  scrollbar-color: rgba(34, 211, 238, 0.36) transparent;
+  background: var(--bg-primary);
+  scrollbar-color: rgba(var(--color-primary-rgb), 0.36) transparent;
   transition: padding 0.2s ease, font-size 0.2s ease;
 }
 .mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) .mini-ws-output {
@@ -1720,10 +1715,10 @@ useMiniWorkstationEffects({
   min-height: 0;
   display: grid;
   grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 12px;
   padding-right: 12px;
   border-right: 1px solid var(--border-light);
-  color: #b9c9e4;
+  color: var(--text-primary);
   font-size: 12px;
   overflow: hidden;
 }
@@ -1734,7 +1729,7 @@ useMiniWorkstationEffects({
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 3px 2px 0;
+  padding: 8px 4px 4px;
 }
 
 .mini-current-session-head div {
@@ -1753,14 +1748,14 @@ useMiniWorkstationEffects({
 }
 
 .mini-current-session-head strong {
-  color: #88d6ff;
-  font-size: 12px;
-  font-weight: 850;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .mini-current-session-head span {
-  color: var(--text-secondary);
-  font-size: 11px;
+  color: var(--text-disabled);
+  font-size: 12px;
 }
 
 .mini-current-session-head em {
@@ -1769,8 +1764,8 @@ useMiniWorkstationEffects({
   display: inline-grid;
   place-items: center;
   border-radius: 8px;
-  background: var(--bg-tertiary);
-  color: #8ed0ff;
+  background: var(--bg-secondary);
+  color: var(--color-primary);
   font-size: 11px;
   font-style: normal;
   font-weight: 900;
@@ -1794,52 +1789,48 @@ useMiniWorkstationEffects({
   min-width: 0;
   min-height: 52px;
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr);
+  grid-template-columns: 8px minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
-  padding: 8px 9px;
-  border: 1px solid var(--border-light);
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid transparent;
   border-radius: 10px;
-  background: var(--bg-tertiary);
-  color: #d7e5fa;
+  background: transparent;
+  color: var(--text-primary);
   text-align: left;
   cursor: pointer;
   transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.22s ease;
 }
 
 .mini-current-session-row:hover {
-  border-color: var(--border-light);
   background: var(--bg-tertiary);
 }
 
 .mini-current-session-row.is-running {
-  border-color: var(--border-light);
   background: var(--bg-tertiary);
 }
 
 .mini-current-session-row.is-waiting {
-  border-color: var(--border-light);
   background: var(--bg-tertiary);
 }
 
 .mini-current-session-row.is-output {
-  border-color: var(--border-light);
   background: var(--bg-tertiary);
 }
 
 .mini-current-session-row.is-done {
-  border-color: var(--border-light);
   background: var(--bg-tertiary);
 }
 
 .mini-current-session-row.is-cancelled {
-  border-color: var(--border-light);
-  background: var(--bg-tertiary);
+  background: transparent;
+  opacity: 0.5;
 }
 
 .mini-current-session-row.is-failed {
-  border-color: var(--border-light);
   background: var(--bg-tertiary);
+  border-left: 3px solid var(--color-danger);
+  border-radius: 6px;
 }
 
 .mini-current-session-copy,
@@ -1853,15 +1844,15 @@ useMiniWorkstationEffects({
 }
 
 .mini-current-session-title {
-  color: #d7e5fa;
-  font-size: 12px;
-  font-weight: 820;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
   line-height: 1.2;
 }
 
 .mini-current-session-sub {
   margin-top: 4px;
-  color: #8798b5;
+  color: var(--text-secondary);
   font-size: 11px;
   line-height: 1.15;
 }
@@ -1878,15 +1869,15 @@ useMiniWorkstationEffects({
   align-items: center;
   justify-content: center;
   gap: 4px;
-  border: 1px solid var(--border-light);
-  border-radius: 7px;
-  background: var(--bg-tertiary);
-  color: #d7e5fa;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
 }
 
 .mini-icon-action:hover {
-  border-color: var(--border-light);
-  background: var(--bg-tertiary);
+  background: var(--el-fill-color-light);
   color: var(--text-primary);
 }
 
@@ -1900,9 +1891,9 @@ useMiniWorkstationEffects({
   border: 1px solid var(--border-light);
   border-radius: 999px;
   background: var(--bg-tertiary);
-  color: #ffd78d;
+  color: var(--color-warning);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .mini-ws-output {
@@ -1912,11 +1903,11 @@ useMiniWorkstationEffects({
   padding: 12px 14px;
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  background: var(--bg-tertiary);
-  color: #d7e5fa;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   font-size: 13px;
-  line-height: 18px;
-  scrollbar-color: rgba(83, 174, 255, 0.3) transparent;
+  line-height: 1.6;
+  scrollbar-color: rgba(var(--color-primary-rgb), 0.3) transparent;
 }
 
 .mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) .mini-ws-output {
@@ -1930,7 +1921,7 @@ useMiniWorkstationEffects({
   padding: 14px 16px;
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  background: var(--bg-tertiary);
+  background: var(--bg-primary);
   font-size: 13px;
 }
 
@@ -1978,45 +1969,44 @@ useMiniWorkstationEffects({
 
 .mini-current-session-row.active {
   z-index: 1;
-  box-shadow:
-    0 0 14px 2px var(--mini-active-glow),
-    0 0 38px 8px var(--mini-active-halo),
-    0 12px 32px rgba(2, 5, 11, 0.22);
+  background: var(--bg-tertiary);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 6px;
 }
 
 .mini-status-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--color-primary);
-  box-shadow: none;
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.15);
 }
 
 .mini-status-dot.is-running {
-  background: var(--mini-cyber-green);
-  box-shadow: none;
+  background: var(--color-success);
+  box-shadow: 0 0 0 2px rgba(var(--color-success-rgb), 0.15);
 }
 
 .mini-status-dot.is-waiting {
-  background: var(--mini-cyber-warm);
-  box-shadow: none;
+  background: var(--color-warning);
+  box-shadow: 0 0 0 2px rgba(var(--color-warning-rgb), 0.15);
 }
 
 .mini-status-dot.is-done,
 .mini-status-dot.is-cancelled {
-  background: var(--mini-cyber-violet);
+  background: var(--text-disabled);
   box-shadow: none;
 }
 
 .mini-status-dot.is-failed {
-  background: #ff6b6b;
-  box-shadow: none;
+  background: var(--color-danger);
+  box-shadow: 0 0 0 2px rgba(var(--color-danger-rgb), 0.15);
 }
 
 .mini-status-dot.is-active,
 .mini-status-dot.is-output {
-  background: #37a3ff;
-  box-shadow: none;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.15);
 }
 
 .mini-settings-btn {
@@ -2170,47 +2160,46 @@ useMiniWorkstationEffects({
 .mini-drawer-primary-action,
 .mini-drawer-secondary-action,
 .mini-drawer-icon-action {
-  height: 34px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 1px solid var(--border-light);
+  border: 1px solid transparent;
   border-radius: 8px;
-  background: var(--bg-tertiary);
-  color: #d7e5fa;
+  background: transparent;
+  color: var(--text-secondary);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
-}
-
-.mini-drawer-primary-action {
-  padding: 0 11px;
-  border-color: var(--border-light);
-  background: var(--bg-tertiary);
-  color: #a5f7d5;
-}
-
-.mini-drawer-secondary-action {
-  padding: 0 11px;
-  border-color: var(--border-light);
-  background: var(--bg-tertiary);
-  color: #a8d7ff;
-}
-
-.mini-drawer-icon-action {
-  width: 34px;
-  padding: 0;
+  transition: all 0.2s ease;
 }
 
 .mini-drawer-primary-action:hover,
 .mini-drawer-secondary-action:hover,
 .mini-drawer-icon-action:hover {
-  border-color: var(--border-light);
-  background: var(--bg-tertiary);
+  background: var(--el-fill-color-light);
   color: var(--text-primary);
+}
+
+.mini-drawer-secondary-action.is-active {
+  background: var(--el-fill-color);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.mini-drawer-primary-action {
+  padding: 0 11px;
+}
+
+.mini-drawer-secondary-action {
+  padding: 0 11px;
+}
+
+.mini-drawer-icon-action {
+  width: 32px;
+  padding: 0;
 }
 
 .mini-drawer-secondary-action:disabled {
@@ -2304,16 +2293,16 @@ useMiniWorkstationEffects({
   border: 1px solid var(--border-light);
   border-radius: 7px;
   background: var(--bg-tertiary);
-  color: #ffdda0;
+  color: var(--color-primary);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .mini-current-context-switch button:hover {
-  border-color: var(--border-light);
-  background: var(--bg-tertiary);
-  color: #fff2d6;
+  background: var(--el-fill-color-light);
+  color: var(--color-primary-light-1);
 }
 
 .mini-drawer-scope-tabs,
@@ -2331,13 +2320,20 @@ useMiniWorkstationEffects({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border-light);
-  border-radius: 7px;
-  background: var(--bg-tertiary);
-  color: #9eadc8;
-  font-size: 11px;
-  font-weight: 720;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mini-drawer-scope-tabs button:hover,
+.mini-drawer-session-filters button:hover {
+  background: var(--el-fill-color-light);
+  color: var(--text-primary);
 }
 
 .mini-drawer-scope-tabs button {
@@ -2354,9 +2350,9 @@ useMiniWorkstationEffects({
 
 .mini-drawer-scope-tabs button.active,
 .mini-drawer-session-filters button.active {
-  border-color: var(--border-light);
   background: var(--bg-tertiary);
-  color: #9bd4ff;
+  color: var(--color-primary);
+  font-weight: 600;
 }
 
 .mini-drawer-session-search {
@@ -2368,8 +2364,8 @@ useMiniWorkstationEffects({
   padding: 0 10px;
   border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: var(--bg-tertiary);
-  color: #8e9fbb;
+  background: transparent;
+  color: var(--text-secondary);
 }
 
 .mini-drawer-session-search input {
@@ -2378,12 +2374,12 @@ useMiniWorkstationEffects({
   border: 0;
   outline: none;
   background: transparent;
-  color: #d7e5fa;
+  color: var(--text-primary);
   font-size: 12px;
 }
 
 .mini-drawer-session-search input::placeholder {
-  color: #687996;
+  color: var(--text-disabled);
 }
 
 .mini-current-session-list {
@@ -2410,7 +2406,7 @@ useMiniWorkstationEffects({
   padding: 13px;
   border: 1px solid var(--border-light);
   border-radius: 10px;
-  background: var(--bg-tertiary);
+  background: var(--bg-primary);
 }
 
 .mini-artifact-drawer {
@@ -2491,7 +2487,7 @@ useMiniWorkstationEffects({
   margin: 0;
   border-width: 1px 0 0;
   border-radius: 0;
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
   box-shadow: none;
 }
 
@@ -2499,7 +2495,7 @@ useMiniWorkstationEffects({
   margin: 0;
   padding: 8px 12px;
   border-top: 1px solid var(--border-light);
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
 }
 
 .mini-ws-drop-overlay,

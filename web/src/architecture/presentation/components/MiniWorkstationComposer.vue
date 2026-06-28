@@ -17,25 +17,6 @@
     data-testid="mini-workstation-composer"
   >
     <div class="mini-composer-left-actions">
-      <slot name="left-actions" />
-      <el-tooltip
-        v-if="expandable"
-        :content="t('miniWorkstation.expandComposer')"
-        placement="top"
-        effect="light"
-        popper-class="mini-workstation-tooltip-popper"
-      >
-        <el-button
-          :icon="ArrowUp"
-          link
-          size="small"
-          :disabled="blocked"
-          class="mini-expand-editor-btn"
-          :title="t('miniWorkstation.expandComposer')"
-          @mousedown.stop
-          @click.stop="openExpandedEditor"
-        />
-      </el-tooltip>
       <el-upload
         :auto-upload="false"
         :show-file-list="false"
@@ -45,6 +26,7 @@
       >
         <el-button :icon="Paperclip" link :loading="uploading" size="small" :title="t('miniWorkstation.uploadFile')" />
       </el-upload>
+      <slot name="left-actions" />
     </div>
 
     <div class="mini-input-wrap" :class="{ 'is-blocked': blocked }">
