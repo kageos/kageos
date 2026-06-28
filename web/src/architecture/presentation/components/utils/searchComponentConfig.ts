@@ -90,7 +90,13 @@ export function createSearchComponentConfig(
 
   // 开关组件
   if (widgetType === WidgetType.SWITCH) {
-    return createSwitchComponentConfig(field, widgetConfig)
+    return {
+      component: SearchComponent.EL_SWITCH,
+      props: {
+        activeText: typeof widgetConfig.activeText === 'string' ? widgetConfig.activeText : '是',
+        inactiveText: typeof widgetConfig.inactiveText === 'string' ? widgetConfig.inactiveText : '否'
+      }
+    }
   }
 
   // Slider 组件（范围搜索）
@@ -346,23 +352,6 @@ function createMultiselectComponentConfig(field: FieldConfig, widgetConfig: Widg
 /**
  * 创建开关组件配置
  */
-function createSwitchComponentConfig(field: FieldConfig, widgetConfig: WidgetConfigRecord): ComponentConfig {
-  const activeText = typeof widgetConfig.activeText === 'string' ? widgetConfig.activeText : '是'
-  const inactiveText = typeof widgetConfig.inactiveText === 'string' ? widgetConfig.inactiveText : '否'
-
-  return {
-    component: SearchComponent.EL_SELECT,
-    props: {
-      placeholder: generatePlaceholder(field.name, 'select'),
-      clearable: true,
-      style: { width: SearchConfig.DEFAULT_INPUT_WIDTH },
-      options: [
-        { label: activeText, value: true },
-        { label: inactiveText, value: false }
-      ]
-    }
-  }
-}
 
 /**
  * 创建 Slider 组件配置（范围搜索）

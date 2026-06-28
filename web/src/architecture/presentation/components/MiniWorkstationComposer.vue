@@ -327,7 +327,7 @@ function cancelExpandedEditor() {
   gap: 6px;
   padding: 7px 12px;
   border-top: 1px solid var(--border-light);
-  background: var(--bg-tertiary);
+  background: transparent;
 }
 
 .mini-ws-files :deep(.el-tag) {
@@ -347,9 +347,9 @@ function cancelExpandedEditor() {
   position: relative;
   border: 1px solid var(--border-light);
   border-radius: 14px;
-  background: var(--bg-secondary);
-  box-shadow: var(--app-shell-panel-shadow-hover);
-  backdrop-filter: blur(24px) saturate(140%);
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .mini-ws-input--schedule {

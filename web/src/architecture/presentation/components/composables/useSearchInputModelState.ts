@@ -44,6 +44,16 @@ export function useSearchInputModelState({
     max: undefined
   })
 
+  const switchValue = computed({
+    get: () => {
+      if (!shouldShowValue.value) return false
+      return localValue.value === true || localValue.value === 'true'
+    },
+    set: (val) => {
+      localValue.value = val
+    }
+  })
+
   const selectValue = computed({
     get: () => {
       if (!shouldShowValue.value) {
@@ -252,6 +262,7 @@ export function useSearchInputModelState({
     shouldShowValue,
     isInternalUpdate,
     selectValue,
+    switchValue,
     dateRangeValue,
     rangeValue,
     handleInput,

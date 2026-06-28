@@ -6,10 +6,12 @@ import '@fontsource/jetbrains-mono/400.css'
 import '@fontsource/jetbrains-mono/500.css'
 
 import './architecture/presentation/assets/main.css'
-import 'element-plus/dist/index.css'
 import './architecture/presentation/styles/theme.scss'
 import './architecture/presentation/styles/widgets.css'
 import './architecture/presentation/assets/theme-workstation-sci-fi.css'
+// Element Plus 组件样式由 unplugin（ElementPlusResolver importStyle: 'css'）按需注入，
+// 这里只手动补充无法被 resolver 捕获的命令式/指令式组件样式。
+import 'element-plus/es/components/loading/style/css'
 import 'element-plus/es/components/message/style/css'
 import 'element-plus/es/components/notification/style/css'
 import 'element-plus/es/components/message-box/style/css'

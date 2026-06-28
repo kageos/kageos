@@ -1342,10 +1342,10 @@ useMiniWorkstationEffects({
 
 <style scoped>
 .mini-ws {
-  --mini-cyber-bg: var(--bg-secondary);
-  --mini-cyber-bg-strong: var(--bg-tertiary);
-  --mini-cyber-panel: var(--bg-secondary);
-  --mini-cyber-panel-soft: var(--bg-tertiary);
+  --mini-cyber-bg: var(--bg-primary);
+  --mini-cyber-bg-strong: var(--bg-secondary);
+  --mini-cyber-panel: var(--bg-primary);
+  --mini-cyber-panel-soft: var(--bg-secondary);
   --mini-cyber-line: var(--border-light);
   --mini-cyber-line-strong: var(--border-base);
   --mini-cyber-text: var(--text-primary);
@@ -1357,7 +1357,7 @@ useMiniWorkstationEffects({
   right: 24px;
   bottom: 80px;
   isolation: isolate;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border: 1px solid var(--border-light);
   border-radius: var(--border-radius-xl);
   box-shadow: var(--app-shell-panel-shadow-hover);
@@ -1415,14 +1415,13 @@ useMiniWorkstationEffects({
   border-bottom: 1px solid var(--border-light);
   cursor: move;
   user-select: none;
-  background: var(--bg-secondary);
+  background: transparent;
   flex-shrink: 0;
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
   transition: padding 0.2s ease, border-color 0.2s ease;
 }
 .mini-ws:not(.mini-ws--maximized):not(.mini-ws--interaction-open):not(:hover):not(:focus-within) .mini-ws-header {
   padding: 8px 10px;
-  border-bottom-color: rgba(96, 231, 255, 0.08);
+  border-bottom-color: transparent;
 }
 .mini-ws--maximized .mini-ws-header {
   cursor: default;
@@ -1571,9 +1570,9 @@ useMiniWorkstationEffects({
   overflow-y: auto;
   padding: 8px 12px 24px;
   min-height: 0;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.6;
-  background: var(--bg-primary);
+  background: transparent;
   scrollbar-color: rgba(var(--color-primary-rgb), 0.36) transparent;
   transition: padding 0.2s ease, font-size 0.2s ease;
 }
@@ -1603,14 +1602,12 @@ useMiniWorkstationEffects({
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: var(--bg-secondary);
-  border: 1px dashed rgba(96, 231, 255, 0.78);
+  background: transparent;
+  border: 1px dashed var(--border-base);
   border-radius: 12px;
-  color: #d8f8ff;
+  color: var(--text-secondary);
   font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  backdrop-filter: blur(8px);
+  font-weight: 500;
   pointer-events: none;
   box-shadow: none;
 }
@@ -1671,10 +1668,10 @@ useMiniWorkstationEffects({
 
 .mini-current-output,
 .mini-shell :deep(.mini-ws-input) {
-  border: 1px solid var(--mini-cyber-line);
-  background: var(--bg-secondary);
-  box-shadow: var(--app-shell-panel-shadow-hover);
-  backdrop-filter: blur(24px) saturate(140%);
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .mini-current-output {
@@ -1685,7 +1682,7 @@ useMiniWorkstationEffects({
   flex-direction: column;
   margin: 0 14px 8px;
   padding: 12px 14px;
-  border-color: var(--border-light);
+  border-color: transparent;
   border-radius: 12px;
   overflow: hidden;
   transition: height 0.18s ease, min-height 0.18s ease;
@@ -1807,19 +1804,19 @@ useMiniWorkstationEffects({
 }
 
 .mini-current-session-row.is-running {
-  background: var(--bg-tertiary);
+  background: transparent;
 }
 
 .mini-current-session-row.is-waiting {
-  background: var(--bg-tertiary);
+  background: transparent;
 }
 
 .mini-current-session-row.is-output {
-  background: var(--bg-tertiary);
+  background: transparent;
 }
 
 .mini-current-session-row.is-done {
-  background: var(--bg-tertiary);
+  background: transparent;
 }
 
 .mini-current-session-row.is-cancelled {
@@ -1828,7 +1825,7 @@ useMiniWorkstationEffects({
 }
 
 .mini-current-session-row.is-failed {
-  background: var(--bg-tertiary);
+  background: transparent;
   border-left: 3px solid var(--color-danger);
   border-radius: 6px;
 }
@@ -1901,9 +1898,9 @@ useMiniWorkstationEffects({
   height: 100%;
   overflow: auto;
   padding: 12px 14px;
-  border: 1px solid var(--border-light);
+  border: 1px solid transparent;
   border-radius: 12px;
-  background: var(--bg-primary);
+  background: transparent;
   color: var(--text-primary);
   font-size: 13px;
   line-height: 1.6;
@@ -1919,9 +1916,9 @@ useMiniWorkstationEffects({
   height: 100%;
   overflow: auto;
   padding: 14px 16px;
-  border: 1px solid var(--border-light);
+  border: 1px solid transparent;
   border-radius: 12px;
-  background: var(--bg-primary);
+  background: transparent;
   font-size: 13px;
 }
 
@@ -2107,7 +2104,7 @@ useMiniWorkstationEffects({
   overflow: hidden;
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   box-shadow:
     0 24px 72px rgba(8, 14, 24, 0.28),
     0 0 0 1px rgba(255, 255, 255, 0.05);
@@ -2125,7 +2122,7 @@ useMiniWorkstationEffects({
   align-items: center;
   padding: 12px 14px 12px 16px;
   border-bottom: 1px solid var(--border-light);
-  background: var(--bg-tertiary);
+  background: transparent;
 }
 
 .mini-drawer-title {
@@ -2404,9 +2401,9 @@ useMiniWorkstationEffects({
   height: 100%;
   min-height: 0;
   padding: 13px;
-  border: 1px solid var(--border-light);
+  border: 1px solid transparent;
   border-radius: 10px;
-  background: var(--bg-primary);
+  background: transparent;
 }
 
 .mini-artifact-drawer {
@@ -2487,7 +2484,8 @@ useMiniWorkstationEffects({
   margin: 0;
   border-width: 1px 0 0;
   border-radius: 0;
-  background: var(--bg-secondary);
+  border-color: var(--border-light);
+  background: transparent;
   box-shadow: none;
 }
 
@@ -2495,7 +2493,7 @@ useMiniWorkstationEffects({
   margin: 0;
   padding: 8px 12px;
   border-top: 1px solid var(--border-light);
-  background: var(--bg-secondary);
+  background: transparent;
 }
 
 .mini-ws-drop-overlay,

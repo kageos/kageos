@@ -213,7 +213,7 @@ import AppSwitcher from '@/architecture/presentation/shared/components/AppSwitch
 import type { App, ServiceTree } from '@/architecture/domain/types'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore, useLocaleStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
-import WorkspaceInbox from './WorkspaceInbox.vue'
+const WorkspaceInbox = defineAsyncComponent(() => import('./WorkspaceInbox.vue'))
 import { featureFlags } from '@/architecture/shared/config/features'
 import { getKageosDocsURL, openExternalURL } from '@/architecture/shared/config/externalLinks'
 import type { SupportedLocale } from '@/architecture/shared/i18n'

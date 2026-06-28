@@ -295,12 +295,10 @@ import { useI18n } from 'vue-i18n'
 import { ArrowLeft, ArrowRight, Key, Lock, Refresh, Switch as SwitchIcon } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
+// 首屏框架组件：保持同步加载
 import ServiceTreePanel from '@/architecture/presentation/components/ServiceTreePanel.vue'
 import WorkspaceHeader from '../components/WorkspaceHeader.vue'
-import WorkspaceFormPage from '../components/WorkspaceFormPage.vue'
-import WorkspaceFunctionRenderer from '../components/WorkspaceFunctionRenderer.vue'
-import WorkspaceFunctionTabsPanel from '../components/WorkspaceFunctionTabsPanel.vue'
-import WorkspaceInbox from '../components/WorkspaceInbox.vue'
+// 非首屏组件：仅在打开函数/表单/消息中心等交互时按需加载
 import type { App } from '../../domain/types'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
 import type { App as AppType, ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
@@ -329,6 +327,10 @@ const { t } = useI18n()
 const isAppleShortcutPlatform = typeof navigator !== 'undefined'
   && /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
 const MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL = isAppleShortcutPlatform ? '⌘.' : 'Ctrl+.'
+const WorkspaceFormPage = defineAsyncComponent(() => import('../components/WorkspaceFormPage.vue'))
+const WorkspaceFunctionRenderer = defineAsyncComponent(() => import('../components/WorkspaceFunctionRenderer.vue'))
+const WorkspaceFunctionTabsPanel = defineAsyncComponent(() => import('../components/WorkspaceFunctionTabsPanel.vue'))
+const WorkspaceInbox = defineAsyncComponent(() => import('../components/WorkspaceInbox.vue'))
 const DocView = defineAsyncComponent(() => import('../components/DocView.vue'))
 const PackageDetailView = defineAsyncComponent(() => import('../components/PackageDetailView.vue'))
 const TableRowDetailDrawer = defineAsyncComponent(() => import('../components/TableRowDetailDrawer.vue'))
