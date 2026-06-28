@@ -777,17 +777,21 @@ onMounted(async () => {
 <style scoped>
 .user-settings {
   min-height: 100vh;
-  background: var(--el-bg-color-page);
-  padding: 20px;
+  background: var(--bg-primary);
+  padding: 32px 40px;
 }
 
 .settings-container {
-  max-width: 980px;
+  max-width: 1280px;
   margin: 0 auto;
 }
 
 .settings-card {
   margin-top: 20px;
+  border-radius: var(--border-radius-xl);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--app-shell-panel-shadow-soft);
+  background: var(--bg-secondary);
 }
 
 .card-header,
