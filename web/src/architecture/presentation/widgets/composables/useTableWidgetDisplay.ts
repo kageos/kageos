@@ -150,24 +150,45 @@ export function useTableWidgetDisplay(
     }
     const headerWidth = charWidth + 24 
 
-    // 1. 智能推断：空值倾向很高的字段（如各类说明、原因、备注）
-    // 即使它是 textarea，如果当前页没数据，它的极简宽度只要能装下表头即可
-    if (/^(remark|desc|description|summary|reason|cause|degrade_reason|.*_reason|source_note)$/.test(code) || 
-        /(备注|说明|描述|摘要|原因|理由)/.test(name)) {
-      return headerWidth
+    // 动态嗅探数据内容长度 (只嗅探 response 模式下的数据)
+    let maxDataCharLength = 0
+    let hasData = false
+    if (responseMode.value && responseTableData.value && Array.isArray(responseTableData.value)) {
+      const rows = responseTableData.value
+      for (const row of rows) {
+        let val = row[code]
+        if (val !== undefined && val !== null && val !== '') {
+          // 判断是否是真正的空标识
+          const strVal = String(val).trim()
+          if (strVal !== '-' && strVal !== '[]' && strVal !== '{}') {
+            hasData = true
+            let currLen = 0
+            for (let i = 0; i < strVal.length; i++) {
+               currLen += strVal.charCodeAt(i) > 255 ? 13 : 8
+            }
+            if (currLen > maxDataCharLength) {
+              maxDataCharLength = currLen
+            }
+          }
+        }
+      }
     }
 
-    // 2. 智能推断：系统级字段（ID、创建人、更新时间等）
-    if (/^(id|created_at|updated_at|create_time|update_time|creator|updater|modifier|created_by)$/.test(code) || 
-        /(ID|创建|更新|修改)(时间|人)/.test(name)) {
-      if (type === WidgetType.DATETIME) return Math.max(headerWidth, 140)
-      return Math.max(headerWidth, 60)
+    // 如果嗅探到当前页这一列根本没有任何实际数据（全是 -、空值、[] 等），直接把它压死到表头宽度！
+    if (responseMode.value && !hasData) {
+       return Math.max(headerWidth, 60)
     }
 
-    // 3. 其他常规字段，根据组件类型给一个相对合理的最小宽度保障
-    let minWidth = 80
+    // 如果有数据，为数据预留一个合理的空间，最高不超过一个合理的上限（例如 300px），避免单列撑爆
+    const dataWidth = hasData ? Math.min(maxDataCharLength + 32, 280) : 0
+
+    // 根据综合计算出来的真实数据需求与组件本身的底限结合：
+    const dataBasedWidth = Math.max(headerWidth, dataWidth)
+
+    // 给组件一个保守的最小操作/展示空间保障
+    let minWidth = 60
     if (type === WidgetType.DATETIME) {
-      minWidth = 140
+      minWidth = 135
     } else if (type === WidgetType.SWITCH) {
       minWidth = 60
     } else if (type === WidgetType.INTEGER || type === WidgetType.FLOAT) {
@@ -177,14 +198,19 @@ export function useTableWidgetDisplay(
     } else if (type === WidgetType.FILES) {
       minWidth = 100
     } else if (type === WidgetType.TEXT_AREA || type === WidgetType.RICH_TEXT) {
-      // 常规文本区（非备注类）
-      minWidth = 120
-    } else if (type === WidgetType.SELECT || type === WidgetType.MULTI_SELECT) {
-      // 选项通常带有 tag，需要稍微多一点点宽度
       minWidth = Math.max(headerWidth, 100)
+    } else if (type === WidgetType.SELECT || type === WidgetType.MULTI_SELECT) {
+      minWidth = Math.max(headerWidth, 80)
     }
 
-    return Math.max(headerWidth, minWidth)
+    // 在编辑模式下，由于输入框本身需要操作空间，走组件底线与表头宽度
+    if (!responseMode.value) {
+       return Math.max(headerWidth, minWidth)
+    }
+
+    // 在响应模式下，结合真实数据宽度和组件特征来分配，如果真实数据极短，允许打破组件的固定最小宽度
+    // 但必须大于等于表头
+    return Math.max(headerWidth, Math.min(Math.max(minWidth, dataBasedWidth), 280))
   }
 
   function getColumnAlign(field: any): 'left' | 'center' | 'right' {
