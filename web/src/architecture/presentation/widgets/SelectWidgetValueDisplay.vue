@@ -54,10 +54,10 @@ function getTagStyle(color: string | null): Record<string, string> {
     return {}
   }
 
+  // 渲染空心标签时：去掉背景，并将文字和边框均设置为更清晰的颜色（例如使用原始颜色或其加深版本作为边框和文字色）
   return {
-    backgroundColor: lightPalette.backgroundColor,
-    borderColor: lightPalette.borderColor,
-    color: lightPalette.color
+    borderColor: color || lightPalette.borderColor,
+    color: color || lightPalette.color
   }
 }
 </script>
@@ -87,13 +87,15 @@ function getTagStyle(color: string | null): Record<string, string> {
   transition: all 0.2s;
 }
 
+/* 默认标签：给一个极简浅灰底，避免“透明白”的鬼影 */
 .select-tag.el-tag--info {
+  background-color: var(--el-fill-color-light) !important;
   border-color: var(--border-base) !important;
-  color: var(--text-regular) !important;
+  color: var(--text-secondary) !important;
 }
 
 .select-tag[style*="color:"] {
-  border-color: currentColor !important;
+  background-color: transparent !important;
 }
 
 .select-tag[style*="background-color"] {

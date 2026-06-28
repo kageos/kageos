@@ -57,28 +57,24 @@ const containerClass = computed(() => {
   border: 1px solid var(--border-base);
 }
 
+/* 如果没有具体颜色覆盖，给默认标签一个极简的浅色底板，避免“透明白”的鬼影感 */
 .table-cell-multiselect .tag-item.el-tag--info,
 .detail-multiselect .tag-item.el-tag--info,
 .response-multiselect .tag-item.el-tag--info {
+  background-color: var(--el-fill-color-light) !important;
   border-color: var(--border-base) !important;
-  color: var(--text-regular) !important;
+  color: var(--text-secondary) !important;
 }
 
-/* 如果有具体颜色覆盖，使用 currentColor */
-.table-cell-multiselect .tag-item[style*="color:"],
-.detail-multiselect .tag-item[style*="color:"],
-.response-multiselect .tag-item[style*="color:"] {
-  border-color: currentColor !important;
-}
-
-/* 如果有背景色，隐藏背景 */
-.table-cell-multiselect .tag-item[style*="background-color"],
-.detail-multiselect .tag-item[style*="background-color"],
-.response-multiselect .tag-item[style*="background-color"] {
+/* 如果有具体颜色覆盖，隐藏背景并保留 border-color 和 color */
+.table-cell-multiselect .tag-item[style*="border-color:"],
+.detail-multiselect .tag-item[style*="border-color:"],
+.response-multiselect .tag-item[style*="border-color:"] {
   background-color: transparent !important;
   box-shadow: none !important;
   filter: none;
 }
+
 
 .empty-text {
   color: var(--text-disabled);

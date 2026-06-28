@@ -159,8 +159,8 @@ export function useTableWidgetDisplay(
     }
 
     // 2. 智能推断：备注/说明类长文本，降低下限，由 flex 或 ellipsis 处理
-    if (/^(remark|desc|description|summary)$/.test(code) || /(备注|说明|描述|摘要)/.test(name)) {
-      return Math.max(headerWidth, 110)
+    if (/^(remark|desc|description|summary|reason|cause|degrade_reason|.*_reason)$/.test(code) || /(备注|说明|描述|摘要|原因|理由)/.test(name)) {
+      return Math.max(headerWidth, 90)
     }
 
     // 3. 其他常规字段，极限压缩空数据时的最小宽度，把空间交给 Element Plus 自动分配

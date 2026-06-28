@@ -549,9 +549,8 @@ function getOptionTagStyle(value: unknown): Record<string, string> {
   }
 
   return {
-    backgroundColor: lightPalette.backgroundColor,
-    borderColor: lightPalette.borderColor,
-    color: lightPalette.color
+    borderColor: color || lightPalette.borderColor,
+    color: color || lightPalette.color
   }
 }
 
