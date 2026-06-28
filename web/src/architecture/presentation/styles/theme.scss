@@ -622,8 +622,24 @@ html.dark {
     // hover效果
     tr {
       background-color: var(--bg-primary) !important;
+      
+      // 行操作区悬浮显影逻辑（对内部 cell 内容进行隐显）
+      td.action-column .cell, 
+      td.table-widget-actions-column .cell {
+        opacity: 0.15;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+      }
+
       &:hover > td.el-table__cell {
         background-color: var(--bg-secondary) !important;
+      }
+      
+      // 保证整行 hover 时，操作列内的内容高亮显示
+      &:hover {
+        td.action-column .cell, 
+        td.table-widget-actions-column .cell {
+          opacity: 1;
+        }
       }
     }
 
@@ -636,6 +652,32 @@ html.dark {
     .el-table__body tr.el-table__row--striped td {
       background-color: var(--bg-primary) !important;
     }
+  }
+
+  // 抽屉和弹窗的微交互与圆角优化
+  .el-drawer, .el-dialog {
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--box-shadow-xl);
+    overflow: hidden;
+    
+    // 平滑过渡
+    transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.25s ease;
+  }
+
+  // Element Plus 的遮罩层默认就是缓动的，这里稍微加速一点使其干脆
+  .el-overlay {
+    transition: opacity 0.2s ease;
+  }
+
+  // 选项卡 (Tabs) 切换的平滑过渡
+  .el-tabs__content {
+    transition: opacity 0.2s ease;
+  }
+  .el-tabs__item {
+    transition: color 0.2s ease, padding 0.2s ease;
+  }
+  .el-tabs__active-bar {
+    transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), width 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
   }
 
   // 分页组件
@@ -675,6 +717,33 @@ html.dark {
         background-color: var(--color-primary);
         color: white;
         border-color: var(--color-primary);
+      }
+    }
+  }
+
+  // 空状态组件优化
+  .el-empty {
+    padding: 60px 0;
+    
+    .el-empty__image {
+      width: 140px;
+      opacity: 0.6;
+      filter: grayscale(0.5); // 降低默认蓝色图片的饱和度，使其更融于系统主题
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      
+      &:hover {
+        opacity: 0.8;
+        transform: translateY(-2px);
+      }
+    }
+    
+    .el-empty__description {
+      margin-top: 16px;
+      
+      p {
+        color: var(--text-secondary);
+        font-size: 14px;
+        letter-spacing: 0.5px;
       }
     }
   }

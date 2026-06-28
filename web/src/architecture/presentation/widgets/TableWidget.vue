@@ -146,6 +146,14 @@
                 </div>
               </template>
             </el-table-column>
+            
+            <!-- 空数据占位符 -->
+            <template #empty>
+              <el-empty 
+                description="暂无数据"
+                :image-size="80"
+              />
+            </template>
           </el-table>
       
       <!-- 新增按钮 -->
@@ -238,6 +246,14 @@
                 </template>
               </template>
             </el-table-column>
+            
+            <!-- 空数据占位符 -->
+            <template #empty>
+              <el-empty 
+                description="暂无数据"
+                :image-size="80"
+              />
+            </template>
           </el-table>
         </div>
       </div>
