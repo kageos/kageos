@@ -1347,65 +1347,35 @@ useMiniWorkstationEffects({
 
 <style scoped>
 .mini-ws {
-  --mini-cyber-bg: #07111f;
-  --mini-cyber-bg-strong: #0b1829;
-  --mini-cyber-panel: rgba(8, 22, 38, 0.78);
-  --mini-cyber-panel-soft: rgba(13, 34, 55, 0.58);
-  --mini-cyber-line: rgba(40, 214, 255, 0.24);
-  --mini-cyber-line-strong: rgba(78, 229, 255, 0.48);
-  --mini-cyber-text: #d8f8ff;
-  --mini-cyber-muted: rgba(184, 225, 235, 0.68);
-  --mini-cyber-dim: rgba(143, 187, 204, 0.48);
-  --mini-cyber-accent: #22d3ee;
-  --mini-cyber-warm: #f6c76b;
+  --mini-cyber-bg: var(--bg-secondary);
+  --mini-cyber-bg-strong: var(--bg-tertiary);
+  --mini-cyber-panel: var(--bg-secondary);
+  --mini-cyber-panel-soft: var(--bg-tertiary);
+  --mini-cyber-line: var(--border-light);
+  --mini-cyber-line-strong: var(--border-base);
+  --mini-cyber-text: var(--text-primary);
+  --mini-cyber-muted: var(--text-secondary);
+  --mini-cyber-dim: var(--text-placeholder);
+  --mini-cyber-accent: var(--color-primary);
+  --mini-cyber-warm: var(--color-warning);
   position: fixed;
   right: 24px;
   bottom: 80px;
   isolation: isolate;
-  background:
-    radial-gradient(circle at 12% -8%, rgba(44, 214, 255, 0.25), transparent 36%),
-    radial-gradient(circle at 92% 8%, rgba(246, 199, 107, 0.15), transparent 30%),
-    linear-gradient(145deg, rgba(4, 11, 24, 0.96), rgba(8, 22, 38, 0.94) 48%, rgba(5, 13, 24, 0.98));
-  border: 1px solid var(--mini-cyber-line);
-  border-radius: 18px;
-  box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.42),
-    0 0 0 1px rgba(138, 232, 255, 0.08),
-    0 0 44px rgba(34, 211, 238, 0.16);
-  color: var(--mini-cyber-text);
-  backdrop-filter: blur(22px) saturate(1.2);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-xl);
+  box-shadow: var(--app-shell-panel-shadow-hover);
+  color: var(--text-primary);
+  backdrop-filter: blur(24px) saturate(1.2);
   z-index: var(--aos-z-mini-workstation);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, height 0.3s ease, max-height 0.3s ease, border-radius 0.3s ease, box-shadow 0.2s ease;
 }
-.mini-ws::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(rgba(80, 214, 255, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(80, 214, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(115deg, transparent 0 44%, rgba(36, 221, 255, 0.12) 50%, transparent 56% 100%);
-  background-size: 28px 28px, 28px 28px, 260% 100%;
-  opacity: 0.72;
-  animation: miniCyberSweep 9s linear infinite;
-}
-.mini-ws::after {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  z-index: 2;
-  pointer-events: none;
-  border-radius: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 -24px 60px rgba(2, 7, 15, 0.38);
-}
+
+
 .mini-ws > * {
   position: relative;
   z-index: 1;
@@ -1447,12 +1417,10 @@ useMiniWorkstationEffects({
   justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(96, 231, 255, 0.16);
+  border-bottom: 1px solid var(--border-light);
   cursor: move;
   user-select: none;
-  background:
-    linear-gradient(90deg, rgba(10, 29, 49, 0.92), rgba(7, 18, 33, 0.62)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent);
+  background: var(--bg-secondary);
   flex-shrink: 0;
   box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
   transition: padding 0.2s ease, border-color 0.2s ease;
@@ -1469,7 +1437,7 @@ useMiniWorkstationEffects({
   display: flex;
   align-items: center;
   gap: 7px;
-  color: var(--mini-cyber-accent);
+  color: var(--color-primary);
 }
 .mini-ws-title-orb {
   position: relative;
@@ -1478,19 +1446,17 @@ useMiniWorkstationEffects({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(65, 230, 255, 0.38);
+  border: 1px solid var(--border-light);
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 50% 48%, rgba(34, 211, 238, 0.36), transparent 42%),
-    conic-gradient(from 130deg, rgba(34, 211, 238, 0.18), rgba(246, 199, 107, 0.32), rgba(34, 211, 238, 0.18));
-  box-shadow: 0 0 18px rgba(34, 211, 238, 0.28), inset 0 0 12px rgba(34, 211, 238, 0.18);
+  background: var(--bg-tertiary);
+  box-shadow: none;
 }
 .mini-ws-title-orb::after {
   content: '';
   position: absolute;
   inset: -4px;
   border-radius: inherit;
-  border: 1px solid rgba(34, 211, 238, 0.14);
+  border: 1px solid var(--border-light);
 }
 .mini-ws-title-label {
   font-size: 10px;
@@ -1510,12 +1476,12 @@ useMiniWorkstationEffects({
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: var(--mini-cyber-text);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   padding: 0 4px;
-  text-shadow: 0 0 12px rgba(34, 211, 238, 0.22);
+  text-shadow: none;
 }
 .mini-ws-header-actions {
   flex-shrink: 0;
@@ -1533,12 +1499,12 @@ useMiniWorkstationEffects({
 }
 .mini-ws-header-actions :deep(.el-button) {
   min-height: 24px;
-  color: var(--mini-cyber-muted);
+  color: var(--text-secondary);
   border-radius: 8px;
 }
 .mini-ws-header-actions :deep(.el-button:hover) {
-  color: #ffffff;
-  background: rgba(34, 211, 238, 0.12);
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
   box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.18);
 }
 .mini-header-files-btn {
@@ -1553,10 +1519,10 @@ useMiniWorkstationEffects({
   align-items: center;
   justify-content: center;
   padding: 0 5px;
-  border: 1px solid rgba(34, 211, 238, 0.36);
+  border: 1px solid var(--border-light);
   border-radius: 999px;
-  background: rgba(34, 211, 238, 0.12);
-  color: var(--mini-cyber-accent);
+  background: var(--bg-tertiary);
+  color: var(--color-primary);
   font-size: 10px;
   font-weight: 800;
 }
@@ -1564,16 +1530,16 @@ useMiniWorkstationEffects({
 .mini-settings-btn {
   width: 32px;
   height: 32px;
-  border: 1px solid rgba(96, 231, 255, 0.2);
+  border: 1px solid var(--border-light);
   border-radius: 10px;
-  color: var(--mini-cyber-accent, #22d3ee);
-  background: rgba(34, 211, 238, 0.08);
+  color: var(--color-primary);
+  background: var(--bg-tertiary);
 }
 .mini-settings-btn:hover,
 .mini-settings-btn:focus {
-  color: #ffffff;
-  background: rgba(34, 211, 238, 0.16);
-  box-shadow: 0 0 18px rgba(34, 211, 238, 0.16);
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  box-shadow: none;
 }
 
 /* ── 主体区域（sidebar + output） ── */
@@ -1591,16 +1557,16 @@ useMiniWorkstationEffects({
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid rgba(96, 231, 255, 0.14);
-  background: linear-gradient(180deg, rgba(8, 21, 37, 0.82), rgba(4, 12, 24, 0.72));
+  border-left: 1px solid var(--border-light);
+  background: var(--bg-secondary);
 }
 .mini-file-sidebar-header {
   padding: 10px 12px;
   font-size: 13px;
   font-weight: 700;
-  color: var(--mini-cyber-text);
-  border-bottom: 1px solid rgba(96, 231, 255, 0.14);
-  background: rgba(34, 211, 238, 0.06);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-tertiary);
   flex-shrink: 0;
 }
 
@@ -1612,9 +1578,7 @@ useMiniWorkstationEffects({
   min-height: 0;
   font-size: 12px;
   line-height: 1.6;
-  background:
-    radial-gradient(circle at 90% 8%, rgba(34, 211, 238, 0.1), transparent 26%),
-    linear-gradient(180deg, rgba(2, 8, 18, 0.18), rgba(2, 8, 18, 0.42));
+  background: var(--bg-secondary);
   scrollbar-color: rgba(34, 211, 238, 0.36) transparent;
   transition: padding 0.2s ease, font-size 0.2s ease;
 }
@@ -1630,7 +1594,7 @@ useMiniWorkstationEffects({
   width: 8px;
 }
 .mini-ws-output::-webkit-scrollbar-thumb {
-  background: rgba(34, 211, 238, 0.26);
+  background: var(--bg-tertiary);
   border-radius: 999px;
 }
 
@@ -1644,9 +1608,7 @@ useMiniWorkstationEffects({
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background:
-    radial-gradient(circle at center, rgba(34, 211, 238, 0.2), rgba(2, 8, 18, 0.82)),
-    repeating-linear-gradient(90deg, rgba(96, 231, 255, 0.08) 0 1px, transparent 1px 16px);
+  background: var(--bg-secondary);
   border: 1px dashed rgba(96, 231, 255, 0.78);
   border-radius: 12px;
   color: #d8f8ff;
@@ -1655,7 +1617,7 @@ useMiniWorkstationEffects({
   letter-spacing: 0.08em;
   backdrop-filter: blur(8px);
   pointer-events: none;
-  box-shadow: inset 0 0 48px rgba(34, 211, 238, 0.2);
+  box-shadow: none;
 }
 
 /* ── 弹出动画 ── */
@@ -1680,42 +1642,11 @@ useMiniWorkstationEffects({
 }
 
 @keyframes miniStatePulse {
-  0%, 100% { opacity: 0.72; transform: scale(1); box-shadow: 0 0 10px rgba(34, 211, 238, 0.68); }
-  50% { opacity: 1; transform: scale(1.4); box-shadow: 0 0 18px rgba(34, 211, 238, 1); }
+  0%, 100% { opacity: 0.72; transform: scale(1); box-shadow: none; }
+  50% { opacity: 1; transform: scale(1.4); box-shadow: none; }
 }
 
-/* Bottom floating workbench layout */
-.mini-ws {
-  --mini-cyber-bg: #070b12;
-  --mini-cyber-bg-strong: #11192d;
-  --mini-cyber-panel: rgba(12, 18, 32, 0.82);
-  --mini-cyber-panel-soft: rgba(17, 25, 45, 0.72);
-  --mini-cyber-line: rgba(128, 151, 198, 0.22);
-  --mini-cyber-line-strong: rgba(104, 119, 255, 0.48);
-  --mini-cyber-text: #edf4ff;
-  --mini-cyber-muted: #8e9fbb;
-  --mini-cyber-dim: #61718c;
-  --mini-cyber-accent: #37a3ff;
-  --mini-cyber-violet: #776bff;
-  --mini-cyber-green: #2bd59f;
-  --mini-cyber-warm: #f6bd4d;
-  --mini-cyber-red: #ff6d7e;
-  inset: 0;
-  width: auto;
-  height: auto;
-  border: 0;
-  border-radius: 0;
-  overflow: visible;
-  background: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
-  pointer-events: none;
-}
 
-.mini-ws::before,
-.mini-ws::after {
-  content: none;
-}
 
 .mini-ws--sending {
   box-shadow: none;
@@ -1726,41 +1657,9 @@ useMiniWorkstationEffects({
   box-shadow: none;
 }
 
-.mini-workspace-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 50% 86%, rgba(55, 163, 255, 0.18), transparent 34%),
-    radial-gradient(circle at 16% 14%, rgba(119, 107, 255, 0.12), transparent 28%),
-    linear-gradient(180deg, rgba(2, 5, 11, 0.34), rgba(2, 5, 11, 0.58));
-  backdrop-filter: blur(9px) saturate(72%);
-  -webkit-backdrop-filter: blur(9px) saturate(72%);
-}
 
-.mini-workspace-backdrop::after {
-  content: '';
-  position: absolute;
-  left: 32px;
-  right: 32px;
-  bottom: calc(18px + var(--mini-stack-offset, 0px));
-  height: min(220px, 32vh);
-  border-radius: 28px 28px 0 0;
-  background:
-    linear-gradient(180deg, rgba(7, 11, 18, 0), rgba(7, 11, 18, 0.78)),
-    radial-gradient(circle at 50% 100%, rgba(55, 163, 255, 0.2), transparent 58%);
-  box-shadow: 0 -28px 72px rgba(2, 5, 11, 0.34);
-}
 
-.mini-ws--maximized .mini-workspace-backdrop {
-  background:
-    radial-gradient(circle at 50% 88%, rgba(55, 163, 255, 0.14), transparent 38%),
-    linear-gradient(180deg, rgba(2, 5, 11, 0.44), rgba(2, 5, 11, 0.68));
-  backdrop-filter: blur(12px) saturate(68%);
-  -webkit-backdrop-filter: blur(12px) saturate(68%);
-}
+
 
 .mini-shell {
   position: absolute;
@@ -1770,7 +1669,7 @@ useMiniWorkstationEffects({
   display: flex;
   flex-direction: column;
   gap: 0;
-  color: var(--mini-cyber-text);
+  color: var(--text-primary);
   pointer-events: auto;
   transition: left 0.18s ease, right 0.18s ease, bottom 0.18s ease;
 }
@@ -1778,10 +1677,8 @@ useMiniWorkstationEffects({
 .mini-current-output,
 .mini-shell :deep(.mini-ws-input) {
   border: 1px solid var(--mini-cyber-line);
-  background:
-    linear-gradient(180deg, rgba(12, 18, 32, 0.84), rgba(8, 12, 22, 0.68)),
-    rgba(8, 12, 22, 0.72);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: var(--bg-secondary);
+  box-shadow: var(--app-shell-panel-shadow-hover);
   backdrop-filter: blur(24px) saturate(140%);
 }
 
@@ -1793,7 +1690,7 @@ useMiniWorkstationEffects({
   flex-direction: column;
   margin: 0 14px 8px;
   padding: 12px 14px;
-  border-color: rgba(104, 119, 255, 0.28);
+  border-color: var(--border-light);
   border-radius: 12px;
   overflow: hidden;
   transition: height 0.18s ease, min-height 0.18s ease;
@@ -1825,7 +1722,7 @@ useMiniWorkstationEffects({
   grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
   gap: 10px;
   padding-right: 12px;
-  border-right: 1px solid rgba(130, 153, 190, 0.18);
+  border-right: 1px solid var(--border-light);
   color: #b9c9e4;
   font-size: 12px;
   overflow: hidden;
@@ -1862,7 +1759,7 @@ useMiniWorkstationEffects({
 }
 
 .mini-current-session-head span {
-  color: var(--mini-cyber-muted);
+  color: var(--text-secondary);
   font-size: 11px;
 }
 
@@ -1872,7 +1769,7 @@ useMiniWorkstationEffects({
   display: inline-grid;
   place-items: center;
   border-radius: 8px;
-  background: rgba(83, 174, 255, 0.14);
+  background: var(--bg-tertiary);
   color: #8ed0ff;
   font-size: 11px;
   font-style: normal;
@@ -1901,9 +1798,9 @@ useMiniWorkstationEffects({
   align-items: center;
   gap: 8px;
   padding: 8px 9px;
-  border: 1px solid rgba(126, 151, 197, 0.18);
+  border: 1px solid var(--border-light);
   border-radius: 10px;
-  background: rgba(17, 25, 45, 0.54);
+  background: var(--bg-tertiary);
   color: #d7e5fa;
   text-align: left;
   cursor: pointer;
@@ -1911,38 +1808,38 @@ useMiniWorkstationEffects({
 }
 
 .mini-current-session-row:hover {
-  border-color: rgba(83, 174, 255, 0.38);
-  background: rgba(24, 51, 83, 0.48);
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
 }
 
 .mini-current-session-row.is-running {
-  border-color: rgba(43, 213, 159, 0.28);
-  background: rgba(21, 54, 50, 0.42);
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
 }
 
 .mini-current-session-row.is-waiting {
-  border-color: rgba(246, 189, 77, 0.3);
-  background: rgba(58, 45, 24, 0.46);
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
 }
 
 .mini-current-session-row.is-output {
-  border-color: rgba(55, 163, 255, 0.3);
-  background: rgba(24, 48, 77, 0.46);
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
 }
 
 .mini-current-session-row.is-done {
-  border-color: rgba(119, 107, 255, 0.28);
-  background: rgba(41, 38, 76, 0.46);
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
 }
 
 .mini-current-session-row.is-cancelled {
-  border-color: rgba(142, 159, 187, 0.24);
-  background: rgba(41, 48, 64, 0.46);
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
 }
 
 .mini-current-session-row.is-failed {
-  border-color: rgba(255, 108, 108, 0.34);
-  background: rgba(74, 30, 38, 0.46);
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
 }
 
 .mini-current-session-copy,
@@ -1981,16 +1878,16 @@ useMiniWorkstationEffects({
   align-items: center;
   justify-content: center;
   gap: 4px;
-  border: 1px solid rgba(124, 146, 189, 0.24);
+  border: 1px solid var(--border-light);
   border-radius: 7px;
-  background: rgba(30, 42, 68, 0.68);
+  background: var(--bg-tertiary);
   color: #d7e5fa;
 }
 
 .mini-icon-action:hover {
-  border-color: rgba(83, 174, 255, 0.42);
-  background: rgba(34, 113, 205, 0.18);
-  color: #ffffff;
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .mini-queue-chip {
@@ -2000,9 +1897,9 @@ useMiniWorkstationEffects({
   display: inline-flex;
   align-items: center;
   padding: 0 7px;
-  border: 1px solid rgba(246, 189, 77, 0.28);
+  border: 1px solid var(--border-light);
   border-radius: 999px;
-  background: rgba(246, 189, 77, 0.12);
+  background: var(--bg-tertiary);
   color: #ffd78d;
   font-size: 11px;
   font-weight: 800;
@@ -2013,9 +1910,9 @@ useMiniWorkstationEffects({
   height: 100%;
   overflow: auto;
   padding: 12px 14px;
-  border: 1px solid rgba(130, 153, 190, 0.16);
+  border: 1px solid var(--border-light);
   border-radius: 12px;
-  background: rgba(10, 16, 29, 0.32);
+  background: var(--bg-tertiary);
   color: #d7e5fa;
   font-size: 13px;
   line-height: 18px;
@@ -2031,9 +1928,9 @@ useMiniWorkstationEffects({
   height: 100%;
   overflow: auto;
   padding: 14px 16px;
-  border: 1px solid rgba(130, 153, 190, 0.16);
+  border: 1px solid var(--border-light);
   border-radius: 12px;
-  background: rgba(10, 16, 29, 0.36);
+  background: var(--bg-tertiary);
   font-size: 13px;
 }
 
@@ -2091,60 +1988,58 @@ useMiniWorkstationEffects({
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--mini-cyber-accent);
-  box-shadow: 0 0 16px rgba(55, 163, 255, 0.58);
+  background: var(--color-primary);
+  box-shadow: none;
 }
 
 .mini-status-dot.is-running {
   background: var(--mini-cyber-green);
-  box-shadow: 0 0 16px rgba(43, 213, 159, 0.6);
+  box-shadow: none;
 }
 
 .mini-status-dot.is-waiting {
   background: var(--mini-cyber-warm);
-  box-shadow: 0 0 16px rgba(246, 189, 77, 0.6);
+  box-shadow: none;
 }
 
 .mini-status-dot.is-done,
 .mini-status-dot.is-cancelled {
   background: var(--mini-cyber-violet);
-  box-shadow: 0 0 16px rgba(119, 107, 255, 0.55);
+  box-shadow: none;
 }
 
 .mini-status-dot.is-failed {
   background: #ff6b6b;
-  box-shadow: 0 0 16px rgba(255, 107, 107, 0.58);
+  box-shadow: none;
 }
 
 .mini-status-dot.is-active,
 .mini-status-dot.is-output {
   background: #37a3ff;
-  box-shadow: 0 0 16px rgba(55, 163, 255, 0.58);
+  box-shadow: none;
 }
 
 .mini-settings-btn {
   width: 42px;
   height: 42px;
-  border-color: rgba(128, 151, 198, 0.22);
+  border-color: var(--border-light);
   border-radius: 8px;
   color: #8ed0ff;
-  background: rgba(30, 42, 68, 0.72);
+  background: var(--bg-tertiary);
 }
 
 .mini-settings-btn:hover,
 .mini-settings-btn:focus {
-  background: rgba(55, 163, 255, 0.16);
-  box-shadow: 0 0 18px rgba(55, 163, 255, 0.14);
+  background: var(--bg-tertiary);
+  box-shadow: none;
 }
 
 .mini-ws-drop-overlay {
   inset: auto 86px calc(24px + var(--mini-stack-offset, 0px)) max(162px, 12vw);
   height: 210px;
   pointer-events: none;
-  border-color: rgba(83, 174, 255, 0.74);
-  background:
-    radial-gradient(circle at center, rgba(55, 163, 255, 0.2), rgba(2, 5, 11, 0.82)),
-    repeating-linear-gradient(90deg, rgba(128, 151, 198, 0.08) 0 1px, transparent 1px 16px);
+  border-color: var(--border-light);
+  background: var(--bg-secondary);
 }
 
 .mini-ws--maximized .mini-ws-drop-overlay {
@@ -2206,9 +2101,7 @@ useMiniWorkstationEffects({
   width: clamp(560px, 44vw, 680px);
 }
 
-.mini-workspace-backdrop,
-.mini-workspace-backdrop::after,
-.mini-ws--maximized .mini-workspace-backdrop {
+.mini-workspace-backdrop {
   display: none;
 }
 
@@ -2222,15 +2115,13 @@ useMiniWorkstationEffects({
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
   overflow: hidden;
-  border: 1px solid rgba(124, 146, 189, 0.22);
+  border: 1px solid var(--border-light);
   border-radius: 12px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 120px),
-    rgba(16, 22, 34, 0.96);
+  background: var(--bg-secondary);
   box-shadow:
     0 24px 72px rgba(8, 14, 24, 0.28),
     0 0 0 1px rgba(255, 255, 255, 0.05);
-  color: var(--mini-cyber-text);
+  color: var(--text-primary);
   pointer-events: auto;
   backdrop-filter: blur(20px) saturate(120%);
   -webkit-backdrop-filter: blur(20px) saturate(120%);
@@ -2243,8 +2134,8 @@ useMiniWorkstationEffects({
   gap: 12px;
   align-items: center;
   padding: 12px 14px 12px 16px;
-  border-bottom: 1px solid rgba(124, 146, 189, 0.18);
-  background: rgba(22, 30, 46, 0.78);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-tertiary);
 }
 
 .mini-drawer-title {
@@ -2284,9 +2175,9 @@ useMiniWorkstationEffects({
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 1px solid rgba(124, 146, 189, 0.24);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: rgba(30, 42, 68, 0.68);
+  background: var(--bg-tertiary);
   color: #d7e5fa;
   font-size: 12px;
   font-weight: 760;
@@ -2297,15 +2188,15 @@ useMiniWorkstationEffects({
 
 .mini-drawer-primary-action {
   padding: 0 11px;
-  border-color: rgba(43, 213, 159, 0.35);
-  background: rgba(23, 78, 61, 0.42);
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
   color: #a5f7d5;
 }
 
 .mini-drawer-secondary-action {
   padding: 0 11px;
-  border-color: rgba(83, 174, 255, 0.32);
-  background: rgba(29, 73, 118, 0.36);
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
   color: #a8d7ff;
 }
 
@@ -2317,9 +2208,9 @@ useMiniWorkstationEffects({
 .mini-drawer-primary-action:hover,
 .mini-drawer-secondary-action:hover,
 .mini-drawer-icon-action:hover {
-  border-color: rgba(83, 174, 255, 0.55);
-  background: rgba(37, 56, 88, 0.84);
-  color: #ffffff;
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .mini-drawer-secondary-action:disabled {
@@ -2329,7 +2220,7 @@ useMiniWorkstationEffects({
 
 .mini-current-output,
 .mini-ws--maximized .mini-current-output {
-  height: auto;
+  height: 100%;
   min-height: 0;
   max-height: none;
   margin: 0;
@@ -2368,7 +2259,7 @@ useMiniWorkstationEffects({
   grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
   gap: 10px;
   padding: 0 12px 0 0;
-  border-right: 1px solid rgba(124, 146, 189, 0.16);
+  border-right: 1px solid var(--border-light);
   overflow: hidden;
 }
 
@@ -2386,9 +2277,9 @@ useMiniWorkstationEffects({
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   padding: 9px 10px;
-  border: 1px solid rgba(246, 199, 107, 0.2);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: rgba(62, 47, 18, 0.22);
+  background: var(--bg-tertiary);
 }
 
 .mini-current-context-switch span {
@@ -2410,9 +2301,9 @@ useMiniWorkstationEffects({
 .mini-current-context-switch button {
   width: 100%;
   height: 28px;
-  border: 1px solid rgba(246, 199, 107, 0.34);
+  border: 1px solid var(--border-light);
   border-radius: 7px;
-  background: rgba(246, 199, 107, 0.12);
+  background: var(--bg-tertiary);
   color: #ffdda0;
   font-size: 11px;
   font-weight: 800;
@@ -2420,8 +2311,8 @@ useMiniWorkstationEffects({
 }
 
 .mini-current-context-switch button:hover {
-  border-color: rgba(246, 199, 107, 0.56);
-  background: rgba(246, 199, 107, 0.18);
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
   color: #fff2d6;
 }
 
@@ -2440,9 +2331,9 @@ useMiniWorkstationEffects({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(124, 146, 189, 0.2);
+  border: 1px solid var(--border-light);
   border-radius: 7px;
-  background: rgba(30, 42, 68, 0.46);
+  background: var(--bg-tertiary);
   color: #9eadc8;
   font-size: 11px;
   font-weight: 720;
@@ -2463,8 +2354,8 @@ useMiniWorkstationEffects({
 
 .mini-drawer-scope-tabs button.active,
 .mini-drawer-session-filters button.active {
-  border-color: rgba(83, 174, 255, 0.45);
-  background: rgba(34, 113, 205, 0.2);
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
   color: #9bd4ff;
 }
 
@@ -2475,9 +2366,9 @@ useMiniWorkstationEffects({
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  border: 1px solid rgba(124, 146, 189, 0.18);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: rgba(10, 16, 29, 0.36);
+  background: var(--bg-tertiary);
   color: #8e9fbb;
 }
 
@@ -2517,9 +2408,9 @@ useMiniWorkstationEffects({
   height: 100%;
   min-height: 0;
   padding: 13px;
-  border: 1px solid rgba(124, 146, 189, 0.16);
+  border: 1px solid var(--border-light);
   border-radius: 10px;
-  background: rgba(10, 16, 29, 0.34);
+  background: var(--bg-tertiary);
 }
 
 .mini-artifact-drawer {
@@ -2529,7 +2420,7 @@ useMiniWorkstationEffects({
   gap: 8px;
   overflow: hidden;
   padding: 8px 0 0;
-  border-top: 1px solid rgba(124, 146, 189, 0.16);
+  border-top: 1px solid var(--border-light);
 }
 
 .mini-artifact-toggle {
@@ -2541,10 +2432,10 @@ useMiniWorkstationEffects({
   align-items: center;
   gap: 7px;
   padding: 0 10px;
-  border: 1px solid rgba(83, 174, 255, 0.22);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: rgba(30, 42, 68, 0.5);
-  color: #c8d8ef;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 760;
   cursor: pointer;
@@ -2552,9 +2443,9 @@ useMiniWorkstationEffects({
 }
 
 .mini-artifact-toggle:hover {
-  border-color: rgba(83, 174, 255, 0.44);
-  background: rgba(34, 113, 205, 0.18);
-  color: #ffffff;
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .mini-artifact-toggle strong {
@@ -2588,7 +2479,7 @@ useMiniWorkstationEffects({
   grid-template-rows: auto minmax(0, 1fr);
   padding: 0 0 0 12px;
   border-top: 0;
-  border-left: 1px solid rgba(124, 146, 189, 0.16);
+  border-left: 1px solid var(--border-light);
 }
 
 .mini-ws--maximized .mini-artifact-drawer.is-open .mini-artifact-panel {
@@ -2600,15 +2491,15 @@ useMiniWorkstationEffects({
   margin: 0;
   border-width: 1px 0 0;
   border-radius: 0;
-  background: rgba(22, 30, 46, 0.78);
+  background: var(--bg-tertiary);
   box-shadow: none;
 }
 
 .mini-ws-files {
   margin: 0;
   padding: 8px 12px;
-  border-top: 1px solid rgba(124, 146, 189, 0.14);
-  background: rgba(22, 30, 46, 0.78);
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-tertiary);
 }
 
 .mini-ws-drop-overlay,
@@ -2642,7 +2533,7 @@ useMiniWorkstationEffects({
     grid-row: auto;
     max-height: 150px;
     padding: 8px 0 0;
-    border-top: 1px solid rgba(124, 146, 189, 0.16);
+    border-top: 1px solid var(--border-light);
     border-left: 0;
   }
 
@@ -2706,7 +2597,7 @@ useMiniWorkstationEffects({
     max-height: 260px;
     padding: 0 0 10px;
     border-right: 0;
-    border-bottom: 1px solid rgba(124, 146, 189, 0.16);
+    border-bottom: 1px solid var(--border-light);
   }
 
   .mini-shell :deep(.mini-ws-input) {
@@ -2770,7 +2661,7 @@ useMiniWorkstationEffects({
   box-shadow: none;
 }
 .mini-files-dropdown-popper.el-dropdown__popper .el-popper__arrow::before {
-  background: rgba(8, 22, 38, 0.98);
-  border-color: rgba(96, 231, 255, 0.22);
+  background: var(--bg-tertiary);
+  border-color: var(--border-light);
 }
 </style>

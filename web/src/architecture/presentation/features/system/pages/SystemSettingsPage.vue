@@ -51,7 +51,7 @@
               :closable="false"
             />
 
-            <el-form ref="formRef" :model="form" label-width="180px" class="settings-form">
+            <el-form ref="formRef" :model="form" label-width="120px" class="settings-form">
               <el-divider content-position="left">{{ t('systemSettings.registration') }}</el-divider>
               <el-form-item :label="t('systemSettings.registrationMode')">
                 <el-radio-group v-model="form.registration_mode">
@@ -179,7 +179,7 @@
                 <el-form
                   v-if="providerConfigs[provider.code]"
                   :model="providerConfigs[provider.code]"
-                  label-width="160px"
+                  label-width="120px"
                   class="provider-form"
                 >
                   <el-form-item
@@ -298,7 +298,7 @@
                 </el-descriptions-item>
               </el-descriptions>
 
-              <el-form label-width="150px" class="tls-form">
+              <el-form label-width="120px" class="tls-form">
                 <el-form-item :label="t('systemSettings.certificatePem')">
                   <el-input
                     v-model="tlsForm.certificate_pem"
@@ -918,7 +918,7 @@ onMounted(() => {
 
 .settings-card {
   width: 100%;
-  max-width: 1280px;
+  max-width: 1440px;
   margin: 0 auto;
   border-radius: var(--border-radius-xl);
   border: 1px solid var(--border-light);
@@ -958,7 +958,7 @@ onMounted(() => {
 
 .settings-layout {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
   gap: 0;
   align-items: stretch;
 }
@@ -974,13 +974,15 @@ onMounted(() => {
 }
 
 .settings-nav-item {
+  width: 100%;
+  min-height: 64px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 12px 16px;
-  border: none;
+  padding: 12px 14px;
+  border: 1px solid transparent;
   border-radius: var(--border-radius-base);
-  background: transparent;
+  background: var(--bg-tertiary);
   color: var(--text-primary);
   cursor: pointer;
   text-align: left;
@@ -988,39 +990,13 @@ onMounted(() => {
 }
 
 .settings-nav-item:hover {
-  background: var(--bg-tertiary);
-}
-
-.settings-nav-item.is-active {
   background: var(--el-fill-color);
-  box-shadow: inset 3px 0 0 var(--color-primary);
-}
-
-.settings-nav-item {
-  width: 100%;
-  min-height: 64px;
-  padding: 12px 14px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--el-bg-color) 88%, var(--el-fill-color-light) 12%);
-  color: var(--el-text-color-regular);
-  text-align: left;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
-}
-
-.settings-nav-item:hover {
-  border-color: color-mix(in srgb, var(--el-color-primary) 18%, var(--el-border-color-light) 82%);
-  background: color-mix(in srgb, var(--el-color-primary) 6%, var(--el-bg-color) 94%);
 }
 
 .settings-nav-item.is-active {
-  border-color: color-mix(in srgb, var(--el-color-primary) 42%, var(--el-border-color) 58%);
-  background: color-mix(in srgb, var(--el-color-primary) 14%, var(--el-bg-color) 86%);
-  color: var(--el-color-primary);
-  box-shadow: inset 3px 0 0 var(--el-color-primary);
+  background: var(--el-fill-color-blank);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.1);
 }
 
 .settings-nav-title {
@@ -1040,7 +1016,7 @@ onMounted(() => {
 
 .settings-content {
   min-width: 0;
-  background: var(--bg-primary);
+  background: transparent;
   border-radius: 0 var(--border-radius-xl) var(--border-radius-xl) 0;
   padding: 32px 40px;
 }
@@ -1131,11 +1107,10 @@ onMounted(() => {
 }
 
 .provider-panel {
-  padding: 24px;
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-lg);
-  background: var(--bg-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  padding: 18px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background: var(--el-bg-color);
 }
 
 .provider-panel-header {

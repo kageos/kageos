@@ -261,7 +261,7 @@ watch(
 }
 
 .payload-textarea :deep(.el-textarea__inner) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-family: var(--font-family-mono);
   font-size: 13px;
   line-height: 1.6;
   background-color: var(--bg-tertiary) !important;

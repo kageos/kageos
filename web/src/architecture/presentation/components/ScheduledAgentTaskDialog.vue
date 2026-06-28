@@ -410,11 +410,12 @@ watch(
   z-index: 3;
   display: grid;
   place-items: center;
-  border-radius: 14px;
-  background: rgba(15, 23, 42, 0.54);
-  color: #fff;
+  border-radius: var(--border-radius-lg);
+  background: var(--el-overlay-color-lighter);
+  color: var(--text-primary);
   font-weight: 700;
   pointer-events: none;
+  backdrop-filter: blur(4px);
 }
 
 .scheduled-dialog-grid {

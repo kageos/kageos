@@ -6,6 +6,7 @@ import (
 
 	sharedDto "github.com/kageos/kageos/dto"
 	appPkg "github.com/kageos/kageos/pkg/app"
+	"github.com/kageos/kageos/pkg/buildtrace"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
@@ -57,13 +58,21 @@ func (s *AppManageService) prepareAppRelease(
 	requirement string,
 	changeDescription string,
 ) (*appReleaseResult, error) {
+	buildSpan := buildtrace.Start(ctx, "runtime.build_app_for_written_changes", buildtrace.String("old_version", oldVersion))
 	newVersion, err := s.buildAppForWrittenChanges(ctx, user, app, appPaths)
 	if err != nil {
+		buildSpan.Finish(err)
 		return nil, err
 	}
+	buildSpan.Finish(nil)
 
+	metadataSpan := buildtrace.Start(ctx, "runtime.update_release_version_metadata", buildtrace.String("new_version", newVersion))
 	s.updateReleaseVersionMetadata(ctx, user, app, appPaths, newVersion, logPrefix)
+	metadataSpan.Finish(nil)
+
+	commitSpan := buildtrace.Start(ctx, "runtime.commit_release", buildtrace.String("new_version", newVersion))
 	gitCommitHash := s.commitRelease(ctx, user, app, newVersion, logPrefix, requirement, changeDescription)
+	commitSpan.Finish(nil)
 
 	return &appReleaseResult{
 		oldVersion:    oldVersion,

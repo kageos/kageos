@@ -6,6 +6,7 @@ import (
 	"time"
 
 	sharedDto "github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/buildtrace"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
@@ -14,11 +15,14 @@ func (s *AppManageService) fetchVersionDiffPayload(
 	user, app, version string,
 	logPrefix string,
 ) (interface{}, error) {
+	callbackSpan := buildtrace.Start(ctx, "runtime.update_callback_request", buildtrace.String("version", version))
 	updateCallbackResponse, callbackErr := s.sendUpdateCallbackAndWait(ctx, user, app, version)
 	if callbackErr != nil {
+		callbackSpan.Finish(callbackErr)
 		logger.Warnf(ctx, "[%s] ❌ 获取 diff 失败: %v", logPrefix, callbackErr)
 		return nil, callbackErr
 	}
+	callbackSpan.Finish(nil)
 
 	logger.Debugf(ctx, "[%s] ✅ 获取 diff 成功: %+v", logPrefix, updateCallbackResponse)
 	return updateCallbackResponse.Data, nil
@@ -51,17 +55,21 @@ func (s *AppManageService) parseDiffData(ctx context.Context, data interface{}, 
 		return nil
 	}
 
+	parseSpan := buildtrace.Start(ctx, "runtime.parse_diff_data")
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
+		parseSpan.Finish(err)
 		logger.Warnf(ctx, "[%s] 序列化 diff 数据失败: %v", logPrefix, err)
 		return nil
 	}
 
 	var diffData sharedDto.DiffData
 	if err := json.Unmarshal(dataBytes, &diffData); err != nil {
+		parseSpan.Finish(err)
 		logger.Warnf(ctx, "[%s] 反序列化 diff 数据失败: %v", logPrefix, err)
 		return nil
 	}
+	parseSpan.Finish(nil)
 
 	return &diffData
 }
@@ -83,8 +91,10 @@ func (s *AppManageService) collectVersionDiffFromTemporaryContainer(
 	}
 
 	logger.Infof(ctx, "[BatchWriteFiles] 等待新版本启动: %s/%s/%s", user, app, version)
+	waitSpan := buildtrace.Start(ctx, "runtime.wait_temporary_version_startup", buildtrace.String("version", version))
 	select {
 	case <-waiterChan:
+		waitSpan.Finish(nil)
 		logger.Infof(ctx, "[BatchWriteFiles] ✅ 新版本启动成功: %s/%s/%s", user, app, version)
 		diff := s.requestVersionDiff(ctx, user, app, version, "BatchWriteFiles")
 		if err := s.stopOldVersionContainer(ctx, user, app, version); err != nil {
@@ -92,6 +102,7 @@ func (s *AppManageService) collectVersionDiffFromTemporaryContainer(
 		}
 		return diff
 	case <-time.After(60 * time.Second):
+		waitSpan.Finish(context.DeadlineExceeded)
 		logger.Warnf(ctx, "[BatchWriteFiles] ⚠️ 等待新版本启动超时，不获取 diff")
 		return nil
 	}

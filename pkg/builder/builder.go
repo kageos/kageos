@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kageos/kageos/pkg/buildtrace"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/sdkmodule"
 	"github.com/kageos/kageos/pkg/sourcepolicy"
@@ -75,15 +76,21 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 	opts.App = app
 	opts.Version = version
 
+	validateSpan := buildtrace.Start(ctx, "builder.validate_go_source", buildtrace.String("source_dir", opts.SourceDir))
 	if err := sourcepolicy.ValidateAppGoSourceDir(opts.SourceDir); err != nil {
+		validateSpan.Finish(err)
 		return nil, err
 	}
+	validateSpan.Finish(nil)
 
 	// opts.OutputDir 和 opts.SourceDir 都是绝对路径
 	// 确保输出目录存在（必须在编译前创建，否则 go build 可能创建错误的目录）
+	mkdirSpan := buildtrace.Start(ctx, "builder.ensure_output_dir", buildtrace.String("output_dir", opts.OutputDir))
 	if err := os.MkdirAll(opts.OutputDir, 0755); err != nil {
+		mkdirSpan.Finish(err)
 		return nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
+	mkdirSpan.Finish(nil)
 
 	// 构建二进制文件的完整路径
 	var binaryName string
@@ -102,10 +109,13 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 	//logger.Infof(ctx, "Source: %s", opts.SourceDir)
 	//logger.Infof(ctx, "Output: %s", binaryPath)
 
+	moduleSpan := buildtrace.Start(ctx, "builder.find_go_module_root", buildtrace.String("source_dir", opts.SourceDir))
 	moduleRoot, err := findGoModuleRoot(opts.SourceDir)
 	if err != nil {
+		moduleSpan.Finish(err)
 		return nil, err
 	}
+	moduleSpan.Finish(nil)
 
 	if err := b.runGoGetLatestSDK(ctx, moduleRoot); err != nil {
 		return nil, err
@@ -121,16 +131,28 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 	cmd := b.buildGoCommand(ctx, moduleRoot, opts.SourceDir, binaryPath, platform, opts)
 
 	// 执行编译
+	buildSpan := buildtrace.Start(ctx, "builder.go_build",
+		buildtrace.String("module_root", moduleRoot),
+		buildtrace.String("source_dir", opts.SourceDir),
+		buildtrace.String("output_path", binaryPath),
+		buildtrace.String("platform", platform),
+	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("go build failed: %w, output: %s", err, string(output))
+		buildErr := fmt.Errorf("go build failed: %w, output: %s", err, string(output))
+		buildSpan.Finish(buildErr)
+		return nil, buildErr
 	}
+	buildSpan.Finish(nil)
 
 	// 获取文件信息
+	statSpan := buildtrace.Start(ctx, "builder.stat_binary", buildtrace.String("binary_path", binaryPath))
 	fileInfo, err := os.Stat(binaryPath)
 	if err != nil {
+		statSpan.Finish(err)
 		return nil, fmt.Errorf("failed to get file info: %w", err)
 	}
+	statSpan.Finish(nil)
 
 	//logger.Infof(ctx, "Build successful: %s (size: %d bytes)", binaryName, fileInfo.Size())
 
@@ -213,13 +235,21 @@ func (b *Builder) buildLdFlags(opts *BuildOpts) []string {
 }
 
 func (b *Builder) runGoGetLatestSDK(ctx context.Context, moduleRoot string) error {
+	span := buildtrace.Start(ctx, "builder.go_get_sdk",
+		buildtrace.String("module_root", moduleRoot),
+		buildtrace.String("module", sdkmodule.ModulePath),
+		buildtrace.String("version_query", sdkmodule.LatestVersionQuery),
+	)
 	goModPath := filepath.Join(moduleRoot, "go.mod")
 	data, err := os.ReadFile(goModPath)
 	if err != nil {
-		return fmt.Errorf("failed to read go.mod before sdk sync: %w", err)
+		wrapped := fmt.Errorf("failed to read go.mod before sdk sync: %w", err)
+		span.Finish(wrapped)
+		return wrapped
 	}
 	if goModHasSDKReplace(goModPath, data) {
 		logger.Infof(ctx, "go.mod has local/custom %s replace, skip go get @%s", sdkmodule.ModulePath, sdkmodule.LatestVersionQuery)
+		span.Finish(nil)
 		return nil
 	}
 
@@ -228,8 +258,11 @@ func (b *Builder) runGoGetLatestSDK(ctx context.Context, moduleRoot string) erro
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("go get %s@%s failed: %w, output: %s", sdkmodule.ModulePath, sdkmodule.LatestVersionQuery, err, string(output))
+		wrapped := fmt.Errorf("go get %s@%s failed: %w, output: %s", sdkmodule.ModulePath, sdkmodule.LatestVersionQuery, err, string(output))
+		span.Finish(wrapped)
+		return wrapped
 	}
+	span.Finish(nil)
 	return nil
 }
 
@@ -250,14 +283,18 @@ func goModHasSDKReplace(filename string, data []byte) bool {
 func (b *Builder) runGoModTidy(ctx context.Context, moduleRoot string) error {
 	//logger.Infof(ctx, "Running go mod tidy in: %s", sourceDir)
 
+	span := buildtrace.Start(ctx, "builder.go_mod_tidy", buildtrace.String("module_root", moduleRoot))
 	cmd := exec.CommandContext(ctx, "go", "mod", "tidy")
 	cmd.Dir = moduleRoot
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("go mod tidy failed: %w, output: %s", err, string(output))
+		wrapped := fmt.Errorf("go mod tidy failed: %w, output: %s", err, string(output))
+		span.Finish(wrapped)
+		return wrapped
 	}
 
+	span.Finish(nil)
 	//logger.Infof(ctx, "go mod tidy completed successfully")
 	return nil
 }

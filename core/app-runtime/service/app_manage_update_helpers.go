@@ -9,6 +9,7 @@ import (
 	"time"
 
 	sharedDto "github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/buildtrace"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
@@ -37,16 +38,38 @@ func (s *AppManageService) buildWriteOnlyUpdateResp(
 	}
 }
 
+func (s *AppManageService) persistUpdateBuildTrace(
+	ctx context.Context,
+	user, app string,
+	trace *buildtrace.Trace,
+) (string, error) {
+	if trace == nil {
+		return "", nil
+	}
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), user, app)
+	if _, err := os.Stat(appPaths.AppDir()); err != nil {
+		if os.IsNotExist(err) {
+			logger.Warnf(ctx, "[UpdateApp] skip build trace persist because app dir does not exist: %s", appPaths.AppDir())
+			return "", nil
+		}
+		return "", err
+	}
+	return buildtrace.Persist(trace, appPaths.WorkplaceSubDir("build-traces"))
+}
+
 func (s *AppManageService) completeUpdatedRelease(
 	ctx context.Context,
 	user, app string,
 	release *appReleaseResult,
 ) (*sharedDto.UpdateAppResp, error) {
+	diffSpan := buildtrace.Start(ctx, "runtime.request_required_version_diff", buildtrace.String("new_version", release.newVersion))
 	diffData, err := s.requestRequiredVersionDiff(ctx, user, app, release.newVersion, "UpdateApp")
 	if err != nil {
+		diffSpan.Finish(err)
 		logger.Warnf(ctx, "[UpdateApp] Aborting update result to avoid API state drift")
 		return nil, err
 	}
+	diffSpan.Finish(nil)
 
 	return s.buildUpdateAppResp(user, app, release, diffData), nil
 }
@@ -130,15 +153,21 @@ func (s *AppManageService) deployUpdatedVersion(
 	}
 
 	logger.Infof(ctx, "[UpdateApp] Creating new version container for %s/%s/%s", user, app, newVersion)
+	createSpan := buildtrace.Start(ctx, "runtime.create_version_container", buildtrace.String("new_version", newVersion))
 	if err := s.createVersionContainer(ctx, user, app, newVersion, state.appDirRel); err != nil {
+		createSpan.Finish(err)
 		logStr.WriteString(fmt.Sprintf("Failed to create version container: %v\t", err))
 		return fmt.Errorf("failed to create version container: %w", err)
 	}
+	createSpan.Finish(nil)
 	logStr.WriteString("New version container created\t")
 
+	waitSpan := buildtrace.Start(ctx, "runtime.wait_updated_version_startup", buildtrace.String("new_version", newVersion))
 	if err := s.waitForUpdatedVersionStartup(ctx, user, app, newVersion, waiterChan, logStr); err != nil {
+		waitSpan.Finish(err)
 		return err
 	}
+	waitSpan.Finish(nil)
 	s.deferPreviousVersionCleanupAfterUpdate(ctx, user, app, state.oldVersion, logStr)
 
 	logStr.WriteString(fmt.Sprintf("Update completed: %s->%s", state.oldVersion, newVersion))
@@ -172,12 +201,17 @@ func (s *AppManageService) buildAndDeployUpdatedRelease(
 	}
 
 	if forceDiff {
+		clearSpan := buildtrace.Start(ctx, "runtime.clear_api_logs")
 		s.clearAPILogs(ctx, user, app, "UpdateApp")
+		clearSpan.Finish(nil)
 	}
 
+	deploySpan := buildtrace.Start(ctx, "runtime.deploy_updated_version", buildtrace.String("new_version", release.newVersion))
 	if err := s.deployUpdatedVersion(ctx, user, app, state, release.newVersion, logStr); err != nil {
+		deploySpan.Finish(err)
 		return nil, err
 	}
+	deploySpan.Finish(nil)
 
 	return release, nil
 }
@@ -242,11 +276,14 @@ func (s *AppManageService) stopPreviousVersionAfterUpdate(
 	}
 
 	logger.Infof(ctx, "[UpdateApp] Starting graceful shutdown for old version %s/%s/%s", user, app, oldVersion)
+	stopSpan := buildtrace.Start(ctx, "runtime.stop_previous_version", buildtrace.String("old_version", oldVersion))
 	if err := s.stopOldVersionContainer(ctx, user, app, oldVersion); err != nil {
+		stopSpan.Finish(err)
 		logStr.WriteString(fmt.Sprintf("Failed to stop old container: %v\t", err))
 		logger.Warnf(ctx, "[UpdateApp] ⚠️ Failed to stop old container: %v, but continue anyway", err)
 		return
 	}
+	stopSpan.Finish(nil)
 
 	logStr.WriteString("Old container stopped gracefully\t")
 	logger.Infof(ctx, "[UpdateApp] ✅ Old container stopped gracefully: %s/%s/%s", user, app, oldVersion)

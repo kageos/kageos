@@ -8,6 +8,7 @@ import (
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/buildtrace"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
@@ -28,6 +29,7 @@ type buildWorkspaceResultData struct {
 	NewVersion       string                     `json:"new_version,omitempty" schema_desc:"编译后版本"`
 	GitCommitHash    string                     `json:"git_commit_hash,omitempty" schema_desc:"构建对应的 Git commit hash"`
 	Warnings         []string                   `json:"warnings,omitempty" schema_desc:"非阻断构建告警"`
+	BuildTrace       *dto.BuildTrace            `json:"build_trace,omitempty" schema_desc:"构建/更新阶段耗时追踪"`
 	Error            string                     `json:"error,omitempty" schema_desc:"构建失败摘要"`
 	BuildDiagnostics *workspaceBuildDiagnostics `json:"build_diagnostics,omitempty" schema_desc:"构建失败诊断和修复策略"`
 	Interaction      *workspaceStageInteraction `json:"interaction,omitempty" schema_desc:"构建失败后的修复交互状态"`
@@ -120,6 +122,9 @@ func runBuildWorkspaceTool(ctx context.Context, currentFullCodePath string) (bui
 	}
 	result := buildWorkspaceSuccessResult(workspacePath, resp)
 	content := fmt.Sprintf("工作空间已编译并部署: workspace=%s, app=%s, 旧版本=%s, 新版本=%s。下一步必须立即进入 qa_engineer 自动测试，不要等待用户确认。", workspacePath, resp.App, resp.OldVersion, resp.NewVersion)
+	if summary := buildtrace.Summary(resp.BuildTrace, 5); summary != "" {
+		content += " 构建耗时: " + summary + "。"
+	}
 	return result, content, false
 }
 
@@ -145,6 +150,7 @@ func buildWorkspaceSuccessResult(workspacePath string, resp *dto.UpdateAppResp) 
 	result.NewVersion = resp.NewVersion
 	result.GitCommitHash = resp.GitCommitHash
 	result.Warnings = append([]string(nil), resp.Warnings...)
+	result.BuildTrace = resp.BuildTrace
 	return result
 }
 

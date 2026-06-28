@@ -316,7 +316,7 @@ import type { FieldConfig, FieldValue } from '@/architecture/domain/types'
 import type { ValidationEngine, ValidationResult } from '@/architecture/domain/validation'
 import { validateFieldValue, validateFormWidgetNestedFields, type WidgetValidationContext } from '@/architecture/presentation/widgets/composables/useWidgetValidation'
 import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
-import { FORM_LABEL_WIDTH, FORM_QUESTIONNAIRE_TRIGGER_CHARS } from '@/architecture/presentation/utils/formLayout'
+import { FORM_LABEL_WIDTH, FORM_QUESTIONNAIRE_TRIGGER_CHARS, getVisualLength } from '@/architecture/presentation/utils/formLayout'
 import { prdPreviewContextKey } from '@/architecture/presentation/components/prdPreviewContext'
 
 // 抽屉配置常量
@@ -380,7 +380,7 @@ function isFieldRequired(field: FieldConfig): boolean {
 }
 
 const labelsOnTop = computed(() =>
-  visibleSubFields.value.some((f) => (f.name?.length ?? 0) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
+  visibleSubFields.value.some((f) => getVisualLength(f.name) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
 )
 
 /**

@@ -25,6 +25,7 @@
           <el-button
             class="tree-import-button"
             size="small"
+            text
             :icon="Upload"
             :aria-label="t('serviceTree.importBundle')"
             data-testid="service-tree-import-directory"
@@ -35,6 +36,7 @@
           <el-button
             class="tree-select-button"
             size="small"
+            text
             :icon="Select"
             :aria-label="t('serviceTree.multiSelect')"
             @click="enterMultiSelectMode"
@@ -869,14 +871,15 @@ defineExpose({
 
   .tree-search-input :deep(.el-input__wrapper) {
     border-radius: var(--border-radius-base);
-    background-color: var(--el-fill-color-light);
-    border: 1px solid transparent;
+    background-color: transparent;
+    border: 1px solid var(--border-light);
     box-shadow: none;
     transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
   }
 
   .tree-search-input :deep(.el-input__wrapper:hover) {
-    background-color: var(--el-fill-color);
+    background-color: var(--el-fill-color-light);
+    border-color: var(--border-base);
   }
 
   .tree-search-input :deep(.el-input__wrapper.is-focus) {
@@ -1058,7 +1061,7 @@ defineExpose({
 .service-tree-contextmenu-popper {
   &.el-popper {
     padding: 4px !important;
-    background: var(--bg-primary) !important;
+    background: var(--bg-secondary) !important;
     border: 1px solid var(--border-base) !important;
     box-shadow: var(--box-shadow-lg) !important;
     border-radius: var(--border-radius-base) !important;

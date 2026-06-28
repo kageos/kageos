@@ -2034,7 +2034,7 @@ defineExpose({
   padding: 16px;
   border: 1px solid transparent;
   border-radius: var(--border-radius-lg);
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
