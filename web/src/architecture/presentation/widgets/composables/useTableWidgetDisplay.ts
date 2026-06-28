@@ -188,7 +188,7 @@ export function useTableWidgetDisplay(
     // 给组件一个保守的最小操作/展示空间保障
     let minWidth = 80
     if (type === WidgetType.DATETIME) {
-      minWidth = 160
+      minWidth = 180
     } else if (type === WidgetType.SWITCH) {
       minWidth = 80
     } else if (type === WidgetType.INTEGER || type === WidgetType.FLOAT) {

@@ -173,7 +173,7 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
     // 2. 系统级字段（ID、创建人、更新时间等）
     if (/^(id|created_at|updated_at|create_time|update_time|creator|updater|modifier|created_by)$/.test(code) || 
         /(ID|创建|更新|修改)(时间|人)/.test(name)) {
-      if (type === WidgetType.DATETIME) return Math.max(headerWidth, 160)
+      if (type === WidgetType.DATETIME) return Math.max(headerWidth, 175)
       return Math.max(headerWidth, 75)
     }
 
@@ -186,7 +186,7 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
 
     let minWidth = 80
     if (type === WidgetType.DATETIME) {
-      minWidth = 160
+      minWidth = 180
     } else if (type === WidgetType.SWITCH) {
       minWidth = 80
     } else if (type === WidgetType.INTEGER || type === WidgetType.FLOAT) {
