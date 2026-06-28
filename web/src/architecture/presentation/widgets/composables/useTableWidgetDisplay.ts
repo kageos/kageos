@@ -142,13 +142,13 @@ export function useTableWidgetDisplay(
     const code = (field.code || '').toLowerCase()
     const name = field.name || ''
 
-    // 智能推断：根据表头中文字符数给一个基础缓冲宽度 (每个汉字大约 13px + 表头 padding 24px)
+    // 智能推断：根据表头中文字符数给一个基础缓冲宽度 (每个汉字大约 14px + 表头排序图标和 padding 大约 40px)
     const nameStr = String(name)
     let charWidth = 0
     for (let i = 0; i < nameStr.length; i++) {
-      charWidth += nameStr.charCodeAt(i) > 255 ? 13 : 8
+      charWidth += nameStr.charCodeAt(i) > 255 ? 15 : 9
     }
-    const headerWidth = charWidth + 24 
+    const headerWidth = charWidth + 40 
 
     // 动态嗅探数据内容长度 (只嗅探 response 模式下的数据)
     let maxDataCharLength = 0
@@ -164,7 +164,7 @@ export function useTableWidgetDisplay(
             hasData = true
             let currLen = 0
             for (let i = 0; i < strVal.length; i++) {
-               currLen += strVal.charCodeAt(i) > 255 ? 13 : 8
+               currLen += strVal.charCodeAt(i) > 255 ? 14 : 8
             }
             if (currLen > maxDataCharLength) {
               maxDataCharLength = currLen
@@ -176,31 +176,31 @@ export function useTableWidgetDisplay(
 
     // 如果嗅探到当前页这一列根本没有任何实际数据（全是 -、空值、[] 等），直接把它压死到表头宽度！
     if (responseMode.value && !hasData) {
-       return Math.max(headerWidth, 60)
+       return Math.max(headerWidth, 80)
     }
 
-    // 如果有数据，为数据预留一个合理的空间，最高不超过一个合理的上限（例如 300px），避免单列撑爆
-    const dataWidth = hasData ? Math.min(maxDataCharLength + 32, 280) : 0
+    // 如果有数据，为数据预留一个合理的空间，最高不超过一个合理的上限（例如 350px），避免单列撑爆
+    const dataWidth = hasData ? Math.min(maxDataCharLength + 32, 350) : 0
 
     // 根据综合计算出来的真实数据需求与组件本身的底限结合：
     const dataBasedWidth = Math.max(headerWidth, dataWidth)
 
     // 给组件一个保守的最小操作/展示空间保障
-    let minWidth = 60
+    let minWidth = 80
     if (type === WidgetType.DATETIME) {
-      minWidth = 135
+      minWidth = 160
     } else if (type === WidgetType.SWITCH) {
-      minWidth = 60
+      minWidth = 80
     } else if (type === WidgetType.INTEGER || type === WidgetType.FLOAT) {
-      minWidth = Math.max(headerWidth, 60)
-    } else if (type === WidgetType.PROGRESS || type === WidgetType.SLIDER) {
-      minWidth = 120
-    } else if (type === WidgetType.FILES) {
-      minWidth = 100
-    } else if (type === WidgetType.TEXT_AREA || type === WidgetType.RICH_TEXT) {
-      minWidth = Math.max(headerWidth, 100)
-    } else if (type === WidgetType.SELECT || type === WidgetType.MULTI_SELECT) {
       minWidth = Math.max(headerWidth, 80)
+    } else if (type === WidgetType.PROGRESS || type === WidgetType.SLIDER) {
+      minWidth = 140
+    } else if (type === WidgetType.FILES) {
+      minWidth = 120
+    } else if (type === WidgetType.TEXT_AREA || type === WidgetType.RICH_TEXT) {
+      minWidth = Math.max(headerWidth, 120)
+    } else if (type === WidgetType.SELECT || type === WidgetType.MULTI_SELECT) {
+      minWidth = Math.max(headerWidth, 100)
     }
 
     // 在编辑模式下，由于输入框本身需要操作空间，走组件底线与表头宽度
@@ -210,7 +210,7 @@ export function useTableWidgetDisplay(
 
     // 在响应模式下，结合真实数据宽度和组件特征来分配，如果真实数据极短，允许打破组件的固定最小宽度
     // 但必须大于等于表头
-    return Math.max(headerWidth, Math.min(Math.max(minWidth, dataBasedWidth), 280))
+    return Math.max(headerWidth, Math.min(Math.max(minWidth, dataBasedWidth), 350))
   }
 
   function getColumnAlign(field: any): 'left' | 'center' | 'right' {
