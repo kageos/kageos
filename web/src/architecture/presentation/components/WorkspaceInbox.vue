@@ -64,6 +64,9 @@
             :class="{ 'is-active': isWorkspaceTabActive(workspace), 'has-unread': Number(workspace.unread_count || 0) > 0 }"
             @click="handleWorkspaceTabClick(workspace)"
           >
+            <div class="workspace-tab-logo">
+              <el-icon><Monitor /></el-icon>
+            </div>
             <span class="workspace-tab-copy">
               <span class="workspace-tab-title">{{ workspaceTabTitle(workspace) }}</span>
               <span class="workspace-tab-path">{{ workspaceTabPath(workspace) }}</span>
@@ -301,6 +304,7 @@ import {
   Message as MessageIcon,
   Refresh,
   Timer,
+  Monitor
 } from '@element-plus/icons-vue'
 import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
@@ -1563,7 +1567,6 @@ defineExpose({
   max-width: 260px;
   flex-shrink: 0;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   padding: 9px 10px;
   border: 1px solid transparent;
@@ -1585,9 +1588,28 @@ defineExpose({
   }
 }
 
+.workspace-tab-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+  color: var(--text-secondary);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.workspace-tab.is-active .workspace-tab-logo {
+  background: var(--color-primary-light-9);
+  color: var(--color-primary);
+}
+
 .workspace-tab-copy {
   display: flex;
   min-width: 0;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
 }

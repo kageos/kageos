@@ -959,6 +959,8 @@ onMounted(() => {
 .settings-layout {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
+  gap: 0;
+  align-items: stretch;
 }
 
 .settings-sidebar {
@@ -968,6 +970,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  border-radius: var(--border-radius-xl) 0 0 var(--border-radius-xl);
 }
 
 .settings-nav-item {
@@ -991,21 +994,6 @@ onMounted(() => {
 .settings-nav-item.is-active {
   background: var(--el-fill-color);
   box-shadow: inset 3px 0 0 var(--color-primary);
-}
-  gap: 22px;
-  align-items: start;
-}
-
-.settings-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  position: sticky;
-  top: 16px;
-  padding: 8px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--el-fill-color-light) 55%, var(--el-bg-color) 45%);
 }
 
 .settings-nav-item {

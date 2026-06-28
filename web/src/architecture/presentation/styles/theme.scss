@@ -696,6 +696,30 @@ html.dark {
     transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.25s ease;
   }
 
+  // Segmented (分段控制器) 的现代极简质感
+  .el-segmented {
+    --el-segmented-bg-color: var(--el-fill-color-light);
+    --el-segmented-color: var(--text-secondary);
+    --el-segmented-item-selected-color: var(--text-primary);
+    --el-segmented-item-selected-bg-color: var(--el-fill-color-blank);
+    --el-segmented-item-hover-color: var(--text-primary);
+    --el-segmented-item-hover-bg-color: transparent;
+    border-radius: 8px;
+    padding: 3px;
+    background-color: var(--el-fill-color-light);
+    
+    .el-segmented__item {
+      border-radius: 6px;
+      font-weight: 500;
+      transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+    
+    .el-segmented__item-selected {
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+      font-weight: 600;
+    }
+  }
+
   // Element Plus 的遮罩层默认就是缓动的，这里稍微加速一点使其干脆
   .el-overlay {
     transition: opacity 0.2s ease;
