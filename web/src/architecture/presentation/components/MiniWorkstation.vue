@@ -78,86 +78,30 @@
 
         <section class="mini-current-output">
           <div :class="['mini-current-layout', { 'is-artifact-open': artifactPanelExpanded }]">
-            <aside class="mini-current-meta">
-              <header class="mini-current-session-head">
-                <div>
-                  <strong>{{ t('miniWorkstation.sessionList') }}</strong>
-                  <span :title="fullCodePath">{{ dirName || displayPath }}</span>
-                </div>
-                <em>{{ drawerSessionList.length }}</em>
-              </header>
-              <div v-if="hasDifferentCurrentContext" class="mini-current-context-switch">
-                <span>{{ t('miniWorkstation.currentPage') }}</span>
-                <strong :title="normalizedCurrentContextPath">{{ currentContextName }}</strong>
-                <button type="button" @click="openCurrentContextNewSession">
-                  {{ t('miniWorkstation.currentDirectoryNewSession') }}
-                </button>
-              </div>
-              <div class="mini-drawer-scope-tabs" role="tablist" :aria-label="t('miniWorkstation.sessionList')">
-                <button
-                  type="button"
-                  :class="{ active: drawerSessionScope === 'current' }"
-                  @click="setDrawerSessionScope('current')"
-                >
-                  {{ t('miniWorkstation.currentDirectory') }}
-                </button>
-                <button
-                  type="button"
-                  :class="{ active: drawerSessionScope === 'all' }"
-                  @click="setDrawerSessionScope('all')"
-                >
-                  {{ t('miniWorkstation.allSessions') }}
-                </button>
-              </div>
-              <label class="mini-drawer-session-search">
-                <el-icon :size="14"><Search /></el-icon>
-                <input v-model="sessionSearchKeyword" :placeholder="t('miniWorkstation.searchSessionsPlaceholder')" />
-              </label>
-              <div class="mini-drawer-session-filters">
-                <button
-                  v-for="filter in sessionFilters"
-                  :key="filter.value"
-                  type="button"
-                  :class="{ active: sessionFilter === filter.value }"
-                  @click="sessionFilter = filter.value"
-                >
-                  {{ filter.label }}
-                </button>
-              </div>
-              <div class="mini-current-session-list">
-                <button
-                  v-for="item in drawerSessionList"
-                  :key="item.session_id"
-                  type="button"
-                  :class="['mini-current-session-row', getSessionStatusClass(item), { active: item.session_id === sessionId }]"
-                  :title="getSessionTitle(item)"
-                  @click="handleDrawerSessionSelect(item)"
-                >
-                  <span class="mini-status-dot" :class="getSessionStatusClass(item)"></span>
-                  <span class="mini-current-session-copy">
-                    <span class="mini-current-session-title">{{ getSessionTitle(item) }}</span>
-                    <span class="mini-current-session-sub">
-                      {{ getSessionStatusLabel(item) }} · {{ formatRelativeTime(item.updated_at || item.created_at) }}
-                    </span>
-                  </span>
-                </button>
-                <button
-                  v-if="drawerSessionList.length === 0"
-                  type="button"
-                  class="mini-current-session-row active is-draft"
-                  @click="startNewSession"
-                >
-                  <span class="mini-status-dot"></span>
-                  <span class="mini-current-session-copy">
-                    <span class="mini-current-session-title">
-                      {{ drawerSessionScope === 'current' ? t('miniWorkstation.noCurrentDirectorySessions') : t('miniWorkstation.noMatchingSessions') }}
-                    </span>
-                    <span class="mini-current-session-sub">{{ t('miniWorkstation.clickNewSession') }}</span>
-                  </span>
-                </button>
-              </div>
-              <div v-if="queuedCount > 0" class="mini-queue-chip">{{ t('miniWorkstation.queuedCount', { count: queuedCount }) }}</div>
-            </aside>
+            <MiniWorkstationSessionPanel
+              :full-code-path="fullCodePath"
+              :dir-label="dirName || displayPath"
+              :sessions="drawerSessionList"
+              :active-session-id="sessionId"
+              :scope="drawerSessionScope"
+              :search-keyword="sessionSearchKeyword"
+              :filter="sessionFilter"
+              :filters="sessionFilters"
+              :queued-count="queuedCount"
+              :has-different-context="hasDifferentCurrentContext"
+              :current-context-name="currentContextName"
+              :current-context-path="normalizedCurrentContextPath"
+              :get-session-status-class="getSessionStatusClass"
+              :get-session-title="getSessionTitle"
+              :get-session-status-label="getSessionStatusLabel"
+              :format-relative-time="formatRelativeTime"
+              @update:search-keyword="sessionSearchKeyword = $event"
+              @update:filter="sessionFilter = $event"
+              @select="handleDrawerSessionSelect"
+              @new-session="startNewSession"
+              @scope-change="setDrawerSessionScope"
+              @context-new-session="openCurrentContextNewSession"
+            />
             <div class="mini-current-stream">
               <div class="mini-ws-output" ref="outputRef" @scroll.passive="captureOutputScroll">
                 <MiniWorkstationMessages
@@ -316,7 +260,6 @@ import {
   Clock,
   Close,
   Plus,
-  Search,
   UploadFilled,
   Setting
 } from '@element-plus/icons-vue'
@@ -330,6 +273,7 @@ import MiniWorkstationDisplayFieldPreviewDialog from './MiniWorkstationDisplayFi
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
 import MiniWorkstationDebugSettings from './MiniWorkstationDebugSettings.vue'
 import MiniWorkstationMessages from './MiniWorkstationMessages.vue'
+import MiniWorkstationSessionPanel from './MiniWorkstationSessionPanel.vue'
 import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { useMiniWorkstationPanel } from '../composables/useMiniWorkstationPanel'

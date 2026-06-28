@@ -1,6 +1,6 @@
 # Kageos 定时能力架构设计
 
-> 当前主线已上线 `agent.session` 定时会话和 `app.function` 定时函数。`workflow.run`、`workflow-server` 和 `/workflow/api/v1/scheduled_workflows` 只表示未来预留设计，当前未上线、没有主线用户入口。
+> 当前主线已上线 `agent.session` Agent 任务和 `app.function` 函数任务。`workflow.run`、`workflow-server` 和 `/workflow/api/v1/scheduled_workflows` 只表示未来预留设计，当前未上线、没有主线用户入口。
 
 ## 目标
 
@@ -151,7 +151,7 @@ flowchart TB
 | 模块 | 可以知道 | 不应该知道 |
 | --- | --- | --- |
 | `timer-scheduler` | 时间规则、执行器 key、opaque `executor_payload`、执行状态 | app 函数 schema、工作台 session、workflow 节点 |
-| `agent-server` | 定时会话配置、WorkspaceChatService、执行摘要 | scheduler 的 next_run_at 计算细节 |
+| `agent-server` | Agent 任务配置、WorkspaceChatService、执行摘要 | scheduler 的 next_run_at 计算细节 |
 | `app-server` | 函数路径、schema、权限、RequestApp、操作日志 | scheduler 内部租约和 due scan 细节 |
 | `workflow-server` | 未上线；未来负责 workflow 定义、输入映射、运行记录 | app/agent 的内部执行细节 |
 | `scheduledsdk` | HTTP 控制面 client、NATS worker/状态回写协议、事件结构 | 任何业务模型 |
@@ -294,7 +294,7 @@ flowchart TB
 
 ## 创建链路
 
-### 定时会话创建
+### Agent 任务创建
 
 ```mermaid
 sequenceDiagram
@@ -331,7 +331,7 @@ sequenceDiagram
 当前前端 MVP 有两个入口：
 
 1. **就地创建**：普通 Form 的「提交」旁、Table 新增弹窗的「确定」旁、Table 编辑抽屉的「保存」旁展示定时按钮。按钮所在组件负责复用当前表单校验，并把当前表单值构造成 `executor_payload.payload`。
-2. **集中管理**：函数详情页的「定时函数」Tab 只负责查询、创建通用任务、暂停、恢复、取消、立即执行和查看执行记录。
+2. **集中管理**：函数详情页的「函数任务」Tab 只负责查询、创建通用任务、暂停、恢复、取消、立即执行和查看执行记录。
 
 就地创建链路如下：
 
@@ -548,7 +548,7 @@ SDK 负责 NATS queue group、重投递幂等、`MarkStarted`、heartbeat、`Mar
 
 ## Agent 工作台接入
 
-工作台里新增专门的 `automation_operator`（自动执行配置）角色，负责创建和管理定时函数、定时会话以及执行记录。它是 `app_operator` 的后续角色之一：应用执行负责“现在执行一次”，自动执行配置负责“以后自动执行”。
+工作台里新增专门的 `automation_operator`（自动执行配置）角色，负责创建和管理函数任务、Agent 任务以及执行记录。它是 `app_operator` 的后续角色之一：应用执行负责“现在执行一次”，自动执行配置负责“以后自动执行”。
 
 ```mermaid
 flowchart LR
@@ -566,8 +566,8 @@ Agent 侧工具边界：
 
 | 工具 | 用途 | 边界 |
 | --- | --- | --- |
-| `create_scheduled_function_task` | 创建 `executor_key=app.function` 的定时函数任务 | 只创建 timer 任务，不直接调用 `run_*`；创建前校验当前用户对 `full_code_path` 的 delegated 权限 |
-| `create_scheduled_agent_task` | 创建 `executor_key=agent.session` 的定时会话任务 | 目标是工作台目录和自然语言 message，不修改代码、不 build |
+| `create_scheduled_function_task` | 创建 `executor_key=app.function` 的函数任务任务 | 只创建 timer 任务，不直接调用 `run_*`；创建前校验当前用户对 `full_code_path` 的 delegated 权限 |
+| `create_scheduled_agent_task` | 创建 `executor_key=agent.session` 的 Agent 任务任务 | 目标是工作台目录和自然语言 message，不修改代码、不 build |
 | `list_scheduled_tasks` | 查询目录下全部任务 | 默认按当前 `execute_directory` 及其子资源全量查询，不按创建人过滤，可按 kind/status 过滤 |
 | `manage_scheduled_task` | 暂停、恢复、取消、立即运行 | 只能管理当前用户创建或代执行的任务；可用 `resource_path` 二次校验归属 |
 | `list_scheduled_task_executions` | 查询执行记录 | 先校验任务归属，再读执行记录 |
@@ -725,8 +725,8 @@ SDK worker 默认使用下面的 NATS request/reply subjects 回写执行状态�
 
 | 工具 | 作用 |
 | --- | --- |
-| `create_scheduled_agent_task` | 创建定时会话 |
-| `create_scheduled_function_task` | 创建定时函数任务 |
+| `create_scheduled_agent_task` | 创建 Agent 任务 |
+| `create_scheduled_function_task` | 创建函数任务任务 |
 | `list_scheduled_tasks` | 按 kind/status/path 查询定时任务 |
 | `manage_scheduled_task` | pause/resume/cancel/delete/run_now |
 | `list_scheduled_task_executions` | 查询任务执行记录 |
@@ -736,8 +736,8 @@ SDK worker 默认使用下面的 NATS request/reply subjects 回写执行状态�
 ```mermaid
 flowchart LR
   Tree["ServiceTree 节点"] --> Panel["Scheduled panel"]
-  Panel --> AgentTab["定时会话"]
-  Panel --> FunctionTab["定时函数"]
+  Panel --> AgentTab["Agent 任务"]
+  Panel --> FunctionTab["函数任务"]
   Panel --> WorkflowTab["定时工作流 future not launched"]
   AgentTab --> Detail["任务详情 + 执行记录"]
   FunctionTab --> Detail
@@ -748,7 +748,7 @@ flowchart LR
 第一版前端可以先轻一点：
 
 - ServiceTree 节点右侧面板展示该节点和子节点下的定时任务。
-- MiniWorkstation/Agent 工具可创建定时会话。
+- MiniWorkstation/Agent 工具可创建 Agent 任务。
 - 详情页展示 scheduler task 状态和 execution 列表。
 - 暂不做复杂可视化 cron 编辑器，先用表单字段。
 
@@ -767,7 +767,7 @@ flowchart LR
 - 接入部署配置和健康检查。
 - 不接业务 executor，先用测试 executor 验证 atime/cron/every。
 
-### Phase 2: 定时会话 `agent.session`
+### Phase 2: Agent 任务 `agent.session`
 
 - agent-server 定义 `agent.session` payload schema；如果选择 binding 模式，再新增 `agent_schedule_config`。
 - 注册 `agent.session` worker。
@@ -775,7 +775,7 @@ flowchart LR
 - Agent 工具支持创建、查询、立即执行、取消。
 - 前端先展示列表和执行记录。
 
-### Phase 3: 定时函数 `app.function`
+### Phase 3: 函数任务 `app.function`
 
 - app-server 定义 `app.function` payload schema；如果选择 binding 模式，再新增 `app_function_schedule_config`。
 - 实现薄 executor：校验 schema、重新校验权限、构造 RequestApp。
@@ -824,7 +824,7 @@ flowchart LR
 
 ## 第一版验收标准
 
-- 能创建一个 `atime` 定时会话，到点自动产生 workspace session。
+- 能创建一个 `atime` Agent 任务，到点自动产生 workspace session。
 - 能查询 timer task 和 execution，看到 queued/running/success/failed。
 - scheduler 重启后不会丢 due task。
 - NATS 短暂失败后 outbox 能重试。

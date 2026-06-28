@@ -43,7 +43,7 @@ type sendNotificationResultData struct {
 
 var sendNotificationToolDef = toolDefinitionWithOutput[sendNotificationArgs, structuredToolResultSchema[sendNotificationResultData]](
 	"send_notification",
-	"发送一条单向通知给用户，不等待回复。适合定时会话或无人值守 Agent 在发现高优先级情报、风险、异常，或任务明确要求通知时主动提醒用户；不要用它询问用户并等待回复。当前上下文有请求用户或会话创建人时，通知当前用户/创建人/我可省略 to_users；没有默认用户时才必须显式传 to_users。首次基准记录、无变化结果、普通状态报告默认不通知。多个 username 用逗号分隔。通知来源会继承当前工作台/定时任务上下文，不会归到某个通知函数目录。content_type=html 时站内信会按安全清洗后的 HTML 渲染。",
+	"发送一条单向通知给用户，不等待回复。适合 Agent 任务或无人值守 Agent 在发现高优先级情报、风险、异常，或任务明确要求通知时主动提醒用户；不要用它询问用户并等待回复。当前上下文有请求用户或会话创建人时，通知当前用户/创建人/我可省略 to_users；没有默认用户时才必须显式传 to_users。首次基准记录、无变化结果、普通状态报告默认不通知。多个 username 用逗号分隔。通知来源会继承当前工作台/定时任务上下文，不会归到某个通知函数目录。content_type=html 时站内信会按安全清洗后的 HTML 渲染。",
 )
 
 func (t *SendNotificationTool) Definition() dto.ToolDef {
@@ -267,7 +267,7 @@ func buildNotifyMessageMeta(ctx context.Context, title string, currentFullCodePa
 func defaultNotifySourceTitle(sourceType string, title string) string {
 	switch strings.TrimSpace(sourceType) {
 	case contextx.SourceTypeScheduledTask:
-		return "定时会话通知"
+		return "Agent 任务通知"
 	case contextx.SourceTypeAgentTool:
 		return "工作台会话通知"
 	default:

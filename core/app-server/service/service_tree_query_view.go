@@ -288,7 +288,7 @@ func (q *serviceTreeQueryView) annotateScheduledAgentTaskCounts(ctx context.Cont
 	defer cancel()
 	counts, failed := loadScheduledAgentTaskCountsByDirectory(badgeCtx, client, packages)
 	if failed > 0 {
-		logger.Debugf(ctx, "[ServiceTreeService] 定时会话徽章部分加载失败: failed=%d total=%d", failed, len(packages))
+		logger.Debugf(ctx, "[ServiceTreeService] Agent 任务徽章部分加载失败: failed=%d total=%d", failed, len(packages))
 	}
 	applyScheduledAgentTaskSubtreeCounts(root, counts)
 }

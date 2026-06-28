@@ -56,9 +56,9 @@ type createScheduledFunctionTaskArgs struct {
 }
 
 type createScheduledAgentTaskArgs struct {
-	FullCodePath       string `json:"full_code_path" schema_desc:"定时会话运行的工作台目录或应用路径，例如 /system/app；通常就是当前 execute_directory，不是具体 .form/.table/.chart 函数路径"`
-	Title              string `json:"title" schema_desc:"定时会话名称，用来在列表里识别这条任务，例如 每日热点推送"`
-	Message            string `json:"message" schema_desc:"到点后直接发送给工作台会话的完整用户消息。必须像无人值守运行手册一样写清：任务性质、长期目标、绑定目录/资源（路径可用 </full/code/path> 标记）、可用的其他目录/函数/连接器、预期使用工具清单（如 change_role/search/read_dir/web_search/run_table_search/run_table_create/run_table_update/run_form_submit/run_chart_query/send_notification）、执行步骤、按业务场景裁剪的质量控制策略、失败处理、输出格式、通知规则。定时会话运行时会注入任务创建人/请求用户作为默认通知对象；需要通知创建人、当前用户或“我”时，send_notification 可省略 to_users，也可显式传创建人 username；首次基准记录、无变化结果、普通状态报告默认不通知。运行时用户不在线，不能写“到时候问我/等待确认”。如果只是固定调用一个函数，请改用 create_scheduled_function_task"`
+	FullCodePath       string `json:"full_code_path" schema_desc:"Agent 任务运行的工作台目录或应用路径，例如 /system/app；通常就是当前 execute_directory，不是具体 .form/.table/.chart 函数路径"`
+	Title              string `json:"title" schema_desc:"Agent 任务名称，用来在列表里识别这条任务，例如 每日热点推送"`
+	Message            string `json:"message" schema_desc:"到点后交给工作台 Agent 执行的完整说明。必须像无人值守运行手册一样写清：任务性质、长期目标、绑定目录/资源（路径可用 </full/code/path> 标记）、可用的其他目录/函数/连接器、预期使用工具清单（如 change_role/search/read_dir/web_search/run_table_search/run_table_create/run_table_update/run_form_submit/run_chart_query/send_notification）、执行步骤、按业务场景裁剪的质量控制策略、失败处理、输出格式、通知规则。Agent 任务运行时会注入任务创建人/请求用户作为默认通知对象；需要通知创建人、当前用户或“我”时，send_notification 可省略 to_users，也可显式传创建人 username；首次基准记录、无变化结果、普通状态报告默认不通知。运行时用户不在线，不能写“到时候问我/等待确认”。如果只是固定调用一个函数，请改用 create_scheduled_function_task"`
 	ScheduleType       string `json:"schedule_type" schema_desc:"计划类型，可不传。只填 run_at 会自动当一次性任务；只填 cron_expr 会自动当 cron 周期任务；只填 interval_seconds 会自动当每隔 N 秒任务" schema_enum:"atime,cron,every"`
 	RunAt              string `json:"run_at" schema_desc:"一次性任务的执行时间，例如 2026-06-10 09:30:00 或 RFC3339；无时区时按 timezone 解析"`
 	CronExpr           string `json:"cron_expr" schema_desc:"cron 周期表达式，例如每分钟 * * * * *，每天 9 点 0 9 * * *"`
@@ -66,7 +66,7 @@ type createScheduledAgentTaskArgs struct {
 	Timezone           string `json:"timezone" schema_desc:"可选 IANA 时区；不传则使用平台部署时区。cron 和无时区 run_at 会使用它"`
 	MaxRuns            int    `json:"max_runs" schema_desc:"最多执行次数；0 表示不限制，atime 通常为 1"`
 	ModeCode           string `json:"mode_code" schema_desc:"工作台模式，通常不用传，默认 dev"`
-	Files              string `json:"files" schema_desc:"定时会话需要带上的附件 refs，多个用逗号分隔；没有附件就不传"`
+	Files              string `json:"files" schema_desc:"Agent 任务需要带上的附件 refs，多个用逗号分隔；没有附件就不传"`
 	LLMConfigID        int64  `json:"llm_config_id" schema_desc:"可选 LLM 配置 ID"`
 	MaxDurationSeconds int64  `json:"max_duration_seconds" schema_desc:"可选最大执行时长秒数"`
 	Description        string `json:"description" schema_desc:"任务说明"`
@@ -75,7 +75,7 @@ type createScheduledAgentTaskArgs struct {
 }
 
 type listScheduledTasksArgs struct {
-	Kind         string `json:"kind" schema_desc:"任务类型：function=定时函数，agent_session=定时会话，all=全部" schema_enum:"function,agent_session,all"`
+	Kind         string `json:"kind" schema_desc:"任务类型：function=函数任务，agent_session=Agent 任务，all=全部" schema_enum:"function,agent_session,all"`
 	ResourcePath string `json:"resource_path" schema_desc:"资源完整路径；不传则使用当前 execute_directory"`
 	Status       string `json:"status" schema_desc:"任务状态过滤" schema_enum:"pending,paused,done,failed,cancelled"`
 	Page         int    `json:"page" schema_desc:"页码，默认 1"`
@@ -97,17 +97,17 @@ type listScheduledTaskExecutionsArgs struct {
 
 var createScheduledFunctionTaskToolDef = toolDefinition[createScheduledFunctionTaskArgs](
 	"create_scheduled_function_task",
-	"创建【定时函数】任务：到点后直接调用一个已确认的 Form/Table/Chart 函数，也就是固定函数路径 + 固定 body。适合“定时提交这个表单”“每天查这个图表”“每周新增这些表格记录”这类固定动作。只要目标已经能写成一次 run_form_submit/run_table_create/run_table_update/run_table_delete/run_chart_query，就优先用这个工具，不要创建定时会话。不要用于需要 Agent 到时候判断、搜索多个资源、总结分析或临场决定步骤的任务，那种用 create_scheduled_agent_task。定时任务运行时用户不在线，创建前必须问清所有必要参数和确认项；不要创建会在执行时还需要用户回答的问题。创建前必须用 search 确认函数 schema、必填字段和枚举；body 直接传业务 JSON 字符串，不要传 invoke_params 包装。周期性写入任务必须先向用户复述执行对象、频率、参数、最大次数和取消方式，并等用户明确确认后再创建。工具只创建 timer-scheduler 任务，不会立即执行业务写入；后续执行会以 source=scheduled_task 进入操作日志。",
+	"创建【函数任务】：到点后直接调用一个已确认的 Form/Table/Chart 函数，也就是固定函数路径 + 固定 body。适合“定时提交这个表单”“每天查这个图表”“每周新增这些表格记录”这类固定动作。只要目标已经能写成一次 run_form_submit/run_table_create/run_table_update/run_table_delete/run_chart_query，就优先用这个工具，不要创建 Agent 任务。不要用于需要 Agent 到时候判断、搜索多个资源、总结分析或临场决定步骤的任务，那种用 create_scheduled_agent_task。定时任务运行时用户不在线，创建前必须问清所有必要参数和确认项；不要创建会在执行时还需要用户回答的问题。创建前必须用 search 确认函数 schema、必填字段和枚举；body 直接传业务 JSON 字符串，不要传 invoke_params 包装。周期性写入任务必须先向用户复述执行对象、频率、参数、最大次数和取消方式，并等用户明确确认后再创建。工具只创建 timer-scheduler 任务，不会立即执行业务写入；后续执行会以 source=scheduled_task 进入操作日志。",
 )
 
 var createScheduledAgentTaskToolDef = toolDefinition[createScheduledAgentTaskArgs](
 	"create_scheduled_agent_task",
-	"创建【定时会话】任务：到点后启动一个 Agent 工作台会话，并把 message 当作用户消息直接发给该会话。核心参数是 title + message；其它参数只是目录、时间、附件、模型等配置。每 N 秒执行请传 interval_seconds，例如每 5 分钟传 interval_seconds=300；不要把这些参数包进 body。适合“模型库每 6 小时巡检全球厂商和新模型并可信写入”“每天整理新闻日报”“每周读取业务数据生成周报”“定期巡检工单/订单/库存异常”这类需要 Agent 判断、查询、总结、维护长期数据或组合多个动作的任务。定时会话可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数，message 里的资源路径可用 </full/code/path> 轻量标记。定时会话是无人值守执行，运行时用户无法回答问题；创建前必须把范围、可用资源/函数、预期使用工具清单、必要参数、按业务场景裁剪的质量控制策略、输出格式、失败处理和风险确认问清楚，并全部写进 message，不能留下“到时候问用户/等待确认”。message 必须明确列出预计使用哪些工具以及何时使用，例如 change_role、read_dir/search、web_search、run_table_search、run_table_create/run_table_update、run_form_submit、run_chart_query、send_notification；定时会话运行时会注入任务创建人/请求用户作为默认通知对象；send_notification 通知创建人、当前用户或“我”时可省略 to_users，也可显式传创建人 username；首次基准记录、无变化结果、普通状态报告默认不通知；质量规则要结合业务，不要把示例机械套到所有任务。不要用于已明确的单个 Form/Table/Chart 函数调用；如果目标能写成固定函数路径 + 固定 body，请用 create_scheduled_function_task，更稳定也更便宜。创建前必须确认 full_code_path 是目标工作空间/目录，不是具体函数路径；message 不能包含未授权的跨应用操作。",
+	"创建【Agent 任务】：到点后启动一个 Agent 工作台会话，并把 message 当作执行说明交给工作台 Agent。核心参数是 title + message；其它参数只是目录、时间、附件、模型等配置。每 N 秒执行请传 interval_seconds，例如每 5 分钟传 interval_seconds=300；不要把这些参数包进 body。适合“模型库每 6 小时巡检全球厂商和新模型并可信写入”“每天整理新闻日报”“每周读取业务数据生成周报”“定期巡检工单/订单/库存异常”这类需要 Agent 判断、查询、总结、维护长期数据或组合多个动作的任务。Agent 任务可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数，message 里的资源路径可用 </full/code/path> 轻量标记。Agent 任务是无人值守执行，运行时用户无法回答问题；创建前必须把范围、可用资源/函数、预期使用工具清单、必要参数、按业务场景裁剪的质量控制策略、输出格式、失败处理和风险确认问清楚，并全部写进 message，不能留下“到时候问用户/等待确认”。message 必须明确列出预计使用哪些工具以及何时使用，例如 change_role、read_dir/search、web_search、run_table_search、run_table_create/run_table_update、run_form_submit、run_chart_query、send_notification；Agent 任务运行时会注入任务创建人/请求用户作为默认通知对象；send_notification 通知创建人、当前用户或“我”时可省略 to_users，也可显式传创建人 username；首次基准记录、无变化结果、普通状态报告默认不通知；质量规则要结合业务，不要把示例机械套到所有任务。不要用于已明确的单个 Form/Table/Chart 函数调用；如果目标能写成固定函数路径 + 固定 body，请用 create_scheduled_function_task，更稳定也更便宜。创建前必须确认 full_code_path 是目标工作空间/目录，不是具体函数路径；message 不能包含未授权的跨应用操作。",
 )
 
 var listScheduledTasksToolDef = toolDefinition[listScheduledTasksArgs](
 	"list_scheduled_tasks",
-	"查询指定目录下全部定时任务，不按创建人过滤。kind=function 查定时函数，kind=agent_session 查定时会话，kind=all 查全部；默认按当前 execute_directory 及其子资源查询，也可按 resource_path 和 status 过滤。目录路径会返回绑定到该目录的定时会话，以及目录下函数的定时函数。",
+	"查询指定目录下全部定时任务，不按创建人过滤。kind=function 查函数任务，kind=agent_session 查 Agent 任务，kind=all 查全部；默认按当前 execute_directory 及其子资源查询，也可按 resource_path 和 status 过滤。目录路径会返回绑定到该目录的 Agent 任务，以及目录下函数的函数任务。",
 )
 
 var manageScheduledTaskToolDef = toolDefinition[manageScheduledTaskArgs](
@@ -266,7 +266,7 @@ func runCreateScheduledFunctionTask(ctx context.Context, args createScheduledFun
 	return toolResultWithStructuredData(map[string]interface{}{
 		"task":        task,
 		"next_run_at": task.NextRunAt,
-		"message":     "定时函数已创建",
+		"message":     "函数任务已创建",
 	}, false)
 }
 
@@ -279,7 +279,7 @@ func runCreateScheduledAgentTask(ctx context.Context, args createScheduledAgentT
 	}
 	message := strings.TrimSpace(args.Message)
 	if message == "" {
-		return toolResult("create_scheduled_agent_task 需传 message。message 就是到点后直接发给工作台会话的用户消息。", true)
+		return toolResult("create_scheduled_agent_task 需传 message。message 是到点后交给 Agent 的执行说明。", true)
 	}
 	schedule, err := buildScheduledTaskSchedule(args.scheduleArgs())
 	if err != nil {
@@ -342,7 +342,7 @@ func runCreateScheduledAgentTask(ctx context.Context, args createScheduledAgentT
 	return toolResultWithStructuredData(map[string]interface{}{
 		"task":        task,
 		"next_run_at": task.NextRunAt,
-		"message":     "定时会话已创建，默认暂停；需要启用后才会无人值守执行。",
+		"message":     "Agent 任务已创建，默认暂停；需要启用后才会无人值守执行。",
 	}, false)
 }
 
@@ -573,7 +573,7 @@ func rejectCreateScheduledAgentTaskUnknownArgs(args map[string]interface{}) erro
 	}
 	for key := range args {
 		if _, ok := allowed[key]; !ok {
-			return fmt.Errorf("不支持参数 %q；定时会话只接收顶层 title、message、full_code_path（directory 仅兼容旧别名）和计划配置，间隔执行请用 interval_seconds", key)
+			return fmt.Errorf("不支持参数 %q；Agent 任务只接收顶层 title、message、full_code_path（directory 仅兼容旧别名）和计划配置，间隔执行请用 interval_seconds", key)
 		}
 	}
 	return nil
@@ -889,7 +889,7 @@ func defaultScheduledAgentTitle(fullCodePath string, message string) string {
 	if name == "" {
 		name = "工作台"
 	}
-	return name + " 定时会话"
+	return name + " Agent 任务"
 }
 
 func defaultScheduledAgentTitleFromMessage(message string) string {

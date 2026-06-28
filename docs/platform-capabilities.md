@@ -8,7 +8,7 @@
 
 | 状态 | 能力 |
 | --- | --- |
-| 已上线 | Service Tree、权限/操作日志、AI 工作台会话、Form/Table/Chart/Docs、站内信、定时函数 `app.function`、定时会话 `agent.session`。 |
+| 已上线 | Service Tree、权限/操作日志、AI 工作台会话、Form/Table/Chart/Docs、站内信、函数任务 `app.function`、Agent 任务 `agent.session`。 |
 | 未上线/架构预留 | workflow 图、`workflow.run`、通用流程审批、讨论区、点赞/评论/评分、外部通知渠道、备份控制面。 |
 | 建设中/商业路线 | Hub 目录市场、公共试用实例、企业私有 Hub、SSO/SLA 等托管 SaaS 增强能力。 |
 
@@ -35,7 +35,7 @@
 - `POST /agent/api/v1/workspace/sessions/handoff`：创建阶段交接会话。
 - `POST /agent/api/v1/workspace/chat/cancel`：取消正在运行的会话。
 
-定时会话也是工作台会话的一种执行形态。`timer-scheduler` 到点后投递 `executor_key=agent.session`，`agent-server` worker 创建无人值守工作台会话，并把任务 `message` 当作完整用户消息执行。定时会话运行时用户不在线，所以消息必须写清执行步骤、可用工具、风险边界、失败处理和通知规则。
+Agent 任务也是工作台会话的一种执行形态。`timer-scheduler` 到点后投递 `executor_key=agent.session`，`agent-server` worker 创建无人值守工作台会话，并把任务 `message` 当作执行说明交给 Agent。Agent 任务运行时用户不在线，所以执行说明必须写清执行步骤、可用工具、风险边界、失败处理和通知规则。
 
 ## 消息和站内信
 
@@ -102,7 +102,7 @@ flowchart LR
 ## 开发边界
 
 - 业务应用发通知时使用 `ctx.SendMessage`，不要直接写 `message-server` 的表，也不要绑定具体外部渠道。
-- Agent 后台任务发通知时使用 `send_notification`。定时会话和后台上下文必须显式写 `to_users`，通知创建人/当前用户时使用任务创建人的 username。
+- Agent 后台任务发通知时使用 `send_notification`。Agent 任务和后台上下文必须显式写 `to_users`，通知创建人/当前用户时使用任务创建人的 username。
 - 业务应用需要默认定时执行时使用 `FormTemplate.Schedules`；临时或运营型自动化由自动执行配置创建 `timer-scheduler` 任务。
 - Service Tree 路径、`full_code_path`、`source_path`、trace 和操作日志是平台排障与跳转的共同索引，新增能力时应完整传递，不要在前端用临时 URL 状态替代持久来源信息。
 - 权限是当前平台能力；审批、评论、收藏、外部通知渠道和备份控制面目前未上线，不应由单个业务 App 自造通用版本。

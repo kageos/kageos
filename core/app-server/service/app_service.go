@@ -499,7 +499,7 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 		return fmt.Errorf("同步默认定时任务失败: %w", err)
 	}
 	if err := a.reconcilePackageAgentTasks(ctx, state, diffData.Packages); err != nil {
-		return fmt.Errorf("同步默认定时会话失败: %w", err)
+		return fmt.Errorf("同步默认 Agent 任务失败: %w", err)
 	}
 
 	// 处理删除的API

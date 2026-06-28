@@ -214,7 +214,7 @@ func lockScheduledAgentRoleHandoffDirectory(ctx context.Context, handoff roleHan
 	if requested == "" {
 		handoff.ExecuteDirectory = root
 		handoff.KeyInformation = appendUniqueRoleHandoffStrings([]string{
-			"定时会话执行目录已固定为任务绑定目录：" + root,
+			"Agent 任务执行目录已固定为任务绑定目录：" + root,
 		}, handoff.KeyInformation...)
 		return handoff
 	}
@@ -223,8 +223,8 @@ func lockScheduledAgentRoleHandoffDirectory(ctx context.Context, handoff roleHan
 	}
 	handoff.ExecuteDirectory = root
 	handoff.KeyInformation = appendUniqueRoleHandoffStrings([]string{
-		fmt.Sprintf("定时会话目录护栏：模型请求切换到 %s，但任务绑定目录是 %s，已固定回任务目录。", requested, root),
-		"定时会话执行时不要根据标题或路径片段猜目录；始终使用任务绑定的 full_code_path。",
+		fmt.Sprintf("Agent 任务目录护栏：模型请求切换到 %s，但任务绑定目录是 %s，已固定回任务目录。", requested, root),
+		"Agent 任务执行时不要根据标题或路径片段猜目录；始终使用任务绑定的 full_code_path。",
 	}, handoff.KeyInformation...)
 	return handoff
 }

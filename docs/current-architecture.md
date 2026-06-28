@@ -485,7 +485,7 @@ sequenceDiagram
 
 ## 工作台会话链路
 
-工作台会话是 `agent-server` 的持久化能力，不只是一次临时 SSE 请求。前端发起 `/agent/api/v1/workspace/chat/stream` 后，`agent-server` 会保存 session、message、工具调用状态、pending interaction、运行中/已完成状态和阶段交接记录。普通用户对话、代码生成修复、定时会话执行，都会落在这套 session/message 模型上。
+工作台会话是 `agent-server` 的持久化能力，不只是一次临时 SSE 请求。前端发起 `/agent/api/v1/workspace/chat/stream` 后，`agent-server` 会保存 session、message、工具调用状态、pending interaction、运行中/已完成状态和阶段交接记录。普通用户对话、代码生成修复、Agent 任务执行，都会落在这套 session/message 模型上。
 
 ```mermaid
 sequenceDiagram
@@ -626,7 +626,7 @@ flowchart LR
 | --- | --- |
 | `api-gateway` | HTTP 反向代理、Trace、鉴权头透传、token blacklist NATS 订阅、Swagger 聚合 |
 | `app-server` | 工作区 API、Service Tree、能力包安装导出、权限、操作日志、函数元数据、用户 App 调用编排 |
-| `agent-server` | 工作台会话、会话消息、LLM 配置、ToolRegistry、PRD/代码生成、通知工具和定时会话 worker |
+| `agent-server` | 工作台会话、会话消息、LLM 配置、ToolRegistry、PRD/代码生成、通知工具和 Agent 任务 worker |
 | `app-runtime` | App 创建/更新/删除、源码文件和版本元数据、容器生命周期、NATS runtime handler、App discovery |
 | `github.com/kageos/kageos-sdk/agent-app` | 生成 App 的运行时 SDK，注册 Form/Table/Chart/Callback 路由并通过 NATS 接收调用 |
 | `timer-scheduler` | 唯一调度状态源，业务 payload 不解析，只按 executor_key 投递 |

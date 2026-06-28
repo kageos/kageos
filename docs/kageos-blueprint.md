@@ -194,7 +194,7 @@ flowchart LR
 | `core/app-storage` | 文件上传、下载、预签名和对象元数据 | 业务文件走这里，不要自己拼对象 URL |
 | `core/hr-server` | 登录、用户、组织、系统设置 | 鉴权和基础用户域 |
 | `core/connector-server` | OAuth 和第三方连接器代理 | 外部 API 连接的统一入口 |
-| `core/timer-scheduler` | 定时任务、执行记录、租约、outbox | 定时函数和定时会话都走这里 |
+| `core/timer-scheduler` | 定时任务、执行记录、租约、outbox | 函数任务和 Agent 任务都走这里 |
 | `core/message-server` | 站内信、线程、未读、通知命令消费 | SDK `ctx.SendMessage` 最终落这里 |
 | `pkg` | 平台内部共享库 | 工作空间应用不要导入主仓 `pkg`，要用公开 SDK |
 | `web/src/architecture` | Vue 前端主架构 | 遵守 domain/application/infrastructure/presentation 分层 |

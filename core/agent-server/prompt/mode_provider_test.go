@@ -34,9 +34,9 @@ func TestDevModePromptIsShortAndDoesNotAppendAllInOne(t *testing.T) {
 		!strings.Contains(got, "能力地图") ||
 		!strings.Contains(got, "角色文档不是主路由入口") ||
 		!strings.Contains(got, "`automation_operator` 自动执行配置") ||
-		!strings.Contains(got, "定时函数、定时会话") ||
+		!strings.Contains(got, "函数任务、Agent 任务") ||
 		!strings.Contains(got, "Form 默认调度") ||
-		!strings.Contains(got, "固定函数和固定参数用定时函数") ||
+		!strings.Contains(got, "固定函数和固定参数用函数任务") ||
 		!strings.Contains(got, "`reviewer` 代码审查分析师") ||
 		!strings.Contains(got, "可以沿用当前角色继续推进") ||
 		!strings.Contains(got, "主执行目录/绑定目录") ||

@@ -156,7 +156,7 @@ type PackageInfo struct {
 	Desc        string            `json:"desc"`                  // 描述
 	RouterGroup string            `json:"router_group"`          // 路由组路径（如 "/plugins/pdf"）
 	FullPath    string            `json:"full_path"`             // 完整路径（如 "/user/app/plugins/pdf"）
-	AgentTasks  []AgentTaskConfig `json:"agent_tasks,omitempty"` // package 出厂默认定时会话模板
+	AgentTasks  []AgentTaskConfig `json:"agent_tasks,omitempty"` // package 出厂默认 Agent 任务模板
 }
 
 type AgentTaskConfig struct {

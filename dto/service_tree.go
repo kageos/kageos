@@ -63,7 +63,7 @@ type GetServiceTreeResp struct {
 	Version             string                `json:"version,omitempty" example:"v1"`                        // 节点当前版本号（如 v1, v2），package类型表示目录版本，function类型表示函数版本等
 	VersionNum          int                   `json:"version_num,omitempty" example:"1"`                     // 节点当前版本号（数字部分）
 	HasFunction         bool                  `json:"has_function,omitempty" example:"true"`                 // ⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true
-	ScheduledAgentTasks int                   `json:"scheduled_agent_tasks,omitempty"`                       // 当前目录及子目录内的定时会话数量（仅对package类型有意义）
+	ScheduledAgentTasks int                   `json:"scheduled_agent_tasks,omitempty"`                       // 当前目录及子目录内的 Agent 任务数量（仅对package类型有意义）
 	RunCount            int                   `json:"run_count,omitempty"`                                   // ⭐ 运行次数（仅 function 类型有意义），用于排序与展示「已使用 N 次」
 	Permissions         access.PermissionSet  `json:"permissions,omitempty"`                                 // 当前用户对节点的权限
 	RoleCodes           []access.RoleCode     `json:"role_codes,omitempty"`                                  // 当前用户在该节点命中的角色

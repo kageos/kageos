@@ -186,7 +186,7 @@ func (s *ServiceTree) GetServiceTreeDetail(c *gin.Context) {
 
 // GetDirectoryOverview 获取目录概览
 // @Summary 获取目录概览
-// @Description 汇总当前目录及可读子目录/函数的资源统计、定时函数和定时会话配置
+// @Description 汇总当前目录及可读子目录/函数的资源统计、函数任务和 Agent 任务配置
 // @Tags 服务目录
 // @Accept json
 // @Produce json
