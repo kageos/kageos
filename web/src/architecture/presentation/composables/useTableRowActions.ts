@@ -175,6 +175,7 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
     if (/^(id|created_at|updated_at|create_time|update_time|creator|updater|modifier|created_by)$/.test(code) || 
         /(ID|创建|更新|修改)(时间|人)/.test(name)) {
       if (type === WidgetType.DATETIME) return Math.max(headerWidth, 180)
+      if (type === WidgetType.USER || type === WidgetType.USERS) return Math.max(headerWidth, 140)
       return Math.max(headerWidth, 80)
     }
 
@@ -200,6 +201,8 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
       minWidth = Math.max(headerWidth, 120)
     } else if (type === WidgetType.SELECT || type === WidgetType.MULTI_SELECT) {
       minWidth = Math.max(headerWidth, 100)
+    } else if (type === WidgetType.USER || type === WidgetType.USERS || type === WidgetType.DEPARTMENT || type === WidgetType.DEPARTMENTS) {
+      minWidth = Math.max(headerWidth, 140)
     }
 
     return Math.max(headerWidth, Math.min(Math.max(minWidth, dataBasedWidth), 350))

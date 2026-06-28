@@ -202,6 +202,8 @@ export function useTableWidgetDisplay(
       minWidth = Math.max(headerWidth, 120)
     } else if (type === WidgetType.SELECT || type === WidgetType.MULTI_SELECT) {
       minWidth = Math.max(headerWidth, 100)
+    } else if (type === WidgetType.USER || type === WidgetType.USERS || type === WidgetType.DEPARTMENT || type === WidgetType.DEPARTMENTS) {
+      minWidth = Math.max(headerWidth, 140)
     }
 
     // 在编辑模式下，由于输入框本身需要操作空间，走组件底线与表头宽度
