@@ -35,6 +35,29 @@ export default defineConfig(({ command, mode }) => {
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  // 预声明依赖：让 Vite 在 dev 启动时一次性预构建，避免边浏览边发现 EP 组件样式 /
+  // echarts 深层 install 模块而反复 re-optimize + 整页 reload（reload 半途会让
+  // echarts 坐标系注册出现竞态，表现为 "cartesian2d cannot be found"）。
+  optimizeDeps: {
+    include: [
+      // ElementPlus 按需样式（importStyle: 'css'），用 glob 一次性纳入
+      'element-plus/es/components/*/style/css',
+      // echarts 核心 + 按需 install 模块（必须与 core 一起预构建，保证单实例注册）
+      'echarts/core',
+      'echarts/lib/component/title/install.js',
+      'echarts/lib/component/tooltip/install.js',
+      'echarts/lib/component/axisPointer/install.js',
+      'echarts/lib/component/legend/install.js',
+      'echarts/lib/component/grid/install.js',
+      'echarts/lib/component/dataZoom/install.js',
+      'echarts/lib/coord/cartesian/legacyContainLabel.js',
+      'echarts/lib/renderer/installCanvasRenderer.js',
+      'echarts/lib/chart/bar/install.js',
+      'echarts/lib/chart/line/install.js',
+      'echarts/lib/chart/pie/install.js',
+      'echarts/lib/chart/gauge/install.js',
+    ],
+  },
   build: {
     rollupOptions: {
       output: {

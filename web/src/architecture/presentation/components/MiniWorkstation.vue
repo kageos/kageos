@@ -259,6 +259,7 @@ import {
   Calendar,
   Clock,
   Close,
+  DataBoard,
   Plus,
   UploadFilled,
   Setting
