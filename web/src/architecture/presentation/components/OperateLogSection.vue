@@ -474,7 +474,9 @@
         />
       </div>
       </template>
-    </div>
+        </div>
+      </div>
+    </el-collapse-transition>
 
     <el-dialog
       v-model="previewDialogVisible"

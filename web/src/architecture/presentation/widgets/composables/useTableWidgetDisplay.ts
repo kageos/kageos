@@ -154,7 +154,7 @@ export function useTableWidgetDisplay(
     // 动态嗅探数据内容长度 (只嗅探 response 模式下的数据)
     let maxDataCharLength = 0
     let hasData = false
-    if (responseMode.value && responseTableData.value && Array.isArray(responseTableData.value)) {
+    if (responseMode && responseTableData.value && Array.isArray(responseTableData.value)) {
       const rows = responseTableData.value
       for (const row of rows) {
         let val = row[code]
@@ -176,7 +176,7 @@ export function useTableWidgetDisplay(
     }
 
     // 如果嗅探到当前页这一列根本没有任何实际数据（全是 -、空值、[] 等），直接把它压死到表头宽度！
-    if (responseMode.value && !hasData) {
+    if (responseMode && !hasData) {
        return Math.max(headerWidth, 80)
     }
 
@@ -207,7 +207,7 @@ export function useTableWidgetDisplay(
     }
 
     // 在编辑模式下，由于输入框本身需要操作空间，走组件底线与表头宽度
-    if (!responseMode.value) {
+    if (!responseMode) {
        return Math.max(headerWidth, minWidth)
     }
 
