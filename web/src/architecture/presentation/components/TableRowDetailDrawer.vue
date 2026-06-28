@@ -501,15 +501,21 @@ defineExpose({
 </script>
 
 <style scoped lang="scss">
+.detail-drawer {
+  background: var(--bg-secondary) !important;
+}
+
 .detail-drawer :deep(.el-drawer__header) {
   margin-bottom: 0;
   padding: 20px 32px;
   border-bottom: 1px solid var(--border-light);
+  background: var(--bg-secondary);
 }
 
 .detail-drawer :deep(.el-drawer__body) {
   padding: 24px 32px;
   overflow: auto;
+  background: var(--bg-secondary);
 }
 
 .detail-content {

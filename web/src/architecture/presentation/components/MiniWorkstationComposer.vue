@@ -90,14 +90,15 @@
           {{ t('miniWorkstation.stop') }}
         </el-button>
         <el-button
+          v-else
           type="primary"
           size="small"
-          :disabled="blocked || sessionRunning || !fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
+          :disabled="blocked || !fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
           data-testid="mini-workstation-send"
           class="mini-send-btn"
           @click="$emit('send')"
         >
-          {{ sending ? (queuedCount > 0 ? t('miniWorkstation.queuedShort', { count: queuedCount }) : t('miniWorkstation.queued')) : t('miniWorkstation.send') }}
+          {{ t('miniWorkstation.send') }}
         </el-button>
         <el-tooltip
           :content="miniHideShortcutHint"

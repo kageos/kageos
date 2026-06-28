@@ -163,7 +163,7 @@
     }
     
     &:hover {
-      background-color: var(--el-fill-color) !important;
+      background-color: var(--el-fill-color-light) !important;
       border-color: var(--border-base) !important;
     }
     
@@ -225,7 +225,7 @@ html[data-theme="glass-light"] {
     background-color: var(--bg-tertiary) !important;
     border: 1px solid var(--border-light) !important;
     &:hover {
-      background-color: var(--el-fill-color) !important;
+      background-color: var(--el-fill-color-light) !important;
       border-color: var(--border-base) !important;
     }
     &.is-focus, &.is-focused, &:focus {
@@ -293,7 +293,7 @@ html[data-theme="nature-light"] {
     background-color: transparent !important;
     border: 1px solid var(--border-light) !important;
     &:hover {
-      background-color: var(--el-fill-color) !important;
+      background-color: var(--el-fill-color-light) !important;
       border-color: var(--border-base) !important;
     }
     &.is-focus, &.is-focused, &:focus {
@@ -345,7 +345,7 @@ html[data-theme="warm-light"] {
     background-color: transparent !important;
     border: 1px solid var(--border-light) !important;
     &:hover {
-      background-color: var(--el-fill-color) !important;
+      background-color: var(--el-fill-color-light) !important;
       border-color: var(--border-base) !important;
     }
     &.is-focus, &.is-focused, &:focus {
@@ -430,12 +430,12 @@ html.dark {
 
   // Element Plus 变量 - 完整映射
   --el-color-primary-rgb: var(--color-primary-rgb);
-  --el-bg-color: var(--bg-secondary); // 弹框等组件底色
+  --el-bg-color: var(--bg-primary); // 弹框等组件底色
   --el-bg-color-page: var(--bg-page);
   --el-bg-color-overlay: var(--bg-secondary); // Popover等悬浮组件
   
   // 修复外浅内深问题
-  --el-input-bg-color: var(--bg-tertiary);
+  --el-input-bg-color: transparent;
   --el-input-border-color: var(--border-base);
   --el-input-hover-border-color: var(--border-base);
   --el-input-focus-border-color: var(--color-primary);
@@ -452,7 +452,7 @@ html.dark {
   --el-border-color-darker: var(--border-base);
   
   // 填充颜色，修复暗色模式下 hover/active 颜色过深或一致问题
-  --el-fill-color-blank: var(--bg-tertiary);
+  --el-fill-color-blank: transparent;
   --el-fill-color-light: rgba(255, 255, 255, 0.04); // hover填充
   --el-fill-color-lighter: rgba(255, 255, 255, 0.02); 
   --el-fill-color: rgba(255, 255, 255, 0.08);  /* 选中/激活状态 */
@@ -501,7 +501,7 @@ html.dark {
     }
     
     &:hover {
-      background-color: var(--el-fill-color) !important;
+      background-color: var(--el-fill-color-light) !important;
       border-color: var(--border-base) !important;
     }
     
@@ -532,7 +532,7 @@ html.dark {
     }
     
     &:hover {
-      background-color: var(--el-fill-color) !important;
+      background-color: var(--el-fill-color-light) !important;
       border-color: var(--border-base) !important;
     }
     

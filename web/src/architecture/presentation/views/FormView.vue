@@ -1015,10 +1015,10 @@ const lifecycle = useFormViewLifecycle({
   flex: 1;
   min-width: 0; // 防止 flex 子元素溢出
   padding: 32px 34px 34px;
-  background: var(--app-auth-card-bg);
-  border: 1px solid var(--app-auth-card-border);
-  border-radius: 22px;
-  box-shadow: var(--app-auth-card-shadow);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  box-shadow: none;
 }
 
 .form-view-flat .form-view-main {

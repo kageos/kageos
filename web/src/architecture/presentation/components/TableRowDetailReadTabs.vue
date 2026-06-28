@@ -358,7 +358,7 @@ watch(
 }
 
 .detail-field-row:hover {
-  background: var(--bg-tertiary);
+  background: var(--el-fill-color-light);
 }
 
 .detail-field-label {
