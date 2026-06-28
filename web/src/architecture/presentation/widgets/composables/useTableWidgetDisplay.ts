@@ -142,49 +142,46 @@ export function useTableWidgetDisplay(
     const code = (field.code || '').toLowerCase()
     const name = field.name || ''
 
-    // 智能推断：根据表头中文字符数给一个基础缓冲宽度 (每个汉字大约 14px + 表头 padding 和 icon 大约 40px)
+    // 智能推断：根据表头中文字符数给一个基础缓冲宽度 (每个汉字大约 13px + 表头 padding 24px)
     const nameStr = String(name)
-    // 粗略计算：中文字符算作 14px，英文字符算作 8px
     let charWidth = 0
     for (let i = 0; i < nameStr.length; i++) {
-      charWidth += nameStr.charCodeAt(i) > 255 ? 14 : 8
+      charWidth += nameStr.charCodeAt(i) > 255 ? 13 : 8
     }
-    const headerWidth = Math.max(70, charWidth + 40) // 确保至少给表头 70px 空间
+    const headerWidth = charWidth + 24 
 
-    // 1. 智能推断：系统字段（创建人、更新时间等），降低基础宽度
-    if (/^(created_at|updated_at|create_time|update_time|creator|updater|modifier)$/.test(code) || 
-        /(创建|更新|修改)(时间|人)/.test(name)) {
-      if (type === WidgetType.DATETIME) return Math.max(headerWidth, 160)
-      return Math.max(headerWidth, 80)
-    }
-
-    // 2. 智能推断：备注/说明类长文本，降低下限，由 flex 或 ellipsis 处理
-    if (/^(remark|desc|description|summary|reason|cause|degrade_reason|.*_reason)$/.test(code) || /(备注|说明|描述|摘要|原因|理由)/.test(name)) {
-      return Math.max(headerWidth, 90)
+    // 1. 智能推断：空值倾向很高的字段（如各类说明、原因、备注）
+    // 即使它是 textarea，如果当前页没数据，它的极简宽度只要能装下表头即可
+    if (/^(remark|desc|description|summary|reason|cause|degrade_reason|.*_reason|source_note)$/.test(code) || 
+        /(备注|说明|描述|摘要|原因|理由)/.test(name)) {
+      return headerWidth
     }
 
-    // 3. 其他常规字段，极限压缩空数据时的最小宽度，把空间交给 Element Plus 自动分配
-    let minWidth = 100
+    // 2. 智能推断：系统级字段（ID、创建人、更新时间等）
+    if (/^(id|created_at|updated_at|create_time|update_time|creator|updater|modifier|created_by)$/.test(code) || 
+        /(ID|创建|更新|修改)(时间|人)/.test(name)) {
+      if (type === WidgetType.DATETIME) return Math.max(headerWidth, 140)
+      return Math.max(headerWidth, 60)
+    }
+
+    // 3. 其他常规字段，根据组件类型给一个相对合理的最小宽度保障
+    let minWidth = 80
     if (type === WidgetType.DATETIME) {
-      minWidth = 160
+      minWidth = 140
     } else if (type === WidgetType.SWITCH) {
-      minWidth = 75
+      minWidth = 60
     } else if (type === WidgetType.INTEGER || type === WidgetType.FLOAT) {
-      minWidth = 80 // 数字通常很短，如果是 '-' 会被压得很窄
+      minWidth = Math.max(headerWidth, 60)
     } else if (type === WidgetType.PROGRESS || type === WidgetType.SLIDER) {
-      minWidth = 140
-    } else if (type === WidgetType.TEXT_AREA || type === WidgetType.RICH_TEXT) {
-      minWidth = 140
-    } else if (type === WidgetType.TEXT || type === WidgetType.INPUT || type === WidgetType.LINK) {
-      minWidth = 90 // 极简下限，如果是短文本或空值就不会占地方
+      minWidth = 120
     } else if (type === WidgetType.FILES) {
-      minWidth = 110
-    } else if (type === WidgetType.DEPARTMENT || type === WidgetType.DEPARTMENTS) {
       minWidth = 100
-    } else if (type === WidgetType.USER || type === WidgetType.USERS) {
-      minWidth = 90
-    } else {
-      minWidth = 90
+    } else if (type === WidgetType.TEXT_AREA || type === WidgetType.RICH_TEXT) {
+      // 常规文本区（非备注类）
+      minWidth = 120
+    } else if (type === WidgetType.SELECT || type === WidgetType.MULTI_SELECT) {
+      // 选项通常带有 tag，需要稍微多一点点宽度
+      minWidth = Math.max(headerWidth, 100)
     }
 
     return Math.max(headerWidth, minWidth)
