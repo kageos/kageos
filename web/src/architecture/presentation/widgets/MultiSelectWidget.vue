@@ -548,9 +548,11 @@ function getOptionTagStyle(value: unknown): Record<string, string> {
     return {}
   }
 
+  // 恢复带背景色的浅色色板渲染，避免空心透明感
   return {
-    borderColor: color || lightPalette.borderColor,
-    color: color || lightPalette.color
+    backgroundColor: lightPalette.backgroundColor,
+    borderColor: lightPalette.borderColor,
+    color: lightPalette.color
   }
 }
 

@@ -4,7 +4,7 @@
       v-if="currentOptionColor"
       :style="getTagStyle(currentOptionColor)"
       size="small"
-      effect="plain"
+      effect="light"
       class="select-tag"
     >
       {{ displayValue }}
@@ -17,7 +17,7 @@
       v-if="currentOptionColor"
       :style="getTagStyle(currentOptionColor)"
       size="small"
-      effect="plain"
+      effect="light"
       class="select-tag"
     >
       {{ displayValue }}
@@ -29,7 +29,7 @@
     <el-tag
       v-if="currentOptionColor"
       :style="getTagStyle(currentOptionColor)"
-      effect="plain"
+      effect="light"
       class="select-tag"
     >
       {{ displayValue }}
@@ -54,10 +54,11 @@ function getTagStyle(color: string | null): Record<string, string> {
     return {}
   }
 
-  // 渲染空心标签时：去掉背景，并将文字和边框均设置为更清晰的颜色（例如使用原始颜色或其加深版本作为边框和文字色）
+  // 恢复带背景色的浅色色板渲染，避免空心透明感
   return {
-    borderColor: color || lightPalette.borderColor,
-    color: color || lightPalette.color
+    backgroundColor: lightPalette.backgroundColor,
+    borderColor: lightPalette.borderColor,
+    color: lightPalette.color
   }
 }
 </script>
@@ -81,9 +82,7 @@ function getTagStyle(color: string | null): Record<string, string> {
 .select-tag {
   font-weight: 500;
   border-radius: 4px;
-  background-color: var(--el-fill-color-light) !important;
   border: 1px solid var(--border-base) !important;
-  color: var(--text-secondary) !important;
   opacity: 0.95;
   transition: all 0.2s;
 }
@@ -95,14 +94,13 @@ function getTagStyle(color: string | null): Record<string, string> {
   color: var(--text-secondary) !important;
 }
 
-/* 如果有具体颜色覆盖，隐藏背景并保留具体的边框和颜色 */
+/* 移除强制透明，允许内联 style 生效 */
 .select-tag[style*="border-color:"],
 .select-tag[style*="color:"] {
-  background-color: transparent !important;
 }
 
+/* 移除强制透明，允许内联 style 生效 */
 .select-tag[style*="background-color"] {
-  background-color: transparent !important;
   box-shadow: none !important;
   filter: none;
 }
@@ -115,7 +113,6 @@ function getTagStyle(color: string | null): Record<string, string> {
 .table-cell-value :deep(.el-tag),
 .detail-value :deep(.el-tag) {
   font-weight: 500;
-  background-color: transparent !important;
   box-shadow: none;
 }
 
