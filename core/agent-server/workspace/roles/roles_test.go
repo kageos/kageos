@@ -102,6 +102,10 @@ func TestRoutingMarkdownIsGeneratedFromSpecs(t *testing.T) {
 		"在 `/system/x_world/vote` 里“创建一个投票”是业务操作",
 		"`tables.fields` 是模型字段，`tables.search_fields` 是查询请求字段",
 		"### `reviewer` 代码审查分析师",
+		"Kageos 是什么",
+		"/system/prompt/platform-introduction",
+		"Kageos 怎么用",
+		"/system/prompt/platform-usage-and-philosophy",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("routing markdown should contain %q, got:\n%s", want, got)

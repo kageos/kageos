@@ -74,7 +74,7 @@
               :disabled="submitting || !canCreateScheduledUpdate"
               @click="openScheduledTaskDialog"
             >
-              定时保存
+              定时执行
             </el-button>
           </div>
           <!-- 布局切换按钮 -->

@@ -38,7 +38,7 @@
           :disabled="submitting"
           @click="openScheduledTaskDialog"
         >
-          定时提交
+          定时执行
         </el-button>
         <el-button
           v-if="canCopyWorkspaceInvocation"
@@ -62,6 +62,7 @@
       table-mode
       fixed-action="table_create"
       :get-payload="buildScheduledPayload"
+      @success="handleScheduledSuccess"
     />
   </el-dialog>
 </template>
@@ -216,6 +217,11 @@ const handleClose = () => {
 
 const openScheduledTaskDialog = () => {
   showScheduledTaskDialog.value = true
+}
+
+const handleScheduledSuccess = () => {
+  showScheduledTaskDialog.value = false
+  handleClose()
 }
 
 const buildScheduledPayload = async (): Promise<Record<string, unknown>> => {

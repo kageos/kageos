@@ -15,6 +15,7 @@
     class="mini-ws-input"
     :class="{ 'mini-ws-input--schedule': variant === 'schedule' }"
     data-testid="mini-workstation-composer"
+    @click="handleContainerClick"
   >
     <div class="mini-composer-left-actions">
       <el-upload
@@ -40,11 +41,11 @@
         :model-value="inputText"
         :placeholder="composerPlaceholder"
         :disabled="blocked"
-        :submit-on-enter="true"
+        :submit-on-enter="composerSubmitOnEnter"
         :show-toolbar="variant === 'schedule'"
         :compact="variant !== 'schedule'"
-        :min-rows="variant === 'schedule' ? 3 : 1"
-        :max-rows="variant === 'schedule' ? 10 : 4"
+        :min-rows="variant === 'schedule' ? 6 : 1"
+        :max-rows="variant === 'schedule' ? 14 : 4"
         :mention-panel-placement="mentionPanelPlacement"
         editor-test-id="mini-workstation-input"
         @update:model-value="emitInput"
@@ -266,6 +267,8 @@ const composerPlaceholder = computed(() => {
   return t('miniWorkstation.chatPlaceholder')
 })
 
+const composerSubmitOnEnter = computed(() => props.variant !== 'schedule')
+
 const displayPath = computed(() => {
   const label = (props.dirName || '').trim()
   if (label) return label
@@ -298,6 +301,18 @@ function emitInput(value: string) {
 function handleComposerEnter(event: KeyboardEvent) {
   if (props.blocked) return
   props.onInputEnter(event)
+}
+
+function handleContainerClick(event: MouseEvent) {
+  if (props.blocked) return
+  const target = event.target as HTMLElement
+  if (target.closest('button') || target.closest('a') || target.closest('.mini-path-pill') || target.closest('.el-select') || target.closest('.el-upload')) {
+    return
+  }
+  if (target.closest('.spc-editor')) {
+    return
+  }
+  structuredInputRef.value?.focus()
 }
 
 function openExpandedEditor() {
@@ -354,7 +369,7 @@ function cancelExpandedEditor() {
 
 .mini-ws-input--schedule {
   grid-template-columns: auto minmax(0, 1fr);
-  min-height: 88px;
+  min-height: 180px;
   align-items: stretch;
   background: var(--bg-tertiary);
   border: 1px solid transparent;
@@ -459,10 +474,15 @@ html.dark .mini-ws-input--schedule {
   border: 1px solid var(--border-light);
   border-radius: 10px;
   background: var(--bg-tertiary);
+  cursor: text;
+}
+
+.mini-input-wrap.is-blocked {
+  cursor: default;
 }
 
 .mini-ws-input--schedule .mini-input-wrap {
-  min-height: 76px;
+  min-height: 160px;
   grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
 }
@@ -482,6 +502,7 @@ html.dark .mini-ws-input--schedule {
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: default;
 }
 
 .mini-blocked-pill {
@@ -503,6 +524,7 @@ html.dark .mini-ws-input--schedule {
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: default;
 }
 
 .mini-structured-input {

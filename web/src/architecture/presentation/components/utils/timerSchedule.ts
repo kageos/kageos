@@ -42,7 +42,9 @@ export function defaultRunAtValue(): string {
 export function buildTimerSchedule(form: TimerScheduleForm): TimerSchedule {
   const schedule: TimerSchedule = {
     type: form.schedule_type,
-    max_runs: form.max_runs || 0,
+    // 「最多次数」仅对「固定间隔」有意义：一次执行天然只跑一次，cron 默认按表持续触发，
+    // 这两种类型一律按不限次数（0）处理，避免隐藏字段的残留值被误提交。
+    max_runs: form.schedule_type === 'every' ? (form.max_runs || 0) : 0,
   }
 
   if (form.schedule_type === 'atime') {

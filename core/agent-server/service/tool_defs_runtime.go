@@ -10,6 +10,7 @@ func runtimeTools(r *ToolRegistry) []Tool {
 		&RunTableDeleteTool{},
 		&CreateScheduledFunctionTaskTool{},
 		&CreateScheduledAgentTaskTool{},
+		&UpdateScheduledAgentTaskTool{},
 		&ListScheduledTasksTool{},
 		&ManageScheduledTaskTool{},
 		&ListScheduledTaskExecutionsTool{},

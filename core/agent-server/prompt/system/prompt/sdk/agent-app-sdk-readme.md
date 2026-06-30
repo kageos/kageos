@@ -181,6 +181,14 @@ packageContext.POST("meeting_room_notify_soon.form", NotifySoon, &app.FormTempla
 - 对趋势图，建议把缺失日期补 `0`，避免线断掉或横轴漂移。
 - 对柱状图，建议固定分类顺序（如 `低/中/高`、`待处理/处理中/已完成`），避免不同请求之间柱子顺序变化。
 
+**时间趋势粒度（重要）**：
+- 时间趋势图不要在业务代码里散落手写“按天/按小时/按分钟”的判断，优先使用 SDK 的 `app.ResolveChartBucket` 和 `app.DateTimeBucketExpr`。
+- 默认查询窗口宜短一些，监控、价格、行情、实时质量等波动型图表优先默认“最近1天 + 自动粒度”，让用户先看到细波动；更长时间范围作为显式筛选项。
+- 前端可以提供“聚合粒度”筛选（如 自动、按分钟、按5分钟、按小时、按天、按月），业务把它映射为 `app.TimeBucketAuto/Minute/5Minute/Hour/Day/Month`。
+- `ResolveChartBucket` 默认只做推荐和估算，不会硬性禁止细粒度；只有业务显式传 `MaxValues` 时才会按估算图表值自动放粗。需要允许大数据量细粒度观察时，不传 `MaxValues`。
+- 对可能让前端卡顿的默认总览图，可以按业务场景设置 `MaxValues` 作为保护；不要把该保护复用到 Table 搜索、明细查询或导出场景。
+- 返回图表时建议把 `app.ChartBucketMetadata(decision)` 合并到 `Metadata`，便于前端或排查知道实际粒度、估算时间桶和是否自动放粗。
+
 最小可用片段示例：
 
 ```go
@@ -1237,6 +1245,42 @@ Chart 用于**只读的统计/图表**（BI），GET 请求。ChartTemplate、�
 
 4. **不确定时先看案例**  
    - 图表个数、路由拆分、返回格式，以收银台案例为准：`read_doc("/system/prompt/case_catalog/form_table_chart/cashier")`，看每个图表是如何「一个 GET 路由 + 一个具体图表类型返回值」实现的。
+
+#### 时间趋势粒度与返回量
+
+波动型趋势图（监控、价格、行情、实时质量、耗时、成功率等）默认时间范围优先短窗口，例如最近 1 天；粒度默认 `auto`，由 SDK 根据窗口推荐：2 小时内按分钟、24 小时内按 5 分钟、14 天内按小时、120 天内按天、更长按月。
+
+实现时优先写成统一模式：
+
+```go
+decision := app.ResolveChartBucket(app.ChartBucketPolicy{
+    // Requested 是用户/前端选择的粒度；无法识别或未选择时传 app.TimeBucketAuto。
+    Requested: requestedBucket(req.Bucket),
+    // WindowStart/WindowEnd 是本次图表实际查询窗口，必须和下面 Where 条件保持一致。
+    WindowStart: start,
+    WindowEnd:   end,
+    // SeriesCount 是最终返回的系列数量，用于估算总图表值：时间桶数量 * 系列数量。
+    // 单线传 1；多目标、多状态、多渠道趋势图按最终 ChartSeries 数量传。
+    SeriesCount: len(seriesNames),
+    // MaxValues 可选。0 或不填表示不限制、不自动放粗；只有默认总览可能拖垮前端时才填写。
+    // MaxValues: 1200,
+})
+// dateExpr 用在 Select 中生成时间桶字段，groupExpr 用在 Group 中分组；列名必须是真实 datetime 字段。
+dateExpr, groupExpr := app.DateTimeBucketExpr(db, "created_at", decision.Bucket)
+```
+
+字段含义：
+
+- `Requested`：请求粒度。来自前端筛选项，常见映射为“自动→TimeBucketAuto、按分钟→TimeBucketMinute、按5分钟→TimeBucket5Minute、按小时→TimeBucketHour、按天→TimeBucketDay、按月→TimeBucketMonth”。
+- `WindowStart` / `WindowEnd`：图表查询时间窗口。这里填什么，SQL `Where` 也应使用同一个窗口，避免估算粒度和真实查询范围不一致。
+- `SeriesCount`：预计返回的系列数，不是数据库行数。单指标趋势通常是 `1`；如果默认展示 10 个目标，每个目标一条线，就传 `10`；如果一个目标返回平均值和最大值两条线，就传 `2`。
+- `MaxValues`：可选保护预算，表示期望 `估算时间桶数量 * SeriesCount` 不超过多少。默认不填，SDK 不会自动放粗；填写后才会按候选粒度逐级放粗。
+- `decision.Bucket`：最终用于 SQL 分桶的粒度，可能是推荐粒度，也可能是在 `MaxValues` 保护下自动放粗后的粒度。
+- `dateExpr` / `groupExpr`：`DateTimeBucketExpr` 返回的 SQL 表达式。`dateExpr` 放在 `Select` 里并起别名，`groupExpr` 放在 `Group` 里；不要把两个返回值都塞进 `Group`。
+
+`ResolveChartBucket` 默认不会禁止细粒度，也不会因为估算点数多就自动放粗。只有业务显式传 `MaxValues` 时，SDK 才会按 `时间桶数量 * SeriesCount` 估算并逐级放粗。默认总览容易拖垮前端时可以传 `MaxValues`；用户明确选择细粒度或排障场景需要保留波动时，可以不传。
+
+返回时建议把 `app.ChartBucketMetadata(decision)` 合并进图表 `Metadata`。这个粒度策略只用于 Chart，不用于 Table 搜索、明细查询或导出限制。
 
 #### 图表类型说明（4 种，唯一参考表）
 

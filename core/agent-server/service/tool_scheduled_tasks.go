@@ -20,6 +20,7 @@ import (
 
 type CreateScheduledFunctionTaskTool struct{}
 type CreateScheduledAgentTaskTool struct{}
+type UpdateScheduledAgentTaskTool struct{}
 type ListScheduledTasksTool struct{}
 type ManageScheduledTaskTool struct{}
 type ListScheduledTaskExecutionsTool struct{}
@@ -74,6 +75,34 @@ type createScheduledAgentTaskArgs struct {
 	Directory          string `json:"directory" schema_ignore:"true"`
 }
 
+type updateScheduledAgentTaskArgs struct {
+	TaskID             int64  `json:"task_id" schema_desc:"需要更新的定时任务 ID" schema_required:"true"`
+	Title              string `json:"title" schema_desc:"可选：更新任务名称，不传则不更新"`
+	Message            string `json:"message" schema_desc:"可选：更新交给工作台 Agent 执行的完整说明。请提供完整的新内容"`
+	ScheduleType       string `json:"schedule_type" schema_desc:"可选：更新计划类型。如果不更新计划，此项及以下计划参数请勿传" schema_enum:"atime,cron,every"`
+	RunAt              string `json:"run_at" schema_desc:"可选：一次性任务的执行时间"`
+	CronExpr           string `json:"cron_expr" schema_desc:"可选：cron 周期表达式"`
+	IntervalSeconds    int64  `json:"interval_seconds" schema_desc:"可选：每隔多少秒执行一次"`
+	Timezone           string `json:"timezone" schema_desc:"可选：IANA 时区"`
+	MaxRuns            int    `json:"max_runs" schema_desc:"可选：最多执行次数"`
+	ModeCode           string `json:"mode_code" schema_desc:"可选：工作台模式"`
+	Files              string `json:"files" schema_desc:"可选：附件 refs"`
+	LLMConfigID        int64  `json:"llm_config_id" schema_desc:"可选：LLM 配置 ID"`
+	MaxDurationSeconds int64  `json:"max_duration_seconds" schema_desc:"可选：最大执行时长秒数"`
+	Description        string `json:"description" schema_desc:"可选：任务说明"`
+}
+
+func (args updateScheduledAgentTaskArgs) scheduleArgs() scheduledTaskScheduleArgs {
+	return scheduledTaskScheduleArgs{
+		ScheduleType:    args.ScheduleType,
+		RunAt:           args.RunAt,
+		CronExpr:        args.CronExpr,
+		IntervalSeconds: args.IntervalSeconds,
+		Timezone:        args.Timezone,
+		MaxRuns:         args.MaxRuns,
+	}
+}
+
 type listScheduledTasksArgs struct {
 	Kind         string `json:"kind" schema_desc:"任务类型：function=函数任务，agent_session=Agent 任务，all=全部" schema_enum:"function,agent_session,all"`
 	ResourcePath string `json:"resource_path" schema_desc:"资源完整路径；不传则使用当前 execute_directory"`
@@ -105,6 +134,11 @@ var createScheduledAgentTaskToolDef = toolDefinition[createScheduledAgentTaskArg
 	"创建【Agent 任务】：到点后启动一个 Agent 工作台会话，并把 message 当作执行说明交给工作台 Agent。核心参数是 title + message；其它参数只是目录、时间、附件、模型等配置。每 N 秒执行请传 interval_seconds，例如每 5 分钟传 interval_seconds=300；不要把这些参数包进 body。适合“模型库每 6 小时巡检全球厂商和新模型并可信写入”“每天整理新闻日报”“每周读取业务数据生成周报”“定期巡检工单/订单/库存异常”这类需要 Agent 判断、查询、总结、维护长期数据或组合多个动作的任务。Agent 任务可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数，message 里的资源路径可用 </full/code/path> 轻量标记。Agent 任务是无人值守执行，运行时用户无法回答问题；创建前必须把范围、可用资源/函数、预期使用工具清单、必要参数、按业务场景裁剪的质量控制策略、输出格式、失败处理和风险确认问清楚，并全部写进 message，不能留下“到时候问用户/等待确认”。message 必须明确列出预计使用哪些工具以及何时使用，例如 change_role、read_dir/search、web_search、run_table_search、run_table_create/run_table_update、run_form_submit、run_chart_query、send_notification；Agent 任务运行时会注入任务创建人/请求用户作为默认通知对象；send_notification 通知创建人、当前用户或“我”时可省略 to_users，也可显式传创建人 username；首次基准记录、无变化结果、普通状态报告默认不通知；质量规则要结合业务，不要把示例机械套到所有任务。不要用于已明确的单个 Form/Table/Chart 函数调用；如果目标能写成固定函数路径 + 固定 body，请用 create_scheduled_function_task，更稳定也更便宜。创建前必须确认 full_code_path 是目标工作空间/目录，不是具体函数路径；message 不能包含未授权的跨应用操作。",
 )
 
+var updateScheduledAgentTaskToolDef = toolDefinition[updateScheduledAgentTaskArgs](
+	"update_scheduled_agent_task",
+	"更新【Agent 任务】配置：修改名称、执行说明（message）或定时计划。如果不修改计划，请不要传 schedule_type 及相关的 cron_expr 等参数。更新执行说明时，必须提供完整的新内容，不能只写追加的部分。",
+)
+
 var listScheduledTasksToolDef = toolDefinition[listScheduledTasksArgs](
 	"list_scheduled_tasks",
 	"查询指定目录下全部定时任务，不按创建人过滤。kind=function 查函数任务，kind=agent_session 查 Agent 任务，kind=all 查全部；默认按当前 execute_directory 及其子资源查询，也可按 resource_path 和 status 过滤。目录路径会返回绑定到该目录的 Agent 任务，以及目录下函数的函数任务。",
@@ -125,6 +159,9 @@ func (t *CreateScheduledFunctionTaskTool) Definition() dto.ToolDef {
 }
 func (t *CreateScheduledAgentTaskTool) Definition() dto.ToolDef {
 	return createScheduledAgentTaskToolDef
+}
+func (t *UpdateScheduledAgentTaskTool) Definition() dto.ToolDef {
+	return updateScheduledAgentTaskToolDef
 }
 func (t *ListScheduledTasksTool) Definition() dto.ToolDef  { return listScheduledTasksToolDef }
 func (t *ManageScheduledTaskTool) Definition() dto.ToolDef { return manageScheduledTaskToolDef }
@@ -149,6 +186,14 @@ func (t *CreateScheduledAgentTaskTool) Execute(ctx context.Context, call ToolCal
 		return toolResult("create_scheduled_agent_task 参数解析失败: "+err.Error(), true)
 	}
 	return runCreateScheduledAgentTask(ctx, args, call.FullCodePath)
+}
+
+func (t *UpdateScheduledAgentTaskTool) Execute(ctx context.Context, call ToolCall) ToolResult {
+	args, err := decodeToolArgs[updateScheduledAgentTaskArgs](call.Args)
+	if err != nil {
+		return toolResult("update_scheduled_agent_task 参数解析失败: "+err.Error(), true)
+	}
+	return runUpdateScheduledAgentTask(ctx, args)
 }
 
 func (t *ListScheduledTasksTool) Execute(ctx context.Context, call ToolCall) ToolResult {
@@ -929,4 +974,82 @@ func scheduledManageActionLabel(action string) string {
 	default:
 		return "更新"
 	}
+}
+
+func runUpdateScheduledAgentTask(ctx context.Context, args updateScheduledAgentTaskArgs) ToolResult {
+	ctx = withAgentToolClientSource(ctx)
+	if args.TaskID <= 0 {
+		return toolResult("update_scheduled_agent_task 需传合法 task_id。", true)
+	}
+	client := scheduledTaskClient()
+	task, err := client.GetTask(ctx, args.TaskID)
+	if err != nil {
+		return toolResult("update_scheduled_agent_task 查询任务失败: "+err.Error(), true)
+	}
+	if err := ensureScheduledTaskOwnedByCurrentUser(ctx, task); err != nil {
+		return toolResult("update_scheduled_agent_task 权限校验失败: "+err.Error(), true)
+	}
+	if task.ExecutorKey != "agent.session" {
+		return toolResult("该任务不是 Agent 任务，无法使用此工具更新", true)
+	}
+	req := scheduledsdk.UpdateTaskRequest{}
+	if title := strings.TrimSpace(args.Title); title != "" {
+		req.Title = &title
+	}
+	if desc := strings.TrimSpace(args.Description); desc != "" {
+		req.Description = &desc
+	}
+
+	hasScheduleArgs := strings.TrimSpace(args.ScheduleType) != "" || strings.TrimSpace(args.RunAt) != "" || strings.TrimSpace(args.CronExpr) != "" || args.IntervalSeconds > 0
+	if hasScheduleArgs {
+		schedule, err := buildScheduledTaskSchedule(args.scheduleArgs())
+		if err != nil {
+			return toolResult("update_scheduled_agent_task 计划参数错误: "+err.Error(), true)
+		}
+		req.Schedule = &schedule
+	}
+
+	message := strings.TrimSpace(args.Message)
+	modeCode := strings.TrimSpace(args.ModeCode)
+	files := strings.TrimSpace(args.Files)
+
+	hasPayloadChanges := message != "" || modeCode != "" || files != "" || args.LLMConfigID > 0 || args.MaxDurationSeconds > 0
+	if hasPayloadChanges {
+		var payload map[string]interface{}
+		if len(task.ExecutorPayload) > 0 {
+			if err := json.Unmarshal(task.ExecutorPayload, &payload); err != nil {
+				payload = make(map[string]interface{})
+			}
+		} else {
+			payload = make(map[string]interface{})
+		}
+
+		if message != "" {
+			payload["message"] = message
+			payload["display_content"] = message
+		}
+		if modeCode != "" {
+			payload["mode_code"] = modeCode
+		}
+		if files != "" {
+			payload["files"] = files
+		}
+		if args.LLMConfigID > 0 {
+			payload["llm_config_id"] = args.LLMConfigID
+		}
+		if args.MaxDurationSeconds > 0 {
+			payload["max_duration_seconds"] = args.MaxDurationSeconds
+		}
+		req.ExecutorPayload = mustRawJSON(payload)
+	}
+
+	updated, err := client.UpdateTask(ctx, args.TaskID, req)
+	if err != nil {
+		return toolResult("update_scheduled_agent_task 更新失败: "+err.Error(), true)
+	}
+	return toolResultWithStructuredData(map[string]interface{}{
+		"task":        updated,
+		"next_run_at": updated.NextRunAt,
+		"message":     "Agent 任务已更新",
+	}, false)
 }

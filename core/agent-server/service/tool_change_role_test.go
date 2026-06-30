@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kageos/kageos-sdk/agent-app/widget"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/functionschema"
-	"github.com/kageos/kageos-sdk/agent-app/widget"
 )
 
 func TestBuildChangeRoleLoadsPlanDocs(t *testing.T) {
@@ -151,6 +151,28 @@ func TestBuildChangeRoleDoesNotInferFromUserInput(t *testing.T) {
 	if containsWorkspaceRoleString(got.RequiredDocs, "/system/prompt/roles/product-manager") ||
 		containsWorkspaceRoleString(got.RequiredDocs, "/system/prompt/roles/app-developer") {
 		t.Fatalf("change_role should not infer product manager/developer from user_input: %v", got.RequiredDocs)
+	}
+	for _, doc := range []string{
+		"/system/prompt/platform-introduction",
+		"/system/prompt/platform-usage-and-philosophy",
+		"/system/prompt/platform-capability-boundaries",
+	} {
+		if !containsWorkspaceRoleString(got.RequiredDocs, doc) {
+			t.Fatalf("reviewer should load introduction/usage/boundary doc %s, docs=%v", doc, got.RequiredDocs)
+		}
+	}
+	loadedIntroDoc := false
+	loadedUsageDoc := false
+	for _, doc := range got.LoadedDocs {
+		if doc.Path == "/system/prompt/platform-introduction" && strings.Contains(doc.Content, "Kageos 介绍与身份口径") {
+			loadedIntroDoc = true
+		}
+		if doc.Path == "/system/prompt/platform-usage-and-philosophy" && strings.Contains(doc.Content, "Kageos 使用方式与产品理念") {
+			loadedUsageDoc = true
+		}
+	}
+	if !loadedIntroDoc || !loadedUsageDoc {
+		t.Fatalf("reviewer should return platform introduction and usage doc content, intro=%v usage=%v loaded=%#v", loadedIntroDoc, loadedUsageDoc, got.LoadedDocs)
 	}
 }
 

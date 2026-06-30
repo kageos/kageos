@@ -75,4 +75,33 @@ describe('MiniWorkstationComposer', () => {
 
     expect(wrapper.emitted('update:inputText')?.[0]?.[0]).toBe('继续生成')
   })
+
+  it('keeps Enter as submit for chat input', async () => {
+    const onInputEnter = vi.fn()
+    const wrapper = mountComposer({
+      inputText: '继续生成',
+      onInputEnter,
+    })
+    const editor = wrapper.find('[data-testid="mini-workstation-input"]')
+
+    await editor.trigger('keydown', { key: 'Enter' })
+
+    expect(onInputEnter).toHaveBeenCalledTimes(1)
+    expect(wrapper.emitted('update:inputText')).toBeUndefined()
+  })
+
+  it('uses Enter as a newline in schedule instructions', async () => {
+    const onInputEnter = vi.fn()
+    const wrapper = mountComposer({
+      variant: 'schedule',
+      inputText: '第一行',
+      onInputEnter,
+    })
+    const editor = wrapper.find('[data-testid="mini-workstation-input"]')
+
+    await editor.trigger('keydown', { key: 'Enter' })
+
+    expect(onInputEnter).not.toHaveBeenCalled()
+    expect(wrapper.emitted('update:inputText')?.at(-1)?.[0]).toBe('第一行\n')
+  })
 })

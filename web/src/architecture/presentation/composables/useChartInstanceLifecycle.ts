@@ -23,6 +23,7 @@ export function useChartInstanceLifecycle<TChart extends { chart_type: string }>
   let renderVersion = 0
   let lastRenderedWidth = 0
   let lastRenderedHeight = 0
+  let isRendering = false
 
   const getContainerSize = () => {
     const element = options.chartContainerRef.value
@@ -50,11 +51,29 @@ export function useChartInstanceLifecycle<TChart extends { chart_type: string }>
   }
 
   const handleResize = () => {
-    if (!hasRenderedOption || !hasContainerSizeChanged()) {
+    const instance = chartInstance.value
+    const chartType = options.chartData.value?.chart_type || null
+    if (
+      isRendering
+      || !instance
+      || !hasRenderedOption
+      || renderedChartType !== chartType
+      || instance.getDom() !== options.chartContainerRef.value
+      || !hasContainerSizeChanged()
+    ) {
       return
     }
-    chartInstance.value?.resize()
-    rememberContainerSize()
+    instance.resize()
+    if (chartInstance.value === instance) {
+      rememberContainerSize()
+    }
+  }
+
+  const cancelScheduledResize = () => {
+    if (resizeFrame !== null && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+      window.cancelAnimationFrame(resizeFrame)
+    }
+    resizeFrame = null
   }
 
   const scheduleResize = () => {
@@ -63,11 +82,14 @@ export function useChartInstanceLifecycle<TChart extends { chart_type: string }>
       return
     }
 
-    if (resizeFrame !== null && typeof window.cancelAnimationFrame === 'function') {
-      window.cancelAnimationFrame(resizeFrame)
-    }
+    cancelScheduledResize()
+    const scheduledRenderVersion = renderVersion
+    const scheduledInstance = chartInstance.value
     resizeFrame = window.requestAnimationFrame(() => {
       resizeFrame = null
+      if (scheduledRenderVersion !== renderVersion || scheduledInstance !== chartInstance.value) {
+        return
+      }
       handleResize()
     })
   }
@@ -76,7 +98,7 @@ export function useChartInstanceLifecycle<TChart extends { chart_type: string }>
     if (windowResizeRegistered || typeof window === 'undefined') {
       return
     }
-    window.addEventListener('resize', handleResize)
+    window.addEventListener('resize', scheduleResize)
     windowResizeRegistered = true
   }
 
@@ -84,7 +106,7 @@ export function useChartInstanceLifecycle<TChart extends { chart_type: string }>
     if (!windowResizeRegistered || typeof window === 'undefined') {
       return
     }
-    window.removeEventListener('resize', handleResize)
+    window.removeEventListener('resize', scheduleResize)
     windowResizeRegistered = false
   }
 
@@ -126,53 +148,65 @@ export function useChartInstanceLifecycle<TChart extends { chart_type: string }>
 
     const currentRenderVersion = ++renderVersion
     const chartType = options.chartData.value.chart_type
-    const { init } = await options.loadChartRuntime(chartType)
-    if (currentRenderVersion !== renderVersion) return
-    if (!options.chartContainerRef.value || !options.chartData.value) return
-    if (options.chartData.value.chart_type !== chartType) {
-      await renderChart()
-      return
-    }
-
-    observeChartContainer()
-
-    const needRecreate = !chartInstance.value
-      || chartInstance.value.getDom() !== options.chartContainerRef.value
-      || renderedChartType !== chartType
-
-    if (needRecreate) {
-      chartInstance.value?.dispose()
-      hasRenderedOption = false
-      renderedChartType = null
-      lastRenderedWidth = 0
-      lastRenderedHeight = 0
-      chartInstance.value = init(options.chartContainerRef.value, null, {
-        renderer: 'canvas',
-        useDirtyRect: false
-      })
-    }
-
-    const option = options.buildOption(options.chartData.value)
-    if (!option || Object.keys(option).length === 0) {
-      chartInstance.value?.dispose()
-      chartInstance.value = null
-      hasRenderedOption = false
-      renderedChartType = null
-      lastRenderedWidth = 0
-      lastRenderedHeight = 0
-      return
-    }
-
+    isRendering = true
     hasRenderedOption = false
-    chartInstance.value?.setOption(option, {
-      notMerge: false,
-      replaceMerge: ['grid', 'xAxis', 'yAxis', 'series'],
-      lazyUpdate: false,
-    })
-    hasRenderedOption = true
-    renderedChartType = chartType
-    rememberContainerSize()
-    ensureWindowResizeListener()
+    cancelScheduledResize()
+    try {
+      const { init } = await options.loadChartRuntime(chartType)
+      if (currentRenderVersion !== renderVersion) {
+        return
+      }
+      if (!options.chartContainerRef.value || !options.chartData.value) {
+        return
+      }
+      if (options.chartData.value.chart_type !== chartType) {
+        await renderChart()
+        return
+      }
+
+      observeChartContainer()
+
+      const needRecreate = !chartInstance.value
+        || chartInstance.value.getDom() !== options.chartContainerRef.value
+        || renderedChartType !== chartType
+
+      if (needRecreate) {
+        chartInstance.value?.dispose()
+        hasRenderedOption = false
+        renderedChartType = null
+        lastRenderedWidth = 0
+        lastRenderedHeight = 0
+        chartInstance.value = init(options.chartContainerRef.value, null, {
+          renderer: 'canvas',
+          useDirtyRect: false
+        })
+      }
+
+      const option = options.buildOption(options.chartData.value)
+      if (!option || Object.keys(option).length === 0) {
+        chartInstance.value?.dispose()
+        chartInstance.value = null
+        hasRenderedOption = false
+        renderedChartType = null
+        lastRenderedWidth = 0
+        lastRenderedHeight = 0
+        return
+      }
+
+      chartInstance.value?.clear()
+      chartInstance.value?.setOption(option, {
+        notMerge: true,
+        lazyUpdate: false,
+      })
+      hasRenderedOption = true
+      renderedChartType = chartType
+      rememberContainerSize()
+      ensureWindowResizeListener()
+    } finally {
+      if (currentRenderVersion === renderVersion) {
+        isRendering = false
+      }
+    }
   }
 
   onMounted(() => {
@@ -182,13 +216,11 @@ export function useChartInstanceLifecycle<TChart extends { chart_type: string }>
   })
 
   onUnmounted(() => {
-    if (resizeFrame !== null && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
-      window.cancelAnimationFrame(resizeFrame)
-      resizeFrame = null
-    }
+    cancelScheduledResize()
     chartInstance.value?.dispose()
     chartInstance.value = null
     hasRenderedOption = false
+    isRendering = false
     renderedChartType = null
     lastRenderedWidth = 0
     lastRenderedHeight = 0
@@ -214,9 +246,11 @@ export function useChartInstanceLifecycle<TChart extends { chart_type: string }>
     () => options.chartData.value,
     (newData) => {
       if (!newData) {
+        cancelScheduledResize()
         chartInstance.value?.dispose()
         chartInstance.value = null
         hasRenderedOption = false
+        isRendering = false
         renderedChartType = null
         lastRenderedWidth = 0
         lastRenderedHeight = 0

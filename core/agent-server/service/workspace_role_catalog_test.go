@@ -110,6 +110,34 @@ func TestWorkspaceRoleSpecBuildEngineer(t *testing.T) {
 	}
 }
 
+func TestWorkspaceRoleSpecReviewerCoversIntroductionUsageAndPhilosophy(t *testing.T) {
+	got, ok := workspaceRoleSpecFor(WorkspaceRoleReviewer)
+	if !ok || got.ID != WorkspaceRoleReviewer {
+		t.Fatalf("spec ID=%s ok=%v want %s", got.ID, ok, WorkspaceRoleReviewer)
+	}
+	for _, doc := range []string{
+		"/system/prompt/platform-introduction",
+		"/system/prompt/platform-usage-and-philosophy",
+		"/system/prompt/platform-capability-boundaries",
+	} {
+		if !containsWorkspaceRoleString(got.Optional, doc) {
+			t.Fatalf("reviewer should expose optional doc %s, optional=%v", doc, got.Optional)
+		}
+	}
+	for _, want := range []string{
+		"Kageos 是什么",
+		"Hub/企业版",
+		"/system/prompt/platform-introduction",
+		"Kageos 怎么用",
+		"产品理念",
+		"/system/prompt/platform-usage-and-philosophy",
+	} {
+		if !strings.Contains(got.RouteDescription, want) {
+			t.Fatalf("reviewer route description should contain %q, got %q", want, got.RouteDescription)
+		}
+	}
+}
+
 func TestWorkspaceRoleSpecUnknownIsNotKnown(t *testing.T) {
 	if _, ok := workspaceRoleSpecFor("unknown.role"); ok {
 		t.Fatal("unknown role should not resolve to a role spec")

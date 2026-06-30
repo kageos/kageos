@@ -743,6 +743,7 @@ export default {
     sessionList: 'Session list',
     enableForUnattendedHint: 'Enable it before unattended execution can run',
     selectSessionHint: 'Select a scheduled session on the left to view details',
+    selectFunctionHint: 'Select a scheduled function task on the left to view details',
     allStatuses: 'All statuses',
     name: 'Name',
     schedule: 'Schedule',

@@ -19,7 +19,9 @@ import 'element-plus/es/components/message-box/style/css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
-import { ElLoadingDirective } from 'element-plus'
+// 从深层路径导入指令，避免 unplugin-element-plus 按名字推出不存在的
+// 'loading-directive/style/css'（其样式已在上面手动导入 loading/style/css）。
+import { ElLoadingDirective } from 'element-plus/es/components/loading/index'
 
 import App from './App.vue'
 import router from './architecture/presentation/router'

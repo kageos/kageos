@@ -93,10 +93,6 @@
           <el-input-number v-model="form.max_runs" :min="0" :max="1000000" style="width: 100%" />
         </el-form-item>
       </div>
-
-      <el-form-item v-if="form.schedule_type !== 'every'" :label="t('scheduledTask.maxRuns')">
-        <el-input-number v-model="form.max_runs" :min="0" :max="1000000" style="width: 220px" />
-      </el-form-item>
     </el-form>
 
     <template #footer>

@@ -14,96 +14,270 @@
       </div>
     </div>
 
-    <div class="scheduled-list-filter">
-      <el-select v-model="statusFilter" :placeholder="t('scheduledTask.allStatuses')" clearable style="width: 160px" @change="loadList">
-        <el-option :label="t('scheduledTask.allStatuses')" value="" />
-        <el-option :label="t('scheduledTask.taskStatusPending')" value="pending" />
-        <el-option :label="t('scheduledTask.taskStatusPaused')" value="paused" />
-        <el-option :label="t('scheduledTask.taskStatusDone')" value="done" />
-        <el-option :label="t('scheduledTask.taskStatusFailed')" value="failed" />
-        <el-option :label="t('scheduledTask.taskStatusCancelled')" value="cancelled" />
-      </el-select>
-    </div>
+    <div class="scheduled-agent-workspace">
+      <aside class="scheduled-agent-sidebar">
+        <div class="scheduled-list-filter">
+          <div class="scheduled-sidebar-title">{{ t('scheduledTask.sessionList') }}</div>
+          <el-select v-model="statusFilter" :placeholder="t('scheduledTask.allStatuses')" clearable size="small" @change="loadList">
+            <el-option :label="t('scheduledTask.allStatuses')" value="" />
+            <el-option :label="t('scheduledTask.taskStatusPending')" value="pending" />
+            <el-option :label="t('scheduledTask.taskStatusPaused')" value="paused" />
+            <el-option :label="t('scheduledTask.taskStatusDone')" value="done" />
+            <el-option :label="t('scheduledTask.taskStatusFailed')" value="failed" />
+            <el-option :label="t('scheduledTask.taskStatusCancelled')" value="cancelled" />
+          </el-select>
+        </div>
 
-    <el-empty v-if="!loading && list.length === 0" :description="t('scheduledTask.emptyFunctions')" />
+        <el-empty
+          v-if="!loading && list.length === 0"
+          :description="t('scheduledTask.emptyFunctions')"
+          :image-size="72"
+          class="scheduled-sidebar-empty"
+        />
 
-    <el-table
-      v-else
-      :data="list"
-      row-key="id"
-      stripe
-      class="scheduled-table"
-      :row-class-name="() => 'is-clickable'"
-      @row-click="openTaskDrawer"
-    >
-      <el-table-column prop="title" :label="t('scheduledTask.name')" min-width="200" show-overflow-tooltip />
-      <el-table-column :label="t('scheduledTask.schedule')" min-width="180" show-overflow-tooltip>
-        <template #default="{ row }">{{ scheduleLabel(row.schedule) }}</template>
-      </el-table-column>
-      <el-table-column prop="next_run_at" :label="t('scheduledTask.nextRun')" width="180">
-        <template #default="{ row }">{{ formatDateTime(row.next_run_at) }}</template>
-      </el-table-column>
-      <el-table-column prop="status" :label="t('scheduledTask.status')" width="100">
-        <template #default="{ row }">
-          <el-tag :type="taskStatusTag(row.status)" size="small">{{ taskStatusLabel(row.status) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="run_count" :label="t('scheduledTask.runCount')" width="72" align="center" />
-      <el-table-column :label="t('scheduledTask.actions')" width="168" fixed="right" align="center">
-        <template #default="{ row }">
-          <div class="table-row-actions">
-            <el-tooltip :content="t('scheduledTask.runNow')" placement="top" effect="light">
-              <el-button
-                text
-                type="primary"
-                :icon="VideoPlay"
-                :disabled="isTerminal(row.status)"
-                @click.stop="handleRunNow(row)"
+        <div v-else class="agent-session-list" role="list">
+          <button
+            v-for="task in list"
+            :key="task.id"
+            type="button"
+            :class="[
+              'agent-session-item',
+              `is-${task.status || 'unknown'}`,
+              { 'is-active': selectedTask?.id === task.id, 'is-running': !!task.inflight_execution_id }
+            ]"
+            @click="selectTask(task)"
+          >
+            <span class="agent-session-item-head">
+              <span class="agent-session-item-title">
+                {{ task.title || t('scheduledTask.unnamedFunctionTask') }}
+              </span>
+              <el-tag :type="taskStatusTag(task.status)" size="small" effect="light">
+                {{ taskStatusLabel(task.status) }}
+              </el-tag>
+            </span>
+            <span class="agent-session-item-summary is-mono">
+              {{ task.resource_key || resourcePath || '-' }}
+            </span>
+            <span v-if="task.last_error_message" class="agent-session-item-error">
+              {{ task.last_error_message }}
+            </span>
+            <span class="agent-session-item-meta">
+              <span>{{ scheduleLabel(task.schedule) }}</span>
+              <span>{{ t('scheduledTask.nextRun') }} {{ formatDateTime(task.next_run_at) }}</span>
+              <span>{{ t('scheduledTask.runCount') }} {{ task.run_count || 0 }}</span>
+            </span>
+          </button>
+        </div>
+
+        <div v-if="total > pageSize" class="scheduled-pagination">
+          <el-pagination
+            v-model:current-page="page"
+            small
+            :page-size="pageSize"
+            :total="total"
+            layout="prev, pager, next"
+            @current-change="loadList"
+          />
+        </div>
+      </aside>
+
+      <main class="scheduled-agent-detail">
+        <el-empty
+          v-if="!selectedTask"
+          :description="t('scheduledTask.selectFunctionHint')"
+          :image-size="96"
+          class="scheduled-detail-empty"
+        />
+
+        <template v-else>
+          <div class="scheduled-detail-shell">
+            <section class="detail-document">
+              <div class="detail-document-toolbar">
+                <div>
+                  <div class="detail-kicker">{{ t('scheduledTask.functionTitle') }}</div>
+                  <div class="detail-toolbar-title">{{ selectedTask.title || t('scheduledTask.unnamedFunctionTask') }}</div>
+                </div>
+              </div>
+
+              <section class="detail-document-section is-executions">
+                <div class="detail-section-head">
+                  <div>
+                    <div class="detail-section-title">{{ t('scheduledTask.executionRecords') }}</div>
+                    <div class="detail-section-subtitle">{{ t('scheduledTask.executionRecordsHint') }}</div>
+                  </div>
+                  <div class="drawer-section-controls">
+                    <el-select
+                      v-model="selectedExecutionState.status"
+                      :placeholder="t('scheduledTask.allStatuses')"
+                      clearable
+                      size="small"
+                      style="width: 120px"
+                      @change="loadSelectedExecutions(true)"
+                    >
+                      <el-option :label="t('scheduledTask.allStatuses')" value="" />
+                      <el-option :label="t('scheduledTask.executionStatusQueued')" value="queued" />
+                      <el-option :label="t('scheduledTask.executionStatusRunning')" value="running" />
+                      <el-option :label="t('scheduledTask.executionStatusSuccess')" value="success" />
+                      <el-option :label="t('scheduledTask.executionStatusFailed')" value="failed" />
+                      <el-option :label="t('scheduledTask.executionStatusTimeout')" value="timeout" />
+                    </el-select>
+                    <el-button size="small" :icon="Refresh" @click="loadSelectedExecutions(true)">{{ t('common.refresh') }}</el-button>
+                  </div>
+                </div>
+
+                <div v-if="selectedExecutionState.loading" v-loading="true" class="drawer-executions-loading" />
+
+                <el-alert
+                  v-else-if="selectedExecutionState.error"
+                  :title="selectedExecutionState.error"
+                  type="error"
+                  show-icon
+                  :closable="false"
+                />
+
+                <el-empty
+                  v-else-if="selectedExecutionState.loaded && selectedExecutionState.list.length === 0"
+                  :description="t('scheduledTask.emptyExecutions')"
+                  :image-size="56"
+                />
+
+                <div v-else-if="selectedExecutionState.loaded" class="execution-timeline">
+                  <article
+                    v-for="execution in selectedExecutionState.list"
+                    :key="execution.id"
+                    :class="['execution-card', `is-${execution.status || 'unknown'}`, { 'is-focused': execution.id === focusedExecutionId }]"
+                  >
+                    <div class="execution-card-rail" />
+                    <div class="execution-card-main">
+                      <div class="execution-card-head">
+                        <div class="execution-card-title-line">
+                          <el-tag :type="executionStatusTag(execution.status)" size="small" effect="light">
+                            {{ executionStatusLabel(execution.status) }}
+                          </el-tag>
+                          <span class="execution-trigger">
+                            {{ execution.trigger_type === 'manual' ? t('scheduledTask.manualTrigger') : t('scheduledTask.scheduledTrigger') }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div class="execution-time">{{ formatDateTime(execution.scheduled_at) }}</div>
+
+                      <div class="execution-facts">
+                        <span v-if="execution.duration_millis">{{ formatDuration(execution.duration_millis) }}</span>
+                        <span v-if="execution.executor_run_id" class="is-mono">
+                          {{ execution.executor_run_id }}
+                        </span>
+                      </div>
+
+                      <div v-if="execution.error_message" class="execution-error-card">
+                        <div class="execution-error-title">{{ t('scheduledTask.executionError') }}</div>
+                        <div class="execution-error-detail">{{ execution.error_message }}</div>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+
+                <div
+                  v-if="selectedExecutionState.loaded && selectedExecutionState.total > selectedExecutionState.pageSize"
+                  class="execution-pagination"
+                >
+                  <el-pagination
+                    small
+                    :current-page="selectedExecutionState.page"
+                    :page-size="selectedExecutionState.pageSize"
+                    :total="selectedExecutionState.total"
+                    layout="prev, pager, next"
+                    @current-change="(nextPage: number) => handleSelectedExecutionPageChange(nextPage)"
+                  />
+                </div>
+              </section>
+            </section>
+
+            <aside class="detail-aside">
+              <section class="detail-aside-card">
+                <div class="detail-aside-card-head">
+                  <div class="detail-aside-title">{{ t('scheduledTask.functionDetailTitle') }}</div>
+                  <el-tag :type="taskStatusTag(selectedTask.status)" effect="light">
+                    {{ taskStatusLabel(selectedTask.status) }}
+                  </el-tag>
+                </div>
+                <div class="detail-aside-name">{{ selectedTask.title || t('scheduledTask.unnamedFunctionTask') }}</div>
+                <div class="detail-aside-path">{{ selectedTask.resource_key || resourcePath || '-' }}</div>
+                <div class="detail-aside-actions">
+                  <el-tooltip :content="t('scheduledTask.runNow')" placement="top" effect="light">
+                    <el-button
+                      type="primary"
+                      :icon="VideoPlay"
+                      :disabled="isTerminal(selectedTask.status)"
+                      @click="handleRunNow(selectedTask)"
+                    />
+                  </el-tooltip>
+                  <el-tooltip
+                    :content="selectedTask.status === 'paused' ? t('scheduledTask.resume') : t('scheduledTask.pause')"
+                    placement="top"
+                    effect="light"
+                  >
+                    <el-button
+                      :type="selectedTask.status === 'paused' ? 'primary' : 'warning'"
+                      :icon="selectedTask.status === 'paused' ? CaretRight : VideoPause"
+                      :disabled="isTerminal(selectedTask.status)"
+                      @click="selectedTask.status === 'paused' ? handleResume(selectedTask) : handlePause(selectedTask)"
+                    />
+                  </el-tooltip>
+                  <el-tooltip :content="t('scheduledTask.cancel')" placement="top" effect="light">
+                    <el-button
+                      type="danger"
+                      :icon="Close"
+                      :disabled="isTerminal(selectedTask.status)"
+                      @click="handleCancel(selectedTask)"
+                    />
+                  </el-tooltip>
+                  <el-tooltip :content="t('scheduledTask.delete')" placement="top" effect="light">
+                    <el-button
+                      type="danger"
+                      plain
+                      :icon="Delete"
+                      :disabled="!!selectedTask.inflight_execution_id"
+                      @click="handleDelete(selectedTask)"
+                    />
+                  </el-tooltip>
+                </div>
+              </section>
+
+              <section class="detail-aside-card">
+                <div class="detail-aside-title">{{ t('scheduledTask.schedule') }}</div>
+                <div class="detail-property-list">
+                  <div class="detail-property">
+                    <span>{{ t('scheduledTask.schedule') }}</span>
+                    <strong>{{ scheduleLabel(selectedTask.schedule) }}</strong>
+                  </div>
+                  <div class="detail-property">
+                    <span>{{ t('scheduledTask.nextRun') }}</span>
+                    <strong>{{ formatDateTime(selectedTask.next_run_at) }}</strong>
+                  </div>
+                  <div class="detail-property">
+                    <span>{{ t('scheduledTask.runCount') }}</span>
+                    <strong>{{ selectedTask.run_count || 0 }}</strong>
+                  </div>
+                  <div class="detail-property">
+                    <span>{{ t('scheduledTask.functionPath') }}</span>
+                    <strong class="is-mono">{{ selectedTask.resource_key || resourcePath || '-' }}</strong>
+                  </div>
+                </div>
+              </section>
+
+              <el-alert
+                v-if="selectedTask.last_error_message"
+                class="detail-alert"
+                type="error"
+                show-icon
+                :closable="false"
+                :title="selectedTask.last_error_message"
               />
-            </el-tooltip>
-            <el-tooltip v-if="row.status === 'paused'" :content="t('scheduledTask.resume')" placement="top" effect="light">
-              <el-button text type="primary" :icon="CaretRight" @click.stop="handleResume(row)" />
-            </el-tooltip>
-            <el-tooltip v-else :content="t('scheduledTask.pause')" placement="top" effect="light">
-              <el-button
-                text
-                type="warning"
-                :icon="VideoPause"
-                :disabled="isTerminal(row.status)"
-                @click.stop="handlePause(row)"
-              />
-            </el-tooltip>
-            <el-tooltip :content="t('scheduledTask.cancel')" placement="top" effect="light">
-              <el-button
-                text
-                type="danger"
-                :icon="Close"
-                :disabled="isTerminal(row.status)"
-                @click.stop="handleCancel(row)"
-              />
-            </el-tooltip>
-            <el-tooltip :content="t('scheduledTask.delete')" placement="top" effect="light">
-              <el-button
-                text
-                type="danger"
-                :icon="Delete"
-                :disabled="!!row.inflight_execution_id"
-                @click.stop="handleDelete(row)"
-              />
-            </el-tooltip>
+            </aside>
           </div>
         </template>
-      </el-table-column>
-    </el-table>
-
-    <div v-if="total > pageSize" class="scheduled-pagination">
-      <el-pagination
-        v-model:current-page="page"
-        :page-size="pageSize"
-        :total="total"
-        layout="prev, pager, next"
-        @current-change="loadList"
-      />
+      </main>
     </div>
 
     <ScheduledTaskDialog
@@ -112,129 +286,6 @@
       :function-detail="functionDetail"
       @success="handleCreated"
     />
-
-    <el-drawer
-      v-model="drawerVisible"
-      :title="selectedTask?.title || t('scheduledTask.functionDetailTitle')"
-      direction="rtl"
-      size="520px"
-      :destroy-on-close="false"
-      class="scheduled-task-drawer"
-    >
-      <template v-if="selectedTask">
-        <section class="drawer-section">
-          <div class="drawer-section-title">{{ t('scheduledTask.taskInfo') }}</div>
-          <dl class="drawer-info-grid">
-            <dt>{{ t('scheduledTask.schedule') }}</dt>
-            <dd>{{ scheduleLabel(selectedTask.schedule) }}</dd>
-            <dt>{{ t('scheduledTask.nextRun') }}</dt>
-            <dd>{{ formatDateTime(selectedTask.next_run_at) }}</dd>
-            <dt>{{ t('scheduledTask.status') }}</dt>
-            <dd>
-              <el-tag :type="taskStatusTag(selectedTask.status)" size="small">
-                {{ taskStatusLabel(selectedTask.status) }}
-              </el-tag>
-            </dd>
-            <dt>{{ t('scheduledTask.runCount') }}</dt>
-            <dd>{{ selectedTask.run_count || 0 }}</dd>
-            <dt>{{ t('scheduledTask.functionPath') }}</dt>
-            <dd class="is-mono">{{ selectedTask.resource_key || resourcePath || '-' }}</dd>
-            <template v-if="selectedTask.last_error_message">
-              <dt>{{ t('scheduledTask.recentError') }}</dt>
-              <dd class="is-error-text">{{ selectedTask.last_error_message }}</dd>
-            </template>
-          </dl>
-        </section>
-
-        <section class="drawer-section is-executions">
-          <div class="drawer-section-head">
-            <div class="drawer-section-title">{{ t('scheduledTask.executionRecords') }}</div>
-            <div class="drawer-section-controls">
-              <el-select
-                v-model="selectedExecutionState.status"
-                :placeholder="t('scheduledTask.allStatuses')"
-                clearable
-                size="small"
-                style="width: 120px"
-                @change="loadSelectedExecutions(true)"
-              >
-                <el-option :label="t('scheduledTask.allStatuses')" value="" />
-                <el-option :label="t('scheduledTask.executionStatusQueued')" value="queued" />
-                <el-option :label="t('scheduledTask.executionStatusRunning')" value="running" />
-                <el-option :label="t('scheduledTask.executionStatusSuccess')" value="success" />
-                <el-option :label="t('scheduledTask.executionStatusFailed')" value="failed" />
-                <el-option :label="t('scheduledTask.executionStatusTimeout')" value="timeout" />
-              </el-select>
-              <el-button size="small" :icon="Refresh" @click="loadSelectedExecutions(true)">{{ t('common.refresh') }}</el-button>
-            </div>
-          </div>
-
-          <div v-if="selectedExecutionState.loading" v-loading="true" class="drawer-executions-loading" />
-
-          <el-alert
-            v-else-if="selectedExecutionState.error"
-            :title="selectedExecutionState.error"
-            type="error"
-            show-icon
-            :closable="false"
-          />
-
-          <el-empty
-            v-else-if="selectedExecutionState.loaded && selectedExecutionState.list.length === 0"
-            :description="t('scheduledTask.emptyExecutions')"
-            :image-size="56"
-          />
-
-          <div v-else-if="selectedExecutionState.loaded" class="execution-timeline">
-            <article
-              v-for="execution in selectedExecutionState.list"
-              :key="execution.id"
-              :class="['execution-card', `is-${execution.status || 'unknown'}`, { 'is-focused': execution.id === focusedExecutionId }]"
-            >
-              <div class="execution-card-rail" />
-              <div class="execution-card-main">
-                <div class="execution-card-head">
-                  <el-tag :type="executionStatusTag(execution.status)" size="small" effect="light">
-                    {{ executionStatusLabel(execution.status) }}
-                  </el-tag>
-                  <span class="execution-trigger">
-                    {{ execution.trigger_type === 'manual' ? t('scheduledTask.manualTrigger') : t('scheduledTask.scheduledTrigger') }}
-                  </span>
-                </div>
-
-                <div class="execution-time">{{ formatDateTime(execution.scheduled_at) }}</div>
-
-                <div class="execution-facts">
-                  <span v-if="execution.duration_millis">{{ formatDuration(execution.duration_millis) }}</span>
-                  <span v-if="execution.executor_run_id" class="is-mono">
-                    {{ execution.executor_run_id }}
-                  </span>
-                </div>
-
-                <div v-if="execution.error_message" class="execution-error-card">
-                  <div class="execution-error-title">{{ t('scheduledTask.executionError') }}</div>
-                  <div class="execution-error-detail">{{ execution.error_message }}</div>
-                </div>
-              </div>
-            </article>
-          </div>
-
-          <div
-            v-if="selectedExecutionState.loaded && selectedExecutionState.total > selectedExecutionState.pageSize"
-            class="execution-pagination"
-          >
-            <el-pagination
-              small
-              :current-page="selectedExecutionState.page"
-              :page-size="selectedExecutionState.pageSize"
-              :total="selectedExecutionState.total"
-              layout="prev, pager, next"
-              @current-change="(nextPage: number) => handleSelectedExecutionPageChange(nextPage)"
-            />
-          </div>
-        </section>
-      </template>
-    </el-drawer>
   </div>
 </template>
 
@@ -310,11 +361,9 @@ const page = ref(1)
 const pageSize = 20
 const statusFilter = ref('')
 const showCreateDialog = ref(false)
-const drawerVisible = ref(false)
 const selectedTask = ref<TimerTask | null>(null)
 const focusedExecutionId = ref(0)
 const appliedFocusKey = ref('')
-const executionStates = reactive<Record<number, ExecutionState>>({})
 
 const selectedExecutionState = reactive<ExecutionState>({
   loading: false,
@@ -327,26 +376,11 @@ const selectedExecutionState = reactive<ExecutionState>({
   list: [],
 })
 
-function getExecutionState(taskID: number): ExecutionState {
-  if (!executionStates[taskID]) {
-    executionStates[taskID] = {
-      loading: false,
-      loaded: false,
-      error: '',
-      status: '',
-      page: 1,
-      pageSize: 10,
-      total: 0,
-      list: [],
-    }
-  }
-  return executionStates[taskID]
-}
-
 async function loadList() {
   if (!props.resourcePath) {
     list.value = []
     total.value = 0
+    selectedTask.value = null
     emit('total-change', 0)
     return
   }
@@ -364,32 +398,14 @@ async function loadList() {
     list.value = resp.list || []
     total.value = Number(resp.total || 0)
     emit('total-change', total.value)
+    if (selectedTask.value) {
+      selectedTask.value = list.value.find(item => item.id === selectedTask.value?.id) || null
+    }
     await openFocusedTaskIfNeeded()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : t('scheduledTask.loadFunctionsFailed'))
   } finally {
     loading.value = false
-  }
-}
-
-async function loadExecutions(task: TimerTask, reset = false) {
-  const state = getExecutionState(task.id)
-  if (reset) state.page = 1
-  state.loading = true
-  state.error = ''
-  try {
-    const resp = await listTimerExecutions(task.id, {
-      status: state.status,
-      page: state.page,
-      page_size: state.pageSize,
-    })
-    state.list = resp.list || []
-    state.total = Number(resp.total || 0)
-    state.loaded = true
-  } catch (error) {
-    state.error = error instanceof Error ? error.message : t('scheduledTask.loadExecutionsFailed')
-  } finally {
-    state.loading = false
   }
 }
 
@@ -420,7 +436,7 @@ function handleSelectedExecutionPageChange(nextPage: number) {
   void loadSelectedExecutions()
 }
 
-async function openTaskDrawer(task: TimerTask, syncRoute = true) {
+async function selectTask(task: TimerTask, syncRoute = true) {
   selectedTask.value = task
   selectedExecutionState.page = 1
   selectedExecutionState.status = ''
@@ -428,7 +444,6 @@ async function openTaskDrawer(task: TimerTask, syncRoute = true) {
   selectedExecutionState.list = []
   selectedExecutionState.total = 0
   selectedExecutionState.error = ''
-  drawerVisible.value = true
   if (syncRoute && props.resourcePath) {
     await router.replace({
       path: route.path,
@@ -461,7 +476,7 @@ async function openFocusedTaskIfNeeded() {
   if (!task) return
   appliedFocusKey.value = key
   focusedExecutionId.value = normalizeFocusID(props.focusExecutionId)
-  await openTaskDrawer(task, false)
+  await selectTask(task, false)
 }
 
 async function ensureFocusedExecutionLoaded() {
@@ -484,8 +499,6 @@ async function handleRunNow(task: TimerTask) {
     await runTimerTaskNow(task.id)
     ElMessage.success(t('scheduledTask.submittedRunNow'))
     await loadList()
-    const state = getExecutionState(task.id)
-    if (state.loaded) await loadExecutions(task, true)
     if (selectedTask.value?.id === task.id) await loadSelectedExecutions(true)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : t('scheduledTask.runNowFailed'))
@@ -542,9 +555,7 @@ async function handleDelete(task: TimerTask) {
     )
     await deleteTimerTask(task.id)
     ElMessage.success(t('scheduledTask.deletedSuccess'))
-    delete executionStates[task.id]
     if (selectedTask.value?.id === task.id) {
-      drawerVisible.value = false
       selectedTask.value = null
     }
     if (list.value.length <= 1 && page.value > 1) page.value -= 1
@@ -584,6 +595,13 @@ defineExpose({ load: loadList })
 
 <style scoped lang="scss">
 .scheduled-task-list {
+  --scheduled-session-ink: var(--el-text-color-primary);
+  --scheduled-session-muted: var(--el-text-color-secondary);
+  --scheduled-session-soft: var(--app-shell-bg, var(--el-bg-color-page));
+  --scheduled-session-paper: var(--app-shell-panel-bg-strong, var(--el-bg-color));
+  --scheduled-session-tint: var(--app-shell-panel-muted-bg, var(--el-fill-color-light));
+  --scheduled-session-line: var(--app-shell-panel-border, var(--el-border-color-lighter));
+  --scheduled-session-accent: var(--el-color-primary);
   box-sizing: border-box;
   height: 100%;
   min-height: 0;
@@ -592,10 +610,12 @@ defineExpose({ load: loadList })
   gap: 14px;
   overflow: hidden;
   padding: 16px;
-  border: 1px solid transparent;
-  border-radius: var(--border-radius-lg);
-  background: var(--bg-secondary);
-  box-shadow: var(--app-shell-panel-shadow-soft);
+  border: 1px solid var(--scheduled-session-line);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--app-shell-panel-muted-bg, var(--el-fill-color-light)) 78%, transparent), var(--scheduled-session-soft)),
+    var(--scheduled-session-soft);
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight, rgba(255, 255, 255, 0.8));
 }
 
 .scheduled-list-header {
@@ -605,22 +625,23 @@ defineExpose({ load: loadList })
   align-items: center;
   flex-shrink: 0;
   padding: 14px 16px;
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-base);
-  background: var(--bg-secondary);
+  border: 1px solid var(--scheduled-session-line);
+  border-radius: 12px;
+  background: var(--scheduled-session-paper);
+  box-shadow: var(--app-shell-panel-shadow-soft, 0 10px 24px rgba(15, 23, 42, 0.06));
 }
 
 .scheduled-list-title {
   font-size: 15px;
   font-weight: 700;
   line-height: 1.35;
-  color: var(--el-text-color-primary);
+  color: var(--scheduled-session-ink);
 }
 
 .scheduled-list-subtitle {
   margin-top: 4px;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--scheduled-session-muted);
   word-break: break-all;
 }
 
@@ -637,175 +658,404 @@ defineExpose({ load: loadList })
   align-items: center;
   height: 26px;
   padding: 0 9px;
-  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
+  border: 1px solid var(--scheduled-session-line);
   border-radius: 999px;
-  background: var(--app-shell-panel-muted-bg, var(--el-fill-color-light));
+  background: var(--scheduled-session-tint);
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--scheduled-session-accent);
 }
 
 .scheduled-list-filter {
   flex-shrink: 0;
   display: flex;
+  justify-content: space-between;
+  gap: 12px;
   align-items: center;
-  padding: 10px 12px;
-  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--app-shell-panel-bg-strong, #fff) 72%, var(--app-shell-panel-muted-bg, #f1f5f9) 28%);
+  padding: 12px;
+  border-bottom: 1px solid var(--scheduled-session-line);
+  background: var(--scheduled-session-tint);
 }
 
-/* ─── 表格 ─── */
+.scheduled-list-filter :deep(.el-select) {
+  width: 132px;
+  flex: 0 0 auto;
+}
 
-.scheduled-table {
+.scheduled-sidebar-title {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--scheduled-session-ink);
+}
+
+.scheduled-agent-workspace {
   flex: 1;
   min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(270px, 340px) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.scheduled-agent-sidebar,
+.scheduled-agent-detail {
+  min-width: 0;
+  border: 1px solid var(--scheduled-session-line);
+  border-radius: 12px;
+  background: var(--app-shell-panel-bg, var(--el-bg-color));
+  box-shadow: var(--app-shell-panel-shadow-soft, 0 10px 24px rgba(15, 23, 42, 0.06));
+}
+
+.scheduled-agent-sidebar {
+  display: flex;
+  min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-lg);
-  background: transparent;
+  flex-direction: column;
 }
 
-.scheduled-table :deep(.el-table__inner-wrapper::before) {
-  display: none;
+.agent-session-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  padding: 12px;
 }
 
-.scheduled-table :deep(.el-table__header-wrapper th) {
-  height: 44px;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0;
-  border-bottom: 1px solid var(--border-light);
-}
-
-.scheduled-table :deep(.el-table__row) {
-  background: transparent;
-}
-
-.scheduled-table :deep(.el-table__row--striped td.el-table__cell) {
-  background: var(--bg-tertiary);
-}
-
-.scheduled-table :deep(.el-table__row.is-clickable) {
+.agent-session-item {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 13px;
+  border: 1px solid var(--scheduled-session-line);
+  border-left: 3px solid transparent;
+  border-radius: 10px;
+  background: var(--scheduled-session-paper);
+  color: inherit;
+  text-align: left;
   cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
-.scheduled-table :deep(.el-table__row:hover > td.el-table__cell) {
-  background: var(--bg-tertiary);
+.agent-session-item:hover {
+  border-color: rgba(var(--el-color-primary-rgb), 0.34);
+  background: color-mix(in srgb, var(--el-color-primary) 5%, var(--scheduled-session-paper));
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
 }
 
-.scheduled-table :deep(.el-table__cell) {
-  border-bottom: 1px solid var(--border-light);
+.agent-session-item.is-active {
+  border-color: rgba(var(--el-color-primary-rgb), 0.5);
+  border-left-color: var(--scheduled-session-accent);
+  background: color-mix(in srgb, var(--el-color-primary) 8%, var(--scheduled-session-paper));
+  box-shadow: 0 8px 20px rgba(var(--el-color-primary-rgb), 0.12);
 }
 
-.table-row-actions {
-  display: inline-flex;
+.agent-session-item.is-failed {
+  border-left-color: var(--el-color-danger);
+}
+
+.agent-session-item.is-paused {
+  border-left-color: var(--el-color-warning);
+}
+
+.agent-session-item.is-running {
+  border-left-color: var(--el-color-primary);
+}
+
+.agent-session-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.agent-session-item-title {
+  min-width: 0;
+  color: var(--scheduled-session-ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.agent-session-item-summary {
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  line-height: 1.55;
+  word-break: break-all;
+}
+
+.agent-session-item-summary.is-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.agent-session-item-error {
+  padding: 7px 8px;
+  border-radius: 7px;
+  color: var(--el-color-danger);
+  background: color-mix(in srgb, var(--el-color-danger) 8%, var(--scheduled-session-paper));
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.agent-session-item-meta {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 2px 8px;
+  margin-top: 1px;
 }
 
-.table-row-actions :deep(.el-button) {
-  width: 30px;
-  height: 30px;
-  margin: 0;
-  border-radius: 8px;
-  background: transparent;
+.agent-session-item-meta span {
+  position: relative;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--scheduled-session-muted);
+  font-size: 11.5px;
+  line-height: 1.5;
 }
 
-.table-row-actions :deep(.el-button:hover) {
-  background: color-mix(in srgb, currentColor 10%, transparent);
+.agent-session-item-meta span:not(:first-child)::before {
+  content: '·';
+  margin-right: 8px;
+  color: color-mix(in srgb, var(--scheduled-session-muted) 55%, transparent);
 }
 
 .scheduled-pagination {
   display: flex;
   justify-content: flex-end;
   flex-shrink: 0;
-  padding: 2px 4px 0;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--scheduled-session-line);
 }
 
 .scheduled-task-list :deep(.el-button) {
   border-radius: 8px;
 }
 
-.scheduled-task-list :deep(.el-empty) {
+.scheduled-sidebar-empty,
+.scheduled-detail-empty {
   flex: 1;
-  border: 1px dashed var(--app-shell-panel-border, var(--el-border-color-lighter));
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--app-shell-panel-bg-strong, #fff) 72%, var(--app-shell-panel-muted-bg, #f1f5f9) 28%);
-}
-
-/* ─── 抽屉 ─── */
-
-.drawer-section {
-  padding: 16px 20px;
-  border-bottom: 1px solid color-mix(in srgb, var(--app-shell-panel-border, #cbd5e1) 50%, transparent);
-}
-
-.drawer-section:last-child {
-  border-bottom: none;
-}
-
-.drawer-section.is-executions {
-  border-bottom: none;
-}
-
-.drawer-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.drawer-section-title {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--el-text-color-secondary);
-  margin-bottom: 12px;
-}
-
-.drawer-section-head .drawer-section-title {
-  margin-bottom: 0;
+  border: 1px dashed var(--scheduled-session-line);
+  background: color-mix(in srgb, var(--scheduled-session-paper) 72%, var(--scheduled-session-tint) 28%);
 }
 
 .drawer-section-controls {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
-.drawer-info-grid {
+.scheduled-agent-detail {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  display: flex;
+}
+
+.scheduled-detail-empty {
+  flex: 1;
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scheduled-detail-shell {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 10px 16px;
-  margin: 0;
-  font-size: 13px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 310px);
+  overflow: hidden;
 }
 
-.drawer-info-grid dt {
-  color: var(--el-text-color-secondary);
-  font-weight: 500;
+.detail-document {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px 28px 30px;
+  background: var(--app-shell-panel-bg, var(--el-bg-color));
 }
 
-.drawer-info-grid dd {
-  margin: 0;
-  color: var(--el-text-color-primary);
-  line-height: 1.5;
+.detail-document-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--scheduled-session-line);
+}
+
+.detail-kicker {
+  color: var(--scheduled-session-accent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.detail-toolbar-title {
+  margin-top: 4px;
+  color: var(--scheduled-session-ink);
+  font-size: 16px;
+  font-weight: 760;
+  line-height: 1.4;
   word-break: break-word;
 }
 
-.drawer-info-grid dd.is-mono {
+.detail-document-section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--scheduled-session-line);
+}
+
+.detail-document-toolbar + .detail-document-section {
+  border-top: 0;
+}
+
+.detail-document-section.is-executions {
+  padding-bottom: 4px;
+}
+
+.detail-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.detail-section-title {
+  color: var(--scheduled-session-ink);
+  font-size: 15px;
+  font-weight: 740;
+  line-height: 1.35;
+}
+
+.detail-section-subtitle {
+  margin-top: 4px;
+  color: var(--scheduled-session-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.detail-aside {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-left: 1px solid var(--scheduled-session-line);
+  background: color-mix(in srgb, var(--scheduled-session-tint) 52%, var(--app-shell-panel-bg, var(--el-bg-color)));
+}
+
+.detail-aside-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--scheduled-session-line) 74%, transparent);
+  border-radius: 8px;
+  background: var(--scheduled-session-paper);
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight, rgba(255, 255, 255, 0.7));
+}
+
+.detail-aside-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.detail-aside-title {
+  color: var(--scheduled-session-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.detail-aside-name {
+  margin-top: 10px;
+  color: var(--scheduled-session-ink);
+  font-size: 16px;
+  font-weight: 760;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.detail-aside-path {
+  margin-top: 8px;
+  color: var(--scheduled-session-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  word-break: break-all;
+}
+
+.detail-aside-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.detail-aside-actions :deep(.el-button) {
+  width: 100%;
+  height: 34px;
+  padding: 0;
+  margin: 0;
+}
+
+.detail-property-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.detail-property {
+  min-width: 0;
+  padding: 10px 0;
+  border-top: 1px solid color-mix(in srgb, var(--scheduled-session-line) 62%, transparent);
+}
+
+.detail-property:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.detail-property span {
+  display: block;
+  color: var(--scheduled-session-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.detail-property strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--scheduled-session-ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.detail-property strong.is-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
   color: var(--el-text-color-regular);
 }
 
-.drawer-info-grid dd.is-error-text {
-  color: var(--el-color-danger);
-  font-size: 12px;
+.detail-alert {
+  flex-shrink: 0;
 }
 
 .drawer-executions-loading {
@@ -824,20 +1074,20 @@ defineExpose({ load: loadList })
   display: grid;
   grid-template-columns: 3px minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--app-shell-panel-border, #cbd5e1) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--scheduled-session-line) 60%, transparent);
   border-radius: 10px;
-  background: var(--el-bg-color, #fff);
+  background: var(--scheduled-session-paper);
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .execution-card.is-focused {
-  border-color: var(--el-color-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--el-color-primary) 18%, transparent);
+  border-color: var(--scheduled-session-accent);
+  box-shadow: 0 0 0 2px rgba(var(--el-color-primary-rgb), 0.16);
 }
 
 .execution-card:hover {
-  border-color: color-mix(in srgb, var(--el-color-primary) 24%, var(--app-shell-panel-border, #cbd5e1));
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+  border-color: rgba(var(--el-color-primary-rgb), 0.28);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
 }
 
 .execution-card-rail {
@@ -866,15 +1116,22 @@ defineExpose({ load: loadList })
 
 .execution-card-head {
   display: flex;
-  justify-content: flex-start;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
   align-items: center;
+}
+
+.execution-card-title-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .execution-trigger {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--scheduled-session-muted);
 }
 
 .execution-time {
@@ -894,14 +1151,13 @@ defineExpose({ load: loadList })
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 11px;
-  color: var(--el-text-color-secondary);
-  background: color-mix(in srgb, var(--app-shell-panel-muted-bg, #f1f5f9) 70%, #fff 30%);
-  border: 1px solid color-mix(in srgb, var(--app-shell-panel-border, #cbd5e1) 50%, transparent);
+  color: var(--scheduled-session-muted);
+  background: var(--scheduled-session-tint);
+  border: 1px solid color-mix(in srgb, var(--scheduled-session-line) 54%, transparent);
 }
 
 .execution-facts span.is-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11px;
 }
 
 .execution-error-card {
@@ -931,7 +1187,47 @@ defineExpose({ load: loadList })
   display: flex;
   justify-content: flex-end;
   margin-top: 12px;
-  padding: 0 20px 16px;
+  padding: 0;
+}
+
+@media (max-width: 1100px) {
+  .scheduled-agent-workspace {
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  }
+
+  .scheduled-detail-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
+  }
+}
+
+@media (max-width: 860px) {
+  .scheduled-agent-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .scheduled-agent-sidebar {
+    max-height: 360px;
+  }
+
+  .scheduled-detail-shell {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+
+  .detail-document,
+  .detail-aside {
+    overflow: visible;
+  }
+
+  .detail-aside {
+    border-top: 1px solid var(--scheduled-session-line);
+    border-left: 0;
+  }
+
+  .detail-document-toolbar,
+  .detail-section-head {
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 768px) {
@@ -943,26 +1239,13 @@ defineExpose({ load: loadList })
     align-items: stretch;
     flex-direction: column;
   }
-}
-</style>
 
-<style lang="scss">
-.scheduled-task-drawer {
-  .el-drawer__header {
-    margin-bottom: 0;
-    padding: 18px 20px 14px;
-    border-bottom: 1px solid color-mix(in srgb, #cbd5e1 50%, transparent);
+  .detail-document {
+    padding: 18px 16px 22px;
   }
 
-  .el-drawer__title {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--el-text-color-primary, #0f172a);
-  }
-
-  .el-drawer__body {
-    padding: 0;
-    overflow-y: auto;
+  .detail-aside {
+    padding: 12px;
   }
 }
 </style>

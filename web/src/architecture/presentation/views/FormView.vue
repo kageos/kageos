@@ -174,7 +174,7 @@
           data-testid="form-schedule-submit"
         >
           <el-icon><Clock /></el-icon>
-          定时提交
+          定时执行
         </el-button>
         <el-button
           v-if="canCopyWorkspaceInvocation"

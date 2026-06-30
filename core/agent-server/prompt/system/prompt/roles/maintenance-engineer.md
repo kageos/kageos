@@ -26,6 +26,7 @@
 - 表格默认创建时间筛选使用 `创建开始时间/创建结束时间`，映射到系统创建时间；不要为了它们新增业务列。
 - 用户筛选优先使用业务语义字段，例如 `提交人`、`处理人`、`评分人`、`申请人`；没有明确业务用户时才用系统 `创建人`。
 - 裸写 `开始时间/结束时间` 只适合业务字段或 Chart 统计区间；表格搜索默认不要这样命名。
+- 修改时间趋势图时，优先把散落的粒度判断收敛到 SDK `app.ResolveChartBucket` + `app.DateTimeBucketExpr`；默认窗口宜短（如最近1天）并允许前端传“自动/按分钟/按5分钟/按小时/按天/按月”。不要一刀切禁止细粒度；只有默认总览确实可能拖垮前端时，才按业务场景给 `ResolveChartBucket` 传 `MaxValues` 做可选保护。
 - 为只读记录表加筛选时，不要顺手开启新增、编辑、删除。
 - `created_by/updated_by` 等系统审计字段必须带 SDK 规定的 widget、hide 和 gorm column；`select/multiselect` 必须有静态 options 或 OnSelectFuzzyMap，不确定先看文档和案例。
 - 数值 widget 必须按 Go 类型匹配：整数 Go 字段用 SDK tag `type:integer`，`float32/float64` 字段用 `type:float`；金额、比例、均值、可小数评分不要写成 `type:integer`，禁止使用 `type:number`。

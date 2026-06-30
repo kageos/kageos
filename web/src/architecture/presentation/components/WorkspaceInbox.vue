@@ -1511,6 +1511,13 @@ defineExpose({
 }
 
 .inbox-shell {
+  --inbox-ink: var(--el-text-color-primary);
+  --inbox-muted: var(--el-text-color-secondary);
+  --inbox-soft: var(--app-shell-bg, var(--el-bg-color-page));
+  --inbox-paper: var(--app-shell-panel-bg-strong, var(--el-bg-color));
+  --inbox-tint: var(--app-shell-panel-muted-bg, var(--el-fill-color-light));
+  --inbox-line: var(--app-shell-panel-border, var(--el-border-color-lighter));
+  --inbox-accent: var(--el-color-primary);
   display: flex;
   height: 100%;
   min-height: 0;
@@ -1569,22 +1576,23 @@ defineExpose({
   align-items: center;
   gap: 10px;
   padding: 9px 10px;
-  border: 1px solid transparent;
+  border: 1px solid var(--inbox-line);
   border-radius: var(--border-radius-base);
-  background: var(--bg-tertiary);
+  background: var(--inbox-paper);
   color: var(--text-primary);
   cursor: pointer;
   text-align: left;
-  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 
   &:hover {
-    background: var(--el-fill-color);
+    border-color: rgba(var(--el-color-primary-rgb), 0.24);
+    background: color-mix(in srgb, var(--el-color-primary) 5%, var(--inbox-paper));
   }
 
   &.is-active {
-    background: var(--el-fill-color-blank);
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.1);
+    background: color-mix(in srgb, var(--el-color-primary) 9%, var(--inbox-paper));
+    border-color: rgba(var(--el-color-primary-rgb), 0.46);
+    box-shadow: inset 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.12);
   }
 }
 
@@ -1674,9 +1682,10 @@ defineExpose({
 .inbox-detail-pane {
   min-height: 0;
   overflow: auto;
-  border: 1px solid transparent;
-  border-radius: var(--border-radius-lg);
-  background: var(--bg-secondary);
+  border: 1px solid var(--inbox-line);
+  border-radius: 12px;
+  background: var(--inbox-paper);
+  box-shadow: var(--app-shell-panel-shadow-soft, 0 10px 24px rgba(15, 23, 42, 0.06));
 }
 
 .inbox-list-pane {
@@ -1703,7 +1712,7 @@ defineExpose({
 
   :deep(.el-tree-node.is-current > .el-tree-node__content) {
     border-color: transparent;
-    background: var(--el-fill-color);
+    background: color-mix(in srgb, var(--el-color-primary) 9%, transparent);
     box-shadow: none;
   }
 
@@ -1732,10 +1741,19 @@ defineExpose({
   text-align: left;
   transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 
-  &:hover,
+  &:hover {
+    border-color: rgba(var(--el-color-primary-rgb), 0.26);
+    background: color-mix(in srgb, var(--el-color-primary) 6%, var(--inbox-paper));
+  }
+
   &.is-active {
-    border-color: transparent;
-    background: var(--el-fill-color);
+    border-color: rgba(var(--el-color-primary-rgb), 0.42);
+    background: color-mix(in srgb, var(--el-color-primary) 9%, var(--inbox-paper));
+    box-shadow: inset 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.1);
+  }
+
+  &.is-unread {
+    box-shadow: inset 3px 0 0 var(--el-color-primary);
   }
 
   &.is-unread .inbox-list-title {
@@ -1749,10 +1767,10 @@ defineExpose({
   height: 42px;
   margin-top: 1px;
   place-items: center;
-  border: 1px solid transparent;
+  border: 1px solid color-mix(in srgb, var(--el-color-primary) 18%, transparent);
   border-radius: var(--border-radius-base);
-  background: var(--bg-tertiary);
-  color: var(--color-primary);
+  background: color-mix(in srgb, var(--el-color-primary) 10%, var(--inbox-paper));
+  color: var(--el-color-primary);
   font-size: 19px;
 }
 
@@ -2032,21 +2050,23 @@ defineExpose({
   flex-direction: column;
   gap: 10px;
   padding: 16px;
-  border: 1px solid transparent;
+  border: 1px solid var(--inbox-line);
   border-radius: var(--border-radius-lg);
-  background: var(--bg-tertiary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background: var(--inbox-paper);
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight, rgba(255, 255, 255, 0.7));
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 
   &:hover,
   &.is-active {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    border-color: rgba(var(--el-color-primary-rgb), 0.28);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
     transform: translateY(-1px);
   }
 
   &.is-unread {
-    border-color: var(--color-primary-light-6);
+    border-color: rgba(var(--el-color-primary-rgb), 0.42);
+    box-shadow: inset 3px 0 0 var(--el-color-primary);
   }
 }
 

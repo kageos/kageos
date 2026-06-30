@@ -82,12 +82,30 @@
       </div>
       
       <div v-loading="loading" class="chart-container">
-        <div
-          v-if="chartData"
-          ref="chartContainerRef"
-          class="chart-wrapper"
-          :style="{ width: '100%', height: chartHeight }"
-        ></div>
+        <template v-if="chartData">
+          <div
+            ref="chartContainerRef"
+            class="chart-wrapper"
+            :style="{ width: '100%', height: chartHeight }"
+          ></div>
+          <div v-if="shouldShowChartViewportControl" class="chart-viewport-control">
+            <div class="chart-viewport-summary">
+              <span class="chart-viewport-boundary">{{ chartViewportStartLabel }}</span>
+              <span class="chart-viewport-count">{{ chartViewportCountLabel }}</span>
+              <span class="chart-viewport-boundary is-end">{{ chartViewportEndLabel }}</span>
+            </div>
+            <el-slider
+              v-model="chartViewportRange"
+              class="chart-viewport-range"
+              range
+              :min="0"
+              :max="chartViewportMaxIndex"
+              :step="1"
+              :format-tooltip="formatChartViewportTooltip"
+              :marks="chartViewportMarks"
+            />
+          </div>
+        </template>
         <div v-else class="empty-chart">
           <el-empty :description="t('chartRenderer.empty')" />
         </div>
@@ -128,9 +146,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElCard, ElForm, ElFormItem, ElButton, ElEmpty, ElRow, ElCol, ElTooltip } from 'element-plus'
+import { ElCard, ElForm, ElFormItem, ElButton, ElEmpty, ElRow, ElCol, ElTooltip, ElSlider } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
 import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent.vue'
@@ -142,6 +160,8 @@ import { useChartInstanceLifecycle } from '@/architecture/presentation/composabl
 import {
   buildChartEChartsOption,
   buildChartMetadataPreview,
+  CARTESIAN_DATA_ZOOM_THRESHOLD,
+  CARTESIAN_DEFAULT_VISIBLE_POINTS,
   createPendingQueryChart,
   formatChartMetadataValue as formatMetadataValue,
   getChartMetadataSpan as getMetadataSpan,
@@ -158,6 +178,7 @@ const { t } = useI18n()
 const chartData = ref<Chart | null>(null)
 const chartContainerRef = ref<HTMLElement | null>(null)
 const chartHeight = ref('600px')
+const chartViewportRange = ref<[number, number]>([0, 0])
 
 const metadataItems = computed(() => {
   const metadata = chartData.value?.metadata
@@ -208,8 +229,122 @@ const isPlaceholderChart = computed(() => {
   const data = chartData.value as RenderableChart | null
   return Boolean(data?.__placeholder)
 })
+
+const isCartesianChart = computed(() => {
+  const chartType = chartData.value?.chart_type
+  return chartType === 'line' || chartType === 'bar'
+})
+
+const chartXAxis = computed(() => {
+  return Array.isArray(chartData.value?.x_axis) ? chartData.value.x_axis : []
+})
+
+const shouldShowChartViewportControl = computed(() => {
+  return isCartesianChart.value && chartXAxis.value.length > CARTESIAN_DATA_ZOOM_THRESHOLD
+})
+
+const chartViewportMaxIndex = computed(() => {
+  return Math.max(0, chartXAxis.value.length - 1)
+})
+
+const normalizedChartViewportStart = computed(() => {
+  const [start, end] = chartViewportRange.value
+  const minValue = Math.min(start, end)
+  return Math.min(Math.max(0, minValue), chartViewportMaxIndex.value)
+})
+
+const normalizedChartViewportEnd = computed(() => {
+  const [start, end] = chartViewportRange.value
+  const maxValue = Math.max(start, end)
+  return Math.min(Math.max(normalizedChartViewportStart.value, maxValue), chartViewportMaxIndex.value)
+})
+
+const chartViewportEndExclusive = computed(() => {
+  return Math.min(chartXAxis.value.length, normalizedChartViewportEnd.value + 1)
+})
+
+const chartViewportVisibleCount = computed(() => {
+  return Math.max(0, chartViewportEndExclusive.value - normalizedChartViewportStart.value)
+})
+
+const chartViewportStartLabel = computed(() => {
+  return chartXAxis.value[normalizedChartViewportStart.value] || ''
+})
+
+const chartViewportEndLabel = computed(() => {
+  return chartXAxis.value[normalizedChartViewportEnd.value] || ''
+})
+
+const chartViewportCountLabel = computed(() => {
+  return `${chartViewportVisibleCount.value} / ${chartXAxis.value.length}`
+})
+
+const CHART_VIEWPORT_MARK_COUNT = 5
+const CHART_VIEWPORT_MARK_LABEL_RE = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2})?)?$/
+
+const formatChartViewportMarkLabel = (value: string): string => {
+  const label = String(value || '')
+  const match = label.match(CHART_VIEWPORT_MARK_LABEL_RE)
+  if (match) {
+    const [, , month, day, hour, minute] = match
+    return hour && minute ? `${month}-${day} ${hour}:${minute}` : `${month}-${day}`
+  }
+  return label.length > 12 ? `${label.slice(0, 11)}...` : label
+}
+
+const chartViewportMarks = computed<Record<number, string>>(() => {
+  const max = chartViewportMaxIndex.value
+  if (max <= 0) return {}
+
+  const indexes = new Set<number>()
+  for (let i = 0; i < CHART_VIEWPORT_MARK_COUNT; i += 1) {
+    indexes.add(Math.round((max * i) / (CHART_VIEWPORT_MARK_COUNT - 1)))
+  }
+
+  return Object.fromEntries(
+    Array.from(indexes)
+      .sort((a, b) => a - b)
+      .map((index) => [
+        index,
+        formatChartViewportMarkLabel(chartXAxis.value[index] || String(index + 1)),
+      ])
+  )
+})
+
+const formatChartViewportTooltip = (value: number): string => {
+  return chartXAxis.value[value] || ''
+}
+
+const visibleChartData = computed<Chart | null>(() => {
+  const data = chartData.value
+  if (!data || !shouldShowChartViewportControl.value) {
+    return data
+  }
+
+  const start = normalizedChartViewportStart.value
+  const end = chartViewportEndExclusive.value
+  return {
+    ...data,
+    x_axis: chartXAxis.value.slice(start, end),
+    series: data.series.map((series) => ({
+      ...series,
+      data: Array.isArray(series.data) ? series.data.slice(start, end) : series.data,
+    })),
+  }
+})
+
+watch(
+  () => `${chartData.value?.chart_type || ''}:${chartXAxis.value.length}`,
+  () => {
+    const end = chartViewportMaxIndex.value
+    const start = Math.max(0, end - CARTESIAN_DEFAULT_VISIBLE_POINTS + 1)
+    chartViewportRange.value = [start, end]
+  },
+  { flush: 'post' }
+)
+
 useChartInstanceLifecycle({
-  chartData,
+  chartData: visibleChartData,
   chartContainerRef,
   loadChartRuntime: loadEChartsRuntime,
   buildOption: (chart) => buildChartEChartsOption(chart as RenderableChart),
@@ -385,6 +520,123 @@ triggerChartReload = loadChartData
       .chart-wrapper {
         width: 100%;
         height: 100%;
+      }
+
+      .chart-viewport-control {
+        margin: 12px 0 0;
+        padding: 4px 6px 10px;
+        border-top: 1px solid var(--el-border-color-extra-light);
+      }
+
+      .chart-viewport-summary {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: center;
+        gap: 10px;
+        min-height: 22px;
+        margin-bottom: 0;
+      }
+
+      .chart-viewport-boundary {
+        min-width: 0;
+        max-width: 100%;
+        justify-self: start;
+        color: var(--el-text-color-secondary);
+        font-size: 12px;
+        line-height: 1.4;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .chart-viewport-boundary.is-end {
+        justify-self: end;
+        text-align: right;
+      }
+
+      .chart-viewport-count {
+        justify-self: center;
+        color: var(--el-color-primary);
+        font-size: 12px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .chart-viewport-range {
+        width: 100%;
+        margin: 0;
+        padding: 0 24px 10px;
+
+        :deep(.el-slider__runway) {
+          height: 4px;
+          margin: 12px 0 22px;
+          border-radius: 999px;
+          background: var(--el-fill-color);
+        }
+
+        :deep(.el-slider__bar) {
+          height: 4px;
+          background: var(--el-color-primary);
+          border-radius: 999px;
+        }
+
+        :deep(.el-slider__button-wrapper) {
+          top: -16px;
+          width: 32px;
+          height: 32px;
+        }
+
+        :deep(.el-slider__button) {
+          width: 12px;
+          height: 12px;
+          border: 2px solid var(--el-color-primary);
+          background: var(--el-bg-color);
+          box-shadow: 0 1px 4px var(--el-border-color);
+        }
+
+        :deep(.el-slider__stop) {
+          width: 2px;
+          height: 2px;
+          background: var(--el-border-color);
+        }
+
+        :deep(.el-slider__marks-text) {
+          margin-top: 2px;
+          max-width: 72px;
+          color: var(--el-text-color-secondary);
+          font-size: 11px;
+          line-height: 1.2;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        :deep(.el-slider__marks-stop) {
+          width: 1px;
+          height: 6px;
+          margin-top: -1px;
+          border-radius: 0;
+          background: var(--el-border-color);
+        }
+      }
+
+      @media (max-width: 768px) {
+        .chart-viewport-control {
+          padding: 4px 2px 10px;
+        }
+
+        .chart-viewport-summary {
+          gap: 8px;
+        }
+
+        .chart-viewport-range {
+          padding: 0 18px 10px;
+        }
+
+        .chart-viewport-range :deep(.el-slider__marks-text) {
+          max-width: 56px;
+        }
       }
       
       .empty-chart {

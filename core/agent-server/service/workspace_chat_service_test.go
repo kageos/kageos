@@ -273,6 +273,15 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 	if len(msgs) != 4 {
 		t.Fatalf("llm messages = %d, want system + old + handoff + display-tagged history", len(msgs))
 	}
+	if !strings.Contains(msgs[0].Content, "/system/prompt/platform-introduction") ||
+		!strings.Contains(msgs[0].Content, "/system/prompt/platform-usage-and-philosophy") ||
+		!strings.Contains(msgs[0].Content, "/system/prompt/platform-capability-boundaries") {
+		t.Fatalf("system message should route Kageos introduction, usage and boundary questions to docs:\n%s", msgs[0].Content)
+	}
+	if strings.Contains(msgs[0].Content, "恰研智能（qiayanai.com）") ||
+		strings.Contains(msgs[0].Content, "转 Apache-2.0") {
+		t.Fatalf("system message should not inline detailed identity/license posture:\n%s", msgs[0].Content)
+	}
 	if len(tools) != 2 {
 		t.Fatalf("tools = %d, want 2", len(tools))
 	}

@@ -11,7 +11,6 @@
         <el-input
           v-model="searchKeyword"
           class="tree-search-input"
-          size="small"
           :placeholder="t('serviceTree.searchPlaceholder')"
           clearable
           :prefix-icon="Search"
@@ -869,26 +868,32 @@ defineExpose({
     min-width: 0;
   }
 
+  /* 填充式搜索框：柔和底色、无生硬边框、圆角与图标按钮(8px)一致、高度对齐 32px */
   .tree-search-input :deep(.el-input__wrapper) {
-    border-radius: var(--border-radius-base);
-    background-color: transparent;
-    border: 1px solid var(--border-light);
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 8px;
+    background-color: var(--el-fill-color-light);
+    border: 1px solid transparent;
     box-shadow: none;
-    transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
   .tree-search-input :deep(.el-input__wrapper:hover) {
-    background-color: var(--el-fill-color-light);
-    border-color: var(--border-base);
+    background-color: var(--el-fill-color);
+    border-color: var(--border-light);
   }
 
   .tree-search-input :deep(.el-input__wrapper.is-focus) {
-    background-color: var(--el-fill-color-blank);
+    background-color: var(--el-bg-color);
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.15);
+    box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.12);
   }
 
   .tree-search-input :deep(.el-input__inner) {
+    height: 30px;
+    line-height: 30px;
+    font-size: 13px;
     color: var(--text-primary);
   }
 
@@ -896,9 +901,22 @@ defineExpose({
     color: var(--text-disabled);
   }
 
-  .tree-search-input :deep(.el-input__prefix),
+  .tree-search-input :deep(.el-input__prefix) {
+    color: var(--text-disabled);
+    margin-right: 2px;
+  }
+
+  .tree-search-input :deep(.el-input__prefix .el-icon) {
+    font-size: 15px;
+  }
+
   .tree-search-input :deep(.el-input__suffix) {
     color: var(--text-secondary);
+  }
+
+  /* 聚焦时搜索图标点亮为主色，强化“正在搜索”的反馈 */
+  .tree-search-input :deep(.el-input__wrapper.is-focus .el-input__prefix) {
+    color: var(--color-primary);
   }
 
   .tree-select-button {
@@ -1061,10 +1079,10 @@ defineExpose({
 .service-tree-contextmenu-popper {
   &.el-popper {
     padding: 4px !important;
-    background: var(--bg-secondary) !important;
-    border: 1px solid var(--border-base) !important;
-    box-shadow: var(--box-shadow-lg) !important;
-    border-radius: var(--border-radius-base) !important;
+    background: var(--app-shell-panel-bg-strong, var(--bg-secondary)) !important;
+    border: 1px solid var(--app-shell-panel-border, var(--border-base)) !important;
+    box-shadow: var(--app-shell-panel-shadow-soft, var(--box-shadow-lg)) !important;
+    border-radius: 10px !important;
     overflow: hidden;
     position: relative;
     backdrop-filter: blur(8px);
@@ -1092,7 +1110,7 @@ defineExpose({
     }
 
     &:not(.is-disabled):hover {
-      background: var(--bg-tertiary) !important;
+      background: color-mix(in srgb, var(--el-color-primary) 10%, transparent) !important;
       color: var(--color-primary) !important;
 
       .el-icon {

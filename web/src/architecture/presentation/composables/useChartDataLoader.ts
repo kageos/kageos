@@ -1,4 +1,4 @@
-import { onMounted, ref, type ComputedRef, type Ref } from 'vue'
+import { nextTick, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { executeFunction } from '@/architecture/presentation/context/api/function'
 import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
@@ -18,21 +18,30 @@ interface UseChartDataLoaderOptions<TChart extends Chart> {
 
 export function useChartDataLoader<TChart extends Chart>(options: UseChartDataLoaderOptions<TChart>) {
   const loading = ref(false)
+  let loadSeq = 0
+  let mounted = false
+  let urlSyncWatching = false
 
   const loadChartData = async (): Promise<void> => {
-    if (!options.functionDetail.value.router || !options.functionDetail.value.method) {
+    const detail = options.functionDetail.value
+    if (!detail.router || !detail.method) {
       return
     }
 
+    const currentSeq = ++loadSeq
     loading.value = true
     try {
       const params = options.buildRequestParams()
       const response = await executeFunction(
-        options.functionDetail.value.method,
-        options.functionDetail.value.router,
+        detail.method,
+        detail.router,
         params,
         'chart'
       )
+
+      if (currentSeq !== loadSeq) {
+        return
+      }
 
       const responseRecord = response && typeof response === 'object'
         ? response as { chart?: Chart }
@@ -41,14 +50,19 @@ export function useChartDataLoader<TChart extends Chart>(options: UseChartDataLo
         options.chartData.value = options.normalizeChartData(responseRecord.chart, options.requestFields.value.length > 0)
       } else {
         options.chartData.value = options.requestFields.value.length > 0
-          ? options.createPendingChart(options.functionDetail.value.name || '图表')
+          ? options.createPendingChart(detail.name || '图表')
           : null
       }
     } catch (error: unknown) {
+      if (currentSeq !== loadSeq) {
+        return
+      }
       ElMessage.error(error instanceof Error ? error.message : '加载图表数据失败')
       options.chartData.value = null
     } finally {
-      loading.value = false
+      if (currentSeq === loadSeq) {
+        loading.value = false
+      }
     }
   }
 
@@ -57,6 +71,8 @@ export function useChartDataLoader<TChart extends Chart>(options: UseChartDataLo
   }
 
   const handleReset = (): void => {
+    loadSeq += 1
+    loading.value = false
     options.resetFilterValues()
     options.chartData.value = options.requestFields.value.length > 0
       ? options.createPendingChart(options.functionDetail.value.name || '图表')
@@ -67,11 +83,44 @@ export function useChartDataLoader<TChart extends Chart>(options: UseChartDataLo
     void loadChartData()
   }
 
-  onMounted(() => {
+  const initializeAndLoadChartData = async (): Promise<void> => {
     options.initializeFieldValues()
-    options.watchChartData()
+    if (!urlSyncWatching) {
+      options.watchChartData()
+      urlSyncWatching = true
+    }
+    await nextTick()
     void loadChartData()
+  }
+
+  onMounted(() => {
+    mounted = true
+    void initializeAndLoadChartData()
   })
+
+  watch(
+    () => {
+      const detail = options.functionDetail.value
+      return [
+        detail.method || '',
+        detail.router || '',
+        options.requestFields.value.map((field) => field.code).join('|'),
+      ].join('::')
+    },
+    () => {
+      if (!mounted) return
+      void initializeAndLoadChartData()
+    }
+  )
+
+  watch(
+    () => options.functionDetail.value.router,
+    () => {
+      loadSeq += 1
+      loading.value = false
+      options.chartData.value = null
+    }
+  )
 
   return {
     loading,

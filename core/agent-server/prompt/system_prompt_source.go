@@ -226,7 +226,11 @@ func buildSystemPromptSeedDocs() ([]PromptSeedDoc, error) {
 		return nil, err
 	}
 
-	for _, rel := range []string{"platform-capability-boundaries.md"} {
+	for _, rel := range []string{
+		"platform-capability-boundaries.md",
+		"platform-introduction.md",
+		"platform-usage-and-philosophy.md",
+	} {
 		logical := SystemPromptRootPath + "/" + strings.TrimSuffix(rel, path.Ext(rel))
 		if err := appendPromptSeedFileDoc(&docs, systemPromptSeedRoot+"/"+rel, logical, "markdown", "", ""); err != nil {
 			return nil, err

@@ -463,7 +463,7 @@
                     <el-input-number v-model="inlineForm.interval_seconds" :min="1" :max="86400" style="width: 100%" />
                   </el-form-item>
 
-                  <el-form-item :label="t('scheduledTask.maxRuns')">
+                  <el-form-item v-if="inlineForm.schedule_type === 'every'" :label="t('scheduledTask.maxRuns')">
                     <el-input-number v-model="inlineForm.max_runs" :min="0" :max="1000000" style="width: 100%" />
                   </el-form-item>
                 </el-form>
@@ -1457,33 +1457,29 @@ defineExpose({ load: loadList })
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 13px;
-  border: 1px solid color-mix(in srgb, var(--scheduled-session-line) 72%, transparent);
+  gap: 7px;
+  padding: 12px 13px;
+  border: 1px solid var(--scheduled-session-line);
   border-left: 3px solid transparent;
-  border-radius: 8px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--scheduled-session-paper) 96%, var(--scheduled-session-tint) 4%), var(--scheduled-session-paper)),
-    var(--scheduled-session-paper);
+  border-radius: 10px;
+  background: var(--scheduled-session-paper);
   color: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
 .agent-session-item:hover {
-  border-color: rgba(var(--el-color-primary-rgb), 0.32);
-  background: color-mix(in srgb, var(--el-color-primary) 6%, var(--scheduled-session-paper));
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  border-color: rgba(var(--el-color-primary-rgb), 0.34);
+  background: color-mix(in srgb, var(--el-color-primary) 5%, var(--scheduled-session-paper));
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
 }
 
 .agent-session-item.is-active {
-  border-color: rgba(var(--el-color-primary-rgb), 0.46);
+  border-color: rgba(var(--el-color-primary-rgb), 0.5);
   border-left-color: var(--scheduled-session-accent);
-  background: color-mix(in srgb, var(--el-color-primary) 9%, var(--scheduled-session-paper));
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.12),
-    0 10px 24px rgba(15, 23, 42, 0.08);
+  background: color-mix(in srgb, var(--el-color-primary) 8%, var(--scheduled-session-paper));
+  box-shadow: 0 8px 20px rgba(var(--el-color-primary-rgb), 0.12);
 }
 
 .agent-session-item.is-failed {
@@ -1534,18 +1530,27 @@ defineExpose({ load: loadList })
 .agent-session-item-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  align-items: center;
+  gap: 2px 8px;
+  margin-top: 1px;
 }
 
 .agent-session-item-meta span {
+  position: relative;
   max-width: 100%;
-  padding: 2px 7px;
-  border: 1px solid color-mix(in srgb, var(--scheduled-session-line) 58%, transparent);
-  border-radius: 999px;
-  background: var(--scheduled-session-tint);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
   color: var(--scheduled-session-muted);
-  font-size: 11px;
-  line-height: 1.45;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.agent-session-item-meta span:not(:first-child)::before {
+  content: '·';
+  margin-right: 8px;
+  color: color-mix(in srgb, var(--scheduled-session-muted) 55%, transparent);
 }
 
 .agent-session-item-hint {

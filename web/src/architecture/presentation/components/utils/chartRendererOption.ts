@@ -24,15 +24,9 @@ type GaugeSeriesOption = SeriesConfig & {
   detail: SeriesConfig
   axisLabel: SeriesConfig
 }
-type CartesianDataZoomOption = SeriesConfig & {
-  type: 'inside' | 'slider'
-  xAxisIndex: number[]
-  start: number
-  end: number
-}
 
-const CARTESIAN_DATA_ZOOM_THRESHOLD = 80
-const CARTESIAN_DEFAULT_VISIBLE_POINTS = 160
+export const CARTESIAN_DATA_ZOOM_THRESHOLD = 80
+export const CARTESIAN_DEFAULT_VISIBLE_POINTS = 160
 const CHART_METADATA_PREVIEW_MAX_LENGTH = 48
 const CHART_METADATA_PREVIEW_SUFFIX = '...'
 const DATE_TIME_AXIS_LABEL_RE = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2})?)?$/
@@ -225,10 +219,10 @@ const STRUCTURAL_SERIES_CONFIG_KEYS = new Set([
   'encode',
   'dimensions',
   'seriesLayoutBy',
+  'coordinateSystemUsage',
 ])
 
 const createCartesianGridOption = (hasDataZoom = false) => ({
-  id: 'main-grid',
   left: '3%',
   right: '4%',
   bottom: hasDataZoom ? 72 : '3%',
@@ -238,41 +232,6 @@ const createCartesianGridOption = (hasDataZoom = false) => ({
 
 const shouldUseCartesianDataZoom = (xAxis?: string[]): boolean => {
   return Array.isArray(xAxis) && xAxis.length > CARTESIAN_DATA_ZOOM_THRESHOLD
-}
-
-const resolveDataZoomStart = (pointCount: number): number => {
-  if (pointCount <= CARTESIAN_DEFAULT_VISIBLE_POINTS) {
-    return 0
-  }
-  return Math.max(0, ((pointCount - CARTESIAN_DEFAULT_VISIBLE_POINTS) / pointCount) * 100)
-}
-
-const createCartesianDataZoomOption = (pointCount: number): CartesianDataZoomOption[] => {
-  const start = resolveDataZoomStart(pointCount)
-  return [
-    {
-      type: 'inside',
-      xAxisIndex: [0],
-      start,
-      end: 100,
-      filterMode: 'none',
-      throttle: 50,
-      zoomOnMouseWheel: true,
-      moveOnMouseMove: true,
-      moveOnMouseWheel: true,
-    },
-    {
-      type: 'slider',
-      xAxisIndex: [0],
-      start,
-      end: 100,
-      height: 24,
-      bottom: 20,
-      filterMode: 'none',
-      brushSelect: false,
-      showDetail: false,
-    },
-  ]
 }
 
 const truncateAxisLabel = (label: string, maxLength: number): string => {
@@ -511,14 +470,14 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
 
   const xAxis = chart.x_axis || []
   const yAxisValueFormat = resolveYAxisValueFormat(chart)
-  const hasCartesianDataZoom = shouldUseCartesianDataZoom(xAxis)
+  const isDenseCartesianData = shouldUseCartesianDataZoom(xAxis)
 
   switch (chart.chart_type) {
     case 'bar':
-      option.grid = {
-        ...createCartesianGridOption(hasCartesianDataZoom),
+      option.grid = [{
+        ...createCartesianGridOption(false),
         top: chart.title ? '15%' : '10%',
-      }
+      }]
       option.tooltip = {
         show: true,
         trigger: 'axis',
@@ -539,9 +498,7 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
         },
         formatter: (params: TooltipParam | TooltipParam[]) => formatSeriesTooltip(params, yAxisValueFormat)
       }
-      option.xAxis = {
-        id: 'main-x-axis',
-        gridIndex: 0,
+      option.xAxis = [{
         type: 'category',
         data: xAxis,
         axisLine: {
@@ -550,13 +507,8 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
           }
         },
         axisLabel: createCategoryAxisLabelOption(xAxis)
-      }
-      if (hasCartesianDataZoom) {
-        option.dataZoom = createCartesianDataZoomOption(xAxis.length)
-      }
-      option.yAxis = {
-        id: 'main-y-axis',
-        gridIndex: 0,
+      }]
+      option.yAxis = [{
         type: 'value',
         axisLabel: {
           fontSize: 12,
@@ -574,24 +526,33 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
             type: 'dashed'
           }
         }
-      }
-      option.series = chart.series.map((series, index) => ({
-        name: series.name,
-        id: createSeriesId('bar', series, index),
-        type: 'bar',
-        coordinateSystem: 'cartesian2d',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        data: series.data,
-        ...getSafeSeriesConfig(series.config),
-      }))
+      }]
+      option.series = chart.series.map((series, index) => {
+        const safeConfig = getSafeSeriesConfig(series.config)
+        return {
+          name: series.name,
+          id: createSeriesId('bar', series, index),
+          type: 'bar',
+          ...safeConfig,
+          silent: false,
+          tooltip: {
+            ...((safeConfig.tooltip || {}) as SeriesConfig),
+            show: true,
+          },
+          emphasis: {
+            focus: 'series',
+            ...((safeConfig.emphasis || {}) as SeriesConfig),
+          },
+          data: series.data,
+        }
+      })
       break
 
     case 'line':
-      option.grid = {
-        ...createCartesianGridOption(hasCartesianDataZoom),
+      option.grid = [{
+        ...createCartesianGridOption(false),
         top: chart.title ? '15%' : '10%',
-      }
+      }]
       option.tooltip = {
         show: true,
         trigger: 'axis',
@@ -630,18 +591,16 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
       if (xAxis.length === 0) {
         return {
           ...option,
-          grid: {
+          grid: [{
             ...createCartesianGridOption(),
             top: chart.title ? '15%' : '10%',
-          },
-          xAxis: { id: 'main-x-axis', gridIndex: 0, type: 'category', data: [], axisLabel: createCategoryAxisLabelOption([]) },
-          yAxis: { id: 'main-y-axis', gridIndex: 0, type: 'value' },
+          }],
+          xAxis: [{ type: 'category', data: [], axisLabel: createCategoryAxisLabelOption([]) }],
+          yAxis: [{ type: 'value' }],
           series: []
         }
       }
-      option.xAxis = {
-        id: 'main-x-axis',
-        gridIndex: 0,
+      option.xAxis = [{
         type: 'category',
         data: xAxis,
         axisLabel: createCategoryAxisLabelOption(xAxis),
@@ -650,13 +609,8 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
             color: '#d1d5db'
           }
         }
-      }
-      if (hasCartesianDataZoom) {
-        option.dataZoom = createCartesianDataZoomOption(xAxis.length)
-      }
-      option.yAxis = {
-        id: 'main-y-axis',
-        gridIndex: 0,
+      }]
+      option.yAxis = [{
         type: 'value',
         scale: true,
         axisLabel: {
@@ -675,24 +629,21 @@ export function buildChartEChartsOption(chart: RenderableChart): EChartsCoreOpti
             type: 'dashed'
           }
         }
-      }
+      }]
       option.series = chart.series.map((series, index) => ({
         name: series.name,
         id: createSeriesId('line', series, index),
         type: 'line',
-        coordinateSystem: 'cartesian2d',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
+        ...getSafeSeriesConfig(series.config),
         smooth: true,
-        showSymbol: !hasCartesianDataZoom,
-        symbolSize: hasCartesianDataZoom ? 5 : 6,
+        showSymbol: !isDenseCartesianData,
+        symbolSize: isDenseCartesianData ? 5 : 6,
         emphasis: {
           focus: 'series',
           scale: true
         },
         ...(xAxis.length > 800 ? { sampling: 'lttb' } : {}),
         data: series.data || [],
-        ...getSafeSeriesConfig(series.config),
       }))
       break
 

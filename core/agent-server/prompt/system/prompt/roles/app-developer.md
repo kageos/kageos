@@ -38,7 +38,7 @@
 - `提交人`、`处理人`、`评分人`、`申请人` 等业务用户搜索字段，如果同名字段存在于 `tables.fields`，按该业务字段过滤；如果不存在，按 PRD `desc` 判断是否应映射到系统用户字段。
 - 表格只查询时 `handlers` 为空数组，不要补新增、编辑、删除；有 `OnTableAddRow/OnTableUpdateRow/OnTableDeleteRow` 时再实现对应写能力。
 - Form 写入 `target_table` 时，提交成功后应生成目标表可查询的数据；目标记录表不要再手工补 CRUD，除非 PRD 明确允许。
-- Chart 必须基于 `source_table` 和 `filters/examples` 实现一张图；多张图按多个 chart 分别生成。
+- Chart 必须基于 `source_table` 和 `filters/examples` 实现一张图；多张图按多个 chart 分别生成。时间趋势图默认优先短窗口（如最近1天）和自动粒度，使用 SDK `app.ResolveChartBucket` + `app.DateTimeBucketExpr` 统一处理粒度；允许前端传“自动/按分钟/按5分钟/按小时/按天/按月”。`ResolveChartBucket` 默认不硬拦细粒度，只有业务显式传 `MaxValues` 时才做前端保护式自动放粗。
 - 数值 widget 必须按 Go 类型落地：PRD `integer` 生成 Go `int/int64` 等整数并写 SDK tag `type:integer`；PRD `float` 生成 Go `float64` 并写 `type:float`；禁止生成 `type:number`。金额、比例、均值、可小数评分不要写 `type:integer`。
 - PRD 要求通知用户时，读取 `/system/prompt/sdk/reference/runtime-capabilities` 的“消息通知”，使用 `ctx.SendMessage` 异步投递；普通业务成功后通知失败只记录日志，不要阻塞主业务返回。不要在应用里硬连飞书、邮件、企业微信，也不要自造通知表/通知队列。组织架构通知暂不暴露，不要生成按部门发送的字段或代码。
 - 数据库代码优先用 GORM 链式 API 表达业务意图；复杂 BI/Chart 或专项能力可以使用 `db.Raw`/`db.Exec`/事务等 GORM 能力。涉及用户输入时必须参数化，不要拼接 SQL；涉及写入、删除、迁移时先确认业务语义和权限边界。

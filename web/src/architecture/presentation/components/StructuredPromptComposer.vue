@@ -11,6 +11,7 @@
       [`mention-${mentionPanelPlacement}`]: true,
     }"
     data-testid="structured-prompt-composer"
+    @click="handleRootClick"
   >
     <div v-if="showToolbar" class="spc-toolbar">
       <div class="spc-mode-tabs" role="tablist" aria-label="输入模式">
@@ -551,6 +552,18 @@ function setMode(nextMode: ComposerMode) {
   if (nextMode === 'edit') {
     void nextTick(() => focus())
   }
+}
+
+function handleRootClick(event: MouseEvent) {
+  if (props.disabled || mode.value !== 'edit') return
+  const target = event.target as HTMLElement
+  if (target.closest('button') || target.closest('a') || target.closest('.spc-toolbar') || target.closest('.spc-user-chip') || target.closest('.spc-resource-chip')) {
+    return
+  }
+  if (target.closest('.spc-editor')) {
+    return
+  }
+  focus()
 }
 
 function handleEditorInput(event?: Event) {
@@ -1745,6 +1758,14 @@ defineExpose({
   opacity: 0.68;
 }
 
+.structured-prompt-composer:not(.is-disabled) {
+  cursor: text;
+}
+
+.structured-prompt-composer * {
+  cursor: auto;
+}
+
 .spc-toolbar {
   min-height: 42px;
   display: flex;
@@ -1812,6 +1833,7 @@ defineExpose({
 
 .spc-editor,
 .spc-preview {
+  flex: 1;
   box-sizing: border-box;
   overflow-y: auto;
   padding: 12px;
@@ -1821,6 +1843,7 @@ defineExpose({
 }
 
 .spc-editor {
+  flex: 1;
   outline: none;
   white-space: pre-wrap;
   word-break: break-word;
@@ -1837,6 +1860,10 @@ defineExpose({
   content: attr(data-placeholder);
   color: rgba(141, 160, 189, 0.72);
   pointer-events: none;
+}
+
+.spc-preview {
+  flex: 1;
 }
 
 .spc-preview-body {
@@ -2090,12 +2117,12 @@ defineExpose({
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(96, 231, 255, 0.24);
-  border-radius: 10px;
+  border: 1px solid rgba(125, 146, 183, 0.24);
+  border-radius: 8px;
   background:
-    linear-gradient(145deg, rgba(5, 17, 31, 0.98), rgba(9, 30, 48, 0.96)),
+    linear-gradient(145deg, rgba(7, 16, 29, 0.98), rgba(10, 24, 39, 0.96)),
     rgba(4, 12, 24, 0.98);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34), 0 0 24px rgba(34, 211, 238, 0.12);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.32);
 }
 
 :global(.spc-mention-popover.el-popover.el-popper) {
@@ -2112,9 +2139,10 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 10px;
-  border-bottom: 1px solid rgba(96, 231, 255, 0.14);
-  color: rgba(216, 248, 255, 0.78);
+  min-height: 38px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(125, 146, 183, 0.16);
+  color: rgba(216, 230, 245, 0.78);
   font-size: 12px;
   font-weight: 700;
 }
@@ -2125,9 +2153,10 @@ defineExpose({
   justify-content: center;
   width: 20px;
   height: 20px;
-  border-radius: 6px;
-  background: rgba(34, 211, 238, 0.14);
-  color: #22d3ee;
+  border: 1px solid rgba(96, 231, 255, 0.2);
+  border-radius: 5px;
+  background: rgba(96, 231, 255, 0.1);
+  color: #9eeeff;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
@@ -2158,31 +2187,32 @@ defineExpose({
   width: 100%;
   min-width: 0;
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
-  gap: 11px;
-  align-items: start;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 60px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
   color: inherit;
   cursor: pointer;
-  padding: 10px;
+  padding: 8px 9px;
   text-align: left;
-  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+  transition: border-color 0.16s ease, background 0.16s ease;
 }
 
 .spc-mention-option:hover,
 .spc-mention-option.is-active {
-  border-color: rgba(34, 211, 238, 0.32);
+  border-color: rgba(96, 231, 255, 0.26);
   background:
-    linear-gradient(135deg, rgba(34, 211, 238, 0.13), rgba(124, 255, 196, 0.06)),
-    rgba(34, 211, 238, 0.08);
-  transform: translateY(-1px);
+    linear-gradient(135deg, rgba(96, 231, 255, 0.1), rgba(139, 92, 246, 0.06)),
+    rgba(255, 255, 255, 0.035);
 }
 
 .spc-mention-icon {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
   border-radius: 8px;
   display: inline-flex;
   align-items: center;
@@ -2194,9 +2224,9 @@ defineExpose({
 
 .spc-mention-icon.is-user {
   overflow: hidden;
-  color: #7cffc4;
-  background: rgba(124, 255, 196, 0.08);
-  border-color: rgba(124, 255, 196, 0.2);
+  color: #9eeeff;
+  background: rgba(96, 231, 255, 0.08);
+  border-color: rgba(96, 231, 255, 0.18);
 }
 
 .spc-mention-icon.table-icon {
@@ -2222,24 +2252,24 @@ defineExpose({
 }
 
 .spc-mention-avatar {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
   font-size: 12px;
   font-weight: 700;
 }
 
 .spc-mention-resource-img {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   object-fit: contain;
   flex-shrink: 0;
   opacity: 0.94;
 }
 
 .spc-mention-resource-component {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
 }
 
@@ -2255,13 +2285,14 @@ defineExpose({
 .spc-mention-main {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .spc-mention-title-row {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-height: 20px;
 }
 
 .spc-mention-title {
@@ -2276,12 +2307,13 @@ defineExpose({
 
 .spc-mention-type {
   flex-shrink: 0;
-  border: 1px solid rgba(96, 231, 255, 0.18);
-  border-radius: 999px;
-  padding: 2px 6px;
-  color: rgba(96, 231, 255, 0.86);
+  border: 1px solid rgba(125, 146, 183, 0.22);
+  border-radius: 6px;
+  padding: 2px 5px;
+  color: rgba(184, 225, 235, 0.78);
   font-size: 11px;
   line-height: 1.2;
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .spc-mention-desc {

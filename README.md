@@ -1,12 +1,13 @@
 # Kageos
 
-Kageos is a source-available, self-hostable business capability directory for individuals and teams. It turns ready-to-run scenario directories into governed workspace capabilities: users install mature directories from Hub, run them with private data, customize or fork them inside their own namespace, and publish stable capabilities back to the ecosystem.
+Kageos is a source-available, self-hostable business capability directory for individuals and teams, created by QiaYan AI (qiayanai.com). It turns ready-to-run scenario directories into governed workspace capabilities: users install mature directories from Hub, run them with private data, customize or fork them inside their own namespace, and publish stable capabilities back to the ecosystem.
 
-The project is currently licensed under the Business Source License 1.1. It is not OSI open source today; see [LICENSE](LICENSE) for the exact grant, Hosted Service restriction, Change Date, and future Apache-2.0 change license.
+The core project is currently licensed under the Business Source License 1.1. It is source-available and self-hostable, but it is not OSI open source today. The license restricts third-party commercial Hosted Service offerings, and each version converts to Apache License 2.0 after its Change Date. See [LICENSE](LICENSE) for the exact grant, Hosted Service restriction, Change Date, and future Apache-2.0 change license.
 
 ## Naming And Current Focus
 
 - Write the product name as `Kageos` in prose, UI copy, docs, SDK docs, and website content. Use lowercase `kageos` for package, module, path, and domain identifiers, and keep all-caps `KAGEOS_*` only for environment variables or config keys.
+- In public copy, prefer "source-available and self-hostable" for the core platform. Do not call the BSL-licensed core "open source" until the relevant version has converted to Apache-2.0. SDKs, examples, templates, and docs may use permissive open-source licenses separately when their own license files say so.
 - The current product and engineering focus is namespace scenario-package ecology: build, harden, publish, install, and reuse ready-to-run scenario directories. Do not position Kageos as a low-cost AI app generator; Hub-first installation, private customization, and directory reuse are the main narrative. Do not add new platform cross-cutting capabilities unless maintainers explicitly reopen that track; existing governance, message, timer, audit, and runtime capabilities should be reused by scenario packages.
 
 ## What It Does

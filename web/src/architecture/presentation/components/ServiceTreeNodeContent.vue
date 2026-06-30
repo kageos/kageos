@@ -243,29 +243,37 @@ const nodeIconClass = computed(() => {
 }
 
 .runtime-state-badge :deep(.el-badge__content) {
-  border: none;
-  background: #0ea5e9;
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.12);
+  background: rgba(14, 165, 233, 0.12) !important;
+  color: #0ea5e9 !important;
+  border: 1px solid rgba(14, 165, 233, 0.25) !important;
+  box-shadow: none !important;
+  font-weight: 600 !important;
+  padding: 0 6px !important;
+  border-radius: 12px !important;
 }
 
 .runtime-state-badge-thinking :deep(.el-badge__content) {
-  background: #38bdf8;
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+  background: rgba(14, 165, 233, 0.12) !important;
+  color: #0ea5e9 !important;
+  border-color: rgba(14, 165, 233, 0.25) !important;
 }
 
 .runtime-state-badge-tool :deep(.el-badge__content) {
-  background: #f59e0b;
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.42);
+  background: rgba(245, 158, 11, 0.12) !important;
+  color: #d97706 !important;
+  border-color: rgba(245, 158, 11, 0.25) !important;
 }
 
 .runtime-state-badge-approval :deep(.el-badge__content) {
-  background: #a855f7;
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.42);
+  background: rgba(168, 85, 247, 0.12) !important;
+  color: #a855f7 !important;
+  border-color: rgba(168, 85, 247, 0.25) !important;
 }
 
 .runtime-state-badge-failed :deep(.el-badge__content) {
-  background: #ef4444;
-  box-shadow: 0 0 12px rgba(239, 68, 68, 0.42);
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #ef4444 !important;
+  border-color: rgba(239, 68, 68, 0.25) !important;
 }
 
 .scheduled-agent-badge {
@@ -275,10 +283,13 @@ const nodeIconClass = computed(() => {
 }
 
 .scheduled-agent-badge :deep(.el-badge__content) {
-  border: none;
-  background: #64748b;
-  color: #fff;
-  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.14);
+  background: rgba(100, 116, 139, 0.12) !important;
+  color: #64748b !important;
+  border: 1px solid rgba(100, 116, 139, 0.25) !important;
+  box-shadow: none !important;
+  font-weight: 600 !important;
+  padding: 0 6px !important;
+  border-radius: 12px !important;
 }
 
 .notification-count-badge {
@@ -288,15 +299,35 @@ const nodeIconClass = computed(() => {
 }
 
 .notification-count-badge :deep(.el-badge__content) {
-  border: none;
-  background: #ef4444;
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.12);
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  padding: 0 6px !important;
+  height: 16px !important;
+  line-height: 16px !important;
+  border-radius: 8px !important;
+  transition: background-color 0.2s, transform 0.2s !important;
+  animation: none !important;
+}
+
+.notification-count-badge:hover :deep(.el-badge__content) {
+  background: #f87171 !important;
+  transform: scale(1.05) !important;
 }
 
 .notification-count-badge.is-history :deep(.el-badge__content) {
-  background: #94a3b8;
-  color: #fff;
-  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.14);
+  background: rgba(148, 163, 184, 0.15) !important;
+  color: #94a3b8 !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  box-shadow: none !important;
+}
+
+.notification-count-badge.is-history:hover :deep(.el-badge__content) {
+  background: rgba(148, 163, 184, 0.25) !important;
+  transform: scale(1.05) !important;
 }
 
 :slotted(.node-more-actions) {

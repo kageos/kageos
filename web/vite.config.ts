@@ -7,6 +7,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
+import ElementPlus from 'unplugin-element-plus/vite'
 
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
@@ -29,6 +30,10 @@ export default defineConfig(({ command, mode }) => {
       dirs: ['src/architecture/presentation/components', 'src/architecture/presentation/shared/components'],
       resolvers: [elementPlusResolver],
     }),
+    // 给「<script> 里显式 import { ElXxx } from 'element-plus'」的组件自动补按需样式。
+    // resolver 只处理模板自动导入的组件，本插件覆盖显式导入这条路径，二者互补。
+    // 默认即按需注入编译好的 css（.../style/css），无需额外配置。
+    ElementPlus({}),
   ],
   resolve: {
     alias: {
@@ -42,20 +47,9 @@ export default defineConfig(({ command, mode }) => {
     include: [
       // ElementPlus 按需样式（importStyle: 'css'），用 glob 一次性纳入
       'element-plus/es/components/*/style/css',
-      // echarts 核心 + 按需 install 模块（必须与 core 一起预构建，保证单实例注册）
-      'echarts/core',
-      'echarts/lib/component/title/install.js',
-      'echarts/lib/component/tooltip/install.js',
-      'echarts/lib/component/axisPointer/install.js',
-      'echarts/lib/component/legend/install.js',
-      'echarts/lib/component/grid/install.js',
-      'echarts/lib/component/dataZoom/install.js',
-      'echarts/lib/coord/cartesian/legacyContainLabel.js',
-      'echarts/lib/renderer/installCanvasRenderer.js',
-      'echarts/lib/chart/bar/install.js',
-      'echarts/lib/chart/line/install.js',
-      'echarts/lib/chart/pie/install.js',
-      'echarts/lib/chart/gauge/install.js',
+      // ChartRenderer 使用完整 ECharts runtime，避免 core/components/charts
+      // 分包注册边界导致 dataZoom 拖动时 cartesian2d 丢失。
+      'echarts',
     ],
   },
   build: {

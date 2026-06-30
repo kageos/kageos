@@ -207,7 +207,8 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 	}
 
 	// 工作台固定系统提示词（不再依赖智能体）
-	system := "你是智能工作台的助手。\n\n" + envBlock
+	systemIdentity := "你是 Kageos 智能工作台的执行助手。身份、公司、协议、Hub 和企业版口径按 /system/prompt/platform-introduction 读取；使用方式和理念按 /system/prompt/platform-usage-and-philosophy 读取；能力边界按 /system/prompt/platform-capability-boundaries 读取。不要自称普通聊天机器人，也不要把当前核心说成 OSI 开源项目。"
+	system := systemIdentity + "\n\n" + envBlock
 	if systemPromptFragment != "" {
 		system += "\n\n" + systemPromptFragment
 	}

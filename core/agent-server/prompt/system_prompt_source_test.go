@@ -25,6 +25,38 @@ func TestGetPromptDocContent_ForSDKDirectoryAndLeafDoc(t *testing.T) {
 		t.Fatalf("expected platform capability boundaries content, got: %q", boundaryContent)
 	}
 
+	introName, introContent := GetPromptDocContent(nil, "/system/prompt/platform-introduction")
+	if strings.TrimSpace(introName) == "" {
+		t.Fatal("expected platform introduction doc name")
+	}
+	for _, want := range []string{
+		"Kageos 介绍与身份口径",
+		"恰研智能（qiayanai.com）",
+		"当前 Kageos 核心采用 BSL 1.1",
+		"Hub/企业版",
+		"不要暗示第三方可以冒充官方 Hub",
+	} {
+		if !strings.Contains(introContent, want) {
+			t.Fatalf("expected platform introduction content to contain %q, got: %q", want, introContent)
+		}
+	}
+
+	usageName, usageContent := GetPromptDocContent(nil, "/system/prompt/platform-usage-and-philosophy")
+	if strings.TrimSpace(usageName) == "" {
+		t.Fatal("expected platform usage and philosophy doc name")
+	}
+	for _, want := range []string{
+		"Kageos 使用方式与产品理念",
+		"目录是业务资产",
+		"人机共用同一套能力",
+		"平台管横切，应用管业务",
+		"每天早上帮我生成日报",
+	} {
+		if !strings.Contains(usageContent, want) {
+			t.Fatalf("expected platform usage and philosophy content to contain %q, got: %q", want, usageContent)
+		}
+	}
+
 	commonName, commonContent := GetPromptDocContent(nil, "/system/prompt/sdk/reference/runtime-capabilities")
 	if strings.TrimSpace(commonName) == "" {
 		t.Fatal("expected common runtime capabilities doc name")
@@ -119,6 +151,10 @@ func TestLeanPromptDocsMoveRedundantSDKTaskPacksOutOfSeed(t *testing.T) {
 		"Chart 拆分规则（必读）",
 		"不支持 `resp.Chart(chart1, chart2)`",
 		"图表 `Metadata`",
+		"ResolveChartBucket",
+		"默认不会禁止细粒度",
+		"`SeriesCount`：预计返回的系列数，不是数据库行数",
+		"`dateExpr` / `groupExpr`",
 		"BuildFunctionUrlWithText",
 		"OnSelectFuzzy",
 		"type:files",
@@ -149,6 +185,7 @@ func TestProductManagerRoleRequiresPRDTablesAndConfirmation(t *testing.T) {
 		"## 代表性输出示例",
 		"禁止输出旧结构",
 		"`models/functions/workflow/route/method/order/columns/sample_rows/preview_data/acceptance_cases/confirmation`",
+		"时间趋势图的 `filters` 写清默认时间范围和粒度",
 		"禁止调用 `create_directory`",
 		"app_developer",
 	} {
@@ -176,6 +213,8 @@ func TestAppDeveloperRoleExecutesConfirmedPRD(t *testing.T) {
 		"写代码前必须先读取 1 到多个与当前需求匹配的案例",
 		"/system/prompt/case_catalog/table/ticket",
 		"/system/prompt/case_catalog/form_table_chart/cashier",
+		"ResolveChartBucket",
+		"`MaxValues`",
 		"`write_doc`",
 		"qa_engineer",
 		"build_engineer",
@@ -252,6 +291,8 @@ func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 			"`创建开始时间/创建结束时间`",
 			"不要为了它们新增业务列",
 			"裸写 `开始时间/结束时间` 只适合业务字段或 Chart 统计区间",
+			"ResolveChartBucket",
+			"不要一刀切禁止细粒度",
 			"`write_doc`",
 		},
 		"/system/prompt/roles/build-engineer": {
@@ -262,6 +303,10 @@ func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 		},
 		"/system/prompt/roles/reviewer": {
 			"代码审查分析师 reviewer",
+			"/system/prompt/platform-introduction",
+			"/system/prompt/platform-usage-and-philosophy",
+			"身份、公司、协议、Hub",
+			"产品理念",
 			"`project/tables/forms/charts/rules`",
 			"`search_fields` 不应被误实现成业务模型字段",
 			"`创建开始时间/创建结束时间/创建人` 应映射系统字段查询",
