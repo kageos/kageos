@@ -125,16 +125,17 @@ func splitDirectoryPaths(directory string) []string {
 
 // resolveDirectoryArg 兼容 directory/full_code_path 两种传法；都未传时回退到默认路径。
 func resolveDirectoryArg(directory string, fullCodePath string, defaultPath string) string {
-	if s := strings.TrimSpace(directory); s != "" {
+	if s := strings.TrimSpace(unwrapWorkspaceResourcePathMarker(directory)); s != "" {
 		return s
 	}
-	if s := strings.TrimSpace(fullCodePath); s != "" {
+	if s := strings.TrimSpace(unwrapWorkspaceResourcePathMarker(fullCodePath)); s != "" {
 		return s
 	}
-	return defaultPath
+	return strings.TrimSpace(unwrapWorkspaceResourcePathMarker(defaultPath))
 }
 
 func normalizeAbsoluteToolPath(path string) string {
+	path = unwrapWorkspaceResourcePathMarker(path)
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return ""
@@ -153,7 +154,7 @@ func resolveFullCodePathArg(fullCodePath string, defaultPath string) string {
 }
 
 func normalizeToolPathWithDefault(raw string, defaultPath string) string {
-	raw = strings.TrimSpace(raw)
+	raw = strings.TrimSpace(unwrapWorkspaceResourcePathMarker(raw))
 	if raw == "" {
 		return ""
 	}
@@ -189,6 +190,19 @@ func normalizeToolPathPartWithDefault(pathPart string, defaultPath string) strin
 func isRelativeToolPath(pathPart string) bool {
 	pathPart = strings.TrimSpace(pathPart)
 	return pathPart == "." || pathPart == "./" || strings.HasPrefix(pathPart, "./") || strings.HasPrefix(pathPart, "../")
+}
+
+func unwrapWorkspaceResourcePathMarker(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if len(trimmed) < 3 || !strings.HasPrefix(trimmed, "<") || !strings.HasSuffix(trimmed, ">") {
+		return trimmed
+	}
+	inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(trimmed, "<"), ">"))
+	if (strings.HasPrefix(inner, "/") || strings.HasPrefix(inner, "./") || strings.HasPrefix(inner, "../")) &&
+		!strings.ContainsAny(inner, " \t\r\n<>") {
+		return inner
+	}
+	return trimmed
 }
 
 func resolveTypedFunctionFullCodePathArg(fullCodePath string, defaultPath string, expectedSuffix string) (string, string) {

@@ -109,6 +109,84 @@ func TestSendNotificationDefaultsRecipientToRequestUser(t *testing.T) {
 	}
 }
 
+func TestSendNotificationPublishesWorkspaceRouteSourcePath(t *testing.T) {
+	publisher := &fakeNotificationPublisher{}
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
+		RequestUser:  "alice",
+		ClientSource: contextx.ClientSourceAgent,
+		SourceType:   contextx.SourceTypeAgentTool,
+		SourceRef:    "session-1",
+	})
+	ctx = contextx.WithWorkspaceSession(ctx, "session-1", "订单处理", "app_operator")
+
+	result := runSendNotificationTool(ctx, publisher, sendNotificationArgs{
+		Title:   "订单处理完成",
+		Message: "已经处理完成",
+	}, "/alice/sales/orders")
+
+	if result.IsError {
+		t.Fatalf("send_notification returned error: %s", result.Content)
+	}
+	if len(publisher.msgs) != 1 {
+		t.Fatalf("published messages = %d, want 1", len(publisher.msgs))
+	}
+	envelope, err := decodeNotifyEnvelope(publisher.msgs[0].Data)
+	if err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	if envelope.Meta.FullCodePath != "/alice/sales/orders" {
+		t.Fatalf("full_code_path = %q", envelope.Meta.FullCodePath)
+	}
+	if envelope.Meta.SourcePath != "/alice/sales/orders" {
+		t.Fatalf("source_path = %q", envelope.Meta.SourcePath)
+	}
+}
+
+func TestSendNotificationUsesContextSourcePathWhenToolFullCodePathMissing(t *testing.T) {
+	publisher := &fakeNotificationPublisher{}
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
+		RequestUser:  "alice",
+		ClientSource: contextx.ClientSourceAgent,
+		SourceType:   contextx.SourceTypeAgentTool,
+		SourceRef:    "session-1",
+		SourcePath:   "/alice/sales/orders",
+	})
+	ctx = contextx.WithWorkspaceSession(ctx, "session-1", "订单处理", "app_operator")
+
+	result := runSendNotificationTool(ctx, publisher, sendNotificationArgs{
+		Title:   "订单处理完成",
+		Message: "已经处理完成",
+	}, "")
+
+	if result.IsError {
+		t.Fatalf("send_notification returned error: %s", result.Content)
+	}
+	envelope, err := decodeNotifyEnvelope(publisher.msgs[0].Data)
+	if err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	if envelope.Meta.FullCodePath != "/alice/sales/orders" {
+		t.Fatalf("full_code_path = %q", envelope.Meta.FullCodePath)
+	}
+	if envelope.Meta.SourcePath != "/alice/sales/orders" {
+		t.Fatalf("source_path = %q", envelope.Meta.SourcePath)
+	}
+}
+
+func TestWorkspaceToolSourceDisplayInjectsActiveFullCodePath(t *testing.T) {
+	ctx := contextx.WithSourceInfo(context.Background(), contextx.SourceTypeAgentTool, "session-1")
+	ctx = withWorkspaceToolSourceDisplay(ctx, "/alice/sales/orders")
+
+	if got := contextx.GetSourcePath(ctx); got != "/alice/sales/orders" {
+		t.Fatalf("source_path = %q", got)
+	}
+
+	ctx = withWorkspaceToolSourceDisplay(ctx, "/alice/sales/customers")
+	if got := contextx.GetSourcePath(ctx); got != "/alice/sales/orders" {
+		t.Fatalf("existing source_path should be preserved, got %q", got)
+	}
+}
+
 func TestSendNotificationSchemaDoesNotRequireToUsers(t *testing.T) {
 	def := (&SendNotificationTool{}).Definition()
 	required, ok := def.InputSchema["required"].([]interface{})

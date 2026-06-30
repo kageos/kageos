@@ -66,6 +66,28 @@ describe('StructuredPromptComposer', () => {
     expect(token.text()).toBe('search_articles.form')
   })
 
+  it('renders relative resource tokens against the current workspace path', () => {
+    const wrapper = mount(StructuredPromptComposer, {
+      props: {
+        modelValue: '调用 <./record_screening.form>',
+        fullCodePath: '/system/democase/recruit_interview',
+      },
+      global: {
+        stubs: {
+          ElIcon: IconStub,
+          EditPen: IconStub,
+          View: IconStub,
+        },
+      },
+    })
+
+    const token = wrapper.find('.spc-editor-token')
+    expect(token.exists()).toBe(true)
+    expect(token.attributes('data-token-raw')).toBe('<./record_screening.form>')
+    expect(token.attributes('data-path')).toBe('/system/democase/recruit_interview/record_screening.form')
+    expect(token.text()).toBe('record_screening.form')
+  })
+
   it('renders invocation cards in preview mode', async () => {
     const wrapper = mountComposer([
       '函数调用：',
@@ -83,6 +105,33 @@ describe('StructuredPromptComposer', () => {
     expect(wrapper.text()).toContain('run_table_create')
     expect(wrapper.text()).toContain('orders.table')
     expect(wrapper.text()).toContain('body')
+  })
+
+  it('renders relative invocation resources in preview mode', async () => {
+    const wrapper = mount(StructuredPromptComposer, {
+      props: {
+        modelValue: [
+          '函数调用：',
+          '工具：run_form_submit',
+          '函数：<./record_screening.form>',
+        ].join('\n'),
+        fullCodePath: '/system/democase/recruit_interview',
+      },
+      global: {
+        stubs: {
+          ElIcon: IconStub,
+          EditPen: IconStub,
+          View: IconStub,
+        },
+      },
+    })
+
+    await wrapper.findAll('.spc-mode-btn')[1]?.trigger('click')
+
+    const resource = wrapper.find('.spc-invocation-resource')
+    expect(resource.exists()).toBe(true)
+    expect(resource.attributes('title')).toBe('/system/democase/recruit_interview/record_screening.form')
+    expect(resource.text()).toContain('record_screening.form')
   })
 
   it('renders readonly preview without exposing edit mode', async () => {

@@ -14,13 +14,13 @@ import (
 type RunTableDeleteTool struct{}
 
 type runTableDeleteArgs struct {
-	FullCodePath string `json:"full_code_path" schema_desc:"表格函数完整路径" schema_required:"true"`
+	FullCodePath string `json:"full_code_path" schema_desc:"表格函数路径；同目录表格可用 ./xxx.table 或 <./xxx.table>，相对当前 execute_directory 解析" schema_required:"true"`
 	Body         string `json:"body" schema_desc:"JSON 数组字符串，每项为要删除的行 ID" schema_required:"true"`
 }
 
 var runTableDeleteToolDef = toolDefinition[runTableDeleteArgs](
 	"run_table_delete",
-	"执行工作区内 Table 删除接口，批量删除表格记录（触发 OnTableDeleteRows）。执行前必须已通过 search 字段摘要或 read_go_file 确认表格具备删除能力；不要猜 id。full_code_path 必须为带 `.table` 后缀的具体表格函数完整路径。body 必须为 JSON 数组字符串，每项为要删除的行 ID，如 [1,2,3]。返回 deleted_count、ids、result。",
+	"执行工作区内 Table 删除接口，批量删除表格记录（触发 OnTableDeleteRows）。执行前必须已通过 search 字段摘要或 read_go_file 确认表格具备删除能力；不要猜 id。full_code_path 必须为带 `.table` 后缀的具体表格函数路径；同目录表格可用 `./xxx.table` 或 `<./xxx.table>`。body 必须为 JSON 数组字符串，每项为要删除的行 ID，如 [1,2,3]。返回 deleted_count、ids、result。",
 )
 
 func (t *RunTableDeleteTool) Definition() dto.ToolDef {

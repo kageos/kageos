@@ -69,6 +69,24 @@ const router = createRouter({
         requireAuth: false
       }
     },
+    {
+      path: '/m/action',
+      name: 'mobile-action',
+      component: () => import('@/architecture/presentation/features/mobile/pages/MobileActionPage.vue'),
+      meta: {
+        titleKey: 'route.mobileAction',
+        requireAuth: false
+      }
+    },
+    {
+      path: '/m',
+      name: 'mobile-ask',
+      component: () => import('@/architecture/presentation/features/mobile/pages/MobileAskPage.vue'),
+      meta: {
+        titleKey: 'route.mobileAsk',
+        requireAuth: true
+      }
+    },
 
     // 用户设置页面
     {

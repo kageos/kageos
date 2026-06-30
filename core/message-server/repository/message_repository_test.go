@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/kageos/kageos/core/message-server/model"
@@ -264,6 +265,85 @@ func TestMarkReadAndUnreadCount(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("unread count after mark = %d, want 0", count)
+	}
+}
+
+func TestMessageActionTokenViewAndReply(t *testing.T) {
+	repo := newTestMessageRepo(t)
+	entry, err := repo.Create(context.Background(), dto.MessageSendMeta{
+		From:                  "alice",
+		SourcePath:            "/alice/sales/orders.table",
+		SourceTitle:           "订单列表",
+		WorkspaceSessionID:    "session-1",
+		WorkspaceSessionTitle: "订单跟进",
+	}, dto.MessageSendPayload{
+		Title:   "订单状态待确认",
+		Content: "订单 A123 需要确认下一步。",
+	}, []string{"bob"})
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+
+	rawToken, tokenRow, err := repo.CreateActionToken(context.Background(), CreateActionTokenInput{
+		MessageID:          entry.ID,
+		RecipientUsername:  "bob",
+		Channel:            "feishu",
+		AllowedActions:     []string{"reply"},
+		WorkspaceSessionID: entry.WorkspaceSessionID,
+		ThreadKey:          entry.ThreadKey,
+		SourcePath:         entry.SourcePath,
+	})
+	if err != nil {
+		t.Fatalf("create action token: %v", err)
+	}
+	if rawToken == "" || tokenRow.TokenHash == "" || tokenRow.TokenHash == rawToken {
+		t.Fatalf("token/hash not protected: raw=%q row=%#v", rawToken, tokenRow)
+	}
+
+	view, err := repo.GetActionView(context.Background(), rawToken, "/m")
+	if err != nil {
+		t.Fatalf("get action view: %v", err)
+	}
+	if !view.CanReply || view.TokenStatus != "open" || view.Message.ID != entry.ID || view.WorkspaceSession != "session-1" {
+		t.Fatalf("view = %#v", view)
+	}
+
+	reply, err := repo.SubmitActionReply(context.Background(), rawToken, "我在路上，先按原计划推进。", "reply")
+	if err != nil {
+		t.Fatalf("submit reply: %v", err)
+	}
+	if reply.ReplyMessageID != 0 || reply.Status != "submitted" {
+		t.Fatalf("reply = %#v", reply)
+	}
+	if reply.SourcePath != "/alice/sales/orders.table" || reply.FullCodePath != "/alice/sales/orders.table" || reply.WorkspaceSessionID != "session-1" {
+		t.Fatalf("reply context = %#v", reply)
+	}
+	if !strings.Contains(reply.WorkstationDraft, "订单 A123 需要确认下一步") ||
+		!strings.Contains(reply.WorkstationDraft, "我在路上，先按原计划推进") {
+		t.Fatalf("workstation draft = %q", reply.WorkstationDraft)
+	}
+	if !strings.Contains(reply.WorkstationDraft, "send_notification") ||
+		!strings.Contains(reply.WorkstationDraft, "也看不到本轮工作台回复内容") ||
+		!strings.Contains(reply.WorkstationDraft, "用户只能收到 send_notification 投递的消息通知") ||
+		!strings.Contains(reply.WorkstationDraft, "必须使用 Markdown 格式") ||
+		!strings.Contains(reply.WorkstationDraft, "content_type 使用 markdown") ||
+		!strings.Contains(reply.WorkstationDraft, "通知正文禁止包含思考过程") ||
+		!strings.Contains(reply.WorkstationDraft, "不能替代消息通知") {
+		t.Fatalf("workstation draft missing mobile notification guardrails = %q", reply.WorkstationDraft)
+	}
+	if strings.Contains(reply.WorkstationDraft, "平台会自动") || strings.Contains(reply.WorkstationDraft, "自动回推") {
+		t.Fatalf("workstation draft contains conflicting auto-push wording = %q", reply.WorkstationDraft)
+	}
+
+	thread, total, err := repo.ListInbox(context.Background(), "bob", InboxListFilter{ThreadKey: entry.ThreadKey}, 0, 20)
+	if err != nil {
+		t.Fatalf("list thread: %v", err)
+	}
+	if total != 1 || len(thread) != 1 || thread[0].ID != entry.ID {
+		t.Fatalf("thread total=%d list=%#v", total, thread)
+	}
+	if _, err := repo.SubmitActionReply(context.Background(), rawToken, "重复回复", "reply"); err == nil {
+		t.Fatal("expected duplicate submit to fail")
 	}
 }
 

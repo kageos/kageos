@@ -18,71 +18,49 @@ func (FeishuCardRenderer) Channel() string {
 
 func (FeishuCardRenderer) Render(card NotificationCard) (map[string]interface{}, error) {
 	title := firstNonEmptyString(card.Title, "Kageos 通知")
-	primary := primaryNotificationAction(card.Actions)
-	source := notificationActionByKind(card.Actions, NotificationActionSource)
-	session := notificationActionByKind(card.Actions, NotificationActionSession)
-
+	reply := notificationActionByKind(card.Actions, NotificationActionProcess)
+	if strings.TrimSpace(reply.URL) == "" {
+		reply = notificationActionByKind(card.Actions, NotificationActionAsk)
+	}
+	detail := notificationActionByKind(card.Actions, NotificationActionDetail)
+	primary := firstNotificationActionWithURL(reply, detail, primaryNotificationAction(card.Actions))
 	bodyElements := []interface{}{
 		map[string]interface{}{
 			"tag":        "markdown",
-			"content":    fmt.Sprintf("**<font color='blue'>%s</font>**", escapeFeishuCardText(firstNonEmptyString(card.Summary, card.Title))),
-			"text_size":  "normal",
-			"margin":     "0px 0px 0px 0px",
-			"element_id": "summary_display",
-		},
-		map[string]interface{}{
-			"tag":        "markdown",
-			"content":    fmt.Sprintf("<font color='grey'>来源目录：</font>%s", escapeFeishuCardText(firstNonEmptyString(card.Source.Title, card.Source.Path, card.Source.Workspace, "Kageos"))),
-			"margin":     "0px 0px 0px 0px",
-			"element_id": "source_title_display",
-		},
-	}
-	if contextContent := renderFeishuContextMarkdown(card); contextContent != "" {
-		bodyElements = append(bodyElements, map[string]interface{}{
-			"tag":        "markdown",
-			"content":    contextContent,
-			"margin":     "0px 0px 0px 0px",
-			"element_id": "context_display",
-		})
-	}
-	bodyElements = append(bodyElements, map[string]interface{}{
-		"tag":        "hr",
-		"margin":     "0px 0px 0px 0px",
-		"element_id": "content_divider",
-	})
-	if content := renderFeishuContentMarkdown(card); content != "" {
-		bodyElements = append(bodyElements, map[string]interface{}{
-			"tag":        "markdown",
-			"content":    content,
-			"text_size":  "normal",
+			"content":    renderFeishuCard2Markdown(card),
+			"text_align": "left",
+			"text_size":  "normal_v2",
 			"margin":     "0px 0px 0px 0px",
 			"element_id": "content_display",
-		})
+		},
 	}
 
-	if columns := renderFeishuCard2ActionColumns(primary, source, session); len(columns) > 0 {
+	if actionSet := renderFeishuCard2ActionSet(reply, detail); actionSet != nil {
 		bodyElements = append(bodyElements, map[string]interface{}{
-			"tag":                "column_set",
-			"flex_mode":          "stretch",
-			"horizontal_spacing": "8px",
-			"horizontal_align":   "left",
-			"columns":            columns,
-			"margin":             "0px 0px 0px 0px",
+			"tag":        "hr",
+			"margin":     "0px 0px 0px 0px",
+			"element_id": "content_divider",
 		})
+		bodyElements = append(bodyElements, actionSet)
 	}
-	bodyElements = append(bodyElements, map[string]interface{}{
-		"tag":        "markdown",
-		"content":    "<font color='grey' size='small'>完整内容已保存到 Kageos 站内信，可在工作空间中继续查看。</font>",
-		"text_align": "center",
-		"margin":     "0px 0px 0px 0px",
-		"element_id": "inbox_footer",
-	})
 
 	cardPayload := map[string]interface{}{
 		"schema": "2.0",
-		"config": map[string]interface{}{"update_multi": true},
+		"config": map[string]interface{}{
+			"update_multi": true,
+			"style": map[string]interface{}{
+				"text_size": map[string]interface{}{
+					"normal_v2": map[string]interface{}{
+						"default": "normal",
+						"pc":      "normal",
+						"mobile":  "heading",
+					},
+				},
+			},
+		},
 		"body": map[string]interface{}{
 			"direction": "vertical",
+			"padding":   "12px 12px 12px 12px",
 			"elements":  bodyElements,
 		},
 		"header": map[string]interface{}{
@@ -93,24 +71,6 @@ func (FeishuCardRenderer) Render(card NotificationCard) (map[string]interface{},
 			"subtitle": map[string]interface{}{
 				"tag":     "plain_text",
 				"content": "",
-			},
-			"text_tag_list": []interface{}{
-				map[string]interface{}{
-					"tag": "text_tag",
-					"text": map[string]interface{}{
-						"tag":     "plain_text",
-						"content": "Kageos 自动通知",
-					},
-					"color": "blue",
-				},
-				map[string]interface{}{
-					"tag": "text_tag",
-					"text": map[string]interface{}{
-						"tag":     "plain_text",
-						"content": notificationLevelLabel(card.Level),
-					},
-					"color": feishuLevelColor(card.Level),
-				},
 			},
 			"template": "blue",
 			"padding":  "12px 12px 12px 12px",
@@ -126,21 +86,13 @@ func (FeishuCardRenderer) Render(card NotificationCard) (map[string]interface{},
 	}, nil
 }
 
-func renderFeishuContextMarkdown(card NotificationCard) string {
+func renderFeishuCard2Markdown(card NotificationCard) string {
 	lines := []string{}
-	add := func(label, value string) {
-		value = escapeFeishuCardText(value)
-		if value == "" {
-			return
-		}
-		lines = append(lines, fmt.Sprintf("<font color='grey'>%s：</font>%s", label, value))
+	if summary := escapeFeishuCardText(firstNonEmptyString(card.Summary, card.Title)); summary != "" {
+		lines = append(lines, fmt.Sprintf("### %s", summary))
 	}
-	add("工作空间", card.Source.Workspace)
-	add("目录路径", card.Source.Path)
-	add("任务/会话", firstNonEmptyString(card.Task.SessionTitle, card.Task.Title))
-	add("发起人", card.FromUser)
-	if !card.CreatedAt.IsZero() {
-		add("时间", card.CreatedAt.Format("2006-01-02 15:04:05"))
+	if content := renderFeishuContentMarkdown(card); content != "" {
+		lines = append(lines, "", content)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -245,18 +197,17 @@ func (DingTalkActionCardRenderer) Render(card NotificationCard) (map[string]inte
 	}, nil
 }
 
-func renderFeishuCard2ActionColumns(primary, source, session NotificationAction) []interface{} {
+func renderFeishuCard2ActionSet(reply, detail NotificationAction) map[string]interface{} {
 	buttons := []struct {
 		label     string
 		url       string
 		primary   bool
 		elementID string
 	}{
-		{label: "查看详情", url: primary.URL, primary: true, elementID: "view_detail_action"},
-		{label: "打开目录", url: source.URL, elementID: "open_source_action"},
-		{label: "打开会话", url: session.URL, elementID: "open_session_action"},
+		{label: "回复消息", url: reply.URL, primary: true, elementID: "reply_message_action"},
+		{label: "查看详情", url: detail.URL, elementID: "view_message_detail_action"},
 	}
-	columns := make([]interface{}, 0, len(buttons))
+	elements := make([]interface{}, 0, len(buttons))
 	for _, button := range buttons {
 		if strings.TrimSpace(button.url) == "" {
 			continue
@@ -265,37 +216,48 @@ func renderFeishuCard2ActionColumns(primary, source, session NotificationAction)
 		if button.primary {
 			buttonType = "primary_filled"
 		}
-		columns = append(columns, map[string]interface{}{
-			"tag":   "column",
-			"width": "auto",
-			"elements": []interface{}{
+		elements = append(elements, map[string]interface{}{
+			"tag": "button",
+			"text": map[string]interface{}{
+				"tag":     "plain_text",
+				"content": button.label,
+			},
+			"type":  buttonType,
+			"width": "default",
+			"size":  "medium",
+			"behaviors": []interface{}{
 				map[string]interface{}{
-					"tag": "button",
-					"text": map[string]interface{}{
-						"tag":     "plain_text",
-						"content": button.label,
-					},
-					"type":  buttonType,
-					"width": "fill",
-					"behaviors": []interface{}{
-						map[string]interface{}{
-							"type":        "open_url",
-							"default_url": button.url,
-							"pc_url":      "",
-							"ios_url":     "",
-							"android_url": "",
-						},
-					},
-					"margin":     "4px 0px 4px 0px",
-					"element_id": button.elementID,
+					"type":        "open_url",
+					"default_url": button.url,
+					"pc_url":      "",
+					"ios_url":     "",
+					"android_url": "",
 				},
 			},
-			"vertical_spacing": "8px",
-			"horizontal_align": "left",
-			"vertical_align":   "top",
+			"margin":     "0px 0px 0px 0px",
+			"element_id": button.elementID,
 		})
 	}
-	return columns
+	if len(elements) == 0 {
+		return nil
+	}
+	return map[string]interface{}{
+		"tag":              "column_set",
+		"horizontal_align": "left",
+		"columns": []interface{}{
+			map[string]interface{}{
+				"tag":              "column",
+				"width":            "weighted",
+				"elements":         elements,
+				"direction":        "horizontal",
+				"vertical_spacing": "8px",
+				"horizontal_align": "left",
+				"vertical_align":   "top",
+				"weight":           1,
+			},
+		},
+		"margin": "0px 0px 0px 0px",
+	}
 }
 
 func renderWeComMarkdown(card NotificationCard) string {
@@ -510,6 +472,11 @@ func escapeFeishuCardText(s string) string {
 
 func primaryNotificationAction(actions []NotificationAction) NotificationAction {
 	for _, action := range actions {
+		if action.Kind == NotificationActionProcess && strings.TrimSpace(action.URL) != "" {
+			return action
+		}
+	}
+	for _, action := range actions {
 		if action.Kind == NotificationActionDetail && strings.TrimSpace(action.URL) != "" {
 			return action
 		}
@@ -525,6 +492,15 @@ func primaryNotificationAction(actions []NotificationAction) NotificationAction 
 func notificationActionByKind(actions []NotificationAction, kind string) NotificationAction {
 	for _, action := range actions {
 		if action.Kind == kind && strings.TrimSpace(action.URL) != "" {
+			return action
+		}
+	}
+	return NotificationAction{}
+}
+
+func firstNotificationActionWithURL(actions ...NotificationAction) NotificationAction {
+	for _, action := range actions {
+		if strings.TrimSpace(action.URL) != "" {
 			return action
 		}
 	}

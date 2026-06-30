@@ -77,3 +77,55 @@ type NotificationChannelSetting struct {
 func (NotificationChannelSetting) TableName() string {
 	return "notification_channel_setting"
 }
+
+type NotificationRouteSetting struct {
+	ID        int64     `json:"id" gorm:"primaryKey;autoIncrement"`
+	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+
+	ScopePath        string     `json:"scope_path" gorm:"size:700;not null;uniqueIndex:idx_notification_route_scope_channel;index;comment:服务树作用域路径"`
+	ScopeType        string     `json:"scope_type" gorm:"size:64;not null;default:directory;index;comment:作用域类型 workspace/directory/function"`
+	Channel          string     `json:"channel" gorm:"size:64;not null;uniqueIndex:idx_notification_route_scope_channel;index;comment:通知渠道"`
+	Enabled          bool       `json:"enabled" gorm:"not null;index;comment:是否启用"`
+	DeliveryType     string     `json:"delivery_type" gorm:"size:64;not null;default:webhook;comment:投递类型"`
+	DisplayName      string     `json:"display_name" gorm:"size:255;comment:展示名称"`
+	RequireAuth      bool       `json:"require_auth" gorm:"not null;default:true;comment:群/目录通知处理链接是否必须登录"`
+	WebhookURLCipher string     `json:"-" gorm:"type:text;comment:webhook 地址密文"`
+	SecretCipher     string     `json:"-" gorm:"type:text;comment:签名 secret 密文"`
+	Metadata         string     `json:"metadata" gorm:"type:text;comment:渠道扩展配置 JSON"`
+	LastSuccessAt    *time.Time `json:"last_success_at" gorm:"index;comment:最近投递成功时间"`
+	LastFailedAt     *time.Time `json:"last_failed_at" gorm:"index;comment:最近投递失败时间"`
+	LastTestAt       *time.Time `json:"last_test_at" gorm:"index;comment:最近测试时间"`
+	LastError        string     `json:"last_error" gorm:"type:text;comment:最近投递错误"`
+	FailCount        int        `json:"fail_count" gorm:"not null;default:0;comment:连续失败次数"`
+}
+
+func (NotificationRouteSetting) TableName() string {
+	return "notification_route_setting"
+}
+
+type MessageActionToken struct {
+	ID        int64     `json:"id" gorm:"primaryKey;autoIncrement"`
+	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+
+	TokenHash          string     `json:"-" gorm:"size:128;not null;uniqueIndex;comment:短期处理 token 哈希"`
+	MessageID          int64      `json:"message_id" gorm:"not null;index;comment:原始消息 ID"`
+	RecipientUsername  string     `json:"recipient_username" gorm:"size:255;not null;index;comment:被授权处理人"`
+	AuthorizedUsers    string     `json:"authorized_users" gorm:"size:2000;comment:允许登录处理的用户，逗号分隔；为空时只允许 recipient_username"`
+	Channel            string     `json:"channel" gorm:"size:64;index;comment:触达渠道"`
+	RequireAuth        bool       `json:"require_auth" gorm:"not null;default:false;comment:处理链接是否必须登录后使用"`
+	AllowedActions     string     `json:"allowed_actions" gorm:"size:255;comment:允许动作，逗号分隔"`
+	Status             string     `json:"status" gorm:"size:32;not null;default:open;index;comment:open/submitted/expired/revoked"`
+	ExpiresAt          time.Time  `json:"expires_at" gorm:"not null;index;comment:有效期"`
+	UsedAt             *time.Time `json:"used_at" gorm:"index;comment:提交时间"`
+	ReplyMessageID     int64      `json:"reply_message_id" gorm:"index;comment:回复消息 ID"`
+	WorkspaceSessionID string     `json:"workspace_session_id" gorm:"size:128;index;comment:关联工作台会话 ID"`
+	ThreadKey          string     `json:"thread_key" gorm:"size:700;index;comment:消息线程键"`
+	SourcePath         string     `json:"source_path" gorm:"size:500;index;comment:来源路径"`
+	TraceID            string     `json:"trace_id" gorm:"size:128;index;comment:链路追踪 ID"`
+}
+
+func (MessageActionToken) TableName() string {
+	return "message_action_token"
+}

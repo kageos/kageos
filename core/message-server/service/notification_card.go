@@ -19,9 +19,11 @@ const (
 	NotificationLevelWarning  = "warning"
 	NotificationLevelCritical = "critical"
 
+	NotificationActionProcess = "process"
 	NotificationActionDetail  = "detail"
 	NotificationActionSource  = "source"
 	NotificationActionSession = "session"
+	NotificationActionAsk     = "ask"
 
 	NotificationChannelFeishu   = "feishu"
 	NotificationChannelWeCom    = "wecom"
@@ -70,7 +72,9 @@ type NotificationAction struct {
 }
 
 type NotificationCardBuildOptions struct {
-	BaseURL string
+	BaseURL         string
+	MobileActionURL string
+	MobileAskURL    string
 }
 
 type NotificationCardBuilder interface {
@@ -130,17 +134,25 @@ func (DefaultNotificationCardBuilder) BuildNotificationCard(_ context.Context, e
 	if card.CreatedAt.IsZero() {
 		card.CreatedAt = time.Now()
 	}
-	card.Actions = buildNotificationActions(opts.BaseURL, fullCodePath, sourcePath, sourceTitle, entry)
+	card.Actions = buildNotificationActions(opts, fullCodePath, sourcePath, sourceTitle, entry)
 	return card
 }
 
-func buildNotificationActions(baseURL, fullCodePath, sourcePath, sourceTitle string, entry *model.MessageEntry) []NotificationAction {
+func buildNotificationActions(opts NotificationCardBuildOptions, fullCodePath, sourcePath, sourceTitle string, entry *model.MessageEntry) []NotificationAction {
 	if entry == nil {
 		return nil
 	}
+	baseURL := opts.BaseURL
 	routePath := firstNonEmptyString(fullCodePath, sourcePath, entry.SourceParentPath)
 	sourceRoutePath := firstNonEmptyString(sourcePath, fullCodePath, entry.SourceParentPath)
-	actions := make([]NotificationAction, 0, 3)
+	actions := make([]NotificationAction, 0, 5)
+	if strings.TrimSpace(opts.MobileActionURL) != "" {
+		actions = append(actions, NotificationAction{
+			Kind:  NotificationActionProcess,
+			Label: "处理消息",
+			URL:   opts.MobileActionURL,
+		})
+	}
 	detailQuery := url.Values{}
 	detailQuery.Set("_open", "inbox")
 	detailQuery.Set("_focus", "message")
@@ -193,6 +205,13 @@ func buildNotificationActions(baseURL, fullCodePath, sourcePath, sourceTitle str
 				URL:   absoluteCardURL(baseURL, route),
 			})
 		}
+	}
+	if strings.TrimSpace(opts.MobileAskURL) != "" {
+		actions = append(actions, NotificationAction{
+			Kind:  NotificationActionAsk,
+			Label: "主动问 Kageos",
+			URL:   opts.MobileAskURL,
+		})
 	}
 	return dedupeNotificationActions(actions)
 }

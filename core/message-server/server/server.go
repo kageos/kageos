@@ -32,8 +32,13 @@ type Server struct {
 	messageRepo            *msgrepo.MessageRepository
 	messageConsumerService *service.MessageConsumerService
 	messageCommandHandler  *service.MessageCommandHandler
+	workspaceActionRunner  workspaceActionSubmitter
 	notificationVault      *service.NotificationSecretVault
 	subscriptions          []*nats.Subscription
+}
+
+type workspaceActionSubmitter interface {
+	Submit(ctx context.Context, req service.WorkspaceActionRequest) (*service.WorkspaceActionSubmitResult, error)
 }
 
 func NewServer(cfg *config.MessageServerConfig) (*Server, error) {
@@ -165,6 +170,7 @@ func (s *Server) initServices(ctx context.Context) error {
 		service.WithChannelProviders(service.NewDefaultNotificationChannelProviders(s.cfg.GetNotificationWebhookTimeout())...),
 	)
 	s.messageCommandHandler = service.NewMessageCommandHandler(s.messageConsumerService)
+	s.workspaceActionRunner = service.NewWorkspaceActionRunner(config.GetGlobalSharedConfig().Gateway.GetInternalURL())
 	logger.Infof(ctx, "[message-server] services initialized")
 	return nil
 }

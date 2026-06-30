@@ -4,17 +4,28 @@ import (
 	"context"
 )
 
+const (
+	NotificationTargetKindUser  = "user"
+	NotificationTargetKindRoute = "route"
+)
+
 type ResolvedRecipient struct {
 	Username string
 	Email    string
 }
 
 type NotificationTarget struct {
-	Recipient  ResolvedRecipient
-	Channel    string
-	WebhookURL string
-	Secret     string
-	Metadata   map[string]string
+	Kind            string
+	Recipient       ResolvedRecipient
+	AuthorizedUsers []string
+	Channel         string
+	WebhookURL      string
+	Secret          string
+	Metadata        map[string]string
+	RouteID         int64
+	ScopePath       string
+	ScopeType       string
+	RequireAuth     bool
 }
 
 type ChannelProvider interface {

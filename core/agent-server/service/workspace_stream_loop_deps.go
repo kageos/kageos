@@ -22,6 +22,7 @@ type workspaceStreamLoopDeps struct {
 	toolNames               []string
 	systemPromptFragment    string
 	files                   string
+	currentMessageID        int64
 	service                 *WorkspaceChatService
 	currentLLMMeta          messageLLMMetadata
 	currentModelContextPlan *dto.WorkspaceModelContextPlan
@@ -39,7 +40,7 @@ func (d *workspaceStreamLoopDeps) BuildMessages(ctx context.Context) ([]llms.Mes
 	if directoryName == "" {
 		directoryName = workspaceCtx.Directory.Code
 	}
-	msgs, tools, plan, err := d.service.buildLLMMessagesWithPlan(ctx, d.sessionID, d.fullCodePath, directoryName, workspaceCtx, d.modeProvider, d.toolNames, d.systemPromptFragment, d.modelContextRound)
+	msgs, tools, plan, err := d.service.buildLLMMessagesWithPlan(ctx, d.sessionID, d.fullCodePath, directoryName, workspaceCtx, d.modeProvider, d.toolNames, d.systemPromptFragment, d.modelContextRound, d.currentMessageID)
 	if err != nil {
 		return nil, nil, err
 	}

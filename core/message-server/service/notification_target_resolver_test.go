@@ -75,3 +75,89 @@ func TestUserNotificationTargetResolverResolvesEnabledWebhookTargets(t *testing.
 		t.Fatalf("metadata = %#v", target.Metadata)
 	}
 }
+
+func TestUserNotificationTargetResolverUsesNearestRouteBeforeUserChannel(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := msgmodel.InitModels(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	repo := msgrepo.NewMessageRepository(db)
+	vault, err := NewNotificationSecretVault("test-secret")
+	if err != nil {
+		t.Fatalf("new vault: %v", err)
+	}
+	userWebhookCipher, err := vault.Seal("https://open.feishu.cn/open-apis/bot/v2/hook/user")
+	if err != nil {
+		t.Fatalf("seal user webhook: %v", err)
+	}
+	routeWebhookCipher, err := vault.Seal("https://open.feishu.cn/open-apis/bot/v2/hook/orders")
+	if err != nil {
+		t.Fatalf("seal route webhook: %v", err)
+	}
+	if _, err := repo.UpsertNotificationChannel(context.Background(), &msgmodel.NotificationChannelSetting{
+		OwnerUsername:    "bob",
+		Channel:          NotificationChannelFeishu,
+		Enabled:          true,
+		DeliveryType:     "webhook",
+		WebhookURLCipher: userWebhookCipher,
+	}); err != nil {
+		t.Fatalf("upsert user channel: %v", err)
+	}
+	if _, err := repo.UpsertNotificationRoute(context.Background(), &msgmodel.NotificationRouteSetting{
+		ScopePath:        "/alice/sales",
+		Channel:          NotificationChannelFeishu,
+		Enabled:          true,
+		DeliveryType:     "webhook",
+		WebhookURLCipher: userWebhookCipher,
+		RequireAuth:      true,
+	}); err != nil {
+		t.Fatalf("upsert parent route: %v", err)
+	}
+	route, err := repo.UpsertNotificationRoute(context.Background(), &msgmodel.NotificationRouteSetting{
+		ScopePath:        "/alice/sales/orders",
+		Channel:          NotificationChannelWeCom,
+		Enabled:          true,
+		DeliveryType:     "webhook",
+		WebhookURLCipher: routeWebhookCipher,
+		RequireAuth:      true,
+		Metadata:         `{"scope":"orders"}`,
+	})
+	if err != nil {
+		t.Fatalf("upsert child route: %v", err)
+	}
+
+	resolver := NewUserNotificationTargetResolver(repo, vault)
+	targets, err := resolver.ResolveNotificationTargets(context.Background(), []ResolvedRecipient{
+		{Username: "bob"},
+		{Username: "alice"},
+	}, &msgmodel.MessageEntry{
+		SourcePath:       "/alice/sales/orders/notify.form",
+		FullCodePath:     "/alice/sales/orders/notify.form",
+		SourceParentPath: "/alice/sales/orders",
+	}, dto.MessageSendPayload{})
+	if err != nil {
+		t.Fatalf("resolve targets: %v", err)
+	}
+	if len(targets) != 1 {
+		t.Fatalf("targets len = %d, want nearest child route only: %#v", len(targets), targets)
+	}
+	target := targets[0]
+	if target.Kind != NotificationTargetKindRoute || target.RouteID != route.ID || target.ScopePath != "/alice/sales/orders" {
+		t.Fatalf("unexpected route target = %#v", target)
+	}
+	if target.Channel != NotificationChannelWeCom || target.WebhookURL != "https://open.feishu.cn/open-apis/bot/v2/hook/orders" {
+		t.Fatalf("unexpected route channel/webhook = %#v", target)
+	}
+	if len(target.AuthorizedUsers) != 2 || target.AuthorizedUsers[0] != "bob" || target.AuthorizedUsers[1] != "alice" {
+		t.Fatalf("authorized users = %#v", target.AuthorizedUsers)
+	}
+	if !target.RequireAuth {
+		t.Fatal("route target should require auth by default")
+	}
+	if target.Metadata["scope"] != "orders" {
+		t.Fatalf("metadata = %#v", target.Metadata)
+	}
+}

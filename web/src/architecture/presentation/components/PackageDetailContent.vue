@@ -32,6 +32,16 @@
           </div>
         </el-tab-pane>
 
+        <el-tab-pane :label="t('packageDetail.notification')" name="notification" lazy>
+          <div class="tab-content notification-tab-content">
+            <NotificationRoutePanel
+              v-if="activeTab === 'notification'"
+              :scope-path="packageNode.full_code_path || ''"
+              :scope-type="packageScopeType"
+            />
+          </div>
+        </el-tab-pane>
+
         <el-tab-pane
           v-if="featureFlags.operateLogs"
           :label="t('packageDetail.operateLog')"
@@ -90,6 +100,7 @@ import { useRoute, useRouter } from 'vue-router'
 import type { ServiceTree } from '@/architecture/domain/types'
 import PackageDirectoryOverview from './PackageDirectoryOverview.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
+import NotificationRoutePanel from './NotificationRoutePanel.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
 import TeamAccessPanel from './TeamAccessPanel.vue'
@@ -136,6 +147,10 @@ const accessPanelRef = ref<LoadableAccessPanel | null>(null)
 
 const directoryMarkdown = computed(() => {
   return props.packageNode?.description?.trim() || ''
+})
+const packageScopeType = computed(() => {
+  const parts = String(props.packageNode?.full_code_path || '').split('/').filter(Boolean)
+  return parts.length <= 2 ? 'workspace' : 'directory'
 })
 const scheduledFocusTaskID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY))
 const scheduledFocusExecutionID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_EXECUTION_ID_QUERY_KEY))
@@ -304,6 +319,7 @@ watch(
 .directory-detail-tab-content,
 .operate-log-tab-content,
 .scheduled-agent-tab-content,
+.notification-tab-content,
 .access-tab-content {
   min-height: 360px;
 }

@@ -59,7 +59,8 @@ func (s *WorkspaceChatService) executeToolCalls(
 			st = ToolCallStatusError
 			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 角色工具门禁阻断 - RoleID: %s, ToolName: %s, Error: %s", i+1, len(allToolCalls), activeRoleID, tc.Function.Name, toolRes.Content)
 		} else {
-			toolRes, st = s.callOtherTool(ctx, tc.Function.Name, args, activeFullCodePath, files, i+1, len(allToolCalls))
+			toolCtx := withWorkspaceToolSourceDisplay(ctx, activeFullCodePath)
+			toolRes, st = s.callOtherTool(toolCtx, tc.Function.Name, args, activeFullCodePath, files, i+1, len(allToolCalls))
 		}
 		if err := ctx.Err(); err != nil {
 			logger.Infof(ctx, "[WorkspaceChatStream] 工具调用已取消 - SessionID: %s, ToolName: %s", sessionID, tc.Function.Name)
@@ -160,6 +161,20 @@ func withAgentToolExecutionContext(ctx context.Context, sessionID, sessionTitle,
 	}
 	ctx = withAgentToolClientSource(ctx)
 	return contextx.WithSourceInfo(ctx, contextx.SourceTypeAgentTool, sessionID)
+}
+
+func withWorkspaceToolSourceDisplay(ctx context.Context, fullCodePath string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if strings.TrimSpace(contextx.GetSourcePath(ctx)) != "" {
+		return ctx
+	}
+	fullCodePath = strings.TrimSpace(fullCodePath)
+	if fullCodePath == "" {
+		return ctx
+	}
+	return contextx.WithSourceDisplay(ctx, fullCodePath, "", "", "", "")
 }
 
 // parseToolCallArgs 解析 tool_call 的 arguments JSON，解析失败时返回错误，由调用方保存一条 tool error，避免坏参数继续执行真实工具。

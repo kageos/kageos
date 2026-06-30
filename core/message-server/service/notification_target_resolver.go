@@ -35,6 +35,11 @@ func (r *UserNotificationTargetResolver) ResolveNotificationTargets(ctx context.
 		recipientByUsername[username] = recipient
 		usernames = append(usernames, username)
 	}
+	if routeTargets, routeMatched, err := r.resolveRouteTargets(ctx, recipients, entry); err != nil {
+		return nil, err
+	} else if routeMatched {
+		return routeTargets, nil
+	}
 	rows, err := r.repo.ListEnabledNotificationChannels(ctx, usernames)
 	if err != nil {
 		return nil, err
@@ -63,14 +68,109 @@ func (r *UserNotificationTargetResolver) ResolveNotificationTargets(ctx context.
 			continue
 		}
 		targets = append(targets, NotificationTarget{
-			Recipient:  recipient,
-			Channel:    normalizeNotificationChannel(row.Channel),
-			WebhookURL: webhookURL,
-			Secret:     strings.TrimSpace(secret),
-			Metadata:   parseNotificationMetadata(row.Metadata),
+			Kind:            NotificationTargetKindUser,
+			Recipient:       recipient,
+			AuthorizedUsers: []string{recipient.Username},
+			Channel:         normalizeNotificationChannel(row.Channel),
+			WebhookURL:      webhookURL,
+			Secret:          strings.TrimSpace(secret),
+			Metadata:        parseNotificationMetadata(row.Metadata),
 		})
 	}
 	return targets, nil
+}
+
+func (r *UserNotificationTargetResolver) resolveRouteTargets(ctx context.Context, recipients []ResolvedRecipient, entry *msgmodel.MessageEntry) ([]NotificationTarget, bool, error) {
+	if entry == nil {
+		return nil, false, nil
+	}
+	candidates := msgrepo.NotificationRouteCandidatePaths(entry.SourcePath, entry.FullCodePath, entry.SourceParentPath)
+	if len(candidates) == 0 {
+		return nil, false, nil
+	}
+	rows, err := r.repo.ListEnabledNotificationRoutesByPaths(ctx, candidates)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(rows) == 0 {
+		return nil, false, nil
+	}
+	candidateRank := make(map[string]int, len(candidates))
+	for idx, candidate := range candidates {
+		candidateRank[candidate] = idx
+	}
+	bestRank := len(candidates)
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		if rank, ok := candidateRank[msgrepo.NormalizeNotificationScopePath(row.ScopePath)]; ok && rank < bestRank {
+			bestRank = rank
+		}
+	}
+	if bestRank == len(candidates) {
+		return nil, false, nil
+	}
+	bestScope := candidates[bestRank]
+	authorizedUsers := notificationTargetAuthorizedUsers(recipients)
+	representative := ResolvedRecipient{}
+	if len(recipients) > 0 {
+		representative = recipients[0]
+	}
+	targets := make([]NotificationTarget, 0, len(rows))
+	for _, row := range rows {
+		if row == nil || msgrepo.NormalizeNotificationScopePath(row.ScopePath) != bestScope {
+			continue
+		}
+		if strings.TrimSpace(row.WebhookURLCipher) == "" {
+			continue
+		}
+		webhookURL, err := r.vault.Open(row.WebhookURLCipher)
+		if err != nil {
+			logger.Errorf(ctx, "[NotificationTargetResolver] open route webhook url failed route_id=%d scope=%s channel=%s: %v", row.ID, row.ScopePath, row.Channel, err)
+			continue
+		}
+		webhookURL = strings.TrimSpace(webhookURL)
+		if webhookURL == "" {
+			continue
+		}
+		secret, err := r.vault.Open(row.SecretCipher)
+		if err != nil {
+			logger.Errorf(ctx, "[NotificationTargetResolver] open route secret failed route_id=%d scope=%s channel=%s: %v", row.ID, row.ScopePath, row.Channel, err)
+			continue
+		}
+		targets = append(targets, NotificationTarget{
+			Kind:            NotificationTargetKindRoute,
+			Recipient:       representative,
+			AuthorizedUsers: authorizedUsers,
+			Channel:         normalizeNotificationChannel(row.Channel),
+			WebhookURL:      webhookURL,
+			Secret:          strings.TrimSpace(secret),
+			Metadata:        parseNotificationMetadata(row.Metadata),
+			RouteID:         row.ID,
+			ScopePath:       msgrepo.NormalizeNotificationScopePath(row.ScopePath),
+			ScopeType:       strings.TrimSpace(row.ScopeType),
+			RequireAuth:     row.RequireAuth,
+		})
+	}
+	return targets, true, nil
+}
+
+func notificationTargetAuthorizedUsers(recipients []ResolvedRecipient) []string {
+	out := make([]string, 0, len(recipients))
+	seen := map[string]struct{}{}
+	for _, recipient := range recipients {
+		username := strings.TrimSpace(recipient.Username)
+		if username == "" {
+			continue
+		}
+		if _, ok := seen[username]; ok {
+			continue
+		}
+		seen[username] = struct{}{}
+		out = append(out, username)
+	}
+	return out
 }
 
 func parseNotificationMetadata(raw string) map[string]string {

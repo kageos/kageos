@@ -67,6 +67,32 @@ describe('usePackageDetailTabs', () => {
     }
   })
 
+  it('opens the notification tab from the panel query', () => {
+    const scope = effectScope()
+
+    try {
+      const route = {
+        path: '/workspace/demo/app/directory',
+        query: {
+          _panel: 'notification'
+        }
+      } as any
+      const router = {
+        replace: vi.fn()
+      } as any
+
+      const tabs = scope.run(() => usePackageDetailTabs({
+        route,
+        router,
+        currentPackageNode
+      }))!
+
+      expect(tabs.activeTab.value).toBe('notification')
+    } finally {
+      scope.stop()
+    }
+  })
+
   it('restores scheduled agent tabs from legacy scheduled route state', () => {
     const scope = effectScope()
 

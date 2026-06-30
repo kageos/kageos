@@ -7,6 +7,13 @@ import (
 	"github.com/kageos/kageos/pkg/gormx/models"
 )
 
+const (
+	WorkspaceMessageContextInclude     = "include"
+	WorkspaceMessageContextDisplayOnly = "display_only"
+	WorkspaceMessageContextArtifact    = "artifact"
+	WorkspaceMessageContextCurrentTurn = "current_turn"
+)
+
 // WorkspaceChatReq 工作台对话请求（只认 LLM，单模式）
 type WorkspaceChatReq struct {
 	FullCodePath string       `json:"full_code_path" binding:"required"` // 目录完整路径（必填）
@@ -22,7 +29,7 @@ type WorkspaceMsg struct {
 	Content           string `json:"content" binding:"required"`
 	DisplayContent    string `json:"display_content,omitempty"`    // 前端展示内容，模型仍使用 content
 	Files             string `json:"files,omitempty"`              // 文件引用字符串，格式 bucket/object_key，多文件逗号分隔
-	ContextUsage      string `json:"context_usage,omitempty"`      // include/display_only/artifact
+	ContextUsage      string `json:"context_usage,omitempty"`      // include/display_only/artifact/current_turn
 	ArtifactKind      string `json:"artifact_kind,omitempty"`      // 结构化产物类型
 	InteractionAction string `json:"interaction_action,omitempty"` // 处理阻塞交互的动作，如 revise_prd/continue_development
 }

@@ -34,7 +34,8 @@ export interface WorkspaceInvocationBlock {
   endLine: number
 }
 
-const RESOURCE_TOKEN_PATTERN = /<\/[^>\s]+>/g
+const RESOURCE_TOKEN_PATTERN = /<(?:\/|\.\/|\.\.\/)[^>\s]+>/g
+const RESOURCE_TOKEN_BODY_PATTERN = /^(?:\/|\.\/|\.\.\/)[^>\s]+$/
 const DEFAULT_INVOCATION_NOTE = '复制后粘贴到工作台，AI 会按下面信息识别并调用。'
 
 export function wrapWorkspaceResourcePath(path: string): string {
@@ -43,21 +44,32 @@ export function wrapWorkspaceResourcePath(path: string): string {
 }
 
 export function normalizeWorkspaceResourcePath(path: string): string {
-  const trimmed = String(path || '').trim()
-  if (!trimmed) return ''
-  const withoutWrapper = trimmed.startsWith('<') && trimmed.endsWith('>')
-    ? trimmed.slice(1, -1).trim()
-    : trimmed
-  return withoutWrapper.startsWith('/') ? withoutWrapper : `/${withoutWrapper}`
+  const body = stripWorkspaceResourceWrapper(path)
+  if (!body) return ''
+  if (isRelativeWorkspaceResourcePath(body)) {
+    return body
+  }
+  return body.startsWith('/') ? body : `/${body}`
 }
 
-export function unwrapWorkspaceResourceToken(token: string): string {
+export function resolveWorkspaceResourcePath(path: string, basePath = ''): string {
+  const normalized = normalizeWorkspaceResourcePath(path)
+  if (!normalized || !isRelativeWorkspaceResourcePath(normalized)) {
+    return normalized
+  }
+
+  return joinWorkspacePath(basePath, normalized) || normalized
+}
+
+export function unwrapWorkspaceResourceToken(token: string, basePath = ''): string {
   const trimmed = String(token || '').trim()
-  if (!/^<\/[^>\s]+>$/.test(trimmed)) return ''
-  return normalizeWorkspaceResourcePath(trimmed.slice(1, -1))
+  if (!trimmed.startsWith('<') || !trimmed.endsWith('>')) return ''
+  const body = trimmed.slice(1, -1).trim()
+  if (!RESOURCE_TOKEN_BODY_PATTERN.test(body)) return ''
+  return resolveWorkspaceResourcePath(body, basePath)
 }
 
-export function parseWorkspacePromptSegments(text: string): WorkspacePromptSegment[] {
+export function parseWorkspacePromptSegments(text: string, basePath = ''): WorkspacePromptSegment[] {
   const source = String(text || '')
   const segments: WorkspacePromptSegment[] = []
   let cursor = 0
@@ -79,7 +91,7 @@ export function parseWorkspacePromptSegments(text: string): WorkspacePromptSegme
     segments.push({
       type: 'resource',
       text: raw,
-      path: unwrapWorkspaceResourceToken(raw),
+      path: unwrapWorkspaceResourceToken(raw, basePath),
       start,
       end,
     })
@@ -153,7 +165,7 @@ export function filterEmptyInvocationParams(params: Record<string, unknown>): Re
   )
 }
 
-export function parseWorkspaceInvocationBlocks(text: string): WorkspaceInvocationBlock[] {
+export function parseWorkspaceInvocationBlocks(text: string, basePath = ''): WorkspaceInvocationBlock[] {
   const lines = String(text || '').split(/\r?\n/)
   const blocks: WorkspaceInvocationBlock[] = []
 
@@ -173,7 +185,7 @@ export function parseWorkspaceInvocationBlocks(text: string): WorkspaceInvocatio
     const blockLines = lines.slice(index, endLine + 1)
     const tool = readBlockValue(blockLines, '工具')
     const functionLine = readBlockValue(blockLines, '函数')
-    const resourcePath = unwrapWorkspaceResourceToken(functionLine)
+    const resourcePath = unwrapWorkspaceResourceToken(functionLine, basePath)
     const params = readBlockParams(blockLines)
 
     if (tool || resourcePath || params.length > 0) {
@@ -256,4 +268,61 @@ function isEmptyInvocationValue(value: unknown): boolean {
   if (Array.isArray(value)) return value.length === 0
   if (typeof value === 'object') return Object.keys(value as Record<string, unknown>).length === 0
   return false
+}
+
+function stripWorkspaceResourceWrapper(value: string): string {
+  const trimmed = String(value || '').trim()
+  if (!trimmed) return ''
+  if (trimmed.startsWith('<') && trimmed.endsWith('>')) {
+    return trimmed.slice(1, -1).trim()
+  }
+  return trimmed
+}
+
+function isRelativeWorkspaceResourcePath(path: string): boolean {
+  return path.startsWith('./') || path.startsWith('../')
+}
+
+function joinWorkspacePath(basePath: string, relativePath: string): string {
+  const baseDir = workspacePathDirectory(basePath)
+  if (!baseDir) return ''
+
+  const { pathPart, queryPart } = splitWorkspacePathQuery(relativePath)
+  const stack = baseDir.split('/').filter(Boolean)
+  pathPart.split('/').forEach((part) => {
+    if (!part || part === '.') return
+    if (part === '..') {
+      stack.pop()
+      return
+    }
+    stack.push(part)
+  })
+  const resolved = `/${stack.join('/')}`
+  return queryPart ? `${resolved}?${queryPart}` : resolved
+}
+
+function workspacePathDirectory(basePath: string): string {
+  const normalized = normalizeWorkspaceResourcePath(basePath)
+  if (!normalized.startsWith('/')) return ''
+
+  const { pathPart } = splitWorkspacePathQuery(normalized)
+  const parts = pathPart.split('/').filter(Boolean)
+  if (parts.length === 0) return ''
+
+  const tail = parts[parts.length - 1] || ''
+  if (tail.includes('.')) {
+    parts.pop()
+  }
+  return `/${parts.join('/')}`
+}
+
+function splitWorkspacePathQuery(value: string): { pathPart: string; queryPart: string } {
+  const index = value.indexOf('?')
+  if (index < 0) {
+    return { pathPart: value, queryPart: '' }
+  }
+  return {
+    pathPart: value.slice(0, index),
+    queryPart: value.slice(index + 1),
+  }
 }

@@ -156,6 +156,51 @@ type MessageUnreadCountResp struct {
 	UnreadCount int64 `json:"unread_count"`
 }
 
+type MessageActionTokenStatus string
+
+const (
+	MessageActionTokenStatusOpen      MessageActionTokenStatus = "open"
+	MessageActionTokenStatusSubmitted MessageActionTokenStatus = "submitted"
+	MessageActionTokenStatusExpired   MessageActionTokenStatus = "expired"
+	MessageActionTokenStatusRevoked   MessageActionTokenStatus = "revoked"
+)
+
+type MessageActionViewResp struct {
+	TokenStatus       string             `json:"token_status"`
+	RecipientUser     string             `json:"recipient_user"`
+	Channel           string             `json:"channel,omitempty"`
+	RequireAuth       bool               `json:"require_auth"`
+	AuthenticatedUser string             `json:"authenticated_user,omitempty"`
+	AllowedActions    []string           `json:"allowed_actions"`
+	CanReply          bool               `json:"can_reply"`
+	ExpiresAt         time.Time          `json:"expires_at"`
+	Message           MessageInboxItem   `json:"message"`
+	Thread            []MessageInboxItem `json:"thread"`
+	MobileAskURL      string             `json:"mobile_ask_url"`
+	WorkspaceSession  string             `json:"workspace_session_id,omitempty"`
+	SubmittedAt       *time.Time         `json:"submitted_at,omitempty"`
+	ReplyMessageID    int64              `json:"reply_message_id,omitempty"`
+}
+
+type MessageActionReplyReq struct {
+	Content string `json:"content" binding:"required"`
+	Action  string `json:"action"`
+}
+
+type MessageActionReplyResp struct {
+	Status             string    `json:"status"`
+	ReplyMessageID     int64     `json:"reply_message_id"`
+	SubmittedAt        time.Time `json:"submitted_at"`
+	MobileAskURL       string    `json:"mobile_ask_url,omitempty"`
+	Channel            string    `json:"channel,omitempty"`
+	SourcePath         string    `json:"source_path,omitempty"`
+	FullCodePath       string    `json:"full_code_path,omitempty"`
+	WorkspaceSessionID string    `json:"workspace_session_id,omitempty"`
+	AgentSubmitted     bool      `json:"agent_submitted"`
+	AgentSubmitError   string    `json:"agent_submit_error,omitempty"`
+	WorkstationDraft   string    `json:"workstation_draft,omitempty"`
+}
+
 type MessageNotificationChannelInfo struct {
 	Channel       string            `json:"channel"`
 	Enabled       bool              `json:"enabled"`
@@ -176,11 +221,50 @@ type MessageNotificationChannelListResp struct {
 	List []MessageNotificationChannelInfo `json:"list"`
 }
 
+type MessageNotificationRouteInfo struct {
+	ID            int64             `json:"id"`
+	ScopePath     string            `json:"scope_path"`
+	ScopeType     string            `json:"scope_type"`
+	Channel       string            `json:"channel"`
+	Enabled       bool              `json:"enabled"`
+	DeliveryType  string            `json:"delivery_type"`
+	DisplayName   string            `json:"display_name"`
+	RequireAuth   bool              `json:"require_auth"`
+	HasWebhookURL bool              `json:"has_webhook_url"`
+	HasSecret     bool              `json:"has_secret"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+	UpdatedAt     time.Time         `json:"updated_at"`
+	LastSuccessAt *time.Time        `json:"last_success_at,omitempty"`
+	LastFailedAt  *time.Time        `json:"last_failed_at,omitempty"`
+	LastTestAt    *time.Time        `json:"last_test_at,omitempty"`
+	LastError     string            `json:"last_error,omitempty"`
+	FailCount     int               `json:"fail_count"`
+}
+
+type MessageNotificationRouteListResp struct {
+	List []MessageNotificationRouteInfo `json:"list"`
+}
+
 type UpsertMessageNotificationChannelReq struct {
 	Channel         string            `json:"channel"`
 	Enabled         *bool             `json:"enabled"`
 	DeliveryType    string            `json:"delivery_type"`
 	DisplayName     string            `json:"display_name"`
+	WebhookURL      string            `json:"webhook_url"`
+	Secret          string            `json:"secret"`
+	ClearWebhookURL bool              `json:"clear_webhook_url"`
+	ClearSecret     bool              `json:"clear_secret"`
+	Metadata        map[string]string `json:"metadata"`
+}
+
+type UpsertMessageNotificationRouteReq struct {
+	ScopePath       string            `json:"scope_path" binding:"required"`
+	ScopeType       string            `json:"scope_type"`
+	Channel         string            `json:"channel"`
+	Enabled         *bool             `json:"enabled"`
+	DeliveryType    string            `json:"delivery_type"`
+	DisplayName     string            `json:"display_name"`
+	RequireAuth     *bool             `json:"require_auth"`
 	WebhookURL      string            `json:"webhook_url"`
 	Secret          string            `json:"secret"`
 	ClearWebhookURL bool              `json:"clear_webhook_url"`

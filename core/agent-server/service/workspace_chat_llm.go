@@ -158,10 +158,14 @@ func (s *WorkspaceChatService) buildLLMMessages(ctx context.Context, sessionID, 
 	return msgs, tools, err
 }
 
-func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, sessionID, fullCodePath, directoryName string, workspaceCtx *dto.GetWorkspaceContextResp, modeProvider prompt.WorkspaceModePromptProvider, fallbackToolNames []string, fallbackSystemPrompt string, round int) ([]llms.Message, []llms.ToolDef, *dto.WorkspaceModelContextPlan, error) {
+func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, sessionID, fullCodePath, directoryName string, workspaceCtx *dto.GetWorkspaceContextResp, modeProvider prompt.WorkspaceModePromptProvider, fallbackToolNames []string, fallbackSystemPrompt string, round int, currentMessageID ...int64) ([]llms.Message, []llms.ToolDef, *dto.WorkspaceModelContextPlan, error) {
 	list, err := s.messageRepo.ListBySessionID(sessionID)
 	if err != nil {
 		return nil, nil, nil, err
+	}
+	currentTurnMessageID := int64(0)
+	if len(currentMessageID) > 0 {
+		currentTurnMessageID = currentMessageID[0]
 	}
 	allMessages := append([]*model.AgentChatMessage(nil), list...)
 	var session *model.AgentChatSession
@@ -220,7 +224,7 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 	}
 
 	msgs := []llms.Message{{Role: "system", Content: system}}
-	historyMessages, includedMessages, excludedUnsupported := buildWorkspaceLLMHistory(ctx, list)
+	historyMessages, includedMessages, excludedUnsupported := buildWorkspaceLLMHistory(ctx, list, currentTurnMessageID)
 	msgs = append(msgs, historyMessages...)
 	plan := s.buildWorkspaceModelContextPlan(ctx, workspaceModelContextPlanInput{
 		SessionID:                   sessionID,
@@ -250,13 +254,26 @@ type workspaceLLMHistoryEntry struct {
 	source *model.AgentChatMessage
 }
 
-func buildWorkspaceLLMHistory(ctx context.Context, messages []*model.AgentChatMessage) ([]llms.Message, []*model.AgentChatMessage, []*model.AgentChatMessage) {
+func buildWorkspaceLLMHistory(ctx context.Context, messages []*model.AgentChatMessage, currentTurnMessageID int64) ([]llms.Message, []*model.AgentChatMessage, []*model.AgentChatMessage) {
 	entries := make([]workspaceLLMHistoryEntry, 0, len(messages))
 	includedMessages := make([]*model.AgentChatMessage, 0, len(messages))
 	excludedUnsupported := make([]*model.AgentChatMessage, 0)
+	skipExpiredCurrentTurnRun := false
 
 	for _, m := range messages {
 		if m == nil {
+			continue
+		}
+		usage := normalizeMessageContextUsage(m.ContextUsage)
+		if m.Role == RoleUser {
+			skipExpiredCurrentTurnRun = false
+			if usage == MessageContextCurrentTurn && (currentTurnMessageID == 0 || m.ID != currentTurnMessageID) {
+				skipExpiredCurrentTurnRun = true
+				excludedUnsupported = append(excludedUnsupported, m)
+				continue
+			}
+		} else if skipExpiredCurrentTurnRun {
+			excludedUnsupported = append(excludedUnsupported, m)
 			continue
 		}
 		switch m.Role {

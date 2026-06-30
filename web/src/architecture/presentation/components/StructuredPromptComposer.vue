@@ -284,6 +284,7 @@ import TableIcon from '@/architecture/presentation/shared/components/icons/Table
 import {
   parseWorkspaceInvocationBlocks,
   parseWorkspacePromptSegments,
+  resolveWorkspaceResourcePath,
   wrapWorkspaceResourcePath,
   type WorkspacePromptSegment,
 } from './utils/workspaceInvocationSnippet'
@@ -429,8 +430,9 @@ const props = withDefaults(defineProps<{
   mentionPanelPlacement?: MentionPanelPlacement
   readonlyPreview?: boolean
   editorTestId?: string
+  fullCodePath?: string
 }>(), {
-  placeholder: '输入任务，可粘贴 </path> 资源引用或函数调用块',
+  placeholder: '输入任务，可粘贴 </path> 或 <./path> 资源引用',
   disabled: false,
   minRows: 4,
   maxRows: 12,
@@ -441,6 +443,7 @@ const props = withDefaults(defineProps<{
   mentionPanelPlacement: 'below',
   readonlyPreview: false,
   editorTestId: 'structured-prompt-editor',
+  fullCodePath: '',
 })
 
 const emit = defineEmits<{
@@ -477,7 +480,7 @@ let lastCompositionEndAt = 0
 
 const structuredSegments = computed(() => parseStructuredPromptSegments(currentText.value))
 const resourceSegments = computed(() => structuredSegments.value.filter((segment): segment is StructuredPromptResourceSegment => segment.type === 'resource'))
-const invocationBlocks = computed(() => parseWorkspaceInvocationBlocks(currentText.value))
+const invocationBlocks = computed(() => parseWorkspaceInvocationBlocks(currentText.value, props.fullCodePath))
 const mentionPanelOpen = computed(() => props.enableMentions && mode.value === 'edit' && !!mentionQuery.value)
 const mentionPopoverPlacement = computed(() => props.mentionPanelPlacement === 'above' ? 'top-start' : 'bottom-start')
 const mentionPopoverWidth = computed(() => {
@@ -1298,7 +1301,7 @@ async function hydrateVisibleMetadata() {
     structuredSegments.value
       .filter((segment): segment is StructuredPromptResourceSegment => segment.type === 'resource')
       .map((segment) => normalizeResourcePathForMeta(segment.path || segment.text))
-      .filter((path) => path && !resourceMetaByPath.value[path])
+      .filter((path) => path && path.startsWith('/') && !resourceMetaByPath.value[path])
   )).slice(0, 20)
 
   await Promise.all([
@@ -1429,12 +1432,7 @@ function createFallbackResourceMeta(path: string): PromptResourceMeta {
 }
 
 function normalizeResourcePathForMeta(pathOrToken: string) {
-  const raw = String(pathOrToken || '').trim()
-  if (!raw) return ''
-  const stripped = raw.startsWith('<') && raw.endsWith('>')
-    ? raw.slice(1, -1).trim()
-    : raw
-  return stripped.startsWith('/') ? stripped : `/${stripped}`
+  return resolveWorkspaceResourcePath(pathOrToken, props.fullCodePath)
 }
 
 function openInfoCardForUser(username: string, event: MouseEvent | KeyboardEvent) {
@@ -1510,7 +1508,7 @@ function parseStructuredPromptSegments(text: string): StructuredPromptSegment[] 
   const source = String(text || '')
   const tokens: Array<StructuredPromptResourceSegment | StructuredPromptUserSegment> = []
 
-  parseWorkspacePromptSegments(source).forEach((segment) => {
+  parseWorkspacePromptSegments(source, props.fullCodePath).forEach((segment) => {
     if (segment.type === 'resource') {
       tokens.push(segment as StructuredPromptResourceSegment)
     }

@@ -4,6 +4,7 @@ import {
   filterEmptyInvocationParams,
   parseWorkspaceInvocationBlocks,
   parseWorkspacePromptSegments,
+  resolveWorkspaceResourcePath,
   unwrapWorkspaceResourceToken,
   wrapWorkspaceResourcePath,
 } from './workspaceInvocationSnippet'
@@ -16,6 +17,15 @@ describe('workspaceInvocationSnippet', () => {
     expect(unwrapWorkspaceResourceToken(token)).toBe('/system/demos/weixin/wechat_articles/search_articles.form')
   })
 
+  it('preserves relative resource tokens and resolves them against a workspace path', () => {
+    const token = wrapWorkspaceResourcePath('./record_screening.form')
+
+    expect(token).toBe('<./record_screening.form>')
+    expect(unwrapWorkspaceResourceToken(token)).toBe('./record_screening.form')
+    expect(unwrapWorkspaceResourceToken(token, '/system/democase/recruit_interview')).toBe('/system/democase/recruit_interview/record_screening.form')
+    expect(resolveWorkspaceResourcePath('../shared/jobs.table', '/system/democase/recruit_interview')).toBe('/system/democase/shared/jobs.table')
+  })
+
   it('splits prompt text into text and resource segments', () => {
     const segments = parseWorkspacePromptSegments('调用 </system/app/search.form> 后总结')
 
@@ -23,6 +33,16 @@ describe('workspaceInvocationSnippet', () => {
     expect(segments[1]).toMatchObject({
       path: '/system/app/search.form',
       text: '</system/app/search.form>',
+    })
+  })
+
+  it('splits relative resource tokens with a resolved segment path', () => {
+    const segments = parseWorkspacePromptSegments('调用 <./record_screening.form> 后总结', '/system/democase/recruit_interview')
+
+    expect(segments.map((segment) => segment.type)).toEqual(['text', 'resource', 'text'])
+    expect(segments[1]).toMatchObject({
+      path: '/system/democase/recruit_interview/record_screening.form',
+      text: '<./record_screening.form>',
     })
   })
 
@@ -65,6 +85,17 @@ describe('workspaceInvocationSnippet', () => {
       { key: 'body', fixed: false },
       { key: 'groupid', fixed: true },
     ])
+  })
+
+  it('parses relative invocation block resources against a workspace path', () => {
+    const blocks = parseWorkspaceInvocationBlocks([
+      '函数调用：',
+      '工具：run_form_submit',
+      '函数：<./record_screening.form>',
+    ].join('\n'), '/system/democase/recruit_interview')
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]?.resourcePath).toBe('/system/democase/recruit_interview/record_screening.form')
   })
 
   it('filters empty params before copying partially filled forms', () => {

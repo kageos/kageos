@@ -7,5 +7,7 @@ func InitModels(db *gorm.DB) error {
 		&MessageEntry{},
 		&MessageRecipient{},
 		&NotificationChannelSetting{},
+		&NotificationRouteSetting{},
+		&MessageActionToken{},
 	)
 }

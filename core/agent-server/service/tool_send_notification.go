@@ -237,7 +237,8 @@ func buildNotifyMessageMeta(ctx context.Context, title string, currentFullCodePa
 		sourceType = contextx.SourceTypeAgentTool
 		sourceRef = workspaceSessionID
 	}
-	sourcePath := firstNonEmptyString(contextx.GetSourcePath(ctx), currentFullCodePath)
+	effectiveFullCodePath := firstNonEmptyString(currentFullCodePath, contextx.GetSourcePath(ctx), contextx.GetSourceParentPath(ctx))
+	sourcePath := firstNonEmptyString(contextx.GetSourcePath(ctx), effectiveFullCodePath)
 	sourceTitle := firstNonEmptyString(
 		contextx.GetSourceTitle(ctx),
 		contextx.GetWorkspaceSessionTitle(ctx),
@@ -247,7 +248,7 @@ func buildNotifyMessageMeta(ctx context.Context, title string, currentFullCodePa
 		From:                  from,
 		RequestUser:           requestUser,
 		DepartmentFullPath:    strings.TrimSpace(contextx.GetRequestDepartmentFullPath(ctx)),
-		FullCodePath:          strings.TrimSpace(currentFullCodePath),
+		FullCodePath:          strings.TrimSpace(effectiveFullCodePath),
 		TraceID:               strings.TrimSpace(contextx.GetTraceId(ctx)),
 		ClientSource:          strings.TrimSpace(contextx.GetAuditClientSource(ctx)),
 		SourceType:            sourceType,

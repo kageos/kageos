@@ -73,6 +73,9 @@ func TestDefaultNotificationCardBuilderIncludesSourceAndActions(t *testing.T) {
 
 func TestFeishuCardRendererProducesInteractiveCard(t *testing.T) {
 	card := sampleNotificationCard()
+	card.Actions = append([]NotificationAction{
+		{Kind: NotificationActionProcess, Label: "处理消息", URL: "https://kageos.example/m/action?t=kat_sample"},
+	}, card.Actions...)
 	payload, err := FeishuCardRenderer{}.Render(card)
 	if err != nil {
 		t.Fatalf("render feishu: %v", err)
@@ -103,9 +106,14 @@ func TestFeishuCardRendererProducesInteractiveCard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
 	}
-	for _, want := range []string{"schema\":\"2.0", "Kageos 自动通知", "查看详情", "打开目录", "打开会话", "任务/会话", "具体内容"} {
+	for _, want := range []string{"schema\":\"2.0", "normal_v2", "回复消息", "查看详情", "primary_filled", "具体内容"} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("feishu card missing %q:\n%s", want, string(raw))
+		}
+	}
+	for _, unwanted := range []string{"工作空间", "目录路径", "任务/会话", "发起人", "完整内容已保存"} {
+		if strings.Contains(string(raw), unwanted) {
+			t.Fatalf("feishu card should not include noisy context %q:\n%s", unwanted, string(raw))
 		}
 	}
 	if strings.Contains(string(raw), "{{") {
@@ -326,8 +334,17 @@ func TestMessageConsumerDeliversExternalNotificationTargets(t *testing.T) {
 	if call.target.Recipient.Username != "bob" || call.card.ToUser != "bob" {
 		t.Fatalf("provider call target/card = %#v / %#v", call.target, call.card)
 	}
-	if len(call.card.Actions) == 0 || !strings.Contains(call.card.Actions[0].URL, "https://kageos.example/workspace/alice/demo/leads") {
+	processAction := notificationActionByKind(call.card.Actions, NotificationActionProcess)
+	if !strings.Contains(processAction.URL, "https://kageos.example/m/action?t=kat_") {
+		t.Fatalf("process action = %#v, actions = %#v", processAction, call.card.Actions)
+	}
+	detailAction := notificationActionByKind(call.card.Actions, NotificationActionDetail)
+	if !strings.Contains(detailAction.URL, "https://kageos.example/workspace/alice/demo/leads") {
 		t.Fatalf("card actions = %#v", call.card.Actions)
+	}
+	askAction := notificationActionByKind(call.card.Actions, NotificationActionAsk)
+	if !strings.Contains(askAction.URL, "https://kageos.example/m?source_path=%2Falice%2Fdemo%2Fleads") {
+		t.Fatalf("ask action = %#v, actions = %#v", askAction, call.card.Actions)
 	}
 	status, err := repo.GetNotificationChannel(context.Background(), "bob", NotificationChannelFeishu)
 	if err != nil {

@@ -15,13 +15,13 @@ import (
 type RunTableCreateTool struct{}
 
 type runTableCreateArgs struct {
-	FullCodePath string `json:"full_code_path" schema_desc:"表格函数完整路径" schema_required:"true"`
+	FullCodePath string `json:"full_code_path" schema_desc:"表格函数路径；同目录表格可用 ./xxx.table 或 <./xxx.table>，相对当前 execute_directory 解析" schema_required:"true"`
 	Body         string `json:"body" schema_desc:"JSON 数组字符串，每项一条记录" schema_required:"true"`
 }
 
 var runTableCreateToolDef = toolDefinition[runTableCreateArgs](
 	"run_table_create",
-	"执行工作区内 Table 新增接口，新增一条或多条表格记录（每条都会触发 OnTableAddRow）。执行前必须已通过 search 字段摘要或 read_go_file 确认表格具备新增能力，并确认 model 的 json 字段名、必填项、枚举值和文件字段；不要猜 body。full_code_path 必须为带 `.table` 后缀的具体表格函数完整路径（如 /luobei/myapp/nps/nps_questionnaire_list.table）。body 必须为 JSON 数组字符串，每项为一条记录的字段对象，如 [{\"title\":\"问卷A\"},{\"title\":\"问卷B\"}]；字段名与表格 model 的 json 标签一致，必填项需包含。返回 data_list 为成功插入的每条记录（后端返回的数据列表），以及 created_count、failed_count、errors。",
+	"执行工作区内 Table 新增接口，新增一条或多条表格记录（每条都会触发 OnTableAddRow）。执行前必须已通过 search 字段摘要或 read_go_file 确认表格具备新增能力，并确认 model 的 json 字段名、必填项、枚举值和文件字段；不要猜 body。full_code_path 必须为带 `.table` 后缀的具体表格函数路径（如 /luobei/myapp/nps/nps_questionnaire_list.table）；同目录表格可用 `./xxx.table` 或 `<./xxx.table>`。body 必须为 JSON 数组字符串，每项为一条记录的字段对象，如 [{\"title\":\"问卷A\"},{\"title\":\"问卷B\"}]；字段名与表格 model 的 json 标签一致，必填项需包含。返回 data_list 为成功插入的每条记录（后端返回的数据列表），以及 created_count、failed_count、errors。",
 )
 
 func (t *RunTableCreateTool) Definition() dto.ToolDef {

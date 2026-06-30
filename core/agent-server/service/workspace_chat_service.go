@@ -36,9 +36,10 @@ const (
 	ContextPolicyArtifactOnly = "artifact_only"
 	ContextPolicyDisplayOnly  = "display_only"
 
-	MessageContextInclude     = "include"
-	MessageContextDisplayOnly = "display_only"
-	MessageContextArtifact    = "artifact"
+	MessageContextInclude     = dto.WorkspaceMessageContextInclude
+	MessageContextDisplayOnly = dto.WorkspaceMessageContextDisplayOnly
+	MessageContextArtifact    = dto.WorkspaceMessageContextArtifact
+	MessageContextCurrentTurn = dto.WorkspaceMessageContextCurrentTurn
 )
 
 // 工具调用状态常量
@@ -310,6 +311,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	llmConfigID := req.LLMConfigID
 
 	// 3) 保存 user 消息。handoff 原子化场景下，首条 artifact 消息已在 handoff 事务内落库，此处只续跑。
+	var currentMessageID int64
 	if !resumeExistingMessage {
 		storageContent, storageFiles := userContentForStorage(req.Message.Files, req.Message.Content)
 		userMsg := &model.AgentChatMessage{
@@ -324,6 +326,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		if e := s.messageRepo.Create(userMsg); e != nil {
 			return s.handleError(sendEvent, "保存用户消息失败", e)
 		}
+		currentMessageID = userMsg.ID
 	}
 
 	// 3.1) 新会话自动生成标题
@@ -362,6 +365,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		toolNames:            toolNames,
 		systemPromptFragment: systemPromptFragment,
 		files:                req.Message.Files,
+		currentMessageID:     currentMessageID,
 		service:              s,
 	}
 	return streamloop.RunStreamLoop(runCtx, deps)

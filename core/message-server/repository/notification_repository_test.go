@@ -123,3 +123,76 @@ func TestNotificationChannelRepositoryRecordsDeliveryStatus(t *testing.T) {
 		t.Fatalf("unexpected success status: %#v", got)
 	}
 }
+
+func TestNotificationRouteRepositoryMatchesNearestScopeAndRecordsStatus(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := model.InitModels(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	repo := NewMessageRepository(db)
+	if _, err := repo.UpsertNotificationRoute(context.Background(), &model.NotificationRouteSetting{
+		ScopePath:        "/alice/sales",
+		Channel:          "feishu",
+		Enabled:          true,
+		DeliveryType:     "webhook",
+		DisplayName:      "销售默认群",
+		RequireAuth:      true,
+		WebhookURLCipher: "sales-cipher-url",
+	}); err != nil {
+		t.Fatalf("create parent route: %v", err)
+	}
+	child, err := repo.UpsertNotificationRoute(context.Background(), &model.NotificationRouteSetting{
+		ScopePath:        "/alice/sales/orders",
+		Channel:          "wecom",
+		Enabled:          true,
+		DeliveryType:     "webhook",
+		DisplayName:      "订单群",
+		RequireAuth:      true,
+		WebhookURLCipher: "orders-cipher-url",
+	})
+	if err != nil {
+		t.Fatalf("create child route: %v", err)
+	}
+
+	candidates := NotificationRouteCandidatePaths("/alice/sales/orders/notify.form")
+	wantCandidates := []string{"/alice/sales/orders/notify.form", "/alice/sales/orders", "/alice/sales"}
+	if len(candidates) != len(wantCandidates) {
+		t.Fatalf("candidates = %#v", candidates)
+	}
+	for i := range wantCandidates {
+		if candidates[i] != wantCandidates[i] {
+			t.Fatalf("candidate[%d]=%q want %q all=%#v", i, candidates[i], wantCandidates[i], candidates)
+		}
+	}
+	routes, err := repo.ListEnabledNotificationRoutesByPaths(context.Background(), candidates)
+	if err != nil {
+		t.Fatalf("list enabled routes: %v", err)
+	}
+	if len(routes) != 2 {
+		t.Fatalf("routes = %#v", routes)
+	}
+
+	if err := repo.RecordNotificationRouteDeliveryFailure(context.Background(), child.ID, "webhook returned 400", true); err != nil {
+		t.Fatalf("record route failure: %v", err)
+	}
+	got, err := repo.GetNotificationRoute(context.Background(), "/alice/sales/orders", "wecom")
+	if err != nil {
+		t.Fatalf("get route: %v", err)
+	}
+	if got.FailCount != 1 || got.LastFailedAt == nil || got.LastTestAt == nil || got.LastError == "" {
+		t.Fatalf("unexpected route failure status: %#v", got)
+	}
+	if err := repo.RecordNotificationRouteDeliverySuccess(context.Background(), child.ID, false); err != nil {
+		t.Fatalf("record route success: %v", err)
+	}
+	got, err = repo.GetNotificationRoute(context.Background(), "/alice/sales/orders", "wecom")
+	if err != nil {
+		t.Fatalf("get route after success: %v", err)
+	}
+	if got.FailCount != 0 || got.LastSuccessAt == nil || got.LastError != "" {
+		t.Fatalf("unexpected route success status: %#v", got)
+	}
+}

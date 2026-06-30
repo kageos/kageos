@@ -9,7 +9,7 @@ import {
   clearScheduledRouteQuery,
 } from '@/architecture/shared/routing/platformRouteParams'
 
-type FunctionTabName = 'content' | 'permission' | 'publicShare' | 'operateLog' | 'scheduledTask'
+type FunctionTabName = 'content' | 'permission' | 'notification' | 'publicShare' | 'operateLog' | 'scheduledTask'
 
 type FunctionFormViewRef = Record<string, unknown>
 
@@ -47,6 +47,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
 
   const getFunctionTabQueryValue = () => {
     if (functionActiveTab.value === 'permission') return 'permission'
+    if (functionActiveTab.value === 'notification') return 'notification'
     if (functionActiveTab.value === 'publicShare') return 'publicShare'
     if (functionActiveTab.value === 'operateLog') return 'operateLog'
     if (functionActiveTab.value === 'scheduledTask') return 'scheduledTask'
@@ -82,6 +83,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
 
   const handleFunctionTabChange = (tabName: string) => {
     if (tabName === 'permission') functionActiveTab.value = 'permission'
+    else if (tabName === 'notification') functionActiveTab.value = 'notification'
     else if (tabName === 'publicShare') functionActiveTab.value = 'publicShare'
     else if (tabName === 'operateLog' && featureFlags.operateLogs) functionActiveTab.value = 'operateLog'
     else if (tabName === 'scheduledTask' && featureFlags.scheduledTasks) functionActiveTab.value = 'scheduledTask'
@@ -94,6 +96,11 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
 
     if (normalizedTab === 'permission' && currentFunction.value?.type === 'function') {
       functionActiveTab.value = 'permission'
+      return
+    }
+
+    if (normalizedTab === 'notification' && currentFunction.value?.type === 'function') {
+      functionActiveTab.value = 'notification'
       return
     }
 

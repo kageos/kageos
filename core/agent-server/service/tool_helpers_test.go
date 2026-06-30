@@ -65,6 +65,38 @@ func TestResolveTypedFunctionFullCodePathArg(t *testing.T) {
 			t.Fatalf("unexpected path: %s", got)
 		}
 	})
+
+	t.Run("unwraps absolute resource token path", func(t *testing.T) {
+		got, notice := resolveTypedFunctionFullCodePathArg("</system/democase/recruit_interview/record_screening.form>", "", ".form")
+		if notice != "" {
+			t.Fatalf("unexpected notice: %s", notice)
+		}
+		if got != "/system/democase/recruit_interview/record_screening.form" {
+			t.Fatalf("unexpected path: %s", got)
+		}
+	})
+
+	t.Run("unwraps relative resource token path", func(t *testing.T) {
+		got, notice := resolveTypedFunctionFullCodePathArg("<./record_screening.form>", "/system/democase/recruit_interview", ".form")
+		if notice != "" {
+			t.Fatalf("unexpected notice: %s", notice)
+		}
+		if got != "/system/democase/recruit_interview/record_screening.form" {
+			t.Fatalf("unexpected path: %s", got)
+		}
+	})
+}
+
+func TestResolveDirectoryArgUnwrapsResourceTokens(t *testing.T) {
+	got := resolveDirectoryArg("", "</system/democase/recruit_interview>", "/fallback")
+	if got != "/system/democase/recruit_interview" {
+		t.Fatalf("unexpected directory: %s", got)
+	}
+
+	got = resolveDirectoryArg("", "", "<./current>")
+	if got != "./current" {
+		t.Fatalf("unexpected fallback directory: %s", got)
+	}
 }
 
 func TestToolResultWithStructuredData(t *testing.T) {

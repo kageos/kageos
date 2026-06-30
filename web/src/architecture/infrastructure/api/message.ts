@@ -112,6 +112,42 @@ export interface MessageUnreadCountResp {
   unread_count: number
 }
 
+export interface MessageActionViewResp {
+  token_status: 'open' | 'submitted' | 'expired' | 'revoked' | string
+  recipient_user: string
+  channel?: string
+  require_auth: boolean
+  authenticated_user?: string
+  allowed_actions: string[]
+  can_reply: boolean
+  expires_at: string
+  message: MessageInboxItem
+  thread: MessageInboxItem[]
+  mobile_ask_url?: string
+  workspace_session_id?: string
+  submitted_at?: string | null
+  reply_message_id?: number
+}
+
+export interface MessageActionReplyReq {
+  content: string
+  action?: string
+}
+
+export interface MessageActionReplyResp {
+  status: string
+  reply_message_id: number
+  submitted_at: string
+  mobile_ask_url?: string
+  channel?: string
+  source_path?: string
+  full_code_path?: string
+  workspace_session_id?: string
+  agent_submitted: boolean
+  agent_submit_error?: string
+  workstation_draft?: string
+}
+
 export type MessageNotificationChannel = 'feishu' | 'wecom' | 'dingtalk' | string
 
 export interface MessageNotificationChannelInfo {
@@ -134,11 +170,50 @@ export interface MessageNotificationChannelListResp {
   list: MessageNotificationChannelInfo[]
 }
 
+export interface MessageNotificationRouteInfo {
+  id: number
+  scope_path: string
+  scope_type: 'workspace' | 'directory' | 'function' | string
+  channel: MessageNotificationChannel
+  enabled: boolean
+  delivery_type: string
+  display_name?: string
+  require_auth: boolean
+  has_webhook_url: boolean
+  has_secret: boolean
+  metadata?: Record<string, string>
+  updated_at?: string
+  last_success_at?: string
+  last_failed_at?: string
+  last_test_at?: string
+  last_error?: string
+  fail_count?: number
+}
+
+export interface MessageNotificationRouteListResp {
+  list: MessageNotificationRouteInfo[]
+}
+
 export interface UpsertMessageNotificationChannelReq {
   channel?: MessageNotificationChannel
   enabled?: boolean
   delivery_type?: string
   display_name?: string
+  webhook_url?: string
+  secret?: string
+  clear_webhook_url?: boolean
+  clear_secret?: boolean
+  metadata?: Record<string, string>
+}
+
+export interface UpsertMessageNotificationRouteReq {
+  scope_path: string
+  scope_type?: string
+  channel?: MessageNotificationChannel
+  enabled?: boolean
+  delivery_type?: string
+  display_name?: string
+  require_auth?: boolean
   webhook_url?: string
   secret?: string
   clear_webhook_url?: boolean
@@ -251,10 +326,38 @@ export function testMessageNotificationChannel(channel: MessageNotificationChann
   return post<TestMessageNotificationChannelResp>(`/message/api/v1/notification_channels/${channel}/test`)
 }
 
+export function listMessageNotificationRoutes(scopePath?: string): Promise<MessageNotificationRouteListResp> {
+  return get<MessageNotificationRouteListResp>('/message/api/v1/notification_routes', scopePath ? { scope_path: scopePath } : {})
+}
+
+export function upsertMessageNotificationRoute(
+  channel: MessageNotificationChannel,
+  data: UpsertMessageNotificationRouteReq
+): Promise<MessageNotificationRouteInfo> {
+  return put<MessageNotificationRouteInfo>(`/message/api/v1/notification_routes/${channel}`, data)
+}
+
+export function deleteMessageNotificationRoute(channel: MessageNotificationChannel, scopePath: string): Promise<void> {
+  const params = new URLSearchParams({ scope_path: scopePath })
+  return del<void>(`/message/api/v1/notification_routes/${channel}?${params.toString()}`)
+}
+
+export function testMessageNotificationRoute(channel: MessageNotificationChannel, scopePath: string): Promise<TestMessageNotificationChannelResp> {
+  return post<TestMessageNotificationChannelResp>(`/message/api/v1/notification_routes/${channel}/test`, { scope_path: scopePath })
+}
+
 export function markMessageInboxItemRead(id: number): Promise<void> {
   return patch<void>(`/message/api/v1/inbox/${id}/read`)
 }
 
 export function markAllMessageInboxItemsRead(): Promise<void> {
   return patch<void>('/message/api/v1/inbox/read_all')
+}
+
+export function getPublicMessageAction(token: string): Promise<MessageActionViewResp> {
+  return get<MessageActionViewResp>(`/message/api/v1/public/actions/${encodeURIComponent(token)}`)
+}
+
+export function submitPublicMessageActionReply(token: string, data: MessageActionReplyReq): Promise<MessageActionReplyResp> {
+  return post<MessageActionReplyResp>(`/message/api/v1/public/actions/${encodeURIComponent(token)}/reply`, data)
 }

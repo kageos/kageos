@@ -308,6 +308,102 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 	}
 }
 
+func TestBuildLLMMessagesWithPlanCurrentTurnMessageDoesNotPolluteFutureContext(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate sessions: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/vote",
+		Source:        SourceWorkspace,
+		SessionID:     "current-turn-session",
+		Title:         "移动端处理",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusActive,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	oldMobileMsg := &model.AgentChatMessage{
+		SessionID:    session.SessionID,
+		Role:         RoleUser,
+		Content:      "旧移动端通知约束",
+		ContextUsage: MessageContextCurrentTurn,
+		User:         "tester",
+	}
+	if err := messageRepo.Create(oldMobileMsg); err != nil {
+		t.Fatalf("create old current turn message: %v", err)
+	}
+	oldMobileAssistantMsg := &model.AgentChatMessage{
+		SessionID: session.SessionID,
+		Role:      RoleAssistant,
+		Content:   "旧移动端处理结果",
+		User:      "tester",
+	}
+	if err := messageRepo.Create(oldMobileAssistantMsg); err != nil {
+		t.Fatalf("create old current turn assistant message: %v", err)
+	}
+	currentMobileMsg := &model.AgentChatMessage{
+		SessionID:    session.SessionID,
+		Role:         RoleUser,
+		Content:      "本轮移动端通知约束",
+		ContextUsage: MessageContextCurrentTurn,
+		User:         "tester",
+	}
+	if err := messageRepo.Create(currentMobileMsg); err != nil {
+		t.Fatalf("create current turn message: %v", err)
+	}
+	svc := &WorkspaceChatService{
+		toolReg:     NewToolRegistry(),
+		sessionRepo: sessionRepo,
+		messageRepo: messageRepo,
+	}
+	workspaceCtx := &dto.GetWorkspaceContextResp{}
+	workspaceCtx.Directory.Name = "投票系统"
+	workspaceCtx.Directory.Code = "vote"
+	workspaceCtx.Directory.Type = "package"
+
+	msgs, _, plan, err := svc.buildLLMMessagesWithPlan(context.Background(), session.SessionID, "/liubeiluo/vote", "投票系统", workspaceCtx, nil, nil, "fallback", 0, currentMobileMsg.ID)
+	if err != nil {
+		t.Fatalf("build messages for current turn: %v", err)
+	}
+	joined := joinLLMMessageContents(msgs)
+	if strings.Contains(joined, "旧移动端通知约束") || strings.Contains(joined, "旧移动端处理结果") {
+		t.Fatalf("old current_turn message should be excluded from current model context:\n%s", joined)
+	}
+	if !strings.Contains(joined, "本轮移动端通知约束") {
+		t.Fatalf("current current_turn message should be included in current model context:\n%s", joined)
+	}
+	if plan == nil || plan.Messages.IncludedStoredMessages != 1 || plan.Messages.ExcludedStoredMessages != 2 {
+		t.Fatalf("bad current-turn plan: %#v", plan)
+	}
+
+	msgs, _, plan, err = svc.buildLLMMessagesWithPlan(context.Background(), session.SessionID, "/liubeiluo/vote", "投票系统", workspaceCtx, nil, nil, "fallback", 1)
+	if err != nil {
+		t.Fatalf("build messages for future turn: %v", err)
+	}
+	joined = joinLLMMessageContents(msgs)
+	if strings.Contains(joined, "旧移动端通知约束") ||
+		strings.Contains(joined, "旧移动端处理结果") ||
+		strings.Contains(joined, "本轮移动端通知约束") {
+		t.Fatalf("current_turn messages should be excluded from future model context:\n%s", joined)
+	}
+	if plan == nil || plan.Messages.IncludedStoredMessages != 0 || plan.Messages.ExcludedStoredMessages != 3 {
+		t.Fatalf("bad future-turn plan: %#v", plan)
+	}
+}
+
 func TestBuildLLMMessagesWithPlanSynthesizesMissingToolResultAfterCancel(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {

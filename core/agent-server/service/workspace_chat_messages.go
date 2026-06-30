@@ -83,6 +83,8 @@ func normalizeMessageContextUsage(usage string) string {
 		return MessageContextDisplayOnly
 	case MessageContextArtifact:
 		return MessageContextArtifact
+	case MessageContextCurrentTurn:
+		return MessageContextCurrentTurn
 	default:
 		return MessageContextInclude
 	}

@@ -216,6 +216,7 @@
                       :readonly-preview="true"
                       :min-rows="8"
                       :max-rows="28"
+                      :full-code-path="getTaskWorkspacePath(selectedTask)"
                     />
                     <div v-else class="detail-message-empty">
                       {{ t('scheduledTask.noMessage') }}

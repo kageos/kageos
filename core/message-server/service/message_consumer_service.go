@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
+	"time"
 
 	msgmodel "github.com/kageos/kageos/core/message-server/model"
 	msgrepo "github.com/kageos/kageos/core/message-server/repository"
@@ -166,7 +168,12 @@ func (s *MessageConsumerService) deliverExternalNotifications(ctx context.Contex
 		if builder == nil {
 			builder = DefaultNotificationCardBuilder{}
 		}
-		card := builder.BuildNotificationCard(ctx, entry, payload, target, NotificationCardBuildOptions{BaseURL: s.notificationCardBaseURL})
+		mobileActionURL, mobileAskURL := s.buildMobileNotificationURLs(ctx, entry, target)
+		card := builder.BuildNotificationCard(ctx, entry, payload, target, NotificationCardBuildOptions{
+			BaseURL:         s.notificationCardBaseURL,
+			MobileActionURL: mobileActionURL,
+			MobileAskURL:    mobileAskURL,
+		})
 		if err := provider.Deliver(ctx, target, card); err != nil {
 			logger.Errorf(ctx, "[MessageConsumer] Deliver channel=%s user=%s failed: %v", provider.Channel(), target.Recipient.Username, err)
 			s.recordNotificationDeliveryFailure(ctx, target, err.Error(), false)
@@ -176,12 +183,54 @@ func (s *MessageConsumerService) deliverExternalNotifications(ctx context.Contex
 	}
 }
 
+func (s *MessageConsumerService) buildMobileNotificationURLs(ctx context.Context, entry *msgmodel.MessageEntry, target NotificationTarget) (string, string) {
+	if entry == nil {
+		return "", absoluteCardURL(s.notificationCardBaseURL, "/m")
+	}
+	askRoute := "/m"
+	if sourcePath := strings.TrimSpace(entry.SourcePath); sourcePath != "" {
+		query := url.Values{}
+		query.Set("source_path", sourcePath)
+		askRoute += "?" + query.Encode()
+	}
+	askURL := absoluteCardURL(s.notificationCardBaseURL, askRoute)
+	if s == nil || s.messageRepo == nil || entry.ID <= 0 || strings.TrimSpace(target.Recipient.Username) == "" {
+		return "", askURL
+	}
+	rawToken, _, err := s.messageRepo.CreateActionToken(ctx, msgrepo.CreateActionTokenInput{
+		MessageID:          entry.ID,
+		RecipientUsername:  target.Recipient.Username,
+		AuthorizedUsers:    target.AuthorizedUsers,
+		Channel:            target.Channel,
+		RequireAuth:        target.RequireAuth,
+		AllowedActions:     []string{"reply", "continue_agent"},
+		ExpiresAt:          time.Now().Add(msgrepo.DefaultMessageActionTokenTTL),
+		WorkspaceSessionID: entry.WorkspaceSessionID,
+		ThreadKey:          entry.ThreadKey,
+		SourcePath:         entry.SourcePath,
+		TraceID:            entry.TraceID,
+	})
+	if err != nil {
+		logger.Warnf(ctx, "[MessageConsumer] create mobile action token failed message_id=%d user=%s: %v", entry.ID, target.Recipient.Username, err)
+		return "", askURL
+	}
+	query := url.Values{}
+	query.Set("t", rawToken)
+	return absoluteCardURL(s.notificationCardBaseURL, "/m/action?"+query.Encode()), askURL
+}
+
 func (s *MessageConsumerService) recordNotificationDeliverySuccess(ctx context.Context, target NotificationTarget, isTest bool) {
 	if s == nil || s.messageRepo == nil {
 		return
 	}
 	username := strings.TrimSpace(target.Recipient.Username)
 	channel := normalizeNotificationChannel(target.Channel)
+	if target.RouteID > 0 {
+		if err := s.messageRepo.RecordNotificationRouteDeliverySuccess(ctx, target.RouteID, isTest); err != nil {
+			logger.Warnf(ctx, "[MessageConsumer] record notification route delivery success failed route_id=%d channel=%s: %v", target.RouteID, channel, err)
+		}
+		return
+	}
 	if username == "" || channel == "" {
 		return
 	}
@@ -196,6 +245,12 @@ func (s *MessageConsumerService) recordNotificationDeliveryFailure(ctx context.C
 	}
 	username := strings.TrimSpace(target.Recipient.Username)
 	channel := normalizeNotificationChannel(target.Channel)
+	if target.RouteID > 0 {
+		if err := s.messageRepo.RecordNotificationRouteDeliveryFailure(ctx, target.RouteID, message, isTest); err != nil {
+			logger.Warnf(ctx, "[MessageConsumer] record notification route delivery failure failed route_id=%d channel=%s: %v", target.RouteID, channel, err)
+		}
+		return
+	}
 	if username == "" || channel == "" {
 		return
 	}

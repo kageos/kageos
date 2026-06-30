@@ -71,6 +71,40 @@ describe('useWorkspaceFunctionTabs', () => {
     }
   })
 
+  it('opens the notification tab from the panel query', () => {
+    const scope = effectScope()
+
+    try {
+      const route = {
+        path: '/workspace/demo/app/function',
+        query: {
+          _panel: 'notification'
+        }
+      } as any
+      const router = {
+        replace: vi.fn()
+      } as any
+      const currentFunction = computed(() => ({
+        type: 'function',
+        full_code_path: '/demo/app/function'
+      }) as any)
+      const currentFunctionDetail = ref({
+        template_type: 'table'
+      } as any)
+
+      const tabs = scope.run(() => useWorkspaceFunctionTabs({
+        route,
+        router,
+        currentFunction,
+        currentFunctionDetail
+      }))!
+
+      expect(tabs.functionActiveTab.value).toBe('notification')
+    } finally {
+      scope.stop()
+    }
+  })
+
   it('normalizes unsupported tab changes back to content', () => {
     const scope = effectScope()
 

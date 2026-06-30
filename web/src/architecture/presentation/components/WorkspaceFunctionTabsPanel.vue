@@ -37,6 +37,16 @@
           </div>
         </el-tab-pane>
 
+        <el-tab-pane name="notification" :label="t('functionTabs.notification')" lazy>
+          <div class="tab-content">
+            <NotificationRoutePanel
+              v-if="activeTab === 'notification'"
+              :scope-path="currentFunction?.full_code_path || currentFunctionDetail?.full_code_path || ''"
+              scope-type="function"
+            />
+          </div>
+        </el-tab-pane>
+
         <el-tab-pane v-if="isFormFunction" name="publicShare" :label="t('functionTabs.publicShare')" lazy>
           <div class="tab-content">
             <PublicSharePanel
@@ -111,10 +121,11 @@ import {
 } from '@/architecture/shared/routing/platformRouteParams'
 import { ElMessage } from 'element-plus'
 
-type FunctionTabName = 'content' | 'permission' | 'publicShare' | 'operateLog' | 'scheduledTask'
+type FunctionTabName = 'content' | 'permission' | 'notification' | 'publicShare' | 'operateLog' | 'scheduledTask'
 
 const OperateLogSection = defineAsyncComponent(() => import('./OperateLogSection.vue'))
 const TeamAccessPanel = defineAsyncComponent(() => import('./TeamAccessPanel.vue'))
+const NotificationRoutePanel = defineAsyncComponent(() => import('./NotificationRoutePanel.vue'))
 const PublicSharePanel = defineAsyncComponent(() => import('./PublicSharePanel.vue'))
 const ScheduledTaskList = defineAsyncComponent(() => import('./ScheduledTaskList.vue'))
 
