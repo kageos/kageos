@@ -97,6 +97,53 @@ http://localhost:9090
 | 需要真实发邮件 | 将本地配置改为 `SMTP_MODE=smtp`，并配置 `SMTP_*` |
 | 需要使用 AI 工作台 | 登录后配置 LLM；LLM API Key 不是启动平台和登录系统的前置条件 |
 
+## 本地端口
+
+常用端口如下。若启动失败，先检查这些端口是否被其它进程占用。
+
+| 端口 | 服务 |
+| --- | --- |
+| `5173` | Vite 前端开发服务器 |
+| `9090` | API Gateway，前端默认代理目标 |
+| `9091` | `app-server` |
+| `9092` | `app-storage` |
+| `9093` | `app-runtime` |
+| `9095` | `agent-server` |
+| `9096` | `connector-server` |
+| `9097` | `hr-server` |
+| `9098` | `timer-scheduler` |
+| `9099` | `message-server` |
+| `3318` | 本地 dev MySQL 宿主机端口，容器内仍是 `3306` |
+| `4222` | NATS |
+| `9000` | MinIO API |
+| `9001` | MinIO Console |
+
+## 常见排障
+
+建议按这个顺序排查：
+
+```bash
+go run ./cmd/kagectl doctor
+go run ./cmd/kagectl status
+go run ./cmd/kagectl verify
+go run ./cmd/kagectl logs main
+go run ./cmd/kagectl logs infra
+```
+
+- `doctor` 检查当前仓库是否已经初始化为 dev 模式、配置目录是否存在、compose 命令是否可用。
+- `status` 查看本地 MySQL / NATS / MinIO 容器状态。
+- `verify` 检查基础设施和各平台服务健康状态。
+- `logs main` 查看后端主进程日志。
+- `logs infra` 查看 MySQL / NATS / MinIO 日志。
+
+停止本地基础设施：
+
+```bash
+go run ./cmd/kagectl down
+```
+
+`down` 默认不会删除本地数据。如果确实需要彻底重置，请先备份 `.kageos/dev/namespace/` 里的本地用户应用数据，再清理 `.kageos/dev/` 状态和当前容器引擎对应的本地 volume。不要在没有备份的情况下直接删除本地数据。
+
 ## 官方入口
 
 ### 1. 一键启动开发后端
