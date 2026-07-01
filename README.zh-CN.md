@@ -155,6 +155,10 @@ npm run dev
 
 AI 工作台能力需要登录后配置 LLM，但 LLM API Key 不是启动平台和登录系统的前置条件。
 
+如果启动卡住，可以在仓库根目录先执行 `go run ./cmd/kagectl doctor`、
+`go run ./cmd/kagectl verify`、`go run ./cmd/kagectl status` 或
+`go run ./cmd/kagectl logs infra`。
+
 贡献者工作流、IDE 调试、只开发前端和提交前检查见 [CONTRIBUTING.md](CONTRIBUTING.md)。更完整的依赖说明和排障材料见 [deploy/dev/README.md](deploy/dev/README.md)。
 
 ## 生产部署

@@ -158,6 +158,10 @@ The frontend uses relative API paths by default. To point only the frontend at a
 AI workstation features need an LLM configuration after login, but LLM API keys
 are not required just to boot the platform and sign in.
 
+If startup gets stuck, run `go run ./cmd/kagectl doctor`,
+`go run ./cmd/kagectl verify`, `go run ./cmd/kagectl status`, or
+`go run ./cmd/kagectl logs infra` from the repository root.
+
 Contributor workflow, IDE debugging, frontend-only development, and verification checks live in [CONTRIBUTING.md](CONTRIBUTING.md). Detailed dependency notes and troubleshooting live in [deploy/dev/README.md](deploy/dev/README.md).
 
 ## Production Deployment

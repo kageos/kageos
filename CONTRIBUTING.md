@@ -115,6 +115,37 @@ go run ./cmd/kagectl logs infra
 go run ./cmd/kagectl down
 ```
 
+Common local ports:
+
+| Port | Service |
+| --- | --- |
+| `5173` | Vite frontend |
+| `9090` | API gateway used by the frontend proxy |
+| `9091` | `app-server` |
+| `9092` | `app-storage` |
+| `9093` | `app-runtime` |
+| `9095` | `agent-server` |
+| `9096` | `connector-server` |
+| `9097` | `hr-server` |
+| `9098` | `timer-scheduler` |
+| `9099` | `message-server` |
+| `3318` | Local dev MySQL on the host |
+| `4222` | NATS |
+| `9000` | MinIO API |
+| `9001` | MinIO console |
+
+When something fails, check in this order:
+
+1. `go run ./cmd/kagectl doctor` for workspace and compose setup.
+2. `go run ./cmd/kagectl status` for local infrastructure container state.
+3. `go run ./cmd/kagectl verify` for infrastructure and platform health checks.
+4. `go run ./cmd/kagectl logs main` for backend logs, or `go run ./cmd/kagectl logs infra` for MySQL / NATS / MinIO logs.
+
+`go run ./cmd/kagectl down` stops local infrastructure but keeps local data. If
+you need a full reset, back up anything important under `.kageos/dev/namespace/`
+first, then remove local dev env/state and the matching container volumes for
+your Docker or Podman engine.
+
 If you only work on the frontend, create `web/.env.development.local` from
 `web/.env.development.local.example` and set `VITE_PROXY_TARGET` to the backend
 you want to use.
