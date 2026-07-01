@@ -7,7 +7,7 @@
 # It is intended for local evaluation and single-VM demos, not production.
 
 # ========== Go build ==========
-FROM docker.io/library/golang:1.25-bookworm AS gobuilder
+FROM docker.io/library/golang:1.25.10-bookworm AS gobuilder
 WORKDIR /src
 
 ARG APT_USE_MIRROR=1
