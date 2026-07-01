@@ -8,79 +8,79 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="开发调试工具"
+    :title="t('debug.title')"
     width="600px"
     :close-on-click-modal="false"
   >
     <div class="debug-content">
       <!-- 缓存清理区域 -->
       <div class="debug-section">
-        <div class="section-title">缓存清理</div>
+        <div class="section-title">{{ t('debug.cacheClear') }}</div>
         <div class="cache-actions">
           <el-button
             type="danger"
             @click="handleClearFunctionCache"
             :loading="clearingFunctionCache"
           >
-            清理函数详情缓存
+            {{ t('debug.clearFunctionCache') }}
           </el-button>
           <el-button
             type="danger"
             @click="handleClearUserCache"
             :loading="clearingUserCache"
           >
-            清理用户信息缓存
+            {{ t('debug.clearUserCache') }}
           </el-button>
           <el-button
             type="danger"
             @click="handleClearDepartmentCache"
             :loading="clearingDepartmentCache"
           >
-            清理部门信息缓存
+            {{ t('debug.clearDepartmentCache') }}
           </el-button>
           <el-button
             type="danger"
             @click="handleClearAllCache"
             :loading="clearingAllCache"
           >
-            清理所有缓存
+            {{ t('debug.clearAllCache') }}
           </el-button>
         </div>
       </div>
 
       <!-- 缓存统计区域 -->
       <div class="debug-section">
-        <div class="section-title">缓存统计</div>
+        <div class="section-title">{{ t('debug.cacheStats') }}</div>
         <div class="cache-stats">
           <div class="stat-item">
-            <span class="stat-label">函数详情缓存：</span>
-            <span class="stat-value">{{ functionCacheCount }} 个</span>
+            <span class="stat-label">{{ t('debug.functionDetailCache') }}:</span>
+            <span class="stat-value">{{ t('debug.itemCount', { count: functionCacheCount }) }}</span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">用户信息缓存：</span>
+            <span class="stat-label">{{ t('debug.userInfoCache') }}:</span>
             <span class="stat-value">
-              {{ userCacheStats.total }} 个
+              {{ t('debug.itemCount', { count: userCacheStats.total }) }}
               <span v-if="userCacheStats.expired > 0" class="expired-count">
-                （{{ userCacheStats.expired }} 个已过期）
+                {{ t('debug.expiredCount', { count: userCacheStats.expired }) }}
               </span>
             </span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">正在加载的用户：</span>
-            <span class="stat-value">{{ userCacheStats.loading }} 个</span>
+            <span class="stat-label">{{ t('debug.loadingUsers') }}:</span>
+            <span class="stat-value">{{ t('debug.itemCount', { count: userCacheStats.loading }) }}</span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">部门信息缓存：</span>
+            <span class="stat-label">{{ t('debug.departmentInfoCache') }}:</span>
             <span class="stat-value">
-              {{ departmentCacheStats.total }} 个
+              {{ t('debug.itemCount', { count: departmentCacheStats.total }) }}
               <span v-if="departmentCacheStats.expired > 0" class="expired-count">
-                （{{ departmentCacheStats.expired }} 个已过期）
+                {{ t('debug.expiredCount', { count: departmentCacheStats.expired }) }}
               </span>
             </span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">正在加载的部门：</span>
-            <span class="stat-value">{{ departmentCacheStats.loading }} 个</span>
+            <span class="stat-label">{{ t('debug.loadingDepartments') }}:</span>
+            <span class="stat-value">{{ t('debug.itemCount', { count: departmentCacheStats.loading }) }}</span>
           </div>
         </div>
       </div>
@@ -88,7 +88,7 @@
       <!-- 函数详情缓存列表 -->
       <div class="debug-section">
         <div class="section-title">
-          函数详情缓存
+          {{ t('debug.functionDetailCache') }}
           <el-button
             text
             type="primary"
@@ -96,7 +96,7 @@
             @click="showFunctionCacheDetails = !showFunctionCacheDetails"
             style="margin-left: 8px;"
           >
-            {{ showFunctionCacheDetails ? '收起' : '展开' }}
+            {{ showFunctionCacheDetails ? t('debug.collapse') : t('debug.expand') }}
           </el-button>
         </div>
         <div v-if="showFunctionCacheDetails" class="cache-details">
@@ -107,16 +107,16 @@
             max-height="300"
             style="width: 100%"
           >
-            <el-table-column prop="key" label="缓存键" min-width="200" show-overflow-tooltip />
-            <el-table-column prop="type" label="类型" width="100">
+            <el-table-column prop="key" :label="t('debug.cacheKey')" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="type" :label="t('debug.type')" width="100">
               <template #default="{ row }">
                 <el-tag :type="row.type === 'id' ? 'primary' : 'success'" size="small">
                   {{ row.type === 'id' ? 'ID' : 'Path' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="functionName" label="函数名称" min-width="150" show-overflow-tooltip />
-            <el-table-column prop="templateType" label="模板类型" width="100">
+            <el-table-column prop="functionName" :label="t('debug.functionName')" min-width="150" show-overflow-tooltip />
+            <el-table-column prop="templateType" :label="t('debug.templateType')" width="100">
               <template #default="{ row }">
                 <el-tag v-if="row.templateType" size="small">{{ row.templateType }}</el-tag>
                 <span v-else>-</span>
@@ -129,7 +129,7 @@
       <!-- 用户信息缓存列表 -->
       <div class="debug-section">
         <div class="section-title">
-          用户信息缓存
+          {{ t('debug.userInfoCache') }}
           <el-button
             text
             type="primary"
@@ -137,7 +137,7 @@
             @click="showUserCacheDetails = !showUserCacheDetails"
             style="margin-left: 8px;"
           >
-            {{ showUserCacheDetails ? '收起' : '展开' }}
+            {{ showUserCacheDetails ? t('debug.collapse') : t('debug.expand') }}
           </el-button>
         </div>
         <div v-if="showUserCacheDetails" class="cache-details">
@@ -148,27 +148,27 @@
             max-height="400"
             style="width: 100%"
           >
-            <el-table-column prop="username" label="用户名" width="120" />
-            <el-table-column prop="nickname" label="昵称" width="120" show-overflow-tooltip />
-            <el-table-column prop="status" label="状态" width="100">
+            <el-table-column prop="username" :label="t('debug.username')" width="120" />
+            <el-table-column prop="nickname" :label="t('debug.nickname')" width="120" show-overflow-tooltip />
+            <el-table-column prop="status" :label="t('debug.status')" width="100">
               <template #default="{ row }">
                 <el-tag
                   :type="row.isExpired ? 'warning' : 'success'"
                   size="small"
                 >
-                  {{ row.isExpired ? '已过期' : '有效' }}
+                  {{ row.isExpired ? t('debug.expired') : t('debug.valid') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="cachedTime" label="缓存时间" width="180" />
-            <el-table-column prop="expiredTime" label="过期时间" width="180">
+            <el-table-column prop="cachedTime" :label="t('debug.cachedTime')" width="180" />
+            <el-table-column prop="expiredTime" :label="t('debug.expiredTime')" width="180">
               <template #default="{ row }">
                 <span :class="{ 'expired-text': row.isExpired }">
                   {{ row.expiredTime }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column prop="age" label="缓存时长" width="120">
+            <el-table-column prop="age" :label="t('debug.cacheAge')" width="120">
               <template #default="{ row }">
                 <span :class="{ 'expired-text': row.isExpired }">
                   {{ row.age }}
@@ -182,7 +182,7 @@
       <!-- 部门信息缓存列表 -->
       <div class="debug-section">
         <div class="section-title">
-          部门信息缓存
+          {{ t('debug.departmentInfoCache') }}
           <el-button
             text
             type="primary"
@@ -190,7 +190,7 @@
             @click="showDepartmentCacheDetails = !showDepartmentCacheDetails"
             style="margin-left: 8px;"
           >
-            {{ showDepartmentCacheDetails ? '收起' : '展开' }}
+            {{ showDepartmentCacheDetails ? t('debug.collapse') : t('debug.expand') }}
           </el-button>
         </div>
         <div v-if="showDepartmentCacheDetails" class="cache-details">
@@ -201,27 +201,27 @@
             max-height="400"
             style="width: 100%"
           >
-            <el-table-column prop="path" label="部门路径" min-width="200" show-overflow-tooltip />
-            <el-table-column prop="name" label="部门名称" width="150" show-overflow-tooltip />
-            <el-table-column prop="status" label="状态" width="100">
+            <el-table-column prop="path" :label="t('debug.departmentPath')" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="name" :label="t('debug.departmentName')" width="150" show-overflow-tooltip />
+            <el-table-column prop="status" :label="t('debug.status')" width="100">
               <template #default="{ row }">
                 <el-tag
                   :type="row.isExpired ? 'warning' : 'success'"
                   size="small"
                 >
-                  {{ row.isExpired ? '已过期' : '有效' }}
+                  {{ row.isExpired ? t('debug.expired') : t('debug.valid') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="cachedTime" label="缓存时间" width="180" />
-            <el-table-column prop="expiredTime" label="过期时间" width="180">
+            <el-table-column prop="cachedTime" :label="t('debug.cachedTime')" width="180" />
+            <el-table-column prop="expiredTime" :label="t('debug.expiredTime')" width="180">
               <template #default="{ row }">
                 <span :class="{ 'expired-text': row.isExpired }">
                   {{ row.expiredTime }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column prop="age" label="缓存时长" width="120">
+            <el-table-column prop="age" :label="t('debug.cacheAge')" width="120">
               <template #default="{ row }">
                 <span :class="{ 'expired-text': row.isExpired }">
                   {{ row.age }}
@@ -234,32 +234,33 @@
 
       <!-- 其他工具区域 -->
       <div class="debug-section">
-        <div class="section-title">其他工具</div>
+        <div class="section-title">{{ t('debug.tools') }}</div>
         <div class="tool-actions">
           <el-button
             type="primary"
             @click="handleReloadPage"
           >
-            刷新页面
+            {{ t('debug.reloadPage') }}
           </el-button>
           <el-button
             type="info"
             @click="handleCopyCacheInfo"
           >
-            复制缓存信息
+            {{ t('debug.copyCacheInfo') }}
           </el-button>
         </div>
       </div>
     </div>
 
     <template #footer>
-      <el-button @click="visible = false">关闭</el-button>
+      <el-button @click="visible = false">{{ t('common.close') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { functionLoader } from '../../infrastructure/functionLoader'
 import { useDepartmentInfoStore, useUserInfoStore } from '@/architecture/presentation/context/appStoresContext'
@@ -274,6 +275,8 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
 }>()
+
+const { t, locale } = useI18n()
 
 const visible = computed({
   get: () => props.modelValue,
@@ -341,7 +344,7 @@ const departmentCacheList = ref<DepartmentCacheItem[]>([])
 
 // 格式化时间
 const formatTime = (timestamp: number): string => {
-  return new Date(timestamp).toLocaleString('zh-CN', {
+  return new Date(timestamp).toLocaleString(String(locale.value), {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -359,13 +362,13 @@ const formatAge = (ms: number): string => {
   const days = Math.floor(hours / 24)
   
   if (days > 0) {
-    return `${days}天${hours % 24}小时`
+    return t('debug.daysHours', { days, hours: hours % 24 })
   } else if (hours > 0) {
-    return `${hours}小时${minutes % 60}分钟`
+    return t('debug.hoursMinutes', { hours, minutes: minutes % 60 })
   } else if (minutes > 0) {
-    return `${minutes}分钟${seconds % 60}秒`
+    return t('debug.minutesSeconds', { minutes, seconds: seconds % 60 })
   } else {
-    return `${seconds}秒`
+    return t('debug.seconds', { seconds })
   }
 }
 
@@ -414,7 +417,7 @@ const updateCacheStats = () => {
         age: formatAge(item.age)
       }))
     } catch (error) {
-      Logger.warn('[DebugDialog]', '无法获取用户信息缓存详情', { error })
+      Logger.warn('[DebugDialog]', 'failed to get user info cache details', { error })
       userCacheList.value = []
     }
     
@@ -442,11 +445,11 @@ const updateCacheStats = () => {
         age: formatAge(item.age)
       }))
     } catch (error) {
-      Logger.warn('[DebugDialog]', '无法获取部门信息缓存详情', { error })
+      Logger.warn('[DebugDialog]', 'failed to get department info cache details', { error })
       departmentCacheList.value = []
     }
-  } catch (error) {
-    Logger.error('[DebugDialog]', '获取缓存统计失败', { error })
+  } catch (_error) {
+    Logger.error('[DebugDialog]', 'failed to get cache stats', { error: _error })
   }
 }
 
@@ -461,20 +464,20 @@ watch(visible, (newVal: boolean) => {
 const handleClearFunctionCache = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要清理函数详情缓存吗？这将清除所有函数详情缓存，需要重新加载。',
-      '清理函数详情缓存',
+      t('debug.clearFunctionConfirm'),
+      t('debug.clearFunctionTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
     
     clearingFunctionCache.value = true
     functionLoader.clearCache()
-    ElMessage.success('函数详情缓存已清理')
+    ElMessage.success(t('debug.clearFunctionSuccess'))
     updateCacheStats()
-  } catch (error) {
+  } catch (_error) {
     // 忽略取消操作
   } finally {
     clearingFunctionCache.value = false
@@ -485,20 +488,20 @@ const handleClearFunctionCache = async () => {
 const handleClearUserCache = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要清理用户信息缓存吗？这将清除所有用户信息缓存（包括 localStorage）。',
-      '清理用户信息缓存',
+      t('debug.clearUserConfirm'),
+      t('debug.clearUserTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
     
     clearingUserCache.value = true
     userInfoStore.clearCache()
-    ElMessage.success('用户信息缓存已清理')
+    ElMessage.success(t('debug.clearUserSuccess'))
     updateCacheStats()
-  } catch (error) {
+  } catch (_error) {
     // 忽略取消操作
   } finally {
     clearingUserCache.value = false
@@ -509,20 +512,20 @@ const handleClearUserCache = async () => {
 const handleClearDepartmentCache = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要清理部门信息缓存吗？这将清除所有部门信息缓存（包括 localStorage）。',
-      '清理部门信息缓存',
+      t('debug.clearDepartmentConfirm'),
+      t('debug.clearDepartmentTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
     
     clearingDepartmentCache.value = true
     departmentInfoStore.clearCache()
-    ElMessage.success('部门信息缓存已清理')
+    ElMessage.success(t('debug.clearDepartmentSuccess'))
     updateCacheStats()
-  } catch (error) {
+  } catch (_error) {
     // 忽略取消操作
   } finally {
     clearingDepartmentCache.value = false
@@ -533,11 +536,11 @@ const handleClearDepartmentCache = async () => {
 const handleClearAllCache = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要清理所有缓存吗？这将清除函数详情缓存、用户信息缓存和部门信息缓存，需要重新加载页面。',
-      '清理所有缓存',
+      t('debug.clearAllConfirm'),
+      t('debug.clearAllTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
@@ -546,14 +549,14 @@ const handleClearAllCache = async () => {
     functionLoader.clearCache()
     userInfoStore.clearCache()
     departmentInfoStore.clearCache()
-    ElMessage.success('所有缓存已清理')
+    ElMessage.success(t('debug.clearAllSuccess'))
     updateCacheStats()
     
     // 延迟刷新页面，让用户看到成功消息
     setTimeout(() => {
       window.location.reload()
     }, 500)
-  } catch (error) {
+  } catch (_error) {
     // 忽略取消操作
   } finally {
     clearingAllCache.value = false
@@ -579,9 +582,9 @@ const handleCopyCacheInfo = async () => {
     
     const text = JSON.stringify(cacheInfo, null, 2)
     await navigator.clipboard.writeText(text)
-    ElMessage.success('缓存信息已复制到剪贴板')
-  } catch (error) {
-    ElMessage.error('复制失败')
+    ElMessage.success(t('debug.copied'))
+  } catch (_error) {
+    ElMessage.error(t('debug.copyFailed'))
   }
 }
 </script>

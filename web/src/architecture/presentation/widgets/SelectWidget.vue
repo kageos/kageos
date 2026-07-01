@@ -108,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import FuzzySearchDialog, { type InputFuzzyItem } from './FuzzySearchDialog.vue'
 import FieldStatistics from './FieldStatistics.vue'

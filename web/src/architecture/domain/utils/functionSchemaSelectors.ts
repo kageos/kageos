@@ -81,7 +81,7 @@ export function getTableRequestSearchFields(functionDetail?: FunctionDetail | nu
     .filter((field) => isRequestSearchEnabled(field))
 }
 
-export function getTableResponseSearchFields(functionDetail?: FunctionDetail | null): FieldConfig[] {
+export function getTableResponseSearchFields(_functionDetail?: FunctionDetail | null): FieldConfig[] {
   return []
 }
 

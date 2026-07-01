@@ -516,12 +516,6 @@ async function loadProviders() {
   }
 }
 
-function handleCreate() {
-  resetForm()
-  dialogMode.value = 'create'
-  dialogVisible.value = true
-}
-
 async function handleEdit(row: ConnectorOAuthProviderInfo) {
   resetForm()
   dialogMode.value = 'edit'

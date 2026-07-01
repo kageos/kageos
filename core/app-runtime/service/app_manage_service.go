@@ -613,7 +613,7 @@ func (s *AppManageService) buildAppVersionSpec(ctx context.Context, ref AppVersi
 	sdkEnvVars := sdkConfig.GetEnvVars()
 	for key, value := range sdkEnvVars {
 		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
-		logger.Infof(ctx, "[buildAppVersionSpec] Injecting %s=%s into app runtime (SDK config)", key, value)
+		logger.Infof(ctx, "[buildAppVersionSpec] Injecting SDK env %s into app runtime", key)
 	}
 
 	binaryName := s.appBinaryName(ref.User, ref.App, ref.Version)
@@ -634,7 +634,15 @@ func (s *AppManageService) buildAppVersionSpec(ctx context.Context, ref AppVersi
 	if runtimeID != "" {
 		envVars = append(envVars, fmt.Sprintf("KAGEOS_RUNTIME_INSTANCE_ID=%s", runtimeID))
 	}
-	logger.Infof(ctx, "[buildAppVersionSpec] Injecting app runtime env: user=%s, app=%s, version=%s, binary=%s, work_dir=%s, bin_dir=%s", ref.User, ref.App, ref.Version, binaryName, containerWorkDir, containerBinDir)
+	logger.Infof(ctx, "[buildAppVersionSpec] Injecting app runtime metadata env keys: %v", []string{
+		"KAGEOS_APP_USER",
+		"KAGEOS_APP_NAME",
+		"APP_VERSION",
+		"APP_BINARY_NAME",
+		"KAGEOS_APP_WORK_DIR",
+		"KAGEOS_APP_BIN_DIR",
+		"KAGEOS_RUNTIME_INSTANCE_ID",
+	})
 
 	return AppVersionSpec{
 		Ref:           ref,

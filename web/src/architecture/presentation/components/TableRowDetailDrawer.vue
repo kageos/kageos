@@ -33,20 +33,20 @@
               @click="handleToggleMode('edit')"
             >
               <el-icon><Edit /></el-icon>
-              编辑
+              {{ t('common.edit') }}
             </el-button>
             <span
               v-else-if="mode === 'read'"
               class="edit-unsupported-hint"
             >
-              当前表格不支持更新
+              {{ t('tableDetail.updateUnsupported') }}
             </span>
             <el-button
               v-if="mode === 'edit'"
               size="small"
               @click="handleToggleMode('read')"
             >
-              取消
+              {{ t('common.cancel') }}
             </el-button>
             <el-button
               v-if="mode === 'edit'"
@@ -56,17 +56,17 @@
               :disabled="!isFormViewReady"
               @click="handleSubmit"
             >
-              保存
+              {{ t('common.save') }}
             </el-button>
             <el-button
               v-if="mode === 'edit'"
               size="small"
               :disabled="submitting || !canCopyWorkspaceUpdateInvocation"
-              title="复制后可粘贴到工作台让 AI 调用"
+              :title="t('formView.copyInvocationTitle')"
               @click="handleCopyWorkspaceUpdateInvocation"
             >
               <el-icon><CopyDocument /></el-icon>
-              复制给工作台
+              {{ t('formView.copyToWorkbench') }}
             </el-button>
             <el-button
               v-if="mode === 'edit' && featureFlags.scheduledTasks"
@@ -74,7 +74,7 @@
               :disabled="submitting || !canCreateScheduledUpdate"
               @click="openScheduledTaskDialog"
             >
-              定时执行
+              {{ t('formView.scheduledExecute') }}
             </el-button>
           </div>
           <!-- 布局切换按钮 -->
@@ -83,10 +83,10 @@
             size="small"
             text
             @click="toggleDetailLayout"
-            :title="useGroupedDetailLayout ? '切换到原布局' : '切换到分组布局'"
+            :title="useGroupedDetailLayout ? t('tableDetail.switchToOriginalLayout') : t('tableDetail.switchToGroupedLayout')"
           >
             <el-icon><component :is="useGroupedDetailLayout ? List : Grid" /></el-icon>
-            {{ useGroupedDetailLayout ? '原布局' : '分组布局' }}
+            {{ useGroupedDetailLayout ? t('tableDetail.originalLayout') : t('tableDetail.groupedLayout') }}
           </el-button>
           <!-- 导航按钮（上一个/下一个） -->
           <div class="drawer-navigation" v-if="tableData && tableData.length > 1 && mode === 'read'">
@@ -96,7 +96,7 @@
               @click="handleNavigate('prev')"
             >
               <el-icon><ArrowLeft /></el-icon>
-              上一个
+              {{ t('tableDetail.previous') }}
             </el-button>
             <span class="nav-info">{{ (currentIndex >= 0 ? currentIndex + 1 : 0) }} / {{ tableData.length }}</span>
             <el-button
@@ -104,7 +104,7 @@
               :disabled="currentIndex >= tableData.length - 1"
               @click="handleNavigate('next')"
             >
-              下一个
+              {{ t('tableDetail.next') }}
               <el-icon><ArrowRight /></el-icon>
             </el-button>
           </div>
@@ -143,23 +143,23 @@
           :show-submit-button="false"
           :show-reset-button="false"
         />
-        <el-empty v-else-if="!editFunctionDetail" description="无法构建编辑表单" />
+        <el-empty v-else-if="!editFunctionDetail" :description="t('tableDetail.buildEditFormFailed')" />
         <el-empty
           v-else-if="editFormState.readiness === 'no-editable-fields'"
-          description="当前记录没有可编辑字段"
+          :description="t('tableDetail.noEditableFields')"
         />
         <el-empty
           v-else-if="editFormState.readiness === 'missing-edit-values'"
-          description="当前记录缺少可编辑字段数据"
+          :description="t('tableDetail.missingEditValues')"
         />
         <el-empty
           v-else-if="editFormState.readiness === 'missing-row-data'"
-          description="当前记录数据缺失"
+          :description="t('tableDetail.missingRowData')"
         />
         <div v-else class="form-loading">
           <el-skeleton :rows="5" animated />
           <div style="text-align: center; margin-top: 16px; color: var(--el-text-color-secondary);">
-            正在加载编辑表单结构...
+            {{ t('tableDetail.loadingEditForm') }}
           </div>
         </div>
       </div>
@@ -167,7 +167,7 @@
 
     <template #footer>
       <div class="drawer-footer">
-        <el-button @click="handleClose">关闭</el-button>
+        <el-button @click="handleClose">{{ t('common.close') }}</el-button>
       </div>
     </template>
     <ScheduledTaskDialog
@@ -184,6 +184,7 @@
 
 <script setup lang="ts">
 import { ref, computed, toRef, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Edit, ArrowLeft, ArrowRight, Grid, List, CopyDocument } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import FormView from '@/architecture/presentation/views/FormView.vue'
@@ -237,6 +238,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
+const { t } = useI18n()
 
 const DETAIL_DRAWER_MAX_WIDTH = 1360
 const DETAIL_DRAWER_DESKTOP_RATIO = 0.78
@@ -382,23 +384,23 @@ const canCopyWorkspaceUpdateInvocation = computed(() => {
 
 const handleToggleMode = (newMode: 'read' | 'edit') => {
   if (newMode === 'edit' && detailEditAccess.value === 'unsupported') {
-    ElMessage.info('当前表格不支持更新')
+    ElMessage.info(t('tableDetail.updateUnsupported'))
     return
   }
 
   if (newMode === 'edit') {
     switch (editFormState.value.readiness) {
       case 'missing-edit-detail':
-        ElMessage.warning('编辑表单正在初始化，请稍后再试')
+        ElMessage.warning(t('tableDetail.editFormInitializing'))
         return
       case 'missing-row-data':
-        ElMessage.warning('当前记录数据缺失，无法编辑')
+        ElMessage.warning(t('tableDetail.missingRowDataCannotEdit'))
         return
       case 'no-editable-fields':
-        ElMessage.warning('当前记录没有可编辑字段')
+        ElMessage.warning(t('tableDetail.noEditableFields'))
         return
       case 'missing-edit-values':
-        ElMessage.warning('当前记录缺少可编辑字段数据，暂时无法编辑')
+        ElMessage.warning(t('tableDetail.missingEditValuesCannotEdit'))
         return
     }
   }
@@ -413,7 +415,7 @@ const handleNavigate = (direction: 'prev' | 'next') => {
 const handleSubmit = () => {
   // 只有 FormView 实例已挂载且编辑表单就绪时才允许提交
   if (!isFormViewReady.value || !formViewRef.value) {
-    ElMessage.warning('编辑表单正在初始化，请稍后再试')
+    ElMessage.warning(t('tableDetail.editFormInitializing'))
     return
   }
   
@@ -423,7 +425,7 @@ const handleSubmit = () => {
 
 const openScheduledTaskDialog = () => {
   if (!canCreateScheduledUpdate.value) {
-    ElMessage.warning('编辑表单尚未就绪，无法创建定时任务')
+    ElMessage.warning(t('tableDetail.editFormNotReadySchedule'))
     return
   }
   showScheduledTaskDialog.value = true
@@ -431,20 +433,20 @@ const openScheduledTaskDialog = () => {
 
 const buildScheduledUpdatePayload = async (): Promise<Record<string, unknown>> => {
   if (!isFormViewReady.value || !formViewRef.value) {
-    throw new Error('编辑表单尚未就绪，无法创建定时任务')
+    throw new Error(t('tableDetail.editFormNotReadySchedule'))
   }
   if (!rowId.value || rowId.value <= 0) {
-    throw new Error('缺少有效行 ID，无法创建定时更新任务')
+    throw new Error(t('tableDetail.missingRowIdSchedule'))
   }
 
   const isValid = formViewRef.value.validateForm()
   if (!isValid) {
-    throw new Error('请先修正表单校验错误')
+    throw new Error(t('formView.fixValidationFirst'))
   }
 
   const updates = await formViewRef.value.prepareUpdateData(filteredInitialData.value || {})
   if (Object.keys(updates).length === 0) {
-    throw new Error('没有检测到需要保存的变更')
+    throw new Error(t('tableDetail.noChangesToSave'))
   }
 
   return {
@@ -455,24 +457,24 @@ const buildScheduledUpdatePayload = async (): Promise<Record<string, unknown>> =
 
 async function handleCopyWorkspaceUpdateInvocation(): Promise<void> {
   if (!isFormViewReady.value || !formViewRef.value || !fullCodePath.value) {
-    ElMessage.warning('编辑表单尚未就绪，无法复制给工作台')
+    ElMessage.warning(t('tableDetail.editFormNotReadyCopy'))
     return
   }
   if (!rowId.value || rowId.value <= 0) {
-    ElMessage.warning('缺少有效行 ID，无法复制更新调用')
+    ElMessage.warning(t('tableDetail.missingRowIdCopy'))
     return
   }
 
   const isValid = formViewRef.value.validateForm()
   if (!isValid) {
-    ElMessage.warning('请先修正表单校验错误')
+    ElMessage.warning(t('formView.fixValidationFirst'))
     return
   }
 
   try {
     const updates = filterEmptyInvocationParams(await formViewRef.value.prepareUpdateData(filteredInitialData.value || {}))
     if (Object.keys(updates).length === 0) {
-      ElMessage.warning('没有检测到需要保存的变更')
+      ElMessage.warning(t('tableDetail.noChangesToSave'))
       return
     }
 
@@ -484,9 +486,9 @@ async function handleCopyWorkspaceUpdateInvocation(): Promise<void> {
       },
     })
     await copyTextToClipboard(snippet)
-    ElMessage.success('已复制给工作台使用的更新调用')
+    ElMessage.success(t('tableDetail.updateInvocationCopied'))
   } catch {
-    ElMessage.error('复制失败，请手动复制')
+    ElMessage.error(t('formView.copyFailedManual'))
   }
 }
 

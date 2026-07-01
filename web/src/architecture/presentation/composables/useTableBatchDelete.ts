@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { ref } from 'vue'
 import type { ElTable } from 'element-plus'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { buildBatchDeleteIds } from '../views/utils/tableViewActionRuntime'

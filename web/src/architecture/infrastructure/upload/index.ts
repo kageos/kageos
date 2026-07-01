@@ -349,7 +349,7 @@ export async function notifyUploadComplete(params: UploadCompleteParams): Promis
     }
     
     return null
-  } catch (err) {
+  } catch (_err) {
     return null
   }
 }
@@ -437,7 +437,7 @@ export async function notifyBatchUploadComplete(
     }
     
     return results
-  } catch (err) {
+  } catch (_err) {
     // 如果批量接口出错，返回所有失败的结果
     items.forEach(item => {
       results.set(item.key, {

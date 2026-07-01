@@ -305,7 +305,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue'
+import { computed, inject } from 'vue'
 import { ElForm, ElFormItem, ElButton, ElDrawer, ElIcon, ElCard } from 'element-plus'
 import { View } from '@element-plus/icons-vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
@@ -382,15 +382,6 @@ function isFieldRequired(field: FieldConfig): boolean {
 const labelsOnTop = computed(() =>
   visibleSubFields.value.some((f) => getVisualLength(f.name) > FORM_QUESTIONNAIRE_TRIGGER_CHARS)
 )
-
-/**
- * 获取嵌套字段的错误信息（用于显示在表单项下方）
- */
-function getSubFieldError(subFieldCode: string): string {
-  const subFieldPath = `${props.fieldPath}.${subFieldCode}`
-  
-  return props.formRenderer?.getFieldError?.(subFieldPath) || ''
-}
 
 /**
  * 验证当前 Widget 及其嵌套字段

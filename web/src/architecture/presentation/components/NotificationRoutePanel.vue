@@ -18,20 +18,15 @@
         <code>{{ normalizedScopePath }}</code>
       </div>
 
-      <el-alert
-        v-if="inheritedRouteCount > 0"
-        :title="inheritedSummary"
-        type="info"
-        :closable="false"
-        show-icon
-      />
-      <el-alert
-        v-else
-        :title="t('notificationRoute.noInherited')"
-        type="info"
-        :closable="false"
-        show-icon
-      />
+      <div class="inheritance-note" :class="{ 'is-active': inheritedRouteCount > 0 }">
+        <span class="inheritance-note-dot" />
+        <div class="inheritance-note-copy">
+          <strong>
+            {{ inheritedRouteCount > 0 ? t('notificationRoute.inheritanceActiveTitle') : t('notificationRoute.inheritanceFallbackTitle') }}
+          </strong>
+          <span>{{ inheritedRouteCount > 0 ? inheritedSummary : t('notificationRoute.noInherited') }}</span>
+        </div>
+      </div>
 
       <div class="route-channel-list">
         <section
@@ -99,6 +94,19 @@
                 clearable
               />
               <p class="form-tip">{{ t('notificationRoute.displayNameTip') }}</p>
+            </el-form-item>
+
+            <el-form-item :label="t('notificationRoute.remark')">
+              <el-input
+                v-model="routeForms[definition.channel].remark"
+                type="textarea"
+                :autosize="{ minRows: 2, maxRows: 4 }"
+                maxlength="300"
+                show-word-limit
+                :placeholder="t('notificationRoute.remarkPlaceholder')"
+                clearable
+              />
+              <p class="form-tip">{{ t('notificationRoute.remarkTip') }}</p>
             </el-form-item>
 
             <el-form-item label="Webhook">
@@ -233,6 +241,7 @@ interface RouteFormState {
   configured: boolean
   enabled: boolean
   display_name: string
+  remark: string
   webhook_url: string
   secret: string
   has_webhook_url: boolean
@@ -341,6 +350,7 @@ function createDefaultRouteForm(channel: ChannelCode): RouteFormState {
     configured: false,
     enabled: true,
     display_name: channelDefaultDisplayName(channel),
+    remark: '',
     webhook_url: '',
     secret: '',
     has_webhook_url: false,
@@ -383,6 +393,7 @@ function applyRouteInfo(info: MessageNotificationRouteInfo) {
   form.configured = true
   form.enabled = Boolean(info.enabled)
   form.display_name = info.display_name || channelDefaultDisplayName(channel)
+  form.remark = info.remark || ''
   form.webhook_url = ''
   form.secret = ''
   form.has_webhook_url = Boolean(info.has_webhook_url)
@@ -467,6 +478,7 @@ async function saveRoute(channel: ChannelCode, options: { silent?: boolean } = {
       enabled: form.enabled,
       delivery_type: 'webhook',
       display_name: form.display_name.trim() || channelDefaultDisplayName(channel),
+      remark: form.remark.trim(),
       require_auth: form.require_auth,
       webhook_url: webhookURL,
       secret: form.secret.trim(),
@@ -737,7 +749,8 @@ onMounted(() => {
 .channel-actions,
 .delivery-status,
 .auth-row,
-.scope-summary {
+.scope-summary,
+.inheritance-note {
   display: flex;
   align-items: center;
 }
@@ -782,6 +795,55 @@ onMounted(() => {
   min-width: 0;
   color: var(--el-text-color-primary);
   font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.inheritance-note {
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(64, 158, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(64, 158, 255, 0.06);
+}
+
+.inheritance-note.is-active {
+  border-color: rgba(103, 194, 58, 0.22);
+  background: rgba(103, 194, 58, 0.07);
+}
+
+.inheritance-note-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: var(--el-color-primary);
+  box-shadow: 0 0 0 4px rgba(64, 158, 255, 0.12);
+}
+
+.inheritance-note.is-active .inheritance-note-dot {
+  background: var(--el-color-success);
+  box-shadow: 0 0 0 4px rgba(103, 194, 58, 0.14);
+}
+
+.inheritance-note-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.inheritance-note-copy strong {
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.inheritance-note-copy span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
@@ -854,6 +916,10 @@ onMounted(() => {
 .secret-row .el-input {
   flex: 1;
   min-width: 0;
+}
+
+.route-form :deep(.el-textarea) {
+  width: 100%;
 }
 
 .form-tip {

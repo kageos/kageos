@@ -150,6 +150,7 @@ func TestNotificationRouteRepositoryMatchesNearestScopeAndRecordsStatus(t *testi
 		Enabled:          true,
 		DeliveryType:     "webhook",
 		DisplayName:      "订单群",
+		Remark:           "订单机器人群",
 		RequireAuth:      true,
 		WebhookURLCipher: "orders-cipher-url",
 	})
@@ -206,6 +207,23 @@ func TestNotificationRouteRepositoryMatchesNearestScopeAndRecordsStatus(t *testi
 	}
 	if len(underscoreRoutes) != 1 || underscoreRoutes[0].ScopePath != "/alice/sales_ops" {
 		t.Fatalf("unexpected underscore summary routes: %#v", underscoreRoutes)
+	}
+
+	child, err = repo.UpsertNotificationRoute(context.Background(), &model.NotificationRouteSetting{
+		ScopePath:        "/alice/sales/orders",
+		Channel:          "wecom",
+		Enabled:          true,
+		DeliveryType:     "webhook",
+		DisplayName:      "订单群",
+		Remark:           "订单机器人群-值班",
+		RequireAuth:      true,
+		WebhookURLCipher: "orders-cipher-url",
+	})
+	if err != nil {
+		t.Fatalf("update child route remark: %v", err)
+	}
+	if child.Remark != "订单机器人群-值班" {
+		t.Fatalf("route remark = %q", child.Remark)
 	}
 
 	candidates := NotificationRouteCandidatePaths("/alice/sales/orders/notify.form")

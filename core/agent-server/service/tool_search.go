@@ -8,12 +8,12 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/kageos/kageos-sdk/agent-app/widget"
 	"github.com/kageos/kageos/core/agent-server/prompt"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
 	"github.com/kageos/kageos/pkg/functionschema"
 	"github.com/kageos/kageos/pkg/logger"
-	"github.com/kageos/kageos-sdk/agent-app/widget"
 )
 
 type SearchTool struct{ registry *ToolRegistry }

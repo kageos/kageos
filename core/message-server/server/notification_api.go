@@ -323,6 +323,7 @@ func (s *Server) upsertNotificationRoute(c *gin.Context) {
 	enabled := true
 	deliveryType := "webhook"
 	displayName := strings.TrimSpace(req.DisplayName)
+	remark := ""
 	requireAuth := true
 	webhookCipher := ""
 	secretCipher := ""
@@ -333,6 +334,7 @@ func (s *Server) upsertNotificationRoute(c *gin.Context) {
 		if displayName == "" {
 			displayName = existing.DisplayName
 		}
+		remark = existing.Remark
 		requireAuth = existing.RequireAuth
 		webhookCipher = existing.WebhookURLCipher
 		secretCipher = existing.SecretCipher
@@ -342,6 +344,9 @@ func (s *Server) upsertNotificationRoute(c *gin.Context) {
 	}
 	if req.Enabled != nil {
 		enabled = *req.Enabled
+	}
+	if req.Remark != nil {
+		remark = strings.TrimSpace(*req.Remark)
 	}
 	if req.RequireAuth != nil {
 		requireAuth = *req.RequireAuth
@@ -386,6 +391,7 @@ func (s *Server) upsertNotificationRoute(c *gin.Context) {
 		Enabled:          enabled,
 		DeliveryType:     deliveryType,
 		DisplayName:      displayName,
+		Remark:           remark,
 		RequireAuth:      requireAuth,
 		WebhookURLCipher: webhookCipher,
 		SecretCipher:     secretCipher,
@@ -563,6 +569,7 @@ func notificationRouteToInfo(row *msgmodel.NotificationRouteSetting) dto.Message
 		Enabled:       row.Enabled,
 		DeliveryType:  firstNonEmptyStringForServer(row.DeliveryType, "webhook"),
 		DisplayName:   row.DisplayName,
+		Remark:        row.Remark,
 		RequireAuth:   row.RequireAuth,
 		HasWebhookURL: strings.TrimSpace(row.WebhookURLCipher) != "",
 		HasSecret:     strings.TrimSpace(row.SecretCipher) != "",

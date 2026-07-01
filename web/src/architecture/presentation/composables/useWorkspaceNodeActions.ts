@@ -1,5 +1,6 @@
 import { ref, type ComputedRef } from 'vue'
 import type { RouteLocationNormalizedLoaded, Router } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElLoading, ElMessage, ElMessageBox } from 'element-plus'
 import {
   createDocs,
@@ -33,6 +34,7 @@ export interface UseWorkspaceNodeActionsOptions {
 
 export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions) {
   const { route, router, currentApp, currentFunction, domainService, handleRefreshTree, afterCreateNode } = options
+  const { t } = useI18n()
 
   const createDocsDialogVisible = ref(false)
   const creatingDocs = ref(false)
@@ -49,7 +51,7 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
 
   const handleCreateDocs = (parentNode?: ServiceTreeType) => {
     if (!currentApp.value) {
-      ElMessage.warning('请先选择应用')
+      ElMessage.warning(t('serviceTree.selectAppFirst'))
       return
     }
 
@@ -60,11 +62,11 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
 
   const handleSubmitCreateDocs = async () => {
     if (!currentApp.value) {
-      ElMessage.warning('请先选择应用')
+      ElMessage.warning(t('serviceTree.selectAppFirst'))
       return
     }
 
-    const title = createDocsForm.value.name.trim() || '未命名文档'
+    const title = createDocsForm.value.name.trim() || t('workspaceNodeActions.untitledDoc')
     const code = buildUniqueDocsCode(createDocsCodeBase(title), currentDocsParentNode.value)
 
     creatingDocs.value = true
@@ -83,13 +85,13 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
       createDocsDialogVisible.value = false
       if (response && response.id) {
         markDocForAutoEdit(response.full_code_path)
-        ElMessage.success('文档已创建')
+        ElMessage.success(t('workspaceNodeActions.docCreated'))
         await afterCreateNode(response)
       } else {
-        ElMessage.warning('创建文档节点成功，但未返回节点信息')
+        ElMessage.warning(t('workspaceNodeActions.docCreatedMissingNode'))
       }
     } catch (error: any) {
-      ElMessage.error('创建文档节点失败: ' + (error.message || '未知错误'))
+      ElMessage.error(t('workspaceNodeActions.createDocFailed', { error: error.message || t('workspaceNodeActions.unknownError') }))
     } finally {
       creatingDocs.value = false
     }
@@ -102,25 +104,25 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
 
   const handleDeleteDoc = async (node: ServiceTreeType) => {
     if (node.type !== 'docs') {
-      ElMessage.warning('只能删除文档节点')
+      ElMessage.warning(t('workspaceNodeActions.deleteDocOnly'))
       return
     }
 
     let loadingInstance: ReturnType<typeof showBlockingLoading> | null = null
     try {
       await ElMessageBox.confirm(
-        `确定要删除文档 "${node.name}" 吗？此操作将删除文档内容和文档节点，且无法恢复。`,
-        '确认删除',
+        t('workspaceNodeActions.deleteDocConfirm', { name: node.name }),
+        t('workspaceNodeActions.deleteConfirmTitle'),
         {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
           type: 'warning'
         }
       )
 
-      loadingInstance = showBlockingLoading('正在删除文档并刷新目录，请稍候...')
+      loadingInstance = showBlockingLoading(t('workspaceNodeActions.deletingDoc'))
       await deleteDocs(node.id)
-      ElMessage.success('文档删除成功')
+      ElMessage.success(t('workspaceNodeActions.docDeleted'))
       await handleRefreshTree()
 
       if (currentFunction.value && currentFunction.value.id === node.id) {
@@ -131,7 +133,7 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
       }
     } catch (error: any) {
       if (error !== 'cancel' && error !== 'close') {
-        ElMessage.error('删除文档失败: ' + (error.message || '未知错误'))
+        ElMessage.error(t('workspaceNodeActions.deleteDocFailed', { error: error.message || t('workspaceNodeActions.unknownError') }))
       }
     } finally {
       loadingInstance?.close()
@@ -139,7 +141,7 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
   }
 
   const handleDocDeleted = async () => {
-    const loadingInstance = showBlockingLoading('正在刷新服务目录，请稍候...')
+    const loadingInstance = showBlockingLoading(t('workspaceNodeActions.refreshingTree'))
     try {
       await handleRefreshTree()
     } finally {
@@ -156,29 +158,29 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
 
   const handleDeleteDirectory = async (node: ServiceTreeType) => {
     if (node.type !== 'package') {
-      ElMessage.warning('只能删除目录节点')
+      ElMessage.warning(t('workspaceNodeActions.deleteDirectoryOnly'))
       return
     }
     if (isRootTreeNode(node as ServiceTreeType)) {
-      ElMessage.warning('不能删除工作空间根目录')
+      ElMessage.warning(t('workspaceNodeActions.deleteRootDirectoryDenied'))
       return
     }
 
     let loadingInstance: ReturnType<typeof showBlockingLoading> | null = null
     try {
       await ElMessageBox.confirm(
-        `确定要删除目录 "${node.name}" 吗？此操作将删除该目录及其下所有子目录、函数和文档，且无法恢复。`,
-        '确认删除',
+        t('workspaceNodeActions.deleteDirectoryConfirm', { name: node.name }),
+        t('workspaceNodeActions.deleteConfirmTitle'),
         {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
           type: 'warning'
         }
       )
 
-      loadingInstance = showBlockingLoading('正在删除目录并刷新函数列表，请稍候...')
+      loadingInstance = showBlockingLoading(t('workspaceNodeActions.deletingDirectory'))
       await deletePackage(node.id)
-      ElMessage.success('目录删除成功')
+      ElMessage.success(t('workspaceNodeActions.directoryDeleted'))
 
       const deletedPath = node.full_code_path || ''
       if (currentFunction.value) {
@@ -197,7 +199,7 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
       await handleRefreshTree()
     } catch (error: any) {
       if (error !== 'cancel' && error !== 'close') {
-        const errorMessage = error?.response?.data?.msg || error?.message || '删除目录失败'
+        const errorMessage = error?.response?.data?.msg || error?.message || t('workspaceNodeActions.deleteDirectoryFailedDefault')
         ElMessage.error(errorMessage)
       }
     } finally {
@@ -207,25 +209,25 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
 
   const handleDeleteFunction = async (node: ServiceTreeType) => {
     if (node.type !== 'function') {
-      ElMessage.warning('只能删除函数节点')
+      ElMessage.warning(t('workspaceNodeActions.deleteFunctionOnly'))
       return
     }
 
     let loadingInstance: ReturnType<typeof showBlockingLoading> | null = null
     try {
       await ElMessageBox.confirm(
-        `确定要删除函数 "${node.name}" 吗？此操作不可恢复。`,
-        '确认删除',
+        t('workspaceNodeActions.deleteFunctionConfirm', { name: node.name }),
+        t('workspaceNodeActions.deleteConfirmTitle'),
         {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
           type: 'warning'
         }
       )
 
-      loadingInstance = showBlockingLoading('正在删除函数并刷新函数列表，请稍候...')
+      loadingInstance = showBlockingLoading(t('workspaceNodeActions.deletingFunction'))
       await deleteServiceTreeFunction(node.id)
-      ElMessage.success('删除成功')
+      ElMessage.success(t('workspaceNodeActions.deleteSuccess'))
 
       if (currentFunction.value && currentFunction.value.id === node.id) {
         domainService.setCurrentFunction(null)
@@ -238,7 +240,7 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
       await handleRefreshTree()
     } catch (error: any) {
       if (error !== 'cancel' && error !== 'close') {
-        const errorMessage = error?.response?.data?.msg || error?.message || '删除失败'
+        const errorMessage = error?.response?.data?.msg || error?.message || t('workspaceNodeActions.deleteFailedDefault')
         ElMessage.error(errorMessage)
       }
     } finally {
@@ -251,25 +253,25 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
       return node.type === 'package' || node.type === 'function' || node.type === 'docs'
     })
     if (deleteNodes.length === 0) {
-      ElMessage.warning('请选择可删除的节点')
+      ElMessage.warning(t('serviceTree.deleteSelectableWarning'))
       return
     }
 
     const names = deleteNodes.slice(0, 5).map((node) => node.name || node.code || node.full_code_path).join('、')
-    const suffix = deleteNodes.length > 5 ? ` 等 ${deleteNodes.length} 个节点` : ''
+    const suffix = deleteNodes.length > 5 ? t('workspaceNodeActions.bulkDeleteOverflow', { count: deleteNodes.length }) : ''
     let loadingInstance: ReturnType<typeof showBlockingLoading> | null = null
     try {
       await ElMessageBox.confirm(
-        `确定删除 ${deleteNodes.length} 个节点吗？${names}${suffix} 将被删除，且无法恢复。`,
-        '批量删除',
+        t('workspaceNodeActions.bulkDeleteConfirm', { count: deleteNodes.length, names, suffix }),
+        t('workspaceNodeActions.bulkDeleteTitle'),
         {
-          confirmButtonText: '删除',
-          cancelButtonText: '取消',
+          confirmButtonText: t('common.delete'),
+          cancelButtonText: t('common.cancel'),
           type: 'warning'
         }
       )
 
-      loadingInstance = showBlockingLoading(`正在删除 ${deleteNodes.length} 个节点并刷新目录，请稍候...`)
+      loadingInstance = showBlockingLoading(t('workspaceNodeActions.deletingNodes', { count: deleteNodes.length }))
       const deletedPaths: string[] = []
       const deletedIds = new Set<number | string>()
       for (const node of deleteNodes) {
@@ -304,10 +306,10 @@ export function useWorkspaceNodeActions(options: UseWorkspaceNodeActionsOptions)
       }
 
       await handleRefreshTree()
-      ElMessage.success(`已删除 ${deletedIds.size} 个节点`)
+      ElMessage.success(t('workspaceNodeActions.nodesDeleted', { count: deletedIds.size }))
     } catch (error: any) {
       if (error !== 'cancel' && error !== 'close') {
-        const errorMessage = error?.response?.data?.msg || error?.message || '批量删除失败'
+        const errorMessage = error?.response?.data?.msg || error?.message || t('workspaceNodeActions.bulkDeleteFailed')
         ElMessage.error(errorMessage)
       }
     } finally {

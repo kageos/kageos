@@ -164,7 +164,7 @@ app-storage (9092)
 podman start minio
 
 # 启动 app-storage
-cd /Users/beiluo/Documents/work/code/kageos
+cd /path/to/kageos
 ./bin/app-storage
 
 # 启动 app-server

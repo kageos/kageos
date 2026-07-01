@@ -34,7 +34,7 @@
           :expand-on-click-node="false"
           class="department-tree"
         >
-          <template #default="{ node, data }">
+          <template #default="{ data }">
             <div 
               class="tree-node" 
               :class="{ 'is-current': data.full_code_path === currentPath }"

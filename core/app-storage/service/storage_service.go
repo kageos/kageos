@@ -78,7 +78,7 @@ func (s *StorageService) generateUploadTokenForKey(ctx context.Context, bucket s
 	}
 
 	expire = time.Now().Add(expiry)
-	logger.Infof(ctx, "Generated upload token for file: %s, key: %s, method: %s, source: %s", fileName, normalizedKey, creds.Method, uploadSource)
+	logger.Infof(ctx, "Generated upload credentials: method=%s, source=%s, key_len=%d", creds.Method, uploadSource, len(normalizedKey))
 
 	return creds, normalizedKey, expire, nil
 }
@@ -128,7 +128,7 @@ func (s *StorageService) GetFileURLsInBucket(ctx context.Context, bucket string,
 	}
 
 	expire = time.Now().Add(expiry)
-	logger.Infof(ctx, "Generated download URLs for key: %s (external: %s, server: %s)", key, externalURL, serverURL)
+	logger.Infof(ctx, "Generated download URLs: key_len=%d, external_url_len=%d, server_url_len=%d", len(key), len(externalURL), len(serverURL))
 	return externalURL, serverURL, expire, nil
 }
 
@@ -265,10 +265,10 @@ func (s *StorageService) DeleteFile(ctx context.Context, key string) error {
 	bucket := s.getDefaultBucket()
 	err := s.storage.DeleteObject(ctx, bucket, key)
 	if err != nil {
-		logger.Errorf(ctx, "Failed to delete file %s: %v", key, err)
+		logger.Errorf(ctx, "Failed to delete file: key_len=%d, err=%v", len(key), err)
 		return fmt.Errorf("删除文件失败")
 	}
-	logger.Infof(ctx, "Deleted file: %s", key)
+	logger.Infof(ctx, "Deleted file: key_len=%d", len(key))
 	return nil
 }
 
@@ -449,7 +449,7 @@ func (s *StorageService) DeleteFilesByRouter(ctx context.Context, router string)
 	for _, obj := range objects {
 		err := s.storage.DeleteObject(ctx, bucket, obj.Key)
 		if err != nil {
-			logger.Errorf(ctx, "Failed to delete file %s: %v", obj.Key, err)
+			logger.Errorf(ctx, "Failed to delete file: key_len=%d, err=%v", len(obj.Key), err)
 			continue
 		}
 		deletedCount++
@@ -471,18 +471,18 @@ func (s *StorageService) RecordUpload(ctx context.Context, record *model.FileUpl
 	}
 
 	if s.fileRepo == nil {
-		logger.Warnf(ctx, "[StorageService] Database not initialized, upload record not saved (file_key: %s)", record.FileKey)
+		logger.Warnf(ctx, "[StorageService] Database not initialized, upload record not saved (file_key_len=%d)", len(record.FileKey))
 		return nil
 	}
 
 	err := s.fileRepo.CreateUploadRecord(ctx, record)
 	if err != nil {
-		logger.Errorf(ctx, "[StorageService] Failed to record upload (file_key: %s): %v", record.FileKey, err)
+		logger.Errorf(ctx, "[StorageService] Failed to record upload (file_key_len=%d): %v", len(record.FileKey), err)
 		return err
 	}
 
-	logger.Infof(ctx, "[StorageService] Upload record saved (file_key: %s, router: %s, size: %d)",
-		record.FileKey, record.Router, record.FileSize)
+	logger.Infof(ctx, "[StorageService] Upload record saved (file_key_len=%d, router=%s, size=%d)",
+		len(record.FileKey), record.Router, record.FileSize)
 	return nil
 }
 
@@ -509,13 +509,13 @@ func (s *StorageService) RecordDownload(ctx context.Context, record *model.FileD
 	}
 
 	if s.fileRepo == nil {
-		logger.Warnf(ctx, "[StorageService] Database not initialized, download record not saved (file_key: %s)", record.FileKey)
+		logger.Warnf(ctx, "[StorageService] Database not initialized, download record not saved (file_key_len=%d)", len(record.FileKey))
 		return nil
 	}
 
 	err := s.fileRepo.CreateDownloadRecord(ctx, record)
 	if err != nil {
-		logger.Errorf(ctx, "[StorageService] Failed to record download (file_key: %s): %v", record.FileKey, err)
+		logger.Errorf(ctx, "[StorageService] Failed to record download (file_key_len=%d): %v", len(record.FileKey), err)
 		return err
 	}
 

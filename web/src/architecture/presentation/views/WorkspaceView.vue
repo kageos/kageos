@@ -175,7 +175,7 @@
     <WorkspaceCreateAppDialog
       v-if="createAppDialogVisible"
       v-model:visible="createAppDialogVisible"
-      :form="createAppForm"
+      v-model:form="createAppForm"
       :creating="creatingApp"
       @submit="submitCreateApp"
       @close="resetCreateAppForm"
@@ -208,7 +208,7 @@
       v-if="createDocsDialogVisible"
       v-model:visible="createDocsDialogVisible"
       :parent-node="currentDocsParentNode"
-      :form="createDocsForm"
+      v-model:form="createDocsForm"
       :creating="creatingDocs"
       @submit="handleSubmitCreateDocs"
       @close="handleCloseCreateDocsDialog"
@@ -218,7 +218,7 @@
       v-if="createDirectoryDialogVisible"
       v-model:visible="createDirectoryDialogVisible"
       :parent-node="currentParentNode"
-      :form="createDirectoryForm"
+      v-model:form="createDirectoryForm"
       :creating="creatingDirectory"
       @submit="handleSubmitCreateDirectory"
       @close="handleCloseCreateDirectoryDialog"
@@ -268,6 +268,8 @@
       :visible="mini.visible"
       :full-code-path="mini.fullCodePath"
       :dir-name="mini.dirName"
+      :resource-type="resolveWorkspaceNodeType(mini.fullCodePath)"
+      :resource-template-type="resolveWorkspaceNodeTemplateType(mini.fullCodePath)"
       :initial-session-id="mini.initialSessionId"
       :initial-offset="mini.offset"
       :initial-position="mini.initialPosition"
@@ -317,7 +319,6 @@ import { useWorkspaceViewLifecycle } from '../composables/useWorkspaceViewLifecy
 import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
 import { useAfterCreateNode } from '../composables/useAfterCreateNode'
 import { getFormRequestFields, getFunctionCallbacks } from '@/architecture/domain/utils/functionSchemaSelectors'
-import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 import { listMessageInboxSourceCounts, type MessageInboxSourceCount } from '@/architecture/presentation/context/api/message'
 import { featureFlags } from '@/architecture/shared/config/features'
 
@@ -422,6 +423,20 @@ function resolveWorkspacePathName(fullCodePath: string) {
   const normalizedPath = normalizeFullCodePath(fullCodePath)
   return workspacePathNameMap.value[normalizedPath]
     || workspacePathNameMap.value[normalizedPath.replace(/^\/+/, '')]
+}
+
+function resolveWorkspaceNode(fullCodePath: string): ServiceTreeType | null {
+  const normalizedPath = normalizeFullCodePath(fullCodePath)
+  if (!normalizedPath) return null
+  return findNodeByPath(serviceTree.value, normalizedPath)
+}
+
+function resolveWorkspaceNodeType(fullCodePath: string) {
+  return resolveWorkspaceNode(fullCodePath)?.type || ''
+}
+
+function resolveWorkspaceNodeTemplateType(fullCodePath: string) {
+  return resolveWorkspaceNode(fullCodePath)?.template_type || ''
 }
 
 const currentApp = computed<AppType | null>(() => {
@@ -665,7 +680,6 @@ const workstationContext = computed(() => {
 const {
   miniWsList,
   openAmbientMiniWs,
-  openNewMiniWs,
   handleMiniMinimize,
   hideVisibleMiniWs,
   handleMiniRemove,
@@ -784,24 +798,6 @@ watch(
     void refreshMessageCounts()
   }
 )
-
-function openWorkspaceSession(session: WorkspaceSessionItem) {
-  const sessionID = (session.session_id || '').trim()
-  if (!sessionID) return
-
-  const fullCodePath = (session.full_code_path || workstationContext.value?.fullCodePath || '').trim()
-  if (!fullCodePath) {
-    openNewMiniWs(sessionID)
-    return
-  }
-
-  handleWorkspaceOpenWorkstation({
-    full_code_path: fullCodePath,
-    session_id: sessionID,
-    directory_name: session.directory_name,
-    open_as_mini: true
-  })
-}
 
 const canUpdateTable = computed(() => {
   return true
@@ -1365,21 +1361,48 @@ useWorkspaceUiEffects({
 }
 
 .left-sidebar :deep(.tree-header) {
-  padding: 16px 16px 12px;
+  padding: 10px 12px 8px;
   border-bottom-color: var(--app-shell-panel-border);
   background: transparent;
 }
 
+.left-sidebar :deep(.tree-primary-row) {
+  gap: 6px;
+}
+
 .left-sidebar :deep(.tree-search-input .el-input__wrapper) {
-  min-height: 42px;
-  background: var(--app-shell-panel-muted-bg) !important;
-  border: 1px solid var(--app-shell-panel-border) !important;
-  border-radius: 14px !important;
-  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight) !important;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 9px;
+  background: color-mix(in srgb, var(--app-shell-panel-bg) 44%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--app-shell-panel-border) 76%, transparent) !important;
+  border-radius: 9px !important;
+  box-shadow: none !important;
+}
+
+.left-sidebar :deep(.tree-search-input .el-input__wrapper:hover) {
+  background: color-mix(in srgb, var(--app-shell-panel-bg) 64%, transparent) !important;
+  border-color: rgba(var(--el-color-primary-rgb), 0.22) !important;
+}
+
+.left-sidebar :deep(.tree-search-input .el-input__wrapper.is-focus) {
+  background: color-mix(in srgb, var(--app-shell-panel-bg) 82%, transparent) !important;
+  border-color: rgba(var(--el-color-primary-rgb), 0.4) !important;
+  box-shadow: none !important;
+}
+
+.left-sidebar :deep(.tree-search-input .el-input__inner) {
+  height: 30px;
+  line-height: 30px;
+  font-size: 12.5px;
+}
+
+.left-sidebar :deep(.tree-search-input .el-input__prefix .el-icon) {
+  font-size: 14px;
 }
 
 .left-sidebar :deep(.tree-content) {
-  padding: 12px;
+  padding: 10px 12px 12px;
 }
 
 .left-sidebar :deep(.el-tree),

@@ -152,7 +152,7 @@ import { ElCard, ElForm, ElFormItem, ElButton, ElEmpty, ElRow, ElCol, ElTooltip,
 import { Search, Refresh } from '@element-plus/icons-vue'
 import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
 import WidgetComponent from '@/architecture/presentation/widgets/WidgetComponent.vue'
-import type { FieldConfig, FunctionDetail } from '@/architecture/domain/types'
+import type { FunctionDetail } from '@/architecture/domain/types'
 import type { Chart } from '@/architecture/domain/types/chart'
 import { useChartDataLoader } from '@/architecture/presentation/composables/useChartDataLoader'
 import { useChartFilterState } from '@/architecture/presentation/composables/useChartFilterState'

@@ -10,7 +10,7 @@
     <el-form :model="form" label-position="top" class="create-docs-form" data-testid="create-docs-dialog">
       <el-form-item label="标题" class="create-docs-title">
         <el-input
-          v-model="form.name"
+          v-model="docsName"
           placeholder="未命名文档"
           maxlength="100"
           clearable
@@ -49,6 +49,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void
+  (e: 'update:form', value: CreateDocsForm): void
   (e: 'submit'): void
   (e: 'close'): void
 }>()
@@ -56,6 +57,11 @@ const emit = defineEmits<{
 const dialogVisible = computed({
   get: () => props.visible,
   set: (value: boolean) => emit('update:visible', value)
+})
+
+const docsName = computed({
+  get: () => props.form.name,
+  set: (value: string) => emit('update:form', { ...props.form, name: value })
 })
 </script>
 

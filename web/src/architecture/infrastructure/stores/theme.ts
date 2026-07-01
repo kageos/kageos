@@ -90,7 +90,7 @@ export const useThemeStore = defineStore('theme', () => {
   // 监听系统主题变化（可选）
   watch(
     () => currentTheme.value,
-    (newTheme) => {
+    (_newTheme) => {
       // 主题已更改
     }
   )

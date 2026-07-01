@@ -15,6 +15,8 @@
 - Go package：`{{DIR_CODE}}`
 {{DIR_DESCRIPTION}}
 
+{{DIRECTORY_RUNBOOK_SECTION}}
+
 ### 当前目录语义
 
 - 选择角色前必须先结合当前目录、目录下函数和用户原话判断意图；同一句话在不同目录里可能是完全不同的任务。

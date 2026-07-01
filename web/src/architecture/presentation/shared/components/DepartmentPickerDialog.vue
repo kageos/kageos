@@ -281,10 +281,6 @@ const handleDialogOpened = async () => {
   await applyTreeState()
 }
 
-const isDepartmentSelected = (dept: Department): boolean => {
-  return selectedDepartments.value.some((item) => item.full_code_path === dept.full_code_path)
-}
-
 const handleTreeNodeClick = (dept: Department) => {
   if (multiple.value) {
     return

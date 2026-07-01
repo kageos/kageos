@@ -89,7 +89,6 @@ function getAccessTokenValue(): string {
 // 请求拦截器
 service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const authStore = useAuthStore()
     const token = getAccessTokenValue()
     const isRefreshRequest = isRefreshRequestUrl(config.url)
 
@@ -100,8 +99,7 @@ service.interceptors.request.use(
       removeHeader(config, 'X-Token')
     } else {
       Logger.warn('Request', 'No token found', {
-        storeToken: authStore.token,
-        localStorageToken: localStorage.getItem('token'),
+        hasStoredToken: Boolean(token && typeof token === 'string' && token.trim()),
         url: config.url
       })
     }

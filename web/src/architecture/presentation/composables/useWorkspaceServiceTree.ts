@@ -17,8 +17,16 @@ import { createPackage } from '@/architecture/presentation/context/api/service-t
 import type { ServiceTree as ServiceTreeType, CreateServiceTreeRequest } from '@/architecture/domain/types'
 import ServiceTreePanel from '@/architecture/presentation/components/ServiceTreePanel.vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
-import { normalizeGoPackageName, validateGoPackageName } from '@/architecture/domain/utils/goPackageName'
+import { normalizeGoPackageName, validateGoPackageName, type GoPackageNameValidationMessages } from '@/architecture/domain/utils/goPackageName'
 import { buildUniqueGoPackageCode, createGoPackageCodeFromLabel } from '@/architecture/domain/utils/goPackageCode'
+import { translate } from '@/architecture/shared/i18n'
+
+const goPackageValidationMessages: GoPackageNameValidationMessages = {
+  required: (label) => translate('workspace.codeRequired', { label }),
+  length: (label, minLength, maxLength) => translate('workspace.codeLength', { label, min: minLength, max: maxLength }),
+  pattern: (label) => translate('workspace.codePattern', { label }),
+  reserved: (label, code) => translate('workspace.codeReserved', { label, code })
+}
 
 export function useWorkspaceServiceTree(
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
@@ -52,8 +60,8 @@ export function useWorkspaceServiceTree(
   const handleCreateDirectory = (parentNode: ServiceTreeType | null, currentApp: () => any) => {
     if (!currentApp()) {
       ElNotification.warning({
-        title: '提示',
-        message: '请先选择一个应用'
+        title: translate('common.warning'),
+        message: translate('serviceTree.selectAppFirst')
       })
       return
     }
@@ -98,8 +106,8 @@ export function useWorkspaceServiceTree(
   const handleSubmitCreateDirectory = async (currentApp: () => any) => {
     if (!currentApp()) {
       ElNotification.warning({
-        title: '提示',
-        message: '请先选择一个应用'
+        title: translate('common.warning'),
+        message: translate('serviceTree.selectAppFirst')
       })
       return
     }
@@ -113,16 +121,21 @@ export function useWorkspaceServiceTree(
 
     if (!name) {
       ElNotification.warning({
-        title: '提示',
-        message: '请输入目录名称'
+        title: translate('common.warning'),
+        message: translate('serviceTree.directoryNameRequired')
       })
       return
     }
     
-    const codeError = validateGoPackageName(code, '目录英文标识')
+    const codeError = validateGoPackageName(
+      code,
+      translate('serviceTree.directoryCode'),
+      {},
+      goPackageValidationMessages
+    )
     if (codeError) {
       ElNotification.warning({
-        title: '提示',
+        title: translate('common.warning'),
         message: codeError
       })
       return
@@ -144,8 +157,8 @@ export function useWorkspaceServiceTree(
       // ⭐ 使用新的分离接口
       await createPackage(requestData)
       ElNotification.success({
-        title: '成功',
-        message: '创建服务目录成功'
+        title: translate('common.success'),
+        message: translate('serviceTree.createDirectorySuccess')
       })
       createDirectoryDialogVisible.value = false
       resetCreateDirectoryForm(currentApp)
@@ -154,9 +167,9 @@ export function useWorkspaceServiceTree(
       await applicationService.refreshServiceTree()
     } catch (error: any) {
       // 🔥 统一使用 msg 字段
-      const errorMessage = error?.response?.data?.msg || error?.message || '创建服务目录失败'
+      const errorMessage = error?.response?.data?.msg || error?.message || translate('serviceTree.createDirectoryFailed')
       ElNotification.error({
-        title: '错误',
+        title: translate('common.error'),
         message: errorMessage
       })
     } finally {

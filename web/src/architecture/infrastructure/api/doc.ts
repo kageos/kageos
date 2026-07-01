@@ -1,4 +1,4 @@
-import { get, put, del, post } from '@/architecture/infrastructure/apiClient/request'
+import { get, put, del } from '@/architecture/infrastructure/apiClient/request'
 
 export interface Doc {
   id: number

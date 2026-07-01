@@ -1,61 +1,60 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="创建新工作空间"
+    :title="t('workspace.createDialogTitle')"
     width="800px"
     :close-on-click-modal="false"
     @close="$emit('close')"
   >
     <el-form :model="form" label-width="120px" data-testid="create-app-dialog">
-      <el-form-item label="名称" required>
+      <el-form-item :label="t('workspace.createName')" required>
         <el-input
-          v-model="form.name"
-          placeholder="请输入名称（如：清北大学、首都市政府、xxx图书馆、xxx医院、xxx银行、xxx科技公司）"
+          v-model="appName"
+          :placeholder="t('workspace.createNamePlaceholder')"
           maxlength="100"
           show-word-limit
           clearable
           data-testid="create-app-name"
         />
       </el-form-item>
-      <el-form-item label="英文标识" required>
+      <el-form-item :label="t('workspace.createCode')" required>
         <el-tooltip
-          content="2-50 个字符，以小写英文字母开头，可包含小写英文字母、数字和下划线，不要使用横线"
+          :content="t('workspace.createCodeHelp')"
           placement="top"
         >
           <el-input
-            v-model="form.code"
-            placeholder="请输入英文标识（如：tsinghua、pku_gsm）"
+            v-model="appCode"
+            :placeholder="t('workspace.createCodePlaceholder')"
             maxlength="50"
             show-word-limit
             clearable
             data-testid="create-app-code"
-            @input="form.code = form.code.toLowerCase()"
           />
         </el-tooltip>
       </el-form-item>
-      <el-form-item label="公开">
+      <el-form-item :label="t('workspace.createPublicLabel')">
         <el-tooltip
-          content="公开的工作空间可以被其他用户搜索到，关闭则仅自己可见"
+          :content="t('workspace.createPublicTip')"
           placement="top"
         >
-          <el-switch v-model="form.is_public" />
+          <el-switch v-model="isPublic" />
         </el-tooltip>
       </el-form-item>
-      <el-form-item label="隐藏无权限节点">
+      <el-form-item :label="t('workspace.hideUnauthorizedNodes')">
         <el-tooltip
-          content="开启后，服务目录树不会返回当前用户无 read 权限的节点"
+          :content="t('workspace.hideUnauthorizedNodesTip')"
           placement="top"
         >
-          <el-switch v-model="form.hide_unauthorized_nodes" />
+          <el-switch v-model="hideUnauthorizedNodes" />
         </el-tooltip>
       </el-form-item>
     </el-form>
 
     <template #footer>
       <span class="dialog-footer">
-        <el-button data-testid="create-app-cancel" @click="dialogVisible = false">取消</el-button>
+        <el-button data-testid="create-app-cancel" @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" data-testid="create-app-submit" @click="$emit('submit')" :loading="creating">
-          创建
+          {{ t('common.create') }}
         </el-button>
       </span>
     </template>
@@ -64,6 +63,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { CreateAppRequest } from '@/architecture/domain/types'
 
 const props = defineProps<{
@@ -74,12 +74,42 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void
+  (e: 'update:form', value: CreateAppRequest): void
   (e: 'submit'): void
   (e: 'close'): void
 }>()
 
+const { t } = useI18n()
+
 const dialogVisible = computed({
   get: () => props.visible,
   set: (value: boolean) => emit('update:visible', value)
+})
+
+function updateForm(patch: Partial<CreateAppRequest>): void {
+  emit('update:form', {
+    ...props.form,
+    ...patch,
+  })
+}
+
+const appName = computed({
+  get: () => props.form.name,
+  set: (value: string) => updateForm({ name: value })
+})
+
+const appCode = computed({
+  get: () => props.form.code,
+  set: (value: string) => updateForm({ code: value.toLowerCase() })
+})
+
+const isPublic = computed({
+  get: () => props.form.is_public,
+  set: (value: boolean) => updateForm({ is_public: value })
+})
+
+const hideUnauthorizedNodes = computed({
+  get: () => props.form.hide_unauthorized_nodes,
+  set: (value: boolean) => updateForm({ hide_unauthorized_nodes: value })
 })
 </script>

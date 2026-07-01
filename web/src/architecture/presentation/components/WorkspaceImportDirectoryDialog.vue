@@ -51,6 +51,11 @@
               clearable
               data-testid="import-directory-hub-link"
             />
+            <div class="hub-source-actions">
+              <el-button link type="primary" :icon="Compass" @click="openHubDirectory">
+                去 Hub 查找目录
+              </el-button>
+            </div>
           </el-form-item>
           <el-form-item label="安装密钥">
             <el-input
@@ -117,7 +122,7 @@
 <script setup lang="ts">
 import { computed, h, ref } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
-import { FolderOpened, InfoFilled, Link, Upload, UploadFilled } from '@element-plus/icons-vue'
+import { Compass, FolderOpened, InfoFilled, Link, Upload, UploadFilled } from '@element-plus/icons-vue'
 import type { CapabilityBundle, ServiceTree } from '@/architecture/domain/types'
 import {
   installCapabilityBundle,
@@ -126,6 +131,7 @@ import {
 import { parseCapabilityBundleJson } from '@/architecture/presentation/utils/directoryBundleFile'
 import { parseHubInstallInput } from '@/architecture/presentation/utils/hubInstallCommand'
 import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
+import { getKageosHubURL, openExternalURL } from '@/architecture/shared/config/externalLinks'
 
 type ImportSource = 'hub' | 'json'
 type NotificationHandle = { close: () => void }
@@ -196,6 +202,10 @@ function resetForm() {
 
 function openJsonFilePicker() {
   jsonInputRef.value?.click()
+}
+
+function openHubDirectory() {
+  openExternalURL(getKageosHubURL())
 }
 
 function handleJsonFileSelect(event: Event) {
@@ -517,6 +527,19 @@ async function submitJsonImport() {
   :deep(.el-textarea__inner:focus),
   :deep(.el-input__wrapper.is-focus) {
     box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.48) inset, 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.08);
+  }
+}
+
+.hub-source-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+
+  :deep(.el-button) {
+    height: 24px;
+    padding: 0;
+    font-size: 12px;
+    font-weight: 650;
   }
 }
 

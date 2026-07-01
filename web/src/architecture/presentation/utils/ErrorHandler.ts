@@ -136,7 +136,7 @@ export class ErrorHandler {
   static handleValidationError(
     context: string,
     validationError: { field: string; message: string },
-    options: ErrorHandleOptions = {}
+    _options: ErrorHandleOptions = {}
   ): void {
     const message = `${validationError.field}: ${validationError.message}`
     
@@ -218,4 +218,3 @@ export class ErrorHandler {
     }
   }
 }
-

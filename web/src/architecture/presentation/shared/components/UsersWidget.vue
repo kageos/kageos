@@ -17,7 +17,7 @@
       >
         <div class="selected-users-list">
           <div
-            v-for="(user, index) in selectedUsersForDisplay"
+            v-for="user in selectedUsersForDisplay"
             :key="user.username"
             class="selected-user-tag"
           >

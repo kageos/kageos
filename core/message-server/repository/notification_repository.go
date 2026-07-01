@@ -138,6 +138,7 @@ func (r *MessageRepository) UpsertNotificationRoute(ctx context.Context, setting
 			"enabled":            setting.Enabled,
 			"delivery_type":      setting.DeliveryType,
 			"display_name":       strings.TrimSpace(setting.DisplayName),
+			"remark":             strings.TrimSpace(setting.Remark),
 			"require_auth":       setting.RequireAuth,
 			"webhook_url_cipher": setting.WebhookURLCipher,
 			"secret_cipher":      setting.SecretCipher,
@@ -151,6 +152,7 @@ func (r *MessageRepository) UpsertNotificationRoute(ctx context.Context, setting
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
+	setting.Remark = strings.TrimSpace(setting.Remark)
 	if err := r.db.WithContext(ctx).Create(setting).Error; err != nil {
 		return nil, err
 	}

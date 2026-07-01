@@ -313,7 +313,7 @@ func postJSONToken(ctx context.Context, tokenURL string, body map[string]string,
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("oauth token endpoint returned %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+		return nil, oauthTokenEndpointError(resp.StatusCode, data)
 	}
 	return parseTokenPayload(data, scopes)
 }
@@ -342,9 +342,17 @@ func postJSONBasicToken(ctx context.Context, provider config.ConnectorOAuthProvi
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("oauth token endpoint returned %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+		return nil, oauthTokenEndpointError(resp.StatusCode, data)
 	}
 	return parseTokenPayload(data, scopes)
+}
+
+func oauthTokenEndpointError(statusCode int, body []byte) error {
+	body = []byte(strings.TrimSpace(string(body)))
+	if len(body) == 0 {
+		return fmt.Errorf("oauth token endpoint returned %d", statusCode)
+	}
+	return fmt.Errorf("oauth token endpoint returned %d (response body hidden, %d bytes)", statusCode, len(body))
 }
 
 func fetchProviderUserInfo(ctx context.Context, provider config.ConnectorOAuthProviderConfig, accessToken string) (map[string]interface{}, error) {

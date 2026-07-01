@@ -1,8 +1,10 @@
-import { computed, onMounted, ref, type ComputedRef } from 'vue'
-import { ElLoading, ElMessage, ElMessageBox, ElNotification } from 'element-plus'
+import { computed, h, onMounted, ref, type ComputedRef } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { copyDirectory } from '@/architecture/presentation/context/api/service-tree'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/shared/logger'
+import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 
 const COPIED_DIRECTORY_KEY = 'copied_directory'
 
@@ -52,16 +54,9 @@ function joinFullCodePath(parentPath: string, childCode: string): string {
   return `${parentPath.replace(/\/+$/, '')}/${childCode}`
 }
 
-function showBlockingLoading(text: string) {
-  return ElLoading.service({
-    lock: true,
-    text,
-    background: 'rgba(15, 23, 42, 0.36)'
-  })
-}
-
 export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions) {
   const { treeData, currentFunction, currentNodeId, onRefreshTree } = options
+  const { t } = useI18n()
 
   const copiedDirectory = ref<ServiceTree | null>(null)
   const isPasting = ref(false)
@@ -101,7 +96,7 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
         }
       }
     } catch (error) {
-      Logger.error('[ServiceTreeClipboard]', '恢复复制内容失败', { error })
+      Logger.error('[ServiceTreeClipboard]', 'Failed to restore copied directory', { error })
       localStorage.removeItem(COPIED_DIRECTORY_KEY)
     }
   }
@@ -117,13 +112,13 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
       }
       localStorage.setItem(COPIED_DIRECTORY_KEY, JSON.stringify(dataToSave))
     } catch (error) {
-      Logger.error('[ServiceTreeClipboard]', '保存复制目录失败', { error })
+      Logger.error('[ServiceTreeClipboard]', 'Failed to save copied directory', { error })
     }
   }
 
   const handleCopy = (node: ServiceTree) => {
     if (node.type !== 'package') {
-      ElMessage.warning('只能复制目录')
+      ElMessage.warning(t('serviceTreeClipboard.copyDirectoryOnly'))
       return
     }
 
@@ -133,13 +128,13 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
     const toCopy = resolved?.type === 'package' && resolved.full_code_path ? resolved : node
 
     if (!toCopy.full_code_path) {
-      ElMessage.warning('无法获取目录路径，请刷新树后重试')
+      ElMessage.warning(t('serviceTreeClipboard.pathMissingRefresh'))
       return
     }
 
     copiedDirectory.value = toCopy
     saveCopiedDirectory(toCopy)
-    ElMessage.success(`已复制目录：${toCopy.name}，可粘贴到目标父目录`)
+    ElMessage.success(t('serviceTreeClipboard.directoryCopied', { name: toCopy.name }))
   }
 
   const handlePaste = async (targetNode?: ServiceTree) => {
@@ -147,12 +142,12 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
       return
     }
     if (!copiedDirectory.value) {
-      ElMessage.warning('没有可粘贴的目录')
+      ElMessage.warning(t('serviceTreeClipboard.noDirectoryToPaste'))
       return
     }
 
     if (!copiedDirectory.value.full_code_path) {
-      ElMessage.warning('复制的目录路径无效，请重新复制目录')
+      ElMessage.warning(t('serviceTreeClipboard.invalidCopiedPath'))
       copiedDirectory.value = null
       localStorage.removeItem(COPIED_DIRECTORY_KEY)
       return
@@ -160,39 +155,39 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
 
     const finalTargetNode = resolveTargetNode(targetNode)
     if (!finalTargetNode) {
-      ElMessage.warning('请先选择一个目录作为粘贴目标')
+      ElMessage.warning(t('serviceTreeClipboard.selectPasteTarget'))
       return
     }
 
     if (finalTargetNode.type !== 'package') {
-      ElMessage.warning('只能粘贴到目录')
+      ElMessage.warning(t('serviceTreeClipboard.pasteDirectoryOnly'))
       return
     }
 
     const targetFullCodePath = finalTargetNode.full_code_path
     if (!targetFullCodePath) {
-      ElMessage.warning('无法获取目标目录路径，请重新选择目标目录')
+      ElMessage.warning(t('serviceTreeClipboard.targetPathMissing'))
       return
     }
 
     const sourceCode = lastPathSegment(copiedDirectory.value.full_code_path)
     if (!sourceCode) {
-      ElMessage.warning('复制的目录路径无效，请重新复制目录')
+      ElMessage.warning(t('serviceTreeClipboard.invalidCopiedPath'))
       return
     }
     const finalTargetPath = joinFullCodePath(targetFullCodePath, sourceCode)
 
     if (copiedDirectory.value.full_code_path === finalTargetPath) {
-      ElMessage.warning('不能粘贴到原目录本身，请选择其他父目录')
+      ElMessage.warning(t('serviceTreeClipboard.cannotPasteToSelf'))
       return
     }
 
     if (targetFullCodePath.startsWith(copiedDirectory.value.full_code_path + '/')) {
-      ElMessage.warning('不能粘贴到自己的子目录')
+      ElMessage.warning(t('serviceTreeClipboard.cannotPasteToChild'))
       return
     }
     if (copiedDirectory.value.full_code_path.startsWith(finalTargetPath + '/')) {
-      ElMessage.warning('不能用子目录覆盖父目录，请先把副本放到兄弟目录或其他目录')
+      ElMessage.warning(t('serviceTreeClipboard.cannotOverwriteParentWithChild'))
       return
     }
 
@@ -205,85 +200,152 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
     const existingTarget = findNodeByFullCodePath(treeData.value, finalTargetPath)
     const willReplace = existingTarget?.type === 'package'
 
-    let confirmTitle = '确认粘贴'
-    let confirmType: 'info' | 'warning' = 'info'
     let confirmMessage = ''
     if (willReplace) {
-      confirmTitle = '覆盖同名目录'
-      confirmType = 'warning'
-      confirmMessage = `目标父目录下已存在同名目录 "${sourceCode}"。\n\n`
-      confirmMessage += `确定要用复制内容完全替换它吗？\n\n`
-      confirmMessage += `源目录：${copiedDirectory.value.full_code_path}\n`
-      confirmMessage += `目标目录：${finalTargetPath}\n\n`
-      confirmMessage += `目录名 ${sourceCode} 会保持不变，目标应用数据库和业务数据会保留；旧代码会在编译成功后清理，失败会自动恢复。`
-    } else {
-      confirmMessage = `确定要将目录 "${copiedDirectory.value.name}" 粘贴到 "${finalTargetNode.name}" 下吗？\n\n`
-      confirmMessage += `源目录：${copiedDirectory.value.full_code_path}\n`
-      confirmMessage += `目标目录：${finalTargetPath}`
-    }
-    if (isCrossApp) {
-      confirmMessage += '\n\n⚠️ 注意：这是跨应用复制操作'
-    }
-
-    try {
-      const { value } = await ElMessageBox.prompt(confirmMessage, confirmTitle, {
-        confirmButtonText: willReplace ? '覆盖同名目录' : '确定',
-        cancelButtonText: '取消',
-        type: confirmType,
-        inputValue: copiedDirectory.value.name || sourceCode,
-        inputPlaceholder: '请输入目录中文名称',
-        inputValidator: (inputValue) => {
-          if (String(inputValue || '').trim().length > 80) {
-            return '目录中文名称不能超过 80 个字符'
-          }
-          return true
-        }
+      confirmMessage = t('serviceTreeClipboard.replaceConfirmMessage', {
+        sourceCode,
+        sourcePath: copiedDirectory.value.full_code_path,
+        targetPath: finalTargetPath,
       })
-      const targetDirectoryName = String(value || '').trim() || copiedDirectory.value.name || sourceCode
+      if (isCrossApp) {
+        confirmMessage += `\n\n${t('serviceTreeClipboard.crossAppWarning')}`
+      }
+    }
 
+    if (willReplace) {
+      try {
+        await ElMessageBox.confirm(confirmMessage, t('serviceTreeClipboard.replaceSameNameTitle'), {
+          confirmButtonText: t('serviceTreeClipboard.replaceSameNameTitle'),
+          cancelButtonText: t('common.cancel'),
+          type: 'warning',
+          customClass: 'service-tree-paste-confirm',
+        })
+      } catch {
+        return
+      }
+    }
+
+    const sourceDirectoryPath = copiedDirectory.value.full_code_path
+    const sourceDirectoryName = copiedDirectory.value.name || sourceCode
+    const targetDirectoryName = copiedDirectory.value.name || sourceCode
+
+    const runPasteTask = async () => {
       isPasting.value = true
-      const loadingNotify = ElNotification({
-        title: willReplace ? '覆盖中' : '复制中',
-        message: willReplace ? '正在替换同名目录，请稍候…' : '正在复制目录，请稍候…',
-        type: 'info',
-        position: 'top-right',
-        duration: 0
-      })
-      const loadingInstance = showBlockingLoading(willReplace ? '正在覆盖同名目录，请稍候...' : '正在复制目录并更新函数列表，请稍候...')
+      const progressNotification = ElNotification({
+        ...directoryTaskNotificationOptions(),
+        type: willReplace ? 'warning' : 'info',
+        title: willReplace ? t('serviceTreeClipboard.replacing') : t('serviceTreeClipboard.copying'),
+        message: renderPasteProgressMessage({
+          sourceName: sourceDirectoryName,
+          targetName: finalTargetNode.name,
+          targetPath: finalTargetPath,
+          isCrossApp,
+        }),
+        duration: 0,
+        showClose: true,
+      }) as NotificationHandle
 
       try {
         if (!finalTargetNode.app_id) {
-          throw new Error('无法获取目标应用ID，请确保目标目录有效')
+          throw new Error(t('serviceTreeClipboard.targetAppMissing'))
         }
 
-        await copyDirectory({
-          source_directory_path: copiedDirectory.value.full_code_path,
+        const resp = await copyDirectory({
+          source_directory_path: sourceDirectoryPath,
           target_directory_path: targetFullCodePath,
           target_app_id: finalTargetNode.app_id,
           target_directory_name: targetDirectoryName,
           replace_existing: willReplace
         })
 
-        loadingNotify.close()
-        ElNotification.success({
-          title: willReplace ? '覆盖完成' : '复制完成',
-          message: willReplace ? `已替换 ${finalTargetPath}` : `已复制到 ${finalTargetPath}`,
-          position: 'top-right'
+        progressNotification.close()
+        ElNotification({
+          ...directoryTaskNotificationOptions(),
+          type: 'success',
+          title: willReplace ? t('serviceTreeClipboard.replaceComplete') : t('serviceTreeClipboard.copyComplete'),
+          message: renderPasteResultMessage(resp, finalTargetPath),
+          duration: 9000
         })
         await onRefreshTree()
       } catch (error: any) {
-        if (error !== 'cancel' && error !== 'close') {
-          const errorMessage = error?.response?.data?.message || error?.message || '复制失败'
-          ElMessage.error(errorMessage)
-        }
+        progressNotification.close()
+        const errorMessage = error?.response?.data?.msg
+          || error?.response?.data?.message
+          || error?.message
+          || t('serviceTreeClipboard.copyFailed')
+        ElNotification({
+          ...directoryTaskNotificationOptions(),
+          type: 'error',
+          title: t('serviceTreeClipboard.copyFailed'),
+          message: errorMessage,
+          duration: 0
+        })
       } finally {
-        loadingNotify.close()
-        loadingInstance.close()
         isPasting.value = false
       }
-    } catch {
-      // 用户取消
     }
+
+    void runPasteTask()
+  }
+
+  type NotificationHandle = {
+    close: () => void
+  }
+
+  function directoryTaskNotificationOptions() {
+    return {
+      appendTo: 'body',
+      customClass: 'workspace-task-notification',
+      offset: 72,
+      position: 'top-right' as const,
+      zIndex: Z_INDEX.notification
+    }
+  }
+
+  function renderPasteProgressMessage(options: {
+    sourceName: string
+    targetName: string
+    targetPath: string
+    isCrossApp: boolean
+  }) {
+    const lines = [
+      t('serviceTreeClipboard.pasteRunningMessage', {
+        sourceName: options.sourceName,
+        targetName: options.targetName,
+      }),
+      t('serviceTreeClipboard.targetPathLine', { path: options.targetPath }),
+    ]
+    if (options.isCrossApp) {
+      lines.push(t('serviceTreeClipboard.crossAppWarning'))
+    }
+
+    return h(
+      'div',
+      { class: 'workspace-update-notification' },
+      lines.map((line) => h('div', { class: 'workspace-update-notification-line' }, line))
+    )
+  }
+
+  function renderPasteResultMessage(resp: Awaited<ReturnType<typeof copyDirectory>>, fallbackPath: string) {
+    const lines = [
+      t('serviceTreeClipboard.targetPathLine', { path: resp.target_directory_path || fallbackPath }),
+      t('serviceTreeClipboard.copyResultCount', {
+        directories: resp.directory_count || 0,
+        files: resp.file_count || 0,
+      })
+    ]
+    if (resp.old_version || resp.new_version) {
+      lines.push(t('serviceTreeClipboard.versionChanged', {
+        oldVersion: resp.old_version || '-',
+        newVersion: resp.new_version || '-',
+      }))
+    }
+
+    return h(
+      'div',
+      { class: 'workspace-update-notification' },
+      lines.map((line) => h('div', { class: 'workspace-update-notification-line' }, line))
+    )
   }
 
   onMounted(() => {

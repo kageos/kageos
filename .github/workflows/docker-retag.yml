@@ -26,12 +26,16 @@ jobs:
       - name: Resolve image tags
         id: image
         shell: bash
+        env:
+          INPUT_IMAGE: ${{ inputs.image }}
+          INPUT_SOURCE_TAG: ${{ inputs.source_tag }}
+          INPUT_TARGET_TAG: ${{ inputs.target_tag }}
         run: |
           set -euo pipefail
 
-          image="${{ inputs.image }}"
-          source_tag="${{ inputs.source_tag }}"
-          target_tag="${{ inputs.target_tag }}"
+          image="${INPUT_IMAGE}"
+          source_tag="${INPUT_SOURCE_TAG}"
+          target_tag="${INPUT_TARGET_TAG}"
 
           if [[ ! "$image" =~ ^[a-z0-9][a-z0-9._-]*$ ]]; then
             echo "invalid image name: $image" >&2
@@ -59,11 +63,15 @@ jobs:
 
       - name: Retag image
         shell: bash
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.image }}
+          SOURCE_TAG: ${{ steps.image.outputs.source_tag }}
+          TARGET_TAG: ${{ steps.image.outputs.target_tag }}
         run: |
           set -euo pipefail
-          image="${{ steps.image.outputs.image }}"
-          source_tag="${{ steps.image.outputs.source_tag }}"
-          target_tag="${{ steps.image.outputs.target_tag }}"
+          image="${IMAGE_REF}"
+          source_tag="${SOURCE_TAG}"
+          target_tag="${TARGET_TAG}"
 
           docker buildx imagetools inspect "${image}:${source_tag}" >/dev/null
           docker buildx imagetools create \

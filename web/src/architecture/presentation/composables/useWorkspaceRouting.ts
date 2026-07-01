@@ -8,7 +8,7 @@
  */
 
 import { nextTick } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { extractWorkspacePath } from '@/architecture/shared/routing/route'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
@@ -30,7 +30,6 @@ export function useWorkspaceRouting(
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
 ) {
   const route = useRoute()
-  const router = useRouter()
   const stateManager = serviceProvider.getWorkspaceStateManager()
   const applicationService = serviceProvider.getWorkspaceApplicationService()
   const domainService = serviceProvider.getWorkspaceDomainService()
@@ -316,7 +315,7 @@ export function useWorkspaceRouting(
         // 展开目录树
         options.expandCurrentRoutePath()
       }
-    } catch (error) {
+    } catch (_error) {
       // 静默失败
     } finally {
       isLoadingAppFromRoute = false
@@ -384,7 +383,6 @@ export function useWorkspaceRouting(
       if (payload.source === RouteSource.WORKSPACE_NODE_CLICK || 
           payload.source === RouteSource.WORKSPACE_NODE_CLICK_PACKAGE) {
         // 🔥 防重复处理：如果已经处理过相同的 updateCompleted 事件，跳过
-        const eventKey = `${payload.source}:${payload.path}`
         if (lastProcessedUpdateCompleted && 
             lastProcessedUpdateCompleted.path === payload.path && 
             lastProcessedUpdateCompleted.source === payload.source) {

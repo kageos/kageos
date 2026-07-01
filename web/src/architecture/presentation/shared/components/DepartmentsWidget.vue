@@ -17,7 +17,7 @@
       >
         <div class="selected-departments-list">
           <el-popover
-            v-for="(dept, index) in selectedDepartmentsForDisplay"
+            v-for="dept in selectedDepartmentsForDisplay"
             :key="dept.full_code_path"
             placement="top"
             :width="650"
@@ -186,7 +186,7 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import DepartmentDisplay from './DepartmentDisplay.vue'
 import DepartmentDetailCard from './DepartmentDetailCard.vue'
 import DepartmentPickerDialog from './DepartmentPickerDialog.vue'
-import { ElButton, ElIcon, ElTag, ElPopover } from 'element-plus'
+import { ElButton, ElIcon, ElPopover } from 'element-plus'
 import { OfficeBuilding, Edit, Close } from '@element-plus/icons-vue'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/shared/types/widget'
 import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
@@ -297,14 +297,6 @@ async function handleRemoveDepartment(dept: Department): Promise<void> {
     emit('update:modelValue', newFieldValue)
     departmentInfoList.value = []
   }
-}
-
-// 格式化组织架构显示名称
-function formatDepartmentDisplayName(dept: Department): string {
-  if (dept.full_name_path && dept.full_name_path !== dept.name) {
-    return `${dept.name} (${dept.full_name_path})`
-  }
-  return dept.name
 }
 
 // 选中组织架构列表（用于编辑模式显示）

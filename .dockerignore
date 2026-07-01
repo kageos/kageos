@@ -24,6 +24,21 @@ node_modules
 # Go 构建缓存
 vendor
 
+# 前端构建产物和包管理缓存
+web/dist/
+web/.npm-cache/
+.npm-cache/
+dist/
+coverage/
+.nyc_output/
+
+# 根目录本地构建产物
+bin/
+/app
+/main
+/sign_license
+/embed_case_code
+
 # 日志和运行时数据
 logs/
 **/logs/
@@ -32,15 +47,33 @@ logs/
 **/*.log
 *.out
 **/*.out
+*.pid
+*.tmp
 data/
 namespace/
+run/
 deploy/aio/namespace-seed/
 *.db
+
+# 本地环境变量和证书材料
+.env
+.env.*
+*.env
+web/.env
+web/.env.*
+*.pem
+*.key
+*.crt
+!*.env.example
+!web/.env.example
+!web/.env.development.local.example
 
 # 本地生产部署生成物
 deploy/prod/aos.yaml
 deploy/prod/.generated/
 .kageos/
+temp/
+tmp/
 
 # 文档和笔记
 note/

@@ -27,7 +27,7 @@ const codeLoading = ref(false)
 const countdown = ref(0)
 
 // 表单验证规则
-const validateConfirmPassword = (rule: any, value: string, callback: Function) => {
+const validateConfirmPassword = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (!value) {
     callback(new Error(t('auth.confirmPasswordRequired')))
   } else if (value !== formData.password) {

@@ -325,6 +325,9 @@ func workspaceModelContextStablePrefixItems(roleID, fullCodePath string, handoff
 		"workspace_system_prompt",
 		"workspace_env:" + strings.TrimSpace(fullCodePath),
 	}
+	if runbookPath := workspaceRunbookPath(fullCodePath); runbookPath != "" {
+		items = append(items, "directory_runbook:"+runbookPath)
+	}
 	if roleID = normalizeWorkspaceRole(roleID); roleID != "" {
 		items = append(items, "role_definition:"+roleID+":"+workspaceRoleDefinitionProtocolVersion)
 	}

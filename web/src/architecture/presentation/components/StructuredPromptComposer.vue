@@ -1748,8 +1748,8 @@ defineExpose({
 }
 
 .structured-prompt-composer.is-focused {
-  border-color: rgba(96, 231, 255, 0.42);
-  box-shadow: 0 0 0 3px rgba(96, 231, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  border-color: var(--spc-border);
+  box-shadow: none;
 }
 
 .structured-prompt-composer.is-disabled {
@@ -1931,25 +1931,25 @@ defineExpose({
   flex-shrink: 0;
   border-radius: 3px;
   background: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  box-shadow: none;
 }
 
 .spc-resource-icon-fallback.is-table,
 :deep(.spc-resource-icon-fallback.is-table) {
   background: #10b981;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+  box-shadow: none;
 }
 
 .spc-resource-icon-fallback.is-chart,
 :deep(.spc-resource-icon-fallback.is-chart) {
   background: #8b5cf6;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12);
+  box-shadow: none;
 }
 
 .spc-resource-icon-fallback.is-docs,
 :deep(.spc-resource-icon-fallback.is-docs) {
   background: #f59e0b;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+  box-shadow: none;
 }
 
 .spc-invocation-list {

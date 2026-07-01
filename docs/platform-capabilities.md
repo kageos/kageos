@@ -37,6 +37,16 @@
 
 Agent 任务也是工作台会话的一种执行形态。`timer-scheduler` 到点后投递 `executor_key=agent.session`，`agent-server` worker 创建无人值守工作台会话，并把任务 `message` 当作执行说明交给 Agent。Agent 任务运行时用户不在线，所以执行说明必须写清执行步骤、可用工具、风险边界、失败处理和通知规则。
 
+### 目录运行手册
+
+工作台目录可以约定放置可选文档 `runbook.docs`，路径为当前目录下的 `<full_code_path>/runbook.docs`。`agent-server` 构建工作台系统上下文时只尝试读取当前目录的这篇文档，不向父目录查找，找不到或内容为空时静默跳过。
+
+`runbook.docs` 用于描述当前业务场景的背景、SOP、边界规则和执行后自检要求，例如跨境物流跟踪目录里的通知来源、状态流转规则、延误处理标准和验证口径。它属于 Service Tree 文档，不属于应用 Go 代码目录。
+
+为了让模型上下文缓存更稳定，`runbook.docs` 会被全量注入到工作台环境信息里的稳定前缀区域，位置早于动态定时任务摘要。运行手册不能覆盖平台权限、安全规则和工具调用边界。
+
+Docs 正文支持轻量资源标记 `<./xxx.table>`、`<./xxx.form>`、`<./xxx.chart>`、`<./xxx.docs>` 和 `</absolute/path>`。阅读态会把这些标记渲染成可点击资源入口；相对路径只按当前文档所在目录解析。普通资源标记只负责导航和语义引用，不自动查询或内嵌业务数据。
+
 ## 消息和站内信
 
 消息能力由 `message-server` 统一承载。业务应用通过 SDK 的 `ctx.SendNotification` 发布异步通知命令，Agent 工具通过 `send_notification` 发布通知命令，最终都进入 NATS subject `message.v1.cmd.send`。

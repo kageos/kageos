@@ -290,7 +290,7 @@ const editor = useEditor({
         // 使用 slice 参数直接插入内容（TipTap 已经处理好了格式转换）
         if (slice && slice.content && editor.value) {
           // 使用 slice 插入内容，TipTap 会自动处理 Markdown 转换、HTML 清理等
-          const { state, dispatch } = view
+          const { dispatch } = view
           const transaction = view.state.tr.replaceSelection(slice)
           dispatch(transaction)
           return true // 已处理
@@ -504,7 +504,7 @@ function stripHtml(html: string): string {
     const parser = new DOMParser()
     const doc = parser.parseFromString(cleanedHtml, 'text/html')
     return doc.body.textContent || doc.body.innerText || ''
-  } catch (error) {
+  } catch (_error) {
     // 如果 DOMParser 失败，使用传统方法（但先清理了资源标签）
     const tmp = document.createElement('DIV')
     tmp.innerHTML = cleanedHtml

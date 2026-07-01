@@ -18,7 +18,7 @@ export class MultiSelectFieldExtractor implements IFieldExtractor {
     field: FieldConfig,
     fieldPath: string,
     getValue: (path: string) => FieldValue | undefined,
-    extractorRegistry: FieldExtractorRegistry
+    _extractorRegistry: FieldExtractorRegistry
   ): string | unknown[] {
     const value = getValue(fieldPath)
     const raw = value?.raw

@@ -190,20 +190,6 @@ function handleClearSelection(): void {
   userInfo.value = null
 }
 
-// 显示名称：username(昵称) 或 username
-const displayName = computed(() => {
-  if (userInfo.value) {
-    return userInfo.value.nickname ? `${userInfo.value.username}(${userInfo.value.nickname})` : userInfo.value.username
-  }
-  if (props.value?.display) {
-    return props.value.display
-  }
-  if (props.value?.raw) {
-    return String(props.value.raw)
-  }
-  return '-'
-})
-
 // 选中用户（用于显示）
 const selectedUserForDisplay = computed(() => {
   if (props.mode === 'edit' || props.mode === 'search') {
@@ -211,7 +197,6 @@ const selectedUserForDisplay = computed(() => {
     if (currentValue) {
       // 从 meta 中获取（优先）
       if (props.value?.meta?.userInfo && props.value.meta.userInfo.username === currentValue) {
-        userInfo.value = props.value.meta.userInfo
         return props.value.meta.userInfo
       }
       

@@ -206,30 +206,6 @@ const internalValue = computed({
   }
 })
 
-// 显示值
-const displayValue = computed(() => {
-  const value = props.value
-  if (!value) {
-    return '-'
-  }
-  
-  if (value.display) {
-    return value.display
-  }
-  
-  const raw = value.raw
-  if (raw === null || raw === undefined || raw === '') {
-    return '-'
-  }
-  
-  const numValue = Number(raw)
-  if (isNaN(numValue)) {
-    return String(raw)
-  }
-  
-  return unit.value ? `${numValue}${unit.value}` : String(numValue)
-})
-
 // 计算百分比（用于进度条显示）
 const percentage = computed(() => {
   const value = props.value?.raw
@@ -358,7 +334,7 @@ const maxValue = ref<number | undefined>(undefined)
  * 处理编辑模式的值变化
  * 注意：值变化已在 internalValue 的 setter 中处理，这里不需要额外逻辑
  */
-function handleChange(value: number | number[]): void {
+function handleChange(_value: number | number[]): void {
   // 值变化已在 internalValue 的 setter 中处理
 }
 

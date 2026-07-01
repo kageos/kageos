@@ -33,7 +33,7 @@
               header-align="left"
               show-overflow-tooltip
             >
-              <template #default="{ row, $index }">
+              <template #default="{ $index }">
                 <template v-if="isNestedContainerField(itemField)">
                   <component
                     v-if="isEditRowFieldVisible($index, itemField)"
@@ -191,7 +191,7 @@
               header-align="left"
               show-overflow-tooltip
             >
-              <template #default="{ row, $index }">
+              <template #default="{ $index }">
                 <!-- 
                   🔥 嵌套字段渲染策略（response 模式）
                   

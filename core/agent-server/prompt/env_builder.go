@@ -15,17 +15,18 @@ import (
 
 // WorkspaceEnvInput 构建环境数据所需的输入，调用方从 workspaceCtx 等填充后传入；nil 表示无上下文，仅用 directoryName/fullCodePath 做降级
 type WorkspaceEnvInput struct {
-	User                   string
-	DepartmentFullPath     string // 当前用户部门完整路径（存储/逻辑用，英文 code 路径）
-	DepartmentFullNamePath string // 当前用户部门中文名称路径（仅展示用）
-	DirName                string
-	DirCode                string
-	FullCodePath           string
-	DirType                string
-	DirDescription         string
-	Children               []WorkspaceEnvNode
-	Files                  []WorkspaceEnvFile
-	ScheduledTasksSection  string
+	User                    string
+	DepartmentFullPath      string // 当前用户部门完整路径（存储/逻辑用，英文 code 路径）
+	DepartmentFullNamePath  string // 当前用户部门中文名称路径（仅展示用）
+	DirName                 string
+	DirCode                 string
+	FullCodePath            string
+	DirType                 string
+	DirDescription          string
+	DirectoryRunbookSection string
+	Children                []WorkspaceEnvNode
+	Files                   []WorkspaceEnvFile
+	ScheduledTasksSection   string
 }
 
 // WorkspaceEnvNode 环境子节点（目录或函数）
@@ -101,6 +102,7 @@ func BuildWorkspaceEnvDataWithCatalog(in *WorkspaceEnvInput, directoryName, full
 		data.DirCode = in.DirCode
 		data.DirType = in.DirType
 		data.DirDescription = in.DirDescription
+		data.DirectoryRunbookSection = strings.TrimSpace(in.DirectoryRunbookSection)
 		data.ChildrenSection = buildChildrenSection(in.Children)
 		data.FunctionsSection = buildFunctionsSection(in.Children)
 		data.FilesSection = buildFilesSection(in.Files)
@@ -334,6 +336,7 @@ func FillWorkspaceEnvTemplateWithTemplate(data *WorkspaceEnvData, template strin
 		"FULL_CODE_PATH":            data.FullCodePath,
 		"DIR_TYPE":                  data.DirType,
 		"DIR_DESCRIPTION":           data.DirDescription,
+		"DIRECTORY_RUNBOOK_SECTION": data.DirectoryRunbookSection,
 		"CHILDREN_SECTION":          data.ChildrenSection,
 		"FUNCTIONS_SECTION":         data.FunctionsSection,
 		"FILES_SECTION":             data.FilesSection,

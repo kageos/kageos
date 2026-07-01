@@ -233,6 +233,7 @@ type MessageNotificationRouteInfo struct {
 	Enabled       bool              `json:"enabled"`
 	DeliveryType  string            `json:"delivery_type"`
 	DisplayName   string            `json:"display_name"`
+	Remark        string            `json:"remark"`
 	RequireAuth   bool              `json:"require_auth"`
 	HasWebhookURL bool              `json:"has_webhook_url"`
 	HasSecret     bool              `json:"has_secret"`
@@ -277,6 +278,7 @@ type UpsertMessageNotificationRouteReq struct {
 	Enabled         *bool             `json:"enabled"`
 	DeliveryType    string            `json:"delivery_type"`
 	DisplayName     string            `json:"display_name"`
+	Remark          *string           `json:"remark"`
 	RequireAuth     *bool             `json:"require_auth"`
 	WebhookURL      string            `json:"webhook_url"`
 	Secret          string            `json:"secret"`

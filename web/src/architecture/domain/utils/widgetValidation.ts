@@ -66,9 +66,9 @@ export function validateWidget(
 }
 
 function validateNestedFields(
-  field: FieldConfig,
-  parentPath: string,
-  context: WidgetValidationContext
+  _field: FieldConfig,
+  _parentPath: string,
+  _context: WidgetValidationContext
 ): Map<string, ValidationResult[]> {
   return new Map<string, ValidationResult[]>()
 }

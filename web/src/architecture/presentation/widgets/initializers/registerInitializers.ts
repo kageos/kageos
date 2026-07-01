@@ -9,7 +9,6 @@ import { SelectWidgetInitializer } from './SelectWidgetInitializer'
 import { MultiSelectWidgetInitializer } from './MultiSelectWidgetInitializer'
 import { FormWidgetInitializer } from './FormWidgetInitializer'
 import { TableWidgetInitializer } from './TableWidgetInitializer'
-import { Logger } from '@/architecture/shared/logger'
 
 /**
  * 注册所有 Widget 初始化器
@@ -27,4 +26,3 @@ export function registerWidgetInitializers(): void {
   // 注册 TableWidget 初始化器（处理嵌套结构）
   widgetInitializerRegistry.register('table', new TableWidgetInitializer())
 }
-

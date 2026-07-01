@@ -196,7 +196,7 @@ export function getRuleRefs(rule: ValidationRule): ValidationRuleRef[] {
 
 function createRuleContext(
   context: PresenceEvaluationContext,
-  ruleField: string
+  _ruleField: string
 ): ValidationContext {
   return {
     formManager: context.formManager,

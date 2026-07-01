@@ -305,7 +305,7 @@ const displayValue = computed(() => {
       } else if (formatted.startsWith(currentYear + '年')) {
         return formatted.substring(currentYear.length + 1)
       }
-    } catch (e) {
+    } catch (_e) {
       // ignore
     }
   }

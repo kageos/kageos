@@ -1069,7 +1069,7 @@ export class ExpressionParser {
       .map(row => {
         try {
           return Evaluator.evaluate(ast, row)
-        } catch (error) {
+        } catch (_error) {
           return null
         }
       })
@@ -1087,7 +1087,7 @@ export class ExpressionParser {
       .map(row => {
         try {
           return Evaluator.evaluate(ast, row)
-        } catch (error) {
+        } catch (_error) {
           return null
         }
       })

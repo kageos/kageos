@@ -136,17 +136,17 @@ func Specs() map[string]Spec {
 			},
 			ForbiddenTools: []string{"write_prd"},
 			Runtime: runtimeContract(
-				[]string{"用户要修改已有应用、字段、搜索、选项、回调、图表或业务 bug", "测试或操作发现业务实现问题"},
+				[]string{"用户要修改已有应用、字段、搜索、选项、回调、图表或业务 bug", "用户要创建或更新当前目录文档、运行手册 runbook.docs、SOP 或业务说明", "测试或操作发现业务实现问题"},
 				[]string{"用户要重新设计新系统需求", "只是业务数据操作且当前应用可直接完成"},
-				[]string{"固定目标应用 execute_directory", "读取相关目录和源码", "小改局部替换，大改再写完整文件", "build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed", "build 成功后不等待用户确认，立即交接 qa_engineer 并自动测试", "失败时按错误类型补读文档或交接 build_engineer"},
-				[]string{"目标修改已落盘、build 成功并完成 QA 测试", "或构建问题已交接 build_engineer"},
+				[]string{"固定目标应用 execute_directory", "读取相关目录和源码；纯文档/runbook 任务读取当前目录、函数 schema、已有文档和定时任务摘要", "用户要求当前目录运行手册时用 write_doc 写入当前目录 code=runbook、name=运行手册", "纯文档/runbook 修改完成后不 build、不交接 QA", "代码或 schema 修改时小改局部替换，大改再写完整文件", "代码修改后 build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed", "build 成功后不等待用户确认，立即交接 qa_engineer 并自动测试", "失败时按错误类型补读文档或交接 build_engineer"},
+				[]string{"纯文档/runbook 修改已用 write_doc 创建或更新并返回路径", "或目标代码修改已落盘、build 成功并完成 QA 测试", "或构建问题已交接 build_engineer"},
 				[]LifecycleHook{
 					hook("maintenance.before_enter_scope", "before_enter", "收敛维护范围，避免扫描或修改无关应用。", []string{"execute_directory", "changed files", "bug report"}, []string{"maintenance_scope"}),
 					hook("maintenance.after_build", "after_tool", "构建后决定进入 QA 或构建修复。", []string{"build_workspace result"}, []string{"verification_focus", "build_diagnostics"}),
 				},
 			),
-			Action:           "应用维护工程师负责修改已有应用、字段、搜索、选项、回调、图表和业务 bug；区分业务字段和系统搜索字段，读取相关源码后修改，build 前模型 CR，确认无伪实现和范围外功能后再 build。",
-			RouteDescription: "用户要改已有应用、字段、选项、组件、回调、搜索、消息、跳转、图表或业务逻辑时进入。先识别修改类型和影响范围，读取当前目录与相关源码，只改用户目标和必要依赖。新增或修改搜索时区分业务字段和系统字段；小改优先局部替换，大改或新增能力再写完整文件；build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed；构建成功后必须立即进入 `qa_engineer` 自动测试，不等待用户确认。",
+			Action:           "应用维护工程师负责修改已有应用、字段、搜索、选项、回调、图表、业务 bug 和当前目录文档/runbook；纯文档修改用 write_doc 完成，不 build；代码修改需读取相关源码后修改，build 前模型 CR，确认无伪实现和范围外功能后再 build。",
+			RouteDescription: "用户要改已有应用、字段、选项、组件、回调、搜索、消息、跳转、图表、业务逻辑，或要为当前目录创建/更新文档、运行手册 runbook.docs、SOP、业务说明时进入。文档/runbook 任务先读取当前目录、函数和已有文档，使用 `write_doc` 写入；当前目录运行手册固定用 code=runbook、name=运行手册，生成 `<当前目录>/runbook.docs`，纯文档修改不 build、不交接 QA。代码修改先识别修改类型和影响范围，读取当前目录与相关源码，只改用户目标和必要依赖。新增或修改搜索时区分业务字段和系统字段；小改优先局部替换，大改或新增能力再写完整文件；build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed；构建成功后必须立即进入 `qa_engineer` 自动测试，不等待用户确认。",
 			NextRoles: []NextRole{
 				{RoleID: QAEngineer, When: "修改 build 成功后验证功能"},
 				{RoleID: BuildEngineer, When: "构建或 schema 校验失败"},

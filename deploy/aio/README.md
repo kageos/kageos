@@ -81,7 +81,7 @@ Access URL:
 
 Login:
   Username: system
-  Password: <generated password>
+  Password: (hidden; see /var/lib/kageos/secrets/SYSTEM_USER_PASSWORD)
 ```
 
 查看初始密码也可以直接读持久化文件：
@@ -260,4 +260,4 @@ docker volume rm kageos-data
 | `KAGEOS_APP_BASE_ACTION` | `ensure` | Use `rebuild` to rebuild the user app base image. |
 | `KAGEOS_APP_BASE_PULL` | `1` | Pull `KAGEOS_APP_BASE_IMAGE` before falling back to local build. |
 | `KAGEOS_APP_BASE_PULL_FALLBACK_BUILD` | `1` | Build locally if pulling the base image fails. Set to `0` to fail fast. |
-| `KAGEOS_AIO_PRINT_SECRETS` | `1` | Print generated credentials in the final success log. Set to `0` to hide plaintext secrets and only print file paths. |
+| `KAGEOS_AIO_PRINT_SECRETS` | `0` | Hide plaintext secrets in the final success log. Set to `1` only for disposable local testing. |

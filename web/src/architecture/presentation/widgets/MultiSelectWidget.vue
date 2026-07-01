@@ -59,7 +59,7 @@
             </div>
             <div v-else-if="selectedValues.length > 0" class="selected-items-list">
               <div
-                v-for="(value, index) in selectedValues"
+                v-for="value in selectedValues"
                 :key="value"
                 class="selected-item"
               >
@@ -109,7 +109,7 @@
     <!-- 响应模式（只读） -->
     <MultiSelectWidgetValueDisplay
       v-else
-      :mode="mode as 'response' | 'table-cell' | 'detail'"
+      :mode="readonlyDisplayMode"
       :display-values="displayValues"
       :get-option-label="getOptionLabel"
       :get-option-color-type="getOptionColorType"
@@ -158,6 +158,15 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<{
   'update:modelValue': [value: unknown]
 }>()
+
+type ReadonlyMultiSelectMode = 'response' | 'table-cell' | 'detail'
+
+const readonlyDisplayMode = computed<ReadonlyMultiSelectMode>(() => {
+  if (props.mode === 'table-cell' || props.mode === 'detail') {
+    return props.mode
+  }
+  return 'response'
+})
 const prdPreviewContext = inject(prdPreviewContextKey, null)
 const shouldTeleportPopper = computed(() => !prdPreviewContext?.interactive)
 
@@ -534,6 +543,7 @@ function getOptionColorType(value: unknown): StandardColorType | undefined {
  * 🔥 注意：el-tag 的 color 属性只接受自定义颜色（hex），标准颜色使用 type 属性
  */
 function getOptionColorValue(value: unknown): string | undefined {
+  void value
   return undefined
 }
 

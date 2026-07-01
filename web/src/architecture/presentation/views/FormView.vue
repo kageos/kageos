@@ -96,7 +96,7 @@
       role="alert"
     >
       <span class="submit-feedback-message">{{ submitFeedback.message }}</span>
-      <button type="button" class="submit-feedback-close" aria-label="关闭提示" @click="submitFeedback = null">
+      <button type="button" class="submit-feedback-close" :aria-label="t('formView.closeFeedback')" @click="submitFeedback = null">
         ×
       </button>
     </div>
@@ -113,7 +113,7 @@
           class="function-form"
           data-testid="form-request"
         >
-      <div class="section-title">输入参数</div>
+      <div class="section-title">{{ t('formView.inputParameters') }}</div>
       <template v-for="field in visibleRequestFields" :key="field.code">
         <div v-if="requestLabelsOnTop" class="form-field-label-top">
           <label class="field-label">
@@ -164,7 +164,7 @@
           data-testid="form-submit"
         >
           <el-icon><Promotion /></el-icon>
-          提交
+          {{ t('common.submit') }}
         </el-button>
         <el-button
           v-if="canCreateScheduledSubmit"
@@ -174,7 +174,7 @@
           data-testid="form-schedule-submit"
         >
           <el-icon><Clock /></el-icon>
-          定时执行
+          {{ t('formView.scheduledExecute') }}
         </el-button>
         <el-button
           v-if="canCopyWorkspaceInvocation"
@@ -182,14 +182,14 @@
           :disabled="submitting"
           @click="handleCopyWorkspaceInvocation"
           data-testid="form-copy-workspace-invocation"
-          title="复制后可粘贴到工作台让 AI 调用"
+          :title="t('formView.copyInvocationTitle')"
         >
           <el-icon><DocumentCopy /></el-icon>
-          复制给工作台
+          {{ t('formView.copyToWorkbench') }}
         </el-button>
         <el-button v-if="showResetButton" size="large" @click="handleReset">
           <el-icon><RefreshLeft /></el-icon>
-          重置
+          {{ t('common.reset') }}
         </el-button>
         <el-button v-if="showDebugButton" size="large" @click="showDebugDialog = true" type="info">
           <el-icon><View /></el-icon>
@@ -201,12 +201,12 @@
     <!-- 输出参数展示：提交前就显示，显示"等待提交"标签 -->
     <div v-if="showInlineResponseSection" class="response-section">
       <div class="section-title">
-        输出参数
+        {{ t('formView.outputParameters') }}
         <el-tag v-if="!hasResponseData" type="info" size="small" style="margin-left: 12px">
-          等待提交
+          {{ t('formView.waitingSubmit') }}
         </el-tag>
         <el-tag v-else type="success" size="small" style="margin-left: 12px">
-          已返回
+          {{ t('formView.returned') }}
         </el-tag>
       </div>
       <el-form 
@@ -246,7 +246,7 @@
 
     <div v-if="showDialogResponseButton" class="response-dialog-entry">
       <el-button type="primary" plain @click="responseDialogVisible = true">
-        查看提交结果
+        {{ t('formView.viewSubmitResult') }}
       </el-button>
     </div>
 
@@ -254,10 +254,10 @@
     <div v-if="showInlineMetadataSection" class="metadata-section">
       <div class="metadata-title">
         <el-icon class="metadata-icon"><InfoFilled /></el-icon>
-        <span>执行信息</span>
+        <span>{{ t('formView.executionInfo') }}</span>
       </div>
       <div class="metadata-content">
-        <span class="metadata-label">执行耗时：</span>
+        <span class="metadata-label">{{ t('formView.executionDuration') }}</span>
         <span class="metadata-value">
           {{ formatCostTime(metadataTotalCost) }}
         </span>
@@ -266,7 +266,7 @@
 
     <el-dialog
       v-model="responseDialogVisible"
-      title="提交结果"
+      :title="t('formView.submitResult')"
       :width="responseDialogWidth"
       class="response-result-dialog"
       modal-class="response-result-dialog-overlay"
@@ -308,15 +308,15 @@
             </el-form-item>
           </template>
         </el-form>
-        <el-empty v-else description="暂无输出数据" />
+        <el-empty v-else :description="t('formView.noOutputData')" />
 
         <div v-if="showDialogMetadataSection" class="metadata-section response-dialog-metadata">
           <div class="metadata-title">
             <el-icon class="metadata-icon"><InfoFilled /></el-icon>
-            <span>执行信息</span>
+            <span>{{ t('formView.executionInfo') }}</span>
           </div>
           <div class="metadata-content">
-            <span class="metadata-label">执行耗时：</span>
+            <span class="metadata-label">{{ t('formView.executionDuration') }}</span>
             <span class="metadata-value">
               {{ formatCostTime(metadataTotalCost) }}
             </span>
@@ -324,30 +324,30 @@
         </div>
       </div>
       <template #footer>
-        <el-button type="primary" @click="responseDialogVisible = false">知道了</el-button>
+        <el-button type="primary" @click="responseDialogVisible = false">{{ t('formView.gotIt') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- Debug 弹窗 -->
     <el-dialog
       v-model="showDebugDialog"
-      title="Debug - 输入和输出数据"
+      :title="t('formView.debugTitle')"
       width="80%"
       :close-on-click-modal="false"
     >
       <el-tabs v-model="debugActiveTab">
         <!-- 输入参数 -->
-        <el-tab-pane label="输入参数" name="request">
+        <el-tab-pane :label="t('formView.inputParameters')" name="request">
           <div class="debug-section">
             <div class="debug-header">
-              <span class="debug-label">提交数据（实时）</span>
+              <span class="debug-label">{{ t('formView.submitDataLive') }}</span>
               <el-button
                 size="small"
                 type="primary"
                 @click="copyToClipboard(debugRequestData)"
               >
                 <el-icon><DocumentCopy /></el-icon>
-                复制
+                {{ t('common.copy') }}
               </el-button>
             </div>
             <el-input
@@ -361,10 +361,10 @@
         </el-tab-pane>
 
         <!-- 输出参数 -->
-        <el-tab-pane label="输出参数" name="response">
+        <el-tab-pane :label="t('formView.outputParameters')" name="response">
           <div class="debug-section">
             <div class="debug-header">
-              <span class="debug-label">输出数据</span>
+              <span class="debug-label">{{ t('formView.outputData') }}</span>
               <el-button
                 v-if="debugResponseData"
                 size="small"
@@ -372,7 +372,7 @@
                 @click="copyToClipboard(debugResponseData)"
               >
                 <el-icon><DocumentCopy /></el-icon>
-                复制
+                {{ t('common.copy') }}
               </el-button>
             </div>
             <el-input
@@ -383,22 +383,22 @@
               readonly
               class="debug-json-input"
             />
-            <el-empty v-else description="暂无输出数据，请先提交表单" />
+            <el-empty v-else :description="t('formView.noOutputSubmitFirst')" />
           </div>
         </el-tab-pane>
 
         <!-- 原始状态 -->
-        <el-tab-pane label="原始状态" name="raw">
+        <el-tab-pane :label="t('formView.rawState')" name="raw">
           <div class="debug-section">
             <div class="debug-header">
-              <span class="debug-label">FormDataStore 原始数据</span>
+              <span class="debug-label">{{ t('formView.rawFormData') }}</span>
               <el-button
                 size="small"
                 type="primary"
                 @click="copyToClipboard(debugRawData)"
               >
                 <el-icon><DocumentCopy /></el-icon>
-                复制
+                {{ t('common.copy') }}
               </el-button>
             </div>
             <el-input
@@ -429,7 +429,8 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, provide } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Clock } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElEmpty } from 'element-plus'
 import { eventBus } from '../../infrastructure/eventBus'
@@ -479,7 +480,7 @@ const props = withDefaults(defineProps<{
 
 // 路由
 const route = useRoute()
-const router = useRouter()
+const { t } = useI18n()
 
 const {
   formDataStore,
@@ -546,7 +547,7 @@ const formatCostTime = (milliseconds: number): string => {
   } else {
     const minutes = Math.floor(milliseconds / 60000)
     const seconds = ((milliseconds % 60000) / 1000).toFixed(2)
-    return `${minutes}分${seconds}秒`
+    return t('formView.durationMinutesSeconds', { minutes, seconds })
   }
 }
 
@@ -582,7 +583,7 @@ const submitForm = async (): Promise<boolean> => {
     submitFeedback.value = null
 
     if (!functionDetail.value) {
-      ElMessage.error('函数详情未加载完成，请稍后重试')
+      ElMessage.error(t('formView.functionDetailNotReady'))
       return false
     }
     await applicationService.submitForm(functionDetail.value)
@@ -591,14 +592,14 @@ const submitForm = async (): Promise<boolean> => {
     // request.ts 在 code === 0 时返回 data，所以这里 response 是 data 部分
     // 显示成功通知
     ElNotification.success({
-      title: '提交成功',
-      message: '操作成功',
+      title: t('formView.submitSuccess'),
+      message: t('formView.operationSuccess'),
       duration: 3000
     })
 
     return true
   } catch (error: any) {
-    const errorMessage = getErrorMessage(error, '提交失败，请稍后重试')
+    const errorMessage = getErrorMessage(error, t('formView.submitFailed'))
     submitFeedback.value = {
       type: 'error',
       message: errorMessage
@@ -631,7 +632,7 @@ const handleReset = (): void => {
 
 async function handleCopyWorkspaceInvocation(): Promise<void> {
   if (!functionDetail.value || !scheduledFunctionPath.value) {
-    ElMessage.warning('函数详情未加载完成，请稍后重试')
+    ElMessage.warning(t('formView.functionDetailNotReady'))
     return
   }
 
@@ -643,9 +644,9 @@ async function handleCopyWorkspaceInvocation(): Promise<void> {
       params,
     })
     await copyTextToClipboard(snippet)
-    ElMessage.success('已复制给工作台使用的函数调用')
+    ElMessage.success(t('formView.invocationCopied'))
   } catch {
-    ElMessage.error('复制失败，请手动复制')
+    ElMessage.error(t('formView.copyFailedManual'))
   }
 }
 
@@ -708,12 +709,12 @@ function validateForm(): boolean {
 
 async function buildScheduledSubmitPayload(): Promise<Record<string, unknown>> {
   if (!functionDetail.value) {
-    throw new Error('函数详情未加载完成，请稍后重试')
+    throw new Error(t('formView.functionDetailNotReady'))
   }
 
   const isValid = validateForm()
   if (!isValid) {
-    throw new Error('请先修正表单校验错误')
+    throw new Error(t('formView.fixValidationFirst'))
   }
 
   return prepareSubmitDataWithTypeConversion()
@@ -742,7 +743,7 @@ async function applyOperateLog(requestBody: Record<string, any>, responseBody?: 
     })
   }
 
-  ElMessage.success('已回填本次执行记录')
+  ElMessage.success(t('formView.executionRecordReplayed'))
 }
 
 async function hydrateOperateLogResponse(responseResult: Record<string, unknown>): Promise<Record<string, unknown>> {

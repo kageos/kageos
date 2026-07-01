@@ -69,7 +69,7 @@
 
 import { ref, computed } from 'vue'
 import { deepClone } from '@/architecture/shared/clone'
-import { useRoute, useRouter, type LocationQuery } from 'vue-router'
+import { useRoute, type LocationQuery } from 'vue-router'
 import { ElNotification, ElMessage } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
@@ -109,7 +109,6 @@ export function useWorkspaceDetail(
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
 ) {
   const route = useRoute()
-  const router = useRouter()
   const tableGateway = serviceProvider.getTableGateway()
   const tableApplicationService = serviceProvider.getTableApplicationService()
   const tableStateManager = serviceProvider.getTableStateManager()
@@ -241,7 +240,7 @@ export function useWorkspaceDetail(
         map.set(user.username, user)
       })
       detailUserInfoMap.value = map
-    } catch (error) {
+    } catch (_error) {
       detailUserInfoMap.value = new Map()
     }
   }
@@ -589,7 +588,7 @@ export function useWorkspaceDetail(
         index: resolveDetailIndex(refreshedMatch.row, getTableDetailFields(detail) as FieldConfig[], currentTableData)
       })
       clearPendingDetailRestore()
-    } catch (error) {
+    } catch (_error) {
       if (token === latestDetailRestoreToken && pendingDetailRestoreKey === request.key) {
         clearPendingDetailRestore()
       }

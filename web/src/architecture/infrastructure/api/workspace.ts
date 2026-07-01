@@ -1,5 +1,5 @@
 import { getApiBaseURL } from '@/architecture/infrastructure/config/runtime'
-import { authFetch, del, get, post, put } from '@/architecture/infrastructure/apiClient/request'
+import { authFetch, get, post } from '@/architecture/infrastructure/apiClient/request'
 
 /** 工作台消息中上传文件：稳定引用 bucket/object_key */
 export interface WorkspaceChatMessageFile {

@@ -44,6 +44,28 @@ export default defineConfigWithVueTs(
   {
     name: 'app/architecture-boundaries',
     rules: {
+      // Open-source baseline: keep architectural boundary violations blocking,
+      // while older Vue/TypeScript migration debt is warning-only until it is
+      // paid down file by file.
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-empty-object-type': 'off',
+      '@typescript-eslint/no-namespace': 'off',
+      '@typescript-eslint/no-unsafe-function-type': 'warn',
+      '@typescript-eslint/no-unused-expressions': 'warn',
+      '@typescript-eslint/no-unused-vars': ['warn', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        ignoreRestSiblings: true,
+      }],
+      'prefer-const': 'warn',
+      'vue/multi-word-component-names': 'off',
+      'vue/no-deprecated-filter': 'warn',
+      'vue/no-deprecated-v-on-native-modifier': 'warn',
+      'vue/no-dupe-keys': 'warn',
+      'vue/no-mutating-props': 'warn',
+      'vue/no-side-effects-in-computed-properties': 'warn',
+      'vue/no-unused-vars': 'warn',
       'no-restricted-imports': [
         'error',
         {

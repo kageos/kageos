@@ -150,6 +150,7 @@ export function useSearchInputFallbackSelect({
   }
 
   function getOptionColorValue(value: SearchValue): string | undefined {
+    void value
     return undefined
   }
 

@@ -34,10 +34,15 @@ jobs:
       - name: Resolve version
         id: release
         shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PUSH_LATEST: ${{ inputs.push_latest }}
+          INPUT_SYNC_KAGEOS: ${{ inputs.sync_kageos }}
+          INPUT_SYNC_KAGEBASE: ${{ inputs.sync_kagebase }}
         run: |
           set -euo pipefail
 
-          version="${{ inputs.version }}"
+          version="${INPUT_VERSION}"
           version="${version#v}"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
             echo "version must look like 0.2.0, got: $version" >&2
@@ -46,9 +51,9 @@ jobs:
 
           {
             echo "version=${version}"
-            echo "push_latest=${{ inputs.push_latest }}"
-            echo "sync_kageos=${{ inputs.sync_kageos }}"
-            echo "sync_kagebase=${{ inputs.sync_kagebase }}"
+            echo "push_latest=${INPUT_PUSH_LATEST}"
+            echo "sync_kageos=${INPUT_SYNC_KAGEOS}"
+            echo "sync_kagebase=${INPUT_SYNC_KAGEBASE}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Install skopeo
@@ -62,6 +67,10 @@ jobs:
         shell: bash
         timeout-minutes: 300
         env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          PUSH_LATEST: ${{ steps.release.outputs.push_latest }}
+          SYNC_KAGEOS: ${{ steps.release.outputs.sync_kageos }}
+          SYNC_KAGEBASE: ${{ steps.release.outputs.sync_kagebase }}
           ALIYUN_REGISTRY: ${{ vars.ALIYUN_REGISTRY }}
           ALIYUN_NAMESPACE: ${{ vars.ALIYUN_NAMESPACE }}
           ALIYUN_REGISTRY_USERNAME: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
@@ -74,8 +83,8 @@ jobs:
             exit 0
           fi
 
-          version="${{ steps.release.outputs.version }}"
-          push_latest="${{ steps.release.outputs.push_latest }}"
+          version="${RELEASE_VERSION}"
+          push_latest="${PUSH_LATEST}"
 
           printf '%s' "$ALIYUN_REGISTRY_PASSWORD" | skopeo login --username "$ALIYUN_REGISTRY_USERNAME" --password-stdin "$ALIYUN_REGISTRY"
 
@@ -112,9 +121,9 @@ jobs:
             fi
           }
 
-          if [[ "${{ steps.release.outputs.sync_kageos }}" == "true" ]]; then
+          if [[ "${SYNC_KAGEOS}" == "true" ]]; then
             sync_image kageos
           fi
-          if [[ "${{ steps.release.outputs.sync_kagebase }}" == "true" ]]; then
+          if [[ "${SYNC_KAGEBASE}" == "true" ]]; then
             sync_image kagebase
           fi

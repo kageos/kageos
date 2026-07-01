@@ -261,7 +261,7 @@ function isValidColor(color: string): boolean {
 /**
  * 处理编辑模式的值变化
  */
-function handleChange(value: string | null): void {
+function handleChange(_value: string | null): void {
   // 值变化已在 internalValue 的 setter 中处理
 }
 

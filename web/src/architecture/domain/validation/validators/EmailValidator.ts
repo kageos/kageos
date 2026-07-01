@@ -10,8 +10,8 @@ export class EmailValidator implements Validator {
   
   validate(
     value: FieldValue,
-    rule: ValidationRule,
-    context: ValidationContext
+    _rule: ValidationRule,
+    _context: ValidationContext
   ): ValidationResult {
     // 如果值为空，跳过验证（由 required 验证器处理）
     if (value.raw === null || value.raw === undefined || value.raw === '') {
@@ -32,4 +32,3 @@ export class EmailValidator implements Validator {
     return { valid: true }
   }
 }
-

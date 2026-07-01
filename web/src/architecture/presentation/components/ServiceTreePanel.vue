@@ -705,7 +705,7 @@ const handleRename = async (node: ServiceTree) => {
       renamingNode.value = false
       loadingInstance.close()
     }
-  } catch (error) {
+  } catch (_error) {
     // 用户取消了输入
   }
 }

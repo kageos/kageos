@@ -11,7 +11,7 @@ export class BasicFieldExtractor implements IFieldExtractor {
     field: FieldConfig,
     fieldPath: string,
     getValue: (path: string) => FieldValue | undefined,
-    extractorRegistry: FieldExtractorRegistry
+    _extractorRegistry: FieldExtractorRegistry
   ): unknown {
     const value = getValue(fieldPath)
     return value?.raw ?? null

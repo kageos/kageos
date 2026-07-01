@@ -16,7 +16,7 @@
       >
         <div class="selected-departments-list">
           <div
-            v-for="(dept, index) in selectedDepartmentsForDisplay"
+            v-for="dept in selectedDepartmentsForDisplay"
             :key="dept.full_code_path"
             class="selected-department-chip"
           >
@@ -262,7 +262,6 @@ const selectedDepartmentForDisplay = computed(() => {
     if (currentValue) {
       // 单选模式：从 meta 中获取（优先）
       if (props.value?.meta?.departmentInfo && props.value.meta.departmentInfo.full_code_path === currentValue) {
-        departmentInfo.value = props.value.meta.departmentInfo
         return props.value.meta.departmentInfo
       }
       

@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 
 const formGatewaySubmitMock = vi.hoisted(() => vi.fn(async () => ({})))

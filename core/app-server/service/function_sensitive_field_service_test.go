@@ -3,8 +3,8 @@ package service
 import (
 	"testing"
 
-	"github.com/kageos/kageos/pkg/functionschema"
 	"github.com/kageos/kageos-sdk/agent-app/widget"
+	"github.com/kageos/kageos/pkg/functionschema"
 )
 
 func TestCollectFunctionSensitiveFields(t *testing.T) {

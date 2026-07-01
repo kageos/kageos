@@ -8,7 +8,7 @@
  * - 监听 URL 变化并重新加载数据
  */
 
-import { ref, watch, nextTick } from 'vue'
+import { ref, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import type { FunctionDetail } from '../../domain/types'
 import type { TableDomainService } from '../../domain/services/TableDomainService'

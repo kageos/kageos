@@ -37,8 +37,8 @@
             :multiple="true"
             :accept="accept"
             :on-change="handleFileChange"
-            @drop.native.stop.prevent="handleElUploadDrop"
-            @dragover.native.stop.prevent
+            @drop.stop.prevent="handleElUploadDrop"
+            @dragover.stop.prevent
           >
             <div class="upload-dragger-content">
               <el-icon :size="48" class="upload-icon">

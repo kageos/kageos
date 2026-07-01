@@ -19,7 +19,7 @@ export function deepClone<T>(obj: T): T {
   if (typeof structuredClone !== 'undefined') {
     try {
       return structuredClone(obj) as T
-    } catch (error) {
+    } catch (_error) {
       // 如果 structuredClone 失败（例如对象包含不可克隆的类型），回退到 JSON 方法
     }
   }
@@ -33,4 +33,3 @@ export function deepClone<T>(obj: T): T {
     return obj
   }
 }
-

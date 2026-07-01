@@ -76,7 +76,7 @@
 import { unwrapApiResponseData } from '@/architecture/shared/apiError'
 import { FormDomainService } from '../../domain/services/FormDomainService'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
-import { WorkspaceEvent, FormEvent } from '../../domain/interfaces/IEventBus'
+import { FormEvent } from '../../domain/interfaces/IEventBus'
 import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
 import type { IFormGateway } from '../../domain/interfaces/IFormGateway'
 import { isFormStateManager } from '@/architecture/domain/interfaces/IFormStateManager'

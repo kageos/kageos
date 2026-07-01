@@ -2,29 +2,40 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
-	"github.com/containers/podman/v5/pkg/bindings"
-	"github.com/containers/podman/v5/pkg/bindings/containers"
-	"github.com/containers/podman/v5/pkg/bindings/images"
-	"github.com/containers/podman/v5/pkg/domain/entities"
-	"github.com/containers/podman/v5/pkg/specgen"
 	appconfig "github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/logger"
 )
+
+// ContainerInfo is the runtime-neutral subset of `podman ps` output that upper
+// layers need for app lifecycle reconciliation.
+type ContainerInfo struct {
+	ID     string
+	Names  []string
+	State  string
+	Exited bool
+}
+
+// ImageInfo is the runtime-neutral subset of `podman images` output.
+type ImageInfo struct {
+	ID         string
+	Repository string
+	Tag        string
+}
 
 // ContainerOperator 容器操作接口
 type ContainerOperator interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 	IsRunning() bool
-	ListContainers(ctx context.Context) ([]entities.ListContainer, error)
+	ListContainers(ctx context.Context) ([]ContainerInfo, error)
 	RunContainer(ctx context.Context, image, name string) error
 	RunContainerWithMount(ctx context.Context, image, name, hostPath, containerPath string) error
 	RunContainerWithCommand(ctx context.Context, image, name, hostPath, containerPath string, command []string, envVars ...string) error
@@ -32,7 +43,7 @@ type ContainerOperator interface {
 	StartContainer(ctx context.Context, name string) error
 	StopContainer(ctx context.Context, name string) error
 	RemoveContainer(ctx context.Context, name string) error
-	ListImages(ctx context.Context) ([]*entities.ImageSummary, error)
+	ListImages(ctx context.Context) ([]ImageInfo, error)
 	ExecCommand(ctx context.Context, containerName string, command []string) (string, error)
 	CopyToContainer(ctx context.Context, containerName, srcPath, destPath string) error
 }
@@ -46,10 +57,10 @@ const (
 
 // PodmanService Podman 容器服务实现
 type PodmanService struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	config *appconfig.ContainerServiceConfig
-	conn   context.Context // Podman bindings 的连接 context
+	ctx       context.Context
+	cancel    context.CancelFunc
+	config    *appconfig.ContainerServiceConfig
+	connected bool
 
 	// detectedLSM：启动时检测到的宿主机 LSM，仅设置一次，后续起容器时只启用该种（与配置配合）。
 	// 用于：runtime 与容器同机时读 /sys；Mac/Win 时起临时容器探测。见 detectLSMOnce。
@@ -64,6 +75,9 @@ func NewDefaultPodmanService() *PodmanService {
 
 // NewPodmanService 创建新的 Podman 服务（依赖注入）
 func NewPodmanService(cfg *appconfig.ContainerServiceConfig) *PodmanService {
+	if cfg == nil {
+		cfg = &appconfig.ContainerServiceConfig{}
+	}
 	return &PodmanService{
 		config: cfg,
 	}
@@ -128,13 +142,14 @@ func (s *PodmanService) Stop(ctx context.Context) error {
 	if s.cancel != nil {
 		s.cancel()
 	}
+	s.connected = false
 
 	return nil
 }
 
 // IsRunning 检查容器服务是否在运行
 func (s *PodmanService) IsRunning() bool {
-	return s.conn != nil
+	return s.connected
 }
 
 // GetConfig 获取配置
@@ -190,7 +205,7 @@ func (s *PodmanService) detectLSMFromHost(ctx context.Context) string {
 func (s *PodmanService) detectLSMFromProbeContainer(ctx context.Context) string {
 	image := s.config.GetBaseImage()
 	// 使用本项目运行镜像执行一条命令并退出，避免引入额外镜像依赖
-	cmd := exec.CommandContext(ctx, "podman", "run", "--rm", image, "cat", "/proc/self/attr/current")
+	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs("run", "--rm", image, "cat", "/proc/self/attr/current")...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		logger.Warnf(ctx, "[LSM] 临时容器探测失败 (image=%s): %v，输出: %s，视为 none", image, err, string(out))
@@ -225,7 +240,7 @@ func isAppArmorProfileLoaded(profile string) bool {
 
 // ExecCommand 在容器内执行命令
 func (s *PodmanService) ExecCommand(ctx context.Context, containerName string, command []string) (string, error) {
-	if s.conn == nil {
+	if !s.IsRunning() {
 		return "", fmt.Errorf("container service not connected")
 	}
 
@@ -234,7 +249,7 @@ func (s *PodmanService) ExecCommand(ctx context.Context, containerName string, c
 	args = append(args, command...)
 
 	// 执行命令
-	cmd := exec.CommandContext(ctx, "podman", args...)
+	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs(args...)...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to execute command in container: %w, output: %s", err, string(output))
@@ -245,7 +260,7 @@ func (s *PodmanService) ExecCommand(ctx context.Context, containerName string, c
 
 // CopyToContainer 复制文件到容器
 func (s *PodmanService) CopyToContainer(ctx context.Context, containerName, srcPath, destPath string) error {
-	if s.conn == nil {
+	if !s.IsRunning() {
 		return fmt.Errorf("container service not connected")
 	}
 
@@ -253,7 +268,7 @@ func (s *PodmanService) CopyToContainer(ctx context.Context, containerName, srcP
 	args := []string{"cp", srcPath, fmt.Sprintf("%s:%s", containerName, destPath)}
 
 	// 执行命令
-	cmd := exec.CommandContext(ctx, "podman", args...)
+	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs(args...)...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to copy file to container: %w, output: %s", err, string(output))
@@ -574,116 +589,245 @@ func (s *PodmanService) prepareWindowsEnvironment() error {
 
 // connectToContainerRuntime 连接到容器运行时
 func (s *PodmanService) connectToContainerRuntime() error {
-
-	// 获取连接 URI
-	socketURI := s.getSocketURI()
-
-	// 建立连接
-	conn, err := bindings.NewConnection(s.ctx, socketURI)
+	// 使用 Podman CLI 作为稳定边界，避免把 Podman/Docker Go SDK 的未修复 CVE 传递到默认二进制。
+	cmd := exec.CommandContext(s.ctx, "podman", s.podmanArgs("info", "--format", "json")...)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to connect to container runtime at %s: %w\n\n"+
+		target := "default podman context"
+		if socket := s.config.GetSocket(); socket != "" {
+			target = socket
+		}
+		return fmt.Errorf("failed to connect to container runtime (%s): %w\n\n"+
+			"Output:\n%s\n\n"+
 			"Troubleshooting:\n"+
 			"  1. Check if podman is running: podman info\n"+
 			"  2. Linux: systemctl --user start podman.socket\n"+
-			"  3. macOS/Windows: podman machine start", socketURI, err)
+			"  3. macOS/Windows: podman machine start", target, err, string(output))
 	}
 
-	s.conn = conn
+	s.connected = true
 	return nil
 }
 
-// getSocketURI 获取 Socket URI
-func (s *PodmanService) getSocketURI() string {
-	// 如果配置中指定了 Socket，使用配置的
-	if socket := s.config.GetSocket(); socket != "" {
-		return socket
+func (s *PodmanService) podmanArgs(args ...string) []string {
+	socket := strings.TrimSpace(s.config.GetSocket())
+	if socket == "" {
+		return args
 	}
 
-	// 根据平台返回默认 URI
-	switch runtime.GOOS {
-	case "linux":
-		return s.getLinuxPodmanSocket()
-	case "darwin":
-		return s.getMacOSPodmanSocket()
-	case "windows":
-		return "ssh://root@127.0.0.1:55190/run/podman/podman.sock"
-	default:
-		return "unix:///run/podman/podman.sock"
-	}
+	out := make([]string, 0, len(args)+2)
+	out = append(out, "--url", socket)
+	out = append(out, args...)
+	return out
 }
 
-// getLinuxPodmanSocket 获取 Linux 上 Podman 的 socket 路径
-// 按优先级检测：系统级 → 当前用户级 → UID=1000 兜底
-func (s *PodmanService) getLinuxPodmanSocket() string {
-	candidates := []string{
-		"/run/podman/podman.sock",
+func (s *PodmanService) runPodman(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs(args...)...)
+	return cmd.CombinedOutput()
+}
+
+func isPodmanNotFoundOutput(output string) bool {
+	lower := strings.ToLower(output)
+	return strings.Contains(lower, "no such container") ||
+		strings.Contains(lower, "container does not exist") ||
+		strings.Contains(lower, "no container with name or id") ||
+		strings.Contains(lower, "not found")
+}
+
+func decodePodmanJSONObjectList(output []byte) ([]map[string]json.RawMessage, error) {
+	trimmed := strings.TrimSpace(string(output))
+	if trimmed == "" {
+		return nil, nil
 	}
 
-	uid := fmt.Sprintf("%d", os.Getuid())
-	candidates = append(candidates, fmt.Sprintf("/run/user/%s/podman/podman.sock", uid))
-
-	if uid != "1000" {
-		candidates = append(candidates, "/run/user/1000/podman/podman.sock")
+	if strings.HasPrefix(trimmed, "[") {
+		var objects []map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(trimmed), &objects); err != nil {
+			return nil, err
+		}
+		return objects, nil
 	}
 
-	for _, sock := range candidates {
-		if _, err := os.Stat(sock); err == nil {
-			logger.Infof(s.ctx, "Auto-detected Podman socket: %s", sock)
-			return "unix://" + sock
+	if strings.HasPrefix(trimmed, "{") {
+		var object map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(trimmed), &object); err != nil {
+			return nil, err
+		}
+		return []map[string]json.RawMessage{object}, nil
+	}
+
+	return nil, fmt.Errorf("unexpected JSON output: %q", trimmed)
+}
+
+func podmanJSONField(object map[string]json.RawMessage, names ...string) (json.RawMessage, bool) {
+	for _, name := range names {
+		if raw, ok := object[name]; ok {
+			return raw, true
+		}
+	}
+	for key, raw := range object {
+		for _, name := range names {
+			if strings.EqualFold(key, name) {
+				return raw, true
+			}
+		}
+	}
+	return nil, false
+}
+
+func podmanJSONString(object map[string]json.RawMessage, names ...string) string {
+	raw, ok := podmanJSONField(object, names...)
+	if !ok {
+		return ""
+	}
+
+	var value string
+	if err := json.Unmarshal(raw, &value); err == nil {
+		return strings.TrimSpace(value)
+	}
+	return ""
+}
+
+func podmanJSONBool(object map[string]json.RawMessage, names ...string) (bool, bool) {
+	raw, ok := podmanJSONField(object, names...)
+	if !ok {
+		return false, false
+	}
+
+	var boolValue bool
+	if err := json.Unmarshal(raw, &boolValue); err == nil {
+		return boolValue, true
+	}
+
+	var stringValue string
+	if err := json.Unmarshal(raw, &stringValue); err == nil {
+		switch strings.ToLower(strings.TrimSpace(stringValue)) {
+		case "true", "running":
+			return true, true
+		case "false", "exited", "stopped", "created":
+			return false, true
 		}
 	}
 
-	logger.Warnf(s.ctx, "No Podman socket found, falling back to /run/podman/podman.sock")
-	return "unix:///run/podman/podman.sock"
+	return false, false
 }
 
-// getMacOSPodmanSocket 获取 macOS 上 Podman Machine 的 socket 路径
-func (s *PodmanService) getMacOSPodmanSocket() string {
-	homeDir, err := os.UserHomeDir()
+func podmanJSONNames(object map[string]json.RawMessage) []string {
+	raw, ok := podmanJSONField(object, "Names", "names")
+	if !ok {
+		return nil
+	}
+
+	var values []string
+	if err := json.Unmarshal(raw, &values); err == nil {
+		names := make([]string, 0, len(values))
+		for _, name := range values {
+			name = strings.TrimSpace(name)
+			if name != "" {
+				names = append(names, name)
+			}
+		}
+		return names
+	}
+
+	var value string
+	if err := json.Unmarshal(raw, &value); err == nil {
+		return splitContainerNames(value)
+	}
+
+	return nil
+}
+
+func parsePodmanContainerListJSON(output []byte) ([]ContainerInfo, error) {
+	objects, err := decodePodmanJSONObjectList(output)
 	if err != nil {
-		logger.Warnf(s.ctx, "Failed to get home directory: %v", err)
-		return ""
+		return nil, err
 	}
 
-	// Podman Machine 的 socket 符号链接路径
-	socketLinkPath := filepath.Join(homeDir, ".local", "share", "containers", "podman", "machine", "podman.sock")
+	containers := make([]ContainerInfo, 0, len(objects))
+	for _, object := range objects {
+		state := strings.ToLower(podmanJSONString(object, "State", "state", "Status", "status"))
+		exited := true
+		if state != "" {
+			exited = state != "running"
+		} else if value, ok := podmanJSONBool(object, "Exited", "exited"); ok {
+			exited = value
+		}
 
-	// 检查符号链接是否存在
-	if _, err := os.Stat(socketLinkPath); err != nil {
-		logger.Warnf(s.ctx, "Podman Machine socket link not found at %s: %v", socketLinkPath, err)
-		return ""
+		containers = append(containers, ContainerInfo{
+			ID:     podmanJSONString(object, "ID", "Id", "id"),
+			Names:  podmanJSONNames(object),
+			State:  state,
+			Exited: exited,
+		})
 	}
 
-	// 读取符号链接的实际路径
-	targetPath, err := os.Readlink(socketLinkPath)
+	return containers, nil
+}
+
+func parsePodmanImageListJSON(output []byte) ([]ImageInfo, error) {
+	objects, err := decodePodmanJSONObjectList(output)
 	if err != nil {
-		logger.Warnf(s.ctx, "Failed to read socket link: %v", err)
-		return ""
+		return nil, err
 	}
 
-	// 验证目标文件是否存在
-	if _, err := os.Stat(targetPath); err != nil {
-		logger.Warnf(s.ctx, "Socket target file not found: %s, error: %v", targetPath, err)
-		return ""
+	images := make([]ImageInfo, 0, len(objects))
+	for _, object := range objects {
+		repository := podmanJSONString(object, "Repository", "repository")
+		tag := podmanJSONString(object, "Tag", "tag")
+		if repository == "" && tag == "" {
+			repository, tag = splitImageRepositoryTag(firstPodmanJSONName(object))
+		}
+
+		images = append(images, ImageInfo{
+			ID:         podmanJSONString(object, "ID", "Id", "id"),
+			Repository: repository,
+			Tag:        tag,
+		})
 	}
 
-	return "unix://" + targetPath
+	return images, nil
+}
+
+func parsePodmanInspectRunningJSON(output []byte) (bool, error) {
+	objects, err := decodePodmanJSONObjectList(output)
+	if err != nil {
+		return false, err
+	}
+	if len(objects) == 0 {
+		return false, nil
+	}
+
+	stateRaw, ok := podmanJSONField(objects[0], "State", "state")
+	if !ok {
+		return false, nil
+	}
+
+	var stateObject map[string]json.RawMessage
+	if err := json.Unmarshal(stateRaw, &stateObject); err != nil {
+		return false, err
+	}
+	running, _ := podmanJSONBool(stateObject, "Running", "running")
+	return running, nil
 }
 
 // 容器管理方法
 
 // ListContainers 列出所有容器（包括已停止的）
-func (s *PodmanService) ListContainers(ctx context.Context) ([]entities.ListContainer, error) {
+func (s *PodmanService) ListContainers(ctx context.Context) ([]ContainerInfo, error) {
 	if !s.IsRunning() {
 		return nil, fmt.Errorf("container service is not running")
 	}
 
-	allTrue := true
-	containers, err := containers.List(s.conn, &containers.ListOptions{All: &allTrue})
+	output, err := s.runPodman(ctx, "ps", "-a", "--format", "json")
 	if err != nil {
-		return nil, fmt.Errorf("failed to list containers: %w", err)
+		return nil, fmt.Errorf("failed to list containers: %w, output: %s", err, string(output))
 	}
 
+	containers, err := parsePodmanContainerListJSON(output)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse container list JSON: %w, output: %s", err, string(output))
+	}
 	return containers, nil
 }
 
@@ -693,21 +837,10 @@ func (s *PodmanService) RunContainer(ctx context.Context, image, name string) er
 		return fmt.Errorf("container service is not running")
 	}
 
-	// 创建容器
-	logger.Infof(ctx, "Creating container: %s", name)
-	spec := specgen.NewSpecGenerator(image, false)
-	spec.Name = name
-
-	createResponse, err := containers.CreateWithSpec(s.conn, spec, nil)
+	logger.Infof(ctx, "Creating and starting container: %s", name)
+	output, err := s.runPodman(ctx, "run", "-d", "--name", name, image)
 	if err != nil {
-		return fmt.Errorf("failed to create container: %w", err)
-	}
-
-	// 启动容器
-	logger.Infof(ctx, "Starting container: %s", name)
-	err = containers.Start(s.conn, createResponse.ID, nil)
-	if err != nil {
-		return fmt.Errorf("failed to start container: %w", err)
+		return fmt.Errorf("failed to run container: %w, output: %s", err, string(output))
 	}
 
 	logger.Infof(ctx, "Container %s started successfully", name)
@@ -728,7 +861,7 @@ func (s *PodmanService) RunContainerWithMount(ctx context.Context, image, name, 
 		"tail", "-f", "/dev/null", // 保持容器运行
 	)
 
-	cmd := exec.Command("podman", args...)
+	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs(args...)...)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -782,13 +915,13 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 	args = append(args, image)
 	args = append(args, command...)
 
-	cmd := exec.Command("podman", args...)
+	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs(args...)...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to run container with command: %w, output: %s", err, string(output))
 	}
 
-	logger.Infof(ctx, "Container %s started successfully with mount %s:%s, command %v, and env vars %v", name, hostPath, containerPath, command, envVars)
+	logger.Infof(ctx, "Container %s started successfully with mount %s:%s, command %v, and env keys %v", name, hostPath, containerPath, command, envVarNames(envVars))
 	return nil
 }
 
@@ -813,28 +946,37 @@ func runtimeTimezone() string {
 	return timezone
 }
 
+func envVarNames(envVars []string) []string {
+	names := make([]string, 0, len(envVars))
+	for _, envVar := range envVars {
+		name, _, _ := strings.Cut(envVar, "=")
+		name = strings.TrimSpace(name)
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
 // IsContainerRunning 检查容器是否正在运行
 func (s *PodmanService) IsContainerRunning(ctx context.Context, name string) (bool, error) {
 	if !s.IsRunning() {
 		return false, fmt.Errorf("container service is not running")
 	}
 
-	// 查找运行中的容器
-	containerList, err := containers.List(s.conn, &containers.ListOptions{
-		Filters: map[string][]string{
-			"name": {name},
-		},
-	})
+	output, err := s.runPodman(ctx, "container", "inspect", "--format", "json", name)
 	if err != nil {
-		return false, fmt.Errorf("failed to find container: %w", err)
+		if isPodmanNotFoundOutput(string(output)) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to inspect container: %w, output: %s", err, string(output))
 	}
 
-	if len(containerList) == 0 {
-		return false, nil // 容器不存在
+	running, err := parsePodmanInspectRunningJSON(output)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse container inspect JSON: %w, output: %s", err, string(output))
 	}
-
-	// 检查容器状态
-	return containerList[0].State == "running", nil
+	return running, nil
 }
 
 // StartContainer 启动已存在的容器
@@ -843,26 +985,20 @@ func (s *PodmanService) StartContainer(ctx context.Context, name string) error {
 		return fmt.Errorf("container service is not running")
 	}
 
-	// 查找容器（包括已停止的）
-	all := true
-	containerList, err := containers.List(s.conn, &containers.ListOptions{
-		All: &all,
-		Filters: map[string][]string{
-			"name": {name},
-		},
-	})
+	running, err := s.IsContainerRunning(ctx, name)
 	if err != nil {
-		return fmt.Errorf("failed to find container: %w", err)
+		return err
+	}
+	if running {
+		return nil
 	}
 
-	if len(containerList) == 0 {
-		return fmt.Errorf("container %s not found", name)
-	}
-
-	// 启动容器
-	err = containers.Start(s.conn, containerList[0].ID, nil)
+	output, err := s.runPodman(ctx, "start", name)
 	if err != nil {
-		return fmt.Errorf("failed to start container: %w", err)
+		if isPodmanNotFoundOutput(string(output)) {
+			return fmt.Errorf("container %s not found", name)
+		}
+		return fmt.Errorf("failed to start container: %w, output: %s", err, string(output))
 	}
 
 	logger.Infof(ctx, "Container %s started successfully", name)
@@ -876,33 +1012,22 @@ func (s *PodmanService) StopContainer(ctx context.Context, name string) error {
 		return fmt.Errorf("container service is not running")
 	}
 
-	// 查找容器（包括已停止的，避免“列表里显示运行中、停止时报 not found”的对账问题）
-	all := true
-	containerList, err := containers.List(s.conn, &containers.ListOptions{
-		All: &all,
-		Filters: map[string][]string{
-			"name": {name},
-		},
-	})
+	running, err := s.IsContainerRunning(ctx, name)
 	if err != nil {
-		return fmt.Errorf("failed to find container: %w", err)
+		return err
 	}
-
-	if len(containerList) == 0 {
-		return fmt.Errorf("container %s not found", name)
-	}
-
-	// 已退出/已停止则无需再 stop，直接视为成功
-	if containerList[0].State != "running" {
-		logger.Infof(ctx, "Container %s already stopped (state=%s), skipping stop", name, containerList[0].State)
+	if !running {
+		logger.Infof(ctx, "Container %s already stopped or missing, skipping stop", name)
 		return nil
 	}
 
-	// 停止容器
-	timeout := uint(10)
-	err = containers.Stop(s.conn, containerList[0].ID, &containers.StopOptions{Timeout: &timeout})
+	output, err := s.runPodman(ctx, "stop", "--time", "10", name)
 	if err != nil {
-		return fmt.Errorf("failed to stop container: %w", err)
+		if isPodmanNotFoundOutput(string(output)) {
+			logger.Infof(ctx, "Container %s already removed, skipping stop", name)
+			return nil
+		}
+		return fmt.Errorf("failed to stop container: %w, output: %s", err, string(output))
 	}
 
 	logger.Infof(ctx, "Container %s stopped successfully", name)
@@ -915,31 +1040,13 @@ func (s *PodmanService) RemoveContainer(ctx context.Context, name string) error 
 		return fmt.Errorf("container service is not running")
 	}
 
-	// 查找容器（包括已停止的容器）
-	all := true
-	containerList, err := containers.List(s.conn, &containers.ListOptions{
-		All: &all,
-		Filters: map[string][]string{
-			"name": {name},
-		},
-	})
+	output, err := s.runPodman(ctx, "rm", "-f", name)
 	if err != nil {
-		return fmt.Errorf("failed to find container: %w", err)
-	}
-
-	if len(containerList) == 0 {
-		// 容器不存在，这是正常情况，不需要报错
-		logger.Infof(ctx, "Container %s not found, nothing to remove", name)
-		return nil
-	}
-
-	// 删除容器（强制删除，即使正在运行）
-	force := true
-	_, err = containers.Remove(s.conn, containerList[0].ID, &containers.RemoveOptions{
-		Force: &force,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to remove container: %w", err)
+		if isPodmanNotFoundOutput(string(output)) {
+			logger.Infof(ctx, "Container %s not found, nothing to remove", name)
+			return nil
+		}
+		return fmt.Errorf("failed to remove container: %w, output: %s", err, string(output))
 	}
 
 	logger.Infof(ctx, "Container %s removed successfully (forced)", name)
@@ -947,15 +1054,58 @@ func (s *PodmanService) RemoveContainer(ctx context.Context, name string) error 
 }
 
 // ListImages 列出所有镜像
-func (s *PodmanService) ListImages(ctx context.Context) ([]*entities.ImageSummary, error) {
+func (s *PodmanService) ListImages(ctx context.Context) ([]ImageInfo, error) {
 	if !s.IsRunning() {
 		return nil, fmt.Errorf("container service is not running")
 	}
 
-	images, err := images.List(s.conn, &images.ListOptions{})
+	output, err := s.runPodman(ctx, "images", "--format", "json")
 	if err != nil {
-		return nil, fmt.Errorf("failed to list images: %w", err)
+		return nil, fmt.Errorf("failed to list images: %w, output: %s", err, string(output))
 	}
 
+	images, err := parsePodmanImageListJSON(output)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse image list JSON: %w, output: %s", err, string(output))
+	}
 	return images, nil
+}
+
+func splitContainerNames(value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+
+	rawNames := strings.Split(value, ",")
+	names := make([]string, 0, len(rawNames))
+	for _, name := range rawNames {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+func firstPodmanJSONName(object map[string]json.RawMessage) string {
+	names := podmanJSONNames(object)
+	if len(names) == 0 {
+		return ""
+	}
+	return names[0]
+}
+
+func splitImageRepositoryTag(name string) (string, string) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", ""
+	}
+
+	lastSlash := strings.LastIndex(name, "/")
+	lastColon := strings.LastIndex(name, ":")
+	if lastColon > lastSlash {
+		return name[:lastColon], name[lastColon+1:]
+	}
+	return name, ""
 }

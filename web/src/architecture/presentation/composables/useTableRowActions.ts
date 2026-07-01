@@ -2,7 +2,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Router } from 'vue-router'
 import { normalizeWidgetType, WidgetType } from '@/architecture/domain/constants/widget'
 import { convertToFieldValue } from '@/architecture/domain/utils/field'
-import { isWidgetConfigFlagEnabled } from '@/architecture/domain/utils/widgetConfigFlag'
 import { parseLinkValue, addLinkTypeToUrl } from '@/architecture/shared/routing/linkNavigation'
 import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
 import { RouteSource } from '@/architecture/shared/routing/routeSource'
@@ -148,7 +147,7 @@ export function useTableRowActions(options: UseTableRowActionsOptions) {
     
     if (Array.isArray(tableData) && tableData.length > 0) {
       for (const row of tableData) {
-        let val = row[code]
+        const val = row[code]
         if (val !== undefined && val !== null && val !== '') {
           const strVal = String(val).trim()
           if (strVal !== '-' && strVal !== '[]' && strVal !== '{}') {

@@ -179,13 +179,13 @@ podman images 卡住或失败
 修复前对 raw 磁盘做 APFS clone 备份：
 
 ```text
-/Users/beiluo/.local/share/containers/podman/machine/libkrun/podman-machine-default-arm64.raw.backup-before-xfs-repair-20260621-120941
+$HOME/.local/share/containers/podman/machine/libkrun/podman-machine-default-arm64.raw.backup-before-xfs-repair-20260621-120941
 ```
 
 原始 raw：
 
 ```text
-/Users/beiluo/.local/share/containers/podman/machine/libkrun/podman-machine-default-arm64.raw
+$HOME/.local/share/containers/podman/machine/libkrun/podman-machine-default-arm64.raw
 ```
 
 ### 4. 使用 Alpine rescue VM 离线修复
@@ -296,7 +296,7 @@ dlv -> debugserver -> ___11go_build_... -> podman machine start
 发现本地 LaunchAgent：
 
 ```text
-/Users/beiluo/Library/LaunchAgents/com.podman.auto-start.plist
+$HOME/Library/LaunchAgents/com.podman.auto-start.plist
 ```
 
 存在 XML 问题：
@@ -307,7 +307,7 @@ dlv -> debugserver -> ___11go_build_... -> podman machine start
 同时脚本：
 
 ```text
-/Users/beiluo/bin/podman-auto-start.sh
+$HOME/bin/podman-auto-start.sh
 ```
 
 没有给 launchd 环境补 `/opt/podman/bin`，导致 launchd 环境下可能找不到 `podman`。
@@ -490,4 +490,3 @@ podman machine init
 - VM 内 `/` 和 `/var` 可用约 `30G`。
 - 宿主机清理后可用约 `127GiB`。
 - 修复前 raw 备份已保留。
-

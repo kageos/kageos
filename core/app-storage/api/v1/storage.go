@@ -335,7 +335,7 @@ func (s *Storage) PublicShareUploadComplete(c *gin.Context) {
 			req.PreviewKind,
 			requestUser,
 		); err != nil {
-			logger.Errorf(c, "Failed to record public share upload to database: %v (file_key: %s)", err, req.Key)
+			logger.Errorf(c, "Failed to record public share upload to database: %v (file_key_len=%d)", err, len(req.Key))
 		}
 
 		var expire time.Time
@@ -437,7 +437,7 @@ func (s *Storage) PublicShareBatchUploadComplete(c *gin.Context) {
 				item.PreviewKind,
 				requestUser,
 			); err != nil {
-				logger.Errorf(c, "Failed to record public share upload for key %s: %v", item.Key, err)
+				logger.Errorf(c, "Failed to record public share upload: key_len=%d, err=%v", len(item.Key), err)
 				results = append(results, dto.BatchUploadCompleteResult{
 					Key:    item.Key,
 					Status: "failed",
@@ -448,7 +448,7 @@ func (s *Storage) PublicShareBatchUploadComplete(c *gin.Context) {
 
 			downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLsInBucket(ctx, bucket, item.Key)
 			if err != nil {
-				logger.Errorf(c, "Failed to generate public share download URLs for key %s: %v", item.Key, err)
+				logger.Errorf(c, "Failed to generate public share download URLs: key_len=%d, err=%v", len(item.Key), err)
 				downloadURL = ""
 				serverDownloadURL = ""
 			}
@@ -656,7 +656,7 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 		}
 		if err != nil {
 			// 单个文件失败，记录错误但继续处理其他文件
-			logger.Errorf(c, "Failed to generate upload token for file %s: %v", fileReq.FileName, err)
+			logger.Errorf(c, "Failed to generate upload credentials: file_name_len=%d, err=%v", len(fileReq.FileName), err)
 			continue
 		}
 
@@ -667,7 +667,7 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 		// 构建预期的下载URL
 		downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLsInBucket(ctx, bucket, key)
 		if err != nil {
-			logger.Errorf(c, "Failed to generate download URLs for key %s: %v", key, err)
+			logger.Errorf(c, "Failed to generate download URLs: key_len=%d, err=%v", len(key), err)
 			// 下载URL生成失败不影响上传，设置为空
 			downloadURL = ""
 			serverDownloadURL = ""
@@ -732,7 +732,7 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 			req.PreviewKind,
 			requestUser,
 		); err != nil {
-			logger.Errorf(c, "Failed to record upload to database: %v (file_key: %s)", err, req.Key)
+			logger.Errorf(c, "Failed to record upload to database: %v (file_key_len=%d)", err, len(req.Key))
 			// 不影响响应，只记录错误（文件已上传到MinIO，只是数据库记录失败）
 		}
 
@@ -834,7 +834,7 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 				item.PreviewKind,
 				requestUser,
 			); err != nil {
-				logger.Errorf(c, "Failed to record upload for key %s: %v", item.Key, err)
+				logger.Errorf(c, "Failed to record upload: key_len=%d, err=%v", len(item.Key), err)
 				results = append(results, dto.BatchUploadCompleteResult{
 					Key:    item.Key,
 					Status: "failed",
@@ -846,7 +846,7 @@ func (s *Storage) BatchUploadComplete(c *gin.Context) {
 			// 构建下载URL
 			downloadURL, serverDownloadURL, _, err := s.storageService.GetFileURLsInBucket(ctx, bucket, item.Key)
 			if err != nil {
-				logger.Errorf(c, "Failed to generate download URLs for key %s: %v", item.Key, err)
+				logger.Errorf(c, "Failed to generate download URLs: key_len=%d, err=%v", len(item.Key), err)
 				downloadURL = ""
 				serverDownloadURL = ""
 			}

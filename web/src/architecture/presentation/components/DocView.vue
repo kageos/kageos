@@ -159,17 +159,20 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight, Clock, RefreshRight } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { getDoc, updateDoc, deleteDoc } from '@/architecture/presentation/context/api/doc'  // ✅ 使用新的文档 API
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
+import { renderWorkspaceResourceTokensAsHtml } from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
 import { consumeDocAutoEdit } from '@/architecture/presentation/utils/docAutoEdit'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 
 const VditorEditor = defineAsyncComponent(() => import('@/architecture/presentation/shared/components/VditorEditor.vue'))
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
+const router = useRouter()
 
 interface Props {
   node: ServiceTree
@@ -200,6 +203,15 @@ const previewIndex = ref(0)
 
 function onMarkdownClick(e: MouseEvent) {
   const target = e.target as HTMLElement
+  const resourceLink = target?.closest?.('a.workspace-resource-token') as HTMLAnchorElement | null
+  if (resourceLink) {
+    const href = resourceLink.getAttribute('href') || ''
+    if (href.startsWith('/workspace/')) {
+      e.preventDefault()
+      void router.push(href)
+    }
+    return
+  }
   if (target?.tagName !== 'IMG') return
   const img = target as HTMLImageElement
   const src = img.src || img.getAttribute('src')
@@ -250,8 +262,19 @@ const renderedContent = computed(() => {
   if (!doc.value || !doc.value.content) {
     return ''
   }
-  return renderMarkdown(doc.value.content)
+  return renderMarkdown(renderWorkspaceResourceTokensAsHtml(doc.value.content, docResourceBasePath.value))
 })
+
+const docResourceBasePath = computed(() => getDocResourceBasePath(props.node?.full_code_path || ''))
+
+function getDocResourceBasePath(fullCodePath: string): string {
+  const path = String(fullCodePath || '').trim().replace(/\/+$/g, '')
+  if (!path) return ''
+  const parts = path.split('/').filter(Boolean)
+  if (parts.length === 0) return ''
+  parts.pop()
+  return `/${parts.join('/')}`
+}
 
 // 格式化时间（创建/更新展示用）
 function formatDate(date: string | undefined): string {
@@ -698,6 +721,65 @@ watch(() => props.node?.id, () => {
     margin-top: 1.6em;
     margin-bottom: 1.6em;
     background: transparent;
+  }
+
+  :deep(.workspace-resource-token) {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    vertical-align: baseline;
+    padding: 1px 7px;
+    margin: 0 1px;
+    border: 1px solid color-mix(in srgb, var(--el-color-primary, #1677ff) 24%, var(--el-border-color, #dcdfe6));
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--el-color-primary, #1677ff) 8%, var(--el-bg-color, #fff));
+    color: var(--el-text-color-primary, #111827);
+    font-size: 0.92em;
+    line-height: 1.55;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+
+    &:hover {
+      border-color: color-mix(in srgb, var(--el-color-primary, #1677ff) 58%, var(--el-border-color, #dcdfe6));
+      background: color-mix(in srgb, var(--el-color-primary, #1677ff) 13%, var(--el-bg-color, #fff));
+      color: var(--el-color-primary, #1677ff);
+      text-decoration: none;
+    }
+  }
+
+  :deep(.workspace-resource-token__dot) {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    background: var(--el-color-primary, #1677ff);
+  }
+
+  :deep(.workspace-resource-token.is-form .workspace-resource-token__dot) {
+    background: var(--el-color-success, #67c23a);
+  }
+
+  :deep(.workspace-resource-token.is-chart .workspace-resource-token__dot) {
+    background: var(--el-color-warning, #e6a23c);
+  }
+
+  :deep(.workspace-resource-token.is-docs .workspace-resource-token__dot) {
+    background: var(--el-color-info, #909399);
+  }
+
+  :deep(.workspace-resource-token__label) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  :deep(.workspace-resource-token__type) {
+    color: var(--el-text-color-secondary, #6b7280);
+    font-size: 0.82em;
+    font-weight: 600;
   }
 
   :deep(a) {

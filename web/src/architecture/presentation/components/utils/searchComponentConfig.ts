@@ -416,7 +416,7 @@ function createRateComponentConfig(
  */
 function createColorComponentConfig(
   field: FieldConfig,
-  searchType: string | undefined
+  _searchType: string | undefined
 ): ComponentConfig {
   // Color 组件使用文本输入搜索
   return {

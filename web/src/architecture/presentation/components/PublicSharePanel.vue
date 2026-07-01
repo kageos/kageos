@@ -490,7 +490,7 @@ async function openQrDialog(share: PublicShareItem) {
     } else {
       await uploadQrCode(share, qrDataUrl.value)
     }
-  } catch (error) {
+  } catch (_error) {
     ElMessage.error(t('publicSharePanel.qrGenerateFailed'))
   } finally {
     qrGenerating.value = false
@@ -547,7 +547,7 @@ async function uploadQrCode(share: PublicShareItem, dataUrl: string) {
       url: qrStorageUrl.value,
       ref: qrStorageRef.value,
     })
-  } catch (error) {
+  } catch (_error) {
     qrUploadError.value = t('publicSharePanel.qrUploadFailed')
   } finally {
     qrUploading.value = false

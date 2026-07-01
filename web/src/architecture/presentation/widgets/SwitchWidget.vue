@@ -56,7 +56,6 @@ import { ElSwitch, ElTag } from 'element-plus'
 import type { WidgetComponentProps, WidgetComponentEmits } from '@/architecture/presentation/widgets/types'
 import { useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import { createFieldValue } from '@/architecture/presentation/widgets/utils/createFieldValue'
-import type { SwitchWidgetConfig } from '@/architecture/domain/types/widget-configs'
 
 const props = withDefaults(defineProps<WidgetComponentProps>(), {
   value: () => ({
@@ -68,11 +67,6 @@ const props = withDefaults(defineProps<WidgetComponentProps>(), {
 const emit = defineEmits<WidgetComponentEmits>()
 
 const formDataStore = useFormDataStore()
-
-// 获取配置（带类型，注意：SwitchWidgetConfig 当前无配置项）
-const widgetConfig = computed(() => {
-  return (props.field.widget?.config || {}) as SwitchWidgetConfig
-})
 
 // 激活文本/非激活文本（注意：SwitchWidgetConfig 中没有这些字段，使用默认值）
 const activeText = computed(() => {
@@ -118,7 +112,7 @@ const displayValue = computed(() => {
   return raw === true || raw === 'true' || raw === 1 || raw === '1'
 })
 
-function handleChange(value: string | number | boolean): void {
+function handleChange(_value: string | number | boolean): void {
   // 可以在这里添加验证逻辑
 }
 

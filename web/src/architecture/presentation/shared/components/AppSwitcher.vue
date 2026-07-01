@@ -141,12 +141,6 @@ const getAppColor = (app: App) => {
   return appColors[index % appColors.length] || appColors[0]
 }
 
-// 获取应用首字母
-const getAppInitial = (text: string) => {
-  if (!text) return 'A'
-  return text.charAt(0).toUpperCase()
-}
-
 const getWorkspaceDisplayName = (app: App) => {
   const name = app.name?.trim()
   return name || app.code || '未命名工作空间'

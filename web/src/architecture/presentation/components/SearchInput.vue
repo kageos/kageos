@@ -258,9 +258,8 @@ import { convertToFieldValue } from '@/architecture/domain/utils/field'
 import { normalizeSearchValue, denormalizeSearchValue } from '@/architecture/domain/utils/searchValueNormalizer'
 import { getSearchFieldRawValue, isStoredSearchFieldValue } from '@/architecture/domain/utils/searchFieldValue'
 import { createSearchComponentConfig } from '@/architecture/presentation/components/utils/searchComponentConfig'
-import { SearchConfig, SearchComponent, hasSearchType } from '@/architecture/domain/constants/search'
+import { SearchConfig, SearchComponent } from '@/architecture/domain/constants/search'
 import { WidgetType } from '@/architecture/domain/constants/widget'
-import { Logger } from '@/architecture/shared/logger'
 import type { FieldConfig } from '@/architecture/domain/types'
 import { formDataStoreKey, useFormDataStore } from '@/architecture/presentation/context/formRuntimeContext'
 import {
@@ -425,8 +424,6 @@ const {
   selectLoading,
   isSingleFallbackSelect,
   isMultipleFallbackSelect,
-  isMultiselectWidget,
-  isSelectWidget,
   shouldUseUserFallbackTags,
   shouldUseColoredFallbackTags,
   shouldUseCustomFallbackTags,

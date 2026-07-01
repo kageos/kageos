@@ -20,8 +20,14 @@
       <section class="mini-shell">
         <header class="mini-drawer-head">
           <div class="mini-drawer-title">
-            <strong>{{ t('miniWorkstation.workbench') }}</strong>
-            <span :title="fullCodePath">{{ dirName || displayPath }}</span>
+            <MiniWorkstationResourceIdentity
+              class="mini-drawer-resource"
+              :name="resourceDisplayName"
+              :full-code-path="fullCodePath"
+              :resource-type="resourceType"
+              :resource-template-type="resourceTemplateType"
+            />
+            <span :title="fullCodePath">{{ fullCodePath || displayPath }}</span>
           </div>
           <div class="mini-drawer-actions">
             <button
@@ -80,7 +86,7 @@
           <div :class="['mini-current-layout', { 'is-artifact-open': artifactPanelExpanded }]">
             <MiniWorkstationSessionPanel
               :full-code-path="fullCodePath"
-              :dir-label="dirName || displayPath"
+              :dir-label="resourceDisplayName"
               :sessions="drawerSessionList"
               :active-session-id="sessionId"
               :scope="drawerSessionScope"
@@ -108,6 +114,10 @@
                   :messages="messages"
                   :maximized="maximized"
                   :sending="sending"
+                  :counterpart-name="resourceDisplayName"
+                  :full-code-path="fullCodePath"
+                  :resource-type="resourceType"
+                  :resource-template-type="resourceTemplateType"
                   :streaming-display-length="streamingDisplayLength"
                   :render-markdown="renderMarkdown"
                   :format-message-time="formatMessageTime"
@@ -144,7 +154,9 @@
 
         <MiniWorkstationComposer
           :full-code-path="fullCodePath"
-          :dir-name="dirName || displayPath"
+          :dir-name="resourceDisplayName"
+          :resource-type="resourceType"
+          :resource-template-type="resourceTemplateType"
           :attached-files="attachedFiles"
           :uploading="uploading"
           :input-text="inputText"
@@ -252,10 +264,8 @@
 import { nextTick, onMounted, ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  ArrowDown,
   ArrowLeft,
   ArrowRight,
-  ArrowUp,
   Calendar,
   Clock,
   Close,
@@ -274,6 +284,7 @@ import MiniWorkstationDisplayFieldPreviewDialog from './MiniWorkstationDisplayFi
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
 import MiniWorkstationDebugSettings from './MiniWorkstationDebugSettings.vue'
 import MiniWorkstationMessages from './MiniWorkstationMessages.vue'
+import MiniWorkstationResourceIdentity from './MiniWorkstationResourceIdentity.vue'
 import MiniWorkstationSessionPanel from './MiniWorkstationSessionPanel.vue'
 import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
@@ -308,6 +319,8 @@ const props = defineProps<{
   visible: boolean
   fullCodePath: string
   dirName?: string
+  resourceType?: string
+  resourceTemplateType?: string
   initialSessionId?: string
   initialOffset?: number
   initialPosition?: 'center'
@@ -432,7 +445,6 @@ const {
   handleSelectSession,
   formatRelativeTime,
   formatMessageTime,
-  startMiniStreamListening,
   startMiniPoll,
   stopMiniPoll
 } = useMiniWorkstationSessions({
@@ -534,7 +546,23 @@ const {
 
 const normalizedWorkbenchPath = computed(() => normalizeFullCodePath(props.fullCodePath || ''))
 const normalizedCurrentContextPath = computed(() => normalizeFullCodePath(props.currentFullCodePath || ''))
+function getMappedWorkspaceName(fullCodePath: string) {
+  const normalizedPath = normalizeFullCodePath(fullCodePath || '')
+  if (!normalizedPath) return ''
+  const map = props.pathNameMap || {}
+  return map[normalizedPath] || map[normalizedPath.replace(/^\/+/, '')] || ''
+}
+
+const resourceDisplayName = computed(() => {
+  return getMappedWorkspaceName(props.fullCodePath)
+    || (props.dirName || '').trim()
+    || displayPath.value
+    || t('miniWorkstation.currentDirectory')
+})
+
 const currentContextName = computed(() => {
+  const mappedName = getMappedWorkspaceName(props.currentFullCodePath || '')
+  if (mappedName) return mappedName
   const label = (props.currentDirName || '').trim()
   if (label) return label
   const path = normalizedCurrentContextPath.value
@@ -1469,16 +1497,18 @@ useMiniWorkstationEffects({
 .mini-settings-btn {
   width: 32px;
   height: 32px;
-  border: 1px solid var(--border-light);
+  border: 1px solid transparent;
   border-radius: 10px;
   color: var(--color-primary);
-  background: var(--bg-tertiary);
+  background: var(--el-fill-color-light);
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 .mini-settings-btn:hover,
 .mini-settings-btn:focus {
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
-  box-shadow: none;
+  border-color: var(--border-light);
+  color: var(--color-primary-light-1);
+  background: var(--el-fill-color);
 }
 
 /* ── 主体区域（sidebar + output） ── */
@@ -1952,18 +1982,21 @@ useMiniWorkstationEffects({
 }
 
 .mini-settings-btn {
-  width: 42px;
-  height: 42px;
-  border-color: var(--border-light);
+  width: 40px;
+  height: 40px;
+  border-color: transparent;
   border-radius: 8px;
-  color: #8ed0ff;
-  background: var(--bg-tertiary);
+  color: var(--color-primary);
+  background: var(--el-fill-color-light);
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .mini-settings-btn:hover,
 .mini-settings-btn:focus {
-  background: var(--bg-tertiary);
-  box-shadow: none;
+  border-color: var(--border-light);
+  color: var(--color-primary-light-1);
+  background: var(--el-fill-color);
 }
 
 .mini-ws-drop-overlay {
@@ -2076,11 +2109,16 @@ useMiniWorkstationEffects({
   gap: 4px;
 }
 
-.mini-drawer-title strong {
+.mini-drawer-resource {
+  max-width: 100%;
   color: #f5f8ff;
   font-size: 15px;
   font-weight: 850;
   line-height: 1.2;
+}
+
+.mini-drawer-resource :deep(.mini-resource-identity__icon) {
+  --mini-resource-icon-size: 22px;
 }
 
 .mini-drawer-title span {
@@ -2109,7 +2147,7 @@ useMiniWorkstationEffects({
   gap: 6px;
   border: 1px solid transparent;
   border-radius: 8px;
-  background: transparent;
+  background: var(--el-fill-color-light);
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
@@ -2121,18 +2159,24 @@ useMiniWorkstationEffects({
 .mini-drawer-primary-action:hover,
 .mini-drawer-secondary-action:hover,
 .mini-drawer-icon-action:hover {
-  background: var(--el-fill-color-light);
-  color: var(--text-primary);
+  border-color: var(--border-light);
+  background: var(--el-fill-color);
+  color: var(--color-primary);
 }
 
 .mini-drawer-secondary-action.is-active {
-  background: var(--el-fill-color);
+  border-color: rgba(var(--color-primary-rgb), 0.2);
+  background: rgba(var(--color-primary-rgb), 0.1);
   color: var(--color-primary);
   font-weight: 600;
 }
 
 .mini-drawer-primary-action {
   padding: 0 11px;
+  border-color: rgba(var(--color-primary-rgb), 0.18);
+  background: rgba(var(--color-primary-rgb), 0.09);
+  color: var(--color-primary);
+  font-weight: 600;
 }
 
 .mini-drawer-secondary-action {
@@ -2147,6 +2191,7 @@ useMiniWorkstationEffects({
 .mini-drawer-secondary-action:disabled {
   cursor: not-allowed;
   opacity: 0.42;
+  background: transparent;
 }
 
 .mini-current-output,
@@ -2430,7 +2475,18 @@ useMiniWorkstationEffects({
   border-width: 1px 0 0;
   border-radius: 0;
   border-color: var(--border-light);
-  background: transparent;
+  background: var(--el-bg-color);
+  box-shadow: none;
+}
+
+.mini-shell :deep(.mini-ws-input:hover) {
+  border-color: var(--border-light);
+  background: var(--el-bg-color);
+}
+
+.mini-shell :deep(.mini-ws-input:focus-within) {
+  border-color: var(--border-light);
+  background: var(--el-bg-color);
   box-shadow: none;
 }
 

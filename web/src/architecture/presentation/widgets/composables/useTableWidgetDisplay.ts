@@ -157,7 +157,7 @@ export function useTableWidgetDisplay(
     if (responseMode && responseTableData.value && Array.isArray(responseTableData.value)) {
       const rows = responseTableData.value
       for (const row of rows) {
-        let val = row[code]
+        const val = row[code]
         if (val !== undefined && val !== null && val !== '') {
           // 判断是否是真正的空标识
           const strVal = String(val).trim()

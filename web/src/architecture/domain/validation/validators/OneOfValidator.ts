@@ -20,7 +20,7 @@ export class OneOfValidator implements Validator {
   validate(
     value: FieldValue,
     rule: ValidationRule,
-    context: ValidationContext
+    _context: ValidationContext
   ): ValidationResult {
     if (rule.value === undefined) {
       return { valid: true }  // 规则配置错误，跳过
@@ -101,4 +101,3 @@ export class OneOfValidator implements Validator {
     return options.filter(opt => opt.length > 0)
   }
 }
-

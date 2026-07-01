@@ -302,9 +302,9 @@ export const useDepartmentInfoStore = defineStore('departmentInfo', () => {
     
     try {
       // 如果接口在超时时间内返回，使用新数据
-      const freshDepartments = await Promise.race([fetchPromise, timeoutPromise])
-      return buildResultFromCache(uniquePaths, freshDepartments, expired)
-    } catch (error) {
+      await Promise.race([fetchPromise, timeoutPromise])
+      return buildResultFromCache(uniquePaths, expired)
+    } catch (_error) {
       // 🔥 降级策略：如果接口失败，返回过期缓存
       console.warn('[DepartmentInfoStore] 接口失败，使用过期缓存（降级策略）')
       return fallbackResult
@@ -344,11 +344,9 @@ export const useDepartmentInfoStore = defineStore('departmentInfo', () => {
    */
   function buildResultFromCache(
     paths: string[],
-    freshDepartments: Department[],
     expired: Array<{ path: string; department: Department }>
   ): Department[] {
     const result: Department[] = []
-    const freshDeptMap = new Map(freshDepartments.map(d => [d.full_code_path, d]))
     
     paths.forEach(path => {
       const cacheItem = departmentInfoCache.value.get(path)

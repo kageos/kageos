@@ -70,7 +70,7 @@ export class FunctionLoaderImpl implements IFunctionLoader {
   /**
    * 获取缓存的函数详情
    */
-  getCached(path: string): FunctionDetail | null {
+  getCached(_path: string): FunctionDetail | null {
     return null
   }
 

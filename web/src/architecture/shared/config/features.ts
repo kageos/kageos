@@ -20,10 +20,6 @@ function readBooleanEnv(name: string, fallback: boolean): boolean {
 
 const focusedMode = readBooleanEnv('VITE_AOS_FOCUSED_MODE', import.meta.env.MODE === 'test' ? false : true)
 
-function enabledInFullMode(envName: string): boolean {
-  return readBooleanEnv(envName, !focusedMode)
-}
-
 export const featureFlags = {
   focusedMode,
   operateLogs: readBooleanEnv('VITE_AOS_FEATURE_OPERATE_LOGS', true),

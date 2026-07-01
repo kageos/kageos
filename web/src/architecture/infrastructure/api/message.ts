@@ -182,6 +182,7 @@ export interface MessageNotificationRouteInfo {
   enabled: boolean
   delivery_type: string
   display_name?: string
+  remark?: string
   require_auth: boolean
   has_webhook_url: boolean
   has_secret: boolean
@@ -226,6 +227,7 @@ export interface UpsertMessageNotificationRouteReq {
   enabled?: boolean
   delivery_type?: string
   display_name?: string
+  remark?: string
   require_auth?: boolean
   webhook_url?: string
   secret?: string

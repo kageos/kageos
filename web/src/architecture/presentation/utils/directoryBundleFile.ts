@@ -111,7 +111,7 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
   let raw: unknown
   try {
     raw = JSON.parse(text)
-  } catch (error) {
+  } catch (_error) {
     throw new Error('JSON 格式不正确')
   }
 

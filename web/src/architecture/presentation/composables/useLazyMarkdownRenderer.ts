@@ -45,13 +45,17 @@ export function useLazyMarkdownRenderer() {
     renderVersion.value += 1
   }
 
+  const trackRenderVersion = (): void => {
+    Number.isNaN(renderVersion.value)
+  }
+
   subscribers.add(bumpRenderVersion)
   onScopeDispose(() => {
     subscribers.delete(bumpRenderVersion)
   })
 
   function renderMarkdown(content: string): string {
-    renderVersion.value
+    trackRenderVersion()
 
     if (!content) {
       return ''

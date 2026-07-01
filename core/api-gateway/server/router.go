@@ -339,15 +339,8 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 				}
 			} else {
 				// token 解析失败，但不阻止请求（可能是不需要认证的接口）
-				tokenPrefix := ""
-				if len(token) > 20 {
-					tokenPrefix = token[:20] + "..."
-				} else {
-					tokenPrefix = token
-				}
-				globalConfig := config.GetGlobalSharedConfig()
-				logger.Warnf(s.ctx, "[Proxy] Failed to parse token - Path: %s, Error: %v, TokenLength: %d, TokenPrefix: %s, JWTSecretLength: %d, JWTIssuer: %s",
-					c.Request.URL.Path, err, len(token), tokenPrefix, len(globalConfig.JWT.Secret), globalConfig.JWT.Issuer)
+				logger.Warnf(s.ctx, "[Proxy] Failed to parse token - Path: %s, Error: %v, TokenLength: %d",
+					c.Request.URL.Path, err, len(token))
 			}
 		}
 

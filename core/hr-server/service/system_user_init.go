@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"os"
+	"strings"
 
 	hrmodel "github.com/kageos/kageos/core/hr-server/model"
 	hrrepository "github.com/kageos/kageos/core/hr-server/repository"
@@ -105,7 +107,11 @@ func initSystemUserWithPassword(ctx context.Context, db *gorm.DB, password strin
 	if generated {
 		logger.Warnf(ctx, "[SystemUser] ⚠️  系统账号密码已自动生成，请妥善保管：")
 		logger.Warnf(ctx, "[SystemUser] ⚠️  用户名: %s", SystemUsername)
-		logger.Warnf(ctx, "[SystemUser] ⚠️  密码: %s", password)
+		if shouldPrintGeneratedSecrets() {
+			logger.Warnf(ctx, "[SystemUser] ⚠️  密码: %s", password)
+		} else {
+			logger.Warnf(ctx, "[SystemUser] ⚠️  密码已隐藏；如需启动日志打印，显式设置 KAGEOS_PRINT_GENERATED_SECRETS=1")
+		}
 		logger.Warnf(ctx, "[SystemUser] ⚠️  建议：在配置文件中设置 system_user.password 或环境变量 SYSTEM_USER_PASSWORD")
 	} else {
 		logger.Infof(ctx, "[SystemUser] 已创建 system 用户: %s（密码已从配置加载）", SystemUsername)
@@ -213,11 +219,20 @@ func setSystemUserPassword(ctx context.Context, userRepo *hrrepository.UserRepos
 	if generated {
 		logger.Warnf(ctx, "[SystemUser] ⚠️  系统账号密码已自动生成，请妥善保管：")
 		logger.Warnf(ctx, "[SystemUser] ⚠️  用户名: %s", SystemUsername)
-		logger.Warnf(ctx, "[SystemUser] ⚠️  密码: %s", password)
+		if shouldPrintGeneratedSecrets() {
+			logger.Warnf(ctx, "[SystemUser] ⚠️  密码: %s", password)
+		} else {
+			logger.Warnf(ctx, "[SystemUser] ⚠️  密码已隐藏；如需启动日志打印，显式设置 KAGEOS_PRINT_GENERATED_SECRETS=1")
+		}
 		logger.Warnf(ctx, "[SystemUser] ⚠️  建议：在配置文件中设置 system_user.password 或环境变量 SYSTEM_USER_PASSWORD")
 	} else {
 		logger.Infof(ctx, "[SystemUser] 已为 system 用户设置密码（从配置加载）")
 	}
 
 	return nil
+}
+
+func shouldPrintGeneratedSecrets() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("KAGEOS_PRINT_GENERATED_SECRETS")))
+	return value == "1" || value == "true" || value == "yes"
 }

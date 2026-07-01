@@ -8,7 +8,7 @@
  */
 
 import { h, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { ElNotification, ElMessageBox } from 'element-plus'
 import { serviceFactory } from '../../infrastructure/factories'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
@@ -18,17 +18,27 @@ import type { App as AppType, CreateAppRequest } from '@/architecture/domain/typ
 import { createApp, deleteApp, getAppList, getAppWithServiceTree, updateApp } from '@/architecture/presentation/context/api/app'
 import type { UpdateAppApiInfo, UpdateAppResponse } from '@/architecture/presentation/context/api/app'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
-import { normalizeGoPackageName, validateGoPackageName } from '@/architecture/domain/utils/goPackageName'
+import { normalizeGoPackageName, validateGoPackageName, type GoPackageNameValidationMessages } from '@/architecture/domain/utils/goPackageName'
 import { buildAppResourcePath } from '@/architecture/shared/resourcePath'
 import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
 import { RouteSource } from '@/architecture/shared/routing/routeSource'
 import { Logger } from '@/architecture/shared/logger'
 import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
+import { translate } from '@/architecture/shared/i18n'
 
 const UPDATE_DIFF_PREVIEW_LIMIT = 10
 const WORKSPACE_TASK_NOTIFICATION_CLASS = 'workspace-task-notification'
 
-type UpdateDiffKind = '新增' | '更新' | '删除'
+type UpdateDiffKind = 'add' | 'update' | 'delete'
+
+const UPDATE_DIFF_KIND_ORDER: UpdateDiffKind[] = ['add', 'update', 'delete']
+
+const goPackageValidationMessages: GoPackageNameValidationMessages = {
+  required: (label) => translate('workspace.codeRequired', { label }),
+  length: (label, minLength, maxLength) => translate('workspace.codeLength', { label, min: minLength, max: maxLength }),
+  pattern: (label) => translate('workspace.codePattern', { label }),
+  reserved: (label, code) => translate('workspace.codeReserved', { label, code })
+}
 
 interface UpdateNotificationItem {
   kind: UpdateDiffKind
@@ -37,7 +47,13 @@ interface UpdateNotificationItem {
 }
 
 function getUpdateApiDisplayName(api: UpdateAppApiInfo): string {
-  return api.name?.trim() || api.code?.trim() || '未命名函数'
+  return api.name?.trim() || api.code?.trim() || translate('workspace.unnamedFunction')
+}
+
+function getUpdateDiffKindLabel(kind: UpdateDiffKind): string {
+  if (kind === 'add') return translate('workspace.updateDiffAdd')
+  if (kind === 'update') return translate('workspace.updateDiffUpdate')
+  return translate('workspace.updateDiffDelete')
 }
 
 function resolveUpdateApiFullCodePath(response: UpdateAppResponse, api: UpdateAppApiInfo): string {
@@ -67,7 +83,7 @@ function appendUpdateNotificationItems(
   target.push(...items.map((api) => ({
     kind,
     name: getUpdateApiDisplayName(api),
-    fullCodePath: kind === '删除' ? '' : resolveUpdateApiFullCodePath(response, api)
+    fullCodePath: kind === 'delete' ? '' : resolveUpdateApiFullCodePath(response, api)
   })))
 }
 
@@ -77,9 +93,9 @@ function buildUpdateNotificationItems(response?: UpdateAppResponse): UpdateNotif
   }
 
   const items: UpdateNotificationItem[] = []
-  appendUpdateNotificationItems(items, response, '新增', response.diff?.add)
-  appendUpdateNotificationItems(items, response, '更新', response.diff?.update)
-  appendUpdateNotificationItems(items, response, '删除', response.diff?.delete)
+  appendUpdateNotificationItems(items, response, 'add', response.diff?.add)
+  appendUpdateNotificationItems(items, response, 'update', response.diff?.update)
+  appendUpdateNotificationItems(items, response, 'delete', response.diff?.delete)
   return items
 }
 
@@ -107,21 +123,26 @@ function renderUpdateNotificationMessage(response?: UpdateAppResponse) {
   const items = buildUpdateNotificationItems(response)
   const visibleItems = items.slice(0, UPDATE_DIFF_PREVIEW_LIMIT)
   const hiddenCount = Math.max(0, items.length - visibleItems.length)
-  const groupedVisibleItems: Array<[UpdateDiffKind, UpdateNotificationItem[]]> = (['新增', '更新', '删除'] as UpdateDiffKind[])
+  const groupedVisibleItems: Array<[UpdateDiffKind, UpdateNotificationItem[]]> = UPDATE_DIFF_KIND_ORDER
     .map((kind) => [kind, visibleItems.filter((item) => item.kind === kind)] as [UpdateDiffKind, UpdateNotificationItem[]])
     .filter(([, groupItems]) => groupItems.length > 0)
   const metaLines: string[] = []
 
   if (response?.old_version || response?.new_version) {
-    metaLines.push(`版本：${response.old_version || '-'} → ${response.new_version || '-'}`)
+    metaLines.push(translate('workspace.updateMetaVersion', {
+      oldVersion: response.old_version || '-',
+      newVersion: response.new_version || '-'
+    }))
   }
   if (response?.git_commit_hash) {
-    metaLines.push(`提交：${response.git_commit_hash.slice(0, 12)}`)
+    metaLines.push(translate('workspace.updateMetaCommit', { commit: response.git_commit_hash.slice(0, 12) }))
   }
   if (response?.warnings?.length) {
     const warnings = response.warnings.slice(0, 2).join('；')
-    const suffix = response.warnings.length > 2 ? ` 等 ${response.warnings.length} 条` : ''
-    metaLines.push(`提醒：${warnings}${suffix}`)
+    const suffix = response.warnings.length > 2
+      ? translate('workspace.updateMetaWarningsMore', { count: response.warnings.length - 2 })
+      : ''
+    metaLines.push(translate('workspace.updateMetaWarnings', { warnings: `${warnings}${suffix}` }))
   }
 
   return h(
@@ -134,7 +155,7 @@ function renderUpdateNotificationMessage(response?: UpdateAppResponse) {
           'div',
           { class: 'workspace-update-notification-groups' },
           groupedVisibleItems.map(([kind, groupItems]) => h('div', { class: 'workspace-update-notification-group' }, [
-            h('div', { class: 'workspace-update-notification-group-title' }, kind),
+            h('div', { class: 'workspace-update-notification-group-title' }, getUpdateDiffKindLabel(kind)),
             h(
               'ul',
               { class: 'workspace-update-notification-list' },
@@ -154,9 +175,9 @@ function renderUpdateNotificationMessage(response?: UpdateAppResponse) {
             )
           ]))
         )
-        : h('div', { class: 'workspace-update-notification-line' }, '函数列表已刷新，未检测到函数变更。'),
+        : h('div', { class: 'workspace-update-notification-line' }, translate('workspace.updateNoFunctionChanges')),
       hiddenCount > 0
-        ? h('div', { class: 'workspace-update-notification-more' }, `还有 ${hiddenCount} 个变更未显示`)
+        ? h('div', { class: 'workspace-update-notification-more' }, translate('workspace.updateHiddenChanges', { count: hiddenCount }))
         : null
     ]
   )
@@ -180,7 +201,6 @@ export function useWorkspaceApp(
   serviceProvider: IServiceProvider = serviceFactory  // 🔥 通过参数注入，提高可测试性
 ) {
   const route = useRoute()
-  const router = useRouter()
   const applicationService = serviceProvider.getWorkspaceApplicationService()
 
   // 工作空间列表状态
@@ -219,10 +239,10 @@ export function useWorkspaceApp(
     try {
       loadingApps.value = true
       appList.value = await getAppList(200)
-    } catch (error) {
+    } catch (_error) {
       ElNotification.error({
-        title: '错误',
-        message: '加载工作空间列表失败'
+        title: translate('common.error'),
+        message: translate('workspace.loadListFailed')
       })
       appList.value = []
     } finally {
@@ -299,17 +319,17 @@ export function useWorkspaceApp(
   const submitCreateApp = async (currentApp: () => AppType | null): Promise<void> => {
     if (!createAppForm.value.name || !createAppForm.value.code) {
       ElNotification.warning({
-        title: '提示',
-        message: '请填写名称和英文标识'
+        title: translate('common.warning'),
+        message: translate('workspace.createRequired')
       })
       return
     }
 
     const code = normalizeGoPackageName(createAppForm.value.code)
-    const codeError = validateGoPackageName(code, '英文标识', { minLength: 2 })
+    const codeError = validateGoPackageName(code, translate('workspace.createCode'), { minLength: 2 }, goPackageValidationMessages)
     if (codeError) {
       ElNotification.warning({
-        title: '提示',
+        title: translate('common.warning'),
         message: codeError
       })
       return
@@ -322,8 +342,8 @@ export function useWorkspaceApp(
         code
       })
       ElNotification.success({
-        title: '成功',
-        message: '工作空间创建成功'
+        title: translate('common.success'),
+        message: translate('workspace.createSuccess')
       })
       createAppDialogVisible.value = false
       
@@ -377,9 +397,9 @@ export function useWorkspaceApp(
       }
     } catch (error: any) {
       // 🔥 统一使用 msg 字段
-      const errorMessage = error?.response?.data?.msg || '创建工作空间失败'
+      const errorMessage = error?.response?.data?.msg || translate('workspace.createFailed')
       ElNotification.error({
-        title: '错误',
+        title: translate('common.error'),
         message: errorMessage
       })
     } finally {
@@ -393,8 +413,8 @@ export function useWorkspaceApp(
       ElNotification({
         ...workspaceTaskNotificationOptions(),
         type: 'warning',
-        title: '工作空间正在更新',
-        message: '已有更新任务在后台执行，请稍候完成后再试。',
+        title: translate('workspace.updateAlreadyRunningTitle'),
+        message: translate('workspace.updateAlreadyRunningMessage'),
         duration: 3500
       })
       return
@@ -403,8 +423,8 @@ export function useWorkspaceApp(
     const progressNotification = ElNotification({
       ...workspaceTaskNotificationOptions(),
       type: 'info',
-      title: '工作空间更新中',
-      message: `正在后台更新「${app.name || app.code}」，页面可以继续使用，完成后会自动刷新函数列表。`,
+      title: translate('workspace.updateInProgressTitle'),
+      message: translate('workspace.updateInProgressMessage', { name: app.name || app.code }),
       duration: 0,
       showClose: true
     }) as NotificationHandle
@@ -419,18 +439,18 @@ export function useWorkspaceApp(
       ElNotification({
         ...workspaceTaskNotificationOptions(),
         type: response?.warnings?.length ? 'warning' : 'success',
-        title: response?.warnings?.length ? '工作空间更新完成（有提醒）' : '工作空间更新完成',
+        title: response?.warnings?.length ? translate('workspace.updateCompleteWithWarningsTitle') : translate('workspace.updateCompleteTitle'),
         message: renderUpdateNotificationMessage(response),
         duration: response?.warnings?.length ? 0 : updateNotificationItems.length > 0 ? 15000 : 9000
       })
     } catch (error: any) {
       progressNotification.close()
       // 🔥 统一使用 msg 字段
-      const errorMessage = error?.response?.data?.msg || '更新工作空间失败'
+      const errorMessage = error?.response?.data?.msg || translate('workspace.updateFailed')
       ElNotification({
         ...workspaceTaskNotificationOptions(),
         type: 'error',
-        title: '工作空间更新失败',
+        title: translate('workspace.updateFailedTitle'),
         message: errorMessage,
         duration: 0
       })
@@ -443,19 +463,19 @@ export function useWorkspaceApp(
   const handleDeleteApp = async (app: AppType, currentApp: () => AppType | null): Promise<void> => {
     try {
       await ElMessageBox.confirm(
-        `确定要删除工作空间 "${app.name}" 吗？此操作不可恢复。`,
-        '确认删除',
+        translate('workspace.deleteConfirm', { name: app.name || app.code }),
+        translate('workspace.deleteConfirmTitle'),
         {
-          confirmButtonText: '删除',
-          cancelButtonText: '取消',
+          confirmButtonText: translate('common.delete'),
+          cancelButtonText: translate('common.cancel'),
           type: 'warning'
         }
       )
       
       await deleteApp(buildAppResourcePath(app.user, app.code))
       ElNotification.success({
-        title: '成功',
-        message: '工作空间删除成功'
+        title: translate('common.success'),
+        message: translate('workspace.deleteSuccess')
       })
       
       // 刷新工作空间列表
@@ -481,9 +501,9 @@ export function useWorkspaceApp(
     } catch (error: any) {
       if (error !== 'cancel') {
         // 🔥 统一使用 msg 字段
-        const errorMessage = error?.response?.data?.msg || '删除工作空间失败'
+        const errorMessage = error?.response?.data?.msg || translate('workspace.deleteFailed')
         ElNotification.error({
-          title: '错误',
+          title: translate('common.error'),
           message: errorMessage
         })
       }

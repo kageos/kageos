@@ -5,11 +5,23 @@
 
 本文用于统一 Kageos 官网、演示视频、产品介绍和对外话术。核心目标是用最简单、最狠的话讲清楚：Kageos 不是“更便宜的 AI 生成应用”，而是一个开箱即用的业务目录网络。用户可以从 Hub 安装成熟目录，在自己的空间私有运行和改造，也可以自己创造目录并发布回生态。
 
-## 开放与授权口径
+## 源码与授权口径
 
-Kageos 由恰研智能（qiayanai.com）打造，源码开放、可自托管，项目地址是 `github.com/kageos/kageos`。
+Kageos 由恰研智能（qiayanai.com）打造，源码公开、可自托管，项目地址是 `github.com/kageos/kageos`。
 
-当前 Kageos 核心采用 BSL 1.1，不是 OSI open source；它允许源码可见和自托管，限制第三方商业 Hosted Service，各版本到期后转 Apache-2.0。对外不要把当前核心说成“已开源”，推荐说“源码开放、可自托管；当前采用 BSL 1.1，未来转 Apache-2.0”。
+当前 Kageos 核心采用 BSL 1.1，不是 OSI open source；它允许查看、修改、分发和自托管，限制未经授权的商业 SaaS、MSP 托管、白标、OEM、嵌入、改名转售和竞品化产品/服务，各版本发布四年后转 Apache-2.0。对外不要把当前核心说成“已开源”，推荐说“源码公开、可自托管；当前采用 BSL 1.1，四年后转 Apache-2.0”。后续版本如果需要，也可以设置更早的 Change Date。
+
+标准短句：
+
+> Kageos 是源码公开、可自托管的业务目录平台；当前核心采用 BSL 1.1，限制未经授权的商业 SaaS、MSP 托管、白标、OEM、嵌入、改名转售和竞品化产品/服务，各版本发布四年后转 Apache-2.0。
+
+英文短句：
+
+> Kageos is source-available and self-hostable. The core platform is licensed under BSL 1.1 and converts to Apache-2.0 four years after release.
+
+标题或徽标旁边可以写：
+
+> Source-available · Self-hostable · BSL 1.1 · Apache-2.0 after 4 years
 
 ## 一句话定位
 

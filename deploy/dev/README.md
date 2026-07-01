@@ -9,6 +9,67 @@
 - 本地起前端
 - 不再要求开发同学去记 `customer`、`embedding`、根目录 compose 等历史路径
 
+## 给贡献者的推荐路径
+
+外部贡献者本地开发应优先使用 `kagectl`。本目录下的 compose 文件仍然保留，但它们是开发栈的底层实现和排障入口，不是日常上手入口。
+
+源码仓库里不要求贡献者提前安装独立的 `kagectl` 二进制。文档中的 `kagectl` 日常命令，在贡献者本地都可以写成：
+
+```bash
+go run ./cmd/kagectl <command>
+```
+
+如果是第一次从 GitHub 拿代码：
+
+```bash
+git clone https://github.com/kageos/kageos.git
+cd kageos
+```
+
+按开发目标选择路径：
+
+| 目标 | 推荐做法 |
+| --- | --- |
+| 第一次把完整产品跑起来 | `go run ./cmd/kagectl bootstrap --dev`，再另开终端跑 `cd web && npm run dev` |
+| 用 GoLand / VS Code 调试后端 | 先执行 `go run ./cmd/kagectl init --dev`，再从仓库根目录运行 `core/cmd/main/main.go` |
+| 只改前端 | 跑 `web` 的 dev server；需要连接已有后端时配置 `web/.env.development.local` 里的 `VITE_PROXY_TARGET` |
+| 排查本地基础设施 | 先用 `kagectl status`、`kagectl doctor`、`kagectl verify`、`kagectl logs`，再看底层 compose |
+
+`bootstrap --dev` 已经包含初始化步骤，会先完成 `init --dev` 对应的开发模式准备，再启动本地基础设施和后端主进程。只有在你想用 IDE 自己启动后端，或者只想初始化不启动后端时，才需要单独执行 `go run ./cmd/kagectl init --dev`。
+
+本地开发默认优先使用 Podman。若贡献者本机更习惯 Docker，可在首次启动时显式选择：
+
+```bash
+go run ./cmd/kagectl bootstrap --dev --engine docker
+```
+
+首次启动可能会因为构建本地用户应用基础镜像而比较慢。本地验证码默认走日志模式，不会调用真实 SMTP；验证码可从后端日志或接口返回的 debug code 中查看。
+
+## 启动后如何登录
+
+前后端都启动后，浏览器打开：
+
+```text
+http://localhost:5173
+```
+
+首次执行 `bootstrap --dev` 或 `init --dev` 时，终端会打印 `Kageos dev initialization summary`。本地默认管理员：
+
+```text
+Username: system
+Password: 使用 summary 里的 Admin password
+```
+
+如果终端输出已经被刷掉，可以再次执行下面命令重新打印 summary，不会自动重置已有本地密钥：
+
+```bash
+go run ./cmd/kagectl init --dev
+```
+
+也可以从 `.kageos/dev/env/kageos.env` 读取 `SYSTEM_USER_PASSWORD`。该文件包含本地随机密钥和密码，只能作为本机私有运行状态，不要提交。
+
+如果想注册新账号，本地默认 `SMTP_MODE=log`，不会真的发邮件。验证码会写入后端日志，并通过 `send_email_code` 接口返回的 `debug_code` 暴露给本地开发使用。
+
 ## 官方入口
 
 ### 1. 一键启动开发后端

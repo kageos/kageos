@@ -3,7 +3,6 @@
  */
 
 import { ValidatorRegistry } from './ValidatorRegistry'
-import { ValidationEngine } from './ValidationEngine'
 import { RequiredValidator } from './validators/RequiredValidator'
 import { MinValidator } from './validators/MinValidator'
 import { MaxValidator } from './validators/MaxValidator'

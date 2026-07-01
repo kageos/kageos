@@ -566,12 +566,6 @@ export function useOperateLogSection({
     return fields.find((field: any) => field.code === fieldCode) || null
   }
 
-  const getFieldName = (fieldCode: string | number, fullCodePathForLog?: string): string => {
-    const normalizedFieldCode = String(fieldCode)
-    const field = getFieldConfig(normalizedFieldCode, fullCodePathForLog)
-    return field?.name || normalizedFieldCode
-  }
-
   const formatLogValue = (rawValue: any): string => {
     if (rawValue === null || rawValue === undefined || rawValue === '') {
       return t('operateLog.emptyValue')

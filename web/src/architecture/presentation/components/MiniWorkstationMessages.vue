@@ -28,7 +28,13 @@
       </div>
       <template v-else>
         <div class="mini-msg-assistant-header">
-          <span class="mini-msg-badge">{{ t('miniWorkstation.workbench') }}</span>
+          <MiniWorkstationResourceIdentity
+            variant="message"
+            :name="counterpartName"
+            :full-code-path="fullCodePath"
+            :resource-type="resourceType"
+            :resource-template-type="resourceTemplateType"
+          />
           <span v-if="getAssistantModelLabel(msg)" class="mini-msg-model">{{ getAssistantModelLabel(msg) }}</span>
           <span
             v-if="getAssistantCacheLabel(msg)"
@@ -222,6 +228,7 @@ import OutputFilesDisplay from './OutputFilesDisplay.vue'
 import PrdPreview from './PrdPreview.vue'
 import BuildWorkspaceDiagnosticsCard from './BuildWorkspaceDiagnosticsCard.vue'
 import MiniWorkstationPendingActionBar from './MiniWorkstationPendingActionBar.vue'
+import MiniWorkstationResourceIdentity from './MiniWorkstationResourceIdentity.vue'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { WorkspaceInteraction } from '@/architecture/presentation/context/api/workspace'
@@ -235,17 +242,27 @@ const { t } = useI18n()
 const authStore = useAuthStore()
 const currentUsername = authStore.user?.username || authStore.userName || ''
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   messages: ChatMessage[]
   maximized: boolean
   sending: boolean
+  counterpartName?: string
+  fullCodePath?: string
+  resourceType?: string
+  resourceTemplateType?: string
   streamingDisplayLength: number
   renderMarkdown: (text: string) => string
   formatMessageTime: (value: string) => string
   getFileGroupsFromCalls: (calls: ChatMessageToolCall[]) => OutputFileGroup[]
   getDisplayFieldsFromCalls: (calls: ChatMessageToolCall[]) => OutputDisplayField[]
   pendingInteraction?: WorkspaceInteraction | null
-}>()
+}>(), {
+  counterpartName: '',
+  fullCodePath: '',
+  resourceType: '',
+  resourceTemplateType: '',
+  pendingInteraction: null,
+})
 
 const emit = defineEmits<{
   (e: 'confirm-prd', payload: { remark: string; prd: unknown }): void
@@ -540,10 +557,10 @@ onBeforeUnmount(() => {
   justify-content: center;
   height: 100%;
   min-height: 80px;
-  color: var(--mini-cyber-dim, rgba(143, 187, 204, 0.48));
+  color: var(--text-placeholder);
   font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .mini-msg {
@@ -569,25 +586,12 @@ onBeforeUnmount(() => {
 }
 .mini-msg-user-display :deep(.user-display-wrapper) {
   display: inline-flex;
-  color: var(--mini-cyber-text, #d8f8ff);
-}
-.mini-msg-badge {
-  flex-shrink: 0;
-  border: 1px solid rgba(96, 231, 255, 0.28);
-  background: rgba(34, 211, 238, 0.16);
-  color: var(--mini-cyber-text, #d8f8ff);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  padding: 2px 6px;
-  border-radius: 999px;
-  margin-top: 1px;
-  box-shadow: 0 0 14px rgba(34, 211, 238, 0.12);
+  color: var(--text-primary);
 }
 .mini-msg-time {
   flex-shrink: 0;
   font-size: 11px;
-  color: var(--mini-cyber-dim, rgba(143, 187, 204, 0.48));
+  color: var(--text-placeholder);
   margin-top: 2px;
 }
 .mini-msg-assistant-header {
@@ -603,10 +607,10 @@ onBeforeUnmount(() => {
   max-width: 220px;
   overflow: hidden;
   padding: 2px 6px;
-  border: 1px solid rgba(119, 107, 255, 0.24);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.18);
   border-radius: 999px;
-  background: rgba(119, 107, 255, 0.1);
-  color: #bcb7ff;
+  background: rgba(var(--color-primary-rgb), 0.08);
+  color: var(--color-primary);
   font-size: 10px;
   font-weight: 700;
   line-height: 1.2;
@@ -616,10 +620,10 @@ onBeforeUnmount(() => {
 .mini-msg-cache {
   flex-shrink: 0;
   padding: 2px 6px;
-  border: 1px solid rgba(74, 222, 128, 0.22);
+  border: 1px solid rgba(var(--color-success-rgb), 0.18);
   border-radius: 999px;
-  background: rgba(34, 197, 94, 0.09);
-  color: rgba(187, 247, 208, 0.9);
+  background: rgba(var(--color-success-rgb), 0.08);
+  color: var(--color-success);
   font-size: 10px;
   font-weight: 700;
   line-height: 1.2;
@@ -634,38 +638,31 @@ onBeforeUnmount(() => {
   gap: 4px;
   flex-shrink: 0;
   padding: 2px 6px;
-  border: 1px solid rgba(96, 231, 255, 0.18);
+  border: 1px solid var(--border-light);
   border-radius: 999px;
-  background: rgba(34, 211, 238, 0.08);
-  color: rgba(184, 225, 235, 0.74);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   font-size: 10px;
   font-weight: 700;
   line-height: 1.2;
 }
 .mini-msg-output-duration--running {
-  border-color: rgba(96, 231, 255, 0.26);
-  color: #bff8ff;
+  border-color: rgba(var(--color-primary-rgb), 0.2);
+  color: var(--color-primary);
 }
 .mini-msg-output-duration-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: currentColor;
-  box-shadow: 0 0 8px rgba(96, 231, 255, 0.5);
-}
-.mini-msg-assistant-header .mini-msg-badge {
-  border-color: rgba(246, 199, 107, 0.3);
-  background: rgba(246, 199, 107, 0.12);
-  color: #ffe7ad;
+  box-shadow: none;
 }
 .mini-msg-assistant {
   padding: 8px 10px;
-  border: 1px solid rgba(96, 231, 255, 0.14);
-  border-radius: 13px;
-  background:
-    linear-gradient(145deg, rgba(9, 28, 48, 0.72), rgba(4, 12, 24, 0.48)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--bg-primary);
+  box-shadow: none;
 }
 
 .mini-content-block {
@@ -673,7 +670,7 @@ onBeforeUnmount(() => {
   font-size: 12px;
   line-height: 1.6;
   font-family: inherit;
-  color: var(--mini-cyber-text, #d8f8ff);
+  color: var(--text-primary);
   word-break: break-word;
 }
 .mini-md-content :deep(p) {
@@ -691,27 +688,25 @@ onBeforeUnmount(() => {
   margin: 2px 0;
 }
 .mini-md-content :deep(code) {
-  background: rgba(34, 211, 238, 0.1);
-  border: 1px solid rgba(96, 231, 255, 0.13);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
   padding: 1px 4px;
   border-radius: 3px;
   font-size: 11px;
   font-family: 'SF Mono', 'Fira Code', monospace;
-  color: #bff8ff;
+  color: var(--text-primary);
 }
 .mini-md-content :deep(pre) {
-  background:
-    linear-gradient(180deg, rgba(2, 8, 18, 0.94), rgba(4, 13, 24, 0.9)),
-    repeating-linear-gradient(90deg, rgba(96, 231, 255, 0.035) 0 1px, transparent 1px 20px);
-  color: #d8f8ff;
-  border: 1px solid rgba(96, 231, 255, 0.16);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
   padding: 8px 10px;
   border-radius: 10px;
   overflow-x: auto;
   margin: 6px 0;
   font-size: 11px;
   line-height: 1.5;
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.26);
+  box-shadow: none;
 }
 .mini-md-content :deep(pre code) {
   background: none;
@@ -732,9 +727,9 @@ onBeforeUnmount(() => {
 .mini-md-content :deep(blockquote) {
   margin: 4px 0;
   padding: 2px 8px;
-  border-left: 3px solid rgba(34, 211, 238, 0.42);
-  color: var(--mini-cyber-muted, rgba(184, 225, 235, 0.68));
-  background: rgba(34, 211, 238, 0.06);
+  border-left: 3px solid rgba(var(--color-primary-rgb), 0.24);
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
 }
 .mini-md-content :deep(table) {
   border-collapse: collapse;
@@ -744,15 +739,15 @@ onBeforeUnmount(() => {
 }
 .mini-md-content :deep(th),
 .mini-md-content :deep(td) {
-  border: 1px solid rgba(96, 231, 255, 0.16);
+  border: 1px solid var(--border-light);
   padding: 3px 6px;
 }
 .mini-md-content :deep(th) {
-  background: rgba(34, 211, 238, 0.1);
+  background: var(--bg-tertiary);
   font-weight: 600;
 }
 .mini-md-content :deep(a) {
-  color: var(--mini-cyber-accent, #22d3ee);
+  color: var(--color-primary);
   text-decoration: none;
 }
 .mini-md-content :deep(img) {
@@ -762,10 +757,10 @@ onBeforeUnmount(() => {
   max-height: 180px;
   margin: 6px 0;
   object-fit: contain;
-  border: 1px solid rgba(96, 231, 255, 0.16);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: rgba(2, 8, 18, 0.34);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  background: var(--bg-tertiary);
+  box-shadow: none;
 }
 .mini-msg--maximized .mini-md-content :deep(img) {
   max-width: min(100%, 460px);
@@ -773,7 +768,7 @@ onBeforeUnmount(() => {
 }
 .mini-md-content :deep(hr) {
   border: none;
-  border-top: 1px solid rgba(96, 231, 255, 0.16);
+  border-top: 1px solid var(--border-light);
   margin: 8px 0;
 }
 .mini-tools-block {
@@ -787,9 +782,9 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 3px;
   font-size: 11px;
-  color: var(--mini-cyber-muted, rgba(184, 225, 235, 0.68));
-  border: 1px solid rgba(96, 231, 255, 0.16);
-  background: rgba(34, 211, 238, 0.08);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+  background: var(--bg-tertiary);
   padding: 2px 6px;
   border-radius: 999px;
 }
@@ -801,12 +796,10 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 4px;
   padding: 8px 10px;
-  border: 1px solid rgba(34, 211, 238, 0.22);
-  border-radius: 13px;
-  background:
-    linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(8, 22, 38, 0.48)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
-  color: var(--mini-cyber-text, #d8f8ff);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.18);
+  border-radius: 10px;
+  background: rgba(var(--color-primary-rgb), 0.08);
+  color: var(--text-primary);
 }
 .mini-msg-files {
   margin: 4px 0;
@@ -816,45 +809,45 @@ onBeforeUnmount(() => {
   margin: 6px 0;
 }
 .mini-msg-build-diagnostics {
-  --el-text-color-primary: var(--mini-cyber-text, #d8f8ff);
-  --el-text-color-regular: rgba(216, 248, 255, 0.86);
-  --el-text-color-secondary: rgba(173, 220, 233, 0.68);
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-primary);
+  --el-text-color-secondary: var(--text-secondary);
   --el-border-color-lighter: rgba(248, 113, 113, 0.28);
   --el-border-color-extra-light: rgba(248, 113, 113, 0.14);
-  --el-fill-color-blank: rgba(34, 18, 30, 0.82);
-  --el-fill-color-lighter: rgba(18, 12, 24, 0.64);
+  --el-fill-color-blank: var(--bg-primary);
+  --el-fill-color-lighter: var(--bg-tertiary);
 
   margin: 6px 0;
   border-radius: 8px;
 }
 .mini-msg-prd-preview :deep(.prd-preview) {
-  --prd-bg: rgba(8, 22, 38, 0.66);
-  --prd-surface: rgba(12, 31, 50, 0.82);
-  --prd-surface-strong: rgba(10, 26, 43, 0.78);
-  --prd-control-bg: rgba(5, 17, 30, 0.72);
-  --prd-muted-bg: rgba(96, 231, 255, 0.10);
-  --prd-primary-bg: rgba(34, 211, 238, 0.14);
+  --prd-bg: var(--bg-primary);
+  --prd-surface: var(--bg-secondary);
+  --prd-surface-strong: var(--bg-secondary);
+  --prd-control-bg: var(--bg-tertiary);
+  --prd-muted-bg: var(--bg-tertiary);
+  --prd-primary-bg: rgba(var(--color-primary-rgb), 0.08);
   --prd-danger-bg: rgba(248, 113, 113, 0.14);
   --prd-warning-bg: rgba(251, 191, 36, 0.13);
-  --prd-border: rgba(96, 231, 255, 0.18);
-  --prd-border-soft: rgba(96, 231, 255, 0.12);
-  --prd-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
-  --el-text-color-primary: var(--mini-cyber-text, #d8f8ff);
-  --el-text-color-regular: rgba(216, 248, 255, 0.86);
-  --el-text-color-secondary: rgba(173, 220, 233, 0.68);
-  --el-text-color-placeholder: rgba(173, 220, 233, 0.42);
-  --el-border-color: rgba(96, 231, 255, 0.18);
-  --el-border-color-light: rgba(96, 231, 255, 0.14);
-  --el-border-color-lighter: rgba(96, 231, 255, 0.12);
-  --el-border-color-extra-light: rgba(96, 231, 255, 0.08);
-  --el-fill-color-blank: rgba(12, 31, 50, 0.82);
-  --el-fill-color-extra-light: rgba(8, 22, 38, 0.66);
-  --el-fill-color-light: rgba(12, 31, 50, 0.70);
+  --prd-border: var(--border-light);
+  --prd-border-soft: var(--border-light);
+  --prd-shadow: none;
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-primary);
+  --el-text-color-secondary: var(--text-secondary);
+  --el-text-color-placeholder: var(--text-placeholder);
+  --el-border-color: var(--border-light);
+  --el-border-color-light: var(--border-light);
+  --el-border-color-lighter: var(--border-light);
+  --el-border-color-extra-light: var(--border-light);
+  --el-fill-color-blank: var(--bg-secondary);
+  --el-fill-color-extra-light: var(--bg-primary);
+  --el-fill-color-light: var(--bg-tertiary);
 
   margin-top: 0;
-  border-color: rgba(96, 231, 255, 0.16);
-  background: rgba(2, 8, 18, 0.34);
-  color: var(--mini-cyber-text, #d8f8ff);
+  border-color: var(--border-light);
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 .mini-msg-prd-preview :deep(.prd-preview-head),
 .mini-msg-prd-preview :deep(.prd-section) {
@@ -870,15 +863,15 @@ onBeforeUnmount(() => {
 }
 .mini-msg-files :deep(.output-files-wrap) {
   padding: 6px;
-  border-color: rgba(96, 231, 255, 0.14);
-  background: rgba(2, 8, 18, 0.34);
+  border-color: var(--border-light);
+  background: var(--bg-primary);
 }
 .mini-msg-files :deep(.output-files-item) {
   padding: 6px;
   min-width: 120px;
   min-height: 0;
-  border-color: rgba(96, 231, 255, 0.14);
-  background: rgba(8, 22, 38, 0.62);
+  border-color: var(--border-light);
+  background: var(--bg-secondary);
 }
 .mini-msg-files :deep(.output-files-main) {
   grid-template-columns: 40px minmax(0, 1fr);

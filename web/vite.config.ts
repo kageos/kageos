@@ -53,6 +53,9 @@ export default defineConfig(({ command, mode }) => {
     ],
   },
   build: {
+    // This app intentionally ships heavy chart/editor surfaces. Keep the warning
+    // meaningful for unexpected growth without flagging the known vendor chunks.
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -63,20 +66,8 @@ export default defineConfig(({ command, mode }) => {
           if (id.includes('/zrender/')) {
             return 'vendor-zrender'
           }
-          if (id.includes('echarts/lib/chart/bar/')) {
-            return 'vendor-echarts-bar'
-          }
-          if (id.includes('echarts/lib/chart/line/')) {
-            return 'vendor-echarts-line'
-          }
-          if (id.includes('echarts/lib/chart/pie/')) {
-            return 'vendor-echarts-pie'
-          }
-          if (id.includes('echarts/lib/chart/gauge/')) {
-            return 'vendor-echarts-gauge'
-          }
           if (id.includes('echarts') || id.includes('vue-echarts')) {
-            return 'vendor-echarts-core'
+            return 'vendor-echarts'
           }
           if (id.includes('monaco-editor') || id.includes('@monaco-editor')) {
             return 'vendor-monaco'

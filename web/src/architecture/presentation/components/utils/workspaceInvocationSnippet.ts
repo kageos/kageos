@@ -1,3 +1,6 @@
+import { escapeHtml } from '@/architecture/shared/sanitizeHtml'
+import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
+
 export type WorkspaceInvocationTool =
   | 'run_form_submit'
   | 'run_table_create'
@@ -117,6 +120,74 @@ export function parseWorkspacePromptSegments(text: string, basePath = ''): Works
   }
 
   return segments
+}
+
+export function renderWorkspaceResourceTokensAsHtml(text: string, basePath = ''): string {
+  const source = String(text || '')
+  const segments = parseWorkspacePromptSegments(source, basePath)
+  if (!segments.some((segment) => segment.type === 'resource')) {
+    return source
+  }
+
+  return segments.map((segment) => {
+    if (segment.type !== 'resource') {
+      return segment.text
+    }
+    return renderWorkspaceResourceToken(segment)
+  }).join('')
+}
+
+export function workspaceResourceKind(pathOrToken: string): string {
+  const path = normalizeWorkspaceResourcePath(pathOrToken)
+  const { pathPart } = splitWorkspacePathQuery(path)
+  if (pathPart.endsWith('.table')) return 'table'
+  if (pathPart.endsWith('.form')) return 'form'
+  if (pathPart.endsWith('.chart')) return 'chart'
+  if (pathPart.endsWith('.docs')) return 'docs'
+  return 'directory'
+}
+
+function renderWorkspaceResourceToken(segment: WorkspacePromptSegment): string {
+  const path = normalizeWorkspaceResourcePath(segment.path || segment.text)
+  if (!path) {
+    return escapeHtml(segment.text)
+  }
+  const kind = workspaceResourceKind(path)
+  const href = resolveWorkspaceUrl(path)
+  const label = workspaceResourceLabel(path)
+  const typeLabel = workspaceResourceTypeLabel(kind)
+  return [
+    `<a class="workspace-resource-token is-${escapeHtml(kind)}"`,
+    ` href="${escapeHtml(href)}"`,
+    ` data-full-code-path="${escapeHtml(path)}"`,
+    ` title="${escapeHtml(path)}">`,
+    `<span class="workspace-resource-token__dot"></span>`,
+    `<span class="workspace-resource-token__label">${escapeHtml(label)}</span>`,
+    `<span class="workspace-resource-token__type">${escapeHtml(typeLabel)}</span>`,
+    `</a>`,
+  ].join('')
+}
+
+function workspaceResourceLabel(pathOrToken: string): string {
+  const path = normalizeWorkspaceResourcePath(pathOrToken)
+  const { pathPart } = splitWorkspacePathQuery(path)
+  const tail = pathPart.split('/').filter(Boolean).pop()
+  return tail || path || pathOrToken
+}
+
+function workspaceResourceTypeLabel(kind: string): string {
+  switch (kind) {
+    case 'table':
+      return 'Table'
+    case 'form':
+      return 'Form'
+    case 'chart':
+      return 'Chart'
+    case 'docs':
+      return 'Docs'
+    default:
+      return '目录'
+  }
 }
 
 export function buildWorkspaceInvocationSnippet(input: WorkspaceInvocationSnippetInput): string {

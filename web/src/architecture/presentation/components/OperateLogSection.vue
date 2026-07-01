@@ -536,9 +536,8 @@
 import { computed, ref, toRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Clock, Refresh, Search, ArrowDown } from '@element-plus/icons-vue'
+import { Clock, Refresh, Search } from '@element-plus/icons-vue'
 
-const isCollapsed = ref(true)
 import {
   ElButton,
   ElDialog,

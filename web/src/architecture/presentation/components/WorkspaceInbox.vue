@@ -1520,22 +1520,40 @@ defineExpose({
 }
 
 .workspace-inbox-button {
-  width: 40px;
-  height: 40px;
-  border-color: var(--app-shell-panel-border);
-  background: var(--app-shell-panel-muted-bg);
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  border-color: color-mix(in srgb, var(--app-shell-panel-border) 76%, transparent);
+  background: color-mix(in srgb, var(--app-shell-panel-bg) 44%, transparent);
   color: var(--el-text-color-primary);
-  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+  box-shadow: none;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+
+  :deep(.el-icon) {
+    font-size: 15px;
+  }
 
   &:hover {
     color: var(--el-color-primary);
-    border-color: var(--el-color-primary-light-5);
-    background: var(--el-color-primary-light-9);
+    border-color: rgba(var(--el-color-primary-rgb), 0.22);
+    background: color-mix(in srgb, var(--app-shell-panel-bg) 64%, transparent);
+  }
+
+  &:focus-visible {
+    border-color: rgba(var(--el-color-primary-rgb), 0.4);
+    box-shadow: 0 0 0 2px rgba(var(--el-color-primary-rgb), 0.08);
   }
 }
 
 .workspace-inbox-badge :deep(.el-badge__content) {
+  height: 16px;
+  min-width: 16px;
+  padding: 0 4px;
+  border: none;
   box-shadow: 0 0 0 2px var(--app-shell-panel-bg);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
 }
 
 .inbox-shell {

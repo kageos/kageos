@@ -4,7 +4,6 @@
 
 import { FunctionLoaderImpl } from './FunctionLoaderImpl'
 import type { IFunctionLoader } from '../../domain/interfaces/IFunctionLoader'
-import type { FunctionDetail } from '../../domain/types'
 import { apiClient } from '../apiClient'
 import { cacheManager } from '../cacheManager'
 

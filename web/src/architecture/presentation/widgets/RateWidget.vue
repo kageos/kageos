@@ -281,30 +281,6 @@ const rateValue = computed(() => {
   return Math.max(0, Math.min(max.value, numValue))
 })
 
-// 显示值
-const displayValue = computed(() => {
-  const value = props.value
-  if (!value) {
-    return '-'
-  }
-  
-  if (value.display) {
-    return value.display
-  }
-  
-  const raw = value.raw
-  if (raw === null || raw === undefined || raw === '') {
-    return '-'
-  }
-  
-  const numValue = Number(raw)
-  if (isNaN(numValue)) {
-    return String(raw)
-  }
-  
-  return String(numValue)
-})
-
 // 评分模板（用于 show-score）
 const scoreTemplate = computed(() => {
   return '{value} 分'
@@ -325,7 +301,7 @@ function getTextLabel(value: number): string {
 /**
  * 处理编辑模式的值变化
  */
-function handleChange(value: number): void {
+function handleChange(_value: number): void {
   // 值变化已在 internalValue 的 setter 中处理
 }
 

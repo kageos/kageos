@@ -1,7 +1,7 @@
 <template>
   <div class="editor-toolbar">
     <div class="toolbar-group toolbar-group-preview">
-      <el-tooltip :content="isPreviewMode ? '编辑模式' : '预览模式'" placement="bottom">
+      <el-tooltip :content="isPreviewMode ? t('richText.editMode') : t('richText.previewMode')" placement="bottom">
         <button
           type="button"
           @click="$emit('toggle-preview')"
@@ -18,7 +18,7 @@
 
     <template v-if="!isPreviewMode">
       <div class="toolbar-group">
-        <el-tooltip content="粗体" placement="bottom">
+        <el-tooltip :content="t('richText.bold')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleBold().run()"
@@ -28,7 +28,7 @@
             <strong style="font-size: 14px;">B</strong>
           </button>
         </el-tooltip>
-        <el-tooltip content="斜体" placement="bottom">
+        <el-tooltip :content="t('richText.italic')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleItalic().run()"
@@ -38,7 +38,7 @@
             <em style="font-size: 14px;">I</em>
           </button>
         </el-tooltip>
-        <el-tooltip content="删除线" placement="bottom">
+        <el-tooltip :content="t('richText.strike')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleStrike().run()"
@@ -48,7 +48,7 @@
             <s style="font-size: 14px;">S</s>
           </button>
         </el-tooltip>
-        <el-tooltip content="下划线" placement="bottom">
+        <el-tooltip :content="t('richText.underline')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleUnderline().run()"
@@ -63,7 +63,7 @@
       <div class="toolbar-divider"></div>
 
       <div class="toolbar-group">
-        <el-tooltip content="正文" placement="bottom">
+        <el-tooltip :content="t('richText.paragraph')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().setParagraph().run()"
@@ -73,7 +73,7 @@
             <el-icon><Document /></el-icon>
           </button>
         </el-tooltip>
-        <el-tooltip content="标题 1" placement="bottom">
+        <el-tooltip :content="t('richText.heading1')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleHeading({ level: 1 }).run()"
@@ -83,7 +83,7 @@
             <span class="heading-text">H1</span>
           </button>
         </el-tooltip>
-        <el-tooltip content="标题 2" placement="bottom">
+        <el-tooltip :content="t('richText.heading2')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
@@ -93,7 +93,7 @@
             <span class="heading-text">H2</span>
           </button>
         </el-tooltip>
-        <el-tooltip content="标题 3" placement="bottom">
+        <el-tooltip :content="t('richText.heading3')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
@@ -108,7 +108,7 @@
       <div class="toolbar-divider"></div>
 
       <div class="toolbar-group">
-        <el-tooltip content="无序列表" placement="bottom">
+        <el-tooltip :content="t('richText.bulletList')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleBulletList().run()"
@@ -118,7 +118,7 @@
             <el-icon><List /></el-icon>
           </button>
         </el-tooltip>
-        <el-tooltip content="有序列表" placement="bottom">
+        <el-tooltip :content="t('richText.orderedList')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleOrderedList().run()"
@@ -128,7 +128,7 @@
             <el-icon><Sort /></el-icon>
           </button>
         </el-tooltip>
-        <el-tooltip content="任务列表" placement="bottom">
+        <el-tooltip :content="t('richText.taskList')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleTaskList().run()"
@@ -138,7 +138,7 @@
             <el-icon><CircleCheck /></el-icon>
           </button>
         </el-tooltip>
-        <el-tooltip content="引用" placement="bottom">
+        <el-tooltip :content="t('richText.blockquote')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleBlockquote().run()"
@@ -153,7 +153,7 @@
       <div class="toolbar-divider"></div>
 
       <div class="toolbar-group">
-        <el-tooltip content="左对齐" placement="bottom">
+        <el-tooltip :content="t('richText.alignLeft')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().setTextAlign('left').run()"
@@ -163,7 +163,7 @@
             <span style="font-size: 14px; font-weight: bold;">◀</span>
           </button>
         </el-tooltip>
-        <el-tooltip content="居中" placement="bottom">
+        <el-tooltip :content="t('richText.alignCenter')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().setTextAlign('center').run()"
@@ -173,7 +173,7 @@
             <span style="font-size: 14px; font-weight: bold;">⬌</span>
           </button>
         </el-tooltip>
-        <el-tooltip content="右对齐" placement="bottom">
+        <el-tooltip :content="t('richText.alignRight')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().setTextAlign('right').run()"
@@ -188,7 +188,7 @@
       <div class="toolbar-divider"></div>
 
       <div class="toolbar-group">
-        <el-tooltip content="行内代码" placement="bottom">
+        <el-tooltip :content="t('richText.inlineCode')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleCode().run()"
@@ -198,7 +198,7 @@
             <span style="font-size: 12px; font-family: monospace;">&lt;/&gt;</span>
           </button>
         </el-tooltip>
-        <el-tooltip content="代码块" placement="bottom">
+        <el-tooltip :content="t('richText.codeBlock')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleCodeBlock().run()"
@@ -213,7 +213,7 @@
       <div class="toolbar-divider"></div>
 
       <div class="toolbar-group">
-        <el-tooltip content="文字颜色" placement="bottom">
+        <el-tooltip :content="t('richText.textColor')" placement="bottom">
           <div class="color-picker-wrapper">
             <input
               type="color"
@@ -230,14 +230,14 @@
             </button>
           </div>
         </el-tooltip>
-        <el-tooltip content="背景高亮" placement="bottom">
+        <el-tooltip :content="t('richText.highlight')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().toggleHighlight().run()"
             :class="{ 'is-active': editor.isActive('highlight') }"
             class="toolbar-button"
           >
-            <span style="background-color: yellow; padding: 2px 4px; border-radius: 2px;">高</span>
+            <span style="background-color: yellow; padding: 2px 4px; border-radius: 2px;">H</span>
           </button>
         </el-tooltip>
       </div>
@@ -245,7 +245,7 @@
       <div class="toolbar-divider"></div>
 
       <div class="toolbar-group">
-        <el-tooltip content="链接" placement="bottom">
+        <el-tooltip :content="t('richText.link')" placement="bottom">
           <button
             type="button"
             @click="$emit('set-link')"
@@ -255,7 +255,7 @@
             <el-icon><LinkIcon /></el-icon>
           </button>
         </el-tooltip>
-        <el-tooltip content="表格" placement="bottom">
+        <el-tooltip :content="t('richText.table')" placement="bottom">
           <el-dropdown trigger="click" placement="bottom-start" @command="$emit('table-command', String($event))">
             <button
               type="button"
@@ -268,41 +268,41 @@
               <el-dropdown-menu>
                 <el-dropdown-item command="insert">
                   <el-icon style="margin-right: 8px;"><Plus /></el-icon>
-                  插入表格 (3x3)
+                  {{ t('richText.insertTable') }}
                 </el-dropdown-item>
                 <el-dropdown-item command="addColumnBefore" :disabled="!editor.isActive('table')" divided>
                   <el-icon style="margin-right: 8px;"><Plus /></el-icon>
-                  左侧插入列
+                  {{ t('richText.addColumnBefore') }}
                 </el-dropdown-item>
                 <el-dropdown-item command="addColumnAfter" :disabled="!editor.isActive('table')">
                   <el-icon style="margin-right: 8px;"><Plus /></el-icon>
-                  右侧插入列
+                  {{ t('richText.addColumnAfter') }}
                 </el-dropdown-item>
                 <el-dropdown-item command="deleteColumn" :disabled="!editor.isActive('table')">
                   <el-icon style="margin-right: 8px;"><Remove /></el-icon>
-                  删除当前列
+                  {{ t('richText.deleteColumn') }}
                 </el-dropdown-item>
                 <el-dropdown-item command="addRowBefore" :disabled="!editor.isActive('table')" divided>
                   <el-icon style="margin-right: 8px;"><Plus /></el-icon>
-                  上方插入行
+                  {{ t('richText.addRowBefore') }}
                 </el-dropdown-item>
                 <el-dropdown-item command="addRowAfter" :disabled="!editor.isActive('table')">
                   <el-icon style="margin-right: 8px;"><Plus /></el-icon>
-                  下方插入行
+                  {{ t('richText.addRowAfter') }}
                 </el-dropdown-item>
                 <el-dropdown-item command="deleteRow" :disabled="!editor.isActive('table')">
                   <el-icon style="margin-right: 8px;"><Remove /></el-icon>
-                  删除当前行
+                  {{ t('richText.deleteRow') }}
                 </el-dropdown-item>
                 <el-dropdown-item command="deleteTable" :disabled="!editor.isActive('table')" divided>
                   <el-icon style="margin-right: 8px;"><Delete /></el-icon>
-                  删除表格
+                  {{ t('richText.deleteTable') }}
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
         </el-tooltip>
-        <el-tooltip content="分隔线" placement="bottom">
+        <el-tooltip :content="t('richText.horizontalRule')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().setHorizontalRule().run()"
@@ -316,7 +316,7 @@
       <div class="toolbar-divider"></div>
 
       <div class="toolbar-group">
-        <el-tooltip content="清除格式" placement="bottom">
+        <el-tooltip :content="t('richText.clearFormatting')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().clearNodes().unsetAllMarks().run()"
@@ -325,7 +325,7 @@
             <el-icon><Delete /></el-icon>
           </button>
         </el-tooltip>
-        <el-tooltip content="撤销" placement="bottom">
+        <el-tooltip :content="t('richText.undo')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().undo().run()"
@@ -335,7 +335,7 @@
             <el-icon><RefreshLeft /></el-icon>
           </button>
         </el-tooltip>
-        <el-tooltip content="重做" placement="bottom">
+        <el-tooltip :content="t('richText.redo')" placement="bottom">
           <button
             type="button"
             @click="editor.chain().focus().redo().run()"
@@ -352,6 +352,7 @@
 
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3'
+import { useI18n } from 'vue-i18n'
 import {
   Document,
   List,
@@ -383,6 +384,8 @@ defineEmits<{
   (e: 'table-command', command: string): void
   (e: 'text-color-change', color: string): void
 }>()
+
+const { t } = useI18n()
 </script>
 
 <style scoped>

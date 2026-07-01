@@ -9,7 +9,7 @@
       <!-- 文本格式组 -->
       <div class="toolbar-group">
         <el-button-group>
-          <el-tooltip content="粗体" placement="bottom">
+          <el-tooltip :content="t('richText.bold')" placement="bottom">
             <el-button
               :type="editor.isActive('bold') ? 'primary' : 'default'"
               @click="editor.chain().focus().toggleBold().run()"
@@ -17,7 +17,7 @@
               <strong style="font-size: 14px;">B</strong>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="斜体" placement="bottom">
+          <el-tooltip :content="t('richText.italic')" placement="bottom">
             <el-button
               :type="editor.isActive('italic') ? 'primary' : 'default'"
               @click="editor.chain().focus().toggleItalic().run()"
@@ -25,7 +25,7 @@
               <em style="font-size: 14px;">I</em>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="下划线" placement="bottom">
+          <el-tooltip :content="t('richText.underline')" placement="bottom">
             <el-button
               :type="editor.isActive('underline') ? 'primary' : 'default'"
               @click="editor.chain().focus().toggleUnderline().run()"
@@ -47,10 +47,10 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="paragraph">正文</el-dropdown-item>
-              <el-dropdown-item command="heading-1">标题 1</el-dropdown-item>
-              <el-dropdown-item command="heading-2">标题 2</el-dropdown-item>
-              <el-dropdown-item command="heading-3">标题 3</el-dropdown-item>
+              <el-dropdown-item command="paragraph">{{ t('richText.paragraph') }}</el-dropdown-item>
+              <el-dropdown-item command="heading-1">{{ t('richText.heading1') }}</el-dropdown-item>
+              <el-dropdown-item command="heading-2">{{ t('richText.heading2') }}</el-dropdown-item>
+              <el-dropdown-item command="heading-3">{{ t('richText.heading3') }}</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -61,14 +61,14 @@
       <!-- 列表组 -->
       <div class="toolbar-group">
         <el-button-group>
-          <el-tooltip content="无序列表" placement="bottom">
+          <el-tooltip :content="t('richText.bulletList')" placement="bottom">
             <el-button
               :type="editor.isActive('bulletList') ? 'primary' : 'default'"
               :icon="List"
               @click="editor.chain().focus().toggleBulletList().run()"
             />
           </el-tooltip>
-          <el-tooltip content="有序列表" placement="bottom">
+          <el-tooltip :content="t('richText.orderedList')" placement="bottom">
             <el-button
               :type="editor.isActive('orderedList') ? 'primary' : 'default'"
               :icon="Sort"
@@ -82,19 +82,19 @@
 
       <!-- 链接、图片和文件 -->
       <div class="toolbar-group">
-        <el-tooltip content="插入链接" placement="bottom">
+        <el-tooltip :content="t('richText.insertLink')" placement="bottom">
           <el-button
             :icon="LinkIcon"
             @click="handleInsertLink"
           />
         </el-tooltip>
-        <el-tooltip content="插入图片" placement="bottom">
+        <el-tooltip :content="t('richText.insertImage')" placement="bottom">
           <el-button
             :icon="Picture"
             @click="handleInsertImage"
           />
         </el-tooltip>
-        <el-tooltip content="上传文件" placement="bottom">
+        <el-tooltip :content="t('richText.uploadFile')" placement="bottom">
           <el-button
             :icon="Upload"
             @click="handleUploadFile"
@@ -107,14 +107,14 @@
       <!-- 撤销/重做 -->
       <div class="toolbar-group">
         <el-button-group>
-          <el-tooltip content="撤销" placement="bottom">
+          <el-tooltip :content="t('richText.undo')" placement="bottom">
             <el-button
               :disabled="!editor.can().undo()"
               :icon="RefreshLeft"
               @click="editor.chain().focus().undo().run()"
             />
           </el-tooltip>
-          <el-tooltip content="重做" placement="bottom">
+          <el-tooltip :content="t('richText.redo')" placement="bottom">
             <el-button
               :disabled="!editor.can().redo()"
               :icon="RefreshRight"
@@ -128,6 +128,7 @@
     <div 
       class="editor-content"
       :class="{ 'is-dragging': isDragging }"
+      :data-drop-label="t('richText.dropToUpload')"
     >
       <editor-content :editor="editor" />
     </div>
@@ -135,41 +136,41 @@
     <!-- 链接输入对话框 -->
     <el-dialog
       v-model="linkDialogVisible"
-      title="插入链接"
+      :title="t('richText.insertLink')"
       width="400px"
     >
       <el-input
         v-model="linkUrl"
-        placeholder="请输入链接地址"
+        :placeholder="t('richText.linkPlaceholder')"
         clearable
       />
       <template #footer>
-        <el-button @click="linkDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmInsertLink">确定</el-button>
+        <el-button @click="linkDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="confirmInsertLink">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 图片输入对话框 -->
     <el-dialog
       v-model="imageDialogVisible"
-      title="插入图片"
+      :title="t('richText.insertImage')"
       width="400px"
     >
       <el-input
         v-model="imageUrl"
-        placeholder="请输入图片地址"
+        :placeholder="t('richText.imagePlaceholder')"
         clearable
       />
       <template #footer>
-        <el-button @click="imageDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmInsertImage">确定</el-button>
+        <el-button @click="imageDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="confirmInsertImage">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 文件上传对话框 -->
     <el-dialog
       v-model="fileUploadDialogVisible"
-      title="上传文件"
+      :title="t('richText.uploadFile')"
       width="500px"
       :close-on-click-modal="false"
     >
@@ -184,18 +185,18 @@
         @change="handleFileUploadChange"
       />
       <div v-if="uploadedFileInfo" class="file-info">
-        <p><strong>文件名：</strong>{{ uploadedFileInfo.fileName }}</p>
-        <p><strong>文件类型：</strong>{{ uploadedFileInfo.fileType }}</p>
-        <p v-if="uploadedFileInfo.fileSize > 0"><strong>文件大小：</strong>{{ formatFileSize(uploadedFileInfo.fileSize) }}</p>
+        <p><strong>{{ t('richText.fileName') }}: </strong>{{ uploadedFileInfo.fileName }}</p>
+        <p><strong>{{ t('richText.fileType') }}: </strong>{{ uploadedFileInfo.fileType }}</p>
+        <p v-if="uploadedFileInfo.fileSize > 0"><strong>{{ t('richText.fileSize') }}: </strong>{{ formatFileSize(uploadedFileInfo.fileSize) }}</p>
       </div>
       <template #footer>
-        <el-button @click="fileUploadDialogVisible = false">取消</el-button>
+        <el-button @click="fileUploadDialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button
           type="primary"
           :disabled="!uploadedFileUrl"
           @click="handleConfirmFileInsert"
         >
-          插入文件
+          {{ t('richText.insertFile') }}
         </el-button>
       </template>
     </el-dialog>
@@ -204,6 +205,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import type { EditorProps, EditorView } from 'prosemirror-view'
 import type { Slice } from 'prosemirror-model'
@@ -237,6 +239,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
+
+const { t } = useI18n()
 
 // 文件上传相关
 const fileUploadDialogVisible = ref(false)
@@ -301,18 +305,18 @@ function handleFileUploadChange(url: string | null): void {
   try {
     const urlObj = new URL(url)
     const pathParts = urlObj.pathname.split('/')
-    const fileName = decodeURIComponent(pathParts[pathParts.length - 1] || '未知文件')
-    const fileType = fileName.split('.').pop()?.toUpperCase() || '未知'
+    const fileName = decodeURIComponent(pathParts[pathParts.length - 1] || t('richText.unknownFile'))
+    const fileType = fileName.split('.').pop()?.toUpperCase() || t('richText.unknownType')
     
     uploadedFileInfo.value = {
       fileName,
       fileType,
       fileSize: 0 // 文件大小无法从 URL 中获取，显示为 0
     }
-  } catch (error) {
+  } catch (_error) {
     uploadedFileInfo.value = {
-      fileName: '未知文件',
-      fileType: '未知',
+      fileName: t('richText.unknownFile'),
+      fileType: t('richText.unknownType'),
       fileSize: 0
     }
   }
@@ -326,7 +330,7 @@ function handleFileUploadSuccess(url: string): void {
 
 // 处理文件上传错误
 function handleFileUploadError(error: Error): void {
-  ElMessage.error(`文件上传失败: ${error.message || '未知错误'}`)
+  ElMessage.error(t('richText.fileUploadFailed', { message: error.message || t('richText.unknownError') }))
   uploadedFileUrl.value = ''
   uploadedFileInfo.value = null
 }
@@ -344,7 +348,7 @@ const handleConfirmFileInsert = async () => {
     return
   }
 
-  const fileName = uploadedFileInfo.value?.fileName || '文件'
+  const fileName = uploadedFileInfo.value?.fileName || t('workspaceInbox.attachment')
   const isImage = uploadedFileInfo.value ? isImageFile(uploadedFileInfo.value.fileName) : false
   const isVideo = uploadedFileInfo.value ? isVideoFile(uploadedFileInfo.value.fileName) : false
 
@@ -398,7 +402,7 @@ const editor = useEditor({
       allowBase64: false
     }),
     Placeholder.configure({
-      placeholder: props.placeholder || '请输入内容...'
+      placeholder: props.placeholder || t('richText.defaultPlaceholder')
     })
   ],
   content: props.modelValue || '',
@@ -438,7 +442,7 @@ const editor = useEditor({
         // 使用 slice 参数直接插入内容（TipTap 已经处理好了格式转换）
         if (slice && slice.content && editor.value) {
           // 使用 slice 插入内容，TipTap 会自动处理 Markdown 转换、HTML 清理等
-          const { state, dispatch } = view
+          const { dispatch } = view
           const transaction = view.state.tr.replaceSelection(slice)
           dispatch(transaction)
           return true // 已处理
@@ -448,7 +452,7 @@ const editor = useEditor({
         return false
       } catch (error: any) {
         // 如果处理过程中出错，记录错误但让 TipTap 使用默认处理
-        console.error('RichTextEditor', '粘贴处理失败', error)
+        console.error('RichTextEditor', 'paste handling failed', error)
         return false
       }
     }) satisfies NonNullable<EditorProps['handlePaste']>,
@@ -481,7 +485,7 @@ const editor = useEditor({
 async function uploadEditorFiles(files: File[], source: 'paste' | 'drop'): Promise<void> {
   for (const file of files) {
     try {
-      ElMessage.info(`正在上传 ${file.name}...`)
+      ElMessage.info(t('richText.uploadInProgress', { name: file.name }))
       const uploadResult = await uploadFile(
         fileUploadRouter.value,
         file,
@@ -516,14 +520,14 @@ async function uploadEditorFiles(files: File[], source: 'paste' | 'drop'): Promi
             editor.value.chain().focus().setLink({ href: downloadUrl }).insertContent(file.name).run()
           }
 
-          ElMessage.success(`${file.name} 上传成功`)
+          ElMessage.success(t('richText.uploadSuccess', { name: file.name }))
         } else {
-          throw new Error('获取下载地址失败')
+          throw new Error(t('richText.downloadUrlFailed'))
         }
       }
     } catch (error: any) {
-      console.error('RichTextEditor', `${source === 'paste' ? '粘贴' : '拖拽'}文件上传失败`, error)
-      ElMessage.error(`上传 ${file.name} 失败: ${error?.message || '未知错误'}`)
+      console.error('RichTextEditor', `${source} file upload failed`, error)
+      ElMessage.error(t('richText.uploadFailed', { name: file.name, message: error?.message || t('richText.unknownError') }))
     }
   }
 }
@@ -550,7 +554,7 @@ function handleDragLeave(event: DragEvent) {
 }
 
 // 编辑器容器上的 drop 事件（作为备用，主要处理在 editorProps.handleDrop 中）
-function handleEditorDrop(event: DragEvent) {
+function handleEditorDrop(_event: DragEvent) {
   isDragging.value = false
   // 实际处理在 editorProps.handleDrop 中，这里只是重置状态
 }
@@ -660,7 +664,7 @@ onBeforeUnmount(() => {
 }
 
 .editor-content.is-dragging::before {
-  content: '释放文件以上传';
+  content: attr(data-drop-label);
   position: absolute;
   top: 50%;
   left: 50%;

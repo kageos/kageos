@@ -59,6 +59,7 @@ data/
 
 # 根目录误装依赖、自动化临时截图
 node_modules/
+web/.npm-cache/
 playwright-login-page.png
 
 # Playwright / MCP 本地产物

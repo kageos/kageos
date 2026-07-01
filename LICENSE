@@ -10,14 +10,41 @@ Parameters
 Licensor:             Kageos Project
 Licensed Work:        Kageos
                       The Licensed Work is (c) 2025 Kageos Project
-Additional Use Grant: You may make use of the Licensed Work, provided that you
-                      do not use the Licensed Work for a Hosted Service.
-                      
-                      A "Hosted Service" is a commercial offering that allows
-                      third parties (other than your employees and contractors)
-                      to access the functionality of the Licensed Work by
-                      creating an account and interacting with it remotely
-                      through a network.
+Additional Use Grant: You may make production use of the Licensed Work for
+                      your own internal business operations or personal use,
+                      including use by your employees and contractors, provided
+                      that you do not use the Licensed Work for a Restricted
+                      Commercial Offering.
+
+                      A "Restricted Commercial Offering" means any commercial
+                      product, service, distribution, or offering in which the
+                      Licensed Work, or a modified or derivative version of the
+                      Licensed Work, is offered, hosted, managed, operated,
+                      resold, embedded, white-labeled, OEM-distributed,
+                      rebranded, packaged, or otherwise provided to third
+                      parties (other than your employees and contractors) as a
+                      core value-driving component or as functionality that is
+                      substantially similar to the Licensed Work.
+
+                      Restricted Commercial Offerings include, without
+                      limitation: commercial SaaS or hosted services; managed
+                      services operated by MSPs, agencies, consultants, or
+                      similar providers for external customers; resale of
+                      hosted access, seats, accounts, workspaces, or tenant
+                      instances; white-label, OEM, embedded, rebranded, or
+                      on-premises products provided to third parties for
+                      production use; and competing products or services whose
+                      main value substantially overlaps with the Licensed Work.
+
+                      Restricted Commercial Offerings do not include
+                      implementation, integration, configuration, training, or
+                      support services that assist a customer with a
+                      customer-controlled deployment of the Licensed Work for
+                      that customer's internal business operations, provided
+                      that the service provider does not host, control, resell,
+                      white-label, OEM-distribute, embed, rebrand, or offer the
+                      Licensed Work as the service provider's own product or
+                      service.
 
 Change Date:          Four years from the date of release
 Change License:       Apache License, Version 2.0

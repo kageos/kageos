@@ -301,9 +301,9 @@ export const useUserInfoStore = defineStore('userInfo', () => {
     
     try {
       // 如果接口在超时时间内返回，使用新数据
-      const freshUsers = await Promise.race([fetchPromise, timeoutPromise])
-      return buildResultFromCache(uniqueUsernames, freshUsers, expired)
-    } catch (error) {
+      await Promise.race([fetchPromise, timeoutPromise])
+      return buildResultFromCache(uniqueUsernames, expired)
+    } catch (_error) {
       // 🔥 降级策略：如果接口失败，返回过期缓存
       console.warn('[UserInfoStore] 接口失败，使用过期缓存（降级策略）')
       return fallbackResult
@@ -343,11 +343,9 @@ export const useUserInfoStore = defineStore('userInfo', () => {
    */
   function buildResultFromCache(
     usernames: string[],
-    freshUsers: UserInfo[],
     expired: Array<{ username: string; user: UserInfo }>
   ): UserInfo[] {
     const result: UserInfo[] = []
-    const freshUserMap = new Map(freshUsers.map(u => [u.username, u]))
     
     usernames.forEach(username => {
       const cacheItem = userInfoCache.value.get(username)

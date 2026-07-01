@@ -98,6 +98,43 @@ func TestRunPythonWorkspaceRoot(t *testing.T) {
 	}
 }
 
+func TestNormalizeRunPythonPackages(t *testing.T) {
+	got, err := normalizeRunPythonPackages(" openai, scikit-learn==1.5.0, requests[socks]>=2.31.0, openai ")
+	if err != nil {
+		t.Fatalf("normalizeRunPythonPackages() error = %v", err)
+	}
+	want := "openai,scikit-learn==1.5.0,requests[socks]>=2.31.0"
+	if got != want {
+		t.Fatalf("normalizeRunPythonPackages() = %q, want %q", got, want)
+	}
+
+	for _, pkg := range []string{
+		"--index-url=https://example.com/simple",
+		"-r requirements.txt",
+		"https://example.com/pkg.whl",
+		"./local-package",
+		"pkg @ https://example.com/pkg.whl",
+		"bad package",
+	} {
+		t.Run(pkg, func(t *testing.T) {
+			if _, err := normalizeRunPythonPackages(pkg); err == nil {
+				t.Fatalf("normalizeRunPythonPackages(%q) error = nil, want error", pkg)
+			}
+		})
+	}
+}
+
+func TestRunPythonToolSchemaExposesPackages(t *testing.T) {
+	schema := (&RunPythonTool{}).Definition().InputSchema
+	properties, ok := schema["properties"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("input schema properties missing: %#v", schema)
+	}
+	if _, ok := properties["packages"]; !ok {
+		t.Fatalf("run_python schema should expose packages, properties=%#v", properties)
+	}
+}
+
 func TestBuildPythonModelGuidanceForCommonFileMistakes(t *testing.T) {
 	guidance := buildPythonModelGuidance(map[string]interface{}{
 		"status": "失败",

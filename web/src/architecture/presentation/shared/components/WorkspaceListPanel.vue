@@ -7,15 +7,15 @@
   >
     <div v-if="showHeader" class="panel-header">
       <div class="panel-heading">
-        <div class="panel-title">{{ forceSelect ? '请选择工作空间' : '工作空间' }}</div>
-        <div class="panel-subtitle">{{ currentApp ? currentWorkspaceDisplayName : '选择一个工作空间进入' }}</div>
+        <div class="panel-title">{{ forceSelect ? t('workspace.listTitleForceSelect') : t('workspace.listTitle') }}</div>
+        <div class="panel-subtitle">{{ currentApp ? currentWorkspaceDisplayName : t('workspace.listSubtitle') }}</div>
       </div>
       <el-button
         v-if="surface === 'popover' && !forceSelect"
         text
         circle
         class="panel-close-button"
-        title="关闭"
+        :title="t('common.close')"
         data-testid="workspace-list-popover-close"
         @click="$emit('close')"
       >
@@ -23,7 +23,7 @@
       </el-button>
     </div>
 
-    <p v-if="forceSelect" class="force-select-tip">请选择一个工作空间进入，或创建新工作空间。</p>
+    <p v-if="forceSelect" class="force-select-tip">{{ t('workspace.listForceSelectTip') }}</p>
 
     <section
       v-if="surface === 'popover' && currentApp"
@@ -38,7 +38,7 @@
           </div>
         </div>
         <div class="current-workspace-info">
-          <div class="current-workspace-eyebrow">当前工作空间</div>
+          <div class="current-workspace-eyebrow">{{ t('workspace.currentWorkspace') }}</div>
           <div class="current-workspace-title-row">
             <span class="current-workspace-title" :title="currentWorkspaceDisplayName">
               {{ currentWorkspaceDisplayName }}
@@ -72,7 +72,7 @@
             <el-icon><UserFilled /></el-icon>
           </div>
           <div class="current-workspace-meta-copy">
-            <span class="current-workspace-meta-label">所有者</span>
+            <span class="current-workspace-meta-label">{{ t('workspace.owner') }}</span>
             <span class="current-workspace-meta-value" :title="currentApp.user">{{ currentApp.user }}</span>
           </div>
         </div>
@@ -81,7 +81,7 @@
             <el-icon><OfficeBuilding /></el-icon>
           </div>
           <div class="current-workspace-meta-copy">
-            <span class="current-workspace-meta-label">类型</span>
+            <span class="current-workspace-meta-label">{{ t('workspace.type') }}</span>
             <span class="current-workspace-meta-value">{{ currentWorkspaceTypeLabel }}</span>
           </div>
         </div>
@@ -93,7 +93,7 @@
             </el-icon>
           </div>
           <div class="current-workspace-meta-copy">
-            <span class="current-workspace-meta-label">可见性</span>
+            <span class="current-workspace-meta-label">{{ t('workspace.visibility') }}</span>
             <span class="current-workspace-meta-value">{{ currentWorkspaceVisibilityLabel }}</span>
           </div>
         </div>
@@ -102,7 +102,7 @@
             <el-icon><PriceTag /></el-icon>
           </div>
           <div class="current-workspace-meta-copy">
-            <span class="current-workspace-meta-label">版本</span>
+            <span class="current-workspace-meta-label">{{ t('workspace.version') }}</span>
             <span class="current-workspace-meta-value" :title="currentWorkspaceVersion">
               {{ currentWorkspaceVersion }}
             </span>
@@ -113,7 +113,7 @@
             <el-icon><Clock /></el-icon>
           </div>
           <div class="current-workspace-meta-copy">
-            <span class="current-workspace-meta-label">最近更新</span>
+            <span class="current-workspace-meta-label">{{ t('workspace.updatedAt') }}</span>
             <span class="current-workspace-meta-value" :title="currentWorkspaceUpdatedAt">
               {{ currentWorkspaceUpdatedAt }}
             </span>
@@ -124,7 +124,7 @@
             <el-icon><CollectionTag /></el-icon>
           </div>
           <div class="current-workspace-meta-copy">
-            <span class="current-workspace-meta-label">标识</span>
+            <span class="current-workspace-meta-label">{{ t('workspace.identifier') }}</span>
             <span class="current-workspace-meta-value" :title="currentApp.code">{{ currentApp.code }}</span>
           </div>
         </div>
@@ -134,7 +134,7 @@
     <div class="search-bar" data-testid="workspace-list-search-wrap">
       <el-input
         v-model="searchKeyword"
-        placeholder="搜索工作空间名称或代码"
+        :placeholder="t('workspace.searchWorkspacePlaceholder')"
         clearable
         data-testid="workspace-list-search"
         @input="handleSearch"
@@ -146,17 +146,17 @@
     </div>
 
     <el-tabs v-model="activeTab" class="workspace-list-tabs" data-testid="workspace-list-tabs" @tab-change="handleTabChange">
-      <el-tab-pane label="我的工作空间" name="mine">
+      <el-tab-pane :label="t('workspace.myWorkspaces')" name="mine">
         <div class="workspace-list-container">
           <div v-if="loading" class="loading-state">
             <el-icon class="loading-icon"><Loading /></el-icon>
-            <span>加载中...</span>
+            <span>{{ t('common.loading') }}</span>
           </div>
           <div v-else-if="myWorkspaces.length === 0" class="empty-state">
-            <el-empty description="暂无工作空间">
+            <el-empty :description="t('workspace.noWorkspace')">
               <el-button type="primary" data-testid="workspace-list-create-empty" @click="$emit('create-app')">
                 <el-icon><Plus /></el-icon>
-                创建工作空间
+                {{ t('workspace.createWorkspace') }}
               </el-button>
             </el-empty>
           </div>
@@ -194,13 +194,13 @@
                 </div>
               </div>
               <div class="card-footer">
-                <el-tag v-if="app.is_public" type="success" size="small">公开</el-tag>
-                <el-tag v-else type="info" size="small">私有</el-tag>
+                <el-tag v-if="app.is_public" type="success" size="small">{{ t('workspace.public') }}</el-tag>
+                <el-tag v-else type="info" size="small">{{ t('workspace.private') }}</el-tag>
                 <div class="card-actions">
                   <el-button
                     link
                     size="small"
-                    title="重新编译"
+                    :title="t('workspace.recompile')"
                     :data-testid="`workspace-card-refresh-${app.id}`"
                     @click.stop="handleUpdateApp(app)"
                   >
@@ -209,7 +209,7 @@
                   <el-button
                     link
                     size="small"
-                    title="删除"
+                    :title="t('common.delete')"
                     :data-testid="`workspace-card-delete-${app.id}`"
                     @click.stop="handleDeleteApp(app)"
                   >
@@ -222,14 +222,14 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="全部工作空间" name="all">
+      <el-tab-pane :label="t('workspace.allWorkspaces')" name="all">
         <div class="workspace-list-container">
           <div v-if="loading" class="loading-state">
             <el-icon class="loading-icon"><Loading /></el-icon>
-            <span>加载中...</span>
+            <span>{{ t('common.loading') }}</span>
           </div>
           <div v-else-if="allWorkspaces.length === 0" class="empty-state">
-            <el-empty description="暂无公开的工作空间" />
+            <el-empty :description="t('workspace.noPublicWorkspace')" />
           </div>
           <div v-else class="workspace-grid">
             <div
@@ -254,12 +254,12 @@
                     </span>
                     <el-tooltip
                       v-if="app.type === 1"
-                      content="官方认证工作空间"
+                      :content="t('workspace.certifiedWorkspace')"
                       placement="top"
                     >
                       <img
                         src="/官方认证.svg"
-                        alt="官方认证"
+                        :alt="t('workspace.certifiedWorkspace')"
                         class="certified-badge-icon"
                       />
                     </el-tooltip>
@@ -277,7 +277,7 @@
               </div>
               <div class="card-footer">
                 <div class="footer-left">
-                  <el-tag type="success" size="small">公开</el-tag>
+                  <el-tag type="success" size="small">{{ t('workspace.public') }}</el-tag>
                   <UserDisplay
                     :username="app.user"
                     mode="card"
@@ -291,14 +291,14 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="系统工作空间" name="system">
+      <el-tab-pane :label="t('workspace.systemWorkspaces')" name="system">
         <div class="workspace-list-container">
           <div v-if="loading" class="loading-state">
             <el-icon class="loading-icon"><Loading /></el-icon>
-            <span>加载中...</span>
+            <span>{{ t('common.loading') }}</span>
           </div>
           <div v-else-if="systemWorkspaces.length === 0" class="empty-state">
-            <el-empty description="暂无系统工作空间" />
+            <el-empty :description="t('workspace.noSystemWorkspace')" />
           </div>
           <div v-else class="workspace-grid">
             <div
@@ -321,10 +321,10 @@
                     <span class="workspace-name-text" :title="getWorkspaceDisplayName(app)">
                       {{ getWorkspaceDisplayName(app) }}
                     </span>
-                    <el-tooltip content="官方认证工作空间" placement="top">
+                    <el-tooltip :content="t('workspace.certifiedWorkspace')" placement="top">
                       <img
                         src="/官方认证.svg"
-                        alt="官方认证"
+                        :alt="t('workspace.certifiedWorkspace')"
                         class="certified-badge-icon"
                       />
                     </el-tooltip>
@@ -342,7 +342,7 @@
               </div>
               <div class="card-footer">
                 <div class="footer-left">
-                  <el-tag type="success" size="small">系统</el-tag>
+                  <el-tag type="success" size="small">{{ t('workspace.system') }}</el-tag>
                   <UserDisplay
                     :username="app.user"
                     mode="card"
@@ -363,11 +363,11 @@
         data-testid="workspace-list-close"
         @click="$emit('close')"
       >
-        关闭
+        {{ t('common.close') }}
       </el-button>
       <el-button type="primary" data-testid="workspace-list-create" @click="$emit('create-app')">
         <el-icon><Plus /></el-icon>
-        创建新工作空间
+        {{ t('workspace.createNewWorkspace') }}
       </el-button>
     </div>
   </div>
@@ -422,7 +422,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const activeTab = ref<'mine' | 'all' | 'system'>('mine')
 const searchKeyword = ref('')
@@ -436,11 +436,11 @@ const currentWorkspaceDisplayName = computed(() => props.currentApp ? getWorkspa
 const currentWorkspaceRoute = computed(() => props.currentApp ? `/workspace/${props.currentApp.user}/${props.currentApp.code}` : '')
 const currentWorkspaceMetaLine = computed(() => props.currentApp ? getWorkspaceMetaLine(props.currentApp) : '')
 const currentWorkspaceStyle = computed(() => props.currentApp ? workspaceCardStyle(props.currentApp) : undefined)
-const currentWorkspaceStatusLabel = computed(() => props.currentApp?.status === 'disabled' ? '已停用' : '运行中')
+const currentWorkspaceStatusLabel = computed(() => props.currentApp?.status === 'disabled' ? t('workspace.disabled') : t('workspace.running'))
 const currentWorkspaceStatusType = computed(() => props.currentApp?.status === 'disabled' ? 'danger' : 'success')
-const currentWorkspaceTypeLabel = computed(() => props.currentApp?.type === 1 ? '系统工作空间' : '用户工作空间')
-const currentWorkspaceVisibilityLabel = computed(() => props.currentApp?.is_public ? '公开' : '私有')
-const currentWorkspaceVersion = computed(() => props.currentApp?.version || '未标记')
+const currentWorkspaceTypeLabel = computed(() => props.currentApp?.type === 1 ? t('workspace.systemWorkspace') : t('workspace.userWorkspace'))
+const currentWorkspaceVisibilityLabel = computed(() => props.currentApp?.is_public ? t('workspace.public') : t('workspace.private'))
+const currentWorkspaceVersion = computed(() => props.currentApp?.version || t('workspace.unversioned'))
 const currentWorkspaceUpdatedAt = computed(() => formatDateTime(props.currentApp?.updated_at))
 
 const appColors = [
@@ -461,7 +461,7 @@ const getAppInitial = (text: string) => {
 
 const getWorkspaceDisplayName = (app: App) => {
   const name = app.name?.trim()
-  return name || app.code || '未命名工作空间'
+  return name || app.code || t('workspace.unnamedWorkspace')
 }
 
 const getWorkspaceInitial = (app: App) => getAppInitial(getWorkspaceDisplayName(app))
@@ -471,10 +471,10 @@ const getWorkspaceRoute = (app: App) => `/workspace/${app.user}/${app.code}`
 const getWorkspaceMetaLine = (app: App) => {
   const parts = []
   if (app.code) {
-    parts.push(`标识：${app.code}`)
+    parts.push(t('workspace.codeMeta', { code: app.code }))
   }
   if (app.user) {
-    parts.push(`所有者：${app.user}`)
+    parts.push(t('workspace.ownerMeta', { owner: app.user }))
   }
   return parts.join(' · ')
 }
@@ -485,7 +485,7 @@ const workspaceCardStyle = (app: App): CSSProperties => ({
 
 const formatDateTime = (value?: string) => {
   if (!value) {
-    return '暂无记录'
+    return t('workspace.noUpdateRecord')
   }
 
   const date = new Date(value)
@@ -493,14 +493,14 @@ const formatDateTime = (value?: string) => {
     return value
   }
 
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(String(locale.value), {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false
-  }).format(date).replace(/\//g, '-')
+  }).format(date)
 }
 
 const loadWorkspaces = async () => {
@@ -516,8 +516,8 @@ const loadWorkspaces = async () => {
     const systemApps = await getAppList(200, searchKeyword.value || undefined, false, 1)
     systemWorkspaces.value = systemApps
   } catch (error: any) {
-    console.error('加载工作空间列表失败:', error)
-    ElMessage.error('加载工作空间列表失败')
+    console.error('[WorkspaceListPanel] load workspaces failed:', error)
+    ElMessage.error(t('workspace.loadListFailed'))
   } finally {
     loading.value = false
   }

@@ -71,7 +71,7 @@ func (b *TokenBlacklist) AddTokenByHash(tokenHash string, expireTime int64) {
 	defer b.mu.Unlock()
 
 	b.blacklist[tokenHash] = expireTime
-	logger.Infof(nil, "[TokenBlacklist] Token 已加入黑名单: hash=%s, expireTime=%d", tokenHash, expireTime)
+	logger.Infof(nil, "[TokenBlacklist] Token 已加入黑名单: expireTime=%d", expireTime)
 }
 
 // RemoveToken 移除 token 从黑名单
@@ -86,7 +86,7 @@ func (b *TokenBlacklist) RemoveTokenByHash(tokenHash string) {
 	defer b.mu.Unlock()
 
 	delete(b.blacklist, tokenHash)
-	logger.Infof(nil, "[TokenBlacklist] Token 已从黑名单移除: hash=%s", tokenHash)
+	logger.Infof(nil, "[TokenBlacklist] Token 已从黑名单移除")
 }
 
 // cleanupExpired 定期清理过期的黑名单记录

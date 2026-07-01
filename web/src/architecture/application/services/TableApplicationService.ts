@@ -14,7 +14,7 @@
 
 import { TableDomainService } from '../../domain/services/TableDomainService'
 import type { IEventBus } from '../../domain/interfaces/IEventBus'
-import { WorkspaceEvent, TableEvent } from '../../domain/interfaces/IEventBus'
+import { TableEvent } from '../../domain/interfaces/IEventBus'
 import type { FunctionDetail } from '../../domain/types'
 import { getTableListFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 import type { TableSearchParams, SortParams, TableRow } from '../../domain/types'
@@ -68,19 +68,19 @@ export class TableApplicationService {
    */
   private setupEventHandlers(): void {
     // 监听搜索变化事件
-    this.eventBus.on(TableEvent.searchChanged, async (payload: { searchParams: TableSearchParams }) => {
+    this.eventBus.on(TableEvent.searchChanged, async (_payload: { searchParams: TableSearchParams }) => {
       // 可以在这里添加额外的业务逻辑
       // 例如：自动重新加载数据
     })
 
     // 监听排序变化事件
-    this.eventBus.on(TableEvent.sortChanged, async (payload: { sortParams: SortParams }) => {
+    this.eventBus.on(TableEvent.sortChanged, async (_payload: { sortParams: SortParams }) => {
       // 可以在这里添加额外的业务逻辑
       // 例如：自动重新加载数据
     })
 
     // 监听分页变化事件
-    this.eventBus.on(TableEvent.pageChanged, async (payload: { page: number, pageSize: number }) => {
+    this.eventBus.on(TableEvent.pageChanged, async (_payload: { page: number, pageSize: number }) => {
       // 可以在这里添加额外的业务逻辑
       // 例如：自动重新加载数据
     })

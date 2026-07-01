@@ -232,7 +232,6 @@ function gaugePreviewValue(): number {
 function buildOption(): EChartsCoreOption {
   const chartType = runtimeChartType()
   const title = props.title || '图表预览'
-  const dimension = props.dimension || '维度'
   const metrics = metricNames()
   const previewRows = previewDataRows()
   const theme = chartTheme()

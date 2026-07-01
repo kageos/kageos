@@ -20,7 +20,7 @@ type writeDocArgs struct {
 
 var writeDocToolDef = toolDefinition[writeDocArgs](
 	"write_doc",
-	"在指定目录下创建或更新一篇文档。必填：name（显示名称）、code（英文标识）、content（正文）。可选：directory（父目录，不传则当前工作目录）、format（默认 markdown）。",
+	"在指定目录下创建或更新一篇文档。必填：name（显示名称）、code（英文标识）、content（正文）。可选：directory（父目录，不传则当前工作目录）、format（默认 markdown）。写当前目录运行手册时使用 code=runbook、name=运行手册，生成 <当前目录>/runbook.docs；该文档会作为当前目录业务背景/SOP 自动注入工作台上下文。",
 )
 
 func (t *WriteDocTool) Definition() dto.ToolDef {

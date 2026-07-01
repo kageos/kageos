@@ -9,7 +9,7 @@
  * - 可以轻松替换为其他实现（如 Vuex、Zustand 等）
  */
 
-import { watch, type WatchStopHandle, shallowRef, triggerRef, unref } from 'vue'
+import { watch, type WatchStopHandle, shallowRef } from 'vue'
 import { Logger } from '@/architecture/shared/logger'
 import type { IStateManager } from '../../domain/interfaces/IStateManager'
 

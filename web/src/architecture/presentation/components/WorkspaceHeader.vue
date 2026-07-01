@@ -33,6 +33,16 @@
         <el-icon><Search /></el-icon>
         {{ t('workspace.search') }}
       </el-button>
+      <el-button
+        size="small"
+        class="header-hub-button"
+        @click="openHub"
+        :title="t('workspace.browseHub')"
+        data-testid="workspace-header-hub"
+      >
+        <el-icon><Compass /></el-icon>
+        {{ t('workspace.browseHub') }}
+      </el-button>
       <WorkspaceInbox
         :service-tree="serviceTree || []"
         :current-app="currentApp"
@@ -45,7 +55,7 @@
         popper-class="workspace-user-dropdown-popper"
       >
         <span class="user-profile" data-testid="workspace-header-user-menu">
-          <UserAvatar :size="32" :src="userAvatar" :alt="userName" />
+          <UserAvatar :size="28" :src="userAvatar" :alt="userName" />
           <span class="username">{{ userName }}</span>
           <el-icon class="el-icon--right"><ArrowDown /></el-icon>
         </span>
@@ -200,6 +210,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   ArrowDown,
+  Compass,
   UserFilled,
   Connection,
   Cpu,
@@ -215,7 +226,7 @@ import { ElMessageBox } from 'element-plus'
 import { useAuthStore, useLocaleStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
 const WorkspaceInbox = defineAsyncComponent(() => import('./WorkspaceInbox.vue'))
 import { featureFlags } from '@/architecture/shared/config/features'
-import { getKageosDocsURL, openExternalURL } from '@/architecture/shared/config/externalLinks'
+import { getKageosDocsURL, getKageosHubURL, openExternalURL } from '@/architecture/shared/config/externalLinks'
 import type { SupportedLocale } from '@/architecture/shared/i18n'
 import defaultCompanyLogo from '@/architecture/presentation/assets/logo.svg'
 import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar.vue'
@@ -309,6 +320,10 @@ const handleThemeChange = (themeName: string | number | boolean | object) => {
   }
 }
 
+const openHub = () => {
+  openExternalURL(getKageosHubURL())
+}
+
 const handleLogout = async () => {
   try {
     await ElMessageBox.confirm(t('workspace.logoutConfirm'), t('workspace.logoutConfirmTitle'), {
@@ -373,33 +388,33 @@ defineExpose({
 .header-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
 .user-profile {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   cursor: pointer;
-  padding: 7px 12px;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  background: var(--app-shell-panel-muted-bg);
-  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
-  transition: all 0.2s ease;
-  max-width: 220px;
+  min-height: 34px;
+  padding: 2px 9px 2px 4px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--app-shell-panel-border) 76%, transparent);
+  background: color-mix(in srgb, var(--app-shell-panel-bg) 44%, transparent);
+  box-shadow: none;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+  max-width: 190px;
 
   &:hover {
-    background: var(--app-shell-panel-bg-strong);
-    border-color: var(--app-shell-panel-border);
-    box-shadow: var(--app-shell-panel-shadow-soft);
+    background: color-mix(in srgb, var(--app-shell-panel-bg) 64%, transparent);
+    border-color: rgba(var(--el-color-primary-rgb), 0.22);
   }
 
   .el-avatar {
     flex-shrink: 0;
-    border: 1px solid rgba(var(--el-color-primary-rgb), 0.18);
-    box-shadow: 0 6px 18px rgba(var(--el-color-primary-rgb), 0.12);
+    border: 1px solid rgba(var(--el-color-primary-rgb), 0.16);
+    box-shadow: none;
   }
 
   .el-icon--right {
@@ -411,10 +426,16 @@ defineExpose({
   &:hover .el-icon--right {
     color: var(--el-color-primary);
   }
+
+  &:focus-visible {
+    outline: none;
+    border-color: rgba(var(--el-color-primary-rgb), 0.4);
+    box-shadow: 0 0 0 2px rgba(var(--el-color-primary-rgb), 0.08);
+  }
 }
 
 .username {
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--el-text-color-primary);
   min-width: 0;
@@ -694,24 +715,35 @@ defineExpose({
   font-weight: 500;
 }
 
-.header-search-button {
-  height: 40px;
-  padding: 0 14px;
-  border-radius: 12px;
-  background: var(--app-shell-panel-muted-bg);
-  border-color: var(--app-shell-panel-border);
+.header-search-button,
+.header-hub-button {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--app-shell-panel-bg) 44%, transparent);
+  border-color: color-mix(in srgb, var(--app-shell-panel-border) 76%, transparent);
   color: var(--el-text-color-primary);
   font-weight: 600;
-  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+  font-size: 12.5px;
+  box-shadow: none;
+  white-space: nowrap;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
 
   .el-icon {
-    margin-right: 4px;
+    margin-right: 3px;
+    font-size: 14px;
   }
 
   &:hover {
     color: var(--el-color-primary);
-    border-color: var(--el-color-primary-light-5);
-    background: var(--el-color-primary-light-9);
+    border-color: rgba(var(--el-color-primary-rgb), 0.22);
+    background: color-mix(in srgb, var(--app-shell-panel-bg) 64%, transparent);
+  }
+
+  &:focus-visible {
+    border-color: rgba(var(--el-color-primary-rgb), 0.4);
+    box-shadow: 0 0 0 2px rgba(var(--el-color-primary-rgb), 0.08);
   }
 }
 
@@ -751,7 +783,7 @@ defineExpose({
 
   .user-profile {
     max-width: none;
-    padding: 7px 9px;
+    padding: 2px 7px 2px 4px;
   }
 }
 </style>

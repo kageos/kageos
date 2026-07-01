@@ -48,15 +48,15 @@ Kageos 项目本身还有救，而且生产单机 Linux 这条路比 macOS Podma
 保留下来的关键文件：
 
 ```text
-/Users/beiluo/.local/share/containers/podman/machine/libkrun/podman-machine-default-arm64.raw
-/Users/beiluo/.local/share/containers/podman/machine/libkrun/podman-machine-default-arm64.raw.backup-before-xfs-repair-20260604-002621
-/Users/beiluo/.local/share/containers/podman/machine/libkrun/podman-machine-default-arm64.raw.corrupt-before-qemu-repair-20260604-013710
+$HOME/.local/share/containers/podman/machine/libkrun/podman-machine-default-arm64.raw
+$HOME/.local/share/containers/podman/machine/libkrun/podman-machine-default-arm64.raw.backup-before-xfs-repair-20260604-002621
+$HOME/.local/share/containers/podman/machine/libkrun/podman-machine-default-arm64.raw.corrupt-before-qemu-repair-20260604-013710
 ```
 
 事故恢复记录：
 
 ```text
-/Users/beiluo/podman-recovery-qemu/incident-2026-06-04-podman-xfs-recovery.md
+$HOME/podman-recovery-qemu/incident-2026-06-04-podman-xfs-recovery.md
 ```
 
 ## Kageos 当前怎么使用 Podman

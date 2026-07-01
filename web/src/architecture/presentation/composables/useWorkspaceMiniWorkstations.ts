@@ -220,7 +220,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       if (existingForPath?.initialSessionId) {
         return upsertPrimaryMiniWs(
           fullCodePath,
-          existingForPath.dirName || dirName,
+          dirName || existingForPath.dirName,
           existingForPath.initialSessionId,
           initialMaximized,
           initialExpanded,
@@ -404,7 +404,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     const targetPath = buildWorkspacePath(fullCodePath)
     const normalizedSessionId = (payload.session_id || '').trim()
     const existingMini = findPreferredMiniForPath(fullCodePath, normalizedSessionId)
-    const dirName = payload.directory_name || existingMini?.dirName || resolveDirName(fullCodePath)
+    const dirName = resolveDirName(fullCodePath, payload.directory_name || existingMini?.dirName)
     const openMini = () => {
       const initialMaximized = payload.initial_maximized === undefined
         ? true

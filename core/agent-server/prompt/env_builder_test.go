@@ -103,6 +103,35 @@ func TestWorkspaceEnvBlockIncludesScheduledTasksSection(t *testing.T) {
 	}
 }
 
+func TestWorkspaceEnvBlockPlacesRunbookBeforeDirectoryIntent(t *testing.T) {
+	t.Parallel()
+
+	data := BuildWorkspaceEnvData(&WorkspaceEnvInput{
+		DirName:                 "跨境物流跟踪",
+		DirCode:                 "logistics_tracking",
+		FullCodePath:            "/system/cross_border/logistics_tracking",
+		DirectoryRunbookSection: "### 当前目录运行手册\n\n来源：`/system/cross_border/logistics_tracking/runbook.docs`\n\n收到物流通知后先核对订单号。",
+		ScheduledTasksSection:   "### 当前目录自动执行摘要\n- 当前目录没有已配置的函数任务或 Agent 任务。",
+	}, "跨境物流跟踪", "/system/cross_border/logistics_tracking", timeNowForTest())
+	got := BuildWorkspaceEnvBlock(data, true, "跨境物流跟踪", "/system/cross_border/logistics_tracking")
+
+	runbookIdx := strings.Index(got, "### 当前目录运行手册")
+	intentIdx := strings.Index(got, "### 当前目录语义")
+	scheduledIdx := strings.Index(got, "### 当前目录自动执行摘要")
+	if runbookIdx < 0 {
+		t.Fatalf("workspace env block should include runbook section, got:\n%s", got)
+	}
+	if intentIdx < 0 || runbookIdx > intentIdx {
+		t.Fatalf("runbook section should be before directory intent section, got:\n%s", got)
+	}
+	if scheduledIdx < 0 || runbookIdx > scheduledIdx {
+		t.Fatalf("runbook section should be before scheduled task summary, got:\n%s", got)
+	}
+	if !strings.Contains(got, "收到物流通知后先核对订单号。") {
+		t.Fatalf("workspace env block should include runbook content, got:\n%s", got)
+	}
+}
+
 func timeNowForTest() time.Time {
 	return time.Date(2026, 4, 21, 12, 0, 0, 0, time.UTC)
 }

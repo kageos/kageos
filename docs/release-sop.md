@@ -1,6 +1,6 @@
 # Kageos 发布 SOP
 
-本文档记录 Kageos 正式发布的标准流程。目标是保证 SDK、平台镜像、国内镜像同步、R2 离线包和用户 `kageos update` 入口保持一致。
+本文档记录 Kageos 正式发布的标准流程。目标是保证 SDK、平台镜像、国内镜像同步和用户 `kageos update` 入口保持一致。
 
 ## 发布入口
 
@@ -80,10 +80,6 @@ tag 会同时触发：
 
 - `docker.io/qiayanai/kageos:<version>`
 - `docker.io/qiayanai/kageos:latest`
-- `downloads.kageos.com/releases/v<version>/manifest.json`
-- `downloads.kageos.com/releases/v<version>/kageos-linux-amd64.tar.gz`
-- `downloads.kageos.com/releases/v<version>/kageos-linux-arm64.tar.gz`
-- `downloads.kageos.com/releases/latest.txt`
 - 阿里云 ACR 的 `kageos:<version>` 和 `kageos:latest`
 
 `kagebase-release.yml` 发布：
@@ -112,15 +108,6 @@ docker buildx imagetools inspect docker.io/qiayanai/kagebase:0.1.9
 docker buildx imagetools inspect docker.io/qiayanai/kageos:latest
 ```
 
-检查 R2 发布索引：
-
-```bash
-curl -fsSL https://downloads.kageos.com/releases/latest.txt
-curl -fsSL https://downloads.kageos.com/releases/v0.1.9/manifest.json
-curl -fsSL -I https://downloads.kageos.com/releases/v0.1.9/kageos-linux-amd64.tar.gz
-curl -fsSL -I https://downloads.kageos.com/releases/v0.1.9/kageos-linux-arm64.tar.gz
-```
-
 在国内生产机上验证用户更新：
 
 ```bash
@@ -134,7 +121,7 @@ sudo bash -lc 'source /etc/kageos-helper.env; $KAGEOS_ENGINE exec "$KAGEOS_CONTA
 
 `sudo kageos update` 的 helper 来自 `kageos-website/public/install-prod.sh`，不是 `kageos` 主仓。
 
-国内安装或更新时，如果 `/etc/kageos-helper.env` 里有：
+国内安装或更新时，`--cn` 默认使用国内镜像源，不再尝试 release tarball。只有显式设置：
 
 ```dotenv
 KAGEOS_CN=1
@@ -142,7 +129,7 @@ KAGEOS_CN_TARBALL=1
 KAGEOS_RELEASE_VERSION=latest
 ```
 
-helper 会重新拉取 `https://kageos.com/install-prod.sh`，再通过 `downloads.kageos.com/releases/latest.txt` 找到最新正式版本，并优先尝试 R2 release tarball。这个链路依赖：
+helper 才会重新拉取 `https://kageos.com/install-prod.sh`，并把 release tarball 纳入兜底。默认发布流程不再自动生成或同步 R2 release tarball；只有手动运行 `release-archive-sync.yml` 后，release tarball 链路才可用。这个可选链路依赖：
 
 - 官网已经发布最新 `install-prod.sh`
 - R2 的 `latest.txt` 指向最新 tag
@@ -155,7 +142,7 @@ helper 会重新拉取 `https://kageos.com/install-prod.sh`，再通过 `downloa
 这些 workflow 是补救入口，不是标准发版入口：
 
 - `registry-sync.yml`: Docker Hub 已有版本镜像，但阿里云 ACR 同步失败时使用。
-- `release-archive-sync.yml`: Docker Hub 已有 `kageos:<version>`，但 R2 tarball 或 `latest.txt` 缺失时使用。
+- `release-archive-sync.yml`: Docker Hub 已有 `kageos:<version>`，且确实需要补发 R2 tarball 或 `latest.txt` 时手动使用。
 - `docker-retag.yml`: 已有版本镜像，需要修正 Docker Hub `latest` 指针时使用。
 - `dev-latest-release.yml`: 临时测试 `latest`，不代表正式版本。
 

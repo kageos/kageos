@@ -39,8 +39,12 @@ jobs:
             libdevmapper-dev \
             libgpgme-dev \
             pkg-config
+      - name: Vet backend packages
+        run: go vet -tags exclude_graphdriver_btrfs ./cmd/... ./core/... ./dto/... ./pkg/...
       - name: Test core packages
         run: bash scripts/test-core-go.sh
+      - name: Run Go vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./cmd/... ./core/... ./dto/... ./pkg/...
 
   frontend:
     name: Frontend Checks
@@ -57,8 +61,12 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
       - name: Check architecture boundaries
         run: npm run check:architecture
+      - name: Lint
+        run: npm run lint
       - name: Type check
         run: npm run type-check
       - name: Unit tests

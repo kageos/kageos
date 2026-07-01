@@ -60,8 +60,8 @@ minio:
   bucket: "kageos"
 
 secrets:
-  jwt_secret: "0123456789abcdef0123456789abcdef"
-  app_db_secret: "abcdef0123456789abcdef0123456789"
+  jwt_secret: "replace-with-a-strong-jwt-secret-at-least-32-chars"
+  app_db_secret: "replace-with-a-strong-app-db-secret-at-least-32-chars"
   generated_by_kagectl: false
   generated_at_unix_seconds: 0
 
@@ -86,8 +86,8 @@ llms:
     - code: "main"
       name: "默认模型"
       model: "gpt-4o-mini"
-	      # 推荐用环境变量注入密钥；api_base 不填时走 OpenAI SDK 默认地址。
-	      # api_base 仅用于受控部署或代理场景下覆盖 OpenAI API base URL。
+      # 推荐用环境变量注入密钥；api_base 不填时走 OpenAI SDK 默认地址。
+      # api_base 仅用于受控部署或代理场景下覆盖 OpenAI API base URL。
       api_key_env: "OPENAI_API_KEY"
       api_base: ""
       timeout: 300

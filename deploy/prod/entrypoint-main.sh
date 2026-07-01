@@ -83,7 +83,7 @@ wait_core_ready() {
 print_aio_success_summary() {
   local data_dir="${KAGEOS_AIO_DATA_DIR:-/var/lib/kageos}"
   local secrets_dir="${data_dir}/secrets"
-  local show_secrets="${KAGEOS_AIO_PRINT_SECRETS:-1}"
+  local show_secrets="${KAGEOS_AIO_PRINT_SECRETS:-0}"
   local system_password mysql_password minio_password nats_password jwt_secret app_db_secret
 
   if [[ "$show_secrets" == "0" || "$show_secrets" == "false" ]]; then

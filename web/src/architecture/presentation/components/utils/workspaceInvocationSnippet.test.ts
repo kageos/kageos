@@ -4,9 +4,11 @@ import {
   filterEmptyInvocationParams,
   parseWorkspaceInvocationBlocks,
   parseWorkspacePromptSegments,
+  renderWorkspaceResourceTokensAsHtml,
   resolveWorkspaceResourcePath,
   unwrapWorkspaceResourceToken,
   wrapWorkspaceResourcePath,
+  workspaceResourceKind,
 } from './workspaceInvocationSnippet'
 
 describe('workspaceInvocationSnippet', () => {
@@ -44,6 +46,28 @@ describe('workspaceInvocationSnippet', () => {
       path: '/system/democase/recruit_interview/record_screening.form',
       text: '<./record_screening.form>',
     })
+  })
+
+  it('renders resource tokens as safe workspace links', () => {
+    const html = renderWorkspaceResourceTokensAsHtml(
+      '先查 <./orders.table>，再提交 </system/app/notify.form>',
+      '/system/app/runbook.docs'
+    )
+
+    expect(html).toContain('class="workspace-resource-token is-table"')
+    expect(html).toContain('href="/workspace/system/app/orders.table"')
+    expect(html).toContain('data-full-code-path="/system/app/orders.table"')
+    expect(html).toContain('orders.table')
+    expect(html).toContain('class="workspace-resource-token is-form"')
+    expect(html).toContain('href="/workspace/system/app/notify.form"')
+  })
+
+  it('detects resource kind from function suffixes', () => {
+    expect(workspaceResourceKind('/system/app/list.table')).toBe('table')
+    expect(workspaceResourceKind('/system/app/input.form')).toBe('form')
+    expect(workspaceResourceKind('/system/app/summary.chart')).toBe('chart')
+    expect(workspaceResourceKind('/system/app/runbook.docs')).toBe('docs')
+    expect(workspaceResourceKind('/system/app/orders')).toBe('directory')
   })
 
   it('builds a workspace-readable invocation block', () => {

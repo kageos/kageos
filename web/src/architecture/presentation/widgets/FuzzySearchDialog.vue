@@ -97,7 +97,7 @@
             
             <!-- 颜色指示器 -->
             <span
-              v-if="getItemColor(item.value)"
+              v-if="resolveItemColor(item.value)"
               class="option-color-indicator"
               :style="getItemColorStyle(item.value)"
             />
@@ -323,7 +323,7 @@ function isItemSelected(item: InputFuzzyItem): boolean {
 }
 
 // 获取选项颜色
-function getItemColor(value: unknown): string | null {
+function resolveItemColor(value: unknown): string | null {
   if (props.getItemColor) {
     return props.getItemColor(value)
   }
@@ -332,7 +332,7 @@ function getItemColor(value: unknown): string | null {
 
 // 获取选项颜色样式
 function getItemColorStyle(value: unknown): Record<string, string> {
-  const color = getItemColor(value)
+  const color = resolveItemColor(value)
   if (!color) return {}
   
   return {

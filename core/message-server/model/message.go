@@ -90,6 +90,7 @@ type NotificationRouteSetting struct {
 	Enabled          bool       `json:"enabled" gorm:"not null;index;comment:是否启用"`
 	DeliveryType     string     `json:"delivery_type" gorm:"size:64;not null;default:webhook;comment:投递类型"`
 	DisplayName      string     `json:"display_name" gorm:"size:255;comment:展示名称"`
+	Remark           string     `json:"remark" gorm:"size:500;comment:内部备注"`
 	RequireAuth      bool       `json:"require_auth" gorm:"not null;default:true;comment:群/目录通知处理链接是否必须登录"`
 	WebhookURLCipher string     `json:"-" gorm:"type:text;comment:webhook 地址密文"`
 	SecretCipher     string     `json:"-" gorm:"type:text;comment:签名 secret 密文"`

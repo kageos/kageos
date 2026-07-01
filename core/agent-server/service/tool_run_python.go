@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/kageos/kageos/dto"
@@ -25,7 +26,8 @@ const runPythonPreinstallDoc = `**生产镜像已预装、可直接 import 的�
 - 配置与安全：yaml（PyYAML）、toml、cryptography
 - 另有 **Python 标准库**（json、re、collections、datetime、itertools、math、random 等）
 
-**若 import 报错：** 优先改用上面列表或标准库；需要新依赖时请管理员更新 Dockerfile / 基础镜像 requirements.txt 并重打镜像。不可在本工具参数里指定 pip 包。
+**若 import 报错：** 优先改用上面列表或标准库；临时新依赖可通过 packages 参数声明；长期依赖请管理员更新 Dockerfile / 基础镜像 requirements.txt 并重打镜像。
+**临时补充依赖：** 可通过 packages 参数声明额外 pip 包（逗号分隔，如 openai,scikit-learn==1.5.0）。包会安装到当前应用版本容器的可写层；同一容器 stop/start 后通常仍在，但应用更新产生新版本容器、容器被删除、基础镜像重建或 Podman 存储清理后需要重新安装。长期稳定依赖仍应进入基础镜像。
 **环境差异：** 本地非 Docker 运行时以本机 python 为准，可能与镜像不一致。`
 
 type RunPythonTool struct{}
@@ -34,6 +36,7 @@ type runPythonArgs struct {
 	PythonCode     string                 `json:"python_code" schema_desc:"完整 Python 源码" schema_required:"true"`
 	Args           map[string]interface{} `json:"args" schema_desc:"注入脚本的对象参数（推荐）"`
 	InputFiles     string                 `json:"input_files" schema_desc:"可选文件引用字符串，格式 bucket/object_key，多文件用英文逗号分隔；不传时自动使用当前用户消息上传的附件；支持直接填入上一步 output_files 返回的路径，实现 output -> input 文件流转"`
+	Packages       string                 `json:"packages" schema_desc:"可选额外 pip 包，逗号分隔；仅支持简单包名或版本约束，如 openai,scikit-learn==1.5.0；安装在当前应用版本容器内，容器重建后不保证保留"`
 	TimeoutSeconds *int                   `json:"timeout_seconds" schema_desc:"超时秒数"`
 }
 
@@ -54,6 +57,12 @@ var runPythonToolDef = toolDefinition[runPythonArgs](
   - output_files: 输出文件列表，每项至少含 path
   - warnings: 警告字符串列表
 - print(...) 只用于日志，不作为主结果协议
+
+**额外依赖 packages（谨慎使用）：**
+- packages 仅用于临时补充预装库之外的 pip 包，多个包用英文逗号分隔，例如 openai,scikit-learn==1.5.0。
+- 只允许简单包名、extras 和版本约束；不要传 URL、本地路径、requirements 文件、--index-url、-r 等 pip 参数。
+- 安装发生在当前应用版本容器内；同一容器 stop/start 后通常仍在，应用更新创建新版本容器或容器被删除后需要重新安装。
+- 长期稳定依赖请进入 app-base 镜像或系统工具能力，避免每次执行安装带来耗时和网络不稳定。
 
 **Python 代码书写规范（非常重要）：**
 - python_code 会按原文传给执行端，平台不做 BOM、控制字符、缩进的隐式修复；请直接输出干净的 UTF-8 源码，并从 def kageos_entry(args, output_dir): 开始。
@@ -84,7 +93,7 @@ var runPythonToolDef = toolDefinition[runPythonArgs](
 
 **若你需要把字段、权限、命名规则固化为应用接口：** 请用 **read_doc** 读取内置示例文档 **/system/prompt/case_catalog/form/python_output**（含 PRD 与完整 Go 示例），再按文档配合 **agent-app SDK** 在用户应用内新增 Form：**pythonRuntime.NewExecutor** → **defer executor.Close()**（默认临时目录）→ Go 用 **filepath.Abs** 得到 **绝对路径**（如 GetTraceOutputDir 下文件）经请求传给 Python → Python **直接写入该路径**（如 savefig，勿用相对路径互传，Go/Python **cwd 不同**）→ 用 **OutputFilePaths + ResponseFiles** 下发附件。Go 与 Python 为**同机子进程**，非网络隔离。
 
-**参数：** 使用 args 传对象参数；timeout_seconds 默认 120、上限 300。
+**参数：** 使用 args 传对象参数；packages 可声明临时 pip 依赖；timeout_seconds 默认 120、上限 300。
 
 返回中可能含 _model_guidance：面向你的纠错/降级说明，请优先阅读。`,
 )
@@ -125,6 +134,11 @@ func runPythonTool(ctx context.Context, args runPythonArgs, attachedFiles string
 	if inputFiles := resolvePythonInputFiles(args.InputFiles, attachedFiles, args.Args); inputFiles != "" {
 		body.InputFiles = inputFiles
 	}
+	if packages, err := normalizeRunPythonPackages(args.Packages); err != nil {
+		return "run_python packages 参数无效: " + err.Error(), true, nil
+	} else if packages != "" {
+		body.Packages = packages
+	}
 	timeoutSec := 120
 	if args.TimeoutSeconds != nil && *args.TimeoutSeconds > 0 {
 		timeoutSec = *args.TimeoutSeconds
@@ -154,6 +168,57 @@ func runPythonTool(ctx context.Context, args runPythonArgs, attachedFiles string
 func withRunPythonRuntimeSource(ctx context.Context) context.Context {
 	ctx = withAgentToolClientSource(ctx)
 	return contextx.WithSourceInfo(ctx, contextx.SourceTypeAgentTool, contextx.GetSourceRef(ctx))
+}
+
+var runPythonPackageSpecPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*(\[[A-Za-z0-9._-]+\])?((===|==|!=|>=|<=|~=|>|<)[A-Za-z0-9][A-Za-z0-9.*_+!~-]*)?$`)
+
+func normalizeRunPythonPackages(packages string) (string, error) {
+	packages = strings.TrimSpace(packages)
+	if packages == "" {
+		return "", nil
+	}
+	if len(packages) > 512 {
+		return "", fmt.Errorf("总长度不能超过 512 个字符")
+	}
+	parts := strings.Split(packages, ",")
+	if len(parts) > 10 {
+		return "", fmt.Errorf("最多一次声明 10 个包")
+	}
+
+	out := make([]string, 0, len(parts))
+	seen := make(map[string]bool)
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if err := validateRunPythonPackageSpec(part); err != nil {
+			return "", err
+		}
+		key := strings.ToLower(part)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, part)
+	}
+	return strings.Join(out, ","), nil
+}
+
+func validateRunPythonPackageSpec(pkg string) error {
+	if strings.HasPrefix(pkg, "-") {
+		return fmt.Errorf("包 %q 不能是 pip 命令行参数", pkg)
+	}
+	if strings.ContainsAny(pkg, " \t\r\n") {
+		return fmt.Errorf("包 %q 不能包含空白字符", pkg)
+	}
+	if strings.ContainsAny(pkg, `/\`) || strings.Contains(pkg, "://") || strings.Contains(pkg, "@") {
+		return fmt.Errorf("包 %q 不能是 URL、本地路径或直接引用", pkg)
+	}
+	if !runPythonPackageSpecPattern.MatchString(pkg) {
+		return fmt.Errorf("包 %q 不是支持的简单包名或版本约束", pkg)
+	}
+	return nil
 }
 
 func runPythonWorkspaceRoot(currentFullCodePath string) string {
@@ -284,7 +349,7 @@ func buildPythonModelGuidance(raw map[string]interface{}) string {
 	case "失败":
 		appendLine("【状态为失败】请阅读 output 中的 traceback/错误信息，修正 python_code 后重试。")
 		if strings.Contains(out, "ModuleNotFoundError") || strings.Contains(out, "No module named") {
-			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、snownlp、requests、openpyxl、xlsxwriter、python-pptx、matplotlib、plotly、pyecharts、bs4、tabulate、arrow、wordcloud、pytesseract、yt_dlp、PyYAML…）或仅用标准库；若必须新库，请管理员更新 deploy/base/images/app-base/Dockerfile 或基础镜像 requirements.txt 并重打镜像。")
+			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、snownlp、requests、openpyxl、xlsxwriter、python-pptx、matplotlib、plotly、pyecharts、bs4、tabulate、arrow、wordcloud、pytesseract、yt_dlp、PyYAML…）或仅用标准库；临时新库可在 packages 参数中声明简单 pip 包名/版本约束；长期依赖请更新 deploy/base/images/app-base/Dockerfile 或基础镜像 requirements.txt 并重打镜像。")
 		}
 		if strings.Contains(out, "SyntaxError") || strings.Contains(out, "IndentationError") {
 			appendLine("【语法】请检查引号、缩进、括号是否匹配；字符串内换行需用三引号或 \\n。")

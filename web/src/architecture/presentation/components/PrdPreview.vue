@@ -15,7 +15,7 @@
         <div class="prd-head-text">
           <div class="prd-title">{{ display(project.name) }}</div>
           <div class="prd-subtitle">
-            <span>创建新目录</span>
+            <span>{{ t('prdPreview.createNewDirectory') }}</span>
             <span class="prd-dot">·</span>
             <code>{{ display(project.code) }}</code>
           </div>
@@ -23,13 +23,13 @@
       </div>
       <div class="prd-directory-badge is-new">
         <el-icon :size="12"><Plus /></el-icon>
-        <span>新增目录</span>
+        <span>{{ t('prdPreview.newDirectory') }}</span>
       </div>
     </header>
 
     <div class="prd-directory-strip">
       <div class="prd-directory-item">
-        <span>目录说明</span>
+        <span>{{ t('prdPreview.directoryDescription') }}</span>
         <strong>{{ display(project.summary) }}</strong>
       </div>
     </div>
@@ -62,7 +62,7 @@
           <div v-if="tableRequestFields(activeView.fn).length" class="prd-panel prd-panel-search">
             <div class="prd-panel-title">
               <el-icon :size="14"><Search /></el-icon>
-              <span>搜索条件</span>
+              <span>{{ t('prdPreview.searchFields') }}</span>
             </div>
             <div class="prd-field-grid is-compact is-search">
               <div
@@ -72,7 +72,7 @@
               >
                 <div class="prd-field-head">
                   <span class="prd-field-name">{{ field.name }}</span>
-                  <span v-if="field.required" class="prd-required">必填</span>
+                  <span v-if="field.required" class="prd-required">{{ t('prdPreview.required') }}</span>
                 </div>
                 <div :class="['prd-fake-control', fieldKindClass(field)]">
                   <span>{{ fieldPreviewText(field) }}</span>
@@ -93,13 +93,13 @@
             <div class="prd-toolbar-group">
               <span
                 v-for="operation in tableOperations(activeView.fn)"
-                :key="operation"
-                :class="['prd-operation-chip', { 'is-disabled': tableReadonly(activeView.fn) && operation !== '列表查询' }]"
+                :key="operation.key"
+                :class="['prd-operation-chip', { 'is-disabled': tableReadonly(activeView.fn) && operation.key !== 'list' }]"
               >
-                {{ operation }}
+                {{ operation.label }}
               </span>
             </div>
-            <div v-if="tableReadonly(activeView.fn)" class="prd-readonly-mark">只读</div>
+            <div v-if="tableReadonly(activeView.fn)" class="prd-readonly-mark">{{ t('prdPreview.readonly') }}</div>
           </div>
 
           <div class="prd-table-scroll">
@@ -118,14 +118,14 @@
               </tbody>
             </table>
           </div>
-          <div class="prd-table-footer">示例 {{ Math.max(tableRows(activeView.fn).length, 1) }} 条</div>
+          <div class="prd-table-footer">{{ t('prdPreview.sampleRows', { count: Math.max(tableRows(activeView.fn).length, 1) }) }}</div>
         </template>
 
         <template v-else-if="fnType(activeView.fn) === 'form'">
           <div class="prd-panel prd-form-preview-panel">
             <div class="prd-panel-title">
               <component :is="FormIcon" class="prd-panel-icon" :size="14" />
-              <span>请求字段</span>
+              <span>{{ t('prdPreview.requestFields') }}</span>
             </div>
             <div class="prd-form-preview">
               <div
@@ -154,12 +154,12 @@
                 <div :class="['prd-form-inspector-item', { 'is-primary': index === 0 }]">
                   <div class="prd-form-inspector-title">
                     <span>{{ field.name }}</span>
-                    <i>{{ field.required ? '必填' : '选填' }}</i>
+                    <i>{{ field.required ? t('prdPreview.required') : t('prdPreview.optional') }}</i>
                   </div>
                   <div class="prd-form-inspector-meta">
                     <code>{{ field.type }}</code>
                     <span v-if="field.desc">{{ field.desc }}</span>
-                    <span v-else>{{ fieldOptions(field).length ? `可选：${fieldOptions(field).join('、')}` : '按控件类型填写' }}</span>
+                    <span v-else>{{ fieldOptions(field).length ? t('prdPreview.optionList', { options: fieldOptions(field).join('、') }) : t('prdPreview.fillByControlType') }}</span>
                   </div>
                 </div>
               </div>
@@ -168,7 +168,7 @@
 
           <div v-if="formResponseFields(activeView.fn).length" class="prd-panel">
             <div class="prd-panel-title">
-              <span>响应预览</span>
+              <span>{{ t('prdPreview.responsePreview') }}</span>
             </div>
             <div class="prd-response-grid is-form-response">
               <div
@@ -188,7 +188,7 @@
           <div v-if="chartFilterFields(activeView.fn).length" class="prd-panel prd-panel-search">
             <div class="prd-panel-title">
               <el-icon :size="14"><Search /></el-icon>
-              <span>筛选条件</span>
+              <span>{{ t('prdPreview.filterFields') }}</span>
             </div>
             <div class="prd-field-grid is-compact is-search">
               <div
@@ -198,7 +198,7 @@
               >
                 <div class="prd-field-head">
                   <span class="prd-field-name">{{ field.name }}</span>
-                  <span v-if="field.required" class="prd-required">必填</span>
+                  <span v-if="field.required" class="prd-required">{{ t('prdPreview.required') }}</span>
                 </div>
                 <div :class="['prd-fake-control', fieldKindClass(field)]">
                   <span>{{ fieldPreviewText(field) }}</span>
@@ -235,14 +235,14 @@
           </div>
         </template>
 
-        <el-empty v-else description="暂无功能预览" />
+        <el-empty v-else :description="t('prdPreview.emptyPreview')" />
       </div>
 
       <div
         v-if="functionCards.length > 1"
         class="prd-slide-nav"
         role="tablist"
-        aria-label="PRD 功能预览切换"
+        :aria-label="t('prdPreview.previewSwitchAria')"
         @pointerdown.stop
         @mousedown.stop
         @mouseup.stop
@@ -277,7 +277,7 @@
     </section>
 
     <section v-else class="prd-stage prd-stage-empty">
-      <el-empty description="暂无功能预览" />
+      <el-empty :description="t('prdPreview.emptyPreview')" />
     </section>
 
     <div v-if="props.showConfirmation && confirmationQuestion" class="prd-confirmation">
@@ -288,7 +288,7 @@
           class="prd-confirmation-remark"
           rows="2"
           :disabled="confirmDisabled || submitted"
-          placeholder="补充备注，可选"
+          :placeholder="t('prdPreview.remarkPlaceholder')"
         />
       </div>
       <div class="prd-confirmation-actions">
@@ -298,7 +298,7 @@
           :disabled="confirmDisabled || submitted"
           @click="confirmPrd"
         >
-          {{ submitted ? '已提交确认' : '确认 PRD' }}
+          {{ submitted ? t('prdPreview.confirmSubmitted') : t('prdPreview.confirmPrd') }}
         </el-button>
       </div>
     </div>
@@ -308,6 +308,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import type { Component } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus, Search } from '@element-plus/icons-vue'
 import PrdChartPreview from './PrdChartPreview.vue'
 import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
@@ -316,6 +317,7 @@ import ChartIcon from '@/architecture/presentation/shared/components/icons/Chart
 
 type PreviewRow = Record<string, unknown>
 type PrdResourceType = 'table' | 'form' | 'chart'
+type PrdFieldKind = 'text' | 'textarea' | 'select' | 'multiselect' | 'datetime' | 'number' | 'files' | 'switch' | 'radio' | 'checkbox' | 'table'
 
 interface PrdProject {
   name?: string
@@ -334,6 +336,7 @@ interface PrdField {
 interface PreviewField {
   name: string
   type: string
+  kind: PrdFieldKind
   required: boolean
   desc: string
   example?: unknown
@@ -405,6 +408,11 @@ interface PrdFunctionCard {
   iconComponent?: Component
 }
 
+interface PrdTableOperation {
+  key: 'list' | 'create' | 'edit' | 'delete'
+  label: string
+}
+
 const props = withDefaults(defineProps<{
   data: unknown
   confirmDisabled?: boolean
@@ -418,6 +426,7 @@ const emit = defineEmits<{
   (event: 'confirm', payload: { remark: string; prd: PrdData | null }): void
 }>()
 
+const { t } = useI18n()
 const previewRoot = ref<HTMLElement | null>(null)
 const activeFunctionKey = ref('')
 const remark = ref('')
@@ -435,7 +444,11 @@ const formsList = computed<PrdForm[]>(() => Array.isArray(prd.value?.forms) ? pr
 const chartsList = computed<PrdChart[]>(() => Array.isArray(prd.value?.charts) ? prd.value?.charts || [] : [])
 const confirmationQuestion = computed(() => {
   const refs = functionCards.value.map(item => item.title).filter(item => item !== '—')
-  return `请确认是否按以上 PRD 创建目录和生成代码：目录名称 ${display(project.value.name)}，目录 code 为 ${display(project.value.code)}，将创建 ${refs.join('、') || '上述功能'}。确认后我再进入开发阶段。`
+  return t('prdPreview.confirmationQuestion', {
+    name: display(project.value.name),
+    code: display(project.value.code),
+    functions: refs.join('、') || t('prdPreview.aboveFunctions'),
+  })
 })
 
 const functionCards = computed<PrdFunctionCard[]>(() => {
@@ -508,7 +521,7 @@ function parseMaybeJSON(value: unknown): unknown {
 function display(value: unknown): string {
   if (value == null || value === '') return '—'
   if (Array.isArray(value)) return value.length ? value.map(display).join('、') : '—'
-  if (typeof value === 'boolean') return value ? '是' : '否'
+  if (typeof value === 'boolean') return value ? t('common.yes') : t('common.no')
   if (typeof value === 'object') return JSON.stringify(value)
   return String(value)
 }
@@ -527,7 +540,7 @@ function previewFunctionForForm(form: PrdForm): PreviewFunction {
   return {
     type: 'form',
     title: display(form.name),
-    subtitle: form.target_table ? `写入 ${form.target_table}` : '独立提交入口',
+    subtitle: form.target_table ? t('prdPreview.writeTo', { target: form.target_table }) : t('prdPreview.standaloneSubmitEntry'),
     description: display(form.desc),
     form,
   }
@@ -537,7 +550,7 @@ function previewFunctionForChart(chart: PrdChart): PreviewFunction {
   return {
     type: 'chart',
     title: display(chart.name),
-    subtitle: chart.source_table ? `统计 ${chart.source_table}` : '统计图表',
+    subtitle: chart.source_table ? t('prdPreview.chartFrom', { source: chart.source_table }) : t('prdPreview.chart'),
     description: display(chart.desc),
     chart,
   }
@@ -560,7 +573,11 @@ function formatOrder(order: number): string {
 }
 
 function runtimeNote(fn: PreviewFunction): string {
-  return [fn.description, fn.form?.target_table ? `目标表：${fn.form.target_table}` : '', fn.chart?.source_table ? `来源表：${fn.chart.source_table}` : '']
+  return [
+    fn.description,
+    fn.form?.target_table ? t('prdPreview.targetTable', { table: fn.form.target_table }) : '',
+    fn.chart?.source_table ? t('prdPreview.sourceTable', { table: fn.chart.source_table }) : '',
+  ]
     .map(item => String(item || '').trim())
     .filter(Boolean)
     .join(' ')
@@ -570,12 +587,12 @@ function tableReadonly(_fn: PreviewFunction): boolean {
   return false
 }
 
-function tableOperations(fn: PreviewFunction): string[] {
+function tableOperations(fn: PreviewFunction): PrdTableOperation[] {
   const handlers = Array.isArray(fn.table?.handlers) ? fn.table.handlers : []
-  const operations = ['列表查询']
-  if (handlers.includes('OnTableAddRow')) operations.push('新增')
-  if (handlers.includes('OnTableUpdateRow')) operations.push('编辑')
-  if (handlers.includes('OnTableDeleteRow')) operations.push('删除')
+  const operations: PrdTableOperation[] = [{ key: 'list', label: t('prdPreview.listQuery') }]
+  if (handlers.includes('OnTableAddRow')) operations.push({ key: 'create', label: t('common.create') })
+  if (handlers.includes('OnTableUpdateRow')) operations.push({ key: 'edit', label: t('common.edit') })
+  if (handlers.includes('OnTableDeleteRow')) operations.push({ key: 'delete', label: t('common.delete') })
   return operations
 }
 
@@ -596,7 +613,7 @@ function rowCell(row: PreviewRow, column: string): unknown {
 
 function tableRequestFields(fn: PreviewFunction): PreviewField[] {
   const searchFields = Array.isArray(fn.table?.search_fields) ? fn.table.search_fields : []
-  return searchFields.map(field => normalizeField(field, '搜索条件'))
+  return searchFields.map(field => normalizeField(field, t('prdPreview.searchFields')))
 }
 
 function formRequestFields(fn: PreviewFunction): PreviewField[] {
@@ -611,7 +628,7 @@ function formResponseFields(fn: PreviewFunction): PreviewField[] {
 
 function chartFilterFields(fn: PreviewFunction): PreviewField[] {
   const filters = Array.isArray(fn.chart?.filters) ? fn.chart.filters : []
-  return filters.map(field => normalizeField(field, '图表查询条件'))
+  return filters.map(field => normalizeField(field, t('prdPreview.chartQueryFields')))
 }
 
 function chartMetrics(fn: PreviewFunction): string[] {
@@ -646,11 +663,13 @@ function chartSummaryFields(_fn: PreviewFunction): PreviewField[] {
 
 function normalizeField(input: PrdField, fallbackDesc = '', example?: unknown): PreviewField {
   const name = display(input.name)
-  const type = normalizeFieldType(input.widget || inferFieldType(`${name} ${input.desc || ''}`))
+  const kind = normalizeFieldKind(input.widget || inferFieldKind(`${name} ${input.desc || ''}`))
+  const type = fieldTypeLabel(kind)
   const desc = display(input.desc || fallbackDesc)
   return {
     name,
     type,
+    kind,
     required: Boolean(input.required),
     desc: desc === '—' ? '' : desc,
     example,
@@ -665,66 +684,57 @@ function fieldOptions(field: PreviewField): string[] {
 function fieldPreviewText(field: PreviewField): string {
   if (hasValue(field.example)) return display(field.example)
   const options = fieldOptions(field)
-  if (options.length > 0) return options[0] || `请选择${field.name}`
-  if (/日期|时间|datetime|date/i.test(field.type)) return '2025-01-20 11:30'
-  if (/数字|金额|数量|integer|number|float/i.test(field.type)) return '0'
-  if (/表格|table/i.test(field.type)) return '表格明细'
-  if (/文件|上传|files/i.test(field.type)) return '点击上传'
-  if (/多行|textarea/i.test(field.type)) return `请输入${field.name}`
-  if (/开关|是否|switch/i.test(field.type)) return '是'
-  return `请输入${field.name}`
+  if (options.length > 0) return options[0] || t('prdPreview.selectField', { field: field.name })
+  if (field.kind === 'datetime') return '2025-01-20 11:30'
+  if (field.kind === 'number') return '0'
+  if (field.kind === 'table') return t('prdPreview.tableDetails')
+  if (field.kind === 'files') return t('prdPreview.clickUpload')
+  if (field.kind === 'textarea') return t('prdPreview.inputField', { field: field.name })
+  if (field.kind === 'switch') return t('common.yes')
+  return t('prdPreview.inputField', { field: field.name })
 }
 
 function fieldKindClass(field: PreviewField): string {
-  const type = field.type.toLowerCase()
-  if (/select|下拉|选择/.test(type) || fieldOptions(field).length > 0) return 'is-select'
-  if (/datetime|date|日期|时间/.test(type)) return 'is-datetime'
-  if (/integer|number|float|数字|金额|数量/.test(type)) return 'is-number'
-  if (/table|表格/.test(type)) return 'is-table'
-  if (/files|文件|上传/.test(type)) return 'is-files'
-  if (/textarea|多行/.test(type)) return 'is-textarea'
+  if (['select', 'multiselect', 'radio', 'checkbox'].includes(field.kind) || fieldOptions(field).length > 0) return 'is-select'
+  if (field.kind === 'datetime') return 'is-datetime'
+  if (field.kind === 'number') return 'is-number'
+  if (field.kind === 'table') return 'is-table'
+  if (field.kind === 'files') return 'is-files'
+  if (field.kind === 'textarea') return 'is-textarea'
   return 'is-input'
-}
-
-function sampleValueForField(field: PreviewField): unknown {
-  if (hasValue(field.example)) return field.example
-  const options = fieldOptions(field)
-  if (options.length > 0) return options[0]
-  if (/日期|时间|datetime|date/i.test(field.type)) return '2025-01-20 11:30'
-  if (/数字|金额|数量|integer|number|float/i.test(field.type)) return '1'
-  if (/文件|上传|files/i.test(field.type)) return '未选择文件'
-  if (/开关|是否|switch/i.test(field.type)) return '是'
-  return `示例${field.name}`
 }
 
 function fieldKey(field: PreviewField, index: number): string {
   return `${index}-${field.name}-${field.type}`
 }
 
-function normalizeFieldType(type: unknown): string {
+function normalizeFieldKind(type: unknown): PrdFieldKind {
   const normalized = String(type || '').trim()
   const lower = normalized.toLowerCase()
-  if (lower === 'input') return '文本输入'
-  if (lower === 'text_area' || lower === 'textarea') return '多行文本'
-  if (lower === 'select') return '下拉选择'
-  if (lower === 'multiselect') return '多选'
-  if (lower === 'datetime' || lower === 'date') return '日期时间'
-  if (lower === 'integer' || lower === 'number' || lower === 'float' || lower === 'int') return '数字'
-  if (lower === 'files') return '文件上传'
-  if (lower === 'switch') return '开关'
-  if (lower === 'radio') return '单选'
-  if (lower === 'checkbox') return '多选框'
-  if (lower === 'table') return '表格'
-  return normalized || '文本输入'
+  if (lower === 'text_area' || lower === 'textarea') return 'textarea'
+  if (lower === 'select') return 'select'
+  if (lower === 'multiselect') return 'multiselect'
+  if (lower === 'datetime' || lower === 'date') return 'datetime'
+  if (lower === 'integer' || lower === 'number' || lower === 'float' || lower === 'int') return 'number'
+  if (lower === 'files') return 'files'
+  if (lower === 'switch') return 'switch'
+  if (lower === 'radio') return 'radio'
+  if (lower === 'checkbox') return 'checkbox'
+  if (lower === 'table') return 'table'
+  return 'text'
 }
 
-function inferFieldType(text: string): string {
-  if (/日期|时间|date|time/i.test(text)) return '日期时间'
-  if (/数量|金额|价格|分数|比例|占比|率|integer|number|float/i.test(text)) return '数字'
-  if (/状态|分类|类型|选择|下拉|人员|部门|select/i.test(text)) return '下拉选择'
-  if (/文件|附件|上传|files/i.test(text)) return '文件上传'
-  if (/是否|启用|开关|switch/i.test(text)) return '开关'
-  return '文本输入'
+function inferFieldKind(text: string): PrdFieldKind {
+  if (/日期|时间|date|time/i.test(text)) return 'datetime'
+  if (/数量|金额|价格|分数|比例|占比|率|integer|number|float/i.test(text)) return 'number'
+  if (/状态|分类|类型|选择|下拉|人员|部门|select/i.test(text)) return 'select'
+  if (/文件|附件|上传|files/i.test(text)) return 'files'
+  if (/是否|启用|开关|switch/i.test(text)) return 'switch'
+  return 'text'
+}
+
+function fieldTypeLabel(kind: PrdFieldKind): string {
+  return t(`prdPreview.fieldTypes.${kind}`)
 }
 
 function hasValue(value: unknown): boolean {

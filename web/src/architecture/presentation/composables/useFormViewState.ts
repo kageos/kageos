@@ -4,7 +4,7 @@ import type { FormDomainService } from '../../domain/services/FormDomainService'
 import type { FieldConfig, FieldValue, FunctionDetail } from '../../domain/types'
 import type { FormStateManager } from '../../infrastructure/stateManager/FormStateManager'
 import { getFieldPresenceState } from '@/architecture/domain/utils/conditionEvaluator'
-import { createAutoFieldValue, createDisplayAwareFieldValue, createEmptyFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
+import { createDisplayAwareFieldValue, createEmptyFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { FORM_QUESTIONNAIRE_TRIGGER_CHARS, getVisualLength } from '../utils/formLayout'
 import { getFormRequestFields, getFormResponseFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 

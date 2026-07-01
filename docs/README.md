@@ -21,3 +21,7 @@ This directory collects product thinking, architecture notes, operating guides, 
 - [Kageos 发布 SOP](release-sop.md)
 - [Podman Runtime 事故复盘与本地客户端风险评估](podman-runtime-incident-and-local-client-risk.md)
 - [Podman Machine XFS 损坏事故复盘：宿主机空间耗尽](podman-machine-xfs-space-exhaustion-incident-2026-06-21.md)
+
+## Governance
+
+- [License FAQ](../LICENSE_FAQ.md)

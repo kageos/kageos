@@ -895,11 +895,6 @@ function getAgentMessage(task?: TimerTask | null): string {
   return ''
 }
 
-function stringFromRecord(record: Record<string, unknown>, key: string): string {
-  const value = record[key]
-  return typeof value === 'string' ? value.trim() : ''
-}
-
 function getTaskDescription(task?: TimerTask | null): string {
   return (task?.description || '').trim()
 }
@@ -924,7 +919,6 @@ function applyInlineScheduleForm(scheduleForm: TimerScheduleForm) {
 }
 
 function resetInlineForm(task: TimerTask) {
-  const payload = getAgentPayload(task)
   const scheduleForm = timerScheduleToForm(task.schedule)
   const fileRefs = getTaskFileRefs(task)
   inlineForm.title = task.title || ''

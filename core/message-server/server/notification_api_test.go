@@ -93,3 +93,41 @@ func TestNotificationChannelToInfoIncludesDeliveryStatus(t *testing.T) {
 		t.Fatalf("unexpected delivery status: %#v", info)
 	}
 }
+
+func TestNotificationRouteToInfoIncludesRemarkAndDeliveryStatus(t *testing.T) {
+	now := time.Date(2026, 6, 17, 10, 30, 0, 0, time.UTC)
+	row := &msgmodel.NotificationRouteSetting{
+		ID:               42,
+		ScopePath:        "/alice/sales/orders",
+		ScopeType:        "directory",
+		Channel:          service.NotificationChannelFeishu,
+		Enabled:          true,
+		DeliveryType:     "webhook",
+		DisplayName:      "订单群",
+		Remark:           "飞书订单通知群",
+		RequireAuth:      true,
+		WebhookURLCipher: "cipher-url",
+		SecretCipher:     "cipher-secret",
+		Metadata:         `{"tenant":"demo"}`,
+		UpdatedAt:        now,
+		LastSuccessAt:    &now,
+		LastFailedAt:     &now,
+		LastTestAt:       &now,
+		LastError:        "webhook returned 400",
+		FailCount:        2,
+	}
+
+	info := notificationRouteToInfo(row)
+	if info.ID != 42 || info.ScopePath != "/alice/sales/orders" || info.Channel != service.NotificationChannelFeishu {
+		t.Fatalf("unexpected basic info: %#v", info)
+	}
+	if info.DisplayName != "订单群" || info.Remark != "飞书订单通知群" {
+		t.Fatalf("unexpected display fields: %#v", info)
+	}
+	if !info.RequireAuth || !info.HasWebhookURL || !info.HasSecret {
+		t.Fatalf("unexpected route flags: %#v", info)
+	}
+	if info.Metadata["tenant"] != "demo" || info.LastError != "webhook returned 400" || info.FailCount != 2 {
+		t.Fatalf("unexpected delivery fields: %#v", info)
+	}
+}

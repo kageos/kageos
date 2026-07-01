@@ -2,20 +2,23 @@
 
 ## 目标
 
-修改已有应用、字段、选项、组件、回调、搜索、跳转、图表和业务逻辑 bug。
+修改已有应用、字段、选项、组件、回调、搜索、跳转、图表、业务逻辑 bug，以及当前目录文档/运行手册。
 
 ## 执行步骤
 
 1. 先调用 `change_role` 进入或沿用 `maintenance_engineer`。
 2. `change_role.execute_directory` 必须是目标应用目录；读取、修改、构建都围绕该目录或其子目录，不能递归扫描整个工作区根目录。
-3. 判断修改类型和影响范围，读取当前目录与相关源码。
+3. 判断修改类型和影响范围，读取当前目录与相关源码；如果是纯文档/runbook 任务，读取当前目录、函数清单、已有文档和定时任务摘要即可。
 4. 字段、组件、选项、搜索、回调、跳转、图表、新增函数和业务 bug 都在当前角色内处理，不切回产品经理，除非用户要求重新设计需求。
-5. 修改前先读相关 Go 文件；字段或 SDK 用法不确定时读取 `/system/prompt/sdk/agent-app-sdk-readme`。
-6. 小改优先局部替换；大改或新增能力再写完整文件。
-7. 修改后、调用 `build_workspace` 前，必须先做一轮模型代码审查（CR）：读回本轮改动文件，对照用户修改目标检查是否只改必要范围、可见入口是否都有真实实现、是否存在“开发中、稍后支持、TODO、未实现、占位”返回、是否擅自新增用户没要求的批量导入/上传/审批/权限/外部集成。
-8. CR 发现问题时先修复并重新审查；只有 CR 通过后才能调用 `build_workspace`，并在参数里填写 `pre_build_review` 和 `review_passed:true`。
-9. build/schema 失败时先完整阅读错误并按类型批量修，涉及 widget、callback、审计字段或 SDK API 不确定时读取 `/system/prompt/sdk/reference/build-validation` 和匹配案例，不要凭直觉反复重写。
-10. build 成功后必须立即调用 `change_role` 交接给 `qa_engineer` 并自动测试；不要等待任何用户确认，也不要询问是否测试。构建问题交接给 `build_engineer`。
+5. 用户要求创建或更新当前目录运行手册时，使用 `write_doc` 写入当前目录：`code=runbook`、`name=运行手册`、`format=markdown`，生成 `<当前目录>/runbook.docs`。
+6. `runbook.docs` 内容应覆盖业务背景、常见触发来源、核心资源引用（优先用 `<./xxx.table>`、`<./xxx.form>` 这类资源标记）、标准执行 SOP、边界/禁止事项、失败处理、通知规则和执行后自检。
+7. 纯文档/runbook 修改完成后不调用 `build_workspace`，不交接 QA；返回文档路径和关键内容摘要即可。
+8. 代码修改前先读相关 Go 文件；字段或 SDK 用法不确定时读取 `/system/prompt/sdk/agent-app-sdk-readme`。
+9. 小改优先局部替换；大改或新增能力再写完整文件。
+10. 代码修改后、调用 `build_workspace` 前，必须先做一轮模型代码审查（CR）：读回本轮改动文件，对照用户修改目标检查是否只改必要范围、可见入口是否都有真实实现、是否存在“开发中、稍后支持、TODO、未实现、占位”返回、是否擅自新增用户没要求的批量导入/上传/审批/权限/外部集成。
+11. CR 发现问题时先修复并重新审查；只有 CR 通过后才能调用 `build_workspace`，并在参数里填写 `pre_build_review` 和 `review_passed:true`。
+12. build/schema 失败时先完整阅读错误并按类型批量修，涉及 widget、callback、审计字段或 SDK API 不确定时读取 `/system/prompt/sdk/reference/build-validation` 和匹配案例，不要凭直觉反复重写。
+13. build 成功后必须立即调用 `change_role` 交接给 `qa_engineer` 并自动测试；不要等待任何用户确认，也不要询问是否测试。构建问题交接给 `build_engineer`。
 
 ## 修改规则
 

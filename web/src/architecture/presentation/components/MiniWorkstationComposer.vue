@@ -31,7 +31,14 @@
     </div>
 
     <div class="mini-input-wrap" :class="{ 'is-blocked': blocked }">
-      <span v-if="variant !== 'schedule'" class="mini-path-pill" :title="fullCodePath">{{ displayPath }}</span>
+      <MiniWorkstationResourceIdentity
+        v-if="variant !== 'schedule'"
+        class="mini-path-pill"
+        :name="displayPath"
+        :full-code-path="fullCodePath"
+        :resource-type="resourceType"
+        :resource-template-type="resourceTemplateType"
+      />
       <span v-if="blocked" class="mini-blocked-pill" :title="blockedLabel || t('miniWorkstation.blockingGeneric')">
         {{ blockedLabel || t('miniWorkstation.blockingGeneric') }}
       </span>
@@ -181,10 +188,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowUp, Check, Close, Paperclip, VideoPause } from '@element-plus/icons-vue'
+import { Check, Close, Paperclip, VideoPause } from '@element-plus/icons-vue'
 import type { LLMInfo } from '@/architecture/presentation/context/api/agent'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
 import StructuredPromptComposer from './StructuredPromptComposer.vue'
+import MiniWorkstationResourceIdentity from './MiniWorkstationResourceIdentity.vue'
 
 interface FocusableInput {
   focus: () => void
@@ -193,6 +201,8 @@ interface FocusableInput {
 const props = withDefaults(defineProps<{
   fullCodePath: string
   dirName?: string
+  resourceType?: string
+  resourceTemplateType?: string
   attachedFiles: WorkspaceChatMessageFile[]
   uploading: boolean
   inputText: string
@@ -221,6 +231,8 @@ const props = withDefaults(defineProps<{
   mentionPanelPlacement?: 'above' | 'below'
 }>(), {
   variant: 'chat',
+  resourceType: '',
+  resourceTemplateType: '',
   placeholder: '',
   expandable: true,
   expandedTitle: '',
@@ -317,7 +329,7 @@ function handleContainerClick(event: MouseEvent) {
   structuredInputRef.value?.focus()
 }
 
-function openExpandedEditor() {
+function _openExpandedEditor() {
   if (props.blocked) return
   expandedDraft.value = props.inputText
   expandedEditorVisible.value = true
@@ -362,11 +374,23 @@ function cancelExpandedEditor() {
   min-height: 50px;
   padding: 4px 10px;
   position: relative;
-  border: 1px solid var(--border-light);
+  border: 1px solid transparent;
   border-radius: 14px;
-  background: transparent;
+  background: var(--el-fill-color-light);
   box-shadow: none;
   backdrop-filter: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mini-ws-input:hover {
+  border-color: var(--border-light);
+  background: var(--el-fill-color);
+}
+
+.mini-ws-input:focus-within {
+  border-color: transparent;
+  background: var(--el-fill-color-light);
+  box-shadow: none;
 }
 
 .mini-ws-input--schedule {
@@ -385,9 +409,9 @@ function cancelExpandedEditor() {
   }
   
   &:focus-within {
-    background: var(--el-fill-color-blank);
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.15);
+    background: var(--bg-tertiary);
+    border-color: transparent;
+    box-shadow: none;
   }
 }
 
@@ -434,33 +458,37 @@ html.dark .mini-ws-input--schedule {
 }
 
 .mini-expand-editor-btn.el-button {
-  width: 42px;
-  height: 42px;
-  border: 1px solid var(--border-light);
+  width: 40px;
+  height: 40px;
+  border: 1px solid transparent;
   border-radius: 8px;
-  color: #8ed0ff;
-  background: var(--bg-tertiary);
+  color: var(--color-primary);
+  background: var(--el-fill-color-light);
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .mini-expand-editor-btn.el-button:hover {
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
-  box-shadow: none;
+  border-color: var(--border-light);
+  color: var(--color-primary-light-1);
+  background: var(--el-fill-color);
 }
 
 .mini-upload-btn :deep(.el-button) {
-  width: 42px;
-  height: 42px;
-  border: 1px solid var(--border-light);
+  width: 40px;
+  height: 40px;
+  border: 1px solid transparent;
   border-radius: 8px;
-  color: #8ed0ff;
-  background: var(--bg-tertiary);
+  color: var(--color-primary);
+  background: var(--el-fill-color-light);
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .mini-upload-btn :deep(.el-button:hover) {
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
-  box-shadow: none;
+  border-color: var(--border-light);
+  color: var(--color-primary-light-1);
+  background: var(--el-fill-color);
 }
 
 .mini-input-wrap {
@@ -473,10 +501,22 @@ html.dark .mini-ws-input--schedule {
   box-sizing: border-box;
   min-height: 36px;
   padding: 0 10px;
-  border: 1px solid var(--border-light);
+  border: 1px solid transparent;
   border-radius: 10px;
-  background: var(--bg-tertiary);
+  background: var(--el-fill-color-light);
   cursor: text;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mini-input-wrap:hover {
+  border-color: var(--border-light);
+  background: var(--el-fill-color);
+}
+
+.mini-input-wrap:focus-within {
+  border-color: transparent;
+  background: var(--el-fill-color-light);
+  box-shadow: none;
 }
 
 .mini-input-wrap.is-blocked {
@@ -496,10 +536,10 @@ html.dark .mini-ws-input--schedule {
   align-items: center;
   padding: 0 10px;
   overflow: hidden;
-  border: 1px solid var(--border-light);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.18);
   border-radius: 8px;
-  background: var(--bg-tertiary);
-  color: #8ed0ff;
+  background: rgba(var(--color-primary-rgb), 0.08);
+  color: var(--color-primary);
   font-size: 12px;
   font-weight: 700;
   text-overflow: ellipsis;
@@ -545,7 +585,7 @@ html.dark .mini-ws-input--schedule {
 
 .mini-structured-input :deep(.spc-editor),
 .mini-structured-input :deep(.spc-preview) {
-  color: #e6f0ff;
+  color: var(--text-primary);
 }
 
 .mini-input-wrap.is-blocked .mini-structured-input :deep(.spc-editor) {
@@ -569,10 +609,22 @@ html.dark .mini-ws-input--schedule {
 }
 
 .mini-ws-model-select :deep(.el-select__wrapper) {
-  min-height: 42px;
-  border: 1px solid var(--border-light);
+  min-height: 40px;
+  border: 1px solid transparent;
   border-radius: 8px;
-  background: var(--bg-tertiary);
+  background: var(--el-fill-color-light);
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mini-ws-model-select :deep(.el-select__wrapper:hover) {
+  border-color: var(--border-light);
+  background: var(--el-fill-color);
+}
+
+.mini-ws-model-select :deep(.el-select__wrapper.is-focused) {
+  border-color: var(--color-primary);
+  background: var(--el-bg-color);
   box-shadow: none;
 }
 
@@ -600,7 +652,7 @@ html.dark .mini-ws-input--schedule {
 .mini-stop-btn {
   flex-shrink: 0;
   min-width: 108px;
-  min-height: 42px;
+  min-height: 40px;
   border-radius: 8px;
   font-weight: 700;
   letter-spacing: 0;
@@ -614,21 +666,22 @@ html.dark .mini-ws-input--schedule {
 }
 
 .mini-hide-btn {
-  width: 42px;
-  height: 42px;
-  min-width: 42px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--border-light);
+  border: 1px solid transparent;
   border-radius: 8px;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
+  background: var(--el-fill-color-light);
+  color: var(--color-primary);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .mini-hide-btn:hover {
   border-color: var(--border-light);
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
+  background: var(--el-fill-color);
+  color: var(--color-primary-light-1);
 }
 
 :deep(.mini-ws--maximized) .mini-ws-input {
@@ -859,13 +912,13 @@ html.dark .mini-ws-input--schedule {
 
 .mini-ws-model-select-popper.el-select__popper .el-select-dropdown__item.is-hovering,
 .mini-ws-model-select-popper.el-select__popper .el-select-dropdown__item:hover {
-  background: var(--bg-tertiary);
-  color: #d8f8ff;
+  background: rgba(var(--color-primary-rgb), 0.08);
+  color: var(--text-primary);
 }
 
 .mini-ws-model-select-popper.el-select__popper .el-select-dropdown__item.is-selected {
-  color: #22d3ee;
-  background: var(--bg-tertiary);
+  color: var(--color-primary);
+  background: rgba(var(--color-primary-rgb), 0.12);
 }
 
 .mini-ws-model-select-popper.el-select__popper .el-popper__arrow::before {

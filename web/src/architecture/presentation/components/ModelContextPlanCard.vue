@@ -7,11 +7,11 @@
       @click="expanded = !expanded"
     >
       <div class="model-context-title">
-        <span>模型上下文</span>
+        <span>{{ t('modelContext.title') }}</span>
         <span v-if="roleLabel" class="model-context-role">{{ roleLabel }}</span>
       </div>
       <span class="model-context-meta">
-        <span class="model-context-version">{{ plan.protocol_version }} · 第 {{ plan.round + 1 }} 轮</span>
+        <span class="model-context-version">{{ plan.protocol_version }} · {{ t('modelContext.round', { round: plan.round + 1 }) }}</span>
         <el-icon :size="13" class="model-context-toggle-icon">
           <ArrowUp v-if="expanded" />
           <ArrowDown v-else />
@@ -21,29 +21,29 @@
 
     <div v-if="expanded" class="model-context-grid">
       <section class="model-context-section">
-        <div class="model-context-label">执行目录</div>
-        <code>{{ plan.execution.full_code_path || '未指定' }}</code>
+        <div class="model-context-label">{{ t('modelContext.executionDirectory') }}</div>
+        <code>{{ plan.execution.full_code_path || t('modelContext.unspecified') }}</code>
         <div v-if="executionSummary" class="model-context-subtle">{{ executionSummary }}</div>
       </section>
 
       <section class="model-context-section">
-        <div class="model-context-label">历史策略</div>
+        <div class="model-context-label">{{ t('modelContext.historyPolicy') }}</div>
         <div class="model-context-chip-row">
           <span>{{ contextPolicyLabel }}</span>
           <span>{{ messageCountLabel }}</span>
-          <span v-if="plan.messages.excluded_by_anchor > 0">历史锚点已忽略 {{ plan.messages.excluded_by_anchor }}</span>
-          <span v-if="plan.messages.excluded_display_only > 0">展示标签已保留 {{ plan.messages.excluded_display_only }}</span>
-          <span v-if="plan.messages.truncated">列表已截断</span>
+          <span v-if="plan.messages.excluded_by_anchor > 0">{{ t('modelContext.excludedByAnchor', { count: plan.messages.excluded_by_anchor }) }}</span>
+          <span v-if="plan.messages.excluded_display_only > 0">{{ t('modelContext.excludedDisplayOnly', { count: plan.messages.excluded_display_only }) }}</span>
+          <span v-if="plan.messages.truncated">{{ t('modelContext.truncated') }}</span>
         </div>
         <div class="model-context-subtle">{{ sourceHistoryLabel }}</div>
       </section>
 
       <section v-if="plan.handoff" class="model-context-section model-context-section--wide">
-        <div class="model-context-label">交接包</div>
+        <div class="model-context-label">{{ t('modelContext.handoff') }}</div>
         <div class="model-context-chip-row">
-          <span v-if="plan.handoff.target_role">目标 {{ formatWorkspaceRoleName(plan.handoff.target_role) }}</span>
+          <span v-if="plan.handoff.target_role">{{ t('modelContext.targetRole', { role: formatWorkspaceRoleName(plan.handoff.target_role) }) }}</span>
           <span v-if="plan.handoff.artifact_kind">{{ plan.handoff.artifact_kind }}</span>
-          <span v-if="plan.handoff.validation_status">校验 {{ plan.handoff.validation_status }}</span>
+          <span v-if="plan.handoff.validation_status">{{ t('modelContext.validationStatus', { status: plan.handoff.validation_status }) }}</span>
         </div>
         <ul v-if="handoffSummary.length" class="model-context-list">
           <li v-for="(item, idx) in handoffSummary" :key="`handoff-${idx}`">{{ item }}</li>
@@ -51,36 +51,36 @@
       </section>
 
       <section class="model-context-section model-context-section--wide">
-        <div class="model-context-label">文档与工具</div>
+        <div class="model-context-label">{{ t('modelContext.docsAndTools') }}</div>
         <div class="model-context-chip-row">
-          <span>文档包 {{ plan.docs.document_package?.length || 0 }}</span>
-          <span>已读 {{ plan.docs.loaded_docs?.length || 0 }}</span>
-          <span v-if="plan.docs.missing_docs?.length">待读 {{ plan.docs.missing_docs.length }}</span>
-          <span>工具 {{ plan.tools.llm_tool_count }}</span>
+          <span>{{ t('modelContext.documentPackage', { count: plan.docs.document_package?.length || 0 }) }}</span>
+          <span>{{ t('modelContext.loadedDocs', { count: plan.docs.loaded_docs?.length || 0 }) }}</span>
+          <span v-if="plan.docs.missing_docs?.length">{{ t('modelContext.missingDocs', { count: plan.docs.missing_docs.length }) }}</span>
+          <span>{{ t('modelContext.tools', { count: plan.tools.llm_tool_count }) }}</span>
         </div>
         <div v-if="docPreview.length" class="model-context-subtle">
-          待读：{{ docPreview.join('、') }}
+          {{ t('modelContext.missingDocsList', { docs: docPreview.join('、') }) }}
         </div>
         <div v-if="toolPreview.length" class="model-context-subtle">
-          工具：{{ toolPreview.join('、') }}
+          {{ t('modelContext.toolsList', { tools: toolPreview.join('、') }) }}
         </div>
       </section>
 
       <section class="model-context-section model-context-section--wide">
-        <div class="model-context-label">Cache 计划</div>
+        <div class="model-context-label">{{ t('modelContext.cachePlan') }}</div>
         <div class="model-context-chip-row">
           <span>{{ plan.cache_plan.stable_prefix_strategy }}</span>
-          <span v-if="plan.llm?.message_count">请求消息 {{ plan.llm.message_count }}</span>
-          <span v-if="plan.llm?.tool_count">请求工具 {{ plan.llm.tool_count }}</span>
+          <span v-if="plan.llm?.message_count">{{ t('modelContext.requestMessages', { count: plan.llm.message_count }) }}</span>
+          <span v-if="plan.llm?.tool_count">{{ t('modelContext.requestTools', { count: plan.llm.tool_count }) }}</span>
           <span :class="`model-context-cache-status--${cacheStatusTone}`">{{ cacheStatusLabel }}</span>
-          <span v-if="cacheResult && cacheResult.prompt_tokens > 0">输入 {{ formatTokenCount(cacheResult.prompt_tokens) }}</span>
+          <span v-if="cacheResult && cacheResult.prompt_tokens > 0">{{ t('modelContext.inputTokens', { count: formatTokenCount(cacheResult.prompt_tokens) }) }}</span>
           <span v-if="cacheResult && cacheResult.cached_tokens_reported">
-            缓存 {{ formatTokenCount(cacheResult.cached_tokens) }} / {{ cacheResult.cache_hit_rate_percent }}%
+            {{ t('modelContext.cacheTokens', { tokens: formatTokenCount(cacheResult.cached_tokens), rate: cacheResult.cache_hit_rate_percent }) }}
           </span>
-          <span v-else-if="cacheResult">缓存未上报</span>
+          <span v-else-if="cacheResult">{{ t('modelContext.cacheNotReported') }}</span>
         </div>
         <div v-if="cachePreview.length" class="model-context-subtle">
-          稳定前缀：{{ cachePreview.join('、') }}
+          {{ t('modelContext.stablePrefix', { items: cachePreview.join('、') }) }}
         </div>
         <div v-if="roundCacheBadges.length > 1" class="model-context-subtle model-context-rounds">
           <span v-for="badge in roundCacheBadges" :key="badge">{{ badge }}</span>
@@ -92,6 +92,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import type { WorkspaceModelContextPlan } from '@/architecture/presentation/context/api/workspace'
 import { formatWorkspaceRoleName } from '@/architecture/presentation/utils/workspaceRoleDisplay'
@@ -101,24 +102,25 @@ const props = defineProps<{
   plans?: WorkspaceModelContextPlan[]
 }>()
 
+const { t } = useI18n()
 const expanded = ref(false)
 
 const roleLabel = computed(() => {
   const display = formatWorkspaceRoleName(props.plan.role.id, props.plan.role.display_name)
   const source = workspaceRoleSourceLabel(props.plan.role.source)
-  return display ? `${display}${source}` : ''
+  return display ? (source ? t('modelContext.roleWithSource', { role: display, source }) : display) : ''
 })
 
 function workspaceRoleSourceLabel(source?: string): string {
   switch (String(source || '').trim()) {
     case 'session':
-      return ' · 当前会话'
+      return t('modelContext.roleSource.session')
     case 'messages':
-      return ' · 历史消息'
+      return t('modelContext.roleSource.messages')
     case 'default_router':
-      return ' · 默认'
+      return t('modelContext.roleSource.defaultRouter')
     default:
-      return source ? ` · ${source}` : ''
+      return source || ''
   }
 }
 
@@ -126,8 +128,8 @@ const executionSummary = computed(() => {
   const parts = [
     props.plan.execution.directory_name,
     props.plan.execution.directory_type,
-    `子节点 ${props.plan.execution.children_count}`,
-    `文件 ${props.plan.execution.files_count}`
+    t('modelContext.childCount', { count: props.plan.execution.children_count }),
+    t('modelContext.fileCount', { count: props.plan.execution.files_count })
   ].filter(Boolean)
   return parts.join(' · ')
 })
@@ -135,25 +137,28 @@ const executionSummary = computed(() => {
 const contextPolicyLabel = computed(() => {
   switch (props.plan.messages.context_policy) {
     case 'artifact_only':
-      return '完整上下文 · 产物重点'
+      return t('modelContext.contextPolicy.artifactOnly')
     case 'display_only':
-      return '完整上下文 · 展示标签'
+      return t('modelContext.contextPolicy.displayOnly')
     default:
-      return '完整上下文'
+      return t('modelContext.contextPolicy.full')
   }
 })
 
 const messageCountLabel = computed(() => {
   const messages = props.plan.messages
-  return `入模 ${messages.included_stored_messages}/${messages.total_stored_messages}`
+  return t('modelContext.includedMessages', {
+    included: messages.included_stored_messages,
+    total: messages.total_stored_messages,
+  })
 })
 
 const sourceHistoryLabel = computed(() => {
   switch (props.plan.messages.source_history_policy) {
     case 'same_session_full_with_parent_reference':
-      return '同一会话保留完整历史；父会话信息仅作来源引用。'
+      return t('modelContext.sourceHistory.sameSessionWithParentReference')
     default:
-      return '同一会话保留完整历史进入模型。'
+      return t('modelContext.sourceHistory.sameSessionFull')
   }
 })
 
@@ -170,15 +175,15 @@ const cacheResult = computed(() => props.plan.cache_plan.result)
 const cacheStatusLabel = computed(() => {
   switch (cacheResult.value?.status) {
     case 'hit':
-      return 'cache 命中'
+      return t('modelContext.cacheStatus.hit')
     case 'miss':
-      return 'cache 未命中'
+      return t('modelContext.cacheStatus.miss')
     case 'not_reported':
-      return '上游未上报'
+      return t('modelContext.cacheStatus.notReported')
     case 'usage_unavailable':
-      return 'usage 缺失'
+      return t('modelContext.cacheStatus.usageUnavailable')
     default:
-      return '等待 usage'
+      return t('modelContext.cacheStatus.pending')
   }
 })
 
@@ -203,9 +208,13 @@ const roundCacheBadges = computed(() => {
     .sort((left, right) => left.round - right.round)
     .map(item => {
       const result = item.cache_plan.result
-      if (!result) return `第 ${item.round + 1} 轮 等待 usage`
-      if (!result.cached_tokens_reported) return `第 ${item.round + 1} 轮 未上报`
-      return `第 ${item.round + 1} 轮 ${formatTokenCount(result.cached_tokens)}/${result.cache_hit_rate_percent}%`
+      if (!result) return t('modelContext.roundCachePending', { round: item.round + 1 })
+      if (!result.cached_tokens_reported) return t('modelContext.roundCacheNotReported', { round: item.round + 1 })
+      return t('modelContext.roundCacheHit', {
+        round: item.round + 1,
+        tokens: formatTokenCount(result.cached_tokens),
+        rate: result.cache_hit_rate_percent,
+      })
     })
 })
 
