@@ -117,6 +117,12 @@ Prerequisites:
 - Docker Compose or Podman Compose.
 - The bundled development stack provides MySQL, NATS, and MinIO through `kagectl`.
 
+No manual environment variables are required for the normal local path.
+`kagectl bootstrap --dev` generates the local `.kageos/` env files for backend
+secrets, database passwords, NATS, MinIO, JWT, and the `system` user. For a
+local backend, the frontend also needs no `.env` file; Vite proxies API traffic
+to `http://localhost:9090` by default.
+
 Clone the repository:
 
 ```bash
@@ -148,6 +154,9 @@ Local email verification uses log mode. If you register another account, use
 the verification code printed in the backend logs or returned as `debug_code`.
 
 The frontend uses relative API paths by default. To point only the frontend at a remote backend, create `web/.env.development.local` from `web/.env.development.local.example` and set `VITE_PROXY_TARGET`.
+
+AI workstation features need an LLM configuration after login, but LLM API keys
+are not required just to boot the platform and sign in.
 
 Contributor workflow, IDE debugging, frontend-only development, and verification checks live in [CONTRIBUTING.md](CONTRIBUTING.md). Detailed dependency notes and troubleshooting live in [deploy/dev/README.md](deploy/dev/README.md).
 

@@ -70,6 +70,33 @@ go run ./cmd/kagectl init --dev
 
 如果想注册新账号，本地默认 `SMTP_MODE=log`，不会真的发邮件。验证码会写入后端日志，并通过 `send_email_code` 接口返回的 `debug_code` 暴露给本地开发使用。
 
+## 环境变量说明
+
+普通本地启动不需要手动 export 环境变量，也不需要自己准备 `.env`。`kagectl` 会生成并维护本地运行所需的 env 文件：
+
+| 文件 | 作用 |
+| --- | --- |
+| `.kageos/kageos.env` | 记录当前仓库的运行模式，例如 `KAGEOS_MODE=dev` 和 `KAGEOS_DEV_ENGINE=podman`。 |
+| `.kageos/dev/env/kageos.env` | 保存本机私有的 MySQL、NATS、MinIO、JWT、SMTP log 模式、`SYSTEM_USER_PASSWORD` 等随机密钥和连接信息。 |
+
+这些文件属于本机私有运行状态，不要提交到仓库。
+
+本地后端场景下，前端也不需要创建 `web/.env.development.local`。不创建该文件，或不设置 `VITE_PROXY_TARGET`，Vite 会默认把 API 请求代理到：
+
+```text
+http://localhost:9090
+```
+
+只有下面这些情况才需要额外配置：
+
+| 场景 | 配置方式 |
+| --- | --- |
+| 强制使用 Docker 而不是 Podman | `go run ./cmd/kagectl bootstrap --dev --engine docker` |
+| 只跑前端并连接远程后端 | 在 `web/.env.development.local` 设置 `VITE_PROXY_TARGET` |
+| 远程后端需要 WebSocket 地址 | 在 `web/.env.development.local` 设置 `VITE_WS_URL` |
+| 需要真实发邮件 | 将本地配置改为 `SMTP_MODE=smtp`，并配置 `SMTP_*` |
+| 需要使用 AI 工作台 | 登录后配置 LLM；LLM API Key 不是启动平台和登录系统的前置条件 |
+
 ## 官方入口
 
 ### 1. 一键启动开发后端

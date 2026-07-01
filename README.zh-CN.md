@@ -117,6 +117,11 @@ Kageos 是 Vue 前端、Go 平台服务群和用户应用容器运行时组成�
 - Docker Compose 或 Podman Compose。
 - MySQL、NATS 和 MinIO 由 `kagectl` 启动本地开发栈时提供。
 
+普通本地启动不需要手动配置环境变量。`kagectl bootstrap --dev` 会自动生成
+`.kageos/` 下的本地 env 文件，里面包含后端密钥、数据库密码、NATS、MinIO、
+JWT 和 `system` 用户密码。本地后端场景下，前端也不需要额外 `.env` 文件；
+Vite 默认会把 API 请求代理到 `http://localhost:9090`。
+
 拉取仓库代码：
 
 ```bash
@@ -147,6 +152,8 @@ npm run dev
 本地邮箱验证码默认走日志模式。如果注册新账号，验证码会出现在后端日志中，也会通过接口返回的 `debug_code` 暴露给本地开发使用。
 
 前端默认使用相对 API 路径。如果只想让前端指向远程后端，可以从 `web/.env.development.local.example` 创建 `web/.env.development.local`，并设置 `VITE_PROXY_TARGET`。
+
+AI 工作台能力需要登录后配置 LLM，但 LLM API Key 不是启动平台和登录系统的前置条件。
 
 贡献者工作流、IDE 调试、只开发前端和提交前检查见 [CONTRIBUTING.md](CONTRIBUTING.md)。更完整的依赖说明和排障材料见 [deploy/dev/README.md](deploy/dev/README.md)。
 
@@ -222,6 +229,6 @@ bash scripts/check-doc-links.sh
 
 ## 授权
 
-Kageos 核心采用 Business Source License 1.1，并在发布四年后转 Apache License 2.0。源码公开，允许在 BSL 授权范围内查看、修改、分发和自托管；未经授权的商业 SaaS、托管服务、白标、OEM、嵌入、改名转售和竞品化服务受到限制。
+Kageos 核心采用 Business Source License 1.1，并在发布四年后转 Apache License 2.0。源码公开，允许在 BSL 授权范围内查看、修改、分发和自托管；未经授权的商业 SaaS、MSP 托管、白标、OEM、嵌入、on-premises 商业产品、改名转售和竞品化产品/服务受到限制。
 
 详情见 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)。SDK、示例、模板和文档如有单独 license 文件，可以采用各自的宽松开源授权。

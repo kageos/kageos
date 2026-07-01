@@ -32,6 +32,17 @@ git clone https://github.com/kageos/kageos.git
 cd kageos
 ```
 
+For the normal local backend and frontend workflow, do not create or export
+environment variables by hand. `kagectl bootstrap --dev` creates the local
+backend env files:
+
+| File | Purpose |
+| --- | --- |
+| `.kageos/kageos.env` | Records workspace mode, for example `KAGEOS_MODE=dev` and the selected dev engine. |
+| `.kageos/dev/env/kageos.env` | Stores local-only secrets and service settings such as MySQL, NATS, MinIO, JWT, SMTP log mode, and `SYSTEM_USER_PASSWORD`. |
+
+Those files are private runtime state and must not be committed.
+
 From the source checkout, run `kagectl` through Go so contributors do not need
 to install a separate binary first:
 
@@ -107,6 +118,16 @@ go run ./cmd/kagectl down
 If you only work on the frontend, create `web/.env.development.local` from
 `web/.env.development.local.example` and set `VITE_PROXY_TARGET` to the backend
 you want to use.
+
+Optional local settings:
+
+| Need | Use |
+| --- | --- |
+| Force Docker instead of Podman | `go run ./cmd/kagectl bootstrap --dev --engine docker` |
+| Point frontend to a remote backend | `web/.env.development.local` with `VITE_PROXY_TARGET` |
+| Set a remote WebSocket endpoint | `VITE_WS_URL` in `web/.env.development.local` |
+| Configure real email delivery | Change local config to `SMTP_MODE=smtp` and set `SMTP_*` values |
+| Use AI workstation features | Add an LLM configuration after logging in; an LLM API key is not required just to boot and sign in |
 
 First startup can take a while because the local user-app base image may need to
 be built. Local email verification defaults to log mode, so development
