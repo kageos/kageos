@@ -25,6 +25,26 @@ interface UseWorkspaceViewLifecycleOptions {
   openWorkspaceListDialog: () => void
 }
 
+export function resolveWorkspaceRootNodeForRoute(
+  routePath: string,
+  tree: ServiceTreeType[],
+  findNodeByPath: (tree: ServiceTreeType[], path: string) => ServiceTreeType | null
+): ServiceTreeType | null {
+  const fullPath = extractWorkspacePath(routePath)
+  const pathSegments = fullPath.split('/').filter(Boolean)
+  if (pathSegments.length !== 2 || !tree || tree.length === 0) {
+    return null
+  }
+
+  const rootPath = '/' + pathSegments.join('/')
+  const exactRootNode = findNodeByPath(tree, rootPath)
+  if (exactRootNode?.type === 'package') {
+    return exactRootNode
+  }
+
+  return tree.find((node) => node.type === 'package') || null
+}
+
 export function useWorkspaceViewLifecycle(options: UseWorkspaceViewLifecycleOptions) {
   let unsubscribeFunctionLoaded: (() => void) | null = null
   let unsubscribeServiceTreeLoaded: (() => void) | null = null
@@ -37,6 +57,23 @@ export function useWorkspaceViewLifecycle(options: UseWorkspaceViewLifecycleOpti
       return
     }
     await options.loadNodeDetail(currentFunction)
+  }
+
+  const selectWorkspaceRootIfEmpty = async (tree: ServiceTreeType[] = options.serviceTree()) => {
+    if (options.currentFunction()) {
+      return
+    }
+
+    const rootNode = resolveWorkspaceRootNodeForRoute(
+      options.route.path,
+      tree,
+      options.findNodeByPath
+    )
+    if (!rootNode) {
+      return
+    }
+
+    await options.loadNodeDetail(rootNode)
   }
 
   onMounted(async () => {
@@ -63,19 +100,7 @@ export function useWorkspaceViewLifecycle(options: UseWorkspaceViewLifecycleOpti
         : []
 
       await nextTick()
-      const fullPath = extractWorkspacePath(options.route.path)
-      if (!fullPath) return
-
-      const pathSegments = fullPath.split('/').filter(Boolean)
-      if (pathSegments.length !== 2 || !payload.tree || payload.tree.length === 0) {
-        return
-      }
-
-      const rootPath = '/' + pathSegments.join('/')
-      const rootNode = options.findNodeByPath(payload.tree, rootPath)
-      if (rootNode && rootNode.type === 'package') {
-        await options.loadNodeDetail(rootNode)
-      }
+      await selectWorkspaceRootIfEmpty(payload.tree)
     })
 
     unsubscribeAppInfoUpdated = eventBus.on(WorkspaceEvent.appInfoUpdated, (payload: { app: AppType }) => {
@@ -95,6 +120,20 @@ export function useWorkspaceViewLifecycle(options: UseWorkspaceViewLifecycleOpti
       options.expandCurrentRoutePath()
     }
   }, { immediate: true })
+
+  watch(
+    () => ({
+      routePath: options.route.path,
+      tree: options.serviceTree(),
+      currentPath: options.currentFunction()?.full_code_path || '',
+      appUser: options.currentApp()?.user || '',
+      appCode: options.currentApp()?.code || ''
+    }),
+    () => {
+      void selectWorkspaceRootIfEmpty()
+    },
+    { immediate: true }
+  )
 
   watch(() => options.currentFunction()?.id, (newId: number | undefined, oldId: number | undefined) => {
     if (newId !== oldId && oldId !== undefined) {
