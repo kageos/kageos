@@ -22,32 +22,11 @@ func llmAPIKeyForResponse(cfg *model.LLMConfig, isAdmin bool) (string, bool) {
 	return "", true
 }
 
-func maskLLMAPIKey(apiKey string) string {
-	if apiKey == "" {
-		return ""
+func llmInfoCount(resp *dto.LLMListResp) int {
+	if resp == nil {
+		return 0
 	}
-	if len(apiKey) <= 8 {
-		return "****"
-	}
-	return apiKey[:4] + "****" + apiKey[len(apiKey)-4:]
-}
-
-func sanitizeLLMInfoForLog(info dto.LLMInfo) dto.LLMInfo {
-	info.APIKey = maskLLMAPIKey(info.APIKey)
-	return info
-}
-
-func sanitizeLLMReqForLog(req interface{}) interface{} {
-	switch v := req.(type) {
-	case dto.LLMCreateReq:
-		v.APIKey = maskLLMAPIKey(v.APIKey)
-		return v
-	case dto.LLMUpdateReq:
-		v.APIKey = maskLLMAPIKey(v.APIKey)
-		return v
-	default:
-		return req
-	}
+	return len(resp.Configs)
 }
 
 // LLM LLM 配置 API 处理器
@@ -82,7 +61,11 @@ func (h *LLM) List(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Debugf(c, "LLM.List req:%+v resp:%+v err:%v", req, resp, err)
+		total := int64(0)
+		if resp != nil {
+			total = resp.Total
+		}
+		logger.Debugf(c, "LLM.List scope=%s page=%d page_size=%d count=%d total=%d err:%v", req.Scope, req.Page, req.PageSize, llmInfoCount(resp), total, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -150,13 +133,13 @@ func (h *LLM) Get(c *gin.Context) {
 	}
 
 	defer func() {
+		hasAPIKey := false
+		code := ""
 		if resp != nil {
-			safeResp := *resp
-			safeResp.LLMInfo = sanitizeLLMInfoForLog(safeResp.LLMInfo)
-			logger.Debugf(c, "LLM.Get req:%+v resp:%+v err:%v", req, safeResp, err)
-			return
+			hasAPIKey = resp.LLMInfo.HasAPIKey || resp.LLMInfo.APIKey != ""
+			code = resp.LLMInfo.Code
 		}
-		logger.Debugf(c, "LLM.Get req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "LLM.Get id=%d found=%v code=%s has_api_key=%v err:%v", req.ID, resp != nil, code, hasAPIKey, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -209,13 +192,13 @@ func (h *LLM) GetDefault(c *gin.Context) {
 	var err error
 
 	defer func() {
+		hasAPIKey := false
+		code := ""
 		if resp != nil {
-			safeResp := *resp
-			safeResp.LLMInfo = sanitizeLLMInfoForLog(safeResp.LLMInfo)
-			logger.Debugf(c, "LLM.GetDefault resp:%+v err:%v", safeResp, err)
-			return
+			hasAPIKey = resp.LLMInfo.HasAPIKey || resp.LLMInfo.APIKey != ""
+			code = resp.LLMInfo.Code
 		}
-		logger.Debugf(c, "LLM.GetDefault resp:%+v err:%v", resp, err)
+		logger.Debugf(c, "LLM.GetDefault found=%v code=%s has_api_key=%v err:%v", resp != nil, code, hasAPIKey, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -275,7 +258,11 @@ func (h *LLM) Create(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Debugf(c, "LLM.Create req:%+v resp:%+v err:%v", sanitizeLLMReqForLog(req), resp, err)
+		respID := int64(0)
+		if resp != nil {
+			respID = resp.ID
+		}
+		logger.Debugf(c, "LLM.Create name=%s model=%s visibility=%d admin_set=%v is_default=%v api_key_provided=%v extra_config_provided=%v id=%d err:%v", req.Name, req.Model, req.Visibility, req.Admin != "", req.IsDefault, req.APIKey != "", req.ExtraConfig != nil && *req.ExtraConfig != "", respID, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -323,7 +310,11 @@ func (h *LLM) Update(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Debugf(c, "LLM.Update req:%+v resp:%+v err:%v", sanitizeLLMReqForLog(req), resp, err)
+		respID := int64(0)
+		if resp != nil {
+			respID = resp.ID
+		}
+		logger.Debugf(c, "LLM.Update id=%d name=%s model=%s visibility=%d admin_set=%v is_default=%v api_key_provided=%v extra_config_provided=%v resp_id=%d err:%v", req.ID, req.Name, req.Model, req.Visibility, req.Admin != "", req.IsDefault, req.APIKey != "", req.ExtraConfig != "", respID, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -382,7 +373,7 @@ func (h *LLM) Delete(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Debugf(c, "LLM.Delete req:%+v err:%v", req, err)
+		logger.Debugf(c, "LLM.Delete id=%d err:%v", req.ID, err)
 	}()
 
 	ctx := contextx.ToContext(c)
@@ -414,7 +405,7 @@ func (h *LLM) SetDefault(c *gin.Context) {
 	}
 
 	defer func() {
-		logger.Debugf(c, "LLM.SetDefault req:%+v err:%v", req, err)
+		logger.Debugf(c, "LLM.SetDefault id=%d err:%v", req.ID, err)
 	}()
 
 	ctx := contextx.ToContext(c)

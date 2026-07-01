@@ -59,7 +59,9 @@ func (c *AppControlClient) RequestUpdateCallback(ctx context.Context, user, app,
 
 	subject := subjects.BuildAppControlSubject(user, app, version)
 	logger.Infof(ctx, "[AppControlClient] Sending update callback request to subject: %s", subject)
-	logger.Debugf(ctx, "[AppControlClient] Request data: %+v", request)
+	if request != nil {
+		logger.Debugf(ctx, "[AppControlClient] Request data: type=%s user=%s app=%s version=%s has_data=%v timestamp=%s", request.Type, request.User, request.App, request.Version, request.Data != nil, request.Timestamp.Format(time.RFC3339))
+	}
 
 	requestData, err := json.Marshal(request)
 	if err != nil {

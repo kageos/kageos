@@ -24,7 +24,11 @@ func (s *AppManageService) fetchVersionDiffPayload(
 	}
 	callbackSpan.Finish(nil)
 
-	logger.Debugf(ctx, "[%s] ✅ 获取 diff 成功: %+v", logPrefix, updateCallbackResponse)
+	if updateCallbackResponse == nil {
+		logger.Debugf(ctx, "[%s] 获取 diff 成功: empty callback response", logPrefix)
+		return nil, nil
+	}
+	logger.Debugf(ctx, "[%s] 获取 diff 成功: type=%s user=%s app=%s version=%s has_data=%v error_msg_set=%v", logPrefix, updateCallbackResponse.Type, updateCallbackResponse.User, updateCallbackResponse.App, updateCallbackResponse.Version, updateCallbackResponse.Data != nil, updateCallbackResponse.ErrorMsg != "")
 	return updateCallbackResponse.Data, nil
 }
 

@@ -55,9 +55,10 @@ func NewAuth(authService *service.AuthService, authOAuthService *service.AuthOAu
 func (a *Auth) SendEmailCode(c *gin.Context) {
 	var req dto.SendEmailCodeReq
 	var resp *dto.SendEmailCodeResp
+	var codeType string
 	var err error
 	defer func() {
-		logger.Debugf(c, "SendEmailCode req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "SendEmailCode email=%s type=%s debug_code_returned=%v err:%v", req.Email, codeType, resp != nil && resp.DebugCode != "", err)
 	}()
 
 	// 绑定请求参数
@@ -71,7 +72,7 @@ func (a *Auth) SendEmailCode(c *gin.Context) {
 	userAgent := c.GetHeader("User-Agent")
 
 	// 发送验证码（根据 codeType 参数决定发送类型，默认为 register）
-	codeType := c.Query("type")
+	codeType = c.Query("type")
 	if codeType == "" {
 		codeType = "register"
 	}
@@ -364,7 +365,7 @@ func (a *Auth) RefreshToken(c *gin.Context) {
 	var resp *dto.RefreshTokenResp
 	var err error
 	defer func() {
-		logger.Debugf(c, "RefreshToken req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "RefreshToken has_refresh_token=%v issued_tokens=%v err:%v", req.RefreshToken != "", resp != nil && resp.Token != "" && resp.RefreshToken != "", err)
 	}()
 
 	// 绑定请求参数
@@ -401,10 +402,9 @@ func (a *Auth) RefreshToken(c *gin.Context) {
 // @Router /hr/api/v1/auth/logout [post]
 func (a *Auth) Logout(c *gin.Context) {
 	var req dto.LogoutReq
-	var resp *dto.LogoutResp
 	var err error
 	defer func() {
-		logger.Debugf(c, "Logout has_token=%v resp:%+v err:%v", req.Token != "" || c.GetHeader(contextx.TokenHeader) != "", resp, err)
+		logger.Debugf(c, "Logout has_token=%v err:%v", req.Token != "" || c.GetHeader(contextx.TokenHeader) != "", err)
 	}()
 
 	token := strings.TrimSpace(c.GetHeader(contextx.TokenHeader))
@@ -444,10 +444,9 @@ func (a *Auth) Logout(c *gin.Context) {
 // @Router /hr/api/v1/auth/forgot_password [post]
 func (a *Auth) ForgotPassword(c *gin.Context) {
 	var req dto.ForgotPasswordReq
-	var resp *dto.ForgotPasswordResp
 	var err error
 	defer func() {
-		logger.Debugf(c, "ForgotPassword req:%+v resp:%+v err:%v", req, resp, err)
+		logger.Debugf(c, "ForgotPassword email=%s has_code=%v has_password=%v err:%v", req.Email, req.Code != "", req.Password != "", err)
 	}()
 
 	// 绑定请求参数
@@ -470,6 +469,5 @@ func (a *Auth) ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	resp = &dto.ForgotPasswordResp{}
 	response.OkWithMessage(c, "密码重置成功")
 }

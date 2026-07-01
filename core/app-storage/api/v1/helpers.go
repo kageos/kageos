@@ -9,6 +9,7 @@ import (
 	"github.com/kageos/kageos/core/app-storage/service"
 	"github.com/kageos/kageos/core/app-storage/storage"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 // getDefaultUploadSource 获取默认上传来源，如果为空则返回browser
@@ -17,6 +18,42 @@ func getDefaultUploadSource(uploadSource dto.UploadSource) string {
 		return string(dto.UploadSourceBrowser)
 	}
 	return string(uploadSource)
+}
+
+func logUploadTokenDebug(ctx context.Context, operation string, req dto.GetUploadTokenReq, resp *dto.GetUploadTokenResp, err error) {
+	method := ""
+	issued := false
+	uploadURLIssued := false
+	serverUploadURLIssued := false
+	downloadURLIssued := false
+	serverDownloadURLIssued := false
+	if resp != nil {
+		method = string(resp.Method)
+		issued = true
+		uploadURLIssued = resp.UploadURL != ""
+		serverUploadURLIssued = resp.ServerUploadURL != ""
+		downloadURLIssued = resp.DownloadURL != ""
+		serverDownloadURLIssued = resp.ServerDownloadURL != ""
+	}
+	logger.Debugf(
+		ctx,
+		"%s file_name_len=%d content_type=%s file_size=%d router_set=%v bucket_set=%v preview_for_key_set=%v upload_source=%s issued=%v method=%s upload_url_issued=%v server_upload_url_issued=%v download_url_issued=%v server_download_url_issued=%v err:%v",
+		operation,
+		len(req.FileName),
+		req.ContentType,
+		req.FileSize,
+		req.Router != "",
+		req.Bucket != "",
+		req.PreviewForKey != "",
+		getDefaultUploadSource(req.UploadSource),
+		issued,
+		method,
+		uploadURLIssued,
+		serverUploadURLIssued,
+		downloadURLIssued,
+		serverDownloadURLIssued,
+		err,
+	)
 }
 
 // buildUploadTokenResponse 构建上传凭证响应

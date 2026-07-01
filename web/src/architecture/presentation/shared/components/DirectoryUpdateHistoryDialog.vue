@@ -646,31 +646,19 @@ const loadData = async () => {
   loading.value = true
   try {
     if (props.mode === 'app') {
-      console.log('[DirectoryUpdateHistoryDialog] loading app version update history', {
-        appId: props.appId,
-        appVersion: props.appVersion
-      })
       const res = await getAppVersionUpdateHistory(props.appId, props.appVersion)
-      console.log('[DirectoryUpdateHistoryDialog] app version update history response:', res)
       appHistory.value = res
     } else {
       if (!props.fullCodePath) {
         ElMessage.warning(t('directoryHistory.emptyDirectoryPath'))
         return
       }
-      console.log('[DirectoryUpdateHistoryDialog] loading directory update history', {
-        appId: props.appId,
-        fullCodePath: props.fullCodePath,
-        page: currentPage.value,
-        pageSize: pageSize.value
-      })
       const res = await getDirectoryUpdateHistory(
         props.appId,
         props.fullCodePath,
         currentPage.value,
         pageSize.value
       )
-      console.log('[DirectoryUpdateHistoryDialog] directory update history response:', res)
       directoryHistory.value = res
     }
   } catch (error: any) {
