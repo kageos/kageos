@@ -33,6 +33,7 @@ func (s *Server) sendMessageToUsers(c *gin.Context) {
 			Title:       req.Title,
 			Content:     req.Content,
 			ContentType: req.ContentType,
+			Files:       req.Files,
 		},
 	}
 	s.submitMessage(c, &envelope)
@@ -65,6 +66,7 @@ func (s *Server) submitMessage(c *gin.Context, envelope *dto.MessageSendEnvelope
 		FullCodePath: envelope.Meta.FullCodePath,
 		ToUsers:      envelope.Message.ToUsers,
 		ContentType:  envelope.Message.ContentType,
+		Files:        envelope.Message.Files,
 	})
 }
 

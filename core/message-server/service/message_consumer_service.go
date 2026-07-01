@@ -109,11 +109,13 @@ func (s *MessageConsumerService) Consume(ctx context.Context, envelope *dto.Mess
 	if s == nil || s.messageRepo == nil {
 		return fmt.Errorf("message consumer is not initialized")
 	}
+	incomingMeta := envelope.Meta
 	normalizeMessagePayload(&envelope.Message)
+	meta := normalizeMessageMeta(envelope.Meta)
+	applyDefaultMessageRecipient(&envelope.Message, incomingMeta, meta)
 	if errMsg := validateMessagePayload(&envelope.Message); errMsg != "" {
 		return fmt.Errorf("%s", errMsg)
 	}
-	meta := normalizeMessageMeta(envelope.Meta)
 	payload := envelope.Message
 
 	logger.Infof(ctx, "[MessageConsumer] Received message from=%s full_code_path=%s to_users=%s title=%s",
@@ -314,9 +316,59 @@ func normalizeMessagePayload(payload *dto.MessageSendPayload) {
 	payload.Title = strings.TrimSpace(payload.Title)
 	payload.Content = strings.TrimSpace(payload.Content)
 	payload.ContentType = strings.ToLower(strings.TrimSpace(payload.ContentType))
+	payload.Files = normalizeMessageFiles(payload.Files)
 	if payload.ContentType == "" {
 		payload.ContentType = "markdown"
 	}
+}
+
+func applyDefaultMessageRecipient(payload *dto.MessageSendPayload, incomingMeta dto.MessageSendMeta, meta dto.MessageSendMeta) {
+	if payload == nil || strings.TrimSpace(payload.ToUsers) != "" {
+		return
+	}
+	for _, candidate := range []string{
+		incomingMeta.RequestUser,
+		meta.RequestUser,
+	} {
+		if user := normalizeDefaultMessageRecipient(candidate); user != "" {
+			payload.ToUsers = user
+			return
+		}
+	}
+}
+
+func normalizeDefaultMessageRecipient(username string) string {
+	username = strings.TrimSpace(username)
+	if username == "" || username == "system" {
+		return ""
+	}
+	return username
+}
+
+func normalizeMessageFiles(files string) string {
+	files = strings.NewReplacer(
+		"，", ",",
+		"、", ",",
+		";", ",",
+		"；", ",",
+		"\n", ",",
+		"\t", ",",
+	).Replace(strings.TrimSpace(files))
+	parts := strings.Split(files, ",")
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		ref := strings.TrimSpace(part)
+		if ref == "" {
+			continue
+		}
+		if _, ok := seen[ref]; ok {
+			continue
+		}
+		seen[ref] = struct{}{}
+		out = append(out, ref)
+	}
+	return strings.Join(out, ",")
 }
 
 func validateMessagePayload(payload *dto.MessageSendPayload) string {
@@ -326,8 +378,8 @@ func validateMessagePayload(payload *dto.MessageSendPayload) string {
 	if payload.ToUsers == "" {
 		return "to_users 不能为空"
 	}
-	if payload.Content == "" {
-		return "content 不能为空"
+	if payload.Content == "" && payload.Files == "" {
+		return "content 或 files 不能为空"
 	}
 	switch payload.ContentType {
 	case "markdown", "html", "text":

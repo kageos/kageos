@@ -45,6 +45,75 @@ func TestConsumeCreatesInboxRecipients(t *testing.T) {
 	}
 }
 
+func TestConsumeDefaultsRecipientToRequestUser(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := msgmodel.InitModels(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	repo := msgrepo.NewMessageRepository(db)
+	svc := NewMessageConsumerService(repo)
+
+	err = svc.Consume(context.Background(), &dto.MessageSendEnvelope{
+		Meta: dto.MessageSendMeta{
+			From:        "alice",
+			RequestUser: "alice",
+		},
+		Message: dto.MessageSendPayload{
+			Title:   "任务完成",
+			Content: "已经处理",
+		},
+	})
+	if err != nil {
+		t.Fatalf("consume with default recipient: %v", err)
+	}
+
+	count, err := repo.CountUnread(context.Background(), "alice")
+	if err != nil {
+		t.Fatalf("count unread alice: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("unread count for alice = %d, want 1", count)
+	}
+}
+
+func TestConsumeAllowsFilesOnlyNotification(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := msgmodel.InitModels(db); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	repo := msgrepo.NewMessageRepository(db)
+	svc := NewMessageConsumerService(repo)
+
+	err = svc.Consume(context.Background(), &dto.MessageSendEnvelope{
+		Meta: dto.MessageSendMeta{From: "alice"},
+		Message: dto.MessageSendPayload{
+			ToUsers: "bob",
+			Title:   "报表已生成",
+			Files:   "kageos/reports/a.xlsx，kageos/reports/a.xlsx;kageos/reports/b.pdf",
+		},
+	})
+	if err != nil {
+		t.Fatalf("consume files-only notification: %v", err)
+	}
+
+	items, total, err := repo.ListInbox(context.Background(), "bob", msgrepo.InboxListFilter{}, 0, 20)
+	if err != nil {
+		t.Fatalf("list inbox: %v", err)
+	}
+	if total != 1 || len(items) != 1 {
+		t.Fatalf("items total=%d len=%d, want 1", total, len(items))
+	}
+	if items[0].Files != "kageos/reports/a.xlsx,kageos/reports/b.pdf" {
+		t.Fatalf("files = %q", items[0].Files)
+	}
+}
+
 func TestConsumeValidatesPayload(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {

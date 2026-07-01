@@ -7,7 +7,7 @@
 业务代码只写业务规则，不重造平台能力：
 
 - 平台接口：用 `ctx.APICall(...)`；确需沉淀平台接口包装函数时放在 `/system/tools/openapi`，不要裸写 HTTP client、硬编码 token、直连平台库。
-- 消息通知：需要通知用户时使用 SDK `ctx.SendMessage`，由 message-service 异步写站内信并在服务侧扩展渠道；业务代码不要直接耦合飞书、邮件、企业微信等渠道，也不要让普通业务等待通知投递完成。
+- 消息通知：需要通知用户时使用 SDK `ctx.SendNotification`，由 message-service 异步写站内信并在服务侧扩展渠道；业务代码不要直接耦合飞书、邮件、企业微信等渠道，也不要让普通业务等待通知投递完成。
 - 通用权限、审批、评论、收藏不属于 MVP 应用侧能力，不在每个业务系统自造。
 - Table 更新日志由平台记录；业务上确实需要流水、操作记录、支付记录、投票记录时，可以建只读业务 Table。
 - 运行上下文：从 `ctx` 取当前用户、部门、trace、full_code_path，不让用户表单伪造。
@@ -45,24 +45,27 @@ if err := ctx.APICall(http.MethodGet, "/workspace/api/v1/operate_log/general?"+q
 
 ## 消息通知
 
-应用函数需要通知用户时，使用 SDK 的 `ctx.SendMessage`。message-service 负责收件箱存储和后续渠道分发，应用侧只表达“发给哪些用户、标题、内容”，不要关心飞书、邮件、企业微信等具体渠道。`ctx.SendMessage` 是异步投递命令：成功只表示消息命令已发布到 NATS，不等待 message-service 落库或渠道投递完成。组织架构通知暂不暴露，不要使用部门作为消息接收方。
+应用函数需要通知用户时，使用 SDK 的 `ctx.SendNotification`。message-service 负责收件箱存储和后续渠道分发，应用侧只表达“发给哪些用户、标题、内容、附件”，不要关心飞书、邮件、企业微信等具体渠道。`ctx.SendNotification` 是异步投递命令：成功只表示通知命令已发布到 NATS，不等待 message-service 落库或渠道投递完成。组织架构通知暂不暴露，不要使用部门作为消息接收方。
 
 ```go
-err := ctx.SendMessage(&app.SendMessageOpts{
+err := ctx.SendNotification(&app.SendNotificationOpts{
     ToUsers:     "alice,bob",
     Title:       "工单处理完成",
-    Content:     "工单 #123 已处理完成，请查看详情。",
+    Message:     "工单 #123 已处理完成，请查看详情。",
     ContentType: "markdown",
+    Files:       "kageos/reports/work-order-123.pdf",
 })
 if err != nil {
-    logger.Errorf(ctx, "[Notify] send message failed: %v", err)
+    logger.Errorf(ctx, "[Notify] send notification failed: %v", err)
 }
 ```
 
 规则：
 
-- `ToUsers` 必填；多个用户用逗号分隔。
+- `ToUsers` 推荐显式填写；通知当前请求用户时可省略，由 message-service 兜底到真实请求用户。没有真实请求用户时必须显式填写；多个用户用逗号分隔。
+- `Message` 和 `Files` 至少填写一个；普通通知推荐写一条简短 `Message`，纯文件交付可只传 `Files`。
 - `ContentType` 默认 `markdown`，也可用 `text` 或 `html`。
+- `Files` 可选，填写平台文件引用字符串，格式 `bucket/object_key`，多个用逗号分隔。
 - 对普通业务函数，通知失败只记录日志，不要阻塞主业务返回；只有函数本身就是“发送通知/消息”时，才把发布失败作为业务错误返回。
 - 发送人、部门、trace、full_code_path 等上下文由 SDK 自动带上，不要让用户表单填写。
 - 组织架构功能隐藏期间，不要使用部门作为消息接收方。
@@ -109,7 +112,7 @@ clientSource := ctx.GetClientSource()
 - 如果用户只是要管理“审批单据”这种业务对象，可以按普通 Table/Form 建模；这不等于平台通用审批。
 - 如果用户要求“新增/修改/删除必须审批后执行”，应说明这是平台侧流程控制能力，MVP 暂不内置。
 - 如果用户要求“每天/每周自动执行”，不要在业务应用里自造 cron；已明确是某个 Form 的内置运营逻辑时，可用 `FormTemplate.Schedules` 声明默认调度，否则交给 `automation_operator` 使用 timer-scheduler 创建函数任务或 Agent 任务。默认按平台部署时区执行，不要主动填写 `Timezone`。
-- 如果用户要求“发消息/通知某人”，不要自建通知表或硬连具体渠道；应使用 `ctx.SendMessage` 交给 message-service。按部门通知暂不暴露。
+- 如果用户要求“发消息/通知某人”，不要自建通知表或硬连具体渠道；应使用 `ctx.SendNotification` 交给 message-service。按部门通知暂不暴露。
 
 操作日志：
 

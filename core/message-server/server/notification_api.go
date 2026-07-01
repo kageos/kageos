@@ -255,6 +255,30 @@ func (s *Server) listNotificationRoutes(c *gin.Context) {
 	response.OkWithData(c, dto.MessageNotificationRouteListResp{List: list})
 }
 
+func (s *Server) listNotificationRouteSummary(c *gin.Context) {
+	rootScopePath := msgrepo.NormalizeNotificationScopePath(c.Query("root_scope_path"))
+	if rootScopePath == "" {
+		response.FailWithMessage(c, "root_scope_path 不能为空")
+		return
+	}
+	rows, err := s.messageRepo.ListNotificationRoutesByRoot(c.Request.Context(), rootScopePath)
+	if err != nil {
+		response.FailWithMessage(c, "获取目录通知路由摘要失败: "+err.Error())
+		return
+	}
+	summaries := make(map[string]dto.MessageNotificationRoutePathSummary, len(rows))
+	for _, row := range rows {
+		info := notificationRouteToInfo(row)
+		summary := summaries[info.ScopePath]
+		if summary.ScopePath == "" {
+			summary.ScopePath = info.ScopePath
+		}
+		summary.Routes = append(summary.Routes, info)
+		summaries[info.ScopePath] = summary
+	}
+	response.OkWithData(c, dto.MessageNotificationRouteSummaryResp{Routes: summaries})
+}
+
 func (s *Server) upsertNotificationRoute(c *gin.Context) {
 	if _, err := s.resolveInboxUsername(c); err != nil {
 		response.FailWithMessage(c, err.Error())

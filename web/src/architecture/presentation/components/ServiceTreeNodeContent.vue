@@ -55,6 +55,16 @@
       :title="scheduledAgentBadgeTitle"
     />
 
+    <button
+      v-if="showNotificationRouteBadge"
+      type="button"
+      :class="['notification-route-badge', `notification-route-badge-${notificationRouteBadgeTone}`]"
+      :title="notificationRouteBadgeTitle"
+      @click.stop="$emit('notification-route-click')"
+    >
+      <el-icon><BellFilled /></el-icon>
+    </button>
+
     <el-badge
       v-if="showNotificationBadge"
       :value="notificationBadgeValue"
@@ -71,7 +81,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Document } from '@element-plus/icons-vue'
+import { BellFilled, Document } from '@element-plus/icons-vue'
 import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'
@@ -98,6 +108,9 @@ const props = withDefaults(defineProps<{
   notificationBadgeValue?: string | number
   notificationBadgeClass?: string
   notificationBadgeTitle?: string
+  showNotificationRouteBadge?: boolean
+  notificationRouteBadgeTitle?: string
+  notificationRouteBadgeTone?: string
 }>(), {
   label: '',
   title: '',
@@ -114,10 +127,14 @@ const props = withDefaults(defineProps<{
   notificationBadgeValue: '',
   notificationBadgeClass: '',
   notificationBadgeTitle: '',
+  showNotificationRouteBadge: false,
+  notificationRouteBadgeTitle: '',
+  notificationRouteBadgeTone: 'direct',
 })
 
 defineEmits<{
   (e: 'notification-click'): void
+  (e: 'notification-route-click'): void
 }>()
 
 const displayLabel = computed(() => {
@@ -290,6 +307,63 @@ const nodeIconClass = computed(() => {
   font-weight: 600 !important;
   padding: 0 6px !important;
   border-radius: 12px !important;
+}
+
+.notification-route-badge {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 0;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  border-radius: 6px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
+}
+
+.notification-route-badge:hover {
+  border-color: rgba(37, 99, 235, 0.36);
+  background: rgba(37, 99, 235, 0.14);
+  transform: translateY(-1px);
+}
+
+.notification-route-badge :deep(.el-icon) {
+  width: 13px;
+  height: 13px;
+  font-size: 13px;
+}
+
+.notification-route-badge-inherited {
+  border-color: rgba(100, 116, 139, 0.22);
+  background: rgba(100, 116, 139, 0.08);
+  color: #64748b;
+}
+
+.notification-route-badge-inherited:hover {
+  border-color: rgba(100, 116, 139, 0.34);
+  background: rgba(100, 116, 139, 0.14);
+}
+
+.notification-route-badge-disabled {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(148, 163, 184, 0.08);
+  color: #94a3b8;
+}
+
+.notification-route-badge-failed {
+  border-color: rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.notification-route-badge-failed:hover {
+  border-color: rgba(239, 68, 68, 0.42);
+  background: rgba(239, 68, 68, 0.16);
 }
 
 .notification-count-badge {

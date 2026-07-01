@@ -28,6 +28,7 @@ func (s *Server) setupRoutes() {
 	message.DELETE("/notification_channels/:channel", s.deleteNotificationChannel)
 	message.POST("/notification_channels/:channel/test", s.testNotificationChannel)
 	message.GET("/notification_routes", s.listNotificationRoutes)
+	message.GET("/notification_routes/summary", s.listNotificationRouteSummary)
 	message.PUT("/notification_routes/:channel", s.upsertNotificationRoute)
 	message.DELETE("/notification_routes/:channel", s.deleteNotificationRoute)
 	message.POST("/notification_routes/:channel/test", s.testNotificationRoute)

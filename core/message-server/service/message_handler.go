@@ -111,6 +111,7 @@ func respondMessageSendSuccess(ctx context.Context, msg *nats.Msg, envelope *dto
 		FullCodePath: envelope.Meta.FullCodePath,
 		ToUsers:      envelope.Message.ToUsers,
 		ContentType:  envelope.Message.ContentType,
+		Files:        envelope.Message.Files,
 	}); err != nil {
 		logger.Warnf(ctx, "[MessageConsumer] Respond success failed: %v", err)
 	}

@@ -140,7 +140,7 @@
                     <span class="inbox-list-title">{{ thread.title }}</span>
                     <span v-if="thread.unreadCount > 0" class="thread-unread-count">{{ thread.unreadCount }}</span>
                   </span>
-                  <span class="inbox-list-preview">{{ previewText(thread.lastMessage.content) }}</span>
+                  <span class="inbox-list-preview">{{ previewText(thread.lastMessage.content, thread.lastMessage.files) }}</span>
                   <span class="inbox-list-meta">
                     <span>{{ thread.subtitle }}</span>
                     <span class="thread-time" :title="formatExactTime(thread.lastMessage.created_at)">
@@ -245,6 +245,12 @@
                     <span>{{ t('workspaceInbox.source') }}: {{ sourceSecondaryText(message) }}</span>
                   </div>
                   <div class="inbox-content inbox-rich-content" v-html="renderMessageContent(message)" />
+                  <OutputFilesDisplay
+                    v-if="messageFileGroups(message).length > 0"
+                    class="inbox-message-files"
+                    :file-groups="messageFileGroups(message)"
+                    :section-title="t('workspaceInbox.attachments')"
+                  />
                   <footer class="message-card-actions">
                     <el-button
                       v-if="message.scheduled_task_id || selectedThread?.scheduledTaskID"
@@ -310,6 +316,8 @@ import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { escapeHtml, sanitizeHtml } from '@/architecture/shared/sanitizeHtml'
 import ServiceTreeNodeContent from './ServiceTreeNodeContent.vue'
+import OutputFilesDisplay from './OutputFilesDisplay.vue'
+import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 import {
   buildInboxRouteQuery,
   buildScheduledExecutionRoute,
@@ -1052,9 +1060,10 @@ function updateListReadState(id: number) {
   })
 }
 
-function previewText(content?: string) {
+function previewText(content?: string, files?: string) {
   const text = stripHtml(content || '').replace(/\s+/g, ' ').trim()
-  return text.length > 90 ? `${text.slice(0, 90)}...` : text || t('workspaceInbox.noContent')
+  if (text) return text.length > 90 ? `${text.slice(0, 90)}...` : text
+  return parseMessageFileRefs(files).length > 0 ? t('workspaceInbox.filesPreview') : t('workspaceInbox.noContent')
 }
 
 function apiThreadToInboxThread(thread: MessageInboxThread): InboxThread {
@@ -1440,6 +1449,25 @@ function renderMessageContent(item: MessageInboxItem) {
   if (type === 'html') return sanitizeHtml(content)
   if (type === 'text' || type === 'plain') return escapeHtml(content).replace(/\n/g, '<br>')
   return renderMarkdown(content)
+}
+
+function parseMessageFileRefs(files?: string): string[] {
+  return Array.from(new Set((files || '')
+    .split(',')
+    .map(ref => ref.trim().replace(/^\/+/, ''))
+    .filter(Boolean)))
+}
+
+function messageFileGroups(item?: MessageInboxItem | null): OutputFileGroup[] {
+  const refs = parseMessageFileRefs(item?.files)
+  if (refs.length === 0) return []
+  return [{
+    label: t('workspaceInbox.attachments'),
+    files: refs.map(ref => ({
+      ref,
+      name: ref.split('/').pop() || t('workspaceInbox.attachment')
+    }))
+  }]
 }
 
 function stripHtml(content: string) {
@@ -2128,6 +2156,21 @@ defineExpose({
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+}
+
+.inbox-message-files {
+  margin-top: -2px;
+  border: 1px solid var(--inbox-line);
+  border-radius: 8px;
+  background: var(--inbox-tint);
+}
+
+.inbox-message-files :deep(.output-files-head) {
+  padding: 9px 10px 0;
+}
+
+.inbox-message-files :deep(.output-files-wrap) {
+  padding: 10px;
 }
 
 .message-card-actions {

@@ -37,6 +37,7 @@ type NotificationCard struct {
 	Summary     string
 	Content     string
 	ContentType string
+	Files       string
 	FromUser    string
 	ToUser      string
 	CreatedAt   time.Time
@@ -89,6 +90,10 @@ func (DefaultNotificationCardBuilder) BuildNotificationCard(_ context.Context, e
 	}
 	title := firstNonEmptyString(strings.TrimSpace(entry.Title), strings.TrimSpace(payload.Title), "Kageos 通知")
 	content := firstNonEmptyString(strings.TrimSpace(entry.Content), strings.TrimSpace(payload.Content))
+	files := firstNonEmptyString(strings.TrimSpace(entry.Files), strings.TrimSpace(payload.Files))
+	if content == "" && files != "" {
+		content = "包含附件，请打开详情查看。"
+	}
 	contentType := strings.TrimSpace(entry.ContentType)
 	if contentType == "" {
 		contentType = strings.TrimSpace(payload.ContentType)
@@ -109,6 +114,7 @@ func (DefaultNotificationCardBuilder) BuildNotificationCard(_ context.Context, e
 		Summary:     summarizeNotificationContent(content, title, 180),
 		Content:     content,
 		ContentType: strings.ToLower(strings.TrimSpace(contentType)),
+		Files:       files,
 		FromUser:    firstNonEmptyString(entry.From, entry.RequestUser, "system"),
 		ToUser:      target.Recipient.Username,
 		CreatedAt:   entry.CreatedAt,

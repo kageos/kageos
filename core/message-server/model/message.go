@@ -33,6 +33,7 @@ type MessageEntry struct {
 	Title       string `json:"title" gorm:"size:500;comment:标题"`
 	Content     string `json:"content" gorm:"type:longtext;comment:正文"`
 	ContentType string `json:"content_type" gorm:"size:32;default:markdown;comment:markdown/html/text"`
+	Files       string `json:"files" gorm:"type:text;comment:通知附件文件引用，多个逗号分隔"`
 }
 
 func (MessageEntry) TableName() string {

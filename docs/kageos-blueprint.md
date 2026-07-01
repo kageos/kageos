@@ -195,7 +195,7 @@ flowchart LR
 | `core/hr-server` | 登录、用户、组织、系统设置 | 鉴权和基础用户域 |
 | `core/connector-server` | OAuth 和第三方连接器代理 | 外部 API 连接的统一入口 |
 | `core/timer-scheduler` | 定时任务、执行记录、租约、outbox | 函数任务和 Agent 任务都走这里 |
-| `core/message-server` | 站内信、线程、未读、通知命令消费 | SDK `ctx.SendMessage` 最终落这里 |
+| `core/message-server` | 站内信、线程、未读、通知命令消费 | SDK `ctx.SendNotification` 最终落这里 |
 | `pkg` | 平台内部共享库 | 工作空间应用不要导入主仓 `pkg`，要用公开 SDK |
 | `web/src/architecture` | Vue 前端主架构 | 遵守 domain/application/infrastructure/presentation 分层 |
 | `deploy` | dev/prod/aio/base 镜像和部署材料 | 运行部署问题先看这里 |
@@ -406,7 +406,7 @@ SDK 开发的基本规则：
 - Form 使用 `app.FormTemplate`，请求和响应结构体通过 `json`、`widget`、`validate` tag 生成 schema。
 - Table 使用 `app.TableTemplate`，可编辑表必须明确 `AutoCrudTable`，真实迁移表放在 `CreateTables`。
 - Chart 使用 `app.ChartTemplate` 和 SDK chart 结构，不要手写前端图表协议。
-- 数据库用 `ctx.GetGormDB()`，文件用 `ctx.GetFS()`，通知用 `ctx.SendMessage(...)`。
+- 数据库用 `ctx.GetGormDB()`，文件用 `ctx.GetFS()`，通知用 `ctx.SendNotification(...)`。
 - 字段说明写在 `BaseConfig.Desc`、`widget` 的 `placeholder`、`desc`、`options` 中。Go 注释不会展示给用户。
 - `render_default` 是前端初始渲染值，不是后端强制默认值。
 

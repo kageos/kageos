@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -16,6 +16,7 @@ const streaming = ref(false)
 const answer = ref('')
 const sessionId = ref(initialSessionID())
 const error = ref('')
+const pageEndRef = ref<HTMLElement | null>(null)
 
 const MOBILE_ASK_DRAFT_STORAGE_KEY = 'kageos_mobile_ask_draft'
 
@@ -66,7 +67,7 @@ function buildMobileAskContent(rawQuestion: string) {
     '【移动端消息处理上下文】',
     '入口：Kageos Pocket 主动问话',
     '输出格式：最终回复必须使用 Markdown 格式，适合手机阅读。',
-    '如需异步处理或后续触达用户，请使用 send_notification；message 使用 Markdown，content_type 使用 markdown 或省略。',
+    '如需异步处理或后续触达用户，请使用 send_notification；message 使用 Markdown，content_type 使用 markdown 或省略；files 可携带平台文件引用。',
     '不要使用 HTML、富文本，也不要把整段回复包进代码块；不要输出工具日志。',
     '',
     '用户问题：',
@@ -114,7 +115,19 @@ async function askKageos() {
   }
 }
 
-onMounted(loadStoredDraft)
+async function scrollToPageBottom(behavior: ScrollBehavior = 'smooth') {
+  await nextTick()
+  pageEndRef.value?.scrollIntoView({ behavior, block: 'end' })
+}
+
+onMounted(() => {
+  loadStoredDraft()
+  void scrollToPageBottom('auto')
+})
+
+watch([renderedAnswer, error, streaming], () => {
+  void scrollToPageBottom()
+}, { flush: 'post' })
 </script>
 
 <template>
@@ -168,15 +181,17 @@ onMounted(loadStoredDraft)
         <el-alert v-if="error" type="error" :title="error" show-icon :closable="false" />
         <div v-else class="answer-markdown" v-html="renderedAnswer" />
       </section>
+
+      <div ref="pageEndRef" class="mobile-page-end" aria-hidden="true" />
     </section>
   </main>
 </template>
 
 <style scoped>
 .mobile-ask-page {
-  min-height: 100vh;
-  padding: 16px;
-  background: #f5f7fb;
+  min-height: 100dvh;
+  padding: 14px 14px calc(20px + env(safe-area-inset-bottom));
+  background: #eef3f7;
   color: #172033;
 }
 
@@ -184,15 +199,28 @@ onMounted(loadStoredDraft)
   width: min(100%, 760px);
   margin: 0 auto;
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .mobile-ask-header {
-  padding: 8px 0 2px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 8px 0 6px;
+  background: rgba(238, 243, 247, 0.94);
+  backdrop-filter: blur(10px);
 }
 
 .mobile-ask-brand {
-  color: #3c6df0;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid #cddcf8;
+  border-radius: 6px;
+  background: #eaf1ff;
+  color: #1f5fbf;
   font-size: 13px;
   font-weight: 700;
 }
@@ -205,8 +233,8 @@ p {
 }
 
 h1 {
-  margin-top: 3px;
-  font-size: 26px;
+  margin-top: 6px;
+  font-size: 24px;
   line-height: 1.2;
 }
 
@@ -218,7 +246,7 @@ h2 {
   margin-top: 8px;
   color: #657089;
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.55;
 }
 
 .ask-panel,
@@ -227,6 +255,7 @@ h2 {
   border: 1px solid #e2e7f1;
   border-radius: 8px;
   padding: 16px;
+  box-shadow: 0 10px 24px rgba(30, 41, 59, 0.06);
 }
 
 .ask-panel {
@@ -243,6 +272,28 @@ label span {
   color: #40506b;
   font-size: 13px;
   font-weight: 700;
+}
+
+.ask-panel :deep(.el-input__wrapper),
+.ask-panel :deep(.el-textarea__inner) {
+  border-radius: 8px;
+  border-color: #cad3e1;
+  background: #fbfcff;
+  box-shadow: none;
+}
+
+.ask-panel :deep(.el-textarea__inner) {
+  min-height: 142px;
+  color: #172033;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.ask-panel :deep(.el-button) {
+  min-height: 44px;
+  border-radius: 8px;
+  background: #2563eb;
+  border-color: #2563eb;
 }
 
 .answer-title {
@@ -277,9 +328,62 @@ label span {
   padding-left: 20px;
 }
 
+.answer-markdown :deep(code) {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: #eef2f7;
+  color: #1f2937;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.answer-markdown :deep(pre) {
+  overflow-x: auto;
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px solid #d9e1ee;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.answer-markdown :deep(pre code) {
+  padding: 0;
+  background: transparent;
+}
+
+.answer-markdown :deep(blockquote) {
+  margin: 10px 0;
+  padding-left: 10px;
+  border-left: 3px solid #9bb9ef;
+  color: #40506b;
+}
+
 .answer-markdown :deep(p:last-child),
 .answer-markdown :deep(ul:last-child),
 .answer-markdown :deep(ol:last-child) {
   margin-bottom: 0;
+}
+
+.mobile-page-end {
+  height: 1px;
+}
+
+@media (max-width: 520px) {
+  .mobile-ask-page {
+    padding: 10px 10px calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-ask-header {
+    padding-top: 6px;
+  }
+
+  h1 {
+    font-size: 22px;
+  }
+
+  .ask-panel,
+  .answer-panel {
+    padding: 14px;
+  }
 }
 </style>

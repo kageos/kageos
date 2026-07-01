@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage } from 'element-plus'
@@ -10,6 +10,9 @@ import {
   type MessageActionViewResp,
   type MessageInboxItem,
 } from '@/architecture/presentation/context/api/message'
+import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
+import OutputFilesDisplay from '@/architecture/presentation/components/OutputFilesDisplay.vue'
+import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
 
 const route = useRoute()
 const loading = ref(false)
@@ -18,6 +21,10 @@ const error = ref('')
 const view = ref<MessageActionViewResp | null>(null)
 const replyContent = ref('')
 const replyResult = ref<MessageActionReplyResp | null>(null)
+const pageEndRef = ref<HTMLElement | null>(null)
+
+const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
+void preloadMarkdown()
 
 const token = computed(() => {
   const raw = route.query.t
@@ -28,6 +35,8 @@ const displayThread = computed<MessageInboxItem[]>(() => {
   const list = view.value?.thread || []
   return [...list].reverse()
 })
+
+const renderedMessageContent = computed(() => renderMarkdown(view.value?.message.content || ''))
 
 const expiresText = computed(() => {
   const expiresAt = view.value?.expires_at
@@ -56,6 +65,7 @@ async function loadAction() {
     error.value = err instanceof Error ? err.message : '加载消息失败'
   } finally {
     loading.value = false
+    await scrollToPageBottom('auto')
   }
 }
 
@@ -90,8 +100,41 @@ function formatTime(value?: string | null) {
   return value ? dayjs(value).format('MM-DD HH:mm') : ''
 }
 
+function renderThreadContent(item: MessageInboxItem) {
+  return renderMarkdown(item.content || '')
+}
+
+function parseMessageFileRefs(files?: string): string[] {
+  return Array.from(new Set((files || '')
+    .split(',')
+    .map(ref => ref.trim().replace(/^\/+/, ''))
+    .filter(Boolean)))
+}
+
+function messageFileGroups(item?: MessageInboxItem | null): OutputFileGroup[] {
+  const refs = parseMessageFileRefs(item?.files)
+  if (refs.length === 0) return []
+  return [{
+    label: '附件',
+    files: refs.map(ref => ({
+      ref,
+      name: ref.split('/').pop() || '文件'
+    }))
+  }]
+}
+
+async function scrollToPageBottom(behavior: ScrollBehavior = 'smooth') {
+  await nextTick()
+  pageEndRef.value?.scrollIntoView({ behavior, block: 'end' })
+}
+
 onMounted(loadAction)
 watch(token, loadAction)
+watch([renderedMessageContent, displayThread], () => {
+  if (view.value) {
+    void scrollToPageBottom('auto')
+  }
+}, { flush: 'post' })
 </script>
 
 <template>
@@ -129,7 +172,13 @@ watch(token, loadAction)
         </section>
 
         <section class="message-content">
-          <pre>{{ view.message.content }}</pre>
+          <div class="message-markdown" v-html="renderedMessageContent" />
+          <OutputFilesDisplay
+            v-if="messageFileGroups(view.message).length > 0"
+            class="mobile-message-files"
+            :file-groups="messageFileGroups(view.message)"
+            section-title="附件"
+          />
         </section>
 
         <section v-if="displayThread.length > 1" class="thread-section">
@@ -141,7 +190,13 @@ watch(token, loadAction)
                 <span>{{ formatTime(item.created_at) }}</span>
               </div>
               <div class="thread-title">{{ item.title || '消息' }}</div>
-              <p>{{ item.content }}</p>
+              <div class="thread-body" v-html="renderThreadContent(item)" />
+              <OutputFilesDisplay
+                v-if="messageFileGroups(item).length > 0"
+                class="mobile-thread-files"
+                :file-groups="messageFileGroups(item)"
+                section-title="附件"
+              />
             </article>
           </div>
         </section>
@@ -195,6 +250,7 @@ watch(token, loadAction)
             当前链接不能继续提交，请回到 Kageos 工作台查看最新状态。
           </p>
         </section>
+        <div ref="pageEndRef" class="mobile-page-end" aria-hidden="true" />
       </template>
     </section>
   </main>
@@ -202,31 +258,44 @@ watch(token, loadAction)
 
 <style scoped>
 .mobile-action-page {
-  min-height: 100vh;
-  background: #f5f7fb;
+  min-height: 100dvh;
+  background: #eef3f7;
   color: #172033;
-  padding: 16px;
+  padding: 14px 14px calc(20px + env(safe-area-inset-bottom));
 }
 
 .mobile-action-shell {
   width: min(100%, 760px);
   margin: 0 auto;
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .mobile-action-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   justify-content: space-between;
   gap: 12px;
   align-items: flex-start;
-  padding: 8px 0 2px;
+  padding: 8px 0 6px;
+  background: rgba(238, 243, 247, 0.94);
+  backdrop-filter: blur(10px);
 }
 
 .mobile-action-brand {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid #cddcf8;
+  border-radius: 6px;
+  background: #eaf1ff;
   font-size: 13px;
   font-weight: 700;
-  color: #3c6df0;
+  color: #1f5fbf;
 }
 
 h1,
@@ -237,13 +306,14 @@ h3 {
 }
 
 h1 {
-  font-size: 26px;
+  margin-top: 6px;
+  font-size: 24px;
   line-height: 1.2;
 }
 
 h2 {
-  font-size: 22px;
-  line-height: 1.25;
+  font-size: 20px;
+  line-height: 1.28;
   margin-top: 5px;
 }
 
@@ -253,20 +323,25 @@ h3 {
 
 .status-pill {
   flex: 0 0 auto;
-  padding: 7px 10px;
+  min-height: 30px;
+  padding: 0 10px;
   border-radius: 999px;
-  background: #e7ecf8;
+  border: 1px solid #d8deeb;
+  background: #f8fafc;
   color: #40506b;
   font-size: 13px;
   font-weight: 700;
+  line-height: 30px;
 }
 
 .status-open {
-  background: #e8f4ff;
-  color: #1465c0;
+  border-color: #bcd7ff;
+  background: #e9f3ff;
+  color: #155da8;
 }
 
 .status-submitted {
+  border-color: #bfe7ce;
   background: #e8f7ee;
   color: #17663b;
 }
@@ -279,12 +354,24 @@ h3 {
 
 .message-head,
 .message-content,
-.thread-section,
 .reply-section {
   background: #ffffff;
   border: 1px solid #e2e7f1;
   border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(30, 41, 59, 0.06);
+}
+
+.message-head,
+.reply-section {
   padding: 16px;
+}
+
+.message-head {
+  border-left: 4px solid #3c6df0;
+}
+
+.message-content {
+  overflow: hidden;
 }
 
 .message-source,
@@ -297,6 +384,7 @@ h3 {
 
 .message-source {
   font-weight: 700;
+  line-height: 1.35;
 }
 
 .message-meta {
@@ -306,19 +394,120 @@ h3 {
   margin-top: 10px;
 }
 
-.message-content pre {
+.message-markdown,
+.thread-body {
   margin: 0;
-  white-space: pre-wrap;
+  padding: 16px;
   word-break: break-word;
   font-family: inherit;
   font-size: 15px;
   line-height: 1.65;
 }
 
+.mobile-message-files {
+  margin: 0 16px 16px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.mobile-thread-files {
+  margin-top: 10px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.mobile-message-files :deep(.output-files-head),
+.mobile-thread-files :deep(.output-files-head) {
+  padding: 10px 10px 0;
+}
+
+.mobile-message-files :deep(.output-files-wrap),
+.mobile-thread-files :deep(.output-files-wrap) {
+  padding: 10px;
+}
+
+.mobile-message-files :deep(.output-files-item),
+.mobile-thread-files :deep(.output-files-item) {
+  min-width: 0;
+}
+
+.thread-body {
+  padding: 0;
+  margin-top: 8px;
+  color: #2f3a4e;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.message-markdown :deep(p),
+.message-markdown :deep(ul),
+.message-markdown :deep(ol),
+.thread-body :deep(p),
+.thread-body :deep(ul),
+.thread-body :deep(ol) {
+  margin: 0 0 10px;
+}
+
+.message-markdown :deep(ul),
+.message-markdown :deep(ol),
+.thread-body :deep(ul),
+.thread-body :deep(ol) {
+  padding-left: 20px;
+}
+
+.message-markdown :deep(code),
+.thread-body :deep(code) {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: #eef2f7;
+  color: #1f2937;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.message-markdown :deep(pre),
+.thread-body :deep(pre) {
+  overflow-x: auto;
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px solid #d9e1ee;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.message-markdown :deep(pre code),
+.thread-body :deep(pre code) {
+  padding: 0;
+  background: transparent;
+}
+
+.message-markdown :deep(blockquote),
+.thread-body :deep(blockquote) {
+  margin: 10px 0;
+  padding-left: 10px;
+  border-left: 3px solid #9bb9ef;
+  color: #40506b;
+}
+
+.message-markdown :deep(p:last-child),
+.message-markdown :deep(ul:last-child),
+.message-markdown :deep(ol:last-child),
+.thread-body :deep(p:last-child),
+.thread-body :deep(ul:last-child),
+.thread-body :deep(ol:last-child) {
+  margin-bottom: 0;
+}
+
+.thread-section {
+  display: grid;
+  gap: 10px;
+}
+
 .thread-list {
   display: grid;
   gap: 10px;
-  margin-top: 12px;
 }
 
 .thread-item {
@@ -337,15 +526,7 @@ h3 {
 .thread-title {
   margin-top: 6px;
   font-weight: 700;
-}
-
-.thread-item p {
-  margin: 6px 0 0;
-  color: #2f3a4e;
-  font-size: 14px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  word-break: break-word;
+  color: #172033;
 }
 
 .reply-section {
@@ -353,28 +534,73 @@ h3 {
   gap: 12px;
 }
 
+.reply-section :deep(.el-textarea__inner) {
+  min-height: 142px;
+  border-radius: 8px;
+  border-color: #cad3e1;
+  background: #fbfcff;
+  color: #172033;
+  font-size: 15px;
+  line-height: 1.55;
+  box-shadow: none;
+}
+
 .reply-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
-  flex-wrap: wrap;
+  align-items: center;
+}
+
+.reply-actions :deep(.el-button) {
+  min-height: 44px;
+  border-radius: 8px;
+}
+
+.reply-actions :deep(.el-button--primary) {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.mobile-page-end {
+  height: 1px;
 }
 
 @media (max-width: 520px) {
   .mobile-action-page {
-    padding: 12px;
+    padding: 10px 10px calc(18px + env(safe-area-inset-bottom));
   }
 
   .mobile-action-topbar {
     align-items: stretch;
-    flex-direction: column;
+    padding-top: 6px;
   }
 
   .status-pill {
+    align-self: flex-start;
     width: fit-content;
   }
 
+  h1 {
+    font-size: 22px;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  .message-head,
+  .reply-section {
+    padding: 14px;
+  }
+
   .reply-actions :deep(.el-button) {
-    flex: 1 1 150px;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .reply-actions {
+    grid-template-columns: 1fr;
   }
 }
 </style>

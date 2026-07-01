@@ -16,7 +16,7 @@ The core project is currently licensed under the Business Source License 1.1. It
 - Service Tree for organizing application capabilities inside a workspace, with shared access, audit, operation-log, message, and schedule entry points.
 - Workstation for requirement clarification, PRD drafting, code changes, build repair, runtime verification, and persistent workspace sessions.
 - Dynamic UI rendering for generated forms, tables, details, charts, function panels, inbox threads, and operation logs.
-- Platform inbox and notification flow backed by `message-server`, `message.v1.cmd.send`, SDK `ctx.SendMessage`, and the Agent `send_notification` tool.
+- Platform inbox and notification flow backed by `message-server`, `message.v1.cmd.send`, SDK `ctx.SendNotification`, and the Agent `send_notification` tool.
 - Scheduled automation backed by `timer-scheduler`, covering fixed Form/Table/Chart execution and unattended Agent workspace sessions.
 - Go SDK for workspace applications.
 - Single-machine development and production deployment paths based on Go, Vue, MySQL, NATS, MinIO, and containers.

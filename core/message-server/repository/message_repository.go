@@ -58,6 +58,7 @@ func (r *MessageRepository) Create(ctx context.Context, meta dto.MessageSendMeta
 		Title:                 strings.TrimSpace(payload.Title),
 		Content:               strings.TrimSpace(payload.Content),
 		ContentType:           strings.TrimSpace(payload.ContentType),
+		Files:                 strings.TrimSpace(payload.Files),
 	}
 	if entry.ContentType == "" {
 		entry.ContentType = "markdown"
@@ -365,6 +366,7 @@ func inboxSelectColumns() string {
 		"m.title",
 		"m.content",
 		"m.content_type",
+		"m.files",
 		"r.read_at",
 		"m.created_at",
 	}, ", ")

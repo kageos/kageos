@@ -25,7 +25,7 @@
 横切能力需要区分 MVP 已内置和未内置：
 
 - Table 更新日志由平台记录，业务代码不要重复造通用操作日志。
-- 消息通知属于平台横切能力。应用侧需要通知用户时，使用 SDK `ctx.SendMessage` 或 message-service API；MVP 默认异步写入站内信，飞书、邮件、企业微信等渠道由 message-service 后续按 ChannelProvider 扩展。普通业务动作不要等待通知投递完成，也不要因为通知失败阻塞主业务返回；业务代码不要直接绑定具体通知渠道。
+- 消息通知属于平台横切能力。应用侧需要通知用户时，使用 SDK `ctx.SendNotification` 或 message-service API；MVP 默认异步写入站内信，飞书、邮件、企业微信等渠道由 message-service 后续按 ChannelProvider 扩展。普通业务动作不要等待通知投递完成，也不要因为通知失败阻塞主业务返回；业务代码不要直接绑定具体通知渠道。
 - 定时任务和后台调度属于平台横切能力，由 timer-scheduler 独立服务承载。需要定时执行已有函数或工作台会话时，交给 `automation_operator` 使用定时任务工具；业务应用不要自造调度器。
 - 通用权限、审批、评论、收藏、备份控制面不属于 MVP 应用侧能力，不要在业务系统里默认自造。
 

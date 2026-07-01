@@ -26,8 +26,9 @@ export interface MessageSendMeta {
 export interface MessageSendPayload {
   to_users?: string
   title?: string
-  content: string
+  content?: string
   content_type?: MessageContentType
+  files?: string
 }
 
 export interface MessageSendEnvelope {
@@ -36,10 +37,11 @@ export interface MessageSendEnvelope {
 }
 
 export interface MessageSendToUsersReq {
-  to_users: string
+  to_users?: string
   title?: string
-  content: string
+  content?: string
   content_type?: MessageContentType
+  files?: string
 }
 
 export interface MessageSendResp {
@@ -50,6 +52,7 @@ export interface MessageSendResp {
   full_code_path?: string
   to_users?: string
   content_type?: MessageContentType
+  files?: string
 }
 
 export interface MessageSourceDisplay {
@@ -87,6 +90,7 @@ export interface MessageInboxItem {
   title?: string
   content: string
   content_type?: MessageContentType
+  files?: string
   read_at?: string | null
   created_at: string
   source_display?: MessageSourceDisplay
@@ -192,6 +196,15 @@ export interface MessageNotificationRouteInfo {
 
 export interface MessageNotificationRouteListResp {
   list: MessageNotificationRouteInfo[]
+}
+
+export interface MessageNotificationRoutePathSummary {
+  scope_path: string
+  routes: MessageNotificationRouteInfo[]
+}
+
+export interface MessageNotificationRouteSummaryResp {
+  routes: Record<string, MessageNotificationRoutePathSummary>
 }
 
 export interface UpsertMessageNotificationChannelReq {
@@ -328,6 +341,10 @@ export function testMessageNotificationChannel(channel: MessageNotificationChann
 
 export function listMessageNotificationRoutes(scopePath?: string): Promise<MessageNotificationRouteListResp> {
   return get<MessageNotificationRouteListResp>('/message/api/v1/notification_routes', scopePath ? { scope_path: scopePath } : {})
+}
+
+export function listMessageNotificationRouteSummary(rootScopePath: string): Promise<MessageNotificationRouteSummaryResp> {
+  return get<MessageNotificationRouteSummaryResp>('/message/api/v1/notification_routes/summary', { root_scope_path: rootScopePath })
 }
 
 export function upsertMessageNotificationRoute(

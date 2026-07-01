@@ -28,6 +28,7 @@ func TestListInboxScansMessageInboxDTO(t *testing.T) {
 	}, dto.MessageSendPayload{
 		Title:   "请假审批",
 		Content: "请审批",
+		Files:   "kageos/reports/leave.pdf",
 	}, []string{"bob"})
 	if err != nil {
 		t.Fatalf("create message: %v", err)
@@ -51,6 +52,9 @@ func TestListInboxScansMessageInboxDTO(t *testing.T) {
 	}
 	if list[0].WorkspaceSessionID != "session-1" {
 		t.Fatalf("workspace_session_id = %q", list[0].WorkspaceSessionID)
+	}
+	if list[0].Files != "kageos/reports/leave.pdf" {
+		t.Fatalf("files = %q", list[0].Files)
 	}
 	if list[0].SourceDisplay == nil {
 		t.Fatal("source_display is nil")

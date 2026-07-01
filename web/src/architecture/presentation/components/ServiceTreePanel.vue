@@ -114,12 +114,16 @@
               :show-notification-badge="hasNotificationBadge(data)"
               :notification-badge-value="getNotificationBadgeText(data)"
               :notification-badge-title="getNotificationSummaryTitle(data)"
+              :show-notification-route-badge="hasNotificationRouteBadge(data)"
+              :notification-route-badge-title="getNotificationRouteSummaryTitle(data)"
+              :notification-route-badge-tone="getNotificationRouteBadgeTone(data)"
               :show-scheduled-agent-badge="hasScheduledAgentBadge(data)"
               :scheduled-agent-badge-value="getScheduledAgentBadgeText(data)"
               :scheduled-agent-badge-title="getScheduledAgentBadgeTitle(data)"
               @dragstart="onTreeNodeDragStart($event, data)"
               @contextmenu.prevent
               @notification-click="openNodeNotifications(data)"
+              @notification-route-click="openNodeNotificationRoutes(data)"
               :title="multiSelectMode ? t('serviceTree.clickSelect') : t('serviceTree.rightClickMenu')"
             >
               <template #actions>
@@ -192,8 +196,14 @@ import type { ServiceTree } from '@/architecture/domain/types'
 import { isRootNode } from '@/architecture/domain/utils/tree-utils'
 import { exportCapabilityBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/architecture/presentation/context/api/service-tree'
 import { getRuntimeStateSummary, type RuntimeStateSummary } from '@/architecture/presentation/context/api/state'
+import {
+  listMessageNotificationRouteSummary,
+  type MessageNotificationRouteInfo,
+  type MessageNotificationRoutePathSummary
+} from '@/architecture/presentation/context/api/message'
 import { downloadCapabilityBundleFile } from '@/architecture/presentation/utils/directoryBundleFile'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
+import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
 import { useServiceTreeClipboard } from '../composables/useServiceTreeClipboard'
 import { useServiceTreeSearchExpand } from '../composables/useServiceTreeSearchExpand'
 import {
@@ -239,6 +249,7 @@ const { t } = useI18n()
 const router = useRouter()
 
 const runtimeSummaries = ref<Record<string, RuntimeStateSummary>>({})
+const notificationRouteSummaries = ref<Record<string, MessageNotificationRoutePathSummary>>({})
 let runtimeSummaryTimer: ReturnType<typeof setInterval> | null = null
 
 const {
@@ -280,6 +291,7 @@ const importDirectoryDialogVisible = ref(false)
 const importDirectoryTargetNode = ref<ServiceTree | null>(null)
 const pendingExpandPath = ref('')
 let unsubscribeRuntimeRefresh: (() => void) | null = null
+let unsubscribeNotificationRouteRefresh: (() => void) | null = null
 
 const panelLoading = computed(() => Boolean(props.loading) || bulkExporting.value || renamingNode.value)
 const panelLoadingText = computed(() => {
@@ -339,6 +351,20 @@ const refreshRuntimeSummary = async () => {
   }
 }
 
+const refreshNotificationRouteSummary = async () => {
+  const root = rootFullCodePath.value
+  if (!root) {
+    notificationRouteSummaries.value = {}
+    return
+  }
+  try {
+    const resp = await listMessageNotificationRouteSummary(root)
+    notificationRouteSummaries.value = resp.routes || {}
+  } catch {
+    // 通知路由标识仅用于辅助提示，不影响服务树主流程。
+  }
+}
+
 const startRuntimeSummaryPolling = () => {
   stopRuntimeSummaryPolling()
   if (!rootFullCodePath.value) return
@@ -348,12 +374,24 @@ const startRuntimeSummaryPolling = () => {
 
 watch(rootFullCodePath, () => {
   runtimeSummaries.value = {}
+  notificationRouteSummaries.value = {}
   exitMultiSelectMode()
   refreshRuntimeSummary()
+  refreshNotificationRouteSummary()
   startRuntimeSummaryPolling()
 }, { immediate: true })
 
-onBeforeUnmount(stopRuntimeSummaryPolling)
+unsubscribeNotificationRouteRefresh = eventBus.on('notification-route:changed', () => {
+  void refreshNotificationRouteSummary()
+})
+
+onBeforeUnmount(() => {
+  stopRuntimeSummaryPolling()
+  if (unsubscribeNotificationRouteRefresh) {
+    unsubscribeNotificationRouteRefresh()
+    unsubscribeNotificationRouteRefresh = null
+  }
+})
 
 const getRuntimeSummary = (node: ServiceTree): RuntimeStateSummary | undefined => {
   if (!node.full_code_path) return undefined
@@ -386,11 +424,28 @@ const getRuntimeSummaryTitle = (node: ServiceTree): string => {
   return parts.join('，')
 }
 
+function normalizeTreePath(path?: string): string {
+  const normalized = (path || '').trim().replace(/\/+$/g, '')
+  return normalized && !normalized.startsWith('/') ? `/${normalized}` : normalized
+}
+
+function getNotificationScopeAncestors(path: string): string[] {
+  const normalized = normalizeTreePath(path)
+  if (!normalized) return []
+  const parts = normalized.split('/').filter(Boolean)
+  if (parts.length === 0) return []
+  const minParts = parts.length >= 2 ? 2 : 1
+  const paths: string[] = []
+  for (let size = parts.length; size >= minParts; size -= 1) {
+    paths.push(`/${parts.slice(0, size).join('/')}`)
+  }
+  return paths
+}
+
 const notificationSummaries = computed<Record<string, ServiceTreeNotificationCount>>(() => {
   const summaries: Record<string, ServiceTreeNotificationCount> = {}
-  const normalizePath = (path?: string) => (path || '').trim().replace(/\/+$/g, '')
   const walk = (node: ServiceTree) => {
-    const path = normalizePath(node.full_code_path)
+    const path = normalizeTreePath(node.full_code_path)
     if (path) {
       summaries[path] = props.messageCounts?.[path] || {}
     }
@@ -405,7 +460,7 @@ const notificationSummaries = computed<Record<string, ServiceTreeNotificationCou
 })
 
 const getNotificationSummary = (node: ServiceTree): ServiceTreeNotificationCount | undefined => {
-  const path = (node.full_code_path || '').trim().replace(/\/+$/g, '')
+  const path = normalizeTreePath(node.full_code_path)
   if (!path) return undefined
   return notificationSummaries.value[path]
 }
@@ -447,6 +502,103 @@ const getScheduledAgentBadgeTitle = (node: ServiceTree): string => {
 function openNodeNotifications(node: ServiceTree) {
   if (!node.full_code_path) return
   emit('open-notifications', node)
+}
+
+interface NotificationRouteEffectiveSummary {
+  route?: MessageNotificationRouteInfo
+  scopePath: string
+  inherited: boolean
+  disabled: boolean
+}
+
+function isNotificationRouteNode(node: ServiceTree): boolean {
+  return node.type === 'package' || node.type === 'function'
+}
+
+function getUsableNotificationRoute(summary?: MessageNotificationRoutePathSummary): MessageNotificationRouteInfo | undefined {
+  return (summary?.routes || []).find((route) => Boolean(route.enabled) && Boolean(route.has_webhook_url))
+}
+
+function getConfiguredNotificationRoute(summary?: MessageNotificationRoutePathSummary): MessageNotificationRouteInfo | undefined {
+  return (summary?.routes || []).find((route) => {
+    return Boolean(route.id || route.display_name || route.enabled || route.has_webhook_url || route.last_error)
+  })
+}
+
+function getEffectiveNotificationRoute(node: ServiceTree): NotificationRouteEffectiveSummary | undefined {
+  const path = normalizeTreePath(node.full_code_path)
+  if (!path || !isNotificationRouteNode(node)) return undefined
+
+  for (const scopePath of getNotificationScopeAncestors(path)) {
+    const route = getUsableNotificationRoute(notificationRouteSummaries.value[scopePath])
+    if (route) {
+      return {
+        route,
+        scopePath,
+        inherited: scopePath !== path,
+        disabled: false
+      }
+    }
+  }
+
+  const directRoute = getConfiguredNotificationRoute(notificationRouteSummaries.value[path])
+  if (!directRoute) return undefined
+  return {
+    route: directRoute,
+    scopePath: path,
+    inherited: false,
+    disabled: true
+  }
+}
+
+function hasNotificationRouteBadge(node: ServiceTree): boolean {
+  return Boolean(getEffectiveNotificationRoute(node))
+}
+
+function notificationChannelLabel(channel?: string): string {
+  if (channel === 'feishu') return t('userSettings.channelFeishu')
+  if (channel === 'wecom') return t('userSettings.channelWecom')
+  if (channel === 'dingtalk') return t('userSettings.channelDingtalk')
+  return channel || t('notificationRoute.unknownChannel')
+}
+
+function formatNotificationRouteName(route?: MessageNotificationRouteInfo): string {
+  if (!route) return t('notificationRoute.unnamedRoute')
+  const displayName = (route.display_name || '').trim() || t('notificationRoute.unnamedRoute')
+  return `${displayName} · ${notificationChannelLabel(String(route.channel || ''))}`
+}
+
+function getNotificationRouteBadgeTone(node: ServiceTree): string {
+  const summary = getEffectiveNotificationRoute(node)
+  if (!summary) return 'direct'
+  if (summary.disabled) return 'disabled'
+  if (summary.route?.last_error || Number(summary.route?.fail_count || 0) > 0) return 'failed'
+  if (summary.inherited) return 'inherited'
+  return 'direct'
+}
+
+function getNotificationRouteSummaryTitle(node: ServiceTree): string {
+  const summary = getEffectiveNotificationRoute(node)
+  if (!summary) return ''
+  const name = formatNotificationRouteName(summary.route)
+  let title = summary.disabled
+    ? t('serviceTree.notificationRouteDisabledTitle', { name })
+    : summary.inherited
+      ? t('serviceTree.notificationRouteInheritedTitle', { name, path: summary.scopePath })
+      : t('serviceTree.notificationRouteDirectTitle', { name })
+  if (summary.route?.last_error) {
+    title += `；${t('serviceTree.notificationRouteLastError', { error: summary.route.last_error })}`
+  }
+  return title
+}
+
+function openNodeNotificationRoutes(node: ServiceTree) {
+  const path = normalizeTreePath(node.full_code_path)
+  if (!path || !isNotificationRouteNode(node)) return
+  void router.push({
+    path: resolveWorkspaceUrl(path),
+    query: { _panel: 'notification' }
+  })
 }
 
 function findPackageNodeById(nodes: ServiceTree[], id: number | string): ServiceTree | null {

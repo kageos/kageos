@@ -156,6 +156,57 @@ func TestNotificationRouteRepositoryMatchesNearestScopeAndRecordsStatus(t *testi
 	if err != nil {
 		t.Fatalf("create child route: %v", err)
 	}
+	if _, err := repo.UpsertNotificationRoute(context.Background(), &model.NotificationRouteSetting{
+		ScopePath:        "/alice/support",
+		Channel:          "dingtalk",
+		Enabled:          true,
+		DeliveryType:     "webhook",
+		DisplayName:      "支持群",
+		RequireAuth:      true,
+		WebhookURLCipher: "support-cipher-url",
+	}); err != nil {
+		t.Fatalf("create unrelated route: %v", err)
+	}
+	summaryRoutes, err := repo.ListNotificationRoutesByRoot(context.Background(), "/alice/sales")
+	if err != nil {
+		t.Fatalf("list route summary by root: %v", err)
+	}
+	summaryPaths := map[string]bool{}
+	for _, route := range summaryRoutes {
+		summaryPaths[route.ScopePath] = true
+	}
+	if len(summaryRoutes) != 2 || !summaryPaths["/alice/sales"] || !summaryPaths["/alice/sales/orders"] {
+		t.Fatalf("unexpected summary routes: %#v", summaryRoutes)
+	}
+	if _, err := repo.UpsertNotificationRoute(context.Background(), &model.NotificationRouteSetting{
+		ScopePath:        "/alice/sales_ops",
+		Channel:          "feishu",
+		Enabled:          true,
+		DeliveryType:     "webhook",
+		DisplayName:      "销售运维群",
+		RequireAuth:      true,
+		WebhookURLCipher: "sales-ops-cipher-url",
+	}); err != nil {
+		t.Fatalf("create underscore route: %v", err)
+	}
+	if _, err := repo.UpsertNotificationRoute(context.Background(), &model.NotificationRouteSetting{
+		ScopePath:        "/alice/salesXops",
+		Channel:          "feishu",
+		Enabled:          true,
+		DeliveryType:     "webhook",
+		DisplayName:      "不应命中的群",
+		RequireAuth:      true,
+		WebhookURLCipher: "sales-xops-cipher-url",
+	}); err != nil {
+		t.Fatalf("create like-wildcard route: %v", err)
+	}
+	underscoreRoutes, err := repo.ListNotificationRoutesByRoot(context.Background(), "/alice/sales_ops")
+	if err != nil {
+		t.Fatalf("list underscore route summary: %v", err)
+	}
+	if len(underscoreRoutes) != 1 || underscoreRoutes[0].ScopePath != "/alice/sales_ops" {
+		t.Fatalf("unexpected underscore summary routes: %#v", underscoreRoutes)
+	}
 
 	candidates := NotificationRouteCandidatePaths("/alice/sales/orders/notify.form")
 	wantCandidates := []string{"/alice/sales/orders/notify.form", "/alice/sales/orders", "/alice/sales"}

@@ -37,6 +37,7 @@ func TestSendNotificationPublishesWithScheduledSource(t *testing.T) {
 		Message:     "<b>需要关注</b>",
 		ContentType: "html",
 		Level:       "critical",
+		Files:       "kageos/a.pdf，kageos/a.pdf;kageos/b.xlsx",
 	}, "/system/test22/hot_news")
 
 	if result.IsError {
@@ -58,6 +59,9 @@ func TestSendNotificationPublishesWithScheduledSource(t *testing.T) {
 	}
 	if envelope.Message.ContentType != "html" {
 		t.Fatalf("content_type = %q", envelope.Message.ContentType)
+	}
+	if envelope.Message.Files != "kageos/a.pdf,kageos/b.xlsx" {
+		t.Fatalf("files = %q", envelope.Message.Files)
 	}
 	if !strings.HasPrefix(envelope.Message.Title, "【高优先级】") {
 		t.Fatalf("title should be prefixed for critical notifications, got %q", envelope.Message.Title)
@@ -106,6 +110,35 @@ func TestSendNotificationDefaultsRecipientToRequestUser(t *testing.T) {
 	}
 	if envelope.Message.ToUsers != "alice" {
 		t.Fatalf("to_users = %q, want alice", envelope.Message.ToUsers)
+	}
+}
+
+func TestSendNotificationAllowsFilesOnly(t *testing.T) {
+	publisher := &fakeNotificationPublisher{}
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
+		RequestUser: "alice",
+	})
+
+	result := runSendNotificationTool(ctx, publisher, sendNotificationArgs{
+		Title: "报告已生成",
+		Files: "kageos/reports/a.pdf，kageos/reports/a.pdf;kageos/reports/b.xlsx",
+	}, "/system/test22/reports")
+
+	if result.IsError {
+		t.Fatalf("send_notification returned error: %s", result.Content)
+	}
+	if len(publisher.msgs) != 1 {
+		t.Fatalf("published messages = %d, want 1", len(publisher.msgs))
+	}
+	envelope, err := decodeNotifyEnvelope(publisher.msgs[0].Data)
+	if err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	if envelope.Message.Content != "" {
+		t.Fatalf("content = %q, want empty", envelope.Message.Content)
+	}
+	if envelope.Message.Files != "kageos/reports/a.pdf,kageos/reports/b.xlsx" {
+		t.Fatalf("files = %q", envelope.Message.Files)
 	}
 }
 
@@ -195,6 +228,9 @@ func TestSendNotificationSchemaDoesNotRequireToUsers(t *testing.T) {
 	}
 	if containsInterfaceString(required, "to_users") {
 		t.Fatalf("send_notification should not require to_users, required=%#v", required)
+	}
+	if containsInterfaceString(required, "message") {
+		t.Fatalf("send_notification should allow files-only notifications, required=%#v", required)
 	}
 	properties, ok := def.InputSchema["properties"].(map[string]interface{})
 	if !ok {

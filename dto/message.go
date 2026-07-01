@@ -32,6 +32,7 @@ type MessageSendPayload struct {
 	Title       string `json:"title"`
 	Content     string `json:"content"`
 	ContentType string `json:"content_type"`
+	Files       string `json:"files,omitempty"`
 }
 
 type MessageSendEnvelope struct {
@@ -40,10 +41,11 @@ type MessageSendEnvelope struct {
 }
 
 type MessageSendToUsersReq struct {
-	ToUsers     string `json:"to_users" binding:"required"`
+	ToUsers     string `json:"to_users"`
 	Title       string `json:"title"`
-	Content     string `json:"content" binding:"required"`
+	Content     string `json:"content"`
 	ContentType string `json:"content_type"`
+	Files       string `json:"files,omitempty"`
 }
 
 type MessageSendResp struct {
@@ -54,6 +56,7 @@ type MessageSendResp struct {
 	FullCodePath string             `json:"full_code_path"`
 	ToUsers      string             `json:"to_users"`
 	ContentType  string             `json:"content_type"`
+	Files        string             `json:"files,omitempty"`
 }
 
 type MessageInboxItem struct {
@@ -81,6 +84,7 @@ type MessageInboxItem struct {
 	Title                 string                `json:"title"`
 	Content               string                `json:"content"`
 	ContentType           string                `json:"content_type"`
+	Files                 string                `json:"files,omitempty"`
 	ReadAt                *time.Time            `json:"read_at"`
 	CreatedAt             time.Time             `json:"created_at"`
 	SourceDisplay         *MessageSourceDisplay `json:"source_display,omitempty" gorm:"-"`
@@ -243,6 +247,15 @@ type MessageNotificationRouteInfo struct {
 
 type MessageNotificationRouteListResp struct {
 	List []MessageNotificationRouteInfo `json:"list"`
+}
+
+type MessageNotificationRoutePathSummary struct {
+	ScopePath string                         `json:"scope_path"`
+	Routes    []MessageNotificationRouteInfo `json:"routes"`
+}
+
+type MessageNotificationRouteSummaryResp struct {
+	Routes map[string]MessageNotificationRoutePathSummary `json:"routes"`
 }
 
 type UpsertMessageNotificationChannelReq struct {

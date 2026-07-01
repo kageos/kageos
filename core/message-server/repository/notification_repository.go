@@ -53,6 +53,22 @@ func (r *MessageRepository) ListNotificationRoutes(ctx context.Context, scopePat
 	return rows, err
 }
 
+func (r *MessageRepository) ListNotificationRoutesByRoot(ctx context.Context, rootScopePath string) ([]*model.NotificationRouteSetting, error) {
+	var rows []*model.NotificationRouteSetting
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("message repository is nil")
+	}
+	rootScopePath = NormalizeNotificationScopePath(rootScopePath)
+	if rootScopePath == "" {
+		return []*model.NotificationRouteSetting{}, nil
+	}
+	err := r.db.WithContext(ctx).
+		Where("scope_path = ? OR scope_path LIKE ? ESCAPE '!'", rootScopePath, escapeSQLLikePattern(rootScopePath)+"/%").
+		Order("scope_path ASC, channel ASC").
+		Find(&rows).Error
+	return rows, err
+}
+
 func (r *MessageRepository) ListEnabledNotificationRoutesByPaths(ctx context.Context, scopePaths []string) ([]*model.NotificationRouteSetting, error) {
 	scopePaths = normalizeNotificationScopePaths(scopePaths)
 	if len(scopePaths) == 0 {
@@ -351,6 +367,13 @@ func normalizeNotificationScopePaths(scopePaths []string) []string {
 		out = append(out, scopePath)
 	}
 	return out
+}
+
+func escapeSQLLikePattern(value string) string {
+	value = strings.ReplaceAll(value, `!`, `!!`)
+	value = strings.ReplaceAll(value, `%`, `!%`)
+	value = strings.ReplaceAll(value, `_`, `!_`)
+	return value
 }
 
 func normalizeNotificationScopeType(scopeType string, scopePath string) string {

@@ -92,12 +92,13 @@
             label-width="118px"
             class="route-form"
           >
-            <el-form-item :label="t('userSettings.displayName')">
+            <el-form-item :label="t('notificationRoute.displayName')">
               <el-input
                 v-model="routeForms[definition.channel].display_name"
-                :placeholder="channelDefaultDisplayName(definition.channel)"
+                :placeholder="t('notificationRoute.displayNamePlaceholder', { channel: channelLabel(definition.channel) })"
                 clearable
               />
+              <p class="form-tip">{{ t('notificationRoute.displayNameTip') }}</p>
             </el-form-item>
 
             <el-form-item label="Webhook">
@@ -215,6 +216,7 @@ import {
   upsertMessageNotificationRoute,
   type MessageNotificationRouteInfo
 } from '@/architecture/presentation/context/api/message'
+import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 
 type ChannelCode = 'feishu' | 'wecom' | 'dingtalk'
 
@@ -410,6 +412,10 @@ function applyInheritedRoutes(rows: MessageNotificationRouteInfo[]) {
   })
 }
 
+function notifyRouteChanged() {
+  eventBus.emit('notification-route:changed', { scope_path: normalizedScopePath.value })
+}
+
 async function loadRoutes() {
   const scopePath = normalizedScopePath.value
   if (!scopePath) {
@@ -469,6 +475,7 @@ async function saveRoute(channel: ChannelCode, options: { silent?: boolean } = {
       metadata: form.metadata
     })
     applyRouteInfo(info)
+    notifyRouteChanged()
     if (!options.silent) {
       ElMessage.success(t('notificationRoute.saved', { channel: channelLabel(channel) }))
     }
@@ -518,6 +525,7 @@ async function deleteRoute(channel: ChannelCode) {
   try {
     await deleteMessageNotificationRoute(channel, normalizedScopePath.value)
     resetRouteForm(channel)
+    notifyRouteChanged()
     ElMessage.success(t('notificationRoute.deleted', { channel: channelLabel(channel) }))
     await loadRoutes()
   } catch (error: any) {

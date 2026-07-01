@@ -7,7 +7,7 @@
 - **POST Form**：`meeting_room_query_available.form`（查询空闲会议室 + 一键预约）、`meeting_room_notify_soon.form`（会前提醒，内置默认调度，发布后开箱即用）。
 - **关系**：预约表关联会议室；预约时选会议室用 **OnSelectFuzzy**，只返回状态为「可用」的会议室；预约列表带「会议室详情」**link** 跳转到会议室列表。
 - **状态**：预约状态不落库，按开始/结束时间实时计算（待开始/进行中/已结束）；列表筛选「预约状态」时在 Handler 中拼时间条件。
-- **提醒**：会前提醒通过 `ctx.SendMessage` 发给预约人和参会人；发送前先条件更新 `reminder_sent` 做幂等 claim，失败时释放标记；`FormTemplate.Schedules` 默认每 2 分钟扫描未来 5 分钟内即将开始的会议。
+- **提醒**：会前提醒通过 `ctx.SendNotification` 发给预约人和参会人；发送前先条件更新 `reminder_sent` 做幂等 claim，失败时释放标记；`FormTemplate.Schedules` 默认每 2 分钟扫描未来 5 分钟内即将开始的会议。
 - **适合参考**：中小企业资源预约、台账管理、跨表筛选、空闲资源查询、一键跳转、定时巡检、消息提醒等轻量业务闭环。
 
 ---
@@ -607,10 +607,10 @@ func MeetingRoomNotifySoon(ctx *app.Context, resp response.Response) error {
 		startAt := booking.StartTime.Time().Format("2006-01-02 15:04")
 		content := fmt.Sprintf("您预约/参与的会议《%s》将在 %s 开始，会议室：%s，请提前准备。", booking.Subject, startAt, roomName)
 		// 默认 markdown，ToUsers 来自 booking 的 user/users 字段（逗号分隔格式）
-		err := ctx.SendMessage(&app.SendMessageOpts{
+		err := ctx.SendNotification(&app.SendNotificationOpts{
 			ToUsers: toUsers,
 			Title:   "会议即将开始提醒",
-			Content: content,
+			Message: content,
 		})
 		if err != nil {
 			logger.Errorf(ctx, "Send meeting reminder failed, booking_id=%d, err=%v", booking.ID, err)
