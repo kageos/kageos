@@ -78,9 +78,9 @@ func (c *MessageServerConfig) IsDebug() bool {
 
 func (c *MessageServerConfig) IsPprofEnabled() bool {
 	if c == nil {
-		return true
+		return false
 	}
-	return boolConfigValue(c.Server.EnablePprof, true)
+	return boolConfigValue(c.Server.EnablePprof, false)
 }
 
 func (c *MessageServerConfig) AllowNATSDegradedStartup() bool {

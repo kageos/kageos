@@ -27,7 +27,7 @@ type Server struct {
 	db         *gorm.DB
 	natsConn   *nats.Conn
 	httpServer *gin.Engine
-	httpSrv    *http.Server
+	httpSrv    *serverx.HTTPServer
 
 	messageRepo            *msgrepo.MessageRepository
 	messageConsumerService *service.MessageConsumerService
@@ -77,13 +77,14 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.GetPort()))
-	s.httpSrv = &http.Server{
-		Addr:              addr,
-		Handler:           s.httpServer,
-		ReadHeaderTimeout: 5 * time.Second,
+	httpSrv, err := serverx.StartHTTPServer(ctx, addr, s.httpServer)
+	if err != nil {
+		s.unsubscribeNATS(ctx)
+		return fmt.Errorf("failed to start HTTP server on %s: %w", addr, err)
 	}
+	s.httpSrv = httpSrv
 	go func() {
-		if err := s.httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := <-httpSrv.Err(); err != nil {
 			logger.Errorf(ctx, "[message-server] HTTP server error: %v", err)
 		}
 	}()
@@ -93,23 +94,24 @@ func (s *Server) Start(ctx context.Context) error {
 
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[message-server] stopping...")
+	var stopErr error
+	if s.httpSrv != nil {
+		if err := s.httpSrv.Shutdown(ctx); err != nil {
+			logger.Warnf(ctx, "[message-server] HTTP server shutdown failed: %v", err)
+			stopErr = err
+		}
+		s.httpSrv = nil
+	}
 	s.unsubscribeNATS(ctx)
 	if s.natsConn != nil {
 		s.natsConn.Close()
 		s.natsConn = nil
 	}
-	if s.httpSrv != nil {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := s.httpSrv.Shutdown(shutdownCtx); err != nil {
-			return err
-		}
-	}
 	if err := closeDB(s.db); err != nil {
 		return err
 	}
 	logger.Infof(ctx, "[message-server] stopped")
-	return nil
+	return stopErr
 }
 
 func (s *Server) initDatabase(ctx context.Context) error {

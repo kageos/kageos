@@ -10,6 +10,7 @@ import (
 	"github.com/kageos/kageos/core/agent-server/model"
 	"github.com/kageos/kageos/core/agent-server/prompt"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/llms"
 	"gorm.io/gorm"
 )
@@ -34,6 +35,18 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 			return nil, nil, nil, fmt.Errorf("获取 LLM 配置失败: %w", err)
 		}
 	}
+	if !canViewLLMConfig(llmConfig, contextx.GetRequestUser(ctx)) {
+		return nil, nil, nil, fmt.Errorf("无权限使用该 LLM 配置")
+	}
+	apiKey, err := openLLMAPIKey(s.apiKeyVault, s.apiKeyVaultErr, llmConfig.APIKey)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("解密 LLM API Key 失败: %w", err)
+	}
+	if llmConfig.APIKey != "" && !isSealedLLMAPIKey(s.apiKeyVault, llmConfig.APIKey) {
+		if sealed, sealErr := sealLLMAPIKey(s.apiKeyVault, s.apiKeyVaultErr, llmConfig.APIKey); sealErr == nil {
+			_ = s.llmRepo.UpdateAPIKey(llmConfig.ID, sealed)
+		}
+	}
 
 	opts := llms.DefaultClientOptions()
 	if llmConfig.Model != "" {
@@ -45,7 +58,7 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 	if llmConfig.APIBase != "" {
 		opts = opts.WithBaseURL(llmConfig.APIBase)
 	}
-	client := llms.NewOpenAIClientWithOptions(llmConfig.APIKey, opts)
+	client := llms.NewOpenAIClientWithOptions(apiKey, opts)
 
 	var extraConfig map[string]interface{}
 	if llmConfig.ExtraConfig != nil && *llmConfig.ExtraConfig != "" {

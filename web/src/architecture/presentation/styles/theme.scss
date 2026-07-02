@@ -3,35 +3,35 @@
  * 支持浅色和深色模式
  */
 
-// 主题变量 - 现代高级浅色主题 (对齐登录页设计，以及作为商务蓝主体的基础)
-:root, html[data-theme="business-light"] {
+// 主题变量 - 柔和浅色主题
+:root, html[data-theme="hub-light"] {
   // 主题模式
   --theme-mode: 'light';
   
-  // 主题色 - 对齐 kageos 官网的 Indigo 品牌色
-  --color-primary: #6366f1;
-  --color-primary-rgb: 99, 102, 241;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-  --color-info: #818cf8;
+  // 主题色 - 继承 Hub 的 Indigo，但降低页面亮度与白色占比
+  --color-primary: #4f46e5;
+  --color-primary-rgb: 79, 70, 229;
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-info: #2563eb;
   
-  // 文字颜色 - 登录页同款温和且清晰的 Slate 色系，拒绝死黑
-  --text-primary: #0f172a;    // Slate 900
-  --text-regular: #334155;    // Slate 700
-  --text-secondary: #475569;  // Slate 600
-  --text-disabled: #94a3b8;   // Slate 400
+  // 文字颜色 - 温和 Slate，避免纯黑
+  --text-primary: #172033;
+  --text-regular: #334155;
+  --text-secondary: #64748b;
+  --text-disabled: #94a3b8;
   
-  // 基础背景颜色
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
-  --bg-tertiary: #f1f5f9;
-  --bg-page: #eef2f6;
+  // 基础背景颜色 - 不使用刺眼纯白
+  --bg-primary: #f3f6fb;
+  --bg-secondary: #edf2f8;
+  --bg-tertiary: #e2e8f0;
+  --bg-page: #dfe7f1;
   
-  // 边框颜色 - 极其克制的高级半透明边框，拒绝生硬的灰色粗线
-  --border-base: rgba(148, 163, 184, 0.26);
-  --border-light: rgba(148, 163, 184, 0.15);
-  --border-lighter: rgba(148, 163, 184, 0.08);
+  // 边框颜色
+  --border-base: rgba(71, 85, 105, 0.22);
+  --border-light: rgba(71, 85, 105, 0.14);
+  --border-lighter: rgba(71, 85, 105, 0.08);
   
   // 字体
   --font-family-base: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
@@ -62,36 +62,36 @@
   --hover-transform-lift: translateY(-2px);
   --hover-shadow-lift: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
 
-  // 阴影 - 采用极浅、高扩散的 macOS 风格阴影
-  --box-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-  --box-shadow-base: 0 2px 8px -2px rgba(0, 0, 0, 0.05), 0 1px 4px -1px rgba(0, 0, 0, 0.03);
-  --box-shadow-lg: 0 8px 16px -4px rgba(0, 0, 0, 0.06), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
-  --app-panel-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.05);
+  // 阴影
+  --box-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --box-shadow-base: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --box-shadow-lg: 0 20px 48px rgba(15, 23, 42, 0.12);
+  --app-panel-shadow: 0 18px 48px rgba(15, 23, 42, 0.1);
   
   // 工作台大架构专属变量
-  --app-shell-bg: #eef2f6; // 加深背景色，增强与面板的对比度，避免死白
-  --app-shell-panel-bg: rgba(255, 255, 255, 0.98); // 稍微透出背景色，减轻过度透明感
+  --app-shell-bg: #dfe7f1;
+  --app-shell-panel-bg: rgba(247, 249, 252, 0.94);
   --app-shell-panel-bg-strong: #f8fafc;
-  --app-shell-panel-muted-bg: #f1f5f9;
-  --app-shell-panel-border: rgba(148, 163, 184, 0.15); // 边框稍微淡化
-  --app-shell-panel-backdrop: blur(8px); // 添加毛玻璃效果滤镜，稍弱一点
-  --app-shell-panel-shadow: 0 8px 30px rgba(15, 23, 42, 0.06); // 完全使用登录页的深投影
-  --app-shell-panel-shadow-soft: 0 4px 12px rgba(15, 23, 42, 0.04);
-  --app-shell-panel-highlight: rgba(255, 255, 255, 0.95);
+  --app-shell-panel-muted-bg: rgba(226, 232, 240, 0.72);
+  --app-shell-panel-border: rgba(71, 85, 105, 0.18);
+  --app-shell-panel-backdrop: blur(12px) saturate(1.02);
+  --app-shell-panel-shadow: 0 18px 44px rgba(15, 23, 42, 0.1);
+  --app-shell-panel-shadow-soft: 0 8px 20px rgba(15, 23, 42, 0.07);
+  --app-shell-panel-highlight: rgba(255, 255, 255, 0.74);
   
   // Auth 变量保留
-  --app-auth-surface-bg: rgba(244, 247, 251, 0.88);
-  --app-auth-card-bg: rgba(255, 255, 255, 0.9);
-  --app-auth-card-bg-strong: rgba(255, 255, 255, 0.98);
-  --app-auth-card-border: rgba(226, 232, 240, 0.8);
-  --app-auth-card-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
-  --app-auth-card-shadow-soft: 0 10px 15px -3px rgba(0, 0, 0, 0.04);
-  --app-auth-input-bg: rgba(255, 255, 255, 0.98);
-  --app-auth-input-border: #e2e8f0;
-  --app-auth-input-shadow-hover: 0 10px 24px rgba(99, 102, 241, 0.08);
-  --app-auth-input-shadow-focus: 0 0 0 4px rgba(99, 102, 241, 0.12);
-  --app-auth-primary-shadow: 0 14px 30px rgba(99, 102, 241, 0.18);
-  --app-auth-primary-shadow-hover: 0 18px 36px rgba(99, 102, 241, 0.24);
+  --app-auth-surface-bg: rgba(223, 231, 241, 0.88);
+  --app-auth-card-bg: rgba(247, 249, 252, 0.9);
+  --app-auth-card-bg-strong: #f8fafc;
+  --app-auth-card-border: rgba(71, 85, 105, 0.18);
+  --app-auth-card-shadow: 0 24px 52px rgba(15, 23, 42, 0.12);
+  --app-auth-card-shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.08);
+  --app-auth-input-bg: rgba(226, 232, 240, 0.86);
+  --app-auth-input-border: rgba(71, 85, 105, 0.2);
+  --app-auth-input-shadow-hover: 0 10px 24px rgba(79, 70, 229, 0.1);
+  --app-auth-input-shadow-focus: 0 0 0 4px rgba(79, 70, 229, 0.13);
+  --app-auth-primary-shadow: 0 14px 30px rgba(79, 70, 229, 0.2);
+  --app-auth-primary-shadow-hover: 0 18px 36px rgba(79, 70, 229, 0.26);
   --app-code-bg: #1e293b;
   --app-code-text: #f8fafc;
   --app-code-border: #334155;
@@ -104,14 +104,14 @@
   --el-color-danger: var(--color-danger);
   --el-color-info: var(--color-info);
   
-  --el-bg-color: #ffffff;
-  --el-bg-color-page: #eef2f6;
-  --el-bg-color-overlay: #ffffff;
+  --el-bg-color: #f3f6fb;
+  --el-bg-color-page: #dfe7f1;
+  --el-bg-color-overlay: #f7f9fc;
   
   // Element Plus 组件级颜色映射 (对齐登录表单空气感)
-  --el-input-bg-color: rgba(255, 255, 255, 0.96);
-  --el-input-border-color: #cbd5e1;
-  --el-input-hover-border-color: rgba(99, 102, 241, 0.42);
+  --el-input-bg-color: rgba(226, 232, 240, 0.86);
+  --el-input-border-color: rgba(71, 85, 105, 0.2);
+  --el-input-hover-border-color: rgba(79, 70, 229, 0.35);
   --el-input-focus-border-color: var(--color-primary);
   
   --el-text-color-primary: var(--text-primary);
@@ -123,15 +123,15 @@
   --el-border-color-light: var(--border-light);
   --el-border-color-lighter: var(--border-lighter);
   --el-border-color-extra-light: rgba(148, 163, 184, 0.05);
-  --el-border-color-darker: #cbd5e1;
+  --el-border-color-darker: rgba(71, 85, 105, 0.28);
   
   // Hover 和激活背景使用柔和的灰蓝色遮罩，绝不死板
-  --el-fill-color-blank: #ffffff;
-  --el-fill-color-light: rgba(15, 23, 42, 0.03);
-  --el-fill-color-lighter: rgba(15, 23, 42, 0.015);
-  --el-fill-color: rgba(15, 23, 42, 0.06);
-  --el-fill-color-dark: rgba(15, 23, 42, 0.09);
-  --el-fill-color-darker: rgba(15, 23, 42, 0.12);
+  --el-fill-color-blank: #f3f6fb;
+  --el-fill-color-light: rgba(71, 85, 105, 0.06);
+  --el-fill-color-lighter: rgba(71, 85, 105, 0.035);
+  --el-fill-color: rgba(71, 85, 105, 0.1);
+  --el-fill-color-dark: rgba(71, 85, 105, 0.14);
+  --el-fill-color-darker: rgba(71, 85, 105, 0.18);
   --el-mask-color: rgba(15, 23, 42, 0.6);
   --el-mask-color-extra-light: rgba(15, 23, 42, 0.2);
   
@@ -194,182 +194,7 @@
   }
 }
 
-// ==========================================
-// 附加浅色主题变体
-// ==========================================
-
-// 极客琉璃 (Light Glass) - 大量毛玻璃与极客紫
-html[data-theme="glass-light"] {
-  --color-primary: #4f46e5;
-  --color-primary-rgb: 79, 70, 229;
-  
-  --app-shell-bg: #f4f7fb;
-  --app-shell-panel-bg: rgba(255, 255, 255, 0.85);
-  --app-shell-panel-bg-strong: rgba(255, 255, 255, 0.95);
-  --app-shell-panel-muted-bg: rgba(244, 247, 251, 0.7);
-  --app-shell-panel-border: rgba(148, 163, 184, 0.26);
-  --app-shell-panel-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
-  --app-shell-panel-shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.04);
-  
-  --bg-page: #f4f7fb;
-  --el-bg-color-page: #f4f7fb;
-  --el-bg-color-overlay: rgba(255, 255, 255, 0.98);
-
-  --el-input-hover-border-color: rgba(79, 70, 229, 0.42);
-  
-  .left-sidebar, .function-renderer, .right-sidebar, .sidebar-toggle-btn, .workspace-header {
-    backdrop-filter: blur(20px);
-  }
-  
-  .el-input__wrapper, .el-select__wrapper, .el-textarea__inner {
-    background-color: var(--bg-tertiary) !important;
-    border: 1px solid var(--border-light) !important;
-    &:hover {
-      background-color: var(--el-fill-color-light) !important;
-      border-color: var(--border-base) !important;
-    }
-    &.is-focus, &.is-focused, &:focus {
-      background-color: transparent !important;
-      border-color: var(--color-primary) !important;
-      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15) !important;
-    }
-  }
-
-  .el-button--primary {
-    background: var(--color-primary) !important;
-    border-color: transparent !important;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 1px 2px rgba(0, 0, 0, 0.05) !important;
-    transition: all 0.2s ease !important;
-    &:hover {
-      background: var(--color-primary-light-1) !important;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-    }
-    &:active {
-      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-      transform: translateY(1px);
-    }
-  }
-
-  .el-button--default {
-    background: var(--el-fill-color-blank) !important;
-    border: 1px solid var(--border-base) !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02) !important;
-    transition: all 0.2s ease !important;
-    &:hover {
-      background: var(--el-fill-color-light) !important;
-      color: var(--text-primary) !important;
-      border-color: var(--border-base) !important;
-    }
-    &:active {
-      background: var(--el-fill-color) !important;
-      transform: translateY(1px);
-    }
-  }
-}
-
-// 莫兰迪绿 (Light Nature) - 护眼与生机
-html[data-theme="nature-light"] {
-  --color-primary: #10b981;
-  --color-primary-rgb: 16, 185, 129;
-  
-  --bg-primary: #ffffff;
-  --bg-secondary: #f0fdf4;
-  --bg-tertiary: #dcfce7;
-  --bg-page: #ecfdf5;
-  
-  --app-shell-bg: #ecfdf5;
-  --app-shell-panel-bg: #ffffff;
-  --app-shell-panel-bg-strong: #f0fdf4;
-  --app-shell-panel-muted-bg: #f0fdf4;
-  --app-shell-panel-border: rgba(16, 185, 129, 0.15);
-  --app-shell-panel-shadow: 0 24px 60px rgba(6, 78, 59, 0.08);
-  --app-shell-panel-shadow-soft: 0 10px 24px rgba(6, 78, 59, 0.04);
-  
-  --el-bg-color-page: #ecfdf5;
-  
-  --el-input-hover-border-color: rgba(16, 185, 129, 0.42);
-  
-  .el-input__wrapper, .el-select__wrapper, .el-textarea__inner {
-    background-color: transparent !important;
-    border: 1px solid var(--border-light) !important;
-    &:hover {
-      background-color: var(--el-fill-color-light) !important;
-      border-color: var(--border-base) !important;
-    }
-    &.is-focus, &.is-focused, &:focus {
-      background-color: transparent !important;
-      border-color: var(--color-primary) !important;
-      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15) !important;
-    }
-  }
-
-  .el-button--primary {
-    background: var(--color-primary) !important;
-    border-color: transparent !important;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 1px 2px rgba(0, 0, 0, 0.05) !important;
-    transition: all 0.2s ease !important;
-    &:hover {
-      background: var(--color-primary-light-1) !important;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-    }
-    &:active {
-      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-      transform: translateY(1px);
-    }
-  }
-}
-
-// 燕麦拿铁 (Light Warm) - 极简温和
-html[data-theme="warm-light"] {
-  --color-primary: #d97706;
-  --color-primary-rgb: 217, 119, 6;
-  
-  --bg-primary: #ffffff;
-  --bg-secondary: #fffbeb;
-  --bg-tertiary: #fef3c7;
-  --bg-page: #faf9f8;
-  
-  --app-shell-bg: #faf9f8;
-  --app-shell-panel-bg: #ffffff;
-  --app-shell-panel-bg-strong: #fffbeb;
-  --app-shell-panel-muted-bg: #fef3c7;
-  --app-shell-panel-border: rgba(217, 119, 6, 0.15);
-  --app-shell-panel-shadow: 0 24px 60px rgba(67, 20, 7, 0.06);
-  --app-shell-panel-shadow-soft: 0 10px 24px rgba(67, 20, 7, 0.03);
-  
-  --el-bg-color-page: #faf9f8;
-  
-  --el-input-hover-border-color: rgba(217, 119, 6, 0.42);
-  
-  .el-input__wrapper, .el-select__wrapper, .el-textarea__inner {
-    background-color: transparent !important;
-    border: 1px solid var(--border-light) !important;
-    &:hover {
-      background-color: var(--el-fill-color-light) !important;
-      border-color: var(--border-base) !important;
-    }
-    &.is-focus, &.is-focused, &:focus {
-      background-color: transparent !important;
-      border-color: var(--color-primary) !important;
-      box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.15) !important;
-    }
-  }
-
-  .el-button--primary {
-    background: var(--color-primary) !important;
-    border-color: transparent !important;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 1px 2px rgba(0, 0, 0, 0.05) !important;
-    transition: all 0.2s ease !important;
-    &:hover {
-      background: var(--color-primary-light-1) !important;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-    }
-    &:active {
-      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-      transform: translateY(1px);
-    }
-  }
-}
+// 旧浅色主题已合并为 Kageos Light，旧 theme name 会在 store 中迁移。
 
 // 暗色主题 - 现代深色主题
 html.dark {
@@ -1170,9 +995,1709 @@ html.light {
   }
 }
 
+// ==========================================
+// Kageos Hub 浅色主题
+// 柔和雾蓝灰底色，保留 Hub 的 Indigo 品牌感，避免大片纯白刺眼。
+// ==========================================
+html.light[data-theme="hub-light"] {
+  --hub-light-surface: rgba(247, 249, 252, 0.94);
+  --hub-light-surface-muted: rgba(226, 232, 240, 0.78);
+  --hub-light-surface-raised: #edf2f8;
+  --hub-light-surface-solid: #f6f8fb;
+  --hub-light-floating: rgba(246, 248, 251, 0.98);
+  --hub-light-border: rgba(71, 85, 105, 0.18);
+  --hub-light-border-strong: rgba(71, 85, 105, 0.28);
+  --hub-light-brand-border: rgba(79, 70, 229, 0.26);
+  --hub-light-brand-tint: rgba(79, 70, 229, 0.1);
+  --hub-light-brand-tint-strong: rgba(79, 70, 229, 0.16);
+}
+
+html.light[data-theme="hub-light"] body,
+html.light[data-theme="hub-light"] #app {
+  background:
+    radial-gradient(circle at 14% 0%, rgba(99, 102, 241, 0.08), transparent 30%),
+    radial-gradient(circle at 86% 10%, rgba(20, 184, 166, 0.045), transparent 28%),
+    linear-gradient(180deg, #e7edf5 0%, var(--bg-page) 48%, #d8e1ed 100%) !important;
+  color: var(--text-primary);
+}
+
+html.light[data-theme="hub-light"] .workspace-container {
+  --ws-sci-fi-bg: var(--hub-light-surface);
+  --ws-sci-fi-bg-panel: var(--hub-light-surface-muted);
+  --ws-sci-fi-bg-header: #f6f8fb;
+  --ws-sci-fi-glow: #4f46e5;
+  --ws-sci-fi-glow-rgb: 79, 70, 229;
+  --ws-sci-fi-border: var(--hub-light-border);
+  --ws-sci-fi-border-strong: var(--hub-light-brand-border);
+  --ws-sci-fi-text: var(--text-primary);
+  --ws-sci-fi-text-muted: var(--text-secondary);
+  --ws-sci-fi-grid-alpha: 0.03;
+  --ws-sci-fi-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+  --ws-sci-fi-shadow-strong: 0 22px 48px rgba(15, 23, 42, 0.12), 0 0 24px rgba(79, 70, 229, 0.08);
+  background:
+    radial-gradient(circle at 16% 0%, rgba(99, 102, 241, 0.08), transparent 30%),
+    radial-gradient(circle at 82% 10%, rgba(20, 184, 166, 0.045), transparent 26%),
+    linear-gradient(180deg, #e7edf5 0%, var(--bg-page) 48%, #d8e1ed 100%) !important;
+}
+
+html.light[data-theme="hub-light"] .workspace-header,
+html.light[data-theme="hub-light"] .left-sidebar,
+html.light[data-theme="hub-light"] .function-renderer,
+html.light[data-theme="hub-light"] .right-sidebar,
+html.light[data-theme="hub-light"] .mini-ws,
+html.light[data-theme="hub-light"] .workspace-user-dropdown {
+  border-color: var(--hub-light-border) !important;
+  background: var(--hub-light-surface) !important;
+  box-shadow: var(--app-shell-panel-shadow-soft) !important;
+  backdrop-filter: var(--app-shell-panel-backdrop);
+}
+
+html.light[data-theme="hub-light"] .workspace-header {
+  background:
+    linear-gradient(180deg, #f8fafc, #eef3f8) !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06) !important;
+}
+
+html.light[data-theme="hub-light"] .workspace-header::before,
+html.light[data-theme="hub-light"] .function-renderer::before {
+  background: rgba(255, 255, 255, 0.82) !important;
+}
+
+html.light[data-theme="hub-light"] .sidebar-toggle-bottom-left .sidebar-toggle-btn,
+html.light[data-theme="hub-light"] .user-profile,
+html.light[data-theme="hub-light"] .user-company-card,
+html.light[data-theme="hub-light"] .user-preference-panel,
+html.light[data-theme="hub-light"] .preference-card,
+html.light[data-theme="hub-light"] .toolbar {
+  border-color: var(--hub-light-border) !important;
+  background: var(--hub-light-surface-raised) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+html.light[data-theme="hub-light"] .el-input__wrapper,
+html.light[data-theme="hub-light"] .el-select__wrapper,
+html.light[data-theme="hub-light"] .el-textarea__inner {
+  border: 1px solid var(--el-input-border-color) !important;
+  background: var(--el-input-bg-color) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48) !important;
+}
+
+html.light[data-theme="hub-light"] .el-input__wrapper:hover,
+html.light[data-theme="hub-light"] .el-select__wrapper:hover,
+html.light[data-theme="hub-light"] .el-textarea__inner:hover {
+  border-color: var(--el-input-hover-border-color) !important;
+  background: #edf2f8 !important;
+}
+
+html.light[data-theme="hub-light"] .el-input__wrapper.is-focus,
+html.light[data-theme="hub-light"] .el-select__wrapper.is-focused,
+html.light[data-theme="hub-light"] .el-textarea__inner:focus {
+  border-color: var(--color-primary) !important;
+  background: #f8fafc !important;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12) !important;
+}
+
+html.light[data-theme="hub-light"] .el-button:not(.el-button--primary):not(.is-link) {
+  border-color: var(--hub-light-border-strong) !important;
+  background: var(--hub-light-surface-raised) !important;
+  color: var(--text-primary) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34) !important;
+}
+
+html.light[data-theme="hub-light"] .el-button:not(.el-button--primary):not(.is-link):hover {
+  border-color: var(--hub-light-brand-border) !important;
+  background: var(--hub-light-brand-tint) !important;
+}
+
+html.light[data-theme="hub-light"] .el-card,
+html.light[data-theme="hub-light"] .el-drawer,
+html.light[data-theme="hub-light"] .el-message-box,
+html.light[data-theme="hub-light"] .el-message,
+html.light[data-theme="hub-light"] .el-notification,
+html.light[data-theme="hub-light"] .el-popover.el-popper,
+html.light[data-theme="hub-light"] .el-dropdown-menu,
+html.light[data-theme="hub-light"] .el-select__popper.el-popper,
+html.light[data-theme="hub-light"] .el-picker__popper.el-popper,
+html.light[data-theme="hub-light"] .el-tooltip__popper,
+html.light[data-theme="hub-light"] .el-autocomplete-suggestion.el-popper,
+html.light[data-theme="hub-light"] .el-color-picker__panel.el-popper,
+html.light[data-theme="hub-light"] .el-color-dropdown,
+html.light[data-theme="hub-light"] .el-cascader__dropdown.el-popper,
+html.light[data-theme="hub-light"] .service-tree-contextmenu-popper.el-popper,
+html.light[data-theme="hub-light"] .service-tree-dropdown-popper.el-popper,
+html.light[data-theme="hub-light"] .user-select-dropdown-popper.el-popper,
+html.light[data-theme="hub-light"] .table-action-dropdown.el-popper,
+html.light[data-theme="hub-light"] .system-user-action-dropdown.el-popper,
+html.light[data-theme="hub-light"] .language-switcher-popper.el-popper,
+html.light[data-theme="hub-light"] .workspace-switcher-popover.el-popper,
+html.light[data-theme="hub-light"] .chart-metadata-tooltip.el-popper,
+html.light[data-theme="hub-light"] .mini-settings-popover.el-popper,
+html.light[data-theme="hub-light"] .mini-files-dropdown-popper.el-popper,
+html.light[data-theme="hub-light"] .spc-mention-popover.el-popper,
+html.light[data-theme="hub-light"] .user-info-popover.el-popper,
+html.light[data-theme="hub-light"] .department-info-popover.el-popper,
+html.light[data-theme="hub-light"] .users-popover.el-popper {
+  border-color: var(--hub-light-border) !important;
+  background: var(--hub-light-floating) !important;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12) !important;
+  backdrop-filter: blur(10px) saturate(1.02);
+}
+
+html.light[data-theme="hub-light"] .el-dialog,
+html.light[data-theme="hub-light"] .el-message-box {
+  border: 1px solid var(--hub-light-border) !important;
+  background:
+    linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%),
+    var(--hub-light-surface-solid) !important;
+  border-radius: 16px !important;
+  overflow: hidden;
+  box-shadow: 0 22px 46px rgba(15, 23, 42, 0.14) !important;
+  backdrop-filter: blur(10px) saturate(1.02);
+}
+
+html.light[data-theme="hub-light"] .el-dialog__header,
+html.light[data-theme="hub-light"] .el-message-box__header,
+html.light[data-theme="hub-light"] .el-drawer__header {
+  border-bottom: 1px solid var(--hub-light-border) !important;
+  background: #edf2f8 !important;
+  color: var(--text-primary) !important;
+}
+
+html.light[data-theme="hub-light"] .el-dialog__body,
+html.light[data-theme="hub-light"] .el-message-box__content,
+html.light[data-theme="hub-light"] .el-drawer__body {
+  background: transparent !important;
+  color: var(--text-regular) !important;
+}
+
+html.light[data-theme="hub-light"] .el-dialog__footer,
+html.light[data-theme="hub-light"] .el-message-box__btns,
+html.light[data-theme="hub-light"] .el-drawer__footer {
+  border-top: 1px solid var(--hub-light-border) !important;
+  background: #edf2f8 !important;
+}
+
+html.light[data-theme="hub-light"] .workspace-create-app-dialog .el-form,
+html.light[data-theme="hub-light"] .workspace-create-directory-dialog .el-form,
+html.light[data-theme="hub-light"] .workspace-create-docs-dialog .create-docs-form,
+html.light[data-theme="hub-light"] .workspace-import-directory-dialog .import-source-form,
+html.light[data-theme="hub-light"] .workspace-import-directory-dialog .import-source-tabs,
+html.light[data-theme="hub-light"] .form-dialog-shell .form-actions-section,
+html.light[data-theme="hub-light"] .form-dialog-shell .response-section,
+html.light[data-theme="hub-light"] .form-dialog-shell .metadata-section,
+html.light[data-theme="hub-light"] .scheduled-function-dialog .el-form,
+html.light[data-theme="hub-light"] .scheduled-agent-dialog .el-form,
+html.light[data-theme="hub-light"] .scheduled-agent-composer,
+html.light[data-theme="hub-light"] .provider-dialog .el-form,
+html.light[data-theme="hub-light"] .table-detail-panel,
+html.light[data-theme="hub-light"] .form-detail-panel {
+  border-color: var(--hub-light-border) !important;
+  background: #e7edf5 !important;
+  box-shadow: none !important;
+}
+
+html.light[data-theme="hub-light"] .workspace-create-app-dialog .el-form,
+html.light[data-theme="hub-light"] .workspace-create-directory-dialog .el-form,
+html.light[data-theme="hub-light"] .workspace-create-docs-dialog .create-docs-form,
+html.light[data-theme="hub-light"] .workspace-import-directory-dialog .import-source-form {
+  border: 1px solid var(--hub-light-border) !important;
+  border-radius: 14px;
+  padding: 18px 18px 8px;
+}
+
+html.light[data-theme="hub-light"] .language-switcher-popper .el-popper__arrow::before,
+html.light[data-theme="hub-light"] .el-popper .el-popper__arrow::before {
+  border-color: var(--hub-light-border) !important;
+  background: var(--hub-light-floating) !important;
+}
+
+html.light[data-theme="hub-light"] .language-menu .el-dropdown-menu__item {
+  color: var(--text-primary) !important;
+}
+
+html.light[data-theme="hub-light"] .language-menu .el-dropdown-menu__item:hover,
+html.light[data-theme="hub-light"] .language-menu .el-dropdown-menu__item:focus,
+html.light[data-theme="hub-light"] .language-menu .el-dropdown-menu__item.is-current,
+html.light[data-theme="hub-light"] .el-dropdown-menu__item:not(.is-disabled):hover,
+html.light[data-theme="hub-light"] .el-select-dropdown__item.hover,
+html.light[data-theme="hub-light"] .el-select-dropdown__item:hover,
+html.light[data-theme="hub-light"] .el-cascader-node:not(.is-disabled):hover {
+  background: var(--hub-light-brand-tint) !important;
+  color: var(--text-primary) !important;
+}
+
+html.light[data-theme="hub-light"] .language-option__english,
+html.light[data-theme="hub-light"] .language-menu .el-dropdown-menu__item.is-current .language-option__english,
+html.light[data-theme="hub-light"] .language-menu .el-dropdown-menu__item.is-current .language-option__check {
+  color: var(--color-primary) !important;
+}
+
+html.light[data-theme="hub-light"] .el-table {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: rgba(226, 232, 240, 0.48);
+  --el-table-row-hover-bg-color: var(--hub-light-brand-tint);
+  --el-table-border-color: var(--hub-light-border);
+  background: transparent !important;
+  color: var(--text-regular) !important;
+}
+
+html.light[data-theme="hub-light"] .el-alert,
+html.light[data-theme="hub-light"] .el-empty,
+html.light[data-theme="hub-light"] .el-tree,
+html.light[data-theme="hub-light"] .el-menu,
+html.light[data-theme="hub-light"] .el-tabs__content,
+html.light[data-theme="hub-light"] .el-pagination,
+html.light[data-theme="hub-light"] .el-loading-mask {
+  background: transparent !important;
+  color: var(--text-regular) !important;
+}
+
+html.light[data-theme="hub-light"] .el-tree-node__content:hover,
+html.light[data-theme="hub-light"] .el-tree-node.is-current > .el-tree-node__content,
+html.light[data-theme="hub-light"] .el-menu-item:hover,
+html.light[data-theme="hub-light"] .el-menu-item.is-active {
+  background: var(--hub-light-brand-tint) !important;
+}
+
+html.light[data-theme="hub-light"] .package-detail-view {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(99, 102, 241, 0.06), transparent 28%),
+    linear-gradient(180deg, #eef3f8 0%, var(--bg-page) 46%, #d8e1ed 100%) !important;
+  color: var(--text-regular) !important;
+}
+
+html.light[data-theme="hub-light"] .package-detail-view .metric-item,
+html.light[data-theme="hub-light"] .package-detail-view .scheduled-panel,
+html.light[data-theme="hub-light"] .package-detail-view .task-row,
+html.light[data-theme="hub-light"] .package-detail-view .overview-empty,
+html.light[data-theme="hub-light"] .package-detail-view .child-card,
+html.light[data-theme="hub-light"] .package-detail-view .directory-markdown-body blockquote {
+  border-color: var(--hub-light-border) !important;
+  background: #f3f6fb !important;
+  color: var(--text-regular) !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07) !important;
+}
+
+html.light[data-theme="hub-light"] .package-detail-view .scheduled-panel {
+  background: #eef3f8 !important;
+}
+
+html.light[data-theme="hub-light"] .package-detail-view .task-row {
+  background: #edf2f8 !important;
+}
+
+html.light[data-theme="hub-light"] .package-detail-view .task-row:hover,
+html.light[data-theme="hub-light"] .package-detail-view .child-card:hover {
+  border-color: var(--hub-light-brand-border) !important;
+  background: var(--hub-light-brand-tint) !important;
+  box-shadow: 0 16px 34px rgba(79, 70, 229, 0.11) !important;
+}
+
+html.light[data-theme="hub-light"] .package-detail-view .metric-icon,
+html.light[data-theme="hub-light"] .package-detail-view .child-icon-wrapper,
+html.light[data-theme="hub-light"] .package-detail-view .child-run-badge {
+  border: 1px solid var(--hub-light-border) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34) !important;
+}
+
+html.light[data-theme="hub-light"] .package-detail-view .metric-icon--directory,
+html.light[data-theme="hub-light"] .package-detail-view .metric-icon--session,
+html.light[data-theme="hub-light"] .package-detail-view .metric-icon--running,
+html.light[data-theme="hub-light"] .package-detail-view .child-icon-wrapper.package-type {
+  border-color: var(--hub-light-brand-border) !important;
+  background: var(--hub-light-brand-tint) !important;
+  color: var(--color-primary) !important;
+}
+
+html.light[data-theme="hub-light"] .package-detail-view .metric-icon--function,
+html.light[data-theme="hub-light"] .package-detail-view .child-icon-wrapper.function-type {
+  border-color: rgba(5, 150, 105, 0.24) !important;
+  background: rgba(5, 150, 105, 0.1) !important;
+  color: var(--color-success) !important;
+}
+
+html.light[data-theme="hub-light"] .package-detail-view .metric-icon--docs {
+  border-color: rgba(37, 99, 235, 0.22) !important;
+  background: rgba(37, 99, 235, 0.1) !important;
+  color: var(--color-info) !important;
+}
+
+html.light[data-theme="hub-light"] .package-detail-view .metric-icon--task,
+html.light[data-theme="hub-light"] .package-detail-view .metric-icon--next {
+  border-color: rgba(217, 119, 6, 0.26) !important;
+  background: rgba(217, 119, 6, 0.1) !important;
+  color: var(--color-warning) !important;
+}
+
+html.light[data-theme="hub-light"] .package-detail-view .child-run-badge,
+html.light[data-theme="hub-light"] .package-detail-view .directory-markdown-body code {
+  border-color: var(--app-code-border) !important;
+  background: var(--app-code-bg) !important;
+  color: var(--app-code-text) !important;
+}
+
+html.light[data-theme="hub-light"] .package-detail-view .overview-title,
+html.light[data-theme="hub-light"] .package-detail-view .metric-value,
+html.light[data-theme="hub-light"] .package-detail-view .scheduled-panel-title,
+html.light[data-theme="hub-light"] .package-detail-view .task-row-title,
+html.light[data-theme="hub-light"] .package-detail-view .child-name,
+html.light[data-theme="hub-light"] .package-detail-view .section-title {
+  color: var(--text-primary) !important;
+}
+
+html.light[data-theme="hub-light"] .package-detail-view .overview-path,
+html.light[data-theme="hub-light"] .package-detail-view .metric-label,
+html.light[data-theme="hub-light"] .package-detail-view .scheduled-panel-subtitle,
+html.light[data-theme="hub-light"] .package-detail-view .task-row-path,
+html.light[data-theme="hub-light"] .package-detail-view .task-row-message,
+html.light[data-theme="hub-light"] .package-detail-view .task-row-schedule,
+html.light[data-theme="hub-light"] .package-detail-view .task-row-next,
+html.light[data-theme="hub-light"] .package-detail-view .child-description {
+  color: var(--text-secondary) !important;
+}
+
+html.light[data-theme="hub-light"] .login-container,
+html.light[data-theme="hub-light"] .register-container,
+html.light[data-theme="hub-light"] .forgot-password-container,
+html.light[data-theme="hub-light"] .oauth-register-page {
+  --auth-accent: var(--color-primary);
+  --auth-accent-strong: #4338ca;
+  --auth-accent-soft: rgba(79, 70, 229, 0.13);
+  --auth-brand-start: #e2e8f0;
+  --auth-brand-end: #d8e1ed;
+  --auth-card-bg: rgba(248, 250, 252, 0.92);
+  --auth-card-bg-strong: #f8fafc;
+  --auth-card-border: var(--hub-light-border);
+  --auth-input-bg: rgba(226, 232, 240, 0.86);
+  --auth-input-bg-focus: #f8fafc;
+  --auth-input-border: rgba(71, 85, 105, 0.2);
+  --auth-input-text: var(--text-primary);
+  --auth-input-placeholder: var(--text-disabled);
+  --auth-input-icon: rgba(79, 70, 229, 0.64);
+  --auth-text: var(--text-primary);
+  --auth-text-muted: var(--text-regular);
+  --auth-text-soft: var(--text-secondary);
+  --text-primary: var(--auth-text);
+  --text-regular: var(--auth-text-muted);
+  --text-secondary: var(--auth-text-soft);
+  --el-bg-color: var(--auth-card-bg);
+  --el-bg-color-overlay: var(--auth-card-bg-strong);
+  --el-fill-color-blank: var(--auth-input-bg);
+  --el-fill-color-light: rgba(203, 213, 225, 0.38);
+  --el-fill-color-lighter: rgba(203, 213, 225, 0.24);
+  --el-border-color: var(--auth-card-border);
+  --el-border-color-light: rgba(71, 85, 105, 0.12);
+  --el-text-color-primary: var(--auth-text);
+  --el-text-color-regular: var(--auth-text-muted);
+  --el-text-color-secondary: var(--auth-text-soft);
+  --el-input-bg-color: var(--auth-input-bg);
+  --el-input-text-color: var(--auth-input-text);
+  --el-input-border-color: var(--auth-input-border);
+  --el-input-hover-border-color: rgba(79, 70, 229, 0.34);
+  --el-input-focus-border-color: var(--auth-accent);
+  background:
+    radial-gradient(circle at 16% 8%, rgba(99, 102, 241, 0.09), transparent 30%),
+    radial-gradient(circle at 82% 12%, rgba(20, 184, 166, 0.05), transparent 28%),
+    linear-gradient(180deg, #e7edf5 0%, #dfe7f1 100%) !important;
+  color: var(--auth-text) !important;
+}
+
+html.light[data-theme="hub-light"] .background-decoration {
+  display: none !important;
+}
+
+html.light[data-theme="hub-light"] .brand-content {
+  color: var(--auth-text) !important;
+}
+
+html.light[data-theme="hub-light"] .title-gradient {
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--color-primary) 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+
+html.light[data-theme="hub-light"] .brand-subtitle {
+  color: var(--auth-text-muted) !important;
+}
+
+html.light[data-theme="hub-light"] .feature-item,
+html.light[data-theme="hub-light"] .step-item {
+  border-color: var(--hub-light-border) !important;
+  background: rgba(248, 250, 252, 0.68) !important;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06) !important;
+}
+
+html.light[data-theme="hub-light"] .feature-item:hover,
+html.light[data-theme="hub-light"] .step-item:hover {
+  border-color: var(--hub-light-brand-border) !important;
+  background: var(--hub-light-brand-tint) !important;
+}
+
+html.light[data-theme="hub-light"] .feature-icon,
+html.light[data-theme="hub-light"] .step-number {
+  border: 1px solid var(--hub-light-brand-border) !important;
+  background: var(--hub-light-brand-tint) !important;
+  color: var(--color-primary) !important;
+}
+
+html.light[data-theme="hub-light"] .feature-icon .el-icon,
+html.light[data-theme="hub-light"] .feature-title,
+html.light[data-theme="hub-light"] .step-title {
+  color: var(--auth-text) !important;
+}
+
+html.light[data-theme="hub-light"] .feature-desc,
+html.light[data-theme="hub-light"] .step-desc {
+  color: var(--auth-text-soft) !important;
+}
+
+html.light[data-theme="hub-light"] .login-form-section,
+html.light[data-theme="hub-light"] .register-form-section,
+html.light[data-theme="hub-light"] .forgot-password-form-section {
+  border-left-color: var(--hub-light-border) !important;
+  background: rgba(226, 232, 240, 0.32) !important;
+  backdrop-filter: blur(10px) saturate(1.02);
+}
+
+html.light[data-theme="hub-light"] .login-card,
+html.light[data-theme="hub-light"] .register-card,
+html.light[data-theme="hub-light"] .forgot-password-card,
+html.light[data-theme="hub-light"] .oauth-profile,
+html.light[data-theme="hub-light"] .code-alert {
+  border-color: var(--hub-light-border) !important;
+  background: var(--auth-card-bg) !important;
+  box-shadow: 0 22px 46px rgba(15, 23, 42, 0.12) !important;
+  backdrop-filter: blur(10px) saturate(1.02);
+}
+
+html.light[data-theme="hub-light"] .register-header {
+  border-bottom-color: var(--hub-light-border) !important;
+  background: rgba(226, 232, 240, 0.32) !important;
+}
+
+html.light[data-theme="hub-light"] .header-icon,
+html.light[data-theme="hub-light"] .login-btn,
+html.light[data-theme="hub-light"] .register-btn,
+html.light[data-theme="hub-light"] .submit-btn {
+  background: linear-gradient(135deg, var(--color-primary) 0%, #4338ca 100%) !important;
+  box-shadow: 0 14px 30px rgba(79, 70, 229, 0.2) !important;
+}
+
+html.light[data-theme="hub-light"] .login-btn:hover,
+html.light[data-theme="hub-light"] .register-btn:hover,
+html.light[data-theme="hub-light"] .submit-btn:hover {
+  box-shadow: 0 18px 36px rgba(79, 70, 229, 0.26) !important;
+}
+
+html.light[data-theme="hub-light"] .login-container .form-input.el-input .el-input__wrapper,
+html.light[data-theme="hub-light"] .register-container .form-input.el-input .el-input__wrapper,
+html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__wrapper,
+html.light[data-theme="hub-light"] .forgot-password-container .el-input__wrapper,
+html.light[data-theme="hub-light"] .oauth-register-page .confirm-form .el-input__wrapper {
+  border-color: var(--auth-input-border) !important;
+  background: var(--auth-input-bg) !important;
+  background-color: var(--auth-input-bg) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48) !important;
+}
+
+html.light[data-theme="hub-light"] .login-container .form-input.el-input .el-input__wrapper.is-focus,
+html.light[data-theme="hub-light"] .register-container .form-input.el-input .el-input__wrapper.is-focus,
+html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__wrapper.is-focused,
+html.light[data-theme="hub-light"] .forgot-password-container .el-input__wrapper.is-focus,
+html.light[data-theme="hub-light"] .oauth-register-page .confirm-form .el-input__wrapper.is-focus {
+  border-color: var(--auth-accent) !important;
+  background: var(--auth-input-bg-focus) !important;
+  background-color: var(--auth-input-bg-focus) !important;
+  box-shadow: 0 0 0 4px var(--auth-accent-soft) !important;
+}
+
+html.light[data-theme="hub-light"] .login-container .form-input.el-input .el-input__inner,
+html.light[data-theme="hub-light"] .register-container .form-input.el-input .el-input__inner,
+html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__selected-item,
+html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__placeholder,
+html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__input,
+html.light[data-theme="hub-light"] .forgot-password-container .el-input__inner,
+html.light[data-theme="hub-light"] .oauth-register-page .confirm-form .el-input__inner {
+  color: var(--auth-input-text) !important;
+  -webkit-text-fill-color: var(--auth-input-text) !important;
+}
+
+html.light[data-theme="hub-light"] .login-container .form-input.el-input .el-input__inner::placeholder,
+html.light[data-theme="hub-light"] .register-container .form-input.el-input .el-input__inner::placeholder,
+html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__placeholder.is-transparent,
+html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__input::placeholder,
+html.light[data-theme="hub-light"] .forgot-password-container .el-input__inner::placeholder,
+html.light[data-theme="hub-light"] .oauth-register-page .confirm-form .el-input__inner::placeholder {
+  color: var(--auth-input-placeholder) !important;
+  -webkit-text-fill-color: var(--auth-input-placeholder) !important;
+}
+
+html.light[data-theme="hub-light"] .oauth-btn,
+html.light[data-theme="hub-light"] .company-panel,
+html.light[data-theme="hub-light"] .company-logo-preview {
+  border-color: var(--hub-light-border) !important;
+  background: var(--hub-light-surface-raised) !important;
+  color: var(--auth-text) !important;
+}
+
+html.light[data-theme="hub-light"] .oauth-btn--google .oauth-mark {
+  border-color: var(--hub-light-border) !important;
+  background: var(--hub-light-surface-solid) !important;
+}
+
+html.light[data-theme="hub-light"] .login-container .auth-language .language-switcher,
+html.light[data-theme="hub-light"] .register-container .auth-language .language-switcher,
+html.light[data-theme="hub-light"] .forgot-password-container .auth-language .language-switcher {
+  border-color: var(--auth-input-border) !important;
+  background: linear-gradient(180deg, var(--auth-input-bg-focus), var(--auth-input-bg)) !important;
+  color: var(--auth-input-text) !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08) !important;
+}
+
+html.light[data-theme="hub-light"] .login-container .auth-language .language-switcher__code,
+html.light[data-theme="hub-light"] .login-container .auth-language .language-switcher__arrow,
+html.light[data-theme="hub-light"] .register-container .auth-language .language-switcher__code,
+html.light[data-theme="hub-light"] .register-container .auth-language .language-switcher__arrow,
+html.light[data-theme="hub-light"] .forgot-password-container .auth-language .language-switcher__code,
+html.light[data-theme="hub-light"] .forgot-password-container .auth-language .language-switcher__arrow {
+  color: var(--auth-text-soft) !important;
+}
+
 // 深色模式色彩方案标识
 html.dark {
   color-scheme: dark;
+}
+
+// ==========================================
+// Kageos Hub 深色主题
+// 复刻 hub.kageos.com 的深色 surface、靛蓝 brand、透明面板和轻边框。
+// ==========================================
+html.dark[data-theme="hub-dark"] {
+  --theme-mode: 'dark';
+
+  --hub-brand-50: #eef2ff;
+  --hub-brand-100: #e0e7ff;
+  --hub-brand-200: #c7d2fe;
+  --hub-brand-300: #a5b4fc;
+  --hub-brand-400: #818cf8;
+  --hub-brand-500: #6366f1;
+  --hub-brand-600: #4f46e5;
+  --hub-brand-700: #4338ca;
+  --hub-brand-800: #3730a3;
+  --hub-brand-900: #312e81;
+  --hub-surface-50: #f8fafc;
+  --hub-surface-100: #f1f5f9;
+  --hub-surface-200: #e2e8f0;
+  --hub-surface-700: #334155;
+  --hub-surface-800: #1e293b;
+  --hub-surface-850: #172033;
+  --hub-surface-900: #0f172a;
+  --hub-surface-950: #020617;
+  --hub-surface-panel: rgba(15, 23, 42, 0.3);
+  --hub-surface-panel-muted: rgba(15, 23, 42, 0.45);
+  --hub-surface-panel-raised: rgba(15, 23, 42, 0.5);
+  --hub-surface-panel-strong: rgba(15, 23, 42, 0.82);
+  --hub-surface-panel-solid: rgba(15, 23, 42, 0.96);
+  --hub-surface-glass: rgba(255, 255, 255, 0.045);
+  --hub-surface-glass-raised: rgba(255, 255, 255, 0.07);
+  --hub-modal-surface: linear-gradient(135deg, rgba(99, 102, 241, 0.09), rgba(15, 23, 42, 0.18) 46%, rgba(2, 6, 23, 0.08)), rgba(15, 23, 42, 0.92);
+  --hub-modal-panel: rgba(15, 23, 42, 0.42);
+  --hub-modal-panel-raised: rgba(15, 23, 42, 0.58);
+  --hub-floating-surface: rgba(15, 23, 42, 0.96);
+  --hub-surface-code: rgba(2, 6, 23, 0.7);
+  --hub-border-soft: rgba(255, 255, 255, 0.05);
+  --hub-border-base: rgba(255, 255, 255, 0.1);
+  --hub-border-strong: rgba(255, 255, 255, 0.16);
+  --hub-brand-border: rgba(99, 102, 241, 0.28);
+  --hub-brand-tint: rgba(99, 102, 241, 0.1);
+  --hub-brand-tint-strong: rgba(99, 102, 241, 0.16);
+
+  --color-primary: var(--hub-brand-500);
+  --color-primary-rgb: 99, 102, 241;
+  --color-success: #5ee9b5;
+  --color-warning: #ffd236;
+  --color-danger: #ff6568;
+  --color-info: #77d4ff;
+
+  --text-primary: #ffffff;
+  --text-regular: var(--hub-surface-200);
+  --text-secondary: rgba(226, 232, 240, 0.6);
+  --text-disabled: rgba(226, 232, 240, 0.38);
+
+  --bg-primary: var(--hub-surface-panel);
+  --bg-secondary: var(--hub-surface-panel-raised);
+  --bg-tertiary: rgba(255, 255, 255, 0.05);
+  --bg-page: var(--hub-surface-950);
+
+  --border-base: var(--hub-border-base);
+  --border-light: var(--hub-border-soft);
+  --border-lighter: rgba(255, 255, 255, 0.035);
+
+  --box-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --box-shadow-base: 0 12px 30px rgba(0, 0, 0, 0.24);
+  --box-shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.36);
+  --app-panel-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+
+  --app-shell-bg: var(--hub-surface-950);
+  --app-shell-panel-bg: var(--hub-surface-panel);
+  --app-shell-panel-bg-strong: var(--hub-surface-panel-raised);
+  --app-shell-panel-muted-bg: var(--hub-surface-panel-muted);
+  --app-shell-panel-border: var(--hub-border-soft);
+  --app-shell-panel-backdrop: blur(18px) saturate(1.08);
+  --app-shell-panel-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+  --app-shell-panel-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --app-shell-panel-highlight: rgba(255, 255, 255, 0.06);
+
+  --app-auth-surface-bg: rgba(2, 6, 23, 0.88);
+  --app-auth-card-bg: var(--hub-surface-panel-raised);
+  --app-auth-card-bg-strong: var(--hub-surface-panel-strong);
+  --app-auth-card-border: var(--hub-border-soft);
+  --app-auth-card-shadow: 0 24px 64px rgba(0, 0, 0, 0.34);
+  --app-auth-card-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --app-auth-input-bg: var(--hub-surface-panel-raised);
+  --app-auth-input-border: var(--hub-border-base);
+  --app-auth-input-shadow-hover: 0 12px 28px rgba(99, 102, 241, 0.12);
+  --app-auth-input-shadow-focus: 0 0 0 4px rgba(99, 102, 241, 0.2);
+  --app-auth-primary-shadow: 0 14px 30px rgba(79, 70, 229, 0.25);
+  --app-auth-primary-shadow-hover: 0 18px 36px rgba(99, 102, 241, 0.3);
+  --app-code-bg: rgba(2, 6, 23, 0.84);
+  --app-code-text: #dbe7ff;
+  --app-code-border: rgba(255, 255, 255, 0.08);
+
+  --el-color-primary: var(--hub-brand-500);
+  --el-color-primary-rgb: var(--color-primary-rgb);
+  --el-color-primary-dark-2: var(--hub-brand-600);
+  --el-color-primary-light-3: var(--hub-brand-400);
+  --el-color-primary-light-5: var(--hub-brand-300);
+  --el-color-primary-light-7: rgba(99, 102, 241, 0.22);
+  --el-color-primary-light-8: rgba(99, 102, 241, 0.16);
+  --el-color-primary-light-9: rgba(99, 102, 241, 0.1);
+  --el-color-success: var(--color-success);
+  --el-color-success-light-8: rgba(94, 233, 181, 0.18);
+  --el-color-success-light-9: rgba(94, 233, 181, 0.12);
+  --el-color-success-dark-2: #34d399;
+  --el-color-warning: var(--color-warning);
+  --el-color-warning-light-8: rgba(255, 210, 54, 0.18);
+  --el-color-warning-light-9: rgba(255, 210, 54, 0.12);
+  --el-color-warning-dark-2: #fbbf24;
+  --el-color-danger: var(--color-danger);
+  --el-color-danger-light-8: rgba(255, 101, 104, 0.18);
+  --el-color-danger-light-9: rgba(255, 101, 104, 0.12);
+  --el-color-danger-dark-2: #f87171;
+  --el-color-info: var(--color-info);
+  --el-color-info-light-8: rgba(119, 212, 255, 0.18);
+  --el-color-info-light-9: rgba(119, 212, 255, 0.12);
+  --el-color-info-dark-2: #60a5fa;
+  --el-bg-color: var(--hub-surface-panel);
+  --el-bg-color-page: var(--hub-surface-950);
+  --el-bg-color-overlay: var(--hub-floating-surface);
+  --el-input-bg-color: var(--hub-surface-panel-raised);
+  --el-input-border-color: var(--hub-border-base);
+  --el-input-hover-border-color: rgba(255, 255, 255, 0.18);
+  --el-input-focus-border-color: var(--hub-brand-border);
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-regular);
+  --el-text-color-secondary: var(--text-secondary);
+  --el-text-color-placeholder: rgba(226, 232, 240, 0.4);
+  --el-border-color: var(--border-base);
+  --el-border-color-light: var(--border-light);
+  --el-border-color-lighter: var(--border-lighter);
+  --el-border-color-extra-light: rgba(255, 255, 255, 0.03);
+  --el-border-color-darker: var(--hub-border-strong);
+  --el-fill-color-blank: var(--hub-surface-panel-raised);
+  --el-fill-color-light: rgba(255, 255, 255, 0.05);
+  --el-fill-color-lighter: rgba(255, 255, 255, 0.035);
+  --el-fill-color: var(--hub-brand-tint);
+  --el-fill-color-dark: var(--hub-brand-tint-strong);
+  --el-fill-color-darker: rgba(99, 102, 241, 0.22);
+  --el-mask-color: rgba(0, 0, 0, 0.48);
+  --el-mask-color-extra-light: rgba(0, 0, 0, 0.28);
+  --el-overlay-color-lighter: rgba(0, 0, 0, 0.28);
+}
+
+html.dark[data-theme="hub-dark"] body,
+html.dark[data-theme="hub-dark"] #app {
+  background:
+    radial-gradient(circle at 14% 0%, rgba(99, 102, 241, 0.16), transparent 34%),
+    radial-gradient(circle at 86% 8%, rgba(34, 211, 238, 0.08), transparent 30%),
+    linear-gradient(180deg, rgba(49, 46, 129, 0.1), var(--hub-surface-950) 38%, var(--hub-surface-950));
+  color: var(--hub-surface-200);
+}
+
+html.dark[data-theme="hub-dark"] .workspace-container {
+  --ws-sci-fi-bg: var(--hub-surface-panel);
+  --ws-sci-fi-bg-panel: var(--hub-surface-panel-muted);
+  --ws-sci-fi-bg-header: rgba(15, 23, 42, 0.48);
+  --ws-sci-fi-glow: var(--hub-brand-300);
+  --ws-sci-fi-glow-rgb: 165, 180, 252;
+  --ws-sci-fi-border: rgba(255, 255, 255, 0.06);
+  --ws-sci-fi-border-strong: rgba(165, 180, 252, 0.26);
+  --ws-sci-fi-text: var(--hub-surface-200);
+  --ws-sci-fi-text-muted: rgba(226, 232, 240, 0.5);
+  --ws-sci-fi-grid-alpha: 0.018;
+  --ws-sci-fi-shadow: 0 12px 34px rgba(0, 0, 0, 0.24);
+  --ws-sci-fi-shadow-strong: 0 18px 42px rgba(0, 0, 0, 0.32), 0 0 26px rgba(99, 102, 241, 0.12);
+  background:
+    radial-gradient(circle at 15% 0%, rgba(99, 102, 241, 0.16), transparent 34%),
+    radial-gradient(circle at 82% 8%, rgba(34, 211, 238, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(49, 46, 129, 0.08), var(--hub-surface-950) 42%, var(--hub-surface-950)) !important;
+}
+
+html.dark[data-theme="hub-dark"] .workspace-header,
+html.dark[data-theme="hub-dark"] .left-sidebar,
+html.dark[data-theme="hub-dark"] .function-renderer,
+html.dark[data-theme="hub-dark"] .right-sidebar,
+html.dark[data-theme="hub-dark"] .mini-ws,
+html.dark[data-theme="hub-dark"] .workspace-user-dropdown {
+  border-color: var(--app-shell-panel-border) !important;
+  background: var(--app-shell-panel-bg) !important;
+  box-shadow: var(--app-shell-panel-shadow-soft) !important;
+  backdrop-filter: var(--app-shell-panel-backdrop);
+}
+
+html.dark[data-theme="hub-dark"] .workspace-header {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.58), rgba(15, 23, 42, 0.38)),
+    var(--hub-surface-panel) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2), inset 0 1px 0 var(--app-shell-panel-highlight) !important;
+}
+
+html.dark[data-theme="hub-dark"] .left-sidebar,
+html.dark[data-theme="hub-dark"] .function-renderer,
+html.dark[data-theme="hub-dark"] .right-sidebar,
+html.dark[data-theme="hub-dark"] .mini-ws {
+  background: var(--hub-surface-panel) !important;
+}
+
+html.dark[data-theme="hub-dark"] .workspace-header::before,
+html.dark[data-theme="hub-dark"] .function-renderer::before {
+  background: var(--app-shell-panel-highlight) !important;
+}
+
+html.dark[data-theme="hub-dark"] .sidebar-toggle-bottom-left .sidebar-toggle-btn,
+html.dark[data-theme="hub-dark"] .user-profile,
+html.dark[data-theme="hub-dark"] .user-company-card,
+html.dark[data-theme="hub-dark"] .user-preference-panel,
+html.dark[data-theme="hub-dark"] .preference-card,
+html.dark[data-theme="hub-dark"] .toolbar {
+  border-color: var(--border-light) !important;
+  background: var(--hub-surface-panel-raised) !important;
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
+}
+
+html.dark[data-theme="hub-dark"] .el-input__wrapper,
+html.dark[data-theme="hub-dark"] .el-select__wrapper,
+html.dark[data-theme="hub-dark"] .el-textarea__inner {
+  border: 1px solid var(--el-input-border-color) !important;
+  background-color: var(--el-input-bg-color) !important;
+  box-shadow: none !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-input__wrapper:hover,
+html.dark[data-theme="hub-dark"] .el-select__wrapper:hover,
+html.dark[data-theme="hub-dark"] .el-textarea__inner:hover {
+  border-color: var(--el-input-hover-border-color) !important;
+  background-color: rgba(15, 23, 42, 0.68) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-input__wrapper.is-focus,
+html.dark[data-theme="hub-dark"] .el-select__wrapper.is-focused,
+html.dark[data-theme="hub-dark"] .el-textarea__inner:focus {
+  border-color: var(--el-input-focus-border-color) !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-input__inner,
+html.dark[data-theme="hub-dark"] .el-select__selected-item:not(.el-select__placeholder),
+html.dark[data-theme="hub-dark"] .el-select__input,
+html.dark[data-theme="hub-dark"] .el-textarea__inner {
+  color: var(--hub-surface-200) !important;
+  -webkit-text-fill-color: var(--hub-surface-200) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-button--primary:not(.is-link) {
+  border-color: transparent !important;
+  background: var(--hub-brand-600) !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 30px rgba(79, 70, 229, 0.25) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-button--primary:not(.is-link):hover {
+  background: var(--hub-brand-500) !important;
+  box-shadow: 0 18px 36px rgba(99, 102, 241, 0.3) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-button:not(.el-button--primary):not(.is-link) {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #ffffff !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-button:not(.el-button--primary):not(.is-link):hover {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-card,
+html.dark[data-theme="hub-dark"] .el-dialog,
+html.dark[data-theme="hub-dark"] .el-drawer,
+html.dark[data-theme="hub-dark"] .el-message-box,
+html.dark[data-theme="hub-dark"] .el-message,
+html.dark[data-theme="hub-dark"] .el-notification,
+html.dark[data-theme="hub-dark"] .el-popover.el-popper,
+html.dark[data-theme="hub-dark"] .el-dropdown-menu,
+html.dark[data-theme="hub-dark"] .el-select__popper.el-popper,
+html.dark[data-theme="hub-dark"] .el-picker__popper.el-popper,
+html.dark[data-theme="hub-dark"] .el-tooltip__popper,
+html.dark[data-theme="hub-dark"] .el-autocomplete-suggestion.el-popper,
+html.dark[data-theme="hub-dark"] .el-color-picker__panel.el-popper,
+html.dark[data-theme="hub-dark"] .el-color-dropdown,
+html.dark[data-theme="hub-dark"] .el-cascader__dropdown.el-popper,
+html.dark[data-theme="hub-dark"] .service-tree-contextmenu-popper.el-popper,
+html.dark[data-theme="hub-dark"] .service-tree-dropdown-popper.el-popper,
+html.dark[data-theme="hub-dark"] .user-select-dropdown-popper.el-popper,
+html.dark[data-theme="hub-dark"] .table-action-dropdown.el-popper,
+html.dark[data-theme="hub-dark"] .system-user-action-dropdown.el-popper,
+html.dark[data-theme="hub-dark"] .language-switcher-popper.el-popper,
+html.dark[data-theme="hub-dark"] .workspace-switcher-popover.el-popper,
+html.dark[data-theme="hub-dark"] .chart-metadata-tooltip.el-popper,
+html.dark[data-theme="hub-dark"] .mini-settings-popover.el-popper,
+html.dark[data-theme="hub-dark"] .mini-files-dropdown-popper.el-popper,
+html.dark[data-theme="hub-dark"] .spc-mention-popover.el-popper,
+html.dark[data-theme="hub-dark"] .user-info-popover.el-popper,
+html.dark[data-theme="hub-dark"] .department-info-popover.el-popper,
+html.dark[data-theme="hub-dark"] .users-popover.el-popper {
+  border-color: var(--app-shell-panel-border) !important;
+  background: var(--hub-floating-surface) !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42) !important;
+  backdrop-filter: var(--app-shell-panel-backdrop);
+}
+
+html.dark[data-theme="hub-dark"] .el-overlay {
+  background-color: var(--el-mask-color) !important;
+  backdrop-filter: blur(4px);
+}
+
+html.dark[data-theme="hub-dark"] .el-overlay-dialog {
+  padding: 32px 16px;
+}
+
+html.dark[data-theme="hub-dark"] .el-dialog,
+html.dark[data-theme="hub-dark"] .el-message-box {
+  border: 1px solid var(--hub-border-soft) !important;
+  background: var(--hub-modal-surface) !important;
+  border-radius: 16px !important;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.46) !important;
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+
+html.dark[data-theme="hub-dark"] .el-dialog__header,
+html.dark[data-theme="hub-dark"] .el-message-box__header,
+html.dark[data-theme="hub-dark"] .el-drawer__header {
+  border-bottom: 1px solid var(--hub-border-soft) !important;
+  background: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-dialog__title,
+html.dark[data-theme="hub-dark"] .el-message-box__title,
+html.dark[data-theme="hub-dark"] .el-drawer__title {
+  color: var(--text-primary) !important;
+  font-weight: 600;
+}
+
+html.dark[data-theme="hub-dark"] .el-dialog__body,
+html.dark[data-theme="hub-dark"] .el-message-box__content,
+html.dark[data-theme="hub-dark"] .el-drawer__body {
+  background: transparent !important;
+  color: var(--text-regular) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-dialog__footer,
+html.dark[data-theme="hub-dark"] .el-message-box__btns,
+html.dark[data-theme="hub-dark"] .el-drawer__footer {
+  border-top: 1px solid var(--hub-border-soft) !important;
+  background: transparent !important;
+}
+
+html.dark[data-theme="hub-dark"] .workspace-create-app-dialog .el-dialog__footer,
+html.dark[data-theme="hub-dark"] .workspace-create-directory-dialog .el-dialog__footer,
+html.dark[data-theme="hub-dark"] .workspace-create-docs-dialog .el-dialog__footer,
+html.dark[data-theme="hub-dark"] .workspace-import-directory-dialog .el-dialog__footer {
+  background: rgba(2, 6, 23, 0.28) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-dialog__headerbtn .el-dialog__close,
+html.dark[data-theme="hub-dark"] .el-message-box__headerbtn .el-message-box__close,
+html.dark[data-theme="hub-dark"] .el-drawer__close-btn {
+  color: var(--text-secondary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-dialog__headerbtn:hover .el-dialog__close,
+html.dark[data-theme="hub-dark"] .el-message-box__headerbtn:hover .el-message-box__close,
+html.dark[data-theme="hub-dark"] .el-drawer__close-btn:hover {
+  color: var(--text-primary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-card {
+  border-radius: 16px !important;
+  box-shadow: var(--box-shadow-sm) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-card__header {
+  border-bottom-color: var(--hub-border-soft) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-popper.is-light,
+html.dark[data-theme="hub-dark"] .el-popper.is-dark {
+  border-color: var(--hub-border-soft) !important;
+  background: var(--hub-floating-surface) !important;
+  color: var(--text-regular) !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42) !important;
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+
+html.dark[data-theme="hub-dark"] .el-popper .el-popper__arrow::before {
+  border-color: var(--hub-border-soft) !important;
+  background: var(--hub-floating-surface) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-dropdown-menu {
+  padding: 4px !important;
+}
+
+html.dark[data-theme="hub-dark"] .language-menu .el-dropdown-menu__item {
+  color: var(--text-regular) !important;
+}
+
+html.dark[data-theme="hub-dark"] .language-menu .el-dropdown-menu__item:hover,
+html.dark[data-theme="hub-dark"] .language-menu .el-dropdown-menu__item:focus,
+html.dark[data-theme="hub-dark"] .language-menu .el-dropdown-menu__item.is-current {
+  background: var(--hub-brand-tint) !important;
+  color: var(--hub-brand-300) !important;
+}
+
+html.dark[data-theme="hub-dark"] .language-menu .el-dropdown-menu__item.is-current .language-option__native,
+html.dark[data-theme="hub-dark"] .language-menu .el-dropdown-menu__item.is-current .language-option__english,
+html.dark[data-theme="hub-dark"] .language-menu .el-dropdown-menu__item.is-current .language-option__check {
+  color: var(--hub-brand-300) !important;
+}
+
+html.dark[data-theme="hub-dark"] .mini-files-dropdown-panel {
+  border-color: var(--hub-border-soft) !important;
+  background: var(--hub-floating-surface) !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42) !important;
+}
+
+html.dark[data-theme="hub-dark"] .mini-files-dropdown-title {
+  border-bottom-color: var(--hub-border-soft) !important;
+  background: var(--hub-modal-panel) !important;
+  color: var(--text-primary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-dropdown-menu__item,
+html.dark[data-theme="hub-dark"] .el-select-dropdown__item,
+html.dark[data-theme="hub-dark"] .el-cascader-node,
+html.dark[data-theme="hub-dark"] .el-picker-panel__body,
+html.dark[data-theme="hub-dark"] .el-date-table td {
+  color: var(--text-regular) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-dropdown-menu__item:not(.is-disabled):hover,
+html.dark[data-theme="hub-dark"] .el-select-dropdown__item.hover,
+html.dark[data-theme="hub-dark"] .el-select-dropdown__item:hover,
+html.dark[data-theme="hub-dark"] .el-cascader-node:not(.is-disabled):hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--text-primary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-select-dropdown__item.is-selected,
+html.dark[data-theme="hub-dark"] .el-cascader-node.in-active-path,
+html.dark[data-theme="hub-dark"] .el-cascader-node.is-active,
+html.dark[data-theme="hub-dark"] .el-cascader-node.is-selectable.in-checked-path {
+  background: var(--hub-brand-tint) !important;
+  color: var(--hub-brand-300) !important;
+  font-weight: 600;
+}
+
+html.dark[data-theme="hub-dark"] .el-table {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: var(--hub-surface-panel-raised);
+  --el-table-row-hover-bg-color: rgba(99, 102, 241, 0.08);
+  --el-table-border-color: rgba(255, 255, 255, 0.06);
+  background: transparent !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-table th.el-table__cell,
+html.dark[data-theme="hub-dark"] .el-table td.el-table__cell {
+  border-bottom-color: var(--hub-border-soft) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-table th.el-table__cell {
+  background: var(--hub-modal-panel) !important;
+  color: var(--text-secondary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-table tr,
+html.dark[data-theme="hub-dark"] .el-table td.el-table__cell {
+  background: transparent !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-table__row:hover > td.el-table__cell {
+  background: rgba(99, 102, 241, 0.08) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-table__inner-wrapper::before,
+html.dark[data-theme="hub-dark"] .el-table__border-left-patch {
+  background: var(--hub-border-soft) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-tag {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(15, 23, 42, 0.5) !important;
+  color: rgba(226, 232, 240, 0.7) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-alert,
+html.dark[data-theme="hub-dark"] .el-empty,
+html.dark[data-theme="hub-dark"] .el-tree,
+html.dark[data-theme="hub-dark"] .el-menu,
+html.dark[data-theme="hub-dark"] .el-tabs__content,
+html.dark[data-theme="hub-dark"] .el-pagination,
+html.dark[data-theme="hub-dark"] .el-loading-mask {
+  background: transparent !important;
+  color: var(--text-regular) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-tree-node__content:hover,
+html.dark[data-theme="hub-dark"] .el-tree-node.is-current > .el-tree-node__content,
+html.dark[data-theme="hub-dark"] .el-menu-item:hover,
+html.dark[data-theme="hub-dark"] .el-menu-item.is-active {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--text-primary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-tabs__item {
+  color: var(--text-secondary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-tabs__item:hover,
+html.dark[data-theme="hub-dark"] .el-tabs__item.is-active {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--hub-brand-300) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-tabs__active-bar {
+  background: var(--hub-brand-500) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-tabs__nav-wrap::after {
+  background: var(--hub-border-soft) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-pagination button,
+html.dark[data-theme="hub-dark"] .el-pager li,
+html.dark[data-theme="hub-dark"] .el-pagination .el-select .el-select__wrapper {
+  border: 1px solid var(--hub-border-soft) !important;
+  background: var(--hub-modal-panel) !important;
+  color: var(--text-regular) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-pager li.is-active {
+  border-color: transparent !important;
+  background: var(--hub-brand-600) !important;
+  color: #ffffff !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-checkbox__inner,
+html.dark[data-theme="hub-dark"] .el-radio__inner {
+  border-color: var(--hub-border-base) !important;
+  background: var(--hub-modal-panel) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-checkbox__input.is-checked .el-checkbox__inner,
+html.dark[data-theme="hub-dark"] .el-radio__input.is-checked .el-radio__inner {
+  border-color: var(--hub-brand-500) !important;
+  background: var(--hub-brand-600) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-checkbox__label,
+html.dark[data-theme="hub-dark"] .el-radio__label,
+html.dark[data-theme="hub-dark"] .el-form-item__label {
+  color: var(--text-regular) !important;
+}
+
+html.dark[data-theme="hub-dark"] .el-switch.is-checked .el-switch__core {
+  border-color: var(--hub-brand-600) !important;
+  background: var(--hub-brand-600) !important;
+}
+
+html.dark[data-theme="hub-dark"] .fuzzy-search-dialog-shell,
+html.dark[data-theme="hub-dark"] .entity-search-dialog-shell,
+html.dark[data-theme="hub-dark"] .form-dialog-shell,
+html.dark[data-theme="hub-dark"] .workspace-import-directory-dialog,
+html.dark[data-theme="hub-dark"] .workspace-create-app-dialog,
+html.dark[data-theme="hub-dark"] .workspace-create-directory-dialog,
+html.dark[data-theme="hub-dark"] .workspace-create-docs-dialog,
+html.dark[data-theme="hub-dark"] .global-resource-search-dialog,
+html.dark[data-theme="hub-dark"] .directory-update-history-dialog,
+html.dark[data-theme="hub-dark"] .workspace-list-dialog-shell,
+html.dark[data-theme="hub-dark"] .provider-dialog,
+html.dark[data-theme="hub-dark"] .preview-dialog,
+html.dark[data-theme="hub-dark"] .access-members-dialog,
+html.dark[data-theme="hub-dark"] .scheduled-function-dialog,
+html.dark[data-theme="hub-dark"] .scheduled-agent-dialog,
+html.dark[data-theme="hub-dark"] .scheduled-agent-task-dialog,
+html.dark[data-theme="hub-dark"] .detail-drawer,
+html.dark[data-theme="hub-dark"] .workspace-inbox-drawer,
+html.dark[data-theme="hub-dark"] .public-share-dialog,
+html.dark[data-theme="hub-dark"] .public-share-qr-dialog,
+html.dark[data-theme="hub-dark"] .response-result-dialog,
+html.dark[data-theme="hub-dark"] .text-full-dialog {
+  border: 1px solid var(--hub-border-soft) !important;
+  background: var(--hub-modal-surface) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.46) !important;
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+
+html.dark[data-theme="hub-dark"] .fuzzy-search-dialog-shell .dialog-mode-chip,
+html.dark[data-theme="hub-dark"] .fuzzy-search-dialog-shell .toolbar-chip-active,
+html.dark[data-theme="hub-dark"] .fuzzy-search-dialog-shell .item-state-chip,
+html.dark[data-theme="hub-dark"] .entity-search-dialog-shell .status-chip-active,
+html.dark[data-theme="hub-dark"] .department-tree-badge,
+html.dark[data-theme="hub-dark"] .global-search-tab.active,
+html.dark[data-theme="hub-dark"] .result-type {
+  border: 1px solid var(--hub-brand-border) !important;
+  background: var(--hub-brand-tint) !important;
+  color: var(--hub-brand-300) !important;
+}
+
+html.dark[data-theme="hub-dark"] .fuzzy-search-dialog-shell .suggestions-list,
+html.dark[data-theme="hub-dark"] .department-picker-dialog-list,
+html.dark[data-theme="hub-dark"] .department-picker-dialog-tree-shell,
+html.dark[data-theme="hub-dark"] .department-picker-dialog-selected,
+html.dark[data-theme="hub-dark"] .user-picker-dialog-list,
+html.dark[data-theme="hub-dark"] .user-picker-dialog-selected,
+html.dark[data-theme="hub-dark"] .global-search-console,
+html.dark[data-theme="hub-dark"] .global-search-result,
+html.dark[data-theme="hub-dark"] .global-search-placeholder,
+html.dark[data-theme="hub-dark"] .result-side,
+html.dark[data-theme="hub-dark"] .change-card,
+html.dark[data-theme="hub-dark"] .change-requirement,
+html.dark[data-theme="hub-dark"] .change-description,
+html.dark[data-theme="hub-dark"] .change-stats-card,
+html.dark[data-theme="hub-dark"] .api-changes,
+html.dark[data-theme="hub-dark"] .api-item,
+html.dark[data-theme="hub-dark"] .history-card,
+html.dark[data-theme="hub-dark"] .mobile-share-card,
+html.dark[data-theme="hub-dark"] .qr-dialog-body,
+html.dark[data-theme="hub-dark"] .drawer-section,
+html.dark[data-theme="hub-dark"] .drawer-executions-loading,
+html.dark[data-theme="hub-dark"] .import-target,
+html.dark[data-theme="hub-dark"] .import-notice,
+html.dark[data-theme="hub-dark"] .json-import-box,
+html.dark[data-theme="hub-dark"] .workspace-create-app-dialog .el-form,
+html.dark[data-theme="hub-dark"] .workspace-create-directory-dialog .el-form,
+html.dark[data-theme="hub-dark"] .workspace-create-docs-dialog .create-docs-form,
+html.dark[data-theme="hub-dark"] .workspace-import-directory-dialog .import-source-tabs,
+html.dark[data-theme="hub-dark"] .workspace-import-directory-dialog .import-source-form,
+html.dark[data-theme="hub-dark"] .form-dialog-shell .form-actions-section,
+html.dark[data-theme="hub-dark"] .form-dialog-shell .response-section,
+html.dark[data-theme="hub-dark"] .form-dialog-shell .metadata-section,
+html.dark[data-theme="hub-dark"] .scheduled-function-dialog .el-form,
+html.dark[data-theme="hub-dark"] .scheduled-agent-dialog .el-form,
+html.dark[data-theme="hub-dark"] .scheduled-agent-composer,
+html.dark[data-theme="hub-dark"] .provider-dialog .el-form,
+html.dark[data-theme="hub-dark"] .table-detail-panel,
+html.dark[data-theme="hub-dark"] .form-detail-panel {
+  border-color: var(--hub-border-soft) !important;
+  background: var(--hub-modal-panel) !important;
+  box-shadow: none !important;
+}
+
+html.dark[data-theme="hub-dark"] .form-dialog-shell .el-dialog__body,
+html.dark[data-theme="hub-dark"] .form-dialog-shell .el-dialog__footer {
+  background: transparent !important;
+}
+
+html.dark[data-theme="hub-dark"] .form-dialog-shell .el-dialog__title {
+  color: var(--text-primary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .scheduled-agent-drop-hint {
+  background: var(--el-mask-color-extra-light) !important;
+  color: var(--text-primary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .workspace-create-app-dialog .el-form,
+html.dark[data-theme="hub-dark"] .workspace-create-directory-dialog .el-form,
+html.dark[data-theme="hub-dark"] .workspace-create-docs-dialog .create-docs-form,
+html.dark[data-theme="hub-dark"] .workspace-import-directory-dialog .import-source-form {
+  border: 1px solid var(--hub-border-soft) !important;
+  border-radius: 14px;
+  padding: 18px 18px 8px;
+}
+
+html.dark[data-theme="hub-dark"] .workspace-import-directory-dialog .import-source-tabs {
+  border: 1px solid var(--hub-border-soft) !important;
+  border-radius: 14px;
+  padding: 4px 16px 16px;
+}
+
+html.dark[data-theme="hub-dark"] .fuzzy-search-dialog-shell .suggestion-item:hover,
+html.dark[data-theme="hub-dark"] .fuzzy-search-dialog-shell .suggestion-item.active,
+html.dark[data-theme="hub-dark"] .selected-department-item,
+html.dark[data-theme="hub-dark"] .selected-user-item,
+html.dark[data-theme="hub-dark"] .department-tree-node:hover,
+html.dark[data-theme="hub-dark"] .user-picker-dialog-item:hover,
+html.dark[data-theme="hub-dark"] .global-search-result:hover,
+html.dark[data-theme="hub-dark"] .global-search-tab:hover {
+  border-color: var(--hub-border-base) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+html.dark[data-theme="hub-dark"] .fuzzy-search-dialog-shell .suggestion-item.selected,
+html.dark[data-theme="hub-dark"] .user-picker-dialog-item.is-selected,
+html.dark[data-theme="hub-dark"] .json-import-box.has-file {
+  border-color: var(--hub-brand-border) !important;
+  background: var(--hub-brand-tint) !important;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.08) inset !important;
+}
+
+html.dark[data-theme="hub-dark"] .fuzzy-search-dialog-shell .info-item,
+html.dark[data-theme="hub-dark"] .fuzzy-search-dialog-shell .toolbar-chip,
+html.dark[data-theme="hub-dark"] .entity-search-dialog-shell .status-chip,
+html.dark[data-theme="hub-dark"] .import-target-label,
+html.dark[data-theme="hub-dark"] .global-search-tab {
+  border-color: var(--hub-border-soft) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--text-secondary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .global-search-kicker {
+  color: var(--hub-brand-300) !important;
+}
+
+html.dark[data-theme="hub-dark"] .result-heat {
+  border-color: rgba(255, 210, 54, 0.3) !important;
+  background: rgba(255, 210, 54, 0.12) !important;
+  color: #fde68a !important;
+}
+
+html.dark[data-theme="hub-dark"] .service-tree-panel .header-link,
+html.dark[data-theme="hub-dark"] .service-tree-panel .header-link:hover {
+  color: var(--hub-brand-300) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(99, 102, 241, 0.14), transparent 32%),
+    linear-gradient(180deg, rgba(49, 46, 129, 0.08), var(--hub-surface-950) 40%, var(--hub-surface-950)) !important;
+  color: var(--text-regular) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .metric-item,
+html.dark[data-theme="hub-dark"] .package-detail-view .scheduled-panel,
+html.dark[data-theme="hub-dark"] .package-detail-view .task-row,
+html.dark[data-theme="hub-dark"] .package-detail-view .overview-empty,
+html.dark[data-theme="hub-dark"] .package-detail-view .child-card,
+html.dark[data-theme="hub-dark"] .package-detail-view .directory-markdown-body blockquote {
+  border-color: var(--hub-border-soft) !important;
+  background: var(--hub-surface-panel) !important;
+  color: var(--text-regular) !important;
+  box-shadow: var(--box-shadow-sm) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .scheduled-panel {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.48), rgba(15, 23, 42, 0.32)) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .metric-item,
+html.dark[data-theme="hub-dark"] .package-detail-view .child-card {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 var(--app-shell-panel-highlight) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .task-row {
+  background: var(--hub-surface-panel-raised) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .task-row:hover,
+html.dark[data-theme="hub-dark"] .package-detail-view .child-card:hover {
+  border-color: var(--hub-brand-border) !important;
+  background: var(--hub-brand-tint) !important;
+  box-shadow: 0 14px 30px rgba(79, 70, 229, 0.14) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .child-card::before {
+  background: var(--app-shell-panel-highlight) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .metric-icon,
+html.dark[data-theme="hub-dark"] .package-detail-view .child-icon-wrapper,
+html.dark[data-theme="hub-dark"] .package-detail-view .child-run-badge {
+  border: 1px solid var(--hub-border-soft) !important;
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .metric-icon--directory,
+html.dark[data-theme="hub-dark"] .package-detail-view .metric-icon--session,
+html.dark[data-theme="hub-dark"] .package-detail-view .metric-icon--running,
+html.dark[data-theme="hub-dark"] .package-detail-view .child-icon-wrapper.package-type {
+  border-color: var(--hub-brand-border) !important;
+  background: var(--hub-brand-tint) !important;
+  color: var(--hub-brand-300) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .metric-icon--function,
+html.dark[data-theme="hub-dark"] .package-detail-view .child-icon-wrapper.function-type {
+  border-color: rgba(94, 233, 181, 0.24) !important;
+  background: rgba(94, 233, 181, 0.1) !important;
+  color: var(--color-success) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .metric-icon--docs {
+  border-color: rgba(119, 212, 255, 0.24) !important;
+  background: rgba(119, 212, 255, 0.1) !important;
+  color: var(--color-info) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .metric-icon--task,
+html.dark[data-theme="hub-dark"] .package-detail-view .metric-icon--next {
+  border-color: rgba(255, 210, 54, 0.28) !important;
+  background: rgba(255, 210, 54, 0.1) !important;
+  color: #fde68a !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .child-run-badge,
+html.dark[data-theme="hub-dark"] .package-detail-view .directory-markdown-body code {
+  border-color: var(--app-code-border) !important;
+  background: var(--app-code-bg) !important;
+  color: var(--app-code-text) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .overview-title,
+html.dark[data-theme="hub-dark"] .package-detail-view .metric-value,
+html.dark[data-theme="hub-dark"] .package-detail-view .scheduled-panel-title,
+html.dark[data-theme="hub-dark"] .package-detail-view .task-row-title,
+html.dark[data-theme="hub-dark"] .package-detail-view .child-name,
+html.dark[data-theme="hub-dark"] .package-detail-view .section-title {
+  color: var(--text-primary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .package-detail-view .overview-path,
+html.dark[data-theme="hub-dark"] .package-detail-view .metric-label,
+html.dark[data-theme="hub-dark"] .package-detail-view .scheduled-panel-subtitle,
+html.dark[data-theme="hub-dark"] .package-detail-view .task-row-path,
+html.dark[data-theme="hub-dark"] .package-detail-view .task-row-message,
+html.dark[data-theme="hub-dark"] .package-detail-view .task-row-schedule,
+html.dark[data-theme="hub-dark"] .package-detail-view .task-row-next,
+html.dark[data-theme="hub-dark"] .package-detail-view .child-description {
+  color: var(--text-secondary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .scheduled-task-list .execution-error-card,
+html.dark[data-theme="hub-dark"] .scheduled-agent-task-list .execution-error-card {
+  border-color: rgba(255, 101, 104, 0.26) !important;
+  background: rgba(255, 101, 104, 0.1) !important;
+}
+
+html.dark[data-theme="hub-dark"] .df-preview-overlay {
+  background: var(--el-mask-color) !important;
+  backdrop-filter: blur(4px);
+}
+
+html.dark[data-theme="hub-dark"] .df-preview-modal {
+  border: 1px solid var(--hub-border-soft) !important;
+  background: var(--hub-modal-surface) !important;
+  border-radius: 16px !important;
+  color: var(--text-regular) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.46) !important;
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+
+html.dark[data-theme="hub-dark"] .df-preview-header,
+html.dark[data-theme="hub-dark"] .df-preview-footer {
+  border-color: var(--hub-border-soft) !important;
+  background: rgba(2, 6, 23, 0.28) !important;
+}
+
+html.dark[data-theme="hub-dark"] .df-preview-title {
+  color: var(--text-primary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .df-preview-stats,
+html.dark[data-theme="hub-dark"] .df-preview-close {
+  color: var(--text-secondary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .df-preview-textarea {
+  border-color: var(--hub-border-soft) !important;
+  background: var(--hub-modal-panel) !important;
+  color: var(--hub-surface-200) !important;
+}
+
+html.dark[data-theme="hub-dark"] .df-preview-btn {
+  border-color: var(--hub-border-base) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--text-primary) !important;
+}
+
+html.dark[data-theme="hub-dark"] .df-preview-btn:hover,
+html.dark[data-theme="hub-dark"] .df-preview-close:hover {
+  background: rgba(255, 255, 255, 0.09) !important;
+}
+
+html.dark[data-theme="hub-dark"] .df-preview-btn--primary {
+  border-color: transparent !important;
+  background: var(--hub-brand-600) !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 30px rgba(79, 70, 229, 0.25) !important;
+}
+
+html.dark[data-theme="hub-dark"] .df-preview-btn--primary:hover {
+  background: var(--hub-brand-500) !important;
+}
+
+html.dark[data-theme="hub-dark"] .entity-search-dialog-shell .status-chip.status-chip-active {
+  border-color: var(--hub-brand-border) !important;
+  background: var(--hub-brand-tint) !important;
+  color: var(--hub-brand-300) !important;
+}
+
+html.dark[data-theme="hub-dark"] .global-resource-search-dialog {
+  --gs-paper: var(--hub-surface-panel-raised) !important;
+  --gs-tint: rgba(255, 255, 255, 0.05) !important;
+  --gs-line: var(--hub-border-soft) !important;
+}
+
+html.dark[data-theme="hub-dark"] .global-search-header .mark-core {
+  background: var(--hub-brand-600) !important;
+  box-shadow: 0 14px 30px rgba(79, 70, 229, 0.25) !important;
+}
+
+html.dark[data-theme="hub-dark"] .global-search-mark .mark-ring {
+  border-color: var(--hub-brand-border) !important;
+}
+
+html.dark[data-theme="hub-dark"] .result-icon,
+html.dark[data-theme="hub-dark"] .change-icon-wrapper,
+html.dark[data-theme="hub-dark"] .stat-icon-wrapper {
+  border: 1px solid var(--hub-brand-border) !important;
+  background: var(--hub-brand-tint) !important;
+  color: var(--hub-brand-300) !important;
+}
+
+html.dark[data-theme="hub-dark"] .result-icon.type-function {
+  border-color: rgba(94, 233, 181, 0.24) !important;
+  background: rgba(94, 233, 181, 0.1) !important;
+  color: var(--color-success) !important;
+}
+
+html.dark[data-theme="hub-dark"] .result-icon.type-docs {
+  border-color: rgba(119, 212, 255, 0.24) !important;
+  background: rgba(119, 212, 255, 0.1) !important;
+  color: var(--color-info) !important;
+}
+
+html.dark[data-theme="hub-dark"] .format-json .code-content,
+html.dark[data-theme="hub-dark"] .format-yaml .code-content,
+html.dark[data-theme="hub-dark"] .format-xml .code-content,
+html.dark[data-theme="hub-dark"] .format-csv .code-content,
+html.dark[data-theme="hub-dark"] code,
+html.dark[data-theme="hub-dark"] pre {
+  border-color: var(--app-code-border) !important;
+  background: var(--app-code-bg) !important;
+  color: var(--app-code-text) !important;
+}
+
+html.dark[data-theme="hub-dark"] .login-container {
+  --auth-accent: var(--hub-brand-500);
+  --auth-accent-strong: var(--hub-brand-600);
+  --auth-accent-soft: rgba(99, 102, 241, 0.2);
+  --auth-brand-start: var(--hub-surface-950);
+  --auth-brand-end: var(--hub-surface-900);
+  --auth-surface: rgba(2, 6, 23, 0.88);
+  --auth-card-bg: var(--hub-surface-panel-raised);
+  --auth-card-border: var(--hub-border-soft);
+  --auth-input-bg: var(--hub-surface-panel-raised);
+  --auth-input-bg-focus: var(--hub-surface-panel-strong);
+  --auth-input-border: var(--hub-border-base);
+  --auth-input-text: var(--hub-surface-200);
+  --auth-input-placeholder: rgba(226, 232, 240, 0.42);
+  --auth-input-icon: rgba(165, 180, 252, 0.74);
+  --auth-text: #ffffff;
+  --auth-text-muted: rgba(226, 232, 240, 0.72);
+  --auth-text-soft: rgba(226, 232, 240, 0.5);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(99, 102, 241, 0.18), transparent 34%),
+    radial-gradient(circle at 82% 8%, rgba(34, 211, 238, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(49, 46, 129, 0.1), var(--hub-surface-950) 42%, var(--hub-surface-950)) !important;
+}
+
+html.dark[data-theme="hub-dark"] .background-decoration {
+  display: none !important;
+}
+
+html.dark[data-theme="hub-dark"] .login-form-section {
+  border-left-color: rgba(255, 255, 255, 0.06) !important;
+  background: rgba(2, 6, 23, 0.42) !important;
+  backdrop-filter: blur(20px) saturate(1.08);
+}
+
+html.dark[data-theme="hub-dark"] .login-card,
+html.dark[data-theme="hub-dark"] .feature-item {
+  border-color: var(--hub-border-soft) !important;
+  background: var(--hub-surface-panel-raised) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.34) !important;
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+
+html.dark[data-theme="hub-dark"] .header-icon,
+html.dark[data-theme="hub-dark"] .login-btn {
+  background: var(--hub-brand-600) !important;
+  box-shadow: 0 14px 30px rgba(79, 70, 229, 0.25) !important;
+}
+
+html.dark[data-theme="hub-dark"] .login-btn:hover {
+  background: var(--hub-brand-500) !important;
+  box-shadow: 0 18px 36px rgba(99, 102, 241, 0.3) !important;
+}
+
+html.dark[data-theme="hub-dark"] .register-container,
+html.dark[data-theme="hub-dark"] .forgot-password-container,
+html.dark[data-theme="hub-dark"] .oauth-register-page {
+  --auth-accent: var(--hub-brand-500);
+  --auth-accent-strong: var(--hub-brand-600);
+  --auth-accent-soft: rgba(99, 102, 241, 0.2);
+  --auth-brand-start: var(--hub-surface-950);
+  --auth-brand-end: var(--hub-surface-900);
+  --auth-card-bg: var(--hub-surface-panel-raised);
+  --auth-card-bg-strong: var(--hub-surface-panel-strong);
+  --auth-card-border: var(--hub-border-soft);
+  --auth-input-bg: var(--hub-surface-panel-raised);
+  --auth-input-bg-focus: var(--hub-surface-panel-strong);
+  --auth-input-border: var(--hub-border-base);
+  --auth-input-text: var(--hub-surface-200);
+  --auth-input-placeholder: rgba(226, 232, 240, 0.42);
+  --auth-input-icon: rgba(165, 180, 252, 0.74);
+  --auth-text: #ffffff;
+  --auth-text-muted: rgba(226, 232, 240, 0.72);
+  --auth-text-soft: rgba(226, 232, 240, 0.5);
+  --text-primary: var(--auth-text);
+  --text-regular: var(--auth-text-muted);
+  --text-secondary: var(--auth-text-soft);
+  --el-bg-color: var(--auth-card-bg);
+  --el-bg-color-overlay: var(--auth-card-bg-strong);
+  --el-fill-color-blank: var(--auth-input-bg);
+  --el-fill-color-light: rgba(255, 255, 255, 0.05);
+  --el-fill-color-lighter: rgba(255, 255, 255, 0.035);
+  --el-border-color: var(--auth-card-border);
+  --el-border-color-light: rgba(255, 255, 255, 0.06);
+  --el-text-color-primary: var(--auth-text);
+  --el-text-color-regular: var(--auth-text-muted);
+  --el-text-color-secondary: var(--auth-text-soft);
+  --el-input-bg-color: var(--auth-input-bg);
+  --el-input-text-color: var(--auth-input-text);
+  --el-input-border-color: var(--auth-input-border);
+  --el-input-hover-border-color: rgba(165, 180, 252, 0.32);
+  --el-input-focus-border-color: var(--auth-accent);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(99, 102, 241, 0.18), transparent 34%),
+    radial-gradient(circle at 82% 8%, rgba(34, 211, 238, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(49, 46, 129, 0.1), var(--hub-surface-950) 42%, var(--hub-surface-950)) !important;
+  color: var(--auth-text);
+}
+
+html.dark[data-theme="hub-dark"] .register-form-section,
+html.dark[data-theme="hub-dark"] .forgot-password-form-section {
+  border-left-color: var(--hub-border-soft) !important;
+  background: rgba(2, 6, 23, 0.42) !important;
+  backdrop-filter: blur(20px) saturate(1.08);
+}
+
+html.dark[data-theme="hub-dark"] .register-card,
+html.dark[data-theme="hub-dark"] .forgot-password-card,
+html.dark[data-theme="hub-dark"] .oauth-profile,
+html.dark[data-theme="hub-dark"] .code-alert {
+  border-color: var(--hub-border-soft) !important;
+  background: var(--hub-surface-panel-raised) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.34) !important;
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+
+html.dark[data-theme="hub-dark"] .register-header {
+  border-bottom-color: var(--hub-border-soft) !important;
+  background: var(--hub-surface-panel-strong) !important;
+}
+
+html.dark[data-theme="hub-dark"] .register-container .form-input.el-input .el-input__wrapper,
+html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__wrapper,
+html.dark[data-theme="hub-dark"] .forgot-password-container .el-input__wrapper,
+html.dark[data-theme="hub-dark"] .oauth-register-page .confirm-form .el-input__wrapper {
+  border-color: var(--auth-input-border) !important;
+  background: var(--auth-input-bg) !important;
+  background-color: var(--auth-input-bg) !important;
+  box-shadow: none !important;
+}
+
+html.dark[data-theme="hub-dark"] .register-container .form-input.el-input .el-input__wrapper.is-focus,
+html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__wrapper.is-focused,
+html.dark[data-theme="hub-dark"] .forgot-password-container .el-input__wrapper.is-focus,
+html.dark[data-theme="hub-dark"] .oauth-register-page .confirm-form .el-input__wrapper.is-focus {
+  border-color: var(--auth-accent) !important;
+  background: var(--auth-input-bg-focus) !important;
+  background-color: var(--auth-input-bg-focus) !important;
+  box-shadow: 0 0 0 4px var(--auth-accent-soft) !important;
+}
+
+html.dark[data-theme="hub-dark"] .register-container .form-input.el-input .el-input__inner,
+html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__selected-item,
+html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__placeholder,
+html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__input,
+html.dark[data-theme="hub-dark"] .forgot-password-container .el-input__inner,
+html.dark[data-theme="hub-dark"] .oauth-register-page .confirm-form .el-input__inner {
+  color: var(--auth-input-text) !important;
+  -webkit-text-fill-color: var(--auth-input-text) !important;
+}
+
+html.dark[data-theme="hub-dark"] .register-container .form-input.el-input .el-input__inner::placeholder,
+html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__placeholder.is-transparent,
+html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__input::placeholder,
+html.dark[data-theme="hub-dark"] .forgot-password-container .el-input__inner::placeholder,
+html.dark[data-theme="hub-dark"] .oauth-register-page .confirm-form .el-input__inner::placeholder {
+  color: var(--auth-input-placeholder) !important;
+  -webkit-text-fill-color: var(--auth-input-placeholder) !important;
+}
+
+html.dark[data-theme="hub-dark"] .register-btn,
+html.dark[data-theme="hub-dark"] .submit-btn {
+  background: var(--hub-brand-600) !important;
+  box-shadow: 0 14px 30px rgba(79, 70, 229, 0.25) !important;
+}
+
+html.dark[data-theme="hub-dark"] .register-btn:hover,
+html.dark[data-theme="hub-dark"] .submit-btn:hover {
+  background: var(--hub-brand-500) !important;
+  box-shadow: 0 18px 36px rgba(99, 102, 241, 0.3) !important;
+}
+
+html.dark[data-theme="hub-dark"] .register-container .auth-language .language-switcher,
+html.dark[data-theme="hub-dark"] .forgot-password-container .auth-language .language-switcher {
+  border-color: var(--auth-input-border) !important;
+  background: linear-gradient(180deg, var(--auth-input-bg-focus), var(--auth-input-bg)) !important;
+  color: var(--auth-input-text) !important;
+  box-shadow: var(--app-auth-card-shadow-soft) !important;
+}
+
+html.dark[data-theme="hub-dark"] .register-container .auth-language .language-switcher__code,
+html.dark[data-theme="hub-dark"] .register-container .auth-language .language-switcher__arrow,
+html.dark[data-theme="hub-dark"] .forgot-password-container .auth-language .language-switcher__code,
+html.dark[data-theme="hub-dark"] .forgot-password-container .auth-language .language-switcher__arrow {
+  color: var(--auth-text-soft) !important;
 }
 
 /* 图片预览器必须高于 Drawer，但低于 mini/dialog 等业务浮层。 */

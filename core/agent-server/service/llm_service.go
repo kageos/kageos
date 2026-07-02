@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/kageos/kageos/core/agent-server/model"
 	"github.com/kageos/kageos/core/agent-server/repository"
+	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/secretvault"
 	"gorm.io/gorm"
 )
 
@@ -68,17 +71,40 @@ func (s *LLMService) getManageableLLMConfig(ctx context.Context, id int64, actio
 
 // LLMService LLM 服务
 type LLMService struct {
-	repo *repository.LLMRepository
+	repo           *repository.LLMRepository
+	apiKeyVault    *secretvault.Vault
+	apiKeyVaultErr error
 }
 
 const (
-	defaultLLMTimeout   = 300
-	defaultLLMMaxTokens = 8196
+	defaultLLMTimeout          = 300
+	defaultLLMMaxTokens        = 8196
+	llmAPIKeySecretEnv         = "KAGEOS_LLM_API_KEY_SECRET"
+	llmAPIKeyVaultPurpose      = "kageos-agent-llm-api-key-v1"
+	llmAPIKeyCipherPrefix      = "kgosecret:llm-api-key:v1:"
+	llmAPIKeyDevFallbackSecret = "kageos-llm-api-key-dev-secret"
 )
 
+type LLMServiceOption func(*LLMService)
+
+func WithLLMAPIKeySecret(secret string) LLMServiceOption {
+	return func(s *LLMService) {
+		vault, err := newLLMAPIKeyVault(secret)
+		s.apiKeyVault = vault
+		s.apiKeyVaultErr = err
+	}
+}
+
 // NewLLMService 创建 LLM 服务
-func NewLLMService(repo *repository.LLMRepository) *LLMService {
-	return &LLMService{repo: repo}
+func NewLLMService(repo *repository.LLMRepository, opts ...LLMServiceOption) *LLMService {
+	s := &LLMService{repo: repo}
+	WithLLMAPIKeySecret(defaultLLMAPIKeySecret())(s)
+	for _, opt := range opts {
+		if opt != nil {
+			opt(s)
+		}
+	}
+	return s
 }
 
 // GetLLMConfig 获取 LLM 配置
@@ -93,6 +119,17 @@ func (s *LLMService) GetLLMConfig(ctx context.Context, id int64) (*model.LLMConf
 	return cfg, nil
 }
 
+func (s *LLMService) GetViewableLLMConfig(ctx context.Context, id int64) (*model.LLMConfig, error) {
+	cfg, err := s.GetLLMConfig(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !canViewLLMConfig(cfg, contextx.GetRequestUser(ctx)) {
+		return nil, fmt.Errorf("无权限查看该LLM配置")
+	}
+	return cfg, nil
+}
+
 // GetDefaultLLMConfig 获取默认 LLM 配置
 func (s *LLMService) GetDefaultLLMConfig(ctx context.Context) (*model.LLMConfig, error) {
 	cfg, err := s.repo.GetDefault()
@@ -101,6 +138,17 @@ func (s *LLMService) GetDefaultLLMConfig(ctx context.Context) (*model.LLMConfig,
 			return nil, fmt.Errorf("未设置默认LLM配置")
 		}
 		return nil, fmt.Errorf("获取默认LLM配置失败: %w", err)
+	}
+	return cfg, nil
+}
+
+func (s *LLMService) GetViewableDefaultLLMConfig(ctx context.Context) (*model.LLMConfig, error) {
+	cfg, err := s.GetDefaultLLMConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !canViewLLMConfig(cfg, contextx.GetRequestUser(ctx)) {
+		return nil, fmt.Errorf("无权限查看默认LLM配置")
 	}
 	return cfg, nil
 }
@@ -154,6 +202,10 @@ func (s *LLMService) CreateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 		cfg.Admin = user
 	}
 	cfg.Admin = normalizeAdminList(cfg.Admin)
+
+	if err := s.sealConfigAPIKey(cfg); err != nil {
+		return err
+	}
 
 	// 先创建配置
 	if err := s.repo.Create(cfg); err != nil {
@@ -217,6 +269,12 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 		}
 	}
 	cfg.Admin = normalizeAdminList(cfg.Admin)
+	if strings.TrimSpace(cfg.APIKey) == "" {
+		cfg.APIKey = existing.APIKey
+	}
+	if err := s.sealConfigAPIKey(cfg); err != nil {
+		return err
+	}
 
 	// 如果设置为默认，先取消其他默认配置
 	if cfg.IsDefault {
@@ -242,4 +300,77 @@ func (s *LLMService) SetDefaultLLMConfig(ctx context.Context, id int64) error {
 		return err
 	}
 	return s.repo.SetDefault(id)
+}
+
+func canViewLLMConfig(cfg *model.LLMConfig, username string) bool {
+	if cfg == nil {
+		return false
+	}
+	return cfg.Visibility == 0 || cfg.IsAdminUser(username)
+}
+
+func defaultLLMAPIKeySecret() string {
+	if value := strings.TrimSpace(os.Getenv(llmAPIKeySecretEnv)); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(config.GetGlobalSharedConfig().JWT.Secret); value != "" {
+		return value
+	}
+	return llmAPIKeyDevFallbackSecret
+}
+
+func newLLMAPIKeyVault(secret string) (*secretvault.Vault, error) {
+	return secretvault.New(
+		secret,
+		llmAPIKeyVaultPurpose,
+		secretvault.WithPrefix(llmAPIKeyCipherPrefix),
+	)
+}
+
+func (s *LLMService) sealConfigAPIKey(cfg *model.LLMConfig) error {
+	if cfg == nil || strings.TrimSpace(cfg.APIKey) == "" {
+		return nil
+	}
+	sealed, err := sealLLMAPIKey(s.apiKeyVault, s.apiKeyVaultErr, cfg.APIKey)
+	if err != nil {
+		return err
+	}
+	cfg.APIKey = sealed
+	return nil
+}
+
+func (s *LLMService) OpenAPIKey(value string) (string, error) {
+	return openLLMAPIKey(s.apiKeyVault, s.apiKeyVaultErr, value)
+}
+
+func sealLLMAPIKey(vault *secretvault.Vault, vaultErr error, value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	if vaultErr != nil {
+		return "", fmt.Errorf("初始化 LLM API Key 加密失败: %w", vaultErr)
+	}
+	if vault == nil {
+		return "", fmt.Errorf("LLM API Key 加密器未初始化")
+	}
+	return vault.Seal(value)
+}
+
+func openLLMAPIKey(vault *secretvault.Vault, vaultErr error, value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	if vaultErr != nil {
+		return "", fmt.Errorf("初始化 LLM API Key 解密失败: %w", vaultErr)
+	}
+	if vault == nil {
+		return "", fmt.Errorf("LLM API Key 解密器未初始化")
+	}
+	return vault.Open(value)
+}
+
+func isSealedLLMAPIKey(vault *secretvault.Vault, value string) bool {
+	return vault != nil && vault.IsSealed(strings.TrimSpace(value))
 }

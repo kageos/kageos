@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -81,5 +82,54 @@ func TestLLMListMarksCurrentAdmins(t *testing.T) {
 	}
 	if !got.HasAPIKey || got.APIKey != "" {
 		t.Fatalf("API key list exposure mismatch: has=%v key=%q", got.HasAPIKey, got.APIKey)
+	}
+}
+
+func TestLLMGetDoesNotExposeAPIKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	svc := newLLMHandlerTestService(t)
+	cfg := &model.LLMConfig{
+		Name:       "Private",
+		Provider:   model.LLMProviderOpenAI,
+		Model:      "gpt-test",
+		APIKey:     "secret",
+		Admin:      "alice",
+		Timeout:    30,
+		MaxTokens:  1024,
+		Visibility: 1,
+	}
+	if err := svc.CreateLLMConfig(contextx.WithRequestUser(context.Background(), "alice"), cfg); err != nil {
+		t.Fatalf("CreateLLMConfig() error = %v", err)
+	}
+
+	router := gin.New()
+	router.GET("/llm/get", NewLLM(svc).Get)
+
+	req := httptest.NewRequest(http.MethodGet, "/llm/get?id="+strconv.FormatInt(cfg.ID, 10), nil)
+	req.Header.Set(contextx.RequestUserHeader, "alice")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+
+	var body struct {
+		Code int         `json:"code"`
+		Data dto.LLMInfo `json:"data"`
+		Msg  string      `json:"msg"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v; body = %s", err, w.Body.String())
+	}
+	if body.Code != 0 {
+		t.Fatalf("response code = %d msg = %q", body.Code, body.Msg)
+	}
+	if !body.Data.HasAPIKey || body.Data.APIKey != "" {
+		t.Fatalf("API key detail exposure mismatch: has=%v key=%q", body.Data.HasAPIKey, body.Data.APIKey)
+	}
+	if !body.Data.IsAdmin {
+		t.Fatalf("IsAdmin = false, want true for current admin")
 	}
 }

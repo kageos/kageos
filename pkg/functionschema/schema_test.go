@@ -74,6 +74,25 @@ func TestValidateRejectsUnsupportedWidgetType(t *testing.T) {
 	}
 }
 
+func TestChartSchemaCarriesChartType(t *testing.T) {
+	schema := NewChartWithType("line", []*widget.Field{testField("range", widget.TypeSelect)}, nil, nil)
+	raw := mustMarshalSchema(t, schema)
+	parsed, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if parsed.Chart == nil || parsed.Chart.ChartType != "line" {
+		t.Fatalf("chart schema = %#v, want chart_type line", parsed.Chart)
+	}
+}
+
+func TestValidateAllowsUnsupportedChartType(t *testing.T) {
+	schema := NewChartWithType("scatter", nil, nil, nil)
+	if err := Validate(schema); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
 func TestValidateAggregatesFieldErrors(t *testing.T) {
 	schema := NewForm([]*widget.Field{
 		testField("record_date", "date"),

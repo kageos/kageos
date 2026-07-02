@@ -7,6 +7,7 @@ import type { ThemeMode, ThemeConfig } from '@/architecture/domain/types/theme'
 import { THEME_PRESETS, DEFAULT_THEME } from '@/architecture/domain/types/theme'
 
 const THEME_STORAGE_KEY = 'kageos-theme'
+const LEGACY_LIGHT_THEME_NAMES = new Set(['business-light', 'glass-light', 'nature-light', 'warm-light'])
 
 export const useThemeStore = defineStore('theme', () => {
   // 当前主题配置
@@ -23,6 +24,8 @@ export const useThemeStore = defineStore('theme', () => {
       const savedTheme = THEME_PRESETS.find(t => t.name === savedThemeName)
       if (savedTheme) {
         currentTheme.value = savedTheme
+      } else if (LEGACY_LIGHT_THEME_NAMES.has(savedThemeName)) {
+        currentTheme.value = THEME_PRESETS.find(t => t.name === 'hub-light') || DEFAULT_THEME
       }
     } else {
       // 如果没有保存的主题，根据系统偏好设置默认主题

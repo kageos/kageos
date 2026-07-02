@@ -29,6 +29,7 @@ type Server struct {
 
 	// 核心组件
 	httpServer      *gin.Engine
+	httpRuntime     *serverx.HTTPServer
 	sharedTransport *http.Transport // 共享 Transport，提高性能
 	tokenBlacklist  *TokenBlacklist // ⭐ 新增：Token 黑名单管理器
 	natsConn        *nats.Conn
@@ -93,8 +94,15 @@ func (s *Server) Start(ctx context.Context) error {
 	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.GetPort()))
 	logger.Infof(ctx, "[Server] HTTP server starting on %s", addr)
 
+	httpRuntime, err := serverx.StartHTTPServer(ctx, addr, s.httpServer)
+	if err != nil {
+		s.unsubscribeNATS(ctx)
+		s.closeNATS(ctx)
+		return fmt.Errorf("failed to start HTTP server on %s: %w", addr, err)
+	}
+	s.httpRuntime = httpRuntime
 	go func() {
-		if err := s.httpServer.Run(addr); err != nil {
+		if err := <-httpRuntime.Err(); err != nil {
 			logger.Errorf(ctx, "[Server] HTTP server error: %v", err)
 		}
 	}()
@@ -137,13 +145,17 @@ func (s *Server) printProxyRoutes(ctx context.Context) {
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping api-gateway...")
+	var stopErr error
 
 	// 关闭 HTTP 服务器（优雅关闭）
-	if s.httpServer != nil {
-		// 注意：gin.Engine 没有 Shutdown 方法，需要手动实现
-		// 这里先记录日志，实际关闭由 gin 的 Run 方法处理
-		logger.Infof(ctx, "[Server] HTTP server shutting down...")
-		// TODO: 实现真正的优雅关闭（需要将 http.Server 暴露出来）
+	if s.httpRuntime != nil {
+		if err := s.httpRuntime.Shutdown(ctx); err != nil {
+			logger.Warnf(ctx, "[Server] HTTP server shutdown failed: %v", err)
+			stopErr = err
+		} else {
+			logger.Infof(ctx, "[Server] HTTP server stopped")
+		}
+		s.httpRuntime = nil
 	}
 
 	// 关闭共享 Transport
@@ -156,7 +168,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	s.closeNATS(ctx)
 
 	logger.Infof(ctx, "[Server] Api-gateway stopped")
-	return nil
+	return stopErr
 }
 
 // initNATS 初始化 NATS 连接
