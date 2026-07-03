@@ -94,6 +94,10 @@
               v-html="renderedContent"
               class="markdown-content"
               @click="onMarkdownClick"
+              @mouseover="onMarkdownMouseover"
+              @focusin="onMarkdownFocusin"
+              @focusout="onMarkdownFocusout"
+              @mouseleave="scheduleCloseResourcePreview"
             />
             <pre v-else class="plain-text-content">{{ doc.content }}</pre>
           </div>
@@ -154,18 +158,83 @@
         </div>
       </Transition>
     </Teleport>
+
+    <!-- 文档内资源引用预览卡片 -->
+    <Teleport to="body">
+      <Transition name="doc-resource-preview">
+        <section
+          v-if="resourcePreview.visible"
+          ref="resourcePreviewRef"
+          :class="['doc-resource-preview', `is-${resourcePreview.kind}`]"
+          :style="{ left: `${resourcePreview.left}px`, top: `${resourcePreview.top}px` }"
+          role="dialog"
+          aria-label="资源预览"
+          @mouseenter="cancelCloseResourcePreview"
+          @mouseleave="scheduleCloseResourcePreview"
+          @click.stop
+        >
+          <div class="doc-resource-preview__head">
+            <span class="doc-resource-preview__icon" aria-hidden="true">
+              <img
+                v-if="resourcePreview.iconSrc"
+                :src="resourcePreview.iconSrc"
+                :alt="resourcePreview.typeLabel"
+                class="doc-resource-preview__img"
+              />
+              <span
+                v-else
+                class="doc-resource-preview__html-icon"
+                v-html="resourcePreview.iconHtml"
+              />
+            </span>
+            <span class="doc-resource-preview__main">
+              <strong>{{ resourcePreview.label }}</strong>
+              <span>{{ resourcePreview.typeLabel }}</span>
+            </span>
+          </div>
+          <p v-if="resourcePreview.description" class="doc-resource-preview__desc">
+            {{ resourcePreview.description }}
+          </p>
+          <div v-if="resourcePreview.metaItems.length > 0" class="doc-resource-preview__meta">
+            <span
+              v-for="item in resourcePreview.metaItems"
+              :key="item"
+              class="doc-resource-preview__meta-item"
+              :title="item"
+            >
+              {{ item }}
+            </span>
+          </div>
+          <code class="doc-resource-preview__path">{{ resourcePreview.path }}</code>
+          <div class="doc-resource-preview__actions">
+            <span v-if="resourcePreview.loading" class="doc-resource-preview__loading">加载详情...</span>
+            <button type="button" class="doc-resource-preview__link" @click="openResourcePreviewTarget">
+              打开资源
+            </button>
+            <button type="button" class="doc-resource-preview__close" aria-label="关闭资源预览" @click="closeResourcePreview">
+              关闭
+            </button>
+          </div>
+        </section>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight, Clock, RefreshRight } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { getDoc, updateDoc, deleteDoc } from '@/architecture/presentation/context/api/doc'  // ✅ 使用新的文档 API
+import { getServiceTreeDetail, type ServiceTreeDetailResp } from '@/architecture/presentation/context/api/service-tree'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
-import { renderWorkspaceResourceTokensAsHtml } from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
+import {
+  renderWorkspaceResourceTokensAsHtml,
+  workspaceResourceIconHtml,
+  workspaceResourceIconSrc,
+} from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
 import { consumeDocAutoEdit } from '@/architecture/presentation/utils/docAutoEdit'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 
@@ -197,21 +266,44 @@ const editContent = ref('')
 
 // 图片预览
 const markdownContentRef = ref<HTMLElement | null>(null)
+const resourcePreviewRef = ref<HTMLElement | null>(null)
 const imagePreviewVisible = ref(false)
 const previewImgList = ref<string[]>([])
 const previewIndex = ref(0)
 
+interface DocResourcePreviewMeta {
+  path: string
+  label: string
+  typeLabel: string
+  kind: string
+  description: string
+  metaItems: string[]
+  iconSrc: string
+  iconHtml: string
+}
+
+interface DocResourcePreview extends DocResourcePreviewMeta {
+  visible: boolean
+  href: string
+  left: number
+  top: number
+  loading: boolean
+}
+
+const resourcePreview = ref<DocResourcePreview>(createEmptyResourcePreview())
+const resourcePreviewMetaByPath = ref<Record<string, DocResourcePreviewMeta>>({})
+const resourcePreviewHydratingPaths = new Set<string>()
+let resourcePreviewCloseTimer: ReturnType<typeof setTimeout> | null = null
+let resourceTokenHydrateTimer: ReturnType<typeof setTimeout> | null = null
+
 function onMarkdownClick(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  const resourceLink = target?.closest?.('a.workspace-resource-token') as HTMLAnchorElement | null
+  const resourceLink = getResourceLinkFromEventTarget(e.target)
   if (resourceLink) {
-    const href = resourceLink.getAttribute('href') || ''
-    if (href.startsWith('/workspace/')) {
-      e.preventDefault()
-      void router.push(href)
-    }
+    e.preventDefault()
+    showResourcePreview(resourceLink)
     return
   }
+  const target = e.target as HTMLElement
   if (target?.tagName !== 'IMG') return
   const img = target as HTMLImageElement
   const src = img.src || img.getAttribute('src')
@@ -227,6 +319,328 @@ function onMarkdownClick(e: MouseEvent) {
   imagePreviewVisible.value = true
 }
 
+function onMarkdownMouseover(e: MouseEvent) {
+  const resourceLink = getResourceLinkFromEventTarget(e.target)
+  if (!resourceLink) return
+  showResourcePreview(resourceLink)
+}
+
+function onMarkdownFocusin(e: FocusEvent) {
+  const resourceLink = getResourceLinkFromEventTarget(e.target)
+  if (!resourceLink) return
+  showResourcePreview(resourceLink)
+}
+
+function onMarkdownFocusout(e: FocusEvent) {
+  const nextTarget = e.relatedTarget
+  if (isResourcePreviewFocusTarget(nextTarget) || isMarkdownFocusTarget(nextTarget)) {
+    return
+  }
+  closeResourcePreview()
+}
+
+function getResourceLinkFromEventTarget(target: EventTarget | null): HTMLAnchorElement | null {
+  if (!(target instanceof Element)) return null
+  const resourceLink = target.closest('a.workspace-resource-token') as HTMLAnchorElement | null
+  if (!resourceLink || !markdownContentRef.value?.contains(resourceLink)) return null
+  return resourceLink
+}
+
+function showResourcePreview(resourceLink: HTMLAnchorElement) {
+  cancelCloseResourcePreview()
+  const path = resourceLink.dataset.fullCodePath || ''
+  if (!path) return
+
+  const fallbackMeta = buildResourcePreviewMetaFromLink(resourceLink)
+  const cachedMeta = resourcePreviewMetaByPath.value[path]
+  const position = getResourcePreviewPosition(resourceLink)
+  const href = resourceLink.getAttribute('href') || ''
+  const nextMeta = cachedMeta || fallbackMeta
+  resourcePreview.value = {
+    ...nextMeta,
+    href,
+    visible: true,
+    left: position.left,
+    top: position.top,
+    loading: !cachedMeta,
+  }
+
+  if (!cachedMeta && !resourcePreviewHydratingPaths.has(path)) {
+    void hydrateResourcePreview(path)
+  }
+}
+
+function buildResourcePreviewMetaFromLink(resourceLink: HTMLAnchorElement): DocResourcePreviewMeta {
+  const path = resourceLink.dataset.fullCodePath || ''
+  const kind = resourceLink.dataset.resourceKind || inferResourceKind(path)
+  return {
+    path,
+    label: resourceLink.dataset.resourceLabel || getPathTail(path) || path || '资源',
+    typeLabel: resourceLink.dataset.resourceTypeLabel || getResourcePreviewTypeLabel(kind),
+    kind,
+    description: '',
+    metaItems: compactPreviewMetaItems([getReadableResourcePath(path)]),
+    iconSrc: getResourcePreviewIconSrc(kind),
+    iconHtml: getResourcePreviewIconHtml(kind, resourceLink.dataset.resourceTypeLabel || getResourcePreviewTypeLabel(kind)),
+  }
+}
+
+async function hydrateResourcePreview(path: string) {
+  resourcePreviewHydratingPaths.add(path)
+  try {
+    const detail = await getServiceTreeDetail(path)
+    const meta = buildResourcePreviewMetaFromDetail(detail, path)
+    resourcePreviewMetaByPath.value = {
+      ...resourcePreviewMetaByPath.value,
+      [path]: meta,
+    }
+    applyResourcePreviewMetaToTokens(meta)
+    if (resourcePreview.value.visible && resourcePreview.value.path === path) {
+      resourcePreview.value = {
+        ...resourcePreview.value,
+        ...meta,
+        loading: false,
+      }
+    }
+  } catch {
+    if (resourcePreview.value.visible && resourcePreview.value.path === path) {
+      resourcePreview.value = {
+        ...resourcePreview.value,
+        loading: false,
+      }
+    }
+  } finally {
+    resourcePreviewHydratingPaths.delete(path)
+  }
+}
+
+function scheduleResourceTokenHydration() {
+  clearResourceTokenHydrateTimer()
+  resourceTokenHydrateTimer = setTimeout(() => {
+    void hydrateVisibleResourceTokens()
+  }, 80)
+}
+
+function clearResourceTokenHydrateTimer() {
+  if (!resourceTokenHydrateTimer) return
+  clearTimeout(resourceTokenHydrateTimer)
+  resourceTokenHydrateTimer = null
+}
+
+async function hydrateVisibleResourceTokens() {
+  await nextTick()
+  const container = markdownContentRef.value
+  if (!container) return
+  const links = Array.from(container.querySelectorAll<HTMLAnchorElement>('a.workspace-resource-token'))
+  const paths = Array.from(new Set(
+    links
+      .map(link => link.dataset.fullCodePath || '')
+      .filter(path => path && path.startsWith('/'))
+  )).slice(0, 30)
+
+  paths.forEach((path) => {
+    const cachedMeta = resourcePreviewMetaByPath.value[path]
+    if (cachedMeta) {
+      applyResourcePreviewMetaToTokens(cachedMeta)
+      return
+    }
+    if (!resourcePreviewHydratingPaths.has(path)) {
+      void hydrateResourcePreview(path)
+    }
+  })
+}
+
+function applyResourcePreviewMetaToTokens(meta: DocResourcePreviewMeta) {
+  const container = markdownContentRef.value
+  if (!container) return
+  const links = Array.from(container.querySelectorAll<HTMLAnchorElement>('a.workspace-resource-token'))
+    .filter(link => link.dataset.fullCodePath === meta.path)
+  links.forEach((link) => {
+    link.className = `workspace-resource-token is-${meta.kind}`
+    link.dataset.resourceKind = meta.kind
+    link.dataset.resourceLabel = meta.label
+    link.dataset.resourceTypeLabel = meta.typeLabel
+    link.dataset.resourceIconSrc = meta.iconSrc
+    link.title = `${meta.label} · ${meta.path}`
+    const labelEl = link.querySelector<HTMLElement>('.workspace-resource-token__label')
+    if (labelEl) {
+      labelEl.textContent = meta.label
+    }
+    const typeEl = link.querySelector<HTMLElement>('.workspace-resource-token__type')
+    if (typeEl) {
+      typeEl.textContent = meta.typeLabel
+    }
+    const iconEl = link.querySelector<HTMLElement>('.workspace-resource-token__icon')
+    if (iconEl) {
+      renderResourceTokenIcon(iconEl, meta)
+    }
+  })
+}
+
+function renderResourceTokenIcon(iconEl: HTMLElement, meta: DocResourcePreviewMeta) {
+  iconEl.innerHTML = meta.iconHtml || getResourcePreviewIconHtml(meta.kind, meta.typeLabel)
+}
+
+function buildResourcePreviewMetaFromDetail(detail: ServiceTreeDetailResp, fallbackPath: string): DocResourcePreviewMeta {
+  const path = detail.full_code_path || fallbackPath
+  const kind = inferResourceKind(path, detail.type, detail.template_type)
+  return {
+    path,
+    label: detail.name || detail.code || getPathTail(path) || path || '资源',
+    typeLabel: getResourcePreviewTypeLabel(kind, detail.type, detail.template_type),
+    kind,
+    description: cleanPreviewText(detail.description),
+    metaItems: compactPreviewMetaItems([
+      getReadableResourcePath(path),
+      detail.owner ? `负责人 ${detail.owner}` : '',
+      detail.run_count ? `${formatPreviewCount(detail.run_count)} 次运行` : '',
+      detail.tags ? `标签 ${detail.tags}` : '',
+    ]),
+    iconSrc: getResourcePreviewIconSrc(kind),
+    iconHtml: getResourcePreviewIconHtml(kind, getResourcePreviewTypeLabel(kind, detail.type, detail.template_type)),
+  }
+}
+
+function getResourcePreviewPosition(resourceLink: HTMLAnchorElement) {
+  const rect = resourceLink.getBoundingClientRect()
+  const cardWidth = 340
+  const estimatedCardHeight = 188
+  const gap = 10
+  const viewportWidth = typeof window === 'undefined' ? 1024 : window.innerWidth
+  const viewportHeight = typeof window === 'undefined' ? 768 : window.innerHeight
+  const left = Math.max(12, Math.min(rect.left, viewportWidth - cardWidth - 12))
+  const bottomTop = rect.bottom + gap
+  const top = bottomTop + estimatedCardHeight > viewportHeight
+    ? Math.max(12, rect.top - estimatedCardHeight - gap)
+    : bottomTop
+  return { left, top }
+}
+
+function openResourcePreviewTarget() {
+  const href = resourcePreview.value.href
+  if (!href) return
+  closeResourcePreview()
+  if (href.startsWith('/workspace/')) {
+    void router.push(href)
+    return
+  }
+  window.location.href = href
+}
+
+function scheduleCloseResourcePreview() {
+  clearResourcePreviewCloseTimer()
+  resourcePreviewCloseTimer = setTimeout(() => {
+    closeResourcePreview()
+  }, 180)
+}
+
+function cancelCloseResourcePreview() {
+  clearResourcePreviewCloseTimer()
+}
+
+function handleDocumentMouseDown(e: MouseEvent) {
+  if (!resourcePreview.value.visible) return
+  const target = e.target
+  if (isResourcePreviewFocusTarget(target) || getResourceLinkFromEventTarget(target)) {
+    return
+  }
+  closeResourcePreview()
+}
+
+function handleWindowBlur() {
+  closeResourcePreview()
+}
+
+function isResourcePreviewFocusTarget(target: EventTarget | null): boolean {
+  return target instanceof Node && !!resourcePreviewRef.value?.contains(target)
+}
+
+function isMarkdownFocusTarget(target: EventTarget | null): boolean {
+  return target instanceof Node && !!markdownContentRef.value?.contains(target)
+}
+
+function clearResourcePreviewCloseTimer() {
+  if (!resourcePreviewCloseTimer) return
+  clearTimeout(resourcePreviewCloseTimer)
+  resourcePreviewCloseTimer = null
+}
+
+function closeResourcePreview() {
+  clearResourcePreviewCloseTimer()
+  resourcePreview.value = createEmptyResourcePreview()
+}
+
+function createEmptyResourcePreview(): DocResourcePreview {
+  return {
+    visible: false,
+    path: '',
+    href: '',
+    label: '',
+    typeLabel: '',
+    kind: 'directory',
+    description: '',
+    metaItems: [],
+    iconSrc: '',
+    iconHtml: '',
+    left: 0,
+    top: 0,
+    loading: false,
+  }
+}
+
+function inferResourceKind(path: string, type?: string, templateType?: string) {
+  if (type === 'docs' || path.endsWith('.docs')) return 'docs'
+  if (type === 'package') return 'directory'
+  if (templateType === 'form' || path.endsWith('.form')) return 'form'
+  if (templateType === 'table' || path.endsWith('.table')) return 'table'
+  if (templateType === 'chart' || path.endsWith('.chart')) return 'chart'
+  return type === 'function' ? 'function' : 'directory'
+}
+
+function getResourcePreviewTypeLabel(kind: string, type?: string, templateType?: string) {
+  if (type === 'docs' || kind === 'docs') return '文档'
+  if (type === 'package' || kind === 'directory') return '目录'
+  if (templateType === 'table' || kind === 'table') return '表格'
+  if (templateType === 'form' || kind === 'form') return '表单'
+  if (templateType === 'chart' || kind === 'chart') return '图表'
+  return '工具'
+}
+
+function getResourcePreviewIconSrc(kind: string) {
+  return workspaceResourceIconSrc(kind)
+}
+
+function getResourcePreviewIconHtml(kind: string, typeLabel: string) {
+  return workspaceResourceIconHtml(kind, typeLabel)
+}
+
+function getReadableResourcePath(path: string) {
+  return String(path || '').split('/').filter(Boolean).join(' / ')
+}
+
+function getPathTail(path: string) {
+  return String(path || '').split('/').filter(Boolean).pop() || ''
+}
+
+function cleanPreviewText(value?: string) {
+  return String(value || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function compactPreviewMetaItems(items: Array<string | undefined | null>) {
+  return items
+    .map(item => cleanPreviewText(item || ''))
+    .filter((item, index, list) => item && list.indexOf(item) === index)
+}
+
+function formatPreviewCount(count: number) {
+  if (count >= 10000) return `${(count / 10000).toFixed(count >= 100000 ? 0 : 1)}w`
+  if (count >= 1000) return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k`
+  return String(count)
+}
+
 function closeImagePreview() {
   imagePreviewVisible.value = false
   previewImgList.value = []
@@ -234,6 +648,10 @@ function closeImagePreview() {
 }
 
 function onPreviewKeydown(e: KeyboardEvent) {
+  if (resourcePreview.value.visible && e.key === 'Escape') {
+    closeResourcePreview()
+    return
+  }
   if (!imagePreviewVisible.value) return
   if (e.key === 'Escape') {
     closeImagePreview()
@@ -250,9 +668,15 @@ function onPreviewKeydown(e: KeyboardEvent) {
 
 onMounted(() => {
   document.addEventListener('keydown', onPreviewKeydown)
+  document.addEventListener('mousedown', handleDocumentMouseDown)
+  window.addEventListener('blur', handleWindowBlur)
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', onPreviewKeydown)
+  document.removeEventListener('mousedown', handleDocumentMouseDown)
+  window.removeEventListener('blur', handleWindowBlur)
+  clearResourcePreviewCloseTimer()
+  clearResourceTokenHydrateTimer()
 })
 
 const canEditDoc = computed(() => true)
@@ -440,9 +864,14 @@ const handleDelete = async () => {
 watch(() => props.node?.id, () => {
   if (props.node?.id) {
     isEditing.value = false
+    closeResourcePreview()
     loadDoc()
   }
 }, { immediate: true })
+
+watch(renderedContent, () => {
+  scheduleResourceTokenHydration()
+}, { flush: 'post' })
 </script>
 
 <style scoped lang="scss">
@@ -729,7 +1158,7 @@ watch(() => props.node?.id, () => {
     gap: 5px;
     max-width: 100%;
     vertical-align: baseline;
-    padding: 1px 7px;
+    padding: 1px 7px 1px 5px;
     margin: 0 1px;
     border: 1px solid color-mix(in srgb, var(--el-color-primary, #1677ff) 24%, var(--el-border-color, #dcdfe6));
     border-radius: 7px;
@@ -740,34 +1169,56 @@ watch(() => props.node?.id, () => {
     font-weight: 500;
     text-decoration: none;
     white-space: nowrap;
-    transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+    cursor: pointer;
+    transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 
-    &:hover {
+    &:hover,
+    &:focus-visible {
       border-color: color-mix(in srgb, var(--el-color-primary, #1677ff) 58%, var(--el-border-color, #dcdfe6));
       background: color-mix(in srgb, var(--el-color-primary, #1677ff) 13%, var(--el-bg-color, #fff));
       color: var(--el-color-primary, #1677ff);
+      box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb, 22, 119, 255), 0.08);
+      outline: none;
       text-decoration: none;
     }
   }
 
-  :deep(.workspace-resource-token__dot) {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
+  :deep(.workspace-resource-token__icon) {
+    width: 16px;
+    height: 16px;
     flex: 0 0 auto;
-    background: var(--el-color-primary, #1677ff);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    opacity: 0.9;
   }
 
-  :deep(.workspace-resource-token.is-form .workspace-resource-token__dot) {
-    background: var(--el-color-success, #67c23a);
+  :deep(.workspace-resource-token__img),
+  :deep(.workspace-resource-token__svg) {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    display: block;
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+    cursor: inherit;
+    transition: none;
   }
 
-  :deep(.workspace-resource-token.is-chart .workspace-resource-token__dot) {
-    background: var(--el-color-warning, #e6a23c);
+  :deep(.workspace-resource-token__img:hover),
+  :deep(.workspace-resource-token__svg:hover) {
+    transform: none;
+    box-shadow: none;
   }
 
-  :deep(.workspace-resource-token.is-docs .workspace-resource-token__dot) {
-    background: var(--el-color-info, #909399);
+  :deep(.workspace-resource-token__html-icon) {
+    display: inline-flex;
+    width: 16px;
+    height: 16px;
+    align-items: center;
+    justify-content: center;
   }
 
   :deep(.workspace-resource-token__label) {
@@ -865,6 +1316,201 @@ watch(() => props.node?.id, () => {
   color: var(--el-text-color-regular, #374151);
   padding: 24px;
   border-radius: 8px;
+}
+
+.doc-resource-preview {
+  position: fixed;
+  z-index: var(--aos-z-global-overlay, 4200);
+  width: min(340px, calc(100vw - 24px));
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--el-color-primary, #1677ff) 22%, var(--el-border-color, #dcdfe6));
+  border-radius: 10px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--el-bg-color, #fff) 96%, transparent);
+  box-shadow: 0 18px 46px -22px rgba(15, 23, 42, 0.48), 0 0 0 1px rgba(255, 255, 255, 0.78) inset;
+  color: var(--el-text-color-primary, #111827);
+}
+
+.doc-resource-preview__head {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.doc-resource-preview__icon {
+  width: 40px;
+  height: 40px;
+  border: 1px solid color-mix(in srgb, var(--el-color-primary, #1677ff) 22%, var(--el-border-color, #dcdfe6));
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--el-color-primary, #1677ff) 8%, var(--el-bg-color, #fff));
+  color: var(--el-color-primary, #1677ff);
+  font-weight: 700;
+}
+
+.doc-resource-preview.is-docs .doc-resource-preview__icon {
+  border-color: color-mix(in srgb, var(--el-color-info, #909399) 28%, var(--el-border-color, #dcdfe6));
+  background: color-mix(in srgb, var(--el-color-info, #909399) 10%, var(--el-bg-color, #fff));
+  color: var(--el-text-color-secondary, #606266);
+}
+
+.doc-resource-preview.is-form .doc-resource-preview__icon {
+  border-color: color-mix(in srgb, var(--el-color-success, #67c23a) 34%, var(--el-border-color, #dcdfe6));
+  background: color-mix(in srgb, var(--el-color-success, #67c23a) 10%, var(--el-bg-color, #fff));
+  color: var(--el-color-success, #67c23a);
+}
+
+.doc-resource-preview.is-table .doc-resource-preview__icon {
+  border-color: color-mix(in srgb, #10b981 34%, var(--el-border-color, #dcdfe6));
+  background: color-mix(in srgb, #10b981 10%, var(--el-bg-color, #fff));
+  color: #059669;
+}
+
+.doc-resource-preview.is-chart .doc-resource-preview__icon {
+  border-color: color-mix(in srgb, #8b5cf6 34%, var(--el-border-color, #dcdfe6));
+  background: color-mix(in srgb, #8b5cf6 10%, var(--el-bg-color, #fff));
+  color: #7c3aed;
+}
+
+.doc-resource-preview__img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  display: block;
+}
+
+.doc-resource-preview__html-icon,
+.doc-resource-preview__html-icon :deep(.workspace-resource-token__icon) {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.doc-resource-preview__html-icon :deep(.workspace-resource-token__img),
+.doc-resource-preview__html-icon :deep(.workspace-resource-token__svg) {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.doc-resource-preview__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.doc-resource-preview__main strong,
+.doc-resource-preview__main span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-resource-preview__main strong {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.doc-resource-preview__main span {
+  color: var(--el-text-color-secondary, #6b7280);
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.doc-resource-preview__desc {
+  margin: 10px 0 0;
+  color: var(--el-text-color-regular, #374151);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.doc-resource-preview__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.doc-resource-preview__meta-item {
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 6px;
+  padding: 2px 6px;
+  background: var(--el-fill-color-light, #f5f7fa);
+  color: var(--el-text-color-secondary, #6b7280);
+  font-size: 11px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-resource-preview__path {
+  display: block;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid var(--el-border-color-lighter, #e5e7eb);
+  border-radius: 7px;
+  padding: 6px 7px;
+  background: var(--el-fill-color-light, #f5f7fa);
+  color: var(--el-text-color-secondary, #6b7280);
+  font-size: 11px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-resource-preview__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.doc-resource-preview__loading {
+  margin-right: auto;
+  color: var(--el-text-color-secondary, #6b7280);
+  font-size: 12px;
+}
+
+.doc-resource-preview__link,
+.doc-resource-preview__close {
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.doc-resource-preview__link {
+  background: var(--el-color-primary, #1677ff);
+  color: #fff;
+}
+
+.doc-resource-preview__close {
+  background: var(--el-fill-color, #f0f2f5);
+  color: var(--el-text-color-regular, #374151);
+}
+
+.doc-resource-preview-enter-active,
+.doc-resource-preview-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.doc-resource-preview-enter-from,
+.doc-resource-preview-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
 }
 
 .doc-empty {

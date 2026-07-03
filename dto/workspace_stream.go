@@ -12,6 +12,7 @@ const (
 	WorkspaceStreamEventModelContextPlan     = "model_context_plan"
 	WorkspaceStreamEventToolCall             = "tool_call"
 	WorkspaceStreamEventToolCallsStreamDelta = "tool_calls_stream_delta"
+	WorkspaceStreamEventThinking             = "thinking"
 	WorkspaceStreamEventContent              = "content"
 	WorkspaceStreamEventDone                 = "done"
 	WorkspaceStreamEventError                = "error"
@@ -53,6 +54,10 @@ type WorkspaceStreamToolCallDeltaData struct {
 }
 
 type WorkspaceStreamContent struct {
+	Content string `json:"content"`
+}
+
+type WorkspaceStreamThinking struct {
 	Content string `json:"content"`
 }
 

@@ -204,7 +204,6 @@ func (s *MessageConsumerService) buildMobileNotificationURLs(ctx context.Context
 		RecipientUsername:  target.Recipient.Username,
 		AuthorizedUsers:    target.AuthorizedUsers,
 		Channel:            target.Channel,
-		RequireAuth:        target.RequireAuth,
 		AllowedActions:     []string{"reply", "continue_agent"},
 		ExpiresAt:          time.Now().Add(msgrepo.DefaultMessageActionTokenTTL),
 		WorkspaceSessionID: entry.WorkspaceSessionID,

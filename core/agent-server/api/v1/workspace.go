@@ -179,20 +179,21 @@ func (h *Workspace) ListMessages(c *gin.Context) {
 	messageInfos := make([]dto.WorkspaceMessageInfo, 0, len(messages))
 	for _, msg := range messages {
 		info := dto.WorkspaceMessageInfo{
-			ID:             msg.ID,
-			SessionID:      msg.SessionID,
-			Role:           msg.Role,
-			User:           msg.User,
-			Content:        msg.Content,
-			DisplayContent: msg.DisplayContent,
-			Files:          msg.Files,
-			CreatedAt:      msg.CreatedAt,
-			LLMConfigID:    msg.LLMConfigID,
-			LLMConfigName:  msg.LLMConfigName,
-			LLMProvider:    msg.LLMProvider,
-			LLMModel:       msg.LLMModel,
-			ContextUsage:   msg.ContextUsage,
-			ArtifactKind:   msg.ArtifactKind,
+			ID:              msg.ID,
+			SessionID:       msg.SessionID,
+			Role:            msg.Role,
+			User:            msg.User,
+			Content:         msg.Content,
+			DisplayContent:  msg.DisplayContent,
+			ThinkingContent: msg.ThinkingContent,
+			Files:           msg.Files,
+			CreatedAt:       msg.CreatedAt,
+			LLMConfigID:     msg.LLMConfigID,
+			LLMConfigName:   msg.LLMConfigName,
+			LLMProvider:     msg.LLMProvider,
+			LLMModel:        msg.LLMModel,
+			ContextUsage:    msg.ContextUsage,
+			ArtifactKind:    msg.ArtifactKind,
 		}
 		if msg.LLMUsage != nil && *msg.LLMUsage != "" {
 			var usage dto.LLMUsageInfo

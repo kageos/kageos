@@ -248,7 +248,7 @@ func runCreateDirectoryCommand(ctx context.Context, cmd createDirectoryCommand, 
 	// 始终返回带完整 init_.go 真实代码的那句，不返回“省略”版短句
 	return fmt.Sprintf(`目录已创建: %s。
 
-系统已自动在该目录下生成 `+"`init_.go`"+`，完整内容如下（无需再 write_go_file 创建 init.go 或 init_.go，可直接在该目录下写业务 .go 并用 packageContext.GET(...) 注册路由）：
+系统已自动在该目录下生成 `+"`init_.go`"+`，完整内容如下（无需再 write_file 创建 init.go 或 init_.go，可直接在该目录下写业务 .go 并用 packageContext.GET(...) 注册路由）：
 
 `+"```go\n%s\n```", resp.FullCodePath, initGo), false
 }

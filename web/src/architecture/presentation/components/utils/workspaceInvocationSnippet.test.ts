@@ -62,6 +62,19 @@ describe('workspaceInvocationSnippet', () => {
     expect(html).toContain('href="/workspace/system/app/notify.form"')
   })
 
+  it('renders docs resource tokens with Chinese labels and preview metadata', () => {
+    const html = renderWorkspaceResourceTokensAsHtml('阅读 <./runbook.docs>', '/system/app/index.docs')
+
+    expect(html).toContain('class="workspace-resource-token is-docs"')
+    expect(html).toContain('href="/workspace/system/app/runbook.docs"')
+    expect(html).toContain('data-resource-kind="docs"')
+    expect(html).toContain('data-resource-type-label="文档"')
+    expect(html).toContain('data-resource-icon-src="/文档.svg"')
+    expect(html).toContain('workspace-resource-token__img')
+    expect(html).toContain('runbook.docs')
+    expect(html).not.toContain('Docs')
+  })
+
   it('detects resource kind from function suffixes', () => {
     expect(workspaceResourceKind('/system/app/list.table')).toBe('table')
     expect(workspaceResourceKind('/system/app/input.form')).toBe('form')

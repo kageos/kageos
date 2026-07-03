@@ -11,3 +11,29 @@ func workspaceToolNamesForMode(modeProvider prompt.WorkspaceModePromptProvider, 
 	}
 	return append([]string(nil), toolNames...)
 }
+
+func workspaceToolNamesForRole(toolNames []string, roleID string) []string {
+	roleID = normalizeWorkspaceRole(roleID)
+	if roleID == "" {
+		roleID = WorkspaceRoleRouter
+	}
+	allowedTools := workspaceRoleAllowedTools(roleID)
+	allowed := make(map[string]struct{}, len(allowedTools))
+	for _, tool := range allowedTools {
+		tool = normalizeWorkspaceToolName(tool)
+		if tool != "" {
+			allowed[tool] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(toolNames))
+	for _, tool := range toolNames {
+		tool = normalizeWorkspaceToolName(tool)
+		if tool == "" {
+			continue
+		}
+		if _, ok := allowed[tool]; ok {
+			out = append(out, tool)
+		}
+	}
+	return out
+}

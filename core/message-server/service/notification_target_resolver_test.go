@@ -112,7 +112,6 @@ func TestUserNotificationTargetResolverUsesNearestRouteBeforeUserChannel(t *test
 		Enabled:          true,
 		DeliveryType:     "webhook",
 		WebhookURLCipher: userWebhookCipher,
-		RequireAuth:      true,
 	}); err != nil {
 		t.Fatalf("upsert parent route: %v", err)
 	}
@@ -122,7 +121,6 @@ func TestUserNotificationTargetResolverUsesNearestRouteBeforeUserChannel(t *test
 		Enabled:          true,
 		DeliveryType:     "webhook",
 		WebhookURLCipher: routeWebhookCipher,
-		RequireAuth:      true,
 		Metadata:         `{"scope":"orders"}`,
 	})
 	if err != nil {
@@ -153,9 +151,6 @@ func TestUserNotificationTargetResolverUsesNearestRouteBeforeUserChannel(t *test
 	}
 	if len(target.AuthorizedUsers) != 2 || target.AuthorizedUsers[0] != "bob" || target.AuthorizedUsers[1] != "alice" {
 		t.Fatalf("authorized users = %#v", target.AuthorizedUsers)
-	}
-	if !target.RequireAuth {
-		t.Fatal("route target should require auth by default")
 	}
 	if target.Metadata["scope"] != "orders" {
 		t.Fatalf("metadata = %#v", target.Metadata)

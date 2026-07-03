@@ -397,27 +397,28 @@ function cancelExpandedEditor() {
   grid-template-columns: auto minmax(0, 1fr);
   min-height: 180px;
   align-items: stretch;
-  background: var(--bg-tertiary);
-  border: 1px solid transparent;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--border-light);
   box-shadow: none;
   backdrop-filter: none;
   border-radius: var(--border-radius-lg);
   transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
 
   &:hover {
-    background: var(--el-fill-color);
+    border-color: var(--border-base);
+    background: var(--el-fill-color-light);
   }
   
   &:focus-within {
-    background: var(--bg-tertiary);
-    border-color: transparent;
-    box-shadow: none;
+    background: var(--el-fill-color-light);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.12);
   }
 }
 
 html.dark .mini-ws-input--schedule {
-  background: var(--bg-tertiary);
-  border-color: transparent;
+  background: var(--el-fill-color-light);
+  border-color: var(--border-light);
 }
 
 .mini-ws-input--schedule .mini-structured-input :deep(.spc-editor),
@@ -433,7 +434,7 @@ html.dark .mini-ws-input--schedule {
 }
 
 .mini-ws-input--schedule .mini-upload-btn :deep(.el-button):hover {
-  background: var(--bg-tertiary);
+  background: rgba(var(--color-primary-rgb), 0.08);
   color: var(--color-primary);
   border-color: transparent;
   box-shadow: none;
@@ -527,6 +528,7 @@ html.dark .mini-ws-input--schedule {
   min-height: 160px;
   grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
+  background: var(--bg-primary);
 }
 
 .mini-path-pill {

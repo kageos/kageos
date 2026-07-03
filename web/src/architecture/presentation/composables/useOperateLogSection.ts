@@ -35,6 +35,12 @@ type OperateLogEntry = {
   old_values_json?: any
   new_values_json?: any
   source?: string
+  source_type?: string
+  source_ref?: string
+  executor_type?: string
+  workspace_session_id?: string
+  workspace_session_title?: string
+  workspace_role?: string
 }
 
 interface OperateLogChangeEntry {
@@ -319,9 +325,10 @@ export function useOperateLogSection({
       const resourceType = scopeValue === 'row' ? 'table' : ''
       const focusedLogID = readPositiveID(focusLogId?.value)
       const focusedTraceID = (focusTraceId?.value || '').trim()
-      const effectiveKeyword = keyword.value.trim() || (!focusedLogID ? focusedTraceID : '')
+      const effectiveKeyword = keyword.value.trim()
       const response = await getOperateLogs({
         ...(focusedLogID ? { id: focusedLogID } : {}),
+        ...(!focusedLogID && focusedTraceID ? { trace_id: focusedTraceID } : {}),
         ...(resourceType ? { resource_type: resourceType } : {}),
         ...(scopeValue === 'directory' ? { resource_path_prefix: fullCodePath.value } : { resource_path: fullCodePath.value }),
         ...(scopeValue === 'row' ? { row_id: rowId.value } : {}),
@@ -385,6 +392,12 @@ export function useOperateLogSection({
     old_values_json: log.old_values_json,
     new_values_json: log.new_values_json,
     source: log.source,
+    source_type: log.source_type,
+    source_ref: log.source_ref,
+    executor_type: log.executor_type,
+    workspace_session_id: log.workspace_session_id,
+    workspace_session_title: log.workspace_session_title,
+    workspace_role: log.workspace_role,
   })
 
   const readOperateLogRowId = (log: OperateLog): number => {
@@ -523,6 +536,48 @@ export function useOperateLogSection({
       case 'public_share':
         return 'info'
       case 'scheduled_task':
+        return 'info'
+      case 'unknown':
+      case '':
+      case undefined:
+        return 'danger'
+      default:
+        return 'info'
+    }
+  }
+
+  const getExecutorLabel = (executorType?: string): string => {
+    switch (executorType) {
+      case 'user':
+        return t('operateLog.executorUser')
+      case 'agent':
+        return t('operateLog.executorAgent')
+      case 'scheduled_function':
+        return t('operateLog.executorScheduledFunction')
+      case 'openapi':
+      case 'api':
+        return t('operateLog.executorOpenAPI')
+      case 'public_share':
+        return t('operateLog.executorPublicShare')
+      case 'unknown':
+      case '':
+      case undefined:
+        return t('operateLog.executorUnknown')
+      default:
+        return executorType
+    }
+  }
+
+  const getExecutorTagType = (executorType?: string): TagProps['type'] => {
+    switch (executorType) {
+      case 'agent':
+        return 'warning'
+      case 'scheduled_function':
+        return 'info'
+      case 'openapi':
+      case 'api':
+        return 'success'
+      case 'public_share':
         return 'info'
       case 'unknown':
       case '':
@@ -805,6 +860,12 @@ export function useOperateLogSection({
     if (response?.error) entries.push({ label: t('operateLog.error'), value: String(response.error) })
     if (log.trace_id) entries.push({ label: 'Trace', value: log.trace_id })
     if (log.source) entries.push({ label: t('operateLog.source'), value: getSourceLabel(log.source) })
+    if (log.executor_type) entries.push({ label: t('operateLog.executor'), value: getExecutorLabel(log.executor_type) })
+    if (log.source_type) entries.push({ label: t('operateLog.sourceType'), value: log.source_type })
+    if (log.source_ref) entries.push({ label: t('operateLog.sourceRef'), value: log.source_ref })
+    if (log.workspace_session_id) {
+      entries.push({ label: t('operateLog.workspaceSession'), value: log.workspace_session_title || log.workspace_session_id })
+    }
     if (log.ip_address) entries.push({ label: 'IP', value: log.ip_address })
     return entries
   }
@@ -967,6 +1028,8 @@ export function useOperateLogSection({
     getActionLabel,
     getSourceLabel,
     getSourceTagType,
+    getExecutorLabel,
+    getExecutorTagType,
     formatLogValue,
     getChangeEntries,
     getValueEntries,

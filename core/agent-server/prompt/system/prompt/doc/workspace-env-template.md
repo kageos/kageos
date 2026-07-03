@@ -65,6 +65,6 @@
 
 ## 可读的目录
 
-以下可用 `read_doc(directory)` 读取文档，或用 `read_go_file(directory, file_name)` 读取工作区代码文件。
+以下可用 `read_doc(directory)` 读取文档，或用 `read_file(directory, file_name)` 读取工作区代码文件。
 
 {{DIRECTORY_LIST}}

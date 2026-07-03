@@ -222,6 +222,7 @@
                 :debug-error-count="debugErrorCount"
                 @copy-conversation="copyDebugConversation"
                 @copy-tool-summary="copyDebugToolSummary"
+                @export-conversation-pdf="exportDebugConversationPdf"
               />
             </el-popover>
           </template>
@@ -745,7 +746,8 @@ const {
   debugSuccessCount,
   debugErrorCount,
   copyDebugConversation,
-  copyDebugToolSummary
+  copyDebugToolSummary,
+  exportDebugConversationPdf
 } = useMiniWorkstationDebugCopy({
   messages,
   fullCodePath: () => props.fullCodePath,
@@ -1305,6 +1307,7 @@ useMiniWorkstationEffects({
   maximized,
   messages,
   sending,
+  streamingDisplayLength,
   sessionId,
   inputRef,
   outputRef,

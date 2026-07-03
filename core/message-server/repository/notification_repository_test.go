@@ -139,7 +139,6 @@ func TestNotificationRouteRepositoryMatchesNearestScopeAndRecordsStatus(t *testi
 		Enabled:          true,
 		DeliveryType:     "webhook",
 		DisplayName:      "销售默认群",
-		RequireAuth:      true,
 		WebhookURLCipher: "sales-cipher-url",
 	}); err != nil {
 		t.Fatalf("create parent route: %v", err)
@@ -151,7 +150,6 @@ func TestNotificationRouteRepositoryMatchesNearestScopeAndRecordsStatus(t *testi
 		DeliveryType:     "webhook",
 		DisplayName:      "订单群",
 		Remark:           "订单机器人群",
-		RequireAuth:      true,
 		WebhookURLCipher: "orders-cipher-url",
 	})
 	if err != nil {
@@ -163,7 +161,6 @@ func TestNotificationRouteRepositoryMatchesNearestScopeAndRecordsStatus(t *testi
 		Enabled:          true,
 		DeliveryType:     "webhook",
 		DisplayName:      "支持群",
-		RequireAuth:      true,
 		WebhookURLCipher: "support-cipher-url",
 	}); err != nil {
 		t.Fatalf("create unrelated route: %v", err)
@@ -185,7 +182,6 @@ func TestNotificationRouteRepositoryMatchesNearestScopeAndRecordsStatus(t *testi
 		Enabled:          true,
 		DeliveryType:     "webhook",
 		DisplayName:      "销售运维群",
-		RequireAuth:      true,
 		WebhookURLCipher: "sales-ops-cipher-url",
 	}); err != nil {
 		t.Fatalf("create underscore route: %v", err)
@@ -196,7 +192,6 @@ func TestNotificationRouteRepositoryMatchesNearestScopeAndRecordsStatus(t *testi
 		Enabled:          true,
 		DeliveryType:     "webhook",
 		DisplayName:      "不应命中的群",
-		RequireAuth:      true,
 		WebhookURLCipher: "sales-xops-cipher-url",
 	}); err != nil {
 		t.Fatalf("create like-wildcard route: %v", err)
@@ -216,7 +211,6 @@ func TestNotificationRouteRepositoryMatchesNearestScopeAndRecordsStatus(t *testi
 		DeliveryType:     "webhook",
 		DisplayName:      "订单群",
 		Remark:           "订单机器人群-值班",
-		RequireAuth:      true,
 		WebhookURLCipher: "orders-cipher-url",
 	})
 	if err != nil {

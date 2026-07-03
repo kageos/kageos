@@ -40,7 +40,7 @@ build_workspace
 
 1. Go 编译错误：先修 import、类型、变量、语法。
 2. SDK schema 错误：修 route、Template、widget、validate、筛选字段、Response 类型。
-3. 源码规范错误：先按安全规则修复，不要试图绕过 `write_go_file` / build 前校验。
+3. 源码规范错误：先按安全规则修复，不要试图绕过 `write_file` / build 前校验。
 4. Runtime 启动错误：查启动日志和 lifecycle failed message。
 5. 业务执行错误：build 通过后再用 run 工具验证。
 

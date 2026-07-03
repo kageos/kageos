@@ -62,6 +62,9 @@ func TestChangeRoleToolSchemaMentionsAutomationOperator(t *testing.T) {
 	if !strings.Contains(description, WorkspaceRoleAutomationOperator) {
 		t.Fatalf("target_role schema should mention %s, description=%q", WorkspaceRoleAutomationOperator, description)
 	}
+	if !strings.Contains(description, WorkspaceRoleRouter) {
+		t.Fatalf("target_role schema should mention %s, description=%q", WorkspaceRoleRouter, description)
+	}
 	executeDirectory := properties["execute_directory"].(map[string]interface{})
 	executeDescription, _ := executeDirectory["description"].(string)
 	for _, want := range []string{
@@ -89,6 +92,34 @@ func TestChangeRoleInvalidRoleHintMentionsAutomationOperator(t *testing.T) {
 		if !strings.Contains(res.Content, roleID) {
 			t.Fatalf("invalid role hint should mention %s, content=%q", roleID, res.Content)
 		}
+	}
+}
+
+func TestBuildChangeRoleLoadsRouterHandbook(t *testing.T) {
+	got := buildChangeRole(context.Background(), changeRoleArgs{
+		CurrentRole:      WorkspaceRoleQAEngineer,
+		TargetRole:       WorkspaceRoleRouter,
+		ExecuteDirectory: "/system/x_world/vote",
+		TaskContext:      []string{"QA 测试失败后不知道该切维护还是构建修复"},
+		ResetContext:     true,
+	})
+	if got.CurrentRole != WorkspaceRoleRouter || got.DisplayName != "执行路由手册" {
+		t.Fatalf("role=%s display=%s want router/执行路由手册", got.CurrentRole, got.DisplayName)
+	}
+	if !containsWorkspaceRoleString(got.RequiredDocs, "/system/prompt/roles/router") {
+		t.Fatalf("router should require handbook, docs=%v", got.RequiredDocs)
+	}
+	if len(got.LoadedDocs) == 0 {
+		t.Fatalf("router should load handbook content, docs=%#v", got.LoadedDocs)
+	}
+	for _, want := range []string{"3 步急救流程", "立即决策流程", "门禁错误的处理公式", "换挡前自检"} {
+		if !strings.Contains(got.LoadedDocs[0].Content, want) {
+			t.Fatalf("router handbook should contain %q, docs=%#v", want, got.LoadedDocs)
+		}
+	}
+	if !containsWorkspaceRoleString(got.AllowedNextTools, "change_role") ||
+		containsWorkspaceRoleString(got.AllowedNextTools, "edit_file") {
+		t.Fatalf("router allowed tools should be read-only plus change_role, tools=%v", got.AllowedNextTools)
 	}
 }
 
@@ -587,13 +618,13 @@ func TestBuildChangeRoleReportsBaseReadOnlyToolsForEveryRole(t *testing.T) {
 		TargetRole: WorkspaceRolePlatformEngineer,
 		UserInput:  "全链路测试 openapi",
 	})
-	for _, tool := range []string{"read_dir", "read_go_file", "read_go_file_lines", "read_app_log", "search"} {
+	for _, tool := range []string{"read_dir", "read_file", "read_app_log", "search"} {
 		if !containsWorkspaceRoleString(got.AllowedNextTools, tool) {
 			t.Fatalf("platform engineer should report base read-only tool %s, tools=%v", tool, got.AllowedNextTools)
 		}
 	}
-	if containsWorkspaceRoleString(got.AllowedNextTools, "write_go_file") {
-		t.Fatalf("platform engineer should not report write_go_file, tools=%v", got.AllowedNextTools)
+	if containsWorkspaceRoleString(got.AllowedNextTools, "write_file") {
+		t.Fatalf("platform engineer should not report write_file, tools=%v", got.AllowedNextTools)
 	}
 }
 

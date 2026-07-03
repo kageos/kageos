@@ -302,6 +302,34 @@ func (r *MessageRepository) MarkRead(ctx context.Context, username string, messa
 	return nil
 }
 
+func (r *MessageRepository) MarkSourceRead(ctx context.Context, username, sourcePath string, includeChildren bool) error {
+	sourcePath = normalizeMessageSourcePath(sourcePath)
+	if sourcePath == "" {
+		return fmt.Errorf("消息来源路径不能为空")
+	}
+	now := time.Now()
+	var recipientIDs []int64
+	if err := r.inboxQuery(ctx, username, InboxListFilter{
+		SourcePath:      sourcePath,
+		IncludeChildren: includeChildren,
+	}).Where("r.read_at IS NULL").Pluck("r.id", &recipientIDs).Error; err != nil {
+		return err
+	}
+	for start := 0; start < len(recipientIDs); start += 1000 {
+		end := start + 1000
+		if end > len(recipientIDs) {
+			end = len(recipientIDs)
+		}
+		if err := r.db.WithContext(ctx).
+			Model(&model.MessageRecipient{}).
+			Where("id IN ?", recipientIDs[start:end]).
+			Update("read_at", now).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *MessageRepository) MarkAllRead(ctx context.Context, username string) error {
 	now := time.Now()
 	return r.db.WithContext(ctx).

@@ -12,6 +12,7 @@ type AgentChatMessage struct {
 	Role             string  `gorm:"type:varchar(32);not null;comment:消息角色(system/user/assistant/tool)" json:"role"`
 	Content          string  `gorm:"type:longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;comment:消息内容" json:"content"`
 	DisplayContent   string  `gorm:"type:longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;comment:前端展示内容，空则展示content" json:"display_content"`
+	ThinkingContent  string  `gorm:"type:longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;comment:assistant思考内容，不进入模型上下文" json:"thinking_content"`
 	Files            *string `gorm:"type:longtext;comment:文件引用列表（逗号分隔）" json:"files"`                 // 存储 bucket/object_key 引用，可为NULL
 	ToolCalls        *string `gorm:"type:json;comment:assistant的tool_calls(LLM返回)" json:"tool_calls"` // 可为NULL
 	ToolCallID       string  `gorm:"type:varchar(64);comment:role=tool时的tool_call_id" json:"tool_call_id"`

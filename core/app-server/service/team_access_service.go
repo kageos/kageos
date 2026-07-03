@@ -464,6 +464,7 @@ func (s *TeamAccessService) writeOperateLog(ctx context.Context, input operateLo
 	if input.Status == "" {
 		input.Status = "success"
 	}
+	auditMeta := buildOperateLogAuditMetadata(ctx, "")
 	log := &model.OperateLog{
 		TenantUser:   input.TenantUser,
 		CompanyCode:  firstNonEmpty(input.CompanyCode, contextx.GetRequestCompanyCode(ctx)),
@@ -477,9 +478,9 @@ func (s *TeamAccessService) writeOperateLog(ctx context.Context, input operateLo
 		TargetID:     input.TargetID,
 		Summary:      input.Summary,
 		Status:       input.Status,
-		Source:       contextx.GetAuditClientSource(ctx),
 		TraceID:      contextx.GetTraceId(ctx),
 	}
+	applyOperateLogAuditMetadata(log, auditMeta)
 	log.DetailsJSON = mustMarshalRaw(input.Details)
 	log.OldValuesJSON = mustMarshalRaw(input.OldValues)
 	log.NewValuesJSON = mustMarshalRaw(input.NewValues)

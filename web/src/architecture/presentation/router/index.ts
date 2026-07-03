@@ -75,7 +75,7 @@ const router = createRouter({
       component: () => import('@/architecture/presentation/features/mobile/pages/MobileActionPage.vue'),
       meta: {
         titleKey: 'route.mobileAction',
-        requireAuth: false
+        requireAuth: true
       }
     },
     {

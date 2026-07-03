@@ -27,7 +27,7 @@ const runPythonPreinstallDoc = `**生产镜像已预装、可直接 import 的�
 - 另有 **Python 标准库**（json、re、collections、datetime、itertools、math、random 等）
 
 **若 import 报错：** 优先改用上面列表或标准库；临时新依赖可通过 packages 参数声明；长期依赖请管理员更新 Dockerfile / 基础镜像 requirements.txt 并重打镜像。
-**临时补充依赖：** 可通过 packages 参数声明额外 pip 包（逗号分隔，如 openai,scikit-learn==1.5.0）。包会安装到当前应用版本容器的可写层；同一容器 stop/start 后通常仍在，但应用更新产生新版本容器、容器被删除、基础镜像重建或 Podman 存储清理后需要重新安装。长期稳定依赖仍应进入基础镜像。
+**临时补充依赖：** 可通过 packages 参数声明额外 pip 包（逗号分隔，如 openai,scikit-learn==1.5.0）。packages 填 PyPI 安装名，不一定等于 import 名；例如二维码/条码识别可填 packages: zxing-cpp，然后在代码里 import zxingcpp。包会安装到当前应用版本容器的可写层；同一容器 stop/start 后通常仍在，但应用更新产生新版本容器、容器被删除、基础镜像重建或 Podman 存储清理后需要重新安装。长期稳定依赖仍应进入基础镜像。
 **环境差异：** 本地非 Docker 运行时以本机 python 为准，可能与镜像不一致。`
 
 type RunPythonTool struct{}
@@ -36,7 +36,7 @@ type runPythonArgs struct {
 	PythonCode     string                 `json:"python_code" schema_desc:"完整 Python 源码" schema_required:"true"`
 	Args           map[string]interface{} `json:"args" schema_desc:"注入脚本的对象参数（推荐）"`
 	InputFiles     string                 `json:"input_files" schema_desc:"可选文件引用字符串，格式 bucket/object_key，多文件用英文逗号分隔；不传时自动使用当前用户消息上传的附件；支持直接填入上一步 output_files 返回的路径，实现 output -> input 文件流转"`
-	Packages       string                 `json:"packages" schema_desc:"可选额外 pip 包，逗号分隔；仅支持简单包名或版本约束，如 openai,scikit-learn==1.5.0；安装在当前应用版本容器内，容器重建后不保证保留"`
+	Packages       string                 `json:"packages" schema_desc:"可选额外 pip 包，逗号分隔；填写 PyPI 安装名而不是 import 名，仅支持简单包名或版本约束，如 openai,scikit-learn==1.5.0,zxing-cpp；安装在当前应用版本容器内，容器重建后不保证保留"`
 	TimeoutSeconds *int                   `json:"timeout_seconds" schema_desc:"超时秒数"`
 }
 
@@ -60,6 +60,7 @@ var runPythonToolDef = toolDefinition[runPythonArgs](
 
 **额外依赖 packages（谨慎使用）：**
 - packages 仅用于临时补充预装库之外的 pip 包，多个包用英文逗号分隔，例如 openai,scikit-learn==1.5.0。
+- packages 必须填写 PyPI 安装名，不是 import 名；包名和导入名不一致时以 pip install 名为准，例如 packages: zxing-cpp，代码中 import zxingcpp。
 - 只允许简单包名、extras 和版本约束；不要传 URL、本地路径、requirements 文件、--index-url、-r 等 pip 参数。
 - 安装发生在当前应用版本容器内；同一容器 stop/start 后通常仍在，应用更新创建新版本容器或容器被删除后需要重新安装。
 - 长期稳定依赖请进入 app-base 镜像或系统工具能力，避免每次执行安装带来耗时和网络不稳定。
@@ -349,7 +350,10 @@ func buildPythonModelGuidance(raw map[string]interface{}) string {
 	case "失败":
 		appendLine("【状态为失败】请阅读 output 中的 traceback/错误信息，修正 python_code 后重试。")
 		if strings.Contains(out, "ModuleNotFoundError") || strings.Contains(out, "No module named") {
-			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、snownlp、requests、openpyxl、xlsxwriter、python-pptx、matplotlib、plotly、pyecharts、bs4、tabulate、arrow、wordcloud、pytesseract、yt_dlp、PyYAML…）或仅用标准库；临时新库可在 packages 参数中声明简单 pip 包名/版本约束；长期依赖请更新 deploy/base/images/app-base/Dockerfile 或基础镜像 requirements.txt 并重打镜像。")
+			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、snownlp、requests、openpyxl、xlsxwriter、python-pptx、matplotlib、plotly、pyecharts、bs4、tabulate、arrow、wordcloud、pytesseract、yt_dlp、PyYAML…）或仅用标准库；临时新库可在 packages 参数中声明简单 PyPI 包名/版本约束。注意 packages 填 pip 安装名，不一定等于 import 名，例如 packages: zxing-cpp 对应 import zxingcpp。长期依赖请更新 deploy/base/images/app-base/Dockerfile 或基础镜像 requirements.txt 并重打镜像。")
+		}
+		if strings.Contains(out, "安装 Python 包") || strings.Contains(lowOut, "no matching distribution found") || strings.Contains(lowOut, "could not find a version") {
+			appendLine("【依赖安装】packages 会执行 pip install；请确认填写的是 PyPI 安装名而不是 import 名，必要时换用预装库或标准库。例如二维码/条码识别应填 packages: zxing-cpp，代码里再 import zxingcpp。")
 		}
 		if strings.Contains(out, "SyntaxError") || strings.Contains(out, "IndentationError") {
 			appendLine("【语法】请检查引号、缩进、括号是否匹配；字符串内换行需用三引号或 \\n。")
@@ -358,7 +362,7 @@ func buildPythonModelGuidance(raw map[string]interface{}) string {
 		}
 		if strings.Contains(out, "必须定义函数 kageos_entry") || strings.Contains(out, "python_code 必须定义函数") {
 			appendLine("【入口协议】run_python 不是普通 Python REPL。请重写完整 python_code，从 def kageos_entry(args, output_dir): 开始；返回 dict 只包含 data、output_files、warnings，例如 {\"data\": {...}, \"warnings\": [], \"output_files\": []}。print 只做日志，不作为主结果。")
-			appendLine("【参考】需要固化为应用接口时，先 read_doc(\"/system/prompt/case_catalog/form/python_output\")；只是分析 Go 源码、依赖字段或 SDK 用法时，优先用 read_go_file/search/read_doc 读取真实代码，不要用 Python 模拟结论。")
+			appendLine("【参考】需要固化为应用接口时，先 read_doc(\"/system/prompt/case_catalog/form/python_output\")；只是分析 Go 源码、依赖字段或 SDK 用法时，优先用 read_file/search/read_doc 读取真实代码，不要用 Python 模拟结论。")
 		}
 		if strings.Contains(out, "UnboundLocalError") {
 			appendLine("【作用域】请检查变量是否先使用后赋值；import 语句请放到文件顶部或函数体开头。")

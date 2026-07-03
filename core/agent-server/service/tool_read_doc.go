@@ -70,7 +70,7 @@ func runReadDocTool(ctx context.Context, args readDocArgs, currentFullCodePath s
 				if i > 0 {
 					sb.WriteString("\n\n")
 				}
-				sb.WriteString(fmt.Sprintf("## %s\n\n未找到：directory=%s。请使用系统消息中列出的 directory。", fullCodePath, fullCodePath))
+				sb.WriteString(fmt.Sprintf("## %s\n\n%s", fullCodePath, formatPromptDocNotFoundMessage(ctx, fullCodePath)))
 				hasError = true
 				continue
 			}
@@ -106,4 +106,51 @@ func runReadDocTool(ctx context.Context, args readDocArgs, currentFullCodePath s
 		sb.WriteString(fmt.Sprintf("## %s\n\n%s", doc.Name, doc.Content))
 	}
 	return sb.String(), hasError
+}
+
+func formatPromptDocNotFoundMessage(ctx context.Context, fullCodePath string) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("未找到：directory=%s。", fullCodePath))
+	sb.WriteString(" `/system/prompt` 下只能读取具体文档路径；目录前缀本身不一定是文档。")
+
+	if suggestions := promptDocPathSuggestions(ctx, fullCodePath, 12); len(suggestions) > 0 {
+		sb.WriteString("\n\n可改用这些可读文档路径：")
+		for _, suggestion := range suggestions {
+			sb.WriteString("\n- ")
+			sb.WriteString(suggestion)
+		}
+	}
+
+	sb.WriteString("\n\n查找方式：查看工作台系统上下文里的「可读的目录」列表；不确定具体路径时，用 search 在 `/system/prompt` 下按关键词找文档命中，再用 read_doc 读取返回的完整路径。")
+	return sb.String()
+}
+
+func promptDocPathSuggestions(ctx context.Context, fullCodePath string, limit int) []string {
+	if limit <= 0 {
+		return nil
+	}
+	normalized := prompt.NormalizePromptDocPath(fullCodePath)
+	if normalized == "" {
+		return nil
+	}
+	docs, err := prompt.ListSystemPromptSeedDocs()
+	if err != nil {
+		return nil
+	}
+	prefix := strings.TrimRight(normalized, "/") + "/"
+	out := make([]string, 0, limit)
+	for _, doc := range docs {
+		if !strings.HasPrefix(doc.LogicalPath, prefix) {
+			continue
+		}
+		label := doc.LogicalPath
+		if strings.TrimSpace(doc.Name) != "" {
+			label += "（" + strings.TrimSpace(doc.Name) + "）"
+		}
+		out = append(out, label)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out
 }

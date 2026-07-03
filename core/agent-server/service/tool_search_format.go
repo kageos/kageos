@@ -79,7 +79,7 @@ func formatSearchOutput(data searchResultData, requestOutput searchRequestOutput
 
 	if len(data.DocMatches) > 0 {
 		buf.WriteString("【内置文档内容命中】\n")
-		buf.WriteString("完整查看：read_doc(directory=<full_code_path>)。/system/prompt 案例是文档案例，不要用 read_go_file/read_go_file_lines 读取。\n")
+		buf.WriteString("完整查看：read_doc(directory=<full_code_path>)。/system/prompt 案例是文档案例，不要用 read_file 读取。\n")
 		for i, item := range data.DocMatches {
 			buf.WriteString(formatSearchDocMatchSummary(i, item))
 		}

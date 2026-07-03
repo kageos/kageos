@@ -26,7 +26,7 @@
 
 - canonical Ubuntu 运行时镜像里已安装 **ImageMagick** 与 **GraphicsMagick**；图片处理默认优先使用 **ImageMagick**，即 `convert` / `identify` / `mogrify`
 - `gm` 仍可兼容使用，但不再作为图片处理默认示例
-代码随本案例一起提供；read_doc 本案例路径（如 `/system/prompt/case_catalog/form/images`）即获得 PRD 与代码，无需再调用 read_go_file。
+代码随本案例一起提供；read_doc 本案例路径（如 `/system/prompt/case_catalog/form/images`）即获得 PRD 与代码，无需再调用 read_file。
 
 
 ---

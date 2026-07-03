@@ -234,14 +234,31 @@ Kageos 是面向个人、团队和企业的 AI 原生服务平台。它把业务
 - Use all-caps `KAGEOS_*` only for environment variables or config keys.
 - Use "source-available and self-hostable" for the BSL-licensed core. Do not call the current core "OSI open source" until the relevant version has converted to Apache-2.0.
 
-## Contributing And Security
+## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and use [SECURITY.md](SECURITY.md) for private vulnerability reports.
+Pull requests are welcome. Before opening one, please read:
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) - contributor workflow, branch model, commit style, local development, and verification checks.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) - community behavior expectations for issues, discussions, pull requests, and project spaces.
+
+Please keep pull requests focused, include tests or verification notes when behavior changes, and update docs when public behavior, deployment, or positioning changes.
 
 Do not commit real `.env` files, production `kage.yaml`, customer licenses, generated deployment output, `namespace/`, `local/`, or other private workspaces. Use example files and local overrides instead.
+
+## Security
+
+Please do not report suspected vulnerabilities through public GitHub issues.
+
+Send security reports privately to [admin@kageos.com](mailto:admin@kageos.com). Include the affected version, branch, commit, deployment mode, reproduction steps, proof of concept, and likely impact when safe to share. See [SECURITY.md](SECURITY.md) for the full policy.
 
 ## License
 
 Kageos core is licensed under the Business Source License 1.1 and converts to Apache License 2.0 four years after release. The source code is public and self-hostable under the BSL grant, while unauthorized commercial SaaS, managed-service, white-label, OEM, embedded, rebranded, resale, and competing offerings are restricted.
 
 See [LICENSE](LICENSE) and [LICENSE_FAQ.md](LICENSE_FAQ.md) for details. SDKs, examples, templates, and docs may use separate permissive licenses when their own license files say so.
+
+## Acknowledgements
+
+Kageos is created and maintained by [QiaYan AI](https://qiayanai.com). It is built on the work of the wider open-source infrastructure and developer-tooling ecosystem, including Go, Vue, MySQL, NATS, MinIO, Docker, Podman, and many other projects.
+
+Kageos is not a fork of OCTO, TangSengDaoDao, or WuKongIM. We still appreciate those projects and the broader agent, collaboration, and infrastructure communities for pushing the field forward.

@@ -39,6 +39,11 @@ func NewOperateLog(operateLogService *service.OperateLogService, teamAccessServi
 // @Param action query string false "操作类型"
 // @Param status query string false "状态：success/failed"
 // @Param source query string false "操作来源：browser/agent/openapi/public_share"
+// @Param source_type query string false "来源类型：openapi_token/public_share/agent_tool/scheduled_task"
+// @Param source_ref query string false "来源引用"
+// @Param executor_type query string false "实际执行者类型：user/agent/scheduled_function/openapi/public_share"
+// @Param workspace_session_id query string false "工作台会话 ID"
+// @Param trace_id query string false "Trace ID"
 // @Param row_id query int false "Table 记录 ID"
 // @Param keyword query string false "关键词：匹配操作人、被操作人、资源路径、Trace 或摘要"
 // @Param page query int false "页码（从1开始）" default(1)

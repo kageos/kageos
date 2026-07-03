@@ -133,6 +133,16 @@ func TestRunPythonToolSchemaExposesPackages(t *testing.T) {
 	if _, ok := properties["packages"]; !ok {
 		t.Fatalf("run_python schema should expose packages, properties=%#v", properties)
 	}
+	pkgSchema, ok := properties["packages"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("run_python packages schema should be an object: %#v", properties["packages"])
+	}
+	desc := pythonAnyToString(pkgSchema["description"])
+	for _, want := range []string{"PyPI", "import", "zxing-cpp"} {
+		if !strings.Contains(desc, want) {
+			t.Fatalf("run_python packages schema desc should contain %q, got %q", want, desc)
+		}
+	}
 }
 
 func TestBuildPythonModelGuidanceForCommonFileMistakes(t *testing.T) {
@@ -144,6 +154,27 @@ IndexError: list index out of range`,
 	})
 	if !strings.Contains(guidance, "【输入文件】") {
 		t.Fatalf("expected input file guidance, got %q", guidance)
+	}
+
+	guidance = buildPythonModelGuidance(map[string]interface{}{
+		"status": "失败",
+		"output": "ModuleNotFoundError: No module named 'zxingcpp'",
+	})
+	for _, want := range []string{"PyPI 包名", "zxing-cpp", "import zxingcpp"} {
+		if !strings.Contains(guidance, want) {
+			t.Fatalf("expected dependency guidance to contain %q, got %q", want, guidance)
+		}
+	}
+
+	guidance = buildPythonModelGuidance(map[string]interface{}{
+		"status": "失败",
+		"output": `执行错误: 安装 Python 包 "zxingcpp" 失败: exit status 1
+ERROR: No matching distribution found for zxingcpp`,
+	})
+	for _, want := range []string{"【依赖安装】", "PyPI 安装名", "zxing-cpp", "import zxingcpp"} {
+		if !strings.Contains(guidance, want) {
+			t.Fatalf("expected install guidance to contain %q, got %q", want, guidance)
+		}
 	}
 
 	guidance = buildPythonModelGuidance(map[string]interface{}{
@@ -180,6 +211,11 @@ IndexError: list index out of range`,
 
 func TestFileOutputInstructionsAvoidManualDownloadLinks(t *testing.T) {
 	runPythonDesc := (&RunPythonTool{}).Definition().Description
+	for _, want := range []string{"PyPI 安装名", "zxing-cpp", "import zxingcpp"} {
+		if !strings.Contains(runPythonDesc, want) {
+			t.Fatalf("expected run_python description to contain %q", want)
+		}
+	}
 	for _, content := range []string{
 		runPythonDesc,
 		(&RunFormSubmitTool{}).Definition().Description,

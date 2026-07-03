@@ -154,6 +154,40 @@ func TestOpenAIClientChatStreamUsesSDKAndIncludesUsage(t *testing.T) {
 	}
 }
 
+func TestOpenAIClientChatStreamEmitsReasoningContentAsInternalChunk(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-test\",\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"内部思考\"},\"finish_reason\":null}],\"usage\":null}\n\n"))
+		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-test\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"最终答案\"},\"finish_reason\":\"stop\"}],\"usage\":null}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer server.Close()
+
+	client := NewOpenAIClientWithOptions("test-key", DefaultClientOptions().WithBaseURL(server.URL+"/v1").WithModel("gpt-test"))
+	stream, err := client.ChatStream(context.Background(), &ChatRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("ChatStream returned error: %v", err)
+	}
+
+	var gotContent strings.Builder
+	var gotReasoning strings.Builder
+	for chunk := range stream {
+		if chunk.Error != "" {
+			t.Fatalf("unexpected stream error: %s", chunk.Error)
+		}
+		gotContent.WriteString(chunk.Content)
+		gotReasoning.WriteString(chunk.ReasoningContent)
+	}
+	if gotContent.String() != "最终答案" {
+		t.Fatalf("content = %q, want final answer only", gotContent.String())
+	}
+	if gotReasoning.String() != "内部思考" {
+		t.Fatalf("reasoning content = %q, want internal reasoning", gotReasoning.String())
+	}
+}
+
 func TestOpenAIClientChatStreamEmitsToolCallDeltasAndFinalAccumulation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")

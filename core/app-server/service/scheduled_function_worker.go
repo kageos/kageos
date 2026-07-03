@@ -133,14 +133,15 @@ func (a *AppService) recordScheduledFunctionOperateLog(ctx context.Context, payl
 	requestPayload := scheduledFunctionPayloadBodyBytes(payload.Payload)
 	requestFields := a.sensitiveFieldSet(payload.FullCodePath, sensitiveFieldSectionRequest, sensitiveFieldSectionFields)
 	responseFields := a.sensitiveFieldSet(payload.FullCodePath, sensitiveFieldSectionResponse)
+	auditMeta := buildOperateLogAuditMetadata(ctx, "")
 	details := dto.FunctionExecutionLogDetails{
 		Router:          router,
 		Method:          scheduledFunctionHTTPMethod(payload),
 		TemplateType:    payload.TemplateType,
 		ScheduledAction: payload.Action,
 		DurationMillis:  durationMillis,
-		SourceType:      contextx.GetSourceType(ctx),
-		SourceRef:       contextx.GetSourceRef(ctx),
+		SourceType:      auditMeta.SourceType,
+		SourceRef:       auditMeta.SourceRef,
 		RequestPayload:  rawMessageObjectWithFields(requestPayload, requestFields),
 		ResponseBody:    rawMessageObjectWithFields(responseBody, responseFields),
 	}
@@ -162,9 +163,9 @@ func (a *AppService) recordScheduledFunctionOperateLog(ctx context.Context, payl
 		OldValuesJSON: sanitizeOperateLogRawMessageWithFields(requestPayload, requestFields),
 		NewValuesJSON: sanitizeOperateLogRawMessageWithFields(responseBody, responseFields),
 		Status:        status,
-		Source:        contextx.GetAuditClientSource(ctx),
 		TraceID:       contextx.GetTraceId(ctx),
 	}
+	applyOperateLogAuditMetadata(log, auditMeta)
 	return a.operateLogRepo.CreateOperateLog(ctx, log)
 }
 

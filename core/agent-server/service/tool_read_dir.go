@@ -236,7 +236,7 @@ func buildListFormat(workspaceCtx *dto.GetWorkspaceContextResp, targetPath strin
 			if includeCode {
 				filesSection += fmt.Sprintf("\n- 代码内容：\n```%s\n%s\n```", file.FileType, file.Content)
 			} else {
-				filesSection += "\n- 提示：如需查看代码内容，请使用 read_go_file 工具或设置 include_code=true"
+				filesSection += "\n- 提示：如需查看代码内容，请使用 read_file 工具或设置 include_code=true"
 			}
 			filesSection += "\n\n"
 		}

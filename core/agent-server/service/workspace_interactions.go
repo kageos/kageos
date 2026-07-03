@@ -260,11 +260,23 @@ func (s *WorkspaceChatService) RecordWorkspaceInteractionEvent(ctx context.Conte
 	if err := s.messageRepo.Create(msg); err != nil {
 		return err
 	}
+	if workspaceInteractionActionResolvesPending(action) && workspaceSessionHasPendingInteractionStatus(session.Status) {
+		session.Status = model.ChatSessionStatusActive
+	}
 	session.UpdatedBy = user
 	if err := s.sessionRepo.Update(session); err != nil {
 		return fmt.Errorf("更新会话交互时间失败: %w", err)
 	}
 	return nil
+}
+
+func workspaceInteractionActionResolvesPending(action string) bool {
+	switch strings.TrimSpace(action) {
+	case "confirm_prd", "cancel_prd", "skip_build_repair", "start_build_repair":
+		return true
+	default:
+		return false
+	}
 }
 
 func workspaceInteractionEventDisplayContent(req *dto.RecordWorkspaceInteractionEventReq) string {

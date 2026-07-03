@@ -6,6 +6,7 @@
     width="680px"
     destroy-on-close
     :close-on-click-modal="false"
+    :z-index="Z_INDEX.globalOverlay"
     @close="handleClose"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="104px">
@@ -112,6 +113,7 @@ import { createTimerTask, updateTimerTask, type TimerTask } from '@/architecture
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
 import { useMiniWorkstationUploads } from '@/architecture/presentation/composables/useMiniWorkstationUploads'
+import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 import { createRelativeDateTimeShortcuts } from '@/architecture/shared/date'
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
 import {
@@ -389,6 +391,35 @@ watch(
 </script>
 
 <style scoped lang="scss">
+:global(.scheduled-agent-dialog.el-dialog) {
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--app-shell-panel-bg-strong, var(--bg-primary));
+  box-shadow: var(--app-shell-panel-shadow, 0 18px 44px rgba(15, 23, 42, 0.12));
+}
+
+:global(.scheduled-agent-dialog .el-dialog__header) {
+  margin: 0;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+:global(.scheduled-agent-dialog .el-dialog__title) {
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+:global(.scheduled-agent-dialog .el-dialog__body) {
+  padding: 18px 20px 8px;
+  color: var(--text-regular);
+}
+
+:global(.scheduled-agent-dialog .el-dialog__footer) {
+  padding: 12px 20px 18px;
+  border-top: 1px solid var(--border-light);
+}
+
 .scheduled-agent-composer {
   position: relative;
   width: 100%;

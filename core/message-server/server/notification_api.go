@@ -324,7 +324,6 @@ func (s *Server) upsertNotificationRoute(c *gin.Context) {
 	deliveryType := "webhook"
 	displayName := strings.TrimSpace(req.DisplayName)
 	remark := ""
-	requireAuth := true
 	webhookCipher := ""
 	secretCipher := ""
 	metadata := marshalStringMetadataForServer(req.Metadata)
@@ -335,7 +334,6 @@ func (s *Server) upsertNotificationRoute(c *gin.Context) {
 			displayName = existing.DisplayName
 		}
 		remark = existing.Remark
-		requireAuth = existing.RequireAuth
 		webhookCipher = existing.WebhookURLCipher
 		secretCipher = existing.SecretCipher
 		if metadata == "" {
@@ -347,9 +345,6 @@ func (s *Server) upsertNotificationRoute(c *gin.Context) {
 	}
 	if req.Remark != nil {
 		remark = strings.TrimSpace(*req.Remark)
-	}
-	if req.RequireAuth != nil {
-		requireAuth = *req.RequireAuth
 	}
 	if strings.TrimSpace(req.DeliveryType) != "" {
 		deliveryType = strings.TrimSpace(req.DeliveryType)
@@ -392,7 +387,6 @@ func (s *Server) upsertNotificationRoute(c *gin.Context) {
 		DeliveryType:     deliveryType,
 		DisplayName:      displayName,
 		Remark:           remark,
-		RequireAuth:      requireAuth,
 		WebhookURLCipher: webhookCipher,
 		SecretCipher:     secretCipher,
 		Metadata:         metadata,
@@ -491,7 +485,6 @@ func (s *Server) testNotificationRoute(c *gin.Context) {
 		RouteID:         row.ID,
 		ScopePath:       row.ScopePath,
 		ScopeType:       row.ScopeType,
-		RequireAuth:     row.RequireAuth,
 	}
 	card := service.DefaultNotificationCardBuilder{}.BuildNotificationCard(
 		c.Request.Context(),
@@ -570,7 +563,6 @@ func notificationRouteToInfo(row *msgmodel.NotificationRouteSetting) dto.Message
 		DeliveryType:  firstNonEmptyStringForServer(row.DeliveryType, "webhook"),
 		DisplayName:   row.DisplayName,
 		Remark:        row.Remark,
-		RequireAuth:   row.RequireAuth,
 		HasWebhookURL: strings.TrimSpace(row.WebhookURLCipher) != "",
 		HasSecret:     strings.TrimSpace(row.SecretCipher) != "",
 		Metadata:      parseStringMetadataForServer(row.Metadata),

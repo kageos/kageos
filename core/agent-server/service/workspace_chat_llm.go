@@ -199,7 +199,8 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 	} else {
 		systemPromptFragment = fallbackSystemPrompt
 	}
-	toolNames = workspaceToolNamesForMode(modeProvider, fallbackToolNames)
+	roleIDForToolFilter, _ := workspaceModelContextRole(session, allMessages)
+	toolNames = workspaceToolNamesForRole(workspaceToolNamesForMode(modeProvider, fallbackToolNames), roleIDForToolFilter)
 	var toolsDesc []dto.ToolDef
 	if s.toolReg != nil {
 		toolsDesc, _ = s.toolReg.ListTools(ctx, toolNames)
@@ -492,6 +493,7 @@ func workspaceFirstTurnDirectoryRAGHint(messages []*model.AgentChatMessage, work
 		"",
 		"- 这是当前会话或阶段在本目录的首轮判断；先使用上方目录名称、目录说明、子节点、函数描述和 Schema 摘要理解这个软件能提供什么服务。",
 		"- 如果现有 Table/Form/Chart 能完成用户目标，优先按“使用当前软件”处理并进入 `app_operator`；不要先写 PRD 或进入开发。",
+		"- 如果用户只是要简单处理一个文件、附件或临时数据，例如转换、压缩、清洗、加水印、解析附件或整理临时结果，也优先进入 `app_operator` 用 `run_python` 完成；复杂、专项或多步骤文件处理才进入 `data_operator`。",
 		"- 如果用户要把已有函数、已有业务操作或已有工作台目录定时执行，进入 `automation_operator`；如果要定时的能力还不存在，先走产品、开发或维护。",
 		"- 只有用户明确要新增或改变软件能力，或现有运行函数无法满足目标时，才考虑产品、开发或维护角色。",
 	}, "\n")

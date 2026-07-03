@@ -14,7 +14,7 @@ func (s *Server) setupRoutes() {
 	}
 
 	publicMessage := s.httpServer.Group("/message/api/v1/public")
-	publicMessage.Use(middleware2.JWTAuthOptional())
+	publicMessage.Use(middleware2.JWTAuth())
 	publicMessage.GET("/actions/:token", s.getPublicMessageAction)
 	publicMessage.POST("/actions/:token/reply", s.submitPublicMessageActionReply)
 
@@ -39,6 +39,7 @@ func (s *Server) setupRoutes() {
 	message.GET("/inbox/unread_count", s.getUnreadCount)
 	message.GET("/inbox/:id", s.getInboxMessage)
 	message.PATCH("/inbox/read_all", s.markAllInboxMessagesRead)
+	message.PATCH("/inbox/read_source", s.markSourceInboxMessagesRead)
 	message.PATCH("/inbox/:id/read", s.markInboxMessageRead)
 
 	serverx.ApplyRouteRegistrars(serverx.ServiceMessageServer, s.httpServer)

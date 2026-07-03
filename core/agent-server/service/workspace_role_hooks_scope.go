@@ -17,7 +17,7 @@ func workspaceMaintenanceScopeHandoffLines(input workspaceRoleHookInput) []strin
 	if len(paths) > 0 {
 		lines = append(lines, "维护相关路径："+strings.Join(trimRoleHandoffStrings(paths, 8), "、"))
 	} else {
-		lines = append(lines, "维护相关路径：交接信息未提供具体文件；先 read_dir/read_go_file 限定 execute_directory 读取最小必要源码。")
+		lines = append(lines, "维护相关路径：交接信息未提供具体文件；先 read_dir/read_file 限定 execute_directory 读取最小必要源码。")
 	}
 	if summary := workspaceCompactHandoffSummary(input, 220); summary != "" {
 		lines = append(lines, "维护问题摘要："+summary)

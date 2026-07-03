@@ -7,6 +7,7 @@ export interface UseMiniWorkstationEffectsOptions {
   maximized: Ref<boolean>
   messages: Ref<ChatMessage[]>
   sending: Ref<boolean>
+  streamingDisplayLength: Ref<number>
   sessionId: Ref<string | undefined>
   inputRef: Ref<{ focus: () => void } | undefined>
   outputRef: Ref<HTMLElement | undefined>
@@ -15,7 +16,7 @@ export interface UseMiniWorkstationEffectsOptions {
 }
 
 export function useMiniWorkstationEffects(options: UseMiniWorkstationEffectsOptions) {
-  const { visible, maximized, messages, sending, sessionId, inputRef, outputRef, stopMiniPoll, loadMiniSessions } = options
+  const { visible, maximized, messages, sending, streamingDisplayLength, sessionId, inputRef, outputRef, stopMiniPoll, loadMiniSessions } = options
   let outputResizeObserver: ResizeObserver | null = null
   let resizeScrollTimer: number | undefined
   const AUTO_SCROLL_BOTTOM_THRESHOLD = 96
@@ -53,11 +54,8 @@ export function useMiniWorkstationEffects(options: UseMiniWorkstationEffectsOpti
     }
   }
 
-  watch(() => messages.value.length, scrollToBottomIfNeeded)
-  watch(() => {
-    const last = messages.value[messages.value.length - 1]
-    return (last?.content?.length ?? 0) + (last?.blocks?.length ?? 0) + (last?.tool_calls?.length ?? 0) + (last?.model_context_plans?.length ?? (last?.model_context_plan ? 1 : 0))
-  }, scrollToBottomIfNeeded)
+  watch(messages, scrollToBottomIfNeeded, { deep: true, flush: 'pre' })
+  watch(streamingDisplayLength, scrollToBottomIfNeeded, { flush: 'pre' })
 
   watch(
     outputRef,

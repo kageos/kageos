@@ -120,7 +120,7 @@ func TestSearchPromptDocPathMatchesLooseContentTokens(t *testing.T) {
 		"/system/prompt/case_catalog/tables/hr",
 		`callback:"OnSelectFuzzy"`,
 		"read_doc(directory=<full_code_path>)",
-		"不要用 read_go_file/read_go_file_lines",
+		"不要用 read_file",
 	} {
 		if !strings.Contains(result.Content, want) {
 			t.Fatalf("search output should contain %q, got:\n%s", want, result.Content)
@@ -160,7 +160,7 @@ func TestSearchPromptDocPathNoMatchSuggestsReadDoc(t *testing.T) {
 	for _, want := range []string{
 		"未在内置文档/案例 /system/prompt/case_catalog/tables/hr 中命中内容",
 		`read_doc(directory="/system/prompt/case_catalog/tables/hr")`,
-		"不要用 read_go_file/read_go_file_lines",
+		"不要用 read_file",
 	} {
 		if !strings.Contains(result.Content, want) {
 			t.Fatalf("search miss output should contain %q, got:\n%s", want, result.Content)

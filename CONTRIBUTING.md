@@ -16,6 +16,51 @@ current use grant and future Apache-2.0 change license.
 - Preserve the public wording in `README.md`: call the core platform
   "source-available and self-hostable" while it is BSL-licensed.
 
+## Contribution Workflow
+
+1. Fork the repository and create a branch from the latest `main`.
+2. Set up local development with the commands below.
+3. Make a small, focused change.
+4. Add tests for bug fixes or new behavior, or explain verification in the
+   pull request.
+5. Update README or docs when behavior, deployment, or public positioning
+   changes.
+6. Open a pull request that explains what changed, why it changed, and how it
+   was verified.
+
+All code changes should go through pull requests. Pull requests need passing CI
+and maintainer review before merge.
+
+## Branch Model
+
+Create branches from `main`. Recommended names:
+
+```text
+feat/short-feature-name
+fix/short-bug-name
+docs/short-doc-change
+chore/short-maintenance-change
+```
+
+Before opening a pull request, sync with the latest `main`, resolve conflicts,
+and make sure no local runtime files or private data are included.
+
+## Commit Messages
+
+Use Conventional Commits when possible:
+
+```text
+feat: add scheduled agent notification tool
+fix: prevent incomplete tool messages after interruption
+docs: update production deployment guide
+test: cover service tree bundle import
+chore: refresh generated API docs
+```
+
+Common types include `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, and
+`ci`. Keep subjects clear and describe the user-visible behavior or maintenance
+purpose.
+
 ## Local Development
 
 Use `kagectl` as the contributor entrypoint for local development. The
@@ -221,3 +266,14 @@ go run golang.org/x/vuln/cmd/govulncheck@latest ./cmd/... ./core/... ./dto/... .
   workspace paths.
 - New dependencies are necessary, maintained, and compatible with the project
   license model.
+
+## Conduct And Security
+
+Follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) when participating in project
+spaces. Report security issues privately through [SECURITY.md](SECURITY.md);
+do not open public issues for suspected vulnerabilities.
+
+By submitting a contribution, you agree that your contribution is provided under
+the repository's current license terms and will follow the Change License
+mechanism described in [LICENSE](LICENSE), unless separately agreed in writing
+with the maintainers.

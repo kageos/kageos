@@ -139,7 +139,6 @@ func (r *MessageRepository) UpsertNotificationRoute(ctx context.Context, setting
 			"delivery_type":      setting.DeliveryType,
 			"display_name":       strings.TrimSpace(setting.DisplayName),
 			"remark":             strings.TrimSpace(setting.Remark),
-			"require_auth":       setting.RequireAuth,
 			"webhook_url_cipher": setting.WebhookURLCipher,
 			"secret_cipher":      setting.SecretCipher,
 			"metadata":           strings.TrimSpace(setting.Metadata),

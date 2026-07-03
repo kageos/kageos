@@ -18,6 +18,7 @@ import type {
   WorkspaceStreamEventName,
   WorkspaceStreamPayload,
   WorkspaceStreamSessionPayload,
+  WorkspaceStreamThinkingPayload,
   WorkspaceStreamToolCallPayload,
   WorkspaceStreamToolCallsDeltaPayload
 } from '@/architecture/presentation/context/api/workspace'
@@ -37,6 +38,7 @@ export type ChatMessageToolCall = { name: string; status: string; arguments?: st
 /** assistant 消息内的块：按事件顺序排列，用于「文本 → 工具调用 → 文本 → …」的层次展示 */
 export type AssistantBlock =
   | { type: 'content'; text: string }
+  | { type: 'thinking'; text: string }
   | { type: 'tool_calls'; calls: ChatMessageToolCall[] }
 
 export interface ChatMessage {
@@ -270,6 +272,18 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
           : [...prev, { name: payload.name, status, arguments: argumentsStr, result: resultStr, result_data: resultData, metadata, error: errorStr }]
       const nextBlocks = updateLastToolCallsBlock(blocks, list)
       messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
+    }
+    if (event === 'thinking') {
+      const payload = data as WorkspaceStreamThinkingPayload
+      if (typeof payload.content !== 'string' || payload.content === '') return
+      const blocks = m.blocks ?? []
+      const last = blocks[blocks.length - 1]
+      if (last && last.type === 'thinking') {
+        const next = [...blocks.slice(0, -1), { type: 'thinking' as const, text: last.text + payload.content }]
+        messages.value[lastIdx] = { ...m, blocks: next }
+      } else {
+        messages.value[lastIdx] = { ...m, blocks: [...blocks, { type: 'thinking', text: payload.content }] }
+      }
     }
     if (event === 'content') {
       const payload = data as WorkspaceStreamContentPayload

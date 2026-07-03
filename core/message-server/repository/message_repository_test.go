@@ -272,6 +272,62 @@ func TestMarkReadAndUnreadCount(t *testing.T) {
 	}
 }
 
+func TestMarkSourceReadMarksFunctionMessages(t *testing.T) {
+	repo := newTestMessageRepo(t)
+	functionPath := "/system/demos/meeting/meeting_room_notify_soon.form"
+	siblingPath := "/system/demos/meeting/meeting_room_list.table"
+
+	for i := 0; i < 25; i++ {
+		_, err := repo.Create(context.Background(), dto.MessageSendMeta{
+			From:       "system",
+			SourcePath: functionPath,
+		}, dto.MessageSendPayload{
+			Title:   "函数提醒",
+			Content: "会议即将开始",
+		}, []string{"bob"})
+		if err != nil {
+			t.Fatalf("create function message %d: %v", i, err)
+		}
+	}
+	_, err := repo.Create(context.Background(), dto.MessageSendMeta{
+		From:       "system",
+		SourcePath: siblingPath,
+	}, dto.MessageSendPayload{
+		Title:   "旁边函数提醒",
+		Content: "不要被当前函数已读影响",
+	}, []string{"bob"})
+	if err != nil {
+		t.Fatalf("create sibling message: %v", err)
+	}
+
+	if err := repo.MarkSourceRead(context.Background(), "bob", strings.TrimPrefix(functionPath, "/"), false); err != nil {
+		t.Fatalf("mark source read: %v", err)
+	}
+
+	count, err := repo.CountUnread(context.Background(), "bob")
+	if err != nil {
+		t.Fatalf("count unread: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("unread count after source mark = %d, want 1", count)
+	}
+
+	counts, err := repo.ListSourceCounts(context.Background(), "bob", "")
+	if err != nil {
+		t.Fatalf("list source counts: %v", err)
+	}
+	countByPath := make(map[string]dto.MessageInboxSourceCount, len(counts))
+	for _, count := range counts {
+		countByPath[count.SourcePath] = count
+	}
+	if got := countByPath[functionPath]; got.MessageCount != 25 || got.UnreadCount != 0 {
+		t.Fatalf("function source count = %#v, want total=25 unread=0", got)
+	}
+	if got := countByPath[siblingPath]; got.MessageCount != 1 || got.UnreadCount != 1 {
+		t.Fatalf("sibling source count = %#v, want total=1 unread=1", got)
+	}
+}
+
 func TestMessageActionTokenViewAndReply(t *testing.T) {
 	repo := newTestMessageRepo(t)
 	entry, err := repo.Create(context.Background(), dto.MessageSendMeta{
@@ -305,6 +361,10 @@ func TestMessageActionTokenViewAndReply(t *testing.T) {
 	}
 
 	view, err := repo.GetActionView(context.Background(), rawToken, "/m")
+	if err == nil {
+		t.Fatalf("expected unauthenticated action view to fail")
+	}
+	view, err = repo.GetActionView(context.Background(), rawToken, "/m", "bob")
 	if err != nil {
 		t.Fatalf("get action view: %v", err)
 	}
@@ -312,7 +372,7 @@ func TestMessageActionTokenViewAndReply(t *testing.T) {
 		t.Fatalf("view = %#v", view)
 	}
 
-	reply, err := repo.SubmitActionReply(context.Background(), rawToken, "我在路上，先按原计划推进。", "reply")
+	reply, err := repo.SubmitActionReply(context.Background(), rawToken, "我在路上，先按原计划推进。", "reply", "bob")
 	if err != nil {
 		t.Fatalf("submit reply: %v", err)
 	}
@@ -346,7 +406,7 @@ func TestMessageActionTokenViewAndReply(t *testing.T) {
 	if total != 1 || len(thread) != 1 || thread[0].ID != entry.ID {
 		t.Fatalf("thread total=%d list=%#v", total, thread)
 	}
-	if _, err := repo.SubmitActionReply(context.Background(), rawToken, "重复回复", "reply"); err == nil {
+	if _, err := repo.SubmitActionReply(context.Background(), rawToken, "重复回复", "reply", "bob"); err == nil {
 		t.Fatal("expected duplicate submit to fail")
 	}
 }

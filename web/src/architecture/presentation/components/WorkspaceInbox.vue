@@ -343,6 +343,7 @@ import {
   listMessageInboxWorkspaceCounts,
   markAllMessageInboxItemsRead,
   markMessageInboxItemRead,
+  markMessageInboxSourceRead,
   type MessageInboxItem,
   type MessageInboxSourceCount,
   type MessageInboxThread,
@@ -799,7 +800,7 @@ async function loadSourceInbox(options: { markRead?: boolean; loadSeq?: number }
   selectedThreadKey.value = thread.key
   selectedMessage.value = firstMessage
   if (options.markRead && unreadCount > 0) {
-    await markThreadRead(thread)
+    await markCurrentSourceRead(filter)
   }
 }
 
@@ -808,7 +809,11 @@ function selectThread(thread: InboxThread) {
   selectedMessage.value = thread.lastMessage
   void loadThreadMessages(thread).then((loaded) => {
     if (loaded) {
-      void markThreadRead(thread)
+      if (sourceFilter.value?.sourcePath) {
+        void markCurrentSourceRead(sourceFilter.value)
+      } else {
+        void markThreadRead(thread)
+      }
     }
   })
 }
@@ -1009,12 +1014,40 @@ async function markMessageRead(id: number) {
 
 async function markCurrentScopeRead() {
   if (sourceFilter.value) {
-    if (selectedThread.value) {
-      await markThreadRead(selectedThread.value)
-    }
+    await markCurrentSourceRead(sourceFilter.value)
     return
   }
   await markAllRead()
+}
+
+async function markCurrentSourceRead(filter: SourceFilter) {
+  const sourcePath = normalizeSourceTreePath(filter.sourcePath)
+  if (!sourcePath) return
+  try {
+    await markMessageInboxSourceRead(sourcePath, Boolean(filter.includeChildren))
+    const now = new Date().toISOString()
+    const threadKey = sourceFilterThreadKey({ ...filter, sourcePath })
+    threadMessages.value = threadMessages.value.map(item => ({ ...item, read_at: item.read_at || now }))
+    inboxThreads.value = inboxThreads.value.map(thread => {
+      if (thread.key !== threadKey) return thread
+      return {
+        ...thread,
+        unreadCount: 0,
+        lastMessage: { ...thread.lastMessage, read_at: thread.lastMessage.read_at || now },
+      }
+    })
+    if (selectedMessage.value) {
+      selectedMessage.value = { ...selectedMessage.value, read_at: selectedMessage.value.read_at || now }
+    }
+    await loadUnreadCount()
+    await loadWorkspaceCounts()
+    if (showServiceTreeInbox.value) {
+      await loadSourceCounts()
+    }
+    emit('messages-updated')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : t('workspaceInbox.markReadFailed'))
+  }
 }
 
 async function markAllRead() {

@@ -42,6 +42,15 @@ func TestRetiredRouterToolsAreNotInMainRegistry(t *testing.T) {
 	}
 }
 
+func TestCodeEditToolsAreRegistered(t *testing.T) {
+	reg := NewToolRegistry()
+	for _, name := range []string{"read_file", "edit_file", "write_file"} {
+		if _, ok := reg.tools[name]; !ok {
+			t.Fatalf("%s should be registered", name)
+		}
+	}
+}
+
 func TestModeToolNamesResolveInRegistry(t *testing.T) {
 	reg := NewToolRegistry()
 
@@ -159,41 +168,69 @@ func TestDerivedSchemasHideCompatFields(t *testing.T) {
 		t.Fatal("read_doc schema should not expose full_code_path")
 	}
 
-	writeGoFile := reg.tools["write_go_file"].Definition().InputSchema
-	writeGoFileProps := writeGoFile["properties"].(map[string]interface{})
-	if _, ok := writeGoFileProps["content"]; !ok {
-		t.Fatal("write_go_file schema should expose content")
+	writeFile := reg.tools["write_file"].Definition().InputSchema
+	writeFileProps := writeFile["properties"].(map[string]interface{})
+	if _, ok := writeFileProps["content"]; !ok {
+		t.Fatal("write_file schema should expose content")
 	}
-	if _, ok := writeGoFileProps["source_code"]; ok {
-		t.Fatal("write_go_file schema should not expose source_code")
+	if _, ok := writeFileProps["source_code"]; ok {
+		t.Fatal("write_file schema should not expose source_code")
 	}
 }
 
 func TestDerivedSchemaNestedArrayItems(t *testing.T) {
 	reg := NewToolRegistry()
-	schema := reg.tools["search_replace_file"].Definition().InputSchema
+	schema := reg.tools["edit_file"].Definition().InputSchema
 	properties := schema["properties"].(map[string]interface{})
-	replacements := properties["replacements"].(map[string]interface{})
-	if replacements["type"] != "array" {
-		t.Fatalf("search_replace_file replacements type = %v, want array", replacements["type"])
+	for _, name := range []string{"search_edits", "line_edits"} {
+		if _, ok := properties[name]; !ok {
+			t.Fatalf("edit_file schema should expose %s", name)
+		}
 	}
-	items, ok := replacements["items"].(map[string]interface{})
+	lineEdits := properties["line_edits"].(map[string]interface{})
+	if lineEdits["type"] != "array" {
+		t.Fatalf("edit_file line_edits type = %v, want array", lineEdits["type"])
+	}
+	items, ok := lineEdits["items"].(map[string]interface{})
 	if !ok {
-		t.Fatal("search_replace_file replacements items missing or invalid")
+		t.Fatal("edit_file line_edits items missing or invalid")
 	}
 	if items["type"] != "object" {
-		t.Fatalf("search_replace_file replacements item type = %v, want object", items["type"])
+		t.Fatalf("edit_file line_edits item type = %v, want object", items["type"])
 	}
 	itemProps, ok := items["properties"].(map[string]interface{})
 	if !ok {
-		t.Fatal("search_replace_file replacements item properties missing or invalid")
+		t.Fatal("edit_file line_edits item properties missing or invalid")
 	}
-	if _, ok := itemProps["search_string"]; !ok {
-		t.Fatal("search_replace_file replacements item should expose search_string")
+	if _, ok := itemProps["start_line"]; !ok {
+		t.Fatal("edit_file line_edits item should expose start_line")
 	}
 	required, ok := items["required"].([]interface{})
-	if !ok || len(required) != 1 || required[0] != "search_string" {
-		t.Fatalf("search_replace_file replacements item required = %v, want [search_string]", items["required"])
+	if !ok || len(required) != 3 || required[0] != "start_line" || required[1] != "end_line" || required[2] != "replacement" {
+		t.Fatalf("edit_file line_edits item required = %v, want [start_line end_line replacement]", items["required"])
+	}
+
+	searchEdits := properties["search_edits"].(map[string]interface{})
+	if searchEdits["type"] != "array" {
+		t.Fatalf("edit_file search_edits type = %v, want array", searchEdits["type"])
+	}
+	searchItems, ok := searchEdits["items"].(map[string]interface{})
+	if !ok {
+		t.Fatal("edit_file search_edits items missing or invalid")
+	}
+	if searchItems["type"] != "object" {
+		t.Fatalf("edit_file search_edits item type = %v, want object", searchItems["type"])
+	}
+	searchProps, ok := searchItems["properties"].(map[string]interface{})
+	if !ok {
+		t.Fatal("edit_file search_edits item properties missing or invalid")
+	}
+	if _, ok := searchProps["old_text"]; !ok {
+		t.Fatal("edit_file search_edits item should expose old_text")
+	}
+	searchRequired, ok := searchItems["required"].([]interface{})
+	if !ok || len(searchRequired) != 2 || searchRequired[0] != "old_text" || searchRequired[1] != "new_text" {
+		t.Fatalf("edit_file search_edits item required = %v, want [old_text new_text]", searchItems["required"])
 	}
 }
 
@@ -234,39 +271,22 @@ func TestBuiltinToolOutputSchemasAreWellFormed(t *testing.T) {
 
 func TestReadGoFileOutputSchemaExposesStructuredData(t *testing.T) {
 	reg := NewToolRegistry()
-	schema := reg.tools["read_go_file"].Definition().OutputSchema
+	schema := reg.tools["read_file"].Definition().OutputSchema
 	properties := schema["properties"].(map[string]interface{})
 	data, ok := properties["data"].(map[string]interface{})
 	if !ok {
-		t.Fatal("read_go_file output schema should expose data")
+		t.Fatal("read_file output schema should expose data")
 	}
 	if data["type"] != "object" {
-		t.Fatalf("read_go_file data schema type = %v, want object", data["type"])
+		t.Fatalf("read_file data schema type = %v, want object", data["type"])
 	}
 	dataProps, ok := data["properties"].(map[string]interface{})
 	if !ok {
-		t.Fatal("read_go_file data schema properties missing or invalid")
+		t.Fatal("read_file data schema properties missing or invalid")
 	}
-	for _, name := range []string{"target_path", "file_count", "files"} {
+	for _, name := range []string{"target_path", "file_name", "content_sha", "content", "numbered_content"} {
 		if _, ok := dataProps[name]; !ok {
-			t.Fatalf("read_go_file data schema should expose %q", name)
-		}
-	}
-	files, ok := dataProps["files"].(map[string]interface{})
-	if !ok || files["type"] != "array" {
-		t.Fatalf("read_go_file files schema = %v, want array", dataProps["files"])
-	}
-	items, ok := files["items"].(map[string]interface{})
-	if !ok {
-		t.Fatal("read_go_file files items missing or invalid")
-	}
-	itemProps, ok := items["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("read_go_file files item properties missing or invalid")
-	}
-	for _, name := range []string{"file_name", "full_path", "content"} {
-		if _, ok := itemProps[name]; !ok {
-			t.Fatalf("read_go_file files item should expose %q", name)
+			t.Fatalf("read_file data schema should expose %q", name)
 		}
 	}
 }

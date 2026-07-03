@@ -141,6 +141,7 @@ export const workspaceStreamEvents = {
   modelContextPlan: 'model_context_plan',
   toolCall: 'tool_call',
   toolCallsStreamDelta: 'tool_calls_stream_delta',
+  thinking: 'thinking',
   content: 'content',
   done: 'done',
   error: 'error'
@@ -179,6 +180,10 @@ export interface WorkspaceStreamToolCallsDeltaPayload {
 }
 
 export interface WorkspaceStreamContentPayload {
+  content: string
+}
+
+export interface WorkspaceStreamThinkingPayload {
   content: string
 }
 
@@ -322,6 +327,7 @@ export interface WorkspaceStreamPayloadMap {
   model_context_plan: WorkspaceModelContextPlan
   tool_call: WorkspaceStreamToolCallPayload
   tool_calls_stream_delta: WorkspaceStreamToolCallsDeltaPayload
+  thinking: WorkspaceStreamThinkingPayload
   content: WorkspaceStreamContentPayload
   done: WorkspaceStreamDonePayload
   error: WorkspaceStreamErrorPayload
@@ -450,6 +456,7 @@ export interface WorkspaceMessageInfo {
   user?: string
   content: string
   display_content?: string
+  thinking_content?: string
   /** 用户消息附带的文件列表 JSON，解析后为 { files: WorkspaceChatMessageFile[] } */
   files?: string | null
   tool_calls?: WorkspaceChatToolCallSummary[]

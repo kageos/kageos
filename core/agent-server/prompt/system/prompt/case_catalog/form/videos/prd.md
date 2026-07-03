@@ -23,7 +23,7 @@
 ## 四、说明
 
 - 运行镜像内为 **GPL FFmpeg**（含 libx264），视频转换（convert.form）及自定义命令（run_command.form）均可使用 libx264 做 H.264 编码（如 mov→mp4）。
-- 代码随本案例一起提供；read_doc 本案例路径（如 `/system/prompt/case_catalog/form/videos`）即获得 PRD 与代码，无需再调用 read_go_file。
+- 代码随本案例一起提供；read_doc 本案例路径（如 `/system/prompt/case_catalog/form/videos`）即获得 PRD 与代码，无需再调用 read_file。
 
 ## 五、标准模式：上传视频 → FFmpeg 转换 → 输出附件
 

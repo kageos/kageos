@@ -203,7 +203,7 @@ func runSearchTool(ctx context.Context, registry *ToolRegistry, args searchArgs)
 			if resolvedPath, _, _ := resolvePromptDocSearchContent(ctx, fullCodePath); resolvedPath != "" {
 				docPath = resolvedPath
 			}
-			message = fmt.Sprintf("未在内置文档/案例 %s 中命中内容。需要完整查看该案例时直接调用 read_doc(directory=%q)；不要用 read_go_file/read_go_file_lines 读取 /system/prompt 案例路径。", docPath, docPath)
+			message = fmt.Sprintf("未在内置文档/案例 %s 中命中内容。需要完整查看该案例时直接调用 read_doc(directory=%q)；不要用 read_file 读取 /system/prompt 案例路径。", docPath, docPath)
 		}
 		return toolResultWithData(formatSearchMeta(data)+"\n\n"+message, false, data)
 	}
