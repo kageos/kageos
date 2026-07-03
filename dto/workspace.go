@@ -185,6 +185,7 @@ type WorkspaceMessageInfo struct {
 	User             string                         `json:"user"`                         // 创建该消息的用户
 	Content          string                         `json:"content"`                      // 消息内容（user 仅存用户文字，不含 <files> 块）
 	DisplayContent   string                         `json:"display_content,omitempty"`    // 前端展示内容，空则展示 content
+	ThinkingContent  string                         `json:"thinking_content,omitempty"`   // assistant 思考内容，不进入模型上下文
 	Files            *string                        `json:"files,omitempty"`              // 用户消息附带的文件引用字符串，仅 user 角色可能有
 	ToolCalls        []WorkspaceChatToolCallSummary `json:"tool_calls,omitempty"`         // 工具调用列表（仅assistant角色）
 	LLMConfigID      int64                          `json:"llm_config_id,omitempty"`      // assistant 消息生成时使用的 LLM 配置 ID

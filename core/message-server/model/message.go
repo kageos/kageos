@@ -91,7 +91,6 @@ type NotificationRouteSetting struct {
 	DeliveryType     string     `json:"delivery_type" gorm:"size:64;not null;default:webhook;comment:投递类型"`
 	DisplayName      string     `json:"display_name" gorm:"size:255;comment:展示名称"`
 	Remark           string     `json:"remark" gorm:"size:500;comment:内部备注"`
-	RequireAuth      bool       `json:"require_auth" gorm:"not null;default:true;comment:群/目录通知处理链接是否必须登录"`
 	WebhookURLCipher string     `json:"-" gorm:"type:text;comment:webhook 地址密文"`
 	SecretCipher     string     `json:"-" gorm:"type:text;comment:签名 secret 密文"`
 	Metadata         string     `json:"metadata" gorm:"type:text;comment:渠道扩展配置 JSON"`
@@ -116,7 +115,6 @@ type MessageActionToken struct {
 	RecipientUsername  string     `json:"recipient_username" gorm:"size:255;not null;index;comment:被授权处理人"`
 	AuthorizedUsers    string     `json:"authorized_users" gorm:"size:2000;comment:允许登录处理的用户，逗号分隔；为空时只允许 recipient_username"`
 	Channel            string     `json:"channel" gorm:"size:64;index;comment:触达渠道"`
-	RequireAuth        bool       `json:"require_auth" gorm:"not null;default:false;comment:处理链接是否必须登录后使用"`
 	AllowedActions     string     `json:"allowed_actions" gorm:"size:255;comment:允许动作，逗号分隔"`
 	Status             string     `json:"status" gorm:"size:32;not null;default:open;index;comment:open/submitted/expired/revoked"`
 	ExpiresAt          time.Time  `json:"expires_at" gorm:"not null;index;comment:有效期"`

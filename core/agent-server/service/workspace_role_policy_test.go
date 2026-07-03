@@ -67,11 +67,14 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleProductManager, "write_prd"); blocked || res.IsError {
 		t.Fatalf("product_manager should allow write_prd, blocked=%v res=%#v", blocked, res)
 	}
-	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleProductManager, "write_go_file"); !blocked || !res.IsError {
-		t.Fatalf("product_manager should block write_go_file, blocked=%v res=%#v", blocked, res)
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleProductManager, "write_file"); !blocked || !res.IsError {
+		t.Fatalf("product_manager should block write_file, blocked=%v res=%#v", blocked, res)
 	}
-	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "write_go_file"); blocked || res.IsError {
-		t.Fatalf("app_developer should allow write_go_file, blocked=%v res=%#v", blocked, res)
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "write_file"); blocked || res.IsError {
+		t.Fatalf("app_developer should allow write_file, blocked=%v res=%#v", blocked, res)
+	}
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "edit_file"); blocked || res.IsError {
+		t.Fatalf("app_developer should allow edit_file, blocked=%v res=%#v", blocked, res)
 	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "write_doc"); blocked || res.IsError {
 		t.Fatalf("app_developer should allow write_doc, blocked=%v res=%#v", blocked, res)
@@ -94,8 +97,8 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "list_scheduled_task_executions"); blocked || res.IsError {
 		t.Fatalf("app_operator should allow read-only scheduled execution listing, blocked=%v res=%#v", blocked, res)
 	}
-	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "write_go_file"); !blocked || !res.IsError {
-		t.Fatalf("app_operator should block write_go_file, blocked=%v res=%#v", blocked, res)
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "write_file"); !blocked || !res.IsError {
+		t.Fatalf("app_operator should block write_file, blocked=%v res=%#v", blocked, res)
 	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "write_doc"); !blocked || !res.IsError {
 		t.Fatalf("app_operator should block write_doc, blocked=%v res=%#v", blocked, res)
@@ -109,8 +112,8 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "create_scheduled_function_task"); !blocked || !res.IsError {
 		t.Fatalf("app_operator should block scheduled task creation, blocked=%v res=%#v", blocked, res)
 	}
-	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleQAEngineer, "write_go_file"); !blocked || !res.IsError {
-		t.Fatalf("qa_engineer should block write_go_file, blocked=%v res=%#v", blocked, res)
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleQAEngineer, "write_file"); !blocked || !res.IsError {
+		t.Fatalf("qa_engineer should block write_file, blocked=%v res=%#v", blocked, res)
 	}
 }
 
@@ -123,7 +126,7 @@ func TestWorkspaceRoleToolGateRunPythonGuidanceIsActionable(t *testing.T) {
 		"应用执行",
 		"数据/文件处理工程师",
 		"def kageos_entry(args, output_dir):",
-		"read_go_file/search/read_doc",
+		"read_file/search/read_doc",
 	} {
 		if !strings.Contains(res.Content, want) {
 			t.Fatalf("run_python gate guidance should contain %q, got: %s", want, res.Content)
@@ -136,10 +139,10 @@ func TestWorkspaceRoleToolGateAllowsReadOnlyToolsAcrossRoles(t *testing.T) {
 		role string
 		tool string
 	}{
-		{WorkspaceRoleProductManager, "read_go_file"},
-		{WorkspaceRoleQAEngineer, "read_go_file"},
+		{WorkspaceRoleProductManager, "read_file"},
+		{WorkspaceRoleQAEngineer, "read_file"},
 		{WorkspaceRolePlatformEngineer, "read_dir"},
-		{WorkspaceRolePlatformEngineer, "read_go_file_lines"},
+		{WorkspaceRolePlatformEngineer, "read_file"},
 		{WorkspaceRoleDataOperator, "read_app_log"},
 		{WorkspaceRoleReviewer, "search"},
 		{WorkspaceRoleProductManager, "web_search"},
@@ -149,7 +152,7 @@ func TestWorkspaceRoleToolGateAllowsReadOnlyToolsAcrossRoles(t *testing.T) {
 		{WorkspaceRoleReviewer, "web_search"},
 		{WorkspaceRoleProductManager, "list_scheduled_tasks"},
 		{WorkspaceRoleQAEngineer, "list_scheduled_task_executions"},
-		{"", "read_go_file"},
+		{"", "read_file"},
 	}
 	for _, tc := range cases {
 		if res, blocked := workspaceRoleToolGateResult(tc.role, tc.tool); blocked || res.IsError {
@@ -162,8 +165,8 @@ func TestWorkspaceRoleToolGateRequiresRoleBeforeMutations(t *testing.T) {
 	if res, blocked := workspaceRoleToolGateResult("", "change_role"); blocked || res.IsError {
 		t.Fatalf("empty role should allow change_role, blocked=%v res=%#v", blocked, res)
 	}
-	if res, blocked := workspaceRoleToolGateResult("", "write_go_file"); !blocked || !res.IsError {
-		t.Fatalf("empty role should block write_go_file, blocked=%v res=%#v", blocked, res)
+	if res, blocked := workspaceRoleToolGateResult("", "write_file"); !blocked || !res.IsError {
+		t.Fatalf("empty role should block write_file, blocked=%v res=%#v", blocked, res)
 	}
 }
 

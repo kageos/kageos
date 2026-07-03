@@ -24,8 +24,9 @@ import (
 type Server struct {
 	cfg *config.ConnectorServerConfig
 
-	db         *gorm.DB
-	httpServer *gin.Engine
+	db          *gorm.DB
+	httpServer  *gin.Engine
+	httpRuntime *serverx.HTTPServer
 
 	connectorService *service.ConnectorService
 
@@ -50,8 +51,13 @@ func NewServer(cfg *config.ConnectorServerConfig) (*Server, error) {
 func (s *Server) Start(ctx context.Context) error {
 	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.GetPort()))
 	logger.Infof(ctx, "[Server] connector-server HTTP starting on %s", addr)
+	httpRuntime, err := serverx.StartHTTPServer(ctx, addr, s.httpServer)
+	if err != nil {
+		return fmt.Errorf("failed to start HTTP server on %s: %w", addr, err)
+	}
+	s.httpRuntime = httpRuntime
 	go func() {
-		if err := s.httpServer.Run(addr); err != nil {
+		if err := <-httpRuntime.Err(); err != nil {
 			logger.Errorf(ctx, "[Server] connector-server HTTP error: %v", err)
 		}
 	}()
@@ -60,13 +66,25 @@ func (s *Server) Start(ctx context.Context) error {
 
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping connector-server...")
+	var stopErr error
+
+	if s.httpRuntime != nil {
+		if err := s.httpRuntime.Shutdown(ctx); err != nil {
+			logger.Warnf(ctx, "[Server] HTTP server shutdown failed: %v", err)
+			stopErr = err
+		} else {
+			logger.Infof(ctx, "[Server] HTTP server stopped")
+		}
+		s.httpRuntime = nil
+	}
+
 	if s.db != nil {
 		if sqlDB, err := s.db.DB(); err == nil {
 			sqlDB.Close()
 		}
 	}
 	logger.Infof(ctx, "[Server] connector-server stopped")
-	return nil
+	return stopErr
 }
 
 func (s *Server) initDatabase(ctx context.Context) error {

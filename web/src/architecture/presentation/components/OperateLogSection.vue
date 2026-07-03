@@ -190,6 +190,14 @@
                 </template>
               </el-table-column>
 
+              <el-table-column :label="t('operateLog.executor')" min-width="120" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="getExecutorTagType(row.executor_type)" size="small" effect="light">
+                    {{ getExecutorLabel(row.executor_type) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+
               <el-table-column :label="t('operateLog.executedAt')" min-width="180">
                 <template #default="{ row }">
                   <div class="time-cell">
@@ -214,9 +222,17 @@
                 </template>
               </el-table-column>
 
-              <el-table-column :label="t('operateLog.actions')" width="160" align="right" fixed="right">
+              <el-table-column :label="t('operateLog.actions')" width="220" align="right" fixed="right">
                 <template #default="{ row }">
                   <div class="action-cell">
+                    <el-button
+                      v-if="row.workspace_session_id"
+                      text
+                      type="primary"
+                      @click="openWorkspaceSession(row)"
+                    >
+                      {{ t('operateLog.viewSession') }}
+                    </el-button>
                     <el-button text @click="openPreviewDialog(row)">
                       {{ t('operateLog.preview') }}
                     </el-button>
@@ -447,6 +463,28 @@
             </template>
           </el-table-column>
 
+          <el-table-column :label="t('operateLog.executor')" width="118" align="center">
+            <template #default="{ row }">
+              <el-tag :type="getExecutorTagType(row.executor_type)" size="small" effect="light">
+                {{ getExecutorLabel(row.executor_type) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('operateLog.workspaceSession')" width="118" align="center">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.workspace_session_id"
+                text
+                type="primary"
+                @click="openWorkspaceSession(row)"
+              >
+                {{ t('operateLog.viewSession') }}
+              </el-button>
+              <span v-else class="text-muted">-</span>
+            </template>
+          </el-table-column>
+
           <el-table-column :label="t('operateLog.version')" width="96" align="center">
             <template #default="{ row }">
               <span class="version-text">{{ row.version || '-' }}</span>
@@ -562,6 +600,7 @@ import OperateLogFieldValue from './OperateLogFieldValue.vue'
 import OperateLogFieldChange from './OperateLogFieldChange.vue'
 import {
   buildOperateLogRoute,
+  buildWorkspaceSessionRoute,
   PLATFORM_LOG_ID_QUERY_KEY,
   PLATFORM_TRACE_ID_QUERY_KEY,
   readStringQuery,
@@ -621,6 +660,8 @@ const {
   getActionLabel,
   getSourceLabel,
   getSourceTagType,
+  getExecutorLabel,
+  getExecutorTagType,
   getChangeEntries,
   getValueEntries,
   getFormRequestEntries,
@@ -773,6 +814,25 @@ function syncOperateLogRoute(log: any) {
       ...target.query,
     },
   })
+}
+
+async function openWorkspaceSession(log: any) {
+  const sessionId = String(log?.workspace_session_id || '').trim()
+  if (!sessionId) return
+  const fullCodePath = log.full_code_path || props.fullCodePath
+  const target = buildWorkspaceSessionRoute({
+    fullCodePath,
+    sessionId,
+    sourceName: log.workspace_session_title || t('operateLog.workspaceSession'),
+    sourcePath: log.full_code_path || props.fullCodePath,
+    traceId: log.trace_id,
+  })
+  const opened = window.open(router.resolve(target).href, '_blank')
+  if (opened) {
+    opened.opener = null
+    return
+  }
+  await router.push(target)
 }
 
 function handlePreviewApply() {

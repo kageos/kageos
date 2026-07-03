@@ -186,7 +186,8 @@ func workspaceToolCallHasGeneratedOutput(summary streamloop.ToolCallSummary) boo
 	switch strings.TrimSpace(summary.Name) {
 	case "write_prd",
 		"build_workspace",
-		"write_go_file",
+		"write_file",
+		"edit_file",
 		"write_doc",
 		"create_directory":
 		return true

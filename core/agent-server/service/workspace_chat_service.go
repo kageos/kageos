@@ -15,6 +15,7 @@ import (
 	"github.com/kageos/kageos/pkg/apicall"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/secretvault"
 )
 
 const (
@@ -63,11 +64,13 @@ const (
 
 // WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；只认 LLM + 单模式（dev）
 type WorkspaceChatService struct {
-	toolReg      *ToolRegistry
-	sessionRepo  *repository.ChatSessionRepository
-	messageRepo  *repository.ChatMessageRepository
-	llmRepo      *repository.LLMRepository
-	runtimeState RuntimeStateStore
+	toolReg        *ToolRegistry
+	sessionRepo    *repository.ChatSessionRepository
+	messageRepo    *repository.ChatMessageRepository
+	llmRepo        *repository.LLMRepository
+	runtimeState   RuntimeStateStore
+	apiKeyVault    *secretvault.Vault
+	apiKeyVaultErr error
 
 	// runningCancels 维护「正在执行的 session → cancelFunc」映射，供手动取消使用
 	runningCancels sync.Map // key: sessionID (string), value: context.CancelFunc
@@ -87,12 +90,15 @@ func NewWorkspaceChatService(
 	if len(runtimeState) > 0 {
 		stateStore = runtimeState[0]
 	}
+	apiKeyVault, apiKeyVaultErr := newLLMAPIKeyVault(defaultLLMAPIKeySecret())
 	return &WorkspaceChatService{
-		toolReg:      toolReg,
-		sessionRepo:  sessionRepo,
-		messageRepo:  messageRepo,
-		llmRepo:      llmRepo,
-		runtimeState: stateStore,
+		toolReg:        toolReg,
+		sessionRepo:    sessionRepo,
+		messageRepo:    messageRepo,
+		llmRepo:        llmRepo,
+		runtimeState:   stateStore,
+		apiKeyVault:    apiKeyVault,
+		apiKeyVaultErr: apiKeyVaultErr,
 	}
 }
 

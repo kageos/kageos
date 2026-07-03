@@ -145,11 +145,12 @@ func readOpenAIStream(ctx context.Context, stream interface {
 				lastFinishReason = choice.FinishReason
 			}
 			out := &StreamChunk{
-				Content:        choice.Delta.Content,
-				ToolCallDeltas: convertOpenAIDeltaToolCalls(choice.Delta.ToolCalls),
-				FinishReason:   choice.FinishReason,
+				Content:          choice.Delta.Content,
+				ReasoningContent: extractOpenAIReasoningContent(choice.Delta),
+				ToolCallDeltas:   convertOpenAIDeltaToolCalls(choice.Delta.ToolCalls),
+				FinishReason:     choice.FinishReason,
 			}
-			if out.Content != "" || len(out.ToolCallDeltas) > 0 {
+			if out.Content != "" || out.ReasoningContent != "" || len(out.ToolCallDeltas) > 0 {
 				chunkChan <- out
 			}
 		}
@@ -169,6 +170,28 @@ func readOpenAIStream(ctx context.Context, stream interface {
 		FinishReason:   lastFinishReason,
 		Usage:          convertAccumulatedOpenAIUsage(acc.Usage, cachedTokensReported),
 	}
+}
+
+func extractOpenAIReasoningContent(delta openai.ChatCompletionChunkChoiceDelta) string {
+	raw := strings.TrimSpace(delta.RawJSON())
+	if raw == "" {
+		return ""
+	}
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return ""
+	}
+	for _, key := range []string{"reasoning_content", "reasoning"} {
+		field, ok := payload[key]
+		if !ok {
+			continue
+		}
+		var value string
+		if err := json.Unmarshal(field, &value); err == nil {
+			return value
+		}
+	}
+	return ""
 }
 
 func (c *OpenAIClient) GetModelName() string {

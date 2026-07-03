@@ -37,6 +37,7 @@ func (a *AppService) RecordFormOperateLog(ctx context.Context, req *dto.RecordFo
 	}
 	requestFields := a.sensitiveFieldSet(resourcePath, sensitiveFieldSectionRequest)
 	responseFields := a.sensitiveFieldSet(resourcePath, sensitiveFieldSectionResponse)
+	auditMeta := buildOperateLogAuditMetadata(ctx, "")
 
 	action := strings.TrimSpace(req.Action)
 	if action == "" {
@@ -60,8 +61,8 @@ func (a *AppService) RecordFormOperateLog(ctx context.Context, req *dto.RecordFo
 		Method:         req.FunctionMethod,
 		Version:        version,
 		DurationMillis: req.DurationMillis,
-		SourceType:     contextx.GetSourceType(ctx),
-		SourceRef:      contextx.GetSourceRef(ctx),
+		SourceType:     auditMeta.SourceType,
+		SourceRef:      auditMeta.SourceRef,
 		RequestBody:    rawMessageObjectWithFields(req.RequestBody, requestFields),
 		ResponseBody:   rawMessageObjectWithFields(req.ResponseBody, responseFields),
 	}
@@ -80,11 +81,11 @@ func (a *AppService) RecordFormOperateLog(ctx context.Context, req *dto.RecordFo
 		OldValuesJSON: sanitizeOperateLogRawMessageWithFields(req.RequestBody, requestFields),
 		NewValuesJSON: sanitizeOperateLogRawMessageWithFields(req.ResponseBody, responseFields),
 		Status:        status,
-		Source:        contextx.GetAuditClientSource(ctx),
 		IPAddress:     req.IPAddress,
 		UserAgent:     req.UserAgent,
 		TraceID:       req.TraceID,
 	}
+	applyOperateLogAuditMetadata(log, auditMeta)
 
 	go func(log *model.OperateLog) {
 		if err := a.operateLogRepo.CreateOperateLog(context.Background(), log); err != nil {

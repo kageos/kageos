@@ -31,9 +31,10 @@ type Server struct {
 	cfg *config.AppServerConfig
 
 	// 核心组件
-	db         *gorm.DB
-	natsConn   *nats.Conn
-	httpServer *gin.Engine
+	db          *gorm.DB
+	natsConn    *nats.Conn
+	httpServer  *gin.Engine
+	httpRuntime *serverx.HTTPServer
 
 	// 服务
 	appService                    *service.AppService
@@ -108,6 +109,9 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	if err := s.StartHTTP(ctx); err != nil {
+		if s.scheduledFuncWorker != nil {
+			_ = s.scheduledFuncWorker.Stop()
+		}
 		return err
 	}
 
@@ -136,8 +140,13 @@ func (s *Server) StartHTTP(ctx context.Context) error {
 	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.GetPort()))
 	logger.Infof(ctx, "[Server] HTTP server starting on %s", addr)
 
+	httpRuntime, err := serverx.StartHTTPServer(ctx, addr, s.httpServer)
+	if err != nil {
+		return fmt.Errorf("failed to start HTTP server on %s: %w", addr, err)
+	}
+	s.httpRuntime = httpRuntime
 	go func() {
-		if err := s.httpServer.Run(addr); err != nil {
+		if err := <-httpRuntime.Err(); err != nil {
 			logger.Errorf(ctx, "[Server] HTTP server error: %v", err)
 		}
 	}()
@@ -147,6 +156,17 @@ func (s *Server) StartHTTP(ctx context.Context) error {
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping server...")
+	var stopErr error
+
+	if s.httpRuntime != nil {
+		if err := s.httpRuntime.Shutdown(ctx); err != nil {
+			logger.Warnf(ctx, "[Server] HTTP server shutdown failed: %v", err)
+			stopErr = err
+		} else {
+			logger.Infof(ctx, "[Server] HTTP server stopped")
+		}
+		s.httpRuntime = nil
+	}
 
 	if s.scheduledFuncWorker != nil {
 		if err := s.scheduledFuncWorker.Stop(); err != nil {
@@ -184,7 +204,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	logger.Infof(ctx, "[Server] Server stopped")
-	return nil
+	return stopErr
 }
 
 // initDatabase 初始化数据库

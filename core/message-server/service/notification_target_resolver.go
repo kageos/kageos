@@ -150,7 +150,6 @@ func (r *UserNotificationTargetResolver) resolveRouteTargets(ctx context.Context
 			RouteID:         row.ID,
 			ScopePath:       msgrepo.NormalizeNotificationScopePath(row.ScopePath),
 			ScopeType:       strings.TrimSpace(row.ScopeType),
-			RequireAuth:     row.RequireAuth,
 		})
 	}
 	return targets, true, nil

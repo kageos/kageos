@@ -75,14 +75,14 @@ func (d *workspaceStreamLoopDeps) SendEvent(event string, data interface{}) {
 	d.sendEvent(event, data)
 }
 
-func (d *workspaceStreamLoopDeps) SaveAssistantMessage(ctx context.Context, content string, usage *llms.Usage) error {
+func (d *workspaceStreamLoopDeps) SaveAssistantMessage(ctx context.Context, content string, thinkingContent string, usage *llms.Usage) error {
 	d.finalizeCurrentModelContextPlan(usage)
-	return d.service.saveAssistantMessage(ctx, d.sessionID, content, d.user, d.currentLLMMeta, d.currentModelContextPlan, usage)
+	return d.service.saveAssistantMessage(ctx, d.sessionID, content, thinkingContent, d.user, d.currentLLMMeta, d.currentModelContextPlan, usage)
 }
 
-func (d *workspaceStreamLoopDeps) SaveAssistantMessageWithToolCalls(ctx context.Context, content string, toolCalls []llms.ToolCall, usage *llms.Usage) error {
+func (d *workspaceStreamLoopDeps) SaveAssistantMessageWithToolCalls(ctx context.Context, content string, thinkingContent string, toolCalls []llms.ToolCall, usage *llms.Usage) error {
 	d.finalizeCurrentModelContextPlan(usage)
-	return d.service.saveAssistantMessageWithToolCalls(ctx, d.sessionID, content, toolCalls, d.user, d.currentLLMMeta, d.currentModelContextPlan, usage)
+	return d.service.saveAssistantMessageWithToolCalls(ctx, d.sessionID, content, thinkingContent, toolCalls, d.user, d.currentLLMMeta, d.currentModelContextPlan, usage)
 }
 
 func (d *workspaceStreamLoopDeps) finalizeCurrentModelContextPlan(usage *llms.Usage) {

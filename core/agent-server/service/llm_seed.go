@@ -72,6 +72,9 @@ func (s *LLMService) InitLLMSeeds(ctx context.Context, seeds config.AgentServerL
 		var id int64
 		if err == gorm.ErrRecordNotFound {
 			cfg := normalized.toModel()
+			if err := s.sealConfigAPIKey(cfg); err != nil {
+				return fmt.Errorf("加密 LLM seed %q API Key 失败: %w", normalized.Code, err)
+			}
 			if err := s.repo.Create(cfg); err != nil {
 				return fmt.Errorf("创建 LLM seed %q 失败: %w", normalized.Code, err)
 			}
@@ -79,6 +82,9 @@ func (s *LLMService) InitLLMSeeds(ctx context.Context, seeds config.AgentServerL
 			logger.Infof(ctx, "[LLMSeed] 已创建 LLM 配置: code=%s model=%s", normalized.Code, normalized.Model)
 		} else {
 			applyLLMSeedToModel(existing, normalized, item.apiKeySpecified)
+			if err := s.sealConfigAPIKey(existing); err != nil {
+				return fmt.Errorf("加密 LLM seed %q API Key 失败: %w", normalized.Code, err)
+			}
 			if err := s.repo.Update(existing); err != nil {
 				return fmt.Errorf("更新 LLM seed %q 失败: %w", normalized.Code, err)
 			}

@@ -59,18 +59,39 @@ type NextRole struct {
 func Specs() map[string]Spec {
 	specs := map[string]Spec{
 		Router: {
-			ID:           Router,
-			DisplayName:  "工作台调度员",
-			Docs:         []string{"/system/prompt/roles/reviewer"},
-			AllowedTools: []string{"change_role", "read_doc", "read_dir"},
+			ID:          Router,
+			DisplayName: "执行路由手册",
+			Docs:        []string{"/system/prompt/roles/router"},
+			AllowedTools: []string{
+				"change_role", "summarize_task_state", "read_doc", "read_dir", "read_file", "read_app_log", "search", "web_search",
+			},
+			ForbiddenTools: []string{
+				"write_prd", "create_directory", "write_doc", "write_file", "edit_file", "delete_file", "build_workspace",
+				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
+				"run_form_submit", "run_chart_query", "run_on_select_fuzzy", "run_python",
+				"create_scheduled_function_task", "create_scheduled_agent_task", "manage_scheduled_task", "send_notification",
+			},
 			Runtime: runtimeContract(
-				[]string{"需要识别用户意图、解释代码、说明 Kageos 身份/使用方式或做只读分析"},
-				[]string{"已经明确需要某个专业角色直接执行"},
-				[]string{"结合当前目录理解用户意图", "选择或沿用一个明确角色", "不执行写入、构建或业务运行副作用"},
-				[]string{"已通过 change_role 明确目标角色", "已说明无法判断时所需的最小补充信息"},
+				[]string{"当前角色无法继续、可见工具不足、门禁提示需要交接但目标角色不确定", "用户最新需求横跨多个阶段或意图模糊", "连续一次角色判断失败后需要重新读路由手册"},
+				[]string{"已经明确需要某个专业角色直接执行且该角色可见工具足够"},
+				[]string{"读取 /system/prompt/roles/router 完整路由手册", "按 3 步急救流程先判任务形态，再只读补一个最小证据", "按立即决策流程和门禁错误处理公式选择下一专业角色", "只用只读工具收集必要证据，不写入、不构建、不执行业务副作用", "同一轮内调用 change_role 交接到能实际干活的角色，并携带 execute_directory/task_context/key_information/references"},
+				[]string{"已通过 change_role 明确进入下一专业角色", "或已说明无法判断时所需的最小补充信息"},
 				nil,
 			),
-			Action: "识别用户最新需求并调度到合适角色；不执行写入、构建或业务运行副作用。",
+			Action:           "执行路由手册是兜底换挡角色：读取完整路由手册，按 3 步急救流程和立即决策流程收敛当前场景，并在同一轮内交接到真正能执行的专业角色；不执行写入、构建或业务运行副作用。",
+			RouteDescription: "兜底换挡入口。当当前角色不知道下一步该切谁、可见工具不足、门禁提示需要交接、用户需求横跨开发/测试/执行/自动化/平台/数据处理，或模型连续一次误判角色时进入。执行路由手册必须读取 `/system/prompt/roles/router`，按 3 步急救流程、立即决策流程和门禁错误处理公式判断，必要时只读当前目录、函数 schema、源码或日志，随后同一轮内用 `change_role` 切到具体专业角色。它不是执行角色，不写 PRD、不写代码、不 build、不 run 业务函数、不创建定时任务。",
+			NextRoles: []NextRole{
+				{RoleID: AppOperator, When: "用户是在已有应用里完成真实业务操作，或只是要处理轻量一次性文件/数据任务"},
+				{RoleID: AutomationOperator, When: "用户要配置未来、周期或无人值守自动执行"},
+				{RoleID: ProductManager, When: "用户要新建长期系统或重新设计 PRD"},
+				{RoleID: AppDeveloper, When: "用户已确认 PRD，进入开发实现"},
+				{RoleID: MaintenanceEngineer, When: "需要修改已有应用能力、字段、搜索、回调或业务逻辑"},
+				{RoleID: QAEngineer, When: "需要验证刚构建或刚修改的应用功能"},
+				{RoleID: BuildEngineer, When: "问题指向 build/schema/widget/router/SDK API"},
+				{RoleID: DataOperator, When: "用户要复杂、专项或多步骤的一次性文件、媒体或数据处理"},
+				{RoleID: PlatformEngineer, When: "目标涉及平台 OpenAPI、权限、审计、组织或平台集成"},
+				{RoleID: Reviewer, When: "只读解释、分析、review、产品介绍或能力边界说明"},
+			},
 		},
 		ProductManager: {
 			ID:           ProductManager,
@@ -79,7 +100,7 @@ func Specs() map[string]Spec {
 			Optional:     []string{"/system/prompt/case_catalog"},
 			AllowedTools: []string{"change_role", "read_doc", "read_dir", "write_prd"},
 			ForbiddenTools: []string{
-				"create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace",
+				"create_directory", "write_doc", "write_file", "edit_file", "delete_file", "build_workspace",
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
 			},
@@ -105,8 +126,8 @@ func Specs() map[string]Spec {
 			Docs:        []string{"/system/prompt/roles/app-developer", "/system/prompt/sdk/agent-app-sdk-readme"},
 			Optional:    []string{"/system/prompt/case_catalog"},
 			AllowedTools: []string{
-				"change_role", "summarize_task_state", "read_doc", "read_dir", "read_go_file", "read_go_file_lines",
-				"create_directory", "write_doc", "write_go_file", "search_replace_file", "read_app_log", "build_workspace",
+				"change_role", "summarize_task_state", "read_doc", "read_dir", "read_file",
+				"create_directory", "write_doc", "write_file", "edit_file", "read_app_log", "build_workspace",
 			},
 			ForbiddenTools: []string{"write_prd"},
 			Runtime: runtimeContract(
@@ -131,8 +152,8 @@ func Specs() map[string]Spec {
 			DisplayName: "应用维护工程师",
 			Docs:        []string{"/system/prompt/roles/maintenance-engineer"},
 			AllowedTools: []string{
-				"change_role", "summarize_task_state", "read_doc", "read_dir", "read_go_file", "read_go_file_lines",
-				"create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "read_app_log", "build_workspace",
+				"change_role", "summarize_task_state", "read_doc", "read_dir", "read_file",
+				"create_directory", "write_doc", "write_file", "edit_file", "delete_file", "read_app_log", "build_workspace",
 			},
 			ForbiddenTools: []string{"write_prd"},
 			Runtime: runtimeContract(
@@ -161,7 +182,7 @@ func Specs() map[string]Spec {
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy", "send_notification",
 			},
-			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
+			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_file", "edit_file", "delete_file", "build_workspace"},
 			Runtime: runtimeContract(
 				[]string{"需要测试刚构建的应用", "需要验证已有函数是否符合预期"},
 				[]string{"需要修改代码", "用户只是要完成真实业务操作且不是测试验证"},
@@ -189,22 +210,23 @@ func Specs() map[string]Spec {
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy", "run_python", "send_notification",
 				"list_scheduled_tasks", "list_scheduled_task_executions",
 			},
-			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace"},
+			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_file", "edit_file", "delete_file", "build_workspace"},
 			Runtime: runtimeContract(
-				[]string{"当前目录已有应用且用户要查询、新增、更新、删除、提交表单或查看图表", "用户意图是使用软件完成业务结果"},
-				[]string{"用户要新增或改变软件能力", "用户要测试刚构建应用而不是真实业务操作"},
-				[]string{"固定目标应用 execute_directory", "先获取函数 schema、必填项、枚举、文件字段和写入能力", "必要时先查询关联数据或调用 OnSelectFuzzy", "需要轻量计算、解析附件、清洗或整理中间数据时可调用 run_python，但真实业务写入仍走 run_* 函数", "调用 run_* 完成业务操作", "失败时区分参数/数据问题和应用 bug"},
-				[]string{"业务操作完成并返回结果", "或失败原因已分类并交接维护角色"},
+				[]string{"当前目录已有应用且用户要查询、新增、更新、删除、提交表单或查看图表", "用户意图是使用软件完成业务结果", "用户只是要轻量一次性文件/数据处理，例如简单转换、压缩、清洗、加水印、解析附件或整理临时结果"},
+				[]string{"用户要新增或改变软件能力", "用户要测试刚构建应用而不是真实业务操作", "用户要复杂、专项或多步骤文件处理，需要数据/文件处理工程师的完整 SOP"},
+				[]string{"固定目标应用 execute_directory", "先获取函数 schema、必填项、枚举、文件字段和写入能力", "必要时先查询关联数据或调用 OnSelectFuzzy", "需要轻量计算、解析附件、清洗、转换、压缩、加水印或整理中间数据时可调用 run_python，但真实业务写入仍走 run_* 函数", "调用 run_* 完成业务操作，或用 run_python 完成轻量一次性文件/数据处理", "失败时区分参数/数据问题、应用 bug 或是否需要交接 data_operator"},
+				[]string{"业务操作完成并返回结果", "轻量文件/数据处理完成并返回产物或简洁结果", "或失败原因已分类并交接维护角色"},
 				[]LifecycleHook{
 					hook("app_operator.before_enter_capabilities", "before_enter", "进入操作角色前生成当前应用能力快照。", []string{"execute_directory", "registered functions"}, []string{"available_capabilities", "operation_schema_summary", "app_capabilities", "executed_hooks"}),
 					hook("app_operator.after_run", "after_tool", "业务运行后判断是否需要继续查询、补参数或交接维护。", []string{"run_* result"}, []string{"operation_result", "failure_classification"}),
 				},
 			),
-			Action:           "应用执行负责在已有应用里执行业务操作：查询、新增、更新、删除记录、提交表单、查看图表；操作前确认目标函数和关键字段，不改 PRD、不改代码。",
-			RouteDescription: "当前目录已是目标应用，或目录下已有 Table/Form/Chart 能完成用户目标时，只要用户是在使用软件完成业务结果且目的不是测试验证，就进入应用执行。它优先于 `product_manager` 和 `app_developer` 处理真实业务数据操作，不依赖某个固定动词；例如在投票应用目录中“创建一个四大古都投票，北京南京西安洛阳单选”就是新增投票主题和选项。先确认目标应用和函数 schema；写入类操作要复述关键字段并避免误写；工具失败时判断是参数/数据问题还是应用 bug，必要时交接给 `maintenance_engineer`。",
+			Action:           "应用执行负责在已有应用里执行业务操作：查询、新增、更新、删除记录、提交表单、查看图表；也负责轻量一次性文件/数据处理。真实业务写入必须走 run_* 工具，不改 PRD、不改代码。",
+			RouteDescription: "当前目录已是目标应用，或目录下已有 Table/Form/Chart 能完成用户目标时，只要用户是在使用软件完成业务结果且目的不是测试验证，就进入应用执行。用户只是要处理一个轻量一次性文件/数据任务，例如简单转换、压缩、清洗、改尺寸、加水印、解析附件或整理临时结果时，也默认进入应用执行，用 `run_python` 完成，不必为了这类短任务切到 `data_operator`。它优先于 `product_manager` 和 `app_developer` 处理真实业务数据操作，不依赖某个固定动词；例如在投票应用目录中“创建一个四大古都投票，北京南京西安洛阳单选”就是新增投票主题和选项。先确认目标应用和函数 schema；写入类操作要复述关键字段并避免误写；工具失败时判断是参数/数据问题、应用 bug 或文件处理复杂度超出轻量范围，必要时交接给 `maintenance_engineer` 或 `data_operator`。",
 			NextRoles: []NextRole{
 				{RoleID: MaintenanceEngineer, When: "业务操作失败且判断为应用 bug 或字段实现问题"},
 				{RoleID: AutomationOperator, When: "用户要把当前业务操作保存为未来或周期自动执行"},
+				{RoleID: DataOperator, When: "一次性文件/数据处理变成复杂、专项或多步骤任务"},
 			},
 		},
 		AutomationOperator: {
@@ -217,7 +239,7 @@ func Specs() map[string]Spec {
 				"list_scheduled_tasks", "manage_scheduled_task", "list_scheduled_task_executions", "send_notification",
 			},
 			ForbiddenTools: []string{
-				"write_prd", "create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace",
+				"write_prd", "create_directory", "write_doc", "write_file", "edit_file", "delete_file", "build_workspace",
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
 			},
@@ -242,8 +264,8 @@ func Specs() map[string]Spec {
 			DisplayName: "构建修复工程师",
 			Docs:        []string{"/system/prompt/roles/build-engineer"},
 			AllowedTools: []string{
-				"change_role", "summarize_task_state", "read_doc", "read_go_file", "read_go_file_lines",
-				"search_replace_file", "write_go_file", "read_app_log", "build_workspace",
+				"change_role", "summarize_task_state", "read_doc", "read_file",
+				"edit_file", "write_file", "read_app_log", "build_workspace",
 			},
 			ForbiddenTools: []string{"write_prd", "write_doc", "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query"},
 			Runtime: runtimeContract(
@@ -269,18 +291,19 @@ func Specs() map[string]Spec {
 			Docs:         []string{"/system/prompt/roles/data-operator"},
 			AllowedTools: []string{"change_role", "read_doc", "search", "run_form_submit", "run_python", "send_notification"},
 			Runtime: runtimeContract(
-				[]string{"一次性文件、媒体、数据处理、格式转换、OCR、压缩、转码或临时图表生成"},
-				[]string{"用户明确要求沉淀为长期业务系统"},
-				[]string{"确认输入文件或数据", "优先复用已有工具和官方能力", "按常见默认值克制处理", "返回产物或简洁结果；如果目标是长期系统且已有 file_profile，则直接交接产品经理，不重复读取文件"},
+				[]string{"复杂、专项或多步骤的一次性文件、媒体、数据处理、批量转换、OCR、音视频转码、压缩、临时图表生成或需要完整数据处理 SOP 的任务"},
+				[]string{"用户明确要求沉淀为长期业务系统", "只是轻量一次性文件/数据处理，默认角色 app_operator 已能用 run_python 直接完成"},
+				[]string{"确认输入文件或数据", "优先复用已有工具和官方能力", "按常见默认值克制处理", "返回产物或简洁结果；如果目标是长期系统且已有 file_profile，则直接交接产品经理，不重复读取文件", "如果任务只是简单转换、压缩、清洗、加水印、解析附件或整理临时结果，应交接回 app_operator，避免让用户感知多余换挡"},
 				[]string{"文件/数据处理完成并返回产物", "或需要长期系统时交接产品经理"},
 				[]LifecycleHook{
 					hook("data_operator.before_enter_inputs", "before_enter", "整理上传文件、目标格式和一次性处理参数。", []string{"attached files", "user request"}, []string{"processing_inputs"}),
 				},
 			),
-			Action:           "数据/文件处理工程师处理一次性文件、媒体和数据任务，不沉淀长期业务应用。",
-			RouteDescription: "用户要做一次性文件、媒体、数据处理、图表生成、格式转换、OCR、压缩、转码等杂活时进入。优先复用已有官方工具和运行工具，不要误判成长期应用开发。用户明确要求沉淀为业务系统、记录管理、统计看板，或上传文件后表达“做成系统/后台/应用”时，应切到 `product_manager`；如果已有 `file_profile`，不要重复读取文件，只把画像作为交接关键信息。",
+			Action:           "数据/文件处理工程师处理复杂、专项或多步骤的一次性文件、媒体和数据任务，不沉淀长期业务应用；简单短文件任务优先由默认应用执行完成。",
+			RouteDescription: "用户要做复杂、专项或多步骤的一次性文件、媒体、数据处理、批量转换、OCR、音视频转码、压缩、临时图表生成等任务时进入。简单转换、压缩、清洗、改尺寸、加水印、解析附件或整理临时结果这类轻量任务默认由 `app_operator` 用 `run_python` 直接完成，不要让用户感知多余换挡。优先复用已有官方工具和运行工具，不要误判成长期应用开发。用户明确要求沉淀为业务系统、记录管理、统计看板，或上传文件后表达“做成系统/后台/应用”时，应切到 `product_manager`；如果已有 `file_profile`，不要重复读取文件，只把画像作为交接关键信息。",
 			NextRoles: []NextRole{
 				{RoleID: ProductManager, When: "用户明确要求沉淀为长期业务系统"},
+				{RoleID: AppOperator, When: "任务只是轻量一次性文件/数据处理，默认执行角色可直接完成"},
 			},
 		},
 		PlatformEngineer: {
@@ -305,8 +328,8 @@ func Specs() map[string]Spec {
 			DisplayName:    "代码审查分析师",
 			Docs:           []string{"/system/prompt/roles/reviewer"},
 			Optional:       []string{"/system/prompt/platform-introduction", "/system/prompt/platform-usage-and-philosophy", "/system/prompt/platform-capability-boundaries"},
-			AllowedTools:   []string{"change_role", "summarize_task_state", "read_doc", "read_dir", "read_go_file", "read_go_file_lines"},
-			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_go_file", "search_replace_file", "delete_file", "build_workspace", "run_form_submit"},
+			AllowedTools:   []string{"change_role", "summarize_task_state", "read_doc", "read_dir", "read_file"},
+			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_file", "edit_file", "delete_file", "build_workspace", "run_form_submit"},
 			Runtime: runtimeContract(
 				[]string{"用户要解释、review、查问题、读代码或做方案评估", "用户咨询 Kageos 身份、公司、协议、Hub、怎么用、工作台能做什么、产品理念、服务目录或能力边界"},
 				[]string{"用户明确要求直接修改、构建或执行业务操作"},
@@ -344,6 +367,7 @@ func Aliases() map[string]string {
 
 func RouteOrder() []string {
 	return []string{
+		Router,
 		AppOperator,
 		AutomationOperator,
 		ProductManager,

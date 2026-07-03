@@ -92,9 +92,9 @@ func (c *AppServerConfig) GetLogLevel() string { return c.Server.LogLevel }
 func (c *AppServerConfig) IsDebug() bool       { return c.Server.Debug }
 func (c *AppServerConfig) IsPprofEnabled() bool {
 	if c == nil {
-		return true
+		return false
 	}
-	return boolConfigValue(c.Server.EnablePprof, true)
+	return boolConfigValue(c.Server.EnablePprof, false)
 }
 func (c *AppServerConfig) GetAppRequestTimeout() int {
 	if c.Timeouts.AppRequest <= 0 {

@@ -27,7 +27,6 @@ type CreateActionTokenInput struct {
 	RecipientUsername  string
 	AuthorizedUsers    []string
 	Channel            string
-	RequireAuth        bool
 	AllowedActions     []string
 	ExpiresAt          time.Time
 	WorkspaceSessionID string
@@ -63,7 +62,6 @@ func (r *MessageRepository) CreateActionToken(ctx context.Context, input CreateA
 		RecipientUsername:  recipient,
 		AuthorizedUsers:    strings.Join(authorizedUsers, ","),
 		Channel:            strings.TrimSpace(input.Channel),
-		RequireAuth:        input.RequireAuth,
 		AllowedActions:     strings.Join(allowedActions, ","),
 		Status:             string(dto.MessageActionTokenStatusOpen),
 		ExpiresAt:          expiresAt,
@@ -104,7 +102,6 @@ func (r *MessageRepository) GetActionView(ctx context.Context, rawToken, mobileA
 		TokenStatus:       status,
 		RecipientUser:     actingUser,
 		Channel:           strings.TrimSpace(row.Channel),
-		RequireAuth:       row.RequireAuth,
 		AuthenticatedUser: strings.TrimSpace(firstActionViewer(viewerUsername...)),
 		AllowedActions:    allowedActions,
 		CanReply:          status == string(dto.MessageActionTokenStatusOpen) && containsAllowedAction(allowedActions, messageActionDefaultAction),
@@ -321,12 +318,9 @@ func authorizeMessageActionUser(row *model.MessageActionToken, viewerUsername st
 	if row == nil {
 		return "", fmt.Errorf("处理链接无效")
 	}
-	if !row.RequireAuth {
-		return strings.TrimSpace(row.RecipientUsername), nil
-	}
 	viewerUsername = strings.TrimSpace(viewerUsername)
 	if viewerUsername == "" {
-		return "", fmt.Errorf("请先登录 Kageos 后处理该群通知")
+		return "", fmt.Errorf("请先登录 kageos 后处理该消息")
 	}
 	for _, user := range actionAuthorizedUsers(row) {
 		if user == viewerUsername {
@@ -362,7 +356,7 @@ func buildMobileWorkstationDraft(original model.MessageEntry, replyContent, reci
 	var lines []string
 	lines = append(lines,
 		"【移动端消息处理上下文】",
-		"入口：Kageos Pocket",
+		"入口：kageos Pocket",
 	)
 	if channel = strings.TrimSpace(channel); channel != "" {
 		lines = append(lines, "通知渠道："+channel)
@@ -381,7 +375,7 @@ func buildMobileWorkstationDraft(original model.MessageEntry, replyContent, reci
 		"通知只发一次；除非发现高优先级异常，不要额外发送多条消息。",
 		"工作台普通回复只用于简短留档，不能替代消息通知。",
 		"",
-		"我正在通过 Kageos Pocket 处理一条业务消息，请根据上下文继续协助。",
+		"我正在通过 kageos Pocket 处理一条业务消息，请根据上下文继续协助。",
 	)
 	if original.Title != "" {
 		lines = append(lines, "", "原消息标题："+original.Title)

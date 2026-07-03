@@ -21,6 +21,34 @@ func TestWorkspaceRoleSpecProductManager(t *testing.T) {
 	}
 }
 
+func TestWorkspaceRoleSpecRouterIsReadOnlyFallback(t *testing.T) {
+	got, ok := workspaceRoleSpecFor(WorkspaceRoleRouter)
+	if !ok || got.ID != WorkspaceRoleRouter {
+		t.Fatalf("spec ID=%s ok=%v want %s", got.ID, ok, WorkspaceRoleRouter)
+	}
+	if !containsWorkspaceRoleString(got.Docs, "/system/prompt/roles/router") {
+		t.Fatalf("router should require router handbook, docs=%v", got.Docs)
+	}
+	if !containsWorkspaceRoleString(got.AllowedTools, "change_role") ||
+		!containsWorkspaceRoleString(got.AllowedTools, "read_doc") {
+		t.Fatalf("router should allow read and change_role tools, tools=%v", got.AllowedTools)
+	}
+	for _, blocked := range []string{"write_prd", "edit_file", "build_workspace", "run_form_submit"} {
+		if !containsWorkspaceRoleString(got.ForbiddenTools, blocked) {
+			t.Fatalf("router should forbid %s, forbidden=%v", blocked, got.ForbiddenTools)
+		}
+	}
+	if !strings.Contains(got.RouteDescription, "兜底") ||
+		!strings.Contains(got.RouteDescription, "/system/prompt/roles/router") ||
+		!strings.Contains(got.RouteDescription, "3 步急救流程") ||
+		!strings.Contains(got.RouteDescription, "同一轮内") {
+		t.Fatalf("router route description should explain fallback handbook: %q", got.RouteDescription)
+	}
+	if !containsWorkspaceRoleString(workspaceStandardRoleIDs(), WorkspaceRoleRouter) {
+		t.Fatalf("router should be included in standard role ids: %v", workspaceStandardRoleIDs())
+	}
+}
+
 func TestWorkspaceRoleSpecAppDeveloper(t *testing.T) {
 	got, ok := workspaceRoleSpecFor(WorkspaceRoleAppDeveloper)
 	if !ok || got.ID != WorkspaceRoleAppDeveloper {
@@ -58,7 +86,7 @@ func TestWorkspaceRoleSpecAppOperator(t *testing.T) {
 	if !containsWorkspaceRoleString(got.AllowedTools, "list_scheduled_task_executions") {
 		t.Fatalf("app_operator should allow read-only scheduled execution listing, tools=%v", got.AllowedTools)
 	}
-	if containsWorkspaceRoleString(got.AllowedTools, "write_go_file") {
+	if containsWorkspaceRoleString(got.AllowedTools, "write_file") {
 		t.Fatalf("app_operator should not write code, tools=%v", got.AllowedTools)
 	}
 	if !strings.Contains(got.RouteDescription, "目的不是测试验证") {

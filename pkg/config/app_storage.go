@@ -138,12 +138,12 @@ func (c *AppStorageConfig) IsDebug() bool {
 }
 
 // IsPprofEnabled 是否启用 pprof。
-// 默认为 true，保持开发环境向后兼容；生产模板应显式关闭。
+// 默认为 false，避免缺省配置暴露调试端点。
 func (c *AppStorageConfig) IsPprofEnabled() bool {
 	if c == nil {
-		return true
+		return false
 	}
-	return boolConfigValue(c.Server.EnablePprof, true)
+	return boolConfigValue(c.Server.EnablePprof, false)
 }
 
 // GetDB 获取数据库配置

@@ -21,7 +21,7 @@ type runOnSelectFuzzyArgs struct {
 
 var runOnSelectFuzzyToolDef = toolDefinition[runOnSelectFuzzyArgs](
 	"run_on_select_fuzzy",
-	"执行工作区内 OnSelectFuzzy 回调，用于测试带「下拉模糊搜索/回调查询」的 Form 或 Table。执行前先通过字段摘要或 read_go_file 确认该字段配置了 OnSelectFuzzy，以及正确的字段 code 和依赖字段。**仅支持按关键词搜索**：type 固定为 by_keyword，value 为关键词字符串（可为空表示空搜索）。不支持 by_value、by_values。full_code_path 为配置了该回调的 Form 或 Table 的完整路径（如 .../cashier_desk.form）；code 为字段 code（如 product_id、member_id）；request 可选，为当前表单的 JSON（用于依赖其他字段时）。返回 items（选项列表）及可选 statistics、error_msg。",
+	"执行工作区内 OnSelectFuzzy 回调，用于测试带「下拉模糊搜索/回调查询」的 Form 或 Table。执行前先通过字段摘要或 read_file 确认该字段配置了 OnSelectFuzzy，以及正确的字段 code 和依赖字段。**仅支持按关键词搜索**：type 固定为 by_keyword，value 为关键词字符串（可为空表示空搜索）。不支持 by_value、by_values。full_code_path 为配置了该回调的 Form 或 Table 的完整路径（如 .../cashier_desk.form）；code 为字段 code（如 product_id、member_id）；request 可选，为当前表单的 JSON（用于依赖其他字段时）。返回 items（选项列表）及可选 statistics、error_msg。",
 )
 
 func (t *RunOnSelectFuzzyTool) Definition() dto.ToolDef {

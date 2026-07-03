@@ -142,13 +142,14 @@ type Usage struct {
 
 // StreamChunk 流式响应数据块
 type StreamChunk struct {
-	Content        string          `json:"content"`                    // 流式内容片段
-	ToolCallDeltas []ToolCallDelta `json:"tool_call_deltas,omitempty"` // 工具调用增量（流式输出中可能包含）
-	FinalToolCalls []ToolCall      `json:"final_tool_calls,omitempty"` // SDK 累积后的完整工具调用（完成时提供）
-	FinishReason   string          `json:"finish_reason,omitempty"`    // OpenAI finish_reason
-	Done           bool            `json:"done"`                       // 是否完成
-	Error          string          `json:"error,omitempty"`            // 错误信息（如果有）
-	Usage          *Usage          `json:"usage,omitempty"`            // 使用统计（完成时提供）
+	Content          string          `json:"content"`                     // 流式内容片段
+	ReasoningContent string          `json:"reasoning_content,omitempty"` // 上游思考内容片段，仅用于内部状态判断，不应展示或保存
+	ToolCallDeltas   []ToolCallDelta `json:"tool_call_deltas,omitempty"`  // 工具调用增量（流式输出中可能包含）
+	FinalToolCalls   []ToolCall      `json:"final_tool_calls,omitempty"`  // SDK 累积后的完整工具调用（完成时提供）
+	FinishReason     string          `json:"finish_reason,omitempty"`     // OpenAI finish_reason
+	Done             bool            `json:"done"`                        // 是否完成
+	Error            string          `json:"error,omitempty"`             // 错误信息（如果有）
+	Usage            *Usage          `json:"usage,omitempty"`             // 使用统计（完成时提供）
 }
 
 // LLMClient 大模型客户端接口

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kageos/kageos/dto"
 )
@@ -35,5 +36,22 @@ func TestResolveUploadURLKeepsExternalBrowserURL(t *testing.T) {
 	got := resolveUploadURL(t.Context(), &dto.GetUploadTokenResp{UploadURL: rawURL})
 	if got != rawURL {
 		t.Fatalf("resolveUploadURL() = %q, want %q", got, rawURL)
+	}
+}
+
+func TestSlowUploadThreshold(t *testing.T) {
+	t.Setenv("KAGEOS_SDK_SLOW_UPLOAD_MS", "")
+	if got := slowUploadThreshold(); got != 5*time.Second {
+		t.Fatalf("default slowUploadThreshold() = %v, want 5s", got)
+	}
+
+	t.Setenv("KAGEOS_SDK_SLOW_UPLOAD_MS", "250")
+	if got := slowUploadThreshold(); got != 250*time.Millisecond {
+		t.Fatalf("slowUploadThreshold() = %v, want 250ms", got)
+	}
+
+	t.Setenv("KAGEOS_SDK_SLOW_UPLOAD_MS", "0")
+	if got := slowUploadThreshold(); got != 0 {
+		t.Fatalf("disabled slowUploadThreshold() = %v, want 0", got)
 	}
 }

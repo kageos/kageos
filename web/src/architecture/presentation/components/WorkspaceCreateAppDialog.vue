@@ -3,6 +3,7 @@
     v-model="dialogVisible"
     :title="t('workspace.createDialogTitle')"
     width="800px"
+    class="workspace-create-app-dialog"
     :close-on-click-modal="false"
     @close="$emit('close')"
   >

@@ -96,12 +96,12 @@ func (c *APIGatewayConfig) IsDebug() bool {
 }
 
 // IsPprofEnabled 是否启用 pprof。
-// 默认为 true，保持开发环境向后兼容；生产模板应显式关闭。
+// 默认为 false，避免缺省配置暴露调试端点。
 func (c *APIGatewayConfig) IsPprofEnabled() bool {
 	if c == nil {
-		return true
+		return false
 	}
-	return boolConfigValue(c.Server.EnablePprof, true)
+	return boolConfigValue(c.Server.EnablePprof, false)
 }
 
 // AllowNATSDegradedStartup 是否允许在 NATS 初始化失败时继续启动 HTTP 网关。

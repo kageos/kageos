@@ -6,6 +6,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,7 +80,7 @@ func (u *MinIOUploader) uploadWithSDK(ctx context.Context, creds *dto.GetUploadT
 	}
 	if resolvedEndpoint, err := netprobe.ResolveTCPEndpointCached(ctx, "minio-sdk", endpoint, time.Second); err == nil {
 		if resolvedEndpoint != endpoint {
-			logger.Infof(ctx, "[MinIOUploader] endpoint auto-resolved: %s -> %s", endpoint, resolvedEndpoint)
+			logger.Debugf(ctx, "[MinIOUploader] endpoint auto-resolved: %s -> %s", endpoint, resolvedEndpoint)
 			endpoint = resolvedEndpoint
 		}
 	} else {
@@ -86,7 +88,7 @@ func (u *MinIOUploader) uploadWithSDK(ctx context.Context, creds *dto.GetUploadT
 	}
 
 	prepareTime := time.Since(prepareStart)
-	logger.Infof(ctx, "[MinIOUploader] 准备阶段耗时: %v, 文件大小: %d bytes (使用MinIO SDK)", prepareTime, fileSize)
+	logger.Debugf(ctx, "[MinIOUploader] 准备阶段耗时: %v, 文件大小: %d bytes (使用MinIO SDK)", prepareTime, fileSize)
 
 	// 创建MinIO客户端
 	clientStart := time.Now()
@@ -100,7 +102,7 @@ func (u *MinIOUploader) uploadWithSDK(ctx context.Context, creds *dto.GetUploadT
 		return nil, fmt.Errorf("%w: 创建MinIO客户端失败: %v", ErrUploadFailed, err)
 	}
 	clientTime := time.Since(clientStart)
-	logger.Infof(ctx, "[MinIOUploader] 创建客户端耗时: %v", clientTime)
+	logger.Debugf(ctx, "[MinIOUploader] 创建客户端耗时: %v", clientTime)
 
 	// 执行上传
 	uploadStart := time.Now()
@@ -109,7 +111,7 @@ func (u *MinIOUploader) uploadWithSDK(ctx context.Context, creds *dto.GetUploadT
 		contentType = creds.Headers["Content-Type"]
 	}
 
-	logger.Infof(ctx, "[MinIOUploader] 开始上传(MinIO SDK): endpoint=%s, bucket=%s, key=%s, Size=%d bytes", endpoint, bucket, creds.Key, fileSize)
+	logger.Debugf(ctx, "[MinIOUploader] 开始上传(MinIO SDK): endpoint=%s, bucket=%s, key=%s, Size=%d bytes", endpoint, bucket, creds.Key, fileSize)
 
 	info, err := client.PutObject(ctx, bucket, creds.Key, fileReader, fileSize, minio.PutObjectOptions{
 		ContentType: contentType,
@@ -122,7 +124,7 @@ func (u *MinIOUploader) uploadWithSDK(ctx context.Context, creds *dto.GetUploadT
 
 	uploadTime := time.Since(uploadStart)
 	uploadSpeed := float64(fileSize) / uploadTime.Seconds()
-	logger.Infof(ctx, "[MinIOUploader] 上传完成(MinIO SDK): 耗时=%v, 速度=%.2f MB/s (%.2f bytes/s)",
+	logger.Debugf(ctx, "[MinIOUploader] 上传完成(MinIO SDK): 耗时=%v, 速度=%.2f MB/s (%.2f bytes/s)",
 		uploadTime, uploadSpeed/(1024*1024), uploadSpeed)
 
 	// 获取ETag
@@ -131,8 +133,7 @@ func (u *MinIOUploader) uploadWithSDK(ctx context.Context, creds *dto.GetUploadT
 
 	// ✨ 性能监控：总耗时
 	totalTime := time.Since(startTime)
-	logger.Infof(ctx, "[MinIOUploader] 总耗时(MinIO SDK): %v (准备:%v, 创建客户端:%v, 上传:%v), 平均速度: %.2f MB/s",
-		totalTime, prepareTime, clientTime, uploadTime, uploadSpeed/(1024*1024))
+	logUploadSummary(ctx, "MinIO SDK", fileSize, totalTime, prepareTime, clientTime, uploadTime, uploadSpeed)
 
 	// 构建结果
 	result := &UploadResult{
@@ -145,7 +146,7 @@ func (u *MinIOUploader) uploadWithSDK(ctx context.Context, creds *dto.GetUploadT
 		ServerDownloadURL: creds.ServerDownloadURL,
 	}
 
-	logger.Infof(ctx, "[MinIOUploader] Upload successful (MinIO SDK): key=%s, etag=%s, hash=%s", creds.Key, etag, hash)
+	logger.Debugf(ctx, "[MinIOUploader] Upload successful (MinIO SDK): key=%s, etag=%s, hash=%s", creds.Key, etag, hash)
 	return result, nil
 }
 
@@ -166,7 +167,7 @@ func (u *MinIOUploader) uploadWithHTTP(ctx context.Context, creds *dto.GetUpload
 	}
 
 	prepareTime := time.Since(prepareStart)
-	logger.Infof(ctx, "[MinIOUploader] 准备阶段耗时: %v, 文件大小: %d bytes (使用HTTP PUT)", prepareTime, fileSize)
+	logger.Debugf(ctx, "[MinIOUploader] 准备阶段耗时: %v, 文件大小: %d bytes (使用HTTP PUT)", prepareTime, fileSize)
 
 	// 创建 PUT 请求（使用服务端URL）
 	reqStart := time.Now()
@@ -184,12 +185,12 @@ func (u *MinIOUploader) uploadWithHTTP(ctx context.Context, creds *dto.GetUpload
 		}
 	}
 	reqTime := time.Since(reqStart)
-	logger.Infof(ctx, "[MinIOUploader] 创建请求耗时: %v", reqTime)
+	logger.Debugf(ctx, "[MinIOUploader] 创建请求耗时: %v", reqTime)
 
 	// 执行上传
 	// ✨ 优化HTTP客户端配置，提升上传性能
 	uploadStart := time.Now()
-	logger.Infof(ctx, "[MinIOUploader] 开始上传(HTTP PUT): URL=%s, Size=%d bytes", uploadURL, fileSize)
+	logger.Debugf(ctx, "[MinIOUploader] 开始上传(HTTP PUT): Size=%d bytes", fileSize)
 
 	resp, err := minIOUploadHTTPClient.Do(req)
 	if err != nil {
@@ -201,7 +202,7 @@ func (u *MinIOUploader) uploadWithHTTP(ctx context.Context, creds *dto.GetUpload
 
 	uploadTime := time.Since(uploadStart)
 	uploadSpeed := float64(fileSize) / uploadTime.Seconds()
-	logger.Infof(ctx, "[MinIOUploader] 上传完成(HTTP PUT): 耗时=%v, 速度=%.2f MB/s (%.2f bytes/s)",
+	logger.Debugf(ctx, "[MinIOUploader] 上传完成(HTTP PUT): 耗时=%v, 速度=%.2f MB/s (%.2f bytes/s)",
 		uploadTime, uploadSpeed/(1024*1024), uploadSpeed)
 
 	// 检查响应状态
@@ -217,8 +218,7 @@ func (u *MinIOUploader) uploadWithHTTP(ctx context.Context, creds *dto.GetUpload
 	etag = strings.Trim(etag, `"`)
 
 	totalTime := time.Since(startTime)
-	logger.Infof(ctx, "[MinIOUploader] 总耗时(HTTP PUT): %v (准备:%v, 创建请求:%v, 上传:%v), 平均速度: %.2f MB/s",
-		totalTime, prepareTime, reqTime, uploadTime, uploadSpeed/(1024*1024))
+	logUploadSummary(ctx, "HTTP PUT", fileSize, totalTime, prepareTime, reqTime, uploadTime, uploadSpeed)
 
 	result := &UploadResult{
 		Key:               creds.Key,
@@ -230,8 +230,33 @@ func (u *MinIOUploader) uploadWithHTTP(ctx context.Context, creds *dto.GetUpload
 		ServerDownloadURL: creds.ServerDownloadURL,
 	}
 
-	logger.Infof(ctx, "[MinIOUploader] Upload successful (HTTP PUT): key=%s, etag=%s, hash=%s", creds.Key, etag, hash)
+	logger.Debugf(ctx, "[MinIOUploader] Upload successful (HTTP PUT): key=%s, etag=%s, hash=%s", creds.Key, etag, hash)
 	return result, nil
+}
+
+func logUploadSummary(ctx context.Context, mode string, fileSize int64, totalTime, prepareTime, setupTime, uploadTime time.Duration, uploadSpeed float64) {
+	const message = "[MinIOUploader] upload summary(%s): total=%v prepare=%v setup=%v upload=%v size=%d speed=%.2f MB/s"
+	if threshold := slowUploadThreshold(); threshold > 0 && totalTime >= threshold {
+		logger.Warnf(ctx, message, mode, totalTime, prepareTime, setupTime, uploadTime, fileSize, uploadSpeed/(1024*1024))
+		return
+	}
+	logger.Debugf(ctx, message, mode, totalTime, prepareTime, setupTime, uploadTime, fileSize, uploadSpeed/(1024*1024))
+}
+
+func slowUploadThreshold() time.Duration {
+	const defaultThreshold = 5 * time.Second
+	raw := strings.TrimSpace(os.Getenv("KAGEOS_SDK_SLOW_UPLOAD_MS"))
+	if raw == "" {
+		return defaultThreshold
+	}
+	ms, err := strconv.Atoi(raw)
+	if err != nil {
+		return defaultThreshold
+	}
+	if ms <= 0 {
+		return 0
+	}
+	return time.Duration(ms) * time.Millisecond
 }
 
 func resolveUploadURL(ctx context.Context, creds *dto.GetUploadTokenResp) string {

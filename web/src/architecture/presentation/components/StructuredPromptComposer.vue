@@ -12,6 +12,7 @@
     }"
     data-testid="structured-prompt-composer"
     @click="handleRootClick"
+    @focusout="handleRootFocusOut"
   >
     <div v-if="showToolbar" class="spc-toolbar">
       <div class="spc-mode-tabs" role="tablist" aria-label="输入模式">
@@ -695,7 +696,25 @@ function handleBlur() {
   focused.value = false
   scheduleMentionClose()
   renderEditorContent(currentText.value)
+  if (!isFocusInsideRoot()) {
+    closeInfoCard()
+  }
   emit('blur')
+}
+
+function handleRootFocusOut(event: FocusEvent) {
+  const root = rootRef.value
+  const nextTarget = event.relatedTarget
+  if (root && nextTarget instanceof Node && root.contains(nextTarget)) {
+    return
+  }
+  closeInfoCard()
+}
+
+function isFocusInsideRoot() {
+  const root = rootRef.value
+  const active = document.activeElement
+  return !!root && active instanceof Node && root.contains(active)
 }
 
 function onCompositionStart() {

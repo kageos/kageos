@@ -16,19 +16,21 @@ type addFunctionsCommand struct {
 	SourceCode string
 }
 
-// runAddFunctionsCommand 将源码落盘到 full_code_path 对应目录。
-// 租户由 app-server 从 full_code_path 解析，不传 User；buildWorkspace=false 时仅写文件不编译（对应 SkipBuild=true）。
-func runAddFunctionsCommand(ctx context.Context, cmd addFunctionsCommand, fullCodePath string, buildWorkspace bool) (content string, isError bool) {
+func runAddFunctionsCommandWithToolName(ctx context.Context, cmd addFunctionsCommand, fullCodePath string, buildWorkspace bool, toolName string) (content string, isError bool) {
+	toolName = strings.TrimSpace(toolName)
+	if toolName == "" {
+		toolName = "write_file"
+	}
 	fileName := strings.TrimSpace(cmd.FileName)
 	sourceCode := cmd.SourceCode
 	if fileName == "" || sourceCode == "" {
-		return "write_go_file 缺少 file_name 或 content/source_code", true
+		return toolName + " 缺少 file_name 或 content/source_code", true
 	}
 	if strings.TrimSpace(fullCodePath) == "" {
-		return "write_go_file 需要 directory（当前目录）", true
+		return toolName + " 需要 directory（当前目录）", true
 	}
 	if err := sourcepolicy.ValidateAppGoSource(fileName, sourceCode); err != nil {
-		return "write_go_file 源码规范校验失败，本次未落盘：\n" + err.Error(), true
+		return toolName + " 源码规范校验失败，本次未落盘：\n" + err.Error(), true
 	}
 
 	// 租户由 app-server 从 full_code_path 解析出的目录所属应用确定，不传 User
@@ -42,16 +44,15 @@ func runAddFunctionsCommand(ctx context.Context, cmd addFunctionsCommand, fullCo
 	resp, err := apicall.ServiceTreeAddFunctions(ctx, req)
 	if err != nil {
 		logger.Errorf(ctx, "[AddFunctionsTool] ServiceTreeAddFunctions 失败: %v", err)
-		return "write_go_file 调用失败: " + err.Error(), true
+		return toolName + " 调用失败: " + err.Error(), true
 	}
 	if !resp.Success {
-		return "write_go_file 失败: " + resp.Error, true
+		return toolName + " 失败: " + resp.Error, true
 	}
-	return formatWriteGoFileResult(fileName, buildWorkspace, resp), false
+	return formatWriteCodeFileResult(toolName, fileName, buildWorkspace, resp), false
 }
 
-// formatWriteGoFileResult 根据是否编译、以及编译/变更信息，返回对用户友好的提示
-func formatWriteGoFileResult(fileName string, buildWorkspace bool, resp *dto.AddFunctionsResp) string {
+func formatWriteCodeFileResult(toolName string, fileName string, buildWorkspace bool, resp *dto.AddFunctionsResp) string {
 	if !buildWorkspace {
 		return fmt.Sprintf("已落盘: %s。当前未编译工作空间，仅修改了代码。改完后请调用 build_workspace 更新工作空间。", fileName)
 	}

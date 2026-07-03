@@ -82,9 +82,9 @@ func (c *TimerSchedulerConfig) IsDebug() bool {
 
 func (c *TimerSchedulerConfig) IsPprofEnabled() bool {
 	if c == nil {
-		return true
+		return false
 	}
-	return boolConfigValue(c.Server.EnablePprof, true)
+	return boolConfigValue(c.Server.EnablePprof, false)
 }
 
 func (c *TimerSchedulerConfig) GetDB() DBConfig {

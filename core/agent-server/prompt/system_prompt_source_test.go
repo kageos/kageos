@@ -259,7 +259,7 @@ func TestAutomationOperatorRoleDocumentsScheduledAgentSOP(t *testing.T) {
 		"`body = [{\"id\": 行ID, \"updates\": {...}}]`",
 		"可信度与写入规则",
 		"证据不足",
-		"禁止调用 `write_prd`、`create_directory`、`write_doc`、`write_go_file`、`search_replace_file`、`delete_file`、`build_workspace` 和任何业务 `run_*` 工具",
+		"禁止调用 `write_prd`、`create_directory`、`write_doc`、`write_file`、`edit_file`、`delete_file`、`build_workspace` 和任何业务 `run_*` 工具",
 	} {
 		if !strings.Contains(content, needle) {
 			t.Fatalf("automation_operator role doc should contain %q, got: %q", needle, content)
@@ -346,6 +346,29 @@ func TestRoleToolDocsMentionRuntimeAllowedNotificationsAndExactRunTools(t *testi
 		for _, needle := range needles {
 			if !strings.Contains(content, needle) {
 				t.Fatalf("%s should contain %q, got: %q", docPath, needle, content)
+			}
+		}
+	}
+}
+
+func TestWorkspaceRoleDocsContainHandoffGuidance(t *testing.T) {
+	for _, docPath := range []string{
+		"/system/prompt/roles/router",
+		"/system/prompt/roles/product-manager",
+		"/system/prompt/roles/app-developer",
+		"/system/prompt/roles/maintenance-engineer",
+		"/system/prompt/roles/qa-engineer",
+		"/system/prompt/roles/app-operator",
+		"/system/prompt/roles/automation-operator",
+		"/system/prompt/roles/build-engineer",
+		"/system/prompt/roles/data-operator",
+		"/system/prompt/roles/platform-engineer",
+		"/system/prompt/roles/reviewer",
+	} {
+		_, content := GetPromptDocContent(nil, docPath)
+		for _, needle := range []string{"## 转岗指引", "留在", "交接给", "转交时必须携带"} {
+			if !strings.Contains(content, needle) {
+				t.Fatalf("%s should contain handoff guidance marker %q, got: %q", docPath, needle, content)
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package streamloop
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/kageos/kageos/dto"
@@ -78,7 +79,7 @@ func TestProcessStreamChunksEmitsStableToolCallIdentity(t *testing.T) {
 	close(stream)
 
 	var events []dto.WorkspaceStreamToolCallDeltaData
-	_, calls, _, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
+	_, _, calls, _, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
 		if event != EventToolCallsStreamDelta {
 			return
 		}
@@ -115,15 +116,127 @@ func TestProcessStreamChunksReturnsFinalUsage(t *testing.T) {
 	}}
 	close(stream)
 
-	content, calls, usage, err := processStreamChunks(context.Background(), stream, func(string, interface{}) {}, 0)
+	content, thinkingContent, calls, usage, err := processStreamChunks(context.Background(), stream, func(string, interface{}) {}, 0)
 	if err != nil {
 		t.Fatalf("processStreamChunks returned error: %v", err)
 	}
-	if content != "ok" || len(calls) != 0 {
-		t.Fatalf("content/calls = %q/%#v, want ok/no calls", content, calls)
+	if content != "ok" || thinkingContent != "" || len(calls) != 0 {
+		t.Fatalf("content/thinking/calls = %q/%q/%#v, want ok/empty/no calls", content, thinkingContent, calls)
 	}
 	if usage == nil || usage.CachedTokens != 1024 || usage.TotalTokens != 1280 || !usage.CachedTokensReported {
 		t.Fatalf("usage = %#v, want cached 1024 total 1280", usage)
+	}
+}
+
+func TestProcessStreamChunksFiltersThinkTagsAcrossChunks(t *testing.T) {
+	stream := make(chan *llms.StreamChunk, 4)
+	stream <- &llms.StreamChunk{Content: "<thi"}
+	stream <- &llms.StreamChunk{Content: "nk>内部思考"}
+	stream <- &llms.StreamChunk{Content: "</thi"}
+	stream <- &llms.StreamChunk{Content: "nk>\n\n最终答案"}
+	close(stream)
+
+	var sent strings.Builder
+	var thinking strings.Builder
+	content, thinkingContent, calls, _, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
+		if event == EventThinking {
+			payload, ok := data.(*thinkingData)
+			if !ok {
+				t.Fatalf("thinking payload type = %T, want *thinkingData", data)
+			}
+			thinking.WriteString(payload.Content)
+			return
+		}
+		if event != EventContent {
+			return
+		}
+		payload, ok := data.(*contentData)
+		if !ok {
+			t.Fatalf("content payload type = %T, want *contentData", data)
+		}
+		sent.WriteString(payload.Content)
+	}, 0)
+	if err != nil {
+		t.Fatalf("processStreamChunks returned error: %v", err)
+	}
+	if content != "最终答案" || thinkingContent != "内部思考" || len(calls) != 0 {
+		t.Fatalf("content/thinking/calls = %q/%q/%#v, want final answer/internal thinking/no calls", content, thinkingContent, calls)
+	}
+	if strings.Contains(sent.String(), "内部思考") || sent.String() != "\n\n最终答案" {
+		t.Fatalf("sent content = %q, want only final answer chunk", sent.String())
+	}
+	if thinking.String() != "内部思考" {
+		t.Fatalf("thinking content = %q, want internal thinking", thinking.String())
+	}
+}
+
+func TestProcessStreamChunksFiltersStrayThinkCloseTag(t *testing.T) {
+	stream := make(chan *llms.StreamChunk, 1)
+	stream <- &llms.StreamChunk{Content: "</think>\n最终答案"}
+	close(stream)
+
+	var sent strings.Builder
+	content, _, _, _, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
+		if event != EventContent {
+			return
+		}
+		payload, ok := data.(*contentData)
+		if !ok {
+			t.Fatalf("content payload type = %T, want *contentData", data)
+		}
+		sent.WriteString(payload.Content)
+	}, 0)
+	if err != nil {
+		t.Fatalf("processStreamChunks returned error: %v", err)
+	}
+	if content != "最终答案" || sent.String() != "\n最终答案" {
+		t.Fatalf("content/sent = %q/%q, want final answer only", content, sent.String())
+	}
+}
+
+func TestProcessStreamChunksReportsLengthInsideThink(t *testing.T) {
+	stream := make(chan *llms.StreamChunk, 1)
+	stream <- &llms.StreamChunk{Content: "<think>还在思考", FinishReason: "length"}
+	close(stream)
+
+	contentEvents := 0
+	thinkingEvents := 0
+	content, thinkingContent, calls, _, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
+		if event == EventContent {
+			contentEvents++
+		}
+		if event == EventThinking {
+			thinkingEvents++
+		}
+	}, 0)
+	if err == nil || !strings.Contains(err.Error(), "思考阶段") {
+		t.Fatalf("err = %v, want thinking length error", err)
+	}
+	if content != "" || thinkingContent != "还在思考" || len(calls) != 0 || contentEvents != 0 || thinkingEvents != 1 {
+		t.Fatalf("content/thinking/calls/content events/thinking events = %q/%q/%#v/%d/%d, want empty/thinking/no calls/no content events/one thinking event", content, thinkingContent, calls, contentEvents, thinkingEvents)
+	}
+}
+
+func TestProcessStreamChunksReportsLengthInsideReasoningContent(t *testing.T) {
+	stream := make(chan *llms.StreamChunk, 1)
+	stream <- &llms.StreamChunk{ReasoningContent: "内部思考", FinishReason: "length"}
+	close(stream)
+
+	contentEvents := 0
+	thinkingEvents := 0
+	content, thinkingContent, calls, _, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
+		if event == EventContent {
+			contentEvents++
+		}
+		if event == EventThinking {
+			thinkingEvents++
+		}
+	}, 0)
+	if err == nil || !strings.Contains(err.Error(), "思考阶段") {
+		t.Fatalf("err = %v, want thinking length error", err)
+	}
+	if content != "" || thinkingContent != "内部思考" || len(calls) != 0 || contentEvents != 0 || thinkingEvents != 1 {
+		t.Fatalf("content/thinking/calls/content events/thinking events = %q/%q/%#v/%d/%d, want empty/thinking/no calls/no content events/one thinking event", content, thinkingContent, calls, contentEvents, thinkingEvents)
 	}
 }
 
@@ -133,7 +246,7 @@ func TestProcessStreamChunksReturnsLLMErrorWithoutEmittingErrorEvent(t *testing.
 	close(stream)
 
 	errorEvents := 0
-	_, _, _, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
+	_, _, _, _, err := processStreamChunks(context.Background(), stream, func(event string, data interface{}) {
 		if event == EventError {
 			errorEvents++
 		}
@@ -143,6 +256,30 @@ func TestProcessStreamChunksReturnsLLMErrorWithoutEmittingErrorEvent(t *testing.
 	}
 	if errorEvents != 0 {
 		t.Fatalf("error events = %d, want 0 from processStreamChunks", errorEvents)
+	}
+}
+
+func TestProcessStreamChunksRejectsMalformedToolCallArguments(t *testing.T) {
+	idx0 := 0
+	makeCall := func(index *int, id, name, args string) llms.ToolCallDelta {
+		tc := llms.ToolCallDelta{ID: id, Type: "function", Index: index}
+		tc.Function.Name = name
+		tc.Function.Arguments = args
+		return tc
+	}
+
+	stream := make(chan *llms.StreamChunk, 1)
+	stream <- &llms.StreamChunk{ToolCallDeltas: []llms.ToolCallDelta{
+		makeCall(&idx0, "call_bad", "read_file", `{"file_name":"purchase_inbound.go"}</invoke>`),
+	}}
+	close(stream)
+
+	_, _, calls, _, err := processStreamChunks(context.Background(), stream, func(string, interface{}) {}, 0)
+	if err == nil || !strings.Contains(err.Error(), "参数不是合法 JSON") {
+		t.Fatalf("err = %v, want malformed JSON tool call error", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("calls = %#v, want no executable calls", calls)
 	}
 }
 
@@ -202,7 +339,7 @@ func TestMergeToolCallsDoesNotAppendAnonymousArgsWhenAmbiguous(t *testing.T) {
 
 func TestNormalizeToolCallsDropsBlankPlaceholdersAndAssignsMissingID(t *testing.T) {
 	call := llms.ToolCall{Type: "function"}
-	call.Function.Name = "write_go_file"
+	call.Function.Name = "write_file"
 	call.Function.Arguments = `{}`
 
 	got := normalizeToolCalls(context.Background(), []llms.ToolCall{

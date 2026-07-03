@@ -154,6 +154,21 @@ func (s *Server) markInboxMessageRead(c *gin.Context) {
 	response.Ok(c)
 }
 
+func (s *Server) markSourceInboxMessagesRead(c *gin.Context) {
+	username, err := s.resolveInboxUsername(c)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	sourcePath := strings.TrimSpace(c.Query("source_path"))
+	includeChildren := parseBoolQuery(c.Query("include_children"))
+	if err := s.messageRepo.MarkSourceRead(c.Request.Context(), username, sourcePath, includeChildren); err != nil {
+		response.FailWithMessage(c, "标记当前来源消息已读失败: "+err.Error())
+		return
+	}
+	response.Ok(c)
+}
+
 func (s *Server) markAllInboxMessagesRead(c *gin.Context) {
 	username, err := s.resolveInboxUsername(c)
 	if err != nil {

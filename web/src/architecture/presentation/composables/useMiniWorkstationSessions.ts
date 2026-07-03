@@ -10,9 +10,10 @@ import {
   type WorkspaceSessionItem
 } from '@/architecture/presentation/context/api/workspace'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
-import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
+import type { AssistantBlock, ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { Logger } from '@/architecture/shared/logger'
 import { fileNameFromRef, parseFileRefs } from '@/architecture/presentation/widgets/filesWidgetTypes'
+import { splitWorkspaceThinkBlocks, stripWorkspaceThinkBlocks } from './useWorkspaceThinkFilter'
 
 export interface UseMiniWorkstationSessionsOptions {
   fullCodePath: Ref<string>
@@ -29,7 +30,33 @@ function normalizeSessionMessages(rawMessages: any[]): ChatMessage[] {
   return rawMessages
     .filter(message => message.role === 'user' || message.role === 'assistant')
     .map((message: any) => {
-      const displayContent = message.display_content || message.content || ''
+      const rawDisplayContent = message.display_content || message.content || ''
+      const thinkingContent = typeof message.thinking_content === 'string' ? message.thinking_content : ''
+      const displaySegments = message.role === 'assistant'
+        ? (thinkingContent
+            ? [
+                { type: 'thinking' as const, text: thinkingContent },
+                ...splitWorkspaceThinkBlocks(rawDisplayContent).filter(segment => segment.type === 'content')
+              ]
+            : splitWorkspaceThinkBlocks(rawDisplayContent))
+        : []
+      const displayContent = message.role === 'assistant'
+        ? (displaySegments.length ? displaySegments.filter(segment => segment.type === 'content').map(segment => segment.text).join('') : stripWorkspaceThinkBlocks(rawDisplayContent))
+        : rawDisplayContent
+      const toolCalls = message.tool_calls || []
+      const assistantBlocks: AssistantBlock[] | undefined = (() => {
+        if (message.role !== 'assistant') return undefined
+        const blocks = displaySegments
+          .filter(segment => segment.text)
+          .map(segment => ({ type: segment.type, text: segment.text }) as AssistantBlock)
+        if (!blocks.length && displayContent) {
+          blocks.push({ type: 'content', text: displayContent })
+        }
+        if (toolCalls.length) {
+          blocks.push({ type: 'tool_calls', calls: toolCalls })
+        }
+        return blocks.length ? blocks : undefined
+      })()
       return {
         role: message.role as 'user' | 'assistant',
         user: message.user || message.created_by || '',
@@ -49,23 +76,7 @@ function normalizeSessionMessages(rawMessages: any[]): ChatMessage[] {
         model_context_plan: message.model_context_plan,
         model_context_plans: message.model_context_plan ? [message.model_context_plan] : undefined,
         created_at: message.created_at,
-        blocks: (() => {
-          const content = displayContent
-          const toolCalls = message.tool_calls || []
-          if (message.role !== 'assistant') {
-            return undefined
-          }
-          if (content && toolCalls.length) {
-            return [{ type: 'content' as const, text: content }, { type: 'tool_calls' as const, calls: toolCalls }]
-          }
-          if (content) {
-            return [{ type: 'content' as const, text: content }]
-          }
-          if (toolCalls.length) {
-            return [{ type: 'tool_calls' as const, calls: toolCalls }]
-          }
-          return undefined
-        })()
+        blocks: assistantBlocks
       }
     })
 }

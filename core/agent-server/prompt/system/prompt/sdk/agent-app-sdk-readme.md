@@ -1360,7 +1360,7 @@ return resp.Chart(c).Build()
 ## 八、注册与目录约定
 
 - **init()**：在业务 .go 中写；`packageContext.GET("路由名", ListFunc, TableTemplate)` 或 `packageContext.POST("路由名", Handler, FormTemplate)` 或 `packageContext.GET("路由名", ChartHandler, ChartTemplate)`。`packageContext` 由脚手架生成，不要重复声明。
-- **init_.go**：由系统生成，不要用 write_go_file 创建或修改。
+- **init_.go**：由系统生成，不要用 write_file 创建或修改。
 - **目录**：一个包一个目录，路由名与业务含义对应；多表/多 Form 可在同包多文件，各自 GET/POST 注册。创建类流程以系统注入的创建 SOP 和 `/system/prompt/case_catalog/*` 匹配案例为准。
 
 ### 路由命名约定（类型后缀，必须）

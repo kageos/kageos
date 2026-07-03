@@ -57,8 +57,7 @@ func workspaceRoleBaseReadOnlyTools() []string {
 	return []string{
 		"read_doc",
 		"read_dir",
-		"read_go_file",
-		"read_go_file_lines",
+		"read_file",
 		"read_app_log",
 		"search",
 		"web_search",
@@ -73,17 +72,17 @@ func workspaceRoleGateSuggestion(roleID string, toolName string) string {
 	case "write_prd":
 		return "如需重新设计 PRD，请交接给「产品经理」。"
 	case "write_doc":
-		return "如需创建或修改文档，请交接给「应用开发工程师」或「应用维护工程师」。"
-	case "create_directory", "write_go_file", "search_replace_file", "delete_file", "build_workspace":
-		return "如需创建或修改应用内容，请交接给「应用开发工程师」「应用维护工程师」或「构建修复工程师」。"
+		return "如需创建或修改文档，请交接给「应用开发工程师」或「应用维护工程师」；不确定切谁时切到「执行路由手册」。"
+	case "create_directory", "write_file", "edit_file", "delete_file", "build_workspace":
+		return "如需创建或修改应用内容，请交接给「应用开发工程师」「应用维护工程师」或「构建修复工程师」；不确定切谁时切到「执行路由手册」。"
 	case "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query", "run_on_select_fuzzy":
-		return "如需执行业务操作，请交接给「应用执行」；如需验证功能，请交接给「测试工程师」。"
+		return "如需执行业务操作，请交接给「应用执行」；如需验证功能，请交接给「测试工程师」；不确定切谁时切到「执行路由手册」。"
 	case "run_python":
-		return "如需临时计算、文件/数据处理或轻量脚本，请交接给「应用执行」或「数据/文件处理工程师」；重试时 python_code 必须从 def kageos_entry(args, output_dir): 开始，返回值只包含 data、output_files、warnings。若只是分析 Go 源码、依赖字段或 SDK 用法，请用 read_go_file/search/read_doc 读取真实源码和文档，不要用 Python 模拟判断。"
+		return "如需临时计算、文件/数据处理或轻量脚本，请交接给「应用执行」或「数据/文件处理工程师」；不确定切谁时切到「执行路由手册」。重试时 python_code 必须从 def kageos_entry(args, output_dir): 开始，返回值只包含 data、output_files、warnings。若只是分析源码、依赖字段或 SDK 用法，请用 read_file/search/read_doc 读取真实源码和文档，不要用 Python 模拟判断。"
 	case "send_notification":
-		return "如需在执行过程中通知用户，请切换到应用执行、自动执行配置或其他具备通知权限的执行角色。"
+		return "如需在执行过程中通知用户，请切换到应用执行、自动执行配置或其他具备通知权限的执行角色；不确定切谁时切到「执行路由手册」。"
 	case "create_scheduled_function_task", "create_scheduled_agent_task", "manage_scheduled_task":
-		return "如需创建或管理定时任务，请交接给「自动执行配置」。"
+		return "如需创建或管理定时任务，请交接给「自动执行配置」；不确定切谁时切到「执行路由手册」。"
 	default:
 		if roleID == WorkspaceRoleProductManager {
 			return "产品经理只负责需求分析、PRD 和确认。"

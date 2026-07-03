@@ -1,72 +1,91 @@
 <!--
   MessageToolCalls - 连续多个工具时，每个工具一块：工具名+状态在「该块」上方，下面是对应 viewport
-  - 顶部仅执行中时显示：正在执行工具…
-  - 每个工具：块头写工具名+状态（如 read_go_file 成功），下面才是该工具的 viewport，不把所有工具名挤在顶部
+  - 默认只显示一行摘要；点击展开后查看参数、结果和错误
+  - 每个工具：块头写工具名和耗时，下面才是该工具的 viewport
   - 输出文件仍在下方独立展示
 -->
 <template>
   <div v-if="hasVisibleContent" class="message-tool-calls">
-    <div v-if="hasRunning" class="message-tool-calls-head">
-      <span class="head-status head-status--running">
-        <el-icon class="head-icon head-icon--spin"><Loading /></el-icon>
-        正在执行工具…
-      </span>
-    </div>
-    <template v-for="(tc, idx) in visibleToolCalls" :key="tc.id ?? `${idx}-${tc.name}`">
-      <div :class="['message-tool-calls-block', { 'message-tool-calls-block--first': idx === 0 && !hasRunning }]">
-        <div class="message-tool-calls-block-head">
-          <el-icon v-if="tc.status === 'ok'" class="block-head-icon block-head-icon--ok"><CircleCheck /></el-icon>
-          <el-icon v-else-if="tc.status === 'error'" class="block-head-icon block-head-icon--error"><CircleClose /></el-icon>
-          <el-icon v-else class="block-head-icon block-head-icon--running"><Loading /></el-icon>
-          <span class="block-head-name">{{ getToolDisplayName(tc) }}</span>
-          <el-tag v-if="tc.status === 'streaming'" type="info" size="small" class="block-head-status">解析中</el-tag>
-          <el-tag v-else-if="tc.status === 'running'" type="info" size="small" class="block-head-status">执行中</el-tag>
-          <el-tag v-else :type="tc.status === 'ok' ? 'success' : 'danger'" size="small" class="block-head-status">
-            {{ statusLabel(tc.status) }}
-          </el-tag>
+    <details
+      v-if="visibleToolCalls.length > 0"
+      class="message-tool-calls-trace"
+      :open="detailsOpen"
+      @toggle="onDetailsToggle"
+    >
+      <summary class="message-tool-calls-summary">
+        <span class="summary-main">
+          <el-icon v-if="hasRunning" class="summary-icon summary-icon--running"><Loading /></el-icon>
+          <el-icon v-else-if="errorCount > 0" class="summary-icon summary-icon--error"><CircleClose /></el-icon>
+          <el-icon v-else class="summary-icon summary-icon--ok"><CircleCheck /></el-icon>
+          <span class="summary-title">工具调用 {{ visibleToolCalls.length }}</span>
+        </span>
+        <span class="summary-tools">
           <span
-            v-if="getToolDurationLabel(tc, idx)"
-            :class="['block-head-duration', { 'block-head-duration--running': isToolTimerRunning(tc, idx) }]"
+            v-for="(tc, idx) in summaryToolCalls"
+            :key="tc.id ?? `${idx}-${tc.name}`"
+            class="summary-tool-chip"
           >
-            <span v-if="isToolTimerRunning(tc, idx)" class="block-head-duration-dot"></span>
-            耗时 {{ getToolDurationLabel(tc, idx) }}
+            {{ getToolDisplayName(tc) }}
           </span>
-        </div>
-        <div v-if="isRenderablePrdToolCall(tc)" class="message-tool-calls-prd mini-msg-prd-preview">
-          <PrdPreview
-            :data="tc.result_data"
-            :confirm-disabled="confirmDisabled"
-            @confirm="emit('confirm-prd', $event)"
-          />
-        </div>
-        <BuildWorkspaceDiagnosticsCard
-          v-else-if="isBuildWorkspaceFailureToolCall(tc)"
-          :tool-call="tc"
-          class="mini-msg-build-diagnostics"
-        />
-        <div
-          v-else
-          :class="['message-tool-calls-viewport', { 'message-tool-calls-viewport--first': idx === 0 }]"
-          :ref="(el) => setViewportRef(el as HTMLElement | null, idx)"
-        >
-          <div class="message-tool-calls-output">
-            <div
-              v-for="(line, lineIdx) in getLinesForTool(tc)"
-              :key="lineIdx"
-              :class="['output-line', line.type]"
-            >
-              {{ line.text }}
+          <span v-if="hiddenToolCount > 0" class="summary-tool-chip summary-tool-chip--more">
+            +{{ hiddenToolCount }}
+          </span>
+        </span>
+        <span :class="['summary-status', summaryStatusClass]">{{ summaryStatusLabel }}</span>
+      </summary>
+      <div class="message-tool-calls-detail">
+        <template v-for="(tc, idx) in visibleToolCalls" :key="tc.id ?? `${idx}-${tc.name}`">
+          <div :class="['message-tool-calls-block', { 'message-tool-calls-block--first': idx === 0 }]">
+            <div class="message-tool-calls-block-head">
+              <el-icon v-if="tc.status === 'ok'" class="block-head-icon block-head-icon--ok"><CircleCheck /></el-icon>
+              <el-icon v-else-if="tc.status === 'error'" class="block-head-icon block-head-icon--error"><CircleClose /></el-icon>
+              <el-icon v-else class="block-head-icon block-head-icon--running"><Loading /></el-icon>
+              <span class="block-head-name">{{ getToolDisplayName(tc) }}</span>
+              <span
+                v-if="getToolDurationLabel(tc, idx)"
+                :class="['block-head-duration', { 'block-head-duration--running': isToolTimerRunning(tc, idx) }]"
+              >
+                <span v-if="isToolTimerRunning(tc, idx)" class="block-head-duration-dot"></span>
+                {{ isToolTimerRunning(tc, idx) ? getToolDurationLabel(tc, idx) : `耗时 ${getToolDurationLabel(tc, idx)}` }}
+              </span>
             </div>
+            <div v-if="isRenderablePrdToolCall(tc)" class="message-tool-calls-prd mini-msg-prd-preview">
+              <PrdPreview
+                :data="tc.result_data"
+                :confirm-disabled="confirmDisabled"
+                @confirm="emit('confirm-prd', $event)"
+              />
+            </div>
+            <BuildWorkspaceDiagnosticsCard
+              v-else-if="isBuildWorkspaceFailureToolCall(tc)"
+              :tool-call="tc"
+              class="mini-msg-build-diagnostics"
+            />
             <div
-              v-if="hasRunning && idx === visibleToolCalls.length - 1"
-              class="output-line output-line--cursor"
+              v-else
+              :class="['message-tool-calls-viewport', { 'message-tool-calls-viewport--first': idx === 0 }]"
+              :ref="(el) => setViewportRef(el as HTMLElement | null, idx)"
             >
-              ▌
+              <div class="message-tool-calls-output">
+                <div
+                  v-for="(line, lineIdx) in getLinesForTool(tc)"
+                  :key="lineIdx"
+                  :class="['output-line', line.type]"
+                >
+                  {{ line.text }}
+                </div>
+                <div
+                  v-if="hasRunning && idx === visibleToolCalls.length - 1"
+                  class="output-line output-line--cursor"
+                >
+                  ▌
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </template>
       </div>
-    </template>
+    </details>
     <OutputFilesDisplay
       v-if="fileGroups.length > 0"
       :file-groups="fileGroups"
@@ -113,6 +132,10 @@ const displayFields = computed(() => extractAllDisplayFields(visibleToolCalls.va
 const hasVisibleContent = computed(() =>
   visibleToolCalls.value.length > 0 || props.fileGroups.length > 0 || displayFields.value.length > 0
 )
+const detailsOpen = ref(false)
+const summaryToolCalls = computed(() => visibleToolCalls.value.slice(0, 4))
+const hiddenToolCount = computed(() => Math.max(0, visibleToolCalls.value.length - summaryToolCalls.value.length))
+const errorCount = computed(() => visibleToolCalls.value.filter((t) => t.status === 'error').length)
 
 /** 每个工具一个 viewport，用数组存 DOM，滚动时滚最后一个 */
 const viewportRefs = ref<(HTMLElement | null)[]>([])
@@ -131,6 +154,16 @@ function setViewportRef(el: HTMLElement | null, idx: number) {
 const hasRunning = computed(() =>
   visibleToolCalls.value.some((t) => t.status === 'streaming' || t.status === 'running')
 )
+const summaryStatusLabel = computed(() => {
+  if (hasRunning.value) return '执行中'
+  if (errorCount.value > 0) return `${errorCount.value} 失败`
+  return '完成'
+})
+const summaryStatusClass = computed(() => {
+  if (hasRunning.value) return 'summary-status--running'
+  if (errorCount.value > 0) return 'summary-status--error'
+  return 'summary-status--ok'
+})
 
 interface RuntimeTimer {
   startedAt: number
@@ -235,13 +268,8 @@ function isToolTimerRunning(tc: WorkspaceChatToolCallSummary, idx: number): bool
   return !!timer && timer.completedAt == null && isToolPending(tc.status)
 }
 
-/** 状态中文 */
-function statusLabel(status: string): string {
-  if (status === 'streaming') return '解析中…'
-  if (status === 'running') return '执行中…'
-  if (status === 'ok') return '成功'
-  if (status === 'error') return '失败'
-  return status
+function onDetailsToggle(event: Event) {
+  detailsOpen.value = (event.currentTarget as HTMLDetailsElement).open
 }
 
 function isRenderablePrdToolCall(tc: WorkspaceChatToolCallSummary): boolean {
@@ -348,7 +376,7 @@ watch(
   }
 )
 watch(hasRunning, (running) => {
-  if (running) scrollAllViewportsToBottom()
+  if (running && detailsOpen.value) scrollAllViewportsToBottom()
 })
 watch(
   () => visibleToolCalls.value.map((t, idx) => `${getToolTimerKey(t, idx)}:${t.status}`).join('|'),
@@ -363,34 +391,133 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .message-tool-calls {
   width: 100%;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
-.message-tool-calls-head {
-  padding: 6px 10px 8px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  background: var(--el-fill-color-lighter);
-  border-radius: var(--el-border-radius-base) var(--el-border-radius-base) 0 0;
+.message-tool-calls-trace {
+  width: 100%;
 }
 
-.head-status {
+.message-tool-calls-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  list-style: none;
+  font-size: 11px;
+}
+
+.message-tool-calls-summary::-webkit-details-marker {
+  display: none;
+}
+
+.message-tool-calls-summary::before {
+  content: '›';
+  flex-shrink: 0;
+  color: var(--el-text-color-placeholder);
+  transition: transform 0.16s ease;
+}
+
+.message-tool-calls-trace[open] .message-tool-calls-summary {
+  border-radius: 8px 8px 0 0;
+}
+
+.message-tool-calls-trace[open] .message-tool-calls-summary::before {
+  transform: rotate(90deg);
+}
+
+.summary-main,
+.summary-tools,
+.summary-status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+}
+
+.summary-main {
+  gap: 5px;
+  flex-shrink: 0;
+  color: var(--el-text-color-primary);
+}
+
+.summary-icon {
   font-size: 13px;
 }
 
-.head-status--running {
+.summary-icon--running {
+  color: var(--el-color-primary);
+  animation: think-spin 0.8s linear infinite;
+}
+
+.summary-icon--ok {
+  color: var(--el-color-success);
+}
+
+.summary-icon--error {
+  color: var(--el-color-danger);
+}
+
+.summary-title {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.summary-tools {
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.summary-tool-chip {
+  max-width: 120px;
+  overflow: hidden;
+  padding: 1px 5px;
+  border: 1px solid var(--el-border-color-extra-light);
+  border-radius: 999px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-tool-chip--more {
+  flex-shrink: 0;
+  color: var(--el-text-color-placeholder);
+}
+
+.summary-status {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.summary-status--running {
   color: var(--el-color-primary);
 }
 
-.head-icon {
-  font-size: 14px;
+.summary-status--ok {
+  color: var(--el-color-success);
 }
 
-.head-icon--spin {
-  animation: think-spin 0.8s linear infinite;
+.summary-status--error {
+  color: var(--el-color-danger);
 }
+
+.message-tool-calls-detail {
+  padding: 6px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  background: transparent;
+}
+
 @keyframes think-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -398,7 +525,7 @@ onBeforeUnmount(() => {
 
 /* 每个工具一块：块头（工具名+状态）+ viewport */
 .message-tool-calls-block {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 .message-tool-calls-block--first {
   margin-top: 0;
@@ -407,12 +534,12 @@ onBeforeUnmount(() => {
 .message-tool-calls-block-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px 8px;
+  gap: 6px;
+  padding: 5px 8px;
   background: var(--el-fill-color-lighter);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--el-border-radius-base) var(--el-border-radius-base) 0 0;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .block-head-icon {
@@ -437,10 +564,6 @@ onBeforeUnmount(() => {
   color: var(--el-text-color-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.block-head-status {
-  flex-shrink: 0;
 }
 
 .block-head-duration {
@@ -468,16 +591,16 @@ onBeforeUnmount(() => {
 
 /* 每个工具一块 viewport，约 4-5 行高度，内容可滚动 */
 .message-tool-calls-viewport {
-  max-height: 7.5em;
+  max-height: 6.5em;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 8px 12px;
+  padding: 7px 10px;
   background: var(--el-fill-color-blank);
   border: 1px solid var(--el-border-color-lighter);
   border-top: none;
   border-radius: 0 0 var(--el-border-radius-base) var(--el-border-radius-base);
   line-height: 1.5;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--el-text-color-regular);
 }
 .message-tool-calls-viewport--first {

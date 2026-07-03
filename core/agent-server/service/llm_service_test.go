@@ -28,6 +28,16 @@ func TestLLMConfigAdminPermissionsAndNormalization(t *testing.T) {
 	if err := svc.CreateLLMConfig(aliceCtx, cfg); err != nil {
 		t.Fatalf("CreateLLMConfig() error = %v", err)
 	}
+	if cfg.APIKey == "secret" || !strings.HasPrefix(cfg.APIKey, llmAPIKeyCipherPrefix) {
+		t.Fatalf("APIKey was not sealed: %q", cfg.APIKey)
+	}
+	opened, err := svc.OpenAPIKey(cfg.APIKey)
+	if err != nil {
+		t.Fatalf("OpenAPIKey(created) error = %v", err)
+	}
+	if opened != "secret" {
+		t.Fatalf("OpenAPIKey(created) = %q, want original secret", opened)
+	}
 	if cfg.Admin != "alice,bob" {
 		t.Fatalf("Admin = %q, want alice,bob", cfg.Admin)
 	}
@@ -77,8 +87,42 @@ func TestLLMConfigAdminPermissionsAndNormalization(t *testing.T) {
 	if updated.Name != "Allowed" || updated.Model != "gpt-test-new" {
 		t.Fatalf("updated config mismatch: name=%q model=%q", updated.Name, updated.Model)
 	}
+	if updated.APIKey == "new-secret" || !strings.HasPrefix(updated.APIKey, llmAPIKeyCipherPrefix) {
+		t.Fatalf("updated APIKey was not sealed: %q", updated.APIKey)
+	}
+	opened, err = svc.OpenAPIKey(updated.APIKey)
+	if err != nil {
+		t.Fatalf("OpenAPIKey(updated) error = %v", err)
+	}
+	if opened != "new-secret" {
+		t.Fatalf("OpenAPIKey(updated) = %q, want new-secret", opened)
+	}
 	if updated.Admin != "alice,bob" {
 		t.Fatalf("Admin after update = %q, want existing admin preserved", updated.Admin)
+	}
+
+	blankKeyUpdate := &model.LLMConfig{
+		Name:      "Blank Key Preserves",
+		Provider:  model.LLMProviderOpenAI,
+		Model:     "gpt-test-newer",
+		Timeout:   90,
+		MaxTokens: 4096,
+	}
+	blankKeyUpdate.ID = cfg.ID
+	err = svc.UpdateLLMConfig(aliceCtx, blankKeyUpdate)
+	if err != nil {
+		t.Fatalf("UpdateLLMConfig(blank key) error = %v", err)
+	}
+	preserved, err := repo.GetByID(cfg.ID)
+	if err != nil {
+		t.Fatalf("GetByID(blank key update) error = %v", err)
+	}
+	opened, err = svc.OpenAPIKey(preserved.APIKey)
+	if err != nil {
+		t.Fatalf("OpenAPIKey(preserved) error = %v", err)
+	}
+	if opened != "new-secret" {
+		t.Fatalf("blank APIKey update should preserve existing secret, got %q", opened)
 	}
 }
 

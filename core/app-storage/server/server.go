@@ -26,9 +26,10 @@ type Server struct {
 	cfg *config.AppStorageConfig
 
 	// 核心组件
-	db         *gorm.DB
-	storage    storage.Storage // ✅ 存储接口（抽象）
-	httpServer *gin.Engine
+	db          *gorm.DB
+	storage     storage.Storage // ✅ 存储接口（抽象）
+	httpServer  *gin.Engine
+	httpRuntime *serverx.HTTPServer
 
 	// 服务
 	storageService *service.StorageService
@@ -74,8 +75,13 @@ func (s *Server) Start(ctx context.Context) error {
 	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.GetPort()))
 	logger.Infof(ctx, "[Server] HTTP server starting on %s", addr)
 
+	httpRuntime, err := serverx.StartHTTPServer(ctx, addr, s.httpServer)
+	if err != nil {
+		return fmt.Errorf("failed to start HTTP server on %s: %w", addr, err)
+	}
+	s.httpRuntime = httpRuntime
 	go func() {
-		if err := s.httpServer.Run(addr); err != nil {
+		if err := <-httpRuntime.Err(); err != nil {
 			logger.Errorf(ctx, "[Server] HTTP server error: %v", err)
 		}
 	}()
@@ -87,6 +93,17 @@ func (s *Server) Start(ctx context.Context) error {
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping app-storage...")
+	var stopErr error
+
+	if s.httpRuntime != nil {
+		if err := s.httpRuntime.Shutdown(ctx); err != nil {
+			logger.Warnf(ctx, "[Server] HTTP server shutdown failed: %v", err)
+			stopErr = err
+		} else {
+			logger.Infof(ctx, "[Server] HTTP server stopped")
+		}
+		s.httpRuntime = nil
+	}
 
 	// 关闭数据库连接
 	if s.db != nil {
@@ -98,7 +115,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	logger.Infof(ctx, "[Server] App-storage stopped")
-	return nil
+	return stopErr
 }
 
 // initDatabase 初始化可选数据库，用于记录文件上传/下载元数据。

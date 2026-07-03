@@ -16,6 +16,11 @@ type GetOperateLogsReq struct {
 	Action             string `json:"action" form:"action"`
 	Status             string `json:"status" form:"status"`
 	Source             string `json:"source" form:"source"`
+	SourceType         string `json:"source_type" form:"source_type"`
+	SourceRef          string `json:"source_ref" form:"source_ref"`
+	ExecutorType       string `json:"executor_type" form:"executor_type"`
+	WorkspaceSessionID string `json:"workspace_session_id" form:"workspace_session_id"`
+	TraceID            string `json:"trace_id" form:"trace_id"`
 	RowID              int64  `json:"row_id" form:"row_id"`
 	Keyword            string `json:"keyword" form:"keyword"`
 	Page               int    `json:"page" form:"page"`
@@ -33,26 +38,32 @@ type GetOperateLogsResp struct {
 
 // OperateLogItem 是统一操作日志列表返回项。
 type OperateLogItem struct {
-	ID            int64           `json:"id"`
-	TenantUser    string          `json:"tenant_user"`
-	CompanyCode   string          `json:"company_code"`
-	App           string          `json:"app"`
-	ActorUser     string          `json:"actor_user"`
-	Action        string          `json:"action"`
-	ResourceType  string          `json:"resource_type"`
-	ResourcePath  string          `json:"resource_path"`
-	ResourceName  string          `json:"resource_name"`
-	TargetUser    string          `json:"target_user"`
-	TargetID      string          `json:"target_id"`
-	Summary       string          `json:"summary"`
-	DetailsJSON   json.RawMessage `json:"details_json" swaggertype:"object"`
-	OldValuesJSON json.RawMessage `json:"old_values_json" swaggertype:"object"`
-	NewValuesJSON json.RawMessage `json:"new_values_json" swaggertype:"object"`
-	Status        string          `json:"status"`
-	Source        string          `json:"source"`
-	IPAddress     string          `json:"ip_address"`
-	UserAgent     string          `json:"user_agent"`
-	TraceID       string          `json:"trace_id"`
-	CreatedAt     string          `json:"created_at"`
-	UpdatedAt     string          `json:"updated_at"`
+	ID                    int64           `json:"id"`
+	TenantUser            string          `json:"tenant_user"`
+	CompanyCode           string          `json:"company_code"`
+	App                   string          `json:"app"`
+	ActorUser             string          `json:"actor_user"`
+	Action                string          `json:"action"`
+	ResourceType          string          `json:"resource_type"`
+	ResourcePath          string          `json:"resource_path"`
+	ResourceName          string          `json:"resource_name"`
+	TargetUser            string          `json:"target_user"`
+	TargetID              string          `json:"target_id"`
+	Summary               string          `json:"summary"`
+	DetailsJSON           json.RawMessage `json:"details_json" swaggertype:"object"`
+	OldValuesJSON         json.RawMessage `json:"old_values_json" swaggertype:"object"`
+	NewValuesJSON         json.RawMessage `json:"new_values_json" swaggertype:"object"`
+	Status                string          `json:"status"`
+	Source                string          `json:"source"`
+	SourceType            string          `json:"source_type"`
+	SourceRef             string          `json:"source_ref"`
+	ExecutorType          string          `json:"executor_type"`
+	WorkspaceSessionID    string          `json:"workspace_session_id"`
+	WorkspaceSessionTitle string          `json:"workspace_session_title"`
+	WorkspaceRole         string          `json:"workspace_role"`
+	IPAddress             string          `json:"ip_address"`
+	UserAgent             string          `json:"user_agent"`
+	TraceID               string          `json:"trace_id"`
+	CreatedAt             string          `json:"created_at"`
+	UpdatedAt             string          `json:"updated_at"`
 }

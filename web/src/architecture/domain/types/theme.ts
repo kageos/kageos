@@ -29,24 +29,14 @@ export const THEME_PRESETS: ThemeConfig[] = [
     label: '经典暗黑'
   },
   {
-    mode: 'light',
-    name: 'business-light',
-    label: '现代商务蓝'
+    mode: 'dark',
+    name: 'hub-dark',
+    label: 'Kageos Hub'
   },
   {
     mode: 'light',
-    name: 'glass-light',
-    label: '极客琉璃'
-  },
-  {
-    mode: 'light',
-    name: 'nature-light',
-    label: '莫兰迪绿'
-  },
-  {
-    mode: 'light',
-    name: 'warm-light',
-    label: '燕麦拿铁'
+    name: 'hub-light',
+    label: 'Kageos Light'
   }
 ]
 
@@ -55,6 +45,6 @@ export const THEME_PRESETS: ThemeConfig[] = [
  */
 export const DEFAULT_THEME: ThemeConfig = THEME_PRESETS[0] ?? {
   mode: 'light',
-  name: 'business-light',
-  label: '现代商务蓝'
+  name: 'hub-light',
+  label: 'Kageos Light'
 }

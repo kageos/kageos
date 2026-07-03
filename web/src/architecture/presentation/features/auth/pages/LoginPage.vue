@@ -941,52 +941,52 @@ onMounted(() => {
 <style>
 .login-container .form-input.el-input .el-input__inner,
 .login-container .form-input.el-input input.el-input__inner {
-  color: #1e3a5f !important;
-  -webkit-text-fill-color: #1e3a5f !important;
-  caret-color: #1677ff !important;
+  color: var(--auth-input-text) !important;
+  -webkit-text-fill-color: var(--auth-input-text) !important;
+  caret-color: var(--auth-accent) !important;
 }
 
 .login-container .form-input.el-input .el-input__inner::placeholder,
 .login-container .form-input.el-input input.el-input__inner::placeholder {
-  color: #7d91ad !important;
-  -webkit-text-fill-color: #7d91ad !important;
+  color: var(--auth-input-placeholder) !important;
+  -webkit-text-fill-color: var(--auth-input-placeholder) !important;
 }
 
 .login-container .form-input.el-input .el-input__prefix,
 .login-container .form-input.el-input .el-input__suffix,
 .login-container .form-input.el-input .el-input__password,
 .login-container .form-input.el-input .el-input__clear {
-  color: rgba(22, 119, 255, 0.58) !important;
+  color: var(--auth-input-icon) !important;
 }
 
 .login-container .form-input.el-input .el-input__wrapper {
-  background-color: rgba(248, 251, 255, 0.96) !important;
-  border-color: rgba(93, 130, 188, 0.3) !important;
+  background-color: var(--auth-input-bg) !important;
+  border-color: var(--auth-input-border) !important;
 }
 
 .login-container .form-input.el-input .el-input__wrapper.is-focus {
-  background-color: rgba(255, 255, 255, 0.98) !important;
-  border-color: #1677ff !important;
+  background-color: var(--auth-input-bg-focus) !important;
+  border-color: var(--auth-accent) !important;
 }
 
 .login-container .auth-language .language-switcher {
-  border-color: rgba(22, 119, 255, 0.24) !important;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.8)) !important;
-  color: #1e3a5f !important;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.1) !important;
+  border-color: var(--auth-input-border) !important;
+  background: linear-gradient(180deg, var(--auth-input-bg-focus), var(--auth-input-bg)) !important;
+  color: var(--auth-input-text) !important;
+  box-shadow: var(--app-auth-card-shadow-soft, 0 14px 34px rgba(15, 23, 42, 0.1)) !important;
   backdrop-filter: blur(16px);
 }
 
 .login-container .auth-language .language-switcher:hover,
 .login-container .auth-language .language-switcher:focus-visible {
-  border-color: rgba(22, 119, 255, 0.46) !important;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9)) !important;
-  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.14) !important;
+  border-color: var(--auth-accent) !important;
+  background: linear-gradient(180deg, var(--auth-input-bg-focus), var(--auth-input-bg)) !important;
+  box-shadow: var(--app-auth-primary-shadow-hover, 0 18px 38px rgba(15, 23, 42, 0.14)) !important;
   transform: translateY(-1px);
 }
 
 .login-container .auth-language .language-switcher__code,
 .login-container .auth-language .language-switcher__arrow {
-  color: #64748b !important;
+  color: var(--auth-text-soft) !important;
 }
 </style>

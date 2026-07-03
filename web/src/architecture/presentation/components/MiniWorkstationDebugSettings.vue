@@ -8,6 +8,7 @@
         <button type="button" @click="$emit('copyConversation', 'all-tools')">{{ t('miniWorkstation.copyAllTools') }}</button>
         <button type="button" @click="$emit('copyConversation', 'error-tools')">{{ t('miniWorkstation.copyErrorTools') }}</button>
         <button type="button" @click="$emit('copyConversation', 'success-tools')">{{ t('miniWorkstation.copySuccessTools') }}</button>
+        <button type="button" @click="$emit('exportConversationPdf')">{{ t('miniWorkstation.exportPdf') }}</button>
       </div>
     </section>
     <section class="mini-settings-section">
@@ -68,6 +69,7 @@ defineProps<{
 defineEmits<{
   (e: 'copyConversation', mode: CopyDebugMode): void
   (e: 'copyToolSummary'): void
+  (e: 'exportConversationPdf'): void
 }>()
 
 const { t } = useI18n()
@@ -76,33 +78,31 @@ const { t } = useI18n()
 <style scoped>
 :global(.mini-settings-popover.el-popper) {
   padding: 0;
-  border: 1px solid rgba(96, 231, 255, 0.22);
-  border-radius: 14px;
-  background:
-    radial-gradient(circle at 14% 0%, rgba(34, 211, 238, 0.16), transparent 36%),
-    linear-gradient(150deg, rgba(5, 16, 30, 0.98), rgba(8, 27, 45, 0.97));
-  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.42), 0 0 28px rgba(34, 211, 238, 0.14);
-  backdrop-filter: blur(18px) saturate(1.16);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--app-shell-panel-bg-strong, var(--bg-primary));
+  box-shadow: var(--app-shell-panel-shadow, 0 18px 44px rgba(15, 23, 42, 0.12));
+  backdrop-filter: var(--app-shell-panel-backdrop, blur(12px) saturate(1.02));
 }
 
 :global(.mini-settings-popover .el-popper__arrow::before) {
-  border-color: rgba(96, 231, 255, 0.22);
-  background: rgba(5, 16, 30, 0.98);
+  border-color: var(--border-light);
+  background: var(--app-shell-panel-bg-strong, var(--bg-primary));
 }
 
 .mini-settings-panel {
   max-height: min(520px, calc(100vh - 110px));
   overflow: auto;
-  color: var(--mini-cyber-text);
+  color: var(--text-primary);
 }
 
 .mini-settings-section + .mini-settings-section {
-  border-top: 1px solid rgba(96, 231, 255, 0.14);
+  border-top: 1px solid var(--border-light);
 }
 
 .mini-settings-section-title {
   padding: 12px 12px 0;
-  color: var(--mini-cyber-accent);
+  color: var(--color-primary);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -118,19 +118,18 @@ const { t } = useI18n()
 .mini-settings-copy-grid button {
   min-width: 0;
   height: 32px;
-  border: 1px solid rgba(96, 231, 255, 0.18);
-  border-radius: 9px;
-  background: rgba(34, 211, 238, 0.08);
-  color: var(--mini-cyber-muted);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 12px;
 }
 
 .mini-settings-copy-grid button:hover {
-  border-color: rgba(96, 231, 255, 0.34);
-  background: rgba(34, 211, 238, 0.14);
-  color: #ffffff;
-  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.16);
+  border-color: rgba(var(--color-primary-rgb), 0.28);
+  background: rgba(var(--color-primary-rgb), 0.09);
+  color: var(--color-primary);
 }
 
 .mini-debug-head {
@@ -139,8 +138,8 @@ const { t } = useI18n()
   justify-content: space-between;
   gap: 12px;
   padding: 12px;
-  border-bottom: 1px solid rgba(96, 231, 255, 0.16);
-  background: rgba(34, 211, 238, 0.055);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--el-fill-color-light);
 }
 
 .mini-debug-head strong {
@@ -151,7 +150,7 @@ const { t } = useI18n()
 
 .mini-debug-kicker {
   display: block;
-  color: var(--mini-cyber-accent);
+  color: var(--color-primary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 10px;
   font-weight: 800;
@@ -162,17 +161,18 @@ const { t } = useI18n()
 .mini-debug-copy-btn {
   height: 28px;
   padding: 0 10px;
-  border: 1px solid rgba(96, 231, 255, 0.26);
-  border-radius: 9px;
-  background: rgba(34, 211, 238, 0.11);
-  color: var(--mini-cyber-text);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
+  color: var(--text-primary);
   font-size: 12px;
   cursor: pointer;
 }
 
 .mini-debug-copy-btn:hover:not(:disabled) {
-  border-color: rgba(96, 231, 255, 0.46);
-  background: rgba(34, 211, 238, 0.17);
+  border-color: rgba(var(--color-primary-rgb), 0.3);
+  background: rgba(var(--color-primary-rgb), 0.09);
+  color: var(--color-primary);
 }
 
 .mini-debug-copy-btn:disabled {
@@ -184,15 +184,15 @@ const { t } = useI18n()
   display: flex;
   gap: 7px;
   padding: 9px 12px;
-  border-bottom: 1px solid rgba(96, 231, 255, 0.12);
+  border-bottom: 1px solid var(--border-light);
 }
 
 .mini-debug-stats span {
   padding: 3px 7px;
-  border: 1px solid rgba(96, 231, 255, 0.14);
+  border: 1px solid var(--border-light);
   border-radius: 999px;
-  background: rgba(34, 211, 238, 0.06);
-  color: var(--mini-cyber-muted);
+  background: var(--el-fill-color-light);
+  color: var(--text-secondary);
   font-size: 11px;
 }
 
@@ -209,17 +209,15 @@ const { t } = useI18n()
 .mini-debug-list::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: rgba(96, 231, 255, 0.26);
+  background: rgba(var(--color-primary-rgb), 0.22);
   background-clip: padding-box;
 }
 
 .mini-debug-step {
   padding: 9px;
-  border: 1px solid rgba(96, 231, 255, 0.14);
-  border-radius: 12px;
-  background:
-    linear-gradient(145deg, rgba(8, 22, 38, 0.7), rgba(3, 10, 20, 0.62)),
-    rgba(34, 211, 238, 0.04);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
 }
 
 .mini-debug-step + .mini-debug-step {
@@ -248,14 +246,14 @@ const { t } = useI18n()
 
 .mini-debug-step-title span {
   flex: 0 0 auto;
-  color: var(--mini-cyber-dim);
+  color: var(--text-disabled);
   font-size: 11px;
 }
 
 .mini-debug-step-title strong {
   min-width: 0;
   overflow: hidden;
-  color: var(--mini-cyber-text);
+  color: var(--text-primary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
   text-overflow: ellipsis;
@@ -265,7 +263,7 @@ const { t } = useI18n()
 .mini-debug-step-title em {
   flex: 0 0 auto;
   margin-left: auto;
-  color: var(--mini-cyber-accent);
+  color: var(--color-primary);
   font-size: 11px;
   font-style: normal;
 }
@@ -277,23 +275,23 @@ const { t } = useI18n()
   white-space: pre-wrap;
   word-break: break-word;
   padding: 7px 8px;
-  border: 1px solid rgba(96, 231, 255, 0.12);
-  border-radius: 9px;
-  background: rgba(2, 8, 18, 0.46);
-  color: var(--mini-cyber-muted);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
   line-height: 1.45;
 }
 
 .mini-debug-snippet--error {
-  border-color: rgba(245, 108, 108, 0.24);
-  color: #ffc7c7;
+  border-color: rgba(245, 108, 108, 0.28);
+  color: var(--color-danger);
 }
 
 .mini-debug-empty {
   padding: 42px 16px;
-  color: var(--mini-cyber-dim);
+  color: var(--text-disabled);
   font-size: 13px;
   text-align: center;
 }

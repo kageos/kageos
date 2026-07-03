@@ -76,6 +76,54 @@ func TestWorkspaceRoleAcceptanceExistingVoteRequestPrefersAppOperator(t *testing
 	}
 }
 
+func TestWorkspaceRoleAcceptanceLightweightFileRequestPrefersAppOperator(t *testing.T) {
+	workspaceCtx := &dto.GetWorkspaceContextResp{
+		User: "tester",
+		Directory: dto.WorkspaceContextDirectory{
+			Name:         "临时文件处理",
+			Code:         "workspace",
+			FullCodePath: "/system/demo/workspace",
+			Description:  "用于在工作台处理临时文件、附件和已有应用资源",
+			Type:         "package",
+		},
+	}
+
+	hint := workspaceFirstTurnDirectoryRAGHint([]*model.AgentChatMessage{
+		{Role: RoleUser, Content: "把这个 CSV 去重清洗一下并导出", User: "tester"},
+	}, workspaceCtx)
+	for _, want := range []string{
+		"简单处理一个文件",
+		"app_operator",
+		"run_python",
+		"复杂、专项或多步骤文件处理才进入 `data_operator`",
+	} {
+		if !strings.Contains(hint, want) {
+			t.Fatalf("first-turn file hint should contain %q, got:\n%s", want, hint)
+		}
+	}
+
+	routing := workspaceroles.RoutingMarkdown()
+	appOperatorIndex := strings.Index(routing, "### `app_operator`")
+	dataOperatorIndex := strings.Index(routing, "### `data_operator`")
+	if appOperatorIndex < 0 || dataOperatorIndex < 0 || appOperatorIndex > dataOperatorIndex {
+		t.Fatalf("routing should evaluate app_operator before data_operator, got:\n%s", routing)
+	}
+
+	operatorSpec, _ := workspaceroles.SpecFor(workspaceroles.AppOperator)
+	dataSpec, _ := workspaceroles.SpecFor(workspaceroles.DataOperator)
+	if !strings.Contains(operatorSpec.RouteDescription, "轻量一次性文件/数据任务") ||
+		!strings.Contains(operatorSpec.RouteDescription, "`run_python`") {
+		t.Fatalf("app_operator should explicitly own lightweight file work, got: %s", operatorSpec.RouteDescription)
+	}
+	if !containsWorkspaceRoleString(operatorSpec.AllowedTools, "run_python") {
+		t.Fatalf("app_operator should allow run_python, tools=%v", operatorSpec.AllowedTools)
+	}
+	if !strings.Contains(strings.Join(dataSpec.Runtime.ForbiddenConditions, "；"), "轻量一次性文件/数据处理") ||
+		!strings.Contains(dataSpec.RouteDescription, "简单转换") {
+		t.Fatalf("data_operator should exclude simple file work, runtime=%#v route=%s", dataSpec.Runtime, dataSpec.RouteDescription)
+	}
+}
+
 func TestWorkspaceRoleAcceptancePRDConfirmHandoffCarriesDeveloperPacket(t *testing.T) {
 	const votePRD = `{
   "kind": "agent_app_prd",

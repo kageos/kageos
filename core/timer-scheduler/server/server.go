@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/kageos/kageos/pkg/dbx"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/natsx"
+	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
 )
@@ -27,7 +27,7 @@ type Server struct {
 	service    *timerservice.Service
 	publisher  timerservice.OutboxPublisher
 	natsSubs   []*nats.Subscription
-	httpServer *http.Server
+	httpServer *serverx.HTTPServer
 	done       chan struct{}
 	cancel     context.CancelFunc
 	owner      string
@@ -80,14 +80,20 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	s.natsSubs = natsSubs
 	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.GetPort()))
-	s.httpServer = &http.Server{
-		Addr:    addr,
-		Handler: NewRouter(s.service),
+	httpServer, err := serverx.StartHTTPServer(ctx, addr, NewRouter(s.service))
+	if err != nil {
+		cancel()
+		for _, sub := range natsSubs {
+			_ = sub.Unsubscribe()
+		}
+		s.natsSubs = nil
+		return fmt.Errorf("failed to start HTTP server on %s: %w", addr, err)
 	}
+	s.httpServer = httpServer
 	s.done = make(chan struct{})
 	go s.runDispatchLoop(runCtx)
 	go func() {
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := <-httpServer.Err(); err != nil {
 			logger.Errorf(runCtx, "[timer-scheduler] HTTP server error: %v", err)
 		}
 	}()
@@ -102,11 +108,10 @@ func (s *Server) Stop(ctx context.Context) error {
 		s.cancel = nil
 	}
 	if s.httpServer != nil {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
+		if err := s.httpServer.Shutdown(ctx); err != nil {
 			return err
 		}
+		s.httpServer = nil
 	}
 	if s.done != nil {
 		<-s.done

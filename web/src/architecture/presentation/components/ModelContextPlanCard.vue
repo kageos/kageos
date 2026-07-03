@@ -1,17 +1,18 @@
 <template>
-  <div class="model-context-card">
+  <div :class="['model-context-card', { 'is-expanded': expanded }]">
     <button
       type="button"
       class="model-context-head"
       :aria-expanded="expanded"
+      :title="`${t('modelContext.title')} · ${plan.protocol_version} · ${roundLabel}`"
       @click="expanded = !expanded"
     >
       <div class="model-context-title">
         <span>{{ t('modelContext.title') }}</span>
-        <span v-if="roleLabel" class="model-context-role">{{ roleLabel }}</span>
+        <span v-if="expanded && roleLabel" class="model-context-role">{{ roleLabel }}</span>
       </div>
       <span class="model-context-meta">
-        <span class="model-context-version">{{ plan.protocol_version }} · {{ t('modelContext.round', { round: plan.round + 1 }) }}</span>
+        <span class="model-context-version">{{ expanded ? `${plan.protocol_version} · ${roundLabel}` : roundLabel }}</span>
         <el-icon :size="13" class="model-context-toggle-icon">
           <ArrowUp v-if="expanded" />
           <ArrowDown v-else />
@@ -104,6 +105,8 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const expanded = ref(false)
+
+const roundLabel = computed(() => t('modelContext.round', { round: props.plan.round + 1 }))
 
 const roleLabel = computed(() => {
   const display = formatWorkspaceRoleName(props.plan.role.id, props.plan.role.display_name)
@@ -232,36 +235,69 @@ function trimTrailingZeros(value: number): string {
 
 <style scoped>
 .model-context-card {
-  margin: 0 0 8px;
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 3px;
   padding: 0;
-  border: 1px solid rgba(96, 231, 255, 0.16);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-placeholder);
+  overflow: visible;
+}
+
+.model-context-card.is-expanded {
+  display: block;
+  width: 100%;
+  margin: 0 0 8px;
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: rgba(6, 18, 30, 0.54);
-  color: var(--mini-cyber-text, #d8f8ff);
+  background: var(--el-fill-color-light);
+  color: var(--text-primary);
   overflow: hidden;
 }
 
 .model-context-head {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   border: 0;
-  padding: 7px 8px;
+  border-radius: 6px;
+  padding: 1px 4px;
   background: transparent;
   color: inherit;
   cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 5px;
   font: inherit;
   text-align: left;
+  opacity: 0.62;
+  transition: background 0.16s ease, color 0.16s ease, opacity 0.16s ease;
+}
+
+.model-context-card.is-expanded .model-context-head {
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 0;
+  justify-content: space-between;
+  gap: 8px;
+  opacity: 1;
 }
 
 .model-context-head:hover {
-  background: rgba(34, 211, 238, 0.06);
+  background: var(--el-fill-color);
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+.model-context-card.is-expanded .model-context-head:hover {
+  color: inherit;
 }
 
 .model-context-head:focus-visible {
-  outline: 1px solid rgba(96, 231, 255, 0.52);
+  outline: 1px solid rgba(var(--color-primary-rgb), 0.42);
   outline-offset: -2px;
 }
 
@@ -270,20 +306,32 @@ function trimTrailingZeros(value: number): string {
   align-items: center;
   gap: 6px;
   min-width: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: currentColor;
+}
+
+.model-context-card.is-expanded .model-context-title {
   font-size: 11px;
   font-weight: 800;
-  color: #dffbff;
+  color: var(--text-primary);
 }
 
 .model-context-role,
 .model-context-version {
   min-width: 0;
   overflow: hidden;
-  color: rgba(184, 225, 235, 0.68);
+  color: currentColor;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.model-context-card.is-expanded .model-context-role,
+.model-context-card.is-expanded .model-context-version {
+  color: var(--text-secondary);
+  font-weight: 700;
 }
 
 .model-context-meta {
@@ -300,7 +348,13 @@ function trimTrailingZeros(value: number): string {
 
 .model-context-toggle-icon {
   flex-shrink: 0;
-  color: rgba(184, 225, 235, 0.72);
+  color: currentColor;
+  opacity: 0.76;
+}
+
+.model-context-card.is-expanded .model-context-toggle-icon {
+  color: var(--text-secondary);
+  opacity: 1;
 }
 
 .model-context-grid {
@@ -316,7 +370,7 @@ function trimTrailingZeros(value: number): string {
 
 .model-context-label {
   margin-bottom: 4px;
-  color: rgba(143, 187, 204, 0.68);
+  color: var(--text-secondary);
   font-size: 10px;
   font-weight: 800;
 }
@@ -325,7 +379,7 @@ function trimTrailingZeros(value: number): string {
   display: inline-block;
   max-width: 100%;
   overflow-wrap: anywhere;
-  color: #bff8ff;
+  color: var(--color-primary);
   font-size: 11px;
 }
 
@@ -340,10 +394,10 @@ function trimTrailingZeros(value: number): string {
   max-width: 100%;
   overflow: hidden;
   padding: 2px 6px;
-  border: 1px solid rgba(96, 231, 255, 0.14);
+  border: 1px solid var(--border-light);
   border-radius: 999px;
-  background: rgba(34, 211, 238, 0.08);
-  color: rgba(215, 249, 255, 0.86);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
   font-size: 10px;
   font-weight: 700;
   line-height: 1.3;
@@ -352,27 +406,27 @@ function trimTrailingZeros(value: number): string {
 }
 
 .model-context-chip-row .model-context-cache-status--hit {
-  border-color: rgba(74, 222, 128, 0.25);
-  background: rgba(34, 197, 94, 0.1);
-  color: rgba(187, 247, 208, 0.92);
+  border-color: rgba(5, 150, 105, 0.26);
+  background: rgba(5, 150, 105, 0.08);
+  color: var(--color-success);
 }
 
 .model-context-chip-row .model-context-cache-status--miss {
-  border-color: rgba(250, 204, 21, 0.24);
-  background: rgba(234, 179, 8, 0.09);
-  color: rgba(254, 240, 138, 0.92);
+  border-color: rgba(217, 119, 6, 0.26);
+  background: rgba(217, 119, 6, 0.08);
+  color: var(--color-warning);
 }
 
 .model-context-chip-row .model-context-cache-status--unknown,
 .model-context-chip-row .model-context-cache-status--pending {
-  border-color: rgba(148, 163, 184, 0.2);
-  background: rgba(148, 163, 184, 0.08);
-  color: rgba(226, 232, 240, 0.78);
+  border-color: var(--border-light);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
 }
 
 .model-context-subtle {
   margin-top: 4px;
-  color: rgba(184, 225, 235, 0.62);
+  color: var(--text-secondary);
   font-size: 10px;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -386,15 +440,15 @@ function trimTrailingZeros(value: number): string {
 
 .model-context-rounds span {
   padding: 1px 5px;
-  border: 1px solid rgba(96, 231, 255, 0.12);
+  border: 1px solid var(--border-light);
   border-radius: 999px;
-  background: rgba(34, 211, 238, 0.06);
+  background: var(--bg-primary);
 }
 
 .model-context-list {
   margin: 5px 0 0;
   padding-left: 16px;
-  color: rgba(216, 248, 255, 0.82);
+  color: var(--text-regular);
   font-size: 11px;
   line-height: 1.45;
 }

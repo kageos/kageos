@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/kageos/kageos/core/agent-server/model"
@@ -51,8 +52,15 @@ func TestInitLLMSeedsCreatesDefaultAndAllowsEmptyAPIBase(t *testing.T) {
 	if cfg.APIBase != "" {
 		t.Fatalf("api_base should stay empty to use SDK defaults, got %q", cfg.APIBase)
 	}
-	if cfg.APIKey != "seed-secret" {
-		t.Fatalf("api key = %q, want env value", cfg.APIKey)
+	if cfg.APIKey == "seed-secret" || !strings.HasPrefix(cfg.APIKey, llmAPIKeyCipherPrefix) {
+		t.Fatalf("api key was not sealed: %q", cfg.APIKey)
+	}
+	opened, err := svc.OpenAPIKey(cfg.APIKey)
+	if err != nil {
+		t.Fatalf("open seed api key: %v", err)
+	}
+	if opened != "seed-secret" {
+		t.Fatalf("api key = %q, want env value", opened)
 	}
 	if cfg.Timeout != defaultLLMTimeout || cfg.MaxTokens != defaultLLMMaxTokens {
 		t.Fatalf("defaults timeout/max_tokens = %d/%d", cfg.Timeout, cfg.MaxTokens)
@@ -103,8 +111,15 @@ func TestInitLLMSeedsDoesNotWipeExistingKeyWhenEnvMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get seed by code: %v", err)
 	}
-	if cfg.APIKey != "existing-secret" {
-		t.Fatalf("api key should not be wiped, got %q", cfg.APIKey)
+	if cfg.APIKey == "existing-secret" || !strings.HasPrefix(cfg.APIKey, llmAPIKeyCipherPrefix) {
+		t.Fatalf("existing api key was not sealed: %q", cfg.APIKey)
+	}
+	opened, err := svc.OpenAPIKey(cfg.APIKey)
+	if err != nil {
+		t.Fatalf("open existing api key: %v", err)
+	}
+	if opened != "existing-secret" {
+		t.Fatalf("api key should not be wiped, got %q", opened)
 	}
 	if cfg.Name != "新模型" || cfg.Model != "gpt-4.1" {
 		t.Fatalf("seed fields not updated: name=%q model=%q", cfg.Name, cfg.Model)

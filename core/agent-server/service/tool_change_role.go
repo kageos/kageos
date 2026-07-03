@@ -13,7 +13,7 @@ type ChangeRoleTool struct{}
 
 type changeRoleArgs struct {
 	CurrentRole      string   `json:"current_role" schema_desc:"当前身份 ID；没有则留空"`
-	TargetRole       string   `json:"target_role" schema_desc:"目标身份 ID，例如 product_manager/app_developer/app_operator/automation_operator/qa_engineer；沿用身份时也明确传当前身份" schema_required:"true"`
+	TargetRole       string   `json:"target_role" schema_desc:"目标身份 ID，例如 router/product_manager/app_developer/app_operator/automation_operator/qa_engineer；沿用身份时也明确传当前身份；不知道该切谁时传 router 进入执行路由手册" schema_required:"true"`
 	ExecuteDirectory string   `json:"execute_directory" schema_desc:"下一身份的主执行目录/绑定目录完整路径；新建应用开发阶段传已存在父目录，例如 /user/app，目标新目录放入 key_information；测试/维护/操作阶段传目标应用目录；不能写“当前目录”。默认围绕该目录读取、构建、测试、运行；若用户或 SOP 明确给出外部目录、其他空间函数或连接器函数完整路径，可以按完整路径搜索或调用，权限由平台统一判断" schema_required:"true"`
 	TaskContext      []string `json:"task_context" schema_desc:"交接上下文：上一阶段做了什么、用户原始目标/需求、必须满足的要求、特殊 case 或未决问题；3-6 条短句"`
 	KeyInformation   []string `json:"key_information" schema_desc:"下一身份必须知道的关键信息：PRD 摘要、构建版本、函数/表单/表格/图表路径、测试重点、失败现象等"`

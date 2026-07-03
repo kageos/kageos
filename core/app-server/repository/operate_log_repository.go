@@ -67,6 +67,21 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 	if req.Source != "" {
 		query = query.Where("source = ?", req.Source)
 	}
+	if req.SourceType != "" {
+		query = query.Where("source_type = ?", req.SourceType)
+	}
+	if req.SourceRef != "" {
+		query = query.Where("source_ref = ?", req.SourceRef)
+	}
+	if req.ExecutorType != "" {
+		query = query.Where("executor_type = ?", req.ExecutorType)
+	}
+	if req.WorkspaceSessionID != "" {
+		query = query.Where("workspace_session_id = ?", req.WorkspaceSessionID)
+	}
+	if req.TraceID != "" {
+		query = query.Where("trace_id = ?", req.TraceID)
+	}
 	if req.RowID > 0 {
 		query = query.Where("target_id = ?", fmt.Sprintf("%d", req.RowID))
 	}
@@ -74,7 +89,12 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 		keyword := strings.TrimSpace(req.Keyword)
 		likeKeyword := "%" + keyword + "%"
 		query = query.Where(
-			"company_code LIKE ? OR actor_user LIKE ? OR target_user LIKE ? OR resource_path LIKE ? OR trace_id LIKE ? OR summary LIKE ?",
+			"company_code LIKE ? OR actor_user LIKE ? OR target_user LIKE ? OR resource_path LIKE ? OR source_type LIKE ? OR source_ref LIKE ? OR executor_type LIKE ? OR workspace_session_id LIKE ? OR workspace_session_title LIKE ? OR trace_id LIKE ? OR summary LIKE ?",
+			likeKeyword,
+			likeKeyword,
+			likeKeyword,
+			likeKeyword,
+			likeKeyword,
 			likeKeyword,
 			likeKeyword,
 			likeKeyword,
@@ -102,9 +122,9 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 func normalizeOperateLogOrderBy(orderBy string) string {
 	switch strings.ToLower(strings.TrimSpace(orderBy)) {
 	case "created_at asc":
-		return "created_at ASC"
+		return "created_at ASC, id ASC"
 	default:
-		return "created_at DESC"
+		return "created_at DESC, id DESC"
 	}
 }
 

@@ -105,7 +105,6 @@ func TestNotificationRouteToInfoIncludesRemarkAndDeliveryStatus(t *testing.T) {
 		DeliveryType:     "webhook",
 		DisplayName:      "订单群",
 		Remark:           "飞书订单通知群",
-		RequireAuth:      true,
 		WebhookURLCipher: "cipher-url",
 		SecretCipher:     "cipher-secret",
 		Metadata:         `{"tenant":"demo"}`,
@@ -124,7 +123,7 @@ func TestNotificationRouteToInfoIncludesRemarkAndDeliveryStatus(t *testing.T) {
 	if info.DisplayName != "订单群" || info.Remark != "飞书订单通知群" {
 		t.Fatalf("unexpected display fields: %#v", info)
 	}
-	if !info.RequireAuth || !info.HasWebhookURL || !info.HasSecret {
+	if !info.HasWebhookURL || !info.HasSecret {
 		t.Fatalf("unexpected route flags: %#v", info)
 	}
 	if info.Metadata["tenant"] != "demo" || info.LastError != "webhook returned 400" || info.FailCount != 2 {

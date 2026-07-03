@@ -173,7 +173,6 @@ type MessageActionViewResp struct {
 	TokenStatus       string             `json:"token_status"`
 	RecipientUser     string             `json:"recipient_user"`
 	Channel           string             `json:"channel,omitempty"`
-	RequireAuth       bool               `json:"require_auth"`
 	AuthenticatedUser string             `json:"authenticated_user,omitempty"`
 	AllowedActions    []string           `json:"allowed_actions"`
 	CanReply          bool               `json:"can_reply"`
@@ -234,7 +233,6 @@ type MessageNotificationRouteInfo struct {
 	DeliveryType  string            `json:"delivery_type"`
 	DisplayName   string            `json:"display_name"`
 	Remark        string            `json:"remark"`
-	RequireAuth   bool              `json:"require_auth"`
 	HasWebhookURL bool              `json:"has_webhook_url"`
 	HasSecret     bool              `json:"has_secret"`
 	Metadata      map[string]string `json:"metadata,omitempty"`
@@ -279,7 +277,6 @@ type UpsertMessageNotificationRouteReq struct {
 	DeliveryType    string            `json:"delivery_type"`
 	DisplayName     string            `json:"display_name"`
 	Remark          *string           `json:"remark"`
-	RequireAuth     *bool             `json:"require_auth"`
 	WebhookURL      string            `json:"webhook_url"`
 	Secret          string            `json:"secret"`
 	ClearWebhookURL bool              `json:"clear_webhook_url"`

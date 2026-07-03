@@ -25,7 +25,6 @@ type NotificationTarget struct {
 	RouteID         int64
 	ScopePath       string
 	ScopeType       string
-	RequireAuth     bool
 }
 
 type ChannelProvider interface {

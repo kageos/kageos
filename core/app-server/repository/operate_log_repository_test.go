@@ -28,10 +28,10 @@ func newOperateLogRepositoryTestDB(t *testing.T) *gorm.DB {
 }
 
 func TestNormalizeOperateLogOrderByWhitelist(t *testing.T) {
-	if got := normalizeOperateLogOrderBy("created_at asc"); got != "created_at ASC" {
+	if got := normalizeOperateLogOrderBy("created_at asc"); got != "created_at ASC, id ASC" {
 		t.Fatalf("created_at asc = %q", got)
 	}
-	if got := normalizeOperateLogOrderBy("created_at DESC; DROP TABLE operate_logs"); got != "created_at DESC" {
+	if got := normalizeOperateLogOrderBy("created_at DESC; DROP TABLE operate_logs"); got != "created_at DESC, id DESC" {
 		t.Fatalf("unsafe order should fall back to desc, got %q", got)
 	}
 }
@@ -249,5 +249,87 @@ func TestGetOperateLogsFiltersBySource(t *testing.T) {
 	}
 	if total != 1 || len(logs) != 1 || logs[0].Source != "openapi" {
 		t.Fatalf("expected only openapi logs, total=%d logs=%+v", total, logs)
+	}
+}
+
+func TestGetOperateLogsFiltersByWorkspaceSessionID(t *testing.T) {
+	db := newOperateLogRepositoryTestDB(t)
+	repo := NewOperateLogRepository(db)
+	ctx := context.Background()
+
+	for _, item := range []struct {
+		sessionID    string
+		executorType string
+		trace        string
+	}{
+		{sessionID: "session-target", executorType: "agent", trace: "trace-target"},
+		{sessionID: "session-other", executorType: "agent", trace: "trace-other"},
+	} {
+		if err := repo.CreateOperateLog(ctx, &model.OperateLog{
+			TenantUser:         "owner",
+			App:                "ops",
+			ActorUser:          "alice",
+			Action:             "form_submit",
+			ResourceType:       "form",
+			ResourcePath:       "/owner/ops/export.form",
+			Status:             "success",
+			Source:             "agent",
+			ExecutorType:       item.executorType,
+			WorkspaceSessionID: item.sessionID,
+			TraceID:            item.trace,
+		}); err != nil {
+			t.Fatalf("create log: %v", err)
+		}
+	}
+
+	logs, total, err := repo.GetOperateLogs(ctx, &dto.GetOperateLogsReq{
+		WorkspaceSessionID: "session-target",
+		Page:               1,
+		PageSize:           20,
+	})
+	if err != nil {
+		t.Fatalf("query logs: %v", err)
+	}
+	if total != 1 || len(logs) != 1 || logs[0].WorkspaceSessionID != "session-target" {
+		t.Fatalf("expected only session-target logs, total=%d logs=%+v", total, logs)
+	}
+}
+
+func TestGetOperateLogsFiltersByTraceID(t *testing.T) {
+	db := newOperateLogRepositoryTestDB(t)
+	repo := NewOperateLogRepository(db)
+	ctx := context.Background()
+
+	for _, item := range []struct {
+		traceID string
+		action  string
+	}{
+		{traceID: "trace-target", action: "form_submit"},
+		{traceID: "trace-other", action: "OnTableUpdateRow"},
+	} {
+		if err := repo.CreateOperateLog(ctx, &model.OperateLog{
+			TenantUser:   "owner",
+			App:          "ops",
+			ActorUser:    "alice",
+			Action:       item.action,
+			ResourceType: "form",
+			ResourcePath: "/owner/ops/export.form",
+			Status:       "success",
+			TraceID:      item.traceID,
+		}); err != nil {
+			t.Fatalf("create log: %v", err)
+		}
+	}
+
+	logs, total, err := repo.GetOperateLogs(ctx, &dto.GetOperateLogsReq{
+		TraceID:  "trace-target",
+		Page:     1,
+		PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("query logs: %v", err)
+	}
+	if total != 1 || len(logs) != 1 || logs[0].TraceID != "trace-target" {
+		t.Fatalf("expected only trace-target log, total=%d logs=%+v", total, logs)
 	}
 }

@@ -98,9 +98,9 @@ func (c *HRServerConfig) IsDebug() bool {
 
 func (c *HRServerConfig) IsPprofEnabled() bool {
 	if c == nil {
-		return true
+		return false
 	}
-	return boolConfigValue(c.Server.EnablePprof, true)
+	return boolConfigValue(c.Server.EnablePprof, false)
 }
 
 // AllowNATSDegradedStartup 是否允许在 NATS 初始化失败时继续启动 HR 服务。

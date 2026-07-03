@@ -135,9 +135,12 @@ func TestRecordTableActionLogPersistsFailedResultAndDuration(t *testing.T) {
 func TestRecordTableActionLogUsesContextAuditSource(t *testing.T) {
 	service, db := newAppServiceOperateLogTest(t)
 	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
-		ClientSource: contextx.ClientSourceAgent,
-		SourceType:   contextx.SourceTypeAgentTool,
-		SourceRef:    "session-1",
+		ClientSource:          contextx.ClientSourceAgent,
+		SourceType:            contextx.SourceTypeAgentTool,
+		SourceRef:             "session-1",
+		WorkspaceSessionID:    "session-1",
+		WorkspaceSessionTitle: "订单处理",
+		WorkspaceRole:         "app_operator",
 	})
 
 	err := service.RecordTableActionLog(ctx, &dto.RecordTableActionLogReq{
@@ -167,6 +170,15 @@ func TestRecordTableActionLogUsesContextAuditSource(t *testing.T) {
 	}
 	if log.Source != contextx.ClientSourceAgent {
 		t.Fatalf("source = %q, want agent", log.Source)
+	}
+	if log.SourceType != contextx.SourceTypeAgentTool || log.SourceRef != "session-1" {
+		t.Fatalf("source fields mismatch: type=%q ref=%q", log.SourceType, log.SourceRef)
+	}
+	if log.ExecutorType != operateLogExecutorAgent {
+		t.Fatalf("executor_type = %q, want agent", log.ExecutorType)
+	}
+	if log.WorkspaceSessionID != "session-1" || log.WorkspaceSessionTitle != "订单处理" || log.WorkspaceRole != "app_operator" {
+		t.Fatalf("workspace session fields mismatch: id=%q title=%q role=%q", log.WorkspaceSessionID, log.WorkspaceSessionTitle, log.WorkspaceRole)
 	}
 	var details dto.TableActionLogDetails
 	if err := json.Unmarshal(log.DetailsJSON, &details); err != nil {
@@ -213,12 +225,62 @@ func TestRecordTableActionLogUsesScheduledTaskAuditSource(t *testing.T) {
 	if log.Source != contextx.ClientSourceScheduledTask {
 		t.Fatalf("source = %q, want scheduled_task", log.Source)
 	}
+	if log.ExecutorType != operateLogExecutorScheduledFunction {
+		t.Fatalf("executor_type = %q, want scheduled_function", log.ExecutorType)
+	}
 	var details dto.TableActionLogDetails
 	if err := json.Unmarshal(log.DetailsJSON, &details); err != nil {
 		t.Fatalf("unmarshal details: %v", err)
 	}
 	if details.SourceType != contextx.SourceTypeScheduledTask || details.SourceRef != "timer_task:7:execution:9" {
 		t.Fatalf("source details mismatch: %+v", details)
+	}
+}
+
+func TestRecordTableActionLogMarksScheduledAgentAsAgentExecutor(t *testing.T) {
+	service, db := newAppServiceOperateLogTest(t)
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
+		ClientSource:          contextx.ClientSourceScheduledTask,
+		SourceType:            contextx.SourceTypeScheduledTask,
+		SourceRef:             "timer_task:7:execution:9",
+		WorkspaceSessionID:    "session-scheduled-agent",
+		WorkspaceSessionTitle: "物流巡检",
+		WorkspaceRole:         "automation_operator",
+	})
+
+	err := service.RecordTableActionLog(ctx, &dto.RecordTableActionLogReq{
+		TenantUser:  "alice",
+		RequestUser: "system",
+		App:         "ops",
+		Router:      "tickets.table",
+		Action:      "OnTableAddRow",
+		Body:        json.RawMessage(`{"title":"scheduled-agent"}`),
+		TraceID:     "trace-scheduled-agent-table",
+	})
+	if err != nil {
+		t.Fatalf("record scheduled agent table action log: %v", err)
+	}
+
+	var log model.OperateLog
+	deadline := time.Now().Add(time.Second)
+	for {
+		queryErr := db.Where("trace_id = ?", "trace-scheduled-agent-table").First(&log).Error
+		if queryErr == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("log was not persisted: %v", queryErr)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if log.Source != contextx.ClientSourceScheduledTask {
+		t.Fatalf("source = %q, want scheduled_task", log.Source)
+	}
+	if log.ExecutorType != operateLogExecutorAgent {
+		t.Fatalf("executor_type = %q, want agent", log.ExecutorType)
+	}
+	if log.WorkspaceSessionID != "session-scheduled-agent" || log.WorkspaceSessionTitle != "物流巡检" {
+		t.Fatalf("workspace session fields mismatch: id=%q title=%q", log.WorkspaceSessionID, log.WorkspaceSessionTitle)
 	}
 }
 
@@ -259,6 +321,12 @@ func TestRecordFormOperateLogInfersOpenAPISource(t *testing.T) {
 	}
 	if log.Source != contextx.ClientSourceOpenAPI {
 		t.Fatalf("source = %q, want openapi", log.Source)
+	}
+	if log.SourceType != contextx.SourceTypeOpenAPIToken || log.SourceRef != "bob" {
+		t.Fatalf("source fields mismatch: type=%q ref=%q", log.SourceType, log.SourceRef)
+	}
+	if log.ExecutorType != operateLogExecutorOpenAPI {
+		t.Fatalf("executor_type = %q, want openapi", log.ExecutorType)
 	}
 	var details dto.FormOperateLogDetails
 	if err := json.Unmarshal(log.DetailsJSON, &details); err != nil {
@@ -308,6 +376,9 @@ func TestRecordFormOperateLogUsesScheduledTaskAuditSource(t *testing.T) {
 	if log.Source != contextx.ClientSourceScheduledTask {
 		t.Fatalf("source = %q, want scheduled_task", log.Source)
 	}
+	if log.ExecutorType != operateLogExecutorScheduledFunction {
+		t.Fatalf("executor_type = %q, want scheduled_function", log.ExecutorType)
+	}
 	var details dto.FormOperateLogDetails
 	if err := json.Unmarshal(log.DetailsJSON, &details); err != nil {
 		t.Fatalf("unmarshal details: %v", err)
@@ -351,6 +422,12 @@ func TestRecordScheduledFunctionOperateLogPersistsGenericEntry(t *testing.T) {
 	}
 	if log.Source != contextx.ClientSourceScheduledTask {
 		t.Fatalf("source = %q, want scheduled_task", log.Source)
+	}
+	if log.SourceType != contextx.SourceTypeScheduledTask || log.SourceRef != "timer_task:9:execution:11" {
+		t.Fatalf("source fields mismatch: type=%q ref=%q", log.SourceType, log.SourceRef)
+	}
+	if log.ExecutorType != operateLogExecutorScheduledFunction {
+		t.Fatalf("executor_type = %q, want scheduled_function", log.ExecutorType)
 	}
 	if log.ResourcePath != "/alice/ops/reports.chart" || log.Status != "success" {
 		t.Fatalf("unexpected log path/status: path=%q status=%q", log.ResourcePath, log.Status)

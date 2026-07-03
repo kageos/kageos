@@ -1,11 +1,78 @@
 <template>
-  <template v-if="messages.length > 0">
+  <template v-if="displayMessages.length > 0">
     <div
-      v-for="(msg, i) in messages"
-      :key="i"
-      :class="['mini-msg', msg.role, { 'mini-msg--maximized': maximized }]"
+      v-for="(msg, i) in displayMessages"
+      :key="msg.display_key"
+      :class="['mini-msg', msg.role, { 'mini-msg--maximized': maximized, 'mini-msg--activity-group': msg.display_kind === 'activity_group' }]"
     >
-      <div v-if="msg.role === 'user'" class="mini-msg-user">
+      <div v-if="msg.display_kind === 'activity_group'" class="mini-activity-group">
+        <details class="mini-activity-details">
+          <summary class="mini-activity-summary">
+            <span class="mini-activity-main">
+              <el-icon v-if="isActivityGroupRunning(msg)" class="is-loading" :size="12">
+                <Loading />
+              </el-icon>
+              <el-icon v-else-if="getActivityGroupErrorCount(msg) > 0" :size="12" color="#f56c6c">
+                <CircleClose />
+              </el-icon>
+              <el-icon v-else :size="12" color="#67c23a">
+                <CircleCheck />
+              </el-icon>
+              <span>执行过程 {{ getActivityGroupRoundCount(msg) }} 轮</span>
+            </span>
+            <span class="mini-activity-tools">{{ getActivityGroupToolSummary(msg) }}</span>
+            <span v-if="getActivityGroupThinkingPreview(msg)" class="mini-activity-thinking-preview">
+              思考：{{ getActivityGroupThinkingPreview(msg) }}
+            </span>
+            <span :class="['mini-activity-status', getActivityGroupStatusClass(msg)]">
+              {{ getActivityGroupStatusLabel(msg) }}
+            </span>
+          </summary>
+          <div class="mini-activity-detail">
+            <details
+              v-for="entry in msg.activity_entries"
+              :key="`activity-step-${entry.index}`"
+              class="mini-activity-step"
+            >
+              <summary class="mini-activity-step-head">
+                <span>{{ getActivityEntryRoundLabel(entry) }}</span>
+                <span v-if="entry.message.created_at">{{ formatMessageTime(entry.message.created_at) }}</span>
+                <span>{{ getActivityEntryToolSummary(entry.message) }}</span>
+                <span :class="['mini-activity-step-status', getActivityMessageStatusClass(entry.message)]">
+                  {{ getActivityMessageStatusLabel(entry.message) }}
+                </span>
+              </summary>
+              <div class="mini-activity-step-body">
+                <ModelContextPlanCard
+                  v-if="entry.message.model_context_plan"
+                  :plan="entry.message.model_context_plan"
+                  :plans="entry.message.model_context_plans"
+                  class="mini-msg-model-context mini-activity-model-context"
+                />
+                <details
+                  v-for="(thinking, thinkingIndex) in getThinkingBlocksFromMessage(entry.message)"
+                  :key="`activity-thinking-${entry.index}-${thinkingIndex}`"
+                  class="mini-thinking-block"
+                >
+                  <summary class="mini-thinking-head">
+                    <span>{{ t('miniWorkstation.thinkingTrace') }}</span>
+                  </summary>
+                  <div class="mini-thinking-body">{{ thinking.text }}</div>
+                </details>
+                <MessageToolCalls
+                  v-for="(calls, callsIndex) in getToolCallBlocksFromMessage(entry.message)"
+                  :key="`activity-tools-${entry.index}-${callsIndex}`"
+                  :tool-calls="calls"
+                  :file-groups="getFileGroupsFromCalls(calls)"
+                  :confirm-disabled="sending"
+                  @confirm-prd="emit('confirm-prd', $event)"
+                />
+              </div>
+            </details>
+          </div>
+        </details>
+      </div>
+      <div v-else-if="msg.role === 'user'" class="mini-msg-user">
         <div class="mini-msg-user-header">
           <UserDisplay
             :username="msg.user || currentUsername || null"
@@ -45,26 +112,109 @@
           </span>
           <span class="mini-msg-time">{{ msg.created_at ? formatMessageTime(msg.created_at) : '—' }}</span>
           <span
-            v-if="getAssistantDurationLabel(msg, i)"
-            :class="['mini-msg-output-duration', { 'mini-msg-output-duration--running': isAssistantTimerRunning(msg, i) }]"
+            v-if="getAssistantDurationLabel(msg, getDisplayMessageIndex(msg, i))"
+            :class="['mini-msg-output-duration', { 'mini-msg-output-duration--running': isAssistantTimerRunning(msg, getDisplayMessageIndex(msg, i)) }]"
           >
-            <span v-if="isAssistantTimerRunning(msg, i)" class="mini-msg-output-duration-dot"></span>
-            {{ t('miniWorkstation.outputDuration', { duration: getAssistantDurationLabel(msg, i) }) }}
+            <span v-if="isAssistantTimerRunning(msg, getDisplayMessageIndex(msg, i))" class="mini-msg-output-duration-dot"></span>
+            {{ t('miniWorkstation.outputDuration', { duration: getAssistantDurationLabel(msg, getDisplayMessageIndex(msg, i)) }) }}
           </span>
         </div>
+        <div
+          v-if="getActivityEntriesForMessage(msg).length"
+          class="mini-activity-group mini-activity-group--attached"
+        >
+          <details class="mini-activity-details">
+            <summary class="mini-activity-summary">
+              <span class="mini-activity-main">
+                <el-icon v-if="isActivityGroupRunning(msg)" class="is-loading" :size="12">
+                  <Loading />
+                </el-icon>
+                <el-icon v-else-if="getActivityGroupErrorCount(msg) > 0" :size="12" color="#f56c6c">
+                  <CircleClose />
+                </el-icon>
+                <el-icon v-else :size="12" color="#67c23a">
+                  <CircleCheck />
+                </el-icon>
+                <span>执行过程 {{ getActivityGroupRoundCount(msg) }} 轮</span>
+              </span>
+              <span class="mini-activity-tools">{{ getActivityGroupToolSummary(msg) }}</span>
+              <span v-if="getActivityGroupThinkingPreview(msg)" class="mini-activity-thinking-preview">
+                思考：{{ getActivityGroupThinkingPreview(msg) }}
+              </span>
+              <span :class="['mini-activity-status', getActivityGroupStatusClass(msg)]">
+                {{ getActivityGroupStatusLabel(msg) }}
+              </span>
+            </summary>
+            <div class="mini-activity-detail">
+              <details
+                v-for="entry in getActivityEntriesForMessage(msg)"
+                :key="`attached-activity-step-${entry.index}`"
+                class="mini-activity-step"
+              >
+                <summary class="mini-activity-step-head">
+                  <span>{{ getActivityEntryRoundLabel(entry) }}</span>
+                  <span v-if="entry.message.created_at">{{ formatMessageTime(entry.message.created_at) }}</span>
+                  <span>{{ getActivityEntryToolSummary(entry.message) }}</span>
+                  <span :class="['mini-activity-step-status', getActivityMessageStatusClass(entry.message)]">
+                    {{ getActivityMessageStatusLabel(entry.message) }}
+                  </span>
+                </summary>
+                <div class="mini-activity-step-body">
+                  <ModelContextPlanCard
+                    v-if="entry.message.model_context_plan"
+                    :plan="entry.message.model_context_plan"
+                    :plans="entry.message.model_context_plans"
+                    class="mini-msg-model-context mini-activity-model-context"
+                  />
+                  <details
+                    v-for="(thinking, thinkingIndex) in getThinkingBlocksFromMessage(entry.message)"
+                    :key="`attached-activity-thinking-${entry.index}-${thinkingIndex}`"
+                    class="mini-thinking-block"
+                  >
+                    <summary class="mini-thinking-head">
+                      <span>{{ t('miniWorkstation.thinkingTrace') }}</span>
+                    </summary>
+                    <div class="mini-thinking-body">{{ thinking.text }}</div>
+                  </details>
+                  <MessageToolCalls
+                    v-for="(calls, callsIndex) in getToolCallBlocksFromMessage(entry.message)"
+                    :key="`attached-activity-tools-${entry.index}-${callsIndex}`"
+                    :tool-calls="calls"
+                    :file-groups="getFileGroupsFromCalls(calls)"
+                    :confirm-disabled="sending"
+                    @confirm-prd="emit('confirm-prd', $event)"
+                  />
+                </div>
+              </details>
+            </div>
+          </details>
+        </div>
         <ModelContextPlanCard
-          v-if="msg.model_context_plan"
+          v-if="shouldRenderAssistantTechnicalInline(msg) && msg.model_context_plan"
           :plan="msg.model_context_plan"
           :plans="msg.model_context_plans"
           class="mini-msg-model-context"
         />
         <div v-if="msg.blocks?.length" class="mini-msg-assistant">
-          <template v-for="(block, bi) in msg.blocks" :key="bi">
+          <template v-for="(block, bi) in getRenderBlocksForMessage(msg)" :key="bi">
             <div
               v-if="block.type === 'content'"
               class="mini-content-block mini-md-content"
-              v-html="renderContentBlock(block.text, i, bi, msg.blocks.length)"
+              v-html="renderContentBlock(block.text, getDisplayMessageIndex(msg, i), bi, getRenderBlocksForMessage(msg).length)"
             ></div>
+            <details
+              v-else-if="block.type === 'thinking'"
+              class="mini-thinking-block"
+              :open="isStreamingThinkingBlock(getDisplayMessageIndex(msg, i), bi, getRenderBlocksForMessage(msg).length)"
+            >
+              <summary class="mini-thinking-head">
+                <el-icon v-if="isStreamingThinkingBlock(getDisplayMessageIndex(msg, i), bi, getRenderBlocksForMessage(msg).length)" class="is-loading" :size="12">
+                  <Loading />
+                </el-icon>
+                <span>{{ t('miniWorkstation.thinkingTrace') }}</span>
+              </summary>
+              <div class="mini-thinking-body">{{ block.text }}</div>
+            </details>
             <template v-else-if="block.type === 'tool_calls'">
               <template v-if="maximized">
                 <MessageToolCalls
@@ -169,6 +319,24 @@
             />
           </template>
           <template v-else-if="msg.tool_calls?.length">
+            <div v-if="getVisibleToolCallsFromCalls(msg.tool_calls).length" class="mini-tools-block">
+              <div
+                v-for="(tc, ti) in getVisibleToolCallsFromCalls(msg.tool_calls)"
+                :key="`msg-tool-${tc.name}-${ti}`"
+                class="mini-tool-tag"
+              >
+                <el-icon v-if="tc.status === 'streaming' || tc.status === 'running'" class="is-loading" :size="12">
+                  <Loading />
+                </el-icon>
+                <el-icon v-else-if="tc.status === 'ok'" :size="12" color="#67c23a">
+                  <CircleCheck />
+                </el-icon>
+                <el-icon v-else-if="tc.status === 'error'" :size="12" color="#f56c6c">
+                  <CircleClose />
+                </el-icon>
+                <span>{{ getToolDisplayName(tc) }}</span>
+              </div>
+            </div>
             <PrdPreview
               v-for="(tc, pi) in getPrdCallsFromCalls(msg.tool_calls)"
               :key="`msg-prd-${tc.name}-${pi}`"
@@ -215,12 +383,12 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CircleCheck, CircleClose, Loading } from '@element-plus/icons-vue'
 import type { OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 import type { OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
-import type { ChatMessage, ChatMessageToolCall } from '@/architecture/presentation/composables/useWorkspaceChatStream'
+import type { AssistantBlock, ChatMessage, ChatMessageToolCall } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import MessageToolCalls from './MessageToolCalls.vue'
 import ModelContextPlanCard from './ModelContextPlanCard.vue'
 import OutputDisplayFields from './OutputDisplayFields.vue'
@@ -279,15 +447,162 @@ interface RuntimeTimer {
   completedAt?: number
 }
 
+interface ActivityEntry {
+  message: ChatMessage
+  index: number
+}
+
+type MiniDisplayMessage = ChatMessage & {
+  display_kind: 'message' | 'activity_group'
+  display_key: string
+  original_index: number
+  activity_entries: ActivityEntry[]
+}
+
 const assistantTimer = ref<RuntimeTimer | null>(null)
 const assistantTimerNow = ref(Date.now())
 let assistantTimerInterval: ReturnType<typeof setInterval> | null = null
+
+const displayMessages = computed<MiniDisplayMessage[]>(() => {
+  const out: MiniDisplayMessage[] = []
+  let pendingActivity: ActivityEntry[] = []
+
+  const flushActivity = () => {
+    if (!pendingActivity.length) return
+    const first = pendingActivity[0]
+    const last = pendingActivity[pendingActivity.length - 1]
+    if (!first || !last) return
+    out.push({
+      role: 'assistant',
+      content: '',
+      user: last.message.user,
+      created_at: last.message.created_at,
+      display_kind: 'activity_group',
+      display_key: `activity-${first.index}`,
+      original_index: first.index,
+      activity_entries: pendingActivity
+    })
+    pendingActivity = []
+  }
+
+  const pushMessage = (message: ChatMessage, index: number, activityEntries: ActivityEntry[] = []) => {
+    out.push({
+      ...message,
+      display_kind: 'message',
+      display_key: `message-${index}-${message.role}-${message.created_at || ''}-${activityEntries[0]?.index ?? 'plain'}`,
+      original_index: index,
+      activity_entries: activityEntries
+    })
+  }
+
+  props.messages.forEach((message, index) => {
+    if (isCollapsibleActivityMessage(message)) {
+      pendingActivity.push({ message, index })
+      return
+    }
+    if (message.role === 'assistant' && pendingActivity.length) {
+      const activityEntries = pendingActivity
+      pendingActivity = []
+      pushMessage(message, index, activityEntries)
+      return
+    }
+    flushActivity()
+    pushMessage(message, index)
+  })
+
+  flushActivity()
+  return out
+})
+
+function getDisplayMessageIndex(message: MiniDisplayMessage, fallback: number): number {
+  return typeof message.original_index === 'number' ? message.original_index : fallback
+}
+
+function isCollapsibleActivityMessage(message: ChatMessage): boolean {
+  if (message.role !== 'assistant') return false
+  if (hasAssistantPrimaryContent(message)) return false
+  const calls = getAllToolCallsFromMessage(message)
+  if (hasImportantToolSurface(calls)) return false
+  return hasTechnicalActivity(message, calls)
+}
+
+function hasAssistantPrimaryContent(message: ChatMessage): boolean {
+  if ((message.content || '').trim()) return true
+  if (!message.blocks?.length) return false
+  return message.blocks.some((block) => block.type === 'content' && block.text.trim())
+}
+
+function hasTechnicalActivity(message: ChatMessage, calls = getAllToolCallsFromMessage(message)): boolean {
+  return calls.length > 0 ||
+    !!message.model_context_plan ||
+    !!message.model_context_plans?.length ||
+    getThinkingBlocksFromMessage(message).length > 0
+}
+
+function hasImportantToolSurface(calls: ChatMessageToolCall[]): boolean {
+  if (!calls.length) return false
+  return getPrdCallsFromCalls(calls).length > 0 ||
+    getBuildWorkspaceFailureCallsFromCalls(calls).length > 0 ||
+    getInteractionCardsFromCalls(calls).length > 0 ||
+    props.getFileGroupsFromCalls(calls).length > 0 ||
+    props.getDisplayFieldsFromCalls(calls).length > 0
+}
+
+function getAllToolCallsFromMessage(message: ChatMessage): ChatMessageToolCall[] {
+  if (message.blocks?.length) {
+    return message.blocks.flatMap((block) => block.type === 'tool_calls' ? block.calls : [])
+  }
+  return message.tool_calls || []
+}
+
+function getToolCallBlocksFromMessage(message: ChatMessage): ChatMessageToolCall[][] {
+  if (message.blocks?.length) {
+    return message.blocks
+      .filter((block): block is { type: 'tool_calls'; calls: ChatMessageToolCall[] } => block.type === 'tool_calls')
+      .map((block) => block.calls)
+      .filter((calls) => getVisibleToolCallsFromCalls(calls).length > 0)
+  }
+  return message.tool_calls?.length ? [message.tool_calls] : []
+}
+
+function getThinkingBlocksFromMessage(message: ChatMessage): { text: string }[] {
+  if (!message.blocks?.length) return []
+  return message.blocks
+    .filter((block): block is { type: 'thinking'; text: string } => block.type === 'thinking')
+    .filter((block) => block.text.trim())
+}
+
+function shouldRenderAssistantTechnicalInline(message: ChatMessage): boolean {
+  if (!hasAssistantPrimaryContent(message)) return true
+  return hasImportantToolSurface(getAllToolCallsFromMessage(message))
+}
+
+function getRenderBlocksForMessage(message: ChatMessage): AssistantBlock[] {
+  if (!message.blocks?.length) return []
+  if (shouldRenderAssistantTechnicalInline(message)) return message.blocks
+  return message.blocks.filter((block) => block.type === 'content')
+}
+
+function getActivityEntriesForMessage(message: MiniDisplayMessage): ActivityEntry[] {
+  const entries = [...(message.activity_entries || [])]
+  if (
+    message.display_kind === 'message' &&
+    hasAssistantPrimaryContent(message) &&
+    !shouldRenderAssistantTechnicalInline(message) &&
+    hasTechnicalActivity(message)
+  ) {
+    entries.push({ message, index: message.original_index })
+  }
+  return entries
+}
 
 function getAssistantOutputSize(message: ChatMessage): number {
   let size = message.content?.length ?? 0
   if (message.blocks?.length) {
     for (const block of message.blocks) {
       if (block.type === 'content') {
+        size += block.text.length
+      } else if (block.type === 'thinking') {
         size += block.text.length
       } else {
         const visibleCalls = getVisibleToolCallsFromCalls(block.calls)
@@ -387,6 +702,10 @@ function isAssistantTimerRunning(message: ChatMessage, msgIndex: number): boolea
   return isAssistantTimerTarget(message, msgIndex) && !!timer && timer.completedAt == null
 }
 
+function isStreamingThinkingBlock(msgIndex: number, blockIndex: number, blockCount: number): boolean {
+  return props.sending && msgIndex === props.messages.length - 1 && blockIndex === blockCount - 1
+}
+
 function renderContentBlock(text: string, msgIndex: number, blockIndex: number, blockCount: number): string {
   const isStreamingTail =
     props.sending &&
@@ -406,6 +725,111 @@ function getVisibleToolCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessage
 
 function getToolDisplayName(call: ChatMessageToolCall): string {
   return getWorkspaceToolCallDisplayName(call)
+}
+
+function getActivityGroupRoundCount(message: MiniDisplayMessage): number {
+  return getActivityEntriesForMessage(message).length
+}
+
+function getActivityGroupToolCalls(message: MiniDisplayMessage): ChatMessageToolCall[] {
+  return getActivityEntriesForMessage(message).flatMap((entry) => getAllToolCallsFromMessage(entry.message))
+}
+
+function getActivityGroupErrorCount(message: MiniDisplayMessage): number {
+  return getActivityGroupToolCalls(message).filter((call) => call.status === 'error').length
+}
+
+function isToolCallRunning(call: ChatMessageToolCall): boolean {
+  return call.status === 'streaming' || call.status === 'running'
+}
+
+function isActivityGroupRunning(message: MiniDisplayMessage): boolean {
+  return getActivityGroupToolCalls(message).some(isToolCallRunning)
+}
+
+function getActivityGroupStatusLabel(message: MiniDisplayMessage): string {
+  if (isActivityGroupRunning(message)) return '执行中'
+  const errors = getActivityGroupErrorCount(message)
+  if (errors > 0) return `${errors} 失败`
+  return '完成'
+}
+
+function getActivityGroupStatusClass(message: MiniDisplayMessage): string {
+  if (isActivityGroupRunning(message)) return 'is-running'
+  if (getActivityGroupErrorCount(message) > 0) return 'is-error'
+  return 'is-ok'
+}
+
+function getActivityMessageStatusLabel(message: ChatMessage): string {
+  const calls = getAllToolCallsFromMessage(message)
+  if (calls.some(isToolCallRunning)) return '执行中'
+  const errors = calls.filter((call) => call.status === 'error').length
+  if (errors > 0) return `${errors} 失败`
+  return '完成'
+}
+
+function getActivityMessageStatusClass(message: ChatMessage): string {
+  const calls = getAllToolCallsFromMessage(message)
+  if (calls.some(isToolCallRunning)) return 'is-running'
+  if (calls.some((call) => call.status === 'error')) return 'is-error'
+  return 'is-ok'
+}
+
+function getActivityGroupToolSummary(message: MiniDisplayMessage): string {
+  const calls = getActivityGroupToolCalls(message)
+  if (calls.length) return summarizeToolCalls(calls, 4)
+  if (getActivityEntriesForMessage(message).some((entry) => getThinkingBlocksFromMessage(entry.message).length > 0)) return '思考'
+  return '模型上下文'
+}
+
+function getActivityGroupThinkingPreview(message: MiniDisplayMessage): string {
+  const entries = getActivityEntriesForMessage(message)
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i]
+    if (!entry) continue
+    const blocks = getThinkingBlocksFromMessage(entry.message)
+    for (let j = blocks.length - 1; j >= 0; j--) {
+      const block = blocks[j]
+      if (!block) continue
+      const preview = compactThinkingPreview(block.text)
+      if (preview) return preview
+    }
+  }
+  return ''
+}
+
+function compactThinkingPreview(text: string): string {
+  const compact = String(text || '').replace(/\s+/g, ' ').trim()
+  if (!compact) return ''
+  const maxLength = 86
+  return compact.length > maxLength ? `...${compact.slice(compact.length - maxLength)}` : compact
+}
+
+function getActivityEntryToolSummary(message: ChatMessage): string {
+  const calls = getAllToolCallsFromMessage(message)
+  if (calls.length) return summarizeToolCalls(calls, 3)
+  if (getThinkingBlocksFromMessage(message).length > 0) return '思考'
+  return '模型上下文'
+}
+
+function summarizeToolCalls(calls: ChatMessageToolCall[], maxItems: number): string {
+  const visible = getVisibleToolCallsFromCalls(calls)
+  if (!visible.length) return '工具调用'
+  const counts = new Map<string, number>()
+  for (const call of visible) {
+    const name = getToolDisplayName(call)
+    counts.set(name, (counts.get(name) || 0) + 1)
+  }
+  const entries = Array.from(counts.entries())
+  const shown = entries.slice(0, maxItems).map(([name, count]) => count > 1 ? `${name} x${count}` : name)
+  const hidden = entries.length - shown.length
+  return hidden > 0 ? `${shown.join(' · ')} · +${hidden}` : shown.join(' · ')
+}
+
+function getActivityEntryRoundLabel(entry: ActivityEntry): string {
+  const round = entry.message.model_context_plan?.round
+  if (typeof round === 'number') return `第 ${round + 1} 轮`
+  return `第 ${entry.index + 1} 条`
 }
 
 function getBuildWorkspaceFailureCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
@@ -567,6 +991,9 @@ onBeforeUnmount(() => {
   margin-bottom: 12px;
   animation: miniMsgEnter 0.22s ease-out;
 }
+.mini-msg--activity-group {
+  margin: 4px 0 8px;
+}
 .mini-msg-user {
   display: flex;
   flex-direction: column;
@@ -630,7 +1057,7 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 .mini-msg-model-context {
-  margin-bottom: 6px;
+  margin-bottom: 3px;
 }
 .mini-msg-output-duration {
   display: inline-flex;
@@ -665,6 +1092,154 @@ onBeforeUnmount(() => {
   box-shadow: none;
 }
 
+.mini-activity-group {
+  color: var(--text-secondary);
+}
+.mini-activity-group--attached {
+  margin: -1px 0 5px;
+}
+.mini-activity-group--attached .mini-activity-summary {
+  min-height: 22px;
+  padding: 2px 6px;
+  border-color: transparent;
+  color: var(--text-placeholder);
+  font-size: 10px;
+}
+.mini-activity-group--attached .mini-activity-main {
+  color: var(--text-secondary);
+}
+.mini-activity-details {
+  width: 100%;
+}
+.mini-activity-summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  list-style: none;
+  font-size: 11px;
+}
+.mini-activity-summary::-webkit-details-marker {
+  display: none;
+}
+.mini-activity-summary::before {
+  content: '›';
+  flex-shrink: 0;
+  color: var(--text-placeholder);
+}
+.mini-activity-details[open] .mini-activity-summary {
+  border-radius: 8px 8px 0 0;
+}
+.mini-activity-details[open] .mini-activity-summary::before {
+  transform: rotate(90deg);
+}
+.mini-activity-main,
+.mini-activity-status,
+.mini-activity-step-status {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 4px;
+  white-space: nowrap;
+}
+.mini-activity-main {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.mini-activity-tools {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini-activity-thinking-preview {
+  flex: 1 1 auto;
+  min-width: 80px;
+  overflow: hidden;
+  color: var(--text-placeholder);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini-activity-status {
+  margin-left: auto;
+  font-weight: 600;
+}
+.mini-activity-status.is-running,
+.mini-activity-step-status.is-running {
+  color: var(--color-primary);
+}
+.mini-activity-status.is-ok,
+.mini-activity-step-status.is-ok {
+  color: var(--color-success);
+}
+.mini-activity-status.is-error,
+.mini-activity-step-status.is-error {
+  color: var(--color-danger);
+}
+.mini-activity-detail {
+  max-height: 260px;
+  overflow: auto;
+  padding: 5px 6px 6px;
+  border: 1px solid var(--border-light);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  background: transparent;
+}
+.mini-msg--maximized .mini-activity-detail {
+  max-height: 360px;
+}
+.mini-activity-step {
+  border-bottom: 1px solid var(--border-light);
+}
+.mini-activity-step:last-child {
+  border-bottom: none;
+}
+.mini-activity-step-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 5px 2px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+.mini-activity-step-head::-webkit-details-marker {
+  display: none;
+}
+.mini-activity-step-head::before {
+  content: '›';
+  flex-shrink: 0;
+  color: var(--text-placeholder);
+}
+.mini-activity-step[open] .mini-activity-step-head::before {
+  transform: rotate(90deg);
+}
+.mini-activity-step-head span:nth-child(3) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini-activity-step-status {
+  margin-left: auto;
+}
+.mini-activity-step-body {
+  padding: 0 2px 6px 14px;
+}
+.mini-activity-model-context {
+  margin: 0 0 4px;
+}
+
 .mini-content-block {
   margin: 0;
   font-size: 12px;
@@ -672,6 +1247,51 @@ onBeforeUnmount(() => {
   font-family: inherit;
   color: var(--text-primary);
   word-break: break-word;
+}
+.mini-thinking-block {
+  margin: 0 0 5px;
+  color: var(--text-placeholder);
+}
+.mini-thinking-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  cursor: pointer;
+  list-style: none;
+  padding: 1px 0;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-placeholder);
+}
+.mini-thinking-head::-webkit-details-marker {
+  display: none;
+}
+.mini-thinking-head::before {
+  content: '›';
+  display: inline-block;
+  transform: rotate(0deg);
+  color: var(--text-placeholder);
+}
+.mini-thinking-block[open] .mini-thinking-head::before {
+  transform: rotate(90deg);
+}
+.mini-thinking-body {
+  max-height: 72px;
+  overflow: auto;
+  margin-top: 3px;
+  padding: 5px 7px;
+  border-left: 2px solid var(--border-light);
+  font-size: 10px;
+  line-height: 1.45;
+  background: transparent;
+  color: var(--text-placeholder);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.mini-msg--maximized .mini-thinking-body {
+  max-height: 96px;
 }
 .mini-md-content :deep(p) {
   margin: 0 0 6px;
@@ -773,20 +1393,37 @@ onBeforeUnmount(() => {
 }
 .mini-tools-block {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 4px 0;
+  flex-wrap: nowrap;
+  gap: 3px;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 2px 0 4px;
+  padding-bottom: 1px;
+  scrollbar-width: none;
+}
+.mini-tools-block::-webkit-scrollbar {
+  display: none;
 }
 .mini-tool-tag {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 11px;
+  flex: 0 0 auto;
+  max-width: 180px;
+  font-size: 10px;
   color: var(--text-secondary);
   border: 1px solid var(--border-light);
-  background: var(--bg-tertiary);
-  padding: 2px 6px;
+  background: transparent;
+  padding: 1px 5px;
   border-radius: 999px;
+  line-height: 1.4;
+}
+.mini-tool-tag span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mini-msg-user-body {

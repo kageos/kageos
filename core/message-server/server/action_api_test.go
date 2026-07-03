@@ -53,6 +53,7 @@ func TestSubmitPublicMessageActionReplySubmitsWorkspaceChat(t *testing.T) {
 	body := bytes.NewBufferString(`{"content":"帮我延迟到下午 5 点，并通知相关人。","action":"reply"}`)
 	req := httptest.NewRequest(http.MethodPost, "/message/api/v1/public/actions/"+rawToken+"/reply", body)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-User", "bob")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, req)
 
@@ -93,7 +94,7 @@ func TestSubmitPublicMessageActionReplySubmitsWorkspaceChat(t *testing.T) {
 	if total != 1 || len(thread) != 1 || thread[0].ID != entry.ID {
 		t.Fatalf("message thread should not receive reply message: total=%d thread=%#v", total, thread)
 	}
-	view, err := repo.GetActionView(context.Background(), rawToken, "")
+	view, err := repo.GetActionView(context.Background(), rawToken, "", "bob")
 	if err != nil {
 		t.Fatalf("get action view: %v", err)
 	}
@@ -120,7 +121,6 @@ func TestSubmitPublicMessageActionReplyRequiresAuthForRouteToken(t *testing.T) {
 		MessageID:         entry.ID,
 		RecipientUsername: "bob",
 		AuthorizedUsers:   []string{"bob", "alice"},
-		RequireAuth:       true,
 		AllowedActions:    []string{"reply"},
 		SourcePath:        entry.SourcePath,
 		ThreadKey:         entry.ThreadKey,

@@ -225,14 +225,31 @@ bash scripts/check-doc-links.sh
 - 环境变量和配置键使用全大写 `KAGEOS_*`。
 - 对 BSL 授权的核心平台，使用“源码公开、可自托管”或 “source-available and self-hostable”。在对应版本转为 Apache-2.0 之前，不要把当前核心说成 OSI open source。
 
-## 贡献和安全
+## 贡献
 
-提交 PR 前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，安全漏洞请按 [SECURITY.md](SECURITY.md) 私下报告。
+欢迎提交 Pull Request。开 PR 前请先阅读：
+
+- [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)：贡献流程、分支模型、commit 规范、本地开发和验证检查。
+- [CODE_OF_CONDUCT.zh-CN.md](CODE_OF_CONDUCT.zh-CN.md)：issue、discussion、pull request 和社区空间的行为准则。
+
+请保持 PR 聚焦；行为变化请补充测试或说明验证方式；公开行为、部署方式或产品定位变化时，请同步更新文档。
 
 不要提交真实 `.env`、生产 `kage.yaml`、客户 license、生成部署产物、`namespace/`、`local/` 或其他私有工作区。请使用示例文件和本地 override。
+
+## 安全
+
+请不要通过公开 GitHub Issue 报告疑似安全漏洞。
+
+安全问题请发送邮件至 [admin@kageos.com](mailto:admin@kageos.com)。如果安全，请包含受影响版本、分支、commit、部署模式、复现步骤、PoC 和影响说明。完整流程见 [SECURITY.zh-CN.md](SECURITY.zh-CN.md)。
 
 ## 授权
 
 Kageos 核心采用 Business Source License 1.1，并在发布四年后转 Apache License 2.0。源码公开，允许在 BSL 授权范围内查看、修改、分发和自托管；未经授权的商业 SaaS、MSP 托管、白标、OEM、嵌入、on-premises 商业产品、改名转售和竞品化产品/服务受到限制。
 
 详情见 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)。SDK、示例、模板和文档如有单独 license 文件，可以采用各自的宽松开源授权。
+
+## 致谢
+
+Kageos 由[恰研智能](https://qiayanai.com)创建和维护。它构建在更广泛的开源基础设施和开发工具生态之上，包括 Go、Vue、MySQL、NATS、MinIO、Docker、Podman 以及许多其他项目。
+
+Kageos 不是 OCTO、TangSengDaoDao 或 WuKongIM 的 fork。我们依然感谢这些项目，以及更广泛的 Agent、协作系统和基础设施社区共同推动这个领域向前。

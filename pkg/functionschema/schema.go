@@ -46,8 +46,9 @@ type TableSchema struct {
 }
 
 type ChartSchema struct {
-	Request  []*widget.Field `json:"request"`
-	Response []*widget.Field `json:"response,omitempty"`
+	ChartType string          `json:"chart_type,omitempty"`
+	Request   []*widget.Field `json:"request"`
+	Response  []*widget.Field `json:"response,omitempty"`
 }
 
 func NewForm(request, response []*widget.Field, callbacks []string) *FunctionSchema {
@@ -75,12 +76,17 @@ func NewTable(request, fields []*widget.Field, callbacks []string) *FunctionSche
 }
 
 func NewChart(request, response []*widget.Field, callbacks []string) *FunctionSchema {
+	return NewChartWithType("", request, response, callbacks)
+}
+
+func NewChartWithType(chartType string, request, response []*widget.Field, callbacks []string) *FunctionSchema {
 	return &FunctionSchema{
 		Version: Version,
 		Type:    TypeChart,
 		Chart: &ChartSchema{
-			Request:  nonNilFields(request),
-			Response: nonNilFields(response),
+			ChartType: strings.TrimSpace(chartType),
+			Request:   nonNilFields(request),
+			Response:  nonNilFields(response),
 		},
 		Callbacks: normalizeCallbacks(callbacks),
 	}

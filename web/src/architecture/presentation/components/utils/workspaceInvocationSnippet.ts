@@ -156,12 +156,20 @@ function renderWorkspaceResourceToken(segment: WorkspacePromptSegment): string {
   const href = resolveWorkspaceUrl(path)
   const label = workspaceResourceLabel(path)
   const typeLabel = workspaceResourceTypeLabel(kind)
+  const iconSrc = workspaceResourceIconSrc(kind)
+  const iconHtml = workspaceResourceIconHtml(kind, typeLabel)
   return [
     `<a class="workspace-resource-token is-${escapeHtml(kind)}"`,
     ` href="${escapeHtml(href)}"`,
     ` data-full-code-path="${escapeHtml(path)}"`,
+    ` data-resource-kind="${escapeHtml(kind)}"`,
+    ` data-resource-label="${escapeHtml(label)}"`,
+    ` data-resource-type-label="${escapeHtml(typeLabel)}"`,
+    ` data-resource-icon-src="${escapeHtml(iconSrc)}"`,
     ` title="${escapeHtml(path)}">`,
-    `<span class="workspace-resource-token__dot"></span>`,
+    `<span class="workspace-resource-token__icon">`,
+    iconHtml,
+    `</span>`,
     `<span class="workspace-resource-token__label">${escapeHtml(label)}</span>`,
     `<span class="workspace-resource-token__type">${escapeHtml(typeLabel)}</span>`,
     `</a>`,
@@ -178,16 +186,61 @@ function workspaceResourceLabel(pathOrToken: string): string {
 function workspaceResourceTypeLabel(kind: string): string {
   switch (kind) {
     case 'table':
-      return 'Table'
+      return '表格'
     case 'form':
-      return 'Form'
+      return '表单'
     case 'chart':
-      return 'Chart'
+      return '图表'
     case 'docs':
-      return 'Docs'
+      return '文档'
     default:
       return '目录'
   }
+}
+
+export function workspaceResourceIconSrc(kind: string): string {
+  switch (kind) {
+    case 'directory':
+      return '/service-tree/custom-folder.svg'
+    case 'form':
+      return '/service-tree/编辑.svg'
+    case 'docs':
+      return '/文档.svg'
+    default:
+      return ''
+  }
+}
+
+export function workspaceResourceIconHtml(kind: string, typeLabel = ''): string {
+  const src = workspaceResourceIconSrc(kind)
+  if (src) {
+    return `<img class="workspace-resource-token__img" src="${escapeHtml(src)}" alt="${escapeHtml(typeLabel)}" />`
+  }
+  if (kind === 'table') {
+    return [
+      `<svg class="workspace-resource-token__svg table-icon" viewBox="0 0 1024 1024" aria-hidden="true">`,
+      `<path d="M0 0m36.608 0l950.784 0q36.608 0 36.608 36.608l0 219.392q0 36.608-36.608 36.608l-950.784 0q-36.608 0-36.608-36.608l0-219.392q0-36.608 36.608-36.608Z" fill="#553CCE"></path>`,
+      `<path d="M0 365.738667m36.608 0l219.392 0q36.608 0 36.608 36.608l0 219.392q0 36.608-36.608 36.608l-219.392 0q-36.608 0-36.608-36.608l0-219.392q0-36.608 36.608-36.608Z" fill="#553CCE"></path>`,
+      `<path d="M365.738667 365.738667m36.608 0l219.392 0q36.608 0 36.608 36.608l0 219.392q0 36.608-36.608 36.608l-219.392 0q-36.608 0-36.608-36.608l0-219.392q0-36.608 36.608-36.608Z" fill="#553CCE"></path>`,
+      `<path d="M731.392 365.738667m36.608 0l219.392 0q36.608 0 36.608 36.608l0 219.392q0 36.608-36.608 36.608l-219.392 0q-36.608 0-36.608-36.608l0-219.392q0-36.608 36.608-36.608Z" fill="#553CCE"></path>`,
+      `<path d="M0 731.392m36.608 0l219.392 0q36.608 0 36.608 36.608l0 219.392q0 36.608-36.608 36.608l-219.392 0q-36.608 0-36.608-36.608l0-219.392q0-36.608 36.608-36.608Z" fill="#553CCE"></path>`,
+      `<path d="M365.738667 731.392m36.608 0l219.392 0q36.608 0 36.608 36.608l0 219.392q0 36.608-36.608 36.608l-219.392 0q-36.608 0-36.608-36.608l0-219.392q0-36.608 36.608-36.608Z" fill="#553CCE"></path>`,
+      `<path d="M731.392 731.392m36.608 0l219.392 0q36.608 0 36.608 36.608l0 219.392q0 36.608-36.608 36.608l-219.392 0q-36.608 0-36.608-36.608l0-219.392q0-36.608 36.608-36.608Z" fill="#553CCE"></path>`,
+      `</svg>`,
+    ].join('')
+  }
+  if (kind === 'chart') {
+    return [
+      `<svg class="workspace-resource-token__svg chart-icon" viewBox="0 0 1024 1024" aria-hidden="true">`,
+      `<path d="M976 944H48c-26.496 0-48-21.44-48-48V128c0-26.496 21.504-48 48-48s48 21.504 48 48v720h880c26.496 0 48 21.504 48 48 0 26.56-21.504 48-48 48zM864 800h-96c-26.496 0-48-21.504-48-48V416c0-26.496 21.504-48 48-48h96c26.496 0 48 21.504 48 48v336c0 26.56-21.504 48-48 48z m-272 0h-96c-26.496 0-48-21.44-48-48V224c0-26.496 21.504-48 48-48h96c26.496 0 48 21.504 48 48v528c0 26.56-21.504 48-48 48z m-272 0h-96c-26.496 0-48-21.504-48-48v-96c0-26.496 21.504-48 48-48h96c26.496 0 48 21.504 48 48v96c0 26.56-21.504 48-48 48z" fill="#9377E0"></path>`,
+      `</svg>`,
+    ].join('')
+  }
+  return [
+    `<svg class="workspace-resource-token__svg function-icon" viewBox="0 0 1024 1024" aria-hidden="true">`,
+    `<path d="M832 128H192c-35.35 0-64 28.65-64 64v640c0 35.35 28.65 64 64 64h640c35.35 0 64-28.65 64-64V192c0-35.35-28.65-64-64-64zM288 320h448v64H288v-64zm0 160h448v64H288v-64zm0 160h320v64H288v-64z" fill="#6366f1"></path>`,
+    `</svg>`,
+  ].join('')
 }
 
 export function buildWorkspaceInvocationSnippet(input: WorkspaceInvocationSnippetInput): string {

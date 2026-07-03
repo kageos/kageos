@@ -166,6 +166,14 @@
             </div>
           </div>
         </div>
+        <div
+          v-else-if="isRestoringWorkspaceRoute"
+          class="workspace-route-restoring"
+          data-testid="workspace-route-restoring"
+          aria-hidden="true"
+        >
+          <el-skeleton :rows="10" animated />
+        </div>
         <div v-else class="empty-state" data-testid="workspace-empty-state">
           <p>{{ t('workspace.emptySelect') }}</p>
         </div>
@@ -315,12 +323,13 @@ import { useWorkspaceNodeActions } from '../composables/useWorkspaceNodeActions'
 import { useWorkspaceNodeNavigation } from '../composables/useWorkspaceNodeNavigation'
 import { useWorkspaceNodeToolActions } from '../composables/useWorkspaceNodeToolActions'
 import { useWorkspaceUiEffects } from '../composables/useWorkspaceUiEffects'
-import { useWorkspaceViewLifecycle } from '../composables/useWorkspaceViewLifecycle'
+import { resolveWorkspaceRootNodeForRoute, useWorkspaceViewLifecycle } from '../composables/useWorkspaceViewLifecycle'
 import { findNodeByPath, findNodeById } from '../utils/workspaceUtils'
 import { useAfterCreateNode } from '../composables/useAfterCreateNode'
 import { getFormRequestFields, getFunctionCallbacks } from '@/architecture/domain/utils/functionSchemaSelectors'
 import { listMessageInboxSourceCounts, type MessageInboxSourceCount } from '@/architecture/presentation/context/api/message'
 import { featureFlags } from '@/architecture/shared/config/features'
+import { extractWorkspacePath } from '@/architecture/shared/routing/route'
 
 const route = useRoute()
 const router = useRouter()
@@ -809,6 +818,33 @@ const supportsUpdateTable = computed(() => {
 
 // 转换 loadingTree 为 boolean (避免 computed 类型问题)
 const loading = computed(() => domainService.isLoading())
+
+const workspaceRouteSegments = computed(() => extractWorkspacePath(route.path).split('/').filter(Boolean))
+
+const workspaceRouteTargetNode = computed<ServiceTreeType | null>(() => {
+  const segments = workspaceRouteSegments.value
+  if (segments.length < 2 || serviceTree.value.length === 0) {
+    return null
+  }
+
+  if (segments.length === 2) {
+    return resolveWorkspaceRootNodeForRoute(route.path, serviceTree.value, findNodeByPath)
+  }
+
+  return findNodeByPath(serviceTree.value, `/${segments.join('/')}`)
+})
+
+const isRestoringWorkspaceRoute = computed(() => {
+  if (workspaceAccessError.value || currentFunction.value) {
+    return false
+  }
+
+  if (workspaceRouteSegments.value.length < 2) {
+    return false
+  }
+
+  return loading.value || serviceTree.value.length === 0 || Boolean(workspaceRouteTargetNode.value)
+})
 
 const workspaceAccessTitle = computed(() => {
   return workspaceAccessError.value?.type === 'forbidden'
@@ -1331,6 +1367,31 @@ useWorkspaceUiEffects({
   opacity: 0.7;
   pointer-events: none;
   z-index: 1;
+}
+
+.workspace-route-restoring {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  padding: 26px 28px;
+  box-sizing: border-box;
+  animation: workspace-route-restoring-enter 180ms ease-out both;
+}
+
+.workspace-route-restoring :deep(.el-skeleton__item) {
+  background-color: var(--app-shell-panel-muted-bg);
+}
+
+@keyframes workspace-route-restoring-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 文档/目录主内容区：可滚动 */

@@ -12,12 +12,9 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 )
 
-func llmAPIKeyForResponse(cfg *model.LLMConfig, isAdmin bool) (string, bool) {
+func llmAPIKeyForResponse(cfg *model.LLMConfig) (string, bool) {
 	if cfg.APIKey == "" {
 		return "", false
-	}
-	if isAdmin {
-		return cfg.APIKey, true
 	}
 	return "", true
 }
@@ -84,7 +81,7 @@ func (h *LLM) List(c *gin.Context) {
 			extraConfig = *cfg.ExtraConfig
 		}
 		isAdmin := cfg.IsAdminUser(currentUser)
-		apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, false)
+		apiKey, hasAPIKey := llmAPIKeyForResponse(cfg)
 		llmInfos = append(llmInfos, dto.LLMInfo{
 			ID:          cfg.ID,
 			Code:        cfg.Code,
@@ -143,7 +140,7 @@ func (h *LLM) Get(c *gin.Context) {
 	}()
 
 	ctx := contextx.ToContext(c)
-	cfg, err := h.service.GetLLMConfig(ctx, req.ID)
+	cfg, err := h.service.GetViewableLLMConfig(ctx, req.ID)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -154,7 +151,7 @@ func (h *LLM) Get(c *gin.Context) {
 		extraConfig = *cfg.ExtraConfig
 	}
 	isAdmin := cfg.IsAdminUser(contextx.GetRequestUser(ctx))
-	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, isAdmin)
+	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg)
 	resp = &dto.LLMGetResp{
 		LLMInfo: dto.LLMInfo{
 			ID:          cfg.ID,
@@ -202,7 +199,7 @@ func (h *LLM) GetDefault(c *gin.Context) {
 	}()
 
 	ctx := contextx.ToContext(c)
-	cfg, err := h.service.GetDefaultLLMConfig(ctx)
+	cfg, err := h.service.GetViewableDefaultLLMConfig(ctx)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -213,7 +210,7 @@ func (h *LLM) GetDefault(c *gin.Context) {
 		extraConfig = *cfg.ExtraConfig
 	}
 	isAdmin := cfg.IsAdminUser(contextx.GetRequestUser(ctx))
-	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg, isAdmin)
+	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg)
 	resp = &dto.LLMGetDefaultResp{
 		LLMInfo: dto.LLMInfo{
 			ID:          cfg.ID,

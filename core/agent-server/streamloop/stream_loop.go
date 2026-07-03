@@ -15,6 +15,7 @@ import (
 
 const (
 	EventContent              = dto.WorkspaceStreamEventContent
+	EventThinking             = dto.WorkspaceStreamEventThinking
 	EventToolCallsStreamDelta = dto.WorkspaceStreamEventToolCallsStreamDelta // 增量+节流，节省带宽
 	EventError                = dto.WorkspaceStreamEventError
 	MaxToolRounds             = 100 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
@@ -63,7 +64,7 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 		return err
 	}
 
-	content, allToolCalls, usage, err := processStreamChunks(ctx, stream, deps.SendEvent, round)
+	content, thinkingContent, allToolCalls, usage, err := processStreamChunks(ctx, stream, deps.SendEvent, round)
 	if err != nil {
 		deps.SendEvent(EventError, &errorData{Message: err.Error()})
 		return err
@@ -71,7 +72,7 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 	combinedUsage := addLLMUsage(previousUsage, usage)
 
 	if len(allToolCalls) > 0 {
-		if err := deps.SaveAssistantMessageWithToolCalls(ctx, content, allToolCalls, usage); err != nil {
+		if err := deps.SaveAssistantMessageWithToolCalls(ctx, content, thinkingContent, allToolCalls, usage); err != nil {
 			logger.Warnf(ctx, "[StreamLoop] 保存 assistant 消息失败: %v", err)
 			deps.SendEvent(EventError, &errorData{Message: "保存 assistant 消息失败: " + err.Error()})
 			return err
@@ -87,7 +88,7 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 		return runStreamLoopRound(ctx, deps, round+1, combined, combinedUsage)
 	}
 
-	if err := deps.SaveAssistantMessage(ctx, content, usage); err != nil {
+	if err := deps.SaveAssistantMessage(ctx, content, thinkingContent, usage); err != nil {
 		logger.Warnf(ctx, "[StreamLoop] 保存 assistant 消息失败: %v", err)
 	}
 	deps.OnDone(previousSummaries, combinedUsage)
@@ -95,6 +96,10 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 }
 
 type contentData struct {
+	Content string `json:"content"`
+}
+
+type thinkingData struct {
 	Content string `json:"content"`
 }
 
@@ -107,14 +112,17 @@ func processStreamChunks(
 	stream <-chan *llms.StreamChunk,
 	sendEvent func(string, interface{}),
 	round int,
-) (string, []llms.ToolCall, *llms.Usage, error) {
+) (string, string, []llms.ToolCall, *llms.Usage, error) {
 	var buf strings.Builder
+	var thinkingBuf strings.Builder
 	allToolCalls := make([]llms.ToolCall, 0)
 	toolCallsIndex := make(map[string]int)
 	finalToolCalls := make([]llms.ToolCall, 0)
 	finalToolCallsReceived := false
 	finishReason := ""
 	var usage *llms.Usage
+	thinkFilter := newThinkTagFilter()
+	sawReasoningContent := false
 
 	// 增量+节流：累积 delta，满足条件时 flush
 	pendingDeltas := make(map[int]string)
@@ -167,7 +175,7 @@ func processStreamChunks(
 		select {
 		case <-ctx.Done():
 			logger.Infof(ctx, "[StreamLoop] 上下文已取消，停止处理")
-			return "", nil, usage, ctx.Err()
+			return "", "", nil, usage, ctx.Err()
 		default:
 		}
 		if ch.Usage != nil {
@@ -176,13 +184,25 @@ func processStreamChunks(
 		if ch.FinishReason != "" {
 			finishReason = ch.FinishReason
 		}
+		if ch.ReasoningContent != "" {
+			sawReasoningContent = true
+			thinkingBuf.WriteString(ch.ReasoningContent)
+			sendEvent(EventThinking, &thinkingData{Content: ch.ReasoningContent})
+		}
 		if ch.Error != "" {
 			flushToolCallsDelta()
-			return "", nil, usage, fmt.Errorf("LLM 流式错误: %s", ch.Error)
+			return "", "", nil, usage, fmt.Errorf("LLM 流式错误: %s", ch.Error)
 		}
 		if ch.Content != "" {
-			buf.WriteString(ch.Content)
-			sendEvent(EventContent, &contentData{Content: ch.Content})
+			filtered := thinkFilter.Append(ch.Content)
+			if filtered.Thinking != "" {
+				thinkingBuf.WriteString(filtered.Thinking)
+				sendEvent(EventThinking, &thinkingData{Content: filtered.Thinking})
+			}
+			if filtered.Content != "" {
+				buf.WriteString(filtered.Content)
+				sendEvent(EventContent, &contentData{Content: filtered.Content})
+			}
 		}
 		if len(ch.ToolCallDeltas) > 0 {
 			prevArgs := make([]string, len(allToolCalls))
@@ -248,13 +268,20 @@ func processStreamChunks(
 
 	// 流结束，flush 剩余
 	flushToolCallsDelta()
+	if tail := thinkFilter.Finish(); tail != "" {
+		buf.WriteString(tail)
+		sendEvent(EventContent, &contentData{Content: tail})
+	}
 
 	content := strings.TrimSpace(buf.String())
 	switch finishReason {
 	case "length":
-		return content, nil, usage, fmt.Errorf("LLM 响应因达到最大输出长度而中断，请调大 max_tokens 或缩短上下文后重试")
+		if (thinkFilter.SawThink() || sawReasoningContent) && content == "" {
+			return content, strings.TrimSpace(thinkingBuf.String()), nil, usage, fmt.Errorf("LLM 响应因达到最大输出长度而中断，且可展示内容为空；模型输出可能停在思考阶段，请调大 max_tokens 或缩短上下文后重试")
+		}
+		return content, strings.TrimSpace(thinkingBuf.String()), nil, usage, fmt.Errorf("LLM 响应因达到最大输出长度而中断，请调大 max_tokens 或缩短上下文后重试")
 	case "content_filter":
-		return content, nil, usage, fmt.Errorf("LLM 响应被内容安全策略截断")
+		return content, strings.TrimSpace(thinkingBuf.String()), nil, usage, fmt.Errorf("LLM 响应被内容安全策略截断")
 	}
 	if finalToolCallsReceived {
 		allToolCalls = finalToolCalls
@@ -262,19 +289,12 @@ func processStreamChunks(
 		allToolCalls = normalizeToolCalls(ctx, allToolCalls)
 	}
 	if finishReason == "tool_calls" && len(allToolCalls) == 0 {
-		return content, nil, usage, fmt.Errorf("LLM 结束原因为 tool_calls，但未返回完整工具调用")
+		return content, strings.TrimSpace(thinkingBuf.String()), nil, usage, fmt.Errorf("LLM 结束原因为 tool_calls，但未返回完整工具调用")
 	}
 	if err := validateToolCallsForExecution(allToolCalls); err != nil {
-		return content, nil, usage, err
+		return content, strings.TrimSpace(thinkingBuf.String()), nil, usage, err
 	}
-	for _, tc := range allToolCalls {
-		if tc.Function.Arguments == "" {
-			logger.Warnf(ctx, "[StreamLoop] tool_call arguments 为空，ToolCallID: %s, ToolName: %s", tc.ID, tc.Function.Name)
-		} else if !json.Valid([]byte(strings.TrimSpace(tc.Function.Arguments))) {
-			logger.Warnf(ctx, "[StreamLoop] tool_call arguments 不是合法 JSON，ToolCallID: %s, ToolName: %s", tc.ID, tc.Function.Name)
-		}
-	}
-	return content, allToolCalls, usage, nil
+	return content, strings.TrimSpace(thinkingBuf.String()), allToolCalls, usage, nil
 }
 
 func validateToolCallsForExecution(toolCalls []llms.ToolCall) error {
@@ -284,6 +304,10 @@ func validateToolCallsForExecution(toolCalls []llms.ToolCall) error {
 		}
 		if strings.TrimSpace(tc.Function.Name) == "" {
 			return fmt.Errorf("LLM 返回的第 %d 个 tool_call 缺少 function.name", i)
+		}
+		args := strings.TrimSpace(tc.Function.Arguments)
+		if args != "" && !json.Valid([]byte(args)) {
+			return fmt.Errorf("LLM 返回的第 %d 个 tool_call(%s) 参数不是合法 JSON，已中止本轮工具执行", i, tc.Function.Name)
 		}
 	}
 	return nil

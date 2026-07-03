@@ -120,7 +120,6 @@ export interface MessageActionViewResp {
   token_status: 'open' | 'submitted' | 'expired' | 'revoked' | string
   recipient_user: string
   channel?: string
-  require_auth: boolean
   authenticated_user?: string
   allowed_actions: string[]
   can_reply: boolean
@@ -183,7 +182,6 @@ export interface MessageNotificationRouteInfo {
   delivery_type: string
   display_name?: string
   remark?: string
-  require_auth: boolean
   has_webhook_url: boolean
   has_secret: boolean
   metadata?: Record<string, string>
@@ -228,7 +226,6 @@ export interface UpsertMessageNotificationRouteReq {
   delivery_type?: string
   display_name?: string
   remark?: string
-  require_auth?: boolean
   webhook_url?: string
   secret?: string
   clear_webhook_url?: boolean
@@ -367,6 +364,14 @@ export function testMessageNotificationRoute(channel: MessageNotificationChannel
 
 export function markMessageInboxItemRead(id: number): Promise<void> {
   return patch<void>(`/message/api/v1/inbox/${id}/read`)
+}
+
+export function markMessageInboxSourceRead(sourcePath: string, includeChildren = false): Promise<void> {
+  const params = new URLSearchParams({ source_path: sourcePath })
+  if (includeChildren) {
+    params.set('include_children', 'true')
+  }
+  return patch<void>(`/message/api/v1/inbox/read_source?${params.toString()}`)
 }
 
 export function markAllMessageInboxItemsRead(): Promise<void> {

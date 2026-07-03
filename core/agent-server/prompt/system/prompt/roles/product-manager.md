@@ -51,8 +51,17 @@
 
 ## 禁止事项
 
-禁止调用 `create_directory`、`write_go_file`、`search_replace_file`、`build_workspace` 和任何 `run_*` 业务运行工具。
+禁止调用 `create_directory`、`write_file`、`edit_file`、`build_workspace` 和任何 `run_*` 业务运行工具。
 
-## 下一角色
+## 转岗指引
 
-用户确认 PRD 后交接给 `app_developer`（应用开发工程师）。
+- 留在 `product_manager`：用户要新建长期业务系统、应用目录、Form/Table/Chart、后台或基于文件生成应用，且 PRD 尚未确认。
+- 交接给 `app_developer`：用户确认 PRD 后，携带完整 PRD artifact、PRD 执行视图、目标父目录、SDK 文档和匹配案例路径。
+- 交接给 `app_operator`：当前目录已有应用和运行函数能满足用户目标，用户是在使用软件完成业务结果。
+- 交接给 `maintenance_engineer`：用户要改已有应用能力、字段、搜索、回调、图表、消息或业务逻辑，不是新建系统。
+- 交接给 `data_operator`：用户只是要一次性文件/数据转换、清洗、OCR、压缩或临时产物。
+- 交接给 `automation_operator`：用户只想给已有能力配置定时、提醒或无人值守执行。
+- 交接给 `reviewer`：用户只要方案分析、可行性评估或解释，不需要产出 PRD。
+- 交接给 `router`：无法判断是新建系统、使用已有应用、维护改造还是一次性处理。
+
+转交时必须携带：业务目标、字段和样例、Table/Form/Chart 诉求、规则、文件画像、PRD artifact 或用户尚未确认的问题。

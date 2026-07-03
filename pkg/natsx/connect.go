@@ -1,6 +1,8 @@
 package natsx
 
 import (
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/kageos/kageos/pkg/logger"
@@ -46,7 +48,7 @@ func ConnectWithOptions(url string, extraOpts ...nats.Option) (*nats.Conn, error
 		}),
 
 		nats.ReconnectHandler(func(nc *nats.Conn) {
-			logger.Infof(nil, "[NATS] Reconnected to %s", nc.ConnectedUrl())
+			logger.Infof(nil, "[NATS] Reconnected to %s", redactURLForLog(nc.ConnectedUrl()))
 		}),
 
 		nats.ClosedHandler(func(nc *nats.Conn) {
@@ -60,6 +62,29 @@ func ConnectWithOptions(url string, extraOpts ...nats.Option) (*nats.Conn, error
 		return nil, err
 	}
 
-	logger.Infof(nil, "[NATS] Connected to %s (auto-reconnect enabled)", url)
+	logger.Infof(nil, "[NATS] Connected to %s (auto-reconnect enabled)", redactURLForLog(url))
 	return conn, nil
+}
+
+func redactURLForLog(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "<redacted-url>"
+	}
+	if parsed.User != nil {
+		username := parsed.User.Username()
+		if username == "" {
+			parsed.User = url.UserPassword("", "****")
+		} else {
+			parsed.User = url.UserPassword(username, "****")
+		}
+	}
+	if parsed.RawQuery != "" {
+		parsed.RawQuery = "redacted=true"
+	}
+	return parsed.String()
 }

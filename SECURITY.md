@@ -4,16 +4,25 @@
 
 Please do not report suspected vulnerabilities in public issues.
 
-Email the maintainers at `security@qiayanai.com` with:
+Email the maintainers at [admin@kageos.com](mailto:admin@kageos.com) with:
 
 - A short description of the issue and likely impact.
 - Affected version, branch, commit, or deployment mode.
 - Reproduction steps, proof of concept, logs, or screenshots when safe to share.
 - Whether the issue may expose secrets, tenant data, workspace files, or remote
   code execution paths.
+- How you would like to be credited if the report is publicly acknowledged.
 
 The maintainers will acknowledge reports as soon as practical, triage severity,
 and coordinate a fix or mitigation before public disclosure.
+
+## Disclosure Process
+
+- We use coordinated disclosure. Please give maintainers reasonable time to
+  validate, fix, and release before public disclosure.
+- Please do not publish exploit details before a fix or mitigation is available.
+- After a fix is released, and with reporter consent, we may credit the report
+  in release notes, a security advisory, or project acknowledgements.
 
 ## Supported Versions
 

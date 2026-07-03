@@ -74,6 +74,10 @@ func InitTables(db *gorm.DB) error {
 		return err
 	}
 
+	if err := ensureOperateLogQueryIndexes(db); err != nil {
+		return err
+	}
+
 	// 创建默认的NATS和Host记录
 	return initDefaultData(db)
 }
@@ -90,6 +94,65 @@ func dropLegacyFunctionNaturalKeyIndex(db *gorm.DB) error {
 		return fmt.Errorf("failed to drop legacy function natural key index: %w", err)
 	}
 	return nil
+}
+
+type operateLogIndexSpec struct {
+	name    string
+	columns []string
+}
+
+func ensureOperateLogQueryIndexes(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&OperateLog{}) {
+		return nil
+	}
+
+	indexes := []operateLogIndexSpec{
+		{name: "idx_oplog_path_created", columns: []string{"resource_path", "created_at", "id"}},
+		{name: "idx_oplog_path_target_created", columns: []string{"resource_path", "target_id", "created_at", "id"}},
+		{name: "idx_oplog_path_action_created", columns: []string{"resource_path", "action", "created_at", "id"}},
+		{name: "idx_oplog_path_source_created", columns: []string{"resource_path", "source", "created_at", "id"}},
+		{name: "idx_oplog_path_executor_created", columns: []string{"resource_path", "executor_type", "created_at", "id"}},
+		{name: "idx_oplog_path_actor_created", columns: []string{"resource_path", "actor_user", "created_at", "id"}},
+		{name: "idx_oplog_source_ref_created", columns: []string{"source_type", "source_ref", "created_at", "id"}},
+		{name: "idx_oplog_workspace_session_created", columns: []string{"workspace_session_id", "created_at", "id"}},
+		{name: "idx_oplog_trace_created", columns: []string{"trace_id", "created_at", "id"}},
+	}
+
+	for _, index := range indexes {
+		if db.Migrator().HasIndex(&OperateLog{}, index.name) {
+			continue
+		}
+		if err := db.Exec(buildOperateLogCreateIndexSQL(db.Dialector.Name(), index)).Error; err != nil {
+			return fmt.Errorf("failed to create operate log index %s: %w", index.name, err)
+		}
+	}
+	return nil
+}
+
+func buildOperateLogCreateIndexSQL(dialect string, index operateLogIndexSpec) string {
+	quote := operateLogIndexQuote(dialect)
+	columns := make([]string, 0, len(index.columns))
+	for _, column := range index.columns {
+		columns = append(columns, quote(column))
+	}
+	return fmt.Sprintf("CREATE INDEX %s ON %s (%s)", quote(index.name), quote("operate_logs"), strings.Join(columns, ", "))
+}
+
+func operateLogIndexQuote(dialect string) func(string) string {
+	switch strings.ToLower(dialect) {
+	case "postgres":
+		return func(identifier string) string {
+			return `"` + strings.ReplaceAll(identifier, `"`, `""`) + `"`
+		}
+	case "mysql", "sqlite":
+		return func(identifier string) string {
+			return "`" + strings.ReplaceAll(identifier, "`", "``") + "`"
+		}
+	default:
+		return func(identifier string) string {
+			return identifier
+		}
+	}
 }
 
 // initDefaultData 初始化默认数据

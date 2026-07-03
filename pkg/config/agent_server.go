@@ -80,9 +80,9 @@ func (c *AgentServerConfig) GetLogLevel() string { return c.Server.LogLevel }
 func (c *AgentServerConfig) IsDebug() bool       { return c.Server.Debug }
 func (c *AgentServerConfig) IsPprofEnabled() bool {
 	if c == nil {
-		return true
+		return false
 	}
-	return boolConfigValue(c.Server.EnablePprof, true)
+	return boolConfigValue(c.Server.EnablePprof, false)
 }
 
 // 数据库配置便捷访问方法

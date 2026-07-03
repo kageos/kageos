@@ -28,9 +28,10 @@ type Server struct {
 	cfg *config.AgentServerConfig
 
 	// 核心组件
-	db         *gorm.DB
-	httpServer *gin.Engine
-	natsConn   *nats.Conn
+	db          *gorm.DB
+	httpServer  *gin.Engine
+	httpRuntime *serverx.HTTPServer
+	natsConn    *nats.Conn
 
 	// Repository
 	llmRepo     *repository.LLMRepository
@@ -92,15 +93,19 @@ func (s *Server) Start(ctx context.Context) error {
 	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.GetPort()))
 	logger.Infof(ctx, "[Server] HTTP server starting on %s", addr)
 
-	// 在 goroutine 中启动 HTTP 服务器
+	httpRuntime, err := serverx.StartHTTPServer(ctx, addr, s.httpServer)
+	if err != nil {
+		if s.scheduledAgentWorker != nil {
+			_ = s.scheduledAgentWorker.Stop()
+		}
+		return fmt.Errorf("failed to start HTTP server on %s: %w", addr, err)
+	}
+	s.httpRuntime = httpRuntime
 	go func() {
-		if err := s.httpServer.Run(addr); err != nil {
+		if err := <-httpRuntime.Err(); err != nil {
 			logger.Errorf(ctx, "[Server] HTTP server error: %v", err)
 		}
 	}()
-
-	// 等待一小段时间确保服务器启动
-	time.Sleep(100 * time.Millisecond)
 
 	logger.Infof(ctx, "[Server] Agent-server started successfully")
 	return nil
@@ -109,6 +114,17 @@ func (s *Server) Start(ctx context.Context) error {
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping agent-server...")
+	var stopErr error
+
+	if s.httpRuntime != nil {
+		if err := s.httpRuntime.Shutdown(ctx); err != nil {
+			logger.Warnf(ctx, "[Server] HTTP server shutdown failed: %v", err)
+			stopErr = err
+		} else {
+			logger.Infof(ctx, "[Server] HTTP server stopped")
+		}
+		s.httpRuntime = nil
+	}
 
 	// 先停止定时任务 worker，避免退订过程中继续接新执行。
 	if s.scheduledAgentWorker != nil {
@@ -135,7 +151,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	logger.Infof(ctx, "[Server] Agent-server stopped")
-	return nil
+	return stopErr
 }
 
 // initDatabase 初始化数据库

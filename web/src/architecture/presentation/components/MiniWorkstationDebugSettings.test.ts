@@ -34,9 +34,11 @@ describe('MiniWorkstationDebugSettings', () => {
 
     await buttons[0]!.trigger('click')
     await buttons[3]!.trigger('click')
+    await buttons[5]!.trigger('click')
 
     expect(wrapper.emitted('copyConversation')?.[0]).toEqual(['all'])
     expect(wrapper.emitted('copyConversation')?.[1]).toEqual(['error-tools'])
+    expect(wrapper.emitted('exportConversationPdf')).toHaveLength(1)
   })
 
   it('renders tool stats and emits summary copy', async () => {

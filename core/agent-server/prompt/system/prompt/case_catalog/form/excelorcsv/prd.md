@@ -25,7 +25,7 @@
 
 ## 四、说明
 
-代码随本案例一起提供；read_doc 本案例路径（如 `/system/prompt/case_catalog/form/excelorcsv`）即获得 PRD 与代码，无需再调用 read_go_file。
+代码随本案例一起提供；read_doc 本案例路径（如 `/system/prompt/case_catalog/form/excelorcsv`）即获得 PRD 与代码，无需再调用 read_file。
 
 
 ---

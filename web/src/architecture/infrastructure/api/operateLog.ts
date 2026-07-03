@@ -18,6 +18,12 @@ export interface OperateLog {
   new_values_json?: any
   status?: string
   source?: string
+  source_type?: string
+  source_ref?: string
+  executor_type?: string
+  workspace_session_id?: string
+  workspace_session_title?: string
+  workspace_role?: string
   ip_address?: string
   user_agent?: string
   trace_id?: string
@@ -37,6 +43,11 @@ export interface GetOperateLogsParams {
   action?: string
   status?: string
   source?: string
+  source_type?: string
+  source_ref?: string
+  executor_type?: string
+  workspace_session_id?: string
+  trace_id?: string
   row_id?: number
   keyword?: string
   page?: number

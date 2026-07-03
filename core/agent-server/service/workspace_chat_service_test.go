@@ -140,7 +140,7 @@ func TestCancelSessionCancelsRegisteredRunEvenWhenStatusIsActive(t *testing.T) {
 func TestParseToolCallArgsRejectsInvalidJSON(t *testing.T) {
 	svc := &WorkspaceChatService{}
 	call := llms.ToolCall{ID: "call_bad", Type: "function"}
-	call.Function.Name = "write_go_file"
+	call.Function.Name = "write_file"
 	call.Function.Arguments = `{"content":"unterminated`
 
 	_, err := svc.parseToolCallArgs(context.Background(), call)
@@ -171,7 +171,7 @@ func TestSaveAssistantMessageStoresLLMMetadata(t *testing.T) {
 	}
 
 	usage := &llms.Usage{PromptTokens: 1200, CompletionTokens: 80, TotalTokens: 1280, CachedTokens: 1024, CachedTokensReported: true}
-	if err := svc.saveAssistantMessage(context.Background(), "session-llm", "ok", "tester", meta, nil, usage); err != nil {
+	if err := svc.saveAssistantMessage(context.Background(), "session-llm", "ok", "内部思考", "tester", meta, nil, usage); err != nil {
 		t.Fatalf("save assistant message: %v", err)
 	}
 	messages, err := messageRepo.ListBySessionID("session-llm")
@@ -187,6 +187,9 @@ func TestSaveAssistantMessageStoresLLMMetadata(t *testing.T) {
 	}
 	if got.LLMUsage == nil || !strings.Contains(*got.LLMUsage, `"cached_tokens":1024`) || !strings.Contains(*got.LLMUsage, `"cached_tokens_reported":true`) {
 		t.Fatalf("LLM usage not stored: %#v", got.LLMUsage)
+	}
+	if got.ThinkingContent != "内部思考" {
+		t.Fatalf("thinking content = %q, want persisted thinking", got.ThinkingContent)
 	}
 }
 
@@ -1029,7 +1032,7 @@ func TestPersistWorkspaceSessionInteractionStatusMarksOutput(t *testing.T) {
 	}
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
 	svc.persistWorkspaceSessionInteractionStatus(context.Background(), "output-session", []streamloop.ToolCallSummary{
-		{Name: "write_go_file", Status: ToolCallStatusOK},
+		{Name: "write_file", Status: ToolCallStatusOK},
 	}, "tester")
 
 	updated, err := sessionRepo.GetBySessionID("output-session")
@@ -1193,6 +1196,61 @@ func TestRecordWorkspaceInteractionEventCreatesDisplayOnlyMessage(t *testing.T) 
 	if !strings.Contains(msg.DisplayContent, "确认 PRD") {
 		t.Fatalf("display content should mention action, got %q", msg.DisplayContent)
 	}
+	updated, err := sessionRepo.GetBySessionID("interaction-event-session")
+	if err != nil {
+		t.Fatalf("get updated session: %v", err)
+	}
+	if updated.Status != model.ChatSessionStatusActive {
+		t.Fatalf("confirm_prd should clear pending status, got %q", updated.Status)
+	}
+}
+
+func TestRecordWorkspaceInteractionEventViewDoesNotClearPending(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("create messages table: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/demo",
+		Source:        SourceWorkspace,
+		SessionID:     "interaction-view-session",
+		Title:         "PRD 讨论",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusPendingConfirmation,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
+	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "tester")
+	if err := svc.RecordWorkspaceInteractionEvent(ctx, &dto.RecordWorkspaceInteractionEventReq{
+		SessionID:    "interaction-view-session",
+		Action:       "view_prd",
+		CardType:     "prd_confirmation",
+		Status:       model.ChatSessionStatusPendingConfirmation,
+		ArtifactKind: "agent_app_prd",
+	}); err != nil {
+		t.Fatalf("record interaction event: %v", err)
+	}
+
+	updated, err := sessionRepo.GetBySessionID("interaction-view-session")
+	if err != nil {
+		t.Fatalf("get updated session: %v", err)
+	}
+	if updated.Status != model.ChatSessionStatusPendingConfirmation {
+		t.Fatalf("view_prd should keep pending status, got %q", updated.Status)
+	}
 }
 
 func TestBuildWorkspaceHandoffContentForQA(t *testing.T) {
@@ -1249,6 +1307,8 @@ func TestWorkspaceFirstTurnDirectoryRAGHint(t *testing.T) {
 		"函数描述和 Schema 摘要",
 		"使用当前软件",
 		"app_operator",
+		"run_python",
+		"复杂、专项或多步骤文件处理",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("first turn hint should contain %q, got:\n%s", want, got)
@@ -1651,6 +1711,7 @@ CREATE TABLE agent_chat_messages (
 	role text NOT NULL,
 	content text,
 	display_content text,
+	thinking_content text,
 	files text,
 	tool_calls text,
 	tool_call_id text,

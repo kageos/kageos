@@ -6,6 +6,7 @@ import type {
   ChatMessageToolCall
 } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { translate } from '@/architecture/shared/i18n'
+import { escapeHtml, sanitizeHtml } from '@/architecture/shared/sanitizeHtml'
 
 export type CopyDebugMode = 'all' | 'last-turn' | 'all-tools' | 'error-tools' | 'success-tools'
 
@@ -99,6 +100,25 @@ export function useMiniWorkstationDebugCopy(options: UseMiniWorkstationDebugCopy
     }
   }
 
+  async function exportDebugConversationPdf() {
+    const text = buildDebugCopyText('all')
+    if (!text.trim()) {
+      ElMessage.warning(translate('miniWorkstation.debugNoCopyContent'))
+      return
+    }
+
+    try {
+      const html = await buildPrintableDebugHtml(
+        text,
+        `${translate('miniWorkstation.debugConversationTitle')} - ${options.sessionId.value || options.fullCodePath() || 'Kageos'}`
+      )
+      printHtmlDocument(html)
+      ElMessage.success(translate('miniWorkstation.exportPdfReady'))
+    } catch {
+      ElMessage.error(translate('miniWorkstation.exportPdfFailed'))
+    }
+  }
+
   function buildDebugToolSummaryText() {
     if (debugToolSteps.value.length === 0) return ''
     return [
@@ -148,7 +168,8 @@ export function useMiniWorkstationDebugCopy(options: UseMiniWorkstationDebugCopy
     debugSuccessCount,
     debugErrorCount,
     copyDebugConversation,
-    copyDebugToolSummary
+    copyDebugToolSummary,
+    exportDebugConversationPdf
   }
 }
 
@@ -417,6 +438,237 @@ async function copyTextToClipboard(text: string) {
   const ok = document.execCommand('copy')
   document.body.removeChild(textarea)
   if (!ok) throw new Error('copy failed')
+}
+
+async function buildPrintableDebugHtml(markdown: string, title: string) {
+  const html = await renderDebugMarkdown(markdown)
+  const safeTitle = escapeHtml(title)
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${safeTitle}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 14mm 13mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: #111827;
+      background: #ffffff;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 12.5px;
+      line-height: 1.58;
+    }
+
+    .print-root {
+      width: 100%;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      color: #0f172a;
+      page-break-after: avoid;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #0f172a;
+      font-size: 24px;
+      line-height: 1.25;
+    }
+
+    h2 {
+      margin: 22px 0 8px;
+      padding-top: 12px;
+      border-top: 1px solid #dbe3ef;
+      font-size: 17px;
+    }
+
+    h3 {
+      margin: 16px 0 6px;
+      font-size: 14px;
+    }
+
+    h4 {
+      margin: 12px 0 6px;
+      font-size: 12.5px;
+    }
+
+    p {
+      margin: 7px 0;
+    }
+
+    ul,
+    ol {
+      margin: 7px 0 9px 22px;
+      padding: 0;
+    }
+
+    li + li {
+      margin-top: 3px;
+    }
+
+    pre {
+      margin: 8px 0 12px;
+      padding: 9px 10px;
+      border: 1px solid #d6dee9;
+      border-radius: 6px;
+      background: #f8fafc;
+      color: #0f172a;
+      font-family: "JetBrains Mono", SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 10.5px;
+      line-height: 1.48;
+      white-space: pre-wrap;
+      word-break: break-word;
+      page-break-inside: auto;
+    }
+
+    code {
+      font-family: "JetBrains Mono", SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+      word-break: break-word;
+    }
+
+    p code,
+    li code {
+      padding: 1px 4px;
+      border-radius: 4px;
+      background: #eef3f8;
+      font-size: 0.92em;
+    }
+
+    blockquote {
+      margin: 10px 0;
+      padding: 7px 10px;
+      border-left: 3px solid #94a3b8;
+      background: #f8fafc;
+      color: #334155;
+    }
+
+    table {
+      width: 100%;
+      margin: 10px 0;
+      border-collapse: collapse;
+      font-size: 11.5px;
+    }
+
+    th,
+    td {
+      padding: 6px 7px;
+      border: 1px solid #d6dee9;
+      vertical-align: top;
+      word-break: break-word;
+    }
+
+    th {
+      background: #f1f5f9;
+      text-align: left;
+    }
+
+    a {
+      color: #0f766e;
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    hr {
+      margin: 16px 0;
+      border: 0;
+      border-top: 1px solid #dbe3ef;
+    }
+
+    @media print {
+      body {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="print-root">${html}</main>
+</body>
+</html>`
+}
+
+async function renderDebugMarkdown(markdown: string) {
+  try {
+    const { marked } = await import('marked')
+    return sanitizeHtml(marked.parse(markdown, { breaks: true, gfm: true }) as string)
+  } catch {
+    return `<pre>${escapeHtml(markdown)}</pre>`
+  }
+}
+
+function printHtmlDocument(html: string) {
+  if (typeof document === 'undefined' || !document.body) {
+    throw new Error('document unavailable')
+  }
+
+  const iframe = document.createElement('iframe')
+  let printed = false
+  let cleanupTimer: ReturnType<typeof setTimeout> | undefined
+
+  const cleanup = () => {
+    if (cleanupTimer) {
+      clearTimeout(cleanupTimer)
+      cleanupTimer = undefined
+    }
+    iframe.remove()
+  }
+
+  iframe.title = translate('miniWorkstation.exportPdf')
+  iframe.style.position = 'fixed'
+  iframe.style.right = '0'
+  iframe.style.bottom = '0'
+  iframe.style.width = '1px'
+  iframe.style.height = '1px'
+  iframe.style.border = '0'
+  iframe.style.opacity = '0.01'
+  iframe.style.pointerEvents = 'none'
+  iframe.setAttribute('aria-hidden', 'true')
+
+  document.body.appendChild(iframe)
+
+  const printWindow = iframe.contentWindow
+  const printDocument = iframe.contentDocument || printWindow?.document
+  if (!printWindow || !printDocument) {
+    cleanup()
+    throw new Error('print frame unavailable')
+  }
+
+  const handleAfterPrint = () => {
+    printWindow.removeEventListener('afterprint', handleAfterPrint)
+    setTimeout(cleanup, 300)
+  }
+
+  const printNow = () => {
+    if (printed) return
+    printed = true
+    printWindow.addEventListener('afterprint', handleAfterPrint)
+    printWindow.focus()
+    printWindow.print()
+    cleanupTimer = setTimeout(cleanup, 60000)
+  }
+
+  iframe.onload = () => {
+    setTimeout(printNow, 120)
+  }
+
+  printDocument.open()
+  printDocument.write(html)
+  printDocument.close()
+  setTimeout(printNow, 500)
 }
 
 function getCopyModeLabel(mode: CopyDebugMode) {

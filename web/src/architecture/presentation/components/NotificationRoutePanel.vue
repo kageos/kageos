@@ -153,7 +153,7 @@
 
             <el-form-item :label="t('notificationRoute.requireAuth')">
               <div class="auth-row">
-                <el-switch v-model="routeForms[definition.channel].require_auth" />
+                <el-tag type="success" effect="plain">{{ t('notificationRoute.requireAuthForced') }}</el-tag>
                 <span>{{ t('notificationRoute.requireAuthHint') }}</span>
               </div>
             </el-form-item>
@@ -248,7 +248,6 @@ interface RouteFormState {
   has_secret: boolean
   clear_webhook_url: boolean
   clear_secret: boolean
-  require_auth: boolean
   metadata: Record<string, string>
   updated_at?: string
   last_success_at?: string
@@ -357,7 +356,6 @@ function createDefaultRouteForm(channel: ChannelCode): RouteFormState {
     has_secret: false,
     clear_webhook_url: false,
     clear_secret: false,
-    require_auth: true,
     metadata: {},
     fail_count: 0
   }
@@ -400,7 +398,6 @@ function applyRouteInfo(info: MessageNotificationRouteInfo) {
   form.has_secret = Boolean(info.has_secret)
   form.clear_webhook_url = false
   form.clear_secret = false
-  form.require_auth = info.require_auth !== false
   form.metadata = info.metadata || {}
   form.updated_at = info.updated_at
   form.last_success_at = info.last_success_at
@@ -479,7 +476,6 @@ async function saveRoute(channel: ChannelCode, options: { silent?: boolean } = {
       delivery_type: 'webhook',
       display_name: form.display_name.trim() || channelDefaultDisplayName(channel),
       remark: form.remark.trim(),
-      require_auth: form.require_auth,
       webhook_url: webhookURL,
       secret: form.secret.trim(),
       clear_webhook_url: form.clear_webhook_url,
