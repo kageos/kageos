@@ -343,7 +343,9 @@ func TestMessageConsumerDeliversExternalNotificationTargets(t *testing.T) {
 		t.Fatalf("card actions = %#v", call.card.Actions)
 	}
 	askAction := notificationActionByKind(call.card.Actions, NotificationActionAsk)
-	if !strings.Contains(askAction.URL, "https://kageos.example/m?source_path=%2Falice%2Fdemo%2Fleads") {
+	if !strings.Contains(askAction.URL, "https://kageos.example/m?") ||
+		!strings.Contains(askAction.URL, "source_path=%2Falice%2Fdemo%2Fleads") ||
+		!strings.Contains(askAction.URL, "session_id=session-1") {
 		t.Fatalf("ask action = %#v, actions = %#v", askAction, call.card.Actions)
 	}
 	status, err := repo.GetNotificationChannel(context.Background(), "bob", NotificationChannelFeishu)

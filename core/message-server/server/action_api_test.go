@@ -103,6 +103,94 @@ func TestSubmitPublicMessageActionReplySubmitsWorkspaceChat(t *testing.T) {
 	}
 }
 
+func TestPublicMessageActionPreservesExistingWorkspaceSession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newActionAPITestMessageRepo(t)
+	entry, err := repo.Create(context.Background(), dto.MessageSendMeta{
+		From:                  "agent",
+		SourcePath:            "/alice/ops/meeting_room",
+		SourceTitle:           "会议室",
+		WorkspaceSessionID:    "session-existing",
+		WorkspaceSessionTitle: "会议室跟进",
+		TraceID:               "trace-1",
+	}, dto.MessageSendPayload{
+		Title:   "会议室待确认",
+		Content: "会议室 301 需要确认下一步。",
+	}, []string{"bob"})
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+	rawToken, _, err := repo.CreateActionToken(context.Background(), msgrepo.CreateActionTokenInput{
+		MessageID:          entry.ID,
+		RecipientUsername:  "bob",
+		AllowedActions:     []string{"reply"},
+		SourcePath:         entry.SourcePath,
+		ThreadKey:          entry.ThreadKey,
+		TraceID:            entry.TraceID,
+		WorkspaceSessionID: entry.WorkspaceSessionID,
+	})
+	if err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+
+	runner := &fakeWorkspaceActionRunner{sessionID: "session-existing"}
+	s := &Server{messageRepo: repo, workspaceActionRunner: runner}
+	router := gin.New()
+	router.GET("/message/api/v1/public/actions/:token", s.getPublicMessageAction)
+	router.POST("/message/api/v1/public/actions/:token/reply", s.submitPublicMessageActionReply)
+
+	req := httptest.NewRequest(http.MethodGet, "/message/api/v1/public/actions/"+rawToken, nil)
+	req.Header.Set("X-Request-User", "bob")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("view status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var viewResult struct {
+		Code int                       `json:"code"`
+		Msg  string                    `json:"msg"`
+		Data dto.MessageActionViewResp `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &viewResult); err != nil {
+		t.Fatalf("decode view response: %v body=%s", err, recorder.Body.String())
+	}
+	if viewResult.Code != 0 || viewResult.Data.WorkspaceSession != "session-existing" {
+		t.Fatalf("view response = %#v", viewResult)
+	}
+	if !strings.Contains(viewResult.Data.MobileAskURL, "source_path=%2Falice%2Fops%2Fmeeting_room") ||
+		!strings.Contains(viewResult.Data.MobileAskURL, "session_id=session-existing") {
+		t.Fatalf("view mobile ask url = %q", viewResult.Data.MobileAskURL)
+	}
+
+	body := bytes.NewBufferString(`{"content":"已确认，继续处理。","action":"reply"}`)
+	req = httptest.NewRequest(http.MethodPost, "/message/api/v1/public/actions/"+rawToken+"/reply", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-User", "bob")
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("reply status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var replyResult struct {
+		Code int                        `json:"code"`
+		Msg  string                     `json:"msg"`
+		Data dto.MessageActionReplyResp `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &replyResult); err != nil {
+		t.Fatalf("decode reply response: %v body=%s", err, recorder.Body.String())
+	}
+	if replyResult.Code != 0 || replyResult.Data.WorkspaceSessionID != "session-existing" {
+		t.Fatalf("reply response = %#v", replyResult)
+	}
+	if runner.req.SessionID != "session-existing" {
+		t.Fatalf("runner session_id = %q, want session-existing", runner.req.SessionID)
+	}
+	if !strings.Contains(replyResult.Data.MobileAskURL, "source_path=%2Falice%2Fops%2Fmeeting_room") ||
+		!strings.Contains(replyResult.Data.MobileAskURL, "session_id=session-existing") {
+		t.Fatalf("reply mobile ask url = %q", replyResult.Data.MobileAskURL)
+	}
+}
+
 func TestSubmitPublicMessageActionReplyRequiresAuthForRouteToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := newActionAPITestMessageRepo(t)

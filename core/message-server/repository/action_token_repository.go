@@ -182,13 +182,14 @@ func (r *MessageRepository) SubmitActionReply(ctx context.Context, rawToken, con
 			}).Error; err != nil {
 			return err
 		}
+		workspaceSessionID := firstNonEmptyStringForRepository(original.WorkspaceSessionID, tokenRow.WorkspaceSessionID)
 		resp = dto.MessageActionReplyResp{
 			Status:             string(dto.MessageActionTokenStatusSubmitted),
 			SubmittedAt:        now,
 			Channel:            strings.TrimSpace(tokenRow.Channel),
 			SourcePath:         firstNonEmptyStringForRepository(original.SourcePath, original.FullCodePath, original.SourceParentPath),
 			FullCodePath:       firstNonEmptyStringForRepository(original.SourcePath, original.FullCodePath, original.SourceParentPath),
-			WorkspaceSessionID: original.WorkspaceSessionID,
+			WorkspaceSessionID: workspaceSessionID,
 			WorkstationDraft:   buildMobileWorkstationDraft(original, content, actingUser, tokenRow.Channel),
 		}
 		return nil

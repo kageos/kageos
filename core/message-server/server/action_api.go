@@ -19,7 +19,7 @@ func (s *Server) getPublicMessageAction(c *gin.Context) {
 	if token == "" {
 		token = strings.TrimSpace(c.Query("token"))
 	}
-	view, err := s.messageRepo.GetActionView(c.Request.Context(), token, buildMobileAskURL(config.GetPublicSiteBaseURL(), ""), contextx.GetRequestUser(c))
+	view, err := s.messageRepo.GetActionView(c.Request.Context(), token, "", contextx.GetRequestUser(c))
 	if err != nil {
 		if isMessageActionLoginRequiredError(err) {
 			response.NoAuth(c, err.Error())
@@ -28,9 +28,7 @@ func (s *Server) getPublicMessageAction(c *gin.Context) {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
-	if view.Message.SourcePath != "" {
-		view.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), view.Message.SourcePath)
-	}
+	view.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), view.Message.SourcePath, view.WorkspaceSession)
 	response.OkWithData(c, view)
 }
 
@@ -55,7 +53,7 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 	}
 	fullCodePath := mobileActionFullCodePath(view.Message)
 	if fullCodePath == "" {
-		response.FailWithMessage(c, "消息缺少工作台目录，无法提交给 Kageos 工作台")
+		response.FailWithMessage(c, "消息缺少工作台目录，无法提交给 kageos 工作台")
 		return
 	}
 	resp, err := s.messageRepo.SubmitActionReply(c.Request.Context(), token, req.Content, req.Action, contextx.GetRequestUser(c))
@@ -67,7 +65,7 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
-	resp.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), resp.SourcePath)
+	resp.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), resp.SourcePath, resp.WorkspaceSessionID)
 	resp.FullCodePath = firstNonEmptyActionString(resp.FullCodePath, fullCodePath)
 	resp.AgentSubmitted = false
 	if s.workspaceActionRunner == nil {
@@ -103,6 +101,7 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 	resp.AgentSubmitted = runResult != nil && runResult.Accepted
 	if runResult != nil && strings.TrimSpace(runResult.SessionID) != "" {
 		resp.WorkspaceSessionID = strings.TrimSpace(runResult.SessionID)
+		resp.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), resp.SourcePath, resp.WorkspaceSessionID)
 		if err := s.messageRepo.UpdateActionWorkspaceSession(c.Request.Context(), token, resp.WorkspaceSessionID); err != nil {
 			logger.Warnf(c.Request.Context(), "[message-action] update workspace session failed token_message_id=%d session_id=%s err=%v", view.Message.ID, resp.WorkspaceSessionID, err)
 		}
@@ -110,11 +109,16 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
-func buildMobileAskURL(baseURL, sourcePath string) string {
+func buildMobileAskURL(baseURL, sourcePath, sessionID string) string {
 	route := "/m"
+	query := url.Values{}
 	if strings.TrimSpace(sourcePath) != "" {
-		query := url.Values{}
 		query.Set("source_path", strings.TrimSpace(sourcePath))
+	}
+	if strings.TrimSpace(sessionID) != "" {
+		query.Set("session_id", strings.TrimSpace(sessionID))
+	}
+	if len(query) > 0 {
 		route += "?" + query.Encode()
 	}
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")

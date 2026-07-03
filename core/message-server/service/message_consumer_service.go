@@ -190,9 +190,14 @@ func (s *MessageConsumerService) buildMobileNotificationURLs(ctx context.Context
 		return "", absoluteCardURL(s.notificationCardBaseURL, "/m")
 	}
 	askRoute := "/m"
+	query := url.Values{}
 	if sourcePath := strings.TrimSpace(entry.SourcePath); sourcePath != "" {
-		query := url.Values{}
 		query.Set("source_path", sourcePath)
+	}
+	if sessionID := strings.TrimSpace(entry.WorkspaceSessionID); sessionID != "" {
+		query.Set("session_id", sessionID)
+	}
+	if len(query) > 0 {
 		askRoute += "?" + query.Encode()
 	}
 	askURL := absoluteCardURL(s.notificationCardBaseURL, askRoute)
@@ -215,9 +220,9 @@ func (s *MessageConsumerService) buildMobileNotificationURLs(ctx context.Context
 		logger.Warnf(ctx, "[MessageConsumer] create mobile action token failed message_id=%d user=%s: %v", entry.ID, target.Recipient.Username, err)
 		return "", askURL
 	}
-	query := url.Values{}
-	query.Set("t", rawToken)
-	return absoluteCardURL(s.notificationCardBaseURL, "/m/action?"+query.Encode()), askURL
+	actionQuery := url.Values{}
+	actionQuery.Set("t", rawToken)
+	return absoluteCardURL(s.notificationCardBaseURL, "/m/action?"+actionQuery.Encode()), askURL
 }
 
 func (s *MessageConsumerService) recordNotificationDeliverySuccess(ctx context.Context, target NotificationTarget, isTest bool) {

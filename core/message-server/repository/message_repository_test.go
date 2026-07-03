@@ -411,6 +411,41 @@ func TestMessageActionTokenViewAndReply(t *testing.T) {
 	}
 }
 
+func TestSubmitActionReplyFallsBackToTokenWorkspaceSession(t *testing.T) {
+	repo := newTestMessageRepo(t)
+	entry, err := repo.Create(context.Background(), dto.MessageSendMeta{
+		From:        "alice",
+		SourcePath:  "/alice/sales/orders.table",
+		SourceTitle: "订单列表",
+	}, dto.MessageSendPayload{
+		Title:   "订单状态待确认",
+		Content: "订单 A123 需要确认下一步。",
+	}, []string{"bob"})
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+
+	rawToken, _, err := repo.CreateActionToken(context.Background(), CreateActionTokenInput{
+		MessageID:          entry.ID,
+		RecipientUsername:  "bob",
+		Channel:            "feishu",
+		AllowedActions:     []string{"reply"},
+		WorkspaceSessionID: "token-session-1",
+		SourcePath:         entry.SourcePath,
+	})
+	if err != nil {
+		t.Fatalf("create action token: %v", err)
+	}
+
+	reply, err := repo.SubmitActionReply(context.Background(), rawToken, "我来处理。", "reply", "bob")
+	if err != nil {
+		t.Fatalf("submit reply: %v", err)
+	}
+	if reply.WorkspaceSessionID != "token-session-1" {
+		t.Fatalf("reply workspace session = %q, want token-session-1", reply.WorkspaceSessionID)
+	}
+}
+
 func newTestMessageRepo(t *testing.T) *MessageRepository {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
