@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/kageos/kageos/core/app-server/model"
@@ -97,7 +96,7 @@ func (f *fakeAppScheduleClient) ListTasks(_ context.Context, _ scheduledsdk.List
 	return &scheduledsdk.ListTasksResponse{}, nil
 }
 
-func TestReconcilePackageAgentTasksPreservesExistingStatus(t *testing.T) {
+func TestReconcilePackageAgentTasksPreservesExistingManifestTaskByDefault(t *testing.T) {
 	fake := &fakeAppScheduleClient{
 		listResp: &scheduledsdk.ListTasksResponse{List: []*scheduledsdk.Task{
 			{
@@ -135,11 +134,8 @@ func TestReconcilePackageAgentTasksPreservesExistingStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fake.created) != 0 || len(fake.updated) != 1 {
+	if len(fake.created) != 0 || len(fake.updated) != 0 {
 		t.Fatalf("created=%d updated=%d", len(fake.created), len(fake.updated))
-	}
-	if strings.Contains(string(fake.updated[0].ExecutorPayload), `"status"`) {
-		t.Fatalf("update payload should not carry status: %#v", fake.updated[0])
 	}
 }
 

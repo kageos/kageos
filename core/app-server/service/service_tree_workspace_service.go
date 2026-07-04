@@ -95,6 +95,9 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 		if errRt == nil && runtimeResp != nil && runtimeResp.Success {
 			files = make([]dto.WorkspaceContextFile, 0, len(runtimeResp.Files))
 			for _, f := range runtimeResp.Files {
+				if isInternalWorkspaceManifestFile(f.RelativePath, f.FileName) {
+					continue
+				}
 				lineCount := 0
 				if f.Content != "" {
 					lines := strings.Split(f.Content, "\n")

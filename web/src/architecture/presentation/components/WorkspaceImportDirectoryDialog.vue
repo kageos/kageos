@@ -322,6 +322,7 @@ async function submitHubImport() {
       target_directory_path: targetPathSnapshot,
       overwrite: true,
       force_diff: true,
+      bundle_subpath: command.bundleSubpath,
       bundle_url: command.bundleUrl,
       install_key: command.installKey
     })

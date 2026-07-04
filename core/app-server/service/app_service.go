@@ -25,6 +25,7 @@ type AppService struct {
 	functionRepo    *repository.FunctionRepository
 	serviceTreeRepo *repository.ServiceTreeRepository
 	operateLogRepo  *repository.OperateLogRepository
+	docService      *DocService
 	teamAccess      *TeamAccessService
 	sensitiveFields *FunctionSensitiveFieldService
 }
@@ -55,6 +56,10 @@ func (a *AppService) SetTeamAccessService(teamAccess *TeamAccessService) {
 
 func (a *AppService) SetFunctionSensitiveFieldService(sensitiveFields *FunctionSensitiveFieldService) {
 	a.sensitiveFields = sensitiveFields
+}
+
+func (a *AppService) SetDocService(docService *DocService) {
+	a.docService = docService
 }
 
 // CreateApp 创建应用
@@ -481,6 +486,9 @@ func (a *AppService) processAPIDiff(ctx context.Context, appID int64, diffData *
 	if len(diffData.Packages) > 0 {
 		if err := a.reconcilePackages(ctx, state, diffData.Packages); err != nil {
 			return fmt.Errorf("目录对账失败: %w", err)
+		}
+		if err := a.reconcilePackageDocs(ctx, state, diffData.Packages); err != nil {
+			return fmt.Errorf("同步默认文档失败: %w", err)
 		}
 	}
 

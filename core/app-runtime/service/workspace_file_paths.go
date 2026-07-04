@@ -67,8 +67,20 @@ func resolveWorkspaceFilePath(appPaths runtimeAppPaths, directoryPath, fileName 
 	if err := ensurePathWithinBase(appPaths.APIDir(), filePath); err != nil {
 		return "", err
 	}
+	if isWorkspaceInternalManifestFile(filepath.Base(filePath)) {
+		return "", fmt.Errorf("不允许通过工作台文件接口操作 %s，该文件仅用于本地目录种子声明", filepath.Base(filePath))
+	}
 
 	return filePath, nil
+}
+
+func isWorkspaceInternalManifestFile(name string) bool {
+	switch filepath.Base(strings.TrimSpace(name)) {
+	case "kageos_manifest.go":
+		return true
+	default:
+		return false
+	}
 }
 
 func resolveSourceFileWriteTarget(appPaths runtimeAppPaths, spec *dto.SourceFileWrite) (string, string, error) {
@@ -90,6 +102,9 @@ func resolveSourceFileWriteTarget(appPaths runtimeAppPaths, spec *dto.SourceFile
 	}
 	if strings.HasSuffix(fileName, "_test") {
 		return "", "", fmt.Errorf("source file 不能使用 _test.go 结尾，测试文件不会参与应用 API 注册: %s", spec.FileName)
+	}
+	if isWorkspaceInternalManifestFile(fileName + ".go") {
+		return "", "", fmt.Errorf("source file 不能使用 %s，该文件仅用于本地目录种子声明", fileName+".go")
 	}
 	if err := validateBatchWriteFileName(fileName); err != nil {
 		return "", "", err

@@ -157,6 +157,7 @@ type PackageInfo struct {
 	RouterGroup string            `json:"router_group"`          // 路由组路径（如 "/plugins/pdf"）
 	FullPath    string            `json:"full_path"`             // 完整路径（如 "/user/app/plugins/pdf"）
 	AgentTasks  []AgentTaskConfig `json:"agent_tasks,omitempty"` // package 出厂默认 Agent 任务模板
+	Docs        []DocSeedConfig   `json:"docs,omitempty"`        // package 出厂默认文档种子
 }
 
 type AgentTaskConfig struct {
@@ -173,6 +174,18 @@ type AgentTaskConfig struct {
 	Files              string `json:"files,omitempty"`
 	LLMConfigID        int64  `json:"llm_config_id,omitempty"`
 	MaxDurationSeconds int64  `json:"max_duration_seconds,omitempty"`
+	Policy             string `json:"policy,omitempty"`
+}
+
+type DocSeedConfig struct {
+	Code        string `json:"code"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	Tags        string `json:"tags,omitempty"`
+	Content     string `json:"content"`
+	Format      string `json:"format,omitempty"`
+	Summary     string `json:"summary,omitempty"`
+	Policy      string `json:"policy,omitempty"`
 }
 
 type DiffData struct {

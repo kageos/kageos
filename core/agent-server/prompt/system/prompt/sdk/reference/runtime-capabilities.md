@@ -7,7 +7,7 @@
 业务代码只写业务规则，不重造平台能力：
 
 - 平台接口：用 `ctx.APICall(...)`；确需沉淀平台接口包装函数时放在 `/system/tools/openapi`，不要裸写 HTTP client、硬编码 token、直连平台库。
-- 消息通知：需要通知用户时使用 SDK `ctx.SendNotification`，由 message-service 异步写站内信并在服务侧扩展渠道；业务代码不要直接耦合飞书、邮件、企业微信等渠道，也不要让普通业务等待通知投递完成。
+- 消息通知：需要通知用户时使用 SDK `ctx.SendNotification`，由 message-service 异步写站内信，并由平台外部 webhook 渠道做摘要触达；业务代码不要直接耦合飞书、邮件、钉钉、企业微信等渠道，也不要让普通业务等待通知投递完成。
 - 通用权限、审批、评论、收藏不属于 MVP 应用侧能力，不在每个业务系统自造。
 - Table 更新日志由平台记录；业务上确实需要流水、操作记录、支付记录、投票记录时，可以建只读业务 Table。
 - 运行上下文：从 `ctx` 取当前用户、部门、trace、full_code_path，不让用户表单伪造。
@@ -45,7 +45,7 @@ if err := ctx.APICall(http.MethodGet, "/workspace/api/v1/operate_log/general?"+q
 
 ## 消息通知
 
-应用函数需要通知用户时，使用 SDK 的 `ctx.SendNotification`。message-service 负责收件箱存储和后续渠道分发，应用侧只表达“发给哪些用户、标题、内容、附件”，不要关心飞书、邮件、企业微信等具体渠道。`ctx.SendNotification` 是异步投递命令：成功只表示通知命令已发布到 NATS，不等待 message-service 落库或渠道投递完成。组织架构通知暂不暴露，不要使用部门作为消息接收方。
+应用函数需要通知用户时，使用 SDK 的 `ctx.SendNotification`。message-service 负责收件箱存储和后续渠道分发，应用侧只表达“发给哪些用户、标题、内容、附件”，不要关心飞书、钉钉、企业微信等具体渠道。`ctx.SendNotification` 是异步投递命令：成功只表示通知命令已发布到 NATS，不等待 message-service 落库或渠道投递完成。组织架构通知暂不暴露，不要使用部门作为消息接收方。
 
 ```go
 err := ctx.SendNotification(&app.SendNotificationOpts{
@@ -65,7 +65,7 @@ if err != nil {
 - `ToUsers` 推荐显式填写；通知当前请求用户时可省略，由 message-service 兜底到真实请求用户。没有真实请求用户时必须显式填写；多个用户用逗号分隔。
 - `Message` 和 `Files` 至少填写一个；普通通知推荐写一条简短 `Message`，纯文件交付可只传 `Files`。
 - `ContentType` 默认 `markdown`，也可用 `text` 或 `html`。
-- `Files` 可选，填写平台文件引用字符串，格式 `bucket/object_key`，多个用逗号分隔。
+- `Files` 可选，填写平台文件引用字符串，格式 `bucket/object_key`，多个用逗号分隔。站内信详情和移动端处理页会展示完整附件；外部 webhook 卡片只展示附件数量和前几个文件名，并引导用户回 Kageos 详情查看/下载，不做飞书/钉钉/企业微信原生文件上传。
 - 对普通业务函数，通知失败只记录日志，不要阻塞主业务返回；只有函数本身就是“发送通知/消息”时，才把发布失败作为业务错误返回。
 - 发送人、部门、trace、full_code_path 等上下文由 SDK 自动带上，不要让用户表单填写。
 - 组织架构功能隐藏期间，不要使用部门作为消息接收方。

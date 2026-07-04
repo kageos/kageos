@@ -229,6 +229,9 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
     tree_nodes: treeNodes,
     docs,
     packages,
-    files
+    files,
+    extensions: object.extensions === undefined
+      ? undefined
+      : ensurePlainObject(object.extensions, 'extensions') as Record<string, unknown>
   }
 }

@@ -143,6 +143,9 @@ func (s *WorkspaceFileService) ReadDirectoryFiles(ctx context.Context, user, app
 		if !strings.HasSuffix(name, ".go") {
 			continue
 		}
+		if isWorkspaceInternalManifestFile(name) {
+			continue
+		}
 
 		path := filepath.Join(directoryPath, name)
 		content, err := os.ReadFile(path)

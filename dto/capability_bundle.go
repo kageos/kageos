@@ -10,6 +10,7 @@ type CapabilityBundle struct {
 	Docs          []*CapabilityBundleDoc      `json:"docs,omitempty"`
 	Packages      []*CapabilityBundlePackage  `json:"packages"`
 	Files         []*CapabilityBundleFile     `json:"files"`
+	Extensions    map[string]interface{}      `json:"extensions,omitempty"`
 }
 
 type CapabilityBundleFile struct {
@@ -59,6 +60,7 @@ type InstallCapabilityOptions struct {
 	TargetDirectoryPath string `json:"target_directory_path" binding:"required"`
 	Overwrite           bool   `json:"overwrite,omitempty"`
 	ForceDiff           bool   `json:"force_diff,omitempty"`
+	BundleSubpath       string `json:"bundle_subpath,omitempty"`
 }
 
 type InstallCapabilityBundleReq struct {

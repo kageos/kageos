@@ -145,6 +145,16 @@ func TestValidateCapabilityBundleRejectsWorkspaceBoundPaths(t *testing.T) {
 			},
 			want: "init_.go",
 		},
+		{
+			name: "internal manifest seed",
+			bundle: &dto.CapabilityBundle{
+				SchemaVersion: dto.CapabilityBundleSchemaVersion,
+				Files: []*dto.CapabilityBundleFile{
+					{Path: "kageos_manifest.go", Content: "package message"},
+				},
+			},
+			want: "本地目录种子声明",
+		},
 	}
 
 	for _, tc := range cases {
@@ -293,6 +303,113 @@ func TestValidateCapabilityBundleTreeNodes(t *testing.T) {
 
 	if err := validateCapabilityBundle(bundle); err != nil {
 		t.Fatalf("expected valid bundle with nested tree nodes: %v", err)
+	}
+}
+
+func TestFilterCapabilityBundleBySubpathRebasesSelectedDirectory(t *testing.T) {
+	t.Parallel()
+
+	bundle := &dto.CapabilityBundle{
+		SchemaVersion: dto.CapabilityBundleSchemaVersion,
+		Name:          "CRM Suite",
+		Extensions: map[string]interface{}{
+			"install": map[string]interface{}{"recommended_subpath": "crm/customers"},
+		},
+		TreeNodes: []*dto.CapabilityBundleTreeNode{
+			{RelativePath: "crm", Type: model.ServiceTreeTypePackage, Code: "crm", Name: "CRM"},
+			{RelativePath: "crm/customers", ParentPath: "crm", Type: model.ServiceTreeTypePackage, Code: "customers", Name: "Customers"},
+			{RelativePath: "crm/customers/list.table", ParentPath: "crm/customers", Type: model.ServiceTreeTypeFunction, Code: "list.table", Name: "Customer List", TemplateType: "table"},
+			{RelativePath: "crm/customers/readme.docs", ParentPath: "crm/customers", Type: model.ServiceTreeTypeDocs, Code: "readme.docs", Name: "使用说明"},
+			{RelativePath: "crm/orders", ParentPath: "crm", Type: model.ServiceTreeTypePackage, Code: "orders", Name: "Orders"},
+		},
+		Docs: []*dto.CapabilityBundleDoc{
+			{RelativePath: "crm/customers/readme.docs", Name: "使用说明", Content: "# Customers\n", Format: "markdown"},
+		},
+		Packages: []*dto.CapabilityBundlePackage{
+			{Path: "crm", Name: "CRM"},
+			{Path: "crm/customers", Name: "客户目录"},
+			{Path: "crm/orders", Name: "订单目录"},
+		},
+		Files: []*dto.CapabilityBundleFile{
+			{PackagePath: "crm/customers", Path: "list.go", Content: "package customers"},
+			{PackagePath: "crm/orders", Path: "list.go", Content: "package orders"},
+		},
+	}
+
+	filtered, err := filterCapabilityBundleBySubpath(bundle, "crm/customers")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filtered.Name != "客户目录" {
+		t.Fatalf("filtered name = %q, want 客户目录", filtered.Name)
+	}
+	if filtered.Extensions["install"] == nil {
+		t.Fatalf("expected extensions to be preserved: %#v", filtered.Extensions)
+	}
+
+	gotPackages := make([]string, 0, len(filtered.Packages))
+	for _, pkg := range filtered.Packages {
+		gotPackages = append(gotPackages, pkg.Path+"::"+pkg.Name)
+	}
+	wantPackages := []string{"customers::客户目录"}
+	if !reflect.DeepEqual(gotPackages, wantPackages) {
+		t.Fatalf("unexpected packages:\nwant=%#v\ngot=%#v", wantPackages, gotPackages)
+	}
+
+	gotTreeNodes := make([]string, 0, len(filtered.TreeNodes))
+	for _, node := range filtered.TreeNodes {
+		gotTreeNodes = append(gotTreeNodes, node.RelativePath+"<-"+node.ParentPath)
+	}
+	wantTreeNodes := []string{
+		"customers<-",
+		"customers/list.table<-customers",
+		"customers/readme.docs<-customers",
+	}
+	if !reflect.DeepEqual(gotTreeNodes, wantTreeNodes) {
+		t.Fatalf("unexpected tree nodes:\nwant=%#v\ngot=%#v", wantTreeNodes, gotTreeNodes)
+	}
+
+	if len(filtered.Files) != 1 || filtered.Files[0].PackagePath != "customers" || filtered.Files[0].Path != "list.go" {
+		t.Fatalf("unexpected files: %#v", filtered.Files)
+	}
+	if len(filtered.Docs) != 1 || filtered.Docs[0].RelativePath != "customers/readme.docs" {
+		t.Fatalf("unexpected docs: %#v", filtered.Docs)
+	}
+
+	plan, err := buildCapabilityBundleInstallPlan("/alice/app/openapi", filtered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.directoryItems) != 1 || plan.directoryItems[0].FullCodePath != "/alice/app/openapi/customers" {
+		t.Fatalf("unexpected directory plan: %#v", plan.directoryItems)
+	}
+	if len(plan.fileItems) != 1 || plan.fileItems[0].FullCodePath != "/alice/app/openapi/customers" {
+		t.Fatalf("unexpected file plan: %#v", plan.fileItems)
+	}
+	if len(plan.docItems) != 1 || plan.docItems[0].FullCodePath != "/alice/app/openapi/customers/readme.docs" {
+		t.Fatalf("unexpected doc plan: %#v", plan.docItems)
+	}
+}
+
+func TestFilterCapabilityBundleBySubpathRejectsMissingDirectory(t *testing.T) {
+	t.Parallel()
+
+	bundle := &dto.CapabilityBundle{
+		SchemaVersion: dto.CapabilityBundleSchemaVersion,
+		Packages: []*dto.CapabilityBundlePackage{
+			{Path: "crm/customers", Name: "Customers"},
+		},
+		Files: []*dto.CapabilityBundleFile{
+			{PackagePath: "crm/customers", Path: "list.go", Content: "package customers"},
+		},
+	}
+
+	_, err := filterCapabilityBundleBySubpath(bundle, "crm/orders")
+	if err == nil {
+		t.Fatal("expected missing subpath error")
+	}
+	if !strings.Contains(err.Error(), "未匹配到可安装目录") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

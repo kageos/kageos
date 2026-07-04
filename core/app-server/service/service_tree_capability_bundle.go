@@ -179,7 +179,7 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleRoot(
 		}
 
 		for _, file := range directoryFiles[dir.FullCodePath] {
-			if file == nil || isGeneratedDirectoryInitFile(file.RelativePath, file.FileName) {
+			if file == nil || isExcludedCapabilitySourceFile(file.RelativePath, file.FileName) {
 				continue
 			}
 			filePath := capabilitySourceFilePath(file)
@@ -526,8 +526,19 @@ func capabilityFileKey(packagePath, filePath string) string {
 }
 
 func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context.Context, opts *dto.InstallCapabilityOptions, bundle *dto.CapabilityBundle) (*dto.InstallCapabilityBundleResp, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("安装选项不能为空")
+	}
 	if err := validateCapabilityBundle(bundle); err != nil {
 		return nil, err
+	}
+	installBundle := bundle
+	if strings.TrimSpace(opts.BundleSubpath) != "" {
+		filtered, err := filterCapabilityBundleBySubpath(bundle, opts.BundleSubpath)
+		if err != nil {
+			return nil, err
+		}
+		installBundle = filtered
 	}
 
 	targetApp, targetRootPath, err := s.resolveCapabilityInstallTarget(opts)
@@ -538,7 +549,7 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 		return nil, err
 	}
 
-	plan, err := buildCapabilityBundleInstallPlan(targetRootPath, bundle)
+	plan, err := buildCapabilityBundleInstallPlan(targetRootPath, installBundle)
 	if err != nil {
 		return nil, err
 	}
@@ -640,6 +651,114 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundleFromURL(ctx 
 		return nil, err
 	}
 	return s.InstallCapabilityBundle(ctx, opts, bundle)
+}
+
+func filterCapabilityBundleBySubpath(bundle *dto.CapabilityBundle, rawSubpath string) (*dto.CapabilityBundle, error) {
+	if bundle == nil {
+		return nil, fmt.Errorf("目录 JSON 不能为空")
+	}
+	subpath, err := validateCapabilityPackagePath(strings.TrimSpace(rawSubpath), "bundle_subpath", false)
+	if err != nil {
+		return nil, err
+	}
+	rootPath := path.Base(subpath)
+	rebase := func(value string) (string, bool) {
+		value = strings.Trim(value, "/")
+		switch {
+		case value == subpath:
+			return rootPath, true
+		case strings.HasPrefix(value, subpath+"/"):
+			return path.Join(rootPath, strings.TrimPrefix(value, subpath+"/")), true
+		default:
+			return "", false
+		}
+	}
+
+	filtered := &dto.CapabilityBundle{
+		SchemaVersion: bundle.SchemaVersion,
+		Name:          bundle.Name,
+		TreeNodes:     make([]*dto.CapabilityBundleTreeNode, 0),
+		Docs:          make([]*dto.CapabilityBundleDoc, 0),
+		Packages:      make([]*dto.CapabilityBundlePackage, 0),
+		Files:         make([]*dto.CapabilityBundleFile, 0),
+		Extensions:    cloneCapabilityBundleExtensions(bundle.Extensions),
+	}
+
+	for _, pkg := range bundle.Packages {
+		if pkg == nil {
+			continue
+		}
+		rebasedPath, ok := rebase(pkg.Path)
+		if !ok {
+			continue
+		}
+		cp := *pkg
+		cp.Path = rebasedPath
+		if pkg.Path == subpath && strings.TrimSpace(pkg.Name) != "" {
+			filtered.Name = strings.TrimSpace(pkg.Name)
+		}
+		filtered.Packages = append(filtered.Packages, &cp)
+	}
+
+	for _, file := range bundle.Files {
+		if file == nil {
+			continue
+		}
+		rebasedPath, ok := rebase(file.PackagePath)
+		if !ok {
+			continue
+		}
+		cp := *file
+		cp.PackagePath = rebasedPath
+		filtered.Files = append(filtered.Files, &cp)
+	}
+
+	for _, node := range bundle.TreeNodes {
+		if node == nil {
+			continue
+		}
+		rebasedPath, ok := rebase(node.RelativePath)
+		if !ok {
+			continue
+		}
+		cp := *node
+		cp.RelativePath = rebasedPath
+		cp.ParentPath = capabilityParentPath(rebasedPath)
+		cp.Code = path.Base(rebasedPath)
+		filtered.TreeNodes = append(filtered.TreeNodes, &cp)
+	}
+
+	for _, doc := range bundle.Docs {
+		if doc == nil {
+			continue
+		}
+		rebasedPath, ok := rebase(doc.RelativePath)
+		if !ok {
+			continue
+		}
+		cp := *doc
+		cp.RelativePath = rebasedPath
+		filtered.Docs = append(filtered.Docs, &cp)
+	}
+
+	if len(filtered.Packages) == 0 && len(filtered.Files) == 0 && len(filtered.Docs) == 0 {
+		return nil, fmt.Errorf("bundle_subpath 未匹配到可安装目录: %s", subpath)
+	}
+	if err := validateCapabilityBundle(filtered); err != nil {
+		return nil, fmt.Errorf("bundle_subpath %s 过滤后目录 JSON 无效: %w", subpath, err)
+	}
+	return filtered, nil
+}
+
+func cloneCapabilityBundleExtensions(extensions map[string]interface{}) map[string]interface{} {
+	if len(extensions) == 0 {
+		return nil
+	}
+	out := make(map[string]interface{}, len(extensions))
+	for key, value := range extensions {
+		out[key] = value
+	}
+	return out
 }
 
 func readCapabilityBundleFile(filePath string) (*dto.CapabilityBundle, error) {
@@ -1371,6 +1490,9 @@ func validateCapabilityFilePath(filePath string, field string) (string, error) {
 	}
 	if base == "init_.go" {
 		return "", fmt.Errorf("%s 不允许包含 init_.go，该文件由目标应用目录脚手架生成", field)
+	}
+	if isInternalWorkspaceManifestFile(base, "") {
+		return "", fmt.Errorf("%s 不允许包含 %s，该文件仅用于本地目录种子声明", field, base)
 	}
 	if path.Ext(base) == "" {
 		return "", fmt.Errorf("%s 必须包含文件扩展名: %s", field, filePath)

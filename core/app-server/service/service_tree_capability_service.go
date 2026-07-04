@@ -67,3 +67,23 @@ func isGeneratedDirectoryInitFile(relativePath, fileName string) bool {
 	fileName = strings.TrimSpace(fileName)
 	return path.Base(relativePath) == "init_.go" || fileName == "init_"
 }
+
+func isInternalWorkspaceManifestFile(relativePath, fileName string) bool {
+	base := path.Base(strings.TrimSpace(relativePath))
+	if base == "." || base == "" {
+		base = strings.TrimSpace(fileName)
+		if base != "" && !strings.HasSuffix(base, ".go") {
+			base += ".go"
+		}
+	}
+	switch base {
+	case "kageos_manifest.go":
+		return true
+	default:
+		return false
+	}
+}
+
+func isExcludedCapabilitySourceFile(relativePath, fileName string) bool {
+	return isGeneratedDirectoryInitFile(relativePath, fileName) || isInternalWorkspaceManifestFile(relativePath, fileName)
+}

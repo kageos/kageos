@@ -304,6 +304,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
 	docRepo := repository.NewDocRepository(s.db)
 	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo, s.teamAccessService)
+	s.appService.SetDocService(s.docService)
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中

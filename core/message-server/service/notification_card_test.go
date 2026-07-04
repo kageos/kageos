@@ -106,7 +106,7 @@ func TestFeishuCardRendererProducesInteractiveCard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
 	}
-	for _, want := range []string{"schema\":\"2.0", "normal_v2", "回复消息", "查看详情", "primary_filled", "具体内容"} {
+	for _, want := range []string{"schema\":\"2.0", "normal_v2", "回复消息", "查看详情", "primary_filled", "具体内容", "附件", "lead-report.pdf", "risk.xlsx", "等 1 个文件"} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("feishu card missing %q:\n%s", want, string(raw))
 		}
@@ -131,7 +131,7 @@ func TestWeComMarkdownRendererIncludesContextAndLinks(t *testing.T) {
 	}
 	markdown := payload["markdown"].(map[string]interface{})
 	content := markdown["content"].(string)
-	for _, want := range []string{"【高优先级】线索巡检异常", "来源目录：线索巡检", "alice/demo", "[查看详情](https://kageos.example/workspace/alice/demo/leads?_open=inbox)"} {
+	for _, want := range []string{"【高优先级】线索巡检异常", "来源目录：线索巡检", "alice/demo", "附件：4 个附件：lead-report.pdf、risk.xlsx、raw.csv 等 1 个文件", "[查看详情](https://kageos.example/workspace/alice/demo/leads?_open=inbox)"} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("wecom content missing %q:\n%s", want, content)
 		}
@@ -167,7 +167,7 @@ func TestWeComTemplateCardRendererIncludesContextAndLinks(t *testing.T) {
 		t.Fatalf("card action url = %#v", action)
 	}
 	raw, _ := json.Marshal(payload)
-	for _, want := range []string{"来源目录", "线索巡检", "打开会话", "Kageos 自动通知"} {
+	for _, want := range []string{"来源目录", "线索巡检", "附件", "lead-report.pdf", "打开会话", "Kageos 自动通知"} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("wecom template card missing %q:\n%s", want, string(raw))
 		}
@@ -187,7 +187,7 @@ func TestDingTalkActionCardRendererIncludesContextAndButtons(t *testing.T) {
 		t.Fatalf("title = %v", actionCard["title"])
 	}
 	text := actionCard["text"].(string)
-	for _, want := range []string{"Kageos 自动通知", "来源目录：线索巡检", "alice/demo", "完整内容已保存到 Kageos 站内信"} {
+	for _, want := range []string{"Kageos 自动通知", "来源目录：线索巡检", "alice/demo", "附件：4 个附件：lead-report.pdf、risk.xlsx、raw.csv 等 1 个文件", "完整内容已保存到 Kageos 站内信"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dingtalk content missing %q:\n%s", want, text)
 		}
@@ -204,6 +204,14 @@ func TestDingTalkActionCardRendererIncludesContextAndButtons(t *testing.T) {
 	first := buttons[0].(map[string]interface{})
 	if first["title"] != "查看详情" || !strings.Contains(first["actionURL"].(string), "https://kageos.example/workspace/alice/demo/leads?_open=inbox") {
 		t.Fatalf("unexpected first dingtalk button: %#v", first)
+	}
+}
+
+func TestRenderNotificationAttachmentTextNormalizesRefs(t *testing.T) {
+	got := renderNotificationAttachmentText("kageos/a.pdf，kageos/a.pdf;kageos/b.xlsx\nkageos/c.csv,kageos/d.zip", 3)
+	want := "4 个附件：a.pdf、b.xlsx、c.csv 等 1 个文件"
+	if got != want {
+		t.Fatalf("attachment text = %q, want %q", got, want)
 	}
 }
 
@@ -365,6 +373,7 @@ func sampleNotificationCard() NotificationCard {
 		Summary:     "发现 2 条高优先级线索需要处理",
 		Content:     "请尽快查看线索详情，并跟进负责人。",
 		ContentType: "markdown",
+		Files:       "kageos/reports/lead-report.pdf,kageos/reports/risk.xlsx,kageos/reports/raw.csv,kageos/reports/archive.zip",
 		FromUser:    "scheduler",
 		ToUser:      "bob",
 		CreatedAt:   time.Date(2026, 6, 17, 10, 30, 0, 0, time.UTC),

@@ -14,7 +14,10 @@ import (
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 )
 
-const ScheduledAgentSessionExecutorKey = "agent.session"
+const (
+	ScheduledAgentSessionExecutorKey = "agent.session"
+	agentTaskPolicyCreateIfMissing   = "create_if_missing"
+)
 
 func (a *AppService) reconcilePackageAgentTasks(ctx context.Context, state *appMetadataSyncState, packages []*dto.PackageInfo) error {
 	if len(packages) == 0 {
@@ -30,28 +33,27 @@ func (a *AppService) reconcilePackageAgentTasks(ctx context.Context, state *appM
 			return fmt.Errorf("查询默认 Agent 任务 %s 失败: %w", pkg.FullPath, err)
 		}
 		for _, taskConfig := range pkg.AgentTasks {
-			req, err := buildPackageAgentTaskRequest(ctx, state, pkg, taskConfig)
+			policy, err := normalizePackageAgentTaskPolicy(pkg.FullPath, taskConfig)
 			if err != nil {
 				return err
 			}
 			current := existing[strings.TrimSpace(taskConfig.Code)]
-			if current == nil {
-				task, err := client.CreateTask(ctx, req)
-				if err != nil {
-					return fmt.Errorf("创建默认 Agent 任务 %s/%s 失败: %w", pkg.FullPath, taskConfig.Code, err)
-				}
-				if task == nil || task.ID <= 0 {
-					return fmt.Errorf("创建默认 Agent 任务 %s/%s 未返回有效 task_id", pkg.FullPath, taskConfig.Code)
-				}
+			if current != nil && policy == agentTaskPolicyCreateIfMissing {
+				logger.Infof(ctx, "[PackageAgentTask] skip existing manifest task full_code_path=%s code=%s task_id=%d policy=%s",
+					pkg.FullPath, taskConfig.Code, current.ID, policy)
 				continue
 			}
-			if shouldSkipManifestAgentTaskUpdate(current) {
-				logger.Infof(ctx, "[PackageAgentTask] skip terminal task full_code_path=%s code=%s task_id=%d status=%s",
-					pkg.FullPath, taskConfig.Code, current.ID, current.Status)
-				continue
+
+			req, err := buildPackageAgentTaskRequest(ctx, state, pkg, taskConfig)
+			if err != nil {
+				return err
 			}
-			if _, err := client.UpdateTask(ctx, current.ID, updateTaskRequestFromCreate(req)); err != nil {
-				return fmt.Errorf("更新默认 Agent 任务 %s/%s 失败: %w", pkg.FullPath, taskConfig.Code, err)
+			task, err := client.CreateTask(ctx, req)
+			if err != nil {
+				return fmt.Errorf("创建默认 Agent 任务 %s/%s 失败: %w", pkg.FullPath, taskConfig.Code, err)
+			}
+			if task == nil || task.ID <= 0 {
+				return fmt.Errorf("创建默认 Agent 任务 %s/%s 未返回有效 task_id", pkg.FullPath, taskConfig.Code)
 			}
 		}
 	}
@@ -90,6 +92,21 @@ func listManifestAgentTasksForPackage(ctx context.Context, client appScheduleCli
 		out[code] = task
 	}
 	return out, nil
+}
+
+func normalizePackageAgentTaskPolicy(fullCodePath string, task dto.AgentTaskConfig) (string, error) {
+	policy := strings.TrimSpace(task.Policy)
+	if policy == "" {
+		policy = agentTaskPolicyCreateIfMissing
+	}
+	if policy != agentTaskPolicyCreateIfMissing {
+		code := strings.TrimSpace(task.Code)
+		if code == "" {
+			code = "<empty>"
+		}
+		return "", fmt.Errorf("默认 Agent 任务 %s/%s policy 不支持: %s", strings.TrimSpace(fullCodePath), code, policy)
+	}
+	return policy, nil
 }
 
 func buildPackageAgentTaskRequest(ctx context.Context, state *appMetadataSyncState, pkg *dto.PackageInfo, task dto.AgentTaskConfig) (scheduledsdk.CreateTaskRequest, error) {
@@ -216,18 +233,6 @@ func requestUserForPackageAgentTask(ctx context.Context, state *appMetadataSyncS
 		requestUser = "system"
 	}
 	return requestUser
-}
-
-func shouldSkipManifestAgentTaskUpdate(task *scheduledsdk.Task) bool {
-	if task == nil {
-		return false
-	}
-	switch task.Status {
-	case scheduledsdk.TaskStatusCancelled, scheduledsdk.TaskStatusDone:
-		return true
-	default:
-		return false
-	}
 }
 
 func packageAgentTaskIdempotencyKey(fullCodePath string, code string) string {

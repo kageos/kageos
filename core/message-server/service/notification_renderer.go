@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const notificationAttachmentPreviewLimit = 3
+
 type CardRenderer interface {
 	Channel() string
 	Render(card NotificationCard) (map[string]interface{}, error)
@@ -93,6 +95,9 @@ func renderFeishuCard2Markdown(card NotificationCard) string {
 	}
 	if content := renderFeishuContentMarkdown(card); content != "" {
 		lines = append(lines, "", content)
+	}
+	if attachments := renderFeishuAttachmentMarkdown(card.Files); attachments != "" {
+		lines = append(lines, "", attachments)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -289,6 +294,9 @@ func renderWeComMarkdown(card NotificationCard) string {
 	if content := truncateRunes(stripNotificationMarkup(card.Content), 500); content != "" && content != card.Summary {
 		lines = append(lines, "", escapeCardMarkdown(content))
 	}
+	if attachments := renderNotificationAttachmentText(card.Files, notificationAttachmentPreviewLimit); attachments != "" {
+		lines = append(lines, "", "附件："+escapeCardMarkdown(attachments))
+	}
 	if len(card.Actions) > 0 {
 		lines = append(lines, "")
 		for _, action := range card.Actions {
@@ -318,6 +326,7 @@ func renderWeComHorizontalContent(card NotificationCard) []interface{} {
 	add("工作空间", card.Source.Workspace)
 	add("任务/会话", firstNonEmptyString(card.Task.SessionTitle, card.Task.Title))
 	add("发起人", card.FromUser)
+	add("附件", renderNotificationAttachmentText(card.Files, notificationAttachmentPreviewLimit))
 	if !card.CreatedAt.IsZero() {
 		add("时间", card.CreatedAt.Format("2006-01-02 15:04:05"))
 	}
@@ -402,6 +411,9 @@ func renderDingTalkActionCardText(card NotificationCard) string {
 	if content := truncateRunes(stripNotificationMarkup(card.Content), 500); content != "" && content != card.Summary {
 		lines = append(lines, "", "内容：", plainDingTalkText(content))
 	}
+	if attachments := renderNotificationAttachmentText(card.Files, notificationAttachmentPreviewLimit); attachments != "" {
+		lines = append(lines, "", "附件："+plainDingTalkText(attachments))
+	}
 	lines = append(lines, "", "完整内容已保存到 Kageos 站内信。")
 	return strings.Join(lines, "\n\n")
 }
@@ -468,6 +480,92 @@ func escapeFeishuCardText(s string) string {
 		">", "&gt;",
 	)
 	return replacer.Replace(s)
+}
+
+func renderFeishuAttachmentMarkdown(files string) string {
+	refs := notificationAttachmentRefs(files)
+	if len(refs) == 0 {
+		return ""
+	}
+	lines := []string{
+		fmt.Sprintf("<font color='grey'>附件：</font> %d 个", len(refs)),
+	}
+	limit := notificationAttachmentDisplayLimit(len(refs), notificationAttachmentPreviewLimit)
+	for _, ref := range refs[:limit] {
+		lines = append(lines, "- "+escapeFeishuCardText(notificationAttachmentName(ref)))
+	}
+	if extra := len(refs) - limit; extra > 0 {
+		lines = append(lines, fmt.Sprintf("- 等 %d 个文件，请查看详情", extra))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderNotificationAttachmentText(files string, maxNames int) string {
+	refs := notificationAttachmentRefs(files)
+	if len(refs) == 0 {
+		return ""
+	}
+	limit := notificationAttachmentDisplayLimit(len(refs), maxNames)
+	names := make([]string, 0, limit)
+	for _, ref := range refs[:limit] {
+		names = append(names, notificationAttachmentName(ref))
+	}
+	text := fmt.Sprintf("%d 个附件：%s", len(refs), strings.Join(names, "、"))
+	if extra := len(refs) - limit; extra > 0 {
+		text += fmt.Sprintf(" 等 %d 个文件", extra)
+	}
+	return text
+}
+
+func notificationAttachmentDisplayLimit(total int, maxNames int) int {
+	if total <= 0 {
+		return 0
+	}
+	if maxNames <= 0 || maxNames > total {
+		return total
+	}
+	return maxNames
+}
+
+func notificationAttachmentRefs(files string) []string {
+	files = strings.NewReplacer(
+		"，", ",",
+		"、", ",",
+		";", ",",
+		"；", ",",
+		"\n", ",",
+		"\t", ",",
+	).Replace(strings.TrimSpace(files))
+	parts := strings.Split(files, ",")
+	seen := make(map[string]struct{}, len(parts))
+	refs := make([]string, 0, len(parts))
+	for _, part := range parts {
+		ref := strings.TrimSpace(part)
+		if ref == "" {
+			continue
+		}
+		if _, ok := seen[ref]; ok {
+			continue
+		}
+		seen[ref] = struct{}{}
+		refs = append(refs, ref)
+	}
+	return refs
+}
+
+func notificationAttachmentName(ref string) string {
+	ref = strings.TrimSpace(ref)
+	if idx := strings.Index(ref, "?"); idx >= 0 {
+		ref = ref[:idx]
+	}
+	ref = strings.TrimRight(ref, "/")
+	if idx := strings.LastIndex(ref, "/"); idx >= 0 {
+		ref = ref[idx+1:]
+	}
+	if ref == "" {
+		return "附件"
+	}
+	return ref
 }
 
 func primaryNotificationAction(actions []NotificationAction) NotificationAction {

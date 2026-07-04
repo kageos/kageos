@@ -41,4 +41,5 @@ export interface CapabilityBundle {
   docs?: CapabilityBundleDoc[]
   files: CapabilityBundleFile[]
   packages?: CapabilityBundlePackage[]
+  extensions?: Record<string, unknown>
 }

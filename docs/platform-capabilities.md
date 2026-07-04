@@ -8,8 +8,8 @@
 
 | 状态 | 能力 |
 | --- | --- |
-| 已上线 | Service Tree、权限/操作日志、AI 工作台会话、Form/Table/Chart/Docs、站内信、函数任务 `app.function`、Agent 任务 `agent.session`。 |
-| 未上线/架构预留 | workflow 图、`workflow.run`、通用流程审批、讨论区、点赞/评论/评分、外部通知渠道、备份控制面。 |
+| 已上线 | Service Tree、权限/操作日志、AI 工作台会话、Form/Table/Chart/Docs、消息/站内信、外部 webhook 摘要通知、函数任务 `app.function`、Agent 任务 `agent.session`。 |
+| 未上线/架构预留 | workflow 图、`workflow.run`、通用流程审批、讨论区、点赞/评论/评分、外部渠道原生文件上传、复杂通知策略、备份控制面。 |
 | 建设中/商业路线 | Hub 目录市场、公共试用实例、企业私有 Hub、SSO/SLA 等托管 SaaS 增强能力。 |
 
 ## 能力版图
@@ -73,6 +73,7 @@ flowchart LR
 - 按来源节点统计 `source_counts`，用于 Service Tree 上显示未读或历史消息标识。
 - 按工作空间统计 `workspace_counts`，用于站内信抽屉顶部显示有消息的工作空间并支持切换。
 - `source_path`、`source_parent_path`、`full_code_path`、`workspace_session_id`、`scheduled_task_id`、`scheduled_execution_id` 等来源信息，支撑跳转、归档和排障。
+- 附件文件引用 `files`，站内信详情和移动端处理页会解析为可预览/下载的文件列表。
 
 主要入口：
 
@@ -84,7 +85,7 @@ flowchart LR
 - `PATCH /message/api/v1/inbox/:id/read`
 - `PATCH /message/api/v1/inbox/read_all`
 
-当前 MVP 只保证站内信落库和展示；邮件、飞书、企业微信等外部渠道应该作为后续 channel provider 扩展，不应写进业务应用。
+站内信是完整保存和查看入口。飞书、企业微信、钉钉等外部 webhook 渠道由 message-service 的 channel provider 统一投递；外部卡片只展示附件数量和前几个文件名，并跳回 Kageos 详情查看/下载，不做渠道原生文件上传。业务应用不应直接耦合具体外部渠道。
 
 ## 定时任务
 
@@ -113,8 +114,8 @@ flowchart LR
 
 - 业务应用发通知时使用 `ctx.SendNotification`，不要直接写 `message-server` 的表，也不要绑定具体外部渠道。
 - `to_users` 推荐显式填写；通知当前请求用户时可省略，由 message-service 兜底到真实请求用户。没有真实请求用户时必须显式填写。
-- `message`/`Message` 和 `files`/`Files` 至少填写一个；附件使用平台文件引用 `bucket/object_key`，多个用逗号分隔。
+- `message`/`Message` 和 `files`/`Files` 至少填写一个；附件使用平台文件引用 `bucket/object_key`，多个用逗号分隔。外部通知只展示附件摘要，完整附件以站内信详情为准。
 - Agent 后台任务发通知时使用 `send_notification`。Agent 任务和后台上下文优先显式写 `to_users`；通知创建人/当前用户时可依赖默认通知对象。
 - 业务应用需要默认定时执行时使用 `FormTemplate.Schedules`；临时或运营型自动化由自动执行配置创建 `timer-scheduler` 任务。
 - Service Tree 路径、`full_code_path`、`source_path`、trace 和操作日志是平台排障与跳转的共同索引，新增能力时应完整传递，不要在前端用临时 URL 状态替代持久来源信息。
-- 权限是当前平台能力；审批、评论、收藏、外部通知渠道和备份控制面目前未上线，不应由单个业务 App 自造通用版本。
+- 权限和基础消息通知是当前平台能力；审批、评论、收藏、外部渠道原生文件上传、复杂通知策略和备份控制面目前未上线，不应由单个业务 App 自造通用版本。

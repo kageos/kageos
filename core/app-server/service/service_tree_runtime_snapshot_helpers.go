@@ -117,6 +117,9 @@ func readDirectoryFilesFromRuntimeRecursively(
 			continue
 		}
 		for _, f := range runtimeResp.Files {
+			if isInternalWorkspaceManifestFile(f.RelativePath, f.FileName) {
+				continue
+			}
 			fileType := "go"
 			if f.RelativePath != "" && strings.HasSuffix(f.RelativePath, ".go") {
 				fileType = "go"

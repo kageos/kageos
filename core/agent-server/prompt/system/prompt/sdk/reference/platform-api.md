@@ -28,7 +28,7 @@ err := ctx.APICall(method, path, reqBody, respData)
 - 直连平台数据库。
 - 伪造平台运行上下文。
 - 调用已删除的 `/scheduled_tasks`、`/scheduled_agent_tasks`、备份控制面或企业 License 接口。
-- 在业务代码里直接耦合飞书、邮件、企业微信等通知渠道；发送平台通知优先使用 SDK `ctx.SendNotification`。
+- 在业务代码里直接耦合飞书、邮件、钉钉、企业微信等通知渠道；发送平台通知优先使用 SDK `ctx.SendNotification`。
 
 ## 平台接口包装函数
 

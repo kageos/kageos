@@ -59,4 +59,22 @@ describe('hubInstallCommand', () => {
       displaySource: 'https://hub.kageos.com/api/v1/applications/user/app/latest/bundle'
     })
   })
+
+  it('parses bundle subpaths from install command flags', () => {
+    expect(parseHubInstallInput('kageos install user/app:1.0.0 --key abc --path crm/customers')).toEqual({
+      bundleUrl: 'https://hub-api.kageos.com/api/v1/applications/user/app/1.0.0/bundle',
+      installKey: 'abc',
+      bundleSubpath: 'crm/customers',
+      displaySource: 'user/app:1.0.0#crm/customers'
+    })
+  })
+
+  it('extracts URL subpaths while removing them from the bundle URL', () => {
+    expect(parseHubInstallInput('https://hub.kageos.com/api/v1/applications/user/app/latest/bundle?key=abc&subpath=crm%2Fcustomers')).toEqual({
+      bundleUrl: 'https://hub.kageos.com/api/v1/applications/user/app/latest/bundle',
+      installKey: 'abc',
+      bundleSubpath: 'crm/customers',
+      displaySource: 'https://hub.kageos.com/api/v1/applications/user/app/latest/bundle#crm/customers'
+    })
+  })
 })

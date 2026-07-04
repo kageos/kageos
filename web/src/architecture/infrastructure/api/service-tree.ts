@@ -196,6 +196,7 @@ export function installCapabilityBundle(data: {
   target_directory_path: string
   overwrite?: boolean
   force_diff?: boolean
+  bundle_subpath?: string
   bundle: CapabilityBundle
 }) {
   return post<{
@@ -215,6 +216,7 @@ export function installCapabilityBundleFromURL(data: {
   target_directory_path: string
   overwrite?: boolean
   force_diff?: boolean
+  bundle_subpath?: string
   bundle_url: string
   install_key?: string
 }) {

@@ -37,7 +37,12 @@ describe('directoryBundleFile', () => {
       ],
       docs: [{ relative_path: 'message/readme.docs', name: '使用说明', content: '# 使用说明\n', format: 'markdown' }],
       packages: [{ path: 'message', name: '消息' }],
-      files: [{ package_path: 'message', path: 'send.go', content: 'package message\n' }]
+      files: [{ package_path: 'message', path: 'send.go', content: 'package message\n' }],
+      extensions: {
+        install: {
+          recommended_subpath: 'message'
+        }
+      }
     }))
 
     expect(parsed.tree_nodes?.[1]).toMatchObject({
@@ -58,6 +63,11 @@ describe('directoryBundleFile', () => {
       package_path: 'message',
       path: 'send.go',
       content: 'package message\n'
+    })
+    expect(parsed.extensions).toEqual({
+      install: {
+        recommended_subpath: 'message'
+      }
     })
   })
 

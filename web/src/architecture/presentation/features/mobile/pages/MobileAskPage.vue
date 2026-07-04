@@ -25,6 +25,16 @@ void preloadMarkdown()
 
 const canSend = computed(() => fullCodePath.value.trim() && question.value.trim() && !streaming.value)
 const renderedAnswer = computed(() => renderMarkdown(answer.value || (streaming.value ? '正在处理...' : '')))
+const hasSourceContext = computed(() => Boolean(fullCodePath.value.trim()))
+const sourceHint = computed(() => {
+  if (sessionId.value.trim()) {
+    return `已带入会话 ${sessionId.value.trim()}，Kageos 会优先延续这次处理上下文。`
+  }
+  if (hasSourceContext.value) {
+    return '已带入来源目录，Kageos 会围绕这个目录继续处理。'
+  }
+  return '填写要操作或查询的目录路径。'
+})
 
 function initialSourcePath() {
   const raw = route.query.source_path
@@ -63,16 +73,25 @@ function loadStoredDraft() {
 }
 
 function buildMobileAskContent(rawQuestion: string) {
-  return [
+  const lines = [
     '【移动端消息处理上下文】',
     '入口：Kageos Pocket 主动问话',
+  ]
+  if (fullCodePath.value.trim()) {
+    lines.push(`关联目录：${fullCodePath.value.trim()}`)
+  }
+  if (sessionId.value.trim()) {
+    lines.push(`关联会话：${sessionId.value.trim()}`)
+  }
+  lines.push(
     '输出格式：最终回复必须使用 Markdown 格式，适合手机阅读。',
     '如需异步处理或后续触达用户，请使用 send_notification；message 使用 Markdown，content_type 使用 markdown 或省略；files 可携带平台文件引用。',
     '不要使用 HTML、富文本，也不要把整段回复包进代码块；不要输出工具日志。',
     '',
     '用户问题：',
-    rawQuestion.trim(),
-  ].join('\n')
+    rawQuestion.trim()
+  )
+  return lines.join('\n')
 }
 
 async function askKageos() {
@@ -122,7 +141,6 @@ async function scrollToPageBottom(behavior: ScrollBehavior = 'smooth') {
 
 onMounted(() => {
   loadStoredDraft()
-  void scrollToPageBottom('auto')
 })
 
 watch([renderedAnswer, error, streaming], () => {
@@ -139,25 +157,32 @@ watch([renderedAnswer, error, streaming], () => {
         <p>适合在手机上快速查询状态、补充信息，或让工作台继续处理。</p>
       </div>
 
+      <section v-if="hasSourceContext" class="source-context">
+        <span>当前上下文</span>
+        <strong>{{ fullCodePath }}</strong>
+        <small>{{ sourceHint }}</small>
+      </section>
+
       <section class="ask-panel">
         <label>
-          <span>目录路径</span>
+          <span>{{ hasSourceContext ? '来源目录' : '目录路径' }}</span>
           <el-input
             v-model="fullCodePath"
             size="large"
             placeholder="/user/app/order_list.table"
             :disabled="streaming"
           />
+          <p class="form-tip">{{ sourceHint }}</p>
         </label>
 
         <label>
-          <span>问题</span>
+          <span>想让 Kageos 做什么</span>
           <el-input
             v-model="question"
             type="textarea"
             :rows="5"
             resize="none"
-            placeholder="请用 Markdown 描述问题，例如：&#10;- 帮我看订单 A123 当前状态&#10;- 如果异常，给我一个处理建议"
+            placeholder="例如：&#10;- 帮我看这条消息现在该怎么处理&#10;- 查一下订单 A123 当前状态&#10;- 如果有异常，给我一个下一步建议"
             :disabled="streaming"
           />
         </label>
@@ -169,7 +194,7 @@ watch([renderedAnswer, error, streaming], () => {
           :disabled="!canSend"
           @click="askKageos"
         >
-          发送到工作台
+          发送给 Kageos 处理
         </el-button>
       </section>
 
@@ -249,6 +274,7 @@ h2 {
   line-height: 1.55;
 }
 
+.source-context,
 .ask-panel,
 .answer-panel {
   background: #ffffff;
@@ -256,6 +282,33 @@ h2 {
   border-radius: 8px;
   padding: 16px;
   box-shadow: 0 10px 24px rgba(30, 41, 59, 0.06);
+}
+
+.source-context {
+  display: grid;
+  gap: 6px;
+  border-left: 4px solid #0f766e;
+}
+
+.source-context span {
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.source-context strong {
+  min-width: 0;
+  color: #172033;
+  font-size: 15px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.source-context small,
+.form-tip {
+  color: #657089;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .ask-panel {
@@ -381,6 +434,7 @@ label span {
     font-size: 22px;
   }
 
+  .source-context,
   .ask-panel,
   .answer-panel {
     padding: 14px;

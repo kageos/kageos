@@ -563,7 +563,7 @@ flowchart LR
 
 ## 消息和站内信链路
 
-消息能力由 `message-server` 统一承载。生成应用通过 SDK `ctx.SendNotification` 发布通知命令，Agent 通过 `send_notification` 工具发布通知命令，二者最终都进入 `message.v1.cmd.send`。`message-server` 消费后落库为站内信，并提供 inbox、thread、source counts、workspace counts 和 unread count 给前端抽屉和 Service Tree 使用。
+消息能力由 `message-server` 统一承载。生成应用通过 SDK `ctx.SendNotification` 发布通知命令，Agent 通过 `send_notification` 工具发布通知命令，二者最终都进入 `message.v1.cmd.send`。`message-server` 消费后落库为站内信，并提供 inbox、thread、source counts、workspace counts 和 unread count 给前端抽屉和 Service Tree 使用。通知可携带平台文件引用；站内信和移动处理页展示完整附件，飞书、企业微信、钉钉等外部 webhook 卡片只展示附件摘要并跳回 Kageos 详情。
 
 ```mermaid
 flowchart LR
