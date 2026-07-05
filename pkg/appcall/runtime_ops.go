@@ -61,6 +61,15 @@ func (c *Client) ReplaceInFileBatch(ctx context.Context, hostID int64, req *dto.
 	return &resp, nil
 }
 
+// WriteFile 写入单个文本文件（subject: runtime.v1.cmd.file.write）
+func (c *Client) WriteFile(ctx context.Context, hostID int64, req *dto.WriteFileRuntimeReq) (*dto.WriteFileRuntimeResp, error) {
+	var resp dto.WriteFileRuntimeResp
+	if err := c.runtime.requestByHost(ctx, hostID, subjects.RuntimeFileWriteCommandSubject, req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // DeleteFile 删除磁盘文件（subject: runtime.v1.cmd.file.delete）
 func (c *Client) DeleteFile(ctx context.Context, hostID int64, req *dto.DeleteFileRuntimeReq) (*dto.DeleteFileRuntimeResp, error) {
 	var resp dto.DeleteFileRuntimeResp

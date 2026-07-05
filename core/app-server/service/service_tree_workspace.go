@@ -11,6 +11,10 @@ func (s *ServiceTreeService) GetWorkspaceContext(ctx context.Context, req *dto.G
 	return s.workspaceService.GetWorkspaceContext(ctx, req)
 }
 
+func (s *ServiceTreeService) WriteFileContent(ctx context.Context, req *dto.WriteFileContentReq) (*dto.WriteFileContentResp, error) {
+	return s.workspaceService.WriteFileContent(ctx, req)
+}
+
 func (s *ServiceTreeService) ReplaceFileContent(ctx context.Context, req *dto.ReplaceFileContentReq) (*dto.ReplaceFileContentResp, error) {
 	return s.workspaceService.ReplaceFileContent(ctx, req)
 }

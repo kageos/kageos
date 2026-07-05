@@ -79,6 +79,12 @@ func RegisterNATS(ctx context.Context, conn *nats.Conn, subs *[]*nats.Subscripti
 	}
 	*subs = append(*subs, sub)
 
+	sub, err = conn.QueueSubscribe(subjects.RuntimeFileWriteCommandSubject, subjects.RuntimeFileWriteQueueGroup, workspaceH.HandleWriteFile)
+	if err != nil {
+		return fmt.Errorf("subscribe write file: %w", err)
+	}
+	*subs = append(*subs, sub)
+
 	sub, err = conn.QueueSubscribe(subjects.RuntimeFileDeleteCommandSubject, subjects.RuntimeFileDeleteQueueGroup, workspaceH.HandleDeleteFile)
 	if err != nil {
 		return fmt.Errorf("subscribe delete file: %w", err)

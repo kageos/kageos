@@ -287,7 +287,7 @@ type GetWorkspaceContextResp struct {
 	DepartmentFullNamePath string                    `json:"department_full_name_path"` // 当前用户部门中文名称路径（仅展示用，如 技术部/后端组）
 	Directory              WorkspaceContextDirectory `json:"directory"`                 // 当前目录信息
 	Children               []WorkspaceContextNode    `json:"children"`                  // 子节点列表
-	Files                  []WorkspaceContextFile    `json:"files"`                     // 代码文件列表
+	Files                  []WorkspaceContextFile    `json:"files"`                     // 文本/代码文件列表
 }
 
 // ReplaceItem 单次替换项（预期次数不传或 0 表示默认 1）
@@ -320,6 +320,22 @@ type ReplaceFileContentResp struct {
 	ReplaceCount int                 `json:"replace_count"`          // 总替换次数
 	FullContent  string              `json:"full_content,omitempty"` // 替换后的完整文件内容（成功且 return_full_content 时返回）
 	Details      []ReplaceItemResult `json:"details,omitempty"`      // 未落盘时返回哪几项 expected_count 不符
+}
+
+// WriteFileContentReq 工作台写入单个文本文件请求（不触发编译）。
+type WriteFileContentReq struct {
+	FullCodePath string `json:"full_code_path" form:"full_code_path" binding:"required"` // 目录完整路径
+	FileName     string `json:"file_name" form:"file_name" binding:"required"`           // 文件名（如 handler.go 或 config.json）
+	FileType     string `json:"file_type" form:"file_type"`                              // 可选文件类型；不传则从 file_name 推断，无扩展名默认 go
+	Content      string `json:"content" form:"content"`                                  // 文本内容
+}
+
+// WriteFileContentResp 工作台写入单个文本文件响应。
+type WriteFileContentResp struct {
+	Success      bool   `json:"success"`
+	Message      string `json:"message"`
+	RelativePath string `json:"relative_path,omitempty"`
+	FileType     string `json:"file_type,omitempty"`
 }
 
 // DeleteFileReq 工作台删除文件请求（删节点+删磁盘）

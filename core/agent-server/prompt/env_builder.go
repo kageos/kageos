@@ -296,13 +296,13 @@ func hasWorkspaceCallback(callbacks []string, target string) bool {
 	return false
 }
 
-// buildFilesSection 输出当前目录下全部可读文件，完整列表不省略
+// buildFilesSection 输出当前目录下全部可读文本/代码文件，完整列表不省略
 func buildFilesSection(files []WorkspaceEnvFile) string {
 	if len(files) == 0 {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("\n\n### 当前可读代码文件（用 read_file 读取）\n")
+	b.WriteString("\n\n### 当前可读文本/代码文件（用 read_file 读取）\n")
 	b.WriteString("以下文件可直接用 `read_file(directory, file_name)` 读取内容（不传 directory 则默认当前目录；可用 line_ranges 精读指定行）：\n")
 	for _, f := range files {
 		b.WriteString(fmt.Sprintf("- %s（%s，%d 行）\n", f.RelativePath, f.FileType, f.LineCount))

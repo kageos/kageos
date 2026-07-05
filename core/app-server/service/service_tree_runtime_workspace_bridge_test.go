@@ -28,6 +28,10 @@ type fakeRuntimeWorkspaceClient struct {
 	readDirHostID int64
 	readDirReq    *dto.ReadDirectoryFilesRuntimeReq
 	readDirResp   *dto.ReadDirectoryFilesRuntimeResp
+
+	writeFileHostID int64
+	writeFileReq    *dto.WriteFileRuntimeReq
+	writeFileResp   *dto.WriteFileRuntimeResp
 }
 
 func (c *fakeRuntimeWorkspaceClient) BatchCreateDirectoryTree(context.Context, int64, *dto.BatchCreateDirectoryTreeRuntimeReq) (*dto.BatchCreateDirectoryTreeRuntimeResp, error) {
@@ -72,6 +76,15 @@ func (c *fakeRuntimeWorkspaceClient) ReadDirectoryFiles(_ context.Context, hostI
 
 func (c *fakeRuntimeWorkspaceClient) ReplaceInFileBatch(context.Context, int64, *dto.ReplaceInFileBatchReq) (*dto.ReplaceInFileBatchResp, error) {
 	return &dto.ReplaceInFileBatchResp{}, nil
+}
+
+func (c *fakeRuntimeWorkspaceClient) WriteFile(_ context.Context, hostID int64, req *dto.WriteFileRuntimeReq) (*dto.WriteFileRuntimeResp, error) {
+	c.writeFileHostID = hostID
+	c.writeFileReq = req
+	if c.writeFileResp != nil {
+		return c.writeFileResp, nil
+	}
+	return &dto.WriteFileRuntimeResp{Success: true, Message: "写入成功"}, nil
 }
 
 func (c *fakeRuntimeWorkspaceClient) DeleteFile(context.Context, int64, *dto.DeleteFileRuntimeReq) (*dto.DeleteFileRuntimeResp, error) {

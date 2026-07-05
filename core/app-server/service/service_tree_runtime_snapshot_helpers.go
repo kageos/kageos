@@ -120,8 +120,8 @@ func readDirectoryFilesFromRuntimeRecursively(
 			if isInternalWorkspaceManifestFile(f.RelativePath, f.FileName) {
 				continue
 			}
-			fileType := "go"
-			if f.RelativePath != "" && strings.HasSuffix(f.RelativePath, ".go") {
+			fileType := strings.TrimSpace(f.FileType)
+			if fileType == "" {
 				fileType = "go"
 			}
 			result[tree.FullCodePath] = append(result[tree.FullCodePath], &model.FileSnapshot{

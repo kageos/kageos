@@ -755,6 +755,31 @@ func (s *ServiceTree) GetWorkspaceContext(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// WriteFileContent 工作台写入单个文本文件（实时写盘，不编译）
+// POST /workspace/api/v1/workspace/files/write
+func (s *ServiceTree) WriteFileContent(c *gin.Context) {
+	var req dto.WriteFileContentReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	if req.FullCodePath == "" || req.FileName == "" {
+		response.FailWithMessage(c, "full_code_path、file_name 必填")
+		return
+	}
+	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.WriteFileContent(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "写入文件失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}
+
 // ReplaceFileContent 工作台文件 search-replace（实时写盘）
 // POST /workspace/api/v1/workspace/files/replace
 func (s *ServiceTree) ReplaceFileContent(c *gin.Context) {

@@ -44,7 +44,7 @@ type readFileLineSpan struct {
 
 var readFileToolDef = toolDefinitionWithOutput[readFileArgs, structuredToolResultSchema[readFileResultData]](
 	"read_file",
-	"读取工作区真实应用文件。必填 file_name；可选 directory 和 line_ranges。返回真实 content、带行号 numbered_content、完整文件 content_sha。后续 edit_file/write_file 修改同一文件时必须传回最新 content_sha 作为 base_sha。/system/prompt 文档请用 read_doc。",
+	"读取工作区真实文本/代码文件。必填 file_name；可选 directory 和 line_ranges；.docs 会读取工作台文档库。返回真实 content、带行号 numbered_content、完整文件 content_sha。后续 edit_file/write_file 修改同一文件时必须传回最新 content_sha 作为 base_sha。/system/prompt 文档请用 read_doc。",
 )
 
 func (t *ReadFileTool) Definition() dto.ToolDef {
@@ -118,6 +118,7 @@ type writeFileArgs struct {
 	Directory         string `json:"directory" schema_desc:"目标目录，不传则当前工作目录"`
 	FullCodePath      string `json:"full_code_path" schema_ignore:"true"`
 	FileName          string `json:"file_name" schema_desc:"目标文件名，如 issue.go" schema_required:"true"`
+	FileType          string `json:"file_type" schema_desc:"可选文件类型；不传则从 file_name 后缀推断，无扩展名默认 go"`
 	Content           string `json:"content" schema_desc:"完整文件内容" schema_required:"true"`
 	BaseSHA           string `json:"base_sha" schema_desc:"覆盖已有文件时必须传最近一次 read_file 返回的 content_sha"`
 	ReplaceEntireFile bool   `json:"replace_entire_file" schema_desc:"覆盖已有文件时必须显式为 true；新文件可不传"`
@@ -136,7 +137,7 @@ type writeFileResultData struct {
 
 var writeFileToolDef = toolDefinitionWithOutput[writeFileArgs, structuredToolResultSchema[writeFileResultData]](
 	"write_file",
-	"创建或完整覆盖工作区代码文件。新文件可直接写；覆盖已有文件必须先 read_file，并传 base_sha、replace_entire_file=true、overwrite_reason。当前版本仅写入 .go 代码文件；小范围修改优先用 edit_file，文档请用 write_doc。",
+	"创建或完整覆盖工作区文本文件。新文件可直接写；覆盖已有文件必须先 read_file，并传 base_sha、replace_entire_file=true、overwrite_reason。.go 文件会做 Go/SDK 诊断；.docs 会写入工作台文档库；其他受支持文本扩展写入应用目录但不触发编译。小范围修改优先用 edit_file。",
 )
 
 func (t *WriteFileTool) Definition() dto.ToolDef {
@@ -244,13 +245,6 @@ func runWriteFileTool(ctx context.Context, args writeFileArgs, currentFullCodePa
 	if fileName == "" {
 		return toolResult("write_file 缺少参数 file_name。", true)
 	}
-	fileName = ensureGoFileName(fileName)
-	if !isGoFileName(fileName) {
-		return toolResult("write_file 当前仅支持 .go 代码文件；文档请用 write_doc。", true)
-	}
-	if isGeneratedInitGoFile(fileName) {
-		return toolResult("write_file 不允许修改 init_.go；该文件由目录创建流程自动维护。请修改普通业务 .go 文件。", true)
-	}
 	if strings.TrimSpace(args.Content) == "" {
 		return toolResult("write_file 缺少参数 content，本次未落盘。", true)
 	}
@@ -264,6 +258,14 @@ func runWriteFileTool(ctx context.Context, args writeFileArgs, currentFullCodePa
 		targetPath = "/" + targetPath
 	}
 
+	if isDocsFileName(fileName) || strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(args.FileType), "."), "docs") {
+		return runWriteDocsFileTool(ctx, args, targetPath)
+	}
+
+	fileName = normalizeWriteFileName(fileName, args.FileType)
+	if isGeneratedInitGoFile(fileName) {
+		return toolResult("write_file 不允许修改 init_.go；该文件由目录创建流程自动维护。请修改普通业务文件。", true)
+	}
 	existing, errMsg, isError := findWorkspaceFile(ctx, targetPath, fileName)
 	if errMsg != "" && isError {
 		return toolResult(errMsg, true)
@@ -284,26 +286,122 @@ func runWriteFileTool(ctx context.Context, args writeFileArgs, currentFullCodePa
 	}
 
 	newSHA := fileContentSHA(args.Content)
-	if msg := blockingGoWriteDiagnostics(targetPath, fileName, args.Content); msg != "" {
-		return toolResult("write_file 未落盘：Go 语法检查失败。\n"+msg, true)
+	msg := ""
+	diagnostics := []string{"文本文件已落盘；如该文件参与应用运行，最终结果仍以 build_workspace 为准。"}
+	if isGoFileName(fileName) {
+		if msg := blockingGoWriteDiagnostics(targetPath, fileName, args.Content); msg != "" {
+			return toolResult("write_file 未落盘：Go 语法检查失败。\n"+msg, true)
+		}
+		writeMsg, writeErr := writeCodeFileContent(ctx, targetPath, fileName, args.Content, "write_file")
+		if writeErr {
+			return toolResult(writeMsg, true)
+		}
+		msg = appendGoFileDiagnostics(writeMsg, targetPath, fileName, args.Content)
+		diagnostics = []string{"go 文件已完成文件级自动诊断；最终跨文件/schema 结果仍以 build_workspace 为准。"}
+	} else {
+		resp, err := apicall.WriteFileContent(ctx, &dto.WriteFileContentReq{
+			FullCodePath: targetPath,
+			FileName:     fileName,
+			FileType:     args.FileType,
+			Content:      args.Content,
+		})
+		if err != nil {
+			return toolResult("write_file 调用失败: "+err.Error(), true)
+		}
+		if resp != nil && !resp.Success {
+			return toolResult("write_file 失败: "+resp.Message, true)
+		}
+		msg = fmt.Sprintf("已落盘: %s。当前未编译工作空间，仅修改了文本文件。", fileName)
+		if resp != nil && resp.RelativePath != "" {
+			msg = fmt.Sprintf("已落盘: %s。当前未编译工作空间，仅修改了文本文件。", resp.RelativePath)
+		}
 	}
-	msg, writeErr := writeCodeFileContent(ctx, targetPath, fileName, args.Content, "write_file")
-	if writeErr {
+	data := writeFileResultData{
+		TargetPath:  targetPath,
+		FileName:    fileName,
+		OldSHA:      oldSHA,
+		NewSHA:      newSHA,
+		Created:     created,
+		Changed:     oldSHA != newSHA,
+		Diagnostics: diagnostics,
+	}
+	return toolResultWithData(msg+"\n\n"+formatStructuredToolData(data), false, data)
+}
+
+func runWriteDocsFileTool(ctx context.Context, args writeFileArgs, targetPath string) ToolResult {
+	fileName := strings.TrimSpace(args.FileName)
+	if !isDocsFileName(fileName) {
+		fileName = strings.Trim(strings.TrimSpace(fileName), ".") + writeDocCodeSuffix
+	}
+	code := withoutWriteDocSuffix(filepath.Base(fileName))
+	if code == "" {
+		return toolResult("write_file 写 docs 文档时无法从 file_name 推断 code。", true)
+	}
+
+	docPath := strings.TrimRight(targetPath, "/") + "/" + withWriteDocSuffix(code)
+	var existingContent string
+	created := true
+	if doc, err := apicall.GetDoc(ctx, docPath); err == nil && doc != nil {
+		existingContent = doc.Content
+		created = false
+	} else if err != nil && !isWorkspaceDocNotFoundError(err) {
+		return toolResult("write_file 读取现有文档失败: "+err.Error(), true)
+	}
+	oldSHA := ""
+	if !created {
+		oldSHA = fileContentSHA(existingContent)
+		if !args.ReplaceEntireFile {
+			return toolResult("write_file 拒绝覆盖已有文档：请先 read_file 获取 content_sha，再传 replace_entire_file=true、base_sha 和 overwrite_reason。", true)
+		}
+		if strings.TrimSpace(args.OverwriteReason) == "" {
+			return toolResult("write_file 覆盖已有文档必须填写 overwrite_reason。", true)
+		}
+		if normalizeContentSHA(args.BaseSHA) != oldSHA {
+			return toolResult(fmt.Sprintf("write_file 拒绝覆盖文档：base_sha=%s 与当前文档 sha=%s 不一致。请重新 read_file 后再写。", args.BaseSHA, oldSHA), true)
+		}
+	}
+
+	docName := code
+	if code == "runbook" {
+		docName = "运行手册"
+	}
+	msg, isErr := runWriteDocCommand(ctx, writeDocCommand{
+		FullCodePath: targetPath,
+		Name:         docName,
+		Code:         code,
+		Content:      args.Content,
+		Format:       "markdown",
+	}, targetPath)
+	if isErr {
 		return toolResult(msg, true)
 	}
-	msg = appendGoFileDiagnostics(msg, targetPath, fileName, args.Content)
+
+	newSHA := fileContentSHA(args.Content)
 	data := writeFileResultData{
 		TargetPath: targetPath,
-		FileName:   fileName,
+		FileName:   withWriteDocSuffix(code),
 		OldSHA:     oldSHA,
 		NewSHA:     newSHA,
 		Created:    created,
 		Changed:    oldSHA != newSHA,
 		Diagnostics: []string{
-			"go 文件已完成文件级自动诊断；最终跨文件/schema 结果仍以 build_workspace 为准。",
+			"docs 文档已写入工作台文档库；不会触发 build_workspace。",
 		},
 	}
 	return toolResultWithData(msg+"\n\n"+formatStructuredToolData(data), false, data)
+}
+
+func isWorkspaceDocNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, marker := range []string{"不存在", "not found", "record not found", "文档不存在"} {
+		if strings.Contains(msg, strings.ToLower(marker)) {
+			return true
+		}
+	}
+	return false
 }
 
 func readWorkspaceFile(ctx context.Context, directory string, fullCodePath string, currentFullCodePath string, fileName string) (string, *dto.WorkspaceContextFile, string, bool) {
@@ -321,6 +419,24 @@ func readWorkspaceFile(ctx context.Context, directory string, fullCodePath strin
 	}
 	if prompt.IsPromptDocPath(targetPath) {
 		return "", nil, "该路径是文档路径，请使用 read_doc 读取，不要用 read_file。", true
+	}
+	if isDocsFileName(fileName) {
+		docPath := strings.TrimRight(targetPath, "/") + "/" + filepath.Base(fileName)
+		doc, err := apicall.GetDoc(ctx, docPath)
+		if err != nil {
+			return targetPath, nil, fmt.Sprintf("读取文档失败: %v", err), true
+		}
+		if doc == nil {
+			return targetPath, nil, fmt.Sprintf("在目录 %s 下未找到文档：%s", targetPath, fileName), true
+		}
+		return targetPath, &dto.WorkspaceContextFile{
+			FileName:      withoutWriteDocSuffix(filepath.Base(fileName)),
+			RelativePath:  filepath.Base(fileName),
+			FileType:      "docs",
+			Content:       doc.Content,
+			ContentLength: len(doc.Content),
+			LineCount:     countContentLines(doc.Content),
+		}, "", false
 	}
 	file, errMsg, _ := findWorkspaceFile(ctx, targetPath, fileName)
 	if errMsg != "" {
@@ -473,6 +589,18 @@ func normalizeContentSHA(raw string) string {
 	return "sha256:" + raw
 }
 
+func normalizeWriteFileName(fileName, fileType string) string {
+	fileName = strings.TrimSpace(fileName)
+	if fileName == "" || filepath.Ext(filepath.Base(fileName)) != "" {
+		return fileName
+	}
+	fileType = strings.Trim(strings.TrimSpace(fileType), ".")
+	if fileType != "" {
+		return fileName + "." + fileType
+	}
+	return ensureGoFileName(fileName)
+}
+
 func ensureGoFileName(fileName string) string {
 	fileName = strings.TrimSpace(fileName)
 	if fileName == "" || strings.Contains(filepath.Base(fileName), ".") {
@@ -481,8 +609,23 @@ func ensureGoFileName(fileName string) string {
 	return fileName + ".go"
 }
 
+func isDocsFileName(fileName string) bool {
+	return strings.EqualFold(filepath.Ext(strings.TrimSpace(fileName)), writeDocCodeSuffix)
+}
+
 func isGeneratedInitGoFile(fileName string) bool {
 	return filepath.Base(ensureGoFileName(fileName)) == "init_.go"
+}
+
+func countContentLines(content string) int {
+	if content == "" {
+		return 0
+	}
+	lines := strings.Split(content, "\n")
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		return len(lines) - 1
+	}
+	return len(lines)
 }
 
 func blockingGoWriteDiagnostics(directory string, fileName string, source string) string {

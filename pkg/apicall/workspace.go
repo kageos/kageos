@@ -99,6 +99,11 @@ func ReplaceFileContent(ctx context.Context, req *dto.ReplaceFileContentReq) (*d
 	return PostAPI[*dto.ReplaceFileContentReq, *dto.ReplaceFileContentResp](ctx, "/workspace/api/v1/workspace/files/replace", req)
 }
 
+// WriteFileContent 工作台写入单个文本文件（agent-server -> app-server -> app-runtime 实时写盘，不编译）
+func WriteFileContent(ctx context.Context, req *dto.WriteFileContentReq) (*dto.WriteFileContentResp, error) {
+	return PostAPI[*dto.WriteFileContentReq, *dto.WriteFileContentResp](ctx, "/workspace/api/v1/workspace/files/write", req)
+}
+
 // DeleteFile 工作台删除文件（删磁盘+删节点）（agent-server -> app-server）
 func DeleteFile(ctx context.Context, req *dto.DeleteFileReq) (*dto.DeleteFileResp, error) {
 	return PostAPI[*dto.DeleteFileReq, *dto.DeleteFileResp](ctx, "/workspace/api/v1/workspace/files/delete", req)

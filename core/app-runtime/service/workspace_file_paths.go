@@ -8,6 +8,33 @@ import (
 	"github.com/kageos/kageos/dto"
 )
 
+var workspaceTextFileTypes = map[string]struct{}{
+	"go":       {},
+	"md":       {},
+	"markdown": {},
+	"json":     {},
+	"yaml":     {},
+	"yml":      {},
+	"toml":     {},
+	"txt":      {},
+	"html":     {},
+	"htm":      {},
+	"css":      {},
+	"js":       {},
+	"jsx":      {},
+	"ts":       {},
+	"tsx":      {},
+	"tmpl":     {},
+	"tpl":      {},
+	"sql":      {},
+	"csv":      {},
+	"tsv":      {},
+	"xml":      {},
+	"svg":      {},
+	"py":       {},
+	"lua":      {},
+}
+
 func normalizeWorkspaceRelativePath(relativePath string) (string, error) {
 	if relativePath != strings.TrimSpace(relativePath) {
 		return "", fmt.Errorf("路径不能包含首尾空格: %s", relativePath)
@@ -45,9 +72,14 @@ func resolveWorkspaceDirectoryPath(appPaths runtimeAppPaths, fullCodePath string
 }
 
 func resolveWorkspaceFilePath(appPaths runtimeAppPaths, directoryPath, fileName string) (string, error) {
+	filePath, _, err := resolveWorkspaceTextFilePath(appPaths, directoryPath, fileName, "")
+	return filePath, err
+}
+
+func resolveWorkspaceTextFilePath(appPaths runtimeAppPaths, directoryPath, fileName, fileType string) (string, string, error) {
 	dirPath, err := resolveWorkspaceDirectoryPath(appPaths, directoryPath)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	baseName := strings.TrimSpace(fileName)
@@ -56,22 +88,63 @@ func resolveWorkspaceFilePath(appPaths runtimeAppPaths, directoryPath, fileName 
 		baseName = strings.TrimSuffix(baseName, fileExt)
 	}
 	if err := validateBatchWriteFileName(baseName); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	ext := ".go"
-	if fileExt != "" {
-		ext = fileExt
+	ext, err := resolveWorkspaceTextFileExt(fileExt, fileType)
+	if err != nil {
+		return "", "", err
 	}
 	filePath := filepath.Join(dirPath, baseName+ext)
 	if err := ensurePathWithinBase(appPaths.APIDir(), filePath); err != nil {
-		return "", err
+		return "", "", err
 	}
 	if isWorkspaceInternalManifestFile(filepath.Base(filePath)) {
-		return "", fmt.Errorf("不允许通过工作台文件接口操作 %s，该文件仅用于本地目录种子声明", filepath.Base(filePath))
+		return "", "", fmt.Errorf("不允许通过工作台文件接口操作 %s，该文件仅用于本地目录种子声明", filepath.Base(filePath))
 	}
 
-	return filePath, nil
+	return filePath, strings.TrimPrefix(ext, "."), nil
+}
+
+func resolveWorkspaceTextFileExt(fileExtFromName, fileType string) (string, error) {
+	fileType = strings.TrimSpace(fileType)
+	ext := fileExtFromName
+	if ext == "" {
+		if fileType == "" {
+			ext = ".go"
+		} else {
+			resolved, err := validateBatchWriteFileExt(fileType)
+			if err != nil {
+				return "", err
+			}
+			ext = resolved
+		}
+	} else if fileType != "" {
+		resolved, err := validateBatchWriteFileExt(fileType)
+		if err != nil {
+			return "", err
+		}
+		if resolved != ext {
+			return "", fmt.Errorf("file_name 和 file_type 扩展名不一致: %s vs %s", ext, resolved)
+		}
+	}
+
+	typ := strings.TrimPrefix(strings.ToLower(ext), ".")
+	if _, ok := workspaceTextFileTypes[typ]; !ok {
+		return "", fmt.Errorf("暂不支持写入 .%s 文件；write_file 仅支持文本资源", typ)
+	}
+	return ext, nil
+}
+
+func workspaceFileTypeFromName(name string) (string, bool) {
+	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(strings.TrimSpace(name))), ".")
+	if ext == "" {
+		return "", false
+	}
+	if _, ok := workspaceTextFileTypes[ext]; !ok {
+		return "", false
+	}
+	return ext, true
 }
 
 func isWorkspaceInternalManifestFile(name string) bool {

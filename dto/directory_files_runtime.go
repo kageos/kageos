@@ -11,6 +11,7 @@ type ReadDirectoryFilesRuntimeReq struct {
 type DirectoryFileInfo struct {
 	FileName     string `json:"file_name" example:"attendance"`        // 文件名（不含 .go 后缀）
 	RelativePath string `json:"relative_path" example:"attendance.go"` // 相对路径（相对于目录）
+	FileType     string `json:"file_type" example:"go"`                // 文件类型（go, json, yaml 等）
 	Content      string `json:"content" example:"package hr\n..."`     // 文件内容
 }
 
@@ -53,6 +54,24 @@ type ReplaceInFileBatchResp struct {
 	ReplaceCount int                        `json:"replace_count"`
 	FullContent  string                     `json:"full_content,omitempty"`
 	Details      []ReplaceItemResultRuntime `json:"details,omitempty"` // 未落盘时哪几项不符
+}
+
+// WriteFileRuntimeReq 写入单个文本文件请求（app-server -> app-runtime），不触发编译。
+type WriteFileRuntimeReq struct {
+	User          string `json:"user" binding:"required"`           // 租户用户名
+	App           string `json:"app" binding:"required"`            // 应用名
+	DirectoryPath string `json:"directory_path" binding:"required"` // 目录完整路径（如 /user/app/pkg1）
+	FileName      string `json:"file_name" binding:"required"`      // 文件名（如 config.json 或 handler.go）
+	FileType      string `json:"file_type,omitempty"`               // 可选文件类型；不传则从 file_name 推断，无扩展名默认 go
+	Content       string `json:"content"`                           // 文本内容
+}
+
+// WriteFileRuntimeResp 写入单个文本文件响应。
+type WriteFileRuntimeResp struct {
+	Success      bool   `json:"success"`
+	Message      string `json:"message"`
+	RelativePath string `json:"relative_path,omitempty"`
+	FileType     string `json:"file_type,omitempty"`
 }
 
 // DeleteFileRuntimeReq 删除磁盘文件请求（app-server -> app-runtime）

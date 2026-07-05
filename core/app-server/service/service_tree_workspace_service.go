@@ -106,10 +106,14 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 						lineCount--
 					}
 				}
+				fileType := strings.TrimSpace(f.FileType)
+				if fileType == "" {
+					fileType = "go"
+				}
 				files = append(files, dto.WorkspaceContextFile{
 					FileName:      f.FileName,
 					RelativePath:  f.RelativePath,
-					FileType:      "go",
+					FileType:      fileType,
 					Content:       f.Content,
 					ContentLength: len(f.Content),
 					LineCount:     lineCount,
@@ -136,6 +140,42 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 		},
 		Children: childrenNodes,
 		Files:    files,
+	}, nil
+}
+
+func (s *serviceTreeWorkspaceService) WriteFileContent(ctx context.Context, req *dto.WriteFileContentReq) (*dto.WriteFileContentResp, error) {
+	detail, err := s.queryView.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{FullCodePath: req.FullCodePath})
+	if err != nil {
+		return nil, fmt.Errorf("获取目录详情失败: %w", err)
+	}
+	if detail.AppID <= 0 {
+		return nil, fmt.Errorf("该目录不属于应用，无法写入文件")
+	}
+	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(detail.AppID, "写入文件")
+	if err != nil {
+		return nil, err
+	}
+
+	runtimeReq := &dto.WriteFileRuntimeReq{
+		User:          appModel.User,
+		App:           appModel.Code,
+		DirectoryPath: req.FullCodePath,
+		FileName:      req.FileName,
+		FileType:      req.FileType,
+		Content:       req.Content,
+	}
+	resp, err := s.runtimeWorkspace.writeFile(ctx, appModel, runtimeReq)
+	if err != nil {
+		return nil, fmt.Errorf("写入文件失败: %w", err)
+	}
+	if resp == nil {
+		return &dto.WriteFileContentResp{Success: true, Message: "写入成功"}, nil
+	}
+	return &dto.WriteFileContentResp{
+		Success:      resp.Success,
+		Message:      resp.Message,
+		RelativePath: resp.RelativePath,
+		FileType:     resp.FileType,
 	}, nil
 }
 

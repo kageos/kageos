@@ -402,6 +402,57 @@ import _ "github.com/mattn/go-sqlite3"
 	}
 }
 
+func TestWriteFileWritesJSONTextFile(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	workspaceFiles := newWorkspaceFileTestService(basePath)
+	appPaths := newRuntimeAppPaths(basePath, "luobei", "demo")
+	if err := os.MkdirAll(appPaths.AppDir(), 0755); err != nil {
+		t.Fatalf("mkdir app dir: %v", err)
+	}
+
+	resp, err := workspaceFiles.WriteFile(context.Background(), "luobei", "demo", "/luobei/demo/ticket_system", "config.json", "", `{"enabled":true}`)
+	if err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	if resp == nil || resp.FileType != "json" || resp.RelativePath != "ticket_system/config.json" {
+		t.Fatalf("unexpected response: %#v", resp)
+	}
+	got, err := os.ReadFile(filepath.Join(appPaths.APIDir(), "ticket_system", "config.json"))
+	if err != nil {
+		t.Fatalf("read written json: %v", err)
+	}
+	if string(got) != `{"enabled":true}` {
+		t.Fatalf("unexpected content: %q", got)
+	}
+}
+
+func TestWriteFileRejectsUnsafeGoSource(t *testing.T) {
+	t.Parallel()
+
+	basePath := t.TempDir()
+	workspaceFiles := newWorkspaceFileTestService(basePath)
+	appPaths := newRuntimeAppPaths(basePath, "luobei", "demo")
+	if err := os.MkdirAll(appPaths.AppDir(), 0755); err != nil {
+		t.Fatalf("mkdir app dir: %v", err)
+	}
+
+	_, err := workspaceFiles.WriteFile(context.Background(), "luobei", "demo", "/luobei/demo/ticket_system", "importer.go", "", `package ticket_system
+
+import _ "github.com/mattn/go-sqlite3"
+`)
+	if err == nil {
+		t.Fatal("expected unsafe Go source to fail")
+	}
+	if !strings.Contains(err.Error(), "源码规范校验失败") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(appPaths.APIDir(), "ticket_system", "importer.go")); !os.IsNotExist(statErr) {
+		t.Fatalf("expected rejected file to remain absent, got err=%v", statErr)
+	}
+}
+
 func TestWriteBatchFilesToDiskRollsBackOnError(t *testing.T) {
 	t.Parallel()
 

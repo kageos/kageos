@@ -14,7 +14,7 @@ import (
 	"github.com/kageos/kageos/pkg/sourcepolicy"
 )
 
-// WorkspaceFileService 管理工作区源码文件读写，不承载编译、发布等生命周期语义。
+// WorkspaceFileService 管理工作区文本/源码文件读写，不承载编译、发布等生命周期语义。
 type WorkspaceFileService struct {
 	config *config.AppManageServiceConfig
 }
@@ -115,7 +115,7 @@ func (s *WorkspaceFileService) writeSourceFiles(
 	return state, nil
 }
 
-// ReadDirectoryFiles 读取目录下直接包含的 Go 文件。
+// ReadDirectoryFiles 读取目录下直接包含的文本文件。
 func (s *WorkspaceFileService) ReadDirectoryFiles(ctx context.Context, user, app, fullCodePath string) ([]dto.DirectoryFileInfo, error) {
 	logger.Infof(ctx, "[WorkspaceFileService] 开始读取目录文件: user=%s, app=%s, path=%s", user, app, fullCodePath)
 
@@ -140,7 +140,8 @@ func (s *WorkspaceFileService) ReadDirectoryFiles(ctx context.Context, user, app
 			continue
 		}
 		name := entry.Name()
-		if !strings.HasSuffix(name, ".go") {
+		fileType, ok := workspaceFileTypeFromName(name)
+		if !ok {
 			continue
 		}
 		if isWorkspaceInternalManifestFile(name) {
@@ -154,16 +155,62 @@ func (s *WorkspaceFileService) ReadDirectoryFiles(ctx context.Context, user, app
 			continue
 		}
 
-		fileName := strings.TrimSuffix(name, ".go")
+		fileName := strings.TrimSuffix(name, filepath.Ext(name))
 		files = append(files, dto.DirectoryFileInfo{
 			FileName:     fileName,
 			RelativePath: name,
+			FileType:     fileType,
 			Content:      string(content),
 		})
 	}
 
 	logger.Infof(ctx, "[WorkspaceFileService] 读取目录文件完成: path=%s, fileCount=%d", directoryPath, len(files))
 	return files, nil
+}
+
+// WriteFile 写入单个文本文件，不触发编译或发布。
+func (s *WorkspaceFileService) WriteFile(ctx context.Context, user, app, directoryPath, fileName, fileType, content string) (*dto.WriteFileRuntimeResp, error) {
+	logger.Infof(ctx, "[WorkspaceFileService] 写入文本文件: user=%s, app=%s, path=%s, file=%s", user, app, directoryPath, fileName)
+
+	if strings.Contains(content, "\x00") {
+		return nil, fmt.Errorf("write_file 仅支持文本内容，不能包含 NUL 字节")
+	}
+
+	appPaths := newRuntimeAppPaths(s.config.GetBasePath(), user, app)
+	targetFilePath, resolvedType, err := resolveWorkspaceTextFilePath(appPaths, directoryPath, fileName, fileType)
+	if err != nil {
+		return nil, err
+	}
+	if filepath.Base(targetFilePath) == "init_.go" {
+		return nil, fmt.Errorf("不允许修改 init_.go，由脚手架生成")
+	}
+	if resolvedType == "go" {
+		if err := sourcepolicy.ValidateAppGoSource(targetFilePath, content); err != nil {
+			return nil, fmt.Errorf("源码规范校验失败 (%s): %w", targetFilePath, err)
+		}
+	}
+
+	if _, err := s.prepareWritableWorkspace(user, app); err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Dir(targetFilePath), 0755); err != nil {
+		return nil, fmt.Errorf("创建目录失败: %w", err)
+	}
+	if err := writeFileAtomic(targetFilePath, []byte(content), 0644); err != nil {
+		return nil, err
+	}
+
+	relPath, err := filepath.Rel(appPaths.APIDir(), targetFilePath)
+	if err != nil {
+		relPath = filepath.Base(targetFilePath)
+	}
+	logger.Infof(ctx, "[WorkspaceFileService] 文本文件写入成功: %s", targetFilePath)
+	return &dto.WriteFileRuntimeResp{
+		Success:      true,
+		Message:      "写入成功",
+		RelativePath: relPath,
+		FileType:     resolvedType,
+	}, nil
 }
 
 // ReplaceInFileBatch 在指定文件中做多组 search-replace，全部校验通过后再原子写盘。

@@ -127,6 +127,27 @@ func TestIsGeneratedInitGoFile(t *testing.T) {
 	}
 }
 
+func TestNormalizeWriteFileNameUsesExplicitFileType(t *testing.T) {
+	tests := []struct {
+		name     string
+		fileName string
+		fileType string
+		want     string
+	}{
+		{name: "go default", fileName: "handler", want: "handler.go"},
+		{name: "json type", fileName: "config", fileType: "json", want: "config.json"},
+		{name: "extension wins", fileName: "template.md", fileType: "json", want: "template.md"},
+		{name: "dotted type", fileName: "settings", fileType: ".yaml", want: "settings.yaml"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := normalizeWriteFileName(tt.fileName, tt.fileType); got != tt.want {
+				t.Fatalf("normalizeWriteFileName(%q, %q) = %q, want %q", tt.fileName, tt.fileType, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestBlockingGoWriteDiagnosticsBlocksSyntaxError(t *testing.T) {
 	source := `package demo
 

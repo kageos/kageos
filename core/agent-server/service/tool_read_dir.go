@@ -19,7 +19,7 @@ type readDirArgs struct {
 	MaxDepth         *int   `json:"max_depth" schema_desc:"递归显示时的最大深度"`
 	OutputFormat     string `json:"output_format" schema_desc:"输出格式" schema_enum:"tree,list"`
 	IncludeFunctions *bool  `json:"include_functions" schema_desc:"是否包含函数节点"`
-	IncludeFiles     *bool  `json:"include_files" schema_desc:"是否包含代码文件"`
+	IncludeFiles     *bool  `json:"include_files" schema_desc:"是否包含文本/代码文件"`
 	IncludeCode      *bool  `json:"include_code" schema_desc:"是否包含代码内容"`
 }
 
@@ -31,13 +31,13 @@ type readDirResultData struct {
 	Recursive        bool                 `json:"recursive" schema_desc:"是否递归读取" schema_required:"true"`
 	MaxDepth         *int                 `json:"max_depth,omitempty" schema_desc:"递归读取的最大深度"`
 	IncludeFunctions bool                 `json:"include_functions" schema_desc:"是否包含函数节点" schema_required:"true"`
-	IncludeFiles     bool                 `json:"include_files" schema_desc:"是否包含代码文件" schema_required:"true"`
+	IncludeFiles     bool                 `json:"include_files" schema_desc:"是否包含文本/代码文件" schema_required:"true"`
 	IncludeCode      bool                 `json:"include_code" schema_desc:"是否包含代码内容" schema_required:"true"`
 	Directory        readDirDirectoryData `json:"directory" schema_desc:"当前目录信息" schema_required:"true"`
 	Summary          readDirSummaryData   `json:"summary" schema_desc:"当前目录结果统计" schema_required:"true"`
 	Directories      []readDirNodeData    `json:"directories,omitempty" schema_desc:"当前目录下的直接子目录列表"`
 	Functions        []readDirNodeData    `json:"functions,omitempty" schema_desc:"当前目录下的直接函数节点列表"`
-	Files            []readDirFileData    `json:"files,omitempty" schema_desc:"当前目录下返回的代码文件列表"`
+	Files            []readDirFileData    `json:"files,omitempty" schema_desc:"当前目录下返回的文本/代码文件列表"`
 }
 
 type readDirDirectoryData struct {
@@ -51,7 +51,7 @@ type readDirDirectoryData struct {
 type readDirSummaryData struct {
 	DirectoryCount int `json:"directory_count" schema_desc:"子目录数量" schema_required:"true"`
 	FunctionCount  int `json:"function_count" schema_desc:"函数节点数量" schema_required:"true"`
-	FileCount      int `json:"file_count" schema_desc:"代码文件数量" schema_required:"true"`
+	FileCount      int `json:"file_count" schema_desc:"文本/代码文件数量" schema_required:"true"`
 }
 
 type readDirNodeData struct {
@@ -75,7 +75,7 @@ type readDirFileData struct {
 
 var readDirToolDef = toolDefinitionWithOutput[readDirArgs, structuredToolResultSchema[readDirResultData]](
 	"read_dir",
-	"读取指定目录下的所有子目录和文件，以树形方式展开。默认返回当前目录及其下一层的目录、函数、代码文件（tree 格式）。recursive=true 时递归显示整棵目录树；include_files 默认 true 会列出 .go 等代码文件。不传 directory 则使用当前工作目录。",
+	"读取指定目录下的所有子目录和文件，以树形方式展开。默认返回当前目录及其下一层的目录、函数、文本/代码文件（tree 格式）。recursive=true 时递归显示整棵目录树；include_files 默认 true 会列出 .go、.json、.md 等受支持文本文件。不传 directory 则使用当前工作目录。",
 )
 
 func (t *ReadDirTool) Definition() dto.ToolDef {
@@ -223,7 +223,7 @@ func buildListFormat(workspaceCtx *dto.GetWorkspaceContextResp, targetPath strin
 
 	filesSection := ""
 	if includeFiles && len(workspaceCtx.Files) > 0 {
-		filesSection = fmt.Sprintf("### 代码文件（共 %d 个）\n\n", len(workspaceCtx.Files))
+		filesSection = fmt.Sprintf("### 文本/代码文件（共 %d 个）\n\n", len(workspaceCtx.Files))
 		for i, file := range workspaceCtx.Files {
 			lineCount := workspaceFileLineCount(file)
 
@@ -236,12 +236,12 @@ func buildListFormat(workspaceCtx *dto.GetWorkspaceContextResp, targetPath strin
 			if includeCode {
 				filesSection += fmt.Sprintf("\n- 代码内容：\n```%s\n%s\n```", file.FileType, file.Content)
 			} else {
-				filesSection += "\n- 提示：如需查看代码内容，请使用 read_file 工具或设置 include_code=true"
+				filesSection += "\n- 提示：如需查看文件内容，请使用 read_file 工具或设置 include_code=true"
 			}
 			filesSection += "\n\n"
 		}
 	} else if !includeFiles && len(workspaceCtx.Files) > 0 {
-		filesSection = fmt.Sprintf("### 代码文件\n当前目录下有 %d 个代码文件（使用 include_files=true 查看详情）\n\n", len(workspaceCtx.Files))
+		filesSection = fmt.Sprintf("### 文本/代码文件\n当前目录下有 %d 个文本/代码文件（使用 include_files=true 查看详情）\n\n", len(workspaceCtx.Files))
 	}
 
 	if len(directories) == 0 && len(functions) == 0 {

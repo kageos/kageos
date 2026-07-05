@@ -66,6 +66,25 @@ func (h *WorkspaceHandler) HandleReplaceInFileBatch(msg *nats.Msg) {
 	logger.Infof(ctx, "[HandleReplaceInFileBatch] path=%s, file=%s, count=%d", req.DirectoryPath, req.FileName, totalCount)
 }
 
+// HandleWriteFile 处理写入单个文本文件请求。
+func (h *WorkspaceHandler) HandleWriteFile(msg *nats.Msg) {
+	ctx := handlerContext(msg)
+	req, ok := decodeRequest[dto.WriteFileRuntimeReq](ctx, msg, "HandleWriteFile")
+	if !ok {
+		return
+	}
+	resp, err := h.workspaceFileService.WriteFile(ctx, req.User, req.App, req.DirectoryPath, req.FileName, req.FileType, req.Content)
+	if err != nil {
+		logger.Errorf(ctx, "[HandleWriteFile] Failed: %v", err)
+		respondFailure(ctx, msg, "HandleWriteFile", err)
+		return
+	}
+	if !respondSuccess(ctx, msg, "HandleWriteFile", resp) {
+		return
+	}
+	logger.Infof(ctx, "[HandleWriteFile] path=%s, file=%s", req.DirectoryPath, req.FileName)
+}
+
 // HandleDeleteFile 处理删除磁盘文件请求
 func (h *WorkspaceHandler) HandleDeleteFile(msg *nats.Msg) {
 	ctx := handlerContext(msg)

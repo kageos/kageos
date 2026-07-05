@@ -23,6 +23,7 @@ type runtimeWorkspaceClient interface {
 	DeleteServiceTree(ctx context.Context, hostID int64, req *dto.DeleteServiceTreeRuntimeReq) (*dto.DeleteServiceTreeRuntimeResp, error)
 	ReadDirectoryFiles(ctx context.Context, hostID int64, req *dto.ReadDirectoryFilesRuntimeReq) (*dto.ReadDirectoryFilesRuntimeResp, error)
 	ReplaceInFileBatch(ctx context.Context, hostID int64, req *dto.ReplaceInFileBatchReq) (*dto.ReplaceInFileBatchResp, error)
+	WriteFile(ctx context.Context, hostID int64, req *dto.WriteFileRuntimeReq) (*dto.WriteFileRuntimeResp, error)
 	DeleteFile(ctx context.Context, hostID int64, req *dto.DeleteFileRuntimeReq) (*dto.DeleteFileRuntimeResp, error)
 	ReadAppLog(ctx context.Context, hostID int64, req *dto.ReadAppLogRuntimeReq) (*dto.ReadAppLogRuntimeResp, error)
 }
@@ -228,6 +229,14 @@ func (b *runtimeWorkspaceBridge) replaceInFileBatch(
 	runtimeReq *dto.ReplaceInFileBatchReq,
 ) (*dto.ReplaceInFileBatchResp, error) {
 	return b.appCall.ReplaceInFileBatch(ctx, appModel.HostID, runtimeReq)
+}
+
+func (b *runtimeWorkspaceBridge) writeFile(
+	ctx context.Context,
+	appModel *model.App,
+	runtimeReq *dto.WriteFileRuntimeReq,
+) (*dto.WriteFileRuntimeResp, error) {
+	return b.appCall.WriteFile(ctx, appModel.HostID, runtimeReq)
 }
 
 func (b *runtimeWorkspaceBridge) deleteFile(
