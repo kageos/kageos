@@ -82,6 +82,18 @@ func parseWorkspaceRootPath(fullCodePath string) (user, app, root string, err er
 	return user, app, access.AppRootPath(user, app), nil
 }
 
+func parsePositiveInt64Value(raw string) int64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return 0
+	}
+	return value
+}
+
 // needFillOldValues 判断 table/update 请求体是否缺少 old_values，需要内部自动查表填充
 func needFillOldValues(bodyData map[string]interface{}) bool {
 	if bodyData == nil {
@@ -190,6 +202,10 @@ func (s *StandardAPI) buildRequestAppReq(c *gin.Context, fullCodePath string) (*
 		WorkspaceSessionID:    contextx.GetWorkspaceSessionID(c),
 		WorkspaceSessionTitle: contextx.GetWorkspaceSessionTitle(c),
 		WorkspaceRole:         contextx.GetWorkspaceRole(c),
+		InitiatorUser:         contextx.GetInitiatorUser(c),
+		WorkspaceMessageID:    parsePositiveInt64Value(contextx.GetWorkspaceMessageID(c)),
+		ToolCallID:            contextx.GetToolCallID(c),
+		ToolName:              contextx.GetToolName(c),
 	}
 
 	// 绑定请求体（POST、PUT、PATCH、DELETE 等方法通常有请求体）
@@ -296,6 +312,10 @@ func (s *StandardAPI) buildCallbackAppReqWithBody(c *gin.Context, fullCodePath, 
 		WorkspaceSessionID:    contextx.GetWorkspaceSessionID(c),
 		WorkspaceSessionTitle: contextx.GetWorkspaceSessionTitle(c),
 		WorkspaceRole:         contextx.GetWorkspaceRole(c),
+		InitiatorUser:         contextx.GetInitiatorUser(c),
+		WorkspaceMessageID:    parsePositiveInt64Value(contextx.GetWorkspaceMessageID(c)),
+		ToolCallID:            contextx.GetToolCallID(c),
+		ToolName:              contextx.GetToolName(c),
 	}
 
 	// 构建回调请求体

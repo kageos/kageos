@@ -58,6 +58,9 @@ func newOpenAISDKClient(apiKey string, options *ClientOptions) openai.Client {
 	if userAgent := strings.TrimSpace(options.UserAgent); userAgent != "" {
 		requestOptions = append(requestOptions, option.WithHeader("User-Agent", userAgent))
 	}
+	for key, value := range cleanHeaderMap(options.Headers) {
+		requestOptions = append(requestOptions, option.WithHeader(key, value))
+	}
 	return openai.NewClient(requestOptions...)
 }
 
@@ -127,23 +130,17 @@ func readOpenAIStream(ctx context.Context, stream interface {
 	Current() openai.ChatCompletionChunk
 	Err() error
 }, chunkChan chan<- *StreamChunk) {
-	acc := openai.ChatCompletionAccumulator{}
-	cachedTokensReported := false
+	state := newOpenAIStreamState()
 	lastFinishReason := ""
 
 	for stream.Next() {
 		chunk := stream.Current()
-		if chunk.Usage.PromptTokensDetails.JSON.CachedTokens.Valid() {
-			cachedTokensReported = true
-		}
-		if !acc.AddChunk(chunk) {
-			chunkChan <- &StreamChunk{Error: "OpenAI 流式响应累积失败", Done: true, Usage: convertAccumulatedOpenAIUsage(acc.Usage, cachedTokensReported)}
-			return
-		}
+		state.noteUsage(chunk.Usage)
 		for _, choice := range chunk.Choices {
 			if choice.FinishReason != "" {
 				lastFinishReason = choice.FinishReason
 			}
+			state.noteToolCallDeltas(choice.Delta.ToolCalls)
 			out := &StreamChunk{
 				Content:          choice.Delta.Content,
 				ReasoningContent: extractOpenAIReasoningContent(choice.Delta),
@@ -157,18 +154,104 @@ func readOpenAIStream(ctx context.Context, stream interface {
 	}
 	if err := stream.Err(); err != nil {
 		if ctx.Err() != nil {
-			chunkChan <- &StreamChunk{Error: ctx.Err().Error(), Done: true, Usage: convertAccumulatedOpenAIUsage(acc.Usage, cachedTokensReported), FinishReason: lastFinishReason}
+			chunkChan <- &StreamChunk{Error: ctx.Err().Error(), Done: true, Usage: state.finalUsage(), FinishReason: lastFinishReason}
 			return
 		}
-		chunkChan <- &StreamChunk{Error: formatOpenAIError(err).Error(), Done: true, Usage: convertAccumulatedOpenAIUsage(acc.Usage, cachedTokensReported), FinishReason: lastFinishReason}
+		chunkChan <- &StreamChunk{Error: formatOpenAIError(err).Error(), Done: true, Usage: state.finalUsage(), FinishReason: lastFinishReason}
 		return
 	}
 
 	chunkChan <- &StreamChunk{
 		Done:           true,
-		FinalToolCalls: accumulatedOpenAIToolCalls(acc),
+		FinalToolCalls: state.finalToolCalls(),
 		FinishReason:   lastFinishReason,
-		Usage:          convertAccumulatedOpenAIUsage(acc.Usage, cachedTokensReported),
+		Usage:          state.finalUsage(),
+	}
+}
+
+type openAIStreamState struct {
+	toolCalls            map[int]*ToolCall
+	promptTokens         int
+	completionTokens     int
+	totalTokens          int
+	cachedTokens         int
+	cachedTokensReported bool
+}
+
+func newOpenAIStreamState() *openAIStreamState {
+	return &openAIStreamState{toolCalls: map[int]*ToolCall{}}
+}
+
+func (s *openAIStreamState) noteUsage(usage openai.CompletionUsage) {
+	s.promptTokens += int(usage.PromptTokens)
+	s.completionTokens += int(usage.CompletionTokens)
+	s.totalTokens += int(usage.TotalTokens)
+	cachedTokens, cachedTokensReported := openAIUsageCachedTokens(usage)
+	if cachedTokensReported {
+		s.cachedTokensReported = true
+	}
+	s.cachedTokens += cachedTokens
+}
+
+func (s *openAIStreamState) noteToolCallDeltas(toolCalls []openai.ChatCompletionChunkChoiceDeltaToolCall) {
+	for _, delta := range toolCalls {
+		idx := int(delta.Index)
+		if idx < 0 {
+			idx = 0
+		}
+		call := s.ensureToolCall(idx)
+		if delta.ID != "" {
+			call.ID = delta.ID
+		}
+		if delta.Type != "" {
+			call.Type = delta.Type
+		}
+		call.Function.Name += delta.Function.Name
+		call.Function.Arguments += delta.Function.Arguments
+	}
+}
+
+func (s *openAIStreamState) ensureToolCall(idx int) *ToolCall {
+	if call, ok := s.toolCalls[idx]; ok {
+		return call
+	}
+	call := newToolCall("", "function", "", "")
+	s.toolCalls[idx] = &call
+	return &call
+}
+
+func (s *openAIStreamState) finalToolCalls() []ToolCall {
+	if len(s.toolCalls) == 0 {
+		return nil
+	}
+	out := make([]ToolCall, 0, len(s.toolCalls))
+	for i := 0; i < len(s.toolCalls); i++ {
+		call, ok := s.toolCalls[i]
+		if !ok || call == nil {
+			continue
+		}
+		if call.ID == "" && call.Function.Name == "" && call.Function.Arguments == "" {
+			continue
+		}
+		out = append(out, *call)
+	}
+	return out
+}
+
+func (s *openAIStreamState) finalUsage() *Usage {
+	if s.promptTokens == 0 && s.completionTokens == 0 && s.totalTokens == 0 {
+		return nil
+	}
+	total := s.totalTokens
+	if total == 0 {
+		total = s.promptTokens + s.completionTokens
+	}
+	return &Usage{
+		PromptTokens:         s.promptTokens,
+		CompletionTokens:     s.completionTokens,
+		TotalTokens:          total,
+		CachedTokens:         s.cachedTokens,
+		CachedTokensReported: s.cachedTokensReported,
 	}
 }
 
@@ -226,7 +309,24 @@ func (c *OpenAIClient) buildChatParams(req *ChatRequest) (openai.ChatCompletionN
 		return openai.ChatCompletionNewParams{}, err
 	}
 	params.ToolChoice = toolChoice
+	if promptCacheKey := strings.TrimSpace(req.PromptCacheKey); promptCacheKey != "" {
+		params.PromptCacheKey = openai.String(promptCacheKey)
+	}
+	if promptCacheRetention := normalizePromptCacheRetention(req.PromptCacheRetention); promptCacheRetention != "" {
+		params.PromptCacheRetention = openai.ChatCompletionNewParamsPromptCacheRetention(promptCacheRetention)
+	}
 	return params, nil
+}
+
+func normalizePromptCacheRetention(value string) string {
+	switch strings.TrimSpace(value) {
+	case string(openai.ChatCompletionNewParamsPromptCacheRetentionInMemory):
+		return string(openai.ChatCompletionNewParamsPromptCacheRetentionInMemory)
+	case string(openai.ChatCompletionNewParamsPromptCacheRetention24h):
+		return string(openai.ChatCompletionNewParamsPromptCacheRetention24h)
+	default:
+		return ""
+	}
 }
 
 func convertMessages(messages []Message) ([]openai.ChatCompletionMessageParamUnion, error) {
@@ -404,13 +504,72 @@ func convertOpenAIUsage(usage openai.CompletionUsage) *Usage {
 	if usage.PromptTokens == 0 && usage.CompletionTokens == 0 && usage.TotalTokens == 0 {
 		return nil
 	}
+	cachedTokens, cachedTokensReported := openAIUsageCachedTokens(usage)
 	return &Usage{
 		PromptTokens:         int(usage.PromptTokens),
 		CompletionTokens:     int(usage.CompletionTokens),
 		TotalTokens:          int(usage.TotalTokens),
-		CachedTokens:         int(usage.PromptTokensDetails.CachedTokens),
-		CachedTokensReported: usage.PromptTokensDetails.JSON.CachedTokens.Valid(),
+		CachedTokens:         cachedTokens,
+		CachedTokensReported: cachedTokensReported,
 	}
+}
+
+func openAIUsageCachedTokens(usage openai.CompletionUsage) (int, bool) {
+	if usage.PromptTokensDetails.JSON.CachedTokens.Valid() {
+		return int(usage.PromptTokensDetails.CachedTokens), true
+	}
+	raw := strings.TrimSpace(usage.RawJSON())
+	if raw == "" {
+		return int(usage.PromptTokensDetails.CachedTokens), false
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &obj); err != nil {
+		return int(usage.PromptTokensDetails.CachedTokens), false
+	}
+	if cached, ok := cachedTokensFromUsageObject(obj); ok {
+		return cached, true
+	}
+	return int(usage.PromptTokensDetails.CachedTokens), false
+}
+
+func cachedTokensFromUsageObject(obj map[string]json.RawMessage) (int, bool) {
+	if rawDetails, ok := obj["prompt_tokens_details"]; ok && len(rawDetails) > 0 && string(rawDetails) != "null" {
+		var details map[string]json.RawMessage
+		if err := json.Unmarshal(rawDetails, &details); err == nil {
+			if cached, ok := intFromRawJSON(details["cached_tokens"]); ok {
+				return cached, true
+			}
+		}
+	}
+	if cached, ok := intFromRawJSON(obj["cached_tokens"]); ok {
+		return cached, true
+	}
+	if cached, ok := intFromRawJSON(obj["cache_read_input_tokens"]); ok {
+		return cached, true
+	}
+	if _, ok := intFromRawJSON(obj["cache_creation_input_tokens"]); ok {
+		return 0, true
+	}
+	return 0, false
+}
+
+func intFromRawJSON(raw json.RawMessage) (int, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return 0, false
+	}
+	var number json.Number
+	if err := json.Unmarshal(raw, &number); err != nil {
+		return 0, false
+	}
+	i, err := number.Int64()
+	if err == nil {
+		return int(i), true
+	}
+	f, err := number.Float64()
+	if err != nil {
+		return 0, false
+	}
+	return int(f), true
 }
 
 func convertAccumulatedOpenAIUsage(usage openai.CompletionUsage, cachedTokensReported bool) *Usage {

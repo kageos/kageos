@@ -283,9 +283,11 @@ import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar
 import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
 import {
+  isWorkspaceToolResourcePath,
   parseWorkspaceInvocationBlocks,
   parseWorkspacePromptSegments,
   resolveWorkspaceResourcePath,
+  workspaceToolName,
   wrapWorkspaceResourcePath,
   type WorkspacePromptSegment,
 } from './utils/workspaceInvocationSnippet'
@@ -1320,7 +1322,7 @@ async function hydrateVisibleMetadata() {
     structuredSegments.value
       .filter((segment): segment is StructuredPromptResourceSegment => segment.type === 'resource')
       .map((segment) => normalizeResourcePathForMeta(segment.path || segment.text))
-      .filter((path) => path && path.startsWith('/') && !resourceMetaByPath.value[path])
+      .filter((path) => path && isHydratableResourcePath(path) && !resourceMetaByPath.value[path])
   )).slice(0, 20)
 
   await Promise.all([
@@ -1638,14 +1640,24 @@ function extractParenLabel(value: string) {
 }
 
 function getPathTail(path: string) {
+  if (isWorkspaceToolResourcePath(path)) {
+    return workspaceToolName(path)
+  }
   const parts = path.split('/').filter(Boolean)
   return parts[parts.length - 1] || ''
 }
 
 function getReadablePath(path: string) {
+  if (isWorkspaceToolResourcePath(path)) {
+    return `内置工具 / ${workspaceToolName(path) || path}`
+  }
   const parts = path.split('/').filter(Boolean)
   if (parts.length <= 3) return path
   return `/${parts.slice(-3).join('/')}`
+}
+
+function isHydratableResourcePath(path: string) {
+  return String(path || '').startsWith('/') && !isWorkspaceToolResourcePath(path)
 }
 
 function cleanMentionText(value?: string) {
@@ -1662,6 +1674,7 @@ function compactMetaItems(items: Array<string | undefined | null>) {
 }
 
 function getResourceTypeLabel(resource: ResourceSearchResult) {
+  if (isWorkspaceToolResourcePath(resource.full_code_path || '')) return '内置工具'
   if (resource.type === 'package') return '目录'
   if (resource.type === 'docs') return '文档'
   if (resource.template_type === 'table') return '表格工具'
@@ -1691,6 +1704,9 @@ function formatCompactCount(count: number) {
 }
 
 function getResourceIconMeta(resource: ResourceSearchResult): Pick<StructuredMentionOption, 'iconSrc' | 'iconComponent' | 'iconClass'> {
+  if (isWorkspaceToolResourcePath(resource.full_code_path || '')) {
+    return { iconClass: 'tool-icon' }
+  }
   if (resource.type === 'package') {
     return { iconSrc: '/service-tree/custom-folder.svg', iconClass: 'package-icon-img' }
   }
@@ -1710,6 +1726,7 @@ function getResourceIconMeta(resource: ResourceSearchResult): Pick<StructuredMen
 }
 
 function resourceKind(path: string) {
+  if (isWorkspaceToolResourcePath(path)) return 'tool'
   if (path.endsWith('.form')) return 'form'
   if (path.endsWith('.table')) return 'table'
   if (path.endsWith('.chart')) return 'chart'
@@ -1719,6 +1736,9 @@ function resourceKind(path: string) {
 
 function resourceDisplayName(path: string) {
   const normalized = String(path || '').replace(/[<>]/g, '')
+  if (isWorkspaceToolResourcePath(normalized)) {
+    return workspaceToolName(normalized) || normalized
+  }
   const parts = normalized.split('/').filter(Boolean)
   return parts[parts.length - 1] || normalized || '资源'
 }
@@ -1925,6 +1945,11 @@ defineExpose({
   border-color: rgba(16, 185, 129, 0.2);
 }
 
+:deep(.spc-editor-token.is-tool),
+.spc-resource-chip:has(.spc-resource-icon-fallback.is-tool) {
+  border-color: rgba(37, 99, 235, 0.24);
+}
+
 :deep(.spc-editor-token-label),
 .spc-user-name,
 .spc-resource-name {
@@ -1968,6 +1993,12 @@ defineExpose({
 .spc-resource-icon-fallback.is-docs,
 :deep(.spc-resource-icon-fallback.is-docs) {
   background: #f59e0b;
+  box-shadow: none;
+}
+
+.spc-resource-icon-fallback.is-tool,
+:deep(.spc-resource-icon-fallback.is-tool) {
+  background: #2563eb;
   box-shadow: none;
 }
 
@@ -2260,6 +2291,10 @@ defineExpose({
 
 .spc-mention-icon.function-icon {
   color: #6366f1;
+}
+
+.spc-mention-icon.tool-icon {
+  color: #2563eb;
 }
 
 .spc-mention-icon.package-icon-img,

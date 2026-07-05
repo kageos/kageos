@@ -62,6 +62,26 @@ func TestWorkspaceRoleDefinitionBuildEngineerIncludesRepairDocs(t *testing.T) {
 	}
 }
 
+func TestWorkspaceRoleDefinitionsIncludeManifestRunbookAgentTaskGuide(t *testing.T) {
+	guide := "/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask"
+	for _, roleID := range []string{
+		WorkspaceRoleAppDeveloper,
+		WorkspaceRoleMaintenanceEngineer,
+		WorkspaceRoleAutomationOperator,
+	} {
+		definition, ok := workspaceRoleDefinitionFor(roleID)
+		if !ok {
+			t.Fatalf("role %s definition missing", roleID)
+		}
+		if !containsWorkspaceRoleString(definition.DocumentPackage, guide) {
+			t.Fatalf("role %s document package should include %s, got %#v", roleID, guide, definition.DocumentPackage)
+		}
+		if !containsWorkspaceRoleString(definition.RequiredDocs, guide) {
+			t.Fatalf("role %s required docs should include %s, got %#v", roleID, guide, definition.RequiredDocs)
+		}
+	}
+}
+
 func TestBuildChangeRoleDerivesLegacyFieldsFromRoleDefinition(t *testing.T) {
 	got := buildChangeRole(context.Background(), changeRoleArgs{
 		TargetRole:       WorkspaceRoleAppDeveloper,

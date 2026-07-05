@@ -4,7 +4,7 @@
 
 Please do not report suspected vulnerabilities in public issues.
 
-Email the maintainers at [admin@kageos.com](mailto:admin@kageos.com) with:
+Email the maintainers at [admin@kageos.ai](mailto:admin@kageos.ai) with:
 
 - A short description of the issue and likely impact.
 - Affected version, branch, commit, or deployment mode.

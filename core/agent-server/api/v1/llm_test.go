@@ -133,3 +133,17 @@ func TestLLMGetDoesNotExposeAPIKey(t *testing.T) {
 		t.Fatalf("IsAdmin = false, want true for current admin")
 	}
 }
+
+func TestLLMInfoInfersResponsesProtocolFromEndpoint(t *testing.T) {
+	info := llmInfoFromConfig(&model.LLMConfig{
+		Name:         "Responses",
+		Provider:     model.LLMProviderOpenAI,
+		Protocol:     model.LLMProtocolOpenAIChatCompletions,
+		Model:        "gpt-test",
+		APIBase:      "https://devcloud.chat",
+		EndpointPath: "/responses",
+	}, "alice")
+	if info.Provider != model.LLMProviderOpenAI || info.Protocol != model.LLMProtocolOpenAIResponses {
+		t.Fatalf("provider/protocol = %q/%q, want openai/openai_responses", info.Provider, info.Protocol)
+	}
+}

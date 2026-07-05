@@ -74,7 +74,7 @@ const (
 	defaultRuntimeAppBasePath      = "namespace"
 	defaultRuntimeBuildOutputDir   = "workplace/bin/releases"
 	defaultRuntimeBinaryNameFormat = "{user}_{app}_{version}"
-	defaultRuntimeGitEmailSuffix   = "kageos.com"
+	defaultRuntimeGitEmailSuffix   = "kageos.ai"
 	defaultContainerRuntime        = "podman"
 	defaultContainerNetworkMode    = ""
 	defaultContainerLSMMode        = "auto"
@@ -135,7 +135,7 @@ type BuildConfig struct {
 
 // GitConfig Git 配置
 type GitConfig struct {
-	EmailSuffix string `mapstructure:"email_suffix"` // Git 邮箱后缀（如 "kageos.com"）
+	EmailSuffix string `mapstructure:"email_suffix"` // Git 邮箱后缀（如 "kageos.ai"）
 }
 
 // AppDatabaseConfig controls runtime-managed per-package databases for SDK

@@ -54,18 +54,25 @@ type AgentServerLLMSeedsConfig struct {
 }
 
 type AgentServerLLMSeedConfig struct {
-	Code        string `mapstructure:"code"`
-	Name        string `mapstructure:"name"`
-	Model       string `mapstructure:"model"`
-	APIKey      string `mapstructure:"api_key"`
-	APIKeyEnv   string `mapstructure:"api_key_env"`
-	APIBase     string `mapstructure:"api_base"`
-	Timeout     int    `mapstructure:"timeout"`
-	MaxTokens   int    `mapstructure:"max_tokens"`
-	ExtraConfig string `mapstructure:"extra_config"`
-	IsDefault   bool   `mapstructure:"is_default"`
-	Visibility  int    `mapstructure:"visibility"`
-	Admin       string `mapstructure:"admin"`
+	Code         string `mapstructure:"code"`
+	Name         string `mapstructure:"name"`
+	Provider     string `mapstructure:"provider"`
+	Protocol     string `mapstructure:"protocol"`
+	Model        string `mapstructure:"model"`
+	APIKey       string `mapstructure:"api_key"`
+	APIKeyEnv    string `mapstructure:"api_key_env"`
+	APIBase      string `mapstructure:"api_base"`
+	EndpointPath string `mapstructure:"endpoint_path"`
+	APIVersion   string `mapstructure:"api_version"`
+	AuthScheme   string `mapstructure:"auth_scheme"`
+	Headers      string `mapstructure:"headers"`
+	Timeout      int    `mapstructure:"timeout"`
+	MaxTokens    int    `mapstructure:"max_tokens"`
+	ExtraConfig  string `mapstructure:"extra_config"`
+	Capabilities string `mapstructure:"capabilities"`
+	IsDefault    bool   `mapstructure:"is_default"`
+	Visibility   int    `mapstructure:"visibility"`
+	Admin        string `mapstructure:"admin"`
 }
 
 // 便捷访问方法

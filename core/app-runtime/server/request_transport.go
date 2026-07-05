@@ -94,6 +94,18 @@ func (t *AppRequestTransport) withAppDatabaseCapability(meta *appinvoke.RequestM
 	if req.TargetRouter == "" {
 		req.TargetRouter = meta.TargetRouter
 	}
+	if req.InitiatorUser == "" {
+		req.InitiatorUser = meta.InitiatorUser
+	}
+	if req.WorkspaceMessageID == 0 {
+		req.WorkspaceMessageID = meta.WorkspaceMessageID
+	}
+	if req.ToolCallID == "" {
+		req.ToolCallID = meta.ToolCallID
+	}
+	if req.ToolName == "" {
+		req.ToolName = meta.ToolName
+	}
 	capabilityRouter, err := appDatabaseCapabilityRouter(req.Router, meta.Router, req.TargetRouter)
 	if err != nil {
 		return nil, err

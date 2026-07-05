@@ -23,6 +23,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 	round int,
 	sendEvent func(string, interface{}),
 ) ([]dto.WorkspaceChatToolCallSummary, string, error) {
+	ctx = contextx.WithInitiatorUser(ctx, user)
 	sessionTitle, sessionRole := s.workspaceSessionMessageContext(sessionID)
 	ctx = withAgentToolExecutionContext(ctx, sessionID, sessionTitle, sessionRole)
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
@@ -30,6 +31,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 	loadedGuideDocs := s.loadedGuideDocsForSession(ctx, sessionID)
 	activeRoleID := s.currentWorkspaceRoleForSession(ctx, sessionID)
 	activeFullCodePath := strings.TrimSpace(fullCodePath)
+	seenChangeRoleCalls := make(map[string]ToolResult)
 
 	for i, tc := range allToolCalls {
 		if err := ctx.Err(); err != nil {
@@ -54,12 +56,34 @@ func (s *WorkspaceChatService) executeToolCalls(
 		if parseErr != nil {
 			toolRes = invalidToolArgumentsResult(tc, parseErr)
 			st = ToolCallStatusError
+		} else if tc.Function.Name == "change_role" {
+			duplicateKey := duplicateChangeRoleToolKey(args)
+			if duplicateKey != "" {
+				if previous, ok := seenChangeRoleCalls[duplicateKey]; ok && !previous.IsError {
+					toolRes = compactDuplicateChangeRoleResult(previous)
+					st = ToolCallStatusOK
+					logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 跳过重复 change_role 调用 - ToolCallID: %s", i+1, len(allToolCalls), tc.ID)
+				}
+			}
+			if st == "" {
+				if blockedRes, blocked := workspaceRoleToolGateResult(activeRoleID, tc.Function.Name); blocked {
+					toolRes = blockedRes
+					st = ToolCallStatusError
+					logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 角色工具门禁阻断 - RoleID: %s, ToolName: %s, Error: %s", i+1, len(allToolCalls), activeRoleID, tc.Function.Name, toolRes.Content)
+				} else {
+					toolCtx := withWorkspaceToolSourceDisplay(contextx.WithToolCallInfo(ctx, tc.ID, tc.Function.Name), activeFullCodePath)
+					toolRes, st = s.callOtherTool(toolCtx, tc.Function.Name, args, activeFullCodePath, files, i+1, len(allToolCalls))
+				}
+				if duplicateKey != "" {
+					seenChangeRoleCalls[duplicateKey] = toolRes
+				}
+			}
 		} else if blockedRes, blocked := workspaceRoleToolGateResult(activeRoleID, tc.Function.Name); blocked {
 			toolRes = blockedRes
 			st = ToolCallStatusError
 			logger.Warnf(ctx, "[WorkspaceChatStream] [%d/%d] 角色工具门禁阻断 - RoleID: %s, ToolName: %s, Error: %s", i+1, len(allToolCalls), activeRoleID, tc.Function.Name, toolRes.Content)
 		} else {
-			toolCtx := withWorkspaceToolSourceDisplay(ctx, activeFullCodePath)
+			toolCtx := withWorkspaceToolSourceDisplay(contextx.WithToolCallInfo(ctx, tc.ID, tc.Function.Name), activeFullCodePath)
 			toolRes, st = s.callOtherTool(toolCtx, tc.Function.Name, args, activeFullCodePath, files, i+1, len(allToolCalls))
 		}
 		if err := ctx.Err(); err != nil {
@@ -138,6 +162,41 @@ func (s *WorkspaceChatService) executeToolCalls(
 	logger.Infof(ctx, "[WorkspaceChatStream] 工具调用执行完成 - 总数量: %d, 成功: %d, 失败: %d, SessionID: %s",
 		len(allToolCalls), successCount, errorCount, sessionID)
 	return toolSummaries, activeFullCodePath, nil
+}
+
+func duplicateChangeRoleToolKey(args map[string]interface{}) string {
+	if len(args) == 0 {
+		return ""
+	}
+	b, err := json.Marshal(args)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+func compactDuplicateChangeRoleResult(previous ToolResult) ToolResult {
+	roleID := workspaceRoleFromToolResult(previous)
+	executeDirectory := workspaceChangeRoleExecuteDirectory(previous)
+	displayName := workspaceRoleDisplayName(roleID)
+	if displayName == "" {
+		displayName = roleID
+	}
+	data := map[string]interface{}{
+		"role_id":           roleID,
+		"current_role":      roleID,
+		"display_name":      displayName,
+		"execute_directory": executeDirectory,
+		"duplicate":         true,
+	}
+	content := "重复 change_role 调用已跳过，沿用本轮前一次角色切换结果。"
+	if displayName != "" {
+		content += "\n当前角色: " + displayName
+	}
+	if executeDirectory != "" {
+		content += "\n执行目录: " + executeDirectory
+	}
+	return toolResultWithData(content, false, data)
 }
 
 func (s *WorkspaceChatService) workspaceSessionMessageContext(sessionID string) (string, string) {

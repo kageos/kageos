@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	openai "github.com/openai/openai-go/v3"
 )
 
 func TestOpenAIClientChatUsesSDKAndCustomBaseURL(t *testing.T) {
@@ -115,7 +117,7 @@ func TestOpenAIClientChatStreamUsesSDKAndIncludesUsage(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-test\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你\"},\"finish_reason\":null}],\"usage\":null}\n\n"))
 		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-test\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"好\"},\"finish_reason\":null}],\"usage\":null}\n\n"))
-		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"gpt-test\",\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5,\"prompt_tokens_details\":{\"cached_tokens\":1}}}\n\n"))
+		_, _ = w.Write([]byte("data: {\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5,\"prompt_tokens_details\":{\"cached_tokens\":1}}}\n\n"))
 		_, _ = w.Write([]byte("data: [DONE]\n\n"))
 	}))
 	defer server.Close()
@@ -151,6 +153,23 @@ func TestOpenAIClientChatStreamUsesSDKAndIncludesUsage(t *testing.T) {
 	streamOptions, _ := payload["stream_options"].(map[string]interface{})
 	if streamOptions["include_usage"] != true {
 		t.Fatalf("stream_options = %#v, want include_usage true", payload["stream_options"])
+	}
+}
+
+func TestOpenAIUsageCachedTokensFallsBackToRawJSON(t *testing.T) {
+	var usage openai.CompletionUsage
+	if err := json.Unmarshal([]byte(`{
+		"prompt_tokens": 1200,
+		"completion_tokens": 300,
+		"total_tokens": 1500,
+		"cache_read_input_tokens": 800
+	}`), &usage); err != nil {
+		t.Fatalf("unmarshal usage: %v", err)
+	}
+
+	cached, reported := openAIUsageCachedTokens(usage)
+	if !reported || cached != 800 {
+		t.Fatalf("cached=%d reported=%v, want 800 true", cached, reported)
 	}
 }
 

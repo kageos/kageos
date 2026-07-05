@@ -93,6 +93,10 @@ func (s *ServiceTreeService) GetServiceTreeDetail(ctx context.Context, req *dto.
 	return s.queryView.GetServiceTreeDetail(ctx, req)
 }
 
+func (s *ServiceTreeService) BatchGetServiceTreeDetails(ctx context.Context, req *dto.BatchGetServiceTreeDetailsReq) (*dto.BatchGetServiceTreeDetailsResp, error) {
+	return s.queryView.BatchGetServiceTreeDetails(ctx, req)
+}
+
 func (s *ServiceTreeService) CopyServiceTree(ctx context.Context, req *dto.CopyDirectoryReq) (*dto.CopyDirectoryResp, error) {
 	return s.copyService.CopyServiceTree(ctx, req)
 }

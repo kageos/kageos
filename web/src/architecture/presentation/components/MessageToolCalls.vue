@@ -17,18 +17,18 @@
           <el-icon v-if="hasRunning" class="summary-icon summary-icon--running"><Loading /></el-icon>
           <el-icon v-else-if="errorCount > 0" class="summary-icon summary-icon--error"><CircleClose /></el-icon>
           <el-icon v-else class="summary-icon summary-icon--ok"><CircleCheck /></el-icon>
-          <span class="summary-title">工具调用 {{ visibleToolCalls.length }}</span>
+          <span class="summary-title">工具调用 {{ visibleToolCalls.length }} 个</span>
         </span>
         <span class="summary-tools">
           <span
-            v-for="(tc, idx) in summaryToolCalls"
-            :key="tc.id ?? `${idx}-${tc.name}`"
+            v-for="tool in summaryToolGroups"
+            :key="tool.name"
             class="summary-tool-chip"
           >
-            {{ getToolDisplayName(tc) }}
+            {{ tool.count > 1 ? `${tool.name} x${tool.count}` : tool.name }}
           </span>
-          <span v-if="hiddenToolCount > 0" class="summary-tool-chip summary-tool-chip--more">
-            +{{ hiddenToolCount }}
+          <span v-if="hiddenToolGroupCount > 0" class="summary-tool-chip summary-tool-chip--more">
+            +{{ hiddenToolGroupCount }}
           </span>
         </span>
         <span :class="['summary-status', summaryStatusClass]">{{ summaryStatusLabel }}</span>
@@ -133,8 +133,24 @@ const hasVisibleContent = computed(() =>
   visibleToolCalls.value.length > 0 || props.fileGroups.length > 0 || displayFields.value.length > 0
 )
 const detailsOpen = ref(false)
-const summaryToolCalls = computed(() => visibleToolCalls.value.slice(0, 4))
-const hiddenToolCount = computed(() => Math.max(0, visibleToolCalls.value.length - summaryToolCalls.value.length))
+const allSummaryToolGroups = computed(() => {
+  const groups: Array<{ name: string; count: number }> = []
+  const byName = new Map<string, { name: string; count: number }>()
+  for (const call of visibleToolCalls.value) {
+    const name = getToolDisplayName(call)
+    const existing = byName.get(name)
+    if (existing) {
+      existing.count += 1
+      continue
+    }
+    const group = { name, count: 1 }
+    byName.set(name, group)
+    groups.push(group)
+  }
+  return groups
+})
+const summaryToolGroups = computed(() => allSummaryToolGroups.value.slice(0, 4))
+const hiddenToolGroupCount = computed(() => Math.max(0, allSummaryToolGroups.value.length - summaryToolGroups.value.length))
 const errorCount = computed(() => visibleToolCalls.value.filter((t) => t.status === 'error').length)
 
 /** 每个工具一个 viewport，用数组存 DOM，滚动时滚最后一个 */

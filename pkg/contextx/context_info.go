@@ -2,6 +2,7 @@ package contextx
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/kageos/kageos/pkg/logger"
@@ -52,6 +53,10 @@ const SourceTemplateTypeHeader = "X-Source-Template-Type"
 const WorkspaceSessionIDHeader = "X-Workspace-Session-Id"
 const WorkspaceSessionTitleHeader = "X-Workspace-Session-Title"
 const WorkspaceRoleHeader = "X-Workspace-Role"
+const InitiatorUserHeader = "X-Initiator-User"
+const WorkspaceMessageIDHeader = "X-Workspace-Message-Id"
+const ToolCallIDHeader = "X-Tool-Call-Id"
+const ToolNameHeader = "X-Tool-Name"
 
 const (
 	SourceTypeOpenAPIToken  = "openapi_token"
@@ -262,6 +267,25 @@ func GetWorkspaceRole(c context.Context) string {
 	return getStringFromContextOrHeader(c, WorkspaceRoleHeader)
 }
 
+func GetInitiatorUser(c context.Context) string {
+	if initiator := getStringFromContextOrHeader(c, InitiatorUserHeader); initiator != "" {
+		return initiator
+	}
+	return GetRequestUser(c)
+}
+
+func GetWorkspaceMessageID(c context.Context) string {
+	return getStringFromContextOrHeader(c, WorkspaceMessageIDHeader)
+}
+
+func GetToolCallID(c context.Context) string {
+	return getStringFromContextOrHeader(c, ToolCallIDHeader)
+}
+
+func GetToolName(c context.Context) string {
+	return getStringFromContextOrHeader(c, ToolNameHeader)
+}
+
 // GetToken 获取认证 Token
 // ⭐ 只从 HTTP Header 读取（统一方式，避免混乱）
 func GetToken(c context.Context) string {
@@ -334,6 +358,43 @@ func WithWorkspaceSession(ctx context.Context, sessionID, sessionTitle, role str
 		WorkspaceSessionIDHeader:    strings.TrimSpace(sessionID),
 		WorkspaceSessionTitleHeader: strings.TrimSpace(sessionTitle),
 		WorkspaceRoleHeader:         strings.TrimSpace(role),
+	}
+	for key, value := range values {
+		if value != "" {
+			ctx = context.WithValue(ctx, key, value)
+		}
+	}
+	return ctx
+}
+
+func WithInitiatorUser(ctx context.Context, initiatorUser string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	initiatorUser = strings.TrimSpace(initiatorUser)
+	if initiatorUser == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, InitiatorUserHeader, initiatorUser)
+}
+
+func WithWorkspaceMessageID(ctx context.Context, messageID int64) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if messageID <= 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, WorkspaceMessageIDHeader, strconv.FormatInt(messageID, 10))
+}
+
+func WithToolCallInfo(ctx context.Context, toolCallID, toolName string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	values := map[string]string{
+		ToolCallIDHeader: strings.TrimSpace(toolCallID),
+		ToolNameHeader:   strings.TrimSpace(toolName),
 	}
 	for key, value := range values {
 		if value != "" {
@@ -498,6 +559,10 @@ func ToContext(c *gin.Context) context.Context {
 		WorkspaceSessionIDHeader,
 		WorkspaceSessionTitleHeader,
 		WorkspaceRoleHeader,
+		InitiatorUserHeader,
+		WorkspaceMessageIDHeader,
+		ToolCallIDHeader,
+		ToolNameHeader,
 	} {
 		if value := c.GetHeader(key); value != "" {
 			ctx = context.WithValue(ctx, key, value)
@@ -552,6 +617,10 @@ func NatsTraceContext(msg *nats.Msg) context.Context {
 		WorkspaceSessionIDHeader,
 		WorkspaceSessionTitleHeader,
 		WorkspaceRoleHeader,
+		InitiatorUserHeader,
+		WorkspaceMessageIDHeader,
+		ToolCallIDHeader,
+		ToolNameHeader,
 	} {
 		if value := msg.Header.Get(key); value != "" {
 			ctx = context.WithValue(ctx, key, value)
@@ -603,6 +672,10 @@ func CtxToTraceNats(c context.Context, subject string) *nats.Msg {
 		{WorkspaceSessionIDHeader, GetWorkspaceSessionID(c)},
 		{WorkspaceSessionTitleHeader, GetWorkspaceSessionTitle(c)},
 		{WorkspaceRoleHeader, GetWorkspaceRole(c)},
+		{InitiatorUserHeader, GetInitiatorUser(c)},
+		{WorkspaceMessageIDHeader, GetWorkspaceMessageID(c)},
+		{ToolCallIDHeader, GetToolCallID(c)},
+		{ToolNameHeader, GetToolName(c)},
 	} {
 		if item.value != "" {
 			msg.Header.Set(item.key, item.value)
@@ -632,6 +705,10 @@ type RequestInfo struct {
 	WorkspaceSessionID    string
 	WorkspaceSessionTitle string
 	WorkspaceRole         string
+	InitiatorUser         string
+	WorkspaceMessageID    int64
+	ToolCallID            string
+	ToolName              string
 }
 
 // WithRequestInfo 一次性注入与 ToContext 一致的 context（用于后台任务等无 HTTP 请求场景）
@@ -657,6 +734,9 @@ func WithRequestInfo(ctx context.Context, info RequestInfo) context.Context {
 	if info.CompanyLogoURL != "" {
 		ctx = context.WithValue(ctx, CompanyLogoURLHeader, info.CompanyLogoURL)
 	}
+	if info.InitiatorUser != "" {
+		ctx = context.WithValue(ctx, InitiatorUserHeader, info.InitiatorUser)
+	}
 	if info.ClientSource != "" {
 		ctx = context.WithValue(ctx, ClientSourceHeader, info.ClientSource)
 	}
@@ -668,6 +748,8 @@ func WithRequestInfo(ctx context.Context, info RequestInfo) context.Context {
 	}
 	ctx = WithSourceDisplay(ctx, info.SourcePath, info.SourceTitle, info.SourceParentPath, info.SourceParentTitle, info.SourceTemplateType)
 	ctx = WithWorkspaceSession(ctx, info.WorkspaceSessionID, info.WorkspaceSessionTitle, info.WorkspaceRole)
+	ctx = WithWorkspaceMessageID(ctx, info.WorkspaceMessageID)
+	ctx = WithToolCallInfo(ctx, info.ToolCallID, info.ToolName)
 	return ctx
 }
 

@@ -136,6 +136,33 @@ export interface ToolResultMetadata {
   display_file_fields?: string[]
 }
 
+export interface WorkspaceToolField {
+  name: string
+  type?: string
+  description?: string
+  required?: boolean
+}
+
+export interface WorkspaceToolDetail {
+  name: string
+  description: string
+  token: string
+  type_label: string
+  input_fields?: WorkspaceToolField[]
+  input_schema?: Record<string, unknown>
+  output_schema?: Record<string, unknown>
+}
+
+export interface BatchWorkspaceToolDetailsReq {
+  names: string[]
+  include_schema?: boolean
+}
+
+export interface BatchWorkspaceToolDetailsResp {
+  tools: WorkspaceToolDetail[]
+  missing?: string[]
+}
+
 export const workspaceStreamEvents = {
   session: 'session',
   modelContextPlan: 'model_context_plan',
@@ -275,6 +302,8 @@ export interface WorkspaceModelContextTools {
   requested_names?: string[]
   llm_tools?: string[]
   llm_tool_count: number
+  role_allowed_tools?: string[]
+  role_allowed_tool_count?: number
   policy: string
 }
 
@@ -282,6 +311,8 @@ export interface WorkspaceModelContextCachePlan {
   stable_prefix_strategy: string
   stable_prefix_items?: string[]
   actual_usage_field: string
+  prompt_cache_key?: string
+  prompt_cache_retention?: string
   result?: WorkspaceModelContextCacheResult
 }
 
@@ -340,8 +371,8 @@ export async function createWorkspaceHandoff(req: WorkspaceHandoffReq): Promise<
   return post<WorkspaceHandoffResp>('/agent/api/v1/workspace/sessions/handoff', req)
 }
 
-/** 流式事件回调：event 为 session|tool_call|tool_calls_stream_delta|content|done|error */
-export type WorkspaceChatStreamOnEvent = (event: WorkspaceStreamEventName, data: WorkspaceStreamPayload) => void
+/** 流式事件回调：event 为 session|tool_call|tool_calls_stream_delta|content|done|error；返回 false 表示调用方已丢弃过期流事件。 */
+export type WorkspaceChatStreamOnEvent = (event: WorkspaceStreamEventName, data: WorkspaceStreamPayload) => boolean | void
 
 export interface WorkspaceChatStreamOptions {
   signal?: AbortSignal
@@ -492,6 +523,8 @@ export interface ListWorkspaceMessagesResp {
 /** 工作台工具调用摘要 */
 export interface WorkspaceChatToolCallSummary {
   id?: string        // tool_call_id（用于关联 tool 消息）
+  index?: number     // 本轮内工具下标
+  round?: number     // 模型工具调用轮次
   name: string       // 工具名称
   status: string     // ok / error
   arguments?: string // 参数（JSON 字符串，可选）
@@ -539,4 +572,14 @@ export async function getWorkspaceSessionSSEStatus(sessionId: string): Promise<{
     `/agent/api/v1/workspace/sessions/${encodeURIComponent(sessionId)}/sse-status`
   )
   return { connected: !!res?.connected }
+}
+
+/** 批量获取内置工作台工具展示详情 */
+export async function batchGetWorkspaceToolDetails(
+  req: BatchWorkspaceToolDetailsReq
+): Promise<BatchWorkspaceToolDetailsResp> {
+  return post<BatchWorkspaceToolDetailsResp>('/agent/api/v1/workspace/tools/batch_detail', {
+    names: req.names || [],
+    include_schema: !!req.include_schema
+  })
 }

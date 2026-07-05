@@ -4,7 +4,7 @@
 
 请不要通过公开 GitHub Issue 报告疑似安全漏洞。
 
-请将安全报告发送至 [admin@kageos.com](mailto:admin@kageos.com)。如果安全，建议包含：
+请将安全报告发送至 [admin@kageos.ai](mailto:admin@kageos.ai)。如果安全，建议包含：
 
 - 问题简述和可能影响。
 - 受影响版本、分支、commit 或部署模式。

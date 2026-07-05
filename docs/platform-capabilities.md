@@ -47,6 +47,8 @@ Agent 任务也是工作台会话的一种执行形态。`timer-scheduler` 到�
 
 Docs 正文支持轻量资源标记 `<./xxx.table>`、`<./xxx.form>`、`<./xxx.chart>`、`<./xxx.docs>` 和 `</absolute/path>`。阅读态会把这些标记渲染成可点击资源入口；相对路径只按当前文档所在目录解析。普通资源标记只负责导航和语义引用，不自动查询或内嵌业务数据。
 
+Docs 和 Agent 任务说明也支持内置 Agent 工具标记 `<tool:工具名>`，例如 `<tool:send_notification>`。这类标记只用于展示和语义引用；真实工具调用仍使用工具名 `send_notification`。不要写 `<send_notification>`，因为裸尖括号只表示 Service Tree 资源路径或相对路径。
+
 ## 消息和站内信
 
 消息能力由 `message-server` 统一承载。业务应用通过 SDK 的 `ctx.SendNotification` 发布异步通知命令，Agent 工具通过 `send_notification` 发布通知命令，最终都进入 NATS subject `message.v1.cmd.send`。
@@ -115,7 +117,7 @@ flowchart LR
 - 业务应用发通知时使用 `ctx.SendNotification`，不要直接写 `message-server` 的表，也不要绑定具体外部渠道。
 - `to_users` 推荐显式填写；通知当前请求用户时可省略，由 message-service 兜底到真实请求用户。没有真实请求用户时必须显式填写。
 - `message`/`Message` 和 `files`/`Files` 至少填写一个；附件使用平台文件引用 `bucket/object_key`，多个用逗号分隔。外部通知只展示附件摘要，完整附件以站内信详情为准。
-- Agent 后台任务发通知时使用 `send_notification`。Agent 任务和后台上下文优先显式写 `to_users`；通知创建人/当前用户时可依赖默认通知对象。
+- Agent 后台任务发通知时使用 `send_notification`。在 runbook 或 AgentTask message 中引用该内置工具时可写 `<tool:send_notification>`；Agent 任务和后台上下文优先显式写 `to_users`，通知创建人/当前用户时可依赖默认通知对象。
 - 业务应用需要默认定时执行时使用 `FormTemplate.Schedules`；临时或运营型自动化由自动执行配置创建 `timer-scheduler` 任务。
 - Service Tree 路径、`full_code_path`、`source_path`、trace 和操作日志是平台排障与跳转的共同索引，新增能力时应完整传递，不要在前端用临时 URL 状态替代持久来源信息。
 - 权限和基础消息通知是当前平台能力；审批、评论、收藏、外部渠道原生文件上传、复杂通知策略和备份控制面目前未上线，不应由单个业务 App 自造通用版本。

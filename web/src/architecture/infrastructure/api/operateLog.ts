@@ -24,6 +24,10 @@ export interface OperateLog {
   workspace_session_id?: string
   workspace_session_title?: string
   workspace_role?: string
+  initiator_user?: string
+  workspace_message_id?: number
+  tool_call_id?: string
+  tool_name?: string
   ip_address?: string
   user_agent?: string
   trace_id?: string
@@ -47,6 +51,10 @@ export interface GetOperateLogsParams {
   source_ref?: string
   executor_type?: string
   workspace_session_id?: string
+  initiator_user?: string
+  workspace_message_id?: number
+  tool_call_id?: string
+  tool_name?: string
   trace_id?: string
   row_id?: number
   keyword?: string

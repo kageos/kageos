@@ -75,11 +75,57 @@ describe('workspaceInvocationSnippet', () => {
     expect(html).not.toContain('Docs')
   })
 
+  it('renders built-in tool tokens without converting them to workspace paths', () => {
+    const segments = parseWorkspacePromptSegments('异常时调用 <tool:send_notification> 通知')
+
+    expect(segments.map((segment) => segment.type)).toEqual(['text', 'resource', 'text'])
+    expect(segments[1]).toMatchObject({
+      path: 'tool:send_notification',
+      text: '<tool:send_notification>',
+    })
+
+    const html = renderWorkspaceResourceTokensAsHtml('异常时调用 <tool:send_notification> 通知')
+
+    expect(unwrapWorkspaceResourceToken('<tool:send_notification>')).toBe('tool:send_notification')
+    expect(workspaceResourceKind('<tool:send_notification>')).toBe('tool')
+    expect(html).toContain('class="workspace-resource-token is-tool"')
+    expect(html).toContain('href="#tool:send_notification"')
+    expect(html).toContain('data-full-code-path="tool:send_notification"')
+    expect(html).toContain('send_notification')
+    expect(html).toContain('内置工具')
+    expect(html).toContain('workspace-resource-token__glyph--tool')
+    expect(html).not.toContain('tool-icon')
+  })
+
+  it('keeps resource token syntax literal inside markdown code', () => {
+    const inlineHtml = renderWorkspaceResourceTokensAsHtml('写作 `<tool:send_notification>` 来引用工具')
+    const fencedHtml = renderWorkspaceResourceTokensAsHtml([
+      '```md',
+      '<tool:send_notification>',
+      '</system/app/orders.table>',
+      '```',
+    ].join('\n'))
+
+    expect(inlineHtml).toBe('写作 `<tool:send_notification>` 来引用工具')
+    expect(fencedHtml).toContain('<tool:send_notification>')
+    expect(fencedHtml).toContain('</system/app/orders.table>')
+    expect(inlineHtml).not.toContain('workspace-resource-token')
+    expect(fencedHtml).not.toContain('workspace-resource-token')
+  })
+
+  it('keeps escaped resource token syntax literal', () => {
+    const html = renderWorkspaceResourceTokensAsHtml('展示 \\<tool:send_notification> 原始写法')
+
+    expect(html).toBe('展示 \\<tool:send_notification> 原始写法')
+    expect(html).not.toContain('workspace-resource-token')
+  })
+
   it('detects resource kind from function suffixes', () => {
     expect(workspaceResourceKind('/system/app/list.table')).toBe('table')
     expect(workspaceResourceKind('/system/app/input.form')).toBe('form')
     expect(workspaceResourceKind('/system/app/summary.chart')).toBe('chart')
     expect(workspaceResourceKind('/system/app/runbook.docs')).toBe('docs')
+    expect(workspaceResourceKind('tool:send_notification')).toBe('tool')
     expect(workspaceResourceKind('/system/app/orders')).toBe('directory')
   })
 

@@ -3,11 +3,11 @@
 > 状态：官网与视频叙事草案
 > 日期：2026-06-16
 
-本文用于统一 Kageos 官网、演示视频、产品介绍和对外话术。核心目标是用最简单、最狠的话讲清楚：Kageos 不是“更便宜的 AI 生成应用”，而是一个开箱即用的业务目录网络。用户可以从 Hub 安装成熟目录，在自己的空间私有运行和改造，也可以自己创造目录并发布回生态。
+本文用于统一 Kageos 官网、演示视频、产品介绍和对外话术。核心目标是用最简单、最狠的话讲清楚：Kageos 不是“更便宜的 AI 生成应用”，而是一个开箱即用的业务目录网络，也是企业 AI Loop 的运行和治理底座。用户可以从 Hub 安装成熟目录，在自己的空间私有运行和改造，也可以自己创造目录并发布回生态。
 
 ## 源码与授权口径
 
-Kageos 由恰研智能（qiayanai.com）打造，源码公开、可自托管，项目地址是 `github.com/kageos/kageos`。
+Kageos 由恰研智能（qiayan.ai）打造，源码公开、可自托管，项目地址是 `github.com/kageos/kageos`。
 
 当前 Kageos 核心采用 BSL 1.1，不是 OSI open source；它允许查看、修改、分发和自托管，限制未经授权的商业 SaaS、MSP 托管、白标、OEM、嵌入、改名转售和竞品化产品/服务，各版本发布四年后转 Apache-2.0。对外不要把当前核心说成“已开源”，推荐说“源码公开、可自托管；当前采用 BSL 1.1，四年后转 Apache-2.0”。后续版本如果需要，也可以设置更早的 Change Date。
 
@@ -35,9 +35,17 @@ Kageos 由恰研智能（qiayanai.com）打造，源码公开、可自托管，�
 
 > Kageos is a ready-to-run business directory network for installable, customizable, AI-operable capabilities.
 
+蹭 Agent Loop 热度时的产品化表达：
+
+> Kageos is the governed runtime for business AI loops.
+
+中文：
+
+> Kageos 是企业 AI Loop 的可治理运行时。
+
 内部中文解释：
 
-> Kageos 把表单、表格、图表、文档、函数、消息、定时任务和 AI 工作台组织成一棵 Service Tree。Hub 负责分发成熟目录，工作区负责私有运行和个性化改造，Service Tree 负责治理和互通。每个目录都是有地址、有权限、有日志、有函数、有上下文的能力节点。人能打开，AI 能理解，其他目录能调用，平台能治理。
+> Kageos 把表单、表格、图表、文档、函数、消息、定时任务和 AI 工作台组织成一棵 Service Tree。Hub 负责分发成熟目录，工作区负责私有运行和个性化改造，Service Tree 负责治理和互通。每个目录都是有地址、有权限、有日志、有函数、有上下文的能力节点。人能打开，AI 能理解，其他目录能调用，平台能治理；当目录绑定定时任务和 Agent 任务后，它就能形成“观察状态 -> 判断计划 -> 调用能力 -> 写回记录 -> 等待下一轮”的无人值守业务 Loop。
 
 ## 核心故事
 
@@ -62,6 +70,7 @@ Kageos 由恰研智能（qiayanai.com）打造，源码公开、可自托管，�
 | --- | --- |
 | 数据孤岛 | 系统之间靠复制粘贴、导入导出、人工搬运。数据有了，但不能自然流动。 |
 | 智能孤岛 | AI 能聊天、能总结，但不知道企业有哪些应用、函数、数据和权限，也不能稳定执行真实业务动作。 |
+| Loop 断层 | Agent 可以循环思考，但企业系统没有统一的输入、权限、动作、记录和下一轮状态，循环很难进生产。 |
 
 Kageos 的解法是：把应用变成目录，把目录变成协议，把协议交给 AI 和企业运行时。
 
@@ -95,7 +104,37 @@ Kageos 的解法是：把应用变成目录，把目录变成协议，把协议�
 
 统一版本：
 
-> Kageos 把业务能力变成开箱即用的目录——Hub 可安装，工作区可私有运行，AI 可改造和执行，稳定版本可发布回生态。
+> Kageos 把业务能力变成开箱即用的目录——Hub 可安装，工作区可私有运行，AI 可改造和执行，无人值守任务可持续跑成 Loop，稳定版本可发布回生态。
+
+## Governed Loop 叙事
+
+Loop 是当前 AI Agent 叙事里的高频词，但对企业来说，真正重要的不是“模型会循环思考”，而是循环能不能在真实业务里安全运行。
+
+Kageos 可以这样借势：
+
+> 别人讲 Agent Loop，强调模型如何 observe、think、act。Kageos 讲 Governed Loop，强调企业如何让这个循环有目录、有权限、有 schema、有记录、有下一轮状态。
+
+标准五段：
+
+1. Observe：读取目录里的表格、文档、消息、文件、外部渠道和历史记录。
+2. Plan：结合 runbook、业务规则、当前状态和风险边界，判断本轮做什么。
+3. Act：通过 Form/Table/Chart/Function 的 schema 调用能力，必要时跨目录组合。
+4. Record：把结果写回业务表、站内信、操作日志、trace 和执行记录。
+5. Continue：由 timer-scheduler 保存调度状态，等待下一轮触发，失败可复盘。
+
+对外短句：
+
+> Kageos 让 AI Loop 从聊天框走进业务系统。
+
+> Loop 不是裸 cron，也不是 prompt 自嗨；Kageos 让每一轮执行都有身份、权限、输入、动作、结果和记录。
+
+> AI 可以无人值守，但不能无治理。Kageos 做的是 Governed AI Loop。
+
+需要注意的边界：
+
+- 可以说 Kageos 当前支持函数任务和 Agent 任务，能跑无人值守 Loop。
+- 可以说 timer-scheduler、Agent 工作台、Service Tree、站内信、trace 和操作日志已经接回主线。
+- 不要说已经有完整通用 workflow 图、通用审批、复杂条件编排和企业私有 Hub，这些仍是路线储备或建设中能力。
 
 ## 最狠的 Hero 版本
 
@@ -105,9 +144,17 @@ Kageos 的解法是：把应用变成目录，把目录变成协议，把协议�
 
 > 开箱即用的业务目录网络。
 
+Loop 向标题：
+
+> 让企业能力进入 AI 执行闭环。
+
 副标题：
 
 > 从 Hub 安装已经能跑的业务目录，在自己的空间私有运行和改造；也可以创造新目录，发布回生态。每个目录都能被人使用、被 AI 调用、被平台治理。
+
+Loop 向副标题：
+
+> Kageos 把表格、表单、图表、函数、消息、定时任务和 AI 工作台放进同一棵 Service Tree，让 AI 能持续观察业务状态、按 schema 执行、写回记录，并在权限和日志边界内进入下一轮。
 
 CTA：
 
@@ -121,9 +168,17 @@ Headline:
 
 > Ready-to-run business directories.
 
+Loop headline:
+
+> Governed runtime for business AI loops.
+
 Subheadline:
 
 > Install proven directories from Hub, run and customize them in your private workspace, create new capabilities, and publish stable directories back to the ecosystem. Humans can use them. AI can operate them. The platform governs them.
+
+Loop subheadline:
+
+> Kageos turns business capabilities into governed loops: agents observe directory state, call typed functions, write results back, and continue on schedule with permissions, traces, messages, and audit records.
 
 CTA:
 

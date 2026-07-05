@@ -24,8 +24,9 @@
 - 当前目录图表：`<./risk_report.chart>`
 - 当前目录文档：`<./runbook.docs>`
 - 跨目录资源：`</system/tools/html/render.form>`
+- 内置 Agent 工具：`<tool:send_notification>`
 
-不要写 `./profiles.table`，也不要写 `<profiles.table>`。相对资源必须带 `./`，否则阅读态和工具解析容易不一致。
+不要写 `./profiles.table`，也不要写 `<profiles.table>`。相对资源必须带 `./`，否则阅读态和工具解析容易不一致。引用内置工具时不要写 `<send_notification>`，因为它不是 Service Tree 资源路径；需要回显工具 chip 时写 `<tool:send_notification>`，真实工具调用名仍是 `send_notification`。
 
 轻量资源标记只提供导航和语义引用，不会自动查询数据。真正查询表格时，Agent 仍要调用 table 工具，并按分页读完。
 
@@ -122,7 +123,7 @@ AgentTask 是无人值守任务，运行时用户不在线，所以不能写“�
 - 运行规则：<./runbook.docs>
 - 输入资源：<./xxx.table>
 - 输出资源：<./yyy.table>
-- 外部工具：web search / send_notification / 其他连接器
+- 外部工具：web_search / <tool:send_notification> / 其他连接器
 
 ## 本轮目标
 
@@ -134,7 +135,7 @@ AgentTask 是无人值守任务，运行时用户不在线，所以不能写“�
 
 ## 预期工具
 
-列出预计使用的工具，例如 table 查询、table 新增、table 更新、web search、send_notification。
+列出预计使用的工具，例如 table 查询、table 新增、table 更新、web_search、send_notification。写入文档或任务说明时，内置通知工具可标成 `<tool:send_notification>`。
 
 ## 执行步骤
 
@@ -207,7 +208,7 @@ AgentTask 是无人值守任务，运行时用户不在线，所以不能写“�
 - 运行规则：<./runbook.docs>
 - 证书台账：<./certificates.table>
 - 续期任务：<./renewal_tasks.table>
-- 通知工具：send_notification
+- 通知工具：<tool:send_notification>
 
 ## 本轮目标
 
@@ -273,7 +274,7 @@ AgentTask 是无人值守任务，运行时用户不在线，所以不能写“�
 
 - 是否第一步要求阅读 `<./runbook.docs>`。
 - 是否说明本轮目标、时间窗口和幂等规则。
-- 是否列出预期使用工具。
+- 是否列出预期使用工具；需要回显内置工具时，是否使用 `<tool:...>` 标记。
 - 是否说明分页读取、去重、写入、更新、通知规则。
 - 是否区分执行前缺口快照和执行后剩余缺口。
 - 如果单轮上限内没有补齐全部缺口，是否要求写明跳过原因。

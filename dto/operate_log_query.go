@@ -20,6 +20,10 @@ type GetOperateLogsReq struct {
 	SourceRef          string `json:"source_ref" form:"source_ref"`
 	ExecutorType       string `json:"executor_type" form:"executor_type"`
 	WorkspaceSessionID string `json:"workspace_session_id" form:"workspace_session_id"`
+	InitiatorUser      string `json:"initiator_user" form:"initiator_user"`
+	WorkspaceMessageID int64  `json:"workspace_message_id" form:"workspace_message_id"`
+	ToolCallID         string `json:"tool_call_id" form:"tool_call_id"`
+	ToolName           string `json:"tool_name" form:"tool_name"`
 	TraceID            string `json:"trace_id" form:"trace_id"`
 	RowID              int64  `json:"row_id" form:"row_id"`
 	Keyword            string `json:"keyword" form:"keyword"`
@@ -61,6 +65,10 @@ type OperateLogItem struct {
 	WorkspaceSessionID    string          `json:"workspace_session_id"`
 	WorkspaceSessionTitle string          `json:"workspace_session_title"`
 	WorkspaceRole         string          `json:"workspace_role"`
+	InitiatorUser         string          `json:"initiator_user"`
+	WorkspaceMessageID    int64           `json:"workspace_message_id"`
+	ToolCallID            string          `json:"tool_call_id"`
+	ToolName              string          `json:"tool_name"`
 	IPAddress             string          `json:"ip_address"`
 	UserAgent             string          `json:"user_agent"`
 	TraceID               string          `json:"trace_id"`

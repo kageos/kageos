@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -153,7 +154,7 @@ func ensureInitialized() {
 		// 使用默认配置自动初始化
 		defaultConfig := Config{
 			Level:      "info",
-			Filename:   "./logs/app.log",
+			Filename:   defaultLogFilename(),
 			MaxSize:    DefaultMaxSize,
 			MaxBackups: DefaultMaxBackups,
 			MaxAge:     DefaultMaxAge,
@@ -180,6 +181,51 @@ func ensureInitialized() {
 			sugar = logger.Sugar()
 			initialized = true
 		}
+	}
+}
+
+func defaultLogFilename() string {
+	if filename := strings.TrimSpace(os.Getenv("KAGEOS_LOG_FILE")); filename != "" {
+		return filename
+	}
+
+	if isGoTestProcess() {
+		base := strings.TrimSuffix(filepath.Base(os.Args[0]), ".test")
+		base = strings.NewReplacer("/", "_", "\\", "_", ":", "_").Replace(base)
+		if base == "" {
+			base = "kageos"
+		}
+		return filepath.Join(os.TempDir(), "kageos-test-logs", base+"-"+strconv.Itoa(os.Getpid())+".log")
+	}
+
+	if root := findRepoRootFromWorkingDir(); root != "" {
+		return filepath.Join(root, "logs", "app.log")
+	}
+	return filepath.Join("logs", "app.log")
+}
+
+func isGoTestProcess() bool {
+	return strings.HasSuffix(filepath.Base(os.Args[0]), ".test")
+}
+
+func findRepoRootFromWorkingDir() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".kageos-root")); err == nil {
+			return dir
+		}
+		goModPath := filepath.Join(dir, "go.mod")
+		if data, err := os.ReadFile(goModPath); err == nil && strings.Contains(string(data), "module github.com/kageos/kageos") {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
 	}
 }
 

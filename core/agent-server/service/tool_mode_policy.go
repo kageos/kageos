@@ -37,3 +37,20 @@ func workspaceToolNamesForRole(toolNames []string, roleID string) []string {
 	}
 	return out
 }
+
+func workspaceToolNamesForLLM(toolNames []string) []string {
+	seen := make(map[string]struct{}, len(toolNames))
+	out := make([]string, 0, len(toolNames))
+	for _, tool := range toolNames {
+		tool = normalizeWorkspaceToolName(tool)
+		if tool == "" {
+			continue
+		}
+		if _, ok := seen[tool]; ok {
+			continue
+		}
+		seen[tool] = struct{}{}
+		out = append(out, tool)
+	}
+	return out
+}

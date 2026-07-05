@@ -117,6 +117,21 @@ export function getServiceTreeDetail(fullCodePath: string) {
   })
 }
 
+export interface BatchGetServiceTreeDetailsReq {
+  full_code_paths: string[]
+}
+
+export interface BatchGetServiceTreeDetailsResp {
+  items: ServiceTreeDetailResp[]
+  missing?: string[]
+}
+
+export function batchGetServiceTreeDetails(req: BatchGetServiceTreeDetailsReq) {
+  return post<BatchGetServiceTreeDetailsResp>('/workspace/api/v1/service_tree/batch_detail', {
+    full_code_paths: req.full_code_paths || []
+  })
+}
+
 export interface DirectoryOverviewResource {
   id?: number
   name?: string

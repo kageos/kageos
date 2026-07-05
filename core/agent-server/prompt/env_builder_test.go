@@ -109,6 +109,34 @@ func TestWorkspaceEnvBlockIncludesScheduledTasksSection(t *testing.T) {
 	}
 }
 
+func TestWorkspaceEnvBlockPlacesVolatileContextAtTail(t *testing.T) {
+	t.Parallel()
+
+	data := BuildWorkspaceEnvDataWithCatalog(&WorkspaceEnvInput{
+		User:                   "贝洛",
+		DepartmentFullPath:     "/company/content",
+		DepartmentFullNamePath: "公司/内容组",
+		DirName:                "公众号内容工厂",
+		DirCode:                "wechat_content_factory",
+		FullCodePath:           "/beiluo/marketing/wechat_content_factory",
+		ScheduledTasksSection:  "### 当前目录自动执行摘要\n- id=25；类型=Agent 任务；标题=公众号日更检查",
+	}, "公众号内容工厂", "/beiluo/marketing/wechat_content_factory", timeNowForTest(), []DocCatalogEntry{
+		{Name: "示例文档", FullCodePath: "/system/prompt/demo"},
+	})
+	got := BuildWorkspaceEnvBlock(data, true, "公众号内容工厂", "/beiluo/marketing/wechat_content_factory")
+
+	directoryListIdx := strings.Index(got, "- **/system/prompt/demo**")
+	tailIdx := strings.Index(got, "## 本轮动态环境")
+	userIdx := strings.Index(got, "### 用户信息")
+	scheduledIdx := strings.Index(got, "### 当前目录自动执行摘要")
+	if directoryListIdx < 0 || tailIdx < 0 || userIdx < 0 || scheduledIdx < 0 {
+		t.Fatalf("workspace env block should include directory list and dynamic tail sections, got:\n%s", got)
+	}
+	if !(directoryListIdx < tailIdx && tailIdx < userIdx && userIdx < scheduledIdx) {
+		t.Fatalf("volatile user and scheduled context should be placed after readable directory list, got:\n%s", got)
+	}
+}
+
 func TestWorkspaceEnvBlockPlacesRunbookBeforeDirectoryIntent(t *testing.T) {
 	t.Parallel()
 

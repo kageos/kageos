@@ -72,7 +72,7 @@ func workspaceRoleGateSuggestion(roleID string, toolName string) string {
 	case "write_prd":
 		return "如需重新设计 PRD，请交接给「产品经理」。"
 	case "write_doc":
-		return "如需创建或修改文档，请交接给「应用开发工程师」或「应用维护工程师」；不确定切谁时切到「执行路由手册」。"
+		return "默认工具池不暴露运行态文档写入；如需维护当前目录运行手册或默认文档，请交接给「应用维护工程师」通过 kageos_manifest.go / packageContext.AddDocs(...) 处理。"
 	case "create_directory", "write_file", "edit_file", "delete_file", "build_workspace":
 		return "如需创建或修改应用内容，请交接给「应用开发工程师」「应用维护工程师」或「构建修复工程师」；不确定切谁时切到「执行路由手册」。"
 	case "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query", "run_on_select_fuzzy":

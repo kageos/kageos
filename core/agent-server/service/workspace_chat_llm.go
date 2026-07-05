@@ -12,6 +12,7 @@ import (
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/llms"
+	"github.com/kageos/kageos/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -48,21 +49,50 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 		}
 	}
 
-	opts := llms.DefaultClientOptions()
-	if llmConfig.Model != "" {
-		opts = opts.WithModel(llmConfig.Model)
-	}
-	if llmConfig.Timeout > 0 {
-		opts = opts.WithTimeout(time.Duration(llmConfig.Timeout) * time.Second)
-	}
-	if llmConfig.APIBase != "" {
-		opts = opts.WithBaseURL(llmConfig.APIBase)
-	}
-	client := llms.NewOpenAIClientWithOptions(apiKey, opts)
-
 	var extraConfig map[string]interface{}
 	if llmConfig.ExtraConfig != nil && *llmConfig.ExtraConfig != "" {
 		_ = json.Unmarshal([]byte(*llmConfig.ExtraConfig), &extraConfig)
+	}
+	headers, err := llmHeadersFromJSON(llmConfig.Headers)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	clientConfig := llms.ClientConfig{
+		Provider:     llmConfig.Provider,
+		Protocol:     llmConfig.Protocol,
+		APIKey:       apiKey,
+		BaseURL:      llmConfig.APIBase,
+		EndpointPath: llmConfig.EndpointPath,
+		APIVersion:   llmConfig.APIVersion,
+		AuthScheme:   llmConfig.AuthScheme,
+		Headers:      headers,
+		Model:        llmConfig.Model,
+	}
+	originalProvider := llmConfig.Provider
+	originalProtocol := llmConfig.Protocol
+	clientConfig.Provider, clientConfig.Protocol = llms.InferProviderProtocol(clientConfig.Provider, clientConfig.Protocol, clientConfig.BaseURL, clientConfig.EndpointPath)
+	llmConfig.Provider = clientConfig.Provider
+	llmConfig.Protocol = clientConfig.Protocol
+	if llmConfig.ID > 0 && (originalProvider != clientConfig.Provider || originalProtocol != clientConfig.Protocol) {
+		if err := s.llmRepo.UpdateProviderProtocol(llmConfig.ID, clientConfig.Provider, clientConfig.Protocol); err != nil {
+			logger.Warnf(ctx, "[WorkspaceChatStream] 同步 LLM 有效协议失败 - id=%d provider=%s protocol=%s err=%v",
+				llmConfig.ID, clientConfig.Provider, clientConfig.Protocol, err)
+		}
+	}
+	logger.Infof(ctx, "[WorkspaceChatStream] 使用 LLM 配置 - id=%d name=%s provider=%s protocol=%s model=%s api_base=%s endpoint_path=%s",
+		llmConfig.ID, llmConfig.Name, clientConfig.Provider, clientConfig.Protocol, llmConfig.Model, llmConfig.APIBase, llmConfig.EndpointPath)
+	if llmConfig.Timeout > 0 {
+		clientConfig.Timeout = time.Duration(llmConfig.Timeout) * time.Second
+	}
+	if maxRetries, ok := extraConfig["max_retries"].(float64); ok && maxRetries >= 0 {
+		clientConfig.MaxRetries = int(maxRetries)
+	}
+	if userAgent, ok := extraConfig["user_agent"].(string); ok {
+		clientConfig.UserAgent = userAgent
+	}
+	client, err := llms.NewClientFromConfig(clientConfig)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	chatReq := &llms.ChatRequest{
 		Messages: msgs,
@@ -79,7 +109,38 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 	if temperature, ok := extraConfig["temperature"].(float64); ok {
 		chatReq.Temperature = temperature
 	}
+	if promptCacheKey, ok := extraConfig["prompt_cache_key"].(string); ok {
+		chatReq.PromptCacheKey = strings.TrimSpace(promptCacheKey)
+	}
+	if promptCacheRetention, ok := extraConfig["prompt_cache_retention"].(string); ok {
+		chatReq.PromptCacheRetention = strings.TrimSpace(promptCacheRetention)
+	}
 	return llmConfig, client, chatReq, nil
+}
+
+func llmHeadersFromJSON(raw *string) (map[string]string, error) {
+	if raw == nil || strings.TrimSpace(*raw) == "" {
+		return nil, nil
+	}
+	var obj map[string]interface{}
+	if err := json.Unmarshal([]byte(*raw), &obj); err != nil {
+		return nil, fmt.Errorf("headers 不是有效 JSON: %w", err)
+	}
+	headers := make(map[string]string, len(obj))
+	for key, value := range obj {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		switch v := value.(type) {
+		case string:
+			headers[key] = v
+		default:
+			b, _ := json.Marshal(v)
+			headers[key] = string(b)
+		}
+	}
+	return headers, nil
 }
 
 func buildMessageLLMMetadata(llmConfig *model.LLMConfig, client llms.LLMClient) messageLLMMetadata {
@@ -200,7 +261,9 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 		systemPromptFragment = fallbackSystemPrompt
 	}
 	roleIDForToolFilter, _ := workspaceModelContextRole(session, allMessages)
-	toolNames = workspaceToolNamesForRole(workspaceToolNamesForMode(modeProvider, fallbackToolNames), roleIDForToolFilter)
+	modeToolNames := workspaceToolNamesForMode(modeProvider, fallbackToolNames)
+	roleAllowedToolNames := workspaceToolNamesForRole(modeToolNames, roleIDForToolFilter)
+	toolNames = workspaceToolNamesForLLM(modeToolNames)
 	var toolsDesc []dto.ToolDef
 	if s.toolReg != nil {
 		toolsDesc, _ = s.toolReg.ListTools(ctx, toolNames)
@@ -227,16 +290,18 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 
 	// 工作台固定系统提示词（不再依赖智能体）
 	systemIdentity := "你是 Kageos 智能工作台的执行助手。身份、公司、协议、Hub 和企业版口径按 /system/prompt/platform-introduction 读取；使用方式和理念按 /system/prompt/platform-usage-and-philosophy 读取；能力边界按 /system/prompt/platform-capability-boundaries 读取。不要自称普通聊天机器人，也不要把当前核心说成 OSI 开源项目。"
-	system := systemIdentity + "\n\n" + envBlock
+	systemParts := []string{systemIdentity}
 	if systemPromptFragment != "" {
-		system += "\n\n" + systemPromptFragment
+		systemParts = append(systemParts, systemPromptFragment)
 	}
+	systemParts = append(systemParts, envBlock)
 	if hint := workspaceFirstTurnDirectoryRAGHint(list, workspaceCtx); hint != "" {
-		system += "\n\n" + hint
+		systemParts = append(systemParts, hint)
 	}
 	if dynamicTime := workspaceDynamicTimeHint(data); dynamicTime != "" {
-		system += "\n\n" + dynamicTime
+		systemParts = append(systemParts, dynamicTime)
 	}
+	system := strings.Join(systemParts, "\n\n")
 
 	msgs := []llms.Message{{Role: "system", Content: system}}
 	historyMessages, includedMessages, excludedUnsupported := buildWorkspaceLLMHistory(ctx, list, currentTurnMessageID)
@@ -258,6 +323,7 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 		ExcludedUnsupported:         excludedUnsupported,
 		RequestedToolNames:          toolNames,
 		LLMToolNames:                llmToolNames,
+		RoleAllowedToolNames:        roleAllowedToolNames,
 		LLMMessageCount:             len(msgs),
 		LLMToolCount:                len(llmTools),
 	})

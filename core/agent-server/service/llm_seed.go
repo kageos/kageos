@@ -8,6 +8,7 @@ import (
 
 	"github.com/kageos/kageos/core/agent-server/model"
 	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/llms"
 	"github.com/kageos/kageos/pkg/logger"
 	"gorm.io/gorm"
 )
@@ -116,17 +117,24 @@ type normalizedLLMSeedItem struct {
 }
 
 type normalizedLLMSeed struct {
-	Code        string
-	Name        string
-	Model       string
-	APIKey      string
-	APIBase     string
-	Timeout     int
-	MaxTokens   int
-	ExtraConfig *string
-	IsDefault   bool
-	Visibility  int
-	Admin       string
+	Code         string
+	Name         string
+	Provider     string
+	Protocol     string
+	Model        string
+	APIKey       string
+	APIBase      string
+	EndpointPath string
+	APIVersion   string
+	AuthScheme   string
+	Headers      *string
+	Timeout      int
+	MaxTokens    int
+	ExtraConfig  *string
+	Capabilities *string
+	IsDefault    bool
+	Visibility   int
+	Admin        string
 }
 
 func normalizeLLMSeed(seed config.AgentServerLLMSeedConfig) (normalizedLLMSeed, bool, error) {
@@ -143,10 +151,23 @@ func normalizeLLMSeed(seed config.AgentServerLLMSeedConfig) (normalizedLLMSeed, 
 		return normalizedLLMSeed{}, false, fmt.Errorf("llms.configs[%s].model 不能为空", code)
 	}
 
+	provider, protocol, err := normalizeLLMProviderProtocol(seed.Provider, seed.Protocol)
+	if err != nil {
+		return normalizedLLMSeed{}, false, fmt.Errorf("llms.configs[%s] 协议配置无效: %w", code, err)
+	}
+	provider, protocol = llms.InferProviderProtocol(provider, protocol, seed.APIBase, seed.EndpointPath)
 	apiKey, apiKeySpecified := resolveLLMSeedAPIKey(seed)
 	extraConfig, err := normalizeExtraConfig(strings.TrimSpace(seed.ExtraConfig))
 	if err != nil {
 		return normalizedLLMSeed{}, false, fmt.Errorf("llms.configs[%s].extra_config 无效: %w", code, err)
+	}
+	headers, err := normalizeJSONText(fmt.Sprintf("llms.configs[%s].headers", code), seed.Headers)
+	if err != nil {
+		return normalizedLLMSeed{}, false, err
+	}
+	capabilities, err := normalizeJSONText(fmt.Sprintf("llms.configs[%s].capabilities", code), seed.Capabilities)
+	if err != nil {
+		return normalizedLLMSeed{}, false, err
 	}
 
 	timeout := seed.Timeout
@@ -163,17 +184,24 @@ func normalizeLLMSeed(seed config.AgentServerLLMSeedConfig) (normalizedLLMSeed, 
 	}
 
 	return normalizedLLMSeed{
-		Code:        code,
-		Name:        name,
-		Model:       modelName,
-		APIKey:      apiKey,
-		APIBase:     strings.TrimSpace(seed.APIBase),
-		Timeout:     timeout,
-		MaxTokens:   maxTokens,
-		ExtraConfig: extraConfig,
-		IsDefault:   seed.IsDefault,
-		Visibility:  seed.Visibility,
-		Admin:       admin,
+		Code:         code,
+		Name:         name,
+		Provider:     provider,
+		Protocol:     protocol,
+		Model:        modelName,
+		APIKey:       apiKey,
+		APIBase:      strings.TrimSpace(seed.APIBase),
+		EndpointPath: strings.TrimSpace(seed.EndpointPath),
+		APIVersion:   strings.TrimSpace(seed.APIVersion),
+		AuthScheme:   strings.TrimSpace(seed.AuthScheme),
+		Headers:      headers,
+		Timeout:      timeout,
+		MaxTokens:    maxTokens,
+		ExtraConfig:  extraConfig,
+		Capabilities: capabilities,
+		IsDefault:    seed.IsDefault,
+		Visibility:   seed.Visibility,
+		Admin:        admin,
 	}, apiKeySpecified, nil
 }
 
@@ -191,17 +219,23 @@ func resolveLLMSeedAPIKey(seed config.AgentServerLLMSeedConfig) (string, bool) {
 
 func (seed normalizedLLMSeed) toModel() *model.LLMConfig {
 	cfg := &model.LLMConfig{
-		Code:        seed.Code,
-		Name:        seed.Name,
-		Provider:    model.LLMProviderOpenAI,
-		Model:       seed.Model,
-		APIKey:      seed.APIKey,
-		APIBase:     seed.APIBase,
-		Timeout:     seed.Timeout,
-		MaxTokens:   seed.MaxTokens,
-		ExtraConfig: seed.ExtraConfig,
-		Visibility:  seed.Visibility,
-		Admin:       seed.Admin,
+		Code:         seed.Code,
+		Name:         seed.Name,
+		Provider:     seed.Provider,
+		Protocol:     seed.Protocol,
+		Model:        seed.Model,
+		APIKey:       seed.APIKey,
+		APIBase:      seed.APIBase,
+		EndpointPath: seed.EndpointPath,
+		APIVersion:   seed.APIVersion,
+		AuthScheme:   seed.AuthScheme,
+		Headers:      seed.Headers,
+		Timeout:      seed.Timeout,
+		MaxTokens:    seed.MaxTokens,
+		ExtraConfig:  seed.ExtraConfig,
+		Capabilities: seed.Capabilities,
+		Visibility:   seed.Visibility,
+		Admin:        seed.Admin,
 	}
 	cfg.CreatedBy = defaultLLMSeedAdmin
 	cfg.UpdatedBy = defaultLLMSeedAdmin
@@ -211,15 +245,21 @@ func (seed normalizedLLMSeed) toModel() *model.LLMConfig {
 func applyLLMSeedToModel(cfg *model.LLMConfig, seed normalizedLLMSeed, apiKeySpecified bool) {
 	cfg.Code = seed.Code
 	cfg.Name = seed.Name
-	cfg.Provider = model.LLMProviderOpenAI
+	cfg.Provider = seed.Provider
+	cfg.Protocol = seed.Protocol
 	cfg.Model = seed.Model
 	if apiKeySpecified && seed.APIKey != "" {
 		cfg.APIKey = seed.APIKey
 	}
 	cfg.APIBase = seed.APIBase
+	cfg.EndpointPath = seed.EndpointPath
+	cfg.APIVersion = seed.APIVersion
+	cfg.AuthScheme = seed.AuthScheme
+	cfg.Headers = seed.Headers
 	cfg.Timeout = seed.Timeout
 	cfg.MaxTokens = seed.MaxTokens
 	cfg.ExtraConfig = seed.ExtraConfig
+	cfg.Capabilities = seed.Capabilities
 	cfg.Visibility = seed.Visibility
 	cfg.Admin = seed.Admin
 	cfg.UpdatedBy = defaultLLMSeedAdmin

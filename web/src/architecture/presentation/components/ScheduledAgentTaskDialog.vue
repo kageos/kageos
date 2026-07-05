@@ -25,6 +25,27 @@
         />
       </el-form-item>
 
+      <el-form-item :label="t('scheduledTask.agentModel')" prop="llm_config_id">
+        <el-select
+          :model-value="form.llm_config_id"
+          filterable
+          :placeholder="t('scheduledTask.defaultModel')"
+          :loading="llmLoading"
+          style="width: 100%"
+          @update:model-value="setFormLLMConfigID"
+          @visible-change="handleLLMSelectVisibleChange"
+        >
+          <el-option :label="t('scheduledTask.defaultModel')" :value="0" />
+          <el-option
+            v-for="llm in llmList"
+            :key="llm.id"
+            :label="llmOptionLabel(llm)"
+            :value="llm.id"
+          />
+        </el-select>
+        <div class="scheduled-agent-field-hint">{{ t('scheduledTask.agentModelHint') }}</div>
+      </el-form-item>
+
       <el-form-item :label="t('scheduledTask.agentMessage')" prop="message">
         <div
           class="scheduled-agent-composer"
@@ -122,6 +143,7 @@ import {
   timerScheduleToForm,
   type TimerScheduleForm,
 } from './utils/timerSchedule'
+import { useLLMConfigOptions } from '@/architecture/presentation/composables/useLLMConfigOptions'
 
 interface ScheduledAgentForm extends TimerScheduleForm {
   title: string
@@ -168,6 +190,13 @@ const isEditing = computed(() => !!props.editTask)
 const dialogTitle = computed(() => isEditing.value ? t('scheduledTask.editAgentDialogTitle') : t('scheduledTask.dialogAgentTitle'))
 const submitButtonText = computed(() => isEditing.value ? t('common.save') : t('common.create'))
 const dateTimeShortcuts = computed(() => createRelativeDateTimeShortcuts())
+const {
+  llmList,
+  llmLoading,
+  loadLLMOptions,
+  handleLLMSelectVisibleChange,
+  llmOptionLabel,
+} = useLLMConfigOptions()
 const fullCodePathRef = computed(() => resolvedFullCodePath.value)
 const resolvedFullCodePath = computed(() => {
   const payloadPath = stringFromRecord(getTaskPayload(props.editTask), 'full_code_path')
@@ -233,6 +262,9 @@ function resetForm() {
   form.files = task ? stringFromRecord(payload, 'files') : props.initialFiles || ''
   attachedFiles.value = task ? [] : props.initialAttachedFiles.map((file) => ({ ...file }))
   form.llm_config_id = task ? numberFromRecord(payload, 'llm_config_id') : props.initialLLMConfigId || 0
+  if (form.llm_config_id > 0) {
+    void loadLLMOptions()
+  }
   form.max_duration_seconds = task ? numberFromRecord(payload, 'max_duration_seconds') : 0
   form.schedule_type = schedule.schedule_type
   form.run_at = schedule.run_at
@@ -250,6 +282,11 @@ function registerMessageInputRef(element: { focus: () => void } | null) {
 function noop() {}
 
 function noopInputEnter() {}
+
+function setFormLLMConfigID(value: unknown) {
+  const id = typeof value === 'number' ? value : Number(value || 0)
+  form.llm_config_id = Number.isFinite(id) && id > 0 ? id : 0
+}
 
 function defaultTaskTitle(): string {
   const message = (props.initialMessage || '').trim()
@@ -443,6 +480,13 @@ watch(
   font-weight: 700;
   pointer-events: none;
   backdrop-filter: blur(4px);
+}
+
+.scheduled-agent-field-hint {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .scheduled-dialog-grid {

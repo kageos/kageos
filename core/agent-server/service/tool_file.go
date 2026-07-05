@@ -97,7 +97,7 @@ type editFileResultData struct {
 
 var editFileToolDef = toolDefinitionWithOutput[editFileArgs, structuredToolResultSchema[editFileResultData]](
 	"edit_file",
-	"修改已有工作区代码文件。必须先 read_file 获取 content_sha，并作为 base_sha 传入；文件变化则拒绝。推荐 search_edits 精确文本替换；行号明确或块级修改时用 line_edits。两种模式二选一，所有 edit 原子应用，任一不匹配则不落盘。当前版本仅写入 .go 代码文件；文档请用 write_doc。",
+	"修改已有工作区代码文件。必须先 read_file 获取 content_sha，并作为 base_sha 传入；文件变化则拒绝。推荐 search_edits 精确文本替换；行号明确或块级修改时用 line_edits。两种模式二选一，所有 edit 原子应用，任一不匹配则不落盘。当前版本仅写入 .go 代码文件；工作台文档不通过 edit_file 修改。",
 )
 
 func (t *EditFileTool) Definition() dto.ToolDef {
@@ -169,7 +169,7 @@ func runEditFileTool(ctx context.Context, args editFileArgs, currentFullCodePath
 		return toolResult("edit_file 缺少参数 file_name。", true)
 	}
 	if !isGoFileName(ensureGoFileName(fileName)) {
-		return toolResult("edit_file 当前仅支持 .go 代码文件；文档请用 write_doc。", true)
+		return toolResult("edit_file 当前仅支持 .go 代码文件；工作台文档不通过 edit_file 修改。", true)
 	}
 	if isGeneratedInitGoFile(fileName) {
 		return toolResult("edit_file 不允许修改 init_.go；该文件由目录创建流程自动维护。请修改普通业务 .go 文件。", true)

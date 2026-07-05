@@ -41,6 +41,7 @@ export interface MessageSourceRouteRequest {
 export interface WorkspaceSessionRouteRequest {
   fullCodePath: string
   sessionId: string
+  messageId?: number | string
   sourceName?: string
   sourcePath?: string
   traceId?: string
@@ -139,6 +140,7 @@ export function buildWorkspaceSessionRoute(request: WorkspaceSessionRouteRequest
       [PLATFORM_OPEN_QUERY_KEY]: 'session',
       [PLATFORM_FOCUS_QUERY_KEY]: 'workspace_session',
       [PLATFORM_SESSION_ID_QUERY_KEY]: request.sessionId,
+      ...(request.messageId ? { [PLATFORM_MESSAGE_ID_QUERY_KEY]: String(request.messageId) } : {}),
       ...(sourcePath ? { [PLATFORM_SOURCE_PATH_QUERY_KEY]: sourcePath } : {}),
       ...(request.traceId ? { [PLATFORM_TRACE_ID_QUERY_KEY]: request.traceId } : {}),
 

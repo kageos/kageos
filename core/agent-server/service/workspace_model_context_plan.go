@@ -34,6 +34,7 @@ type workspaceModelContextPlanInput struct {
 	ExcludedUnsupported         []*model.AgentChatMessage
 	RequestedToolNames          []string
 	LLMToolNames                []string
+	RoleAllowedToolNames        []string
 	LLMMessageCount             int
 	LLMToolCount                int
 }
@@ -107,13 +108,15 @@ func (s *WorkspaceChatService) buildWorkspaceModelContextPlan(ctx context.Contex
 		Handoff: handoff,
 		Docs:    docs,
 		Tools: dto.WorkspaceModelContextTools{
-			RequestedNames: append([]string(nil), input.RequestedToolNames...),
-			LLMTools:       append([]string(nil), input.LLMToolNames...),
-			LLMToolCount:   input.LLMToolCount,
-			Policy:         workspaceModelContextToolPolicy(roleID),
+			RequestedNames:       append([]string(nil), input.RequestedToolNames...),
+			LLMTools:             append([]string(nil), input.LLMToolNames...),
+			LLMToolCount:         input.LLMToolCount,
+			RoleAllowedTools:     append([]string(nil), input.RoleAllowedToolNames...),
+			RoleAllowedToolCount: len(input.RoleAllowedToolNames),
+			Policy:               workspaceModelContextToolPolicy(roleID),
 		},
 		CachePlan: dto.WorkspaceModelContextCachePlan{
-			StablePrefixStrategy: "system_env_role_protocol_handoff_first",
+			StablePrefixStrategy: "stable_mode_tools_static_system_before_workspace_env_with_prompt_cache_key",
 			StablePrefixItems:    workspaceModelContextStablePrefixItems(roleID, input.FullCodePath, handoff),
 			ActualUsageField:     "assistant.llm_usage.cached_tokens",
 		},
@@ -327,9 +330,6 @@ func workspaceModelContextStablePrefixItems(roleID, fullCodePath string, handoff
 	}
 	if runbookPath := workspaceRunbookPath(fullCodePath); runbookPath != "" {
 		items = append(items, "directory_runbook:"+runbookPath)
-	}
-	if roleID = normalizeWorkspaceRole(roleID); roleID != "" {
-		items = append(items, "role_definition:"+roleID+":"+workspaceRoleDefinitionProtocolVersion)
 	}
 	if handoff != nil {
 		items = append(items, "handoff_packet:"+firstNonEmptyString(handoff.PacketVersion, workspaceRoleHandoffPacketVersion)+":"+handoff.ArtifactKind+":"+handoff.ExecuteDirectory)

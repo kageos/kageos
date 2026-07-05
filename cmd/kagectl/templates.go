@@ -533,6 +533,12 @@ llms:
 {{- range .LLMs.Configs }}
     - code: {{ q .Code }}
       name: {{ q .Name }}
+{{- if .Provider }}
+      provider: {{ q .Provider }}
+{{- end }}
+{{- if .Protocol }}
+      protocol: {{ q .Protocol }}
+{{- end }}
       model: {{ q .Model }}
 {{- if .APIKey }}
       api_key: {{ q .APIKey }}
@@ -541,10 +547,25 @@ llms:
       api_key_env: {{ q .APIKeyEnv }}
 {{- end }}
       api_base: {{ q .APIBase }}
+{{- if .EndpointPath }}
+      endpoint_path: {{ q .EndpointPath }}
+{{- end }}
+{{- if .APIVersion }}
+      api_version: {{ q .APIVersion }}
+{{- end }}
+{{- if .AuthScheme }}
+      auth_scheme: {{ q .AuthScheme }}
+{{- end }}
+{{- if .Headers }}
+      headers: {{ q .Headers }}
+{{- end }}
       timeout: {{ .Timeout }}
       max_tokens: {{ .MaxTokens }}
 {{- if .ExtraConfig }}
       extra_config: {{ q .ExtraConfig }}
+{{- end }}
+{{- if .Capabilities }}
+      capabilities: {{ q .Capabilities }}
 {{- end }}
 {{- if .IsDefault }}
       is_default: true

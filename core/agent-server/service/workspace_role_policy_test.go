@@ -76,8 +76,11 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "edit_file"); blocked || res.IsError {
 		t.Fatalf("app_developer should allow edit_file, blocked=%v res=%#v", blocked, res)
 	}
-	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "write_doc"); blocked || res.IsError {
-		t.Fatalf("app_developer should allow write_doc, blocked=%v res=%#v", blocked, res)
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "write_doc"); !blocked || !res.IsError {
+		t.Fatalf("app_developer should block default-hidden write_doc, blocked=%v res=%#v", blocked, res)
+	}
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleMaintenanceEngineer, "write_doc"); !blocked || !res.IsError {
+		t.Fatalf("maintenance_engineer should block default-hidden write_doc, blocked=%v res=%#v", blocked, res)
 	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "write_prd"); !blocked || !res.IsError {
 		t.Fatalf("app_developer should block write_prd, blocked=%v res=%#v", blocked, res)

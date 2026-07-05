@@ -141,6 +141,9 @@ func TestBuildChangeRoleLoadsCreateDocs(t *testing.T) {
 	if !containsWorkspaceRoleString(got.RequiredDocs, "/system/prompt/sdk/agent-app-sdk-readme") {
 		t.Fatalf("required docs should include SDK readme: %v", got.RequiredDocs)
 	}
+	if !containsWorkspaceRoleString(got.RequiredDocs, "/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask") {
+		t.Fatalf("required docs should include manifest/runbook/agent task guide: %v", got.RequiredDocs)
+	}
 	if containsWorkspaceRoleString(got.AllowedNextTools, "write_prd") {
 		t.Fatalf("app_developer should not plan PRD again, tools=%v", got.AllowedNextTools)
 	}

@@ -16,10 +16,19 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check sensitive file boundaries
         run: bash scripts/check-sensitive-files.sh
-      - name: Check SDK import boundaries
-        run: bash scripts/check-sdk-boundaries.sh
+      - name: Check repository size guard
+        run: bash scripts/check-repo-size-guard.sh
       - name: Check markdown links
         run: bash scripts/check-doc-links.sh
+      - name: Checkout SDK contract
+        uses: actions/checkout@v4
+        with:
+          repository: kageos/kageos-sdk
+          path: .ci/kageos-sdk
+      - name: Check SDK import boundaries
+        env:
+          KAGEOS_SDK_ROOT: ${{ github.workspace }}/.ci/kageos-sdk
+        run: bash scripts/check-sdk-boundaries.sh
 
   backend:
     name: Backend Tests

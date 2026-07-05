@@ -3,6 +3,8 @@ package v1
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kageos/kageos/core/agent-server/model"
@@ -76,6 +78,52 @@ func (h *Workspace) ChatStream(c *gin.Context) {
 		c.SSEvent(ev.Event, ev.Data)
 		c.Writer.Flush()
 	}
+}
+
+// BatchToolDetails 批量获取内置工作台工具展示详情。
+// POST /agent/api/v1/workspace/tools/batch_detail
+func (h *Workspace) BatchToolDetails(c *gin.Context) {
+	var req dto.BatchWorkspaceToolDetailsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	if h.toolReg == nil {
+		response.FailWithMessage(c, "工具注册表未初始化")
+		return
+	}
+
+	names := normalizeWorkspaceToolDetailNames(req.Names)
+	if len(names) > 100 {
+		response.FailWithMessage(c, "一次最多查询 100 个工具")
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	defs, err := h.toolReg.ListTools(ctx, names)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	tools := make([]dto.WorkspaceToolDetail, 0, len(defs))
+	found := make(map[string]struct{}, len(defs))
+	for _, def := range defs {
+		found[def.Name] = struct{}{}
+		tools = append(tools, workspaceToolDetailFromDef(def, req.IncludeSchema))
+	}
+
+	missing := make([]string, 0)
+	for _, name := range names {
+		if _, ok := found[name]; !ok {
+			missing = append(missing, name)
+		}
+	}
+
+	response.OkWithData(c, dto.BatchWorkspaceToolDetailsResp{
+		Tools:   tools,
+		Missing: missing,
+	})
 }
 
 // ListSessions 获取工作台会话列表（根据 full_code_path）
@@ -313,4 +361,117 @@ func (h *Workspace) ListFinishedSessions(c *gin.Context) {
 		return
 	}
 	response.OkWithData(c, gin.H{"sessions": items})
+}
+
+func normalizeWorkspaceToolDetailNames(rawNames []string) []string {
+	names := make([]string, 0, len(rawNames))
+	seen := make(map[string]struct{}, len(rawNames))
+	for _, raw := range rawNames {
+		name := normalizeWorkspaceToolDetailName(raw)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	return names
+}
+
+func normalizeWorkspaceToolDetailName(raw string) string {
+	name := strings.TrimSpace(raw)
+	if strings.HasPrefix(name, "<") && strings.HasSuffix(name, ">") {
+		name = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(name, "<"), ">"))
+	}
+	name = strings.TrimPrefix(name, "tool:")
+	return strings.TrimSpace(name)
+}
+
+func workspaceToolDetailFromDef(def dto.ToolDef, includeSchema bool) dto.WorkspaceToolDetail {
+	detail := dto.WorkspaceToolDetail{
+		Name:        def.Name,
+		Description: strings.TrimSpace(def.Description),
+		Token:       "<tool:" + def.Name + ">",
+		TypeLabel:   "内置工具",
+		InputFields: workspaceToolFieldsFromSchema(def.InputSchema),
+	}
+	if includeSchema {
+		detail.InputSchema = def.InputSchema
+		detail.OutputSchema = def.OutputSchema
+	}
+	return detail
+}
+
+func workspaceToolFieldsFromSchema(schema map[string]interface{}) []dto.WorkspaceToolField {
+	if len(schema) == 0 {
+		return nil
+	}
+
+	required := workspaceToolRequiredFields(schema["required"])
+	properties, ok := schema["properties"].(map[string]interface{})
+	if !ok || len(properties) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(properties))
+	for name := range properties {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	fields := make([]dto.WorkspaceToolField, 0, len(names))
+	for _, name := range names {
+		field := dto.WorkspaceToolField{
+			Name:     name,
+			Required: required[name],
+		}
+		if prop, ok := properties[name].(map[string]interface{}); ok {
+			field.Type = workspaceToolSchemaType(prop["type"])
+			if description, ok := prop["description"].(string); ok {
+				field.Description = strings.TrimSpace(description)
+			}
+		}
+		fields = append(fields, field)
+	}
+	return fields
+}
+
+func workspaceToolRequiredFields(raw interface{}) map[string]bool {
+	required := map[string]bool{}
+	switch list := raw.(type) {
+	case []interface{}:
+		for _, item := range list {
+			if name, ok := item.(string); ok && strings.TrimSpace(name) != "" {
+				required[strings.TrimSpace(name)] = true
+			}
+		}
+	case []string:
+		for _, name := range list {
+			if strings.TrimSpace(name) != "" {
+				required[strings.TrimSpace(name)] = true
+			}
+		}
+	}
+	return required
+}
+
+func workspaceToolSchemaType(raw interface{}) string {
+	switch value := raw.(type) {
+	case string:
+		return strings.TrimSpace(value)
+	case []interface{}:
+		types := make([]string, 0, len(value))
+		for _, item := range value {
+			if text, ok := item.(string); ok && strings.TrimSpace(text) != "" {
+				types = append(types, strings.TrimSpace(text))
+			}
+		}
+		return strings.Join(types, " | ")
+	case []string:
+		return strings.Join(value, " | ")
+	default:
+		return ""
+	}
 }

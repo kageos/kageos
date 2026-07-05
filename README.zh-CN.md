@@ -10,7 +10,7 @@
 
 Kageos 把个人和业务能力变成开箱即用的目录。目录不是静态模板，也不是一次性 prompt 生成结果；它可以包含 Form、Table、Chart、Docs、Function、代码、数据模型、运行手册、定时任务、消息和权限。人可以直接打开使用，AI 可以按 schema 调用，无人值守 Agent 可以按计划运行，平台可以统一治理、审计、版本化、安装、导出和复用。
 
-Kageos 由[恰研智能](https://qiayanai.com)创建。核心平台源码公开、可自托管；当前采用 Business Source License 1.1，发布四年后转 Apache License 2.0。准确授权条款见 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)。
+Kageos 由[恰研智能](https://qiayan.ai)创建。核心平台源码公开、可自托管；当前采用 Business Source License 1.1，发布四年后转 Apache License 2.0。准确授权条款见 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)。
 
 ## 为什么做 Kageos
 
@@ -240,7 +240,7 @@ bash scripts/check-doc-links.sh
 
 请不要通过公开 GitHub Issue 报告疑似安全漏洞。
 
-安全问题请发送邮件至 [admin@kageos.com](mailto:admin@kageos.com)。如果安全，请包含受影响版本、分支、commit、部署模式、复现步骤、PoC 和影响说明。完整流程见 [SECURITY.zh-CN.md](SECURITY.zh-CN.md)。
+安全问题请发送邮件至 [admin@kageos.ai](mailto:admin@kageos.ai)。如果安全，请包含受影响版本、分支、commit、部署模式、复现步骤、PoC 和影响说明。完整流程见 [SECURITY.zh-CN.md](SECURITY.zh-CN.md)。
 
 ## 授权
 
@@ -250,6 +250,6 @@ Kageos 核心采用 Business Source License 1.1，并在发布四年后转 Apach
 
 ## 致谢
 
-Kageos 由[恰研智能](https://qiayanai.com)创建和维护。它构建在更广泛的开源基础设施和开发工具生态之上，包括 Go、Vue、MySQL、NATS、MinIO、Docker、Podman 以及许多其他项目。
+Kageos 由[恰研智能](https://qiayan.ai)创建和维护。它构建在更广泛的开源基础设施和开发工具生态之上，包括 Go、Vue、MySQL、NATS、MinIO、Docker、Podman 以及许多其他项目。
 
 Kageos 不是 OCTO、TangSengDaoDao 或 WuKongIM 的 fork。我们依然感谢这些项目，以及更广泛的 Agent、协作系统和基础设施社区共同推动这个领域向前。

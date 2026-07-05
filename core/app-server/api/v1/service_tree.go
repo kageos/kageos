@@ -184,6 +184,36 @@ func (s *ServiceTree) GetServiceTreeDetail(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// BatchGetServiceTreeDetails 批量获取服务目录详情
+// @Summary 批量获取服务目录详情
+// @Description 根据 full_code_path 列表批量获取目录、函数和文档详情
+// @Tags 服务目录
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param request body dto.BatchGetServiceTreeDetailsReq true "批量资源路径"
+// @Success 200 {object} dto.BatchGetServiceTreeDetailsResp "获取成功"
+// @Failure 400 {string} string "请求参数错误"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /workspace/api/v1/service_tree/batch_detail [post]
+func (s *ServiceTree) BatchGetServiceTreeDetails(c *gin.Context) {
+	var req dto.BatchGetServiceTreeDetailsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+	ctx := contextx.ToContext(c)
+	resp, err := s.serviceTreeService.BatchGetServiceTreeDetails(ctx, &req)
+	if err != nil {
+		response.FailWithMessage(c, "批量获取服务目录详情失败: "+err.Error())
+		return
+	}
+
+	response.OkWithData(c, resp)
+}
+
 // GetDirectoryOverview 获取目录概览
 // @Summary 获取目录概览
 // @Description 汇总当前目录及可读子目录/函数的资源统计、函数任务和 Agent 任务配置

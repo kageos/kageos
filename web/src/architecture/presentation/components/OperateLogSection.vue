@@ -185,7 +185,7 @@
               <el-table-column :label="t('operateLog.source')" min-width="110" align="center">
                 <template #default="{ row }">
                   <el-tag :type="getSourceTagType(row.source)" size="small" effect="light">
-                    {{ getSourceLabel(row.source) }}
+                    {{ getLogSourceLabel(row) }}
                   </el-tag>
                 </template>
               </el-table-column>
@@ -458,7 +458,7 @@
           <el-table-column :label="t('operateLog.source')" width="110" align="center">
             <template #default="{ row }">
               <el-tag :type="getSourceTagType(row.source)" size="small" effect="light">
-                {{ getSourceLabel(row.source) }}
+                {{ getLogSourceLabel(row) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -658,7 +658,7 @@ const {
   getUserInfo,
   getActionTagType,
   getActionLabel,
-  getSourceLabel,
+  getLogSourceLabel,
   getSourceTagType,
   getExecutorLabel,
   getExecutorTagType,
@@ -823,6 +823,7 @@ async function openWorkspaceSession(log: any) {
   const target = buildWorkspaceSessionRoute({
     fullCodePath,
     sessionId,
+    messageId: log.workspace_message_id,
     sourceName: log.workspace_session_title || t('operateLog.workspaceSession'),
     sourcePath: log.full_code_path || props.fullCodePath,
     traceId: log.trace_id,

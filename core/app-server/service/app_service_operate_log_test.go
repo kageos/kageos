@@ -141,6 +141,10 @@ func TestRecordTableActionLogUsesContextAuditSource(t *testing.T) {
 		WorkspaceSessionID:    "session-1",
 		WorkspaceSessionTitle: "订单处理",
 		WorkspaceRole:         "app_operator",
+		InitiatorUser:         "bob",
+		WorkspaceMessageID:    42,
+		ToolCallID:            "call-table-add",
+		ToolName:              "run_table_add",
 	})
 
 	err := service.RecordTableActionLog(ctx, &dto.RecordTableActionLogReq{
@@ -179,6 +183,9 @@ func TestRecordTableActionLogUsesContextAuditSource(t *testing.T) {
 	}
 	if log.WorkspaceSessionID != "session-1" || log.WorkspaceSessionTitle != "订单处理" || log.WorkspaceRole != "app_operator" {
 		t.Fatalf("workspace session fields mismatch: id=%q title=%q role=%q", log.WorkspaceSessionID, log.WorkspaceSessionTitle, log.WorkspaceRole)
+	}
+	if log.InitiatorUser != "bob" || log.WorkspaceMessageID != 42 || log.ToolCallID != "call-table-add" || log.ToolName != "run_table_add" {
+		t.Fatalf("audit link fields mismatch: initiator=%q message_id=%d tool_call_id=%q tool_name=%q", log.InitiatorUser, log.WorkspaceMessageID, log.ToolCallID, log.ToolName)
 	}
 	var details dto.TableActionLogDetails
 	if err := json.Unmarshal(log.DetailsJSON, &details); err != nil {

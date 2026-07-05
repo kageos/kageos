@@ -272,6 +272,88 @@ func TestGetServiceTreeDetailDoesNotRepairNestedMissingPath(t *testing.T) {
 	}
 }
 
+func TestBatchGetServiceTreeDetailsReturnsReadableItemsInRequestOrder(t *testing.T) {
+	queryView, db, app := newServiceTreeQueryViewTest(t)
+	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "alice")
+	nodes := []*model.ServiceTree{
+		{
+			Name:         "Ops",
+			Code:         "ops",
+			Type:         model.ServiceTreeTypePackage,
+			AppID:        app.ID,
+			RefID:        app.ID,
+			FullCodePath: "/alice/ops",
+		},
+		{
+			Name:         "订单",
+			Code:         "orders",
+			Type:         model.ServiceTreeTypeFunction,
+			TemplateType: "table",
+			Description:  "订单表",
+			AppID:        app.ID,
+			FullCodePath: "/alice/ops/orders.table",
+			RunCount:     12,
+		},
+		{
+			Name:         "说明",
+			Code:         "readme",
+			Type:         model.ServiceTreeTypeDocs,
+			AppID:        app.ID,
+			FullCodePath: "/alice/ops/readme.docs",
+		},
+	}
+	if err := db.Create(&nodes).Error; err != nil {
+		t.Fatalf("seed service tree nodes: %v", err)
+	}
+
+	resp, err := queryView.BatchGetServiceTreeDetails(ctx, &dto.BatchGetServiceTreeDetailsReq{
+		FullCodePaths: []string{"/alice/ops/readme.docs", "alice/ops/orders.table", "/alice/ops/orders.table", "/alice/ops/missing"},
+	})
+	if err != nil {
+		t.Fatalf("BatchGetServiceTreeDetails: %v", err)
+	}
+	if len(resp.Items) != 2 {
+		t.Fatalf("items len = %d, want 2; resp=%+v", len(resp.Items), resp)
+	}
+	if resp.Items[0].FullCodePath != "/alice/ops/readme.docs" || resp.Items[1].FullCodePath != "/alice/ops/orders.table" {
+		t.Fatalf("items should follow deduped request order, got %#v", resp.Items)
+	}
+	if resp.Items[1].TemplateType != "table" || resp.Items[1].RunCount != 12 || resp.Items[1].Description != "订单表" {
+		t.Fatalf("function detail mismatch: %+v", resp.Items[1])
+	}
+	if len(resp.Missing) != 1 || resp.Missing[0] != "/alice/ops/missing" {
+		t.Fatalf("missing = %#v, want [/alice/ops/missing]", resp.Missing)
+	}
+}
+
+func TestBatchGetServiceTreeDetailsFiltersUnreadableItems(t *testing.T) {
+	queryView, db, app, teamAccess := newServiceTreeQueryViewAccessTest(t, false)
+	seedServiceTreeVisibilityNodes(t, db, app)
+	if err := teamAccess.Assign(actorContext("alice"), access.AssignRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Username:     "bob",
+		ResourcePath: "/alice/ops/hr/readme",
+		RoleCode:     access.RoleViewer,
+		CreatedBy:    "alice",
+	}); err != nil {
+		t.Fatalf("assign read permission: %v", err)
+	}
+
+	resp, err := queryView.BatchGetServiceTreeDetails(actorContext("bob"), &dto.BatchGetServiceTreeDetailsReq{
+		FullCodePaths: []string{"/alice/ops/hr/readme", "/alice/ops/secret"},
+	})
+	if err != nil {
+		t.Fatalf("BatchGetServiceTreeDetails: %v", err)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].FullCodePath != "/alice/ops/hr/readme" {
+		t.Fatalf("items = %#v, want only readable readme", resp.Items)
+	}
+	if len(resp.Missing) != 1 || resp.Missing[0] != "/alice/ops/secret" {
+		t.Fatalf("missing = %#v, want unreadable secret", resp.Missing)
+	}
+}
+
 func TestGetAppWithServiceTreeKeepsUnauthorizedNodesByDefault(t *testing.T) {
 	queryView, db, app, teamAccess := newServiceTreeQueryViewAccessTest(t, false)
 	seedServiceTreeVisibilityNodes(t, db, app)

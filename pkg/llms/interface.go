@@ -13,8 +13,12 @@ type ClientOptions struct {
 	IdleConnTimeout time.Duration `json:"idle_conn_timeout"` // 空闲连接超时时间
 
 	// API配置
-	BaseURL   string `json:"base_url"`   // 自定义BaseURL
-	UserAgent string `json:"user_agent"` // 自定义User-Agent
+	BaseURL      string            `json:"base_url"`      // 自定义BaseURL
+	EndpointPath string            `json:"endpoint_path"` // 自定义 endpoint path
+	APIVersion   string            `json:"api_version"`   // 自定义 API 版本
+	AuthScheme   string            `json:"auth_scheme"`   // bearer、x-api-key、none
+	UserAgent    string            `json:"user_agent"`    // 自定义User-Agent
+	Headers      map[string]string `json:"headers"`       // 自定义请求头
 
 	// LLM配置
 	Model string `json:"model"` // 模型名称（可选，如果设置则覆盖客户端默认模型）
@@ -48,6 +52,30 @@ func (o *ClientOptions) WithTimeout(timeout time.Duration) *ClientOptions {
 // WithBaseURL 设置自定义BaseURL
 func (o *ClientOptions) WithBaseURL(baseURL string) *ClientOptions {
 	o.BaseURL = baseURL
+	return o
+}
+
+// WithEndpointPath 设置自定义 endpoint path
+func (o *ClientOptions) WithEndpointPath(endpointPath string) *ClientOptions {
+	o.EndpointPath = endpointPath
+	return o
+}
+
+// WithAPIVersion 设置自定义 API version
+func (o *ClientOptions) WithAPIVersion(apiVersion string) *ClientOptions {
+	o.APIVersion = apiVersion
+	return o
+}
+
+// WithAuthScheme 设置认证方式
+func (o *ClientOptions) WithAuthScheme(authScheme string) *ClientOptions {
+	o.AuthScheme = authScheme
+	return o
+}
+
+// WithHeaders 设置自定义请求头
+func (o *ClientOptions) WithHeaders(headers map[string]string) *ClientOptions {
+	o.Headers = headers
 	return o
 }
 
@@ -114,13 +142,15 @@ type Message struct {
 
 // ChatRequest 聊天请求
 type ChatRequest struct {
-	Messages    []Message      `json:"messages"`              // 对话历史
-	Model       string         `json:"model"`                 // 模型名称（可选）
-	MaxTokens   int            `json:"max_tokens"`            // 最大token数（可选）
-	Temperature float64        `json:"temperature"`           // 温度参数（可选）
-	Timeout     *time.Duration `json:"timeout,omitempty"`     // 请求超时时间（可选，覆盖客户端默认超时）
-	Tools       []ToolDef      `json:"tools,omitempty"`       // 工具定义列表（标准 Tool Calls）
-	ToolChoice  interface{}    `json:"tool_choice,omitempty"` // 工具选择策略（auto/required/none 或具体工具名）
+	Messages             []Message      `json:"messages"`                         // 对话历史
+	Model                string         `json:"model"`                            // 模型名称（可选）
+	MaxTokens            int            `json:"max_tokens"`                       // 最大token数（可选）
+	Temperature          float64        `json:"temperature"`                      // 温度参数（可选）
+	Timeout              *time.Duration `json:"timeout,omitempty"`                // 请求超时时间（可选，覆盖客户端默认超时）
+	Tools                []ToolDef      `json:"tools,omitempty"`                  // 工具定义列表（标准 Tool Calls）
+	ToolChoice           interface{}    `json:"tool_choice,omitempty"`            // 工具选择策略（auto/required/none 或具体工具名）
+	PromptCacheKey       string         `json:"prompt_cache_key,omitempty"`       // OpenAI prompt cache 路由 key
+	PromptCacheRetention string         `json:"prompt_cache_retention,omitempty"` // OpenAI prompt cache 留存策略：in_memory/24h
 }
 
 // ChatResponse 聊天响应

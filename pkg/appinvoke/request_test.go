@@ -10,13 +10,17 @@ import (
 
 func TestRuntimeRequestCarriesClientSource(t *testing.T) {
 	req := &dto.RequestAppReq{
-		TraceId:      "trace-1",
-		User:         "alice",
-		App:          "demo",
-		Version:      "v1",
-		Method:       "POST",
-		Router:       "/tools/run",
-		ClientSource: "agent",
+		TraceId:            "trace-1",
+		User:               "alice",
+		App:                "demo",
+		Version:            "v1",
+		Method:             "POST",
+		Router:             "/tools/run",
+		ClientSource:       "agent",
+		InitiatorUser:      "bob",
+		WorkspaceMessageID: 7,
+		ToolCallID:         "call-1",
+		ToolName:           "run_form_submit",
 	}
 
 	msg, err := BuildRuntimeRequestMsg(req)
@@ -26,6 +30,15 @@ func TestRuntimeRequestCarriesClientSource(t *testing.T) {
 	if got := msg.Header.Get(contextx.ClientSourceHeader); got != "agent" {
 		t.Fatalf("client source header = %q, want agent", got)
 	}
+	if got := msg.Header.Get(contextx.InitiatorUserHeader); got != "bob" {
+		t.Fatalf("initiator header = %q, want bob", got)
+	}
+	if got := msg.Header.Get(contextx.WorkspaceMessageIDHeader); got != "7" {
+		t.Fatalf("workspace message header = %q, want 7", got)
+	}
+	if got := msg.Header.Get(contextx.ToolCallIDHeader); got != "call-1" {
+		t.Fatalf("tool call header = %q, want call-1", got)
+	}
 
 	meta, err := ParseRuntimeRequest(msg)
 	if err != nil {
@@ -33,6 +46,9 @@ func TestRuntimeRequestCarriesClientSource(t *testing.T) {
 	}
 	if meta.ClientSource != "agent" {
 		t.Fatalf("meta.ClientSource = %q, want agent", meta.ClientSource)
+	}
+	if meta.InitiatorUser != "bob" || meta.WorkspaceMessageID != 7 || meta.ToolCallID != "call-1" || meta.ToolName != "run_form_submit" {
+		t.Fatalf("parsed audit links mismatch: %+v", meta)
 	}
 }
 

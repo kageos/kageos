@@ -81,7 +81,7 @@
         <el-option
           v-for="llm in llmList"
           :key="llm.id"
-          :label="`${llm.name} (${llm.model})`"
+          :label="llmOptionLabel(llm)"
           :value="llm.id"
         />
       </el-select>
@@ -258,6 +258,42 @@ const expandedDraft = ref('')
 
 const modelSelectPopperOptions = {
   strategy: 'fixed' as const,
+}
+
+function llmProtocolLabel(protocol: string) {
+  switch ((protocol || '').trim()) {
+    case 'openai_responses':
+      return 'Responses'
+    case 'anthropic_messages':
+      return 'Messages'
+    default:
+      return 'Chat'
+  }
+}
+
+function llmEndpointLabel(llm: LLMInfo) {
+  const endpoint = (llm.endpoint_path || '').trim()
+  const base = (llm.api_base || '').trim().replace(/\/+$/, '')
+  if (!base) {
+    return endpoint
+  }
+  try {
+    const url = new URL(base)
+    const basePath = url.pathname.replace(/\/+$/, '')
+    const endpointPath = endpoint ? (endpoint.startsWith('/') ? endpoint : `/${endpoint}`) : ''
+    return `${url.host}${basePath}${endpointPath}`
+  } catch {
+    if (endpoint) {
+      return `${base}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`.replace(/^https?:\/\//, '')
+    }
+    return base.replace(/^https?:\/\//, '')
+  }
+}
+
+function llmOptionLabel(llm: LLMInfo) {
+  const endpoint = llmEndpointLabel(llm)
+  const suffix = endpoint ? ` · ${endpoint}` : ''
+  return `#${llm.id} ${llm.name} (${llm.model} · ${llmProtocolLabel(llm.protocol)}${suffix})`
 }
 
 const miniHideShortcutHint = computed(() => {

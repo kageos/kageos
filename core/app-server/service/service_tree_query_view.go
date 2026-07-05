@@ -155,7 +155,84 @@ func (q *serviceTreeQueryView) GetServiceTreeDetail(ctx context.Context, req *dt
 		return nil, fmt.Errorf("获取服务目录失败: %w", err)
 	}
 
-	resp := &dto.GetServiceTreeDetailResp{
+	return q.serviceTreeDetailRespFromModel(tree), nil
+}
+
+func (q *serviceTreeQueryView) BatchGetServiceTreeDetails(ctx context.Context, req *dto.BatchGetServiceTreeDetailsReq) (*dto.BatchGetServiceTreeDetailsResp, error) {
+	if req == nil {
+		return nil, fmt.Errorf("请求不能为空")
+	}
+	paths := normalizeBatchServiceTreeDetailPaths(req.FullCodePaths)
+	if len(paths) == 0 {
+		return &dto.BatchGetServiceTreeDetailsResp{Items: []*dto.GetServiceTreeDetailResp{}}, nil
+	}
+	if len(paths) > 100 {
+		return nil, fmt.Errorf("一次最多查询 100 个资源")
+	}
+
+	treeByPath, err := q.serviceTreeRepo.GetServiceTreeByFullPaths(paths)
+	if err != nil {
+		return nil, fmt.Errorf("获取服务目录失败: %w", err)
+	}
+
+	items := make([]*dto.GetServiceTreeDetailResp, 0, len(treeByPath))
+	missing := make([]string, 0)
+	for _, path := range paths {
+		tree := treeByPath[path]
+		if tree == nil {
+			missing = append(missing, path)
+			continue
+		}
+		if !q.canReadServiceTreePath(ctx, path) {
+			missing = append(missing, path)
+			continue
+		}
+		items = append(items, q.serviceTreeDetailRespFromModel(tree))
+	}
+
+	return &dto.BatchGetServiceTreeDetailsResp{
+		Items:   items,
+		Missing: missing,
+	}, nil
+}
+
+func normalizeBatchServiceTreeDetailPaths(rawPaths []string) []string {
+	paths := make([]string, 0, len(rawPaths))
+	seen := make(map[string]struct{}, len(rawPaths))
+	for _, raw := range rawPaths {
+		path := access.NormalizeResourcePath(raw)
+		if path == "" {
+			continue
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		paths = append(paths, path)
+	}
+	return paths
+}
+
+func (q *serviceTreeQueryView) canReadServiceTreePath(ctx context.Context, path string) bool {
+	if q.teamAccess == nil {
+		return true
+	}
+	tenantUser, app, err := access.ParseUserApp(path)
+	if err != nil {
+		return false
+	}
+	result, err := q.teamAccess.Resolve(ctx, tenantUser, app, contextx.GetRequestUser(ctx), path)
+	if err != nil {
+		return false
+	}
+	return access.HasPermission(result.Permissions, access.ActionRead)
+}
+
+func (q *serviceTreeQueryView) serviceTreeDetailRespFromModel(tree *model.ServiceTree) *dto.GetServiceTreeDetailResp {
+	if tree == nil {
+		return nil
+	}
+	return &dto.GetServiceTreeDetailResp{
 		ID:                 tree.ID,
 		Name:               tree.Name,
 		Code:               tree.Code,
@@ -172,8 +249,6 @@ func (q *serviceTreeQueryView) GetServiceTreeDetail(ctx context.Context, req *dt
 		VersionNum:         tree.VersionNum,
 		RunCount:           tree.RunCount,
 	}
-
-	return resp, nil
 }
 
 func (q *serviceTreeQueryView) missingAppRootMessage(fullCodePath string) string {

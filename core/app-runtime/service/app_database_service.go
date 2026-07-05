@@ -34,7 +34,7 @@ const (
 	appDBRootPackage   = "_root"
 
 	appDBRuntimePrivileges   = "SELECT, INSERT, UPDATE"
-	appDBMigrationPrivileges = "SELECT, CREATE, ALTER, INDEX, REFERENCES"
+	appDBMigrationPrivileges = "SELECT, CREATE, ALTER, INDEX"
 )
 
 var ErrAppDatabaseDisabled = errors.New("app database is disabled")

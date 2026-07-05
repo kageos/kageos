@@ -204,18 +204,25 @@ type LLMSeedsConfig struct {
 }
 
 type LLMSeedConfig struct {
-	Code        string `yaml:"code"`
-	Name        string `yaml:"name"`
-	Model       string `yaml:"model"`
-	APIKey      string `yaml:"api_key"`
-	APIKeyEnv   string `yaml:"api_key_env"`
-	APIBase     string `yaml:"api_base"`
-	Timeout     int    `yaml:"timeout"`
-	MaxTokens   int    `yaml:"max_tokens"`
-	ExtraConfig string `yaml:"extra_config"`
-	IsDefault   bool   `yaml:"is_default"`
-	Visibility  int    `yaml:"visibility"`
-	Admin       string `yaml:"admin"`
+	Code         string `yaml:"code"`
+	Name         string `yaml:"name"`
+	Provider     string `yaml:"provider"`
+	Protocol     string `yaml:"protocol"`
+	Model        string `yaml:"model"`
+	APIKey       string `yaml:"api_key"`
+	APIKeyEnv    string `yaml:"api_key_env"`
+	APIBase      string `yaml:"api_base"`
+	EndpointPath string `yaml:"endpoint_path"`
+	APIVersion   string `yaml:"api_version"`
+	AuthScheme   string `yaml:"auth_scheme"`
+	Headers      string `yaml:"headers"`
+	Timeout      int    `yaml:"timeout"`
+	MaxTokens    int    `yaml:"max_tokens"`
+	ExtraConfig  string `yaml:"extra_config"`
+	Capabilities string `yaml:"capabilities"`
+	IsDefault    bool   `yaml:"is_default"`
+	Visibility   int    `yaml:"visibility"`
+	Admin        string `yaml:"admin"`
 }
 
 type SMTPConfig struct {

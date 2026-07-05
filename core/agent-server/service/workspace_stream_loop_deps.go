@@ -7,6 +7,7 @@ import (
 	"github.com/kageos/kageos/core/agent-server/streamloop"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/llms"
 )
 
@@ -55,7 +56,15 @@ func (d *workspaceStreamLoopDeps) PrepareLLM(ctx context.Context, msgs []llms.Me
 		return nil, nil, err
 	}
 	d.currentLLMMeta = buildMessageLLMMetadata(llmConfig, client)
+	if workspaceLLMConfigSupportsPromptCache(llmConfig) && chatReq.PromptCacheKey == "" {
+		chatReq.PromptCacheKey = workspacePromptCacheKey(d.currentModelContextPlan)
+	}
+	if chatReq.PromptCacheRetention == "" {
+		chatReq.PromptCacheRetention = workspaceDefaultPromptCacheRetention(llmConfig, chatReq.Model)
+	}
 	if d.currentModelContextPlan != nil {
+		d.currentModelContextPlan.CachePlan.PromptCacheKey = chatReq.PromptCacheKey
+		d.currentModelContextPlan.CachePlan.PromptCacheRetention = chatReq.PromptCacheRetention
 		d.currentModelContextPlan.LLM = &dto.WorkspaceModelContextLLM{
 			ConfigID:     d.currentLLMMeta.ConfigID,
 			ConfigName:   d.currentLLMMeta.ConfigName,
@@ -94,7 +103,9 @@ func (d *workspaceStreamLoopDeps) finalizeCurrentModelContextPlan(usage *llms.Us
 }
 
 func (d *workspaceStreamLoopDeps) ExecuteToolCalls(ctx context.Context, allToolCalls []llms.ToolCall, round int, sendEvent func(string, interface{})) ([]streamloop.ToolCallSummary, error) {
-	summaries, nextFullCodePath, err := d.service.executeToolCalls(ctx, allToolCalls, d.sessionID, d.fullCodePath, d.user, d.files, round, sendEvent)
+	auditCtx := contextx.WithInitiatorUser(ctx, d.user)
+	auditCtx = contextx.WithWorkspaceMessageID(auditCtx, d.currentMessageID)
+	summaries, nextFullCodePath, err := d.service.executeToolCalls(auditCtx, allToolCalls, d.sessionID, d.fullCodePath, d.user, d.files, round, sendEvent)
 	if err != nil {
 		return nil, err
 	}

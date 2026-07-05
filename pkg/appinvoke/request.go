@@ -4,6 +4,7 @@ package appinvoke
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/kageos/kageos/dto"
@@ -32,6 +33,10 @@ type RequestMeta struct {
 	WorkspaceSessionID    string
 	WorkspaceSessionTitle string
 	WorkspaceRole         string
+	InitiatorUser         string
+	WorkspaceMessageID    int64
+	ToolCallID            string
+	ToolName              string
 	User                  string
 	App                   string
 	Version               string
@@ -68,6 +73,10 @@ func BuildRuntimeRequestMsg(req *dto.RequestAppReq) (*nats.Msg, error) {
 		WorkspaceSessionID:    req.WorkspaceSessionID,
 		WorkspaceSessionTitle: req.WorkspaceSessionTitle,
 		WorkspaceRole:         req.WorkspaceRole,
+		InitiatorUser:         req.InitiatorUser,
+		WorkspaceMessageID:    req.WorkspaceMessageID,
+		ToolCallID:            req.ToolCallID,
+		ToolName:              req.ToolName,
 		User:                  req.User,
 		App:                   req.App,
 		Version:               req.Version,
@@ -108,6 +117,10 @@ func ParseRuntimeRequest(msg *nats.Msg) (*RequestMeta, error) {
 		WorkspaceSessionID:    msg.Header.Get(contextx.WorkspaceSessionIDHeader),
 		WorkspaceSessionTitle: msg.Header.Get(contextx.WorkspaceSessionTitleHeader),
 		WorkspaceRole:         msg.Header.Get(contextx.WorkspaceRoleHeader),
+		InitiatorUser:         msg.Header.Get(contextx.InitiatorUserHeader),
+		WorkspaceMessageID:    parseInt64Header(msg.Header.Get(contextx.WorkspaceMessageIDHeader)),
+		ToolCallID:            msg.Header.Get(contextx.ToolCallIDHeader),
+		ToolName:              msg.Header.Get(contextx.ToolNameHeader),
 		User:                  msg.Header.Get("user"),
 		App:                   msg.Header.Get("app"),
 		Version:               msg.Header.Get("version"),
@@ -199,9 +212,32 @@ func (m *RequestMeta) ApplyHeaders(header nats.Header) {
 		{contextx.WorkspaceSessionIDHeader, m.WorkspaceSessionID},
 		{contextx.WorkspaceSessionTitleHeader, m.WorkspaceSessionTitle},
 		{contextx.WorkspaceRoleHeader, m.WorkspaceRole},
+		{contextx.InitiatorUserHeader, m.InitiatorUser},
+		{contextx.WorkspaceMessageIDHeader, formatInt64Header(m.WorkspaceMessageID)},
+		{contextx.ToolCallIDHeader, m.ToolCallID},
+		{contextx.ToolNameHeader, m.ToolName},
 	} {
 		if item.value != "" {
 			header.Set(item.key, item.value)
 		}
 	}
+}
+
+func parseInt64Header(raw string) int64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return 0
+	}
+	return value
+}
+
+func formatInt64Header(value int64) string {
+	if value <= 0 {
+		return ""
+	}
+	return strconv.FormatInt(value, 10)
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/kageos/kageos/dto"
@@ -74,6 +76,18 @@ func (t *appInvokeTransport) requestApp(ctx context.Context, natsID int64, req *
 	}
 	if invokeReq.WorkspaceRole == "" {
 		invokeReq.WorkspaceRole = contextx.GetWorkspaceRole(ctx)
+	}
+	if invokeReq.InitiatorUser == "" {
+		invokeReq.InitiatorUser = contextx.GetInitiatorUser(ctx)
+	}
+	if invokeReq.WorkspaceMessageID == 0 {
+		invokeReq.WorkspaceMessageID = parsePositiveInt64(contextx.GetWorkspaceMessageID(ctx))
+	}
+	if invokeReq.ToolCallID == "" {
+		invokeReq.ToolCallID = contextx.GetToolCallID(ctx)
+	}
+	if invokeReq.ToolName == "" {
+		invokeReq.ToolName = contextx.GetToolName(ctx)
 	}
 	msg, err := appinvoke.BuildRuntimeRequestMsg(&invokeReq)
 	if err != nil {
@@ -153,4 +167,16 @@ func (t *appInvokeTransport) close() error {
 	}
 	t.subs = nil
 	return nil
+}
+
+func parsePositiveInt64(raw string) int64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return 0
+	}
+	return value
 }

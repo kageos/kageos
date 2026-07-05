@@ -129,7 +129,7 @@ KAGEOS_CN_TARBALL=1
 KAGEOS_RELEASE_VERSION=latest
 ```
 
-helper 才会重新拉取 `https://kageos.com/install-prod.sh`，并把 release tarball 纳入兜底。默认发布流程不再自动生成或同步 R2 release tarball；只有手动运行 `release-archive-sync.yml` 后，release tarball 链路才可用。这个可选链路依赖：
+helper 才会重新拉取 `https://kageos.ai/install-prod.sh`，并把 release tarball 纳入兜底。默认发布流程不再自动生成或同步 R2 release tarball；只有手动运行 `release-archive-sync.yml` 后，release tarball 链路才可用。这个可选链路依赖：
 
 - 官网已经发布最新 `install-prod.sh`
 - R2 的 `latest.txt` 指向最新 tag

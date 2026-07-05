@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/kageos/kageos/core/app-server/model"
@@ -25,6 +26,10 @@ type operateLogAuditMetadata struct {
 	WorkspaceSessionID    string
 	WorkspaceSessionTitle string
 	WorkspaceRole         string
+	InitiatorUser         string
+	WorkspaceMessageID    int64
+	ToolCallID            string
+	ToolName              string
 }
 
 func buildOperateLogAuditMetadata(ctx context.Context, sourceOverride string) operateLogAuditMetadata {
@@ -40,6 +45,10 @@ func buildOperateLogAuditMetadata(ctx context.Context, sourceOverride string) op
 		WorkspaceSessionID:    workspaceSessionID,
 		WorkspaceSessionTitle: strings.TrimSpace(contextx.GetWorkspaceSessionTitle(ctx)),
 		WorkspaceRole:         strings.TrimSpace(contextx.GetWorkspaceRole(ctx)),
+		InitiatorUser:         strings.TrimSpace(contextx.GetInitiatorUser(ctx)),
+		WorkspaceMessageID:    parseOperateLogAuditInt64(contextx.GetWorkspaceMessageID(ctx)),
+		ToolCallID:            strings.TrimSpace(contextx.GetToolCallID(ctx)),
+		ToolName:              strings.TrimSpace(contextx.GetToolName(ctx)),
 	}
 	meta.ExecutorType = inferOperateLogExecutorType(source, workspaceSessionID)
 	return meta
@@ -78,4 +87,20 @@ func applyOperateLogAuditMetadata(log *model.OperateLog, meta operateLogAuditMet
 	log.WorkspaceSessionID = meta.WorkspaceSessionID
 	log.WorkspaceSessionTitle = meta.WorkspaceSessionTitle
 	log.WorkspaceRole = meta.WorkspaceRole
+	log.InitiatorUser = meta.InitiatorUser
+	log.WorkspaceMessageID = meta.WorkspaceMessageID
+	log.ToolCallID = meta.ToolCallID
+	log.ToolName = meta.ToolName
+}
+
+func parseOperateLogAuditInt64(raw string) int64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return 0
+	}
+	return value
 }

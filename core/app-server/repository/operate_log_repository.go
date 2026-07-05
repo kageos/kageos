@@ -79,6 +79,18 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 	if req.WorkspaceSessionID != "" {
 		query = query.Where("workspace_session_id = ?", req.WorkspaceSessionID)
 	}
+	if req.InitiatorUser != "" {
+		query = query.Where("initiator_user = ?", req.InitiatorUser)
+	}
+	if req.WorkspaceMessageID > 0 {
+		query = query.Where("workspace_message_id = ?", req.WorkspaceMessageID)
+	}
+	if req.ToolCallID != "" {
+		query = query.Where("tool_call_id = ?", req.ToolCallID)
+	}
+	if req.ToolName != "" {
+		query = query.Where("tool_name = ?", req.ToolName)
+	}
 	if req.TraceID != "" {
 		query = query.Where("trace_id = ?", req.TraceID)
 	}
@@ -89,7 +101,10 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 		keyword := strings.TrimSpace(req.Keyword)
 		likeKeyword := "%" + keyword + "%"
 		query = query.Where(
-			"company_code LIKE ? OR actor_user LIKE ? OR target_user LIKE ? OR resource_path LIKE ? OR source_type LIKE ? OR source_ref LIKE ? OR executor_type LIKE ? OR workspace_session_id LIKE ? OR workspace_session_title LIKE ? OR trace_id LIKE ? OR summary LIKE ?",
+			"company_code LIKE ? OR actor_user LIKE ? OR target_user LIKE ? OR resource_path LIKE ? OR source_type LIKE ? OR source_ref LIKE ? OR executor_type LIKE ? OR workspace_session_id LIKE ? OR workspace_session_title LIKE ? OR initiator_user LIKE ? OR tool_call_id LIKE ? OR tool_name LIKE ? OR trace_id LIKE ? OR summary LIKE ?",
+			likeKeyword,
+			likeKeyword,
+			likeKeyword,
 			likeKeyword,
 			likeKeyword,
 			likeKeyword,

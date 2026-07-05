@@ -563,6 +563,10 @@ func buildScheduledBaseRequestAppReq(ctx context.Context, user, app, router, met
 		WorkspaceSessionID:    contextx.GetWorkspaceSessionID(ctx),
 		WorkspaceSessionTitle: contextx.GetWorkspaceSessionTitle(ctx),
 		WorkspaceRole:         contextx.GetWorkspaceRole(ctx),
+		InitiatorUser:         contextx.GetInitiatorUser(ctx),
+		WorkspaceMessageID:    parseOperateLogAuditInt64(contextx.GetWorkspaceMessageID(ctx)),
+		ToolCallID:            contextx.GetToolCallID(ctx),
+		ToolName:              contextx.GetToolName(ctx),
 	}
 }
 

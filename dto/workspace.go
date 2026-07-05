@@ -219,6 +219,34 @@ type ToolDef struct {
 	OutputSchema map[string]interface{} `json:"output_schema,omitempty"` // 响应参数 → JSON Schema（可选，后续从 function schema 转换）
 }
 
+// BatchWorkspaceToolDetailsReq 批量获取内置工作台工具展示详情。
+type BatchWorkspaceToolDetailsReq struct {
+	Names         []string `json:"names"`          // 工具名，支持 send_notification、tool:send_notification、<tool:send_notification>
+	IncludeSchema bool     `json:"include_schema"` // 是否返回完整 JSON Schema；hover 等轻量场景默认 false
+}
+
+type WorkspaceToolField struct {
+	Name        string `json:"name"`
+	Type        string `json:"type,omitempty"`
+	Description string `json:"description,omitempty"`
+	Required    bool   `json:"required,omitempty"`
+}
+
+type WorkspaceToolDetail struct {
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description"`
+	Token        string                 `json:"token"`
+	TypeLabel    string                 `json:"type_label"`
+	InputFields  []WorkspaceToolField   `json:"input_fields,omitempty"`
+	InputSchema  map[string]interface{} `json:"input_schema,omitempty"`
+	OutputSchema map[string]interface{} `json:"output_schema,omitempty"`
+}
+
+type BatchWorkspaceToolDetailsResp struct {
+	Tools   []WorkspaceToolDetail `json:"tools"`
+	Missing []string              `json:"missing,omitempty"`
+}
+
 // ----- 以下为 app-server 工作空间资源更新接口使用（canonical 标识为 resource_path=/user/app） -----
 
 // UpdateWorkspaceReq 更新工作空间请求（只更新 MySQL 如 Admins；canonical 标识为 resource_path）

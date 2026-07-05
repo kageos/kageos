@@ -40,14 +40,16 @@
 | --- | --- | --- | --- |
 | 1 | 用户明确说“不是开发 / 不用 PRD / 直接操作 / 现在执行一次 / 帮我查/新增/提交/更新/删除”且当前目录已有可运行函数；或用户只是要简单转换、压缩、清洗、加水印、解析附件、整理临时结果这类轻量文件/数据任务 | `app_operator` | 业务操作先搜索函数 schema，确认字段后执行；轻量文件/数据任务直接用 `run_python` 完成 |
 | 2 | 用户说“定时 / 每天 / 每周 / 自动 / 到点 / 提醒 / 巡检 / 周期” | `automation_operator` | 区分函数任务和 Agent 任务；写入型周期任务先确认 |
-| 3 | 工具结果或日志含 `build_workspace` 失败、`schema compile failed`、`router`、`widget`、`CompileAndValidate`、`SDK API`、启动失败 | `build_engineer` | 携带完整错误、router、字段、相关文件和 build-validation 文档 |
-| 4 | QA 或业务操作发现“能运行但结果不对”：提交后查不到、统计不对、字段逻辑错、筛选结果错、业务规则没生效 | `maintenance_engineer` | 携带失败函数、请求参数、预期、实际、相关源码/日志 |
-| 5 | build/维护已经成功，用户要验收、测试、验证刚生成或刚修改的应用 | `qa_engineer` | 携带待测函数、测试顺序、构建版本或修改摘要 |
-| 6 | 用户要新增长期系统、后台、应用目录、管理系统，且 PRD 未确认 | `product_manager` | 携带业务目标、字段样例、文件画像、表单/表格/图表诉求 |
-| 7 | 用户已确认 PRD，或交接包有完整 `agent_app_prd` / `PRD_EXECUTION_MARKDOWN` | `app_developer` | 携带 PRD artifact、目标目录、SDK 文档和案例 |
-| 8 | 用户要复杂、专项或多步骤的一次性文件/数据/图片/PDF/音视频/OCR/批量转换/转码/临时脚本 | `data_operator` | 携带输入文件、输出格式、处理规则 |
-| 9 | 用户问题涉及平台 OpenAPI、权限、审计、组织、平台文件、平台集成 | `platform_engineer` | 携带平台能力边界和 API/权限线索 |
-| 10 | 用户只要解释、分析、review、读代码、介绍 Kageos/公司/协议/Hub/能力边界 | `reviewer` | 携带分析对象和需要读取的文档/源码 |
+| 3 | 用户要创建/更新当前目录 `runbook.docs`、`kageos_manifest.go`、`packageContext.AddDocs(...)` 或 `packageContext.AddAgentTask(...)` | `maintenance_engineer` | 读取 `/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask`，区分目录默认文档和无人值守任务；优先通过 `kageos_manifest.go` / `packageContext.AddDocs(...)` 维护文档种子 |
+| 4 | 用户要创建/更新运行态 Agent 任务、Agent 任务 message 或无人值守执行说明 | `automation_operator` | 读取 `/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask`，message 先引用 `<./runbook.docs>` 并写清无人值守闭环 |
+| 5 | 工具结果或日志含 `build_workspace` 失败、`schema compile failed`、`router`、`widget`、`CompileAndValidate`、`SDK API`、启动失败 | `build_engineer` | 携带完整错误、router、字段、相关文件和 build-validation 文档 |
+| 6 | QA 或业务操作发现“能运行但结果不对”：提交后查不到、统计不对、字段逻辑错、筛选结果错、业务规则没生效 | `maintenance_engineer` | 携带失败函数、请求参数、预期、实际、相关源码/日志 |
+| 7 | build/维护已经成功，用户要验收、测试、验证刚生成或刚修改的应用 | `qa_engineer` | 携带待测函数、测试顺序、构建版本或修改摘要 |
+| 8 | 用户要新增长期系统、后台、应用目录、管理系统，且 PRD 未确认 | `product_manager` | 携带业务目标、字段样例、文件画像、表单/表格/图表诉求 |
+| 9 | 用户已确认 PRD，或交接包有完整 `agent_app_prd` / `PRD_EXECUTION_MARKDOWN` | `app_developer` | 携带 PRD artifact、目标目录、SDK 文档和案例；默认 runbook/AgentTask seed 读取 manifest 规范 |
+| 10 | 用户要复杂、专项或多步骤的一次性文件/数据/图片/PDF/音视频/OCR/批量转换/转码/临时脚本 | `data_operator` | 携带输入文件、输出格式、处理规则 |
+| 11 | 用户问题涉及平台 OpenAPI、权限、审计、组织、平台文件、平台集成 | `platform_engineer` | 携带平台能力边界和 API/权限线索 |
+| 12 | 用户只要解释、分析、review、读代码、介绍 Kageos/公司/协议/Hub/能力边界 | `reviewer` | 携带分析对象和需要读取的文档/源码 |
 
 如果多条同时命中，按优先级较小的先走。例外：用户明确说“我要测试”时优先 `qa_engineer`；用户明确说“我要修这个 bug/改字段/改逻辑”时优先 `maintenance_engineer`；用户明确说“构建报错”时优先 `build_engineer`。
 

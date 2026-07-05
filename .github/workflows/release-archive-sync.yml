@@ -8,7 +8,7 @@ on:
         required: true
         default: "0.2.0"
       push_latest:
-        description: "Also update downloads.kageos.com/releases/latest.txt."
+        description: "Also update downloads.kageos.ai/releases/latest.txt."
         required: true
         type: boolean
         default: true
@@ -61,7 +61,7 @@ jobs:
 
           version="${RELEASE_VERSION}"
           release_dir="dist/r2/releases/v${version}"
-          public_base="${R2_PUBLIC_BASE_URL:-https://downloads.kageos.com}"
+          public_base="${R2_PUBLIC_BASE_URL:-https://downloads.kageos.ai}"
           mkdir -p "$release_dir"
 
           for arch in amd64 arm64; do

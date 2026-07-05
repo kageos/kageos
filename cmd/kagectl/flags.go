@@ -33,6 +33,13 @@ type uninstallOptions struct {
 	DryRun             bool
 }
 
+type cleanOptions struct {
+	Target        string
+	NamespacePath string
+	Keep          int
+	Execute       bool
+}
+
 type initOptions struct {
 	Force            bool
 	BaseURL          string
@@ -176,6 +183,50 @@ func parseUninstallFlags(args []string) (uninstallOptions, error) {
 	}
 	if uninstallRequiresForce(opts) && !opts.Force && !opts.DryRun {
 		return opts, fmt.Errorf("destructive uninstall options require --force; preview with --dry-run first")
+	}
+	return opts, nil
+}
+
+func parseCleanFlags(args []string) (cleanOptions, error) {
+	opts := cleanOptions{Keep: defaultCleanKeepVersions}
+	if len(args) == 0 {
+		return opts, fmt.Errorf("clean requires runtime or logs")
+	}
+	opts.Target = args[0]
+	if opts.Target != "runtime" && opts.Target != "logs" {
+		return opts, fmt.Errorf("clean supports runtime or logs, got %q", opts.Target)
+	}
+
+	keepSet := false
+	for i := 1; i < len(args); i++ {
+		switch args[i] {
+		case "--namespace":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--namespace requires a path")
+			}
+			opts.NamespacePath = args[i]
+		case "--keep":
+			i++
+			if i >= len(args) {
+				return opts, fmt.Errorf("--keep requires a positive integer")
+			}
+			keep, err := strconv.Atoi(args[i])
+			if err != nil || keep <= 0 {
+				return opts, fmt.Errorf("--keep requires a positive integer")
+			}
+			opts.Keep = keep
+			keepSet = true
+		case "--dry-run":
+			opts.Execute = false
+		case "--execute":
+			opts.Execute = true
+		default:
+			return opts, fmt.Errorf("clean %s does not support argument %q", opts.Target, args[i])
+		}
+	}
+	if opts.Target == "logs" && keepSet {
+		return opts, fmt.Errorf("clean logs does not support --keep")
 	}
 	return opts, nil
 }
@@ -505,6 +556,8 @@ Usage:
   kagectl status [--json]
   kagectl logs [main|infra|service|layer] [--layer L0-L5]
   kagectl down
+  kagectl clean runtime [--namespace PATH] [--keep N] [--dry-run|--execute]
+  kagectl clean logs [--namespace PATH] [--dry-run|--execute]
   kagectl uninstall [--config .kageos/prod/kage.yaml] [--purge-data] [--purge-podman-storage] [--purge-images] [--keep-generated] [--purge-private-config] [--force] [--dry-run]
 
 Modes:

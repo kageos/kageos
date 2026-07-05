@@ -78,6 +78,22 @@ func TestWorkspaceToolNamesForRoleFiltersVisibleTools(t *testing.T) {
 	}
 }
 
+func TestWorkspaceToolNamesForLLMKeepsStableModeToolSet(t *testing.T) {
+	provider := prompt.GetModeProvider("dev")
+	if provider == nil {
+		t.Fatal("dev mode provider is nil")
+	}
+	tools := workspaceToolNamesForLLM(provider.ToolNames())
+	for _, want := range []string{"change_role", "read_doc", "write_file", "build_workspace", "run_form_submit", "send_notification"} {
+		if !containsServiceToolName(tools, want) {
+			t.Fatalf("LLM tools should include stable mode tool %s: %v", want, tools)
+		}
+	}
+	if len(tools) != len(provider.ToolNames()) {
+		t.Fatalf("LLM tools should preserve dev mode tool count, got %d want %d", len(tools), len(provider.ToolNames()))
+	}
+}
+
 func removedModeDocToolNames() []string {
 	return []string{"read_" + "sk" + "ill", "search_" + "sk" + "ills"}
 }

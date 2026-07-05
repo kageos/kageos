@@ -37,9 +37,15 @@ export interface WorkspaceInvocationBlock {
   endLine: number
 }
 
-const RESOURCE_TOKEN_PATTERN = /<(?:\/|\.\/|\.\.\/)[^>\s]+>/g
-const RESOURCE_TOKEN_BODY_PATTERN = /^(?:\/|\.\/|\.\.\/)[^>\s]+$/
+const TOOL_RESOURCE_PREFIX = 'tool:'
+const RESOURCE_TOKEN_PATTERN = /<(?:\/|\.\/|\.\.\/|tool:)[^>\s]+>/g
+const RESOURCE_TOKEN_BODY_PATTERN = /^(?:\/|\.\/|\.\.\/|tool:)[^>\s]+$/
 const DEFAULT_INVOCATION_NOTE = '复制后粘贴到工作台，AI 会按下面信息识别并调用。'
+
+interface TextRange {
+  start: number
+  end: number
+}
 
 export function wrapWorkspaceResourcePath(path: string): string {
   const normalized = normalizeWorkspaceResourcePath(path)
@@ -49,6 +55,9 @@ export function wrapWorkspaceResourcePath(path: string): string {
 export function normalizeWorkspaceResourcePath(path: string): string {
   const body = stripWorkspaceResourceWrapper(path)
   if (!body) return ''
+  if (isWorkspaceToolResourcePath(body)) {
+    return body
+  }
   if (isRelativeWorkspaceResourcePath(body)) {
     return body
   }
@@ -75,6 +84,7 @@ export function unwrapWorkspaceResourceToken(token: string, basePath = ''): stri
 export function parseWorkspacePromptSegments(text: string, basePath = ''): WorkspacePromptSegment[] {
   const source = String(text || '')
   const segments: WorkspacePromptSegment[] = []
+  const protectedRanges = getMarkdownCodeRanges(source)
   let cursor = 0
   let match: RegExpExecArray | null
 
@@ -83,6 +93,9 @@ export function parseWorkspacePromptSegments(text: string, basePath = ''): Works
     const raw = match[0]
     const start = match.index
     const end = start + raw.length
+    if (isEscapedResourceTokenStart(source, start) || isIndexInRanges(start, protectedRanges)) {
+      continue
+    }
     if (start > cursor) {
       segments.push({
         type: 'text',
@@ -139,6 +152,7 @@ export function renderWorkspaceResourceTokensAsHtml(text: string, basePath = '')
 
 export function workspaceResourceKind(pathOrToken: string): string {
   const path = normalizeWorkspaceResourcePath(pathOrToken)
+  if (isWorkspaceToolResourcePath(path)) return 'tool'
   const { pathPart } = splitWorkspacePathQuery(path)
   if (pathPart.endsWith('.table')) return 'table'
   if (pathPart.endsWith('.form')) return 'form'
@@ -153,7 +167,7 @@ function renderWorkspaceResourceToken(segment: WorkspacePromptSegment): string {
     return escapeHtml(segment.text)
   }
   const kind = workspaceResourceKind(path)
-  const href = resolveWorkspaceUrl(path)
+  const href = kind === 'tool' ? `#${path}` : resolveWorkspaceUrl(path)
   const label = workspaceResourceLabel(path)
   const typeLabel = workspaceResourceTypeLabel(kind)
   const iconSrc = workspaceResourceIconSrc(kind)
@@ -178,6 +192,9 @@ function renderWorkspaceResourceToken(segment: WorkspacePromptSegment): string {
 
 function workspaceResourceLabel(pathOrToken: string): string {
   const path = normalizeWorkspaceResourcePath(pathOrToken)
+  if (isWorkspaceToolResourcePath(path)) {
+    return workspaceToolName(path) || path
+  }
   const { pathPart } = splitWorkspacePathQuery(path)
   const tail = pathPart.split('/').filter(Boolean).pop()
   return tail || path || pathOrToken
@@ -193,6 +210,8 @@ function workspaceResourceTypeLabel(kind: string): string {
       return '图表'
     case 'docs':
       return '文档'
+    case 'tool':
+      return '内置工具'
     default:
       return '目录'
   }
@@ -235,6 +254,9 @@ export function workspaceResourceIconHtml(kind: string, typeLabel = ''): string 
       `<path d="M976 944H48c-26.496 0-48-21.44-48-48V128c0-26.496 21.504-48 48-48s48 21.504 48 48v720h880c26.496 0 48 21.504 48 48 0 26.56-21.504 48-48 48zM864 800h-96c-26.496 0-48-21.504-48-48V416c0-26.496 21.504-48 48-48h96c26.496 0 48 21.504 48 48v336c0 26.56-21.504 48-48 48z m-272 0h-96c-26.496 0-48-21.44-48-48V224c0-26.496 21.504-48 48-48h96c26.496 0 48 21.504 48 48v528c0 26.56-21.504 48-48 48z m-272 0h-96c-26.496 0-48-21.504-48-48v-96c0-26.496 21.504-48 48-48h96c26.496 0 48 21.504 48 48v96c0 26.56-21.504 48-48 48z" fill="#9377E0"></path>`,
       `</svg>`,
     ].join('')
+  }
+  if (kind === 'tool') {
+    return `<span class="workspace-resource-token__glyph workspace-resource-token__glyph--tool" aria-hidden="true"></span>`
   }
   return [
     `<svg class="workspace-resource-token__svg function-icon" viewBox="0 0 1024 1024" aria-hidden="true">`,
@@ -346,6 +368,37 @@ export async function copyTextToClipboard(text: string): Promise<void> {
   }
 }
 
+export function getWorkspaceResourceSelectionText(root: HTMLElement | null): string {
+  if (!root || typeof window === 'undefined' || typeof document === 'undefined') {
+    return ''
+  }
+  const selection = window.getSelection?.()
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    return ''
+  }
+
+  const fragments: DocumentFragment[] = []
+  let hasResourceToken = false
+  for (let index = 0; index < selection.rangeCount; index += 1) {
+    const range = selection.getRangeAt(index)
+    if (!rangeIntersectsNode(range, root)) continue
+    const fragment = range.cloneContents()
+    const links = Array.from(fragment.querySelectorAll<HTMLAnchorElement>('a.workspace-resource-token'))
+    if (links.length === 0) {
+      fragments.push(fragment)
+      continue
+    }
+    hasResourceToken = true
+    links.forEach((link) => {
+      link.replaceWith(document.createTextNode(getWorkspaceResourceTokenCopyText(link)))
+    })
+    fragments.push(fragment)
+  }
+
+  if (!hasResourceToken) return ''
+  return fragments.map(fragment => fragment.textContent || '').join('').trim()
+}
+
 function readBlockValue(lines: string[], key: string): string {
   const prefix = `${key}：`
   const line = lines.find((item) => item.trim().startsWith(prefix))
@@ -401,6 +454,131 @@ function stripWorkspaceResourceWrapper(value: string): string {
     return trimmed.slice(1, -1).trim()
   }
   return trimmed
+}
+
+function getWorkspaceResourceTokenCopyText(link: HTMLAnchorElement): string {
+  const path = link.dataset.fullCodePath || link.getAttribute('href')?.replace(/^#/, '') || ''
+  const token = wrapWorkspaceResourcePath(path)
+  return token || (link.textContent || '').trim()
+}
+
+function rangeIntersectsNode(range: Range, node: Node): boolean {
+  if (typeof range.intersectsNode === 'function') {
+    return range.intersectsNode(node)
+  }
+  return node.contains(range.commonAncestorContainer) || range.commonAncestorContainer.contains(node)
+}
+
+function getMarkdownCodeRanges(source: string): TextRange[] {
+  const ranges = getMarkdownFenceRanges(source)
+  ranges.push(...getMarkdownInlineCodeRanges(source, ranges))
+  ranges.sort((a, b) => a.start - b.start || a.end - b.end)
+  return ranges
+}
+
+function getMarkdownFenceRanges(source: string): TextRange[] {
+  const ranges: TextRange[] = []
+  let position = 0
+  let fenceStart = -1
+  let fenceMarker = ''
+  let fenceSize = 0
+
+  while (position < source.length) {
+    const lineStart = position
+    const newlineIndex = source.indexOf('\n', position)
+    const lineEnd = newlineIndex === -1 ? source.length : newlineIndex + 1
+    const lineText = source.slice(lineStart, newlineIndex === -1 ? lineEnd : newlineIndex)
+    const fenceMatch = lineText.match(/^[ \t]{0,3}(`{3,}|~{3,})/)
+    if (fenceMatch) {
+      const marker = fenceMatch[1] || ''
+      if (!marker) {
+        if (newlineIndex === -1) break
+        position = lineEnd
+        continue
+      }
+      const markerChar = marker.charAt(0)
+      const markerSize = marker.length
+      if (fenceStart < 0) {
+        fenceStart = lineStart
+        fenceMarker = markerChar
+        fenceSize = markerSize
+      } else if (markerChar === fenceMarker && markerSize >= fenceSize) {
+        ranges.push({ start: fenceStart, end: lineEnd })
+        fenceStart = -1
+        fenceMarker = ''
+        fenceSize = 0
+      }
+    }
+
+    if (newlineIndex === -1) break
+    position = lineEnd
+  }
+
+  if (fenceStart >= 0) {
+    ranges.push({ start: fenceStart, end: source.length })
+  }
+  return ranges
+}
+
+function getMarkdownInlineCodeRanges(source: string, fencedRanges: TextRange[]): TextRange[] {
+  const ranges: TextRange[] = []
+  let index = 0
+  while (index < source.length) {
+    if (isIndexInRanges(index, fencedRanges)) {
+      index += 1
+      continue
+    }
+    if (source[index] !== '`') {
+      index += 1
+      continue
+    }
+
+    const runLength = countBacktickRun(source, index)
+    const marker = '`'.repeat(runLength)
+    const closeIndex = source.indexOf(marker, index + runLength)
+    if (closeIndex < 0) {
+      index += runLength
+      continue
+    }
+    ranges.push({ start: index, end: closeIndex + runLength })
+    index = closeIndex + runLength
+  }
+  return ranges
+}
+
+function countBacktickRun(source: string, start: number): number {
+  let end = start
+  while (end < source.length && source[end] === '`') {
+    end += 1
+  }
+  return end - start
+}
+
+function isEscapedResourceTokenStart(source: string, start: number): boolean {
+  let slashCount = 0
+  for (let index = start - 1; index >= 0 && source[index] === '\\'; index -= 1) {
+    slashCount += 1
+  }
+  return slashCount % 2 === 1
+}
+
+function isIndexInRanges(index: number, ranges: TextRange[]): boolean {
+  return ranges.some(range => index >= range.start && index < range.end)
+}
+
+export function isWorkspaceToolResourcePath(path: string): boolean {
+  return String(path || '').trim().startsWith(TOOL_RESOURCE_PREFIX)
+}
+
+export function workspaceToolName(pathOrToken: string): string {
+  const body = stripWorkspaceResourceWrapper(pathOrToken)
+  if (!isWorkspaceToolResourcePath(body)) return ''
+  return body.slice(TOOL_RESOURCE_PREFIX.length).trim()
+}
+
+export function wrapWorkspaceToolName(name: string): string {
+  const normalized = String(name || '').trim()
+  return normalized ? `<${TOOL_RESOURCE_PREFIX}${normalized}>` : ''
 }
 
 function isRelativeWorkspaceResourcePath(path: string): boolean {

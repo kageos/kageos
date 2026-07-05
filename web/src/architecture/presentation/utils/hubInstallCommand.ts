@@ -5,7 +5,7 @@ export interface HubInstallInput {
   displaySource: string
 }
 
-const DEFAULT_HUB_REGISTRY = 'hub-api.kageos.com'
+const DEFAULT_HUB_REGISTRY = 'hub-api.kageos.ai'
 const DEFAULT_HUB_TAG = 'latest'
 
 export function tokenizeInstallCommand(command: string): string[] {

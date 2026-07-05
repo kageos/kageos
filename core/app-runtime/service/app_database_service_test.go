@@ -39,12 +39,12 @@ func TestAppDatabaseRuntimePrivilegesAreNonDestructive(t *testing.T) {
 }
 
 func TestAppDatabaseMigrationPrivilegesExcludeDeleteAndDrop(t *testing.T) {
-	for _, forbidden := range []string{"DELETE", "DROP", "TRUNCATE"} {
+	for _, forbidden := range []string{"DELETE", "DROP", "TRUNCATE", "REFERENCES"} {
 		if strings.Contains(appDBMigrationPrivileges, forbidden) {
 			t.Fatalf("migration privileges must not include %s: %s", forbidden, appDBMigrationPrivileges)
 		}
 	}
-	for _, required := range []string{"SELECT", "CREATE", "ALTER", "INDEX", "REFERENCES"} {
+	for _, required := range []string{"SELECT", "CREATE", "ALTER", "INDEX"} {
 		if !strings.Contains(appDBMigrationPrivileges, required) {
 			t.Fatalf("migration privileges missing %s: %s", required, appDBMigrationPrivileges)
 		}

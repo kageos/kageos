@@ -30,6 +30,10 @@ type OperateLog struct {
 	WorkspaceSessionID    string          `json:"workspace_session_id" gorm:"type:varchar(100);index;comment:工作台会话 ID"`
 	WorkspaceSessionTitle string          `json:"workspace_session_title" gorm:"type:varchar(255);comment:工作台会话标题"`
 	WorkspaceRole         string          `json:"workspace_role" gorm:"type:varchar(80);comment:工作台角色"`
+	InitiatorUser         string          `json:"initiator_user" gorm:"type:varchar(100);comment:发起/委托用户"`
+	WorkspaceMessageID    int64           `json:"workspace_message_id" gorm:"type:bigint;comment:发起该次执行的工作台消息 ID"`
+	ToolCallID            string          `json:"tool_call_id" gorm:"type:varchar(128);comment:工作台工具调用 ID"`
+	ToolName              string          `json:"tool_name" gorm:"type:varchar(128);comment:工作台工具名称"`
 	IPAddress             string          `json:"ip_address" gorm:"type:varchar(50);comment:IP 地址"`
 	UserAgent             string          `json:"user_agent" gorm:"type:varchar(500);comment:User Agent"`
 	TraceID               string          `json:"trace_id" gorm:"type:varchar(100);index;comment:追踪 ID"`

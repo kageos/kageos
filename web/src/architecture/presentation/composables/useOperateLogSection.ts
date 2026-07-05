@@ -41,6 +41,10 @@ type OperateLogEntry = {
   workspace_session_id?: string
   workspace_session_title?: string
   workspace_role?: string
+  initiator_user?: string
+  workspace_message_id?: number
+  tool_call_id?: string
+  tool_name?: string
 }
 
 interface OperateLogChangeEntry {
@@ -223,6 +227,9 @@ export function useOperateLogSection({
       if (log.request_user) {
         usernames.add(log.request_user)
       }
+      if (log.initiator_user) {
+        usernames.add(log.initiator_user)
+      }
     })
 
     if (usernames.size === 0) {
@@ -398,6 +405,10 @@ export function useOperateLogSection({
     workspace_session_id: log.workspace_session_id,
     workspace_session_title: log.workspace_session_title,
     workspace_role: log.workspace_role,
+    initiator_user: log.initiator_user,
+    workspace_message_id: log.workspace_message_id,
+    tool_call_id: log.tool_call_id,
+    tool_name: log.tool_name,
   })
 
   const readOperateLogRowId = (log: OperateLog): number => {
@@ -524,6 +535,13 @@ export function useOperateLogSection({
       default:
         return source
     }
+  }
+
+  const getLogSourceLabel = (log: OperateLogEntry): string => {
+    if (log.workspace_session_id && log.source === 'agent') {
+      return t('operateLog.sourceWorkspace')
+    }
+    return getSourceLabel(log.source)
   }
 
   const getSourceTagType = (source?: string): TagProps['type'] => {
@@ -859,13 +877,17 @@ export function useOperateLogSection({
     if (log.version) entries.push({ label: t('operateLog.version'), value: log.version })
     if (response?.error) entries.push({ label: t('operateLog.error'), value: String(response.error) })
     if (log.trace_id) entries.push({ label: 'Trace', value: log.trace_id })
-    if (log.source) entries.push({ label: t('operateLog.source'), value: getSourceLabel(log.source) })
+    if (log.initiator_user) entries.push({ label: t('operateLog.initiator'), value: log.initiator_user })
+    if (log.source) entries.push({ label: t('operateLog.source'), value: getLogSourceLabel(log) })
     if (log.executor_type) entries.push({ label: t('operateLog.executor'), value: getExecutorLabel(log.executor_type) })
     if (log.source_type) entries.push({ label: t('operateLog.sourceType'), value: log.source_type })
     if (log.source_ref) entries.push({ label: t('operateLog.sourceRef'), value: log.source_ref })
     if (log.workspace_session_id) {
       entries.push({ label: t('operateLog.workspaceSession'), value: log.workspace_session_title || log.workspace_session_id })
     }
+    if (log.workspace_message_id) entries.push({ label: t('operateLog.workspaceMessage'), value: String(log.workspace_message_id) })
+    if (log.tool_name) entries.push({ label: t('operateLog.toolName'), value: log.tool_name })
+    if (log.tool_call_id) entries.push({ label: t('operateLog.toolCall'), value: log.tool_call_id })
     if (log.ip_address) entries.push({ label: 'IP', value: log.ip_address })
     return entries
   }
@@ -1027,6 +1049,7 @@ export function useOperateLogSection({
     getActionTagType,
     getActionLabel,
     getSourceLabel,
+    getLogSourceLabel,
     getSourceTagType,
     getExecutorLabel,
     getExecutorTagType,

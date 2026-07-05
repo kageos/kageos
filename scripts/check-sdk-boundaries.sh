@@ -104,5 +104,12 @@ if [[ "$drift_status" -ne 0 ]]; then
   exit "$drift_status"
 fi
 
+if command -v go >/dev/null 2>&1 && [[ "${KAGEOS_SKIP_SDK_COMPILE:-}" != "1" ]]; then
+  (
+    cd "$SDK_ROOT"
+    go test ./pkg/apicall ./pkg/contextx ./pkg/functionschema ./pkg/msgx ./pkg/natsx ./pkg/scheduledsdk ./pkg/storage
+  )
+fi
+
 rm -f /tmp/kageos-sdk-drift.diff
 echo "SDK boundary and drift checks passed"

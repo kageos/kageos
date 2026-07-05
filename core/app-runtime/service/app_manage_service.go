@@ -776,16 +776,16 @@ func (s *AppManageService) ShutdownOldVersions(ctx context.Context, user, app st
 }
 
 // StartCleanupTask 启动定时清理任务
-// 进程级清理 + 容器级巡检合并为「一次完整清理」，在凌晨 4 点与有变动时执行（进程级在前、容器级在后）
+// 进程级清理 + 容器级巡检 + release 二进制清理合并为「一次完整清理」，在凌晨 4 点与有变动时执行。
 func (s *AppManageService) StartCleanupTask(ctx context.Context) {
 	const containerCleanupCronExpr = "0 4 * * *" // 每天凌晨 4 点（cron：分 时 日 月 周）
-	logger.Infof(ctx, "[CleanupTask] 启动定时清理 | 进程级+容器级=cron(%s)+有变动时 | 顺序=进程级→容器级 | 保留版本数=%d",
+	logger.Infof(ctx, "[CleanupTask] 启动定时清理 | 进程级+容器级+二进制=cron(%s)+有变动时 | 顺序=进程级→容器级→二进制 | 保留版本数=%d",
 		containerCleanupCronExpr, maxKeepVersions)
 
-	// 凌晨 4 点：先进程级（按当前版本停非当前），再容器级（保留最近 3 版本并删除多余）
+	// 凌晨 4 点：先进程级（按当前版本停非当前），再容器级（保留最近 3 版本并删除多余），最后裁剪旧二进制。
 	s.containerCleanupCron = cron.New(cron.WithLocation(time.Local))
 	_, err := s.containerCleanupCron.AddFunc(containerCleanupCronExpr, func() {
-		logger.Infof(ctx, "[CleanupTask] cron 触发 | 执行进程级清理 + 容器级巡检 + workplace(file-cache/output/uploads)清空")
+		logger.Infof(ctx, "[CleanupTask] cron 触发 | 执行进程级清理 + 容器级巡检 + release 二进制清理 + workplace(file-cache/output/uploads)清空")
 		s.runAllCleanups(ctx)
 		s.runWorkplaceTempCleanup(ctx)
 	})
@@ -795,7 +795,7 @@ func (s *AppManageService) StartCleanupTask(ctx context.Context) {
 		s.containerCleanupCron.Start()
 	}
 
-	// 每 1 分钟检查是否有“有变动”标记，有则执行一次完整清理（进程级+容器级）
+	// 每 1 分钟检查是否有“有变动”标记，有则执行一次完整清理（进程级+容器级+二进制）
 	s.containerCleanupTicker = time.NewTicker(1 * time.Minute)
 
 	go func() {
@@ -815,10 +815,11 @@ func (s *AppManageService) StartCleanupTask(ctx context.Context) {
 	}()
 }
 
-// runAllCleanups 执行一次完整清理：先进程级（按当前版本停非当前），再容器级（保留最近 3 版本并删除多余）
+// runAllCleanups 执行一次完整清理：先进程级（按当前版本停非当前），再容器级（保留最近 3 版本并删除多余），最后裁剪旧 release 二进制。
 func (s *AppManageService) runAllCleanups(ctx context.Context) {
 	s.performCleanup(ctx)        // 进程级：按 current_version 停掉非当前且无流量的版本
 	s.containerLevelCleanup(ctx) // 容器级：每应用保留最近 3 版本，其余 stop+remove
+	s.releaseBinaryCleanup(ctx)  // 文件级：每应用保留 current + 最近 3 个 release 二进制
 }
 
 // runWorkplaceTempCleanup 清空各应用 workplace 下的临时目录（全部删除，无需保留）
@@ -936,7 +937,7 @@ func (s *AppManageService) maybeRunContainerLevelCleanup(ctx context.Context) {
 		return
 	}
 
-	logger.Infof(ctx, "[CleanupTask] 检测到版本/容器变动，执行一次完整清理（进程级→容器级）")
+	logger.Infof(ctx, "[CleanupTask] 检测到版本/容器变动，执行一次完整清理（进程级→容器级→二进制）")
 	s.runAllCleanups(ctx)
 }
 
@@ -1461,7 +1462,7 @@ func (s *AppManageService) commitToGit(
 	// 3. 获取邮箱后缀（从配置读取）
 	emailSuffix := s.config.GetGitEmailSuffix()
 	if emailSuffix == "" {
-		emailSuffix = "kageos.com" // 默认后缀
+		emailSuffix = "kageos.ai" // 默认后缀
 	}
 
 	// 4. 构建邮箱：{user}@{email_suffix}

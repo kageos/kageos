@@ -50,6 +50,10 @@ type RequestAppReq struct {
 	WorkspaceSessionID    string           `json:"workspace_session_id,omitempty" swaggerignore:"true"`    // 工作台会话 ID
 	WorkspaceSessionTitle string           `json:"workspace_session_title,omitempty" swaggerignore:"true"` // 工作台会话标题
 	WorkspaceRole         string           `json:"workspace_role,omitempty" swaggerignore:"true"`          // 工作台角色
+	InitiatorUser         string           `json:"initiator_user,omitempty" swaggerignore:"true"`          // 发起/委托用户
+	WorkspaceMessageID    int64            `json:"workspace_message_id,omitempty" swaggerignore:"true"`    // 发起该次执行的工作台消息 ID
+	ToolCallID            string           `json:"tool_call_id,omitempty" swaggerignore:"true"`            // 工作台工具调用 ID
+	ToolName              string           `json:"tool_name,omitempty" swaggerignore:"true"`               // 工作台工具名称
 	DBCapability          *AppDBCapability `json:"db_capability,omitempty" swaggerignore:"true"`           // 内部数据库能力凭证，仅 SDK 私有使用
 	TargetRouter          string           `json:"target_router,omitempty" swaggerignore:"true"`           // 内部真实业务路由；callback 外层 router 为 /_callback 时用于能力签发
 	User                  string           `json:"user" binding:"required" example:"beiluo"`               // 租户用户名（应用所有者）

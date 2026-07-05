@@ -18,7 +18,7 @@
               <el-icon v-else :size="12" color="#67c23a">
                 <CircleCheck />
               </el-icon>
-              <span>执行过程 {{ getActivityGroupRoundCount(msg) }} 轮</span>
+              <span>执行过程 {{ getActivityGroupProcessLabel(msg) }}</span>
             </span>
             <span class="mini-activity-tools">{{ getActivityGroupToolSummary(msg) }}</span>
             <span v-if="getActivityGroupThinkingPreview(msg)" class="mini-activity-thinking-preview">
@@ -90,7 +90,16 @@
             :archive-download="false"
             class="mini-msg-files"
           />
-          <span>{{ msg.content }}</span>
+          <div
+            v-if="msg.content"
+            class="mini-content-block mini-md-content"
+            v-html="renderWorkbenchMarkdown(msg.content)"
+            @mouseover="showResourcePreviewFromEvent"
+            @focusin="showResourcePreviewFromEvent"
+            @focusout="scheduleCloseResourcePreview"
+            @mouseleave="scheduleCloseResourcePreview"
+            @copy="onWorkspaceMarkdownCopy"
+          ></div>
         </div>
       </div>
       <template v-else>
@@ -135,7 +144,7 @@
                 <el-icon v-else :size="12" color="#67c23a">
                   <CircleCheck />
                 </el-icon>
-                <span>执行过程 {{ getActivityGroupRoundCount(msg) }} 轮</span>
+                <span>执行过程 {{ getActivityGroupProcessLabel(msg) }}</span>
               </span>
               <span class="mini-activity-tools">{{ getActivityGroupToolSummary(msg) }}</span>
               <span v-if="getActivityGroupThinkingPreview(msg)" class="mini-activity-thinking-preview">
@@ -201,6 +210,11 @@
               v-if="block.type === 'content'"
               class="mini-content-block mini-md-content"
               v-html="renderContentBlock(block.text, getDisplayMessageIndex(msg, i), bi, getRenderBlocksForMessage(msg).length)"
+              @mouseover="showResourcePreviewFromEvent"
+              @focusin="showResourcePreviewFromEvent"
+              @focusout="scheduleCloseResourcePreview"
+              @mouseleave="scheduleCloseResourcePreview"
+              @copy="onWorkspaceMarkdownCopy"
             ></div>
             <details
               v-else-if="block.type === 'thinking'"
@@ -297,7 +311,12 @@
           <div
             v-if="msg.content"
             class="mini-msg-assistant mini-content-block mini-md-content"
-            v-html="renderMarkdown(msg.content)"
+            v-html="renderWorkbenchMarkdown(msg.content)"
+            @mouseover="showResourcePreviewFromEvent"
+            @focusin="showResourcePreviewFromEvent"
+            @focusout="scheduleCloseResourcePreview"
+            @mouseleave="scheduleCloseResourcePreview"
+            @copy="onWorkspaceMarkdownCopy"
           ></div>
           <template v-if="maximized && msg.tool_calls?.length">
             <MessageToolCalls
@@ -380,6 +399,15 @@
   <div v-else class="mini-ws-empty">
     <span>{{ t('miniWorkstation.startByCommand') }}</span>
   </div>
+  <WorkspaceResourceHoverCard
+    :preview="resourcePreview"
+    @mouseenter="cancelCloseResourcePreview"
+    @mouseleave="scheduleCloseResourcePreview"
+    @focusin="cancelCloseResourcePreview"
+    @focusout="scheduleCloseResourcePreview"
+    @open="openResourcePreviewTarget"
+    @close="closeResourcePreview"
+  />
 </template>
 
 <script setup lang="ts">
@@ -397,18 +425,29 @@ import PrdPreview from './PrdPreview.vue'
 import BuildWorkspaceDiagnosticsCard from './BuildWorkspaceDiagnosticsCard.vue'
 import MiniWorkstationPendingActionBar from './MiniWorkstationPendingActionBar.vue'
 import MiniWorkstationResourceIdentity from './MiniWorkstationResourceIdentity.vue'
+import WorkspaceResourceHoverCard from './WorkspaceResourceHoverCard.vue'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
+import { useWorkspaceResourceHoverPreview } from '@/architecture/presentation/composables/useWorkspaceResourceHoverPreview'
 import type { WorkspaceInteraction } from '@/architecture/presentation/context/api/workspace'
 import {
   getVisibleWorkspaceToolCalls,
   getWorkspaceToolCallDisplayName
 } from '@/architecture/presentation/utils/workspaceRoleDisplay'
+import { getWorkspaceResourceSelectionText, renderWorkspaceResourceTokensAsHtml } from './utils/workspaceInvocationSnippet'
 
 const { t } = useI18n()
 
 const authStore = useAuthStore()
 const currentUsername = authStore.user?.username || authStore.userName || ''
+const {
+  resourcePreview,
+  showResourcePreviewFromEvent,
+  scheduleCloseResourcePreview,
+  cancelCloseResourcePreview,
+  closeResourcePreview,
+  openResourcePreviewTarget,
+} = useWorkspaceResourceHoverPreview()
 
 const props = withDefaults(defineProps<{
   messages: ChatMessage[]
@@ -712,7 +751,19 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
     msgIndex === props.messages.length - 1 &&
     blockIndex === blockCount - 1
 
-  return props.renderMarkdown(isStreamingTail ? text.slice(0, props.streamingDisplayLength) : text)
+  return renderWorkbenchMarkdown(isStreamingTail ? text.slice(0, props.streamingDisplayLength) : text)
+}
+
+function renderWorkbenchMarkdown(text: string): string {
+  return props.renderMarkdown(renderWorkspaceResourceTokensAsHtml(text, props.fullCodePath))
+}
+
+function onWorkspaceMarkdownCopy(event: ClipboardEvent) {
+  const root = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const text = getWorkspaceResourceSelectionText(root)
+  if (!text) return
+  event.preventDefault()
+  event.clipboardData?.setData('text/plain', text)
 }
 
 function getPrdCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
@@ -727,12 +778,19 @@ function getToolDisplayName(call: ChatMessageToolCall): string {
   return getWorkspaceToolCallDisplayName(call)
 }
 
-function getActivityGroupRoundCount(message: MiniDisplayMessage): number {
-  return getActivityEntriesForMessage(message).length
-}
-
 function getActivityGroupToolCalls(message: MiniDisplayMessage): ChatMessageToolCall[] {
   return getActivityEntriesForMessage(message).flatMap((entry) => getAllToolCallsFromMessage(entry.message))
+}
+
+function getActivityGroupVisibleToolCount(message: MiniDisplayMessage): number {
+  return getVisibleToolCallsFromCalls(getActivityGroupToolCalls(message)).length
+}
+
+function getActivityGroupProcessLabel(message: MiniDisplayMessage): string {
+  const toolCount = getActivityGroupVisibleToolCount(message)
+  if (toolCount > 0) return `${toolCount} 个工具`
+  const stepCount = Math.max(1, getActivityEntriesForMessage(message).length)
+  return `${stepCount} 段`
 }
 
 function getActivityGroupErrorCount(message: MiniDisplayMessage): number {
@@ -807,7 +865,8 @@ function compactThinkingPreview(text: string): string {
 
 function getActivityEntryToolSummary(message: ChatMessage): string {
   const calls = getAllToolCallsFromMessage(message)
-  if (calls.length) return summarizeToolCalls(calls, 3)
+  const visible = getVisibleToolCallsFromCalls(calls)
+  if (visible.length) return `工具 ${visible.length} 个 · ${summarizeToolCalls(calls, 3)}`
   if (getThinkingBlocksFromMessage(message).length > 0) return '思考'
   return '模型上下文'
 }
@@ -828,8 +887,8 @@ function summarizeToolCalls(calls: ChatMessageToolCall[], maxItems: number): str
 
 function getActivityEntryRoundLabel(entry: ActivityEntry): string {
   const round = entry.message.model_context_plan?.round
-  if (typeof round === 'number') return `第 ${round + 1} 轮`
-  return `第 ${entry.index + 1} 条`
+  if (typeof round === 'number') return `模型第 ${round + 1} 轮`
+  return `消息第 ${entry.index + 1} 条`
 }
 
 function getBuildWorkspaceFailureCallsFromCalls(calls: ChatMessageToolCall[]): ChatMessageToolCall[] {
@@ -970,6 +1029,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  closeResourcePreview()
   if (assistantTimerInterval != null) clearInterval(assistantTimerInterval)
 })
 </script>
@@ -1385,6 +1445,78 @@ onBeforeUnmount(() => {
 .mini-msg--maximized .mini-md-content :deep(img) {
   max-width: min(100%, 460px);
   max-height: 300px;
+}
+.mini-md-content :deep(.workspace-resource-token) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  vertical-align: baseline;
+  padding: 1px 7px 1px 5px;
+  margin: 0 1px;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.22);
+  border-radius: 7px;
+  background: rgba(var(--color-primary-rgb), 0.08);
+  color: var(--text-primary);
+  font-size: 0.92em;
+  font-weight: 600;
+  line-height: 1.55;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.mini-md-content :deep(.workspace-resource-token:hover),
+.mini-md-content :deep(.workspace-resource-token:focus-visible) {
+  border-color: rgba(var(--color-primary-rgb), 0.44);
+  background: rgba(var(--color-primary-rgb), 0.13);
+  color: var(--color-primary);
+  outline: none;
+  text-decoration: none;
+}
+.mini-md-content :deep(.workspace-resource-token__icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  line-height: 1;
+}
+.mini-md-content :deep(.workspace-resource-token__img),
+.mini-md-content :deep(.workspace-resource-token__svg),
+.mini-md-content :deep(.workspace-resource-token__glyph) {
+  display: block;
+  width: 16px;
+  height: 16px;
+  max-width: 16px;
+  max-height: 16px;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  object-fit: contain;
+}
+.mini-md-content :deep(.workspace-resource-token__glyph) {
+  border-radius: 5px;
+  background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.95), rgba(var(--color-primary-rgb), 0.58));
+  position: relative;
+}
+.mini-md-content :deep(.workspace-resource-token__glyph::after) {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+}
+.mini-md-content :deep(.workspace-resource-token__label) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mini-md-content :deep(.workspace-resource-token__type) {
+  color: var(--text-secondary);
+  font-size: 0.82em;
+  font-weight: 700;
 }
 .mini-md-content :deep(hr) {
   border: none;

@@ -33,7 +33,18 @@ export interface ChatMessageFile {
 }
 
 /** 单条 assistant 消息内的工具调用项（与 ChatMessage.tool_calls 元素同构） */
-export type ChatMessageToolCall = { name: string; status: string; arguments?: string; result?: string; result_data?: unknown; metadata?: ToolResultMetadata; error?: string }
+export type ChatMessageToolCall = {
+  id?: string
+  index?: number
+  round?: number
+  name: string
+  status: string
+  arguments?: string
+  result?: string
+  result_data?: unknown
+  metadata?: ToolResultMetadata
+  error?: string
+}
 
 /** assistant 消息内的块：按事件顺序排列，用于「文本 → 工具调用 → 文本 → …」的层次展示 */
 export type AssistantBlock =
@@ -65,6 +76,11 @@ export interface ChatMessage {
 
 export type StreamEventHandler = WorkspaceChatStreamOnEvent
 
+interface ActiveStreamRun {
+  epoch: number
+  assistantIndex: number
+}
+
 /** 流式时「已显示字符数」，用于打字机平滑（兼容端大块吐出时不再一卡一卡）；调小更丝滑、调大更快追上 */
 export const SMOOTH_CHARS_PER_TICK = 5
 export const SMOOTH_TICK_MS = 22
@@ -91,6 +107,8 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
   /** 流式时最后一条 assistant 的最后一个 content 块「已显示字符数」，定时器追赶真实长度，实现打字机平滑 */
   const streamingDisplayLength = ref(0)
   let smoothTimer: ReturnType<typeof setInterval> | null = null
+  let streamEpoch = 0
+  let activeStreamRun: ActiveStreamRun | null = null
 
   function stopSmoothTimer() {
     if (smoothTimer != null) {
@@ -179,7 +197,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
    */
   function rebuildAllToolCallsBlocks(blocks: AssistantBlock[], list: ChatMessageToolCall[]): AssistantBlock[] {
     let offset = 0
-    return blocks.map((block) => {
+    const nextBlocks = blocks.map((block) => {
       if (block.type === 'tool_calls') {
         const count = block.calls.length
         const updated = list.slice(offset, offset + count)
@@ -188,9 +206,74 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       }
       return block
     })
+    if (offset < list.length) {
+      nextBlocks.push({ type: 'tool_calls' as const, calls: list.slice(offset) })
+    }
+    return nextBlocks
+  }
+
+  function findToolCallIndex(list: ChatMessageToolCall[], id?: string, round?: number, index?: number): number {
+    const normalizedID = String(id || '').trim()
+    if (normalizedID) {
+      const byID = list.findIndex((call) => String(call.id || '').trim() === normalizedID)
+      if (byID >= 0) return byID
+    }
+    if (typeof round === 'number' && typeof index === 'number') {
+      return list.findIndex((call) => call.round === round && call.index === index)
+    }
+    return -1
+  }
+
+  function mergeToolCallUpdate(
+    list: ChatMessageToolCall[],
+    update: Partial<ChatMessageToolCall> & { delta?: string }
+  ): ChatMessageToolCall[] {
+    const next = list.map((call) => ({ ...call }))
+    const foundIndex = findToolCallIndex(next, update.id, update.round, update.index)
+    const slotIndex = foundIndex >= 0 ? foundIndex : next.length
+    const existing = next[slotIndex]
+    const merged: ChatMessageToolCall = {
+      ...(existing || { name: '', status: 'streaming', arguments: '' }),
+      name: update.name ?? existing?.name ?? '',
+      status: update.status ?? existing?.status ?? 'streaming',
+      arguments: update.delta != null
+        ? `${existing?.arguments || ''}${update.delta}`
+        : update.arguments ?? existing?.arguments,
+    }
+    if (update.id !== undefined) merged.id = update.id
+    if (update.index !== undefined) merged.index = update.index
+    if (update.round !== undefined) merged.round = update.round
+    if (update.result !== undefined) merged.result = update.result
+    if (update.result_data !== undefined) merged.result_data = update.result_data
+    if (update.metadata !== undefined) merged.metadata = update.metadata
+    if (update.error !== undefined) merged.error = update.error
+    next[slotIndex] = merged
+    return next
+  }
+
+  function invalidateActiveStream() {
+    streamEpoch += 1
+    activeStreamRun = null
+  }
+
+  function isActiveStreamRun(run: ActiveStreamRun): boolean {
+    return activeStreamRun === run && run.epoch === streamEpoch
   }
 
   function handleEvent(event: WorkspaceStreamEventName, data: WorkspaceStreamPayload) {
+    return applyEventToAssistant(messages.value.length - 1, event, data)
+  }
+
+  function handleStreamEvent(run: ActiveStreamRun, event: WorkspaceStreamEventName, data: WorkspaceStreamPayload) {
+    if (!isActiveStreamRun(run)) return false
+    const accepted = applyEventToAssistant(run.assistantIndex, event, data)
+    if (accepted && (event === 'done' || event === 'error') && activeStreamRun === run) {
+      activeStreamRun = null
+    }
+    return accepted
+  }
+
+  function applyEventToAssistant(targetIdx: number, event: WorkspaceStreamEventName, data: WorkspaceStreamPayload): boolean {
     if (event === 'session') {
       const payload = data as WorkspaceStreamSessionPayload
       if (typeof payload.session_id === 'string') {
@@ -198,14 +281,13 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       }
     }
 
-    const lastIdx = messages.value.length - 1
-    const m = messages.value[lastIdx]
-    if (!m || m.role !== 'assistant') return
+    const m = messages.value[targetIdx]
+    if (!m || m.role !== 'assistant') return false
 
     if (event === 'model_context_plan') {
       const payload = data as WorkspaceModelContextPlan
       if (isWorkspaceModelContextPlan(payload)) {
-        messages.value[lastIdx] = {
+        messages.value[targetIdx] = {
           ...m,
           model_context_plan: payload,
           model_context_plans: upsertWorkspaceModelContextPlan(m.model_context_plans, payload)
@@ -216,43 +298,25 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     if (event === 'tool_calls_stream_delta') {
       const payload = data as WorkspaceStreamToolCallsDeltaPayload
       const updates = Array.isArray(payload.updates) ? payload.updates : []
-      if (updates.length === 0) return
+      if (updates.length === 0) return true
       const blocks = m.blocks ?? []
-      const prev = m.tool_calls || []
-
-      let completedCount = 0
-      for (const t of prev) {
-        if (t.status === 'ok' || t.status === 'error') completedCount++
-        else break
-      }
-      const completedCalls = prev.slice(0, completedCount)
-      const currentRoundPrev = prev.slice(completedCount)
+      let list = m.tool_calls || []
 
       for (const u of updates) {
         const idx = typeof u.index === 'number' ? u.index : 0
+        const round = typeof u.round === 'number' ? u.round : undefined
+        const id = typeof u.id === 'string' ? u.id : undefined
         const delta = typeof u.delta === 'string' ? u.delta : ''
-        const name = typeof u.name === 'string' ? u.name : ''
-
-        while (currentRoundPrev.length <= idx) {
-          currentRoundPrev.push({ name: '', status: 'streaming', arguments: '' })
-        }
-        let slot = currentRoundPrev[idx]
-        if (!slot) {
-          slot = { name: '', status: 'streaming', arguments: '' }
-          currentRoundPrev[idx] = slot
-        }
-        if (name) slot.name = name
-        slot.arguments = (slot.arguments || '') + delta
-        slot.status = 'streaming'
+        const name = typeof u.name === 'string' && u.name ? u.name : undefined
+        list = mergeToolCallUpdate(list, { id, index: idx, round, name, delta, status: 'streaming' })
       }
 
-      const list = [...completedCalls, ...currentRoundPrev]
       const nextBlocks = updateToolCallsBlocks(blocks, list)
-      messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
+      messages.value[targetIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
     }
     if (event === 'tool_call') {
       const payload = data as WorkspaceStreamToolCallPayload
-      if (typeof payload.name !== 'string') return
+      if (typeof payload.name !== 'string') return true
       const status = String(payload.status || 'ok')
       const argumentsStr = (typeof payload.arguments === 'string' && payload.arguments.trim()) ? payload.arguments : undefined
       const resultStr = typeof payload.result === 'string' ? payload.result : undefined
@@ -261,41 +325,47 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       const errorStr = typeof payload.error === 'string' ? payload.error : undefined
       const blocks = m.blocks ?? []
       const prev = m.tool_calls || []
-      const pendingIndex = prev.findIndex((t) => t.status === 'streaming' || t.status === 'running')
-      const list: ChatMessageToolCall[] =
-        pendingIndex >= 0
-          ? prev.map((t, i) =>
-              i === pendingIndex
-                ? { name: payload.name, status, arguments: argumentsStr ?? t.arguments, result: resultStr ?? t.result, result_data: resultData ?? t.result_data, metadata: metadata ?? t.metadata, error: errorStr ?? t.error }
-                : t
-            )
-          : [...prev, { name: payload.name, status, arguments: argumentsStr, result: resultStr, result_data: resultData, metadata, error: errorStr }]
+      const id = typeof payload.id === 'string' ? payload.id : undefined
+      const index = typeof payload.index === 'number' ? payload.index : undefined
+      const round = typeof payload.round === 'number' ? payload.round : undefined
+      const list = mergeToolCallUpdate(prev, {
+        id,
+        index,
+        round,
+        name: payload.name,
+        status,
+        arguments: argumentsStr,
+        result: resultStr,
+        result_data: resultData,
+        metadata,
+        error: errorStr
+      })
       const nextBlocks = updateLastToolCallsBlock(blocks, list)
-      messages.value[lastIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
+      messages.value[targetIdx] = { ...m, tool_calls: list, blocks: nextBlocks }
     }
     if (event === 'thinking') {
       const payload = data as WorkspaceStreamThinkingPayload
-      if (typeof payload.content !== 'string' || payload.content === '') return
+      if (typeof payload.content !== 'string' || payload.content === '') return true
       const blocks = m.blocks ?? []
       const last = blocks[blocks.length - 1]
       if (last && last.type === 'thinking') {
         const next = [...blocks.slice(0, -1), { type: 'thinking' as const, text: last.text + payload.content }]
-        messages.value[lastIdx] = { ...m, blocks: next }
+        messages.value[targetIdx] = { ...m, blocks: next }
       } else {
-        messages.value[lastIdx] = { ...m, blocks: [...blocks, { type: 'thinking', text: payload.content }] }
+        messages.value[targetIdx] = { ...m, blocks: [...blocks, { type: 'thinking', text: payload.content }] }
       }
     }
     if (event === 'content') {
       const payload = data as WorkspaceStreamContentPayload
-      if (typeof payload.content !== 'string') return
+      if (typeof payload.content !== 'string') return true
       const blocks = m.blocks ?? []
       const last = blocks[blocks.length - 1]
       const newContent = m.content + payload.content
       if (last && last.type === 'content') {
         const next = [...blocks.slice(0, -1), { type: 'content' as const, text: last.text + payload.content }]
-        messages.value[lastIdx] = { ...m, content: newContent, blocks: next }
+        messages.value[targetIdx] = { ...m, content: newContent, blocks: next }
       } else {
-        messages.value[lastIdx] = { ...m, content: newContent, blocks: [...blocks, { type: 'content', text: payload.content }] }
+        messages.value[targetIdx] = { ...m, content: newContent, blocks: [...blocks, { type: 'content', text: payload.content }] }
       }
     }
     if (event === 'done') {
@@ -305,30 +375,29 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       if (Array.isArray(payload.tool_calls)) {
         const doneList = payload.tool_calls as ChatMessageToolCall[]
         const prev = m.tool_calls || []
-        const merged = prev.map((t, i) => {
-          const dc = doneList[i]
-          if (!dc) return t
-          return {
-            ...t,
-            ...dc,
-            arguments: dc.arguments ?? t.arguments,
-            result: dc.result ?? t.result,
-            result_data: dc.result_data ?? t.result_data,
-            error: dc.error ?? t.error
-          }
-        })
-        if (doneList.length > prev.length) {
-          for (let i = prev.length; i < doneList.length; i++) {
-            const nextCall = doneList[i]
-            if (nextCall) merged.push({ ...nextCall })
+        const merged = prev.map((call) => ({ ...call }))
+        for (const doneCall of doneList) {
+          const foundIndex = findToolCallIndex(merged, doneCall.id, doneCall.round, doneCall.index)
+          if (foundIndex >= 0) {
+            const current = merged[foundIndex] || { name: doneCall.name || '', status: doneCall.status || 'ok' }
+            merged[foundIndex] = {
+              ...current,
+              ...doneCall,
+              arguments: doneCall.arguments ?? current.arguments,
+              result: doneCall.result ?? current.result,
+              result_data: doneCall.result_data ?? current.result_data,
+              error: doneCall.error ?? current.error
+            }
+          } else {
+            merged.push({ ...doneCall })
           }
         }
         const blocks = m.blocks ?? []
         // 保留现有 block 结构，只更新每个 tool_calls block 的数据
         const nextBlocks = rebuildAllToolCallsBlocks(blocks, merged)
-        messages.value[lastIdx] = { ...m, ...llmMeta, tool_calls: merged, blocks: nextBlocks }
+        messages.value[targetIdx] = { ...m, ...llmMeta, tool_calls: merged, blocks: nextBlocks }
       } else {
-        messages.value[lastIdx] = { ...m, ...llmMeta }
+        messages.value[targetIdx] = { ...m, ...llmMeta }
       }
     }
     if (event === 'error') {
@@ -338,7 +407,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
       if (isCancelled) {
         const hint = '⏹ 任务已停止'
         const blocks = m.blocks ?? []
-        messages.value[lastIdx] = { ...m, blocks: [...blocks, { type: 'content' as const, text: hint }] }
+        messages.value[targetIdx] = { ...m, blocks: [...blocks, { type: 'content' as const, text: hint }] }
       } else {
         const blocks = m.blocks ?? []
         const last = blocks[blocks.length - 1]
@@ -346,10 +415,11 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
           last && last.type === 'content'
             ? [...blocks.slice(0, -1), { type: 'content' as const, text: last.text + (m.content ? '\n\n' : '') + rawErr }]
             : [...blocks, { type: 'content' as const, text: rawErr }]
-        messages.value[lastIdx] = { ...m, content: m.content || rawErr, blocks: nextBlocks }
+        messages.value[targetIdx] = { ...m, content: m.content || rawErr, blocks: nextBlocks }
       }
       sending.value = false
     }
+    return true
   }
 
   function extractLLMMetadata(data: WorkspaceStreamDonePayload, message?: ChatMessage): Partial<ChatMessage> {
@@ -409,9 +479,15 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     messages.value.push({ role: 'assistant', user: currentUser, content: '', tool_calls: [], blocks: [], created_at: now })
     sending.value = true
     const idx = messages.value.length - 1
+    const run: ActiveStreamRun = {
+      epoch: streamEpoch,
+      assistantIndex: idx
+    }
+    activeStreamRun = run
     try {
-      await streamFn(handleEvent)
+      await streamFn((event, data) => handleStreamEvent(run, event, data))
     } catch (e: unknown) {
+      if (!isActiveStreamRun(run)) return
       const errMsg = e instanceof Error ? e.message : String(e)
       const isCancelled = /context canceled|cancelled|abort/i.test(errMsg)
       if (!isCancelled) {
@@ -422,11 +498,15 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
         }
       }
     } finally {
-      sending.value = false
+      if (isActiveStreamRun(run)) {
+        activeStreamRun = null
+        sending.value = false
+      }
     }
   }
 
   function setMessages(msgs: ChatMessage[]) {
+    invalidateActiveStream()
     messages.value = msgs
   }
 

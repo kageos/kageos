@@ -142,6 +142,27 @@
                   />
                 </el-form-item>
 
+                <el-form-item :label="t('scheduledTask.agentModel')">
+                  <el-select
+                    :model-value="inlineForm.llm_config_id"
+                    filterable
+                    :placeholder="t('scheduledTask.defaultModel')"
+                    :loading="llmLoading"
+                    style="width: 100%"
+                    @update:model-value="setInlineLLMConfigID"
+                    @visible-change="handleLLMSelectVisibleChange"
+                  >
+                    <el-option :label="t('scheduledTask.defaultModel')" :value="0" />
+                    <el-option
+                      v-for="llm in llmList"
+                      :key="llm.id"
+                      :label="llmOptionLabel(llm)"
+                      :value="llm.id"
+                    />
+                  </el-select>
+                  <div class="detail-inline-hint">{{ t('scheduledTask.agentModelHint') }}</div>
+                </el-form-item>
+
                 <el-form-item :label="t('scheduledTask.agentMessage')" required>
                   <div
                     class="detail-inline-composer"
@@ -205,18 +226,15 @@
                     </div>
                   </div>
                   <div class="detail-message-body">
-                    <StructuredPromptComposer
-                      v-if="getAgentMessage(selectedTask)"
-                      class="detail-message-preview"
-                      :model-value="getAgentMessage(selectedTask)"
-                      :placeholder="t('scheduledTask.noMessage')"
-                      :disabled="true"
-                      :show-toolbar="false"
-                      :enable-mentions="false"
-                      :readonly-preview="true"
-                      :min-rows="8"
-                      :max-rows="28"
-                      :full-code-path="getTaskWorkspacePath(selectedTask)"
+                    <div
+                      v-if="getAgentDisplayMessage(selectedTask)"
+                      class="detail-message-markdown"
+                      v-html="renderAgentMessageMarkdown(selectedTask)"
+                      @mouseover="showResourcePreviewFromEvent"
+                      @focusin="showResourcePreviewFromEvent"
+                      @focusout="scheduleCloseResourcePreview"
+                      @mouseleave="scheduleCloseResourcePreview"
+                      @copy="onAgentMessageMarkdownCopy"
                     />
                     <div v-else class="detail-message-empty">
                       {{ t('scheduledTask.noMessage') }}
@@ -430,6 +448,10 @@
                     <strong>{{ selectedTask.run_count || 0 }}</strong>
                   </div>
                   <div class="detail-property">
+                    <span>{{ t('scheduledTask.agentModel') }}</span>
+                    <strong>{{ getTaskLLMConfigLabel(selectedTask) }}</strong>
+                  </div>
+                  <div class="detail-property">
                     <span>{{ t('scheduledTask.createdBy') }}</span>
                     <strong>{{ selectedTask.created_by || selectedTask.request_user || '-' }}</strong>
                   </div>
@@ -490,11 +512,21 @@
       @success="handleCreated"
     />
 
+    <WorkspaceResourceHoverCard
+      :preview="resourcePreview"
+      @mouseenter="cancelCloseResourcePreview"
+      @mouseleave="scheduleCloseResourcePreview"
+      @focusin="cancelCloseResourcePreview"
+      @focusout="scheduleCloseResourcePreview"
+      @open="openScheduledResourcePreviewTarget"
+      @close="closeResourcePreview"
+    />
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -528,12 +560,19 @@ import {
 import { buildScheduledExecutionRoute } from '@/architecture/shared/routing/platformRouteParams'
 import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
-import StructuredPromptComposer from './StructuredPromptComposer.vue'
+import WorkspaceResourceHoverCard from './WorkspaceResourceHoverCard.vue'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import { createRelativeDateTimeShortcuts } from '@/architecture/shared/date'
 import { useMiniWorkstationUploads } from '@/architecture/presentation/composables/useMiniWorkstationUploads'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
 import { fileNameFromRef, parseFileRefs, stringifyFileRefs } from '@/architecture/presentation/widgets/filesWidgetTypes'
+import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
+import {
+  getWorkspaceResourceSelectionText,
+  renderWorkspaceResourceTokensAsHtml
+} from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
+import { useLLMConfigOptions } from '@/architecture/presentation/composables/useLLMConfigOptions'
+import { useWorkspaceResourceHoverPreview } from '@/architecture/presentation/composables/useWorkspaceResourceHoverPreview'
 
 interface ExecutionState {
   loading: boolean
@@ -551,6 +590,7 @@ interface InlineScheduledAgentForm extends TimerScheduleForm {
   description: string
   message: string
   files: string
+  llm_config_id: number
 }
 
 const props = withDefaults(defineProps<{
@@ -572,6 +612,24 @@ const emit = defineEmits<{
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const {
+  resourcePreview,
+  showResourcePreviewFromEvent,
+  scheduleCloseResourcePreview,
+  cancelCloseResourcePreview,
+  closeResourcePreview,
+  openResourcePreviewTarget,
+} = useWorkspaceResourceHoverPreview()
+const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
+void preloadMarkdown()
+const {
+  llmList,
+  llmLoading,
+  loadLLMOptions,
+  handleLLMSelectVisibleChange,
+  llmConfigLabel,
+  llmOptionLabel,
+} = useLLMConfigOptions()
 const loading = ref(false)
 const list = ref<TimerTask[]>([])
 const total = ref(0)
@@ -595,6 +653,7 @@ const inlineForm = reactive<InlineScheduledAgentForm>({
   description: '',
   message: '',
   files: '',
+  llm_config_id: 0,
   ...createDefaultTimerScheduleForm(),
 })
 const inlineMessageInputRef = ref<{ focus: () => void }>()
@@ -850,6 +909,26 @@ function getAgentPayload(task?: TimerTask | null): Record<string, unknown> {
     : {}
 }
 
+function numberFromUnknown(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+function getTaskLLMConfigID(task?: TimerTask | null): number {
+  const id = numberFromUnknown(getAgentPayload(task).llm_config_id)
+  return id > 0 ? id : 0
+}
+
+function getTaskLLMConfigLabel(task?: TimerTask | null): string {
+  return llmConfigLabel(getTaskLLMConfigID(task), t('scheduledTask.defaultModel'))
+}
+
 function getTaskFileRefs(task?: TimerTask | null): string[] {
   const payload = getAgentPayload(task)
   return parsePayloadFileRefs(payload.files)
@@ -895,6 +974,33 @@ function getAgentMessage(task?: TimerTask | null): string {
   return ''
 }
 
+function getAgentDisplayMessage(task?: TimerTask | null): string {
+  const payload = getAgentPayload(task)
+  const value = payload.display_content
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim()
+  }
+  return getAgentMessage(task)
+}
+
+function renderAgentMessageMarkdown(task?: TimerTask | null): string {
+  const message = getAgentDisplayMessage(task)
+  if (!message) return ''
+  return renderMarkdown(renderWorkspaceResourceTokensAsHtml(message, getTaskWorkspacePath(task)))
+}
+
+function onAgentMessageMarkdownCopy(event: ClipboardEvent) {
+  const root = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const text = getWorkspaceResourceSelectionText(root)
+  if (!text) return
+  event.preventDefault()
+  event.clipboardData?.setData('text/plain', text)
+}
+
+function openScheduledResourcePreviewTarget() {
+  openResourcePreviewTarget(router)
+}
+
 function getTaskDescription(task?: TimerTask | null): string {
   return (task?.description || '').trim()
 }
@@ -906,7 +1012,7 @@ function compactText(value: string, fallback: string): string {
 }
 
 function getTaskSummary(task?: TimerTask | null): string {
-  return compactText(getTaskDescription(task) || getAgentMessage(task), t('scheduledTask.noDescription'))
+  return compactText(getTaskDescription(task) || getAgentDisplayMessage(task), t('scheduledTask.noDescription'))
 }
 
 function applyInlineScheduleForm(scheduleForm: TimerScheduleForm) {
@@ -925,6 +1031,10 @@ function resetInlineForm(task: TimerTask) {
   inlineForm.description = getTaskDescription(task)
   inlineForm.message = getAgentMessage(task)
   inlineForm.files = stringifyFileRefs(fileRefs)
+  inlineForm.llm_config_id = getTaskLLMConfigID(task)
+  if (inlineForm.llm_config_id > 0) {
+    void loadLLMOptions()
+  }
   existingFileRefs.value = fileRefs
   attachedFiles.value = []
   applyInlineScheduleForm(scheduleForm)
@@ -988,6 +1098,7 @@ function buildInlineSnapshot(): string {
     description: inlineForm.description,
     message: inlineForm.message,
     files: currentInlineFileRefs.value,
+    llm_config_id: Number(inlineForm.llm_config_id || 0),
     schedule_type: inlineForm.schedule_type,
     run_at: inlineForm.run_at,
     cron_expr: inlineForm.cron_expr,
@@ -1004,6 +1115,11 @@ function registerInlineMessageInputRef(element: { focus: () => void } | null) {
 function noop() {}
 
 function noopInputEnter() {}
+
+function setInlineLLMConfigID(value: unknown) {
+  const id = numberFromUnknown(value)
+  inlineForm.llm_config_id = id > 0 ? id : 0
+}
 
 function validateInlineEditForm(): boolean {
   if (!inlineForm.title.trim()) {
@@ -1036,6 +1152,11 @@ function buildInlineExecutorPayload(task: TimerTask, fullCodePath: string): Reco
   payload.full_code_path = fullCodePath
   payload.message = message
   payload.display_content = message
+  if (inlineForm.llm_config_id > 0) {
+    payload.llm_config_id = inlineForm.llm_config_id
+  } else {
+    delete payload.llm_config_id
+  }
   if (files) {
     payload.files = files
   } else {
@@ -1312,6 +1433,18 @@ watch(
     void openFocusedTaskIfNeeded()
   }
 )
+
+watch(
+  () => getTaskLLMConfigID(selectedTask.value),
+  (llmConfigID) => {
+    if (llmConfigID > 0) {
+      void loadLLMOptions()
+    }
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(closeResourcePreview)
 
 defineExpose({ load: loadList })
 </script>
@@ -1663,6 +1796,13 @@ defineExpose({ load: loadList })
   font-weight: 650;
 }
 
+.detail-inline-hint {
+  margin-top: 6px;
+  color: var(--scheduled-session-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .detail-section-subtitle {
   color: var(--scheduled-session-muted);
   font-size: 12px;
@@ -1779,53 +1919,209 @@ defineExpose({ load: loadList })
   box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight, rgba(255, 255, 255, 0.72));
 }
 
-.detail-message-preview {
+.detail-message-markdown {
+  color: var(--el-text-color-regular);
+  font-size: 14px;
+  line-height: 1.76;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.detail-message-markdown :deep(h1),
+.detail-message-markdown :deep(h2),
+.detail-message-markdown :deep(h3),
+.detail-message-markdown :deep(h4),
+.detail-message-markdown :deep(h5),
+.detail-message-markdown :deep(h6) {
+  margin: 1.2em 0 0.55em;
+  color: var(--scheduled-session-ink);
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.detail-message-markdown :deep(h1) {
+  margin-top: 0;
+  font-size: 1.45em;
+}
+
+.detail-message-markdown :deep(h2) {
+  font-size: 1.24em;
+}
+
+.detail-message-markdown :deep(h3) {
+  font-size: 1.08em;
+}
+
+.detail-message-markdown :deep(p),
+.detail-message-markdown :deep(ul),
+.detail-message-markdown :deep(ol),
+.detail-message-markdown :deep(blockquote),
+.detail-message-markdown :deep(pre),
+.detail-message-markdown :deep(table) {
+  margin: 0.72em 0;
+}
+
+.detail-message-markdown :deep(p:first-child),
+.detail-message-markdown :deep(ul:first-child),
+.detail-message-markdown :deep(ol:first-child),
+.detail-message-markdown :deep(blockquote:first-child),
+.detail-message-markdown :deep(pre:first-child),
+.detail-message-markdown :deep(table:first-child) {
+  margin-top: 0;
+}
+
+.detail-message-markdown :deep(p:last-child),
+.detail-message-markdown :deep(ul:last-child),
+.detail-message-markdown :deep(ol:last-child),
+.detail-message-markdown :deep(blockquote:last-child),
+.detail-message-markdown :deep(pre:last-child),
+.detail-message-markdown :deep(table:last-child) {
+  margin-bottom: 0;
+}
+
+.detail-message-markdown :deep(ul),
+.detail-message-markdown :deep(ol) {
+  padding-left: 1.45em;
+}
+
+.detail-message-markdown :deep(li) {
+  margin: 0.28em 0;
+}
+
+.detail-message-markdown :deep(code) {
+  padding: 0.14em 0.34em;
+  border-radius: 5px;
+  background: var(--scheduled-session-tint);
+  color: var(--scheduled-session-accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.detail-message-markdown :deep(pre) {
+  overflow-x: auto;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #1f2937;
+  color: #e5e7eb;
+}
+
+.detail-message-markdown :deep(pre code) {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.detail-message-markdown :deep(blockquote) {
+  padding-left: 12px;
+  border-left: 3px solid color-mix(in srgb, var(--scheduled-session-accent) 44%, var(--scheduled-session-line));
+  color: var(--scheduled-session-muted);
+}
+
+.detail-message-markdown :deep(table) {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.detail-message-markdown :deep(th),
+.detail-message-markdown :deep(td) {
+  padding: 6px 8px;
+  border: 1px solid var(--scheduled-session-line);
+}
+
+.detail-message-markdown :deep(th) {
+  background: var(--scheduled-session-tint);
+  color: var(--scheduled-session-ink);
+  font-weight: 700;
+}
+
+.detail-message-markdown :deep(a) {
+  color: var(--scheduled-session-accent);
+  text-decoration: none;
+}
+
+.detail-message-markdown :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.detail-message-markdown :deep(.workspace-resource-token) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  vertical-align: baseline;
+  padding: 1px 7px 1px 5px;
+  margin: 0 1px;
+  border: 1px solid color-mix(in srgb, var(--scheduled-session-accent) 24%, var(--scheduled-session-line));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--scheduled-session-accent) 8%, var(--scheduled-session-paper));
+  color: var(--scheduled-session-ink);
+  font-size: 0.92em;
+  font-weight: 600;
+  line-height: 1.55;
+  white-space: nowrap;
+}
+
+.detail-message-markdown :deep(.workspace-resource-token:hover),
+.detail-message-markdown :deep(.workspace-resource-token:focus-visible) {
+  border-color: color-mix(in srgb, var(--scheduled-session-accent) 54%, var(--scheduled-session-line));
+  background: color-mix(in srgb, var(--scheduled-session-accent) 13%, var(--scheduled-session-paper));
+  color: var(--scheduled-session-accent);
+  text-decoration: none;
+  outline: none;
+}
+
+.detail-message-markdown :deep(.workspace-resource-token__icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  line-height: 1;
+}
+
+.detail-message-markdown :deep(.workspace-resource-token__img),
+.detail-message-markdown :deep(.workspace-resource-token__svg),
+.detail-message-markdown :deep(.workspace-resource-token__glyph) {
+  display: block;
+  width: 16px;
+  height: 16px;
+  max-width: 16px;
+  max-height: 16px;
+  margin: 0;
   border: 0;
+  border-radius: 0;
   background: transparent;
   box-shadow: none;
+  object-fit: contain;
 }
 
-.detail-message-preview.is-disabled {
-  opacity: 1;
+.detail-message-markdown :deep(.workspace-resource-token__glyph) {
+  border-radius: 5px;
+  background: linear-gradient(135deg, var(--scheduled-session-accent), color-mix(in srgb, var(--scheduled-session-accent) 58%, white));
+  position: relative;
 }
 
-.detail-message-preview :deep(.spc-preview) {
-  min-height: 0 !important;
-  padding: 0;
-  color: var(--el-text-color-regular);
-  line-height: 1.76;
+.detail-message-markdown :deep(.workspace-resource-token__glyph::after) {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
 }
 
-.detail-message-preview :deep(.spc-preview-body) {
-  white-space: pre-wrap;
+.detail-message-markdown :deep(.workspace-resource-token__label) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.detail-message-preview :deep(.spc-resource-chip),
-.detail-message-preview :deep(.spc-user-chip) {
-  border-color: color-mix(in srgb, var(--scheduled-session-accent) 26%, var(--scheduled-session-line));
-  background: color-mix(in srgb, var(--scheduled-session-accent) 9%, var(--scheduled-session-paper));
-  color: var(--scheduled-session-accent);
-  box-shadow: none;
-}
-
-.detail-message-preview :deep(.spc-user-chip) {
-  border-color: color-mix(in srgb, var(--el-color-success) 28%, var(--scheduled-session-line));
-  background: color-mix(in srgb, var(--el-color-success) 9%, var(--scheduled-session-paper));
-  color: var(--el-color-success);
-}
-
-.detail-message-preview :deep(.spc-invocation-card) {
-  border-color: color-mix(in srgb, var(--scheduled-session-accent) 18%, var(--scheduled-session-line));
-  background: color-mix(in srgb, var(--scheduled-session-accent) 6%, var(--scheduled-session-paper));
-}
-
-.detail-message-preview :deep(.spc-invocation-resource) {
-  color: var(--scheduled-session-ink);
-}
-
-.detail-message-preview :deep(.spc-param-chip) {
-  background: var(--scheduled-session-tint);
+.detail-message-markdown :deep(.workspace-resource-token__type) {
   color: var(--scheduled-session-muted);
+  font-size: 0.82em;
+  font-weight: 700;
 }
 
 .detail-message-empty {

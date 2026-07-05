@@ -9,6 +9,7 @@ import (
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/ginx/response"
+	"github.com/kageos/kageos/pkg/llms"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
@@ -24,6 +25,68 @@ func llmInfoCount(resp *dto.LLMListResp) int {
 		return 0
 	}
 	return len(resp.Configs)
+}
+
+func llmStringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func llmStringPtr(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+func llmProviderProtocolForResponse(cfg *model.LLMConfig) (string, string) {
+	provider := model.LLMProviderOpenAI
+	protocol := model.LLMProtocolOpenAIChatCompletions
+	apiBase := ""
+	endpointPath := ""
+	if cfg != nil {
+		if cfg.Provider != "" {
+			provider = cfg.Provider
+		}
+		if cfg.Protocol != "" {
+			protocol = cfg.Protocol
+		}
+		apiBase = cfg.APIBase
+		endpointPath = cfg.EndpointPath
+	}
+	return llms.InferProviderProtocol(provider, protocol, apiBase, endpointPath)
+}
+
+func llmInfoFromConfig(cfg *model.LLMConfig, currentUser string) dto.LLMInfo {
+	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg)
+	provider, protocol := llmProviderProtocolForResponse(cfg)
+	return dto.LLMInfo{
+		ID:           cfg.ID,
+		Code:         cfg.Code,
+		Name:         cfg.Name,
+		Provider:     provider,
+		Protocol:     protocol,
+		Model:        cfg.Model,
+		APIKey:       apiKey,
+		HasAPIKey:    hasAPIKey,
+		APIBase:      cfg.APIBase,
+		EndpointPath: cfg.EndpointPath,
+		APIVersion:   cfg.APIVersion,
+		AuthScheme:   cfg.AuthScheme,
+		Headers:      llmStringValue(cfg.Headers),
+		Timeout:      cfg.Timeout,
+		MaxTokens:    cfg.MaxTokens,
+		ExtraConfig:  llmStringValue(cfg.ExtraConfig),
+		Capabilities: llmStringValue(cfg.Capabilities),
+		IsDefault:    cfg.IsDefault,
+		Visibility:   cfg.Visibility,
+		Admin:        cfg.Admin,
+		IsAdmin:      cfg.IsAdminUser(currentUser),
+		CreatedAt:    time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:    time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
+	}
 }
 
 // LLM LLM 配置 API 处理器
@@ -76,30 +139,7 @@ func (h *LLM) List(c *gin.Context) {
 	// 转换为响应格式
 	llmInfos := make([]dto.LLMInfo, 0, len(configs))
 	for _, cfg := range configs {
-		extraConfig := ""
-		if cfg.ExtraConfig != nil {
-			extraConfig = *cfg.ExtraConfig
-		}
-		isAdmin := cfg.IsAdminUser(currentUser)
-		apiKey, hasAPIKey := llmAPIKeyForResponse(cfg)
-		llmInfos = append(llmInfos, dto.LLMInfo{
-			ID:          cfg.ID,
-			Code:        cfg.Code,
-			Name:        cfg.Name,
-			Model:       cfg.Model,
-			APIKey:      apiKey,
-			HasAPIKey:   hasAPIKey,
-			APIBase:     cfg.APIBase,
-			Timeout:     cfg.Timeout,
-			MaxTokens:   cfg.MaxTokens,
-			ExtraConfig: extraConfig,
-			IsDefault:   cfg.IsDefault,
-			Visibility:  cfg.Visibility,
-			Admin:       cfg.Admin,
-			IsAdmin:     isAdmin,
-			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
-			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
-		})
+		llmInfos = append(llmInfos, llmInfoFromConfig(cfg, currentUser))
 	}
 
 	resp = &dto.LLMListResp{
@@ -146,31 +186,8 @@ func (h *LLM) Get(c *gin.Context) {
 		return
 	}
 
-	extraConfig := ""
-	if cfg.ExtraConfig != nil {
-		extraConfig = *cfg.ExtraConfig
-	}
-	isAdmin := cfg.IsAdminUser(contextx.GetRequestUser(ctx))
-	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg)
 	resp = &dto.LLMGetResp{
-		LLMInfo: dto.LLMInfo{
-			ID:          cfg.ID,
-			Code:        cfg.Code,
-			Name:        cfg.Name,
-			Model:       cfg.Model,
-			APIKey:      apiKey,
-			HasAPIKey:   hasAPIKey,
-			APIBase:     cfg.APIBase,
-			Timeout:     cfg.Timeout,
-			MaxTokens:   cfg.MaxTokens,
-			ExtraConfig: extraConfig,
-			IsDefault:   cfg.IsDefault,
-			Visibility:  cfg.Visibility,
-			Admin:       cfg.Admin,
-			IsAdmin:     isAdmin,
-			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
-			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
-		},
+		LLMInfo: llmInfoFromConfig(cfg, contextx.GetRequestUser(ctx)),
 	}
 	response.OkWithData(c, resp)
 }
@@ -205,31 +222,8 @@ func (h *LLM) GetDefault(c *gin.Context) {
 		return
 	}
 
-	extraConfig := ""
-	if cfg.ExtraConfig != nil {
-		extraConfig = *cfg.ExtraConfig
-	}
-	isAdmin := cfg.IsAdminUser(contextx.GetRequestUser(ctx))
-	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg)
 	resp = &dto.LLMGetDefaultResp{
-		LLMInfo: dto.LLMInfo{
-			ID:          cfg.ID,
-			Code:        cfg.Code,
-			Name:        cfg.Name,
-			Model:       cfg.Model,
-			APIKey:      apiKey,
-			HasAPIKey:   hasAPIKey,
-			APIBase:     cfg.APIBase,
-			Timeout:     cfg.Timeout,
-			MaxTokens:   cfg.MaxTokens,
-			ExtraConfig: extraConfig,
-			IsDefault:   cfg.IsDefault,
-			Visibility:  cfg.Visibility,
-			Admin:       cfg.Admin,
-			IsAdmin:     isAdmin,
-			CreatedAt:   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
-			UpdatedAt:   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
-		},
+		LLMInfo: llmInfoFromConfig(cfg, contextx.GetRequestUser(ctx)),
 	}
 	response.OkWithData(c, resp)
 }
@@ -264,17 +258,23 @@ func (h *LLM) Create(c *gin.Context) {
 
 	ctx := contextx.ToContext(c)
 	cfg := &model.LLMConfig{
-		Name:        req.Name,
-		Provider:    model.LLMProviderOpenAI,
-		Model:       req.Model,
-		APIKey:      req.APIKey,
-		APIBase:     req.APIBase,
-		Timeout:     req.Timeout,
-		MaxTokens:   req.MaxTokens,
-		ExtraConfig: req.ExtraConfig,
-		IsDefault:   req.IsDefault,
-		Visibility:  req.Visibility,
-		Admin:       req.Admin,
+		Name:         req.Name,
+		Provider:     req.Provider,
+		Protocol:     req.Protocol,
+		Model:        req.Model,
+		APIKey:       req.APIKey,
+		APIBase:      req.APIBase,
+		EndpointPath: req.EndpointPath,
+		APIVersion:   req.APIVersion,
+		AuthScheme:   req.AuthScheme,
+		Headers:      req.Headers,
+		Timeout:      req.Timeout,
+		MaxTokens:    req.MaxTokens,
+		ExtraConfig:  req.ExtraConfig,
+		Capabilities: req.Capabilities,
+		IsDefault:    req.IsDefault,
+		Visibility:   req.Visibility,
+		Admin:        req.Admin,
 	}
 
 	if err := h.service.CreateLLMConfig(ctx, cfg); err != nil {
@@ -283,6 +283,48 @@ func (h *LLM) Create(c *gin.Context) {
 	}
 
 	resp = &dto.LLMCreateResp{ID: cfg.ID}
+	response.OkWithData(c, resp)
+}
+
+// Probe 检测 LLM 协议与密钥可用性
+// @Summary 检测 LLM 协议与密钥可用性
+// @Description 根据当前表单内容发起最小请求，自动识别 OpenAI Chat、OpenAI Responses 或 Anthropic Messages
+// @Tags LLM管理
+// @Accept json
+// @Produce json
+// @Param request body dto.LLMProbeReq true "LLM 检测请求"
+// @Success 200 {object} dto.LLMProbeResp "检测结果"
+// @Failure 400 {string} string "请求参数错误"
+// @Router /agent/api/v1/llm/probe [post]
+func (h *LLM) Probe(c *gin.Context) {
+	var req dto.LLMProbeReq
+	var resp *dto.LLMProbeResp
+	var err error
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "参数错误: "+err.Error())
+		return
+	}
+
+	defer func() {
+		ok := false
+		protocol := ""
+		attemptCount := 0
+		if resp != nil {
+			ok = resp.OK
+			protocol = resp.Protocol
+			attemptCount = len(resp.Attempts)
+		}
+		logger.Debugf(c, "LLM.Probe id=%d provider=%s protocol=%s model=%s ok=%v attempts=%d err:%v", req.ID, req.Provider, protocol, req.Model, ok, attemptCount, err)
+	}()
+
+	ctx := contextx.ToContext(c)
+	resp, err = h.service.ProbeLLMConfig(ctx, req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
 	response.OkWithData(c, resp)
 }
 
@@ -325,10 +367,15 @@ func (h *LLM) Update(c *gin.Context) {
 
 	// 更新字段
 	cfg.Name = req.Name
-	cfg.Provider = model.LLMProviderOpenAI
+	cfg.Provider = req.Provider
+	cfg.Protocol = req.Protocol
 	cfg.Model = req.Model
 	cfg.APIKey = req.APIKey
 	cfg.APIBase = req.APIBase
+	cfg.EndpointPath = req.EndpointPath
+	cfg.APIVersion = req.APIVersion
+	cfg.AuthScheme = req.AuthScheme
+	cfg.Headers = llmStringPtr(req.Headers)
 	cfg.Timeout = req.Timeout
 	cfg.MaxTokens = req.MaxTokens
 	if req.ExtraConfig != "" {
@@ -337,6 +384,7 @@ func (h *LLM) Update(c *gin.Context) {
 	} else {
 		cfg.ExtraConfig = nil
 	}
+	cfg.Capabilities = llmStringPtr(req.Capabilities)
 	cfg.IsDefault = req.IsDefault
 	cfg.Visibility = req.Visibility
 	cfg.Admin = req.Admin

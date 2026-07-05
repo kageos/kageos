@@ -129,6 +129,48 @@ func TestInitLLMSeedsDoesNotWipeExistingKeyWhenEnvMissing(t *testing.T) {
 	}
 }
 
+func TestInitLLMSeedsPersistsProtocolFields(t *testing.T) {
+	svc, repo := newLLMSeedTestService(t)
+
+	err := svc.InitLLMSeeds(context.Background(), aosconfig.AgentServerLLMSeedsConfig{
+		Configs: []aosconfig.AgentServerLLMSeedConfig{
+			{
+				Code:         "claude",
+				Name:         "Claude",
+				Provider:     model.LLMProviderAnthropic,
+				Protocol:     model.LLMProtocolAnthropicMessages,
+				Model:        "claude-sonnet-4-5",
+				APIBase:      "https://api.anthropic.com",
+				EndpointPath: "/v1/messages",
+				APIVersion:   "2023-06-01",
+				AuthScheme:   "x-api-key",
+				Headers:      `{"anthropic-beta":"test"}`,
+				Capabilities: `{"stream":true,"tools":true}`,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("init llm seeds: %v", err)
+	}
+
+	cfg, err := repo.GetByCode("claude")
+	if err != nil {
+		t.Fatalf("get seed by code: %v", err)
+	}
+	if cfg.Provider != model.LLMProviderAnthropic || cfg.Protocol != model.LLMProtocolAnthropicMessages {
+		t.Fatalf("provider/protocol = %q/%q, want anthropic/anthropic_messages", cfg.Provider, cfg.Protocol)
+	}
+	if cfg.EndpointPath != "/v1/messages" || cfg.APIVersion != "2023-06-01" || cfg.AuthScheme != "x-api-key" {
+		t.Fatalf("endpoint/version/auth = %q/%q/%q", cfg.EndpointPath, cfg.APIVersion, cfg.AuthScheme)
+	}
+	if cfg.Headers == nil || *cfg.Headers != `{"anthropic-beta":"test"}` {
+		t.Fatalf("headers = %#v", cfg.Headers)
+	}
+	if cfg.Capabilities == nil || *cfg.Capabilities != `{"stream":true,"tools":true}` {
+		t.Fatalf("capabilities = %#v", cfg.Capabilities)
+	}
+}
+
 func TestInitLLMSeedsRejectsMissingDefaultCode(t *testing.T) {
 	svc, _ := newLLMSeedTestService(t)
 

@@ -10,7 +10,7 @@ Translations can follow the `README.<locale>.md` pattern.
 
 Kageos turns personal and business capabilities into ready-to-run directories. A directory is not a static template or a one-off prompt result: it can contain Forms, Tables, Charts, Docs, Functions, code, data models, runbooks, schedules, messages, and permissions. Humans can open it. AI agents can call it through typed schemas. Unattended agent sessions can run it on a schedule. The platform can govern, audit, version, install, export, and reuse it.
 
-Kageos is created by [QiaYan AI](https://qiayanai.com). The core platform is source-available and designed for self-hosting. It is licensed under the Business Source License 1.1 today and converts to Apache License 2.0 four years after release. See [LICENSE](LICENSE) and [LICENSE_FAQ.md](LICENSE_FAQ.md) for the exact terms.
+Kageos is created by [QiaYan AI](https://qiayan.ai). The core platform is source-available and designed for self-hosting. It is licensed under the Business Source License 1.1 today and converts to Apache License 2.0 four years after release. See [LICENSE](LICENSE) and [LICENSE_FAQ.md](LICENSE_FAQ.md) for the exact terms.
 
 ## Why Kageos
 
@@ -249,7 +249,7 @@ Do not commit real `.env` files, production `kage.yaml`, customer licenses, gene
 
 Please do not report suspected vulnerabilities through public GitHub issues.
 
-Send security reports privately to [admin@kageos.com](mailto:admin@kageos.com). Include the affected version, branch, commit, deployment mode, reproduction steps, proof of concept, and likely impact when safe to share. See [SECURITY.md](SECURITY.md) for the full policy.
+Send security reports privately to [admin@kageos.ai](mailto:admin@kageos.ai). Include the affected version, branch, commit, deployment mode, reproduction steps, proof of concept, and likely impact when safe to share. See [SECURITY.md](SECURITY.md) for the full policy.
 
 ## License
 
@@ -259,6 +259,6 @@ See [LICENSE](LICENSE) and [LICENSE_FAQ.md](LICENSE_FAQ.md) for details. SDKs, e
 
 ## Acknowledgements
 
-Kageos is created and maintained by [QiaYan AI](https://qiayanai.com). It is built on the work of the wider open-source infrastructure and developer-tooling ecosystem, including Go, Vue, MySQL, NATS, MinIO, Docker, Podman, and many other projects.
+Kageos is created and maintained by [QiaYan AI](https://qiayan.ai). It is built on the work of the wider open-source infrastructure and developer-tooling ecosystem, including Go, Vue, MySQL, NATS, MinIO, Docker, Podman, and many other projects.
 
 Kageos is not a fork of OCTO, TangSengDaoDao, or WuKongIM. We still appreciate those projects and the broader agent, collaboration, and infrastructure communities for pushing the field forward.

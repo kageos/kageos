@@ -100,6 +100,14 @@ func (r *LLMRepository) UpdateAPIKey(id int64, apiKey string) error {
 	return r.db.Model(&model.LLMConfig{}).Where("id = ?", id).Update("api_key", apiKey).Error
 }
 
+// UpdateProviderProtocol stores the effective provider/protocol inferred at runtime.
+func (r *LLMRepository) UpdateProviderProtocol(id int64, provider, protocol string) error {
+	return r.db.Model(&model.LLMConfig{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"provider": provider,
+		"protocol": protocol,
+	}).Error
+}
+
 // Delete 删除 LLM 配置
 func (r *LLMRepository) Delete(id int64) error {
 	return r.db.Where("id = ?", id).Delete(&model.LLMConfig{}).Error

@@ -47,6 +47,7 @@ plan/
 /plugins
 .cursor/
 .claude/
+.ci/
 blueprint/
 # enterprise_impl/ 保留主仓库内的企业扩展实现；独立 Hub 已移除，后续重写时再重新规划目录边界
 # enterprise_impl/

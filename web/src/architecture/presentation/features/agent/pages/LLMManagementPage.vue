@@ -29,7 +29,7 @@
               <div>
                 <div class="default-name">{{ defaultConfig.name }}</div>
                 <div class="default-meta">
-                  {{ defaultConfig.model }}
+                  {{ defaultConfig.model }} · {{ protocolLabel(defaultConfig.protocol) }}
                 </div>
               </div>
               <div class="default-tags">
@@ -79,10 +79,11 @@
               <div class="name-cell">
                 <div class="name-line">
                   <span class="config-name">{{ row.name }}</span>
+                  <el-tag size="small">{{ providerLabel(row.provider) }}</el-tag>
                   <el-tag v-if="row.is_default" type="warning" size="small">{{ t('llmManagement.defaultTag') }}</el-tag>
                   <el-tag v-if="row.is_admin" type="primary" size="small">{{ t('llmManagement.manageable') }}</el-tag>
                 </div>
-                <div class="meta-line">{{ row.model }}</div>
+                <div class="meta-line">{{ row.model }} · {{ protocolLabel(row.protocol) }}</div>
               </div>
             </template>
           </el-table-column>
@@ -177,6 +178,33 @@
             <el-input v-model="form.model" :placeholder="t('llmManagement.modelPlaceholder')" />
           </el-form-item>
 
+          <el-row :gutter="12">
+            <el-col :xs="24" :sm="12">
+              <el-form-item :label="t('llmManagement.provider')" prop="provider">
+                <el-select v-model="form.provider" style="width: 100%" @change="handleProviderChange">
+                  <el-option
+                    v-for="option in providerOptions"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :xs="24" :sm="12">
+              <el-form-item :label="t('llmManagement.protocol')" prop="protocol">
+                <el-select v-model="form.protocol" style="width: 100%" @change="handleProtocolChange">
+                  <el-option
+                    v-for="option in protocolOptions"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
+
           <el-form-item label="API Key">
             <el-input
               v-model="form.api_key"
@@ -188,6 +216,30 @@
 
           <el-form-item label="API Base">
             <el-input v-model="form.api_base" :placeholder="t('llmManagement.apiBasePlaceholder')" />
+          </el-form-item>
+
+          <el-row :gutter="12">
+            <el-col :xs="24" :sm="12">
+              <el-form-item :label="t('llmManagement.endpointPath')">
+                <el-input v-model="form.endpoint_path" :placeholder="endpointPathPlaceholder" />
+              </el-form-item>
+            </el-col>
+            <el-col :xs="24" :sm="12">
+              <el-form-item :label="t('llmManagement.apiVersion')">
+                <el-input v-model="form.api_version" :placeholder="apiVersionPlaceholder" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+
+          <el-form-item :label="t('llmManagement.authScheme')">
+            <el-select v-model="form.auth_scheme" clearable style="width: 220px" :placeholder="authSchemePlaceholder">
+              <el-option
+                v-for="option in authSchemeOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
           </el-form-item>
 
           <el-form-item :label="t('llmManagement.timeout')">
@@ -225,10 +277,31 @@
               :placeholder="t('llmManagement.extraConfigPlaceholder')"
             />
           </el-form-item>
+
+          <el-form-item :label="t('llmManagement.headers')" prop="headers">
+            <el-input
+              v-model="form.headers"
+              type="textarea"
+              :rows="4"
+              :placeholder="t('llmManagement.headersPlaceholder')"
+            />
+          </el-form-item>
+
+          <el-form-item :label="t('llmManagement.capabilities')" prop="capabilities">
+            <el-input
+              v-model="form.capabilities"
+              type="textarea"
+              :rows="4"
+              :placeholder="t('llmManagement.capabilitiesPlaceholder')"
+            />
+          </el-form-item>
         </el-form>
       </div>
 
       <template #footer>
+        <el-button :icon="Connection" :loading="probing" @click="handleProbe">
+          {{ t('llmManagement.probe') }}
+        </el-button>
         <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="submitting" @click="handleSubmit">
           {{ dialogMode === 'create' ? t('llmManagement.create') : t('llmManagement.save') }}
@@ -242,7 +315,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { Connection, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import {
   createLLM,
@@ -250,6 +323,7 @@ import {
   getDefaultLLM,
   getLLM,
   getLLMList,
+  probeLLM,
   setDefaultLLM,
   updateLLM,
   type LLMCreateReq,
@@ -263,12 +337,19 @@ type DialogMode = 'create' | 'edit'
 interface LLMFormState {
   id: number | null
   name: string
+  provider: string
+  protocol: string
   model: string
   api_key: string
   api_base: string
+  endpoint_path: string
+  api_version: string
+  auth_scheme: string
+  headers: string
   timeout: number
   max_tokens: number
   extra_config: string
+  capabilities: string
   is_default: boolean
   visibility: number
   admin: string
@@ -276,7 +357,31 @@ interface LLMFormState {
 
 const DEFAULT_TIMEOUT = 300
 const DEFAULT_MAX_TOKENS = 8196
+const DEFAULT_PROVIDER = 'openai'
+const DEFAULT_PROTOCOL = 'openai_chat_completions'
+
 const { t } = useI18n()
+
+const protocolDefaults: Record<string, { provider: string; endpointPath: string; apiVersion: string; authScheme: string }> = {
+  openai_chat_completions: {
+    provider: 'openai',
+    endpointPath: '/chat/completions',
+    apiVersion: '',
+    authScheme: 'bearer'
+  },
+  openai_responses: {
+    provider: 'openai',
+    endpointPath: '/responses',
+    apiVersion: '',
+    authScheme: 'bearer'
+  },
+  anthropic_messages: {
+    provider: 'anthropic',
+    endpointPath: '/v1/messages',
+    apiVersion: '2023-06-01',
+    authScheme: 'x-api-key'
+  }
+}
 
 const activeScope = ref<Scope>('mine')
 const keyword = ref('')
@@ -286,6 +391,7 @@ const dialogLoading = ref(false)
 const dialogVisible = ref(false)
 const dialogMode = ref<DialogMode>('create')
 const submitting = ref(false)
+const probing = ref(false)
 
 const configs = ref<LLMInfo[]>([])
 const defaultConfig = ref<LLMInfo | null>(null)
@@ -293,14 +399,44 @@ const defaultConfig = ref<LLMInfo | null>(null)
 const formRef = ref<FormInstance>()
 const form = reactive<LLMFormState>(createDefaultForm())
 
+const providerOptions = computed(() => [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'anthropic', label: 'Anthropic' }
+])
+
+const protocolOptions = computed(() => {
+  const options = [
+    { value: 'openai_chat_completions', label: 'OpenAI Chat Completions' },
+    { value: 'openai_responses', label: 'OpenAI Responses' },
+    { value: 'anthropic_messages', label: 'Anthropic Messages' }
+  ]
+  if (form.provider === 'anthropic') {
+    return options.filter((option) => option.value === 'anthropic_messages')
+  }
+  return options.filter((option) => option.value !== 'anthropic_messages')
+})
+
+const authSchemeOptions = computed(() => [
+  { value: 'bearer', label: 'Bearer' },
+  { value: 'x-api-key', label: 'x-api-key' },
+  { value: 'none', label: t('llmManagement.authNone') }
+])
+
+const endpointPathPlaceholder = computed(() => protocolDefaults[form.protocol]?.endpointPath || '/chat/completions')
+const apiVersionPlaceholder = computed(() => protocolDefaults[form.protocol]?.apiVersion || t('llmManagement.apiVersionPlaceholder'))
+const authSchemePlaceholder = computed(() => protocolDefaults[form.protocol]?.authScheme || 'bearer')
+
 const filteredConfigs = computed(() => {
   const q = keyword.value.trim().toLowerCase()
   if (!q) return configs.value
   return configs.value.filter((item) => {
     return [
       item.name,
+      item.provider,
+      item.protocol,
       item.model,
       item.api_base,
+      item.endpoint_path,
       item.admin
     ].some((field) => (field || '').toLowerCase().includes(q))
   })
@@ -310,39 +446,62 @@ const rules = computed<FormRules<LLMFormState>>(() => ({
   name: [
     { required: true, message: t('llmManagement.nameRequired'), trigger: 'blur' }
   ],
+  provider: [
+    { required: true, message: t('llmManagement.providerRequired'), trigger: 'change' }
+  ],
+  protocol: [
+    { required: true, message: t('llmManagement.protocolRequired'), trigger: 'change' }
+  ],
   model: [
     { required: true, message: t('llmManagement.modelRequired'), trigger: 'blur' }
   ],
   extra_config: [
-    {
-      validator: (_rule, value: string, callback) => {
-        const text = (value || '').trim()
-        if (!text) {
-          callback()
-          return
-        }
-        try {
-          JSON.parse(text)
-          callback()
-        } catch {
-          callback(new Error(t('llmManagement.extraConfigInvalid')))
-        }
-      },
-      trigger: 'blur'
-    }
+    createJSONValidator(() => t('llmManagement.extraConfigInvalid'))
+  ],
+  headers: [
+    createJSONValidator(() => t('llmManagement.headersInvalid'))
+  ],
+  capabilities: [
+    createJSONValidator(() => t('llmManagement.capabilitiesInvalid'))
   ]
 }))
+
+function createJSONValidator(message: () => string) {
+  return {
+    validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
+      const text = (value || '').trim()
+      if (!text) {
+        callback()
+        return
+      }
+      try {
+        JSON.parse(text)
+        callback()
+      } catch {
+        callback(new Error(message()))
+      }
+    },
+    trigger: 'blur'
+  }
+}
 
 function createDefaultForm(): LLMFormState {
   return {
     id: null,
     name: '',
+    provider: DEFAULT_PROVIDER,
+    protocol: DEFAULT_PROTOCOL,
     model: '',
     api_key: '',
     api_base: '',
+    endpoint_path: '',
+    api_version: '',
+    auth_scheme: '',
+    headers: '',
     timeout: DEFAULT_TIMEOUT,
     max_tokens: DEFAULT_MAX_TOKENS,
     extra_config: '',
+    capabilities: '',
     is_default: false,
     visibility: 0,
     admin: ''
@@ -357,15 +516,99 @@ function resetForm() {
 function applyForm(info: Partial<LLMInfo>) {
   form.id = info.id ?? null
   form.name = info.name || ''
+  form.provider = info.provider || DEFAULT_PROVIDER
+  form.protocol = info.protocol || defaultProtocolForProvider(form.provider)
   form.model = info.model || ''
   form.api_key = info.api_key || ''
   form.api_base = info.api_base || ''
+  form.endpoint_path = info.endpoint_path || ''
+  form.api_version = info.api_version || ''
+  form.auth_scheme = info.auth_scheme || ''
+  form.headers = info.headers || ''
   form.timeout = info.timeout || DEFAULT_TIMEOUT
   form.max_tokens = info.max_tokens || DEFAULT_MAX_TOKENS
   form.extra_config = info.extra_config || ''
+  form.capabilities = info.capabilities || ''
   form.is_default = Boolean(info.is_default)
   form.visibility = typeof info.visibility === 'number' ? info.visibility : 0
   form.admin = info.admin || ''
+}
+
+function defaultProtocolForProvider(provider: string) {
+  return provider === 'anthropic' ? 'anthropic_messages' : DEFAULT_PROTOCOL
+}
+
+function inferProviderProtocol(provider: string, protocol: string, apiBase: string, endpointPath: string) {
+  const base = (apiBase || '').trim().toLowerCase().replace(/\/+$/, '')
+  const endpoint = (endpointPath || '').trim().toLowerCase()
+  let nextProvider = (provider || '').trim() || DEFAULT_PROVIDER
+  let nextProtocol = (protocol || '').trim() || defaultProtocolForProvider(nextProvider)
+
+  if (
+    nextProvider === 'openai' &&
+    nextProtocol === 'openai_chat_completions' &&
+    (endpoint.includes('responses') || base.endsWith('/responses'))
+  ) {
+    nextProtocol = 'openai_responses'
+  }
+
+  if (base.includes('anthropic') || endpoint.includes('messages')) {
+    nextProvider = 'anthropic'
+    nextProtocol = 'anthropic_messages'
+  }
+
+  return { provider: nextProvider, protocol: nextProtocol }
+}
+
+function applyEndpointProtocolInference() {
+  const inferred = inferProviderProtocol(form.provider, form.protocol, form.api_base, form.endpoint_path)
+  form.provider = inferred.provider
+  form.protocol = inferred.protocol
+}
+
+function handleProviderChange() {
+  const expected = defaultProtocolForProvider(form.provider)
+  if (!protocolOptions.value.some((option) => option.value === form.protocol)) {
+    form.protocol = expected
+  }
+  applyProtocolDefaults()
+}
+
+function handleProtocolChange() {
+  const defaults = protocolDefaults[form.protocol]
+  if (defaults?.provider && form.provider !== defaults.provider) {
+    form.provider = defaults.provider
+  }
+  applyProtocolDefaults(true)
+}
+
+function applyProtocolDefaults(force = false) {
+  const defaults = protocolDefaults[form.protocol]
+  if (!defaults) return
+  if (force || !form.endpoint_path.trim()) {
+    form.endpoint_path = defaults.endpointPath
+  }
+  if (force || !form.api_version.trim()) {
+    form.api_version = defaults.apiVersion
+  }
+  if (force || !form.auth_scheme.trim()) {
+    form.auth_scheme = defaults.authScheme
+  }
+}
+
+function providerLabel(provider: string) {
+  return provider === 'anthropic' ? 'Anthropic' : 'OpenAI'
+}
+
+function protocolLabel(protocol: string) {
+  switch (protocol) {
+    case 'openai_responses':
+      return 'Responses'
+    case 'anthropic_messages':
+      return 'Messages'
+    default:
+      return 'Chat Completions'
+  }
 }
 
 function visibilityLabel(visibility: number) {
@@ -439,14 +682,22 @@ async function handleEdit(row: LLMInfo) {
 }
 
 function buildCreatePayload(): LLMCreateReq {
+  applyEndpointProtocolInference()
   return {
     name: form.name.trim(),
+    provider: form.provider.trim(),
+    protocol: form.protocol.trim(),
     model: form.model.trim(),
     api_key: form.api_key.trim(),
     api_base: form.api_base.trim(),
+    endpoint_path: form.endpoint_path.trim(),
+    api_version: form.api_version.trim(),
+    auth_scheme: form.auth_scheme.trim(),
+    headers: form.headers.trim(),
     timeout: form.timeout,
     max_tokens: form.max_tokens,
     extra_config: form.extra_config.trim(),
+    capabilities: form.capabilities.trim(),
     is_default: form.is_default,
     visibility: form.visibility,
     admin: form.admin.trim()
@@ -457,6 +708,68 @@ function buildUpdatePayload(): LLMUpdateReq {
   return {
     id: form.id || 0,
     ...buildCreatePayload()
+  }
+}
+
+function buildProbePayload() {
+  applyEndpointProtocolInference()
+  return {
+    id: form.id || undefined,
+    provider: form.provider.trim(),
+    protocol: form.protocol.trim(),
+    model: form.model.trim(),
+    api_key: form.api_key.trim(),
+    api_base: form.api_base.trim(),
+    endpoint_path: form.endpoint_path.trim(),
+    api_version: form.api_version.trim(),
+    auth_scheme: form.auth_scheme.trim(),
+    headers: form.headers.trim(),
+    extra_config: form.extra_config.trim(),
+    max_tokens: Math.min(Math.max(form.max_tokens || 64, 1), 256),
+    timeout: Math.min(Math.max(form.timeout || 30, 1), 120)
+  }
+}
+
+async function handleProbe() {
+  if (!form.headers.trim() && !form.extra_config.trim() && !form.capabilities.trim()) {
+    // no-op; keep JSON validation only for fields the user touched
+  } else {
+    try {
+      for (const text of [form.headers, form.extra_config, form.capabilities]) {
+        if (text.trim()) JSON.parse(text)
+      }
+    } catch {
+      ElMessage.error(t('llmManagement.jsonInvalid'))
+      return
+    }
+  }
+
+  probing.value = true
+  try {
+    const resp = await probeLLM(buildProbePayload())
+    if (!resp.ok) {
+      ElMessage.error(resp.error || t('llmManagement.probeFailed'))
+      return
+    }
+    form.provider = resp.provider || form.provider
+    form.protocol = resp.protocol || form.protocol
+    form.api_base = resp.api_base || form.api_base
+    form.endpoint_path = resp.endpoint_path || form.endpoint_path
+    form.api_version = resp.api_version || form.api_version
+    form.auth_scheme = resp.auth_scheme || form.auth_scheme
+    if (!form.model.trim() && resp.model) {
+      form.model = resp.model
+    }
+    if (resp.capabilities) {
+      form.capabilities = JSON.stringify(resp.capabilities, null, 2)
+    }
+    const label = protocolLabel(form.protocol)
+    ElMessage.success(t('llmManagement.probeSuccess', { protocol: label }))
+  } catch (error: any) {
+    console.error('检测 LLM 协议失败:', error)
+    ElMessage.error(error?.message || t('llmManagement.probeFailed'))
+  } finally {
+    probing.value = false
   }
 }
 

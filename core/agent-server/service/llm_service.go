@@ -11,31 +11,45 @@ import (
 	"github.com/kageos/kageos/core/agent-server/repository"
 	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/llms"
 	"github.com/kageos/kageos/pkg/secretvault"
 	"gorm.io/gorm"
 )
 
-// normalizeExtraConfig 规范化 extra_config 字段，确保是有效的 JSON 或 NULL
-func normalizeExtraConfig(extraConfig string) (*string, error) {
+func normalizeJSONText(label, value string) (*string, error) {
+	value = strings.TrimSpace(value)
+
 	// 如果为空，返回 nil（允许 NULL）
-	if extraConfig == "" {
+	if value == "" {
 		return nil, nil
 	}
 
 	// 验证是否为有效的 JSON
 	var temp interface{}
-	if err := json.Unmarshal([]byte(extraConfig), &temp); err != nil {
-		return nil, fmt.Errorf("extra_config 不是有效的 JSON: %w", err)
+	if err := json.Unmarshal([]byte(value), &temp); err != nil {
+		return nil, fmt.Errorf("%s 不是有效的 JSON: %w", label, err)
 	}
 
 	// 重新序列化以确保格式正确
 	normalized, err := json.Marshal(temp)
 	if err != nil {
-		return nil, fmt.Errorf("序列化 extra_config 失败: %w", err)
+		return nil, fmt.Errorf("序列化 %s 失败: %w", label, err)
 	}
 
 	result := string(normalized)
 	return &result, nil
+}
+
+// normalizeExtraConfig 规范化 extra_config 字段，确保是有效的 JSON 或 NULL
+func normalizeExtraConfig(extraConfig string) (*string, error) {
+	return normalizeJSONText("extra_config", extraConfig)
+}
+
+func normalizeOptionalJSONField(label string, value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	return normalizeJSONText(label, *value)
 }
 
 func normalizeAdminList(admins string) string {
@@ -53,6 +67,27 @@ func normalizeAdminList(admins string) string {
 		out = append(out, admin)
 	}
 	return strings.Join(out, ",")
+}
+
+func normalizeLLMProviderProtocol(provider, protocol string) (string, string, error) {
+	provider, protocol = llms.NormalizeProviderProtocol(provider, protocol)
+	switch protocol {
+	case llms.ProtocolOpenAIChatCompletions, llms.ProtocolOpenAIResponses, llms.ProtocolAnthropicMessages:
+	default:
+		return "", "", fmt.Errorf("不支持的 LLM 协议: %s", protocol)
+	}
+	switch provider {
+	case llms.ProviderOpenAI, llms.ProviderAnthropic:
+	default:
+		return "", "", fmt.Errorf("不支持的 LLM provider: %s", provider)
+	}
+	if protocol == llms.ProtocolAnthropicMessages && provider != llms.ProviderAnthropic {
+		return "", "", fmt.Errorf("Anthropic Messages 协议必须使用 anthropic provider")
+	}
+	if protocol != llms.ProtocolAnthropicMessages && provider == llms.ProviderAnthropic {
+		return "", "", fmt.Errorf("anthropic provider 仅支持 anthropic_messages 协议")
+	}
+	return provider, protocol, nil
 }
 
 func (s *LLMService) getManageableLLMConfig(ctx context.Context, id int64, action string) (*model.LLMConfig, error) {
@@ -174,7 +209,13 @@ func (s *LLMService) CreateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	if cfg.Name == "" {
 		return fmt.Errorf("配置名称不能为空")
 	}
-	cfg.Provider = model.LLMProviderOpenAI
+	provider, protocol, err := normalizeLLMProviderProtocol(cfg.Provider, cfg.Protocol)
+	if err != nil {
+		return err
+	}
+	provider, protocol = llms.InferProviderProtocol(provider, protocol, cfg.APIBase, cfg.EndpointPath)
+	cfg.Provider = provider
+	cfg.Protocol = protocol
 	if cfg.Model == "" {
 		return fmt.Errorf("模型名称不能为空")
 	}
@@ -196,6 +237,14 @@ func (s *LLMService) CreateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 		return err
 	}
 	cfg.ExtraConfig = normalizedExtraConfig
+	cfg.Headers, err = normalizeOptionalJSONField("headers", cfg.Headers)
+	if err != nil {
+		return err
+	}
+	cfg.Capabilities, err = normalizeOptionalJSONField("capabilities", cfg.Capabilities)
+	if err != nil {
+		return err
+	}
 
 	// 设置默认管理员（如果为空，设置为创建用户）
 	if cfg.Admin == "" {
@@ -238,7 +287,13 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	if cfg.Name == "" {
 		return fmt.Errorf("配置名称不能为空")
 	}
-	cfg.Provider = model.LLMProviderOpenAI
+	provider, protocol, err := normalizeLLMProviderProtocol(cfg.Provider, cfg.Protocol)
+	if err != nil {
+		return err
+	}
+	provider, protocol = llms.InferProviderProtocol(provider, protocol, cfg.APIBase, cfg.EndpointPath)
+	cfg.Provider = provider
+	cfg.Protocol = protocol
 	if cfg.Model == "" {
 		return fmt.Errorf("模型名称不能为空")
 	}
@@ -260,6 +315,14 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 		return err
 	}
 	cfg.ExtraConfig = normalizedExtraConfig
+	cfg.Headers, err = normalizeOptionalJSONField("headers", cfg.Headers)
+	if err != nil {
+		return err
+	}
+	cfg.Capabilities, err = normalizeOptionalJSONField("capabilities", cfg.Capabilities)
+	if err != nil {
+		return err
+	}
 
 	if cfg.Admin == "" {
 		if existing.Admin != "" {

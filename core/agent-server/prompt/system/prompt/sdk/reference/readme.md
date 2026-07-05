@@ -7,6 +7,7 @@
 - `/system/prompt/sdk/reference/runtime-capabilities`：取当前用户/部门、调用平台 API、事务、副作用顺序、Table 回调高级能力、Python 运行时。
 - `/system/prompt/sdk/reference/build-validation`：`build_workspace`、启动期 `CompileAndValidate()`、schema/widget/路由/未定义 SDK API 报错排查。
 - `/system/prompt/sdk/reference/platform-api`：SDK 代码中用 `ctx.APICall` 调平台 Web API；确需沉淀平台接口包装函数时放在 `/system/tools/openapi`。
+- `/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask`：写或审查 `kageos_manifest.go`、`runbook.docs`、`packageContext.AddDocs(...)`、`packageContext.AddAgentTask(...)`、Agent 任务 message。
 
 ## 使用方式
 

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/kageos/kageos/core/agent-server/model"
+	"github.com/kageos/kageos/core/agent-server/prompt"
 	"github.com/kageos/kageos/core/agent-server/repository"
 	"github.com/kageos/kageos/core/agent-server/streamloop"
 	"github.com/kageos/kageos/dto"
@@ -281,9 +282,14 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 		!strings.Contains(msgs[0].Content, "/system/prompt/platform-capability-boundaries") {
 		t.Fatalf("system message should route Kageos introduction, usage and boundary questions to docs:\n%s", msgs[0].Content)
 	}
-	if strings.Contains(msgs[0].Content, "恰研智能（qiayanai.com）") ||
+	if strings.Contains(msgs[0].Content, "恰研智能（qiayan.ai）") ||
 		strings.Contains(msgs[0].Content, "转 Apache-2.0") {
 		t.Fatalf("system message should not inline detailed identity/license posture:\n%s", msgs[0].Content)
+	}
+	modeIdx := strings.Index(msgs[0].Content, "fallback")
+	envIdx := strings.Index(msgs[0].Content, "# 工作环境信息")
+	if modeIdx < 0 || envIdx < 0 || modeIdx > envIdx {
+		t.Fatalf("stable mode/system prompt should appear before dynamic workspace env, modeIdx=%d envIdx=%d", modeIdx, envIdx)
 	}
 	if len(tools) != 2 {
 		t.Fatalf("tools = %d, want 2", len(tools))
@@ -308,6 +314,74 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 	}
 	if !containsWorkspaceRoleString(plan.Tools.LLMTools, "read_doc") || !containsWorkspaceRoleString(plan.Tools.LLMTools, "search") {
 		t.Fatalf("bad tool plan: %#v", plan.Tools)
+	}
+}
+
+func TestBuildLLMMessagesExposesStableModeToolsAndKeepsRoleGatePlan(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate sessions: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:          7,
+		FullCodePath:    "/liubeiluo/vote",
+		Source:          SourceWorkspace,
+		SessionID:       "stable-tool-plan-session",
+		Title:           "稳定工具集合",
+		ModeCode:        "dev",
+		Status:          model.ChatSessionStatusActive,
+		RoleID:          WorkspaceRoleQAEngineer,
+		RoleDisplayName: "测试工程师",
+		User:            "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	provider := prompt.GetModeProvider("dev")
+	if provider == nil {
+		t.Fatal("dev mode provider is nil")
+	}
+	svc := &WorkspaceChatService{
+		toolReg:     NewToolRegistry(),
+		sessionRepo: sessionRepo,
+		messageRepo: messageRepo,
+	}
+	workspaceCtx := &dto.GetWorkspaceContextResp{}
+	workspaceCtx.Directory.Name = "投票系统"
+	workspaceCtx.Directory.Code = "vote"
+	workspaceCtx.Directory.Type = "package"
+
+	_, tools, plan, err := svc.buildLLMMessagesWithPlan(context.Background(), session.SessionID, "/liubeiluo/vote", "投票系统", workspaceCtx, provider, nil, "", 1)
+	if err != nil {
+		t.Fatalf("build messages: %v", err)
+	}
+	toolNames := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		toolNames = append(toolNames, tool.Function.Name)
+	}
+	if !containsWorkspaceRoleString(toolNames, "write_file") || !containsWorkspaceRoleString(toolNames, "build_workspace") {
+		t.Fatalf("LLM tools should expose stable dev mode tools even for QA role: %v", toolNames)
+	}
+	if !containsWorkspaceRoleString(plan.Tools.RoleAllowedTools, "run_form_submit") {
+		t.Fatalf("QA role allowed tools should include run_form_submit: %#v", plan.Tools)
+	}
+	if containsWorkspaceRoleString(plan.Tools.RoleAllowedTools, "write_file") ||
+		containsWorkspaceRoleString(plan.Tools.RoleAllowedTools, "build_workspace") {
+		t.Fatalf("QA role allowed tools should still exclude write/build tools: %#v", plan.Tools)
+	}
+	if plan.Tools.LLMToolCount != len(provider.ToolNames()) {
+		t.Fatalf("LLM tool count = %d, want dev mode count %d", plan.Tools.LLMToolCount, len(provider.ToolNames()))
+	}
+	if plan.Tools.RoleAllowedToolCount >= plan.Tools.LLMToolCount {
+		t.Fatalf("role allowed tools should remain narrower than LLM tools for QA: %#v", plan.Tools)
 	}
 }
 
@@ -552,7 +626,7 @@ func TestBuildLLMMessagesWithPlanPreservesHistoryDespiteLegacyAnchor(t *testing.
 func TestAttachLLMUsageToWorkspaceModelContextPlanReportsCacheResult(t *testing.T) {
 	plan := &dto.WorkspaceModelContextPlan{
 		CachePlan: dto.WorkspaceModelContextCachePlan{
-			StablePrefixStrategy: "system_env_role_protocol_handoff_first",
+			StablePrefixStrategy: "stable_mode_tools_static_system_before_workspace_env_with_prompt_cache_key",
 			ActualUsageField:     "assistant.llm_usage.cached_tokens",
 		},
 	}
@@ -1605,6 +1679,80 @@ func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
 	}
 	if updated.RoleID != WorkspaceRoleProductManager || updated.RoleDisplayName != "产品经理" {
 		t.Fatalf("session role not persisted: %#v", updated)
+	}
+}
+
+func TestExecuteToolCallsCompactsDuplicateChangeRoleInSameBatch(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/system/democase",
+		Source:        SourceWorkspace,
+		SessionID:     "duplicate-role-session",
+		Title:         "重复切角色",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusGenerating,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	svc := &WorkspaceChatService{
+		toolReg:     NewToolRegistry(),
+		sessionRepo: sessionRepo,
+		messageRepo: messageRepo,
+	}
+	args := `{"target_role":"reviewer","execute_directory":"/system/democase","task_context":["用户询问是否能看懂当前项目。"],"key_information":["当前目录为 /system/democase。"],"references":[],"reset_context":false}`
+	first := llms.ToolCall{ID: "call-change-role-1", Type: "function"}
+	first.Function.Name = "change_role"
+	first.Function.Arguments = args
+	second := llms.ToolCall{ID: "call-change-role-2", Type: "function"}
+	second.Function.Name = "change_role"
+	second.Function.Arguments = args
+
+	summaries, _, err := svc.executeToolCalls(context.Background(), []llms.ToolCall{first, second}, "duplicate-role-session", "/system/democase", "tester", "", 0, func(string, interface{}) {})
+	if err != nil {
+		t.Fatalf("execute tool calls: %v", err)
+	}
+	if len(summaries) != 2 || summaries[0].Status != ToolCallStatusOK || summaries[1].Status != ToolCallStatusOK {
+		t.Fatalf("unexpected summaries: %#v", summaries)
+	}
+	if !strings.Contains(summaries[1].Result, "重复 change_role 调用已跳过") {
+		t.Fatalf("second change_role should be compact duplicate result: %#v", summaries[1])
+	}
+	messages, err := messageRepo.ListBySessionID("duplicate-role-session")
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	var firstTool, secondTool *model.AgentChatMessage
+	for _, msg := range messages {
+		switch msg.ToolCallID {
+		case "call-change-role-1":
+			firstTool = msg
+		case "call-change-role-2":
+			secondTool = msg
+		}
+	}
+	if firstTool == nil || secondTool == nil {
+		t.Fatalf("expected both tool messages to be saved: %#v", messages)
+	}
+	if firstTool.ResultData == nil || !strings.Contains(*firstTool.ResultData, "loaded_docs") {
+		t.Fatalf("first change_role should keep full structured data: %#v", firstTool.ResultData)
+	}
+	if secondTool.ResultData == nil || strings.Contains(*secondTool.ResultData, "loaded_docs") {
+		t.Fatalf("duplicate change_role should not persist loaded_docs again: %#v", secondTool.ResultData)
 	}
 }
 

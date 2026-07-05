@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -29,7 +30,20 @@ func buildWorkspaceScheduledTasksSection(ctx context.Context, fullCodePath strin
 
 	var b strings.Builder
 	b.WriteString("### 当前目录自动执行摘要\n")
-	b.WriteString("以下只注入函数任务 / Agent 任务的轻量元信息；未注入 Agent 任务 message、display_content 或 executor_payload 正文。\n")
+	b.WriteString("以下只注入函数任务 / Agent 任务的稳定轻量元信息；未注入 Agent 任务 message、display_content、executor_payload 或每轮变化的执行状态正文。\n")
+	sort.SliceStable(resp.List, func(i, j int) bool {
+		left, right := resp.List[i], resp.List[j]
+		if left == nil || right == nil {
+			return right != nil
+		}
+		if left.ResourceKey != right.ResourceKey {
+			return left.ResourceKey < right.ResourceKey
+		}
+		if left.Title != right.Title {
+			return left.Title < right.Title
+		}
+		return left.ID < right.ID
+	})
 	for _, task := range resp.List {
 		if task == nil {
 			continue
@@ -57,13 +71,6 @@ func formatWorkspaceScheduledTaskSummary(task *scheduledsdk.Task) string {
 	}
 	if schedule := workspaceScheduledTaskScheduleLabel(task.Schedule); schedule != "" {
 		parts = append(parts, "计划="+schedule)
-	}
-	if task.NextRunAt != nil {
-		parts = append(parts, "下次执行="+task.NextRunAt.Format(time.RFC3339))
-	}
-	parts = append(parts, fmt.Sprintf("已执行=%d", task.RunCount))
-	if task.LastExecutionID > 0 {
-		parts = append(parts, fmt.Sprintf("最近执行ID=%d", task.LastExecutionID))
 	}
 	if createdBy := strings.TrimSpace(task.CreatedBy); createdBy != "" {
 		parts = append(parts, "创建人="+createdBy)

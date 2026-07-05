@@ -1,6 +1,8 @@
 package prompt
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -15,6 +17,17 @@ func TestGetPromptDocContent_ForSDKDirectoryAndLeafDoc(t *testing.T) {
 	}
 	if !strings.Contains(sdkContent, "前端据此渲染列表字段") || strings.Contains(sdkContent, "第一张非空表") {
 		t.Fatalf("expected sdk readme to explain AutoCrudTable/list rendering boundary, got: %q", sdkContent)
+	}
+	for _, want := range []string{
+		"foreignKey + Preload",
+		"DisableForeignKeyConstraintWhenMigrating",
+		`Room *MeetingRoom gorm:"foreignKey:RoomID;references:ID"`,
+		`Preload("Room")`,
+		`json:"-" widget:"-"`,
+	} {
+		if !strings.Contains(sdkContent, want) {
+			t.Fatalf("expected sdk readme to document Preload association pattern %q, got: %q", want, sdkContent)
+		}
 	}
 
 	boundaryName, boundaryContent := GetPromptDocContent(nil, "/system/prompt/platform-capability-boundaries")
@@ -31,7 +44,7 @@ func TestGetPromptDocContent_ForSDKDirectoryAndLeafDoc(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Kageos 介绍与身份口径",
-		"恰研智能（qiayanai.com）",
+		"恰研智能（qiayan.ai）",
 		"当前 Kageos 核心采用 BSL 1.1",
 		"Hub/企业版",
 		"不要暗示第三方可以冒充官方 Hub",
@@ -90,6 +103,23 @@ func TestGetPromptDocContent_ForSDKDirectoryAndLeafDoc(t *testing.T) {
 		t.Fatalf("expected platform api content, got: %q", platformAPIContent)
 	}
 
+	manifestName, manifestContent := GetPromptDocContent(nil, "/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask")
+	if strings.TrimSpace(manifestName) == "" {
+		t.Fatal("expected manifest/runbook/agent task doc name")
+	}
+	for _, want := range []string{
+		"kageos_manifest.go / runbook.docs / AgentTask 写法",
+		"`runbook.docs` 管“这个目录遇到任何事怎么做”",
+		"`AgentTask.Message` 管“这个任务到点后这一轮怎么跑”",
+		"<./runbook.docs>",
+		"<tool:send_notification>",
+		"不要给 AgentTask 填 `Policy`",
+	} {
+		if !strings.Contains(manifestContent, want) {
+			t.Fatalf("manifest/runbook/agent task doc should contain %q, got: %q", want, manifestContent)
+		}
+	}
+
 	legacyName, legacyContent := GetPromptDocContent(nil, "/system/prompt/workspace/create-project")
 	if legacyName != "" || legacyContent != "" {
 		t.Fatalf("legacy workspace SOP docs should be unavailable, got name=%q content=%q", legacyName, legacyContent)
@@ -116,6 +146,39 @@ func TestPromptDocPathGuardsDisableRetiredSOPs(t *testing.T) {
 		name, content := GetPromptDocContent(nil, path)
 		if name != "" || content != "" {
 			t.Fatalf("retired intent SOP should be unavailable: path=%s name=%q content=%q", path, name, content)
+		}
+	}
+}
+
+func TestPromptCaseCatalogUsesPreloadAssociations(t *testing.T) {
+	root := filepath.Join("system", "prompt", "case_catalog")
+	cases := map[string][]string{
+		filepath.Join(root, "tables", "meeting", "prd.md"): {
+			`Room     *MeetingRoom`,
+			`gorm:"foreignKey:RoomID;references:ID"`,
+			`Preload("Room")`,
+		},
+		filepath.Join(root, "tables", "hr", "prd.md"): {
+			`Job           *HrJob`,
+			`gorm:"foreignKey:JobID;references:ID"`,
+			`Preload("Job")`,
+		},
+		filepath.Join(root, "formandtable", "vote", "prd.md"): {
+			`Topic      *VoteTopic`,
+			`Option        *VoteOption`,
+			`Preload("Topic").Preload("Option")`,
+		},
+	}
+	for path, needles := range cases {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		content := string(data)
+		for _, needle := range needles {
+			if !strings.Contains(content, needle) {
+				t.Fatalf("case catalog should use Preload associations, missing %q in %s", needle, path)
+			}
 		}
 	}
 }
@@ -215,7 +278,8 @@ func TestAppDeveloperRoleExecutesConfirmedPRD(t *testing.T) {
 		"/system/prompt/case_catalog/form_table_chart/cashier",
 		"ResolveChartBucket",
 		"`MaxValues`",
-		"`write_doc`",
+		"packageContext.AddDocs",
+		"/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask",
 		"qa_engineer",
 		"build_engineer",
 	} {
@@ -258,6 +322,8 @@ func TestAutomationOperatorRoleDocumentsScheduledAgentSOP(t *testing.T) {
 		"`run_table_update`",
 		"`body = [{\"id\": 行ID, \"updates\": {...}}]`",
 		"可信度与写入规则",
+		"/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask",
+		"<./runbook.docs>",
 		"证据不足",
 		"禁止调用 `write_prd`、`create_directory`、`write_doc`、`write_file`、`edit_file`、`delete_file`、`build_workspace` 和任何业务 `run_*` 工具",
 	} {
@@ -288,13 +354,14 @@ func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 		},
 		"/system/prompt/roles/maintenance-engineer": {
 			"应用维护工程师 maintenance_engineer",
+			"/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask",
 			"`search_fields` 是查询请求字段",
 			"`创建开始时间/创建结束时间`",
 			"不要为了它们新增业务列",
 			"裸写 `开始时间/结束时间` 只适合业务字段或 Chart 统计区间",
 			"ResolveChartBucket",
 			"不要一刀切禁止细粒度",
-			"`write_doc`",
+			"packageContext.AddDocs",
 		},
 		"/system/prompt/roles/build-engineer": {
 			"构建修复工程师 build_engineer",

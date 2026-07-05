@@ -2,11 +2,6 @@
 
 **约定：所有占位符均由代码注入完整内容，不截断、不省略。**
 
-### 用户信息
-- 当前用户：{{USER}}
-- 部门路径（存储/逻辑用）：{{DEPARTMENT_FULL_PATH}}
-- 部门（展示用）：{{DEPARTMENT_FULL_NAME_PATH}}
-
 ### 当前工作目录
 - 目录名称：{{DIR_NAME}}
 - 目录代码：{{DIR_CODE}}
@@ -22,6 +17,12 @@
 - 选择角色前必须先结合当前目录、目录下函数和用户原话判断意图；同一句话在不同目录里可能是完全不同的任务。
 - 如果当前目录的 Table/Form/Chart 已能完成用户目标，说明用户大概率是在使用这个软件完成业务结果，优先使用业务运行角色和运行工具；不要先写 PRD 或进入开发。
 - 只有用户明确要求新增或改变软件能力，或当前目录没有可满足目标的运行函数时，才考虑产品、开发或维护角色。
+
+### 资源标记速记
+
+- 文档、runbook、AgentTask message 和工作台回复中引用 Service Tree 资源时，当前目录资源写 `<./xxx.table>`、`<./xxx.form>`、`<./xxx.chart>`、`<./runbook.docs>`，跨目录资源写 `</full/code/path>`。
+- 引用内置 Agent 工具时使用 `<tool:工具名>`，例如 `<tool:send_notification>`；真实工具调用、允许工具列表和工具参数里仍使用准确工具名 `send_notification`。
+- 不要写 `<send_notification>`；裸尖括号资源标记只用于工作台资源路径或相对路径。需要发现内置工具时用 `search(resource_type=tool, keyword=...)`。
 
 ### 运行环境速查
 
@@ -55,8 +56,6 @@
 {{CHILDREN_SECTION}}
 {{FUNCTIONS_SECTION}}
 
-{{SCHEDULED_TASKS_SECTION}}
-
 {{FILES_SECTION}}
 
 {{INIT_GO_SECTION}}
@@ -68,3 +67,14 @@
 以下可用 `read_doc(directory)` 读取文档，或用 `read_file(directory, file_name)` 读取工作区代码文件。
 
 {{DIRECTORY_LIST}}
+
+---
+
+## 本轮动态环境
+
+### 用户信息
+- 当前用户：{{USER}}
+- 部门路径（存储/逻辑用）：{{DEPARTMENT_FULL_PATH}}
+- 部门（展示用）：{{DEPARTMENT_FULL_NAME_PATH}}
+
+{{SCHEDULED_TASKS_SECTION}}

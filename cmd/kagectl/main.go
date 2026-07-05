@@ -57,6 +57,8 @@ func run(args []string) error {
 		return cmdLogs(paths, rest)
 	case "down":
 		return cmdDown(paths)
+	case "clean":
+		return cmdClean(paths, rest)
 	case "uninstall", "reset":
 		return cmdUninstall(paths, rest)
 	default:

@@ -39,11 +39,26 @@ func TestNatsTraceContextPreservesClientSource(t *testing.T) {
 
 func TestCtxToTraceNatsPreservesClientSource(t *testing.T) {
 	ctx := WithClientSource(context.Background(), "agent")
+	ctx = WithInitiatorUser(ctx, "bob")
+	ctx = WithWorkspaceMessageID(ctx, 42)
+	ctx = WithToolCallInfo(ctx, "call-1", "run_table_add")
 
 	msg := CtxToTraceNats(ctx, "demo")
 
 	if got := msg.Header.Get(ClientSourceHeader); got != "agent" {
 		t.Fatalf("nats header = %q, want agent", got)
+	}
+	if got := msg.Header.Get(InitiatorUserHeader); got != "bob" {
+		t.Fatalf("initiator header = %q, want bob", got)
+	}
+	if got := msg.Header.Get(WorkspaceMessageIDHeader); got != "42" {
+		t.Fatalf("workspace message header = %q, want 42", got)
+	}
+	if got := msg.Header.Get(ToolCallIDHeader); got != "call-1" {
+		t.Fatalf("tool call header = %q, want call-1", got)
+	}
+	if got := msg.Header.Get(ToolNameHeader); got != "run_table_add" {
+		t.Fatalf("tool name header = %q, want run_table_add", got)
 	}
 }
 

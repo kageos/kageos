@@ -144,6 +144,7 @@ declare module 'vue' {
     WorkspaceInbox: typeof import('./src/architecture/presentation/components/WorkspaceInbox.vue')['default']
     WorkspaceListDialog: typeof import('./src/architecture/presentation/shared/components/WorkspaceListDialog.vue')['default']
     WorkspaceListPanel: typeof import('./src/architecture/presentation/shared/components/WorkspaceListPanel.vue')['default']
+    WorkspaceResourceHoverCard: typeof import('./src/architecture/presentation/components/WorkspaceResourceHoverCard.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']
@@ -284,4 +285,5 @@ declare global {
   const WorkspaceInbox: typeof import('./src/architecture/presentation/components/WorkspaceInbox.vue')['default']
   const WorkspaceListDialog: typeof import('./src/architecture/presentation/shared/components/WorkspaceListDialog.vue')['default']
   const WorkspaceListPanel: typeof import('./src/architecture/presentation/shared/components/WorkspaceListPanel.vue')['default']
+  const WorkspaceResourceHoverCard: typeof import('./src/architecture/presentation/components/WorkspaceResourceHoverCard.vue')['default']
 }

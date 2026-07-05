@@ -41,6 +41,9 @@ func TestLLMConfigAdminPermissionsAndNormalization(t *testing.T) {
 	if cfg.Admin != "alice,bob" {
 		t.Fatalf("Admin = %q, want alice,bob", cfg.Admin)
 	}
+	if cfg.Provider != model.LLMProviderOpenAI || cfg.Protocol != model.LLMProtocolOpenAIChatCompletions {
+		t.Fatalf("provider/protocol = %q/%q, want openai/openai_chat_completions", cfg.Provider, cfg.Protocol)
+	}
 	if !cfg.IsAdminUser("alice") || !cfg.IsAdminUser("bob") || cfg.IsAdminUser("carol") {
 		t.Fatalf("IsAdminUser mismatch: admin=%q created_by=%q", cfg.Admin, cfg.CreatedBy)
 	}
@@ -165,5 +168,31 @@ func TestLLMConfigDeleteAndSetDefaultRequireAdmin(t *testing.T) {
 	}
 	if _, err := repo.GetByID(cfg.ID); err != gorm.ErrRecordNotFound {
 		t.Fatalf("GetByID() after delete error = %v, want ErrRecordNotFound", err)
+	}
+}
+
+func TestLLMConfigInfersResponsesProtocolFromEndpoint(t *testing.T) {
+	svc, repo := newLLMSeedTestService(t)
+	aliceCtx := contextx.WithRequestUser(context.Background(), "alice")
+
+	cfg := &model.LLMConfig{
+		Name:         "Responses",
+		Provider:     model.LLMProviderOpenAI,
+		Protocol:     model.LLMProtocolOpenAIChatCompletions,
+		Model:        "gpt-test",
+		APIBase:      "https://devcloud.chat/api/v1",
+		EndpointPath: "/responses",
+		Timeout:      30,
+		MaxTokens:    1024,
+	}
+	if err := svc.CreateLLMConfig(aliceCtx, cfg); err != nil {
+		t.Fatalf("CreateLLMConfig() error = %v", err)
+	}
+	stored, err := repo.GetByID(cfg.ID)
+	if err != nil {
+		t.Fatalf("GetByID() error = %v", err)
+	}
+	if stored.Protocol != model.LLMProtocolOpenAIResponses {
+		t.Fatalf("protocol = %q, want openai_responses", stored.Protocol)
 	}
 }

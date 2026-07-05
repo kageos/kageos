@@ -123,25 +123,29 @@ func Specs() map[string]Spec {
 		AppDeveloper: {
 			ID:          AppDeveloper,
 			DisplayName: "应用开发工程师",
-			Docs:        []string{"/system/prompt/roles/app-developer", "/system/prompt/sdk/agent-app-sdk-readme"},
-			Optional:    []string{"/system/prompt/case_catalog"},
+			Docs: []string{
+				"/system/prompt/roles/app-developer",
+				"/system/prompt/sdk/agent-app-sdk-readme",
+				"/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask",
+			},
+			Optional: []string{"/system/prompt/case_catalog"},
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "read_file",
-				"create_directory", "write_doc", "write_file", "edit_file", "read_app_log", "build_workspace",
+				"create_directory", "write_file", "edit_file", "read_app_log", "build_workspace",
 			},
 			ForbiddenTools: []string{"write_prd"},
 			Runtime: runtimeContract(
 				[]string{"用户已确认 PRD", "handoff 会话携带完整 agent_app_prd JSON", "用户明确要求新增或改变软件能力"},
 				[]string{"用户在已有应用里使用软件完成业务结果", "需求尚未确认 PRD 且不是小范围维护"},
-				[]string{"调用 change_role 并固定 execute_directory", "优先阅读 PRD_EXECUTION_MARKDOWN，细节以 PRD JSON 为准", "读取 SDK 主文档和匹配案例", "创建或修改目标目录代码", "build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed", "build 成功后不等待用户确认，立即交接 qa_engineer 并自动测试"},
+				[]string{"调用 change_role 并固定 execute_directory", "优先阅读 PRD_EXECUTION_MARKDOWN，细节以 PRD JSON 为准", "读取 SDK 主文档和匹配案例", "涉及 kageos_manifest.go、runbook.docs、AddDocs 或 AddAgentTask 时必须按 /system/prompt/sdk/reference/kageos-manifest-runbook-agenttask 区分目录级运行契约和具体无人值守任务", "目录默认文档和运行手册优先通过 kageos_manifest.go 的 packageContext.AddDocs(...) 随应用代码维护", "创建或修改目标目录代码", "build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed", "build 成功后不等待用户确认，立即交接 qa_engineer 并自动测试"},
 				[]string{"build_workspace 成功、已交接 qa_engineer 并完成核心函数测试", "或 build/schema 失败并带完整错误交接给 build_engineer"},
 				[]LifecycleHook{
 					hook("app_developer.before_enter_prd", "before_enter", "整理确认后的 PRD、执行目录和开发参考资料。", []string{"agent_app_prd JSON", "PRD_EXECUTION_MARKDOWN", "reference docs"}, []string{"developer_context_packet"}),
 					hook("app_developer.after_build", "after_tool", "build_workspace 后根据成功或失败决定 QA 或构建修复交接。", []string{"build_workspace result"}, []string{"agent_app_build artifact", "build_diagnostics"}),
 				},
 			),
-			Action:           "应用开发工程师只按已确认 PRD v2 开发执行；区分 tables.fields 模型字段和 tables.search_fields 查询字段，读取 SDK 和案例，创建目录、写 Go 文件；build 前必须模型 CR，确认无伪实现和范围外功能后再 build；build 成功后立即交接 QA 自动测试，不重新输出 PRD。",
-			RouteDescription: "用户已确认 PRD，或确认按钮开启的新会话携带完整 PRD JSON 时进入。只按 PRD v2 直接开发：读取匹配案例，创建目录，生成 Go struct 和函数代码，注册路由；`tables.fields` 是模型字段，`tables.search_fields` 是查询请求字段；build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed，确认无“开发中/未实现/占位”伪功能和 PRD 外入口；build 成功后必须立即进入 `qa_engineer` 自动测试，不等待用户确认。不要重新输出 PRD，不要再次询问确认。用户是在已有应用里使用软件完成业务结果，而不是要求新增或改变软件能力时，不要进入开发工程师，应进入 `app_operator`。",
+			Action:           "应用开发工程师只按已确认 PRD v2 开发执行；区分 tables.fields 模型字段和 tables.search_fields 查询字段，读取 SDK、manifest/runbook/AgentTask 规范和案例，创建目录、写 Go 文件；build 前必须模型 CR，确认无伪实现和范围外功能后再 build；build 成功后立即交接 QA 自动测试，不重新输出 PRD。",
+			RouteDescription: "用户已确认 PRD，或确认按钮开启的新会话携带完整 PRD JSON 时进入。只按 PRD v2 直接开发：读取匹配案例，创建目录，生成 Go struct 和函数代码，注册路由；如需默认运行手册、默认 Agent 任务或 `kageos_manifest.go`，必须读取 `/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask` 并区分 `runbook.docs` 与 `AgentTask.Message`；`tables.fields` 是模型字段，`tables.search_fields` 是查询请求字段；build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed，确认无“开发中/未实现/占位”伪功能和 PRD 外入口；build 成功后必须立即进入 `qa_engineer` 自动测试，不等待用户确认。不要重新输出 PRD，不要再次询问确认。用户是在已有应用里使用软件完成业务结果，而不是要求新增或改变软件能力时，不要进入开发工程师，应进入 `app_operator`。",
 			NextRoles: []NextRole{
 				{RoleID: QAEngineer, When: "build 成功后验证核心函数"},
 				{RoleID: BuildEngineer, When: "build 失败或 schema compile failed"},
@@ -150,24 +154,27 @@ func Specs() map[string]Spec {
 		MaintenanceEngineer: {
 			ID:          MaintenanceEngineer,
 			DisplayName: "应用维护工程师",
-			Docs:        []string{"/system/prompt/roles/maintenance-engineer"},
+			Docs: []string{
+				"/system/prompt/roles/maintenance-engineer",
+				"/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask",
+			},
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "read_file",
-				"create_directory", "write_doc", "write_file", "edit_file", "delete_file", "read_app_log", "build_workspace",
+				"create_directory", "write_file", "edit_file", "delete_file", "read_app_log", "build_workspace",
 			},
 			ForbiddenTools: []string{"write_prd"},
 			Runtime: runtimeContract(
 				[]string{"用户要修改已有应用、字段、搜索、选项、回调、图表或业务 bug", "用户要创建或更新当前目录文档、运行手册 runbook.docs、SOP 或业务说明", "测试或操作发现业务实现问题"},
 				[]string{"用户要重新设计新系统需求", "只是业务数据操作且当前应用可直接完成"},
-				[]string{"固定目标应用 execute_directory", "读取相关目录和源码；纯文档/runbook 任务读取当前目录、函数 schema、已有文档和定时任务摘要", "用户要求当前目录运行手册时用 write_doc 写入当前目录 code=runbook、name=运行手册", "纯文档/runbook 修改完成后不 build、不交接 QA", "代码或 schema 修改时小改局部替换，大改再写完整文件", "代码修改后 build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed", "build 成功后不等待用户确认，立即交接 qa_engineer 并自动测试", "失败时按错误类型补读文档或交接 build_engineer"},
-				[]string{"纯文档/runbook 修改已用 write_doc 创建或更新并返回路径", "或目标代码修改已落盘、build 成功并完成 QA 测试", "或构建问题已交接 build_engineer"},
+				[]string{"固定目标应用 execute_directory", "读取相关目录和源码；文档/runbook 任务读取当前目录、函数 schema、已有文档和定时任务摘要", "创建或更新 runbook.docs、kageos_manifest.go、AddDocs 或 AddAgentTask 前必须按 /system/prompt/sdk/reference/kageos-manifest-runbook-agenttask 区分目录级运行契约和具体无人值守任务", "用户要求当前目录运行手册时，优先维护 kageos_manifest.go 中的 packageContext.AddDocs(...) 默认文档种子", "代码或文档种子修改时小改局部替换，大改再写完整文件", "代码修改后 build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed", "build 成功后不等待用户确认，立即交接 qa_engineer 并自动测试", "失败时按错误类型补读文档或交接 build_engineer"},
+				[]string{"目标代码或文档种子修改已落盘、build 成功并完成 QA 测试", "或构建问题已交接 build_engineer"},
 				[]LifecycleHook{
 					hook("maintenance.before_enter_scope", "before_enter", "收敛维护范围，避免扫描或修改无关应用。", []string{"execute_directory", "changed files", "bug report"}, []string{"maintenance_scope"}),
 					hook("maintenance.after_build", "after_tool", "构建后决定进入 QA 或构建修复。", []string{"build_workspace result"}, []string{"verification_focus", "build_diagnostics"}),
 				},
 			),
-			Action:           "应用维护工程师负责修改已有应用、字段、搜索、选项、回调、图表、业务 bug 和当前目录文档/runbook；纯文档修改用 write_doc 完成，不 build；代码修改需读取相关源码后修改，build 前模型 CR，确认无伪实现和范围外功能后再 build。",
-			RouteDescription: "用户要改已有应用、字段、选项、组件、回调、搜索、消息、跳转、图表、业务逻辑，或要为当前目录创建/更新文档、运行手册 runbook.docs、SOP、业务说明时进入。文档/runbook 任务先读取当前目录、函数和已有文档，使用 `write_doc` 写入；当前目录运行手册固定用 code=runbook、name=运行手册，生成 `<当前目录>/runbook.docs`，纯文档修改不 build、不交接 QA。代码修改先识别修改类型和影响范围，读取当前目录与相关源码，只改用户目标和必要依赖。新增或修改搜索时区分业务字段和系统字段；小改优先局部替换，大改或新增能力再写完整文件；build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed；构建成功后必须立即进入 `qa_engineer` 自动测试，不等待用户确认。",
+			Action:           "应用维护工程师负责修改已有应用、字段、搜索、选项、回调、图表、业务 bug、当前目录文档/runbook 和 manifest 默认资产；文档默认资产通过 kageos_manifest.go / packageContext.AddDocs(...) 随代码维护；代码修改需读取相关源码后修改，build 前模型 CR，确认无伪实现和范围外功能后再 build。",
+			RouteDescription: "用户要改已有应用、字段、选项、组件、回调、搜索、消息、跳转、图表、业务逻辑，或要为当前目录创建/更新文档、运行手册 runbook.docs、SOP、业务说明时进入。文档/runbook/manifest 任务必须读取 `/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask`；先读取当前目录、函数和已有文档，优先小范围修改 `kageos_manifest.go` seed，通过 `packageContext.AddDocs(...)` 维护默认文档资产。代码修改先识别修改类型和影响范围，读取当前目录与相关源码，只改用户目标和必要依赖。新增或修改搜索时区分业务字段和系统字段；小改优先局部替换，大改或新增能力再写完整文件；build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed；构建成功后必须立即进入 `qa_engineer` 自动测试，不等待用户确认。",
 			NextRoles: []NextRole{
 				{RoleID: QAEngineer, When: "修改 build 成功后验证功能"},
 				{RoleID: BuildEngineer, When: "构建或 schema 校验失败"},
@@ -232,7 +239,10 @@ func Specs() map[string]Spec {
 		AutomationOperator: {
 			ID:          AutomationOperator,
 			DisplayName: "自动执行配置",
-			Docs:        []string{"/system/prompt/roles/automation-operator"},
+			Docs: []string{
+				"/system/prompt/roles/automation-operator",
+				"/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask",
+			},
 			AllowedTools: []string{
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "search",
 				"create_scheduled_function_task", "create_scheduled_agent_task",
@@ -246,14 +256,14 @@ func Specs() map[string]Spec {
 			Runtime: runtimeContract(
 				[]string{"用户要把已有应用函数、已有业务操作或已有工作台目录配置成指定时间、周期、提醒、巡检或 Agent 任务", "用户要查询、暂停、恢复、取消或立即运行已有定时任务"},
 				[]string{"用户只是要立即查询、提交、更新或删除真实业务数据", "用户想定时执行但目标能力尚不存在、函数未确认或需要新增/修改软件能力", "用户要测试刚构建应用"},
-				[]string{"固定目标应用 execute_directory", "先区分任务类型：固定 Form/Table/Chart 调用用函数任务，需要 Agent 判断/巡检/分析/总结/维护长期数据或多步骤用 Agent 任务", "先用 search 确认目标函数或目录，不搜索整个工作区", "Agent 任务可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须按无人值守 SOP 写清场景、长期目标、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式和通知规则；不要把示例规则机械套到所有任务", "把用户自然语言计划转换为 atime、cron 或 every，并复述关键时间、频率和最多次数", "用户只是问能不能或怎么做时只说明方案，不创建任务", "创建任务前确认执行参数来自用户输入或已验证 schema，不猜必填字段、枚举或记录 ID；周期性写入任务必须等用户明确确认", "调用定时任务工具创建或管理任务", "返回 task_id、下次执行时间、执行来源和取消方式"},
+				[]string{"固定目标应用 execute_directory", "先区分任务类型：固定 Form/Table/Chart 调用用函数任务，需要 Agent 判断/巡检/分析/总结/维护长期数据或多步骤用 Agent 任务", "先用 search 确认目标函数或目录，不搜索整个工作区", "创建或更新 Agent 任务 message 前必须按 /system/prompt/sdk/reference/kageos-manifest-runbook-agenttask 区分目录 runbook 和具体无人值守执行单，并要求 message 先读 <./runbook.docs>", "Agent 任务可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须按无人值守 SOP 写清场景、长期目标、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式和通知规则；不要把示例规则机械套到所有任务", "把用户自然语言计划转换为 atime、cron 或 every，并复述关键时间、频率和最多次数", "用户只是问能不能或怎么做时只说明方案，不创建任务", "创建任务前确认执行参数来自用户输入或已验证 schema，不猜必填字段、枚举或记录 ID；周期性写入任务必须等用户明确确认", "调用定时任务工具创建或管理任务", "返回 task_id、下次执行时间、执行来源和取消方式"},
 				[]string{"函数任务或 Agent 任务已创建并返回 task_id/next_run_at", "或任务已暂停、恢复、取消、立即运行、执行记录已查询", "失败原因已区分为时间表达式、权限、参数/schema 或调度服务问题"},
 				[]LifecycleHook{
 					hook("automation.before_enter_scope", "before_enter", "进入自动化角色前收敛目标应用、候选函数和计划类型。", []string{"execute_directory", "user schedule intent", "function schema"}, []string{"automation_scope", "schedule_plan"}),
 				},
 			),
-			Action:           "自动执行配置负责把已有业务操作配置成未来或周期自动执行，并管理函数任务、Agent 任务和执行记录；不直接修改代码，不直接执行真实业务写入。",
-			RouteDescription: "用户要“定时、每天、每周、周期、提醒、自动跑、定期巡检、到点提交、Agent 任务”且目标是已有应用函数、已有业务操作或已有工作台目录时进入。它负责把已有能力配置成 timer-scheduler 任务，并管理暂停、恢复、取消、立即运行和执行记录。先区分两类任务：目标是一个明确 Form/Table/Chart 和固定参数时，用函数任务；目标需要 Agent 到点后判断、巡检、分析、总结、维护长期数据、选择多个工具或临场决策时，用 Agent 任务。Agent 任务可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须写成无人值守 SOP：场景/长期目标、绑定目录、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式、通知规则；不要把示例规则机械套到所有任务。它不同于 `app_operator`：应用执行负责现在执行一次真实业务操作；自动执行配置负责以后自动执行。它也不同于 `product_manager/app_developer/maintenance_engineer`：如果用户想定时执行的能力还不存在、函数 schema 还不确定，或需要新增/修改软件能力，先进入产品、开发或维护，不要直接进入自动化。用户只是问“能不能/怎么做”时只说明方案和风险；周期性写入任务必须等用户明确确认后再创建。创建任务前必须确认目标函数/目录、计划时间、执行参数和权限边界；不设计 PRD、不写代码、不 build、不直接调用 run_* 完成真实业务写入。",
+			Action:           "自动执行配置负责把已有业务操作配置成未来或周期自动执行，并管理函数任务、Agent 任务和执行记录；创建 Agent 任务 message 时按 manifest/runbook/AgentTask 规范写无人值守执行单；不直接修改代码，不直接执行真实业务写入。",
+			RouteDescription: "用户要“定时、每天、每周、周期、提醒、自动跑、定期巡检、到点提交、Agent 任务”且目标是已有应用函数、已有业务操作或已有工作台目录时进入。它负责把已有能力配置成 timer-scheduler 任务，并管理暂停、恢复、取消、立即运行和执行记录。先区分两类任务：目标是一个明确 Form/Table/Chart 和固定参数时，用函数任务；目标需要 Agent 到点后判断、巡检、分析、总结、维护长期数据、选择多个工具或临场决策时，用 Agent 任务。Agent 任务可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须读取 `/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask` 并写成无人值守 SOP：场景/长期目标、绑定目录、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式、通知规则；不要把示例规则机械套到所有任务。它不同于 `app_operator`：应用执行负责现在执行一次真实业务操作；自动执行配置负责以后自动执行。它也不同于 `product_manager/app_developer/maintenance_engineer`：如果用户想定时执行的能力还不存在、函数 schema 还不确定，或需要新增/修改软件能力，先进入产品、开发或维护，不要直接进入自动化。用户只是问“能不能/怎么做”时只说明方案和风险；周期性写入任务必须等用户明确确认后再创建。创建任务前必须确认目标函数/目录、计划时间、执行参数和权限边界；不设计 PRD、不写代码、不 build、不直接调用 run_* 完成真实业务写入。",
 			NextRoles: []NextRole{
 				{RoleID: AppOperator, When: "用户要求先立即执行一次业务操作验证参数"},
 				{RoleID: MaintenanceEngineer, When: "定时执行失败且判断为应用 bug 或字段实现问题"},

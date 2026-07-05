@@ -146,16 +146,20 @@ type WorkspaceModelContextDocs struct {
 }
 
 type WorkspaceModelContextTools struct {
-	RequestedNames []string `json:"requested_names,omitempty"`
-	LLMTools       []string `json:"llm_tools,omitempty"`
-	LLMToolCount   int      `json:"llm_tool_count"`
-	Policy         string   `json:"policy"`
+	RequestedNames       []string `json:"requested_names,omitempty"`
+	LLMTools             []string `json:"llm_tools,omitempty"`
+	LLMToolCount         int      `json:"llm_tool_count"`
+	RoleAllowedTools     []string `json:"role_allowed_tools,omitempty"`
+	RoleAllowedToolCount int      `json:"role_allowed_tool_count,omitempty"`
+	Policy               string   `json:"policy"`
 }
 
 type WorkspaceModelContextCachePlan struct {
 	StablePrefixStrategy string                            `json:"stable_prefix_strategy"`
 	StablePrefixItems    []string                          `json:"stable_prefix_items,omitempty"`
 	ActualUsageField     string                            `json:"actual_usage_field"`
+	PromptCacheKey       string                            `json:"prompt_cache_key,omitempty"`
+	PromptCacheRetention string                            `json:"prompt_cache_retention,omitempty"`
 	Result               *WorkspaceModelContextCacheResult `json:"result,omitempty"`
 }
 

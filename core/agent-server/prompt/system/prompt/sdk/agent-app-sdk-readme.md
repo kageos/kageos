@@ -35,7 +35,7 @@
 
 1. **定义结构体**：业务字段加 `gorm`、`widget`、`validate` 等标签；主键、CreatedAt、DeletedAt 等系统字段按约定写。Table 筛选字段写在 Request 中，Model 不承担筛选协议。
 2. **配置 TableTemplate**：`BaseConfig`（Name、Request、CreateTables）+ **`AutoCrudTable`**（必须显式配置，指向列表结构体，前端据此渲染列表字段、分页和表格 schema）+ 可选 `OnTableAddRow` / `OnTableUpdateRow` / `OnTableDeleteRows`。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`。前端会根据是否配置回调来显示或隐藏对应按钮。**支付记录、消费流水、操作记录这类事实记录表默认应只读**，仍必须显式配置 `AutoCrudTable`，但不配置新增、编辑、删除回调。
-3. **写 List 函数**：Request 显式声明筛选字段，并嵌入 `query.PageSortReq`（`widget:"-"`）只承载分页/排序；Handler 手写 Where、Joins、Preload、`GetOrder()`、`Count`、`Offset/Limit/Find` 或调用第三方 API，拿到 `items + total` 后再 `resp.Table(response.TableResult{Items: items, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`；返回前可遍历 `items` 填计算字段、关联展示字段、link 等。
+3. **写 List 函数**：Request 显式声明筛选字段，并嵌入 `query.PageSortReq`（`widget:"-"`）只承载分页/排序；Handler 手写 Where、必要的 `Preload` / Joins、`GetOrder()`、`Count`、`Offset/Limit/Find` 或调用第三方 API，拿到 `items + total` 后再 `resp.Table(response.TableResult{Items: items, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`；返回前可遍历 `items` 填计算字段、关联展示字段、link 等。关联展示字段默认使用 `foreignKey + Preload`，SDK 迁移时不会创建数据库外键。
 4. **注册**：`init()` 中 `packageContext.GET("路由名", ListFunc, TableTemplate)`。
 
 最小可用片段示例：
@@ -69,7 +69,7 @@ func CrmTicketList(ctx *app.Context, resp response.Response) error {
     if err := ctx.ShouldBind(&req); err != nil {
         return err
     }
-    queryDB := ctx.GetGormDB().Model(&CrmTicket{}) // Build 前手写 Where、Joins、Preload("关联名") 等
+    queryDB := ctx.GetGormDB().Model(&CrmTicket{}) // Build 前手写 Where、必要的 Joins 等
     if req.Title != "" {
         queryDB = queryDB.Where("title LIKE ?", "%"+req.Title+"%")
     }
@@ -87,7 +87,7 @@ func CrmTicketList(ctx *app.Context, resp response.Response) error {
     if err := queryDB.Offset(req.PageSortReq.GetOffset()).Limit(req.PageSortReq.GetLimit()).Find(&lists).Error; err != nil {
         return err
     }
-    // 返回前可遍历 lists，填计算字段、关联表展示字段（需先 Preload）、link 等
+    // 返回前可遍历 lists，填计算字段、关联表展示字段（可用 Preload 取关联对象）、link 等
     return resp.Table(response.TableResult{
         Items:      lists,
         TotalCount: total,
@@ -100,7 +100,7 @@ func init() {
 }
 ```
 
-List 可先对 `queryDB` 做 Where、Joins、Preload 等，再用 `PageSortReq.GetOrder/GetOffset/GetLimit` 显式执行 Count/Order/Offset/Limit/Find；返回前遍历 `lists` 做后处理，最后 `resp.Table(response.TableResult{...}).Build()` 只渲染响应；详见「五、Table 回调函数 → 4. List 函数」。
+List 可先对 `queryDB` 做 Where、必要的 `Preload` / Joins 等，再用 `PageSortReq.GetOrder/GetOffset/GetLimit` 显式执行 Count/Order/Offset/Limit/Find；返回前遍历 `lists` 做后处理，关联展示字段用 `foreignKey + Preload` 补齐，最后 `resp.Table(response.TableResult{...}).Build()` 只渲染响应；详见「五、Table 回调函数 → 4. List 函数」。
 
 单表完整示例（含所有常用组件与回调）：`read_doc("/system/prompt/case_catalog/table/ticket")`。
 
@@ -529,7 +529,7 @@ type InvoiceReq struct {
 
 ### 3. Table 筛选字段
 
-Table 筛选统一在 Request 里显式声明业务字段，嵌入 `query.PageSortReq`，Handler 中手写 `Where` / `Joins` / `Preload`，最后调用 `Table`。
+Table 筛选统一在 Request 里显式声明业务字段，嵌入 `query.PageSortReq`，Handler 中手写 `Where` / 必要的 `Preload` / `Joins`，最后调用 `Table`。关联展示字段默认用 `foreignKey + Preload` 补齐。
 
 Table 筛选字段写在 Request 中，Handler 显式处理查询条件。常见筛选字段写法如下：
 
@@ -643,8 +643,8 @@ ApiToken     string  `json:"api_token" gorm:"column:api_token" widget:"name:API 
 ## 四、Table 模式要点
 
 - **TableTemplate**：`BaseConfig` 含 Name、Request、CreateTables；**不要写 Table Response**，表格 schema 由 `AutoCrudTable` 推导。**`AutoCrudTable` 必须显式配置**（指向列表结构体，前端据此渲染列表字段、筛选、分页和表格 schema）。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、支付流水、操作记录通常应直接只读）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮；工作台和服务端也会据此判断表是否允许写入。若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
-- **AutoCrudTable 的 model 可落库字段类型**：model 里凡是有 **gorm 列**（会被 GORM 写入数据库）的字段，**只能是**以下可落库类型：**基础类型**（int、string、bool、int64、float64 等）、**string**（`gorm:"type:text"`，实际存 `bucket/object_key` 字符串，多文件逗号分隔）、**gorm.DeletedAt**（软删除，GORM 特例）。除此以外，**其他 struct、slice（如 type:table / type:form）不能作为一列写入数据库**；若在 model 里出现这类 struct/slice，须为：**外键关联**（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID;references:ID"`，实际存的是 RoomID，不占一列）或 **gorm:"-"**（不落库，仅展示/表单用，如 RoomName、Status、Options、link 等）。否则 GORM 无法把该列写进数据库。
-- **List 函数**：Request 显式声明筛选字段，并嵌入 `query.PageSortReq`（`widget:"-"`）隐藏分页字段；Handler 显式处理 `Where` / `Joins` / `Preload`、`req.PageSortReq.GetOrder()`、`Count`、`Offset/Limit/Find`，或调用第三方 API 获取当前页数据和总数；最后调用 `resp.Table(response.TableResult{Items: lists, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`。返回前可在内存中给计算字段赋值（如剩余时间、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。`Table` 只渲染响应，不查询数据库；
+- **AutoCrudTable 的 model 可落库字段类型**：model 里凡是有 **gorm 列**（会被 GORM 写入数据库）的字段，**只能是**以下可落库类型：**基础类型**（int、string、bool、int64、float64 等）、**string**（`gorm:"type:text"`，实际存 `bucket/object_key` 字符串，多文件逗号分隔）、**gorm.DeletedAt**（软删除，GORM 特例）。除此以外，**其他 struct、slice（如 type:table / type:form）不能作为一列写入数据库**。关联对象可以作为 GORM 关联字段用于 `Preload`，但必须写成 `json:"-" widget:"-"`，例如 `Room *MeetingRoom gorm:"foreignKey:RoomID;references:ID"`；应用 SDK 打开业务库时启用 `DisableForeignKeyConstraintWhenMigrating`，所以 `AutoMigrate` 不会创建数据库外键约束。需要展示关联对象名称时，保存逻辑 ID（如 `RoomID`），用 `Preload("Room")` 读取关联对象，再填充 `gorm:"-"` 展示字段（如 RoomName、Status、Options、link 等）。
+- **List 函数**：Request 显式声明筛选字段，并嵌入 `query.PageSortReq`（`widget:"-"`）隐藏分页字段；Handler 显式处理 `Where` / 必要的 `Preload` / `Joins`、`req.PageSortReq.GetOrder()`、`Count`、`Offset/Limit/Find`，或调用第三方 API 获取当前页数据和总数；最后调用 `resp.Table(response.TableResult{Items: lists, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`。返回前可在内存中给计算字段赋值（如剩余时间、关联展示字段、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。`Table` 只渲染响应，不查询数据库；
 - 主键、CreatedAt、UpdatedAt、DeletedAt、DeletedBy 等系统字段约定见案例；init_.go 由脚手架生成，不要手写。
 
 完整 Table 示例（单表/多表/回调/OnSelectFuzzy/link）：`read_doc("/system/prompt/case_catalog/table/ticket")`、`read_doc("/system/prompt/case_catalog/tables/meeting")`、`read_doc("/system/prompt/case_catalog/tables/hr")`。
@@ -730,18 +730,18 @@ OnTableDeleteRows: func(ctx *app.Context, req *callback.OnTableDeleteRowsReq) (*
 
 List 函数可在 **查询之前** 和 **返回之前** 两处做自定义处理：
 
-- **查询之前**：对 `queryDB` 做 Where（主表筛选、外表筛选、计算字段的筛选条件）、Joins、**Preload（GORM 预加载）** 等；再按 `req.PageSortReq.GetOrder()`、`Count`、`Offset/Limit/Find` 显式查询。
+- **查询之前**：对 `queryDB` 做 Where（主表筛选、外表筛选、计算字段的筛选条件）、必要的 `Preload` / `Joins` 等；再按 `req.PageSortReq.GetOrder()`、`Count`、`Offset/Limit/Find` 显式查询。工作空间应用可以用 `foreignKey + Preload` 表达 GORM 关联；SDK 已禁用迁移时创建数据库外键，避免旧数据被约束卡住。
 - **返回之前**：对查询出的 `lists` 逐条做计算、填充不落库字段（如剩余时间、状态、**关联表名称**、link URL）等；最后 `resp.Table(response.TableResult{Items: lists, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`。
 
-#### GORM 预加载（Preload）
+#### 关联展示字段：foreignKey + Preload
 
-当列表需要展示**关联表字段**（如预约列表要显示「会议室名称」，而表里只存了 `room_id`）时，应使用 GORM 的 **Preload** 在查主表时一并加载关联，避免 N+1 查询。步骤：
+当列表需要展示**关联表字段**（如预约列表要显示「会议室名称」，而表里只存了 `room_id`）时，默认使用 `foreignKey + Preload`。SDK 的 app DB 连接已启用 `DisableForeignKeyConstraintWhenMigrating`，因此 GORM 知道如何关联查询，但 `AutoMigrate` 不会创建数据库外键约束。步骤：
 
-1. **Model 上定义关联**：在列表结构体上声明关联字段，并设置 `gorm:"foreignKey:外键列"`（如 `Room *MeetingRoom` 配 `gorm:"foreignKey:RoomID"`），该关联字段可不落库、不展示（`json:"-"`、`widget:"-"`）。
-2. **查询前 Preload**：在 `Find(&lists)` 之前执行 `queryDB = queryDB.Preload("Room")`（参数为关联字段名），这样查询完成后每条记录的 `Room` 会被填充。
-3. **返回前处理**：遍历 `lists` 时，用预加载的关联填不落库的展示字段（如 `if item.Room != nil { item.RoomName = item.Room.Name }`），再填计算字段、link 等。
+1. **Model 保存逻辑 ID + 关联字段**：如 `RoomID int` 落库，`Room *MeetingRoom` 写 `json:"-" widget:"-" gorm:"foreignKey:RoomID;references:ID"`，展示字段如 `RoomName`、`RoomLink` 使用 `gorm:"-"`。
+2. **查询主表时 Preload**：`queryDB := db.Model(&MeetingRoomBooking{}).Preload("Room")`，分页查询后关联对象会随当前页记录加载。
+3. **返回前处理**：遍历 `lists`，从 `item.Room` 补 `RoomName`、link、状态等不落库字段。
 
-不预加载时，若在后处理里按 `room_id` 逐条查会议室会形成 N+1 查询；使用 Preload 后一次查询主表、一次查询关联表，性能更好。
+不要在返回前按 `room_id` 逐条查询会议室；那会形成 N+1 查询。`Preload` 会按关联批量查询当前页所需对象，代码更短，也保留了迁移不建外键的安全边界。
 
 下面先给一个**仅返回前处理**的最小示例（剩余时间），再给一个**查询前处理 + 返回前处理**的示例（会议室预约：外表/状态筛选 + 填充会议室名称/状态/link）。
 
@@ -809,11 +809,11 @@ func TaskList(ctx *app.Context, resp response.Response) error {
 请求里包含**外表筛选**（会议室名称）和**计算字段筛选**（预约状态：待开始/进行中/已结束，由开始/结束时间与当前时间算出）。需在查询前对 `queryDB` 做 Where；返回前填充不落库字段（会议室名称、状态、详情 link）。参考：`read_doc("/system/prompt/case_catalog/tables/meeting")`。
 
 ```go
-// 列表结构体：RoomName、Status、RoomLink 为不落库展示字段（gorm:"-"）
+// 列表结构体：Room 为 GORM 关联字段，RoomName、Status、RoomLink 为不落库展示字段（gorm:"-"）
 type MeetingRoomBooking struct {
     ID        int    `json:"id" gorm:"primaryKey;autoIncrement;column:id" widget:"name:预约ID;type:ID" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
     RoomID    int    `json:"room_id" gorm:"column:room_id" widget:"name:会议室;type:select" callback:"OnSelectFuzzy"`
-    Room      *MeetingRoom `json:"-" gorm:"foreignKey:RoomID"`
+    Room      *MeetingRoom `json:"-" widget:"-" gorm:"foreignKey:RoomID;references:ID"`
     RoomName  string `json:"room_name" gorm:"-" widget:"name:会议室名称;type:text" hide:"create,update"`   // 前端仅在列表展示，不进入新增/编辑表单；后处理从 Room 取。
     RoomLink  string `json:"room_link" gorm:"-" widget:"name:会议室详情;type:link" hide:"create,update"`  // 前端仅在列表展示，不进入新增/编辑表单；后处理 BuildFunctionUrlWithText。
     StartTime types.Time `json:"start_time" gorm:"column:start_time;type:datetime" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss"`
@@ -835,7 +835,7 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
     var req MeetingRoomBookingListReq
     if err := ctx.ShouldBind(&req); err != nil { return err }
 
-    queryDB := db.Model(&MeetingRoomBooking{})
+    queryDB := db.Model(&MeetingRoomBooking{}).Preload("Room")
 
     // 查询前处理 1：按会议室名称筛选（外表字段，先查 MeetingRoom 得 roomIDs，再 Where room_id IN ?；无匹配时返回空表）
     if req.RoomName != "" {
@@ -858,7 +858,6 @@ func MeetingRoomBookingList(ctx *app.Context, resp response.Response) error {
         }
     }
 
-    queryDB = queryDB.Preload("Room")
     if order := req.PageSortReq.GetOrder(); order != "" {
         queryDB = queryDB.Order(order)
     }
@@ -896,7 +895,7 @@ func calculateBookingStatus(startTime, endTime types.Time) string {
 }
 ```
 
-要点：**查询前处理**用自定义 `queryDB`（外表 Where、计算字段 Where、**Preload 预加载关联**），再显式执行 `GetOrder`、`Count`、`Offset/Limit/Find`；**返回前处理**遍历 `lists`，用预加载的 `Room` 填 `RoomName`，再填 `Status`、`RoomLink` 等不落库字段；最后用 `resp.Table(response.TableResult{...}).Build()` 渲染表格响应。
+要点：**查询前处理**用自定义 `queryDB`（外表 Where、计算字段 Where、必要的 `Preload`），再显式执行 `GetOrder`、`Count`、`Offset/Limit/Find`；**返回前处理**遍历 `lists`，从 `Preload` 的关联对象填 `RoomName`、`Status`、`RoomLink` 等不落库字段；最后用 `resp.Table(response.TableResult{...}).Build()` 渲染表格响应。
 
 ---
 

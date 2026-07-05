@@ -27,7 +27,7 @@ type searchArgs struct {
 
 var searchToolDef = toolDefinition[searchArgs](
 	"search",
-	"统一搜索工具：可以搜工作台目录、文档、可执行函数（Form/Table/Chart）和内置工具。默认搜索当前账号有权限看到的全局资源；权限由平台统一判断，不需要也不要传 scope、directory、user 或 app。已知路径时传 full_code_path，不要把完整路径塞进 keyword；full_code_path 支持精确函数/文档路径，也支持目录前缀。resource_type=function 时会返回函数 schema 摘要，可用 schema_output=both 查看原始 JSON；执行 run_form_submit/run_table_search/run_chart_query 等工具前先用 search 确认字段名、必填项、枚举、文件字段和能力。keyword 自然写即可；多个备选关键词可用竖线 | 表示 OR。/system/prompt 下的 SDK 和案例是文档路径，search 会返回内容命中行，完整阅读用 read_doc。",
+	"统一搜索工具：只负责定位和确认资源，不执行、不写入。能搜：工作台目录、工作台文档、可执行函数（Form/Table/Chart）及其 schema、内置工具、/system/prompt 下系统文档/SDK/案例的内容命中行。不能搜：本地源码全文（用 read_file）、文档全文（用 read_doc）、外网内容（用 web_search）。默认搜索当前账号有权限看到的全局资源；权限由平台统一判断，不需要也不要传 scope、directory、user 或 app。已知路径时传 full_code_path，不要把完整路径塞进 keyword；full_code_path 支持精确函数/文档路径，也支持目录前缀。resource_type=function 时会返回函数 schema 摘要；可配合 template_type=form/table/chart 和 capability=read/create/update/delete/submit/query 缩小范围，可用 schema_output=both 查看原始 JSON。执行 run_form_submit/run_table_search/run_table_create/run_table_update/run_table_delete/run_chart_query/run_on_select_fuzzy 前先用 search 确认字段名、必填项、枚举、文件字段和能力。keyword 自然写即可；多个备选关键词可用竖线 | 表示 OR。resource_type=tool 可查内置工具。",
 )
 
 func (t *SearchTool) Definition() dto.ToolDef {

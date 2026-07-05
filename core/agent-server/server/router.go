@@ -44,6 +44,7 @@ func (s *Server) setupRoutes() {
 	llm.GET("/get", llmHandler.Get)                 // 获取LLM配置详情
 	llm.GET("/get_default", llmHandler.GetDefault)  // 获取默认LLM配置
 	llm.POST("/create", llmHandler.Create)          // 创建LLM配置
+	llm.POST("/probe", llmHandler.Probe)            // 检测LLM协议
 	llm.POST("/update", llmHandler.Update)          // 更新LLM配置
 	llm.POST("/delete", llmHandler.Delete)          // 删除LLM配置
 	llm.POST("/set_default", llmHandler.SetDefault) // 设置默认LLM配置
@@ -59,6 +60,7 @@ func (s *Server) setupRoutes() {
 	workspace.GET("/sessions/finished", workspaceChatHandler.ListFinishedSessions)                  // 查询已结束的任务
 	workspace.GET("/sessions/:session_id/sse-status", workspaceChatHandler.GetSessionSSEStatus)     // SSE 存活检测
 	workspace.GET("/messages", workspaceChatHandler.ListMessages)                                   // 获取会话消息列表
+	workspace.POST("/tools/batch_detail", workspaceChatHandler.BatchToolDetails)                    // 批量获取内置工具展示详情
 	workspace.POST("/chat/stream", workspaceChatHandler.ChatStream)
 	workspace.POST("/chat/cancel", workspaceChatHandler.CancelChat) // 取消执行中的任务
 

@@ -98,6 +98,7 @@
               @focusin="onMarkdownFocusin"
               @focusout="onMarkdownFocusout"
               @mouseleave="scheduleCloseResourcePreview"
+              @copy="onMarkdownCopy"
             />
             <pre v-else class="plain-text-content">{{ doc.content }}</pre>
           </div>
@@ -208,7 +209,12 @@
           <code class="doc-resource-preview__path">{{ resourcePreview.path }}</code>
           <div class="doc-resource-preview__actions">
             <span v-if="resourcePreview.loading" class="doc-resource-preview__loading">加载详情...</span>
-            <button type="button" class="doc-resource-preview__link" @click="openResourcePreviewTarget">
+            <button
+              v-if="!isWorkspaceToolResourcePath(resourcePreview.path)"
+              type="button"
+              class="doc-resource-preview__link"
+              @click="openResourcePreviewTarget"
+            >
               打开资源
             </button>
             <button type="button" class="doc-resource-preview__close" aria-label="关闭资源预览" @click="closeResourcePreview">
@@ -228,10 +234,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight, Clock, RefreshRight } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { getDoc, updateDoc, deleteDoc } from '@/architecture/presentation/context/api/doc'  // ✅ 使用新的文档 API
-import { getServiceTreeDetail, type ServiceTreeDetailResp } from '@/architecture/presentation/context/api/service-tree'
+import { batchGetServiceTreeDetails, type ServiceTreeDetailResp } from '@/architecture/presentation/context/api/service-tree'
+import { batchGetWorkspaceToolDetails, type WorkspaceToolDetail } from '@/architecture/presentation/context/api/workspace'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import {
+  getWorkspaceResourceSelectionText,
+  isWorkspaceToolResourcePath,
   renderWorkspaceResourceTokensAsHtml,
+  workspaceToolName,
   workspaceResourceIconHtml,
   workspaceResourceIconSrc,
 } from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
@@ -339,6 +349,14 @@ function onMarkdownFocusout(e: FocusEvent) {
   closeResourcePreview()
 }
 
+function onMarkdownCopy(e: ClipboardEvent) {
+  const root = e.currentTarget instanceof HTMLElement ? e.currentTarget : markdownContentRef.value
+  const text = getWorkspaceResourceSelectionText(root)
+  if (!text) return
+  e.preventDefault()
+  e.clipboardData?.setData('text/plain', text)
+}
+
 function getResourceLinkFromEventTarget(target: EventTarget | null): HTMLAnchorElement | null {
   if (!(target instanceof Element)) return null
   const resourceLink = target.closest('a.workspace-resource-token') as HTMLAnchorElement | null
@@ -353,6 +371,7 @@ function showResourcePreview(resourceLink: HTMLAnchorElement) {
 
   const fallbackMeta = buildResourcePreviewMetaFromLink(resourceLink)
   const cachedMeta = resourcePreviewMetaByPath.value[path]
+  const canHydrate = isHydratableResourcePath(path)
   const position = getResourcePreviewPosition(resourceLink)
   const href = resourceLink.getAttribute('href') || ''
   const nextMeta = cachedMeta || fallbackMeta
@@ -362,10 +381,10 @@ function showResourcePreview(resourceLink: HTMLAnchorElement) {
     visible: true,
     left: position.left,
     top: position.top,
-    loading: !cachedMeta,
+    loading: !cachedMeta && canHydrate,
   }
 
-  if (!cachedMeta && !resourcePreviewHydratingPaths.has(path)) {
+  if (canHydrate && !cachedMeta && !resourcePreviewHydratingPaths.has(path)) {
     void hydrateResourcePreview(path)
   }
 }
@@ -386,31 +405,92 @@ function buildResourcePreviewMetaFromLink(resourceLink: HTMLAnchorElement): DocR
 }
 
 async function hydrateResourcePreview(path: string) {
-  resourcePreviewHydratingPaths.add(path)
+  if (isWorkspaceToolResourcePath(path)) {
+    await hydrateToolResourcePreviews([path])
+    return
+  }
+  await hydrateWorkspaceResourcePreviews([path])
+}
+
+async function hydrateWorkspaceResourcePreviews(paths: string[]) {
+  const uniquePaths = Array.from(new Set(paths))
+    .filter(path => !isWorkspaceToolResourcePath(path) && isHydratableResourcePath(path))
+    .filter(path => !resourcePreviewMetaByPath.value[path] && !resourcePreviewHydratingPaths.has(path))
+  if (uniquePaths.length === 0) return
+
+  uniquePaths.forEach(path => resourcePreviewHydratingPaths.add(path))
   try {
-    const detail = await getServiceTreeDetail(path)
-    const meta = buildResourcePreviewMetaFromDetail(detail, path)
-    resourcePreviewMetaByPath.value = {
-      ...resourcePreviewMetaByPath.value,
-      [path]: meta,
-    }
-    applyResourcePreviewMetaToTokens(meta)
-    if (resourcePreview.value.visible && resourcePreview.value.path === path) {
-      resourcePreview.value = {
-        ...resourcePreview.value,
-        ...meta,
-        loading: false,
+    const resp = await batchGetServiceTreeDetails({ full_code_paths: uniquePaths })
+    const nextMetaByPath = { ...resourcePreviewMetaByPath.value }
+    ;(resp.items || []).forEach((detail) => {
+      const path = detail.full_code_path || ''
+      if (!path) return
+      const meta = buildResourcePreviewMetaFromDetail(detail, path)
+      nextMetaByPath[path] = meta
+      applyResourcePreviewMetaToTokens(meta)
+      if (resourcePreview.value.visible && resourcePreview.value.path === path) {
+        resourcePreview.value = {
+          ...resourcePreview.value,
+          ...meta,
+          loading: false,
+        }
       }
-    }
+    })
+    resourcePreviewMetaByPath.value = nextMetaByPath
   } catch {
-    if (resourcePreview.value.visible && resourcePreview.value.path === path) {
-      resourcePreview.value = {
-        ...resourcePreview.value,
-        loading: false,
-      }
-    }
+    // 资源详情只是展示增强，失败时保留 token 上的基础信息。
   } finally {
-    resourcePreviewHydratingPaths.delete(path)
+    uniquePaths.forEach((path) => {
+      resourcePreviewHydratingPaths.delete(path)
+      if (resourcePreview.value.visible && resourcePreview.value.path === path) {
+        resourcePreview.value = {
+          ...resourcePreview.value,
+          loading: false,
+        }
+      }
+    })
+  }
+}
+
+async function hydrateToolResourcePreviews(paths: string[]) {
+  const uniquePaths = Array.from(new Set(paths))
+    .filter(path => isWorkspaceToolResourcePath(path))
+    .filter(path => !resourcePreviewMetaByPath.value[path] && !resourcePreviewHydratingPaths.has(path))
+  if (uniquePaths.length === 0) return
+
+  uniquePaths.forEach(path => resourcePreviewHydratingPaths.add(path))
+  try {
+    const resp = await batchGetWorkspaceToolDetails({
+      names: uniquePaths.map(path => workspaceToolName(path)).filter(Boolean),
+      include_schema: false,
+    })
+    const nextMetaByPath = { ...resourcePreviewMetaByPath.value }
+    ;(resp.tools || []).forEach((tool) => {
+      const toolPath = `tool:${tool.name}`
+      const meta = buildResourcePreviewMetaFromTool(tool, toolPath)
+      nextMetaByPath[toolPath] = meta
+      applyResourcePreviewMetaToTokens(meta)
+      if (resourcePreview.value.visible && resourcePreview.value.path === toolPath) {
+        resourcePreview.value = {
+          ...resourcePreview.value,
+          ...meta,
+          loading: false,
+        }
+      }
+    })
+    resourcePreviewMetaByPath.value = nextMetaByPath
+  } catch {
+    // 工具详情只是展示增强，失败时保留 token 上的基础信息。
+  } finally {
+    uniquePaths.forEach((path) => {
+      resourcePreviewHydratingPaths.delete(path)
+      if (resourcePreview.value.visible && resourcePreview.value.path === path) {
+        resourcePreview.value = {
+          ...resourcePreview.value,
+          loading: false,
+        }
+      }
+    })
   }
 }
 
@@ -435,19 +515,34 @@ async function hydrateVisibleResourceTokens() {
   const paths = Array.from(new Set(
     links
       .map(link => link.dataset.fullCodePath || '')
-      .filter(path => path && path.startsWith('/'))
+      .filter(path => path && isHydratableResourcePath(path))
   )).slice(0, 30)
 
-  paths.forEach((path) => {
+  const toolPaths = paths.filter(path => isWorkspaceToolResourcePath(path))
+  if (toolPaths.length > 0) {
+    toolPaths.forEach((path) => {
+      const cachedMeta = resourcePreviewMetaByPath.value[path]
+      if (cachedMeta) {
+        applyResourcePreviewMetaToTokens(cachedMeta)
+      }
+    })
+    void hydrateToolResourcePreviews(toolPaths)
+  }
+
+  const resourcePathsToHydrate: string[] = []
+  paths.filter(path => !isWorkspaceToolResourcePath(path)).forEach((path) => {
     const cachedMeta = resourcePreviewMetaByPath.value[path]
     if (cachedMeta) {
       applyResourcePreviewMetaToTokens(cachedMeta)
       return
     }
     if (!resourcePreviewHydratingPaths.has(path)) {
-      void hydrateResourcePreview(path)
+      resourcePathsToHydrate.push(path)
     }
   })
+  if (resourcePathsToHydrate.length > 0) {
+    void hydrateWorkspaceResourcePreviews(resourcePathsToHydrate)
+  }
 }
 
 function applyResourcePreviewMetaToTokens(meta: DocResourcePreviewMeta) {
@@ -501,6 +596,26 @@ function buildResourcePreviewMetaFromDetail(detail: ServiceTreeDetailResp, fallb
   }
 }
 
+function buildResourcePreviewMetaFromTool(tool: WorkspaceToolDetail, fallbackPath: string): DocResourcePreviewMeta {
+  const fields = tool.input_fields || []
+  const requiredFields = fields.filter(field => field.required).map(field => field.name).filter(Boolean)
+  const previewFields = fields.slice(0, 4).map(formatToolFieldMeta).filter(Boolean)
+  return {
+    path: fallbackPath || `tool:${tool.name}`,
+    label: tool.name || getPathTail(fallbackPath) || fallbackPath || '内置工具',
+    typeLabel: tool.type_label || '内置工具',
+    kind: 'tool',
+    description: cleanPreviewText(tool.description),
+    metaItems: compactPreviewMetaItems([
+      fields.length > 0 ? `${fields.length} 个参数` : '',
+      requiredFields.length > 0 ? `必填 ${requiredFields.slice(0, 4).join(', ')}` : '',
+      previewFields.length > 0 ? `参数 ${previewFields.join(', ')}` : '',
+    ]),
+    iconSrc: getResourcePreviewIconSrc('tool'),
+    iconHtml: getResourcePreviewIconHtml('tool', tool.type_label || '内置工具'),
+  }
+}
+
 function getResourcePreviewPosition(resourceLink: HTMLAnchorElement) {
   const rect = resourceLink.getBoundingClientRect()
   const cardWidth = 340
@@ -519,6 +634,10 @@ function getResourcePreviewPosition(resourceLink: HTMLAnchorElement) {
 function openResourcePreviewTarget() {
   const href = resourcePreview.value.href
   if (!href) return
+  if (isWorkspaceToolResourcePath(resourcePreview.value.path)) {
+    closeResourcePreview()
+    return
+  }
   closeResourcePreview()
   if (href.startsWith('/workspace/')) {
     void router.push(href)
@@ -589,6 +708,7 @@ function createEmptyResourcePreview(): DocResourcePreview {
 }
 
 function inferResourceKind(path: string, type?: string, templateType?: string) {
+  if (isWorkspaceToolResourcePath(path)) return 'tool'
   if (type === 'docs' || path.endsWith('.docs')) return 'docs'
   if (type === 'package') return 'directory'
   if (templateType === 'form' || path.endsWith('.form')) return 'form'
@@ -600,6 +720,7 @@ function inferResourceKind(path: string, type?: string, templateType?: string) {
 function getResourcePreviewTypeLabel(kind: string, type?: string, templateType?: string) {
   if (type === 'docs' || kind === 'docs') return '文档'
   if (type === 'package' || kind === 'directory') return '目录'
+  if (kind === 'tool') return '内置工具'
   if (templateType === 'table' || kind === 'table') return '表格'
   if (templateType === 'form' || kind === 'form') return '表单'
   if (templateType === 'chart' || kind === 'chart') return '图表'
@@ -615,11 +736,27 @@ function getResourcePreviewIconHtml(kind: string, typeLabel: string) {
 }
 
 function getReadableResourcePath(path: string) {
+  if (isWorkspaceToolResourcePath(path)) {
+    return `内置工具 / ${workspaceToolName(path) || path}`
+  }
   return String(path || '').split('/').filter(Boolean).join(' / ')
 }
 
+function formatToolFieldMeta(field: { name: string; type?: string }) {
+  if (!field.name) return ''
+  return field.type ? `${field.name}:${field.type}` : field.name
+}
+
 function getPathTail(path: string) {
+  if (isWorkspaceToolResourcePath(path)) {
+    return workspaceToolName(path)
+  }
   return String(path || '').split('/').filter(Boolean).pop() || ''
+}
+
+function isHydratableResourcePath(path: string) {
+  const value = String(path || '')
+  return isWorkspaceToolResourcePath(value) || value.startsWith('/')
 }
 
 function cleanPreviewText(value?: string) {
@@ -1195,7 +1332,8 @@ watch(renderedContent, () => {
   }
 
   :deep(.workspace-resource-token__img),
-  :deep(.workspace-resource-token__svg) {
+  :deep(.workspace-resource-token__svg),
+  :deep(.workspace-resource-token__glyph) {
     width: 16px;
     height: 16px;
     object-fit: contain;
@@ -1205,6 +1343,20 @@ watch(renderedContent, () => {
     box-shadow: none;
     cursor: inherit;
     transition: none;
+  }
+
+  :deep(.workspace-resource-token__glyph) {
+    border-radius: 5px;
+    background: linear-gradient(135deg, var(--el-color-primary, #1677ff), color-mix(in srgb, var(--el-color-primary, #1677ff) 58%, white));
+    position: relative;
+  }
+
+  :deep(.workspace-resource-token__glyph::after) {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    border-radius: 999px;
   }
 
   :deep(.workspace-resource-token__img:hover),
@@ -1392,7 +1544,8 @@ watch(renderedContent, () => {
 }
 
 .doc-resource-preview__html-icon :deep(.workspace-resource-token__img),
-.doc-resource-preview__html-icon :deep(.workspace-resource-token__svg) {
+.doc-resource-preview__html-icon :deep(.workspace-resource-token__svg),
+.doc-resource-preview__html-icon :deep(.workspace-resource-token__glyph) {
   width: 22px;
   height: 22px;
   display: block;

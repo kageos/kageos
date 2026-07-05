@@ -120,6 +120,10 @@ func applyCommonHeaders(req *http.Request, ctx context.Context) {
 		{contextx.WorkspaceSessionIDHeader, contextx.GetWorkspaceSessionID(ctx)},
 		{contextx.WorkspaceSessionTitleHeader, contextx.GetWorkspaceSessionTitle(ctx)},
 		{contextx.WorkspaceRoleHeader, contextx.GetWorkspaceRole(ctx)},
+		{contextx.InitiatorUserHeader, contextx.GetInitiatorUser(ctx)},
+		{contextx.WorkspaceMessageIDHeader, contextx.GetWorkspaceMessageID(ctx)},
+		{contextx.ToolCallIDHeader, contextx.GetToolCallID(ctx)},
+		{contextx.ToolNameHeader, contextx.GetToolName(ctx)},
 	} {
 		if item.value != "" {
 			req.Header.Set(item.key, item.value)

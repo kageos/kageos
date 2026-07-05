@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/kageos/kageos/core/app-server/model"
@@ -78,6 +79,16 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 			Schema:             schema,
 		})
 	}
+	sort.SliceStable(childrenNodes, func(i, j int) bool {
+		left, right := childrenNodes[i], childrenNodes[j]
+		if left.FullCodePath != right.FullCodePath {
+			return left.FullCodePath < right.FullCodePath
+		}
+		if left.Type != right.Type {
+			return left.Type < right.Type
+		}
+		return left.ID < right.ID
+	})
 
 	username := contextx.GetRequestUser(ctx)
 	departmentFullPath := contextx.GetRequestDepartmentFullPath(ctx)
@@ -119,6 +130,12 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 					LineCount:     lineCount,
 				})
 			}
+			sort.SliceStable(files, func(i, j int) bool {
+				if files[i].RelativePath != files[j].RelativePath {
+					return files[i].RelativePath < files[j].RelativePath
+				}
+				return files[i].FileName < files[j].FileName
+			})
 			logger.Infof(ctx, "[GetWorkspaceContext] 从 runtime 读取目录文件: fullCodePath=%s, fileCount=%d", req.FullCodePath, len(files))
 		}
 		if files == nil {

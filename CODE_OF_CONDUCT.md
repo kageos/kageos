@@ -35,7 +35,7 @@ This code of conduct applies in project spaces, including GitHub issues, pull re
 
 Maintainers may remove comments, close issues, reject pull requests, block users, or take other reasonable action when behavior harms the community or project.
 
-Reports can be sent privately to [admin@kageos.com](mailto:admin@kageos.com). Please include relevant links, screenshots, timelines, and context when safe to share. Maintainers will review reports fairly and protect reporter privacy as much as practical.
+Reports can be sent privately to [admin@kageos.ai](mailto:admin@kageos.ai). Please include relevant links, screenshots, timelines, and context when safe to share. Maintainers will review reports fairly and protect reporter privacy as much as practical.
 
 ## Acknowledgement
 

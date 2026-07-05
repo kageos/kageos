@@ -4,14 +4,22 @@ import { get, post } from '@/architecture/infrastructure/apiClient/request'
 
 export interface LLMInfo {
   id: number
+  code?: string
   name: string
+  provider: string
+  protocol: string
   model: string
   api_key?: string
   has_api_key: boolean
   api_base: string
+  endpoint_path: string
+  api_version: string
+  auth_scheme: string
+  headers: string
   timeout: number
   max_tokens: number
   extra_config: string
+  capabilities: string
   is_default: boolean
   visibility: number // 0: 公开, 1: 私有
   admin: string // 管理员列表（逗号分隔）
@@ -38,14 +46,22 @@ export interface LLMGetReq {
 
 export interface LLMGetResp {
   id: number
+  code?: string
   name: string
+  provider: string
+  protocol: string
   model: string
   api_key?: string
   has_api_key: boolean
   api_base: string
+  endpoint_path: string
+  api_version: string
+  auth_scheme: string
+  headers: string
   timeout: number
   max_tokens: number
   extra_config: string
+  capabilities: string
   is_default: boolean
   visibility: number
   admin: string
@@ -56,14 +72,22 @@ export interface LLMGetResp {
 
 export interface LLMGetDefaultResp {
   id: number
+  code?: string
   name: string
+  provider: string
+  protocol: string
   model: string
   api_key?: string
   has_api_key: boolean
   api_base: string
+  endpoint_path: string
+  api_version: string
+  auth_scheme: string
+  headers: string
   timeout: number
   max_tokens: number
   extra_config: string
+  capabilities: string
   is_default: boolean
   visibility: number
   admin: string
@@ -74,12 +98,19 @@ export interface LLMGetDefaultResp {
 
 export interface LLMCreateReq {
   name: string
+  provider?: string
+  protocol?: string
   model: string
   api_key?: string
   api_base?: string
+  endpoint_path?: string
+  api_version?: string
+  auth_scheme?: string
+  headers?: string
   timeout?: number
   max_tokens?: number
   extra_config?: string
+  capabilities?: string
   is_default?: boolean
   visibility?: number // 0: 公开, 1: 私有（默认0）
   admin?: string // 管理员列表（逗号分隔，默认创建用户）
@@ -92,12 +123,19 @@ export interface LLMCreateResp {
 export interface LLMUpdateReq {
   id: number
   name: string
+  provider?: string
+  protocol?: string
   model: string
   api_key?: string
   api_base?: string
+  endpoint_path?: string
+  api_version?: string
+  auth_scheme?: string
+  headers?: string
   timeout?: number
   max_tokens?: number
   extra_config?: string
+  capabilities?: string
   is_default?: boolean
   visibility?: number // 0: 公开, 1: 私有
   admin?: string // 管理员列表（逗号分隔）
@@ -113,6 +151,45 @@ export interface LLMDeleteReq {
 
 export interface LLMSetDefaultReq {
   id: number
+}
+
+export interface LLMProbeReq {
+  id?: number
+  provider?: string
+  protocol?: string
+  model?: string
+  api_key?: string
+  api_base?: string
+  endpoint_path?: string
+  api_version?: string
+  auth_scheme?: string
+  headers?: string
+  extra_config?: string
+  max_tokens?: number
+  timeout?: number
+}
+
+export interface LLMProbeAttempt {
+  provider: string
+  protocol: string
+  api_base: string
+  ok: boolean
+  error?: string
+}
+
+export interface LLMProbeResp {
+  ok: boolean
+  provider: string
+  protocol: string
+  api_base: string
+  endpoint_path?: string
+  api_version?: string
+  auth_scheme?: string
+  model?: string
+  message?: string
+  error?: string
+  capabilities?: Record<string, boolean>
+  attempts?: LLMProbeAttempt[]
 }
 
 /**
@@ -148,6 +225,13 @@ export function createLLM(data: LLMCreateReq) {
  */
 export function updateLLM(data: LLMUpdateReq) {
   return post<LLMUpdateResp>('/agent/api/v1/llm/update', data)
+}
+
+/**
+ * 检测LLM协议和密钥可用性
+ */
+export function probeLLM(data: LLMProbeReq) {
+  return post<LLMProbeResp>('/agent/api/v1/llm/probe', data)
 }
 
 /**

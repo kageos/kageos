@@ -52,6 +52,7 @@ func TestFormatSearchOutputBothKeepsSummaryAndJSON(t *testing.T) {
 		"搜索结果：工单|table|查询",
 		"【内置工具】",
 		"run_table_search: 执行工作区内 Table 查询接口，返回分页表格数据",
+		"token: <tool:run_table_search>",
 		"【可执行函数】",
 		"字段摘要:",
 		`widget=select, type=string, 【必填】, enum=低|中|高, placeholder="请选择优先级", 渲染默认值=中`,

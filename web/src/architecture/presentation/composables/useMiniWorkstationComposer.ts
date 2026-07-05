@@ -120,7 +120,8 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
       activeStreamAbortController = controller
       try {
         await workspaceChatStream(payload, (event, data) => {
-          void onEvent(event, data)
+          const accepted = onEvent(event, data)
+          if (accepted === false) return
           if (event === 'session') {
             const sessionData = data as { session_id?: unknown }
             if (typeof sessionData.session_id === 'string') {

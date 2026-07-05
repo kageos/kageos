@@ -97,6 +97,17 @@ type GetServiceTreeDetailResp struct {
 	RunCount           int                 `json:"run_count,omitempty"`                          // ⭐ 运行次数（仅 function 类型有意义），用于展示「已使用 N 次」
 }
 
+// BatchGetServiceTreeDetailsReq 批量获取服务目录详情请求。
+type BatchGetServiceTreeDetailsReq struct {
+	FullCodePaths []string `json:"full_code_paths" binding:"required" example:"/beiluo/myapp/user,/beiluo/myapp/orders.table"` // 完整代码路径列表
+}
+
+// BatchGetServiceTreeDetailsResp 批量获取服务目录详情响应。
+type BatchGetServiceTreeDetailsResp struct {
+	Items   []*GetServiceTreeDetailResp `json:"items"`             // 可读资源详情
+	Missing []string                    `json:"missing,omitempty"` // 不存在、无权限或非法路径
+}
+
 // GetDirectoryOverviewReq 获取目录概览请求。
 type GetDirectoryOverviewReq struct {
 	FullCodePath string `json:"full_code_path" form:"full_code_path" binding:"required" example:"/beiluo/myapp/user"` // 目录完整路径

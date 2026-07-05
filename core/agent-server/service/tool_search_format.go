@@ -56,6 +56,9 @@ func formatSearchOutput(data searchResultData, requestOutput searchRequestOutput
 			buf.WriteString(": ")
 			buf.WriteString(searchToolShortDescription(tool.Description))
 			buf.WriteString("\n")
+			buf.WriteString("  token: <tool:")
+			buf.WriteString(tool.Name)
+			buf.WriteString(">\n")
 		}
 		buf.WriteString("\n")
 	}
