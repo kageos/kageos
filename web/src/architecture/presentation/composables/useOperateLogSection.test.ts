@@ -180,7 +180,7 @@ describe('useOperateLogSection', () => {
           created_at: '2026-05-19T00:00:00Z',
           source: 'scheduled_task',
         }),
-      ).toEqual(expect.arrayContaining([{ label: '来源', value: '定时任务' }]))
+      ).toEqual(expect.arrayContaining([{ label: '调用方', value: '定时任务' }]))
     } finally {
       scope.stop()
     }
