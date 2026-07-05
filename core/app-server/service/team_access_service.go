@@ -485,11 +485,12 @@ func (s *TeamAccessService) writeOperateLog(ctx context.Context, input operateLo
 	log.OldValuesJSON = mustMarshalRaw(input.OldValues)
 	log.NewValuesJSON = mustMarshalRaw(input.NewValues)
 
-	go func() {
-		if err := s.operateLogRepo.CreateOperateLog(context.Background(), log); err != nil {
+	writeCtx := context.WithoutCancel(ctx)
+	go func(ctx context.Context) {
+		if err := s.operateLogRepo.CreateOperateLog(ctx, log); err != nil {
 			logger.Warnf(ctx, "[TeamAccess] write operate log failed: action=%s err=%v", input.Action, err)
 		}
-	}()
+	}(writeCtx)
 }
 
 func firstNonEmpty(values ...string) string {

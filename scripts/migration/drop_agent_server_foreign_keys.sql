@@ -1,6 +1,6 @@
 -- ============================================
 -- 删除 agent-server 数据库的所有外键约束
--- 说明：删除所有外键约束，让 GORM AutoMigrate 自动重建
+-- 说明：删除历史遗留外键约束；重启后由服务按当前 GORM 配置继续迁移，不要手动补回这些外键
 -- 使用方法：
 --   mysql -uroot -proot agent_server_db < scripts/migration/drop_agent_server_foreign_keys.sql
 -- 或者根据配置文件中的数据库名：
@@ -117,7 +117,7 @@ BEGIN
     -- 重新启用外键检查
     SET FOREIGN_KEY_CHECKS = 1;
     
-    SELECT '所有外键约束已删除，请重启应用让 GORM 自动重建' AS message;
+    SELECT '所有外键约束已删除，请重启应用让服务按当前 GORM 配置继续迁移' AS message;
 END$$
 
 DELIMITER ;

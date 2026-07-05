@@ -87,11 +87,12 @@ func (a *AppService) RecordFormOperateLog(ctx context.Context, req *dto.RecordFo
 	}
 	applyOperateLogAuditMetadata(log, auditMeta)
 
-	go func(log *model.OperateLog) {
-		if err := a.operateLogRepo.CreateOperateLog(context.Background(), log); err != nil {
+	writeCtx := context.WithoutCancel(ctx)
+	go func(ctx context.Context, log *model.OperateLog) {
+		if err := a.operateLogRepo.CreateOperateLog(ctx, log); err != nil {
 			logger.Warnf(ctx, "[RecordFormOperateLog] 记录 Form 操作日志失败: %v", err)
 		}
-	}(log)
+	}(writeCtx, log)
 
 	return nil
 }

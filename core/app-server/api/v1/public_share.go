@@ -176,7 +176,7 @@ func (a *PublicShareAPI) Submit(c *gin.Context) {
 	}
 
 	a.recordPublicSubmitLog(ctx, c, req, resp, callErr, mill)
-	a.publicShareService.RecordEvent(context.Background(), &model.PublicShareEvent{
+	a.publicShareService.RecordEvent(context.WithoutCancel(ctx), &model.PublicShareEvent{
 		ShareID:       share.ShareID,
 		TenantUser:    share.TenantUser,
 		App:           share.App,

@@ -1,6 +1,6 @@
 -- ============================================
 -- 修复外键约束重复问题
--- 说明：删除已存在的外键约束，让 GORM AutoMigrate 重新创建
+-- 说明：删除历史遗留外键约束；重启后由服务按当前 GORM 配置继续迁移，不要手动补回这些外键
 -- 使用方法：在 Navicat 中执行此脚本
 -- ============================================
 
@@ -100,4 +100,3 @@ WHERE
     AND REFERENCED_TABLE_NAME IS NOT NULL
     AND TABLE_NAME IN ('service_tree', 'function', 'source_code', 'package')
 ORDER BY TABLE_NAME, CONSTRAINT_NAME;
-

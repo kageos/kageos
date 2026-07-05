@@ -1,6 +1,6 @@
 -- ============================================
 -- 修复 agent-server 数据库所有表的主键索引
--- 问题：表可能使用了旧的主键定义（primary_key），导致外键约束无法创建
+-- 问题：表可能使用了旧的主键定义（primary_key），导致历史迁移或约束处理失败
 -- 解决：确保所有表都有正确的主键索引
 -- 
 -- 使用方法：
@@ -72,4 +72,4 @@ DROP PROCEDURE IF EXISTS fix_primary_key;
 -- 重新启用外键检查
 SET FOREIGN_KEY_CHECKS = 1;
 
-SELECT '✅ 所有主键索引已修复，请重启应用让 GORM 自动创建外键约束' AS message;
+SELECT '✅ 所有主键索引已修复，请重启应用让服务按当前 GORM 配置继续迁移' AS message;

@@ -115,4 +115,4 @@ DROP PROCEDURE IF EXISTS fix_primary_key;
 SET FOREIGN_KEY_CHECKS = 1;
 
 SELECT '✅ 所有问题已修复：外键约束已删除，主键索引已修复' AS message;
-SELECT '✅ 请重启应用，GORM 会自动重建外键约束' AS message;
+SELECT '✅ 请重启应用，让服务按当前 GORM 配置继续迁移' AS message;

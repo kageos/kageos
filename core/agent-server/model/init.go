@@ -27,7 +27,7 @@ func InitTables(db *gorm.DB) error {
 	if err := ensureDatabaseAndChatMessagesUtf8mb4(db); err != nil {
 		return fmt.Errorf("数据库字符集必须为 utf8mb4 才能正常存储中文消息: %w（请用有 ALTER 权限的账号执行 ALTER DATABASE 库名 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; 以及 ALTER TABLE agent_chat_messages CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; 或为当前库用户授予 ALTER 权限后重启）", err)
 	}
-	logger.Infof(context.TODO(), "[InitTables] 数据库与 agent_chat_messages 已确认为 utf8mb4")
+	logger.Infof(context.Background(), "[InitTables] 数据库与 agent_chat_messages 已确认为 utf8mb4")
 	return nil
 }
 

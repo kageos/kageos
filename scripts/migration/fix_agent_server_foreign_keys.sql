@@ -1,5 +1,5 @@
 -- 修复 agent-server 数据库外键约束问题
--- 问题：plugins 表可能使用了旧的主键定义，导致外键约束无法创建
+-- 问题：plugins 表可能使用了旧的主键定义，导致历史迁移或约束处理失败
 -- 解决：确保所有表都有正确的主键索引
 --
 -- 使用方法：
@@ -65,4 +65,4 @@ DROP PROCEDURE IF EXISTS fix_primary_key;
 -- 4. 重新启用外键检查
 SET FOREIGN_KEY_CHECKS = 1;
 
--- 完成后，GORM 的 AutoMigrate 会自动重新创建外键约束
+-- 完成后，服务会按当前 GORM 配置继续迁移；不要在脚本中手动补回历史外键
