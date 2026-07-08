@@ -4,6 +4,7 @@
   "tool_names": [
     "change_role",
     "summarize_task_state",
+    "read_workspace_artifact",
     "read_file",
     "read_doc",
     "read_dir",

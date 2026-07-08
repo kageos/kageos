@@ -31,6 +31,7 @@ type workspaceLLMHistoryLimits struct {
 	UserContentMaxRunes      int
 	AssistantContentMaxRunes int
 	ToolContentMaxRunes      int
+	ArtifactReadMaxRunes     int
 	ToolArgsMaxRunes         int
 	MaxHistoryEntries        int
 }
@@ -52,6 +53,7 @@ func workspaceLLMHistoryLimitsForLevel(level int) workspaceLLMHistoryLimits {
 			UserContentMaxRunes:      4000,
 			AssistantContentMaxRunes: 3000,
 			ToolContentMaxRunes:      1200,
+			ArtifactReadMaxRunes:     6000,
 			ToolArgsMaxRunes:         1000,
 			MaxHistoryEntries:        48,
 		}
@@ -60,6 +62,7 @@ func workspaceLLMHistoryLimitsForLevel(level int) workspaceLLMHistoryLimits {
 			UserContentMaxRunes:      2500,
 			AssistantContentMaxRunes: 1500,
 			ToolContentMaxRunes:      700,
+			ArtifactReadMaxRunes:     3500,
 			ToolArgsMaxRunes:         600,
 			MaxHistoryEntries:        18,
 		}
@@ -68,6 +71,7 @@ func workspaceLLMHistoryLimitsForLevel(level int) workspaceLLMHistoryLimits {
 			UserContentMaxRunes:      1600,
 			AssistantContentMaxRunes: 800,
 			ToolContentMaxRunes:      400,
+			ArtifactReadMaxRunes:     1600,
 			ToolArgsMaxRunes:         300,
 			MaxHistoryEntries:        8,
 		}
@@ -76,6 +80,7 @@ func workspaceLLMHistoryLimitsForLevel(level int) workspaceLLMHistoryLimits {
 			UserContentMaxRunes:      workspaceLLMHistoryUserContentMaxRunes,
 			AssistantContentMaxRunes: workspaceLLMHistoryAssistantContentMaxRunes,
 			ToolContentMaxRunes:      workspaceLLMHistoryToolContentMaxRunes,
+			ArtifactReadMaxRunes:     10000,
 			ToolArgsMaxRunes:         workspaceLLMHistoryToolArgsMaxRunes,
 			MaxHistoryEntries:        0,
 		}

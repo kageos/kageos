@@ -569,6 +569,218 @@ func TestBuildLLMMessagesWithPlanCompactsLargeHistoricalToolPayloads(t *testing.
 	}
 }
 
+func TestBuildLLMMessagesWithPlanUsesArtifactReferenceForUserArtifact(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate sessions: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/vote",
+		Source:        SourceWorkspace,
+		SessionID:     "artifact-user-ref-session",
+		Title:         "artifact 引用会话",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusActive,
+		RoleID:        WorkspaceRoleAppDeveloper,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	artifactJSON := `{"kind":"agent_app_prd","project":{"name":"投票系统","code":"vote","summary":"创建投票主题和结果统计"},"tables":[{"name":"投票主题","code":"topics","fields":[{"name":"主题标题"}],"examples":[{"主题标题":"artifact-secret-marker"}]}],"forms":[{"name":"提交投票","request_fields":[{"name":"选项"}],"response_fields":[{"name":"提交结果"}]}],"rules":["每人只能提交一次"]}`
+	artifactMsg := &model.AgentChatMessage{
+		SessionID:    session.SessionID,
+		Role:         RoleUser,
+		Content:      "AGENT_APP_PRD JSON:\n```json\n" + artifactJSON + "\n```",
+		ContextUsage: MessageContextArtifact,
+		ArtifactKind: "agent_app_prd",
+		User:         "tester",
+	}
+	if err := messageRepo.Create(artifactMsg); err != nil {
+		t.Fatalf("create artifact message: %v", err)
+	}
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "继续开发", User: "tester"}); err != nil {
+		t.Fatalf("create current user message: %v", err)
+	}
+	svc := &WorkspaceChatService{toolReg: NewToolRegistry(), sessionRepo: sessionRepo, messageRepo: messageRepo}
+	workspaceCtx := &dto.GetWorkspaceContextResp{}
+	workspaceCtx.Directory.Name = "投票系统"
+	workspaceCtx.Directory.Code = "vote"
+	workspaceCtx.Directory.Type = "package"
+
+	msgs, _, _, err := svc.buildLLMMessagesWithPlan(context.Background(), session.SessionID, "/liubeiluo/vote", "投票系统", workspaceCtx, nil, nil, "fallback", 0)
+	if err != nil {
+		t.Fatalf("build messages: %v", err)
+	}
+	joined := joinLLMMessageContents(msgs)
+	if !strings.Contains(joined, "workspace_artifact_ref") ||
+		!strings.Contains(joined, "read_workspace_artifact") ||
+		!strings.Contains(joined, `"message_id": `) {
+		t.Fatalf("artifact message should enter context as reference:\n%s", joined)
+	}
+	if strings.Contains(joined, "artifact-secret-marker") {
+		t.Fatalf("full artifact JSON should not enter model context:\n%s", joined)
+	}
+}
+
+func TestBuildLLMMessagesWithPlanUsesArtifactReferenceForWritePRDToolResult(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate sessions: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/vote",
+		Source:        SourceWorkspace,
+		SessionID:     "artifact-tool-ref-session",
+		Title:         "write_prd 引用会话",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusActive,
+		RoleID:        WorkspaceRoleProductManager,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "做一个投票系统", User: "tester"}); err != nil {
+		t.Fatalf("create user message: %v", err)
+	}
+	call := llms.ToolCall{ID: "call_prd", Type: "function"}
+	call.Function.Name = "write_prd"
+	call.Function.Arguments = `{"project":{"name":"投票系统","code":"vote","summary":"创建投票"}}`
+	rawToolCalls, err := json.Marshal([]llms.ToolCall{call})
+	if err != nil {
+		t.Fatalf("marshal tool calls: %v", err)
+	}
+	toolCalls := string(rawToolCalls)
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleAssistant, ToolCalls: &toolCalls, User: "tester"}); err != nil {
+		t.Fatalf("create assistant message: %v", err)
+	}
+	artifactJSON := `{"kind":"agent_app_prd","schema_version":"prd.v2","project":{"name":"投票系统","code":"vote","summary":"创建投票"},"tables":[{"name":"投票主题","fields":[{"name":"主题标题"}],"examples":[{"主题标题":"tool-secret-marker"}]}]}`
+	if err := messageRepo.Create(&model.AgentChatMessage{
+		SessionID:  session.SessionID,
+		Role:       RoleTool,
+		ToolCallID: "call_prd",
+		ToolStatus: ToolCallStatusOK,
+		Content:    "PRD 已生成，请确认。\n\n" + artifactJSON,
+		ResultData: &artifactJSON,
+		User:       "tester",
+	}); err != nil {
+		t.Fatalf("create tool message: %v", err)
+	}
+	svc := &WorkspaceChatService{toolReg: NewToolRegistry(), sessionRepo: sessionRepo, messageRepo: messageRepo}
+	workspaceCtx := &dto.GetWorkspaceContextResp{}
+	workspaceCtx.Directory.Name = "投票系统"
+	workspaceCtx.Directory.Code = "vote"
+	workspaceCtx.Directory.Type = "package"
+
+	msgs, _, _, err := svc.buildLLMMessagesWithPlan(context.Background(), session.SessionID, "/liubeiluo/vote", "投票系统", workspaceCtx, nil, nil, "fallback", 0)
+	if err != nil {
+		t.Fatalf("build messages: %v", err)
+	}
+	joined := joinLLMMessageContents(msgs)
+	if !strings.Contains(joined, "workspace_artifact_ref") || !strings.Contains(joined, "read_workspace_artifact") {
+		t.Fatalf("write_prd tool result should enter context as artifact reference:\n%s", joined)
+	}
+	if strings.Contains(joined, "tool-secret-marker") {
+		t.Fatalf("full write_prd result should not enter model context:\n%s", joined)
+	}
+}
+
+func TestReadWorkspaceArtifactReturnsPrimaryArtifactJSONAndChecksSession(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate sessions: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/vote",
+		Source:        SourceWorkspace,
+		SessionID:     "artifact-read-session",
+		Title:         "artifact 读取会话",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusActive,
+		RoleID:        WorkspaceRoleAppDeveloper,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	otherSession := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/other",
+		Source:        SourceWorkspace,
+		SessionID:     "other-artifact-session",
+		Title:         "其他会话",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusActive,
+		RoleID:        WorkspaceRoleAppDeveloper,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if err := sessionRepo.Create(otherSession); err != nil {
+		t.Fatalf("create other session: %v", err)
+	}
+	artifactJSON := `{"kind":"agent_app_prd","project":{"name":"投票系统","code":"vote","summary":"创建投票"},"tables":[{"name":"投票主题","fields":[{"name":"主题标题"}],"examples":[{"主题标题":"read-secret-marker"}]}]}`
+	msg := &model.AgentChatMessage{
+		SessionID:    session.SessionID,
+		Role:         RoleUser,
+		Content:      "HANDOFF_PACKET JSON:\n```json\n{\"artifact\":{\"kind\":\"agent_app_prd\"}}\n```\n\nAGENT_APP_PRD JSON:\n```json\n" + artifactJSON + "\n```",
+		ContextUsage: MessageContextArtifact,
+		ArtifactKind: "agent_app_prd",
+		User:         "tester",
+	}
+	if err := messageRepo.Create(msg); err != nil {
+		t.Fatalf("create artifact message: %v", err)
+	}
+	svc := &WorkspaceChatService{toolReg: NewToolRegistry(), sessionRepo: sessionRepo, messageRepo: messageRepo}
+	ctx := contextx.WithWorkspaceSession(contextx.WithRequestUser(context.Background(), "tester"), session.SessionID, "artifact 读取会话", WorkspaceRoleAppDeveloper)
+
+	result := svc.readWorkspaceArtifactTool(ctx, map[string]interface{}{"message_id": float64(msg.ID)})
+	if result.IsError {
+		t.Fatalf("read workspace artifact returned error: %s", result.Content)
+	}
+	data, ok := result.Data.(readWorkspaceArtifactResultData)
+	if !ok {
+		t.Fatalf("result data type = %T, want readWorkspaceArtifactResultData", result.Data)
+	}
+	if data.Source != "artifact_json" || !strings.Contains(data.Text, "read-secret-marker") || strings.Contains(data.Text, "HANDOFF_PACKET") {
+		t.Fatalf("read should return primary artifact JSON, got source=%s text=%s", data.Source, data.Text)
+	}
+	blocked := svc.readWorkspaceArtifactTool(contextx.WithWorkspaceSession(context.Background(), otherSession.SessionID, "其他会话", WorkspaceRoleAppDeveloper), map[string]interface{}{"message_id": float64(msg.ID)})
+	if !blocked.IsError || !strings.Contains(blocked.Content, "当前工作台会话") {
+		t.Fatalf("cross-session read should be blocked, got %#v", blocked)
+	}
+}
+
 func TestBuildLLMMessagesWithPlanReducesLongHistoryByBudget(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {

@@ -315,6 +315,9 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlanAndOptions(ctx context.Co
 	if dynamicTime := workspaceDynamicTimeHint(data); dynamicTime != "" {
 		systemParts = append(systemParts, dynamicTime)
 	}
+	if workingState := buildWorkspaceWorkingStateBlock(list, session, currentTurnMessageID); workingState != "" {
+		systemParts = append(systemParts, workingState)
+	}
 	system := strings.Join(systemParts, "\n\n")
 
 	reductionLevel := normalizeWorkspaceContextReductionLevel(options.ReductionLevel)
@@ -403,7 +406,12 @@ func buildWorkspaceLLMHistoryWithOptions(ctx context.Context, messages []*model.
 		}
 		switch m.Role {
 		case RoleUser:
-			userContent := userContentForLLMWithFileProfile(ctx, m.Content, m.Files)
+			userContent := ""
+			if refContent, ok := workspaceMessageArtifactReferenceContent(m); ok {
+				userContent = refContent
+			} else {
+				userContent = userContentForLLMWithFileProfile(ctx, m.Content, m.Files)
+			}
 			if strings.TrimSpace(userContent) == "" {
 				excludedUnsupported = append(excludedUnsupported, m)
 				continue
@@ -413,7 +421,11 @@ func buildWorkspaceLLMHistoryWithOptions(ctx context.Context, messages []*model.
 				source: m,
 			})
 		case RoleAssistant:
-			msg := llms.Message{Role: RoleAssistant, Content: compactWorkspaceLLMHistoryContent(m.Content, limits.AssistantContentMaxRunes)}
+			content := m.Content
+			if refContent, ok := workspaceMessageArtifactReferenceContent(m); ok {
+				content = refContent
+			}
+			msg := llms.Message{Role: RoleAssistant, Content: compactWorkspaceLLMHistoryContent(content, limits.AssistantContentMaxRunes)}
 			if toolCalls, ok := storedToolCallsForLLMWithLimit(m.ToolCalls, limits.ToolArgsMaxRunes); ok {
 				msg.ToolCalls = toolCalls
 			} else if strings.TrimSpace(msg.Content) == "" {
@@ -431,6 +443,12 @@ func buildWorkspaceLLMHistoryWithOptions(ctx context.Context, messages []*model.
 				continue
 			}
 			content := m.Content
+			maxContentRunes := limits.ToolContentMaxRunes
+			if refContent, ok := workspaceMessageArtifactReferenceContent(m); ok {
+				content = refContent
+			} else if workspaceMessageIsArtifactReadResult(m) && limits.ArtifactReadMaxRunes > maxContentRunes {
+				maxContentRunes = limits.ArtifactReadMaxRunes
+			}
 			if strings.TrimSpace(content) == "" {
 				content = "工具调用没有返回内容。"
 			}
@@ -438,7 +456,7 @@ func buildWorkspaceLLMHistoryWithOptions(ctx context.Context, messages []*model.
 				msg: llms.Message{
 					Role:       RoleTool,
 					ToolCallID: strings.TrimSpace(m.ToolCallID),
-					Content:    compactWorkspaceLLMHistoryContent(content, limits.ToolContentMaxRunes),
+					Content:    compactWorkspaceLLMHistoryContent(content, maxContentRunes),
 				},
 				source: m,
 			})
