@@ -592,8 +592,15 @@ func formatOpenAIError(err error) error {
 	var apiErr *openai.Error
 	if errors.As(err, &apiErr) {
 		if apiErr.Message != "" {
-			return fmt.Errorf("OpenAI API 错误: %s", apiErr.Message)
+			message := fmt.Sprintf("OpenAI API 错误: %s", apiErr.Message)
+			if IsContextWindowErrorMessage(apiErr.Message) {
+				return &ContextWindowError{Message: message}
+			}
+			return fmt.Errorf("%s", message)
 		}
+	}
+	if IsContextWindowErrorMessage(err.Error()) {
+		return &ContextWindowError{Message: err.Error()}
 	}
 	return err
 }

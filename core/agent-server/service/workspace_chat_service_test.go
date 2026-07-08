@@ -569,6 +569,77 @@ func TestBuildLLMMessagesWithPlanCompactsLargeHistoricalToolPayloads(t *testing.
 	}
 }
 
+func TestBuildLLMMessagesWithPlanReducesLongHistoryByBudget(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate sessions: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/assets",
+		Source:        SourceWorkspace,
+		SessionID:     "budget-reduction-session",
+		Title:         "预算裁剪会话",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusActive,
+		RoleID:        WorkspaceRoleMaintenanceEngineer,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	for i := 0; i < 80; i++ {
+		content := strings.Repeat("旧历史内容", 320)
+		if i == 0 {
+			content += " old-marker-00"
+		}
+		if i == 79 {
+			content = strings.Repeat("较新的历史内容", 320) + " recent-marker-79"
+		}
+		if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: content, User: "tester"}); err != nil {
+			t.Fatalf("create old message %d: %v", i, err)
+		}
+	}
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "current-marker 保留当前需求", User: "tester"}); err != nil {
+		t.Fatalf("create current user message: %v", err)
+	}
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
+	workspaceCtx := &dto.GetWorkspaceContextResp{}
+	workspaceCtx.Directory.Name = "资产管理"
+	workspaceCtx.Directory.Code = "assets"
+	workspaceCtx.Directory.Type = "package"
+
+	msgs, _, plan, err := svc.buildLLMMessagesWithPlan(context.Background(), session.SessionID, "/liubeiluo/assets", "资产管理", workspaceCtx, nil, nil, "fallback", 0)
+	if err != nil {
+		t.Fatalf("build messages: %v", err)
+	}
+	if plan == nil || plan.Budget == nil {
+		t.Fatalf("budget should be reported: %#v", plan)
+	}
+	if plan.Budget.ReducerLevel == workspaceContextReductionNone {
+		t.Fatalf("long history should trigger reducer, budget=%#v", plan.Budget)
+	}
+	if plan.Messages.ExcludedByReduction == 0 {
+		t.Fatalf("reduced history should be reported: %#v", plan.Messages)
+	}
+	joined := joinLLMMessageContents(msgs)
+	if strings.Contains(joined, "old-marker-00") {
+		t.Fatalf("oldest history should be removed from model context")
+	}
+	if !strings.Contains(joined, "current-marker") {
+		t.Fatalf("current user request should remain in model context:\n%s", joined)
+	}
+}
+
 func TestBuildLLMMessagesWithPlanSynthesizesMissingToolResultAfterCancel(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {

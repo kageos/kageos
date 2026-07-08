@@ -227,6 +227,7 @@ export interface WorkspaceModelContextPlan {
   tools: WorkspaceModelContextTools
   cache_plan: WorkspaceModelContextCachePlan
   llm?: WorkspaceModelContextLLM | null
+  budget?: WorkspaceModelContextBudget | null
 }
 
 export interface WorkspaceModelContextRole {
@@ -262,6 +263,7 @@ export interface WorkspaceModelContextMessages {
   excluded_stored_messages: number
   excluded_by_anchor: number
   excluded_display_only: number
+  excluded_by_reduction?: number
   included?: WorkspaceModelContextMessageRef[]
   excluded?: WorkspaceModelContextMessageRef[]
   truncated?: boolean
@@ -336,6 +338,18 @@ export interface WorkspaceModelContextLLM {
   max_tokens?: number
   message_count: number
   tool_count: number
+}
+
+export interface WorkspaceModelContextBudget {
+  reducer_level: number
+  reducer_reason?: string
+  estimated_input_tokens: number
+  estimated_tool_tokens: number
+  output_reserve_tokens: number
+  estimated_total_tokens: number
+  soft_limit_tokens: number
+  tokens_until_soft_limit: number
+  status: string
 }
 
 export interface WorkspaceStreamDonePayload {

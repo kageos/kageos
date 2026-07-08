@@ -23,3 +23,9 @@ type StreamLoopDeps interface {
 	// OnDone 发送 EventDone（payload 含 session_id、tool_calls 等，由实现方决定）
 	OnDone(summaries []ToolCallSummary, usage *llms.Usage)
 }
+
+// ContextReductionDeps is implemented by callers that can rebuild a slimmer
+// model context after a provider context-window failure.
+type ContextReductionDeps interface {
+	RequestContextReduction(ctx context.Context, reason string) bool
+}
