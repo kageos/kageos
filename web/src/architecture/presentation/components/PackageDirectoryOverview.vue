@@ -365,10 +365,12 @@ function normalizeOverviewTask(item: DirectoryOverviewScheduledTask): ScheduledO
 }
 
 function getAgentMessage(task: TimerTask): string {
-  const payload = task.executor_payload
-  if (!payload || typeof payload !== 'object') return ''
-  const message = (payload as Record<string, unknown>).message
-  return typeof message === 'string' ? message.trim() : ''
+	const payload = task.executor_payload
+	if (payload && typeof payload === 'object') {
+		const message = (payload as Record<string, unknown>).message
+		if (typeof message === 'string' && message.trim()) return message.trim()
+	}
+	return typeof task.description === 'string' ? task.description.trim() : ''
 }
 
 function openTask(item: ScheduledOverviewItem) {

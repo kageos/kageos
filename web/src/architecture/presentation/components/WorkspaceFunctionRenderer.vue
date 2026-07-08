@@ -40,6 +40,7 @@ import { computed, defineAsyncComponent } from 'vue'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
+import { featureFlags } from '@/architecture/shared/config/features'
 import FunctionConnectorBar from './FunctionConnectorBar.vue'
 
 const FormView = defineAsyncComponent(() => import('@/architecture/presentation/views/FormView.vue'))
@@ -56,6 +57,7 @@ const props = withDefaults(defineProps<{
 })
 
 const keyBase = computed(() => props.currentFunction?.full_code_path || props.currentFunction?.id || 'unknown')
+const showConnectorBar = computed(() => featureFlags.connectorSettings && props.showConnectorBar)
 
 const matchedFunctionDetail = computed(() => {
   if (!props.functionDetail || !props.currentFunction) {

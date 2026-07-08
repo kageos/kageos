@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/kageos/kageos/core/app-server/model"
@@ -16,10 +16,8 @@ import (
 )
 
 const (
-	directoryOverviewMaxResources     = 120
-	directoryOverviewTaskPageSize     = 50
-	directoryOverviewMaxTasksPerKind  = 240
-	directoryOverviewRequestBatchSize = 8
+	directoryOverviewTaskPageSize    = 100
+	directoryOverviewMaxTasksPerKind = 240
 )
 
 type serviceTreeScheduleClient interface {
@@ -101,8 +99,8 @@ func (q *serviceTreeQueryView) GetDirectoryOverview(ctx context.Context, req *dt
 	}
 
 	client := newServiceTreeScheduleClient()
-	functionTasks, functionTotal, functionWarnings := q.loadDirectoryOverviewTasks(ctx, client, functions, "function", ScheduledFunctionExecutorKey, "function", resourceByPath)
-	agentTasks, agentTotal, agentWarnings := q.loadDirectoryOverviewTasks(ctx, client, directories, "agent", "agent.session", "workspace_directory", resourceByPath)
+	functionTasks, functionTotal, functionWarnings := q.loadDirectoryOverviewTasks(ctx, client, root.FullCodePath, functions, "function", ScheduledFunctionExecutorKey, "function", resourceByPath)
+	agentTasks, agentTotal, agentWarnings := q.loadDirectoryOverviewTasks(ctx, client, root.FullCodePath, directories, "agent", "agent.session", "workspace_directory", resourceByPath)
 
 	resp.ScheduledFunctionTasks = directoryOverviewLimitTasks(functionTasks, directoryOverviewMaxTasksPerKind)
 	resp.ScheduledAgentTasks = directoryOverviewLimitTasks(agentTasks, directoryOverviewMaxTasksPerKind)
@@ -112,12 +110,6 @@ func (q *serviceTreeQueryView) GetDirectoryOverview(ctx context.Context, req *dt
 
 	resp.Warnings = append(resp.Warnings, functionWarnings...)
 	resp.Warnings = append(resp.Warnings, agentWarnings...)
-	if len(functions) > directoryOverviewMaxResources {
-		resp.Warnings = append(resp.Warnings, fmt.Sprintf("函数资源较多，已优先检查前 %d 个函数的定时任务", directoryOverviewMaxResources))
-	}
-	if len(directories) > directoryOverviewMaxResources {
-		resp.Warnings = append(resp.Warnings, fmt.Sprintf("目录资源较多，已优先检查前 %d 个目录的 Agent 任务", directoryOverviewMaxResources))
-	}
 	if len(functionTasks) > len(resp.ScheduledFunctionTasks) {
 		resp.Warnings = append(resp.Warnings, fmt.Sprintf("函数任务较多，清单仅返回前 %d 个", directoryOverviewMaxTasksPerKind))
 	}
@@ -153,6 +145,7 @@ func (q *serviceTreeQueryView) filterReadableNodes(ctx context.Context, appModel
 func (q *serviceTreeQueryView) loadDirectoryOverviewTasks(
 	ctx context.Context,
 	client serviceTreeScheduleClient,
+	rootPath string,
 	resources []*dto.DirectoryOverviewResource,
 	kind string,
 	executorKey string,
@@ -162,77 +155,55 @@ func (q *serviceTreeQueryView) loadDirectoryOverviewTasks(
 	if len(resources) == 0 {
 		return nil, 0, nil
 	}
-	if len(resources) > directoryOverviewMaxResources {
-		resources = resources[:directoryOverviewMaxResources]
-	}
-
-	type result struct {
-		items    []*dto.DirectoryOverviewScheduledTask
-		total    int
-		warnings []string
-	}
-
-	results := make([]result, len(resources))
-	sem := make(chan struct{}, directoryOverviewRequestBatchSize)
-	var wg sync.WaitGroup
-	for idx, resource := range resources {
-		idx := idx
-		resource := resource
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			resp, err := client.ListTasks(ctx, scheduledsdk.ListTasksRequest{
-				ExecutorKey:   executorKey,
-				ResourceScope: resourceScope,
-				ResourceKey:   resource.FullCodePath,
-				Page:          1,
-				PageSize:      directoryOverviewTaskPageSize,
-			})
-			if err != nil {
-				results[idx].warnings = []string{fmt.Sprintf("%s 定时配置加载失败: %v", resource.Name, err)}
-				return
-			}
-			if resp == nil {
-				return
-			}
-			results[idx].total = int(resp.Total)
-			for _, task := range resp.List {
-				if task == nil {
-					continue
-				}
-				resourcePath := strings.TrimSpace(task.ResourceKey)
-				if resourcePath == "" {
-					resourcePath = resource.FullCodePath
-				}
-				taskResource := resourceByPath[access.NormalizeResourcePath(resourcePath)]
-				if taskResource == nil {
-					taskResource = resource
-				}
-				results[idx].items = append(results[idx].items, &dto.DirectoryOverviewScheduledTask{
-					Kind:         kind,
-					Resource:     taskResource,
-					ResourcePath: taskResource.FullCodePath,
-					ResourceName: taskResource.Name,
-					Task:         task,
-				})
-			}
-			if int(resp.Total) > len(resp.List) {
-				results[idx].warnings = []string{fmt.Sprintf("%s 下还有 %d 个定时配置未展开", resource.Name, int(resp.Total)-len(resp.List))}
-			}
-		}()
-	}
-	wg.Wait()
 
 	items := make([]*dto.DirectoryOverviewScheduledTask, 0)
 	total := 0
 	warnings := make([]string, 0)
-	for _, res := range results {
-		items = append(items, res.items...)
-		total += res.total
-		warnings = append(warnings, res.warnings...)
+	rootPath = access.NormalizeResourcePath(rootPath)
+	for page := 1; len(items) < directoryOverviewMaxTasksPerKind; page++ {
+		resp, err := client.ListTasks(ctx, scheduledsdk.ListTasksRequest{
+			ExecutorKey:       executorKey,
+			ResourceScope:     resourceScope,
+			ResourceKeyPrefix: rootPath,
+			Page:              page,
+			PageSize:          directoryOverviewTaskPageSize,
+		})
+		if err != nil {
+			return items, total, []string{fmt.Sprintf("%s 定时配置加载失败: %v", rootPath, err)}
+		}
+		if resp == nil {
+			break
+		}
+		total = int(resp.Total)
+		for _, task := range resp.List {
+			if task == nil || len(items) >= directoryOverviewMaxTasksPerKind {
+				continue
+			}
+			resourcePath := access.NormalizeResourcePath(task.ResourceKey)
+			if resourcePath == "" {
+				resourcePath = rootPath
+			}
+			taskResource := resourceByPath[resourcePath]
+			if taskResource == nil {
+				taskResource = &dto.DirectoryOverviewResource{
+					Name:         directoryOverviewResourceDisplayName("", resourcePath),
+					FullCodePath: resourcePath,
+				}
+			}
+			items = append(items, &dto.DirectoryOverviewScheduledTask{
+				Kind:         kind,
+				Resource:     taskResource,
+				ResourcePath: taskResource.FullCodePath,
+				ResourceName: taskResource.Name,
+				Task:         directoryOverviewCompactTask(task),
+			})
+		}
+		if len(resp.List) == 0 || len(items) >= total {
+			break
+		}
+	}
+	if total > len(items) {
+		warnings = append(warnings, fmt.Sprintf("%s 下还有 %d 个定时配置未展开", rootPath, total-len(items)))
 	}
 	sort.SliceStable(items, func(i, j int) bool {
 		return directoryOverviewTaskLess(items[i], items[j])
@@ -253,6 +224,40 @@ func directoryOverviewResourceFromNode(node *model.ServiceTree) *dto.DirectoryOv
 		TemplateType: node.TemplateType,
 		RunCount:     node.RunCount,
 	}
+}
+
+func directoryOverviewCompactTask(task *scheduledsdk.Task) *scheduledsdk.Task {
+	if task == nil {
+		return nil
+	}
+	compact := *task
+	if strings.TrimSpace(compact.Description) == "" {
+		compact.Description = directoryOverviewTaskPayloadMessage(compact.ExecutorPayload)
+	}
+	compact.ExecutorPayload = nil
+	compact.Metadata = nil
+	compact.Tags = nil
+	compact.IdempotencyKey = ""
+	compact.Category = ""
+	compact.SourceType = ""
+	compact.SourceRef = ""
+	compact.RequestUser = ""
+	compact.RequestUserDept = ""
+	compact.CreatedBy = ""
+	return &compact
+}
+
+func directoryOverviewTaskPayloadMessage(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	payload := struct {
+		Message string `json:"message"`
+	}{}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(payload.Message)
 }
 
 func directoryOverviewLimitTasks(tasks []*dto.DirectoryOverviewScheduledTask, limit int) []*dto.DirectoryOverviewScheduledTask {
@@ -312,4 +317,16 @@ func directoryOverviewTaskTime(value *time.Time) time.Time {
 		return time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
 	}
 	return *value
+}
+
+func directoryOverviewResourceDisplayName(name, path string) string {
+	name = strings.TrimSpace(name)
+	if name != "" {
+		return name
+	}
+	parts := strings.Split(strings.Trim(access.NormalizeResourcePath(path), "/"), "/")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+	return strings.TrimSpace(path)
 }

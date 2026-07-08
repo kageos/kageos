@@ -132,7 +132,6 @@ const displayFields = computed(() => extractAllDisplayFields(visibleToolCalls.va
 const hasVisibleContent = computed(() =>
   visibleToolCalls.value.length > 0 || props.fileGroups.length > 0 || displayFields.value.length > 0
 )
-const detailsOpen = ref(false)
 const allSummaryToolGroups = computed(() => {
   const groups: Array<{ name: string; count: number }> = []
   const byName = new Map<string, { name: string; count: number }>()
@@ -152,6 +151,10 @@ const allSummaryToolGroups = computed(() => {
 const summaryToolGroups = computed(() => allSummaryToolGroups.value.slice(0, 4))
 const hiddenToolGroupCount = computed(() => Math.max(0, allSummaryToolGroups.value.length - summaryToolGroups.value.length))
 const errorCount = computed(() => visibleToolCalls.value.filter((t) => t.status === 'error').length)
+const hasInlinePreviewToolCall = computed(() =>
+  visibleToolCalls.value.some((tc) => isRenderablePrdToolCall(tc) || isBuildWorkspaceFailureToolCall(tc))
+)
+const detailsOpen = ref(hasInlinePreviewToolCall.value)
 
 /** 每个工具一个 viewport，用数组存 DOM，滚动时滚最后一个 */
 const viewportRefs = ref<(HTMLElement | null)[]>([])
@@ -393,6 +396,9 @@ watch(
 )
 watch(hasRunning, (running) => {
   if (running && detailsOpen.value) scrollAllViewportsToBottom()
+})
+watch(hasInlinePreviewToolCall, (shouldOpen) => {
+  if (shouldOpen) detailsOpen.value = true
 })
 watch(
   () => visibleToolCalls.value.map((t, idx) => `${getToolTimerKey(t, idx)}:${t.status}`).join('|'),

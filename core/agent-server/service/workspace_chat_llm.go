@@ -16,6 +16,13 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	workspaceLLMHistoryUserContentMaxRunes      = 6000
+	workspaceLLMHistoryAssistantContentMaxRunes = 6000
+	workspaceLLMHistoryToolContentMaxRunes      = 2500
+	workspaceLLMHistoryToolArgsMaxRunes         = 1800
+)
+
 // prepareLLMRequest 工作台只认 LLM：llmConfigID > 0 用该配置，否则用默认
 func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigID int64, msgs []llms.Message, tools []llms.ToolDef) (*model.LLMConfig, llms.LLMClient, *llms.ChatRequest, error) {
 	var llmConfig *model.LLMConfig
@@ -263,7 +270,10 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 	roleIDForToolFilter, _ := workspaceModelContextRole(session, allMessages)
 	modeToolNames := workspaceToolNamesForMode(modeProvider, fallbackToolNames)
 	roleAllowedToolNames := workspaceToolNamesForRole(modeToolNames, roleIDForToolFilter)
-	toolNames = workspaceToolNamesForLLM(modeToolNames)
+	toolNames = workspaceToolNamesForLLM(roleAllowedToolNames)
+	if len(toolNames) == 0 {
+		toolNames = workspaceToolNamesForLLM(modeToolNames)
+	}
 	var toolsDesc []dto.ToolDef
 	if s.toolReg != nil {
 		toolsDesc, _ = s.toolReg.ListTools(ctx, toolNames)
@@ -304,7 +314,7 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 	system := strings.Join(systemParts, "\n\n")
 
 	msgs := []llms.Message{{Role: "system", Content: system}}
-	historyMessages, includedMessages, excludedUnsupported := buildWorkspaceLLMHistory(ctx, list, currentTurnMessageID)
+	historyMessages, includedMessages, excludedUnsupported, excludedDisplayOnly := buildWorkspaceLLMHistory(ctx, list, currentTurnMessageID)
 	msgs = append(msgs, historyMessages...)
 	plan := s.buildWorkspaceModelContextPlan(ctx, workspaceModelContextPlanInput{
 		SessionID:                   sessionID,
@@ -321,6 +331,7 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 		ScopedMessages:              list,
 		IncludedMessages:            includedMessages,
 		ExcludedUnsupported:         excludedUnsupported,
+		ExcludedDisplayOnly:         excludedDisplayOnly,
 		RequestedToolNames:          toolNames,
 		LLMToolNames:                llmToolNames,
 		RoleAllowedToolNames:        roleAllowedToolNames,
@@ -335,10 +346,11 @@ type workspaceLLMHistoryEntry struct {
 	source *model.AgentChatMessage
 }
 
-func buildWorkspaceLLMHistory(ctx context.Context, messages []*model.AgentChatMessage, currentTurnMessageID int64) ([]llms.Message, []*model.AgentChatMessage, []*model.AgentChatMessage) {
+func buildWorkspaceLLMHistory(ctx context.Context, messages []*model.AgentChatMessage, currentTurnMessageID int64) ([]llms.Message, []*model.AgentChatMessage, []*model.AgentChatMessage, []*model.AgentChatMessage) {
 	entries := make([]workspaceLLMHistoryEntry, 0, len(messages))
 	includedMessages := make([]*model.AgentChatMessage, 0, len(messages))
 	excludedUnsupported := make([]*model.AgentChatMessage, 0)
+	excludedDisplayOnly := make([]*model.AgentChatMessage, 0)
 	skipExpiredCurrentTurnRun := false
 
 	for _, m := range messages {
@@ -346,6 +358,10 @@ func buildWorkspaceLLMHistory(ctx context.Context, messages []*model.AgentChatMe
 			continue
 		}
 		usage := normalizeMessageContextUsage(m.ContextUsage)
+		if usage == MessageContextDisplayOnly {
+			excludedDisplayOnly = append(excludedDisplayOnly, m)
+			continue
+		}
 		if m.Role == RoleUser {
 			skipExpiredCurrentTurnRun = false
 			if usage == MessageContextCurrentTurn && (currentTurnMessageID == 0 || m.ID != currentTurnMessageID) {
@@ -365,11 +381,11 @@ func buildWorkspaceLLMHistory(ctx context.Context, messages []*model.AgentChatMe
 				continue
 			}
 			entries = append(entries, workspaceLLMHistoryEntry{
-				msg:    llms.Message{Role: RoleUser, Content: userContent},
+				msg:    llms.Message{Role: RoleUser, Content: compactWorkspaceLLMHistoryContent(userContent, workspaceLLMHistoryUserContentMaxRunes)},
 				source: m,
 			})
 		case RoleAssistant:
-			msg := llms.Message{Role: RoleAssistant, Content: m.Content}
+			msg := llms.Message{Role: RoleAssistant, Content: compactWorkspaceLLMHistoryContent(m.Content, workspaceLLMHistoryAssistantContentMaxRunes)}
 			if toolCalls, ok := storedToolCallsForLLM(m.ToolCalls); ok {
 				msg.ToolCalls = toolCalls
 			} else if strings.TrimSpace(msg.Content) == "" {
@@ -394,7 +410,7 @@ func buildWorkspaceLLMHistory(ctx context.Context, messages []*model.AgentChatMe
 				msg: llms.Message{
 					Role:       RoleTool,
 					ToolCallID: strings.TrimSpace(m.ToolCallID),
-					Content:    content,
+					Content:    compactWorkspaceLLMHistoryContent(content, workspaceLLMHistoryToolContentMaxRunes),
 				},
 				source: m,
 			})
@@ -406,7 +422,7 @@ func buildWorkspaceLLMHistory(ctx context.Context, messages []*model.AgentChatMe
 	historyMessages, sanitizedIncluded, sanitizedExcluded := sanitizeWorkspaceLLMToolSequence(entries)
 	includedMessages = append(includedMessages, sanitizedIncluded...)
 	excludedUnsupported = append(excludedUnsupported, sanitizedExcluded...)
-	return historyMessages, includedMessages, excludedUnsupported
+	return historyMessages, includedMessages, excludedUnsupported, excludedDisplayOnly
 }
 
 func storedToolCallsForLLM(raw *string) ([]llms.ToolCall, bool) {
@@ -431,12 +447,51 @@ func storedToolCallsForLLM(raw *string) ([]llms.ToolCall, bool) {
 		seen[id] = struct{}{}
 		tc.ID = id
 		tc.Function.Name = name
+		tc.Function.Arguments = compactWorkspaceToolCallArguments(tc.Function.Arguments, workspaceLLMHistoryToolArgsMaxRunes)
 		if strings.TrimSpace(tc.Type) == "" {
 			tc.Type = "function"
 		}
 		out = append(out, tc)
 	}
 	return out, true
+}
+
+func compactWorkspaceToolCallArguments(raw string, maxRunes int) string {
+	if workspaceRuneLen(raw) <= maxRunes {
+		return raw
+	}
+	payload := map[string]interface{}{
+		"_kageos_arguments_truncated": true,
+		"original_chars":              workspaceRuneLen(raw),
+		"preview":                     compactWorkspaceLLMHistoryContent(raw, maxRunes),
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Sprintf(`{"_kageos_arguments_truncated":true,"original_chars":%d}`, workspaceRuneLen(raw))
+	}
+	return string(b)
+}
+
+func compactWorkspaceLLMHistoryContent(content string, maxRunes int) string {
+	if maxRunes <= 0 {
+		return ""
+	}
+	runes := []rune(content)
+	if len(runes) <= maxRunes {
+		return content
+	}
+	head := maxRunes * 2 / 3
+	tail := maxRunes - head
+	if tail < 0 {
+		tail = 0
+	}
+	return string(runes[:head]) +
+		fmt.Sprintf("\n\n[历史内容已截断：原始 %d 字符，仅保留前 %d 字符和后 %d 字符；如需完整内容请重新读取对应资源。]\n\n", len(runes), head, tail) +
+		string(runes[len(runes)-tail:])
+}
+
+func workspaceRuneLen(value string) int {
+	return len([]rune(value))
 }
 
 func sanitizeWorkspaceLLMToolSequence(entries []workspaceLLMHistoryEntry) ([]llms.Message, []*model.AgentChatMessage, []*model.AgentChatMessage) {

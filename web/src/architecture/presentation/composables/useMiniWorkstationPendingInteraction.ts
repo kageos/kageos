@@ -97,11 +97,6 @@ export function useMiniWorkstationPendingInteraction(options: UseMiniWorkstation
       return { cancel: true, preserveDraft: true }
     }
     if (interaction.card_type === 'build_repair') {
-      await recordPendingInteractionAction(
-        interaction,
-        'continue_development',
-        payload.text ? `${translate('miniWorkstation.continueDevelopment')}：${payload.text}` : undefined
-      )
       markInteractionHandled(interaction)
       return { interactionAction: 'continue_development' }
     }
@@ -172,11 +167,12 @@ export function useMiniWorkstationPendingInteraction(options: UseMiniWorkstation
       ElMessage.warning(translate('miniWorkstation.confirmPrdNotReady'))
       return
     }
-    const interaction = buildWorkspaceInteractionFromArtifact(payload.prd)
+    const sourceSessionId = options.sessionId.value
+    const interaction = buildWorkspaceInteractionFromArtifact(payload.prd) || currentPrdPendingInteraction()
     let handoff
     try {
       handoff = await createWorkspaceHandoff({
-        source_session_id: options.sessionId.value,
+        source_session_id: sourceSessionId,
         full_code_path: options.fullCodePath.value,
         target_role: getPrdTargetRole(payload.prd),
         artifact_kind: 'agent_app_prd',
@@ -192,6 +188,7 @@ export function useMiniWorkstationPendingInteraction(options: UseMiniWorkstation
       await recordPendingInteractionAction(interaction, 'confirm_prd')
     }
     if (interaction) markInteractionHandled(interaction)
+    await clearPendingInteractionStatusForSession(sourceSessionId)
     options.sessionId.value = handoff.session_id
     void options.sendTextToSession(
       handoff.session_id,
@@ -207,10 +204,19 @@ export function useMiniWorkstationPendingInteraction(options: UseMiniWorkstation
     handledInteractionKeys.value = next
   }
 
+  function currentPrdPendingInteraction(): WorkspaceInteraction | null {
+    const interaction = pendingInteraction.value
+    return interaction?.card_type === 'prd_confirmation' ? interaction : null
+  }
+
   async function clearCurrentPendingInteractionStatus() {
-    if (!options.sessionId.value) return
+    await clearPendingInteractionStatusForSession(options.sessionId.value)
+  }
+
+  async function clearPendingInteractionStatusForSession(targetSessionId: string | undefined) {
+    if (!targetSessionId) return
     try {
-      await resolveWorkspaceSessionInteraction(options.sessionId.value)
+      await resolveWorkspaceSessionInteraction(targetSessionId)
       void options.loadMiniSessions()
       void options.loadGlobalSessions()
     } catch (error: any) {

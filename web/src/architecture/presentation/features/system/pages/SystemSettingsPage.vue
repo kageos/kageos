@@ -237,111 +237,6 @@
             </div>
           </div>
 
-          <div v-else-if="activeTab === 'tls'" class="section-pane">
-            <div v-loading="tlsLoading" class="tls-section">
-              <div class="tls-summary">
-                <div class="summary-item">
-                  <span class="summary-value">{{ tlsSettings?.mode || '-' }}</span>
-                  <span class="summary-label">{{ t('systemSettings.tlsMode') }}</span>
-                </div>
-                <div class="summary-item">
-                  <span class="summary-value">{{ tlsSettings?.ready ? t('systemSettings.ready') : t('systemSettings.pending') }}</span>
-                  <span class="summary-label">{{ t('systemSettings.certificateStatus') }}</span>
-                </div>
-                <div class="summary-item">
-                  <span class="summary-value">{{ tlsCertificateTypeLabel }}</span>
-                  <span class="summary-label">{{ t('systemSettings.certificateType') }}</span>
-                </div>
-              </div>
-
-              <el-alert
-                v-if="tlsSettings && !['https', 'redirect'].includes(tlsSettings.mode)"
-                :title="t('systemSettings.notLocalHttpsMode')"
-                type="info"
-                show-icon
-                :closable="false"
-              />
-              <el-alert
-                v-else-if="tlsSettings?.certificate?.is_self_signed"
-                :title="t('systemSettings.selfSignedWarning')"
-                type="warning"
-                show-icon
-                :closable="false"
-              />
-              <el-alert
-                v-if="tlsSettings && tlsLocalHTTPSMode && !tlsSettings.writable"
-                :title="t('systemSettings.tlsDirNotWritable')"
-                type="error"
-                show-icon
-                :closable="false"
-              />
-              <el-alert
-                v-if="tlsSettings?.message"
-                :title="tlsSettings.message"
-                type="warning"
-                show-icon
-                :closable="false"
-              />
-
-              <el-descriptions v-if="tlsSettings" :column="2" border class="tls-descriptions">
-                <el-descriptions-item :label="t('systemSettings.baseUrl')">{{ tlsSettings.base_url || '-' }}</el-descriptions-item>
-                <el-descriptions-item :label="t('systemSettings.hotReload')">{{ tlsSettings.reload_supported ? t('systemSettings.available') : t('systemSettings.unavailable') }}</el-descriptions-item>
-                <el-descriptions-item :label="t('systemSettings.certFile')">{{ tlsSettings.cert_file }}</el-descriptions-item>
-                <el-descriptions-item :label="t('systemSettings.keyFile')">{{ tlsSettings.key_file }}</el-descriptions-item>
-                <el-descriptions-item label="Subject">{{ tlsSettings.certificate?.subject || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="Issuer">{{ tlsSettings.certificate?.issuer || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="DNS SAN">
-                  {{ tlsSettings.certificate?.dns_names?.join(', ') || '-' }}
-                </el-descriptions-item>
-                <el-descriptions-item :label="t('systemSettings.validity')">
-                  {{ certificateValidityLabel }}
-                </el-descriptions-item>
-              </el-descriptions>
-
-              <el-form label-width="120px" class="tls-form">
-                <el-form-item :label="t('systemSettings.certificatePem')">
-                  <el-input
-                    v-model="tlsForm.certificate_pem"
-                    type="textarea"
-                    :rows="8"
-                    :placeholder="t('systemSettings.certificatePemPlaceholder')"
-                    resize="vertical"
-                  />
-                </el-form-item>
-                <el-form-item :label="t('systemSettings.privateKeyPem')">
-                  <el-input
-                    v-model="tlsForm.private_key_pem"
-                    type="textarea"
-                    :rows="8"
-                    :placeholder="t('systemSettings.privateKeyPemPlaceholder')"
-                    resize="vertical"
-                  />
-                </el-form-item>
-                <el-form-item>
-                  <div class="tls-actions">
-                    <el-button
-                      type="primary"
-                      :icon="Check"
-                      :loading="tlsSaving"
-                      :disabled="!tlsSettings?.writable"
-                      @click="saveTLSCertificate"
-                    >
-                      {{ tlsLocalHTTPSMode ? t('systemSettings.saveAndReload') : t('systemSettings.saveCertificate') }}
-                    </el-button>
-                    <el-button
-                      :icon="Refresh"
-                      :loading="tlsReloading"
-                      :disabled="!tlsSettings?.reload_supported"
-                      @click="reloadTLS"
-                    >
-                      {{ t('systemSettings.reloadOnly') }}
-                    </el-button>
-                  </div>
-                </el-form-item>
-              </el-form>
-            </div>
-          </div>
-
           <div v-else-if="activeTab === 'connectors'" class="section-pane">
             <ConnectorProviderManagementPage :key="connectorPanelKey" embedded />
           </div>
@@ -400,26 +295,23 @@ import { Check, CopyDocument, Message, QuestionFilled, Refresh } from '@element-
 import { useLocaleStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
 import type { SupportedLocale } from '@/architecture/shared/i18n'
 import { getKageosDocsURL, openExternalURL, type KageosDocSlug } from '@/architecture/shared/config/externalLinks'
+import { featureFlags } from '@/architecture/shared/config/features'
 import ConnectorProviderManagementPage from '@/architecture/presentation/features/connector/pages/ConnectorProviderManagementPage.vue'
 import OpenAPITokenManagementPage from '@/architecture/presentation/features/agent/pages/OpenAPITokenManagementPage.vue'
 import SystemUserManagementPage from '@/architecture/presentation/features/system/pages/SystemUserManagementPage.vue'
 import {
   getSystemSettings,
-  getTLSSettings,
   listAuthLoginProviders,
-  reloadTLSCertificate,
   updateSystemSettings,
   updateAuthLoginProviderConfig,
   updateAuthLoginProviderEnabled,
-  updateTLSCertificate,
   testSystemEmail,
   type AuthLoginProviderField,
   type AuthLoginProviderInfo,
-  type SystemSettings,
-  type TLSSettings
+  type SystemSettings
 } from '@/architecture/presentation/context/api/system-settings'
 
-type SettingsTab = 'email' | 'login' | 'tls' | 'connectors' | 'openapi' | 'users' | 'appearance' | 'language'
+type SettingsTab = 'email' | 'login' | 'connectors' | 'openapi' | 'users' | 'appearance' | 'language'
 
 interface SettingsSection {
   key: SettingsTab
@@ -431,14 +323,11 @@ const loading = ref(false)
 const saving = ref(false)
 const testing = ref(false)
 const testEmail = ref('')
-const activeTab = ref<SettingsTab>('email')
+const defaultSettingsTab: SettingsTab = 'login'
+const activeTab = ref<SettingsTab>(defaultSettingsTab)
 const connectorPanelKey = ref(0)
 const openapiPanelKey = ref(0)
 const usersPanelKey = ref(0)
-const tlsLoading = ref(false)
-const tlsSaving = ref(false)
-const tlsReloading = ref(false)
-const tlsSettings = ref<TLSSettings | null>(null)
 const providersLoading = ref(false)
 const authProviders = ref<AuthLoginProviderInfo[]>([])
 const providerConfigs = reactive<Record<string, Record<string, string>>>({})
@@ -450,21 +339,28 @@ const { t } = useI18n()
 const localeStore = useLocaleStore()
 const themeStore = useThemeStore()
 
-const settingsSections = computed<SettingsSection[]>(() => [
+const allSettingsSections = computed<SettingsSection[]>(() => [
   { key: 'email', title: t('systemSettings.sections.emailTitle'), desc: t('systemSettings.sections.emailDesc') },
   { key: 'login', title: t('systemSettings.sections.loginTitle'), desc: t('systemSettings.sections.loginDesc') },
   { key: 'users', title: t('systemSettings.sections.usersTitle'), desc: t('systemSettings.sections.usersDesc') },
   { key: 'openapi', title: t('systemSettings.sections.openapiTitle'), desc: t('systemSettings.sections.openapiDesc') },
-  { key: 'tls', title: t('systemSettings.sections.tlsTitle'), desc: t('systemSettings.sections.tlsDesc') },
   { key: 'connectors', title: t('systemSettings.sections.connectorsTitle'), desc: t('systemSettings.sections.connectorsDesc') },
   { key: 'appearance', title: t('systemSettings.sections.appearanceTitle'), desc: t('systemSettings.sections.appearanceDesc') },
   { key: 'language', title: t('systemSettings.sections.languageTitle'), desc: t('systemSettings.sections.languageDesc') },
 ])
 
+const settingsSections = computed<SettingsSection[]>(() => {
+  return allSettingsSections.value.filter((section) => {
+    if (section.key === 'email') return featureFlags.systemEmailSettings
+    if (section.key === 'connectors') return featureFlags.connectorSettings
+    if (section.key === 'openapi') return featureFlags.openapiTokens
+    return true
+  })
+})
+
 const settingsDocSlugMap: Record<SettingsTab, KageosDocSlug> = {
   email: 'runtime',
   login: 'login',
-  tls: 'runtime',
   connectors: 'connectors',
   openapi: 'api',
   users: 'runtime',
@@ -499,25 +395,6 @@ const form = reactive<SystemSettings>({
 
 const configuredProviderCount = computed(() => authProviders.value.filter((provider) => provider.configured).length)
 const enabledProviderCount = computed(() => authProviders.value.filter((provider) => provider.enabled).length)
-const tlsCertificateTypeLabel = computed(() => {
-  if (!tlsSettings.value?.certificate) {
-    return '-'
-  }
-  return tlsSettings.value.certificate.is_self_signed ? t('systemSettings.selfSigned') : t('systemSettings.trusted')
-})
-const tlsLocalHTTPSMode = computed(() => ['https', 'redirect'].includes(tlsSettings.value?.mode || ''))
-const certificateValidityLabel = computed(() => {
-  const cert = tlsSettings.value?.certificate
-  if (!cert?.not_before || !cert?.not_after) {
-    return '-'
-  }
-  return `${formatDateTime(cert.not_before)} - ${formatDateTime(cert.not_after)}`
-})
-
-const tlsForm = reactive({
-  certificate_pem: '',
-  private_key_pem: '',
-})
 
 function applySettings(settings: SystemSettings) {
   form.registration_mode = settings.registration_mode
@@ -569,24 +446,9 @@ async function loadAuthProviders() {
   }
 }
 
-async function loadTLSSettings() {
-  tlsLoading.value = true
-  try {
-    tlsSettings.value = await getTLSSettings()
-  } catch (error: any) {
-    ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.loadTLSFailed'))
-  } finally {
-    tlsLoading.value = false
-  }
-}
-
 async function refreshActiveTab() {
   if (activeTab.value === 'login') {
     await loadAuthProviders()
-    return
-  }
-  if (activeTab.value === 'tls') {
-    await loadTLSSettings()
     return
   }
   if (activeTab.value === 'connectors') {
@@ -610,9 +472,6 @@ async function refreshActiveTab() {
 function handleTabChange(tabName: string | number) {
   if (tabName === 'login' && !authProviders.value.length) {
     loadAuthProviders()
-  }
-  if (tabName === 'tls' && !tlsSettings.value) {
-    loadTLSSettings()
   }
 }
 
@@ -846,66 +705,18 @@ async function sendTestEmail() {
   }
 }
 
-function validateTLSForm() {
-  if (!tlsForm.certificate_pem.trim()) {
-    ElMessage.warning(t('systemSettings.certificatePemRequired'))
-    return false
-  }
-  if (!tlsForm.private_key_pem.trim()) {
-    ElMessage.warning(t('systemSettings.privateKeyPemRequired'))
-    return false
-  }
-  return true
-}
-
-async function saveTLSCertificate() {
-  if (!validateTLSForm()) {
-    return
-  }
-  tlsSaving.value = true
-  try {
-    tlsSettings.value = await updateTLSCertificate({
-      certificate_pem: tlsForm.certificate_pem,
-      private_key_pem: tlsForm.private_key_pem,
-      reload: tlsLocalHTTPSMode.value,
-    })
-    tlsForm.certificate_pem = ''
-    tlsForm.private_key_pem = ''
-    ElMessage.success(tlsLocalHTTPSMode.value ? t('systemSettings.tlsSavedAndReloaded') : t('systemSettings.tlsSaved'))
-  } catch (error: any) {
-    ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.tlsSaveFailed'))
-  } finally {
-    tlsSaving.value = false
-  }
-}
-
-async function reloadTLS() {
-  tlsReloading.value = true
-  try {
-    tlsSettings.value = await reloadTLSCertificate()
-    ElMessage.success(t('systemSettings.tlsReloaded'))
-  } catch (error: any) {
-    ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.tlsReloadFailed'))
-  } finally {
-    tlsReloading.value = false
-  }
-}
-
-function formatDateTime(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-  return date.toLocaleString()
-}
-
 onMounted(() => {
   const tab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab
   if (isSettingsTab(tab)) {
     activeTab.value = tab
-    handleTabChange(tab)
+  } else if (!isSettingsTab(activeTab.value)) {
+    activeTab.value = settingsSections.value[0]?.key || defaultSettingsTab
   }
-  loadSettings()
+  if (activeTab.value === 'email') {
+    loadSettings()
+  } else {
+    handleTabChange(activeTab.value)
+  }
 })
 </script>
 
@@ -1064,20 +875,7 @@ onMounted(() => {
   min-height: 160px;
 }
 
-.tls-section {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-height: 160px;
-}
-
 .provider-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.tls-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
@@ -1179,14 +977,6 @@ onMounted(() => {
   max-width: 860px;
 }
 
-.tls-form {
-  max-width: 900px;
-}
-
-.tls-descriptions {
-  max-width: 980px;
-}
-
 .provider-field {
   width: 100%;
 }
@@ -1199,12 +989,6 @@ onMounted(() => {
 }
 
 .provider-form-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.tls-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
@@ -1275,19 +1059,16 @@ onMounted(() => {
     align-items: stretch;
   }
 
-  .provider-summary,
-  .tls-summary {
+  .provider-summary {
     grid-template-columns: 1fr;
   }
 
   .settings-form,
-  .provider-form,
-  .tls-form {
+  .provider-form {
     max-width: none;
   }
 
-  .test-row,
-  .tls-actions {
+  .test-row {
     flex-direction: column;
     align-items: stretch;
   }

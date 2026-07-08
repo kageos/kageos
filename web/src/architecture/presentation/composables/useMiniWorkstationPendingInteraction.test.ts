@@ -127,8 +127,8 @@ describe('useMiniWorkstationPendingInteraction', () => {
     expect(recordWorkspaceInteractionEventMock).not.toHaveBeenCalled()
   })
 
-  it('records continue development before sending through build repair interactions', async () => {
-    const { api, loadMiniSessionMessages } = createHarness([
+  it('sends through build repair interactions without duplicating the user message', async () => {
+    const { api } = createHarness([
       assistantWithArtifact({
         kind: 'agent_app_build_failure',
         interaction: {
@@ -146,14 +146,47 @@ describe('useMiniWorkstationPendingInteraction', () => {
       interactionAction: 'continue_development'
     })
 
+    expect(recordWorkspaceInteractionEventMock).not.toHaveBeenCalled()
+    expect(api.pendingInteraction.value).toBeNull()
+  })
+
+  it('unblocks the composer immediately after confirming a PRD', async () => {
+    const prdArtifact = {
+      kind: 'agent_app_prd',
+      project: { name: '线索跟进提醒' },
+      interaction: {
+        id: 'prd-1',
+        status: 'pending_confirmation',
+        card_type: 'prd_confirmation',
+        blocking: true,
+        artifact_kind: 'agent_app_prd'
+      }
+    }
+    const { api, sessionId, sendTextToSession } = createHarness([
+      assistantWithArtifact(prdArtifact)
+    ])
+
+    expect(api.pendingInteraction.value?.id).toBe('prd-1')
+    expect(api.composerBlocked.value).toBe(true)
+
+    await api.handleConfirmPrd({ remark: '', prd: prdArtifact })
+
     expect(recordWorkspaceInteractionEventMock).toHaveBeenCalledWith(expect.objectContaining({
       session_id: 'session-1',
-      action: 'continue_development',
-      interaction_id: 'repair-1',
-      card_type: 'build_repair',
-      artifact_kind: 'agent_app_build_failure'
+      action: 'confirm_prd',
+      interaction_id: 'prd-1',
+      card_type: 'prd_confirmation',
+      artifact_kind: 'agent_app_prd'
     }))
-    expect(loadMiniSessionMessages).toHaveBeenCalledWith('session-1')
+    expect(resolveWorkspaceSessionInteractionMock).toHaveBeenCalledWith('session-1')
+    expect(sessionId.value).toBe('handoff-session')
+    expect(sendTextToSession).toHaveBeenCalledWith(
+      'handoff-session',
+      'handoff content',
+      'handoff display',
+      { contextUsage: 'artifact', artifactKind: 'agent_app_prd', resume: true }
+    )
     expect(api.pendingInteraction.value).toBeNull()
+    expect(api.composerBlocked.value).toBe(false)
   })
 })

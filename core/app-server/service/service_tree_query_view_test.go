@@ -414,6 +414,9 @@ type fakeDirectoryOverviewScheduleClient struct {
 
 func (f fakeDirectoryOverviewScheduleClient) ListTasks(_ context.Context, req scheduledsdk.ListTasksRequest) (*scheduledsdk.ListTasksResponse, error) {
 	key := strings.Join([]string{req.ExecutorKey, req.ResourceScope, req.ResourceKey}, "|")
+	if req.ResourceKeyPrefix != "" {
+		key = strings.Join([]string{req.ExecutorKey, req.ResourceScope, req.ResourceKeyPrefix}, "|")
+	}
 	list := f.tasks[key]
 	return &scheduledsdk.ListTasksResponse{List: list, Total: int64(len(list))}, nil
 }
@@ -462,7 +465,7 @@ func TestGetDirectoryOverviewAggregatesResourcesAndScheduledTasks(t *testing.T) 
 	oldClientFactory := newServiceTreeScheduleClient
 	newServiceTreeScheduleClient = func() serviceTreeScheduleClient {
 		return fakeDirectoryOverviewScheduleClient{tasks: map[string][]*scheduledsdk.Task{
-			"app.function|function|/alice/ops/hr/remind.form": {
+			"app.function|function|/alice/ops": {
 				{
 					ID:          11,
 					Title:       "提醒巡检",
@@ -473,7 +476,7 @@ func TestGetDirectoryOverviewAggregatesResourcesAndScheduledTasks(t *testing.T) 
 					ResourceKey: "/alice/ops/hr/remind.form",
 				},
 			},
-			"agent.session|workspace_directory|/alice/ops/hr": {
+			"agent.session|workspace_directory|/alice/ops": {
 				{
 					ID:                  21,
 					Title:               "日报会话",
@@ -482,6 +485,7 @@ func TestGetDirectoryOverviewAggregatesResourcesAndScheduledTasks(t *testing.T) 
 					Schedule:            scheduledsdk.Cron("0 9 * * *"),
 					NextRunAt:           &nextRun,
 					InflightExecutionID: 99,
+					ExecutorPayload:     []byte(`{"message":"每天汇总人事动态"}`),
 					ResourceKey:         "/alice/ops/hr",
 				},
 			},
@@ -507,5 +511,11 @@ func TestGetDirectoryOverviewAggregatesResourcesAndScheduledTasks(t *testing.T) 
 	}
 	if len(resp.ScheduledAgentTasks) != 1 || resp.ScheduledAgentTasks[0].ResourcePath != "/alice/ops/hr" {
 		t.Fatalf("unexpected agent task resources: %+v", resp.ScheduledAgentTasks)
+	}
+	if got := resp.ScheduledAgentTasks[0].Task.Description; got != "每天汇总人事动态" {
+		t.Fatalf("agent task summary not preserved: %q", got)
+	}
+	if len(resp.ScheduledAgentTasks[0].Task.ExecutorPayload) != 0 {
+		t.Fatal("agent task payload should be compacted in directory overview")
 	}
 }

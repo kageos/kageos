@@ -2,6 +2,7 @@
   <div class="function-tabs-wrapper" data-testid="workspace-function-tabs">
     <div class="function-tabs-shell">
       <FunctionConnectorBar
+        v-if="featureFlags.connectorSettings"
         :current-function="currentFunction"
         :function-detail="currentFunctionDetail"
       />

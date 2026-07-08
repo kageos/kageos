@@ -26,6 +26,9 @@ export const featureFlags = {
   capabilityBundle: readBooleanEnv('VITE_AOS_FEATURE_CAPABILITY_BUNDLE', true),
   docs: readBooleanEnv('VITE_AOS_FEATURE_DOCS', true),
   llmManagement: readBooleanEnv('VITE_AOS_FEATURE_LLM_MANAGEMENT', true),
+  systemEmailSettings: readBooleanEnv('VITE_AOS_FEATURE_SYSTEM_EMAIL_SETTINGS', false),
+  connectorSettings: readBooleanEnv('VITE_AOS_FEATURE_CONNECTOR_SETTINGS', false),
+  openapiTokens: readBooleanEnv('VITE_AOS_FEATURE_OPENAPI_TOKENS', false),
   scheduledTasks: readBooleanEnv('VITE_AOS_FEATURE_SCHEDULED_TASKS', true)
 } as const
 

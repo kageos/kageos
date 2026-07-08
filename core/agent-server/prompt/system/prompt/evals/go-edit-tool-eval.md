@@ -10,7 +10,7 @@
 
 ## 目标
 
-让模型先生成一个真实可构建的 KageOS Go 应用，再在同一个应用里对三份等价代码文件执行同构编辑任务，记录每种编辑方式在以下维度上的表现：
+让模型先生成一个真实可构建的 Kageos Go 应用，再在同一个应用里对三份等价代码文件执行同构编辑任务，记录每种编辑方式在以下维度上的表现：
 
 - 工具调用是否成功
 - 文件内容是否真的符合预期
@@ -161,7 +161,7 @@
 
 如果基准代码使用的是其他 Table 路由名字，只允许修改 `.table` 前面的业务语义段，不允许删除或替换 `.table` 后缀。
 
-成功标准：注册函数仍然存在，handler 和 template 没有丢，且路由仍满足 KageOS SDK 的 TableTemplate 后缀约束。
+成功标准：注册函数仍然存在，handler 和 template 没有丢，且路由仍满足 Kageos SDK 的 TableTemplate 后缀约束。
 
 ### P03 结构体新增字段
 
@@ -482,7 +482,7 @@ verified_success=false
 ## 直接投喂给工作台模型的任务文本
 
 ```text
-请在 /system/eval/go_edit_tool_lab 创建一个全新的 KageOS Go 应用，用于评估 Go 编辑工具。
+请在 /system/eval/go_edit_tool_lab 创建一个全新的 Kageos Go 应用，用于评估 Go 编辑工具。
 
 你必须先生成一个能 build 通过的“工单与库存协同处理系统”，然后创建三个等价的测试 Go 文件：
 edit_search.go、edit_line.go、edit_write.go。

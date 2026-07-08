@@ -1294,7 +1294,7 @@ export default {
     llmDesc: 'Models, keys, and defaults',
     openapiConfig: 'OpenAPI settings',
     openapiDesc: 'Access tokens and API permissions',
-    systemSettingsDesc: 'Email, login, OpenAPI, and system settings',
+    systemSettingsDesc: 'Login, users, and preferences',
     loginConfig: 'Login methods',
     loginConfigDesc: 'Sign-in methods and authorization entry',
     connectorConfig: 'Connector settings',

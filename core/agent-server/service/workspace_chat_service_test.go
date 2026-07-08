@@ -274,8 +274,8 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 	if plan == nil {
 		t.Fatal("plan is nil")
 	}
-	if len(msgs) != 4 {
-		t.Fatalf("llm messages = %d, want system + old + handoff + display-tagged history", len(msgs))
+	if len(msgs) != 3 {
+		t.Fatalf("llm messages = %d, want system + old + handoff without display-only history", len(msgs))
 	}
 	if !strings.Contains(msgs[0].Content, "/system/prompt/platform-introduction") ||
 		!strings.Contains(msgs[0].Content, "/system/prompt/platform-usage-and-philosophy") ||
@@ -300,7 +300,7 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 	if plan.Role.ID != WorkspaceRoleQAEngineer || plan.Role.Source != "session" {
 		t.Fatalf("bad role plan: %#v", plan.Role)
 	}
-	if plan.Messages.ContextPolicy != ContextPolicyFull || plan.Messages.ExcludedByAnchor != 0 || plan.Messages.ExcludedDisplayOnly != 0 {
+	if plan.Messages.ContextPolicy != ContextPolicyFull || plan.Messages.ExcludedByAnchor != 0 || plan.Messages.ExcludedDisplayOnly != 1 {
 		t.Fatalf("bad message policy: %#v", plan.Messages)
 	}
 	if plan.Messages.SourceHistoryPolicy != "same_session_full_with_parent_reference" {
@@ -367,8 +367,11 @@ func TestBuildLLMMessagesExposesStableModeToolsAndKeepsRoleGatePlan(t *testing.T
 	for _, tool := range tools {
 		toolNames = append(toolNames, tool.Function.Name)
 	}
-	if !containsWorkspaceRoleString(toolNames, "write_file") || !containsWorkspaceRoleString(toolNames, "build_workspace") {
-		t.Fatalf("LLM tools should expose stable dev mode tools even for QA role: %v", toolNames)
+	if containsWorkspaceRoleString(toolNames, "write_file") || containsWorkspaceRoleString(toolNames, "build_workspace") {
+		t.Fatalf("LLM tools should hide role-forbidden write/build tools for QA role: %v", toolNames)
+	}
+	if !containsWorkspaceRoleString(toolNames, "run_form_submit") || !containsWorkspaceRoleString(toolNames, "run_chart_query") {
+		t.Fatalf("LLM tools should expose QA role tools: %v", toolNames)
 	}
 	if !containsWorkspaceRoleString(plan.Tools.RoleAllowedTools, "run_form_submit") {
 		t.Fatalf("QA role allowed tools should include run_form_submit: %#v", plan.Tools)
@@ -377,11 +380,11 @@ func TestBuildLLMMessagesExposesStableModeToolsAndKeepsRoleGatePlan(t *testing.T
 		containsWorkspaceRoleString(plan.Tools.RoleAllowedTools, "build_workspace") {
 		t.Fatalf("QA role allowed tools should still exclude write/build tools: %#v", plan.Tools)
 	}
-	if plan.Tools.LLMToolCount != len(provider.ToolNames()) {
-		t.Fatalf("LLM tool count = %d, want dev mode count %d", plan.Tools.LLMToolCount, len(provider.ToolNames()))
+	if plan.Tools.LLMToolCount != len(toolNames) {
+		t.Fatalf("LLM tool count = %d, want visible tool count %d", plan.Tools.LLMToolCount, len(toolNames))
 	}
-	if plan.Tools.RoleAllowedToolCount >= plan.Tools.LLMToolCount {
-		t.Fatalf("role allowed tools should remain narrower than LLM tools for QA: %#v", plan.Tools)
+	if plan.Tools.RoleAllowedToolCount != plan.Tools.LLMToolCount {
+		t.Fatalf("LLM tools should match role allowed tools for QA: %#v", plan.Tools)
 	}
 }
 
@@ -478,6 +481,91 @@ func TestBuildLLMMessagesWithPlanCurrentTurnMessageDoesNotPolluteFutureContext(t
 	}
 	if plan == nil || plan.Messages.IncludedStoredMessages != 0 || plan.Messages.ExcludedStoredMessages != 3 {
 		t.Fatalf("bad future-turn plan: %#v", plan)
+	}
+}
+
+func TestBuildLLMMessagesWithPlanCompactsLargeHistoricalToolPayloads(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate sessions: %v", err)
+	}
+	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
+		t.Fatalf("migrate messages: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	messageRepo := repository.NewChatMessageRepository(db)
+	session := &model.AgentChatSession{
+		TreeID:        7,
+		FullCodePath:  "/liubeiluo/assets",
+		Source:        SourceWorkspace,
+		SessionID:     "large-tool-history-session",
+		Title:         "大工具历史",
+		ModeCode:      "dev",
+		Status:        model.ChatSessionStatusActive,
+		RoleID:        WorkspaceRoleMaintenanceEngineer,
+		ContextPolicy: ContextPolicyFull,
+		User:          "tester",
+	}
+	if err := sessionRepo.Create(session); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "修改应用", User: "tester"}); err != nil {
+		t.Fatalf("create user message: %v", err)
+	}
+	largeArgs := `{"full_code_path":"/liubeiluo/assets/main.go","content":"` + strings.Repeat("参数内容", 1200) + `"}`
+	call := llms.ToolCall{ID: "call_write", Type: "function"}
+	call.Function.Name = "write_file"
+	call.Function.Arguments = largeArgs
+	rawToolCalls, err := json.Marshal([]llms.ToolCall{call})
+	if err != nil {
+		t.Fatalf("marshal tool calls: %v", err)
+	}
+	toolCalls := string(rawToolCalls)
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleAssistant, ToolCalls: &toolCalls, User: "tester"}); err != nil {
+		t.Fatalf("create assistant message: %v", err)
+	}
+	largeResult := strings.Repeat("工具结果", 1200)
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleTool, ToolCallID: "call_write", Content: largeResult, User: "tester"}); err != nil {
+		t.Fatalf("create tool message: %v", err)
+	}
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "只展示给前端", ContextUsage: MessageContextDisplayOnly, User: "tester"}); err != nil {
+		t.Fatalf("create display-only message: %v", err)
+	}
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "继续处理", User: "tester"}); err != nil {
+		t.Fatalf("create current user message: %v", err)
+	}
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
+	workspaceCtx := &dto.GetWorkspaceContextResp{}
+	workspaceCtx.Directory.Name = "资产管理"
+	workspaceCtx.Directory.Code = "assets"
+	workspaceCtx.Directory.Type = "package"
+
+	msgs, _, plan, err := svc.buildLLMMessagesWithPlan(context.Background(), session.SessionID, "/liubeiluo/assets", "资产管理", workspaceCtx, nil, nil, "fallback", 0)
+	if err != nil {
+		t.Fatalf("build messages: %v", err)
+	}
+	joined := joinLLMMessageContents(msgs)
+	if strings.Contains(joined, "只展示给前端") {
+		t.Fatalf("display-only message should not enter model context:\n%s", joined)
+	}
+	if !strings.Contains(joined, "历史内容已截断") {
+		t.Fatalf("large tool result should be compacted:\n%s", joined)
+	}
+	var gotArgs string
+	for _, msg := range msgs {
+		if msg.Role == RoleAssistant && len(msg.ToolCalls) > 0 {
+			gotArgs = msg.ToolCalls[0].Function.Arguments
+			break
+		}
+	}
+	if !strings.Contains(gotArgs, "_kageos_arguments_truncated") || strings.Contains(gotArgs, strings.Repeat("参数内容", 1200)) {
+		t.Fatalf("large tool arguments should be compacted, got length=%d args=%s", len(gotArgs), gotArgs)
+	}
+	if plan == nil || plan.Messages.ExcludedDisplayOnly != 1 {
+		t.Fatalf("display-only exclusion should be reported: %#v", plan)
 	}
 }
 

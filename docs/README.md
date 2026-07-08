@@ -6,6 +6,7 @@ This directory collects product thinking, architecture notes, operating guides, 
 
 - [Kageos 项目说明：AI 时代的企业轻应用治理与目录分发](product-thinking-ai-era-application-governance.md)
 - [Kageos 官网叙事与能力优势](website-story-and-positioning.md)
+- [Kageos 视频演示链路与发布前验收清单](video-demo-and-launch-checklist.md)
 - [目录 vs Skills：确定性架构论证](directory-vs-skills-certainty-architecture.md)
 
 ## Architecture

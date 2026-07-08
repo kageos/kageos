@@ -1294,7 +1294,7 @@ export default {
     llmDesc: '模型、密钥与默认配置',
     openapiConfig: 'OpenAPI 配置',
     openapiDesc: '访问 Token 与调用权限',
-    systemSettingsDesc: '邮件、登录、OpenAPI 与系统配置',
+    systemSettingsDesc: '登录、用户与偏好配置',
     loginConfig: '登录配置',
     loginConfigDesc: '登录方式与授权入口',
     connectorConfig: '连接器配置',

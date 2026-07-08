@@ -126,7 +126,7 @@ const router = createRouter({
       meta: {
         titleKey: 'route.openapiConfig',
         requireAuth: true,
-        feature: 'llmManagement'
+        feature: 'openapiTokens'
       }
     },
     {
@@ -146,7 +146,8 @@ const router = createRouter({
       },
       meta: {
         titleKey: 'route.connectorManagement',
-        requireAuth: true
+        requireAuth: true,
+        feature: 'connectorSettings'
       }
     },
     {
@@ -157,7 +158,8 @@ const router = createRouter({
       },
       meta: {
         titleKey: 'route.connectorManagement',
-        requireAuth: true
+        requireAuth: true,
+        feature: 'connectorSettings'
       }
     },
     {

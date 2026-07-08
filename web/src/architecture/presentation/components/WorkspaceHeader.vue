@@ -125,7 +125,7 @@
                 <span class="user-menu-desc">{{ t('workspace.loginConfigDesc') }}</span>
               </span>
             </el-dropdown-item>
-            <el-dropdown-item v-if="isSystemUser" command="connector-settings" class="user-dropdown-action">
+            <el-dropdown-item v-if="isSystemUser && featureFlags.connectorSettings" command="connector-settings" class="user-dropdown-action">
               <span class="user-menu-icon user-menu-icon--connector">
                 <el-icon><Connection /></el-icon>
               </span>

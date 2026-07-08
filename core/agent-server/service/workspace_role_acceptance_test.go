@@ -480,11 +480,13 @@ func TestWorkspaceRoleAcceptanceArchivedHistoryExcludedFromModelContext(t *testi
 	for _, required := range []string{
 		"旧会话关键约束",
 		"保留投票主题、提交投票、统计结果三块能力",
-		"旧会话展示卡片",
 	} {
 		if !strings.Contains(joined, required) {
 			t.Fatalf("historical content should remain in model context; missing %q in:\n%s", required, joined)
 		}
+	}
+	if strings.Contains(joined, "旧会话展示卡片") {
+		t.Fatalf("display-only history should not enter model context:\n%s", joined)
 	}
 	if !strings.Contains(joined, "HANDOFF_PACKET JSON") ||
 		!strings.Contains(joined, "按确认后的 PRD 开始开发投票系统") {
@@ -494,9 +496,9 @@ func TestWorkspaceRoleAcceptanceArchivedHistoryExcludedFromModelContext(t *testi
 		t.Fatal("model context plan is nil")
 	}
 	if plan.Messages.ExcludedByAnchor != 0 ||
-		plan.Messages.ExcludedDisplayOnly != 0 ||
+		plan.Messages.ExcludedDisplayOnly != 1 ||
 		plan.Messages.SourceHistoryPolicy != "same_session_full_with_parent_reference" {
-		t.Fatalf("model context plan should preserve legacy anchor/display-tagged history, got %#v", plan.Messages)
+		t.Fatalf("model context plan should preserve legacy anchor and exclude display-only history, got %#v", plan.Messages)
 	}
 	if plan.Handoff == nil ||
 		plan.Handoff.TargetRole != WorkspaceRoleAppDeveloper ||
