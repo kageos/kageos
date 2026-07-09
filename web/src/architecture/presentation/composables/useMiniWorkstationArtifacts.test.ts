@@ -28,6 +28,12 @@ describe('useMiniWorkstationArtifacts', () => {
       tone: 'archive',
       ext: 'ZIP'
     })
+
+    expect(buildFileArtifactItem({ name: 'demo.m4v', href: '/files/demo.m4v', source: 'output' }, 3)).toMatchObject({
+      tag: '视频',
+      tone: 'media',
+      ext: 'M4V'
+    })
   })
 
   it('marks uploaded files as input artifacts', () => {

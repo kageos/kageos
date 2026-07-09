@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/kageos/kageos/pkg/gormx/models"
@@ -13,19 +14,20 @@ const (
 
 type PublicShare struct {
 	models.Base
-	ShareID      string     `json:"share_id" gorm:"type:varchar(64);not null;uniqueIndex"`
-	TenantUser   string     `json:"tenant_user" gorm:"type:varchar(255);not null;index:idx_public_share_owner"`
-	App          string     `json:"app" gorm:"type:varchar(255);not null;index:idx_public_share_owner"`
-	FullCodePath string     `json:"full_code_path" gorm:"type:varchar(1024);not null"`
-	ResourceType string     `json:"resource_type" gorm:"type:varchar(64);not null"`
-	Action       string     `json:"action" gorm:"type:varchar(64);not null"`
-	Title        string     `json:"title" gorm:"type:varchar(255)"`
-	Description  string     `json:"description" gorm:"type:text"`
-	Enabled      bool       `json:"enabled" gorm:"not null;default:true;index"`
-	ExpiresAt    *time.Time `json:"expires_at" gorm:"index"`
-	MaxUses      int        `json:"max_uses" gorm:"not null;default:0"`
-	UseCount     int        `json:"use_count" gorm:"not null;default:0"`
-	LastUsedAt   *time.Time `json:"last_used_at"`
+	ShareID      string          `json:"share_id" gorm:"type:varchar(64);not null;uniqueIndex"`
+	TenantUser   string          `json:"tenant_user" gorm:"type:varchar(255);not null;index:idx_public_share_owner"`
+	App          string          `json:"app" gorm:"type:varchar(255);not null;index:idx_public_share_owner"`
+	FullCodePath string          `json:"full_code_path" gorm:"type:varchar(1024);not null"`
+	ResourceType string          `json:"resource_type" gorm:"type:varchar(64);not null"`
+	Action       string          `json:"action" gorm:"type:varchar(64);not null"`
+	Title        string          `json:"title" gorm:"type:varchar(255)"`
+	Description  string          `json:"description" gorm:"type:text"`
+	Enabled      bool            `json:"enabled" gorm:"not null;default:true;index"`
+	ExpiresAt    *time.Time      `json:"expires_at" gorm:"index"`
+	MaxUses      int             `json:"max_uses" gorm:"not null;default:0"`
+	UseCount     int             `json:"use_count" gorm:"not null;default:0"`
+	LastUsedAt   *time.Time      `json:"last_used_at"`
+	PresetValues json.RawMessage `json:"preset_values" gorm:"type:json"`
 }
 
 func (PublicShare) TableName() string {

@@ -167,6 +167,17 @@
           {{ t('common.submit') }}
         </el-button>
         <el-button
+          v-if="canCreatePublicShare"
+          size="large"
+          :disabled="submitting || creatingPublicShare"
+          :loading="creatingPublicShare"
+          @click="handleCreatePublicShare"
+          data-testid="form-create-public-share"
+        >
+          <el-icon><Link /></el-icon>
+          {{ t('formView.createPublicShare') }}
+        </el-button>
+        <el-button
           v-if="canCreateScheduledSubmit"
           size="large"
           :disabled="submitting"
@@ -431,7 +442,7 @@
 import { computed, nextTick, ref, provide } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Clock } from '@element-plus/icons-vue'
+import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Clock, Link } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElEmpty } from 'element-plus'
 import { eventBus } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -459,10 +470,13 @@ import {
   copyTextToClipboard,
   filterEmptyInvocationParams,
 } from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
+import { createPublicShare, type PublicShareItem } from '@/architecture/presentation/context/api/publicShare'
+import { buildPublicSharePresetValues } from '@/architecture/domain/utils/publicSharePreset'
 
 const props = withDefaults(defineProps<{
   functionDetail?: FunctionDetail  // 🔥 改为可选，因为会在 onMounted 中主动获取
   showSubmitButton?: boolean  // 🔥 是否显示提交按钮（用于 FormDialog 等场景）
+  showPublicShareButton?: boolean
   showResetButton?: boolean  // 🔥 是否显示重置按钮
   showDebugButton?: boolean
   flatSurface?: boolean
@@ -471,6 +485,7 @@ const props = withDefaults(defineProps<{
   responseDisplayMode?: 'inline' | 'dialog'
 }>(), {
   showSubmitButton: true,
+  showPublicShareButton: true,
   showResetButton: true,
   showDebugButton: true,
   flatSurface: false,
@@ -525,6 +540,7 @@ const currentFunctionNode = computed(() => {
   return workspaceStateManager.getCurrentFunction()
 })
 const showScheduledTaskDialog = ref(false)
+const creatingPublicShare = ref(false)
 const scheduledFunctionPath = computed(() => {
   return functionDetail.value?.full_code_path || currentFunctionNode.value?.full_code_path || ''
 })
@@ -533,6 +549,13 @@ const canCreateScheduledSubmit = computed(() => {
 })
 const canCopyWorkspaceInvocation = computed(() => {
   return props.showSubmitButton && !!scheduledFunctionPath.value
+})
+const canCreatePublicShare = computed(() => {
+  const detail = functionDetail.value
+  return props.showSubmitButton &&
+    props.showPublicShareButton &&
+    !!scheduledFunctionPath.value &&
+    detail?.template_type === TEMPLATE_TYPE.FORM
 })
 
 // 🔥 移除 formInitialData computed，改为使用统一的数据初始化框架
@@ -648,6 +671,41 @@ async function handleCopyWorkspaceInvocation(): Promise<void> {
   } catch {
     ElMessage.error(t('formView.copyFailedManual'))
   }
+}
+
+async function handleCreatePublicShare(): Promise<void> {
+  if (!scheduledFunctionPath.value) {
+    ElMessage.warning(t('publicSharePanel.pathNotReady'))
+    return
+  }
+
+  creatingPublicShare.value = true
+  try {
+    const presetValues = buildPublicSharePresetValues(
+      filterEmptyInvocationParams(prepareSubmitDataWithTypeConversion())
+    )
+    const share = await createPublicShare({
+      full_code_path: scheduledFunctionPath.value,
+      preset_values: presetValues,
+    })
+    await copyTextToClipboard(resolvePublicShareLink(share))
+    ElMessage.success(t('formView.publicShareCreatedCopied'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, t('formView.publicShareCreateFailed')))
+  } finally {
+    creatingPublicShare.value = false
+  }
+}
+
+function resolvePublicShareLink(share: PublicShareItem): string {
+  if (!share.public_url || import.meta.env.DEV) {
+    return publicSharePageURL(share.share_id)
+  }
+  return new URL(share.public_url, window.location.origin).toString()
+}
+
+function publicSharePageURL(shareId: string): string {
+  return `${window.location.origin}/public/s/${encodeURIComponent(shareId)}`
 }
 
 /**

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/scheduledsdk"
 )
 
 func TestDownloadCapabilityBundleUsesInstallKeyHeader(t *testing.T) {
@@ -171,6 +173,94 @@ func TestValidateCapabilityBundleRejectsWorkspaceBoundPaths(t *testing.T) {
 	}
 }
 
+func TestAppendCapabilityBundleAgentTasksExportsRelativeTasks(t *testing.T) {
+	payload, err := json.Marshal(map[string]interface{}{
+		"full_code_path":       "/system/demo/customer_follow",
+		"message":              "每天整理客户跟进清单。",
+		"display_content":      "每天整理客户跟进清单。",
+		"mode_code":            "dev",
+		"max_duration_seconds": 900,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeAppScheduleClient{
+		listResp: &scheduledsdk.ListTasksResponse{List: []*scheduledsdk.Task{
+			{
+				ID:              7,
+				Title:           "客户跟进每日简报",
+				Description:     "整理到期客户、高意向商机和建议动作。",
+				ExecutorKey:     ScheduledAgentSessionExecutorKey,
+				ExecutorPayload: payload,
+				Metadata: map[string]string{
+					"schedule_code": "daily_follow_brief",
+					"mode_code":     "dev",
+				},
+				Status:        scheduledsdk.TaskStatusPending,
+				Schedule:      scheduledsdk.Schedule{Type: scheduledsdk.ScheduleCron, CronExpr: "5 9 * * *", Timezone: "Asia/Shanghai"},
+				ResourceScope: "workspace_directory",
+				ResourceKey:   "/system/demo/customer_follow",
+			},
+		}},
+	}
+	old := newAppScheduleClient
+	newAppScheduleClient = func() appScheduleClient { return fake }
+	defer func() { newAppScheduleClient = old }()
+
+	bundle := &dto.CapabilityBundle{}
+	svc := &serviceTreeCapabilityBundleService{}
+	err = svc.appendCapabilityBundleAgentTasks(context.Background(), bundle,
+		&model.ServiceTree{Code: "customer_follow", FullCodePath: "/system/demo/customer_follow"},
+		&model.ServiceTree{Code: "customer_follow", FullCodePath: "/system/demo/customer_follow"},
+		true,
+		map[string]struct{}{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bundle.AgentTasks) != 1 {
+		t.Fatalf("agent_tasks len = %d, want 1", len(bundle.AgentTasks))
+	}
+	task := bundle.AgentTasks[0]
+	if task.RelativePath != "customer_follow" || task.Code != "daily_follow_brief" || !task.Enabled {
+		t.Fatalf("unexpected exported task identity: %#v", task)
+	}
+	if task.Message != "每天整理客户跟进清单。" || task.MaxDurationSeconds != 900 || task.Schedule.CronExpr != "5 9 * * *" {
+		t.Fatalf("unexpected exported task content: %#v", task)
+	}
+}
+
+func TestBuildCapabilityBundleAgentTaskRequestRebasesTargetPath(t *testing.T) {
+	req, err := buildCapabilityBundleAgentTaskRequest(context.Background(), "/alice/app/customers", &dto.CapabilityBundleAgentTask{
+		RelativePath:       "customers",
+		Code:               "daily_follow_brief",
+		Title:              "客户跟进每日简报",
+		Description:        "整理到期客户、高意向商机和建议动作。",
+		Message:            "每天整理客户跟进清单。",
+		Schedule:           scheduledsdk.Schedule{Type: scheduledsdk.ScheduleCron, CronExpr: "5 9 * * *", Timezone: "Asia/Shanghai"},
+		MaxDurationSeconds: 900,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.ExecutorKey != ScheduledAgentSessionExecutorKey || req.Status != scheduledsdk.TaskStatusPaused {
+		t.Fatalf("unexpected request identity: %#v", req)
+	}
+	if req.ResourceKey != "/alice/app/customers" || req.SourceRef != "/alice/app/customers" {
+		t.Fatalf("unexpected resource path: %#v", req)
+	}
+	if req.Metadata["managed_by"] != "capability_bundle" || req.Metadata["bundle_task_code"] != "daily_follow_brief" {
+		t.Fatalf("unexpected metadata: %#v", req.Metadata)
+	}
+	var payload scheduledAgentSessionPayload
+	if err := json.Unmarshal(req.ExecutorPayload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.FullCodePath != "/alice/app/customers" || payload.Message != "每天整理客户跟进清单。" || payload.MaxDurationSeconds != 900 {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+}
+
 func TestBuildCapabilityBundleInstallPlanMountsRelativePackages(t *testing.T) {
 	t.Parallel()
 
@@ -325,6 +415,15 @@ func TestFilterCapabilityBundleBySubpathRebasesSelectedDirectory(t *testing.T) {
 		Docs: []*dto.CapabilityBundleDoc{
 			{RelativePath: "crm/customers/readme.docs", Name: "使用说明", Content: "# Customers\n", Format: "markdown"},
 		},
+		AgentTasks: []*dto.CapabilityBundleAgentTask{
+			{
+				RelativePath: "crm/customers",
+				Code:         "daily_follow_brief",
+				Title:        "客户跟进每日简报",
+				Message:      "每天整理客户跟进清单。",
+				Schedule:     scheduledsdk.Schedule{Type: scheduledsdk.ScheduleCron, CronExpr: "5 9 * * *"},
+			},
+		},
 		Packages: []*dto.CapabilityBundlePackage{
 			{Path: "crm", Name: "CRM"},
 			{Path: "crm/customers", Name: "客户目录"},
@@ -374,6 +473,9 @@ func TestFilterCapabilityBundleBySubpathRebasesSelectedDirectory(t *testing.T) {
 	}
 	if len(filtered.Docs) != 1 || filtered.Docs[0].RelativePath != "customers/readme.docs" {
 		t.Fatalf("unexpected docs: %#v", filtered.Docs)
+	}
+	if len(filtered.AgentTasks) != 1 || filtered.AgentTasks[0].RelativePath != "customers" || filtered.AgentTasks[0].Code != "daily_follow_brief" {
+		t.Fatalf("unexpected agent tasks: %#v", filtered.AgentTasks)
 	}
 
 	plan, err := buildCapabilityBundleInstallPlan("/alice/app/openapi", filtered)

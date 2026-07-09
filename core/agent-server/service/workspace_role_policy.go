@@ -62,6 +62,7 @@ func workspaceRoleBaseReadOnlyTools() []string {
 		"search",
 		"web_search",
 		"summarize_task_state",
+		"read_workspace_artifact",
 		"list_scheduled_tasks",
 		"list_scheduled_task_executions",
 	}

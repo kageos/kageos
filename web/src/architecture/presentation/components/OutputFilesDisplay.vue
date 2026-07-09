@@ -27,21 +27,33 @@
         <div v-if="displayGroups.length > 1" class="output-files-group-label">{{ group.label }}</div>
         <div class="output-files-list">
           <div
-            v-for="(file, fIdx) in group.files"
+            v-for="(file, fIdx) in visibleGroupFiles(group, gIdx)"
             :key="fIdx"
             class="output-files-item"
+            :class="{ 'output-files-item--media': isPreviewableMedia(file) }"
           >
             <div class="output-files-main">
-              <div class="output-files-preview" v-if="filePreviewUrl(file)">
+              <div class="output-files-preview" v-if="isImageFile(file) && imagePreviewUrl(file)">
                 <a :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer" class="output-files-preview-link">
                   <img
-                    :src="filePreviewUrl(file)"
+                    :src="imagePreviewUrl(file)"
                     :alt="fileDisplayName(file)"
                     loading="lazy"
                     class="output-files-img"
                     @error="onImageError"
                   />
                 </a>
+              </div>
+              <div class="output-files-preview output-files-video-preview" v-else-if="isVideoFile(file)">
+                <video
+                  class="output-files-video"
+                  controls
+                  playsinline
+                  preload="metadata"
+                  :poster="videoPosterUrl(file) || undefined"
+                >
+                  <source :src="fileDisplayUrl(file)" :type="fileContentType(file) || undefined" />
+                </video>
               </div>
               <div v-else class="output-files-icon">
                 <el-icon><Document /></el-icon>
@@ -64,6 +76,15 @@
             </div>
           </div>
         </div>
+        <button
+          v-if="groupCanCollapse(group)"
+          type="button"
+          class="output-files-collapse-btn"
+          @click="toggleGroupExpanded(group, gIdx)"
+        >
+          {{ groupExpanded(group, gIdx) ? '收起' : `展开全部 ${group.files.length} 个文件` }}
+          <span v-if="!groupExpanded(group, gIdx)">（还有 {{ hiddenFileCount(group) }} 个）</span>
+        </button>
       </div>
     </div>
   </div>
@@ -80,6 +101,7 @@ import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/util
 import { createZipBlob, type ZipEntryInput } from '@/architecture/presentation/utils/downloadZip'
 
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico', '.avif'])
+const VIDEO_EXT = new Set(['.mp4', '.mov', '.m4v', '.webm', '.ogg', '.ogv', '.avi', '.mkv'])
 
 const props = withDefaults(
   defineProps<{
@@ -95,8 +117,21 @@ const props = withDefaults(
     archiveDownload?: boolean
     /** 打包下载文件名 */
     archiveFileName?: string
+    /** 是否在文件很多时折叠列表 */
+    collapsible?: boolean
+    /** 超过多少个文件时开启折叠 */
+    collapseThreshold?: number
+    /** 折叠时默认露出的文件数 */
+    collapsedVisibleCount?: number
   }>(),
-  { sectionTitle: '输出文件', archiveDownload: true, archiveFileName: '' }
+  {
+    sectionTitle: '输出文件',
+    archiveDownload: true,
+    archiveFileName: '',
+    collapsible: true,
+    collapseThreshold: 4,
+    collapsedVisibleCount: 4,
+  }
 )
 
 const sourceGroups = computed((): OutputFileGroup[] => {
@@ -116,6 +151,10 @@ const sourceGroupsSignature = computed(() => {
       name: file.name ?? '',
       source_name: file.source_name ?? '',
       download_url: file.download_url ?? '',
+      thumbnail_url: file.thumbnail_url ?? '',
+      thumbnail_ref: file.thumbnail_ref ?? '',
+      preview_kind: file.preview_kind ?? '',
+      content_type: file.content_type ?? '',
       size: file.size ?? null,
     })),
   })))
@@ -157,6 +196,7 @@ const archiveSourceFiles = computed(() => {
   )
 })
 const canArchiveDownload = computed(() => props.archiveDownload && archiveSourceFiles.value.length > 1)
+const expandedGroupKeys = ref<Set<string>>(new Set())
 
 function mergeResolvedGroups(groups: OutputFileGroup[]): OutputFileGroup[] {
   return groups.map(group => ({
@@ -181,17 +221,41 @@ function mergeResolvedGroups(groups: OutputFileGroup[]): OutputFileGroup[] {
 }
 
 function isImageFile(file: OutputFileItem): boolean {
-  const contentType = String(file.content_type || '').toLowerCase()
+  const contentType = fileContentType(file)
   if (contentType.startsWith('image/')) return true
-  const name = (file.source_name ?? file.name ?? '') as string
-  const ext = name.includes('.') ? name.slice(name.lastIndexOf('.')).toLowerCase() : ''
-  return IMAGE_EXT.has(ext)
+  return IMAGE_EXT.has(fileExtension(file))
 }
 
-function filePreviewUrl(file: OutputFileItem): string {
+function isVideoFile(file: OutputFileItem): boolean {
+  const previewKind = String(file.preview_kind || '').toLowerCase()
+  if (previewKind === 'video') return true
+  const contentType = fileContentType(file)
+  if (contentType.startsWith('video/')) return true
+  return VIDEO_EXT.has(fileExtension(file))
+}
+
+function isPreviewableMedia(file: OutputFileItem): boolean {
+  return isImageFile(file) || isVideoFile(file)
+}
+
+function imagePreviewUrl(file: OutputFileItem): string {
   const thumbnailUrl = normalizeStorageFileDisplayUrl(String(file.thumbnail_url || ''))
   if (thumbnailUrl) return thumbnailUrl
   return isImageFile(file) ? fileDisplayUrl(file) : ''
+}
+
+function videoPosterUrl(file: OutputFileItem): string {
+  return normalizeStorageFileDisplayUrl(String(file.thumbnail_url || ''))
+}
+
+function fileContentType(file: OutputFileItem): string {
+  return String(file.content_type || '').toLowerCase()
+}
+
+function fileExtension(file: OutputFileItem): string {
+  const name = (file.source_name ?? file.name ?? '') as string
+  if (!name || !name.includes('.')) return ''
+  return name.slice(name.lastIndexOf('.')).toLowerCase()
 }
 
 function fileDisplayName(file: OutputFileItem): string {
@@ -200,6 +264,48 @@ function fileDisplayName(file: OutputFileItem): string {
 
 function fileDisplayUrl(file: OutputFileItem): string {
   return normalizeStorageFileDisplayUrl(file.download_url || file.ref || '')
+}
+
+function groupKey(group: OutputFileGroup, index: number): string {
+  const refs = group.files.map(file => file.ref || file.download_url || file.name || '').join('|')
+  return `${index}:${group.label}:${refs}`
+}
+
+function groupExpanded(group: OutputFileGroup, index: number): boolean {
+  return expandedGroupKeys.value.has(groupKey(group, index))
+}
+
+function groupCanCollapse(group: OutputFileGroup): boolean {
+  if (!props.collapsible) return false
+  return group.files.length > normalizedCollapseThreshold()
+}
+
+function visibleGroupFiles(group: OutputFileGroup, index: number): OutputFileItem[] {
+  if (!groupCanCollapse(group) || groupExpanded(group, index)) return group.files
+  return group.files.slice(0, normalizedCollapsedVisibleCount())
+}
+
+function hiddenFileCount(group: OutputFileGroup): number {
+  return Math.max(0, group.files.length - normalizedCollapsedVisibleCount())
+}
+
+function toggleGroupExpanded(group: OutputFileGroup, index: number): void {
+  const key = groupKey(group, index)
+  const next = new Set(expandedGroupKeys.value)
+  if (next.has(key)) {
+    next.delete(key)
+  } else {
+    next.add(key)
+  }
+  expandedGroupKeys.value = next
+}
+
+function normalizedCollapseThreshold(): number {
+  return Math.max(1, props.collapseThreshold)
+}
+
+function normalizedCollapsedVisibleCount(): number {
+  return Math.max(1, Math.min(props.collapsedVisibleCount, normalizedCollapseThreshold()))
 }
 
 async function downloadArchive(): Promise<void> {
@@ -384,7 +490,7 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
 
 .output-files-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: 12px;
 }
 
@@ -399,6 +505,32 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--el-border-radius-small);
+}
+
+.output-files-item--media {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: 100%;
+  min-height: 0;
+  padding: 8px;
+
+  .output-files-main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .output-files-info {
+    width: min(100%, 1520px);
+    margin-top: 8px;
+  }
+
+  .output-files-preview {
+    width: min(100%, 1520px);
+    height: auto;
+    aspect-ratio: 16 / 9;
+    background: #0b0f16;
+  }
 }
 
 .output-files-main {
@@ -427,11 +559,22 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
 .output-files-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 
   &[style*='display: none'] {
     visibility: hidden;
   }
+}
+
+.output-files-video-preview {
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.output-files-video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #0b0f16;
 }
 
 .output-files-icon {
@@ -508,6 +651,23 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
   font-size: 12px;
 }
 
+.output-files-collapse-btn {
+  width: 100%;
+  min-height: 32px;
+  margin-top: 10px;
+  border: 1px dashed var(--el-border-color);
+  border-radius: var(--el-border-radius-small);
+  background: var(--el-fill-color-light);
+  color: var(--el-color-primary);
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--el-color-primary-light-5);
+    background: var(--el-color-primary-light-9);
+  }
+}
+
 @media (max-width: 560px) {
   .output-files-wrap {
     padding: 8px;
@@ -530,6 +690,15 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
   .output-files-icon {
     width: 44px;
     height: 44px;
+  }
+
+  .output-files-item--media .output-files-preview {
+    width: 100%;
+    height: auto;
+  }
+
+  .output-files-item--media .output-files-info {
+    width: 100%;
   }
 
   .output-files-footer {

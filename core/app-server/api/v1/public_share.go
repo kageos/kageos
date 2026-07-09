@@ -280,6 +280,10 @@ func (a *PublicShareAPI) buildPublicRequestAppReq(c *gin.Context, share *model.P
 		return nil, fmt.Errorf("读取请求体失败: %w", err)
 	}
 	defer c.Request.Body.Close()
+	body, err = mergePublicSharePresetValues(body, share.PresetValues)
+	if err != nil {
+		return nil, err
+	}
 	traceID := contextx.GetTraceId(c)
 	if traceID == "" {
 		traceID = fmt.Sprintf("public_%s_%d", share.ShareID, time.Now().UnixNano())
@@ -317,6 +321,10 @@ func (a *PublicShareAPI) buildPublicCallbackAppReq(c *gin.Context, share *model.
 		return nil, err
 	}
 	defer c.Request.Body.Close()
+	all, err = mergePublicSharePresetValuesIntoCallbackRequest(all, share.PresetValues)
+	if err != nil {
+		return nil, err
+	}
 
 	traceID := contextx.GetTraceId(c)
 	if traceID == "" {
@@ -384,6 +392,88 @@ func (a *PublicShareAPI) recordPublicSubmitLog(ctx context.Context, c *gin.Conte
 	if logErr := a.appService.RecordFormOperateLog(ctx, formLogReq); logErr != nil {
 		logger.Warnf(ctx, "[PublicShareSubmit] 记录公开 Form 操作日志失败: %v", logErr)
 	}
+}
+
+func mergePublicSharePresetValues(body []byte, presetValues json.RawMessage) ([]byte, error) {
+	preset, err := decodePublicSharePresetValues(presetValues)
+	if err != nil {
+		return nil, err
+	}
+	if len(preset) == 0 {
+		return body, nil
+	}
+
+	trimmedBody := strings.TrimSpace(string(body))
+	if trimmedBody == "" {
+		trimmedBody = "{}"
+	}
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(trimmedBody), &payload); err != nil || payload == nil {
+		return nil, fmt.Errorf("公开表单请求体必须是 JSON 对象")
+	}
+	for key, value := range preset {
+		payload[key] = value
+	}
+	merged, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("合并公开链接预设参数失败: %w", err)
+	}
+	return merged, nil
+}
+
+func mergePublicSharePresetValuesIntoCallbackRequest(body []byte, presetValues json.RawMessage) ([]byte, error) {
+	preset, err := decodePublicSharePresetValues(presetValues)
+	if err != nil {
+		return nil, err
+	}
+	if len(preset) == 0 {
+		return body, nil
+	}
+
+	trimmedBody := strings.TrimSpace(string(body))
+	if trimmedBody == "" {
+		trimmedBody = "{}"
+	}
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(trimmedBody), &payload); err != nil || payload == nil {
+		return nil, fmt.Errorf("公开表单回调请求体必须是 JSON 对象")
+	}
+
+	requestPayload := map[string]json.RawMessage{}
+	if rawRequest, ok := payload["request"]; ok {
+		trimmedRequest := strings.TrimSpace(string(rawRequest))
+		if trimmedRequest != "" && trimmedRequest != "null" {
+			if err := json.Unmarshal([]byte(trimmedRequest), &requestPayload); err != nil || requestPayload == nil {
+				return nil, fmt.Errorf("公开表单回调 request 必须是 JSON 对象")
+			}
+		}
+	}
+	for key, value := range preset {
+		requestPayload[key] = value
+	}
+	mergedRequest, err := json.Marshal(requestPayload)
+	if err != nil {
+		return nil, fmt.Errorf("合并公开链接回调预设参数失败: %w", err)
+	}
+	payload["request"] = mergedRequest
+
+	merged, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("合并公开链接回调请求失败: %w", err)
+	}
+	return merged, nil
+}
+
+func decodePublicSharePresetValues(raw json.RawMessage) (map[string]json.RawMessage, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" || trimmed == "{}" {
+		return nil, nil
+	}
+	var preset map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(trimmed), &preset); err != nil || preset == nil {
+		return nil, fmt.Errorf("公开链接预设参数无效")
+	}
+	return preset, nil
 }
 
 func publicShareURL(c *gin.Context, shareID string) string {

@@ -38,6 +38,23 @@ describe('directoryBundleFile', () => {
       docs: [{ relative_path: 'message/readme.docs', name: '使用说明', content: '# 使用说明\n', format: 'markdown' }],
       packages: [{ path: 'message', name: '消息' }],
       files: [{ package_path: 'message', path: 'send.go', content: 'package message\n' }],
+      agent_tasks: [{
+        relative_path: 'message',
+        code: 'daily_message_summary',
+        title: '每日消息摘要',
+        description: '汇总待处理消息。',
+        message: '每天汇总待处理消息并给出建议动作。',
+        enabled: true,
+        schedule: {
+          type: 'cron',
+          cron_expr: '0 9 * * *',
+          timezone: 'Asia/Shanghai',
+          max_runs: 10
+        },
+        mode_code: 'dev',
+        max_duration_seconds: 900,
+        policy: 'create_if_missing'
+      }],
       extensions: {
         install: {
           recommended_subpath: 'message'
@@ -63,6 +80,22 @@ describe('directoryBundleFile', () => {
       package_path: 'message',
       path: 'send.go',
       content: 'package message\n'
+    })
+    expect(parsed.agent_tasks?.[0]).toMatchObject({
+      relative_path: 'message',
+      code: 'daily_message_summary',
+      title: '每日消息摘要',
+      message: '每天汇总待处理消息并给出建议动作。',
+      enabled: true,
+      schedule: {
+        type: 'cron',
+        cron_expr: '0 9 * * *',
+        timezone: 'Asia/Shanghai',
+        max_runs: 10
+      },
+      mode_code: 'dev',
+      max_duration_seconds: 900,
+      policy: 'create_if_missing'
     })
     expect(parsed.extensions).toEqual({
       install: {

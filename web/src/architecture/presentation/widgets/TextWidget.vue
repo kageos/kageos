@@ -134,7 +134,7 @@
         type="textarea"
         :rows="6"
         :placeholder="field.desc || `请输入${field.name}`"
-        :disabled="false"
+        :disabled="!!field.widget?.config?.disabled"
         @blur="handleBlur"
       />
     </div>

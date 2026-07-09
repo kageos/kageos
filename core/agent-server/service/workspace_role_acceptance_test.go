@@ -488,9 +488,14 @@ func TestWorkspaceRoleAcceptanceArchivedHistoryExcludedFromModelContext(t *testi
 	if strings.Contains(joined, "旧会话展示卡片") {
 		t.Fatalf("display-only history should not enter model context:\n%s", joined)
 	}
-	if !strings.Contains(joined, "HANDOFF_PACKET JSON") ||
+	if strings.Contains(joined, "HANDOFF_PACKET JSON") {
+		t.Fatalf("artifact handoff payload should enter model context as a reference, not full JSON:\n%s", joined)
+	}
+	if !strings.Contains(joined, "workspace_artifact_ref") ||
+		!strings.Contains(joined, "read_workspace_artifact") ||
+		!strings.Contains(joined, `"message_id": `) ||
 		!strings.Contains(joined, "按确认后的 PRD 开始开发投票系统") {
-		t.Fatalf("model context should include handoff packet and current user request, got:\n%s", joined)
+		t.Fatalf("model context should include artifact reference and current user request, got:\n%s", joined)
 	}
 	if plan == nil {
 		t.Fatal("model context plan is nil")

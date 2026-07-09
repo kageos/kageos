@@ -2,6 +2,7 @@ package streamloop
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -15,6 +16,85 @@ func TestAppendToolCallArgsPreservesStringSpaceAcrossChunks(t *testing.T) {
 	if got != want {
 		t.Fatalf("appendToolCallArgs() = %q, want %q", got, want)
 	}
+}
+
+func TestRunStreamLoopRetriesWithContextReductionOnContextWindowError(t *testing.T) {
+	client := &retryContextWindowClient{}
+	deps := &retryContextWindowDeps{client: client}
+
+	if err := RunStreamLoop(context.Background(), deps); err != nil {
+		t.Fatalf("RunStreamLoop returned error: %v", err)
+	}
+	if client.calls != 2 {
+		t.Fatalf("client calls = %d, want 2", client.calls)
+	}
+	if deps.reductions != 1 {
+		t.Fatalf("context reductions = %d, want 1", deps.reductions)
+	}
+	if !deps.done {
+		t.Fatal("OnDone should be called after retry succeeds")
+	}
+}
+
+type retryContextWindowDeps struct {
+	client     *retryContextWindowClient
+	reductions int
+	done       bool
+}
+
+func (d *retryContextWindowDeps) BuildMessages(context.Context) ([]llms.Message, []llms.ToolDef, error) {
+	return []llms.Message{{Role: "user", Content: "继续处理"}}, nil, nil
+}
+
+func (d *retryContextWindowDeps) PrepareLLM(context.Context, []llms.Message, []llms.ToolDef) (llms.LLMClient, *llms.ChatRequest, error) {
+	return d.client, &llms.ChatRequest{Messages: []llms.Message{{Role: "user", Content: "继续处理"}}}, nil
+}
+
+func (d *retryContextWindowDeps) SendEvent(string, interface{}) {}
+
+func (d *retryContextWindowDeps) SaveAssistantMessage(context.Context, string, string, *llms.Usage) error {
+	return nil
+}
+
+func (d *retryContextWindowDeps) SaveAssistantMessageWithToolCalls(context.Context, string, string, []llms.ToolCall, *llms.Usage) error {
+	return nil
+}
+
+func (d *retryContextWindowDeps) ExecuteToolCalls(context.Context, []llms.ToolCall, int, func(string, interface{})) ([]ToolCallSummary, error) {
+	return nil, nil
+}
+
+func (d *retryContextWindowDeps) OnDone([]ToolCallSummary, *llms.Usage) {
+	d.done = true
+}
+
+func (d *retryContextWindowDeps) RequestContextReduction(context.Context, string) bool {
+	d.reductions++
+	return d.reductions <= 1
+}
+
+type retryContextWindowClient struct {
+	calls int
+}
+
+func (c *retryContextWindowClient) Chat(context.Context, *llms.ChatRequest) (*llms.ChatResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (c *retryContextWindowClient) ChatStream(context.Context, *llms.ChatRequest) (<-chan *llms.StreamChunk, error) {
+	c.calls++
+	if c.calls == 1 {
+		return nil, &llms.ContextWindowError{Message: "OpenAI API 错误: invalid params, context window exceeds limit (2013)"}
+	}
+	stream := make(chan *llms.StreamChunk, 2)
+	stream <- &llms.StreamChunk{Content: "完成"}
+	stream <- &llms.StreamChunk{Done: true}
+	close(stream)
+	return stream, nil
+}
+
+func (c *retryContextWindowClient) GetModelName() string {
+	return "test"
 }
 
 func TestAppendToolCallArgsIgnoresDeltaWhenCurrentIsValidJSON(t *testing.T) {

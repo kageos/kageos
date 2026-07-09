@@ -10,7 +10,7 @@
       v-if="mode === 'edit'"
       v-model="internalValue"
       type="textarea"
-      :disabled="false"
+      :disabled="!!widgetConfig.disabled"
       :placeholder="editPlaceholder"
       :rows="rows"
       :maxlength="maxLength"
@@ -39,6 +39,7 @@
     <el-input
       v-else-if="mode === 'search'"
       v-model="internalValue"
+      :disabled="!!widgetConfig.disabled"
       :placeholder="searchPlaceholder"
     />
   </div>

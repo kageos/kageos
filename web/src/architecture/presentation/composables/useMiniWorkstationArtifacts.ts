@@ -39,8 +39,8 @@ const GENERATED_ARTIFACT_TOOL_NAMES = new Set([
 const ARTIFACT_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'avif'])
 const ARTIFACT_DATA_EXTENSIONS = new Set(['csv', 'xlsx', 'xls', 'json', 'xml', 'yaml', 'yml'])
 const ARTIFACT_DOCUMENT_EXTENSIONS = new Set(['md', 'txt', 'doc', 'docx', 'pdf', 'ppt', 'pptx'])
-const ARTIFACT_VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'webm', 'avi', 'mkv'])
-const ARTIFACT_AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'aac', 'flac', 'm4a'])
+const ARTIFACT_VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'm4v', 'webm', 'ogg', 'ogv', 'avi', 'mkv'])
+const ARTIFACT_AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'aac', 'flac', 'm4a', 'oga'])
 const ARTIFACT_ARCHIVE_EXTENSIONS = new Set(['zip', 'rar', '7z', 'tar', 'gz'])
 
 export function isGeneratedArtifactToolCall(call: ChatMessageToolCall): boolean {

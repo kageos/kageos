@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 
 	"github.com/kageos/kageos/core/agent-server/prompt"
 	"github.com/kageos/kageos/core/agent-server/streamloop"
@@ -28,6 +29,8 @@ type workspaceStreamLoopDeps struct {
 	currentLLMMeta          messageLLMMetadata
 	currentModelContextPlan *dto.WorkspaceModelContextPlan
 	modelContextRound       int
+	contextReductionLevel   int
+	contextReductionReason  string
 }
 
 var _ streamloop.StreamLoopDeps = (*workspaceStreamLoopDeps)(nil)
@@ -41,11 +44,18 @@ func (d *workspaceStreamLoopDeps) BuildMessages(ctx context.Context) ([]llms.Mes
 	if directoryName == "" {
 		directoryName = workspaceCtx.Directory.Code
 	}
-	msgs, tools, plan, err := d.service.buildLLMMessagesWithPlan(ctx, d.sessionID, d.fullCodePath, directoryName, workspaceCtx, d.modeProvider, d.toolNames, d.systemPromptFragment, d.modelContextRound, d.currentMessageID)
+	msgs, tools, plan, err := d.service.buildLLMMessagesWithPlanAndOptions(ctx, d.sessionID, d.fullCodePath, directoryName, workspaceCtx, d.modeProvider, d.toolNames, d.systemPromptFragment, d.modelContextRound, workspaceLLMContextBuildOptions{
+		ReductionLevel:  d.contextReductionLevel,
+		ReductionReason: d.contextReductionReason,
+	}, d.currentMessageID)
 	if err != nil {
 		return nil, nil, err
 	}
 	d.currentModelContextPlan = plan
+	if plan != nil && plan.Budget != nil {
+		d.contextReductionLevel = plan.Budget.ReducerLevel
+		d.contextReductionReason = plan.Budget.ReducerReason
+	}
 	d.modelContextRound++
 	return msgs, tools, nil
 }
@@ -56,6 +66,7 @@ func (d *workspaceStreamLoopDeps) PrepareLLM(ctx context.Context, msgs []llms.Me
 		return nil, nil, err
 	}
 	d.currentLLMMeta = buildMessageLLMMetadata(llmConfig, client)
+	chatReq.MaxTokens = reduceWorkspaceOutputReserve(chatReq.MaxTokens, d.contextReductionLevel)
 	if workspaceLLMConfigSupportsPromptCache(llmConfig) && chatReq.PromptCacheKey == "" {
 		chatReq.PromptCacheKey = workspacePromptCacheKey(d.currentModelContextPlan)
 	}
@@ -63,6 +74,7 @@ func (d *workspaceStreamLoopDeps) PrepareLLM(ctx context.Context, msgs []llms.Me
 		chatReq.PromptCacheRetention = workspaceDefaultPromptCacheRetention(llmConfig, chatReq.Model)
 	}
 	if d.currentModelContextPlan != nil {
+		d.currentModelContextPlan.Budget = buildWorkspaceModelContextBudget(msgs, tools, chatReq.MaxTokens, d.contextReductionLevel, d.contextReductionReason)
 		d.currentModelContextPlan.CachePlan.PromptCacheKey = chatReq.PromptCacheKey
 		d.currentModelContextPlan.CachePlan.PromptCacheRetention = chatReq.PromptCacheRetention
 		d.currentModelContextPlan.LLM = &dto.WorkspaceModelContextLLM{
@@ -78,6 +90,18 @@ func (d *workspaceStreamLoopDeps) PrepareLLM(ctx context.Context, msgs []llms.Me
 		d.sendEvent(EventModelContextPlan, d.currentModelContextPlan)
 	}
 	return client, chatReq, nil
+}
+
+func (d *workspaceStreamLoopDeps) RequestContextReduction(ctx context.Context, reason string) bool {
+	if d.contextReductionLevel >= workspaceContextReductionEmergency {
+		return false
+	}
+	d.contextReductionLevel++
+	d.contextReductionReason = strings.TrimSpace(reason)
+	if d.contextReductionReason == "" {
+		d.contextReductionReason = "context_window_retry"
+	}
+	return true
 }
 
 func (d *workspaceStreamLoopDeps) SendEvent(event string, data interface{}) {

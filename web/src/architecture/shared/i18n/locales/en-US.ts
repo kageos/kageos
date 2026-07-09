@@ -1643,6 +1643,9 @@ export default {
     copyFailedManual: 'Copy failed. Please copy manually.',
     fixValidationFirst: 'Fix form validation errors first',
     executionRecordReplayed: 'Execution record replayed',
+    createPublicShare: 'Create public link',
+    publicShareCreatedCopied: 'Public link created and copied',
+    publicShareCreateFailed: 'Failed to create public link',
   },
   tableDetail: {
     updateUnsupported: 'This table does not support updates',

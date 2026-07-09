@@ -14,11 +14,12 @@ import (
 )
 
 const (
-	EventContent              = dto.WorkspaceStreamEventContent
-	EventThinking             = dto.WorkspaceStreamEventThinking
-	EventToolCallsStreamDelta = dto.WorkspaceStreamEventToolCallsStreamDelta // 增量+节流，节省带宽
-	EventError                = dto.WorkspaceStreamEventError
-	MaxToolRounds             = 100 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
+	EventContent               = dto.WorkspaceStreamEventContent
+	EventThinking              = dto.WorkspaceStreamEventThinking
+	EventToolCallsStreamDelta  = dto.WorkspaceStreamEventToolCallsStreamDelta // 增量+节流，节省带宽
+	EventError                 = dto.WorkspaceStreamEventError
+	MaxToolRounds              = 100 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
+	maxContextReductionRetries = 3
 
 	// 节流参数：满足任一条件即 flush
 	throttleIntervalMs = 100 // 距上次发送超过 100ms
@@ -42,32 +43,47 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 		return nil
 	}
 
-	msgs, tools, err := deps.BuildMessages(ctx)
-	if err != nil {
-		deps.SendEvent(EventError, &errorData{Message: err.Error()})
-		return err
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	client, chatReq, err := deps.PrepareLLM(ctx, msgs, tools)
-	if err != nil {
-		deps.SendEvent(EventError, &errorData{Message: err.Error()})
-		return err
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	stream, err := client.ChatStream(ctx, chatReq)
-	if err != nil {
-		deps.SendEvent(EventError, &errorData{Message: "LLM 调用失败: " + err.Error()})
-		return err
-	}
+	var content string
+	var thinkingContent string
+	var allToolCalls []llms.ToolCall
+	var usage *llms.Usage
+	for attempt := 0; ; attempt++ {
+		msgs, tools, err := deps.BuildMessages(ctx)
+		if err != nil {
+			deps.SendEvent(EventError, &errorData{Message: err.Error()})
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		client, chatReq, err := deps.PrepareLLM(ctx, msgs, tools)
+		if err != nil {
+			deps.SendEvent(EventError, &errorData{Message: err.Error()})
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		stream, err := client.ChatStream(ctx, chatReq)
+		if err != nil {
+			if attempt < maxContextReductionRetries && requestContextReduction(ctx, deps, err) {
+				logger.Warnf(ctx, "[StreamLoop] LLM 上下文超限，已提高上下文压缩等级后重试 attempt=%d err=%v", attempt+1, err)
+				continue
+			}
+			deps.SendEvent(EventError, &errorData{Message: "LLM 调用失败: " + err.Error()})
+			return err
+		}
 
-	content, thinkingContent, allToolCalls, usage, err := processStreamChunks(ctx, stream, deps.SendEvent, round)
-	if err != nil {
-		deps.SendEvent(EventError, &errorData{Message: err.Error()})
-		return err
+		content, thinkingContent, allToolCalls, usage, err = processStreamChunks(ctx, stream, deps.SendEvent, round)
+		if err != nil {
+			if attempt < maxContextReductionRetries && requestContextReduction(ctx, deps, err) {
+				logger.Warnf(ctx, "[StreamLoop] LLM 流式上下文超限，已提高上下文压缩等级后重试 attempt=%d err=%v", attempt+1, err)
+				continue
+			}
+			deps.SendEvent(EventError, &errorData{Message: err.Error()})
+			return err
+		}
+		break
 	}
 	combinedUsage := addLLMUsage(previousUsage, usage)
 
@@ -93,6 +109,17 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 	}
 	deps.OnDone(previousSummaries, combinedUsage)
 	return nil
+}
+
+func requestContextReduction(ctx context.Context, deps StreamLoopDeps, err error) bool {
+	if err == nil || !llms.IsContextWindowError(err) {
+		return false
+	}
+	reducer, ok := deps.(ContextReductionDeps)
+	if !ok {
+		return false
+	}
+	return reducer.RequestContextReduction(ctx, err.Error())
 }
 
 type contentData struct {

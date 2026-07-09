@@ -74,6 +74,7 @@ type WorkspaceModelContextPlan struct {
 	Tools           WorkspaceModelContextTools     `json:"tools"`
 	CachePlan       WorkspaceModelContextCachePlan `json:"cache_plan"`
 	LLM             *WorkspaceModelContextLLM      `json:"llm,omitempty"`
+	Budget          *WorkspaceModelContextBudget   `json:"budget,omitempty"`
 }
 
 type WorkspaceModelContextRole struct {
@@ -109,6 +110,7 @@ type WorkspaceModelContextMessages struct {
 	ExcludedStoredMessages      int                               `json:"excluded_stored_messages"`
 	ExcludedByAnchor            int                               `json:"excluded_by_anchor"`
 	ExcludedDisplayOnly         int                               `json:"excluded_display_only"`
+	ExcludedByReduction         int                               `json:"excluded_by_reduction,omitempty"`
 	Included                    []WorkspaceModelContextMessageRef `json:"included,omitempty"`
 	Excluded                    []WorkspaceModelContextMessageRef `json:"excluded,omitempty"`
 	Truncated                   bool                              `json:"truncated,omitempty"`
@@ -183,6 +185,18 @@ type WorkspaceModelContextLLM struct {
 	MaxTokens    int    `json:"max_tokens,omitempty"`
 	MessageCount int    `json:"message_count"`
 	ToolCount    int    `json:"tool_count"`
+}
+
+type WorkspaceModelContextBudget struct {
+	ReducerLevel         int    `json:"reducer_level"`
+	ReducerReason        string `json:"reducer_reason,omitempty"`
+	EstimatedInputTokens int    `json:"estimated_input_tokens"`
+	EstimatedToolTokens  int    `json:"estimated_tool_tokens"`
+	OutputReserveTokens  int    `json:"output_reserve_tokens"`
+	EstimatedTotalTokens int    `json:"estimated_total_tokens"`
+	SoftLimitTokens      int    `json:"soft_limit_tokens"`
+	TokensUntilSoftLimit int    `json:"tokens_until_soft_limit"`
+	Status               string `json:"status"`
 }
 
 type WorkspaceStreamDone struct {

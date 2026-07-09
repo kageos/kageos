@@ -12,6 +12,7 @@
       <div
         v-if="mode === 'search' && supportsMultipleSelection && selectedDepartmentsForDisplay.length > 0"
         class="departments-select-display"
+        :class="{ 'is-disabled': isDisabled }"
         @click="handleOpenDialog()"
       >
         <div class="selected-departments-list">
@@ -24,7 +25,7 @@
             <span class="department-display-text">
               {{ dept.name }}
             </span>
-            <el-icon class="remove-icon" @click.stop="handleRemoveDepartment(dept)">
+            <el-icon v-if="!isDisabled" class="remove-icon" @click.stop="handleRemoveDepartment(dept)">
               <Close />
             </el-icon>
           </div>
@@ -38,7 +39,8 @@
         :label="selectedDepartmentForDisplay ? formatDepartmentDisplayName(selectedDepartmentForDisplay) : ''"
         :placeholder="field.desc || `搜索${field.name}`"
         :has-value="!!selectedDepartmentForDisplay"
-        :show-clear="!!selectedDepartmentForDisplay"
+        :show-clear="!!selectedDepartmentForDisplay && !isDisabled"
+        :disabled="isDisabled"
         @open="handleOpenDialog"
         @clear="handleClearSingleDepartment"
       >
@@ -50,7 +52,7 @@
       <div
         v-else-if="selectedDepartmentForDisplay"
         class="department-select-display"
-        :class="{ 'is-disabled': false }"
+        :class="{ 'is-disabled': isDisabled }"
         @click="handleOpenDialog()"
       >
         <img src="/组织架构.svg" alt="组织架构" class="department-icon-small" />
@@ -66,7 +68,7 @@
         v-else
         class="department-trigger"
         :class="{ 'is-search-mode': mode === 'search' }"
-        :disabled="false"
+        :disabled="isDisabled"
         :placeholder="field.desc || `请选择${field.name}`"
         @click="handleOpenDialog()"
       >
@@ -153,6 +155,7 @@ const emit = defineEmits<WidgetComponentEmits>()
 const formDataStore = useFormDataStore()
 const authStore = useAuthStore()
 const departmentInfoStore = useDepartmentInfoStore()
+const isDisabled = computed(() => Boolean(props.field.widget?.config?.disabled))
 
 // 弹窗显示状态
 const dialogVisible = ref(false)
@@ -162,6 +165,9 @@ const departmentInfo = ref<Department | null>(null)
 
 // 处理打开弹窗
 function handleOpenDialog(): void {
+  if (isDisabled.value) {
+    return
+  }
   dialogVisible.value = true
 }
 
@@ -322,6 +328,9 @@ async function loadDepartmentsInfoForMultiSelect(paths: string[]): Promise<void>
 
 // 移除单个组织架构（多选模式）
 async function handleRemoveDepartment(dept: Department): Promise<void> {
+  if (isDisabled.value) {
+    return
+  }
   const currentPaths = props.value?.raw ? String(props.value.raw).split(',').map(p => p.trim()).filter(p => p) : []
   const newPaths = currentPaths.filter(p => p !== dept.full_code_path)
   
@@ -353,6 +362,9 @@ async function handleRemoveDepartment(dept: Department): Promise<void> {
 }
 
 function handleClearSingleDepartment(): void {
+  if (isDisabled.value) {
+    return
+  }
   const newFieldValue = createFieldValue(
     props.field,
     null,

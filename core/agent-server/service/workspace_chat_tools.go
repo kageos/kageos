@@ -265,7 +265,12 @@ func invalidToolArgumentsResult(tc llms.ToolCall, err error) ToolResult {
 // callOtherTool 调用 ToolRegistry 中的内置工作台工具。
 func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, args map[string]interface{}, fullCodePath string, files string, idx, total int) (res ToolResult, st string) {
 	logger.Infof(ctx, "[WorkspaceChatStream] [%d/%d] 调用工具 - ToolName: %s, FullCodePath: %s", idx, total, name, fullCodePath)
-	result := s.toolReg.CallTool(ctx, name, args, fullCodePath, files)
+	var result ToolResult
+	if name == workspaceArtifactReadToolName {
+		result = s.readWorkspaceArtifactTool(ctx, args)
+	} else {
+		result = s.toolReg.CallTool(ctx, name, args, fullCodePath, files)
+	}
 	isErr := result.IsError
 	st = ToolCallStatusOK
 	if isErr {

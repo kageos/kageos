@@ -1643,6 +1643,9 @@ export default {
     copyFailedManual: '复制失败，请手动复制',
     fixValidationFirst: '请先修正表单校验错误',
     executionRecordReplayed: '已回填本次执行记录',
+    createPublicShare: '创建公开链接',
+    publicShareCreatedCopied: '公开链接已创建并复制',
+    publicShareCreateFailed: '创建公开链接失败',
   },
   tableDetail: {
     updateUnsupported: '当前表格不支持更新',

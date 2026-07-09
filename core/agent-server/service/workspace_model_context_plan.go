@@ -33,11 +33,13 @@ type workspaceModelContextPlanInput struct {
 	IncludedMessages            []*model.AgentChatMessage
 	ExcludedUnsupported         []*model.AgentChatMessage
 	ExcludedDisplayOnly         []*model.AgentChatMessage
+	ExcludedByReduction         []*model.AgentChatMessage
 	RequestedToolNames          []string
 	LLMToolNames                []string
 	RoleAllowedToolNames        []string
 	LLMMessageCount             int
 	LLMToolCount                int
+	Budget                      *dto.WorkspaceModelContextBudget
 }
 
 func (s *WorkspaceChatService) buildWorkspaceModelContextPlan(ctx context.Context, input workspaceModelContextPlanInput) *dto.WorkspaceModelContextPlan {
@@ -74,13 +76,20 @@ func (s *WorkspaceChatService) buildWorkspaceModelContextPlan(ctx context.Contex
 	includedRefs, includedTruncated := workspaceModelContextMessageRefs(input.IncludedMessages, "included", workspaceModelContextRefLimit)
 	excludedRefs, excludedTruncated := workspaceModelContextMessageRefs(input.ExcludedUnsupported, "unsupported_role", workspaceModelContextRefLimit)
 	if len(excludedRefs) < workspaceModelContextRefLimit {
+		reducedRefs, reducedTruncated := workspaceModelContextMessageRefs(input.ExcludedByReduction, "reduced_history", workspaceModelContextRefLimit-len(excludedRefs))
+		excludedRefs = append(excludedRefs, reducedRefs...)
+		excludedTruncated = excludedTruncated || reducedTruncated
+	} else if len(input.ExcludedByReduction) > 0 {
+		excludedTruncated = true
+	}
+	if len(excludedRefs) < workspaceModelContextRefLimit {
 		displayRefs, displayTruncated := workspaceModelContextMessageRefs(input.ExcludedDisplayOnly, "display_only", workspaceModelContextRefLimit-len(excludedRefs))
 		excludedRefs = append(excludedRefs, displayRefs...)
 		excludedTruncated = excludedTruncated || displayTruncated
 	} else if len(input.ExcludedDisplayOnly) > 0 {
 		excludedTruncated = true
 	}
-	excludedStored := len(input.ExcludedUnsupported) + len(input.ExcludedDisplayOnly)
+	excludedStored := len(input.ExcludedUnsupported) + len(input.ExcludedByReduction) + len(input.ExcludedDisplayOnly)
 
 	return &dto.WorkspaceModelContextPlan{
 		ProtocolVersion: workspaceModelContextPlanVersion,
@@ -109,6 +118,7 @@ func (s *WorkspaceChatService) buildWorkspaceModelContextPlan(ctx context.Contex
 			ExcludedStoredMessages:      excludedStored,
 			ExcludedByAnchor:            0,
 			ExcludedDisplayOnly:         len(input.ExcludedDisplayOnly),
+			ExcludedByReduction:         len(input.ExcludedByReduction),
 			Included:                    includedRefs,
 			Excluded:                    excludedRefs,
 			Truncated:                   includedTruncated || excludedTruncated,
@@ -128,6 +138,7 @@ func (s *WorkspaceChatService) buildWorkspaceModelContextPlan(ctx context.Contex
 			StablePrefixItems:    workspaceModelContextStablePrefixItems(roleID, input.FullCodePath, handoff),
 			ActualUsageField:     "assistant.llm_usage.cached_tokens",
 		},
+		Budget: input.Budget,
 	}
 }
 
