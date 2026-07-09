@@ -124,6 +124,7 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
   const rawFiles = object.files
   const rawTreeNodes = object.tree_nodes
   const rawDocs = object.docs
+  const rawAgentTasks = object.agent_tasks
   const packages = Array.isArray(rawPackages) ? rawPackages.map((item, index) => {
     const pkg = ensurePlainObject(item, `packages[${index}]`)
     const packagePath = validateRelativePackagePath(ensureString(pkg.path, `packages[${index}].path`), `packages[${index}].path`)
@@ -199,6 +200,58 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
     }
   }) : []
 
+  const agentTasks = Array.isArray(rawAgentTasks) ? rawAgentTasks.map((item, index) => {
+    const task = ensurePlainObject(item, `agent_tasks[${index}]`)
+    const relativePath = validateRelativePackagePath(
+      ensureString(task.relative_path, `agent_tasks[${index}].relative_path`),
+      `agent_tasks[${index}].relative_path`
+    )
+    if (!packagePaths.has(relativePath)) {
+      throw new Error(`agent_tasks[${index}].relative_path 未在 packages 中声明`)
+    }
+    const schedule = ensurePlainObject(task.schedule, `agent_tasks[${index}].schedule`)
+    const scheduleType = ensureString(schedule.type, `agent_tasks[${index}].schedule.type`)
+    if (!['atime', 'cron', 'every'].includes(scheduleType)) {
+      throw new Error(`agent_tasks[${index}].schedule.type 不支持`)
+    }
+    if (scheduleType === 'cron' && typeof schedule.cron_expr !== 'string') {
+      throw new Error(`agent_tasks[${index}].schedule.cron_expr 必须是字符串`)
+    }
+    if (scheduleType === 'every' && typeof schedule.interval_seconds !== 'number') {
+      throw new Error(`agent_tasks[${index}].schedule.interval_seconds 必须是数字`)
+    }
+    if (scheduleType === 'atime' && typeof schedule.run_at !== 'string') {
+      throw new Error(`agent_tasks[${index}].schedule.run_at 必须是字符串`)
+    }
+    const code = ensureString(task.code, `agent_tasks[${index}].code`)
+    if (!code || /[\\/\s]/.test(code)) {
+      throw new Error(`agent_tasks[${index}].code 必须是非空标识`)
+    }
+    const message = ensureString(task.message, `agent_tasks[${index}].message`)
+    if (!message.trim()) {
+      throw new Error(`agent_tasks[${index}].message 不能为空`)
+    }
+    return {
+      relative_path: relativePath,
+      code,
+      title: typeof task.title === 'string' ? task.title : undefined,
+      description: typeof task.description === 'string' ? task.description : undefined,
+      message,
+      enabled: typeof task.enabled === 'boolean' ? task.enabled : undefined,
+      schedule: {
+        type: scheduleType,
+        run_at: typeof schedule.run_at === 'string' ? schedule.run_at : undefined,
+        cron_expr: typeof schedule.cron_expr === 'string' ? schedule.cron_expr : undefined,
+        interval_seconds: typeof schedule.interval_seconds === 'number' ? schedule.interval_seconds : undefined,
+        timezone: typeof schedule.timezone === 'string' ? schedule.timezone : undefined,
+        max_runs: typeof schedule.max_runs === 'number' ? schedule.max_runs : undefined
+      },
+      mode_code: typeof task.mode_code === 'string' ? task.mode_code : undefined,
+      max_duration_seconds: typeof task.max_duration_seconds === 'number' ? task.max_duration_seconds : undefined,
+      policy: typeof task.policy === 'string' ? task.policy : undefined
+    }
+  }) : []
+
   const files = Array.isArray(rawFiles) ? rawFiles.map((item, index) => {
     const file = ensurePlainObject(item, `files[${index}]`)
     const packagePath = validateRelativePackagePath(
@@ -219,8 +272,8 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
     }
   }) : []
 
-  if (packages.length === 0 && files.length === 0 && docs.length === 0) {
-    throw new Error('目录 JSON 必须包含 packages、files 或 docs')
+  if (packages.length === 0 && files.length === 0 && docs.length === 0 && agentTasks.length === 0) {
+    throw new Error('目录 JSON 必须包含 packages、files、docs 或 agent_tasks')
   }
 
   return {
@@ -230,6 +283,7 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
     docs,
     packages,
     files,
+    agent_tasks: agentTasks,
     extensions: object.extensions === undefined
       ? undefined
       : ensurePlainObject(object.extensions, 'extensions') as Record<string, unknown>

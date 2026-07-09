@@ -1,8 +1,8 @@
 <template>
   <div
     class="select-container"
-    :class="{ 'is-search-mode': searchMode, 'has-value': hasValue }"
-    @click="$emit('open')"
+    :class="{ 'is-search-mode': searchMode, 'has-value': hasValue, 'is-disabled': disabled }"
+    @click="!disabled && $emit('open')"
   >
     <div class="select-content">
       <div class="select-main">
@@ -13,7 +13,7 @@
           </div>
           <div class="select-actions">
             <el-icon
-              v-if="showClear"
+              v-if="showClear && !disabled"
               class="selected-value-remove"
               @click.stop="$emit('clear')"
             >
@@ -28,7 +28,7 @@
           </span>
           <div class="select-actions">
             <el-icon
-              v-if="showClear"
+              v-if="showClear && !disabled"
               class="clear-icon"
               @click.stop="$emit('clear')"
             >
@@ -56,6 +56,7 @@ defineProps<{
   showClear: boolean
   hasValue: boolean
   searchMode?: boolean
+  disabled?: boolean
 }>()
 
 defineEmits<{
@@ -80,6 +81,19 @@ defineEmits<{
 .select-container:hover {
   border-color: var(--el-color-primary);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.select-container.is-disabled {
+  cursor: not-allowed;
+  color: var(--el-disabled-text-color);
+  background-color: var(--el-disabled-bg-color);
+  border-color: var(--el-disabled-border-color);
+  box-shadow: none;
+}
+
+.select-container.is-disabled:hover {
+  border-color: var(--el-disabled-border-color);
+  box-shadow: none;
 }
 
 .select-container.is-search-mode {

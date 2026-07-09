@@ -218,6 +218,8 @@ export function installCapabilityBundle(data: {
     message: string
     directory_count: number
     file_count: number
+    doc_count?: number
+    agent_task_count?: number
     target_directory_path: string
     created_paths?: string[]
     written_paths?: string[]
@@ -239,6 +241,8 @@ export function installCapabilityBundleFromURL(data: {
     message: string
     directory_count: number
     file_count: number
+    doc_count?: number
+    agent_task_count?: number
     target_directory_path: string
     created_paths?: string[]
     written_paths?: string[]

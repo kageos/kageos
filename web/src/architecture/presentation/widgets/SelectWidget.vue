@@ -36,6 +36,7 @@
           :display-info-text="displayInfoText"
           :has-value="hasCurrentValue"
           :show-clear="shouldShowDialogClear"
+          :disabled="!!widgetConfig.disabled"
           @open="openDialog"
           @clear="handleClear"
         />
@@ -84,6 +85,7 @@
           :placeholder="`搜索${field.name}`"
           :has-value="hasCurrentValue"
           :show-clear="shouldShowDialogClear"
+          :disabled="!!widgetConfig.disabled"
           :display-info-text="displayInfoText"
           @open="openDialog"
           @clear="handleClear"
@@ -408,7 +410,7 @@ const hasCurrentValue = computed(() => {
 })
 
 const shouldShowDialogClear = computed(() => {
-  return hasCurrentValue.value && (props.mode === 'search' || !isFieldRequired(props.field))
+  return !widgetConfig.value.disabled && hasCurrentValue.value && (props.mode === 'search' || !isFieldRequired(props.field))
 })
 
 // 获取 display_info 的显示文本
@@ -508,6 +510,9 @@ function initOptions(): void {
 
 // 打开对话框
 async function openDialog(): Promise<void> {
+  if (widgetConfig.value.disabled) {
+    return
+  }
   dialogVisible.value = true
   
   // 如果有回调接口

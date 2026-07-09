@@ -11,6 +11,10 @@ export interface OutputFileItem {
   name?: string
   source_name?: string
   download_url?: string
+  thumbnail_ref?: string
+  thumbnail_url?: string
+  content_type?: string
+  preview_kind?: string
   size?: number
   [key: string]: unknown
 }

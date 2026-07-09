@@ -29,8 +29,10 @@
               :key="`public-form-${functionDetail.router}`"
               :function-detail="functionDetail"
               :form-gateway="gateway"
+              :initial-data="presetValues"
               :show-submit-button="true"
-              :show-reset-button="true"
+              :show-public-share-button="false"
+              :show-reset-button="false"
               :show-debug-button="false"
               response-display-mode="dialog"
             />
@@ -53,6 +55,7 @@ import {
 } from '@/architecture/presentation/context/api/publicShare'
 import { getErrorMessage } from '@/architecture/shared/apiError'
 import type { FunctionDetail } from '@/architecture/domain/types'
+import { lockFunctionDetailPresetFields } from '@/architecture/domain/utils/publicSharePreset'
 
 const route = useRoute()
 const loading = ref(true)
@@ -64,6 +67,7 @@ const gateway = ref<PublicShareFormGateway | null>(null)
 const shareId = computed(() => String(route.params.shareId || route.params.share_id || ''))
 const title = computed(() => view.value?.title || '表单')
 const description = computed(() => view.value?.description || '')
+const presetValues = computed(() => view.value?.preset_values || {})
 const metaText = computed(() => {
   const pieces: string[] = []
   if (view.value?.expires_at) {
@@ -81,7 +85,10 @@ async function loadShare() {
   try {
     const nextView = await getPublicShareView(shareId.value)
     view.value = nextView
-    functionDetail.value = createPublicShareFunctionDetail(nextView)
+    functionDetail.value = lockFunctionDetailPresetFields(
+      createPublicShareFunctionDetail(nextView),
+      nextView.preset_values || {}
+    )
     gateway.value = new PublicShareFormGateway(nextView.share_id)
     document.title = `${nextView.title} - Public Form`
   } catch (error) {

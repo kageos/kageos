@@ -9,7 +9,7 @@
     <el-switch
       v-if="mode === 'edit'"
       v-model="internalValue"
-      :disabled="false"
+      :disabled="!!field.widget?.config?.disabled"
       :active-text="activeText"
       :inactive-text="inactiveText"
       @change="handleChange"
@@ -31,7 +31,7 @@
       inline-prompt
       :active-text="activeText"
       :inactive-text="inactiveText"
-      :disabled="false"
+      :disabled="!!field.widget?.config?.disabled"
       @change="handleTableCellChange"
     />
     

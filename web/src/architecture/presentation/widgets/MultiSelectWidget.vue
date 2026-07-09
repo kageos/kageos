@@ -31,7 +31,7 @@
       </template>
       <template v-else>
         <!-- 参考单选的展示效果，使用条目式显示 -->
-        <div class="select-container" @click="openDialog">
+        <div class="select-container" :class="{ 'is-disabled': !!config.disabled }" @click="openDialog">
           <div class="select-content">
             <!-- 显示已选条目 -->
             <div v-if="selectedValues.length > 0 && mode === 'search'" class="selected-values">
@@ -42,7 +42,7 @@
                 :color="getOptionColorValue(value)"
                 effect="light"
                 :style="getOptionTagStyle(value)"
-                :closable="true"
+                :closable="!config.disabled"
                 :class="['filter-selected-value-chip', { 'filter-selected-value-chip-neutral': !getOptionColor(value) }]"
                 @close.stop="handleRemoveTag(value)"
               >
@@ -65,7 +65,7 @@
               >
                 <div class="item-main">
                   <span class="item-label">{{ getOptionLabel(value) }}</span>
-                  <el-icon class="item-close-icon" @click.stop="handleRemoveTag(value)">
+                  <el-icon v-if="!config.disabled" class="item-close-icon" @click.stop="handleRemoveTag(value)">
                     <Close />
                   </el-icon>
                 </div>
@@ -738,6 +738,9 @@ async function handleSearch(query: string | unknown[], isByValue = false): Promi
 
 // 打开对话框
 async function openDialog(): Promise<void> {
+  if (config.value.disabled) {
+    return
+  }
   dialogVisible.value = true
   // 如果有远程搜索，触发一次空搜索加载初始选项
   if (hasRemoteSearch.value) {
@@ -982,6 +985,19 @@ onUnmounted(() => {
 .select-container:hover {
   border-color: var(--el-color-primary);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.select-container.is-disabled {
+  cursor: not-allowed;
+  color: var(--el-disabled-text-color);
+  background-color: var(--el-disabled-bg-color);
+  border-color: var(--el-disabled-border-color);
+  box-shadow: none;
+}
+
+.select-container.is-disabled:hover {
+  border-color: var(--el-disabled-border-color);
+  box-shadow: none;
 }
 
 .edit-multiselect.is-search-mode .select-container {

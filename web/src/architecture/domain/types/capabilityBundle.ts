@@ -34,12 +34,35 @@ export interface CapabilityBundleDoc {
   category?: string
 }
 
+export interface CapabilityBundleAgentTaskSchedule {
+  type: 'atime' | 'cron' | 'every' | string
+  run_at?: string
+  cron_expr?: string
+  interval_seconds?: number
+  timezone?: string
+  max_runs?: number
+}
+
+export interface CapabilityBundleAgentTask {
+  relative_path: string
+  code: string
+  title?: string
+  description?: string
+  message: string
+  enabled?: boolean
+  schedule: CapabilityBundleAgentTaskSchedule
+  mode_code?: string
+  max_duration_seconds?: number
+  policy?: string
+}
+
 export interface CapabilityBundle {
   schema_version: 'capability.bundle.v1'
   name?: string
   tree_nodes?: CapabilityBundleTreeNode[]
   docs?: CapabilityBundleDoc[]
   files: CapabilityBundleFile[]
+  agent_tasks?: CapabilityBundleAgentTask[]
   packages?: CapabilityBundlePackage[]
   extensions?: Record<string, unknown>
 }

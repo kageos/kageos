@@ -4,7 +4,9 @@
       <img :src="file.href" :alt="file.name" loading="lazy" />
     </div>
     <div v-else class="mini-ws-file-card__icon">
-      <el-icon :size="compact ? 18 : 20"><Document /></el-icon>
+      <el-icon :size="compact ? 18 : 20">
+        <component :is="fileIcon" />
+      </el-icon>
       <span v-if="extension" class="mini-ws-file-card__ext">{{ extension }}</span>
     </div>
     <div class="mini-ws-file-card__info">
@@ -28,7 +30,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Document, Download, View } from '@element-plus/icons-vue'
+import { Document, Download, Film, View } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import type { FilePanelItem } from '../composables/useMiniWorkstationPanel'
 
@@ -45,6 +47,7 @@ defineEmits<{
 const { t } = useI18n()
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'])
+const VIDEO_EXTS = new Set(['.mp4', '.mov', '.m4v', '.webm', '.ogg', '.ogv', '.avi', '.mkv'])
 
 const extension = computed(() => ((props.file.name || '').match(/\.(\w+)$/)?.[1] || '').toUpperCase())
 const sourceLabel = computed(() => props.file.source === 'upload'
@@ -54,6 +57,11 @@ const isImageFile = computed(() => {
   const ext = (props.file.name || '').toLowerCase().match(/\.\w+$/)?.[0] || ''
   return IMAGE_EXTS.has(ext)
 })
+const isVideoFile = computed(() => {
+  const ext = (props.file.name || '').toLowerCase().match(/\.\w+$/)?.[0] || ''
+  return VIDEO_EXTS.has(ext)
+})
+const fileIcon = computed(() => isVideoFile.value ? Film : Document)
 </script>
 
 <style scoped>

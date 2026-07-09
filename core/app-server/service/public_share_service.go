@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -21,6 +22,8 @@ type PublicShareService struct {
 	functionRepo    *repository.FunctionRepository
 	serviceTreeRepo *repository.ServiceTreeRepository
 }
+
+const maxPublicSharePresetValuesBytes = 64 * 1024
 
 func NewPublicShareService(
 	publicShareRepo *repository.PublicShareRepository,
@@ -56,6 +59,10 @@ func (s *PublicShareService) Create(ctx context.Context, req *dto.CreatePublicSh
 	if functionschema.Type(function.Schema) != functionschema.TypeForm {
 		return nil, fmt.Errorf("公开匿名提交 MVP 仅支持 form 节点")
 	}
+	presetValues, err := normalizePublicSharePresetValues(req.PresetValues)
+	if err != nil {
+		return nil, err
+	}
 
 	shareID, err := newShareID()
 	if err != nil {
@@ -73,6 +80,7 @@ func (s *PublicShareService) Create(ctx context.Context, req *dto.CreatePublicSh
 		Enabled:      true,
 		ExpiresAt:    req.ExpiresAt,
 		MaxUses:      max(req.MaxUses, 0),
+		PresetValues: presetValues,
 	}
 	share.CreatedBy = actor
 	share.UpdatedBy = actor
@@ -144,6 +152,7 @@ func (s *PublicShareService) BuildView(ctx context.Context, share *model.PublicS
 		FullCodePath: share.FullCodePath,
 		Schema:       schema,
 		ExpiresAt:    share.ExpiresAt,
+		PresetValues: share.PresetValues,
 	}
 	if share.MaxUses > 0 {
 		remaining := share.MaxUses - share.UseCount
@@ -225,7 +234,42 @@ func publicShareToResp(share *model.PublicShare) *dto.PublicShareResp {
 		LastUsedAt:   share.LastUsedAt,
 		CreatedAt:    time.Time(share.CreatedAt),
 		CreatedBy:    share.CreatedBy,
+		PresetValues: share.PresetValues,
 	}
+}
+
+func normalizePublicSharePresetValues(raw json.RawMessage) (json.RawMessage, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" || trimmed == "{}" {
+		return nil, nil
+	}
+	if len(trimmed) > maxPublicSharePresetValuesBytes {
+		return nil, fmt.Errorf("preset_values 过大，最多允许 %d 字节", maxPublicSharePresetValuesBytes)
+	}
+	var values map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(trimmed), &values); err != nil || values == nil {
+		return nil, fmt.Errorf("preset_values 必须是 JSON 对象")
+	}
+	normalized := make(map[string]json.RawMessage, len(values))
+	for key, value := range values {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		value = json.RawMessage(strings.TrimSpace(string(value)))
+		if len(value) == 0 {
+			value = json.RawMessage("null")
+		}
+		normalized[key] = value
+	}
+	if len(normalized) == 0 {
+		return nil, nil
+	}
+	out, err := json.Marshal(normalized)
+	if err != nil {
+		return nil, fmt.Errorf("preset_values 序列化失败: %w", err)
+	}
+	return out, nil
 }
 
 func parsePublicFullCodePath(fullCodePath string) (user, app, router string, err error) {

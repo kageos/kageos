@@ -14,6 +14,7 @@ export interface PublicShareView {
   schema: FunctionSchema
   expires_at?: string
   remaining_uses?: number
+  preset_values?: Record<string, unknown>
 }
 
 export interface PublicAnonymousToken {
@@ -29,6 +30,7 @@ export interface CreatePublicShareRequest {
   description?: string
   expires_at?: string | null
   max_uses?: number
+  preset_values?: Record<string, unknown>
 }
 
 export interface PublicShareItem {
@@ -48,6 +50,7 @@ export interface PublicShareItem {
   created_at: string
   created_by: string
   public_url?: string
+  preset_values?: Record<string, unknown>
 }
 
 export interface PublicShareList {
