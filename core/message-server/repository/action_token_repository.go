@@ -20,6 +20,7 @@ const (
 	DefaultMessageActionTokenTTL = 72 * time.Hour
 	messageActionTokenPrefix     = "kat_"
 	messageActionDefaultAction   = "reply"
+	messageActionProcessingTTL   = 2 * time.Minute
 )
 
 type CreateActionTokenInput struct {
@@ -115,7 +116,7 @@ func (r *MessageRepository) GetActionView(ctx context.Context, rawToken, mobileA
 	}, nil
 }
 
-func (r *MessageRepository) SubmitActionReply(ctx context.Context, rawToken, content, files, action string, viewerUsername ...string) (*dto.MessageActionReplyResp, error) {
+func (r *MessageRepository) BeginActionReply(ctx context.Context, rawToken, content, files, action string, viewerUsername ...string) (*dto.MessageActionReplyResp, error) {
 	if r == nil || r.db == nil {
 		return nil, fmt.Errorf("message repository is nil")
 	}
@@ -151,17 +152,26 @@ func (r *MessageRepository) SubmitActionReply(ctx context.Context, rawToken, con
 		if err != nil {
 			return err
 		}
-		if tokenRow.Status != string(dto.MessageActionTokenStatusOpen) {
-			return fmt.Errorf("消息已处理或链接已失效")
-		}
 		now := time.Now()
-		if !tokenRow.ExpiresAt.IsZero() && now.After(tokenRow.ExpiresAt) {
+		effectiveStatus := effectiveActionTokenStatus(&tokenRow, now)
+		if effectiveStatus == string(dto.MessageActionTokenStatusExpired) {
 			if err := tx.Model(&model.MessageActionToken{}).
 				Where("id = ?", tokenRow.ID).
 				Update("status", string(dto.MessageActionTokenStatusExpired)).Error; err != nil {
 				return err
 			}
 			return fmt.Errorf("处理链接已过期")
+		}
+		if tokenRow.Status == string(dto.MessageActionTokenStatusProcessing) && effectiveStatus == string(dto.MessageActionTokenStatusOpen) {
+			if err := tx.Model(&model.MessageActionToken{}).
+				Where("id = ? AND status = ?", tokenRow.ID, string(dto.MessageActionTokenStatusProcessing)).
+				Update("status", string(dto.MessageActionTokenStatusOpen)).Error; err != nil {
+				return err
+			}
+			tokenRow.Status = string(dto.MessageActionTokenStatusOpen)
+		}
+		if tokenRow.Status != string(dto.MessageActionTokenStatusOpen) {
+			return fmt.Errorf("消息已处理或链接已失效")
 		}
 		allowedActions := splitAllowedActions(tokenRow.AllowedActions)
 		if !containsAllowedAction(allowedActions, action) {
@@ -180,16 +190,15 @@ func (r *MessageRepository) SubmitActionReply(ctx context.Context, rawToken, con
 		if err := tx.Model(&model.MessageActionToken{}).
 			Where("id = ?", tokenRow.ID).
 			Updates(map[string]interface{}{
-				"status":           string(dto.MessageActionTokenStatusSubmitted),
-				"used_at":          now,
+				"status":           string(dto.MessageActionTokenStatusProcessing),
+				"used_at":          nil,
 				"reply_message_id": int64(0),
 			}).Error; err != nil {
 			return err
 		}
 		workspaceSessionID := firstNonEmptyStringForRepository(original.WorkspaceSessionID, tokenRow.WorkspaceSessionID)
 		resp = dto.MessageActionReplyResp{
-			Status:             string(dto.MessageActionTokenStatusSubmitted),
-			SubmittedAt:        now,
+			Status:             string(dto.MessageActionTokenStatusProcessing),
 			Channel:            strings.TrimSpace(tokenRow.Channel),
 			SourcePath:         firstNonEmptyStringForRepository(original.SourcePath, original.FullCodePath, original.SourceParentPath),
 			FullCodePath:       firstNonEmptyStringForRepository(original.SourcePath, original.FullCodePath, original.SourceParentPath),
@@ -202,6 +211,60 @@ func (r *MessageRepository) SubmitActionReply(ctx context.Context, rawToken, con
 		return nil, err
 	}
 	return &resp, nil
+}
+
+func (r *MessageRepository) FinalizeActionReply(ctx context.Context, rawToken, sessionID string) (time.Time, error) {
+	if r == nil || r.db == nil {
+		return time.Time{}, fmt.Errorf("message repository is nil")
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return time.Time{}, fmt.Errorf("workspace session_id is required")
+	}
+	now := time.Now()
+	result := r.db.WithContext(ctx).Model(&model.MessageActionToken{}).
+		Where("token_hash = ? AND status = ?", hashMessageActionToken(rawToken), string(dto.MessageActionTokenStatusProcessing)).
+		Updates(map[string]interface{}{
+			"status":               string(dto.MessageActionTokenStatusSubmitted),
+			"used_at":              now,
+			"workspace_session_id": sessionID,
+		})
+	if result.Error != nil {
+		return time.Time{}, result.Error
+	}
+	if result.RowsAffected != 1 {
+		return time.Time{}, fmt.Errorf("消息回复不在可确认状态")
+	}
+	return now, nil
+}
+
+func (r *MessageRepository) ReleaseActionReply(ctx context.Context, rawToken string) error {
+	if r == nil || r.db == nil {
+		return fmt.Errorf("message repository is nil")
+	}
+	return r.db.WithContext(ctx).Model(&model.MessageActionToken{}).
+		Where("token_hash = ? AND status = ?", hashMessageActionToken(rawToken), string(dto.MessageActionTokenStatusProcessing)).
+		Updates(map[string]interface{}{
+			"status":  string(dto.MessageActionTokenStatusOpen),
+			"used_at": nil,
+		}).Error
+}
+
+// SubmitActionReply 保留仓储层原子提交语义；HTTP 动作接口使用
+// BeginActionReply/FinalizeActionReply，把工作台会话创建纳入成功条件。
+func (r *MessageRepository) SubmitActionReply(ctx context.Context, rawToken, content, files, action string, viewerUsername ...string) (*dto.MessageActionReplyResp, error) {
+	resp, err := r.BeginActionReply(ctx, rawToken, content, files, action, viewerUsername...)
+	if err != nil {
+		return nil, err
+	}
+	submittedAt, err := r.FinalizeActionReply(ctx, rawToken, resp.WorkspaceSessionID)
+	if err != nil {
+		_ = r.ReleaseActionReply(ctx, rawToken)
+		return nil, err
+	}
+	resp.Status = string(dto.MessageActionTokenStatusSubmitted)
+	resp.SubmittedAt = submittedAt
+	return resp, nil
 }
 
 func (r *MessageRepository) UpdateActionWorkspaceSession(ctx context.Context, rawToken, sessionID string) error {
@@ -341,6 +404,9 @@ func effectiveActionTokenStatus(row *model.MessageActionToken, now time.Time) st
 	}
 	status := strings.TrimSpace(row.Status)
 	if status == "" {
+		status = string(dto.MessageActionTokenStatusOpen)
+	}
+	if status == string(dto.MessageActionTokenStatusProcessing) && !row.UpdatedAt.IsZero() && now.Sub(row.UpdatedAt) >= messageActionProcessingTTL {
 		status = string(dto.MessageActionTokenStatusOpen)
 	}
 	if status == string(dto.MessageActionTokenStatusOpen) && !row.ExpiresAt.IsZero() && now.After(row.ExpiresAt) {

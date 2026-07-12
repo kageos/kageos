@@ -79,7 +79,7 @@ func NewWorkspaceActionRunner(baseURL string, signer *controlauth.Signer) *Works
 			},
 		},
 		signer:       signer,
-		startTimeout: 8 * time.Second,
+		startTimeout: 30 * time.Second,
 		runTimeout:   30 * time.Minute,
 	}
 }
@@ -102,11 +102,12 @@ func (r *WorkspaceActionRunner) Submit(ctx context.Context, req WorkspaceActionR
 	}
 
 	started := make(chan workspaceActionStartResult, 1)
-	go r.run(req, started)
+	runCtx, cancelRun := newWorkspaceActionRunContext()
+	go r.run(runCtx, req, started)
 
 	timeout := r.startTimeout
 	if timeout <= 0 {
-		timeout = 8 * time.Second
+		timeout = 30 * time.Second
 	}
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
@@ -114,15 +115,26 @@ func (r *WorkspaceActionRunner) Submit(ctx context.Context, req WorkspaceActionR
 	select {
 	case result := <-started:
 		if result.err != nil {
+			cancelRun()
 			return nil, result.err
+		}
+		if strings.TrimSpace(result.sessionID) == "" {
+			cancelRun()
+			return nil, fmt.Errorf("工作台没有返回有效会话")
 		}
 		return &WorkspaceActionSubmitResult{SessionID: result.sessionID, Accepted: true}, nil
 	case <-ctx.Done():
+		cancelRun()
 		return nil, ctx.Err()
 	case <-timer.C:
+		cancelRun()
 		logger.Warnf(ctx, "[WorkspaceActionRunner] 等待工作台会话启动超时 full_code_path=%s user=%s", req.FullCodePath, req.RecipientUser)
-		return &WorkspaceActionSubmitResult{Accepted: true}, nil
+		return nil, fmt.Errorf("等待工作台创建会话超时")
 	}
+}
+
+func newWorkspaceActionRunContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(context.Background())
 }
 
 type workspaceActionStartResult struct {
@@ -130,15 +142,61 @@ type workspaceActionStartResult struct {
 	err       error
 }
 
-func (r *WorkspaceActionRunner) run(req WorkspaceActionRequest, started chan<- workspaceActionStartResult) {
+func (r *WorkspaceActionRunner) run(parent context.Context, req WorkspaceActionRequest, started chan<- workspaceActionStartResult) {
 	runTimeout := r.runTimeout
 	if runTimeout <= 0 {
 		runTimeout = 30 * time.Minute
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+	ctx, cancel := context.WithTimeout(parent, runTimeout)
 	defer cancel()
 
 	signalStarted := workspaceActionStartSignaler(started)
+	runAttempt := func(attemptReq WorkspaceActionRequest) (bool, error, error) {
+		attemptStarted := false
+		var attemptStartErr error
+		runErr := r.runAttempt(ctx, attemptReq, func(sessionID string, startErr error) {
+			if strings.TrimSpace(sessionID) != "" {
+				attemptStarted = true
+				signalStarted(sessionID, nil)
+				return
+			}
+			if startErr != nil && attemptStartErr == nil {
+				attemptStartErr = startErr
+			}
+		})
+		return attemptStarted, attemptStartErr, runErr
+	}
+
+	attemptStarted, attemptStartErr, runErr := runAttempt(req)
+	if attemptStarted {
+		if runErr != nil {
+			logger.Errorf(ctx, "[WorkspaceActionRunner] 工作台执行流失败 user=%s full_code_path=%s err=%v", req.RecipientUser, req.FullCodePath, runErr)
+		}
+		return
+	}
+	if strings.TrimSpace(req.SessionID) != "" && isRetryableWorkspaceSessionStartError(attemptStartErr, runErr) {
+		logger.Infof(ctx, "[WorkspaceActionRunner] 原会话不可续接，回退创建新会话 user=%s session_id=%s", req.RecipientUser, req.SessionID)
+		req.SessionID = ""
+		attemptStarted, attemptStartErr, runErr = runAttempt(req)
+		if attemptStarted {
+			if runErr != nil {
+				logger.Errorf(ctx, "[WorkspaceActionRunner] 新会话执行流失败 user=%s full_code_path=%s err=%v", req.RecipientUser, req.FullCodePath, runErr)
+			}
+			return
+		}
+	}
+	if attemptStartErr != nil {
+		signalStarted("", attemptStartErr)
+		return
+	}
+	if runErr != nil {
+		signalStarted("", runErr)
+		return
+	}
+	signalStarted("", fmt.Errorf("工作台未返回会话事件"))
+}
+
+func (r *WorkspaceActionRunner) runAttempt(ctx context.Context, req WorkspaceActionRequest, signalStarted func(string, error)) error {
 	requestBody := dto.WorkspaceChatReq{
 		FullCodePath: req.FullCodePath,
 		SessionID:    strings.TrimSpace(req.SessionID),
@@ -151,23 +209,19 @@ func (r *WorkspaceActionRunner) run(req WorkspaceActionRequest, started chan<- w
 	}
 	body, err := json.Marshal(requestBody)
 	if err != nil {
-		signalStarted("", fmt.Errorf("序列化工作台请求失败: %w", err))
-		return
+		return fmt.Errorf("序列化工作台请求失败: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, r.chatStreamURL(), bytes.NewReader(body))
 	if err != nil {
-		signalStarted("", fmt.Errorf("创建工作台请求失败: %w", err))
-		return
+		return fmt.Errorf("创建工作台请求失败: %w", err)
 	}
 	applyWorkspaceActionHeaders(httpReq, req)
 	if r.signer == nil {
-		signalStarted("", fmt.Errorf("提交工作台失败: internal request signer is not configured"))
-		return
+		return fmt.Errorf("提交工作台失败: internal request signer is not configured")
 	}
 	if err := controlauth.SignHTTPRequest(httpReq, body, workspaceActionSignedHeaders(), r.signer); err != nil {
-		signalStarted("", fmt.Errorf("提交工作台失败: sign internal request: %w", err))
-		return
+		return fmt.Errorf("提交工作台失败: sign internal request: %w", err)
 	}
 
 	client := r.client
@@ -176,19 +230,31 @@ func (r *WorkspaceActionRunner) run(req WorkspaceActionRequest, started chan<- w
 	}
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		signalStarted("", fmt.Errorf("提交工作台失败: %w", err))
-		return
+		return fmt.Errorf("提交工作台失败: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		signalStarted("", fmt.Errorf("提交工作台失败: HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(bodyBytes))))
-		return
+		return fmt.Errorf("提交工作台失败: HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(bodyBytes)))
 	}
 
-	if err := readWorkspaceActionStream(ctx, resp.Body, signalStarted); err != nil {
-		logger.Errorf(ctx, "[WorkspaceActionRunner] 工作台执行流失败 user=%s full_code_path=%s err=%v", req.RecipientUser, req.FullCodePath, err)
+	return readWorkspaceActionStream(ctx, resp.Body, signalStarted)
+}
+
+func isRetryableWorkspaceSessionStartError(startErr, runErr error) bool {
+	message := ""
+	if startErr != nil {
+		message += startErr.Error()
 	}
+	if runErr != nil {
+		message += " " + runErr.Error()
+	}
+	for _, marker := range []string{"会话不存在", "不能操作其他用户的会话", "无权操作", "该会话正在执行中"} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func workspaceActionSignedHeaders() []string {

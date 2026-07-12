@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kageos/kageos/core/message-server/model"
 	"github.com/kageos/kageos/dto"
@@ -451,6 +452,82 @@ func TestSubmitActionReplyFallsBackToTokenWorkspaceSession(t *testing.T) {
 	}
 	if reply.WorkspaceSessionID != "token-session-1" {
 		t.Fatalf("reply workspace session = %q, want token-session-1", reply.WorkspaceSessionID)
+	}
+}
+
+func TestActionReplyCanBeReleasedAndFinalizedAfterWorkspaceStart(t *testing.T) {
+	repo := newTestMessageRepo(t)
+	entry, err := repo.Create(context.Background(), dto.MessageSendMeta{
+		From:       "agent",
+		SourcePath: "/alice/demo",
+	}, dto.MessageSendPayload{Title: "待处理", Content: "请确认下一步。"}, []string{"bob"})
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+	rawToken, _, err := repo.CreateActionToken(context.Background(), CreateActionTokenInput{
+		MessageID: entry.ID, RecipientUsername: "bob", AllowedActions: []string{"reply"}, SourcePath: entry.SourcePath,
+	})
+	if err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+
+	reply, err := repo.BeginActionReply(context.Background(), rawToken, "开始处理", "", "reply", "bob")
+	if err != nil || reply.Status != string(dto.MessageActionTokenStatusProcessing) {
+		t.Fatalf("begin reply = %#v err=%v", reply, err)
+	}
+	view, err := repo.GetActionView(context.Background(), rawToken, "", "bob")
+	if err != nil || view.TokenStatus != string(dto.MessageActionTokenStatusProcessing) || view.CanReply {
+		t.Fatalf("processing view = %#v err=%v", view, err)
+	}
+	if err := repo.ReleaseActionReply(context.Background(), rawToken); err != nil {
+		t.Fatalf("release reply: %v", err)
+	}
+	view, err = repo.GetActionView(context.Background(), rawToken, "", "bob")
+	if err != nil || view.TokenStatus != string(dto.MessageActionTokenStatusOpen) || !view.CanReply {
+		t.Fatalf("released view = %#v err=%v", view, err)
+	}
+
+	if _, err := repo.BeginActionReply(context.Background(), rawToken, "重新处理", "", "reply", "bob"); err != nil {
+		t.Fatalf("begin retry: %v", err)
+	}
+	submittedAt, err := repo.FinalizeActionReply(context.Background(), rawToken, "session-created")
+	if err != nil || submittedAt.IsZero() {
+		t.Fatalf("finalize reply submitted_at=%v err=%v", submittedAt, err)
+	}
+	view, err = repo.GetActionView(context.Background(), rawToken, "", "bob")
+	if err != nil || view.TokenStatus != string(dto.MessageActionTokenStatusSubmitted) || view.WorkspaceSession != "session-created" {
+		t.Fatalf("finalized view = %#v err=%v", view, err)
+	}
+}
+
+func TestActionReplyRecoversStaleProcessingToken(t *testing.T) {
+	repo := newTestMessageRepo(t)
+	entry, err := repo.Create(context.Background(), dto.MessageSendMeta{
+		From: "agent", SourcePath: "/alice/demo",
+	}, dto.MessageSendPayload{Title: "待处理", Content: "请确认下一步。"}, []string{"bob"})
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+	rawToken, tokenRow, err := repo.CreateActionToken(context.Background(), CreateActionTokenInput{
+		MessageID: entry.ID, RecipientUsername: "bob", AllowedActions: []string{"reply"}, SourcePath: entry.SourcePath,
+	})
+	if err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+	if _, err := repo.BeginActionReply(context.Background(), rawToken, "开始处理", "", "reply", "bob"); err != nil {
+		t.Fatalf("begin reply: %v", err)
+	}
+	staleAt := time.Now().Add(-messageActionProcessingTTL - time.Minute)
+	if err := repo.db.Model(&model.MessageActionToken{}).Where("id = ?", tokenRow.ID).UpdateColumn("updated_at", staleAt).Error; err != nil {
+		t.Fatalf("make processing token stale: %v", err)
+	}
+
+	view, err := repo.GetActionView(context.Background(), rawToken, "", "bob")
+	if err != nil || view.TokenStatus != string(dto.MessageActionTokenStatusOpen) || !view.CanReply {
+		t.Fatalf("stale processing view = %#v err=%v", view, err)
+	}
+	if _, err := repo.BeginActionReply(context.Background(), rawToken, "重新处理", "", "reply", "bob"); err != nil {
+		t.Fatalf("retry stale processing token: %v", err)
 	}
 }
 

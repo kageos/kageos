@@ -2,6 +2,17 @@ package config
 
 import "testing"
 
+func TestGatewayConfigGetInternalURLPrefersInternalURL(t *testing.T) {
+	cfg := GatewayConfig{
+		BaseURL:     "https://gateway.example.com",
+		InternalURL: "http://127.0.0.1:9090",
+	}
+
+	if got := cfg.GetInternalURL(); got != "http://127.0.0.1:9090" {
+		t.Fatalf("internal gateway url = %q", got)
+	}
+}
+
 func TestGlobalSharedConfigPublicSiteBaseURLUsesSiteConfig(t *testing.T) {
 	t.Setenv(EnvCanonicalBaseURL, "https://env.example.com")
 	t.Setenv("KAGEOS_BASE_URL", "https://kageos-env.example.com")

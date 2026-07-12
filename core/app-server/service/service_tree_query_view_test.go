@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -410,15 +411,51 @@ func TestGetAppWithServiceTreeHidesUnauthorizedNodesWhenEnabled(t *testing.T) {
 
 type fakeDirectoryOverviewScheduleClient struct {
 	tasks map[string][]*scheduledsdk.Task
+	err   error
 }
 
 func (f fakeDirectoryOverviewScheduleClient) ListTasks(_ context.Context, req scheduledsdk.ListTasksRequest) (*scheduledsdk.ListTasksResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
 	key := strings.Join([]string{req.ExecutorKey, req.ResourceScope, req.ResourceKey}, "|")
 	if req.ResourceKeyPrefix != "" {
 		key = strings.Join([]string{req.ExecutorKey, req.ResourceScope, req.ResourceKeyPrefix}, "|")
 	}
 	list := f.tasks[key]
 	return &scheduledsdk.ListTasksResponse{List: list, Total: int64(len(list))}, nil
+}
+
+func TestGetDirectoryOverviewDeduplicatesScheduleLoadWarnings(t *testing.T) {
+	queryView, db, app := newServiceTreeQueryViewTest(t)
+	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "alice")
+	if _, err := ReconcileAppRootServiceTrees(ctx, queryView.appRepo, queryView.serviceTreeRepo); err != nil {
+		t.Fatalf("ReconcileAppRootServiceTrees: %v", err)
+	}
+	if err := db.Create(&model.ServiceTree{
+		Name:         "巡检",
+		Code:         "sweep.form",
+		Type:         model.ServiceTreeTypeFunction,
+		AppID:        app.ID,
+		FullCodePath: "/alice/ops/sweep.form",
+		TemplateType: "form",
+	}).Error; err != nil {
+		t.Fatalf("create function: %v", err)
+	}
+
+	oldClientFactory := newServiceTreeScheduleClient
+	newServiceTreeScheduleClient = func() serviceTreeScheduleClient {
+		return fakeDirectoryOverviewScheduleClient{err: errors.New("scheduledsdk: http 404: 404 page not found")}
+	}
+	defer func() { newServiceTreeScheduleClient = oldClientFactory }()
+
+	resp, err := queryView.GetDirectoryOverview(ctx, &dto.GetDirectoryOverviewReq{FullCodePath: "/alice/ops"})
+	if err != nil {
+		t.Fatalf("GetDirectoryOverview: %v", err)
+	}
+	if !resp.Partial || len(resp.Warnings) != 1 {
+		t.Fatalf("warnings = %#v, partial = %v", resp.Warnings, resp.Partial)
+	}
 }
 
 func TestGetDirectoryOverviewAggregatesResourcesAndScheduledTasks(t *testing.T) {

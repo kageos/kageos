@@ -31,3 +31,9 @@ func TestGetGatewayURLKeepsExternalHostWithoutProbe(t *testing.T) {
 		t.Fatalf("GetGatewayURL = %q, want external URL unchanged", got)
 	}
 }
+
+func TestJoinURLBuildsTimerAPIURL(t *testing.T) {
+	if got := joinURL("http://127.0.0.1:9090/", "/timer/api/v1"); got != "http://127.0.0.1:9090/timer/api/v1" {
+		t.Fatalf("joined internal timer url = %q", got)
+	}
+}

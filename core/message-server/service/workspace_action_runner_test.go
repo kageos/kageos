@@ -126,3 +126,75 @@ func TestWorkspaceActionRunnerDoesNotForwardSignedIdentityAcrossRedirect(t *test
 		t.Fatalf("redirect target received %d signed requests, want 0", got)
 	}
 }
+
+func TestWorkspaceActionRunnerFallsBackToNewSessionWhenExistingSessionIsNotOwned(t *testing.T) {
+	const secret = "0123456789abcdef0123456789abcdef"
+	signer, err := controlauth.NewSigner(secret, controlauth.HTTPWorkspaceActionScope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attempts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		var body dto.WorkspaceChatReq
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		if body.SessionID != "" {
+			_, _ = fmt.Fprint(w, "event: error\n")
+			_, _ = fmt.Fprint(w, `data: {"message":"不能操作其他用户的会话"}`+"\n\n")
+			return
+		}
+		_, _ = fmt.Fprint(w, "event: session\n")
+		_, _ = fmt.Fprint(w, `data: {"session_id":"session-new"}`+"\n\n")
+		_, _ = fmt.Fprint(w, "event: done\n")
+		_, _ = fmt.Fprint(w, `data: {"session_id":"session-new"}`+"\n\n")
+	}))
+	defer server.Close()
+
+	runner := NewWorkspaceActionRunner(server.URL, signer)
+	runner.startTimeout = time.Second
+	runner.runTimeout = 3 * time.Second
+	result, err := runner.Submit(context.Background(), WorkspaceActionRequest{
+		RecipientUser: "bob",
+		FullCodePath:  "/alice/demo",
+		SessionID:     "session-owned-by-system",
+		Content:       "继续处理",
+	})
+	if err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	if result.SessionID != "session-new" || !result.Accepted || attempts.Load() != 2 {
+		t.Fatalf("result=%#v attempts=%d", result, attempts.Load())
+	}
+}
+
+func TestWorkspaceActionRunnerStartTimeoutIsFailure(t *testing.T) {
+	const secret = "0123456789abcdef0123456789abcdef"
+	signer, err := controlauth.NewSigner(secret, controlauth.HTTPWorkspaceActionScope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	runner := NewWorkspaceActionRunner(server.URL, signer)
+	runner.startTimeout = 30 * time.Millisecond
+	runner.runTimeout = time.Second
+	result, err := runner.Submit(context.Background(), WorkspaceActionRequest{
+		RecipientUser: "bob",
+		FullCodePath:  "/alice/demo",
+		Content:       "继续处理",
+	})
+	if err == nil || result != nil || !strings.Contains(err.Error(), "超时") {
+		t.Fatalf("result=%#v err=%v", result, err)
+	}
+}

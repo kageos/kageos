@@ -22,9 +22,21 @@ func GetGatewayURL() string {
 	return resolveGatewayURL(config.GetGatewayURL())
 }
 
+// GetInternalGatewayURL returns the gateway address intended for calls between
+// platform services. Unlike GetGatewayURL, it deliberately ignores the SDK's
+// GATEWAY_URL environment variable and prefers gateway.internal_url.
+func GetInternalGatewayURL() string {
+	return resolveGatewayURL(config.GetGlobalSharedConfig().Gateway.GetInternalURL())
+}
+
 // BuildGatewayURL 基于当前网关配置构建完整 URL。
 func BuildGatewayURL(path string) string {
 	return joinURL(GetGatewayURL(), path)
+}
+
+// BuildInternalGatewayURL builds a URL for platform service-to-service calls.
+func BuildInternalGatewayURL(path string) string {
+	return joinURL(GetInternalGatewayURL(), path)
 }
 
 func joinURL(baseURL, path string) string {

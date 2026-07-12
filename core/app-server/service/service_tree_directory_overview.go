@@ -26,7 +26,7 @@ type serviceTreeScheduleClient interface {
 
 var newServiceTreeScheduleClient = func() serviceTreeScheduleClient {
 	return scheduledsdk.NewClient(scheduledsdk.Options{
-		BaseURL: serviceconfig.BuildGatewayURL("/timer/api/v1"),
+		BaseURL: serviceconfig.BuildInternalGatewayURL("/timer/api/v1"),
 	})
 }
 
@@ -116,9 +116,30 @@ func (q *serviceTreeQueryView) GetDirectoryOverview(ctx context.Context, req *dt
 	if len(agentTasks) > len(resp.ScheduledAgentTasks) {
 		resp.Warnings = append(resp.Warnings, fmt.Sprintf("Agent 任务较多，清单仅返回前 %d 个", directoryOverviewMaxTasksPerKind))
 	}
+	resp.Warnings = directoryOverviewUniqueWarnings(resp.Warnings)
 	resp.Partial = len(resp.Warnings) > 0
 
 	return resp, nil
+}
+
+func directoryOverviewUniqueWarnings(warnings []string) []string {
+	if len(warnings) < 2 {
+		return warnings
+	}
+	seen := make(map[string]struct{}, len(warnings))
+	unique := make([]string, 0, len(warnings))
+	for _, warning := range warnings {
+		warning = strings.TrimSpace(warning)
+		if warning == "" {
+			continue
+		}
+		if _, ok := seen[warning]; ok {
+			continue
+		}
+		seen[warning] = struct{}{}
+		unique = append(unique, warning)
+	}
+	return unique
 }
 
 func (q *serviceTreeQueryView) filterReadableNodes(ctx context.Context, appModel *model.App, nodes []*model.ServiceTree) ([]*model.ServiceTree, error) {
