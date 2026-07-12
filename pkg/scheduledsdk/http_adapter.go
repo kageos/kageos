@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/controlauth"
 )
 
 var _ Adapter = (*HTTPAdapter)(nil)
@@ -137,12 +138,14 @@ func (a *HTTPAdapter) doJSON(ctx context.Context, method, path string, query url
 		return fmt.Errorf("scheduledsdk: base url is required")
 	}
 	var body io.Reader
+	var bodyBytes []byte
 	if in != nil {
 		data, err := json.Marshal(in)
 		if err != nil {
 			return err
 		}
-		body = bytes.NewReader(data)
+		bodyBytes = data
+		body = bytes.NewReader(bodyBytes)
 	}
 	endpoint := a.baseURL + path
 	if len(query) > 0 {
@@ -157,8 +160,20 @@ func (a *HTTPAdapter) doJSON(ctx context.Context, method, path string, query url
 	}
 	req.Header.Set("Accept", "application/json")
 	applyContextHeaders(req, ctx)
+	delegated, err := controlauth.ApplyDelegatedHTTPRequestSignature(req, bodyBytes)
+	if err != nil {
+		return fmt.Errorf("scheduledsdk: sign delegated request: %w", err)
+	}
 
-	resp, err := a.client.Do(req)
+	client := a.client
+	if delegated {
+		clone := *a.client
+		clone.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		client = &clone
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -194,6 +209,15 @@ func applyContextHeaders(req *http.Request, ctx context.Context) {
 	}
 	if departmentFullPath := contextx.GetRequestDepartmentFullPath(ctx); departmentFullPath != "" {
 		req.Header.Set(contextx.DepartmentFullPathHeader, departmentFullPath)
+	}
+	if userID := contextx.GetRequestUserID(ctx); userID != "" {
+		req.Header.Set(contextx.UserIDHeader, userID)
+	}
+	if email := contextx.GetRequestUserEmail(ctx); email != "" {
+		req.Header.Set(contextx.UserEmailHeader, email)
+	}
+	if leader := contextx.GetRequestLeaderUsername(ctx); leader != "" {
+		req.Header.Set(contextx.LeaderUsernameHeader, leader)
 	}
 	if companyCode := contextx.GetRequestCompanyCode(ctx); companyCode != "" {
 		req.Header.Set(contextx.CompanyCodeHeader, companyCode)

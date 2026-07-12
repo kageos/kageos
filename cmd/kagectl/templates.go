@@ -108,6 +108,7 @@ services:
       NATS_SEED_PASSWORD: {{ q .NATSAuthPassword }}
       JWT_SECRET: {{ q .Secrets.JWTSecret }}
       KAGEOS_APP_DB_SECRET_KEY: {{ q .Secrets.AppDBSecret }}
+      KAGEOS_CONTROL_PLANE_SECRET: {{ q .Secrets.ControlPlaneSecret }}
       KAGEOS_APP_DB_CLUSTER_KEY: {{ q .AppDBClusterKey }}
       SYSTEM_USER_PASSWORD: {{ q .SystemUser.Password }}
       KAGEOS_COMPANY_CODE: {{ q .Company.Code }}
@@ -166,6 +167,7 @@ MYSQL_HOST={{ .MySQLHostForMain }}
 MYSQL_PORT={{ .MySQLPortForMain }}
 MYSQL_ROOT_PASSWORD={{ .MySQL.Password }}
 KAGEOS_APP_DB_SECRET_KEY={{ .Secrets.AppDBSecret }}
+KAGEOS_CONTROL_PLANE_SECRET={{ .Secrets.ControlPlaneSecret }}
 KAGEOS_APP_DB_CLUSTER_KEY={{ .AppDBClusterKey }}
 NATS_MODE={{ .NATS.Mode }}
 NATS_HOST={{ .NATSHostForMain }}
@@ -234,6 +236,9 @@ jwt:
   access_token_expire: 2592000
   refresh_token_expire: 7776000
   issuer: "kageos"
+
+control_plane:
+  secret: {{ q .Secrets.ControlPlaneSecret }}
 
 sdk:
   nats_url: {{ q .SDKNATSURL }}

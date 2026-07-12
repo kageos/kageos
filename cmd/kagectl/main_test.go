@@ -54,6 +54,16 @@ func TestRenderBundledConfig(t *testing.T) {
 	if err := renderAll(rt); err != nil {
 		t.Fatal(err)
 	}
+	for _, privateDir := range []string{
+		filepath.Join(paths.GeneratedDir, "config"),
+		filepath.Join(paths.GeneratedDir, "env"),
+	} {
+		if info, err := os.Stat(privateDir); err != nil {
+			t.Fatalf("stat generated private directory %s: %v", privateDir, err)
+		} else if got := info.Mode().Perm(); got != 0o700 {
+			t.Fatalf("generated private directory %s mode = %04o, want 0700", privateDir, got)
+		}
+	}
 
 	compose := mustReadFile(t, filepath.Join(paths.GeneratedDir, "docker-compose.yaml"))
 	for _, want := range []string{
@@ -127,7 +137,23 @@ func TestRenderBundledConfig(t *testing.T) {
 		t.Fatalf("generated app-runtime config should use mounted prod namespace, got:\n%s", appRuntimeConfig)
 	}
 
-	globalConfig := mustReadFile(t, filepath.Join(paths.GeneratedDir, "config", "global.yaml"))
+	globalConfigPath := filepath.Join(paths.GeneratedDir, "config", "global.yaml")
+	globalConfig := mustReadFile(t, globalConfigPath)
+	if info, err := os.Stat(globalConfigPath); err != nil {
+		t.Fatalf("stat generated global config: %v", err)
+	} else if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("generated global config mode = %04o, want 0600", got)
+	}
+	for _, sensitivePath := range []string{
+		filepath.Join(paths.GeneratedDir, "docker-compose.yaml"),
+		filepath.Join(paths.GeneratedDir, "config", "app-server.yaml"),
+	} {
+		if info, err := os.Stat(sensitivePath); err != nil {
+			t.Fatalf("stat generated secret-bearing file %s: %v", sensitivePath, err)
+		} else if got := info.Mode().Perm(); got != 0o600 {
+			t.Fatalf("generated secret-bearing file %s mode = %04o, want 0600", sensitivePath, got)
+		}
+	}
 	if strings.Contains(globalConfig, `timer_scheduler`) {
 		t.Fatalf("generated global config should not include timer scheduler config, got:\n%s", globalConfig)
 	}
@@ -876,6 +902,16 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 	if err := renderDevConfig(paths, false, "", ""); err != nil {
 		t.Fatal(err)
 	}
+	for _, privateDir := range []string{
+		filepath.Join(repoRoot, ".kageos", "dev", "config"),
+		filepath.Join(repoRoot, ".kageos", "dev", "env"),
+	} {
+		if info, err := os.Stat(privateDir); err != nil {
+			t.Fatalf("stat dev private directory %s: %v", privateDir, err)
+		} else if got := info.Mode().Perm(); got != 0o700 {
+			t.Fatalf("dev private directory %s mode = %04o, want 0700", privateDir, got)
+		}
+	}
 
 	appServerConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "app-server.yaml"))
 	if strings.Contains(appServerConfig, `password: "root"`) {
@@ -894,7 +930,18 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 	if !strings.Contains(apiGatewayConfig, `path: "/message"`) {
 		t.Fatalf("dev api-gateway config should proxy message APIs, got:\n%s", apiGatewayConfig)
 	}
-	globalConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "global.yaml"))
+	globalConfigPath := filepath.Join(repoRoot, ".kageos", "dev", "config", "global.yaml")
+	globalConfig := mustReadFile(t, globalConfigPath)
+	if info, err := os.Stat(globalConfigPath); err != nil {
+		t.Fatalf("stat dev global config: %v", err)
+	} else if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("dev global config mode = %04o, want 0600", got)
+	}
+	if info, err := os.Stat(filepath.Join(repoRoot, ".kageos", "dev", "config", "app-server.yaml")); err != nil {
+		t.Fatalf("stat dev app-server config: %v", err)
+	} else if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("dev app-server config mode = %04o, want 0600", got)
+	}
 	for _, want := range []string{
 		`site:`,
 		`base_url: "http://localhost:5173"`,

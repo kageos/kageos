@@ -98,6 +98,7 @@ func runSendNotificationTool(ctx context.Context, publisher toolMessagePublisher
 	if err != nil {
 		return toolResult("send_notification 构建消息失败: "+err.Error(), true)
 	}
+	msg.Header.Del(contextx.TokenHeader)
 	if err := publisher.PublishMsg(msg); err != nil {
 		return toolResult("send_notification 提交消息失败: "+err.Error(), true)
 	}

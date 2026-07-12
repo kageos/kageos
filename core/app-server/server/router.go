@@ -33,9 +33,6 @@ func (s *Server) setupRoutes() {
 	workspace := s.httpServer.Group("/workspace")
 	apiV1 := workspace.Group("/api/v1")
 
-	// ⭐ 统一添加用户信息中间件，所有接口都需要（网关会透传 token，解析后设置到 X-Request-User header）
-	apiV1.Use(middleware2.WithUserInfo())
-
 	// 应用管理路由（需要JWT验证）
 	app := apiV1.Group("/app")
 	app.Use(middleware2.JWTAuth()) // 应用管理需要JWT认证
@@ -45,6 +42,7 @@ func (s *Server) setupRoutes() {
 	app.GET("/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
 	app.DELETE("/delete", appHandler.DeleteApp)
 	app.POST("/create", appHandler.CreateApp)
+	app.POST("/bootstrap_personal_workspace", appHandler.BootstrapPersonalWorkspace)
 	app.POST("/update", appHandler.UpdateApp)
 	app.PUT("/workspace", appHandler.UpdateWorkspace)
 
@@ -79,7 +77,6 @@ func (s *Server) setupRoutes() {
 	serviceTreeAuth.GET("/export_capability_bundle", serviceTreeHandler.ExportCapabilityBundle)
 	serviceTreeAuth.POST("/export_capability_bundle", serviceTreeHandler.ExportCapabilityBundle)
 	serviceTreeAuth.POST("/install_capability_bundle", serviceTreeHandler.InstallCapabilityBundle)
-	serviceTreeAuth.POST("/install_capability_bundle_from_url", serviceTreeHandler.InstallCapabilityBundleFromURL)
 
 	// ⭐ 按类型分离的 CRUD 接口（推荐使用）
 	// ==================== Package 类型接口 ====================
@@ -114,12 +111,15 @@ func (s *Server) setupRoutes() {
 	docs.PUT("/info/*full-code-path", docHandler.UpdateDoc)    // 更新文档
 	docs.DELETE("/info/*full-code-path", docHandler.DeleteDoc) // 删除文档
 
-	// ==================== 服务间调用路由 ====================
-	// 服务间调用路由（不需要JWT验证，但用户信息中间件已在 apiV1 级别统一添加）
-	serviceTree.POST("/add_functions", serviceTreeHandler.AddFunctions) // 向服务目录添加函数（agent-server -> workspace）
+	// ==================== Agent 委托的内部调用 ====================
+	// These routes intentionally do not accept end-user credentials. Agent must
+	// pass the Gateway's exact allowlist; Gateway then re-signs the rewritten
+	// backend request. Host-network Apps cannot substitute identity headers.
+	agentDelegated := apiV1.Group("")
+	agentDelegated.Use(middleware2.GatewayBackendAuth())
+	agentDelegated.POST("/service_tree/add_functions", serviceTreeHandler.AddFunctions)
 
-	// 工作台环境信息路由（不需要JWT验证，但用户信息中间件已在 apiV1 级别统一添加）
-	workspaceGroup := apiV1.Group("/workspace")
+	workspaceGroup := agentDelegated.Group("/workspace")
 	workspaceGroup.GET("/context", serviceTreeHandler.GetWorkspaceContext)       // 获取工作台环境信息（agent-server -> workspace）
 	workspaceGroup.POST("/files/write", serviceTreeHandler.WriteFileContent)     // 工作台写入单个文本文件（实时写盘）
 	workspaceGroup.POST("/files/replace", serviceTreeHandler.ReplaceFileContent) // 工作台文件 search-replace（实时写盘）

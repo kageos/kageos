@@ -112,6 +112,8 @@ func (q *serviceTreeQueryView) GetAppWithServiceTree(ctx context.Context, req *d
 		NatsID:                appModel.NatsID,
 		HostID:                appModel.HostID,
 		IsPublic:              appModel.IsPublic,
+		IsPersonalWorkspace:   appModel.IsPersonalWorkspace,
+		AccessMode:            string(model.NormalizeAppAccessMode(appModel.AccessMode)),
 		HideUnauthorizedNodes: appModel.HideUnauthorizedNodes,
 		Admins:                appModel.Admins,
 		Type:                  int(appModel.Type),
@@ -221,11 +223,8 @@ func (q *serviceTreeQueryView) canReadServiceTreePath(ctx context.Context, path 
 	if err != nil {
 		return false
 	}
-	result, err := q.teamAccess.Resolve(ctx, tenantUser, app, contextx.GetRequestUser(ctx), path)
-	if err != nil {
-		return false
-	}
-	return access.HasPermission(result.Permissions, access.ActionRead)
+	ok, err := q.teamAccess.CanWorkspaceData(ctx, tenantUser, app, contextx.GetRequestUser(ctx), path, access.ActionRead)
+	return err == nil && ok
 }
 
 func (q *serviceTreeQueryView) serviceTreeDetailRespFromModel(tree *model.ServiceTree) *dto.GetServiceTreeDetailResp {

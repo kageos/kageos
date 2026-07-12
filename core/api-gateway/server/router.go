@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,7 +18,6 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	v1 "github.com/kageos/kageos/core/api-gateway/api/v1"
-	"github.com/kageos/kageos/pkg/auth"
 	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
@@ -196,9 +196,9 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 	// 但为了性能，我们仍然使用共享 Transport，超时由 Context 控制
 	proxy.Transport = s.sharedTransport
 
-	// 自定义请求修改（支持路径重写和TraceId传递）
-	// 注意：httputil.ReverseProxy 默认会转发所有请求头（包括 X-Token、X-Request-User 等）
-	// 我们只需要确保 TraceId 被正确传递即可
+	// 自定义请求修改（支持路径重写和TraceId传递）。
+	// ReverseProxy 会转发剩余 header；可信身份头已在 ServeHTTP 前由
+	// prepareProxyIdentity 统一清洗并从可验证凭据重建。
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		// 保存原始 Host；若上游已传 X-Forwarded-Host（如 Vite 代理传的浏览器 Host），保留不覆盖
@@ -252,6 +252,21 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 					originalPath, req.URL.Path, routePath, route.RewritePath)
 			}
 		}
+
+		// A verified message-server workspace action has no end-user JWT. Once
+		// target host and path rewriting are final, mint a new gateway->Agent
+		// signature over the exact backend request. Ordinary browser/OpenAPI
+		// requests retain their own credentials and are not signed here.
+		if route != nil && route.ServiceName == "agent" {
+			s.signVerifiedAgentBackendRequest(req)
+		}
+		if route != nil && route.ServiceName == "timer" {
+			s.signVerifiedTimerBackendRequest(req)
+		}
+		// General Agent delegation may target workspace, HR, storage, or future
+		// explicitly allowlisted routes. The private verified context marker makes
+		// this a no-op for ordinary browser/OpenAPI traffic.
+		s.signVerifiedDelegatedBackendRequest(req)
 	}
 
 	// 移除后端服务设置的 CORS 头，避免与网关的 CORS 中间件重复
@@ -302,46 +317,21 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 			c.Request.Header.Set(contextx.TraceIdHeader, traceId)
 		}
 
-		// ✨ 解析 JWT Token 并提取 username，设置到 X-Request-User header（在调用 proxy 之前设置）
-		// ⭐ 按照 TraceId 的方式，直接在 gin handler 中设置 header，确保被正确传递
-		token := c.Request.Header.Get(contextx.TokenHeader)
-		if token != "" {
-			// ⭐ 新增：检查 token 是否在黑名单中
-			if s.tokenBlacklist.IsBlacklisted(token) {
+		// The gateway is the external trust boundary: client-supplied identity,
+		// role, department and provenance headers are always cleared first.
+		// Only a verified JWT/anonymous mechanism or a short-lived signed core
+		// request may rebuild them.
+		if err := s.prepareProxyIdentity(c); err != nil {
+			switch {
+			case errors.Is(err, errProxyTokenBlacklisted):
 				logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, rejecting request")
 				c.JSON(http.StatusUnauthorized, response.GetTokenBlacklistedResponse())
-				c.Abort()
-				return
+			default:
+				logger.Warnf(s.ctx, "[Proxy] Rejected untrusted internal identity metadata: path=%s error=%v", c.Request.URL.Path, err)
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid internal request authentication"})
 			}
-
-			// 解析 token 获取 username 和组织架构信息
-			jwtService := auth.NewJWTService()
-			claims, err := jwtService.ValidateToken(token)
-			if err == nil {
-				// 解析成功，直接覆盖 username 到 header（忽略请求中的 X-Request-User）
-				// ⭐ 按照 TraceId 的方式，直接在 c.Request.Header 中设置
-				c.Request.Header.Set(contextx.RequestUserHeader, claims.Username)
-				logger.Infof(s.ctx, "[Proxy] Extracted username from token: %s, Path: %s", claims.Username, c.Request.URL.Path)
-
-				// ⭐ 设置组织架构信息到 header（token 中一定包含这些字段，如果用户有组织架构信息）
-				if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
-					c.Request.Header.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
-					logger.Debugf(s.ctx, "[Proxy] Extracted department_full_path from token: %s", *claims.DepartmentFullPath)
-				}
-				if claims.CompanyCode != "" {
-					c.Request.Header.Set(contextx.CompanyCodeHeader, claims.CompanyCode)
-				}
-				if claims.CompanyName != "" {
-					c.Request.Header.Set(contextx.CompanyNameHeader, claims.CompanyName)
-				}
-				if claims.CompanyLogoURL != "" {
-					c.Request.Header.Set(contextx.CompanyLogoURLHeader, claims.CompanyLogoURL)
-				}
-			} else {
-				// token 解析失败，但不阻止请求（可能是不需要认证的接口）
-				logger.Warnf(s.ctx, "[Proxy] Failed to parse token - Path: %s, Error: %v, TokenLength: %d",
-					c.Request.URL.Path, err, len(token))
-			}
+			c.Abort()
+			return
 		}
 
 		// ✅ 创建带超时的 Context，避免高并发时请求堆积

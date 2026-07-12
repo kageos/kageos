@@ -315,6 +315,21 @@ func (r *AppRepository) GetAppsByUser(user string) ([]*model.App, error) {
 	return apps, nil
 }
 
+// GetFirstUserApp returns a stable fallback workspace owned by user. System
+// workspaces are deliberately excluded: bootstrap is only allowed to fall back
+// to an existing personal workspace, never a platform-owned one.
+func (r *AppRepository) GetFirstUserApp(user string) (*model.App, error) {
+	var app model.App
+	err := r.db.
+		Where("user = ? AND type = ?", user, model.AppTypeUser).
+		Order("created_at ASC, id ASC").
+		First(&app).Error
+	if err != nil {
+		return nil, err
+	}
+	return &app, nil
+}
+
 func (r *AppRepository) GetAllApps() ([]*model.App, error) {
 	var apps []*model.App
 	if err := r.db.Order("id ASC").Find(&apps).Error; err != nil {
@@ -344,6 +359,21 @@ func (r *AppRepository) GetAppsByUserAppPairs(pairs [][2]string) ([]*model.App, 
 	}
 	var apps []*model.App
 	if err := query.Find(&apps).Error; err != nil {
+		return nil, err
+	}
+	return apps, nil
+}
+
+// GetAppsByAccessMode returns workspaces that opt into a platform-level access
+// mode. It is used to discover open-collaboration workspaces without creating
+// one role assignment per authenticated user.
+func (r *AppRepository) GetAppsByAccessMode(mode model.AppAccessMode) ([]*model.App, error) {
+	mode = model.NormalizeAppAccessMode(mode)
+	var apps []*model.App
+	if err := r.db.Model(&model.App{}).
+		Where("access_mode = ?", mode).
+		Order("created_at DESC, id DESC").
+		Find(&apps).Error; err != nil {
 		return nil, err
 	}
 	return apps, nil

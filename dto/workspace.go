@@ -252,6 +252,8 @@ type BatchWorkspaceToolDetailsResp struct {
 // UpdateWorkspaceReq 更新工作空间请求（只更新 MySQL 如 Admins；canonical 标识为 resource_path）
 type UpdateWorkspaceReq struct {
 	ResourcePath          string  `json:"resource_path,omitempty"`                           // 工作空间资源路径，规范为 /user/app
+	Name                  *string `json:"name,omitempty"`                                    // 展示名称；nil 表示不更新，不影响 code、URL 或运行时目录
+	AccessMode            *string `json:"access_mode,omitempty"`                             // 访问模式：permissioned/open_collaboration；nil 表示不更新
 	Admins                *string `json:"admins,omitempty"`                                  // 管理员列表，逗号分隔；nil 表示不更新
 	HideUnauthorizedNodes *bool   `json:"hide_unauthorized_nodes,omitempty" example:"false"` // 是否隐藏当前用户无 read 权限的目录节点；nil 表示不更新
 }
@@ -260,6 +262,8 @@ type UpdateWorkspaceReq struct {
 type UpdateWorkspaceResp struct {
 	User                  string `json:"user"`
 	App                   string `json:"app"`
+	Name                  string `json:"name"`
+	AccessMode            string `json:"access_mode"`
 	Admins                string `json:"admins"`
 	HideUnauthorizedNodes bool   `json:"hide_unauthorized_nodes"`
 }

@@ -49,6 +49,8 @@ export interface CompanyOption {
 }
 
 // 应用相关类型
+export type WorkspaceAccessMode = 'permissioned' | 'open_collaboration'
+
 export interface App {
   id: number
   user: string
@@ -60,6 +62,8 @@ export interface App {
   type?: number  // 应用类型：0=用户空间，1=系统空间
   version: string
   is_public: boolean
+  access_mode?: WorkspaceAccessMode
+  is_personal_workspace?: boolean
   hide_unauthorized_nodes?: boolean
   admins?: string
   created_at: string
@@ -70,6 +74,7 @@ export interface CreateAppRequest {
   code: string
   name: string
   is_public?: boolean
+  access_mode?: WorkspaceAccessMode
   hide_unauthorized_nodes?: boolean
   admins?: string
 }

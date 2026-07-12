@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/nats-io/nats.go"
@@ -38,21 +39,37 @@ type scheduledAgentSessionPayload struct {
 
 // NewScheduledAgentSessionWorker wires timer-scheduler's agent.session executor
 // to the existing background workspace chat runner.
-func NewScheduledAgentSessionWorker(natsConn *nats.Conn, chatSvc *WorkspaceChatService) (*scheduledsdk.Worker, error) {
+func NewScheduledAgentSessionWorker(
+	natsConn *nats.Conn,
+	chatSvc *WorkspaceChatService,
+	controlPlaneSecret string,
+	delegationSigner controlauth.DelegatedHTTPRequestSigner,
+) (*scheduledsdk.Worker, error) {
 	if natsConn == nil {
 		return nil, fmt.Errorf("scheduled agent session worker requires nats connection")
 	}
 	if chatSvc == nil {
 		return nil, fmt.Errorf("scheduled agent session worker requires workspace chat service")
 	}
+	natsAuth, err := scheduledsdk.NewWorkerNATSAuth(controlPlaneSecret)
+	if err != nil {
+		return nil, fmt.Errorf("scheduled agent session worker control auth: %w", err)
+	}
 	client := scheduledsdk.NewClient(scheduledsdk.Options{
-		Adapter: scheduledsdk.NewNATSAdapter(natsConn, scheduledsdk.NATSAdapterOptions{}),
+		Adapter: scheduledsdk.NewNATSAdapter(natsConn, scheduledsdk.NATSAdapterOptions{
+			CommandSigner:    natsAuth.CommandSigner,
+			ResponseVerifier: natsAuth.ResponseVerifier,
+		}),
 	})
 	return scheduledsdk.NewWorker(scheduledsdk.WorkerOptions{
-		Client:      client,
-		NATSConn:    natsConn,
-		ExecutorKey: ScheduledAgentSessionExecutorKey,
-		Handler:     chatSvc.RunScheduledAgentSession,
+		Client:          client,
+		NATSConn:        natsConn,
+		ExecutorKey:     ScheduledAgentSessionExecutorKey,
+		MessageVerifier: natsAuth.MessageVerifier,
+		Handler:         chatSvc.RunScheduledAgentSession,
+		VerifiedContext: func(ctx context.Context) context.Context {
+			return controlauth.WithDelegatedHTTPRequestSigner(ctx, delegationSigner)
+		},
 		OnError: func(ctx context.Context, err error) {
 			logger.Warnf(ctx, "[ScheduledAgentSessionWorker] %v", err)
 		},

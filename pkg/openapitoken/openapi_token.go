@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -15,7 +16,10 @@ import (
 	"gorm.io/gorm"
 )
 
-const TokenPrefix = "kgos_"
+const (
+	TokenPrefix               = "kgos_"
+	openAPITokenSubjectPrefix = "openapi_"
+)
 
 var (
 	dbMu sync.RWMutex
@@ -167,6 +171,9 @@ func Validate(rawToken, ip, userAgent string) (*Principal, error) {
 	if err != nil {
 		return nil, err
 	}
+	if claims == nil || !strings.HasPrefix(strings.TrimSpace(claims.Subject), openAPITokenSubjectPrefix) {
+		return nil, errors.New("token is not an OpenAPI credential")
+	}
 	principal := &Principal{
 		TokenID:        0,
 		UserID:         claims.UserID,
@@ -181,12 +188,15 @@ func Validate(rawToken, ip, userAgent string) (*Principal, error) {
 	}
 	database := getDB()
 	if database == nil {
-		return principal, nil
+		// Revocation and record ownership are part of OpenAPI credential
+		// validation. Accepting a signed JWT without the authoritative store
+		// would resurrect revoked or never-issued long-lived credentials.
+		return nil, errors.New("openapi token store is not configured")
 	}
 	tokenPrefix := displayPrefix(rawToken)
 	var candidates []OpenAPIToken
 	if err := database.Where("token_prefix = ? AND revoked_at IS NULL", tokenPrefix).Find(&candidates).Error; err != nil {
-		return principal, nil
+		return nil, fmt.Errorf("validate OpenAPI token record: %w", err)
 	}
 	rawHash := hashToken(rawToken)
 	for _, candidate := range candidates {
@@ -205,7 +215,7 @@ func Validate(rawToken, ip, userAgent string) (*Principal, error) {
 		principal.TokenID = candidate.ID
 		return principal, nil
 	}
-	return principal, nil
+	return nil, errors.New("OpenAPI token is unknown or revoked")
 }
 
 func BearerToken(authorizationHeader string) string {

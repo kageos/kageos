@@ -403,7 +403,7 @@ func (s *StandardAPI) TableSearch(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+	if err := requireWorkspaceDataAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -466,7 +466,7 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionWrite); err != nil {
+	if err := requireWorkspaceDataAccess(c, s.teamAccessService, fullCodePath, access.ActionWrite); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -557,7 +557,7 @@ func (s *StandardAPI) TableTemplate(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+	if err := requireWorkspaceDataAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -837,7 +837,7 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionUpdate); err != nil {
+	if err := requireWorkspaceDataAccess(c, s.teamAccessService, fullCodePath, access.ActionUpdate); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -1104,7 +1104,7 @@ func (s *StandardAPI) FormSubmit(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionWrite); err != nil {
+	if err := requireWorkspaceDataAccess(c, s.teamAccessService, fullCodePath, access.ActionWrite); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -1251,7 +1251,7 @@ func (s *StandardAPI) ChartQuery(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionWrite); err != nil {
+	if err := requireWorkspaceDataAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -1318,7 +1318,7 @@ func (s *StandardAPI) CallbackOnSelectFuzzy(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+	if err := requireWorkspaceDataAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}

@@ -55,6 +55,44 @@ func (s *TeamAccessService) Can(ctx context.Context, tenantUser, app, username, 
 	return access.HasPermission(result.Permissions, action), nil
 }
 
+// CanWorkspaceData allows the existing explicit authorization first, then
+// applies the open-collaboration fallback for authenticated business-data
+// operations. Control-plane APIs must continue to call Can/Check directly.
+func (s *TeamAccessService) CanWorkspaceData(ctx context.Context, tenantUser, app, username, resourcePath string, action access.Action) (bool, error) {
+	ok, err := s.Can(ctx, tenantUser, app, username, resourcePath, action)
+	if err != nil || ok {
+		return ok, err
+	}
+	if !isOpenCollaborationDataAction(action) {
+		return false, nil
+	}
+	return s.IsOpenCollaborationWorkspace(ctx, tenantUser, app, username)
+}
+
+func (s *TeamAccessService) CheckWorkspaceData(ctx context.Context, tenantUser, app, username, resourcePath string, action access.Action) error {
+	ok, err := s.CanWorkspaceData(ctx, tenantUser, app, username, resourcePath, action)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("无权限执行 %s: %s", action, access.NormalizeResourcePath(resourcePath))
+	}
+	return nil
+}
+
+// IsOpenCollaborationWorkspace intentionally requires an authenticated user.
+// Anonymous public sharing remains a separate capability-link flow.
+func (s *TeamAccessService) IsOpenCollaborationWorkspace(ctx context.Context, tenantUser, app, username string) (bool, error) {
+	if strings.TrimSpace(username) == "" || s.appRepo == nil {
+		return false, nil
+	}
+	appModel, err := s.appRepo.GetAppByUserName(strings.TrimSpace(tenantUser), strings.TrimSpace(app))
+	if err != nil {
+		return false, err
+	}
+	return !appModel.IsDisabled() && appModel.IsOpenCollaboration(), nil
+}
+
 func (s *TeamAccessService) Resolve(ctx context.Context, tenantUser, app, username, resourcePath string) (*access.Result, error) {
 	tenantUser = strings.TrimSpace(tenantUser)
 	app = strings.TrimSpace(app)
@@ -257,6 +295,13 @@ func (s *TeamAccessService) HasAnyWorkspaceAccess(ctx context.Context, tenantUse
 	if s.isWorkspaceOwnerOrLegacyAdmin(ctx, tenantUser, app, username) {
 		return true, nil
 	}
+	open, err := s.IsOpenCollaborationWorkspace(ctx, tenantUser, app, username)
+	if err != nil {
+		return false, err
+	}
+	if open {
+		return true, nil
+	}
 	assignments, err := s.teamAccessRepo.ListAssignmentsForUser(ctx, tenantUser, app, username)
 	if err != nil {
 		return false, err
@@ -291,7 +336,28 @@ func (s *TeamAccessService) ListAccessibleApps(ctx context.Context, username str
 		seen[key] = true
 		pairs = append(pairs, [2]string{assignment.TenantUser, assignment.App})
 	}
-	return s.appRepo.GetAppsByUserAppPairs(pairs)
+	grantedApps, err := s.appRepo.GetAppsByUserAppPairs(pairs)
+	if err != nil {
+		return nil, err
+	}
+	openApps, err := s.appRepo.GetAppsByAccessMode(model.AppAccessModeOpenCollaboration)
+	if err != nil {
+		return nil, err
+	}
+	apps := make([]*model.App, 0, len(grantedApps)+len(openApps))
+	seen = map[string]bool{}
+	for _, appModel := range append(grantedApps, openApps...) {
+		if appModel == nil || appModel.IsDisabled() {
+			continue
+		}
+		key := appModel.User + "/" + appModel.Code
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		apps = append(apps, appModel)
+	}
+	return apps, nil
 }
 
 func (s *TeamAccessService) PermissionsForTree(ctx context.Context, tenantUser, app, username string, resourcePaths []string) (map[string]*access.Result, error) {
@@ -321,13 +387,41 @@ func (s *TeamAccessService) PermissionsForTree(ctx context.Context, tenantUser, 
 	if err != nil {
 		return nil, err
 	}
+	openCollaboration, err := s.IsOpenCollaborationWorkspace(ctx, tenantUser, app, username)
+	if err != nil {
+		return nil, err
+	}
 	accessAssignments := toAccessAssignments(assignments)
 	now := time.Now()
 	for _, path := range resourcePaths {
 		normalized := access.NormalizeResourcePath(path)
-		results[normalized] = access.Resolve(accessAssignments, normalized, now)
+		result := access.Resolve(accessAssignments, normalized, now)
+		if openCollaboration {
+			result.Permissions = access.MergePermissionSets(result.Permissions, openCollaborationDataPermissions())
+			if result.InheritedFrom == "" {
+				result.InheritedFrom = access.AppRootPath(tenantUser, app)
+			}
+		}
+		results[normalized] = result
 	}
 	return results, nil
+}
+
+func isOpenCollaborationDataAction(action access.Action) bool {
+	switch access.NormalizeAction(action) {
+	case access.ActionRead, access.ActionWrite, access.ActionUpdate:
+		return true
+	default:
+		return false
+	}
+}
+
+func openCollaborationDataPermissions() access.PermissionSet {
+	permissions := access.EmptyPermissionSet()
+	permissions[access.ActionRead] = true
+	permissions[access.ActionWrite] = true
+	permissions[access.ActionUpdate] = true
+	return permissions
 }
 
 func (s *TeamAccessService) isWorkspaceOwner(ctx context.Context, tenantUser, app, username string) bool {

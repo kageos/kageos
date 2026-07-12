@@ -176,7 +176,7 @@ func (s *ServiceTree) GetServiceTreeDetail(c *gin.Context) {
 		response.FailWithMessage(c, "获取服务目录详情失败: "+err.Error())
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, resp.FullCodePath, access.ActionRead); err != nil {
+	if err := requireWorkspaceDataAccess(c, s.teamAccessService, resp.FullCodePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -234,7 +234,7 @@ func (s *ServiceTree) GetDirectoryOverview(c *gin.Context) {
 		response.FailWithMessage(c, "必须提供 full_code_path 参数")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionRead); err != nil {
+	if err := requireWorkspaceDataAccess(c, s.teamAccessService, req.FullCodePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -633,28 +633,6 @@ func (s *ServiceTree) InstallCapabilityBundle(c *gin.Context) {
 		return
 	}
 	resp, err := s.serviceTreeService.InstallCapabilityBundle(ctx, &req)
-	if err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
-
-	response.OkWithDetailed(c, resp, resp.Message)
-}
-
-// InstallCapabilityBundleFromURL 从远程 URL 下载目录 JSON 并导入到目标目录节点下。
-func (s *ServiceTree) InstallCapabilityBundleFromURL(c *gin.Context) {
-	var req dto.InstallCapabilityBundleFromURLReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
-		return
-	}
-
-	ctx := contextx.ToContext(c)
-	if err := requireAccess(c, s.teamAccessService, req.TargetDirectoryPath, access.ActionAdmin); err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
-	resp, err := s.serviceTreeService.InstallCapabilityBundleFromURL(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return

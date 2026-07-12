@@ -21,6 +21,7 @@ type CreateAppReq struct {
 	Code                  string `json:"code" binding:"required" example:"myapp"`           // 应用名
 	Name                  string `json:"name" binding:"required" example:"腾讯oa系统"`          // 应用名
 	IsPublic              *bool  `json:"is_public,omitempty" example:"true"`                // 是否公开，默认 true（公开）
+	AccessMode            string `json:"access_mode,omitempty" example:"permissioned"`      // 访问模式：permissioned/open_collaboration，默认 permissioned
 	HideUnauthorizedNodes *bool  `json:"hide_unauthorized_nodes,omitempty" example:"false"` // 是否隐藏当前用户无 read 权限的目录节点，默认 false
 	Admins                string `json:"admins,omitempty" example:"user1,user2,user3"`      // 管理员列表，逗号分隔的用户名
 }
@@ -366,6 +367,13 @@ type GetAppsResp struct {
 	PageInfoResp
 }
 
+// BootstrapPersonalWorkspaceResp 是当前 JWT 用户进入工作台时获取的默认个人空间。
+// App 始终可直接用于前端路由：/workspace/{user}/{code}。
+type BootstrapPersonalWorkspaceResp struct {
+	App     AppInfo `json:"app"`
+	Created bool    `json:"created"` // 仅本次请求实际创建了 home 时为 true
+}
+
 // AppInfo 应用信息
 type AppInfo struct {
 	ID                    int64  `json:"id" example:"1"`                           // 应用ID
@@ -377,6 +385,8 @@ type AppInfo struct {
 	NatsID                int64  `json:"nats_id" example:"1"`                      // NATS ID
 	HostID                int64  `json:"host_id" example:"1"`                      // 主机ID
 	IsPublic              bool   `json:"is_public" example:"true"`                 // 是否公开
+	IsPersonalWorkspace   bool   `json:"is_personal_workspace" example:"false"`    // 是否为系统初始化的个人默认空间
+	AccessMode            string `json:"access_mode" example:"permissioned"`       // 访问模式：permissioned/open_collaboration
 	HideUnauthorizedNodes bool   `json:"hide_unauthorized_nodes" example:"false"`  // 是否隐藏当前用户无 read 权限的目录节点
 	Admins                string `json:"admins,omitempty" example:"user1,user2"`   // 管理员列表，逗号分隔的用户名
 	Type                  int    `json:"type" example:"0"`                         // 应用类型：0=用户空间，1=系统空间

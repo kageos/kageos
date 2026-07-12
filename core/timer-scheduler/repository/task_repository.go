@@ -9,6 +9,7 @@ import (
 
 	"github.com/kageos/kageos/core/timer-scheduler/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type TimerTaskRepository struct {
@@ -48,6 +49,14 @@ func (r *TimerTaskRepository) Update(task *model.TimerTask) error {
 func (r *TimerTaskRepository) GetByID(id int64) (*model.TimerTask, error) {
 	var task model.TimerTask
 	if err := r.db.Where("id = ?", id).First(&task).Error; err != nil {
+		return nil, err
+	}
+	return &task, nil
+}
+
+func (r *TimerTaskRepository) GetByIDForUpdate(id int64) (*model.TimerTask, error) {
+	var task model.TimerTask
+	if err := r.db.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&task).Error; err != nil {
 		return nil, err
 	}
 	return &task, nil
@@ -246,19 +255,22 @@ func (r *TimerTaskRepository) RecordManualExecutionSubmitted(taskID, executionID
 	return result.RowsAffected > 0, nil
 }
 
-func (r *TimerTaskRepository) TryCompleteExecution(task *model.TimerTask, executionID int64) (bool, error) {
+func (r *TimerTaskRepository) TrySettleExecution(task *model.TimerTask, executionID int64, expectedStatus string, clearInflight bool) (bool, error) {
+	updates := map[string]interface{}{
+		"status":             task.Status,
+		"next_run_at":        task.NextRunAt,
+		"run_count":          task.RunCount,
+		"last_execution_id":  task.LastExecutionID,
+		"last_error_message": task.LastErrorMessage,
+	}
+	if clearInflight {
+		updates["inflight_execution_id"] = 0
+		updates["lease_owner"] = ""
+		updates["lease_until"] = nil
+	}
 	result := r.db.Model(&model.TimerTask{}).
-		Where("id = ?", task.ID).
-		Updates(map[string]interface{}{
-			"status":                task.Status,
-			"next_run_at":           task.NextRunAt,
-			"run_count":             task.RunCount,
-			"last_execution_id":     executionID,
-			"last_error_message":    task.LastErrorMessage,
-			"inflight_execution_id": 0,
-			"lease_owner":           "",
-			"lease_until":           nil,
-		})
+		Where("id = ? AND status = ?", task.ID, expectedStatus).
+		Updates(updates)
 	if result.Error != nil {
 		return false, result.Error
 	}

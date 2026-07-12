@@ -24,7 +24,14 @@ func renderAll(rt RuntimeConfig) error {
 		rt.TLSCertsHostDir,
 	}
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		mode := os.FileMode(0755)
+		if dir == filepath.Join(rt.Paths.GeneratedDir, "config") || dir == filepath.Join(rt.Paths.GeneratedDir, "env") {
+			mode = 0700
+		}
+		if err := os.MkdirAll(dir, mode); err != nil {
+			return err
+		}
+		if err := os.Chmod(dir, mode); err != nil {
 			return err
 		}
 	}
@@ -48,10 +55,14 @@ func renderAll(rt RuntimeConfig) error {
 	}
 	for rel, content := range files {
 		mode := os.FileMode(0644)
-		if rel == ".env" || strings.HasPrefix(rel, "env/") {
+		if rel == "docker-compose.yaml" || rel == ".env" || strings.HasPrefix(rel, "env/") || strings.HasPrefix(rel, "config/") {
 			mode = 0600
 		}
-		if err := os.WriteFile(filepath.Join(rt.Paths.GeneratedDir, rel), []byte(content), mode); err != nil {
+		path := filepath.Join(rt.Paths.GeneratedDir, rel)
+		if err := os.WriteFile(path, []byte(content), mode); err != nil {
+			return err
+		}
+		if err := os.Chmod(path, mode); err != nil {
 			return err
 		}
 	}
@@ -96,7 +107,10 @@ func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, company
 
 	configDir := filepath.Join(paths.RepoRoot, defaultDevConfig)
 	for _, dir := range []string{configDir, envDir} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return err
+		}
+		if err := os.Chmod(dir, 0700); err != nil {
 			return err
 		}
 	}
@@ -114,11 +128,19 @@ func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, company
 		"hr-server.yaml":        renderTemplate(hrServerConfigTemplate, rt),
 	}
 	for name, content := range files {
-		if err := os.WriteFile(filepath.Join(configDir, name), []byte(content), 0644); err != nil {
+		mode := os.FileMode(0600)
+		path := filepath.Join(configDir, name)
+		if err := os.WriteFile(path, []byte(content), mode); err != nil {
+			return err
+		}
+		if err := os.Chmod(path, mode); err != nil {
 			return err
 		}
 	}
 	if err := os.WriteFile(envPath, []byte(renderTemplate(envTemplate, rt)), 0600); err != nil {
+		return err
+	}
+	if err := os.Chmod(envPath, 0600); err != nil {
 		return err
 	}
 	fmt.Printf("==> dev config rendered: %s\n", configDir)
@@ -231,6 +253,10 @@ func generateDevSecrets() (devSecrets, error) {
 	if err != nil {
 		return devSecrets{}, err
 	}
+	controlPlaneSecret, err := randomHex(32)
+	if err != nil {
+		return devSecrets{}, err
+	}
 	systemPass, err := randomHex(24)
 	if err != nil {
 		return devSecrets{}, err
@@ -243,6 +269,7 @@ func generateDevSecrets() (devSecrets, error) {
 		MinIORootPassword:  minioPass,
 		JWTSecret:          jwt,
 		AppDBSecret:        appDBSecret,
+		ControlPlaneSecret: controlPlaneSecret,
 		SystemUserPassword: systemPass,
 	}, nil
 }
@@ -274,6 +301,14 @@ func mergeDevSecrets(values map[string]string) (devSecrets, error) {
 		}
 		appDBSecret = generated
 	}
+	controlPlaneSecret := strings.TrimSpace(values["KAGEOS_CONTROL_PLANE_SECRET"])
+	if controlPlaneSecret == "" {
+		generated, err := randomHex(32)
+		if err != nil {
+			return devSecrets{}, err
+		}
+		controlPlaneSecret = generated
+	}
 	return devSecrets{
 		MySQLRootPassword:  strings.TrimSpace(values["MYSQL_ROOT_PASSWORD"]),
 		NATSUser:           strings.TrimSpace(values["NATS_SEED_USER"]),
@@ -282,6 +317,7 @@ func mergeDevSecrets(values map[string]string) (devSecrets, error) {
 		MinIORootPassword:  strings.TrimSpace(values["MINIO_ROOT_PASSWORD"]),
 		JWTSecret:          strings.TrimSpace(values["JWT_SECRET"]),
 		AppDBSecret:        appDBSecret,
+		ControlPlaneSecret: controlPlaneSecret,
 		SystemUserPassword: strings.TrimSpace(values["SYSTEM_USER_PASSWORD"]),
 	}, nil
 }

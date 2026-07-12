@@ -1,7 +1,30 @@
 <template>
   <div class="detail-content">
     <div v-if="packageNode">
+      <section
+        v-if="isEmptyWorkspaceRoot"
+        class="workspace-onboarding"
+        data-testid="workspace-onboarding"
+      >
+        <div class="workspace-onboarding__icon">
+          <el-icon><Compass /></el-icon>
+        </div>
+        <p class="workspace-onboarding__eyebrow">{{ t('workspace.onboardingEyebrow') }}</p>
+        <h1>{{ t('workspace.onboardingTitle') }}</h1>
+        <p class="workspace-onboarding__description">{{ t('workspace.onboardingDescription') }}</p>
+        <div class="workspace-onboarding__actions">
+          <el-button
+            :icon="Plus"
+            data-testid="workspace-onboarding-create-directory"
+            @click="handleCreateDirectory"
+          >
+            {{ t('workspace.onboardingBlank') }}
+          </el-button>
+        </div>
+      </section>
+
       <el-tabs
+        v-else
         :model-value="activeTab"
         class="detail-tabs"
         @tab-change="handlePackageTabChange"
@@ -97,6 +120,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { Compass, Plus } from '@element-plus/icons-vue'
 import type { ServiceTree } from '@/architecture/domain/types'
 import PackageDirectoryOverview from './PackageDirectoryOverview.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
@@ -125,9 +149,10 @@ const props = defineProps<{
   packageNode: ServiceTree | null
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'select-child', child: ServiceTree): void
   (e: 'access-changed'): void
+  (e: 'create-directory', node: ServiceTree): void
 }>()
 
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
@@ -152,6 +177,9 @@ const packageScopeType = computed(() => {
   const parts = String(props.packageNode?.full_code_path || '').split('/').filter(Boolean)
   return parts.length <= 2 ? 'workspace' : 'directory'
 })
+const isEmptyWorkspaceRoot = computed(() => {
+  return packageScopeType.value === 'workspace' && !(props.packageNode?.children?.length)
+})
 const scheduledFocusTaskID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY))
 const scheduledFocusExecutionID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_EXECUTION_ID_QUERY_KEY))
 const scheduledAgentLoadedTotal = ref<number | null>(null)
@@ -165,6 +193,12 @@ const scheduledAgentBadgeCount = computed(() => {
 
 function handleScheduledAgentTotalChange(value: number) {
   scheduledAgentLoadedTotal.value = Number(value || 0)
+}
+
+function handleCreateDirectory() {
+  if (props.packageNode) {
+    emit('create-directory', props.packageNode)
+  }
 }
 
 function loadOperateLogTab(tabName: PackageTabName) {
@@ -201,6 +235,63 @@ watch(
   padding: 32px 40px;
   min-width: 0;
   width: 100%;
+}
+
+.workspace-onboarding {
+  min-height: min(520px, 64vh);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  border: 1px dashed var(--app-shell-panel-border);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(var(--el-color-primary-rgb), 0.07), transparent 58%);
+  text-align: center;
+}
+
+.workspace-onboarding__icon {
+  width: 58px;
+  height: 58px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  border-radius: 18px;
+  background: rgba(var(--el-color-primary-rgb), 0.14);
+  color: var(--el-color-primary);
+  font-size: 28px;
+}
+
+.workspace-onboarding__eyebrow {
+  margin: 0 0 8px;
+  color: var(--el-color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.workspace-onboarding h1 {
+  margin: 0;
+  color: var(--el-text-color-primary);
+  font-size: clamp(24px, 3vw, 32px);
+  line-height: 1.3;
+}
+
+.workspace-onboarding__description {
+  max-width: 510px;
+  margin: 14px 0 0;
+  color: var(--el-text-color-regular);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.workspace-onboarding__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 28px;
 }
 
 .detail-tabs {
@@ -410,5 +501,6 @@ watch(
   .detail-content {
     padding: 24px 20px;
   }
+
 }
 </style>

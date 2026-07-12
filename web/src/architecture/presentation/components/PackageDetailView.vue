@@ -11,6 +11,7 @@
         :package-node="packageNode || null"
         @select-child="handleChildClick"
         @access-changed="emit('refresh')"
+        @create-directory="emit('create-directory', $event)"
       />
     </div>
   </div>
@@ -32,6 +33,7 @@ defineProps<Props>()
 
 const emit = defineEmits<{
   'refresh': []
+  'create-directory': [node: ServiceTree]
 }>()
 
 const route = useRoute()

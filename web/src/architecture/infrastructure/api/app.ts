@@ -25,6 +25,11 @@ export interface UpdateAppApiInfo {
   full_code_path?: string
 }
 
+export interface BootstrapPersonalWorkspaceResponse {
+  app: App
+  created: boolean
+}
+
 // 获取工作空间列表
 export function getAppList(pageSize: number = 200, search?: string, includeAll: boolean = false, type?: number) {
   // 后端返回的是分页数据结构: { page, page_size, total_count, items: App[] }
@@ -71,6 +76,9 @@ export function createApp(data: CreateAppRequest) {
     code: data.code,
     name: data.name
   }
+  if (data.access_mode !== undefined) {
+    payload.access_mode = data.access_mode
+  }
   if (data.is_public !== undefined) {
     payload.is_public = data.is_public
   }
@@ -81,6 +89,11 @@ export function createApp(data: CreateAppRequest) {
     payload.admins = data.admins
   }
   return post<CreateAppResponse>('/workspace/api/v1/app/create', payload)
+}
+
+// 首次进入工作台时获取可进入的个人工作空间；后端保证该操作幂等。
+export function bootstrapPersonalWorkspace() {
+  return post<BootstrapPersonalWorkspaceResponse>('/workspace/api/v1/app/bootstrap_personal_workspace')
 }
 
 // 更新工作空间（重新编译）
@@ -120,11 +133,13 @@ export function getAppWithServiceTree(resourcePath: string, nodeType?: string) {
 // 更新工作空间配置（只更新 MySQL 记录，不涉及容器更新，canonical 标识为 resource_path）
 export function updateWorkspace(
   resourcePath: string,
-  data: { admins?: string; hide_unauthorized_nodes?: boolean }
+  data: { name?: string; access_mode?: App['access_mode']; admins?: string; hide_unauthorized_nodes?: boolean }
 ) {
   return put<{
     user: string
     app: string
+    name?: string
+    access_mode?: App['access_mode']
     admins: string
     hide_unauthorized_nodes: boolean
   }>('/workspace/api/v1/app/workspace', {

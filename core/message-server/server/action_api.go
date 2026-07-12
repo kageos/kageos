@@ -28,6 +28,11 @@ func (s *Server) getPublicMessageAction(c *gin.Context) {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
+	authenticatedUser := strings.TrimSpace(contextx.GetRequestUser(c))
+	if authenticatedUser == "" || strings.TrimSpace(view.RecipientUser) != authenticatedUser {
+		response.NoAuth(c, "消息动作用户与当前登录用户不一致")
+		return
+	}
 	view.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), view.Message.SourcePath, view.WorkspaceSession)
 	response.OkWithData(c, view)
 }
@@ -49,6 +54,11 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 			return
 		}
 		response.FailWithMessage(c, err.Error())
+		return
+	}
+	authenticatedUser := strings.TrimSpace(contextx.GetRequestUser(c))
+	if authenticatedUser == "" || strings.TrimSpace(view.RecipientUser) != authenticatedUser {
+		response.NoAuth(c, "消息动作用户与当前登录用户不一致")
 		return
 	}
 	fullCodePath := mobileActionFullCodePath(view.Message)
@@ -75,6 +85,13 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 	}
 	runResult, runErr := s.workspaceActionRunner.Submit(c.Request.Context(), service.WorkspaceActionRequest{
 		RecipientUser:         view.RecipientUser,
+		UserID:                c.GetHeader(contextx.UserIDHeader),
+		UserEmail:             c.GetHeader(contextx.UserEmailHeader),
+		LeaderUsername:        c.GetHeader(contextx.LeaderUsernameHeader),
+		DepartmentFullPath:    c.GetHeader(contextx.DepartmentFullPathHeader),
+		CompanyCode:           c.GetHeader(contextx.CompanyCodeHeader),
+		CompanyName:           c.GetHeader(contextx.CompanyNameHeader),
+		CompanyLogoURL:        c.GetHeader(contextx.CompanyLogoURLHeader),
 		Channel:               firstNonEmptyActionString(resp.Channel, view.Channel),
 		FullCodePath:          resp.FullCodePath,
 		SessionID:             resp.WorkspaceSessionID,

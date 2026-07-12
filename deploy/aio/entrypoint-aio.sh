@@ -321,6 +321,7 @@ prepare_secrets() {
   load_or_create_secret NATS_PASSWORD 24
   load_or_create_secret JWT_SECRET 32
   load_or_create_secret KAGEOS_APP_DB_SECRET_KEY 32
+  load_or_create_secret KAGEOS_CONTROL_PLANE_SECRET 32
   load_or_create_secret SYSTEM_USER_PASSWORD 24
 
   NATS_SEED_PASSWORD="${NATS_SEED_PASSWORD:-$NATS_PASSWORD}"

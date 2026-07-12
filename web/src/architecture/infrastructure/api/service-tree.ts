@@ -229,29 +229,6 @@ export function installCapabilityBundle(data: {
   }>('/workspace/api/v1/service_tree/install_capability_bundle', data)
 }
 
-export function installCapabilityBundleFromURL(data: {
-  target_directory_path: string
-  overwrite?: boolean
-  force_diff?: boolean
-  bundle_subpath?: string
-  bundle_url: string
-  install_key?: string
-}) {
-  return post<{
-    message: string
-    directory_count: number
-    file_count: number
-    doc_count?: number
-    agent_task_count?: number
-    target_directory_path: string
-    created_paths?: string[]
-    written_paths?: string[]
-    old_version?: string
-    new_version?: string
-    warnings?: string[]
-  }>('/workspace/api/v1/service_tree/install_capability_bundle_from_url', data)
-}
-
 // 搜索函数
 export interface SearchFunctionsReq {
   user: string
