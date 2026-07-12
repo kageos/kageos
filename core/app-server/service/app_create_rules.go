@@ -37,6 +37,9 @@ func (a *AppService) validateCreateAppRequest(ctx context.Context, req *dto.Crea
 	if err := naming.ValidateGoPackageNameLength(req.Code, "工作空间英文标识", 2, naming.MaxGoPackageNameLength); err != nil {
 		return "", "", err
 	}
+	if req.Code == PersonalWorkspaceCode {
+		return "", "", fmt.Errorf("工作空间英文标识「%s」为系统保留，请换一个", PersonalWorkspaceCode)
+	}
 
 	if exists, err := a.appRepo.ExistsAppNameForUser(tenantUser, req.Name); err != nil {
 		return "", "", fmt.Errorf("检查应用名称唯一性失败: %w", err)
@@ -44,13 +47,23 @@ func (a *AppService) validateCreateAppRequest(ctx context.Context, req *dto.Crea
 		return "", "", fmt.Errorf("应用名称已存在: %s", req.Name)
 	}
 
+	accessMode := model.NormalizeAppAccessMode(model.AppAccessMode(req.AccessMode))
+	if !model.IsValidAppAccessMode(accessMode) {
+		return "", "", fmt.Errorf("工作空间访问模式无效: %s", req.AccessMode)
+	}
+	req.AccessMode = string(accessMode)
+
 	return requestUser, tenantUser, nil
 }
 
 func (a *AppService) buildInitialAppAndRoot(requestUser, tenantUser string, req *dto.CreateAppReq, selectedHost *model.Host) (*model.App, *model.ServiceTree) {
+	accessMode := model.NormalizeAppAccessMode(model.AppAccessMode(req.AccessMode))
 	isPublic := true
 	if req.IsPublic != nil {
 		isPublic = *req.IsPublic
+	}
+	if accessMode.IsOpenCollaboration() {
+		isPublic = true
 	}
 	hideUnauthorizedNodes := false
 	if req.HideUnauthorizedNodes != nil {
@@ -69,6 +82,7 @@ func (a *AppService) buildInitialAppAndRoot(requestUser, tenantUser string, req 
 		HostID:                selectedHost.ID,
 		Status:                "enabled",
 		IsPublic:              isPublic,
+		AccessMode:            accessMode,
 		HideUnauthorizedNodes: hideUnauthorizedNodes,
 		Admins:                req.Admins,
 	}
@@ -92,7 +106,7 @@ func (a *AppService) buildInitialAppAndRoot(requestUser, tenantUser string, req 
 
 func (a *AppService) persistCreatedApp(ctx context.Context, app *model.App, rootNode *model.ServiceTree) error {
 	if err := a.appRepo.GetDB().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(app).Error; err != nil {
+		if err := createAppRecord(tx, app); err != nil {
 			return err
 		}
 
@@ -110,5 +124,25 @@ func (a *AppService) persistCreatedApp(ctx context.Context, app *model.App, root
 
 	logger.Infof(ctx, "[AppService] 创建 service_tree 根节点成功: app_id=%d, root_id=%d, full_code_path=%s",
 		app.ID, rootNode.ID, rootNode.FullCodePath)
+	return nil
+}
+
+// createAppRecord preserves an explicit private choice. App.IsPublic keeps a
+// database default of true for historical callers; GORM therefore omits a
+// false zero-value during Create and lets the database default overwrite it.
+// Correct it in the same transaction so private workspaces are never visible
+// outside the transaction as public.
+func createAppRecord(tx *gorm.DB, app *model.App) error {
+	requestedPublic := app.IsPublic
+	if err := tx.Create(app).Error; err != nil {
+		return err
+	}
+	if requestedPublic {
+		return nil
+	}
+	if err := tx.Model(&model.App{}).Where("id = ?", app.ID).Update("is_public", false).Error; err != nil {
+		return fmt.Errorf("设置工作空间为私有失败: %w", err)
+	}
+	app.IsPublic = false
 	return nil
 }

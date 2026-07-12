@@ -81,6 +81,7 @@ func (r *TimerExecutionRepository) TryMarkRunning(taskID, executionID int64, wor
 	}
 	result := r.db.Model(&model.TimerExecution{}).
 		Where("task_id = ? AND id = ? AND status = ?", taskID, executionID, "queued").
+		Where(eligibleTimerTaskForExecutionSQL, []string{"pending", "paused"}, "manual", "cancelled").
 		Updates(updates)
 	if result.Error != nil {
 		return false, result.Error
@@ -88,9 +89,40 @@ func (r *TimerExecutionRepository) TryMarkRunning(taskID, executionID int64, wor
 	return result.RowsAffected > 0, nil
 }
 
-func (r *TimerExecutionRepository) TryHeartbeat(taskID, executionID int64, workerID string, heartbeatAt, leaseUntil time.Time) (bool, error) {
+func (r *TimerExecutionRepository) IsRunningForActiveTask(taskID, executionID int64, workerID, executorRunID string) (bool, error) {
+	var count int64
+	err := r.db.Model(&model.TimerExecution{}).
+		Where("task_id = ? AND id = ? AND status = ?", taskID, executionID, "running").
+		Where("worker_id = ? AND executor_run_id = ?", workerID, executorRunID).
+		Where(eligibleTimerTaskForExecutionSQL, []string{"pending", "paused"}, "manual", "cancelled").
+		Count(&count).Error
+	return count > 0, err
+}
+
+func (r *TimerExecutionRepository) CancelActiveByTaskID(taskID int64, finishedAt time.Time, message string) error {
+	return r.db.Model(&model.TimerExecution{}).
+		Where("task_id = ? AND status IN ?", taskID, []string{"queued", "running"}).
+		Updates(map[string]interface{}{
+			"status":        "cancelled",
+			"finished_at":   finishedAt,
+			"lease_until":   nil,
+			"error_message": message,
+		}).Error
+}
+
+const eligibleTimerTaskForExecutionSQL = `EXISTS (
+	SELECT 1 FROM timer_task AS eligible_task
+	WHERE eligible_task.id = timer_execution.task_id
+	  AND eligible_task.deleted_at IS NULL
+	  AND (
+	    eligible_task.status IN ?
+	    OR (timer_execution.trigger_type = ? AND eligible_task.status <> ?)
+	  )
+)`
+
+func (r *TimerExecutionRepository) TryHeartbeat(taskID, executionID int64, workerID, executorRunID string, heartbeatAt, leaseUntil time.Time) (bool, error) {
 	query := r.db.Model(&model.TimerExecution{}).
-		Where("task_id = ? AND id = ? AND status = ?", taskID, executionID, "running")
+		Where("task_id = ? AND id = ? AND status = ? AND executor_run_id = ?", taskID, executionID, "running", executorRunID)
 	if workerID != "" {
 		query = query.Where("worker_id = ?", workerID)
 	}
@@ -99,6 +131,16 @@ func (r *TimerExecutionRepository) TryHeartbeat(taskID, executionID int64, worke
 		"heartbeat_misses": 0,
 		"lease_until":      leaseUntil,
 	})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+func (r *TimerExecutionRepository) TryFinishByRunID(taskID, executionID int64, executorRunID string, updates map[string]interface{}) (bool, error) {
+	result := r.db.Model(&model.TimerExecution{}).
+		Where("task_id = ? AND id = ? AND status = ? AND executor_run_id = ?", taskID, executionID, "running", executorRunID).
+		Updates(updates)
 	if result.Error != nil {
 		return false, result.Error
 	}

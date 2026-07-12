@@ -74,6 +74,10 @@ func defaultConfig() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	controlPlaneSecret, err := randomHex(32)
+	if err != nil {
+		return Config{}, err
+	}
 	mysqlPass, err := randomHex(32)
 	if err != nil {
 		return Config{}, err
@@ -151,6 +155,7 @@ func defaultConfig() (Config, error) {
 		Secrets: SecretsConfig{
 			JWTSecret:              jwt,
 			AppDBSecret:            appDBSecret,
+			ControlPlaneSecret:     controlPlaneSecret,
 			GeneratedByKageCtl:     true,
 			GeneratedAtUnixSeconds: time.Now().Unix(),
 		},
@@ -230,6 +235,7 @@ func defaultDevDeploymentConfig(secrets devSecrets) Config {
 		Secrets: SecretsConfig{
 			JWTSecret:              secrets.JWTSecret,
 			AppDBSecret:            secrets.AppDBSecret,
+			ControlPlaneSecret:     secrets.ControlPlaneSecret,
 			GeneratedByKageCtl:     true,
 			GeneratedAtUnixSeconds: time.Now().Unix(),
 		},
@@ -297,6 +303,12 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Secrets.AppDBSecret == "" {
 		cfg.Secrets.AppDBSecret = cfg.Secrets.JWTSecret
+	}
+	// Upgrade compatibility for kage.yaml files created before the dedicated
+	// control-plane secret was introduced. Newly initialized configs always use
+	// an independently generated value.
+	if cfg.Secrets.ControlPlaneSecret == "" {
+		cfg.Secrets.ControlPlaneSecret = cfg.Secrets.JWTSecret
 	}
 	if cfg.MySQL.Mode == "" {
 		cfg.MySQL.Mode = "bundled"
@@ -688,6 +700,9 @@ func validateConfig(rt RuntimeConfig) error {
 	}
 	if len(rt.Secrets.AppDBSecret) < 32 {
 		errs = append(errs, fmt.Errorf("secrets.app_db_secret must be at least 32 chars"))
+	}
+	if len(rt.Secrets.ControlPlaneSecret) < 32 {
+		errs = append(errs, fmt.Errorf("secrets.control_plane_secret must be at least 32 chars"))
 	}
 	if rt.SystemUser.Password == "" {
 		errs = append(errs, fmt.Errorf("system_user.password is required"))

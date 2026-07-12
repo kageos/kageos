@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/kageos/kageos/core/agent-server/model"
+	"github.com/kageos/kageos/core/agent-server/repository"
 	"github.com/kageos/kageos/core/agent-server/streamloop"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/contextx"
@@ -85,6 +86,10 @@ func (s *WorkspaceChatService) buildWorkspaceSessionItems(ctx context.Context, s
 		item := &dto.WorkspaceSessionItem{
 			SessionID:                   session.SessionID,
 			Title:                       session.Title,
+			Source:                      session.Source,
+			AutomationTaskID:            session.AutomationTaskID,
+			AutomationTaskCode:          session.AutomationTaskCode,
+			AutomationTaskTitle:         session.AutomationTaskTitle,
 			User:                        session.User,
 			ModeCode:                    normalizeWorkspaceModeCode(session.ModeCode),
 			Status:                      session.Status,
@@ -106,6 +111,58 @@ func (s *WorkspaceChatService) buildWorkspaceSessionItems(ctx context.Context, s
 		items = append(items, item)
 	}
 	return items
+}
+
+func (s *WorkspaceChatService) ListSessionsFiltered(ctx context.Context, fullCodePath, sessionScope string, automationTaskID int64, page, pageSize int) ([]*dto.WorkspaceSessionItem, int64, []*dto.WorkspaceAutomationAgentItem, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	sessionScope = strings.TrimSpace(sessionScope)
+	if sessionScope == "" {
+		sessionScope = "human"
+	}
+	if sessionScope != "human" && sessionScope != "automation" && sessionScope != "all" {
+		return nil, 0, nil, fmt.Errorf("无效的 session_scope: %s", sessionScope)
+	}
+	if sessionScope == "automation" && automationTaskID <= 0 {
+		return nil, 0, nil, fmt.Errorf("查看自动化 Agent 会话时 automation_task_id 必填")
+	}
+
+	user := contextx.GetRequestUser(ctx)
+	sessions, total, err := s.sessionRepo.ListWorkspaceSessions(repository.WorkspaceSessionListOptions{
+		FullCodePath:     fullCodePath,
+		User:             user,
+		SessionScope:     sessionScope,
+		AutomationTaskID: automationTaskID,
+		Offset:           (page - 1) * pageSize,
+		Limit:            pageSize,
+	})
+	if err != nil {
+		return nil, 0, nil, fmt.Errorf("获取会话列表失败: %w", err)
+	}
+	agents, err := s.sessionRepo.ListWorkspaceAutomationAgents(fullCodePath, user)
+	if err != nil {
+		return nil, 0, nil, fmt.Errorf("获取自动化 Agent 列表失败: %w", err)
+	}
+	agentItems := make([]*dto.WorkspaceAutomationAgentItem, 0, len(agents))
+	for _, agent := range agents {
+		title := strings.TrimSpace(agent.TaskTitle)
+		if title == "" {
+			title = fmt.Sprintf("自动化 Agent #%d", agent.TaskID)
+		}
+		agentItems = append(agentItems, &dto.WorkspaceAutomationAgentItem{
+			TaskID:    agent.TaskID,
+			TaskCode:  agent.TaskCode,
+			TaskTitle: title,
+		})
+	}
+	return s.buildWorkspaceSessionItems(ctx, sessions), total, agentItems, nil
 }
 
 func (s *WorkspaceChatService) resolveWorkspaceSessionDirectoryNames(ctx context.Context, sessions []*model.AgentChatSession) map[string]string {

@@ -17,7 +17,6 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/natsx"
-	"github.com/kageos/kageos/pkg/openapitoken"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/kageos/kageos/pkg/waiter"
@@ -228,10 +227,6 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	if err := model.InitTables(s.db); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
-	if err := openapitoken.SetDB(s.db); err != nil {
-		return fmt.Errorf("failed to init openapi token store: %w", err)
-	}
-
 	logger.Infof(ctx, "[Server] Database initialized successfully")
 	return nil
 }
@@ -295,7 +290,11 @@ func (s *Server) initServices(ctx context.Context) error {
 	}
 	s.appService.SetTeamAccessService(s.teamAccessService)
 	s.appService.SetFunctionSensitiveFieldService(s.functionSensitiveFieldService)
-	scheduledFuncWorker, err := service.NewScheduledFunctionWorker(s.natsConn, s.appService)
+	controlPlaneSecret, err := config.GetControlPlaneSecret()
+	if err != nil {
+		return fmt.Errorf("load scheduled function worker control auth: %w", err)
+	}
+	scheduledFuncWorker, err := service.NewScheduledFunctionWorker(s.natsConn, s.appService, controlPlaneSecret)
 	if err != nil {
 		return fmt.Errorf("failed to init scheduled function worker: %w", err)
 	}

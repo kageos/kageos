@@ -110,6 +110,21 @@ func TestScheduledAgentSessionWorkspaceRequestTreatsSystemAsDefaultRecipient(t *
 	}
 }
 
+func TestScheduledAgentSessionIdentityUsesTaskMetadata(t *testing.T) {
+	event := scheduledsdk.ExecutionRequestedEvent{
+		TaskID: 42,
+		Metadata: map[string]string{
+			"task_title":    "每日经营复盘",
+			"schedule_code": "daily_review",
+		},
+	}
+	ctx := contextWithScheduledAgentSessionIdentity(context.Background(), event)
+	identity := scheduledAgentSessionIdentityFromContext(ctx)
+	if identity.TaskID != 42 || identity.TaskTitle != "每日经营复盘" || identity.TaskCode != "daily_review" {
+		t.Fatalf("unexpected scheduled agent identity: %#v", identity)
+	}
+}
+
 func TestScheduledAgentSessionSinkBuildsExecutionResult(t *testing.T) {
 	sink := &scheduledAgentSessionSink{}
 	sink.Send(EventSession, dto.WorkspaceStreamSession{SessionID: "session-1"})

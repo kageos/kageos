@@ -43,7 +43,7 @@ func (s *Doc) GetDoc(c *gin.Context) {
 		response.FailWithMessage(c, "路径不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+	if err := requireWorkspaceDataAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -200,7 +200,7 @@ func (s *Doc) BatchGetDocs(c *gin.Context) {
 		return
 	}
 	for _, path := range req.Paths {
-		if err := requireAccess(c, s.teamAccessService, path, access.ActionRead); err != nil {
+		if err := requireWorkspaceDataAccess(c, s.teamAccessService, path, access.ActionRead); err != nil {
 			response.FailWithMessage(c, err.Error())
 			return
 		}

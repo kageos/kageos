@@ -71,7 +71,16 @@ type UserTokenContext struct {
 
 // GenerateAccessTokenWithContext 生成访问令牌，携带用户、企业和组织架构上下文。
 func (s *JWTService) GenerateAccessTokenWithContext(userContext UserTokenContext) (string, error) {
-	return s.generateTokenWithContext(userContext, "access", time.Now().Add(time.Duration(s.config.AccessTokenExpire)*time.Second))
+	return s.GenerateAccessTokenWithContextExpiresAt(
+		userContext,
+		time.Now().Add(time.Duration(s.config.AccessTokenExpire)*time.Second),
+	)
+}
+
+// GenerateAccessTokenWithContextExpiresAt creates an access token with an
+// explicit short lifetime for trusted, post-verification execution contexts.
+func (s *JWTService) GenerateAccessTokenWithContextExpiresAt(userContext UserTokenContext, expiresAt time.Time) (string, error) {
+	return s.generateTokenWithContext(userContext, "access", expiresAt)
 }
 
 // GenerateOpenAPITokenWithContext 生成用于 OpenAPI 调用的长期 JWT。

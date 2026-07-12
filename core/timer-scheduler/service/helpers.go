@@ -25,7 +25,10 @@ func validateCreateTaskRequest(req scheduledsdk.CreateTaskRequest, payloadLimit 
 	if err := req.Schedule.Validate(); err != nil {
 		return err
 	}
-	return validatePayload(req.ExecutorPayload, payloadLimit)
+	if err := validatePayload(req.ExecutorPayload, payloadLimit); err != nil {
+		return err
+	}
+	return scheduledsdk.ValidateExecutionMetadata(req.Metadata)
 }
 
 func createTaskInitialStatus(status scheduledsdk.TaskStatus) scheduledsdk.TaskStatus {

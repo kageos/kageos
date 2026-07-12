@@ -136,17 +136,18 @@ func (h *Workspace) ListSessions(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	sessions, total, err := h.wsChatSvc.ListSessions(ctx, req.FullCodePath, req.Page, req.PageSize)
+	sessions, total, automationAgents, err := h.wsChatSvc.ListSessionsFiltered(ctx, req.FullCodePath, req.SessionScope, req.AutomationTaskID, req.Page, req.PageSize)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
 
 	response.OkWithData(c, &dto.ListWorkspaceSessionsResp{
-		Sessions: sessions,
-		Total:    total,
-		Page:     req.Page,
-		PageSize: req.PageSize,
+		Sessions:         sessions,
+		AutomationAgents: automationAgents,
+		Total:            total,
+		Page:             req.Page,
+		PageSize:         req.PageSize,
 	})
 }
 

@@ -9,18 +9,18 @@ import (
 func (s *Server) setupRoutes() {
 	s.httpServer.GET("/health", s.healthHandler)
 	s.httpServer.GET("/message/health", s.healthHandler)
+	s.httpServer.GET("/message/api/v1/health", s.messageAPIHealth)
 	if s.cfg.IsPprofEnabled() {
 		pprof.RegisterPprofRoutes(s.httpServer)
 	}
 
 	publicMessage := s.httpServer.Group("/message/api/v1/public")
-	publicMessage.Use(middleware2.JWTAuth())
+	publicMessage.Use(middleware2.StrictCredentialAuth())
 	publicMessage.GET("/actions/:token", s.getPublicMessageAction)
 	publicMessage.POST("/actions/:token/reply", s.submitPublicMessageActionReply)
 
 	message := s.httpServer.Group("/message/api/v1")
-	message.Use(middleware2.JWTAuth())
-	message.GET("/health", s.messageAPIHealth)
+	message.Use(middleware2.StrictCredentialAuth())
 	message.POST("/send", s.sendMessage)
 	message.POST("/send/users", s.sendMessageToUsers)
 	message.GET("/notification_channels", s.listNotificationChannels)

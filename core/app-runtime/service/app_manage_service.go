@@ -2,9 +2,13 @@ package service
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,6 +64,12 @@ type CloseNotification struct {
 	Version   string
 	CloseTime time.Time
 }
+
+const (
+	appNATSCredentialsSecretTarget = "kageos-nats"
+	appNATSCredentialsSDKMarker    = "/run/secrets/kageos-nats"
+	appBinaryMarkerScanBufferSize  = 64 * 1024
+)
 
 // AppManageService 应用管理服务 - 负责应用的增删改查
 type AppManageService struct {
@@ -592,6 +602,8 @@ func (s *AppManageService) buildAppVersionSpec(ctx context.Context, ref AppVersi
 		return AppVersionSpec{}, fmt.Errorf("failed to get absolute path: %w", err)
 	}
 	containerPath := s.runtimeConfig.GetContainerPath()
+	binaryName := s.appBinaryName(ref.User, ref.App, ref.Version)
+	hostBinaryPath := filepath.Join(absHostPath, "workplace", "bin", "releases", binaryName)
 
 	logger.Infof(ctx, "[buildAppVersionSpec] Runtime mount: image=%s, name=%s, hostPath=%s, containerPath=%s", image, ref.RuntimeName(), absHostPath, containerPath)
 
@@ -604,19 +616,22 @@ func (s *AppManageService) buildAppVersionSpec(ctx context.Context, ref AppVersi
 	// 网络使用同一份静态地址。
 	//
 	// SDK 配置会在构建时注入为环境变量：
-	//   - nats_url -> NATS_URL 环境变量
+	//   - nats_url -> NATS_URL 无凭据 endpoint；URL userinfo 以 Podman secret 注入
 	//   - gateway_url -> GATEWAY_URL 环境变量
 	//   - env_vars 中的键值对 -> 对应的环境变量
 	sdkConfig := appconfig.GetSDKConfig()
 
 	// 从 SDK 配置获取所有环境变量（包括固定字段和 env_vars 中的）
 	sdkEnvVars := sdkConfig.GetEnvVars()
+	runtimeSecrets, err := prepareAppRuntimeNATSSecret(ctx, ref, hostBinaryPath, sdkEnvVars)
+	if err != nil {
+		return AppVersionSpec{}, err
+	}
 	for key, value := range sdkEnvVars {
 		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
 		logger.Infof(ctx, "[buildAppVersionSpec] Injecting SDK env %s into app runtime", key)
 	}
 
-	binaryName := s.appBinaryName(ref.User, ref.App, ref.Version)
 	containerWorkDir := filepath.ToSlash(filepath.Join(containerPath, "workplace", "bin"))
 	containerBinDir := filepath.ToSlash(filepath.Join(containerPath, "workplace", "bin", "releases"))
 	runtimeID := s.runtimeInstanceID()
@@ -651,7 +666,128 @@ func (s *AppManageService) buildAppVersionSpec(ctx context.Context, ref AppVersi
 		ContainerPath: containerPath,
 		Command:       []string{"/start.sh"},
 		EnvVars:       envVars,
+		Secrets:       runtimeSecrets,
 	}, nil
+}
+
+// prepareAppRuntimeNATSSecret enables secret-file authentication only for app
+// binaries that contain the current SDK's fixed credentials path marker. Older
+// or temporarily unreadable binaries retain the legacy authenticated NATS_URL
+// so an app is not taken offline during the rolling SDK migration.
+func prepareAppRuntimeNATSSecret(ctx context.Context, ref AppVersionRef, binaryPath string, sdkEnvVars map[string]string) ([]ContainerSecret, error) {
+	rawURL, ok := sdkEnvVars["NATS_URL"]
+	if !ok || strings.TrimSpace(rawURL) == "" {
+		return nil, nil
+	}
+
+	_, hasUserInfo, err := stripAppRuntimeNATSUserInfo(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("prepare app NATS runtime credentials: %w", err)
+	}
+	if !hasUserInfo {
+		return nil, nil
+	}
+
+	supported, scanErr := appBinaryContainsMarker(binaryPath, []byte(appNATSCredentialsSDKMarker))
+	if scanErr != nil {
+		logger.Warnf(ctx, "[NATS Credentials Migration] runtime=%s marker_status=unreadable; retaining legacy NATS_URL authentication until this app is rebuilt with the current SDK", ref.RuntimeName())
+		return nil, nil
+	}
+	if !supported {
+		logger.Warnf(ctx, "[NATS Credentials Migration] runtime=%s marker_status=missing; retaining legacy NATS_URL authentication until this app is rebuilt with the current SDK", ref.RuntimeName())
+		return nil, nil
+	}
+
+	return extractAppRuntimeNATSSecret(ref, sdkEnvVars)
+}
+
+func appBinaryContainsMarker(path string, marker []byte) (bool, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+	return readerContainsMarker(file, marker)
+}
+
+func readerContainsMarker(reader io.Reader, marker []byte) (bool, error) {
+	if len(marker) == 0 {
+		return true, nil
+	}
+
+	buffer := make([]byte, appBinaryMarkerScanBufferSize+len(marker)-1)
+	carried := 0
+	for {
+		n, err := reader.Read(buffer[carried : carried+appBinaryMarkerScanBufferSize])
+		total := carried + n
+		if bytes.Contains(buffer[:total], marker) {
+			return true, nil
+		}
+
+		keep := len(marker) - 1
+		if total < keep {
+			keep = total
+		}
+		copy(buffer[:keep], buffer[total-keep:total])
+		carried = keep
+
+		if err != nil {
+			if err == io.EOF {
+				return false, nil
+			}
+			return false, err
+		}
+	}
+}
+
+// extractAppRuntimeNATSSecret removes URL userinfo from NATS_URL and returns a
+// Podman file secret containing the original private URL. The SDK reads the
+// mounted secret from /run/secrets/kageos-nats. URLs without authentication are
+// left untouched and require no secret, preserving local/no-auth deployments.
+func extractAppRuntimeNATSSecret(ref AppVersionRef, sdkEnvVars map[string]string) ([]ContainerSecret, error) {
+	rawURL, ok := sdkEnvVars["NATS_URL"]
+	if !ok || strings.TrimSpace(rawURL) == "" {
+		return nil, nil
+	}
+
+	endpoint, hasUserInfo, err := stripAppRuntimeNATSUserInfo(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("prepare app NATS runtime credentials: %w", err)
+	}
+	if !hasUserInfo {
+		return nil, nil
+	}
+
+	sdkEnvVars["NATS_URL"] = endpoint
+	digest := sha256.Sum256([]byte(ref.User + "\x00" + ref.App + "\x00" + ref.Version))
+	return []ContainerSecret{
+		{
+			Name:   fmt.Sprintf("kageos-nats-%x", digest[:12]),
+			Target: appNATSCredentialsSecretTarget,
+			Data:   []byte(strings.TrimSpace(rawURL)),
+		},
+	}, nil
+}
+
+func stripAppRuntimeNATSUserInfo(raw string) (endpoint string, hasUserInfo bool, err error) {
+	servers := strings.Split(strings.TrimSpace(raw), ",")
+	for i, server := range servers {
+		server = strings.TrimSpace(server)
+		parsed, parseErr := url.Parse(server)
+		if parseErr != nil || parsed.Host == "" {
+			if strings.Contains(server, "@") {
+				return "", false, fmt.Errorf("invalid NATS URL containing userinfo")
+			}
+			servers[i] = server
+			continue
+		}
+		if parsed.User != nil {
+			hasUserInfo = true
+			parsed.User = nil
+		}
+		servers[i] = parsed.String()
+	}
+	return strings.Join(servers, ","), hasUserInfo, nil
 }
 
 // stopOldVersionContainer 优雅关闭旧版本容器（三次握手流程）

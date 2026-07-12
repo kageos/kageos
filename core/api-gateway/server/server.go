@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/logger"
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/natsx"
@@ -28,12 +29,19 @@ type Server struct {
 	cfg *config.APIGatewayConfig
 
 	// 核心组件
-	httpServer      *gin.Engine
-	httpRuntime     *serverx.HTTPServer
-	sharedTransport *http.Transport // 共享 Transport，提高性能
-	tokenBlacklist  *TokenBlacklist // ⭐ 新增：Token 黑名单管理器
-	natsConn        *nats.Conn
-	subscriptions   []*nats.Subscription
+	httpServer              *gin.Engine
+	httpRuntime             *serverx.HTTPServer
+	sharedTransport         *http.Transport // 共享 Transport，提高性能
+	tokenBlacklist          *TokenBlacklist // ⭐ 新增：Token 黑名单管理器
+	workspaceActionVerifier *controlauth.Verifier
+	agentBackendSigner      *controlauth.Signer
+	agentDelegationVerifier *controlauth.Verifier
+	delegatedBackendSigner  *controlauth.Signer
+	agentTimerVerifier      *controlauth.Verifier
+	timerBackendSigner      *controlauth.Signer
+	tokenCommandVerifier    *controlauth.Verifier
+	natsConn                *nats.Conn
+	subscriptions           []*nats.Subscription
 
 	// 上下文
 	ctx context.Context
@@ -42,12 +50,76 @@ type Server struct {
 // NewServer 创建新的服务器实例
 func NewServer(cfg *config.APIGatewayConfig) (*Server, error) {
 	ctx := context.Background()
+	controlPlaneSecret, err := config.GetControlPlaneSecret()
+	if err != nil {
+		return nil, fmt.Errorf("load control-plane secret: %w", err)
+	}
+	workspaceActionVerifier, err := controlauth.NewVerifier(
+		controlPlaneSecret,
+		controlauth.HTTPWorkspaceActionScope,
+		controlauth.VerifierOptions{
+			MaxAge:        internalHTTPMaxAge,
+			MaxFutureSkew: internalHTTPMaxFutureSkew,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("initialize workspace-action request verifier: %w", err)
+	}
+	agentBackendSigner, err := controlauth.NewSigner(
+		controlPlaneSecret,
+		controlauth.HTTPGatewayAgentBackendScope,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("initialize agent backend request signer: %w", err)
+	}
+	agentDelegationVerifier, err := controlauth.NewVerifier(
+		controlPlaneSecret,
+		controlauth.HTTPAgentDelegatedAPIScope,
+		controlauth.VerifierOptions{MaxAge: internalHTTPMaxAge, MaxFutureSkew: internalHTTPMaxFutureSkew},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("initialize Agent delegated API verifier: %w", err)
+	}
+	delegatedBackendSigner, err := controlauth.NewSigner(
+		controlPlaneSecret,
+		controlauth.HTTPGatewayDelegatedBackendScope,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("initialize delegated backend request signer: %w", err)
+	}
+	agentTimerVerifier, err := controlauth.NewVerifier(
+		controlPlaneSecret,
+		controlauth.HTTPAgentDelegatedTimerScope,
+		controlauth.VerifierOptions{MaxAge: internalHTTPMaxAge, MaxFutureSkew: internalHTTPMaxFutureSkew},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("initialize Agent delegated timer verifier: %w", err)
+	}
+	timerBackendSigner, err := controlauth.NewSigner(controlPlaneSecret, controlauth.HTTPGatewayTimerBackendScope)
+	if err != nil {
+		return nil, fmt.Errorf("initialize timer backend request signer: %w", err)
+	}
+	tokenCommandVerifier, err := controlauth.NewVerifier(
+		controlPlaneSecret,
+		controlauth.NATSGatewayTokenCommandScope,
+		controlauth.VerifierOptions{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("initialize Gateway token command verifier: %w", err)
+	}
 
 	s := &Server{
-		cfg:            cfg,
-		ctx:            ctx,
-		tokenBlacklist: NewTokenBlacklist(), // ⭐ 新增：初始化 Token 黑名单管理器
-		subscriptions:  make([]*nats.Subscription, 0),
+		cfg:                     cfg,
+		ctx:                     ctx,
+		tokenBlacklist:          NewTokenBlacklist(), // ⭐ 新增：初始化 Token 黑名单管理器
+		workspaceActionVerifier: workspaceActionVerifier,
+		agentBackendSigner:      agentBackendSigner,
+		agentDelegationVerifier: agentDelegationVerifier,
+		delegatedBackendSigner:  delegatedBackendSigner,
+		agentTimerVerifier:      agentTimerVerifier,
+		timerBackendSigner:      timerBackendSigner,
+		tokenCommandVerifier:    tokenCommandVerifier,
+		subscriptions:           make([]*nats.Subscription, 0),
 	}
 
 	// 初始化共享 Transport
@@ -195,7 +267,7 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 		return nil
 	}
 
-	tokenHandler := NewTokenCommandHandler(s.tokenBlacklist)
+	tokenHandler := NewTokenCommandHandler(s.tokenBlacklist, s.tokenCommandVerifier)
 	return RegisterNATS(ctx, s.natsConn, &s.subscriptions, tokenHandler)
 }
 

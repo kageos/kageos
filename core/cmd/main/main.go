@@ -40,7 +40,7 @@ func init() {
 	services = append(services, supervisor.Service{
 		Name:      "app-storage",
 		Main:      appStorageRunner.Main,
-		DependsOn: nil, // 无依赖
+		DependsOn: []string{"hr-server"},
 	})
 
 	// 3. HR Server（用户管理、组织架构）
@@ -52,23 +52,26 @@ func init() {
 
 	// 4. Agent Server（Agent 服务）
 	services = append(services, supervisor.Service{
-		Name:      "agent-server",
-		Main:      agentServerRunner.Main,
-		DependsOn: nil,
+		Name: "agent-server",
+		Main: agentServerRunner.Main,
+		// HR initializes the process-wide authoritative OpenAPI token store.
+		// Agent must not expose OpenAPI routes during a store-less startup
+		// window; access JWT and signed internal requests remain independent.
+		DependsOn: []string{"hr-server"},
 	})
 
 	// 5. Connector Server（连接器服务）
 	services = append(services, supervisor.Service{
 		Name:      "connector-server",
 		Main:      connectorServerRunner.Main,
-		DependsOn: nil,
+		DependsOn: []string{"hr-server"},
 	})
 
 	// 6. Timer Scheduler（定时调度服务，独立平台服务）
 	services = append(services, supervisor.Service{
 		Name:      "timer-scheduler",
 		Main:      timerSchedulerRunner.Main,
-		DependsOn: nil,
+		DependsOn: []string{"hr-server"},
 	})
 
 	// 7. Message Server（消息服务，消费 NATS 消息并提供站内信）
@@ -82,7 +85,7 @@ func init() {
 	services = append(services, supervisor.Service{
 		Name:      "app-server",
 		Main:      appServerRunner.Main,
-		DependsOn: []string{"app-runtime"},
+		DependsOn: []string{"app-runtime", "hr-server"},
 	})
 
 	apiGatewayDependsOn := []string{

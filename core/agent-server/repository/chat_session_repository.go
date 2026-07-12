@@ -5,6 +5,21 @@ import (
 	"gorm.io/gorm"
 )
 
+type WorkspaceSessionListOptions struct {
+	FullCodePath     string
+	User             string
+	SessionScope     string
+	AutomationTaskID int64
+	Offset           int
+	Limit            int
+}
+
+type WorkspaceAutomationAgent struct {
+	TaskID    int64  `gorm:"column:automation_task_id"`
+	TaskCode  string `gorm:"column:automation_task_code"`
+	TaskTitle string `gorm:"column:automation_task_title"`
+}
+
 // ChatSessionRepository 工作台聊天会话数据访问层
 type ChatSessionRepository struct {
 	db *gorm.DB
@@ -116,6 +131,54 @@ func (r *ChatSessionRepository) ListByFullCodePathAndUser(fullCodePath string, u
 	}
 
 	return sessions, total, nil
+}
+
+func (r *ChatSessionRepository) ListWorkspaceSessions(opts WorkspaceSessionListOptions) ([]*model.AgentChatSession, int64, error) {
+	var sessions []*model.AgentChatSession
+	var total int64
+
+	query := r.db.Model(&model.AgentChatSession{}).Where("full_code_path = ?", opts.FullCodePath)
+	if opts.User != "" {
+		query = query.Where("user = ?", opts.User)
+	}
+	switch opts.SessionScope {
+	case "automation":
+		query = query.Where("source = ?", model.ChatSessionSourceAutomationAgent)
+		if opts.AutomationTaskID > 0 {
+			query = query.Where("automation_task_id = ?", opts.AutomationTaskID)
+		}
+	case "human":
+		query = query.Where("source IS NULL OR source = '' OR source <> ?", model.ChatSessionSourceAutomationAgent)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := query.
+		Offset(opts.Offset).
+		Limit(opts.Limit).
+		Order("updated_at DESC").
+		Find(&sessions).Error; err != nil {
+		return nil, 0, err
+	}
+	return sessions, total, nil
+}
+
+func (r *ChatSessionRepository) ListWorkspaceAutomationAgents(fullCodePath string, user string) ([]*WorkspaceAutomationAgent, error) {
+	var agents []*WorkspaceAutomationAgent
+	query := r.db.Model(&model.AgentChatSession{}).
+		Select("automation_task_id, MAX(automation_task_code) AS automation_task_code, MAX(automation_task_title) AS automation_task_title").
+		Where("full_code_path = ? AND source = ? AND automation_task_id > 0", fullCodePath, model.ChatSessionSourceAutomationAgent)
+	if user != "" {
+		query = query.Where("user = ?", user)
+	}
+	if err := query.
+		Group("automation_task_id").
+		Order("MAX(id) DESC").
+		Scan(&agents).Error; err != nil {
+		return nil, err
+	}
+	return agents, nil
 }
 
 // Update 更新会话

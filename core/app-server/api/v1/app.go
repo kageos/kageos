@@ -2,6 +2,7 @@ package v1
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/kageos/kageos/pkg/access"
 	"github.com/kageos/kageos/pkg/contextx"
@@ -59,6 +60,34 @@ func (a *App) CreateApp(c *gin.Context) {
 		return
 	}
 	response.OkWithData(c, app)
+}
+
+// BootstrapPersonalWorkspace returns the current JWT user's first workspace.
+// It intentionally accepts no request body: the owner is always the verified
+// request user, never a client-provided username.
+// @Summary 获取或创建默认个人空间
+// @Description 已有 home 时直接返回；已有其他自有空间时返回该空间；只有新用户才创建私有的“我的空间”。
+// @Tags 应用管理
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Success 200 {object} dto.BootstrapPersonalWorkspaceResp "默认个人空间"
+// @Failure 401 {string} string "未授权"
+// @Failure 500 {string} string "服务器内部错误"
+// @Router /workspace/api/v1/app/bootstrap_personal_workspace [post]
+func (a *App) BootstrapPersonalWorkspace(c *gin.Context) {
+	user := strings.TrimSpace(contextx.GetRequestUser(c))
+	if user == "" {
+		response.FailWithMessage(c, "无法获取用户信息")
+		return
+	}
+
+	resp, err := a.appService.BootstrapPersonalWorkspace(contextx.ToContext(c), user)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
 }
 
 // UpdateApp 更新应用
@@ -256,7 +285,7 @@ func (a *App) GetAppDetail(c *gin.Context) {
 	req = dto.GetAppDetailReq{
 		ResourcePath: resourcePath,
 	}
-	if err := requireAccess(c, a.teamAccessService, req.ResourcePath, access.ActionRead); err != nil {
+	if err := requireWorkspaceDataAccess(c, a.teamAccessService, req.ResourcePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -30,11 +29,13 @@ const (
 	defaultMaxOutboxAttempts   = 8
 	defaultPayloadLimitBytes   = 256 * 1024
 
-	outboxStatusPending = "pending"
-	eventTypeRequested  = "timer.execution.requested"
-	eventTypeFinished   = "timer.execution.finished"
-	triggerScheduled    = "scheduled"
-	triggerManual       = "manual"
+	outboxStatusPending           = "pending"
+	eventTypeRequested            = "timer.execution.requested"
+	eventTypeFinished             = "timer.execution.finished"
+	triggerScheduled              = "scheduled"
+	triggerManual                 = "manual"
+	taskCancelledExecutionMessage = "timer-scheduler: task was cancelled before execution"
+	taskDeletedExecutionMessage   = "timer-scheduler: task was deleted before execution"
 )
 
 var (
@@ -105,9 +106,6 @@ func scheduledTaskMetadataWithContext(ctx context.Context, metadata map[string]s
 	}
 	if token := strings.TrimSpace(contextx.GetToken(ctx)); token != "" {
 		if claims, err := auth.NewJWTService().ValidateToken(token); err == nil && claims != nil {
-			if claims.UserID > 0 && strings.TrimSpace(out[scheduledsdk.MetadataRequestUserID]) == "" {
-				out[scheduledsdk.MetadataRequestUserID] = strconv.FormatInt(claims.UserID, 10)
-			}
 			if claims.Email != "" && strings.TrimSpace(out[scheduledsdk.MetadataRequestEmail]) == "" {
 				out[scheduledsdk.MetadataRequestEmail] = claims.Email
 			}
@@ -173,6 +171,9 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 		createdBy = requestUser
 	}
 	metadata := scheduledTaskMetadataWithContext(ctx, req.Metadata)
+	if err := scheduledsdk.ValidateExecutionMetadata(metadata); err != nil {
+		return nil, err
+	}
 	var created *model.TimerTask
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		taskRepo := s.taskRepo.WithDB(tx)
@@ -180,8 +181,7 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 			if !isTerminalTaskStatus(existing.Status) {
 				created = existing
 				return nil
-			}
-			if err := taskRepo.ReleaseIdempotencyKey(existing.ID, idempotencyKey); err != nil {
+			} else if err := taskRepo.ReleaseIdempotencyKey(existing.ID, idempotencyKey); err != nil {
 				return err
 			}
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -254,7 +254,11 @@ func (s *Service) UpdateTask(ctx context.Context, taskID int64, req scheduledsdk
 		task.ExecutorPayload = cloneRaw(req.ExecutorPayload)
 	}
 	if req.Metadata != nil {
-		task.MetadataJSON = mustJSON(scheduledTaskMetadataWithContext(ctx, *req.Metadata))
+		metadata := scheduledTaskMetadataWithContext(ctx, *req.Metadata)
+		if err := scheduledsdk.ValidateExecutionMetadata(metadata); err != nil {
+			return nil, err
+		}
+		task.MetadataJSON = mustJSON(metadata)
 	}
 	if req.SourceType != nil {
 		task.SourceType = strings.TrimSpace(*req.SourceType)
@@ -317,14 +321,33 @@ func (s *Service) ResumeTask(ctx context.Context, taskID int64) error {
 }
 
 func (s *Service) CancelTask(ctx context.Context, taskID int64) error {
-	return s.taskRepo.Cancel(taskID)
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		execRepo := s.executionRepo.WithDB(tx)
+		outboxRepo := s.outboxRepo.WithDB(tx)
+		taskRepo := s.taskRepo.WithDB(tx)
+		if err := execRepo.CancelActiveByTaskID(taskID, s.now(), taskCancelledExecutionMessage); err != nil {
+			return err
+		}
+		if err := outboxRepo.DeadLetterExecutionRequestsForTask(taskID, taskCancelledExecutionMessage); err != nil {
+			return err
+		}
+		return taskRepo.Cancel(taskID)
+	})
 }
 
 func (s *Service) DeleteTask(ctx context.Context, taskID int64) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		taskRepo := s.taskRepo.WithDB(tx)
+		execRepo := s.executionRepo.WithDB(tx)
+		outboxRepo := s.outboxRepo.WithDB(tx)
 		task, err := taskRepo.GetByID(taskID)
 		if err != nil {
+			return err
+		}
+		if err := execRepo.CancelActiveByTaskID(taskID, s.now(), taskDeletedExecutionMessage); err != nil {
+			return err
+		}
+		if err := outboxRepo.DeadLetterExecutionRequestsForTask(taskID, taskDeletedExecutionMessage); err != nil {
 			return err
 		}
 		if task.IdempotencyKey != nil {
@@ -492,26 +515,42 @@ func (s *Service) handleExpiredRunningExecution(ctx context.Context, exec *model
 }
 
 func (s *Service) MarkExecutionStarted(ctx context.Context, req scheduledsdk.MarkExecutionStartedRequest) error {
+	executorRunID := strings.TrimSpace(req.ExecutorRunID)
+	if executorRunID == "" {
+		return fmt.Errorf("%w: executor_run_id is required", scheduledsdk.ErrInvalidRequest)
+	}
 	startedAt := req.StartedAt
 	if startedAt.IsZero() {
 		startedAt = s.now()
 	}
-	ok, err := s.executionRepo.TryMarkRunning(req.TaskID, req.ExecutionID, strings.TrimSpace(req.WorkerID), strings.TrimSpace(req.ExecutorRunID), startedAt, startedAt.Add(s.opts.ExecutionLeaseDuration))
+	workerID := strings.TrimSpace(req.WorkerID)
+	ok, err := s.executionRepo.TryMarkRunning(req.TaskID, req.ExecutionID, workerID, executorRunID, startedAt, startedAt.Add(s.opts.ExecutionLeaseDuration))
 	if err != nil {
 		return err
 	}
 	if !ok {
+		idempotent, lookupErr := s.executionRepo.IsRunningForActiveTask(req.TaskID, req.ExecutionID, workerID, executorRunID)
+		if lookupErr != nil {
+			return lookupErr
+		}
+		if idempotent {
+			return nil
+		}
 		return ErrInvalidTaskStatus
 	}
 	return nil
 }
 
 func (s *Service) MarkExecutionHeartbeat(ctx context.Context, req scheduledsdk.MarkExecutionHeartbeatRequest) error {
+	executorRunID := strings.TrimSpace(req.ExecutorRunID)
+	if executorRunID == "" {
+		return fmt.Errorf("%w: executor_run_id is required", scheduledsdk.ErrInvalidRequest)
+	}
 	heartbeatAt := req.HeartbeatAt
 	if heartbeatAt.IsZero() {
 		heartbeatAt = s.now()
 	}
-	ok, err := s.executionRepo.TryHeartbeat(req.TaskID, req.ExecutionID, strings.TrimSpace(req.WorkerID), heartbeatAt, heartbeatAt.Add(s.opts.ExecutionLeaseDuration))
+	ok, err := s.executionRepo.TryHeartbeat(req.TaskID, req.ExecutionID, strings.TrimSpace(req.WorkerID), executorRunID, heartbeatAt, heartbeatAt.Add(s.opts.ExecutionLeaseDuration))
 	if err != nil {
 		return err
 	}
@@ -522,6 +561,13 @@ func (s *Service) MarkExecutionHeartbeat(ctx context.Context, req scheduledsdk.M
 }
 
 func (s *Service) MarkExecutionFinished(ctx context.Context, req scheduledsdk.MarkExecutionFinishedRequest) error {
+	if strings.TrimSpace(req.ExecutorRunID) == "" {
+		return fmt.Errorf("%w: executor_run_id is required", scheduledsdk.ErrInvalidRequest)
+	}
+	return s.markExecutionFinished(ctx, req, true)
+}
+
+func (s *Service) markExecutionFinished(ctx context.Context, req scheduledsdk.MarkExecutionFinishedRequest, workerBound bool) error {
 	if req.Status == "" {
 		return fmt.Errorf("%w: execution status is required", scheduledsdk.ErrInvalidRequest)
 	}
@@ -548,10 +594,12 @@ func (s *Service) MarkExecutionFinished(ctx context.Context, req scheduledsdk.Ma
 			"error_message":   strings.TrimSpace(req.ErrorMessage),
 			"lease_until":     nil,
 		}
-		if strings.TrimSpace(req.ExecutorRunID) != "" {
-			updates["executor_run_id"] = strings.TrimSpace(req.ExecutorRunID)
+		var ok bool
+		if workerBound {
+			ok, err = execRepo.TryFinishByRunID(req.TaskID, req.ExecutionID, strings.TrimSpace(req.ExecutorRunID), updates)
+		} else {
+			ok, err = execRepo.TryFinish(req.TaskID, req.ExecutionID, updates)
 		}
-		ok, err := execRepo.TryFinish(req.TaskID, req.ExecutionID, updates)
 		if err != nil {
 			return err
 		}
@@ -559,20 +607,36 @@ func (s *Service) MarkExecutionFinished(ctx context.Context, req scheduledsdk.Ma
 			return ErrInvalidTaskStatus
 		}
 
-		task, err := taskRepo.GetByID(req.TaskID)
+		task, err := taskRepo.GetByIDForUpdate(req.TaskID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return s.createExecutionFinishedOutbox(outboxRepo, req, exec, finishedAt)
 			}
 			return err
 		}
+		expectedTaskStatus := task.Status
+		if task.LastExecutionID < req.ExecutionID {
+			task.LastExecutionID = req.ExecutionID
+		}
 		task.LastErrorMessage = strings.TrimSpace(req.ErrorMessage)
 		if exec.TriggerType != triggerManual {
 			task.RunCount++
-			task.Status, task.NextRunAt, task.LastErrorMessage = computeTaskNextState(task, req.Status == scheduledsdk.ExecutionStatusSuccess, finishedAt)
+			switch scheduledsdk.TaskStatus(task.Status) {
+			case scheduledsdk.TaskStatusPending:
+				task.Status, task.NextRunAt, task.LastErrorMessage = computeTaskNextState(task, req.Status == scheduledsdk.ExecutionStatusSuccess, finishedAt)
+			case scheduledsdk.TaskStatusCancelled:
+				task.NextRunAt = nil
+			}
 		}
-		if _, err = taskRepo.TryCompleteExecution(task, req.ExecutionID); err != nil {
-			return err
+		clearInflight := task.InflightExecutionID == req.ExecutionID
+		if exec.TriggerType != triggerManual || clearInflight {
+			settled, settleErr := taskRepo.TrySettleExecution(task, req.ExecutionID, expectedTaskStatus, clearInflight)
+			if settleErr != nil {
+				return settleErr
+			}
+			if !settled {
+				return ErrTaskBusy
+			}
 		}
 		return s.createExecutionFinishedOutbox(outboxRepo, req, exec, finishedAt)
 	})
@@ -638,6 +702,9 @@ func (s *Service) PublishPendingOutbox(ctx context.Context, publisher OutboxPubl
 }
 
 func (s *Service) dispatchTask(ctx context.Context, task *model.TimerTask, owner string, scheduledAt time.Time, triggerType string) (*model.TimerExecution, error) {
+	if task == nil {
+		return nil, ErrInvalidTaskStatus
+	}
 	if triggerType == "" {
 		triggerType = triggerScheduled
 	}
@@ -714,6 +781,22 @@ func (s *Service) requeueExecution(ctx context.Context, exec *model.TimerExecuti
 			}
 			return err
 		}
+		if isTerminalTaskStatus(task.Status) {
+			message := "timer-scheduler task is not eligible for execution recovery"
+			ok, finishErr := execRepo.TryFinish(exec.TaskID, exec.ID, map[string]interface{}{
+				"status":        string(scheduledsdk.ExecutionStatusCancelled),
+				"finished_at":   now,
+				"lease_until":   nil,
+				"error_message": message,
+			})
+			if finishErr != nil {
+				return finishErr
+			}
+			if ok {
+				_, _ = taskRepo.TryClearInflight(task.ID, exec.ID, message)
+			}
+			return nil
+		}
 		ok, err := execRepo.TryRequeueQueued(exec, now, now.Add(s.opts.QueueAckTimeout))
 		if err != nil {
 			return err
@@ -774,14 +857,14 @@ func (s *Service) timeoutExecution(ctx context.Context, exec *model.TimerExecuti
 	if exec.StartedAt != nil && now.After(*exec.StartedAt) {
 		durationMillis = now.Sub(*exec.StartedAt).Milliseconds()
 	}
-	err := s.MarkExecutionFinished(ctx, scheduledsdk.MarkExecutionFinishedRequest{
+	err := s.markExecutionFinished(ctx, scheduledsdk.MarkExecutionFinishedRequest{
 		TaskID:         exec.TaskID,
 		ExecutionID:    exec.ID,
 		Status:         scheduledsdk.ExecutionStatusTimeout,
 		FinishedAt:     now,
 		DurationMillis: durationMillis,
 		ErrorMessage:   message,
-	})
+	}, false)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return s.timeoutOrphanExecution(exec, now, message)
 	}
@@ -817,6 +900,11 @@ func (s *Service) timeoutOrphanExecutionWithRepo(execRepo *repository.TimerExecu
 }
 
 func (s *Service) executionRequestedOutbox(task *model.TimerTask, exec *model.TimerExecution) *model.TimerOutboxEvent {
+	metadata := decodeStringMap(task.MetadataJSON)
+	if metadata == nil {
+		metadata = map[string]string{}
+	}
+	metadata["task_title"] = strings.TrimSpace(task.Title)
 	event := scheduledsdk.ExecutionRequestedEvent{
 		EventID:         fmt.Sprintf("timer-execution-requested-%d-attempt-%d", exec.ID, exec.Attempt),
 		TaskID:          task.ID,
@@ -829,10 +917,9 @@ func (s *Service) executionRequestedOutbox(task *model.TimerTask, exec *model.Ti
 		SourceRef:       task.SourceRef,
 		ResourceScope:   task.ResourceScope,
 		ResourceKey:     task.ResourceKey,
-		Token:           scheduledExecutionToken(task),
 		RequestUser:     scheduledTaskRequestUser(task),
 		RequestUserDept: task.RequestUserDept,
-		Metadata:        decodeStringMap(task.MetadataJSON),
+		Metadata:        metadata,
 		ExecutorPayload: cloneRaw(task.ExecutorPayload),
 	}
 	payload, _ := json.Marshal(event)
@@ -858,35 +945,6 @@ func scheduledTaskRequestUser(task *model.TimerTask) string {
 		return user
 	}
 	return strings.TrimSpace(task.CreatedBy)
-}
-
-func scheduledExecutionToken(task *model.TimerTask) string {
-	if task == nil {
-		return ""
-	}
-	requestUser := scheduledTaskRequestUser(task)
-	if requestUser == "" {
-		return ""
-	}
-	metadata := decodeStringMap(task.MetadataJSON)
-	userID, err := strconv.ParseInt(strings.TrimSpace(metadata[scheduledsdk.MetadataRequestUserID]), 10, 64)
-	if err != nil || userID <= 0 {
-		return ""
-	}
-	token, err := auth.NewJWTService().GenerateAccessTokenWithContext(auth.UserTokenContext{
-		UserID:             userID,
-		Username:           requestUser,
-		Email:              strings.TrimSpace(metadata[scheduledsdk.MetadataRequestEmail]),
-		DepartmentFullPath: strings.TrimSpace(task.RequestUserDept),
-		LeaderUsername:     strings.TrimSpace(metadata[scheduledsdk.MetadataLeaderUsername]),
-		CompanyCode:        strings.TrimSpace(metadata[scheduledsdk.MetadataCompanyCode]),
-		CompanyName:        strings.TrimSpace(metadata[scheduledsdk.MetadataCompanyName]),
-		CompanyLogoURL:     strings.TrimSpace(metadata[scheduledsdk.MetadataCompanyLogoURL]),
-	})
-	if err != nil {
-		return ""
-	}
-	return token
 }
 
 func isTerminalTaskStatus(status string) bool {

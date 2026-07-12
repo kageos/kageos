@@ -129,7 +129,7 @@ var updateScheduledAgentTaskToolDef = toolDefinition[updateScheduledAgentTaskArg
 
 var listScheduledTasksToolDef = toolDefinition[listScheduledTasksArgs](
 	"list_scheduled_tasks",
-	"查询指定目录下全部定时任务，不按创建人过滤。kind=function 查函数任务，kind=agent_session 查 Agent 任务，kind=all 查全部；默认按当前 execute_directory 及其子资源查询，也可按 resource_path 和 status 过滤。目录路径会返回绑定到该目录的 Agent 任务，以及目录下函数的函数任务。",
+	"查询当前用户在指定目录下创建的定时任务。kind=function 查函数任务，kind=agent_session 查 Agent 任务，kind=all 查全部；默认按当前 execute_directory 及其子资源查询，也可按 resource_path 和 status 过滤。目录路径会返回当前用户绑定到该目录的 Agent 任务，以及目录下函数的函数任务。",
 )
 
 var manageScheduledTaskToolDef = toolDefinition[manageScheduledTaskArgs](
@@ -139,7 +139,7 @@ var manageScheduledTaskToolDef = toolDefinition[manageScheduledTaskArgs](
 
 var listScheduledTaskExecutionsToolDef = toolDefinition[listScheduledTaskExecutionsArgs](
 	"list_scheduled_task_executions",
-	"查询某个定时任务的执行记录，用于回答“最近跑了没、成功没、失败原因是什么”。这是只读诊断查询，不按创建人过滤；可按 queued/running/success/failed/timeout/cancelled 过滤。",
+	"查询当前用户所属定时任务的执行记录，用于回答“最近跑了没、成功没、失败原因是什么”。不可读取其他用户任务；可按 queued/running/success/failed/timeout/cancelled 过滤。",
 )
 
 func (t *CreateScheduledFunctionTaskTool) Definition() dto.ToolDef {

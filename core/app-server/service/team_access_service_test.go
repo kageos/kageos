@@ -344,6 +344,80 @@ func TestTeamAccessListAccessibleApps(t *testing.T) {
 	}
 }
 
+func TestOpenCollaborationWorkspaceGrantsAuthenticatedDataAccessOnly(t *testing.T) {
+	service, appRepo, _ := newTeamAccessTestService(t)
+	appModel, err := appRepo.GetAppByUserName("alice", "ops")
+	if err != nil {
+		t.Fatal(err)
+	}
+	appModel.AccessMode = appmodel.AppAccessModeOpenCollaboration
+	if err := appRepo.UpdateApp(appModel); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, action := range []access.Action{access.ActionRead, access.ActionWrite, access.ActionUpdate} {
+		ok, err := service.CanWorkspaceData(context.Background(), "alice", "ops", "bob", "/alice/ops/tickets.table", action)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ok {
+			t.Fatalf("open collaboration should grant %s", action)
+		}
+	}
+
+	for _, action := range []access.Action{access.ActionDelete, access.ActionAdmin, access.ActionOwner} {
+		ok, err := service.CanWorkspaceData(context.Background(), "alice", "ops", "bob", "/alice/ops/tickets.table", action)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ok {
+			t.Fatalf("open collaboration must not grant %s", action)
+		}
+	}
+
+	// The original control-plane authorization remains unchanged.
+	if ok, err := service.Can(context.Background(), "alice", "ops", "bob", "/alice/ops", access.ActionUpdate); err != nil {
+		t.Fatal(err)
+	} else if ok {
+		t.Fatal("open collaboration must not alter explicit control-plane permissions")
+	}
+
+	if ok, err := service.HasAnyWorkspaceAccess(context.Background(), "alice", "ops", "bob"); err != nil {
+		t.Fatal(err)
+	} else if !ok {
+		t.Fatal("open collaboration workspace should be discoverable by authenticated users")
+	}
+
+	permissions, err := service.PermissionsForTree(context.Background(), "alice", "ops", "bob", []string{"/alice/ops/tickets.table"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := permissions["/alice/ops/tickets.table"]
+	if result == nil || !access.HasPermission(result.Permissions, access.ActionUpdate) || access.HasPermission(result.Permissions, access.ActionDelete) {
+		t.Fatalf("unexpected open collaboration tree permissions: %+v", result)
+	}
+}
+
+func TestOpenCollaborationWorkspaceAppearsWithoutAssignment(t *testing.T) {
+	service, appRepo, _ := newTeamAccessTestService(t)
+	appModel, err := appRepo.GetAppByUserName("alice", "ops")
+	if err != nil {
+		t.Fatal(err)
+	}
+	appModel.AccessMode = appmodel.AppAccessModeOpenCollaboration
+	if err := appRepo.UpdateApp(appModel); err != nil {
+		t.Fatal(err)
+	}
+
+	apps, err := service.ListAccessibleApps(context.Background(), "bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(apps) != 1 || apps[0].User != "alice" || apps[0].Code != "ops" {
+		t.Fatalf("unexpected accessible apps: %+v", apps)
+	}
+}
+
 func TestTeamAccessListMembersSeparatesCurrentAndInherited(t *testing.T) {
 	service, _, _ := newTeamAccessTestService(t)
 	ctx := actorContext("alice")

@@ -50,7 +50,7 @@ func TestSubmitPublicMessageActionReplySubmitsWorkspaceChat(t *testing.T) {
 	router := gin.New()
 	router.POST("/message/api/v1/public/actions/:token/reply", s.submitPublicMessageActionReply)
 
-	body := bytes.NewBufferString(`{"content":"帮我延迟到下午 5 点，并通知相关人。","action":"reply"}`)
+	body := bytes.NewBufferString(`{"content":"帮我延迟到下午 5 点，并通知相关人。","files":"kageos/pocket/meeting.pdf","action":"reply"}`)
 	req := httptest.NewRequest(http.MethodPost, "/message/api/v1/public/actions/"+rawToken+"/reply", body)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Request-User", "bob")
@@ -82,6 +82,9 @@ func TestSubmitPublicMessageActionReplySubmitsWorkspaceChat(t *testing.T) {
 	}
 	if !strings.Contains(runner.req.Content, "会议室 301") || !strings.Contains(runner.req.Content, "延迟到下午 5 点") {
 		t.Fatalf("runner content = %q", runner.req.Content)
+	}
+	if runner.req.Files != "kageos/pocket/meeting.pdf" {
+		t.Fatalf("runner files = %q", runner.req.Files)
 	}
 	if !strings.Contains(runner.req.Content, "必须使用 Markdown 格式") || !strings.Contains(runner.req.Content, "content_type 使用 markdown") {
 		t.Fatalf("runner content missing markdown reply guardrails = %q", runner.req.Content)

@@ -58,7 +58,7 @@ func (d *Department) CreateDepartment(c *gin.Context) {
 	}
 
 	resp = &dto.CreateDepartmentResp{
-		Department: department,
+		Department: departmentToDTO(department),
 	}
 	response.OkWithData(c, resp)
 }
@@ -127,7 +127,7 @@ func (d *Department) UpdateDepartment(c *gin.Context) {
 	}
 
 	resp = &dto.UpdateDepartmentResp{
-		Department: department,
+		Department: departmentToDTO(department),
 	}
 	response.OkWithData(c, resp)
 }
@@ -156,7 +156,7 @@ func (d *Department) GetDepartmentTree(c *gin.Context) {
 	}
 
 	resp = &dto.GetDepartmentTreeResp{
-		Departments: tree,
+		Departments: departmentsToDTO(tree),
 	}
 	response.OkWithData(c, resp)
 }
@@ -194,7 +194,7 @@ func (d *Department) GetDepartmentByID(c *gin.Context) {
 	}
 
 	resp = &dto.GetDepartmentResp{
-		Department: department,
+		Department: departmentToDTO(department),
 	}
 	response.OkWithData(c, resp)
 }
@@ -286,7 +286,54 @@ func (d *Department) GetDepartmentsByPaths(c *gin.Context) {
 	}
 
 	resp = &dto.GetDepartmentsByPathsResp{
-		Departments: departments,
+		Departments: departmentsToDTO(departments),
 	}
 	response.OkWithData(c, resp)
+}
+
+func departmentToDTO(department *model.Department) *dto.DepartmentInfo {
+	if department == nil {
+		return nil
+	}
+	info := &dto.DepartmentInfo{
+		ID:              department.ID,
+		Name:            department.Name,
+		Code:            department.Code,
+		ParentID:        department.ParentID,
+		FullCodePath:    department.FullCodePath,
+		FullNamePath:    department.FullNamePath,
+		Managers:        department.Managers,
+		Description:     department.Description,
+		Status:          department.Status,
+		Sort:            department.Sort,
+		IsSystemDefault: department.IsSystemDefault,
+	}
+	if department.Parent != nil {
+		info.Parent = &dto.DepartmentInfo{
+			ID:              department.Parent.ID,
+			Name:            department.Parent.Name,
+			Code:            department.Parent.Code,
+			ParentID:        department.Parent.ParentID,
+			FullCodePath:    department.Parent.FullCodePath,
+			FullNamePath:    department.Parent.FullNamePath,
+			Managers:        department.Parent.Managers,
+			Description:     department.Parent.Description,
+			Status:          department.Parent.Status,
+			Sort:            department.Parent.Sort,
+			IsSystemDefault: department.Parent.IsSystemDefault,
+		}
+	}
+	info.Children = departmentsToDTO(department.Children)
+	return info
+}
+
+func departmentsToDTO(departments []*model.Department) []*dto.DepartmentInfo {
+	if len(departments) == 0 {
+		return nil
+	}
+	infos := make([]*dto.DepartmentInfo, 0, len(departments))
+	for _, department := range departments {
+		infos = append(infos, departmentToDTO(department))
+	}
+	return infos
 }

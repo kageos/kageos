@@ -22,7 +22,6 @@ interface UseWorkspaceViewLifecycleOptions {
   loadNodeDetail: (node: ServiceTreeType) => Promise<void> | void
   updateAppInfo: (app: AppType) => void
   findNodeByPath: (tree: ServiceTreeType[], path: string) => ServiceTreeType | null
-  openWorkspaceListDialog: () => void
 }
 
 export function resolveWorkspaceRootNodeForRoute(
@@ -109,10 +108,6 @@ export function useWorkspaceViewLifecycle(options: UseWorkspaceViewLifecycleOpti
 
     await options.loadAppFromRoute()
     options.setupRouteWatch()
-
-    if (options.route.name === 'workspace-user') {
-      nextTick(() => options.openWorkspaceListDialog())
-    }
   })
 
   watch(() => options.serviceTree().length, (newLength: number) => {

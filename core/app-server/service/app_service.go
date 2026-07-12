@@ -984,11 +984,13 @@ func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto
 	if err != nil {
 		return nil, err
 	}
-
 	// 根据应用信息获取 NATS 连接
 	app, err := a.appRepo.GetAppByUserName(user, appCode)
 	if err != nil {
 		return nil, err
+	}
+	if app.IsPersonalWorkspace {
+		return nil, fmt.Errorf("默认个人空间不支持删除。若要开始新的工作，可创建其他工作空间。")
 	}
 
 	// 调用 app-runtime 删除应用
@@ -1047,6 +1049,8 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 			NatsID:                app.NatsID,
 			HostID:                app.HostID,
 			IsPublic:              app.IsPublic,
+			IsPersonalWorkspace:   app.IsPersonalWorkspace,
+			AccessMode:            string(model.NormalizeAppAccessMode(app.AccessMode)),
 			HideUnauthorizedNodes: app.HideUnauthorizedNodes,
 			Admins:                app.Admins,
 			Type:                  int(app.Type),
@@ -1155,6 +1159,8 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 			NatsID:                app.NatsID,
 			HostID:                app.HostID,
 			IsPublic:              app.IsPublic,
+			IsPersonalWorkspace:   app.IsPersonalWorkspace,
+			AccessMode:            string(model.NormalizeAppAccessMode(app.AccessMode)),
 			HideUnauthorizedNodes: app.HideUnauthorizedNodes,
 			Admins:                app.Admins,
 			Type:                  int(app.Type),
@@ -1169,7 +1175,9 @@ func (a *AppService) GetAppByUserName(ctx context.Context, user, app string) (*m
 	return a.appRepo.GetAppByUserName(user, app)
 }
 
-// UpdateWorkspace 更新工作空间（只更新 MySQL 记录，不涉及容器更新）
+// UpdateWorkspace 更新工作空间（只更新 MySQL 记录，不涉及容器更新）。
+// 名称是展示字段：code、URL 和运行时目录保持不变。根目录会在同一事务中同步名称，
+// 以避免工作空间列表与目录根节点显示不一致。
 func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspaceReq) (*dto.UpdateWorkspaceResp, error) {
 	user, appCode, err := resolveUserAppFromRequiredResourcePath(req.ResourcePath)
 	if err != nil {
@@ -1182,24 +1190,73 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 		return nil, fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
+	// app repository 会缓存模型指针；先复制一份，确保事务失败时不会污染缓存中的旧值。
+	updatedApp := *app
+	nameChanged := false
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if name == "" {
+			return nil, fmt.Errorf("工作空间名称不能为空")
+		}
+		updatedApp.Name = name
+		nameChanged = name != app.Name
+		if nameChanged {
+			exists, err := a.appRepo.ExistsAppNameForUser(user, name)
+			if err != nil {
+				return nil, fmt.Errorf("检查工作空间名称失败: %w", err)
+			}
+			if exists {
+				return nil, fmt.Errorf("工作空间名称已存在: %s", name)
+			}
+		}
+	}
+	if req.AccessMode != nil {
+		accessMode := model.NormalizeAppAccessMode(model.AppAccessMode(*req.AccessMode))
+		if !model.IsValidAppAccessMode(accessMode) {
+			return nil, fmt.Errorf("工作空间访问模式无效: %s", *req.AccessMode)
+		}
+		updatedApp.AccessMode = accessMode
+		if accessMode.IsOpenCollaboration() {
+			updatedApp.IsPublic = true
+		}
+	}
 	if req.Admins != nil {
-		app.Admins = *req.Admins
+		updatedApp.Admins = *req.Admins
 	}
 	if req.HideUnauthorizedNodes != nil {
-		app.HideUnauthorizedNodes = *req.HideUnauthorizedNodes
-	}
-	if err := a.appRepo.UpdateApp(app); err != nil {
-		return nil, fmt.Errorf("更新工作空间失败: %w", err)
+		updatedApp.HideUnauthorizedNodes = *req.HideUnauthorizedNodes
 	}
 
-	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, admins=%s, hide_unauthorized_nodes=%t",
-		user, appCode, app.Admins, app.HideUnauthorizedNodes)
+	if err := a.appRepo.GetDB().Transaction(func(tx *gorm.DB) error {
+		if nameChanged {
+			var rootNode model.ServiceTree
+			if err := tx.Where("app_id = ? AND ref_id = ?", updatedApp.ID, updatedApp.ID).First(&rootNode).Error; err != nil {
+				return fmt.Errorf("获取工作空间根目录失败: %w", err)
+			}
+			rootNode.Name = updatedApp.Name
+			if err := tx.Save(&rootNode).Error; err != nil {
+				return fmt.Errorf("更新工作空间根目录名称失败: %w", err)
+			}
+		}
+		if err := tx.Save(&updatedApp).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("更新工作空间失败: %w", err)
+	}
+	a.appRepo.InvalidateAppCacheBoth(updatedApp.User, updatedApp.Code, updatedApp.ID)
+
+	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, name=%s, access_mode=%s, admins=%s, hide_unauthorized_nodes=%t",
+		user, appCode, updatedApp.Name, updatedApp.AccessMode, updatedApp.Admins, updatedApp.HideUnauthorizedNodes)
 
 	return &dto.UpdateWorkspaceResp{
 		User:                  user,
 		App:                   appCode,
-		Admins:                app.Admins,
-		HideUnauthorizedNodes: app.HideUnauthorizedNodes,
+		Name:                  updatedApp.Name,
+		AccessMode:            string(model.NormalizeAppAccessMode(updatedApp.AccessMode)),
+		Admins:                updatedApp.Admins,
+		HideUnauthorizedNodes: updatedApp.HideUnauthorizedNodes,
 	}, nil
 }
 

@@ -36,11 +36,12 @@ func GetGlobalSharedConfig() *GlobalSharedConfig {
 
 // GlobalSharedConfig 全局共享配置
 type GlobalSharedConfig struct {
-	Site    SiteConfig    `mapstructure:"site"`
-	Gateway GatewayConfig `mapstructure:"gateway"`
-	Nats    NatsConfig    `mapstructure:"nats"`
-	JWT     JWTConfig     `mapstructure:"jwt"`
-	SDK     SDKConfig     `mapstructure:"sdk"`
+	Site         SiteConfig         `mapstructure:"site"`
+	Gateway      GatewayConfig      `mapstructure:"gateway"`
+	Nats         NatsConfig         `mapstructure:"nats"`
+	JWT          JWTConfig          `mapstructure:"jwt"`
+	ControlPlane ControlPlaneConfig `mapstructure:"control_plane"`
+	SDK          SDKConfig          `mapstructure:"sdk"`
 	// 注意：数据库配置不在全局配置中，每个服务可以单独配置自己的数据库
 }
 

@@ -33,12 +33,15 @@
           />
         </el-tooltip>
       </el-form-item>
-      <el-form-item :label="t('workspace.createPublicLabel')">
+      <el-form-item :label="t('workspace.accessMode')">
         <el-tooltip
-          :content="t('workspace.createPublicTip')"
+          :content="t('workspace.accessModeTip')"
           placement="top"
         >
-          <el-switch v-model="isPublic" />
+          <el-radio-group v-model="accessMode" data-testid="create-app-access-mode">
+            <el-radio-button label="permissioned">{{ t('workspace.accessModePermissioned') }}</el-radio-button>
+            <el-radio-button label="open_collaboration">{{ t('workspace.accessModeOpenCollaboration') }}</el-radio-button>
+          </el-radio-group>
         </el-tooltip>
       </el-form-item>
       <el-form-item :label="t('workspace.hideUnauthorizedNodes')">
@@ -104,9 +107,12 @@ const appCode = computed({
   set: (value: string) => updateForm({ code: value.toLowerCase() })
 })
 
-const isPublic = computed({
-  get: () => props.form.is_public,
-  set: (value: boolean) => updateForm({ is_public: value })
+const accessMode = computed({
+  get: () => props.form.access_mode || 'permissioned',
+  set: (value: 'permissioned' | 'open_collaboration') => updateForm({
+    access_mode: value,
+    is_public: value === 'open_collaboration'
+  })
 })
 
 const hideUnauthorizedNodes = computed({

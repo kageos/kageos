@@ -68,3 +68,14 @@ func (r *TimerOutboxRepository) MarkDeadLetter(id int64, attempts int, errMessag
 			"last_error": errMessage,
 		}).Error
 }
+
+func (r *TimerOutboxRepository) DeadLetterExecutionRequestsForTask(taskID int64, errMessage string) error {
+	executionIDs := r.db.Model(&model.TimerExecution{}).Select("id").Where("task_id = ?", taskID)
+	return r.db.Model(&model.TimerOutboxEvent{}).
+		Where("event_type = ? AND status IN ? AND aggregate_id IN (?)", "timer.execution.requested", []string{"pending", "retry"}, executionIDs).
+		Updates(map[string]interface{}{
+			"status":          "dead_letter",
+			"next_attempt_at": nil,
+			"last_error":      errMessage,
+		}).Error
+}

@@ -190,6 +190,7 @@ type AuthConfig struct {
 type SecretsConfig struct {
 	JWTSecret              string `yaml:"jwt_secret"`
 	AppDBSecret            string `yaml:"app_db_secret"`
+	ControlPlaneSecret     string `yaml:"control_plane_secret"`
 	GeneratedByKageCtl     bool   `yaml:"generated_by_kagectl"`
 	GeneratedAtUnixSeconds int64  `yaml:"generated_at_unix_seconds"`
 }
@@ -284,5 +285,6 @@ type devSecrets struct {
 	MinIORootPassword  string
 	JWTSecret          string
 	AppDBSecret        string
+	ControlPlaneSecret string
 	SystemUserPassword string
 }

@@ -208,7 +208,7 @@ export function useWorkspaceApp(
   const loadingApps = ref(false)
   const pendingAppId = ref<number | string | null>(null)
 
-  const createPlaceholderApp = (app: Pick<AppType, 'id' | 'user' | 'code' | 'name'> & Partial<Pick<AppType, 'hide_unauthorized_nodes'>>): App => ({
+  const createPlaceholderApp = (app: Pick<AppType, 'id' | 'user' | 'code' | 'name'> & Partial<Pick<AppType, 'access_mode' | 'hide_unauthorized_nodes'>>): App => ({
     id: app.id,
     user: app.user,
     code: app.code,
@@ -218,6 +218,7 @@ export function useWorkspaceApp(
     status: 'enabled',
     version: '',
     is_public: false,
+    access_mode: app.access_mode || 'permissioned',
     hide_unauthorized_nodes: app.hide_unauthorized_nodes ?? false,
     created_at: '',
     updated_at: ''
@@ -229,7 +230,8 @@ export function useWorkspaceApp(
   const createAppForm = ref<CreateAppRequest>({
     code: '',
     name: '',
-    is_public: true, // 默认公开
+    is_public: false,
+    access_mode: 'permissioned',
     hide_unauthorized_nodes: false, // 默认不隐藏无权限节点
     admins: '' // 管理员列表，逗号分隔的用户名
   })
@@ -309,7 +311,8 @@ export function useWorkspaceApp(
     createAppForm.value = {
       code: '',
       name: '',
-      is_public: true,
+      is_public: false,
+      access_mode: 'permissioned',
       hide_unauthorized_nodes: false,
       admins: ''
     }

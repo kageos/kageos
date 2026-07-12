@@ -35,15 +35,23 @@ func TestUnifiedStartupUsesCoreMVPServices(t *testing.T) {
 	if !hasDependency(appServer, "app-runtime") {
 		t.Fatal("app-server should wait for app-runtime")
 	}
+	if !hasDependency(appServer, "hr-server") {
+		t.Fatal("app-server should wait for the authoritative OpenAPI token store")
+	}
+	for _, name := range []string{"app-storage", "connector-server"} {
+		if !hasDependency(serviceByName[name], "hr-server") {
+			t.Fatalf("%s should wait for the authoritative OpenAPI token store", name)
+		}
+	}
 
 	agentServer := serviceByName["agent-server"]
-	if len(agentServer.DependsOn) != 0 {
-		t.Fatal("agent-server should start without service dependencies")
+	if !hasDependency(agentServer, "hr-server") {
+		t.Fatal("agent-server should wait for the authoritative OpenAPI token store")
 	}
 
 	timerScheduler := serviceByName["timer-scheduler"]
-	if len(timerScheduler.DependsOn) != 0 {
-		t.Fatal("timer-scheduler should start without service dependencies")
+	if !hasDependency(timerScheduler, "hr-server") {
+		t.Fatal("timer-scheduler should wait for the authoritative OpenAPI token store")
 	}
 
 	messageServer := serviceByName["message-server"]

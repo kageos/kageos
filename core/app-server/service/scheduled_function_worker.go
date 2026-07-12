@@ -54,21 +54,34 @@ type scheduledTableGetRowsCallbackReq struct {
 	IDs []int64 `json:"ids"`
 }
 
-func NewScheduledFunctionWorker(natsConn *nats.Conn, appService *AppService) (*scheduledsdk.Worker, error) {
+func NewScheduledFunctionWorker(natsConn *nats.Conn, appService *AppService, controlPlaneSecret string) (*scheduledsdk.Worker, error) {
 	if natsConn == nil {
 		return nil, fmt.Errorf("scheduled function worker requires nats connection")
 	}
 	if appService == nil {
 		return nil, fmt.Errorf("scheduled function worker requires app service")
 	}
+	natsAuth, err := scheduledsdk.NewWorkerNATSAuth(controlPlaneSecret)
+	if err != nil {
+		return nil, fmt.Errorf("scheduled function worker control auth: %w", err)
+	}
 	client := scheduledsdk.NewClient(scheduledsdk.Options{
-		Adapter: scheduledsdk.NewNATSAdapter(natsConn, scheduledsdk.NATSAdapterOptions{}),
+		Adapter: scheduledsdk.NewNATSAdapter(natsConn, scheduledsdk.NATSAdapterOptions{
+			CommandSigner:    natsAuth.CommandSigner,
+			ResponseVerifier: natsAuth.ResponseVerifier,
+		}),
 	})
 	return scheduledsdk.NewWorker(scheduledsdk.WorkerOptions{
-		Client:      client,
-		NATSConn:    natsConn,
-		ExecutorKey: ScheduledFunctionExecutorKey,
-		Handler:     appService.RunScheduledFunction,
+		Client:          client,
+		NATSConn:        natsConn,
+		ExecutorKey:     ScheduledFunctionExecutorKey,
+		MessageVerifier: natsAuth.MessageVerifier,
+		Handler: func(ctx context.Context, event scheduledsdk.ExecutionRequestedEvent) (*scheduledsdk.ExecutionResult, error) {
+			if strings.TrimSpace(event.RequestUser) == "" {
+				return nil, fmt.Errorf("scheduled function request user is missing")
+			}
+			return appService.RunScheduledFunction(ctx, event)
+		},
 		OnError: func(ctx context.Context, err error) {
 			logger.Warnf(ctx, "[ScheduledFunctionWorker] %v", err)
 		},

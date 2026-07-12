@@ -65,19 +65,31 @@ set_smtp_defaults() {
 
 render_runtime_templates() {
   local template_vars="$1"
+  local old_umask
+  old_umask="$(umask)"
+  umask 077
   echo "==> 渲染 deploy/prod/config/runtime 模板..."
   rm -rf /app/deploy/prod/config/runtime
   mkdir -p /app/deploy/prod/config/runtime
+  chmod 0700 /app/deploy/prod/config/runtime
   for src in /app/config.prod.template/*.yaml; do
     local dst="/app/deploy/prod/config/runtime/$(basename "$src")"
     envsubst "$template_vars" < "$src" > "$dst"
+    chmod 0600 "$dst"
   done
+  umask "$old_umask"
 }
 
 render_runtime_template_file() {
   local template_vars="$1"
   local template_name="$2"
   local output_name="$3"
+  local old_umask
+  old_umask="$(umask)"
+  umask 077
   mkdir -p /app/deploy/prod/config/runtime
+  chmod 0700 /app/deploy/prod/config/runtime
   envsubst "$template_vars" < "/app/config.prod.template/${template_name}" > "/app/deploy/prod/config/runtime/${output_name}"
+  chmod 0600 "/app/deploy/prod/config/runtime/${output_name}"
+  umask "$old_umask"
 }

@@ -46,6 +46,10 @@ export interface WorkspaceChatReq {
 export interface WorkspaceSessionItem {
   session_id: string
   title: string
+  source?: 'workspace' | 'automation_agent' | string
+  automation_task_id?: number
+  automation_task_code?: string
+  automation_task_title?: string
   user?: string
   mode_code?: string
   status: string // active | generating | output | pending_confirmation | pending_build_repair | done | cancelled
@@ -122,11 +126,22 @@ export interface WorkspaceHandoffResp {
 /** 获取工作台会话列表请求 */
 export interface ListWorkspaceSessionsReq {
   full_code_path: string
+  page?: number
+  page_size?: number
+  session_scope?: 'human' | 'automation' | 'all'
+  automation_task_id?: number
+}
+
+export interface WorkspaceAutomationAgentItem {
+  task_id: number
+  task_code?: string
+  task_title: string
 }
 
 /** 获取工作台会话列表响应 */
 export interface ListWorkspaceSessionsResp {
   sessions: WorkspaceSessionItem[]
+  automation_agents: WorkspaceAutomationAgentItem[]
   total: number
   page: number
   page_size: number
@@ -490,7 +505,7 @@ export async function workspaceChatStream(
  * 获取工作台会话列表
  */
 export async function getWorkspaceSessions(params: ListWorkspaceSessionsReq): Promise<ListWorkspaceSessionsResp> {
-  return get<ListWorkspaceSessionsResp>('/agent/api/v1/workspace/sessions', { full_code_path: params.full_code_path })
+  return get<ListWorkspaceSessionsResp>('/agent/api/v1/workspace/sessions', params)
 }
 
 /** 工作台消息信息 */
@@ -499,6 +514,7 @@ export interface WorkspaceMessageInfo {
   session_id: string
   role: 'user' | 'assistant' | 'tool'
   user?: string
+  created_by?: string
   content: string
   display_content?: string
   thinking_content?: string

@@ -2,9 +2,11 @@ package contextx
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/nats-io/nats.go"
 
@@ -17,6 +19,11 @@ const TraceIdHeader = "X-Trace-Id"
 // RequestUserHeader HTTP Header 中的 RequestUser key（统一使用此名称）
 const RequestUserHeader = "X-Request-User"
 
+// UsernameHeader is a legacy identity header accepted by some downstream
+// middleware. Gateway boundaries must treat it as trusted identity metadata,
+// not as a client-controlled fallback.
+const UsernameHeader = "X-Username"
+
 // DepartmentFullPathHeader HTTP Header 和 Context 中的 DepartmentFullPath key（统一使用此名称）
 // ⭐ 统一使用此常量，不要硬编码字符串（既用于 HTTP Header，也用于 Context）
 const DepartmentFullPathHeader = "X-Department-Full-Path"
@@ -24,6 +31,9 @@ const DepartmentFullPathHeader = "X-Department-Full-Path"
 const CompanyCodeHeader = "X-Company-Code"
 const CompanyNameHeader = "X-Company-Name"
 const CompanyLogoURLHeader = "X-Company-Logo-Url"
+const UserIDHeader = "X-User-Id"
+const UserEmailHeader = "X-User-Email"
+const LeaderUsernameHeader = "X-Leader-Username"
 
 // TokenHeader HTTP Header 中的 Token key（统一使用此名称）
 const TokenHeader = "X-Token"
@@ -66,6 +76,90 @@ const (
 )
 
 const PubKeyHerder = "X-Pub-Key"
+
+// trustedIdentityHeaderNames is the complete set of HTTP headers whose values
+// affect authorization identity or audit provenance. Requests crossing an
+// external trust boundary must clear these values before verified credentials
+// (or a verified internal request signature) are allowed to rebuild them.
+//
+// Keep this list centralized: adding a new identity/provenance header without
+// adding it here would reintroduce a header-spoofing path at the gateway.
+var trustedIdentityHeaderNames = [...]string{
+	RequestUserHeader,
+	UsernameHeader,
+	DepartmentFullPathHeader,
+	CompanyCodeHeader,
+	CompanyNameHeader,
+	CompanyLogoURLHeader,
+	UserIDHeader,
+	UserEmailHeader,
+	LeaderUsernameHeader,
+	ClientSourceHeader,
+	SourceTypeHeader,
+	SourceRefHeader,
+	SourcePathHeader,
+	SourceTitleHeader,
+	SourceParentPathHeader,
+	SourceParentTitleHeader,
+	SourceTemplateTypeHeader,
+	WorkspaceSessionIDHeader,
+	WorkspaceSessionTitleHeader,
+	WorkspaceRoleHeader,
+	InitiatorUserHeader,
+	WorkspaceMessageIDHeader,
+	ToolCallIDHeader,
+	ToolNameHeader,
+}
+
+var trustedIdentityHeaderNameSet = func() map[string]struct{} {
+	set := make(map[string]struct{}, len(trustedIdentityHeaderNames))
+	for _, name := range trustedIdentityHeaderNames {
+		set[strings.ToLower(name)] = struct{}{}
+	}
+	return set
+}()
+
+// TrustedIdentityHeaderNames returns a copy of all trusted identity and audit
+// provenance header names. Callers may sort or modify the returned slice.
+func TrustedIdentityHeaderNames() []string {
+	names := make([]string, len(trustedIdentityHeaderNames))
+	copy(names, trustedIdentityHeaderNames[:])
+	return names
+}
+
+// CaptureTrustedIdentityHeaders takes a canonical, single-value snapshot of
+// trusted identity headers. It is intended for verified internal-call signing
+// and gateway verification; it must never itself be treated as proof of trust.
+func CaptureTrustedIdentityHeaders(header http.Header) map[string]string {
+	values := make(map[string]string, len(trustedIdentityHeaderNames))
+	for _, name := range trustedIdentityHeaderNames {
+		if value := strings.TrimSpace(header.Get(name)); value != "" {
+			values[name] = value
+		}
+	}
+	return values
+}
+
+// ClearTrustedIdentityHeaders removes all client-supplied identity and audit
+// provenance before a request crosses into trusted backend services.
+func ClearTrustedIdentityHeaders(header http.Header) {
+	for name := range header {
+		if _, trusted := trustedIdentityHeaderNameSet[strings.ToLower(name)]; trusted {
+			delete(header, name)
+		}
+	}
+}
+
+// ApplyTrustedIdentityHeaders replaces trusted identity metadata with a
+// previously verified snapshot. Existing values are always removed first.
+func ApplyTrustedIdentityHeaders(header http.Header, values map[string]string) {
+	ClearTrustedIdentityHeaders(header)
+	for _, name := range trustedIdentityHeaderNames {
+		if value := strings.TrimSpace(values[name]); value != "" {
+			header.Set(name, value)
+		}
+	}
+}
 
 // PresignHostKey 用于生成预签名 URL 时使用的 Host（与请求 Host 一致，避免 Nginx 代理后签名 403）
 type presignHostKeyType struct{}
@@ -151,6 +245,18 @@ func GetRequestCompanyName(c context.Context) string {
 
 func GetRequestCompanyLogoURL(c context.Context) string {
 	return getStringFromContextOrHeader(c, CompanyLogoURLHeader)
+}
+
+func GetRequestUserID(c context.Context) string {
+	return getStringFromContextOrHeader(c, UserIDHeader)
+}
+
+func GetRequestUserEmail(c context.Context) string {
+	return getStringFromContextOrHeader(c, UserEmailHeader)
+}
+
+func GetRequestLeaderUsername(c context.Context) string {
+	return getStringFromContextOrHeader(c, LeaderUsernameHeader)
 }
 
 func getStringFromContextOrHeader(c context.Context, key string) string {
@@ -435,7 +541,13 @@ func GetPresignHost(c context.Context) string {
 // ToContext 将 gin.Context 转换为标准 context.Context
 // 从 header 或 gin 上下文（如中间件 c.Set）读取关键信息，写入 context.Value，并同步回 c.Request.Header，保证请求头为权威来源。
 func ToContext(c *gin.Context) context.Context {
+	// Start from a clean context so stale string-key identity and SSE
+	// cancellation semantics do not leak in. Copy only the private, typed Agent
+	// delegation capability installed after strict HTTP authentication.
 	ctx := context.Background()
+	if c != nil && c.Request != nil {
+		ctx = controlauth.PropagateDelegatedHTTPRequestSigner(c.Request.Context(), ctx)
+	}
 
 	// 1. TraceId：header 或 context，取到后 set 回 header + context
 	traceId := c.GetHeader(TraceIdHeader)
@@ -522,6 +634,18 @@ func ToContext(c *gin.Context) context.Context {
 	if companyLogoURL != "" {
 		ctx = context.WithValue(ctx, CompanyLogoURLHeader, companyLogoURL)
 		c.Request.Header.Set(CompanyLogoURLHeader, companyLogoURL)
+	}
+	for _, key := range []string{UserIDHeader, UserEmailHeader, LeaderUsernameHeader} {
+		value := c.GetHeader(key)
+		if value == "" {
+			if raw, exists := c.Get(key); exists {
+				value, _ = raw.(string)
+			}
+		}
+		if value != "" {
+			ctx = context.WithValue(ctx, key, value)
+			c.Request.Header.Set(key, value)
+		}
 	}
 
 	// 6. ClientSource：header 或 context，取到后 set 回 header + context，供操作日志和下游调用链识别入口来源
@@ -694,6 +818,9 @@ type RequestInfo struct {
 	CompanyCode           string
 	CompanyName           string
 	CompanyLogoURL        string
+	UserID                string
+	UserEmail             string
+	LeaderUsername        string
 	ClientSource          string
 	SourceType            string
 	SourceRef             string
@@ -733,6 +860,15 @@ func WithRequestInfo(ctx context.Context, info RequestInfo) context.Context {
 	}
 	if info.CompanyLogoURL != "" {
 		ctx = context.WithValue(ctx, CompanyLogoURLHeader, info.CompanyLogoURL)
+	}
+	if info.UserID != "" {
+		ctx = context.WithValue(ctx, UserIDHeader, info.UserID)
+	}
+	if info.UserEmail != "" {
+		ctx = context.WithValue(ctx, UserEmailHeader, info.UserEmail)
+	}
+	if info.LeaderUsername != "" {
+		ctx = context.WithValue(ctx, LeaderUsernameHeader, info.LeaderUsername)
 	}
 	if info.InitiatorUser != "" {
 		ctx = context.WithValue(ctx, InitiatorUserHeader, info.InitiatorUser)

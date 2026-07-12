@@ -23,6 +23,7 @@ func TestSendNotificationPublishesWithScheduledSource(t *testing.T) {
 	publisher := &fakeNotificationPublisher{}
 	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
 		RequestUser:  "alice",
+		Token:        "must-not-enter-message-nats",
 		ClientSource: contextx.ClientSourceScheduledTask,
 		SourceType:   contextx.SourceTypeScheduledTask,
 		SourceRef:    "timer_task:7:execution:9",
@@ -49,6 +50,9 @@ func TestSendNotificationPublishesWithScheduledSource(t *testing.T) {
 	msg := publisher.msgs[0]
 	if msg.Subject != subjects.MessageSendCommandSubject {
 		t.Fatalf("subject = %q", msg.Subject)
+	}
+	if got := msg.Header.Get(contextx.TokenHeader); got != "" {
+		t.Fatalf("message NATS header leaked token %q", got)
 	}
 	envelope, err := decodeNotifyEnvelope(msg.Data)
 	if err != nil {

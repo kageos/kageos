@@ -2,7 +2,6 @@ package server
 
 import (
 	v1 "github.com/kageos/kageos/core/agent-server/api/v1"
-	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/pprof"
 	"github.com/kageos/kageos/pkg/serverx"
 	swaggerFiles "github.com/swaggo/files"
@@ -28,8 +27,9 @@ func (s *Server) setupRoutes() {
 	// API v1 路由组
 	apiV1 := agent.Group("/api/v1")
 
-	// 添加用户信息中间件
-	apiV1.Use(middleware2.WithUserInfo())
+	// Agent 业务接口不信任 loopback 或裸身份头；必须由真实用户
+	// 凭据或 gateway->Agent 内部签名重建身份。health/swagger 仍在组外公开。
+	apiV1.Use(s.requireAgentAPIAuthentication())
 
 	// 服务端运行态。当前由 agent-server 内存维护，后续可替换为分布式实现。
 	state := apiV1.Group("/state")

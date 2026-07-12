@@ -14,6 +14,7 @@ import (
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/serviceconfig"
 )
@@ -25,12 +26,20 @@ const (
 
 type WorkspaceActionRequest struct {
 	RecipientUser         string
+	UserID                string
+	UserEmail             string
+	LeaderUsername        string
+	DepartmentFullPath    string
+	CompanyCode           string
+	CompanyName           string
+	CompanyLogoURL        string
 	Channel               string
 	FullCodePath          string
 	SessionID             string
 	ThreadKey             string
 	Content               string
 	DisplayContent        string
+	Files                 string
 	OriginalTitle         string
 	TraceID               string
 	SourceRef             string
@@ -51,11 +60,12 @@ type WorkspaceActionSubmitResult struct {
 type WorkspaceActionRunner struct {
 	baseURL      string
 	client       *http.Client
+	signer       *controlauth.Signer
 	startTimeout time.Duration
 	runTimeout   time.Duration
 }
 
-func NewWorkspaceActionRunner(baseURL string) *WorkspaceActionRunner {
+func NewWorkspaceActionRunner(baseURL string, signer *controlauth.Signer) *WorkspaceActionRunner {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
 		baseURL = serviceconfig.GetGatewayURL()
@@ -64,7 +74,11 @@ func NewWorkspaceActionRunner(baseURL string) *WorkspaceActionRunner {
 		baseURL: baseURL,
 		client: &http.Client{
 			Timeout: 0,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
 		},
+		signer:       signer,
 		startTimeout: 8 * time.Second,
 		runTimeout:   30 * time.Minute,
 	}
@@ -131,6 +145,7 @@ func (r *WorkspaceActionRunner) run(req WorkspaceActionRequest, started chan<- w
 		Message: dto.WorkspaceMsg{
 			Content:        req.Content,
 			DisplayContent: strings.TrimSpace(req.DisplayContent),
+			Files:          strings.TrimSpace(req.Files),
 			ContextUsage:   dto.WorkspaceMessageContextCurrentTurn,
 		},
 	}
@@ -146,6 +161,14 @@ func (r *WorkspaceActionRunner) run(req WorkspaceActionRequest, started chan<- w
 		return
 	}
 	applyWorkspaceActionHeaders(httpReq, req)
+	if r.signer == nil {
+		signalStarted("", fmt.Errorf("提交工作台失败: internal request signer is not configured"))
+		return
+	}
+	if err := controlauth.SignHTTPRequest(httpReq, body, workspaceActionSignedHeaders(), r.signer); err != nil {
+		signalStarted("", fmt.Errorf("提交工作台失败: sign internal request: %w", err))
+		return
+	}
 
 	client := r.client
 	if client == nil {
@@ -168,6 +191,12 @@ func (r *WorkspaceActionRunner) run(req WorkspaceActionRequest, started chan<- w
 	}
 }
 
+func workspaceActionSignedHeaders() []string {
+	names := contextx.TrustedIdentityHeaderNames()
+	names = append(names, contextx.TraceIdHeader)
+	return names
+}
+
 func (r *WorkspaceActionRunner) chatStreamURL() string {
 	baseURL := strings.TrimRight(strings.TrimSpace(r.baseURL), "/")
 	if baseURL == "" {
@@ -179,6 +208,13 @@ func (r *WorkspaceActionRunner) chatStreamURL() string {
 func applyWorkspaceActionHeaders(httpReq *http.Request, req WorkspaceActionRequest) {
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set(contextx.RequestUserHeader, strings.TrimSpace(req.RecipientUser))
+	setHeaderIfNotEmpty(httpReq, contextx.UserIDHeader, req.UserID)
+	setHeaderIfNotEmpty(httpReq, contextx.UserEmailHeader, req.UserEmail)
+	setHeaderIfNotEmpty(httpReq, contextx.LeaderUsernameHeader, req.LeaderUsername)
+	setHeaderIfNotEmpty(httpReq, contextx.DepartmentFullPathHeader, req.DepartmentFullPath)
+	setHeaderIfNotEmpty(httpReq, contextx.CompanyCodeHeader, req.CompanyCode)
+	setHeaderIfNotEmpty(httpReq, contextx.CompanyNameHeader, req.CompanyName)
+	setHeaderIfNotEmpty(httpReq, contextx.CompanyLogoURLHeader, req.CompanyLogoURL)
 	httpReq.Header.Set(contextx.ClientSourceHeader, WorkspaceActionClientSource)
 	httpReq.Header.Set(contextx.SourceTypeHeader, WorkspaceActionSourceType)
 	setHeaderIfNotEmpty(httpReq, contextx.TraceIdHeader, req.TraceID)

@@ -61,23 +61,36 @@ type ToolResultMetadata struct {
 
 // ListWorkspaceSessionsReq 获取工作台会话列表请求
 type ListWorkspaceSessionsReq struct {
-	FullCodePath string `json:"full_code_path" form:"full_code_path" binding:"required"` // 必填：服务目录完整路径
-	Page         int    `json:"page" form:"page"`                                        // 页码，从1开始，默认1
-	PageSize     int    `json:"page_size" form:"page_size"`                              // 每页数量，默认20
+	FullCodePath     string `json:"full_code_path" form:"full_code_path" binding:"required"` // 必填：服务目录完整路径
+	Page             int    `json:"page" form:"page"`                                        // 页码，从1开始，默认1
+	PageSize         int    `json:"page_size" form:"page_size"`                              // 每页数量，默认20
+	SessionScope     string `json:"session_scope" form:"session_scope"`                      // human（默认）/automation/all
+	AutomationTaskID int64  `json:"automation_task_id" form:"automation_task_id"`            // 选择某个自动化 Agent 时传任务 ID
 }
 
 // ListWorkspaceSessionsResp 获取工作台会话列表响应
 type ListWorkspaceSessionsResp struct {
-	Sessions []*WorkspaceSessionItem `json:"sessions"`  // 会话列表
-	Total    int64                   `json:"total"`     // 总数
-	Page     int                     `json:"page"`      // 当前页码
-	PageSize int                     `json:"page_size"` // 每页数量
+	Sessions         []*WorkspaceSessionItem         `json:"sessions"`          // 会话列表
+	AutomationAgents []*WorkspaceAutomationAgentItem `json:"automation_agents"` // 当前目录有历史会话的自动化 Agent
+	Total            int64                           `json:"total"`             // 总数
+	Page             int                             `json:"page"`              // 当前页码
+	PageSize         int                             `json:"page_size"`         // 每页数量
+}
+
+type WorkspaceAutomationAgentItem struct {
+	TaskID    int64  `json:"task_id"`
+	TaskCode  string `json:"task_code,omitempty"`
+	TaskTitle string `json:"task_title"`
 }
 
 // WorkspaceSessionItem 工作台会话项
 type WorkspaceSessionItem struct {
 	SessionID                   string                `json:"session_id"`                                // 会话ID
 	Title                       string                `json:"title"`                                     // 会话标题
+	Source                      string                `json:"source,omitempty"`                          // workspace / automation_agent
+	AutomationTaskID            int64                 `json:"automation_task_id,omitempty"`              // 自动化 Agent 任务 ID
+	AutomationTaskCode          string                `json:"automation_task_code,omitempty"`            // 自动化 Agent 稳定 Code
+	AutomationTaskTitle         string                `json:"automation_task_title,omitempty"`           // 自动化 Agent 名称
 	User                        string                `json:"user"`                                      // 创建该会话的用户
 	ModeCode                    string                `json:"mode_code"`                                 // 工作台模式代码
 	Status                      string                `json:"status"`                                    // 会话状态（active/generating/output/pending_confirmation/pending_build_repair/done/cancelled；pending_test 为历史兼容）
@@ -252,6 +265,8 @@ type BatchWorkspaceToolDetailsResp struct {
 // UpdateWorkspaceReq 更新工作空间请求（只更新 MySQL 如 Admins；canonical 标识为 resource_path）
 type UpdateWorkspaceReq struct {
 	ResourcePath          string  `json:"resource_path,omitempty"`                           // 工作空间资源路径，规范为 /user/app
+	Name                  *string `json:"name,omitempty"`                                    // 展示名称；nil 表示不更新，不影响 code、URL 或运行时目录
+	AccessMode            *string `json:"access_mode,omitempty"`                             // 访问模式：permissioned/open_collaboration；nil 表示不更新
 	Admins                *string `json:"admins,omitempty"`                                  // 管理员列表，逗号分隔；nil 表示不更新
 	HideUnauthorizedNodes *bool   `json:"hide_unauthorized_nodes,omitempty" example:"false"` // 是否隐藏当前用户无 read 权限的目录节点；nil 表示不更新
 }
@@ -260,6 +275,8 @@ type UpdateWorkspaceReq struct {
 type UpdateWorkspaceResp struct {
 	User                  string `json:"user"`
 	App                   string `json:"app"`
+	Name                  string `json:"name"`
+	AccessMode            string `json:"access_mode"`
 	Admins                string `json:"admins"`
 	HideUnauthorizedNodes bool   `json:"hide_unauthorized_nodes"`
 }

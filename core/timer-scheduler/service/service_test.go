@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -42,47 +43,15 @@ func newTestService(t *testing.T, now *time.Time) (*Service, *gorm.DB) {
 	return svc, db
 }
 
-func TestScheduledExecutionTokenSkipsTaskWithoutRequestUserID(t *testing.T) {
-	task := &model.TimerTask{
-		RequestUser: "system",
-		CreatedBy:   "system",
-	}
-	if token := scheduledExecutionToken(task); token != "" {
-		t.Fatalf("task without request_user_id should not receive delegated token, got %q", token)
-	}
-}
-
-func TestScheduledExecutionTokenSupportsSystemUser(t *testing.T) {
-	task := &model.TimerTask{
-		RequestUser:     "system",
-		CreatedBy:       "system",
-		RequestUserDept: "/system",
-		MetadataJSON:    json.RawMessage(`{"request_user_id":"1","request_email":"system@example.com","company_code":"kageos"}`),
-	}
-	token := scheduledExecutionToken(task)
-	if token == "" {
-		t.Fatal("system task with request_user_id should receive delegated token")
-	}
-	claims, err := auth.NewJWTService().ValidateToken(token)
-	if err != nil {
-		t.Fatalf("system delegated token should validate: %v", err)
-	}
-	if claims.UserID != 1 || claims.Username != "system" || claims.Email != "system@example.com" {
-		t.Fatalf("unexpected claims: user_id=%d username=%q email=%q", claims.UserID, claims.Username, claims.Email)
-	}
-	if claims.DepartmentFullPath == nil || *claims.DepartmentFullPath != "/system" {
-		t.Fatalf("expected department in system token, claims=%+v", claims)
-	}
-	if claims.CompanyCode != "kageos" {
-		t.Fatalf("company code = %q, want kageos", claims.CompanyCode)
-	}
+func createTestTask(svc *Service, ctx context.Context, req scheduledsdk.CreateTaskRequest) (*scheduledsdk.Task, error) {
+	return svc.CreateTask(ctx, req)
 }
 
 func TestServiceCreateTaskSupportsPausedInitialStatus(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, _ := newTestService(t, &now)
 
-	task, err := svc.CreateTask(context.Background(), scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, context.Background(), scheduledsdk.CreateTaskRequest{
 		Title:           "paused demo",
 		ExecutorKey:     "test.executor",
 		ExecutorPayload: json.RawMessage(`{"hello":"timer"}`),
@@ -101,6 +70,241 @@ func TestServiceCreateTaskSupportsPausedInitialStatus(t *testing.T) {
 	}
 	if len(execs) != 0 {
 		t.Fatalf("paused task should not dispatch, got %d executions", len(execs))
+	}
+}
+
+func TestTaskMetadataSerializedSizeIsEnforcedOnCreateAndUpdate(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, _ := newTestService(t, &now)
+	overhead := len(`{"k":""}`)
+	exact := map[string]string{"k": strings.Repeat("a", scheduledsdk.MaxExecutionMetadataJSONBytes-overhead)}
+	encoded, err := json.Marshal(exact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(encoded) != scheduledsdk.MaxExecutionMetadataJSONBytes {
+		t.Fatalf("boundary metadata encoded size = %d", len(encoded))
+	}
+	task, err := createTestTask(svc, context.Background(), scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(60),
+		Metadata:    exact,
+	})
+	if err != nil {
+		t.Fatalf("exact metadata boundary rejected: %v", err)
+	}
+
+	tooLarge := map[string]string{"k": exact["k"] + "a"}
+	if _, err := createTestTask(svc, context.Background(), scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(60),
+		Metadata:    tooLarge,
+	}); !errors.Is(err, scheduledsdk.ErrInvalidRequest) {
+		t.Fatalf("oversized create metadata error = %v, want ErrInvalidRequest", err)
+	}
+	if _, err := svc.UpdateTask(context.Background(), task.ID, scheduledsdk.UpdateTaskRequest{Metadata: &tooLarge}); !errors.Is(err, scheduledsdk.ErrInvalidRequest) {
+		t.Fatalf("oversized update metadata error = %v, want ErrInvalidRequest", err)
+	}
+	escaped := map[string]string{"k": strings.Repeat("\x00", scheduledsdk.MaxExecutionMetadataJSONBytes/6+1)}
+	if _, err := createTestTask(svc, context.Background(), scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(60),
+		Metadata:    escaped,
+	}); !errors.Is(err, scheduledsdk.ErrInvalidRequest) {
+		t.Fatalf("JSON-escaped oversized metadata error = %v, want ErrInvalidRequest", err)
+	}
+}
+
+func TestMarkExecutionStartedRequiresActiveTaskAndIsIdempotent(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	t.Run("exact duplicate is idempotent", func(t *testing.T) {
+		svc, _ := newTestService(t, &now)
+		task, err := createTestTask(svc, context.Background(), scheduledsdk.CreateTaskRequest{
+			ExecutorKey: "test.executor",
+			Schedule:    scheduledsdk.At(now.Add(-time.Minute)),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		executions, err := svc.DispatchDue(context.Background(), "owner", 1)
+		if err != nil || len(executions) != 1 {
+			t.Fatalf("DispatchDue executions=%d err=%v", len(executions), err)
+		}
+		req := scheduledsdk.MarkExecutionStartedRequest{
+			TaskID:        task.ID,
+			ExecutionID:   executions[0].ID,
+			WorkerID:      "worker-1",
+			ExecutorRunID: "run-1",
+			StartedAt:     now,
+		}
+		if err := svc.MarkExecutionStarted(context.Background(), req); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.MarkExecutionHeartbeat(context.Background(), scheduledsdk.MarkExecutionHeartbeatRequest{
+			TaskID: task.ID, ExecutionID: executions[0].ID, WorkerID: "worker-1", ExecutorRunID: "wrong-run", HeartbeatAt: now.Add(time.Second),
+		}); !errors.Is(err, ErrInvalidTaskStatus) {
+			t.Fatalf("wrong-run heartbeat error = %v, want ErrInvalidTaskStatus", err)
+		}
+		if err := svc.MarkExecutionFinished(context.Background(), scheduledsdk.MarkExecutionFinishedRequest{
+			TaskID: task.ID, ExecutionID: executions[0].ID, Status: scheduledsdk.ExecutionStatusSuccess, ExecutorRunID: "wrong-run", FinishedAt: now.Add(time.Second),
+		}); !errors.Is(err, ErrInvalidTaskStatus) {
+			t.Fatalf("wrong-run finish error = %v, want ErrInvalidTaskStatus", err)
+		}
+		if err := svc.MarkExecutionStarted(context.Background(), req); err != nil {
+			t.Fatalf("duplicate start error = %v", err)
+		}
+		req.ExecutorRunID = "different-run"
+		if err := svc.MarkExecutionStarted(context.Background(), req); !errors.Is(err, ErrInvalidTaskStatus) {
+			t.Fatalf("different run start error = %v, want ErrInvalidTaskStatus", err)
+		}
+	})
+
+	for _, action := range []string{"cancel", "delete"} {
+		t.Run(action+" blocks queued start", func(t *testing.T) {
+			svc, _ := newTestService(t, &now)
+			task, err := createTestTask(svc, context.Background(), scheduledsdk.CreateTaskRequest{
+				ExecutorKey: "test.executor",
+				Schedule:    scheduledsdk.At(now.Add(-time.Minute)),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			executions, err := svc.DispatchDue(context.Background(), "owner", 1)
+			if err != nil || len(executions) != 1 {
+				t.Fatalf("DispatchDue executions=%d err=%v", len(executions), err)
+			}
+			if action == "cancel" {
+				err = svc.CancelTask(context.Background(), task.ID)
+			} else {
+				err = svc.DeleteTask(context.Background(), task.ID)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = svc.MarkExecutionStarted(context.Background(), scheduledsdk.MarkExecutionStartedRequest{
+				TaskID:        task.ID,
+				ExecutionID:   executions[0].ID,
+				WorkerID:      "worker-1",
+				ExecutorRunID: "run-1",
+				StartedAt:     now,
+			})
+			if !errors.Is(err, ErrInvalidTaskStatus) {
+				t.Fatalf("start after %s error = %v, want ErrInvalidTaskStatus", action, err)
+			}
+			stored, err := svc.GetExecution(context.Background(), task.ID, executions[0].ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stored.Status != scheduledsdk.ExecutionStatusCancelled {
+				t.Fatalf("execution after %s status = %s, want cancelled", action, stored.Status)
+			}
+		})
+	}
+}
+
+func TestMarkExecutionFinishedPreservesPausedAndCancelledTaskState(t *testing.T) {
+	for _, status := range []scheduledsdk.TaskStatus{scheduledsdk.TaskStatusPaused, scheduledsdk.TaskStatusCancelled} {
+		t.Run(string(status), func(t *testing.T) {
+			now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+			svc, _ := newTestService(t, &now)
+			task, err := createTestTask(svc, context.Background(), scheduledsdk.CreateTaskRequest{
+				ExecutorKey: "test.executor",
+				Schedule:    scheduledsdk.At(now.Add(-time.Minute)),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			executions, err := svc.DispatchDue(context.Background(), "owner", 1)
+			if err != nil || len(executions) != 1 {
+				t.Fatalf("DispatchDue executions=%d err=%v", len(executions), err)
+			}
+			if err := svc.MarkExecutionStarted(context.Background(), scheduledsdk.MarkExecutionStartedRequest{
+				TaskID: task.ID, ExecutionID: executions[0].ID, WorkerID: "worker", ExecutorRunID: "run", StartedAt: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if status == scheduledsdk.TaskStatusPaused {
+				err = svc.PauseTask(context.Background(), task.ID)
+			} else {
+				err = svc.CancelTask(context.Background(), task.ID)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			finishErr := svc.MarkExecutionFinished(context.Background(), scheduledsdk.MarkExecutionFinishedRequest{
+				TaskID: task.ID, ExecutionID: executions[0].ID, Status: scheduledsdk.ExecutionStatusSuccess, ExecutorRunID: "run", FinishedAt: now.Add(time.Second),
+			})
+			if status == scheduledsdk.TaskStatusPaused && finishErr != nil {
+				t.Fatal(finishErr)
+			}
+			if status == scheduledsdk.TaskStatusCancelled && !errors.Is(finishErr, ErrInvalidTaskStatus) {
+				t.Fatalf("finish after cancel error = %v, want ErrInvalidTaskStatus", finishErr)
+			}
+			got, err := svc.GetTask(context.Background(), task.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Status != status {
+				t.Fatalf("task status = %s, want %s", got.Status, status)
+			}
+			if status == scheduledsdk.TaskStatusCancelled && got.NextRunAt != nil {
+				t.Fatalf("cancelled task next_run_at = %v, want nil", got.NextRunAt)
+			}
+		})
+	}
+}
+
+func TestScheduledCompletionSettlesWithoutClearingNewerManualInflight(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, _ := newTestService(t, &now)
+	task, err := createTestTask(svc, context.Background(), scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.At(now.Add(-time.Minute)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scheduled, err := svc.DispatchDue(context.Background(), "owner", 1)
+	if err != nil || len(scheduled) != 1 {
+		t.Fatalf("DispatchDue executions=%d err=%v", len(scheduled), err)
+	}
+	manual, err := svc.RunNow(context.Background(), task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.MarkExecutionStarted(context.Background(), scheduledsdk.MarkExecutionStartedRequest{
+		TaskID: task.ID, ExecutionID: scheduled[0].ID, WorkerID: "worker", ExecutorRunID: "scheduled-run", StartedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.MarkExecutionFinished(context.Background(), scheduledsdk.MarkExecutionFinishedRequest{
+		TaskID: task.ID, ExecutionID: scheduled[0].ID, Status: scheduledsdk.ExecutionStatusSuccess, ExecutorRunID: "scheduled-run", FinishedAt: now.Add(time.Second),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	settled, err := svc.GetTask(context.Background(), task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settled.Status != scheduledsdk.TaskStatusDone || settled.RunCount != 1 || settled.InflightExecutionID != manual.ID {
+		t.Fatalf("scheduled settlement lost state or newer inflight: %#v", settled)
+	}
+	if err := svc.MarkExecutionStarted(context.Background(), scheduledsdk.MarkExecutionStartedRequest{
+		TaskID: task.ID, ExecutionID: manual.ID, WorkerID: "worker", ExecutorRunID: "manual-run", StartedAt: now.Add(time.Second),
+	}); err != nil {
+		t.Fatalf("queued manual start after scheduled task became done: %v", err)
+	}
+	if err := svc.MarkExecutionFinished(context.Background(), scheduledsdk.MarkExecutionFinishedRequest{
+		TaskID: task.ID, ExecutionID: manual.ID, Status: scheduledsdk.ExecutionStatusSuccess, ExecutorRunID: "manual-run", FinishedAt: now.Add(2 * time.Second),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	finished, err := svc.GetTask(context.Background(), task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finished.Status != scheduledsdk.TaskStatusDone || finished.RunCount != 1 || finished.InflightExecutionID != 0 {
+		t.Fatalf("manual completion changed scheduled settlement: %#v", finished)
 	}
 }
 
@@ -127,7 +331,7 @@ func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 	})
 	payload := json.RawMessage(`{"hello":"timer"}`)
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		Title:           "demo",
 		ExecutorKey:     "test.executor",
 		ExecutorPayload: payload,
@@ -175,37 +379,32 @@ func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 	if event.RequestUser != "alice" || event.RequestUserDept != "/org/dev" {
 		t.Fatalf("request user was not propagated: user=%q dept=%q", event.RequestUser, event.RequestUserDept)
 	}
-	if strings.TrimSpace(event.Token) == "" {
-		t.Fatal("scheduled execution event should include delegated token")
+	if event.Token != "" || bytes.Contains(requestedEvent.Payload, []byte(`"token"`)) || bytes.Contains(requestedEvent.Payload, []byte("eyJ")) {
+		t.Fatalf("scheduled execution event leaked JWT material: %s", requestedEvent.Payload)
 	}
-	claims, err := auth.NewJWTService().ValidateToken(event.Token)
-	if err != nil {
-		t.Fatalf("scheduled execution token should validate: %v", err)
+	if event.Metadata[scheduledsdk.MetadataRequestEmail] != "alice@example.com" {
+		t.Fatalf("signed execution identity metadata was not preserved: %+v", event.Metadata)
 	}
-	if claims.UserID != 42 || claims.Username != "alice" || claims.Email != "alice@example.com" || claims.Subject != "access_42" {
-		t.Fatalf("unexpected scheduled token claims: user_id=%d username=%q email=%q subject=%q", claims.UserID, claims.Username, claims.Email, claims.Subject)
-	}
-	if claims.DepartmentFullPath == nil || *claims.DepartmentFullPath != "/org/dev" {
-		t.Fatalf("scheduled token should include department, claims=%+v", claims)
-	}
-	if claims.CompanyCode != "acme" || claims.CompanyName != "Acme" {
-		t.Fatalf("scheduled token should include company metadata, claims=%+v", claims)
+	if event.Metadata["task_title"] != "demo" {
+		t.Fatalf("task title metadata was not propagated: %+v", event.Metadata)
 	}
 
 	if err := svc.MarkExecutionStarted(ctx, scheduledsdk.MarkExecutionStartedRequest{
-		TaskID:      task.ID,
-		ExecutionID: exec.ID,
-		WorkerID:    "worker-1",
-		StartedAt:   now,
+		TaskID:        task.ID,
+		ExecutionID:   exec.ID,
+		WorkerID:      "worker-1",
+		ExecutorRunID: "run-1",
+		StartedAt:     now,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	now = now.Add(time.Minute)
 	if err := svc.MarkExecutionHeartbeat(ctx, scheduledsdk.MarkExecutionHeartbeatRequest{
-		TaskID:      task.ID,
-		ExecutionID: exec.ID,
-		WorkerID:    "worker-1",
-		HeartbeatAt: now,
+		TaskID:        task.ID,
+		ExecutionID:   exec.ID,
+		WorkerID:      "worker-1",
+		ExecutorRunID: "run-1",
+		HeartbeatAt:   now,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +438,7 @@ func TestDispatchDueContinuesAfterOneTaskDispatchError(t *testing.T) {
 	svc, db := newTestService(t, &now)
 	ctx := context.Background()
 
-	first, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	first, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		Title:       "broken first",
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.At(now.Add(-time.Second)),
@@ -247,7 +446,7 @@ func TestDispatchDueContinuesAfterOneTaskDispatchError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	second, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		Title:       "healthy second",
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.At(now.Add(-time.Second)),
@@ -288,7 +487,7 @@ func TestDispatchDueRunsMissedTaskEvenWithInflightExecution(t *testing.T) {
 	svc, db := newTestService(t, &now)
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.Every(60),
 	})
@@ -334,7 +533,7 @@ func TestServiceRequeuesQueuedExecutionBeforeTimeout(t *testing.T) {
 	svc, db := newTestService(t, &now)
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.At(now.Add(-time.Second)),
 	})
@@ -383,7 +582,7 @@ func TestRecoverStaleExecutionsTimesOutDetachedQueuedExecution(t *testing.T) {
 	svc.opts.MaxDispatchAttempts = 1
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.At(now.Add(-time.Second)),
 	})
@@ -438,7 +637,7 @@ func TestRecoverStaleRunningExecutionExtendsLeaseBeforeTimeout(t *testing.T) {
 	svc.opts.MaxHeartbeatMisses = 3
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.Every(3600),
 	})
@@ -457,10 +656,11 @@ func TestRecoverStaleRunningExecutionExtendsLeaseBeforeTimeout(t *testing.T) {
 	}
 	exec := execs[0]
 	if err := svc.MarkExecutionStarted(ctx, scheduledsdk.MarkExecutionStartedRequest{
-		TaskID:      task.ID,
-		ExecutionID: exec.ID,
-		WorkerID:    "worker-1",
-		StartedAt:   now,
+		TaskID:        task.ID,
+		ExecutionID:   exec.ID,
+		WorkerID:      "worker-1",
+		ExecutorRunID: "run-1",
+		StartedAt:     now,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -498,10 +698,11 @@ func TestRecoverStaleRunningExecutionExtendsLeaseBeforeTimeout(t *testing.T) {
 
 	now = now.Add(30 * time.Second)
 	if err := svc.MarkExecutionHeartbeat(ctx, scheduledsdk.MarkExecutionHeartbeatRequest{
-		TaskID:      task.ID,
-		ExecutionID: exec.ID,
-		WorkerID:    "worker-1",
-		HeartbeatAt: now,
+		TaskID:        task.ID,
+		ExecutionID:   exec.ID,
+		WorkerID:      "worker-1",
+		ExecutorRunID: "run-1",
+		HeartbeatAt:   now,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -520,7 +721,7 @@ func TestRecoverStaleRunningExecutionTimesOutAfterHeartbeatMissLimit(t *testing.
 	svc.opts.MaxHeartbeatMisses = 2
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.Every(3600),
 	})
@@ -539,10 +740,11 @@ func TestRecoverStaleRunningExecutionTimesOutAfterHeartbeatMissLimit(t *testing.
 	}
 	exec := execs[0]
 	if err := svc.MarkExecutionStarted(ctx, scheduledsdk.MarkExecutionStartedRequest{
-		TaskID:      task.ID,
-		ExecutionID: exec.ID,
-		WorkerID:    "worker-1",
-		StartedAt:   now,
+		TaskID:        task.ID,
+		ExecutionID:   exec.ID,
+		WorkerID:      "worker-1",
+		ExecutorRunID: "run-1",
+		StartedAt:     now,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -629,7 +831,7 @@ func TestRecoverStaleExecutionsHandlesOrphansAndContinues(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.At(now.Add(-time.Second)),
 	})
@@ -689,7 +891,7 @@ func TestRecoverStaleExecutionsClearsMissingInflightReference(t *testing.T) {
 	svc, db := newTestService(t, &now)
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.Every(3600),
 	})
@@ -730,7 +932,7 @@ func TestRecoverStaleExecutionsClearsTerminalInflightReference(t *testing.T) {
 	svc, db := newTestService(t, &now)
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.Every(3600),
 	})
@@ -780,7 +982,7 @@ func TestRunNowDoesNotChangeScheduledCadence(t *testing.T) {
 	svc, _ := newTestService(t, &now)
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.Every(3600),
 	})
@@ -797,18 +999,20 @@ func TestRunNowDoesNotChangeScheduledCadence(t *testing.T) {
 		t.Fatalf("trigger_type = %q, want manual", exec.TriggerType)
 	}
 	if err := svc.MarkExecutionStarted(ctx, scheduledsdk.MarkExecutionStartedRequest{
-		TaskID:      task.ID,
-		ExecutionID: exec.ID,
-		WorkerID:    "worker-1",
-		StartedAt:   now,
+		TaskID:        task.ID,
+		ExecutionID:   exec.ID,
+		WorkerID:      "worker-1",
+		ExecutorRunID: "run-1",
+		StartedAt:     now,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := svc.MarkExecutionFinished(ctx, scheduledsdk.MarkExecutionFinishedRequest{
-		TaskID:      task.ID,
-		ExecutionID: exec.ID,
-		Status:      scheduledsdk.ExecutionStatusSuccess,
-		FinishedAt:  now.Add(time.Minute),
+		TaskID:        task.ID,
+		ExecutionID:   exec.ID,
+		Status:        scheduledsdk.ExecutionStatusSuccess,
+		ExecutorRunID: "run-1",
+		FinishedAt:    now.Add(time.Minute),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -833,7 +1037,7 @@ func TestRunNowRecoversMissingInflightReference(t *testing.T) {
 	svc, db := newTestService(t, &now)
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.Every(3600),
 	})
@@ -871,7 +1075,7 @@ func TestRunNowIgnoresStaleInflightExecution(t *testing.T) {
 	svc, _ := newTestService(t, &now)
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.Every(3600),
 	})
@@ -913,7 +1117,7 @@ func TestRunNowAllowsOverlappingInflightExecution(t *testing.T) {
 	svc, _ := newTestService(t, &now)
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.Every(3600),
 	})
@@ -943,18 +1147,20 @@ func TestRunNowAllowsOverlappingInflightExecution(t *testing.T) {
 	}
 
 	if err := svc.MarkExecutionStarted(ctx, scheduledsdk.MarkExecutionStartedRequest{
-		TaskID:      task.ID,
-		ExecutionID: second.ID,
-		WorkerID:    "worker-2",
-		StartedAt:   now,
+		TaskID:        task.ID,
+		ExecutionID:   second.ID,
+		WorkerID:      "worker-2",
+		ExecutorRunID: "run-2",
+		StartedAt:     now,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := svc.MarkExecutionFinished(ctx, scheduledsdk.MarkExecutionFinishedRequest{
-		TaskID:      task.ID,
-		ExecutionID: second.ID,
-		Status:      scheduledsdk.ExecutionStatusSuccess,
-		FinishedAt:  now.Add(time.Second),
+		TaskID:        task.ID,
+		ExecutionID:   second.ID,
+		Status:        scheduledsdk.ExecutionStatusSuccess,
+		ExecutorRunID: "run-2",
+		FinishedAt:    now.Add(time.Second),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -973,7 +1179,7 @@ func TestCreateTaskReusesActiveIdempotencyKey(t *testing.T) {
 	svc, _ := newTestService(t, &now)
 	ctx := context.Background()
 
-	first, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	first, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		Title:          "first",
 		IdempotencyKey: "same-live-task",
 		ExecutorKey:    "test.executor",
@@ -982,7 +1188,7 @@ func TestCreateTaskReusesActiveIdempotencyKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	second, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		Title:          "second",
 		IdempotencyKey: "same-live-task",
 		ExecutorKey:    "test.executor",
@@ -1002,7 +1208,7 @@ func TestCreateTaskRecreatesAfterCancelledIdempotencyKey(t *testing.T) {
 	ctx := context.Background()
 	key := "same-after-cancel"
 
-	first, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	first, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		Title:          "first",
 		IdempotencyKey: key,
 		ExecutorKey:    "test.executor",
@@ -1014,7 +1220,7 @@ func TestCreateTaskRecreatesAfterCancelledIdempotencyKey(t *testing.T) {
 	if err := svc.CancelTask(ctx, first.ID); err != nil {
 		t.Fatal(err)
 	}
-	second, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	second, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		Title:          "second",
 		IdempotencyKey: key,
 		ExecutorKey:    "test.executor",
@@ -1045,7 +1251,7 @@ func TestDeleteTaskSoftDeletesAndReleasesIdempotencyKey(t *testing.T) {
 	ctx := context.Background()
 	key := "same-after-delete"
 
-	first, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	first, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		Title:          "first",
 		IdempotencyKey: key,
 		ExecutorKey:    "test.executor",
@@ -1068,7 +1274,7 @@ func TestDeleteTaskSoftDeletesAndReleasesIdempotencyKey(t *testing.T) {
 		t.Fatalf("deleted task should not be listed: %+v", resp)
 	}
 
-	second, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	second, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		Title:          "second",
 		IdempotencyKey: key,
 		ExecutorKey:    "test.executor",
@@ -1098,7 +1304,7 @@ func TestDeleteTaskAllowsInflightExecution(t *testing.T) {
 	svc, _ := newTestService(t, &now)
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.Every(60),
 	})
@@ -1144,7 +1350,7 @@ func TestListTasksResourceKeyPrefixIncludesDirectoryDescendantsOnly(t *testing.T
 			ResourceKey:   "/system/app2/collect.form",
 		},
 	} {
-		if _, err := svc.CreateTask(ctx, req); err != nil {
+		if _, err := createTestTask(svc, ctx, req); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1171,7 +1377,7 @@ func TestDeleteTaskDoesNotCheckInflightExecution(t *testing.T) {
 	svc, _ := newTestService(t, &now)
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.Every(60),
 	})
@@ -1189,12 +1395,12 @@ func TestDeleteTaskDoesNotCheckInflightExecution(t *testing.T) {
 	}
 }
 
-func TestFinishExecutionAfterTaskDeleteDoesNotRollback(t *testing.T) {
+func TestFinishExecutionAfterTaskDeleteIsRejected(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, _ := newTestService(t, &now)
 	ctx := context.Background()
 
-	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	task, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.Every(60),
 	})
@@ -1209,19 +1415,20 @@ func TestFinishExecutionAfterTaskDeleteDoesNotRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := svc.MarkExecutionFinished(ctx, scheduledsdk.MarkExecutionFinishedRequest{
-		TaskID:      task.ID,
-		ExecutionID: exec.ID,
-		Status:      scheduledsdk.ExecutionStatusSuccess,
-		FinishedAt:  now.Add(time.Second),
-	}); err != nil {
-		t.Fatal(err)
+		TaskID:        task.ID,
+		ExecutionID:   exec.ID,
+		Status:        scheduledsdk.ExecutionStatusSuccess,
+		ExecutorRunID: "run-delete",
+		FinishedAt:    now.Add(time.Second),
+	}); !errors.Is(err, ErrInvalidTaskStatus) {
+		t.Fatalf("finish deleted execution error = %v, want ErrInvalidTaskStatus", err)
 	}
 	gotExec, err := svc.GetExecution(ctx, task.ID, exec.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotExec.Status != scheduledsdk.ExecutionStatusSuccess {
-		t.Fatalf("execution status = %s, want success", gotExec.Status)
+	if gotExec.Status != scheduledsdk.ExecutionStatusCancelled {
+		t.Fatalf("execution status = %s, want cancelled", gotExec.Status)
 	}
 }
 
@@ -1230,7 +1437,7 @@ func TestPublishPendingOutboxRetriesBeforePublished(t *testing.T) {
 	svc, db := newTestService(t, &now)
 	ctx := context.Background()
 
-	if _, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+	if _, err := createTestTask(svc, ctx, scheduledsdk.CreateTaskRequest{
 		ExecutorKey: "test.executor",
 		Schedule:    scheduledsdk.At(now.Add(-time.Second)),
 	}); err != nil {

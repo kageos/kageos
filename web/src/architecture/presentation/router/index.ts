@@ -184,12 +184,12 @@ const router = createRouter({
       }
     },
 
-    // 工作空间页面（统一架构）
+    // 工作空间入口：先准备或找到用户可进入的个人空间，再进入具体工作空间。
     // 注意：/workspace/api/* 路径会被 Vite 代理到后端，不会被 Vue Router 匹配
     {
       path: '/workspace',
       name: 'workspace',
-      component: () => import('@/architecture/presentation/views/WorkspaceView.vue'),
+      component: () => import('@/architecture/presentation/views/WorkspaceBootstrapView.vue'),
       meta: {
         titleKey: 'route.workspace',
         requireAuth: true
@@ -203,11 +203,11 @@ const router = createRouter({
         requireAuth: true
       }
     },
-    // 仅 user、无 app：进入工作空间并弹出「选择工作空间」（须在 /workspace/:user/:app 前匹配）
+    // 兼容旧的 /workspace/:user 入口：统一进入个人空间准备页，不再强制弹出选择器。
     {
       path: '/workspace/:user',
       name: 'workspace-user',
-      component: () => import('@/architecture/presentation/views/WorkspaceView.vue'),
+      component: () => import('@/architecture/presentation/views/WorkspaceBootstrapView.vue'),
       meta: {
         titleKey: 'route.workspace',
         requireAuth: true
@@ -299,32 +299,19 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // 如果已登录用户访问登录/注册页面，重定向到 /workspace/自己的username（会弹出选择工作空间）
+  // 已登录用户访问登录/注册页面时，直接进入工作空间准备页。
   if (hasAuthSession && (to.name === 'login' || to.name === 'register')) {
-    const username = authStore.userName || 'me'
-    next({ path: `/workspace/${username}`, replace: true })
+    next({ path: '/workspace', replace: true })
     return
   }
 
-  // 根路径 /：不再显示一站式首页，直接重定向到 /workspace/自己的username 并弹窗选择工作空间
+  // 根路径 /：不再显示一站式首页，直接进入工作空间准备页。
   if (to.path === '/') {
     if (hasAuthSession) {
-      const username = authStore.userName || 'me'
-      next({ path: `/workspace/${username}`, replace: true })
+      next({ path: '/workspace', replace: true })
       return
     }
     next({ path: '/login', query: { redirect: to.fullPath }, replace: true })
-    return
-  }
-
-  // /workspace 无 user 时也重定向到 /workspace/自己的username
-  if (to.path === '/workspace' && to.name === 'workspace') {
-    if (hasAuthSession) {
-      const username = authStore.userName || 'me'
-      next({ path: `/workspace/${username}`, replace: true })
-      return
-    }
-    next()
     return
   }
 
