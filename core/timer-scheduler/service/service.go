@@ -900,6 +900,11 @@ func (s *Service) timeoutOrphanExecutionWithRepo(execRepo *repository.TimerExecu
 }
 
 func (s *Service) executionRequestedOutbox(task *model.TimerTask, exec *model.TimerExecution) *model.TimerOutboxEvent {
+	metadata := decodeStringMap(task.MetadataJSON)
+	if metadata == nil {
+		metadata = map[string]string{}
+	}
+	metadata["task_title"] = strings.TrimSpace(task.Title)
 	event := scheduledsdk.ExecutionRequestedEvent{
 		EventID:         fmt.Sprintf("timer-execution-requested-%d-attempt-%d", exec.ID, exec.Attempt),
 		TaskID:          task.ID,
@@ -914,7 +919,7 @@ func (s *Service) executionRequestedOutbox(task *model.TimerTask, exec *model.Ti
 		ResourceKey:     task.ResourceKey,
 		RequestUser:     scheduledTaskRequestUser(task),
 		RequestUserDept: task.RequestUserDept,
-		Metadata:        decodeStringMap(task.MetadataJSON),
+		Metadata:        metadata,
 		ExecutorPayload: cloneRaw(task.ExecutorPayload),
 	}
 	payload, _ := json.Marshal(event)

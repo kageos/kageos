@@ -187,6 +187,7 @@ type MessageActionViewResp struct {
 
 type MessageActionReplyReq struct {
 	Content string `json:"content" binding:"required"`
+	Files   string `json:"files,omitempty"`
 	Action  string `json:"action"`
 }
 

@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	SourceWorkspace = "workspace"
-	MaxToolRounds   = 100 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
+	SourceWorkspace       = model.ChatSessionSourceWorkspace
+	SourceAutomationAgent = model.ChatSessionSourceAutomationAgent
+	MaxToolRounds         = 100 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
 )
 
 // 工作台系统提示词与内置文档统一来自本地内嵌的 /system/prompt。
@@ -201,16 +202,24 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 
 	// 3) 创建新 session
 	if req.SessionID == "" {
+		source := SourceWorkspace
+		automationIdentity := scheduledAgentSessionIdentityFromContext(ctx)
+		if automationIdentity.TaskID > 0 {
+			source = SourceAutomationAgent
+		}
 		session = &model.AgentChatSession{
-			TreeID:        workspaceCtx.Directory.ID,
-			FullCodePath:  fullCodePath,
-			Source:        SourceWorkspace,
-			SessionID:     uuid.New().String(),
-			Title:         "",
-			ModeCode:      requestedModeCode,
-			Status:        model.ChatSessionStatusActive,
-			ContextPolicy: ContextPolicyFull,
-			User:          user,
+			TreeID:              workspaceCtx.Directory.ID,
+			FullCodePath:        fullCodePath,
+			Source:              source,
+			AutomationTaskID:    automationIdentity.TaskID,
+			AutomationTaskCode:  automationIdentity.TaskCode,
+			AutomationTaskTitle: automationIdentity.TaskTitle,
+			SessionID:           uuid.New().String(),
+			Title:               "",
+			ModeCode:            requestedModeCode,
+			Status:              model.ChatSessionStatusActive,
+			ContextPolicy:       ContextPolicyFull,
+			User:                user,
 		}
 		applyDefaultWorkspaceSessionRole(session)
 		session.CreatedBy = user

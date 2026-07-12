@@ -2216,6 +2216,51 @@ func TestChangeRolePreservesModelContextOnRoleSwitch(t *testing.T) {
 	}
 }
 
+func TestListSessionsFilteredSeparatesHumanAndAutomationAgents(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	for _, session := range []*model.AgentChatSession{
+		{TreeID: 1, FullCodePath: "/alice/demo", Source: SourceWorkspace, SessionID: "human", ModeCode: "dev", Status: model.ChatSessionStatusActive, User: "alice"},
+		{TreeID: 1, FullCodePath: "/alice/demo", Source: SourceAutomationAgent, AutomationTaskID: 11, AutomationTaskCode: "daily", AutomationTaskTitle: "每日复盘", SessionID: "agent-11", ModeCode: "dev", Status: model.ChatSessionStatusDone, User: "alice"},
+		{TreeID: 1, FullCodePath: "/alice/demo", Source: SourceAutomationAgent, AutomationTaskID: 12, AutomationTaskTitle: "风险巡检", SessionID: "agent-12", ModeCode: "dev", Status: model.ChatSessionStatusDone, User: "alice"},
+		{TreeID: 1, FullCodePath: "/alice/demo", Source: SourceAutomationAgent, AutomationTaskID: 11, AutomationTaskTitle: "每日复盘", SessionID: "bob-agent", ModeCode: "dev", Status: model.ChatSessionStatusDone, User: "bob"},
+	} {
+		if err := sessionRepo.Create(session); err != nil {
+			t.Fatalf("create session: %v", err)
+		}
+	}
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
+	ctx := contextx.WithRequestUser(context.Background(), "alice")
+
+	human, total, agents, err := svc.ListSessionsFiltered(ctx, "/alice/demo", "human", 0, 1, 20)
+	if err != nil {
+		t.Fatalf("list human sessions: %v", err)
+	}
+	if total != 1 || len(human) != 1 || human[0].SessionID != "human" {
+		t.Fatalf("unexpected human sessions total=%d items=%#v", total, human)
+	}
+	if len(agents) != 2 {
+		t.Fatalf("automation agent facets = %#v, want 2", agents)
+	}
+
+	automation, total, _, err := svc.ListSessionsFiltered(ctx, "/alice/demo", "automation", 11, 1, 20)
+	if err != nil {
+		t.Fatalf("list automation sessions: %v", err)
+	}
+	if total != 1 || len(automation) != 1 || automation[0].SessionID != "agent-11" {
+		t.Fatalf("unexpected automation sessions total=%d items=%#v", total, automation)
+	}
+	if automation[0].AutomationTaskTitle != "每日复盘" || automation[0].Source != SourceAutomationAgent {
+		t.Fatalf("automation marker missing: %#v", automation[0])
+	}
+}
+
 func createSQLiteAgentChatMessagesTable(db *gorm.DB) error {
 	return db.Exec(`
 CREATE TABLE agent_chat_messages (

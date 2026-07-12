@@ -66,7 +66,7 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 		response.FailWithMessage(c, "消息缺少工作台目录，无法提交给 kageos 工作台")
 		return
 	}
-	resp, err := s.messageRepo.SubmitActionReply(c.Request.Context(), token, req.Content, req.Action, contextx.GetRequestUser(c))
+	resp, err := s.messageRepo.SubmitActionReply(c.Request.Context(), token, req.Content, req.Files, req.Action, contextx.GetRequestUser(c))
 	if err != nil {
 		if isMessageActionLoginRequiredError(err) {
 			response.NoAuth(c, err.Error())
@@ -98,6 +98,7 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 		ThreadKey:             view.Message.ThreadKey,
 		Content:               resp.WorkstationDraft,
 		DisplayContent:        strings.TrimSpace(req.Content),
+		Files:                 strings.TrimSpace(req.Files),
 		OriginalTitle:         view.Message.Title,
 		TraceID:               view.Message.TraceID,
 		SourceRef:             firstNonEmptyActionString(view.Message.SourceRef, fmt.Sprintf("message:%d", view.Message.ID)),

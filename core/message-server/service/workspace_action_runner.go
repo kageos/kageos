@@ -39,6 +39,7 @@ type WorkspaceActionRequest struct {
 	ThreadKey             string
 	Content               string
 	DisplayContent        string
+	Files                 string
 	OriginalTitle         string
 	TraceID               string
 	SourceRef             string
@@ -144,6 +145,7 @@ func (r *WorkspaceActionRunner) run(req WorkspaceActionRequest, started chan<- w
 		Message: dto.WorkspaceMsg{
 			Content:        req.Content,
 			DisplayContent: strings.TrimSpace(req.DisplayContent),
+			Files:          strings.TrimSpace(req.Files),
 			ContextUsage:   dto.WorkspaceMessageContextCurrentTurn,
 		},
 	}

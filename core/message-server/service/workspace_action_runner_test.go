@@ -63,6 +63,9 @@ func TestWorkspaceActionRunnerSubmitsWorkspaceChat(t *testing.T) {
 		if body.Message.ContextUsage != dto.WorkspaceMessageContextCurrentTurn {
 			t.Fatalf("context usage = %q, want %q", body.Message.ContextUsage, dto.WorkspaceMessageContextCurrentTurn)
 		}
+		if body.Message.Files != "kageos/pocket/meeting.pdf" {
+			t.Fatalf("message files = %q", body.Message.Files)
+		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = fmt.Fprint(w, "event: session\n")
 		_, _ = fmt.Fprint(w, `data: {"session_id":"session-1"}`+"\n\n")
@@ -81,6 +84,7 @@ func TestWorkspaceActionRunnerSubmitsWorkspaceChat(t *testing.T) {
 		RecipientUser: "bob",
 		FullCodePath:  "/alice/ops/meeting_room",
 		Content:       "帮我处理",
+		Files:         "kageos/pocket/meeting.pdf",
 	})
 	if err != nil {
 		t.Fatalf("submit: %v", err)

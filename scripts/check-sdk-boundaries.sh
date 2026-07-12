@@ -78,6 +78,7 @@ check_shared_dir() {
 
 shared_contracts=(
   "pkg/apicall"
+  "pkg/controlauth"
   "pkg/contextx/context_info.go"
   "pkg/functionschema"
   "pkg/msgx/msgs.go"
