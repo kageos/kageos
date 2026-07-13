@@ -160,15 +160,77 @@
 
 原入口文件由 731 行缩到 20 行；拆分前后的 40 个顶层声明经格式化 AST 比对一致。
 
+### Team Access Service 拆分
+
+原 `core/app-server/service/team_access_service.go` 同时包含权限解析、角色授权、成员查询、访问策略、输入校验和操作日志。
+
+| 文件 | 职责 |
+| --- | --- |
+| `team_access_service.go` | 服务依赖、用户查询函数和构造函数 |
+| `team_access_resolution.go` | 权限检查、开放协作数据检查和单资源权限解析 |
+| `team_access_assignment.go` | 单个/批量授权和成员移除 |
+| `team_access_queries.go` | 成员、可访问应用和资源树权限查询 |
+| `team_access_policy.go` | 所有者规则、开放协作权限、授权校验和 Assignment 转换 |
+| `team_access_audit.go` | 团队权限操作日志和 JSON 值组装 |
+
+原入口文件由 609 行缩到 28 行；拆分前后的 30 个顶层声明经格式化 AST 比对一致。
+
+### Notification API 拆分
+
+原 `core/message-server/server/notification_api.go` 混合用户通知渠道、目录通知路由和 DTO/元数据转换。
+
+| 文件 | 职责 |
+| --- | --- |
+| `notification_api.go` | 渠道校验、Provider 创建、DTO 和元数据转换 |
+| `notification_channel_api.go` | 通知渠道列表、保存、删除和测试发送 |
+| `notification_route_api.go` | 目录通知路由列表、摘要、保存、删除和测试发送 |
+
+原入口文件由 622 行缩到 120 行；拆分前后的 17 个顶层声明经格式化 AST 比对一致。
+
+### Gateway Router 拆分
+
+原 `core/api-gateway/server/router.go` 同时承担路由注册、业务反向代理和 Swagger 聚合。
+
+| 文件 | 职责 |
+| --- | --- |
+| `router.go` | 健康检查、pprof、配置接口和业务路由注册 |
+| `router_proxy.go` | 单目标代理、请求身份处理和多目标路由入口 |
+| `router_swagger.go` | Swagger 路由、文档代理和聚合首页生成 |
+
+原入口文件由 628 行缩到 144 行；拆分前后的 9 个顶层声明经格式化 AST 比对一致。
+
+### ContextX 拆分
+
+原 `pkg/contextx/context_info.go` 同时包含可信 Header、标准 Context 读写、来源信息、Gin 转换、NATS 透传、预签名 Host 和后台任务 RequestInfo。
+
+| 文件 | 职责 |
+| --- | --- |
+| `context_info.go` | Header、来源枚举和可信身份 Header 清理/恢复 |
+| `context_identity.go` | Trace、用户、企业、Token 等身份信息读写 |
+| `context_source.go` | 客户端来源、资源来源、工作区会话和 Tool 来源读写 |
+| `context_presign.go` | 预签名 Host Context key 和 Host 解析 |
+| `context_gin.go` | Gin 请求到标准 Context 的可信信息转换 |
+| `context_nats.go` | 标准 Context 与 NATS Header 双向透传 |
+| `context_request_info.go` | 无 HTTP 请求场景的一次性 RequestInfo 注入 |
+
+原入口文件由 922 行缩到 154 行；拆分前后的 83 个顶层声明经格式化 AST 比对一致。
+
+### App Runtime 构造注入收口
+
+本轮移除“先构造、再补依赖”的装配方式，并把长位置参数改为显式依赖对象：
+
+| 对象 | 调整 |
+| --- | --- |
+| `AppDiscoveryService` | `AppDiscoveryServiceOptions` 在构造时传入 Runtime ID、启动回调和关闭回调，删除 `SetCallbacks` |
+| `InfraWatchdog` | `InfraWatchdogOptions` 在构造时传入恢复回调，删除 `SetOnRecovered` |
+| `AppManageService` | 9 个位置参数收口为 `AppManageServiceDependencies`，字段名明确表达每项依赖 |
+
+Server 装配点同步改为结构体字面量；回调内容、启动顺序、默认时间参数和服务字段赋值保持不变。
+
 ## 后续拆分顺序
 
 | 优先级 | 当前文件 | 建议边界 | 风险与验证 |
 | --- | --- | --- | --- |
-| P1 | `core/app-server/service/team_access_service.go` | 权限解析、成员授权、可访问应用查询、输入校验和操作日志 | 原 package 内移动；现有 Team Access 服务测试覆盖主要分支 |
-| P1 | `core/message-server/server/notification_api.go` | Channel、Route、测试入口和 DTO 转换 | 保留 Gin Handler 与路由；补充 Handler 请求响应测试后拆分 |
-| P2 | `core/api-gateway/server/router.go` | 路由注册、单服务代理、负载均衡代理和 Swagger | 代理身份与请求体恢复敏感；运行 Gateway 全部测试 |
-| P2 | `pkg/contextx/context_info.go` | Header 定义、身份信息、来源信息、Gin 转换、NATS 透传和 RequestInfo | 公共 package，只移动声明；运行 ContextX 与依赖服务测试 |
-| P2 | `core/app-runtime/service/app_discovery_service.go`、`infra_watchdog.go`、`app_manage_service.go` | 用构造依赖替代启动后回调 Setter，并把长位置参数改为依赖结构体 | 单独 PR 调整装配点；不与文件拆分混做 |
 | P1 | `web/src/architecture/presentation/features/access/pages/TeamAccessPage.vue` | 页面只保留编排；拆当前权限、继承权限、角色编辑区和数据 composable | 保留请求时机与权限判断；运行 type-check、unit、build |
 | P1 | `web/src/architecture/presentation/components/StructuredPromptComposer.vue` | 拆编辑器、上下文选择、附件区和 draft composable | 保留 `props`、`emits` 与提交 payload；运行组件测试和 build |
 | P2 | `web/src/architecture/presentation/components/MiniWorkstation.vue` | 延续现有 composable/component 边界，拆消息区、输入区、会话操作与状态视图 | 当前分支已有相关改动，应独立收口后再继续，避免交叉冲突 |

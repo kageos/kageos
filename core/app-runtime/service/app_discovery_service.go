@@ -26,12 +26,15 @@ type AppDiscoveryService struct {
 	onClose   func(user, app, version string)
 }
 
-// NewAppDiscoveryService 创建应用发现服务
-func NewAppDiscoveryService(natsConn *nats.Conn, basePath string) *AppDiscoveryService {
-	return NewAppDiscoveryServiceWithRuntimeID(natsConn, basePath, "")
+type AppDiscoveryServiceOptions struct {
+	RuntimeID string
+	OnStartup func(user, app, version, status, errorMessage string, startTime time.Time)
+	OnClose   func(user, app, version string)
 }
 
-func NewAppDiscoveryServiceWithRuntimeID(natsConn *nats.Conn, basePath, runtimeID string) *AppDiscoveryService {
+// NewAppDiscoveryService 创建应用发现服务。
+func NewAppDiscoveryService(natsConn *nats.Conn, basePath string, opts AppDiscoveryServiceOptions) *AppDiscoveryService {
+	runtimeID := opts.RuntimeID
 	if strings.TrimSpace(runtimeID) == "" {
 		runtimeID = "runtime-local"
 	}
@@ -41,13 +44,9 @@ func NewAppDiscoveryServiceWithRuntimeID(natsConn *nats.Conn, basePath, runtimeI
 		apps:      make(map[string]*discovery.AppInfo),
 		runtimeID: runtimeID,
 		basePath:  basePath,
+		onStartup: opts.OnStartup,
+		onClose:   opts.OnClose,
 	}
-}
-
-// SetCallbacks 设置回调函数
-func (s *AppDiscoveryService) SetCallbacks(onStartup func(user, app, version, status, errorMessage string, startTime time.Time), onClose func(user, app, version string)) {
-	s.onStartup = onStartup
-	s.onClose = onClose
 }
 
 // Start 启动发现服务

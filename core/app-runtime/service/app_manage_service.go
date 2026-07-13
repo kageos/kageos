@@ -126,19 +126,31 @@ func parseContainerName(containerName string) (string, string, string, error) {
 	return user, app, version, nil
 }
 
+type AppManageServiceDependencies struct {
+	Builder              *builder.Builder
+	Config               *appconfig.AppManageServiceConfig
+	RuntimeConfig        *appconfig.AppRuntimeConfig
+	ContainerService     ContainerOperator
+	AppRepository        *repository.AppRepository
+	AppDiscoveryService  *AppDiscoveryService
+	NATSConn             *nats.Conn
+	WorkspaceFileService *WorkspaceFileService
+	AppDatabaseService   *AppDatabaseService
+}
+
 // NewAppManageService 创建应用管理服务（依赖注入）
-func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageServiceConfig, runtimeConfig *appconfig.AppRuntimeConfig, containerService ContainerOperator, appRepo *repository.AppRepository, appDiscoveryService *AppDiscoveryService, natsConn *nats.Conn, workspaceFileService *WorkspaceFileService, appDatabaseService *AppDatabaseService) *AppManageService {
+func NewAppManageService(deps AppManageServiceDependencies) *AppManageService {
 	return &AppManageService{
-		builder:              builder,
-		config:               config,
-		runtimeConfig:        runtimeConfig,
-		runtimeDriver:        NewPodmanAppRuntimeDriver(containerService),
-		appRepo:              appRepo,
-		appDiscoveryService:  appDiscoveryService,
-		appControlClient:     NewAppControlClient(natsConn),
-		appDatabaseService:   appDatabaseService,
+		builder:              deps.Builder,
+		config:               deps.Config,
+		runtimeConfig:        deps.RuntimeConfig,
+		runtimeDriver:        NewPodmanAppRuntimeDriver(deps.ContainerService),
+		appRepo:              deps.AppRepository,
+		appDiscoveryService:  deps.AppDiscoveryService,
+		appControlClient:     NewAppControlClient(deps.NATSConn),
+		appDatabaseService:   deps.AppDatabaseService,
 		QPSTracker:           NewQPSTracker(60*time.Second, 10*time.Second), // 60秒窗口，10秒检查间隔
-		workspaceFileService: workspaceFileService,
+		workspaceFileService: deps.WorkspaceFileService,
 		startupWaiters:       make(map[string]chan *StartupNotification),
 		closeWaiters:         make(map[string]chan *CloseNotification),
 		cleanupDone:          make(chan struct{}),

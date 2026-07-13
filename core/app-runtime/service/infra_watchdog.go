@@ -44,20 +44,20 @@ type InfraWatchdog struct {
 	totalRecoveries atomic.Int64
 }
 
+type InfraWatchdogOptions struct {
+	OnRecovered func(ctx context.Context)
+}
+
 // NewInfraWatchdog 创建看门狗
-func NewInfraWatchdog(natsConn *nats.Conn, containerService ContainerOperator) *InfraWatchdog {
+func NewInfraWatchdog(natsConn *nats.Conn, containerService ContainerOperator, opts InfraWatchdogOptions) *InfraWatchdog {
 	return &InfraWatchdog{
 		natsConn:         natsConn,
 		containerService: containerService,
 		checkInterval:    1 * time.Second,
 		cooldownPeriod:   15 * time.Second,
 		infraContainers:  []string{"mysql8", "nats-server", "minio"},
+		onRecovered:      opts.OnRecovered,
 	}
-}
-
-// SetOnRecovered 设置基础设施恢复后的回调（用于对账应用容器）
-func (w *InfraWatchdog) SetOnRecovered(fn func(ctx context.Context)) {
-	w.onRecovered = fn
 }
 
 // Start 启动看门狗（阻塞，应在 goroutine 中调用）
