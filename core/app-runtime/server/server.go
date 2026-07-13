@@ -231,8 +231,8 @@ func (s *Server) initServices(ctx context.Context) error {
 		s.appDiscoveryService,
 		s.natsConn,
 		s.workspaceFileService,
+		s.appDatabaseService,
 	)
-	s.appManageService.SetAppDatabaseService(s.appDatabaseService)
 
 	// 启动 QPS 跟踪器清理任务
 	go s.appManageService.QPSTracker.StartCleanup(ctx)
@@ -241,8 +241,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	go s.appManageService.StartCleanupTask(ctx)
 
 	// 初始化工作区变更编排服务
-	s.workspaceChangeService = service.NewWorkspaceChangeService(&s.cfg.AppManage, s.appManageService, s.workspaceFileService)
-	s.workspaceChangeService.SetAppDatabaseService(s.appDatabaseService)
+	s.workspaceChangeService = service.NewWorkspaceChangeService(&s.cfg.AppManage, s.appManageService, s.workspaceFileService, s.appDatabaseService)
 
 	// 启动基础设施看门狗（以 NATS 连接状态为探针，1 秒轮询，断开时触发恢复）
 	watchdog := service.NewInfraWatchdog(s.natsConn, s.containerService)

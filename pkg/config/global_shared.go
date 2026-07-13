@@ -100,13 +100,25 @@ func (g *GatewayConfig) GetBaseURL() string {
 	return "http://localhost:9090" // 默认值（裸机服务访问）
 }
 
-// GetInternalURL 获取内部服务访问地址
-// 优先级：internal_url > base_url > host+port > 默认值
+// GetInternalURL 获取内部服务访问地址。
+// 外部 base_url/domain 不能作为内部服务调用的隐式回退，否则公网入口
+// 缺少内部路由时会把服务间调用错误地送到公网。
 func (g *GatewayConfig) GetInternalURL() string {
-	if g.InternalURL != "" {
-		return g.InternalURL
+	if internalURL := strings.TrimSpace(g.InternalURL); internalURL != "" {
+		return internalURL
 	}
-	return g.GetBaseURL()
+	if baseURL := strings.TrimSpace(g.BaseURL); baseURL != "" && isLocalServiceBaseURL(baseURL) {
+		return baseURL
+	}
+	host := strings.TrimSpace(g.Host)
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	port := g.Port
+	if port <= 0 {
+		port = 9090
+	}
+	return fmt.Sprintf("http://%s:%d", host, port)
 }
 
 // GetGatewayURL 获取网关地址（全局函数，从全局配置读取）

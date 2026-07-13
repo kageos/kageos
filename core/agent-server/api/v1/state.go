@@ -30,7 +30,7 @@ func (h *State) RuntimeSummary(c *gin.Context) {
 		Status:           c.Query("status"),
 	})
 	if err != nil {
-		response.FailWithMessage(c, "获取运行态摘要失败: "+err.Error())
+		response.Internal(c, "获取运行态摘要失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, dto.RuntimeStateSummaryResp{Summaries: summaries})
@@ -50,7 +50,7 @@ func (h *State) RuntimeItems(c *gin.Context) {
 		Status:           c.Query("status"),
 	})
 	if err != nil {
-		response.FailWithMessage(c, "获取运行态明细失败: "+err.Error())
+		response.Internal(c, "获取运行态明细失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, dto.RuntimeStateItemsResp{Items: items})

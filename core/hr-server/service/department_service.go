@@ -42,7 +42,7 @@ func (s *DepartmentService) loadDepartmentCache(ctx context.Context) error {
 	}
 
 	// 从数据库加载所有部门
-	departments, err := s.deptRepo.GetAllDepartments()
+	departments, err := s.deptRepo.GetAllDepartments(ctx)
 	if err != nil {
 		return fmt.Errorf("加载部门缓存失败: %w", err)
 	}
@@ -112,10 +112,10 @@ func (s *DepartmentService) InvalidateDepartmentCache() {
 // 如果已存在则不重复创建
 func (s *DepartmentService) InitDefaultDepartments(ctx context.Context) error {
 	// 检查根节点是否已存在
-	rootDept, err := s.deptRepo.GetDepartmentByCode("org")
+	rootDept, err := s.deptRepo.GetDepartmentByCode(ctx, "org")
 	if err == nil && rootDept != nil {
 		// 根节点已存在，检查未分配组织
-		unassignedDept, err := s.deptRepo.GetDepartmentByCode("unassigned")
+		unassignedDept, err := s.deptRepo.GetDepartmentByCode(ctx, "unassigned")
 		if err == nil && unassignedDept != nil {
 			// 根与未分配都已存在，仍需确保虚拟组织/测试组存在
 			if err := s.createVirtualTestDepartment(ctx, rootDept.ID); err != nil {
@@ -149,7 +149,7 @@ func (s *DepartmentService) InitDefaultDepartments(ctx context.Context) error {
 		IsSystemDefault: true, // 标记为系统默认组织
 	}
 
-	if err := s.deptRepo.CreateDepartment(rootDept); err != nil {
+	if err := s.deptRepo.CreateDepartment(ctx, rootDept); err != nil {
 		return fmt.Errorf("创建根节点失败: %w", err)
 	}
 
@@ -175,12 +175,12 @@ func (s *DepartmentService) InitDefaultDepartments(ctx context.Context) error {
 // createUnassignedDepartment 创建未分配组织
 func (s *DepartmentService) createUnassignedDepartment(ctx context.Context, rootID int64) error {
 	// 检查未分配组织是否已存在
-	unassignedDept, err := s.deptRepo.GetDepartmentByCode("unassigned")
+	unassignedDept, err := s.deptRepo.GetDepartmentByCode(ctx, "unassigned")
 	if err == nil && unassignedDept != nil {
 		// 已存在，更新为系统默认组织（如果之前不是）
 		if !unassignedDept.IsSystemDefault {
 			unassignedDept.IsSystemDefault = true
-			if err := s.deptRepo.UpdateDepartment(unassignedDept); err != nil {
+			if err := s.deptRepo.UpdateDepartment(ctx, unassignedDept); err != nil {
 				logger.Warnf(ctx, "[DepartmentService] 更新未分配组织标记失败: %v", err)
 			}
 		}
@@ -188,7 +188,7 @@ func (s *DepartmentService) createUnassignedDepartment(ctx context.Context, root
 	}
 
 	// 获取根节点信息（用于构建 FullNamePath）
-	rootDept, err := s.deptRepo.GetDepartmentByID(rootID)
+	rootDept, err := s.deptRepo.GetDepartmentByID(ctx, rootID)
 	if err != nil {
 		return fmt.Errorf("获取根节点失败: %w", err)
 	}
@@ -205,7 +205,7 @@ func (s *DepartmentService) createUnassignedDepartment(ctx context.Context, root
 		IsSystemDefault: true, // 标记为系统默认组织
 	}
 
-	if err := s.deptRepo.CreateDepartment(unassignedDept); err != nil {
+	if err := s.deptRepo.CreateDepartment(ctx, unassignedDept); err != nil {
 		return fmt.Errorf("创建未分配组织失败: %w", err)
 	}
 
@@ -225,12 +225,12 @@ func (s *DepartmentService) VirtualTestDepartmentPath() string {
 
 // createVirtualTestDepartment 创建虚拟组织与测试组（org -> 虚拟组织 -> 测试组），若已存在则跳过
 func (s *DepartmentService) createVirtualTestDepartment(ctx context.Context, rootID int64) error {
-	rootDept, err := s.deptRepo.GetDepartmentByID(rootID)
+	rootDept, err := s.deptRepo.GetDepartmentByID(ctx, rootID)
 	if err != nil || rootDept == nil {
 		return fmt.Errorf("获取根节点失败: %w", err)
 	}
 	// 虚拟组织
-	virtualDept, err := s.deptRepo.GetDepartmentByFullCodePath("/org/virtual")
+	virtualDept, err := s.deptRepo.GetDepartmentByFullCodePath(ctx, "/org/virtual")
 	if err != nil || virtualDept == nil {
 		virtualDept = &model.Department{
 			Name:            "虚拟组织",
@@ -243,13 +243,13 @@ func (s *DepartmentService) createVirtualTestDepartment(ctx context.Context, roo
 			Sort:            10,
 			IsSystemDefault: true,
 		}
-		if err := s.deptRepo.CreateDepartment(virtualDept); err != nil {
+		if err := s.deptRepo.CreateDepartment(ctx, virtualDept); err != nil {
 			return fmt.Errorf("创建虚拟组织失败: %w", err)
 		}
 		logger.Infof(ctx, "[DepartmentService] 虚拟组织创建成功: %s", virtualDept.Name)
 	}
 	// 测试组
-	testDept, err := s.deptRepo.GetDepartmentByFullCodePath("/org/virtual/test")
+	testDept, err := s.deptRepo.GetDepartmentByFullCodePath(ctx, "/org/virtual/test")
 	if err != nil || testDept == nil {
 		testDept := &model.Department{
 			Name:            "测试组",
@@ -262,7 +262,7 @@ func (s *DepartmentService) createVirtualTestDepartment(ctx context.Context, roo
 			Sort:            0,
 			IsSystemDefault: true,
 		}
-		if err := s.deptRepo.CreateDepartment(testDept); err != nil {
+		if err := s.deptRepo.CreateDepartment(ctx, testDept); err != nil {
 			return fmt.Errorf("创建测试组失败: %w", err)
 		}
 		logger.Infof(ctx, "[DepartmentService] 测试组创建成功: %s", testDept.Name)
@@ -279,7 +279,7 @@ func (s *DepartmentService) CreateDepartment(ctx context.Context, name, code str
 	}
 
 	// 检查编码是否已存在
-	existing, err := s.deptRepo.GetDepartmentByCode(code)
+	existing, err := s.deptRepo.GetDepartmentByCode(ctx, code)
 	if err == nil && existing != nil {
 		return nil, fmt.Errorf("部门编码 %s 已存在", code)
 	}
@@ -308,7 +308,7 @@ func (s *DepartmentService) CreateDepartment(ctx context.Context, name, code str
 		Sort:         0,
 	}
 
-	if err := s.deptRepo.CreateDepartment(department); err != nil {
+	if err := s.deptRepo.CreateDepartment(ctx, department); err != nil {
 		return nil, fmt.Errorf("创建部门失败: %w", err)
 	}
 
@@ -327,7 +327,7 @@ func (s *DepartmentService) CreateDepartment(ctx context.Context, name, code str
 
 // UpdateDepartment 更新部门
 func (s *DepartmentService) UpdateDepartment(ctx context.Context, id int64, name, description, managers string, status string, sort int) (*model.Department, error) {
-	department, err := s.deptRepo.GetDepartmentByID(id)
+	department, err := s.deptRepo.GetDepartmentByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("部门不存在: %w", err)
 	}
@@ -363,7 +363,7 @@ func (s *DepartmentService) UpdateDepartment(ctx context.Context, id int64, name
 		department.FullNamePath = fullNamePath
 	}
 
-	if err := s.deptRepo.UpdateDepartment(department); err != nil {
+	if err := s.deptRepo.UpdateDepartment(ctx, department); err != nil {
 		return nil, fmt.Errorf("更新部门失败: %w", err)
 	}
 
@@ -384,18 +384,18 @@ func (s *DepartmentService) UpdateDepartment(ctx context.Context, id int64, name
 
 // GetDepartmentByID 根据ID获取部门
 func (s *DepartmentService) GetDepartmentByID(ctx context.Context, id int64) (*model.Department, error) {
-	return s.deptRepo.GetDepartmentByID(id)
+	return s.deptRepo.GetDepartmentByID(ctx, id)
 }
 
 // GetDepartmentTree 获取部门树
 func (s *DepartmentService) GetDepartmentTree(ctx context.Context) ([]*model.Department, error) {
-	return s.deptRepo.GetDepartmentTree()
+	return s.deptRepo.GetDepartmentTree(ctx)
 }
 
 // DeleteDepartment 删除部门
 func (s *DepartmentService) DeleteDepartment(ctx context.Context, id int64) error {
 	// 获取部门信息
-	department, err := s.deptRepo.GetDepartmentByID(id)
+	department, err := s.deptRepo.GetDepartmentByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("部门不存在: %w", err)
 	}
@@ -407,7 +407,7 @@ func (s *DepartmentService) DeleteDepartment(ctx context.Context, id int64) erro
 
 	// 检查是否有子部门
 	parentID := &id
-	children, err := s.deptRepo.GetDepartmentsByParentID(parentID)
+	children, err := s.deptRepo.GetDepartmentsByParentID(ctx, parentID)
 	if err != nil {
 		return fmt.Errorf("查询子部门失败: %w", err)
 	}
@@ -416,7 +416,7 @@ func (s *DepartmentService) DeleteDepartment(ctx context.Context, id int64) erro
 	}
 
 	// 检查是否有用户（通过 DepartmentFullPath 查询）
-	userCount, err := s.userRepo.CountUsersByDepartmentFullPath(department.FullCodePath)
+	userCount, err := s.userRepo.CountUsersByDepartmentFullPath(ctx, department.FullCodePath)
 	if err != nil {
 		return fmt.Errorf("查询部门下用户失败: %w", err)
 	}
@@ -424,7 +424,7 @@ func (s *DepartmentService) DeleteDepartment(ctx context.Context, id int64) erro
 		return fmt.Errorf("该部门下存在用户，无法删除")
 	}
 
-	if err := s.deptRepo.DeleteDepartment(id); err != nil {
+	if err := s.deptRepo.DeleteDepartment(ctx, id); err != nil {
 		return err
 	}
 
@@ -442,7 +442,7 @@ func (s *DepartmentService) buildFullCodePath(ctx context.Context, code string, 
 	}
 
 	// 获取父部门
-	parent, err := s.deptRepo.GetDepartmentByID(parentID)
+	parent, err := s.deptRepo.GetDepartmentByID(ctx, parentID)
 	if err != nil {
 		return "", fmt.Errorf("父部门不存在: %w", err)
 	}
@@ -459,7 +459,7 @@ func (s *DepartmentService) buildFullNamePath(ctx context.Context, name string, 
 	}
 
 	// 获取父部门
-	parent, err := s.deptRepo.GetDepartmentByID(parentID)
+	parent, err := s.deptRepo.GetDepartmentByID(ctx, parentID)
 	if err != nil {
 		return "", fmt.Errorf("父部门不存在: %w", err)
 	}
@@ -484,7 +484,7 @@ func (s *DepartmentService) buildFullNamePath(ctx context.Context, name string, 
 // updateChildrenFullNamePath 更新所有子部门的 FullNamePath（当父部门名称变化时）
 func (s *DepartmentService) updateChildrenFullNamePath(ctx context.Context, parent *model.Department) error {
 	// 获取所有子部门
-	children, err := s.deptRepo.GetDepartmentsByParentID(&parent.ID)
+	children, err := s.deptRepo.GetDepartmentsByParentID(ctx, &parent.ID)
 	if err != nil {
 		return fmt.Errorf("查询子部门失败: %w", err)
 	}
@@ -500,7 +500,7 @@ func (s *DepartmentService) updateChildrenFullNamePath(ctx context.Context, pare
 
 		// 更新子部门
 		child.FullNamePath = fullNamePath
-		if err := s.deptRepo.UpdateDepartment(child); err != nil {
+		if err := s.deptRepo.UpdateDepartment(ctx, child); err != nil {
 			logger.Warnf(ctx, "[DepartmentService] 更新子部门 %s 失败: %v", child.Name, err)
 			continue
 		}

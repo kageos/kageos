@@ -65,7 +65,7 @@ func (s *LLMService) InitLLMSeeds(ctx context.Context, seeds config.AgentServerL
 	var defaultID int64
 	for _, item := range items {
 		normalized := item.seed
-		existing, err := s.repo.GetByCode(normalized.Code)
+		existing, err := s.repo.GetByCode(ctx, normalized.Code)
 		if err != nil && err != gorm.ErrRecordNotFound {
 			return fmt.Errorf("查询 LLM seed %q 失败: %w", normalized.Code, err)
 		}
@@ -76,7 +76,7 @@ func (s *LLMService) InitLLMSeeds(ctx context.Context, seeds config.AgentServerL
 			if err := s.sealConfigAPIKey(cfg); err != nil {
 				return fmt.Errorf("加密 LLM seed %q API Key 失败: %w", normalized.Code, err)
 			}
-			if err := s.repo.Create(cfg); err != nil {
+			if err := s.repo.Create(ctx, cfg); err != nil {
 				return fmt.Errorf("创建 LLM seed %q 失败: %w", normalized.Code, err)
 			}
 			id = cfg.ID
@@ -86,7 +86,7 @@ func (s *LLMService) InitLLMSeeds(ctx context.Context, seeds config.AgentServerL
 			if err := s.sealConfigAPIKey(existing); err != nil {
 				return fmt.Errorf("加密 LLM seed %q API Key 失败: %w", normalized.Code, err)
 			}
-			if err := s.repo.Update(existing); err != nil {
+			if err := s.repo.Update(ctx, existing); err != nil {
 				return fmt.Errorf("更新 LLM seed %q 失败: %w", normalized.Code, err)
 			}
 			id = existing.ID
@@ -102,7 +102,7 @@ func (s *LLMService) InitLLMSeeds(ctx context.Context, seeds config.AgentServerL
 		if defaultID == 0 {
 			return fmt.Errorf("llms.default=%q 未在 llms.configs 中找到", defaultCode)
 		}
-		if err := s.repo.SetDefault(defaultID); err != nil {
+		if err := s.repo.SetDefault(ctx, defaultID); err != nil {
 			return fmt.Errorf("设置默认 LLM seed %q 失败: %w", defaultCode, err)
 		}
 		logger.Infof(ctx, "[LLMSeed] 默认 LLM 配置: code=%s id=%d", defaultCode, defaultID)

@@ -35,10 +35,10 @@ func (s *DirectoryUpdateHistoryService) GetAppVersionUpdateHistory(ctx context.C
 
 	if appVersion != "" {
 		// 查询指定版本所有目录的变更
-		histories, err = s.directoryUpdateHistoryRepo.GetUpdateHistoryByAppVersion(appID, appVersion)
+		histories, err = s.directoryUpdateHistoryRepo.GetUpdateHistoryByAppVersion(ctx, appID, appVersion)
 	} else {
 		// 查询所有版本的变更
-		histories, err = s.directoryUpdateHistoryRepo.GetAllVersionsUpdateHistory(appID)
+		histories, err = s.directoryUpdateHistoryRepo.GetAllVersionsUpdateHistory(ctx, appID)
 	}
 
 	if err != nil {
@@ -52,7 +52,7 @@ func (s *DirectoryUpdateHistoryService) GetAppVersionUpdateHistory(ctx context.C
 	}
 
 	// 批量查询目录信息
-	directoryInfos, err := s.serviceTreeRepo.GetServiceTreeByFullPaths(directoryPaths)
+	directoryInfos, err := s.serviceTreeRepo.GetServiceTreeByFullPaths(ctx, directoryPaths)
 	if err != nil {
 		logger.Warnf(ctx, "[DirectoryUpdateHistoryService] 批量查询目录信息失败: %v", err)
 		directoryInfos = make(map[string]*model.ServiceTree)
@@ -147,13 +147,13 @@ func (s *DirectoryUpdateHistoryService) GetDirectoryUpdateHistory(ctx context.Co
 	}
 
 	offset := (page - 1) * pageSize
-	histories, total, err := s.directoryUpdateHistoryRepo.GetUpdateHistoryByDirectory(appID, fullCodePath, pageSize, offset)
+	histories, total, err := s.directoryUpdateHistoryRepo.GetUpdateHistoryByDirectory(ctx, appID, fullCodePath, pageSize, offset)
 	if err != nil {
 		return nil, fmt.Errorf("查询更新历史失败: %w", err)
 	}
 
 	// 获取目录信息
-	directoryInfo, err := s.serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
+	directoryInfo, err := s.serviceTreeRepo.GetServiceTreeByFullPath(ctx, fullCodePath)
 	directoryName := ""
 	directoryDesc := ""
 	if err == nil && directoryInfo != nil {

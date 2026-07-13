@@ -31,7 +31,7 @@ func newAppServiceOperateLogTest(t *testing.T) (*AppService, *gorm.DB) {
 		t.Fatalf("migrate: %v", err)
 	}
 	appRepo := repository.NewAppRepository(db)
-	if err := appRepo.CreateApp(&model.App{User: "alice", Code: "ops", Name: "Ops", Version: "v9"}); err != nil {
+	if err := appRepo.CreateApp(context.Background(), &model.App{User: "alice", Code: "ops", Name: "Ops", Version: "v9"}); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
 	return &AppService{

@@ -51,7 +51,7 @@ func NewAuth(authService *service.AuthService, authOAuthService *service.AuthOAu
 // @Success 200 {object} dto.SendEmailCodeResp "发送成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /hr/api/v1/auth/send_email_code [post]
+// @Router /hr/api/v1/auth/send-email-code [post]
 func (a *Auth) SendEmailCode(c *gin.Context) {
 	var req dto.SendEmailCodeReq
 	var resp *dto.SendEmailCodeResp
@@ -63,7 +63,7 @@ func (a *Auth) SendEmailCode(c *gin.Context) {
 
 	// 绑定请求参数
 	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -80,12 +80,12 @@ func (a *Auth) SendEmailCode(c *gin.Context) {
 		mode, modeErr := a.settingsService.GetRegistrationMode()
 		if modeErr != nil {
 			err = modeErr
-			response.FailWithMessage(c, "读取注册配置失败: "+modeErr.Error())
+			response.Internal(c, "读取注册配置失败: "+modeErr.Error())
 			return
 		}
 		if mode == service.RegistrationModeAdminOnly {
 			err = errSelfRegistrationDisabled
-			response.FailWithMessage(c, "自助注册未开启，请联系系统管理员创建账号")
+			response.Forbidden(c, "自助注册未开启，请联系系统管理员创建账号")
 			return
 		}
 	}
@@ -93,7 +93,7 @@ func (a *Auth) SendEmailCode(c *gin.Context) {
 	debugCode, sendErr := a.emailService.SendVerificationCode(req.Email, codeType, ipAddress, userAgent)
 	err = sendErr
 	if err != nil {
-		response.FailWithMessage(c, "发送验证码失败: "+err.Error())
+		response.Internal(c, "发送验证码失败: "+err.Error())
 		return
 	}
 
@@ -123,32 +123,32 @@ func (a *Auth) Register(c *gin.Context) {
 
 	// 绑定请求参数
 	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	mode, modeErr := a.settingsService.GetRegistrationMode()
 	if modeErr != nil {
 		err = modeErr
-		response.FailWithMessage(c, "读取注册配置失败: "+modeErr.Error())
+		response.Internal(c, "读取注册配置失败: "+modeErr.Error())
 		return
 	}
 	if mode == service.RegistrationModeAdminOnly {
 		err = errSelfRegistrationDisabled
-		response.FailWithMessage(c, "自助注册未开启，请联系系统管理员创建账号")
+		response.Forbidden(c, "自助注册未开启，请联系系统管理员创建账号")
 		return
 	}
 
 	// 验证验证码
 	err = a.emailService.VerifyCode(req.Email, req.Code, "register")
 	if err != nil {
-		response.FailWithMessage(c, "验证码错误或已过期: "+err.Error())
+		response.Internal(c, "验证码错误或已过期: "+err.Error())
 		return
 	}
 
 	// 注册用户
 	userID, err := a.authService.RegisterUser(req.Username, req.Email, req.Password, req.CompanyAction, req.CompanyCode, req.CompanyName, req.CompanyLogoURL)
 	if err != nil {
-		response.FailWithMessage(c, "注册失败: "+err.Error())
+		response.Internal(c, "注册失败: "+err.Error())
 		return
 	}
 
@@ -187,7 +187,7 @@ func (a *Auth) SearchCompanies(c *gin.Context) {
 
 	companies, err := a.authService.SearchCompaniesFuzzy(keyword, limit)
 	if err != nil {
-		response.FailWithMessage(c, "搜索企业失败: "+err.Error())
+		response.Internal(c, "搜索企业失败: "+err.Error())
 		return
 	}
 
@@ -240,7 +240,7 @@ func (a *Auth) OAuthCallback(c *gin.Context) {
 func (a *Auth) GetOAuthRegistrationIntent(c *gin.Context) {
 	intent, err := a.authOAuthService.GetRegistrationIntent(c.Param("ticket"))
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	resp := &dto.OAuthRegistrationIntentResp{
@@ -261,18 +261,18 @@ func (a *Auth) GetOAuthRegistrationIntent(c *gin.Context) {
 func (a *Auth) ConfirmOAuthRegistration(c *gin.Context) {
 	var req dto.ConfirmOAuthRegistrationReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	result, err := a.authOAuthService.ConfirmRegistration(c.Param("ticket"), req.Username, req.Nickname)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	ctx := contextx.ToContext(c)
 	userInfos := convertUsersToDTOBatch(ctx, []*model.User{result.User}, a.userService, a.departmentService)
 	if len(userInfos) == 0 {
-		response.FailWithMessage(c, "转换用户信息失败")
+		response.Internal(c, "转换用户信息失败")
 		return
 	}
 	response.OkWithData(c, &dto.ConfirmOAuthRegistrationResp{
@@ -320,14 +320,14 @@ func (a *Auth) Login(c *gin.Context) {
 
 	// 绑定请求参数
 	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	// 登录用户
 	user, token, refreshToken, err := a.authService.LoginUser(req.Username, req.Password, req.Remember)
 	if err != nil {
-		response.FailWithMessage(c, "登录失败: "+err.Error())
+		response.Internal(c, "登录失败: "+err.Error())
 		return
 	}
 
@@ -335,7 +335,7 @@ func (a *Auth) Login(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	userInfos := convertUsersToDTOBatch(ctx, []*model.User{user}, a.userService, a.departmentService)
 	if len(userInfos) == 0 {
-		response.FailWithMessage(c, "转换用户信息失败")
+		response.Internal(c, "转换用户信息失败")
 		return
 	}
 
@@ -370,14 +370,14 @@ func (a *Auth) RefreshToken(c *gin.Context) {
 
 	// 绑定请求参数
 	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	// 刷新Token
 	newAccessToken, newRefreshToken, err := a.authService.RefreshToken(req.RefreshToken)
 	if err != nil {
-		response.FailWithMessage(c, "刷新Token失败: "+err.Error())
+		response.Internal(c, "刷新Token失败: "+err.Error())
 		return
 	}
 
@@ -409,7 +409,7 @@ func (a *Auth) Logout(c *gin.Context) {
 
 	token := strings.TrimSpace(c.GetHeader(contextx.TokenHeader))
 	if err = c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	if bodyToken := strings.TrimSpace(req.Token); bodyToken != "" {
@@ -417,14 +417,14 @@ func (a *Auth) Logout(c *gin.Context) {
 	}
 	if token == "" {
 		err = errors.New("token is required")
-		response.FailWithMessage(c, "未提供认证令牌")
+		response.NoAuth(c, "未提供认证令牌")
 		return
 	}
 
 	// 登出用户
 	err = a.authService.LogoutUser(token)
 	if err != nil {
-		response.FailWithMessage(c, "登出失败: "+err.Error())
+		response.Internal(c, "登出失败: "+err.Error())
 		return
 	}
 
@@ -441,7 +441,7 @@ func (a *Auth) Logout(c *gin.Context) {
 // @Success 200 {object} dto.ForgotPasswordResp "重置成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /hr/api/v1/auth/forgot_password [post]
+// @Router /hr/api/v1/auth/forgot-password [post]
 func (a *Auth) ForgotPassword(c *gin.Context) {
 	var req dto.ForgotPasswordReq
 	var err error
@@ -451,21 +451,21 @@ func (a *Auth) ForgotPassword(c *gin.Context) {
 
 	// 绑定请求参数
 	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	// 验证验证码（使用 "forgot_password" 作为 codeType）
 	err = a.emailService.VerifyCode(req.Email, req.Code, "forgot_password")
 	if err != nil {
-		response.FailWithMessage(c, "验证码错误或已过期: "+err.Error())
+		response.Internal(c, "验证码错误或已过期: "+err.Error())
 		return
 	}
 
 	// 直接重置密码（验证码已验证，用户存在性在 ResetPasswordByEmail 中检查）
 	err = a.authService.ResetPasswordByEmail(req.Email, req.Password)
 	if err != nil {
-		response.FailWithMessage(c, "重置密码失败: "+err.Error())
+		response.Internal(c, "重置密码失败: "+err.Error())
 		return
 	}
 

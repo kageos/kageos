@@ -33,7 +33,7 @@ func newTeamAccessTestService(t *testing.T) (*TeamAccessService, *repository.App
 		t.Fatalf("migrate: %v", err)
 	}
 	appRepo := repository.NewAppRepository(db)
-	if err := appRepo.CreateApp(&appmodel.App{User: "alice", Code: "ops", Name: "Ops", Version: "v1"}); err != nil {
+	if err := appRepo.CreateApp(context.Background(), &appmodel.App{User: "alice", Code: "ops", Name: "Ops", Version: "v1"}); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
 	return NewTeamAccessService(
@@ -346,12 +346,12 @@ func TestTeamAccessListAccessibleApps(t *testing.T) {
 
 func TestOpenCollaborationWorkspaceGrantsAuthenticatedDataAccessOnly(t *testing.T) {
 	service, appRepo, _ := newTeamAccessTestService(t)
-	appModel, err := appRepo.GetAppByUserName("alice", "ops")
+	appModel, err := appRepo.GetAppByUserName(context.Background(), "alice", "ops")
 	if err != nil {
 		t.Fatal(err)
 	}
 	appModel.AccessMode = appmodel.AppAccessModeOpenCollaboration
-	if err := appRepo.UpdateApp(appModel); err != nil {
+	if err := appRepo.UpdateApp(context.Background(), appModel); err != nil {
 		t.Fatal(err)
 	}
 
@@ -400,12 +400,12 @@ func TestOpenCollaborationWorkspaceGrantsAuthenticatedDataAccessOnly(t *testing.
 
 func TestOpenCollaborationWorkspaceAppearsWithoutAssignment(t *testing.T) {
 	service, appRepo, _ := newTeamAccessTestService(t)
-	appModel, err := appRepo.GetAppByUserName("alice", "ops")
+	appModel, err := appRepo.GetAppByUserName(context.Background(), "alice", "ops")
 	if err != nil {
 		t.Fatal(err)
 	}
 	appModel.AccessMode = appmodel.AppAccessModeOpenCollaboration
-	if err := appRepo.UpdateApp(appModel); err != nil {
+	if err := appRepo.UpdateApp(context.Background(), appModel); err != nil {
 		t.Fatal(err)
 	}
 

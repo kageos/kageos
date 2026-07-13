@@ -43,7 +43,7 @@ func (f *Function) GetFunction(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 
 	if fullCodePath == "" {
-		response.FailWithMessage(c, "缺少full-code-path参数")
+		response.BadRequest(c, "缺少full-code-path参数")
 		return
 	}
 
@@ -57,7 +57,7 @@ func (f *Function) GetFunction(c *gin.Context) {
 	// 获取函数详情
 	resp, err := f.functionService.GetFunctionByFullCodePath(ctx, fullCodePath)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 

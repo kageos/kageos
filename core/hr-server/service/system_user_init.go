@@ -58,11 +58,11 @@ func initSystemUserWithPassword(ctx context.Context, db *gorm.DB, password strin
 
 	userRepo := hrrepository.NewUserRepository(db)
 
-	existingUser, err := userRepo.GetUserByUsername(SystemUsername)
+	existingUser, err := userRepo.GetUserByUsername(ctx, SystemUsername)
 	if err == nil && existingUser != nil {
 		if existingUser.Type != hrmodel.UserTypeSystem {
 			existingUser.Type = hrmodel.UserTypeSystem
-			if err := userRepo.UpdateUser(existingUser); err != nil {
+			if err := userRepo.UpdateUser(ctx, existingUser); err != nil {
 				return fmt.Errorf("更新 system 用户类型失败: %w", err)
 			}
 			logger.Infof(ctx, "[SystemUser] 已更新 system 用户类型为系统用户")
@@ -100,7 +100,7 @@ func initSystemUserWithPassword(ctx context.Context, db *gorm.DB, password strin
 		Signature:     "系统内置用户，用于管理系统工具、平台接口和提示词",
 	}
 
-	if err := userRepo.CreateUser(systemUser); err != nil {
+	if err := userRepo.CreateUser(ctx, systemUser); err != nil {
 		return fmt.Errorf("创建 system 用户失败: %w", err)
 	}
 
@@ -125,11 +125,11 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 
 	userRepo := hrrepository.NewUserRepository(db)
 
-	existingUser, err := userRepo.GetUserByUsername(TestUsername)
+	existingUser, err := userRepo.GetUserByUsername(ctx, TestUsername)
 	if err == nil && existingUser != nil {
 		if existingUser.DepartmentFullPath != TestUserDepartmentPath {
 			existingUser.DepartmentFullPath = TestUserDepartmentPath
-			if err := userRepo.UpdateUser(existingUser); err != nil {
+			if err := userRepo.UpdateUser(ctx, existingUser); err != nil {
 				logger.Warnf(ctx, "[TestUser] 更新 test_user 部门失败: %v", err)
 			}
 		}
@@ -166,7 +166,7 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 		DepartmentFullPath: TestUserDepartmentPath,
 	}
 
-	if err := userRepo.CreateUser(testUser); err != nil {
+	if err := userRepo.CreateUser(ctx, testUser); err != nil {
 		return fmt.Errorf("创建 test_user 失败: %w", err)
 	}
 
@@ -180,10 +180,12 @@ func setTestUserPassword(userRepo *hrrepository.UserRepository, user *hrmodel.Us
 		return err
 	}
 	user.PasswordHash = string(hashed)
-	return userRepo.UpdateUser(user)
+	return userRepo.UpdateUser(context.Background(
+
+	// getSystemUserPassword 获取系统账号密码（优先从配置/环境变量，否则生成随机密码）
+	), user)
 }
 
-// getSystemUserPassword 获取系统账号密码（优先从配置/环境变量，否则生成随机密码）
 func getSystemUserPassword(cfg *config.HRServerConfig, ctx context.Context) (string, bool) {
 	// 优先从配置或环境变量获取
 	if password := cfg.GetSystemUserPassword(); password != "" {
@@ -211,7 +213,7 @@ func setSystemUserPassword(ctx context.Context, userRepo *hrrepository.UserRepos
 
 	// 更新密码
 	user.PasswordHash = string(hashedPassword)
-	if err := userRepo.UpdateUser(user); err != nil {
+	if err := userRepo.UpdateUser(ctx, user); err != nil {
 		return fmt.Errorf("更新密码失败: %w", err)
 	}
 

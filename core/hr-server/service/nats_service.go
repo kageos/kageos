@@ -73,7 +73,7 @@ func (p *GatewayTokenPublisher) InvalidateUserToken(ctx context.Context, userID 
 		return fmt.Errorf("NATS connection is nil")
 	}
 
-	activeSessions, err := userSessionRepo.GetActiveSessionsByUserID(userID)
+	activeSessions, err := userSessionRepo.GetActiveSessionsByUserID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("查询活跃会话失败: %w", err)
 	}

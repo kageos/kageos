@@ -100,7 +100,7 @@ func newPersonalWorkspaceBootstrapTestDeps(t *testing.T) (*AppService, *reposito
 
 	appRepo := repository.NewAppRepository(db)
 	runtimeClient := &personalWorkspaceRuntimeClient{}
-	service := NewAppService(runtimeClient, appRepo, nil, repository.NewServiceTreeRepository(db), nil)
+	service := NewAppService(AppServiceDependencies{RuntimeClient: runtimeClient, AppRepository: appRepo, ServiceTreeRepo: repository.NewServiceTreeRepository(db)})
 	return service, appRepo, db, runtimeClient
 }
 
@@ -128,7 +128,7 @@ func TestBootstrapPersonalWorkspaceCreatesPrivateHome(t *testing.T) {
 		t.Fatalf("unexpected runtime create request: %#v", req)
 	}
 
-	app, err := appRepo.GetAppByUserName("alice", PersonalWorkspaceCode)
+	app, err := appRepo.GetAppByUserName(context.Background(), "alice", PersonalWorkspaceCode)
 	if err != nil {
 		t.Fatalf("load home: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestPersistCreatedAppKeepsExplicitPrivateVisibility(t *testing.T) {
 	if err := service.persistCreatedApp(context.Background(), app, rootNode); err != nil {
 		t.Fatalf("persistCreatedApp() error = %v", err)
 	}
-	persisted, err := appRepo.GetAppByUserName("alice", "private_space")
+	persisted, err := appRepo.GetAppByUserName(context.Background(), "alice", "private_space")
 	if err != nil {
 		t.Fatalf("load private workspace: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestPersistCreatedAppKeepsExplicitPrivateVisibility(t *testing.T) {
 
 func TestBootstrapPersonalWorkspaceIsIdempotentForExistingHome(t *testing.T) {
 	service, appRepo, _, runtimeClient := newPersonalWorkspaceBootstrapTestDeps(t)
-	if err := appRepo.CreateApp(&model.App{
+	if err := appRepo.CreateApp(context.Background(), &model.App{
 		User:     "alice",
 		Code:     PersonalWorkspaceCode,
 		Name:     "旧的个人空间",
@@ -197,7 +197,7 @@ func TestBootstrapPersonalWorkspaceIsIdempotentForExistingHome(t *testing.T) {
 
 func TestBootstrapPersonalWorkspaceReturnsExistingOwnedWorkspaceWithoutCreatingHome(t *testing.T) {
 	service, appRepo, _, runtimeClient := newPersonalWorkspaceBootstrapTestDeps(t)
-	if err := appRepo.CreateApp(&model.App{
+	if err := appRepo.CreateApp(context.Background(), &model.App{
 		User:   "alice",
 		Code:   "operations",
 		Name:   "运营空间",
@@ -216,7 +216,7 @@ func TestBootstrapPersonalWorkspaceReturnsExistingOwnedWorkspaceWithoutCreatingH
 	if runtimeClient.createCount() != 0 {
 		t.Fatalf("runtime create count = %d, want 0", runtimeClient.createCount())
 	}
-	if _, err := appRepo.GetAppByUserName("alice", PersonalWorkspaceCode); !errorsIsRecordNotFound(err) {
+	if _, err := appRepo.GetAppByUserName(context.Background(), "alice", PersonalWorkspaceCode); !errorsIsRecordNotFound(err) {
 		t.Fatalf("home should not be created, err = %v", err)
 	}
 }
@@ -261,7 +261,7 @@ func TestBootstrapPersonalWorkspaceCoalescesConcurrentRequests(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("home count = %d, want 1", count)
 	}
-	if _, err := appRepo.GetAppByUserName("alice", PersonalWorkspaceCode); err != nil {
+	if _, err := appRepo.GetAppByUserName(context.Background(), "alice", PersonalWorkspaceCode); err != nil {
 		t.Fatalf("load home: %v", err)
 	}
 }
@@ -278,7 +278,7 @@ func TestBootstrapPersonalWorkspaceRejectsMissingUser(t *testing.T) {
 
 func TestDeleteAppRejectsPersonalWorkspace(t *testing.T) {
 	service, appRepo, _, runtimeClient := newPersonalWorkspaceBootstrapTestDeps(t)
-	if err := appRepo.CreateApp(&model.App{
+	if err := appRepo.CreateApp(context.Background(), &model.App{
 		User:                "alice",
 		Code:                PersonalWorkspaceCode,
 		Name:                PersonalWorkspaceName,
@@ -295,14 +295,14 @@ func TestDeleteAppRejectsPersonalWorkspace(t *testing.T) {
 	if runtimeClient.deleteCount() != 0 {
 		t.Fatalf("runtime delete count = %d, want 0", runtimeClient.deleteCount())
 	}
-	if _, err := appRepo.GetAppByUserName("alice", PersonalWorkspaceCode); err != nil {
+	if _, err := appRepo.GetAppByUserName(context.Background(), "alice", PersonalWorkspaceCode); err != nil {
 		t.Fatalf("home should remain: %v", err)
 	}
 }
 
 func TestDeleteAppAllowsLegacyWorkspaceUsingHomeCode(t *testing.T) {
 	service, appRepo, _, runtimeClient := newPersonalWorkspaceBootstrapTestDeps(t)
-	if err := appRepo.CreateApp(&model.App{
+	if err := appRepo.CreateApp(context.Background(), &model.App{
 		User:   "alice",
 		Code:   PersonalWorkspaceCode,
 		Name:   "旧 home 空间",
@@ -317,7 +317,7 @@ func TestDeleteAppAllowsLegacyWorkspaceUsingHomeCode(t *testing.T) {
 	if runtimeClient.deleteCount() != 1 {
 		t.Fatalf("runtime delete count = %d, want 1", runtimeClient.deleteCount())
 	}
-	if _, err := appRepo.GetAppByUserName("alice", PersonalWorkspaceCode); !errorsIsRecordNotFound(err) {
+	if _, err := appRepo.GetAppByUserName(context.Background(), "alice", PersonalWorkspaceCode); !errorsIsRecordNotFound(err) {
 		t.Fatalf("legacy home should be deleted, err = %v", err)
 	}
 }

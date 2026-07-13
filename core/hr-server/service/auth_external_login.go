@@ -82,12 +82,12 @@ func (s *AuthOAuthService) resolveExistingUserForPrincipal(principal ExternalPri
 		return nil, false, fmt.Errorf("外部用户信息不完整")
 	}
 
-	identity, err := s.identityRepo.GetByProviderSubject(principal.ProviderCode, principal.ExternalID)
+	identity, err := s.identityRepo.GetByProviderSubject(context.Background(), principal.ProviderCode, principal.ExternalID)
 	if err != nil {
 		return nil, false, err
 	}
 	if identity != nil {
-		user, err := s.userRepo.GetUserByID(identity.UserID)
+		user, err := s.userRepo.GetUserByID(context.Background(), identity.UserID)
 		if err != nil {
 			return nil, false, fmt.Errorf("已绑定用户不存在，请联系管理员")
 		}
@@ -120,7 +120,7 @@ func (s *AuthOAuthService) createExternalRegistrationIntent(principal ExternalPr
 		companyCode = model.DefaultCompanyCode
 	}
 	if s.authService != nil && s.authService.companyRepo != nil {
-		if _, err := s.authService.companyRepo.GetCompanyByCode(companyCode); err != nil {
+		if _, err := s.authService.companyRepo.GetCompanyByCode(context.Background(), companyCode); err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, fmt.Errorf("生成授权注册失败：企业代码 %s 不存在", companyCode)
 			}
@@ -150,7 +150,7 @@ func (s *AuthOAuthService) createExternalRegistrationIntent(principal ExternalPr
 		CompanyCode:         companyCode,
 		ExpiresAt:           time.Now().Add(oauthRegistrationIntentTTL),
 	}
-	if err := s.registrationIntentRepo.Create(intent); err != nil {
+	if err := s.registrationIntentRepo.Create(context.Background(), intent); err != nil {
 		return nil, fmt.Errorf("创建授权注册确认失败: %w", err)
 	}
 	return intent, nil
@@ -209,7 +209,7 @@ func (s *AuthOAuthService) suggestExternalUserCodes(principal ExternalPrincipal,
 }
 
 func (s *AuthOAuthService) userCodeAvailable(code string) (bool, error) {
-	if _, err := s.userRepo.GetUserByUsername(code); err != nil {
+	if _, err := s.userRepo.GetUserByUsername(context.Background(), code); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return true, nil
 		}
@@ -234,7 +234,7 @@ func (s *AuthOAuthService) refreshExternalIdentity(identity *model.AuthExternalI
 		changed = true
 	}
 	if changed {
-		if err := s.identityRepo.Update(identity); err != nil {
+		if err := s.identityRepo.Update(context.Background(), identity); err != nil {
 			logger.Warnf(nil, "[AuthExternalLogin] 刷新外部身份失败: %v", err)
 		}
 	}

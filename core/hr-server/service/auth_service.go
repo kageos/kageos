@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -56,13 +57,13 @@ func (s *AuthService) RegisterUser(username, email, password, companyAction, com
 	}
 
 	// 检查用户名是否已存在
-	existingUser, err := s.userRepo.GetUserByUsername(username)
+	existingUser, err := s.userRepo.GetUserByUsername(context.Background(), username)
 	if err == nil && existingUser != nil {
 		return 0, fmt.Errorf("用户名已存在")
 	}
 
 	// 检查邮箱是否已存在
-	existingEmail, err := s.userRepo.GetUserByEmail(email)
+	existingEmail, err := s.userRepo.GetUserByEmail(context.Background(), email)
 	if err == nil && existingEmail != nil {
 		return 0, fmt.Errorf("邮箱已被注册")
 	}
@@ -94,7 +95,7 @@ func (s *AuthService) RegisterUser(username, email, password, companyAction, com
 	}
 
 	// 保存到数据库
-	err = s.userRepo.CreateUser(user)
+	err = s.userRepo.CreateUser(context.Background(), user)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to create user: %v", err)
 		return 0, fmt.Errorf("用户创建失败")
@@ -120,17 +121,17 @@ func (s *AuthService) resolveRegisterCompany(action, code, name, logoURL, create
 		if name == "" {
 			return "", fmt.Errorf("创建企业时企业名称不能为空")
 		}
-		if _, err := s.companyRepo.GetCompanyByCode(code); err == nil {
+		if _, err := s.companyRepo.GetCompanyByCode(context.Background(), code); err == nil {
 			return "", fmt.Errorf("企业代码已存在")
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", fmt.Errorf("检查企业代码失败: %w", err)
 		}
-		if _, err := s.companyRepo.GetCompanyByName(name); err == nil {
+		if _, err := s.companyRepo.GetCompanyByName(context.Background(), name); err == nil {
 			return "", fmt.Errorf("企业名称已存在")
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", fmt.Errorf("检查企业名称失败: %w", err)
 		}
-		if err := s.companyRepo.CreateCompany(&model.Company{
+		if err := s.companyRepo.CreateCompany(context.Background(), &model.Company{
 			Code:      code,
 			Name:      name,
 			LogoURL:   logoURL,
@@ -140,7 +141,7 @@ func (s *AuthService) resolveRegisterCompany(action, code, name, logoURL, create
 		}
 		return code, nil
 	case "join":
-		if _, err := s.companyRepo.GetCompanyByCode(code); err != nil {
+		if _, err := s.companyRepo.GetCompanyByCode(context.Background(), code); err != nil {
 			return "", fmt.Errorf("企业不存在")
 		}
 		return code, nil
@@ -150,13 +151,13 @@ func (s *AuthService) resolveRegisterCompany(action, code, name, logoURL, create
 }
 
 func (s *AuthService) SearchCompaniesFuzzy(keyword string, limit int) ([]*model.Company, error) {
-	return s.companyRepo.SearchCompaniesFuzzy(keyword, limit)
+	return s.companyRepo.SearchCompaniesFuzzy(context.Background(), keyword, limit)
 }
 
 // ActivateUser 激活用户
 func (s *AuthService) ActivateUser(userID int64) error {
 	// 获取用户信息
-	user, err := s.userRepo.GetUserByID(userID)
+	user, err := s.userRepo.GetUserByID(context.Background(), userID)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to get user %d: %v", userID, err)
 		return fmt.Errorf("用户不存在")
@@ -165,7 +166,7 @@ func (s *AuthService) ActivateUser(userID int64) error {
 	// 更新用户状态为active，并标记邮箱已验证
 	user.Status = "active"
 	user.EmailVerified = true
-	err = s.userRepo.UpdateUser(user)
+	err = s.userRepo.UpdateUser(context.Background(), user)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to activate user %d: %v", userID, err)
 		return fmt.Errorf("用户激活失败")
@@ -178,7 +179,7 @@ func (s *AuthService) ActivateUser(userID int64) error {
 // LoginUser 用户登录
 func (s *AuthService) LoginUser(username, password string, remember bool) (*model.User, string, string, error) {
 	// 获取用户信息
-	user, err := s.userRepo.GetUserByUsername(username)
+	user, err := s.userRepo.GetUserByUsername(context.Background(), username)
 	if err != nil {
 		logger.Warnf(nil, "[AuthService] User not found: %s, error: %v", username, err)
 		return nil, "", "", fmt.Errorf("用户名或密码错误")
@@ -272,7 +273,7 @@ func (s *AuthService) buildUserTokenContext(user *model.User) auth.UserTokenCont
 	if user.CompanyCode == "" || s.companyRepo == nil {
 		return tokenContext
 	}
-	company, err := s.companyRepo.GetCompanyByCode(user.CompanyCode)
+	company, err := s.companyRepo.GetCompanyByCode(context.Background(), user.CompanyCode)
 	if err != nil {
 		logger.Warnf(nil, "[AuthService] 查询企业信息失败 company_code=%s err=%v", user.CompanyCode, err)
 		return tokenContext
@@ -285,7 +286,7 @@ func (s *AuthService) buildUserTokenContext(user *model.User) auth.UserTokenCont
 // RefreshToken 刷新Token
 func (s *AuthService) RefreshToken(refreshToken string) (string, string, error) {
 	// 验证 RefreshToken
-	session, err := s.userSessionRepo.GetUserSessionByRefreshToken(refreshToken)
+	session, err := s.userSessionRepo.GetUserSessionByRefreshToken(context.Background(), refreshToken)
 	if err != nil {
 		return "", "", fmt.Errorf("RefreshToken无效或已过期")
 	}
@@ -301,7 +302,7 @@ func (s *AuthService) RefreshToken(refreshToken string) (string, string, error) 
 	}
 
 	// 获取用户信息
-	user, err := s.userRepo.GetUserByID(session.UserID)
+	user, err := s.userRepo.GetUserByID(context.Background(), session.UserID)
 	if err != nil {
 		return "", "", fmt.Errorf("用户不存在")
 	}
@@ -320,7 +321,7 @@ func (s *AuthService) RefreshToken(refreshToken string) (string, string, error) 
 	}
 
 	// 更新会话中的Token和RefreshToken
-	err = s.userSessionRepo.UpdateUserSessionTokens(session.ID, newAccessToken, newRefreshToken)
+	err = s.userSessionRepo.UpdateUserSessionTokens(context.Background(), session.ID, newAccessToken, newRefreshToken)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to update tokens: %v", err)
 		// 不返回错误，继续执行
@@ -348,7 +349,7 @@ func (s *AuthService) LogoutUser(token string) error {
 	}
 
 	// 停用用户会话
-	err := s.userSessionRepo.DeactivateUserSession(token)
+	err := s.userSessionRepo.DeactivateUserSession(context.Background(), token)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to deactivate user session: %v", err)
 		return fmt.Errorf("登出失败")
@@ -364,7 +365,7 @@ func (s *AuthService) saveUserSession(userID int64, token, refreshToken string) 
 	expiresAt := models.Time(time.Now().Add(24 * time.Hour))
 
 	// 创建用户会话
-	err := s.userSessionRepo.CreateUserSession(userID, token, refreshToken, expiresAt, "", "")
+	err := s.userSessionRepo.CreateUserSession(context.Background(), userID, token, refreshToken, expiresAt, "", "")
 	if err != nil {
 		return fmt.Errorf("会话保存失败: %w", err)
 	}
@@ -385,7 +386,7 @@ func (s *AuthService) saveUserSessionWithExpiresAt(userID int64, token, refreshT
 	modelExpiresAt := models.Time(expiresAt)
 
 	// 创建用户会话
-	err := s.userSessionRepo.CreateUserSession(userID, token, refreshToken, modelExpiresAt, "", "")
+	err := s.userSessionRepo.CreateUserSession(context.Background(), userID, token, refreshToken, modelExpiresAt, "", "")
 	if err != nil {
 		return fmt.Errorf("会话保存失败: %w", err)
 	}
@@ -395,7 +396,7 @@ func (s *AuthService) saveUserSessionWithExpiresAt(userID int64, token, refreshT
 
 // GetUserByEmail 根据邮箱获取用户
 func (s *AuthService) GetUserByEmail(email string) (*model.User, error) {
-	user, err := s.userRepo.GetUserByEmail(email)
+	user, err := s.userRepo.GetUserByEmail(context.Background(), email)
 	if err != nil {
 		return nil, err
 	}
@@ -410,7 +411,7 @@ func (s *AuthService) GeneratePasswordResetToken(userID int64, username, email s
 // ResetPasswordByEmail 通过邮箱重置密码（简化版，用于测试阶段）
 func (s *AuthService) ResetPasswordByEmail(email, newPassword string) error {
 	// 获取用户信息
-	user, err := s.userRepo.GetUserByEmail(email)
+	user, err := s.userRepo.GetUserByEmail(context.Background(), email)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to get user by email %s: %v", email, err)
 		return fmt.Errorf("用户不存在")
@@ -425,7 +426,7 @@ func (s *AuthService) ResetPasswordByEmail(email, newPassword string) error {
 
 	// 更新用户密码
 	user.PasswordHash = string(hashedPassword)
-	err = s.userRepo.UpdateUser(user)
+	err = s.userRepo.UpdateUser(context.Background(), user)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to update user password: %v", err)
 		return fmt.Errorf("密码更新失败")

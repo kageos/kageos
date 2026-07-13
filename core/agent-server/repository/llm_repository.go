@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"strings"
 
 	"github.com/kageos/kageos/core/agent-server/model"
@@ -18,44 +19,44 @@ func NewLLMRepository(db *gorm.DB) *LLMRepository {
 }
 
 // Create 创建 LLM 配置
-func (r *LLMRepository) Create(cfg *model.LLMConfig) error {
-	return r.db.Create(cfg).Error
+func (r *LLMRepository) Create(ctx context.Context, cfg *model.LLMConfig) error {
+	return r.db.WithContext(ctx).Create(cfg).Error
 }
 
 // GetByID 根据 ID 获取 LLM 配置
-func (r *LLMRepository) GetByID(id int64) (*model.LLMConfig, error) {
+func (r *LLMRepository) GetByID(ctx context.Context, id int64) (*model.LLMConfig, error) {
 	var cfg model.LLMConfig
-	if err := r.db.Where("id = ?", id).First(&cfg).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&cfg).Error; err != nil {
 		return nil, err
 	}
 	return &cfg, nil
 }
 
 // GetByCode 根据稳定编码获取 LLM 配置，主要用于部署 seed 幂等初始化。
-func (r *LLMRepository) GetByCode(code string) (*model.LLMConfig, error) {
+func (r *LLMRepository) GetByCode(ctx context.Context, code string) (*model.LLMConfig, error) {
 	code = strings.TrimSpace(code)
 	var cfg model.LLMConfig
-	if err := r.db.Where("code = ?", code).First(&cfg).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("code = ?", code).First(&cfg).Error; err != nil {
 		return nil, err
 	}
 	return &cfg, nil
 }
 
 // GetDefault 获取默认 LLM 配置
-func (r *LLMRepository) GetDefault() (*model.LLMConfig, error) {
+func (r *LLMRepository) GetDefault(ctx context.Context) (*model.LLMConfig, error) {
 	var cfg model.LLMConfig
-	if err := r.db.Where("is_default = ?", true).First(&cfg).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("is_default = ?", true).First(&cfg).Error; err != nil {
 		return nil, err
 	}
 	return &cfg, nil
 }
 
 // List 获取 LLM 配置列表
-func (r *LLMRepository) List(scope string, currentUser string, offset, limit int) ([]*model.LLMConfig, int64, error) {
+func (r *LLMRepository) List(ctx context.Context, scope string, currentUser string, offset, limit int) ([]*model.LLMConfig, int64, error) {
 	var configs []*model.LLMConfig
 	var total int64
 
-	query := r.db.Model(&model.LLMConfig{})
+	query := r.db.WithContext(ctx).Model(&model.LLMConfig{})
 
 	// 权限过滤：根据 scope 参数
 	if scope == "mine" {
@@ -92,33 +93,33 @@ func (r *LLMRepository) List(scope string, currentUser string, offset, limit int
 }
 
 // Update 更新 LLM 配置
-func (r *LLMRepository) Update(cfg *model.LLMConfig) error {
-	return r.db.Save(cfg).Error
+func (r *LLMRepository) Update(ctx context.Context, cfg *model.LLMConfig) error {
+	return r.db.WithContext(ctx).Save(cfg).Error
 }
 
-func (r *LLMRepository) UpdateAPIKey(id int64, apiKey string) error {
-	return r.db.Model(&model.LLMConfig{}).Where("id = ?", id).Update("api_key", apiKey).Error
+func (r *LLMRepository) UpdateAPIKey(ctx context.Context, id int64, apiKey string) error {
+	return r.db.WithContext(ctx).Model(&model.LLMConfig{}).Where("id = ?", id).Update("api_key", apiKey).Error
 }
 
 // UpdateProviderProtocol stores the effective provider/protocol inferred at runtime.
-func (r *LLMRepository) UpdateProviderProtocol(id int64, provider, protocol string) error {
-	return r.db.Model(&model.LLMConfig{}).Where("id = ?", id).Updates(map[string]interface{}{
+func (r *LLMRepository) UpdateProviderProtocol(ctx context.Context, id int64, provider, protocol string) error {
+	return r.db.WithContext(ctx).Model(&model.LLMConfig{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"provider": provider,
 		"protocol": protocol,
 	}).Error
 }
 
 // Delete 删除 LLM 配置
-func (r *LLMRepository) Delete(id int64) error {
-	return r.db.Where("id = ?", id).Delete(&model.LLMConfig{}).Error
+func (r *LLMRepository) Delete(ctx context.Context, id int64) error {
+	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&model.LLMConfig{}).Error
 }
 
 // SetDefault 设置默认配置
-func (r *LLMRepository) SetDefault(id int64) error {
+func (r *LLMRepository) SetDefault(ctx context.Context, id int64) error {
 	// 先取消所有默认配置
-	if err := r.db.Model(&model.LLMConfig{}).Where("is_default = ?", true).Update("is_default", false).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&model.LLMConfig{}).Where("is_default = ?", true).Update("is_default", false).Error; err != nil {
 		return err
 	}
 	// 设置新的默认配置
-	return r.db.Model(&model.LLMConfig{}).Where("id = ?", id).Update("is_default", true).Error
+	return r.db.WithContext(ctx).Model(&model.LLMConfig{}).Where("id = ?", id).Update("is_default", true).Error
 }

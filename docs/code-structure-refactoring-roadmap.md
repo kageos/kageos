@@ -12,28 +12,67 @@
 
 ## 已完成
 
-### Capability Bundle 服务第一轮拆分
+### Capability Bundle 服务拆分
 
 原 `core/app-server/service/service_tree_capability_bundle.go` 同时包含目录包导出、安装、AgentTask 转换与安装、文档安装、校验和路径安全逻辑。
 
-第一轮只做同 package 函数移动：
+前两轮只做同 package 函数移动：
 
 | 文件 | 职责 |
 | --- | --- |
-| `service_tree_capability_bundle.go` | Capability Bundle 主流程、导出与安装编排 |
 | `service_tree_capability_bundle_agent_tasks.go` | AgentTask 导出转换、安装请求与幂等键 |
+| `service_tree_capability_bundle_docs.go` | Docs 内容导出、节点创建更新与内容写入 |
+| `service_tree_capability_bundle_export.go` | Bundle 导出编排、源码收集、TreeNode 与 package 元数据组装 |
+| `service_tree_capability_bundle_install.go` | Bundle 安装编排、子目录过滤、安装计划与文件冲突检查 |
 | `service_tree_capability_bundle_paths.go` | package、文件和目标目录路径校验与拼接 |
+| `service_tree_capability_bundle_validation.go` | Bundle、TreeNode、Docs、AgentTask 和文件声明校验 |
 
-本轮不修改任何函数签名、分支、错误信息或调用顺序。主文件由 1,859 行降至 1,437 行，AgentTask 和路径安全逻辑分别形成 296 行与 147 行的独立文件。
+拆分不修改任何函数签名、分支、错误信息或调用顺序。原 1,859 行混合职责文件已被 6 个职责文件替代；除导出和安装编排外，其余文件保持在 147-296 行之间。
+
+### Standard API 入口拆分
+
+原 `core/app-server/api/v1/standard_api.go` 的请求构造、Table、Form、Chart、Runtime 和 Callback handler 已按职责拆分：
+
+| 文件 | 职责 |
+| --- | --- |
+| `standard_api.go` | 处理器类型、路径解析、请求与 callback envelope 构造 |
+| `standard_api_table.go` | Table 查询、新增、模板下载、更新和删除 |
+| `standard_api_table_examples.go` | Table 模板示例值与示例行生成 |
+| `standard_api_execution.go` | Form 提交、Python Runtime 与 Chart 查询 |
+| `standard_api_callback.go` | OnSelectFuzzy callback 入口 |
+
+拆分保留原 Gin handler、Swagger 注释、权限检查、请求和响应顺序，不修改路由注册。
+
+### App Manage Service 拆分
+
+原 `core/app-runtime/service/app_manage_service.go` 已按应用管理职责拆分：
+
+| 文件 | 职责 |
+| --- | --- |
+| `app_manage_service.go` | 服务类型、构造、应用创建/构建/更新/删除与状态查询 |
+| `app_manage_service_runtime.go` | 版本容器规格、NATS secret、启动、停止与旧版本关闭 |
+| `app_manage_service_cleanup.go` | 定时清理、容器级清理与非当前版本回收 |
+| `app_manage_service_logs.go` | 应用日志读取、行范围合并与 Git 提交 |
+
+拆分保留 `AppManageService` receiver、`ContainerOperator` 调用、通知等待和清理顺序，不修改应用生命周期行为。
+
+### Container Service 拆分
+
+原 `core/app-runtime/service/container_service.go` 已按 Podman 运行时职责拆分：
+
+| 文件 | 职责 |
+| --- | --- |
+| `container_service.go` | 数据类型、`ContainerOperator`、服务构造、启停与 LSM 检测 |
+| `container_service_install.go` | Podman 安装、操作系统适配、运行环境准备与连接 |
+| `container_service_operations.go` | 命令执行、容器生命周期、挂载、环境变量与 Secret |
+| `container_service_json.go` | Podman CLI JSON 解码与容器、镜像、运行状态解析 |
+
+拆分保留 `ContainerOperator`、Podman 命令参数、Secret stdin 传递、网络和时区默认值，不修改容器运行行为。
 
 ## 后续拆分顺序
 
 | 优先级 | 当前文件 | 建议边界 | 风险与验证 |
 | --- | --- | --- | --- |
-| P1 | `core/app-server/service/service_tree_capability_bundle.go` | 继续拆成 `export`、`install`、`validation`、`docs` 四个职责文件 | 同 package 机械移动；运行 capability bundle 与 app-server service 测试 |
-| P1 | `core/app-server/api/v1/standard_api.go` | 按 `table`、`form`、`chart/runtime`、`callback` 拆 handler；示例数据生成器单独成文件 | 保持 Gin 路由注册和响应完全不变；运行 app-server API 测试 |
-| P1 | `core/app-runtime/service/app_manage_service.go` | 按应用生命周期、版本容器启动、清理任务、日志读取与 Git 提交拆文件 | receiver 保持不变；运行 app-runtime service 测试 |
-| P1 | `core/app-runtime/service/container_service.go` | 按运行时安装准备、Podman JSON 解析、容器操作、secret 管理拆文件 | 保持 `ContainerOperator` 不变；运行容器解析和 runtime 测试 |
 | P1 | `web/src/architecture/presentation/features/access/pages/TeamAccessPage.vue` | 页面只保留编排；拆当前权限、继承权限、角色编辑区和数据 composable | 保留请求时机与权限判断；运行 type-check、unit、build |
 | P1 | `web/src/architecture/presentation/components/StructuredPromptComposer.vue` | 拆编辑器、上下文选择、附件区和 draft composable | 保留 `props`、`emits` 与提交 payload；运行组件测试和 build |
 | P2 | `web/src/architecture/presentation/components/MiniWorkstation.vue` | 延续现有 composable/component 边界，拆消息区、输入区、会话操作与状态视图 | 当前分支已有相关改动，应独立收口后再继续，避免交叉冲突 |

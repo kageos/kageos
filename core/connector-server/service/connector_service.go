@@ -231,10 +231,26 @@ func (s *ConnectorService) ListDirectoryBindings(ctx context.Context, resourcePa
 	if err != nil {
 		return nil, err
 	}
+	connectionIDs := make([]string, 0, len(rows))
+	seenConnectionIDs := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		if row == nil || strings.TrimSpace(row.ConnectionID) == "" {
+			continue
+		}
+		if _, exists := seenConnectionIDs[row.ConnectionID]; exists {
+			continue
+		}
+		seenConnectionIDs[row.ConnectionID] = struct{}{}
+		connectionIDs = append(connectionIDs, row.ConnectionID)
+	}
+	connections, err := s.repo.GetOwnedConnections(ctx, owner, connectionIDs)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]dto.ConnectorDirectoryBindingInfo, 0, len(rows))
 	for _, row := range rows {
 		item := bindingToInfo(row, nil)
-		if conn, err := s.repo.GetOwnedConnection(ctx, owner, row.ConnectionID); err == nil {
+		if conn := connections[row.ConnectionID]; conn != nil {
 			item.Connection = connectionToInfo(conn)
 		}
 		items = append(items, *item)

@@ -34,7 +34,7 @@ func NewDepartment(deptService *service.DepartmentService) *Department {
 // @Param X-Token header string true "JWT Token"
 // @Param request body dto.CreateDepartmentReq true "创建部门请求"
 // @Success 200 {object} dto.CreateDepartmentResp
-// @Router /hr/api/v1/department [post]
+// @Router /hr/api/v1/departments [post]
 func (d *Department) CreateDepartment(c *gin.Context) {
 	var req dto.CreateDepartmentReq
 	var resp *dto.CreateDepartmentResp
@@ -45,7 +45,7 @@ func (d *Department) CreateDepartment(c *gin.Context) {
 
 	// 绑定请求参数
 	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -53,7 +53,7 @@ func (d *Department) CreateDepartment(c *gin.Context) {
 	ctx := c.Request.Context()
 	department, err := d.deptService.CreateDepartment(ctx, req.Name, req.Code, req.ParentID, req.Description, req.Managers)
 	if err != nil {
-		response.FailWithMessage(c, "创建部门失败: "+err.Error())
+		response.Internal(c, "创建部门失败: "+err.Error())
 		return
 	}
 
@@ -73,7 +73,7 @@ func (d *Department) CreateDepartment(c *gin.Context) {
 // @Param id path int true "部门ID"
 // @Param request body dto.UpdateDepartmentReq true "更新部门请求"
 // @Success 200 {object} dto.UpdateDepartmentResp
-// @Router /hr/api/v1/department/{id} [put]
+// @Router /hr/api/v1/departments/{id} [put]
 func (d *Department) UpdateDepartment(c *gin.Context) {
 	var req dto.UpdateDepartmentReq
 	var resp *dto.UpdateDepartmentResp
@@ -86,13 +86,13 @@ func (d *Department) UpdateDepartment(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		response.FailWithMessage(c, "部门ID格式错误")
+		response.BadRequest(c, "部门ID格式错误")
 		return
 	}
 
 	// 绑定请求参数
 	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -122,7 +122,7 @@ func (d *Department) UpdateDepartment(c *gin.Context) {
 
 	department, err := d.deptService.UpdateDepartment(ctx, id, name, description, managers, status, sort)
 	if err != nil {
-		response.FailWithMessage(c, "更新部门失败: "+err.Error())
+		response.Internal(c, "更新部门失败: "+err.Error())
 		return
 	}
 
@@ -139,7 +139,7 @@ func (d *Department) UpdateDepartment(c *gin.Context) {
 // @Produce json
 // @Param X-Token header string true "JWT Token"
 // @Success 200 {object} dto.GetDepartmentTreeResp
-// @Router /hr/api/v1/department/tree [get]
+// @Router /hr/api/v1/departments/tree [get]
 func (d *Department) GetDepartmentTree(c *gin.Context) {
 	var resp *dto.GetDepartmentTreeResp
 	var err error
@@ -151,7 +151,7 @@ func (d *Department) GetDepartmentTree(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	tree, err := d.deptService.GetDepartmentTree(ctx)
 	if err != nil {
-		response.FailWithMessage(c, "获取部门树失败: "+err.Error())
+		response.Internal(c, "获取部门树失败: "+err.Error())
 		return
 	}
 
@@ -169,7 +169,7 @@ func (d *Department) GetDepartmentTree(c *gin.Context) {
 // @Param X-Token header string true "JWT Token"
 // @Param id path int true "部门ID"
 // @Success 200 {object} dto.GetDepartmentResp
-// @Router /hr/api/v1/department/{id} [get]
+// @Router /hr/api/v1/departments/{id} [get]
 func (d *Department) GetDepartmentByID(c *gin.Context) {
 	var resp *dto.GetDepartmentResp
 	var err error
@@ -181,7 +181,7 @@ func (d *Department) GetDepartmentByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		response.FailWithMessage(c, "部门ID格式错误")
+		response.BadRequest(c, "部门ID格式错误")
 		return
 	}
 
@@ -189,7 +189,7 @@ func (d *Department) GetDepartmentByID(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	department, err := d.deptService.GetDepartmentByID(ctx, id)
 	if err != nil {
-		response.FailWithMessage(c, "获取部门失败: "+err.Error())
+		response.Internal(c, "获取部门失败: "+err.Error())
 		return
 	}
 
@@ -207,7 +207,7 @@ func (d *Department) GetDepartmentByID(c *gin.Context) {
 // @Param X-Token header string true "JWT Token"
 // @Param id path int true "部门ID"
 // @Success 200 {object} object
-// @Router /hr/api/v1/department/{id} [delete]
+// @Router /hr/api/v1/departments/{id} [delete]
 func (d *Department) DeleteDepartment(c *gin.Context) {
 	var err error
 	defer func() {
@@ -218,14 +218,14 @@ func (d *Department) DeleteDepartment(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		response.FailWithMessage(c, "部门ID格式错误")
+		response.BadRequest(c, "部门ID格式错误")
 		return
 	}
 
 	// 调用服务层
 	ctx := contextx.ToContext(c)
 	if err = d.deptService.DeleteDepartment(ctx, id); err != nil {
-		response.FailWithMessage(c, "删除部门失败: "+err.Error())
+		response.Internal(c, "删除部门失败: "+err.Error())
 		return
 	}
 
@@ -251,7 +251,7 @@ func (d *Department) GetDepartmentsByPaths(c *gin.Context) {
 
 	// 绑定查询参数
 	if err = c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -265,7 +265,7 @@ func (d *Department) GetDepartmentsByPaths(c *gin.Context) {
 	}
 
 	if len(fullCodePaths) == 0 {
-		response.FailWithMessage(c, "请求参数错误: full_code_paths 不能为空")
+		response.BadRequest(c, "请求参数错误: full_code_paths 不能为空")
 		return
 	}
 
@@ -273,7 +273,7 @@ func (d *Department) GetDepartmentsByPaths(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	deptMap, err := d.deptService.GetDepartmentsByFullCodePaths(ctx, fullCodePaths)
 	if err != nil {
-		response.FailWithMessage(c, "批量获取部门失败: "+err.Error())
+		response.Internal(c, "批量获取部门失败: "+err.Error())
 		return
 	}
 

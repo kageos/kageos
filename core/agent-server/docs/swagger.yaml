@@ -11,7 +11,22 @@ definitions:
       api_key:
         example: sk-xxx
         type: string
+      api_version:
+        example: "2023-06-01"
+        type: string
+      auth_scheme:
+        example: bearer
+        type: string
+      capabilities:
+        example: '{}'
+        type: string
+      endpoint_path:
+        example: /v1/chat/completions
+        type: string
       extra_config:
+        example: '{}'
+        type: string
+      headers:
         example: '{}'
         type: string
       is_default:
@@ -25,6 +40,12 @@ definitions:
         type: string
       name:
         example: OpenAI GPT-4
+        type: string
+      protocol:
+        example: openai_chat_completions
+        type: string
+      provider:
+        example: openai
         type: string
       timeout:
         example: 300
@@ -55,11 +76,23 @@ definitions:
       api_key:
         example: sk-xxx
         type: string
+      api_version:
+        example: "2023-06-01"
+        type: string
+      auth_scheme:
+        example: bearer
+        type: string
+      capabilities:
+        example: '{}'
+        type: string
       code:
         example: default
         type: string
       created_at:
         example: "2024-01-01T00:00:00Z"
+        type: string
+      endpoint_path:
+        example: /v1/chat/completions
         type: string
       extra_config:
         example: '{}'
@@ -67,6 +100,9 @@ definitions:
       has_api_key:
         example: true
         type: boolean
+      headers:
+        example: '{}'
+        type: string
       id:
         example: 1
         type: integer
@@ -85,6 +121,12 @@ definitions:
         type: string
       name:
         example: OpenAI GPT-4
+        type: string
+      protocol:
+        example: openai_chat_completions
+        type: string
+      provider:
+        example: openai
         type: string
       timeout:
         example: 300
@@ -109,11 +151,23 @@ definitions:
       api_key:
         example: sk-xxx
         type: string
+      api_version:
+        example: "2023-06-01"
+        type: string
+      auth_scheme:
+        example: bearer
+        type: string
+      capabilities:
+        example: '{}'
+        type: string
       code:
         example: default
         type: string
       created_at:
         example: "2024-01-01T00:00:00Z"
+        type: string
+      endpoint_path:
+        example: /v1/chat/completions
         type: string
       extra_config:
         example: '{}'
@@ -121,6 +175,9 @@ definitions:
       has_api_key:
         example: true
         type: boolean
+      headers:
+        example: '{}'
+        type: string
       id:
         example: 1
         type: integer
@@ -139,6 +196,12 @@ definitions:
         type: string
       name:
         example: OpenAI GPT-4
+        type: string
+      protocol:
+        example: openai_chat_completions
+        type: string
+      provider:
+        example: openai
         type: string
       timeout:
         example: 300
@@ -163,11 +226,23 @@ definitions:
       api_key:
         example: sk-xxx
         type: string
+      api_version:
+        example: "2023-06-01"
+        type: string
+      auth_scheme:
+        example: bearer
+        type: string
+      capabilities:
+        example: '{}'
+        type: string
       code:
         example: default
         type: string
       created_at:
         example: "2024-01-01T00:00:00Z"
+        type: string
+      endpoint_path:
+        example: /v1/chat/completions
         type: string
       extra_config:
         example: '{}'
@@ -175,6 +250,9 @@ definitions:
       has_api_key:
         example: true
         type: boolean
+      headers:
+        example: '{}'
+        type: string
       id:
         example: 1
         type: integer
@@ -193,6 +271,12 @@ definitions:
         type: string
       name:
         example: OpenAI GPT-4
+        type: string
+      protocol:
+        example: openai_chat_completions
+        type: string
+      provider:
+        example: openai
         type: string
       timeout:
         example: 300
@@ -215,6 +299,92 @@ definitions:
         example: 100
         type: integer
     type: object
+  dto.LLMProbeAttempt:
+    properties:
+      api_base:
+        type: string
+      error:
+        type: string
+      ok:
+        type: boolean
+      protocol:
+        type: string
+      provider:
+        type: string
+    type: object
+  dto.LLMProbeReq:
+    properties:
+      api_base:
+        example: https://api.openai.com/v1
+        type: string
+      api_key:
+        example: sk-xxx
+        type: string
+      api_version:
+        example: "2023-06-01"
+        type: string
+      auth_scheme:
+        example: bearer
+        type: string
+      endpoint_path:
+        example: /v1/responses
+        type: string
+      extra_config:
+        example: '{}'
+        type: string
+      headers:
+        example: '{}'
+        type: string
+      id:
+        example: 1
+        type: integer
+      max_tokens:
+        example: 64
+        type: integer
+      model:
+        example: gpt-4.1-mini
+        type: string
+      protocol:
+        example: openai_responses
+        type: string
+      provider:
+        example: openai
+        type: string
+      timeout:
+        example: 30
+        type: integer
+    type: object
+  dto.LLMProbeResp:
+    properties:
+      api_base:
+        type: string
+      api_version:
+        type: string
+      attempts:
+        items:
+          $ref: '#/definitions/dto.LLMProbeAttempt'
+        type: array
+      auth_scheme:
+        type: string
+      capabilities:
+        additionalProperties:
+          type: boolean
+        type: object
+      endpoint_path:
+        type: string
+      error:
+        type: string
+      message:
+        type: string
+      model:
+        type: string
+      ok:
+        type: boolean
+      protocol:
+        type: string
+      provider:
+        type: string
+    type: object
   dto.LLMUpdateReq:
     properties:
       admin:
@@ -227,12 +397,24 @@ definitions:
       api_key:
         example: sk-xxx
         type: string
+      api_version:
+        example: "2023-06-01"
+        type: string
+      auth_scheme:
+        example: bearer
+        type: string
+      capabilities:
+        example: '{}'
+        type: string
+      endpoint_path:
+        example: /v1/chat/completions
+        type: string
       extra_config:
         example: '{}'
         type: string
-      id:
-        example: 1
-        type: integer
+      headers:
+        example: '{}'
+        type: string
       is_default:
         example: false
         type: boolean
@@ -245,6 +427,12 @@ definitions:
       name:
         example: OpenAI GPT-4
         type: string
+      protocol:
+        example: openai_chat_completions
+        type: string
+      provider:
+        example: openai
+        type: string
       timeout:
         example: 300
         type: integer
@@ -253,7 +441,6 @@ definitions:
         example: 0
         type: integer
     required:
-    - id
     - model
     - name
     type: object
@@ -280,100 +467,7 @@ info:
   title: Agent-Server API
   version: "1.0"
 paths:
-  /agent/api/v1/llm/create:
-    post:
-      consumes:
-      - application/json
-      description: 创建新的LLM配置
-      parameters:
-      - description: 创建LLM配置请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.LLMCreateReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 创建成功
-          schema:
-            $ref: '#/definitions/dto.LLMCreateResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-      summary: 创建LLM配置
-      tags:
-      - LLM管理
-  /agent/api/v1/llm/delete:
-    post:
-      consumes:
-      - application/json
-      description: 删除LLM配置
-      parameters:
-      - description: LLM配置ID
-        in: query
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 删除成功
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-      summary: 删除LLM配置
-      tags:
-      - LLM管理
-  /agent/api/v1/llm/get:
-    get:
-      consumes:
-      - application/json
-      description: 根据ID获取LLM配置详细信息
-      parameters:
-      - description: LLM配置ID
-        in: query
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            $ref: '#/definitions/dto.LLMGetResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-      summary: 获取LLM配置详情
-      tags:
-      - LLM管理
-  /agent/api/v1/llm/get_default:
-    get:
-      consumes:
-      - application/json
-      description: 获取默认的LLM配置
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            $ref: '#/definitions/dto.LLMGetDefaultResp'
-        "400":
-          description: 未设置默认配置
-          schema:
-            type: string
-      summary: 获取默认LLM配置
-      tags:
-      - LLM管理
-  /agent/api/v1/llm/list:
+  /agent/api/v1/llm-configs:
     get:
       consumes:
       - application/json
@@ -405,14 +499,39 @@ paths:
       summary: 获取LLM配置列表
       tags:
       - LLM管理
-  /agent/api/v1/llm/set_default:
     post:
       consumes:
       - application/json
-      description: 设置默认的LLM配置
+      description: 创建新的LLM配置
+      parameters:
+      - description: 创建LLM配置请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LLMCreateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/dto.LLMCreateResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 创建LLM配置
+      tags:
+      - LLM管理
+  /agent/api/v1/llm-configs/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除LLM配置
       parameters:
       - description: LLM配置ID
-        in: query
+        in: path
         name: id
         required: true
         type: integer
@@ -420,16 +539,39 @@ paths:
       - application/json
       responses:
         "200":
-          description: 设置成功
+          description: 删除成功
         "400":
           description: 请求参数错误
           schema:
             type: string
-      summary: 设置默认LLM配置
+      summary: 删除LLM配置
       tags:
       - LLM管理
-  /agent/api/v1/llm/update:
-    post:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取LLM配置详细信息
+      parameters:
+      - description: LLM配置ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.LLMGetResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 获取LLM配置详情
+      tags:
+      - LLM管理
+    put:
       consumes:
       - application/json
       description: 更新LLM配置信息
@@ -452,6 +594,74 @@ paths:
           schema:
             type: string
       summary: 更新LLM配置
+      tags:
+      - LLM管理
+  /agent/api/v1/llm-configs/{id}/default:
+    put:
+      consumes:
+      - application/json
+      description: 设置默认的LLM配置
+      parameters:
+      - description: LLM配置ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 设置成功
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 设置默认LLM配置
+      tags:
+      - LLM管理
+  /agent/api/v1/llm-configs/default:
+    get:
+      consumes:
+      - application/json
+      description: 获取默认的LLM配置
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.LLMGetDefaultResp'
+        "400":
+          description: 未设置默认配置
+          schema:
+            type: string
+      summary: 获取默认LLM配置
+      tags:
+      - LLM管理
+  /agent/api/v1/llm-configs/probe:
+    post:
+      consumes:
+      - application/json
+      description: 根据当前表单内容发起最小请求，自动识别 OpenAI Chat、OpenAI Responses 或 Anthropic Messages
+      parameters:
+      - description: LLM 检测请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LLMProbeReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 检测结果
+          schema:
+            $ref: '#/definitions/dto.LLMProbeResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 检测 LLM 协议与密钥可用性
       tags:
       - LLM管理
 securityDefinitions:

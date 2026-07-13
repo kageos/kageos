@@ -42,11 +42,11 @@ func NewStorage(storageService *service.StorageService) *Storage {
 func (s *Storage) GetPublicCompanyLogoUploadToken(c *gin.Context) {
 	var req dto.GetUploadTokenReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	if err := validatePublicCompanyLogo(req.FileName, req.ContentType, req.FileSize); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -62,10 +62,10 @@ func (s *Storage) GetPublicCompanyLogoUploadToken(c *gin.Context) {
 		req.FileName,
 		req.ContentType,
 		req.FileSize,
-		string(dto.UploadSourceBrowser),
+		storage.UploadSourceBrowser,
 	)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -93,15 +93,15 @@ func (s *Storage) GetPublicCompanyLogoUploadToken(c *gin.Context) {
 func (s *Storage) PublicCompanyLogoUploadComplete(c *gin.Context) {
 	var req dto.UploadCompleteReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	if !strings.HasPrefix(strings.TrimLeft(req.Key, "/"), publicCompanyLogoRouter+"/") {
-		response.FailWithMessage(c, "企业 Logo 文件路径不合法")
+		response.BadRequest(c, "企业 Logo 文件路径不合法")
 		return
 	}
 	if err := validatePublicCompanyLogo(req.FileName, req.ContentType, req.FileSize); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -189,12 +189,12 @@ func validatePublicCompanyLogo(fileName string, contentType string, fileSize int
 func (s *Storage) publicShareRequestUser(c *gin.Context, router string) (string, bool) {
 	claims, err := publicshare.ValidateAnonymousToken(c.GetHeader(publicshare.AnonymousTokenHeader))
 	if err != nil {
-		response.FailWithMessage(c, "匿名访问凭证无效，请刷新页面后重试")
+		response.NoAuth(c, "匿名访问凭证无效，请刷新页面后重试")
 		return "", false
 	}
 	shareID := strings.TrimSpace(c.Param("share_id"))
 	if shareID == "" {
-		response.FailWithMessage(c, "分享链接无效")
+		response.NoAuth(c, "分享链接无效")
 		return "", false
 	}
 	tenantUser, app := parsePublicShareRouter(router)
@@ -229,12 +229,12 @@ func (s *Storage) PublicShareGetUploadToken(c *gin.Context) {
 	}()
 
 	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	router := strings.Trim(strings.TrimSpace(req.Router), "/")
 	if router == "" {
-		response.FailWithMessage(c, "公开上传必须提供函数路由")
+		response.BadRequest(c, "公开上传必须提供函数路由")
 		return
 	}
 	requestUser, ok := s.publicShareRequestUser(c, router)
@@ -242,7 +242,7 @@ func (s *Storage) PublicShareGetUploadToken(c *gin.Context) {
 		return
 	}
 
-	uploadSource := getDefaultUploadSource(req.UploadSource)
+	uploadSource := storage.UploadSourceBrowser
 	ctx := contextx.ToContext(c)
 	presignHost := contextx.GetPresignHost(ctx)
 	logger.Infof(c, "[PublicShareGetUploadToken] presign host for upload: X-Forwarded-Host=%q, Request.Host=%q => presignHost=%q", c.GetHeader("X-Forwarded-Host"), c.Request.Host, presignHost)
@@ -256,7 +256,7 @@ func (s *Storage) PublicShareGetUploadToken(c *gin.Context) {
 	var expire time.Time
 	if req.PreviewForKey != "" {
 		if !isObjectKeyInRouter(req.PreviewForKey, router) {
-			response.FailWithMessage(c, "预览文件路径不属于当前分享")
+			response.Internal(c, "预览文件路径不属于当前分享")
 			return
 		}
 		creds, key, expire, err = s.storageService.GeneratePreviewUploadToken(ctx, bucket, req.PreviewForKey, req.FileName, req.ContentType, req.FileSize, uploadSource)
@@ -264,7 +264,7 @@ func (s *Storage) PublicShareGetUploadToken(c *gin.Context) {
 		creds, key, expire, err = s.storageService.GenerateUploadToken(ctx, bucket, router, req.FileName, req.ContentType, req.FileSize, uploadSource)
 	}
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -292,19 +292,19 @@ func (s *Storage) PublicShareGetUploadToken(c *gin.Context) {
 func (s *Storage) PublicShareUploadComplete(c *gin.Context) {
 	var req dto.UploadCompleteReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	router := strings.Trim(strings.TrimSpace(req.Router), "/")
 	if router == "" {
-		response.FailWithMessage(c, "公开上传完成必须提供函数路由")
+		response.BadRequest(c, "公开上传完成必须提供函数路由")
 		return
 	}
 	if _, ok := s.publicShareRequestUser(c, router); !ok {
 		return
 	}
 	if req.Success && !isObjectKeyInRouter(req.Key, router) {
-		response.FailWithMessage(c, "文件路径不属于当前分享")
+		response.Internal(c, "文件路径不属于当前分享")
 		return
 	}
 
@@ -379,7 +379,7 @@ func (s *Storage) PublicShareUploadComplete(c *gin.Context) {
 func (s *Storage) PublicShareBatchUploadComplete(c *gin.Context) {
 	var req dto.BatchUploadCompleteReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -391,7 +391,7 @@ func (s *Storage) PublicShareBatchUploadComplete(c *gin.Context) {
 		}
 	}
 	if router == "" {
-		response.FailWithMessage(c, "公开上传完成必须提供函数路由")
+		response.BadRequest(c, "公开上传完成必须提供函数路由")
 		return
 	}
 	if _, ok := s.publicShareRequestUser(c, router); !ok {
@@ -483,7 +483,7 @@ func (s *Storage) PublicShareBatchUploadComplete(c *gin.Context) {
 func (s *Storage) PublicShareResolveFileRefs(c *gin.Context) {
 	var req dto.ResolveFileRefsReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	if _, ok := s.publicShareRequestUser(c, ""); !ok {
@@ -493,7 +493,7 @@ func (s *Storage) PublicShareResolveFileRefs(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	files, err := s.storageService.ResolveFileRefs(ctx, req.Refs, req.Audience)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, dto.ResolveFileRefsResp{Files: files})
@@ -509,7 +509,7 @@ func (s *Storage) PublicShareResolveFileRefs(c *gin.Context) {
 // @Success 200 {object} dto.GetUploadTokenResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /storage/api/v1/upload_token [post]
+// @Router /storage/api/v1/upload-token [post]
 func (s *Storage) GetUploadToken(c *gin.Context) {
 	var req dto.GetUploadTokenReq
 	var resp *dto.GetUploadTokenResp
@@ -520,7 +520,7 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 
 	// 绑定请求参数
 	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -531,7 +531,7 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 	router := req.Router
 	if router == "" {
 		if username == "" {
-			response.FailWithMessage(c, "未提供路由且无法获取用户信息")
+			response.NoAuth(c, "未提供路由且无法获取用户信息")
 			return
 		}
 		router = fmt.Sprintf("%s/default", username)
@@ -539,7 +539,7 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 	}
 
 	// 设置默认上传来源
-	uploadSource := getDefaultUploadSource(req.UploadSource)
+	uploadSource := storage.UploadSourceBrowser
 
 	// 将 gin.Context 转换为标准 context.Context
 	ctx := contextx.ToContext(c)
@@ -561,7 +561,7 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 		creds, key, expire, err = s.storageService.GenerateUploadToken(ctx, bucket, router, req.FileName, req.ContentType, req.FileSize, uploadSource)
 	}
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -603,23 +603,20 @@ func (s *Storage) GetUploadToken(c *gin.Context) {
 // @Success 200 {object} dto.BatchGetUploadTokenResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /storage/api/v1/batch_upload_token [post]
+// @Router /storage/api/v1/batch-upload-token [post]
 func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 	var req dto.BatchGetUploadTokenReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	// 获取当前登录用户的用户名
 	username := contextx.GetRequestUser(c)
 	if username == "" {
-		response.FailWithMessage(c, "无法获取用户信息")
+		response.NoAuth(c, "无法获取用户信息")
 		return
 	}
-
-	// 设置默认上传来源
-	defaultUploadSource := getDefaultUploadSource(req.UploadSource)
 
 	// 将 gin.Context 转换为标准 context.Context
 	ctx := contextx.ToContext(c)
@@ -627,11 +624,7 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 	// 批量生成上传凭证
 	tokens := make([]dto.GetUploadTokenResp, 0, len(req.Files))
 	for _, fileReq := range req.Files {
-		// 优先使用文件项中的上传来源，如果没有则使用顶层的
-		uploadSource := defaultUploadSource
-		if fileReq.UploadSource != "" {
-			uploadSource = getDefaultUploadSource(fileReq.UploadSource)
-		}
+		uploadSource := storage.UploadSourceBrowser
 
 		// 如果未提供 Router，使用默认路由：/{username}/default
 		router := fileReq.Router
@@ -693,11 +686,11 @@ func (s *Storage) BatchGetUploadToken(c *gin.Context) {
 // @Success 200 {object} dto.UploadCompleteResp "通知成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /storage/api/v1/upload_complete [post]
+// @Router /storage/api/v1/upload-complete [post]
 func (s *Storage) UploadComplete(c *gin.Context) {
 	var req dto.UploadCompleteReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -795,11 +788,11 @@ func (s *Storage) UploadComplete(c *gin.Context) {
 // @Success 200 {object} dto.BatchUploadCompleteResp "通知成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /storage/api/v1/batch_upload_complete [post]
+// @Router /storage/api/v1/batch-upload-complete [post]
 func (s *Storage) BatchUploadComplete(c *gin.Context) {
 	var req dto.BatchUploadCompleteReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -907,14 +900,14 @@ func (s *Storage) browserURLForRef(ctx context.Context, ref string) string {
 func (s *Storage) ResolveFileRefs(c *gin.Context) {
 	var req dto.ResolveFileRefsReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	files, err := s.storageService.ResolveFileRefs(ctx, req.Refs, req.Audience)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, dto.ResolveFileRefsResp{Files: files})
@@ -934,14 +927,14 @@ func (s *Storage) ResolveFileRefs(c *gin.Context) {
 func (s *Storage) UpdateFileDescription(c *gin.Context) {
 	var req dto.UpdateFileDescriptionReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	resp, err := s.storageService.UpdateFileDescription(ctx, req.Ref, req.Bucket, req.Key, req.Description)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, resp)
@@ -963,7 +956,7 @@ func (s *Storage) DownloadFile(c *gin.Context) {
 	key := c.Param("key")
 	key = trimLeadingSlash(key)
 	if key == "" {
-		response.FailWithMessage(c, "文件 Key 不能为空")
+		response.BadRequest(c, "文件 Key 不能为空")
 		return
 	}
 
@@ -973,7 +966,7 @@ func (s *Storage) DownloadFile(c *gin.Context) {
 	// 获取文件信息
 	_, err := s.storageService.GetFileInfo(ctx, key)
 	if err != nil {
-		response.FailWithMessage(c, "文件不存在或无法访问")
+		response.NotFound(c, "文件不存在或无法访问")
 		return
 	}
 
@@ -1011,7 +1004,7 @@ func (s *Storage) DownloadFile(c *gin.Context) {
 	downloadURL, _, _, err := s.storageService.GetFileURLs(ctx, key)
 	if err != nil || downloadURL == "" {
 		logger.Errorf(c, "Failed to resolve download URL: %v", err)
-		response.FailWithMessage(c, "生成下载链接失败")
+		response.Internal(c, "生成下载链接失败")
 		return
 	}
 
@@ -1034,7 +1027,7 @@ func (s *Storage) DeleteFile(c *gin.Context) {
 	key := c.Param("key")
 	key = trimLeadingSlash(key)
 	if key == "" {
-		response.FailWithMessage(c, "文件 Key 不能为空")
+		response.BadRequest(c, "文件 Key 不能为空")
 		return
 	}
 
@@ -1043,7 +1036,7 @@ func (s *Storage) DeleteFile(c *gin.Context) {
 
 	err := s.storageService.DeleteFile(ctx, key)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -1066,7 +1059,7 @@ func (s *Storage) GetFileInfo(c *gin.Context) {
 	key := c.Param("key")
 	key = trimLeadingSlash(key)
 	if key == "" {
-		response.FailWithMessage(c, "文件 Key 不能为空")
+		response.BadRequest(c, "文件 Key 不能为空")
 		return
 	}
 
@@ -1075,7 +1068,7 @@ func (s *Storage) GetFileInfo(c *gin.Context) {
 
 	info, err := s.storageService.GetFileInfo(ctx, key)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -1104,7 +1097,7 @@ func (s *Storage) GetFileInfo(c *gin.Context) {
 func (s *Storage) GetStorageStats(c *gin.Context) {
 	var req dto.GetStorageStatsReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -1113,7 +1106,7 @@ func (s *Storage) GetStorageStats(c *gin.Context) {
 
 	fileCount, totalSize, err := s.storageService.GetStorageStats(ctx, req.Router)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -1144,7 +1137,7 @@ func (s *Storage) GetStorageStats(c *gin.Context) {
 func (s *Storage) ListFiles(c *gin.Context) {
 	var req dto.ListFilesReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -1153,7 +1146,7 @@ func (s *Storage) ListFiles(c *gin.Context) {
 
 	files, err := s.storageService.ListFilesByRouter(ctx, req.Router)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -1176,11 +1169,11 @@ func (s *Storage) ListFiles(c *gin.Context) {
 // @Success 200 {object} dto.DeleteFilesByRouterResp "删除成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /storage/api/v1/batch_delete [post]
+// @Router /storage/api/v1/batch-delete [post]
 func (s *Storage) DeleteFilesByRouter(c *gin.Context) {
 	var req dto.DeleteFilesByRouterReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -1189,7 +1182,7 @@ func (s *Storage) DeleteFilesByRouter(c *gin.Context) {
 
 	deletedCount, err := s.storageService.DeleteFilesByRouter(ctx, req.Router)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 

@@ -42,7 +42,7 @@ func newServiceTreeQueryViewTest(t *testing.T) (*serviceTreeQueryView, *gorm.DB,
 	appRepo := repository.NewAppRepository(db)
 	app := &model.App{User: "alice", Code: "ops", Name: "Ops", Version: "v3", Admins: "alice"}
 	app.CreatedBy = "alice"
-	if err := appRepo.CreateApp(app); err != nil {
+	if err := appRepo.CreateApp(context.Background(), app); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
 
@@ -82,7 +82,7 @@ func newServiceTreeQueryViewAccessTest(t *testing.T, hideUnauthorizedNodes bool)
 		HideUnauthorizedNodes: hideUnauthorizedNodes,
 	}
 	app.CreatedBy = "alice"
-	if err := appRepo.CreateApp(app); err != nil {
+	if err := appRepo.CreateApp(context.Background(), app); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
 

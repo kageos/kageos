@@ -30,7 +30,7 @@ describe('TableGatewayImpl', () => {
     })
 
     expect(apiClient.put).toHaveBeenCalledWith(
-      '/workspace/api/v1/table/update/workspace/demo/users',
+      '/workspace/api/v1/tables/workspace/demo/users',
       {
         id: 2,
         updates: {

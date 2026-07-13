@@ -31,7 +31,7 @@ func (s *WorkspaceChatService) currentWorkspaceRoleForSession(ctx context.Contex
 		return ""
 	}
 	if s.sessionRepo != nil {
-		if session, err := s.sessionRepo.GetBySessionID(sessionID); err == nil && session != nil {
+		if session, err := s.sessionRepo.GetBySessionID(ctx, sessionID); err == nil && session != nil {
 			if roleID := normalizeWorkspaceRole(session.RoleID); roleID != "" {
 				return roleID
 			}
@@ -41,7 +41,7 @@ func (s *WorkspaceChatService) currentWorkspaceRoleForSession(ctx context.Contex
 		}
 	}
 	if s.messageRepo != nil {
-		if messages, err := s.messageRepo.ListBySessionID(sessionID); err == nil {
+		if messages, err := s.messageRepo.ListBySessionID(ctx, sessionID); err == nil {
 			if roleID := latestWorkspaceRoleFromMessages(messages); roleID != "" {
 				return roleID
 			}
@@ -59,7 +59,7 @@ func (s *WorkspaceChatService) updateWorkspaceSessionRole(ctx context.Context, s
 	if roleID == "" {
 		return
 	}
-	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	session, err := s.sessionRepo.GetBySessionID(ctx, sessionID)
 	if err != nil || session == nil {
 		logger.Warnf(ctx, "[WorkspaceRole] 查询会话角色失败 SessionID=%s: %v", sessionID, err)
 		return
@@ -72,7 +72,7 @@ func (s *WorkspaceChatService) updateWorkspaceSessionRole(ctx context.Context, s
 	if user != "" {
 		session.UpdatedBy = user
 	}
-	if err := s.sessionRepo.Update(session); err != nil {
+	if err := s.sessionRepo.Update(ctx, session); err != nil {
 		logger.Warnf(ctx, "[WorkspaceRole] 更新会话角色失败 SessionID=%s RoleID=%s: %v", sessionID, roleID, err)
 	}
 }
@@ -85,7 +85,7 @@ func (s *WorkspaceChatService) updateWorkspaceSessionFullCodePath(ctx context.Co
 	if fullCodePath == "" {
 		return
 	}
-	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	session, err := s.sessionRepo.GetBySessionID(ctx, sessionID)
 	if err != nil || session == nil {
 		logger.Warnf(ctx, "[WorkspaceRole] 查询会话以更新执行目录失败 SessionID=%s: %v", sessionID, err)
 		return
@@ -97,7 +97,7 @@ func (s *WorkspaceChatService) updateWorkspaceSessionFullCodePath(ctx context.Co
 	if user != "" {
 		session.UpdatedBy = user
 	}
-	if err := s.sessionRepo.Update(session); err != nil {
+	if err := s.sessionRepo.Update(ctx, session); err != nil {
 		logger.Warnf(ctx, "[WorkspaceRole] 更新会话执行目录失败 SessionID=%s FullCodePath=%s: %v", sessionID, fullCodePath, err)
 	}
 }
@@ -106,7 +106,7 @@ func (s *WorkspaceChatService) updateWorkspaceModelContextAnchorAfterChangeRole(
 	if s == nil || s.sessionRepo == nil || strings.TrimSpace(sessionID) == "" {
 		return
 	}
-	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	session, err := s.sessionRepo.GetBySessionID(ctx, sessionID)
 	if err != nil || session == nil {
 		logger.Warnf(ctx, "[WorkspaceRole] 查询会话以保留完整上下文失败 SessionID=%s: %v", sessionID, err)
 		return
@@ -119,7 +119,7 @@ func (s *WorkspaceChatService) updateWorkspaceModelContextAnchorAfterChangeRole(
 	if user != "" {
 		session.UpdatedBy = user
 	}
-	if err := s.sessionRepo.Update(session); err != nil {
+	if err := s.sessionRepo.Update(ctx, session); err != nil {
 		logger.Warnf(ctx, "[WorkspaceRole] 恢复完整上下文失败 SessionID=%s: %v", sessionID, err)
 	}
 }

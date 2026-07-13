@@ -8,7 +8,7 @@ import (
 
 // GetUserByUsername 根据用户名获取用户信息（app-server -> hr-server）
 func GetUserByUsername(ctx context.Context, req *dto.QueryUserReq) (*dto.UserInfo, error) {
-	result, err := GetAPI[*dto.QueryUserResp](ctx, "/hr/api/v1/user/query", buildQueryParams(
+	result, err := GetAPI[*dto.QueryUserResp](ctx, "/hr/api/v1/users/query", buildQueryParams(
 		withTrimmedQueryValue("username", req.Username),
 	))
 	if err != nil {

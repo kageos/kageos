@@ -49,7 +49,7 @@ func (s *PublicShareService) Create(ctx context.Context, req *dto.CreatePublicSh
 	if err != nil {
 		return nil, err
 	}
-	function, err := s.functionRepo.GetFunctionByFullCodePath(fullCodePath)
+	function, err := s.functionRepo.GetFunctionByFullCodePath(ctx, fullCodePath)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("函数不存在")
@@ -137,7 +137,7 @@ func (s *PublicShareService) GetActiveShare(ctx context.Context, shareID string)
 }
 
 func (s *PublicShareService) BuildView(ctx context.Context, share *model.PublicShare) (*dto.PublicShareViewResp, error) {
-	function, err := s.functionRepo.GetFunctionByFullCodePath(share.FullCodePath)
+	function, err := s.functionRepo.GetFunctionByFullCodePath(ctx, share.FullCodePath)
 	if err != nil {
 		return nil, fmt.Errorf("获取表单信息失败: %w", err)
 	}

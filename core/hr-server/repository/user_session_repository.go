@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"time"
 
 	"github.com/kageos/kageos/core/hr-server/model"
@@ -17,7 +18,7 @@ func NewUserSessionRepository(db *gorm.DB) *UserSessionRepository {
 }
 
 // CreateUserSession 创建用户会话
-func (r *UserSessionRepository) CreateUserSession(userID int64, token, refreshToken string, expiresAt models.Time, userAgent, ipAddress string) error {
+func (r *UserSessionRepository) CreateUserSession(ctx context.Context, userID int64, token, refreshToken string, expiresAt models.Time, userAgent, ipAddress string) error {
 	session := model.UserSession{
 		UserID:       userID,
 		Token:        token,
@@ -26,13 +27,13 @@ func (r *UserSessionRepository) CreateUserSession(userID int64, token, refreshTo
 		UserAgent:    userAgent,
 		IPAddress:    ipAddress,
 	}
-	return r.db.Create(&session).Error
+	return r.db.WithContext(ctx).Create(&session).Error
 }
 
 // GetUserSessionByToken 根据token获取用户会话
-func (r *UserSessionRepository) GetUserSessionByToken(token string) (*model.UserSession, error) {
+func (r *UserSessionRepository) GetUserSessionByToken(ctx context.Context, token string) (*model.UserSession, error) {
 	var session model.UserSession
-	err := r.db.Where("token = ? AND is_active = true AND expires_at > ?", token, models.Time(time.Now())).First(&session).Error
+	err := r.db.WithContext(ctx).Where("token = ? AND is_active = true AND expires_at > ?", token, models.Time(time.Now())).First(&session).Error
 	if err != nil {
 		return nil, err
 	}
@@ -40,9 +41,9 @@ func (r *UserSessionRepository) GetUserSessionByToken(token string) (*model.User
 }
 
 // GetUserSessionByRefreshToken 根据refresh token获取用户会话
-func (r *UserSessionRepository) GetUserSessionByRefreshToken(refreshToken string) (*model.UserSession, error) {
+func (r *UserSessionRepository) GetUserSessionByRefreshToken(ctx context.Context, refreshToken string) (*model.UserSession, error) {
 	var session model.UserSession
-	err := r.db.Where("refresh_token = ? AND is_active = true AND expires_at > ?", refreshToken, models.Time(time.Now())).First(&session).Error
+	err := r.db.WithContext(ctx).Where("refresh_token = ? AND is_active = true AND expires_at > ?", refreshToken, models.Time(time.Now())).First(&session).Error
 	if err != nil {
 		return nil, err
 	}
@@ -50,32 +51,32 @@ func (r *UserSessionRepository) GetUserSessionByRefreshToken(refreshToken string
 }
 
 // DeactivateUserSession 停用用户会话
-func (r *UserSessionRepository) DeactivateUserSession(token string) error {
-	return r.db.Model(&model.UserSession{}).Where("token = ?", token).Update("is_active", false).Error
+func (r *UserSessionRepository) DeactivateUserSession(ctx context.Context, token string) error {
+	return r.db.WithContext(ctx).Model(&model.UserSession{}).Where("token = ?", token).Update("is_active", false).Error
 }
 
 // DeactivateAllUserSessions 停用用户的所有会话
-func (r *UserSessionRepository) DeactivateAllUserSessions(userID int64) error {
-	return r.db.Model(&model.UserSession{}).Where("user_id = ?", userID).Update("is_active", false).Error
+func (r *UserSessionRepository) DeactivateAllUserSessions(ctx context.Context, userID int64) error {
+	return r.db.WithContext(ctx).Model(&model.UserSession{}).Where("user_id = ?", userID).Update("is_active", false).Error
 }
 
 // DeleteExpiredSessions 删除过期的会话
-func (r *UserSessionRepository) DeleteExpiredSessions() error {
-	return r.db.Where("expires_at < ?", models.Time(time.Now())).Delete(&model.UserSession{}).Error
+func (r *UserSessionRepository) DeleteExpiredSessions(ctx context.Context) error {
+	return r.db.WithContext(ctx).Where("expires_at < ?", models.Time(time.Now())).Delete(&model.UserSession{}).Error
 }
 
 // UpdateUserSessionTokens 更新用户会话的token和refresh token
-func (r *UserSessionRepository) UpdateUserSessionTokens(sessionID int64, token, refreshToken string) error {
-	return r.db.Model(&model.UserSession{}).Where("id = ?", sessionID).Updates(map[string]interface{}{
+func (r *UserSessionRepository) UpdateUserSessionTokens(ctx context.Context, sessionID int64, token, refreshToken string) error {
+	return r.db.WithContext(ctx).Model(&model.UserSession{}).Where("id = ?", sessionID).Updates(map[string]interface{}{
 		"token":         token,
 		"refresh_token": refreshToken,
 	}).Error
 }
 
 // GetUserSessionByID 根据ID获取用户会话
-func (r *UserSessionRepository) GetUserSessionByID(id int64) (*model.UserSession, error) {
+func (r *UserSessionRepository) GetUserSessionByID(ctx context.Context, id int64) (*model.UserSession, error) {
 	var session model.UserSession
-	err := r.db.Where("id = ?", id).First(&session).Error
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&session).Error
 	if err != nil {
 		return nil, err
 	}
@@ -83,9 +84,9 @@ func (r *UserSessionRepository) GetUserSessionByID(id int64) (*model.UserSession
 }
 
 // GetUserSessionsByUserID 根据用户ID获取所有会话
-func (r *UserSessionRepository) GetUserSessionsByUserID(userID int64) ([]*model.UserSession, error) {
+func (r *UserSessionRepository) GetUserSessionsByUserID(ctx context.Context, userID int64) ([]*model.UserSession, error) {
 	var sessions []*model.UserSession
-	err := r.db.Where("user_id = ?", userID).Find(&sessions).Error
+	err := r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&sessions).Error
 	if err != nil {
 		return nil, err
 	}
@@ -93,10 +94,10 @@ func (r *UserSessionRepository) GetUserSessionsByUserID(userID int64) ([]*model.
 }
 
 // GetActiveSessionsByUserID 根据用户ID获取所有活跃会话
-func (r *UserSessionRepository) GetActiveSessionsByUserID(userID int64) ([]*model.UserSession, error) {
+func (r *UserSessionRepository) GetActiveSessionsByUserID(ctx context.Context, userID int64) ([]*model.UserSession, error) {
 	var sessions []*model.UserSession
 	now := models.Time(time.Now())
-	err := r.db.Where("user_id = ? AND is_active = true AND expires_at > ?", userID, now).Find(&sessions).Error
+	err := r.db.WithContext(ctx).Where("user_id = ? AND is_active = true AND expires_at > ?", userID, now).Find(&sessions).Error
 	if err != nil {
 		return nil, err
 	}

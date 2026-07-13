@@ -41,7 +41,7 @@ func (a *AppService) validateCreateAppRequest(ctx context.Context, req *dto.Crea
 		return "", "", fmt.Errorf("工作空间英文标识「%s」为系统保留，请换一个", PersonalWorkspaceCode)
 	}
 
-	if exists, err := a.appRepo.ExistsAppNameForUser(tenantUser, req.Name); err != nil {
+	if exists, err := a.appRepo.ExistsAppNameForUser(ctx, tenantUser, req.Name); err != nil {
 		return "", "", fmt.Errorf("检查应用名称唯一性失败: %w", err)
 	} else if exists {
 		return "", "", fmt.Errorf("应用名称已存在: %s", req.Name)
@@ -105,7 +105,7 @@ func (a *AppService) buildInitialAppAndRoot(requestUser, tenantUser string, req 
 }
 
 func (a *AppService) persistCreatedApp(ctx context.Context, app *model.App, rootNode *model.ServiceTree) error {
-	if err := a.appRepo.GetDB().Transaction(func(tx *gorm.DB) error {
+	if err := a.appRepo.GetDB(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := createAppRecord(tx, app); err != nil {
 			return err
 		}
@@ -120,7 +120,7 @@ func (a *AppService) persistCreatedApp(ctx context.Context, app *model.App, root
 	}); err != nil {
 		return err
 	}
-	a.appRepo.InvalidateAppCacheBoth(app.User, app.Code, app.ID)
+	a.appRepo.InvalidateAppCacheBoth(ctx, app.User, app.Code, app.ID)
 
 	logger.Infof(ctx, "[AppService] 创建 service_tree 根节点成功: app_id=%d, root_id=%d, full_code_path=%s",
 		app.ID, rootNode.ID, rootNode.FullCodePath)

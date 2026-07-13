@@ -1,4 +1,4 @@
-import { get, post } from '@/architecture/infrastructure/apiClient/request'
+import { del, get, post, put } from '@/architecture/infrastructure/apiClient/request'
 
 // ==================== LLM 相关 ====================
 
@@ -196,54 +196,54 @@ export interface LLMProbeResp {
  * 获取LLM配置列表
  */
 export function getLLMList(params: LLMListReq) {
-  return get<LLMListResp>('/agent/api/v1/llm/list', params)
+	return get<LLMListResp>('/agent/api/v1/llm-configs', params)
 }
 
 /**
  * 获取LLM配置详情
  */
 export function getLLM(params: LLMGetReq) {
-  return get<LLMGetResp>('/agent/api/v1/llm/get', params)
+	return get<LLMGetResp>(`/agent/api/v1/llm-configs/${params.id}`)
 }
 
 /**
  * 获取默认LLM配置
  */
 export function getDefaultLLM() {
-  return get<LLMGetDefaultResp>('/agent/api/v1/llm/get_default')
+	return get<LLMGetDefaultResp>('/agent/api/v1/llm-configs/default')
 }
 
 /**
  * 创建LLM配置
  */
 export function createLLM(data: LLMCreateReq) {
-  return post<LLMCreateResp>('/agent/api/v1/llm/create', data)
+	return post<LLMCreateResp>('/agent/api/v1/llm-configs', data)
 }
 
 /**
  * 更新LLM配置
  */
 export function updateLLM(data: LLMUpdateReq) {
-  return post<LLMUpdateResp>('/agent/api/v1/llm/update', data)
+	return put<LLMUpdateResp>(`/agent/api/v1/llm-configs/${data.id}`, data)
 }
 
 /**
  * 检测LLM协议和密钥可用性
  */
 export function probeLLM(data: LLMProbeReq) {
-  return post<LLMProbeResp>('/agent/api/v1/llm/probe', data)
+	return post<LLMProbeResp>('/agent/api/v1/llm-configs/probe', data)
 }
 
 /**
  * 删除LLM配置
  */
 export function deleteLLM(params: LLMDeleteReq) {
-  return post('/agent/api/v1/llm/delete', params)
+	return del(`/agent/api/v1/llm-configs/${params.id}`)
 }
 
 /**
  * 设置默认LLM配置
  */
 export function setDefaultLLM(params: LLMSetDefaultReq) {
-  return post('/agent/api/v1/llm/set_default', params)
+	return put(`/agent/api/v1/llm-configs/${params.id}/default`)
 }

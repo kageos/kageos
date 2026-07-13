@@ -1,5 +1,5 @@
 export interface ApiResponse<T = unknown> {
-  code: number
+	code: string | number
   data: T
   message?: string
   msg?: string

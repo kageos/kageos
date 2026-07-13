@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -16,13 +17,13 @@ func NewAuthOAuthStateRepository(db *gorm.DB) *AuthOAuthStateRepository {
 	return &AuthOAuthStateRepository{db: db}
 }
 
-func (r *AuthOAuthStateRepository) Create(state *model.AuthOAuthState) error {
-	return r.db.Create(state).Error
+func (r *AuthOAuthStateRepository) Create(ctx context.Context, state *model.AuthOAuthState) error {
+	return r.db.WithContext(ctx).Create(state).Error
 }
 
-func (r *AuthOAuthStateRepository) Consume(state, providerCode string) (*model.AuthOAuthState, error) {
+func (r *AuthOAuthStateRepository) Consume(ctx context.Context, state, providerCode string) (*model.AuthOAuthState, error) {
 	var oauthState model.AuthOAuthState
-	err := r.db.Transaction(func(tx *gorm.DB) error {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("state = ? AND provider_code = ?", state, providerCode).First(&oauthState).Error; err != nil {
 			return err
 		}

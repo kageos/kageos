@@ -117,7 +117,7 @@ func (s *AuthLoginProviderService) SeedDefaults(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if err := s.repo.UpsertSeed(&model.AuthLoginProvider{
+		if err := s.repo.UpsertSeed(ctx, &model.AuthLoginProvider{
 			Code:             seed.Code,
 			Name:             seed.Name,
 			Description:      seed.Description,
@@ -139,7 +139,7 @@ func (s *AuthLoginProviderService) SeedDefaults(ctx context.Context) error {
 }
 
 func (s *AuthLoginProviderService) ListProviders() ([]*dto.AuthLoginProviderResp, error) {
-	providers, err := s.repo.List()
+	providers, err := s.repo.List(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func (s *AuthLoginProviderService) ListLoginMethods() ([]dto.LoginMethodResp, er
 }
 
 func (s *AuthLoginProviderService) GetEnabledRuntimeConfig(code string) (*AuthLoginProviderRuntimeConfig, error) {
-	provider, err := s.repo.GetByCode(normalizeProviderCode(code))
+	provider, err := s.repo.GetByCode(context.Background(), normalizeProviderCode(code))
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func (s *AuthLoginProviderService) GetEnabledRuntimeConfig(code string) (*AuthLo
 }
 
 func (s *AuthLoginProviderService) UpdateConfig(code string, config map[string]string, updatedBy string) (*dto.AuthLoginProviderResp, error) {
-	provider, err := s.repo.GetByCode(normalizeProviderCode(code))
+	provider, err := s.repo.GetByCode(context.Background(), normalizeProviderCode(code))
 	if err != nil {
 		return nil, err
 	}
@@ -243,10 +243,10 @@ func (s *AuthLoginProviderService) UpdateConfig(code string, config map[string]s
 		return nil, err
 	}
 	provider.ConfigValuesJSON = string(valuesJSON)
-	if err := s.repo.UpdateConfig(provider); err != nil {
+	if err := s.repo.UpdateConfig(context.Background(), provider); err != nil {
 		return nil, err
 	}
-	updated, err := s.repo.GetByCode(provider.Code)
+	updated, err := s.repo.GetByCode(context.Background(), provider.Code)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +254,7 @@ func (s *AuthLoginProviderService) UpdateConfig(code string, config map[string]s
 }
 
 func (s *AuthLoginProviderService) SetEnabled(code string, enabled bool, updatedBy string) (*dto.AuthLoginProviderResp, error) {
-	provider, err := s.repo.GetByCode(normalizeProviderCode(code))
+	provider, err := s.repo.GetByCode(context.Background(), normalizeProviderCode(code))
 	if err != nil {
 		return nil, err
 	}
@@ -277,10 +277,10 @@ func (s *AuthLoginProviderService) SetEnabled(code string, enabled bool, updated
 	} else if enabled {
 		status = ProviderStatusEnabled
 	}
-	if err := s.repo.UpdateEnabled(provider.Code, enabled, status, strings.TrimSpace(updatedBy)); err != nil {
+	if err := s.repo.UpdateEnabled(context.Background(), provider.Code, enabled, status, strings.TrimSpace(updatedBy)); err != nil {
 		return nil, err
 	}
-	updated, err := s.repo.GetByCode(provider.Code)
+	updated, err := s.repo.GetByCode(context.Background(), provider.Code)
 	if err != nil {
 		return nil, err
 	}

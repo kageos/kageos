@@ -83,7 +83,7 @@ type LLMCreateResp struct {
 
 // LLMUpdateReq 更新LLM配置请求
 type LLMUpdateReq struct {
-	ID           int64  `json:"id" binding:"required" example:"1"`
+	ID           int64  `json:"-" example:"1"`
 	Name         string `json:"name" binding:"required" example:"OpenAI GPT-4"`
 	Provider     string `json:"provider" example:"openai"`
 	Protocol     string `json:"protocol" example:"openai_chat_completions"`

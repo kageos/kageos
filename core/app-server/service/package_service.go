@@ -44,14 +44,14 @@ func (s *serviceTreePackageService) CreatePackage(ctx context.Context, req *dto.
 		return nil, err
 	}
 
-	app, err := s.appRepo.GetAppByUserName(req.User, req.App)
+	app, err := s.appRepo.GetAppByUserNameContext(ctx, req.User, req.App)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get app: %w", err)
 	}
 
 	var parentTree *model.ServiceTree
 	if req.ParentFullCodePath != "" {
-		parentTree, err = s.serviceTreeRepo.GetServiceTreeByFullPath(req.ParentFullCodePath)
+		parentTree, err = s.serviceTreeRepo.GetServiceTreeByFullPath(ctx, req.ParentFullCodePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get parent node: %w", err)
 		}
@@ -77,7 +77,7 @@ func (s *serviceTreePackageService) CreatePackage(ctx context.Context, req *dto.
 		fullCodePath = parentTree.FullCodePath + "/" + req.Code
 	}
 
-	exists, err := s.serviceTreeRepo.CheckNameExistsByPath(parentPath, req.Code, app.ID)
+	exists, err := s.serviceTreeRepo.CheckNameExistsByPath(ctx, parentPath, req.Code, app.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check name exists: %w", err)
 	}
@@ -103,7 +103,7 @@ func (s *serviceTreePackageService) CreatePackage(ctx context.Context, req *dto.
 		serviceTree.CreatedBy = requestUser
 	}
 
-	if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(serviceTree, ""); err != nil {
+	if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(ctx, serviceTree, ""); err != nil {
 		return nil, fmt.Errorf("failed to create service tree: %w", err)
 	}
 
@@ -134,7 +134,7 @@ func (s *serviceTreePackageService) nextAvailablePackageCode(parentPath string, 
 		if index > 1 {
 			candidate = naming.GoPackageNameWithNumericSuffix(baseCode, index)
 		}
-		exists, err := s.serviceTreeRepo.CheckNameExistsByPath(parentPath, candidate, appID)
+		exists, err := s.serviceTreeRepo.CheckNameExistsByPath(context.Background(), parentPath, candidate, appID)
 		if err != nil {
 			return "", fmt.Errorf("failed to check generated directory code exists: %w", err)
 		}

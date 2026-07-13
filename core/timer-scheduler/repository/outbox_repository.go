@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"time"
 
 	"github.com/kageos/kageos/core/timer-scheduler/model"
@@ -20,12 +21,12 @@ func (r *TimerOutboxRepository) WithDB(db *gorm.DB) *TimerOutboxRepository {
 	return &TimerOutboxRepository{db: db}
 }
 
-func (r *TimerOutboxRepository) Create(event *model.TimerOutboxEvent) error {
-	return r.db.Clauses(clause.OnConflict{DoNothing: true}).Create(event).Error
+func (r *TimerOutboxRepository) Create(ctx context.Context, event *model.TimerOutboxEvent) error {
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(event).Error
 }
 
-func (r *TimerOutboxRepository) ListReady(now time.Time, limit int) ([]*model.TimerOutboxEvent, error) {
-	query := r.db.
+func (r *TimerOutboxRepository) ListReady(ctx context.Context, now time.Time, limit int) ([]*model.TimerOutboxEvent, error) {
+	query := r.db.WithContext(ctx).
 		Where("status IN ? AND (next_attempt_at IS NULL OR next_attempt_at <= ?)", []string{"pending", "retry"}, now).
 		Order("created_at ASC, id ASC")
 	if limit > 0 {
@@ -38,8 +39,8 @@ func (r *TimerOutboxRepository) ListReady(now time.Time, limit int) ([]*model.Ti
 	return list, nil
 }
 
-func (r *TimerOutboxRepository) MarkPublished(id int64, publishedAt time.Time) error {
-	return r.db.Model(&model.TimerOutboxEvent{}).
+func (r *TimerOutboxRepository) MarkPublished(ctx context.Context, id int64, publishedAt time.Time) error {
+	return r.db.WithContext(ctx).Model(&model.TimerOutboxEvent{}).
 		Where("id = ? AND status IN ?", id, []string{"pending", "retry"}).
 		Updates(map[string]interface{}{
 			"status":       "published",
@@ -48,8 +49,8 @@ func (r *TimerOutboxRepository) MarkPublished(id int64, publishedAt time.Time) e
 		}).Error
 }
 
-func (r *TimerOutboxRepository) MarkRetry(id int64, attempts int, nextAttemptAt time.Time, errMessage string) error {
-	return r.db.Model(&model.TimerOutboxEvent{}).
+func (r *TimerOutboxRepository) MarkRetry(ctx context.Context, id int64, attempts int, nextAttemptAt time.Time, errMessage string) error {
+	return r.db.WithContext(ctx).Model(&model.TimerOutboxEvent{}).
 		Where("id = ? AND status IN ?", id, []string{"pending", "retry"}).
 		Updates(map[string]interface{}{
 			"status":          "retry",
@@ -59,8 +60,8 @@ func (r *TimerOutboxRepository) MarkRetry(id int64, attempts int, nextAttemptAt 
 		}).Error
 }
 
-func (r *TimerOutboxRepository) MarkDeadLetter(id int64, attempts int, errMessage string) error {
-	return r.db.Model(&model.TimerOutboxEvent{}).
+func (r *TimerOutboxRepository) MarkDeadLetter(ctx context.Context, id int64, attempts int, errMessage string) error {
+	return r.db.WithContext(ctx).Model(&model.TimerOutboxEvent{}).
 		Where("id = ? AND status IN ?", id, []string{"pending", "retry"}).
 		Updates(map[string]interface{}{
 			"status":     "dead_letter",
@@ -69,9 +70,9 @@ func (r *TimerOutboxRepository) MarkDeadLetter(id int64, attempts int, errMessag
 		}).Error
 }
 
-func (r *TimerOutboxRepository) DeadLetterExecutionRequestsForTask(taskID int64, errMessage string) error {
-	executionIDs := r.db.Model(&model.TimerExecution{}).Select("id").Where("task_id = ?", taskID)
-	return r.db.Model(&model.TimerOutboxEvent{}).
+func (r *TimerOutboxRepository) DeadLetterExecutionRequestsForTask(ctx context.Context, taskID int64, errMessage string) error {
+	executionIDs := r.db.WithContext(ctx).Model(&model.TimerExecution{}).Select("id").Where("task_id = ?", taskID)
+	return r.db.WithContext(ctx).Model(&model.TimerOutboxEvent{}).
 		Where("event_type = ? AND status IN ? AND aggregate_id IN (?)", "timer.execution.requested", []string{"pending", "retry"}, executionIDs).
 		Updates(map[string]interface{}{
 			"status":          "dead_letter",

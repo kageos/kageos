@@ -142,7 +142,7 @@ func TestTimerHTTPRejectsCrossUserTaskAccess(t *testing.T) {
 		{method: http.MethodPost, path: taskPath + "/pause"},
 		{method: http.MethodPost, path: taskPath + "/resume"},
 		{method: http.MethodPost, path: taskPath + "/cancel"},
-		{method: http.MethodPost, path: taskPath + "/run_now"},
+		{method: http.MethodPost, path: taskPath + "/run-now"},
 		{method: http.MethodGet, path: taskPath + "/executions"},
 		{method: http.MethodGet, path: taskPath + "/executions/1"},
 	}

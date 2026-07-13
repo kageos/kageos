@@ -1,4 +1,4 @@
-import { get, post, put, del } from '@/architecture/infrastructure/apiClient/request'
+import { get, post, patch, del } from '@/architecture/infrastructure/apiClient/request'
 import type { App, CreateAppRequest, CreateAppResponse } from '@/architecture/domain/types'
 import { normalizeResourcePath } from '@/architecture/shared/resourcePath'
 
@@ -52,7 +52,7 @@ export function getAppList(pageSize: number = 200, search?: string, includeAll: 
     page_size: number
     total_count: number
     items: App[]
-  }>('/workspace/api/v1/app/list', params).then(res => {
+	}>('/workspace/api/v1/apps', params).then(res => {
     // ⚠️ 响应拦截器返回的是 data 对象，所以 res 就是分页对象
     // 需要检查 res 是否有 items 字段
     if (res && typeof res === 'object' && 'items' in res) {
@@ -88,17 +88,17 @@ export function createApp(data: CreateAppRequest) {
   if (data.admins !== undefined && data.admins !== '') {
     payload.admins = data.admins
   }
-  return post<CreateAppResponse>('/workspace/api/v1/app/create', payload)
+	return post<CreateAppResponse>('/workspace/api/v1/apps', payload)
 }
 
 // 首次进入工作台时获取可进入的个人工作空间；后端保证该操作幂等。
 export function bootstrapPersonalWorkspace() {
-  return post<BootstrapPersonalWorkspaceResponse>('/workspace/api/v1/app/bootstrap_personal_workspace')
+	return post<BootstrapPersonalWorkspaceResponse>('/workspace/api/v1/apps/personal-workspace')
 }
 
 // 更新工作空间（重新编译）
 export function updateApp(resourcePath: string) {
-  return post<UpdateAppResponse>('/workspace/api/v1/app/update', {
+	return post<UpdateAppResponse>('/workspace/api/v1/apps/builds', {
     resource_path: normalizeResourcePath(resourcePath)
   })
 }
@@ -106,12 +106,12 @@ export function updateApp(resourcePath: string) {
 // 删除工作空间（canonical 标识为 resource_path）
 export function deleteApp(resourcePath: string) {
   const normalizedResourcePath = encodeURIComponent(normalizeResourcePath(resourcePath))
-  return del(`/workspace/api/v1/app/delete?resource_path=${normalizedResourcePath}`)
+	return del(`/workspace/api/v1/apps?resource_path=${normalizedResourcePath}`)
 }
 
 // 获取工作空间详情（canonical 标识为 resource_path）
 export function getAppDetail(resourcePath: string) {
-  return get<App>('/workspace/api/v1/app/detail', {
+	return get<App>('/workspace/api/v1/apps/detail', {
     resource_path: normalizeResourcePath(resourcePath)
   })
 }
@@ -127,7 +127,7 @@ export function getAppWithServiceTree(resourcePath: string, nodeType?: string) {
     app: App
     service_tree: import('@/architecture/domain/types').ServiceTree[]
     expanded_keys?: number[] // 需要自动展开的节点ID列表
-  }>('/workspace/api/v1/app/tree', params)
+	}>('/workspace/api/v1/apps/tree', params)
 }
 
 // 更新工作空间配置（只更新 MySQL 记录，不涉及容器更新，canonical 标识为 resource_path）
@@ -135,14 +135,14 @@ export function updateWorkspace(
   resourcePath: string,
   data: { name?: string; access_mode?: App['access_mode']; admins?: string; hide_unauthorized_nodes?: boolean }
 ) {
-  return put<{
+	return patch<{
     user: string
     app: string
     name?: string
     access_mode?: App['access_mode']
     admins: string
     hide_unauthorized_nodes: boolean
-  }>('/workspace/api/v1/app/workspace', {
+	}>('/workspace/api/v1/apps/workspace', {
     resource_path: normalizeResourcePath(resourcePath),
     ...data
   })

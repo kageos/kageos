@@ -23,7 +23,7 @@ func (a *AppService) RecordFormOperateLog(ctx context.Context, req *dto.RecordFo
 
 	version := strings.TrimSpace(req.Version)
 	if version == "" {
-		app, err := a.appRepo.GetAppByUserName(req.TenantUser, req.App)
+		app, err := a.appRepo.GetAppByUserNameContext(ctx, req.TenantUser, req.App)
 		if err != nil {
 			return fmt.Errorf("获取应用信息失败: %w", err)
 		}

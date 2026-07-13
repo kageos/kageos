@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,15 @@ func llmInfoCount(resp *dto.LLMListResp) int {
 		return 0
 	}
 	return len(resp.Configs)
+}
+
+func llmIDFromPath(c *gin.Context) (int64, bool) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "LLM 配置 ID 格式错误")
+		return 0, false
+	}
+	return id, true
 }
 
 func llmStringValue(value *string) string {
@@ -109,14 +119,14 @@ func NewLLM(service *service.LLMService) *LLM {
 // @Param page_size query int true "每页数量" default(10)
 // @Success 200 {object} dto.LLMListResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /agent/api/v1/llm/list [get]
+// @Router /agent/api/v1/llm-configs [get]
 func (h *LLM) List(c *gin.Context) {
 	var req dto.LLMListReq
 	var resp *dto.LLMListResp
 	var err error
 
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
@@ -132,7 +142,7 @@ func (h *LLM) List(c *gin.Context) {
 	currentUser := contextx.GetRequestUser(ctx)
 	configs, total, err := h.service.ListLLMConfigs(ctx, req.Scope, req.Page, req.PageSize)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -155,17 +165,15 @@ func (h *LLM) List(c *gin.Context) {
 // @Tags LLM管理
 // @Accept json
 // @Produce json
-// @Param id query int true "LLM配置ID"
+// @Param id path int true "LLM配置ID"
 // @Success 200 {object} dto.LLMGetResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /agent/api/v1/llm/get [get]
+// @Router /agent/api/v1/llm-configs/{id} [get]
 func (h *LLM) Get(c *gin.Context) {
 	var req dto.LLMGetReq
 	var resp *dto.LLMGetResp
 	var err error
-
-	if err := c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+	if req.ID, _ = llmIDFromPath(c); req.ID == 0 {
 		return
 	}
 
@@ -182,7 +190,7 @@ func (h *LLM) Get(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	cfg, err := h.service.GetViewableLLMConfig(ctx, req.ID)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -200,7 +208,7 @@ func (h *LLM) Get(c *gin.Context) {
 // @Produce json
 // @Success 200 {object} dto.LLMGetDefaultResp "获取成功"
 // @Failure 400 {string} string "未设置默认配置"
-// @Router /agent/api/v1/llm/get_default [get]
+// @Router /agent/api/v1/llm-configs/default [get]
 func (h *LLM) GetDefault(c *gin.Context) {
 	var resp *dto.LLMGetDefaultResp
 	var err error
@@ -218,7 +226,7 @@ func (h *LLM) GetDefault(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	cfg, err := h.service.GetViewableDefaultLLMConfig(ctx)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -237,17 +245,16 @@ func (h *LLM) GetDefault(c *gin.Context) {
 // @Param request body dto.LLMCreateReq true "创建LLM配置请求"
 // @Success 200 {object} dto.LLMCreateResp "创建成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /agent/api/v1/llm/create [post]
+// @Router /agent/api/v1/llm-configs [post]
 func (h *LLM) Create(c *gin.Context) {
 	var req dto.LLMCreateReq
 	var resp *dto.LLMCreateResp
 	var err error
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
-
 	defer func() {
 		respID := int64(0)
 		if resp != nil {
@@ -278,7 +285,7 @@ func (h *LLM) Create(c *gin.Context) {
 	}
 
 	if err := h.service.CreateLLMConfig(ctx, cfg); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -295,14 +302,14 @@ func (h *LLM) Create(c *gin.Context) {
 // @Param request body dto.LLMProbeReq true "LLM 检测请求"
 // @Success 200 {object} dto.LLMProbeResp "检测结果"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /agent/api/v1/llm/probe [post]
+// @Router /agent/api/v1/llm-configs/probe [post]
 func (h *LLM) Probe(c *gin.Context) {
 	var req dto.LLMProbeReq
 	var resp *dto.LLMProbeResp
 	var err error
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
@@ -321,7 +328,7 @@ func (h *LLM) Probe(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	resp, err = h.service.ProbeLLMConfig(ctx, req)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -337,14 +344,17 @@ func (h *LLM) Probe(c *gin.Context) {
 // @Param request body dto.LLMUpdateReq true "更新LLM配置请求"
 // @Success 200 {object} dto.LLMUpdateResp "更新成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /agent/api/v1/llm/update [post]
+// @Router /agent/api/v1/llm-configs/{id} [put]
 func (h *LLM) Update(c *gin.Context) {
 	var req dto.LLMUpdateReq
 	var resp *dto.LLMUpdateResp
 	var err error
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
+		return
+	}
+	if req.ID, _ = llmIDFromPath(c); req.ID == 0 {
 		return
 	}
 
@@ -361,7 +371,7 @@ func (h *LLM) Update(c *gin.Context) {
 	// 先获取现有配置
 	cfg, err := h.service.GetLLMConfig(ctx, req.ID)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -390,7 +400,7 @@ func (h *LLM) Update(c *gin.Context) {
 	cfg.Admin = req.Admin
 
 	if err := h.service.UpdateLLMConfig(ctx, cfg); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -404,16 +414,15 @@ func (h *LLM) Update(c *gin.Context) {
 // @Tags LLM管理
 // @Accept json
 // @Produce json
-// @Param id query int true "LLM配置ID"
+// @Param id path int true "LLM配置ID"
 // @Success 200 "删除成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /agent/api/v1/llm/delete [post]
+// @Router /agent/api/v1/llm-configs/{id} [delete]
 func (h *LLM) Delete(c *gin.Context) {
 	var req dto.LLMDeleteReq
 	var err error
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+	if req.ID, _ = llmIDFromPath(c); req.ID == 0 {
 		return
 	}
 
@@ -423,7 +432,7 @@ func (h *LLM) Delete(c *gin.Context) {
 
 	ctx := contextx.ToContext(c)
 	if err := h.service.DeleteLLMConfig(ctx, req.ID); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -436,16 +445,15 @@ func (h *LLM) Delete(c *gin.Context) {
 // @Tags LLM管理
 // @Accept json
 // @Produce json
-// @Param id query int true "LLM配置ID"
+// @Param id path int true "LLM配置ID"
 // @Success 200 "设置成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /agent/api/v1/llm/set_default [post]
+// @Router /agent/api/v1/llm-configs/{id}/default [put]
 func (h *LLM) SetDefault(c *gin.Context) {
 	var req dto.LLMSetDefaultReq
 	var err error
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+	if req.ID, _ = llmIDFromPath(c); req.ID == 0 {
 		return
 	}
 
@@ -455,7 +463,7 @@ func (h *LLM) SetDefault(c *gin.Context) {
 
 	ctx := contextx.ToContext(c)
 	if err := h.service.SetDefaultLLMConfig(ctx, req.ID); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 

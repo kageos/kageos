@@ -44,7 +44,7 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 		return nil, fmt.Errorf("获取目录详情失败: %w", err)
 	}
 
-	children, err := s.serviceTreeRepo.GetServiceTreeChildren(detail.ID)
+	children, err := s.serviceTreeRepo.GetServiceTreeChildren(ctx, detail.ID)
 	if err != nil {
 		return nil, fmt.Errorf("获取子节点列表失败: %w", err)
 	}

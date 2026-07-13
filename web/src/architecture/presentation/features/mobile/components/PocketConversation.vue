@@ -28,6 +28,7 @@ import {
   type ChatMessageFile,
 } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { fileNameFromRef, parseFileRefs } from '@/architecture/presentation/widgets/filesWidgetTypes'
+import { resolveMobileWorkspacePath } from '@/architecture/presentation/features/mobile/utils/workspacePath'
 
 const props = defineProps<{
   mode: 'action' | 'ask'
@@ -39,7 +40,7 @@ const MOBILE_ASK_DRAFT_STORAGE_KEY = 'kageos_mobile_ask_draft'
 const route = useRoute()
 const router = useRouter()
 const actionView = ref<MessageActionViewResp | null>(null)
-const fullCodePath = ref(queryString('source_path'))
+const fullCodePath = ref(resolveMobileWorkspacePath(queryString('source_path')))
 const draft = ref('')
 const loading = ref(false)
 const refreshing = ref(false)
@@ -142,10 +143,11 @@ function leafName(value: string) {
 }
 
 function resolveActionPath(view: MessageActionViewResp) {
-  return firstNonEmpty(
+  return resolveMobileWorkspacePath(
     view.message.source_path,
     view.message.full_code_path,
-    view.message.source_parent_path
+    view.message.source_parent_path,
+    view.message.source_template_type,
   )
 }
 

@@ -38,16 +38,16 @@ func (s *Server) setupRoutes() {
 	state.GET("/runtime-items", stateHandler.RuntimeItems)
 
 	// LLM 配置管理路由
-	llm := apiV1.Group("/llm")
+	llm := apiV1.Group("/llm-configs")
 	llmHandler := v1.NewLLM(s.llmService)
-	llm.GET("/list", llmHandler.List)               // 获取LLM配置列表
-	llm.GET("/get", llmHandler.Get)                 // 获取LLM配置详情
-	llm.GET("/get_default", llmHandler.GetDefault)  // 获取默认LLM配置
-	llm.POST("/create", llmHandler.Create)          // 创建LLM配置
-	llm.POST("/probe", llmHandler.Probe)            // 检测LLM协议
-	llm.POST("/update", llmHandler.Update)          // 更新LLM配置
-	llm.POST("/delete", llmHandler.Delete)          // 删除LLM配置
-	llm.POST("/set_default", llmHandler.SetDefault) // 设置默认LLM配置
+	llm.GET("", llmHandler.List)
+	llm.POST("", llmHandler.Create)
+	llm.GET("/default", llmHandler.GetDefault)
+	llm.POST("/probe", llmHandler.Probe)
+	llm.GET("/:id", llmHandler.Get)
+	llm.PUT("/:id", llmHandler.Update)
+	llm.DELETE("/:id", llmHandler.Delete)
+	llm.PUT("/:id/default", llmHandler.SetDefault)
 
 	// 智能工作台（只认 LLM，单模式）
 	workspace := apiV1.Group("/workspace")

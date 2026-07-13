@@ -305,15 +305,15 @@ export function listMessageInboxThreads(params: ListMessageInboxParams = {}): Pr
 }
 
 export function listMessageInboxSourceCounts(params: Pick<ListMessageInboxParams, 'status'> = {}): Promise<ListMessageInboxSourceCountsResp> {
-  return get<ListMessageInboxSourceCountsResp>('/message/api/v1/inbox/source_counts', params)
+	return get<ListMessageInboxSourceCountsResp>('/message/api/v1/inbox/source-counts', params)
 }
 
 export function listMessageInboxWorkspaceCounts(params: Pick<ListMessageInboxParams, 'status'> = {}): Promise<ListMessageInboxWorkspaceCountsResp> {
-  return get<ListMessageInboxWorkspaceCountsResp>('/message/api/v1/inbox/workspace_counts', params)
+	return get<ListMessageInboxWorkspaceCountsResp>('/message/api/v1/inbox/workspace-counts', params)
 }
 
 export function getMessageInboxUnreadCount(): Promise<MessageUnreadCountResp> {
-  return get<MessageUnreadCountResp>('/message/api/v1/inbox/unread_count')
+	return get<MessageUnreadCountResp>('/message/api/v1/inbox/unread-count')
 }
 
 export function getMessageInboxItem(id: number): Promise<MessageInboxItem> {
@@ -321,46 +321,46 @@ export function getMessageInboxItem(id: number): Promise<MessageInboxItem> {
 }
 
 export function listMessageNotificationChannels(): Promise<MessageNotificationChannelListResp> {
-  return get<MessageNotificationChannelListResp>('/message/api/v1/notification_channels')
+	return get<MessageNotificationChannelListResp>('/message/api/v1/notification-channels')
 }
 
 export function upsertMessageNotificationChannel(
   channel: MessageNotificationChannel,
   data: UpsertMessageNotificationChannelReq
 ): Promise<MessageNotificationChannelInfo> {
-  return put<MessageNotificationChannelInfo>(`/message/api/v1/notification_channels/${channel}`, data)
+	return put<MessageNotificationChannelInfo>(`/message/api/v1/notification-channels/${channel}`, data)
 }
 
 export function deleteMessageNotificationChannel(channel: MessageNotificationChannel): Promise<void> {
-  return del<void>(`/message/api/v1/notification_channels/${channel}`)
+	return del<void>(`/message/api/v1/notification-channels/${channel}`)
 }
 
 export function testMessageNotificationChannel(channel: MessageNotificationChannel): Promise<TestMessageNotificationChannelResp> {
-  return post<TestMessageNotificationChannelResp>(`/message/api/v1/notification_channels/${channel}/test`)
+	return post<TestMessageNotificationChannelResp>(`/message/api/v1/notification-channels/${channel}/test`)
 }
 
 export function listMessageNotificationRoutes(scopePath?: string): Promise<MessageNotificationRouteListResp> {
-  return get<MessageNotificationRouteListResp>('/message/api/v1/notification_routes', scopePath ? { scope_path: scopePath } : {})
+	return get<MessageNotificationRouteListResp>('/message/api/v1/notification-routes', scopePath ? { scope_path: scopePath } : {})
 }
 
 export function listMessageNotificationRouteSummary(rootScopePath: string): Promise<MessageNotificationRouteSummaryResp> {
-  return get<MessageNotificationRouteSummaryResp>('/message/api/v1/notification_routes/summary', { root_scope_path: rootScopePath })
+	return get<MessageNotificationRouteSummaryResp>('/message/api/v1/notification-routes/summary', { root_scope_path: rootScopePath })
 }
 
 export function upsertMessageNotificationRoute(
   channel: MessageNotificationChannel,
   data: UpsertMessageNotificationRouteReq
 ): Promise<MessageNotificationRouteInfo> {
-  return put<MessageNotificationRouteInfo>(`/message/api/v1/notification_routes/${channel}`, data)
+	return put<MessageNotificationRouteInfo>(`/message/api/v1/notification-routes/${channel}`, data)
 }
 
 export function deleteMessageNotificationRoute(channel: MessageNotificationChannel, scopePath: string): Promise<void> {
   const params = new URLSearchParams({ scope_path: scopePath })
-  return del<void>(`/message/api/v1/notification_routes/${channel}?${params.toString()}`)
+	return del<void>(`/message/api/v1/notification-routes/${channel}?${params.toString()}`)
 }
 
 export function testMessageNotificationRoute(channel: MessageNotificationChannel, scopePath: string): Promise<TestMessageNotificationChannelResp> {
-  return post<TestMessageNotificationChannelResp>(`/message/api/v1/notification_routes/${channel}/test`, { scope_path: scopePath })
+	return post<TestMessageNotificationChannelResp>(`/message/api/v1/notification-routes/${channel}/test`, { scope_path: scopePath })
 }
 
 export function markMessageInboxItemRead(id: number): Promise<void> {
@@ -372,11 +372,11 @@ export function markMessageInboxSourceRead(sourcePath: string, includeChildren =
   if (includeChildren) {
     params.set('include_children', 'true')
   }
-  return patch<void>(`/message/api/v1/inbox/read_source?${params.toString()}`)
+	return patch<void>(`/message/api/v1/inbox/read-source?${params.toString()}`)
 }
 
 export function markAllMessageInboxItemsRead(): Promise<void> {
-  return patch<void>('/message/api/v1/inbox/read_all')
+	return patch<void>('/message/api/v1/inbox/read-all')
 }
 
 export function getPublicMessageAction(token: string): Promise<MessageActionViewResp> {

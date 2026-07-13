@@ -171,7 +171,7 @@ func (s *WorkspaceChatService) saveToolMessage(ctx context.Context, sessionID st
 	}
 	toolMsg.CreatedBy = user
 	toolMsg.UpdatedBy = user
-	if err := s.messageRepo.Create(toolMsg); err != nil {
+	if err := s.messageRepo.Create(ctx, toolMsg); err != nil {
 		return err
 	}
 	return nil
@@ -207,7 +207,7 @@ func (s *WorkspaceChatService) saveAssistantMessageWithToolCalls(
 	}
 	asstMsg.CreatedBy = user
 	asstMsg.UpdatedBy = user
-	if err := s.messageRepo.Create(asstMsg); err != nil {
+	if err := s.messageRepo.Create(ctx, asstMsg); err != nil {
 		logger.Warnf(ctx, "[WorkspaceChatStream] 保存 assistant 消息失败: %v", err)
 		return err
 	}
@@ -240,5 +240,5 @@ func (s *WorkspaceChatService) saveAssistantMessage(
 	}
 	asstMsg.CreatedBy = user
 	asstMsg.UpdatedBy = user
-	return s.messageRepo.Create(asstMsg)
+	return s.messageRepo.Create(ctx, asstMsg)
 }

@@ -13,6 +13,26 @@ func TestGatewayConfigGetInternalURLPrefersInternalURL(t *testing.T) {
 	}
 }
 
+func TestGatewayConfigGetInternalURLDoesNotFallBackToExternalBaseURL(t *testing.T) {
+	cfg := GatewayConfig{
+		Host:    "0.0.0.0",
+		Port:    9090,
+		BaseURL: "https://app.example.com",
+	}
+
+	if got := cfg.GetInternalURL(); got != "http://127.0.0.1:9090" {
+		t.Fatalf("internal gateway url = %q", got)
+	}
+}
+
+func TestGatewayConfigGetInternalURLKeepsLegacyLocalBaseURL(t *testing.T) {
+	cfg := GatewayConfig{BaseURL: "http://127.0.0.1:9190"}
+
+	if got := cfg.GetInternalURL(); got != "http://127.0.0.1:9190" {
+		t.Fatalf("internal gateway url = %q", got)
+	}
+}
+
 func TestGlobalSharedConfigPublicSiteBaseURLUsesSiteConfig(t *testing.T) {
 	t.Setenv(EnvCanonicalBaseURL, "https://env.example.com")
 	t.Setenv("KAGEOS_BASE_URL", "https://kageos-env.example.com")

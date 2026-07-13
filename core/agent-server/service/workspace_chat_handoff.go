@@ -24,7 +24,7 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 	if sourceSessionID == "" {
 		return nil, fmt.Errorf("source_session_id 必填")
 	}
-	source, err := s.sessionRepo.GetBySessionID(sourceSessionID)
+	source, err := s.sessionRepo.GetBySessionID(ctx, sourceSessionID)
 	if err != nil || source == nil {
 		return nil, fmt.Errorf("来源会话不存在: %s", sourceSessionID)
 	}
@@ -58,7 +58,7 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 	}
 	sourceMessages := []*model.AgentChatMessage{}
 	if s.messageRepo != nil {
-		sourceMessages, _ = s.messageRepo.ListBySessionID(source.SessionID)
+		sourceMessages, _ = s.messageRepo.ListBySessionID(ctx, source.SessionID)
 	}
 	handoffContext := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
 		Source:        source,
@@ -129,8 +129,8 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 	handoffPacket.CreatedBy = user
 	handoffPacket.UpdatedBy = user
 	var existingResp *dto.WorkspaceHandoffResp
-	if err := s.sessionRepo.TransactionWithMessagesAndHandoffPackets(func(sessionTx *repository.ChatSessionRepository, messageTx *repository.ChatMessageRepository, handoffTx *repository.WorkspaceHandoffPacketRepository) error {
-		if packet, err := handoffTx.FindLatestBySourceAndTarget(source.SessionID, artifactKind, targetRole, firstNonEmptyString(user, source.User)); err != nil {
+	if err := s.sessionRepo.TransactionWithMessagesAndHandoffPackets(ctx, func(sessionTx *repository.ChatSessionRepository, messageTx *repository.ChatMessageRepository, handoffTx *repository.WorkspaceHandoffPacketRepository) error {
+		if packet, err := handoffTx.FindLatestBySourceAndTarget(ctx, source.SessionID, artifactKind, targetRole, firstNonEmptyString(user, source.User)); err != nil {
 			return fmt.Errorf("查询已有交接包失败: %w", err)
 		} else if packet != nil {
 			existingResp = buildExistingWorkspaceHandoffResp(packet, sessionTx, messageTx)
@@ -150,14 +150,14 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 		if strings.TrimSpace(source.Title) == "" {
 			source.Title = title
 		}
-		if err := sessionTx.Update(source); err != nil {
+		if err := sessionTx.Update(ctx, source); err != nil {
 			return fmt.Errorf("更新当前会话阶段信息失败: %w", err)
 		}
-		if err := messageTx.Create(initialMessage); err != nil {
+		if err := messageTx.Create(ctx, initialMessage); err != nil {
 			return fmt.Errorf("创建阶段注入消息失败: %w", err)
 		}
 		handoffPacket.InitialMessageID = initialMessage.ID
-		if err := handoffTx.Create(handoffPacket); err != nil {
+		if err := handoffTx.Create(ctx, handoffPacket); err != nil {
 			return fmt.Errorf("创建阶段注入包失败: %w", err)
 		}
 		return nil
@@ -200,12 +200,12 @@ func buildExistingWorkspaceHandoffResp(packet *model.WorkspaceHandoffPacket, ses
 		HandoffContext:  packet.HandoffContextJSON,
 	}
 	if sessionRepo != nil {
-		if target, err := sessionRepo.GetBySessionID(packet.TargetSessionID); err == nil && target != nil {
+		if target, err := sessionRepo.GetBySessionID(context.Background(), packet.TargetSessionID); err == nil && target != nil {
 			resp.DisplayContent = target.Title
 		}
 	}
 	if messageRepo != nil && packet.InitialMessageID > 0 {
-		if msg, err := messageRepo.GetByID(packet.InitialMessageID); err == nil && msg != nil {
+		if msg, err := messageRepo.GetByID(context.Background(), packet.InitialMessageID); err == nil && msg != nil {
 			resp.Content = msg.Content
 			resp.DisplayContent = firstNonEmptyString(msg.DisplayContent, resp.DisplayContent)
 		}

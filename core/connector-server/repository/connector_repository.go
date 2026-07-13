@@ -49,6 +49,25 @@ func (r *ConnectorRepository) GetOwnedConnection(ctx context.Context, ownerUsern
 	return &row, nil
 }
 
+func (r *ConnectorRepository) GetOwnedConnections(ctx context.Context, ownerUsername string, connectionIDs []string) (map[string]*model.ConnectorConnection, error) {
+	result := make(map[string]*model.ConnectorConnection, len(connectionIDs))
+	if len(connectionIDs) == 0 {
+		return result, nil
+	}
+	var rows []*model.ConnectorConnection
+	if err := r.db.WithContext(ctx).
+		Where("owner_username = ? AND connection_id IN ? AND status = ?", strings.TrimSpace(ownerUsername), connectionIDs, model.ConnectorStatusActive).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if row != nil {
+			result[row.ConnectionID] = row
+		}
+	}
+	return result, nil
+}
+
 func (r *ConnectorRepository) UpdateOwnedConnectionProfile(ctx context.Context, ownerUsername, connectionID, displayName, externalAccountID, metadata, updatedBy string) (*model.ConnectorConnection, error) {
 	ownerUsername = strings.TrimSpace(ownerUsername)
 	connectionID = strings.TrimSpace(connectionID)

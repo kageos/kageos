@@ -191,7 +191,7 @@ func (s *MessageConsumerService) buildMobileNotificationURLs(ctx context.Context
 	}
 	askRoute := "/m"
 	query := url.Values{}
-	if sourcePath := strings.TrimSpace(entry.SourcePath); sourcePath != "" {
+	if sourcePath := msgrepo.ResolveMessageWorkspacePath(entry.SourcePath, entry.FullCodePath, entry.SourceParentPath, entry.SourceTemplateType); sourcePath != "" {
 		query.Set("source_path", sourcePath)
 	}
 	if sessionID := strings.TrimSpace(entry.WorkspaceSessionID); sessionID != "" {

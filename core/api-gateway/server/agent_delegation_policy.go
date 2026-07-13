@@ -15,23 +15,23 @@ func isAllowedAgentDelegatedAPI(method, requestPath string) bool {
 
 	exact := map[string]map[string]struct{}{
 		http.MethodGet: {
-			"/workspace/api/v1/workspace/context":             {},
-			"/workspace/api/v1/service_tree/detail":           {},
-			"/workspace/api/v1/service_tree/search_functions": {},
-			"/workspace/api/v1/service_tree/search_resources": {},
-			"/workspace/api/v1/team_access/my_permissions":    {},
+			"/workspace/api/v1/workspace/context":       {},
+			"/workspace/api/v1/directories":             {},
+			"/workspace/api/v1/function-search-results": {},
+			"/workspace/api/v1/resource-search-results": {},
+			"/workspace/api/v1/access/permissions":      {},
 		},
 		http.MethodPost: {
-			"/workspace/api/v1/service_tree/add_functions": {},
-			"/workspace/api/v1/docs/crud":                  {},
-			"/workspace/api/v1/packages":                   {},
-			"/workspace/api/v1/workspace/files/write":      {},
-			"/workspace/api/v1/workspace/files/replace":    {},
-			"/workspace/api/v1/workspace/files/delete":     {},
-			"/workspace/api/v1/workspace/logs/read":        {},
-			"/workspace/api/v1/app/update":                 {},
-			"/hr/api/v1/users":                             {},
-			"/storage/api/v1/files/resolve":                {},
+			"/workspace/api/v1/functions/batch":         {},
+			"/workspace/api/v1/docs/crud":               {},
+			"/workspace/api/v1/packages":                {},
+			"/workspace/api/v1/workspace/files/write":   {},
+			"/workspace/api/v1/workspace/files/replace": {},
+			"/workspace/api/v1/workspace/files/delete":  {},
+			"/workspace/api/v1/workspace/logs/read":     {},
+			"/workspace/api/v1/apps/builds":             {},
+			"/hr/api/v1/users":                          {},
+			"/storage/api/v1/files/resolve":             {},
 		},
 	}
 	if _, ok := exact[method][requestPath]; ok {
@@ -41,8 +41,8 @@ func isAllowedAgentDelegatedAPI(method, requestPath string) bool {
 	switch method {
 	case http.MethodGet:
 		if hasDelegatedPathRemainder(requestPath, "/workspace/api/v1/docs/info") ||
-			hasDelegatedPathRemainder(requestPath, "/workspace/api/v1/table/search") ||
-			hasDelegatedPathRemainder(requestPath, "/workspace/api/v1/chart/query") {
+			hasDelegatedPathRemainder(requestPath, "/workspace/api/v1/tables") ||
+			hasDelegatedPathRemainder(requestPath, "/workspace/api/v1/charts") {
 			return true
 		}
 		for _, resourceType := range []string{"form", "table", "chart"} {
@@ -52,10 +52,10 @@ func isAllowedAgentDelegatedAPI(method, requestPath string) bool {
 		}
 	case http.MethodPost:
 		for _, prefix := range []string{
-			"/workspace/api/v1/form/submit",
-			"/workspace/api/v1/runtime/python",
-			"/workspace/api/v1/table/create",
-			"/workspace/api/v1/callback/on_select_fuzzy",
+			"/workspace/api/v1/form-submissions",
+			"/workspace/api/v1/python-executions",
+			"/workspace/api/v1/tables",
+			"/workspace/api/v1/selection-options",
 		} {
 			if hasDelegatedPathRemainder(requestPath, prefix) {
 				return true
@@ -63,11 +63,11 @@ func isAllowedAgentDelegatedAPI(method, requestPath string) bool {
 		}
 	case http.MethodPut:
 		if hasPositiveNumericPathRemainder(requestPath, "/workspace/api/v1/docs/crud") ||
-			hasDelegatedPathRemainder(requestPath, "/workspace/api/v1/table/update") {
+			hasDelegatedPathRemainder(requestPath, "/workspace/api/v1/tables") {
 			return true
 		}
 	case http.MethodDelete:
-		return hasDelegatedPathRemainder(requestPath, "/workspace/api/v1/table/delete")
+		return hasDelegatedPathRemainder(requestPath, "/workspace/api/v1/tables")
 	}
 	return false
 }
@@ -99,7 +99,7 @@ func isAllowedAgentDelegatedTimer(method, requestPath string) bool {
 			return false
 		}
 		switch segments[1] {
-		case "pause", "resume", "cancel", "run_now":
+		case "pause", "resume", "cancel", "run-now":
 			return true
 		}
 	case 3:

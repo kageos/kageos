@@ -20,7 +20,7 @@ describe('FormGatewayImpl', () => {
     })
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      '/workspace/api/v1/form/submit/test/form-submit',
+      '/workspace/api/v1/form-submissions/test/form-submit',
       { name: 'Alice' }
     )
     expect(response).toEqual({ ok: true })
@@ -44,7 +44,7 @@ describe('FormGatewayImpl', () => {
     })
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      '/workspace/api/v1/form/submit/test/form-search',
+      '/workspace/api/v1/form-submissions/test/form-search',
       { keyword: 'Alice' }
     )
   })

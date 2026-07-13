@@ -28,7 +28,6 @@ import router from './architecture/presentation/router'
 import { useAuthStore } from './architecture/infrastructure/stores/auth'
 import { useLocaleStore } from './architecture/infrastructure/stores/locale'
 import { useThemeStore } from './architecture/infrastructure/stores/theme'
-import { useUserInfoStore } from './architecture/infrastructure/stores/userInfo'
 import { i18n } from './architecture/shared/i18n'
 import { registerWidgetInitializers } from './architecture/presentation/widgets/initializers/registerInitializers'
 
@@ -56,15 +55,5 @@ localeStore.initLocale()
 
 // 🔥 注册所有 Widget 初始化器（组件自治，符合依赖倒置原则）
 registerWidgetInitializers()
-
-// 🔥 开发环境：将 stores 挂载到 window 对象，方便在控制台调试
-if (import.meta.env.DEV) {
-  const userInfoStore = useUserInfoStore()
-  ;(window as any).__stores__ = {
-    authStore,
-    themeStore,
-    userInfoStore
-  }
-}
 
 app.mount('#app')

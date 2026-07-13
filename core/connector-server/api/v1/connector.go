@@ -22,12 +22,12 @@ func NewConnectorAPI(connectorService *service.ConnectorService) *ConnectorAPI {
 func (a *ConnectorAPI) CreateConnection(c *gin.Context) {
 	var req dto.CreateConnectorConnectionReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	info, err := a.connectorService.CreateConnection(contextx.ToContext(c), req)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, &dto.CreateConnectorConnectionResp{Connection: *info})
@@ -36,7 +36,7 @@ func (a *ConnectorAPI) CreateConnection(c *gin.Context) {
 func (a *ConnectorAPI) ListConnections(c *gin.Context) {
 	items, err := a.connectorService.ListConnections(contextx.ToContext(c), c.Query("provider"))
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, &dto.ListConnectorConnectionsResp{Connections: items})
@@ -44,7 +44,7 @@ func (a *ConnectorAPI) ListConnections(c *gin.Context) {
 
 func (a *ConnectorAPI) DeleteConnection(c *gin.Context) {
 	if err := a.connectorService.DeleteConnection(contextx.ToContext(c), c.Param("connection_id")); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.Ok(c)
@@ -52,7 +52,7 @@ func (a *ConnectorAPI) DeleteConnection(c *gin.Context) {
 
 func (a *ConnectorAPI) RevokeConnection(c *gin.Context) {
 	if err := a.connectorService.RevokeConnection(contextx.ToContext(c), c.Param("connection_id")); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.Ok(c)
@@ -61,12 +61,12 @@ func (a *ConnectorAPI) RevokeConnection(c *gin.Context) {
 func (a *ConnectorAPI) BindDirectory(c *gin.Context) {
 	var req dto.BindConnectorDirectoryReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	info, err := a.connectorService.BindDirectory(contextx.ToContext(c), req)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, &dto.BindConnectorDirectoryResp{Binding: *info})
@@ -75,7 +75,7 @@ func (a *ConnectorAPI) BindDirectory(c *gin.Context) {
 func (a *ConnectorAPI) ListDirectoryBindings(c *gin.Context) {
 	items, err := a.connectorService.ListDirectoryBindings(contextx.ToContext(c), c.Query("resource_path"), c.Query("provider"))
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, &dto.ListConnectorDirectoryBindingsResp{Bindings: items})
@@ -85,7 +85,7 @@ func (a *ConnectorAPI) DeleteDirectoryBinding(c *gin.Context) {
 	resourcePath := strings.TrimSpace(c.Query("resource_path"))
 	provider := strings.TrimSpace(c.Query("provider"))
 	if err := a.connectorService.DeleteDirectoryBinding(contextx.ToContext(c), resourcePath, provider); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.Ok(c)
@@ -99,7 +99,7 @@ func (a *ConnectorAPI) ResolveDirectoryBinding(c *gin.Context) {
 		parseScopeQuery(c.Query("required_scopes")),
 	)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, resp)
@@ -108,12 +108,12 @@ func (a *ConnectorAPI) ResolveDirectoryBinding(c *gin.Context) {
 func (a *ConnectorAPI) Proxy(c *gin.Context) {
 	var req dto.ConnectorProxyReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	resp, err := a.connectorService.Proxy(contextx.ToContext(c), req)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, resp)
@@ -122,12 +122,12 @@ func (a *ConnectorAPI) Proxy(c *gin.Context) {
 func (a *ConnectorAPI) StartOAuth(c *gin.Context) {
 	var req dto.StartConnectorOAuthReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	resp, err := a.connectorService.StartOAuth(contextx.ToContext(c), req)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, resp)
@@ -145,7 +145,7 @@ func (a *ConnectorAPI) OAuthCallback(c *gin.Context) {
 			c.Redirect(http.StatusFound, target)
 			return
 		}
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	if target := service.OAuthCallbackRedirect(redirectAfter, "success", resp.Connection.ConnectionID, ""); target != "" {
@@ -158,7 +158,7 @@ func (a *ConnectorAPI) OAuthCallback(c *gin.Context) {
 func (a *ConnectorAPI) RefreshOAuthToken(c *gin.Context) {
 	resp, err := a.connectorService.RefreshOAuthToken(contextx.ToContext(c), c.Param("connection_id"))
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, resp)
@@ -167,7 +167,7 @@ func (a *ConnectorAPI) RefreshOAuthToken(c *gin.Context) {
 func (a *ConnectorAPI) ListOAuthProviders(c *gin.Context) {
 	items, err := a.connectorService.ListOAuthProviders(contextx.ToContext(c))
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, &dto.ListConnectorOAuthProvidersResp{Providers: items})
@@ -176,7 +176,7 @@ func (a *ConnectorAPI) ListOAuthProviders(c *gin.Context) {
 func (a *ConnectorAPI) GetOAuthProvider(c *gin.Context) {
 	info, err := a.connectorService.GetOAuthProvider(contextx.ToContext(c), c.Param("provider"))
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, &dto.GetConnectorOAuthProviderResp{Provider: *info})
@@ -185,7 +185,7 @@ func (a *ConnectorAPI) GetOAuthProvider(c *gin.Context) {
 func (a *ConnectorAPI) UpsertOAuthProvider(c *gin.Context) {
 	var req dto.UpsertConnectorOAuthProviderReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	if req.Code == "" {
@@ -193,7 +193,7 @@ func (a *ConnectorAPI) UpsertOAuthProvider(c *gin.Context) {
 	}
 	info, err := a.connectorService.UpsertOAuthProvider(contextx.ToContext(c), req)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, &dto.UpsertConnectorOAuthProviderResp{Provider: *info})
@@ -201,7 +201,7 @@ func (a *ConnectorAPI) UpsertOAuthProvider(c *gin.Context) {
 
 func (a *ConnectorAPI) DeleteOAuthProvider(c *gin.Context) {
 	if err := a.connectorService.DeleteOAuthProvider(contextx.ToContext(c), c.Param("provider")); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.Ok(c)

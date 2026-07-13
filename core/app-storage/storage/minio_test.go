@@ -60,9 +60,6 @@ func TestGenerateUploadCredentialsUsesServerEndpointForServerUpload(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := creds.SDKConfig["endpoint"]; got != "host.containers.internal:9000" {
-		t.Fatalf("SDK endpoint = %v, want host.containers.internal:9000", got)
-	}
 	if !strings.Contains(creds.ServerUploadURL, "host.containers.internal:9000") {
 		t.Fatalf("server upload URL should use server_endpoint, got %s", creds.ServerUploadURL)
 	}

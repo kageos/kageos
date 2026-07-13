@@ -142,7 +142,7 @@ func initialSystemDirectorySeedAppVersions(serviceTreeService *ServiceTreeServic
 		if _, exists := versions[seedFile.appCode]; exists {
 			continue
 		}
-		appModel, err := serviceTreeService.capabilityBundle.appRepo.GetAppByUserName(SystemUsername, seedFile.appCode)
+		appModel, err := serviceTreeService.capabilityBundle.appRepo.GetAppByUserName(context.Background(), SystemUsername, seedFile.appCode)
 		if err != nil {
 			return nil, fmt.Errorf("查询系统应用 %s/%s 版本失败: %w", SystemUsername, seedFile.appCode, err)
 		}
@@ -193,7 +193,7 @@ func systemDirectorySeedTargetMatchesBundle(serviceTreeService *ServiceTreeServi
 	if len(expectedPaths) == 0 {
 		return true, nil
 	}
-	existing, err := serviceTreeService.capabilityBundle.serviceTreeRepo.GetServiceTreeByFullPaths(expectedPaths)
+	existing, err := serviceTreeService.capabilityBundle.serviceTreeRepo.GetServiceTreeByFullPaths(context.Background(), expectedPaths)
 	if err != nil {
 		return false, fmt.Errorf("检查系统目录种子目标节点失败: %w", err)
 	}

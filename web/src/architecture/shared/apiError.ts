@@ -21,7 +21,7 @@ function isApiResponseEnvelope<T = unknown>(value: unknown): value is ApiRespons
   return Boolean(
     value &&
     typeof value === 'object' &&
-    typeof (value as ApiResponseEnvelope<T>).code === 'number' &&
+	(typeof (value as ApiResponseEnvelope<T>).code === 'number' || typeof (value as ApiResponseEnvelope<T>).code === 'string') &&
     (
       'data' in (value as Record<string, unknown>) ||
       'msg' in (value as Record<string, unknown>) ||
@@ -92,7 +92,7 @@ export function isWorkspaceForbiddenError(error: unknown): boolean {
   const mentionsWorkspace = message.includes('workspace') || message.includes('工作空间')
   const mentionsPermission = /无权限|权限不足|请求被拒绝|forbidden|permission|access denied/.test(message)
 
-  return code === 7 && mentionsWorkspace && mentionsPermission
+	return code === 'permission_denied' || (code === 7 && mentionsWorkspace && mentionsPermission)
 }
 
 export function createBusinessError(
@@ -114,7 +114,7 @@ export function unwrapApiResponseData<T>(response: T | ApiResponseEnvelope<T>, f
     return response as T
   }
 
-  if (response.code === 0) {
+	if (response.code === 'ok' || response.code === 0) {
     const normalizedData = response.data as T
     if (
       response.metadata &&

@@ -14,7 +14,7 @@ import (
 func (s *Server) listInboxMessages(c *gin.Context) {
 	username, err := s.resolveInboxUsername(c)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	page := parsePositiveInt(c.Query("page"), 1)
@@ -35,7 +35,7 @@ func (s *Server) listInboxMessages(c *gin.Context) {
 		IncludeChildren: includeChildren,
 	}, offset, pageSize)
 	if err != nil {
-		response.FailWithMessage(c, "获取消息列表失败: "+err.Error())
+		response.Internal(c, "获取消息列表失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, dto.MessageInboxListResp{
@@ -49,7 +49,7 @@ func (s *Server) listInboxMessages(c *gin.Context) {
 func (s *Server) listInboxThreads(c *gin.Context) {
 	username, err := s.resolveInboxUsername(c)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	page := parsePositiveInt(c.Query("page"), 1)
@@ -62,7 +62,7 @@ func (s *Server) listInboxThreads(c *gin.Context) {
 
 	list, total, err := s.messageRepo.ListInboxThreads(c.Request.Context(), username, status, offset, pageSize)
 	if err != nil {
-		response.FailWithMessage(c, "获取消息会话列表失败: "+err.Error())
+		response.Internal(c, "获取消息会话列表失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, dto.MessageInboxThreadListResp{
@@ -76,13 +76,13 @@ func (s *Server) listInboxThreads(c *gin.Context) {
 func (s *Server) listInboxSourceCounts(c *gin.Context) {
 	username, err := s.resolveInboxUsername(c)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	status := strings.TrimSpace(c.Query("status"))
 	list, err := s.messageRepo.ListSourceCounts(c.Request.Context(), username, status)
 	if err != nil {
-		response.FailWithMessage(c, "获取消息节点统计失败: "+err.Error())
+		response.Internal(c, "获取消息节点统计失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, dto.MessageInboxSourceCountResp{List: list})
@@ -91,13 +91,13 @@ func (s *Server) listInboxSourceCounts(c *gin.Context) {
 func (s *Server) listInboxWorkspaceCounts(c *gin.Context) {
 	username, err := s.resolveInboxUsername(c)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	status := strings.TrimSpace(c.Query("status"))
 	list, err := s.messageRepo.ListWorkspaceCounts(c.Request.Context(), username, status)
 	if err != nil {
-		response.FailWithMessage(c, "获取消息工作空间统计失败: "+err.Error())
+		response.Internal(c, "获取消息工作空间统计失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, dto.MessageInboxWorkspaceCountResp{List: list})
@@ -106,17 +106,17 @@ func (s *Server) listInboxWorkspaceCounts(c *gin.Context) {
 func (s *Server) getInboxMessage(c *gin.Context) {
 	username, err := s.resolveInboxUsername(c)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	messageID, err := parseMessageID(c)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	item, err := s.messageRepo.GetInboxMessage(c.Request.Context(), username, messageID)
 	if err != nil {
-		response.FailWithMessage(c, "消息不存在")
+		response.NotFound(c, "消息不存在")
 		return
 	}
 	response.OkWithData(c, item)
@@ -125,12 +125,12 @@ func (s *Server) getInboxMessage(c *gin.Context) {
 func (s *Server) getUnreadCount(c *gin.Context) {
 	username, err := s.resolveInboxUsername(c)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	count, err := s.messageRepo.CountUnread(c.Request.Context(), username)
 	if err != nil {
-		response.FailWithMessage(c, "获取未读数失败: "+err.Error())
+		response.Internal(c, "获取未读数失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, dto.MessageUnreadCountResp{UnreadCount: count})
@@ -139,16 +139,16 @@ func (s *Server) getUnreadCount(c *gin.Context) {
 func (s *Server) markInboxMessageRead(c *gin.Context) {
 	username, err := s.resolveInboxUsername(c)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	messageID, err := parseMessageID(c)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := s.messageRepo.MarkRead(c.Request.Context(), username, messageID); err != nil {
-		response.FailWithMessage(c, "标记已读失败: "+err.Error())
+		response.Internal(c, "标记已读失败: "+err.Error())
 		return
 	}
 	response.Ok(c)
@@ -157,13 +157,13 @@ func (s *Server) markInboxMessageRead(c *gin.Context) {
 func (s *Server) markSourceInboxMessagesRead(c *gin.Context) {
 	username, err := s.resolveInboxUsername(c)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	sourcePath := strings.TrimSpace(c.Query("source_path"))
 	includeChildren := parseBoolQuery(c.Query("include_children"))
 	if err := s.messageRepo.MarkSourceRead(c.Request.Context(), username, sourcePath, includeChildren); err != nil {
-		response.FailWithMessage(c, "标记当前来源消息已读失败: "+err.Error())
+		response.Internal(c, "标记当前来源消息已读失败: "+err.Error())
 		return
 	}
 	response.Ok(c)
@@ -172,11 +172,11 @@ func (s *Server) markSourceInboxMessagesRead(c *gin.Context) {
 func (s *Server) markAllInboxMessagesRead(c *gin.Context) {
 	username, err := s.resolveInboxUsername(c)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := s.messageRepo.MarkAllRead(c.Request.Context(), username); err != nil {
-		response.FailWithMessage(c, "全部已读失败: "+err.Error())
+		response.Internal(c, "全部已读失败: "+err.Error())
 		return
 	}
 	response.Ok(c)

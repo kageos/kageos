@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -30,7 +31,7 @@ func newServiceTreeAuditTestService(t *testing.T) (*ServiceTreeService, *gorm.DB
 
 	appRepo := repository.NewAppRepository(db)
 	app := &model.App{User: "alice", Code: "ops", Name: "Ops", Version: "v1"}
-	if err := appRepo.CreateApp(app); err != nil {
+	if err := appRepo.CreateApp(context.Background(), app); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
 
@@ -47,7 +48,7 @@ func newServiceTreeAuditTestService(t *testing.T) (*ServiceTreeService, *gorm.DB
 		Version:      "v1",
 		VersionNum:   1,
 	}
-	if err := serviceTreeRepo.Create(functionNode); err != nil {
+	if err := serviceTreeRepo.Create(context.Background(), functionNode); err != nil {
 		t.Fatalf("create service tree: %v", err)
 	}
 

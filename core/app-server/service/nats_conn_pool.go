@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -22,7 +23,7 @@ type NATSConnPool struct {
 // NewNATSConnPoolWithDB 使用指定的数据库连接创建 NATS 连接池。
 func NewNATSConnPoolWithDB(db *gorm.DB) *NATSConnPool {
 	hostRepo := repository.NewHostRepository(db)
-	list, err := hostRepo.GetHostList()
+	list, err := hostRepo.GetHostList(context.Background())
 	if err != nil {
 		panic(err)
 	}

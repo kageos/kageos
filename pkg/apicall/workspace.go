@@ -15,7 +15,7 @@ var _ = (*dto.UpdateAppResp)(nil)
 // GetServiceTreeDetailByFullCodePath 根据 full_code_path 获取服务目录详情（agent-server -> app-server）
 // 用于从 full_code_path 解析出节点信息（含 id/tree_id），供 add_functions、权限等使用
 func GetServiceTreeDetailByFullCodePath(ctx context.Context, fullCodePath string) (*dto.GetServiceTreeDetailResp, error) {
-	return GetAPI[*dto.GetServiceTreeDetailResp](ctx, "/workspace/api/v1/service_tree/detail", buildQueryParams(
+	return GetAPI[*dto.GetServiceTreeDetailResp](ctx, "/workspace/api/v1/directories", buildQueryParams(
 		withFullCodePathQuery(fullCodePath),
 	))
 }
@@ -23,13 +23,13 @@ func GetServiceTreeDetailByFullCodePath(ctx context.Context, fullCodePath string
 // ServiceTreeAddFunctions 向服务目录添加函数（agent-server -> workspace）
 // 将生成的代码写入到工作空间对应的目录下，并更新工作空间
 func ServiceTreeAddFunctions(ctx context.Context, req *dto.AddFunctionsReq) (*dto.AddFunctionsResp, error) {
-	return PostAPI[*dto.AddFunctionsReq, *dto.AddFunctionsResp](ctx, "/workspace/api/v1/service_tree/add_functions", req)
+	return PostAPI[*dto.AddFunctionsReq, *dto.AddFunctionsResp](ctx, "/workspace/api/v1/functions/batch", req)
 }
 
 // SearchFunctions 搜索函数（agent-server -> app-server）
 // 根据关键词、类型等条件搜索函数，支持分页
 func SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error) {
-	return GetAPI[*dto.SearchFunctionsResp](ctx, "/workspace/api/v1/service_tree/search_functions", buildQueryParams(
+	return GetAPI[*dto.SearchFunctionsResp](ctx, "/workspace/api/v1/function-search-results", buildQueryParams(
 		withPaginationQuery(req.Page, req.PageSize),
 		withTrimmedQueryValue("user", req.User),
 		withTrimmedQueryValue("app", req.App),
@@ -41,7 +41,7 @@ func SearchFunctions(ctx context.Context, req *dto.SearchFunctionsReq) (*dto.Sea
 
 // SearchResources 搜索服务树资源（agent-server -> app-server）。
 func SearchResources(ctx context.Context, req *dto.SearchResourcesReq) (*dto.SearchResourcesResp, error) {
-	return GetAPI[*dto.SearchResourcesResp](ctx, "/workspace/api/v1/service_tree/search_resources", buildQueryParams(
+	return GetAPI[*dto.SearchResourcesResp](ctx, "/workspace/api/v1/resource-search-results", buildQueryParams(
 		withPaginationQuery(req.Page, req.PageSize),
 		withTrimmedQueryValue("user", req.User),
 		withTrimmedQueryValue("app", req.App),
@@ -53,7 +53,7 @@ func SearchResources(ctx context.Context, req *dto.SearchResourcesReq) (*dto.Sea
 
 // MyPermissions 查询当前用户对资源的权限。
 func MyPermissions(ctx context.Context, resourcePath string) (*dto.MyPermissionsResp, error) {
-	return GetAPI[*dto.MyPermissionsResp](ctx, "/workspace/api/v1/team_access/my_permissions", buildQueryParams(
+	return GetAPI[*dto.MyPermissionsResp](ctx, "/workspace/api/v1/access/permissions", buildQueryParams(
 		withTrimmedQueryValue("resource_path", resourcePath),
 	))
 }
@@ -115,69 +115,69 @@ func ReadAppLog(ctx context.Context, req *dto.ReadAppLogReq) (*dto.ReadAppLogRes
 }
 
 // UpdateAppBuild 触发工作空间编译（仅编译不写文件，agent-server -> app-server）
-// 统一走 canonical 入口 /workspace/api/v1/app/update，使用 resource_path 标识工作空间
+// 统一走 canonical 构建入口，使用 resource_path 标识工作空间。
 func UpdateAppBuild(ctx context.Context, user, app string) (*dto.UpdateAppResp, error) {
 	req := &dto.UpdateAppReq{
 		ResourcePath: fmt.Sprintf("/%s/%s", user, app),
 	}
-	return PostAPI[*dto.UpdateAppReq, *dto.UpdateAppResp](ctx, "/workspace/api/v1/app/update", req)
+	return PostAPI[*dto.UpdateAppReq, *dto.UpdateAppResp](ctx, "/workspace/api/v1/apps/builds", req)
 }
 
 // ========== 执行模式：查表 / 提交表单 / 查图表（工作台调用工作区标准接口） ==========
 
-// TableSearch 调用工作区 Table 查询接口（GET table/search/{full-code-path}）
+// TableSearch 调用工作区 Table 查询接口（GET tables/{full-code-path}）
 // fullCodePath 如 /luobei/myapp/tables/hr；queryParams 可含 page、page_size、sorts 等
 func TableSearch(ctx context.Context, fullCodePath string, queryParams url.Values) (map[string]interface{}, error) {
-	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/search", fullCodePath)
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/tables", fullCodePath)
 	return GetAPI[map[string]interface{}](ctx, path, queryParams)
 }
 
-// FormSubmit 调用工作区 Form 提交接口（POST form/submit/{full-code-path}）
+// FormSubmit 调用工作区 Form 提交接口（POST form-submissions/{full-code-path}）
 // fullCodePath 如 /luobei/myapp/cashier/cashier_desk.form；body 为表单字段 JSON
 func FormSubmit(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
-	path := buildWorkspaceFunctionPath("/workspace/api/v1/form/submit", fullCodePath)
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/form-submissions", fullCodePath)
 	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
 // RunWorkspacePython 调用当前工作区应用内置的私有 Python runtime。
 // fullCodePath 可传工作区根路径 /user/app，服务端只取 user/app 并转发到 /_runtime/python。
 func RunWorkspacePython(ctx context.Context, fullCodePath string, body *dto.RunPythonRuntimeReq) (map[string]interface{}, error) {
-	path := buildWorkspaceFunctionPath("/workspace/api/v1/runtime/python", fullCodePath)
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/python-executions", fullCodePath)
 	return PostAPI[*dto.RunPythonRuntimeReq, map[string]interface{}](ctx, path, body)
 }
 
-// ChartQuery 调用工作区 Chart 查询接口（GET chart/query/{full-code-path}）
+// ChartQuery 调用工作区 Chart 查询接口（GET charts/{full-code-path}）
 // fullCodePath 如 /luobei/myapp/charts/sales；queryParams 为图表查询条件
 func ChartQuery(ctx context.Context, fullCodePath string, queryParams url.Values) (map[string]interface{}, error) {
-	path := buildWorkspaceFunctionPath("/workspace/api/v1/chart/query", fullCodePath)
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/charts", fullCodePath)
 	return GetAPI[map[string]interface{}](ctx, path, queryParams)
 }
 
-// TableCreate 调用工作区 Table 新增接口（POST table/create/{full-code-path}）
+// TableCreate 调用工作区 Table 新增接口（POST tables/{full-code-path}）
 // fullCodePath 为表格函数完整路径（如 /luobei/myapp/nps/nps_questionnaire_list.table）；body 为单条记录的字段 JSON，会触发 OnTableAddRow 回调
 func TableCreate(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
-	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/create", fullCodePath)
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/tables", fullCodePath)
 	return PostAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
-// TableUpdate 调用工作区 Table 更新接口（PUT table/update/{full-code-path}）
+// TableUpdate 调用工作区 Table 更新接口（PUT tables/{full-code-path}）
 // fullCodePath 为表格函数完整路径；body 为 { "id": 行ID, "updates": { "field": "value", ... } }，不传 old_values 时由 app-server 自动查表填充
 func TableUpdate(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
-	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/update", fullCodePath)
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/tables", fullCodePath)
 	return PutAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
-// TableDelete 调用工作区 Table 删除接口（DELETE table/delete/{full-code-path}）
+// TableDelete 调用工作区 Table 删除接口（DELETE tables/{full-code-path}）
 // fullCodePath 为表格函数完整路径；body 为 { "ids": [1, 2, 3] }，会触发 OnTableDeleteRows 回调。
 func TableDelete(ctx context.Context, fullCodePath string, body interface{}) (map[string]interface{}, error) {
-	path := buildWorkspaceFunctionPath("/workspace/api/v1/table/delete", fullCodePath)
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/tables", fullCodePath)
 	return DeleteBodyAPI[interface{}, map[string]interface{}](ctx, path, body)
 }
 
-// CallbackOnSelectFuzzy 调用工作区 OnSelectFuzzy 回调（POST callback/on_select_fuzzy/{full-code-path}）。
+// CallbackOnSelectFuzzy 调用工作区动态选项资源（POST selection-options/{full-code-path}）。
 // fullCodePath 为配置了 OnSelectFuzzyMap 的 Form/Table 完整路径；body 含 code、type、value、request（可选）、value_type（可选）。
 // type 支持 by_keyword、by_value、by_values，由具体回调按协议处理。
 func CallbackOnSelectFuzzy(ctx context.Context, fullCodePath string, body map[string]interface{}) (map[string]interface{}, error) {
-	path := buildWorkspaceFunctionPath("/workspace/api/v1/callback/on_select_fuzzy", fullCodePath)
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/selection-options", fullCodePath)
 	return PostAPI[map[string]interface{}, map[string]interface{}](ctx, path, body)
 }

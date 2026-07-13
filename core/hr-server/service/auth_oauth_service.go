@@ -89,7 +89,7 @@ func (s *AuthOAuthService) StartAuthorize(ctx context.Context, providerAlias, re
 	if err != nil {
 		return "", err
 	}
-	if err := s.stateRepo.Create(&model.AuthOAuthState{
+	if err := s.stateRepo.Create(ctx, &model.AuthOAuthState{
 		State:         state,
 		ProviderCode:  providerCode,
 		RedirectAfter: sanitizeRedirectAfter(redirectAfter),
@@ -116,7 +116,7 @@ func (s *AuthOAuthService) FinishCallback(ctx context.Context, providerAlias, st
 	if err != nil {
 		return nil, err
 	}
-	oauthState, err := s.stateRepo.Consume(strings.TrimSpace(state), providerCode)
+	oauthState, err := s.stateRepo.Consume(ctx, strings.TrimSpace(state), providerCode)
 	if err != nil {
 		return nil, fmt.Errorf("授权状态无效或已过期")
 	}
@@ -189,7 +189,7 @@ func (s *AuthOAuthService) ConfirmRegistration(ticket, username, nickname string
 		companyCode = model.DefaultCompanyCode
 	}
 	if s.authService != nil && s.authService.companyRepo != nil {
-		if _, err := s.authService.companyRepo.GetCompanyByCode(companyCode); err != nil {
+		if _, err := s.authService.companyRepo.GetCompanyByCode(context.Background(), companyCode); err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, fmt.Errorf("企业代码 %s 不存在，请联系系统管理员", companyCode)
 			}
@@ -218,7 +218,7 @@ func (s *AuthOAuthService) ConfirmRegistration(ticket, username, nickname string
 		Avatar:       intent.Avatar,
 		Nickname:     nickname,
 	}
-	completedIntent, err := s.registrationIntentRepo.Complete(strings.TrimSpace(ticket), user, identity)
+	completedIntent, err := s.registrationIntentRepo.Complete(context.Background(), strings.TrimSpace(ticket), user, identity)
 	if err != nil {
 		return nil, oauthRegistrationCompleteError(err)
 	}
@@ -239,7 +239,7 @@ func (s *AuthOAuthService) activeRegistrationIntent(ticket string) (*model.AuthO
 	if ticket == "" {
 		return nil, fmt.Errorf("授权注册确认不存在或已失效")
 	}
-	intent, err := s.registrationIntentRepo.GetByTicket(ticket)
+	intent, err := s.registrationIntentRepo.GetByTicket(context.Background(), ticket)
 	if err != nil {
 		return nil, fmt.Errorf("读取授权注册确认失败: %w", err)
 	}

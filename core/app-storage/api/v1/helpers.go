@@ -12,14 +12,6 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 )
 
-// getDefaultUploadSource 获取默认上传来源，如果为空则返回browser
-func getDefaultUploadSource(uploadSource dto.UploadSource) string {
-	if uploadSource == "" {
-		return string(dto.UploadSourceBrowser)
-	}
-	return string(uploadSource)
-}
-
 func logUploadTokenDebug(ctx context.Context, operation string, req dto.GetUploadTokenReq, resp *dto.GetUploadTokenResp, err error) {
 	method := ""
 	issued := false
@@ -37,7 +29,7 @@ func logUploadTokenDebug(ctx context.Context, operation string, req dto.GetUploa
 	}
 	logger.Debugf(
 		ctx,
-		"%s file_name_len=%d content_type=%s file_size=%d router_set=%v bucket_set=%v preview_for_key_set=%v upload_source=%s issued=%v method=%s upload_url_issued=%v server_upload_url_issued=%v download_url_issued=%v server_download_url_issued=%v err:%v",
+		"%s file_name_len=%d content_type=%s file_size=%d router_set=%v bucket_set=%v preview_for_key_set=%v issued=%v method=%s upload_url_issued=%v server_upload_url_issued=%v download_url_issued=%v server_download_url_issued=%v err:%v",
 		operation,
 		len(req.FileName),
 		req.ContentType,
@@ -45,7 +37,6 @@ func logUploadTokenDebug(ctx context.Context, operation string, req dto.GetUploa
 		req.Router != "",
 		req.Bucket != "",
 		req.PreviewForKey != "",
-		getDefaultUploadSource(req.UploadSource),
 		issued,
 		method,
 		uploadURLIssued,
@@ -84,7 +75,6 @@ func buildUploadTokenResponse(
 		Headers:           creds.Headers,
 		UploadHost:        creds.UploadHost,
 		UploadDomain:      creds.UploadDomain,
-		SDKConfig:         creds.SDKConfig,
 		CDNDomain:         cdnDomain,
 		DownloadURL:       downloadURL,
 		ServerDownloadURL: serverDownloadURL,

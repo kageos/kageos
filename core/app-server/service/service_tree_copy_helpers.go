@@ -31,7 +31,7 @@ type copyDirectoryTarget struct {
 }
 
 func copyServiceTreeImpl(s *serviceTreeCopyService, ctx context.Context, req *dto.CopyDirectoryReq) (*dto.CopyDirectoryResp, error) {
-	targetApp, err := s.appRepo.GetAppByID(req.TargetAppID)
+	targetApp, err := s.appRepo.GetAppByIDContext(ctx, req.TargetAppID)
 	if err != nil {
 		return nil, fmt.Errorf("获取目标应用失败: %w", err)
 	}
@@ -45,7 +45,7 @@ func copyFromLocalImpl(s *serviceTreeCopyService, ctx context.Context, req *dto.
 		return nil, err
 	}
 
-	targetRootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(req.TargetDirectoryPath)
+	targetRootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(ctx, req.TargetDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("获取目标目录信息失败: %w", err)
 	}
@@ -116,7 +116,7 @@ func validateCopyDirectoryPlacement(sourceRootPath, targetParentPath, targetRoot
 }
 
 func copyTargetDirectoryExists(s *serviceTreeCopyService, appID int64, targetRootPath string) (bool, error) {
-	existingTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(targetRootPath)
+	existingTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(context.Background(), targetRootPath)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil
@@ -190,17 +190,17 @@ func loadCopyDirectorySource(ctx context.Context, s *serviceTreeCopyService, sou
 	sourceUser := sourceParts[0]
 	sourceAppCode := sourceParts[1]
 
-	sourceApp, err := s.appRepo.GetAppByUserName(sourceUser, sourceAppCode)
+	sourceApp, err := s.appRepo.GetAppByUserNameContext(ctx, sourceUser, sourceAppCode)
 	if err != nil {
 		return nil, fmt.Errorf("获取源应用失败: %w", err)
 	}
 
-	sourceRootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(sourceDirectoryPath)
+	sourceRootTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(ctx, sourceDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("获取源目录信息失败: %w", err)
 	}
 
-	sourceDescendants, err := s.serviceTreeRepo.GetDescendantDirectories(sourceApp.ID, sourceDirectoryPath)
+	sourceDescendants, err := s.serviceTreeRepo.GetDescendantDirectories(ctx, sourceApp.ID, sourceDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("获取源子目录失败: %w", err)
 	}
@@ -407,7 +407,7 @@ func syncCopiedDirectoryMetadata(
 			continue
 		}
 		dirCode := pathParts[len(pathParts)-1]
-		existingTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(item.FullCodePath)
+		existingTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(ctx, item.FullCodePath)
 		if err == nil && existingTree != nil {
 			if existingTree.AppID != targetApp.ID || existingTree.Type != model.ServiceTreeTypePackage {
 				return fmt.Errorf("目标目录路径已存在但类型或应用不匹配: %s", item.FullCodePath)
@@ -416,7 +416,7 @@ func syncCopiedDirectoryMetadata(
 			existingTree.Description = item.Description
 			existingTree.Tags = item.Tags
 			existingTree.UpdateVersionNum = currentVersionNum
-			if err := s.serviceTreeRepo.UpdateServiceTree(existingTree); err != nil {
+			if err := s.serviceTreeRepo.UpdateServiceTree(ctx, existingTree); err != nil {
 				return fmt.Errorf("更新目录元数据失败: path=%s: %w", item.FullCodePath, err)
 			}
 			continue
@@ -436,7 +436,7 @@ func syncCopiedDirectoryMetadata(
 			AddVersionNum:    currentVersionNum,
 			UpdateVersionNum: 0,
 		}
-		if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(newTree, ""); err != nil {
+		if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(ctx, newTree, ""); err != nil {
 			return fmt.Errorf("创建目录元数据失败: path=%s: %w", item.FullCodePath, err)
 		}
 		logger.Infof(ctx, "[CopyServiceTree] 已同步目录元数据: %s", item.FullCodePath)
@@ -461,7 +461,7 @@ func cleanupReplacedDirectoryMetadata(
 		intended[strings.TrimRight(targetRootPath, "/")] = struct{}{}
 	}
 
-	descendants, err := s.serviceTreeRepo.GetDescendantDirectories(targetApp.ID, targetRootPath)
+	descendants, err := s.serviceTreeRepo.GetDescendantDirectories(ctx, targetApp.ID, targetRootPath)
 	if err != nil {
 		return fmt.Errorf("查询待清理旧目录失败: %w", err)
 	}
@@ -475,7 +475,7 @@ func cleanupReplacedDirectoryMetadata(
 		if _, keep := intended[strings.TrimRight(desc.FullCodePath, "/")]; keep {
 			continue
 		}
-		if err := s.serviceTreeRepo.DeleteServiceTree(desc.ID); err != nil {
+		if err := s.serviceTreeRepo.DeleteServiceTree(ctx, desc.ID); err != nil {
 			return fmt.Errorf("清理旧目录元数据失败: path=%s: %w", desc.FullCodePath, err)
 		}
 		logger.Infof(ctx, "[CopyServiceTree] 已清理替换后不存在的旧目录元数据: %s", desc.FullCodePath)

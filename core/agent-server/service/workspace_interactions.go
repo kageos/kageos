@@ -26,7 +26,7 @@ func (s *WorkspaceChatService) pendingInteractionForSession(session *model.Agent
 	if s == nil || s.messageRepo == nil || session == nil || !workspaceSessionHasPendingInteractionStatus(session.Status) {
 		return nil
 	}
-	messages, err := s.messageRepo.ListBySessionID(session.SessionID)
+	messages, err := s.messageRepo.ListBySessionID(context.Background(), session.SessionID)
 	if err != nil {
 		return nil
 	}
@@ -227,7 +227,7 @@ func (s *WorkspaceChatService) RecordWorkspaceInteractionEvent(ctx context.Conte
 	if action == "" {
 		return fmt.Errorf("action 必填")
 	}
-	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	session, err := s.sessionRepo.GetBySessionID(ctx, sessionID)
 	if err != nil || session == nil {
 		return fmt.Errorf("会话不存在: %s", sessionID)
 	}
@@ -257,14 +257,14 @@ func (s *WorkspaceChatService) RecordWorkspaceInteractionEvent(ctx context.Conte
 	}
 	msg.CreatedBy = user
 	msg.UpdatedBy = user
-	if err := s.messageRepo.Create(msg); err != nil {
+	if err := s.messageRepo.Create(ctx, msg); err != nil {
 		return err
 	}
 	if workspaceInteractionActionResolvesPending(action) && workspaceSessionHasPendingInteractionStatus(session.Status) {
 		session.Status = model.ChatSessionStatusActive
 	}
 	session.UpdatedBy = user
-	if err := s.sessionRepo.Update(session); err != nil {
+	if err := s.sessionRepo.Update(ctx, session); err != nil {
 		return fmt.Errorf("更新会话交互时间失败: %w", err)
 	}
 	return nil

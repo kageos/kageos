@@ -1,6 +1,6 @@
 import type { ApiResponse } from '@/architecture/shared/apiTypes'
 
-const AUTH_ERROR_CODES = new Set(['TOKEN_EXPIRED', 'TOKEN_INVALID', 'TOKEN_BLACKLISTED'])
+const AUTH_ERROR_CODES = new Set(['unauthenticated', 'TOKEN_EXPIRED', 'TOKEN_INVALID', 'TOKEN_BLACKLISTED'])
 const AUTH_ERROR_MESSAGE_KEYWORDS = [
   '认证令牌无效或已过期',
   '未提供认证令牌',

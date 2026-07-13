@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 
 	"github.com/kageos/kageos/core/hr-server/model"
@@ -15,9 +16,9 @@ func NewAuthExternalIdentityRepository(db *gorm.DB) *AuthExternalIdentityReposit
 	return &AuthExternalIdentityRepository{db: db}
 }
 
-func (r *AuthExternalIdentityRepository) GetByProviderSubject(providerCode, externalID string) (*model.AuthExternalIdentity, error) {
+func (r *AuthExternalIdentityRepository) GetByProviderSubject(ctx context.Context, providerCode, externalID string) (*model.AuthExternalIdentity, error) {
 	var identity model.AuthExternalIdentity
-	err := r.db.Where("provider_code = ? AND external_id = ?", providerCode, externalID).First(&identity).Error
+	err := r.db.WithContext(ctx).Where("provider_code = ? AND external_id = ?", providerCode, externalID).First(&identity).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -27,10 +28,10 @@ func (r *AuthExternalIdentityRepository) GetByProviderSubject(providerCode, exte
 	return &identity, nil
 }
 
-func (r *AuthExternalIdentityRepository) Create(identity *model.AuthExternalIdentity) error {
-	return r.db.Create(identity).Error
+func (r *AuthExternalIdentityRepository) Create(ctx context.Context, identity *model.AuthExternalIdentity) error {
+	return r.db.WithContext(ctx).Create(identity).Error
 }
 
-func (r *AuthExternalIdentityRepository) Update(identity *model.AuthExternalIdentity) error {
-	return r.db.Save(identity).Error
+func (r *AuthExternalIdentityRepository) Update(ctx context.Context, identity *model.AuthExternalIdentity) error {
+	return r.db.WithContext(ctx).Save(identity).Error
 }

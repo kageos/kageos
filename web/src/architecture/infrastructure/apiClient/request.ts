@@ -279,7 +279,7 @@ service.interceptors.response.use(
     const msg = extractApiMessage(responsePayload) || '请求失败'
 
     // 请求成功
-    if (code === 0) {
+    if (code === 'ok' || code === 0) {
       // 🔥 如果存在 metadata 且 data 是对象，将 metadata 附加到 data 上
       // 这样调用方可以通过 data._metadata 访问元数据
       if (metadata && typeof data === 'object' && data !== null && !Array.isArray(data)) {

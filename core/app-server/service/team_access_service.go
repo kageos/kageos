@@ -12,6 +12,7 @@ import (
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/access"
 	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/apperror"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
 )
@@ -42,7 +43,7 @@ func (s *TeamAccessService) Check(ctx context.Context, tenantUser, app, username
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("无权限执行 %s: %s", action, access.NormalizeResourcePath(resourcePath))
+		return apperror.PermissionDenied(fmt.Sprintf("无权限执行 %s: %s", action, access.NormalizeResourcePath(resourcePath)), nil)
 	}
 	return nil
 }
@@ -75,7 +76,7 @@ func (s *TeamAccessService) CheckWorkspaceData(ctx context.Context, tenantUser, 
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("无权限执行 %s: %s", action, access.NormalizeResourcePath(resourcePath))
+		return apperror.PermissionDenied(fmt.Sprintf("无权限执行 %s: %s", action, access.NormalizeResourcePath(resourcePath)), nil)
 	}
 	return nil
 }
@@ -86,7 +87,7 @@ func (s *TeamAccessService) IsOpenCollaborationWorkspace(ctx context.Context, te
 	if strings.TrimSpace(username) == "" || s.appRepo == nil {
 		return false, nil
 	}
-	appModel, err := s.appRepo.GetAppByUserName(strings.TrimSpace(tenantUser), strings.TrimSpace(app))
+	appModel, err := s.appRepo.GetAppByUserNameContext(ctx, strings.TrimSpace(tenantUser), strings.TrimSpace(app))
 	if err != nil {
 		return false, err
 	}
@@ -179,7 +180,7 @@ func (s *TeamAccessService) Assign(ctx context.Context, req access.AssignRoleReq
 
 func (s *TeamAccessService) BatchAssign(ctx context.Context, req access.BatchAssignRoleRequest) error {
 	if len(req.ResourcePaths) == 0 || len(req.Usernames) == 0 || len(req.RoleCodes) == 0 {
-		return fmt.Errorf("resource_paths、usernames、role_codes 不能为空")
+		return apperror.InvalidArgument("resource_paths、usernames、role_codes 不能为空", nil)
 	}
 	for _, resourcePath := range req.ResourcePaths {
 		for _, username := range req.Usernames {
@@ -208,7 +209,7 @@ func (s *TeamAccessService) Remove(ctx context.Context, req access.RemoveRoleReq
 	req.TenantUser = strings.TrimSpace(req.TenantUser)
 	req.App = strings.TrimSpace(req.App)
 	if req.TenantUser == "" || req.App == "" || req.Username == "" || req.ResourcePath == "" {
-		return fmt.Errorf("tenant_user、app、username、resource_path 不能为空")
+		return apperror.InvalidArgument("tenant_user、app、username、resource_path 不能为空", nil)
 	}
 	if req.Actor == "" {
 		req.Actor = contextx.GetRequestUser(ctx)
@@ -217,7 +218,7 @@ func (s *TeamAccessService) Remove(ctx context.Context, req access.RemoveRoleReq
 		return err
 	}
 	if req.RoleCode == access.RoleOwner && !s.isWorkspaceOwner(ctx, req.TenantUser, req.App, req.Actor) {
-		return fmt.Errorf("只有 Owner 可以移除 Owner 角色")
+		return apperror.PermissionDenied("只有 Owner 可以移除 Owner 角色", nil)
 	}
 
 	rows, err := s.teamAccessRepo.RemoveAssignment(ctx, req.TenantUser, req.App, req.Username, req.ResourcePath, req.RoleCode)
@@ -336,11 +337,11 @@ func (s *TeamAccessService) ListAccessibleApps(ctx context.Context, username str
 		seen[key] = true
 		pairs = append(pairs, [2]string{assignment.TenantUser, assignment.App})
 	}
-	grantedApps, err := s.appRepo.GetAppsByUserAppPairs(pairs)
+	grantedApps, err := s.appRepo.GetAppsByUserAppPairs(ctx, pairs)
 	if err != nil {
 		return nil, err
 	}
-	openApps, err := s.appRepo.GetAppsByAccessMode(model.AppAccessModeOpenCollaboration)
+	openApps, err := s.appRepo.GetAppsByAccessMode(ctx, model.AppAccessModeOpenCollaboration)
 	if err != nil {
 		return nil, err
 	}
@@ -450,7 +451,7 @@ func (s *TeamAccessService) isWorkspaceOwnerOrLegacyAdmin(ctx context.Context, t
 	if s.appRepo == nil || tenantUser == "" || app == "" || username == "" {
 		return false
 	}
-	appModel, err := s.appRepo.GetAppByUserName(tenantUser, app)
+	appModel, err := s.appRepo.GetAppByUserNameContext(ctx, tenantUser, app)
 	if err != nil {
 		logger.Debugf(ctx, "[TeamAccess] load app failed for legacy admin fallback: %s/%s err=%v", tenantUser, app, err)
 		return false
@@ -460,10 +461,10 @@ func (s *TeamAccessService) isWorkspaceOwnerOrLegacyAdmin(ctx context.Context, t
 
 func (s *TeamAccessService) requireAdminForGrant(ctx context.Context, tenantUser, app, actor, resourcePath string, roleCode access.RoleCode) error {
 	if actor == "" {
-		return fmt.Errorf("无法获取操作者")
+		return apperror.Unauthenticated("无法获取操作者", nil)
 	}
 	if roleCode == access.RoleOwner && !s.isWorkspaceOwner(ctx, tenantUser, app, actor) {
-		return fmt.Errorf("只有 Owner 可以授予 Owner 角色")
+		return apperror.PermissionDenied("只有 Owner 可以授予 Owner 角色", nil)
 	}
 	return s.Check(ctx, tenantUser, app, actor, resourcePath, access.ActionAdmin)
 }
@@ -471,7 +472,7 @@ func (s *TeamAccessService) requireAdminForGrant(ctx context.Context, tenantUser
 func (s *TeamAccessService) ensureAssignableUserInRequesterCompany(ctx context.Context, username string) error {
 	username = strings.TrimSpace(username)
 	if username == "" {
-		return fmt.Errorf("username 不能为空")
+		return apperror.InvalidArgument("username 不能为空", nil)
 	}
 	companyCode := strings.TrimSpace(contextx.GetRequestCompanyCode(ctx))
 	if companyCode == "" || s.userLookup == nil {
@@ -479,13 +480,13 @@ func (s *TeamAccessService) ensureAssignableUserInRequesterCompany(ctx context.C
 	}
 	user, err := s.userLookup(ctx, username)
 	if err != nil {
-		return fmt.Errorf("被授权用户不存在或不属于当前企业: %w", err)
+		return apperror.NotFound("被授权用户不存在或不属于当前企业", err)
 	}
 	if user == nil || strings.TrimSpace(user.Username) == "" {
-		return fmt.Errorf("被授权用户不存在或不属于当前企业")
+		return apperror.NotFound("被授权用户不存在或不属于当前企业", nil)
 	}
 	if user.CompanyCode != "" && user.CompanyCode != companyCode {
-		return fmt.Errorf("被授权用户不存在或不属于当前企业")
+		return apperror.NotFound("被授权用户不存在或不属于当前企业", nil)
 	}
 	return nil
 }
@@ -496,17 +497,17 @@ func lookupUserForTeamAccess(ctx context.Context, username string) (*dto.UserInf
 
 func validateAssignRoleRequest(req access.AssignRoleRequest) error {
 	if req.TenantUser == "" || req.App == "" || req.Username == "" || req.ResourcePath == "" {
-		return fmt.Errorf("tenant_user、app、username、resource_path 不能为空")
+		return apperror.InvalidArgument("tenant_user、app、username、resource_path 不能为空", nil)
 	}
 	if !access.IsValidRoleCode(req.RoleCode) {
-		return fmt.Errorf("无效角色: %s", req.RoleCode)
+		return apperror.InvalidArgument(fmt.Sprintf("无效角色: %s", req.RoleCode), nil)
 	}
 	resourceTenant, resourceApp, err := access.ParseUserApp(req.ResourcePath)
 	if err != nil {
 		return err
 	}
 	if resourceTenant != req.TenantUser || resourceApp != req.App {
-		return fmt.Errorf("resource_path 与 workspace 不匹配: %s", req.ResourcePath)
+		return apperror.InvalidArgument(fmt.Sprintf("resource_path 与 workspace 不匹配: %s", req.ResourcePath), nil)
 	}
 	return nil
 }

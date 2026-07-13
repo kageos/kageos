@@ -31,7 +31,7 @@ func NewRouter(service *timerservice.Service, gatewayVerifiers ...*controlauth.V
 	api.POST("/tasks/:id/pause", pauseTask(service))
 	api.POST("/tasks/:id/resume", resumeTask(service))
 	api.POST("/tasks/:id/cancel", cancelTask(service))
-	api.POST("/tasks/:id/run_now", runNow(service))
+	api.POST("/tasks/:id/run-now", runNow(service))
 	api.GET("/tasks/:id/executions", listExecutions(service))
 	api.GET("/tasks/:id/executions/:execution_id", getExecution(service))
 	// Worker execution state is accepted only on the authenticated NATS

@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -57,7 +58,7 @@ func NewSystemSettingsService(repo *repository.SystemSettingRepository) *SystemS
 }
 
 func (s *SystemSettingsService) GetSettings() (*dto.SystemSettingsResp, error) {
-	values, err := s.repo.GetAll()
+	values, err := s.repo.GetAll(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +113,7 @@ func (s *SystemSettingsService) UpdateSettings(req dto.UpdateSystemSettingsReq, 
 			return nil, err
 		}
 	}
-	if err := s.repo.UpsertMany(values, updatedBy); err != nil {
+	if err := s.repo.UpsertMany(context.Background(), values, updatedBy); err != nil {
 		return nil, err
 	}
 	return s.GetSettings()
@@ -206,7 +207,7 @@ func (s *SystemSettingsService) ReloadTLS() error {
 }
 
 func (s *SystemSettingsService) GetRuntimeEmailConfig() (appconfig.EmailConfig, error) {
-	values, err := s.repo.GetAll()
+	values, err := s.repo.GetAll(context.Background())
 	if err != nil {
 		return appconfig.EmailConfig{}, err
 	}
@@ -226,7 +227,7 @@ func (s *SystemSettingsService) GetRuntimeEmailConfig() (appconfig.EmailConfig, 
 }
 
 func (s *SystemSettingsService) GetRegistrationMode() (string, error) {
-	values, err := s.repo.GetAll()
+	values, err := s.repo.GetAll(context.Background())
 	if err != nil {
 		return "", err
 	}

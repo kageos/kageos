@@ -203,7 +203,7 @@ func (s *WorkspaceChatService) workspaceSessionMessageContext(sessionID string) 
 	if s == nil || s.sessionRepo == nil || strings.TrimSpace(sessionID) == "" {
 		return "", ""
 	}
-	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	session, err := s.sessionRepo.GetBySessionID(context.Background(), sessionID)
 	if err != nil || session == nil {
 		return "", ""
 	}
@@ -289,7 +289,7 @@ func (s *WorkspaceChatService) loadedGuideDocsForSession(ctx context.Context, se
 	if s == nil || s.messageRepo == nil || strings.TrimSpace(sessionID) == "" {
 		return loaded
 	}
-	messages, err := s.messageRepo.ListBySessionID(sessionID)
+	messages, err := s.messageRepo.ListBySessionID(ctx, sessionID)
 	if err != nil {
 		logger.Warnf(ctx, "[WorkspaceChatStream] 查询会话已读 SOP 失败 SessionID=%s: %v", sessionID, err)
 		return loaded

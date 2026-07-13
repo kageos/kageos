@@ -29,16 +29,16 @@ func newAppServiceWorkspaceTestDeps(t *testing.T) (*AppService, *repository.AppR
 	}
 	appRepo := repository.NewAppRepository(db)
 	treeRepo := repository.NewServiceTreeRepository(db)
-	return NewAppService(&fakeAppRuntimeClient{}, appRepo, nil, treeRepo, nil), appRepo, treeRepo
+	return NewAppService(AppServiceDependencies{RuntimeClient: &fakeAppRuntimeClient{}, AppRepository: appRepo, ServiceTreeRepo: treeRepo}), appRepo, treeRepo
 }
 
 func TestAppServiceUpdateWorkspaceRenamesRootAndAppTogether(t *testing.T) {
 	service, appRepo, treeRepo := newAppServiceWorkspaceTestDeps(t)
 	app := &model.App{User: "alice", Code: "home", Name: "我的空间", Version: "v1"}
-	if err := appRepo.CreateApp(app); err != nil {
+	if err := appRepo.CreateApp(context.Background(), app); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
-	if err := treeRepo.Create(&model.ServiceTree{
+	if err := treeRepo.Create(context.Background(), &model.ServiceTree{
 		AppID:        app.ID,
 		RefID:        app.ID,
 		Name:         app.Name,
@@ -61,14 +61,14 @@ func TestAppServiceUpdateWorkspaceRenamesRootAndAppTogether(t *testing.T) {
 		t.Fatalf("response name = %q, want %q", resp.Name, name)
 	}
 
-	updatedApp, err := appRepo.GetAppByUserName("alice", "home")
+	updatedApp, err := appRepo.GetAppByUserName(context.Background(), "alice", "home")
 	if err != nil {
 		t.Fatalf("reload app: %v", err)
 	}
 	if updatedApp.Name != name || updatedApp.Code != "home" {
 		t.Fatalf("unexpected app after rename: %#v", updatedApp)
 	}
-	root, err := treeRepo.GetRootNodeByAppID(app.ID)
+	root, err := treeRepo.GetRootNodeByAppID(context.Background(), app.ID)
 	if err != nil {
 		t.Fatalf("reload root: %v", err)
 	}
@@ -80,10 +80,10 @@ func TestAppServiceUpdateWorkspaceRenamesRootAndAppTogether(t *testing.T) {
 func TestAppServiceUpdateWorkspaceRejectsBlankName(t *testing.T) {
 	service, appRepo, treeRepo := newAppServiceWorkspaceTestDeps(t)
 	app := &model.App{User: "alice", Code: "home", Name: "我的空间", Version: "v1"}
-	if err := appRepo.CreateApp(app); err != nil {
+	if err := appRepo.CreateApp(context.Background(), app); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
-	if err := treeRepo.Create(&model.ServiceTree{
+	if err := treeRepo.Create(context.Background(), &model.ServiceTree{
 		AppID:        app.ID,
 		RefID:        app.ID,
 		Name:         app.Name,
@@ -106,10 +106,10 @@ func TestAppServiceUpdateWorkspaceRejectsBlankName(t *testing.T) {
 func TestAppServiceUpdateWorkspaceRejectsDuplicateName(t *testing.T) {
 	service, appRepo, treeRepo := newAppServiceWorkspaceTestDeps(t)
 	app := &model.App{User: "alice", Code: "home", Name: "我的空间", Version: "v1"}
-	if err := appRepo.CreateApp(app); err != nil {
+	if err := appRepo.CreateApp(context.Background(), app); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
-	if err := treeRepo.Create(&model.ServiceTree{
+	if err := treeRepo.Create(context.Background(), &model.ServiceTree{
 		AppID:        app.ID,
 		RefID:        app.ID,
 		Name:         app.Name,
@@ -119,7 +119,7 @@ func TestAppServiceUpdateWorkspaceRejectsDuplicateName(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create root node: %v", err)
 	}
-	if err := appRepo.CreateApp(&model.App{User: "alice", Code: "sales", Name: "销售空间", Version: "v1"}); err != nil {
+	if err := appRepo.CreateApp(context.Background(), &model.App{User: "alice", Code: "sales", Name: "销售空间", Version: "v1"}); err != nil {
 		t.Fatalf("create existing app: %v", err)
 	}
 
@@ -135,10 +135,10 @@ func TestAppServiceUpdateWorkspaceRejectsDuplicateName(t *testing.T) {
 func TestAppServiceUpdateWorkspaceAccessMode(t *testing.T) {
 	service, appRepo, treeRepo := newAppServiceWorkspaceTestDeps(t)
 	app := &model.App{User: "alice", Code: "community", Name: "社区", Version: "v1"}
-	if err := appRepo.CreateApp(app); err != nil {
+	if err := appRepo.CreateApp(context.Background(), app); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
-	if err := treeRepo.Create(&model.ServiceTree{
+	if err := treeRepo.Create(context.Background(), &model.ServiceTree{
 		AppID:        app.ID,
 		RefID:        app.ID,
 		Name:         app.Name,
@@ -161,7 +161,7 @@ func TestAppServiceUpdateWorkspaceAccessMode(t *testing.T) {
 		t.Fatalf("response access_mode = %q, want %q", resp.AccessMode, mode)
 	}
 
-	updatedApp, err := appRepo.GetAppByUserName("alice", "community")
+	updatedApp, err := appRepo.GetAppByUserName(context.Background(), "alice", "community")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestAppServiceUpdateWorkspaceAccessMode(t *testing.T) {
 
 func TestAppServiceUpdateWorkspaceRejectsInvalidAccessMode(t *testing.T) {
 	service, appRepo, _ := newAppServiceWorkspaceTestDeps(t)
-	if err := appRepo.CreateApp(&model.App{User: "alice", Code: "community", Name: "社区", Version: "v1"}); err != nil {
+	if err := appRepo.CreateApp(context.Background(), &model.App{User: "alice", Code: "community", Name: "社区", Version: "v1"}); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
 

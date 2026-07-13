@@ -31,7 +31,7 @@ func NewFunctionService(
 
 // GetFunctionByID 根据函数 ID 获取函数模型。
 func (f *FunctionService) GetFunctionByID(ctx context.Context, functionID int64) (*model.Function, error) {
-	function, err := f.functionRepo.GetFunctionByID(functionID)
+	function, err := f.functionRepo.GetFunctionByID(ctx, functionID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("函数不存在")
@@ -45,7 +45,7 @@ func (f *FunctionService) GetFunctionByID(ctx context.Context, functionID int64)
 // 这里只返回函数基础信息，调用方负责组合页面所需的上下文。
 func (f *FunctionService) GetFunctionByFullCodePath(ctx context.Context, fullCodePath string) (*dto.GetFunctionResp, error) {
 	// 从数据库获取函数信息
-	function, err := f.functionRepo.GetFunctionByFullCodePath(fullCodePath)
+	function, err := f.functionRepo.GetFunctionByFullCodePath(ctx, fullCodePath)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("函数不存在")
@@ -60,7 +60,7 @@ func (f *FunctionService) GetFunctionByFullCodePath(ctx context.Context, fullCod
 // 这里只返回函数基础信息，调用方负责组合页面所需的上下文。
 func (f *FunctionService) GetFunction(ctx context.Context, functionID int64) (*dto.GetFunctionResp, error) {
 	// 从数据库获取函数信息
-	function, err := f.functionRepo.GetFunctionByID(functionID)
+	function, err := f.functionRepo.GetFunctionByID(ctx, functionID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("函数不存在")
@@ -104,13 +104,13 @@ func (f *FunctionService) convertFunctionToResp(ctx context.Context, function *m
 
 // GetAppByUserAndCode 根据用户和应用代码获取应用信息。
 func (f *FunctionService) GetAppByUserAndCode(ctx context.Context, user, app string) (*model.App, error) {
-	return f.appRepo.GetAppByUserName(user, app)
+	return f.appRepo.GetAppByUserName(ctx, user, app)
 }
 
 // GetFunctionsByApp 获取应用下所有函数
 func (f *FunctionService) GetFunctionsByApp(ctx context.Context, appID int64) (*dto.GetFunctionsByAppResp, error) {
 	// 从数据库获取应用的所有函数
-	functions, err := f.functionRepo.GetFunctionsByAppID(appID)
+	functions, err := f.functionRepo.GetFunctionsByAppID(ctx, appID)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用函数列表失败: %w", err)
 	}

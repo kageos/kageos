@@ -9,7 +9,7 @@ import (
 // GetAPI 发送 GET 请求（无请求体，参数通过 URL query string 传递）
 // T: 响应类型（指针类型，如 *dto.SearchFunctionsResp）
 // ctx: 上下文（从 ctx 中提取 token、trace_id、request_user）
-// path: API路径（如 "/workspace/api/v1/service_tree/123" 或已包含 query params 的完整路径）
+// path: API路径（如 "/workspace/api/v1/directories" 或已包含 query params 的完整路径）
 // queryParams: URL查询参数（可选，nil 表示无查询参数或 path 已包含 query params）
 // 返回: T（指针类型）
 func GetAPI[T any](ctx context.Context, path string, queryParams url.Values) (T, error) {
@@ -27,7 +27,7 @@ func GetAPI[T any](ctx context.Context, path string, queryParams url.Values) (T,
 // TReq: 请求类型（可以是值类型或指针类型）
 // TResp: 响应类型（指针类型，如 *dto.AddFunctionsResp）
 // ctx: 上下文（从 ctx 中提取 token、trace_id、request_user）
-// path: API路径（如 "/workspace/api/v1/service_tree/add_functions"）
+// path: API路径（如 "/workspace/api/v1/functions/batch"）
 // req: 请求体（会被序列化为JSON）
 // 返回: TResp（指针类型）
 func PostAPI[TReq, TResp any](ctx context.Context, path string, req TReq) (TResp, error) {
@@ -43,7 +43,7 @@ func PostAPI[TReq, TResp any](ctx context.Context, path string, req TReq) (TResp
 // TReq: 请求类型（可以是值类型或指针类型）
 // TResp: 响应类型（指针类型，如 *dto.UpdateWorkspaceResp）
 // ctx: 上下文（从 ctx 中提取 token、trace_id、request_user）
-// path: API路径（如 "/workspace/api/v1/service_tree/update"）
+// path: API路径（如 "/workspace/api/v1/tables/user/app/example.table"）
 // req: 请求体（会被序列化为JSON）
 // 返回: TResp（指针类型）
 func PutAPI[TReq, TResp any](ctx context.Context, path string, req TReq) (TResp, error) {

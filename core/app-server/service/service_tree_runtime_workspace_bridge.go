@@ -38,7 +38,7 @@ func newRuntimeWorkspaceBridge(appRepo *repository.AppRepository, appCall runtim
 }
 
 func (b *runtimeWorkspaceBridge) getAppByUserApp(user, app string) (*model.App, error) {
-	appModel, err := b.appRepo.GetAppByUserName(user, app)
+	appModel, err := b.appRepo.GetAppByUserName(context.Background(), user, app)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用信息失败: %w", err)
 	}
@@ -54,7 +54,7 @@ func (b *runtimeWorkspaceBridge) getRuntimeBoundAppByUserApp(user, app, action s
 }
 
 func (b *runtimeWorkspaceBridge) getRuntimeBoundAppByID(appID int64, action string) (*model.App, error) {
-	appModel, err := b.appRepo.GetAppByID(appID)
+	appModel, err := b.appRepo.GetAppByID(context.Background(), appID)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用失败: %w", err)
 	}

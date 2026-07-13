@@ -16,7 +16,7 @@ func (s *ServiceTreeService) getServiceTreeForAudit(id int64) *model.ServiceTree
 	if id <= 0 || s == nil || s.mutationService == nil || s.mutationService.serviceTreeRepo == nil {
 		return nil
 	}
-	serviceTree, err := s.mutationService.serviceTreeRepo.GetServiceTreeByID(id)
+	serviceTree, err := s.mutationService.serviceTreeRepo.GetServiceTreeByID(context.Background(), id)
 	if err != nil {
 		return nil
 	}
@@ -27,7 +27,7 @@ func (s *ServiceTreeService) getServiceTreeForAuditByPath(fullCodePath string) *
 	if fullCodePath == "" || s == nil || s.mutationService == nil || s.mutationService.serviceTreeRepo == nil {
 		return nil
 	}
-	serviceTree, err := s.mutationService.serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
+	serviceTree, err := s.mutationService.serviceTreeRepo.GetServiceTreeByFullPath(context.Background(), fullCodePath)
 	if err != nil {
 		return nil
 	}

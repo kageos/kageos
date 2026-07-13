@@ -41,7 +41,7 @@ func NewServiceTree(serviceTreeService *service.ServiceTreeService, teamAccessSe
 func (s *ServiceTree) CreatePackage(c *gin.Context) {
 	var req dto.CreatePackageReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 	resourcePath := req.ParentFullCodePath
@@ -49,14 +49,14 @@ func (s *ServiceTree) CreatePackage(c *gin.Context) {
 		resourcePath = access.AppRootPath(req.User, req.App)
 	}
 	if err := requireAccess(c, s.teamAccessService, resourcePath, access.ActionAdmin); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	resp, err := s.serviceTreeService.CreatePackage(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, "创建目录失败: "+err.Error())
+		response.Internal(c, "创建目录失败: "+err.Error())
 		return
 	}
 
@@ -78,18 +78,18 @@ func (s *ServiceTree) CreatePackage(c *gin.Context) {
 func (s *ServiceTree) CreateFunction(c *gin.Context) {
 	var req dto.CreateFunctionReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, req.DirectoryPath, access.ActionAdmin); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	resp, err := s.serviceTreeService.CreateFunction(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, "创建函数失败: "+err.Error())
+		response.Internal(c, "创建函数失败: "+err.Error())
 		return
 	}
 
@@ -111,7 +111,7 @@ func (s *ServiceTree) CreateFunction(c *gin.Context) {
 func (s *ServiceTree) CreateDocs(c *gin.Context) {
 	var req dto.CreateDocsReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 	resourcePath := req.ParentFullCodePath
@@ -119,14 +119,14 @@ func (s *ServiceTree) CreateDocs(c *gin.Context) {
 		resourcePath = access.AppRootPath(req.User, req.App)
 	}
 	if err := requireAccess(c, s.teamAccessService, resourcePath, access.ActionWrite); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	resp, err := s.serviceTreeService.CreateDocs(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, "创建文档失败: "+err.Error())
+		response.Internal(c, "创建文档失败: "+err.Error())
 		return
 	}
 
@@ -148,7 +148,7 @@ func (s *ServiceTree) CreateDocs(c *gin.Context) {
 // @Failure 401 {string} string "未授权"
 // @Failure 404 {string} string "服务目录不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/service_tree/detail [get]
+// @Router /workspace/api/v1/directories [get]
 func (s *ServiceTree) GetServiceTreeDetail(c *gin.Context) {
 	var req dto.GetServiceTreeDetailReq
 
@@ -157,7 +157,7 @@ func (s *ServiceTree) GetServiceTreeDetail(c *gin.Context) {
 	if idStr != "" {
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
-			response.FailWithMessage(c, "无效的ID参数")
+			response.BadRequest(c, "无效的ID参数")
 			return
 		}
 		req.ID = id
@@ -167,17 +167,17 @@ func (s *ServiceTree) GetServiceTreeDetail(c *gin.Context) {
 	req.FullCodePath = c.Query("full_code_path")
 
 	if req.ID == 0 && req.FullCodePath == "" {
-		response.FailWithMessage(c, "必须提供 ID 或 full_code_path 参数")
+		response.BadRequest(c, "必须提供 ID 或 full_code_path 参数")
 		return
 	}
 	ctx := contextx.ToContext(c)
 	resp, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, "获取服务目录详情失败: "+err.Error())
+		response.Internal(c, "获取服务目录详情失败: "+err.Error())
 		return
 	}
 	if err := requireWorkspaceDataAccess(c, s.teamAccessService, resp.FullCodePath, access.ActionRead); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -197,17 +197,17 @@ func (s *ServiceTree) GetServiceTreeDetail(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/service_tree/batch_detail [post]
+// @Router /workspace/api/v1/directory-queries [post]
 func (s *ServiceTree) BatchGetServiceTreeDetails(c *gin.Context) {
 	var req dto.BatchGetServiceTreeDetailsReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
 	resp, err := s.serviceTreeService.BatchGetServiceTreeDetails(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, "批量获取服务目录详情失败: "+err.Error())
+		response.Internal(c, "批量获取服务目录详情失败: "+err.Error())
 		return
 	}
 
@@ -225,23 +225,23 @@ func (s *ServiceTree) BatchGetServiceTreeDetails(c *gin.Context) {
 // @Param full_code_path query string true "目录完整路径"
 // @Success 200 {object} dto.GetDirectoryOverviewResp "获取成功"
 // @Failure 400 {string} string "请求参数错误"
-// @Router /workspace/api/v1/service_tree/overview [get]
+// @Router /workspace/api/v1/directory-overviews [get]
 func (s *ServiceTree) GetDirectoryOverview(c *gin.Context) {
 	req := dto.GetDirectoryOverviewReq{
 		FullCodePath: c.Query("full_code_path"),
 	}
 	if req.FullCodePath == "" {
-		response.FailWithMessage(c, "必须提供 full_code_path 参数")
+		response.BadRequest(c, "必须提供 full_code_path 参数")
 		return
 	}
 	if err := requireWorkspaceDataAccess(c, s.teamAccessService, req.FullCodePath, access.ActionRead); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	resp, err := s.serviceTreeService.GetDirectoryOverview(contextx.ToContext(c), &req)
 	if err != nil {
-		response.FailWithMessage(c, "获取目录概览失败: "+err.Error())
+		response.Internal(c, "获取目录概览失败: "+err.Error())
 		return
 	}
 
@@ -265,13 +265,13 @@ func (s *ServiceTree) UpdatePackage(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		response.FailWithMessage(c, "参数错误: 无效的ID")
+		response.BadRequest(c, "参数错误: 无效的ID")
 		return
 	}
 
 	var req dto.UpdatePackageReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 	req.ID = id
@@ -279,15 +279,15 @@ func (s *ServiceTree) UpdatePackage(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	serviceTree, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{ID: id})
 	if err != nil {
-		response.FailWithMessage(c, "获取目录失败: "+err.Error())
+		response.Internal(c, "获取目录失败: "+err.Error())
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, serviceTree.FullCodePath, access.ActionAdmin); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := s.serviceTreeService.UpdatePackage(ctx, &req); err != nil {
-		response.FailWithMessage(c, "更新目录失败: "+err.Error())
+		response.Internal(c, "更新目录失败: "+err.Error())
 		return
 	}
 
@@ -310,22 +310,22 @@ func (s *ServiceTree) DeletePackage(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		response.FailWithMessage(c, "参数错误: 无效的ID")
+		response.BadRequest(c, "参数错误: 无效的ID")
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	serviceTree, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{ID: id})
 	if err != nil {
-		response.FailWithMessage(c, "获取目录失败: "+err.Error())
+		response.Internal(c, "获取目录失败: "+err.Error())
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, serviceTree.FullCodePath, access.ActionDelete); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := s.serviceTreeService.DeletePackage(ctx, id); err != nil {
-		response.FailWithMessage(c, "删除目录失败: "+err.Error())
+		response.Internal(c, "删除目录失败: "+err.Error())
 		return
 	}
 
@@ -349,13 +349,13 @@ func (s *ServiceTree) UpdateFunction(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		response.FailWithMessage(c, "参数错误: 无效的ID")
+		response.BadRequest(c, "参数错误: 无效的ID")
 		return
 	}
 
 	var req dto.UpdateFunctionReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 	req.ID = id
@@ -363,15 +363,15 @@ func (s *ServiceTree) UpdateFunction(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	serviceTree, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{ID: id})
 	if err != nil {
-		response.FailWithMessage(c, "获取函数失败: "+err.Error())
+		response.Internal(c, "获取函数失败: "+err.Error())
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, serviceTree.FullCodePath, access.ActionAdmin); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := s.serviceTreeService.UpdateFunction(ctx, &req); err != nil {
-		response.FailWithMessage(c, "更新函数失败: "+err.Error())
+		response.Internal(c, "更新函数失败: "+err.Error())
 		return
 	}
 
@@ -394,22 +394,22 @@ func (s *ServiceTree) DeleteFunction(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		response.FailWithMessage(c, "参数错误: 无效的ID")
+		response.BadRequest(c, "参数错误: 无效的ID")
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	serviceTree, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{ID: id})
 	if err != nil {
-		response.FailWithMessage(c, "获取函数失败: "+err.Error())
+		response.Internal(c, "获取函数失败: "+err.Error())
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, serviceTree.FullCodePath, access.ActionDelete); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := s.serviceTreeService.DeleteFunction(ctx, id); err != nil {
-		response.FailWithMessage(c, "删除函数失败: "+err.Error())
+		response.Internal(c, "删除函数失败: "+err.Error())
 		return
 	}
 
@@ -433,13 +433,13 @@ func (s *ServiceTree) UpdateDocs(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		response.FailWithMessage(c, "参数错误: 无效的ID")
+		response.BadRequest(c, "参数错误: 无效的ID")
 		return
 	}
 
 	var req dto.UpdateDocsReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 	req.ID = id
@@ -447,15 +447,15 @@ func (s *ServiceTree) UpdateDocs(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	serviceTree, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{ID: id})
 	if err != nil {
-		response.FailWithMessage(c, "获取文档失败: "+err.Error())
+		response.Internal(c, "获取文档失败: "+err.Error())
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, serviceTree.FullCodePath, access.ActionUpdate); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := s.serviceTreeService.UpdateDocs(ctx, &req); err != nil {
-		response.FailWithMessage(c, "更新文档失败: "+err.Error())
+		response.Internal(c, "更新文档失败: "+err.Error())
 		return
 	}
 
@@ -478,22 +478,22 @@ func (s *ServiceTree) DeleteDocs(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		response.FailWithMessage(c, "参数错误: 无效的ID")
+		response.BadRequest(c, "参数错误: 无效的ID")
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	serviceTree, err := s.serviceTreeService.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{ID: id})
 	if err != nil {
-		response.FailWithMessage(c, "获取文档失败: "+err.Error())
+		response.Internal(c, "获取文档失败: "+err.Error())
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, serviceTree.FullCodePath, access.ActionDelete); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := s.serviceTreeService.DeleteDocs(ctx, id); err != nil {
-		response.FailWithMessage(c, "删除文档失败: "+err.Error())
+		response.Internal(c, "删除文档失败: "+err.Error())
 		return
 	}
 
@@ -513,14 +513,14 @@ func (s *ServiceTree) DeleteDocs(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/service_tree/copy [post]
+// @Router /workspace/api/v1/directory-copies [post]
 func (s *ServiceTree) CopyServiceTree(c *gin.Context) {
 	var req dto.CopyDirectoryReq
 	var resp *dto.CopyDirectoryResp
 	var err error
 
 	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -528,18 +528,18 @@ func (s *ServiceTree) CopyServiceTree(c *gin.Context) {
 		logger.Debugf(c, "CopyServiceTree req:%+v resp:%+v err:%v", req, resp, err)
 	}()
 	if err := requireAccess(c, s.teamAccessService, req.SourceDirectoryPath, access.ActionRead); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, req.TargetDirectoryPath, access.ActionAdmin); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	resp, err = s.serviceTreeService.CopyServiceTree(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, resp)
@@ -558,25 +558,25 @@ func (s *ServiceTree) CopyServiceTree(c *gin.Context) {
 // @Success 200 {object} dto.AddFunctionsResp "处理成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/service_tree/add_functions [post]
+// @Router /workspace/api/v1/functions/batch [post]
 func (s *ServiceTree) AddFunctions(c *gin.Context) {
 	var req dto.AddFunctionsReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Errorf(c, "[ServiceTree API] 解析请求失败: %v", err)
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionAdmin); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	resp, err := s.serviceTreeService.AddFunctions(ctx, &req)
 	if err != nil {
 		logger.Errorf(c, "[ServiceTree API] 处理失败: %v", err)
-		response.FailWithMessage(c, "处理失败: "+err.Error())
+		response.Internal(c, "处理失败: "+err.Error())
 		return
 	}
 
@@ -588,11 +588,11 @@ func (s *ServiceTree) ExportCapabilityBundle(c *gin.Context) {
 	var req dto.ExportCapabilityBundleReq
 	if c.Request.Method == http.MethodGet {
 		if err := c.ShouldBindQuery(&req); err != nil {
-			response.FailWithMessage(c, "参数错误: "+err.Error())
+			response.BadRequest(c, "参数错误: "+err.Error())
 			return
 		}
 	} else if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -606,13 +606,13 @@ func (s *ServiceTree) ExportCapabilityBundle(c *gin.Context) {
 	}
 	for _, sourcePath := range sourcePaths {
 		if err := requireAccess(c, s.teamAccessService, sourcePath, access.ActionRead); err != nil {
-			response.FailWithMessage(c, err.Error())
+			response.Error(c, err)
 			return
 		}
 	}
 	resp, err := s.serviceTreeService.ExportCapabilityBundle(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -623,18 +623,18 @@ func (s *ServiceTree) ExportCapabilityBundle(c *gin.Context) {
 func (s *ServiceTree) InstallCapabilityBundle(c *gin.Context) {
 	var req dto.InstallCapabilityBundleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	if err := requireAccess(c, s.teamAccessService, req.TargetDirectoryPath, access.ActionAdmin); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	resp, err := s.serviceTreeService.InstallCapabilityBundle(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -660,11 +660,11 @@ func (s *ServiceTree) InstallCapabilityBundle(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/service_tree/search_functions [get]
+// @Router /workspace/api/v1/function-search-results [get]
 func (s *ServiceTree) SearchFunctions(c *gin.Context) {
 	var req dto.SearchFunctionsReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
@@ -683,7 +683,7 @@ func (s *ServiceTree) SearchFunctions(c *gin.Context) {
 	req.CurrentUser = contextx.GetRequestUser(ctx)
 	resp, err := s.serviceTreeService.SearchFunctions(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, "搜索函数失败: "+err.Error())
+		response.Internal(c, "搜索函数失败: "+err.Error())
 		return
 	}
 
@@ -709,11 +709,11 @@ func (s *ServiceTree) SearchFunctions(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/service_tree/search_resources [get]
+// @Router /workspace/api/v1/resource-search-results [get]
 func (s *ServiceTree) SearchResources(c *gin.Context) {
 	var req dto.SearchResourcesReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
@@ -731,7 +731,7 @@ func (s *ServiceTree) SearchResources(c *gin.Context) {
 	req.CurrentUser = contextx.GetRequestUser(ctx)
 	resp, err := s.serviceTreeService.SearchResources(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, "搜索资源失败: "+err.Error())
+		response.Internal(c, "搜索资源失败: "+err.Error())
 		return
 	}
 
@@ -745,18 +745,18 @@ func (s *ServiceTree) GetWorkspaceContext(c *gin.Context) {
 	req.FullCodePath = c.Query("full_code_path")
 	req.FileSource = c.Query("file_source")
 	if req.FullCodePath == "" {
-		response.FailWithMessage(c, "full_code_path 必填")
+		response.BadRequest(c, "full_code_path 必填")
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionRead); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	resp, err := s.serviceTreeService.GetWorkspaceContext(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, "获取工作台环境信息失败: "+err.Error())
+		response.Internal(c, "获取工作台环境信息失败: "+err.Error())
 		return
 	}
 
@@ -768,21 +768,21 @@ func (s *ServiceTree) GetWorkspaceContext(c *gin.Context) {
 func (s *ServiceTree) WriteFileContent(c *gin.Context) {
 	var req dto.WriteFileContentReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 	if req.FullCodePath == "" || req.FileName == "" {
-		response.FailWithMessage(c, "full_code_path、file_name 必填")
+		response.BadRequest(c, "full_code_path、file_name 必填")
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionAdmin); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	ctx := contextx.ToContext(c)
 	resp, err := s.serviceTreeService.WriteFileContent(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, "写入文件失败: "+err.Error())
+		response.Internal(c, "写入文件失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, resp)
@@ -793,25 +793,25 @@ func (s *ServiceTree) WriteFileContent(c *gin.Context) {
 func (s *ServiceTree) ReplaceFileContent(c *gin.Context) {
 	var req dto.ReplaceFileContentReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 	if req.FullCodePath == "" || req.FileName == "" || len(req.Replacements) == 0 {
-		response.FailWithMessage(c, "full_code_path、file_name、replacements 必填")
+		response.BadRequest(c, "full_code_path、file_name、replacements 必填")
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionAdmin); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	ctx := contextx.ToContext(c)
 	resp, err := s.serviceTreeService.ReplaceFileContent(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, "替换文件失败: "+err.Error())
+		response.Internal(c, "替换文件失败: "+err.Error())
 		return
 	}
 	if !resp.Success {
-		response.FailWithDetailed(c, resp, resp.Message)
+		response.Internal(c, resp.Message)
 		return
 	}
 	response.OkWithData(c, resp)
@@ -822,21 +822,21 @@ func (s *ServiceTree) ReplaceFileContent(c *gin.Context) {
 func (s *ServiceTree) DeleteFile(c *gin.Context) {
 	var req dto.DeleteFileReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 	if req.FullCodePath == "" || req.FileName == "" {
-		response.FailWithMessage(c, "full_code_path、file_name 必填")
+		response.BadRequest(c, "full_code_path、file_name 必填")
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionDelete); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	ctx := contextx.ToContext(c)
 	resp, err := s.serviceTreeService.DeleteFile(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, "删除文件失败: "+err.Error())
+		response.Internal(c, "删除文件失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, resp)
@@ -847,21 +847,21 @@ func (s *ServiceTree) DeleteFile(c *gin.Context) {
 func (s *ServiceTree) ReadAppLog(c *gin.Context) {
 	var req dto.ReadAppLogReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "参数错误: "+err.Error())
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 	if req.FullCodePath == "" {
-		response.FailWithMessage(c, "full_code_path 必填")
+		response.BadRequest(c, "full_code_path 必填")
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, req.FullCodePath, access.ActionAdmin); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	ctx := contextx.ToContext(c)
 	resp, err := s.serviceTreeService.ReadAppLog(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, "读取日志失败: "+err.Error())
+		response.Internal(c, "读取日志失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, resp)

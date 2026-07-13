@@ -63,7 +63,7 @@ func TestSubmitPublicMessageActionReplySubmitsWorkspaceChat(t *testing.T) {
 	}
 	var result struct {
 		Code int                        `json:"code"`
-		Msg  string                     `json:"msg"`
+		Msg  string                     `json:"message"`
 		Data dto.MessageActionReplyResp `json:"data"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
@@ -152,7 +152,7 @@ func TestPublicMessageActionPreservesExistingWorkspaceSession(t *testing.T) {
 	}
 	var viewResult struct {
 		Code int                       `json:"code"`
-		Msg  string                    `json:"msg"`
+		Msg  string                    `json:"message"`
 		Data dto.MessageActionViewResp `json:"data"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &viewResult); err != nil {
@@ -177,7 +177,7 @@ func TestPublicMessageActionPreservesExistingWorkspaceSession(t *testing.T) {
 	}
 	var replyResult struct {
 		Code int                        `json:"code"`
-		Msg  string                     `json:"msg"`
+		Msg  string                     `json:"message"`
 		Data dto.MessageActionReplyResp `json:"data"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &replyResult); err != nil {
@@ -192,6 +192,61 @@ func TestPublicMessageActionPreservesExistingWorkspaceSession(t *testing.T) {
 	if !strings.Contains(replyResult.Data.MobileAskURL, "source_path=%2Falice%2Fops%2Fmeeting_room") ||
 		!strings.Contains(replyResult.Data.MobileAskURL, "session_id=session-existing") {
 		t.Fatalf("reply mobile ask url = %q", replyResult.Data.MobileAskURL)
+	}
+}
+
+func TestPublicMessageActionUsesDirectoryForScheduledFunctionNotification(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newActionAPITestMessageRepo(t)
+	entry, err := repo.Create(context.Background(), dto.MessageSendMeta{
+		From:               "system",
+		FullCodePath:       "/system/democase/site_monitor/sweep.form",
+		SourceType:         "scheduled_task",
+		SourcePath:         "/system/democase/site_monitor/sweep.form",
+		SourceParentPath:   "/system/democase/site_monitor",
+		SourceTemplateType: "form",
+	}, dto.MessageSendPayload{
+		Title:   "网站不可用告警：官网",
+		Content: "网站连续巡检失败，请尽快处理。",
+	}, []string{"bob"})
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+	rawToken, _, err := repo.CreateActionToken(context.Background(), msgrepo.CreateActionTokenInput{
+		MessageID: entry.ID, RecipientUsername: "bob", AllowedActions: []string{"reply"}, SourcePath: entry.SourcePath,
+	})
+	if err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+
+	runner := &fakeWorkspaceActionRunner{sessionID: "site-monitor-user-session"}
+	s := &Server{messageRepo: repo, workspaceActionRunner: runner}
+	router := gin.New()
+	router.POST("/message/api/v1/public/actions/:token/reply", s.submitPublicMessageActionReply)
+	request := httptest.NewRequest(http.MethodPost, "/message/api/v1/public/actions/"+rawToken+"/reply", bytes.NewBufferString(`{"content":"请帮我检查并给出处理建议。","action":"reply"}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Request-User", "bob")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	var result struct {
+		Code int                        `json:"code"`
+		Msg  string                     `json:"msg"`
+		Data dto.MessageActionReplyResp `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode response: %v body=%s", err, recorder.Body.String())
+	}
+	if result.Code != 0 {
+		t.Fatalf("response code=%d msg=%s", result.Code, result.Msg)
+	}
+	if runner.req.FullCodePath != "/system/democase/site_monitor" {
+		t.Fatalf("runner full_code_path = %q, want site monitor directory", runner.req.FullCodePath)
+	}
+	if result.Data.FullCodePath != "/system/democase/site_monitor" ||
+		!strings.Contains(result.Data.MobileAskURL, "source_path=%2Fsystem%2Fdemocase%2Fsite_monitor") ||
+		strings.Contains(result.Data.MobileAskURL, "sweep.form") {
+		t.Fatalf("reply response should use directory path: %#v", result.Data)
 	}
 }
 
@@ -246,7 +301,7 @@ func TestSubmitPublicMessageActionReplyRequiresAuthForRouteToken(t *testing.T) {
 	}
 	var result struct {
 		Code int                        `json:"code"`
-		Msg  string                     `json:"msg"`
+		Msg  string                     `json:"message"`
 		Data dto.MessageActionReplyResp `json:"data"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
@@ -298,13 +353,13 @@ func TestSubmitPublicMessageActionReplyReopensTokenWhenWorkspaceStartFails(t *te
 			router.ServeHTTP(recorder, request)
 
 			var result struct {
-				Code int    `json:"code"`
-				Msg  string `json:"msg"`
+				Code string `json:"code"`
+				Msg  string `json:"message"`
 			}
 			if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
 				t.Fatalf("decode response: %v body=%s", err, recorder.Body.String())
 			}
-			if result.Code == 0 {
+			if result.Code == "ok" {
 				t.Fatalf("workspace start failure should be returned, body=%s", recorder.Body.String())
 			}
 			view, err := repo.GetActionView(context.Background(), rawToken, "", "bob")

@@ -23,7 +23,7 @@ const gatewayIdentityTestSecret = "0123456789abcdef0123456789abcdef"
 
 func TestPrepareProxyIdentityClearsUnsignedForgedHeaders(t *testing.T) {
 	s := newIdentityTestServer(t)
-	c := newIdentityTestContext(http.MethodGet, "/workspace/api/v1/app/list", nil)
+	c := newIdentityTestContext(http.MethodGet, "/workspace/api/v1/apps", nil)
 	setAllForgedIdentityHeaders(c.Request.Header)
 	c.Request.Header.Set(contextx.TokenHeader, "invalid-token-must-be-forwarded-but-not-trusted")
 
@@ -54,7 +54,7 @@ func TestPrepareProxyIdentityOverwritesForgedHeadersFromJWT(t *testing.T) {
 	}
 
 	s := newIdentityTestServer(t)
-	c := newIdentityTestContext(http.MethodGet, "/workspace/api/v1/app/list", nil)
+	c := newIdentityTestContext(http.MethodGet, "/workspace/api/v1/apps", nil)
 	setAllForgedIdentityHeaders(c.Request.Header)
 	c.Request.Header.Set(contextx.TokenHeader, token)
 
@@ -96,7 +96,7 @@ func TestPrepareProxyIdentityDoesNotTrustRefreshToken(t *testing.T) {
 	}
 
 	s := newIdentityTestServer(t)
-	c := newIdentityTestContext(http.MethodGet, "/workspace/api/v1/app/list", nil)
+	c := newIdentityTestContext(http.MethodGet, "/workspace/api/v1/apps", nil)
 	setAllForgedIdentityHeaders(c.Request.Header)
 	c.Request.Header.Set(contextx.TokenHeader, token)
 

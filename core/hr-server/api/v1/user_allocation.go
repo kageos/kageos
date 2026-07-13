@@ -33,7 +33,7 @@ func NewUserAllocation(userService *service.UserService, departmentService *serv
 // @Param X-Token header string true "JWT Token"
 // @Param request body dto.AssignUserReq true "分配用户请求"
 // @Success 200 {object} dto.AssignUserResp
-// @Router /hr/api/v1/user/assign [post]
+// @Router /hr/api/v1/users/assignments [post]
 func (u *UserAllocation) AssignUser(c *gin.Context) {
 	var req dto.AssignUserReq
 	var resp *dto.AssignUserResp
@@ -44,7 +44,7 @@ func (u *UserAllocation) AssignUser(c *gin.Context) {
 
 	// 绑定请求参数
 	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -52,14 +52,14 @@ func (u *UserAllocation) AssignUser(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	user, err := u.userService.AssignUserOrganization(ctx, req.Username, req.DepartmentFullPath, req.LeaderUsername)
 	if err != nil {
-		response.FailWithMessage(c, "分配失败: "+err.Error())
+		response.Internal(c, "分配失败: "+err.Error())
 		return
 	}
 
 	// 转换为DTO（包含详细信息）
 	userInfos := convertUsersToDTOBatch(ctx, []*model.User{user}, u.userService, u.departmentService)
 	if len(userInfos) == 0 {
-		response.FailWithMessage(c, "转换用户信息失败")
+		response.Internal(c, "转换用户信息失败")
 		return
 	}
 	resp = &dto.AssignUserResp{
@@ -76,7 +76,7 @@ func (u *UserAllocation) AssignUser(c *gin.Context) {
 // @Param X-Token header string true "JWT Token"
 // @Param department_full_path query string true "部门完整路径"
 // @Success 200 {object} dto.GetUsersByDepartmentResp
-// @Router /hr/api/v1/user/department [get]
+// @Router /hr/api/v1/users/by-department [get]
 func (u *UserAllocation) GetUsersByDepartment(c *gin.Context) {
 	var req dto.GetUsersByDepartmentReq
 	var resp *dto.GetUsersByDepartmentResp
@@ -87,7 +87,7 @@ func (u *UserAllocation) GetUsersByDepartment(c *gin.Context) {
 
 	// 绑定请求参数
 	if err = c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -95,7 +95,7 @@ func (u *UserAllocation) GetUsersByDepartment(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	users, err := u.userService.GetUsersByDepartmentFullPath(ctx, req.DepartmentFullPath)
 	if err != nil {
-		response.FailWithMessage(c, "获取部门用户失败: "+err.Error())
+		response.Internal(c, "获取部门用户失败: "+err.Error())
 		return
 	}
 

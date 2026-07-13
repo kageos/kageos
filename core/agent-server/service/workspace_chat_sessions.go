@@ -16,7 +16,7 @@ import (
 
 // CancelSession 手动取消正在执行的会话
 func (s *WorkspaceChatService) CancelSession(ctx context.Context, sessionID string) error {
-	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	session, err := s.sessionRepo.GetBySessionID(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("会话不存在: %w", err)
 	}
@@ -35,7 +35,7 @@ func (s *WorkspaceChatService) CancelSession(ctx context.Context, sessionID stri
 	session.Status = model.ChatSessionStatusCancelled
 	user := contextx.GetRequestUser(ctx)
 	session.UpdatedBy = user
-	if err := s.sessionRepo.Update(session); err != nil {
+	if err := s.sessionRepo.Update(ctx, session); err != nil {
 		return fmt.Errorf("更新会话状态失败: %w", err)
 	}
 
@@ -58,7 +58,7 @@ func (s *WorkspaceChatService) IsSSEConnected(sessionID string) bool {
 // ListRunningSessions 查询当前用户所有正在执行的工作台会话
 func (s *WorkspaceChatService) ListRunningSessions(ctx context.Context) ([]*dto.WorkspaceSessionItem, error) {
 	user := contextx.GetRequestUser(ctx)
-	sessions, err := s.sessionRepo.ListRunningByUser(user)
+	sessions, err := s.sessionRepo.ListRunningByUser(ctx, user)
 	if err != nil {
 		return nil, fmt.Errorf("查询执行中会话失败: %w", err)
 	}
@@ -71,7 +71,7 @@ func (s *WorkspaceChatService) ListFinishedSessions(ctx context.Context, limit i
 		limit = 20
 	}
 	user := contextx.GetRequestUser(ctx)
-	sessions, err := s.sessionRepo.ListFinishedByUser(user, limit)
+	sessions, err := s.sessionRepo.ListFinishedByUser(ctx, user, limit)
 	if err != nil {
 		return nil, fmt.Errorf("查询已结束会话失败: %w", err)
 	}
@@ -135,7 +135,7 @@ func (s *WorkspaceChatService) ListSessionsFiltered(ctx context.Context, fullCod
 	}
 
 	user := contextx.GetRequestUser(ctx)
-	sessions, total, err := s.sessionRepo.ListWorkspaceSessions(repository.WorkspaceSessionListOptions{
+	sessions, total, err := s.sessionRepo.ListWorkspaceSessions(ctx, repository.WorkspaceSessionListOptions{
 		FullCodePath:     fullCodePath,
 		User:             user,
 		SessionScope:     sessionScope,
@@ -146,7 +146,7 @@ func (s *WorkspaceChatService) ListSessionsFiltered(ctx context.Context, fullCod
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf("获取会话列表失败: %w", err)
 	}
-	agents, err := s.sessionRepo.ListWorkspaceAutomationAgents(fullCodePath, user)
+	agents, err := s.sessionRepo.ListWorkspaceAutomationAgents(ctx, fullCodePath, user)
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf("获取自动化 Agent 列表失败: %w", err)
 	}
@@ -178,7 +178,7 @@ func (s *WorkspaceChatService) resolveWorkspaceSessionDirectoryNames(ctx context
 		}
 	}
 
-	directoryNames, err := s.sessionRepo.GetServiceTreeNamesByFullCodePaths(paths)
+	directoryNames, err := s.sessionRepo.GetServiceTreeNamesByFullCodePaths(ctx, paths)
 	if err != nil {
 		logger.Warnf(ctx, "[WorkspaceChat] 查询会话目录名称失败: %v", err)
 		return map[string]string{}
@@ -192,7 +192,7 @@ func (s *WorkspaceChatService) persistWorkspaceSessionInteractionStatus(ctx cont
 		return
 	}
 
-	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	session, err := s.sessionRepo.GetBySessionID(ctx, sessionID)
 	if err != nil || session == nil {
 		logger.Warnf(ctx, "[WorkspaceChat] 读取待交互会话失败 session_id=%s err=%v", sessionID, err)
 		return
@@ -202,7 +202,7 @@ func (s *WorkspaceChatService) persistWorkspaceSessionInteractionStatus(ctx cont
 	}
 	session.Status = nextStatus
 	session.UpdatedBy = user
-	if err := s.sessionRepo.Update(session); err != nil {
+	if err := s.sessionRepo.Update(ctx, session); err != nil {
 		logger.Warnf(ctx, "[WorkspaceChat] 持久化待交互状态失败 session_id=%s status=%s err=%v", sessionID, nextStatus, err)
 	}
 }
@@ -308,7 +308,7 @@ func (s *WorkspaceChatService) ResolveWorkspacePendingInteraction(ctx context.Co
 	if sessionID == "" {
 		return fmt.Errorf("session_id 必填")
 	}
-	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	session, err := s.sessionRepo.GetBySessionID(ctx, sessionID)
 	if err != nil || session == nil {
 		return fmt.Errorf("会话不存在: %s", sessionID)
 	}
@@ -320,7 +320,7 @@ func (s *WorkspaceChatService) ResolveWorkspacePendingInteraction(ctx context.Co
 	case model.ChatSessionStatusPendingConfirmation, model.ChatSessionStatusPendingTest, model.ChatSessionStatusPendingBuildRepair:
 		session.Status = model.ChatSessionStatusActive
 		session.UpdatedBy = user
-		if err := s.sessionRepo.Update(session); err != nil {
+		if err := s.sessionRepo.Update(ctx, session); err != nil {
 			return fmt.Errorf("更新会话状态失败: %w", err)
 		}
 	}
@@ -346,9 +346,9 @@ func (s *WorkspaceChatService) ListSessions(ctx context.Context, fullCodePath st
 	var total int64
 	var err error
 	if user != "" {
-		sessions, total, err = s.sessionRepo.ListByFullCodePathAndUser(fullCodePath, user, offset, pageSize)
+		sessions, total, err = s.sessionRepo.ListByFullCodePathAndUser(ctx, fullCodePath, user, offset, pageSize)
 	} else {
-		sessions, total, err = s.sessionRepo.ListByFullCodePath(fullCodePath, offset, pageSize)
+		sessions, total, err = s.sessionRepo.ListByFullCodePath(ctx, fullCodePath, offset, pageSize)
 	}
 	if err != nil {
 		return nil, 0, fmt.Errorf("获取会话列表失败: %w", err)
@@ -361,14 +361,14 @@ func (s *WorkspaceChatService) ListSessions(ctx context.Context, fullCodePath st
 
 // ListMessages 根据 sessionID 获取消息列表
 func (s *WorkspaceChatService) ListMessages(ctx context.Context, sessionID string) ([]*model.AgentChatMessage, error) {
-	session, err := s.sessionRepo.GetBySessionID(sessionID)
+	session, err := s.sessionRepo.GetBySessionID(ctx, sessionID)
 	if err != nil || session == nil {
 		return nil, fmt.Errorf("会话不存在: %s", sessionID)
 	}
 	if err := ensureWorkspaceSessionOwner(ctx, session); err != nil {
 		return nil, err
 	}
-	return s.messageRepo.ListBySessionID(sessionID)
+	return s.messageRepo.ListBySessionID(ctx, sessionID)
 }
 
 func ensureWorkspaceSessionOwner(ctx context.Context, session *model.AgentChatSession) error {
@@ -386,7 +386,7 @@ func (s *WorkspaceChatService) ensureWorkspaceSessionHasRunnableMessage(sessionI
 	if s == nil || s.messageRepo == nil {
 		return fmt.Errorf("消息仓储未初始化，无法续跑会话")
 	}
-	messages, err := s.messageRepo.ListBySessionID(sessionID)
+	messages, err := s.messageRepo.ListBySessionID(context.Background(), sessionID)
 	if err != nil {
 		return fmt.Errorf("读取会话消息失败: %w", err)
 	}

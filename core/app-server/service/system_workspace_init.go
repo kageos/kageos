@@ -69,13 +69,13 @@ func ensureSystemApp(ctx context.Context, appService *AppService, appDef systemA
 	appRepo := appService.appRepo
 
 	// 检查应用是否已存在
-	existingApp, err := appRepo.GetAppByUserName(SystemUsername, appDef.Code)
+	existingApp, err := appRepo.GetAppByUserName(ctx, SystemUsername, appDef.Code)
 	if err == nil && existingApp != nil {
 		// 已存在，检查类型是否正确
 		if existingApp.Type != appmodel.AppTypeSystem {
 			// 更新类型为系统空间
 			existingApp.Type = appmodel.AppTypeSystem
-			if err := appRepo.UpdateApp(existingApp); err != nil {
+			if err := appRepo.UpdateApp(ctx, existingApp); err != nil {
 				return false, fmt.Errorf("更新应用 %s/%s 类型失败: %w", SystemUsername, appDef.Code, err)
 			}
 			logger.Infof(ctx, "[SystemWorkspace] 已更新应用类型: %s/%s", SystemUsername, appDef.Code)
@@ -109,13 +109,13 @@ func ensureSystemApp(ctx context.Context, appService *AppService, appDef systemA
 
 	// 创建后更新应用类型为系统空间
 	// 注意：CreateApp 返回的应用可能还没有 Type 字段，需要再次查询并更新
-	createdApp, err := appRepo.GetAppByUserName(SystemUsername, appDef.Code)
+	createdApp, err := appRepo.GetAppByUserName(ctx, SystemUsername, appDef.Code)
 	if err != nil {
 		return false, fmt.Errorf("查询刚创建的应用失败: %w", err)
 	}
 	if createdApp.Type != appmodel.AppTypeSystem {
 		createdApp.Type = appmodel.AppTypeSystem
-		if err := appRepo.UpdateApp(createdApp); err != nil {
+		if err := appRepo.UpdateApp(ctx, createdApp); err != nil {
 			return false, fmt.Errorf("更新应用类型为系统空间失败: %w", err)
 		}
 	}

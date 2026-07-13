@@ -33,7 +33,7 @@ func JWTOrPubKeyAuth(validator PubKeyValidator, gatewayVerifiers ...*controlauth
 		if pubKey != "" {
 			clearStrictCredentialIdentity(c)
 			if validator == nil {
-				response.FailWithMessage(c, "无效的 Pub Key")
+				response.BadRequest(c, "无效的 Pub Key")
 				c.Abort()
 				return
 			}
@@ -41,7 +41,7 @@ func JWTOrPubKeyAuth(validator PubKeyValidator, gatewayVerifiers ...*controlauth
 			username = strings.TrimSpace(username)
 			if err != nil || username == "" {
 				logger.Warnf(c, "[JWTOrPubKeyAuth] Pub Key 验证失败: %v", err)
-				response.FailWithMessage(c, "无效的 Pub Key")
+				response.BadRequest(c, "无效的 Pub Key")
 				c.Abort()
 				return
 			}

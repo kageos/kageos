@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path"
@@ -214,7 +215,7 @@ func writeTestSystemDirectorySeedBundle(t *testing.T, nodes []*dto.CapabilityBun
 
 func createTestServiceTreeNode(t *testing.T, repo *repository.ServiceTreeRepository, fullPath, nodeType string) {
 	t.Helper()
-	if err := repo.Create(&appmodel.ServiceTree{
+	if err := repo.Create(context.Background(), &appmodel.ServiceTree{
 		Name:         path.Base(fullPath),
 		Code:         path.Base(fullPath),
 		Type:         nodeType,
@@ -235,7 +236,7 @@ func TestInitialSystemDirectorySeedAppVersionsReadsUniqueApps(t *testing.T) {
 	}
 
 	appRepo := repository.NewAppRepository(db)
-	if err := appRepo.CreateApp(&appmodel.App{User: SystemUsername, Code: "tools", Name: "官方工具", Version: "v7"}); err != nil {
+	if err := appRepo.CreateApp(context.Background(), &appmodel.App{User: SystemUsername, Code: "tools", Name: "官方工具", Version: "v7"}); err != nil {
 		t.Fatalf("create tools app: %v", err)
 	}
 

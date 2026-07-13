@@ -37,7 +37,7 @@ func (m *serviceTreeMutationService) UpdateServiceTreeMetadata(ctx context.Conte
 		return fmt.Errorf("服务目录ID不能为空")
 	}
 
-	serviceTree, err := m.serviceTreeRepo.GetServiceTreeByID(req.ID)
+	serviceTree, err := m.serviceTreeRepo.GetServiceTreeByID(ctx, req.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get service tree: %w", err)
 	}
@@ -61,7 +61,7 @@ func (m *serviceTreeMutationService) UpdateServiceTreeMetadata(ctx context.Conte
 		serviceTree.Admins = *req.Admins
 	}
 
-	if err := m.serviceTreeRepo.UpdateServiceTree(serviceTree); err != nil {
+	if err := m.serviceTreeRepo.UpdateServiceTree(ctx, serviceTree); err != nil {
 		return fmt.Errorf("failed to update service tree: %w", err)
 	}
 
@@ -106,7 +106,7 @@ func (m *serviceTreeMutationService) UpdateDocs(ctx context.Context, req *dto.Up
 		return nil
 	}
 
-	serviceTree, err := m.serviceTreeRepo.GetServiceTreeByID(req.ID)
+	serviceTree, err := m.serviceTreeRepo.GetServiceTreeByID(ctx, req.ID)
 	if err != nil {
 		return fmt.Errorf("获取文档节点失败: %w", err)
 	}
@@ -130,14 +130,14 @@ func (m *serviceTreeMutationService) DeleteDocs(ctx context.Context, id int64) e
 }
 
 func (m *serviceTreeMutationService) DeleteServiceTree(ctx context.Context, id int64) error {
-	serviceTree, err := m.serviceTreeRepo.GetServiceTreeByID(id)
+	serviceTree, err := m.serviceTreeRepo.GetServiceTreeByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to get service tree: %w", err)
 	}
 
 	m.cleanupRuntimePackageScaffold(ctx, serviceTree)
 
-	if err := m.serviceTreeRepo.DeleteServiceTree(id); err != nil {
+	if err := m.serviceTreeRepo.DeleteServiceTree(ctx, id); err != nil {
 		return fmt.Errorf("failed to delete service tree: %w", err)
 	}
 
@@ -146,7 +146,7 @@ func (m *serviceTreeMutationService) DeleteServiceTree(ctx context.Context, id i
 }
 
 func (m *serviceTreeMutationService) deleteTypedServiceTree(ctx context.Context, id int64, expectedType string) error {
-	serviceTree, err := m.serviceTreeRepo.GetServiceTreeByID(id)
+	serviceTree, err := m.serviceTreeRepo.GetServiceTreeByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("获取节点失败: %w", err)
 	}
@@ -207,7 +207,7 @@ func (m *serviceTreeMutationService) cleanupRuntimePackageScaffold(ctx context.C
 		return
 	}
 
-	appModel, err := m.appRepo.GetAppByID(serviceTree.AppID)
+	appModel, err := m.appRepo.GetAppByID(ctx, serviceTree.AppID)
 	if err != nil {
 		logger.Warnf(ctx, "[ServiceTreeService] GetAppByID failed, skip runtime delete: %v", err)
 		return

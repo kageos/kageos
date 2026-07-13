@@ -281,15 +281,26 @@ func (s *Server) initServices(ctx context.Context) error {
 	publicShareRepo := repository.NewPublicShareRepository(s.db)
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
-	s.appService = service.NewAppService(s.appCall, appRepo, functionRepo, serviceTreeRepo, operateLogRepo)
 	s.operateLogService = service.NewOperateLogService(operateLogRepo)
 	s.teamAccessService = service.NewTeamAccessService(teamAccessRepo, operateLogRepo, appRepo)
 	s.functionSensitiveFieldService = service.NewFunctionSensitiveFieldService(functionSensitiveFieldRepo)
 	if err := s.functionSensitiveFieldService.LoadAll(ctx); err != nil {
 		return fmt.Errorf("加载敏感字段缓存失败: %w", err)
 	}
-	s.appService.SetTeamAccessService(s.teamAccessService)
-	s.appService.SetFunctionSensitiveFieldService(s.functionSensitiveFieldService)
+
+	// 文档服务不依赖 AppService，可在 AppService 前完成装配。
+	docRepo := repository.NewDocRepository(s.db)
+	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo, s.teamAccessService)
+	s.appService = service.NewAppService(service.AppServiceDependencies{
+		RuntimeClient:   s.appCall,
+		AppRepository:   appRepo,
+		FunctionRepo:    functionRepo,
+		ServiceTreeRepo: serviceTreeRepo,
+		OperateLogRepo:  operateLogRepo,
+		DocService:      s.docService,
+		TeamAccess:      s.teamAccessService,
+		SensitiveFields: s.functionSensitiveFieldService,
+	})
 	controlPlaneSecret, err := config.GetControlPlaneSecret()
 	if err != nil {
 		return fmt.Errorf("load scheduled function worker control auth: %w", err)
@@ -299,11 +310,6 @@ func (s *Server) initServices(ctx context.Context) error {
 		return fmt.Errorf("failed to init scheduled function worker: %w", err)
 	}
 	s.scheduledFuncWorker = scheduledFuncWorker
-
-	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
-	docRepo := repository.NewDocRepository(s.db)
-	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo, s.teamAccessService)
-	s.appService.SetDocService(s.docService)
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中

@@ -31,22 +31,22 @@ func (s *Server) setupRoutes() {
 	// 公开上传：注册前企业 Logo 使用，接口内部会限制文件类型、大小和存储路径。
 	public := apiV1.Group("/public")
 	storageHandler := v1.NewStorage(s.storageService)
-	public.POST("/company_logo/upload_token", storageHandler.GetPublicCompanyLogoUploadToken)
-	public.POST("/company_logo/upload_complete", storageHandler.PublicCompanyLogoUploadComplete)
-	public.POST("/share/:share_id/upload_token", storageHandler.PublicShareGetUploadToken)
-	public.POST("/share/:share_id/upload_complete", storageHandler.PublicShareUploadComplete)
-	public.POST("/share/:share_id/batch_upload_complete", storageHandler.PublicShareBatchUploadComplete)
-	public.POST("/share/:share_id/files/resolve", storageHandler.PublicShareResolveFileRefs)
+	public.POST("/company-logos/upload-token", storageHandler.GetPublicCompanyLogoUploadToken)
+	public.POST("/company-logos/upload-complete", storageHandler.PublicCompanyLogoUploadComplete)
+	public.POST("/shares/:share_id/upload-token", storageHandler.PublicShareGetUploadToken)
+	public.POST("/shares/:share_id/upload-complete", storageHandler.PublicShareUploadComplete)
+	public.POST("/shares/:share_id/batch-upload-complete", storageHandler.PublicShareBatchUploadComplete)
+	public.POST("/shares/:share_id/files/resolve", storageHandler.PublicShareResolveFileRefs)
 
 	// 存储相关路由（需要JWT验证）
 	storageGroup := apiV1
 	storageGroup.Use(middleware2.JWTAuth()) // 存储管理需要JWT认证
 
 	// 上传相关
-	storageGroup.POST("/upload_token", storageHandler.GetUploadToken)
-	storageGroup.POST("/batch_upload_token", storageHandler.BatchGetUploadToken)    // ✨ 批量获取上传凭证
-	storageGroup.POST("/upload_complete", storageHandler.UploadComplete)            // 上传完成通知
-	storageGroup.POST("/batch_upload_complete", storageHandler.BatchUploadComplete) // ✨ 批量上传完成通知
+	storageGroup.POST("/upload-token", storageHandler.GetUploadToken)
+	storageGroup.POST("/batch-upload-token", storageHandler.BatchGetUploadToken)    // ✨ 批量获取上传凭证
+	storageGroup.POST("/upload-complete", storageHandler.UploadComplete)            // 上传完成通知
+	storageGroup.POST("/batch-upload-complete", storageHandler.BatchUploadComplete) // ✨ 批量上传完成通知
 	storageGroup.POST("/files/resolve", storageHandler.ResolveFileRefs)             // 批量解析 files ref，返回元数据和直连 URL
 	storageGroup.POST("/files/description", storageHandler.UpdateFileDescription)   // 更新文件描述元数据
 
@@ -58,7 +58,7 @@ func (s *Server) setupRoutes() {
 	// 批量操作（按函数路径）
 	storageGroup.GET("/files", storageHandler.ListFiles)                   // 列举文件
 	storageGroup.GET("/stats", storageHandler.GetStorageStats)             // 存储统计
-	storageGroup.POST("/batch_delete", storageHandler.DeleteFilesByRouter) // 批量删除
+	storageGroup.POST("/batch-delete", storageHandler.DeleteFilesByRouter) // 批量删除
 
 	serverx.ApplyRouteRegistrars(serverx.ServiceAppStorage, s.httpServer)
 }

@@ -39,27 +39,29 @@ type appRuntimeClient interface {
 
 var _ appRuntimeClient = (*appcall.Client)(nil)
 
-// NewAppService 创建 AppService（依赖注入）
-func NewAppService(appCall appRuntimeClient, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, operateLogRepo *repository.OperateLogRepository) *AppService {
+type AppServiceDependencies struct {
+	RuntimeClient   appRuntimeClient
+	AppRepository   *repository.AppRepository
+	FunctionRepo    *repository.FunctionRepository
+	ServiceTreeRepo *repository.ServiceTreeRepository
+	OperateLogRepo  *repository.OperateLogRepository
+	DocService      *DocService
+	TeamAccess      *TeamAccessService
+	SensitiveFields *FunctionSensitiveFieldService
+}
+
+// NewAppService 创建一个装配完成即可使用的 AppService。
+func NewAppService(deps AppServiceDependencies) *AppService {
 	return &AppService{
-		appCall:         appCall,
-		appRepo:         appRepo,
-		functionRepo:    functionRepo,
-		serviceTreeRepo: serviceTreeRepo,
-		operateLogRepo:  operateLogRepo,
+		appCall:         deps.RuntimeClient,
+		appRepo:         deps.AppRepository,
+		functionRepo:    deps.FunctionRepo,
+		serviceTreeRepo: deps.ServiceTreeRepo,
+		operateLogRepo:  deps.OperateLogRepo,
+		docService:      deps.DocService,
+		teamAccess:      deps.TeamAccess,
+		sensitiveFields: deps.SensitiveFields,
 	}
-}
-
-func (a *AppService) SetTeamAccessService(teamAccess *TeamAccessService) {
-	a.teamAccess = teamAccess
-}
-
-func (a *AppService) SetFunctionSensitiveFieldService(sensitiveFields *FunctionSensitiveFieldService) {
-	a.sensitiveFields = sensitiveFields
-}
-
-func (a *AppService) SetDocService(docService *DocService) {
-	a.docService = docService
 }
 
 // CreateApp 创建应用
@@ -70,7 +72,7 @@ func (a *AppService) CreateApp(ctx context.Context, req *dto.CreateAppReq) (*dto
 // UpdateApp 更新应用（更新应用代码并重新编译部署）
 func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto.UpdateAppResp, error) {
 	start := time.Now()
-	user, appCode, app, err := a.resolveUpdateTargetApp(req)
+	user, appCode, app, err := a.resolveUpdateTargetApp(ctx, req)
 	if err != nil {
 		logger.Errorf(ctx, "[AppService:UpdateApp] resolve target failed: resource_path=%s, err=%v, elapsed=%s",
 			req.ResourcePath, err, time.Since(start).Truncate(time.Millisecond))
@@ -126,13 +128,13 @@ func updateAppTraceID(resp *dto.UpdateAppResp) string {
 	return resp.BuildTrace.TraceID
 }
 
-func (a *AppService) resolveUpdateTargetApp(req *dto.UpdateAppReq) (string, string, *model.App, error) {
+func (a *AppService) resolveUpdateTargetApp(ctx context.Context, req *dto.UpdateAppReq) (string, string, *model.App, error) {
 	user, appCode, err := resolveUserAppFromRequiredResourcePath(req.ResourcePath)
 	if err != nil {
 		return "", "", nil, err
 	}
 
-	app, err := a.appRepo.GetAppByUserName(user, appCode)
+	app, err := a.appRepo.GetAppByUserNameContext(ctx, user, appCode)
 	return user, appCode, app, err
 }
 
@@ -140,7 +142,7 @@ func (a *AppService) persistReleasedAppVersion(user, appCode, newVersion string)
 	if newVersion == "" {
 		return nil
 	}
-	return a.appRepo.UpdateAppVersion(user, appCode, newVersion)
+	return a.appRepo.UpdateAppVersion(context.Background(), user, appCode, newVersion)
 }
 
 func (a *AppService) syncUpdatedAppMetadata(
@@ -187,7 +189,7 @@ func (a *AppService) finalizeReleasedAppMetadata(
 // RequestApp 请求应用
 func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*dto.RequestAppResp, error) {
 	start := time.Now()
-	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
+	app, err := a.appRepo.GetAppByUserNameContext(ctx, req.User, req.App)
 	if err != nil {
 		logger.Errorf(ctx, "[AppService:RequestApp] GetAppByUserName failed: user=%s, app=%s, traceId=%s, err=%v, elapsed=%s",
 			req.User, req.App, req.TraceId, err, time.Since(start).Truncate(time.Millisecond))
@@ -241,7 +243,7 @@ func (a *AppService) applyRequestSourceContext(ctx context.Context, req *dto.Req
 	if parentPath != "" {
 		paths = append(paths, parentPath)
 	}
-	nodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(paths)
+	nodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(ctx, paths)
 	if err != nil {
 		logger.Warnf(ctx, "[AppService:RequestApp] resolve source display failed: source_path=%s err=%v", sourcePath, err)
 		return
@@ -295,7 +297,7 @@ func (a *AppService) requireFunctionConnectors(ctx context.Context, req *dto.Req
 	if fullCodePath == "" {
 		return nil
 	}
-	function, err := a.functionRepo.GetFunctionByFullCodePath(fullCodePath)
+	function, err := a.functionRepo.GetFunctionByFullCodePath(ctx, fullCodePath)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
@@ -338,7 +340,7 @@ func (a *AppService) RecordTableActionLog(ctx context.Context, req *dto.RecordTa
 	}
 
 	// 获取应用信息（用于获取版本号）
-	app, err := a.appRepo.GetAppByUserName(req.TenantUser, req.App)
+	app, err := a.appRepo.GetAppByUserNameContext(ctx, req.TenantUser, req.App)
 	if err != nil {
 		return fmt.Errorf("获取应用信息失败: %w", err)
 	}
@@ -526,7 +528,7 @@ type appMetadataSyncState struct {
 }
 
 func (a *AppService) loadAppMetadataSyncState(ctx context.Context, appID int64) (*appMetadataSyncState, error) {
-	app, err := a.appRepo.GetAppByID(appID)
+	app, err := a.appRepo.GetAppByIDContext(ctx, appID)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用信息失败: %w", err)
 	}
@@ -548,7 +550,7 @@ func (a *AppService) syncAddedAPIs(ctx context.Context, state *appMetadataSyncSt
 		return fmt.Errorf("转换新增API失败: %w", err)
 	}
 
-	if err := a.functionRepo.CreateFunctions(functions); err != nil {
+	if err := a.functionRepo.CreateFunctions(ctx, functions); err != nil {
 		return fmt.Errorf("创建function记录失败: %w", err)
 	}
 
@@ -683,7 +685,7 @@ func (a *AppService) reconcilePackages(ctx context.Context, state *appMetadataSy
 	rootPath := fmt.Sprintf("/%s/%s", state.app.User, state.app.Code)
 	allPaths = append(allPaths, rootPath)
 
-	existingNodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(allPaths)
+	existingNodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(ctx, allPaths)
 	if err != nil {
 		return fmt.Errorf("批量查询package节点失败: %w", err)
 	}
@@ -732,7 +734,7 @@ func (a *AppService) reconcilePackages(ctx context.Context, state *appMetadataSy
 			node.Admins = state.requestUser
 		}
 
-		if err := a.serviceTreeRepo.Create(node); err != nil {
+		if err := a.serviceTreeRepo.Create(ctx, node); err != nil {
 			return fmt.Errorf("创建 package 节点失败 (%s): %w", pkg.FullPath, err)
 		}
 
@@ -758,7 +760,7 @@ func (a *AppService) loadParentPackageNodes(apis []*dto.ApiInfo) (map[string]*mo
 		parentPathList = append(parentPathList, path)
 	}
 
-	parentNodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(parentPathList)
+	parentNodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(context.Background(), parentPathList)
 	if err != nil {
 		return nil, fmt.Errorf("批量查询父级package节点失败: %w", err)
 	}
@@ -780,7 +782,7 @@ func (a *AppService) createFunctionNode(
 	parentAdmins string,
 ) (int64, error) {
 	// 检查是否已存在（full_name_path全局唯一）
-	existingNode, err := a.serviceTreeRepo.GetServiceTreeByFullPath(api.FullCodePath)
+	existingNode, err := a.serviceTreeRepo.GetServiceTreeByFullPath(context.Background(), api.FullCodePath)
 	if err == nil {
 		a.applyFunctionNodeMetadata(existingNode, api, functionID)
 
@@ -793,7 +795,7 @@ func (a *AppService) createFunctionNode(
 		}
 
 		// 更新节点信息
-		err = a.serviceTreeRepo.UpdateServiceTree(existingNode)
+		err = a.serviceTreeRepo.UpdateServiceTree(context.Background(), existingNode)
 		if err != nil {
 			return 0, err
 		}
@@ -832,7 +834,7 @@ func (a *AppService) createFunctionNode(
 	}
 
 	// 创建ServiceTree节点（GORM Create会自动填充ID）
-	err = a.serviceTreeRepo.CreateServiceTreeWithParentPath(serviceTree, "")
+	err = a.serviceTreeRepo.CreateServiceTreeWithParentPath(context.Background(), serviceTree, "")
 	if err != nil {
 		return 0, err
 	}
@@ -858,12 +860,12 @@ func (a *AppService) updateFunctionsForAPIs(appID int64, apis []*dto.ApiInfo, fu
 	// 对于每个要更新的API，先查找现有的Function记录获取ID
 	for i, api := range apis {
 		router := api.BuildFullCodePath()
-		existingFunction, err := a.functionRepo.GetFunctionByKey(appID, api.Method, router)
+		existingFunction, err := a.functionRepo.GetFunctionByKey(context.Background(), appID, api.Method, router)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// Function不存在，创建新的（这种情况不应该发生，但为了容错处理）
 				newFunctions := []*model.Function{functions[i]}
-				err = a.functionRepo.CreateFunctions(newFunctions)
+				err = a.functionRepo.CreateFunctions(context.Background(), newFunctions)
 				if err != nil {
 					return fmt.Errorf("创建function记录失败: %w", err)
 				}
@@ -878,10 +880,12 @@ func (a *AppService) updateFunctionsForAPIs(appID int64, apis []*dto.ApiInfo, fu
 	}
 
 	// 批量更新Function记录
-	return a.functionRepo.UpdateFunctions(functions)
+	return a.functionRepo.UpdateFunctions(context.Background(
+
+	// updateServiceTreesForAPIs 更新API对应的ServiceTree记录
+	), functions)
 }
 
-// updateServiceTreesForAPIs 更新API对应的ServiceTree记录
 func (a *AppService) updateServiceTreesForAPIs(state *appMetadataSyncState, apis []*dto.ApiInfo, functions []*model.Function) error {
 	parentNodes, err := a.loadParentPackageNodes(apis)
 	if err != nil {
@@ -891,7 +895,7 @@ func (a *AppService) updateServiceTreesForAPIs(state *appMetadataSyncState, apis
 	// 更新function节点
 	for i, api := range apis {
 		// 根据FullCodePath查找现有的ServiceTree
-		existingTree, err := a.serviceTreeRepo.GetServiceTreeByFullPath(api.FullCodePath)
+		existingTree, err := a.serviceTreeRepo.GetServiceTreeByFullPath(context.Background(), api.FullCodePath)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// 如果不存在，创建新的节点（这种情况不应该发生，但为了容错处理）
@@ -924,7 +928,7 @@ func (a *AppService) updateServiceTreesForAPIs(state *appMetadataSyncState, apis
 		}
 
 		// 保存更新后的节点
-		if err := a.serviceTreeRepo.UpdateServiceTree(existingTree); err != nil {
+		if err := a.serviceTreeRepo.UpdateServiceTree(context.Background(), existingTree); err != nil {
 			return fmt.Errorf("更新service_tree节点失败: %w", err)
 		}
 		// 赋值TreeID，方便后续写快照时入库
@@ -941,7 +945,7 @@ func (a *AppService) deleteFunctionsForAPIs(ctx context.Context, app *model.App,
 
 	for _, api := range apis {
 		// 根据FullCodePath查找ServiceTree
-		serviceTree, err := a.serviceTreeRepo.GetServiceTreeByFullPath(api.FullCodePath)
+		serviceTree, err := a.serviceTreeRepo.GetServiceTreeByFullPath(ctx, api.FullCodePath)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// ServiceTree不存在，跳过
@@ -951,7 +955,7 @@ func (a *AppService) deleteFunctionsForAPIs(ctx context.Context, app *model.App,
 		}
 
 		// 删除ServiceTree（会级联删除子节点）
-		err = a.serviceTreeRepo.DeleteServiceTree(serviceTree.ID)
+		err = a.serviceTreeRepo.DeleteServiceTree(ctx, serviceTree.ID)
 		if err != nil {
 			return fmt.Errorf("删除service_tree失败: %w", err)
 		}
@@ -969,7 +973,7 @@ func (a *AppService) deleteFunctionsForAPIs(ctx context.Context, app *model.App,
 
 	// 批量删除Function记录
 	if len(routers) > 0 {
-		err := a.functionRepo.DeleteFunctions(app.ID, routers, methods)
+		err := a.functionRepo.DeleteFunctions(ctx, app.ID, routers, methods)
 		if err != nil {
 			return fmt.Errorf("删除function记录失败: %w", err)
 		}
@@ -985,7 +989,7 @@ func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto
 		return nil, err
 	}
 	// 根据应用信息获取 NATS 连接
-	app, err := a.appRepo.GetAppByUserName(user, appCode)
+	app, err := a.appRepo.GetAppByUserNameContext(ctx, user, appCode)
 	if err != nil {
 		return nil, err
 	}
@@ -1003,7 +1007,7 @@ func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto
 	}
 
 	// 删除数据库记录
-	err = a.appRepo.DeleteAppAndVersions(user, appCode)
+	err = a.appRepo.DeleteAppAndVersions(ctx, user, appCode)
 	if err != nil {
 		return nil, err
 	}
@@ -1024,13 +1028,9 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 	}
 
 	// 从数据库获取应用列表（支持搜索和过滤）
-	apps, _, err := a.appRepo.GetAppsWithPage(req.User, page, pageSize, req.Search, req.IncludeAll, req.Type)
+	apps, total, err := a.appRepo.GetAppsWithPage(ctx, req.User, page, pageSize, req.Search, req.IncludeAll, req.Type == nil, req.Type)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用列表失败: %w", err)
-	}
-	apps, err = a.mergeAccessibleApps(ctx, apps, req)
-	if err != nil {
-		return nil, fmt.Errorf("获取已授权应用失败: %w", err)
 	}
 
 	// 转换为 AppInfo 列表
@@ -1063,7 +1063,7 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 		PageInfoResp: dto.PageInfoResp{
 			Page:       page,
 			PageSize:   pageSize,
-			TotalCount: len(appInfos),
+			TotalCount: int(total),
 			Items:      appInfos,
 		},
 	}, nil
@@ -1140,7 +1140,7 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 		return nil, err
 	}
 
-	app, err := a.appRepo.GetAppByUserName(user, appCode)
+	app, err := a.appRepo.GetAppByUserNameContext(ctx, user, appCode)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("应用不存在: %s/%s", user, appCode)
@@ -1172,7 +1172,7 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 
 // GetAppByUserName 根据用户名和应用名获取应用信息
 func (a *AppService) GetAppByUserName(ctx context.Context, user, app string) (*model.App, error) {
-	return a.appRepo.GetAppByUserName(user, app)
+	return a.appRepo.GetAppByUserNameContext(ctx, user, app)
 }
 
 // UpdateWorkspace 更新工作空间（只更新 MySQL 记录，不涉及容器更新）。
@@ -1185,7 +1185,7 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 	}
 
 	// 获取应用信息
-	app, err := a.appRepo.GetAppByUserName(user, appCode)
+	app, err := a.appRepo.GetAppByUserNameContext(ctx, user, appCode)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用信息失败: %w", err)
 	}
@@ -1201,7 +1201,7 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 		updatedApp.Name = name
 		nameChanged = name != app.Name
 		if nameChanged {
-			exists, err := a.appRepo.ExistsAppNameForUser(user, name)
+			exists, err := a.appRepo.ExistsAppNameForUser(ctx, user, name)
 			if err != nil {
 				return nil, fmt.Errorf("检查工作空间名称失败: %w", err)
 			}
@@ -1227,7 +1227,7 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 		updatedApp.HideUnauthorizedNodes = *req.HideUnauthorizedNodes
 	}
 
-	if err := a.appRepo.GetDB().Transaction(func(tx *gorm.DB) error {
+	if err := a.appRepo.GetDB(ctx).Transaction(func(tx *gorm.DB) error {
 		if nameChanged {
 			var rootNode model.ServiceTree
 			if err := tx.Where("app_id = ? AND ref_id = ?", updatedApp.ID, updatedApp.ID).First(&rootNode).Error; err != nil {
@@ -1245,7 +1245,7 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 	}); err != nil {
 		return nil, fmt.Errorf("更新工作空间失败: %w", err)
 	}
-	a.appRepo.InvalidateAppCacheBoth(updatedApp.User, updatedApp.Code, updatedApp.ID)
+	a.appRepo.InvalidateAppCacheBoth(ctx, updatedApp.User, updatedApp.Code, updatedApp.ID)
 
 	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, name=%s, access_mode=%s, admins=%s, hide_unauthorized_nodes=%t",
 		user, appCode, updatedApp.Name, updatedApp.AccessMode, updatedApp.Admins, updatedApp.HideUnauthorizedNodes)
@@ -1264,7 +1264,7 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 // fullCodePath 参数应该是完整的路径（如 /luobei/operations/tools/pdftools/to_images）
 // full-code-path 是全局唯一的，不需要 method 参数
 func (a *AppService) GetFunctionByFullCodePath(ctx context.Context, fullCodePath string) (*model.Function, error) {
-	function, err := a.functionRepo.GetFunctionByFullCodePath(fullCodePath)
+	function, err := a.functionRepo.GetFunctionByFullCodePath(ctx, fullCodePath)
 	if err != nil {
 		return nil, fmt.Errorf("获取函数信息失败: %w", err)
 	}

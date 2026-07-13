@@ -201,7 +201,7 @@ func (r *MessageRepository) BeginActionReply(ctx context.Context, rawToken, cont
 			Status:             string(dto.MessageActionTokenStatusProcessing),
 			Channel:            strings.TrimSpace(tokenRow.Channel),
 			SourcePath:         firstNonEmptyStringForRepository(original.SourcePath, original.FullCodePath, original.SourceParentPath),
-			FullCodePath:       firstNonEmptyStringForRepository(original.SourcePath, original.FullCodePath, original.SourceParentPath),
+			FullCodePath:       ResolveMessageWorkspacePath(original.SourcePath, original.FullCodePath, original.SourceParentPath, original.SourceTemplateType),
 			WorkspaceSessionID: workspaceSessionID,
 			WorkstationDraft:   buildMobileWorkstationDraft(original, content, files, actingUser, tokenRow.Channel),
 		}

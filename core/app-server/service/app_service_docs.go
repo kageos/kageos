@@ -124,13 +124,13 @@ func normalizePackageDocSeedCode(code string) (string, error) {
 }
 
 func (a *AppService) upsertPackageDocSeed(ctx context.Context, state *appMetadataSyncState, item *packageDocSeedItem) error {
-	tree, err := a.serviceTreeRepo.GetServiceTreeByFullPath(item.FullCodePath)
+	tree, err := a.serviceTreeRepo.GetServiceTreeByFullPath(ctx, item.FullCodePath)
 	switch {
 	case err == nil:
 		if tree.Type != model.ServiceTreeTypeDocs {
 			return fmt.Errorf("文档种子目标路径已存在且不是 docs: %s", item.FullCodePath)
 		}
-		if _, err := a.docService.docRepo.GetByTreeID(tree.ID); err == nil {
+		if _, err := a.docService.docRepo.GetByTreeID(ctx, tree.ID); err == nil {
 			logger.Infof(ctx, "[PackageDocs] skip existing docs full_code_path=%s", item.FullCodePath)
 			return nil
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -138,7 +138,7 @@ func (a *AppService) upsertPackageDocSeed(ctx context.Context, state *appMetadat
 		}
 		return a.createPackageDocSeedContent(ctx, state, tree, item)
 	case errors.Is(err, gorm.ErrRecordNotFound):
-		parent, parentErr := a.serviceTreeRepo.GetServiceTreeByFullPath(item.ParentFullCodePath)
+		parent, parentErr := a.serviceTreeRepo.GetServiceTreeByFullPath(ctx, item.ParentFullCodePath)
 		if parentErr != nil {
 			return fmt.Errorf("文档种子父目录不存在 %s: %w", item.ParentFullCodePath, parentErr)
 		}
@@ -159,7 +159,7 @@ func (a *AppService) upsertPackageDocSeed(ctx context.Context, state *appMetadat
 			tree.UpdatedBy = requestUser
 			tree.Admins = requestUser
 		}
-		if err := a.serviceTreeRepo.CreateServiceTreeWithParentPath(tree, ""); err != nil {
+		if err := a.serviceTreeRepo.CreateServiceTreeWithParentPath(ctx, tree, ""); err != nil {
 			return fmt.Errorf("创建文档种子节点失败 %s: %w", item.FullCodePath, err)
 		}
 		return a.createPackageDocSeedContent(ctx, state, tree, item)
@@ -186,11 +186,11 @@ func (a *AppService) createPackageDocSeedContent(ctx context.Context, state *app
 		doc.CreatedBy = requestUser
 		doc.UpdatedBy = requestUser
 	}
-	if err := a.docService.docRepo.Create(doc); err != nil {
+	if err := a.docService.docRepo.Create(ctx, doc); err != nil {
 		return fmt.Errorf("创建文档种子内容失败 %s: %w", item.FullCodePath, err)
 	}
 	tree.RefID = doc.ID
-	if err := a.serviceTreeRepo.UpdateServiceTree(tree); err != nil {
+	if err := a.serviceTreeRepo.UpdateServiceTree(ctx, tree); err != nil {
 		logger.Warnf(ctx, "[PackageDocs] 更新文档种子 RefID 失败 full_code_path=%s err=%v", item.FullCodePath, err)
 	}
 	logger.Infof(ctx, "[PackageDocs] created docs seed full_code_path=%s doc_id=%d", item.FullCodePath, doc.ID)

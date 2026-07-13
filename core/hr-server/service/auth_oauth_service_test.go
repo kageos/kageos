@@ -18,7 +18,7 @@ func TestResolveExistingUserForPrincipalDoesNotAutoBindByEmail(t *testing.T) {
 	db := openOAuthServiceTestDB(t)
 	userRepo := repository.NewUserRepository(db)
 	identityRepo := repository.NewAuthExternalIdentityRepository(db)
-	if err := userRepo.CreateUser(&model.User{
+	if err := userRepo.CreateUser(context.Background(), &model.User{
 		Username:      "google_user",
 		Email:         "same@example.com",
 		CompanyCode:   model.DefaultCompanyCode,
@@ -134,7 +134,7 @@ func TestOAuthRegistrationCompleteAllowsDuplicateEmailContact(t *testing.T) {
 	for i := 1; i <= 2; i++ {
 		ticket := fmt.Sprintf("ticket-%d", i)
 		externalID := fmt.Sprintf("github-subject-%d", i)
-		if err := registrationRepo.Create(&model.AuthOAuthRegistrationIntent{
+		if err := registrationRepo.Create(context.Background(), &model.AuthOAuthRegistrationIntent{
 			Ticket:        ticket,
 			ProviderCode:  ProviderGitHubOAuth,
 			ExternalID:    externalID,
@@ -146,7 +146,7 @@ func TestOAuthRegistrationCompleteAllowsDuplicateEmailContact(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		_, err := registrationRepo.Complete(ticket, &model.User{
+		_, err := registrationRepo.Complete(context.Background(), ticket, &model.User{
 			Username:      fmt.Sprintf("oauthuser%d", i),
 			Email:         "same@example.com",
 			CompanyCode:   model.DefaultCompanyCode,

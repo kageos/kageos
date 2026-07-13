@@ -46,9 +46,9 @@ func (q *serviceTreeQueryView) getServiceTreeByAppModel(ctx context.Context, app
 	var trees []*model.ServiceTree
 	var err error
 	if nodeType != "" {
-		trees, err = q.serviceTreeRepo.BuildServiceTreeByType(appModel.ID, nodeType)
+		trees, err = q.serviceTreeRepo.BuildServiceTreeByType(ctx, appModel.ID, nodeType)
 	} else {
-		trees, err = q.serviceTreeRepo.BuildServiceTree(appModel.ID)
+		trees, err = q.serviceTreeRepo.BuildServiceTree(ctx, appModel.ID)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to build service tree: %w", err)
@@ -94,7 +94,7 @@ func (q *serviceTreeQueryView) GetAppWithServiceTree(ctx context.Context, req *d
 		return nil, err
 	}
 
-	appModel, err := q.appRepo.GetAppByUserName(user, appCode)
+	appModel, err := q.appRepo.GetAppByUserName(ctx, user, appCode)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("应用不存在: %s/%s", user, appCode)
@@ -140,9 +140,9 @@ func (q *serviceTreeQueryView) GetServiceTreeDetail(ctx context.Context, req *dt
 	var err error
 
 	if req.ID > 0 {
-		tree, err = q.serviceTreeRepo.GetServiceTreeByID(req.ID)
+		tree, err = q.serviceTreeRepo.GetServiceTreeByID(ctx, req.ID)
 	} else if req.FullCodePath != "" {
-		tree, err = q.serviceTreeRepo.GetServiceTreeByFullPath(req.FullCodePath)
+		tree, err = q.serviceTreeRepo.GetServiceTreeByFullPath(ctx, req.FullCodePath)
 	} else {
 		return nil, fmt.Errorf("必须提供 ID 或 full_code_path")
 	}
@@ -172,7 +172,7 @@ func (q *serviceTreeQueryView) BatchGetServiceTreeDetails(ctx context.Context, r
 		return nil, fmt.Errorf("一次最多查询 100 个资源")
 	}
 
-	treeByPath, err := q.serviceTreeRepo.GetServiceTreeByFullPaths(paths)
+	treeByPath, err := q.serviceTreeRepo.GetServiceTreeByFullPaths(ctx, paths)
 	if err != nil {
 		return nil, fmt.Errorf("获取服务目录失败: %w", err)
 	}
@@ -255,7 +255,7 @@ func (q *serviceTreeQueryView) missingAppRootMessage(fullCodePath string) string
 	if !ok || q.appRepo == nil {
 		return ""
 	}
-	appModel, err := q.appRepo.GetAppByUserName(user, appCode)
+	appModel, err := q.appRepo.GetAppByUserName(context.Background(), user, appCode)
 	if err != nil || appModel == nil {
 		return ""
 	}

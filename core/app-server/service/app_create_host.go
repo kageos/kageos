@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/kageos/kageos/core/app-server/model"
@@ -8,8 +9,8 @@ import (
 )
 
 func (a *AppService) selectHostForCreateApp() (*model.Host, error) {
-	hostRepo := repository.NewHostRepository(a.appRepo.GetDB())
-	hosts, err := hostRepo.GetHostList()
+	hostRepo := repository.NewHostRepository(a.appRepo.GetDB(context.Background()))
+	hosts, err := hostRepo.GetHostList(context.Background())
 	if err != nil || len(hosts) == 0 {
 		return nil, fmt.Errorf("无法获取可用的主机: %w", err)
 	}

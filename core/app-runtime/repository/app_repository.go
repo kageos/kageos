@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -21,7 +22,7 @@ func NewAppRepository(db *gorm.DB) *AppRepository {
 }
 
 // CreateApp 创建应用记录
-func (r *AppRepository) CreateApp(user, app string) error {
+func (r *AppRepository) CreateApp(ctx context.Context, user, app string) error {
 	appRecord := &model.App{
 		User:      user,
 		App:       app,
@@ -31,7 +32,7 @@ func (r *AppRepository) CreateApp(user, app string) error {
 		LastSeen:  time.Now(),
 	}
 
-	if err := r.db.Create(appRecord).Error; err != nil {
+	if err := r.db.WithContext(ctx).Create(appRecord).Error; err != nil {
 		return fmt.Errorf("failed to save app to database: %w", err)
 	}
 
@@ -40,23 +41,23 @@ func (r *AppRepository) CreateApp(user, app string) error {
 }
 
 // EnsureAppExists 确保应用记录存在，不存在则创建（幂等，一次查询或一次写入）
-func (r *AppRepository) EnsureAppExists(user, app string) error {
+func (r *AppRepository) EnsureAppExists(ctx context.Context, user, app string) error {
 	now := time.Now()
 	var appRecord model.App
-	return r.db.Where("user = ? and app = ?", user, app).FirstOrCreate(&appRecord, model.App{
+	return r.db.WithContext(ctx).Where("user = ? and app = ?", user, app).FirstOrCreate(&appRecord, model.App{
 		User: user, App: app, Version: "", Status: "inactive", StartTime: now, LastSeen: now,
 	}).Error
 }
 
 // DeleteAppAndVersions 删除应用及其所有版本记录
-func (r *AppRepository) DeleteAppAndVersions(user, app string) error {
+func (r *AppRepository) DeleteAppAndVersions(ctx context.Context, user, app string) error {
 	// 删除应用记录
-	if err := r.db.Where("user = ? and app = ?", user, app).Delete(&model.App{}).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("user = ? and app = ?", user, app).Delete(&model.App{}).Error; err != nil {
 		return err
 	}
 
 	// 删除应用版本记录
-	if err := r.db.Where("user = ? and app = ?", user, app).Delete(&model.AppVersion{}).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("user = ? and app = ?", user, app).Delete(&model.AppVersion{}).Error; err != nil {
 		return err
 	}
 
@@ -64,51 +65,51 @@ func (r *AppRepository) DeleteAppAndVersions(user, app string) error {
 }
 
 // GetApp 获取应用信息
-func (r *AppRepository) GetApp(user, app string) (*model.App, error) {
+func (r *AppRepository) GetApp(ctx context.Context, user, app string) (*model.App, error) {
 	var appRecord model.App
-	if err := r.db.Where("user = ? and app = ?", user, app).First(&appRecord).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("user = ? and app = ?", user, app).First(&appRecord).Error; err != nil {
 		return nil, err
 	}
 	return &appRecord, nil
 }
 
 // UpdateApp 更新应用信息
-func (r *AppRepository) UpdateApp(app *model.App) error {
-	return r.db.Save(app).Error
+func (r *AppRepository) UpdateApp(ctx context.Context, app *model.App) error {
+	return r.db.WithContext(ctx).Save(app).Error
 }
 
 // GetAppVersions 获取应用的所有版本
-func (r *AppRepository) GetAppVersions(user, app string) ([]*model.AppVersion, error) {
+func (r *AppRepository) GetAppVersions(ctx context.Context, user, app string) ([]*model.AppVersion, error) {
 	var versions []*model.AppVersion
-	if err := r.db.Where("user = ? and app = ?", user, app).Order("created_at DESC").Find(&versions).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("user = ? and app = ?", user, app).Order("created_at DESC").Find(&versions).Error; err != nil {
 		return nil, err
 	}
 	return versions, nil
 }
 
 // CreateAppVersion 创建应用版本记录
-func (r *AppRepository) CreateAppVersion(version *model.AppVersion) error {
-	return r.db.Create(version).Error
+func (r *AppRepository) CreateAppVersion(ctx context.Context, version *model.AppVersion) error {
+	return r.db.WithContext(ctx).Create(version).Error
 }
 
 // UpdateAppVersion 更新应用版本信息
-func (r *AppRepository) UpdateAppVersion(version *model.AppVersion) error {
-	return r.db.Save(version).Error
+func (r *AppRepository) UpdateAppVersion(ctx context.Context, version *model.AppVersion) error {
+	return r.db.WithContext(ctx).Save(version).Error
 }
 
 // GetActiveAppVersion 获取活跃的应用版本
-func (r *AppRepository) GetActiveAppVersion(user, app string) (*model.AppVersion, error) {
+func (r *AppRepository) GetActiveAppVersion(ctx context.Context, user, app string) (*model.AppVersion, error) {
 	var version model.AppVersion
-	if err := r.db.Where("user = ? and app = ? and status = ?", user, app, "active").First(&version).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("user = ? and app = ? and status = ?", user, app, "active").First(&version).Error; err != nil {
 		return nil, err
 	}
 	return &version, nil
 }
 
 // GetAllApps 获取所有应用
-func (r *AppRepository) GetAllApps() ([]*model.App, error) {
+func (r *AppRepository) GetAllApps(ctx context.Context) ([]*model.App, error) {
 	var apps []*model.App
-	if err := r.db.Find(&apps).Error; err != nil {
+	if err := r.db.WithContext(ctx).Find(&apps).Error; err != nil {
 		return nil, err
 	}
 	return apps, nil

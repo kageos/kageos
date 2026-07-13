@@ -45,7 +45,7 @@ func TestInitLLMSeedsCreatesDefaultAndAllowsEmptyAPIBase(t *testing.T) {
 		t.Fatalf("init llm seeds: %v", err)
 	}
 
-	cfg, err := repo.GetByCode("main")
+	cfg, err := repo.GetByCode(context.Background(), "main")
 	if err != nil {
 		t.Fatalf("get seed by code: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestInitLLMSeedsCreatesDefaultAndAllowsEmptyAPIBase(t *testing.T) {
 	if cfg.Admin != defaultLLMSeedAdmin {
 		t.Fatalf("admin = %q, want %q", cfg.Admin, defaultLLMSeedAdmin)
 	}
-	def, err := repo.GetDefault()
+	def, err := repo.GetDefault(context.Background())
 	if err != nil {
 		t.Fatalf("get default: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestInitLLMSeedsCreatesDefaultAndAllowsEmptyAPIBase(t *testing.T) {
 
 func TestInitLLMSeedsDoesNotWipeExistingKeyWhenEnvMissing(t *testing.T) {
 	svc, repo := newLLMSeedTestService(t)
-	if err := repo.Create(&model.LLMConfig{
+	if err := repo.Create(context.Background(), &model.LLMConfig{
 		Code:      "main",
 		Name:      "旧模型",
 		Provider:  model.LLMProviderOpenAI,
@@ -107,7 +107,7 @@ func TestInitLLMSeedsDoesNotWipeExistingKeyWhenEnvMissing(t *testing.T) {
 		t.Fatalf("init llm seeds: %v", err)
 	}
 
-	cfg, err := repo.GetByCode("main")
+	cfg, err := repo.GetByCode(context.Background(), "main")
 	if err != nil {
 		t.Fatalf("get seed by code: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestInitLLMSeedsPersistsProtocolFields(t *testing.T) {
 		t.Fatalf("init llm seeds: %v", err)
 	}
 
-	cfg, err := repo.GetByCode("claude")
+	cfg, err := repo.GetByCode(context.Background(), "claude")
 	if err != nil {
 		t.Fatalf("get seed by code: %v", err)
 	}

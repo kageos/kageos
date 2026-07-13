@@ -47,7 +47,7 @@ func (s *serviceTreeFunctionService) CreateFunction(ctx context.Context, req *dt
 	}
 
 	expectedPath := req.DirectoryPath + "/" + req.Code
-	functionTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(expectedPath)
+	functionTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(ctx, expectedPath)
 	if err != nil {
 		logger.Warnf(ctx, "[CreateFunction] 无法通过路径查找函数节点: %s, error: %v，返回基本信息", expectedPath, err)
 		return &dto.CreateFunctionResp{
@@ -73,12 +73,12 @@ func (s *serviceTreeFunctionService) AddFunctions(ctx context.Context, req *dto.
 }
 
 func (s *serviceTreeFunctionService) loadTargetTree(ctx context.Context, fullCodePath string) (*model.ServiceTree, error) {
-	targetTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
+	targetTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(ctx, fullCodePath)
 	if err != nil {
 		return nil, err
 	}
 	if targetTree.App == nil {
-		app, err := s.appRepo.GetAppByID(targetTree.AppID)
+		app, err := s.appRepo.GetAppByIDContext(ctx, targetTree.AppID)
 		if err != nil {
 			logger.Errorf(ctx, "[ServiceTreeService] 获取 App 失败: AppID=%d, error=%v", targetTree.AppID, err)
 			return nil, err

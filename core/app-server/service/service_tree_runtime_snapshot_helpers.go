@@ -19,7 +19,7 @@ func readDirectorySnapshotsRecursively(
 	appID int64,
 	rootDirectoryPath string,
 ) (map[string][]*model.FileSnapshot, error) {
-	rootTree, err := serviceTreeRepo.GetServiceTreeByFullPath(rootDirectoryPath)
+	rootTree, err := serviceTreeRepo.GetServiceTreeByFullPath(ctx, rootDirectoryPath)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			logger.Warnf(ctx, "[ServiceTreeService] 根目录节点不存在: path=%s", rootDirectoryPath)
@@ -28,7 +28,7 @@ func readDirectorySnapshotsRecursively(
 		return nil, fmt.Errorf("获取根目录节点失败: %w", err)
 	}
 
-	descendants, err := serviceTreeRepo.GetDescendantDirectories(appID, rootDirectoryPath)
+	descendants, err := serviceTreeRepo.GetDescendantDirectories(ctx, appID, rootDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("查询子目录失败: %w", err)
 	}
@@ -44,7 +44,7 @@ func readDirectorySnapshotsRecursively(
 		treeIDToPath[tree.ID] = tree.FullCodePath
 	}
 
-	allSnapshots, err := fileSnapshotRepo.GetCurrentSnapshotsByServiceTreeIDs(treeIDs)
+	allSnapshots, err := fileSnapshotRepo.GetCurrentSnapshotsByServiceTreeIDs(ctx, treeIDs)
 	if err != nil {
 		return nil, fmt.Errorf("批量查询文件快照失败: %w", err)
 	}
@@ -84,7 +84,7 @@ func readDirectoryFilesFromRuntimeRecursively(
 		return nil, err
 	}
 
-	rootTree, err := serviceTreeRepo.GetServiceTreeByFullPath(rootDirectoryPath)
+	rootTree, err := serviceTreeRepo.GetServiceTreeByFullPath(ctx, rootDirectoryPath)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			logger.Warnf(ctx, "[ServiceTreeService] 根目录节点不存在: path=%s", rootDirectoryPath)
@@ -93,7 +93,7 @@ func readDirectoryFilesFromRuntimeRecursively(
 		return nil, fmt.Errorf("获取根目录节点失败: %w", err)
 	}
 
-	descendants, err := serviceTreeRepo.GetDescendantDirectories(appID, rootDirectoryPath)
+	descendants, err := serviceTreeRepo.GetDescendantDirectories(ctx, appID, rootDirectoryPath)
 	if err != nil {
 		return nil, fmt.Errorf("查询子目录失败: %w", err)
 	}

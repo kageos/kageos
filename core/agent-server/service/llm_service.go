@@ -91,7 +91,7 @@ func normalizeLLMProviderProtocol(provider, protocol string) (string, string, er
 }
 
 func (s *LLMService) getManageableLLMConfig(ctx context.Context, id int64, action string) (*model.LLMConfig, error) {
-	cfg, err := s.repo.GetByID(id)
+	cfg, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("LLM配置不存在")
@@ -112,12 +112,11 @@ type LLMService struct {
 }
 
 const (
-	defaultLLMTimeout          = 300
-	defaultLLMMaxTokens        = 8196
-	llmAPIKeySecretEnv         = "KAGEOS_LLM_API_KEY_SECRET"
-	llmAPIKeyVaultPurpose      = "kageos-agent-llm-api-key-v1"
-	llmAPIKeyCipherPrefix      = "kgosecret:llm-api-key:v1:"
-	llmAPIKeyDevFallbackSecret = "kageos-llm-api-key-dev-secret"
+	defaultLLMTimeout     = 300
+	defaultLLMMaxTokens   = 8196
+	llmAPIKeySecretEnv    = "KAGEOS_LLM_API_KEY_SECRET"
+	llmAPIKeyVaultPurpose = "kageos-agent-llm-api-key-v1"
+	llmAPIKeyCipherPrefix = "kgosecret:llm-api-key:v1:"
 )
 
 type LLMServiceOption func(*LLMService)
@@ -144,7 +143,7 @@ func NewLLMService(repo *repository.LLMRepository, opts ...LLMServiceOption) *LL
 
 // GetLLMConfig 获取 LLM 配置
 func (s *LLMService) GetLLMConfig(ctx context.Context, id int64) (*model.LLMConfig, error) {
-	cfg, err := s.repo.GetByID(id)
+	cfg, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("LLM配置不存在")
@@ -167,7 +166,7 @@ func (s *LLMService) GetViewableLLMConfig(ctx context.Context, id int64) (*model
 
 // GetDefaultLLMConfig 获取默认 LLM 配置
 func (s *LLMService) GetDefaultLLMConfig(ctx context.Context) (*model.LLMConfig, error) {
-	cfg, err := s.repo.GetDefault()
+	cfg, err := s.repo.GetDefault(ctx)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("未设置默认LLM配置")
@@ -195,7 +194,7 @@ func (s *LLMService) ListLLMConfigs(ctx context.Context, scope string, page, pag
 	if pageSize <= 0 {
 		pageSize = 10
 	}
-	return s.repo.List(scope, currentUser, offset, pageSize)
+	return s.repo.List(ctx, scope, currentUser, offset, pageSize)
 }
 
 // CreateLLMConfig 创建 LLM 配置
@@ -257,13 +256,13 @@ func (s *LLMService) CreateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	}
 
 	// 先创建配置
-	if err := s.repo.Create(cfg); err != nil {
+	if err := s.repo.Create(ctx, cfg); err != nil {
 		return err
 	}
 
 	// 如果设置为默认，设置默认配置
 	if cfg.IsDefault {
-		if err := s.repo.SetDefault(cfg.ID); err != nil {
+		if err := s.repo.SetDefault(ctx, cfg.ID); err != nil {
 			return fmt.Errorf("设置默认配置失败: %w", err)
 		}
 	}
@@ -341,12 +340,12 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 
 	// 如果设置为默认，先取消其他默认配置
 	if cfg.IsDefault {
-		if err := s.repo.SetDefault(cfg.ID); err != nil {
+		if err := s.repo.SetDefault(ctx, cfg.ID); err != nil {
 			return fmt.Errorf("设置默认配置失败: %w", err)
 		}
 	}
 
-	return s.repo.Update(cfg)
+	return s.repo.Update(ctx, cfg)
 }
 
 // DeleteLLMConfig 删除 LLM 配置
@@ -354,7 +353,7 @@ func (s *LLMService) DeleteLLMConfig(ctx context.Context, id int64) error {
 	if _, err := s.getManageableLLMConfig(ctx, id, "删除"); err != nil {
 		return err
 	}
-	return s.repo.Delete(id)
+	return s.repo.Delete(ctx, id)
 }
 
 // SetDefaultLLMConfig 设置默认 LLM 配置
@@ -362,7 +361,7 @@ func (s *LLMService) SetDefaultLLMConfig(ctx context.Context, id int64) error {
 	if _, err := s.getManageableLLMConfig(ctx, id, "设置默认"); err != nil {
 		return err
 	}
-	return s.repo.SetDefault(id)
+	return s.repo.SetDefault(ctx, id)
 }
 
 func canViewLLMConfig(cfg *model.LLMConfig, username string) bool {
@@ -379,7 +378,7 @@ func defaultLLMAPIKeySecret() string {
 	if value := strings.TrimSpace(config.GetGlobalSharedConfig().JWT.Secret); value != "" {
 		return value
 	}
-	return llmAPIKeyDevFallbackSecret
+	return ""
 }
 
 func newLLMAPIKeyVault(secret string) (*secretvault.Vault, error) {

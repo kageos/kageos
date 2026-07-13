@@ -177,11 +177,11 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 	var created *model.TimerTask
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		taskRepo := s.taskRepo.WithDB(tx)
-		if existing, err := taskRepo.GetByIdempotencyKey(req.IdempotencyKey); err == nil {
+		if existing, err := taskRepo.GetByIdempotencyKey(ctx, req.IdempotencyKey); err == nil {
 			if !isTerminalTaskStatus(existing.Status) {
 				created = existing
 				return nil
-			} else if err := taskRepo.ReleaseIdempotencyKey(existing.ID, idempotencyKey); err != nil {
+			} else if err := taskRepo.ReleaseIdempotencyKey(ctx, existing.ID, idempotencyKey); err != nil {
 				return err
 			}
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -215,7 +215,7 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 			runAt := req.Schedule.RunAt
 			task.RunAt = &runAt
 		}
-		if err := taskRepo.Create(task); err != nil {
+		if err := taskRepo.Create(ctx, task); err != nil {
 			return err
 		}
 		created = task
@@ -228,7 +228,7 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 }
 
 func (s *Service) UpdateTask(ctx context.Context, taskID int64, req scheduledsdk.UpdateTaskRequest) (*scheduledsdk.Task, error) {
-	task, err := s.taskRepo.GetByID(taskID)
+	task, err := s.taskRepo.GetByID(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -298,18 +298,18 @@ func (s *Service) UpdateTask(ctx context.Context, taskID int64, req scheduledsdk
 			task.RunAt = &runAt
 		}
 	}
-	if err := s.taskRepo.Update(task); err != nil {
+	if err := s.taskRepo.Update(ctx, task); err != nil {
 		return nil, err
 	}
 	return taskToSDK(task), nil
 }
 
 func (s *Service) PauseTask(ctx context.Context, taskID int64) error {
-	return s.taskRepo.Pause(taskID)
+	return s.taskRepo.Pause(ctx, taskID)
 }
 
 func (s *Service) ResumeTask(ctx context.Context, taskID int64) error {
-	task, err := s.taskRepo.GetByID(taskID)
+	task, err := s.taskRepo.GetByID(ctx, taskID)
 	if err != nil {
 		return err
 	}
@@ -317,7 +317,7 @@ func (s *Service) ResumeTask(ctx context.Context, taskID int64) error {
 	if err != nil {
 		return err
 	}
-	return s.taskRepo.Resume(taskID, nextRunAt)
+	return s.taskRepo.Resume(ctx, taskID, nextRunAt)
 }
 
 func (s *Service) CancelTask(ctx context.Context, taskID int64) error {
@@ -325,13 +325,13 @@ func (s *Service) CancelTask(ctx context.Context, taskID int64) error {
 		execRepo := s.executionRepo.WithDB(tx)
 		outboxRepo := s.outboxRepo.WithDB(tx)
 		taskRepo := s.taskRepo.WithDB(tx)
-		if err := execRepo.CancelActiveByTaskID(taskID, s.now(), taskCancelledExecutionMessage); err != nil {
+		if err := execRepo.CancelActiveByTaskID(ctx, taskID, s.now(), taskCancelledExecutionMessage); err != nil {
 			return err
 		}
-		if err := outboxRepo.DeadLetterExecutionRequestsForTask(taskID, taskCancelledExecutionMessage); err != nil {
+		if err := outboxRepo.DeadLetterExecutionRequestsForTask(ctx, taskID, taskCancelledExecutionMessage); err != nil {
 			return err
 		}
-		return taskRepo.Cancel(taskID)
+		return taskRepo.Cancel(ctx, taskID)
 	})
 }
 
@@ -340,28 +340,28 @@ func (s *Service) DeleteTask(ctx context.Context, taskID int64) error {
 		taskRepo := s.taskRepo.WithDB(tx)
 		execRepo := s.executionRepo.WithDB(tx)
 		outboxRepo := s.outboxRepo.WithDB(tx)
-		task, err := taskRepo.GetByID(taskID)
+		task, err := taskRepo.GetByID(ctx, taskID)
 		if err != nil {
 			return err
 		}
-		if err := execRepo.CancelActiveByTaskID(taskID, s.now(), taskDeletedExecutionMessage); err != nil {
+		if err := execRepo.CancelActiveByTaskID(ctx, taskID, s.now(), taskDeletedExecutionMessage); err != nil {
 			return err
 		}
-		if err := outboxRepo.DeadLetterExecutionRequestsForTask(taskID, taskDeletedExecutionMessage); err != nil {
+		if err := outboxRepo.DeadLetterExecutionRequestsForTask(ctx, taskID, taskDeletedExecutionMessage); err != nil {
 			return err
 		}
 		if task.IdempotencyKey != nil {
-			if err := taskRepo.ReleaseIdempotencyKey(task.ID, *task.IdempotencyKey); err != nil {
+			if err := taskRepo.ReleaseIdempotencyKey(ctx, task.ID, *task.IdempotencyKey); err != nil {
 				return err
 			}
 			task.IdempotencyKey = nil
 		}
-		return taskRepo.Delete(task)
+		return taskRepo.Delete(ctx, task)
 	})
 }
 
 func (s *Service) RunNow(ctx context.Context, taskID int64) (*scheduledsdk.Execution, error) {
-	task, err := s.taskRepo.GetByID(taskID)
+	task, err := s.taskRepo.GetByID(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +373,7 @@ func (s *Service) RunNow(ctx context.Context, taskID int64) (*scheduledsdk.Execu
 }
 
 func (s *Service) GetTask(ctx context.Context, taskID int64) (*scheduledsdk.Task, error) {
-	task, err := s.taskRepo.GetByID(taskID)
+	task, err := s.taskRepo.GetByID(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +382,7 @@ func (s *Service) GetTask(ctx context.Context, taskID int64) (*scheduledsdk.Task
 
 func (s *Service) ListTasks(ctx context.Context, req scheduledsdk.ListTasksRequest) (*scheduledsdk.ListTasksResponse, error) {
 	page, pageSize := normalizePage(req.Page, req.PageSize)
-	list, total, err := s.taskRepo.List(repository.ListTasksFilter{
+	list, total, err := s.taskRepo.List(ctx, repository.ListTasksFilter{
 		ExecutorKey:       req.ExecutorKey,
 		Status:            req.Status,
 		Category:          req.Category,
@@ -406,7 +406,7 @@ func (s *Service) ListTasks(ctx context.Context, req scheduledsdk.ListTasksReque
 }
 
 func (s *Service) GetExecution(ctx context.Context, taskID, executionID int64) (*scheduledsdk.Execution, error) {
-	exec, err := s.executionRepo.GetByID(taskID, executionID)
+	exec, err := s.executionRepo.GetByID(ctx, taskID, executionID)
 	if err != nil {
 		return nil, err
 	}
@@ -415,7 +415,7 @@ func (s *Service) GetExecution(ctx context.Context, taskID, executionID int64) (
 
 func (s *Service) ListExecutions(ctx context.Context, taskID int64, req scheduledsdk.ListExecutionsRequest) (*scheduledsdk.ListExecutionsResponse, error) {
 	page, pageSize := normalizePage(req.Page, req.PageSize)
-	list, total, err := s.executionRepo.ListByTaskID(taskID, req.Status, (page-1)*pageSize, pageSize)
+	list, total, err := s.executionRepo.ListByTaskID(ctx, taskID, req.Status, (page-1)*pageSize, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -428,14 +428,14 @@ func (s *Service) ListExecutions(ctx context.Context, taskID int64, req schedule
 
 func (s *Service) DispatchDue(ctx context.Context, owner string, limit int) ([]*scheduledsdk.Execution, error) {
 	now := s.now()
-	tasks, err := s.taskRepo.ListDue(now, limit)
+	tasks, err := s.taskRepo.ListDue(ctx, now, limit)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]*scheduledsdk.Execution, 0, len(tasks))
 	var dispatchErr error
 	for _, task := range tasks {
-		ok, err := s.taskRepo.TryAcquireDispatch(task.ID, owner, now, now.Add(s.opts.DispatchLeaseDuration))
+		ok, err := s.taskRepo.TryAcquireDispatch(ctx, task.ID, owner, now, now.Add(s.opts.DispatchLeaseDuration))
 		if err != nil {
 			dispatchErr = errors.Join(dispatchErr, fmt.Errorf("timer-scheduler dispatch acquire task %d: %w", task.ID, err))
 			continue
@@ -455,7 +455,7 @@ func (s *Service) DispatchDue(ctx context.Context, owner string, limit int) ([]*
 
 func (s *Service) RecoverStaleExecutions(ctx context.Context, limit int) (int, error) {
 	now := s.now()
-	execs, err := s.executionRepo.ListStale(now, limit)
+	execs, err := s.executionRepo.ListStale(ctx, now, limit)
 	if err != nil {
 		return 0, err
 	}
@@ -505,7 +505,7 @@ func (s *Service) RecoverStaleExecutions(ctx context.Context, limit int) (int, e
 func (s *Service) handleExpiredRunningExecution(ctx context.Context, exec *model.TimerExecution, now time.Time) (bool, error) {
 	misses := exec.HeartbeatMisses + 1
 	if misses < s.opts.MaxHeartbeatMisses {
-		ok, err := s.executionRepo.TryRecordHeartbeatMiss(exec, now, now.Add(s.opts.ExecutionLeaseDuration), misses)
+		ok, err := s.executionRepo.TryRecordHeartbeatMiss(ctx, exec, now, now.Add(s.opts.ExecutionLeaseDuration), misses)
 		if err != nil || !ok {
 			return ok, err
 		}
@@ -524,12 +524,12 @@ func (s *Service) MarkExecutionStarted(ctx context.Context, req scheduledsdk.Mar
 		startedAt = s.now()
 	}
 	workerID := strings.TrimSpace(req.WorkerID)
-	ok, err := s.executionRepo.TryMarkRunning(req.TaskID, req.ExecutionID, workerID, executorRunID, startedAt, startedAt.Add(s.opts.ExecutionLeaseDuration))
+	ok, err := s.executionRepo.TryMarkRunning(ctx, req.TaskID, req.ExecutionID, workerID, executorRunID, startedAt, startedAt.Add(s.opts.ExecutionLeaseDuration))
 	if err != nil {
 		return err
 	}
 	if !ok {
-		idempotent, lookupErr := s.executionRepo.IsRunningForActiveTask(req.TaskID, req.ExecutionID, workerID, executorRunID)
+		idempotent, lookupErr := s.executionRepo.IsRunningForActiveTask(ctx, req.TaskID, req.ExecutionID, workerID, executorRunID)
 		if lookupErr != nil {
 			return lookupErr
 		}
@@ -550,7 +550,7 @@ func (s *Service) MarkExecutionHeartbeat(ctx context.Context, req scheduledsdk.M
 	if heartbeatAt.IsZero() {
 		heartbeatAt = s.now()
 	}
-	ok, err := s.executionRepo.TryHeartbeat(req.TaskID, req.ExecutionID, strings.TrimSpace(req.WorkerID), executorRunID, heartbeatAt, heartbeatAt.Add(s.opts.ExecutionLeaseDuration))
+	ok, err := s.executionRepo.TryHeartbeat(ctx, req.TaskID, req.ExecutionID, strings.TrimSpace(req.WorkerID), executorRunID, heartbeatAt, heartbeatAt.Add(s.opts.ExecutionLeaseDuration))
 	if err != nil {
 		return err
 	}
@@ -581,7 +581,7 @@ func (s *Service) markExecutionFinished(ctx context.Context, req scheduledsdk.Ma
 		taskRepo := s.taskRepo.WithDB(tx)
 		outboxRepo := s.outboxRepo.WithDB(tx)
 
-		exec, err := execRepo.GetByID(req.TaskID, req.ExecutionID)
+		exec, err := execRepo.GetByID(ctx, req.TaskID, req.ExecutionID)
 		if err != nil {
 			return err
 		}
@@ -596,9 +596,9 @@ func (s *Service) markExecutionFinished(ctx context.Context, req scheduledsdk.Ma
 		}
 		var ok bool
 		if workerBound {
-			ok, err = execRepo.TryFinishByRunID(req.TaskID, req.ExecutionID, strings.TrimSpace(req.ExecutorRunID), updates)
+			ok, err = execRepo.TryFinishByRunID(ctx, req.TaskID, req.ExecutionID, strings.TrimSpace(req.ExecutorRunID), updates)
 		} else {
-			ok, err = execRepo.TryFinish(req.TaskID, req.ExecutionID, updates)
+			ok, err = execRepo.TryFinish(ctx, req.TaskID, req.ExecutionID, updates)
 		}
 		if err != nil {
 			return err
@@ -607,7 +607,7 @@ func (s *Service) markExecutionFinished(ctx context.Context, req scheduledsdk.Ma
 			return ErrInvalidTaskStatus
 		}
 
-		task, err := taskRepo.GetByIDForUpdate(req.TaskID)
+		task, err := taskRepo.GetByIDForUpdate(ctx, req.TaskID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return s.createExecutionFinishedOutbox(outboxRepo, req, exec, finishedAt)
@@ -630,7 +630,7 @@ func (s *Service) markExecutionFinished(ctx context.Context, req scheduledsdk.Ma
 		}
 		clearInflight := task.InflightExecutionID == req.ExecutionID
 		if exec.TriggerType != triggerManual || clearInflight {
-			settled, settleErr := taskRepo.TrySettleExecution(task, req.ExecutionID, expectedTaskStatus, clearInflight)
+			settled, settleErr := taskRepo.TrySettleExecution(ctx, task, req.ExecutionID, expectedTaskStatus, clearInflight)
 			if settleErr != nil {
 				return settleErr
 			}
@@ -659,7 +659,7 @@ func (s *Service) createExecutionFinishedOutbox(outboxRepo *repository.TimerOutb
 	if err != nil {
 		return err
 	}
-	return outboxRepo.Create(&model.TimerOutboxEvent{
+	return outboxRepo.Create(context.Background(), &model.TimerOutboxEvent{
 		EventID:     fmt.Sprintf("timer-execution-finished-%d", req.ExecutionID),
 		EventType:   eventTypeFinished,
 		Subject:     subjects.TimerExecutionFinishedSubject,
@@ -674,7 +674,7 @@ func (s *Service) PublishPendingOutbox(ctx context.Context, publisher OutboxPubl
 		return 0, fmt.Errorf("timer-scheduler: outbox publisher is nil")
 	}
 	now := s.now()
-	events, err := s.outboxRepo.ListReady(now, limit)
+	events, err := s.outboxRepo.ListReady(ctx, now, limit)
 	if err != nil {
 		return 0, err
 	}
@@ -683,17 +683,17 @@ func (s *Service) PublishPendingOutbox(ctx context.Context, publisher OutboxPubl
 		if err := publisher.Publish(ctx, event.Subject, event.Payload); err != nil {
 			attempts := event.Attempts + 1
 			if attempts >= s.opts.MaxOutboxAttempts {
-				if markErr := s.outboxRepo.MarkDeadLetter(event.ID, attempts, err.Error()); markErr != nil {
+				if markErr := s.outboxRepo.MarkDeadLetter(ctx, event.ID, attempts, err.Error()); markErr != nil {
 					return published, markErr
 				}
 				continue
 			}
-			if markErr := s.outboxRepo.MarkRetry(event.ID, attempts, now.Add(outboxBackoff(attempts)), err.Error()); markErr != nil {
+			if markErr := s.outboxRepo.MarkRetry(ctx, event.ID, attempts, now.Add(outboxBackoff(attempts)), err.Error()); markErr != nil {
 				return published, markErr
 			}
 			continue
 		}
-		if err := s.outboxRepo.MarkPublished(event.ID, now); err != nil {
+		if err := s.outboxRepo.MarkPublished(ctx, event.ID, now); err != nil {
 			return published, err
 		}
 		published++
@@ -732,7 +732,7 @@ func (s *Service) dispatchTask(ctx context.Context, task *model.TimerTask, owner
 			RequestUser:      scheduledTaskRequestUser(task),
 			RequestUserDept:  task.RequestUserDept,
 		}
-		if err := execRepo.Create(exec); err != nil {
+		if err := execRepo.Create(ctx, exec); err != nil {
 			return err
 		}
 		var (
@@ -740,16 +740,16 @@ func (s *Service) dispatchTask(ctx context.Context, task *model.TimerTask, owner
 			err error
 		)
 		if triggerType == triggerManual {
-			ok, err = taskRepo.TrySetManualInflight(task.ID, exec.ID)
+			ok, err = taskRepo.TrySetManualInflight(ctx, task.ID, exec.ID)
 			if err == nil && !ok {
-				ok, err = taskRepo.RecordManualExecutionSubmitted(task.ID, exec.ID)
+				ok, err = taskRepo.RecordManualExecutionSubmitted(ctx, task.ID, exec.ID)
 			}
 		} else {
 			nextRunAt, nextErr := nextRunAfterScheduledDispatch(task, now)
 			if nextErr != nil {
 				return nextErr
 			}
-			ok, err = taskRepo.TrySetInflight(task.ID, exec.ID, owner, nextRunAt)
+			ok, err = taskRepo.TrySetInflight(ctx, task.ID, exec.ID, owner, nextRunAt)
 		}
 		if err != nil {
 			return err
@@ -760,7 +760,7 @@ func (s *Service) dispatchTask(ctx context.Context, task *model.TimerTask, owner
 			}
 			return ErrTaskBusy
 		}
-		if err := outboxRepo.Create(s.executionRequestedOutbox(task, exec)); err != nil {
+		if err := outboxRepo.Create(ctx, s.executionRequestedOutbox(task, exec)); err != nil {
 			return err
 		}
 		created = exec
@@ -774,7 +774,7 @@ func (s *Service) requeueExecution(ctx context.Context, exec *model.TimerExecuti
 		execRepo := s.executionRepo.WithDB(tx)
 		taskRepo := s.taskRepo.WithDB(tx)
 		outboxRepo := s.outboxRepo.WithDB(tx)
-		task, err := taskRepo.GetByID(exec.TaskID)
+		task, err := taskRepo.GetByID(ctx, exec.TaskID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return s.timeoutOrphanExecutionWithRepo(execRepo, exec, now, "timer-scheduler task not found during recovery")
@@ -783,7 +783,7 @@ func (s *Service) requeueExecution(ctx context.Context, exec *model.TimerExecuti
 		}
 		if isTerminalTaskStatus(task.Status) {
 			message := "timer-scheduler task is not eligible for execution recovery"
-			ok, finishErr := execRepo.TryFinish(exec.TaskID, exec.ID, map[string]interface{}{
+			ok, finishErr := execRepo.TryFinish(ctx, exec.TaskID, exec.ID, map[string]interface{}{
 				"status":        string(scheduledsdk.ExecutionStatusCancelled),
 				"finished_at":   now,
 				"lease_until":   nil,
@@ -793,11 +793,11 @@ func (s *Service) requeueExecution(ctx context.Context, exec *model.TimerExecuti
 				return finishErr
 			}
 			if ok {
-				_, _ = taskRepo.TryClearInflight(task.ID, exec.ID, message)
+				_, _ = taskRepo.TryClearInflight(ctx, task.ID, exec.ID, message)
 			}
 			return nil
 		}
-		ok, err := execRepo.TryRequeueQueued(exec, now, now.Add(s.opts.QueueAckTimeout))
+		ok, err := execRepo.TryRequeueQueued(ctx, exec, now, now.Add(s.opts.QueueAckTimeout))
 		if err != nil {
 			return err
 		}
@@ -807,12 +807,12 @@ func (s *Service) requeueExecution(ctx context.Context, exec *model.TimerExecuti
 		exec.Attempt++
 		exec.LeaseUntil = ptrTime(now.Add(s.opts.QueueAckTimeout))
 		exec.LastDispatchedAt = &now
-		return outboxRepo.Create(s.executionRequestedOutbox(task, exec))
+		return outboxRepo.Create(ctx, s.executionRequestedOutbox(task, exec))
 	})
 }
 
 func (s *Service) recoverBrokenInflightReferences(limit int) (int, error) {
-	tasks, err := s.taskRepo.ListBrokenInflightReferences(limit)
+	tasks, err := s.taskRepo.ListBrokenInflightReferences(context.Background(), limit)
 	if err != nil {
 		return 0, err
 	}
@@ -824,7 +824,7 @@ func (s *Service) recoverBrokenInflightReferences(limit int) (int, error) {
 			continue
 		}
 		message := fmt.Sprintf("timer-scheduler cleared stale inflight execution reference: execution_id=%d", executionID)
-		ok, err := s.taskRepo.TryClearInflight(task.ID, executionID, message)
+		ok, err := s.taskRepo.TryClearInflight(context.Background(), task.ID, executionID, message)
 		if err != nil {
 			recoverErr = errors.Join(recoverErr, err)
 			continue
@@ -837,7 +837,7 @@ func (s *Service) recoverBrokenInflightReferences(limit int) (int, error) {
 }
 
 func (s *Service) recoverBrokenInflightReferenceForTask(taskID int64) (bool, error) {
-	task, err := s.taskRepo.GetBrokenInflightReferenceByID(taskID)
+	task, err := s.taskRepo.GetBrokenInflightReferenceByID(context.Background(), taskID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil
@@ -849,7 +849,7 @@ func (s *Service) recoverBrokenInflightReferenceForTask(taskID int64) (bool, err
 		return false, nil
 	}
 	message := fmt.Sprintf("timer-scheduler cleared stale inflight execution reference: execution_id=%d", executionID)
-	return s.taskRepo.TryClearInflight(task.ID, executionID, message)
+	return s.taskRepo.TryClearInflight(context.Background(), task.ID, executionID, message)
 }
 
 func (s *Service) timeoutExecution(ctx context.Context, exec *model.TimerExecution, now time.Time, message string) error {
@@ -883,7 +883,7 @@ func (s *Service) timeoutOrphanExecutionWithRepo(execRepo *repository.TimerExecu
 	if exec.StartedAt != nil && now.After(*exec.StartedAt) {
 		durationMillis = now.Sub(*exec.StartedAt).Milliseconds()
 	}
-	ok, err := execRepo.TryFinish(exec.TaskID, exec.ID, map[string]interface{}{
+	ok, err := execRepo.TryFinish(context.Background(), exec.TaskID, exec.ID, map[string]interface{}{
 		"status":          string(scheduledsdk.ExecutionStatusTimeout),
 		"finished_at":     now,
 		"duration_millis": durationMillis,

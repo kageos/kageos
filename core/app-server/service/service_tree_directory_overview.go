@@ -44,7 +44,7 @@ func (q *serviceTreeQueryView) GetDirectoryOverview(ctx context.Context, req *dt
 		return nil, fmt.Errorf("full_code_path 不能为空")
 	}
 
-	root, err := q.serviceTreeRepo.GetServiceTreeByFullPath(rootPath)
+	root, err := q.serviceTreeRepo.GetServiceTreeByFullPath(ctx, rootPath)
 	if err != nil {
 		return nil, fmt.Errorf("获取目录失败: %w", err)
 	}
@@ -52,12 +52,12 @@ func (q *serviceTreeQueryView) GetDirectoryOverview(ctx context.Context, req *dt
 		return nil, fmt.Errorf("目录概览仅支持 package 类型节点")
 	}
 
-	appModel, err := q.appRepo.GetAppByID(root.AppID)
+	appModel, err := q.appRepo.GetAppByID(ctx, root.AppID)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
-	descendants, err := q.serviceTreeRepo.GetDescendantNodes(root.AppID, root.FullCodePath)
+	descendants, err := q.serviceTreeRepo.GetDescendantNodes(ctx, root.AppID, root.FullCodePath)
 	if err != nil {
 		return nil, fmt.Errorf("获取子资源失败: %w", err)
 	}

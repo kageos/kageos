@@ -65,7 +65,7 @@ func (o *OperateLog) GetOperateLogs(c *gin.Context) {
 	}()
 
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "参数绑定失败: "+err.Error())
+		response.Internal(c, "参数绑定失败: "+err.Error())
 		return
 	}
 	if req.Page <= 0 {
@@ -82,12 +82,12 @@ func (o *OperateLog) GetOperateLogs(c *gin.Context) {
 		auditResourcePath = req.ResourcePathPrefix
 	}
 	if auditResourcePath == "" {
-		response.FailWithMessage(c, "resource_path 或 resource_path_prefix 不能为空")
+		response.BadRequest(c, "resource_path 或 resource_path_prefix 不能为空")
 		return
 	}
 	auditResourcePath = access.NormalizeResourcePath(auditResourcePath)
 	if err := requireAccess(c, o.teamAccessService, auditResourcePath, access.ActionRead); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	if req.ResourcePath != "" {
@@ -100,14 +100,14 @@ func (o *OperateLog) GetOperateLogs(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	if companyCode := contextx.GetRequestCompanyCode(ctx); companyCode != "" {
 		if req.CompanyCode != "" && req.CompanyCode != companyCode {
-			response.FailWithMessage(c, "不能查询其他企业的操作日志")
+			response.Internal(c, "不能查询其他企业的操作日志")
 			return
 		}
 		req.CompanyCode = companyCode
 	}
 	resp, err = o.operateLogService.GetOperateLogs(ctx, &req)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 

@@ -42,17 +42,17 @@ func NewPublicShareAPI(
 func (a *PublicShareAPI) Create(c *gin.Context) {
 	var req dto.CreatePublicShareReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	req.FullCodePath = access.NormalizeResourcePath(req.FullCodePath)
 	if err := requireAccess(c, a.teamAccessService, req.FullCodePath, access.ActionWrite); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	resp, err := a.publicShareService.Create(contextx.ToContext(c), &req, contextx.GetRequestUser(c))
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	resp.PublicURL = publicShareURL(c, resp.ShareID)
@@ -62,16 +62,16 @@ func (a *PublicShareAPI) Create(c *gin.Context) {
 func (a *PublicShareAPI) List(c *gin.Context) {
 	fullCodePath := access.NormalizeResourcePath(c.Query("full_code_path"))
 	if fullCodePath == "" {
-		response.FailWithMessage(c, "full_code_path 参数不能为空")
+		response.BadRequest(c, "full_code_path 参数不能为空")
 		return
 	}
 	if err := requireAccess(c, a.teamAccessService, fullCodePath, access.ActionRead); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	tenantUser, app, _, err := parseFullCodePath(fullCodePath)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	resp, err := a.publicShareService.List(contextx.ToContext(c), tenantUser, app, repository.PublicShareListFilter{
@@ -81,7 +81,7 @@ func (a *PublicShareAPI) List(c *gin.Context) {
 		Status:       strings.TrimSpace(c.Query("status")),
 	})
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	for _, item := range resp.Items {
@@ -94,15 +94,15 @@ func (a *PublicShareAPI) Disable(c *gin.Context) {
 	shareID := strings.TrimSpace(c.Param("share_id"))
 	share, err := a.publicShareService.GetShare(contextx.ToContext(c), shareID)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := requireAccess(c, a.teamAccessService, share.FullCodePath, access.ActionWrite); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := a.publicShareService.Disable(contextx.ToContext(c), shareID, contextx.GetRequestUser(c)); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.Ok(c)
@@ -111,7 +111,7 @@ func (a *PublicShareAPI) Disable(c *gin.Context) {
 func (a *PublicShareAPI) AnonymousToken(c *gin.Context) {
 	token, claims, err := publicshare.ValidateOrIssueAnonymousToken(c.GetHeader(publicshare.AnonymousTokenHeader))
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	c.Header(publicshare.AnonymousTokenHeader, token)
@@ -124,17 +124,17 @@ func (a *PublicShareAPI) AnonymousToken(c *gin.Context) {
 func (a *PublicShareAPI) View(c *gin.Context) {
 	shareID := strings.TrimSpace(c.Param("share_id"))
 	if _, err := publicshare.ValidateAnonymousToken(c.GetHeader(publicshare.AnonymousTokenHeader)); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	share, err := a.publicShareService.GetActiveShare(contextx.ToContext(c), shareID)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	resp, err := a.publicShareService.BuildView(contextx.ToContext(c), share)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, resp)
@@ -145,19 +145,19 @@ func (a *PublicShareAPI) Submit(c *gin.Context) {
 	token := c.GetHeader(publicshare.AnonymousTokenHeader)
 	claims, err := publicshare.ValidateAnonymousToken(token)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	share, err := a.publicShareService.GetActiveShare(contextx.ToContext(c), shareID)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	actorID := publicshare.DeriveActorID(share.TenantUser, share.App, share.ShareID, claims.SessionID)
 	req, err := a.buildPublicRequestAppReq(c, share, actorID, token)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -200,19 +200,19 @@ func (a *PublicShareAPI) Submit(c *gin.Context) {
 		metadata["version"] = resp.Version
 	}
 	if callErr != nil {
-		response.FailWithMessage(c, callErr.Error(), metadata)
+		response.Error(c, callErr)
 		return
 	}
 	if resp == nil {
-		response.FailWithMessage(c, "公开表单提交失败: 空响应", metadata)
+		response.Internal(c, "公开表单提交失败: 空响应", metadata)
 		return
 	}
 	if resp.Error != "" {
-		response.Result(resp.ErrCode, nil, resp.Error, c, metadata)
+		response.ApplicationError(c, resp.ErrCode, resp.Error, metadata)
 		return
 	}
 	if err := a.publicShareService.IncrementUseCount(ctx, share.ShareID); err != nil {
-		response.FailWithMessage(c, err.Error(), metadata)
+		response.Error(c, err)
 		return
 	}
 	a.appService.IncrementFunctionRunCount(ctx, "/"+strings.TrimPrefix(share.FullCodePath, "/"))
@@ -225,19 +225,19 @@ func (a *PublicShareAPI) CallbackOnSelectFuzzy(c *gin.Context) {
 	token := c.GetHeader(publicshare.AnonymousTokenHeader)
 	claims, err := publicshare.ValidateAnonymousToken(token)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	share, err := a.publicShareService.GetActiveShare(contextx.ToContext(c), shareID)
 	if err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	actorID := publicshare.DeriveActorID(share.TenantUser, share.App, share.ShareID, claims.SessionID)
 	req, err := a.buildPublicCallbackAppReq(c, share, actorID, token, "OnSelectFuzzy")
 	if err != nil {
-		response.FailWithMessage(c, "构建请求失败: "+err.Error())
+		response.Internal(c, "构建请求失败: "+err.Error())
 		return
 	}
 
@@ -256,15 +256,15 @@ func (a *PublicShareAPI) CallbackOnSelectFuzzy(c *gin.Context) {
 		metadata["version"] = resp.Version
 	}
 	if err != nil {
-		response.FailWithMessage(c, err.Error(), metadata)
+		response.Error(c, err)
 		return
 	}
 	if resp == nil {
-		response.FailWithMessage(c, "公开表单回调失败: 空响应", metadata)
+		response.Internal(c, "公开表单回调失败: 空响应", metadata)
 		return
 	}
 	if resp.Error != "" {
-		response.Result(resp.ErrCode, nil, resp.Error, c, metadata)
+		response.ApplicationError(c, resp.ErrCode, resp.Error, metadata)
 		return
 	}
 	response.OkWithData(c, resp.Result, metadata)

@@ -20,7 +20,7 @@ func TestInitSystemUserWithPasswordUpdatesExistingMismatchedPassword(t *testing.
 		t.Fatal(err)
 	}
 	userRepo := hrrepository.NewUserRepository(db)
-	if err := userRepo.CreateUser(&hrmodel.User{
+	if err := userRepo.CreateUser(context.Background(), &hrmodel.User{
 		Username:     SystemUsername,
 		Email:        SystemUserEmail,
 		CompanyCode:  hrmodel.DefaultCompanyCode,
@@ -36,7 +36,7 @@ func TestInitSystemUserWithPasswordUpdatesExistingMismatchedPassword(t *testing.
 		t.Fatal(err)
 	}
 
-	got, err := userRepo.GetUserByUsername(SystemUsername)
+	got, err := userRepo.GetUserByUsername(context.Background(), SystemUsername)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestInitTestUserWithPasswordUpdatesExistingMismatchedPassword(t *testing.T)
 		t.Fatal(err)
 	}
 	userRepo := hrrepository.NewUserRepository(db)
-	if err := userRepo.CreateUser(&hrmodel.User{
+	if err := userRepo.CreateUser(context.Background(), &hrmodel.User{
 		Username:           TestUsername,
 		Email:              TestUserEmail,
 		CompanyCode:        hrmodel.DefaultCompanyCode,
@@ -74,7 +74,7 @@ func TestInitTestUserWithPasswordUpdatesExistingMismatchedPassword(t *testing.T)
 		t.Fatal(err)
 	}
 
-	got, err := userRepo.GetUserByUsername(TestUsername)
+	got, err := userRepo.GetUserByUsername(context.Background(), TestUsername)
 	if err != nil {
 		t.Fatal(err)
 	}

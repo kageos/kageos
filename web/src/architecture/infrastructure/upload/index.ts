@@ -199,8 +199,8 @@ async function getUploadCredentials(router: string, file: File, options: UploadF
     await ensurePublicAnonymousToken()
   }
   const endpoint = publicShareId
-    ? `/storage/api/v1/public/share/${encodeURIComponent(publicShareId)}/upload_token`
-    : '/storage/api/v1/upload_token'
+		? `/storage/api/v1/public/shares/${encodeURIComponent(publicShareId)}/upload-token`
+		: '/storage/api/v1/upload-token'
   
   const res = await authFetch(endpoint, {
     method: 'POST',
@@ -226,7 +226,7 @@ async function getUploadCredentials(router: string, file: File, options: UploadF
   
   // ✅ 先检查业务错误（code !== 0 表示后端返回了错误）
   // 🔥 统一使用 msg 字段
-  if (response.code !== undefined && response.code !== 0) {
+	if (response.code !== undefined && response.code !== 'ok' && response.code !== 0) {
     const errorMsg = response.msg || '上传失败'
     throw new Error(errorMsg)
   }
@@ -297,8 +297,8 @@ export async function notifyUploadComplete(params: UploadCompleteParams): Promis
       await ensurePublicAnonymousToken()
     }
     const endpoint = publicShareId
-      ? `/storage/api/v1/public/share/${encodeURIComponent(publicShareId)}/upload_complete`
-      : '/storage/api/v1/upload_complete'
+			? `/storage/api/v1/public/shares/${encodeURIComponent(publicShareId)}/upload-complete`
+			: '/storage/api/v1/upload-complete'
     const res = await authFetch(endpoint, {
       method: 'POST',
       headers: {
@@ -404,8 +404,8 @@ export async function notifyBatchUploadComplete(
       await ensurePublicAnonymousToken()
     }
     const endpoint = publicShareId
-      ? `/storage/api/v1/public/share/${encodeURIComponent(publicShareId)}/batch_upload_complete`
-      : '/storage/api/v1/batch_upload_complete'
+			? `/storage/api/v1/public/shares/${encodeURIComponent(publicShareId)}/batch-upload-complete`
+			: '/storage/api/v1/batch-upload-complete'
     const res = await authFetch(endpoint, {
       method: 'POST',
       headers: {

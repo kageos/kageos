@@ -62,7 +62,7 @@ interface PublicLogoUploadComplete {
 }
 
 export async function uploadCompanyLogo(file: File): Promise<string> {
-  const token = await post<PublicLogoUploadToken>('/storage/api/v1/public/company_logo/upload_token', {
+	const token = await post<PublicLogoUploadToken>('/storage/api/v1/public/company-logos/upload-token', {
     file_name: file.name,
     content_type: file.type || 'application/octet-stream',
     file_size: file.size,
@@ -83,7 +83,7 @@ export async function uploadCompanyLogo(file: File): Promise<string> {
     throw new Error('企业 Logo 上传失败')
   }
 
-  const complete = await post<PublicLogoUploadComplete>('/storage/api/v1/public/company_logo/upload_complete', {
+	const complete = await post<PublicLogoUploadComplete>('/storage/api/v1/public/company-logos/upload-complete', {
     key: token.key,
     bucket: token.bucket,
     success: true,
@@ -137,17 +137,17 @@ export function logout(token?: string) {
 
 // 获取用户信息
 export function getUserInfo() {
-  return get<UserInfo>('/hr/api/v1/user/info')
+	return get<UserInfo>('/hr/api/v1/users/me')
 }
 
 // 发送邮箱验证码
 export function sendEmailCode(email: string, codeType: 'register' | 'forgot_password' = 'register') {
   // 将 codeType 作为查询参数传递
-  const url = `/hr/api/v1/auth/send_email_code?type=${codeType}`
+	const url = `/hr/api/v1/auth/send-email-code?type=${codeType}`
   return post<{ debug_code?: string }>(url, { email })
 }
 
 // 忘记密码（简化版：直接通过验证码重置密码）
 export function forgotPassword(data: { email: string; code: string; password: string }) {
-  return post('/hr/api/v1/auth/forgot_password', data)
+	return post('/hr/api/v1/auth/forgot-password', data)
 }

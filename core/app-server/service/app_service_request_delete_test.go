@@ -41,7 +41,7 @@ func createRequestDeleteTestApp(t *testing.T, appRepo *repository.AppRepository)
 		NatsID:  88,
 		HostID:  99,
 	}
-	if err := appRepo.CreateApp(app); err != nil {
+	if err := appRepo.CreateApp(context.Background(), app); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
 	return app
@@ -50,7 +50,7 @@ func createRequestDeleteTestApp(t *testing.T, appRepo *repository.AppRepository)
 func TestAppServiceRequestAppInjectsVersionSourceContextAndUsesNatsID(t *testing.T) {
 	appRepo, serviceTreeRepo, _ := newAppServiceRequestDeleteTestDeps(t)
 	app := createRequestDeleteTestApp(t, appRepo)
-	if err := serviceTreeRepo.Create(&model.ServiceTree{
+	if err := serviceTreeRepo.Create(context.Background(), &model.ServiceTree{
 		AppID:        app.ID,
 		Type:         model.ServiceTreeTypePackage,
 		Name:         "Tickets",
@@ -59,7 +59,7 @@ func TestAppServiceRequestAppInjectsVersionSourceContextAndUsesNatsID(t *testing
 	}); err != nil {
 		t.Fatalf("create parent tree: %v", err)
 	}
-	if err := serviceTreeRepo.Create(&model.ServiceTree{
+	if err := serviceTreeRepo.Create(context.Background(), &model.ServiceTree{
 		AppID:        app.ID,
 		Type:         model.ServiceTreeTypeFunction,
 		Name:         "Ticket List",
@@ -75,7 +75,7 @@ func TestAppServiceRequestAppInjectsVersionSourceContextAndUsesNatsID(t *testing
 			Result:  "ok",
 		},
 	}
-	service := NewAppService(client, appRepo, nil, serviceTreeRepo, nil)
+	service := NewAppService(AppServiceDependencies{RuntimeClient: client, AppRepository: appRepo, ServiceTreeRepo: serviceTreeRepo})
 
 	resp, err := service.RequestApp(context.Background(), &dto.RequestAppReq{
 		TraceId: "trace-1",
@@ -116,7 +116,7 @@ func TestAppServiceRequestAppReturnsRuntimeError(t *testing.T) {
 	appRepo, _, _ := newAppServiceRequestDeleteTestDeps(t)
 	createRequestDeleteTestApp(t, appRepo)
 	client := &fakeAppRuntimeClient{requestErr: errors.New("runtime down")}
-	service := NewAppService(client, appRepo, nil, nil, nil)
+	service := NewAppService(AppServiceDependencies{RuntimeClient: client, AppRepository: appRepo})
 
 	_, err := service.RequestApp(context.Background(), &dto.RequestAppReq{
 		User:   "alice",
@@ -138,7 +138,7 @@ func TestAppServiceDeleteAppDeletesDatabaseOnlyAfterRuntimeSuccess(t *testing.T)
 	client := &fakeAppRuntimeClient{
 		deleteResp: &dto.DeleteAppResp{User: "alice", App: "demo"},
 	}
-	service := NewAppService(client, appRepo, nil, nil, nil)
+	service := NewAppService(AppServiceDependencies{RuntimeClient: client, AppRepository: appRepo})
 
 	resp, err := service.DeleteApp(context.Background(), &dto.DeleteAppReq{ResourcePath: "/alice/demo/ticket"})
 	if err != nil {
@@ -153,7 +153,7 @@ func TestAppServiceDeleteAppDeletesDatabaseOnlyAfterRuntimeSuccess(t *testing.T)
 	if client.deleteReq == nil || client.deleteReq.User != "alice" || client.deleteReq.App != "demo" {
 		t.Fatalf("runtime delete request not forwarded: %#v", client.deleteReq)
 	}
-	if _, err := appRepo.GetAppByUserName("alice", "demo"); err == nil {
+	if _, err := appRepo.GetAppByUserName(context.Background(), "alice", "demo"); err == nil {
 		t.Fatal("expected app to be deleted after runtime success")
 	}
 }
@@ -162,13 +162,13 @@ func TestAppServiceDeleteAppKeepsDatabaseWhenRuntimeFails(t *testing.T) {
 	appRepo, _, _ := newAppServiceRequestDeleteTestDeps(t)
 	createRequestDeleteTestApp(t, appRepo)
 	client := &fakeAppRuntimeClient{deleteErr: errors.New("runtime delete failed")}
-	service := NewAppService(client, appRepo, nil, nil, nil)
+	service := NewAppService(AppServiceDependencies{RuntimeClient: client, AppRepository: appRepo})
 
 	_, err := service.DeleteApp(context.Background(), &dto.DeleteAppReq{ResourcePath: "/alice/demo"})
 	if err == nil || !strings.Contains(err.Error(), "runtime delete failed") {
 		t.Fatalf("expected runtime delete error, got %v", err)
 	}
-	app, err := appRepo.GetAppByUserName("alice", "demo")
+	app, err := appRepo.GetAppByUserName(context.Background(), "alice", "demo")
 	if err != nil {
 		t.Fatalf("app should remain when runtime delete fails: %v", err)
 	}

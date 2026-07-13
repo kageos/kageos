@@ -16,11 +16,13 @@ type OperateLogRepository struct {
 }
 
 // GetDB 获取数据库连接（用于复杂查询）
-func (r *OperateLogRepository) GetDB() *gorm.DB {
-	return r.db
+func (r *OperateLogRepository) GetDB(ctx context.Context) *gorm.DB {
+	return r.db.WithContext(
+
+		// NewOperateLogRepository 创建操作日志仓库
+		ctx)
 }
 
-// NewOperateLogRepository 创建操作日志仓库
 func NewOperateLogRepository(db *gorm.DB) *OperateLogRepository {
 	return &OperateLogRepository{db: db}
 }

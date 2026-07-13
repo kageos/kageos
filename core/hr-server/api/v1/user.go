@@ -42,7 +42,7 @@ func NewUser(userService *service.UserService, departmentService *service.Depart
 // @Failure 401 {string} string "未认证"
 // @Failure 404 {string} string "用户不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /hr/api/v1/user/info [get]
+// @Router /hr/api/v1/users/me [get]
 func (u *User) GetUserInfo(c *gin.Context) {
 	var resp *dto.UserInfo
 	var err error
@@ -53,18 +53,18 @@ func (u *User) GetUserInfo(c *gin.Context) {
 	// 从context获取username（JWTAuth中间件已从header获取并设置到context）
 	username := contextx.GetRequestUser(c)
 	if username == "" {
-		response.FailWithMessage(c, "未提供用户信息")
+		response.NoAuth(c, "未提供用户信息")
 		return
 	}
 
 	// 查询用户信息
 	user, err := u.userService.GetUserByUsername(username)
 	if err != nil {
-		response.FailWithMessage(c, "用户不存在: "+err.Error())
+		response.Internal(c, "用户不存在: "+err.Error())
 		return
 	}
 	if err := u.ensureSameCompany(c, user); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -72,7 +72,7 @@ func (u *User) GetUserInfo(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	userInfos := convertUsersToDTOBatch(ctx, []*model.User{user}, u.userService, u.departmentService)
 	if len(userInfos) == 0 {
-		response.FailWithMessage(c, "转换用户信息失败")
+		response.Internal(c, "转换用户信息失败")
 		return
 	}
 	resp = userInfos[0]
@@ -92,7 +92,7 @@ func (u *User) GetUserInfo(c *gin.Context) {
 // @Failure 401 {string} string "未认证"
 // @Failure 404 {string} string "用户不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /hr/api/v1/user/query [get]
+// @Router /hr/api/v1/users/query [get]
 func (u *User) QueryUser(c *gin.Context) {
 	var req dto.QueryUserReq
 	var resp *dto.QueryUserResp
@@ -103,7 +103,7 @@ func (u *User) QueryUser(c *gin.Context) {
 
 	// 绑定请求参数
 	if err = c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -113,11 +113,11 @@ func (u *User) QueryUser(c *gin.Context) {
 	// 查询用户信息
 	user, err := u.userService.GetUserByUsername(username)
 	if err != nil {
-		response.FailWithMessage(c, "用户不存在: "+err.Error())
+		response.Internal(c, "用户不存在: "+err.Error())
 		return
 	}
 	if err := u.ensureSameCompany(c, user); err != nil {
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -125,7 +125,7 @@ func (u *User) QueryUser(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	userInfos := convertUsersToDTOBatch(ctx, []*model.User{user}, u.userService, u.departmentService)
 	if len(userInfos) == 0 {
-		response.FailWithMessage(c, "转换用户信息失败")
+		response.Internal(c, "转换用户信息失败")
 		return
 	}
 	resp = &dto.QueryUserResp{
@@ -147,7 +147,7 @@ func (u *User) QueryUser(c *gin.Context) {
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未认证"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /hr/api/v1/user/search_fuzzy [get]
+// @Router /hr/api/v1/users/search [get]
 func (u *User) SearchUsersFuzzy(c *gin.Context) {
 	var req dto.SearchUsersFuzzyReq
 	var resp *dto.SearchUsersFuzzyResp
@@ -158,7 +158,7 @@ func (u *User) SearchUsersFuzzy(c *gin.Context) {
 
 	// 绑定请求参数
 	if err = c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -173,12 +173,12 @@ func (u *User) SearchUsersFuzzy(c *gin.Context) {
 	// 查询用户列表
 	requester := contextx.GetRequestUser(c)
 	if requester == "" {
-		response.FailWithMessage(c, "未提供用户信息")
+		response.NoAuth(c, "未提供用户信息")
 		return
 	}
 	users, err := u.userService.SearchUsersFuzzyInRequesterCompany(requester, keyword, req.Limit)
 	if err != nil {
-		response.FailWithMessage(c, "查询失败: "+err.Error())
+		response.Internal(c, "查询失败: "+err.Error())
 		return
 	}
 
@@ -219,19 +219,19 @@ func (u *User) GetUsersByUsernames(c *gin.Context) {
 
 	// 绑定请求参数
 	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	// 查询用户列表
 	requester := contextx.GetRequestUser(c)
 	if requester == "" {
-		response.FailWithMessage(c, "未提供用户信息")
+		response.NoAuth(c, "未提供用户信息")
 		return
 	}
 	users, err := u.userService.GetUsersByUsernamesInRequesterCompany(requester, req.Usernames)
 	if err != nil {
-		response.FailWithMessage(c, "查询失败: "+err.Error())
+		response.Internal(c, "查询失败: "+err.Error())
 		return
 	}
 
@@ -263,7 +263,7 @@ func (u *User) GetUsersByUsernames(c *gin.Context) {
 // @Failure 401 {string} string "未认证"
 // @Failure 404 {string} string "用户不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /hr/api/v1/user/update [put]
+// @Router /hr/api/v1/users/me [put]
 func (u *User) UpdateUser(c *gin.Context) {
 	var req dto.UpdateUserReq
 	var resp *dto.UpdateUserResp
@@ -274,27 +274,27 @@ func (u *User) UpdateUser(c *gin.Context) {
 
 	// 绑定请求参数
 	if err = c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	// 从context获取username
 	username := contextx.GetRequestUser(c)
 	if username == "" {
-		response.FailWithMessage(c, "未提供用户信息")
+		response.NoAuth(c, "未提供用户信息")
 		return
 	}
 
 	// 检查是否有字段需要更新
 	if req.Nickname == nil && req.Signature == nil && req.Avatar == nil && req.Gender == nil {
-		response.FailWithMessage(c, "至少需要提供一个更新字段")
+		response.BadRequest(c, "至少需要提供一个更新字段")
 		return
 	}
 
 	// 更新用户信息（直接传递指针，nil 表示不更新，非 nil 表示更新）
 	user, err := u.userService.UpdateUser(username, req.Nickname, req.Signature, req.Avatar, req.Gender)
 	if err != nil {
-		response.FailWithMessage(c, "更新失败: "+err.Error())
+		response.Internal(c, "更新失败: "+err.Error())
 		return
 	}
 
@@ -302,7 +302,7 @@ func (u *User) UpdateUser(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	userInfos := convertUsersToDTOBatch(ctx, []*model.User{user}, u.userService, u.departmentService)
 	if len(userInfos) == 0 {
-		response.FailWithMessage(c, "转换用户信息失败")
+		response.Internal(c, "转换用户信息失败")
 		return
 	}
 	resp = &dto.UpdateUserResp{
@@ -314,12 +314,12 @@ func (u *User) UpdateUser(c *gin.Context) {
 func (u *User) ListOpenAPITokens(c *gin.Context) {
 	username := contextx.GetRequestUser(c)
 	if username == "" {
-		response.FailWithMessage(c, "未提供用户信息")
+		response.NoAuth(c, "未提供用户信息")
 		return
 	}
 	tokens, err := openapitoken.List(username)
 	if err != nil {
-		response.FailWithMessage(c, "查询 OpenAPI Token 失败: "+err.Error())
+		response.Internal(c, "查询 OpenAPI Token 失败: "+err.Error())
 		return
 	}
 	items := make([]dto.OpenAPITokenInfo, 0, len(tokens))
@@ -332,26 +332,26 @@ func (u *User) ListOpenAPITokens(c *gin.Context) {
 func (u *User) CreateOpenAPIToken(c *gin.Context) {
 	username := contextx.GetRequestUser(c)
 	if username == "" {
-		response.FailWithMessage(c, "未提供用户信息")
+		response.NoAuth(c, "未提供用户信息")
 		return
 	}
 	var req dto.CreateOpenAPITokenReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	var expiresAt *time.Time
 	if strings.TrimSpace(req.ExpiresAt) != "" {
 		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(req.ExpiresAt))
 		if err != nil {
-			response.FailWithMessage(c, "expires_at 必须是 RFC3339 时间格式")
+			response.BadRequest(c, "expires_at 必须是 RFC3339 时间格式")
 			return
 		}
 		expiresAt = &parsed
 	}
 	currentUser, err := u.userService.GetUserByUsername(username)
 	if err != nil {
-		response.FailWithMessage(c, "当前用户不存在: "+err.Error())
+		response.Internal(c, "当前用户不存在: "+err.Error())
 		return
 	}
 	companyName := ""
@@ -375,7 +375,7 @@ func (u *User) CreateOpenAPIToken(c *gin.Context) {
 		ExpiresAt:          expiresAt,
 	})
 	if err != nil {
-		response.FailWithMessage(c, "创建 OpenAPI Token 失败: "+err.Error())
+		response.Internal(c, "创建 OpenAPI Token 失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, &dto.CreateOpenAPITokenResp{
@@ -387,18 +387,18 @@ func (u *User) CreateOpenAPIToken(c *gin.Context) {
 func (u *User) RevokeOpenAPIToken(c *gin.Context) {
 	username := contextx.GetRequestUser(c)
 	if username == "" {
-		response.FailWithMessage(c, "未提供用户信息")
+		response.NoAuth(c, "未提供用户信息")
 		return
 	}
 	var req struct {
 		ID int64 `json:"id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	if err := openapitoken.Revoke(username, req.ID); err != nil {
-		response.FailWithMessage(c, "吊销 OpenAPI Token 失败: "+err.Error())
+		response.Internal(c, "吊销 OpenAPI Token 失败: "+err.Error())
 		return
 	}
 	response.Ok(c)

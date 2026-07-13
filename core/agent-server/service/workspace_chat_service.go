@@ -177,7 +177,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	var session *model.AgentChatSession
 	if req.SessionID != "" {
 		var e error
-		session, e = s.sessionRepo.GetBySessionID(req.SessionID)
+		session, e = s.sessionRepo.GetBySessionID(ctx, req.SessionID)
 		if e != nil || session == nil {
 			return s.handleError(sendEvent, fmt.Sprintf("会话不存在: %s", req.SessionID), e)
 		}
@@ -224,7 +224,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		applyDefaultWorkspaceSessionRole(session)
 		session.CreatedBy = user
 		session.UpdatedBy = user
-		if e := s.sessionRepo.Create(session); e != nil {
+		if e := s.sessionRepo.Create(ctx, session); e != nil {
 			return s.handleError(sendEvent, "创建会话失败", e)
 		}
 	}
@@ -241,7 +241,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 			session.Status = model.ChatSessionStatusActive
 		}
 		session.UpdatedBy = user
-		if e := s.sessionRepo.Update(session); e != nil {
+		if e := s.sessionRepo.Update(ctx, session); e != nil {
 			return s.handleError(sendEvent, "恢复完整会话上下文失败", e)
 		}
 	}
@@ -286,7 +286,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	s.sseConnections.Store(sessionID, struct{}{})
 
 	// ⭐ 标记会话为 generating（后台执行中）
-	markedGenerating, e := s.sessionRepo.TryMarkGenerating(sessionID, user, modeCode)
+	markedGenerating, e := s.sessionRepo.TryMarkGenerating(ctx, sessionID, user, modeCode)
 	if e != nil {
 		logger.Warnf(ctx, "[WorkspaceChatStream] 标记 generating 失败: %v", e)
 		s.sseConnections.Delete(sessionID)
@@ -308,11 +308,11 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		s.runningCancels.Delete(sessionID)
 		s.sseConnections.Delete(sessionID)
 		// ⭐ 恢复会话状态：已取消的保持 cancelled，否则标回 active
-		latest, e := s.sessionRepo.GetBySessionID(sessionID)
+		latest, e := s.sessionRepo.GetBySessionID(ctx, sessionID)
 		if e == nil && latest != nil && latest.Status == model.ChatSessionStatusGenerating {
 			latest.Status = model.ChatSessionStatusActive
 			latest.UpdatedBy = user
-			if e := s.sessionRepo.Update(latest); e != nil {
+			if e := s.sessionRepo.Update(ctx, latest); e != nil {
 				logger.Warnf(ctx, "[WorkspaceChatStream] 恢复 active 失败: %v", e)
 			}
 		}
@@ -338,7 +338,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		}
 		userMsg.CreatedBy = user
 		userMsg.UpdatedBy = user
-		if e := s.messageRepo.Create(userMsg); e != nil {
+		if e := s.messageRepo.Create(ctx, userMsg); e != nil {
 			return s.handleError(sendEvent, "保存用户消息失败", e)
 		}
 		currentMessageID = userMsg.ID
@@ -359,7 +359,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		}
 		session.Title = title
 		session.UpdatedBy = user
-		if e := s.sessionRepo.Update(session); e != nil {
+		if e := s.sessionRepo.Update(ctx, session); e != nil {
 			logger.Warnf(ctx, "[WorkspaceChatStream] 更新会话标题失败: %v", e)
 		} else {
 			logger.Infof(ctx, "[WorkspaceChatStream] 会话标题已生成 - SessionID: %s, Title: %s", sessionID, title)

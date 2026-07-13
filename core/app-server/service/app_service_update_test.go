@@ -90,7 +90,7 @@ func newAppServiceUpdateTestRepo(t *testing.T) *repository.AppRepository {
 
 func TestAppServiceUpdateAppUsesRuntimeBoundHostAndPersistsVersion(t *testing.T) {
 	appRepo := newAppServiceUpdateTestRepo(t)
-	if err := appRepo.CreateApp(&model.App{
+	if err := appRepo.CreateApp(context.Background(), &model.App{
 		User:    "alice",
 		Code:    "demo",
 		Name:    "Demo",
@@ -111,7 +111,7 @@ func TestAppServiceUpdateAppUsesRuntimeBoundHostAndPersistsVersion(t *testing.T)
 			Warnings:   []string{"runtime warning"},
 		},
 	}
-	service := NewAppService(client, appRepo, nil, nil, nil)
+	service := NewAppService(AppServiceDependencies{RuntimeClient: client, AppRepository: appRepo})
 
 	resp, err := service.UpdateApp(context.Background(), &dto.UpdateAppReq{
 		ResourcePath:      "/alice/demo/workspace",
@@ -147,7 +147,7 @@ func TestAppServiceUpdateAppUsesRuntimeBoundHostAndPersistsVersion(t *testing.T)
 		t.Fatalf("unexpected response: %#v", resp)
 	}
 
-	updated, err := appRepo.GetAppByUserName("alice", "demo")
+	updated, err := appRepo.GetAppByUserName(context.Background(), "alice", "demo")
 	if err != nil {
 		t.Fatalf("reload app: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestAppServiceUpdateAppUsesRuntimeBoundHostAndPersistsVersion(t *testing.T)
 
 func TestAppServiceUpdateAppDoesNotPersistVersionWhenRuntimeFails(t *testing.T) {
 	appRepo := newAppServiceUpdateTestRepo(t)
-	if err := appRepo.CreateApp(&model.App{
+	if err := appRepo.CreateApp(context.Background(), &model.App{
 		User:    "alice",
 		Code:    "demo",
 		Name:    "Demo",
@@ -167,14 +167,14 @@ func TestAppServiceUpdateAppDoesNotPersistVersionWhenRuntimeFails(t *testing.T) 
 	}); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
-	service := NewAppService(&fakeAppRuntimeClient{updateErr: errors.New("runtime down")}, appRepo, nil, nil, nil)
+	service := NewAppService(AppServiceDependencies{RuntimeClient: &fakeAppRuntimeClient{updateErr: errors.New("runtime down")}, AppRepository: appRepo})
 
 	_, err := service.UpdateApp(context.Background(), &dto.UpdateAppReq{ResourcePath: "/alice/demo"})
 	if err == nil {
 		t.Fatal("expected runtime error")
 	}
 
-	updated, err := appRepo.GetAppByUserName("alice", "demo")
+	updated, err := appRepo.GetAppByUserName(context.Background(), "alice", "demo")
 	if err != nil {
 		t.Fatalf("reload app: %v", err)
 	}

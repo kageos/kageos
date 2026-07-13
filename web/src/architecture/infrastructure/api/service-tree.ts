@@ -112,7 +112,7 @@ export interface ServiceTreeDetailResp extends ServiceTree {
 }
 
 export function getServiceTreeDetail(fullCodePath: string) {
-  return get<ServiceTreeDetailResp>('/workspace/api/v1/service_tree/detail', {
+  return get<ServiceTreeDetailResp>('/workspace/api/v1/directories', {
     full_code_path: fullCodePath
   })
 }
@@ -127,7 +127,7 @@ export interface BatchGetServiceTreeDetailsResp {
 }
 
 export function batchGetServiceTreeDetails(req: BatchGetServiceTreeDetailsReq) {
-  return post<BatchGetServiceTreeDetailsResp>('/workspace/api/v1/service_tree/batch_detail', {
+  return post<BatchGetServiceTreeDetailsResp>('/workspace/api/v1/directory-queries', {
     full_code_paths: req.full_code_paths || []
   })
 }
@@ -173,7 +173,7 @@ export interface DirectoryOverviewResp {
 }
 
 export function getDirectoryOverview(fullCodePath: string) {
-  return get<DirectoryOverviewResp>('/workspace/api/v1/service_tree/overview', {
+  return get<DirectoryOverviewResp>('/workspace/api/v1/directory-overviews', {
     full_code_path: fullCodePath
   })
 }
@@ -195,7 +195,7 @@ export function copyDirectory(data: {
     old_version?: string
     new_version?: string
     git_commit_hash?: string
-  }>('/workspace/api/v1/service_tree/copy', data)
+  }>('/workspace/api/v1/directory-copies', data)
 }
 
 export function exportCapabilityBundle(data: {
@@ -204,7 +204,7 @@ export function exportCapabilityBundle(data: {
   source_root_path?: string
   name?: string
 }) {
-  return post<CapabilityBundle>('/workspace/api/v1/service_tree/export_capability_bundle', data)
+  return post<CapabilityBundle>('/workspace/api/v1/capability-bundle-exports', data)
 }
 
 export function installCapabilityBundle(data: {
@@ -226,7 +226,7 @@ export function installCapabilityBundle(data: {
     old_version?: string
     new_version?: string
     warnings?: string[]
-  }>('/workspace/api/v1/service_tree/install_capability_bundle', data)
+  }>('/workspace/api/v1/capability-bundle-installations', data)
 }
 
 // 搜索函数
@@ -267,7 +267,7 @@ export interface SearchFunctionsResp {
 }
 
 export function searchFunctions(req: SearchFunctionsReq) {
-  return get<SearchFunctionsResp>('/workspace/api/v1/service_tree/search_functions', {
+  return get<SearchFunctionsResp>('/workspace/api/v1/function-search-results', {
     user: req.user,
     app: req.app,
     keyword: req.keyword || '',
@@ -314,7 +314,7 @@ export interface SearchResourcesResp {
 }
 
 export function searchResources(req: SearchResourcesReq) {
-  return get<SearchResourcesResp>('/workspace/api/v1/service_tree/search_resources', {
+  return get<SearchResourcesResp>('/workspace/api/v1/resource-search-results', {
     user: req.user || '',
     app: req.app || '',
     keyword: req.keyword || '',

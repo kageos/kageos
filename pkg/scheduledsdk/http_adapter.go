@@ -66,7 +66,7 @@ func (a *HTTPAdapter) DeleteTask(ctx context.Context, taskID int64) error {
 
 func (a *HTTPAdapter) RunNow(ctx context.Context, taskID int64) (*Execution, error) {
 	var out Execution
-	if err := a.doJSON(ctx, http.MethodPost, fmt.Sprintf("/tasks/%d/run_now", taskID), nil, nil, &out); err != nil {
+	if err := a.doJSON(ctx, http.MethodPost, fmt.Sprintf("/tasks/%d/run-now", taskID), nil, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

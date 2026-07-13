@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	msgrepo "github.com/kageos/kageos/core/message-server/repository"
 	"github.com/kageos/kageos/core/message-server/service"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/config"
@@ -27,7 +28,7 @@ func (s *Server) getPublicMessageAction(c *gin.Context) {
 			response.NoAuth(c, err.Error())
 			return
 		}
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	authenticatedUser := strings.TrimSpace(contextx.GetRequestUser(c))
@@ -35,7 +36,7 @@ func (s *Server) getPublicMessageAction(c *gin.Context) {
 		response.NoAuth(c, "消息动作用户与当前登录用户不一致")
 		return
 	}
-	view.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), view.Message.SourcePath, view.WorkspaceSession)
+	view.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), mobileActionFullCodePath(view.Message), view.WorkspaceSession)
 	response.OkWithData(c, view)
 }
 
@@ -46,7 +47,7 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 	}
 	var req dto.MessageActionReplyReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 	view, err := s.messageRepo.GetActionView(c.Request.Context(), token, "", contextx.GetRequestUser(c))
@@ -55,7 +56,7 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 			response.NoAuth(c, err.Error())
 			return
 		}
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
 	authenticatedUser := strings.TrimSpace(contextx.GetRequestUser(c))
@@ -65,7 +66,7 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 	}
 	fullCodePath := mobileActionFullCodePath(view.Message)
 	if fullCodePath == "" {
-		response.FailWithMessage(c, "消息缺少工作台目录，无法提交给 kageos 工作台")
+		response.BadRequest(c, "消息缺少工作台目录，无法提交给 kageos 工作台")
 		return
 	}
 	resp, err := s.messageRepo.BeginActionReply(c.Request.Context(), token, req.Content, req.Files, req.Action, contextx.GetRequestUser(c))
@@ -74,15 +75,15 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 			response.NoAuth(c, err.Error())
 			return
 		}
-		response.FailWithMessage(c, err.Error())
+		response.Error(c, err)
 		return
 	}
-	resp.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), resp.SourcePath, resp.WorkspaceSessionID)
+	resp.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), fullCodePath, resp.WorkspaceSessionID)
 	resp.FullCodePath = firstNonEmptyActionString(resp.FullCodePath, fullCodePath)
 	resp.AgentSubmitted = false
 	if s.workspaceActionRunner == nil {
 		s.releasePublicMessageActionReply(token)
-		response.FailWithMessage(c, "工作台提交器未初始化，请稍后重试")
+		response.Internal(c, "工作台提交器未初始化，请稍后重试")
 		return
 	}
 	runResult, runErr := s.workspaceActionRunner.Submit(c.Request.Context(), service.WorkspaceActionRequest{
@@ -115,12 +116,12 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 	if runErr != nil {
 		s.releasePublicMessageActionReply(token)
 		logger.Warnf(c.Request.Context(), "[message-action] submit workspace failed token_message_id=%d user=%s err=%v", view.Message.ID, view.RecipientUser, runErr)
-		response.FailWithMessage(c, "创建工作台会话失败，请重试: "+runErr.Error())
+		response.Internal(c, "创建工作台会话失败，请重试: "+runErr.Error())
 		return
 	}
 	if runResult == nil || !runResult.Accepted || strings.TrimSpace(runResult.SessionID) == "" {
 		s.releasePublicMessageActionReply(token)
-		response.FailWithMessage(c, "工作台没有返回有效会话，请重试")
+		response.Internal(c, "工作台没有返回有效会话，请重试")
 		return
 	}
 	resp.WorkspaceSessionID = strings.TrimSpace(runResult.SessionID)
@@ -130,13 +131,13 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 	if err != nil {
 		s.releasePublicMessageActionReply(token)
 		logger.Warnf(c.Request.Context(), "[message-action] finalize reply failed token_message_id=%d session_id=%s err=%v", view.Message.ID, resp.WorkspaceSessionID, err)
-		response.FailWithMessage(c, "工作台会话已创建，但回复状态确认失败，请刷新后重试")
+		response.Internal(c, "工作台会话已创建，但回复状态确认失败，请刷新后重试")
 		return
 	}
 	resp.Status = string(dto.MessageActionTokenStatusSubmitted)
 	resp.SubmittedAt = submittedAt
 	resp.AgentSubmitted = true
-	resp.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), resp.SourcePath, resp.WorkspaceSessionID)
+	resp.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), fullCodePath, resp.WorkspaceSessionID)
 	response.OkWithData(c, resp)
 }
 
@@ -171,7 +172,7 @@ func buildMobileAskURL(baseURL, sourcePath, sessionID string) string {
 }
 
 func mobileActionFullCodePath(message dto.MessageInboxItem) string {
-	return firstNonEmptyActionString(message.SourcePath, message.FullCodePath, message.SourceParentPath)
+	return msgrepo.ResolveMessageWorkspacePath(message.SourcePath, message.FullCodePath, message.SourceParentPath, message.SourceTemplateType)
 }
 
 func firstNonEmptyActionString(values ...string) string {

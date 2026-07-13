@@ -68,7 +68,7 @@ func (a *AppService) bootstrapPersonalWorkspace(ctx context.Context, user string
 	}
 
 	var resp *dto.BootstrapPersonalWorkspaceResp
-	err := a.appRepo.GetDB().Transaction(func(tx *gorm.DB) error {
+	err := a.appRepo.GetDB(ctx).Transaction(func(tx *gorm.DB) error {
 		// App has no natural-key database constraint because it is soft-deleted.
 		// Locking one durable Host row gives this first-use operation a small,
 		// cross-process critical section without changing normal app deletion and
@@ -125,7 +125,7 @@ func (a *AppService) bootstrapPersonalWorkspace(ctx context.Context, user string
 	// The normal repository cache is intentionally bypassed while holding the
 	// transaction lock, so invalidate both lookup keys after a successful create.
 	if resp.Created {
-		a.appRepo.InvalidateAppCacheBoth(resp.App.User, resp.App.Code, resp.App.ID)
+		a.appRepo.InvalidateAppCacheBoth(ctx, resp.App.User, resp.App.Code, resp.App.ID)
 	}
 	return resp, nil
 }
@@ -135,7 +135,7 @@ func (a *AppService) findBootstrapWorkspace(user string) (*model.App, bool, erro
 		return app, found, err
 	}
 
-	app, err := a.appRepo.GetFirstUserApp(user)
+	app, err := a.appRepo.GetFirstUserApp(context.Background(), user)
 	if err == nil {
 		return app, true, nil
 	}
@@ -146,7 +146,7 @@ func (a *AppService) findBootstrapWorkspace(user string) (*model.App, bool, erro
 }
 
 func (a *AppService) findExistingPersonalHome(user string) (*model.App, bool, error) {
-	app, err := a.appRepo.GetAppByUserName(user, PersonalWorkspaceCode)
+	app, err := a.appRepo.GetAppByUserName(context.Background(), user, PersonalWorkspaceCode)
 	if err == nil {
 		return app, app.IsPersonalWorkspace, nil
 	}
