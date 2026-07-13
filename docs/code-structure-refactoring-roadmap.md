@@ -69,6 +69,53 @@
 
 拆分保留 `ContainerOperator`、Podman 命令参数、Secret stdin 传递、网络和时区默认值，不修改容器运行行为。
 
+### App Service 拆分
+
+原 `core/app-server/service/app_service.go` 同时包含应用生命周期、运行时调用、Table 审计、API 元数据同步和应用查询。
+
+本轮按同一个 `AppService` receiver 原样移动函数：
+
+| 文件 | 职责 |
+| --- | --- |
+| `app_service.go` | 服务类型、runtime client 契约、依赖集合和构造函数 |
+| `app_service_lifecycle.go` | 应用创建、更新、删除、工作区更新和发布后元数据收口 |
+| `app_service_request.go` | 工作区应用调用、来源上下文、连接器前置检查和运行次数 |
+| `app_service_table_log.go` | Table 操作日志、敏感字段过滤和摘要生成 |
+| `app_service_metadata_sync.go` | Function/Package/ServiceTree 元数据增删改同步 |
+| `app_service_queries.go` | 应用列表、可见性合并、详情和按用户名查询 |
+
+原入口文件由 1,273 行缩到 55 行；46 个顶层声明的格式化 AST 与拆分前逐一比对一致。
+
+### Storage API 拆分
+
+原 `core/app-storage/api/v1/storage.go` 混合公开 Logo、公开分享、登录用户上传和文件管理入口。
+
+| 文件 | 职责 |
+| --- | --- |
+| `storage.go` | 常量、Handler 类型和构造函数 |
+| `storage_public_company_logo.go` | 企业 Logo 上传令牌、完成通知和校验 |
+| `storage_public_share.go` | 匿名分享身份、公开上传和文件引用解析 |
+| `storage_upload.go` | 登录用户单个/批量上传令牌和完成通知 |
+| `storage_files.go` | 文件引用、描述、下载、删除、详情、统计和列表 |
+| `storage_format.go` | IP、路径和文件大小展示格式化 |
+
+原入口文件由 1,233 行缩到 23 行；路由注册、DTO、响应和函数体均未调整。
+
+### Service Tree API 拆分
+
+原 `core/app-server/api/v1/service_tree.go` 同时承载资源 CRUD、查询搜索、Bundle 和工作区文件桥接入口。
+
+| 文件 | 职责 |
+| --- | --- |
+| `service_tree.go` | Handler 类型和构造函数 |
+| `service_tree_create.go` | Package、Function、Docs 创建入口 |
+| `service_tree_query.go` | 详情、批量查询、目录概览和资源搜索 |
+| `service_tree_mutation.go` | Package、Function、Docs 更新删除和目录复制 |
+| `service_tree_bundle.go` | 批量函数、Capability Bundle 导出和安装 |
+| `service_tree_workspace.go` | 工作区上下文、文件写入/替换/删除和日志读取 |
+
+原入口文件由 868 行缩到 18 行；Swagger 注释随对应 Handler 一起移动。
+
 ## 后续拆分顺序
 
 | 优先级 | 当前文件 | 建议边界 | 风险与验证 |
@@ -77,7 +124,6 @@
 | P1 | `web/src/architecture/presentation/components/StructuredPromptComposer.vue` | 拆编辑器、上下文选择、附件区和 draft composable | 保留 `props`、`emits` 与提交 payload；运行组件测试和 build |
 | P2 | `web/src/architecture/presentation/components/MiniWorkstation.vue` | 延续现有 composable/component 边界，拆消息区、输入区、会话操作与状态视图 | 当前分支已有相关改动，应独立收口后再继续，避免交叉冲突 |
 | P2 | `web/src/architecture/presentation/components/WorkspaceInbox.vue` | 拆会话列表、线程详情、筛选与选择状态 | 先补关键交互测试，再移动模板与状态 |
-| P2 | `core/app-server/service/app_service.go` | 按调用编排、操作日志、API 元数据同步、应用查询拆文件 | 先确认内部方法调用图，再做同 package 移动 |
 | P3 | `web/src/architecture/shared/i18n/locales/*.ts` | 按业务域拆词条模块，入口文件只负责合并 | 容易产生 key 漏失，必须增加 key 对称性检查后再做 |
 
 ## 不建议现在做
