@@ -8,56 +8,55 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestCorsAllowsExplicitOrigin(t *testing.T) {
+func TestCorsAllowsLANIPOrigin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(Cors("https://app.example.com"))
+	router.Use(Cors())
 	router.GET("/ok", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 
 	req := httptest.NewRequest(http.MethodGet, "/ok", nil)
-	req.Header.Set("Origin", "https://app.example.com")
+	req.Header.Set("Origin", "http://192.168.1.88:8999")
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
 	if resp.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d", resp.Code, http.StatusNoContent)
 	}
-	if got := resp.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
-		t.Fatalf("allow origin = %q", got)
-	}
-	if got := resp.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
-		t.Fatalf("allow credentials = %q", got)
+	if got := resp.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("allow origin = %q, want wildcard", got)
 	}
 }
 
-func TestCorsRejectsUnknownOrigin(t *testing.T) {
+func TestCorsAllowsUnconfiguredOrigin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(Cors("https://app.example.com"))
+	router.Use(Cors())
 	router.GET("/ok", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 
 	req := httptest.NewRequest(http.MethodGet, "/ok", nil)
-	req.Header.Set("Origin", "https://evil.example")
+	req.Header.Set("Origin", "https://unconfigured.example")
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
-	if resp.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want %d", resp.Code, http.StatusForbidden)
-	}
-	if got := resp.Header().Get("Access-Control-Allow-Origin"); got != "" {
-		t.Fatalf("unexpected allow origin %q", got)
+	if resp.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", resp.Code, http.StatusNoContent)
 	}
 }
 
-func TestCorsAllowsRequestsWithoutOrigin(t *testing.T) {
+func TestCorsHandlesPreflightForAnyOrigin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(Cors("https://app.example.com"))
-	router.GET("/ok", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.Use(Cors())
 
+	req := httptest.NewRequest(http.MethodOptions, "/api", nil)
+	req.Header.Set("Origin", "http://10.0.0.20:5173")
 	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, "/ok", nil))
+	router.ServeHTTP(resp, req)
+
 	if resp.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d", resp.Code, http.StatusNoContent)
+	}
+	if got := resp.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("allow origin = %q, want wildcard", got)
 	}
 }

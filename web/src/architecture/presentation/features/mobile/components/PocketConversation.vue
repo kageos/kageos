@@ -29,6 +29,7 @@ import {
 } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { fileNameFromRef, parseFileRefs } from '@/architecture/presentation/widgets/filesWidgetTypes'
 import { resolveMobileWorkspacePath } from '@/architecture/presentation/features/mobile/utils/workspacePath'
+import { getErrorMessage } from '@/architecture/shared/apiError'
 
 const props = defineProps<{
   mode: 'action' | 'ask'
@@ -138,6 +139,10 @@ function firstNonEmpty(...values: Array<string | undefined | null>) {
   return ''
 }
 
+function requestErrorMessage(err: unknown, fallback: string) {
+  return getErrorMessage(err, fallback)
+}
+
 function leafName(value: string) {
   return value.split('/').filter(Boolean).pop() || ''
 }
@@ -214,7 +219,7 @@ async function loadAction() {
       setMessages(notificationMessages())
     }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '加载会话失败'
+    error.value = requestErrorMessage(err, '加载会话失败')
   } finally {
     loading.value = false
   }
@@ -232,7 +237,7 @@ async function refreshMessages(force = false) {
     lastSyncedAt.value = new Date().toISOString()
   } catch (err) {
     if (force) {
-      error.value = err instanceof Error ? err.message : '同步会话失败'
+      error.value = requestErrorMessage(err, '同步会话失败')
     }
   } finally {
     refreshing.value = false
@@ -260,7 +265,7 @@ async function loadHistory() {
     historySessions.value = response.sessions || []
     automationAgents.value = response.automation_agents || []
   } catch (err) {
-    ElMessage.error(err instanceof Error ? err.message : '加载历史会话失败')
+    ElMessage.error(requestErrorMessage(err, '加载历史会话失败'))
   } finally {
     historyLoading.value = false
   }
@@ -391,7 +396,7 @@ async function sendDraft() {
   } catch (err) {
     if (!draft.value) draft.value = rawContent
     attachedFiles.value = files
-    error.value = err instanceof Error ? err.message : '发送失败'
+    error.value = requestErrorMessage(err, '发送失败')
     ElMessage.error(error.value)
   }
 }

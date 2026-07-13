@@ -91,6 +91,20 @@ func TestWorkspaceContextWithSessionRequestUserKeepsRealRequestUser(t *testing.T
 	}
 }
 
+func TestWorkspacePathDirectoryResolvesFunctionNotificationToPackage(t *testing.T) {
+	testCases := map[string]string{
+		"/system/democase/site_monitor/sweep.form":          "/system/democase/site_monitor",
+		"/system/democase/site_monitor/targets.table":       "/system/democase/site_monitor",
+		"/system/democase/site_monitor/latency_trend.chart": "/system/democase/site_monitor",
+		"/system/democase/site_monitor":                     "/system/democase/site_monitor",
+	}
+	for input, want := range testCases {
+		if got := workspacePathDirectory(input); got != want {
+			t.Fatalf("workspacePathDirectory(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
 func TestCancelSessionCancelsRegisteredRunEvenWhenStatusIsActive(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {

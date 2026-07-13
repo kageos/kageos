@@ -163,7 +163,10 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		}
 	}
 	user := contextx.GetRequestUser(ctx)
-	fullCodePath := strings.TrimSpace(req.FullCodePath)
+	// 工作台会话绑定的是服务目录，不是具体的 Form/Table/Chart 函数。
+	// 兼容旧通知链接和旧移动端直接把函数 full_code_path 提交进来的情况，
+	// 在服务端统一收敛到函数所在目录，避免依赖前后端必须同时升级。
+	fullCodePath := workspacePathDirectory(req.FullCodePath)
 	if fullCodePath == "" {
 		return s.handleError(sendEvent, "full_code_path 必填", nil)
 	}
@@ -185,7 +188,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		if e := ensureWorkspaceSessionOwner(ctx, session); e != nil {
 			return s.handleError(sendEvent, e.Error(), e)
 		}
-		if sessionPath := strings.TrimSpace(session.FullCodePath); sessionPath != "" {
+		if sessionPath := workspacePathDirectory(session.FullCodePath); sessionPath != "" {
 			fullCodePath = sessionPath
 		}
 	}
@@ -193,11 +196,25 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	// 2) 获取工作台环境信息（包含目录详情、子节点等，一次性获取，避免重复调用）
 	workspaceCtx, e := apicall.GetWorkspaceContext(ctx, fullCodePath, "")
 	if e != nil || workspaceCtx == nil {
-		return s.handleError(sendEvent, "无效的 full_code_path，无法解析目录", e)
+		return s.handleError(sendEvent, fmt.Sprintf("无效的 full_code_path，无法解析目录: %s", fullCodePath), e)
+	}
+	if directoryPath := normalizeWorkspacePath(workspaceCtx.Directory.FullCodePath); directoryPath != "" {
+		fullCodePath = directoryPath
 	}
 	directoryName := workspaceCtx.Directory.Name
 	if directoryName == "" {
 		directoryName = workspaceCtx.Directory.Code
+	}
+
+	// 顺手修复历史会话里误存的函数路径，后续移动端“新增会话”和历史会话
+	// 都会继续使用真实目录，不再反复触发同一个错误。
+	if req.SessionID != "" && (session.FullCodePath != fullCodePath || session.TreeID != workspaceCtx.Directory.ID) {
+		session.FullCodePath = fullCodePath
+		session.TreeID = workspaceCtx.Directory.ID
+		session.UpdatedBy = user
+		if updateErr := s.sessionRepo.Update(ctx, session); updateErr != nil {
+			logger.Warnf(ctx, "[WorkspaceChatStream] 修复历史会话目录失败 session_id=%s full_code_path=%s err=%v", session.SessionID, fullCodePath, updateErr)
+		}
 	}
 
 	// 3) 创建新 session

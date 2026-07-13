@@ -227,6 +227,49 @@
 
 Server 装配点同步改为结构体字面量；回调内容、启动顺序、默认时间参数和服务字段赋值保持不变。
 
+### OAuth Provider 拆分
+
+原 `core/connector-server/service/oauth_provider.go` 同时包含 Provider 注册、授权 URL、PKCE、Token 请求、Token Payload 解析、用户身份提取和配置合并。
+
+| 文件 | 职责 |
+| --- | --- |
+| `oauth_provider.go` | Registry、Provider 查询、定义生成和基础校验 |
+| `oauth_provider_authorization.go` | 授权 URL、State、PKCE verifier 和随机值生成 |
+| `oauth_provider_token.go` | OAuth2/JSON Token 交换、刷新和端点错误处理 |
+| `oauth_provider_token_payload.go` | OAuth2/JSON Token Payload 和过期时间解析 |
+| `oauth_provider_identity.go` | Provider 用户信息请求和外部身份字段提取 |
+| `oauth_provider_config.go` | Provider 能力判断、配置合并和安全回跳地址校验 |
+
+原入口文件由 704 行缩到 105 行；拆分前后的 43 个顶层声明经格式化 AST 比对一致。
+
+### App Database Service 拆分
+
+原 `core/app-runtime/service/app_database_service.go` 混合数据库 Capability、MySQL 创建、账号凭据、加解密和路径/名称工具。
+
+| 文件 | 职责 |
+| --- | --- |
+| `app_database_service.go` | 配置常量、服务状态、依赖和构造函数 |
+| `app_database_capability.go` | Capability 签发、解析、范围与签名校验 |
+| `app_database_provisioning.go` | Package 数据库记录、MySQL 数据库和账号授权 |
+| `app_database_credentials.go` | 运行时/迁移账号凭据生成、保存和加解密 |
+| `app_database_helpers.go` | Package 路径、用户命名、随机值、SQL 标识和连接关闭辅助函数 |
+
+原入口文件由 618 行缩到 70 行；拆分前后的 34 个顶层声明经格式化 AST 比对一致。
+
+### HR User API 拆分
+
+原 `core/hr-server/api/v1/user.go` 同时承担当前用户资料、用户搜索、OpenAPI Token 管理和 User DTO 组装。
+
+| 文件 | 职责 |
+| --- | --- |
+| `user.go` | Handler 依赖和构造函数 |
+| `user_profile.go` | 当前用户详情和资料更新 |
+| `user_query.go` | 用户精确查询、模糊搜索和批量查询 |
+| `user_openapi_token.go` | OpenAPI Token 列表、创建、吊销和时间转换 |
+| `user_mapper.go` | 用户名规范化、同企业校验和 User DTO 批量组装 |
+
+原入口文件由 606 行缩到 19 行；17 个顶层声明和对应 Swagger 注释经格式化 AST 比对一致。
+
 ## 后续拆分顺序
 
 | 优先级 | 当前文件 | 建议边界 | 风险与验证 |
