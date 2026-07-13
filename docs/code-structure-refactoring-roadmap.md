@@ -116,10 +116,59 @@
 
 原入口文件由 868 行缩到 18 行；Swagger 注释随对应 Handler 一起移动。
 
+### Timer Scheduler Service 拆分
+
+原 `core/timer-scheduler/service/service.go` 同时包含任务管理、执行状态、到期调度、失联恢复和 Outbox 发布。
+
+| 文件 | 职责 |
+| --- | --- |
+| `service.go` | 服务选项、依赖、构造函数和跨流程小型状态辅助函数 |
+| `service_tasks.go` | 任务创建、更新、暂停、恢复、取消、删除、立即运行和查询 |
+| `service_executions.go` | 执行记录查询、开始、心跳和完成状态收口 |
+| `service_dispatch.go` | 到期任务获取、调度租约和执行创建 |
+| `service_recovery.go` | 失联执行恢复、重入队、引用修复和超时处理 |
+| `service_outbox.go` | Outbox 发布和执行请求事件构造 |
+
+原入口文件由 957 行缩到 116 行；拆分前后的 37 个顶层声明经格式化 AST 比对一致。
+
+### Scheduled Function Worker 拆分
+
+原 `core/app-server/service/scheduled_function_worker.go` 混合 Worker 装配、执行编排、Form/Table 处理、请求构造、Payload 解析和结果记录。
+
+| 文件 | 职责 |
+| --- | --- |
+| `scheduled_function_worker.go` | Payload 类型、Worker 构造和 NATS 验证装配 |
+| `scheduled_function_worker_run.go` | 单次执行编排、操作日志入口和动作分派 |
+| `scheduled_function_worker_handlers.go` | Form、只读函数和 Table 增删改处理 |
+| `scheduled_function_worker_request.go` | 权限检查、Callback 检查和应用请求构造 |
+| `scheduled_function_worker_payload.go` | Payload 解码、Query 转换、行 ID 与旧值辅助函数 |
+| `scheduled_function_worker_result.go` | 执行结果、摘要和操作日志响应组装 |
+
+原入口文件由 938 行缩到 80 行；拆分前后的 42 个顶层声明经格式化 AST 比对一致。
+
+### Message Repository 拆分
+
+原 `core/message-server/repository/message_repository.go` 同时承担消息写入、Inbox 查询、Thread 聚合、已读更新和展示信息组装。
+
+| 文件 | 职责 |
+| --- | --- |
+| `message_repository.go` | Repository、筛选类型和构造函数 |
+| `message_repository_create.go` | 消息与收件人写入、收件人规范化 |
+| `message_repository_inbox.go` | Inbox 列表、详情、已读操作和基础查询 |
+| `message_repository_threads.go` | Thread、来源和工作区聚合及对应查询行转换 |
+| `message_repository_display.go` | 来源展示、标题、副标题、路径和定时任务引用解析 |
+
+原入口文件由 731 行缩到 20 行；拆分前后的 40 个顶层声明经格式化 AST 比对一致。
+
 ## 后续拆分顺序
 
 | 优先级 | 当前文件 | 建议边界 | 风险与验证 |
 | --- | --- | --- | --- |
+| P1 | `core/app-server/service/team_access_service.go` | 权限解析、成员授权、可访问应用查询、输入校验和操作日志 | 原 package 内移动；现有 Team Access 服务测试覆盖主要分支 |
+| P1 | `core/message-server/server/notification_api.go` | Channel、Route、测试入口和 DTO 转换 | 保留 Gin Handler 与路由；补充 Handler 请求响应测试后拆分 |
+| P2 | `core/api-gateway/server/router.go` | 路由注册、单服务代理、负载均衡代理和 Swagger | 代理身份与请求体恢复敏感；运行 Gateway 全部测试 |
+| P2 | `pkg/contextx/context_info.go` | Header 定义、身份信息、来源信息、Gin 转换、NATS 透传和 RequestInfo | 公共 package，只移动声明；运行 ContextX 与依赖服务测试 |
+| P2 | `core/app-runtime/service/app_discovery_service.go`、`infra_watchdog.go`、`app_manage_service.go` | 用构造依赖替代启动后回调 Setter，并把长位置参数改为依赖结构体 | 单独 PR 调整装配点；不与文件拆分混做 |
 | P1 | `web/src/architecture/presentation/features/access/pages/TeamAccessPage.vue` | 页面只保留编排；拆当前权限、继承权限、角色编辑区和数据 composable | 保留请求时机与权限判断；运行 type-check、unit、build |
 | P1 | `web/src/architecture/presentation/components/StructuredPromptComposer.vue` | 拆编辑器、上下文选择、附件区和 draft composable | 保留 `props`、`emits` 与提交 payload；运行组件测试和 build |
 | P2 | `web/src/architecture/presentation/components/MiniWorkstation.vue` | 延续现有 composable/component 边界，拆消息区、输入区、会话操作与状态视图 | 当前分支已有相关改动，应独立收口后再继续，避免交叉冲突 |
