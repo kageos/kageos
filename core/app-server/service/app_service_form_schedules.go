@@ -24,7 +24,7 @@ type appScheduleClient interface {
 
 var newAppScheduleClient = func() appScheduleClient {
 	return scheduledsdk.NewClient(scheduledsdk.Options{
-		BaseURL: serviceconfig.BuildInternalGatewayURL("/timer/api/v1"),
+		BaseURL: serviceconfig.BuildInternalTimerSchedulerURL("/timer/api/v1"),
 	})
 }
 

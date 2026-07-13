@@ -37,3 +37,10 @@ func TestJoinURLBuildsTimerAPIURL(t *testing.T) {
 		t.Fatalf("joined internal timer url = %q", got)
 	}
 }
+
+func TestBuildInternalTimerSchedulerURLUsesDirectServiceAddress(t *testing.T) {
+	got := BuildInternalTimerSchedulerURL("/timer/api/v1")
+	if got != "http://127.0.0.1:9098/timer/api/v1" {
+		t.Fatalf("direct internal timer url = %q", got)
+	}
+}
