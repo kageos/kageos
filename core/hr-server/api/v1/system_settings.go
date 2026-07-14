@@ -20,9 +20,9 @@ func (s *SystemSettings) Get(c *gin.Context) {
 	if !requireSystemUser(c) {
 		return
 	}
-	settings, err := s.settingsService.GetSettings()
+	settings, err := s.settingsService.GetSettings(contextx.ToContext(c))
 	if err != nil {
-		response.Internal(c, "获取系统设置失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, settings)
@@ -37,9 +37,9 @@ func (s *SystemSettings) Update(c *gin.Context) {
 		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
-	settings, err := s.settingsService.UpdateSettings(req, contextx.GetRequestUser(c))
+	settings, err := s.settingsService.UpdateSettings(contextx.ToContext(c), req, contextx.GetRequestUser(c))
 	if err != nil {
-		response.Internal(c, "保存系统设置失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, settings)
@@ -54,8 +54,8 @@ func (s *SystemSettings) TestEmail(c *gin.Context) {
 		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
-	if err := s.settingsService.TestEmail(req.To); err != nil {
-		response.Internal(c, "测试邮件发送失败: "+err.Error())
+	if err := s.settingsService.TestEmail(contextx.ToContext(c), req.To); err != nil {
+		response.Error(c, err)
 		return
 	}
 	response.OkWithMessage(c, "测试邮件已发送")

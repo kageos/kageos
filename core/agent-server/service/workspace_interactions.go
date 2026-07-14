@@ -22,11 +22,11 @@ func workspaceSessionHasPendingInteractionStatus(status string) bool {
 	}
 }
 
-func (s *WorkspaceChatService) pendingInteractionForSession(session *model.AgentChatSession) *dto.WorkspaceInteraction {
+func (s *WorkspaceChatService) pendingInteractionForSession(ctx context.Context, session *model.AgentChatSession) *dto.WorkspaceInteraction {
 	if s == nil || s.messageRepo == nil || session == nil || !workspaceSessionHasPendingInteractionStatus(session.Status) {
 		return nil
 	}
-	messages, err := s.messageRepo.ListBySessionID(context.Background(), session.SessionID)
+	messages, err := s.messageRepo.ListBySessionID(ctx, session.SessionID)
 	if err != nil {
 		return nil
 	}

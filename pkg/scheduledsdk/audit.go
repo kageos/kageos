@@ -13,6 +13,7 @@ const (
 	MetadataCompanyCode    = "company_code"
 	MetadataCompanyName    = "company_name"
 	MetadataCompanyLogoURL = "company_logo_url"
+	MetadataRequestUserID  = "request_user_id"
 	MetadataRequestEmail   = "request_email"
 	MetadataLeaderUsername = "leader_username"
 )
@@ -48,6 +49,7 @@ func (e ExecutionRequestedEvent) WithAuditContext(parent context.Context) contex
 		CompanyCode:        strings.TrimSpace(e.Metadata[MetadataCompanyCode]),
 		CompanyName:        strings.TrimSpace(e.Metadata[MetadataCompanyName]),
 		CompanyLogoURL:     strings.TrimSpace(e.Metadata[MetadataCompanyLogoURL]),
+		UserID:             strings.TrimSpace(e.Metadata[MetadataRequestUserID]),
 		UserEmail:          strings.TrimSpace(e.Metadata[MetadataRequestEmail]),
 		LeaderUsername:     strings.TrimSpace(e.Metadata[MetadataLeaderUsername]),
 		ClientSource:       contextx.ClientSourceScheduledTask,
@@ -83,6 +85,9 @@ func (e ExecutionRequestedEvent) ApplyAuditHeaders(header http.Header) {
 	}
 	if companyLogoURL := strings.TrimSpace(e.Metadata[MetadataCompanyLogoURL]); companyLogoURL != "" {
 		header.Set(contextx.CompanyLogoURLHeader, companyLogoURL)
+	}
+	if userID := strings.TrimSpace(e.Metadata[MetadataRequestUserID]); userID != "" {
+		header.Set(contextx.UserIDHeader, userID)
 	}
 	if email := strings.TrimSpace(e.Metadata[MetadataRequestEmail]); email != "" {
 		header.Set(contextx.UserEmailHeader, email)

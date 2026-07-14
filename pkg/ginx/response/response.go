@@ -20,6 +20,7 @@ const (
 	CodePermissionDenied = "permission_denied"
 	CodeNotFound         = "not_found"
 	CodeConflict         = "conflict"
+	CodeMethodNotAllowed = "method_not_allowed"
 	CodeRateLimited      = "rate_limited"
 	CodeInternal         = "internal"
 	CodeUnavailable      = "unavailable"
@@ -130,6 +131,10 @@ func Conflict(c *gin.Context, message string) {
 	Result(http.StatusConflict, CodeConflict, nil, message, c)
 }
 
+func MethodNotAllowed(c *gin.Context, message string) {
+	Result(http.StatusMethodNotAllowed, CodeMethodNotAllowed, nil, message, c)
+}
+
 func TooManyRequests(c *gin.Context, message string) {
 	Result(http.StatusTooManyRequests, CodeRateLimited, nil, message, c)
 }
@@ -176,6 +181,8 @@ func transportStatus(kind apperror.Kind) (int, string) {
 		return http.StatusNotFound, CodeNotFound
 	case apperror.KindConflict:
 		return http.StatusConflict, CodeConflict
+	case apperror.KindMethodNotAllowed:
+		return http.StatusMethodNotAllowed, CodeMethodNotAllowed
 	case apperror.KindRateLimited:
 		return http.StatusTooManyRequests, CodeRateLimited
 	case apperror.KindUnavailable:

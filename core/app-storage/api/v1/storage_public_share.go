@@ -85,7 +85,7 @@ func (s *Storage) PublicShareGetUploadToken(c *gin.Context) {
 	var expire time.Time
 	if req.PreviewForKey != "" {
 		if !isObjectKeyInRouter(req.PreviewForKey, router) {
-			response.Internal(c, "预览文件路径不属于当前分享")
+			response.Forbidden(c, "预览文件路径不属于当前分享")
 			return
 		}
 		creds, key, expire, err = s.storageService.GeneratePreviewUploadToken(ctx, bucket, req.PreviewForKey, req.FileName, req.ContentType, req.FileSize, uploadSource)
@@ -133,7 +133,7 @@ func (s *Storage) PublicShareUploadComplete(c *gin.Context) {
 		return
 	}
 	if req.Success && !isObjectKeyInRouter(req.Key, router) {
-		response.Internal(c, "文件路径不属于当前分享")
+		response.Forbidden(c, "文件路径不属于当前分享")
 		return
 	}
 

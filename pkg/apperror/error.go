@@ -16,6 +16,7 @@ const (
 	KindPermissionDenied Kind = "permission_denied"
 	KindNotFound         Kind = "not_found"
 	KindConflict         Kind = "conflict"
+	KindMethodNotAllowed Kind = "method_not_allowed"
 	KindRateLimited      Kind = "rate_limited"
 	KindInternal         Kind = "internal"
 	KindUnavailable      Kind = "unavailable"
@@ -67,6 +68,9 @@ func PermissionDenied(message string, cause error) error {
 
 func NotFound(message string, cause error) error { return New(KindNotFound, message, cause) }
 func Conflict(message string, cause error) error { return New(KindConflict, message, cause) }
+func MethodNotAllowed(message string, cause error) error {
+	return New(KindMethodNotAllowed, message, cause)
+}
 func RateLimited(message string, cause error) error {
 	return New(KindRateLimited, message, cause)
 }

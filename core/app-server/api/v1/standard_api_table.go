@@ -56,7 +56,7 @@ func (s *StandardAPI) TableSearch(c *gin.Context) {
 	// 构建请求对象
 	req, err := s.buildRequestAppReq(c, fullCodePath)
 	if err != nil {
-		response.Internal(c, "解析路径参数失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -122,7 +122,7 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		response.Internal(c, "读取请求体失败: "+err.Error())
+		response.BadRequest(c, "读取请求体失败: "+err.Error())
 		return
 	}
 	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
@@ -130,7 +130,7 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 	// 构建回调请求对象（调用 OnTableAddRow）
 	req, err := s.buildCallbackAppReq(c, fullCodePath, "OnTableAddRow")
 	if err != nil {
-		response.Internal(c, "构建请求失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -212,7 +212,7 @@ func (s *StandardAPI) TableTemplate(c *gin.Context) {
 	// 获取函数信息（直接使用 full-code-path）
 	function, err := s.appService.GetFunctionByFullCodePath(ctx, fullCodePath)
 	if err != nil {
-		response.Internal(c, "获取函数信息失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -222,7 +222,7 @@ func (s *StandardAPI) TableTemplate(c *gin.Context) {
 	editableFields := functionschema.TableCreateFields(function.Schema)
 
 	if len(editableFields) == 0 {
-		response.Internal(c, "没有可编辑的字段")
+		response.MethodNotAllowed(c, "该表没有可编辑字段，不能生成导入模板")
 		return
 	}
 
@@ -331,7 +331,7 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 	// 读取请求体
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		response.Internal(c, "读取请求体失败: "+err.Error())
+		response.BadRequest(c, "读取请求体失败: "+err.Error())
 		return
 	}
 
@@ -345,7 +345,7 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 	if needFillOldValues(bodyData) {
 		id, ok := getBodyIDInt64(bodyData)
 		if !ok {
-			response.Internal(c, "请求体缺少有效 id，无法自动填充 old_values")
+			response.BadRequest(c, "请求体缺少有效 id，无法自动填充 old_values")
 			return
 		}
 		rows, err := s.fetchTableRowsByIDs(c, fullCodePath, []int64{id})
@@ -373,7 +373,7 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 	// 构建回调请求对象（调用 OnTableUpdateRow）
 	req, err := s.buildCallbackAppReq(c, fullCodePath, "OnTableUpdateRow")
 	if err != nil {
-		response.Internal(c, "构建请求失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -481,7 +481,7 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 	// 读取请求体，用于记录操作日志
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		response.Internal(c, "读取请求体失败: "+err.Error())
+		response.BadRequest(c, "读取请求体失败: "+err.Error())
 		return
 	}
 	// 重新设置请求体，供后续使用
@@ -490,7 +490,7 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 	// 构建回调请求对象（调用 OnTableDeleteRows）
 	req, err := s.buildCallbackAppReq(c, fullCodePath, "OnTableDeleteRows")
 	if err != nil {
-		response.Internal(c, "构建请求失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 

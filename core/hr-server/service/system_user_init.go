@@ -134,11 +134,11 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 			}
 		}
 		if existingUser.PasswordHash == "" {
-			if err := setTestUserPassword(userRepo, existingUser, password); err != nil {
+			if err := setTestUserPassword(ctx, userRepo, existingUser, password); err != nil {
 				logger.Warnf(ctx, "[TestUser] 设置 test_user 密码失败: %v", err)
 			}
 		} else if !generated && bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(password)) != nil {
-			if err := setTestUserPassword(userRepo, existingUser, password); err != nil {
+			if err := setTestUserPassword(ctx, userRepo, existingUser, password); err != nil {
 				logger.Warnf(ctx, "[TestUser] 同步 test_user 密码失败: %v", err)
 			}
 		}
@@ -174,18 +174,16 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 	return nil
 }
 
-func setTestUserPassword(userRepo *hrrepository.UserRepository, user *hrmodel.User, password string) error {
+func setTestUserPassword(ctx context.Context, userRepo *hrrepository.UserRepository, user *hrmodel.User, password string) error {
 	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
 	user.PasswordHash = string(hashed)
-	return userRepo.UpdateUser(context.Background(
-
-	// getSystemUserPassword 获取系统账号密码（优先从配置/环境变量，否则生成随机密码）
-	), user)
+	return userRepo.UpdateUser(ctx, user)
 }
 
+// getSystemUserPassword 获取系统账号密码（优先从配置/环境变量，否则生成随机密码）
 func getSystemUserPassword(cfg *config.HRServerConfig, ctx context.Context) (string, bool) {
 	// 优先从配置或环境变量获取
 	if password := cfg.GetSystemUserPassword(); password != "" {

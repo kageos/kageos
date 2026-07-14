@@ -65,7 +65,7 @@ func (o *OperateLog) GetOperateLogs(c *gin.Context) {
 	}()
 
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.Internal(c, "参数绑定失败: "+err.Error())
+		response.BadRequest(c, "参数绑定失败: "+err.Error())
 		return
 	}
 	if req.Page <= 0 {
@@ -100,7 +100,7 @@ func (o *OperateLog) GetOperateLogs(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	if companyCode := contextx.GetRequestCompanyCode(ctx); companyCode != "" {
 		if req.CompanyCode != "" && req.CompanyCode != companyCode {
-			response.Internal(c, "不能查询其他企业的操作日志")
+			response.Forbidden(c, "不能查询其他企业的操作日志")
 			return
 		}
 		req.CompanyCode = companyCode

@@ -72,7 +72,7 @@ func (s *ServiceTreeService) CreatePackage(ctx context.Context, req *dto.CreateP
 	if err != nil {
 		return nil, err
 	}
-	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(resp.FullCodePath))
+	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(ctx, resp.FullCodePath))
 	return resp, nil
 }
 
@@ -81,7 +81,7 @@ func (s *ServiceTreeService) CreateFunction(ctx context.Context, req *dto.Create
 	if err != nil {
 		return nil, err
 	}
-	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(resp.FullCodePath))
+	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(ctx, resp.FullCodePath))
 	return resp, nil
 }
 
@@ -113,7 +113,7 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 	var expectedPath string
 	if req != nil {
 		expectedPath = s.resolveAddFunctionsAuditPath(ctx, req)
-		oldNode = s.getServiceTreeForAuditByPath(expectedPath)
+		oldNode = s.getServiceTreeForAuditByPath(ctx, expectedPath)
 	}
 	resp, err := s.functionService.AddFunctions(ctx, req)
 	if err != nil {
@@ -124,7 +124,7 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 		if oldNode != nil {
 			action = "service_tree.node.updated"
 		}
-		s.writeServiceTreeOperateLog(ctx, action, oldNode, s.getServiceTreeForAuditByPath(expectedPath))
+		s.writeServiceTreeOperateLog(ctx, action, oldNode, s.getServiceTreeForAuditByPath(ctx, expectedPath))
 	}
 	return resp, nil
 }

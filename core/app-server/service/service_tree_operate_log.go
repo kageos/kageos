@@ -12,22 +12,22 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 )
 
-func (s *ServiceTreeService) getServiceTreeForAudit(id int64) *model.ServiceTree {
+func (s *ServiceTreeService) getServiceTreeForAudit(ctx context.Context, id int64) *model.ServiceTree {
 	if id <= 0 || s == nil || s.mutationService == nil || s.mutationService.serviceTreeRepo == nil {
 		return nil
 	}
-	serviceTree, err := s.mutationService.serviceTreeRepo.GetServiceTreeByID(context.Background(), id)
+	serviceTree, err := s.mutationService.serviceTreeRepo.GetServiceTreeByID(ctx, id)
 	if err != nil {
 		return nil
 	}
 	return serviceTree
 }
 
-func (s *ServiceTreeService) getServiceTreeForAuditByPath(fullCodePath string) *model.ServiceTree {
+func (s *ServiceTreeService) getServiceTreeForAuditByPath(ctx context.Context, fullCodePath string) *model.ServiceTree {
 	if fullCodePath == "" || s == nil || s.mutationService == nil || s.mutationService.serviceTreeRepo == nil {
 		return nil
 	}
-	serviceTree, err := s.mutationService.serviceTreeRepo.GetServiceTreeByFullPath(context.Background(), fullCodePath)
+	serviceTree, err := s.mutationService.serviceTreeRepo.GetServiceTreeByFullPath(ctx, fullCodePath)
 	if err != nil {
 		return nil
 	}
@@ -38,7 +38,7 @@ func (s *ServiceTreeService) resolveAddFunctionsAuditPath(ctx context.Context, r
 	if req == nil || strings.TrimSpace(req.FullCodePath) == "" {
 		return ""
 	}
-	targetTree := s.getServiceTreeForAuditByPath(strings.TrimSpace(req.FullCodePath))
+	targetTree := s.getServiceTreeForAuditByPath(ctx, strings.TrimSpace(req.FullCodePath))
 	fallbackFileName := ""
 	if targetTree != nil {
 		fallbackFileName = targetTree.Code

@@ -24,7 +24,7 @@ func (s *WorkspaceChatService) executeToolCalls(
 	sendEvent func(string, interface{}),
 ) ([]dto.WorkspaceChatToolCallSummary, string, error) {
 	ctx = contextx.WithInitiatorUser(ctx, user)
-	sessionTitle, sessionRole := s.workspaceSessionMessageContext(sessionID)
+	sessionTitle, sessionRole := s.workspaceSessionMessageContext(ctx, sessionID)
 	ctx = withAgentToolExecutionContext(ctx, sessionID, sessionTitle, sessionRole)
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
 	logger.Infof(ctx, "[WorkspaceChatStream] 开始执行工具调用 - 工具数量: %d, SessionID: %s", len(allToolCalls), sessionID)
@@ -199,11 +199,11 @@ func compactDuplicateChangeRoleResult(previous ToolResult) ToolResult {
 	return toolResultWithData(content, false, data)
 }
 
-func (s *WorkspaceChatService) workspaceSessionMessageContext(sessionID string) (string, string) {
+func (s *WorkspaceChatService) workspaceSessionMessageContext(ctx context.Context, sessionID string) (string, string) {
 	if s == nil || s.sessionRepo == nil || strings.TrimSpace(sessionID) == "" {
 		return "", ""
 	}
-	session, err := s.sessionRepo.GetBySessionID(context.Background(), sessionID)
+	session, err := s.sessionRepo.GetBySessionID(ctx, sessionID)
 	if err != nil || session == nil {
 		return "", ""
 	}
@@ -211,9 +211,6 @@ func (s *WorkspaceChatService) workspaceSessionMessageContext(sessionID string) 
 }
 
 func withAgentToolExecutionContext(ctx context.Context, sessionID, sessionTitle, role string) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	ctx = contextx.WithWorkspaceSession(ctx, sessionID, sessionTitle, role)
 	if contextx.ResolveClientSource(ctx) == contextx.ClientSourceScheduledTask {
 		return ctx
@@ -223,9 +220,6 @@ func withAgentToolExecutionContext(ctx context.Context, sessionID, sessionTitle,
 }
 
 func withWorkspaceToolSourceDisplay(ctx context.Context, fullCodePath string) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if strings.TrimSpace(contextx.GetSourcePath(ctx)) != "" {
 		return ctx
 	}

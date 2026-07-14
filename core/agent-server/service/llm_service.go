@@ -9,6 +9,7 @@ import (
 
 	"github.com/kageos/kageos/core/agent-server/model"
 	"github.com/kageos/kageos/core/agent-server/repository"
+	"github.com/kageos/kageos/pkg/apperror"
 	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/llms"
@@ -99,7 +100,7 @@ func (s *LLMService) getManageableLLMConfig(ctx context.Context, id int64, actio
 		return nil, fmt.Errorf("获取LLM配置失败: %w", err)
 	}
 	if !cfg.IsAdminUser(contextx.GetRequestUser(ctx)) {
-		return nil, fmt.Errorf("无权限%s该LLM配置", action)
+		return nil, apperror.PermissionDenied(fmt.Sprintf("无权限%s该LLM配置", action), nil)
 	}
 	return cfg, nil
 }
@@ -159,7 +160,7 @@ func (s *LLMService) GetViewableLLMConfig(ctx context.Context, id int64) (*model
 		return nil, err
 	}
 	if !canViewLLMConfig(cfg, contextx.GetRequestUser(ctx)) {
-		return nil, fmt.Errorf("无权限查看该LLM配置")
+		return nil, apperror.PermissionDenied("无权限查看该LLM配置", nil)
 	}
 	return cfg, nil
 }
@@ -182,7 +183,7 @@ func (s *LLMService) GetViewableDefaultLLMConfig(ctx context.Context) (*model.LL
 		return nil, err
 	}
 	if !canViewLLMConfig(cfg, contextx.GetRequestUser(ctx)) {
-		return nil, fmt.Errorf("无权限查看默认LLM配置")
+		return nil, apperror.PermissionDenied("无权限查看默认LLM配置", nil)
 	}
 	return cfg, nil
 }

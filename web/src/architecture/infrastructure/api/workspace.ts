@@ -26,6 +26,8 @@ export interface WorkspaceChatMessageFiles {
 /** 工作台对话请求（只认 LLM，单模式） */
 export interface WorkspaceChatReq {
   full_code_path: string
+  /** 会话归属的具体函数/资源；Agent 执行仍由服务端使用父目录 */
+  resource_full_code_path?: string
   message: {
     content: string
     display_content?: string
@@ -57,6 +59,9 @@ export interface WorkspaceSessionItem {
   role_display_name?: string
   full_code_path?: string
   directory_name?: string
+  resource_tree_id?: number
+  resource_full_code_path?: string
+  resource_name?: string
   parent_session_id?: string
   handoff_kind?: string
   handoff_target_role?: string

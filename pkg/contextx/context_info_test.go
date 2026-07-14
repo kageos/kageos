@@ -2,9 +2,11 @@ package contextx
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kageos/kageos/pkg/controlauth"
@@ -105,6 +107,42 @@ func TestToContextCopiesOnlyPrivateDelegationFromRequestContext(t *testing.T) {
 	}
 }
 
+func TestToContextPreservesRequestCancellation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	parent, cancel := context.WithCancel(context.Background())
+	c.Request = httptest.NewRequest(http.MethodGet, "/demo", nil).WithContext(parent)
+
+	ctx := ToContext(c)
+	cancel()
+
+	select {
+	case <-ctx.Done():
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			t.Fatalf("context error = %v, want context.Canceled", ctx.Err())
+		}
+	case <-time.After(time.Second):
+		t.Fatal("request cancellation was not propagated")
+	}
+}
+
+func TestToContextPreservesRequestDeadline(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	want, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))
+	defer cancel()
+	c.Request = httptest.NewRequest(http.MethodGet, "/demo", nil).WithContext(want)
+
+	ctx := ToContext(c)
+	gotDeadline, ok := ctx.Deadline()
+	wantDeadline, _ := want.Deadline()
+	if !ok || !gotDeadline.Equal(wantDeadline) {
+		t.Fatalf("deadline = %v, %v; want %v", gotDeadline, ok, wantDeadline)
+	}
+}
+
 func TestNatsTraceContextPreservesClientSource(t *testing.T) {
 	msg := nats.NewMsg("demo")
 	msg.Header.Set(ClientSourceHeader, "agent")
@@ -113,6 +151,43 @@ func TestNatsTraceContextPreservesClientSource(t *testing.T) {
 
 	if got := GetClientSource(ctx); got != "agent" {
 		t.Fatalf("GetClientSource(ctx) = %q, want agent", got)
+	}
+}
+
+func TestNatsTraceContextRoundTripsTrustedIdentityAndAuditFields(t *testing.T) {
+	want := make(map[string]string)
+	ctx := context.Background()
+	for _, key := range TrustedIdentityHeaderNames() {
+		value := key + "-value"
+		want[key] = value
+		ctx = context.WithValue(ctx, key, value)
+	}
+	ctx = WithToken(ctx, "token-value")
+	ctx = WithTraceId(ctx, "trace-value")
+
+	msg := CtxToTraceNats(ctx, "demo")
+	got := NatsTraceContext(msg)
+
+	for key, value := range want {
+		if headerValue := msg.Header.Get(key); headerValue != value {
+			t.Fatalf("nats header %s = %q, want %q", key, headerValue, value)
+		}
+		if contextValue := getStringFromContextOrHeader(got, key); contextValue != value {
+			t.Fatalf("context value %s = %q, want %q", key, contextValue, value)
+		}
+	}
+	if value := GetToken(got); value != "token-value" {
+		t.Fatalf("token = %q, want token-value", value)
+	}
+	if value := GetTraceId(got); value != "trace-value" {
+		t.Fatalf("trace = %q, want trace-value", value)
+	}
+}
+
+func TestNatsTraceContextAcceptsNilMessage(t *testing.T) {
+	ctx := NatsTraceContext(nil)
+	if ctx == nil {
+		t.Fatal("NatsTraceContext(nil) returned nil")
 	}
 }
 

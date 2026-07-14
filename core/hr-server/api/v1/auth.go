@@ -77,7 +77,7 @@ func (a *Auth) SendEmailCode(c *gin.Context) {
 		codeType = "register"
 	}
 	if codeType == "register" {
-		mode, modeErr := a.settingsService.GetRegistrationMode()
+		mode, modeErr := a.settingsService.GetRegistrationMode(contextx.ToContext(c))
 		if modeErr != nil {
 			err = modeErr
 			response.Internal(c, "读取注册配置失败: "+modeErr.Error())
@@ -90,10 +90,10 @@ func (a *Auth) SendEmailCode(c *gin.Context) {
 		}
 	}
 
-	debugCode, sendErr := a.emailService.SendVerificationCode(req.Email, codeType, ipAddress, userAgent)
+	debugCode, sendErr := a.emailService.SendVerificationCode(contextx.ToContext(c), req.Email, codeType, ipAddress, userAgent)
 	err = sendErr
 	if err != nil {
-		response.Internal(c, "发送验证码失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -126,7 +126,7 @@ func (a *Auth) Register(c *gin.Context) {
 		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
-	mode, modeErr := a.settingsService.GetRegistrationMode()
+	mode, modeErr := a.settingsService.GetRegistrationMode(contextx.ToContext(c))
 	if modeErr != nil {
 		err = modeErr
 		response.Internal(c, "读取注册配置失败: "+modeErr.Error())
@@ -139,21 +139,22 @@ func (a *Auth) Register(c *gin.Context) {
 	}
 
 	// 验证验证码
-	err = a.emailService.VerifyCode(req.Email, req.Code, "register")
+	ctx := contextx.ToContext(c)
+	err = a.emailService.VerifyCode(ctx, req.Email, req.Code, "register")
 	if err != nil {
-		response.Internal(c, "验证码错误或已过期: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	// 注册用户
-	userID, err := a.authService.RegisterUser(req.Username, req.Email, req.Password, req.CompanyAction, req.CompanyCode, req.CompanyName, req.CompanyLogoURL)
+	userID, err := a.authService.RegisterUser(ctx, req.Username, req.Email, req.Password, req.CompanyAction, req.CompanyCode, req.CompanyName, req.CompanyLogoURL)
 	if err != nil {
-		response.Internal(c, "注册失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	// 激活用户（因为验证码已验证通过）
-	err = a.authService.ActivateUser(userID)
+	err = a.authService.ActivateUser(ctx, userID)
 	if err != nil {
 		logger.Errorf(c, "[Auth] Failed to activate user %d: %v", userID, err)
 		// 不返回错误，因为用户已创建成功
@@ -185,9 +186,9 @@ func (a *Auth) SearchCompanies(c *gin.Context) {
 		}
 	}
 
-	companies, err := a.authService.SearchCompaniesFuzzy(keyword, limit)
+	companies, err := a.authService.SearchCompaniesFuzzy(contextx.ToContext(c), keyword, limit)
 	if err != nil {
-		response.Internal(c, "搜索企业失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -238,7 +239,7 @@ func (a *Auth) OAuthCallback(c *gin.Context) {
 }
 
 func (a *Auth) GetOAuthRegistrationIntent(c *gin.Context) {
-	intent, err := a.authOAuthService.GetRegistrationIntent(c.Param("ticket"))
+	intent, err := a.authOAuthService.GetRegistrationIntent(contextx.ToContext(c), c.Param("ticket"))
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -264,12 +265,12 @@ func (a *Auth) ConfirmOAuthRegistration(c *gin.Context) {
 		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
-	result, err := a.authOAuthService.ConfirmRegistration(c.Param("ticket"), req.Username, req.Nickname)
+	ctx := contextx.ToContext(c)
+	result, err := a.authOAuthService.ConfirmRegistration(ctx, c.Param("ticket"), req.Username, req.Nickname)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
-	ctx := contextx.ToContext(c)
 	userInfos := convertUsersToDTOBatch(ctx, []*model.User{result.User}, a.userService, a.departmentService)
 	if len(userInfos) == 0 {
 		response.Internal(c, "转换用户信息失败")
@@ -325,14 +326,14 @@ func (a *Auth) Login(c *gin.Context) {
 	}
 
 	// 登录用户
-	user, token, refreshToken, err := a.authService.LoginUser(req.Username, req.Password, req.Remember)
+	ctx := contextx.ToContext(c)
+	user, token, refreshToken, err := a.authService.LoginUser(ctx, req.Username, req.Password, req.Remember)
 	if err != nil {
-		response.Internal(c, "登录失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	// ⭐ 转换为DTO（包含详细信息：组织架构和Leader信息）
-	ctx := contextx.ToContext(c)
 	userInfos := convertUsersToDTOBatch(ctx, []*model.User{user}, a.userService, a.departmentService)
 	if len(userInfos) == 0 {
 		response.Internal(c, "转换用户信息失败")
@@ -375,9 +376,9 @@ func (a *Auth) RefreshToken(c *gin.Context) {
 	}
 
 	// 刷新Token
-	newAccessToken, newRefreshToken, err := a.authService.RefreshToken(req.RefreshToken)
+	newAccessToken, newRefreshToken, err := a.authService.RefreshToken(contextx.ToContext(c), req.RefreshToken)
 	if err != nil {
-		response.Internal(c, "刷新Token失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -422,9 +423,9 @@ func (a *Auth) Logout(c *gin.Context) {
 	}
 
 	// 登出用户
-	err = a.authService.LogoutUser(token)
+	err = a.authService.LogoutUser(contextx.ToContext(c), token)
 	if err != nil {
-		response.Internal(c, "登出失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -456,16 +457,17 @@ func (a *Auth) ForgotPassword(c *gin.Context) {
 	}
 
 	// 验证验证码（使用 "forgot_password" 作为 codeType）
-	err = a.emailService.VerifyCode(req.Email, req.Code, "forgot_password")
+	ctx := contextx.ToContext(c)
+	err = a.emailService.VerifyCode(ctx, req.Email, req.Code, "forgot_password")
 	if err != nil {
-		response.Internal(c, "验证码错误或已过期: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	// 直接重置密码（验证码已验证，用户存在性在 ResetPasswordByEmail 中检查）
-	err = a.authService.ResetPasswordByEmail(req.Email, req.Password)
+	err = a.authService.ResetPasswordByEmail(ctx, req.Email, req.Password)
 	if err != nil {
-		response.Internal(c, "重置密码失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 

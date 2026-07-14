@@ -79,7 +79,7 @@ func readDirectoryFilesFromRuntimeRecursively(
 	appID int64,
 	rootDirectoryPath string,
 ) (map[string][]*model.FileSnapshot, error) {
-	app, err := runtimeWorkspace.getRuntimeBoundAppByID(appID, "读取目录文件")
+	app, err := runtimeWorkspace.getRuntimeBoundAppByID(ctx, appID, "读取目录文件")
 	if err != nil {
 		return nil, err
 	}

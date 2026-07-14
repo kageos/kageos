@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/subjects"
 	"github.com/nats-io/nats.go"
@@ -73,6 +74,12 @@ func TestWorkerRejectsForgedExecutionRequestAndReplay(t *testing.T) {
 		executorKey: "agent.session",
 		workerID:    "agent-worker-test",
 		handler: func(ctx context.Context, _ ExecutionRequestedEvent) (*ExecutionResult, error) {
+			if got := contextx.GetRequestUserID(ctx); got != "42" {
+				return nil, fmt.Errorf("verified handler user id = %q, want 42", got)
+			}
+			if got := contextx.GetWorkspaceSessionID(ctx); got != "session-1" {
+				return nil, fmt.Errorf("verified handler workspace session = %q, want session-1", got)
+			}
 			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://gateway.internal/workspace", nil)
 			delegated, err := controlauth.ApplyDelegatedHTTPRequestSignature(req, nil)
 			if err != nil || !delegated {
@@ -130,6 +137,8 @@ func TestWorkerRejectsForgedExecutionRequestAndReplay(t *testing.T) {
 	reported = nil
 	valid := nats.NewMsg(subjects.TimerExecutionRequestedSubject("agent.session"))
 	valid.Data = eventData
+	valid.Header.Set(contextx.UserIDHeader, "42")
+	valid.Header.Set(contextx.WorkspaceSessionIDHeader, "session-1")
 	if err := controlauth.SignNATSMessage(valid, schedulerAuth.MessageSigner); err != nil {
 		t.Fatal(err)
 	}

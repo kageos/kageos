@@ -212,26 +212,13 @@ func applyNATSContextHeaders(msg *nats.Msg, ctx context.Context) {
 	if msg == nil || ctx == nil {
 		return
 	}
-	header := nats.Header{}
-	if traceID := contextx.GetTraceId(ctx); traceID != "" {
-		header.Set(contextx.TraceIdHeader, traceID)
-	}
-	if requestUser := contextx.GetRequestUser(ctx); requestUser != "" {
-		header.Set(contextx.RequestUserHeader, requestUser)
-	}
-	if departmentFullPath := contextx.GetRequestDepartmentFullPath(ctx); departmentFullPath != "" {
-		header.Set(contextx.DepartmentFullPathHeader, departmentFullPath)
-	}
-	if clientSource := contextx.GetClientSource(ctx); clientSource != "" {
-		header.Set(contextx.ClientSourceHeader, clientSource)
-	}
-	if sourceType := contextx.GetSourceType(ctx); sourceType != "" {
-		header.Set(contextx.SourceTypeHeader, sourceType)
-	}
-	if sourceRef := contextx.GetSourceRef(ctx); sourceRef != "" {
-		header.Set(contextx.SourceRefHeader, sourceRef)
-	}
-	if len(header) > 0 {
-		msg.Header = header
+	traced := contextx.CtxToTraceNats(ctx, msg.Subject)
+	for key, values := range traced.Header {
+		// Execution control messages need identity/audit metadata but must never
+		// carry a reusable bearer token.
+		if strings.EqualFold(key, contextx.TokenHeader) {
+			continue
+		}
+		msg.Header[key] = append([]string(nil), values...)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/subjects"
 	"github.com/nats-io/nats.go"
@@ -203,6 +204,7 @@ func (w *Worker) handleMessage(msg *nats.Msg) {
 		w.reportError(ctx, fmt.Errorf("scheduledsdk: authenticate execution request: %w", err))
 		return
 	}
+	ctx = contextx.NatsTraceContext(msg)
 	if len(msg.Data) > maxExecutionMessageBytes {
 		w.reportError(ctx, fmt.Errorf("%w: size=%d limit=%d", ErrExecutionMessageTooLarge, len(msg.Data), maxExecutionMessageBytes))
 		return
@@ -227,10 +229,10 @@ func (w *Worker) handleMessage(msg *nats.Msg) {
 	// NATS invokes an async subscription callback serially. Authentication must
 	// complete inside that callback, but long business execution must not block
 	// the next message until its short-lived signature has expired.
-	w.enqueueVerifiedExecution(event)
+	w.enqueueVerifiedExecution(ctx, event)
 }
 
-func (w *Worker) enqueueVerifiedExecution(event ExecutionRequestedEvent) {
+func (w *Worker) enqueueVerifiedExecution(ctx context.Context, event ExecutionRequestedEvent) {
 	identity := executionIdentity{taskID: event.TaskID, executionID: event.ExecutionID}
 	w.executionMu.Lock()
 	if w.executionKnown == nil {
@@ -246,14 +248,13 @@ func (w *Worker) enqueueVerifiedExecution(event ExecutionRequestedEvent) {
 	}
 	if len(w.executionQueue)+w.executionClaiming >= maxQueued {
 		w.executionMu.Unlock()
-		w.reportError(context.Background(), fmt.Errorf("%w: limit=%d", ErrExecutionQueueFull, maxQueued))
+		w.reportError(ctx, fmt.Errorf("%w: limit=%d", ErrExecutionQueueFull, maxQueued))
 		return
 	}
 	w.executionKnown[identity] = struct{}{}
 	w.executionClaiming++
 	w.executionMu.Unlock()
 
-	ctx := context.Background()
 	if w.verifiedContext != nil {
 		ctx = w.verifiedContext(ctx)
 	}

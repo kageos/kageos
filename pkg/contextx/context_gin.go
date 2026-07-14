@@ -9,15 +9,26 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// valueStrippedContext keeps the request lifecycle (deadline/cancellation)
+// without trusting arbitrary values injected into the raw request context.
+// ToContext rebuilds the trusted identity fields below from authenticated
+// headers/gin values.
+type valueStrippedContext struct {
+	context.Context
+}
+
+func (valueStrippedContext) Value(any) any { return nil }
+
 // ToContext 将 gin.Context 转换为标准 context.Context
 // 从 header 或 gin 上下文（如中间件 c.Set）读取关键信息，写入 context.Value，并同步回 c.Request.Header，保证请求头为权威来源。
 func ToContext(c *gin.Context) context.Context {
-	// Start from a clean context so stale string-key identity and SSE
-	// cancellation semantics do not leak in. Copy only the private, typed Agent
-	// delegation capability installed after strict HTTP authentication.
-	ctx := context.Background()
+	// Preserve request cancellation/deadlines, while dropping untrusted values.
+	// Copy the private, typed Agent delegation capability explicitly.
+	ctx := context.Context(context.Background())
 	if c != nil && c.Request != nil {
-		ctx = controlauth.PropagateDelegatedHTTPRequestSigner(c.Request.Context(), ctx)
+		requestCtx := c.Request.Context()
+		ctx = valueStrippedContext{Context: requestCtx}
+		ctx = controlauth.PropagateDelegatedHTTPRequestSigner(requestCtx, ctx)
 	}
 
 	// 1. TraceId：header 或 context，取到后 set 回 header + context

@@ -48,7 +48,7 @@ func (s *StandardAPI) FormSubmit(c *gin.Context) {
 	// 构建请求对象
 	req, err := s.buildRequestAppReq(c, fullCodePath)
 	if err != nil {
-		response.Internal(c, "解析路径参数失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -122,7 +122,7 @@ func (s *StandardAPI) RuntimePython(c *gin.Context) {
 	}
 	_, _, workspaceRoot, err := parseWorkspaceRootPath(fullCodePath)
 	if err != nil {
-		response.Internal(c, "解析工作区路径失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, workspaceRoot, access.ActionWrite); err != nil {
@@ -132,7 +132,7 @@ func (s *StandardAPI) RuntimePython(c *gin.Context) {
 
 	req, err := s.buildRuntimePythonRequestAppReq(c, workspaceRoot)
 	if err != nil {
-		response.Internal(c, "解析 run_python runtime 请求失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
@@ -195,7 +195,7 @@ func (s *StandardAPI) ChartQuery(c *gin.Context) {
 	// 构建请求对象
 	req, err := s.buildRequestAppReq(c, fullCodePath)
 	if err != nil {
-		response.Internal(c, "解析路径参数失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 

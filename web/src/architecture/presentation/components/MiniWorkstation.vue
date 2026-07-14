@@ -736,7 +736,7 @@ function openCurrentContextNewSession() {
 
 function requestSessionSwitch(session: WorkspaceSessionItem) {
   const targetSessionId = (session.session_id || '').trim()
-  const targetFullCodePath = (session.full_code_path || props.fullCodePath || '').trim()
+  const targetFullCodePath = (session.resource_full_code_path || session.full_code_path || props.fullCodePath || '').trim()
   if (!targetSessionId || !targetFullCodePath) {
     return
   }

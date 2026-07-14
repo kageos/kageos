@@ -177,7 +177,7 @@ func TestWorkspaceRoleAcceptancePRDConfirmHandoffCarriesDeveloperPacket(t *testi
 		RoleID:          WorkspaceRoleProductManager,
 		RoleDisplayName: "产品经理",
 	}
-	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
 		Source:        source,
 		FullCodePath:  "/system/x_world",
 		TargetRole:    WorkspaceRoleAppDeveloper,
@@ -341,7 +341,7 @@ field CreatedBy (created_by): audit field "created_by" hide tag must be "create,
 		}
 	}
 
-	failureCtx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
+	failureCtx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
 		FullCodePath:  "/system/x_world/vote",
 		TargetRole:    WorkspaceRoleBuildEngineer,
 		ArtifactKind:  workspaceBuildFailureKind,

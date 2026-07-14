@@ -91,7 +91,7 @@ func (a *AppService) syncAddedAPIs(ctx context.Context, state *appMetadataSyncSt
 		return fmt.Errorf("创建function记录失败: %w", err)
 	}
 
-	if err := a.createServiceTreesForAPIs(state, apis, functions); err != nil {
+	if err := a.createServiceTreesForAPIs(ctx, state, apis, functions); err != nil {
 		return fmt.Errorf("创建service_tree记录失败: %w", err)
 	}
 	if err := a.syncSensitiveFieldsForAPIs(ctx, state, apis, functions); err != nil {
@@ -111,11 +111,11 @@ func (a *AppService) syncUpdatedAPIs(ctx context.Context, state *appMetadataSync
 		return fmt.Errorf("转换更新API失败: %w", err)
 	}
 
-	if err := a.updateFunctionsForAPIs(state.app.ID, apis, functions); err != nil {
+	if err := a.updateFunctionsForAPIs(ctx, state.app.ID, apis, functions); err != nil {
 		return fmt.Errorf("更新function记录失败: %w", err)
 	}
 
-	if err := a.updateServiceTreesForAPIs(state, apis, functions); err != nil {
+	if err := a.updateServiceTreesForAPIs(ctx, state, apis, functions); err != nil {
 		return fmt.Errorf("更新service_tree记录失败: %w", err)
 	}
 	if err := a.syncSensitiveFieldsForAPIs(ctx, state, apis, functions); err != nil {
@@ -182,8 +182,8 @@ func (a *AppService) convertApiInfoToFunctions(appID int64, apis []*dto.ApiInfo,
 }
 
 // createServiceTreesForAPIs 为新增的API创建ServiceTree记录
-func (a *AppService) createServiceTreesForAPIs(state *appMetadataSyncState, apis []*dto.ApiInfo, functions []*model.Function) error {
-	parentNodes, err := a.loadParentPackageNodes(apis)
+func (a *AppService) createServiceTreesForAPIs(ctx context.Context, state *appMetadataSyncState, apis []*dto.ApiInfo, functions []*model.Function) error {
+	parentNodes, err := a.loadParentPackageNodes(ctx, apis)
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (a *AppService) createServiceTreesForAPIs(state *appMetadataSyncState, apis
 			parentAdmins = parent.Admins
 		}
 
-		treeID, err := a.createFunctionNode(state, api, functions[i].ID, parentAdmins)
+		treeID, err := a.createFunctionNode(ctx, state, api, functions[i].ID, parentAdmins)
 		if err != nil {
 			return fmt.Errorf("创建function节点失败: %w", err)
 		}
@@ -283,7 +283,7 @@ func (a *AppService) reconcilePackages(ctx context.Context, state *appMetadataSy
 	return nil
 }
 
-func (a *AppService) loadParentPackageNodes(apis []*dto.ApiInfo) (map[string]*model.ServiceTree, error) {
+func (a *AppService) loadParentPackageNodes(ctx context.Context, apis []*dto.ApiInfo) (map[string]*model.ServiceTree, error) {
 	parentPaths := make(map[string]bool)
 	for _, api := range apis {
 		parentPath := api.GetParentFullCodePath()
@@ -297,7 +297,7 @@ func (a *AppService) loadParentPackageNodes(apis []*dto.ApiInfo) (map[string]*mo
 		parentPathList = append(parentPathList, path)
 	}
 
-	parentNodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(context.Background(), parentPathList)
+	parentNodes, err := a.serviceTreeRepo.GetServiceTreeByFullPaths(ctx, parentPathList)
 	if err != nil {
 		return nil, fmt.Errorf("批量查询父级package节点失败: %w", err)
 	}
@@ -313,13 +313,14 @@ func (a *AppService) loadParentPackageNodes(apis []*dto.ApiInfo) (map[string]*mo
 
 // createFunctionNode 创建function节点，返回创建的TreeID
 func (a *AppService) createFunctionNode(
+	ctx context.Context,
 	state *appMetadataSyncState,
 	api *dto.ApiInfo,
 	functionID int64,
 	parentAdmins string,
 ) (int64, error) {
 	// 检查是否已存在（full_name_path全局唯一）
-	existingNode, err := a.serviceTreeRepo.GetServiceTreeByFullPath(context.Background(), api.FullCodePath)
+	existingNode, err := a.serviceTreeRepo.GetServiceTreeByFullPath(ctx, api.FullCodePath)
 	if err == nil {
 		a.applyFunctionNodeMetadata(existingNode, api, functionID)
 
@@ -332,7 +333,7 @@ func (a *AppService) createFunctionNode(
 		}
 
 		// 更新节点信息
-		err = a.serviceTreeRepo.UpdateServiceTree(context.Background(), existingNode)
+		err = a.serviceTreeRepo.UpdateServiceTree(ctx, existingNode)
 		if err != nil {
 			return 0, err
 		}
@@ -371,7 +372,7 @@ func (a *AppService) createFunctionNode(
 	}
 
 	// 创建ServiceTree节点（GORM Create会自动填充ID）
-	err = a.serviceTreeRepo.CreateServiceTreeWithParentPath(context.Background(), serviceTree, "")
+	err = a.serviceTreeRepo.CreateServiceTreeWithParentPath(ctx, serviceTree, "")
 	if err != nil {
 		return 0, err
 	}
@@ -393,16 +394,16 @@ func (a *AppService) applyFunctionNodeMetadata(tree *model.ServiceTree, api *dto
 }
 
 // updateFunctionsForAPIs 更新API对应的Function记录
-func (a *AppService) updateFunctionsForAPIs(appID int64, apis []*dto.ApiInfo, functions []*model.Function) error {
+func (a *AppService) updateFunctionsForAPIs(ctx context.Context, appID int64, apis []*dto.ApiInfo, functions []*model.Function) error {
 	// 对于每个要更新的API，先查找现有的Function记录获取ID
 	for i, api := range apis {
 		router := api.BuildFullCodePath()
-		existingFunction, err := a.functionRepo.GetFunctionByKey(context.Background(), appID, api.Method, router)
+		existingFunction, err := a.functionRepo.GetFunctionByKey(ctx, appID, api.Method, router)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// Function不存在，创建新的（这种情况不应该发生，但为了容错处理）
 				newFunctions := []*model.Function{functions[i]}
-				err = a.functionRepo.CreateFunctions(context.Background(), newFunctions)
+				err = a.functionRepo.CreateFunctions(ctx, newFunctions)
 				if err != nil {
 					return fmt.Errorf("创建function记录失败: %w", err)
 				}
@@ -417,14 +418,12 @@ func (a *AppService) updateFunctionsForAPIs(appID int64, apis []*dto.ApiInfo, fu
 	}
 
 	// 批量更新Function记录
-	return a.functionRepo.UpdateFunctions(context.Background(
-
-	// updateServiceTreesForAPIs 更新API对应的ServiceTree记录
-	), functions)
+	return a.functionRepo.UpdateFunctions(ctx, functions)
 }
 
-func (a *AppService) updateServiceTreesForAPIs(state *appMetadataSyncState, apis []*dto.ApiInfo, functions []*model.Function) error {
-	parentNodes, err := a.loadParentPackageNodes(apis)
+// updateServiceTreesForAPIs 更新API对应的ServiceTree记录
+func (a *AppService) updateServiceTreesForAPIs(ctx context.Context, state *appMetadataSyncState, apis []*dto.ApiInfo, functions []*model.Function) error {
+	parentNodes, err := a.loadParentPackageNodes(ctx, apis)
 	if err != nil {
 		return err
 	}
@@ -432,7 +431,7 @@ func (a *AppService) updateServiceTreesForAPIs(state *appMetadataSyncState, apis
 	// 更新function节点
 	for i, api := range apis {
 		// 根据FullCodePath查找现有的ServiceTree
-		existingTree, err := a.serviceTreeRepo.GetServiceTreeByFullPath(context.Background(), api.FullCodePath)
+		existingTree, err := a.serviceTreeRepo.GetServiceTreeByFullPath(ctx, api.FullCodePath)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// 如果不存在，创建新的节点（这种情况不应该发生，但为了容错处理）
@@ -444,7 +443,7 @@ func (a *AppService) updateServiceTreesForAPIs(state *appMetadataSyncState, apis
 						parentAdmins = parent.Admins
 					}
 				}
-				treeID, err := a.createFunctionNode(state, api, functions[i].ID, parentAdmins)
+				treeID, err := a.createFunctionNode(ctx, state, api, functions[i].ID, parentAdmins)
 				if err != nil {
 					return fmt.Errorf("创建function节点失败: %w", err)
 				}
@@ -465,7 +464,7 @@ func (a *AppService) updateServiceTreesForAPIs(state *appMetadataSyncState, apis
 		}
 
 		// 保存更新后的节点
-		if err := a.serviceTreeRepo.UpdateServiceTree(context.Background(), existingTree); err != nil {
+		if err := a.serviceTreeRepo.UpdateServiceTree(ctx, existingTree); err != nil {
 			return fmt.Errorf("更新service_tree节点失败: %w", err)
 		}
 		// 赋值TreeID，方便后续写快照时入库

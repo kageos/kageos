@@ -18,11 +18,12 @@ import (
 )
 
 func (s *Server) getPublicMessageAction(c *gin.Context) {
+	ctx := contextx.ToContext(c)
 	token := strings.TrimSpace(c.Param("token"))
 	if token == "" {
 		token = strings.TrimSpace(c.Query("token"))
 	}
-	view, err := s.messageRepo.GetActionView(c.Request.Context(), token, "", contextx.GetRequestUser(c))
+	view, err := s.messageRepo.GetActionView(ctx, token, "", contextx.GetRequestUser(c))
 	if err != nil {
 		if isMessageActionLoginRequiredError(err) {
 			response.NoAuth(c, err.Error())
@@ -33,7 +34,7 @@ func (s *Server) getPublicMessageAction(c *gin.Context) {
 	}
 	authenticatedUser := strings.TrimSpace(contextx.GetRequestUser(c))
 	if authenticatedUser == "" || strings.TrimSpace(view.RecipientUser) != authenticatedUser {
-		response.NoAuth(c, "消息动作用户与当前登录用户不一致")
+		response.Forbidden(c, "消息动作用户与当前登录用户不一致")
 		return
 	}
 	view.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), mobileActionFullCodePath(view.Message), view.WorkspaceSession)
@@ -41,6 +42,7 @@ func (s *Server) getPublicMessageAction(c *gin.Context) {
 }
 
 func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
+	ctx := contextx.ToContext(c)
 	token := strings.TrimSpace(c.Param("token"))
 	if token == "" {
 		token = strings.TrimSpace(c.Query("token"))
@@ -50,7 +52,7 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 		response.BadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
-	view, err := s.messageRepo.GetActionView(c.Request.Context(), token, "", contextx.GetRequestUser(c))
+	view, err := s.messageRepo.GetActionView(ctx, token, "", contextx.GetRequestUser(c))
 	if err != nil {
 		if isMessageActionLoginRequiredError(err) {
 			response.NoAuth(c, err.Error())
@@ -61,7 +63,7 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 	}
 	authenticatedUser := strings.TrimSpace(contextx.GetRequestUser(c))
 	if authenticatedUser == "" || strings.TrimSpace(view.RecipientUser) != authenticatedUser {
-		response.NoAuth(c, "消息动作用户与当前登录用户不一致")
+		response.Forbidden(c, "消息动作用户与当前登录用户不一致")
 		return
 	}
 	fullCodePath := mobileActionFullCodePath(view.Message)
@@ -69,7 +71,7 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 		response.BadRequest(c, "消息缺少工作台目录，无法提交给 kageos 工作台")
 		return
 	}
-	resp, err := s.messageRepo.BeginActionReply(c.Request.Context(), token, req.Content, req.Files, req.Action, contextx.GetRequestUser(c))
+	resp, err := s.messageRepo.BeginActionReply(ctx, token, req.Content, req.Files, req.Action, contextx.GetRequestUser(c))
 	if err != nil {
 		if isMessageActionLoginRequiredError(err) {
 			response.NoAuth(c, err.Error())
@@ -82,11 +84,11 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 	resp.FullCodePath = firstNonEmptyActionString(resp.FullCodePath, fullCodePath)
 	resp.AgentSubmitted = false
 	if s.workspaceActionRunner == nil {
-		s.releasePublicMessageActionReply(token)
+		s.releasePublicMessageActionReply(ctx, token)
 		response.Internal(c, "工作台提交器未初始化，请稍后重试")
 		return
 	}
-	runResult, runErr := s.workspaceActionRunner.Submit(c.Request.Context(), service.WorkspaceActionRequest{
+	runResult, runErr := s.workspaceActionRunner.Submit(ctx, service.WorkspaceActionRequest{
 		RecipientUser:         view.RecipientUser,
 		UserID:                c.GetHeader(contextx.UserIDHeader),
 		UserEmail:             c.GetHeader(contextx.UserEmailHeader),
@@ -114,23 +116,23 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 		WorkspaceRole:         view.Message.WorkspaceRole,
 	})
 	if runErr != nil {
-		s.releasePublicMessageActionReply(token)
-		logger.Warnf(c.Request.Context(), "[message-action] submit workspace failed token_message_id=%d user=%s err=%v", view.Message.ID, view.RecipientUser, runErr)
+		s.releasePublicMessageActionReply(ctx, token)
+		logger.Warnf(ctx, "[message-action] submit workspace failed token_message_id=%d user=%s err=%v", view.Message.ID, view.RecipientUser, runErr)
 		response.Internal(c, "创建工作台会话失败，请重试: "+runErr.Error())
 		return
 	}
 	if runResult == nil || !runResult.Accepted || strings.TrimSpace(runResult.SessionID) == "" {
-		s.releasePublicMessageActionReply(token)
+		s.releasePublicMessageActionReply(ctx, token)
 		response.Internal(c, "工作台没有返回有效会话，请重试")
 		return
 	}
 	resp.WorkspaceSessionID = strings.TrimSpace(runResult.SessionID)
-	persistCtx, cancelPersist := context.WithTimeout(context.Background(), 5*time.Second)
+	persistCtx, cancelPersist := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	submittedAt, err := s.messageRepo.FinalizeActionReply(persistCtx, token, resp.WorkspaceSessionID)
 	cancelPersist()
 	if err != nil {
-		s.releasePublicMessageActionReply(token)
-		logger.Warnf(c.Request.Context(), "[message-action] finalize reply failed token_message_id=%d session_id=%s err=%v", view.Message.ID, resp.WorkspaceSessionID, err)
+		s.releasePublicMessageActionReply(ctx, token)
+		logger.Warnf(ctx, "[message-action] finalize reply failed token_message_id=%d session_id=%s err=%v", view.Message.ID, resp.WorkspaceSessionID, err)
 		response.Internal(c, "工作台会话已创建，但回复状态确认失败，请刷新后重试")
 		return
 	}
@@ -144,8 +146,8 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 // releasePublicMessageActionReply intentionally uses a fresh context. The
 // request context may already be canceled when the mobile client disconnects,
 // but the token still has to return to open so the user can retry.
-func (s *Server) releasePublicMessageActionReply(token string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func (s *Server) releasePublicMessageActionReply(parent context.Context, token string) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
 	defer cancel()
 	if err := s.messageRepo.ReleaseActionReply(ctx, token); err != nil {
 		logger.Warnf(ctx, "[message-action] release processing reply failed err=%v", err)

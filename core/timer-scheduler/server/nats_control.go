@@ -171,18 +171,5 @@ func buildTimerNATSCommandResponse(reply string, signer *controlauth.Signer, req
 }
 
 func timerNATSContext(msg *nats.Msg) context.Context {
-	if msg == nil || len(msg.Header) == 0 {
-		return context.Background()
-	}
-	return contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
-		TraceId:            msg.Header.Get(contextx.TraceIdHeader),
-		RequestUser:        msg.Header.Get(contextx.RequestUserHeader),
-		DepartmentFullPath: msg.Header.Get(contextx.DepartmentFullPathHeader),
-		CompanyCode:        msg.Header.Get(contextx.CompanyCodeHeader),
-		CompanyName:        msg.Header.Get(contextx.CompanyNameHeader),
-		CompanyLogoURL:     msg.Header.Get(contextx.CompanyLogoURLHeader),
-		ClientSource:       msg.Header.Get(contextx.ClientSourceHeader),
-		SourceType:         msg.Header.Get(contextx.SourceTypeHeader),
-		SourceRef:          msg.Header.Get(contextx.SourceRefHeader),
-	})
+	return contextx.NatsTraceContext(msg)
 }

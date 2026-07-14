@@ -77,7 +77,7 @@ func (s *AuthOAuthService) StartAuthorize(ctx context.Context, providerAlias, re
 	if err != nil {
 		return "", err
 	}
-	runtimeConfig, err := s.providerService.GetEnabledRuntimeConfig(providerCode)
+	runtimeConfig, err := s.providerService.GetEnabledRuntimeConfig(ctx, providerCode)
 	if err != nil {
 		return "", err
 	}
@@ -120,7 +120,7 @@ func (s *AuthOAuthService) FinishCallback(ctx context.Context, providerAlias, st
 	if err != nil {
 		return nil, fmt.Errorf("授权状态无效或已过期")
 	}
-	runtimeConfig, err := s.providerService.GetEnabledRuntimeConfig(providerCode)
+	runtimeConfig, err := s.providerService.GetEnabledRuntimeConfig(ctx, providerCode)
 	if err != nil {
 		return nil, err
 	}
@@ -143,14 +143,14 @@ func (s *AuthOAuthService) FinishCallback(ctx context.Context, providerAlias, st
 	})
 }
 
-func (s *AuthOAuthService) GetRegistrationIntent(ticket string) (*OAuthRegistrationIntentView, error) {
-	intent, err := s.activeRegistrationIntent(ticket)
+func (s *AuthOAuthService) GetRegistrationIntent(ctx context.Context, ticket string) (*OAuthRegistrationIntentView, error) {
+	intent, err := s.activeRegistrationIntent(ctx, ticket)
 	if err != nil {
 		return nil, err
 	}
 	view := oauthRegistrationIntentView(intent)
 	if shouldRefreshOAuthCodeSuggestions(view.CodeSuggestions) {
-		suggestions, err := s.suggestExternalUserCodes(ExternalPrincipal{
+		suggestions, err := s.suggestExternalUserCodes(ctx, ExternalPrincipal{
 			ProviderCode:  intent.ProviderCode,
 			ExternalID:    intent.ExternalID,
 			Email:         intent.Email,
@@ -166,8 +166,8 @@ func (s *AuthOAuthService) GetRegistrationIntent(ticket string) (*OAuthRegistrat
 	return view, nil
 }
 
-func (s *AuthOAuthService) ConfirmRegistration(ticket, username, nickname string) (*OAuthRegistrationConfirmResult, error) {
-	intent, err := s.activeRegistrationIntent(ticket)
+func (s *AuthOAuthService) ConfirmRegistration(ctx context.Context, ticket, username, nickname string) (*OAuthRegistrationConfirmResult, error) {
+	intent, err := s.activeRegistrationIntent(ctx, ticket)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +189,7 @@ func (s *AuthOAuthService) ConfirmRegistration(ticket, username, nickname string
 		companyCode = model.DefaultCompanyCode
 	}
 	if s.authService != nil && s.authService.companyRepo != nil {
-		if _, err := s.authService.companyRepo.GetCompanyByCode(context.Background(), companyCode); err != nil {
+		if _, err := s.authService.companyRepo.GetCompanyByCode(ctx, companyCode); err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, fmt.Errorf("企业代码 %s 不存在，请联系系统管理员", companyCode)
 			}
@@ -218,11 +218,11 @@ func (s *AuthOAuthService) ConfirmRegistration(ticket, username, nickname string
 		Avatar:       intent.Avatar,
 		Nickname:     nickname,
 	}
-	completedIntent, err := s.registrationIntentRepo.Complete(context.Background(), strings.TrimSpace(ticket), user, identity)
+	completedIntent, err := s.registrationIntentRepo.Complete(ctx, strings.TrimSpace(ticket), user, identity)
 	if err != nil {
 		return nil, oauthRegistrationCompleteError(err)
 	}
-	accessToken, refreshToken, err := s.authService.IssueTokensForUser(user, false)
+	accessToken, refreshToken, err := s.authService.IssueTokensForUser(ctx, user, false)
 	if err != nil {
 		return nil, err
 	}
@@ -234,12 +234,12 @@ func (s *AuthOAuthService) ConfirmRegistration(ticket, username, nickname string
 	}, nil
 }
 
-func (s *AuthOAuthService) activeRegistrationIntent(ticket string) (*model.AuthOAuthRegistrationIntent, error) {
+func (s *AuthOAuthService) activeRegistrationIntent(ctx context.Context, ticket string) (*model.AuthOAuthRegistrationIntent, error) {
 	ticket = strings.TrimSpace(ticket)
 	if ticket == "" {
 		return nil, fmt.Errorf("授权注册确认不存在或已失效")
 	}
-	intent, err := s.registrationIntentRepo.GetByTicket(context.Background(), ticket)
+	intent, err := s.registrationIntentRepo.GetByTicket(ctx, ticket)
 	if err != nil {
 		return nil, fmt.Errorf("读取授权注册确认失败: %w", err)
 	}

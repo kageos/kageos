@@ -60,7 +60,7 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 	if s.messageRepo != nil {
 		sourceMessages, _ = s.messageRepo.ListBySessionID(ctx, source.SessionID)
 	}
-	handoffContext := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
+	handoffContext := buildWorkspaceHandoffContext(ctx, workspaceHandoffContextInput{
 		Source:        source,
 		Messages:      sourceMessages,
 		FullCodePath:  fullCodePath,
@@ -133,7 +133,7 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 		if packet, err := handoffTx.FindLatestBySourceAndTarget(ctx, source.SessionID, artifactKind, targetRole, firstNonEmptyString(user, source.User)); err != nil {
 			return fmt.Errorf("查询已有交接包失败: %w", err)
 		} else if packet != nil {
-			existingResp = buildExistingWorkspaceHandoffResp(packet, sessionTx, messageTx)
+			existingResp = buildExistingWorkspaceHandoffResp(ctx, packet, sessionTx, messageTx)
 			return nil
 		}
 		source.FullCodePath = firstNonEmptyString(normalizeWorkspacePath(targetFullCodePath), fullCodePath, source.FullCodePath)
@@ -185,7 +185,7 @@ func (s *WorkspaceChatService) CreateWorkspaceHandoff(ctx context.Context, req *
 	}, nil
 }
 
-func buildExistingWorkspaceHandoffResp(packet *model.WorkspaceHandoffPacket, sessionRepo *repository.ChatSessionRepository, messageRepo *repository.ChatMessageRepository) *dto.WorkspaceHandoffResp {
+func buildExistingWorkspaceHandoffResp(ctx context.Context, packet *model.WorkspaceHandoffPacket, sessionRepo *repository.ChatSessionRepository, messageRepo *repository.ChatMessageRepository) *dto.WorkspaceHandoffResp {
 	if packet == nil {
 		return nil
 	}
@@ -200,12 +200,12 @@ func buildExistingWorkspaceHandoffResp(packet *model.WorkspaceHandoffPacket, ses
 		HandoffContext:  packet.HandoffContextJSON,
 	}
 	if sessionRepo != nil {
-		if target, err := sessionRepo.GetBySessionID(context.Background(), packet.TargetSessionID); err == nil && target != nil {
+		if target, err := sessionRepo.GetBySessionID(ctx, packet.TargetSessionID); err == nil && target != nil {
 			resp.DisplayContent = target.Title
 		}
 	}
 	if messageRepo != nil && packet.InitialMessageID > 0 {
-		if msg, err := messageRepo.GetByID(context.Background(), packet.InitialMessageID); err == nil && msg != nil {
+		if msg, err := messageRepo.GetByID(ctx, packet.InitialMessageID); err == nil && msg != nil {
 			resp.Content = msg.Content
 			resp.DisplayContent = firstNonEmptyString(msg.DisplayContent, resp.DisplayContent)
 		}

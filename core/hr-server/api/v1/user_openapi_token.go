@@ -49,15 +49,16 @@ func (u *User) CreateOpenAPIToken(c *gin.Context) {
 		}
 		expiresAt = &parsed
 	}
-	currentUser, err := u.userService.GetUserByUsername(username)
+	ctx := contextx.ToContext(c)
+	currentUser, err := u.userService.GetUserByUsername(ctx, username)
 	if err != nil {
-		response.Internal(c, "当前用户不存在: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	companyName := ""
 	companyLogoURL := ""
 	if currentUser.CompanyCode != "" {
-		if companies, err := u.userService.GetCompaniesByCodes([]string{currentUser.CompanyCode}); err == nil && len(companies) > 0 {
+		if companies, err := u.userService.GetCompaniesByCodes(ctx, []string{currentUser.CompanyCode}); err == nil && len(companies) > 0 {
 			companyName = companies[0].Name
 			companyLogoURL = companies[0].LogoURL
 		}

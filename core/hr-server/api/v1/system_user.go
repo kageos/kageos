@@ -42,9 +42,9 @@ func (s *SystemUser) List(c *gin.Context) {
 	if req.PageSize > 100 {
 		req.PageSize = 100
 	}
-	users, total, err := s.userService.ListUsersForSystem(req)
+	users, total, err := s.userService.ListUsersForSystem(contextx.ToContext(c), req)
 	if err != nil {
-		response.Internal(c, "查询用户失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, &dto.SystemListUsersResp{
@@ -66,7 +66,7 @@ func (s *SystemUser) Create(c *gin.Context) {
 	}
 	user, err := s.userService.CreateUserFromSystem(contextx.ToContext(c), req, contextx.GetRequestUser(c))
 	if err != nil {
-		response.Internal(c, "创建用户失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	s.respondUser(c, user)
@@ -83,7 +83,7 @@ func (s *SystemUser) Update(c *gin.Context) {
 	}
 	user, err := s.userService.UpdateUserFromSystem(contextx.ToContext(c), usernameParam(c), req, contextx.GetRequestUser(c))
 	if err != nil {
-		response.Internal(c, "更新用户失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	s.respondUser(c, user)
@@ -100,7 +100,7 @@ func (s *SystemUser) ResetPassword(c *gin.Context) {
 	}
 	user, err := s.userService.ResetUserPasswordFromSystem(contextx.ToContext(c), usernameParam(c), req.Password)
 	if err != nil {
-		response.Internal(c, "重置密码失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	s.respondUser(c, user)
@@ -117,7 +117,7 @@ func (s *SystemUser) UpdateStatus(c *gin.Context) {
 	}
 	user, err := s.userService.UpdateUserStatusFromSystem(contextx.ToContext(c), usernameParam(c), req.Status)
 	if err != nil {
-		response.Internal(c, "更新用户状态失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	s.respondUser(c, user)

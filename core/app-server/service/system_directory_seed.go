@@ -54,14 +54,14 @@ func initSystemDirectorySeeds(ctx context.Context, serviceTreeService *ServiceTr
 	if err != nil {
 		return err
 	}
-	initialVersions, err := initialSystemDirectorySeedAppVersions(serviceTreeService, seedFiles)
+	initialVersions, err := initialSystemDirectorySeedAppVersions(ctx, serviceTreeService, seedFiles)
 	if err != nil {
 		return err
 	}
 
 	for _, seedFile := range seedFiles {
 		initialVersion := strings.TrimSpace(initialVersions[seedFile.appCode])
-		shouldInstall, err := systemDirectorySeedShouldInstall(serviceTreeService, seedFile, initialVersion, createdApps[seedFile.appCode])
+		shouldInstall, err := systemDirectorySeedShouldInstall(ctx, serviceTreeService, seedFile, initialVersion, createdApps[seedFile.appCode])
 		if err != nil {
 			return err
 		}
@@ -130,7 +130,7 @@ func resolveSystemDirectorySeedFiles(seedDir string, files []string) ([]systemDi
 	return seedFiles, nil
 }
 
-func initialSystemDirectorySeedAppVersions(serviceTreeService *ServiceTreeService, seedFiles []systemDirectorySeedFile) (map[string]string, error) {
+func initialSystemDirectorySeedAppVersions(ctx context.Context, serviceTreeService *ServiceTreeService, seedFiles []systemDirectorySeedFile) (map[string]string, error) {
 	versions := make(map[string]string)
 	if len(seedFiles) == 0 {
 		return versions, nil
@@ -142,7 +142,7 @@ func initialSystemDirectorySeedAppVersions(serviceTreeService *ServiceTreeServic
 		if _, exists := versions[seedFile.appCode]; exists {
 			continue
 		}
-		appModel, err := serviceTreeService.capabilityBundle.appRepo.GetAppByUserName(context.Background(), SystemUsername, seedFile.appCode)
+		appModel, err := serviceTreeService.capabilityBundle.appRepo.GetAppByUserName(ctx, SystemUsername, seedFile.appCode)
 		if err != nil {
 			return nil, fmt.Errorf("查询系统应用 %s/%s 版本失败: %w", SystemUsername, seedFile.appCode, err)
 		}
@@ -163,7 +163,7 @@ func systemDirectorySeedAppCodeFromTargetPath(targetPath string) (string, error)
 	return appCode, nil
 }
 
-func systemDirectorySeedShouldInstall(serviceTreeService *ServiceTreeService, seedFile systemDirectorySeedFile, initialAppVersion string, appCreated bool) (bool, error) {
+func systemDirectorySeedShouldInstall(ctx context.Context, serviceTreeService *ServiceTreeService, seedFile systemDirectorySeedFile, initialAppVersion string, appCreated bool) (bool, error) {
 	if appCreated {
 		return true, nil
 	}
@@ -174,14 +174,14 @@ func systemDirectorySeedShouldInstall(serviceTreeService *ServiceTreeService, se
 	if version != "v1" {
 		return false, nil
 	}
-	complete, err := systemDirectorySeedTargetMatchesBundle(serviceTreeService, seedFile)
+	complete, err := systemDirectorySeedTargetMatchesBundle(ctx, serviceTreeService, seedFile)
 	if err != nil {
 		return false, err
 	}
 	return !complete, nil
 }
 
-func systemDirectorySeedTargetMatchesBundle(serviceTreeService *ServiceTreeService, seedFile systemDirectorySeedFile) (bool, error) {
+func systemDirectorySeedTargetMatchesBundle(ctx context.Context, serviceTreeService *ServiceTreeService, seedFile systemDirectorySeedFile) (bool, error) {
 	if serviceTreeService == nil || serviceTreeService.capabilityBundle == nil || serviceTreeService.capabilityBundle.serviceTreeRepo == nil {
 		return false, fmt.Errorf("系统目录种子无法检查目标目录，serviceTreeService 未完整初始化")
 	}
@@ -193,7 +193,7 @@ func systemDirectorySeedTargetMatchesBundle(serviceTreeService *ServiceTreeServi
 	if len(expectedPaths) == 0 {
 		return true, nil
 	}
-	existing, err := serviceTreeService.capabilityBundle.serviceTreeRepo.GetServiceTreeByFullPaths(context.Background(), expectedPaths)
+	existing, err := serviceTreeService.capabilityBundle.serviceTreeRepo.GetServiceTreeByFullPaths(ctx, expectedPaths)
 	if err != nil {
 		return false, fmt.Errorf("检查系统目录种子目标节点失败: %w", err)
 	}

@@ -237,7 +237,7 @@ func (a *PublicShareAPI) CallbackOnSelectFuzzy(c *gin.Context) {
 	actorID := publicshare.DeriveActorID(share.TenantUser, share.App, share.ShareID, claims.SessionID)
 	req, err := a.buildPublicCallbackAppReq(c, share, actorID, token, "OnSelectFuzzy")
 	if err != nil {
-		response.Internal(c, "构建请求失败: "+err.Error())
+		response.BadRequest(c, "构建请求失败: "+err.Error())
 		return
 	}
 

@@ -103,6 +103,12 @@ func TestWorkspacePathDirectoryResolvesFunctionNotificationToPackage(t *testing.
 			t.Fatalf("workspacePathDirectory(%q) = %q, want %q", input, got, want)
 		}
 	}
+	if resource := workspaceSessionResourcePath("/system/democase/site_monitor/sweep.form"); resource != "/system/democase/site_monitor/sweep.form" {
+		t.Fatalf("workspaceSessionResourcePath() = %q, want concrete function", resource)
+	}
+	if resource := workspaceSessionResourcePath("/system/democase/site_monitor"); resource != "" {
+		t.Fatalf("workspaceSessionResourcePath(directory) = %q, want empty", resource)
+	}
 }
 
 func TestCancelSessionCancelsRegisteredRunEvenWhenStatusIsActive(t *testing.T) {
@@ -1733,7 +1739,7 @@ func TestBuildWorkspaceHandoffContentForQA(t *testing.T) {
 		}
 	}
 
-	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
 		TargetRole:    WorkspaceRoleQAEngineer,
 		ArtifactKind:  workspaceBuildArtifactKind,
 		ArtifactJSON:  `{"kind":"agent_app_build","workspace_path":"/liubeiluo/nps","new_version":"v4"}`,
@@ -1797,7 +1803,7 @@ func TestChangeRoleKeepsCurrentModuleWhenModelBroadensToParent(t *testing.T) {
 }
 
 func TestBuildWorkspaceHandoffContextCreatesProjectDirectoryUnderSelectedDirectory(t *testing.T) {
-	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
 		FullCodePath:  "/system/ticket_sys/v1",
 		TargetRole:    WorkspaceRoleAppDeveloper,
 		ArtifactKind:  "agent_app_prd",
@@ -1872,7 +1878,7 @@ func TestBuildWorkspaceHandoffContextCreatesProjectDirectoryUnderSelectedDirecto
 }
 
 func TestBuildWorkspaceHandoffContextUsesCurrentDirectoryWhenProjectCodeMatches(t *testing.T) {
-	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
 		FullCodePath:  "/system/ticket_sys/v1/ticket",
 		TargetRole:    WorkspaceRoleAppDeveloper,
 		ArtifactKind:  "agent_app_prd",
@@ -1894,7 +1900,7 @@ func TestBuildWorkspaceHandoffContextUsesCurrentDirectoryWhenProjectCodeMatches(
 }
 
 func TestBuildWorkspaceHandoffContextForWorkspaceRootCreatesProjectDirectory(t *testing.T) {
-	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
 		FullCodePath:  "/system/x_world",
 		TargetRole:    WorkspaceRoleAppDeveloper,
 		ArtifactKind:  "agent_app_prd",
@@ -1919,7 +1925,7 @@ func TestBuildWorkspaceHandoffContextForWorkspaceRootCreatesProjectDirectory(t *
 
 func TestBuildWorkspaceHandoffContextNarrowsQAExecuteDirectoryFromSourceMessages(t *testing.T) {
 	resultData := `{"handoff":{"execute_directory":"/system/x_world","key_information":["改动文件：/system/x_world/ticket_management/ticket.go"]},"changed_files":["/system/x_world/ticket_management/ticket.go"],"artifact_refs":["/system/x_world/ticket_management/ticket_list.table"]}`
-	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
 		FullCodePath:  "/system/x_world",
 		TargetRole:    WorkspaceRoleQAEngineer,
 		ArtifactKind:  workspaceBuildArtifactKind,
@@ -1977,7 +1983,7 @@ func TestBuildWorkspaceHandoffContextNarrowsQAExecuteDirectoryFromSourceMessages
 }
 
 func TestBuildWorkspaceHandoffContextForBuildFailureIncludesDiagnosticsInPacket(t *testing.T) {
-	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
 		FullCodePath:  "/system/x_world/inventory",
 		TargetRole:    WorkspaceRoleBuildEngineer,
 		ArtifactKind:  workspaceBuildFailureKind,
@@ -2241,6 +2247,8 @@ func TestListSessionsFilteredSeparatesHumanAndAutomationAgents(t *testing.T) {
 	sessionRepo := repository.NewChatSessionRepository(db)
 	for _, session := range []*model.AgentChatSession{
 		{TreeID: 1, FullCodePath: "/alice/demo", Source: SourceWorkspace, SessionID: "human", ModeCode: "dev", Status: model.ChatSessionStatusActive, User: "alice"},
+		{TreeID: 1, FullCodePath: "/alice/demo", ResourceTreeID: 21, ResourceFullCodePath: "/alice/demo/sweep.form", Source: SourceWorkspace, SessionID: "human-form", ModeCode: "dev", Status: model.ChatSessionStatusActive, User: "alice"},
+		{TreeID: 21, FullCodePath: "/alice/demo/sweep.form", Source: SourceWorkspace, SessionID: "legacy-human-form", ModeCode: "dev", Status: model.ChatSessionStatusActive, User: "alice"},
 		{TreeID: 1, FullCodePath: "/alice/demo", Source: SourceAutomationAgent, AutomationTaskID: 11, AutomationTaskCode: "daily", AutomationTaskTitle: "每日复盘", SessionID: "agent-11", ModeCode: "dev", Status: model.ChatSessionStatusDone, User: "alice"},
 		{TreeID: 1, FullCodePath: "/alice/demo", Source: SourceAutomationAgent, AutomationTaskID: 12, AutomationTaskTitle: "风险巡检", SessionID: "agent-12", ModeCode: "dev", Status: model.ChatSessionStatusDone, User: "alice"},
 		{TreeID: 1, FullCodePath: "/alice/demo", Source: SourceAutomationAgent, AutomationTaskID: 11, AutomationTaskTitle: "每日复盘", SessionID: "bob-agent", ModeCode: "dev", Status: model.ChatSessionStatusDone, User: "bob"},
@@ -2256,11 +2264,27 @@ func TestListSessionsFilteredSeparatesHumanAndAutomationAgents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list human sessions: %v", err)
 	}
-	if total != 1 || len(human) != 1 || human[0].SessionID != "human" {
+	if total != 2 || len(human) != 2 {
 		t.Fatalf("unexpected human sessions total=%d items=%#v", total, human)
 	}
 	if len(agents) != 2 {
 		t.Fatalf("automation agent facets = %#v, want 2", agents)
+	}
+
+	functionSessions, total, functionAgents, err := svc.ListSessionsFiltered(ctx, "/alice/demo/sweep.form", "human", 0, 1, 20)
+	if err != nil {
+		t.Fatalf("list function sessions: %v", err)
+	}
+	if total != 2 || len(functionSessions) != 2 {
+		t.Fatalf("unexpected function sessions total=%d items=%#v", total, functionSessions)
+	}
+	for _, item := range functionSessions {
+		if item.FullCodePath != "/alice/demo" || item.ResourceFullCodePath != "/alice/demo/sweep.form" {
+			t.Fatalf("function association missing: %#v", item)
+		}
+	}
+	if len(functionAgents) != 0 {
+		t.Fatalf("function automation facets = %#v, want none", functionAgents)
 	}
 
 	automation, total, _, err := svc.ListSessionsFiltered(ctx, "/alice/demo", "automation", 11, 1, 20)

@@ -149,7 +149,7 @@ func (q *serviceTreeQueryView) GetServiceTreeDetail(ctx context.Context, req *dt
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			if message := q.missingAppRootMessage(req.FullCodePath); message != "" {
+			if message := q.missingAppRootMessage(ctx, req.FullCodePath); message != "" {
 				return nil, fmt.Errorf("%s", message)
 			}
 			return nil, fmt.Errorf("服务目录不存在")
@@ -250,12 +250,12 @@ func (q *serviceTreeQueryView) serviceTreeDetailRespFromModel(tree *model.Servic
 	}
 }
 
-func (q *serviceTreeQueryView) missingAppRootMessage(fullCodePath string) string {
+func (q *serviceTreeQueryView) missingAppRootMessage(ctx context.Context, fullCodePath string) string {
 	user, appCode, rootPath, ok := parseAppRootFullCodePath(fullCodePath)
 	if !ok || q.appRepo == nil {
 		return ""
 	}
-	appModel, err := q.appRepo.GetAppByUserName(context.Background(), user, appCode)
+	appModel, err := q.appRepo.GetAppByUserName(ctx, user, appCode)
 	if err != nil || appModel == nil {
 		return ""
 	}

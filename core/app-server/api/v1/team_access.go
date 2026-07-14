@@ -21,7 +21,7 @@ func (a *TeamAccess) ListMembers(c *gin.Context) {
 	resourcePath := access.NormalizeResourcePath(c.Query("resource_path"))
 	tenantUser, app, err := access.ParseUserApp(resourcePath)
 	if err != nil {
-		response.Error(c, err)
+		response.BadRequest(c, "resource_path 格式错误: "+err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
@@ -31,7 +31,7 @@ func (a *TeamAccess) ListMembers(c *gin.Context) {
 	}
 	members, err := a.teamAccessService.ListMembers(ctx, tenantUser, app, resourcePath)
 	if err != nil {
-		response.Internal(c, "获取成员授权失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, dto.TeamMemberAccessResp{Members: members})
@@ -46,7 +46,7 @@ func (a *TeamAccess) Assign(c *gin.Context) {
 	resourcePath := access.NormalizeResourcePath(req.ResourcePath)
 	tenantUser, app, err := access.ParseUserApp(resourcePath)
 	if err != nil {
-		response.Error(c, err)
+		response.BadRequest(c, "resource_path 格式错误: "+err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
@@ -59,7 +59,7 @@ func (a *TeamAccess) Assign(c *gin.Context) {
 		ExpiresAt:    req.ExpiresAt,
 		CreatedBy:    contextx.GetRequestUser(ctx),
 	}); err != nil {
-		response.Internal(c, "授权失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.Ok(c)
@@ -78,13 +78,13 @@ func (a *TeamAccess) BatchAssign(c *gin.Context) {
 	firstPath := access.NormalizeResourcePath(req.ResourcePaths[0])
 	tenantUser, app, err := access.ParseUserApp(firstPath)
 	if err != nil {
-		response.Error(c, err)
+		response.BadRequest(c, "resource_path 格式错误: "+err.Error())
 		return
 	}
 	for _, resourcePath := range req.ResourcePaths {
 		pathTenant, pathApp, err := access.ParseUserApp(resourcePath)
 		if err != nil {
-			response.Error(c, err)
+			response.BadRequest(c, "resource_path 格式错误: "+err.Error())
 			return
 		}
 		if pathTenant != tenantUser || pathApp != app {
@@ -102,7 +102,7 @@ func (a *TeamAccess) BatchAssign(c *gin.Context) {
 		ExpiresAt:     req.ExpiresAt,
 		CreatedBy:     contextx.GetRequestUser(ctx),
 	}); err != nil {
-		response.Internal(c, "批量授权失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.Ok(c)
@@ -117,7 +117,7 @@ func (a *TeamAccess) Remove(c *gin.Context) {
 	resourcePath := access.NormalizeResourcePath(req.ResourcePath)
 	tenantUser, app, err := access.ParseUserApp(resourcePath)
 	if err != nil {
-		response.Error(c, err)
+		response.BadRequest(c, "resource_path 格式错误: "+err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
@@ -129,7 +129,7 @@ func (a *TeamAccess) Remove(c *gin.Context) {
 		RoleCode:     req.RoleCode,
 		Actor:        contextx.GetRequestUser(ctx),
 	}); err != nil {
-		response.Internal(c, "移除授权失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.Ok(c)
@@ -139,13 +139,13 @@ func (a *TeamAccess) MyPermissions(c *gin.Context) {
 	resourcePath := access.NormalizeResourcePath(c.Query("resource_path"))
 	tenantUser, app, err := access.ParseUserApp(resourcePath)
 	if err != nil {
-		response.Error(c, err)
+		response.BadRequest(c, "resource_path 格式错误: "+err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
 	result, err := a.teamAccessService.Resolve(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath)
 	if err != nil {
-		response.Internal(c, "获取当前用户权限失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	response.OkWithData(c, dto.MyPermissionsResp{

@@ -13,6 +13,7 @@ import (
 	"github.com/kageos/kageos/core/app-server/service"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/apperror"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/functionschema"
 )
@@ -57,7 +58,7 @@ func parseFullCodePath(fullCodePath string) (user, app string, router string, er
 	parts := strings.Split(fullCodePath, "/")
 
 	if len(parts) < 3 {
-		return "", "", "", fmt.Errorf("full-code-path 格式错误，至少需要包含 user/app/function")
+		return "", "", "", apperror.InvalidArgument("full-code-path 格式错误，至少需要包含 user/app/function", nil)
 	}
 
 	user = parts[0]
@@ -71,7 +72,7 @@ func parseWorkspaceRootPath(fullCodePath string) (user, app, root string, err er
 	root = access.NormalizeResourcePath(fullCodePath)
 	user, app, err = access.ParseUserApp(root)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", apperror.InvalidArgument("工作区路径格式错误", err)
 	}
 	return user, app, access.AppRootPath(user, app), nil
 }
@@ -206,7 +207,7 @@ func (s *StandardAPI) buildRequestAppReq(c *gin.Context, fullCodePath string) (*
 	if c.Request.ContentLength > 0 && (c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut || c.Request.Method == http.MethodPatch || c.Request.Method == http.MethodDelete) {
 		all, err := io.ReadAll(c.Request.Body)
 		if err != nil {
-			return nil, err
+			return nil, apperror.InvalidArgument("读取请求体失败", err)
 		}
 		defer c.Request.Body.Close()
 		req.Body = all
@@ -226,23 +227,23 @@ func (s *StandardAPI) buildRuntimePythonRequestAppReq(c *gin.Context, fullCodePa
 
 	all, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		return nil, err
+		return nil, apperror.InvalidArgument("读取请求体失败", err)
 	}
 	defer c.Request.Body.Close()
 	if len(bytes.TrimSpace(all)) == 0 {
-		return nil, fmt.Errorf("请求体不能为空")
+		return nil, apperror.InvalidArgument("请求体不能为空", nil)
 	}
 
 	var runtimeReq dto.RunPythonRuntimeReq
 	if err := json.Unmarshal(all, &runtimeReq); err != nil {
-		return nil, fmt.Errorf("解析 run_python runtime 请求失败: %w", err)
+		return nil, apperror.InvalidArgument("run_python runtime 请求必须是合法 JSON", err)
 	}
 	if strings.TrimSpace(runtimeReq.PythonCode) == "" {
-		return nil, fmt.Errorf("python_code 不能为空")
+		return nil, apperror.InvalidArgument("python_code 不能为空", nil)
 	}
 	normalizedBody, err := json.Marshal(runtimeReq)
 	if err != nil {
-		return nil, err
+		return nil, apperror.Internal(err)
 	}
 
 	return &dto.RequestAppReq{
@@ -265,7 +266,7 @@ func requireAgentToolRuntimeSource(c *gin.Context) error {
 	if contextx.GetSourceType(c) == contextx.SourceTypeAgentTool && contextx.GetClientSource(c) == contextx.ClientSourceAgent {
 		return nil
 	}
-	return fmt.Errorf("runtime python 仅允许 agent tool 内部调用")
+	return apperror.PermissionDenied("runtime python 仅允许 agent tool 内部调用", nil)
 }
 
 // buildCallbackAppReq 构建 CallbackApp 请求对象
@@ -273,7 +274,7 @@ func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, c
 	// 读取请求体
 	all, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		return nil, err
+		return nil, apperror.InvalidArgument("读取请求体失败", err)
 	}
 	defer c.Request.Body.Close()
 	return s.buildCallbackAppReqWithBody(c, fullCodePath, callbackType, c.Request.Method, all, c.Request.URL.RawQuery)
@@ -326,7 +327,7 @@ func (s *StandardAPI) buildCallbackAppReqWithBody(c *gin.Context, fullCodePath, 
 	// 将回调信息序列化为 JSON
 	marshal, err := json.Marshal(envelope)
 	if err != nil {
-		return nil, err
+		return nil, apperror.Internal(err)
 	}
 	req.Body = marshal
 
@@ -361,10 +362,10 @@ func (s *StandardAPI) ensureTableCallbackEnabled(c *gin.Context, fullCodePath, c
 		return err
 	}
 	if functionschema.Type(function.Schema) != functionschema.TypeTable {
-		return fmt.Errorf("目标函数不是 Table 类型，不支持该操作")
+		return apperror.MethodNotAllowed("目标函数不是 Table 类型，不支持该操作", nil)
 	}
 	if !function.HasCallback(callbackType) {
-		return fmt.Errorf("%s", denyMessage)
+		return apperror.MethodNotAllowed(denyMessage, nil)
 	}
 	return nil
 }

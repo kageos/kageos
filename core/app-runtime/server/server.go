@@ -215,7 +215,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	)
 	logger.Infof(ctx, "[Server] App discovery runtime_id=%s", runtimeID)
 
-	if err := s.appDiscoveryService.Start(); err != nil {
+	if err := s.appDiscoveryService.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start app discovery service: %w", err)
 	}
 
@@ -255,8 +255,7 @@ func (s *Server) initServices(ctx context.Context) error {
 }
 
 // handleAppStartupFromDiscovery 处理来自 AppDiscoveryService 的启动通知
-func (s *Server) handleAppStartupFromDiscovery(user, app, version, status, errorMessage string, startTime time.Time) {
-	//ctx := context.Background()
+func (s *Server) handleAppStartupFromDiscovery(ctx context.Context, user, app, version, status, errorMessage string, startTime time.Time) {
 	//logger.Infof(ctx, "[Server] Received startup notification from discovery: %s/%s/%s", user, app, version)
 	if status == "" || status == "started" {
 		status = "running"
@@ -273,13 +272,11 @@ func (s *Server) handleAppStartupFromDiscovery(user, app, version, status, error
 	}
 
 	// 通知应用管理服务
-	s.appManageService.NotifyStartup(notification)
+	s.appManageService.NotifyStartup(ctx, notification)
 }
 
 // handleAppCloseFromDiscovery 处理来自 AppDiscoveryService 的关闭通知
-func (s *Server) handleAppCloseFromDiscovery(user, app, version string) {
-	ctx := context.Background()
-
+func (s *Server) handleAppCloseFromDiscovery(ctx context.Context, user, app, version string) {
 	// 应用关闭状态通过discovery service跟踪，不需要更新数据库
 	logger.Infof(ctx, "[Server] App closed: %s/%s/%s", user, app, version)
 
@@ -292,7 +289,7 @@ func (s *Server) handleAppCloseFromDiscovery(user, app, version string) {
 	}
 
 	// 通知应用管理服务（用于优雅关闭流程的第三次握手）
-	s.appManageService.NotifyClose(notification)
+	s.appManageService.NotifyClose(ctx, notification)
 }
 
 // stopServices 停止所有业务服务

@@ -76,8 +76,9 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
 
     const addIfCurrentPath = (session: WorkspaceSessionItem | null | undefined) => {
       if (!session?.session_id || seenIds.has(session.session_id)) return
-      const sessionPath = normalizeFullCodePath(session.full_code_path || options.fullCodePath.value || '')
-      if (currentPath && sessionPath && sessionPath !== currentPath) return
+      const resourcePath = normalizeFullCodePath(session.resource_full_code_path || '')
+      const directoryPath = normalizeFullCodePath(session.full_code_path || options.fullCodePath.value || '')
+      if (currentPath && resourcePath !== currentPath && directoryPath !== currentPath) return
       seenIds.add(session.session_id)
       list.push(session)
     }
@@ -144,6 +145,8 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
       session.role_id,
       session.directory_name,
       session.full_code_path,
+      session.resource_name,
+      session.resource_full_code_path,
       getSessionDirectoryPath(session)
     ].some(value => (value || '').toLowerCase().includes(keyword))
   }
@@ -173,6 +176,16 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
   }
 
   function getSessionDirectoryPath(session: WorkspaceSessionItem) {
+    const explicitResourceName = (session.resource_name || '').trim()
+    if (explicitResourceName) {
+      return explicitResourceName
+    }
+
+    const resourcePath = normalizeFullCodePath(session.resource_full_code_path || '')
+    if (resourcePath) {
+      return getMappedPathName(resourcePath) || resolvePathDisplayName(resourcePath)
+    }
+
     const explicitDirectoryName = (session.directory_name || '').trim()
     if (explicitDirectoryName) {
       return explicitDirectoryName

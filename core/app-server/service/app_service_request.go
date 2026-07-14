@@ -10,6 +10,7 @@ import (
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/apperror"
 	"github.com/kageos/kageos/pkg/logger"
 	"gorm.io/gorm"
 )
@@ -164,7 +165,10 @@ func (a *AppService) IncrementFunctionRunCount(ctx context.Context, fullCodePath
 func (a *AppService) GetFunctionByFullCodePath(ctx context.Context, fullCodePath string) (*model.Function, error) {
 	function, err := a.functionRepo.GetFunctionByFullCodePath(ctx, fullCodePath)
 	if err != nil {
-		return nil, fmt.Errorf("获取函数信息失败: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.NotFound("函数不存在", err)
+		}
+		return nil, apperror.Internal(fmt.Errorf("获取函数信息失败: %w", err))
 	}
 
 	return function, nil

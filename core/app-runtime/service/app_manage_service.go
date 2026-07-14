@@ -200,7 +200,7 @@ func (s *AppManageService) CreateApp(ctx context.Context, user, app string, opts
 
 	// 6. 创建 main.go 文件
 	mainGoPath := absPaths.MainGoPath()
-	if err := s.createMainGoFile(mainGoPath, user, app); err != nil {
+	if err := s.createMainGoFile(ctx, mainGoPath, user, app); err != nil {
 		return "", fmt.Errorf("failed to create main.go file: %w", err)
 	}
 

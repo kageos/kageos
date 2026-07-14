@@ -10,6 +10,8 @@ type AgentChatSession struct {
 	models.Base
 	TreeID                      int64  `gorm:"type:bigint;not null;index;comment:服务目录ID" json:"tree_id"`
 	FullCodePath                string `gorm:"type:varchar(512);index;comment:服务目录完整路径（workspace 用，有语意）" json:"full_code_path"`
+	ResourceTreeID              int64  `gorm:"type:bigint;not null;default:0;index;comment:会话归属的函数或资源节点ID" json:"resource_tree_id"`
+	ResourceFullCodePath        string `gorm:"type:varchar(512);index;comment:会话归属的函数或资源完整路径" json:"resource_full_code_path"`
 	Source                      string `gorm:"type:varchar(32);index;comment:来源(workspace=人工工作台,automation_agent=自动化 Agent,空值为历史数据)" json:"source"`
 	AutomationTaskID            int64  `gorm:"type:bigint;not null;default:0;index;comment:自动化 Agent 任务 ID" json:"automation_task_id"`
 	AutomationTaskCode          string `gorm:"type:varchar(128);index;comment:自动化 Agent 稳定 Code" json:"automation_task_code"`

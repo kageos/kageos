@@ -16,12 +16,13 @@ const (
 
 // WorkspaceChatReq 工作台对话请求（只认 LLM，单模式）
 type WorkspaceChatReq struct {
-	FullCodePath string       `json:"full_code_path" binding:"required"` // 目录完整路径（必填）
-	Message      WorkspaceMsg `json:"message" binding:"required"`        // 本条消息
-	SessionID    string       `json:"session_id"`                        // 会话 ID，空则新建
-	ModeCode     string       `json:"mode_code"`                         // 工作台模式代码，空则默认 dev
-	LLMConfigID  int64        `json:"llm_config_id"`                     // LLM 配置 ID，0 表示使用默认 LLM
-	Resume       bool         `json:"resume,omitempty"`                  // true 时不保存 message，只基于已有会话消息继续执行
+	FullCodePath         string       `json:"full_code_path" binding:"required"` // 目录或资源完整路径（必填），服务端统一解析执行目录
+	ResourceFullCodePath string       `json:"resource_full_code_path,omitempty"` // 会话归属的函数或资源完整路径；通知回复等场景可显式传入
+	Message              WorkspaceMsg `json:"message" binding:"required"`        // 本条消息
+	SessionID            string       `json:"session_id"`                        // 会话 ID，空则新建
+	ModeCode             string       `json:"mode_code"`                         // 工作台模式代码，空则默认 dev
+	LLMConfigID          int64        `json:"llm_config_id"`                     // LLM 配置 ID，0 表示使用默认 LLM
+	Resume               bool         `json:"resume,omitempty"`                  // true 时不保存 message，只基于已有会话消息继续执行
 }
 
 // WorkspaceMsg 工作台单条消息
@@ -61,7 +62,7 @@ type ToolResultMetadata struct {
 
 // ListWorkspaceSessionsReq 获取工作台会话列表请求
 type ListWorkspaceSessionsReq struct {
-	FullCodePath     string `json:"full_code_path" form:"full_code_path" binding:"required"` // 必填：服务目录完整路径
+	FullCodePath     string `json:"full_code_path" form:"full_code_path" binding:"required"` // 必填：服务目录或具体资源完整路径
 	Page             int    `json:"page" form:"page"`                                        // 页码，从1开始，默认1
 	PageSize         int    `json:"page_size" form:"page_size"`                              // 每页数量，默认20
 	SessionScope     string `json:"session_scope" form:"session_scope"`                      // human（默认）/automation/all
@@ -98,6 +99,9 @@ type WorkspaceSessionItem struct {
 	RoleDisplayName             string                `json:"role_display_name,omitempty"`               // 当前工作台角色展示名称
 	FullCodePath                string                `json:"full_code_path,omitempty"`                  // 所属目录完整路径
 	DirectoryName               string                `json:"directory_name,omitempty"`                  // 所属目录展示名称
+	ResourceTreeID              int64                 `json:"resource_tree_id,omitempty"`                // 所属函数或资源节点 ID
+	ResourceFullCodePath        string                `json:"resource_full_code_path,omitempty"`         // 所属函数或资源完整路径
+	ResourceName                string                `json:"resource_name,omitempty"`                   // 所属函数或资源展示名称
 	ParentSessionID             string                `json:"parent_session_id,omitempty"`               // 阶段交接来源会话ID
 	HandoffKind                 string                `json:"handoff_kind,omitempty"`                    // 阶段交接产物类型
 	HandoffTargetRole           string                `json:"handoff_target_role,omitempty"`             // 阶段交接目标身份

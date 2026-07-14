@@ -8,12 +8,13 @@ import (
 )
 
 type WorkspaceSessionListOptions struct {
-	FullCodePath     string
-	User             string
-	SessionScope     string
-	AutomationTaskID int64
-	Offset           int
-	Limit            int
+	FullCodePath         string
+	ResourceFullCodePath string
+	User                 string
+	SessionScope         string
+	AutomationTaskID     int64
+	Offset               int
+	Limit                int
 }
 
 type WorkspaceAutomationAgent struct {
@@ -139,7 +140,17 @@ func (r *ChatSessionRepository) ListWorkspaceSessions(ctx context.Context, opts 
 	var sessions []*model.AgentChatSession
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&model.AgentChatSession{}).Where("full_code_path = ?", opts.FullCodePath)
+	query := r.db.WithContext(ctx).Model(&model.AgentChatSession{})
+	if opts.ResourceFullCodePath != "" {
+		query = query.Where(
+			"((full_code_path = ? AND resource_full_code_path = ?) OR (full_code_path = ? AND (resource_full_code_path IS NULL OR resource_full_code_path = '')))",
+			opts.FullCodePath,
+			opts.ResourceFullCodePath,
+			opts.ResourceFullCodePath,
+		)
+	} else {
+		query = query.Where("full_code_path = ?", opts.FullCodePath)
+	}
 	if opts.User != "" {
 		query = query.Where("user = ?", opts.User)
 	}
@@ -166,11 +177,21 @@ func (r *ChatSessionRepository) ListWorkspaceSessions(ctx context.Context, opts 
 	return sessions, total, nil
 }
 
-func (r *ChatSessionRepository) ListWorkspaceAutomationAgents(ctx context.Context, fullCodePath string, user string) ([]*WorkspaceAutomationAgent, error) {
+func (r *ChatSessionRepository) ListWorkspaceAutomationAgents(ctx context.Context, fullCodePath string, resourceFullCodePath string, user string) ([]*WorkspaceAutomationAgent, error) {
 	var agents []*WorkspaceAutomationAgent
 	query := r.db.WithContext(ctx).Model(&model.AgentChatSession{}).
 		Select("automation_task_id, MAX(automation_task_code) AS automation_task_code, MAX(automation_task_title) AS automation_task_title").
-		Where("full_code_path = ? AND source = ? AND automation_task_id > 0", fullCodePath, model.ChatSessionSourceAutomationAgent)
+		Where("source = ? AND automation_task_id > 0", model.ChatSessionSourceAutomationAgent)
+	if resourceFullCodePath != "" {
+		query = query.Where(
+			"((full_code_path = ? AND resource_full_code_path = ?) OR (full_code_path = ? AND (resource_full_code_path IS NULL OR resource_full_code_path = '')))",
+			fullCodePath,
+			resourceFullCodePath,
+			resourceFullCodePath,
+		)
+	} else {
+		query = query.Where("full_code_path = ?", fullCodePath)
+	}
 	if user != "" {
 		query = query.Where("user = ?", user)
 	}

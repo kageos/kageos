@@ -258,7 +258,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	}
 
 	// 初始化 NATS 连接池 - 其他服务调用 app-runtime 的基础依赖
-	s.natsConnPool = service.NewNATSConnPoolWithDB(s.db)
+	s.natsConnPool = service.NewNATSConnPoolWithDB(ctx, s.db)
 
 	// 初始化 appcall 客户端（调用 app-runtime 的 SDK 风格客户端，依赖注入）
 	s.appCall = appcall.New(appcall.Options{

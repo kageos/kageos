@@ -9,6 +9,7 @@ import (
 	"github.com/kageos/kageos/core/hr-server/model"
 	"github.com/kageos/kageos/core/hr-server/repository"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apperror"
 	"github.com/kageos/kageos/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -33,14 +34,19 @@ func NewUserService(userRepo *repository.UserRepository, companyRepo *repository
 }
 
 // GetUserByUsername 根据用户名获取用户信息
-func (s *UserService) GetUserByUsername(username string) (*model.User, error) {
-	return s.userRepo.GetUserByUsername(context.Background(
-
-	// SearchUsersFuzzy 模糊查询用户
-	), username)
+func (s *UserService) GetUserByUsername(ctx context.Context, username string) (*model.User, error) {
+	user, err := s.userRepo.GetUserByUsername(ctx, username)
+	if err == nil {
+		return user, nil
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, apperror.NotFound("用户不存在", err)
+	}
+	return nil, apperror.Internal(fmt.Errorf("查询用户失败: %w", err))
 }
 
-func (s *UserService) SearchUsersFuzzy(keyword string, limit int) ([]*model.User, error) {
+// SearchUsersFuzzy 模糊查询用户
+func (s *UserService) SearchUsersFuzzy(ctx context.Context, keyword string, limit int) ([]*model.User, error) {
 	// 限制查询数量，防止大量数据查询
 	if limit <= 0 {
 		limit = 10 // 默认10条
@@ -48,10 +54,10 @@ func (s *UserService) SearchUsersFuzzy(keyword string, limit int) ([]*model.User
 	if limit > 100 {
 		limit = 100 // 最大100条
 	}
-	return s.userRepo.SearchUsersFuzzy(context.Background(), keyword, limit)
+	return s.userRepo.SearchUsersFuzzy(ctx, keyword, limit)
 }
 
-func (s *UserService) ListUsersForSystem(req dto.SystemListUsersReq) ([]*model.User, int64, error) {
+func (s *UserService) ListUsersForSystem(ctx context.Context, req dto.SystemListUsersReq) ([]*model.User, int64, error) {
 	if req.Page <= 0 {
 		req.Page = 1
 	}
@@ -61,37 +67,37 @@ func (s *UserService) ListUsersForSystem(req dto.SystemListUsersReq) ([]*model.U
 	if req.PageSize > 100 {
 		req.PageSize = 100
 	}
-	return s.userRepo.ListUsersForSystem(context.Background(), req.Keyword, strings.TrimSpace(req.CompanyCode), strings.TrimSpace(req.Status), strings.TrimSpace(req.RegisterType), req.Page, req.PageSize)
+	return s.userRepo.ListUsersForSystem(ctx, req.Keyword, strings.TrimSpace(req.CompanyCode), strings.TrimSpace(req.Status), strings.TrimSpace(req.RegisterType), req.Page, req.PageSize)
 }
 
 func (s *UserService) CreateUserFromSystem(ctx context.Context, req dto.SystemCreateUserReq, createdBy string) (*model.User, error) {
 	username := strings.ToLower(strings.TrimSpace(req.Username))
 	if err := ValidateUserCode(username); err != nil {
-		return nil, err
+		return nil, apperror.InvalidArgument(err.Error(), err)
 	}
 	if strings.TrimSpace(req.Password) == "" {
-		return nil, fmt.Errorf("密码不能为空")
+		return nil, apperror.InvalidArgument("密码不能为空", nil)
 	}
 	if len(req.Password) < 6 {
-		return nil, fmt.Errorf("密码至少 6 位")
+		return nil, apperror.InvalidArgument("密码至少 6 位", nil)
 	}
 	if existingUser, err := s.userRepo.GetUserByUsername(ctx, username); err == nil && existingUser != nil {
-		return nil, fmt.Errorf("用户名已存在")
+		return nil, apperror.Conflict("用户名已存在", nil)
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("检查用户名失败: %w", err)
+		return nil, apperror.Internal(fmt.Errorf("检查用户名失败: %w", err))
 	}
 
 	email := strings.ToLower(strings.TrimSpace(req.Email))
-	companyCode, err := s.ensureSystemUserCompany(req.CompanyCode, req.CompanyName, req.CompanyLogoURL, firstNonEmptyString(createdBy, SystemUsername))
+	companyCode, err := s.ensureSystemUserCompany(ctx, req.CompanyCode, req.CompanyName, req.CompanyLogoURL, firstNonEmptyString(createdBy, SystemUsername))
 	if err != nil {
 		return nil, err
 	}
 	if email == "" {
 		email = placeholderSystemUserEmail(username, companyCode)
 	} else if existingEmail, err := s.userRepo.GetUserByEmail(ctx, email); err == nil && existingEmail != nil {
-		return nil, fmt.Errorf("邮箱已被注册")
+		return nil, apperror.Conflict("邮箱已被注册", nil)
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("检查邮箱失败: %w", err)
+		return nil, apperror.Internal(fmt.Errorf("检查邮箱失败: %w", err))
 	}
 
 	status, err := normalizeSystemUserStatus(req.Status, "active")
@@ -103,14 +109,14 @@ func (s *UserService) CreateUserFromSystem(ctx context.Context, req dto.SystemCr
 		departmentFullPath = "/org/unassigned"
 	}
 	leaderUsername := strings.ToLower(strings.TrimSpace(req.LeaderUsername))
-	if err := s.validateLeaderForCompany(leaderUsername, companyCode); err != nil {
+	if err := s.validateLeaderForCompany(ctx, leaderUsername, companyCode); err != nil {
 		return nil, err
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		logger.Errorf(ctx, "[UserService] Failed to hash system-created user password: %v", err)
-		return nil, fmt.Errorf("密码加密失败")
+		return nil, apperror.Internal(fmt.Errorf("密码加密失败: %w", err))
 	}
 
 	user := &model.User{
@@ -129,7 +135,10 @@ func (s *UserService) CreateUserFromSystem(ctx context.Context, req dto.SystemCr
 	}
 	if err := s.userRepo.CreateUser(ctx, user); err != nil {
 		logger.Errorf(ctx, "[UserService] Failed to create user from system: %v", err)
-		return nil, fmt.Errorf("用户创建失败")
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, apperror.Conflict("用户名或邮箱已存在", err)
+		}
+		return nil, apperror.Internal(fmt.Errorf("用户创建失败: %w", err))
 	}
 	logger.Infof(ctx, "[UserService] system created user: %s company=%s", username, companyCode)
 	return user, nil
@@ -138,7 +147,10 @@ func (s *UserService) CreateUserFromSystem(ctx context.Context, req dto.SystemCr
 func (s *UserService) UpdateUserFromSystem(ctx context.Context, username string, req dto.SystemUpdateUserReq, updatedBy string) (*model.User, error) {
 	user, err := s.userRepo.GetUserByUsername(ctx, strings.ToLower(strings.TrimSpace(username)))
 	if err != nil {
-		return nil, fmt.Errorf("用户不存在: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.NotFound("用户不存在", err)
+		}
+		return nil, apperror.Internal(fmt.Errorf("查询用户失败: %w", err))
 	}
 	companyChanged := false
 	profileChanged := false
@@ -147,9 +159,9 @@ func (s *UserService) UpdateUserFromSystem(ctx context.Context, username string,
 		email := strings.ToLower(strings.TrimSpace(*req.Email))
 		if email != "" && email != user.Email {
 			if existingEmail, err := s.userRepo.GetUserByEmail(ctx, email); err == nil && existingEmail != nil && existingEmail.Username != user.Username {
-				return nil, fmt.Errorf("邮箱已被注册")
+				return nil, apperror.Conflict("邮箱已被注册", nil)
 			} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("检查邮箱失败: %w", err)
+				return nil, apperror.Internal(fmt.Errorf("检查邮箱失败: %w", err))
 			}
 		}
 		user.Email = email
@@ -175,9 +187,9 @@ func (s *UserService) UpdateUserFromSystem(ctx context.Context, username string,
 	targetCompanyCode := user.CompanyCode
 	if req.CompanyCode != nil {
 		if user.Username == SystemUsername {
-			return nil, fmt.Errorf("不能修改 system 用户所属企业")
+			return nil, apperror.PermissionDenied("不能修改 system 用户所属企业", nil)
 		}
-		targetCompanyCode, err = s.ensureSystemUserCompany(*req.CompanyCode, pointerStringValue(req.CompanyName), pointerStringValue(req.CompanyLogoURL), firstNonEmptyString(updatedBy, SystemUsername))
+		targetCompanyCode, err = s.ensureSystemUserCompany(ctx, *req.CompanyCode, pointerStringValue(req.CompanyName), pointerStringValue(req.CompanyLogoURL), firstNonEmptyString(updatedBy, SystemUsername))
 		if err != nil {
 			return nil, err
 		}
@@ -189,17 +201,17 @@ func (s *UserService) UpdateUserFromSystem(ctx context.Context, username string,
 
 	if req.DepartmentFullPath != nil {
 		if user.Username == SystemUsername {
-			return nil, fmt.Errorf("不能修改 system 用户组织归属")
+			return nil, apperror.PermissionDenied("不能修改 system 用户组织归属", nil)
 		}
 		user.DepartmentFullPath = strings.TrimSpace(*req.DepartmentFullPath)
 		profileChanged = true
 	}
 	if req.LeaderUsername != nil {
 		if user.Username == SystemUsername {
-			return nil, fmt.Errorf("不能修改 system 用户上级")
+			return nil, apperror.PermissionDenied("不能修改 system 用户上级", nil)
 		}
 		leaderUsername := strings.ToLower(strings.TrimSpace(*req.LeaderUsername))
-		if err := s.validateLeaderForCompany(leaderUsername, targetCompanyCode); err != nil {
+		if err := s.validateLeaderForCompany(ctx, leaderUsername, targetCompanyCode); err != nil {
 			return nil, err
 		}
 		user.LeaderUsername = leaderUsername
@@ -210,7 +222,7 @@ func (s *UserService) UpdateUserFromSystem(ctx context.Context, username string,
 		return user, nil
 	}
 	if err := s.userRepo.UpdateUser(ctx, user); err != nil {
-		return nil, fmt.Errorf("更新用户失败: %w", err)
+		return nil, apperror.Internal(fmt.Errorf("更新用户失败: %w", err))
 	}
 	if companyChanged || req.DepartmentFullPath != nil || req.LeaderUsername != nil {
 		s.invalidateUserTokens(ctx, user, "system_user_profile_changed")
@@ -222,21 +234,24 @@ func (s *UserService) UpdateUserFromSystem(ctx context.Context, username string,
 func (s *UserService) ResetUserPasswordFromSystem(ctx context.Context, username, password string) (*model.User, error) {
 	user, err := s.userRepo.GetUserByUsername(ctx, strings.ToLower(strings.TrimSpace(username)))
 	if err != nil {
-		return nil, fmt.Errorf("用户不存在: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.NotFound("用户不存在", err)
+		}
+		return nil, apperror.Internal(fmt.Errorf("查询用户失败: %w", err))
 	}
 	if len(password) < 6 {
-		return nil, fmt.Errorf("密码至少 6 位")
+		return nil, apperror.InvalidArgument("密码至少 6 位", nil)
 	}
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, fmt.Errorf("密码加密失败")
+		return nil, apperror.Internal(fmt.Errorf("密码加密失败: %w", err))
 	}
 	user.PasswordHash = string(hashedPassword)
 	if user.RegisterType != "email" && user.RegisterType != "system" {
 		user.RegisterType = "system"
 	}
 	if err := s.userRepo.UpdateUser(ctx, user); err != nil {
-		return nil, fmt.Errorf("重置密码失败: %w", err)
+		return nil, apperror.Internal(fmt.Errorf("重置密码失败: %w", err))
 	}
 	s.invalidateUserTokens(ctx, user, "system_user_password_reset")
 	logger.Infof(ctx, "[UserService] system reset password for user: %s", user.Username)
@@ -246,14 +261,17 @@ func (s *UserService) ResetUserPasswordFromSystem(ctx context.Context, username,
 func (s *UserService) UpdateUserStatusFromSystem(ctx context.Context, username, status string) (*model.User, error) {
 	user, err := s.userRepo.GetUserByUsername(ctx, strings.ToLower(strings.TrimSpace(username)))
 	if err != nil {
-		return nil, fmt.Errorf("用户不存在: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.NotFound("用户不存在", err)
+		}
+		return nil, apperror.Internal(fmt.Errorf("查询用户失败: %w", err))
 	}
 	status, err = normalizeSystemUserStatus(status, "")
 	if err != nil {
 		return nil, err
 	}
 	if user.Username == SystemUsername && status != "active" {
-		return nil, fmt.Errorf("不能停用 system 用户")
+		return nil, apperror.PermissionDenied("不能停用 system 用户", nil)
 	}
 	if user.Status == status {
 		return user, nil
@@ -263,7 +281,7 @@ func (s *UserService) UpdateUserStatusFromSystem(ctx context.Context, username, 
 		user.EmailVerified = true
 	}
 	if err := s.userRepo.UpdateUser(ctx, user); err != nil {
-		return nil, fmt.Errorf("更新用户状态失败: %w", err)
+		return nil, apperror.Internal(fmt.Errorf("更新用户状态失败: %w", err))
 	}
 	if status != "active" {
 		s.invalidateUserTokens(ctx, user, "system_user_status_changed")
@@ -272,8 +290,8 @@ func (s *UserService) UpdateUserStatusFromSystem(ctx context.Context, username, 
 	return user, nil
 }
 
-func (s *UserService) SearchUsersFuzzyInRequesterCompany(requesterUsername, keyword string, limit int) ([]*model.User, error) {
-	requester, err := s.userRepo.GetUserByUsername(context.Background(), requesterUsername)
+func (s *UserService) SearchUsersFuzzyInRequesterCompany(ctx context.Context, requesterUsername, keyword string, limit int) ([]*model.User, error) {
+	requester, err := s.GetUserByUsername(ctx, requesterUsername)
 	if err != nil {
 		return nil, err
 	}
@@ -283,41 +301,39 @@ func (s *UserService) SearchUsersFuzzyInRequesterCompany(requesterUsername, keyw
 	if limit > 100 {
 		limit = 100
 	}
-	return s.userRepo.SearchUsersFuzzyByCompany(context.Background(), requester.CompanyCode, keyword, limit)
+	return s.userRepo.SearchUsersFuzzyByCompany(ctx, requester.CompanyCode, keyword, limit)
 }
 
 // GetUsersByUsernames 批量获取用户信息
-func (s *UserService) GetUsersByUsernames(usernames []string) ([]*model.User, error) {
+func (s *UserService) GetUsersByUsernames(ctx context.Context, usernames []string) ([]*model.User, error) {
 	// 限制批量查询数量，防止大量数据查询
 	if len(usernames) > 100 {
-		logger.Warnf(nil, "[UserService] Too many usernames in batch query, limiting to 100")
+		logger.Warnf(ctx, "[UserService] Too many usernames in batch query, limiting to 100")
 		usernames = usernames[:100]
 	}
-	return s.userRepo.GetUsersByUsernames(context.Background(), usernames)
+	return s.userRepo.GetUsersByUsernames(ctx, usernames)
 }
 
-func (s *UserService) GetUsersByUsernamesInRequesterCompany(requesterUsername string, usernames []string) ([]*model.User, error) {
+func (s *UserService) GetUsersByUsernamesInRequesterCompany(ctx context.Context, requesterUsername string, usernames []string) ([]*model.User, error) {
 	if len(usernames) > 100 {
-		logger.Warnf(nil, "[UserService] Too many usernames in batch query, limiting to 100")
+		logger.Warnf(ctx, "[UserService] Too many usernames in batch query, limiting to 100")
 		usernames = usernames[:100]
 	}
-	requester, err := s.userRepo.GetUserByUsername(context.Background(), requesterUsername)
+	requester, err := s.GetUserByUsername(ctx, requesterUsername)
 	if err != nil {
 		return nil, err
 	}
-	return s.userRepo.GetUsersByUsernamesAndCompany(context.Background(), usernames, requester.CompanyCode)
+	return s.userRepo.GetUsersByUsernamesAndCompany(ctx, usernames, requester.CompanyCode)
 }
 
-func (s *UserService) GetCompaniesByCodes(codes []string) ([]*model.Company, error) {
-	return s.companyRepo.GetCompaniesByCodes(context.Background(
-
-	// UpdateUser 更新用户信息（只更新提供的字段，空字符串会被忽略）
-	), codes)
+func (s *UserService) GetCompaniesByCodes(ctx context.Context, codes []string) ([]*model.Company, error) {
+	return s.companyRepo.GetCompaniesByCodes(ctx, codes)
 }
 
-func (s *UserService) UpdateUser(username string, nickname, signature, avatar, gender *string) (*model.User, error) {
+// UpdateUser 更新用户信息（只更新提供的字段，空字符串会被忽略）
+func (s *UserService) UpdateUser(ctx context.Context, username string, nickname, signature, avatar, gender *string) (*model.User, error) {
 	// 获取用户
-	user, err := s.userRepo.GetUserByUsername(context.Background(), username)
+	user, err := s.GetUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +353,7 @@ func (s *UserService) UpdateUser(username string, nickname, signature, avatar, g
 	}
 
 	// 保存更新
-	err = s.userRepo.UpdateUser(context.Background(), user)
+	err = s.userRepo.UpdateUser(ctx, user)
 	if err != nil {
 		return nil, err
 	}
@@ -393,9 +409,9 @@ func (s *UserService) GetUsersByDepartmentFullPath(ctx context.Context, departme
 	return s.userRepo.GetUsersByDepartmentFullPath(ctx, departmentFullPath)
 }
 
-func (s *UserService) ensureSystemUserCompany(code, name, logoURL, createdBy string) (string, error) {
+func (s *UserService) ensureSystemUserCompany(ctx context.Context, code, name, logoURL, createdBy string) (string, error) {
 	if s.companyRepo == nil {
-		return "", fmt.Errorf("企业仓库未初始化")
+		return "", apperror.Internal(fmt.Errorf("企业仓库未初始化"))
 	}
 	code = strings.ToLower(strings.TrimSpace(code))
 	name = strings.TrimSpace(name)
@@ -404,37 +420,43 @@ func (s *UserService) ensureSystemUserCompany(code, name, logoURL, createdBy str
 		code = defaultCompanyCode()
 	}
 	if !companyCodePattern.MatchString(code) {
-		return "", fmt.Errorf("企业代码只能包含字母、数字、下划线和中划线")
+		return "", apperror.InvalidArgument("企业代码只能包含字母、数字、下划线和中划线", nil)
 	}
-	if _, err := s.companyRepo.GetCompanyByCode(context.Background(), code); err == nil {
+	if _, err := s.companyRepo.GetCompanyByCode(ctx, code); err == nil {
 		return code, nil
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return "", fmt.Errorf("检查企业失败: %w", err)
+		return "", apperror.Internal(fmt.Errorf("检查企业失败: %w", err))
 	}
 	if name == "" {
-		return "", fmt.Errorf("企业不存在，请填写企业名称")
+		return "", apperror.InvalidArgument("企业不存在，请填写企业名称", nil)
 	}
-	if err := s.companyRepo.CreateCompany(context.Background(), &model.Company{
+	if err := s.companyRepo.CreateCompany(ctx, &model.Company{
 		Code:      code,
 		Name:      name,
 		LogoURL:   logoURL,
 		CreatedBy: createdBy,
 	}); err != nil {
-		return "", fmt.Errorf("创建企业失败: %w", err)
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return "", apperror.Conflict("企业代码或名称已存在", err)
+		}
+		return "", apperror.Internal(fmt.Errorf("创建企业失败: %w", err))
 	}
 	return code, nil
 }
 
-func (s *UserService) validateLeaderForCompany(leaderUsername, companyCode string) error {
+func (s *UserService) validateLeaderForCompany(ctx context.Context, leaderUsername, companyCode string) error {
 	if leaderUsername == "" {
 		return nil
 	}
-	leader, err := s.userRepo.GetUserByUsername(context.Background(), leaderUsername)
+	leader, err := s.userRepo.GetUserByUsername(ctx, leaderUsername)
 	if err != nil {
-		return fmt.Errorf("Leader 用户不存在: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperror.NotFound("Leader 用户不存在", err)
+		}
+		return apperror.Internal(fmt.Errorf("查询 Leader 失败: %w", err))
 	}
 	if strings.TrimSpace(companyCode) != "" && leader.CompanyCode != companyCode {
-		return fmt.Errorf("Leader 必须属于同一企业")
+		return apperror.InvalidArgument("Leader 必须属于同一企业", nil)
 	}
 	return nil
 }
@@ -457,7 +479,7 @@ func normalizeSystemUserStatus(status, defaultStatus string) (string, error) {
 	case "active", "pending", "disabled":
 		return status, nil
 	default:
-		return "", fmt.Errorf("用户状态必须是 active、pending 或 disabled")
+		return "", apperror.InvalidArgument("用户状态必须是 active、pending 或 disabled", nil)
 	}
 }
 

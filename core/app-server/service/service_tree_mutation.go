@@ -10,11 +10,11 @@ func (s *ServiceTreeService) UpdateServiceTreeMetadata(ctx context.Context, req 
 	if req == nil {
 		return s.mutationService.UpdateServiceTreeMetadata(ctx, req)
 	}
-	oldNode := s.getServiceTreeForAudit(req.ID)
+	oldNode := s.getServiceTreeForAudit(ctx, req.ID)
 	if err := s.mutationService.UpdateServiceTreeMetadata(ctx, req); err != nil {
 		return err
 	}
-	s.writeServiceTreeOperateLog(ctx, "service_tree.node.updated", oldNode, s.getServiceTreeForAudit(req.ID))
+	s.writeServiceTreeOperateLog(ctx, "service_tree.node.updated", oldNode, s.getServiceTreeForAudit(ctx, req.ID))
 	return nil
 }
 
@@ -22,11 +22,11 @@ func (s *ServiceTreeService) UpdatePackage(ctx context.Context, req *dto.UpdateP
 	if req == nil {
 		return s.mutationService.UpdatePackage(ctx, req)
 	}
-	oldNode := s.getServiceTreeForAudit(req.ID)
+	oldNode := s.getServiceTreeForAudit(ctx, req.ID)
 	if err := s.mutationService.UpdatePackage(ctx, req); err != nil {
 		return err
 	}
-	s.writeServiceTreeOperateLog(ctx, "service_tree.node.updated", oldNode, s.getServiceTreeForAudit(req.ID))
+	s.writeServiceTreeOperateLog(ctx, "service_tree.node.updated", oldNode, s.getServiceTreeForAudit(ctx, req.ID))
 	return nil
 }
 
@@ -34,11 +34,11 @@ func (s *ServiceTreeService) UpdateFunction(ctx context.Context, req *dto.Update
 	if req == nil {
 		return s.mutationService.UpdateFunction(ctx, req)
 	}
-	oldNode := s.getServiceTreeForAudit(req.ID)
+	oldNode := s.getServiceTreeForAudit(ctx, req.ID)
 	if err := s.mutationService.UpdateFunction(ctx, req); err != nil {
 		return err
 	}
-	s.writeServiceTreeOperateLog(ctx, "service_tree.node.updated", oldNode, s.getServiceTreeForAudit(req.ID))
+	s.writeServiceTreeOperateLog(ctx, "service_tree.node.updated", oldNode, s.getServiceTreeForAudit(ctx, req.ID))
 	return nil
 }
 
@@ -46,16 +46,16 @@ func (s *ServiceTreeService) UpdateDocs(ctx context.Context, req *dto.UpdateDocs
 	if req == nil {
 		return s.mutationService.UpdateDocs(ctx, req)
 	}
-	oldNode := s.getServiceTreeForAudit(req.ID)
+	oldNode := s.getServiceTreeForAudit(ctx, req.ID)
 	if err := s.mutationService.UpdateDocs(ctx, req); err != nil {
 		return err
 	}
-	s.writeServiceTreeOperateLog(ctx, "service_tree.node.updated", oldNode, s.getServiceTreeForAudit(req.ID))
+	s.writeServiceTreeOperateLog(ctx, "service_tree.node.updated", oldNode, s.getServiceTreeForAudit(ctx, req.ID))
 	return nil
 }
 
 func (s *ServiceTreeService) DeletePackage(ctx context.Context, id int64) error {
-	oldNode := s.getServiceTreeForAudit(id)
+	oldNode := s.getServiceTreeForAudit(ctx, id)
 	if err := s.mutationService.DeletePackage(ctx, id); err != nil {
 		return err
 	}
@@ -64,7 +64,7 @@ func (s *ServiceTreeService) DeletePackage(ctx context.Context, id int64) error 
 }
 
 func (s *ServiceTreeService) DeleteFunction(ctx context.Context, id int64) error {
-	oldNode := s.getServiceTreeForAudit(id)
+	oldNode := s.getServiceTreeForAudit(ctx, id)
 	if err := s.mutationService.DeleteFunction(ctx, id); err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func (s *ServiceTreeService) DeleteFunction(ctx context.Context, id int64) error
 }
 
 func (s *ServiceTreeService) DeleteDocs(ctx context.Context, id int64) error {
-	oldNode := s.getServiceTreeForAudit(id)
+	oldNode := s.getServiceTreeForAudit(ctx, id)
 	if err := s.mutationService.DeleteDocs(ctx, id); err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (s *ServiceTreeService) DeleteDocs(ctx context.Context, id int64) error {
 }
 
 func (s *ServiceTreeService) DeleteServiceTree(ctx context.Context, id int64) error {
-	oldNode := s.getServiceTreeForAudit(id)
+	oldNode := s.getServiceTreeForAudit(ctx, id)
 	if err := s.mutationService.DeleteServiceTree(ctx, id); err != nil {
 		return err
 	}

@@ -61,7 +61,7 @@ func (a *AppService) BootstrapPersonalWorkspace(ctx context.Context, user string
 }
 
 func (a *AppService) bootstrapPersonalWorkspace(ctx context.Context, user string) (*dto.BootstrapPersonalWorkspaceResp, error) {
-	if app, found, err := a.findBootstrapWorkspace(user); err != nil {
+	if app, found, err := a.findBootstrapWorkspace(ctx, user); err != nil {
 		return nil, err
 	} else if found {
 		return bootstrapPersonalWorkspaceResp(app, false), nil
@@ -130,12 +130,12 @@ func (a *AppService) bootstrapPersonalWorkspace(ctx context.Context, user string
 	return resp, nil
 }
 
-func (a *AppService) findBootstrapWorkspace(user string) (*model.App, bool, error) {
-	if app, found, err := a.findExistingPersonalHome(user); err != nil || found {
+func (a *AppService) findBootstrapWorkspace(ctx context.Context, user string) (*model.App, bool, error) {
+	if app, found, err := a.findExistingPersonalHome(ctx, user); err != nil || found {
 		return app, found, err
 	}
 
-	app, err := a.appRepo.GetFirstUserApp(context.Background(), user)
+	app, err := a.appRepo.GetFirstUserApp(ctx, user)
 	if err == nil {
 		return app, true, nil
 	}
@@ -145,8 +145,8 @@ func (a *AppService) findBootstrapWorkspace(user string) (*model.App, bool, erro
 	return nil, false, fmt.Errorf("查询已有工作空间失败: %w", err)
 }
 
-func (a *AppService) findExistingPersonalHome(user string) (*model.App, bool, error) {
-	app, err := a.appRepo.GetAppByUserName(context.Background(), user, PersonalWorkspaceCode)
+func (a *AppService) findExistingPersonalHome(ctx context.Context, user string) (*model.App, bool, error) {
+	app, err := a.appRepo.GetAppByUserName(ctx, user, PersonalWorkspaceCode)
 	if err == nil {
 		return app, app.IsPersonalWorkspace, nil
 	}

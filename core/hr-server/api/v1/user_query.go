@@ -41,9 +41,10 @@ func (u *User) QueryUser(c *gin.Context) {
 	username := extractUsernameFromDisplayName(req.Username)
 
 	// 查询用户信息
-	user, err := u.userService.GetUserByUsername(username)
+	ctx := contextx.ToContext(c)
+	user, err := u.userService.GetUserByUsername(ctx, username)
 	if err != nil {
-		response.Internal(c, "用户不存在: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := u.ensureSameCompany(c, user); err != nil {
@@ -52,7 +53,6 @@ func (u *User) QueryUser(c *gin.Context) {
 	}
 
 	// 转换为DTO（包含详细信息）
-	ctx := contextx.ToContext(c)
 	userInfos := convertUsersToDTOBatch(ctx, []*model.User{user}, u.userService, u.departmentService)
 	if len(userInfos) == 0 {
 		response.Internal(c, "转换用户信息失败")
@@ -106,14 +106,14 @@ func (u *User) SearchUsersFuzzy(c *gin.Context) {
 		response.NoAuth(c, "未提供用户信息")
 		return
 	}
-	users, err := u.userService.SearchUsersFuzzyInRequesterCompany(requester, keyword, req.Limit)
+	ctx := contextx.ToContext(c)
+	users, err := u.userService.SearchUsersFuzzyInRequesterCompany(ctx, requester, keyword, req.Limit)
 	if err != nil {
-		response.Internal(c, "查询失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	// 转换为DTO（包含详细信息，批量查询）
-	ctx := contextx.ToContext(c)
 	dtoUserInfos := convertUsersToDTOBatch(ctx, users, u.userService, u.departmentService)
 	userInfos := make([]dto.UserInfo, 0, len(dtoUserInfos))
 	for _, userInfo := range dtoUserInfos {
@@ -159,14 +159,14 @@ func (u *User) GetUsersByUsernames(c *gin.Context) {
 		response.NoAuth(c, "未提供用户信息")
 		return
 	}
-	users, err := u.userService.GetUsersByUsernamesInRequesterCompany(requester, req.Usernames)
+	ctx := contextx.ToContext(c)
+	users, err := u.userService.GetUsersByUsernamesInRequesterCompany(ctx, requester, req.Usernames)
 	if err != nil {
-		response.Internal(c, "查询失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	// 转换为DTO（包含详细信息，批量查询）
-	ctx := contextx.ToContext(c)
 	dtoUserInfos := convertUsersToDTOBatch(ctx, users, u.userService, u.departmentService)
 	userInfos := make([]dto.UserInfo, 0, len(dtoUserInfos))
 	for _, userInfo := range dtoUserInfos {

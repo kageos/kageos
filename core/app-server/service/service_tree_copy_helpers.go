@@ -58,7 +58,7 @@ func copyFromLocalImpl(s *serviceTreeCopyService, ctx context.Context, req *dto.
 		return nil, err
 	}
 
-	targetExists, err := copyTargetDirectoryExists(s, targetApp.ID, plan.targetRootPath)
+	targetExists, err := copyTargetDirectoryExists(ctx, s, targetApp.ID, plan.targetRootPath)
 	if err != nil {
 		return nil, err
 	}
@@ -115,8 +115,8 @@ func validateCopyDirectoryPlacement(sourceRootPath, targetParentPath, targetRoot
 	return nil
 }
 
-func copyTargetDirectoryExists(s *serviceTreeCopyService, appID int64, targetRootPath string) (bool, error) {
-	existingTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(context.Background(), targetRootPath)
+func copyTargetDirectoryExists(ctx context.Context, s *serviceTreeCopyService, appID int64, targetRootPath string) (bool, error) {
+	existingTree, err := s.serviceTreeRepo.GetServiceTreeByFullPath(ctx, targetRootPath)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil

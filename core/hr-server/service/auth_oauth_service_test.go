@@ -33,7 +33,7 @@ func TestResolveExistingUserForPrincipalDoesNotAutoBindByEmail(t *testing.T) {
 		identityRepo: identityRepo,
 		userRepo:     userRepo,
 	}
-	user, found, err := svc.resolveExistingUserForPrincipal(ExternalPrincipal{
+	user, found, err := svc.resolveExistingUserForPrincipal(context.Background(), ExternalPrincipal{
 		ProviderCode:  ProviderGitHubOAuth,
 		ExternalID:    "github-subject-1",
 		Email:         "same@example.com",
@@ -65,7 +65,7 @@ func TestCreateRegistrationIntentAllowsMissingEmail(t *testing.T) {
 		userRepo:               repository.NewUserRepository(db),
 	}
 
-	intent, err := svc.createExternalRegistrationIntent(ExternalPrincipal{
+	intent, err := svc.createExternalRegistrationIntent(context.Background(), ExternalPrincipal{
 		ProviderCode: ProviderGitHubOAuth,
 		ExternalID:   "github-no-email",
 		Nickname:     "No Email User",

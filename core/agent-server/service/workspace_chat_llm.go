@@ -10,6 +10,7 @@ import (
 	"github.com/kageos/kageos/core/agent-server/model"
 	"github.com/kageos/kageos/core/agent-server/prompt"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apperror"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/llms"
 	"github.com/kageos/kageos/pkg/logger"
@@ -44,7 +45,7 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 		}
 	}
 	if !canViewLLMConfig(llmConfig, contextx.GetRequestUser(ctx)) {
-		return nil, nil, nil, fmt.Errorf("无权限使用该 LLM 配置")
+		return nil, nil, nil, apperror.PermissionDenied("无权限使用该 LLM 配置", nil)
 	}
 	apiKey, err := openLLMAPIKey(s.apiKeyVault, s.apiKeyVaultErr, llmConfig.APIKey)
 	if err != nil {

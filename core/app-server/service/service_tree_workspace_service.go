@@ -168,7 +168,7 @@ func (s *serviceTreeWorkspaceService) WriteFileContent(ctx context.Context, req 
 	if detail.AppID <= 0 {
 		return nil, fmt.Errorf("该目录不属于应用，无法写入文件")
 	}
-	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(detail.AppID, "写入文件")
+	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(ctx, detail.AppID, "写入文件")
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func (s *serviceTreeWorkspaceService) ReplaceFileContent(ctx context.Context, re
 	if detail.AppID <= 0 {
 		return nil, fmt.Errorf("该目录不属于应用，无法替换文件")
 	}
-	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(detail.AppID, "替换文件")
+	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(ctx, detail.AppID, "替换文件")
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +259,7 @@ func (s *serviceTreeWorkspaceService) DeleteFile(ctx context.Context, req *dto.D
 	if detail.AppID <= 0 {
 		return nil, fmt.Errorf("该目录不属于应用")
 	}
-	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(detail.AppID, "删除文件")
+	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(ctx, detail.AppID, "删除文件")
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +285,7 @@ func (s *serviceTreeWorkspaceService) ReadAppLog(ctx context.Context, req *dto.R
 	if detail.AppID <= 0 {
 		return nil, fmt.Errorf("该目录不属于应用")
 	}
-	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(detail.AppID, "读取日志")
+	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(ctx, detail.AppID, "读取日志")
 	if err != nil {
 		return nil, err
 	}

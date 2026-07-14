@@ -385,6 +385,9 @@ func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 	if event.Metadata[scheduledsdk.MetadataRequestEmail] != "alice@example.com" {
 		t.Fatalf("signed execution identity metadata was not preserved: %+v", event.Metadata)
 	}
+	if event.Metadata[scheduledsdk.MetadataRequestUserID] != "42" {
+		t.Fatalf("signed execution user id was not preserved: %+v", event.Metadata)
+	}
 	if event.Metadata["task_title"] != "demo" {
 		t.Fatalf("task title metadata was not propagated: %+v", event.Metadata)
 	}

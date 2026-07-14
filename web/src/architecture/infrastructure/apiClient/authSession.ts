@@ -19,6 +19,18 @@ export function isRefreshRequestUrl(url?: string): boolean {
   return typeof url === 'string' && url.includes('/auth/refresh')
 }
 
+// These endpoints establish identity and must not inherit a stale access token.
+// In particular, a standards-compliant 401 from login means bad credentials,
+// not that the client should try to refresh an existing session.
+export function isPublicAuthRequestUrl(url?: string): boolean {
+  if (typeof url !== 'string') {
+    return false
+  }
+  const path = url.split(/[?#]/, 1)[0] ?? ''
+  return /\/auth\/(?:login|register|send-email-code|forgot-password|companies\/search)(?:\/|$)/.test(path) ||
+    path.includes('/auth/oauth/')
+}
+
 export function extractApiMessage(payload?: Partial<ApiResponse> | Record<string, unknown> | null): string {
   if (!payload || typeof payload !== 'object') {
     return ''

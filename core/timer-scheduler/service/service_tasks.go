@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/kageos/kageos/core/timer-scheduler/model"
@@ -14,12 +15,15 @@ import (
 )
 
 func scheduledTaskMetadataWithContext(ctx context.Context, metadata map[string]string) map[string]string {
-	out := make(map[string]string, len(metadata)+3)
+	out := make(map[string]string, len(metadata)+6)
 	for key, value := range metadata {
 		out[key] = value
 	}
 	if token := strings.TrimSpace(contextx.GetToken(ctx)); token != "" {
 		if claims, err := auth.NewJWTService().ValidateToken(token); err == nil && claims != nil {
+			if claims.UserID > 0 && strings.TrimSpace(out[scheduledsdk.MetadataRequestUserID]) == "" {
+				out[scheduledsdk.MetadataRequestUserID] = strconv.FormatInt(claims.UserID, 10)
+			}
 			if claims.Email != "" && strings.TrimSpace(out[scheduledsdk.MetadataRequestEmail]) == "" {
 				out[scheduledsdk.MetadataRequestEmail] = claims.Email
 			}
@@ -36,6 +40,15 @@ func scheduledTaskMetadataWithContext(ctx context.Context, metadata map[string]s
 				out[scheduledsdk.MetadataCompanyLogoURL] = claims.CompanyLogoURL
 			}
 		}
+	}
+	if userID := strings.TrimSpace(contextx.GetRequestUserID(ctx)); userID != "" && strings.TrimSpace(out[scheduledsdk.MetadataRequestUserID]) == "" {
+		out[scheduledsdk.MetadataRequestUserID] = userID
+	}
+	if email := strings.TrimSpace(contextx.GetRequestUserEmail(ctx)); email != "" && strings.TrimSpace(out[scheduledsdk.MetadataRequestEmail]) == "" {
+		out[scheduledsdk.MetadataRequestEmail] = email
+	}
+	if leader := strings.TrimSpace(contextx.GetRequestLeaderUsername(ctx)); leader != "" && strings.TrimSpace(out[scheduledsdk.MetadataLeaderUsername]) == "" {
+		out[scheduledsdk.MetadataLeaderUsername] = leader
 	}
 	if companyCode := strings.TrimSpace(contextx.GetRequestCompanyCode(ctx)); companyCode != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyCode]) == "" {
 		out[scheduledsdk.MetadataCompanyCode] = companyCode

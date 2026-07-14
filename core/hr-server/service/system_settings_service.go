@@ -18,6 +18,7 @@ import (
 
 	"github.com/kageos/kageos/core/hr-server/repository"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apperror"
 	appconfig "github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/emailx"
 )
@@ -57,10 +58,10 @@ func NewSystemSettingsService(repo *repository.SystemSettingRepository) *SystemS
 	}
 }
 
-func (s *SystemSettingsService) GetSettings() (*dto.SystemSettingsResp, error) {
-	values, err := s.repo.GetAll(context.Background())
+func (s *SystemSettingsService) GetSettings(ctx context.Context) (*dto.SystemSettingsResp, error) {
+	values, err := s.repo.GetAll(ctx)
 	if err != nil {
-		return nil, err
+		return nil, apperror.Internal(fmt.Errorf("读取系统设置失败: %w", err))
 	}
 	email := s.emailSettingsFrom(values, false)
 	return &dto.SystemSettingsResp{
@@ -69,14 +70,14 @@ func (s *SystemSettingsService) GetSettings() (*dto.SystemSettingsResp, error) {
 	}, nil
 }
 
-func (s *SystemSettingsService) UpdateSettings(req dto.UpdateSystemSettingsReq, updatedBy string) (*dto.SystemSettingsResp, error) {
+func (s *SystemSettingsService) UpdateSettings(ctx context.Context, req dto.UpdateSystemSettingsReq, updatedBy string) (*dto.SystemSettingsResp, error) {
 	mode := normalizeRegistrationMode(req.RegistrationMode)
 	emailMode := normalizeEmailMode(req.Email.Mode)
 	if mode == RegistrationModeEmailCode && emailMode != EmailModeSMTP {
-		return nil, fmt.Errorf("email verification registration requires email.mode=smtp")
+		return nil, apperror.InvalidArgument("启用邮箱验证码注册时 email.mode 必须为 smtp", nil)
 	}
 
-	current, err := s.GetRuntimeEmailConfig()
+	current, err := s.GetRuntimeEmailConfig(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -110,27 +111,30 @@ func (s *SystemSettingsService) UpdateSettings(req dto.UpdateSystemSettingsReq, 
 			From:     values[settingSMTPFrom],
 			FromName: values[settingSMTPFromName],
 		}); err != nil {
-			return nil, err
+			return nil, apperror.InvalidArgument(err.Error(), err)
 		}
 	}
-	if err := s.repo.UpsertMany(context.Background(), values, updatedBy); err != nil {
-		return nil, err
+	if err := s.repo.UpsertMany(ctx, values, updatedBy); err != nil {
+		return nil, apperror.Internal(fmt.Errorf("保存系统设置失败: %w", err))
 	}
-	return s.GetSettings()
+	return s.GetSettings(ctx)
 }
 
-func (s *SystemSettingsService) TestEmail(to string) error {
-	cfg, err := s.GetRuntimeEmailConfig()
+func (s *SystemSettingsService) TestEmail(ctx context.Context, to string) error {
+	cfg, err := s.GetRuntimeEmailConfig(ctx)
 	if err != nil {
 		return err
 	}
 	if normalizeEmailMode(cfg.Mode) != EmailModeSMTP {
-		return fmt.Errorf("email.mode must be smtp before sending a test email")
+		return apperror.Conflict("发送测试邮件前必须先启用 SMTP 模式", nil)
 	}
 	if err := validateSMTPConfig(cfg.SMTP); err != nil {
-		return err
+		return apperror.Conflict("SMTP 配置不完整: "+err.Error(), err)
 	}
-	return emailx.NewSender(cfg.SMTP).SendHTML(to, "Kageos test email", "<p>Kageos email service is configured correctly.</p>")
+	if err := emailx.NewSender(cfg.SMTP).SendHTML(to, "Kageos test email", "<p>Kageos email service is configured correctly.</p>"); err != nil {
+		return apperror.Unavailable("邮件服务暂时不可用", err)
+	}
+	return nil
 }
 
 func (s *SystemSettingsService) GetTLSSettings() (*dto.TLSSettingsResp, error) {
@@ -206,10 +210,10 @@ func (s *SystemSettingsService) ReloadTLS() error {
 	return runNginxCommand("-s", "reload")
 }
 
-func (s *SystemSettingsService) GetRuntimeEmailConfig() (appconfig.EmailConfig, error) {
-	values, err := s.repo.GetAll(context.Background())
+func (s *SystemSettingsService) GetRuntimeEmailConfig(ctx context.Context) (appconfig.EmailConfig, error) {
+	values, err := s.repo.GetAll(ctx)
 	if err != nil {
-		return appconfig.EmailConfig{}, err
+		return appconfig.EmailConfig{}, apperror.Internal(fmt.Errorf("读取邮件设置失败: %w", err))
 	}
 	email := s.emailSettingsFrom(values, true)
 	return appconfig.EmailConfig{
@@ -226,10 +230,10 @@ func (s *SystemSettingsService) GetRuntimeEmailConfig() (appconfig.EmailConfig, 
 	}, nil
 }
 
-func (s *SystemSettingsService) GetRegistrationMode() (string, error) {
-	values, err := s.repo.GetAll(context.Background())
+func (s *SystemSettingsService) GetRegistrationMode(ctx context.Context) (string, error) {
+	values, err := s.repo.GetAll(ctx)
 	if err != nil {
-		return "", err
+		return "", apperror.Internal(fmt.Errorf("读取注册设置失败: %w", err))
 	}
 	emailMode := s.emailSettingsFrom(values, true).Mode
 	return s.registrationModeFrom(values, emailMode), nil

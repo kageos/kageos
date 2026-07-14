@@ -43,7 +43,7 @@ func (s *StandardAPI) CallbackOnSelectFuzzy(c *gin.Context) {
 	// 构建回调请求对象（调用 OnSelectFuzzy）
 	req, err := s.buildCallbackAppReq(c, fullCodePath, "OnSelectFuzzy")
 	if err != nil {
-		response.Internal(c, "构建请求失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 

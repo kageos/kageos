@@ -66,7 +66,7 @@ func (s *serviceTreePackageService) CreatePackage(ctx context.Context, req *dto.
 	}
 
 	if !codeProvided {
-		req.Code, err = s.nextAvailablePackageCode(parentPath, app.ID, req.Code)
+		req.Code, err = s.nextAvailablePackageCode(ctx, parentPath, app.ID, req.Code)
 		if err != nil {
 			return nil, err
 		}
@@ -128,13 +128,13 @@ func (s *serviceTreePackageService) CreatePackage(ctx context.Context, req *dto.
 	}, nil
 }
 
-func (s *serviceTreePackageService) nextAvailablePackageCode(parentPath string, appID int64, baseCode string) (string, error) {
+func (s *serviceTreePackageService) nextAvailablePackageCode(ctx context.Context, parentPath string, appID int64, baseCode string) (string, error) {
 	for index := 1; index <= 1000; index++ {
 		candidate := baseCode
 		if index > 1 {
 			candidate = naming.GoPackageNameWithNumericSuffix(baseCode, index)
 		}
-		exists, err := s.serviceTreeRepo.CheckNameExistsByPath(context.Background(), parentPath, candidate, appID)
+		exists, err := s.serviceTreeRepo.CheckNameExistsByPath(ctx, parentPath, candidate, appID)
 		if err != nil {
 			return "", fmt.Errorf("failed to check generated directory code exists: %w", err)
 		}

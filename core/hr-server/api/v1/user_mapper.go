@@ -10,6 +10,7 @@ import (
 	"github.com/kageos/kageos/core/hr-server/model"
 	"github.com/kageos/kageos/core/hr-server/service"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apperror"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
 )
@@ -27,14 +28,14 @@ func extractUsernameFromDisplayName(displayName string) string {
 func (u *User) ensureSameCompany(c *gin.Context, target *model.User) error {
 	requester := contextx.GetRequestUser(c)
 	if requester == "" {
-		return fmt.Errorf("未提供用户信息")
+		return apperror.Unauthenticated("未提供用户信息", nil)
 	}
-	current, err := u.userService.GetUserByUsername(requester)
+	current, err := u.userService.GetUserByUsername(contextx.ToContext(c), requester)
 	if err != nil {
 		return fmt.Errorf("当前用户不存在: %w", err)
 	}
 	if current.CompanyCode != target.CompanyCode {
-		return fmt.Errorf("用户不存在")
+		return apperror.NotFound("用户不存在", nil)
 	}
 	return nil
 }
@@ -133,7 +134,7 @@ func convertUsersToDTOBatch(ctx context.Context, users []*model.User, userServic
 				codeList = append(codeList, code)
 			}
 		}
-		companies, err := userService.GetCompaniesByCodes(codeList)
+		companies, err := userService.GetCompaniesByCodes(ctx, codeList)
 		if err != nil {
 			logger.Warnf(ctx, "[convertUsersToDTOBatch] 批量查询企业信息失败: %v", err)
 		} else {
@@ -167,7 +168,7 @@ func convertUsersToDTOBatch(ctx context.Context, users []*model.User, userServic
 			usernameList = append(usernameList, username)
 		}
 
-		leaders, err := userService.GetUsersByUsernames(usernameList)
+		leaders, err := userService.GetUsersByUsernames(ctx, usernameList)
 		if err != nil {
 			logger.Warnf(ctx, "[convertUsersToDTOBatch] 批量查询 Leader 信息失败: %v", err)
 			leaderMap = nil

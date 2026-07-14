@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kageos/kageos/core/agent-server/model"
@@ -163,10 +164,16 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		}
 	}
 	user := contextx.GetRequestUser(ctx)
-	// 工作台会话绑定的是服务目录，不是具体的 Form/Table/Chart 函数。
-	// 兼容旧通知链接和旧移动端直接把函数 full_code_path 提交进来的情况，
-	// 在服务端统一收敛到函数所在目录，避免依赖前后端必须同时升级。
+	// 会话归属具体函数/资源，但 Agent 的 SDK、文件和工具执行上下文仍使用父目录。
+	// ResourceFullCodePath 供通知回复显式传入；普通工作台可继续只传点击节点的 FullCodePath。
+	requestedResourcePath := workspaceSessionResourcePath(firstNonEmptyString(req.ResourceFullCodePath, req.FullCodePath))
+	resourceFullCodePath := requestedResourcePath
+	var resourceTreeID int64
+	resourceOwnedBySession := false
 	fullCodePath := workspacePathDirectory(req.FullCodePath)
+	if fullCodePath == "" {
+		fullCodePath = workspacePathDirectory(requestedResourcePath)
+	}
 	if fullCodePath == "" {
 		return s.handleError(sendEvent, "full_code_path 必填", nil)
 	}
@@ -188,6 +195,17 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		if e := ensureWorkspaceSessionOwner(ctx, session); e != nil {
 			return s.handleError(sendEvent, e.Error(), e)
 		}
+		// 兼容历史上把函数路径直接写入 FullCodePath 的会话：先保留资源归属，再修复执行目录。
+		legacyResourcePath := workspaceSessionResourcePath(session.FullCodePath)
+		if storedResourcePath := normalizeWorkspacePath(session.ResourceFullCodePath); storedResourcePath != "" {
+			resourceFullCodePath = storedResourcePath
+			resourceTreeID = session.ResourceTreeID
+			resourceOwnedBySession = true
+		} else if legacyResourcePath != "" {
+			resourceFullCodePath = legacyResourcePath
+		} else if requestedResourcePath != "" && workspacePathDirectory(requestedResourcePath) == workspacePathDirectory(session.FullCodePath) {
+			resourceFullCodePath = requestedResourcePath
+		}
 		if sessionPath := workspacePathDirectory(session.FullCodePath); sessionPath != "" {
 			fullCodePath = sessionPath
 		}
@@ -201,16 +219,31 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	if directoryPath := normalizeWorkspacePath(workspaceCtx.Directory.FullCodePath); directoryPath != "" {
 		fullCodePath = directoryPath
 	}
+	if resourceFullCodePath != "" && !resourceOwnedBySession && workspacePathDirectory(resourceFullCodePath) != fullCodePath {
+		return s.handleError(sendEvent, fmt.Sprintf("resource_full_code_path 不属于工作台目录: %s", resourceFullCodePath), nil)
+	}
+	if resourceFullCodePath != "" && resourceTreeID == 0 && workspacePathDirectory(resourceFullCodePath) == fullCodePath {
+		for _, child := range workspaceCtx.Children {
+			if normalizeWorkspacePath(child.FullCodePath) == resourceFullCodePath {
+				resourceTreeID = child.ID
+				break
+			}
+		}
+	}
 	directoryName := workspaceCtx.Directory.Name
 	if directoryName == "" {
 		directoryName = workspaceCtx.Directory.Code
 	}
 
-	// 顺手修复历史会话里误存的函数路径，后续移动端“新增会话”和历史会话
-	// 都会继续使用真实目录，不再反复触发同一个错误。
-	if req.SessionID != "" && (session.FullCodePath != fullCodePath || session.TreeID != workspaceCtx.Directory.ID) {
+	// 顺手修复历史函数路径，并补齐资源归属；后续只用目录执行、按资源查看。
+	if req.SessionID != "" && (session.FullCodePath != fullCodePath ||
+		session.TreeID != workspaceCtx.Directory.ID ||
+		session.ResourceFullCodePath != resourceFullCodePath ||
+		session.ResourceTreeID != resourceTreeID) {
 		session.FullCodePath = fullCodePath
 		session.TreeID = workspaceCtx.Directory.ID
+		session.ResourceFullCodePath = resourceFullCodePath
+		session.ResourceTreeID = resourceTreeID
 		session.UpdatedBy = user
 		if updateErr := s.sessionRepo.Update(ctx, session); updateErr != nil {
 			logger.Warnf(ctx, "[WorkspaceChatStream] 修复历史会话目录失败 session_id=%s full_code_path=%s err=%v", session.SessionID, fullCodePath, updateErr)
@@ -225,18 +258,20 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 			source = SourceAutomationAgent
 		}
 		session = &model.AgentChatSession{
-			TreeID:              workspaceCtx.Directory.ID,
-			FullCodePath:        fullCodePath,
-			Source:              source,
-			AutomationTaskID:    automationIdentity.TaskID,
-			AutomationTaskCode:  automationIdentity.TaskCode,
-			AutomationTaskTitle: automationIdentity.TaskTitle,
-			SessionID:           uuid.New().String(),
-			Title:               "",
-			ModeCode:            requestedModeCode,
-			Status:              model.ChatSessionStatusActive,
-			ContextPolicy:       ContextPolicyFull,
-			User:                user,
+			TreeID:               workspaceCtx.Directory.ID,
+			FullCodePath:         fullCodePath,
+			ResourceTreeID:       resourceTreeID,
+			ResourceFullCodePath: resourceFullCodePath,
+			Source:               source,
+			AutomationTaskID:     automationIdentity.TaskID,
+			AutomationTaskCode:   automationIdentity.TaskCode,
+			AutomationTaskTitle:  automationIdentity.TaskTitle,
+			SessionID:            uuid.New().String(),
+			Title:                "",
+			ModeCode:             requestedModeCode,
+			Status:               model.ChatSessionStatusActive,
+			ContextPolicy:        ContextPolicyFull,
+			User:                 user,
 		}
 		applyDefaultWorkspaceSessionRole(session)
 		session.CreatedBy = user
@@ -266,7 +301,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		return s.handleError(sendEvent, "该会话正在执行中，请等待当前任务完成，或先取消后再继续。", nil)
 	}
 	if !req.Resume && workspaceSessionHasPendingInteractionStatus(session.Status) {
-		pendingInteraction := s.pendingInteractionForSession(session)
+		pendingInteraction := s.pendingInteractionForSession(ctx, session)
 		if pendingInteraction == nil {
 			pendingInteraction = workspaceFallbackPendingInteraction(session.Status)
 		}
@@ -296,7 +331,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		if req.SessionID == "" {
 			return s.handleError(sendEvent, "resume 必须指定 session_id", nil)
 		}
-		if e := s.ensureWorkspaceSessionHasRunnableMessage(sessionID); e != nil {
+		if e := s.ensureWorkspaceSessionHasRunnableMessage(ctx, sessionID); e != nil {
 			return s.handleError(sendEvent, e.Error(), e)
 		}
 	}
@@ -321,23 +356,25 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	s.runningCancels.Store(sessionID, runCancel)
 	// 无论正常结束还是异常，都要恢复状态并清理
 	defer func() {
+		persistCtx, cancelPersist := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancelPersist()
 		runCancel()
 		s.runningCancels.Delete(sessionID)
 		s.sseConnections.Delete(sessionID)
 		// ⭐ 恢复会话状态：已取消的保持 cancelled，否则标回 active
-		latest, e := s.sessionRepo.GetBySessionID(ctx, sessionID)
+		latest, e := s.sessionRepo.GetBySessionID(persistCtx, sessionID)
 		if e == nil && latest != nil && latest.Status == model.ChatSessionStatusGenerating {
 			latest.Status = model.ChatSessionStatusActive
 			latest.UpdatedBy = user
-			if e := s.sessionRepo.Update(ctx, latest); e != nil {
-				logger.Warnf(ctx, "[WorkspaceChatStream] 恢复 active 失败: %v", e)
+			if e := s.sessionRepo.Update(persistCtx, latest); e != nil {
+				logger.Warnf(persistCtx, "[WorkspaceChatStream] 恢复 active 失败: %v", e)
 			}
 		}
 		finalStatus := ""
 		if e == nil && latest != nil && latest.Status == model.ChatSessionStatusCancelled {
 			finalStatus = RuntimeStateStatusCancelled
 		}
-		s.finishWorkspaceRuntimeState(context.Background(), runtimeStateKey, runtimeStateBase, err, finalStatus)
+		s.finishWorkspaceRuntimeState(persistCtx, runtimeStateKey, runtimeStateBase, err, finalStatus)
 	}()
 
 	llmConfigID := req.LLMConfigID

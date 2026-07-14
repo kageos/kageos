@@ -102,7 +102,7 @@ func (r *WorkspaceActionRunner) Submit(ctx context.Context, req WorkspaceActionR
 	}
 
 	started := make(chan workspaceActionStartResult, 1)
-	runCtx, cancelRun := newWorkspaceActionRunContext()
+	runCtx, cancelRun := newWorkspaceActionRunContext(ctx)
 	go r.run(runCtx, req, started)
 
 	timeout := r.startTimeout
@@ -133,8 +133,8 @@ func (r *WorkspaceActionRunner) Submit(ctx context.Context, req WorkspaceActionR
 	}
 }
 
-func newWorkspaceActionRunContext() (context.Context, context.CancelFunc) {
-	return context.WithCancel(context.Background())
+func newWorkspaceActionRunContext(parent context.Context) (context.Context, context.CancelFunc) {
+	return context.WithCancel(context.WithoutCancel(parent))
 }
 
 type workspaceActionStartResult struct {
@@ -198,8 +198,9 @@ func (r *WorkspaceActionRunner) run(parent context.Context, req WorkspaceActionR
 
 func (r *WorkspaceActionRunner) runAttempt(ctx context.Context, req WorkspaceActionRequest, signalStarted func(string, error)) error {
 	requestBody := dto.WorkspaceChatReq{
-		FullCodePath: req.FullCodePath,
-		SessionID:    strings.TrimSpace(req.SessionID),
+		FullCodePath:         req.FullCodePath,
+		ResourceFullCodePath: strings.TrimSpace(req.SourcePath),
+		SessionID:            strings.TrimSpace(req.SessionID),
 		Message: dto.WorkspaceMsg{
 			Content:        req.Content,
 			DisplayContent: strings.TrimSpace(req.DisplayContent),

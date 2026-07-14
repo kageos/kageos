@@ -124,7 +124,7 @@ func (s *Server) upsertNotificationRoute(c *gin.Context) {
 		deliveryType = strings.TrimSpace(req.DeliveryType)
 	}
 	if deliveryType != "webhook" {
-		response.Internal(c, "当前仅支持 webhook 投递类型")
+		response.BadRequest(c, "当前仅支持 webhook 投递类型")
 		return
 	}
 	if req.ClearWebhookURL {
@@ -222,7 +222,7 @@ func (s *Server) testNotificationRoute(c *gin.Context) {
 		return
 	}
 	if strings.TrimSpace(row.WebhookURLCipher) == "" {
-		response.Internal(c, "目录通知路由缺少 webhook 地址")
+		response.Conflict(c, "目录通知路由缺少 webhook 地址")
 		return
 	}
 	webhookURL, err := s.notificationVault.Open(row.WebhookURLCipher)

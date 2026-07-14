@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/kageos/kageos/pkg/contextx"
 
@@ -127,11 +128,11 @@ func (s *Storage) DownloadFile(c *gin.Context) {
 	}
 
 	// 异步记录下载（不阻塞响应）
+	persistCtx, cancelPersist := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	go func() {
-		// 使用新的 context，避免使用可能已取消的请求 context
-		ctx := context.Background()
-		if err := s.storageService.RecordDownload(ctx, downloadRecord); err != nil {
-			logger.Errorf(c, "Failed to record download: %v", err)
+		defer cancelPersist()
+		if err := s.storageService.RecordDownload(persistCtx, downloadRecord); err != nil {
+			logger.Errorf(persistCtx, "Failed to record download: %v", err)
 			// 不影响下载流程，只记录错误
 		}
 	}()

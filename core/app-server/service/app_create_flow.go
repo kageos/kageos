@@ -12,7 +12,7 @@ func (a *AppService) createAppFlow(ctx context.Context, req *dto.CreateAppReq) (
 		return nil, err
 	}
 
-	selectedHost, err := a.selectHostForCreateApp()
+	selectedHost, err := a.selectHostForCreateApp(ctx)
 	if err != nil {
 		return nil, err
 	}

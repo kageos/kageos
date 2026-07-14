@@ -64,6 +64,16 @@ func workspacePathDirectory(fullCodePath string) string {
 	return fullCodePath
 }
 
+// workspaceSessionResourcePath 返回可作为会话归属的具体资源路径。
+// 执行上下文仍由 workspacePathDirectory 收敛到父目录。
+func workspaceSessionResourcePath(fullCodePath string) string {
+	fullCodePath = normalizeWorkspacePath(fullCodePath)
+	if fullCodePath == "" || workspacePathDirectory(fullCodePath) == fullCodePath {
+		return ""
+	}
+	return fullCodePath
+}
+
 func workspaceModuleDirectory(workspaceRoot, fullCodePath string) string {
 	workspaceRoot = workspaceRootPath(workspaceRoot)
 	fullCodePath = workspacePathDirectory(fullCodePath)

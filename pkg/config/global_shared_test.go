@@ -13,14 +13,14 @@ func TestGatewayConfigGetInternalURLPrefersInternalURL(t *testing.T) {
 	}
 }
 
-func TestGatewayConfigGetInternalURLDoesNotFallBackToExternalBaseURL(t *testing.T) {
+func TestGatewayConfigGetInternalURLAllowsNonLocalBaseURL(t *testing.T) {
 	cfg := GatewayConfig{
 		Host:    "0.0.0.0",
 		Port:    9090,
 		BaseURL: "https://app.example.com",
 	}
 
-	if got := cfg.GetInternalURL(); got != "http://127.0.0.1:9090" {
+	if got := cfg.GetInternalURL(); got != "https://app.example.com" {
 		t.Fatalf("internal gateway url = %q", got)
 	}
 }
@@ -29,6 +29,22 @@ func TestGatewayConfigGetInternalURLKeepsLegacyLocalBaseURL(t *testing.T) {
 	cfg := GatewayConfig{BaseURL: "http://127.0.0.1:9190"}
 
 	if got := cfg.GetInternalURL(); got != "http://127.0.0.1:9190" {
+		t.Fatalf("internal gateway url = %q", got)
+	}
+}
+
+func TestGatewayConfigGetInternalURLAllowsPrivateNetworkHost(t *testing.T) {
+	cfg := GatewayConfig{Host: "10.20.30.40", Port: 9190}
+
+	if got := cfg.GetInternalURL(); got != "http://10.20.30.40:9190" {
+		t.Fatalf("internal gateway url = %q", got)
+	}
+}
+
+func TestGatewayConfigGetInternalURLFallsBackToDomain(t *testing.T) {
+	cfg := GatewayConfig{Domain: "gateway.internal.example"}
+
+	if got := cfg.GetInternalURL(); got != "https://gateway.internal.example" {
 		t.Fatalf("internal gateway url = %q", got)
 	}
 }

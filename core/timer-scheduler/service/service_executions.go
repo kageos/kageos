@@ -132,7 +132,7 @@ func (s *Service) markExecutionFinished(ctx context.Context, req scheduledsdk.Ma
 		task, err := taskRepo.GetByIDForUpdate(ctx, req.TaskID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return s.createExecutionFinishedOutbox(outboxRepo, req, exec, finishedAt)
+				return s.createExecutionFinishedOutbox(ctx, outboxRepo, req, exec, finishedAt)
 			}
 			return err
 		}
@@ -160,11 +160,11 @@ func (s *Service) markExecutionFinished(ctx context.Context, req scheduledsdk.Ma
 				return ErrTaskBusy
 			}
 		}
-		return s.createExecutionFinishedOutbox(outboxRepo, req, exec, finishedAt)
+		return s.createExecutionFinishedOutbox(ctx, outboxRepo, req, exec, finishedAt)
 	})
 }
 
-func (s *Service) createExecutionFinishedOutbox(outboxRepo *repository.TimerOutboxRepository, req scheduledsdk.MarkExecutionFinishedRequest, exec *model.TimerExecution, finishedAt time.Time) error {
+func (s *Service) createExecutionFinishedOutbox(ctx context.Context, outboxRepo *repository.TimerOutboxRepository, req scheduledsdk.MarkExecutionFinishedRequest, exec *model.TimerExecution, finishedAt time.Time) error {
 	payload, err := json.Marshal(map[string]interface{}{
 		"task_id":        req.TaskID,
 		"execution_id":   req.ExecutionID,
@@ -181,7 +181,7 @@ func (s *Service) createExecutionFinishedOutbox(outboxRepo *repository.TimerOutb
 	if err != nil {
 		return err
 	}
-	return outboxRepo.Create(context.Background(), &model.TimerOutboxEvent{
+	return outboxRepo.Create(ctx, &model.TimerOutboxEvent{
 		EventID:     fmt.Sprintf("timer-execution-finished-%d", req.ExecutionID),
 		EventType:   eventTypeFinished,
 		Subject:     subjects.TimerExecutionFinishedSubject,

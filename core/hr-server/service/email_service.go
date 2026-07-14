@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -10,10 +11,12 @@ import (
 	"time"
 
 	"github.com/kageos/kageos/core/hr-server/repository"
+	"github.com/kageos/kageos/pkg/apperror"
 	appconfig "github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/emailx"
 	"github.com/kageos/kageos/pkg/gormx/models"
 	"github.com/kageos/kageos/pkg/logger"
+	"gorm.io/gorm"
 )
 
 // EmailService 邮箱服务
@@ -34,34 +37,33 @@ func NewEmailService(emailCodeRepo *repository.EmailCodeRepository, settingsServ
 }
 
 // SendVerificationCode 发送验证码。log 模式用于本地开发：验证码写入日志并返回给调用方，不依赖真实 SMTP。
-func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgent string) (string, error) {
+func (s *EmailService) SendVerificationCode(ctx context.Context, email, codeType, ipAddress, userAgent string) (string, error) {
 	// 生成验证码
 	code := s.generateCode()
-	emailCfg := s.runtimeEmailConfig()
+	emailCfg := s.runtimeEmailConfig(ctx)
 
 	// 计算过期时间
 	expiresAt := models.Time(time.Now().Add(time.Duration(s.config.Verification.CodeExpire) * time.Second))
 
 	// 检查发送频率（防刷）
-	count, err := s.emailCodeRepo.GetEmailCodeCount(context.Background( // 5分钟内
-	), email, 5)
+	count, err := s.emailCodeRepo.GetEmailCodeCount(ctx, email, 5) // 5分钟内
 	if err != nil {
-		logger.Errorf(nil, "[EmailService] Failed to get email code count: %v", err)
-		return "", err
+		logger.Errorf(ctx, "[EmailService] Failed to get email code count: %v", err)
+		return "", apperror.Internal(fmt.Errorf("查询验证码发送频率失败: %w", err))
 	}
 	if count >= 3 { // 5分钟内最多发送3次
-		return "", fmt.Errorf("验证码发送过于频繁，请稍后再试")
+		return "", apperror.RateLimited("验证码发送过于频繁，请稍后再试", nil)
 	}
 
 	// 保存验证码到数据库
-	err = s.emailCodeRepo.CreateEmailCode(context.Background(), email, code, expiresAt, codeType, ipAddress, userAgent)
+	err = s.emailCodeRepo.CreateEmailCode(ctx, email, code, expiresAt, codeType, ipAddress, userAgent)
 	if err != nil {
-		logger.Errorf(nil, "[EmailService] Failed to create email code: %v", err)
-		return "", err
+		logger.Errorf(ctx, "[EmailService] Failed to create email code: %v", err)
+		return "", apperror.Internal(fmt.Errorf("保存验证码失败: %w", err))
 	}
 
 	if s.emailMode(emailCfg) == "log" {
-		logger.Infof(nil, "[EmailService] Verification code for %s (%s): %s", email, codeType, code)
+		logger.Infof(ctx, "[EmailService] Verification code for %s (%s): %s", email, codeType, code)
 		return code, nil
 	}
 
@@ -71,17 +73,17 @@ func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgen
 
 	err = emailx.NewSender(emailCfg.SMTP).SendHTML(email, subject, body)
 	if err != nil {
-		logger.Errorf(nil, "[EmailService] Failed to send email: %v", err)
-		return "", err
+		logger.Errorf(ctx, "[EmailService] Failed to send email: %v", err)
+		return "", apperror.Unavailable("邮件服务暂时不可用", err)
 	}
 
-	logger.Infof(nil, "[EmailService] Verification code sent to %s", email)
+	logger.Infof(ctx, "[EmailService] Verification code sent to %s", email)
 	return "", nil
 }
 
-func (s *EmailService) runtimeEmailConfig() appconfig.EmailConfig {
+func (s *EmailService) runtimeEmailConfig(ctx context.Context) appconfig.EmailConfig {
 	if s.settingsService != nil {
-		cfg, err := s.settingsService.GetRuntimeEmailConfig()
+		cfg, err := s.settingsService.GetRuntimeEmailConfig(ctx)
 		if err == nil {
 			return cfg
 		}
@@ -108,20 +110,23 @@ func (s *EmailService) emailMode(cfg appconfig.EmailConfig) string {
 }
 
 // VerifyCode 验证验证码
-func (s *EmailService) VerifyCode(email, code, codeType string) error {
-	_, err := s.emailCodeRepo.GetValidEmailCode(context.Background(), email, code, codeType)
+func (s *EmailService) VerifyCode(ctx context.Context, email, code, codeType string) error {
+	_, err := s.emailCodeRepo.GetValidEmailCode(ctx, email, code, codeType)
 	if err != nil {
-		return fmt.Errorf("验证码无效或已过期")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperror.InvalidArgument("验证码无效或已过期", err)
+		}
+		return apperror.Internal(fmt.Errorf("查询验证码失败: %w", err))
 	}
 
 	// 标记为已使用
-	err = s.emailCodeRepo.MarkEmailCodeAsUsed(context.Background(), email, code, codeType)
+	err = s.emailCodeRepo.MarkEmailCodeAsUsed(ctx, email, code, codeType)
 	if err != nil {
-		logger.Errorf(nil, "[EmailService] Failed to mark email code as used: %v", err)
-		return err
+		logger.Errorf(ctx, "[EmailService] Failed to mark email code as used: %v", err)
+		return apperror.Internal(fmt.Errorf("更新验证码状态失败: %w", err))
 	}
 
-	logger.Infof(nil, "[EmailService] Email code verified for %s", email)
+	logger.Infof(ctx, "[EmailService] Email code verified for %s", email)
 	return nil
 }
 
@@ -190,13 +195,13 @@ func (s *EmailService) getBody(code, codeType string) string {
 }
 
 // SendNotificationEmail 发送通知类邮件（通用，供消息服务等调用）
-func (s *EmailService) SendNotificationEmail(to, subject, body string) error {
-	cfg := s.runtimeEmailConfig()
+func (s *EmailService) SendNotificationEmail(ctx context.Context, to, subject, body string) error {
+	cfg := s.runtimeEmailConfig(ctx)
 	return emailx.NewSender(cfg.SMTP).SendHTML(to, subject, body)
 }
 
 // SendPasswordResetEmail 发送密码重置邮件
-func (s *EmailService) SendPasswordResetEmail(email, resetToken string) error {
+func (s *EmailService) SendPasswordResetEmail(ctx context.Context, email, resetToken string) error {
 	// 构建重置密码链接
 	// 从环境变量获取前端URL，如果没有则使用相对路径（前端会自动补全）
 	frontendURL := os.Getenv("FRONTEND_URL")
@@ -212,13 +217,13 @@ func (s *EmailService) SendPasswordResetEmail(email, resetToken string) error {
 	subject := s.getSubject("forgot_password")
 	body := s.getBody(resetLink, "forgot_password")
 
-	cfg := s.runtimeEmailConfig()
+	cfg := s.runtimeEmailConfig(ctx)
 	err := emailx.NewSender(cfg.SMTP).SendHTML(email, subject, body)
 	if err != nil {
-		logger.Errorf(nil, "[EmailService] Failed to send password reset email: %v", err)
+		logger.Errorf(ctx, "[EmailService] Failed to send password reset email: %v", err)
 		return err
 	}
 
-	logger.Infof(nil, "[EmailService] Password reset email sent to %s", email)
+	logger.Infof(ctx, "[EmailService] Password reset email sent to %s", email)
 	return nil
 }

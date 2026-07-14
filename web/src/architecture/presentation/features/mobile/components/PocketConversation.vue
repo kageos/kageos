@@ -281,7 +281,7 @@ function openHistory() {
 }
 
 async function selectHistorySession(item: WorkspaceSessionItem) {
-  const path = firstNonEmpty(item.full_code_path, fullCodePath.value)
+  const path = firstNonEmpty(item.resource_full_code_path, item.full_code_path, fullCodePath.value)
   historyVisible.value = false
   if (actionMode.value) {
     await router.push({
@@ -365,6 +365,7 @@ async function submitWorkspaceMessage(content: string, files: WorkspaceChatMessa
   const payloadContent = buildPocketMessage(content)
   await send(content, onEvent => workspaceChatStream({
     full_code_path: fullCodePath.value.trim(),
+    resource_full_code_path: fullCodePath.value.trim(),
     session_id: sessionId.value,
     message: {
       content: payloadContent,

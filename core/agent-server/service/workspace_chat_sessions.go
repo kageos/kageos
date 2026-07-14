@@ -10,6 +10,7 @@ import (
 	"github.com/kageos/kageos/core/agent-server/repository"
 	"github.com/kageos/kageos/core/agent-server/streamloop"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apperror"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
 )
@@ -79,10 +80,18 @@ func (s *WorkspaceChatService) ListFinishedSessions(ctx context.Context, limit i
 }
 
 func (s *WorkspaceChatService) buildWorkspaceSessionItems(ctx context.Context, sessions []*model.AgentChatSession) []*dto.WorkspaceSessionItem {
-	directoryNames := s.resolveWorkspaceSessionDirectoryNames(ctx, sessions)
+	pathNames := s.resolveWorkspaceSessionPathNames(ctx, sessions)
 	items := make([]*dto.WorkspaceSessionItem, 0, len(sessions))
 	for _, session := range sessions {
-		fullCodePath := strings.TrimSpace(session.FullCodePath)
+		fullCodePath := normalizeWorkspacePath(session.FullCodePath)
+		resourceFullCodePath := normalizeWorkspacePath(session.ResourceFullCodePath)
+		resourceTreeID := session.ResourceTreeID
+		if resourceFullCodePath == "" {
+			if legacyResourcePath := workspaceSessionResourcePath(fullCodePath); legacyResourcePath != "" {
+				resourceFullCodePath = legacyResourcePath
+				fullCodePath = workspacePathDirectory(fullCodePath)
+			}
+		}
 		item := &dto.WorkspaceSessionItem{
 			SessionID:                   session.SessionID,
 			Title:                       session.Title,
@@ -95,8 +104,11 @@ func (s *WorkspaceChatService) buildWorkspaceSessionItems(ctx context.Context, s
 			Status:                      session.Status,
 			RoleID:                      workspaceSessionRoleID(session),
 			RoleDisplayName:             workspaceSessionRoleDisplayName(session),
-			FullCodePath:                session.FullCodePath,
-			DirectoryName:               directoryNames[fullCodePath],
+			FullCodePath:                fullCodePath,
+			DirectoryName:               pathNames[fullCodePath],
+			ResourceTreeID:              resourceTreeID,
+			ResourceFullCodePath:        resourceFullCodePath,
+			ResourceName:                pathNames[resourceFullCodePath],
 			ParentSessionID:             session.ParentSessionID,
 			HandoffKind:                 session.HandoffKind,
 			HandoffTargetRole:           session.HandoffTargetRole,
@@ -107,7 +119,7 @@ func (s *WorkspaceChatService) buildWorkspaceSessionItems(ctx context.Context, s
 			CreatedAt:                   session.CreatedAt,
 			UpdatedAt:                   session.UpdatedAt,
 		}
-		item.PendingInteraction = s.pendingInteractionForSession(session)
+		item.PendingInteraction = s.pendingInteractionForSession(ctx, session)
 		items = append(items, item)
 	}
 	return items
@@ -135,18 +147,25 @@ func (s *WorkspaceChatService) ListSessionsFiltered(ctx context.Context, fullCod
 	}
 
 	user := contextx.GetRequestUser(ctx)
+	requestedPath := normalizeWorkspacePath(fullCodePath)
+	directoryPath := workspacePathDirectory(requestedPath)
+	resourcePath := workspaceSessionResourcePath(requestedPath)
+	if directoryPath == "" {
+		return nil, 0, nil, fmt.Errorf("full_code_path 必填")
+	}
 	sessions, total, err := s.sessionRepo.ListWorkspaceSessions(ctx, repository.WorkspaceSessionListOptions{
-		FullCodePath:     fullCodePath,
-		User:             user,
-		SessionScope:     sessionScope,
-		AutomationTaskID: automationTaskID,
-		Offset:           (page - 1) * pageSize,
-		Limit:            pageSize,
+		FullCodePath:         directoryPath,
+		ResourceFullCodePath: resourcePath,
+		User:                 user,
+		SessionScope:         sessionScope,
+		AutomationTaskID:     automationTaskID,
+		Offset:               (page - 1) * pageSize,
+		Limit:                pageSize,
 	})
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf("获取会话列表失败: %w", err)
 	}
-	agents, err := s.sessionRepo.ListWorkspaceAutomationAgents(ctx, fullCodePath, user)
+	agents, err := s.sessionRepo.ListWorkspaceAutomationAgents(ctx, directoryPath, resourcePath, user)
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf("获取自动化 Agent 列表失败: %w", err)
 	}
@@ -165,25 +184,35 @@ func (s *WorkspaceChatService) ListSessionsFiltered(ctx context.Context, fullCod
 	return s.buildWorkspaceSessionItems(ctx, sessions), total, agentItems, nil
 }
 
-func (s *WorkspaceChatService) resolveWorkspaceSessionDirectoryNames(ctx context.Context, sessions []*model.AgentChatSession) map[string]string {
+func (s *WorkspaceChatService) resolveWorkspaceSessionPathNames(ctx context.Context, sessions []*model.AgentChatSession) map[string]string {
 	if s == nil || s.sessionRepo == nil || len(sessions) == 0 {
 		return map[string]string{}
 	}
 
-	paths := make([]string, 0, len(sessions))
+	paths := make([]string, 0, len(sessions)*2)
 	for _, session := range sessions {
-		path := strings.TrimSpace(session.FullCodePath)
-		if path != "" {
-			paths = append(paths, path)
+		fullCodePath := normalizeWorkspacePath(session.FullCodePath)
+		resourceFullCodePath := normalizeWorkspacePath(session.ResourceFullCodePath)
+		if resourceFullCodePath == "" {
+			if legacyResourcePath := workspaceSessionResourcePath(fullCodePath); legacyResourcePath != "" {
+				resourceFullCodePath = legacyResourcePath
+				fullCodePath = workspacePathDirectory(fullCodePath)
+			}
+		}
+		for _, rawPath := range []string{fullCodePath, resourceFullCodePath} {
+			path := strings.TrimSpace(rawPath)
+			if path != "" {
+				paths = append(paths, path)
+			}
 		}
 	}
 
-	directoryNames, err := s.sessionRepo.GetServiceTreeNamesByFullCodePaths(ctx, paths)
+	pathNames, err := s.sessionRepo.GetServiceTreeNamesByFullCodePaths(ctx, paths)
 	if err != nil {
-		logger.Warnf(ctx, "[WorkspaceChat] 查询会话目录名称失败: %v", err)
+		logger.Warnf(ctx, "[WorkspaceChat] 查询会话目录或资源名称失败: %v", err)
 		return map[string]string{}
 	}
-	return directoryNames
+	return pathNames
 }
 
 func (s *WorkspaceChatService) persistWorkspaceSessionInteractionStatus(ctx context.Context, sessionID string, summaries []streamloop.ToolCallSummary, user string) {
@@ -314,7 +343,7 @@ func (s *WorkspaceChatService) ResolveWorkspacePendingInteraction(ctx context.Co
 	}
 	user := contextx.GetRequestUser(ctx)
 	if user != "" && session.User != "" && session.User != user {
-		return fmt.Errorf("不能操作其他用户的会话")
+		return apperror.PermissionDenied("不能操作其他用户的会话", nil)
 	}
 	switch session.Status {
 	case model.ChatSessionStatusPendingConfirmation, model.ChatSessionStatusPendingTest, model.ChatSessionStatusPendingBuildRepair:
@@ -340,16 +369,22 @@ func (s *WorkspaceChatService) ListSessions(ctx context.Context, fullCodePath st
 		pageSize = 100 // 限制最大每页数量
 	}
 
+	requestedPath := normalizeWorkspacePath(fullCodePath)
+	directoryPath := workspacePathDirectory(requestedPath)
+	resourcePath := workspaceSessionResourcePath(requestedPath)
+	if directoryPath == "" {
+		return nil, 0, fmt.Errorf("full_code_path 必填")
+	}
 	offset := (page - 1) * pageSize
 	user := contextx.GetRequestUser(ctx)
-	var sessions []*model.AgentChatSession
-	var total int64
-	var err error
-	if user != "" {
-		sessions, total, err = s.sessionRepo.ListByFullCodePathAndUser(ctx, fullCodePath, user, offset, pageSize)
-	} else {
-		sessions, total, err = s.sessionRepo.ListByFullCodePath(ctx, fullCodePath, offset, pageSize)
-	}
+	sessions, total, err := s.sessionRepo.ListWorkspaceSessions(ctx, repository.WorkspaceSessionListOptions{
+		FullCodePath:         directoryPath,
+		ResourceFullCodePath: resourcePath,
+		User:                 user,
+		SessionScope:         "all",
+		Offset:               offset,
+		Limit:                pageSize,
+	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("获取会话列表失败: %w", err)
 	}
@@ -373,20 +408,20 @@ func (s *WorkspaceChatService) ListMessages(ctx context.Context, sessionID strin
 
 func ensureWorkspaceSessionOwner(ctx context.Context, session *model.AgentChatSession) error {
 	if session == nil {
-		return fmt.Errorf("会话不存在")
+		return apperror.NotFound("会话不存在", nil)
 	}
 	user := contextx.GetRequestUser(ctx)
 	if user != "" && session.User != "" && session.User != user {
-		return fmt.Errorf("不能操作其他用户的会话")
+		return apperror.PermissionDenied("不能操作其他用户的会话", nil)
 	}
 	return nil
 }
 
-func (s *WorkspaceChatService) ensureWorkspaceSessionHasRunnableMessage(sessionID string) error {
+func (s *WorkspaceChatService) ensureWorkspaceSessionHasRunnableMessage(ctx context.Context, sessionID string) error {
 	if s == nil || s.messageRepo == nil {
 		return fmt.Errorf("消息仓储未初始化，无法续跑会话")
 	}
-	messages, err := s.messageRepo.ListBySessionID(context.Background(), sessionID)
+	messages, err := s.messageRepo.ListBySessionID(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("读取会话消息失败: %w", err)
 	}

@@ -37,9 +37,10 @@ func (u *User) GetUserInfo(c *gin.Context) {
 	}
 
 	// 查询用户信息
-	user, err := u.userService.GetUserByUsername(username)
+	ctx := contextx.ToContext(c)
+	user, err := u.userService.GetUserByUsername(ctx, username)
 	if err != nil {
-		response.Internal(c, "用户不存在: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 	if err := u.ensureSameCompany(c, user); err != nil {
@@ -48,7 +49,6 @@ func (u *User) GetUserInfo(c *gin.Context) {
 	}
 
 	// 转换为DTO（包含详细信息）
-	ctx := contextx.ToContext(c)
 	userInfos := convertUsersToDTOBatch(ctx, []*model.User{user}, u.userService, u.departmentService)
 	if len(userInfos) == 0 {
 		response.Internal(c, "转换用户信息失败")
@@ -101,14 +101,14 @@ func (u *User) UpdateUser(c *gin.Context) {
 	}
 
 	// 更新用户信息（直接传递指针，nil 表示不更新，非 nil 表示更新）
-	user, err := u.userService.UpdateUser(username, req.Nickname, req.Signature, req.Avatar, req.Gender)
+	ctx := contextx.ToContext(c)
+	user, err := u.userService.UpdateUser(ctx, username, req.Nickname, req.Signature, req.Avatar, req.Gender)
 	if err != nil {
-		response.Internal(c, "更新失败: "+err.Error())
+		response.Error(c, err)
 		return
 	}
 
 	// 转换为DTO（包含详细信息）
-	ctx := contextx.ToContext(c)
 	userInfos := convertUsersToDTOBatch(ctx, []*model.User{user}, u.userService, u.departmentService)
 	if len(userInfos) == 0 {
 		response.Internal(c, "转换用户信息失败")

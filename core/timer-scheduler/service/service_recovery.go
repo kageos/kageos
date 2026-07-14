@@ -54,7 +54,7 @@ func (s *Service) RecoverStaleExecutions(ctx context.Context, limit int) (int, e
 			}
 		}
 	}
-	cleared, err := s.recoverBrokenInflightReferences(limit)
+	cleared, err := s.recoverBrokenInflightReferences(ctx, limit)
 	if err != nil {
 		recoverErr = errors.Join(recoverErr, err)
 	}
@@ -82,7 +82,7 @@ func (s *Service) requeueExecution(ctx context.Context, exec *model.TimerExecuti
 		task, err := taskRepo.GetByID(ctx, exec.TaskID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return s.timeoutOrphanExecutionWithRepo(execRepo, exec, now, "timer-scheduler task not found during recovery")
+				return s.timeoutOrphanExecutionWithRepo(ctx, execRepo, exec, now, "timer-scheduler task not found during recovery")
 			}
 			return err
 		}
@@ -116,8 +116,8 @@ func (s *Service) requeueExecution(ctx context.Context, exec *model.TimerExecuti
 	})
 }
 
-func (s *Service) recoverBrokenInflightReferences(limit int) (int, error) {
-	tasks, err := s.taskRepo.ListBrokenInflightReferences(context.Background(), limit)
+func (s *Service) recoverBrokenInflightReferences(ctx context.Context, limit int) (int, error) {
+	tasks, err := s.taskRepo.ListBrokenInflightReferences(ctx, limit)
 	if err != nil {
 		return 0, err
 	}
@@ -129,7 +129,7 @@ func (s *Service) recoverBrokenInflightReferences(limit int) (int, error) {
 			continue
 		}
 		message := fmt.Sprintf("timer-scheduler cleared stale inflight execution reference: execution_id=%d", executionID)
-		ok, err := s.taskRepo.TryClearInflight(context.Background(), task.ID, executionID, message)
+		ok, err := s.taskRepo.TryClearInflight(ctx, task.ID, executionID, message)
 		if err != nil {
 			recoverErr = errors.Join(recoverErr, err)
 			continue
@@ -141,8 +141,8 @@ func (s *Service) recoverBrokenInflightReferences(limit int) (int, error) {
 	return recovered, recoverErr
 }
 
-func (s *Service) recoverBrokenInflightReferenceForTask(taskID int64) (bool, error) {
-	task, err := s.taskRepo.GetBrokenInflightReferenceByID(context.Background(), taskID)
+func (s *Service) recoverBrokenInflightReferenceForTask(ctx context.Context, taskID int64) (bool, error) {
+	task, err := s.taskRepo.GetBrokenInflightReferenceByID(ctx, taskID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil
@@ -154,7 +154,7 @@ func (s *Service) recoverBrokenInflightReferenceForTask(taskID int64) (bool, err
 		return false, nil
 	}
 	message := fmt.Sprintf("timer-scheduler cleared stale inflight execution reference: execution_id=%d", executionID)
-	return s.taskRepo.TryClearInflight(context.Background(), task.ID, executionID, message)
+	return s.taskRepo.TryClearInflight(ctx, task.ID, executionID, message)
 }
 
 func (s *Service) timeoutExecution(ctx context.Context, exec *model.TimerExecution, now time.Time, message string) error {
@@ -171,24 +171,24 @@ func (s *Service) timeoutExecution(ctx context.Context, exec *model.TimerExecuti
 		ErrorMessage:   message,
 	}, false)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return s.timeoutOrphanExecution(exec, now, message)
+		return s.timeoutOrphanExecution(ctx, exec, now, message)
 	}
 	if errors.Is(err, ErrTaskBusy) {
-		return s.timeoutOrphanExecution(exec, now, message)
+		return s.timeoutOrphanExecution(ctx, exec, now, message)
 	}
 	return err
 }
 
-func (s *Service) timeoutOrphanExecution(exec *model.TimerExecution, now time.Time, message string) error {
-	return s.timeoutOrphanExecutionWithRepo(s.executionRepo, exec, now, message)
+func (s *Service) timeoutOrphanExecution(ctx context.Context, exec *model.TimerExecution, now time.Time, message string) error {
+	return s.timeoutOrphanExecutionWithRepo(ctx, s.executionRepo, exec, now, message)
 }
 
-func (s *Service) timeoutOrphanExecutionWithRepo(execRepo *repository.TimerExecutionRepository, exec *model.TimerExecution, now time.Time, message string) error {
+func (s *Service) timeoutOrphanExecutionWithRepo(ctx context.Context, execRepo *repository.TimerExecutionRepository, exec *model.TimerExecution, now time.Time, message string) error {
 	durationMillis := int64(0)
 	if exec.StartedAt != nil && now.After(*exec.StartedAt) {
 		durationMillis = now.Sub(*exec.StartedAt).Milliseconds()
 	}
-	ok, err := execRepo.TryFinish(context.Background(), exec.TaskID, exec.ID, map[string]interface{}{
+	ok, err := execRepo.TryFinish(ctx, exec.TaskID, exec.ID, map[string]interface{}{
 		"status":          string(scheduledsdk.ExecutionStatusTimeout),
 		"finished_at":     now,
 		"duration_millis": durationMillis,

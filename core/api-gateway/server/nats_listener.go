@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/nats-io/nats.go"
@@ -47,6 +48,7 @@ func (h *TokenCommandHandler) HandleTokenInvalidate(msg *nats.Msg) {
 		logger.Warnf(ctx, "[NATSListener] 拒绝未认证的 token 失效命令: %v", err)
 		return
 	}
+	ctx = contextx.NatsTraceContext(msg)
 
 	var message InvalidateTokenMessage
 	if err := json.Unmarshal(msg.Data, &message); err != nil {
@@ -64,6 +66,7 @@ func (h *TokenCommandHandler) HandleRemoveBlacklist(msg *nats.Msg) {
 		logger.Warnf(ctx, "[NATSListener] 拒绝未认证的黑名单移除命令: %v", err)
 		return
 	}
+	ctx = contextx.NatsTraceContext(msg)
 
 	var message RemoveBlacklistMessage
 	if err := json.Unmarshal(msg.Data, &message); err != nil {

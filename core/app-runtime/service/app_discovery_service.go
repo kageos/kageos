@@ -22,14 +22,14 @@ type AppDiscoveryService struct {
 	basePath  string // 应用基础路径
 
 	// 回调函数，用于通知其他服务
-	onStartup func(user, app, version, status, errorMessage string, startTime time.Time)
-	onClose   func(user, app, version string)
+	onStartup func(ctx context.Context, user, app, version, status, errorMessage string, startTime time.Time)
+	onClose   func(ctx context.Context, user, app, version string)
 }
 
 type AppDiscoveryServiceOptions struct {
 	RuntimeID string
-	OnStartup func(user, app, version, status, errorMessage string, startTime time.Time)
-	OnClose   func(user, app, version string)
+	OnStartup func(ctx context.Context, user, app, version, status, errorMessage string, startTime time.Time)
+	OnClose   func(ctx context.Context, user, app, version string)
 }
 
 // NewAppDiscoveryService 创建应用发现服务。
@@ -50,17 +50,17 @@ func NewAppDiscoveryService(natsConn *nats.Conn, basePath string, opts AppDiscov
 }
 
 // Start 启动发现服务
-func (s *AppDiscoveryService) Start() error {
+func (s *AppDiscoveryService) Start(ctx context.Context) error {
 	handler := NewAppDiscoveryHandler(s)
 	if err := s.transport.SubscribeRuntimeLifecycleEvents(handler.HandleRuntimeLifecycleEvent); err != nil {
 		return err
 	}
 
 	// 启动定期心跳检测
-	//go s.startHeartbeat()
+	//go s.startHeartbeat(ctx)
 
 	// 立即执行一次发现
-	go s.discoverApps()
+	go s.discoverApps(ctx)
 
 	return nil
 }
@@ -74,20 +74,18 @@ func (s *AppDiscoveryService) Stop() {
 
 	_ = s.transport.Close()
 
-	//logger.Infof(context.Background(), "[AppDiscoveryService] Stopped")
 }
 
 // startHeartbeat 启动心跳检测
-func (s *AppDiscoveryService) startHeartbeat() {
+func (s *AppDiscoveryService) startHeartbeat(ctx context.Context) {
 	s.ticker = time.NewTicker(60 * time.Second)
 	for range s.ticker.C {
-		s.discoverApps()
+		s.discoverApps(ctx)
 	}
 }
 
 // discoverApps 发现运行中的应用
-func (s *AppDiscoveryService) discoverApps() {
-	ctx := context.Background()
+func (s *AppDiscoveryService) discoverApps(ctx context.Context) {
 	//logger.Infof(ctx, "[AppDiscoveryService] Starting app discovery...")
 
 	// 发送发现广播
@@ -238,9 +236,7 @@ func (s *AppDiscoveryService) readCurrentVersion(user, app string) string {
 	return strings.TrimSpace(string(data))
 }
 
-func (s *AppDiscoveryService) applyStartupNotification(user, app, version, status string, startTime time.Time, errorMessage string) {
-	ctx := context.Background()
-
+func (s *AppDiscoveryService) applyStartupNotification(ctx context.Context, user, app, version, status string, startTime time.Time, errorMessage string) {
 	// 如果 StartTime 为零值，使用当前时间
 	if startTime.IsZero() {
 		startTime = time.Now()
@@ -252,7 +248,7 @@ func (s *AppDiscoveryService) applyStartupNotification(user, app, version, statu
 	if status == "failed" {
 		logger.Warnf(ctx, "[AppDiscoveryService] App startup failed: %s/%s %s error=%s", user, app, version, errorMessage)
 		if s.onStartup != nil {
-			s.onStartup(user, app, version, status, errorMessage, startTime)
+			s.onStartup(ctx, user, app, version, status, errorMessage, startTime)
 		}
 		return
 	}
@@ -292,12 +288,11 @@ func (s *AppDiscoveryService) applyStartupNotification(user, app, version, statu
 
 	// 通知其他服务
 	if s.onStartup != nil {
-		s.onStartup(user, app, version, status, errorMessage, startTime)
+		s.onStartup(ctx, user, app, version, status, errorMessage, startTime)
 	}
 }
 
-func (s *AppDiscoveryService) applyCloseNotification(user, app, version, status string, startTime, closeTime time.Time) {
-	ctx := context.Background()
+func (s *AppDiscoveryService) applyCloseNotification(ctx context.Context, user, app, version, status string, startTime, closeTime time.Time) {
 	_ = status
 	_ = startTime
 	if closeTime.IsZero() {
@@ -326,7 +321,7 @@ func (s *AppDiscoveryService) applyCloseNotification(user, app, version, status 
 
 		// 通知其他服务
 		if s.onClose != nil {
-			s.onClose(user, app, version)
+			s.onClose(ctx, user, app, version)
 		}
 	} else {
 		logger.Warnf(ctx, "[AppDiscoveryService] Version not found for close notification: %s/%s/%s",
@@ -334,8 +329,7 @@ func (s *AppDiscoveryService) applyCloseNotification(user, app, version, status 
 	}
 }
 
-func (s *AppDiscoveryService) applyDiscoveryResponse(response *discovery.DiscoveryResponse) {
-	ctx := context.Background()
+func (s *AppDiscoveryService) applyDiscoveryResponse(ctx context.Context, response *discovery.DiscoveryResponse) {
 	if response == nil {
 		logger.Warnf(ctx, "[AppDiscoveryService] Discovery response is nil")
 		return

@@ -86,11 +86,11 @@ func (a *AppService) resolveUpdateTargetApp(ctx context.Context, req *dto.Update
 	return user, appCode, app, err
 }
 
-func (a *AppService) persistReleasedAppVersion(user, appCode, newVersion string) error {
+func (a *AppService) persistReleasedAppVersion(ctx context.Context, user, appCode, newVersion string) error {
 	if newVersion == "" {
 		return nil
 	}
-	return a.appRepo.UpdateAppVersion(context.Background(), user, appCode, newVersion)
+	return a.appRepo.UpdateAppVersion(ctx, user, appCode, newVersion)
 }
 
 func (a *AppService) syncUpdatedAppMetadata(
@@ -120,7 +120,7 @@ func (a *AppService) finalizeReleasedAppMetadata(
 		return nil, fmt.Errorf("应用不存在")
 	}
 
-	if err := a.persistReleasedAppVersion(user, appCode, newVersion); err != nil {
+	if err := a.persistReleasedAppVersion(ctx, user, appCode, newVersion); err != nil {
 		return nil, err
 	}
 

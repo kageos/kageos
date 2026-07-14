@@ -12,6 +12,7 @@ import (
 
 	"github.com/kageos/kageos/core/message-server/model"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/apperror"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -123,13 +124,13 @@ func (r *MessageRepository) BeginActionReply(ctx context.Context, rawToken, cont
 	content = strings.TrimSpace(content)
 	files = strings.TrimSpace(files)
 	if content == "" {
-		return nil, fmt.Errorf("回复内容不能为空")
+		return nil, apperror.InvalidArgument("回复内容不能为空", nil)
 	}
 	if len([]rune(content)) > 8000 {
-		return nil, fmt.Errorf("回复内容过长")
+		return nil, apperror.InvalidArgument("回复内容过长", nil)
 	}
 	if len(files) > 16000 {
-		return nil, fmt.Errorf("附件引用过长")
+		return nil, apperror.InvalidArgument("附件引用过长", nil)
 	}
 	action = strings.TrimSpace(action)
 	if action == "" {
@@ -144,7 +145,7 @@ func (r *MessageRepository) BeginActionReply(ctx context.Context, rawToken, cont
 			First(&tokenRow)
 		if result.Error != nil {
 			if result.Error == gorm.ErrRecordNotFound {
-				return fmt.Errorf("处理链接无效")
+				return apperror.NotFound("处理链接无效", result.Error)
 			}
 			return result.Error
 		}
@@ -160,7 +161,7 @@ func (r *MessageRepository) BeginActionReply(ctx context.Context, rawToken, cont
 				Update("status", string(dto.MessageActionTokenStatusExpired)).Error; err != nil {
 				return err
 			}
-			return fmt.Errorf("处理链接已过期")
+			return apperror.Conflict("处理链接已过期", nil)
 		}
 		if tokenRow.Status == string(dto.MessageActionTokenStatusProcessing) && effectiveStatus == string(dto.MessageActionTokenStatusOpen) {
 			if err := tx.Model(&model.MessageActionToken{}).
@@ -171,11 +172,11 @@ func (r *MessageRepository) BeginActionReply(ctx context.Context, rawToken, cont
 			tokenRow.Status = string(dto.MessageActionTokenStatusOpen)
 		}
 		if tokenRow.Status != string(dto.MessageActionTokenStatusOpen) {
-			return fmt.Errorf("消息已处理或链接已失效")
+			return apperror.Conflict("消息已处理或链接已失效", nil)
 		}
 		allowedActions := splitAllowedActions(tokenRow.AllowedActions)
 		if !containsAllowedAction(allowedActions, action) {
-			return fmt.Errorf("当前链接不允许执行该动作")
+			return apperror.PermissionDenied("当前链接不允许执行该动作", nil)
 		}
 
 		var original model.MessageEntry
@@ -219,7 +220,7 @@ func (r *MessageRepository) FinalizeActionReply(ctx context.Context, rawToken, s
 	}
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
-		return time.Time{}, fmt.Errorf("workspace session_id is required")
+		return time.Time{}, apperror.InvalidArgument("workspace session_id is required", nil)
 	}
 	now := time.Now()
 	result := r.db.WithContext(ctx).Model(&model.MessageActionToken{}).
@@ -233,7 +234,7 @@ func (r *MessageRepository) FinalizeActionReply(ctx context.Context, rawToken, s
 		return time.Time{}, result.Error
 	}
 	if result.RowsAffected != 1 {
-		return time.Time{}, fmt.Errorf("消息回复不在可确认状态")
+		return time.Time{}, apperror.Conflict("消息回复不在可确认状态", nil)
 	}
 	return now, nil
 }
@@ -287,13 +288,13 @@ func (r *MessageRepository) getActionToken(ctx context.Context, rawToken string)
 	}
 	rawToken = strings.TrimSpace(rawToken)
 	if rawToken == "" {
-		return nil, fmt.Errorf("处理链接缺少 token")
+		return nil, apperror.InvalidArgument("处理链接缺少 token", nil)
 	}
 	var row model.MessageActionToken
 	result := r.db.WithContext(ctx).Where("token_hash = ?", hashMessageActionToken(rawToken)).First(&row)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("处理链接无效")
+			return nil, apperror.NotFound("处理链接无效", result.Error)
 		}
 		return nil, result.Error
 	}
@@ -384,18 +385,18 @@ func actionAuthorizedUsers(row *model.MessageActionToken) []string {
 
 func authorizeMessageActionUser(row *model.MessageActionToken, viewerUsername string) (string, error) {
 	if row == nil {
-		return "", fmt.Errorf("处理链接无效")
+		return "", apperror.NotFound("处理链接无效", nil)
 	}
 	viewerUsername = strings.TrimSpace(viewerUsername)
 	if viewerUsername == "" {
-		return "", fmt.Errorf("请先登录 kageos 后处理该消息")
+		return "", apperror.Unauthenticated("请先登录 kageos 后处理该消息", nil)
 	}
 	for _, user := range actionAuthorizedUsers(row) {
 		if user == viewerUsername {
 			return viewerUsername, nil
 		}
 	}
-	return "", fmt.Errorf("当前登录用户无权处理此消息")
+	return "", apperror.PermissionDenied("当前登录用户无权处理此消息", nil)
 }
 
 func effectiveActionTokenStatus(row *model.MessageActionToken, now time.Time) string {
