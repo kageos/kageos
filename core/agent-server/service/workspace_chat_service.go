@@ -223,7 +223,9 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	workspaceContextRequestPath := fullCodePath
 	workspaceCtx, e := apicall.GetWorkspaceContext(ctx, fullCodePath, "")
 	if e != nil || workspaceCtx == nil {
-		message := fmt.Sprintf("无效的 full_code_path，无法解析目录: %s", fullCodePath)
+		// 目录不存在和 app-server/MySQL 暂不可用是两类问题。这里不能把所有
+		// 上游错误都包装成“无效路径”，否则数据库故障会误导成业务数据错误。
+		message := fmt.Sprintf("无法解析工作台上下文: %s", fullCodePath)
 		if e != nil {
 			message += "；原因: " + e.Error()
 		}

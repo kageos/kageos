@@ -210,6 +210,7 @@ start_mysql() {
     podman run -d \
       --name "$MYSQL_CONTAINER_NAME" \
       --network host \
+      --restart=unless-stopped \
       -e MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD" \
       -e TZ="${TZ:-Asia/Shanghai}" \
       -v "${AIO_DATA_DIR}/mysql:/var/lib/mysql" \

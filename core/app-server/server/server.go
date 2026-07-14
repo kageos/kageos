@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -214,6 +215,7 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	if dbCfg.Type != "mysql" {
 		return fmt.Errorf("unsupported database type: %s", dbCfg.Type)
 	}
+	logger.Infof(ctx, "[Server] Connecting to MySQL host=%s port=%d database=%s", dbCfg.Host, dbCfg.Port, dbCfg.Name)
 	db, err := dbx.OpenMySQL(dbCfg, dbx.OpenOptions{
 		DisableForeignKeyConstraintWhenMigrating: true,
 		DefaultMaxLifetime:                       5 * time.Minute,
@@ -356,11 +358,39 @@ func (s *Server) initRouter(ctx context.Context) error {
 
 // healthHandler 健康检查处理器
 func (s *Server) healthHandler(c *gin.Context) {
-	c.JSON(200, gin.H{
+	requestCtx := context.Background()
+	if c.Request != nil {
+		requestCtx = c.Request.Context()
+	}
+	pingCtx, cancel := context.WithTimeout(requestCtx, 2*time.Second)
+	defer cancel()
+
+	if err := s.pingDatabase(pingCtx); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"status":     "unavailable",
+			"timestamp":  time.Now().Format(time.DateTime),
+			"service":    "app-server",
+			"dependency": "mysql",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
 		"status":    "ok",
 		"timestamp": time.Now().Format(time.DateTime),
 		"service":   "app-server",
 	})
+}
+
+func (s *Server) pingDatabase(ctx context.Context) error {
+	if s.db == nil {
+		return fmt.Errorf("database is not initialized")
+	}
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.PingContext(ctx)
 }
 
 // GetDB 获取数据库连接
