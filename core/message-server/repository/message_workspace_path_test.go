@@ -12,14 +12,14 @@ func TestResolveMessageWorkspacePath(t *testing.T) {
 		want         string
 	}{
 		{
-			name:       "scheduled site monitor form uses package directory",
-			sourcePath: "/system/democase/site_monitor/sweep.form", parentPath: "/system/democase/site_monitor",
-			templateType: "form", want: "/system/democase/site_monitor",
+			name:       "scheduled site monitor form keeps concrete resource",
+			sourcePath: "/system/democase/site_monitor/check_once.form", parentPath: "/system/democase/site_monitor",
+			templateType: "form", want: "/system/democase/site_monitor/check_once.form",
 		},
 		{
-			name:         "typed function derives directory without metadata",
-			fullCodePath: "/system/democase/site_monitor/sweep.form?source=notification",
-			want:         "/system/democase/site_monitor",
+			name:         "typed function strips query but keeps concrete resource",
+			fullCodePath: "/system/democase/site_monitor/check_once.form?source=notification",
+			want:         "/system/democase/site_monitor/check_once.form",
 		},
 		{
 			name:       "directory source remains unchanged",
@@ -27,9 +27,14 @@ func TestResolveMessageWorkspacePath(t *testing.T) {
 			want: "/system/democase/site_monitor",
 		},
 		{
-			name:       "legacy function route uses template metadata",
+			name:       "suffixless resource remains canonical",
 			sourcePath: "/alice/demo/sweep", parentPath: "/alice/demo", templateType: "FormTemplate",
-			want: "/alice/demo",
+			want: "/alice/demo/sweep",
+		},
+		{
+			name:       "legacy message falls back to parent",
+			parentPath: "/alice/demo",
+			want:       "/alice/demo",
 		},
 	}
 	for _, tc := range testCases {

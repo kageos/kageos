@@ -195,14 +195,14 @@ func TestPublicMessageActionPreservesExistingWorkspaceSession(t *testing.T) {
 	}
 }
 
-func TestPublicMessageActionUsesDirectoryForScheduledFunctionNotification(t *testing.T) {
+func TestPublicMessageActionUsesFunctionForScheduledFunctionNotification(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := newActionAPITestMessageRepo(t)
 	entry, err := repo.Create(context.Background(), dto.MessageSendMeta{
 		From:               "system",
-		FullCodePath:       "/system/democase/site_monitor/sweep.form",
+		FullCodePath:       "/system/democase/site_monitor/check_once.form",
 		SourceType:         "scheduled_task",
-		SourcePath:         "/system/democase/site_monitor/sweep.form",
+		SourcePath:         "/system/democase/site_monitor/check_once.form",
 		SourceParentPath:   "/system/democase/site_monitor",
 		SourceTemplateType: "form",
 	}, dto.MessageSendPayload{
@@ -240,13 +240,13 @@ func TestPublicMessageActionUsesDirectoryForScheduledFunctionNotification(t *tes
 	if result.Code != 0 {
 		t.Fatalf("response code=%d msg=%s", result.Code, result.Msg)
 	}
-	if runner.req.FullCodePath != "/system/democase/site_monitor" {
-		t.Fatalf("runner full_code_path = %q, want site monitor directory", runner.req.FullCodePath)
+	if runner.req.FullCodePath != "/system/democase/site_monitor/check_once.form" ||
+		runner.req.SourcePath != "/system/democase/site_monitor/check_once.form" {
+		t.Fatalf("runner should preserve concrete function ownership: %#v", runner.req)
 	}
-	if result.Data.FullCodePath != "/system/democase/site_monitor" ||
-		!strings.Contains(result.Data.MobileAskURL, "source_path=%2Fsystem%2Fdemocase%2Fsite_monitor") ||
-		strings.Contains(result.Data.MobileAskURL, "sweep.form") {
-		t.Fatalf("reply response should use directory path: %#v", result.Data)
+	if result.Data.FullCodePath != "/system/democase/site_monitor/check_once.form" ||
+		!strings.Contains(result.Data.MobileAskURL, "source_path=%2Fsystem%2Fdemocase%2Fsite_monitor%2Fcheck_once.form") {
+		t.Fatalf("reply response should use concrete function path: %#v", result.Data)
 	}
 }
 

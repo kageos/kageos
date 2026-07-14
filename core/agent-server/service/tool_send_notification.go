@@ -269,8 +269,10 @@ func buildNotifyMessageMeta(ctx context.Context, title string, currentFullCodePa
 		sourceType = contextx.SourceTypeAgentTool
 		sourceRef = workspaceSessionID
 	}
-	effectiveFullCodePath := firstNonEmptyString(currentFullCodePath, contextx.GetSourcePath(ctx), contextx.GetSourceParentPath(ctx))
-	sourcePath := firstNonEmptyString(contextx.GetSourcePath(ctx), effectiveFullCodePath)
+	// 通知属于会话的具体资源节点；currentFullCodePath 只是工具执行目录，
+	// 不能覆盖函数级 source_path，否则移动端路由和后续统计都会落到父目录。
+	sourcePath := firstNonEmptyString(contextx.GetSourcePath(ctx), currentFullCodePath, contextx.GetSourceParentPath(ctx))
+	effectiveFullCodePath := sourcePath
 	sourceTitle := firstNonEmptyString(
 		contextx.GetSourceTitle(ctx),
 		contextx.GetWorkspaceSessionTitle(ctx),

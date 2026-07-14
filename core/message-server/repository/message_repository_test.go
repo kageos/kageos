@@ -381,7 +381,7 @@ func TestMessageActionTokenViewAndReply(t *testing.T) {
 	if reply.ReplyMessageID != 0 || reply.Status != "submitted" {
 		t.Fatalf("reply = %#v", reply)
 	}
-	if reply.SourcePath != "/alice/sales/orders.table" || reply.FullCodePath != "/alice/sales" || reply.WorkspaceSessionID != "session-1" {
+	if reply.SourcePath != "/alice/sales/orders.table" || reply.FullCodePath != "/alice/sales/orders.table" || reply.WorkspaceSessionID != "session-1" {
 		t.Fatalf("reply context = %#v", reply)
 	}
 	if !strings.Contains(reply.WorkstationDraft, "订单 A123 需要确认下一步") ||

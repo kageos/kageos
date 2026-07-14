@@ -135,6 +135,47 @@ func TestWorkspaceRequestedResourcePathPreservesExplicitSuffixlessFunction(t *te
 	}
 }
 
+func TestWorkspaceSessionMessageContextUsesFunctionResourceAsNotificationSource(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+		t.Fatalf("migrate sessions: %v", err)
+	}
+	sessionRepo := repository.NewChatSessionRepository(db)
+	if err := sessionRepo.Create(context.Background(), &model.AgentChatSession{
+		TreeID:               9,
+		FullCodePath:         "/system/democase/site_monitor",
+		ResourceTreeID:       17,
+		ResourceFullCodePath: "/system/democase/site_monitor/check_once.form",
+		Source:               SourceWorkspace,
+		SessionID:            "check-once-session",
+		Title:                "单次网站巡检",
+		ModeCode:             "dev",
+		Status:               model.ChatSessionStatusActive,
+		RoleID:               WorkspaceRoleAppOperator,
+		User:                 "alice",
+	}); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
+	metadata := svc.workspaceSessionMessageContext(context.Background(), "check-once-session")
+	ctx := withAgentToolExecutionContext(context.Background(), "check-once-session", metadata.title, metadata.role)
+	ctx = withWorkspaceSessionSourceDisplay(ctx, metadata, "/system/democase/site_monitor")
+
+	if got := contextx.GetSourcePath(ctx); got != "/system/democase/site_monitor/check_once.form" {
+		t.Fatalf("source_path = %q, want concrete function", got)
+	}
+	if got := contextx.GetSourceParentPath(ctx); got != "/system/democase/site_monitor" {
+		t.Fatalf("source_parent_path = %q, want execution directory", got)
+	}
+	if got := contextx.GetSourceTemplateType(ctx); got != "form" {
+		t.Fatalf("source_template_type = %q, want form", got)
+	}
+}
+
 func TestCancelSessionCancelsRegisteredRunEvenWhenStatusIsActive(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
