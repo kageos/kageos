@@ -166,7 +166,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	user := contextx.GetRequestUser(ctx)
 	// 会话归属具体函数/资源，但 Agent 的 SDK、文件和工具执行上下文仍使用父目录。
 	// ResourceFullCodePath 供通知回复显式传入；普通工作台可继续只传点击节点的 FullCodePath。
-	requestedResourcePath := workspaceSessionResourcePath(firstNonEmptyString(req.ResourceFullCodePath, req.FullCodePath))
+	requestedResourcePath := workspaceRequestedResourcePath(req.ResourceFullCodePath, req.FullCodePath)
 	resourceFullCodePath := requestedResourcePath
 	var resourceTreeID int64
 	resourceOwnedBySession := false
@@ -211,24 +211,42 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		}
 	}
 
-	// 2) 获取工作台环境信息（包含目录详情、子节点等，一次性获取，避免重复调用）
+	// 2) 获取工作台环境信息（包含目录详情、子节点等，一次性获取，避免重复调用）。
+	// app-server 会按 service_tree.type 把无后缀函数/文档解析到父目录。
+	workspaceContextRequestPath := fullCodePath
 	workspaceCtx, e := apicall.GetWorkspaceContext(ctx, fullCodePath, "")
 	if e != nil || workspaceCtx == nil {
-		return s.handleError(sendEvent, fmt.Sprintf("无效的 full_code_path，无法解析目录: %s", fullCodePath), e)
+		message := fmt.Sprintf("无效的 full_code_path，无法解析目录: %s", fullCodePath)
+		if e != nil {
+			message += "；原因: " + e.Error()
+		}
+		return s.handleError(sendEvent, message, e)
 	}
 	if directoryPath := normalizeWorkspacePath(workspaceCtx.Directory.FullCodePath); directoryPath != "" {
 		fullCodePath = directoryPath
 	}
-	if resourceFullCodePath != "" && !resourceOwnedBySession && workspacePathDirectory(resourceFullCodePath) != fullCodePath {
+	// 调用方可以始终回传当前节点作为 resource。若 service-tree 确认它本身
+	// 就是目录，则清空资源归属，避免把 package 错标成具体函数。
+	if normalizeWorkspacePath(resourceFullCodePath) == fullCodePath {
+		resourceFullCodePath = ""
+		resourceTreeID = 0
+	}
+	// 当请求的是无后缀函数时，旧的后缀启发式无法识别资源。以 app-server
+	// 返回的父目录及其直接子节点为准，补齐会话的资源归属。
+	if resourceFullCodePath == "" && workspaceContextRequestPath != fullCodePath {
+		if _, ok := workspaceContextChildTreeID(workspaceCtx.Children, workspaceContextRequestPath); ok {
+			resourceFullCodePath = workspaceContextRequestPath
+		}
+	}
+	resolvedResourceTreeID, resourceIsDirectChild := workspaceContextChildTreeID(workspaceCtx.Children, resourceFullCodePath)
+	resourceBelongsToDirectory := resourceFullCodePath == "" ||
+		resourceIsDirectChild ||
+		workspacePathDirectory(resourceFullCodePath) == fullCodePath
+	if resourceFullCodePath != "" && !resourceOwnedBySession && !resourceBelongsToDirectory {
 		return s.handleError(sendEvent, fmt.Sprintf("resource_full_code_path 不属于工作台目录: %s", resourceFullCodePath), nil)
 	}
-	if resourceFullCodePath != "" && resourceTreeID == 0 && workspacePathDirectory(resourceFullCodePath) == fullCodePath {
-		for _, child := range workspaceCtx.Children {
-			if normalizeWorkspacePath(child.FullCodePath) == resourceFullCodePath {
-				resourceTreeID = child.ID
-				break
-			}
-		}
+	if resourceTreeID == 0 && resourceIsDirectChild {
+		resourceTreeID = resolvedResourceTreeID
 	}
 	directoryName := workspaceCtx.Directory.Name
 	if directoryName == "" {
@@ -438,6 +456,26 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		service:              s,
 	}
 	return streamloop.RunStreamLoop(runCtx, deps)
+}
+
+func workspaceContextChildTreeID(children []dto.WorkspaceContextNode, resourceFullCodePath string) (int64, bool) {
+	resourceFullCodePath = normalizeWorkspacePath(resourceFullCodePath)
+	if resourceFullCodePath == "" {
+		return 0, false
+	}
+	for _, child := range children {
+		if normalizeWorkspacePath(child.FullCodePath) == resourceFullCodePath {
+			return child.ID, true
+		}
+	}
+	return 0, false
+}
+
+func workspaceRequestedResourcePath(resourceFullCodePath, fullCodePath string) string {
+	if resourcePath := normalizeWorkspacePath(resourceFullCodePath); resourcePath != "" {
+		return resourcePath
+	}
+	return workspaceSessionResourcePath(fullCodePath)
 }
 
 func workspaceContextWithSessionRequestUser(ctx context.Context, session *model.AgentChatSession) (context.Context, string) {

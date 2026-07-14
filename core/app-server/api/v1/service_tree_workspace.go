@@ -29,6 +29,14 @@ func (s *ServiceTree) GetWorkspaceContext(c *gin.Context) {
 		response.Internal(c, "获取工作台环境信息失败: "+err.Error())
 		return
 	}
+	// 函数/文档会被解析到父目录执行。除资源本身外，还必须拥有父目录读取权限，
+	// 避免只授权单个资源时意外读取同目录源码和兄弟节点。
+	if directoryPath := access.NormalizeResourcePath(resp.Directory.FullCodePath); directoryPath != access.NormalizeResourcePath(req.FullCodePath) {
+		if err := requireAccess(c, s.teamAccessService, directoryPath, access.ActionRead); err != nil {
+			response.Error(c, err)
+			return
+		}
+	}
 
 	response.OkWithData(c, resp)
 }

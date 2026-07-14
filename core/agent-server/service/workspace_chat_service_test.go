@@ -111,6 +111,29 @@ func TestWorkspacePathDirectoryResolvesFunctionNotificationToPackage(t *testing.
 	}
 }
 
+func TestWorkspaceContextChildTreeIDRecognizesSuffixlessFunction(t *testing.T) {
+	children := []dto.WorkspaceContextNode{
+		{ID: 37, Type: "function", FullCodePath: "/system/info/site_monitor"},
+	}
+
+	id, ok := workspaceContextChildTreeID(children, "/system/info/site_monitor")
+	if !ok || id != 37 {
+		t.Fatalf("workspaceContextChildTreeID() = (%d, %t), want (37, true)", id, ok)
+	}
+	if id, ok := workspaceContextChildTreeID(children, "/system/info/other"); ok || id != 0 {
+		t.Fatalf("workspaceContextChildTreeID(missing) = (%d, %t), want (0, false)", id, ok)
+	}
+}
+
+func TestWorkspaceRequestedResourcePathPreservesExplicitSuffixlessFunction(t *testing.T) {
+	if got := workspaceRequestedResourcePath("/system/info/site_monitor", "/system/info"); got != "/system/info/site_monitor" {
+		t.Fatalf("workspaceRequestedResourcePath() = %q, want explicit suffix-less function", got)
+	}
+	if got := workspaceRequestedResourcePath("", "/system/info/site_monitor"); got != "" {
+		t.Fatalf("workspaceRequestedResourcePath(directory) = %q, want empty heuristic result", got)
+	}
+}
+
 func TestCancelSessionCancelsRegisteredRunEvenWhenStatusIsActive(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {

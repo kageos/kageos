@@ -149,7 +149,10 @@ func (r *ChatSessionRepository) ListWorkspaceSessions(ctx context.Context, opts 
 			opts.ResourceFullCodePath,
 		)
 	} else {
-		query = query.Where("full_code_path = ?", opts.FullCodePath)
+		// FullCodePath may itself be a plain, suffix-less function code. Match
+		// both the execution directory and the concrete resource so callers do
+		// not need to guess node type from the path string.
+		query = query.Where("(full_code_path = ? OR resource_full_code_path = ?)", opts.FullCodePath, opts.FullCodePath)
 	}
 	if opts.User != "" {
 		query = query.Where("user = ?", opts.User)
@@ -190,7 +193,7 @@ func (r *ChatSessionRepository) ListWorkspaceAutomationAgents(ctx context.Contex
 			resourceFullCodePath,
 		)
 	} else {
-		query = query.Where("full_code_path = ?", fullCodePath)
+		query = query.Where("(full_code_path = ? OR resource_full_code_path = ?)", fullCodePath, fullCodePath)
 	}
 	if user != "" {
 		query = query.Where("user = ?", user)
