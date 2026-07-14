@@ -22,6 +22,8 @@ jobs:
         run: bash scripts/check-doc-links.sh
       - name: Check context propagation boundaries
         run: bash scripts/check-context-boundaries.sh
+      - name: Check service database ownership boundaries
+        run: bash scripts/check-service-db-boundaries.sh
       - name: Checkout SDK contract
         uses: actions/checkout@v4
         with:

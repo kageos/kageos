@@ -22,6 +22,7 @@ func isAllowedAgentDelegatedAPI(method, requestPath string) bool {
 			"/workspace/api/v1/access/permissions":      {},
 		},
 		http.MethodPost: {
+			"/workspace/api/v1/directory-queries":       {},
 			"/workspace/api/v1/functions/batch":         {},
 			"/workspace/api/v1/docs/crud":               {},
 			"/workspace/api/v1/packages":                {},

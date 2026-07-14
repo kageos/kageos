@@ -16,3 +16,15 @@ func TestAgentDelegationPolicyAllowsOnlyPOSTForWorkspaceFileReplace(t *testing.T
 		}
 	}
 }
+
+func TestAgentDelegationPolicyAllowsOnlyPOSTForDirectoryQueries(t *testing.T) {
+	const path = "/workspace/api/v1/directory-queries"
+	if !isAllowedAgentDelegatedAPI(http.MethodPost, path) {
+		t.Fatal("POST directory queries should be an allowed Agent delegation")
+	}
+	for _, method := range []string{http.MethodGet, http.MethodPut, http.MethodDelete} {
+		if isAllowedAgentDelegatedAPI(method, path) {
+			t.Fatalf("%s directory queries unexpectedly allowed", method)
+		}
+	}
+}

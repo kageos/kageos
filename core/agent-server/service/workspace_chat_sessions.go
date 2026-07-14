@@ -185,11 +185,12 @@ func (s *WorkspaceChatService) ListSessionsFiltered(ctx context.Context, fullCod
 }
 
 func (s *WorkspaceChatService) resolveWorkspaceSessionPathNames(ctx context.Context, sessions []*model.AgentChatSession) map[string]string {
-	if s == nil || s.sessionRepo == nil || len(sessions) == 0 {
+	if s == nil || s.serviceTreeDetailsBatch == nil || len(sessions) == 0 {
 		return map[string]string{}
 	}
 
 	paths := make([]string, 0, len(sessions)*2)
+	seen := make(map[string]struct{}, len(sessions)*2)
 	for _, session := range sessions {
 		fullCodePath := normalizeWorkspacePath(session.FullCodePath)
 		resourceFullCodePath := normalizeWorkspacePath(session.ResourceFullCodePath)
@@ -201,16 +202,45 @@ func (s *WorkspaceChatService) resolveWorkspaceSessionPathNames(ctx context.Cont
 		}
 		for _, rawPath := range []string{fullCodePath, resourceFullCodePath} {
 			path := strings.TrimSpace(rawPath)
-			if path != "" {
-				paths = append(paths, path)
+			if path == "" {
+				continue
 			}
+			if _, ok := seen[path]; ok {
+				continue
+			}
+			seen[path] = struct{}{}
+			paths = append(paths, path)
 		}
 	}
 
-	pathNames, err := s.sessionRepo.GetServiceTreeNamesByFullCodePaths(ctx, paths)
-	if err != nil {
-		logger.Warnf(ctx, "[WorkspaceChat] 查询会话目录或资源名称失败: %v", err)
-		return map[string]string{}
+	pathNames := make(map[string]string, len(paths))
+	const batchSize = 100
+	for start := 0; start < len(paths); start += batchSize {
+		end := start + batchSize
+		if end > len(paths) {
+			end = len(paths)
+		}
+		resp, err := s.serviceTreeDetailsBatch(ctx, paths[start:end])
+		if err != nil {
+			logger.Warnf(ctx, "[WorkspaceChat] 经 app-server 查询会话目录或资源名称失败: %v", err)
+			continue
+		}
+		if resp == nil {
+			continue
+		}
+		for _, item := range resp.Items {
+			if item == nil {
+				continue
+			}
+			path := normalizeWorkspacePath(item.FullCodePath)
+			name := strings.TrimSpace(item.Name)
+			if name == "" {
+				name = strings.TrimSpace(item.Code)
+			}
+			if path != "" && name != "" {
+				pathNames[path] = name
+			}
+		}
 	}
 	return pathNames
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -2319,6 +2320,41 @@ func TestListSessionsFilteredSeparatesHumanAndAutomationAgents(t *testing.T) {
 	}
 	if automation[0].AutomationTaskTitle != "每日复盘" || automation[0].Source != SourceAutomationAgent {
 		t.Fatalf("automation marker missing: %#v", automation[0])
+	}
+}
+
+func TestResolveWorkspaceSessionPathNamesUsesAppServerBatches(t *testing.T) {
+	sessions := make([]*model.AgentChatSession, 0, 101)
+	for i := 0; i < 101; i++ {
+		sessions = append(sessions, &model.AgentChatSession{
+			FullCodePath: fmt.Sprintf("/alice/demo/dir-%03d", i),
+		})
+	}
+
+	batchSizes := make([]int, 0, 2)
+	svc := &WorkspaceChatService{
+		serviceTreeDetailsBatch: func(_ context.Context, paths []string) (*dto.BatchGetServiceTreeDetailsResp, error) {
+			batchSizes = append(batchSizes, len(paths))
+			items := make([]*dto.GetServiceTreeDetailResp, 0, len(paths))
+			for _, path := range paths {
+				items = append(items, &dto.GetServiceTreeDetailResp{
+					FullCodePath: path,
+					Name:         "目录 " + path,
+				})
+			}
+			return &dto.BatchGetServiceTreeDetailsResp{Items: items}, nil
+		},
+	}
+
+	names := svc.resolveWorkspaceSessionPathNames(context.Background(), sessions)
+	if len(names) != 101 {
+		t.Fatalf("resolved names = %d, want 101", len(names))
+	}
+	if len(batchSizes) != 2 || batchSizes[0] != 100 || batchSizes[1] != 1 {
+		t.Fatalf("batch sizes = %#v, want [100 1]", batchSizes)
+	}
+	if got := names["/alice/demo/dir-100"]; got != "目录 /alice/demo/dir-100" {
+		t.Fatalf("resolved name = %q", got)
 	}
 }
 

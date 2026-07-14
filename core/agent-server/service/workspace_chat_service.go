@@ -66,13 +66,14 @@ const (
 
 // WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；只认 LLM + 单模式（dev）
 type WorkspaceChatService struct {
-	toolReg        *ToolRegistry
-	sessionRepo    *repository.ChatSessionRepository
-	messageRepo    *repository.ChatMessageRepository
-	llmRepo        *repository.LLMRepository
-	runtimeState   RuntimeStateStore
-	apiKeyVault    *secretvault.Vault
-	apiKeyVaultErr error
+	toolReg                 *ToolRegistry
+	sessionRepo             *repository.ChatSessionRepository
+	messageRepo             *repository.ChatMessageRepository
+	llmRepo                 *repository.LLMRepository
+	runtimeState            RuntimeStateStore
+	serviceTreeDetailsBatch func(context.Context, []string) (*dto.BatchGetServiceTreeDetailsResp, error)
+	apiKeyVault             *secretvault.Vault
+	apiKeyVaultErr          error
 
 	// runningCancels 维护「正在执行的 session → cancelFunc」映射，供手动取消使用
 	runningCancels sync.Map // key: sessionID (string), value: context.CancelFunc
@@ -94,14 +95,20 @@ func NewWorkspaceChatService(
 	}
 	apiKeyVault, apiKeyVaultErr := newLLMAPIKeyVault(defaultLLMAPIKeySecret())
 	return &WorkspaceChatService{
-		toolReg:        toolReg,
-		sessionRepo:    sessionRepo,
-		messageRepo:    messageRepo,
-		llmRepo:        llmRepo,
-		runtimeState:   stateStore,
-		apiKeyVault:    apiKeyVault,
-		apiKeyVaultErr: apiKeyVaultErr,
+		toolReg:                 toolReg,
+		sessionRepo:             sessionRepo,
+		messageRepo:             messageRepo,
+		llmRepo:                 llmRepo,
+		runtimeState:            stateStore,
+		serviceTreeDetailsBatch: getWorkspaceServiceTreeDetailsBatch,
+		apiKeyVault:             apiKeyVault,
+		apiKeyVaultErr:          apiKeyVaultErr,
 	}
+}
+
+func getWorkspaceServiceTreeDetailsBatch(ctx context.Context, fullCodePaths []string) (*dto.BatchGetServiceTreeDetailsResp, error) {
+	req := &dto.BatchGetServiceTreeDetailsReq{FullCodePaths: fullCodePaths}
+	return apicall.PostAPI[*dto.BatchGetServiceTreeDetailsReq, *dto.BatchGetServiceTreeDetailsResp](ctx, "/workspace/api/v1/directory-queries", req)
 }
 
 // StreamEvent 流式事件：用于 SSE 传输
