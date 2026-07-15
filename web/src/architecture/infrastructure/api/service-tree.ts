@@ -112,7 +112,7 @@ export interface ServiceTreeDetailResp extends ServiceTree {
 }
 
 export function getServiceTreeDetail(fullCodePath: string) {
-  return get<ServiceTreeDetailResp>('/workspace/api/v1/directories', {
+  return get<ServiceTreeDetailResp>('/workspace/api/v1/service_tree/detail', {
     full_code_path: fullCodePath
   })
 }
@@ -127,7 +127,7 @@ export interface BatchGetServiceTreeDetailsResp {
 }
 
 export function batchGetServiceTreeDetails(req: BatchGetServiceTreeDetailsReq) {
-  return post<BatchGetServiceTreeDetailsResp>('/workspace/api/v1/directory-queries', {
+  return post<BatchGetServiceTreeDetailsResp>('/workspace/api/v1/service_tree/batch_detail', {
     full_code_paths: req.full_code_paths || []
   })
 }
@@ -173,7 +173,7 @@ export interface DirectoryOverviewResp {
 }
 
 export function getDirectoryOverview(fullCodePath: string) {
-  return get<DirectoryOverviewResp>('/workspace/api/v1/directory-overviews', {
+  return get<DirectoryOverviewResp>('/workspace/api/v1/service_tree/overview', {
     full_code_path: fullCodePath
   })
 }
@@ -195,7 +195,7 @@ export function copyDirectory(data: {
     old_version?: string
     new_version?: string
     git_commit_hash?: string
-  }>('/workspace/api/v1/directory-copies', data)
+  }>('/workspace/api/v1/service_tree/copy', data)
 }
 
 export function exportCapabilityBundle(data: {
@@ -204,7 +204,7 @@ export function exportCapabilityBundle(data: {
   source_root_path?: string
   name?: string
 }) {
-  return post<CapabilityBundle>('/workspace/api/v1/capability-bundle-exports', data)
+  return post<CapabilityBundle>('/workspace/api/v1/service_tree/export_capability_bundle', data)
 }
 
 export function installCapabilityBundle(data: {
@@ -226,7 +226,30 @@ export function installCapabilityBundle(data: {
     old_version?: string
     new_version?: string
     warnings?: string[]
-  }>('/workspace/api/v1/capability-bundle-installations', data)
+  }>('/workspace/api/v1/service_tree/install_capability_bundle', data)
+}
+
+export function installCapabilityBundleFromURL(data: {
+  target_directory_path: string
+  overwrite?: boolean
+  force_diff?: boolean
+  bundle_subpath?: string
+  bundle_url: string
+  install_key?: string
+}) {
+  return post<{
+    message: string
+    directory_count: number
+    file_count: number
+    doc_count?: number
+    agent_task_count?: number
+    target_directory_path: string
+    created_paths?: string[]
+    written_paths?: string[]
+    old_version?: string
+    new_version?: string
+    warnings?: string[]
+  }>('/workspace/api/v1/service_tree/install_capability_bundle_from_url', data)
 }
 
 // 搜索函数
@@ -267,7 +290,7 @@ export interface SearchFunctionsResp {
 }
 
 export function searchFunctions(req: SearchFunctionsReq) {
-  return get<SearchFunctionsResp>('/workspace/api/v1/function-search-results', {
+  return get<SearchFunctionsResp>('/workspace/api/v1/service_tree/search_functions', {
     user: req.user,
     app: req.app,
     keyword: req.keyword || '',
@@ -314,7 +337,7 @@ export interface SearchResourcesResp {
 }
 
 export function searchResources(req: SearchResourcesReq) {
-  return get<SearchResourcesResp>('/workspace/api/v1/resource-search-results', {
+  return get<SearchResourcesResp>('/workspace/api/v1/service_tree/search_resources', {
     user: req.user || '',
     app: req.app || '',
     keyword: req.keyword || '',

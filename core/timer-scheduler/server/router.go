@@ -8,12 +8,11 @@ import (
 	"github.com/gin-gonic/gin"
 	timerservice "github.com/kageos/kageos/core/timer-scheduler/service"
 	"github.com/kageos/kageos/pkg/contextx"
-	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/serverx"
 )
 
-func NewRouter(service *timerservice.Service, gatewayVerifiers ...*controlauth.Verifier) *gin.Engine {
+func NewRouter(service *timerservice.Service) *gin.Engine {
 	router := serverx.NewGin(
 		serverx.WithRecovery(),
 		serverx.WithRegisteredMiddlewares(serverx.ServiceTimerScheduler),
@@ -22,7 +21,7 @@ func NewRouter(service *timerservice.Service, gatewayVerifiers ...*controlauth.V
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "timer-scheduler"})
 	})
 
-	api := router.Group("/timer/api/v1", requireTimerAPIAuthentication(gatewayVerifiers...))
+	api := router.Group("/timer/api/v1")
 	api.POST("/tasks", createTask(service))
 	api.GET("/tasks", listTasks(service))
 	api.GET("/tasks/:id", getTask(service))
@@ -31,13 +30,12 @@ func NewRouter(service *timerservice.Service, gatewayVerifiers ...*controlauth.V
 	api.POST("/tasks/:id/pause", pauseTask(service))
 	api.POST("/tasks/:id/resume", resumeTask(service))
 	api.POST("/tasks/:id/cancel", cancelTask(service))
-	api.POST("/tasks/:id/run-now", runNow(service))
+	api.POST("/tasks/:id/run_now", runNow(service))
 	api.GET("/tasks/:id/executions", listExecutions(service))
 	api.GET("/tasks/:id/executions/:execution_id", getExecution(service))
-	// Worker execution state is accepted only on the authenticated NATS
-	// control channel. Keeping equivalent HTTP writes would bypass its replay
-	// and message-integrity checks, so the legacy endpoints are intentionally
-	// not registered.
+	api.POST("/executions/started", markExecutionStarted(service))
+	api.POST("/executions/heartbeat", markExecutionHeartbeat(service))
+	api.POST("/executions/finished", markExecutionFinished(service))
 	serverx.ApplyRouteRegistrars(serverx.ServiceTimerScheduler, router)
 	return router
 }
@@ -48,7 +46,6 @@ func createTask(service *timerservice.Service) gin.HandlerFunc {
 		if !bindJSON(c, &req) {
 			return
 		}
-		bindCreateTaskToAuthenticatedUser(c, &req)
 		task, err := service.CreateTask(requestContext(c), req)
 		writeResult(c, task, err)
 	}
@@ -65,7 +62,7 @@ func listTasks(service *timerservice.Service) gin.HandlerFunc {
 			ResourceScope:     c.Query("resource_scope"),
 			ResourceKey:       c.Query("resource_key"),
 			ResourceKeyPrefix: c.Query("resource_key_prefix"),
-			CreatedBy:         currentTimerRequestUser(c),
+			CreatedBy:         c.Query("created_by"),
 			Page:              queryInt(c, "page"),
 			PageSize:          queryInt(c, "page_size"),
 		})
@@ -79,11 +76,8 @@ func getTask(service *timerservice.Service) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		task, ok := requireOwnedTimerTask(c, service, id)
-		if !ok {
-			return
-		}
-		writeResult(c, task, nil)
+		task, err := service.GetTask(requestContext(c), id)
+		writeResult(c, task, err)
 	}
 }
 
@@ -93,14 +87,10 @@ func updateTask(service *timerservice.Service) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		if _, allowed := requireOwnedTimerTask(c, service, id); !allowed {
-			return
-		}
 		var req scheduledsdk.UpdateTaskRequest
 		if !bindJSON(c, &req) {
 			return
 		}
-		bindUpdateTaskToAuthenticatedUser(c, &req)
 		task, err := service.UpdateTask(requestContext(c), id, req)
 		writeResult(c, task, err)
 	}
@@ -110,9 +100,6 @@ func pauseTask(service *timerservice.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := pathInt64(c, "id")
 		if !ok {
-			return
-		}
-		if _, allowed := requireOwnedTimerTask(c, service, id); !allowed {
 			return
 		}
 		writeResult(c, gin.H{"ok": true}, service.PauseTask(requestContext(c), id))
@@ -125,9 +112,6 @@ func resumeTask(service *timerservice.Service) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		if _, allowed := requireOwnedTimerTask(c, service, id); !allowed {
-			return
-		}
 		writeResult(c, gin.H{"ok": true}, service.ResumeTask(requestContext(c), id))
 	}
 }
@@ -136,9 +120,6 @@ func cancelTask(service *timerservice.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := pathInt64(c, "id")
 		if !ok {
-			return
-		}
-		if _, allowed := requireOwnedTimerTask(c, service, id); !allowed {
 			return
 		}
 		writeResult(c, gin.H{"ok": true}, service.CancelTask(requestContext(c), id))
@@ -151,9 +132,6 @@ func deleteTask(service *timerservice.Service) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		if _, allowed := requireOwnedTimerTask(c, service, id); !allowed {
-			return
-		}
 		writeResult(c, gin.H{"ok": true}, service.DeleteTask(requestContext(c), id))
 	}
 }
@@ -162,9 +140,6 @@ func runNow(service *timerservice.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := pathInt64(c, "id")
 		if !ok {
-			return
-		}
-		if _, allowed := requireOwnedTimerTask(c, service, id); !allowed {
 			return
 		}
 		exec, err := service.RunNow(requestContext(c), id)
@@ -176,9 +151,6 @@ func listExecutions(service *timerservice.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		taskID, ok := pathInt64(c, "id")
 		if !ok {
-			return
-		}
-		if _, allowed := requireOwnedTimerTask(c, service, taskID); !allowed {
 			return
 		}
 		resp, err := service.ListExecutions(requestContext(c), taskID, scheduledsdk.ListExecutionsRequest{
@@ -194,9 +166,6 @@ func getExecution(service *timerservice.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		taskID, ok := pathInt64(c, "id")
 		if !ok {
-			return
-		}
-		if _, allowed := requireOwnedTimerTask(c, service, taskID); !allowed {
 			return
 		}
 		executionID, ok := pathInt64(c, "execution_id")

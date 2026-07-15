@@ -1,8 +1,6 @@
 package repository
 
 import (
-	"context"
-
 	"github.com/kageos/kageos/core/app-server/model"
 	"gorm.io/gorm"
 )
@@ -20,9 +18,9 @@ func NewHostRepository(db *gorm.DB) *HostRepository {
 }
 
 // GetHostList 获取主机列表
-func (r *HostRepository) GetHostList(ctx context.Context) ([]*model.Host, error) {
+func (r *HostRepository) GetHostList() ([]*model.Host, error) {
 	var hostList []*model.Host
-	err := r.db.WithContext(ctx).Model(&model.Host{}).Preload("Nats").Find(&hostList).Error
+	err := r.db.Model(&model.Host{}).Preload("Nats").Find(&hostList).Error
 	if err != nil {
 		return nil, err
 	}
@@ -30,9 +28,9 @@ func (r *HostRepository) GetHostList(ctx context.Context) ([]*model.Host, error)
 }
 
 // GetHostByID 根据ID获取主机
-func (r *HostRepository) GetHostByID(ctx context.Context, id int64) (*model.Host, error) {
+func (r *HostRepository) GetHostByID(id int64) (*model.Host, error) {
 	var host model.Host
-	err := r.db.WithContext(ctx).Preload("Nats").First(&host, id).Error
+	err := r.db.Preload("Nats").First(&host, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -40,16 +38,16 @@ func (r *HostRepository) GetHostByID(ctx context.Context, id int64) (*model.Host
 }
 
 // CreateHost 创建主机
-func (r *HostRepository) CreateHost(ctx context.Context, host *model.Host) error {
-	return r.db.WithContext(ctx).Create(host).Error
+func (r *HostRepository) CreateHost(host *model.Host) error {
+	return r.db.Create(host).Error
 }
 
 // UpdateHost 更新主机
-func (r *HostRepository) UpdateHost(ctx context.Context, host *model.Host) error {
-	return r.db.WithContext(ctx).Save(host).Error
+func (r *HostRepository) UpdateHost(host *model.Host) error {
+	return r.db.Save(host).Error
 }
 
 // DeleteHost 删除主机
-func (r *HostRepository) DeleteHost(ctx context.Context, id int64) error {
-	return r.db.WithContext(ctx).Delete(&model.Host{}, id).Error
+func (r *HostRepository) DeleteHost(id int64) error {
+	return r.db.Delete(&model.Host{}, id).Error
 }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/kageos/kageos/core/hr-server/model"
 	"github.com/kageos/kageos/core/hr-server/repository"
-	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/subjects"
 	"github.com/nats-io/nats.go"
@@ -25,13 +24,12 @@ type TokenPublisher interface {
 
 // GatewayTokenPublisher 负责向 gateway 发布 token 相关命令。
 type GatewayTokenPublisher struct {
-	conn   *nats.Conn
-	signer *controlauth.Signer
+	conn *nats.Conn
 }
 
 // NewGatewayTokenPublisher 创建 GatewayTokenPublisher。
-func NewGatewayTokenPublisher(conn *nats.Conn, signer *controlauth.Signer) *GatewayTokenPublisher {
-	return &GatewayTokenPublisher{conn: conn, signer: signer}
+func NewGatewayTokenPublisher(conn *nats.Conn) *GatewayTokenPublisher {
+	return &GatewayTokenPublisher{conn: conn}
 }
 
 // hashToken 计算 token hash
@@ -59,7 +57,7 @@ func (p *GatewayTokenPublisher) InvalidateToken(ctx context.Context, userID int6
 		return fmt.Errorf("序列化消息失败: %w", err)
 	}
 
-	if err := p.publishAuthenticatedCommand(subjects.GatewayTokenInvalidateCommandSubject, data); err != nil {
+	if err := p.conn.Publish(subjects.GatewayTokenInvalidateCommandSubject, data); err != nil {
 		return fmt.Errorf("发布消息失败: %w", err)
 	}
 
@@ -73,7 +71,7 @@ func (p *GatewayTokenPublisher) InvalidateUserToken(ctx context.Context, userID 
 		return fmt.Errorf("NATS connection is nil")
 	}
 
-	activeSessions, err := userSessionRepo.GetActiveSessionsByUserID(ctx, userID)
+	activeSessions, err := userSessionRepo.GetActiveSessionsByUserID(userID)
 	if err != nil {
 		return fmt.Errorf("查询活跃会话失败: %w", err)
 	}
@@ -97,7 +95,7 @@ func (p *GatewayTokenPublisher) InvalidateUserToken(ctx context.Context, userID 
 		return fmt.Errorf("序列化消息失败: %w", err)
 	}
 
-	if err := p.publishAuthenticatedCommand(subjects.GatewayTokenInvalidateCommandSubject, data); err != nil {
+	if err := p.conn.Publish(subjects.GatewayTokenInvalidateCommandSubject, data); err != nil {
 		return fmt.Errorf("发布消息失败: %w", err)
 	}
 
@@ -130,22 +128,10 @@ func (p *GatewayTokenPublisher) RemoveTokenFromBlacklist(ctx context.Context, us
 		return fmt.Errorf("序列化消息失败: %w", err)
 	}
 
-	if err := p.publishAuthenticatedCommand(subjects.GatewayTokenRemoveBlacklistCommandSubject, data); err != nil {
+	if err := p.conn.Publish(subjects.GatewayTokenRemoveBlacklistCommandSubject, data); err != nil {
 		return fmt.Errorf("发布消息失败: %w", err)
 	}
 
 	logger.Infof(ctx, "[GatewayTokenPublisher] 移除黑名单通知已发送: userID=%d, reason=user_relogin, tokenCount=%d", userID, len(tokenHashes))
 	return nil
-}
-
-func (p *GatewayTokenPublisher) publishAuthenticatedCommand(subject string, data []byte) error {
-	if p == nil || p.conn == nil {
-		return fmt.Errorf("NATS connection is nil")
-	}
-	msg := nats.NewMsg(subject)
-	msg.Data = data
-	if err := controlauth.SignNATSMessage(msg, p.signer); err != nil {
-		return fmt.Errorf("签名 Gateway token 控制命令失败: %w", err)
-	}
-	return p.conn.PublishMsg(msg)
 }

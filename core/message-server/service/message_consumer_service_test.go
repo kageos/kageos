@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	msgmodel "github.com/kageos/kageos/core/message-server/model"
@@ -11,19 +10,6 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
-
-func TestMobileAskURLUsesFunctionForScheduledFunctionNotification(t *testing.T) {
-	svc := NewMessageConsumerService(nil, WithNotificationCardBaseURL("https://kageos.example"))
-	_, askURL := svc.buildMobileNotificationURLs(context.Background(), &msgmodel.MessageEntry{
-		FullCodePath:       "/system/democase/site_monitor/check_once.form",
-		SourcePath:         "/system/democase/site_monitor/check_once.form",
-		SourceParentPath:   "/system/democase/site_monitor",
-		SourceTemplateType: "form",
-	}, NotificationTarget{})
-	if !strings.Contains(askURL, "source_path=%2Fsystem%2Fdemocase%2Fsite_monitor%2Fcheck_once.form") {
-		t.Fatalf("mobile ask url = %q, want concrete check_once.form resource", askURL)
-	}
-}
 
 func TestConsumeCreatesInboxRecipients(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

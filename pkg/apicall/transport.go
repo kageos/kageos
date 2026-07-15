@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/kageos/kageos/pkg/contextx"
-	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/publicshare"
 	"github.com/kageos/kageos/pkg/serviceconfig"
 )
@@ -58,7 +57,7 @@ func callAPIWithOptions[T any](ctx context.Context, method, fullURL string, reqB
 		ctx = context.Background()
 	}
 
-	bodyBytes, bodyReader, err := buildRequestBody(reqBody)
+	bodyReader, err := buildRequestBody(reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -69,24 +68,20 @@ func callAPIWithOptions[T any](ctx context.Context, method, fullURL string, reqB
 	}
 
 	applyCommonHeaders(req, ctx)
-	delegated, err := controlauth.ApplyDelegatedHTTPRequestSignature(req, bodyBytes)
-	if err != nil {
-		return nil, fmt.Errorf("sign delegated API request: %w", err)
-	}
 
-	return doAPIRequest[T](req, delegated)
+	return doAPIRequest[T](req)
 }
 
-func buildRequestBody(reqBody interface{}) ([]byte, io.Reader, error) {
+func buildRequestBody(reqBody interface{}) (io.Reader, error) {
 	if reqBody == nil {
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, nil, fmt.Errorf("序列化请求体失败: %w", err)
+		return nil, fmt.Errorf("序列化请求体失败: %w", err)
 	}
-	return bodyBytes, bytes.NewReader(bodyBytes), nil
+	return bytes.NewReader(bodyBytes), nil
 }
 
 func applyCommonHeaders(req *http.Request, ctx context.Context) {
@@ -103,15 +98,6 @@ func applyCommonHeaders(req *http.Request, ctx context.Context) {
 	}
 	if departmentFullPath := contextx.GetRequestDepartmentFullPath(ctx); departmentFullPath != "" {
 		req.Header.Set(contextx.DepartmentFullPathHeader, departmentFullPath)
-	}
-	if userID := contextx.GetRequestUserID(ctx); userID != "" {
-		req.Header.Set(contextx.UserIDHeader, userID)
-	}
-	if email := contextx.GetRequestUserEmail(ctx); email != "" {
-		req.Header.Set(contextx.UserEmailHeader, email)
-	}
-	if leader := contextx.GetRequestLeaderUsername(ctx); leader != "" {
-		req.Header.Set(contextx.LeaderUsernameHeader, leader)
 	}
 	if clientSource := contextx.GetClientSource(ctx); clientSource != "" {
 		req.Header.Set(contextx.ClientSourceHeader, clientSource)
@@ -153,16 +139,8 @@ func isHTTPURL(raw string) bool {
 	return strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://")
 }
 
-func doAPIRequest[T any](req *http.Request, delegated bool) (*ApiResult[T], error) {
-	client := httpClient
-	if delegated {
-		clone := *httpClient
-		clone.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
-			return http.ErrUseLastResponse
-		}
-		client = &clone
-	}
-	resp, err := client.Do(req)
+func doAPIRequest[T any](req *http.Request) (*ApiResult[T], error) {
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("请求失败: %w", err)
 	}

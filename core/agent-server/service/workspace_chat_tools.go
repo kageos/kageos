@@ -24,9 +24,8 @@ func (s *WorkspaceChatService) executeToolCalls(
 	sendEvent func(string, interface{}),
 ) ([]dto.WorkspaceChatToolCallSummary, string, error) {
 	ctx = contextx.WithInitiatorUser(ctx, user)
-	sessionContext := s.workspaceSessionMessageContext(ctx, sessionID)
-	ctx = withAgentToolExecutionContext(ctx, sessionID, sessionContext.title, sessionContext.role)
-	ctx = withWorkspaceSessionSourceDisplay(ctx, sessionContext, fullCodePath)
+	sessionTitle, sessionRole := s.workspaceSessionMessageContext(sessionID)
+	ctx = withAgentToolExecutionContext(ctx, sessionID, sessionTitle, sessionRole)
 	toolSummaries := make([]dto.WorkspaceChatToolCallSummary, 0, len(allToolCalls))
 	logger.Infof(ctx, "[WorkspaceChatStream] 开始执行工具调用 - 工具数量: %d, SessionID: %s", len(allToolCalls), sessionID)
 	loadedGuideDocs := s.loadedGuideDocsForSession(ctx, sessionID)
@@ -200,42 +199,21 @@ func compactDuplicateChangeRoleResult(previous ToolResult) ToolResult {
 	return toolResultWithData(content, false, data)
 }
 
-type workspaceSessionMessageMetadata struct {
-	title        string
-	role         string
-	sourcePath   string
-	parentPath   string
-	templateType string
-}
-
-func (s *WorkspaceChatService) workspaceSessionMessageContext(ctx context.Context, sessionID string) workspaceSessionMessageMetadata {
+func (s *WorkspaceChatService) workspaceSessionMessageContext(sessionID string) (string, string) {
 	if s == nil || s.sessionRepo == nil || strings.TrimSpace(sessionID) == "" {
-		return workspaceSessionMessageMetadata{}
+		return "", ""
 	}
-	session, err := s.sessionRepo.GetBySessionID(ctx, sessionID)
+	session, err := s.sessionRepo.GetBySessionID(sessionID)
 	if err != nil || session == nil {
-		return workspaceSessionMessageMetadata{}
+		return "", ""
 	}
-	executeDirectory := normalizeWorkspacePath(session.FullCodePath)
-	resourcePath := normalizeWorkspacePath(session.ResourceFullCodePath)
-	sourcePath := resourcePath
-	if sourcePath == "" {
-		sourcePath = executeDirectory
-	}
-	parentPath := ""
-	if resourcePath != "" && executeDirectory != "" && resourcePath != executeDirectory {
-		parentPath = executeDirectory
-	}
-	return workspaceSessionMessageMetadata{
-		title:        strings.TrimSpace(session.Title),
-		role:         workspaceSessionRoleID(session),
-		sourcePath:   sourcePath,
-		parentPath:   parentPath,
-		templateType: scheduledFunctionTemplateType(resourcePath),
-	}
+	return strings.TrimSpace(session.Title), workspaceSessionRoleID(session)
 }
 
 func withAgentToolExecutionContext(ctx context.Context, sessionID, sessionTitle, role string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	ctx = contextx.WithWorkspaceSession(ctx, sessionID, sessionTitle, role)
 	if contextx.ResolveClientSource(ctx) == contextx.ClientSourceScheduledTask {
 		return ctx
@@ -245,6 +223,9 @@ func withAgentToolExecutionContext(ctx context.Context, sessionID, sessionTitle,
 }
 
 func withWorkspaceToolSourceDisplay(ctx context.Context, fullCodePath string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if strings.TrimSpace(contextx.GetSourcePath(ctx)) != "" {
 		return ctx
 	}
@@ -253,24 +234,6 @@ func withWorkspaceToolSourceDisplay(ctx context.Context, fullCodePath string) co
 		return ctx
 	}
 	return contextx.WithSourceDisplay(ctx, fullCodePath, "", "", "", "")
-}
-
-func withWorkspaceSessionSourceDisplay(ctx context.Context, session workspaceSessionMessageMetadata, fallbackFullCodePath string) context.Context {
-	if strings.TrimSpace(contextx.GetSourcePath(ctx)) != "" {
-		return ctx
-	}
-	sourcePath := strings.TrimSpace(session.sourcePath)
-	if sourcePath == "" {
-		return withWorkspaceToolSourceDisplay(ctx, fallbackFullCodePath)
-	}
-	return contextx.WithSourceDisplay(
-		ctx,
-		sourcePath,
-		strings.TrimSpace(session.title),
-		strings.TrimSpace(session.parentPath),
-		"",
-		strings.TrimSpace(session.templateType),
-	)
 }
 
 // parseToolCallArgs 解析 tool_call 的 arguments JSON，解析失败时返回错误，由调用方保存一条 tool error，避免坏参数继续执行真实工具。
@@ -326,7 +289,7 @@ func (s *WorkspaceChatService) loadedGuideDocsForSession(ctx context.Context, se
 	if s == nil || s.messageRepo == nil || strings.TrimSpace(sessionID) == "" {
 		return loaded
 	}
-	messages, err := s.messageRepo.ListBySessionID(ctx, sessionID)
+	messages, err := s.messageRepo.ListBySessionID(sessionID)
 	if err != nil {
 		logger.Warnf(ctx, "[WorkspaceChatStream] 查询会话已读 SOP 失败 SessionID=%s: %v", sessionID, err)
 		return loaded

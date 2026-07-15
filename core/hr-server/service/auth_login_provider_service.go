@@ -12,7 +12,6 @@ import (
 	"github.com/kageos/kageos/core/hr-server/model"
 	"github.com/kageos/kageos/core/hr-server/repository"
 	"github.com/kageos/kageos/dto"
-	"github.com/kageos/kageos/pkg/apperror"
 )
 
 const (
@@ -118,7 +117,7 @@ func (s *AuthLoginProviderService) SeedDefaults(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if err := s.repo.UpsertSeed(ctx, &model.AuthLoginProvider{
+		if err := s.repo.UpsertSeed(&model.AuthLoginProvider{
 			Code:             seed.Code,
 			Name:             seed.Name,
 			Description:      seed.Description,
@@ -139,10 +138,10 @@ func (s *AuthLoginProviderService) SeedDefaults(ctx context.Context) error {
 	return nil
 }
 
-func (s *AuthLoginProviderService) ListProviders(ctx context.Context) ([]*dto.AuthLoginProviderResp, error) {
-	providers, err := s.repo.List(ctx)
+func (s *AuthLoginProviderService) ListProviders() ([]*dto.AuthLoginProviderResp, error) {
+	providers, err := s.repo.List()
 	if err != nil {
-		return nil, apperror.Internal(fmt.Errorf("查询登录方式失败: %w", err))
+		return nil, err
 	}
 	out := make([]*dto.AuthLoginProviderResp, 0, len(providers))
 	for _, provider := range providers {
@@ -155,8 +154,8 @@ func (s *AuthLoginProviderService) ListProviders(ctx context.Context) ([]*dto.Au
 	return out, nil
 }
 
-func (s *AuthLoginProviderService) ListLoginMethods(ctx context.Context) ([]dto.LoginMethodResp, error) {
-	providers, err := s.ListProviders(ctx)
+func (s *AuthLoginProviderService) ListLoginMethods() ([]dto.LoginMethodResp, error) {
+	providers, err := s.ListProviders()
 	if err != nil {
 		return nil, err
 	}
@@ -175,13 +174,13 @@ func (s *AuthLoginProviderService) ListLoginMethods(ctx context.Context) ([]dto.
 	return methods, nil
 }
 
-func (s *AuthLoginProviderService) GetEnabledRuntimeConfig(ctx context.Context, code string) (*AuthLoginProviderRuntimeConfig, error) {
-	provider, err := s.repo.GetByCode(ctx, normalizeProviderCode(code))
+func (s *AuthLoginProviderService) GetEnabledRuntimeConfig(code string) (*AuthLoginProviderRuntimeConfig, error) {
+	provider, err := s.repo.GetByCode(normalizeProviderCode(code))
 	if err != nil {
-		return nil, apperror.Internal(fmt.Errorf("查询登录方式失败: %w", err))
+		return nil, err
 	}
 	if provider == nil {
-		return nil, apperror.NotFound(fmt.Sprintf("登录方式 %q 不存在", code), nil)
+		return nil, fmt.Errorf("login provider %q not found", code)
 	}
 	fields, err := parseProviderFields(provider.ConfigSchemaJSON)
 	if err != nil {
@@ -189,7 +188,7 @@ func (s *AuthLoginProviderService) GetEnabledRuntimeConfig(ctx context.Context, 
 	}
 	values := parseProviderValues(provider.ConfigValuesJSON)
 	if !provider.Enabled || !providerConfigured(fields, values) {
-		return nil, apperror.Conflict(fmt.Sprintf("登录方式 %q 未启用", code), nil)
+		return nil, fmt.Errorf("login provider %q is not enabled", code)
 	}
 	return &AuthLoginProviderRuntimeConfig{
 		Code:   provider.Code,
@@ -198,13 +197,13 @@ func (s *AuthLoginProviderService) GetEnabledRuntimeConfig(ctx context.Context, 
 	}, nil
 }
 
-func (s *AuthLoginProviderService) UpdateConfig(ctx context.Context, code string, config map[string]string, updatedBy string) (*dto.AuthLoginProviderResp, error) {
-	provider, err := s.repo.GetByCode(ctx, normalizeProviderCode(code))
+func (s *AuthLoginProviderService) UpdateConfig(code string, config map[string]string, updatedBy string) (*dto.AuthLoginProviderResp, error) {
+	provider, err := s.repo.GetByCode(normalizeProviderCode(code))
 	if err != nil {
-		return nil, apperror.Internal(fmt.Errorf("查询登录方式失败: %w", err))
+		return nil, err
 	}
 	if provider == nil {
-		return nil, apperror.NotFound(fmt.Sprintf("登录方式 %q 不存在", code), nil)
+		return nil, fmt.Errorf("login provider %q not found", code)
 	}
 
 	fields, err := parseProviderFields(provider.ConfigSchemaJSON)
@@ -244,23 +243,23 @@ func (s *AuthLoginProviderService) UpdateConfig(ctx context.Context, code string
 		return nil, err
 	}
 	provider.ConfigValuesJSON = string(valuesJSON)
-	if err := s.repo.UpdateConfig(ctx, provider); err != nil {
-		return nil, apperror.Internal(fmt.Errorf("保存登录方式配置失败: %w", err))
+	if err := s.repo.UpdateConfig(provider); err != nil {
+		return nil, err
 	}
-	updated, err := s.repo.GetByCode(ctx, provider.Code)
+	updated, err := s.repo.GetByCode(provider.Code)
 	if err != nil {
-		return nil, apperror.Internal(fmt.Errorf("读取登录方式配置失败: %w", err))
+		return nil, err
 	}
 	return s.toProviderResp(updated)
 }
 
-func (s *AuthLoginProviderService) SetEnabled(ctx context.Context, code string, enabled bool, updatedBy string) (*dto.AuthLoginProviderResp, error) {
-	provider, err := s.repo.GetByCode(ctx, normalizeProviderCode(code))
+func (s *AuthLoginProviderService) SetEnabled(code string, enabled bool, updatedBy string) (*dto.AuthLoginProviderResp, error) {
+	provider, err := s.repo.GetByCode(normalizeProviderCode(code))
 	if err != nil {
-		return nil, apperror.Internal(fmt.Errorf("查询登录方式失败: %w", err))
+		return nil, err
 	}
 	if provider == nil {
-		return nil, apperror.NotFound(fmt.Sprintf("登录方式 %q 不存在", code), nil)
+		return nil, fmt.Errorf("login provider %q not found", code)
 	}
 	fields, err := parseProviderFields(provider.ConfigSchemaJSON)
 	if err != nil {
@@ -269,7 +268,7 @@ func (s *AuthLoginProviderService) SetEnabled(ctx context.Context, code string, 
 	values := parseProviderValues(provider.ConfigValuesJSON)
 	configured := providerConfigured(fields, values)
 	if enabled && !configured {
-		return nil, apperror.Conflict(fmt.Sprintf("登录方式 %q 尚未配置", code), nil)
+		return nil, fmt.Errorf("login provider %q is not configured", code)
 	}
 	status := ProviderStatusDisabled
 	if !configured {
@@ -278,12 +277,12 @@ func (s *AuthLoginProviderService) SetEnabled(ctx context.Context, code string, 
 	} else if enabled {
 		status = ProviderStatusEnabled
 	}
-	if err := s.repo.UpdateEnabled(ctx, provider.Code, enabled, status, strings.TrimSpace(updatedBy)); err != nil {
-		return nil, apperror.Internal(fmt.Errorf("更新登录方式状态失败: %w", err))
+	if err := s.repo.UpdateEnabled(provider.Code, enabled, status, strings.TrimSpace(updatedBy)); err != nil {
+		return nil, err
 	}
-	updated, err := s.repo.GetByCode(ctx, provider.Code)
+	updated, err := s.repo.GetByCode(provider.Code)
 	if err != nil {
-		return nil, apperror.Internal(fmt.Errorf("读取登录方式状态失败: %w", err))
+		return nil, err
 	}
 	return s.toProviderResp(updated)
 }

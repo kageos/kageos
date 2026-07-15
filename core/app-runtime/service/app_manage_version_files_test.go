@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -66,7 +65,7 @@ func TestUpdateVersionJSONUsesConfiguredBasePathForCurrentVersionFiles(t *testin
 		t.Fatalf("createVersionFiles: %v", err)
 	}
 
-	if err := service.updateVersionJson(context.Background(), appDir, "alice", "demo", "v2"); err != nil {
+	if err := service.updateVersionJson(appDir, "alice", "demo", "v2"); err != nil {
 		t.Fatalf("updateVersionJson: %v", err)
 	}
 

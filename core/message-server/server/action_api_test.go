@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -51,7 +50,7 @@ func TestSubmitPublicMessageActionReplySubmitsWorkspaceChat(t *testing.T) {
 	router := gin.New()
 	router.POST("/message/api/v1/public/actions/:token/reply", s.submitPublicMessageActionReply)
 
-	body := bytes.NewBufferString(`{"content":"帮我延迟到下午 5 点，并通知相关人。","files":"kageos/pocket/meeting.pdf","action":"reply"}`)
+	body := bytes.NewBufferString(`{"content":"帮我延迟到下午 5 点，并通知相关人。","action":"reply"}`)
 	req := httptest.NewRequest(http.MethodPost, "/message/api/v1/public/actions/"+rawToken+"/reply", body)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Request-User", "bob")
@@ -63,7 +62,7 @@ func TestSubmitPublicMessageActionReplySubmitsWorkspaceChat(t *testing.T) {
 	}
 	var result struct {
 		Code int                        `json:"code"`
-		Msg  string                     `json:"message"`
+		Msg  string                     `json:"msg"`
 		Data dto.MessageActionReplyResp `json:"data"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
@@ -83,9 +82,6 @@ func TestSubmitPublicMessageActionReplySubmitsWorkspaceChat(t *testing.T) {
 	}
 	if !strings.Contains(runner.req.Content, "会议室 301") || !strings.Contains(runner.req.Content, "延迟到下午 5 点") {
 		t.Fatalf("runner content = %q", runner.req.Content)
-	}
-	if runner.req.Files != "kageos/pocket/meeting.pdf" {
-		t.Fatalf("runner files = %q", runner.req.Files)
 	}
 	if !strings.Contains(runner.req.Content, "必须使用 Markdown 格式") || !strings.Contains(runner.req.Content, "content_type 使用 markdown") {
 		t.Fatalf("runner content missing markdown reply guardrails = %q", runner.req.Content)
@@ -152,7 +148,7 @@ func TestPublicMessageActionPreservesExistingWorkspaceSession(t *testing.T) {
 	}
 	var viewResult struct {
 		Code int                       `json:"code"`
-		Msg  string                    `json:"message"`
+		Msg  string                    `json:"msg"`
 		Data dto.MessageActionViewResp `json:"data"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &viewResult); err != nil {
@@ -177,7 +173,7 @@ func TestPublicMessageActionPreservesExistingWorkspaceSession(t *testing.T) {
 	}
 	var replyResult struct {
 		Code int                        `json:"code"`
-		Msg  string                     `json:"message"`
+		Msg  string                     `json:"msg"`
 		Data dto.MessageActionReplyResp `json:"data"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &replyResult); err != nil {
@@ -192,61 +188,6 @@ func TestPublicMessageActionPreservesExistingWorkspaceSession(t *testing.T) {
 	if !strings.Contains(replyResult.Data.MobileAskURL, "source_path=%2Falice%2Fops%2Fmeeting_room") ||
 		!strings.Contains(replyResult.Data.MobileAskURL, "session_id=session-existing") {
 		t.Fatalf("reply mobile ask url = %q", replyResult.Data.MobileAskURL)
-	}
-}
-
-func TestPublicMessageActionUsesFunctionForScheduledFunctionNotification(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	repo := newActionAPITestMessageRepo(t)
-	entry, err := repo.Create(context.Background(), dto.MessageSendMeta{
-		From:               "system",
-		FullCodePath:       "/system/democase/site_monitor/check_once.form",
-		SourceType:         "scheduled_task",
-		SourcePath:         "/system/democase/site_monitor/check_once.form",
-		SourceParentPath:   "/system/democase/site_monitor",
-		SourceTemplateType: "form",
-	}, dto.MessageSendPayload{
-		Title:   "网站不可用告警：官网",
-		Content: "网站连续巡检失败，请尽快处理。",
-	}, []string{"bob"})
-	if err != nil {
-		t.Fatalf("create message: %v", err)
-	}
-	rawToken, _, err := repo.CreateActionToken(context.Background(), msgrepo.CreateActionTokenInput{
-		MessageID: entry.ID, RecipientUsername: "bob", AllowedActions: []string{"reply"}, SourcePath: entry.SourcePath,
-	})
-	if err != nil {
-		t.Fatalf("create token: %v", err)
-	}
-
-	runner := &fakeWorkspaceActionRunner{sessionID: "site-monitor-user-session"}
-	s := &Server{messageRepo: repo, workspaceActionRunner: runner}
-	router := gin.New()
-	router.POST("/message/api/v1/public/actions/:token/reply", s.submitPublicMessageActionReply)
-	request := httptest.NewRequest(http.MethodPost, "/message/api/v1/public/actions/"+rawToken+"/reply", bytes.NewBufferString(`{"content":"请帮我检查并给出处理建议。","action":"reply"}`))
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-Request-User", "bob")
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, request)
-
-	var result struct {
-		Code int                        `json:"code"`
-		Msg  string                     `json:"msg"`
-		Data dto.MessageActionReplyResp `json:"data"`
-	}
-	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
-		t.Fatalf("decode response: %v body=%s", err, recorder.Body.String())
-	}
-	if result.Code != 0 {
-		t.Fatalf("response code=%d msg=%s", result.Code, result.Msg)
-	}
-	if runner.req.FullCodePath != "/system/democase/site_monitor/check_once.form" ||
-		runner.req.SourcePath != "/system/democase/site_monitor/check_once.form" {
-		t.Fatalf("runner should preserve concrete function ownership: %#v", runner.req)
-	}
-	if result.Data.FullCodePath != "/system/democase/site_monitor/check_once.form" ||
-		!strings.Contains(result.Data.MobileAskURL, "source_path=%2Fsystem%2Fdemocase%2Fsite_monitor%2Fcheck_once.form") {
-		t.Fatalf("reply response should use concrete function path: %#v", result.Data)
 	}
 }
 
@@ -301,7 +242,7 @@ func TestSubmitPublicMessageActionReplyRequiresAuthForRouteToken(t *testing.T) {
 	}
 	var result struct {
 		Code int                        `json:"code"`
-		Msg  string                     `json:"message"`
+		Msg  string                     `json:"msg"`
 		Data dto.MessageActionReplyResp `json:"data"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
@@ -318,76 +259,13 @@ func TestSubmitPublicMessageActionReplyRequiresAuthForRouteToken(t *testing.T) {
 	}
 }
 
-func TestSubmitPublicMessageActionReplyReopensTokenWhenWorkspaceStartFails(t *testing.T) {
-	testCases := []struct {
-		name   string
-		runner *fakeWorkspaceActionRunner
-	}{
-		{name: "runner error", runner: &fakeWorkspaceActionRunner{err: errors.New("agent unavailable")}},
-		{name: "missing session", runner: &fakeWorkspaceActionRunner{noSession: true}},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			gin.SetMode(gin.TestMode)
-			repo := newActionAPITestMessageRepo(t)
-			entry, err := repo.Create(context.Background(), dto.MessageSendMeta{
-				From: "agent", SourcePath: "/alice/demo",
-			}, dto.MessageSendPayload{Title: "待处理", Content: "请继续。"}, []string{"bob"})
-			if err != nil {
-				t.Fatalf("create message: %v", err)
-			}
-			rawToken, _, err := repo.CreateActionToken(context.Background(), msgrepo.CreateActionTokenInput{
-				MessageID: entry.ID, RecipientUsername: "bob", AllowedActions: []string{"reply"}, SourcePath: entry.SourcePath,
-			})
-			if err != nil {
-				t.Fatalf("create token: %v", err)
-			}
-
-			s := &Server{messageRepo: repo, workspaceActionRunner: tc.runner}
-			router := gin.New()
-			router.POST("/message/api/v1/public/actions/:token/reply", s.submitPublicMessageActionReply)
-			request := httptest.NewRequest(http.MethodPost, "/message/api/v1/public/actions/"+rawToken+"/reply", bytes.NewBufferString(`{"content":"我来处理。","action":"reply"}`))
-			request.Header.Set("Content-Type", "application/json")
-			request.Header.Set("X-Request-User", "bob")
-			recorder := httptest.NewRecorder()
-			router.ServeHTTP(recorder, request)
-
-			var result struct {
-				Code string `json:"code"`
-				Msg  string `json:"message"`
-			}
-			if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
-				t.Fatalf("decode response: %v body=%s", err, recorder.Body.String())
-			}
-			if result.Code == "ok" {
-				t.Fatalf("workspace start failure should be returned, body=%s", recorder.Body.String())
-			}
-			view, err := repo.GetActionView(context.Background(), rawToken, "", "bob")
-			if err != nil {
-				t.Fatalf("get action view: %v", err)
-			}
-			if view.TokenStatus != string(dto.MessageActionTokenStatusOpen) || !view.CanReply || view.WorkspaceSession != "" {
-				t.Fatalf("token should be retryable after failure, view=%#v", view)
-			}
-		})
-	}
-}
-
 type fakeWorkspaceActionRunner struct {
 	sessionID string
-	err       error
-	noSession bool
 	req       service.WorkspaceActionRequest
 }
 
 func (f *fakeWorkspaceActionRunner) Submit(_ context.Context, req service.WorkspaceActionRequest) (*service.WorkspaceActionSubmitResult, error) {
 	f.req = req
-	if f.err != nil {
-		return nil, f.err
-	}
-	if f.noSession {
-		return &service.WorkspaceActionSubmitResult{Accepted: true}, nil
-	}
 	return &service.WorkspaceActionSubmitResult{SessionID: f.sessionID, Accepted: true}, nil
 }
 

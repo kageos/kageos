@@ -203,6 +203,20 @@ func (s *MinIOStorage) GenerateUploadCredentials(ctx context.Context, bucket, ke
 		UploadDomain: uploadDomain,
 	}
 
+	// 如果是服务端上传，在SDKConfig中放入MinIO连接信息（用于SDK直接上传）
+	if uploadSource == UploadSourceServer {
+		sdkEndpoint := s.GetUploadEndpoint(uploadSource)
+		creds.SDKConfig = map[string]interface{}{
+			"endpoint":   sdkEndpoint,
+			"access_key": s.accessKey,
+			"secret_key": s.secretKey,
+			"region":     s.region,
+			"use_ssl":    s.useSSL,
+			"bucket":     bucket,
+		}
+		logger.Infof(ctx, "[MinIOStorage] Added SDK config for server upload: endpoint=%s", sdkEndpoint)
+	}
+
 	return creds, nil
 }
 

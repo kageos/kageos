@@ -17,14 +17,15 @@ func NewFileSnapshotRepository(db *gorm.DB) *FileSnapshotRepository {
 }
 
 // CreateBatch 批量创建文件快照
-func (r *FileSnapshotRepository) CreateBatch(ctx context.Context, snapshots []*model.FileSnapshot) error {
+func (r *FileSnapshotRepository) CreateBatch(snapshots []*model.FileSnapshot) error {
+	ctx := context.Background()
 	if len(snapshots) == 0 {
 		return nil
 	}
 
 	logger.Infof(ctx, "[FileSnapshotRepository.CreateBatch] 批量创建文件快照: count=%d", len(snapshots))
 
-	if err := r.db.WithContext(ctx).CreateInBatches(snapshots, 100).Error; err != nil {
+	if err := r.db.CreateInBatches(snapshots, 100).Error; err != nil {
 		logger.Errorf(ctx, "[FileSnapshotRepository.CreateBatch] 批量创建失败: error=%v", err)
 		return err
 	}
@@ -34,9 +35,9 @@ func (r *FileSnapshotRepository) CreateBatch(ctx context.Context, snapshots []*m
 }
 
 // GetByDirectoryAndVersion 根据目录路径和目录版本获取该目录下所有文件的快照（用于目录回滚）
-func (r *FileSnapshotRepository) GetByDirectoryAndVersion(ctx context.Context, appID int64, fullCodePath, dirVersion string) ([]*model.FileSnapshot, error) {
+func (r *FileSnapshotRepository) GetByDirectoryAndVersion(appID int64, fullCodePath, dirVersion string) ([]*model.FileSnapshot, error) {
 	var snapshots []*model.FileSnapshot
-	err := r.db.WithContext(ctx).Where("app_id = ? AND full_code_path = ? AND dir_version = ?",
+	err := r.db.Where("app_id = ? AND full_code_path = ? AND dir_version = ?",
 		appID, fullCodePath, dirVersion).
 		Order("relative_path ASC").
 		Find(&snapshots).Error
@@ -48,10 +49,10 @@ func (r *FileSnapshotRepository) GetByDirectoryAndVersion(ctx context.Context, a
 
 // GetLatestFileSnapshot 获取文件的最新快照（用于变更检测）
 // 优先使用 IsCurrent 字段查询，性能更好；如果没有 IsCurrent 标记，则回退到版本号排序查询
-func (r *FileSnapshotRepository) GetLatestFileSnapshot(ctx context.Context, appID int64, fullCodePath, fileName string) (*model.FileSnapshot, error) {
+func (r *FileSnapshotRepository) GetLatestFileSnapshot(appID int64, fullCodePath, fileName string) (*model.FileSnapshot, error) {
 	// 先尝试使用 IsCurrent 字段查询（性能更好）
 	var snapshot model.FileSnapshot
-	err := r.db.WithContext(ctx).Where("app_id = ? AND full_code_path = ? AND file_name = ? AND is_current = ?",
+	err := r.db.Where("app_id = ? AND full_code_path = ? AND file_name = ? AND is_current = ?",
 		appID, fullCodePath, fileName, true).
 		First(&snapshot).Error
 	if err == nil {
@@ -60,7 +61,7 @@ func (r *FileSnapshotRepository) GetLatestFileSnapshot(ctx context.Context, appI
 	}
 
 	// 如果没有查询到结果（可能是旧数据还没有 IsCurrent 标记），回退到版本号排序查询
-	err = r.db.WithContext(ctx).Where("app_id = ? AND full_code_path = ? AND file_name = ?",
+	err = r.db.Where("app_id = ? AND full_code_path = ? AND file_name = ?",
 		appID, fullCodePath, fileName).
 		Order("file_version_num DESC").
 		First(&snapshot).Error
@@ -74,14 +75,14 @@ func (r *FileSnapshotRepository) GetLatestFileSnapshot(ctx context.Context, appI
 }
 
 // GetLatestFileSnapshots 批量获取多个文件的最新快照（用于批量变更检测）
-func (r *FileSnapshotRepository) GetLatestFileSnapshots(ctx context.Context, appID int64, fullCodePath string, fileNames []string) (map[string]*model.FileSnapshot, error) {
+func (r *FileSnapshotRepository) GetLatestFileSnapshots(appID int64, fullCodePath string, fileNames []string) (map[string]*model.FileSnapshot, error) {
 	if len(fileNames) == 0 {
 		return make(map[string]*model.FileSnapshot), nil
 	}
 
 	// 使用子查询获取每个文件的最新快照
 	var snapshots []*model.FileSnapshot
-	err := r.db.WithContext(ctx).Where("app_id = ? AND full_code_path = ? AND file_name IN ?",
+	err := r.db.Where("app_id = ? AND full_code_path = ? AND file_name IN ?",
 		appID, fullCodePath, fileNames).
 		Order("file_name ASC, file_version_num DESC").
 		Find(&snapshots).Error
@@ -101,9 +102,9 @@ func (r *FileSnapshotRepository) GetLatestFileSnapshots(ctx context.Context, app
 }
 
 // GetByFileAndVersion 根据文件路径和文件版本获取文件快照（用于文件回滚）
-func (r *FileSnapshotRepository) GetByFileAndVersion(ctx context.Context, appID int64, fullCodePath, fileName, fileVersion string) (*model.FileSnapshot, error) {
+func (r *FileSnapshotRepository) GetByFileAndVersion(appID int64, fullCodePath, fileName, fileVersion string) (*model.FileSnapshot, error) {
 	var snapshot model.FileSnapshot
-	err := r.db.WithContext(ctx).Where("app_id = ? AND full_code_path = ? AND file_name = ? AND file_version = ?",
+	err := r.db.Where("app_id = ? AND full_code_path = ? AND file_name = ? AND file_version = ?",
 		appID, fullCodePath, fileName, fileVersion).
 		First(&snapshot).Error
 	if err != nil {
@@ -114,9 +115,9 @@ func (r *FileSnapshotRepository) GetByFileAndVersion(ctx context.Context, appID 
 
 // GetCurrentVersionByDirectory 获取目录当前版本的所有文件快照（需要配合 ServiceTreeRepository）
 // 优先使用 IsCurrent 字段查询，性能更好；如果没有 IsCurrent 标记，则回退到版本号查询
-func (r *FileSnapshotRepository) GetCurrentVersionByDirectory(ctx context.Context, appID int64, fullCodePath string, serviceTreeRepo *ServiceTreeRepository) ([]*model.FileSnapshot, error) {
+func (r *FileSnapshotRepository) GetCurrentVersionByDirectory(appID int64, fullCodePath string, serviceTreeRepo *ServiceTreeRepository) ([]*model.FileSnapshot, error) {
 	// 先尝试使用 IsCurrent 字段查询（性能更好）
-	currentSnapshots, err := r.GetCurrentSnapshotsByDirectory(ctx, appID, fullCodePath)
+	currentSnapshots, err := r.GetCurrentSnapshotsByDirectory(appID, fullCodePath)
 	if err == nil && len(currentSnapshots) > 0 {
 		// 如果查询到结果，直接返回
 		return currentSnapshots, nil
@@ -124,7 +125,7 @@ func (r *FileSnapshotRepository) GetCurrentVersionByDirectory(ctx context.Contex
 
 	// 如果没有查询到结果（可能是旧数据还没有 IsCurrent 标记），回退到版本号查询
 	// 先获取目录节点（ServiceTree）
-	serviceTree, err := serviceTreeRepo.GetServiceTreeByFullPath(ctx, fullCodePath)
+	serviceTree, err := serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
 	if err != nil {
 		return nil, err
 	}
@@ -135,17 +136,17 @@ func (r *FileSnapshotRepository) GetCurrentVersionByDirectory(ctx context.Contex
 	}
 
 	// 获取该目录版本的所有文件快照
-	return r.GetByDirectoryAndVersion(ctx, appID, fullCodePath, serviceTree.Version)
+	return r.GetByDirectoryAndVersion(appID, fullCodePath, serviceTree.Version)
 }
 
 // GetCurrentVersionsByDirectories 批量获取多个目录的当前版本文件快照
-func (r *FileSnapshotRepository) GetCurrentVersionsByDirectories(ctx context.Context, appID int64, paths []string, serviceTreeRepo *ServiceTreeRepository) (map[string][]*model.FileSnapshot, error) {
+func (r *FileSnapshotRepository) GetCurrentVersionsByDirectories(appID int64, paths []string, serviceTreeRepo *ServiceTreeRepository) (map[string][]*model.FileSnapshot, error) {
 	if len(paths) == 0 {
 		return make(map[string][]*model.FileSnapshot), nil
 	}
 
 	// 先批量获取目录节点（ServiceTree）
-	serviceTrees, err := serviceTreeRepo.GetServiceTreeByFullPaths(ctx, paths)
+	serviceTrees, err := serviceTreeRepo.GetServiceTreeByFullPaths(paths)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +160,7 @@ func (r *FileSnapshotRepository) GetCurrentVersionsByDirectories(ctx context.Con
 			continue
 		}
 
-		snapshots, err := r.GetByDirectoryAndVersion(ctx, appID, path, serviceTree.Version)
+		snapshots, err := r.GetByDirectoryAndVersion(appID, path, serviceTree.Version)
 		if err != nil {
 			return nil, err
 		}
@@ -170,9 +171,9 @@ func (r *FileSnapshotRepository) GetCurrentVersionsByDirectories(ctx context.Con
 }
 
 // GetByPathAndAppVersion 根据目录路径和应用版本获取文件快照（用于版本回滚）
-func (r *FileSnapshotRepository) GetByPathAndAppVersion(ctx context.Context, appID int64, fullCodePath string, appVersionNum int) ([]*model.FileSnapshot, error) {
+func (r *FileSnapshotRepository) GetByPathAndAppVersion(appID int64, fullCodePath string, appVersionNum int) ([]*model.FileSnapshot, error) {
 	var snapshots []*model.FileSnapshot
-	err := r.db.WithContext(ctx).Where("app_id = ? AND full_code_path = ? AND app_version_num <= ?",
+	err := r.db.Where("app_id = ? AND full_code_path = ? AND app_version_num <= ?",
 		appID, fullCodePath, appVersionNum).
 		Order("app_version_num DESC, relative_path ASC").
 		Find(&snapshots).Error
@@ -183,26 +184,26 @@ func (r *FileSnapshotRepository) GetByPathAndAppVersion(ctx context.Context, app
 }
 
 // UpdateIsCurrent 更新快照的 IsCurrent 状态
-func (r *FileSnapshotRepository) UpdateIsCurrent(ctx context.Context, snapshotID int64, isCurrent bool) error {
-	return r.db.WithContext(ctx).Model(&model.FileSnapshot{}).
+func (r *FileSnapshotRepository) UpdateIsCurrent(snapshotID int64, isCurrent bool) error {
+	return r.db.Model(&model.FileSnapshot{}).
 		Where("id = ?", snapshotID).
 		Update("is_current", isCurrent).Error
 }
 
 // BatchUpdateIsCurrent 批量更新快照的 IsCurrent 状态
-func (r *FileSnapshotRepository) BatchUpdateIsCurrent(ctx context.Context, snapshotIDs []int64, isCurrent bool) error {
+func (r *FileSnapshotRepository) BatchUpdateIsCurrent(snapshotIDs []int64, isCurrent bool) error {
 	if len(snapshotIDs) == 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).Model(&model.FileSnapshot{}).
+	return r.db.Model(&model.FileSnapshot{}).
 		Where("id IN ?", snapshotIDs).
 		Update("is_current", isCurrent).Error
 }
 
 // GetCurrentSnapshotsByDirectory 获取目录下所有文件的当前版本快照（使用 IsCurrent 字段，性能更好）
-func (r *FileSnapshotRepository) GetCurrentSnapshotsByDirectory(ctx context.Context, appID int64, fullCodePath string) ([]*model.FileSnapshot, error) {
+func (r *FileSnapshotRepository) GetCurrentSnapshotsByDirectory(appID int64, fullCodePath string) ([]*model.FileSnapshot, error) {
 	var snapshots []*model.FileSnapshot
-	err := r.db.WithContext(ctx).Where("app_id = ? AND full_code_path = ? AND is_current = ?",
+	err := r.db.Where("app_id = ? AND full_code_path = ? AND is_current = ?",
 		appID, fullCodePath, true).
 		Order("relative_path ASC").
 		Find(&snapshots).Error
@@ -213,9 +214,9 @@ func (r *FileSnapshotRepository) GetCurrentSnapshotsByDirectory(ctx context.Cont
 }
 
 // GetCurrentSnapshotsByServiceTreeID 根据 ServiceTreeID 获取当前版本快照（用于预加载）
-func (r *FileSnapshotRepository) GetCurrentSnapshotsByServiceTreeID(ctx context.Context, serviceTreeID int64) ([]*model.FileSnapshot, error) {
+func (r *FileSnapshotRepository) GetCurrentSnapshotsByServiceTreeID(serviceTreeID int64) ([]*model.FileSnapshot, error) {
 	var snapshots []*model.FileSnapshot
-	err := r.db.WithContext(ctx).Where("service_tree_id = ? AND is_current = ?",
+	err := r.db.Where("service_tree_id = ? AND is_current = ?",
 		serviceTreeID, true).
 		Order("relative_path ASC").
 		Find(&snapshots).Error
@@ -226,13 +227,13 @@ func (r *FileSnapshotRepository) GetCurrentSnapshotsByServiceTreeID(ctx context.
 }
 
 // GetCurrentSnapshotsByServiceTreeIDs 批量根据 ServiceTreeID 列表获取当前版本快照（用于递归查询目录）
-func (r *FileSnapshotRepository) GetCurrentSnapshotsByServiceTreeIDs(ctx context.Context, serviceTreeIDs []int64) ([]*model.FileSnapshot, error) {
+func (r *FileSnapshotRepository) GetCurrentSnapshotsByServiceTreeIDs(serviceTreeIDs []int64) ([]*model.FileSnapshot, error) {
 	if len(serviceTreeIDs) == 0 {
 		return []*model.FileSnapshot{}, nil
 	}
 
 	var snapshots []*model.FileSnapshot
-	err := r.db.WithContext(ctx).Where("service_tree_id IN ? AND is_current = ?", serviceTreeIDs, true).
+	err := r.db.Where("service_tree_id IN ? AND is_current = ?", serviceTreeIDs, true).
 		Order("service_tree_id ASC, relative_path ASC").
 		Find(&snapshots).Error
 	if err != nil {

@@ -1,14 +1,11 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	msgrepo "github.com/kageos/kageos/core/message-server/repository"
 	"github.com/kageos/kageos/core/message-server/service"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/config"
@@ -18,92 +15,72 @@ import (
 )
 
 func (s *Server) getPublicMessageAction(c *gin.Context) {
-	ctx := contextx.ToContext(c)
 	token := strings.TrimSpace(c.Param("token"))
 	if token == "" {
 		token = strings.TrimSpace(c.Query("token"))
 	}
-	view, err := s.messageRepo.GetActionView(ctx, token, "", contextx.GetRequestUser(c))
+	view, err := s.messageRepo.GetActionView(c.Request.Context(), token, "", contextx.GetRequestUser(c))
 	if err != nil {
 		if isMessageActionLoginRequiredError(err) {
 			response.NoAuth(c, err.Error())
 			return
 		}
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
-	authenticatedUser := strings.TrimSpace(contextx.GetRequestUser(c))
-	if authenticatedUser == "" || strings.TrimSpace(view.RecipientUser) != authenticatedUser {
-		response.Forbidden(c, "消息动作用户与当前登录用户不一致")
-		return
-	}
-	view.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), mobileActionFullCodePath(view.Message), view.WorkspaceSession)
+	view.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), view.Message.SourcePath, view.WorkspaceSession)
 	response.OkWithData(c, view)
 }
 
 func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
-	ctx := contextx.ToContext(c)
 	token := strings.TrimSpace(c.Param("token"))
 	if token == "" {
 		token = strings.TrimSpace(c.Query("token"))
 	}
 	var req dto.MessageActionReplyReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "请求参数错误: "+err.Error())
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
-	view, err := s.messageRepo.GetActionView(ctx, token, "", contextx.GetRequestUser(c))
+	view, err := s.messageRepo.GetActionView(c.Request.Context(), token, "", contextx.GetRequestUser(c))
 	if err != nil {
 		if isMessageActionLoginRequiredError(err) {
 			response.NoAuth(c, err.Error())
 			return
 		}
-		response.Error(c, err)
-		return
-	}
-	authenticatedUser := strings.TrimSpace(contextx.GetRequestUser(c))
-	if authenticatedUser == "" || strings.TrimSpace(view.RecipientUser) != authenticatedUser {
-		response.Forbidden(c, "消息动作用户与当前登录用户不一致")
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	fullCodePath := mobileActionFullCodePath(view.Message)
 	if fullCodePath == "" {
-		response.BadRequest(c, "消息缺少工作台目录，无法提交给 kageos 工作台")
+		response.FailWithMessage(c, "消息缺少工作台目录，无法提交给 kageos 工作台")
 		return
 	}
-	resp, err := s.messageRepo.BeginActionReply(ctx, token, req.Content, req.Files, req.Action, contextx.GetRequestUser(c))
+	resp, err := s.messageRepo.SubmitActionReply(c.Request.Context(), token, req.Content, req.Action, contextx.GetRequestUser(c))
 	if err != nil {
 		if isMessageActionLoginRequiredError(err) {
 			response.NoAuth(c, err.Error())
 			return
 		}
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
-	resp.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), fullCodePath, resp.WorkspaceSessionID)
+	resp.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), resp.SourcePath, resp.WorkspaceSessionID)
 	resp.FullCodePath = firstNonEmptyActionString(resp.FullCodePath, fullCodePath)
 	resp.AgentSubmitted = false
 	if s.workspaceActionRunner == nil {
-		s.releasePublicMessageActionReply(ctx, token)
-		response.Internal(c, "工作台提交器未初始化，请稍后重试")
+		resp.AgentSubmitError = "工作台提交器未初始化"
+		response.OkWithData(c, resp)
 		return
 	}
-	runResult, runErr := s.workspaceActionRunner.Submit(ctx, service.WorkspaceActionRequest{
+	runResult, runErr := s.workspaceActionRunner.Submit(c.Request.Context(), service.WorkspaceActionRequest{
 		RecipientUser:         view.RecipientUser,
-		UserID:                c.GetHeader(contextx.UserIDHeader),
-		UserEmail:             c.GetHeader(contextx.UserEmailHeader),
-		LeaderUsername:        c.GetHeader(contextx.LeaderUsernameHeader),
-		DepartmentFullPath:    c.GetHeader(contextx.DepartmentFullPathHeader),
-		CompanyCode:           c.GetHeader(contextx.CompanyCodeHeader),
-		CompanyName:           c.GetHeader(contextx.CompanyNameHeader),
-		CompanyLogoURL:        c.GetHeader(contextx.CompanyLogoURLHeader),
 		Channel:               firstNonEmptyActionString(resp.Channel, view.Channel),
 		FullCodePath:          resp.FullCodePath,
 		SessionID:             resp.WorkspaceSessionID,
 		ThreadKey:             view.Message.ThreadKey,
 		Content:               resp.WorkstationDraft,
 		DisplayContent:        strings.TrimSpace(req.Content),
-		Files:                 strings.TrimSpace(req.Files),
 		OriginalTitle:         view.Message.Title,
 		TraceID:               view.Message.TraceID,
 		SourceRef:             firstNonEmptyActionString(view.Message.SourceRef, fmt.Sprintf("message:%d", view.Message.ID)),
@@ -116,42 +93,20 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 		WorkspaceRole:         view.Message.WorkspaceRole,
 	})
 	if runErr != nil {
-		s.releasePublicMessageActionReply(ctx, token)
-		logger.Warnf(ctx, "[message-action] submit workspace failed token_message_id=%d user=%s err=%v", view.Message.ID, view.RecipientUser, runErr)
-		response.Internal(c, "创建工作台会话失败，请重试: "+runErr.Error())
+		resp.AgentSubmitError = runErr.Error()
+		logger.Warnf(c.Request.Context(), "[message-action] submit workspace failed token_message_id=%d user=%s err=%v", view.Message.ID, view.RecipientUser, runErr)
+		response.OkWithData(c, resp)
 		return
 	}
-	if runResult == nil || !runResult.Accepted || strings.TrimSpace(runResult.SessionID) == "" {
-		s.releasePublicMessageActionReply(ctx, token)
-		response.Internal(c, "工作台没有返回有效会话，请重试")
-		return
+	resp.AgentSubmitted = runResult != nil && runResult.Accepted
+	if runResult != nil && strings.TrimSpace(runResult.SessionID) != "" {
+		resp.WorkspaceSessionID = strings.TrimSpace(runResult.SessionID)
+		resp.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), resp.SourcePath, resp.WorkspaceSessionID)
+		if err := s.messageRepo.UpdateActionWorkspaceSession(c.Request.Context(), token, resp.WorkspaceSessionID); err != nil {
+			logger.Warnf(c.Request.Context(), "[message-action] update workspace session failed token_message_id=%d session_id=%s err=%v", view.Message.ID, resp.WorkspaceSessionID, err)
+		}
 	}
-	resp.WorkspaceSessionID = strings.TrimSpace(runResult.SessionID)
-	persistCtx, cancelPersist := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	submittedAt, err := s.messageRepo.FinalizeActionReply(persistCtx, token, resp.WorkspaceSessionID)
-	cancelPersist()
-	if err != nil {
-		s.releasePublicMessageActionReply(ctx, token)
-		logger.Warnf(ctx, "[message-action] finalize reply failed token_message_id=%d session_id=%s err=%v", view.Message.ID, resp.WorkspaceSessionID, err)
-		response.Internal(c, "工作台会话已创建，但回复状态确认失败，请刷新后重试")
-		return
-	}
-	resp.Status = string(dto.MessageActionTokenStatusSubmitted)
-	resp.SubmittedAt = submittedAt
-	resp.AgentSubmitted = true
-	resp.MobileAskURL = buildMobileAskURL(config.GetPublicSiteBaseURL(), fullCodePath, resp.WorkspaceSessionID)
 	response.OkWithData(c, resp)
-}
-
-// releasePublicMessageActionReply intentionally uses a fresh context. The
-// request context may already be canceled when the mobile client disconnects,
-// but the token still has to return to open so the user can retry.
-func (s *Server) releasePublicMessageActionReply(parent context.Context, token string) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
-	defer cancel()
-	if err := s.messageRepo.ReleaseActionReply(ctx, token); err != nil {
-		logger.Warnf(ctx, "[message-action] release processing reply failed err=%v", err)
-	}
 }
 
 func buildMobileAskURL(baseURL, sourcePath, sessionID string) string {
@@ -174,7 +129,7 @@ func buildMobileAskURL(baseURL, sourcePath, sessionID string) string {
 }
 
 func mobileActionFullCodePath(message dto.MessageInboxItem) string {
-	return msgrepo.ResolveMessageWorkspacePath(message.SourcePath, message.FullCodePath, message.SourceParentPath, message.SourceTemplateType)
+	return firstNonEmptyActionString(message.SourcePath, message.FullCodePath, message.SourceParentPath)
 }
 
 func firstNonEmptyActionString(values ...string) string {

@@ -58,11 +58,11 @@ func initSystemUserWithPassword(ctx context.Context, db *gorm.DB, password strin
 
 	userRepo := hrrepository.NewUserRepository(db)
 
-	existingUser, err := userRepo.GetUserByUsername(ctx, SystemUsername)
+	existingUser, err := userRepo.GetUserByUsername(SystemUsername)
 	if err == nil && existingUser != nil {
 		if existingUser.Type != hrmodel.UserTypeSystem {
 			existingUser.Type = hrmodel.UserTypeSystem
-			if err := userRepo.UpdateUser(ctx, existingUser); err != nil {
+			if err := userRepo.UpdateUser(existingUser); err != nil {
 				return fmt.Errorf("更新 system 用户类型失败: %w", err)
 			}
 			logger.Infof(ctx, "[SystemUser] 已更新 system 用户类型为系统用户")
@@ -100,7 +100,7 @@ func initSystemUserWithPassword(ctx context.Context, db *gorm.DB, password strin
 		Signature:     "系统内置用户，用于管理系统工具、平台接口和提示词",
 	}
 
-	if err := userRepo.CreateUser(ctx, systemUser); err != nil {
+	if err := userRepo.CreateUser(systemUser); err != nil {
 		return fmt.Errorf("创建 system 用户失败: %w", err)
 	}
 
@@ -125,20 +125,20 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 
 	userRepo := hrrepository.NewUserRepository(db)
 
-	existingUser, err := userRepo.GetUserByUsername(ctx, TestUsername)
+	existingUser, err := userRepo.GetUserByUsername(TestUsername)
 	if err == nil && existingUser != nil {
 		if existingUser.DepartmentFullPath != TestUserDepartmentPath {
 			existingUser.DepartmentFullPath = TestUserDepartmentPath
-			if err := userRepo.UpdateUser(ctx, existingUser); err != nil {
+			if err := userRepo.UpdateUser(existingUser); err != nil {
 				logger.Warnf(ctx, "[TestUser] 更新 test_user 部门失败: %v", err)
 			}
 		}
 		if existingUser.PasswordHash == "" {
-			if err := setTestUserPassword(ctx, userRepo, existingUser, password); err != nil {
+			if err := setTestUserPassword(userRepo, existingUser, password); err != nil {
 				logger.Warnf(ctx, "[TestUser] 设置 test_user 密码失败: %v", err)
 			}
 		} else if !generated && bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(password)) != nil {
-			if err := setTestUserPassword(ctx, userRepo, existingUser, password); err != nil {
+			if err := setTestUserPassword(userRepo, existingUser, password); err != nil {
 				logger.Warnf(ctx, "[TestUser] 同步 test_user 密码失败: %v", err)
 			}
 		}
@@ -166,7 +166,7 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 		DepartmentFullPath: TestUserDepartmentPath,
 	}
 
-	if err := userRepo.CreateUser(ctx, testUser); err != nil {
+	if err := userRepo.CreateUser(testUser); err != nil {
 		return fmt.Errorf("创建 test_user 失败: %w", err)
 	}
 
@@ -174,13 +174,13 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 	return nil
 }
 
-func setTestUserPassword(ctx context.Context, userRepo *hrrepository.UserRepository, user *hrmodel.User, password string) error {
+func setTestUserPassword(userRepo *hrrepository.UserRepository, user *hrmodel.User, password string) error {
 	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
 	user.PasswordHash = string(hashed)
-	return userRepo.UpdateUser(ctx, user)
+	return userRepo.UpdateUser(user)
 }
 
 // getSystemUserPassword 获取系统账号密码（优先从配置/环境变量，否则生成随机密码）
@@ -211,7 +211,7 @@ func setSystemUserPassword(ctx context.Context, userRepo *hrrepository.UserRepos
 
 	// 更新密码
 	user.PasswordHash = string(hashedPassword)
-	if err := userRepo.UpdateUser(ctx, user); err != nil {
+	if err := userRepo.UpdateUser(user); err != nil {
 		return fmt.Errorf("更新密码失败: %w", err)
 	}
 

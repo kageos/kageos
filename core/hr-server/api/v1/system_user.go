@@ -30,7 +30,7 @@ func (s *SystemUser) List(c *gin.Context) {
 	}
 	var req dto.SystemListUsersReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, "请求参数错误: "+err.Error())
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
 	if req.Page <= 0 {
@@ -42,9 +42,9 @@ func (s *SystemUser) List(c *gin.Context) {
 	if req.PageSize > 100 {
 		req.PageSize = 100
 	}
-	users, total, err := s.userService.ListUsersForSystem(contextx.ToContext(c), req)
+	users, total, err := s.userService.ListUsersForSystem(req)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, "查询用户失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, &dto.SystemListUsersResp{
@@ -61,12 +61,12 @@ func (s *SystemUser) Create(c *gin.Context) {
 	}
 	var req dto.SystemCreateUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "请求参数错误: "+err.Error())
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
 	user, err := s.userService.CreateUserFromSystem(contextx.ToContext(c), req, contextx.GetRequestUser(c))
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, "创建用户失败: "+err.Error())
 		return
 	}
 	s.respondUser(c, user)
@@ -78,12 +78,12 @@ func (s *SystemUser) Update(c *gin.Context) {
 	}
 	var req dto.SystemUpdateUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "请求参数错误: "+err.Error())
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
 	user, err := s.userService.UpdateUserFromSystem(contextx.ToContext(c), usernameParam(c), req, contextx.GetRequestUser(c))
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, "更新用户失败: "+err.Error())
 		return
 	}
 	s.respondUser(c, user)
@@ -95,12 +95,12 @@ func (s *SystemUser) ResetPassword(c *gin.Context) {
 	}
 	var req dto.SystemResetUserPasswordReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "请求参数错误: "+err.Error())
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
 	user, err := s.userService.ResetUserPasswordFromSystem(contextx.ToContext(c), usernameParam(c), req.Password)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, "重置密码失败: "+err.Error())
 		return
 	}
 	s.respondUser(c, user)
@@ -112,12 +112,12 @@ func (s *SystemUser) UpdateStatus(c *gin.Context) {
 	}
 	var req dto.SystemUpdateUserStatusReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "请求参数错误: "+err.Error())
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
 	user, err := s.userService.UpdateUserStatusFromSystem(contextx.ToContext(c), usernameParam(c), req.Status)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, "更新用户状态失败: "+err.Error())
 		return
 	}
 	s.respondUser(c, user)
@@ -126,7 +126,7 @@ func (s *SystemUser) UpdateStatus(c *gin.Context) {
 func (s *SystemUser) respondUser(c *gin.Context, user *model.User) {
 	userInfos := convertUsersToDTOBatch(contextx.ToContext(c), []*model.User{user}, s.userService, s.departmentService)
 	if len(userInfos) == 0 {
-		response.Internal(c, "转换用户信息失败")
+		response.FailWithMessage(c, "转换用户信息失败")
 		return
 	}
 	response.OkWithData(c, &dto.SystemUserResp{User: *userInfos[0]})

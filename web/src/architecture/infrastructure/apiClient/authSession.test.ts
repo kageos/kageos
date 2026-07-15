@@ -1,24 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import {
-  extractApiMessage,
-  isAuthExpiredBusinessResponse,
-  isPublicAuthRequestUrl,
-  isRefreshRequestUrl,
-} from './authSession'
+import { extractApiMessage, isAuthExpiredBusinessResponse, isRefreshRequestUrl } from './authSession'
 
 describe('authSession', () => {
   it('识别 refresh 路由', () => {
     expect(isRefreshRequestUrl('/hr/api/v1/auth/refresh')).toBe(true)
     expect(isRefreshRequestUrl('http://localhost:8080/hr/api/v1/auth/refresh')).toBe(true)
     expect(isRefreshRequestUrl('/hr/api/v1/auth/login')).toBe(false)
-  })
-
-  it('识别不应携带旧 token 的公开认证路由', () => {
-    expect(isPublicAuthRequestUrl('/hr/api/v1/auth/login')).toBe(true)
-    expect(isPublicAuthRequestUrl('/hr/api/v1/auth/register?source=web')).toBe(true)
-    expect(isPublicAuthRequestUrl('/hr/api/v1/auth/oauth/github/authorize')).toBe(true)
-    expect(isPublicAuthRequestUrl('/hr/api/v1/auth/logout')).toBe(false)
-    expect(isPublicAuthRequestUrl('/hr/api/v1/users/me')).toBe(false)
   })
 
   it('识别当前后端返回的 token 过期业务错误', () => {

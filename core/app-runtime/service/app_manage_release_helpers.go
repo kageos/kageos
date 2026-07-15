@@ -124,7 +124,7 @@ func (s *AppManageService) updateReleaseVersionMetadata(
 		}
 	}
 
-	if err := s.updateVersionJson(ctx, appPaths.AppDir(), user, app, newVersion); err != nil {
+	if err := s.updateVersionJson(appPaths.AppDir(), user, app, newVersion); err != nil {
 		logger.Warnf(ctx, "[%s] 更新版本信息失败: %v，继续执行", logPrefix, err)
 	}
 

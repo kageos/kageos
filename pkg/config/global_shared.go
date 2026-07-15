@@ -36,12 +36,11 @@ func GetGlobalSharedConfig() *GlobalSharedConfig {
 
 // GlobalSharedConfig 全局共享配置
 type GlobalSharedConfig struct {
-	Site         SiteConfig         `mapstructure:"site"`
-	Gateway      GatewayConfig      `mapstructure:"gateway"`
-	Nats         NatsConfig         `mapstructure:"nats"`
-	JWT          JWTConfig          `mapstructure:"jwt"`
-	ControlPlane ControlPlaneConfig `mapstructure:"control_plane"`
-	SDK          SDKConfig          `mapstructure:"sdk"`
+	Site    SiteConfig    `mapstructure:"site"`
+	Gateway GatewayConfig `mapstructure:"gateway"`
+	Nats    NatsConfig    `mapstructure:"nats"`
+	JWT     JWTConfig     `mapstructure:"jwt"`
+	SDK     SDKConfig     `mapstructure:"sdk"`
 	// 注意：数据库配置不在全局配置中，每个服务可以单独配置自己的数据库
 }
 
@@ -100,12 +99,11 @@ func (g *GatewayConfig) GetBaseURL() string {
 	return "http://localhost:9090" // 默认值（裸机服务访问）
 }
 
-// GetInternalURL 获取服务间访问网关的地址。
-// 显式 internal_url 优先；未配置时沿用网关的常规地址解析，允许部署方
-// 使用非本机 IP、内网域名或公网域名，不在配置层擅自限制网络拓扑。
+// GetInternalURL 获取内部服务访问地址
+// 优先级：internal_url > base_url > host+port > 默认值
 func (g *GatewayConfig) GetInternalURL() string {
-	if internalURL := strings.TrimSpace(g.InternalURL); internalURL != "" {
-		return internalURL
+	if g.InternalURL != "" {
+		return g.InternalURL
 	}
 	return g.GetBaseURL()
 }

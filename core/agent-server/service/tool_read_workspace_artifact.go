@@ -100,7 +100,7 @@ func (s *WorkspaceChatService) readWorkspaceArtifactTool(ctx context.Context, ra
 	if sessionID == "" {
 		return toolResult("read_workspace_artifact 只能在工作台会话中调用：缺少 workspace session 上下文。", true)
 	}
-	msg, err := s.messageRepo.GetByID(ctx, args.MessageID)
+	msg, err := s.messageRepo.GetByID(args.MessageID)
 	if err != nil || msg == nil {
 		return toolResult(fmt.Sprintf("read_workspace_artifact 找不到消息：message_id=%d", args.MessageID), true)
 	}
@@ -108,7 +108,7 @@ func (s *WorkspaceChatService) readWorkspaceArtifactTool(ctx context.Context, ra
 		return toolResult("read_workspace_artifact 被拒绝：只能读取当前工作台会话内的消息引用。", true)
 	}
 	if s.sessionRepo != nil {
-		if session, err := s.sessionRepo.GetBySessionID(ctx, sessionID); err == nil && session != nil {
+		if session, err := s.sessionRepo.GetBySessionID(sessionID); err == nil && session != nil {
 			if err := ensureWorkspaceSessionOwner(ctx, session); err != nil {
 				return toolResult("read_workspace_artifact 被拒绝："+err.Error(), true)
 			}

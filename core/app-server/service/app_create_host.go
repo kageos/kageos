@@ -1,16 +1,15 @@
 package service
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/core/app-server/repository"
 )
 
-func (a *AppService) selectHostForCreateApp(ctx context.Context) (*model.Host, error) {
-	hostRepo := repository.NewHostRepository(a.appRepo.GetDB(ctx))
-	hosts, err := hostRepo.GetHostList(ctx)
+func (a *AppService) selectHostForCreateApp() (*model.Host, error) {
+	hostRepo := repository.NewHostRepository(a.appRepo.GetDB())
+	hosts, err := hostRepo.GetHostList()
 	if err != nil || len(hosts) == 0 {
 		return nil, fmt.Errorf("无法获取可用的主机: %w", err)
 	}

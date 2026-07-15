@@ -293,7 +293,7 @@ func (s *AppManageService) createVersionFiles(user, app string) error {
 }
 
 // updateVersionJson 更新 version.json 文件
-func (s *AppManageService) updateVersionJson(ctx context.Context, appDir, user, app, newVersion string) error {
+func (s *AppManageService) updateVersionJson(appDir, user, app, newVersion string) error {
 	paths := buildVersionMetadataPaths(newRuntimeAppPathsFromAppDir(appDir, user, app))
 
 	versionData, err := s.readVersionData(paths.versionJSONPath)
@@ -333,7 +333,7 @@ func (s *AppManageService) updateVersionJson(ctx context.Context, appDir, user, 
 	}
 
 	if err := s.updateCurrentVersionFiles(versionData.User, versionData.App, newVersion); err != nil {
-		logger.Warnf(ctx, "[updateVersionJson] Failed to update current version files: %v", err)
+		logger.Warnf(context.Background(), "[updateVersionJson] Failed to update current version files: %v", err)
 	}
 
 	return nil
@@ -473,9 +473,9 @@ func relativeSDKReplacePath(appDir string, sdkRoot string) (string, error) {
 }
 
 // createMainGoFile 创建 main.go 文件（已存在则复用，不覆盖）
-func (s *AppManageService) createMainGoFile(ctx context.Context, mainGoPath, user, app string) error {
+func (s *AppManageService) createMainGoFile(mainGoPath, user, app string) error {
 	if _, err := os.Stat(mainGoPath); err == nil {
-		logger.Infof(ctx, "[createMainGoFile] main.go already exists, skip: %s", mainGoPath)
+		logger.Infof(context.Background(), "[createMainGoFile] main.go already exists, skip: %s", mainGoPath)
 		return nil
 	}
 

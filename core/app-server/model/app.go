@@ -17,14 +17,7 @@ type App struct {
 	Status   string `gorm:"column:status;type:varchar(50)" json:"status"` // 应用状态: enabled(启用), disabled(禁用)
 	Version  string `gorm:"column:version;type:varchar(50)" json:"version"`
 	IsPublic bool   `gorm:"column:is_public;type:boolean;default:true" json:"is_public"` // 是否公开，默认公开
-	// AccessMode controls authenticated workspace access. Existing workspaces and
-	// empty values use permissioned mode; open collaboration only affects the
-	// business data plane, not workspace administration.
-	AccessMode AppAccessMode `gorm:"column:access_mode;type:varchar(32);not null;default:'permissioned';index" json:"access_mode"`
-	Admins     string        `gorm:"column:admins;type:text" json:"admins"` // 管理员列表，逗号分隔的用户名
-	// IsPersonalWorkspace distinguishes the system-provisioned personal home
-	// from a legacy user workspace that merely happens to use code "home".
-	IsPersonalWorkspace bool `gorm:"column:is_personal_workspace;type:boolean;default:false;index" json:"is_personal_workspace"`
+	Admins   string `gorm:"column:admins;type:text" json:"admins"`                       // 管理员列表，逗号分隔的用户名
 	// 是否在目录树返回时隐藏当前用户无 read 权限的节点，默认关闭。
 	HideUnauthorizedNodes bool `gorm:"column:hide_unauthorized_nodes;type:boolean;default:false" json:"hide_unauthorized_nodes"`
 
@@ -54,12 +47,6 @@ func (a *App) IsEnabled() bool {
 // IsDisabled 判断应用是否被禁用
 func (a *App) IsDisabled() bool {
 	return a.Status == "disabled"
-}
-
-// IsOpenCollaboration reports whether authenticated users may collaborate on
-// this workspace's business data without an explicit role assignment.
-func (a *App) IsOpenCollaboration() bool {
-	return a != nil && a.AccessMode.IsOpenCollaboration()
 }
 
 func (a *App) GetVersionNumber() int {

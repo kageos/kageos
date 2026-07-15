@@ -1650,24 +1650,6 @@ onBeforeUnmount(() => {
   width: 40px;
   height: 40px;
 }
-.mini-msg-files :deep(.output-files-item--media) {
-  grid-column: 1 / -1;
-  justify-self: center;
-  width: 100%;
-}
-.mini-msg-files :deep(.output-files-item--media .output-files-main) {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.mini-msg-files :deep(.output-files-item--media .output-files-preview) {
-  width: min(100%, 1520px);
-  height: auto;
-  aspect-ratio: 16 / 9;
-}
-.mini-msg-files :deep(.output-files-item--media .output-files-info) {
-  width: min(100%, 1520px);
-}
 .mini-msg-files :deep(.output-files-icon) {
   width: 40px;
   height: 40px;

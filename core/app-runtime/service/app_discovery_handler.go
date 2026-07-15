@@ -1,11 +1,11 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/discovery"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/subjects"
@@ -34,7 +34,7 @@ func NewAppDiscoveryHandler(service *AppDiscoveryService) *AppDiscoveryHandler {
 }
 
 func (h *AppDiscoveryHandler) HandleRuntimeLifecycleEvent(msg *nats.Msg) {
-	ctx := contextx.NatsTraceContext(msg)
+	ctx := context.Background()
 
 	var message subjects.Message
 	if err := json.Unmarshal(msg.Data, &message); err != nil {
@@ -49,14 +49,14 @@ func (h *AppDiscoveryHandler) HandleRuntimeLifecycleEvent(msg *nats.Msg) {
 			logger.Errorf(ctx, "[AppDiscoveryHandler] Failed to decode startup payload: %v", err)
 			return
 		}
-		h.service.applyStartupNotification(ctx, message.User, message.App, message.Version, payload.Status, payload.StartTime, payload.ErrorMessage)
+		h.service.applyStartupNotification(message.User, message.App, message.Version, payload.Status, payload.StartTime, payload.ErrorMessage)
 	case subjects.MessageTypeStatusClose:
 		payload, err := decodeLifecycleData[appClosePayload](message.Data)
 		if err != nil {
 			logger.Errorf(ctx, "[AppDiscoveryHandler] Failed to decode close payload: %v", err)
 			return
 		}
-		h.service.applyCloseNotification(ctx, message.User, message.App, message.Version, payload.Status, payload.StartTime, payload.CloseTime)
+		h.service.applyCloseNotification(message.User, message.App, message.Version, payload.Status, payload.StartTime, payload.CloseTime)
 	case subjects.MessageTypeStatusDiscovery:
 		payload, err := decodeLifecycleData[discovery.DiscoveryResponse](message.Data)
 		if err != nil {
@@ -66,7 +66,7 @@ func (h *AppDiscoveryHandler) HandleRuntimeLifecycleEvent(msg *nats.Msg) {
 		payload.User = message.User
 		payload.App = message.App
 		payload.Version = message.Version
-		h.service.applyDiscoveryResponse(ctx, &payload)
+		h.service.applyDiscoveryResponse(&payload)
 	default:
 		logger.Warnf(ctx, "[AppDiscoveryHandler] Unknown message type: %s", message.Type)
 	}

@@ -143,8 +143,8 @@ type workspaceAppFunctionCapability struct {
 	SchemaSummary []string `json:"schema_summary,omitempty"`
 }
 
-func runWorkspaceRoleHooks(ctx context.Context, input workspaceRoleHookInput) workspaceRoleHookOutput {
-	return runWorkspaceRoleHookRegistry(ctx, input)
+func runWorkspaceRoleHooks(input workspaceRoleHookInput) workspaceRoleHookOutput {
+	return runWorkspaceRoleHookRegistry(context.Background(), input)
 }
 
 func runWorkspaceRoleBeforeEnterHooks(ctx context.Context, input workspaceRoleHookInput) workspaceRoleHookOutput {

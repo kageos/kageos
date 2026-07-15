@@ -44,7 +44,7 @@ func TestCreateUserFromSystemCreatesCompanyAndUser(t *testing.T) {
 		t.Fatalf("password hash mismatch: %v", err)
 	}
 
-	company, err := companyRepo.GetCompanyByCode(context.Background(), "acme")
+	company, err := companyRepo.GetCompanyByCode("acme")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestUpdateUserStatusFromSystemDoesNotDisableSystem(t *testing.T) {
 	userRepo := repository.NewUserRepository(db)
 	companyRepo := repository.NewCompanyRepository(db)
 	svc := NewUserService(userRepo, companyRepo, nil, nil)
-	if err := userRepo.CreateUser(context.Background(), &model.User{
+	if err := userRepo.CreateUser(&model.User{
 		Username:      SystemUsername,
 		Email:         SystemUserEmail,
 		CompanyCode:   model.DefaultCompanyCode,

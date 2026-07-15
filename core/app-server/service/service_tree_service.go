@@ -72,7 +72,7 @@ func (s *ServiceTreeService) CreatePackage(ctx context.Context, req *dto.CreateP
 	if err != nil {
 		return nil, err
 	}
-	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(ctx, resp.FullCodePath))
+	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(resp.FullCodePath))
 	return resp, nil
 }
 
@@ -81,7 +81,7 @@ func (s *ServiceTreeService) CreateFunction(ctx context.Context, req *dto.Create
 	if err != nil {
 		return nil, err
 	}
-	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(ctx, resp.FullCodePath))
+	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(resp.FullCodePath))
 	return resp, nil
 }
 
@@ -113,7 +113,7 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 	var expectedPath string
 	if req != nil {
 		expectedPath = s.resolveAddFunctionsAuditPath(ctx, req)
-		oldNode = s.getServiceTreeForAuditByPath(ctx, expectedPath)
+		oldNode = s.getServiceTreeForAuditByPath(expectedPath)
 	}
 	resp, err := s.functionService.AddFunctions(ctx, req)
 	if err != nil {
@@ -124,7 +124,7 @@ func (s *ServiceTreeService) AddFunctions(ctx context.Context, req *dto.AddFunct
 		if oldNode != nil {
 			action = "service_tree.node.updated"
 		}
-		s.writeServiceTreeOperateLog(ctx, action, oldNode, s.getServiceTreeForAuditByPath(ctx, expectedPath))
+		s.writeServiceTreeOperateLog(ctx, action, oldNode, s.getServiceTreeForAuditByPath(expectedPath))
 	}
 	return resp, nil
 }
@@ -143,6 +143,14 @@ func (s *ServiceTreeService) InstallCapabilityBundle(ctx context.Context, req *d
 
 func (s *ServiceTreeService) InstallCapabilityBundleFromFile(ctx context.Context, opts *dto.InstallCapabilityOptions, filePath string) (*dto.InstallCapabilityBundleResp, error) {
 	return s.capabilityBundle.InstallCapabilityBundleFromFile(ctx, opts, filePath)
+}
+
+func (s *ServiceTreeService) InstallCapabilityBundleFromURL(ctx context.Context, req *dto.InstallCapabilityBundleFromURLReq) (*dto.InstallCapabilityBundleResp, error) {
+	if req == nil {
+		return nil, fmt.Errorf("通过 URL 导入目录请求不能为空")
+	}
+	opts := req.InstallCapabilityOptions
+	return s.capabilityBundle.InstallCapabilityBundleFromURL(ctx, &opts, req.BundleURL, req.InstallKey)
 }
 
 func (s *ServiceTreeService) BatchWriteFiles(ctx context.Context, req *dto.BatchWriteFilesReq) (*dto.BatchWriteFilesResp, error) {

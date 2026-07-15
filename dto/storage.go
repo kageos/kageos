@@ -1,14 +1,23 @@
 package dto
 
+// UploadSource 上传来源
+type UploadSource string
+
+const (
+	UploadSourceBrowser UploadSource = "browser" // 浏览器上传
+	UploadSourceServer  UploadSource = "server"  // 服务端上传（容器内SDK）
+)
+
 // GetUploadTokenReq 获取上传凭证请求
 type GetUploadTokenReq struct {
-	FileName      string `json:"file_name" binding:"required"`
-	ContentType   string `json:"content_type"`
-	FileSize      int64  `json:"file_size"`
-	Router        string `json:"router,omitempty"`          // 函数路径，例如：luobei/test88888/cashier/cashier_desk.form（可选，未提供时使用默认路由：/{username}/default）
-	Bucket        string `json:"bucket,omitempty"`          // 存储桶；为空时使用 storage 默认桶
-	Hash          string `json:"hash,omitempty"`            // 文件 hash（可选，用于文件标识和 SDK 下载缓存）
-	PreviewForKey string `json:"preview_for_key,omitempty"` // 原文件 object key；存在时生成与原文件同路径的缩略图/封面 key
+	FileName      string       `json:"file_name" binding:"required"`
+	ContentType   string       `json:"content_type"`
+	FileSize      int64        `json:"file_size"`
+	Router        string       `json:"router,omitempty"`          // 函数路径，例如：luobei/test88888/cashier/cashier_desk.form（可选，未提供时使用默认路由：/{username}/default）
+	Bucket        string       `json:"bucket,omitempty"`          // 存储桶；为空时使用 storage 默认桶
+	Hash          string       `json:"hash,omitempty"`            // 文件 hash（可选，用于文件标识和 SDK 下载缓存）
+	UploadSource  UploadSource `json:"upload_source,omitempty"`   // ✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser
+	PreviewForKey string       `json:"preview_for_key,omitempty"` // 原文件 object key；存在时生成与原文件同路径的缩略图/封面 key
 }
 
 // UploadMethod 上传方式
@@ -38,6 +47,9 @@ type GetUploadTokenResp struct {
 	UploadHost   string `json:"upload_host,omitempty"`   // 上传目标 host（例如：localhost:9000，用于 CORS、进度监听）
 	UploadDomain string `json:"upload_domain,omitempty"` // 上传完整域名（例如：http://localhost:9000，用于日志、调试）
 
+	// SDK 上传配置（服务端上传时使用；method 仍为 presigned_url）
+	SDKConfig map[string]interface{} `json:"sdk_config,omitempty"` // SDK 配置
+
 	// CDN 域名（可选，用于下载访问）
 	CDNDomain string `json:"cdn_domain,omitempty"`
 
@@ -65,7 +77,8 @@ type GetFileInfoResp struct {
 
 // BatchGetUploadTokenReq 批量获取上传凭证请求
 type BatchGetUploadTokenReq struct {
-	Files []GetUploadTokenReq `json:"files" binding:"required,min=1,max=100"` // 文件列表（最多100个）
+	Files        []GetUploadTokenReq `json:"files" binding:"required,min=1,max=100"` // 文件列表（最多100个）
+	UploadSource UploadSource        `json:"upload_source,omitempty"`                // ✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser
 }
 
 // BatchGetUploadTokenResp 批量获取上传凭证响应

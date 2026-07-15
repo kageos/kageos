@@ -14,7 +14,6 @@ import (
 	msgrepo "github.com/kageos/kageos/core/message-server/repository"
 	"github.com/kageos/kageos/core/message-server/service"
 	"github.com/kageos/kageos/pkg/config"
-	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/dbx"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/natsx"
@@ -159,14 +158,6 @@ func (s *Server) initNATS(ctx context.Context) error {
 }
 
 func (s *Server) initServices(ctx context.Context) error {
-	controlPlaneSecret, err := config.GetControlPlaneSecret()
-	if err != nil {
-		return fmt.Errorf("load control-plane secret: %w", err)
-	}
-	workspaceActionSigner, err := controlauth.NewSigner(controlPlaneSecret, controlauth.HTTPWorkspaceActionScope)
-	if err != nil {
-		return fmt.Errorf("initialize workspace-action request signer: %w", err)
-	}
 	vault, err := service.NewNotificationSecretVault(s.cfg.GetNotificationEncryptionSecret())
 	if err != nil {
 		return fmt.Errorf("failed to init notification secret vault: %w", err)
@@ -181,10 +172,7 @@ func (s *Server) initServices(ctx context.Context) error {
 		service.WithChannelProviders(service.NewDefaultNotificationChannelProviders(s.cfg.GetNotificationWebhookTimeout())...),
 	)
 	s.messageCommandHandler = service.NewMessageCommandHandler(s.messageConsumerService)
-	s.workspaceActionRunner = service.NewWorkspaceActionRunner(
-		config.GetGlobalSharedConfig().Gateway.GetInternalURL(),
-		workspaceActionSigner,
-	)
+	s.workspaceActionRunner = service.NewWorkspaceActionRunner(config.GetGlobalSharedConfig().Gateway.GetInternalURL())
 	logger.Infof(ctx, "[message-server] services initialized")
 	return nil
 }

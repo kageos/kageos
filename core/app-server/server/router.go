@@ -27,53 +27,59 @@ func (s *Server) setupRoutes() {
 	public.POST("/anonymous-token", publicShareHandler.AnonymousToken)
 	public.GET("/s/:share_id", publicShareHandler.View)
 	public.POST("/s/:share_id/submit", publicShareHandler.Submit)
-	public.POST("/s/:share_id/selection-options", publicShareHandler.CallbackOnSelectFuzzy)
+	public.POST("/s/:share_id/callback/on_select_fuzzy", publicShareHandler.CallbackOnSelectFuzzy)
 
 	// Workspace 路由组（统一使用 /workspace/api/v1 开头，方便网关代理）
 	workspace := s.httpServer.Group("/workspace")
 	apiV1 := workspace.Group("/api/v1")
 
+	// ⭐ 统一添加用户信息中间件，所有接口都需要（网关会透传 token，解析后设置到 X-Request-User header）
+	apiV1.Use(middleware2.WithUserInfo())
+
 	// 应用管理路由（需要JWT验证）
-	app := apiV1.Group("/apps")
+	app := apiV1.Group("/app")
 	app.Use(middleware2.JWTAuth()) // 应用管理需要JWT认证
 	appHandler := v1.NewApp(s.appService, s.serviceTreeService, s.teamAccessService)
-	app.GET("", appHandler.GetApps)
+	app.GET("/list", appHandler.GetApps)
 	app.GET("/detail", appHandler.GetAppDetail)
 	app.GET("/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
-	app.DELETE("", appHandler.DeleteApp)
-	app.POST("", appHandler.CreateApp)
-	app.POST("/personal-workspace", appHandler.BootstrapPersonalWorkspace)
-	app.POST("/builds", appHandler.UpdateApp)
-	app.PATCH("/workspace", appHandler.UpdateWorkspace)
+	app.DELETE("/delete", appHandler.DeleteApp)
+	app.POST("/create", appHandler.CreateApp)
+	app.POST("/update", appHandler.UpdateApp)
+	app.PUT("/workspace", appHandler.UpdateWorkspace)
 
-	teamAccess := apiV1.Group("/access")
+	teamAccess := apiV1.Group("/team_access")
 	teamAccess.Use(middleware2.JWTAuth())
 	teamAccessHandler := v1.NewTeamAccess(s.teamAccessService)
 	teamAccess.GET("/members", teamAccessHandler.ListMembers)
-	teamAccess.POST("/assignments", teamAccessHandler.Assign)
-	teamAccess.POST("/assignments/batch", teamAccessHandler.BatchAssign)
-	teamAccess.DELETE("/assignments", teamAccessHandler.Remove)
-	teamAccess.GET("/permissions", teamAccessHandler.MyPermissions)
+	teamAccess.POST("/assign", teamAccessHandler.Assign)
+	teamAccess.POST("/batch_assign", teamAccessHandler.BatchAssign)
+	teamAccess.POST("/remove", teamAccessHandler.Remove)
+	teamAccess.GET("/my_permissions", teamAccessHandler.MyPermissions)
 
-	publicShares := apiV1.Group("/public-shares")
+	publicShares := apiV1.Group("/public_shares")
 	publicShares.Use(middleware2.JWTAuth())
 	publicShares.POST("", publicShareHandler.Create)
 	publicShares.GET("", publicShareHandler.List)
-	publicShares.DELETE("/:share_id", publicShareHandler.Disable)
+	publicShares.POST("/:share_id/disable", publicShareHandler.Disable)
 
 	// 服务目录管理路由（需要JWT验证）
+	serviceTree := apiV1.Group("/service_tree")
 	serviceTreeHandler := v1.NewServiceTree(s.serviceTreeService, s.teamAccessService)
-	directoryResources := apiV1.Group("")
-	directoryResources.Use(middleware2.JWTAuth())
-	directoryResources.GET("/directories", serviceTreeHandler.GetServiceTreeDetail)
-	directoryResources.POST("/directory-queries", serviceTreeHandler.BatchGetServiceTreeDetails)
-	directoryResources.GET("/directory-overviews", serviceTreeHandler.GetDirectoryOverview)
-	directoryResources.GET("/function-search-results", serviceTreeHandler.SearchFunctions)
-	directoryResources.GET("/resource-search-results", serviceTreeHandler.SearchResources)
-	directoryResources.POST("/directory-copies", serviceTreeHandler.CopyServiceTree)
-	directoryResources.GET("/capability-bundle-exports", serviceTreeHandler.ExportCapabilityBundle)
-	directoryResources.POST("/capability-bundle-exports", serviceTreeHandler.ExportCapabilityBundle)
-	directoryResources.POST("/capability-bundle-installations", serviceTreeHandler.InstallCapabilityBundle)
+
+	// 需要JWT验证的路由
+	serviceTreeAuth := serviceTree.Group("")
+	serviceTreeAuth.Use(middleware2.JWTAuth())                                           // 服务目录管理需要JWT认证
+	serviceTreeAuth.GET("/detail", serviceTreeHandler.GetServiceTreeDetail)              // 获取服务目录详情
+	serviceTreeAuth.POST("/batch_detail", serviceTreeHandler.BatchGetServiceTreeDetails) // 批量获取服务目录详情
+	serviceTreeAuth.GET("/overview", serviceTreeHandler.GetDirectoryOverview)            // 获取目录概览
+	serviceTreeAuth.GET("/search_functions", serviceTreeHandler.SearchFunctions)         // ⭐ 搜索函数
+	serviceTreeAuth.GET("/search_resources", serviceTreeHandler.SearchResources)         // 全站资源搜索（目录/函数/文档）
+	serviceTreeAuth.POST("/copy", serviceTreeHandler.CopyServiceTree)                    // 复制服务目录
+	serviceTreeAuth.GET("/export_capability_bundle", serviceTreeHandler.ExportCapabilityBundle)
+	serviceTreeAuth.POST("/export_capability_bundle", serviceTreeHandler.ExportCapabilityBundle)
+	serviceTreeAuth.POST("/install_capability_bundle", serviceTreeHandler.InstallCapabilityBundle)
+	serviceTreeAuth.POST("/install_capability_bundle_from_url", serviceTreeHandler.InstallCapabilityBundleFromURL)
 
 	// ⭐ 按类型分离的 CRUD 接口（推荐使用）
 	// ==================== Package 类型接口 ====================
@@ -108,15 +114,12 @@ func (s *Server) setupRoutes() {
 	docs.PUT("/info/*full-code-path", docHandler.UpdateDoc)    // 更新文档
 	docs.DELETE("/info/*full-code-path", docHandler.DeleteDoc) // 删除文档
 
-	// ==================== Agent 委托的内部调用 ====================
-	// These routes intentionally do not accept end-user credentials. Agent must
-	// pass the Gateway's exact allowlist; Gateway then re-signs the rewritten
-	// backend request. Host-network Apps cannot substitute identity headers.
-	agentDelegated := apiV1.Group("")
-	agentDelegated.Use(middleware2.GatewayBackendAuth())
-	agentDelegated.POST("/functions/batch", serviceTreeHandler.AddFunctions)
+	// ==================== 服务间调用路由 ====================
+	// 服务间调用路由（不需要JWT验证，但用户信息中间件已在 apiV1 级别统一添加）
+	serviceTree.POST("/add_functions", serviceTreeHandler.AddFunctions) // 向服务目录添加函数（agent-server -> workspace）
 
-	workspaceGroup := agentDelegated.Group("/workspace")
+	// 工作台环境信息路由（不需要JWT验证，但用户信息中间件已在 apiV1 级别统一添加）
+	workspaceGroup := apiV1.Group("/workspace")
 	workspaceGroup.GET("/context", serviceTreeHandler.GetWorkspaceContext)       // 获取工作台环境信息（agent-server -> workspace）
 	workspaceGroup.POST("/files/write", serviceTreeHandler.WriteFileContent)     // 工作台写入单个文本文件（实时写盘）
 	workspaceGroup.POST("/files/replace", serviceTreeHandler.ReplaceFileContent) // 工作台文件 search-replace（实时写盘）
@@ -145,36 +148,34 @@ func (s *Server) setupRoutes() {
 	// ⭐ 标准接口路由（使用 full-code-path）
 	standardAPI := v1.NewStandardAPI(s.appService, s.teamAccessService)
 
-	// Workspace function resources. The function path remains the catch-all resource ID.
-	tables := apiV1.Group("/tables")
-	tables.Use(middleware2.JWTAuth())
-	tables.GET("/*full-code-path", standardAPI.TableSearch)
-	tables.POST("/*full-code-path", standardAPI.TableCreate)
-	tables.PUT("/*full-code-path", standardAPI.TableUpdate)
-	tables.DELETE("/*full-code-path", standardAPI.TableDelete)
+	// Table 函数接口
+	table := apiV1.Group("/table")
+	table.Use(middleware2.JWTAuth())
+	table.GET("/search/*full-code-path", standardAPI.TableSearch)     // Table 查询
+	table.GET("/template/*full-code-path", standardAPI.TableTemplate) // Table 下载导入模板
+	table.POST("/create/*full-code-path", standardAPI.TableCreate)    // Table 新增
+	table.PUT("/update/*full-code-path", standardAPI.TableUpdate)     // Table 更新
+	table.DELETE("/delete/*full-code-path", standardAPI.TableDelete)  // Table 删除
 
-	tableImportTemplates := apiV1.Group("/table-import-templates")
-	tableImportTemplates.Use(middleware2.JWTAuth())
-	tableImportTemplates.GET("/*full-code-path", standardAPI.TableTemplate)
-
-	formSubmissions := apiV1.Group("/form-submissions")
-	formSubmissions.Use(middleware2.JWTAuth())
-	formSubmissions.POST("/*full-code-path", standardAPI.FormSubmit)
+	// Form 函数接口
+	form := apiV1.Group("/form")
+	form.Use(middleware2.JWTAuth())
+	form.POST("/submit/*full-code-path", standardAPI.FormSubmit) // Form 提交
 
 	// 工作台私有 runtime 接口（agent tool -> 当前 workspace app）
-	pythonExecutions := apiV1.Group("/python-executions")
-	pythonExecutions.Use(middleware2.JWTAuth())
-	pythonExecutions.POST("/*full-code-path", standardAPI.RuntimePython)
+	runtime := apiV1.Group("/runtime")
+	runtime.Use(middleware2.JWTAuth())
+	runtime.POST("/python/*full-code-path", standardAPI.RuntimePython) // run_python 私有执行
 
 	// Chart 函数接口
-	charts := apiV1.Group("/charts")
-	charts.Use(middleware2.JWTAuth())
-	charts.GET("/*full-code-path", standardAPI.ChartQuery)
+	chart := apiV1.Group("/chart")
+	chart.Use(middleware2.JWTAuth())
+	chart.GET("/query/*full-code-path", standardAPI.ChartQuery) // Chart 查询
 
 	// Callback 接口（不需要权限检查，因为这是内部回调）
-	selectionOptions := apiV1.Group("/selection-options")
-	selectionOptions.Use(middleware2.JWTAuth())
-	selectionOptions.POST("/*full-code-path", standardAPI.CallbackOnSelectFuzzy)
+	callbackStandard := apiV1.Group("/callback")
+	callbackStandard.Use(middleware2.JWTAuth())
+	callbackStandard.POST("/on_select_fuzzy/*full-code-path", standardAPI.CallbackOnSelectFuzzy) // 模糊搜索回调
 
 	serverx.ApplyRouteRegistrars(serverx.ServiceAppServer, s.httpServer)
 }

@@ -1,4 +1,4 @@
-import { del, get, post } from '@/architecture/infrastructure/apiClient/request'
+import { get, post } from '@/architecture/infrastructure/apiClient/request'
 import type { AccessPermissions, AccessRoleCode } from '@/architecture/domain/types'
 import { normalizeResourcePath } from '@/architecture/shared/resourcePath'
 
@@ -28,7 +28,7 @@ export interface MyPermissions {
 }
 
 export function listTeamMembers(resourcePath: string) {
-	return get<{ members: TeamMemberAccess[] }>('/workspace/api/v1/access/members', {
+  return get<{ members: TeamMemberAccess[] }>('/workspace/api/v1/team_access/members', {
     resource_path: normalizeResourcePath(resourcePath)
   })
 }
@@ -39,7 +39,7 @@ export function assignTeamRole(data: {
   role_code: AccessRoleCode
   expires_at?: string | null
 }) {
-	return post('/workspace/api/v1/access/assignments', {
+  return post('/workspace/api/v1/team_access/assign', {
     ...data,
     resource_path: normalizeResourcePath(data.resource_path)
   })
@@ -51,7 +51,7 @@ export function batchAssignTeamRoles(data: {
   role_codes: AccessRoleCode[]
   expires_at?: string | null
 }) {
-	return post('/workspace/api/v1/access/assignments/batch', {
+  return post('/workspace/api/v1/team_access/batch_assign', {
     ...data,
     resource_paths: data.resource_paths.map(normalizeResourcePath)
   })
@@ -62,14 +62,14 @@ export function removeTeamRole(data: {
   username: string
   role_code?: AccessRoleCode
 }) {
-	return del('/workspace/api/v1/access/assignments', {
+  return post('/workspace/api/v1/team_access/remove', {
     ...data,
     resource_path: normalizeResourcePath(data.resource_path)
   })
 }
 
 export function getMyPermissions(resourcePath: string) {
-	return get<MyPermissions>('/workspace/api/v1/access/permissions', {
+  return get<MyPermissions>('/workspace/api/v1/team_access/my_permissions', {
     resource_path: normalizeResourcePath(resourcePath)
   })
 }

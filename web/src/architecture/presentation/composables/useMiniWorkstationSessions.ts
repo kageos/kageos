@@ -7,8 +7,6 @@ import {
   getWorkspaceMessages,
   getWorkspaceSessionSSEStatus,
   getWorkspaceSessions,
-  type WorkspaceAutomationAgentItem,
-  type WorkspaceMessageInfo,
   type WorkspaceSessionItem
 } from '@/architecture/presentation/context/api/workspace'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
@@ -26,29 +24,12 @@ export interface UseMiniWorkstationSessionsOptions {
   setMessages: (messages: ChatMessage[]) => void
   abortActiveStream?: () => void
   onSelectMaximizedSession?: (sessionId: string) => void
-  sessionSourceFilter: Ref<string>
 }
 
-export function resolveWorkspaceSessionSourceFilter(value: string): {
-  session_scope: 'human' | 'automation'
-  automation_task_id?: number
-} {
-  const normalized = String(value || '').trim()
-  if (!normalized.startsWith('agent:')) return { session_scope: 'human' }
-  const taskID = Number(normalized.slice('agent:'.length))
-  if (!Number.isFinite(taskID) || taskID <= 0) return { session_scope: 'human' }
-  return { session_scope: 'automation', automation_task_id: taskID }
-}
-
-/**
- * Convert the persisted workspace message shape into the exact message model
- * rendered by the PC workstation. Pocket reuses this function so a session
- * looks the same on desktop and mobile instead of maintaining two renderers.
- */
-export function normalizeWorkspaceSessionMessages(rawMessages: WorkspaceMessageInfo[]): ChatMessage[] {
+function normalizeSessionMessages(rawMessages: any[]): ChatMessage[] {
   return rawMessages
     .filter(message => message.role === 'user' || message.role === 'assistant')
-    .map((message) => {
+    .map((message: any) => {
       const rawDisplayContent = message.display_content || message.content || ''
       const thinkingContent = typeof message.thinking_content === 'string' ? message.thinking_content : ''
       const displaySegments = message.role === 'assistant'
@@ -101,11 +82,10 @@ export function normalizeWorkspaceSessionMessages(rawMessages: WorkspaceMessageI
 }
 
 export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOptions) {
-  const { fullCodePath, initialSessionId, maximized, sending, sessionId, setMessages, abortActiveStream, onSelectMaximizedSession, sessionSourceFilter } = options
+  const { fullCodePath, initialSessionId, maximized, sending, sessionId, setMessages, abortActiveStream, onSelectMaximizedSession } = options
 
   const miniSessionList = ref<WorkspaceSessionItem[]>([])
   const globalSessionList = ref<WorkspaceSessionItem[]>([])
-  const automationAgents = ref<WorkspaceAutomationAgentItem[]>([])
   const loadingSessions = ref(false)
   const loadingGlobalSessions = ref(false)
   const stopping = ref(false)
@@ -121,15 +101,8 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
 
     loadingSessions.value = true
     try {
-      const source = resolveWorkspaceSessionSourceFilter(sessionSourceFilter.value)
-      const response = await getWorkspaceSessions({
-        full_code_path: fullCodePath.value,
-        page: 1,
-        page_size: 100,
-        ...source
-      })
+      const response = await getWorkspaceSessions({ full_code_path: fullCodePath.value })
       miniSessionList.value = response.sessions || []
-      automationAgents.value = response.automation_agents || []
     } catch {
       miniSessionList.value = []
     } finally {
@@ -199,7 +172,7 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
   async function loadMiniSessionMessages(targetSessionId: string) {
     try {
       const response = await getWorkspaceMessages({ session_id: targetSessionId })
-      setMessages(normalizeWorkspaceSessionMessages(response?.messages || []))
+      setMessages(normalizeSessionMessages(response?.messages || []))
     } catch (error) {
       Logger.error('[MiniWorkstationSessions]', '加载会话消息失败', { error })
     }
@@ -360,7 +333,6 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
   return {
     miniSessionList,
     globalSessionList,
-    automationAgents,
     loadingSessions,
     loadingGlobalSessions,
     stopping,

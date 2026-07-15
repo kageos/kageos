@@ -2,10 +2,7 @@ package service
 
 import (
 	"context"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -102,105 +99,6 @@ func TestEnvVarNamesRedactsValues(t *testing.T) {
 		if strings.Contains(name, "secret") || strings.Contains(name, "://") {
 			t.Fatalf("envVarNames() leaked value material: %#v", got)
 		}
-	}
-}
-
-func TestPodmanSecretRunOptionContainsOnlyNameAndTarget(t *testing.T) {
-	secret := ContainerSecret{
-		Name:   "kageos-nats-0123456789abcdef",
-		Target: "kageos-nats",
-		Data:   []byte("nats://user:private-password@nats.internal:4222"),
-	}
-	if err := validateContainerSecret(secret); err != nil {
-		t.Fatalf("validateContainerSecret() error = %v", err)
-	}
-
-	got := podmanSecretRunOption(secret)
-	want := "kageos-nats-0123456789abcdef,type=mount,target=kageos-nats,mode=0400"
-	if got != want {
-		t.Fatalf("podmanSecretRunOption() = %q, want %q", got, want)
-	}
-	if strings.Contains(got, "private-password") || strings.Contains(got, "nats://") {
-		t.Fatalf("podman secret run option leaked secret data: %q", got)
-	}
-}
-
-func TestValidateContainerSecretRejectsArgumentInjection(t *testing.T) {
-	for _, secret := range []ContainerSecret{
-		{Name: "bad,name", Target: "kageos-nats", Data: []byte("secret")},
-		{Name: "valid-name", Target: "bad,target", Data: []byte("secret")},
-		{Name: "valid-name", Target: "kageos-nats"},
-	} {
-		if err := validateContainerSecret(secret); err == nil {
-			t.Fatalf("expected invalid container secret to fail: %#v", secret)
-		}
-	}
-}
-
-func TestRunContainerWithCommandAndSecretsPassesDataOnlyOnStdin(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("fake podman executable uses a POSIX shell")
-	}
-
-	tempDir := t.TempDir()
-	argsPath := filepath.Join(tempDir, "args.log")
-	secretPath := filepath.Join(tempDir, "secret.input")
-	podmanPath := filepath.Join(tempDir, "podman")
-	script := `#!/bin/sh
-printf '%s\n' "$*" >> "$PODMAN_TEST_ARGS"
-if [ "$1" = "secret" ] && [ "$2" = "create" ]; then
-  cat > "$PODMAN_TEST_SECRET_INPUT"
-fi
-`
-	if err := os.WriteFile(podmanPath, []byte(script), 0o700); err != nil {
-		t.Fatalf("write fake podman: %v", err)
-	}
-	t.Setenv("PATH", tempDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	t.Setenv("PODMAN_TEST_ARGS", argsPath)
-	t.Setenv("PODMAN_TEST_SECRET_INPUT", secretPath)
-
-	service := NewPodmanService(nil)
-	service.connected = true
-	secretData := []byte("nats://runtime-user:private-password@nats.internal:4222")
-	secret := ContainerSecret{
-		Name:   "kageos-nats-test",
-		Target: "kageos-nats",
-		Data:   secretData,
-	}
-	if err := service.RunContainerWithCommandAndSecrets(
-		context.Background(),
-		"kagebase:test",
-		"alice-demo-v1",
-		"/host/app",
-		"/app",
-		[]string{"/start.sh"},
-		[]ContainerSecret{secret},
-		"NATS_URL=nats://nats.internal:4222",
-	); err != nil {
-		t.Fatalf("RunContainerWithCommandAndSecrets() error = %v", err)
-	}
-
-	argsData, err := os.ReadFile(argsPath)
-	if err != nil {
-		t.Fatalf("read fake podman args: %v", err)
-	}
-	argsLog := string(argsData)
-	if strings.Contains(argsLog, "private-password") || strings.Contains(argsLog, "runtime-user") {
-		t.Fatalf("podman arguments leaked secret data: %q", argsLog)
-	}
-	if !strings.Contains(argsLog, "--secret kageos-nats-test,type=mount,target=kageos-nats,mode=0400") {
-		t.Fatalf("podman run did not mount the expected secret: %q", argsLog)
-	}
-	if !strings.Contains(argsLog, "NATS_URL=nats://nats.internal:4222") {
-		t.Fatalf("podman run lost the credential-free NATS endpoint: %q", argsLog)
-	}
-
-	gotSecret, err := os.ReadFile(secretPath)
-	if err != nil {
-		t.Fatalf("read fake podman secret stdin: %v", err)
-	}
-	if string(gotSecret) != string(secretData) {
-		t.Fatal("podman secret content was not passed through stdin")
 	}
 }
 

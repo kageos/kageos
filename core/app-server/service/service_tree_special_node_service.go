@@ -90,7 +90,7 @@ func (s *serviceTreeSpecialNodeService) CreateDocsNode(ctx context.Context, req 
 		} else {
 			if serviceTree.RefID == 0 {
 				serviceTree.RefID = doc.ID
-				if err := s.serviceTreeRepo.UpdateServiceTree(ctx, serviceTree); err != nil {
+				if err := s.serviceTreeRepo.UpdateServiceTree(serviceTree); err != nil {
 					logger.Warnf(ctx, "[ServiceTreeService] 更新 ServiceTree RefID 失败: %v", err)
 				}
 			}
@@ -111,14 +111,14 @@ func (s *serviceTreeSpecialNodeService) createSpecialNode(
 		req.Code = req.Code + codeSuffix
 	}
 
-	app, err := s.appRepo.GetAppByUserNameContext(ctx, req.User, req.App)
+	app, err := s.appRepo.GetAppByUserName(req.User, req.App)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get app: %w", err)
 	}
 
 	var parentTree *model.ServiceTree
 	if req.ParentFullCodePath != "" {
-		parentTree, err = s.serviceTreeRepo.GetServiceTreeByFullPath(ctx, req.ParentFullCodePath)
+		parentTree, err = s.serviceTreeRepo.GetServiceTreeByFullPath(req.ParentFullCodePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get parent node: %w", err)
 		}
@@ -131,7 +131,7 @@ func (s *serviceTreeSpecialNodeService) createSpecialNode(
 		parentPath = parentTree.FullCodePath
 	}
 
-	exists, err := s.serviceTreeRepo.CheckNameExistsByPath(ctx, parentPath, req.Code, app.ID)
+	exists, err := s.serviceTreeRepo.CheckNameExistsByPath(parentPath, req.Code, app.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check name exists: %w", err)
 	}
@@ -156,7 +156,7 @@ func (s *serviceTreeSpecialNodeService) createSpecialNode(
 		serviceTree.CreatedBy = requestUser
 	}
 
-	if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(ctx, serviceTree, ""); err != nil {
+	if err := s.serviceTreeRepo.CreateServiceTreeWithParentPath(serviceTree, ""); err != nil {
 		return nil, fmt.Errorf("failed to create %s node: %w", nodeType, err)
 	}
 

@@ -50,7 +50,7 @@ func executeBatchCreateDirectoryTree(
 		}
 		dirCode := pathParts[len(pathParts)-1]
 
-		existingTree, err := serviceTreeRepo.GetServiceTreeByFullPath(ctx, item.FullCodePath)
+		existingTree, err := serviceTreeRepo.GetServiceTreeByFullPath(item.FullCodePath)
 		if err == nil && existingTree != nil {
 			if existingTree.AppID == app.ID && existingTree.Type == model.ServiceTreeTypePackage {
 				pathToTree[item.FullCodePath] = existingTree
@@ -65,7 +65,7 @@ func executeBatchCreateDirectoryTree(
 		parentPath := getParentPathForBatch(item.FullCodePath)
 		if parentPath != "" {
 			if _, exists := pathToTree[parentPath]; !exists {
-				if existingParent, err := serviceTreeRepo.GetServiceTreeByFullPath(ctx, parentPath); err == nil {
+				if existingParent, err := serviceTreeRepo.GetServiceTreeByFullPath(parentPath); err == nil {
 					pathToTree[parentPath] = existingParent
 				}
 			}
@@ -83,7 +83,7 @@ func executeBatchCreateDirectoryTree(
 			UpdateVersionNum: 0,
 		}
 
-		if err := serviceTreeRepo.CreateServiceTreeWithParentPath(ctx, newTree, ""); err != nil {
+		if err := serviceTreeRepo.CreateServiceTreeWithParentPath(newTree, ""); err != nil {
 			logger.Warnf(ctx, "[BatchCreateDirectoryTree] 创建 ServiceTree 记录失败: path=%s, error=%v",
 				item.FullCodePath, err)
 		} else {

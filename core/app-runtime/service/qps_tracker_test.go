@@ -1,65 +1,9 @@
 package service
 
 import (
-	"math"
 	"testing"
 	"time"
 )
-
-func TestQPSTrackerAggregatesRequestsBySecond(t *testing.T) {
-	t.Parallel()
-
-	tracker := NewQPSTracker(time.Minute, time.Second)
-	tracker.RecordRequest("alice", "demo", "v1")
-	tracker.RecordRequest("alice", "demo", "v1")
-
-	vqps := mustVersionQPS(t, tracker, "alice", "demo", "v1")
-	vqps.mu.RLock()
-	total := int64(0)
-	for _, count := range vqps.Requests {
-		total += count
-	}
-	vqps.mu.RUnlock()
-
-	if total != 2 {
-		t.Fatalf("aggregated request count = %d, want 2", total)
-	}
-}
-
-func TestQPSTrackerCalculatesQPSFromBucketsAndDropsExpiredBuckets(t *testing.T) {
-	t.Parallel()
-
-	const window = time.Minute
-	tracker := NewQPSTracker(window, time.Second)
-	tracker.ObserveVersion("alice", "demo", "v1")
-	vqps := mustVersionQPS(t, tracker, "alice", "demo", "v1")
-	now := time.Now().Unix()
-
-	vqps.mu.Lock()
-	vqps.Requests = map[int64]int64{
-		now:                               3,
-		now - 1:                           2,
-		now - int64(window.Seconds()) - 1: 100,
-	}
-	vqps.mu.Unlock()
-
-	got := tracker.GetQPS("alice", "demo", "v1")
-	want := float64(5) / window.Seconds()
-	if math.Abs(got-want) > 1e-9 {
-		t.Fatalf("QPS = %f, want %f", got, want)
-	}
-
-	vqps.mu.RLock()
-	_, expiredBucketExists := vqps.Requests[now-int64(window.Seconds())-1]
-	remainingBuckets := len(vqps.Requests)
-	vqps.mu.RUnlock()
-	if expiredBucketExists {
-		t.Fatal("expired request bucket was not removed")
-	}
-	if remainingBuckets != 2 {
-		t.Fatalf("remaining bucket count = %d, want 2", remainingBuckets)
-	}
-}
 
 func TestQPSTrackerIdleRequiresObservation(t *testing.T) {
 	t.Parallel()

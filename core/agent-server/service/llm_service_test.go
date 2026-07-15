@@ -83,7 +83,7 @@ func TestLLMConfigAdminPermissionsAndNormalization(t *testing.T) {
 		t.Fatalf("UpdateLLMConfig() allowed error = %v", err)
 	}
 
-	updated, err := repo.GetByID(aliceCtx, cfg.ID)
+	updated, err := repo.GetByID(cfg.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error = %v", err)
 	}
@@ -116,7 +116,7 @@ func TestLLMConfigAdminPermissionsAndNormalization(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateLLMConfig(blank key) error = %v", err)
 	}
-	preserved, err := repo.GetByID(aliceCtx, cfg.ID)
+	preserved, err := repo.GetByID(cfg.ID)
 	if err != nil {
 		t.Fatalf("GetByID(blank key update) error = %v", err)
 	}
@@ -152,7 +152,7 @@ func TestLLMConfigDeleteAndSetDefaultRequireAdmin(t *testing.T) {
 	if err := svc.SetDefaultLLMConfig(aliceCtx, cfg.ID); err != nil {
 		t.Fatalf("SetDefaultLLMConfig() admin error = %v", err)
 	}
-	defaultCfg, err := repo.GetDefault(aliceCtx)
+	defaultCfg, err := repo.GetDefault()
 	if err != nil {
 		t.Fatalf("GetDefault() error = %v", err)
 	}
@@ -166,7 +166,7 @@ func TestLLMConfigDeleteAndSetDefaultRequireAdmin(t *testing.T) {
 	if err := svc.DeleteLLMConfig(aliceCtx, cfg.ID); err != nil {
 		t.Fatalf("DeleteLLMConfig() admin error = %v", err)
 	}
-	if _, err := repo.GetByID(aliceCtx, cfg.ID); err != gorm.ErrRecordNotFound {
+	if _, err := repo.GetByID(cfg.ID); err != gorm.ErrRecordNotFound {
 		t.Fatalf("GetByID() after delete error = %v, want ErrRecordNotFound", err)
 	}
 }
@@ -188,7 +188,7 @@ func TestLLMConfigInfersResponsesProtocolFromEndpoint(t *testing.T) {
 	if err := svc.CreateLLMConfig(aliceCtx, cfg); err != nil {
 		t.Fatalf("CreateLLMConfig() error = %v", err)
 	}
-	stored, err := repo.GetByID(aliceCtx, cfg.ID)
+	stored, err := repo.GetByID(cfg.ID)
 	if err != nil {
 		t.Fatalf("GetByID() error = %v", err)
 	}

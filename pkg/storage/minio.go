@@ -14,6 +14,8 @@ import (
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/netprobe"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 // MinIOUploader MinIO 上传器实现
@@ -42,12 +44,110 @@ func NewMinIOUploader() *MinIOUploader {
 }
 
 // Upload 上传文件到 MinIO
-// Upload 使用服务端可达的短期预签名 URL 上传，不接收对象存储长期凭据。
+// 优先使用 MinIO SDK 直接上传（如果提供了SDKConfig），否则使用 presigned_url + HTTP PUT
 func (u *MinIOUploader) Upload(ctx context.Context, creds *dto.GetUploadTokenResp, fileReader io.Reader, fileSize int64, hash string) (*UploadResult, error) {
 	// ✨ 性能监控：记录开始时间
 	startTime := time.Now()
 
+	// ✨ 如果提供了SDKConfig，使用MinIO SDK直接上传（性能更好）
+	if creds.SDKConfig != nil && len(creds.SDKConfig) > 0 {
+		return u.uploadWithSDK(ctx, creds, fileReader, fileSize, hash, startTime)
+	}
+
 	return u.uploadWithHTTP(ctx, creds, fileReader, fileSize, hash, startTime)
+}
+
+// uploadWithSDK 使用 MinIO SDK 直接上传（性能更好）
+func (u *MinIOUploader) uploadWithSDK(ctx context.Context, creds *dto.GetUploadTokenResp, fileReader io.Reader, fileSize int64, hash string, startTime time.Time) (*UploadResult, error) {
+	prepareStart := startTime
+
+	// 从SDKConfig中提取MinIO连接信息
+	endpoint, _ := creds.SDKConfig["endpoint"].(string)
+	accessKey, _ := creds.SDKConfig["access_key"].(string)
+	secretKey, _ := creds.SDKConfig["secret_key"].(string)
+	region, _ := creds.SDKConfig["region"].(string)
+	useSSL, _ := creds.SDKConfig["use_ssl"].(bool)
+	bucket, _ := creds.SDKConfig["bucket"].(string)
+
+	if endpoint == "" || accessKey == "" || secretKey == "" || bucket == "" {
+		logger.Warnf(ctx, "[MinIOUploader] SDKConfig不完整，降级使用HTTP PUT方式")
+		// 降级使用HTTP PUT
+		return u.uploadWithHTTP(ctx, creds, fileReader, fileSize, hash, startTime)
+	}
+
+	if region == "" {
+		region = "us-east-1" // 默认region
+	}
+	if resolvedEndpoint, err := netprobe.ResolveTCPEndpointCached(ctx, "minio-sdk", endpoint, time.Second); err == nil {
+		if resolvedEndpoint != endpoint {
+			logger.Debugf(ctx, "[MinIOUploader] endpoint auto-resolved: %s -> %s", endpoint, resolvedEndpoint)
+			endpoint = resolvedEndpoint
+		}
+	} else {
+		logger.Warnf(ctx, "[MinIOUploader] endpoint auto-resolve failed, using configured endpoint %s: %v", endpoint, err)
+	}
+
+	prepareTime := time.Since(prepareStart)
+	logger.Debugf(ctx, "[MinIOUploader] 准备阶段耗时: %v, 文件大小: %d bytes (使用MinIO SDK)", prepareTime, fileSize)
+
+	// 创建MinIO客户端
+	clientStart := time.Now()
+	client, err := minio.New(endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
+		Secure: useSSL,
+		Region: region,
+	})
+	if err != nil {
+		logger.Errorf(ctx, "[MinIOUploader] 创建MinIO客户端失败: %v", err)
+		return nil, fmt.Errorf("%w: 创建MinIO客户端失败: %v", ErrUploadFailed, err)
+	}
+	clientTime := time.Since(clientStart)
+	logger.Debugf(ctx, "[MinIOUploader] 创建客户端耗时: %v", clientTime)
+
+	// 执行上传
+	uploadStart := time.Now()
+	contentType := "application/octet-stream"
+	if creds.Headers != nil && creds.Headers["Content-Type"] != "" {
+		contentType = creds.Headers["Content-Type"]
+	}
+
+	logger.Debugf(ctx, "[MinIOUploader] 开始上传(MinIO SDK): endpoint=%s, bucket=%s, key=%s, Size=%d bytes", endpoint, bucket, creds.Key, fileSize)
+
+	info, err := client.PutObject(ctx, bucket, creds.Key, fileReader, fileSize, minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	if err != nil {
+		uploadTime := time.Since(uploadStart)
+		logger.Errorf(ctx, "[MinIOUploader] 上传失败: 耗时=%v, 错误=%v", uploadTime, err)
+		return nil, fmt.Errorf("%w: 上传失败: %v", ErrUploadFailed, err)
+	}
+
+	uploadTime := time.Since(uploadStart)
+	uploadSpeed := float64(fileSize) / uploadTime.Seconds()
+	logger.Debugf(ctx, "[MinIOUploader] 上传完成(MinIO SDK): 耗时=%v, 速度=%.2f MB/s (%.2f bytes/s)",
+		uploadTime, uploadSpeed/(1024*1024), uploadSpeed)
+
+	// 获取ETag
+	etag := info.ETag
+	etag = strings.Trim(etag, `"`)
+
+	// ✨ 性能监控：总耗时
+	totalTime := time.Since(startTime)
+	logUploadSummary(ctx, "MinIO SDK", fileSize, totalTime, prepareTime, clientTime, uploadTime, uploadSpeed)
+
+	// 构建结果
+	result := &UploadResult{
+		Key:               creds.Key,
+		ETag:              etag,
+		Hash:              hash,
+		Size:              fileSize,
+		ContentType:       contentType,
+		DownloadURL:       creds.DownloadURL,
+		ServerDownloadURL: creds.ServerDownloadURL,
+	}
+
+	logger.Debugf(ctx, "[MinIOUploader] Upload successful (MinIO SDK): key=%s, etag=%s, hash=%s", creds.Key, etag, hash)
+	return result, nil
 }
 
 // uploadWithHTTP 使用 HTTP PUT 方式上传（原有逻辑）

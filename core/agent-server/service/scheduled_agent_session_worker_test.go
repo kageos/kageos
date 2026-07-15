@@ -110,21 +110,6 @@ func TestScheduledAgentSessionWorkspaceRequestTreatsSystemAsDefaultRecipient(t *
 	}
 }
 
-func TestScheduledAgentSessionIdentityUsesTaskMetadata(t *testing.T) {
-	event := scheduledsdk.ExecutionRequestedEvent{
-		TaskID: 42,
-		Metadata: map[string]string{
-			"task_title":    "每日经营复盘",
-			"schedule_code": "daily_review",
-		},
-	}
-	ctx := contextWithScheduledAgentSessionIdentity(context.Background(), event)
-	identity := scheduledAgentSessionIdentityFromContext(ctx)
-	if identity.TaskID != 42 || identity.TaskTitle != "每日经营复盘" || identity.TaskCode != "daily_review" {
-		t.Fatalf("unexpected scheduled agent identity: %#v", identity)
-	}
-}
-
 func TestScheduledAgentSessionSinkBuildsExecutionResult(t *testing.T) {
 	sink := &scheduledAgentSessionSink{}
 	sink.Send(EventSession, dto.WorkspaceStreamSession{SessionID: "session-1"})
@@ -156,7 +141,7 @@ func TestScheduledAgentSessionSinkBuildsExecutionResult(t *testing.T) {
 func TestScheduledAgentSessionRunErrorExplainsMissingDirectory(t *testing.T) {
 	err := scheduledAgentSessionRunError(
 		"/system/test22/hot_news",
-		fmt.Errorf("无法解析工作台上下文: /system/test22/hot_news；原因: 业务错误 [7]: 获取工作台环境信息失败: 获取目录详情失败: 服务目录不存在"),
+		fmt.Errorf("无效的 full_code_path，无法解析目录: 业务错误 [7]: 获取工作台环境信息失败: 获取目录详情失败: 服务目录不存在"),
 	)
 	if err == nil {
 		t.Fatal("expected wrapped error")
@@ -169,20 +154,6 @@ func TestScheduledAgentSessionRunErrorExplainsMissingDirectory(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error should contain %q, got %q", want, err.Error())
 		}
-	}
-}
-
-func TestScheduledAgentSessionRunErrorPreservesInfrastructureFailure(t *testing.T) {
-	input := fmt.Errorf("无法解析工作台上下文: /system/info/site_monitor；原因: 获取服务目录失败: dial tcp 127.0.0.1:3306: connect: connection refused")
-	err := scheduledAgentSessionRunError("/system/info/site_monitor", input)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if strings.Contains(err.Error(), "工作台目录不存在") {
-		t.Fatalf("infrastructure failure must not be reported as a missing directory: %v", err)
-	}
-	if !strings.Contains(err.Error(), "connection refused") {
-		t.Fatalf("expected original infrastructure error, got %v", err)
 	}
 }
 

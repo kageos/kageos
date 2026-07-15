@@ -24,7 +24,7 @@ func TestRunWriteDocToolUsesDirectoryAsParentPathWhenCreatingDoc(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/health":
 			w.WriteHeader(http.StatusOK)
-		case r.Method == http.MethodGet && r.URL.Path == "/workspace/api/v1/directories":
+		case r.Method == http.MethodGet && r.URL.Path == "/workspace/api/v1/service_tree/detail":
 			fullCodePath := r.URL.Query().Get("full_code_path")
 			detailLookups = append(detailLookups, fullCodePath)
 			switch fullCodePath {
@@ -107,7 +107,7 @@ func TestRunWriteDocToolUpdatesExistingDocWithCanonicalDocsSuffix(t *testing.T) 
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/health":
 			w.WriteHeader(http.StatusOK)
-		case r.Method == http.MethodGet && r.URL.Path == "/workspace/api/v1/directories":
+		case r.Method == http.MethodGet && r.URL.Path == "/workspace/api/v1/service_tree/detail":
 			fullCodePath := r.URL.Query().Get("full_code_path")
 			if fullCodePath != directory+"/"+docCode+".docs" {
 				t.Fatalf("unexpected detail lookup: %s", fullCodePath)

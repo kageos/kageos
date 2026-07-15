@@ -49,7 +49,6 @@ export function useWorkspaceRouting(
     status: 'enabled',
     version: '',
     is_public: false,
-    access_mode: 'permissioned',
     hide_unauthorized_nodes: false,
     created_at: '',
     updated_at: ''

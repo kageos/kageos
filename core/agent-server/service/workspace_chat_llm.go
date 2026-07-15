@@ -10,7 +10,6 @@ import (
 	"github.com/kageos/kageos/core/agent-server/model"
 	"github.com/kageos/kageos/core/agent-server/prompt"
 	"github.com/kageos/kageos/dto"
-	"github.com/kageos/kageos/pkg/apperror"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/llms"
 	"github.com/kageos/kageos/pkg/logger"
@@ -30,13 +29,13 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 	var err error
 
 	if llmConfigID > 0 {
-		llmConfig, err = s.llmRepo.GetByID(ctx, llmConfigID)
+		llmConfig, err = s.llmRepo.GetByID(llmConfigID)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("获取 LLM 配置失败: %w", err)
 		}
 	}
 	if llmConfig == nil {
-		llmConfig, err = s.llmRepo.GetDefault(ctx)
+		llmConfig, err = s.llmRepo.GetDefault()
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return nil, nil, nil, fmt.Errorf("未设置默认 LLM，请在 LLM 管理中配置")
@@ -45,7 +44,7 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 		}
 	}
 	if !canViewLLMConfig(llmConfig, contextx.GetRequestUser(ctx)) {
-		return nil, nil, nil, apperror.PermissionDenied("无权限使用该 LLM 配置", nil)
+		return nil, nil, nil, fmt.Errorf("无权限使用该 LLM 配置")
 	}
 	apiKey, err := openLLMAPIKey(s.apiKeyVault, s.apiKeyVaultErr, llmConfig.APIKey)
 	if err != nil {
@@ -53,7 +52,7 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 	}
 	if llmConfig.APIKey != "" && !isSealedLLMAPIKey(s.apiKeyVault, llmConfig.APIKey) {
 		if sealed, sealErr := sealLLMAPIKey(s.apiKeyVault, s.apiKeyVaultErr, llmConfig.APIKey); sealErr == nil {
-			_ = s.llmRepo.UpdateAPIKey(ctx, llmConfig.ID, sealed)
+			_ = s.llmRepo.UpdateAPIKey(llmConfig.ID, sealed)
 		}
 	}
 
@@ -82,7 +81,7 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 	llmConfig.Provider = clientConfig.Provider
 	llmConfig.Protocol = clientConfig.Protocol
 	if llmConfig.ID > 0 && (originalProvider != clientConfig.Provider || originalProtocol != clientConfig.Protocol) {
-		if err := s.llmRepo.UpdateProviderProtocol(ctx, llmConfig.ID, clientConfig.Provider, clientConfig.Protocol); err != nil {
+		if err := s.llmRepo.UpdateProviderProtocol(llmConfig.ID, clientConfig.Provider, clientConfig.Protocol); err != nil {
 			logger.Warnf(ctx, "[WorkspaceChatStream] 同步 LLM 有效协议失败 - id=%d provider=%s protocol=%s err=%v",
 				llmConfig.ID, clientConfig.Provider, clientConfig.Protocol, err)
 		}
@@ -245,7 +244,7 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlan(ctx context.Context, ses
 }
 
 func (s *WorkspaceChatService) buildLLMMessagesWithPlanAndOptions(ctx context.Context, sessionID, fullCodePath, directoryName string, workspaceCtx *dto.GetWorkspaceContextResp, modeProvider prompt.WorkspaceModePromptProvider, fallbackToolNames []string, fallbackSystemPrompt string, round int, options workspaceLLMContextBuildOptions, currentMessageID ...int64) ([]llms.Message, []llms.ToolDef, *dto.WorkspaceModelContextPlan, error) {
-	list, err := s.messageRepo.ListBySessionID(ctx, sessionID)
+	list, err := s.messageRepo.ListBySessionID(sessionID)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -259,7 +258,7 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlanAndOptions(ctx context.Co
 	parentSessionID := ""
 	modelContextAnchorMessageID := int64(0)
 	if s.sessionRepo != nil {
-		if gotSession, err := s.sessionRepo.GetBySessionID(ctx, sessionID); err == nil && gotSession != nil {
+		if gotSession, err := s.sessionRepo.GetBySessionID(sessionID); err == nil && gotSession != nil {
 			session = gotSession
 			contextPolicy = ContextPolicyFull
 			parentSessionID = strings.TrimSpace(session.ParentSessionID)

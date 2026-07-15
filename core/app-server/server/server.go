@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
 	"strconv"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/natsx"
+	"github.com/kageos/kageos/pkg/openapitoken"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/kageos/kageos/pkg/waiter"
@@ -215,7 +215,6 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	if dbCfg.Type != "mysql" {
 		return fmt.Errorf("unsupported database type: %s", dbCfg.Type)
 	}
-	logger.Infof(ctx, "[Server] Connecting to MySQL host=%s port=%d database=%s", dbCfg.Host, dbCfg.Port, dbCfg.Name)
 	db, err := dbx.OpenMySQL(dbCfg, dbx.OpenOptions{
 		DisableForeignKeyConstraintWhenMigrating: true,
 		DefaultMaxLifetime:                       5 * time.Minute,
@@ -229,6 +228,10 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	if err := model.InitTables(s.db); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
+	if err := openapitoken.SetDB(s.db); err != nil {
+		return fmt.Errorf("failed to init openapi token store: %w", err)
+	}
+
 	logger.Infof(ctx, "[Server] Database initialized successfully")
 	return nil
 }
@@ -260,7 +263,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	}
 
 	// 初始化 NATS 连接池 - 其他服务调用 app-runtime 的基础依赖
-	s.natsConnPool = service.NewNATSConnPoolWithDB(ctx, s.db)
+	s.natsConnPool = service.NewNATSConnPoolWithDB(s.db)
 
 	// 初始化 appcall 客户端（调用 app-runtime 的 SDK 风格客户端，依赖注入）
 	s.appCall = appcall.New(appcall.Options{
@@ -283,35 +286,25 @@ func (s *Server) initServices(ctx context.Context) error {
 	publicShareRepo := repository.NewPublicShareRepository(s.db)
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
+	s.appService = service.NewAppService(s.appCall, appRepo, functionRepo, serviceTreeRepo, operateLogRepo)
 	s.operateLogService = service.NewOperateLogService(operateLogRepo)
 	s.teamAccessService = service.NewTeamAccessService(teamAccessRepo, operateLogRepo, appRepo)
 	s.functionSensitiveFieldService = service.NewFunctionSensitiveFieldService(functionSensitiveFieldRepo)
 	if err := s.functionSensitiveFieldService.LoadAll(ctx); err != nil {
 		return fmt.Errorf("加载敏感字段缓存失败: %w", err)
 	}
-
-	// 文档服务不依赖 AppService，可在 AppService 前完成装配。
-	docRepo := repository.NewDocRepository(s.db)
-	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo, s.teamAccessService)
-	s.appService = service.NewAppService(service.AppServiceDependencies{
-		RuntimeClient:   s.appCall,
-		AppRepository:   appRepo,
-		FunctionRepo:    functionRepo,
-		ServiceTreeRepo: serviceTreeRepo,
-		OperateLogRepo:  operateLogRepo,
-		DocService:      s.docService,
-		TeamAccess:      s.teamAccessService,
-		SensitiveFields: s.functionSensitiveFieldService,
-	})
-	controlPlaneSecret, err := config.GetControlPlaneSecret()
-	if err != nil {
-		return fmt.Errorf("load scheduled function worker control auth: %w", err)
-	}
-	scheduledFuncWorker, err := service.NewScheduledFunctionWorker(s.natsConn, s.appService, controlPlaneSecret)
+	s.appService.SetTeamAccessService(s.teamAccessService)
+	s.appService.SetFunctionSensitiveFieldService(s.functionSensitiveFieldService)
+	scheduledFuncWorker, err := service.NewScheduledFunctionWorker(s.natsConn, s.appService)
 	if err != nil {
 		return fmt.Errorf("failed to init scheduled function worker: %w", err)
 	}
 	s.scheduledFuncWorker = scheduledFuncWorker
+
+	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
+	docRepo := repository.NewDocRepository(s.db)
+	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo, s.teamAccessService)
+	s.appService.SetDocService(s.docService)
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
@@ -358,39 +351,11 @@ func (s *Server) initRouter(ctx context.Context) error {
 
 // healthHandler 健康检查处理器
 func (s *Server) healthHandler(c *gin.Context) {
-	requestCtx := context.Background()
-	if c.Request != nil {
-		requestCtx = c.Request.Context()
-	}
-	pingCtx, cancel := context.WithTimeout(requestCtx, 2*time.Second)
-	defer cancel()
-
-	if err := s.pingDatabase(pingCtx); err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"status":     "unavailable",
-			"timestamp":  time.Now().Format(time.DateTime),
-			"service":    "app-server",
-			"dependency": "mysql",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
+	c.JSON(200, gin.H{
 		"status":    "ok",
 		"timestamp": time.Now().Format(time.DateTime),
 		"service":   "app-server",
 	})
-}
-
-func (s *Server) pingDatabase(ctx context.Context) error {
-	if s.db == nil {
-		return fmt.Errorf("database is not initialized")
-	}
-	sqlDB, err := s.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlDB.PingContext(ctx)
 }
 
 // GetDB 获取数据库连接

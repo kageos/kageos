@@ -42,15 +42,13 @@ func newPackageDocsTestService(t *testing.T) (*AppService, *repository.DocReposi
 			FullCodePath: "/alice/demo/followup",
 		},
 	} {
-		if err := serviceTreeRepo.Create(context.Background(), tree); err != nil {
+		if err := serviceTreeRepo.Create(tree); err != nil {
 			t.Fatalf("create service tree %s: %v", tree.FullCodePath, err)
 		}
 	}
 	docRepo := repository.NewDocRepository(db)
-	svc := NewAppService(AppServiceDependencies{
-		ServiceTreeRepo: serviceTreeRepo,
-		DocService:      NewDocService(docRepo, serviceTreeRepo, nil, nil),
-	})
+	svc := NewAppService(nil, nil, nil, serviceTreeRepo, nil)
+	svc.SetDocService(NewDocService(docRepo, serviceTreeRepo, nil, nil))
 	return svc, docRepo, serviceTreeRepo, appModel
 }
 
@@ -77,14 +75,14 @@ func TestReconcilePackageDocsCreatesMissingRunbook(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tree, err := serviceTreeRepo.GetServiceTreeByFullPath(context.Background(), "/alice/demo/followup/runbook.docs")
+	tree, err := serviceTreeRepo.GetServiceTreeByFullPath("/alice/demo/followup/runbook.docs")
 	if err != nil {
 		t.Fatalf("get runbook tree: %v", err)
 	}
 	if tree.Type != model.ServiceTreeTypeDocs || tree.Name != "运行手册" || tree.AddVersionNum != 3 {
 		t.Fatalf("unexpected runbook tree: %#v", tree)
 	}
-	doc, err := docRepo.GetByTreeID(context.Background(), tree.ID)
+	doc, err := docRepo.GetByTreeID(tree.ID)
 	if err != nil {
 		t.Fatalf("get runbook doc: %v", err)
 	}
@@ -102,7 +100,7 @@ func TestReconcilePackageDocsDoesNotOverwriteExistingDoc(t *testing.T) {
 		Name:         "运行手册",
 		FullCodePath: "/alice/demo/followup/runbook.docs",
 	}
-	if err := serviceTreeRepo.Create(context.Background(), tree); err != nil {
+	if err := serviceTreeRepo.Create(tree); err != nil {
 		t.Fatalf("create runbook tree: %v", err)
 	}
 	doc := &model.Docs{
@@ -113,7 +111,7 @@ func TestReconcilePackageDocsDoesNotOverwriteExistingDoc(t *testing.T) {
 		TreeID:       tree.ID,
 		FullCodePath: tree.FullCodePath,
 	}
-	if err := docRepo.Create(context.Background(), doc); err != nil {
+	if err := docRepo.Create(doc); err != nil {
 		t.Fatalf("create runbook doc: %v", err)
 	}
 
@@ -132,7 +130,7 @@ func TestReconcilePackageDocsDoesNotOverwriteExistingDoc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := docRepo.GetByTreeID(context.Background(), tree.ID)
+	got, err := docRepo.GetByTreeID(tree.ID)
 	if err != nil {
 		t.Fatalf("get runbook doc: %v", err)
 	}

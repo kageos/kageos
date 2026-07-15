@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"errors"
 	"time"
 
@@ -27,13 +26,13 @@ func NewAuthOAuthRegistrationIntentRepository(db *gorm.DB) *AuthOAuthRegistratio
 	return &AuthOAuthRegistrationIntentRepository{db: db}
 }
 
-func (r *AuthOAuthRegistrationIntentRepository) Create(ctx context.Context, intent *model.AuthOAuthRegistrationIntent) error {
-	return r.db.WithContext(ctx).Create(intent).Error
+func (r *AuthOAuthRegistrationIntentRepository) Create(intent *model.AuthOAuthRegistrationIntent) error {
+	return r.db.Create(intent).Error
 }
 
-func (r *AuthOAuthRegistrationIntentRepository) GetByTicket(ctx context.Context, ticket string) (*model.AuthOAuthRegistrationIntent, error) {
+func (r *AuthOAuthRegistrationIntentRepository) GetByTicket(ticket string) (*model.AuthOAuthRegistrationIntent, error) {
 	var intent model.AuthOAuthRegistrationIntent
-	err := r.db.WithContext(ctx).Where("ticket = ?", ticket).First(&intent).Error
+	err := r.db.Where("ticket = ?", ticket).First(&intent).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -43,9 +42,9 @@ func (r *AuthOAuthRegistrationIntentRepository) GetByTicket(ctx context.Context,
 	return &intent, nil
 }
 
-func (r *AuthOAuthRegistrationIntentRepository) Complete(ctx context.Context, ticket string, user *model.User, identity *model.AuthExternalIdentity) (*model.AuthOAuthRegistrationIntent, error) {
+func (r *AuthOAuthRegistrationIntentRepository) Complete(ticket string, user *model.User, identity *model.AuthExternalIdentity) (*model.AuthOAuthRegistrationIntent, error) {
 	var intent model.AuthOAuthRegistrationIntent
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("ticket = ?", ticket).
 			First(&intent).Error; err != nil {

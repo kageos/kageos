@@ -31,33 +31,75 @@
       <span>同名目录或文件会按导入规则覆盖。</span>
     </div>
 
-    <section class="import-local-source" data-testid="import-directory-json-source">
-      <div class="import-local-source-title">
-        <el-icon><Upload /></el-icon>
-        本地 JSON 导入
-      </div>
-      <div class="json-import-box" :class="{ 'has-file': selectedJsonFile }">
-        <input
-          ref="jsonInputRef"
-          type="file"
-          accept=".json,application/json"
-          class="json-file-input"
-          data-testid="import-directory-json-input"
-          @change="handleJsonFileSelect"
-        />
-        <el-icon class="json-import-icon"><UploadFilled /></el-icon>
-        <div class="json-file-name">
-          {{ selectedJsonFile?.name || '选择目录 JSON 文件' }}
+    <el-tabs v-model="activeSource" class="import-source-tabs" data-testid="import-directory-tabs">
+      <el-tab-pane name="hub">
+        <template #label>
+          <span class="import-source-label">
+            <el-icon><Link /></el-icon>
+            Hub 导入
+          </span>
+        </template>
+        <el-form label-position="top" class="import-source-form" @submit.prevent>
+          <el-form-item label="Hub 安装命令">
+            <el-input
+              v-model="hubInstallLink"
+              type="textarea"
+              :autosize="{ minRows: 3, maxRows: 5 }"
+              placeholder="kageos install user_1210227080/meeting_room_booking:0.1.0 --key ..."
+              maxlength="1200"
+              show-word-limit
+              clearable
+              data-testid="import-directory-hub-link"
+            />
+            <div class="hub-source-actions">
+              <el-button link type="primary" :icon="Compass" @click="openHubDirectory">
+                去 Hub 查找目录
+              </el-button>
+            </div>
+          </el-form-item>
+          <el-form-item label="安装密钥">
+            <el-input
+              v-model="hubInstallKey"
+              placeholder="可选"
+              maxlength="240"
+              clearable
+              show-password
+              data-testid="import-directory-hub-key"
+            />
+          </el-form-item>
+        </el-form>
+      </el-tab-pane>
+
+      <el-tab-pane name="json">
+        <template #label>
+          <span class="import-source-label">
+            <el-icon><Upload /></el-icon>
+            JSON 导入
+          </span>
+        </template>
+        <div class="json-import-box" :class="{ 'has-file': selectedJsonFile }">
+          <input
+            ref="jsonInputRef"
+            type="file"
+            accept=".json,application/json"
+            class="json-file-input"
+            data-testid="import-directory-json-input"
+            @change="handleJsonFileSelect"
+          />
+          <el-icon class="json-import-icon"><UploadFilled /></el-icon>
+          <div class="json-file-name">
+            {{ selectedJsonFile?.name || '选择目录 JSON 文件' }}
+          </div>
+          <el-button
+            :icon="FolderOpened"
+            data-testid="import-directory-json-select"
+            @click="openJsonFilePicker"
+          >
+            选择 JSON
+          </el-button>
         </div>
-        <el-button
-          :icon="FolderOpened"
-          data-testid="import-directory-json-select"
-          @click="openJsonFilePicker"
-        >
-          选择 JSON
-        </el-button>
-      </div>
-    </section>
+      </el-tab-pane>
+    </el-tabs>
 
     <template #footer>
       <span class="dialog-footer">
@@ -80,12 +122,18 @@
 <script setup lang="ts">
 import { computed, h, ref } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
-import { FolderOpened, InfoFilled, Upload, UploadFilled } from '@element-plus/icons-vue'
+import { Compass, FolderOpened, InfoFilled, Link, Upload, UploadFilled } from '@element-plus/icons-vue'
 import type { CapabilityBundle, ServiceTree } from '@/architecture/domain/types'
-import { installCapabilityBundle } from '@/architecture/presentation/context/api/service-tree'
+import {
+  installCapabilityBundle,
+  installCapabilityBundleFromURL
+} from '@/architecture/presentation/context/api/service-tree'
 import { parseCapabilityBundleJson } from '@/architecture/presentation/utils/directoryBundleFile'
+import { parseHubInstallInput } from '@/architecture/presentation/utils/hubInstallCommand'
 import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
+import { getKageosHubURL, openExternalURL } from '@/architecture/shared/config/externalLinks'
 
+type ImportSource = 'hub' | 'json'
 type NotificationHandle = { close: () => void }
 
 interface InstallDirectoryResp {
@@ -115,6 +163,9 @@ const dialogVisible = computed({
   set: (value: boolean) => emit('update:visible', value)
 })
 
+const activeSource = ref<ImportSource>('hub')
+const hubInstallLink = ref('')
+const hubInstallKey = ref('')
 const selectedJsonFile = ref<File | null>(null)
 const jsonInputRef = ref<HTMLInputElement | null>(null)
 const importing = ref(false)
@@ -133,10 +184,16 @@ const canSubmit = computed(() => {
   if (importing.value || !targetPath.value || props.targetNode?.type !== 'package') {
     return false
   }
+  if (activeSource.value === 'hub') {
+    return hubInstallLink.value.trim().length > 0
+  }
   return Boolean(selectedJsonFile.value)
 })
 
 function resetForm() {
+  activeSource.value = 'hub'
+  hubInstallLink.value = ''
+  hubInstallKey.value = ''
   selectedJsonFile.value = null
   if (jsonInputRef.value) {
     jsonInputRef.value.value = ''
@@ -147,12 +204,20 @@ function openJsonFilePicker() {
   jsonInputRef.value?.click()
 }
 
+function openHubDirectory() {
+  openExternalURL(getKageosHubURL())
+}
+
 function handleJsonFileSelect(event: Event) {
   const input = event.target as HTMLInputElement
   selectedJsonFile.value = input.files?.[0] || null
 }
 
 async function handleSubmit() {
+  if (activeSource.value === 'hub') {
+    await submitHubImport()
+    return
+  }
   await submitJsonImport()
 }
 
@@ -232,6 +297,36 @@ async function runDirectoryImportTask(options: {
   } finally {
     importing.value = false
   }
+}
+
+async function submitHubImport() {
+  const targetNode = props.targetNode
+  if (!targetNode?.full_code_path || targetNode.type !== 'package') {
+    ElMessage.warning('请选择一个目录作为导入目标')
+    return
+  }
+
+  const command = parseHubInstallInput(hubInstallLink.value, hubInstallKey.value)
+  if (!command) {
+    ElMessage.warning('请输入有效的 Hub 安装命令')
+    return
+  }
+
+  const targetPathSnapshot = targetNode.full_code_path
+  const targetLabelSnapshot = targetLabel.value
+  void runDirectoryImportTask({
+    targetPath: targetPathSnapshot,
+    targetLabel: targetLabelSnapshot,
+    sourceLabel: command.displaySource,
+    request: () => installCapabilityBundleFromURL({
+      target_directory_path: targetPathSnapshot,
+      overwrite: true,
+      force_diff: true,
+      bundle_subpath: command.bundleSubpath,
+      bundle_url: command.bundleUrl,
+      install_key: command.installKey
+    })
+  })
 }
 
 async function submitJsonImport() {
@@ -388,14 +483,65 @@ async function submitJsonImport() {
   }
 }
 
-.import-local-source-title {
+.import-source-tabs {
+  :deep(.el-tabs__header) {
+    margin-bottom: 18px;
+  }
+
+  :deep(.el-tabs__nav-wrap::after) {
+    height: 1px;
+    background: var(--el-border-color-lighter);
+  }
+
+  :deep(.el-tabs__item) {
+    height: 36px;
+    color: var(--el-text-color-secondary);
+    font-weight: 650;
+  }
+
+  :deep(.el-tabs__item.is-active) {
+    color: var(--el-color-primary);
+  }
+}
+
+.import-source-label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin: 0 0 10px;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-  font-weight: 650;
+}
+
+.import-source-form {
+  margin-bottom: -8px;
+
+  :deep(.el-form-item__label) {
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  :deep(.el-textarea__inner),
+  :deep(.el-input__wrapper) {
+    border-radius: 8px;
+    box-shadow: 0 0 0 1px var(--el-border-color-light) inset;
+  }
+
+  :deep(.el-textarea__inner:focus),
+  :deep(.el-input__wrapper.is-focus) {
+    box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.48) inset, 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.08);
+  }
+}
+
+.hub-source-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+
+  :deep(.el-button) {
+    height: 24px;
+    padding: 0;
+    font-size: 12px;
+    font-weight: 650;
+  }
 }
 
 .json-import-box {

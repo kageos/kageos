@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/kageos/kageos/dto"
-	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/nats-io/nats.go"
@@ -19,13 +18,6 @@ const ScheduledAgentSessionExecutorKey = "agent.session"
 const scheduledAgentUnattendedPrefix = "【Agent 任务执行约束】本次 Agent 任务由自动执行触发，但当前目标不是创建或管理定时任务，而是执行后面的任务说明。请先选择能完成该业务执行的角色；需要调用已有 Form/Table/Chart 或连接器时，通常应进入 app_operator。执行过程中用户不在线、无法回答问题或确认操作；不要向用户提问，不要等待用户补充信息，不要把下一步停在“请确认/请提供”。如果发现高优先级情报、异常、风险或任务说明明确要求通知用户，可调用 send_notification 主动通知；send_notification 只负责单向通知，不能作为等待用户回复的交互。首次基准记录、无变化结果、普通状态报告默认不通知，只在执行摘要中记录。若创建时的信息不足以安全执行，按已知上下文完成可安全完成的部分，并在结果中明确记录缺失信息、未执行的动作和原因；涉及高风险写入且缺少必要确认时应跳过该动作并说明原因。"
 
 type scheduledAgentWorkspaceRootContextKey struct{}
-type scheduledAgentSessionIdentityContextKey struct{}
-
-type scheduledAgentSessionIdentity struct {
-	TaskID    int64
-	TaskCode  string
-	TaskTitle string
-}
 
 type scheduledAgentSessionPayload struct {
 	FullCodePath       string `json:"full_code_path"`
@@ -46,37 +38,21 @@ type scheduledAgentSessionPayload struct {
 
 // NewScheduledAgentSessionWorker wires timer-scheduler's agent.session executor
 // to the existing background workspace chat runner.
-func NewScheduledAgentSessionWorker(
-	natsConn *nats.Conn,
-	chatSvc *WorkspaceChatService,
-	controlPlaneSecret string,
-	delegationSigner controlauth.DelegatedHTTPRequestSigner,
-) (*scheduledsdk.Worker, error) {
+func NewScheduledAgentSessionWorker(natsConn *nats.Conn, chatSvc *WorkspaceChatService) (*scheduledsdk.Worker, error) {
 	if natsConn == nil {
 		return nil, fmt.Errorf("scheduled agent session worker requires nats connection")
 	}
 	if chatSvc == nil {
 		return nil, fmt.Errorf("scheduled agent session worker requires workspace chat service")
 	}
-	natsAuth, err := scheduledsdk.NewWorkerNATSAuth(controlPlaneSecret)
-	if err != nil {
-		return nil, fmt.Errorf("scheduled agent session worker control auth: %w", err)
-	}
 	client := scheduledsdk.NewClient(scheduledsdk.Options{
-		Adapter: scheduledsdk.NewNATSAdapter(natsConn, scheduledsdk.NATSAdapterOptions{
-			CommandSigner:    natsAuth.CommandSigner,
-			ResponseVerifier: natsAuth.ResponseVerifier,
-		}),
+		Adapter: scheduledsdk.NewNATSAdapter(natsConn, scheduledsdk.NATSAdapterOptions{}),
 	})
 	return scheduledsdk.NewWorker(scheduledsdk.WorkerOptions{
-		Client:          client,
-		NATSConn:        natsConn,
-		ExecutorKey:     ScheduledAgentSessionExecutorKey,
-		MessageVerifier: natsAuth.MessageVerifier,
-		Handler:         chatSvc.RunScheduledAgentSession,
-		VerifiedContext: func(ctx context.Context) context.Context {
-			return controlauth.WithDelegatedHTTPRequestSigner(ctx, delegationSigner)
-		},
+		Client:      client,
+		NATSConn:    natsConn,
+		ExecutorKey: ScheduledAgentSessionExecutorKey,
+		Handler:     chatSvc.RunScheduledAgentSession,
 		OnError: func(ctx context.Context, err error) {
 			logger.Warnf(ctx, "[ScheduledAgentSessionWorker] %v", err)
 		},
@@ -100,7 +76,6 @@ func (s *WorkspaceChatService) RunScheduledAgentSession(ctx context.Context, eve
 	logger.Infof(ctx, "[ScheduledAgentSessionWorker] start task_id=%d execution_id=%d full_code_path=%s",
 		event.TaskID, event.ExecutionID, req.FullCodePath)
 	ctx = contextWithScheduledAgentWorkspaceRoot(ctx, req.FullCodePath)
-	ctx = contextWithScheduledAgentSessionIdentity(ctx, event)
 	err = s.RunWorkspaceChat(ctx, req, sink)
 	result := sink.ExecutionResult()
 	if err != nil {
@@ -224,28 +199,6 @@ func scheduledAgentWorkspaceRootFromContext(ctx context.Context) string {
 	}
 	root, _ := ctx.Value(scheduledAgentWorkspaceRootContextKey{}).(string)
 	return normalizeWorkspacePath(root)
-}
-
-func contextWithScheduledAgentSessionIdentity(ctx context.Context, event scheduledsdk.ExecutionRequestedEvent) context.Context {
-	metadata := event.Metadata
-	title := strings.TrimSpace(metadata["task_title"])
-	if title == "" && event.TaskID > 0 {
-		title = fmt.Sprintf("自动化 Agent #%d", event.TaskID)
-	}
-	identity := scheduledAgentSessionIdentity{
-		TaskID:    event.TaskID,
-		TaskCode:  strings.TrimSpace(firstNonEmptyString(metadata["schedule_code"], metadata["bundle_task_code"])),
-		TaskTitle: title,
-	}
-	return context.WithValue(ctx, scheduledAgentSessionIdentityContextKey{}, identity)
-}
-
-func scheduledAgentSessionIdentityFromContext(ctx context.Context) scheduledAgentSessionIdentity {
-	if ctx == nil {
-		return scheduledAgentSessionIdentity{}
-	}
-	identity, _ := ctx.Value(scheduledAgentSessionIdentityContextKey{}).(scheduledAgentSessionIdentity)
-	return identity
 }
 
 type scheduledAgentSessionSink struct {

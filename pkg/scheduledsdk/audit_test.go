@@ -20,8 +20,6 @@ func TestExecutionRequestedEventWithAuditContext(t *testing.T) {
 			MetadataCompanyCode:    "acme",
 			MetadataCompanyName:    "Acme",
 			MetadataCompanyLogoURL: "https://example.com/logo.png",
-			MetadataRequestEmail:   "alice@example.com",
-			MetadataLeaderUsername: "lead-alice",
 		},
 	}
 
@@ -42,8 +40,8 @@ func TestExecutionRequestedEventWithAuditContext(t *testing.T) {
 	if got := contextx.GetRequestUser(ctx); got != "alice" {
 		t.Fatalf("request user = %q, want alice", got)
 	}
-	if got := contextx.GetToken(ctx); got != "" {
-		t.Fatalf("NATS event token leaked into context: %q", got)
+	if got := contextx.GetToken(ctx); got != "token-1" {
+		t.Fatalf("token = %q, want token-1", got)
 	}
 	if got := contextx.GetRequestDepartmentFullPath(ctx); got != "/org/dev" {
 		t.Fatalf("request dept = %q, want /org/dev", got)
@@ -89,8 +87,8 @@ func TestExecutionRequestedEventApplyAuditHeaders(t *testing.T) {
 	if got := header.Get(contextx.RequestUserHeader); got != "alice" {
 		t.Fatalf("request user header = %q, want alice", got)
 	}
-	if got := header.Get(contextx.TokenHeader); got != "" {
-		t.Fatalf("NATS event token leaked into header: %q", got)
+	if got := header.Get(contextx.TokenHeader); got != "token-1" {
+		t.Fatalf("token header = %q, want token-1", got)
 	}
 	if got := header.Get(contextx.CompanyCodeHeader); got != "acme" {
 		t.Fatalf("company code header = %q, want acme", got)

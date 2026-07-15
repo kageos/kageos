@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
@@ -11,6 +13,72 @@ import (
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 )
+
+func TestDownloadCapabilityBundleUsesInstallKeyHeader(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("X-Install-Key"); got != "install-key-123" {
+			t.Fatalf("X-Install-Key = %q, want install-key-123", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"schema_version":"capability.bundle.v1",
+			"name":"remote bundle",
+			"packages":[],
+			"files":[]
+		}`))
+	}))
+	defer server.Close()
+
+	bundle, err := downloadCapabilityBundle(context.Background(), server.URL+"/bundle", "install-key-123")
+	if err != nil {
+		t.Fatalf("downloadCapabilityBundle() error = %v", err)
+	}
+	if bundle.Name != "remote bundle" || bundle.SchemaVersion != dto.CapabilityBundleSchemaVersion {
+		t.Fatalf("unexpected bundle: %#v", bundle)
+	}
+}
+
+func TestDownloadCapabilityBundleExtractsInstallKeyFromURL(t *testing.T) {
+	t.Parallel()
+
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		if got := r.Header.Get("X-Install-Key"); got != "url-key-123" {
+			t.Fatalf("X-Install-Key = %q, want url-key-123", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"schema_version":"capability.bundle.v1",
+			"name":"url key bundle",
+			"packages":[],
+			"files":[]
+		}`))
+	}))
+	defer server.Close()
+
+	bundle, err := downloadCapabilityBundle(context.Background(), server.URL+"/api/v1/products/demo/bundle/url-key-123", "")
+	if err != nil {
+		t.Fatalf("downloadCapabilityBundle() error = %v", err)
+	}
+	if gotPath != "/api/v1/products/demo/bundle" {
+		t.Fatalf("request path = %q, want /api/v1/products/demo/bundle", gotPath)
+	}
+	if bundle.Name != "url key bundle" {
+		t.Fatalf("bundle name = %q, want url key bundle", bundle.Name)
+	}
+}
+
+func TestDownloadCapabilityBundleRejectsUnsupportedScheme(t *testing.T) {
+	t.Parallel()
+
+	_, err := downloadCapabilityBundle(context.Background(), "file:///tmp/bundle.json", "")
+	if err == nil || !strings.Contains(err.Error(), "http/https") {
+		t.Fatalf("expected scheme rejection, got %v", err)
+	}
+}
 
 func TestValidateCapabilityBundleRejectsWorkspaceBoundPaths(t *testing.T) {
 	t.Parallel()

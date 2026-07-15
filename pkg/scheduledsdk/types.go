@@ -182,11 +182,10 @@ type MarkExecutionStartedRequest struct {
 }
 
 type MarkExecutionHeartbeatRequest struct {
-	TaskID        int64     `json:"task_id"`
-	ExecutionID   int64     `json:"execution_id"`
-	WorkerID      string    `json:"worker_id,omitempty"`
-	ExecutorRunID string    `json:"executor_run_id,omitempty"`
-	HeartbeatAt   time.Time `json:"heartbeat_at,omitempty"`
+	TaskID      int64     `json:"task_id"`
+	ExecutionID int64     `json:"execution_id"`
+	WorkerID    string    `json:"worker_id,omitempty"`
+	HeartbeatAt time.Time `json:"heartbeat_at,omitempty"`
 }
 
 type MarkExecutionFinishedRequest struct {

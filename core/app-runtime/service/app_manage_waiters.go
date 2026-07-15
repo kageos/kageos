@@ -86,18 +86,18 @@ func (s *AppManageService) notifyCloseWaiter(user, app, version string, notifica
 }
 
 // NotifyStartup 通知应用启动完成（由 NATS 消息处理器调用）
-func (s *AppManageService) NotifyStartup(ctx context.Context, notification *StartupNotification) {
+func (s *AppManageService) NotifyStartup(notification *StartupNotification) {
 	if notification == nil {
 		return
 	}
 	s.notifyStartupWaiter(notification.User, notification.App, notification.Version, notification)
 	if err := s.updateRuntimeManifestStartup(notification); err != nil {
-		logger.Warnf(ctx, "[NotifyStartup] Failed to update runtime manifest: %v", err)
+		logger.Warnf(context.Background(), "[NotifyStartup] Failed to update runtime manifest: %v", err)
 	}
 }
 
 // NotifyClose 通知应用关闭完成（由 NATS 消息处理器调用）
-func (s *AppManageService) NotifyClose(_ context.Context, notification *CloseNotification) {
+func (s *AppManageService) NotifyClose(notification *CloseNotification) {
 	if notification == nil {
 		return
 	}

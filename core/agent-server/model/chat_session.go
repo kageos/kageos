@@ -10,12 +10,7 @@ type AgentChatSession struct {
 	models.Base
 	TreeID                      int64  `gorm:"type:bigint;not null;index;comment:服务目录ID" json:"tree_id"`
 	FullCodePath                string `gorm:"type:varchar(512);index;comment:服务目录完整路径（workspace 用，有语意）" json:"full_code_path"`
-	ResourceTreeID              int64  `gorm:"type:bigint;not null;default:0;index;comment:会话归属的函数或资源节点ID" json:"resource_tree_id"`
-	ResourceFullCodePath        string `gorm:"type:varchar(512);index;comment:会话归属的函数或资源完整路径" json:"resource_full_code_path"`
-	Source                      string `gorm:"type:varchar(32);index;comment:来源(workspace=人工工作台,automation_agent=自动化 Agent,空值为历史数据)" json:"source"`
-	AutomationTaskID            int64  `gorm:"type:bigint;not null;default:0;index;comment:自动化 Agent 任务 ID" json:"automation_task_id"`
-	AutomationTaskCode          string `gorm:"type:varchar(128);index;comment:自动化 Agent 稳定 Code" json:"automation_task_code"`
-	AutomationTaskTitle         string `gorm:"type:varchar(255);comment:自动化 Agent 名称" json:"automation_task_title"`
+	Source                      string `gorm:"type:varchar(32);index;comment:来源(workspace=工作台,空值为历史数据)" json:"source"`
 	SessionID                   string `gorm:"type:varchar(64);not null;uniqueIndex;comment:会话ID（UUID）" json:"session_id"`
 	Title                       string `gorm:"type:varchar(255);comment:会话标题" json:"title"`
 	ModeCode                    string `gorm:"type:varchar(32);not null;default:'dev';index;comment:工作台模式代码" json:"mode_code"`
@@ -31,11 +26,6 @@ type AgentChatSession struct {
 	ArchiveReason               string `gorm:"type:varchar(255);comment:会话归档原因" json:"archive_reason"`
 	User                        string `gorm:"type:varchar(128);not null;index;comment:创建用户" json:"user"`
 }
-
-const (
-	ChatSessionSourceWorkspace       = "workspace"
-	ChatSessionSourceAutomationAgent = "automation_agent"
-)
 
 // 会话状态常量
 const (

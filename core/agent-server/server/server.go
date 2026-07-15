@@ -12,14 +12,12 @@ import (
 	"github.com/kageos/kageos/core/agent-server/repository"
 	"github.com/kageos/kageos/core/agent-server/service"
 	"github.com/kageos/kageos/pkg/config"
-	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/dbx"
 	"github.com/kageos/kageos/pkg/logger"
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/natsx"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/serverx"
-	"github.com/kageos/kageos/pkg/serviceconfig"
 	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
 )
@@ -41,13 +39,11 @@ type Server struct {
 	messageRepo *repository.ChatMessageRepository
 
 	// 服务
-	llmService            *service.LLMService
-	toolRegistry          *service.ToolRegistry
-	runtimeStateStore     service.RuntimeStateStore
-	workspaceChatService  *service.WorkspaceChatService
-	scheduledAgentWorker  *scheduledsdk.Worker
-	agentBackendVerifier  *controlauth.Verifier
-	agentDelegationSigner controlauth.DelegatedHTTPRequestSigner
+	llmService           *service.LLMService
+	toolRegistry         *service.ToolRegistry
+	runtimeStateStore    service.RuntimeStateStore
+	workspaceChatService *service.WorkspaceChatService
+	scheduledAgentWorker *scheduledsdk.Worker
 
 	// 上下文
 	ctx context.Context
@@ -223,45 +219,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 智能工作台 ToolRegistry、WorkspaceChatService（只认 LLM，单模式；已移除插件）
 	s.toolRegistry = service.NewToolRegistry(service.WithToolMessagePublisher(s.natsConn))
 	s.workspaceChatService = service.NewWorkspaceChatService(s.toolRegistry, sessionRepo, messageRepo, s.llmRepo, s.runtimeStateStore)
-	controlPlaneSecret, err := config.GetControlPlaneSecret()
-	if err != nil {
-		return fmt.Errorf("load scheduled agent worker control auth: %w", err)
-	}
-	agentBackendVerifier, err := controlauth.NewVerifier(
-		controlPlaneSecret,
-		controlauth.HTTPGatewayAgentBackendScope,
-		controlauth.VerifierOptions{
-			MaxAge:        agentBackendHTTPMaxAge,
-			MaxFutureSkew: agentBackendHTTPMaxFutureSkew,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("initialize agent backend request verifier: %w", err)
-	}
-	s.agentBackendVerifier = agentBackendVerifier
-	agentDelegationScopeSigner, err := controlauth.NewSigner(controlPlaneSecret, controlauth.HTTPAgentDelegatedAPIScope)
-	if err != nil {
-		return fmt.Errorf("initialize Agent delegated API signer: %w", err)
-	}
-	agentTimerDelegationScopeSigner, err := controlauth.NewSigner(controlPlaneSecret, controlauth.HTTPAgentDelegatedTimerScope)
-	if err != nil {
-		return fmt.Errorf("initialize Agent delegated timer signer: %w", err)
-	}
-	agentDelegationSigner, err := newAgentDelegatedHTTPRequestSigner(
-		serviceconfig.GetGatewayURL(),
-		agentDelegationScopeSigner,
-		agentTimerDelegationScopeSigner,
-	)
-	if err != nil {
-		return fmt.Errorf("initialize Agent delegated API origin: %w", err)
-	}
-	s.agentDelegationSigner = agentDelegationSigner
-	scheduledAgentWorker, err := service.NewScheduledAgentSessionWorker(
-		s.natsConn,
-		s.workspaceChatService,
-		controlPlaneSecret,
-		s.agentDelegationSigner,
-	)
+	scheduledAgentWorker, err := service.NewScheduledAgentSessionWorker(s.natsConn, s.workspaceChatService)
 	if err != nil {
 		return fmt.Errorf("failed to init scheduled agent worker: %w", err)
 	}

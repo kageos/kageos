@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	pathpkg "path"
 	"sort"
 	"strings"
 
@@ -38,12 +37,14 @@ func newServiceTreeWorkspaceService(
 }
 
 func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, req *dto.GetWorkspaceContextReq) (*dto.GetWorkspaceContextResp, error) {
-	detail, directoryPath, err := s.resolveWorkspaceDirectory(ctx, req.FullCodePath)
+	detail, err := s.queryView.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{
+		FullCodePath: req.FullCodePath,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("获取目录详情失败: %w", err)
 	}
 
-	children, err := s.serviceTreeRepo.GetServiceTreeChildren(ctx, detail.ID)
+	children, err := s.serviceTreeRepo.GetServiceTreeChildren(detail.ID)
 	if err != nil {
 		return nil, fmt.Errorf("获取子节点列表失败: %w", err)
 	}
@@ -101,7 +102,7 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 
 	var files []dto.WorkspaceContextFile
 	if detail.AppID > 0 {
-		_, runtimeResp, errRt := s.runtimeWorkspace.readDirectoryFiles(ctx, detail.AppID, directoryPath)
+		_, runtimeResp, errRt := s.runtimeWorkspace.readDirectoryFiles(ctx, detail.AppID, req.FullCodePath)
 		if errRt == nil && runtimeResp != nil && runtimeResp.Success {
 			files = make([]dto.WorkspaceContextFile, 0, len(runtimeResp.Files))
 			for _, f := range runtimeResp.Files {
@@ -135,7 +136,7 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 				}
 				return files[i].FileName < files[j].FileName
 			})
-			logger.Infof(ctx, "[GetWorkspaceContext] 从 runtime 读取目录文件: requestedPath=%s, directoryPath=%s, fileCount=%d", req.FullCodePath, directoryPath, len(files))
+			logger.Infof(ctx, "[GetWorkspaceContext] 从 runtime 读取目录文件: fullCodePath=%s, fileCount=%d", req.FullCodePath, len(files))
 		}
 		if files == nil {
 			files = []dto.WorkspaceContextFile{}
@@ -159,36 +160,6 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 	}, nil
 }
 
-// resolveWorkspaceDirectory makes the workspace context endpoint accept both
-// package paths and concrete resource paths. Service-tree type is authoritative:
-// plain function codes do not necessarily carry a .form/.table/.chart suffix.
-func (s *serviceTreeWorkspaceService) resolveWorkspaceDirectory(ctx context.Context, requestedPath string) (*dto.GetServiceTreeDetailResp, string, error) {
-	detail, err := s.queryView.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{
-		FullCodePath: requestedPath,
-	})
-	if err != nil {
-		return nil, "", err
-	}
-	if detail.Type == model.ServiceTreeTypePackage {
-		return detail, detail.FullCodePath, nil
-	}
-
-	parentPath := strings.TrimSpace(pathpkg.Dir(detail.FullCodePath))
-	if parentPath == "" || parentPath == "." || parentPath == "/" || parentPath == detail.FullCodePath {
-		return nil, "", fmt.Errorf("资源没有可用的父目录: %s", detail.FullCodePath)
-	}
-	parent, err := s.queryView.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{
-		FullCodePath: parentPath,
-	})
-	if err != nil {
-		return nil, "", fmt.Errorf("解析资源父目录 %s 失败: %w", parentPath, err)
-	}
-	if parent.Type != model.ServiceTreeTypePackage {
-		return nil, "", fmt.Errorf("资源父节点不是服务目录: %s (type=%s)", parent.FullCodePath, parent.Type)
-	}
-	return parent, parent.FullCodePath, nil
-}
-
 func (s *serviceTreeWorkspaceService) WriteFileContent(ctx context.Context, req *dto.WriteFileContentReq) (*dto.WriteFileContentResp, error) {
 	detail, err := s.queryView.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{FullCodePath: req.FullCodePath})
 	if err != nil {
@@ -197,7 +168,7 @@ func (s *serviceTreeWorkspaceService) WriteFileContent(ctx context.Context, req 
 	if detail.AppID <= 0 {
 		return nil, fmt.Errorf("该目录不属于应用，无法写入文件")
 	}
-	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(ctx, detail.AppID, "写入文件")
+	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(detail.AppID, "写入文件")
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +207,7 @@ func (s *serviceTreeWorkspaceService) ReplaceFileContent(ctx context.Context, re
 	if detail.AppID <= 0 {
 		return nil, fmt.Errorf("该目录不属于应用，无法替换文件")
 	}
-	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(ctx, detail.AppID, "替换文件")
+	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(detail.AppID, "替换文件")
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +259,7 @@ func (s *serviceTreeWorkspaceService) DeleteFile(ctx context.Context, req *dto.D
 	if detail.AppID <= 0 {
 		return nil, fmt.Errorf("该目录不属于应用")
 	}
-	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(ctx, detail.AppID, "删除文件")
+	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(detail.AppID, "删除文件")
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +285,7 @@ func (s *serviceTreeWorkspaceService) ReadAppLog(ctx context.Context, req *dto.R
 	if detail.AppID <= 0 {
 		return nil, fmt.Errorf("该目录不属于应用")
 	}
-	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(ctx, detail.AppID, "读取日志")
+	appModel, err := s.runtimeWorkspace.getRuntimeBoundAppByID(detail.AppID, "读取日志")
 	if err != nil {
 		return nil, err
 	}

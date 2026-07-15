@@ -10,7 +10,7 @@ export class FormGatewayImpl implements IFormGateway {
 
   submitForm(request: FormSubmitRequest): Promise<unknown> {
     const fullCodePath = toFullCodePath(request.functionDetail.router)
-    const url = `/workspace/api/v1/form-submissions${fullCodePath}`
+    const url = `/workspace/api/v1/form/submit${fullCodePath}`
     const method = request.functionDetail.method?.toUpperCase() || 'POST'
 
     if (method === 'GET') {

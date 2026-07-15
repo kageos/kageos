@@ -2,9 +2,7 @@ package serviceconfig
 
 import (
 	"context"
-	"net"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,38 +22,9 @@ func GetGatewayURL() string {
 	return resolveGatewayURL(config.GetGatewayURL())
 }
 
-// GetInternalGatewayURL returns the gateway address intended for calls between
-// platform services. Unlike GetGatewayURL, it deliberately ignores the SDK's
-// GATEWAY_URL environment variable and prefers gateway.internal_url.
-func GetInternalGatewayURL() string {
-	return resolveGatewayURL(config.GetGlobalSharedConfig().Gateway.GetInternalURL())
-}
-
 // BuildGatewayURL 基于当前网关配置构建完整 URL。
 func BuildGatewayURL(path string) string {
 	return joinURL(GetGatewayURL(), path)
-}
-
-// BuildInternalGatewayURL builds a URL for platform service-to-service calls.
-func BuildInternalGatewayURL(path string) string {
-	return joinURL(GetInternalGatewayURL(), path)
-}
-
-// GetInternalTimerSchedulerURL returns the timer scheduler's local service
-// address. Core app-server calls use this path to avoid depending on gateway
-// routing when both services run in the same KageOS core deployment.
-func GetInternalTimerSchedulerURL() string {
-	cfg := config.GetTimerSchedulerConfig()
-	host := strings.TrimSpace(cfg.GetListenHost())
-	if host == "" || host == "0.0.0.0" || host == "::" {
-		host = "127.0.0.1"
-	}
-	return "http://" + net.JoinHostPort(host, strconv.Itoa(cfg.GetPort()))
-}
-
-// BuildInternalTimerSchedulerURL builds a direct core-to-timer URL.
-func BuildInternalTimerSchedulerURL(path string) string {
-	return joinURL(GetInternalTimerSchedulerURL(), path)
 }
 
 func joinURL(baseURL, path string) string {

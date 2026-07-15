@@ -7,8 +7,8 @@ import type { UserInfo, LoginRequest } from '@/architecture/domain/types'
 import { translate } from '@/architecture/shared/i18n'
 import { getCurrentRoutePath, navigateTo } from '@/architecture/shared/routing/navigation'
 
-function normalizeOAuthRedirect(redirectAfter: string | undefined) {
-  const fallback = '/workspace'
+function normalizeOAuthRedirect(redirectAfter: string | undefined, username: string) {
+  const fallback = `/workspace/${username || 'me'}`
   const raw = (redirectAfter || '').trim()
   if (!raw || raw === '/workspace' || raw === '/login') {
     return fallback
@@ -71,8 +71,9 @@ export const useAuthStore = defineStore('auth', () => {
 
       ElMessage.success(translate('auth.loginSuccess'))
 
-      // 进入工作空间准备页，由它选择或创建用户可进入的默认空间。
-      await navigateTo('/workspace')
+      // 跳转到工作空间（会弹出选择工作空间）
+      const username = response.user?.username || 'me'
+      await navigateTo(`/workspace/${username}`)
 
       return response
     } catch (error) {
@@ -93,10 +94,11 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.setItem('refresh_token', refreshTokenValue)
       }
 
-      await fetchUserInfo()
+      const userInfo = await fetchUserInfo()
       ElMessage.success(translate('auth.loginSuccess'))
 
-      const target = normalizeOAuthRedirect(redirectAfter)
+      const username = userInfo?.username || userName.value || 'me'
+      const target = normalizeOAuthRedirect(redirectAfter, username)
       await navigateTo(target)
     } catch (error) {
       clearAuthState()

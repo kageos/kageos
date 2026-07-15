@@ -2,7 +2,6 @@ package service
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"path"
@@ -110,8 +109,8 @@ func prettyWorkspaceHandoffArtifact(raw json.RawMessage) string {
 	return trimmed
 }
 
-func buildWorkspaceHandoffContextJSON(requestCtx context.Context, input workspaceHandoffContextInput) string {
-	return formatWorkspaceHandoffContextJSON(buildWorkspaceHandoffContext(requestCtx, input))
+func buildWorkspaceHandoffContextJSON(input workspaceHandoffContextInput) string {
+	return formatWorkspaceHandoffContextJSON(buildWorkspaceHandoffContext(input))
 }
 
 func formatWorkspaceHandoffContextJSON(ctx workspaceHandoffContext) string {
@@ -128,7 +127,7 @@ func workspaceHandoffContextForMessage(ctx workspaceHandoffContext) workspaceHan
 	return ctx
 }
 
-func buildWorkspaceHandoffContext(requestCtx context.Context, input workspaceHandoffContextInput) workspaceHandoffContext {
+func buildWorkspaceHandoffContext(input workspaceHandoffContextInput) workspaceHandoffContext {
 	artifactMap := workspaceJSONMap(input.ArtifactJSON)
 	digest := buildWorkspaceArtifactDigest(artifactMap)
 	if digest == nil && input.ArtifactKind == workspaceBuildArtifactKind {
@@ -142,7 +141,7 @@ func buildWorkspaceHandoffContext(requestCtx context.Context, input workspaceHan
 	workspaceDirectory := workspaceHandoffWorkspaceDirectory(input.FullCodePath, artifactMap)
 	targetAppDirectory := workspaceHandoffTargetAppDirectory(input.FullCodePath, artifactMap, digest, input.Messages)
 	executeDirectory := workspaceHandoffExecuteDirectory(input.FullCodePath, input.ArtifactKind, input.TargetRole, workspaceDirectory, targetAppDirectory)
-	hookOutput := runWorkspaceRoleHooks(requestCtx, workspaceRoleHookInput{
+	hookOutput := runWorkspaceRoleHooks(workspaceRoleHookInput{
 		Stage:              workspaceRoleHookStageBeforeHandoff,
 		SourceRole:         workspaceSessionRoleID(input.Source),
 		TargetRole:         input.TargetRole,

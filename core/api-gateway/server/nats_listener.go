@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/kageos/kageos/pkg/config"
-	"github.com/kageos/kageos/pkg/contextx"
-	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/nats-io/nats.go"
 )
@@ -33,22 +31,16 @@ type RemoveBlacklistMessage struct {
 // TokenCommandHandler 处理 gateway token 相关命令。
 type TokenCommandHandler struct {
 	tokenBlacklist *TokenBlacklist
-	verifier       *controlauth.Verifier
 }
 
 // NewTokenCommandHandler 创建 TokenCommandHandler。
-func NewTokenCommandHandler(tokenBlacklist *TokenBlacklist, verifier *controlauth.Verifier) *TokenCommandHandler {
-	return &TokenCommandHandler{tokenBlacklist: tokenBlacklist, verifier: verifier}
+func NewTokenCommandHandler(tokenBlacklist *TokenBlacklist) *TokenCommandHandler {
+	return &TokenCommandHandler{tokenBlacklist: tokenBlacklist}
 }
 
 // HandleTokenInvalidate 处理 token 失效命令。
 func (h *TokenCommandHandler) HandleTokenInvalidate(msg *nats.Msg) {
 	ctx := context.Background()
-	if err := controlauth.VerifyNATSMessage(msg, h.verifier); err != nil {
-		logger.Warnf(ctx, "[NATSListener] 拒绝未认证的 token 失效命令: %v", err)
-		return
-	}
-	ctx = contextx.NatsTraceContext(msg)
 
 	var message InvalidateTokenMessage
 	if err := json.Unmarshal(msg.Data, &message); err != nil {
@@ -62,11 +54,6 @@ func (h *TokenCommandHandler) HandleTokenInvalidate(msg *nats.Msg) {
 // HandleRemoveBlacklist 处理移除 token 黑名单命令。
 func (h *TokenCommandHandler) HandleRemoveBlacklist(msg *nats.Msg) {
 	ctx := context.Background()
-	if err := controlauth.VerifyNATSMessage(msg, h.verifier); err != nil {
-		logger.Warnf(ctx, "[NATSListener] 拒绝未认证的黑名单移除命令: %v", err)
-		return
-	}
-	ctx = contextx.NatsTraceContext(msg)
 
 	var message RemoveBlacklistMessage
 	if err := json.Unmarshal(msg.Data, &message); err != nil {

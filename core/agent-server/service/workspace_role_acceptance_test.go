@@ -177,7 +177,7 @@ func TestWorkspaceRoleAcceptancePRDConfirmHandoffCarriesDeveloperPacket(t *testi
 		RoleID:          WorkspaceRoleProductManager,
 		RoleDisplayName: "产品经理",
 	}
-	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
 		Source:        source,
 		FullCodePath:  "/system/x_world",
 		TargetRole:    WorkspaceRoleAppDeveloper,
@@ -341,7 +341,7 @@ field CreatedBy (created_by): audit field "created_by" hide tag must be "create,
 		}
 	}
 
-	failureCtx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
+	failureCtx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
 		FullCodePath:  "/system/x_world/vote",
 		TargetRole:    WorkspaceRoleBuildEngineer,
 		ArtifactKind:  workspaceBuildFailureKind,
@@ -396,7 +396,7 @@ func TestWorkspaceRoleAcceptanceArchivedHistoryExcludedFromModelContext(t *testi
 		ParentSessionID: "prd-source-session",
 		User:            "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	oldMsg := &model.AgentChatMessage{
@@ -405,11 +405,11 @@ func TestWorkspaceRoleAcceptanceArchivedHistoryExcludedFromModelContext(t *testi
 		Content:   "旧会话关键约束：保留投票主题、提交投票、统计结果三块能力",
 		User:      "tester",
 	}
-	if err := messageRepo.Create(context.Background(), oldMsg); err != nil {
+	if err := messageRepo.Create(oldMsg); err != nil {
 		t.Fatalf("create old message: %v", err)
 	}
 	session.ModelContextAnchorMessageID = oldMsg.ID
-	if err := sessionRepo.Update(context.Background(), session); err != nil {
+	if err := sessionRepo.Update(session); err != nil {
 		t.Fatalf("update anchor: %v", err)
 	}
 	packet := workspaceRoleHandoffPacket{
@@ -436,7 +436,7 @@ func TestWorkspaceRoleAcceptanceArchivedHistoryExcludedFromModelContext(t *testi
 		ArtifactKind: "agent_app_prd",
 		User:         "tester",
 	}
-	if err := messageRepo.Create(context.Background(), handoffMsg); err != nil {
+	if err := messageRepo.Create(handoffMsg); err != nil {
 		t.Fatalf("create handoff message: %v", err)
 	}
 	displayOnlyMsg := &model.AgentChatMessage{
@@ -446,7 +446,7 @@ func TestWorkspaceRoleAcceptanceArchivedHistoryExcludedFromModelContext(t *testi
 		ContextUsage: MessageContextDisplayOnly,
 		User:         "tester",
 	}
-	if err := messageRepo.Create(context.Background(), displayOnlyMsg); err != nil {
+	if err := messageRepo.Create(displayOnlyMsg); err != nil {
 		t.Fatalf("create display-only message: %v", err)
 	}
 	currentMsg := &model.AgentChatMessage{
@@ -455,7 +455,7 @@ func TestWorkspaceRoleAcceptanceArchivedHistoryExcludedFromModelContext(t *testi
 		Content:   "按确认后的 PRD 开始开发投票系统",
 		User:      "tester",
 	}
-	if err := messageRepo.Create(context.Background(), currentMsg); err != nil {
+	if err := messageRepo.Create(currentMsg); err != nil {
 		t.Fatalf("create current message: %v", err)
 	}
 

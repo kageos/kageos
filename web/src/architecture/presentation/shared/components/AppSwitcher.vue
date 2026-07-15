@@ -32,18 +32,8 @@
               <div class="status-indicator" v-if="!compact"></div>
             </div>
             <div class="app-info">
-              <div class="app-name-row">
-                <div class="app-name" :title="getWorkspaceDisplayName(currentApp)">
-                  {{ getWorkspaceDisplayName(currentApp) }}
-                </div>
-                <span
-                  class="access-mode-badge"
-                  :class="{ 'is-open-collaboration': isOpenCollaboration(currentApp) }"
-                  :title="accessModeDescription(currentApp)"
-                  data-testid="workspace-access-mode-badge"
-                >
-                  {{ accessModeLabel(currentApp) }}
-                </span>
+              <div class="app-name" :title="getWorkspaceDisplayName(currentApp)">
+                {{ getWorkspaceDisplayName(currentApp) }}
               </div>
               <div class="app-path" v-if="!compact">
                 <el-icon class="path-icon"><FolderOpened /></el-icon>
@@ -110,7 +100,6 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { ArrowUp, ArrowDown, FolderOpened, Monitor } from '@element-plus/icons-vue'
 import type { App } from '@/architecture/domain/types'
 import WorkspaceListDialog from './WorkspaceListDialog.vue'
@@ -133,7 +122,6 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
-const { t } = useI18n()
 
 const dialogVisible = ref(false)
 const popoverVisible = ref(false)
@@ -159,16 +147,6 @@ const getWorkspaceDisplayName = (app: App) => {
 }
 
 const getWorkspaceRoute = (app: App) => `/workspace/${app.user}/${app.code}`
-
-const isOpenCollaboration = (app: App) => app.access_mode === 'open_collaboration'
-
-const accessModeLabel = (app: App) => isOpenCollaboration(app)
-  ? t('workspace.accessModeOpenCollaborationShort')
-  : t('workspace.accessModePermissionedShort')
-
-const accessModeDescription = (app: App) => isOpenCollaboration(app)
-  ? t('workspace.accessModeOpenCollaborationTip')
-  : t('workspace.accessModePermissionedTip')
 
 const getWorkspaceMetaLine = (app: App) => {
   const parts = []
@@ -364,16 +342,7 @@ defineExpose({
   min-width: 0;
 }
 
-.app-name-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
 .app-name {
-	flex: 1;
-	min-width: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--el-text-color-primary);
@@ -381,24 +350,6 @@ defineExpose({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.access-mode-badge {
-  flex-shrink: 0;
-  padding: 1px 6px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 999px;
-  color: var(--el-text-color-secondary);
-  background: var(--el-fill-color-light);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 16px;
-}
-
-.access-mode-badge.is-open-collaboration {
-  border-color: color-mix(in srgb, var(--el-color-success) 45%, transparent);
-  color: var(--el-color-success-dark-2);
-  background: color-mix(in srgb, var(--el-color-success) 12%, transparent);
 }
 
 .app-path {

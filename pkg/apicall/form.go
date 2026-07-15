@@ -12,6 +12,6 @@ import (
 // req: Form 提交请求（任意类型）
 // 返回: TResp（指针类型）
 func CallFormAPI[TReq, TResp any](ctx context.Context, formPath string, req TReq) (TResp, error) {
-	path := buildWorkspaceFunctionPath("/workspace/api/v1/form-submissions", formPath)
+	path := buildWorkspaceFunctionPath("/workspace/api/v1/form/submit", formPath)
 	return PostAPI[TReq, TResp](ctx, path, req)
 }

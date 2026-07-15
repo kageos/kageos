@@ -1,8 +1,6 @@
 package repository
 
 import (
-	"context"
-
 	"github.com/kageos/kageos/core/agent-server/model"
 	"gorm.io/gorm"
 )
@@ -18,31 +16,31 @@ func NewChatMessageRepository(db *gorm.DB) *ChatMessageRepository {
 }
 
 // Create 创建消息
-func (r *ChatMessageRepository) Create(ctx context.Context, message *model.AgentChatMessage) error {
-	return r.db.WithContext(ctx).Create(message).Error
+func (r *ChatMessageRepository) Create(message *model.AgentChatMessage) error {
+	return r.db.Create(message).Error
 }
 
 // BatchCreate 批量创建消息
-func (r *ChatMessageRepository) BatchCreate(ctx context.Context, messages []*model.AgentChatMessage) error {
+func (r *ChatMessageRepository) BatchCreate(messages []*model.AgentChatMessage) error {
 	if len(messages) == 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).CreateInBatches(messages, 100).Error
+	return r.db.CreateInBatches(messages, 100).Error
 }
 
 // GetByID 根据 ID 获取消息
-func (r *ChatMessageRepository) GetByID(ctx context.Context, id int64) (*model.AgentChatMessage, error) {
+func (r *ChatMessageRepository) GetByID(id int64) (*model.AgentChatMessage, error) {
 	var message model.AgentChatMessage
-	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&message).Error; err != nil {
+	if err := r.db.Where("id = ?", id).First(&message).Error; err != nil {
 		return nil, err
 	}
 	return &message, nil
 }
 
 // ListBySessionID 根据 SessionID 获取消息列表（按 id 升序，保证 assistant 在对应 tool 之前，避免 API 报错「tool 必须紧接在含 tool_calls 的 assistant 之后」）
-func (r *ChatMessageRepository) ListBySessionID(ctx context.Context, sessionID string) ([]*model.AgentChatMessage, error) {
+func (r *ChatMessageRepository) ListBySessionID(sessionID string) ([]*model.AgentChatMessage, error) {
 	var messages []*model.AgentChatMessage
-	if err := r.db.WithContext(ctx).
+	if err := r.db.
 		Where("session_id = ?", sessionID).
 		Order("id ASC").
 		Find(&messages).Error; err != nil {
@@ -52,9 +50,9 @@ func (r *ChatMessageRepository) ListBySessionID(ctx context.Context, sessionID s
 }
 
 // ListBySessionIDWithLimit 根据 SessionID 获取消息列表（限制数量，按创建时间降序）
-func (r *ChatMessageRepository) ListBySessionIDWithLimit(ctx context.Context, sessionID string, limit int) ([]*model.AgentChatMessage, error) {
+func (r *ChatMessageRepository) ListBySessionIDWithLimit(sessionID string, limit int) ([]*model.AgentChatMessage, error) {
 	var messages []*model.AgentChatMessage
-	if err := r.db.WithContext(ctx).
+	if err := r.db.
 		Where("session_id = ?", sessionID).
 		Order("created_at DESC").
 		Limit(limit).
@@ -69,11 +67,11 @@ func (r *ChatMessageRepository) ListBySessionIDWithLimit(ctx context.Context, se
 }
 
 // DeleteBySessionID 根据 SessionID 删除所有消息
-func (r *ChatMessageRepository) DeleteBySessionID(ctx context.Context, sessionID string) error {
-	return r.db.WithContext(ctx).Where("session_id = ?", sessionID).Delete(&model.AgentChatMessage{}).Error
+func (r *ChatMessageRepository) DeleteBySessionID(sessionID string) error {
+	return r.db.Where("session_id = ?", sessionID).Delete(&model.AgentChatMessage{}).Error
 }
 
 // Delete 删除消息（根据 ID）
-func (r *ChatMessageRepository) Delete(ctx context.Context, id int64) error {
-	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&model.AgentChatMessage{}).Error
+func (r *ChatMessageRepository) Delete(id int64) error {
+	return r.db.Where("id = ?", id).Delete(&model.AgentChatMessage{}).Error
 }

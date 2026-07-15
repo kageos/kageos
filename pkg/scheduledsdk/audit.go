@@ -45,13 +45,11 @@ func (e ExecutionRequestedEvent) WithAuditContext(parent context.Context) contex
 	return contextx.WithRequestInfo(parent, contextx.RequestInfo{
 		TraceId:            e.TraceID,
 		RequestUser:        e.RequestUser,
+		Token:              e.Token,
 		DepartmentFullPath: e.RequestUserDept,
 		CompanyCode:        strings.TrimSpace(e.Metadata[MetadataCompanyCode]),
 		CompanyName:        strings.TrimSpace(e.Metadata[MetadataCompanyName]),
 		CompanyLogoURL:     strings.TrimSpace(e.Metadata[MetadataCompanyLogoURL]),
-		UserID:             strings.TrimSpace(e.Metadata[MetadataRequestUserID]),
-		UserEmail:          strings.TrimSpace(e.Metadata[MetadataRequestEmail]),
-		LeaderUsername:     strings.TrimSpace(e.Metadata[MetadataLeaderUsername]),
 		ClientSource:       contextx.ClientSourceScheduledTask,
 		SourceType:         contextx.SourceTypeScheduledTask,
 		SourceRef:          e.AuditSourceRef(),
@@ -74,6 +72,9 @@ func (e ExecutionRequestedEvent) ApplyAuditHeaders(header http.Header) {
 	if requestUser := strings.TrimSpace(e.RequestUser); requestUser != "" {
 		header.Set(contextx.RequestUserHeader, requestUser)
 	}
+	if token := strings.TrimSpace(e.Token); token != "" {
+		header.Set(contextx.TokenHeader, token)
+	}
 	if requestUserDept := strings.TrimSpace(e.RequestUserDept); requestUserDept != "" {
 		header.Set(contextx.DepartmentFullPathHeader, requestUserDept)
 	}
@@ -85,14 +86,5 @@ func (e ExecutionRequestedEvent) ApplyAuditHeaders(header http.Header) {
 	}
 	if companyLogoURL := strings.TrimSpace(e.Metadata[MetadataCompanyLogoURL]); companyLogoURL != "" {
 		header.Set(contextx.CompanyLogoURLHeader, companyLogoURL)
-	}
-	if userID := strings.TrimSpace(e.Metadata[MetadataRequestUserID]); userID != "" {
-		header.Set(contextx.UserIDHeader, userID)
-	}
-	if email := strings.TrimSpace(e.Metadata[MetadataRequestEmail]); email != "" {
-		header.Set(contextx.UserEmailHeader, email)
-	}
-	if leader := strings.TrimSpace(e.Metadata[MetadataLeaderUsername]); leader != "" {
-		header.Set(contextx.LeaderUsernameHeader, leader)
 	}
 }

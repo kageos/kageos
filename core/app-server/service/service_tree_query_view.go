@@ -46,9 +46,9 @@ func (q *serviceTreeQueryView) getServiceTreeByAppModel(ctx context.Context, app
 	var trees []*model.ServiceTree
 	var err error
 	if nodeType != "" {
-		trees, err = q.serviceTreeRepo.BuildServiceTreeByType(ctx, appModel.ID, nodeType)
+		trees, err = q.serviceTreeRepo.BuildServiceTreeByType(appModel.ID, nodeType)
 	} else {
-		trees, err = q.serviceTreeRepo.BuildServiceTree(ctx, appModel.ID)
+		trees, err = q.serviceTreeRepo.BuildServiceTree(appModel.ID)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to build service tree: %w", err)
@@ -94,7 +94,7 @@ func (q *serviceTreeQueryView) GetAppWithServiceTree(ctx context.Context, req *d
 		return nil, err
 	}
 
-	appModel, err := q.appRepo.GetAppByUserName(ctx, user, appCode)
+	appModel, err := q.appRepo.GetAppByUserName(user, appCode)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("应用不存在: %s/%s", user, appCode)
@@ -112,8 +112,6 @@ func (q *serviceTreeQueryView) GetAppWithServiceTree(ctx context.Context, req *d
 		NatsID:                appModel.NatsID,
 		HostID:                appModel.HostID,
 		IsPublic:              appModel.IsPublic,
-		IsPersonalWorkspace:   appModel.IsPersonalWorkspace,
-		AccessMode:            string(model.NormalizeAppAccessMode(appModel.AccessMode)),
 		HideUnauthorizedNodes: appModel.HideUnauthorizedNodes,
 		Admins:                appModel.Admins,
 		Type:                  int(appModel.Type),
@@ -140,16 +138,16 @@ func (q *serviceTreeQueryView) GetServiceTreeDetail(ctx context.Context, req *dt
 	var err error
 
 	if req.ID > 0 {
-		tree, err = q.serviceTreeRepo.GetServiceTreeByID(ctx, req.ID)
+		tree, err = q.serviceTreeRepo.GetServiceTreeByID(req.ID)
 	} else if req.FullCodePath != "" {
-		tree, err = q.serviceTreeRepo.GetServiceTreeByFullPath(ctx, req.FullCodePath)
+		tree, err = q.serviceTreeRepo.GetServiceTreeByFullPath(req.FullCodePath)
 	} else {
 		return nil, fmt.Errorf("必须提供 ID 或 full_code_path")
 	}
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			if message := q.missingAppRootMessage(ctx, req.FullCodePath); message != "" {
+			if message := q.missingAppRootMessage(req.FullCodePath); message != "" {
 				return nil, fmt.Errorf("%s", message)
 			}
 			return nil, fmt.Errorf("服务目录不存在")
@@ -172,7 +170,7 @@ func (q *serviceTreeQueryView) BatchGetServiceTreeDetails(ctx context.Context, r
 		return nil, fmt.Errorf("一次最多查询 100 个资源")
 	}
 
-	treeByPath, err := q.serviceTreeRepo.GetServiceTreeByFullPaths(ctx, paths)
+	treeByPath, err := q.serviceTreeRepo.GetServiceTreeByFullPaths(paths)
 	if err != nil {
 		return nil, fmt.Errorf("获取服务目录失败: %w", err)
 	}
@@ -223,8 +221,11 @@ func (q *serviceTreeQueryView) canReadServiceTreePath(ctx context.Context, path 
 	if err != nil {
 		return false
 	}
-	ok, err := q.teamAccess.CanWorkspaceData(ctx, tenantUser, app, contextx.GetRequestUser(ctx), path, access.ActionRead)
-	return err == nil && ok
+	result, err := q.teamAccess.Resolve(ctx, tenantUser, app, contextx.GetRequestUser(ctx), path)
+	if err != nil {
+		return false
+	}
+	return access.HasPermission(result.Permissions, access.ActionRead)
 }
 
 func (q *serviceTreeQueryView) serviceTreeDetailRespFromModel(tree *model.ServiceTree) *dto.GetServiceTreeDetailResp {
@@ -250,12 +251,12 @@ func (q *serviceTreeQueryView) serviceTreeDetailRespFromModel(tree *model.Servic
 	}
 }
 
-func (q *serviceTreeQueryView) missingAppRootMessage(ctx context.Context, fullCodePath string) string {
+func (q *serviceTreeQueryView) missingAppRootMessage(fullCodePath string) string {
 	user, appCode, rootPath, ok := parseAppRootFullCodePath(fullCodePath)
 	if !ok || q.appRepo == nil {
 		return ""
 	}
-	appModel, err := q.appRepo.GetAppByUserName(ctx, user, appCode)
+	appModel, err := q.appRepo.GetAppByUserName(user, appCode)
 	if err != nil || appModel == nil {
 		return ""
 	}

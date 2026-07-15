@@ -2,7 +2,6 @@ package v1
 
 import (
 	"strconv"
-	"strings"
 
 	"github.com/kageos/kageos/pkg/access"
 	"github.com/kageos/kageos/pkg/contextx"
@@ -41,13 +40,13 @@ func NewApp(appService *service.AppService, serviceTreeService *service.ServiceT
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/apps [post]
+// @Router /workspace/api/v1/app/create [post]
 func (a *App) CreateApp(c *gin.Context) {
 	var req dto.CreateAppReq
 	var err error
 	err = c.ShouldBindJSON(&req)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	req.User = contextx.GetRequestUser(c)
@@ -56,38 +55,10 @@ func (a *App) CreateApp(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	app, err := a.appService.CreateApp(ctx, &req)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	response.OkWithData(c, app)
-}
-
-// BootstrapPersonalWorkspace returns the current JWT user's first workspace.
-// It intentionally accepts no request body: the owner is always the verified
-// request user, never a client-provided username.
-// @Summary 获取或创建默认个人空间
-// @Description 已有 home 时直接返回；已有其他自有空间时返回该空间；只有新用户才创建私有的“我的空间”。
-// @Tags 应用管理
-// @Produce json
-// @Security ApiKeyAuth
-// @Param X-Token header string true "JWT Token"
-// @Success 200 {object} dto.BootstrapPersonalWorkspaceResp "默认个人空间"
-// @Failure 401 {string} string "未授权"
-// @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/apps/personal-workspace [post]
-func (a *App) BootstrapPersonalWorkspace(c *gin.Context) {
-	user := strings.TrimSpace(contextx.GetRequestUser(c))
-	if user == "" {
-		response.NoAuth(c, "无法获取用户信息")
-		return
-	}
-
-	resp, err := a.appService.BootstrapPersonalWorkspace(contextx.ToContext(c), user)
-	if err != nil {
-		response.Error(c, err)
-		return
-	}
-	response.OkWithData(c, resp)
 }
 
 // UpdateApp 更新应用
@@ -100,30 +71,30 @@ func (a *App) BootstrapPersonalWorkspace(c *gin.Context) {
 // @Success 200 {object} dto.UpdateAppResp "更新成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/apps/builds [post]
+// @Router /workspace/api/v1/app/update [post]
 func (a *App) UpdateApp(c *gin.Context) {
 	var resp *dto.UpdateAppResp
 	var err error
 
 	if contextx.GetRequestUser(c) == "" {
-		response.NoAuth(c, "无法获取用户信息")
+		response.FailWithMessage(c, "无法获取用户信息")
 		return
 	}
 
 	req := &dto.UpdateAppReq{}
 	if err := c.ShouldBindJSON(req); err != nil && err.Error() != "EOF" {
-		response.BadRequest(c, "请求参数错误: "+err.Error())
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
 	if err := requireAccess(c, a.teamAccessService, req.ResourcePath, access.ActionAdmin); err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	resp, err = a.appService.UpdateApp(ctx, req)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	response.OkWithData(c, resp)
@@ -143,22 +114,22 @@ func (a *App) UpdateApp(c *gin.Context) {
 // @Failure 401 {string} string "未授权"
 // @Failure 403 {string} string "无权限"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/apps/workspace [patch]
+// @Router /workspace/api/v1/app/workspace [put]
 func (a *App) UpdateWorkspace(c *gin.Context) {
 	var req dto.UpdateWorkspaceReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "请求参数错误: "+err.Error())
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
 	if err := requireAccess(c, a.teamAccessService, req.ResourcePath, access.ActionAdmin); err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	resp, err := a.appService.UpdateWorkspace(ctx, &req)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -175,7 +146,7 @@ func (a *App) UpdateWorkspace(c *gin.Context) {
 // @Success 200 {object} dto.DeleteAppResp "删除成功"
 // @Failure 400 {string} string "请求参数错误"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/apps [delete]
+// @Router /workspace/api/v1/app/delete [delete]
 func (a *App) DeleteApp(c *gin.Context) {
 	var resp *dto.DeleteAppResp
 	var err error
@@ -185,14 +156,14 @@ func (a *App) DeleteApp(c *gin.Context) {
 		ResourcePath: resourcePath,
 	}
 	if err := requireAccess(c, a.teamAccessService, req.ResourcePath, access.ActionDelete); err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	resp, err = a.appService.DeleteApp(ctx, req)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	response.OkWithData(c, resp)
@@ -212,7 +183,7 @@ func (a *App) DeleteApp(c *gin.Context) {
 // @Success 200 {object} dto.GetAppsResp "获取成功"
 // @Failure 401 {string} string "未授权"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/apps [get]
+// @Router /workspace/api/v1/app/list [get]
 func (a *App) GetApps(c *gin.Context) {
 	var req dto.GetAppsReq
 	var resp *dto.GetAppsResp
@@ -221,7 +192,7 @@ func (a *App) GetApps(c *gin.Context) {
 	// 从JWT Token获取用户信息
 	user := contextx.GetRequestUser(c)
 	if user == "" {
-		response.NoAuth(c, "无法获取用户信息")
+		response.FailWithMessage(c, "无法获取用户信息")
 		return
 	}
 
@@ -255,7 +226,7 @@ func (a *App) GetApps(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	resp, err = a.appService.GetApps(ctx, &req)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	response.OkWithData(c, resp)
@@ -275,7 +246,7 @@ func (a *App) GetApps(c *gin.Context) {
 // @Failure 401 {string} string "未授权"
 // @Failure 404 {string} string "应用不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/apps/detail [get]
+// @Router /workspace/api/v1/app/detail [get]
 func (a *App) GetAppDetail(c *gin.Context) {
 	var req dto.GetAppDetailReq
 	var resp *dto.GetAppDetailResp
@@ -285,15 +256,15 @@ func (a *App) GetAppDetail(c *gin.Context) {
 	req = dto.GetAppDetailReq{
 		ResourcePath: resourcePath,
 	}
-	if err := requireWorkspaceDataAccess(c, a.teamAccessService, req.ResourcePath, access.ActionRead); err != nil {
-		response.Error(c, err)
+	if err := requireAccess(c, a.teamAccessService, req.ResourcePath, access.ActionRead); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	resp, err = a.appService.GetAppDetail(ctx, &req)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	response.OkWithData(c, resp)
@@ -314,7 +285,7 @@ func (a *App) GetAppDetail(c *gin.Context) {
 // @Failure 401 {string} string "未授权"
 // @Failure 404 {string} string "应用不存在"
 // @Failure 500 {string} string "服务器内部错误"
-// @Router /workspace/api/v1/apps/tree [get]
+// @Router /workspace/api/v1/app/tree [get]
 func (a *App) GetAppWithServiceTree(c *gin.Context) {
 	var req dto.GetAppWithServiceTreeReq
 	var resp *dto.GetAppWithServiceTreeResp
@@ -326,16 +297,16 @@ func (a *App) GetAppWithServiceTree(c *gin.Context) {
 	}
 	tenantUser, appCode, err := access.ParseUserApp(req.ResourcePath)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	hasAccess, err := a.teamAccessService.HasAnyWorkspaceAccess(contextx.ToContext(c), tenantUser, appCode, contextx.GetRequestUser(c))
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	if !hasAccess {
-		response.Forbidden(c, "无权限查看该 workspace")
+		response.FailWithMessage(c, "无权限查看该 workspace")
 		return
 	}
 
@@ -343,7 +314,7 @@ func (a *App) GetAppWithServiceTree(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	resp, err = a.serviceTreeService.GetAppWithServiceTree(ctx, &req)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	response.OkWithData(c, resp)

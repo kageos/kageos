@@ -33,7 +33,7 @@ func NewWorkspace(toolReg *service.ToolRegistry, wsChatSvc *service.WorkspaceCha
 func (h *Workspace) ChatStream(c *gin.Context) {
 	var req dto.WorkspaceChatReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
@@ -85,24 +85,24 @@ func (h *Workspace) ChatStream(c *gin.Context) {
 func (h *Workspace) BatchToolDetails(c *gin.Context) {
 	var req dto.BatchWorkspaceToolDetailsReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 	if h.toolReg == nil {
-		response.Internal(c, "工具注册表未初始化")
+		response.FailWithMessage(c, "工具注册表未初始化")
 		return
 	}
 
 	names := normalizeWorkspaceToolDetailNames(req.Names)
 	if len(names) > 100 {
-		response.BadRequest(c, "一次最多查询 100 个工具")
+		response.FailWithMessage(c, "一次最多查询 100 个工具")
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	defs, err := h.toolReg.ListTools(ctx, names)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -131,23 +131,22 @@ func (h *Workspace) BatchToolDetails(c *gin.Context) {
 func (h *Workspace) ListSessions(c *gin.Context) {
 	var req dto.ListWorkspaceSessionsReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
-	sessions, total, automationAgents, err := h.wsChatSvc.ListSessionsFiltered(ctx, req.FullCodePath, req.SessionScope, req.AutomationTaskID, req.Page, req.PageSize)
+	sessions, total, err := h.wsChatSvc.ListSessions(ctx, req.FullCodePath, req.Page, req.PageSize)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
 	response.OkWithData(c, &dto.ListWorkspaceSessionsResp{
-		Sessions:         sessions,
-		AutomationAgents: automationAgents,
-		Total:            total,
-		Page:             req.Page,
-		PageSize:         req.PageSize,
+		Sessions: sessions,
+		Total:    total,
+		Page:     req.Page,
+		PageSize: req.PageSize,
 	})
 }
 
@@ -156,13 +155,13 @@ func (h *Workspace) ListSessions(c *gin.Context) {
 func (h *Workspace) CreateSessionHandoff(c *gin.Context) {
 	var req dto.WorkspaceHandoffReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
 	resp, err := h.wsChatSvc.CreateWorkspaceHandoff(ctx, &req)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	response.OkWithData(c, resp)
@@ -173,12 +172,12 @@ func (h *Workspace) CreateSessionHandoff(c *gin.Context) {
 func (h *Workspace) ResolvePendingInteraction(c *gin.Context) {
 	var req dto.ResolveWorkspacePendingInteractionReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
 	if err := h.wsChatSvc.ResolveWorkspacePendingInteraction(ctx, req.SessionID); err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	response.Ok(c)
@@ -189,12 +188,12 @@ func (h *Workspace) ResolvePendingInteraction(c *gin.Context) {
 func (h *Workspace) RecordInteractionEvent(c *gin.Context) {
 	var req dto.RecordWorkspaceInteractionEventReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
 	if err := h.wsChatSvc.RecordWorkspaceInteractionEvent(ctx, &req); err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	response.Ok(c)
@@ -205,14 +204,14 @@ func (h *Workspace) RecordInteractionEvent(c *gin.Context) {
 func (h *Workspace) ListMessages(c *gin.Context) {
 	var req dto.ListWorkspaceMessagesReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	messages, err := h.wsChatSvc.ListMessages(ctx, req.SessionID)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -313,7 +312,7 @@ func (h *Workspace) ListRunningSessions(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	items, err := h.wsChatSvc.ListRunningSessions(ctx)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	response.OkWithData(c, gin.H{"sessions": items})
@@ -324,7 +323,7 @@ func (h *Workspace) ListRunningSessions(c *gin.Context) {
 func (h *Workspace) GetSessionSSEStatus(c *gin.Context) {
 	sessionID := c.Param("session_id")
 	if sessionID == "" {
-		response.BadRequest(c, "session_id 必填")
+		response.FailWithMessage(c, "session_id 必填")
 		return
 	}
 	connected := h.wsChatSvc.IsSSEConnected(sessionID)
@@ -336,12 +335,12 @@ func (h *Workspace) GetSessionSSEStatus(c *gin.Context) {
 func (h *Workspace) CancelChat(c *gin.Context) {
 	var req dto.CancelWorkspaceChatReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
 	if err := h.wsChatSvc.CancelSession(ctx, req.SessionID); err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	response.Ok(c)
@@ -358,7 +357,7 @@ func (h *Workspace) ListFinishedSessions(c *gin.Context) {
 	}
 	items, err := h.wsChatSvc.ListFinishedSessions(ctx, limit)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	response.OkWithData(c, gin.H{"sessions": items})

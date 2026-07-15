@@ -19,26 +19,6 @@
         {{ t('miniWorkstation.currentDirectoryNewSession') }}
       </button>
     </div>
-    <label class="mini-session-source-filter">
-      <el-icon :size="14">
-        <MagicStick v-if="automationMode" />
-        <User v-else />
-      </el-icon>
-      <select
-        :value="sessionSourceFilter"
-        :aria-label="t('miniWorkstation.sessionSource')"
-        @change="emit('update:sessionSourceFilter', ($event.target as HTMLSelectElement).value)"
-      >
-        <option value="human">{{ t('miniWorkstation.humanSessions') }}</option>
-        <option
-          v-for="agent in automationAgents"
-          :key="agent.task_id"
-          :value="`agent:${agent.task_id}`"
-        >
-          {{ agent.task_title }}
-        </option>
-      </select>
-    </label>
     <div class="mini-drawer-scope-tabs" role="tablist" :aria-label="t('miniWorkstation.sessionList')">
       <button
         type="button"
@@ -48,7 +28,6 @@
         {{ t('miniWorkstation.currentDirectory') }}
       </button>
       <button
-        v-if="!automationMode"
         type="button"
         :class="{ active: scope === 'all' }"
         @click="emit('scope-change', 'all')"
@@ -87,10 +66,6 @@
         <span class="mini-status-dot" :class="getSessionStatusClass(item)"></span>
         <span class="mini-current-session-copy">
           <span class="mini-current-session-title">{{ getSessionTitle(item) }}</span>
-          <span v-if="item.source === 'automation_agent'" class="mini-current-session-agent">
-            <el-icon :size="11"><MagicStick /></el-icon>
-            {{ item.automation_task_title || t('miniWorkstation.automationAgent') }}
-          </span>
           <span class="mini-current-session-sub">
             {{ getSessionStatusLabel(item) }} · {{ formatRelativeTime(item.updated_at || item.created_at) }}
           </span>
@@ -117,8 +92,8 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { MagicStick, Search, User } from '@element-plus/icons-vue'
-import type { WorkspaceAutomationAgentItem, WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
+import { Search } from '@element-plus/icons-vue'
+import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 import type { SessionFilterValue } from '../composables/useMiniWorkstationSessionView'
 
 defineProps<{
@@ -127,9 +102,6 @@ defineProps<{
   sessions: WorkspaceSessionItem[]
   activeSessionId: string | undefined
   scope: 'current' | 'all'
-  sessionSourceFilter: string
-  automationAgents: WorkspaceAutomationAgentItem[]
-  automationMode: boolean
   searchKeyword: string
   filter: SessionFilterValue
   filters: Array<{ label: string; value: SessionFilterValue }>
@@ -149,7 +121,6 @@ const emit = defineEmits<{
   (e: 'select', item: WorkspaceSessionItem): void
   (e: 'new-session'): void
   (e: 'scope-change', scope: 'current' | 'all'): void
-  (e: 'update:sessionSourceFilter', value: string): void
   (e: 'context-new-session'): void
 }>()
 
@@ -162,51 +133,13 @@ const { t } = useI18n()
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto auto auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
   gap: 12px;
   padding-right: 12px;
   border-right: 1px solid var(--border-light);
   color: var(--text-primary);
   font-size: 12px;
   overflow: hidden;
-}
-
-.mini-session-source-filter {
-  height: 32px;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 9px;
-  border: 1px solid rgba(var(--color-primary-rgb), 0.14);
-  border-radius: 8px;
-  background: rgba(var(--color-primary-rgb), 0.06);
-  color: var(--color-primary);
-}
-
-.mini-session-source-filter select {
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.mini-current-session-agent {
-  max-width: 100%;
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow: hidden;
-  color: var(--color-primary);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .mini-current-session-head {
@@ -449,7 +382,7 @@ const { t } = useI18n()
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto auto auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
   gap: 10px;
   padding: 0 12px 0 0;
   border-right: 1px solid var(--border-light);

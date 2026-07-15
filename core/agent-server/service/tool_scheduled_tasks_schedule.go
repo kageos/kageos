@@ -11,7 +11,7 @@ import (
 
 func scheduledTaskClient() *scheduledsdk.Client {
 	return scheduledsdk.NewClient(scheduledsdk.Options{
-		BaseURL: serviceconfig.BuildInternalGatewayURL("/timer/api/v1"),
+		BaseURL: serviceconfig.BuildGatewayURL("/timer/api/v1"),
 	})
 }
 

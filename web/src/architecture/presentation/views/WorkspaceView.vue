@@ -139,7 +139,6 @@
           <PackageDetailView
             :package-node="currentFunction"
             @refresh="handleRefreshTree"
-            @create-directory="handleCreateDirectory"
           />
         </div>
         
@@ -384,7 +383,6 @@ function normalizeApp(app: Partial<AppType> & Pick<AppType, 'id' | 'user' | 'cod
     type: app.type,
     version: app.version ?? '',
     is_public: app.is_public ?? false,
-    access_mode: app.access_mode || 'permissioned',
     hide_unauthorized_nodes: app.hide_unauthorized_nodes ?? false,
     admins: app.admins ?? '',
     created_at: app.created_at ?? '',
@@ -667,7 +665,8 @@ useWorkspaceViewLifecycle({
       }
     }
   },
-  findNodeByPath
+  findNodeByPath,
+  openWorkspaceListDialog: () => workspaceHeaderRef.value?.openWorkspaceListDialog(true)
 })
 
 // 切换左侧边栏显示
@@ -878,7 +877,7 @@ function openWorkspaceAccessPage() {
 }
 
 function openWorkspaceList() {
-  workspaceHeaderRef.value?.openWorkspaceListDialog()
+  workspaceHeaderRef.value?.openWorkspaceListDialog(true)
 }
 
 async function retryWorkspaceLoad() {

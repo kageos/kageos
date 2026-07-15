@@ -26,7 +26,8 @@ func (s *serviceTreeSearchService) SearchFunctions(
 	page, pageSize := normalizeSearchFunctionsPagination(req.Page, req.PageSize)
 	fetchSize := calculateSearchFunctionsFetchSize(page, pageSize, req.Keyword, req.FullCodePath)
 
-	trees, _, err := s.serviceTreeRepo.SearchFunctions(ctx, req.CurrentUser,
+	trees, _, err := s.serviceTreeRepo.SearchFunctions(
+		req.CurrentUser,
 		req.User,
 		req.App,
 		req.Keyword,
@@ -58,7 +59,8 @@ func (s *serviceTreeSearchService) SearchResources(
 	fetchSize := calculateSearchResourcesFetchSize(page, pageSize, req.Keyword, req.FullCodePath)
 	nodeTypes := parseSearchResourceTypes(req.ResourceType)
 
-	trees, _, err := s.serviceTreeRepo.SearchResources(ctx, req.CurrentUser,
+	trees, _, err := s.serviceTreeRepo.SearchResources(
+		req.CurrentUser,
 		req.User,
 		req.App,
 		req.Keyword,

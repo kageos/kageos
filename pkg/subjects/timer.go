@@ -6,7 +6,6 @@ import (
 )
 
 const (
-	TimerExecutionRequestedSubjectPrefix  = "timer.v1.cmd.execution.requested."
 	TimerExecutionStartedCommandSubject   = "timer.v1.cmd.execution.started"
 	TimerExecutionHeartbeatCommandSubject = "timer.v1.cmd.execution.heartbeat"
 	TimerExecutionFinishedCommandSubject  = "timer.v1.cmd.execution.finished"
@@ -15,7 +14,7 @@ const (
 )
 
 func TimerExecutionRequestedSubject(executorKey string) string {
-	return TimerExecutionRequestedSubjectPrefix + NormalizeTimerSubjectSuffix(executorKey)
+	return "timer.v1.cmd.execution.requested." + NormalizeTimerSubjectSuffix(executorKey)
 }
 
 func TimerWorkerQueueGroup(executorKey string) string {

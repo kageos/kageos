@@ -12,7 +12,6 @@ import (
 	"github.com/kageos/kageos/core/hr-server/repository"
 	"github.com/kageos/kageos/core/hr-server/service"
 	"github.com/kageos/kageos/pkg/config"
-	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/dbx"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/natsx"
@@ -224,15 +223,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	authExternalIdentityRepo := repository.NewAuthExternalIdentityRepository(s.db)
 
 	if s.natsConn != nil {
-		controlPlaneSecret, err := config.GetControlPlaneSecret()
-		if err != nil {
-			return fmt.Errorf("load Gateway token control auth: %w", err)
-		}
-		tokenCommandSigner, err := controlauth.NewSigner(controlPlaneSecret, controlauth.NATSGatewayTokenCommandScope)
-		if err != nil {
-			return fmt.Errorf("initialize Gateway token command signer: %w", err)
-		}
-		s.tokenPublisher = service.NewGatewayTokenPublisher(s.natsConn, tokenCommandSigner)
+		s.tokenPublisher = service.NewGatewayTokenPublisher(s.natsConn)
 	}
 
 	// 初始化认证服务

@@ -108,7 +108,7 @@ func (s *AppManageService) prepareUpdateAppState(
 	}
 	appDirRel := appPaths.AppDir()
 
-	if err := s.appRepo.EnsureAppExists(ctx, user, app); err != nil {
+	if err := s.appRepo.EnsureAppExists(user, app); err != nil {
 		logger.Warnf(ctx, "[UpdateApp] ensure app record failed (non-blocking): %v", err)
 	}
 

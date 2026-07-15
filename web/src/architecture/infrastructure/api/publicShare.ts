@@ -1,4 +1,4 @@
-import { del, get, post } from '@/architecture/infrastructure/apiClient/request'
+import { get, post } from '@/architecture/infrastructure/apiClient/request'
 import type { FunctionDetail, FunctionSchema } from '@/architecture/domain/types'
 import type { FormSubmitRequest, IFormGateway } from '@/architecture/domain/interfaces/IFormGateway'
 
@@ -121,15 +121,15 @@ export async function submitPublicShare(shareId: string, data: Record<string, un
 }
 
 export function createPublicShare(req: CreatePublicShareRequest): Promise<PublicShareItem> {
-	return post<PublicShareItem>('/workspace/api/v1/public-shares', req)
+  return post<PublicShareItem>('/workspace/api/v1/public_shares', req)
 }
 
 export function listPublicShares(params: PublicShareListParams): Promise<PublicShareList> {
-	return get<PublicShareList>('/workspace/api/v1/public-shares', params)
+  return get<PublicShareList>('/workspace/api/v1/public_shares', params)
 }
 
 export function disablePublicShare(shareId: string): Promise<unknown> {
-	return del(`/workspace/api/v1/public-shares/${shareId}`)
+  return post(`/workspace/api/v1/public_shares/${shareId}/disable`)
 }
 
 export function createPublicShareFunctionDetail(view: PublicShareView): FunctionDetail {

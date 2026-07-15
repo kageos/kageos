@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path"
@@ -147,7 +146,7 @@ func TestSystemDirectorySeedShouldInstallUntilTargetMatchesBundle(t *testing.T) 
 		}),
 	}
 
-	got, err := systemDirectorySeedShouldInstall(context.Background(), serviceTreeService, seedFile, "", false)
+	got, err := systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +154,7 @@ func TestSystemDirectorySeedShouldInstallUntilTargetMatchesBundle(t *testing.T) 
 		t.Fatal("empty initial app version should install")
 	}
 
-	got, err = systemDirectorySeedShouldInstall(context.Background(), serviceTreeService, seedFile, "v7", false)
+	got, err = systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "v7", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +162,7 @@ func TestSystemDirectorySeedShouldInstallUntilTargetMatchesBundle(t *testing.T) 
 		t.Fatal("non-empty app version above v1 should skip")
 	}
 
-	got, err = systemDirectorySeedShouldInstall(context.Background(), serviceTreeService, seedFile, "v1", true)
+	got, err = systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "v1", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +170,7 @@ func TestSystemDirectorySeedShouldInstallUntilTargetMatchesBundle(t *testing.T) 
 		t.Fatal("app created in current boot should install even when CreateApp assigned v1")
 	}
 
-	got, err = systemDirectorySeedShouldInstall(context.Background(), serviceTreeService, seedFile, "v1", false)
+	got, err = systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "v1", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +181,7 @@ func TestSystemDirectorySeedShouldInstallUntilTargetMatchesBundle(t *testing.T) 
 	createTestServiceTreeNode(t, serviceTreeRepo, "/system/tools/archive", appmodel.ServiceTreeTypePackage)
 	createTestServiceTreeNode(t, serviceTreeRepo, "/system/tools/archive/create_zip.form", appmodel.ServiceTreeTypeFunction)
 
-	got, err = systemDirectorySeedShouldInstall(context.Background(), serviceTreeService, seedFile, "v1", false)
+	got, err = systemDirectorySeedShouldInstall(serviceTreeService, seedFile, "v1", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +214,7 @@ func writeTestSystemDirectorySeedBundle(t *testing.T, nodes []*dto.CapabilityBun
 
 func createTestServiceTreeNode(t *testing.T, repo *repository.ServiceTreeRepository, fullPath, nodeType string) {
 	t.Helper()
-	if err := repo.Create(context.Background(), &appmodel.ServiceTree{
+	if err := repo.Create(&appmodel.ServiceTree{
 		Name:         path.Base(fullPath),
 		Code:         path.Base(fullPath),
 		Type:         nodeType,
@@ -236,14 +235,14 @@ func TestInitialSystemDirectorySeedAppVersionsReadsUniqueApps(t *testing.T) {
 	}
 
 	appRepo := repository.NewAppRepository(db)
-	if err := appRepo.CreateApp(context.Background(), &appmodel.App{User: SystemUsername, Code: "tools", Name: "官方工具", Version: "v7"}); err != nil {
+	if err := appRepo.CreateApp(&appmodel.App{User: SystemUsername, Code: "tools", Name: "官方工具", Version: "v7"}); err != nil {
 		t.Fatalf("create tools app: %v", err)
 	}
 
 	serviceTreeService := &ServiceTreeService{
 		capabilityBundle: &serviceTreeCapabilityBundleService{appRepo: appRepo},
 	}
-	versions, err := initialSystemDirectorySeedAppVersions(context.Background(), serviceTreeService, []systemDirectorySeedFile{
+	versions, err := initialSystemDirectorySeedAppVersions(serviceTreeService, []systemDirectorySeedFile{
 		{appCode: "tools"},
 		{appCode: "tools"},
 	})

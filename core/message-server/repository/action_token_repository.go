@@ -12,7 +12,6 @@ import (
 
 	"github.com/kageos/kageos/core/message-server/model"
 	"github.com/kageos/kageos/dto"
-	"github.com/kageos/kageos/pkg/apperror"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -21,7 +20,6 @@ const (
 	DefaultMessageActionTokenTTL = 72 * time.Hour
 	messageActionTokenPrefix     = "kat_"
 	messageActionDefaultAction   = "reply"
-	messageActionProcessingTTL   = 2 * time.Minute
 )
 
 type CreateActionTokenInput struct {
@@ -117,20 +115,16 @@ func (r *MessageRepository) GetActionView(ctx context.Context, rawToken, mobileA
 	}, nil
 }
 
-func (r *MessageRepository) BeginActionReply(ctx context.Context, rawToken, content, files, action string, viewerUsername ...string) (*dto.MessageActionReplyResp, error) {
+func (r *MessageRepository) SubmitActionReply(ctx context.Context, rawToken, content, action string, viewerUsername ...string) (*dto.MessageActionReplyResp, error) {
 	if r == nil || r.db == nil {
 		return nil, fmt.Errorf("message repository is nil")
 	}
 	content = strings.TrimSpace(content)
-	files = strings.TrimSpace(files)
 	if content == "" {
-		return nil, apperror.InvalidArgument("回复内容不能为空", nil)
+		return nil, fmt.Errorf("回复内容不能为空")
 	}
 	if len([]rune(content)) > 8000 {
-		return nil, apperror.InvalidArgument("回复内容过长", nil)
-	}
-	if len(files) > 16000 {
-		return nil, apperror.InvalidArgument("附件引用过长", nil)
+		return nil, fmt.Errorf("回复内容过长")
 	}
 	action = strings.TrimSpace(action)
 	if action == "" {
@@ -145,7 +139,7 @@ func (r *MessageRepository) BeginActionReply(ctx context.Context, rawToken, cont
 			First(&tokenRow)
 		if result.Error != nil {
 			if result.Error == gorm.ErrRecordNotFound {
-				return apperror.NotFound("处理链接无效", result.Error)
+				return fmt.Errorf("处理链接无效")
 			}
 			return result.Error
 		}
@@ -153,30 +147,21 @@ func (r *MessageRepository) BeginActionReply(ctx context.Context, rawToken, cont
 		if err != nil {
 			return err
 		}
+		if tokenRow.Status != string(dto.MessageActionTokenStatusOpen) {
+			return fmt.Errorf("消息已处理或链接已失效")
+		}
 		now := time.Now()
-		effectiveStatus := effectiveActionTokenStatus(&tokenRow, now)
-		if effectiveStatus == string(dto.MessageActionTokenStatusExpired) {
+		if !tokenRow.ExpiresAt.IsZero() && now.After(tokenRow.ExpiresAt) {
 			if err := tx.Model(&model.MessageActionToken{}).
 				Where("id = ?", tokenRow.ID).
 				Update("status", string(dto.MessageActionTokenStatusExpired)).Error; err != nil {
 				return err
 			}
-			return apperror.Conflict("处理链接已过期", nil)
-		}
-		if tokenRow.Status == string(dto.MessageActionTokenStatusProcessing) && effectiveStatus == string(dto.MessageActionTokenStatusOpen) {
-			if err := tx.Model(&model.MessageActionToken{}).
-				Where("id = ? AND status = ?", tokenRow.ID, string(dto.MessageActionTokenStatusProcessing)).
-				Update("status", string(dto.MessageActionTokenStatusOpen)).Error; err != nil {
-				return err
-			}
-			tokenRow.Status = string(dto.MessageActionTokenStatusOpen)
-		}
-		if tokenRow.Status != string(dto.MessageActionTokenStatusOpen) {
-			return apperror.Conflict("消息已处理或链接已失效", nil)
+			return fmt.Errorf("处理链接已过期")
 		}
 		allowedActions := splitAllowedActions(tokenRow.AllowedActions)
 		if !containsAllowedAction(allowedActions, action) {
-			return apperror.PermissionDenied("当前链接不允许执行该动作", nil)
+			return fmt.Errorf("当前链接不允许执行该动作")
 		}
 
 		var original model.MessageEntry
@@ -191,20 +176,21 @@ func (r *MessageRepository) BeginActionReply(ctx context.Context, rawToken, cont
 		if err := tx.Model(&model.MessageActionToken{}).
 			Where("id = ?", tokenRow.ID).
 			Updates(map[string]interface{}{
-				"status":           string(dto.MessageActionTokenStatusProcessing),
-				"used_at":          nil,
+				"status":           string(dto.MessageActionTokenStatusSubmitted),
+				"used_at":          now,
 				"reply_message_id": int64(0),
 			}).Error; err != nil {
 			return err
 		}
 		workspaceSessionID := firstNonEmptyStringForRepository(original.WorkspaceSessionID, tokenRow.WorkspaceSessionID)
 		resp = dto.MessageActionReplyResp{
-			Status:             string(dto.MessageActionTokenStatusProcessing),
+			Status:             string(dto.MessageActionTokenStatusSubmitted),
+			SubmittedAt:        now,
 			Channel:            strings.TrimSpace(tokenRow.Channel),
 			SourcePath:         firstNonEmptyStringForRepository(original.SourcePath, original.FullCodePath, original.SourceParentPath),
-			FullCodePath:       ResolveMessageWorkspacePath(original.SourcePath, original.FullCodePath, original.SourceParentPath, original.SourceTemplateType),
+			FullCodePath:       firstNonEmptyStringForRepository(original.SourcePath, original.FullCodePath, original.SourceParentPath),
 			WorkspaceSessionID: workspaceSessionID,
-			WorkstationDraft:   buildMobileWorkstationDraft(original, content, files, actingUser, tokenRow.Channel),
+			WorkstationDraft:   buildMobileWorkstationDraft(original, content, actingUser, tokenRow.Channel),
 		}
 		return nil
 	})
@@ -212,60 +198,6 @@ func (r *MessageRepository) BeginActionReply(ctx context.Context, rawToken, cont
 		return nil, err
 	}
 	return &resp, nil
-}
-
-func (r *MessageRepository) FinalizeActionReply(ctx context.Context, rawToken, sessionID string) (time.Time, error) {
-	if r == nil || r.db == nil {
-		return time.Time{}, fmt.Errorf("message repository is nil")
-	}
-	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" {
-		return time.Time{}, apperror.InvalidArgument("workspace session_id is required", nil)
-	}
-	now := time.Now()
-	result := r.db.WithContext(ctx).Model(&model.MessageActionToken{}).
-		Where("token_hash = ? AND status = ?", hashMessageActionToken(rawToken), string(dto.MessageActionTokenStatusProcessing)).
-		Updates(map[string]interface{}{
-			"status":               string(dto.MessageActionTokenStatusSubmitted),
-			"used_at":              now,
-			"workspace_session_id": sessionID,
-		})
-	if result.Error != nil {
-		return time.Time{}, result.Error
-	}
-	if result.RowsAffected != 1 {
-		return time.Time{}, apperror.Conflict("消息回复不在可确认状态", nil)
-	}
-	return now, nil
-}
-
-func (r *MessageRepository) ReleaseActionReply(ctx context.Context, rawToken string) error {
-	if r == nil || r.db == nil {
-		return fmt.Errorf("message repository is nil")
-	}
-	return r.db.WithContext(ctx).Model(&model.MessageActionToken{}).
-		Where("token_hash = ? AND status = ?", hashMessageActionToken(rawToken), string(dto.MessageActionTokenStatusProcessing)).
-		Updates(map[string]interface{}{
-			"status":  string(dto.MessageActionTokenStatusOpen),
-			"used_at": nil,
-		}).Error
-}
-
-// SubmitActionReply 保留仓储层原子提交语义；HTTP 动作接口使用
-// BeginActionReply/FinalizeActionReply，把工作台会话创建纳入成功条件。
-func (r *MessageRepository) SubmitActionReply(ctx context.Context, rawToken, content, files, action string, viewerUsername ...string) (*dto.MessageActionReplyResp, error) {
-	resp, err := r.BeginActionReply(ctx, rawToken, content, files, action, viewerUsername...)
-	if err != nil {
-		return nil, err
-	}
-	submittedAt, err := r.FinalizeActionReply(ctx, rawToken, resp.WorkspaceSessionID)
-	if err != nil {
-		_ = r.ReleaseActionReply(ctx, rawToken)
-		return nil, err
-	}
-	resp.Status = string(dto.MessageActionTokenStatusSubmitted)
-	resp.SubmittedAt = submittedAt
-	return resp, nil
 }
 
 func (r *MessageRepository) UpdateActionWorkspaceSession(ctx context.Context, rawToken, sessionID string) error {
@@ -288,13 +220,13 @@ func (r *MessageRepository) getActionToken(ctx context.Context, rawToken string)
 	}
 	rawToken = strings.TrimSpace(rawToken)
 	if rawToken == "" {
-		return nil, apperror.InvalidArgument("处理链接缺少 token", nil)
+		return nil, fmt.Errorf("处理链接缺少 token")
 	}
 	var row model.MessageActionToken
 	result := r.db.WithContext(ctx).Where("token_hash = ?", hashMessageActionToken(rawToken)).First(&row)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
-			return nil, apperror.NotFound("处理链接无效", result.Error)
+			return nil, fmt.Errorf("处理链接无效")
 		}
 		return nil, result.Error
 	}
@@ -385,18 +317,18 @@ func actionAuthorizedUsers(row *model.MessageActionToken) []string {
 
 func authorizeMessageActionUser(row *model.MessageActionToken, viewerUsername string) (string, error) {
 	if row == nil {
-		return "", apperror.NotFound("处理链接无效", nil)
+		return "", fmt.Errorf("处理链接无效")
 	}
 	viewerUsername = strings.TrimSpace(viewerUsername)
 	if viewerUsername == "" {
-		return "", apperror.Unauthenticated("请先登录 kageos 后处理该消息", nil)
+		return "", fmt.Errorf("请先登录 kageos 后处理该消息")
 	}
 	for _, user := range actionAuthorizedUsers(row) {
 		if user == viewerUsername {
 			return viewerUsername, nil
 		}
 	}
-	return "", apperror.PermissionDenied("当前登录用户无权处理此消息", nil)
+	return "", fmt.Errorf("当前登录用户无权处理此消息")
 }
 
 func effectiveActionTokenStatus(row *model.MessageActionToken, now time.Time) string {
@@ -405,9 +337,6 @@ func effectiveActionTokenStatus(row *model.MessageActionToken, now time.Time) st
 	}
 	status := strings.TrimSpace(row.Status)
 	if status == "" {
-		status = string(dto.MessageActionTokenStatusOpen)
-	}
-	if status == string(dto.MessageActionTokenStatusProcessing) && !row.UpdatedAt.IsZero() && now.Sub(row.UpdatedAt) >= messageActionProcessingTTL {
 		status = string(dto.MessageActionTokenStatusOpen)
 	}
 	if status == string(dto.MessageActionTokenStatusOpen) && !row.ExpiresAt.IsZero() && now.After(row.ExpiresAt) {
@@ -424,7 +353,7 @@ func replyTitle(title string) string {
 	return "回复：" + title
 }
 
-func buildMobileWorkstationDraft(original model.MessageEntry, replyContent, replyFiles, recipientUser, channel string) string {
+func buildMobileWorkstationDraft(original model.MessageEntry, replyContent, recipientUser, channel string) string {
 	var lines []string
 	lines = append(lines,
 		"【移动端消息处理上下文】",
@@ -437,14 +366,15 @@ func buildMobileWorkstationDraft(original model.MessageEntry, replyContent, repl
 		lines = append(lines, "处理用户："+recipientUser)
 	}
 	lines = append(lines,
-		"移动端会话：用户正在 kageos Pocket 中实时查看这次工作台会话；本轮工作台回复会在移动端每 5 秒同步展示。",
-		"回复要求：像 PC 工作台会话一样直接回复用户，不要要求用户回电脑端查看，也不要把最终答案只放在通知里。",
-		"通知策略：只有任务会在用户离开会话后继续异步运行，或确实需要额外提醒时，才调用 send_notification；不要每轮会话重复发送通知。",
-		"send_notification 参数要求：需要额外通知时，to_users 必须填写处理用户；正文只写业务结论、关键结果、下一步或需要用户继续确认的问题。",
+		"移动端限制：用户通过移动端消息入口提交本次处理，不在电脑端工作台前，也看不到本轮工作台回复内容。",
+		"触达限制：用户只能收到 send_notification 投递的消息通知；凡是需要让用户知道的处理结果、确认问题或下一步，都必须通过 send_notification 发送。",
+		"最终触达动作：完成本次处理后，必须主动调用 send_notification 给处理用户发送一条简短结论；仅写工作台回复不算完成通知。",
+		"send_notification 参数要求：to_users 必须填写处理用户，不要省略；正文只写业务结论、关键结果、下一步或需要用户继续确认的问题。",
 		"输出格式：面向移动端用户的最终回复和 send_notification.message 必须使用 Markdown 格式；content_type 使用 markdown 或省略默认 markdown。",
 		"Markdown 要简短适合手机阅读，可用短段落、列表和加粗关键结论；不要使用 HTML、富文本，也不要把整段回复包进代码块。",
 		"通知正文禁止包含思考过程、工具调用过程、长日志、完整工作台输出。",
-		"如需额外通知，同一处理结果只发一次；除非发现高优先级异常，不要额外发送多条消息。",
+		"通知只发一次；除非发现高优先级异常，不要额外发送多条消息。",
+		"工作台普通回复只用于简短留档，不能替代消息通知。",
 		"",
 		"我正在通过 kageos Pocket 处理一条业务消息，请根据上下文继续协助。",
 	)
@@ -468,8 +398,5 @@ func buildMobileWorkstationDraft(original model.MessageEntry, replyContent, repl
 		lines = append(lines, "", "原消息内容：", strings.TrimSpace(original.Content))
 	}
 	lines = append(lines, "", "我的回复/处理意图：", strings.TrimSpace(replyContent))
-	if replyFiles = strings.TrimSpace(replyFiles); replyFiles != "" {
-		lines = append(lines, "用户随本次回复上传的附件："+replyFiles)
-	}
 	return strings.Join(lines, "\n")
 }

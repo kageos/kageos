@@ -44,13 +44,13 @@ func (d *DirectoryUpdateHistory) GetAppVersionUpdateHistory(c *gin.Context) {
 	// 从query参数获取app_id
 	appIDStr := c.Query("app_id")
 	if appIDStr == "" {
-		response.BadRequest(c, "缺少app_id参数")
+		response.FailWithMessage(c, "缺少app_id参数")
 		return
 	}
 
 	appID, err := strconv.ParseInt(appIDStr, 10, 64)
 	if err != nil {
-		response.BadRequest(c, "无效的app_id参数")
+		response.FailWithMessage(c, "无效的app_id参数")
 		return
 	}
 
@@ -64,7 +64,7 @@ func (d *DirectoryUpdateHistory) GetAppVersionUpdateHistory(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	resp, err = d.directoryUpdateHistoryService.GetAppVersionUpdateHistory(ctx, appID, appVersion)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -94,20 +94,20 @@ func (d *DirectoryUpdateHistory) GetDirectoryUpdateHistory(c *gin.Context) {
 	// 从query参数获取app_id
 	appIDStr := c.Query("app_id")
 	if appIDStr == "" {
-		response.BadRequest(c, "缺少app_id参数")
+		response.FailWithMessage(c, "缺少app_id参数")
 		return
 	}
 
 	appID, err := strconv.ParseInt(appIDStr, 10, 64)
 	if err != nil {
-		response.BadRequest(c, "无效的app_id参数")
+		response.FailWithMessage(c, "无效的app_id参数")
 		return
 	}
 
 	// 从query参数获取full_code_path
 	fullCodePath := c.Query("full_code_path")
 	if fullCodePath == "" {
-		response.BadRequest(c, "缺少full_code_path参数")
+		response.FailWithMessage(c, "缺少full_code_path参数")
 		return
 	}
 
@@ -132,7 +132,7 @@ func (d *DirectoryUpdateHistory) GetDirectoryUpdateHistory(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	resp, err = d.directoryUpdateHistoryService.GetDirectoryUpdateHistory(ctx, appID, fullCodePath, page, pageSize)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 

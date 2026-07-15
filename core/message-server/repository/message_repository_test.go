@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/kageos/kageos/core/message-server/model"
 	"github.com/kageos/kageos/dto"
@@ -373,8 +372,7 @@ func TestMessageActionTokenViewAndReply(t *testing.T) {
 		t.Fatalf("view = %#v", view)
 	}
 
-	replyFiles := "kageos/pocket/photo.jpg,kageos/pocket/plan.pdf"
-	reply, err := repo.SubmitActionReply(context.Background(), rawToken, "我在路上，先按原计划推进。", replyFiles, "reply", "bob")
+	reply, err := repo.SubmitActionReply(context.Background(), rawToken, "我在路上，先按原计划推进。", "reply", "bob")
 	if err != nil {
 		t.Fatalf("submit reply: %v", err)
 	}
@@ -385,24 +383,17 @@ func TestMessageActionTokenViewAndReply(t *testing.T) {
 		t.Fatalf("reply context = %#v", reply)
 	}
 	if !strings.Contains(reply.WorkstationDraft, "订单 A123 需要确认下一步") ||
-		!strings.Contains(reply.WorkstationDraft, "我在路上，先按原计划推进") ||
-		!strings.Contains(reply.WorkstationDraft, replyFiles) {
+		!strings.Contains(reply.WorkstationDraft, "我在路上，先按原计划推进") {
 		t.Fatalf("workstation draft = %q", reply.WorkstationDraft)
 	}
 	if !strings.Contains(reply.WorkstationDraft, "send_notification") ||
-		!strings.Contains(reply.WorkstationDraft, "本轮工作台回复会在移动端每 5 秒同步展示") ||
-		!strings.Contains(reply.WorkstationDraft, "像 PC 工作台会话一样直接回复用户") ||
-		!strings.Contains(reply.WorkstationDraft, "不要每轮会话重复发送通知") ||
+		!strings.Contains(reply.WorkstationDraft, "也看不到本轮工作台回复内容") ||
+		!strings.Contains(reply.WorkstationDraft, "用户只能收到 send_notification 投递的消息通知") ||
 		!strings.Contains(reply.WorkstationDraft, "必须使用 Markdown 格式") ||
 		!strings.Contains(reply.WorkstationDraft, "content_type 使用 markdown") ||
 		!strings.Contains(reply.WorkstationDraft, "通知正文禁止包含思考过程") ||
-		!strings.Contains(reply.WorkstationDraft, "同一处理结果只发一次") {
+		!strings.Contains(reply.WorkstationDraft, "不能替代消息通知") {
 		t.Fatalf("workstation draft missing mobile notification guardrails = %q", reply.WorkstationDraft)
-	}
-	if strings.Contains(reply.WorkstationDraft, "看不到本轮工作台回复内容") ||
-		strings.Contains(reply.WorkstationDraft, "用户只能收到 send_notification") ||
-		strings.Contains(reply.WorkstationDraft, "必须主动调用 send_notification") {
-		t.Fatalf("workstation draft still treats Pocket as notification-only = %q", reply.WorkstationDraft)
 	}
 	if strings.Contains(reply.WorkstationDraft, "平台会自动") || strings.Contains(reply.WorkstationDraft, "自动回推") {
 		t.Fatalf("workstation draft contains conflicting auto-push wording = %q", reply.WorkstationDraft)
@@ -415,7 +406,7 @@ func TestMessageActionTokenViewAndReply(t *testing.T) {
 	if total != 1 || len(thread) != 1 || thread[0].ID != entry.ID {
 		t.Fatalf("thread total=%d list=%#v", total, thread)
 	}
-	if _, err := repo.SubmitActionReply(context.Background(), rawToken, "重复回复", "", "reply", "bob"); err == nil {
+	if _, err := repo.SubmitActionReply(context.Background(), rawToken, "重复回复", "reply", "bob"); err == nil {
 		t.Fatal("expected duplicate submit to fail")
 	}
 }
@@ -446,88 +437,12 @@ func TestSubmitActionReplyFallsBackToTokenWorkspaceSession(t *testing.T) {
 		t.Fatalf("create action token: %v", err)
 	}
 
-	reply, err := repo.SubmitActionReply(context.Background(), rawToken, "我来处理。", "", "reply", "bob")
+	reply, err := repo.SubmitActionReply(context.Background(), rawToken, "我来处理。", "reply", "bob")
 	if err != nil {
 		t.Fatalf("submit reply: %v", err)
 	}
 	if reply.WorkspaceSessionID != "token-session-1" {
 		t.Fatalf("reply workspace session = %q, want token-session-1", reply.WorkspaceSessionID)
-	}
-}
-
-func TestActionReplyCanBeReleasedAndFinalizedAfterWorkspaceStart(t *testing.T) {
-	repo := newTestMessageRepo(t)
-	entry, err := repo.Create(context.Background(), dto.MessageSendMeta{
-		From:       "agent",
-		SourcePath: "/alice/demo",
-	}, dto.MessageSendPayload{Title: "待处理", Content: "请确认下一步。"}, []string{"bob"})
-	if err != nil {
-		t.Fatalf("create message: %v", err)
-	}
-	rawToken, _, err := repo.CreateActionToken(context.Background(), CreateActionTokenInput{
-		MessageID: entry.ID, RecipientUsername: "bob", AllowedActions: []string{"reply"}, SourcePath: entry.SourcePath,
-	})
-	if err != nil {
-		t.Fatalf("create token: %v", err)
-	}
-
-	reply, err := repo.BeginActionReply(context.Background(), rawToken, "开始处理", "", "reply", "bob")
-	if err != nil || reply.Status != string(dto.MessageActionTokenStatusProcessing) {
-		t.Fatalf("begin reply = %#v err=%v", reply, err)
-	}
-	view, err := repo.GetActionView(context.Background(), rawToken, "", "bob")
-	if err != nil || view.TokenStatus != string(dto.MessageActionTokenStatusProcessing) || view.CanReply {
-		t.Fatalf("processing view = %#v err=%v", view, err)
-	}
-	if err := repo.ReleaseActionReply(context.Background(), rawToken); err != nil {
-		t.Fatalf("release reply: %v", err)
-	}
-	view, err = repo.GetActionView(context.Background(), rawToken, "", "bob")
-	if err != nil || view.TokenStatus != string(dto.MessageActionTokenStatusOpen) || !view.CanReply {
-		t.Fatalf("released view = %#v err=%v", view, err)
-	}
-
-	if _, err := repo.BeginActionReply(context.Background(), rawToken, "重新处理", "", "reply", "bob"); err != nil {
-		t.Fatalf("begin retry: %v", err)
-	}
-	submittedAt, err := repo.FinalizeActionReply(context.Background(), rawToken, "session-created")
-	if err != nil || submittedAt.IsZero() {
-		t.Fatalf("finalize reply submitted_at=%v err=%v", submittedAt, err)
-	}
-	view, err = repo.GetActionView(context.Background(), rawToken, "", "bob")
-	if err != nil || view.TokenStatus != string(dto.MessageActionTokenStatusSubmitted) || view.WorkspaceSession != "session-created" {
-		t.Fatalf("finalized view = %#v err=%v", view, err)
-	}
-}
-
-func TestActionReplyRecoversStaleProcessingToken(t *testing.T) {
-	repo := newTestMessageRepo(t)
-	entry, err := repo.Create(context.Background(), dto.MessageSendMeta{
-		From: "agent", SourcePath: "/alice/demo",
-	}, dto.MessageSendPayload{Title: "待处理", Content: "请确认下一步。"}, []string{"bob"})
-	if err != nil {
-		t.Fatalf("create message: %v", err)
-	}
-	rawToken, tokenRow, err := repo.CreateActionToken(context.Background(), CreateActionTokenInput{
-		MessageID: entry.ID, RecipientUsername: "bob", AllowedActions: []string{"reply"}, SourcePath: entry.SourcePath,
-	})
-	if err != nil {
-		t.Fatalf("create token: %v", err)
-	}
-	if _, err := repo.BeginActionReply(context.Background(), rawToken, "开始处理", "", "reply", "bob"); err != nil {
-		t.Fatalf("begin reply: %v", err)
-	}
-	staleAt := time.Now().Add(-messageActionProcessingTTL - time.Minute)
-	if err := repo.db.Model(&model.MessageActionToken{}).Where("id = ?", tokenRow.ID).UpdateColumn("updated_at", staleAt).Error; err != nil {
-		t.Fatalf("make processing token stale: %v", err)
-	}
-
-	view, err := repo.GetActionView(context.Background(), rawToken, "", "bob")
-	if err != nil || view.TokenStatus != string(dto.MessageActionTokenStatusOpen) || !view.CanReply {
-		t.Fatalf("stale processing view = %#v err=%v", view, err)
-	}
-	if _, err := repo.BeginActionReply(context.Background(), rawToken, "重新处理", "", "reply", "bob"); err != nil {
-		t.Fatalf("retry stale processing token: %v", err)
 	}
 }
 

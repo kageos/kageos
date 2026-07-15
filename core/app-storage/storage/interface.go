@@ -27,6 +27,7 @@ type UploadCredentials struct {
 	UploadDomain string // 上传完整域名（例如：http://localhost:9000 或 https://cdn.example.com）
 
 	// SDK 上传配置（服务端上传时使用；method 仍为 presigned_url）
+	SDKConfig map[string]interface{} // SDK 配置
 }
 
 // Storage 存储接口（抽象层）

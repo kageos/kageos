@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/kageos/kageos/pkg/contextx"
-	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/subjects"
 	"github.com/nats-io/nats.go"
 )
@@ -18,16 +17,12 @@ var _ Adapter = (*NATSAdapter)(nil)
 const defaultNATSAdapterTimeout = 5 * time.Second
 
 type NATSAdapterOptions struct {
-	Timeout          time.Duration
-	CommandSigner    *controlauth.Signer
-	ResponseVerifier *controlauth.Verifier
+	Timeout time.Duration
 }
 
 type NATSAdapter struct {
-	conn     *nats.Conn
-	timeout  time.Duration
-	signer   *controlauth.Signer
-	verifier *controlauth.Verifier
+	conn    *nats.Conn
+	timeout time.Duration
 }
 
 func NewNATSAdapter(conn *nats.Conn, opts NATSAdapterOptions) *NATSAdapter {
@@ -36,10 +31,8 @@ func NewNATSAdapter(conn *nats.Conn, opts NATSAdapterOptions) *NATSAdapter {
 		timeout = defaultNATSAdapterTimeout
 	}
 	return &NATSAdapter{
-		conn:     conn,
-		timeout:  timeout,
-		signer:   opts.CommandSigner,
-		verifier: opts.ResponseVerifier,
+		conn:    conn,
+		timeout: timeout,
 	}
 }
 
@@ -112,83 +105,34 @@ func (a *NATSAdapter) request(ctx context.Context, subject string, req interface
 	}
 	msg := nats.NewMsg(subject)
 	msg.Data = data
-	msg.Reply = nats.NewInbox()
 	applyNATSContextHeaders(msg, ctx)
-	if err := controlauth.SignNATSMessage(msg, a.signer); err != nil {
-		return fmt.Errorf("scheduledsdk: authenticate nats command: %w", err)
-	}
-	requestNonce := strings.TrimSpace(msg.Header.Get(controlauth.NATSNonceHeader))
-	if requestNonce == "" {
-		return fmt.Errorf("scheduledsdk: authenticated nats command nonce is missing")
-	}
 
 	requestCtx, cancel := natsAdapterRequestContext(ctx, a.timeout)
 	defer cancel()
 
-	sub, err := a.conn.SubscribeSync(msg.Reply)
+	resp, err := a.conn.RequestMsgWithContext(requestCtx, msg)
 	if err != nil {
 		return err
 	}
-	defer sub.Unsubscribe()
-	if err := a.conn.FlushWithContext(requestCtx); err != nil {
-		return err
-	}
-	if err := a.conn.PublishMsg(msg); err != nil {
-		return err
-	}
-	if err := a.conn.FlushWithContext(requestCtx); err != nil {
-		return err
-	}
-	return a.waitForResponse(requestCtx, requestNonce, subject, sub.NextMsgWithContext)
-}
-
-type natsResponseNext func(context.Context) (*nats.Msg, error)
-
-func (a *NATSAdapter) waitForResponse(ctx context.Context, requestNonce, requestSubject string, next natsResponseNext) error {
-	for {
-		resp, err := next(ctx)
-		if err != nil {
-			return err
-		}
-		matched, err := a.handleResponse(resp, requestNonce, requestSubject)
-		if !matched {
-			continue
-		}
-		return err
-	}
-}
-
-func (a *NATSAdapter) handleResponse(resp *nats.Msg, requestNonce, requestSubject string) (bool, error) {
-	if resp == nil {
-		return false, nil
-	}
-	if err := controlauth.VerifyNATSMessage(resp, a.verifier); err != nil {
-		return false, nil
-	}
 	if len(resp.Data) == 0 {
-		return false, nil
+		return nil
 	}
 	var out natsCommandResponse
 	if err := json.Unmarshal(resp.Data, &out); err != nil {
-		return false, nil
-	}
-	if strings.TrimSpace(out.RequestNonce) != requestNonce || strings.TrimSpace(out.RequestSubject) != requestSubject {
-		return false, nil
+		return err
 	}
 	if !out.OK {
 		if strings.TrimSpace(out.Error) != "" {
-			return true, fmt.Errorf("scheduledsdk: %s", out.Error)
+			return fmt.Errorf("scheduledsdk: %s", out.Error)
 		}
-		return true, fmt.Errorf("scheduledsdk: nats command failed")
+		return fmt.Errorf("scheduledsdk: nats command failed")
 	}
-	return true, nil
+	return nil
 }
 
 type natsCommandResponse struct {
-	OK             bool   `json:"ok"`
-	Error          string `json:"error,omitempty"`
-	RequestNonce   string `json:"request_nonce"`
-	RequestSubject string `json:"request_subject"`
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
 }
 
 func unsupportedNATSAdapterOperation(name string) error {
@@ -212,13 +156,29 @@ func applyNATSContextHeaders(msg *nats.Msg, ctx context.Context) {
 	if msg == nil || ctx == nil {
 		return
 	}
-	traced := contextx.CtxToTraceNats(ctx, msg.Subject)
-	for key, values := range traced.Header {
-		// Execution control messages need identity/audit metadata but must never
-		// carry a reusable bearer token.
-		if strings.EqualFold(key, contextx.TokenHeader) {
-			continue
-		}
-		msg.Header[key] = append([]string(nil), values...)
+	header := nats.Header{}
+	if token := contextx.GetToken(ctx); token != "" {
+		header.Set(contextx.TokenHeader, token)
+	}
+	if traceID := contextx.GetTraceId(ctx); traceID != "" {
+		header.Set(contextx.TraceIdHeader, traceID)
+	}
+	if requestUser := contextx.GetRequestUser(ctx); requestUser != "" {
+		header.Set(contextx.RequestUserHeader, requestUser)
+	}
+	if departmentFullPath := contextx.GetRequestDepartmentFullPath(ctx); departmentFullPath != "" {
+		header.Set(contextx.DepartmentFullPathHeader, departmentFullPath)
+	}
+	if clientSource := contextx.GetClientSource(ctx); clientSource != "" {
+		header.Set(contextx.ClientSourceHeader, clientSource)
+	}
+	if sourceType := contextx.GetSourceType(ctx); sourceType != "" {
+		header.Set(contextx.SourceTypeHeader, sourceType)
+	}
+	if sourceRef := contextx.GetSourceRef(ctx); sourceRef != "" {
+		header.Set(contextx.SourceRefHeader, sourceRef)
+	}
+	if len(header) > 0 {
+		msg.Header = header
 	}
 }

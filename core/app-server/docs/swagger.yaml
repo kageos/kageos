@@ -77,37 +77,6 @@ definitions:
         example: true
         type: boolean
     type: object
-  dto.AgentTaskConfig:
-    properties:
-      code:
-        type: string
-      cron_expr:
-        type: string
-      description:
-        type: string
-      enabled:
-        type: boolean
-      every_seconds:
-        type: integer
-      files:
-        type: string
-      llm_config_id:
-        type: integer
-      max_duration_seconds:
-        type: integer
-      max_runs:
-        type: integer
-      message:
-        type: string
-      mode_code:
-        type: string
-      policy:
-        type: string
-      timezone:
-        type: string
-      title:
-        type: string
-    type: object
   dto.ApiInfo:
     properties:
       added_version:
@@ -117,14 +86,6 @@ definitions:
         type: string
       code:
         type: string
-      connector_endpoints:
-        items:
-          $ref: '#/definitions/dto.ConnectorEndpoint'
-        type: array
-      connectors:
-        items:
-          type: string
-        type: array
       create_tables:
         items:
           type: string
@@ -139,10 +100,6 @@ definitions:
         type: string
       router:
         type: string
-      schedules:
-        items:
-          $ref: '#/definitions/dto.FormScheduleConfig'
-        type: array
       schema:
         $ref: '#/definitions/functionschema.FunctionSchema'
       tags:
@@ -164,10 +121,6 @@ definitions:
     type: object
   dto.AppInfo:
     properties:
-      access_mode:
-        description: 访问模式：permissioned/open_collaboration
-        example: permissioned
-        type: string
       admins:
         description: 管理员列表，逗号分隔的用户名
         example: user1,user2
@@ -180,10 +133,6 @@ definitions:
         description: 创建时间
         example: "2006-01-02 15:04:05"
         type: string
-      hide_unauthorized_nodes:
-        description: 是否隐藏当前用户无 read 权限的目录节点
-        example: false
-        type: boolean
       host_id:
         description: 主机ID
         example: 1
@@ -192,10 +141,6 @@ definitions:
         description: 应用ID
         example: 1
         type: integer
-      is_personal_workspace:
-        description: 是否为系统初始化的个人默认空间
-        example: false
-        type: boolean
       is_public:
         description: 是否公开
         example: true
@@ -246,152 +191,6 @@ definitions:
         description: 文档列表
         items:
           $ref: '#/definitions/dto.DocItem'
-        type: array
-    type: object
-  dto.BatchGetServiceTreeDetailsReq:
-    properties:
-      full_code_paths:
-        description: 完整代码路径列表
-        example:
-        - /beiluo/myapp/user
-        - /beiluo/myapp/orders.table
-        items:
-          type: string
-        type: array
-    required:
-    - full_code_paths
-    type: object
-  dto.BatchGetServiceTreeDetailsResp:
-    properties:
-      items:
-        description: 可读资源详情
-        items:
-          $ref: '#/definitions/dto.GetServiceTreeDetailResp'
-        type: array
-      missing:
-        description: 不存在、无权限或非法路径
-        items:
-          type: string
-        type: array
-    type: object
-  dto.BootstrapPersonalWorkspaceResp:
-    properties:
-      app:
-        $ref: '#/definitions/dto.AppInfo'
-      created:
-        description: 仅本次请求实际创建了 home 时为 true
-        type: boolean
-    type: object
-  dto.BuildTrace:
-    properties:
-      app:
-        type: string
-      duration_ms:
-        type: integer
-      ended_at:
-        type: string
-      error:
-        type: string
-      operation:
-        type: string
-      spans:
-        items:
-          $ref: '#/definitions/dto.BuildTraceSpan'
-        type: array
-      started_at:
-        type: string
-      status:
-        type: string
-      storage_path:
-        type: string
-      trace_id:
-        type: string
-      user:
-        type: string
-    type: object
-  dto.BuildTraceSpan:
-    properties:
-      attributes:
-        additionalProperties:
-          type: string
-        type: object
-      duration_ms:
-        type: integer
-      ended_at:
-        type: string
-      error:
-        type: string
-      name:
-        type: string
-      seq:
-        type: integer
-      started_at:
-        type: string
-      status:
-        type: string
-    type: object
-  dto.ConnectorConnectionProfile:
-    properties:
-      account_id:
-        type: string
-      account_name:
-        type: string
-      account_url:
-        type: string
-      avatar_url:
-        type: string
-      display_name:
-        type: string
-      last_enriched_at:
-        type: string
-      provider:
-        type: string
-      resource_summary:
-        $ref: '#/definitions/dto.ConnectorResourceSummary'
-      workspace_icon:
-        type: string
-      workspace_id:
-        type: string
-      workspace_name:
-        type: string
-    type: object
-  dto.ConnectorEndpoint:
-    properties:
-      desc:
-        type: string
-      method:
-        type: string
-      name:
-        type: string
-      provider:
-        type: string
-      required_scopes:
-        items:
-          type: string
-        type: array
-      url:
-        type: string
-    type: object
-  dto.ConnectorProviderCapabilities:
-    properties:
-      oauth_supported:
-        type: boolean
-      profile_supported:
-        type: boolean
-      proxy_supported:
-        type: boolean
-      resource_summary_supported:
-        type: boolean
-    type: object
-  dto.ConnectorResourceSummary:
-    properties:
-      database_count:
-        type: integer
-      page_count:
-        type: integer
-      samples:
-        items:
-          type: string
         type: array
     type: object
   dto.CopyDirectoryReq:
@@ -455,10 +254,6 @@ definitions:
     type: object
   dto.CreateAppReq:
     properties:
-      access_mode:
-        description: 访问模式：permissioned/open_collaboration，默认 permissioned
-        example: permissioned
-        type: string
       admins:
         description: 管理员列表，逗号分隔的用户名
         example: user1,user2,user3
@@ -467,10 +262,6 @@ definitions:
         description: 应用名
         example: myapp
         type: string
-      hide_unauthorized_nodes:
-        description: 是否隐藏当前用户无 read 权限的目录节点，默认 false
-        example: false
-        type: boolean
       is_public:
         description: 是否公开，默认 true（公开）
         example: true
@@ -703,7 +494,7 @@ definitions:
         example: myapp
         type: string
       code:
-        description: 目录代码；为空时服务端会按目录名称自动生成拼音标识
+        description: 目录代码
         example: user
         type: string
       description:
@@ -728,6 +519,7 @@ definitions:
         type: string
     required:
     - app
+    - code
     - name
     - user
     type: object
@@ -878,60 +670,6 @@ definitions:
         description: 更新API数量
         type: integer
     type: object
-  dto.DirectoryOverviewResource:
-    properties:
-      code:
-        type: string
-      full_code_path:
-        type: string
-      id:
-        type: integer
-      name:
-        type: string
-      run_count:
-        type: integer
-      template_type:
-        type: string
-      type:
-        type: string
-    type: object
-  dto.DirectoryOverviewScheduledTask:
-    properties:
-      kind:
-        description: function 或 agent
-        type: string
-      resource:
-        $ref: '#/definitions/dto.DirectoryOverviewResource'
-      resource_name:
-        type: string
-      resource_path:
-        type: string
-      task:
-        $ref: '#/definitions/scheduledsdk.Task'
-    type: object
-  dto.DirectoryOverviewStats:
-    properties:
-      directories:
-        type: integer
-      docs:
-        type: integer
-      failed_tasks:
-        type: integer
-      functions:
-        type: integer
-      next_run_at:
-        type: string
-      paused_tasks:
-        type: integer
-      running_tasks:
-        type: integer
-      scheduled_agent_tasks:
-        type: integer
-      scheduled_function_tasks:
-        type: integer
-      total_run_count:
-        type: integer
-    type: object
   dto.DocItem:
     properties:
       category:
@@ -947,89 +685,6 @@ definitions:
       name:
         type: string
       summary:
-        type: string
-    type: object
-  dto.DocSeedConfig:
-    properties:
-      code:
-        type: string
-      content:
-        type: string
-      description:
-        type: string
-      format:
-        type: string
-      name:
-        type: string
-      policy:
-        type: string
-      summary:
-        type: string
-      tags:
-        type: string
-    type: object
-  dto.FormScheduleConfig:
-    properties:
-      body:
-        items:
-          type: integer
-        type: array
-      code:
-        type: string
-      cron_expr:
-        type: string
-      description:
-        type: string
-      enabled:
-        type: boolean
-      every_seconds:
-        type: integer
-      max_runs:
-        type: integer
-      timezone:
-        type: string
-      title:
-        type: string
-    type: object
-  dto.FunctionConnectorStatus:
-    properties:
-      capabilities:
-        $ref: '#/definitions/dto.ConnectorProviderCapabilities'
-      connected:
-        type: boolean
-      connection_id:
-        type: string
-      display_name:
-        type: string
-      granted_scopes:
-        items:
-          type: string
-        type: array
-      message:
-        type: string
-      missing_scopes:
-        items:
-          type: string
-        type: array
-      profile:
-        $ref: '#/definitions/dto.ConnectorConnectionProfile'
-      provider:
-        type: string
-      provider_account_url:
-        type: string
-      provider_brand_color:
-        type: string
-      provider_logo_url:
-        type: string
-      provider_name:
-        type: string
-      required:
-        type: boolean
-      required_scopes:
-        items:
-          type: string
-        type: array
-      resolved_from:
         type: string
     type: object
   dto.FunctionSearchResult:
@@ -1058,19 +713,6 @@ definitions:
         description: 函数代码
         example: table_parse
         type: string
-      connector_endpoints:
-        description: 函数声明使用的连接器 API 端点
-        items:
-          $ref: '#/definitions/dto.ConnectorEndpoint'
-        type: array
-      connectors:
-        description: 函数依赖的连接器 provider 列表
-        example:
-        - github
-        - google
-        items:
-          type: string
-        type: array
       description:
         description: 函数描述
         example: 解析Excel/CSV文件为Markdown表格
@@ -1088,7 +730,7 @@ definitions:
         example: 表格解析
         type: string
       run_count:
-        description: 运行次数（用于 search 按热度排序）
+        description: 运行次数（用于 search_tools 按热度排序）
         type: integer
       schema:
         allOf:
@@ -1101,10 +743,6 @@ definitions:
     type: object
   dto.GetAppDetailResp:
     properties:
-      access_mode:
-        description: 访问模式：permissioned/open_collaboration
-        example: permissioned
-        type: string
       admins:
         description: 管理员列表，逗号分隔的用户名
         example: user1,user2
@@ -1117,10 +755,6 @@ definitions:
         description: 创建时间
         example: "2006-01-02 15:04:05"
         type: string
-      hide_unauthorized_nodes:
-        description: 是否隐藏当前用户无 read 权限的目录节点
-        example: false
-        type: boolean
       host_id:
         description: 主机ID
         example: 1
@@ -1129,10 +763,6 @@ definitions:
         description: 应用ID
         example: 1
         type: integer
-      is_personal_workspace:
-        description: 是否为系统初始化的个人默认空间
-        example: false
-        type: boolean
       is_public:
         description: 是否公开
         example: true
@@ -1207,27 +837,6 @@ definitions:
       total_count:
         type: integer
     type: object
-  dto.GetDirectoryOverviewResp:
-    properties:
-      directory:
-        $ref: '#/definitions/dto.DirectoryOverviewResource'
-      partial:
-        type: boolean
-      scheduled_agent_tasks:
-        items:
-          $ref: '#/definitions/dto.DirectoryOverviewScheduledTask'
-        type: array
-      scheduled_function_tasks:
-        items:
-          $ref: '#/definitions/dto.DirectoryOverviewScheduledTask'
-        type: array
-      stats:
-        $ref: '#/definitions/dto.DirectoryOverviewStats'
-      warnings:
-        items:
-          type: string
-        type: array
-    type: object
   dto.GetDirectoryUpdateHistoryResp:
     properties:
       app_id:
@@ -1252,24 +861,6 @@ definitions:
         description: 应用ID
         example: 1
         type: integer
-      connector_endpoints:
-        description: 函数声明使用的连接器 API 端点
-        items:
-          $ref: '#/definitions/dto.ConnectorEndpoint'
-        type: array
-      connector_status:
-        description: 当前用户的连接器就绪状态
-        items:
-          $ref: '#/definitions/dto.FunctionConnectorStatus'
-        type: array
-      connectors:
-        description: 函数依赖的连接器 provider 列表
-        example:
-        - github
-        - google
-        items:
-          type: string
-        type: array
       create_tables:
         description: 创建的表
         example: users,orders
@@ -1341,19 +932,6 @@ definitions:
         description: 服务目录代码
         example: user
         type: string
-      connector_endpoints:
-        description: 函数声明使用的连接器 API 端点
-        items:
-          $ref: '#/definitions/dto.ConnectorEndpoint'
-        type: array
-      connectors:
-        description: 函数依赖的连接器 provider 列表
-        example:
-        - github
-        - google
-        items:
-          type: string
-        type: array
       description:
         description: 描述
         example: 用户相关的API接口
@@ -1417,19 +995,6 @@ definitions:
         description: 服务目录代码
         example: user
         type: string
-      connector_endpoints:
-        description: 函数声明使用的连接器 API 端点
-        items:
-          $ref: '#/definitions/dto.ConnectorEndpoint'
-        type: array
-      connectors:
-        description: 函数依赖的连接器 provider 列表
-        example:
-        - github
-        - google
-        items:
-          type: string
-        type: array
       description:
         description: 描述
         example: 用户相关的API接口
@@ -1476,9 +1041,6 @@ definitions:
       run_count:
         description: ⭐ 运行次数（仅 function 类型有意义），用于排序与展示「已使用 N 次」
         type: integer
-      scheduled_agent_tasks:
-        description: 当前目录及子目录内的 Agent 任务数量（仅对package类型有意义）
-        type: integer
       tags:
         description: 标签
         example: user,management
@@ -1514,12 +1076,8 @@ definitions:
         type: string
       details_json:
         type: object
-      executor_type:
-        type: string
       id:
         type: integer
-      initiator_user:
-        type: string
       ip_address:
         type: string
       new_values_json:
@@ -1534,10 +1092,6 @@ definitions:
         type: string
       source:
         type: string
-      source_ref:
-        type: string
-      source_type:
-        type: string
       status:
         type: string
       summary:
@@ -1548,43 +1102,21 @@ definitions:
         type: string
       tenant_user:
         type: string
-      tool_call_id:
-        type: string
-      tool_name:
-        type: string
       trace_id:
         type: string
       updated_at:
         type: string
       user_agent:
         type: string
-      workspace_message_id:
-        type: integer
-      workspace_role:
-        type: string
-      workspace_session_id:
-        type: string
-      workspace_session_title:
-        type: string
     type: object
   dto.PackageInfo:
     properties:
-      agent_tasks:
-        description: package 出厂默认 Agent 任务模板
-        items:
-          $ref: '#/definitions/dto.AgentTaskConfig'
-        type: array
       code:
         description: 目录名（如 "pdf"）
         type: string
       desc:
         description: 描述
         type: string
-      docs:
-        description: package 出厂默认文档种子
-        items:
-          $ref: '#/definitions/dto.DocSeedConfig'
-        type: array
       full_path:
         description: 完整路径（如 "/user/app/plugins/pdf"）
         type: string
@@ -1772,10 +1304,6 @@ definitions:
         description: 应用名
         example: myapp
         type: string
-      build_trace:
-        allOf:
-        - $ref: '#/definitions/dto.BuildTrace'
-        description: 构建/更新阶段耗时追踪
       diff:
         allOf:
         - $ref: '#/definitions/dto.DiffData'
@@ -1912,18 +1440,8 @@ definitions:
     type: object
   dto.UpdateWorkspaceReq:
     properties:
-      access_mode:
-        description: 访问模式：permissioned/open_collaboration；nil 表示不更新
-        type: string
       admins:
-        description: 管理员列表，逗号分隔；nil 表示不更新
-        type: string
-      hide_unauthorized_nodes:
-        description: 是否隐藏当前用户无 read 权限的目录节点；nil 表示不更新
-        example: false
-        type: boolean
-      name:
-        description: 展示名称；nil 表示不更新，不影响 code、URL 或运行时目录
+        description: 管理员列表，逗号分隔
         type: string
       resource_path:
         description: 工作空间资源路径，规范为 /user/app
@@ -1931,23 +1449,15 @@ definitions:
     type: object
   dto.UpdateWorkspaceResp:
     properties:
-      access_mode:
-        type: string
       admins:
         type: string
       app:
-        type: string
-      hide_unauthorized_nodes:
-        type: boolean
-      name:
         type: string
       user:
         type: string
     type: object
   functionschema.ChartSchema:
     properties:
-      chart_type:
-        type: string
       request:
         items:
           $ref: '#/definitions/widget.Field'
@@ -1996,104 +1506,6 @@ definitions:
           $ref: '#/definitions/widget.Field'
         type: array
     type: object
-  scheduledsdk.Schedule:
-    properties:
-      cron_expr:
-        type: string
-      interval_seconds:
-        type: integer
-      max_runs:
-        type: integer
-      run_at:
-        type: string
-      timezone:
-        type: string
-      type:
-        $ref: '#/definitions/scheduledsdk.ScheduleType'
-    type: object
-  scheduledsdk.ScheduleType:
-    enum:
-    - atime
-    - cron
-    - every
-    type: string
-    x-enum-varnames:
-    - ScheduleAt
-    - ScheduleCron
-    - ScheduleEvery
-  scheduledsdk.Task:
-    properties:
-      category:
-        type: string
-      created_at:
-        type: string
-      created_by:
-        type: string
-      description:
-        type: string
-      executor_key:
-        type: string
-      executor_payload:
-        items:
-          type: integer
-        type: array
-      id:
-        type: integer
-      idempotency_key:
-        type: string
-      inflight_execution_id:
-        type: integer
-      last_error_message:
-        type: string
-      last_execution_id:
-        type: integer
-      metadata:
-        additionalProperties:
-          type: string
-        type: object
-      next_run_at:
-        type: string
-      request_user:
-        type: string
-      request_user_dept:
-        type: string
-      resource_key:
-        type: string
-      resource_scope:
-        type: string
-      run_count:
-        type: integer
-      schedule:
-        $ref: '#/definitions/scheduledsdk.Schedule'
-      source_ref:
-        type: string
-      source_type:
-        type: string
-      status:
-        $ref: '#/definitions/scheduledsdk.TaskStatus'
-      tags:
-        items:
-          type: string
-        type: array
-      title:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  scheduledsdk.TaskStatus:
-    enum:
-    - pending
-    - paused
-    - done
-    - failed
-    - cancelled
-    type: string
-    x-enum-varnames:
-    - TaskStatusPending
-    - TaskStatusPaused
-    - TaskStatusDone
-    - TaskStatusFailed
-    - TaskStatusCancelled
   widget.Field:
     properties:
       callbacks:
@@ -2181,7 +1593,48 @@ info:
   title: Kageos API
   version: "1.0"
 paths:
-  /workspace/api/v1/apps:
+  /workspace/api/v1/app/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建一个新的应用实例。租户用户（应用所有者）从请求体获取，请求用户（实际发起请求的用户）从请求头获取。租户用户决定应用的所有权，请求用户用于审计追踪。
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 创建应用请求，包含应用名（租户用户通过 header 传递）
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateAppReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/dto.CreateAppResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 创建应用
+      tags:
+      - 应用管理
+  /workspace/api/v1/app/delete:
     delete:
       consumes:
       - application/json
@@ -2210,6 +1663,51 @@ paths:
       summary: 删除应用
       tags:
       - 应用管理
+  /workspace/api/v1/app/detail:
+    get:
+      consumes:
+      - application/json
+      description: 根据 resource_path=/user/app 获取应用详情信息。
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 工作空间资源路径，格式 /user/app
+        in: query
+        name: resource_path
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.GetAppDetailResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "404":
+          description: 应用不存在
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 获取应用详情
+      tags:
+      - 应用管理
+  /workspace/api/v1/app/list:
     get:
       consumes:
       - application/json
@@ -2254,149 +1752,7 @@ paths:
       summary: 获取应用列表
       tags:
       - 应用管理
-    post:
-      consumes:
-      - application/json
-      description: 创建一个新的应用实例。租户用户（应用所有者）从请求体获取，请求用户（实际发起请求的用户）从请求头获取。租户用户决定应用的所有权，请求用户用于审计追踪。
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 创建应用请求，包含应用名（租户用户通过 header 传递）
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CreateAppReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 创建成功
-          schema:
-            $ref: '#/definitions/dto.CreateAppResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未授权
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: 创建应用
-      tags:
-      - 应用管理
-  /workspace/api/v1/apps/builds:
-    post:
-      consumes:
-      - application/json
-      description: 更新应用代码并重新编译部署，使用 resource_path=/user/app 标识工作空间。
-      parameters:
-      - description: SourceFiles、WriteOnly 等
-        in: body
-        name: body
-        schema:
-          $ref: '#/definitions/dto.UpdateAppReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 更新成功
-          schema:
-            $ref: '#/definitions/dto.UpdateAppResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      summary: 更新应用
-      tags:
-      - 应用管理
-  /workspace/api/v1/apps/detail:
-    get:
-      consumes:
-      - application/json
-      description: 根据 resource_path=/user/app 获取应用详情信息。
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 工作空间资源路径，格式 /user/app
-        in: query
-        name: resource_path
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            $ref: '#/definitions/dto.GetAppDetailResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未授权
-          schema:
-            type: string
-        "404":
-          description: 应用不存在
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: 获取应用详情
-      tags:
-      - 应用管理
-  /workspace/api/v1/apps/personal-workspace:
-    post:
-      description: 已有 home 时直接返回；已有其他自有空间时返回该空间；只有新用户才创建私有的“我的空间”。
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 默认个人空间
-          schema:
-            $ref: '#/definitions/dto.BootstrapPersonalWorkspaceResp'
-        "401":
-          description: 未授权
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: 获取或创建默认个人空间
-      tags:
-      - 应用管理
-  /workspace/api/v1/apps/tree:
+  /workspace/api/v1/app/tree:
     get:
       consumes:
       - application/json
@@ -2444,8 +1800,37 @@ paths:
       summary: 获取应用详情和服务目录树
       tags:
       - 应用管理
-  /workspace/api/v1/apps/workspace:
-    patch:
+  /workspace/api/v1/app/update:
+    post:
+      consumes:
+      - application/json
+      description: 更新应用代码并重新编译部署，使用 resource_path=/user/app 标识工作空间。
+      parameters:
+      - description: SourceFiles、WriteOnly 等
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/dto.UpdateAppReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/dto.UpdateAppResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 更新应用
+      tags:
+      - 应用管理
+  /workspace/api/v1/app/workspace:
+    put:
       consumes:
       - application/json
       description: 更新工作空间配置（只更新 MySQL 记录，不涉及容器更新），使用 resource_path=/user/app 标识工作空间。
@@ -2489,7 +1874,57 @@ paths:
       summary: 更新工作空间
       tags:
       - 应用管理
-  /workspace/api/v1/charts/{full-code-path}:
+  /workspace/api/v1/callback/on_select_fuzzy/{full-code-path}:
+    post:
+      consumes:
+      - application/json
+      description: Select 组件的模糊搜索回调
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 函数完整路径，如：/luobei/operations/tools/pdftools/to_images
+        in: path
+        name: full-code-path
+        required: true
+        type: string
+      - description: 搜索条件，格式：{\
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 查询成功
+          schema:
+            $ref: '#/definitions/dto.RequestAppResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "403":
+          description: 权限不足
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 模糊搜索回调
+      tags:
+      - 标准接口
+  /workspace/api/v1/chart/query/{full-code-path}:
     get:
       consumes:
       - application/json
@@ -2537,168 +1972,6 @@ paths:
       summary: Chart 查询
       tags:
       - 标准接口
-  /workspace/api/v1/directories:
-    get:
-      consumes:
-      - application/json
-      description: 根据ID或full-code-path获取服务目录详情
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 服务目录ID（优先使用）
-        in: query
-        name: id
-        type: integer
-      - description: 完整代码路径（如果未提供ID则使用）
-        in: query
-        name: full_code_path
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            $ref: '#/definitions/dto.GetServiceTreeDetailResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未授权
-          schema:
-            type: string
-        "404":
-          description: 服务目录不存在
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: 获取服务目录详情
-      tags:
-      - 服务目录
-  /workspace/api/v1/directory-copies:
-    post:
-      consumes:
-      - application/json
-      description: 递归复制服务目录及其所有子目录到目标父目录下；target_directory_name 可修改复制后根目录中文展示名，同名目录已存在时可通过
-        replace_existing 完全替换
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 复制请求，source_directory_path=源目录完整路径，target_directory_path=目标父目录完整路径，target_directory_name=复制后根目录中文展示名，replace_existing=是否覆盖同名目录
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CopyDirectoryReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 复制成功
-          schema:
-            $ref: '#/definitions/dto.CopyDirectoryResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未授权
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: 复制服务目录
-      tags:
-      - 服务目录
-  /workspace/api/v1/directory-overviews:
-    get:
-      consumes:
-      - application/json
-      description: 汇总当前目录及可读子目录/函数的资源统计、函数任务和 Agent 任务配置
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 目录完整路径
-        in: query
-        name: full_code_path
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            $ref: '#/definitions/dto.GetDirectoryOverviewResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: 获取目录概览
-      tags:
-      - 服务目录
-  /workspace/api/v1/directory-queries:
-    post:
-      consumes:
-      - application/json
-      description: 根据 full_code_path 列表批量获取目录、函数和文档详情
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 批量资源路径
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.BatchGetServiceTreeDetailsReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 获取成功
-          schema:
-            $ref: '#/definitions/dto.BatchGetServiceTreeDetailsResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未授权
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: 批量获取服务目录详情
-      tags:
-      - 服务目录
   /workspace/api/v1/directory_update_history/app_version:
     get:
       consumes:
@@ -3107,7 +2380,7 @@ paths:
       summary: 搜索文档
       tags:
       - 文档
-  /workspace/api/v1/form-submissions/{full-code-path}:
+  /workspace/api/v1/form/submit/{full-code-path}:
     post:
       consumes:
       - application/json
@@ -3159,73 +2432,6 @@ paths:
       summary: Form 提交
       tags:
       - 标准接口
-  /workspace/api/v1/function-search-results:
-    get:
-      consumes:
-      - application/json
-      description: 根据关键词、类型等条件搜索函数，支持分页
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 用户名（可选，用于过滤应用）
-        in: query
-        name: user
-        type: string
-      - description: 应用名（可选，用于过滤应用）
-        in: query
-        name: app
-        type: string
-      - description: 搜索关键词（可选，用于搜索名称和路径）
-        in: query
-        name: keyword
-        type: string
-      - description: 完整路径（可选，精确或目录前缀搜索）
-        in: query
-        name: full_code_path
-        type: string
-      - description: 模板类型过滤（可选，如：form、table、chart）
-        in: query
-        name: template_type
-        type: string
-      - default: 1
-        description: 页码
-        in: query
-        name: page
-        required: true
-        type: integer
-      - default: 10
-        description: 每页数量
-        in: query
-        name: page_size
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 搜索成功
-          schema:
-            $ref: '#/definitions/dto.SearchFunctionsResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未授权
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: 搜索函数
-      tags:
-      - 服务目录
   /workspace/api/v1/function/info/{func-type}/{full-code-path}:
     get:
       consumes:
@@ -3381,48 +2587,6 @@ paths:
       summary: 更新函数
       tags:
       - 服务目录
-  /workspace/api/v1/functions/batch:
-    post:
-      consumes:
-      - application/json
-      description: 接收来自 agent-server 的 Go 源码，写入到工作空间对应目录；默认同步构建，skip_build=true 时仅写文件。
-      parameters:
-      - description: 追踪ID（用于链路追踪）
-        in: header
-        name: X-Trace-Id
-        type: string
-      - description: 请求用户（用于审计）
-        in: header
-        name: X-Request-User
-        type: string
-      - description: Token（服务间调用时透传）
-        in: header
-        name: X-Token
-        type: string
-      - description: 添加函数请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.AddFunctionsReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 处理成功
-          schema:
-            $ref: '#/definitions/dto.AddFunctionsResp'
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      summary: 向服务目录添加函数
-      tags:
-      - 服务目录
   /workspace/api/v1/operate_log/general:
     get:
       consumes:
@@ -3434,10 +2598,6 @@ paths:
         name: X-Token
         required: true
         type: string
-      - description: 操作日志 ID
-        in: query
-        name: id
-        type: integer
       - description: 租户用户（app 的所有者）
         in: query
         name: tenant_user
@@ -3477,30 +2637,6 @@ paths:
       - description: 状态：success/failed
         in: query
         name: status
-        type: string
-      - description: 操作来源：browser/agent/openapi/public_share
-        in: query
-        name: source
-        type: string
-      - description: 来源类型：openapi_token/public_share/agent_tool/scheduled_task
-        in: query
-        name: source_type
-        type: string
-      - description: 来源引用
-        in: query
-        name: source_ref
-        type: string
-      - description: 实际执行者类型：user/agent/scheduled_function/openapi/public_share
-        in: query
-        name: executor_type
-        type: string
-      - description: 工作台会话 ID
-        in: query
-        name: workspace_session_id
-        type: string
-      - description: Trace ID
-        in: query
-        name: trace_id
         type: string
       - description: Table 记录 ID
         in: query
@@ -3636,7 +2772,200 @@ paths:
       summary: 更新目录
       tags:
       - 服务目录
-  /workspace/api/v1/resource-search-results:
+  /workspace/api/v1/service_tree/add_functions:
+    post:
+      consumes:
+      - application/json
+      description: 接收来自 agent-server 的 Go 源码，写入到工作空间对应目录；默认同步构建，skip_build=true 时仅写文件。
+      parameters:
+      - description: 追踪ID（用于链路追踪）
+        in: header
+        name: X-Trace-Id
+        type: string
+      - description: 请求用户（用于审计）
+        in: header
+        name: X-Request-User
+        type: string
+      - description: Token（服务间调用时透传）
+        in: header
+        name: X-Token
+        type: string
+      - description: 添加函数请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AddFunctionsReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 处理成功
+          schema:
+            $ref: '#/definitions/dto.AddFunctionsResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      summary: 向服务目录添加函数
+      tags:
+      - 服务目录
+  /workspace/api/v1/service_tree/copy:
+    post:
+      consumes:
+      - application/json
+      description: 递归复制服务目录及其所有子目录到目标父目录下；target_directory_name 可修改复制后根目录中文展示名，同名目录已存在时可通过 replace_existing 完全替换
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 复制请求，source_directory_path=源目录完整路径，target_directory_path=目标父目录完整路径，target_directory_name=复制后根目录中文展示名，replace_existing=是否覆盖同名目录
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CopyDirectoryReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 复制成功
+          schema:
+            $ref: '#/definitions/dto.CopyDirectoryResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 复制服务目录
+      tags:
+      - 服务目录
+  /workspace/api/v1/service_tree/detail:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID或full-code-path获取服务目录详情
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 服务目录ID（优先使用）
+        in: query
+        name: id
+        type: integer
+      - description: 完整代码路径（如果未提供ID则使用）
+        in: query
+        name: full_code_path
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            $ref: '#/definitions/dto.GetServiceTreeDetailResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "404":
+          description: 服务目录不存在
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 获取服务目录详情
+      tags:
+      - 服务目录
+  /workspace/api/v1/service_tree/search_functions:
+    get:
+      consumes:
+      - application/json
+      description: 根据关键词、类型等条件搜索函数，支持分页
+      parameters:
+      - description: JWT Token
+        in: header
+        name: X-Token
+        required: true
+        type: string
+      - description: 用户名（可选，用于过滤应用）
+        in: query
+        name: user
+        type: string
+      - description: 应用名（可选，用于过滤应用）
+        in: query
+        name: app
+        type: string
+      - description: 搜索关键词（可选，用于搜索名称和路径）
+        in: query
+        name: keyword
+        type: string
+      - description: 模板类型过滤（可选，如：form、table、chart）
+        in: query
+        name: template_type
+        type: string
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: page_size
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 搜索成功
+          schema:
+            $ref: '#/definitions/dto.SearchFunctionsResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+        "401":
+          description: 未授权
+          schema:
+            type: string
+        "500":
+          description: 服务器内部错误
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 搜索函数
+      tags:
+      - 服务目录
+  /workspace/api/v1/service_tree/search_resources:
     get:
       consumes:
       - application/json
@@ -3658,10 +2987,6 @@ paths:
       - description: 搜索关键词
         in: query
         name: keyword
-        type: string
-      - description: 完整路径（可选，精确或目录前缀搜索）
-        in: query
-        name: full_code_path
         type: string
       - description: 资源类型（all/package/function/docs）
         in: query
@@ -3703,11 +3028,11 @@ paths:
       summary: 全站资源搜索
       tags:
       - 服务目录
-  /workspace/api/v1/selection-options/{full-code-path}:
+  /workspace/api/v1/table/create/{full-code-path}:
     post:
       consumes:
       - application/json
-      description: Select 组件的模糊搜索回调
+      description: 新增表格记录
       parameters:
       - description: JWT Token
         in: header
@@ -3719,7 +3044,7 @@ paths:
         name: full-code-path
         required: true
         type: string
-      - description: 搜索条件，格式：{\
+      - description: 新增记录的字段数据
         in: body
         name: body
         required: true
@@ -3729,7 +3054,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: 查询成功
+          description: 新增成功
           schema:
             $ref: '#/definitions/dto.RequestAppResp'
         "400":
@@ -3750,54 +3075,10 @@ paths:
             type: string
       security:
       - ApiKeyAuth: []
-      summary: 模糊搜索回调
+      summary: Table 新增
       tags:
       - 标准接口
-  /workspace/api/v1/table-import-templates/{full-code-path}:
-    get:
-      consumes:
-      - application/json
-      description: 根据函数详情生成 Excel 导入模板
-      parameters:
-      - description: JWT Token
-        in: header
-        name: X-Token
-        required: true
-        type: string
-      - description: 函数完整路径，如：/luobei/operations/tools/pdftools/to_images
-        in: path
-        name: full-code-path
-        required: true
-        type: string
-      produces:
-      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-      responses:
-        "200":
-          description: Excel 模板文件
-          schema:
-            type: file
-        "400":
-          description: 请求参数错误
-          schema:
-            type: string
-        "401":
-          description: 未授权
-          schema:
-            type: string
-        "403":
-          description: 权限不足
-          schema:
-            type: string
-        "500":
-          description: 服务器内部错误
-          schema:
-            type: string
-      security:
-      - ApiKeyAuth: []
-      summary: Table 下载导入模板
-      tags:
-      - 标准接口
-  /workspace/api/v1/tables/{full-code-path}:
+  /workspace/api/v1/table/delete/{full-code-path}:
     delete:
       consumes:
       - application/json
@@ -3847,6 +3128,7 @@ paths:
       summary: Table 删除
       tags:
       - 标准接口
+  /workspace/api/v1/table/search/{full-code-path}:
     get:
       consumes:
       - application/json
@@ -3902,10 +3184,11 @@ paths:
       summary: Table 查询
       tags:
       - 标准接口
-    post:
+  /workspace/api/v1/table/template/{full-code-path}:
+    get:
       consumes:
       - application/json
-      description: 新增表格记录
+      description: 根据函数详情生成 Excel 导入模板
       parameters:
       - description: JWT Token
         in: header
@@ -3917,19 +3200,13 @@ paths:
         name: full-code-path
         required: true
         type: string
-      - description: 新增记录的字段数据
-        in: body
-        name: body
-        required: true
-        schema:
-          type: object
       produces:
-      - application/json
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
       responses:
         "200":
-          description: 新增成功
+          description: Excel 模板文件
           schema:
-            $ref: '#/definitions/dto.RequestAppResp'
+            type: file
         "400":
           description: 请求参数错误
           schema:
@@ -3948,9 +3225,10 @@ paths:
             type: string
       security:
       - ApiKeyAuth: []
-      summary: Table 新增
+      summary: Table 下载导入模板
       tags:
       - 标准接口
+  /workspace/api/v1/table/update/{full-code-path}:
     put:
       consumes:
       - application/json

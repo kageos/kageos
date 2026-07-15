@@ -170,7 +170,7 @@ async function parseTimerResponse<T>(response: Response): Promise<T> {
 
   if (payload && typeof payload === 'object' && 'code' in payload) {
     const wrapped = payload as { code?: number; data?: T }
-		if (wrapped.code === 0) {
+    if (wrapped.code === 0) {
       return wrapped.data as T
     }
     throw new Error(extractTimerError(payload, '请求失败'))
@@ -229,7 +229,7 @@ export function deleteTimerTask(id: number): Promise<void> {
 }
 
 export function runTimerTaskNow(id: number): Promise<TimerExecution> {
-	return timerRequest<TimerExecution>(`/timer/api/v1/tasks/${id}/run-now`, { method: 'POST' })
+  return timerRequest<TimerExecution>(`/timer/api/v1/tasks/${id}/run_now`, { method: 'POST' })
 }
 
 export function listTimerExecutions(

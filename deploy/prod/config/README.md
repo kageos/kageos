@@ -11,7 +11,6 @@
 
 - `${MYSQL_ROOT_PASSWORD}`
 - `${JWT_SECRET}`
-- `${KAGEOS_CONTROL_PLANE_SECRET}`
 - `${SYSTEM_USER_PASSWORD}`
 - `${MINIO_ROOT_PASSWORD}`
 - `${NATS_URL}`
@@ -39,11 +38,3 @@
 - `runtime.listen_host`：`app-runtime` 的监听地址。生产模板默认 `127.0.0.1`。
 - `timer-scheduler.yaml`：独立定时调度服务配置，默认监听 `127.0.0.1:9098`，数据库名为 `timer-scheduler`。
 - `message-server.yaml`：独立消息服务配置，默认监听 `127.0.0.1:9099`，数据库名为 `message-server`，MVP 只写站内信。
-
-## 本次控制面加固的升级注意事项
-
-- 新部署必须为 `KAGEOS_CONTROL_PLANE_SECRET` 使用独立、至少 32 字节的随机值；旧配置暂时回退到 `JWT_SECRET` 仅用于平滑升级。
-- 旧版曾由 `hr-server` 与 `app-server` 竞争设置 OpenAPI token store，历史 token 记录可能分散在两个数据库。最安全的升级方式是让旧 OpenAPI token 全部失效并重新签发。若必须合库，应按 `token_hash` 去重，任一副本已撤销则保持撤销，过期时间取更早值，且不要沿用旧记录 ID。
-- 使用新版 SDK 重新编译 App 后，NATS 凭据才会从 App 环境变量迁移到只读 runtime secret；未重编译的旧 App 暂时保留兼容路径。
-- 旧 SDK 曾把带 userinfo 的 NATS URL 写入连接日志；升级完成后应轮换一次现有 NATS 凭据，并按日志保留策略清理历史副本。
-- runtime secret 只减少凭据在环境变量、进程参数和日志中的暴露，不构成 NATS 租户隔离；同进程恶意代码仍可能读取自身凭据，共享 NATS 上的跨 App 订阅/抢占仍需后续用 Accounts/ACL（或物理隔离）解决。

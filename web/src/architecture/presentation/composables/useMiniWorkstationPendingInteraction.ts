@@ -87,7 +87,7 @@ export function useMiniWorkstationPendingInteraction(options: UseMiniWorkstation
     return interaction.help_text || interaction.description || translate('miniWorkstation.interactionNeedAction')
   })
 
-  async function handleBeforeSend(_payload: { text: string; files: unknown[] | null }) {
+  async function handleBeforeSend(payload: { text: string; files: unknown[] | null }) {
     const interaction = pendingInteraction.value
     if (!interaction) {
       return false

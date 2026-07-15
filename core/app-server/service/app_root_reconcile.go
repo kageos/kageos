@@ -28,7 +28,7 @@ func ReconcileAppRootServiceTrees(
 		return result, fmt.Errorf("app root reconcile requires appRepo and serviceTreeRepo")
 	}
 
-	apps, err := appRepo.GetAllApps(ctx)
+	apps, err := appRepo.GetAllApps()
 	if err != nil {
 		return result, fmt.Errorf("查询应用列表失败: %w", err)
 	}
@@ -46,10 +46,10 @@ func ReconcileAppRootServiceTrees(
 		result.Checked++
 
 		rootPath := "/" + user + "/" + appCode
-		root, err := serviceTreeRepo.GetServiceTreeByFullPath(ctx, rootPath)
+		root, err := serviceTreeRepo.GetServiceTreeByFullPath(rootPath)
 		if err == nil && root != nil {
 			if normalizeAppRootServiceTree(root, appModel) {
-				if err := serviceTreeRepo.UpdateServiceTree(ctx, root); err != nil {
+				if err := serviceTreeRepo.UpdateServiceTree(root); err != nil {
 					return result, fmt.Errorf("更新应用根节点失败 path=%s: %w", rootPath, err)
 				}
 				result.Updated++
@@ -61,7 +61,7 @@ func ReconcileAppRootServiceTrees(
 		}
 
 		root = newAppRootServiceTree(appModel, rootPath)
-		if err := serviceTreeRepo.Create(ctx, root); err != nil {
+		if err := serviceTreeRepo.Create(root); err != nil {
 			return result, fmt.Errorf("创建应用根节点失败 path=%s: %w", rootPath, err)
 		}
 		result.Created++

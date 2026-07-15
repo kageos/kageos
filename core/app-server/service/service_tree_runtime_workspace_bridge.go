@@ -37,24 +37,24 @@ func newRuntimeWorkspaceBridge(appRepo *repository.AppRepository, appCall runtim
 	}
 }
 
-func (b *runtimeWorkspaceBridge) getAppByUserApp(ctx context.Context, user, app string) (*model.App, error) {
-	appModel, err := b.appRepo.GetAppByUserName(ctx, user, app)
+func (b *runtimeWorkspaceBridge) getAppByUserApp(user, app string) (*model.App, error) {
+	appModel, err := b.appRepo.GetAppByUserName(user, app)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用信息失败: %w", err)
 	}
 	return appModel, nil
 }
 
-func (b *runtimeWorkspaceBridge) getRuntimeBoundAppByUserApp(ctx context.Context, user, app, action string) (*model.App, error) {
-	appModel, err := b.getAppByUserApp(ctx, user, app)
+func (b *runtimeWorkspaceBridge) getRuntimeBoundAppByUserApp(user, app, action string) (*model.App, error) {
+	appModel, err := b.getAppByUserApp(user, app)
 	if err != nil {
 		return nil, err
 	}
 	return b.requireRuntimeBinding(appModel, action)
 }
 
-func (b *runtimeWorkspaceBridge) getRuntimeBoundAppByID(ctx context.Context, appID int64, action string) (*model.App, error) {
-	appModel, err := b.appRepo.GetAppByID(ctx, appID)
+func (b *runtimeWorkspaceBridge) getRuntimeBoundAppByID(appID int64, action string) (*model.App, error) {
+	appModel, err := b.appRepo.GetAppByID(appID)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用失败: %w", err)
 	}
@@ -76,7 +76,7 @@ func (b *runtimeWorkspaceBridge) createDirectoryScaffold(
 	user, app string,
 	serviceTree *model.ServiceTree,
 ) error {
-	appModel, err := b.getRuntimeBoundAppByUserApp(ctx, user, app, "创建目录脚手架")
+	appModel, err := b.getRuntimeBoundAppByUserApp(user, app, "创建目录脚手架")
 	if err != nil {
 		return err
 	}
@@ -93,7 +93,7 @@ func (b *runtimeWorkspaceBridge) deleteDirectoryScaffold(
 	appID int64,
 	packagePath string,
 ) (*model.App, *dto.DeleteServiceTreeRuntimeResp, error) {
-	appModel, err := b.getRuntimeBoundAppByID(ctx, appID, "删除目录脚手架")
+	appModel, err := b.getRuntimeBoundAppByID(appID, "删除目录脚手架")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -114,7 +114,7 @@ func (b *runtimeWorkspaceBridge) batchCreateDirectoryTree(
 	ctx context.Context,
 	req *dto.BatchCreateDirectoryTreeReq,
 ) (*model.App, *dto.BatchCreateDirectoryTreeRuntimeResp, error) {
-	appModel, err := b.getRuntimeBoundAppByUserApp(ctx, req.User, req.App, "批量创建目录树")
+	appModel, err := b.getRuntimeBoundAppByUserApp(req.User, req.App, "批量创建目录树")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -141,7 +141,7 @@ func (b *runtimeWorkspaceBridge) batchWriteFiles(
 		operationLabel = "批量写文件"
 	}
 
-	appModel, err := b.getRuntimeBoundAppByUserApp(ctx, req.User, req.App, operationLabel)
+	appModel, err := b.getRuntimeBoundAppByUserApp(req.User, req.App, operationLabel)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -171,7 +171,7 @@ func (b *runtimeWorkspaceBridge) replaceDirectoryTree(
 		operationLabel = "替换目录"
 	}
 
-	appModel, err := b.getRuntimeBoundAppByUserApp(ctx, req.User, req.App, operationLabel)
+	appModel, err := b.getRuntimeBoundAppByUserApp(req.User, req.App, operationLabel)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -199,7 +199,7 @@ func (b *runtimeWorkspaceBridge) readDirectoryFiles(
 	appID int64,
 	directoryPath string,
 ) (*model.App, *dto.ReadDirectoryFilesRuntimeResp, error) {
-	appModel, err := b.getRuntimeBoundAppByID(ctx, appID, "读取目录文件")
+	appModel, err := b.getRuntimeBoundAppByID(appID, "读取目录文件")
 	if err != nil {
 		return nil, nil, err
 	}

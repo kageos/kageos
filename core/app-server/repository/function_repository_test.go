@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -44,7 +43,7 @@ func TestCreateFunctionsUpdatesExistingActiveFunction(t *testing.T) {
 		TemplateType: "table",
 	}
 	first.CreatedBy = "alice"
-	if err := repo.CreateFunctions(context.Background(), []*model.Function{first}); err != nil {
+	if err := repo.CreateFunctions([]*model.Function{first}); err != nil {
 		t.Fatalf("create first function: %v", err)
 	}
 	if first.ID == 0 {
@@ -63,7 +62,7 @@ func TestCreateFunctionsUpdatesExistingActiveFunction(t *testing.T) {
 		TemplateType:       "form",
 	}
 	second.CreatedBy = "bob"
-	if err := repo.CreateFunctions(context.Background(), []*model.Function{second}); err != nil {
+	if err := repo.CreateFunctions([]*model.Function{second}); err != nil {
 		t.Fatalf("upsert second function: %v", err)
 	}
 	if second.ID != first.ID {
@@ -101,7 +100,7 @@ func TestCreateFunctionsKeepsSoftDeletedHistory(t *testing.T) {
 		Schema:       json.RawMessage(`{"version":1}`),
 		TemplateType: "table",
 	}
-	if err := repo.CreateFunctions(context.Background(), []*model.Function{function}); err != nil {
+	if err := repo.CreateFunctions([]*model.Function{function}); err != nil {
 		t.Fatalf("create function: %v", err)
 	}
 
@@ -116,7 +115,7 @@ func TestCreateFunctionsKeepsSoftDeletedHistory(t *testing.T) {
 		Schema:       json.RawMessage(`{"version":2}`),
 		TemplateType: "form",
 	}
-	if err := repo.CreateFunctions(context.Background(), []*model.Function{restored}); err != nil {
+	if err := repo.CreateFunctions([]*model.Function{restored}); err != nil {
 		t.Fatalf("create active function with soft-deleted history: %v", err)
 	}
 	if restored.ID == function.ID {
@@ -183,7 +182,7 @@ func TestCreateFunctionsSoftDeletesDuplicateActiveFunctions(t *testing.T) {
 		Schema:       json.RawMessage(`{"version":3}`),
 		TemplateType: "form",
 	}
-	if err := repo.CreateFunctions(context.Background(), []*model.Function{incoming}); err != nil {
+	if err := repo.CreateFunctions([]*model.Function{incoming}); err != nil {
 		t.Fatalf("create/update function: %v", err)
 	}
 	if incoming.ID != newDuplicate.ID {

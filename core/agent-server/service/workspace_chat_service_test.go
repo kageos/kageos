@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -92,90 +91,6 @@ func TestWorkspaceContextWithSessionRequestUserKeepsRealRequestUser(t *testing.T
 	}
 }
 
-func TestWorkspacePathDirectoryResolvesFunctionNotificationToPackage(t *testing.T) {
-	testCases := map[string]string{
-		"/system/democase/site_monitor/sweep.form":          "/system/democase/site_monitor",
-		"/system/democase/site_monitor/targets.table":       "/system/democase/site_monitor",
-		"/system/democase/site_monitor/latency_trend.chart": "/system/democase/site_monitor",
-		"/system/democase/site_monitor":                     "/system/democase/site_monitor",
-	}
-	for input, want := range testCases {
-		if got := workspacePathDirectory(input); got != want {
-			t.Fatalf("workspacePathDirectory(%q) = %q, want %q", input, got, want)
-		}
-	}
-	if resource := workspaceSessionResourcePath("/system/democase/site_monitor/sweep.form"); resource != "/system/democase/site_monitor/sweep.form" {
-		t.Fatalf("workspaceSessionResourcePath() = %q, want concrete function", resource)
-	}
-	if resource := workspaceSessionResourcePath("/system/democase/site_monitor"); resource != "" {
-		t.Fatalf("workspaceSessionResourcePath(directory) = %q, want empty", resource)
-	}
-}
-
-func TestWorkspaceContextChildTreeIDRecognizesSuffixlessFunction(t *testing.T) {
-	children := []dto.WorkspaceContextNode{
-		{ID: 37, Type: "function", FullCodePath: "/system/info/site_monitor"},
-	}
-
-	id, ok := workspaceContextChildTreeID(children, "/system/info/site_monitor")
-	if !ok || id != 37 {
-		t.Fatalf("workspaceContextChildTreeID() = (%d, %t), want (37, true)", id, ok)
-	}
-	if id, ok := workspaceContextChildTreeID(children, "/system/info/other"); ok || id != 0 {
-		t.Fatalf("workspaceContextChildTreeID(missing) = (%d, %t), want (0, false)", id, ok)
-	}
-}
-
-func TestWorkspaceRequestedResourcePathPreservesExplicitSuffixlessFunction(t *testing.T) {
-	if got := workspaceRequestedResourcePath("/system/info/site_monitor", "/system/info"); got != "/system/info/site_monitor" {
-		t.Fatalf("workspaceRequestedResourcePath() = %q, want explicit suffix-less function", got)
-	}
-	if got := workspaceRequestedResourcePath("", "/system/info/site_monitor"); got != "" {
-		t.Fatalf("workspaceRequestedResourcePath(directory) = %q, want empty heuristic result", got)
-	}
-}
-
-func TestWorkspaceSessionMessageContextUsesFunctionResourceAsNotificationSource(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
-		t.Fatalf("migrate sessions: %v", err)
-	}
-	sessionRepo := repository.NewChatSessionRepository(db)
-	if err := sessionRepo.Create(context.Background(), &model.AgentChatSession{
-		TreeID:               9,
-		FullCodePath:         "/system/democase/site_monitor",
-		ResourceTreeID:       17,
-		ResourceFullCodePath: "/system/democase/site_monitor/check_once.form",
-		Source:               SourceWorkspace,
-		SessionID:            "check-once-session",
-		Title:                "单次网站巡检",
-		ModeCode:             "dev",
-		Status:               model.ChatSessionStatusActive,
-		RoleID:               WorkspaceRoleAppOperator,
-		User:                 "alice",
-	}); err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-
-	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
-	metadata := svc.workspaceSessionMessageContext(context.Background(), "check-once-session")
-	ctx := withAgentToolExecutionContext(context.Background(), "check-once-session", metadata.title, metadata.role)
-	ctx = withWorkspaceSessionSourceDisplay(ctx, metadata, "/system/democase/site_monitor")
-
-	if got := contextx.GetSourcePath(ctx); got != "/system/democase/site_monitor/check_once.form" {
-		t.Fatalf("source_path = %q, want concrete function", got)
-	}
-	if got := contextx.GetSourceParentPath(ctx); got != "/system/democase/site_monitor" {
-		t.Fatalf("source_parent_path = %q, want execution directory", got)
-	}
-	if got := contextx.GetSourceTemplateType(ctx); got != "form" {
-		t.Fatalf("source_template_type = %q, want form", got)
-	}
-}
-
 func TestCancelSessionCancelsRegisteredRunEvenWhenStatusIsActive(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
@@ -196,7 +111,7 @@ func TestCancelSessionCancelsRegisteredRunEvenWhenStatusIsActive(t *testing.T) {
 		ContextPolicy: ContextPolicyFull,
 		User:          "alice",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	runCtx, cancel := context.WithCancel(context.Background())
@@ -211,7 +126,7 @@ func TestCancelSessionCancelsRegisteredRunEvenWhenStatusIsActive(t *testing.T) {
 	if runCtx.Err() == nil {
 		t.Fatal("registered run context should be cancelled")
 	}
-	latest, err := sessionRepo.GetBySessionID(ctx, "stale-running-session")
+	latest, err := sessionRepo.GetBySessionID("stale-running-session")
 	if err != nil {
 		t.Fatalf("get latest session: %v", err)
 	}
@@ -260,7 +175,7 @@ func TestSaveAssistantMessageStoresLLMMetadata(t *testing.T) {
 	if err := svc.saveAssistantMessage(context.Background(), "session-llm", "ok", "内部思考", "tester", meta, nil, usage); err != nil {
 		t.Fatalf("save assistant message: %v", err)
 	}
-	messages, err := messageRepo.ListBySessionID(context.Background(), "session-llm")
+	messages, err := messageRepo.ListBySessionID("session-llm")
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
 	}
@@ -307,11 +222,11 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 		ModelContextAnchorMessageID: 1,
 		User:                        "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	oldMsg := &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "旧开发讨论", User: "tester"}
-	if err := messageRepo.Create(context.Background(), oldMsg); err != nil {
+	if err := messageRepo.Create(oldMsg); err != nil {
 		t.Fatalf("create old message: %v", err)
 	}
 	packet := workspaceRoleHandoffPacket{
@@ -335,11 +250,11 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 		ArtifactKind: workspaceBuildArtifactKind,
 		User:         "tester",
 	}
-	if err := messageRepo.Create(context.Background(), handoffMsg); err != nil {
+	if err := messageRepo.Create(handoffMsg); err != nil {
 		t.Fatalf("create handoff message: %v", err)
 	}
 	displayOnlyMsg := &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "只展示", ContextUsage: MessageContextDisplayOnly, User: "tester"}
-	if err := messageRepo.Create(context.Background(), displayOnlyMsg); err != nil {
+	if err := messageRepo.Create(displayOnlyMsg); err != nil {
 		t.Fatalf("create display only message: %v", err)
 	}
 	svc := &WorkspaceChatService{
@@ -427,7 +342,7 @@ func TestBuildLLMMessagesExposesStableModeToolsAndKeepsRoleGatePlan(t *testing.T
 		RoleDisplayName: "测试工程师",
 		User:            "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	provider := prompt.GetModeProvider("dev")
@@ -497,7 +412,7 @@ func TestBuildLLMMessagesWithPlanCurrentTurnMessageDoesNotPolluteFutureContext(t
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	oldMobileMsg := &model.AgentChatMessage{
@@ -507,7 +422,7 @@ func TestBuildLLMMessagesWithPlanCurrentTurnMessageDoesNotPolluteFutureContext(t
 		ContextUsage: MessageContextCurrentTurn,
 		User:         "tester",
 	}
-	if err := messageRepo.Create(context.Background(), oldMobileMsg); err != nil {
+	if err := messageRepo.Create(oldMobileMsg); err != nil {
 		t.Fatalf("create old current turn message: %v", err)
 	}
 	oldMobileAssistantMsg := &model.AgentChatMessage{
@@ -516,7 +431,7 @@ func TestBuildLLMMessagesWithPlanCurrentTurnMessageDoesNotPolluteFutureContext(t
 		Content:   "旧移动端处理结果",
 		User:      "tester",
 	}
-	if err := messageRepo.Create(context.Background(), oldMobileAssistantMsg); err != nil {
+	if err := messageRepo.Create(oldMobileAssistantMsg); err != nil {
 		t.Fatalf("create old current turn assistant message: %v", err)
 	}
 	currentMobileMsg := &model.AgentChatMessage{
@@ -526,7 +441,7 @@ func TestBuildLLMMessagesWithPlanCurrentTurnMessageDoesNotPolluteFutureContext(t
 		ContextUsage: MessageContextCurrentTurn,
 		User:         "tester",
 	}
-	if err := messageRepo.Create(context.Background(), currentMobileMsg); err != nil {
+	if err := messageRepo.Create(currentMobileMsg); err != nil {
 		t.Fatalf("create current turn message: %v", err)
 	}
 	svc := &WorkspaceChatService{
@@ -594,10 +509,10 @@ func TestBuildLLMMessagesWithPlanCompactsLargeHistoricalToolPayloads(t *testing.
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "修改应用", User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "修改应用", User: "tester"}); err != nil {
 		t.Fatalf("create user message: %v", err)
 	}
 	largeArgs := `{"full_code_path":"/liubeiluo/assets/main.go","content":"` + strings.Repeat("参数内容", 1200) + `"}`
@@ -609,17 +524,17 @@ func TestBuildLLMMessagesWithPlanCompactsLargeHistoricalToolPayloads(t *testing.
 		t.Fatalf("marshal tool calls: %v", err)
 	}
 	toolCalls := string(rawToolCalls)
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleAssistant, ToolCalls: &toolCalls, User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleAssistant, ToolCalls: &toolCalls, User: "tester"}); err != nil {
 		t.Fatalf("create assistant message: %v", err)
 	}
 	largeResult := strings.Repeat("工具结果", 1200)
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleTool, ToolCallID: "call_write", Content: largeResult, User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleTool, ToolCallID: "call_write", Content: largeResult, User: "tester"}); err != nil {
 		t.Fatalf("create tool message: %v", err)
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "只展示给前端", ContextUsage: MessageContextDisplayOnly, User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "只展示给前端", ContextUsage: MessageContextDisplayOnly, User: "tester"}); err != nil {
 		t.Fatalf("create display-only message: %v", err)
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "继续处理", User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "继续处理", User: "tester"}); err != nil {
 		t.Fatalf("create current user message: %v", err)
 	}
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
@@ -679,7 +594,7 @@ func TestBuildLLMMessagesWithPlanUsesArtifactReferenceForUserArtifact(t *testing
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	artifactJSON := `{"kind":"agent_app_prd","project":{"name":"投票系统","code":"vote","summary":"创建投票主题和结果统计"},"tables":[{"name":"投票主题","code":"topics","fields":[{"name":"主题标题"}],"examples":[{"主题标题":"artifact-secret-marker"}]}],"forms":[{"name":"提交投票","request_fields":[{"name":"选项"}],"response_fields":[{"name":"提交结果"}]}],"rules":["每人只能提交一次"]}`
@@ -691,10 +606,10 @@ func TestBuildLLMMessagesWithPlanUsesArtifactReferenceForUserArtifact(t *testing
 		ArtifactKind: "agent_app_prd",
 		User:         "tester",
 	}
-	if err := messageRepo.Create(context.Background(), artifactMsg); err != nil {
+	if err := messageRepo.Create(artifactMsg); err != nil {
 		t.Fatalf("create artifact message: %v", err)
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "继续开发", User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "继续开发", User: "tester"}); err != nil {
 		t.Fatalf("create current user message: %v", err)
 	}
 	svc := &WorkspaceChatService{toolReg: NewToolRegistry(), sessionRepo: sessionRepo, messageRepo: messageRepo}
@@ -743,10 +658,10 @@ func TestBuildLLMMessagesWithPlanUsesArtifactReferenceForWritePRDToolResult(t *t
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "做一个投票系统", User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "做一个投票系统", User: "tester"}); err != nil {
 		t.Fatalf("create user message: %v", err)
 	}
 	call := llms.ToolCall{ID: "call_prd", Type: "function"}
@@ -757,11 +672,11 @@ func TestBuildLLMMessagesWithPlanUsesArtifactReferenceForWritePRDToolResult(t *t
 		t.Fatalf("marshal tool calls: %v", err)
 	}
 	toolCalls := string(rawToolCalls)
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleAssistant, ToolCalls: &toolCalls, User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleAssistant, ToolCalls: &toolCalls, User: "tester"}); err != nil {
 		t.Fatalf("create assistant message: %v", err)
 	}
 	artifactJSON := `{"kind":"agent_app_prd","schema_version":"prd.v2","project":{"name":"投票系统","code":"vote","summary":"创建投票"},"tables":[{"name":"投票主题","fields":[{"name":"主题标题"}],"examples":[{"主题标题":"tool-secret-marker"}]}]}`
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{
+	if err := messageRepo.Create(&model.AgentChatMessage{
 		SessionID:  session.SessionID,
 		Role:       RoleTool,
 		ToolCallID: "call_prd",
@@ -828,10 +743,10 @@ func TestReadWorkspaceArtifactReturnsPrimaryArtifactJSONAndChecksSession(t *test
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if err := sessionRepo.Create(context.Background(), otherSession); err != nil {
+	if err := sessionRepo.Create(otherSession); err != nil {
 		t.Fatalf("create other session: %v", err)
 	}
 	artifactJSON := `{"kind":"agent_app_prd","project":{"name":"投票系统","code":"vote","summary":"创建投票"},"tables":[{"name":"投票主题","fields":[{"name":"主题标题"}],"examples":[{"主题标题":"read-secret-marker"}]}]}`
@@ -843,7 +758,7 @@ func TestReadWorkspaceArtifactReturnsPrimaryArtifactJSONAndChecksSession(t *test
 		ArtifactKind: "agent_app_prd",
 		User:         "tester",
 	}
-	if err := messageRepo.Create(context.Background(), msg); err != nil {
+	if err := messageRepo.Create(msg); err != nil {
 		t.Fatalf("create artifact message: %v", err)
 	}
 	svc := &WorkspaceChatService{toolReg: NewToolRegistry(), sessionRepo: sessionRepo, messageRepo: messageRepo}
@@ -891,7 +806,7 @@ func TestBuildLLMMessagesWithPlanReducesLongHistoryByBudget(t *testing.T) {
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	for i := 0; i < 80; i++ {
@@ -902,11 +817,11 @@ func TestBuildLLMMessagesWithPlanReducesLongHistoryByBudget(t *testing.T) {
 		if i == 79 {
 			content = strings.Repeat("较新的历史内容", 320) + " recent-marker-79"
 		}
-		if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: content, User: "tester"}); err != nil {
+		if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: content, User: "tester"}); err != nil {
 			t.Fatalf("create old message %d: %v", i, err)
 		}
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "current-marker 保留当前需求", User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "current-marker 保留当前需求", User: "tester"}); err != nil {
 		t.Fatalf("create current user message: %v", err)
 	}
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
@@ -961,10 +876,10 @@ func TestBuildLLMMessagesWithPlanSynthesizesMissingToolResultAfterCancel(t *test
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "测试资产列表", User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "测试资产列表", User: "tester"}); err != nil {
 		t.Fatalf("create user message: %v", err)
 	}
 	call := llms.ToolCall{ID: "call_search", Type: "function"}
@@ -975,10 +890,10 @@ func TestBuildLLMMessagesWithPlanSynthesizesMissingToolResultAfterCancel(t *test
 		t.Fatalf("marshal tool calls: %v", err)
 	}
 	toolCalls := string(rawToolCalls)
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleAssistant, ToolCalls: &toolCalls, User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleAssistant, ToolCalls: &toolCalls, User: "tester"}); err != nil {
 		t.Fatalf("create assistant message: %v", err)
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "继续测试", User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "继续测试", User: "tester"}); err != nil {
 		t.Fatalf("create next user message: %v", err)
 	}
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
@@ -1029,10 +944,10 @@ func TestBuildLLMMessagesWithPlanPreservesHistoryDespiteLegacyAnchor(t *testing.
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "旧消息", User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "旧消息", User: "tester"}); err != nil {
 		t.Fatalf("create old user message: %v", err)
 	}
 	call := llms.ToolCall{ID: "call_search", Type: "function"}
@@ -1044,17 +959,17 @@ func TestBuildLLMMessagesWithPlanPreservesHistoryDespiteLegacyAnchor(t *testing.
 	}
 	toolCalls := string(rawToolCalls)
 	assistantMsg := &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleAssistant, ToolCalls: &toolCalls, User: "tester"}
-	if err := messageRepo.Create(context.Background(), assistantMsg); err != nil {
+	if err := messageRepo.Create(assistantMsg); err != nil {
 		t.Fatalf("create assistant message: %v", err)
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleTool, ToolCallID: "call_search", Content: "{}", User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleTool, ToolCallID: "call_search", Content: "{}", User: "tester"}); err != nil {
 		t.Fatalf("create tool message: %v", err)
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "锚点后继续", User: "tester"}); err != nil {
+	if err := messageRepo.Create(&model.AgentChatMessage{SessionID: session.SessionID, Role: RoleUser, Content: "锚点后继续", User: "tester"}); err != nil {
 		t.Fatalf("create current user message: %v", err)
 	}
 	session.ModelContextAnchorMessageID = assistantMsg.ID
-	if err := sessionRepo.Update(context.Background(), session); err != nil {
+	if err := sessionRepo.Update(session); err != nil {
 		t.Fatalf("update anchor: %v", err)
 	}
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
@@ -1146,10 +1061,10 @@ func TestCreateWorkspaceHandoffInjectsIntoCurrentSessionAndPreservesHistory(t *t
 		ContextPolicy:   ContextPolicyFull,
 		User:            "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), source); err != nil {
+	if err := sessionRepo.Create(source); err != nil {
 		t.Fatalf("create source: %v", err)
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{
+	if err := messageRepo.Create(&model.AgentChatMessage{
 		SessionID: "source-session",
 		Role:      RoleUser,
 		Content:   "帮我做一个 NPS 回访问卷系统，优先让门店经理能快速提交，不要复杂审批。",
@@ -1157,7 +1072,7 @@ func TestCreateWorkspaceHandoffInjectsIntoCurrentSessionAndPreservesHistory(t *t
 	}); err != nil {
 		t.Fatalf("create source user message: %v", err)
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{
+	if err := messageRepo.Create(&model.AgentChatMessage{
 		SessionID: "source-session",
 		Role:      RoleUser,
 		Content:   "字段需要评分、原因和门店；图表要按日期看趋势，后续可能按门店筛选。",
@@ -1276,7 +1191,7 @@ func TestCreateWorkspaceHandoffInjectsIntoCurrentSessionAndPreservesHistory(t *t
 		t.Fatalf("handoff context should include recommended reference docs, got %q", resp.HandoffContext)
 	}
 
-	updatedSource, err := sessionRepo.GetBySessionID(ctx, "source-session")
+	updatedSource, err := sessionRepo.GetBySessionID("source-session")
 	if err != nil {
 		t.Fatalf("get source: %v", err)
 	}
@@ -1292,7 +1207,7 @@ func TestCreateWorkspaceHandoffInjectsIntoCurrentSessionAndPreservesHistory(t *t
 	if updatedSource.RoleID != WorkspaceRoleAppDeveloper || updatedSource.RoleDisplayName != "应用开发工程师" {
 		t.Fatalf("source role metadata wrong: %#v", updatedSource)
 	}
-	messages, err := messageRepo.ListBySessionID(ctx, resp.SessionID)
+	messages, err := messageRepo.ListBySessionID(resp.SessionID)
 	if err != nil {
 		t.Fatalf("list session messages: %v", err)
 	}
@@ -1306,7 +1221,7 @@ func TestCreateWorkspaceHandoffInjectsIntoCurrentSessionAndPreservesHistory(t *t
 	if !strings.Contains(injected.Content, `"kind": "agent_app_prd"`) || !strings.Contains(injected.DisplayContent, "优先做列表") {
 		t.Fatalf("injected handoff message content wrong: %#v", injected)
 	}
-	packet, err := handoffRepo.GetByTargetSessionID(ctx, resp.SessionID)
+	packet, err := handoffRepo.GetByTargetSessionID(resp.SessionID)
 	if err != nil {
 		t.Fatalf("get handoff packet: %v", err)
 	}
@@ -1400,11 +1315,11 @@ func TestWorkspaceSessionAccessIsScopedToCurrentUser(t *testing.T) {
 			User:          "bob",
 		},
 	} {
-		if err := sessionRepo.Create(context.Background(), session); err != nil {
+		if err := sessionRepo.Create(session); err != nil {
 			t.Fatalf("create session: %v", err)
 		}
 	}
-	if err := messageRepo.Create(context.Background(), &model.AgentChatMessage{
+	if err := messageRepo.Create(&model.AgentChatMessage{
 		SessionID: "alice-session",
 		Role:      RoleUser,
 		Content:   "查询投票主题",
@@ -1432,11 +1347,11 @@ func TestWorkspaceSessionAccessIsScopedToCurrentUser(t *testing.T) {
 		t.Fatalf("cancel other user's session should fail, got %v", err)
 	}
 
-	marked, err := sessionRepo.TryMarkGenerating(ctx, "alice-session", "alice", "dev")
+	marked, err := sessionRepo.TryMarkGenerating("alice-session", "alice", "dev")
 	if err != nil || !marked {
 		t.Fatalf("first TryMarkGenerating should succeed, marked=%v err=%v", marked, err)
 	}
-	marked, err = sessionRepo.TryMarkGenerating(ctx, "alice-session", "alice", "dev")
+	marked, err = sessionRepo.TryMarkGenerating("alice-session", "alice", "dev")
 	if err != nil {
 		t.Fatalf("second TryMarkGenerating returned error: %v", err)
 	}
@@ -1465,7 +1380,7 @@ func TestPersistWorkspaceSessionInteractionStatusMarksPending(t *testing.T) {
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
@@ -1482,7 +1397,7 @@ func TestPersistWorkspaceSessionInteractionStatusMarksPending(t *testing.T) {
 		},
 	}, "tester")
 
-	updated, err := sessionRepo.GetBySessionID(context.Background(), "pending-session")
+	updated, err := sessionRepo.GetBySessionID("pending-session")
 	if err != nil {
 		t.Fatalf("get updated session: %v", err)
 	}
@@ -1511,7 +1426,7 @@ func TestPersistWorkspaceSessionInteractionStatusMarksBuildRepairPendingFromErro
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
@@ -1528,7 +1443,7 @@ func TestPersistWorkspaceSessionInteractionStatusMarksBuildRepairPendingFromErro
 		},
 	}, "tester")
 
-	updated, err := sessionRepo.GetBySessionID(context.Background(), "pending-build-repair-session")
+	updated, err := sessionRepo.GetBySessionID("pending-build-repair-session")
 	if err != nil {
 		t.Fatalf("get updated session: %v", err)
 	}
@@ -1557,7 +1472,7 @@ func TestPersistWorkspaceSessionInteractionStatusMarksOutput(t *testing.T) {
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
@@ -1565,7 +1480,7 @@ func TestPersistWorkspaceSessionInteractionStatusMarksOutput(t *testing.T) {
 		{Name: "write_file", Status: ToolCallStatusOK},
 	}, "tester")
 
-	updated, err := sessionRepo.GetBySessionID(context.Background(), "output-session")
+	updated, err := sessionRepo.GetBySessionID("output-session")
 	if err != nil {
 		t.Fatalf("get updated session: %v", err)
 	}
@@ -1594,7 +1509,7 @@ func TestResolveWorkspacePendingInteractionClearsPending(t *testing.T) {
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
@@ -1603,7 +1518,7 @@ func TestResolveWorkspacePendingInteractionClearsPending(t *testing.T) {
 		t.Fatalf("resolve pending interaction: %v", err)
 	}
 
-	updated, err := sessionRepo.GetBySessionID(ctx, "pending-test-session")
+	updated, err := sessionRepo.GetBySessionID("pending-test-session")
 	if err != nil {
 		t.Fatalf("get updated session: %v", err)
 	}
@@ -1697,7 +1612,7 @@ func TestRecordWorkspaceInteractionEventCreatesDisplayOnlyMessage(t *testing.T) 
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
@@ -1712,7 +1627,7 @@ func TestRecordWorkspaceInteractionEventCreatesDisplayOnlyMessage(t *testing.T) 
 		t.Fatalf("record interaction event: %v", err)
 	}
 
-	messages, err := messageRepo.ListBySessionID(ctx, "interaction-event-session")
+	messages, err := messageRepo.ListBySessionID("interaction-event-session")
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
 	}
@@ -1726,7 +1641,7 @@ func TestRecordWorkspaceInteractionEventCreatesDisplayOnlyMessage(t *testing.T) 
 	if !strings.Contains(msg.DisplayContent, "确认 PRD") {
 		t.Fatalf("display content should mention action, got %q", msg.DisplayContent)
 	}
-	updated, err := sessionRepo.GetBySessionID(ctx, "interaction-event-session")
+	updated, err := sessionRepo.GetBySessionID("interaction-event-session")
 	if err != nil {
 		t.Fatalf("get updated session: %v", err)
 	}
@@ -1759,7 +1674,7 @@ func TestRecordWorkspaceInteractionEventViewDoesNotClearPending(t *testing.T) {
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
@@ -1774,7 +1689,7 @@ func TestRecordWorkspaceInteractionEventViewDoesNotClearPending(t *testing.T) {
 		t.Fatalf("record interaction event: %v", err)
 	}
 
-	updated, err := sessionRepo.GetBySessionID(ctx, "interaction-view-session")
+	updated, err := sessionRepo.GetBySessionID("interaction-view-session")
 	if err != nil {
 		t.Fatalf("get updated session: %v", err)
 	}
@@ -1804,7 +1719,7 @@ func TestBuildWorkspaceHandoffContentForQA(t *testing.T) {
 		}
 	}
 
-	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
 		TargetRole:    WorkspaceRoleQAEngineer,
 		ArtifactKind:  workspaceBuildArtifactKind,
 		ArtifactJSON:  `{"kind":"agent_app_build","workspace_path":"/liubeiluo/nps","new_version":"v4"}`,
@@ -1868,7 +1783,7 @@ func TestChangeRoleKeepsCurrentModuleWhenModelBroadensToParent(t *testing.T) {
 }
 
 func TestBuildWorkspaceHandoffContextCreatesProjectDirectoryUnderSelectedDirectory(t *testing.T) {
-	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
 		FullCodePath:  "/system/ticket_sys/v1",
 		TargetRole:    WorkspaceRoleAppDeveloper,
 		ArtifactKind:  "agent_app_prd",
@@ -1943,7 +1858,7 @@ func TestBuildWorkspaceHandoffContextCreatesProjectDirectoryUnderSelectedDirecto
 }
 
 func TestBuildWorkspaceHandoffContextUsesCurrentDirectoryWhenProjectCodeMatches(t *testing.T) {
-	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
 		FullCodePath:  "/system/ticket_sys/v1/ticket",
 		TargetRole:    WorkspaceRoleAppDeveloper,
 		ArtifactKind:  "agent_app_prd",
@@ -1965,7 +1880,7 @@ func TestBuildWorkspaceHandoffContextUsesCurrentDirectoryWhenProjectCodeMatches(
 }
 
 func TestBuildWorkspaceHandoffContextForWorkspaceRootCreatesProjectDirectory(t *testing.T) {
-	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
 		FullCodePath:  "/system/x_world",
 		TargetRole:    WorkspaceRoleAppDeveloper,
 		ArtifactKind:  "agent_app_prd",
@@ -1990,7 +1905,7 @@ func TestBuildWorkspaceHandoffContextForWorkspaceRootCreatesProjectDirectory(t *
 
 func TestBuildWorkspaceHandoffContextNarrowsQAExecuteDirectoryFromSourceMessages(t *testing.T) {
 	resultData := `{"handoff":{"execute_directory":"/system/x_world","key_information":["改动文件：/system/x_world/ticket_management/ticket.go"]},"changed_files":["/system/x_world/ticket_management/ticket.go"],"artifact_refs":["/system/x_world/ticket_management/ticket_list.table"]}`
-	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
 		FullCodePath:  "/system/x_world",
 		TargetRole:    WorkspaceRoleQAEngineer,
 		ArtifactKind:  workspaceBuildArtifactKind,
@@ -2048,7 +1963,7 @@ func TestBuildWorkspaceHandoffContextNarrowsQAExecuteDirectoryFromSourceMessages
 }
 
 func TestBuildWorkspaceHandoffContextForBuildFailureIncludesDiagnosticsInPacket(t *testing.T) {
-	ctx := buildWorkspaceHandoffContext(context.Background(), workspaceHandoffContextInput{
+	ctx := buildWorkspaceHandoffContext(workspaceHandoffContextInput{
 		FullCodePath:  "/system/x_world/inventory",
 		TargetRole:    WorkspaceRoleBuildEngineer,
 		ArtifactKind:  workspaceBuildFailureKind,
@@ -2107,7 +2022,7 @@ func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	svc := &WorkspaceChatService{
@@ -2129,7 +2044,7 @@ func TestExecuteToolCallsPersistsRoleAfterChangeRole(t *testing.T) {
 	if len(summaries) != 1 || summaries[0].Status != ToolCallStatusOK {
 		t.Fatalf("unexpected summaries: %#v", summaries)
 	}
-	updated, err := sessionRepo.GetBySessionID(context.Background(), "role-session")
+	updated, err := sessionRepo.GetBySessionID("role-session")
 	if err != nil {
 		t.Fatalf("get updated session: %v", err)
 	}
@@ -2162,7 +2077,7 @@ func TestExecuteToolCallsCompactsDuplicateChangeRoleInSameBatch(t *testing.T) {
 		ContextPolicy: ContextPolicyFull,
 		User:          "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	svc := &WorkspaceChatService{
@@ -2188,7 +2103,7 @@ func TestExecuteToolCallsCompactsDuplicateChangeRoleInSameBatch(t *testing.T) {
 	if !strings.Contains(summaries[1].Result, "重复 change_role 调用已跳过") {
 		t.Fatalf("second change_role should be compact duplicate result: %#v", summaries[1])
 	}
-	messages, err := messageRepo.ListBySessionID(context.Background(), "duplicate-role-session")
+	messages, err := messageRepo.ListBySessionID("duplicate-role-session")
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
 	}
@@ -2238,15 +2153,15 @@ func TestChangeRolePreservesModelContextOnRoleSwitch(t *testing.T) {
 		ContextPolicy:   ContextPolicyFull,
 		User:            "tester",
 	}
-	if err := sessionRepo.Create(context.Background(), session); err != nil {
+	if err := sessionRepo.Create(session); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 	oldMsg := &model.AgentChatMessage{SessionID: "anchor-session", Role: RoleUser, Content: "旧开发讨论，仍应保留给测试模型", User: "tester"}
-	if err := messageRepo.Create(context.Background(), oldMsg); err != nil {
+	if err := messageRepo.Create(oldMsg); err != nil {
 		t.Fatalf("create old message: %v", err)
 	}
 	currentMsg := &model.AgentChatMessage{SessionID: "anchor-session", Role: RoleUser, Content: "build 已通过，进入自动测试", User: "tester"}
-	if err := messageRepo.Create(context.Background(), currentMsg); err != nil {
+	if err := messageRepo.Create(currentMsg); err != nil {
 		t.Fatalf("create current message: %v", err)
 	}
 	svc := &WorkspaceChatService{
@@ -2268,7 +2183,7 @@ func TestChangeRolePreservesModelContextOnRoleSwitch(t *testing.T) {
 	if len(summaries) != 1 || summaries[0].Status != ToolCallStatusOK {
 		t.Fatalf("unexpected summaries: %#v", summaries)
 	}
-	updated, err := sessionRepo.GetBySessionID(context.Background(), "anchor-session")
+	updated, err := sessionRepo.GetBySessionID("anchor-session")
 	if err != nil {
 		t.Fatalf("get updated session: %v", err)
 	}
@@ -2284,7 +2199,7 @@ func TestChangeRolePreservesModelContextOnRoleSwitch(t *testing.T) {
 	if updated.ContextPolicy != ContextPolicyFull {
 		t.Fatalf("context policy = %q, want %q", updated.ContextPolicy, ContextPolicyFull)
 	}
-	messages, err := messageRepo.ListBySessionID(context.Background(), "anchor-session")
+	messages, err := messageRepo.ListBySessionID("anchor-session")
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
 	}
@@ -2298,104 +2213,6 @@ func TestChangeRolePreservesModelContextOnRoleSwitch(t *testing.T) {
 	}
 	if len(messages) < 2 || messages[0].ID != oldMsg.ID || messages[1].ID != currentMsg.ID {
 		t.Fatalf("messages should retain original order: %#v", messages)
-	}
-}
-
-func TestListSessionsFilteredSeparatesHumanAndAutomationAgents(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	sessionRepo := repository.NewChatSessionRepository(db)
-	for _, session := range []*model.AgentChatSession{
-		{TreeID: 1, FullCodePath: "/alice/demo", Source: SourceWorkspace, SessionID: "human", ModeCode: "dev", Status: model.ChatSessionStatusActive, User: "alice"},
-		{TreeID: 1, FullCodePath: "/alice/demo", ResourceTreeID: 21, ResourceFullCodePath: "/alice/demo/sweep.form", Source: SourceWorkspace, SessionID: "human-form", ModeCode: "dev", Status: model.ChatSessionStatusActive, User: "alice"},
-		{TreeID: 21, FullCodePath: "/alice/demo/sweep.form", Source: SourceWorkspace, SessionID: "legacy-human-form", ModeCode: "dev", Status: model.ChatSessionStatusActive, User: "alice"},
-		{TreeID: 1, FullCodePath: "/alice/demo", Source: SourceAutomationAgent, AutomationTaskID: 11, AutomationTaskCode: "daily", AutomationTaskTitle: "每日复盘", SessionID: "agent-11", ModeCode: "dev", Status: model.ChatSessionStatusDone, User: "alice"},
-		{TreeID: 1, FullCodePath: "/alice/demo", Source: SourceAutomationAgent, AutomationTaskID: 12, AutomationTaskTitle: "风险巡检", SessionID: "agent-12", ModeCode: "dev", Status: model.ChatSessionStatusDone, User: "alice"},
-		{TreeID: 1, FullCodePath: "/alice/demo", Source: SourceAutomationAgent, AutomationTaskID: 11, AutomationTaskTitle: "每日复盘", SessionID: "bob-agent", ModeCode: "dev", Status: model.ChatSessionStatusDone, User: "bob"},
-	} {
-		if err := sessionRepo.Create(context.Background(), session); err != nil {
-			t.Fatalf("create session: %v", err)
-		}
-	}
-	svc := &WorkspaceChatService{sessionRepo: sessionRepo}
-	ctx := contextx.WithRequestUser(context.Background(), "alice")
-
-	human, total, agents, err := svc.ListSessionsFiltered(ctx, "/alice/demo", "human", 0, 1, 20)
-	if err != nil {
-		t.Fatalf("list human sessions: %v", err)
-	}
-	if total != 2 || len(human) != 2 {
-		t.Fatalf("unexpected human sessions total=%d items=%#v", total, human)
-	}
-	if len(agents) != 2 {
-		t.Fatalf("automation agent facets = %#v, want 2", agents)
-	}
-
-	functionSessions, total, functionAgents, err := svc.ListSessionsFiltered(ctx, "/alice/demo/sweep.form", "human", 0, 1, 20)
-	if err != nil {
-		t.Fatalf("list function sessions: %v", err)
-	}
-	if total != 2 || len(functionSessions) != 2 {
-		t.Fatalf("unexpected function sessions total=%d items=%#v", total, functionSessions)
-	}
-	for _, item := range functionSessions {
-		if item.FullCodePath != "/alice/demo" || item.ResourceFullCodePath != "/alice/demo/sweep.form" {
-			t.Fatalf("function association missing: %#v", item)
-		}
-	}
-	if len(functionAgents) != 0 {
-		t.Fatalf("function automation facets = %#v, want none", functionAgents)
-	}
-
-	automation, total, _, err := svc.ListSessionsFiltered(ctx, "/alice/demo", "automation", 11, 1, 20)
-	if err != nil {
-		t.Fatalf("list automation sessions: %v", err)
-	}
-	if total != 1 || len(automation) != 1 || automation[0].SessionID != "agent-11" {
-		t.Fatalf("unexpected automation sessions total=%d items=%#v", total, automation)
-	}
-	if automation[0].AutomationTaskTitle != "每日复盘" || automation[0].Source != SourceAutomationAgent {
-		t.Fatalf("automation marker missing: %#v", automation[0])
-	}
-}
-
-func TestResolveWorkspaceSessionPathNamesUsesAppServerBatches(t *testing.T) {
-	sessions := make([]*model.AgentChatSession, 0, 101)
-	for i := 0; i < 101; i++ {
-		sessions = append(sessions, &model.AgentChatSession{
-			FullCodePath: fmt.Sprintf("/alice/demo/dir-%03d", i),
-		})
-	}
-
-	batchSizes := make([]int, 0, 2)
-	svc := &WorkspaceChatService{
-		serviceTreeDetailsBatch: func(_ context.Context, paths []string) (*dto.BatchGetServiceTreeDetailsResp, error) {
-			batchSizes = append(batchSizes, len(paths))
-			items := make([]*dto.GetServiceTreeDetailResp, 0, len(paths))
-			for _, path := range paths {
-				items = append(items, &dto.GetServiceTreeDetailResp{
-					FullCodePath: path,
-					Name:         "目录 " + path,
-				})
-			}
-			return &dto.BatchGetServiceTreeDetailsResp{Items: items}, nil
-		},
-	}
-
-	names := svc.resolveWorkspaceSessionPathNames(context.Background(), sessions)
-	if len(names) != 101 {
-		t.Fatalf("resolved names = %d, want 101", len(names))
-	}
-	if len(batchSizes) != 2 || batchSizes[0] != 100 || batchSizes[1] != 1 {
-		t.Fatalf("batch sizes = %#v, want [100 1]", batchSizes)
-	}
-	if got := names["/alice/demo/dir-100"]; got != "目录 /alice/demo/dir-100" {
-		t.Fatalf("resolved name = %q", got)
 	}
 }
 

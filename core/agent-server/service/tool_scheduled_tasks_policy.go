@@ -7,7 +7,6 @@ import (
 
 	"github.com/kageos/kageos/pkg/access"
 	"github.com/kageos/kageos/pkg/apicall"
-	"github.com/kageos/kageos/pkg/apperror"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 )
@@ -83,7 +82,7 @@ func requireScheduledTaskPermission(ctx context.Context, resourcePath string, ac
 		return err
 	}
 	if resp == nil || !access.HasPermission(resp.Permissions, action) {
-		return apperror.PermissionDenied(fmt.Sprintf("当前用户缺少 %s 权限: %s", action, resourcePath), nil)
+		return fmt.Errorf("当前用户缺少 %s 权限: %s", action, resourcePath)
 	}
 	return nil
 }

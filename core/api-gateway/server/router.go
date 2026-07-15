@@ -1,17 +1,28 @@
 package server
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	v1 "github.com/kageos/kageos/core/api-gateway/api/v1"
+	"github.com/kageos/kageos/pkg/auth"
 	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/pprof"
+	"github.com/kageos/kageos/pkg/response"
 	"github.com/kageos/kageos/pkg/serverx"
 )
 
@@ -141,4 +152,487 @@ func (s *Server) setupRoutes() {
 	}
 
 	serverx.ApplyRouteRegistrars(serverx.ServiceAPIGateway, s.httpServer)
+}
+
+// createRouteProxy 创建路由代理（统一入口）
+func (s *Server) createRouteProxy(route *config.RouteConfig) gin.HandlerFunc {
+	// 创建代理（支持负载均衡）
+	if len(route.Targets) == 1 {
+		// 单个目标，使用简单代理
+		return s.createProxy(route.Targets[0].URL, route.Timeout, route)
+	} else {
+		// 多个目标，使用负载均衡代理
+		return s.createLoadBalanceProxy(route)
+	}
+}
+
+// createProxy 创建反向代理（单个目标）
+func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteConfig) gin.HandlerFunc {
+	// 解析目标 URL
+	target, err := url.Parse(targetURL)
+	if err != nil {
+		logger.Errorf(s.ctx, "[Proxy] Invalid target URL: %s, error: %v", targetURL, err)
+		return func(c *gin.Context) {
+			traceID := c.GetString("trace-id")
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":    "Invalid gateway configuration",
+				"trace_id": traceID,
+				"details":  fmt.Sprintf("Invalid target URL: %s", targetURL),
+			})
+		}
+	}
+
+	// 创建反向代理
+	proxy := httputil.NewSingleHostReverseProxy(target)
+
+	// 从配置读取超时时间（使用统一方法）
+	timeout = s.getTimeout(timeout)
+
+	// 使用共享 Transport（提高性能）
+	// 注意：ResponseHeaderTimeout 需要根据每个路由的超时时间动态设置
+	// 由于 Transport 是共享的，我们使用配置的超时时间，但实际超时由 Context 控制
+	// ⭐ 对于 SSE 流式接口，需要更长的 ResponseHeaderTimeout
+	// 由于 Transport 是共享的，我们为 SSE 请求创建单独的 Transport
+	// 但为了性能，我们仍然使用共享 Transport，超时由 Context 控制
+	proxy.Transport = s.sharedTransport
+
+	// 自定义请求修改（支持路径重写和TraceId传递）
+	// 注意：httputil.ReverseProxy 默认会转发所有请求头（包括 X-Token、X-Request-User 等）
+	// 我们只需要确保 TraceId 被正确传递即可
+	originalDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		// 保存原始 Host；若上游已传 X-Forwarded-Host（如 Vite 代理传的浏览器 Host），保留不覆盖
+		originalHost := req.Host
+		existingForwardedHost := req.Header.Get("X-Forwarded-Host")
+		originalDirector(req)
+		if existingForwardedHost != "" {
+			// 上游（如 Vite）已传浏览器真实 Host，保留给 app-storage 做预签名
+			req.Header.Set("X-Forwarded-Host", existingForwardedHost)
+		} else if originalHost != "" && originalHost != target.Host {
+			req.Header.Set("X-Forwarded-Host", originalHost)
+			if idx := strings.Index(originalHost, ":"); idx >= 0 && idx < len(originalHost)-1 {
+				req.Header.Set("X-Forwarded-Port", originalHost[idx+1:])
+			}
+			if strings.Contains(req.URL.Path, "/storage/") {
+				logger.Infof(s.ctx, "[Proxy] X-Forwarded-Host set for presign: originalHost=%q, target.Host=%q, path=%s", originalHost, target.Host, req.URL.Path)
+			}
+		}
+		req.Host = target.Host
+
+		// ✨ 传递 TraceId 到后端服务
+		// 如果请求 header 中已有 TraceId（由 gin handler 设置），直接使用
+		// 否则保持原样（可能客户端已提供）
+		if traceId := req.Header.Get(contextx.TraceIdHeader); traceId == "" {
+			// 如果 header 中没有，说明需要从其他地方获取（这种情况不应该发生，因为 gin handler 已设置）
+			logger.Debugf(s.ctx, "[Proxy] TraceId not found in request header")
+		}
+
+		// ⭐ 注意：JWT Token 解析和用户信息设置已移至 gin handler 中（在调用 proxy.ServeHTTP 之前）
+		// 这样可以确保 header 被正确传递，就像 TraceId 一样
+
+		// 注意：X-Token 和其他请求头会被 httputil.ReverseProxy 自动转发，无需手动处理
+
+		// 路径重写：如果配置了 rewrite_path，替换路径前缀
+		if route != nil && route.RewritePath != "" {
+			originalPath := req.URL.Path
+			routePath := route.Path
+
+			// 如果请求路径以路由路径开头，进行重写
+			if strings.HasPrefix(originalPath, routePath) {
+				// 提取路径的后半部分（去掉路由前缀）
+				suffix := originalPath[len(routePath):]
+				// 拼接新的路径
+				rewritePath := route.RewritePath
+				if !strings.HasSuffix(rewritePath, "/") && suffix != "" && !strings.HasPrefix(suffix, "/") {
+					rewritePath += "/"
+				}
+				req.URL.Path = rewritePath + suffix
+
+				logger.Debugf(s.ctx, "[Proxy] Path rewrite: %s -> %s (route: %s, rewrite: %s)",
+					originalPath, req.URL.Path, routePath, route.RewritePath)
+			}
+		}
+	}
+
+	// 移除后端服务设置的 CORS 头，避免与网关的 CORS 中间件重复
+	// 网关的 CORS 中间件会统一处理所有响应
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		// ⭐ 新增：检查 token 是否在黑名单中，如果是则返回 401
+		if resp.Request.Header.Get("X-Token-Blacklisted") == "true" {
+			logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, returning 401")
+			resp.StatusCode = http.StatusUnauthorized
+			resp.Status = "401 Unauthorized"
+			// 设置响应头
+			resp.Header = make(http.Header)
+			resp.Header.Set("Content-Type", "application/json")
+			// 返回 JSON 错误响应（使用定义的常量，前端会根据 code 跳转到登录页）
+			errorResp := response.GetTokenBlacklistedResponse()
+			errorBody, _ := json.Marshal(errorResp)
+			resp.Body = io.NopCloser(bytes.NewReader(errorBody))
+			resp.ContentLength = int64(len(errorBody))
+			return nil
+		}
+
+		// 移除后端服务设置的 CORS 头，避免重复
+		resp.Header.Del("Access-Control-Allow-Origin")
+		resp.Header.Del("Access-Control-Allow-Methods")
+		resp.Header.Del("Access-Control-Allow-Headers")
+		resp.Header.Del("Access-Control-Allow-Credentials")
+		resp.Header.Del("Access-Control-Expose-Headers")
+		// 网关的 CORS 中间件会在响应返回前统一添加 CORS 头
+		return nil
+	}
+
+	// 错误处理
+	// 注意：不需要在 ErrorHandler 中设置 CORS 头
+	// 因为网关的 CORS 中间件会在所有响应（包括错误响应）中添加 CORS 头
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		logger.Errorf(s.ctx, "[Proxy] Proxy error to %s: %v", targetURL, err)
+		http.Error(w, fmt.Sprintf("Gateway error: %v", err), http.StatusBadGateway)
+	}
+
+	return func(c *gin.Context) {
+		proxyStart := time.Now()
+
+		// ✨ 将 TraceId 从 gin context 设置到请求 header，供后端服务使用
+		// WithTraceId 中间件已经将 TraceId 设置到 gin context 中（使用常量 TraceIdHeader）
+		traceId := c.GetString(contextx.TraceIdHeader) // ⭐ 使用常量 TraceIdHeader
+		if traceId != "" {
+			// 设置到请求 header，这样 proxy.Director 就能读取并传递给后端
+			c.Request.Header.Set(contextx.TraceIdHeader, traceId)
+		}
+
+		// ✨ 解析 JWT Token 并提取 username，设置到 X-Request-User header（在调用 proxy 之前设置）
+		// ⭐ 按照 TraceId 的方式，直接在 gin handler 中设置 header，确保被正确传递
+		token := c.Request.Header.Get(contextx.TokenHeader)
+		if token != "" {
+			// ⭐ 新增：检查 token 是否在黑名单中
+			if s.tokenBlacklist.IsBlacklisted(token) {
+				logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, rejecting request")
+				c.JSON(http.StatusUnauthorized, response.GetTokenBlacklistedResponse())
+				c.Abort()
+				return
+			}
+
+			// 解析 token 获取 username 和组织架构信息
+			jwtService := auth.NewJWTService()
+			claims, err := jwtService.ValidateToken(token)
+			if err == nil {
+				// 解析成功，直接覆盖 username 到 header（忽略请求中的 X-Request-User）
+				// ⭐ 按照 TraceId 的方式，直接在 c.Request.Header 中设置
+				c.Request.Header.Set(contextx.RequestUserHeader, claims.Username)
+				logger.Infof(s.ctx, "[Proxy] Extracted username from token: %s, Path: %s", claims.Username, c.Request.URL.Path)
+
+				// ⭐ 设置组织架构信息到 header（token 中一定包含这些字段，如果用户有组织架构信息）
+				if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
+					c.Request.Header.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
+					logger.Debugf(s.ctx, "[Proxy] Extracted department_full_path from token: %s", *claims.DepartmentFullPath)
+				}
+				if claims.CompanyCode != "" {
+					c.Request.Header.Set(contextx.CompanyCodeHeader, claims.CompanyCode)
+				}
+				if claims.CompanyName != "" {
+					c.Request.Header.Set(contextx.CompanyNameHeader, claims.CompanyName)
+				}
+				if claims.CompanyLogoURL != "" {
+					c.Request.Header.Set(contextx.CompanyLogoURLHeader, claims.CompanyLogoURL)
+				}
+			} else {
+				// token 解析失败，但不阻止请求（可能是不需要认证的接口）
+				logger.Warnf(s.ctx, "[Proxy] Failed to parse token - Path: %s, Error: %v, TokenLength: %d",
+					c.Request.URL.Path, err, len(token))
+			}
+		}
+
+		// ✅ 创建带超时的 Context，避免高并发时请求堆积
+		// ⭐ 特殊处理：对于 SSE 流式接口（如 /chat/stream），使用更长的超时时间或不设置超时
+		var ctx context.Context
+		var cancel context.CancelFunc
+
+		// 检测是否是 SSE 流式接口（通过路径判断）
+		isStreamingRequest := strings.Contains(c.Request.URL.Path, "/stream") ||
+			strings.Contains(c.Request.URL.Path, "/chat/stream")
+
+		if isStreamingRequest {
+			// SSE 流式接口：使用更长的超时时间（30分钟）或不设置超时
+			// 使用 30 分钟超时，避免无限等待，但足够长以支持长时间流式响应
+			ctx, cancel = context.WithTimeout(c.Request.Context(), 30*time.Minute)
+			logger.Debugf(s.ctx, "[Proxy] SSE streaming request detected, using extended timeout (30min): %s", c.Request.URL.Path)
+		} else {
+			// 普通请求：使用配置的超时时间
+			ctx, cancel = context.WithTimeout(c.Request.Context(), time.Duration(timeout)*time.Second)
+		}
+		defer cancel()
+
+		logger.Infof(s.ctx, "[Proxy] start: traceId=%s, method=%s, path=%s, target=%s, timeout=%ds",
+			traceId, c.Request.Method, c.Request.URL.Path, targetURL, timeout)
+
+		// ✅ 使用带超时的 Context 创建新请求
+		// ⭐ 注意：WithContext 会创建一个新请求，但 Header 是共享的（引用类型）
+		// 所以之前设置的 header（TraceId、X-Request-User 等）会被正确传递到后端服务
+		req := c.Request.WithContext(ctx)
+		proxy.ServeHTTP(c.Writer, req)
+
+		logger.Infof(s.ctx, "[Proxy] done: traceId=%s, path=%s, status=%d, elapsed=%s",
+			traceId, c.Request.URL.Path, c.Writer.Status(), time.Since(proxyStart).Truncate(time.Millisecond))
+	}
+}
+
+// createLoadBalanceProxy 处理多 target 路由。
+// 当前并未实现真正的负载均衡，只回退使用第一个 target。
+func (s *Server) createLoadBalanceProxy(route *config.RouteConfig) gin.HandlerFunc {
+	logger.Warnf(s.ctx, "[LoadBalance] Load balance not implemented yet, using first target: %s", route.Targets[0].URL)
+	timeout := s.getTimeout(route.Timeout)
+	return s.createProxy(route.Targets[0].URL, timeout, route)
+}
+
+// setupSwaggerRoutes 设置 Swagger 文档路由（聚合所有服务）
+func (s *Server) setupSwaggerRoutes() {
+	cfg := s.cfg
+
+	// Swagger 聚合首页（列出所有服务的文档链接）
+	s.httpServer.GET("/swagger", s.swaggerIndexHandler)
+	s.httpServer.GET("/swagger/index.html", s.swaggerIndexHandler)
+
+	// 根据配置路由动态创建 Swagger 代理
+	// 从路由配置中提取服务地址，创建对应的 Swagger 代理
+	serviceMap := make(map[string]string) // service -> target
+
+	// 解析路由配置，提取服务名称和目标地址（使用第一个 target）
+	// 注意：必须显式配置 service_name，不支持自动提取
+	for _, route := range cfg.Routes {
+		if len(route.Targets) == 0 {
+			continue
+		}
+		// 必须配置 service_name，否则跳过
+		if route.ServiceName == "" {
+			logger.Warnf(s.ctx, "[Swagger] Route %s missing service_name, skipping Swagger proxy", route.Path)
+			continue
+		}
+		serviceMap[route.ServiceName] = route.Targets[0].URL
+	}
+
+	// 如果没有配置路由，无法创建 Swagger 代理
+	if len(serviceMap) == 0 {
+		logger.Warnf(s.ctx, "[Swagger] No routes configured, cannot setup Swagger proxy")
+		return
+	}
+
+	// 为每个服务创建 Swagger 代理路由
+	for serviceName, target := range serviceMap {
+		swaggerProxy := s.createSwaggerProxy(target)
+		swaggerPath := fmt.Sprintf("/swagger/%s/*path", serviceName)
+		s.httpServer.Any(swaggerPath, swaggerProxy)
+		logger.Infof(s.ctx, "[Swagger] Registered: %s -> %s/swagger", swaggerPath, target)
+	}
+}
+
+// createSwaggerProxy 创建 Swagger 文档代理
+func (s *Server) createSwaggerProxy(targetURL string) gin.HandlerFunc {
+	target, err := url.Parse(targetURL)
+	if err != nil {
+		logger.Errorf(s.ctx, "[Swagger] Invalid target URL: %s", targetURL)
+		return func(c *gin.Context) {
+			traceID := c.GetString("trace-id")
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":    "Invalid Swagger target",
+				"trace_id": traceID,
+				"details":  fmt.Sprintf("Invalid target URL: %s", targetURL),
+			})
+		}
+	}
+
+	proxy := httputil.NewSingleHostReverseProxy(target)
+
+	// 使用共享 Transport
+	proxy.Transport = s.sharedTransport
+
+	// 自定义路径处理：将 /swagger/serviceName/* 转换为目标服务的 /swagger/*
+	// 例如：/swagger/server/index.html -> /swagger/index.html
+	originalDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		originalDirector(req)
+		req.Host = target.Host
+
+		// 移除服务名称前缀：/swagger/serviceName/xxx -> /swagger/xxx
+		path := req.URL.Path
+		const swaggerPrefix = "/swagger/"
+		if strings.HasPrefix(path, swaggerPrefix) {
+			// 找到服务名称后的第一个 /（即第二个 /）
+			// 例如：/swagger/server/index.html -> /swagger/index.html
+			remainingPath := path[len(swaggerPrefix):]
+			if idx := strings.Index(remainingPath, "/"); idx >= 0 {
+				// 提取服务名称后的路径部分
+				newPath := swaggerPrefix + remainingPath[idx+1:]
+				logger.Infof(s.ctx, "[Swagger] Path rewrite: %s -> %s", path, newPath)
+				req.URL.Path = newPath
+			} else {
+				// 如果没有后续路径，直接使用 /swagger
+				logger.Infof(s.ctx, "[Swagger] Path rewrite: %s -> /swagger", path)
+				req.URL.Path = "/swagger"
+			}
+		}
+	}
+
+	// 移除后端服务设置的 CORS 头，避免与网关的 CORS 中间件重复
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		resp.Header.Del("Access-Control-Allow-Origin")
+		resp.Header.Del("Access-Control-Allow-Methods")
+		resp.Header.Del("Access-Control-Allow-Headers")
+		resp.Header.Del("Access-Control-Allow-Credentials")
+		resp.Header.Del("Access-Control-Expose-Headers")
+		return nil
+	}
+
+	// 添加错误处理
+	proxy.ErrorHandler = func(rw http.ResponseWriter, req *http.Request, err error) {
+		logger.Errorf(s.ctx, "[Swagger] Proxy error for %s -> %s: %v", req.URL.Path, targetURL, err)
+		traceID := req.Header.Get("trace-id")
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(rw).Encode(gin.H{
+			"error":    "Swagger service unavailable",
+			"trace_id": traceID,
+			"details":  fmt.Sprintf("Failed to proxy to %s: %v", targetURL, err),
+		})
+	}
+
+	return func(c *gin.Context) {
+		// 记录请求日志
+		originalPath := c.Request.URL.Path
+		logger.Infof(s.ctx, "[Swagger] Proxying request: %s -> %s", originalPath, targetURL)
+		proxy.ServeHTTP(c.Writer, c.Request)
+	}
+}
+
+// swaggerIndexHandler Swagger 聚合首页
+func (s *Server) swaggerIndexHandler(c *gin.Context) {
+	cfg := s.cfg
+	gatewayURL := fmt.Sprintf("http://%s", c.Request.Host)
+
+	services := []map[string]string{}
+
+	// 首先添加网关自己的文档
+	services = append(services, map[string]string{
+		"name":    "gateway",
+		"path":    "/",
+		"swagger": fmt.Sprintf("%s/swagger/gateway/index.html", gatewayURL),
+		"target":  "localhost:9090",
+	})
+
+	// 从路由配置中提取服务（必须显式配置 service_name）
+	for _, route := range cfg.Routes {
+		if len(route.Targets) == 0 {
+			continue
+		}
+		// 必须配置 service_name，否则跳过
+		if route.ServiceName == "" {
+			logger.Warnf(s.ctx, "[Swagger] Route %s missing service_name, skipping", route.Path)
+			continue
+		}
+		// 显示所有 targets（如果是负载均衡）
+		targetStr := route.Targets[0].URL
+		if len(route.Targets) > 1 {
+			targetStr = fmt.Sprintf("%d targets", len(route.Targets))
+		}
+		services = append(services, map[string]string{
+			"name":    route.ServiceName,
+			"path":    route.Path,
+			"swagger": fmt.Sprintf("%s/swagger/%s/index.html", gatewayURL, route.ServiceName),
+			"target":  targetStr,
+		})
+		logger.Infof(s.ctx, "[Swagger] Registered service: %s (path: %s)", route.ServiceName, route.Path)
+	}
+
+	// 返回 HTML 页面
+	html := s.generateSwaggerIndexHTML(services)
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+}
+
+// SwaggerURL Swagger URL 配置
+type SwaggerURL struct {
+	URL  string `json:"url"`
+	Name string `json:"name"`
+}
+
+// generateSwaggerIndexHTML 生成 Swagger 聚合首页 HTML（使用 Swagger UI 的 Select a definition 功能）
+func (s *Server) generateSwaggerIndexHTML(services []map[string]string) string {
+	// 构建 Swagger JSON URLs 数组（使用 encoding/json 安全序列化）
+	urls := make([]SwaggerURL, 0, len(services))
+	for _, service := range services {
+		// 使用服务的 swagger.json 路径（gin-swagger 默认路径是 /swagger/doc.json）
+		// 从 /swagger/serviceName/index.html 提取出 /swagger/serviceName，然后拼接 /doc.json
+		swaggerPath := service["swagger"]
+		if len(swaggerPath) < len("/index.html") {
+			logger.Warnf(s.ctx, "[Swagger] Invalid swagger path: %s", swaggerPath)
+			continue
+		}
+		swaggerBasePath := swaggerPath[:len(swaggerPath)-len("/index.html")]
+		swaggerJSONURL := fmt.Sprintf("%s/doc.json", swaggerBasePath)
+		urls = append(urls, SwaggerURL{
+			URL:  swaggerJSONURL,
+			Name: service["name"],
+		})
+	}
+
+	// 使用 encoding/json 安全序列化
+	urlsJSONBytes, err := json.Marshal(urls)
+	if err != nil {
+		logger.Errorf(s.ctx, "[Swagger] Failed to marshal URLs: %v", err)
+		// 降级处理：返回空数组
+		urlsJSONBytes = []byte("[]")
+	}
+	urlsJSON := string(urlsJSONBytes)
+
+	html := `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Gateway - Swagger 文档聚合</title>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css" />
+    <style>
+        html {
+            box-sizing: border-box;
+            overflow: -moz-scrollbars-vertical;
+            overflow-y: scroll;
+        }
+        *, *:before, *:after {
+            box-sizing: inherit;
+        }
+        body {
+            margin:0;
+            background: #fafafa;
+        }
+    </style>
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-standalone-preset.js"></script>
+    <script>
+        window.onload = function() {
+            const urls = ` + urlsJSON + `;
+            
+            // 使用 Swagger UI 的 urls 配置，支持 Select a definition 下拉选择
+            const ui = SwaggerUIBundle({
+                urls: urls,
+                "urls.primaryName": urls.length > 0 ? urls[0].name : "",
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout",
+                validatorUrl: null  // 禁用验证器，避免加载错误
+            });
+        }
+    </script>
+</body>
+</html>`
+	return html
 }

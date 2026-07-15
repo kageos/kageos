@@ -23,7 +23,6 @@ func TestSendNotificationPublishesWithScheduledSource(t *testing.T) {
 	publisher := &fakeNotificationPublisher{}
 	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
 		RequestUser:  "alice",
-		Token:        "must-not-enter-message-nats",
 		ClientSource: contextx.ClientSourceScheduledTask,
 		SourceType:   contextx.SourceTypeScheduledTask,
 		SourceRef:    "timer_task:7:execution:9",
@@ -50,9 +49,6 @@ func TestSendNotificationPublishesWithScheduledSource(t *testing.T) {
 	msg := publisher.msgs[0]
 	if msg.Subject != subjects.MessageSendCommandSubject {
 		t.Fatalf("subject = %q", msg.Subject)
-	}
-	if got := msg.Header.Get(contextx.TokenHeader); got != "" {
-		t.Fatalf("message NATS header leaked token %q", got)
 	}
 	envelope, err := decodeNotifyEnvelope(msg.Data)
 	if err != nil {
@@ -176,47 +172,6 @@ func TestSendNotificationPublishesWorkspaceRouteSourcePath(t *testing.T) {
 	}
 	if envelope.Meta.SourcePath != "/alice/sales/orders" {
 		t.Fatalf("source_path = %q", envelope.Meta.SourcePath)
-	}
-}
-
-func TestSendNotificationKeepsFunctionResourceOverExecutionDirectory(t *testing.T) {
-	publisher := &fakeNotificationPublisher{}
-	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{
-		RequestUser:  "alice",
-		ClientSource: contextx.ClientSourceAgent,
-		SourceType:   contextx.SourceTypeAgentTool,
-		SourceRef:    "check-once-session",
-	})
-	ctx = contextx.WithWorkspaceSession(ctx, "check-once-session", "单次网站巡检", "app_operator")
-	ctx = contextx.WithSourceDisplay(
-		ctx,
-		"/system/democase/site_monitor/check_once.form",
-		"单次网站巡检",
-		"/system/democase/site_monitor",
-		"",
-		"form",
-	)
-
-	result := runSendNotificationTool(ctx, publisher, sendNotificationArgs{
-		Title:   "网站巡检完成",
-		Message: "本次巡检已完成",
-	}, "/system/democase/site_monitor")
-	if result.IsError {
-		t.Fatalf("send_notification returned error: %s", result.Content)
-	}
-	if len(publisher.msgs) != 1 {
-		t.Fatalf("published messages = %d, want 1", len(publisher.msgs))
-	}
-	envelope, err := decodeNotifyEnvelope(publisher.msgs[0].Data)
-	if err != nil {
-		t.Fatalf("decode envelope: %v", err)
-	}
-	if envelope.Meta.FullCodePath != "/system/democase/site_monitor/check_once.form" ||
-		envelope.Meta.SourcePath != "/system/democase/site_monitor/check_once.form" {
-		t.Fatalf("notification should belong to concrete function: %#v", envelope.Meta)
-	}
-	if envelope.Meta.SourceParentPath != "/system/democase/site_monitor" {
-		t.Fatalf("source_parent_path = %q, want execution directory", envelope.Meta.SourceParentPath)
 	}
 }
 

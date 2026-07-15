@@ -40,11 +40,11 @@ func NewDoc(docService *service.DocService, teamAccessService *service.TeamAcces
 func (s *Doc) GetDoc(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
-		response.BadRequest(c, "路径不能为空")
+		response.FailWithMessage(c, "路径不能为空")
 		return
 	}
-	if err := requireWorkspaceDataAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
-		response.Error(c, err)
+	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -52,7 +52,7 @@ func (s *Doc) GetDoc(c *gin.Context) {
 	doc, err := s.docService.GetDoc(ctx, fullCodePath)
 	if err != nil {
 		logger.Errorf(c, "[Doc API] 获取文档失败: fullCodePath=%s, error=%v", fullCodePath, err)
-		response.Internal(c, "获取文档失败: "+err.Error())
+		response.FailWithMessage(c, "获取文档失败: "+err.Error())
 		return
 	}
 
@@ -77,20 +77,20 @@ func (s *Doc) GetDoc(c *gin.Context) {
 func (s *Doc) UpdateDoc(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
-		response.BadRequest(c, "路径不能为空")
+		response.FailWithMessage(c, "路径不能为空")
 		return
 	}
 
 	var req dto.UpdateDocReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 
 	// 从 URL 路径参数填充 FullCodePath 到 DTO
 	req.FullCodePath = fullCodePath
 	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionUpdate); err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
@@ -98,7 +98,7 @@ func (s *Doc) UpdateDoc(c *gin.Context) {
 	doc, err := s.docService.UpdateDoc(ctx, &req)
 	if err != nil {
 		logger.Errorf(c, "[Doc API] 更新文档失败: fullCodePath=%s, error=%v", fullCodePath, err)
-		response.Internal(c, "更新文档失败: "+err.Error())
+		response.FailWithMessage(c, "更新文档失败: "+err.Error())
 		return
 	}
 
@@ -122,18 +122,18 @@ func (s *Doc) UpdateDoc(c *gin.Context) {
 func (s *Doc) DeleteDoc(c *gin.Context) {
 	fullCodePath := c.Param("full-code-path")
 	if fullCodePath == "" {
-		response.BadRequest(c, "路径不能为空")
+		response.FailWithMessage(c, "路径不能为空")
 		return
 	}
 	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionDelete); err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 
 	ctx := contextx.ToContext(c)
 	if err := s.docService.DeleteDoc(ctx, fullCodePath); err != nil {
 		logger.Errorf(c, "[Doc API] 删除文档失败: fullCodePath=%s, error=%v", fullCodePath, err)
-		response.Internal(c, "删除文档失败: "+err.Error())
+		response.FailWithMessage(c, "删除文档失败: "+err.Error())
 		return
 	}
 
@@ -159,7 +159,7 @@ func (s *Doc) DeleteDoc(c *gin.Context) {
 func (s *Doc) SearchDocs(c *gin.Context) {
 	var req dto.SearchDocsReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 
@@ -167,7 +167,7 @@ func (s *Doc) SearchDocs(c *gin.Context) {
 	resp, err := s.docService.SearchDocs(ctx, &req)
 	if err != nil {
 		logger.Errorf(c, "[Doc API] 搜索文档失败: keyword=%s, error=%v", req.Keyword, err)
-		response.Internal(c, "搜索文档失败: "+err.Error())
+		response.FailWithMessage(c, "搜索文档失败: "+err.Error())
 		return
 	}
 
@@ -191,17 +191,17 @@ func (s *Doc) SearchDocs(c *gin.Context) {
 func (s *Doc) BatchGetDocs(c *gin.Context) {
 	var req dto.BatchGetDocsReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 
 	if len(req.Paths) == 0 {
-		response.BadRequest(c, "paths 参数不能为空")
+		response.FailWithMessage(c, "paths 参数不能为空")
 		return
 	}
 	for _, path := range req.Paths {
-		if err := requireWorkspaceDataAccess(c, s.teamAccessService, path, access.ActionRead); err != nil {
-			response.Error(c, err)
+		if err := requireAccess(c, s.teamAccessService, path, access.ActionRead); err != nil {
+			response.FailWithMessage(c, err.Error())
 			return
 		}
 	}
@@ -210,7 +210,7 @@ func (s *Doc) BatchGetDocs(c *gin.Context) {
 	resp, err := s.docService.BatchGetDocs(ctx, &req)
 	if err != nil {
 		logger.Errorf(c, "[Doc API] 批量获取文档失败: paths=%v, error=%v", req.Paths, err)
-		response.Internal(c, "批量获取文档失败: "+err.Error())
+		response.FailWithMessage(c, "批量获取文档失败: "+err.Error())
 		return
 	}
 

@@ -42,17 +42,18 @@ type ExternalLoginResult struct {
 }
 
 func (s *AuthOAuthService) CompleteExternalLogin(ctx context.Context, principal ExternalPrincipal, options ExternalLoginOptions) (*ExternalLoginResult, error) {
+	_ = ctx
 	principal = normalizeExternalPrincipal(principal)
 	if principal.ProviderCode == "" || principal.ExternalID == "" {
 		return nil, fmt.Errorf("外部用户信息不完整")
 	}
 
-	user, found, err := s.resolveExistingUserForPrincipal(ctx, principal)
+	user, found, err := s.resolveExistingUserForPrincipal(principal)
 	if err != nil {
 		return nil, err
 	}
 	if !found {
-		intent, err := s.createExternalRegistrationIntent(ctx, principal, options)
+		intent, err := s.createExternalRegistrationIntent(principal, options)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +64,7 @@ func (s *AuthOAuthService) CompleteExternalLogin(ctx context.Context, principal 
 		}, nil
 	}
 
-	accessToken, refreshToken, err := s.authService.IssueTokensForUser(ctx, user, false)
+	accessToken, refreshToken, err := s.authService.IssueTokensForUser(user, false)
 	if err != nil {
 		return nil, err
 	}
@@ -75,29 +76,29 @@ func (s *AuthOAuthService) CompleteExternalLogin(ctx context.Context, principal 
 	}, nil
 }
 
-func (s *AuthOAuthService) resolveExistingUserForPrincipal(ctx context.Context, principal ExternalPrincipal) (*model.User, bool, error) {
+func (s *AuthOAuthService) resolveExistingUserForPrincipal(principal ExternalPrincipal) (*model.User, bool, error) {
 	principal = normalizeExternalPrincipal(principal)
 	if principal.ProviderCode == "" || principal.ExternalID == "" {
 		return nil, false, fmt.Errorf("外部用户信息不完整")
 	}
 
-	identity, err := s.identityRepo.GetByProviderSubject(ctx, principal.ProviderCode, principal.ExternalID)
+	identity, err := s.identityRepo.GetByProviderSubject(principal.ProviderCode, principal.ExternalID)
 	if err != nil {
 		return nil, false, err
 	}
 	if identity != nil {
-		user, err := s.userRepo.GetUserByID(ctx, identity.UserID)
+		user, err := s.userRepo.GetUserByID(identity.UserID)
 		if err != nil {
 			return nil, false, fmt.Errorf("已绑定用户不存在，请联系管理员")
 		}
-		s.refreshExternalIdentity(ctx, identity, principal)
+		s.refreshExternalIdentity(identity, principal)
 		return user, true, nil
 	}
 
 	return nil, false, nil
 }
 
-func (s *AuthOAuthService) createExternalRegistrationIntent(ctx context.Context, principal ExternalPrincipal, options ExternalLoginOptions) (*model.AuthOAuthRegistrationIntent, error) {
+func (s *AuthOAuthService) createExternalRegistrationIntent(principal ExternalPrincipal, options ExternalLoginOptions) (*model.AuthOAuthRegistrationIntent, error) {
 	principal = normalizeExternalPrincipal(principal)
 	if principal.ProviderCode == "" || principal.ExternalID == "" {
 		return nil, fmt.Errorf("外部用户信息不完整")
@@ -106,7 +107,7 @@ func (s *AuthOAuthService) createExternalRegistrationIntent(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	suggestions, err := s.suggestExternalUserCodes(ctx, principal, options.ShortCode)
+	suggestions, err := s.suggestExternalUserCodes(principal, options.ShortCode)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +120,7 @@ func (s *AuthOAuthService) createExternalRegistrationIntent(ctx context.Context,
 		companyCode = model.DefaultCompanyCode
 	}
 	if s.authService != nil && s.authService.companyRepo != nil {
-		if _, err := s.authService.companyRepo.GetCompanyByCode(ctx, companyCode); err != nil {
+		if _, err := s.authService.companyRepo.GetCompanyByCode(companyCode); err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, fmt.Errorf("生成授权注册失败：企业代码 %s 不存在", companyCode)
 			}
@@ -149,13 +150,13 @@ func (s *AuthOAuthService) createExternalRegistrationIntent(ctx context.Context,
 		CompanyCode:         companyCode,
 		ExpiresAt:           time.Now().Add(oauthRegistrationIntentTTL),
 	}
-	if err := s.registrationIntentRepo.Create(ctx, intent); err != nil {
+	if err := s.registrationIntentRepo.Create(intent); err != nil {
 		return nil, fmt.Errorf("创建授权注册确认失败: %w", err)
 	}
 	return intent, nil
 }
 
-func (s *AuthOAuthService) suggestExternalUserCodes(ctx context.Context, principal ExternalPrincipal, shortCode string) ([]string, error) {
+func (s *AuthOAuthService) suggestExternalUserCodes(principal ExternalPrincipal, shortCode string) ([]string, error) {
 	principal = normalizeExternalPrincipal(principal)
 	shortCode = normalizeProviderCode(shortCode)
 	if shortCode == "" {
@@ -188,7 +189,7 @@ func (s *AuthOAuthService) suggestExternalUserCodes(ctx context.Context, princip
 			if err := ValidateUserCode(candidate); err != nil {
 				continue
 			}
-			if available, err := s.userCodeAvailable(ctx, candidate); err != nil {
+			if available, err := s.userCodeAvailable(candidate); err != nil {
 				return err
 			} else if available {
 				out = append(out, candidate)
@@ -207,8 +208,8 @@ func (s *AuthOAuthService) suggestExternalUserCodes(ctx context.Context, princip
 	return out, nil
 }
 
-func (s *AuthOAuthService) userCodeAvailable(ctx context.Context, code string) (bool, error) {
-	if _, err := s.userRepo.GetUserByUsername(ctx, code); err != nil {
+func (s *AuthOAuthService) userCodeAvailable(code string) (bool, error) {
+	if _, err := s.userRepo.GetUserByUsername(code); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return true, nil
 		}
@@ -217,7 +218,7 @@ func (s *AuthOAuthService) userCodeAvailable(ctx context.Context, code string) (
 	return false, nil
 }
 
-func (s *AuthOAuthService) refreshExternalIdentity(ctx context.Context, identity *model.AuthExternalIdentity, principal ExternalPrincipal) {
+func (s *AuthOAuthService) refreshExternalIdentity(identity *model.AuthExternalIdentity, principal ExternalPrincipal) {
 	principal = normalizeExternalPrincipal(principal)
 	changed := false
 	if principal.Email != "" && identity.Email != principal.Email {
@@ -233,8 +234,8 @@ func (s *AuthOAuthService) refreshExternalIdentity(ctx context.Context, identity
 		changed = true
 	}
 	if changed {
-		if err := s.identityRepo.Update(ctx, identity); err != nil {
-			logger.Warnf(ctx, "[AuthExternalLogin] 刷新外部身份失败: %v", err)
+		if err := s.identityRepo.Update(identity); err != nil {
+			logger.Warnf(nil, "[AuthExternalLogin] 刷新外部身份失败: %v", err)
 		}
 	}
 }

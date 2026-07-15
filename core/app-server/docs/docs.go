@@ -24,74 +24,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/workspace/api/v1/apps": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "获取当前用户的所有应用列表（支持分页和搜索）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "应用管理"
-                ],
-                "summary": "获取应用列表",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码，默认为1",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页数量，默认为10",
-                        "name": "page_size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "搜索关键词（支持按应用名称或代码搜索）",
-                        "name": "search",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetAppsResp"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            },
+        "/workspace/api/v1/app/create": {
             "post": {
                 "security": [
                     {
@@ -153,7 +86,9 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
+            }
+        },
+        "/workspace/api/v1/app/delete": {
             "delete": {
                 "description": "删除应用及其所有相关资源，使用 query resource_path=/user/app 标识工作空间。",
                 "consumes": [
@@ -197,52 +132,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspace/api/v1/apps/builds": {
-            "post": {
-                "description": "更新应用代码并重新编译部署，使用 resource_path=/user/app 标识工作空间。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "应用管理"
-                ],
-                "summary": "更新应用",
-                "parameters": [
-                    {
-                        "description": "SourceFiles、WriteOnly 等",
-                        "name": "body",
-                        "in": "body",
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateAppReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "更新成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/workspace/api/v1/apps/detail": {
+        "/workspace/api/v1/app/detail": {
             "get": {
                 "security": [
                     {
@@ -310,21 +200,24 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspace/api/v1/apps/personal-workspace": {
-            "post": {
+        "/workspace/api/v1/app/list": {
+            "get": {
                 "security": [
                     {
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "已有 home 时直接返回；已有其他自有空间时返回该空间；只有新用户才创建私有的“我的空间”。",
+                "description": "获取当前用户的所有应用列表（支持分页和搜索）",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "应用管理"
                 ],
-                "summary": "获取或创建默认个人空间",
+                "summary": "获取应用列表",
                 "parameters": [
                     {
                         "type": "string",
@@ -332,13 +225,33 @@ const docTemplate = `{
                         "name": "X-Token",
                         "in": "header",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码，默认为1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量，默认为10",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词（支持按应用名称或代码搜索）",
+                        "name": "search",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "默认个人空间",
+                        "description": "获取成功",
                         "schema": {
-                            "$ref": "#/definitions/dto.BootstrapPersonalWorkspaceResp"
+                            "$ref": "#/definitions/dto.GetAppsResp"
                         }
                     },
                     "401": {
@@ -356,7 +269,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspace/api/v1/apps/tree": {
+        "/workspace/api/v1/app/tree": {
             "get": {
                 "security": [
                     {
@@ -430,8 +343,53 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspace/api/v1/apps/workspace": {
-            "patch": {
+        "/workspace/api/v1/app/update": {
+            "post": {
+                "description": "更新应用代码并重新编译部署，使用 resource_path=/user/app 标识工作空间。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "应用管理"
+                ],
+                "summary": "更新应用",
+                "parameters": [
+                    {
+                        "description": "SourceFiles、WriteOnly 等",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateAppReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateAppResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/app/workspace": {
+            "put": {
                 "security": [
                     {
                         "ApiKeyAuth": []
@@ -500,7 +458,84 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspace/api/v1/charts/{full-code-path}": {
+        "/workspace/api/v1/callback/on_select_fuzzy/{full-code-path}": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Select 组件的模糊搜索回调",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "标准接口"
+                ],
+                "summary": "模糊搜索回调",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
+                        "name": "full-code-path",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "搜索条件，格式：{\\",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "查询成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RequestAppResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "权限不足",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/chart/query/{full-code-path}": {
             "get": {
                 "security": [
                     {
@@ -561,257 +596,6 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "权限不足",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/workspace/api/v1/directories": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "根据ID或full-code-path获取服务目录详情",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "获取服务目录详情",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "服务目录ID（优先使用）",
-                        "name": "id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "完整代码路径（如果未提供ID则使用）",
-                        "name": "full_code_path",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetServiceTreeDetailResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "404": {
-                        "description": "服务目录不存在",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/workspace/api/v1/directory-copies": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "递归复制服务目录及其所有子目录到目标父目录下；target_directory_name 可修改复制后根目录中文展示名，同名目录已存在时可通过 replace_existing 完全替换",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "复制服务目录",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "复制请求，source_directory_path=源目录完整路径，target_directory_path=目标父目录完整路径，target_directory_name=复制后根目录中文展示名，replace_existing=是否覆盖同名目录",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.CopyDirectoryReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "复制成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.CopyDirectoryResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/workspace/api/v1/directory-overviews": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "汇总当前目录及可读子目录/函数的资源统计、函数任务和 Agent 任务配置",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "获取目录概览",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "目录完整路径",
-                        "name": "full_code_path",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetDirectoryOverviewResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/workspace/api/v1/directory-queries": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "根据 full_code_path 列表批量获取目录、函数和文档详情",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "批量获取服务目录详情",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "批量资源路径",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.BatchGetServiceTreeDetailsReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.BatchGetServiceTreeDetailsResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
                         "schema": {
                             "type": "string"
                         }
@@ -1454,7 +1238,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspace/api/v1/form-submissions/{full-code-path}": {
+        "/workspace/api/v1/form/submit/{full-code-path}": {
             "post": {
                 "security": [
                     {
@@ -1520,107 +1304,6 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "权限不足",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/workspace/api/v1/function-search-results": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "根据关键词、类型等条件搜索函数，支持分页",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "搜索函数",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "用户名（可选，用于过滤应用）",
-                        "name": "user",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "应用名（可选，用于过滤应用）",
-                        "name": "app",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "搜索关键词（可选，用于搜索名称和路径）",
-                        "name": "keyword",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "完整路径（可选，精确或目录前缀搜索）",
-                        "name": "full_code_path",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "模板类型过滤（可选，如：form、table、chart）",
-                        "name": "template_type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "每页数量",
-                        "name": "page_size",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "搜索成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.SearchFunctionsResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
                         "schema": {
                             "type": "string"
                         }
@@ -1767,70 +1450,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspace/api/v1/functions/batch": {
-            "post": {
-                "description": "接收来自 agent-server 的 Go 源码，写入到工作空间对应目录；默认同步构建，skip_build=true 时仅写文件。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "服务目录"
-                ],
-                "summary": "向服务目录添加函数",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "追踪ID（用于链路追踪）",
-                        "name": "X-Trace-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "请求用户（用于审计）",
-                        "name": "X-Request-User",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Token（服务间调用时透传）",
-                        "name": "X-Token",
-                        "in": "header"
-                    },
-                    {
-                        "description": "添加函数请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.AddFunctionsReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "处理成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.AddFunctionsResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
         "/workspace/api/v1/functions/{id}": {
             "put": {
                 "security": [
@@ -1960,12 +1579,6 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "操作日志 ID",
-                        "name": "id",
-                        "in": "query"
-                    },
-                    {
                         "type": "string",
                         "description": "租户用户（app 的所有者）",
                         "name": "tenant_user",
@@ -2023,42 +1636,6 @@ const docTemplate = `{
                         "type": "string",
                         "description": "状态：success/failed",
                         "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "操作来源：browser/agent/openapi/public_share",
-                        "name": "source",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "来源类型：openapi_token/public_share/agent_tool/scheduled_task",
-                        "name": "source_type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "来源引用",
-                        "name": "source_ref",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "实际执行者类型：user/agent/scheduled_function/openapi/public_share",
-                        "name": "executor_type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "工作台会话 ID",
-                        "name": "workspace_session_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Trace ID",
-                        "name": "trace_id",
                         "in": "query"
                     },
                     {
@@ -2263,7 +1840,303 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspace/api/v1/resource-search-results": {
+        "/workspace/api/v1/service_tree/add_functions": {
+            "post": {
+                "description": "接收来自 agent-server 的 Go 源码，写入到工作空间对应目录；默认同步构建，skip_build=true 时仅写文件。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务目录"
+                ],
+                "summary": "向服务目录添加函数",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "追踪ID（用于链路追踪）",
+                        "name": "X-Trace-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "请求用户（用于审计）",
+                        "name": "X-Request-User",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Token（服务间调用时透传）",
+                        "name": "X-Token",
+                        "in": "header"
+                    },
+                    {
+                        "description": "添加函数请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.AddFunctionsReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "处理成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AddFunctionsResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/service_tree/copy": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "递归复制服务目录及其所有子目录到目标父目录下；target_directory_name 可修改复制后根目录中文展示名，同名目录已存在时可通过 replace_existing 完全替换",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务目录"
+                ],
+                "summary": "复制服务目录",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "复制请求，source_directory_path=源目录完整路径，target_directory_path=目标父目录完整路径，target_directory_name=复制后根目录中文展示名，replace_existing=是否覆盖同名目录",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CopyDirectoryReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "复制成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CopyDirectoryResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/service_tree/detail": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据ID或full-code-path获取服务目录详情",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务目录"
+                ],
+                "summary": "获取服务目录详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "服务目录ID（优先使用）",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "完整代码路径（如果未提供ID则使用）",
+                        "name": "full_code_path",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetServiceTreeDetailResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "服务目录不存在",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/service_tree/search_functions": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据关键词、类型等条件搜索函数，支持分页",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务目录"
+                ],
+                "summary": "搜索函数",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "用户名（可选，用于过滤应用）",
+                        "name": "user",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "应用名（可选，用于过滤应用）",
+                        "name": "app",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词（可选，用于搜索名称和路径）",
+                        "name": "keyword",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "模板类型过滤（可选，如：form、table、chart）",
+                        "name": "template_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "搜索成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SearchFunctionsResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/service_tree/search_resources": {
             "get": {
                 "security": [
                     {
@@ -2305,12 +2178,6 @@ const docTemplate = `{
                         "type": "string",
                         "description": "搜索关键词",
                         "name": "keyword",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "完整路径（可选，精确或目录前缀搜索）",
-                        "name": "full_code_path",
                         "in": "query"
                     },
                     {
@@ -2364,14 +2231,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspace/api/v1/selection-options/{full-code-path}": {
+        "/workspace/api/v1/table/create/{full-code-path}": {
             "post": {
                 "security": [
                     {
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Select 组件的模糊搜索回调",
+                "description": "新增表格记录",
                 "consumes": [
                     "application/json"
                 ],
@@ -2381,7 +2248,7 @@ const docTemplate = `{
                 "tags": [
                     "标准接口"
                 ],
-                "summary": "模糊搜索回调",
+                "summary": "Table 新增",
                 "parameters": [
                     {
                         "type": "string",
@@ -2398,7 +2265,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "搜索条件，格式：{\\",
+                        "description": "新增记录的字段数据",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2409,7 +2276,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "查询成功",
+                        "description": "新增成功",
                         "schema": {
                             "$ref": "#/definitions/dto.RequestAppResp"
                         }
@@ -2441,24 +2308,24 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspace/api/v1/table-import-templates/{full-code-path}": {
-            "get": {
+        "/workspace/api/v1/table/delete/{full-code-path}": {
+            "delete": {
                 "security": [
                     {
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "根据函数详情生成 Excel 导入模板",
+                "description": "删除表格记录（支持批量删除）",
                 "consumes": [
                     "application/json"
                 ],
                 "produces": [
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    "application/json"
                 ],
                 "tags": [
                     "标准接口"
                 ],
-                "summary": "Table 下载导入模板",
+                "summary": "Table 删除",
                 "parameters": [
                     {
                         "type": "string",
@@ -2473,13 +2340,22 @@ const docTemplate = `{
                         "name": "full-code-path",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "删除记录的ID列表，格式：{\\",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Excel 模板文件",
+                        "description": "删除成功",
                         "schema": {
-                            "type": "file"
+                            "$ref": "#/definitions/dto.RequestAppResp"
                         }
                     },
                     "400": {
@@ -2509,7 +2385,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspace/api/v1/tables/{full-code-path}": {
+        "/workspace/api/v1/table/search/{full-code-path}": {
             "get": {
                 "security": [
                     {
@@ -2593,7 +2469,77 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
+            }
+        },
+        "/workspace/api/v1/table/template/{full-code-path}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据函数详情生成 Excel 导入模板",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ],
+                "tags": [
+                    "标准接口"
+                ],
+                "summary": "Table 下载导入模板",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT Token",
+                        "name": "X-Token",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
+                        "name": "full-code-path",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel 模板文件",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "权限不足",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspace/api/v1/table/update/{full-code-path}": {
             "put": {
                 "security": [
                     {
@@ -2639,156 +2585,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "更新成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RequestAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "403": {
-                        "description": "权限不足",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "新增表格记录",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标准接口"
-                ],
-                "summary": "Table 新增",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
-                        "name": "full-code-path",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "新增记录的字段数据",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "新增成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.RequestAppResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "未授权",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "403": {
-                        "description": "权限不足",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "删除表格记录（支持批量删除）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标准接口"
-                ],
-                "summary": "Table 删除",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT Token",
-                        "name": "X-Token",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "函数完整路径，如：/luobei/operations/tools/pdftools/to_images",
-                        "name": "full-code-path",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "删除记录的ID列表，格式：{\\",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "删除成功",
                         "schema": {
                             "$ref": "#/definitions/dto.RequestAppResp"
                         }
@@ -2924,53 +2720,6 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.AgentTaskConfig": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "cron_expr": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "every_seconds": {
-                    "type": "integer"
-                },
-                "files": {
-                    "type": "string"
-                },
-                "llm_config_id": {
-                    "type": "integer"
-                },
-                "max_duration_seconds": {
-                    "type": "integer"
-                },
-                "max_runs": {
-                    "type": "integer"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "mode_code": {
-                    "type": "string"
-                },
-                "policy": {
-                    "type": "string"
-                },
-                "timezone": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
         "dto.ApiInfo": {
             "type": "object",
             "properties": {
@@ -2983,18 +2732,6 @@ const docTemplate = `{
                 },
                 "code": {
                     "type": "string"
-                },
-                "connector_endpoints": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.ConnectorEndpoint"
-                    }
-                },
-                "connectors": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
                 },
                 "create_tables": {
                     "type": "array",
@@ -3016,12 +2753,6 @@ const docTemplate = `{
                 },
                 "router": {
                     "type": "string"
-                },
-                "schedules": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.FormScheduleConfig"
-                    }
                 },
                 "schema": {
                     "$ref": "#/definitions/functionschema.FunctionSchema"
@@ -3054,11 +2785,6 @@ const docTemplate = `{
         "dto.AppInfo": {
             "type": "object",
             "properties": {
-                "access_mode": {
-                    "description": "访问模式：permissioned/open_collaboration",
-                    "type": "string",
-                    "example": "permissioned"
-                },
                 "admins": {
                     "description": "管理员列表，逗号分隔的用户名",
                     "type": "string",
@@ -3074,11 +2800,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2006-01-02 15:04:05"
                 },
-                "hide_unauthorized_nodes": {
-                    "description": "是否隐藏当前用户无 read 权限的目录节点",
-                    "type": "boolean",
-                    "example": false
-                },
                 "host_id": {
                     "description": "主机ID",
                     "type": "integer",
@@ -3088,11 +2809,6 @@ const docTemplate = `{
                     "description": "应用ID",
                     "type": "integer",
                     "example": 1
-                },
-                "is_personal_workspace": {
-                    "description": "是否为系统初始化的个人默认空间",
-                    "type": "boolean",
-                    "example": false
                 },
                 "is_public": {
                     "description": "是否公开",
@@ -3160,227 +2876,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/dto.DocItem"
-                    }
-                }
-            }
-        },
-        "dto.BatchGetServiceTreeDetailsReq": {
-            "type": "object",
-            "required": [
-                "full_code_paths"
-            ],
-            "properties": {
-                "full_code_paths": {
-                    "description": "完整代码路径列表",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "/beiluo/myapp/user",
-                        "/beiluo/myapp/orders.table"
-                    ]
-                }
-            }
-        },
-        "dto.BatchGetServiceTreeDetailsResp": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "description": "可读资源详情",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.GetServiceTreeDetailResp"
-                    }
-                },
-                "missing": {
-                    "description": "不存在、无权限或非法路径",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "dto.BootstrapPersonalWorkspaceResp": {
-            "type": "object",
-            "properties": {
-                "app": {
-                    "$ref": "#/definitions/dto.AppInfo"
-                },
-                "created": {
-                    "description": "仅本次请求实际创建了 home 时为 true",
-                    "type": "boolean"
-                }
-            }
-        },
-        "dto.BuildTrace": {
-            "type": "object",
-            "properties": {
-                "app": {
-                    "type": "string"
-                },
-                "duration_ms": {
-                    "type": "integer"
-                },
-                "ended_at": {
-                    "type": "string"
-                },
-                "error": {
-                    "type": "string"
-                },
-                "operation": {
-                    "type": "string"
-                },
-                "spans": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.BuildTraceSpan"
-                    }
-                },
-                "started_at": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "storage_path": {
-                    "type": "string"
-                },
-                "trace_id": {
-                    "type": "string"
-                },
-                "user": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.BuildTraceSpan": {
-            "type": "object",
-            "properties": {
-                "attributes": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "duration_ms": {
-                    "type": "integer"
-                },
-                "ended_at": {
-                    "type": "string"
-                },
-                "error": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "seq": {
-                    "type": "integer"
-                },
-                "started_at": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.ConnectorConnectionProfile": {
-            "type": "object",
-            "properties": {
-                "account_id": {
-                    "type": "string"
-                },
-                "account_name": {
-                    "type": "string"
-                },
-                "account_url": {
-                    "type": "string"
-                },
-                "avatar_url": {
-                    "type": "string"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "last_enriched_at": {
-                    "type": "string"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "resource_summary": {
-                    "$ref": "#/definitions/dto.ConnectorResourceSummary"
-                },
-                "workspace_icon": {
-                    "type": "string"
-                },
-                "workspace_id": {
-                    "type": "string"
-                },
-                "workspace_name": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.ConnectorEndpoint": {
-            "type": "object",
-            "properties": {
-                "desc": {
-                    "type": "string"
-                },
-                "method": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "required_scopes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.ConnectorProviderCapabilities": {
-            "type": "object",
-            "properties": {
-                "oauth_supported": {
-                    "type": "boolean"
-                },
-                "profile_supported": {
-                    "type": "boolean"
-                },
-                "proxy_supported": {
-                    "type": "boolean"
-                },
-                "resource_summary_supported": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "dto.ConnectorResourceSummary": {
-            "type": "object",
-            "properties": {
-                "database_count": {
-                    "type": "integer"
-                },
-                "page_count": {
-                    "type": "integer"
-                },
-                "samples": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
                     }
                 }
             }
@@ -3469,11 +2964,6 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
-                "access_mode": {
-                    "description": "访问模式：permissioned/open_collaboration，默认 permissioned",
-                    "type": "string",
-                    "example": "permissioned"
-                },
                 "admins": {
                     "description": "管理员列表，逗号分隔的用户名",
                     "type": "string",
@@ -3483,11 +2973,6 @@ const docTemplate = `{
                     "description": "应用名",
                     "type": "string",
                     "example": "myapp"
-                },
-                "hide_unauthorized_nodes": {
-                    "description": "是否隐藏当前用户无 read 权限的目录节点，默认 false",
-                    "type": "boolean",
-                    "example": false
                 },
                 "is_public": {
                     "description": "是否公开，默认 true（公开）",
@@ -3768,6 +3253,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "app",
+                "code",
                 "name",
                 "user"
             ],
@@ -3783,7 +3269,7 @@ const docTemplate = `{
                     "example": "myapp"
                 },
                 "code": {
-                    "description": "目录代码；为空时服务端会按目录名称自动生成拼音标识",
+                    "description": "目录代码",
                     "type": "string",
                     "example": "user"
                 },
@@ -4010,88 +3496,6 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.DirectoryOverviewResource": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "full_code_path": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "run_count": {
-                    "type": "integer"
-                },
-                "template_type": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.DirectoryOverviewScheduledTask": {
-            "type": "object",
-            "properties": {
-                "kind": {
-                    "description": "function 或 agent",
-                    "type": "string"
-                },
-                "resource": {
-                    "$ref": "#/definitions/dto.DirectoryOverviewResource"
-                },
-                "resource_name": {
-                    "type": "string"
-                },
-                "resource_path": {
-                    "type": "string"
-                },
-                "task": {
-                    "$ref": "#/definitions/scheduledsdk.Task"
-                }
-            }
-        },
-        "dto.DirectoryOverviewStats": {
-            "type": "object",
-            "properties": {
-                "directories": {
-                    "type": "integer"
-                },
-                "docs": {
-                    "type": "integer"
-                },
-                "failed_tasks": {
-                    "type": "integer"
-                },
-                "functions": {
-                    "type": "integer"
-                },
-                "next_run_at": {
-                    "type": "string"
-                },
-                "paused_tasks": {
-                    "type": "integer"
-                },
-                "running_tasks": {
-                    "type": "integer"
-                },
-                "scheduled_agent_tasks": {
-                    "type": "integer"
-                },
-                "scheduled_function_tasks": {
-                    "type": "integer"
-                },
-                "total_run_count": {
-                    "type": "integer"
-                }
-            }
-        },
         "dto.DocItem": {
             "type": "object",
             "properties": {
@@ -4114,132 +3518,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "summary": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.DocSeedConfig": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "content": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "format": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "policy": {
-                    "type": "string"
-                },
-                "summary": {
-                    "type": "string"
-                },
-                "tags": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.FormScheduleConfig": {
-            "type": "object",
-            "properties": {
-                "body": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "code": {
-                    "type": "string"
-                },
-                "cron_expr": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "every_seconds": {
-                    "type": "integer"
-                },
-                "max_runs": {
-                    "type": "integer"
-                },
-                "timezone": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.FunctionConnectorStatus": {
-            "type": "object",
-            "properties": {
-                "capabilities": {
-                    "$ref": "#/definitions/dto.ConnectorProviderCapabilities"
-                },
-                "connected": {
-                    "type": "boolean"
-                },
-                "connection_id": {
-                    "type": "string"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "granted_scopes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "message": {
-                    "type": "string"
-                },
-                "missing_scopes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "profile": {
-                    "$ref": "#/definitions/dto.ConnectorConnectionProfile"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "provider_account_url": {
-                    "type": "string"
-                },
-                "provider_brand_color": {
-                    "type": "string"
-                },
-                "provider_logo_url": {
-                    "type": "string"
-                },
-                "provider_name": {
-                    "type": "string"
-                },
-                "required": {
-                    "type": "boolean"
-                },
-                "required_scopes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "resolved_from": {
                     "type": "string"
                 }
             }
@@ -4278,24 +3556,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "table_parse"
                 },
-                "connector_endpoints": {
-                    "description": "函数声明使用的连接器 API 端点",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.ConnectorEndpoint"
-                    }
-                },
-                "connectors": {
-                    "description": "函数依赖的连接器 provider 列表",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "github",
-                        "google"
-                    ]
-                },
                 "description": {
                     "description": "函数描述",
                     "type": "string",
@@ -4317,7 +3577,7 @@ const docTemplate = `{
                     "example": "表格解析"
                 },
                 "run_count": {
-                    "description": "运行次数（用于 search 按热度排序）",
+                    "description": "运行次数（用于 search_tools 按热度排序）",
                     "type": "integer"
                 },
                 "schema": {
@@ -4338,11 +3598,6 @@ const docTemplate = `{
         "dto.GetAppDetailResp": {
             "type": "object",
             "properties": {
-                "access_mode": {
-                    "description": "访问模式：permissioned/open_collaboration",
-                    "type": "string",
-                    "example": "permissioned"
-                },
                 "admins": {
                     "description": "管理员列表，逗号分隔的用户名",
                     "type": "string",
@@ -4358,11 +3613,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2006-01-02 15:04:05"
                 },
-                "hide_unauthorized_nodes": {
-                    "description": "是否隐藏当前用户无 read 权限的目录节点",
-                    "type": "boolean",
-                    "example": false
-                },
                 "host_id": {
                     "description": "主机ID",
                     "type": "integer",
@@ -4372,11 +3622,6 @@ const docTemplate = `{
                     "description": "应用ID",
                     "type": "integer",
                     "example": 1
-                },
-                "is_personal_workspace": {
-                    "description": "是否为系统初始化的个人默认空间",
-                    "type": "boolean",
-                    "example": false
                 },
                 "is_public": {
                     "description": "是否公开",
@@ -4482,38 +3727,6 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.GetDirectoryOverviewResp": {
-            "type": "object",
-            "properties": {
-                "directory": {
-                    "$ref": "#/definitions/dto.DirectoryOverviewResource"
-                },
-                "partial": {
-                    "type": "boolean"
-                },
-                "scheduled_agent_tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.DirectoryOverviewScheduledTask"
-                    }
-                },
-                "scheduled_function_tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.DirectoryOverviewScheduledTask"
-                    }
-                },
-                "stats": {
-                    "$ref": "#/definitions/dto.DirectoryOverviewStats"
-                },
-                "warnings": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
         "dto.GetDirectoryUpdateHistoryResp": {
             "type": "object",
             "properties": {
@@ -4549,31 +3762,6 @@ const docTemplate = `{
                     "description": "应用ID",
                     "type": "integer",
                     "example": 1
-                },
-                "connector_endpoints": {
-                    "description": "函数声明使用的连接器 API 端点",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.ConnectorEndpoint"
-                    }
-                },
-                "connector_status": {
-                    "description": "当前用户的连接器就绪状态",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.FunctionConnectorStatus"
-                    }
-                },
-                "connectors": {
-                    "description": "函数依赖的连接器 provider 列表",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "github",
-                        "google"
-                    ]
                 },
                 "create_tables": {
                     "description": "创建的表",
@@ -4672,24 +3860,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "user"
                 },
-                "connector_endpoints": {
-                    "description": "函数声明使用的连接器 API 端点",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.ConnectorEndpoint"
-                    }
-                },
-                "connectors": {
-                    "description": "函数依赖的连接器 provider 列表",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "github",
-                        "google"
-                    ]
-                },
                 "description": {
                     "description": "描述",
                     "type": "string",
@@ -4771,24 +3941,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "user"
                 },
-                "connector_endpoints": {
-                    "description": "函数声明使用的连接器 API 端点",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.ConnectorEndpoint"
-                    }
-                },
-                "connectors": {
-                    "description": "函数依赖的连接器 provider 列表",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "github",
-                        "google"
-                    ]
-                },
                 "description": {
                     "description": "描述",
                     "type": "string",
@@ -4851,10 +4003,6 @@ const docTemplate = `{
                     "description": "⭐ 运行次数（仅 function 类型有意义），用于排序与展示「已使用 N 次」",
                     "type": "integer"
                 },
-                "scheduled_agent_tasks": {
-                    "description": "当前目录及子目录内的 Agent 任务数量（仅对package类型有意义）",
-                    "type": "integer"
-                },
                 "tags": {
                     "description": "标签",
                     "type": "string",
@@ -4903,14 +4051,8 @@ const docTemplate = `{
                 "details_json": {
                     "type": "object"
                 },
-                "executor_type": {
-                    "type": "string"
-                },
                 "id": {
                     "type": "integer"
-                },
-                "initiator_user": {
-                    "type": "string"
                 },
                 "ip_address": {
                     "type": "string"
@@ -4933,12 +4075,6 @@ const docTemplate = `{
                 "source": {
                     "type": "string"
                 },
-                "source_ref": {
-                    "type": "string"
-                },
-                "source_type": {
-                    "type": "string"
-                },
                 "status": {
                     "type": "string"
                 },
@@ -4954,12 +4090,6 @@ const docTemplate = `{
                 "tenant_user": {
                     "type": "string"
                 },
-                "tool_call_id": {
-                    "type": "string"
-                },
-                "tool_name": {
-                    "type": "string"
-                },
                 "trace_id": {
                     "type": "string"
                 },
@@ -4968,31 +4098,12 @@ const docTemplate = `{
                 },
                 "user_agent": {
                     "type": "string"
-                },
-                "workspace_message_id": {
-                    "type": "integer"
-                },
-                "workspace_role": {
-                    "type": "string"
-                },
-                "workspace_session_id": {
-                    "type": "string"
-                },
-                "workspace_session_title": {
-                    "type": "string"
                 }
             }
         },
         "dto.PackageInfo": {
             "type": "object",
             "properties": {
-                "agent_tasks": {
-                    "description": "package 出厂默认 Agent 任务模板",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.AgentTaskConfig"
-                    }
-                },
                 "code": {
                     "description": "目录名（如 \"pdf\"）",
                     "type": "string"
@@ -5000,13 +4111,6 @@ const docTemplate = `{
                 "desc": {
                     "description": "描述",
                     "type": "string"
-                },
-                "docs": {
-                    "description": "package 出厂默认文档种子",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.DocSeedConfig"
-                    }
                 },
                 "full_path": {
                     "description": "完整路径（如 \"/user/app/plugins/pdf\"）",
@@ -5265,14 +4369,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "myapp"
                 },
-                "build_trace": {
-                    "description": "构建/更新阶段耗时追踪",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/dto.BuildTrace"
-                        }
-                    ]
-                },
                 "diff": {
                     "description": "API diff 信息",
                     "allOf": [
@@ -5455,21 +4551,8 @@ const docTemplate = `{
         "dto.UpdateWorkspaceReq": {
             "type": "object",
             "properties": {
-                "access_mode": {
-                    "description": "访问模式：permissioned/open_collaboration；nil 表示不更新",
-                    "type": "string"
-                },
                 "admins": {
-                    "description": "管理员列表，逗号分隔；nil 表示不更新",
-                    "type": "string"
-                },
-                "hide_unauthorized_nodes": {
-                    "description": "是否隐藏当前用户无 read 权限的目录节点；nil 表示不更新",
-                    "type": "boolean",
-                    "example": false
-                },
-                "name": {
-                    "description": "展示名称；nil 表示不更新，不影响 code、URL 或运行时目录",
+                    "description": "管理员列表，逗号分隔",
                     "type": "string"
                 },
                 "resource_path": {
@@ -5481,19 +4564,10 @@ const docTemplate = `{
         "dto.UpdateWorkspaceResp": {
             "type": "object",
             "properties": {
-                "access_mode": {
-                    "type": "string"
-                },
                 "admins": {
                     "type": "string"
                 },
                 "app": {
-                    "type": "string"
-                },
-                "hide_unauthorized_nodes": {
-                    "type": "boolean"
-                },
-                "name": {
                     "type": "string"
                 },
                 "user": {
@@ -5504,9 +4578,6 @@ const docTemplate = `{
         "functionschema.ChartSchema": {
             "type": "object",
             "properties": {
-                "chart_type": {
-                    "type": "string"
-                },
                 "request": {
                     "type": "array",
                     "items": {
@@ -5580,148 +4651,6 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "scheduledsdk.Schedule": {
-            "type": "object",
-            "properties": {
-                "cron_expr": {
-                    "type": "string"
-                },
-                "interval_seconds": {
-                    "type": "integer"
-                },
-                "max_runs": {
-                    "type": "integer"
-                },
-                "run_at": {
-                    "type": "string"
-                },
-                "timezone": {
-                    "type": "string"
-                },
-                "type": {
-                    "$ref": "#/definitions/scheduledsdk.ScheduleType"
-                }
-            }
-        },
-        "scheduledsdk.ScheduleType": {
-            "type": "string",
-            "enum": [
-                "atime",
-                "cron",
-                "every"
-            ],
-            "x-enum-varnames": [
-                "ScheduleAt",
-                "ScheduleCron",
-                "ScheduleEvery"
-            ]
-        },
-        "scheduledsdk.Task": {
-            "type": "object",
-            "properties": {
-                "category": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "executor_key": {
-                    "type": "string"
-                },
-                "executor_payload": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "idempotency_key": {
-                    "type": "string"
-                },
-                "inflight_execution_id": {
-                    "type": "integer"
-                },
-                "last_error_message": {
-                    "type": "string"
-                },
-                "last_execution_id": {
-                    "type": "integer"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "next_run_at": {
-                    "type": "string"
-                },
-                "request_user": {
-                    "type": "string"
-                },
-                "request_user_dept": {
-                    "type": "string"
-                },
-                "resource_key": {
-                    "type": "string"
-                },
-                "resource_scope": {
-                    "type": "string"
-                },
-                "run_count": {
-                    "type": "integer"
-                },
-                "schedule": {
-                    "$ref": "#/definitions/scheduledsdk.Schedule"
-                },
-                "source_ref": {
-                    "type": "string"
-                },
-                "source_type": {
-                    "type": "string"
-                },
-                "status": {
-                    "$ref": "#/definitions/scheduledsdk.TaskStatus"
-                },
-                "tags": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "scheduledsdk.TaskStatus": {
-            "type": "string",
-            "enum": [
-                "pending",
-                "paused",
-                "done",
-                "failed",
-                "cancelled"
-            ],
-            "x-enum-varnames": [
-                "TaskStatusPending",
-                "TaskStatusPaused",
-                "TaskStatusDone",
-                "TaskStatusFailed",
-                "TaskStatusCancelled"
-            ]
         },
         "widget.Field": {
             "type": "object",

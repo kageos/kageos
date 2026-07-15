@@ -15,7 +15,7 @@ import (
 func (s *Server) sendMessage(c *gin.Context) {
 	var envelope dto.MessageSendEnvelope
 	if err := c.ShouldBindJSON(&envelope); err != nil {
-		response.BadRequest(c, "请求参数错误: "+err.Error())
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
 	s.submitMessage(c, &envelope)
@@ -24,7 +24,7 @@ func (s *Server) sendMessage(c *gin.Context) {
 func (s *Server) sendMessageToUsers(c *gin.Context) {
 	var req dto.MessageSendToUsersReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "请求参数错误: "+err.Error())
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
 	envelope := dto.MessageSendEnvelope{
@@ -41,21 +41,21 @@ func (s *Server) sendMessageToUsers(c *gin.Context) {
 
 func (s *Server) submitMessage(c *gin.Context, envelope *dto.MessageSendEnvelope) {
 	if s == nil || s.messageConsumerService == nil {
-		response.Internal(c, "message service 未初始化")
+		response.FailWithMessage(c, "message service 未初始化")
 		return
 	}
 	if envelope == nil {
-		response.BadRequest(c, "消息内容不能为空")
+		response.FailWithMessage(c, "消息内容不能为空")
 		return
 	}
 	ctx, meta, err := resolveRequestMessageMeta(c, &envelope.Meta)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	envelope.Meta = meta
 	if err := s.messageConsumerService.Consume(ctx, envelope); err != nil {
-		response.Internal(c, "消息发送失败: "+err.Error())
+		response.FailWithMessage(c, "消息发送失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, dto.MessageSendResp{

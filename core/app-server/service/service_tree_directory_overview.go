@@ -26,7 +26,7 @@ type serviceTreeScheduleClient interface {
 
 var newServiceTreeScheduleClient = func() serviceTreeScheduleClient {
 	return scheduledsdk.NewClient(scheduledsdk.Options{
-		BaseURL: serviceconfig.BuildInternalTimerSchedulerURL("/timer/api/v1"),
+		BaseURL: serviceconfig.BuildGatewayURL("/timer/api/v1"),
 	})
 }
 
@@ -44,7 +44,7 @@ func (q *serviceTreeQueryView) GetDirectoryOverview(ctx context.Context, req *dt
 		return nil, fmt.Errorf("full_code_path 不能为空")
 	}
 
-	root, err := q.serviceTreeRepo.GetServiceTreeByFullPath(ctx, rootPath)
+	root, err := q.serviceTreeRepo.GetServiceTreeByFullPath(rootPath)
 	if err != nil {
 		return nil, fmt.Errorf("获取目录失败: %w", err)
 	}
@@ -52,12 +52,12 @@ func (q *serviceTreeQueryView) GetDirectoryOverview(ctx context.Context, req *dt
 		return nil, fmt.Errorf("目录概览仅支持 package 类型节点")
 	}
 
-	appModel, err := q.appRepo.GetAppByID(ctx, root.AppID)
+	appModel, err := q.appRepo.GetAppByID(root.AppID)
 	if err != nil {
 		return nil, fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
-	descendants, err := q.serviceTreeRepo.GetDescendantNodes(ctx, root.AppID, root.FullCodePath)
+	descendants, err := q.serviceTreeRepo.GetDescendantNodes(root.AppID, root.FullCodePath)
 	if err != nil {
 		return nil, fmt.Errorf("获取子资源失败: %w", err)
 	}
@@ -116,30 +116,9 @@ func (q *serviceTreeQueryView) GetDirectoryOverview(ctx context.Context, req *dt
 	if len(agentTasks) > len(resp.ScheduledAgentTasks) {
 		resp.Warnings = append(resp.Warnings, fmt.Sprintf("Agent 任务较多，清单仅返回前 %d 个", directoryOverviewMaxTasksPerKind))
 	}
-	resp.Warnings = directoryOverviewUniqueWarnings(resp.Warnings)
 	resp.Partial = len(resp.Warnings) > 0
 
 	return resp, nil
-}
-
-func directoryOverviewUniqueWarnings(warnings []string) []string {
-	if len(warnings) < 2 {
-		return warnings
-	}
-	seen := make(map[string]struct{}, len(warnings))
-	unique := make([]string, 0, len(warnings))
-	for _, warning := range warnings {
-		warning = strings.TrimSpace(warning)
-		if warning == "" {
-			continue
-		}
-		if _, ok := seen[warning]; ok {
-			continue
-		}
-		seen[warning] = struct{}{}
-		unique = append(unique, warning)
-	}
-	return unique
 }
 
 func (q *serviceTreeQueryView) filterReadableNodes(ctx context.Context, appModel *model.App, nodes []*model.ServiceTree) ([]*model.ServiceTree, error) {

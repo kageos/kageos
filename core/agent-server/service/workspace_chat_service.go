@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/kageos/kageos/core/agent-server/model"
@@ -20,9 +19,8 @@ import (
 )
 
 const (
-	SourceWorkspace       = model.ChatSessionSourceWorkspace
-	SourceAutomationAgent = model.ChatSessionSourceAutomationAgent
-	MaxToolRounds         = 100 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
+	SourceWorkspace = "workspace"
+	MaxToolRounds   = 100 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
 )
 
 // 工作台系统提示词与内置文档统一来自本地内嵌的 /system/prompt。
@@ -66,14 +64,13 @@ const (
 
 // WorkspaceChatService 工作台对话编排：会话、历史、LLM、Tool 循环；只认 LLM + 单模式（dev）
 type WorkspaceChatService struct {
-	toolReg                 *ToolRegistry
-	sessionRepo             *repository.ChatSessionRepository
-	messageRepo             *repository.ChatMessageRepository
-	llmRepo                 *repository.LLMRepository
-	runtimeState            RuntimeStateStore
-	serviceTreeDetailsBatch func(context.Context, []string) (*dto.BatchGetServiceTreeDetailsResp, error)
-	apiKeyVault             *secretvault.Vault
-	apiKeyVaultErr          error
+	toolReg        *ToolRegistry
+	sessionRepo    *repository.ChatSessionRepository
+	messageRepo    *repository.ChatMessageRepository
+	llmRepo        *repository.LLMRepository
+	runtimeState   RuntimeStateStore
+	apiKeyVault    *secretvault.Vault
+	apiKeyVaultErr error
 
 	// runningCancels 维护「正在执行的 session → cancelFunc」映射，供手动取消使用
 	runningCancels sync.Map // key: sessionID (string), value: context.CancelFunc
@@ -95,20 +92,14 @@ func NewWorkspaceChatService(
 	}
 	apiKeyVault, apiKeyVaultErr := newLLMAPIKeyVault(defaultLLMAPIKeySecret())
 	return &WorkspaceChatService{
-		toolReg:                 toolReg,
-		sessionRepo:             sessionRepo,
-		messageRepo:             messageRepo,
-		llmRepo:                 llmRepo,
-		runtimeState:            stateStore,
-		serviceTreeDetailsBatch: getWorkspaceServiceTreeDetailsBatch,
-		apiKeyVault:             apiKeyVault,
-		apiKeyVaultErr:          apiKeyVaultErr,
+		toolReg:        toolReg,
+		sessionRepo:    sessionRepo,
+		messageRepo:    messageRepo,
+		llmRepo:        llmRepo,
+		runtimeState:   stateStore,
+		apiKeyVault:    apiKeyVault,
+		apiKeyVaultErr: apiKeyVaultErr,
 	}
-}
-
-func getWorkspaceServiceTreeDetailsBatch(ctx context.Context, fullCodePaths []string) (*dto.BatchGetServiceTreeDetailsResp, error) {
-	req := &dto.BatchGetServiceTreeDetailsReq{FullCodePaths: fullCodePaths}
-	return apicall.PostAPI[*dto.BatchGetServiceTreeDetailsReq, *dto.BatchGetServiceTreeDetailsResp](ctx, "/workspace/api/v1/directory-queries", req)
 }
 
 // StreamEvent 流式事件：用于 SSE 传输
@@ -171,16 +162,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		}
 	}
 	user := contextx.GetRequestUser(ctx)
-	// 会话归属具体函数/资源，但 Agent 的 SDK、文件和工具执行上下文仍使用父目录。
-	// ResourceFullCodePath 供通知回复显式传入；普通工作台可继续只传点击节点的 FullCodePath。
-	requestedResourcePath := workspaceRequestedResourcePath(req.ResourceFullCodePath, req.FullCodePath)
-	resourceFullCodePath := requestedResourcePath
-	var resourceTreeID int64
-	resourceOwnedBySession := false
-	fullCodePath := workspacePathDirectory(req.FullCodePath)
-	if fullCodePath == "" {
-		fullCodePath = workspacePathDirectory(requestedResourcePath)
-	}
+	fullCodePath := strings.TrimSpace(req.FullCodePath)
 	if fullCodePath == "" {
 		return s.handleError(sendEvent, "full_code_path 必填", nil)
 	}
@@ -194,7 +176,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	var session *model.AgentChatSession
 	if req.SessionID != "" {
 		var e error
-		session, e = s.sessionRepo.GetBySessionID(ctx, req.SessionID)
+		session, e = s.sessionRepo.GetBySessionID(req.SessionID)
 		if e != nil || session == nil {
 			return s.handleError(sendEvent, fmt.Sprintf("会话不存在: %s", req.SessionID), e)
 		}
@@ -202,108 +184,38 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		if e := ensureWorkspaceSessionOwner(ctx, session); e != nil {
 			return s.handleError(sendEvent, e.Error(), e)
 		}
-		// 兼容历史上把函数路径直接写入 FullCodePath 的会话：先保留资源归属，再修复执行目录。
-		legacyResourcePath := workspaceSessionResourcePath(session.FullCodePath)
-		if storedResourcePath := normalizeWorkspacePath(session.ResourceFullCodePath); storedResourcePath != "" {
-			resourceFullCodePath = storedResourcePath
-			resourceTreeID = session.ResourceTreeID
-			resourceOwnedBySession = true
-		} else if legacyResourcePath != "" {
-			resourceFullCodePath = legacyResourcePath
-		} else if requestedResourcePath != "" && workspacePathDirectory(requestedResourcePath) == workspacePathDirectory(session.FullCodePath) {
-			resourceFullCodePath = requestedResourcePath
-		}
-		if sessionPath := workspacePathDirectory(session.FullCodePath); sessionPath != "" {
+		if sessionPath := strings.TrimSpace(session.FullCodePath); sessionPath != "" {
 			fullCodePath = sessionPath
 		}
 	}
 
-	// 2) 获取工作台环境信息（包含目录详情、子节点等，一次性获取，避免重复调用）。
-	// app-server 会按 service_tree.type 把无后缀函数/文档解析到父目录。
-	workspaceContextRequestPath := fullCodePath
+	// 2) 获取工作台环境信息（包含目录详情、子节点等，一次性获取，避免重复调用）
 	workspaceCtx, e := apicall.GetWorkspaceContext(ctx, fullCodePath, "")
 	if e != nil || workspaceCtx == nil {
-		// 目录不存在和 app-server/MySQL 暂不可用是两类问题。这里不能把所有
-		// 上游错误都包装成“无效路径”，否则数据库故障会误导成业务数据错误。
-		message := fmt.Sprintf("无法解析工作台上下文: %s", fullCodePath)
-		if e != nil {
-			message += "；原因: " + e.Error()
-		}
-		return s.handleError(sendEvent, message, e)
-	}
-	if directoryPath := normalizeWorkspacePath(workspaceCtx.Directory.FullCodePath); directoryPath != "" {
-		fullCodePath = directoryPath
-	}
-	// 调用方可以始终回传当前节点作为 resource。若 service-tree 确认它本身
-	// 就是目录，则清空资源归属，避免把 package 错标成具体函数。
-	if normalizeWorkspacePath(resourceFullCodePath) == fullCodePath {
-		resourceFullCodePath = ""
-		resourceTreeID = 0
-	}
-	// 当请求的是无后缀函数时，旧的后缀启发式无法识别资源。以 app-server
-	// 返回的父目录及其直接子节点为准，补齐会话的资源归属。
-	if resourceFullCodePath == "" && workspaceContextRequestPath != fullCodePath {
-		if _, ok := workspaceContextChildTreeID(workspaceCtx.Children, workspaceContextRequestPath); ok {
-			resourceFullCodePath = workspaceContextRequestPath
-		}
-	}
-	resolvedResourceTreeID, resourceIsDirectChild := workspaceContextChildTreeID(workspaceCtx.Children, resourceFullCodePath)
-	resourceBelongsToDirectory := resourceFullCodePath == "" ||
-		resourceIsDirectChild ||
-		workspacePathDirectory(resourceFullCodePath) == fullCodePath
-	if resourceFullCodePath != "" && !resourceOwnedBySession && !resourceBelongsToDirectory {
-		return s.handleError(sendEvent, fmt.Sprintf("resource_full_code_path 不属于工作台目录: %s", resourceFullCodePath), nil)
-	}
-	if resourceTreeID == 0 && resourceIsDirectChild {
-		resourceTreeID = resolvedResourceTreeID
+		return s.handleError(sendEvent, "无效的 full_code_path，无法解析目录", e)
 	}
 	directoryName := workspaceCtx.Directory.Name
 	if directoryName == "" {
 		directoryName = workspaceCtx.Directory.Code
 	}
 
-	// 顺手修复历史函数路径，并补齐资源归属；后续只用目录执行、按资源查看。
-	if req.SessionID != "" && (session.FullCodePath != fullCodePath ||
-		session.TreeID != workspaceCtx.Directory.ID ||
-		session.ResourceFullCodePath != resourceFullCodePath ||
-		session.ResourceTreeID != resourceTreeID) {
-		session.FullCodePath = fullCodePath
-		session.TreeID = workspaceCtx.Directory.ID
-		session.ResourceFullCodePath = resourceFullCodePath
-		session.ResourceTreeID = resourceTreeID
-		session.UpdatedBy = user
-		if updateErr := s.sessionRepo.Update(ctx, session); updateErr != nil {
-			logger.Warnf(ctx, "[WorkspaceChatStream] 修复历史会话目录失败 session_id=%s full_code_path=%s err=%v", session.SessionID, fullCodePath, updateErr)
-		}
-	}
-
 	// 3) 创建新 session
 	if req.SessionID == "" {
-		source := SourceWorkspace
-		automationIdentity := scheduledAgentSessionIdentityFromContext(ctx)
-		if automationIdentity.TaskID > 0 {
-			source = SourceAutomationAgent
-		}
 		session = &model.AgentChatSession{
-			TreeID:               workspaceCtx.Directory.ID,
-			FullCodePath:         fullCodePath,
-			ResourceTreeID:       resourceTreeID,
-			ResourceFullCodePath: resourceFullCodePath,
-			Source:               source,
-			AutomationTaskID:     automationIdentity.TaskID,
-			AutomationTaskCode:   automationIdentity.TaskCode,
-			AutomationTaskTitle:  automationIdentity.TaskTitle,
-			SessionID:            uuid.New().String(),
-			Title:                "",
-			ModeCode:             requestedModeCode,
-			Status:               model.ChatSessionStatusActive,
-			ContextPolicy:        ContextPolicyFull,
-			User:                 user,
+			TreeID:        workspaceCtx.Directory.ID,
+			FullCodePath:  fullCodePath,
+			Source:        SourceWorkspace,
+			SessionID:     uuid.New().String(),
+			Title:         "",
+			ModeCode:      requestedModeCode,
+			Status:        model.ChatSessionStatusActive,
+			ContextPolicy: ContextPolicyFull,
+			User:          user,
 		}
 		applyDefaultWorkspaceSessionRole(session)
 		session.CreatedBy = user
 		session.UpdatedBy = user
-		if e := s.sessionRepo.Create(ctx, session); e != nil {
+		if e := s.sessionRepo.Create(session); e != nil {
 			return s.handleError(sendEvent, "创建会话失败", e)
 		}
 	}
@@ -320,7 +232,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 			session.Status = model.ChatSessionStatusActive
 		}
 		session.UpdatedBy = user
-		if e := s.sessionRepo.Update(ctx, session); e != nil {
+		if e := s.sessionRepo.Update(session); e != nil {
 			return s.handleError(sendEvent, "恢复完整会话上下文失败", e)
 		}
 	}
@@ -328,7 +240,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		return s.handleError(sendEvent, "该会话正在执行中，请等待当前任务完成，或先取消后再继续。", nil)
 	}
 	if !req.Resume && workspaceSessionHasPendingInteractionStatus(session.Status) {
-		pendingInteraction := s.pendingInteractionForSession(ctx, session)
+		pendingInteraction := s.pendingInteractionForSession(session)
 		if pendingInteraction == nil {
 			pendingInteraction = workspaceFallbackPendingInteraction(session.Status)
 		}
@@ -358,14 +270,14 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		if req.SessionID == "" {
 			return s.handleError(sendEvent, "resume 必须指定 session_id", nil)
 		}
-		if e := s.ensureWorkspaceSessionHasRunnableMessage(ctx, sessionID); e != nil {
+		if e := s.ensureWorkspaceSessionHasRunnableMessage(sessionID); e != nil {
 			return s.handleError(sendEvent, e.Error(), e)
 		}
 	}
 	s.sseConnections.Store(sessionID, struct{}{})
 
 	// ⭐ 标记会话为 generating（后台执行中）
-	markedGenerating, e := s.sessionRepo.TryMarkGenerating(ctx, sessionID, user, modeCode)
+	markedGenerating, e := s.sessionRepo.TryMarkGenerating(sessionID, user, modeCode)
 	if e != nil {
 		logger.Warnf(ctx, "[WorkspaceChatStream] 标记 generating 失败: %v", e)
 		s.sseConnections.Delete(sessionID)
@@ -383,25 +295,23 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 	s.runningCancels.Store(sessionID, runCancel)
 	// 无论正常结束还是异常，都要恢复状态并清理
 	defer func() {
-		persistCtx, cancelPersist := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancelPersist()
 		runCancel()
 		s.runningCancels.Delete(sessionID)
 		s.sseConnections.Delete(sessionID)
 		// ⭐ 恢复会话状态：已取消的保持 cancelled，否则标回 active
-		latest, e := s.sessionRepo.GetBySessionID(persistCtx, sessionID)
+		latest, e := s.sessionRepo.GetBySessionID(sessionID)
 		if e == nil && latest != nil && latest.Status == model.ChatSessionStatusGenerating {
 			latest.Status = model.ChatSessionStatusActive
 			latest.UpdatedBy = user
-			if e := s.sessionRepo.Update(persistCtx, latest); e != nil {
-				logger.Warnf(persistCtx, "[WorkspaceChatStream] 恢复 active 失败: %v", e)
+			if e := s.sessionRepo.Update(latest); e != nil {
+				logger.Warnf(ctx, "[WorkspaceChatStream] 恢复 active 失败: %v", e)
 			}
 		}
 		finalStatus := ""
 		if e == nil && latest != nil && latest.Status == model.ChatSessionStatusCancelled {
 			finalStatus = RuntimeStateStatusCancelled
 		}
-		s.finishWorkspaceRuntimeState(persistCtx, runtimeStateKey, runtimeStateBase, err, finalStatus)
+		s.finishWorkspaceRuntimeState(context.Background(), runtimeStateKey, runtimeStateBase, err, finalStatus)
 	}()
 
 	llmConfigID := req.LLMConfigID
@@ -419,7 +329,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		}
 		userMsg.CreatedBy = user
 		userMsg.UpdatedBy = user
-		if e := s.messageRepo.Create(ctx, userMsg); e != nil {
+		if e := s.messageRepo.Create(userMsg); e != nil {
 			return s.handleError(sendEvent, "保存用户消息失败", e)
 		}
 		currentMessageID = userMsg.ID
@@ -440,7 +350,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		}
 		session.Title = title
 		session.UpdatedBy = user
-		if e := s.sessionRepo.Update(ctx, session); e != nil {
+		if e := s.sessionRepo.Update(session); e != nil {
 			logger.Warnf(ctx, "[WorkspaceChatStream] 更新会话标题失败: %v", e)
 		} else {
 			logger.Infof(ctx, "[WorkspaceChatStream] 会话标题已生成 - SessionID: %s, Title: %s", sessionID, title)
@@ -465,26 +375,6 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		service:              s,
 	}
 	return streamloop.RunStreamLoop(runCtx, deps)
-}
-
-func workspaceContextChildTreeID(children []dto.WorkspaceContextNode, resourceFullCodePath string) (int64, bool) {
-	resourceFullCodePath = normalizeWorkspacePath(resourceFullCodePath)
-	if resourceFullCodePath == "" {
-		return 0, false
-	}
-	for _, child := range children {
-		if normalizeWorkspacePath(child.FullCodePath) == resourceFullCodePath {
-			return child.ID, true
-		}
-	}
-	return 0, false
-}
-
-func workspaceRequestedResourcePath(resourceFullCodePath, fullCodePath string) string {
-	if resourcePath := normalizeWorkspacePath(resourceFullCodePath); resourcePath != "" {
-		return resourcePath
-	}
-	return workspaceSessionResourcePath(fullCodePath)
 }
 
 func workspaceContextWithSessionRequestUser(ctx context.Context, session *model.AgentChatSession) (context.Context, string) {

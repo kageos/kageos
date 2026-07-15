@@ -93,7 +93,6 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
   async function sendWorkspaceMessage(text: string, files: WorkspaceChatMessageFile[] | null, options: SendWorkspaceMessageOptions = {}): Promise<boolean> {
     const payload: WorkspaceChatReq = {
       full_code_path: fullCodePath.value,
-      resource_full_code_path: fullCodePath.value,
       message: {
         content: text || '',
         ...(options.displayText ? { display_content: options.displayText } : {}),

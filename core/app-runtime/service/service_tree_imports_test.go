@@ -139,7 +139,7 @@ func newServiceTreeTestService(basePath string) *WorkspaceChangeService {
 			BasePath: basePath,
 		},
 	}
-	return NewWorkspaceChangeService(cfg, nil, NewWorkspaceFileService(cfg), nil)
+	return NewWorkspaceChangeService(cfg, nil, NewWorkspaceFileService(cfg))
 }
 
 func newServiceTreeTestServiceWithAppManage(basePath string) *WorkspaceChangeService {
@@ -148,7 +148,7 @@ func newServiceTreeTestServiceWithAppManage(basePath string) *WorkspaceChangeSer
 			BasePath: basePath,
 		},
 	}
-	return NewWorkspaceChangeService(cfg, &AppManageService{config: cfg}, NewWorkspaceFileService(cfg), nil)
+	return NewWorkspaceChangeService(cfg, &AppManageService{config: cfg}, NewWorkspaceFileService(cfg))
 }
 
 func newPackageScaffoldTestService(basePath string) *PackageScaffoldService {
@@ -156,7 +156,7 @@ func newPackageScaffoldTestService(basePath string) *PackageScaffoldService {
 		AppDir: appconfig.AppDirConfig{
 			BasePath: basePath,
 		},
-	}, nil)
+	})
 }
 
 func newWorkspaceFileTestService(basePath string) *WorkspaceFileService {

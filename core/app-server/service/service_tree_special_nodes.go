@@ -11,7 +11,7 @@ func (s *ServiceTreeService) CreateDocs(ctx context.Context, req *dto.CreateDocs
 	if err != nil {
 		return nil, err
 	}
-	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(ctx, resp.FullCodePath))
+	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(resp.FullCodePath))
 	return resp, nil
 }
 
@@ -20,6 +20,6 @@ func (s *ServiceTreeService) CreateDocsNode(ctx context.Context, req *dto.Create
 	if err != nil {
 		return nil, err
 	}
-	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(ctx, resp.FullCodePath))
+	s.writeServiceTreeOperateLog(ctx, "service_tree.node.created", nil, s.getServiceTreeForAuditByPath(resp.FullCodePath))
 	return resp, nil
 }

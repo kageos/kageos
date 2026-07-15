@@ -98,7 +98,6 @@ func runSendNotificationTool(ctx context.Context, publisher toolMessagePublisher
 	if err != nil {
 		return toolResult("send_notification 构建消息失败: "+err.Error(), true)
 	}
-	msg.Header.Del(contextx.TokenHeader)
 	if err := publisher.PublishMsg(msg); err != nil {
 		return toolResult("send_notification 提交消息失败: "+err.Error(), true)
 	}
@@ -269,10 +268,8 @@ func buildNotifyMessageMeta(ctx context.Context, title string, currentFullCodePa
 		sourceType = contextx.SourceTypeAgentTool
 		sourceRef = workspaceSessionID
 	}
-	// 通知属于会话的具体资源节点；currentFullCodePath 只是工具执行目录，
-	// 不能覆盖函数级 source_path，否则移动端路由和后续统计都会落到父目录。
-	sourcePath := firstNonEmptyString(contextx.GetSourcePath(ctx), currentFullCodePath, contextx.GetSourceParentPath(ctx))
-	effectiveFullCodePath := sourcePath
+	effectiveFullCodePath := firstNonEmptyString(currentFullCodePath, contextx.GetSourcePath(ctx), contextx.GetSourceParentPath(ctx))
+	sourcePath := firstNonEmptyString(contextx.GetSourcePath(ctx), effectiveFullCodePath)
 	sourceTitle := firstNonEmptyString(
 		contextx.GetSourceTitle(ctx),
 		contextx.GetWorkspaceSessionTitle(ctx),

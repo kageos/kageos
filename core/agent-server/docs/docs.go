@@ -24,7 +24,149 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/agent/api/v1/llm-configs": {
+        "/agent/api/v1/llm/create": {
+            "post": {
+                "description": "创建新的LLM配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "LLM管理"
+                ],
+                "summary": "创建LLM配置",
+                "parameters": [
+                    {
+                        "description": "创建LLM配置请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.LLMCreateReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "创建成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.LLMCreateResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/llm/delete": {
+            "post": {
+                "description": "删除LLM配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "LLM管理"
+                ],
+                "summary": "删除LLM配置",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "LLM配置ID",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功"
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/llm/get": {
+            "get": {
+                "description": "根据ID获取LLM配置详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "LLM管理"
+                ],
+                "summary": "获取LLM配置详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "LLM配置ID",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.LLMGetResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/llm/get_default": {
+            "get": {
+                "description": "获取默认的LLM配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "LLM管理"
+                ],
+                "summary": "获取默认LLM配置",
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "$ref": "#/definitions/dto.LLMGetDefaultResp"
+                        }
+                    },
+                    "400": {
+                        "description": "未设置默认配置",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/api/v1/llm/list": {
             "get": {
                 "description": "获取所有LLM配置列表",
                 "consumes": [
@@ -69,9 +211,11 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
+            }
+        },
+        "/agent/api/v1/llm/set_default": {
             "post": {
-                "description": "创建新的LLM配置",
+                "description": "设置默认的LLM配置",
                 "consumes": [
                     "application/json"
                 ],
@@ -81,131 +225,19 @@ const docTemplate = `{
                 "tags": [
                     "LLM管理"
                 ],
-                "summary": "创建LLM配置",
-                "parameters": [
-                    {
-                        "description": "创建LLM配置请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.LLMCreateReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "创建成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.LLMCreateResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/agent/api/v1/llm-configs/default": {
-            "get": {
-                "description": "获取默认的LLM配置",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "LLM管理"
-                ],
-                "summary": "获取默认LLM配置",
-                "responses": {
-                    "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.LLMGetDefaultResp"
-                        }
-                    },
-                    "400": {
-                        "description": "未设置默认配置",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/agent/api/v1/llm-configs/probe": {
-            "post": {
-                "description": "根据当前表单内容发起最小请求，自动识别 OpenAI Chat、OpenAI Responses 或 Anthropic Messages",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "LLM管理"
-                ],
-                "summary": "检测 LLM 协议与密钥可用性",
-                "parameters": [
-                    {
-                        "description": "LLM 检测请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.LLMProbeReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "检测结果",
-                        "schema": {
-                            "$ref": "#/definitions/dto.LLMProbeResp"
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/agent/api/v1/llm-configs/{id}": {
-            "get": {
-                "description": "根据ID获取LLM配置详细信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "LLM管理"
-                ],
-                "summary": "获取LLM配置详情",
+                "summary": "设置默认LLM配置",
                 "parameters": [
                     {
                         "type": "integer",
                         "description": "LLM配置ID",
                         "name": "id",
-                        "in": "path",
+                        "in": "query",
                         "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "获取成功",
-                        "schema": {
-                            "$ref": "#/definitions/dto.LLMGetResp"
-                        }
+                        "description": "设置成功"
                     },
                     "400": {
                         "description": "请求参数错误",
@@ -214,8 +246,10 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
-            "put": {
+            }
+        },
+        "/agent/api/v1/llm/update": {
+            "post": {
                 "description": "更新LLM配置信息",
                 "consumes": [
                     "application/json"
@@ -252,74 +286,6 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
-            "delete": {
-                "description": "删除LLM配置",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "LLM管理"
-                ],
-                "summary": "删除LLM配置",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "LLM配置ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "删除成功"
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/agent/api/v1/llm-configs/{id}/default": {
-            "put": {
-                "description": "设置默认的LLM配置",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "LLM管理"
-                ],
-                "summary": "设置默认LLM配置",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "LLM配置ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "设置成功"
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
             }
         }
     },
@@ -344,27 +310,7 @@ const docTemplate = `{
                     "type": "string",
                     "example": "sk-xxx"
                 },
-                "api_version": {
-                    "type": "string",
-                    "example": "2023-06-01"
-                },
-                "auth_scheme": {
-                    "type": "string",
-                    "example": "bearer"
-                },
-                "capabilities": {
-                    "type": "string",
-                    "example": "{}"
-                },
-                "endpoint_path": {
-                    "type": "string",
-                    "example": "/v1/chat/completions"
-                },
                 "extra_config": {
-                    "type": "string",
-                    "example": "{}"
-                },
-                "headers": {
                     "type": "string",
                     "example": "{}"
                 },
@@ -383,14 +329,6 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "OpenAI GPT-4"
-                },
-                "protocol": {
-                    "type": "string",
-                    "example": "openai_chat_completions"
-                },
-                "provider": {
-                    "type": "string",
-                    "example": "openai"
                 },
                 "timeout": {
                     "type": "integer",
@@ -428,18 +366,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "sk-xxx"
                 },
-                "api_version": {
-                    "type": "string",
-                    "example": "2023-06-01"
-                },
-                "auth_scheme": {
-                    "type": "string",
-                    "example": "bearer"
-                },
-                "capabilities": {
-                    "type": "string",
-                    "example": "{}"
-                },
                 "code": {
                     "type": "string",
                     "example": "default"
@@ -448,10 +374,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
                 },
-                "endpoint_path": {
-                    "type": "string",
-                    "example": "/v1/chat/completions"
-                },
                 "extra_config": {
                     "type": "string",
                     "example": "{}"
@@ -459,10 +381,6 @@ const docTemplate = `{
                 "has_api_key": {
                     "type": "boolean",
                     "example": true
-                },
-                "headers": {
-                    "type": "string",
-                    "example": "{}"
                 },
                 "id": {
                     "type": "integer",
@@ -488,14 +406,6 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "OpenAI GPT-4"
-                },
-                "protocol": {
-                    "type": "string",
-                    "example": "openai_chat_completions"
-                },
-                "provider": {
-                    "type": "string",
-                    "example": "openai"
                 },
                 "timeout": {
                     "type": "integer",
@@ -528,18 +438,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "sk-xxx"
                 },
-                "api_version": {
-                    "type": "string",
-                    "example": "2023-06-01"
-                },
-                "auth_scheme": {
-                    "type": "string",
-                    "example": "bearer"
-                },
-                "capabilities": {
-                    "type": "string",
-                    "example": "{}"
-                },
                 "code": {
                     "type": "string",
                     "example": "default"
@@ -548,10 +446,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
                 },
-                "endpoint_path": {
-                    "type": "string",
-                    "example": "/v1/chat/completions"
-                },
                 "extra_config": {
                     "type": "string",
                     "example": "{}"
@@ -559,10 +453,6 @@ const docTemplate = `{
                 "has_api_key": {
                     "type": "boolean",
                     "example": true
-                },
-                "headers": {
-                    "type": "string",
-                    "example": "{}"
                 },
                 "id": {
                     "type": "integer",
@@ -588,14 +478,6 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "OpenAI GPT-4"
-                },
-                "protocol": {
-                    "type": "string",
-                    "example": "openai_chat_completions"
-                },
-                "provider": {
-                    "type": "string",
-                    "example": "openai"
                 },
                 "timeout": {
                     "type": "integer",
@@ -628,18 +510,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "sk-xxx"
                 },
-                "api_version": {
-                    "type": "string",
-                    "example": "2023-06-01"
-                },
-                "auth_scheme": {
-                    "type": "string",
-                    "example": "bearer"
-                },
-                "capabilities": {
-                    "type": "string",
-                    "example": "{}"
-                },
                 "code": {
                     "type": "string",
                     "example": "default"
@@ -648,10 +518,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
                 },
-                "endpoint_path": {
-                    "type": "string",
-                    "example": "/v1/chat/completions"
-                },
                 "extra_config": {
                     "type": "string",
                     "example": "{}"
@@ -659,10 +525,6 @@ const docTemplate = `{
                 "has_api_key": {
                     "type": "boolean",
                     "example": true
-                },
-                "headers": {
-                    "type": "string",
-                    "example": "{}"
                 },
                 "id": {
                     "type": "integer",
@@ -688,14 +550,6 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "OpenAI GPT-4"
-                },
-                "protocol": {
-                    "type": "string",
-                    "example": "openai_chat_completions"
-                },
-                "provider": {
-                    "type": "string",
-                    "example": "openai"
                 },
                 "timeout": {
                     "type": "integer",
@@ -727,133 +581,10 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.LLMProbeAttempt": {
-            "type": "object",
-            "properties": {
-                "api_base": {
-                    "type": "string"
-                },
-                "error": {
-                    "type": "string"
-                },
-                "ok": {
-                    "type": "boolean"
-                },
-                "protocol": {
-                    "type": "string"
-                },
-                "provider": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.LLMProbeReq": {
-            "type": "object",
-            "properties": {
-                "api_base": {
-                    "type": "string",
-                    "example": "https://api.openai.com/v1"
-                },
-                "api_key": {
-                    "type": "string",
-                    "example": "sk-xxx"
-                },
-                "api_version": {
-                    "type": "string",
-                    "example": "2023-06-01"
-                },
-                "auth_scheme": {
-                    "type": "string",
-                    "example": "bearer"
-                },
-                "endpoint_path": {
-                    "type": "string",
-                    "example": "/v1/responses"
-                },
-                "extra_config": {
-                    "type": "string",
-                    "example": "{}"
-                },
-                "headers": {
-                    "type": "string",
-                    "example": "{}"
-                },
-                "id": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "max_tokens": {
-                    "type": "integer",
-                    "example": 64
-                },
-                "model": {
-                    "type": "string",
-                    "example": "gpt-4.1-mini"
-                },
-                "protocol": {
-                    "type": "string",
-                    "example": "openai_responses"
-                },
-                "provider": {
-                    "type": "string",
-                    "example": "openai"
-                },
-                "timeout": {
-                    "type": "integer",
-                    "example": 30
-                }
-            }
-        },
-        "dto.LLMProbeResp": {
-            "type": "object",
-            "properties": {
-                "api_base": {
-                    "type": "string"
-                },
-                "api_version": {
-                    "type": "string"
-                },
-                "attempts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.LLMProbeAttempt"
-                    }
-                },
-                "auth_scheme": {
-                    "type": "string"
-                },
-                "capabilities": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "boolean"
-                    }
-                },
-                "endpoint_path": {
-                    "type": "string"
-                },
-                "error": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "model": {
-                    "type": "string"
-                },
-                "ok": {
-                    "type": "boolean"
-                },
-                "protocol": {
-                    "type": "string"
-                },
-                "provider": {
-                    "type": "string"
-                }
-            }
-        },
         "dto.LLMUpdateReq": {
             "type": "object",
             "required": [
+                "id",
                 "model",
                 "name"
             ],
@@ -871,29 +602,13 @@ const docTemplate = `{
                     "type": "string",
                     "example": "sk-xxx"
                 },
-                "api_version": {
-                    "type": "string",
-                    "example": "2023-06-01"
-                },
-                "auth_scheme": {
-                    "type": "string",
-                    "example": "bearer"
-                },
-                "capabilities": {
-                    "type": "string",
-                    "example": "{}"
-                },
-                "endpoint_path": {
-                    "type": "string",
-                    "example": "/v1/chat/completions"
-                },
                 "extra_config": {
                     "type": "string",
                     "example": "{}"
                 },
-                "headers": {
-                    "type": "string",
-                    "example": "{}"
+                "id": {
+                    "type": "integer",
+                    "example": 1
                 },
                 "is_default": {
                     "type": "boolean",
@@ -910,14 +625,6 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "OpenAI GPT-4"
-                },
-                "protocol": {
-                    "type": "string",
-                    "example": "openai_chat_completions"
-                },
-                "provider": {
-                    "type": "string",
-                    "example": "openai"
                 },
                 "timeout": {
                     "type": "integer",

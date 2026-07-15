@@ -45,7 +45,7 @@ export class TableGatewayImpl implements ITableGateway {
   loadRows(request: TableLoadRequest): Promise<TableListResponse> {
     const fullCodePath = toFullCodePath(requireFunctionRouter(request.functionDetail))
     return this.apiClient.get<TableListResponse>(
-      `/workspace/api/v1/tables${fullCodePath}`,
+      `/workspace/api/v1/table/search${fullCodePath}`,
       request.params
     )
   }
@@ -53,7 +53,7 @@ export class TableGatewayImpl implements ITableGateway {
   addRow(functionDetail: FunctionDetail, data: Record<string, unknown>): Promise<TableRow> {
     const fullCodePath = toFullCodePath(requireFunctionRouter(functionDetail))
     return this.apiClient.post<TableRow>(
-      `/workspace/api/v1/tables${fullCodePath}`,
+      `/workspace/api/v1/table/create${fullCodePath}`,
       data
     )
   }
@@ -61,7 +61,7 @@ export class TableGatewayImpl implements ITableGateway {
   updateRow(request: TableUpdateRequest): Promise<TableRow> {
     const fullCodePath = toFullCodePath(requireFunctionRouter(request.functionDetail))
     return this.apiClient.put<TableRow>(
-      `/workspace/api/v1/tables${fullCodePath}`,
+      `/workspace/api/v1/table/update${fullCodePath}`,
       buildUpdatePayload(request.id, request.data, request.oldData)
     )
   }
@@ -70,7 +70,7 @@ export class TableGatewayImpl implements ITableGateway {
     const fullCodePath = toFullCodePath(requireFunctionRouter(functionDetail))
     const ids = [typeof id === 'string' ? parseInt(id, 10) : id]
     await this.apiClient.delete<void>(
-      `/workspace/api/v1/tables${fullCodePath}`,
+      `/workspace/api/v1/table/delete${fullCodePath}`,
       { ids }
     )
   }

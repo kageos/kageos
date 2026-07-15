@@ -19,14 +19,14 @@ type QPSTracker struct {
 
 // VersionQPS 单个版本的 QPS 记录
 type VersionQPS struct {
-	User          string          `json:"user"`
-	App           string          `json:"app"`
-	Version       string          `json:"version"`
-	Requests      map[int64]int64 `json:"requests"`        // key: 秒级时间戳，value: 该秒请求数
-	ObservedAt    time.Time       `json:"observed_at"`     // 首次被清理器观察到的时间
-	LastRequestAt time.Time       `json:"last_request_at"` // 最近一次请求进入 runtime 的时间
-	LastQPS       float64         `json:"last_qps"`        // 最近一次计算的 QPS
-	LastCheck     time.Time       `json:"last_check"`      // 最后检查时间
+	User          string    `json:"user"`
+	App           string    `json:"app"`
+	Version       string    `json:"version"`
+	Requests      []int64   `json:"requests"`        // 时间戳数组，记录请求时间
+	ObservedAt    time.Time `json:"observed_at"`     // 首次被清理器观察到的时间
+	LastRequestAt time.Time `json:"last_request_at"` // 最近一次请求进入 runtime 的时间
+	LastQPS       float64   `json:"last_qps"`        // 最近一次计算的 QPS
+	LastCheck     time.Time `json:"last_check"`      // 最后检查时间
 	mu            sync.RWMutex
 }
 
@@ -54,17 +54,14 @@ func (q *QPSTracker) RecordRequest(user, app, version string) {
 			User:       user,
 			App:        app,
 			Version:    version,
-			Requests:   make(map[int64]int64),
+			Requests:   make([]int64, 0),
 			ObservedAt: now,
 		}
 		q.versionQPS[key] = vqps
 	}
 
 	vqps.mu.Lock()
-	if vqps.Requests == nil {
-		vqps.Requests = make(map[int64]int64)
-	}
-	vqps.Requests[nowUnix]++
+	vqps.Requests = append(vqps.Requests, nowUnix)
 	vqps.LastRequestAt = now
 	vqps.mu.Unlock()
 }
@@ -86,7 +83,7 @@ func (q *QPSTracker) ObserveVersion(user, app, version string) {
 		User:       user,
 		App:        app,
 		Version:    version,
-		Requests:   make(map[int64]int64),
+		Requests:   make([]int64, 0),
 		ObservedAt: now,
 	}
 }
@@ -152,16 +149,16 @@ func (q *QPSTracker) calculateQPS(vqps *VersionQPS) float64 {
 	windowStart := now - int64(q.windowSize.Seconds())
 
 	// 清理过期的请求记录
-	requestCount := int64(0)
-	for reqTime, count := range vqps.Requests {
-		if reqTime < windowStart {
-			delete(vqps.Requests, reqTime)
-			continue
+	validRequests := make([]int64, 0)
+	for _, reqTime := range vqps.Requests {
+		if reqTime >= windowStart {
+			validRequests = append(validRequests, reqTime)
 		}
-		requestCount += count
 	}
+	vqps.Requests = validRequests
 
 	// 计算 QPS
+	requestCount := len(validRequests)
 	windowSeconds := q.windowSize.Seconds()
 	qps := float64(requestCount) / windowSeconds
 
@@ -202,11 +199,13 @@ func (q *QPSTracker) cleanup() {
 	for key, vqps := range q.versionQPS {
 		vqps.mu.Lock()
 		// 清理过期的请求记录
-		for reqTime := range vqps.Requests {
-			if reqTime < windowStart {
-				delete(vqps.Requests, reqTime)
+		validRequests := make([]int64, 0)
+		for _, reqTime := range vqps.Requests {
+			if reqTime >= windowStart {
+				validRequests = append(validRequests, reqTime)
 			}
 		}
+		vqps.Requests = validRequests
 		lastActivity := vqps.LastRequestAt
 		if lastActivity.IsZero() {
 			lastActivity = vqps.ObservedAt
@@ -214,7 +213,7 @@ func (q *QPSTracker) cleanup() {
 		vqps.mu.Unlock()
 
 		// 如果长时间没有请求，删除记录
-		if len(vqps.Requests) == 0 && !lastActivity.IsZero() && time.Since(lastActivity) > q.windowSize*24 {
+		if len(validRequests) == 0 && !lastActivity.IsZero() && time.Since(lastActivity) > q.windowSize*24 {
 			delete(q.versionQPS, key)
 		}
 	}

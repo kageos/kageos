@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -18,23 +17,23 @@ func TestUserSessionRepositoryFiltersExpiredSessions(t *testing.T) {
 
 	expiredAt := models.Time(time.Now().Add(-time.Hour))
 	activeAt := models.Time(time.Now().Add(time.Hour))
-	if err := repo.CreateUserSession(context.Background(), 1, "expired-token", "expired-refresh", expiredAt, "", ""); err != nil {
+	if err := repo.CreateUserSession(1, "expired-token", "expired-refresh", expiredAt, "", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.CreateUserSession(context.Background(), 1, "active-token", "active-refresh", activeAt, "", ""); err != nil {
+	if err := repo.CreateUserSession(1, "active-token", "active-refresh", activeAt, "", ""); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := repo.GetUserSessionByToken(context.Background(), "expired-token"); !errors.Is(err, gorm.ErrRecordNotFound) {
+	if _, err := repo.GetUserSessionByToken("expired-token"); !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("expired access token err = %v, want record not found", err)
 	}
-	if _, err := repo.GetUserSessionByRefreshToken(context.Background(), "expired-refresh"); !errors.Is(err, gorm.ErrRecordNotFound) {
+	if _, err := repo.GetUserSessionByRefreshToken("expired-refresh"); !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("expired refresh token err = %v, want record not found", err)
 	}
-	if _, err := repo.GetUserSessionByToken(context.Background(), "active-token"); err != nil {
+	if _, err := repo.GetUserSessionByToken("active-token"); err != nil {
 		t.Fatalf("active access token should be returned: %v", err)
 	}
-	if _, err := repo.GetUserSessionByRefreshToken(context.Background(), "active-refresh"); err != nil {
+	if _, err := repo.GetUserSessionByRefreshToken("active-refresh"); err != nil {
 		t.Fatalf("active refresh token should be returned: %v", err)
 	}
 }
@@ -43,14 +42,14 @@ func TestUserSessionRepositoryDeletesExpiredSessions(t *testing.T) {
 	db := openUserSessionRepositoryTestDB(t)
 	repo := NewUserSessionRepository(db)
 
-	if err := repo.CreateUserSession(context.Background(), 1, "expired-token", "expired-refresh", models.Time(time.Now().Add(-time.Hour)), "", ""); err != nil {
+	if err := repo.CreateUserSession(1, "expired-token", "expired-refresh", models.Time(time.Now().Add(-time.Hour)), "", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.CreateUserSession(context.Background(), 1, "active-token", "active-refresh", models.Time(time.Now().Add(time.Hour)), "", ""); err != nil {
+	if err := repo.CreateUserSession(1, "active-token", "active-refresh", models.Time(time.Now().Add(time.Hour)), "", ""); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := repo.DeleteExpiredSessions(context.Background()); err != nil {
+	if err := repo.DeleteExpiredSessions(); err != nil {
 		t.Fatal(err)
 	}
 

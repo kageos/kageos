@@ -21,17 +21,17 @@ func (a *TeamAccess) ListMembers(c *gin.Context) {
 	resourcePath := access.NormalizeResourcePath(c.Query("resource_path"))
 	tenantUser, app, err := access.ParseUserApp(resourcePath)
 	if err != nil {
-		response.BadRequest(c, "resource_path 格式错误: "+err.Error())
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
 	if err := a.teamAccessService.Check(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath, access.ActionAdmin); err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	members, err := a.teamAccessService.ListMembers(ctx, tenantUser, app, resourcePath)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, "获取成员授权失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, dto.TeamMemberAccessResp{Members: members})
@@ -40,13 +40,13 @@ func (a *TeamAccess) ListMembers(c *gin.Context) {
 func (a *TeamAccess) Assign(c *gin.Context) {
 	var req dto.AssignTeamRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 	resourcePath := access.NormalizeResourcePath(req.ResourcePath)
 	tenantUser, app, err := access.ParseUserApp(resourcePath)
 	if err != nil {
-		response.BadRequest(c, "resource_path 格式错误: "+err.Error())
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
@@ -59,7 +59,7 @@ func (a *TeamAccess) Assign(c *gin.Context) {
 		ExpiresAt:    req.ExpiresAt,
 		CreatedBy:    contextx.GetRequestUser(ctx),
 	}); err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, "授权失败: "+err.Error())
 		return
 	}
 	response.Ok(c)
@@ -68,27 +68,27 @@ func (a *TeamAccess) Assign(c *gin.Context) {
 func (a *TeamAccess) BatchAssign(c *gin.Context) {
 	var req dto.BatchAssignTeamRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 	if len(req.ResourcePaths) == 0 {
-		response.BadRequest(c, "resource_paths 不能为空")
+		response.FailWithMessage(c, "resource_paths 不能为空")
 		return
 	}
 	firstPath := access.NormalizeResourcePath(req.ResourcePaths[0])
 	tenantUser, app, err := access.ParseUserApp(firstPath)
 	if err != nil {
-		response.BadRequest(c, "resource_path 格式错误: "+err.Error())
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	for _, resourcePath := range req.ResourcePaths {
 		pathTenant, pathApp, err := access.ParseUserApp(resourcePath)
 		if err != nil {
-			response.BadRequest(c, "resource_path 格式错误: "+err.Error())
+			response.FailWithMessage(c, err.Error())
 			return
 		}
 		if pathTenant != tenantUser || pathApp != app {
-			response.BadRequest(c, "批量授权暂不支持跨 workspace")
+			response.FailWithMessage(c, "批量授权暂不支持跨 workspace")
 			return
 		}
 	}
@@ -102,7 +102,7 @@ func (a *TeamAccess) BatchAssign(c *gin.Context) {
 		ExpiresAt:     req.ExpiresAt,
 		CreatedBy:     contextx.GetRequestUser(ctx),
 	}); err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, "批量授权失败: "+err.Error())
 		return
 	}
 	response.Ok(c)
@@ -111,13 +111,13 @@ func (a *TeamAccess) BatchAssign(c *gin.Context) {
 func (a *TeamAccess) Remove(c *gin.Context) {
 	var req dto.RemoveTeamRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "参数错误: "+err.Error())
+		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
 	}
 	resourcePath := access.NormalizeResourcePath(req.ResourcePath)
 	tenantUser, app, err := access.ParseUserApp(resourcePath)
 	if err != nil {
-		response.BadRequest(c, "resource_path 格式错误: "+err.Error())
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
@@ -129,7 +129,7 @@ func (a *TeamAccess) Remove(c *gin.Context) {
 		RoleCode:     req.RoleCode,
 		Actor:        contextx.GetRequestUser(ctx),
 	}); err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, "移除授权失败: "+err.Error())
 		return
 	}
 	response.Ok(c)
@@ -139,13 +139,13 @@ func (a *TeamAccess) MyPermissions(c *gin.Context) {
 	resourcePath := access.NormalizeResourcePath(c.Query("resource_path"))
 	tenantUser, app, err := access.ParseUserApp(resourcePath)
 	if err != nil {
-		response.BadRequest(c, "resource_path 格式错误: "+err.Error())
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	ctx := contextx.ToContext(c)
 	result, err := a.teamAccessService.Resolve(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath)
 	if err != nil {
-		response.Error(c, err)
+		response.FailWithMessage(c, "获取当前用户权限失败: "+err.Error())
 		return
 	}
 	response.OkWithData(c, dto.MyPermissionsResp{

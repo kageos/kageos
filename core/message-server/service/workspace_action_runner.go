@@ -14,7 +14,6 @@ import (
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/contextx"
-	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/serviceconfig"
 )
@@ -26,20 +25,12 @@ const (
 
 type WorkspaceActionRequest struct {
 	RecipientUser         string
-	UserID                string
-	UserEmail             string
-	LeaderUsername        string
-	DepartmentFullPath    string
-	CompanyCode           string
-	CompanyName           string
-	CompanyLogoURL        string
 	Channel               string
 	FullCodePath          string
 	SessionID             string
 	ThreadKey             string
 	Content               string
 	DisplayContent        string
-	Files                 string
 	OriginalTitle         string
 	TraceID               string
 	SourceRef             string
@@ -60,12 +51,11 @@ type WorkspaceActionSubmitResult struct {
 type WorkspaceActionRunner struct {
 	baseURL      string
 	client       *http.Client
-	signer       *controlauth.Signer
 	startTimeout time.Duration
 	runTimeout   time.Duration
 }
 
-func NewWorkspaceActionRunner(baseURL string, signer *controlauth.Signer) *WorkspaceActionRunner {
+func NewWorkspaceActionRunner(baseURL string) *WorkspaceActionRunner {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
 		baseURL = serviceconfig.GetGatewayURL()
@@ -74,12 +64,8 @@ func NewWorkspaceActionRunner(baseURL string, signer *controlauth.Signer) *Works
 		baseURL: baseURL,
 		client: &http.Client{
 			Timeout: 0,
-			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
 		},
-		signer:       signer,
-		startTimeout: 30 * time.Second,
+		startTimeout: 8 * time.Second,
 		runTimeout:   30 * time.Minute,
 	}
 }
@@ -102,12 +88,11 @@ func (r *WorkspaceActionRunner) Submit(ctx context.Context, req WorkspaceActionR
 	}
 
 	started := make(chan workspaceActionStartResult, 1)
-	runCtx, cancelRun := newWorkspaceActionRunContext(ctx)
-	go r.run(runCtx, req, started)
+	go r.run(req, started)
 
 	timeout := r.startTimeout
 	if timeout <= 0 {
-		timeout = 30 * time.Second
+		timeout = 8 * time.Second
 	}
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
@@ -115,26 +100,15 @@ func (r *WorkspaceActionRunner) Submit(ctx context.Context, req WorkspaceActionR
 	select {
 	case result := <-started:
 		if result.err != nil {
-			cancelRun()
 			return nil, result.err
-		}
-		if strings.TrimSpace(result.sessionID) == "" {
-			cancelRun()
-			return nil, fmt.Errorf("工作台没有返回有效会话")
 		}
 		return &WorkspaceActionSubmitResult{SessionID: result.sessionID, Accepted: true}, nil
 	case <-ctx.Done():
-		cancelRun()
 		return nil, ctx.Err()
 	case <-timer.C:
-		cancelRun()
 		logger.Warnf(ctx, "[WorkspaceActionRunner] 等待工作台会话启动超时 full_code_path=%s user=%s", req.FullCodePath, req.RecipientUser)
-		return nil, fmt.Errorf("等待工作台创建会话超时")
+		return &WorkspaceActionSubmitResult{Accepted: true}, nil
 	}
-}
-
-func newWorkspaceActionRunContext(parent context.Context) (context.Context, context.CancelFunc) {
-	return context.WithCancel(context.WithoutCancel(parent))
 }
 
 type workspaceActionStartResult struct {
@@ -142,88 +116,36 @@ type workspaceActionStartResult struct {
 	err       error
 }
 
-func (r *WorkspaceActionRunner) run(parent context.Context, req WorkspaceActionRequest, started chan<- workspaceActionStartResult) {
+func (r *WorkspaceActionRunner) run(req WorkspaceActionRequest, started chan<- workspaceActionStartResult) {
 	runTimeout := r.runTimeout
 	if runTimeout <= 0 {
 		runTimeout = 30 * time.Minute
 	}
-	ctx, cancel := context.WithTimeout(parent, runTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 	defer cancel()
 
 	signalStarted := workspaceActionStartSignaler(started)
-	runAttempt := func(attemptReq WorkspaceActionRequest) (bool, error, error) {
-		attemptStarted := false
-		var attemptStartErr error
-		runErr := r.runAttempt(ctx, attemptReq, func(sessionID string, startErr error) {
-			if strings.TrimSpace(sessionID) != "" {
-				attemptStarted = true
-				signalStarted(sessionID, nil)
-				return
-			}
-			if startErr != nil && attemptStartErr == nil {
-				attemptStartErr = startErr
-			}
-		})
-		return attemptStarted, attemptStartErr, runErr
-	}
-
-	attemptStarted, attemptStartErr, runErr := runAttempt(req)
-	if attemptStarted {
-		if runErr != nil {
-			logger.Errorf(ctx, "[WorkspaceActionRunner] 工作台执行流失败 user=%s full_code_path=%s err=%v", req.RecipientUser, req.FullCodePath, runErr)
-		}
-		return
-	}
-	if strings.TrimSpace(req.SessionID) != "" && isRetryableWorkspaceSessionStartError(attemptStartErr, runErr) {
-		logger.Infof(ctx, "[WorkspaceActionRunner] 原会话不可续接，回退创建新会话 user=%s session_id=%s", req.RecipientUser, req.SessionID)
-		req.SessionID = ""
-		attemptStarted, attemptStartErr, runErr = runAttempt(req)
-		if attemptStarted {
-			if runErr != nil {
-				logger.Errorf(ctx, "[WorkspaceActionRunner] 新会话执行流失败 user=%s full_code_path=%s err=%v", req.RecipientUser, req.FullCodePath, runErr)
-			}
-			return
-		}
-	}
-	if attemptStartErr != nil {
-		signalStarted("", attemptStartErr)
-		return
-	}
-	if runErr != nil {
-		signalStarted("", runErr)
-		return
-	}
-	signalStarted("", fmt.Errorf("工作台未返回会话事件"))
-}
-
-func (r *WorkspaceActionRunner) runAttempt(ctx context.Context, req WorkspaceActionRequest, signalStarted func(string, error)) error {
 	requestBody := dto.WorkspaceChatReq{
-		FullCodePath:         req.FullCodePath,
-		ResourceFullCodePath: strings.TrimSpace(req.SourcePath),
-		SessionID:            strings.TrimSpace(req.SessionID),
+		FullCodePath: req.FullCodePath,
+		SessionID:    strings.TrimSpace(req.SessionID),
 		Message: dto.WorkspaceMsg{
 			Content:        req.Content,
 			DisplayContent: strings.TrimSpace(req.DisplayContent),
-			Files:          strings.TrimSpace(req.Files),
 			ContextUsage:   dto.WorkspaceMessageContextCurrentTurn,
 		},
 	}
 	body, err := json.Marshal(requestBody)
 	if err != nil {
-		return fmt.Errorf("序列化工作台请求失败: %w", err)
+		signalStarted("", fmt.Errorf("序列化工作台请求失败: %w", err))
+		return
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, r.chatStreamURL(), bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("创建工作台请求失败: %w", err)
+		signalStarted("", fmt.Errorf("创建工作台请求失败: %w", err))
+		return
 	}
 	applyWorkspaceActionHeaders(httpReq, req)
-	if r.signer == nil {
-		return fmt.Errorf("提交工作台失败: internal request signer is not configured")
-	}
-	if err := controlauth.SignHTTPRequest(httpReq, body, workspaceActionSignedHeaders(), r.signer); err != nil {
-		return fmt.Errorf("提交工作台失败: sign internal request: %w", err)
-	}
 
 	client := r.client
 	if client == nil {
@@ -231,37 +153,19 @@ func (r *WorkspaceActionRunner) runAttempt(ctx context.Context, req WorkspaceAct
 	}
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		return fmt.Errorf("提交工作台失败: %w", err)
+		signalStarted("", fmt.Errorf("提交工作台失败: %w", err))
+		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("提交工作台失败: HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(bodyBytes)))
+		signalStarted("", fmt.Errorf("提交工作台失败: HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(bodyBytes))))
+		return
 	}
 
-	return readWorkspaceActionStream(ctx, resp.Body, signalStarted)
-}
-
-func isRetryableWorkspaceSessionStartError(startErr, runErr error) bool {
-	message := ""
-	if startErr != nil {
-		message += startErr.Error()
+	if err := readWorkspaceActionStream(ctx, resp.Body, signalStarted); err != nil {
+		logger.Errorf(ctx, "[WorkspaceActionRunner] 工作台执行流失败 user=%s full_code_path=%s err=%v", req.RecipientUser, req.FullCodePath, err)
 	}
-	if runErr != nil {
-		message += " " + runErr.Error()
-	}
-	for _, marker := range []string{"会话不存在", "不能操作其他用户的会话", "无权操作", "该会话正在执行中"} {
-		if strings.Contains(message, marker) {
-			return true
-		}
-	}
-	return false
-}
-
-func workspaceActionSignedHeaders() []string {
-	names := contextx.TrustedIdentityHeaderNames()
-	names = append(names, contextx.TraceIdHeader)
-	return names
 }
 
 func (r *WorkspaceActionRunner) chatStreamURL() string {
@@ -275,13 +179,6 @@ func (r *WorkspaceActionRunner) chatStreamURL() string {
 func applyWorkspaceActionHeaders(httpReq *http.Request, req WorkspaceActionRequest) {
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set(contextx.RequestUserHeader, strings.TrimSpace(req.RecipientUser))
-	setHeaderIfNotEmpty(httpReq, contextx.UserIDHeader, req.UserID)
-	setHeaderIfNotEmpty(httpReq, contextx.UserEmailHeader, req.UserEmail)
-	setHeaderIfNotEmpty(httpReq, contextx.LeaderUsernameHeader, req.LeaderUsername)
-	setHeaderIfNotEmpty(httpReq, contextx.DepartmentFullPathHeader, req.DepartmentFullPath)
-	setHeaderIfNotEmpty(httpReq, contextx.CompanyCodeHeader, req.CompanyCode)
-	setHeaderIfNotEmpty(httpReq, contextx.CompanyNameHeader, req.CompanyName)
-	setHeaderIfNotEmpty(httpReq, contextx.CompanyLogoURLHeader, req.CompanyLogoURL)
 	httpReq.Header.Set(contextx.ClientSourceHeader, WorkspaceActionClientSource)
 	httpReq.Header.Set(contextx.SourceTypeHeader, WorkspaceActionSourceType)
 	setHeaderIfNotEmpty(httpReq, contextx.TraceIdHeader, req.TraceID)

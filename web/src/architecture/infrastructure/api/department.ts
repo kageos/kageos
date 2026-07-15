@@ -113,7 +113,7 @@ export function getDepartmentTree(forceRefresh: boolean = false): Promise<GetDep
   }
   
   // 创建新的加载 Promise
-	departmentTreeLoadingPromise = get<GetDepartmentTreeResp>('/hr/api/v1/departments/tree')
+  departmentTreeLoadingPromise = get<GetDepartmentTreeResp>('/hr/api/v1/department/tree')
     .then(response => {
       departmentTreeCache = response
       departmentTreeCacheTime = now
@@ -132,7 +132,7 @@ export function getDepartmentTree(forceRefresh: boolean = false): Promise<GetDep
  * 根据ID获取部门详情
  */
 export function getDepartmentById(id: number) {
-	return get<GetDepartmentResp>(`/hr/api/v1/departments/${id}`)
+  return get<GetDepartmentResp>(`/hr/api/v1/department/${id}`)
 }
 
 /**
@@ -197,21 +197,21 @@ export function getDepartmentsByPaths(fullCodePaths: string[]): Promise<GetDepar
  * 创建部门
  */
 export function createDepartment(data: CreateDepartmentReq) {
-	return post<CreateDepartmentResp>('/hr/api/v1/departments', data)
+  return post<CreateDepartmentResp>('/hr/api/v1/department', data)
 }
 
 /**
  * 更新部门
  */
 export function updateDepartment(id: number, data: UpdateDepartmentReq) {
-	return put<UpdateDepartmentResp>(`/hr/api/v1/departments/${id}`, data)
+  return put<UpdateDepartmentResp>(`/hr/api/v1/department/${id}`, data)
 }
 
 /**
  * 删除部门
  */
 export function deleteDepartment(id: number) {
-	return del(`/hr/api/v1/departments/${id}`)
+  return del(`/hr/api/v1/department/${id}`)
 }
 
 // ==================== 用户分配 API ====================
@@ -220,7 +220,7 @@ export function deleteDepartment(id: number) {
  * 分配用户组织架构（部门和 Leader）
  */
 export function assignUser(data: AssignUserReq) {
-	return post<AssignUserResp>('/hr/api/v1/users/assignments', data)
+  return post<AssignUserResp>('/hr/api/v1/user/assign', data)
 }
 
 
@@ -232,7 +232,8 @@ export interface GetUsersByDepartmentResp {
 }
 
 export function getUsersByDepartment(departmentFullPath: string) {
-	return get<GetUsersByDepartmentResp>('/hr/api/v1/users/by-department', {
+  return get<GetUsersByDepartmentResp>('/hr/api/v1/user/department', {
     department_full_path: departmentFullPath
   })
 }
+

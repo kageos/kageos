@@ -42,11 +42,19 @@ export function executeFunction(method: string, router: string, params?: SearchP
   
   // ⭐ 根据 template_type 选择标准 API
   if (templateType === 'table') {
-    return get<unknown>(`/workspace/api/v1/tables${fullCodePath}`, params || {})
+    // Table 查询：使用 /table/search/{full-code-path}
+    return get<unknown>(`/workspace/api/v1/table/search${fullCodePath}`, params || {})
   } else if (templateType === 'form') {
-    return post<unknown>(`/workspace/api/v1/form-submissions${fullCodePath}`, params || {})
+    // Form 提交：使用 /form/submit/{full-code-path}
+    const submitMethod = method.toUpperCase() || 'POST'
+    if (submitMethod === 'GET') {
+      return get<unknown>(`/workspace/api/v1/form/submit${fullCodePath}`, params || {})
+    } else {
+      return post<unknown>(`/workspace/api/v1/form/submit${fullCodePath}`, params || {})
+    }
   } else if (templateType === 'chart') {
-    return get<unknown>(`/workspace/api/v1/charts${fullCodePath}`, params || {})
+    // Chart 查询：使用 /chart/query/{full-code-path}
+    return get<unknown>(`/workspace/api/v1/chart/query${fullCodePath}`, params || {})
   }
 
   throw new Error('executeFunction 缺少合法的 templateType，/run 兼容接口已下线')
@@ -54,22 +62,25 @@ export function executeFunction(method: string, router: string, params?: SearchP
 
 // ⭐ Table 回调操作 - 新增记录（使用标准 API）
 export function tableAddRow(method: string, router: string, data: Record<string, unknown>): Promise<unknown> {
+  // ⭐ 使用标准 API：/table/create/{full-code-path}
   const fullCodePath = router.startsWith('/') ? router : `/${router}`
-  const url = `/workspace/api/v1/tables${fullCodePath}`
+  const url = `/workspace/api/v1/table/create${fullCodePath}`
   return post(url, data)
 }
 
 // ⭐ Table 回调操作 - 更新记录（使用标准 API）
 export function tableUpdateRow(method: string, router: string, data: Record<string, unknown>): Promise<unknown> {
+  // ⭐ 使用标准 API：/table/update/{full-code-path}
   const fullCodePath = router.startsWith('/') ? router : `/${router}`
-  const url = `/workspace/api/v1/tables${fullCodePath}`
+  const url = `/workspace/api/v1/table/update${fullCodePath}`
   return put(url, data)
 }
 
 // ⭐ Table 回调操作 - 删除记录（使用标准 API）
 export function tableDeleteRows(method: string, router: string, ids: number[]) {
+  // ⭐ 使用标准 API：/table/delete/{full-code-path}
   const fullCodePath = router.startsWith('/') ? router : `/${router}`
-  const url = `/workspace/api/v1/tables${fullCodePath}`
+  const url = `/workspace/api/v1/table/delete${fullCodePath}`
   const data = { ids }
   return del(url, data)  // DELETE 请求带 body
 }
@@ -142,16 +153,16 @@ export async function selectFuzzy(method: string, router: string, data: {
   if (publicShareId) {
     await ensurePublicAnonymousToken()
     return post<SelectFuzzyResponse>(
-      `/public/api/s/${publicShareId}/selection-options`,
+      `/public/api/s/${publicShareId}/callback/on_select_fuzzy`,
       data,
       { headers: publicShareAnonymousHeaders() }
     )
   }
 
-  // ⭐ 使用标准 API：/selection-options/{full-code-path}
+  // ⭐ 使用标准 API：/callback/on_select_fuzzy/{full-code-path}
   // router 格式：/luobei/app/dir/func，需要确保以 / 开头
   const fullCodePath = router.startsWith('/') ? router : `/${router}`
-  const url = `/workspace/api/v1/selection-options${fullCodePath}`
+  const url = `/workspace/api/v1/callback/on_select_fuzzy${fullCodePath}`
 
   // 统一使用 POST 方法
   return post<SelectFuzzyResponse>(url, data)

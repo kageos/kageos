@@ -84,52 +84,6 @@ describe('useMiniWorkstationSessionView', () => {
     expect(api.getSessionDirectoryPath(createSession({
       full_code_path: '/luobei/app/sales/customers'
     }))).toBe('sales / customers')
-
-    expect(api.getSessionDirectoryPath(createSession({
-      full_code_path: '/luobei/app/site_monitor',
-      resource_full_code_path: '/luobei/app/site_monitor/sweep.form',
-      resource_name: '网站巡检'
-    }))).toBe('网站巡检')
-  })
-
-  it('matches the current function by resource association while keeping directory execution paths', () => {
-    const { api } = createHarness({
-      fullCodePath: '/luobei/app/site_monitor/sweep.form',
-      mini: [
-        createSession({
-          session_id: 'sweep',
-          full_code_path: '/luobei/app/site_monitor',
-          resource_full_code_path: '/luobei/app/site_monitor/sweep.form'
-        }),
-        createSession({
-          session_id: 'report',
-          full_code_path: '/luobei/app/site_monitor',
-          resource_full_code_path: '/luobei/app/site_monitor/report.form'
-        })
-      ]
-    })
-
-    expect(api.currentOutputSessionList.value.map(item => item.session_id)).toEqual(['sweep'])
-  })
-
-  it('aggregates resource sessions when the current context is their package directory', () => {
-    const { api } = createHarness({
-      fullCodePath: '/luobei/app/site_monitor',
-      mini: [
-        createSession({
-          session_id: 'sweep',
-          full_code_path: '/luobei/app/site_monitor',
-          resource_full_code_path: '/luobei/app/site_monitor/sweep.form'
-        }),
-        createSession({
-          session_id: 'report',
-          full_code_path: '/luobei/app/site_monitor',
-          resource_full_code_path: '/luobei/app/site_monitor/report.form'
-        })
-      ]
-    })
-
-    expect(api.currentOutputSessionList.value.map(item => item.session_id)).toEqual(['sweep', 'report'])
   })
 
   it('classifies session status for running, waiting, output and done buckets', () => {

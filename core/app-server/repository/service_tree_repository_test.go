@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"testing"
 
 	"github.com/kageos/kageos/core/app-server/model"
@@ -41,7 +40,7 @@ func TestBuildTreeFromNodesDedupesFullCodePath(t *testing.T) {
 		AppID:        1,
 	}
 
-	roots := repo.buildTreeFromNodes(context.Background(), []*model.ServiceTree{root, firstMessage, duplicateMessage, send})
+	roots := repo.buildTreeFromNodes([]*model.ServiceTree{root, firstMessage, duplicateMessage, send})
 
 	if len(roots) != 1 {
 		t.Fatalf("expected one root, got %d", len(roots))

@@ -1,20 +1,6 @@
 package dto
 
-type DepartmentInfo struct {
-	ID              int64             `json:"id"`
-	Name            string            `json:"name"`
-	Code            string            `json:"code"`
-	ParentID        *int64            `json:"parent_id"`
-	FullCodePath    string            `json:"full_code_path"`
-	FullNamePath    string            `json:"full_name_path"`
-	Managers        string            `json:"managers"`
-	Description     string            `json:"description"`
-	Status          string            `json:"status"`
-	Sort            int               `json:"sort"`
-	IsSystemDefault bool              `json:"is_system_default"`
-	Parent          *DepartmentInfo   `json:"parent,omitempty"`
-	Children        []*DepartmentInfo `json:"children,omitempty"`
-}
+import "github.com/kageos/kageos/core/hr-server/model"
 
 // CreateDepartmentReq 创建部门请求
 type CreateDepartmentReq struct {
@@ -27,7 +13,7 @@ type CreateDepartmentReq struct {
 
 // CreateDepartmentResp 创建部门响应
 type CreateDepartmentResp struct {
-	Department *DepartmentInfo `json:"department"` // 部门信息
+	Department *model.Department `json:"department"` // 部门信息
 }
 
 // UpdateDepartmentReq 更新部门请求
@@ -41,17 +27,17 @@ type UpdateDepartmentReq struct {
 
 // UpdateDepartmentResp 更新部门响应
 type UpdateDepartmentResp struct {
-	Department *DepartmentInfo `json:"department"` // 部门信息
+	Department *model.Department `json:"department"` // 部门信息
 }
 
 // GetDepartmentTreeResp 获取部门树响应
 type GetDepartmentTreeResp struct {
-	Departments []*DepartmentInfo `json:"departments"` // 部门树
+	Departments []*model.Department `json:"departments"` // 部门树
 }
 
 // GetDepartmentResp 获取部门响应
 type GetDepartmentResp struct {
-	Department *DepartmentInfo `json:"department"` // 部门信息
+	Department *model.Department `json:"department"` // 部门信息
 }
 
 // AssignUserReq 分配用户组织架构请求
@@ -83,5 +69,5 @@ type GetDepartmentsByPathsReq struct {
 
 // GetDepartmentsByPathsResp 批量获取部门响应
 type GetDepartmentsByPathsResp struct {
-	Departments []*DepartmentInfo `json:"departments"` // 部门列表
+	Departments []*model.Department `json:"departments"` // 部门列表
 }

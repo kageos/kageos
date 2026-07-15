@@ -8,6 +8,10 @@ definitions:
         maxItems: 100
         minItems: 1
         type: array
+      upload_source:
+        allOf:
+        - $ref: '#/definitions/dto.UploadSource'
+        description: ✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser
     required:
     - files
     type: object
@@ -179,6 +183,10 @@ definitions:
       router:
         description: 函数路径，例如：luobei/test88888/cashier/cashier_desk.form（可选，未提供时使用默认路由：/{username}/default）
         type: string
+      upload_source:
+        allOf:
+        - $ref: '#/definitions/dto.UploadSource'
+        description: ✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser
     required:
     - file_name
     type: object
@@ -211,6 +219,10 @@ definitions:
       ref:
         description: 稳定文件引用：bucket/object_key
         type: string
+      sdk_config:
+        additionalProperties: true
+        description: SDK 上传配置（服务端上传时使用；method 仍为 presigned_url）
+        type: object
       server_download_url:
         description: ✨ 内部访问的下载地址（服务端/SDK使用）
         type: string
@@ -368,6 +380,20 @@ definitions:
     - 预签名 URL（当前官方实际使用）
     x-enum-varnames:
     - UploadMethodPresignedURL
+  dto.UploadSource:
+    enum:
+    - browser
+    - server
+    type: string
+    x-enum-comments:
+      UploadSourceBrowser: 浏览器上传
+      UploadSourceServer: 服务端上传（容器内SDK）
+    x-enum-descriptions:
+    - 浏览器上传
+    - 服务端上传（容器内SDK）
+    x-enum-varnames:
+    - UploadSourceBrowser
+    - UploadSourceServer
 host: localhost:9092
 info:
   contact: {}
@@ -378,7 +404,7 @@ info:
   title: Kageos Storage API
   version: "1.0"
 paths:
-  /storage/api/v1/batch-delete:
+  /storage/api/v1/batch_delete:
     post:
       consumes:
       - application/json
@@ -408,7 +434,7 @@ paths:
       summary: 删除函数路径下的所有文件
       tags:
       - 存储管理
-  /storage/api/v1/batch-upload-complete:
+  /storage/api/v1/batch_upload_complete:
     post:
       consumes:
       - application/json
@@ -438,7 +464,7 @@ paths:
       summary: 批量上传完成通知
       tags:
       - 存储管理
-  /storage/api/v1/batch-upload-token:
+  /storage/api/v1/batch_upload_token:
     post:
       consumes:
       - application/json
@@ -643,7 +669,7 @@ paths:
       summary: 获取存储统计信息
       tags:
       - 存储管理
-  /storage/api/v1/upload-complete:
+  /storage/api/v1/upload_complete:
     post:
       consumes:
       - application/json
@@ -673,7 +699,7 @@ paths:
       summary: 上传完成通知
       tags:
       - 存储管理
-  /storage/api/v1/upload-token:
+  /storage/api/v1/upload_token:
     post:
       consumes:
       - application/json

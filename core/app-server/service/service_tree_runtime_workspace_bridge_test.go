@@ -121,7 +121,7 @@ func createRuntimeWorkspaceBridgeTestApp(t *testing.T, appRepo *repository.AppRe
 		Name:   "Demo",
 		HostID: hostID,
 	}
-	if err := appRepo.CreateApp(context.Background(), app); err != nil {
+	if err := appRepo.CreateApp(app); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
 	return app
@@ -129,7 +129,7 @@ func createRuntimeWorkspaceBridgeTestApp(t *testing.T, appRepo *repository.AppRe
 
 func TestRuntimeWorkspaceBridgeBatchWriteFilesUsesRuntimeBoundHost(t *testing.T) {
 	appRepo := newRuntimeWorkspaceBridgeTestRepo(t)
-	if err := appRepo.GetDB(context.Background()).Create(&model.App{
+	if err := appRepo.GetDB().Create(&model.App{
 		User:   "alice",
 		Code:   "demo",
 		Name:   "Demo",
@@ -181,7 +181,7 @@ func TestRuntimeWorkspaceBridgeBatchWriteFilesUsesRuntimeBoundHost(t *testing.T)
 
 func TestRuntimeWorkspaceBridgeBatchWriteFilesRequiresRuntimeBinding(t *testing.T) {
 	appRepo := newRuntimeWorkspaceBridgeTestRepo(t)
-	if err := appRepo.GetDB(context.Background()).Create(&model.App{
+	if err := appRepo.GetDB().Create(&model.App{
 		User: "alice",
 		Code: "demo",
 		Name: "Demo",

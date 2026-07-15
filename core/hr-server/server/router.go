@@ -29,7 +29,7 @@ func (s *Server) setupRoutes() {
 	// 认证相关路由（不需要JWT验证）
 	auth := apiV1.Group("/auth")
 	authHandler := v1.NewAuth(s.authService, s.authOAuthService, s.emailService, s.settingsService, s.userService, s.departmentService)
-	auth.POST("/send-email-code", authHandler.SendEmailCode)
+	auth.POST("/send_email_code", authHandler.SendEmailCode)
 	auth.POST("/register", authHandler.Register)
 	auth.GET("/companies/search", authHandler.SearchCompanies)
 	auth.GET("/oauth/registration/:ticket", authHandler.GetOAuthRegistrationIntent)
@@ -39,21 +39,21 @@ func (s *Server) setupRoutes() {
 	auth.POST("/login", authHandler.Login)
 	auth.POST("/refresh", authHandler.RefreshToken)
 	auth.POST("/logout", authHandler.Logout)
-	auth.POST("/forgot-password", authHandler.ForgotPassword)
+	auth.POST("/forgot_password", authHandler.ForgotPassword)
 	authProviderHandler := v1.NewAuthLoginProvider(s.authProviderService)
 	auth.GET("/methods", authProviderHandler.PublicMethods)
 
 	// 用户管理路由（需要JWT验证）
-	users := apiV1.Group("/users")
-	users.Use(middleware2.JWTAuth()) // 用户管理需要JWT认证
+	user := apiV1.Group("/user")
+	user.Use(middleware2.JWTAuth()) // 用户管理需要JWT认证
 	userHandler := v1.NewUser(s.userService, s.departmentService)
-	users.GET("/me", userHandler.GetUserInfo)
-	users.GET("/query", userHandler.QueryUser)
-	users.GET("/search", userHandler.SearchUsersFuzzy)
-	users.PUT("/me", userHandler.UpdateUser)
-	users.GET("/openapi-tokens", userHandler.ListOpenAPITokens)
-	users.POST("/openapi-tokens", userHandler.CreateOpenAPIToken)
-	users.DELETE("/openapi-tokens", userHandler.RevokeOpenAPIToken)
+	user.GET("/info", userHandler.GetUserInfo)
+	user.GET("/query", userHandler.QueryUser)
+	user.GET("/search_fuzzy", userHandler.SearchUsersFuzzy)
+	user.PUT("/update", userHandler.UpdateUser)
+	user.GET("/openapi_tokens", userHandler.ListOpenAPITokens)
+	user.POST("/openapi_tokens", userHandler.CreateOpenAPIToken)
+	user.POST("/openapi_tokens/revoke", userHandler.RevokeOpenAPIToken)
 
 	systemSettings := apiV1.Group("/system/settings")
 	systemSettings.Use(middleware2.JWTAuth())
@@ -81,25 +81,29 @@ func (s *Server) setupRoutes() {
 	systemUsers.PUT("/:username/status", systemUserHandler.UpdateStatus)
 
 	// 批量获取用户（需要JWT验证）
+	users := apiV1.Group("/users")
+	users.Use(middleware2.JWTAuth())
 	users.POST("", userHandler.GetUsersByUsernames)
 
 	// 部门管理路由（需要JWT验证）
-	departments := apiV1.Group("/departments")
-	departments.Use(middleware2.JWTAuth())
+	department := apiV1.Group("/department")
+	department.Use(middleware2.JWTAuth())
 	departmentHandler := v1.NewDepartment(s.departmentService)
-	departments.POST("", departmentHandler.CreateDepartment)
-	departments.GET("/tree", departmentHandler.GetDepartmentTree)
-	departments.GET("/:id", departmentHandler.GetDepartmentByID)
-	departments.PUT("/:id", departmentHandler.UpdateDepartment)
-	departments.DELETE("/:id", departmentHandler.DeleteDepartment)
+	department.POST("", departmentHandler.CreateDepartment)
+	department.GET("/tree", departmentHandler.GetDepartmentTree)
+	department.GET("/:id", departmentHandler.GetDepartmentByID)
+	department.PUT("/:id", departmentHandler.UpdateDepartment)
+	department.DELETE("/:id", departmentHandler.DeleteDepartment)
 
 	// 批量获取部门路由（需要JWT验证）
+	departments := apiV1.Group("/departments")
+	departments.Use(middleware2.JWTAuth())
 	departments.GET("", departmentHandler.GetDepartmentsByPaths)
 
 	// 用户分配路由（需要JWT验证）
 	userAllocationHandler := v1.NewUserAllocation(s.userService, s.departmentService)
-	users.POST("/assignments", userAllocationHandler.AssignUser)
-	users.GET("/by-department", userAllocationHandler.GetUsersByDepartment)
+	user.POST("/assign", userAllocationHandler.AssignUser)
+	user.GET("/department", userAllocationHandler.GetUsersByDepartment)
 
 	serverx.ApplyRouteRegistrars(serverx.ServiceHRServer, s.httpServer)
 }

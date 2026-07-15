@@ -104,9 +104,9 @@ func TestLLMGetDoesNotExposeAPIKey(t *testing.T) {
 	}
 
 	router := gin.New()
-	router.GET("/llm/:id", NewLLM(svc).Get)
+	router.GET("/llm/get", NewLLM(svc).Get)
 
-	req := httptest.NewRequest(http.MethodGet, "/llm/"+strconv.FormatInt(cfg.ID, 10), nil)
+	req := httptest.NewRequest(http.MethodGet, "/llm/get?id="+strconv.FormatInt(cfg.ID, 10), nil)
 	req.Header.Set(contextx.RequestUserHeader, "alice")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)

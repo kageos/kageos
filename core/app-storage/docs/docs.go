@@ -19,7 +19,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/storage/api/v1/batch-delete": {
+        "/storage/api/v1/batch_delete": {
             "post": {
                 "description": "批量删除某个函数路径下的所有文件（危险操作）",
                 "consumes": [
@@ -65,7 +65,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/storage/api/v1/batch-upload-complete": {
+        "/storage/api/v1/batch_upload_complete": {
             "post": {
                 "description": "批量通知后端创建上传记录（仅在上传成功时记录）",
                 "consumes": [
@@ -111,7 +111,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/storage/api/v1/batch-upload-token": {
+        "/storage/api/v1/batch_upload_token": {
             "post": {
                 "description": "批量获取多个文件的 presigned_url 上传凭证。如果某个文件未提供 router，将使用默认路由：/{username}/default",
                 "consumes": [
@@ -423,7 +423,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/storage/api/v1/upload-complete": {
+        "/storage/api/v1/upload_complete": {
             "post": {
                 "description": "前端上传完成后，通知后端创建上传记录（仅在上传成功时记录）",
                 "consumes": [
@@ -469,7 +469,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/storage/api/v1/upload-token": {
+        "/storage/api/v1/upload_token": {
             "post": {
                 "description": "获取文件上传的预签名 URL，文件将按函数路径分类存储。如果未提供 router，将使用默认路由：/{username}/default",
                 "consumes": [
@@ -531,6 +531,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.GetUploadTokenReq"
                     }
+                },
+                "upload_source": {
+                    "description": "✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.UploadSource"
+                        }
+                    ]
                 }
             }
         },
@@ -775,6 +783,14 @@ const docTemplate = `{
                 "router": {
                     "description": "函数路径，例如：luobei/test88888/cashier/cashier_desk.form（可选，未提供时使用默认路由：/{username}/default）",
                     "type": "string"
+                },
+                "upload_source": {
+                    "description": "✨ 上传来源：browser（浏览器）或 server（服务端），默认为 browser",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.UploadSource"
+                        }
+                    ]
                 }
             }
         },
@@ -819,6 +835,11 @@ const docTemplate = `{
                 "ref": {
                     "description": "稳定文件引用：bucket/object_key",
                     "type": "string"
+                },
+                "sdk_config": {
+                    "description": "SDK 上传配置（服务端上传时使用；method 仍为 presigned_url）",
+                    "type": "object",
+                    "additionalProperties": true
                 },
                 "server_download_url": {
                     "description": "✨ 内部访问的下载地址（服务端/SDK使用）",
@@ -1039,6 +1060,25 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "UploadMethodPresignedURL"
+            ]
+        },
+        "dto.UploadSource": {
+            "type": "string",
+            "enum": [
+                "browser",
+                "server"
+            ],
+            "x-enum-comments": {
+                "UploadSourceBrowser": "浏览器上传",
+                "UploadSourceServer": "服务端上传（容器内SDK）"
+            },
+            "x-enum-descriptions": [
+                "浏览器上传",
+                "服务端上传（容器内SDK）"
+            ],
+            "x-enum-varnames": [
+                "UploadSourceBrowser",
+                "UploadSourceServer"
             ]
         }
     },

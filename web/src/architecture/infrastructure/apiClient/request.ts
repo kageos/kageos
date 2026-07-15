@@ -7,12 +7,7 @@ import { getApiBaseURL } from '@/architecture/infrastructure/config/runtime'
 import { getCurrentRouteFullPath, getCurrentRoutePath, navigateTo } from '@/architecture/shared/routing/navigation'
 import type { ApiResponse } from '@/architecture/shared/apiTypes'
 import { isWorkspaceForbiddenError } from '@/architecture/shared/apiError'
-import {
-  extractApiMessage,
-  isAuthExpiredBusinessResponse,
-  isPublicAuthRequestUrl,
-  isRefreshRequestUrl,
-} from './authSession'
+import { extractApiMessage, isAuthExpiredBusinessResponse, isRefreshRequestUrl } from './authSession'
 
 const CLIENT_SOURCE_HEADER = 'X-Client-Source'
 const CLIENT_SOURCE_BROWSER = 'browser'
@@ -53,32 +48,6 @@ function removeHeader(config: InternalAxiosRequestConfig, key: string) {
   }
 
   config.headers.delete(key)
-}
-
-function requestHasAccessToken(config?: AuthRetryAxiosRequestConfig): boolean {
-  const headers = config?.headers
-  if (!headers) {
-    return false
-  }
-  if (headers instanceof AxiosHeaders) {
-    return Boolean(String(headers.get('X-Token') || '').trim())
-  }
-  const rawHeaders = headers as unknown as Record<string, unknown>
-  return Boolean(String(rawHeaders['X-Token'] || rawHeaders['x-token'] || '').trim())
-}
-
-function shouldRefreshForResponse(
-  config: AuthRetryAxiosRequestConfig | undefined,
-  status: number,
-  payload: unknown
-): boolean {
-  if (!config || config._retryAfterRefresh || isRefreshRequestUrl(config.url) || isPublicAuthRequestUrl(config.url)) {
-    return false
-  }
-  if (!requestHasAccessToken(config) || !getRefreshTokenValue()) {
-    return false
-  }
-  return status === 401 || isAuthExpiredBusinessResponse(payload as Record<string, unknown>)
 }
 
 function isLikelyHtmlResponse(response: AxiosResponse<ApiResponse | Blob>): boolean {
@@ -122,12 +91,11 @@ service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = getAccessTokenValue()
     const isRefreshRequest = isRefreshRequestUrl(config.url)
-    const isPublicAuthRequest = isPublicAuthRequestUrl(config.url)
 
     // 添加token到请求头（后端使用X-Token头部）
-    if (!isRefreshRequest && !isPublicAuthRequest && token && typeof token === 'string' && token.trim()) {
+    if (!isRefreshRequest && token && typeof token === 'string' && token.trim()) {
       setHeader(config, 'X-Token', token)
-    } else if (isRefreshRequest || isPublicAuthRequest) {
+    } else if (isRefreshRequest) {
       removeHeader(config, 'X-Token')
     } else {
       Logger.warn('Request', 'No token found', {
@@ -213,7 +181,7 @@ function createAuthFetchInit(input: RequestInfo | URL, init: RequestInit = {}): 
   })
 
   const url = getFetchUrl(input)
-  if (isRefreshRequestUrl(url) || isPublicAuthRequestUrl(url)) {
+  if (isRefreshRequestUrl(url)) {
     headers.delete('X-Token')
   } else {
     const token = getAccessTokenValue()
@@ -231,10 +199,7 @@ function createAuthFetchInit(input: RequestInfo | URL, init: RequestInit = {}): 
   }
 }
 
-async function isAuthExpiredFetchResponse(response: Response, sentAccessToken: boolean): Promise<boolean> {
-  if (!sentAccessToken || !getRefreshTokenValue()) {
-    return false
-  }
+async function isAuthExpiredFetchResponse(response: Response): Promise<boolean> {
   if (response.status === 401) {
     return true
   }
@@ -254,14 +219,12 @@ export async function authFetch(
   options: AuthFetchOptions = {}
 ): Promise<Response> {
   const retryOnAuthExpired = options.retryOnAuthExpired !== false
-  const requestURL = getFetchUrl(input)
-  const isRefreshRequest = isRefreshRequestUrl(requestURL)
-  const sentAccessToken = !isRefreshRequest && !isPublicAuthRequestUrl(requestURL) && Boolean(getAccessTokenValue().trim())
+  const isRefreshRequest = isRefreshRequestUrl(getFetchUrl(input))
 
   const request = () => fetch(input, createAuthFetchInit(input, init))
   let response = await request()
 
-  if (!retryOnAuthExpired || isRefreshRequest || !(await isAuthExpiredFetchResponse(response, sentAccessToken))) {
+  if (!retryOnAuthExpired || isRefreshRequest || !(await isAuthExpiredFetchResponse(response))) {
     return response
   }
 
@@ -279,8 +242,7 @@ async function retryWithFreshToken(
   config?: AuthRetryAxiosRequestConfig,
   originalError?: unknown
 ): Promise<AxiosResponse<ApiResponse | Blob>> {
-  if (!config || config._retryAfterRefresh || isRefreshRequestUrl(config.url) ||
-    isPublicAuthRequestUrl(config.url) || !requestHasAccessToken(config) || !getRefreshTokenValue()) {
+  if (!config || config._retryAfterRefresh || isRefreshRequestUrl(config.url) || !getRefreshTokenValue()) {
     await handleSessionExpired()
     return Promise.reject(originalError)
   }
@@ -317,7 +279,7 @@ service.interceptors.response.use(
     const msg = extractApiMessage(responsePayload) || '请求失败'
 
     // 请求成功
-    if (code === 'ok' || code === 0) {
+    if (code === 0) {
       // 🔥 如果存在 metadata 且 data 是对象，将 metadata 附加到 data 上
       // 这样调用方可以通过 data._metadata 访问元数据
       if (metadata && typeof data === 'object' && data !== null && !Array.isArray(data)) {
@@ -346,7 +308,7 @@ service.interceptors.response.use(
       Logger.error('Request', '业务错误', logPayload)
     }
 
-    if (shouldRefreshForResponse(response.config as AuthRetryAxiosRequestConfig, response.status, responsePayload)) {
+    if (isAuthExpiredBusinessResponse(responsePayload)) {
       return retryWithFreshToken(response.config as AuthRetryAxiosRequestConfig, error)
     }
 
@@ -358,54 +320,25 @@ service.interceptors.response.use(
     if (response) {
       const { status, data } = response
 
-      if (shouldRefreshForResponse(config as AuthRetryAxiosRequestConfig, status, data)) {
+      if (status === 401) {
         return retryWithFreshToken(config as AuthRetryAxiosRequestConfig, error)
       }
 
-      const backendMessage = extractApiMessage(data)
       switch (status) {
-        case 400:
-          ElMessage.error(backendMessage || '请求参数错误')
-          break
-
-        case 401:
-          ElMessage.error(backendMessage || '身份认证失败')
-          break
-
         case 403:
-          ElMessage.error(backendMessage || '权限不足')
+          ElMessage.error(extractApiMessage(data) || '请求被拒绝')
           break
 
         case 404:
-          ElMessage.error(backendMessage || '请求的资源不存在')
-          break
-
-        case 405:
-          ElMessage.error(backendMessage || '当前操作不被允许')
-          break
-
-        case 409:
-          ElMessage.error(backendMessage || '资源状态冲突')
-          break
-
-        case 422:
-          ElMessage.error(backendMessage || '业务处理失败')
-          break
-
-        case 429:
-          ElMessage.error(backendMessage || '请求过于频繁，请稍后再试')
+          ElMessage.error('请求的资源不存在')
           break
 
         case 500:
-          ElMessage.error(backendMessage || '服务器内部错误')
-          break
-
-        case 503:
-          ElMessage.error(backendMessage || '服务暂时不可用')
+          ElMessage.error('服务器内部错误')
           break
 
         default:
-          ElMessage.error(backendMessage || `请求失败（HTTP ${status}）`)
+          ElMessage.error(extractApiMessage(data) || '网络错误')
       }
     } else if (error.code === 'ECONNABORTED') {
       ElMessage.error('请求超时，请检查网络连接')

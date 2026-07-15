@@ -40,7 +40,7 @@ export async function resolveFileRefs(
     await ensurePublicAnonymousToken()
   }
   const endpoint = publicShareId
-		? `/storage/api/v1/public/shares/${encodeURIComponent(publicShareId)}/files/resolve`
+    ? `/storage/api/v1/public/share/${encodeURIComponent(publicShareId)}/files/resolve`
     : '/storage/api/v1/files/resolve'
   const resp = await post<{ files: ResolvedFile[] }>(endpoint, {
     refs: cleanRefs,

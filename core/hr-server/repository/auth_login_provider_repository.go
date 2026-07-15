@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"errors"
 
 	"github.com/kageos/kageos/core/hr-server/model"
@@ -17,15 +16,15 @@ func NewAuthLoginProviderRepository(db *gorm.DB) *AuthLoginProviderRepository {
 	return &AuthLoginProviderRepository{db: db}
 }
 
-func (r *AuthLoginProviderRepository) List(ctx context.Context) ([]*model.AuthLoginProvider, error) {
+func (r *AuthLoginProviderRepository) List() ([]*model.AuthLoginProvider, error) {
 	var providers []*model.AuthLoginProvider
-	err := r.db.WithContext(ctx).Order("sort_order ASC, id ASC").Find(&providers).Error
+	err := r.db.Order("sort_order ASC, id ASC").Find(&providers).Error
 	return providers, err
 }
 
-func (r *AuthLoginProviderRepository) GetByCode(ctx context.Context, code string) (*model.AuthLoginProvider, error) {
+func (r *AuthLoginProviderRepository) GetByCode(code string) (*model.AuthLoginProvider, error) {
 	var provider model.AuthLoginProvider
-	err := r.db.WithContext(ctx).Where("code = ?", code).First(&provider).Error
+	err := r.db.Where("code = ?", code).First(&provider).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -35,8 +34,8 @@ func (r *AuthLoginProviderRepository) GetByCode(ctx context.Context, code string
 	return &provider, nil
 }
 
-func (r *AuthLoginProviderRepository) UpsertSeed(ctx context.Context, provider *model.AuthLoginProvider) error {
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+func (r *AuthLoginProviderRepository) UpsertSeed(provider *model.AuthLoginProvider) error {
+	return r.db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "code"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"name",
@@ -51,8 +50,8 @@ func (r *AuthLoginProviderRepository) UpsertSeed(ctx context.Context, provider *
 	}).Create(provider).Error
 }
 
-func (r *AuthLoginProviderRepository) UpdateConfig(ctx context.Context, provider *model.AuthLoginProvider) error {
-	return r.db.WithContext(ctx).Model(&model.AuthLoginProvider{}).
+func (r *AuthLoginProviderRepository) UpdateConfig(provider *model.AuthLoginProvider) error {
+	return r.db.Model(&model.AuthLoginProvider{}).
 		Where("code = ?", provider.Code).
 		Updates(map[string]interface{}{
 			"enabled":            provider.Enabled,
@@ -63,8 +62,8 @@ func (r *AuthLoginProviderRepository) UpdateConfig(ctx context.Context, provider
 		}).Error
 }
 
-func (r *AuthLoginProviderRepository) UpdateEnabled(ctx context.Context, code string, enabled bool, status string, updatedBy string) error {
-	return r.db.WithContext(ctx).Model(&model.AuthLoginProvider{}).
+func (r *AuthLoginProviderRepository) UpdateEnabled(code string, enabled bool, status string, updatedBy string) error {
+	return r.db.Model(&model.AuthLoginProvider{}).
 		Where("code = ?", code).
 		Updates(map[string]interface{}{
 			"enabled":    enabled,

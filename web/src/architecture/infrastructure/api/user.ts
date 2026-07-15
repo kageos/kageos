@@ -1,4 +1,4 @@
-import { del, get, put, post } from '@/architecture/infrastructure/apiClient/request'
+import { get, put, post } from '@/architecture/infrastructure/apiClient/request'
 import type { UserInfo } from '@/architecture/domain/types'
 
 // 更新用户信息
@@ -17,7 +17,7 @@ export interface UpdateUserResp {
  * 更新当前登录用户信息
  */
 export function updateUser(data: UpdateUserReq) {
-	return put<UpdateUserResp>('/hr/api/v1/users/me', data)
+  return put<UpdateUserResp>('/hr/api/v1/user/update', data)
 }
 
 export interface OpenAPITokenInfo {
@@ -47,15 +47,15 @@ export interface CreateOpenAPITokenResp {
 }
 
 export function listOpenAPITokens() {
-	return get<ListOpenAPITokensResp>('/hr/api/v1/users/openapi-tokens')
+  return get<ListOpenAPITokensResp>('/hr/api/v1/user/openapi_tokens')
 }
 
 export function createOpenAPIToken(data: CreateOpenAPITokenReq) {
-	return post<CreateOpenAPITokenResp>('/hr/api/v1/users/openapi-tokens', data)
+  return post<CreateOpenAPITokenResp>('/hr/api/v1/user/openapi_tokens', data)
 }
 
 export function revokeOpenAPIToken(id: number) {
-	return del('/hr/api/v1/users/openapi-tokens', { id })
+  return post('/hr/api/v1/user/openapi_tokens/revoke', { id })
 }
 
 // 根据用户名精确查询
@@ -67,7 +67,7 @@ export interface QueryUserResp {
  * 根据用户名精确查询用户信息
  */
 export function queryUser(username: string) {
-	return get<QueryUserResp>('/hr/api/v1/users/query', { username })
+  return get<QueryUserResp>('/hr/api/v1/user/query', { username })
 }
 
 // 模糊查询用户
@@ -81,7 +81,7 @@ export interface SearchUsersFuzzyResp {
  * @param limit 返回数量限制，默认10，最大100
  */
 export function searchUsersFuzzy(keyword: string, limit: number = 10) {
-	return get<SearchUsersFuzzyResp>('/hr/api/v1/users/search', { keyword, limit })
+  return get<SearchUsersFuzzyResp>('/hr/api/v1/user/search_fuzzy', { keyword, limit })
 }
 
 // 批量获取用户信息
@@ -114,7 +114,7 @@ export interface GetUsersByDepartmentResp {
  * 根据部门完整路径获取用户列表
  */
 export function getUsersByDepartment(departmentFullPath: string) {
-	return get<GetUsersByDepartmentResp>('/hr/api/v1/users/by-department', { department_full_path: departmentFullPath })
+  return get<GetUsersByDepartmentResp>('/hr/api/v1/user/department', { department_full_path: departmentFullPath })
 }
 
 export interface SystemListUsersReq {

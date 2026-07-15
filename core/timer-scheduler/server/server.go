@@ -12,11 +12,9 @@ import (
 	"github.com/kageos/kageos/core/timer-scheduler/model"
 	timerservice "github.com/kageos/kageos/core/timer-scheduler/service"
 	"github.com/kageos/kageos/pkg/config"
-	"github.com/kageos/kageos/pkg/controlauth"
 	"github.com/kageos/kageos/pkg/dbx"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/natsx"
-	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
@@ -29,8 +27,6 @@ type Server struct {
 	service    *timerservice.Service
 	publisher  timerservice.OutboxPublisher
 	natsSubs   []*nats.Subscription
-	natsAuth   *scheduledsdk.SchedulerNATSAuth
-	httpAuth   *controlauth.Verifier
 	httpServer *serverx.HTTPServer
 	done       chan struct{}
 	cancel     context.CancelFunc
@@ -40,22 +36,6 @@ type Server struct {
 func NewServer(cfg *config.TimerSchedulerConfig) (*Server, error) {
 	if cfg == nil {
 		cfg = &config.TimerSchedulerConfig{}
-	}
-	controlPlaneSecret, err := config.GetControlPlaneSecret()
-	if err != nil {
-		return nil, fmt.Errorf("load timer-scheduler control auth: %w", err)
-	}
-	natsAuth, err := scheduledsdk.NewSchedulerNATSAuth(controlPlaneSecret)
-	if err != nil {
-		return nil, fmt.Errorf("init timer-scheduler control auth: %w", err)
-	}
-	httpAuth, err := controlauth.NewVerifier(
-		controlPlaneSecret,
-		controlauth.HTTPGatewayTimerBackendScope,
-		controlauth.VerifierOptions{MaxAge: 30 * time.Second, MaxFutureSkew: 10 * time.Second},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("init timer-scheduler HTTP control auth: %w", err)
 	}
 	db, err := openTimerSchedulerDB(cfg)
 	if err != nil {
@@ -82,9 +62,7 @@ func NewServer(cfg *config.TimerSchedulerConfig) (*Server, error) {
 		db:        db,
 		natsConn:  natsConn,
 		service:   service,
-		publisher: timerservice.NewNATSOutboxPublisher(natsConn, natsAuth.MessageSigner),
-		natsAuth:  natsAuth,
-		httpAuth:  httpAuth,
+		publisher: timerservice.NewNATSOutboxPublisher(natsConn),
 		owner:     newOwnerID(),
 	}, nil
 }
@@ -95,14 +73,14 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
-	natsSubs, err := startTimerNATSControl(s.natsConn, s.service, s.natsAuth.CommandVerifier, s.natsAuth.ResponseSigner)
+	natsSubs, err := startTimerNATSControl(s.natsConn, s.service)
 	if err != nil {
 		cancel()
 		return err
 	}
 	s.natsSubs = natsSubs
 	addr := net.JoinHostPort(s.cfg.GetListenHost(), strconv.Itoa(s.cfg.GetPort()))
-	httpServer, err := serverx.StartHTTPServer(ctx, addr, NewRouter(s.service, s.httpAuth))
+	httpServer, err := serverx.StartHTTPServer(ctx, addr, NewRouter(s.service))
 	if err != nil {
 		cancel()
 		for _, sub := range natsSubs {

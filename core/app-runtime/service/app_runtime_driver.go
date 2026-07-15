@@ -29,7 +29,6 @@ type AppVersionSpec struct {
 	ContainerPath string
 	Command       []string
 	EnvVars       []string
-	Secrets       []ContainerSecret
 }
 
 // AppRuntimeInstance is the runtime-neutral view of one app version instance.
@@ -88,7 +87,7 @@ func (d *PodmanAppRuntimeDriver) CreateAppVersion(ctx context.Context, spec AppV
 	if err != nil {
 		return err
 	}
-	if err := d.containerService.RunContainerWithCommandAndSecrets(ctx, spec.Image, name, spec.HostPath, spec.ContainerPath, spec.Command, spec.Secrets, spec.EnvVars...); err != nil {
+	if err := d.containerService.RunContainerWithCommand(ctx, spec.Image, name, spec.HostPath, spec.ContainerPath, spec.Command, spec.EnvVars...); err != nil {
 		return fmt.Errorf("failed to create app runtime instance: %w", err)
 	}
 	return nil

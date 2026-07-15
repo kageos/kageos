@@ -88,26 +88,13 @@
         <div class="current-workspace-meta-item">
           <div class="current-workspace-meta-icon">
             <el-icon>
-              <Unlock v-if="currentApp.access_mode === 'open_collaboration'" />
+              <Unlock v-if="currentApp.is_public" />
               <Lock v-else />
             </el-icon>
           </div>
           <div class="current-workspace-meta-copy">
-            <span class="current-workspace-meta-label">{{ t('workspace.accessMode') }}</span>
-            <el-select
-              v-if="canManageCurrentWorkspace"
-              v-model="currentWorkspaceAccessMode"
-              size="small"
-              class="current-workspace-access-select"
-              :loading="accessModeUpdating"
-              :disabled="accessModeUpdating"
-              data-testid="workspace-current-access-mode"
-              @change="handleCurrentWorkspaceAccessModeChange"
-            >
-              <el-option :label="t('workspace.accessModePermissioned')" value="permissioned" />
-              <el-option :label="t('workspace.accessModeOpenCollaboration')" value="open_collaboration" />
-            </el-select>
-            <span v-else class="current-workspace-meta-value">{{ currentWorkspaceAccessModeLabel }}</span>
+            <span class="current-workspace-meta-label">{{ t('workspace.visibility') }}</span>
+            <span class="current-workspace-meta-value">{{ currentWorkspaceVisibilityLabel }}</span>
           </div>
         </div>
         <div class="current-workspace-meta-item">
@@ -207,19 +194,9 @@
                 </div>
               </div>
               <div class="card-footer">
-                <el-tag :type="app.access_mode === 'open_collaboration' ? 'success' : 'info'" size="small">
-                  {{ app.access_mode === 'open_collaboration' ? t('workspace.accessModeOpenCollaboration') : t('workspace.accessModePermissioned') }}
-                </el-tag>
+                <el-tag v-if="app.is_public" type="success" size="small">{{ t('workspace.public') }}</el-tag>
+                <el-tag v-else type="info" size="small">{{ t('workspace.private') }}</el-tag>
                 <div class="card-actions">
-                  <el-button
-                    link
-                    size="small"
-                    :title="t('workspace.renameWorkspace')"
-                    :data-testid="`workspace-card-rename-${app.id}`"
-                    @click.stop="handleRenameWorkspace(app)"
-                  >
-                    <el-icon><EditPen /></el-icon>
-                  </el-button>
                   <el-button
                     link
                     size="small"
@@ -230,7 +207,6 @@
                     <el-icon><RefreshRight /></el-icon>
                   </el-button>
                   <el-button
-                    v-if="!app.is_personal_workspace"
                     link
                     size="small"
                     :title="t('common.delete')"
@@ -301,9 +277,7 @@
               </div>
               <div class="card-footer">
                 <div class="footer-left">
-                  <el-tag :type="app.access_mode === 'open_collaboration' ? 'success' : 'info'" size="small">
-                    {{ app.access_mode === 'open_collaboration' ? t('workspace.accessModeOpenCollaboration') : t('workspace.accessModePermissioned') }}
-                  </el-tag>
+                  <el-tag type="success" size="small">{{ t('workspace.public') }}</el-tag>
                   <UserDisplay
                     :username="app.user"
                     mode="card"
@@ -410,7 +384,6 @@ import {
   FolderOpened,
   RefreshRight,
   Delete,
-  EditPen,
   Close,
   UserFilled,
   OfficeBuilding,
@@ -420,12 +393,10 @@ import {
   Clock,
   CollectionTag
 } from '@element-plus/icons-vue'
-import { getAppList, updateWorkspace } from '@/architecture/presentation/context/api/app'
+import { getAppList } from '@/architecture/presentation/context/api/app'
 import type { App } from '@/architecture/domain/types'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
-import { eventBus, WorkspaceEvent } from '@/architecture/presentation/context/eventBusContext'
-import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 
 interface Props {
   currentApp: App | null
@@ -452,7 +423,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 const { t, locale } = useI18n()
-const authStore = useAuthStore()
 
 const activeTab = ref<'mine' | 'all' | 'system'>('mine')
 const searchKeyword = ref('')
@@ -460,8 +430,6 @@ const loading = ref(false)
 const myWorkspaces = ref<App[]>([])
 const allWorkspaces = ref<App[]>([])
 const systemWorkspaces = ref<App[]>([])
-const accessModeUpdating = ref(false)
-const currentWorkspaceAccessMode = ref<'permissioned' | 'open_collaboration'>('permissioned')
 
 const showHeader = computed(() => props.showHeader)
 const currentWorkspaceDisplayName = computed(() => props.currentApp ? getWorkspaceDisplayName(props.currentApp) : '')
@@ -471,16 +439,7 @@ const currentWorkspaceStyle = computed(() => props.currentApp ? workspaceCardSty
 const currentWorkspaceStatusLabel = computed(() => props.currentApp?.status === 'disabled' ? t('workspace.disabled') : t('workspace.running'))
 const currentWorkspaceStatusType = computed(() => props.currentApp?.status === 'disabled' ? 'danger' : 'success')
 const currentWorkspaceTypeLabel = computed(() => props.currentApp?.type === 1 ? t('workspace.systemWorkspace') : t('workspace.userWorkspace'))
-const currentWorkspaceAccessModeLabel = computed(() => currentWorkspaceAccessMode.value === 'open_collaboration'
-  ? t('workspace.accessModeOpenCollaboration')
-  : t('workspace.accessModePermissioned'))
-const canManageCurrentWorkspace = computed(() => {
-  const app = props.currentApp
-  const username = authStore.user?.username?.trim()
-  if (!app || !username) return false
-  if (app.user === username) return true
-  return (app.admins || '').split(',').some(admin => admin.trim() === username)
-})
+const currentWorkspaceVisibilityLabel = computed(() => props.currentApp?.is_public ? t('workspace.public') : t('workspace.private'))
 const currentWorkspaceVersion = computed(() => props.currentApp?.version || t('workspace.unversioned'))
 const currentWorkspaceUpdatedAt = computed(() => formatDateTime(props.currentApp?.updated_at))
 
@@ -615,83 +574,14 @@ const handleDeleteApp = (app: App) => {
   emit('delete-app', app)
 }
 
-const handleRenameWorkspace = async (app: App) => {
-  let value = ''
-  try {
-    const result = await ElMessageBox.prompt(
-      t('workspace.renameWorkspaceDescription'),
-      t('workspace.renameWorkspaceTitle'),
-      {
-        inputValue: app.name || '',
-        inputPlaceholder: t('workspace.renameWorkspacePlaceholder'),
-        inputValidator: (input: string) => {
-          return input.trim().length > 0 || t('workspace.renameWorkspaceRequired')
-        },
-        confirmButtonText: t('workspace.renameWorkspaceConfirm'),
-        cancelButtonText: t('common.cancel')
-      }
-    )
-    value = result.value.trim()
-  } catch {
-    return
-  }
-
-  if (!value || value === app.name) {
-    return
-  }
-
-  try {
-    await updateWorkspace(`/workspace/${app.user}/${app.code}`, { name: value })
-    const renamedApp = { ...app, name: value }
-    eventBus.emit(WorkspaceEvent.appInfoUpdated, { app: renamedApp })
-    await loadWorkspaces()
-    ElMessage.success(t('workspace.renameWorkspaceSuccess'))
-  } catch (error) {
-    console.error('[WorkspaceListPanel] rename workspace failed:', error)
-    ElMessage.error(t('workspace.renameWorkspaceFailed'))
-  }
-}
-
-const handleCurrentWorkspaceAccessModeChange = async (value: 'permissioned' | 'open_collaboration') => {
-  const app = props.currentApp
-  if (!app || !canManageCurrentWorkspace.value) return
-
-  accessModeUpdating.value = true
-  try {
-    await updateWorkspace(`/workspace/${app.user}/${app.code}`, { access_mode: value })
-    const updatedApp: App = {
-      ...app,
-      access_mode: value,
-      is_public: value === 'open_collaboration' ? true : app.is_public
-    }
-    eventBus.emit(WorkspaceEvent.appInfoUpdated, { app: updatedApp })
-    await loadWorkspaces()
-    ElMessage.success(t('workspace.accessModeUpdateSuccess'))
-  } catch (error) {
-    currentWorkspaceAccessMode.value = app.access_mode || 'permissioned'
-    console.error('[WorkspaceListPanel] update access mode failed:', error)
-    ElMessage.error(t('workspace.accessModeUpdateFailed'))
-  } finally {
-    accessModeUpdating.value = false
-  }
-}
-
 watch(() => props.visible, (newVal: boolean) => {
   if (newVal) {
     loadWorkspaces()
     return
   }
 
-	searchKeyword.value = ''
+  searchKeyword.value = ''
 }, { immediate: true })
-
-watch(
-  () => props.currentApp?.access_mode,
-  (mode) => {
-    currentWorkspaceAccessMode.value = mode === 'open_collaboration' ? 'open_collaboration' : 'permissioned'
-  },
-  { immediate: true }
-)
 </script>
 
 <style scoped lang="scss">
@@ -923,17 +813,6 @@ watch(
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.current-workspace-access-select {
-  width: 100%;
-  min-width: 0;
-}
-
-.current-workspace-access-select :deep(.el-select__wrapper) {
-  min-height: 26px;
-  padding: 2px 8px;
-  border-radius: 8px;
 }
 
 .search-bar {
