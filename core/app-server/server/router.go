@@ -45,6 +45,7 @@ func (s *Server) setupRoutes() {
 	app.GET("/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
 	app.DELETE("/delete", appHandler.DeleteApp)
 	app.POST("/create", appHandler.CreateApp)
+	app.POST("/personal-workspace", appHandler.BootstrapPersonalWorkspace)
 	app.POST("/update", appHandler.UpdateApp)
 	app.PUT("/workspace", appHandler.UpdateWorkspace)
 

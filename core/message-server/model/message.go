@@ -116,7 +116,7 @@ type MessageActionToken struct {
 	AuthorizedUsers    string     `json:"authorized_users" gorm:"size:2000;comment:允许登录处理的用户，逗号分隔；为空时只允许 recipient_username"`
 	Channel            string     `json:"channel" gorm:"size:64;index;comment:触达渠道"`
 	AllowedActions     string     `json:"allowed_actions" gorm:"size:255;comment:允许动作，逗号分隔"`
-	Status             string     `json:"status" gorm:"size:32;not null;default:open;index;comment:open/submitted/expired/revoked"`
+	Status             string     `json:"status" gorm:"size:32;not null;default:open;index;comment:open/processing/submitted/expired/revoked"`
 	ExpiresAt          time.Time  `json:"expires_at" gorm:"not null;index;comment:有效期"`
 	UsedAt             *time.Time `json:"used_at" gorm:"index;comment:提交时间"`
 	ReplyMessageID     int64      `json:"reply_message_id" gorm:"index;comment:回复消息 ID"`

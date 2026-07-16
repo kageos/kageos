@@ -15,11 +15,16 @@ import (
 // 本地地址会自动探测 127.0.0.1 / host.containers.internal 等候选，
 // 避免 SDK app 在 host/bridge 网络之间切换时使用不可达地址。
 func GetGatewayURL() string {
-	// 优先环境变量（生产环境）
-	if url := os.Getenv("GATEWAY_URL"); url != "" {
-		return resolveGatewayURL(url)
+	return resolveGatewayURL(gatewayBaseURL())
+}
+
+// InvalidateGatewayURL makes the next gateway request probe local runtime
+// candidates again. The failed request itself is never replayed here.
+func InvalidateGatewayURL() {
+	baseURL := gatewayBaseURL()
+	if len(netprobe.URLCandidates(baseURL)) > 1 {
+		netprobe.InvalidateHTTPBaseURLCached("gateway", baseURL, "/health")
 	}
-	return resolveGatewayURL(config.GetGatewayURL())
 }
 
 // BuildGatewayURL 基于当前网关配置构建完整 URL。
@@ -48,4 +53,11 @@ func resolveGatewayURL(baseURL string) string {
 		return baseURL
 	}
 	return resolved
+}
+
+func gatewayBaseURL() string {
+	if configured := os.Getenv("GATEWAY_URL"); configured != "" {
+		return configured
+	}
+	return config.GetGatewayURL()
 }

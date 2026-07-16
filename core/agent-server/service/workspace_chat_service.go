@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	SourceWorkspace = "workspace"
-	MaxToolRounds   = 100 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
+	SourceWorkspace       = model.ChatSessionSourceWorkspace
+	SourceAutomationAgent = model.ChatSessionSourceAutomationAgent
+	MaxToolRounds         = 100 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
 )
 
 // 工作台系统提示词与内置文档统一来自本地内嵌的 /system/prompt。
@@ -162,8 +163,12 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		}
 	}
 	user := contextx.GetRequestUser(ctx)
-	fullCodePath := strings.TrimSpace(req.FullCodePath)
-	if fullCodePath == "" {
+	requestedPath := normalizeWorkspacePath(req.FullCodePath)
+	explicitResourcePath := normalizeWorkspacePath(req.ResourceFullCodePath)
+	fullCodePath := requestedPath
+	resourceFullCodePath := explicitResourcePath
+	var resourceTreeID int64
+	if requestedPath == "" {
 		return s.handleError(sendEvent, "full_code_path 必填", nil)
 	}
 	requestedModeCode := normalizeWorkspaceModeCode(req.ModeCode)
@@ -185,15 +190,43 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 			return s.handleError(sendEvent, e.Error(), e)
 		}
 		if sessionPath := strings.TrimSpace(session.FullCodePath); sessionPath != "" {
-			fullCodePath = sessionPath
+			fullCodePath = normalizeWorkspacePath(sessionPath)
 		}
+		resourceFullCodePath = normalizeWorkspacePath(session.ResourceFullCodePath)
+		resourceTreeID = session.ResourceTreeID
 	}
 
 	// 2) 获取工作台环境信息（包含目录详情、子节点等，一次性获取，避免重复调用）
 	workspaceCtx, e := apicall.GetWorkspaceContext(ctx, fullCodePath, "")
 	if e != nil || workspaceCtx == nil {
-		return s.handleError(sendEvent, "无效的 full_code_path，无法解析目录", e)
+		// 保留上游故障原因，避免 MySQL/网络故障被误报成目录不存在。
+		message := fmt.Sprintf("无法解析工作台上下文: %s", fullCodePath)
+		if e != nil {
+			message += "；原因: " + e.Error()
+		}
+		return s.handleError(sendEvent, message, e)
 	}
+	directoryPath := normalizeWorkspacePath(workspaceCtx.Directory.FullCodePath)
+	if directoryPath == "" {
+		return s.handleError(sendEvent, "工作台上下文未返回有效目录", nil)
+	}
+	if req.SessionID == "" {
+		if resourceFullCodePath == "" && requestedPath != directoryPath {
+			resourceFullCodePath = requestedPath
+		}
+		if resourceFullCodePath == directoryPath {
+			resourceFullCodePath = ""
+		}
+		if resourceFullCodePath != "" {
+			var belongs bool
+			resourceTreeID, belongs = workspaceContextResourceTreeID(workspaceCtx.Children, resourceFullCodePath)
+			if !belongs {
+				return s.handleError(sendEvent, fmt.Sprintf("resource_full_code_path 不属于工作台目录: %s", resourceFullCodePath), nil)
+			}
+		}
+	}
+	// 只调整本次执行上下文，不回写已有会话或历史记录。
+	fullCodePath = directoryPath
 	directoryName := workspaceCtx.Directory.Name
 	if directoryName == "" {
 		directoryName = workspaceCtx.Directory.Code
@@ -201,16 +234,26 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 
 	// 3) 创建新 session
 	if req.SessionID == "" {
+		source := SourceWorkspace
+		automation := scheduledAgentSessionIdentityFromContext(ctx)
+		if automation.TaskID > 0 {
+			source = SourceAutomationAgent
+		}
 		session = &model.AgentChatSession{
-			TreeID:        workspaceCtx.Directory.ID,
-			FullCodePath:  fullCodePath,
-			Source:        SourceWorkspace,
-			SessionID:     uuid.New().String(),
-			Title:         "",
-			ModeCode:      requestedModeCode,
-			Status:        model.ChatSessionStatusActive,
-			ContextPolicy: ContextPolicyFull,
-			User:          user,
+			TreeID:               workspaceCtx.Directory.ID,
+			FullCodePath:         fullCodePath,
+			ResourceTreeID:       resourceTreeID,
+			ResourceFullCodePath: resourceFullCodePath,
+			Source:               source,
+			AutomationTaskID:     automation.TaskID,
+			AutomationTaskCode:   automation.TaskCode,
+			AutomationTaskTitle:  automation.TaskTitle,
+			SessionID:            uuid.New().String(),
+			Title:                "",
+			ModeCode:             requestedModeCode,
+			Status:               model.ChatSessionStatusActive,
+			ContextPolicy:        ContextPolicyFull,
+			User:                 user,
 		}
 		applyDefaultWorkspaceSessionRole(session)
 		session.CreatedBy = user
@@ -375,6 +418,16 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		service:              s,
 	}
 	return streamloop.RunStreamLoop(runCtx, deps)
+}
+
+func workspaceContextResourceTreeID(children []dto.WorkspaceContextNode, resourceFullCodePath string) (int64, bool) {
+	resourceFullCodePath = normalizeWorkspacePath(resourceFullCodePath)
+	for _, child := range children {
+		if normalizeWorkspacePath(child.FullCodePath) == resourceFullCodePath {
+			return child.ID, true
+		}
+	}
+	return 0, false
 }
 
 func workspaceContextWithSessionRequestUser(ctx context.Context, session *model.AgentChatSession) (context.Context, string) {

@@ -603,13 +603,16 @@ func (s *AppManageService) buildAppVersionSpec(ctx context.Context, ref AppVersi
 	// host.containers.internal 等本地候选地址，避免 prod host 网络和 dev bridge
 	// 网络使用同一份静态地址。
 	//
-	// SDK 配置会在构建时注入为环境变量：
-	//   - nats_url -> NATS_URL 环境变量
-	//   - gateway_url -> GATEWAY_URL 环境变量
-	//   - env_vars 中的键值对 -> 对应的环境变量
+	// NATS 凭据通过 Podman Secret 挂载到 SDK 的固定读取路径，不能进入环境变量；
+	// gateway_url 和 env_vars 中的非敏感配置仍作为环境变量注入。
 	sdkConfig := appconfig.GetSDKConfig()
+	natsSecret := RuntimeSecret{
+		Name:   appNATSSecretName(ref),
+		Target: appNATSSecretTarget,
+		Data:   []byte(sdkConfig.GetNatsURL()),
+	}
 
-	// 从 SDK 配置获取所有环境变量（包括固定字段和 env_vars 中的）
+	// 从 SDK 配置获取允许暴露给 App 进程的非敏感环境变量。
 	sdkEnvVars := sdkConfig.GetEnvVars()
 	for key, value := range sdkEnvVars {
 		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
@@ -651,6 +654,7 @@ func (s *AppManageService) buildAppVersionSpec(ctx context.Context, ref AppVersi
 		ContainerPath: containerPath,
 		Command:       []string{"/start.sh"},
 		EnvVars:       envVars,
+		Secrets:       []RuntimeSecret{natsSecret},
 	}, nil
 }
 

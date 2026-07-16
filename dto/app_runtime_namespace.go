@@ -366,6 +366,12 @@ type GetAppsResp struct {
 	PageInfoResp
 }
 
+// BootstrapPersonalWorkspaceResp 是当前登录用户进入工作台时的默认空间。
+type BootstrapPersonalWorkspaceResp struct {
+	App     AppInfo `json:"app"`
+	Created bool    `json:"created"`
+}
+
 // AppInfo 应用信息
 type AppInfo struct {
 	ID                    int64  `json:"id" example:"1"`                           // 应用ID
@@ -377,6 +383,7 @@ type AppInfo struct {
 	NatsID                int64  `json:"nats_id" example:"1"`                      // NATS ID
 	HostID                int64  `json:"host_id" example:"1"`                      // 主机ID
 	IsPublic              bool   `json:"is_public" example:"true"`                 // 是否公开
+	IsPersonalWorkspace   bool   `json:"is_personal_workspace" example:"false"`    // 是否为平台初始化的默认 Home
 	HideUnauthorizedNodes bool   `json:"hide_unauthorized_nodes" example:"false"`  // 是否隐藏当前用户无 read 权限的目录节点
 	Admins                string `json:"admins,omitempty" example:"user1,user2"`   // 管理员列表，逗号分隔的用户名
 	Type                  int    `json:"type" example:"0"`                         // 应用类型：0=用户空间，1=系统空间

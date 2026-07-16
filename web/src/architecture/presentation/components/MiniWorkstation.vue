@@ -28,6 +28,10 @@
               :resource-template-type="resourceTemplateType"
             />
             <span :title="fullCodePath">{{ fullCodePath || displayPath }}</span>
+            <span v-if="currentSessionItem?.source === 'automation_agent'" class="mini-drawer-agent-badge">
+              <el-icon :size="12"><MagicStick /></el-icon>
+              {{ currentSessionItem.automation_task_title || t('miniWorkstation.automationAgent') }}
+            </span>
           </div>
           <div class="mini-drawer-actions">
             <button
@@ -90,6 +94,9 @@
               :sessions="drawerSessionList"
               :active-session-id="sessionId"
               :scope="drawerSessionScope"
+              :session-source-filter="sessionSourceFilter"
+              :automation-agents="automationAgents"
+              :automation-mode="automationSessionMode"
               :search-keyword="sessionSearchKeyword"
               :filter="sessionFilter"
               :filters="sessionFilters"
@@ -106,6 +113,7 @@
               @select="handleDrawerSessionSelect"
               @new-session="startNewSession"
               @scope-change="setDrawerSessionScope"
+              @update:session-source-filter="sessionSourceFilter = $event"
               @context-new-session="openCurrentContextNewSession"
             />
             <div class="mini-current-stream">
@@ -271,6 +279,7 @@ import {
   Clock,
   Close,
   DataBoard,
+  MagicStick,
   Plus,
   UploadFilled,
   Setting
@@ -363,6 +372,7 @@ const collapsed = ref(props.initialExpanded === false)
 const suppressAutoSelectLatestSession = ref(false)
 const sessionSearchKeyword = ref('')
 const sessionFilter = ref<SessionFilterValue>('all')
+const sessionSourceFilter = ref('human')
 const abortActiveWorkspaceStream = ref<(() => void) | null>(null)
 type DrawerSessionScope = 'current' | 'all'
 const DRAWER_SESSION_SCOPE_STORAGE_KEY = 'workspace-mini-session-scope'
@@ -436,6 +446,7 @@ watch(() => props.initialExpanded, (value) => {
 const {
   miniSessionList,
   globalSessionList,
+  automationAgents,
   stopping,
   loadMiniSessions,
   loadGlobalSessions,
@@ -453,6 +464,7 @@ const {
   maximized,
   sending,
   sessionId,
+  sessionSourceFilter,
   setMessages,
   abortActiveStream: () => abortActiveWorkspaceStream.value?.(),
   onSelectMaximizedSession: (targetSessionId) => {
@@ -545,6 +557,7 @@ const {
 })
 
 const normalizedWorkbenchPath = computed(() => normalizeFullCodePath(props.fullCodePath || ''))
+const automationSessionMode = computed(() => sessionSourceFilter.value.startsWith('agent:'))
 const normalizedCurrentContextPath = computed(() => normalizeFullCodePath(props.currentFullCodePath || ''))
 function getMappedWorkspaceName(fullCodePath: string) {
   const normalizedPath = normalizeFullCodePath(fullCodePath || '')
@@ -619,6 +632,14 @@ watch(drawerSessionScope, (scope) => {
   if (props.visible) {
     loadDrawerSessions()
   }
+})
+
+watch(sessionSourceFilter, () => {
+  if (automationSessionMode.value) {
+    drawerSessionScope.value = 'current'
+  }
+  sessionSearchKeyword.value = ''
+  void loadMiniSessions()
 })
 
 function loadDrawerSessions() {
@@ -1757,6 +1778,19 @@ useMiniWorkstationEffects({
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mini-drawer-title .mini-drawer-agent-badge {
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  background: rgba(var(--color-primary-rgb), 0.1);
+  color: var(--color-primary);
+  font-size: 10px;
 }
 
 .mini-drawer-actions {

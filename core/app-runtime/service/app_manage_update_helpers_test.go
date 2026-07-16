@@ -91,6 +91,24 @@ func TestBuildAppVersionSpecInjectsPinnedStartupEnv(t *testing.T) {
 	requireEnv(t, spec.EnvVars, "KAGEOS_APP_WORK_DIR=/srv/app/workplace/bin")
 	requireEnv(t, spec.EnvVars, "KAGEOS_APP_BIN_DIR=/srv/app/workplace/bin/releases")
 	requireEnv(t, spec.EnvVars, "KAGEOS_RUNTIME_INSTANCE_ID=rt-dev")
+	for _, envVar := range spec.EnvVars {
+		if strings.HasPrefix(envVar, "NATS_URL=") {
+			t.Fatalf("NATS credentials must not be injected through env: %q", envVar)
+		}
+	}
+	if len(spec.Secrets) != 1 {
+		t.Fatalf("runtime secrets = %d, want 1", len(spec.Secrets))
+	}
+	natsSecret := spec.Secrets[0]
+	if natsSecret.Name != "alice-demo-v9-nats" {
+		t.Fatalf("NATS secret name = %q", natsSecret.Name)
+	}
+	if natsSecret.Target != appNATSSecretTarget {
+		t.Fatalf("NATS secret target = %q, want %q", natsSecret.Target, appNATSSecretTarget)
+	}
+	if len(natsSecret.Data) == 0 {
+		t.Fatal("NATS secret data must not be empty")
+	}
 }
 
 func TestWaitForStartupNotificationReturnsNotification(t *testing.T) {

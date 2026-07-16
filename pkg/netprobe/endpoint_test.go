@@ -39,6 +39,26 @@ func TestURLCandidatesPreserveAuthAndPath(t *testing.T) {
 	}
 }
 
+func TestURLCandidatesSupplyProtocolDefaultPorts(t *testing.T) {
+	tests := []struct {
+		scheme string
+		port   string
+	}{
+		{scheme: "tls", port: "4222"},
+		{scheme: "ws", port: "80"},
+		{scheme: "wss", port: "443"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.scheme, func(t *testing.T) {
+			got := URLCandidates(tt.scheme + "://host.containers.internal")
+			want := tt.scheme + "://127.0.0.1:" + tt.port
+			if !containsString(got, want) {
+				t.Fatalf("URLCandidates missing %q: %#v", want, got)
+			}
+		})
+	}
+}
+
 func TestResolveHTTPBaseURLReturnsReachableCandidate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/health" {
@@ -118,6 +138,56 @@ func TestResolveHTTPBaseURLCachedProbesOnce(t *testing.T) {
 	}
 	if secondHits := atomic.LoadInt32(&hits); secondHits != firstHits {
 		t.Fatalf("expected cached call to skip probing, hits before=%d after=%d", firstHits, secondHits)
+	}
+}
+
+func TestResolveHTTPBaseURLCachedDoesNotCacheFailure(t *testing.T) {
+	var healthy atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !healthy.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	rawURL := strings.Replace(server.URL, "127.0.0.1", "localhost", 1)
+	if _, err := ResolveHTTPBaseURLCached(t.Context(), t.Name(), rawURL, "/health", 100*time.Millisecond); err == nil {
+		t.Fatal("expected first resolution to fail")
+	}
+	healthy.Store(true)
+	if _, err := ResolveHTTPBaseURLCached(t.Context(), t.Name(), rawURL, "/health", time.Second); err != nil {
+		t.Fatalf("second resolution should probe again after recovery: %v", err)
+	}
+}
+
+func TestInvalidateHTTPBaseURLCachedForcesReprobe(t *testing.T) {
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	label := t.Name()
+	if _, err := ResolveHTTPBaseURLCached(t.Context(), label, server.URL, "/health", time.Second); err != nil {
+		t.Fatal(err)
+	}
+	firstHits := hits.Load()
+	if _, err := ResolveHTTPBaseURLCached(t.Context(), label, server.URL, "/health", time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if hits.Load() != firstHits {
+		t.Fatal("successful resolution was not cached")
+	}
+
+	InvalidateHTTPBaseURLCached(label, server.URL, "/health")
+	if _, err := ResolveHTTPBaseURLCached(t.Context(), label, server.URL, "/health", time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if hits.Load() <= firstHits {
+		t.Fatal("invalidation did not force a new probe")
 	}
 }
 

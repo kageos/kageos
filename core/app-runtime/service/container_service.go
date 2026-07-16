@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -38,7 +39,9 @@ type ContainerOperator interface {
 	ListContainers(ctx context.Context) ([]ContainerInfo, error)
 	RunContainer(ctx context.Context, image, name string) error
 	RunContainerWithMount(ctx context.Context, image, name, hostPath, containerPath string) error
-	RunContainerWithCommand(ctx context.Context, image, name, hostPath, containerPath string, command []string, envVars ...string) error
+	RunContainerWithCommand(ctx context.Context, image, name, hostPath, containerPath string, command []string, secrets []RuntimeSecret, envVars ...string) error
+	CreateSecret(ctx context.Context, secret RuntimeSecret) error
+	RemoveSecret(ctx context.Context, name string) error
 	IsContainerRunning(ctx context.Context, name string) (bool, error)
 	StartContainer(ctx context.Context, name string) error
 	StopContainer(ctx context.Context, name string) error
@@ -626,11 +629,58 @@ func (s *PodmanService) runPodman(ctx context.Context, args ...string) ([]byte, 
 	return cmd.CombinedOutput()
 }
 
+// CreateSecret creates or replaces a Podman-managed secret. Remove+create is
+// used instead of `secret create --replace` so the deployment remains
+// compatible with the Podman version shipped by Debian Bookworm. Secret data
+// is delivered over stdin so it never appears in argv, the process
+// environment, or container inspection output.
+func (s *PodmanService) CreateSecret(ctx context.Context, secret RuntimeSecret) error {
+	if !s.IsRunning() {
+		return fmt.Errorf("container service is not running")
+	}
+
+	output, err := s.runPodman(ctx, "secret", "rm", secret.Name)
+	if err != nil && !isPodmanNotFoundOutput(string(output)) {
+		return fmt.Errorf("failed to replace runtime secret %s: %w, output: %s", secret.Name, err, string(output))
+	}
+
+	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs("secret", "create", secret.Name, "-")...)
+	cmd.Stdin = bytes.NewReader(secret.Data)
+	if _, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to create runtime secret %s: %w", secret.Name, err)
+	}
+
+	logger.Infof(ctx, "Runtime secret %s created successfully", secret.Name)
+	return nil
+}
+
+// RemoveSecret removes a Podman-managed secret and treats an already missing
+// secret as success so app-version cleanup remains idempotent.
+func (s *PodmanService) RemoveSecret(ctx context.Context, name string) error {
+	if !s.IsRunning() {
+		return fmt.Errorf("container service is not running")
+	}
+
+	output, err := s.runPodman(ctx, "secret", "rm", name)
+	if err != nil {
+		if isPodmanNotFoundOutput(string(output)) {
+			logger.Infof(ctx, "Runtime secret %s not found, nothing to remove", name)
+			return nil
+		}
+		return fmt.Errorf("failed to remove runtime secret %s: %w, output: %s", name, err, string(output))
+	}
+
+	logger.Infof(ctx, "Runtime secret %s removed successfully", name)
+	return nil
+}
+
 func isPodmanNotFoundOutput(output string) bool {
 	lower := strings.ToLower(output)
 	return strings.Contains(lower, "no such container") ||
+		strings.Contains(lower, "no such secret") ||
 		strings.Contains(lower, "container does not exist") ||
 		strings.Contains(lower, "no container with name or id") ||
+		strings.Contains(lower, "no secret with name or id") ||
 		strings.Contains(lower, "not found")
 }
 
@@ -873,7 +923,7 @@ func (s *PodmanService) RunContainerWithMount(ctx context.Context, image, name, 
 }
 
 // RunContainerWithCommand 运行容器并挂载目录，使用指定命令作为主进程
-func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name, hostPath, containerPath string, command []string, envVars ...string) error {
+func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name, hostPath, containerPath string, command []string, secrets []RuntimeSecret, envVars ...string) error {
 	if !s.IsRunning() {
 		return fmt.Errorf("container service is not running")
 	}
@@ -906,6 +956,12 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 		logger.Warnf(ctx, "[LSM] 未检测到可用 LSM，容器 %s 无内核级防删保护", name)
 	}
 
+	// Mount runtime-managed secrets. Only secret names and mount targets enter
+	// the container command; secret contents stay in Podman's secret store.
+	for _, secret := range secrets {
+		args = append(args, "--secret", podmanSecretMountSpec(secret))
+	}
+
 	// 添加环境变量
 	for _, envVar := range envVars {
 		args = append(args, "-e", envVar)
@@ -921,8 +977,20 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 		return fmt.Errorf("failed to run container with command: %w, output: %s", err, string(output))
 	}
 
-	logger.Infof(ctx, "Container %s started successfully with mount %s:%s, command %v, and env keys %v", name, hostPath, containerPath, command, envVarNames(envVars))
+	logger.Infof(ctx, "Container %s started successfully with mount %s:%s, command %v, env keys %v, and secret targets %v", name, hostPath, containerPath, command, envVarNames(envVars), runtimeSecretTargets(secrets))
 	return nil
+}
+
+func podmanSecretMountSpec(secret RuntimeSecret) string {
+	return fmt.Sprintf("source=%s,target=%s,type=mount,mode=0400", secret.Name, secret.Target)
+}
+
+func runtimeSecretTargets(secrets []RuntimeSecret) []string {
+	targets := make([]string, 0, len(secrets))
+	for _, secret := range secrets {
+		targets = append(targets, secret.Target)
+	}
+	return targets
 }
 
 func podmanRunBaseArgs(name, hostPath, containerPath string, networkMode string) []string {

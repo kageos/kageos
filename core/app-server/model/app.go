@@ -18,11 +18,27 @@ type App struct {
 	Version  string `gorm:"column:version;type:varchar(50)" json:"version"`
 	IsPublic bool   `gorm:"column:is_public;type:boolean;default:true" json:"is_public"` // 是否公开，默认公开
 	Admins   string `gorm:"column:admins;type:text" json:"admins"`                       // 管理员列表，逗号分隔的用户名
+	// IsPersonalWorkspace 只标识平台自动创建的默认 Home，不能仅凭 code=home 推断。
+	IsPersonalWorkspace bool `gorm:"column:is_personal_workspace;type:boolean;default:false;index" json:"is_personal_workspace"`
 	// 是否在目录树返回时隐藏当前用户无 read 权限的节点，默认关闭。
 	HideUnauthorizedNodes bool `gorm:"column:hide_unauthorized_nodes;type:boolean;default:false" json:"hide_unauthorized_nodes"`
 
 	// ⭐ 新增：应用类型（0:用户空间, 1:系统空间）
 	Type AppType `json:"type" gorm:"column:type;type:tinyint;default:0;index;comment:应用类型(0:用户空间,1:系统空间)"`
+}
+
+// PersonalWorkspaceBootstrap 是默认 Home 的跨实例幂等占位记录。
+// 唯一 user 约束保证同一用户只有一个创建者；远程 runtime 创建不占用数据库事务锁。
+type PersonalWorkspaceBootstrap struct {
+	models.Base
+	User   string `gorm:"column:user;type:varchar(255);not null;uniqueIndex" json:"user"`
+	Status string `gorm:"column:status;type:varchar(32);not null;index" json:"status"`
+	AppID  int64  `gorm:"column:app_id;type:bigint;index" json:"app_id"`
+	Error  string `gorm:"column:error;type:text" json:"error"`
+}
+
+func (PersonalWorkspaceBootstrap) TableName() string {
+	return "personal_workspace_bootstraps"
 }
 
 func (App) TableName() string {

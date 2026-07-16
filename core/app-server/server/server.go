@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -351,11 +352,34 @@ func (s *Server) initRouter(ctx context.Context) error {
 
 // healthHandler 健康检查处理器
 func (s *Server) healthHandler(c *gin.Context) {
-	c.JSON(200, gin.H{
+	pingCtx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+	defer cancel()
+	if err := s.pingDatabase(pingCtx); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"status":     "unavailable",
+			"timestamp":  time.Now().Format(time.DateTime),
+			"service":    "app-server",
+			"dependency": "mysql",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
 		"status":    "ok",
 		"timestamp": time.Now().Format(time.DateTime),
 		"service":   "app-server",
 	})
+}
+
+func (s *Server) pingDatabase(ctx context.Context) error {
+	if s.db == nil {
+		return fmt.Errorf("database is not initialized")
+	}
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.PingContext(ctx)
 }
 
 // GetDB 获取数据库连接

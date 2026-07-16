@@ -200,6 +200,15 @@
                   <el-button
                     link
                     size="small"
+                    :title="t('workspace.renameWorkspace')"
+                    :data-testid="`workspace-card-rename-${app.id}`"
+                    @click.stop="handleRenameWorkspace(app)"
+                  >
+                    <el-icon><EditPen /></el-icon>
+                  </el-button>
+                  <el-button
+                    link
+                    size="small"
                     :title="t('workspace.recompile')"
                     :data-testid="`workspace-card-refresh-${app.id}`"
                     @click.stop="handleUpdateApp(app)"
@@ -207,6 +216,7 @@
                     <el-icon><RefreshRight /></el-icon>
                   </el-button>
                   <el-button
+                    v-if="!app.is_personal_workspace"
                     link
                     size="small"
                     :title="t('common.delete')"
@@ -391,12 +401,16 @@ import {
   Lock,
   PriceTag,
   Clock,
-  CollectionTag
+  CollectionTag,
+  EditPen
 } from '@element-plus/icons-vue'
-import { getAppList } from '@/architecture/presentation/context/api/app'
+import { getAppList, updateWorkspace } from '@/architecture/presentation/context/api/app'
 import type { App } from '@/architecture/domain/types'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
+import { eventBus } from '@/architecture/presentation/context/eventBusContext'
+import { WorkspaceEvent } from '@/architecture/domain/interfaces/IEventBus'
+import { buildAppResourcePath } from '@/architecture/shared/resourcePath'
 
 interface Props {
   currentApp: App | null
@@ -572,6 +586,38 @@ const handleUpdateCurrentWorkspace = async () => {
 
 const handleDeleteApp = (app: App) => {
   emit('delete-app', app)
+}
+
+const handleRenameWorkspace = async (app: App) => {
+  let name = ''
+  try {
+    const result = await ElMessageBox.prompt(
+      t('workspace.renameWorkspaceDescription'),
+      t('workspace.renameWorkspaceTitle'),
+      {
+        inputValue: app.name || '',
+        inputPlaceholder: t('workspace.renameWorkspacePlaceholder'),
+        inputValidator: (value: string) => value.trim().length > 0 || t('workspace.renameWorkspaceRequired'),
+        confirmButtonText: t('workspace.renameWorkspaceConfirm'),
+        cancelButtonText: t('common.cancel')
+      }
+    )
+    name = result.value.trim()
+  } catch {
+    return
+  }
+  if (!name || name === app.name) return
+
+  try {
+    await updateWorkspace(buildAppResourcePath(app.user, app.code), { name })
+    const renamedApp = { ...app, name }
+    eventBus.emit(WorkspaceEvent.appInfoUpdated, { app: renamedApp })
+    await loadWorkspaces()
+    ElMessage.success(t('workspace.renameWorkspaceSuccess'))
+  } catch (error) {
+    console.error('[WorkspaceListPanel] rename workspace failed:', error)
+    ElMessage.error(t('workspace.renameWorkspaceFailed'))
+  }
 }
 
 watch(() => props.visible, (newVal: boolean) => {

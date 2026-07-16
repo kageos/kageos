@@ -14,6 +14,8 @@ import (
 )
 
 type fakeAppRuntimeClient struct {
+	createCalls  int
+	createErr    error
 	updateHostID int64
 	updateReq    *dto.UpdateAppRuntimeReq
 	updateResp   *dto.UpdateAppResp
@@ -31,6 +33,10 @@ type fakeAppRuntimeClient struct {
 }
 
 func (c *fakeAppRuntimeClient) CreateApp(context.Context, int64, *dto.CreateAppReq) (*dto.CreateAppResp, error) {
+	c.createCalls++
+	if c.createErr != nil {
+		return nil, c.createErr
+	}
 	return &dto.CreateAppResp{}, nil
 }
 

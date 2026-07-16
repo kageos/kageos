@@ -102,6 +102,25 @@ func TestEnvVarNamesRedactsValues(t *testing.T) {
 	}
 }
 
+func TestPodmanSecretMountSpecNeverContainsSecretData(t *testing.T) {
+	secret := RuntimeSecret{
+		Name:   "alice-demo-v9-nats",
+		Target: "kageos-nats",
+		Data:   []byte("nats://aos:super-secret@host.containers.internal:4222"),
+	}
+
+	got := podmanSecretMountSpec(secret)
+	want := "source=alice-demo-v9-nats,target=kageos-nats,type=mount,mode=0400"
+	if got != want {
+		t.Fatalf("podmanSecretMountSpec() = %q, want %q", got, want)
+	}
+	for _, forbidden := range []string{"super-secret", "nats://", "aos:"} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("podman secret mount spec leaked %q: %q", forbidden, got)
+		}
+	}
+}
+
 func TestSplitContainerNames(t *testing.T) {
 	got := splitContainerNames("app-one, app-two,,")
 	want := []string{"app-one", "app-two"}
@@ -113,6 +132,9 @@ func TestSplitContainerNames(t *testing.T) {
 func TestIsPodmanNotFoundOutput(t *testing.T) {
 	if !isPodmanNotFoundOutput("Error: no such container: demo") {
 		t.Fatal("expected no such container output to be treated as not found")
+	}
+	if !isPodmanNotFoundOutput(`Error: no secret with name or id "demo"`) {
+		t.Fatal("expected missing secret output to be treated as not found")
 	}
 	if isPodmanNotFoundOutput("Error: permission denied") {
 		t.Fatal("permission errors must not be treated as not found")

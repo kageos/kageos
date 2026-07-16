@@ -52,6 +52,7 @@ func InitTables(db *gorm.DB) error {
 		&Nats{},
 		&Host{},
 		&App{},
+		&PersonalWorkspaceBootstrap{},
 		&ServiceTree{},
 		&Function{},
 		&FunctionSensitiveField{},

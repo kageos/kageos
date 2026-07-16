@@ -60,6 +60,8 @@ export interface App {
   type?: number  // 应用类型：0=用户空间，1=系统空间
   version: string
   is_public: boolean
+	// 平台自动创建的默认 Home；不能仅凭 code 判断。
+  is_personal_workspace?: boolean
   hide_unauthorized_nodes?: boolean
   admins?: string
   created_at: string

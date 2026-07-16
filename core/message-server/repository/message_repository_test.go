@@ -387,12 +387,11 @@ func TestMessageActionTokenViewAndReply(t *testing.T) {
 		t.Fatalf("workstation draft = %q", reply.WorkstationDraft)
 	}
 	if !strings.Contains(reply.WorkstationDraft, "send_notification") ||
-		!strings.Contains(reply.WorkstationDraft, "也看不到本轮工作台回复内容") ||
-		!strings.Contains(reply.WorkstationDraft, "用户只能收到 send_notification 投递的消息通知") ||
+		!strings.Contains(reply.WorkstationDraft, "实时查看这次工作台会话") ||
+		!strings.Contains(reply.WorkstationDraft, "像 PC 工作台会话一样直接回复用户") ||
 		!strings.Contains(reply.WorkstationDraft, "必须使用 Markdown 格式") ||
 		!strings.Contains(reply.WorkstationDraft, "content_type 使用 markdown") ||
-		!strings.Contains(reply.WorkstationDraft, "通知正文禁止包含思考过程") ||
-		!strings.Contains(reply.WorkstationDraft, "不能替代消息通知") {
+		!strings.Contains(reply.WorkstationDraft, "通知正文禁止包含思考过程") {
 		t.Fatalf("workstation draft missing mobile notification guardrails = %q", reply.WorkstationDraft)
 	}
 	if strings.Contains(reply.WorkstationDraft, "平台会自动") || strings.Contains(reply.WorkstationDraft, "自动回推") {

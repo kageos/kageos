@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	pathpkg "path"
 	"sort"
 	"strings"
 
@@ -37,9 +38,7 @@ func newServiceTreeWorkspaceService(
 }
 
 func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, req *dto.GetWorkspaceContextReq) (*dto.GetWorkspaceContextResp, error) {
-	detail, err := s.queryView.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{
-		FullCodePath: req.FullCodePath,
-	})
+	detail, directoryPath, err := s.resolveWorkspaceDirectory(ctx, req.FullCodePath)
 	if err != nil {
 		return nil, fmt.Errorf("获取目录详情失败: %w", err)
 	}
@@ -102,7 +101,7 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 
 	var files []dto.WorkspaceContextFile
 	if detail.AppID > 0 {
-		_, runtimeResp, errRt := s.runtimeWorkspace.readDirectoryFiles(ctx, detail.AppID, req.FullCodePath)
+		_, runtimeResp, errRt := s.runtimeWorkspace.readDirectoryFiles(ctx, detail.AppID, directoryPath)
 		if errRt == nil && runtimeResp != nil && runtimeResp.Success {
 			files = make([]dto.WorkspaceContextFile, 0, len(runtimeResp.Files))
 			for _, f := range runtimeResp.Files {
@@ -158,6 +157,30 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 		Children: childrenNodes,
 		Files:    files,
 	}, nil
+}
+
+// resolveWorkspaceDirectory 接受目录或具体资源路径，并依据 service_tree.type 解析执行目录。
+// 它只影响本次上下文解析，不会改写会话或服务树路径。
+func (s *serviceTreeWorkspaceService) resolveWorkspaceDirectory(ctx context.Context, requestedPath string) (*dto.GetServiceTreeDetailResp, string, error) {
+	detail, err := s.queryView.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{FullCodePath: requestedPath})
+	if err != nil {
+		return nil, "", err
+	}
+	if detail.Type == model.ServiceTreeTypePackage {
+		return detail, detail.FullCodePath, nil
+	}
+	parentPath := strings.TrimSpace(pathpkg.Dir(detail.FullCodePath))
+	if parentPath == "" || parentPath == "." || parentPath == "/" || parentPath == detail.FullCodePath {
+		return nil, "", fmt.Errorf("资源没有可用的父目录: %s", detail.FullCodePath)
+	}
+	parent, err := s.queryView.GetServiceTreeDetail(ctx, &dto.GetServiceTreeDetailReq{FullCodePath: parentPath})
+	if err != nil {
+		return nil, "", fmt.Errorf("解析资源父目录 %s 失败: %w", parentPath, err)
+	}
+	if parent.Type != model.ServiceTreeTypePackage {
+		return nil, "", fmt.Errorf("资源父节点不是服务目录: %s (type=%s)", parent.FullCodePath, parent.Type)
+	}
+	return parent, parent.FullCodePath, nil
 }
 
 func (s *serviceTreeWorkspaceService) WriteFileContent(ctx context.Context, req *dto.WriteFileContentReq) (*dto.WriteFileContentResp, error) {

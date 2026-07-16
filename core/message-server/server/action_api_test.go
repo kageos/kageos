@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -237,8 +238,18 @@ func TestSubmitPublicMessageActionReplyRequiresAuthForRouteToken(t *testing.T) {
 	req.Header.Set("X-Request-User", "alice")
 	recorder = httptest.NewRecorder()
 	router.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("non-recipient status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+
+	body = bytes.NewBufferString(`{"content":"我来处理这个订单。","action":"reply"}`)
+	req = httptest.NewRequest(http.MethodPost, "/message/api/v1/public/actions/"+rawToken+"/reply", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-User", "bob")
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusOK {
-		t.Fatalf("authenticated status = %d body=%s", recorder.Code, recorder.Body.String())
+		t.Fatalf("recipient status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
 	var result struct {
 		Code int                        `json:"code"`
@@ -251,21 +262,90 @@ func TestSubmitPublicMessageActionReplyRequiresAuthForRouteToken(t *testing.T) {
 	if result.Code != 0 || !result.Data.AgentSubmitted {
 		t.Fatalf("response = %#v", result)
 	}
-	if runner.req.RecipientUser != "alice" {
-		t.Fatalf("runner recipient user = %q, want alice", runner.req.RecipientUser)
+	if runner.req.RecipientUser != "bob" {
+		t.Fatalf("runner recipient user = %q, want bob", runner.req.RecipientUser)
 	}
-	if !strings.Contains(runner.req.Content, "处理用户：alice") {
+	if !strings.Contains(runner.req.Content, "处理用户：bob") {
 		t.Fatalf("runner content should contain authenticated user, got %q", runner.req.Content)
+	}
+}
+
+func TestSubmitPublicMessageActionReplyCanRetryAfterWorkspaceFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newActionAPITestMessageRepo(t)
+	entry, err := repo.Create(context.Background(), dto.MessageSendMeta{
+		From:       "agent",
+		SourcePath: "/alice/ops/orders.table",
+	}, dto.MessageSendPayload{
+		Title:   "订单待确认",
+		Content: "订单 A123 需要确认。",
+	}, []string{"bob"})
+	if err != nil {
+		t.Fatalf("create message: %v", err)
+	}
+	rawToken, _, err := repo.CreateActionToken(context.Background(), msgrepo.CreateActionTokenInput{
+		MessageID:         entry.ID,
+		RecipientUsername: "bob",
+		AllowedActions:    []string{"reply"},
+		SourcePath:        entry.SourcePath,
+	})
+	if err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+
+	runner := &fakeWorkspaceActionRunner{err: errors.New("agent server unavailable")}
+	s := &Server{messageRepo: repo, workspaceActionRunner: runner}
+	router := gin.New()
+	router.POST("/message/api/v1/public/actions/:token/reply", s.submitPublicMessageActionReply)
+
+	submit := func() *httptest.ResponseRecorder {
+		body := bytes.NewBufferString(`{"content":"确认继续处理。","action":"reply"}`)
+		req := httptest.NewRequest(http.MethodPost, "/message/api/v1/public/actions/"+rawToken+"/reply", body)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Request-User", "bob")
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, req)
+		return recorder
+	}
+
+	failed := submit()
+	if failed.Code != http.StatusInternalServerError {
+		t.Fatalf("failed submit status = %d body=%s", failed.Code, failed.Body.String())
+	}
+	view, err := repo.GetActionView(context.Background(), rawToken, "", "bob")
+	if err != nil {
+		t.Fatalf("get action view after failure: %v", err)
+	}
+	if view.TokenStatus != string(dto.MessageActionTokenStatusOpen) || !view.CanReply {
+		t.Fatalf("token should be retryable after runner failure: %#v", view)
+	}
+
+	runner.err = nil
+	runner.sessionID = "retry-session-1"
+	retried := submit()
+	if retried.Code != http.StatusOK {
+		t.Fatalf("retry status = %d body=%s", retried.Code, retried.Body.String())
+	}
+	view, err = repo.GetActionView(context.Background(), rawToken, "", "bob")
+	if err != nil {
+		t.Fatalf("get action view after retry: %v", err)
+	}
+	if view.TokenStatus != string(dto.MessageActionTokenStatusSubmitted) || view.WorkspaceSession != "retry-session-1" {
+		t.Fatalf("token should finalize with real session after retry: %#v", view)
 	}
 }
 
 type fakeWorkspaceActionRunner struct {
 	sessionID string
+	err       error
 	req       service.WorkspaceActionRequest
 }
 
 func (f *fakeWorkspaceActionRunner) Submit(_ context.Context, req service.WorkspaceActionRequest) (*service.WorkspaceActionSubmitResult, error) {
 	f.req = req
+	if f.err != nil {
+		return nil, f.err
+	}
 	return &service.WorkspaceActionSubmitResult{SessionID: f.sessionID, Accepted: true}, nil
 }
 
