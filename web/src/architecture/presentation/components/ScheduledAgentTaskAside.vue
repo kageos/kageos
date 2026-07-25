@@ -74,6 +74,14 @@
           <strong>{{ task.run_count || 0 }}</strong>
         </div>
         <div class="detail-property">
+          <span>{{ t('scheduledTask.overlapPolicy') }}</span>
+          <strong>{{ overlapPolicyLabel(task.overlap_policy) }}</strong>
+        </div>
+        <div v-if="task.overlap_policy === 'allow'" class="detail-property">
+          <span>{{ t('scheduledTask.maxParallelism') }}</span>
+          <strong>{{ task.max_parallelism || 1 }}</strong>
+        </div>
+        <div class="detail-property">
           <span>{{ t('scheduledTask.agentModel') }}</span>
           <strong>{{ llmConfigLabel }}</strong>
         </div>
@@ -132,6 +140,25 @@
             @update:model-value="updateMaxRuns"
           />
         </el-form-item>
+
+        <el-form-item :label="t('scheduledTask.overlapPolicy')">
+          <el-select :model-value="overlapPolicy" style="width: 100%" @update:model-value="updateOverlapPolicy">
+            <el-option :label="t('scheduledTask.overlapForbid')" value="forbid" />
+            <el-option :label="t('scheduledTask.overlapQueueLatest')" value="queue_latest" />
+            <el-option :label="t('scheduledTask.overlapAllow')" value="allow" />
+          </el-select>
+          <div class="detail-inline-hint">{{ t(`scheduledTask.overlapHint_${overlapPolicy}`) }}</div>
+        </el-form-item>
+
+        <el-form-item v-if="overlapPolicy === 'allow'" :label="t('scheduledTask.maxParallelism')">
+          <el-input-number
+            :model-value="maxParallelism"
+            :min="1"
+            :max="16"
+            style="width: 100%"
+            @update:model-value="updateMaxParallelism"
+          />
+        </el-form-item>
       </el-form>
     </section>
 
@@ -150,7 +177,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CaretRight, Close, Delete, VideoPause, VideoPlay } from '@element-plus/icons-vue'
-import type { TimerScheduleType, TimerTask } from '@/architecture/presentation/context/api/timer'
+import type { TimerOverlapPolicy, TimerScheduleType, TimerTask } from '@/architecture/presentation/context/api/timer'
 import { createRelativeDateTimeShortcuts } from '@/architecture/shared/date'
 import {
   formatDateTime,
@@ -169,6 +196,8 @@ defineProps<{
   cronExpr: string
   intervalSeconds: number
   maxRuns: number
+  overlapPolicy: TimerOverlapPolicy
+  maxParallelism: number
 }>()
 
 const emit = defineEmits<{
@@ -182,6 +211,8 @@ const emit = defineEmits<{
   (e: 'update:cronExpr', value: string): void
   (e: 'update:intervalSeconds', value: number): void
   (e: 'update:maxRuns', value: number): void
+  (e: 'update:overlapPolicy', value: TimerOverlapPolicy): void
+  (e: 'update:maxParallelism', value: number): void
 }>()
 
 const { t } = useI18n()
@@ -215,6 +246,22 @@ function updateIntervalSeconds(value: number | null | undefined) {
 
 function updateMaxRuns(value: number | null | undefined) {
   emit('update:maxRuns', Number(value || 0))
+}
+
+function updateOverlapPolicy(value: string | number | boolean | undefined) {
+  if (value === 'forbid' || value === 'queue_latest' || value === 'allow') {
+    emit('update:overlapPolicy', value)
+  }
+}
+
+function updateMaxParallelism(value: number | null | undefined) {
+  emit('update:maxParallelism', Number(value || 1))
+}
+
+function overlapPolicyLabel(policy?: TimerOverlapPolicy): string {
+  if (policy === 'queue_latest') return t('scheduledTask.overlapQueueLatest')
+  if (policy === 'allow') return t('scheduledTask.overlapAllow')
+  return t('scheduledTask.overlapForbid')
 }
 
 function formatDateInput(date: Date): string {
@@ -352,6 +399,13 @@ function formatDateInput(date: Date): string {
 
 .detail-schedule-form :deep(.el-form-item:last-child) {
   margin-bottom: 0;
+}
+
+.detail-inline-hint {
+  margin-top: 6px;
+  color: var(--scheduled-session-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .detail-schedule-type {

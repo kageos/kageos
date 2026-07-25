@@ -91,3 +91,32 @@ func TestAppRuntimeStartupNotificationTimeoutDefault(t *testing.T) {
 		t.Fatalf("GetAppStartupNotificationTimeout() = %d, want 600", got)
 	}
 }
+
+func TestAppRuntimeUpdateCallbackTimeoutDefault(t *testing.T) {
+	cfg := &AppRuntimeConfig{}
+	if got := cfg.GetUpdateCallbackTimeout(); got != 240 {
+		t.Fatalf("GetUpdateCallbackTimeout() = %d, want 240", got)
+	}
+
+	cfg.Timeouts.UpdateCallback = 180
+	if got := cfg.GetUpdateCallbackTimeout(); got != 180 {
+		t.Fatalf("GetUpdateCallbackTimeout() = %d, want 180", got)
+	}
+}
+
+func TestAppManageBuildStripsDebugSymbolsByDefault(t *testing.T) {
+	cfg := &AppManageServiceConfig{}
+	if !cfg.GetStripDebugSymbols() {
+		t.Fatal("expected release debug symbols to be stripped by default")
+	}
+
+	cfg.Build.KeepDebugSymbols = true
+	if cfg.GetStripDebugSymbols() {
+		t.Fatal("expected keep_debug_symbols to disable stripping")
+	}
+
+	var nilConfig *AppManageServiceConfig
+	if !nilConfig.GetStripDebugSymbols() {
+		t.Fatal("expected nil config to use the optimized release default")
+	}
+}

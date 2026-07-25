@@ -216,6 +216,8 @@
               v-model:cron-expr="inlineForm.cron_expr"
               v-model:interval-seconds="inlineForm.interval_seconds"
               v-model:max-runs="inlineForm.max_runs"
+              v-model:overlap-policy="inlineForm.overlap_policy"
+              v-model:max-parallelism="inlineForm.max_parallelism"
               @run-now="handleRunNow"
               @pause="handlePause"
               @resume="handleResume"
@@ -263,6 +265,7 @@ import {
   runTimerTaskNow,
   updateTimerTask,
   type TimerExecution,
+  type TimerOverlapPolicy,
   type TimerTask,
 } from '@/architecture/presentation/context/api/timer'
 import {
@@ -308,6 +311,8 @@ interface InlineScheduledAgentForm extends TimerScheduleForm {
   message: string
   files: string
   llm_config_id: number
+  overlap_policy: TimerOverlapPolicy
+  max_parallelism: number
 }
 
 const props = withDefaults(defineProps<{
@@ -370,6 +375,8 @@ const inlineForm = reactive<InlineScheduledAgentForm>({
   message: '',
   files: '',
   llm_config_id: 0,
+  overlap_policy: 'forbid',
+  max_parallelism: 2,
   ...createDefaultTimerScheduleForm(),
 })
 
@@ -717,6 +724,8 @@ function resetInlineForm(task: TimerTask) {
   inlineForm.message = getAgentMessage(task)
   inlineForm.files = stringifyFileRefs(fileRefs)
   inlineForm.llm_config_id = getTaskLLMConfigID(task)
+  inlineForm.overlap_policy = task.overlap_policy || 'forbid'
+  inlineForm.max_parallelism = task.max_parallelism || 2
   if (inlineForm.llm_config_id > 0) {
     void loadLLMOptions()
   }
@@ -776,6 +785,8 @@ function buildInlineSnapshot(): string {
     interval_seconds: Number(inlineForm.interval_seconds || 0),
     timezone: inlineForm.timezone,
     max_runs: Number(inlineForm.max_runs || 0),
+    overlap_policy: inlineForm.overlap_policy,
+    max_parallelism: Number(inlineForm.max_parallelism || 1),
   })
 }
 
@@ -848,6 +859,8 @@ async function saveInlineEdit() {
         kind: 'scheduled_agent_session',
       },
       schedule: buildTimerSchedule(inlineForm),
+      overlap_policy: inlineForm.overlap_policy,
+      max_parallelism: inlineForm.overlap_policy === 'allow' ? inlineForm.max_parallelism : 1,
       source_type: task.source_type || 'agent_session',
       source_ref: fullCodePath,
       resource_scope: task.resource_scope || 'workspace_directory',

@@ -31,7 +31,11 @@ func TestUpdateWorkspaceRenamesAppAndRootTogether(t *testing.T) {
 	}
 
 	name := "客户交付"
-	service := NewAppService(&fakeAppRuntimeClient{}, repo, nil, repository.NewServiceTreeRepository(db), nil)
+	service := NewAppService(AppServiceDependencies{
+		AppRuntimeClient:      &fakeAppRuntimeClient{},
+		AppRepository:         repo,
+		ServiceTreeRepository: repository.NewServiceTreeRepository(db),
+	})
 	resp, err := service.UpdateWorkspace(context.Background(), &dto.UpdateWorkspaceReq{ResourcePath: "/alice/home", Name: &name})
 	if err != nil {
 		t.Fatal(err)

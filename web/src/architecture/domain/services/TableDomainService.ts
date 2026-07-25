@@ -96,6 +96,12 @@ type TableRequestParams = SearchParams & {
   sorts?: string
 }
 
+export interface TableDataSnapshot {
+  rows: TableRow[]
+  total: number
+  truncated: boolean
+}
+
 /**
  * 表格领域服务
  */
@@ -241,6 +247,52 @@ export class TableDomainService {
         })
       }
       throw error
+    }
+  }
+
+  /**
+   * 读取当前筛选条件下的数据快照，不改变列表的加载状态、分页或当前数据。
+   * 用于导出等旁路操作，避免用户导出后被强制跳页。
+   */
+  async loadDataSnapshot(
+    functionDetail: FunctionDetail,
+    options: { maxRows?: number, pageSize?: number } = {}
+  ): Promise<TableDataSnapshot> {
+    const state = this.stateManager.getState()
+    const maxRows = Math.max(1, options.maxRows ?? 10000)
+    const pageSize = Math.min(500, Math.max(1, options.pageSize ?? 500))
+    const rows: TableRow[] = []
+    let page = 1
+    let total = 0
+
+    while (rows.length < maxRows) {
+      const params: TableRequestParams = {
+        ...state.searchParams,
+        page,
+        page_size: Math.min(pageSize, maxRows - rows.length)
+      }
+
+      if (state.sorts && state.sorts.length > 0) {
+        params.sorts = serializeSortsForRequest(state.sorts)
+      } else if (state.sortParams) {
+        params.sorts = serializeSortsForRequest([state.sortParams])
+      }
+
+      const response = await this.tableGateway.loadRows({ functionDetail, params })
+      const pageRows = response.items || []
+      total = response.paginated?.total_count ?? pageRows.length
+      rows.push(...pageRows.slice(0, maxRows - rows.length))
+
+      if (pageRows.length === 0 || rows.length >= total || pageRows.length < params.page_size) {
+        break
+      }
+      page += 1
+    }
+
+    return {
+      rows,
+      total,
+      truncated: rows.length < total
     }
   }
 

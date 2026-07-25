@@ -15,8 +15,9 @@ const ButtonStub = defineComponent({
 const LinkStub = defineComponent({
   props: {
     href: { type: String, default: '' },
+    download: { type: String, default: '' },
   },
-  template: '<a class="el-link" :href="href"><slot /></a>',
+  template: '<a class="el-link" :href="href" :download="download"><slot /></a>',
 })
 
 function mountDisplay(props: Record<string, unknown>) {
@@ -33,6 +34,22 @@ function mountDisplay(props: Record<string, unknown>) {
 }
 
 describe('OutputFilesDisplay', () => {
+  it('uses the display name as the download filename', () => {
+    const wrapper = mountDisplay({
+      fileGroups: [{
+        label: 'Output Files',
+        files: [{
+          name: 'generated-12345.xlsx',
+          source_name: '商品导入模板_已填充.xlsx',
+          download_url: '/files/generated-12345.xlsx',
+        }],
+      }],
+    })
+
+    const links = wrapper.findAll('a.el-link')
+    expect(links.at(-1)?.attributes('download')).toBe('商品导入模板_已填充.xlsx')
+  })
+
   it('renders videos as inline browser previews', () => {
     const wrapper = mountDisplay({
       fileGroups: [{

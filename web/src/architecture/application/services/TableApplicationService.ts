@@ -19,6 +19,18 @@ import type { FunctionDetail } from '../../domain/types'
 import { getTableListFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 import type { TableSearchParams, SortParams, TableRow } from '../../domain/types'
 import { Logger } from '@/architecture/shared/logger'
+import { getErrorMessage } from '@/architecture/shared/apiError'
+
+export interface TableBatchAddError {
+  rowNumber: number
+  message: string
+}
+
+export interface TableBatchAddResult {
+  createdCount: number
+  failedCount: number
+  errors: TableBatchAddError[]
+}
 
 export interface TableApplicationServiceOptions {
   preloadUserInfo?: (usernames: string[]) => Promise<void>
@@ -223,6 +235,47 @@ export class TableApplicationService {
     // 重新加载数据
     await this.loadData(functionDetail)
     return result
+  }
+
+  /**
+   * 批量新增仍逐行走已有 OnTableAddRow 调用链，只在全部处理后刷新一次列表。
+   * 这样目录自己的校验、权限和审计不会被“导入”绕开。
+   */
+  async addRows(
+    functionDetail: FunctionDetail,
+    rows: Array<{ rowNumber: number, data: Record<string, unknown> }>
+  ): Promise<TableBatchAddResult> {
+    const errors: TableBatchAddError[] = []
+    let createdCount = 0
+
+    for (const row of rows) {
+      try {
+        await this.domainService.addRow(functionDetail, row.data)
+        createdCount += 1
+      } catch (error) {
+        errors.push({
+          rowNumber: row.rowNumber,
+          message: getErrorMessage(error, '写入失败')
+        })
+      }
+    }
+
+    if (createdCount > 0) {
+      await this.loadData(functionDetail)
+    }
+
+    return {
+      createdCount,
+      failedCount: errors.length,
+      errors
+    }
+  }
+
+  async loadDataSnapshot(
+    functionDetail: FunctionDetail,
+    options?: { maxRows?: number, pageSize?: number }
+  ) {
+    return this.domainService.loadDataSnapshot(functionDetail, options)
   }
 
   /**

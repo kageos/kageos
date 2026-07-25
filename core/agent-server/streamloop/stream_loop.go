@@ -3,6 +3,7 @@ package streamloop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -16,10 +17,12 @@ import (
 const (
 	EventContent               = dto.WorkspaceStreamEventContent
 	EventThinking              = dto.WorkspaceStreamEventThinking
+	EventGenerationAttempt     = dto.WorkspaceStreamEventGenerationAttempt
 	EventToolCallsStreamDelta  = dto.WorkspaceStreamEventToolCallsStreamDelta // 增量+节流，节省带宽
 	EventError                 = dto.WorkspaceStreamEventError
 	MaxToolRounds              = 100 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
-	maxContextReductionRetries = 3
+	maxContextReductionRetries = 4
+	maxOutputLimitRetries      = 1
 
 	// 节流参数：满足任一条件即 flush
 	throttleIntervalMs = 100 // 距上次发送超过 100ms
@@ -47,6 +50,11 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 	var thinkingContent string
 	var allToolCalls []llms.ToolCall
 	var usage *llms.Usage
+	var roundUsage *llms.Usage
+	outputLimitRetries := 0
+	contextReductionRetries := 0
+	committedContentPrefix := ""
+	committedThinkingPrefix := ""
 	for attempt := 0; ; attempt++ {
 		msgs, tools, err := deps.BuildMessages(ctx)
 		if err != nil {
@@ -58,15 +66,24 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 		}
 		client, chatReq, err := deps.PrepareLLM(ctx, msgs, tools)
 		if err != nil {
+			if contextReductionRetries < maxContextReductionRetries && requestContextReduction(ctx, deps, err) {
+				contextReductionRetries++
+				logger.Warnf(ctx, "[StreamLoop] LLM 上下文预检超限，已提高上下文压缩等级后重试 attempt=%d err=%v", attempt+1, err)
+				continue
+			}
 			deps.SendEvent(EventError, &errorData{Message: err.Error()})
 			return err
 		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		attemptID := fmt.Sprintf("%d-%d", round, attempt+1)
+		deps.SendEvent(EventGenerationAttempt, &dto.WorkspaceStreamGenerationAttempt{AttemptID: attemptID, Round: round, Action: "started"})
 		stream, err := client.ChatStream(ctx, chatReq)
 		if err != nil {
-			if attempt < maxContextReductionRetries && requestContextReduction(ctx, deps, err) {
+			if contextReductionRetries < maxContextReductionRetries && requestContextReduction(ctx, deps, err) {
+				contextReductionRetries++
+				deps.SendEvent(EventGenerationAttempt, &dto.WorkspaceStreamGenerationAttempt{AttemptID: attemptID, Round: round, Action: "discarded", Reason: "context_window_retry"})
 				logger.Warnf(ctx, "[StreamLoop] LLM 上下文超限，已提高上下文压缩等级后重试 attempt=%d err=%v", attempt+1, err)
 				continue
 			}
@@ -74,17 +91,52 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 			return err
 		}
 
-		content, thinkingContent, allToolCalls, usage, err = processStreamChunks(ctx, stream, deps.SendEvent, round)
+		var attemptUsage *llms.Usage
+		content, thinkingContent, allToolCalls, attemptUsage, err = processStreamChunks(ctx, stream, deps.SendEvent, round)
+		roundUsage = addLLMUsage(roundUsage, attemptUsage)
+		usage = roundUsage
 		if err != nil {
-			if attempt < maxContextReductionRetries && requestContextReduction(ctx, deps, err) {
+			if outputLimitErr := asOutputLimitError(err); outputLimitErr != nil && outputLimitRetries < maxOutputLimitRetries && requestOutputLimitRecovery(ctx, deps, err) {
+				outputLimitRetries++
+				deps.SendEvent(EventGenerationAttempt, &dto.WorkspaceStreamGenerationAttempt{AttemptID: attemptID, Round: round, Action: "discarded", Reason: "output_limit_retry"})
+				logger.Warnf(ctx, "[StreamLoop] LLM 在可见正文前达到输出上限，已启用精简输出恢复后重试 retry=%d max_tokens=%d", outputLimitRetries, chatReq.MaxTokens)
+				continue
+			}
+			if outputLimitErr := asOutputLimitError(err); outputLimitErr != nil && strings.TrimSpace(content) != "" {
+				combinedContent := committedContentPrefix + content
+				combinedThinking := joinOutputThinking(committedThinkingPrefix, thinkingContent)
+				if requestOutputContinuation(ctx, deps, combinedContent) {
+					committedContentPrefix = combinedContent
+					committedThinkingPrefix = combinedThinking
+					deps.SendEvent(EventGenerationAttempt, &dto.WorkspaceStreamGenerationAttempt{AttemptID: attemptID, Round: round, Action: "committed", Reason: "output_continuation"})
+					logger.Warnf(ctx, "[StreamLoop] LLM 可见正文达到输出上限，保留已生成内容并自动续写 chars=%d", len([]rune(combinedContent)))
+					continue
+				}
+				content = combinedContent
+				thinkingContent = combinedThinking
+				allToolCalls = nil
+				deps.SendEvent(EventGenerationAttempt, &dto.WorkspaceStreamGenerationAttempt{AttemptID: attemptID, Round: round, Action: "committed", Reason: "output_continuation_limit"})
+				logger.Warnf(ctx, "[StreamLoop] LLM 自动续写达到保护上限，保留并保存已生成正文 chars=%d", len([]rune(content)))
+				break
+			}
+			if contextReductionRetries < maxContextReductionRetries && requestContextReduction(ctx, deps, err) {
+				contextReductionRetries++
+				deps.SendEvent(EventGenerationAttempt, &dto.WorkspaceStreamGenerationAttempt{AttemptID: attemptID, Round: round, Action: "discarded", Reason: "context_window_retry"})
 				logger.Warnf(ctx, "[StreamLoop] LLM 流式上下文超限，已提高上下文压缩等级后重试 attempt=%d err=%v", attempt+1, err)
 				continue
+			}
+			if outputLimitErr := asOutputLimitError(err); outputLimitErr != nil {
+				err = actionableOutputLimitError(outputLimitErr, chatReq.MaxTokens, outputLimitRetries > 0)
 			}
 			deps.SendEvent(EventError, &errorData{Message: err.Error()})
 			return err
 		}
+		content = committedContentPrefix + content
+		thinkingContent = joinOutputThinking(committedThinkingPrefix, thinkingContent)
+		deps.SendEvent(EventGenerationAttempt, &dto.WorkspaceStreamGenerationAttempt{AttemptID: attemptID, Round: round, Action: "committed"})
 		break
 	}
+	completeOutputRecovery(deps)
 	combinedUsage := addLLMUsage(previousUsage, usage)
 
 	if len(allToolCalls) > 0 {
@@ -120,6 +172,74 @@ func requestContextReduction(ctx context.Context, deps StreamLoopDeps, err error
 		return false
 	}
 	return reducer.RequestContextReduction(ctx, err.Error())
+}
+
+func requestOutputLimitRecovery(ctx context.Context, deps StreamLoopDeps, err error) bool {
+	if asOutputLimitError(err) == nil {
+		return false
+	}
+	recoverer, ok := deps.(OutputLimitRecoveryDeps)
+	if !ok {
+		return false
+	}
+	return recoverer.RequestOutputLimitRecovery(ctx, err.Error())
+}
+
+func requestOutputContinuation(ctx context.Context, deps StreamLoopDeps, partialContent string) bool {
+	recoverer, ok := deps.(OutputContinuationDeps)
+	if !ok {
+		return false
+	}
+	return recoverer.RequestOutputContinuation(ctx, partialContent)
+}
+
+func completeOutputRecovery(deps StreamLoopDeps) {
+	if recoverer, ok := deps.(OutputContinuationDeps); ok {
+		recoverer.CompleteOutputRecovery()
+	}
+}
+
+func joinOutputThinking(prefix, value string) string {
+	prefix = strings.TrimSpace(prefix)
+	value = strings.TrimSpace(value)
+	if prefix == "" {
+		return value
+	}
+	if value == "" {
+		return prefix
+	}
+	return prefix + "\n" + value
+}
+
+type outputLimitError struct {
+	thinkingOnly bool
+}
+
+func (e *outputLimitError) Error() string {
+	if e != nil && e.thinkingOnly {
+		return "LLM 响应因达到最大输出长度而中断，且可展示内容为空；模型输出可能停在思考阶段"
+	}
+	return "LLM 响应因达到最大输出长度而中断"
+}
+
+func asOutputLimitError(err error) *outputLimitError {
+	var target *outputLimitError
+	if errors.As(err, &target) {
+		return target
+	}
+	return nil
+}
+
+func actionableOutputLimitError(err *outputLimitError, maxTokens int, retried bool) error {
+	limit := "当前配置的最大 Token"
+	if maxTokens > 0 {
+		limit = fmt.Sprintf("当前最大 Token 为 %d", maxTokens)
+	}
+	prefix := err.Error()
+	if retried {
+		prefix += "；KageOS 已自动精简上下文并重试一次，仍未完成"
+	}
+	return fmt.Errorf("%s。%s，请到「LLM 管理」调大最大 Token；推理模型还可在额外配置中降低 reasoning_effort 后重试", prefix, limit)
 }
 
 type contentData struct {
@@ -218,7 +338,7 @@ func processStreamChunks(
 		}
 		if ch.Error != "" {
 			flushToolCallsDelta()
-			return "", "", nil, usage, fmt.Errorf("LLM 流式错误: %s", ch.Error)
+			return strings.TrimSpace(buf.String()), strings.TrimSpace(thinkingBuf.String()), allToolCalls, usage, fmt.Errorf("LLM 流式错误: %s", ch.Error)
 		}
 		if ch.Content != "" {
 			filtered := thinkFilter.Append(ch.Content)
@@ -302,11 +422,11 @@ func processStreamChunks(
 
 	content := strings.TrimSpace(buf.String())
 	switch finishReason {
-	case "length":
+	case "length", "max_tokens", "max_output_tokens":
 		if (thinkFilter.SawThink() || sawReasoningContent) && content == "" {
-			return content, strings.TrimSpace(thinkingBuf.String()), nil, usage, fmt.Errorf("LLM 响应因达到最大输出长度而中断，且可展示内容为空；模型输出可能停在思考阶段，请调大 max_tokens 或缩短上下文后重试")
+			return content, strings.TrimSpace(thinkingBuf.String()), nil, usage, &outputLimitError{thinkingOnly: true}
 		}
-		return content, strings.TrimSpace(thinkingBuf.String()), nil, usage, fmt.Errorf("LLM 响应因达到最大输出长度而中断，请调大 max_tokens 或缩短上下文后重试")
+		return content, strings.TrimSpace(thinkingBuf.String()), nil, usage, &outputLimitError{}
 	case "content_filter":
 		return content, strings.TrimSpace(thinkingBuf.String()), nil, usage, fmt.Errorf("LLM 响应被内容安全策略截断")
 	}

@@ -8,11 +8,15 @@ timeouts:
   app_server_request: 30
   container_startup: 2
   app_startup_notification: 300
+  update_callback: 240
   container_cleanup: 10
 
 app_manage:
   app_dir:
     base_path: "/app/namespace"
+  build:
+    # Set true only when a release binary must be inspected with a debugger.
+    keep_debug_symbols: false
 
 container:
   timeout: 30

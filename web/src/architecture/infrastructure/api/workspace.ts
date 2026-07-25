@@ -185,6 +185,7 @@ export interface BatchWorkspaceToolDetailsResp {
 export const workspaceStreamEvents = {
   session: 'session',
   modelContextPlan: 'model_context_plan',
+  generationAttempt: 'generation_attempt',
   toolCall: 'tool_call',
   toolCallsStreamDelta: 'tool_calls_stream_delta',
   thinking: 'thinking',
@@ -198,6 +199,13 @@ export type WorkspaceToolCallStatus = 'ok' | 'error' | 'running' | 'streaming'
 
 export interface WorkspaceStreamSessionPayload {
   session_id: string
+}
+
+export interface WorkspaceStreamGenerationAttemptPayload {
+  attempt_id: string
+  round: number
+  action: 'started' | 'discarded' | 'committed'
+  reason?: string
 }
 
 export interface WorkspaceStreamToolCallPayload {
@@ -283,6 +291,13 @@ export interface WorkspaceModelContextMessages {
   excluded_by_anchor: number
   excluded_display_only: number
   excluded_by_reduction?: number
+  excluded_by_checkpoint?: number
+  checkpoint_id?: number
+  checkpoint_covered_from_message_id?: number
+  checkpoint_covered_to_message_id?: number
+  checkpoint_source?: string
+  checkpoint_summary_tokens?: number
+  recoverable_history?: boolean
   included?: WorkspaceModelContextMessageRef[]
   excluded?: WorkspaceModelContextMessageRef[]
   truncated?: boolean
@@ -355,6 +370,8 @@ export interface WorkspaceModelContextLLM {
   model?: string
   request_model?: string
   max_tokens?: number
+  context_window?: number
+  context_window_source?: string
   message_count: number
   tool_count: number
 }
@@ -389,6 +406,7 @@ export interface WorkspaceStreamErrorPayload {
 export interface WorkspaceStreamPayloadMap {
   session: WorkspaceStreamSessionPayload
   model_context_plan: WorkspaceModelContextPlan
+  generation_attempt: WorkspaceStreamGenerationAttemptPayload
   tool_call: WorkspaceStreamToolCallPayload
   tool_calls_stream_delta: WorkspaceStreamToolCallsDeltaPayload
   thinking: WorkspaceStreamThinkingPayload

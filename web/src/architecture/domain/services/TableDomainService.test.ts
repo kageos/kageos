@@ -480,4 +480,47 @@ describe('TableDomainService URL restore', () => {
       { field: 'name', order: 'asc' }
     ])
   })
+
+  it('loads a filtered export snapshot without changing visible table state', async () => {
+    const stateManager = createStateManager({
+      data: [{ id: 99, status: 'visible-page' }],
+      searchParams: { status: 'open' },
+      sorts: [{ field: 'created_at', order: 'desc' }],
+      pagination: { currentPage: 3, pageSize: 10, total: 3 }
+    })
+    const tableGateway = {
+      loadRows: vi.fn()
+        .mockResolvedValueOnce({
+          items: [{ id: 1 }, { id: 2 }],
+          paginated: { current_page: 1, page_size: 2, total_count: 3, total_pages: 2 }
+        })
+        .mockResolvedValueOnce({
+          items: [{ id: 3 }],
+          paginated: { current_page: 2, page_size: 2, total_count: 3, total_pages: 2 }
+        })
+    }
+    const service = new TableDomainService(
+      tableGateway as any,
+      stateManager as any,
+      { emit: vi.fn(), on: () => () => {}, off: () => {} } as any
+    )
+
+    const snapshot = await service.loadDataSnapshot({ router: '/orders' } as any, {
+      maxRows: 10,
+      pageSize: 2
+    })
+
+    expect(snapshot).toEqual({ rows: [{ id: 1 }, { id: 2 }, { id: 3 }], total: 3, truncated: false })
+    expect(tableGateway.loadRows).toHaveBeenNthCalledWith(1, {
+      functionDetail: { router: '/orders' },
+      params: {
+        status: 'open',
+        page: 1,
+        page_size: 2,
+        sorts: JSON.stringify([{ field: 'created_at', order: 'desc' }])
+      }
+    })
+    expect(stateManager.getState().data).toEqual([{ id: 99, status: 'visible-page' }])
+    expect(stateManager.setState).not.toHaveBeenCalled()
+  })
 })

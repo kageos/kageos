@@ -94,7 +94,10 @@ func (r *WorkspaceActionRunner) Submit(ctx context.Context, req WorkspaceActionR
 
 	started := make(chan workspaceActionStartResult, 1)
 	runCtx, cancelRun := context.WithCancel(context.WithoutCancel(ctx))
-	go r.run(runCtx, req, started)
+	go func() {
+		defer cancelRun()
+		r.run(runCtx, req, started)
+	}()
 
 	timeout := r.startTimeout
 	if timeout <= 0 {

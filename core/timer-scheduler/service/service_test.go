@@ -42,6 +42,20 @@ func newTestService(t *testing.T, now *time.Time) (*Service, *gorm.DB) {
 	return svc, db
 }
 
+func TestServiceDefaultQueuedPickupWindowIsOneHour(t *testing.T) {
+	svc := NewService(nil, Options{})
+
+	if svc.opts.QueueAckTimeout != 2*time.Minute {
+		t.Fatalf("queue ack timeout = %s, want 2m", svc.opts.QueueAckTimeout)
+	}
+	if svc.opts.MaxDispatchAttempts != 30 {
+		t.Fatalf("max dispatch attempts = %d, want 30", svc.opts.MaxDispatchAttempts)
+	}
+	if got := svc.opts.QueueAckTimeout * time.Duration(svc.opts.MaxDispatchAttempts); got != time.Hour {
+		t.Fatalf("queued pickup window = %s, want 1h", got)
+	}
+}
+
 func TestScheduledExecutionTokenSkipsTaskWithoutRequestUserID(t *testing.T) {
 	task := &model.TimerTask{
 		RequestUser: "system",
@@ -95,12 +109,45 @@ func TestServiceCreateTaskSupportsPausedInitialStatus(t *testing.T) {
 	if task.Status != scheduledsdk.TaskStatusPaused {
 		t.Fatalf("status = %q, want %q", task.Status, scheduledsdk.TaskStatusPaused)
 	}
+	if task.OverlapPolicy != scheduledsdk.OverlapPolicyForbid || task.MaxParallelism != 1 {
+		t.Fatalf("default overlap config = %s/%d, want forbid/1", task.OverlapPolicy, task.MaxParallelism)
+	}
 	execs, err := svc.DispatchDue(context.Background(), "owner-1", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(execs) != 0 {
 		t.Fatalf("paused task should not dispatch, got %d executions", len(execs))
+	}
+}
+
+func TestServiceValidatesAndUpdatesOverlapConfig(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, _ := newTestService(t, &now)
+	ctx := context.Background()
+
+	if _, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey:   "test.executor",
+		Schedule:      scheduledsdk.Every(60),
+		OverlapPolicy: scheduledsdk.OverlapPolicy("unknown"),
+	}); !errors.Is(err, scheduledsdk.ErrInvalidRequest) {
+		t.Fatalf("invalid overlap policy err = %v, want invalid request", err)
+	}
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey: "test.executor",
+		Schedule:    scheduledsdk.Every(60),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allow := scheduledsdk.OverlapPolicyAllow
+	updated, err := svc.UpdateTask(ctx, task.ID, scheduledsdk.UpdateTaskRequest{OverlapPolicy: &allow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.OverlapPolicy != scheduledsdk.OverlapPolicyAllow || updated.MaxParallelism != 2 {
+		t.Fatalf("updated overlap config = %s/%d, want allow/2", updated.OverlapPolicy, updated.MaxParallelism)
 	}
 }
 
@@ -283,7 +330,7 @@ func TestDispatchDueContinuesAfterOneTaskDispatchError(t *testing.T) {
 	}
 }
 
-func TestDispatchDueRunsMissedTaskEvenWithInflightExecution(t *testing.T) {
+func TestDispatchDueSkipsOverlappingExecutionByDefault(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, db := newTestService(t, &now)
 	ctx := context.Background()
@@ -315,17 +362,140 @@ func TestDispatchDueRunsMissedTaskEvenWithInflightExecution(t *testing.T) {
 		t.Fatalf("second dispatch executions = %d, want 1", len(second))
 	}
 	if second[0].ID == first[0].ID {
-		t.Fatalf("missed task should create a new execution, got same id %d", second[0].ID)
+		t.Fatalf("overlapping tick should create a skipped execution record, got same id %d", second[0].ID)
+	}
+	if second[0].Status != scheduledsdk.ExecutionStatusSkipped {
+		t.Fatalf("second execution status = %s, want skipped", second[0].Status)
 	}
 	gotTask, err := svc.GetTask(ctx, task.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotTask.InflightExecutionID != second[0].ID {
-		t.Fatalf("task inflight = %d, want latest scheduled execution %d", gotTask.InflightExecutionID, second[0].ID)
+	if gotTask.InflightExecutionID != first[0].ID {
+		t.Fatalf("task inflight = %d, want original active execution %d", gotTask.InflightExecutionID, first[0].ID)
+	}
+	if gotTask.RunCount != 0 {
+		t.Fatalf("skipped overlap changed run_count to %d, want 0", gotTask.RunCount)
 	}
 	if gotTask.NextRunAt == nil || !gotTask.NextRunAt.After(now) {
 		t.Fatalf("next_run_at = %v, want advanced after %v", gotTask.NextRunAt, now)
+	}
+}
+
+func TestDispatchDueAllowPolicyRunsUpToMaxParallelism(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey:    "test.executor",
+		Schedule:       scheduledsdk.Every(60),
+		OverlapPolicy:  scheduledsdk.OverlapPolicyAllow,
+		MaxParallelism: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.TimerTask{}).Where("id = ?", task.ID).Update("next_run_at", now.Add(-time.Second)).Error; err != nil {
+		t.Fatal(err)
+	}
+	first, err := svc.DispatchDue(ctx, "owner-1", 10)
+	if err != nil || len(first) != 1 {
+		t.Fatalf("first dispatch = %#v err=%v", first, err)
+	}
+
+	now = now.Add(time.Minute)
+	second, err := svc.DispatchDue(ctx, "owner-1", 10)
+	if err != nil || len(second) != 1 {
+		t.Fatalf("second dispatch = %#v err=%v", second, err)
+	}
+	if second[0].Status != scheduledsdk.ExecutionStatusQueued {
+		t.Fatalf("second execution status = %s, want queued", second[0].Status)
+	}
+
+	now = now.Add(time.Minute)
+	third, err := svc.DispatchDue(ctx, "owner-1", 10)
+	if err != nil || len(third) != 1 {
+		t.Fatalf("third dispatch = %#v err=%v", third, err)
+	}
+	if third[0].Status != scheduledsdk.ExecutionStatusWaiting {
+		t.Fatalf("third execution status = %s, want waiting", third[0].Status)
+	}
+}
+
+func TestDispatchDueQueueLatestKeepsOneWaitingExecutionAndPromotesIt(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	ctx := context.Background()
+
+	task, err := svc.CreateTask(ctx, scheduledsdk.CreateTaskRequest{
+		ExecutorKey:   "test.executor",
+		Schedule:      scheduledsdk.Every(60),
+		OverlapPolicy: scheduledsdk.OverlapPolicyQueueLatest,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.TimerTask{}).Where("id = ?", task.ID).Update("next_run_at", now.Add(-time.Second)).Error; err != nil {
+		t.Fatal(err)
+	}
+	first, err := svc.DispatchDue(ctx, "owner-1", 10)
+	if err != nil || len(first) != 1 {
+		t.Fatalf("first dispatch = %#v err=%v", first, err)
+	}
+	if err := svc.MarkExecutionStarted(ctx, scheduledsdk.MarkExecutionStartedRequest{
+		TaskID: task.ID, ExecutionID: first[0].ID, WorkerID: "worker-1", StartedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	now = now.Add(time.Minute)
+	second, err := svc.DispatchDue(ctx, "owner-1", 10)
+	if err != nil || len(second) != 1 {
+		t.Fatalf("second dispatch = %#v err=%v", second, err)
+	}
+	if second[0].Status != scheduledsdk.ExecutionStatusWaiting {
+		t.Fatalf("second execution status = %s, want waiting", second[0].Status)
+	}
+
+	now = now.Add(time.Minute)
+	third, err := svc.DispatchDue(ctx, "owner-1", 10)
+	if err != nil || len(third) != 0 {
+		t.Fatalf("third dispatch = %#v err=%v", third, err)
+	}
+	var executionCount int64
+	if err := db.Model(&model.TimerExecution{}).Where("task_id = ?", task.ID).Count(&executionCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if executionCount != 2 {
+		t.Fatalf("execution count = %d, want 2", executionCount)
+	}
+	coalesced, err := svc.GetExecution(ctx, task.ID, second[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !coalesced.ScheduledAt.Equal(now) {
+		t.Fatalf("coalesced scheduled_at = %v, want latest trigger %v", coalesced.ScheduledAt, now)
+	}
+
+	if err := svc.MarkExecutionFinished(ctx, scheduledsdk.MarkExecutionFinishedRequest{
+		TaskID: task.ID, ExecutionID: first[0].ID, Status: scheduledsdk.ExecutionStatusSuccess, FinishedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	promoted, err := svc.GetExecution(ctx, task.ID, second[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if promoted.Status != scheduledsdk.ExecutionStatusQueued || promoted.Attempt != 1 {
+		t.Fatalf("promoted execution = %#v, want queued attempt 1", promoted)
+	}
+	gotTask, err := svc.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotTask.InflightExecutionID != promoted.ID {
+		t.Fatalf("task inflight = %d, want promoted execution %d", gotTask.InflightExecutionID, promoted.ID)
 	}
 }
 
@@ -963,8 +1133,8 @@ func TestRunNowAllowsOverlappingInflightExecution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotTask.InflightExecutionID != 0 {
-		t.Fatalf("finishing overlapping execution should clear observational inflight, got %d", gotTask.InflightExecutionID)
+	if gotTask.InflightExecutionID != first.ID {
+		t.Fatalf("finishing latest overlapping execution should restore remaining active execution %d, got %d", first.ID, gotTask.InflightExecutionID)
 	}
 }
 

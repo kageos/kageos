@@ -13,6 +13,8 @@ import (
 
 var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 
+const maxTaskParallelism = 16
+
 func validateCreateTaskRequest(req scheduledsdk.CreateTaskRequest, payloadLimit int) error {
 	if strings.TrimSpace(req.ExecutorKey) == "" {
 		return fmt.Errorf("%w: executor_key is required", scheduledsdk.ErrInvalidRequest)
@@ -25,7 +27,48 @@ func validateCreateTaskRequest(req scheduledsdk.CreateTaskRequest, payloadLimit 
 	if err := req.Schedule.Validate(); err != nil {
 		return err
 	}
+	if err := validateOverlapConfig(req.OverlapPolicy, req.MaxParallelism); err != nil {
+		return err
+	}
 	return validatePayload(req.ExecutorPayload, payloadLimit)
+}
+
+func normalizedOverlapPolicy(policy string) scheduledsdk.OverlapPolicy {
+	switch scheduledsdk.OverlapPolicy(strings.TrimSpace(policy)) {
+	case scheduledsdk.OverlapPolicyQueueLatest:
+		return scheduledsdk.OverlapPolicyQueueLatest
+	case scheduledsdk.OverlapPolicyAllow:
+		return scheduledsdk.OverlapPolicyAllow
+	default:
+		return scheduledsdk.OverlapPolicyForbid
+	}
+}
+
+func normalizedMaxParallelism(policy string, maxParallelism int) int {
+	if normalizedOverlapPolicy(policy) != scheduledsdk.OverlapPolicyAllow {
+		return 1
+	}
+	if maxParallelism <= 0 {
+		return 2
+	}
+	if maxParallelism > maxTaskParallelism {
+		return maxTaskParallelism
+	}
+	return maxParallelism
+}
+
+func validateOverlapConfig(policy scheduledsdk.OverlapPolicy, maxParallelism int) error {
+	if policy != "" {
+		switch policy {
+		case scheduledsdk.OverlapPolicyForbid, scheduledsdk.OverlapPolicyQueueLatest, scheduledsdk.OverlapPolicyAllow:
+		default:
+			return fmt.Errorf("%w: overlap_policy must be forbid, queue_latest, or allow", scheduledsdk.ErrInvalidRequest)
+		}
+	}
+	if maxParallelism < 0 || maxParallelism > maxTaskParallelism {
+		return fmt.Errorf("%w: max_parallelism must be between 1 and %d", scheduledsdk.ErrInvalidRequest, maxTaskParallelism)
+	}
+	return nil
 }
 
 func createTaskInitialStatus(status scheduledsdk.TaskStatus) scheduledsdk.TaskStatus {

@@ -332,6 +332,8 @@ export function useServiceTreeClipboard(options: UseServiceTreeClipboardOptions)
       t('serviceTreeClipboard.copyResultCount', {
         directories: resp.directory_count || 0,
         files: resp.file_count || 0,
+        docs: resp.doc_count || 0,
+        agentTasks: resp.agent_task_count || 0,
       })
     ]
     if (resp.old_version || resp.new_version) {

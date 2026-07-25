@@ -11,6 +11,8 @@ import (
 
 // setupRoutes 设置路由
 func (s *Server) setupRoutes() {
+	jwtAuth := middleware2.JWTAuth(middleware2.WithOpenAPITokenStore(s.openAPITokenStore))
+
 	// 健康检查
 	s.httpServer.GET("/health", s.healthHandler)
 
@@ -45,8 +47,8 @@ func (s *Server) setupRoutes() {
 
 	// 用户管理路由（需要JWT验证）
 	user := apiV1.Group("/user")
-	user.Use(middleware2.JWTAuth()) // 用户管理需要JWT认证
-	userHandler := v1.NewUser(s.userService, s.departmentService)
+	user.Use(jwtAuth) // 用户管理需要JWT认证
+	userHandler := v1.NewUser(s.userService, s.departmentService, s.openAPITokenStore)
 	user.GET("/info", userHandler.GetUserInfo)
 	user.GET("/query", userHandler.QueryUser)
 	user.GET("/search_fuzzy", userHandler.SearchUsersFuzzy)
@@ -56,7 +58,7 @@ func (s *Server) setupRoutes() {
 	user.POST("/openapi_tokens/revoke", userHandler.RevokeOpenAPIToken)
 
 	systemSettings := apiV1.Group("/system/settings")
-	systemSettings.Use(middleware2.JWTAuth())
+	systemSettings.Use(jwtAuth)
 	systemSettingsHandler := v1.NewSystemSettings(s.settingsService)
 	systemSettings.GET("", systemSettingsHandler.Get)
 	systemSettings.PUT("", systemSettingsHandler.Update)
@@ -66,13 +68,13 @@ func (s *Server) setupRoutes() {
 	systemSettings.POST("/tls/reload", systemSettingsHandler.ReloadTLS)
 
 	systemAuthProviders := apiV1.Group("/system/auth/providers")
-	systemAuthProviders.Use(middleware2.JWTAuth())
+	systemAuthProviders.Use(jwtAuth)
 	systemAuthProviders.GET("", authProviderHandler.List)
 	systemAuthProviders.PUT("/:code/config", authProviderHandler.UpdateConfig)
 	systemAuthProviders.PUT("/:code/enabled", authProviderHandler.SetEnabled)
 
 	systemUsers := apiV1.Group("/system/users")
-	systemUsers.Use(middleware2.JWTAuth())
+	systemUsers.Use(jwtAuth)
 	systemUserHandler := v1.NewSystemUser(s.userService, s.departmentService)
 	systemUsers.GET("", systemUserHandler.List)
 	systemUsers.POST("", systemUserHandler.Create)
@@ -82,12 +84,12 @@ func (s *Server) setupRoutes() {
 
 	// 批量获取用户（需要JWT验证）
 	users := apiV1.Group("/users")
-	users.Use(middleware2.JWTAuth())
+	users.Use(jwtAuth)
 	users.POST("", userHandler.GetUsersByUsernames)
 
 	// 部门管理路由（需要JWT验证）
 	department := apiV1.Group("/department")
-	department.Use(middleware2.JWTAuth())
+	department.Use(jwtAuth)
 	departmentHandler := v1.NewDepartment(s.departmentService)
 	department.POST("", departmentHandler.CreateDepartment)
 	department.GET("/tree", departmentHandler.GetDepartmentTree)
@@ -97,7 +99,7 @@ func (s *Server) setupRoutes() {
 
 	// 批量获取部门路由（需要JWT验证）
 	departments := apiV1.Group("/departments")
-	departments.Use(middleware2.JWTAuth())
+	departments.Use(jwtAuth)
 	departments.GET("", departmentHandler.GetDepartmentsByPaths)
 
 	// 用户分配路由（需要JWT验证）

@@ -51,18 +51,19 @@ func NewServiceTreeService(
 ) *ServiceTreeService {
 	runtimeWorkspace := newRuntimeWorkspaceBridge(appRepo, appCall)
 	queryView := newServiceTreeQueryView(serviceTreeRepo, appRepo, teamAccessService)
+	capabilityBundle := newServiceTreeCapabilityBundleService(serviceTreeRepo, appRepo, runtimeWorkspace, appService, docService)
 
 	return &ServiceTreeService{
 		queryView:          queryView,
 		workspaceService:   newServiceTreeWorkspaceService(serviceTreeRepo, fileSnapshotRepo, runtimeWorkspace, queryView),
 		searchService:      newServiceTreeSearchService(serviceTreeRepo, teamAccessService),
-		copyService:        newServiceTreeCopyService(serviceTreeRepo, appRepo, runtimeWorkspace, appService),
+		copyService:        newServiceTreeCopyService(serviceTreeRepo, appRepo, runtimeWorkspace, appService, capabilityBundle),
 		mutationService:    newServiceTreeMutationService(serviceTreeRepo, appRepo, runtimeWorkspace, docService),
 		specialNodeService: newServiceTreeSpecialNodeService(serviceTreeRepo, appRepo, docService),
 		functionService:    newServiceTreeFunctionService(serviceTreeRepo, appRepo, appService),
 		packageService:     newServiceTreePackageService(serviceTreeRepo, appRepo, runtimeWorkspace),
 		batchService:       newServiceTreeBatchService(serviceTreeRepo, runtimeWorkspace, appService),
-		capabilityBundle:   newServiceTreeCapabilityBundleService(serviceTreeRepo, appRepo, runtimeWorkspace, appService, docService),
+		capabilityBundle:   capabilityBundle,
 		teamAccessService:  teamAccessService,
 	}
 }

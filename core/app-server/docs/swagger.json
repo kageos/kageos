@@ -2910,6 +2910,11 @@
         "dto.CopyDirectoryResp": {
             "type": "object",
             "properties": {
+                "agent_task_count": {
+                    "description": "复制的 Agent 任务数",
+                    "type": "integer",
+                    "example": 1
+                },
                 "directory_count": {
                     "description": "复制的目录数",
                     "type": "integer",
@@ -2920,6 +2925,11 @@
                     "type": "integer",
                     "example": 15
                 },
+                "doc_count": {
+                    "description": "复制的文档数",
+                    "type": "integer",
+                    "example": 2
+                },
                 "git_commit_hash": {
                     "description": "Git 提交哈希",
                     "type": "string",
@@ -2928,7 +2938,7 @@
                 "message": {
                     "description": "响应消息",
                     "type": "string",
-                    "example": "复制目录成功，共复制 3 个目录，15 个文件"
+                    "example": "复制目录成功，共复制 3 个目录，15 个文件，2 份文档，1 个 Agent 任务"
                 },
                 "new_version": {
                     "description": "新版本号",

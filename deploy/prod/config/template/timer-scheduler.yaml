@@ -24,7 +24,8 @@ scheduler:
   dispatch_lease_seconds: 30
   execution_lease_seconds: 180
   queue_ack_timeout_seconds: 120
-  max_dispatch_attempts: 3
+  # Retry every two minutes for about one hour before timing out.
+  max_dispatch_attempts: 30
   max_heartbeat_misses: 3
   max_outbox_attempts: 8
   payload_limit_bytes: 262144

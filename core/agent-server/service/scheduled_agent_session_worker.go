@@ -15,6 +15,8 @@ import (
 
 const ScheduledAgentSessionExecutorKey = "agent.session"
 
+const scheduledAgentWorkerConcurrency = 4
+
 const scheduledAgentUnattendedPrefix = "【Agent 任务执行约束】本次 Agent 任务由自动执行触发，但当前目标不是创建或管理定时任务，而是执行后面的任务说明。请先选择能完成该业务执行的角色；需要调用已有 Form/Table/Chart 或连接器时，通常应进入 app_operator。执行过程中用户不在线、无法回答问题或确认操作；不要向用户提问，不要等待用户补充信息，不要把下一步停在“请确认/请提供”。如果发现高优先级情报、异常、风险或任务说明明确要求通知用户，可调用 send_notification 主动通知；send_notification 只负责单向通知，不能作为等待用户回复的交互。首次基准记录、无变化结果、普通状态报告默认不通知，只在执行摘要中记录。若创建时的信息不足以安全执行，按已知上下文完成可安全完成的部分，并在结果中明确记录缺失信息、未执行的动作和原因；涉及高风险写入且缺少必要确认时应跳过该动作并说明原因。"
 
 type scheduledAgentWorkspaceRootContextKey struct{}
@@ -59,6 +61,7 @@ func NewScheduledAgentSessionWorker(natsConn *nats.Conn, chatSvc *WorkspaceChatS
 		Client:      client,
 		NATSConn:    natsConn,
 		ExecutorKey: ScheduledAgentSessionExecutorKey,
+		Concurrency: scheduledAgentWorkerConcurrency,
 		Handler:     chatSvc.RunScheduledAgentSession,
 		OnError: func(ctx context.Context, err error) {
 			logger.Warnf(ctx, "[ScheduledAgentSessionWorker] %v", err)

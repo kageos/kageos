@@ -2,11 +2,17 @@ package builder
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -30,15 +36,16 @@ func NewBuilder(workDir string) *Builder {
 
 // BuildOpts 编译选项
 type BuildOpts struct {
-	User             string            // 用户名称
-	App              string            // 应用名称
-	Version          string            // 版本号
-	SourceDir        string            // 源代码目录
-	OutputDir        string            // 输出目录
-	BinaryNameFormat string            // 二进制文件名格式
-	BuildTags        []string          // 编译标签
-	LdFlags          []string          // 链接参数
-	Env              map[string]string // 编译环境变量
+	User              string            // 用户名称
+	App               string            // 应用名称
+	Version           string            // 版本号
+	SourceDir         string            // 源代码目录
+	OutputDir         string            // 输出目录
+	BinaryNameFormat  string            // 二进制文件名格式
+	BuildTags         []string          // 编译标签
+	LdFlags           []string          // 链接参数
+	StripDebugSymbols bool              // release 构建移除符号表和 DWARF 调试信息
+	Env               map[string]string // 编译环境变量
 }
 
 // BuildResult 构建结果
@@ -117,13 +124,7 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 	}
 	moduleSpan.Finish(nil)
 
-	if err := b.runGoGetLatestSDK(ctx, moduleRoot); err != nil {
-		return nil, err
-	}
-
-	// 再执行 go mod tidy 清理依赖图
-	if err := b.runGoModTidy(ctx, moduleRoot); err != nil {
-		logger.Warnf(ctx, "go mod tidy failed, continuing with build: %v", err)
+	if err := b.prepareDependencies(ctx, moduleRoot); err != nil {
 		return nil, err
 	}
 
@@ -136,6 +137,7 @@ func (b *Builder) Build(ctx context.Context, user, app string, opts *BuildOpts) 
 		buildtrace.String("source_dir", opts.SourceDir),
 		buildtrace.String("output_path", binaryPath),
 		buildtrace.String("platform", platform),
+		buildtrace.Bool("strip_debug_symbols", opts.StripDebugSymbols),
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -222,6 +224,10 @@ func (b *Builder) buildGoCommand(ctx context.Context, moduleRoot, sourceDir, out
 func (b *Builder) buildLdFlags(opts *BuildOpts) []string {
 	var ldFlags []string
 
+	if opts.StripDebugSymbols {
+		ldFlags = append(ldFlags, "-s", "-w")
+	}
+
 	// 添加用户自定义的 LdFlags
 	ldFlags = append(ldFlags, opts.LdFlags...)
 
@@ -232,6 +238,256 @@ func (b *Builder) buildLdFlags(opts *BuildOpts) []string {
 	ldFlags = append(ldFlags, fmt.Sprintf("-X %s.Version=%s", importPath, opts.Version))
 
 	return ldFlags
+}
+
+const (
+	dependencyCacheFormat      = 1
+	sdkLatestCheckInterval     = 6 * time.Hour
+	dependencyCacheFileName    = "dependencies-v1.json"
+	dependencyCacheDirectory   = "workplace/build-cache"
+	dependencyFingerprintScope = "go.mod+go.sum+imports"
+)
+
+type dependencyCacheState struct {
+	FormatVersion int       `json:"format_version"`
+	Fingerprint   string    `json:"fingerprint"`
+	SDKCheckedAt  time.Time `json:"sdk_checked_at,omitempty"`
+}
+
+type dependencyPreparationPlan struct {
+	SyncSDK bool
+	RunTidy bool
+}
+
+func (b *Builder) prepareDependencies(ctx context.Context, moduleRoot string) error {
+	fingerprintSpan := buildtrace.Start(ctx, "builder.dependency_fingerprint",
+		buildtrace.String("module_root", moduleRoot),
+		buildtrace.String("scope", dependencyFingerprintScope),
+	)
+	fingerprint, goModData, err := dependencyInputFingerprint(moduleRoot)
+	if err != nil {
+		fingerprintSpan.Finish(err)
+		return err
+	}
+	fingerprintSpan.Finish(nil)
+
+	cacheFile := filepath.Join(moduleRoot, filepath.FromSlash(dependencyCacheDirectory), dependencyCacheFileName)
+	cacheLookupSpan := buildtrace.Start(ctx, "builder.dependency_cache_lookup",
+		buildtrace.String("cache_file", cacheFile),
+	)
+	state, err := loadDependencyCacheState(cacheFile)
+	if err != nil {
+		cacheLookupSpan.Finish(err)
+		logger.Warnf(ctx, "dependency cache unavailable, running safe dependency preparation: %v", err)
+		state = nil
+	} else {
+		cacheLookupSpan.Finish(nil)
+	}
+
+	hasSDKReplace := goModHasSDKReplace(filepath.Join(moduleRoot, "go.mod"), goModData)
+	plan := buildDependencyPreparationPlan(state, fingerprint, hasSDKReplace, time.Now())
+	span := buildtrace.Start(ctx, "builder.prepare_dependencies",
+		buildtrace.String("module_root", moduleRoot),
+		buildtrace.String("fingerprint_scope", dependencyFingerprintScope),
+		buildtrace.Bool("cache_hit", !plan.SyncSDK && !plan.RunTidy),
+		buildtrace.Bool("sync_sdk", plan.SyncSDK),
+		buildtrace.Bool("run_tidy", plan.RunTidy),
+	)
+
+	if !plan.SyncSDK && !plan.RunTidy {
+		span.Finish(nil)
+		return nil
+	}
+	if plan.SyncSDK {
+		if err := b.runGoGetLatestSDK(ctx, moduleRoot); err != nil {
+			span.Finish(err)
+			return err
+		}
+	}
+	if plan.RunTidy {
+		if err := b.runGoModTidy(ctx, moduleRoot); err != nil {
+			span.Finish(err)
+			logger.Warnf(ctx, "go mod tidy failed: %v", err)
+			return err
+		}
+	}
+
+	finalFingerprintSpan := buildtrace.Start(ctx, "builder.dependency_fingerprint_after_sync",
+		buildtrace.String("module_root", moduleRoot),
+		buildtrace.String("scope", dependencyFingerprintScope),
+	)
+	finalFingerprint, _, err := dependencyInputFingerprint(moduleRoot)
+	if err != nil {
+		finalFingerprintSpan.Finish(err)
+		span.Finish(err)
+		return err
+	}
+	finalFingerprintSpan.Finish(nil)
+	nextState := &dependencyCacheState{
+		FormatVersion: dependencyCacheFormat,
+		Fingerprint:   finalFingerprint,
+	}
+	if state != nil {
+		nextState.SDKCheckedAt = state.SDKCheckedAt
+	}
+	if plan.SyncSDK {
+		nextState.SDKCheckedAt = time.Now()
+	}
+	cachePersistSpan := buildtrace.Start(ctx, "builder.dependency_cache_persist",
+		buildtrace.String("cache_file", cacheFile),
+	)
+	if err := saveDependencyCacheState(cacheFile, nextState); err != nil {
+		cachePersistSpan.Finish(err)
+		// Cache persistence is an optimization; the next build can safely
+		// prepare dependencies again.
+		logger.Warnf(ctx, "failed to persist dependency cache: %v", err)
+	} else {
+		cachePersistSpan.Finish(nil)
+	}
+	span.Finish(nil)
+	return nil
+}
+
+func buildDependencyPreparationPlan(
+	state *dependencyCacheState,
+	fingerprint string,
+	hasSDKReplace bool,
+	now time.Time,
+) dependencyPreparationPlan {
+	inputsChanged := state == nil ||
+		state.FormatVersion != dependencyCacheFormat ||
+		state.Fingerprint != fingerprint
+	syncSDK := !hasSDKReplace &&
+		(state == nil || state.SDKCheckedAt.IsZero() || now.Sub(state.SDKCheckedAt) >= sdkLatestCheckInterval)
+	return dependencyPreparationPlan{
+		SyncSDK: syncSDK,
+		RunTidy: inputsChanged || syncSDK,
+	}
+}
+
+func dependencyInputFingerprint(moduleRoot string) (string, []byte, error) {
+	goModPath := filepath.Join(moduleRoot, "go.mod")
+	goModData, err := os.ReadFile(goModPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("read go.mod for dependency fingerprint: %w", err)
+	}
+	goSumData, err := os.ReadFile(filepath.Join(moduleRoot, "go.sum"))
+	if err != nil && !os.IsNotExist(err) {
+		return "", nil, fmt.Errorf("read go.sum for dependency fingerprint: %w", err)
+	}
+
+	imports, err := collectModuleImports(moduleRoot)
+	if err != nil {
+		return "", nil, err
+	}
+
+	hash := sha256.New()
+	_, _ = hash.Write([]byte("format=1\ngo.mod\n"))
+	_, _ = hash.Write(goModData)
+	_, _ = hash.Write([]byte("\ngo.sum\n"))
+	_, _ = hash.Write(goSumData)
+	_, _ = hash.Write([]byte("\nimports\n"))
+	for _, imported := range imports {
+		_, _ = hash.Write([]byte(imported))
+		_, _ = hash.Write([]byte{'\n'})
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), goModData, nil
+}
+
+func collectModuleImports(moduleRoot string) ([]string, error) {
+	sourceRoot := filepath.Join(moduleRoot, "code")
+	if info, err := os.Stat(sourceRoot); err != nil || !info.IsDir() {
+		sourceRoot = moduleRoot
+	}
+
+	importSet := make(map[string]struct{})
+	err := filepath.WalkDir(sourceRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			switch entry.Name() {
+			case ".git", "workplace", "vendor":
+				if path != sourceRoot {
+					return filepath.SkipDir
+				}
+			}
+			return nil
+		}
+		if filepath.Ext(entry.Name()) != ".go" {
+			return nil
+		}
+
+		parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return fmt.Errorf("parse imports from %s: %w", path, err)
+		}
+		for _, importSpec := range parsed.Imports {
+			importPath, err := strconv.Unquote(importSpec.Path.Value)
+			if err != nil {
+				return fmt.Errorf("parse import path in %s: %w", path, err)
+			}
+			importSet[importPath] = struct{}{}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	imports := make([]string, 0, len(importSet))
+	for importPath := range importSet {
+		imports = append(imports, importPath)
+	}
+	sort.Strings(imports)
+	return imports, nil
+}
+
+func loadDependencyCacheState(filename string) (*dependencyCacheState, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var state dependencyCacheState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return nil, err
+	}
+	if state.FormatVersion != dependencyCacheFormat {
+		return nil, nil
+	}
+	return &state, nil
+}
+
+func saveDependencyCacheState(filename string, state *dependencyCacheState) error {
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(filename)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	tempFile, err := os.CreateTemp(dir, ".dependencies-*.tmp")
+	if err != nil {
+		return err
+	}
+	tempName := tempFile.Name()
+	defer os.Remove(tempName)
+	if _, err := tempFile.Write(data); err != nil {
+		_ = tempFile.Close()
+		return err
+	}
+	if err := tempFile.Chmod(0644); err != nil {
+		_ = tempFile.Close()
+		return err
+	}
+	if err := tempFile.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tempName, filename)
 }
 
 func (b *Builder) runGoGetLatestSDK(ctx context.Context, moduleRoot string) error {

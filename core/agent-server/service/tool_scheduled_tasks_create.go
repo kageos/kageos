@@ -140,6 +140,8 @@ func runCreateScheduledAgentTask(ctx context.Context, args createScheduledAgentT
 		},
 		Status:          scheduledsdk.TaskStatusPaused,
 		Schedule:        schedule,
+		OverlapPolicy:   scheduledsdk.OverlapPolicy(strings.TrimSpace(args.OverlapPolicy)),
+		MaxParallelism:  args.MaxParallelism,
 		SourceType:      "agent_session",
 		SourceRef:       fullCodePath,
 		ResourceScope:   "workspace_directory",
@@ -181,6 +183,14 @@ func runUpdateScheduledAgentTask(ctx context.Context, args updateScheduledAgentT
 	}
 	if desc := strings.TrimSpace(args.Description); desc != "" {
 		req.Description = &desc
+	}
+	if policy := strings.TrimSpace(args.OverlapPolicy); policy != "" {
+		overlapPolicy := scheduledsdk.OverlapPolicy(policy)
+		req.OverlapPolicy = &overlapPolicy
+	}
+	if args.MaxParallelism > 0 {
+		maxParallelism := args.MaxParallelism
+		req.MaxParallelism = &maxParallelism
 	}
 
 	hasScheduleArgs := strings.TrimSpace(args.ScheduleType) != "" || strings.TrimSpace(args.RunAt) != "" || strings.TrimSpace(args.CronExpr) != "" || args.IntervalSeconds > 0

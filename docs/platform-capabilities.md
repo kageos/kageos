@@ -99,6 +99,14 @@ flowchart LR
 - `agent.session`：到点后由 `agent-server` 启动无人值守工作台会话。适合巡检、分析、总结、跨目录/跨工作空间组合工具和需要判断的长期任务。
 - `workflow.run`：未上线，仅作为后续 workflow 图能力的架构预留；当前没有主线 worker 或用户入口。
 
+周期任务通过 `overlap_policy` 控制同一任务的重叠执行，默认 `forbid`：
+
+- `forbid`：已有 `queued`/`running` 执行时，本轮记录为 `skipped`，不形成积压。
+- `queue_latest`：最多保留一个 `waiting` 执行；后续触发合并到该执行，前序完成后再投递。
+- `allow`：允许同一任务并行到 `max_parallelism`；超过上限的触发合并为一个 `waiting` 执行。
+
+`run_now` 是人工强制执行入口，不受重叠策略限制。
+
 主要入口：
 
 - `POST /timer/api/v1/tasks`

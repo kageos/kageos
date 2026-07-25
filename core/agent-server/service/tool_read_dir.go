@@ -36,6 +36,7 @@ type readDirResultData struct {
 	Directory        readDirDirectoryData `json:"directory" schema_desc:"当前目录信息" schema_required:"true"`
 	Summary          readDirSummaryData   `json:"summary" schema_desc:"当前目录结果统计" schema_required:"true"`
 	Directories      []readDirNodeData    `json:"directories,omitempty" schema_desc:"当前目录下的直接子目录列表"`
+	Documents        []readDirNodeData    `json:"documents,omitempty" schema_desc:"当前目录下的直接文档节点列表"`
 	Functions        []readDirNodeData    `json:"functions,omitempty" schema_desc:"当前目录下的直接函数节点列表"`
 	Files            []readDirFileData    `json:"files,omitempty" schema_desc:"当前目录下返回的文本/代码文件列表"`
 }
@@ -50,6 +51,7 @@ type readDirDirectoryData struct {
 
 type readDirSummaryData struct {
 	DirectoryCount int `json:"directory_count" schema_desc:"子目录数量" schema_required:"true"`
+	DocumentCount  int `json:"document_count" schema_desc:"文档节点数量" schema_required:"true"`
 	FunctionCount  int `json:"function_count" schema_desc:"函数节点数量" schema_required:"true"`
 	FileCount      int `json:"file_count" schema_desc:"文本/代码文件数量" schema_required:"true"`
 }
@@ -167,12 +169,18 @@ func runReadDirTool(ctx context.Context, args readDirArgs, currentFullCodePath s
 
 func buildListFormat(workspaceCtx *dto.GetWorkspaceContextResp, targetPath string, includeFunctions, includeFiles, includeCode bool) (string, bool) {
 	var directories []dto.WorkspaceContextNode
+	var documents []dto.WorkspaceContextNode
 	var functions []dto.WorkspaceContextNode
 	for _, child := range workspaceCtx.Children {
-		if child.Type == servicetree.TypePackage || child.Type == servicetree.TypeDocs {
+		switch child.Type {
+		case servicetree.TypePackage:
 			directories = append(directories, child)
-		} else if child.Type == servicetree.TypeFunction && includeFunctions {
-			functions = append(functions, child)
+		case servicetree.TypeDocs:
+			documents = append(documents, child)
+		case servicetree.TypeFunction:
+			if includeFunctions {
+				functions = append(functions, child)
+			}
 		}
 	}
 
@@ -199,6 +207,21 @@ func buildListFormat(workspaceCtx *dto.GetWorkspaceContextResp, targetPath strin
 				dirsSection += fmt.Sprintf("\n- 描述：%s", dir.Description)
 			}
 			dirsSection += "\n\n"
+		}
+	}
+
+	docsSection := ""
+	if len(documents) > 0 {
+		docsSection = fmt.Sprintf("### 文档（共 %d 个）\n\n", len(documents))
+		for i, doc := range documents {
+			docsSection += fmt.Sprintf(`#### 文档 %d: %s
+- 文档代码：%s
+- 类型：%s
+- 完整路径：%s`, i+1, doc.Name, doc.Code, doc.Type, doc.FullCodePath)
+			if doc.Description != "" {
+				docsSection += fmt.Sprintf("\n- 描述：%s", doc.Description)
+			}
+			docsSection += "\n\n"
 		}
 	}
 
@@ -244,21 +267,30 @@ func buildListFormat(workspaceCtx *dto.GetWorkspaceContextResp, targetPath strin
 		filesSection = fmt.Sprintf("### 文本/代码文件\n当前目录下有 %d 个文本/代码文件（使用 include_files=true 查看详情）\n\n", len(workspaceCtx.Files))
 	}
 
-	if len(directories) == 0 && len(functions) == 0 {
-		if dirsSection == "" && funcsSection == "" {
+	if len(directories) == 0 && len(documents) == 0 && len(functions) == 0 {
+		if dirsSection == "" && docsSection == "" && funcsSection == "" {
 			dirsSection = "### 子节点\n当前目录下没有子节点。\n\n"
 		}
 	}
 
-	return dirInfo + dirsSection + funcsSection + filesSection, false
+	return dirInfo + dirsSection + docsSection + funcsSection + filesSection, false
 }
 
+type readDirWorkspaceContextLoader func(context.Context, string, string) (*dto.GetWorkspaceContextResp, error)
+
 func buildRecursiveTree(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextResp, targetPath string, currentDepth int, maxDepth int, includeFunctions bool, includeFiles bool, fileSource string, outputFormat string) (string, bool) {
+	return buildRecursiveTreeWithLoader(ctx, workspaceCtx, targetPath, currentDepth, maxDepth, includeFunctions, includeFiles, fileSource, outputFormat, apicall.GetWorkspaceContext)
+}
+
+func buildRecursiveTreeWithLoader(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextResp, targetPath string, currentDepth int, maxDepth int, includeFunctions bool, includeFiles bool, fileSource string, outputFormat string, loader readDirWorkspaceContextLoader) (string, bool) {
 	if maxDepth >= 0 && currentDepth >= maxDepth {
 		return "", false
 	}
 
-	treeLines := buildTreeLines(ctx, workspaceCtx, currentDepth, maxDepth, includeFunctions, includeFiles, fileSource, "")
+	visited := make(map[string]struct{})
+	markReadDirVisited(visited, targetPath)
+	markReadDirVisited(visited, workspaceCtx.Directory.FullCodePath)
+	treeLines := buildTreeLines(ctx, workspaceCtx, currentDepth, maxDepth, includeFunctions, includeFiles, fileSource, "", visited, loader)
 	if outputFormat == "tree" {
 		return fmt.Sprintf(`目录树：%s
 
@@ -269,7 +301,7 @@ func buildRecursiveTree(ctx context.Context, workspaceCtx *dto.GetWorkspaceConte
 %s`, targetPath, treeLines), false
 }
 
-func buildTreeLines(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextResp, currentDepth int, maxDepth int, includeFunctions bool, includeFiles bool, fileSource string, prefix string) string {
+func buildTreeLines(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextResp, currentDepth int, maxDepth int, includeFunctions bool, includeFiles bool, fileSource string, prefix string, visited map[string]struct{}, loader readDirWorkspaceContextLoader) string {
 	if maxDepth >= 0 && currentDepth >= maxDepth {
 		return ""
 	}
@@ -288,17 +320,23 @@ func buildTreeLines(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextRe
 	}
 
 	directories := make([]dto.WorkspaceContextNode, 0)
+	documents := make([]dto.WorkspaceContextNode, 0)
 	functions := make([]dto.WorkspaceContextNode, 0)
 	for _, child := range children {
-		if child.Type == servicetree.TypePackage || child.Type == servicetree.TypeDocs {
+		switch child.Type {
+		case servicetree.TypePackage:
 			directories = append(directories, child)
-		} else if child.Type == servicetree.TypeFunction && includeFunctions {
-			functions = append(functions, child)
+		case servicetree.TypeDocs:
+			documents = append(documents, child)
+		case servicetree.TypeFunction:
+			if includeFunctions {
+				functions = append(functions, child)
+			}
 		}
 	}
 
 	for i, dir := range directories {
-		isLast := i == len(directories)-1 && (!includeFunctions || len(functions) == 0) && (!includeFiles || len(files) == 0)
+		isLast := i == len(directories)-1 && len(documents) == 0 && (!includeFunctions || len(functions) == 0) && (!includeFiles || len(files) == 0)
 		connector := "├── "
 		nextPrefix := prefix + "│   "
 		if isLast {
@@ -312,12 +350,42 @@ func buildTreeLines(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextRe
 		}
 		result += fmt.Sprintf("%s%s%s(%s%s)[%s]\n", prefix, connector, dir.Code, dir.Name, descPart, dir.Type)
 
-		childCtx, err := apicall.GetWorkspaceContext(ctx, dir.FullCodePath, fileSource)
+		visitKey := readDirVisitKey(dir.FullCodePath)
+		if _, ok := visited[visitKey]; visitKey != "" && ok {
+			result += fmt.Sprintf("%s(检测到目录循环，已停止展开: %s)\n", nextPrefix, dir.FullCodePath)
+			continue
+		}
+		markReadDirVisited(visited, dir.FullCodePath)
+
+		childCtx, err := loader(ctx, dir.FullCodePath, fileSource)
 		if err == nil {
-			result += buildTreeLines(ctx, childCtx, currentDepth+1, maxDepth, includeFunctions, includeFiles, fileSource, nextPrefix)
+			resolvedKey := readDirVisitKey(childCtx.Directory.FullCodePath)
+			if _, ok := visited[resolvedKey]; resolvedKey != "" && resolvedKey != visitKey && ok {
+				result += fmt.Sprintf("%s(目录被解析到已访问路径，已停止展开: %s)\n", nextPrefix, childCtx.Directory.FullCodePath)
+				continue
+			}
+			markReadDirVisited(visited, childCtx.Directory.FullCodePath)
+			result += buildTreeLines(ctx, childCtx, currentDepth+1, maxDepth, includeFunctions, includeFiles, fileSource, nextPrefix, visited, loader)
 		} else {
 			result += fmt.Sprintf("%s    (无法获取子目录内容: %v)\n", nextPrefix, err)
 		}
+	}
+
+	for i, doc := range documents {
+		isLast := i == len(documents)-1 && (!includeFunctions || len(functions) == 0) && (!includeFiles || len(files) == 0)
+		connector := "├── "
+		if isLast {
+			connector = "└── "
+		}
+		descPart := ""
+		if doc.Description != "" {
+			descPart = "-" + doc.Description
+		}
+		result += fmt.Sprintf("%s%s%s(%s%s)[%s]", prefix, connector, doc.Code, doc.Name, descPart, doc.Type)
+		if doc.FullCodePath != "" {
+			result += fmt.Sprintf(" → %s", doc.FullCodePath)
+		}
+		result += "\n"
 	}
 
 	if includeFunctions && len(functions) > 0 {
@@ -360,6 +428,20 @@ func buildTreeLines(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextRe
 	return result
 }
 
+func readDirVisitKey(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "/" {
+		return path
+	}
+	return strings.TrimRight(path, "/")
+}
+
+func markReadDirVisited(visited map[string]struct{}, path string) {
+	if key := readDirVisitKey(path); key != "" {
+		visited[key] = struct{}{}
+	}
+}
+
 func buildReadDirResultData(originalPath string, targetPath string, degraded bool, outputFormat string, recursive bool, maxDepth int, includeFunctions bool, includeFiles bool, includeCode bool, workspaceCtx *dto.GetWorkspaceContextResp) *readDirResultData {
 	if workspaceCtx == nil {
 		return nil
@@ -396,8 +478,12 @@ func buildReadDirResultData(originalPath string, targetPath string, degraded boo
 			FullCodePath: child.FullCodePath,
 			TemplateType: child.TemplateType,
 		}
-		if child.Type == servicetree.TypePackage || child.Type == servicetree.TypeDocs {
+		if child.Type == servicetree.TypePackage {
 			data.Directories = append(data.Directories, node)
+			continue
+		}
+		if child.Type == servicetree.TypeDocs {
+			data.Documents = append(data.Documents, node)
 			continue
 		}
 		if child.Type == servicetree.TypeFunction && includeFunctions {
@@ -425,6 +511,7 @@ func buildReadDirResultData(originalPath string, targetPath string, degraded boo
 
 	data.Summary = readDirSummaryData{
 		DirectoryCount: len(data.Directories),
+		DocumentCount:  len(data.Documents),
 		FunctionCount:  len(data.Functions),
 		FileCount:      len(data.Files),
 	}

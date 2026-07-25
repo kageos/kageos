@@ -18,12 +18,22 @@ const (
 type ExecutionStatus string
 
 const (
+	ExecutionStatusWaiting   ExecutionStatus = "waiting"
 	ExecutionStatusQueued    ExecutionStatus = "queued"
 	ExecutionStatusRunning   ExecutionStatus = "running"
 	ExecutionStatusSuccess   ExecutionStatus = "success"
 	ExecutionStatusFailed    ExecutionStatus = "failed"
 	ExecutionStatusTimeout   ExecutionStatus = "timeout"
 	ExecutionStatusCancelled ExecutionStatus = "cancelled"
+	ExecutionStatusSkipped   ExecutionStatus = "skipped"
+)
+
+type OverlapPolicy string
+
+const (
+	OverlapPolicyForbid      OverlapPolicy = "forbid"
+	OverlapPolicyQueueLatest OverlapPolicy = "queue_latest"
+	OverlapPolicyAllow       OverlapPolicy = "allow"
 )
 
 type Task struct {
@@ -40,6 +50,8 @@ type Task struct {
 	Schedule            Schedule          `json:"schedule"`
 	NextRunAt           *time.Time        `json:"next_run_at,omitempty"`
 	RunCount            int               `json:"run_count"`
+	OverlapPolicy       OverlapPolicy     `json:"overlap_policy"`
+	MaxParallelism      int               `json:"max_parallelism"`
 	InflightExecutionID int64             `json:"inflight_execution_id,omitempty"`
 	LastExecutionID     int64             `json:"last_execution_id,omitempty"`
 	LastErrorMessage    string            `json:"last_error_message,omitempty"`
@@ -96,6 +108,8 @@ type CreateTaskRequest struct {
 	Metadata        map[string]string `json:"metadata,omitempty"`
 	Status          TaskStatus        `json:"status,omitempty"`
 	Schedule        Schedule          `json:"schedule"`
+	OverlapPolicy   OverlapPolicy     `json:"overlap_policy,omitempty"`
+	MaxParallelism  int               `json:"max_parallelism,omitempty"`
 	SourceType      string            `json:"source_type,omitempty"`
 	SourceRef       string            `json:"source_ref,omitempty"`
 	ResourceScope   string            `json:"resource_scope,omitempty"`
@@ -113,6 +127,8 @@ type UpdateTaskRequest struct {
 	ExecutorPayload json.RawMessage    `json:"executor_payload,omitempty"`
 	Metadata        *map[string]string `json:"metadata,omitempty"`
 	Schedule        *Schedule          `json:"schedule,omitempty"`
+	OverlapPolicy   *OverlapPolicy     `json:"overlap_policy,omitempty"`
+	MaxParallelism  *int               `json:"max_parallelism,omitempty"`
 	SourceType      *string            `json:"source_type,omitempty"`
 	SourceRef       *string            `json:"source_ref,omitempty"`
 	ResourceScope   *string            `json:"resource_scope,omitempty"`

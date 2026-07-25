@@ -80,7 +80,8 @@ RUN mkdir -p /etc/kageos /etc/containers /var/lib/containers/storage /run/podman
 COPY --from=gobuilder /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV GOPATH="/go"
-ENV GOCACHE="/tmp/go-cache"
+# /app/namespace is persisted by entrypoint-aio.sh.
+ENV GOCACHE="/app/namespace/.cache/go-build"
 
 WORKDIR /app
 

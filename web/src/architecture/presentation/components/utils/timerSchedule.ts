@@ -149,21 +149,25 @@ export function taskStatusTag(status?: string): 'primary' | 'success' | 'warning
 
 export function executionStatusLabel(status?: string): string {
   const labels: Record<TimerExecutionStatus, string> = {
+    waiting: translate('scheduledTask.executionStatusWaiting'),
     queued: translate('scheduledTask.executionStatusQueued'),
     running: translate('scheduledTask.executionStatusRunning'),
     success: translate('scheduledTask.executionStatusSuccess'),
     failed: translate('scheduledTask.executionStatusFailed'),
     timeout: translate('scheduledTask.executionStatusTimeout'),
     cancelled: translate('scheduledTask.executionStatusCancelled'),
+    skipped: translate('scheduledTask.executionStatusSkipped'),
   }
   return labels[status as TimerExecutionStatus] || status || '-'
 }
 
 export function executionStatusTag(status?: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' {
+  if (status === 'waiting') return 'warning'
   if (status === 'queued') return 'info'
   if (status === 'running') return 'primary'
   if (status === 'success') return 'success'
   if (status === 'failed' || status === 'timeout') return 'danger'
+  if (status === 'skipped') return 'info'
   return 'info'
 }
 

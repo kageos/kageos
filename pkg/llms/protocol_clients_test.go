@@ -30,8 +30,10 @@ func TestOpenAIResponsesClientChatStreamsTextAndUsage(t *testing.T) {
 
 	client := NewOpenAIResponsesClientWithOptions("test-key", DefaultClientOptions().WithBaseURL(server.URL+"/v1").WithModel("gpt-test"))
 	resp, err := client.Chat(context.Background(), &ChatRequest{
-		Messages:  []Message{{Role: "user", Content: "hi"}},
-		MaxTokens: 16,
+		Messages:        []Message{{Role: "user", Content: "hi"}},
+		MaxTokens:       16,
+		ReasoningEffort: "medium",
+		Verbosity:       "low",
 	})
 	if err != nil {
 		t.Fatalf("Chat returned error: %v", err)
@@ -47,6 +49,39 @@ func TestOpenAIResponsesClientChatStreamsTextAndUsage(t *testing.T) {
 	}
 	if payload["max_output_tokens"].(float64) != 16 {
 		t.Fatalf("max_output_tokens = %#v, want 16", payload["max_output_tokens"])
+	}
+	reasoning, _ := payload["reasoning"].(map[string]interface{})
+	textConfig, _ := payload["text"].(map[string]interface{})
+	if reasoning["effort"] != "medium" || textConfig["verbosity"] != "low" {
+		t.Fatalf("reasoning/text config = %#v/%#v, want medium/low", reasoning, textConfig)
+	}
+}
+
+func TestOpenAIResponsesClientMapsIncompleteMaxOutputTokensToLength(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"type\":\"response.reasoning_summary_text.delta\",\"delta\":\"内部思考\"}\n\n"))
+		_, _ = w.Write([]byte("data: {\"type\":\"response.incomplete\",\"response\":{\"status\":\"incomplete\",\"incomplete_details\":{\"reason\":\"max_output_tokens\"},\"usage\":{\"input_tokens\":3,\"output_tokens\":16,\"total_tokens\":19}}}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer server.Close()
+
+	client := NewOpenAIResponsesClientWithOptions("test-key", DefaultClientOptions().WithBaseURL(server.URL+"/v1").WithModel("gpt-test"))
+	stream, err := client.ChatStream(context.Background(), &ChatRequest{
+		Messages:  []Message{{Role: "user", Content: "hi"}},
+		MaxTokens: 16,
+	})
+	if err != nil {
+		t.Fatalf("ChatStream returned error: %v", err)
+	}
+	finishReason := ""
+	for chunk := range stream {
+		if chunk.FinishReason != "" {
+			finishReason = chunk.FinishReason
+		}
+	}
+	if finishReason != "max_output_tokens" {
+		t.Fatalf("finish reason = %q, want max_output_tokens", finishReason)
 	}
 }
 

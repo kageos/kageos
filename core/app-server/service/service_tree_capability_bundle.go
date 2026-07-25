@@ -793,7 +793,7 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 
 	createdAgentTaskRefs := make([]string, 0)
 	if len(installBundle.AgentTasks) > 0 {
-		createdAgentTaskRefs, err = s.installCapabilityBundleAgentTasks(ctx, plan.targetRootPath, installBundle.AgentTasks)
+		createdAgentTaskRefs, err = s.installCapabilityBundleAgentTasks(ctx, plan.targetRootPath, installBundle.AgentTasks, opts.Overwrite)
 		if err != nil {
 			return nil, fmt.Errorf("导入 Agent 任务失败: %w", err)
 		}
@@ -835,6 +835,7 @@ func (s *serviceTreeCapabilityBundleService) installCapabilityBundleAgentTasks(
 	ctx context.Context,
 	targetRootPath string,
 	tasks []*dto.CapabilityBundleAgentTask,
+	overwrite bool,
 ) ([]string, error) {
 	client := newAppScheduleClient()
 	created := make([]string, 0, len(tasks))
@@ -853,6 +854,24 @@ func (s *serviceTreeCapabilityBundleService) installCapabilityBundleAgentTasks(
 		}
 		if createdTask == nil || createdTask.ID <= 0 {
 			return created, fmt.Errorf("%s/%s 未返回有效 task_id", targetFullCodePath, task.Code)
+		}
+		if overwrite {
+			if _, err := client.UpdateTask(ctx, createdTask.ID, updateTaskRequestFromCreate(req)); err != nil {
+				return created, fmt.Errorf("更新 %s/%s 失败: %w", targetFullCodePath, task.Code, err)
+			}
+			if statusClient, ok := client.(interface {
+				PauseTask(context.Context, int64) error
+				ResumeTask(context.Context, int64) error
+			}); ok {
+				if req.Status == scheduledsdk.TaskStatusPending {
+					err = statusClient.ResumeTask(ctx, createdTask.ID)
+				} else {
+					err = statusClient.PauseTask(ctx, createdTask.ID)
+				}
+				if err != nil {
+					return created, fmt.Errorf("同步 %s/%s 启停状态失败: %w", targetFullCodePath, task.Code, err)
+				}
+			}
 		}
 		created = append(created, capabilityAgentTaskKey(targetFullCodePath, task.Code))
 	}

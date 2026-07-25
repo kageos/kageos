@@ -75,7 +75,11 @@ func TestAppServiceRequestAppInjectsVersionSourceContextAndUsesNatsID(t *testing
 			Result:  "ok",
 		},
 	}
-	service := NewAppService(client, appRepo, nil, serviceTreeRepo, nil)
+	service := NewAppService(AppServiceDependencies{
+		AppRuntimeClient:      client,
+		AppRepository:         appRepo,
+		ServiceTreeRepository: serviceTreeRepo,
+	})
 
 	resp, err := service.RequestApp(context.Background(), &dto.RequestAppReq{
 		TraceId: "trace-1",
@@ -116,7 +120,10 @@ func TestAppServiceRequestAppReturnsRuntimeError(t *testing.T) {
 	appRepo, _, _ := newAppServiceRequestDeleteTestDeps(t)
 	createRequestDeleteTestApp(t, appRepo)
 	client := &fakeAppRuntimeClient{requestErr: errors.New("runtime down")}
-	service := NewAppService(client, appRepo, nil, nil, nil)
+	service := NewAppService(AppServiceDependencies{
+		AppRuntimeClient: client,
+		AppRepository:    appRepo,
+	})
 
 	_, err := service.RequestApp(context.Background(), &dto.RequestAppReq{
 		User:   "alice",
@@ -138,7 +145,10 @@ func TestAppServiceDeleteAppDeletesDatabaseOnlyAfterRuntimeSuccess(t *testing.T)
 	client := &fakeAppRuntimeClient{
 		deleteResp: &dto.DeleteAppResp{User: "alice", App: "demo"},
 	}
-	service := NewAppService(client, appRepo, nil, nil, nil)
+	service := NewAppService(AppServiceDependencies{
+		AppRuntimeClient: client,
+		AppRepository:    appRepo,
+	})
 
 	resp, err := service.DeleteApp(context.Background(), &dto.DeleteAppReq{ResourcePath: "/alice/demo/ticket"})
 	if err != nil {
@@ -162,7 +172,10 @@ func TestAppServiceDeleteAppKeepsDatabaseWhenRuntimeFails(t *testing.T) {
 	appRepo, _, _ := newAppServiceRequestDeleteTestDeps(t)
 	createRequestDeleteTestApp(t, appRepo)
 	client := &fakeAppRuntimeClient{deleteErr: errors.New("runtime delete failed")}
-	service := NewAppService(client, appRepo, nil, nil, nil)
+	service := NewAppService(AppServiceDependencies{
+		AppRuntimeClient: client,
+		AppRepository:    appRepo,
+	})
 
 	_, err := service.DeleteApp(context.Background(), &dto.DeleteAppReq{ResourcePath: "/alice/demo"})
 	if err == nil || !strings.Contains(err.Error(), "runtime delete failed") {

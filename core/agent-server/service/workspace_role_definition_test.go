@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -78,6 +79,29 @@ func TestWorkspaceRoleDefinitionsIncludeManifestRunbookAgentTaskGuide(t *testing
 		}
 		if !containsWorkspaceRoleString(definition.RequiredDocs, guide) {
 			t.Fatalf("role %s required docs should include %s, got %#v", roleID, guide, definition.RequiredDocs)
+		}
+	}
+}
+
+func TestWorkspaceRoleDefinitionsEnforceMeaningfulUnattendedWork(t *testing.T) {
+	for roleID, needles := range map[string][]string{
+		WorkspaceRoleProductManager: {"提交时可确定的问题必须同步校验", "结果回写"},
+		WorkspaceRoleAppDeveloper:   {"同步校验提交当下可确定的错误", "后台新增价值"},
+		WorkspaceRoleAutomationOperator: {
+			"无人值守价值门禁",
+			"时间流逝、外部状态变化、持续观察或跨记录分析",
+			"停止条件",
+		},
+	} {
+		definition, ok := workspaceRoleDefinitionFor(roleID)
+		if !ok {
+			t.Fatalf("role %s definition missing", roleID)
+		}
+		content := strings.Join(definition.RuntimeContract.SOP, "\n") + "\n" + definition.Responsibility
+		for _, needle := range needles {
+			if !strings.Contains(content, needle) {
+				t.Fatalf("role %s should enforce unattended value rule %q: %s", roleID, needle, content)
+			}
 		}
 	}
 }

@@ -190,6 +190,8 @@ export function copyDirectory(data: {
     message: string
     directory_count: number
     file_count: number
+    doc_count?: number
+    agent_task_count?: number
     replaced?: boolean
     target_directory_path?: string
     old_version?: string

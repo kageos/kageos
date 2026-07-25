@@ -34,12 +34,174 @@ func TestRunStreamLoopRetriesWithContextReductionOnContextWindowError(t *testing
 	if !deps.done {
 		t.Fatal("OnDone should be called after retry succeeds")
 	}
+	wantActions := []string{"started", "discarded", "started", "committed"}
+	if strings.Join(deps.attemptActions, ",") != strings.Join(wantActions, ",") {
+		t.Fatalf("generation attempt actions = %#v, want %#v", deps.attemptActions, wantActions)
+	}
+}
+
+func TestRunStreamLoopRetriesOnceWhenReasoningExhaustsOutputBudget(t *testing.T) {
+	client := &retryOutputLimitClient{}
+	deps := &retryOutputLimitDeps{client: client}
+
+	if err := RunStreamLoop(context.Background(), deps); err != nil {
+		t.Fatalf("RunStreamLoop returned error: %v", err)
+	}
+	if client.calls != 2 {
+		t.Fatalf("client calls = %d, want 2", client.calls)
+	}
+	if deps.recoveries != 1 {
+		t.Fatalf("output limit recoveries = %d, want 1", deps.recoveries)
+	}
+	if deps.errorEvents != 0 {
+		t.Fatalf("error events = %d, want 0", deps.errorEvents)
+	}
+	if deps.savedContent != "完成" || deps.savedThinking != "精简思考" || !deps.done {
+		t.Fatalf("saved content/thinking/done = %q/%q/%v, want 完成/精简思考/true", deps.savedContent, deps.savedThinking, deps.done)
+	}
+	if deps.doneUsage == nil || deps.doneUsage.CompletionTokens != 8206 {
+		t.Fatalf("done usage = %#v, want both attempts accumulated", deps.doneUsage)
+	}
+}
+
+func TestRunStreamLoopContinuesVisibleOutputAfterRepeatedLengthFinish(t *testing.T) {
+	client := &continuationOutputClient{}
+	deps := &retryOutputLimitDeps{client: client}
+
+	if err := RunStreamLoop(context.Background(), deps); err != nil {
+		t.Fatalf("RunStreamLoop returned error: %v", err)
+	}
+	if client.calls != 3 {
+		t.Fatalf("client calls = %d, want 3", client.calls)
+	}
+	if deps.savedContent != "第一段第二段" {
+		t.Fatalf("saved content = %q, want combined continuation", deps.savedContent)
+	}
+	if deps.continuations != 1 || !deps.recoveryCompleted {
+		t.Fatalf("continuations/completed = %d/%v, want 1/true", deps.continuations, deps.recoveryCompleted)
+	}
+}
+
+type retryOutputLimitDeps struct {
+	client            llms.LLMClient
+	recoveries        int
+	continuations     int
+	recoveryCompleted bool
+	errorEvents       int
+	savedContent      string
+	savedThinking     string
+	done              bool
+	doneUsage         *llms.Usage
+}
+
+func (d *retryOutputLimitDeps) BuildMessages(context.Context) ([]llms.Message, []llms.ToolDef, error) {
+	return []llms.Message{{Role: "user", Content: "完成任务"}}, nil, nil
+}
+
+func (d *retryOutputLimitDeps) PrepareLLM(context.Context, []llms.Message, []llms.ToolDef) (llms.LLMClient, *llms.ChatRequest, error) {
+	return d.client, &llms.ChatRequest{Messages: []llms.Message{{Role: "user", Content: "完成任务"}}, MaxTokens: 8196}, nil
+}
+
+func (d *retryOutputLimitDeps) SendEvent(event string, _ interface{}) {
+	if event == EventError {
+		d.errorEvents++
+	}
+}
+
+func (d *retryOutputLimitDeps) SaveAssistantMessage(_ context.Context, content string, thinking string, _ *llms.Usage) error {
+	d.savedContent = content
+	d.savedThinking = thinking
+	return nil
+}
+
+func (d *retryOutputLimitDeps) SaveAssistantMessageWithToolCalls(context.Context, string, string, []llms.ToolCall, *llms.Usage) error {
+	return nil
+}
+
+func (d *retryOutputLimitDeps) ExecuteToolCalls(context.Context, []llms.ToolCall, int, func(string, interface{})) ([]ToolCallSummary, error) {
+	return nil, nil
+}
+
+func (d *retryOutputLimitDeps) OnDone(_ []ToolCallSummary, usage *llms.Usage) {
+	d.done = true
+	d.doneUsage = usage
+}
+
+func (d *retryOutputLimitDeps) RequestOutputLimitRecovery(context.Context, string) bool {
+	d.recoveries++
+	return d.recoveries == 1
+}
+
+func (d *retryOutputLimitDeps) RequestOutputContinuation(_ context.Context, partialContent string) bool {
+	d.continuations++
+	return strings.TrimSpace(partialContent) != "" && d.continuations <= 4
+}
+
+func (d *retryOutputLimitDeps) CompleteOutputRecovery() {
+	d.recoveryCompleted = true
+}
+
+type retryOutputLimitClient struct {
+	calls int
+}
+
+func (c *retryOutputLimitClient) Chat(context.Context, *llms.ChatRequest) (*llms.ChatResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (c *retryOutputLimitClient) ChatStream(context.Context, *llms.ChatRequest) (<-chan *llms.StreamChunk, error) {
+	c.calls++
+	stream := make(chan *llms.StreamChunk, 2)
+	if c.calls == 1 {
+		stream <- &llms.StreamChunk{ReasoningContent: "冗长思考", FinishReason: "length"}
+		stream <- &llms.StreamChunk{Done: true, FinishReason: "length", Usage: &llms.Usage{CompletionTokens: 8196, TotalTokens: 8196}}
+	} else {
+		stream <- &llms.StreamChunk{ReasoningContent: "精简思考"}
+		stream <- &llms.StreamChunk{Content: "完成", Done: true, Usage: &llms.Usage{CompletionTokens: 10, TotalTokens: 10}}
+	}
+	close(stream)
+	return stream, nil
+}
+
+func (c *retryOutputLimitClient) GetModelName() string {
+	return "test-reasoning-model"
+}
+
+type continuationOutputClient struct {
+	calls int
+}
+
+func (c *continuationOutputClient) Chat(context.Context, *llms.ChatRequest) (*llms.ChatResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (c *continuationOutputClient) ChatStream(context.Context, *llms.ChatRequest) (<-chan *llms.StreamChunk, error) {
+	c.calls++
+	stream := make(chan *llms.StreamChunk, 2)
+	switch c.calls {
+	case 1:
+		stream <- &llms.StreamChunk{ReasoningContent: "超长思考", FinishReason: "length"}
+		stream <- &llms.StreamChunk{Done: true, FinishReason: "length"}
+	case 2:
+		stream <- &llms.StreamChunk{Content: "第一段", FinishReason: "length"}
+		stream <- &llms.StreamChunk{Done: true, FinishReason: "length"}
+	default:
+		stream <- &llms.StreamChunk{Content: "第二段"}
+		stream <- &llms.StreamChunk{Done: true}
+	}
+	close(stream)
+	return stream, nil
+}
+
+func (c *continuationOutputClient) GetModelName() string {
+	return "continuation-test-model"
 }
 
 type retryContextWindowDeps struct {
-	client     *retryContextWindowClient
-	reductions int
-	done       bool
+	client         *retryContextWindowClient
+	reductions     int
+	done           bool
+	attemptActions []string
 }
 
 func (d *retryContextWindowDeps) BuildMessages(context.Context) ([]llms.Message, []llms.ToolDef, error) {
@@ -50,7 +212,14 @@ func (d *retryContextWindowDeps) PrepareLLM(context.Context, []llms.Message, []l
 	return d.client, &llms.ChatRequest{Messages: []llms.Message{{Role: "user", Content: "继续处理"}}}, nil
 }
 
-func (d *retryContextWindowDeps) SendEvent(string, interface{}) {}
+func (d *retryContextWindowDeps) SendEvent(event string, data interface{}) {
+	if event != EventGenerationAttempt {
+		return
+	}
+	if payload, ok := data.(*dto.WorkspaceStreamGenerationAttempt); ok {
+		d.attemptActions = append(d.attemptActions, payload.Action)
+	}
+}
 
 func (d *retryContextWindowDeps) SaveAssistantMessage(context.Context, string, string, *llms.Usage) error {
 	return nil
@@ -84,7 +253,11 @@ func (c *retryContextWindowClient) Chat(context.Context, *llms.ChatRequest) (*ll
 func (c *retryContextWindowClient) ChatStream(context.Context, *llms.ChatRequest) (<-chan *llms.StreamChunk, error) {
 	c.calls++
 	if c.calls == 1 {
-		return nil, &llms.ContextWindowError{Message: "OpenAI API 错误: invalid params, context window exceeds limit (2013)"}
+		stream := make(chan *llms.StreamChunk, 2)
+		stream <- &llms.StreamChunk{Content: "半截内容"}
+		stream <- &llms.StreamChunk{Error: "OpenAI API 错误: invalid params, context window exceeds limit (2013)"}
+		close(stream)
+		return stream, nil
 	}
 	stream := make(chan *llms.StreamChunk, 2)
 	stream <- &llms.StreamChunk{Content: "完成"}

@@ -1,7 +1,8 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { resolveFileRefs, type ResolvedFile } from '@/architecture/presentation/context/api/storage'
 import type { ToolResultMetadata } from '@/architecture/presentation/context/api/workspace'
-import { extractFileGroupsFromResult, type OutputFileGroup } from '@/architecture/presentation/composables/useOutputFileGroups'
+import { extractFileGroupsFromResult, type OutputFileGroup, type OutputFileItem } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { extractAllDisplayFields, type OutputDisplayField } from '@/architecture/presentation/composables/useOutputDisplayFields'
 import type { ChatMessage } from '@/architecture/presentation/composables/useWorkspaceChatStream'
 import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
@@ -10,18 +11,61 @@ export interface FilePanelItem {
   name: string
   href: string
   source: 'upload' | 'output'
+  ref?: string
 }
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'])
+const OUTPUT_FILE_RESOLVE_BATCH_SIZE = 100
+const OUTPUT_FILE_RESOLVE_MAX_ATTEMPTS = 2
+const OUTPUT_FILE_RESOLVE_RETRY_DELAY_MS = 200
 
 type FileGroupToolCall = { result?: string; result_data?: unknown; metadata?: ToolResultMetadata }
 type DisplayFieldToolCall = { arguments?: string; result?: string; result_data?: unknown }
+type ResolveFileRefsFn = (refs: string[], audience: 'browser' | 'server' | 'all') => Promise<ResolvedFile[]>
 
 export { normalizeStorageFileDisplayUrl as normalizeMiniFileDisplayUrl }
+
+export function buildOutputPanelFile(file: OutputFileItem, resolved?: ResolvedFile): FilePanelItem {
+  return {
+    name: resolved?.source_name || file.source_name || resolved?.name || file.name || '输出文件',
+    href: normalizeStorageFileDisplayUrl(resolved?.download_url || file.download_url || file.ref || ''),
+    source: 'output',
+    ref: file.ref,
+  }
+}
+
+export async function resolveOutputFileBatch(
+  refs: string[],
+  resolver: ResolveFileRefsFn = resolveFileRefs,
+  retryDelayMs = OUTPUT_FILE_RESOLVE_RETRY_DELAY_MS
+): Promise<ResolvedFile[]> {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= OUTPUT_FILE_RESOLVE_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await resolver(refs, 'browser')
+    } catch (error) {
+      lastError = error
+      if (attempt < OUTPUT_FILE_RESOLVE_MAX_ATTEMPTS && retryDelayMs > 0) {
+        await new Promise(resolve => setTimeout(resolve, retryDelayMs))
+      }
+    }
+  }
+  throw lastError
+}
+
+function chunkOutputFileRefs(refs: string[]): string[][] {
+  const batches: string[][] = []
+  for (let index = 0; index < refs.length; index += OUTPUT_FILE_RESOLVE_BATCH_SIZE) {
+    batches.push(refs.slice(index, index + OUTPUT_FILE_RESOLVE_BATCH_SIZE))
+  }
+  return batches
+}
 
 export function useMiniWorkstationPanel(messages: Ref<ChatMessage[]>) {
   const fileGroupsCache = new WeakMap<FileGroupToolCall[], OutputFileGroup[]>()
   const displayFieldsCache = new WeakMap<DisplayFieldToolCall[], OutputDisplayField[]>()
+  const resolvedOutputFiles = ref<Record<string, ResolvedFile>>({})
+  const resolvingOutputRefs = new Set<string>()
 
   const getFileGroupsFromCalls = (calls: FileGroupToolCall[]): OutputFileGroup[] => {
     const cached = fileGroupsCache.get(calls)
@@ -44,6 +88,44 @@ export function useMiniWorkstationPanel(messages: Ref<ChatMessage[]>) {
     return fields
   }
 
+  const outputFileRefs = computed(() => {
+    const refs = new Set<string>()
+    for (const msg of messages.value) {
+      if (msg.role !== 'assistant' || !msg.tool_calls?.length) continue
+      for (const group of getFileGroupsFromCalls(msg.tool_calls)) {
+        for (const file of group.files) {
+          if (file.ref) refs.add(file.ref)
+        }
+      }
+    }
+    return Array.from(refs)
+  })
+
+  const outputFileRefsSignature = computed(() => outputFileRefs.value.join('\n'))
+
+  watch(outputFileRefsSignature, async () => {
+    const refs = outputFileRefs.value.filter(ref => !resolvedOutputFiles.value[ref] && !resolvingOutputRefs.has(ref))
+    if (refs.length === 0) return
+
+    refs.forEach(ref => resolvingOutputRefs.add(ref))
+    try {
+      const results = await Promise.allSettled(
+        chunkOutputFileRefs(refs).map(batch => resolveOutputFileBatch(batch))
+      )
+      const resolved = results.flatMap(result => result.status === 'fulfilled' ? result.value : [])
+      if (resolved.length > 0) {
+        const next = { ...resolvedOutputFiles.value }
+        for (const file of resolved) {
+          next[file.ref] = file
+        }
+        resolvedOutputFiles.value = next
+      }
+    } finally {
+      // 失败批次保留对象 key basename；同一批次内部已做一次短延迟重试。
+      refs.forEach(ref => resolvingOutputRefs.delete(ref))
+    }
+  }, { immediate: true })
+
   const allPanelFiles = computed<FilePanelItem[]>(() => {
     const list: FilePanelItem[] = []
     for (const msg of messages.value) {
@@ -57,8 +139,7 @@ export function useMiniWorkstationPanel(messages: Ref<ChatMessage[]>) {
         const groups = getFileGroupsFromCalls(msg.tool_calls)
         for (const group of groups) {
           for (const file of group.files) {
-            const href = normalizeStorageFileDisplayUrl(file.download_url || file.ref || '')
-            list.push({ name: file.source_name || file.name || '输出文件', href, source: 'output' })
+            list.push(buildOutputPanelFile(file, file.ref ? resolvedOutputFiles.value[file.ref] : undefined))
           }
         }
       }

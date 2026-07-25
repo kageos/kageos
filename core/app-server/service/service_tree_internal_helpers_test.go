@@ -6,6 +6,7 @@ import (
 
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/scheduledsdk"
 )
 
 func TestNormalizeSearchFunctionsPagination_DefaultsInvalidValues(t *testing.T) {
@@ -189,6 +190,48 @@ func TestBuildCopyDirectoryPlan_OverridesRootDisplayName(t *testing.T) {
 	}
 	if plan.directoryItems[1].Name != "图片" {
 		t.Fatalf("expected child display name to stay copied, got %s", plan.directoryItems[1].Name)
+	}
+}
+
+func TestBuildCopyDirectoryPlanIncludesRuntimeDocsAndAgentTasks(t *testing.T) {
+	source := &copyDirectorySource{
+		treesByPath: map[string]*model.ServiceTree{
+			"/alice/source/tools": {FullCodePath: "/alice/source/tools", Name: "工具", Code: "tools"},
+		},
+		directoryFiles: map[string][]*model.FileSnapshot{},
+		runtimeBundle: &dto.CapabilityBundle{
+			SchemaVersion: dto.CapabilityBundleSchemaVersion,
+			Packages: []*dto.CapabilityBundlePackage{
+				{Path: "tools", Name: "工具"},
+			},
+			TreeNodes: []*dto.CapabilityBundleTreeNode{
+				{RelativePath: "tools", Type: model.ServiceTreeTypePackage, Code: "tools", Name: "工具"},
+				{RelativePath: "tools/guide", ParentPath: "tools", Type: model.ServiceTreeTypeDocs, Code: "guide", Name: "使用说明"},
+			},
+			Docs: []*dto.CapabilityBundleDoc{
+				{RelativePath: "tools/guide", Name: "使用说明", Content: "# Guide", Format: "markdown"},
+			},
+			AgentTasks: []*dto.CapabilityBundleAgentTask{
+				{
+					RelativePath: "tools",
+					Code:         "daily_brief",
+					Message:      "生成每日简报",
+					Enabled:      true,
+					Schedule:     scheduledsdk.Schedule{Type: scheduledsdk.ScheduleCron, CronExpr: "0 9 * * *"},
+				},
+			},
+		},
+	}
+
+	plan, err := buildCopyDirectoryPlan("/alice/source/tools", "/bob/target", "", source)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(plan.docItems) != 1 || plan.docItems[0].FullCodePath != "/bob/target/tools/guide" {
+		t.Fatalf("unexpected copied docs: %#v", plan.docItems)
+	}
+	if len(plan.agentTasks) != 1 || plan.agentTasks[0].Code != "daily_brief" {
+		t.Fatalf("unexpected copied Agent tasks: %#v", plan.agentTasks)
 	}
 }
 

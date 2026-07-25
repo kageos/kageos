@@ -37,6 +37,50 @@ func isRunWriteEmptyValue(value interface{}) bool {
 	}
 }
 
+// Dynamic integer selects use zero as the Go/JSON zero value when no option is
+// selected. Treat it as empty before OnSelectFuzzy verification: optional
+// fields are skipped, while required fields receive the normal required-field
+// error instead of an inaccurate "candidate 0 does not exist" error.
+func isRunWriteFieldEmptyValue(field *widget.Field, value interface{}) bool {
+	if isRunWriteEmptyValue(value) {
+		return true
+	}
+	if field == nil || strings.TrimSpace(field.Widget.Type) != widget.TypeSelect || !isRunWriteFuzzyChoiceWidget(field) {
+		return false
+	}
+	switch v := value.(type) {
+	case int:
+		return v == 0
+	case int8:
+		return v == 0
+	case int16:
+		return v == 0
+	case int32:
+		return v == 0
+	case int64:
+		return v == 0
+	case uint:
+		return v == 0
+	case uint8:
+		return v == 0
+	case uint16:
+		return v == 0
+	case uint32:
+		return v == 0
+	case uint64:
+		return v == 0
+	case float32:
+		return v == 0
+	case float64:
+		return v == 0
+	case json.Number:
+		number, err := v.Float64()
+		return err == nil && number == 0
+	default:
+		return false
+	}
+}
+
 func runWriteFieldPath(label string, code string) string {
 	if strings.TrimSpace(label) == "" {
 		return code

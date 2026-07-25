@@ -9,6 +9,7 @@ import (
 
 	"github.com/kageos/kageos/core/timer-scheduler/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type TimerTaskRepository struct {
@@ -48,6 +49,14 @@ func (r *TimerTaskRepository) Update(task *model.TimerTask) error {
 func (r *TimerTaskRepository) GetByID(id int64) (*model.TimerTask, error) {
 	var task model.TimerTask
 	if err := r.db.Where("id = ?", id).First(&task).Error; err != nil {
+		return nil, err
+	}
+	return &task, nil
+}
+
+func (r *TimerTaskRepository) GetByIDForUpdate(id int64) (*model.TimerTask, error) {
+	var task model.TimerTask
+	if err := r.db.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&task).Error; err != nil {
 		return nil, err
 	}
 	return &task, nil
@@ -223,6 +232,36 @@ func (r *TimerTaskRepository) TrySetInflight(taskID, executionID int64, leaseOwn
 	return result.RowsAffected > 0, nil
 }
 
+func (r *TimerTaskRepository) TryAdvanceSchedule(taskID int64, leaseOwner, status string, nextRunAt *time.Time, lastExecutionID int64) (bool, error) {
+	updates := map[string]interface{}{
+		"next_run_at": nextRunAt,
+		"lease_owner": "",
+		"lease_until": nil,
+	}
+	if status != "" {
+		updates["status"] = status
+	}
+	if lastExecutionID > 0 {
+		updates["last_execution_id"] = lastExecutionID
+	}
+	result := r.db.Model(&model.TimerTask{}).
+		Where("id = ? AND status = ? AND lease_owner = ?", taskID, "pending", leaseOwner).
+		Updates(updates)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+func (r *TimerTaskRepository) SetInflightReference(taskID, executionID int64) error {
+	return r.db.Model(&model.TimerTask{}).
+		Where("id = ?", taskID).
+		Updates(map[string]interface{}{
+			"inflight_execution_id": executionID,
+			"last_execution_id":     executionID,
+		}).Error
+}
+
 func (r *TimerTaskRepository) TrySetManualInflight(taskID, executionID int64) (bool, error) {
 	result := r.db.Model(&model.TimerTask{}).
 		Where("id = ? AND status IN ?", taskID, []string{"pending", "paused"}).
@@ -255,7 +294,7 @@ func (r *TimerTaskRepository) TryCompleteExecution(task *model.TimerTask, execut
 			"run_count":             task.RunCount,
 			"last_execution_id":     executionID,
 			"last_error_message":    task.LastErrorMessage,
-			"inflight_execution_id": 0,
+			"inflight_execution_id": gorm.Expr("CASE WHEN inflight_execution_id = ? THEN 0 ELSE inflight_execution_id END", executionID),
 			"lease_owner":           "",
 			"lease_until":           nil,
 		})

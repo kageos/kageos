@@ -25,26 +25,9 @@ const (
 
 // prepareLLMRequest 工作台只认 LLM：llmConfigID > 0 用该配置，否则用默认
 func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigID int64, msgs []llms.Message, tools []llms.ToolDef) (*model.LLMConfig, llms.LLMClient, *llms.ChatRequest, error) {
-	var llmConfig *model.LLMConfig
-	var err error
-
-	if llmConfigID > 0 {
-		llmConfig, err = s.llmRepo.GetByID(llmConfigID)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("获取 LLM 配置失败: %w", err)
-		}
-	}
-	if llmConfig == nil {
-		llmConfig, err = s.llmRepo.GetDefault()
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return nil, nil, nil, fmt.Errorf("未设置默认 LLM，请在 LLM 管理中配置")
-			}
-			return nil, nil, nil, fmt.Errorf("获取 LLM 配置失败: %w", err)
-		}
-	}
-	if !canViewLLMConfig(llmConfig, contextx.GetRequestUser(ctx)) {
-		return nil, nil, nil, fmt.Errorf("无权限使用该 LLM 配置")
+	llmConfig, err := s.resolveWorkspaceLLMConfig(ctx, llmConfigID)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	apiKey, err := openLLMAPIKey(s.apiKeyVault, s.apiKeyVaultErr, llmConfig.APIKey)
 	if err != nil {
@@ -116,6 +99,12 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 	if temperature, ok := extraConfig["temperature"].(float64); ok {
 		chatReq.Temperature = temperature
 	}
+	if reasoningEffort, ok := extraConfig["reasoning_effort"].(string); ok {
+		chatReq.ReasoningEffort = strings.TrimSpace(reasoningEffort)
+	}
+	if verbosity, ok := extraConfig["verbosity"].(string); ok {
+		chatReq.Verbosity = strings.TrimSpace(verbosity)
+	}
 	if promptCacheKey, ok := extraConfig["prompt_cache_key"].(string); ok {
 		chatReq.PromptCacheKey = strings.TrimSpace(promptCacheKey)
 	}
@@ -123,6 +112,48 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 		chatReq.PromptCacheRetention = strings.TrimSpace(promptCacheRetention)
 	}
 	return llmConfig, client, chatReq, nil
+}
+
+func workspaceConfiguredMaxTokens(cfg *model.LLMConfig) int {
+	if cfg == nil {
+		return workspaceContextDefaultOutputReserve
+	}
+	if cfg.ExtraConfig != nil && strings.TrimSpace(*cfg.ExtraConfig) != "" {
+		var extra map[string]interface{}
+		if json.Unmarshal([]byte(*cfg.ExtraConfig), &extra) == nil {
+			if value, ok := extra["max_tokens"].(float64); ok && value > 0 {
+				return int(value)
+			}
+		}
+	}
+	if cfg.MaxTokens > 0 {
+		return cfg.MaxTokens
+	}
+	return workspaceContextDefaultOutputReserve
+}
+
+func (s *WorkspaceChatService) resolveWorkspaceLLMConfig(ctx context.Context, llmConfigID int64) (*model.LLMConfig, error) {
+	var llmConfig *model.LLMConfig
+	var err error
+	if llmConfigID > 0 {
+		llmConfig, err = s.llmRepo.GetByID(llmConfigID)
+		if err != nil {
+			return nil, fmt.Errorf("获取 LLM 配置失败: %w", err)
+		}
+	}
+	if llmConfig == nil {
+		llmConfig, err = s.llmRepo.GetDefault()
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil, fmt.Errorf("未设置默认 LLM，请在 LLM 管理中配置")
+			}
+			return nil, fmt.Errorf("获取 LLM 配置失败: %w", err)
+		}
+	}
+	if !canViewLLMConfig(llmConfig, contextx.GetRequestUser(ctx)) {
+		return nil, fmt.Errorf("无权限使用该 LLM 配置")
+	}
+	return llmConfig, nil
 }
 
 func llmHeadersFromJSON(raw *string) (map[string]string, error) {
@@ -322,15 +353,43 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlanAndOptions(ctx context.Co
 
 	reductionLevel := normalizeWorkspaceContextReductionLevel(options.ReductionLevel)
 	reductionReason := strings.TrimSpace(options.ReductionReason)
+	checkpoint := s.latestWorkspaceContextCheckpoint(sessionID)
+	list, checkpointCoveredMessages := workspaceMessagesAfterCheckpoint(allMessages, checkpoint)
+	checkpointAttempted := false
+	// A provider-reported overflow is authoritative even when our tokenizer
+	// estimate is still below the soft limit. Advance the reversible checkpoint
+	// before applying any content-level emergency reduction.
+	if reductionLevel > workspaceContextReductionNone {
+		checkpointAttempted = true
+		if next, changed := s.ensureWorkspaceContextCheckpoint(ctx, sessionID, allMessages, currentTurnMessageID, options, checkpoint); changed {
+			checkpoint = next
+			list, checkpointCoveredMessages = workspaceMessagesAfterCheckpoint(allMessages, checkpoint)
+		}
+	}
 	for {
 		msgs := []llms.Message{{Role: "system", Content: system}}
+		if checkpointMessage, ok := workspaceContextCheckpointMessage(checkpoint); ok {
+			msgs = append(msgs, checkpointMessage)
+		}
 		historyMessages, includedMessages, excludedUnsupported, excludedDisplayOnly, excludedByReduction := buildWorkspaceLLMHistoryWithOptions(ctx, list, currentTurnMessageID, workspaceLLMContextBuildOptions{
 			ReductionLevel:  reductionLevel,
 			ReductionReason: reductionReason,
 		})
 		msgs = append(msgs, historyMessages...)
-		budget := buildWorkspaceModelContextBudget(msgs, llmTools, workspaceContextDefaultOutputReserve, reductionLevel, reductionReason)
-		if budget.Status == "over_soft_limit" && reductionLevel < workspaceContextReductionEmergency {
+		outputReserve := options.OutputReserveTokens
+		if outputReserve <= 0 {
+			outputReserve = workspaceContextDefaultOutputReserve
+		}
+		budget := buildWorkspaceModelContextBudget(msgs, llmTools, outputReserve, options.ContextWindowTokens, reductionLevel, reductionReason)
+		if budget.Status == "over_soft_limit" && !checkpointAttempted {
+			checkpointAttempted = true
+			if next, changed := s.ensureWorkspaceContextCheckpoint(ctx, sessionID, allMessages, currentTurnMessageID, options, checkpoint); changed {
+				checkpoint = next
+				list, checkpointCoveredMessages = workspaceMessagesAfterCheckpoint(allMessages, checkpoint)
+				continue
+			}
+		}
+		if budget.Status == "over_soft_limit" && reductionLevel < workspaceContextReductionCritical {
 			reductionLevel++
 			if reductionReason == "" {
 				reductionReason = workspaceContextPreflightReductionReason
@@ -349,11 +408,13 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlanAndOptions(ctx context.Co
 			ParentSessionID:             parentSessionID,
 			ModelContextAnchorMessageID: modelContextAnchorMessageID,
 			AllMessages:                 allMessages,
-			ScopedMessages:              list,
+			ScopedMessages:              allMessages,
 			IncludedMessages:            includedMessages,
 			ExcludedUnsupported:         excludedUnsupported,
 			ExcludedDisplayOnly:         excludedDisplayOnly,
 			ExcludedByReduction:         excludedByReduction,
+			ExcludedByCheckpoint:        checkpointCoveredMessages,
+			Checkpoint:                  checkpoint,
 			RequestedToolNames:          toolNames,
 			LLMToolNames:                llmToolNames,
 			RoleAllowedToolNames:        roleAllowedToolNames,
@@ -417,7 +478,7 @@ func buildWorkspaceLLMHistoryWithOptions(ctx context.Context, messages []*model.
 				continue
 			}
 			entries = append(entries, workspaceLLMHistoryEntry{
-				msg:    llms.Message{Role: RoleUser, Content: compactWorkspaceLLMHistoryContent(userContent, limits.UserContentMaxRunes)},
+				msg:    llms.Message{Role: RoleUser, Content: compactWorkspaceLLMHistoryMessageContent(userContent, limits.UserContentMaxRunes, m.ID)},
 				source: m,
 			})
 		case RoleAssistant:
@@ -425,8 +486,8 @@ func buildWorkspaceLLMHistoryWithOptions(ctx context.Context, messages []*model.
 			if refContent, ok := workspaceMessageArtifactReferenceContent(m); ok {
 				content = refContent
 			}
-			msg := llms.Message{Role: RoleAssistant, Content: compactWorkspaceLLMHistoryContent(content, limits.AssistantContentMaxRunes)}
-			if toolCalls, ok := storedToolCallsForLLMWithLimit(m.ToolCalls, limits.ToolArgsMaxRunes); ok {
+			msg := llms.Message{Role: RoleAssistant, Content: compactWorkspaceLLMHistoryMessageContent(content, limits.AssistantContentMaxRunes, m.ID)}
+			if toolCalls, ok := storedToolCallsForLLMWithSource(m.ToolCalls, limits.ToolArgsMaxRunes, m.ID); ok {
 				msg.ToolCalls = toolCalls
 			} else if strings.TrimSpace(msg.Content) == "" {
 				excludedUnsupported = append(excludedUnsupported, m)
@@ -456,7 +517,7 @@ func buildWorkspaceLLMHistoryWithOptions(ctx context.Context, messages []*model.
 				msg: llms.Message{
 					Role:       RoleTool,
 					ToolCallID: strings.TrimSpace(m.ToolCallID),
-					Content:    compactWorkspaceLLMHistoryContent(content, maxContentRunes),
+					Content:    compactWorkspaceLLMHistoryMessageContent(content, maxContentRunes, m.ID),
 				},
 				source: m,
 			})
@@ -464,16 +525,6 @@ func buildWorkspaceLLMHistoryWithOptions(ctx context.Context, messages []*model.
 			excludedUnsupported = append(excludedUnsupported, m)
 		}
 	}
-	if limits.MaxHistoryEntries > 0 && len(entries) > limits.MaxHistoryEntries {
-		omitted := entries[:len(entries)-limits.MaxHistoryEntries]
-		for _, entry := range omitted {
-			if entry.source != nil {
-				excludedByReduction = append(excludedByReduction, entry.source)
-			}
-		}
-		entries = entries[len(entries)-limits.MaxHistoryEntries:]
-	}
-
 	historyMessages, sanitizedIncluded, sanitizedExcluded := sanitizeWorkspaceLLMToolSequence(entries)
 	includedMessages = append(includedMessages, sanitizedIncluded...)
 	excludedUnsupported = append(excludedUnsupported, sanitizedExcluded...)
@@ -485,6 +536,10 @@ func storedToolCallsForLLM(raw *string) ([]llms.ToolCall, bool) {
 }
 
 func storedToolCallsForLLMWithLimit(raw *string, maxRunes int) ([]llms.ToolCall, bool) {
+	return storedToolCallsForLLMWithSource(raw, maxRunes, 0)
+}
+
+func storedToolCallsForLLMWithSource(raw *string, maxRunes int, sourceMessageID int64) ([]llms.ToolCall, bool) {
 	if raw == nil || strings.TrimSpace(*raw) == "" {
 		return nil, true
 	}
@@ -506,7 +561,7 @@ func storedToolCallsForLLMWithLimit(raw *string, maxRunes int) ([]llms.ToolCall,
 		seen[id] = struct{}{}
 		tc.ID = id
 		tc.Function.Name = name
-		tc.Function.Arguments = compactWorkspaceToolCallArguments(tc.Function.Arguments, maxRunes)
+		tc.Function.Arguments = compactWorkspaceToolCallArguments(tc.Function.Arguments, maxRunes, sourceMessageID)
 		if strings.TrimSpace(tc.Type) == "" {
 			tc.Type = "function"
 		}
@@ -515,7 +570,7 @@ func storedToolCallsForLLMWithLimit(raw *string, maxRunes int) ([]llms.ToolCall,
 	return out, true
 }
 
-func compactWorkspaceToolCallArguments(raw string, maxRunes int) string {
+func compactWorkspaceToolCallArguments(raw string, maxRunes int, sourceMessageID int64) string {
 	if workspaceRuneLen(raw) <= maxRunes {
 		return raw
 	}
@@ -524,11 +579,26 @@ func compactWorkspaceToolCallArguments(raw string, maxRunes int) string {
 		"original_chars":              workspaceRuneLen(raw),
 		"preview":                     compactWorkspaceLLMHistoryContent(raw, maxRunes),
 	}
+	if sourceMessageID > 0 {
+		payload["source_message_id"] = sourceMessageID
+		payload["recovery"] = "Call read_session_messages with this message_id to read the exact stored tool_calls."
+	}
 	b, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Sprintf(`{"_kageos_arguments_truncated":true,"original_chars":%d}`, workspaceRuneLen(raw))
 	}
 	return string(b)
+}
+
+func compactWorkspaceLLMHistoryMessageContent(content string, maxRunes int, sourceMessageID int64) string {
+	if workspaceRuneLen(content) <= maxRunes {
+		return content
+	}
+	compacted := compactWorkspaceLLMHistoryContent(content, maxRunes)
+	if sourceMessageID <= 0 {
+		return compacted
+	}
+	return fmt.Sprintf("<truncated_message_ref message_id=\"%d\">\n%s\n精确原文仍保存在当前会话；需要完整细节时调用 read_session_messages(message_ids=[%d])，并按 next_offset_chars 分页。\n</truncated_message_ref>", sourceMessageID, compacted, sourceMessageID)
 }
 
 func compactWorkspaceLLMHistoryContent(content string, maxRunes int) string {

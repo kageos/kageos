@@ -29,3 +29,17 @@ type StreamLoopDeps interface {
 type ContextReductionDeps interface {
 	RequestContextReduction(ctx context.Context, reason string) bool
 }
+
+// OutputLimitRecoveryDeps is implemented by callers that can rebuild a request
+// after the model spent its entire output budget before producing visible text.
+// Implementations must keep the configured output-token ceiling intact.
+type OutputLimitRecoveryDeps interface {
+	RequestOutputLimitRecovery(ctx context.Context, reason string) bool
+}
+
+// OutputContinuationDeps lets callers carry visible partial output into a new
+// request when the provider repeatedly reaches its output ceiling.
+type OutputContinuationDeps interface {
+	RequestOutputContinuation(ctx context.Context, partialContent string) bool
+	CompleteOutputRecovery()
+}

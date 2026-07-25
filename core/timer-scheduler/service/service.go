@@ -25,7 +25,7 @@ const (
 	defaultDispatchLease       = 30 * time.Second
 	defaultExecutionLease      = 3 * time.Minute
 	defaultQueueAckTimeout     = 2 * time.Minute
-	defaultMaxDispatchAttempts = 3
+	defaultMaxDispatchAttempts = 30 // Two-minute retries for about one hour.
 	defaultMaxHeartbeatMisses  = 3
 	defaultMaxOutboxAttempts   = 8
 	defaultPayloadLimitBytes   = 256 * 1024
@@ -173,6 +173,8 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 		createdBy = requestUser
 	}
 	metadata := scheduledTaskMetadataWithContext(ctx, req.Metadata)
+	overlapPolicy := normalizedOverlapPolicy(string(req.OverlapPolicy))
+	maxParallelism := normalizedMaxParallelism(string(overlapPolicy), req.MaxParallelism)
 	var created *model.TimerTask
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		taskRepo := s.taskRepo.WithDB(tx)
@@ -202,6 +204,8 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 			Timezone:        strings.TrimSpace(req.Schedule.Timezone),
 			MaxRuns:         req.Schedule.MaxRuns,
 			NextRunAt:       nextRunAt,
+			OverlapPolicy:   string(overlapPolicy),
+			MaxParallelism:  maxParallelism,
 			Status:          string(initialStatus),
 			SourceType:      strings.TrimSpace(req.SourceType),
 			SourceRef:       strings.TrimSpace(req.SourceRef),
@@ -256,6 +260,25 @@ func (s *Service) UpdateTask(ctx context.Context, taskID int64, req scheduledsdk
 	if req.Metadata != nil {
 		task.MetadataJSON = mustJSON(scheduledTaskMetadataWithContext(ctx, *req.Metadata))
 	}
+	if req.OverlapPolicy != nil || req.MaxParallelism != nil {
+		previousPolicy := normalizedOverlapPolicy(task.OverlapPolicy)
+		policy := previousPolicy
+		if req.OverlapPolicy != nil {
+			policy = *req.OverlapPolicy
+		}
+		maxParallelism := task.MaxParallelism
+		if req.OverlapPolicy != nil && policy == scheduledsdk.OverlapPolicyAllow && previousPolicy != scheduledsdk.OverlapPolicyAllow && req.MaxParallelism == nil {
+			maxParallelism = 0
+		}
+		if req.MaxParallelism != nil {
+			maxParallelism = *req.MaxParallelism
+		}
+		if err := validateOverlapConfig(policy, maxParallelism); err != nil {
+			return nil, err
+		}
+		task.OverlapPolicy = string(normalizedOverlapPolicy(string(policy)))
+		task.MaxParallelism = normalizedMaxParallelism(task.OverlapPolicy, maxParallelism)
+	}
 	if req.SourceType != nil {
 		task.SourceType = strings.TrimSpace(*req.SourceType)
 	}
@@ -297,11 +320,21 @@ func (s *Service) UpdateTask(ctx context.Context, taskID int64, req scheduledsdk
 	if err := s.taskRepo.Update(task); err != nil {
 		return nil, err
 	}
+	if normalizedOverlapPolicy(task.OverlapPolicy) == scheduledsdk.OverlapPolicyForbid {
+		if err := s.executionRepo.CancelWaitingByTask(task.ID, s.now(), "overlap policy changed to forbid"); err != nil {
+			return nil, err
+		}
+	}
 	return taskToSDK(task), nil
 }
 
 func (s *Service) PauseTask(ctx context.Context, taskID int64) error {
-	return s.taskRepo.Pause(taskID)
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := s.taskRepo.WithDB(tx).Pause(taskID); err != nil {
+			return err
+		}
+		return s.executionRepo.WithDB(tx).CancelWaitingByTask(taskID, s.now(), "task paused before queued overlap could run")
+	})
 }
 
 func (s *Service) ResumeTask(ctx context.Context, taskID int64) error {
@@ -317,12 +350,18 @@ func (s *Service) ResumeTask(ctx context.Context, taskID int64) error {
 }
 
 func (s *Service) CancelTask(ctx context.Context, taskID int64) error {
-	return s.taskRepo.Cancel(taskID)
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := s.taskRepo.WithDB(tx).Cancel(taskID); err != nil {
+			return err
+		}
+		return s.executionRepo.WithDB(tx).CancelWaitingByTask(taskID, s.now(), "task cancelled before queued overlap could run")
+	})
 }
 
 func (s *Service) DeleteTask(ctx context.Context, taskID int64) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		taskRepo := s.taskRepo.WithDB(tx)
+		execRepo := s.executionRepo.WithDB(tx)
 		task, err := taskRepo.GetByID(taskID)
 		if err != nil {
 			return err
@@ -332,6 +371,9 @@ func (s *Service) DeleteTask(ctx context.Context, taskID int64) error {
 				return err
 			}
 			task.IdempotencyKey = nil
+		}
+		if err := execRepo.CancelWaitingByTask(taskID, s.now(), "task deleted before queued overlap could run"); err != nil {
+			return err
 		}
 		return taskRepo.Delete(task)
 	})
@@ -425,7 +467,9 @@ func (s *Service) DispatchDue(ctx context.Context, owner string, limit int) ([]*
 			dispatchErr = errors.Join(dispatchErr, fmt.Errorf("timer-scheduler dispatch task %d: %w", task.ID, err))
 			continue
 		}
-		out = append(out, executionToSDK(exec))
+		if exec != nil {
+			out = append(out, executionToSDK(exec))
+		}
 	}
 	return out, dispatchErr
 }
@@ -559,7 +603,7 @@ func (s *Service) MarkExecutionFinished(ctx context.Context, req scheduledsdk.Ma
 			return ErrInvalidTaskStatus
 		}
 
-		task, err := taskRepo.GetByID(req.TaskID)
+		task, err := taskRepo.GetByIDForUpdate(req.TaskID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return s.createExecutionFinishedOutbox(outboxRepo, req, exec, finishedAt)
@@ -574,8 +618,48 @@ func (s *Service) MarkExecutionFinished(ctx context.Context, req scheduledsdk.Ma
 		if _, err = taskRepo.TryCompleteExecution(task, req.ExecutionID); err != nil {
 			return err
 		}
+		if isTerminalTaskStatus(task.Status) {
+			if err := execRepo.CancelWaitingByTask(task.ID, finishedAt, "task became terminal before queued overlap could run"); err != nil {
+				return err
+			}
+		} else if err := s.promoteWaitingAfterCompletion(execRepo, taskRepo, outboxRepo, task, finishedAt); err != nil {
+			return err
+		}
 		return s.createExecutionFinishedOutbox(outboxRepo, req, exec, finishedAt)
 	})
+}
+
+func (s *Service) promoteWaitingAfterCompletion(execRepo *repository.TimerExecutionRepository, taskRepo *repository.TimerTaskRepository, outboxRepo *repository.TimerOutboxRepository, task *model.TimerTask, now time.Time) error {
+	state, err := execRepo.GetActiveState(task.ID)
+	if err != nil {
+		return err
+	}
+	if state.ActiveCount() > 0 {
+		latestID, latestErr := execRepo.LatestActiveExecutionID(task.ID)
+		if latestErr != nil && !errors.Is(latestErr, gorm.ErrRecordNotFound) {
+			return latestErr
+		}
+		if latestID > 0 {
+			if err := taskRepo.SetInflightReference(task.ID, latestID); err != nil {
+				return err
+			}
+		}
+	}
+	if state.Waiting == nil || task.Status != string(scheduledsdk.TaskStatusPending) {
+		return nil
+	}
+	policy := normalizedOverlapPolicy(task.OverlapPolicy)
+	capacityAvailable := false
+	switch policy {
+	case scheduledsdk.OverlapPolicyQueueLatest:
+		capacityAvailable = state.ActiveCount() == 0
+	case scheduledsdk.OverlapPolicyAllow:
+		capacityAvailable = state.ActiveCount() < int64(normalizedMaxParallelism(task.OverlapPolicy, task.MaxParallelism))
+	}
+	if !capacityAvailable {
+		return nil
+	}
+	return s.promoteWaitingExecution(execRepo, taskRepo, outboxRepo, task, state.Waiting, now)
 }
 
 func (s *Service) createExecutionFinishedOutbox(outboxRepo *repository.TimerOutboxRepository, req scheduledsdk.MarkExecutionFinishedRequest, exec *model.TimerExecution, finishedAt time.Time) error {
@@ -648,23 +732,110 @@ func (s *Service) dispatchTask(ctx context.Context, task *model.TimerTask, owner
 		taskRepo := s.taskRepo.WithDB(tx)
 		outboxRepo := s.outboxRepo.WithDB(tx)
 
-		exec := &model.TimerExecution{
-			TaskID:           task.ID,
-			ExecutorKey:      task.ExecutorKey,
-			Status:           string(scheduledsdk.ExecutionStatusQueued),
-			TriggerType:      triggerType,
-			ScheduledAt:      scheduledAt,
-			LeaseUntil:       ptrTime(now.Add(s.opts.QueueAckTimeout)),
-			Attempt:          1,
-			LastDispatchedAt: &now,
-			TraceID:          uuid.NewString(),
-			SourceType:       task.SourceType,
-			SourceRef:        task.SourceRef,
-			ResourceScope:    task.ResourceScope,
-			ResourceKey:      task.ResourceKey,
-			RequestUser:      scheduledTaskRequestUser(task),
-			RequestUserDept:  task.RequestUserDept,
+		if triggerType != triggerManual {
+			nextRunAt, nextErr := nextRunAfterScheduledDispatch(task, now)
+			if nextErr != nil {
+				return nextErr
+			}
+			state, stateErr := execRepo.GetActiveState(task.ID)
+			if stateErr != nil {
+				return stateErr
+			}
+			policy := normalizedOverlapPolicy(task.OverlapPolicy)
+			atCapacity := false
+			switch policy {
+			case scheduledsdk.OverlapPolicyForbid:
+				atCapacity = state.ActiveCount() > 0 || state.Waiting != nil
+			case scheduledsdk.OverlapPolicyQueueLatest:
+				atCapacity = state.ActiveCount() > 0
+			case scheduledsdk.OverlapPolicyAllow:
+				atCapacity = state.ActiveCount() >= int64(normalizedMaxParallelism(task.OverlapPolicy, task.MaxParallelism))
+			}
+
+			if atCapacity && policy == scheduledsdk.OverlapPolicyForbid {
+				exec := newTimerExecution(task, scheduledsdk.ExecutionStatusSkipped, triggerType, scheduledAt)
+				exec.FinishedAt = ptrTime(now)
+				exec.OutputSummary = "Skipped because a previous execution is still active"
+				if err := execRepo.Create(exec); err != nil {
+					return err
+				}
+				taskStatus := ""
+				if scheduledsdk.ScheduleType(task.ScheduleType) == scheduledsdk.ScheduleAt {
+					taskStatus = string(scheduledsdk.TaskStatusDone)
+				}
+				ok, err := taskRepo.TryAdvanceSchedule(task.ID, owner, taskStatus, nextRunAt, exec.ID)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return ErrTaskBusy
+				}
+				created = exec
+				return nil
+			}
+
+			if atCapacity {
+				if state.Waiting != nil {
+					ok, err := execRepo.UpdateWaitingScheduledAt(task.ID, state.Waiting.ID, scheduledAt)
+					if err != nil {
+						return err
+					}
+					if !ok {
+						return ErrTaskBusy
+					}
+					ok, err = taskRepo.TryAdvanceSchedule(task.ID, owner, "", nextRunAt, state.Waiting.ID)
+					if err != nil {
+						return err
+					}
+					if !ok {
+						return ErrTaskBusy
+					}
+					state.Waiting.ScheduledAt = scheduledAt
+					return nil
+				}
+				exec := newTimerExecution(task, scheduledsdk.ExecutionStatusWaiting, triggerType, scheduledAt)
+				if err := execRepo.Create(exec); err != nil {
+					return err
+				}
+				ok, err := taskRepo.TryAdvanceSchedule(task.ID, owner, "", nextRunAt, exec.ID)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return ErrTaskBusy
+				}
+				created = exec
+				return nil
+			}
+
+			if state.Waiting != nil {
+				ok, err := execRepo.UpdateWaitingScheduledAt(task.ID, state.Waiting.ID, scheduledAt)
+				if err != nil || !ok {
+					if err != nil {
+						return err
+					}
+					return ErrTaskBusy
+				}
+				state.Waiting.ScheduledAt = scheduledAt
+				if err := s.promoteWaitingExecution(execRepo, taskRepo, outboxRepo, task, state.Waiting, now); err != nil {
+					return err
+				}
+				ok, err = taskRepo.TryAdvanceSchedule(task.ID, owner, "", nextRunAt, state.Waiting.ID)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return ErrTaskBusy
+				}
+				created = state.Waiting
+				return nil
+			}
 		}
+
+		exec := newTimerExecution(task, scheduledsdk.ExecutionStatusQueued, triggerType, scheduledAt)
+		exec.LeaseUntil = ptrTime(now.Add(s.opts.QueueAckTimeout))
+		exec.Attempt = 1
+		exec.LastDispatchedAt = ptrTime(now)
 		if err := execRepo.Create(exec); err != nil {
 			return err
 		}
@@ -700,6 +871,41 @@ func (s *Service) dispatchTask(ctx context.Context, task *model.TimerTask, owner
 		return nil
 	})
 	return created, err
+}
+
+func newTimerExecution(task *model.TimerTask, status scheduledsdk.ExecutionStatus, triggerType string, scheduledAt time.Time) *model.TimerExecution {
+	return &model.TimerExecution{
+		TaskID:          task.ID,
+		ExecutorKey:     task.ExecutorKey,
+		Status:          string(status),
+		TriggerType:     triggerType,
+		ScheduledAt:     scheduledAt,
+		TraceID:         uuid.NewString(),
+		SourceType:      task.SourceType,
+		SourceRef:       task.SourceRef,
+		ResourceScope:   task.ResourceScope,
+		ResourceKey:     task.ResourceKey,
+		RequestUser:     scheduledTaskRequestUser(task),
+		RequestUserDept: task.RequestUserDept,
+	}
+}
+
+func (s *Service) promoteWaitingExecution(execRepo *repository.TimerExecutionRepository, taskRepo *repository.TimerTaskRepository, outboxRepo *repository.TimerOutboxRepository, task *model.TimerTask, exec *model.TimerExecution, now time.Time) error {
+	ok, err := execRepo.TryPromoteWaiting(exec, now, now.Add(s.opts.QueueAckTimeout))
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrTaskBusy
+	}
+	exec.Status = string(scheduledsdk.ExecutionStatusQueued)
+	exec.Attempt = 1
+	exec.LeaseUntil = ptrTime(now.Add(s.opts.QueueAckTimeout))
+	exec.LastDispatchedAt = ptrTime(now)
+	if err := taskRepo.SetInflightReference(task.ID, exec.ID); err != nil {
+		return err
+	}
+	return outboxRepo.Create(s.executionRequestedOutbox(task, exec))
 }
 
 func (s *Service) requeueExecution(ctx context.Context, exec *model.TimerExecution, now time.Time) error {

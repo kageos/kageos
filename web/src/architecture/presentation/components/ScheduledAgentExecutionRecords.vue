@@ -15,11 +15,13 @@
           @change="handleStatusChange"
         >
           <el-option :label="t('scheduledTask.allStatuses')" value="" />
+          <el-option :label="t('scheduledTask.executionStatusWaiting')" value="waiting" />
           <el-option :label="t('scheduledTask.executionStatusQueued')" value="queued" />
           <el-option :label="t('scheduledTask.executionStatusRunning')" value="running" />
           <el-option :label="t('scheduledTask.executionStatusSuccess')" value="success" />
           <el-option :label="t('scheduledTask.executionStatusFailed')" value="failed" />
           <el-option :label="t('scheduledTask.executionStatusTimeout')" value="timeout" />
+          <el-option :label="t('scheduledTask.executionStatusSkipped')" value="skipped" />
         </el-select>
         <el-button size="small" :icon="Refresh" @click="emit('refresh')">{{ t('common.refresh') }}</el-button>
       </div>

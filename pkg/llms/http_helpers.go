@@ -34,7 +34,7 @@ func postJSON(ctx context.Context, client *http.Client, endpoint string, headers
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer resp.Body.Close()
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(bodyBytes)))
+		return nil, providerHTTPError(resp.StatusCode, bodyBytes)
 	}
 	return resp, nil
 }

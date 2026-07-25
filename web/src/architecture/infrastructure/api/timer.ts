@@ -3,7 +3,8 @@ import { getApiBaseURL } from '@/architecture/infrastructure/config/runtime'
 
 export type TimerScheduleType = 'atime' | 'cron' | 'every'
 export type TimerTaskStatus = 'pending' | 'paused' | 'done' | 'failed' | 'cancelled'
-export type TimerExecutionStatus = 'queued' | 'running' | 'success' | 'failed' | 'timeout' | 'cancelled'
+export type TimerExecutionStatus = 'waiting' | 'queued' | 'running' | 'success' | 'failed' | 'timeout' | 'cancelled' | 'skipped'
+export type TimerOverlapPolicy = 'forbid' | 'queue_latest' | 'allow'
 
 export interface TimerSchedule {
   type: TimerScheduleType
@@ -28,6 +29,8 @@ export interface TimerTask {
   schedule: TimerSchedule
   next_run_at?: string
   run_count: number
+  overlap_policy?: TimerOverlapPolicy
+  max_parallelism?: number
   inflight_execution_id?: number
   last_execution_id?: number
   last_error_message?: string
@@ -83,6 +86,8 @@ export interface CreateTimerTaskRequest {
   metadata?: Record<string, string>
   status?: TimerTaskStatus
   schedule: TimerSchedule
+  overlap_policy?: TimerOverlapPolicy
+  max_parallelism?: number
   source_type?: string
   source_ref?: string
   resource_scope?: string
@@ -100,6 +105,8 @@ export interface UpdateTimerTaskRequest {
   executor_payload?: unknown
   metadata?: Record<string, string>
   schedule?: TimerSchedule
+  overlap_policy?: TimerOverlapPolicy
+  max_parallelism?: number
   source_type?: string
   source_ref?: string
   resource_scope?: string

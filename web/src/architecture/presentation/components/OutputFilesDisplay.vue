@@ -71,7 +71,13 @@
               </span>
               <div class="output-files-actions">
                 <el-link type="primary" :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer">打开</el-link>
-                <el-link type="primary" :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer" download>下载</el-link>
+                <el-link
+                  type="primary"
+                  :href="fileDisplayUrl(file)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  :download="fileDisplayName(file)"
+                >下载</el-link>
               </div>
             </div>
           </div>

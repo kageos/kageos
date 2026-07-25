@@ -999,11 +999,10 @@ func (s *Storage) DownloadFile(c *gin.Context) {
 	}
 
 	// 异步记录下载（不阻塞响应）
+	writeCtx := context.WithoutCancel(ctx)
 	go func() {
-		// 使用新的 context，避免使用可能已取消的请求 context
-		ctx := context.Background()
-		if err := s.storageService.RecordDownload(ctx, downloadRecord); err != nil {
-			logger.Errorf(c, "Failed to record download: %v", err)
+		if err := s.storageService.RecordDownload(writeCtx, downloadRecord); err != nil {
+			logger.Errorf(writeCtx, "Failed to record download: %v", err)
 			// 不影响下载流程，只记录错误
 		}
 	}()

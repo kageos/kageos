@@ -26,7 +26,11 @@ func newPersonalWorkspaceTestService(t *testing.T) (*AppService, *repository.App
 	}
 	repo := repository.NewAppRepository(db)
 	client := &fakeAppRuntimeClient{}
-	return NewAppService(client, repo, nil, repository.NewServiceTreeRepository(db), nil), repo, client
+	return NewAppService(AppServiceDependencies{
+		AppRuntimeClient:      client,
+		AppRepository:         repo,
+		ServiceTreeRepository: repository.NewServiceTreeRepository(db),
+	}), repo, client
 }
 
 func TestBootstrapPersonalWorkspaceCreatesPrivateHomeIdempotently(t *testing.T) {

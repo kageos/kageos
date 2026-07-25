@@ -10,6 +10,7 @@ const (
 const (
 	WorkspaceStreamEventSession              = "session"
 	WorkspaceStreamEventModelContextPlan     = "model_context_plan"
+	WorkspaceStreamEventGenerationAttempt    = "generation_attempt"
 	WorkspaceStreamEventToolCall             = "tool_call"
 	WorkspaceStreamEventToolCallsStreamDelta = "tool_calls_stream_delta"
 	WorkspaceStreamEventThinking             = "thinking"
@@ -26,6 +27,13 @@ type WorkspaceStreamEvent struct {
 
 type WorkspaceStreamSession struct {
 	SessionID string `json:"session_id"`
+}
+
+type WorkspaceStreamGenerationAttempt struct {
+	AttemptID string `json:"attempt_id"`
+	Round     int    `json:"round"`
+	Action    string `json:"action"` // started, discarded, committed
+	Reason    string `json:"reason,omitempty"`
 }
 
 type WorkspaceStreamToolCall struct {
@@ -111,6 +119,13 @@ type WorkspaceModelContextMessages struct {
 	ExcludedByAnchor            int                               `json:"excluded_by_anchor"`
 	ExcludedDisplayOnly         int                               `json:"excluded_display_only"`
 	ExcludedByReduction         int                               `json:"excluded_by_reduction,omitempty"`
+	ExcludedByCheckpoint        int                               `json:"excluded_by_checkpoint,omitempty"`
+	CheckpointID                int64                             `json:"checkpoint_id,omitempty"`
+	CheckpointCoveredFromID     int64                             `json:"checkpoint_covered_from_message_id,omitempty"`
+	CheckpointCoveredToID       int64                             `json:"checkpoint_covered_to_message_id,omitempty"`
+	CheckpointSource            string                            `json:"checkpoint_source,omitempty"`
+	CheckpointSummaryTokens     int                               `json:"checkpoint_summary_tokens,omitempty"`
+	RecoverableHistory          bool                              `json:"recoverable_history,omitempty"`
 	Included                    []WorkspaceModelContextMessageRef `json:"included,omitempty"`
 	Excluded                    []WorkspaceModelContextMessageRef `json:"excluded,omitempty"`
 	Truncated                   bool                              `json:"truncated,omitempty"`
@@ -177,14 +192,16 @@ type WorkspaceModelContextCacheResult struct {
 }
 
 type WorkspaceModelContextLLM struct {
-	ConfigID     int64  `json:"config_id,omitempty"`
-	ConfigName   string `json:"config_name,omitempty"`
-	Provider     string `json:"provider,omitempty"`
-	Model        string `json:"model,omitempty"`
-	RequestModel string `json:"request_model,omitempty"`
-	MaxTokens    int    `json:"max_tokens,omitempty"`
-	MessageCount int    `json:"message_count"`
-	ToolCount    int    `json:"tool_count"`
+	ConfigID            int64  `json:"config_id,omitempty"`
+	ConfigName          string `json:"config_name,omitempty"`
+	Provider            string `json:"provider,omitempty"`
+	Model               string `json:"model,omitempty"`
+	RequestModel        string `json:"request_model,omitempty"`
+	MaxTokens           int    `json:"max_tokens,omitempty"`
+	ContextWindow       int    `json:"context_window,omitempty"`
+	ContextWindowSource string `json:"context_window_source,omitempty"`
+	MessageCount        int    `json:"message_count"`
+	ToolCount           int    `json:"tool_count"`
 }
 
 type WorkspaceModelContextBudget struct {

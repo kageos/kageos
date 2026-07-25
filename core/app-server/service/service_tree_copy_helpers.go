@@ -10,18 +10,23 @@ import (
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"gorm.io/gorm"
 )
 
 type copyDirectorySource struct {
 	treesByPath    map[string]*model.ServiceTree
 	directoryFiles map[string][]*model.FileSnapshot
+	runtimeBundle  *dto.CapabilityBundle
 }
 
 type copyDirectoryPlan struct {
-	directoryItems []*dto.DirectoryScaffoldItem
-	fileItems      []*dto.FileWriteItem
-	targetRootPath string
+	directoryItems       []*dto.DirectoryScaffoldItem
+	fileItems            []*dto.FileWriteItem
+	docItems             []*capabilityBundleDocInstallItem
+	agentTasks           []*dto.CapabilityBundleAgentTask
+	targetRootPath       string
+	runtimeAssetBasePath string
 }
 
 type copyDirectoryTarget struct {
@@ -81,14 +86,20 @@ func copyFromLocalImpl(s *serviceTreeCopyService, ctx context.Context, req *dto.
 	if err != nil {
 		return nil, err
 	}
+	docCount, agentTaskCount, err := syncCopiedRuntimeAssets(ctx, s, targetApp, plan, false)
+	if err != nil {
+		return nil, err
+	}
 
-	logger.Infof(ctx, "[CopyServiceTree] 复制目录完成: 目录数=%d, 文件数=%d, oldVersion=%s, newVersion=%s",
-		directoryCount, fileCount, oldVersion, newVersion)
+	logger.Infof(ctx, "[CopyServiceTree] 复制目录完成: 目录数=%d, 文件数=%d, 文档数=%d, Agent任务数=%d, oldVersion=%s, newVersion=%s",
+		directoryCount, fileCount, docCount, agentTaskCount, oldVersion, newVersion)
 
 	return &dto.CopyDirectoryResp{
-		Message:             fmt.Sprintf("复制目录成功，共复制 %d 个目录，%d 个文件", directoryCount, fileCount),
+		Message:             fmt.Sprintf("复制目录成功，共复制 %d 个目录，%d 个文件，%d 份文档，%d 个 Agent 任务", directoryCount, fileCount, docCount, agentTaskCount),
 		DirectoryCount:      directoryCount,
 		FileCount:           fileCount,
+		DocCount:            docCount,
+		AgentTaskCount:      agentTaskCount,
 		TargetDirectoryPath: plan.targetRootPath,
 		OldVersion:          oldVersion,
 		NewVersion:          newVersion,
@@ -155,6 +166,10 @@ func replaceCopyDirectory(
 	if err := syncCopiedDirectoryMetadata(ctx, s, targetApp, plan.directoryItems); err != nil {
 		return nil, err
 	}
+	docCount, agentTaskCount, err := syncCopiedRuntimeAssets(ctx, s, targetApp, plan, true)
+	if err != nil {
+		return nil, err
+	}
 	if err := cleanupReplacedDirectoryMetadata(ctx, s, targetApp, plan.targetRootPath, plan.directoryItems); err != nil {
 		return nil, err
 	}
@@ -171,9 +186,11 @@ func replaceCopyDirectory(
 	}
 
 	return &dto.CopyDirectoryResp{
-		Message:             fmt.Sprintf("覆盖目录成功，目标 %s 已替换为复制内容，共恢复 %d 个目录，写入 %d 个文件", plan.targetRootPath, directoryCount, fileCount),
+		Message:             fmt.Sprintf("覆盖目录成功，目标 %s 已替换为复制内容，共恢复 %d 个目录，写入 %d 个文件，复制 %d 份文档，%d 个 Agent 任务", plan.targetRootPath, directoryCount, fileCount, docCount, agentTaskCount),
 		DirectoryCount:      directoryCount,
 		FileCount:           fileCount,
+		DocCount:            docCount,
+		AgentTaskCount:      agentTaskCount,
 		Replaced:            true,
 		TargetDirectoryPath: plan.targetRootPath,
 		OldVersion:          oldVersion,
@@ -219,10 +236,20 @@ func loadCopyDirectorySource(ctx context.Context, s *serviceTreeCopyService, sou
 	if len(directoryFiles) == 0 {
 		return nil, fmt.Errorf("未找到任何目录，请确认源目录存在")
 	}
+	if s.capabilityBundle == nil {
+		return nil, fmt.Errorf("目录能力包服务未初始化，无法复制文档和 Agent 任务")
+	}
+	runtimeBundle, err := s.capabilityBundle.ExportCapabilityBundle(ctx, &dto.ExportCapabilityBundleReq{
+		SourceDirectoryPath: sourceDirectoryPath,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("读取源目录文档和 Agent 任务失败: %w", err)
+	}
 
 	return &copyDirectorySource{
 		treesByPath:    sourceTrees,
 		directoryFiles: directoryFiles,
+		runtimeBundle:  runtimeBundle,
 	}, nil
 }
 
@@ -253,11 +280,24 @@ func buildCopyDirectoryPlan(sourceRootPath, targetParentPath, targetRootName str
 	}
 
 	fileItems := buildCopyFileItems(sourceRootPath, targetRootPath, source.directoryFiles)
+	var docItems []*capabilityBundleDocInstallItem
+	var agentTasks []*dto.CapabilityBundleAgentTask
+	if source.runtimeBundle != nil {
+		runtimePlan, err := buildCapabilityBundleInstallPlan(targetParentPath, source.runtimeBundle)
+		if err != nil {
+			return nil, fmt.Errorf("生成文档和 Agent 任务复制计划失败: %w", err)
+		}
+		docItems = runtimePlan.docItems
+		agentTasks = source.runtimeBundle.AgentTasks
+	}
 
 	return &copyDirectoryPlan{
-		directoryItems: directoryItems,
-		fileItems:      fileItems,
-		targetRootPath: targetRootPath,
+		directoryItems:       directoryItems,
+		fileItems:            fileItems,
+		docItems:             docItems,
+		agentTasks:           agentTasks,
+		targetRootPath:       targetRootPath,
+		runtimeAssetBasePath: targetParentPath,
 	}, nil
 }
 
@@ -379,6 +419,125 @@ func writeCopyFiles(ctx context.Context, s *serviceTreeCopyService, targetApp *m
 	logger.Infof(ctx, "[CopyServiceTree] 批量写文件完成: fileCount=%d, oldVersion=%s, newVersion=%s, gitCommitHash=%s",
 		batchWriteResp.FileCount, batchWriteResp.OldVersion, batchWriteResp.NewVersion, batchWriteResp.GitCommitHash)
 	return batchWriteResp.FileCount, batchWriteResp.OldVersion, batchWriteResp.NewVersion, batchWriteResp.GitCommitHash, nil
+}
+
+func syncCopiedRuntimeAssets(
+	ctx context.Context,
+	s *serviceTreeCopyService,
+	targetApp *model.App,
+	plan *copyDirectoryPlan,
+	replaceExisting bool,
+) (int, int, error) {
+	if s.capabilityBundle == nil {
+		return 0, 0, fmt.Errorf("目录能力包服务未初始化，无法复制文档和 Agent 任务")
+	}
+	if replaceExisting {
+		if err := cleanupReplacedDocs(ctx, s, targetApp, plan); err != nil {
+			return 0, 0, err
+		}
+		if err := cleanupReplacedAgentTasks(ctx, plan); err != nil {
+			return 0, 0, err
+		}
+	}
+
+	if len(plan.docItems) > 0 {
+		if _, err := s.capabilityBundle.installCapabilityBundleDocs(ctx, targetApp, plan.docItems, replaceExisting); err != nil {
+			return 0, 0, fmt.Errorf("复制目录文档失败: %w", err)
+		}
+	}
+	agentTaskRefs, err := s.capabilityBundle.installCapabilityBundleAgentTasks(ctx, plan.runtimeAssetBasePath, plan.agentTasks, replaceExisting)
+	if err != nil {
+		return len(plan.docItems), 0, fmt.Errorf("复制 Agent 任务失败: %w", err)
+	}
+	return len(plan.docItems), len(agentTaskRefs), nil
+}
+
+func cleanupReplacedDocs(
+	ctx context.Context,
+	s *serviceTreeCopyService,
+	targetApp *model.App,
+	plan *copyDirectoryPlan,
+) error {
+	if s.capabilityBundle.docService == nil {
+		return fmt.Errorf("文档服务未初始化")
+	}
+	intended := make(map[string]struct{}, len(plan.docItems))
+	for _, item := range plan.docItems {
+		if item != nil {
+			intended[strings.TrimRight(item.FullCodePath, "/")] = struct{}{}
+		}
+	}
+	nodes, err := s.serviceTreeRepo.GetDescendantNodes(targetApp.ID, plan.targetRootPath)
+	if err != nil {
+		return fmt.Errorf("查询待清理旧文档失败: %w", err)
+	}
+	for _, node := range nodes {
+		if node == nil || node.Type != model.ServiceTreeTypeDocs {
+			continue
+		}
+		if _, keep := intended[strings.TrimRight(node.FullCodePath, "/")]; keep {
+			continue
+		}
+		if err := s.capabilityBundle.docService.DeleteDoc(ctx, node.FullCodePath); err != nil {
+			return fmt.Errorf("清理旧文档失败: path=%s: %w", node.FullCodePath, err)
+		}
+	}
+	return nil
+}
+
+func cleanupReplacedAgentTasks(ctx context.Context, plan *copyDirectoryPlan) error {
+	client := newAppScheduleClient()
+	deleteClient, ok := client.(interface {
+		DeleteTask(context.Context, int64) error
+	})
+	if !ok {
+		return fmt.Errorf("定时任务客户端不支持删除，无法完全替换 Agent 任务")
+	}
+
+	intended := make(map[string]struct{}, len(plan.agentTasks))
+	for _, task := range plan.agentTasks {
+		if task == nil {
+			continue
+		}
+		targetFullCodePath := joinCapabilityFullCodePath(plan.runtimeAssetBasePath, task.RelativePath)
+		intended[capabilityAgentTaskKey(targetFullCodePath, task.Code)] = struct{}{}
+	}
+
+	taskIDs := make([]int64, 0)
+	for page := 1; ; page++ {
+		resp, err := client.ListTasks(ctx, scheduledsdk.ListTasksRequest{
+			ExecutorKey:       ScheduledAgentSessionExecutorKey,
+			Category:          "scheduled_agent_session",
+			ResourceScope:     "workspace_directory",
+			ResourceKeyPrefix: plan.targetRootPath,
+			Page:              page,
+			PageSize:          capabilityBundleAgentTaskPageSize,
+		})
+		if err != nil {
+			return fmt.Errorf("查询待清理旧 Agent 任务失败: %w", err)
+		}
+		if resp == nil || len(resp.List) == 0 {
+			break
+		}
+		for _, task := range resp.List {
+			if task == nil {
+				continue
+			}
+			key := capabilityAgentTaskKey(scheduledAgentTaskResourcePath(task), capabilityBundleAgentTaskCode(task))
+			if _, keep := intended[key]; !keep {
+				taskIDs = append(taskIDs, task.ID)
+			}
+		}
+		if len(resp.List) < capabilityBundleAgentTaskPageSize {
+			break
+		}
+	}
+	for _, taskID := range taskIDs {
+		if err := deleteClient.DeleteTask(ctx, taskID); err != nil {
+			return fmt.Errorf("清理旧 Agent 任务失败: task_id=%d: %w", taskID, err)
+		}
+	}
+	return nil
 }
 
 func syncCopiedDirectoryMetadata(

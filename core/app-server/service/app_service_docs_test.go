@@ -47,8 +47,10 @@ func newPackageDocsTestService(t *testing.T) (*AppService, *repository.DocReposi
 		}
 	}
 	docRepo := repository.NewDocRepository(db)
-	svc := NewAppService(nil, nil, nil, serviceTreeRepo, nil)
-	svc.SetDocService(NewDocService(docRepo, serviceTreeRepo, nil, nil))
+	svc := NewAppService(AppServiceDependencies{
+		ServiceTreeRepository: serviceTreeRepo,
+		DocService:            NewDocService(docRepo, serviceTreeRepo, nil, nil),
+	})
 	return svc, docRepo, serviceTreeRepo, appModel
 }
 
@@ -136,5 +138,80 @@ func TestReconcilePackageDocsDoesNotOverwriteExistingDoc(t *testing.T) {
 	}
 	if got.Content != "# 已人工更新的运行手册\n" {
 		t.Fatalf("existing runbook was overwritten: %#v", got)
+	}
+}
+
+func TestReconcilePackageDocsCreatesNestedDoc(t *testing.T) {
+	svc, docRepo, serviceTreeRepo, appModel := newPackageDocsTestService(t)
+	state := &appMetadataSyncState{
+		app:               appModel,
+		currentVersionNum: 3,
+		requestUser:       "alice",
+	}
+	packages := []*dto.PackageInfo{
+		{
+			Code:     "followup",
+			Name:     "物流节点跟进",
+			FullPath: "/alice/demo/followup",
+			Docs: []dto.DocSeedConfig{
+				{
+					Code:    "./docs/readme.docs",
+					Name:    "文档/目录说明",
+					Content: "# 场景文档说明\n",
+				},
+			},
+		},
+		{
+			Code:     "docs",
+			Name:     "docs",
+			FullPath: "/alice/demo/followup/docs",
+		},
+	}
+
+	if err := svc.reconcilePackages(context.Background(), state, packages); err != nil {
+		t.Fatalf("reconcile packages: %v", err)
+	}
+	if err := svc.reconcilePackageDocs(context.Background(), state, packages); err != nil {
+		t.Fatalf("reconcile package docs: %v", err)
+	}
+
+	parent, err := serviceTreeRepo.GetServiceTreeByFullPath("/alice/demo/followup/docs")
+	if err != nil {
+		t.Fatalf("get nested docs package: %v", err)
+	}
+	if !parent.IsPackage() {
+		t.Fatalf("nested docs parent must be a package: %#v", parent)
+	}
+
+	tree, err := serviceTreeRepo.GetServiceTreeByFullPath("/alice/demo/followup/docs/readme.docs")
+	if err != nil {
+		t.Fatalf("get nested doc tree: %v", err)
+	}
+	if tree.Code != "readme.docs" || tree.Name != "文档/目录说明" {
+		t.Fatalf("unexpected nested doc tree: %#v", tree)
+	}
+	doc, err := docRepo.GetByTreeID(tree.ID)
+	if err != nil {
+		t.Fatalf("get nested doc: %v", err)
+	}
+	if doc.Content != "# 场景文档说明\n" || doc.FullCodePath != tree.FullCodePath {
+		t.Fatalf("unexpected nested doc: %#v", doc)
+	}
+}
+
+func TestNormalizePackageDocSeedCodeRejectsUnsafePaths(t *testing.T) {
+	for _, code := range []string{
+		"/docs/readme",
+		"../readme",
+		"docs/../readme",
+		"docs/./readme",
+		"docs//readme",
+		`docs\readme`,
+	} {
+		t.Run(code, func(t *testing.T) {
+			if _, err := normalizePackageDocSeedCode(code); err == nil {
+				t.Fatalf("expected %q to be rejected", code)
+			}
+		})
 	}
 }

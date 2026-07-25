@@ -13,18 +13,21 @@ const (
 	workspaceContextReductionLight
 	workspaceContextReductionStrict
 	workspaceContextReductionEmergency
+	workspaceContextReductionCritical
 )
 
 const (
-	workspaceContextSoftTotalTokenLimit      = 32000
 	workspaceContextDefaultOutputReserve     = 4096
-	workspaceContextEstimateCharsPerToken    = 3
 	workspaceContextPreflightReductionReason = "preflight_budget"
+	workspaceContextSafetyPercent            = 85
 )
 
 type workspaceLLMContextBuildOptions struct {
-	ReductionLevel  int
-	ReductionReason string
+	ReductionLevel      int
+	ReductionReason     string
+	ContextWindowTokens int
+	OutputReserveTokens int
+	LLMConfigID         int64
 }
 
 type workspaceLLMHistoryLimits struct {
@@ -33,15 +36,14 @@ type workspaceLLMHistoryLimits struct {
 	ToolContentMaxRunes      int
 	ArtifactReadMaxRunes     int
 	ToolArgsMaxRunes         int
-	MaxHistoryEntries        int
 }
 
 func normalizeWorkspaceContextReductionLevel(level int) int {
 	if level < workspaceContextReductionNone {
 		return workspaceContextReductionNone
 	}
-	if level > workspaceContextReductionEmergency {
-		return workspaceContextReductionEmergency
+	if level > workspaceContextReductionCritical {
+		return workspaceContextReductionCritical
 	}
 	return level
 }
@@ -55,7 +57,6 @@ func workspaceLLMHistoryLimitsForLevel(level int) workspaceLLMHistoryLimits {
 			ToolContentMaxRunes:      1200,
 			ArtifactReadMaxRunes:     6000,
 			ToolArgsMaxRunes:         1000,
-			MaxHistoryEntries:        48,
 		}
 	case workspaceContextReductionStrict:
 		return workspaceLLMHistoryLimits{
@@ -64,7 +65,6 @@ func workspaceLLMHistoryLimitsForLevel(level int) workspaceLLMHistoryLimits {
 			ToolContentMaxRunes:      700,
 			ArtifactReadMaxRunes:     3500,
 			ToolArgsMaxRunes:         600,
-			MaxHistoryEntries:        18,
 		}
 	case workspaceContextReductionEmergency:
 		return workspaceLLMHistoryLimits{
@@ -73,7 +73,14 @@ func workspaceLLMHistoryLimitsForLevel(level int) workspaceLLMHistoryLimits {
 			ToolContentMaxRunes:      400,
 			ArtifactReadMaxRunes:     1600,
 			ToolArgsMaxRunes:         300,
-			MaxHistoryEntries:        8,
+		}
+	case workspaceContextReductionCritical:
+		return workspaceLLMHistoryLimits{
+			UserContentMaxRunes:      900,
+			AssistantContentMaxRunes: 400,
+			ToolContentMaxRunes:      200,
+			ArtifactReadMaxRunes:     800,
+			ToolArgsMaxRunes:         150,
 		}
 	default:
 		return workspaceLLMHistoryLimits{
@@ -82,34 +89,55 @@ func workspaceLLMHistoryLimitsForLevel(level int) workspaceLLMHistoryLimits {
 			ToolContentMaxRunes:      workspaceLLMHistoryToolContentMaxRunes,
 			ArtifactReadMaxRunes:     10000,
 			ToolArgsMaxRunes:         workspaceLLMHistoryToolArgsMaxRunes,
-			MaxHistoryEntries:        0,
 		}
 	}
 }
 
 func workspaceEstimatedTokenCount(text string) int {
-	runes := len([]rune(text))
-	if runes <= 0 {
+	if text == "" {
 		return 0
 	}
-	tokens := runes / workspaceContextEstimateCharsPerToken
-	if runes%workspaceContextEstimateCharsPerToken != 0 {
-		tokens++
+	asciiChars := 0
+	nonASCIIChars := 0
+	for _, value := range text {
+		if value <= 0x7f {
+			asciiChars++
+		} else {
+			nonASCIIChars++
+		}
 	}
+	// English/JSON usually averages about four characters per token, while CJK
+	// and emoji are much denser. Counting each non-ASCII rune as one token is a
+	// deliberately conservative preflight estimate; runtime overflow recovery
+	// remains the final authority for provider-specific tokenizers.
+	tokens := (asciiChars + 3) / 4
+	tokens += nonASCIIChars
 	if tokens <= 0 {
 		return 1
 	}
 	return tokens
 }
 
-func buildWorkspaceModelContextBudget(msgs []llms.Message, tools []llms.ToolDef, outputReserve int, reductionLevel int, reductionReason string) *dto.WorkspaceModelContextBudget {
+func workspaceContextSoftLimit(contextWindow int) int {
+	if contextWindow <= 0 {
+		contextWindow = DefaultLLMContextWindow
+	}
+	limit := contextWindow * workspaceContextSafetyPercent / 100
+	if limit < 1024 {
+		return 1024
+	}
+	return limit
+}
+
+func buildWorkspaceModelContextBudget(msgs []llms.Message, tools []llms.ToolDef, outputReserve int, contextWindow int, reductionLevel int, reductionReason string) *dto.WorkspaceModelContextBudget {
 	if outputReserve <= 0 {
 		outputReserve = workspaceContextDefaultOutputReserve
 	}
 	inputTokens := estimateWorkspaceLLMMessageTokens(msgs)
 	toolTokens := estimateWorkspaceLLMToolTokens(tools)
 	total := inputTokens + toolTokens + outputReserve
-	remaining := workspaceContextSoftTotalTokenLimit - total
+	softLimit := workspaceContextSoftLimit(contextWindow)
+	remaining := softLimit - total
 	status := "ok"
 	if remaining < 0 {
 		remaining = 0
@@ -124,7 +152,7 @@ func buildWorkspaceModelContextBudget(msgs []llms.Message, tools []llms.ToolDef,
 		EstimatedToolTokens:  toolTokens,
 		OutputReserveTokens:  outputReserve,
 		EstimatedTotalTokens: total,
-		SoftLimitTokens:      workspaceContextSoftTotalTokenLimit,
+		SoftLimitTokens:      softLimit,
 		TokensUntilSoftLimit: remaining,
 		Status:               status,
 	}
@@ -133,6 +161,7 @@ func buildWorkspaceModelContextBudget(msgs []llms.Message, tools []llms.ToolDef,
 func estimateWorkspaceLLMMessageTokens(msgs []llms.Message) int {
 	total := 0
 	for _, msg := range msgs {
+		total += 4 // role/message framing overhead
 		total += workspaceEstimatedTokenCount(msg.Role)
 		total += workspaceEstimatedTokenCount(msg.Content)
 		total += workspaceEstimatedTokenCount(msg.ToolCallID)
@@ -148,6 +177,7 @@ func estimateWorkspaceLLMMessageTokens(msgs []llms.Message) int {
 func estimateWorkspaceLLMToolTokens(tools []llms.ToolDef) int {
 	total := 0
 	for _, tool := range tools {
+		total += 8 // function/tool framing overhead
 		total += workspaceEstimatedTokenCount(tool.Type)
 		total += workspaceEstimatedTokenCount(tool.Function.Name)
 		total += workspaceEstimatedTokenCount(tool.Function.Description)
@@ -172,6 +202,10 @@ func reduceWorkspaceOutputReserve(maxTokens int, reductionLevel int) int {
 	case workspaceContextReductionEmergency:
 		if maxTokens > 1024 {
 			return 1024
+		}
+	case workspaceContextReductionCritical:
+		if maxTokens > 768 {
+			return 768
 		}
 	}
 	return maxTokens

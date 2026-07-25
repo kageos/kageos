@@ -516,6 +516,8 @@ sequenceDiagram
 
 定时能力是独立平台横切层。`timer-scheduler` 是唯一调度状态源，负责 `timer_task`、`timer_execution`、租约、超时恢复和 outbox。业务执行由 executor 所属服务完成：`agent-server` 消费 `agent.session`，`app-server` 消费 `app.function`。
 
+同一任务默认使用 `overlap_policy=forbid`；平台也支持 `queue_latest` 有界合并，以及带 `max_parallelism` 上限的 `allow`。等待补跑使用持久化 `waiting` execution，不依赖进程内存队列。
+
 ```mermaid
 flowchart LR
   subgraph client ["Client"]

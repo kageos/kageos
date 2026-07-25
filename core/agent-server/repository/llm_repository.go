@@ -108,6 +108,20 @@ func (r *LLMRepository) UpdateProviderProtocol(id int64, provider, protocol stri
 	}).Error
 }
 
+// UpdateDetectedContextWindow stores a provider-reported capacity only when no
+// manual override is configured. The manual value always remains authoritative.
+func (r *LLMRepository) UpdateDetectedContextWindow(id int64, value int, source string) error {
+	if id <= 0 || value <= 0 {
+		return nil
+	}
+	return r.db.Model(&model.LLMConfig{}).
+		Where("id = ? AND (context_window IS NULL OR context_window <= 0)", id).
+		Updates(map[string]interface{}{
+			"detected_context_window":        value,
+			"detected_context_window_source": strings.TrimSpace(source),
+		}).Error
+}
+
 // Delete 删除 LLM 配置
 func (r *LLMRepository) Delete(id int64) error {
 	return r.db.Where("id = ?", id).Delete(&model.LLMConfig{}).Error

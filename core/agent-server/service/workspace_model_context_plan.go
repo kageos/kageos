@@ -34,6 +34,8 @@ type workspaceModelContextPlanInput struct {
 	ExcludedUnsupported         []*model.AgentChatMessage
 	ExcludedDisplayOnly         []*model.AgentChatMessage
 	ExcludedByReduction         []*model.AgentChatMessage
+	ExcludedByCheckpoint        []*model.AgentChatMessage
+	Checkpoint                  *model.AgentChatContextCheckpoint
 	RequestedToolNames          []string
 	LLMToolNames                []string
 	RoleAllowedToolNames        []string
@@ -76,6 +78,13 @@ func (s *WorkspaceChatService) buildWorkspaceModelContextPlan(ctx context.Contex
 	includedRefs, includedTruncated := workspaceModelContextMessageRefs(input.IncludedMessages, "included", workspaceModelContextRefLimit)
 	excludedRefs, excludedTruncated := workspaceModelContextMessageRefs(input.ExcludedUnsupported, "unsupported_role", workspaceModelContextRefLimit)
 	if len(excludedRefs) < workspaceModelContextRefLimit {
+		checkpointRefs, checkpointTruncated := workspaceModelContextMessageRefs(input.ExcludedByCheckpoint, "checkpoint_summary_recoverable", workspaceModelContextRefLimit-len(excludedRefs))
+		excludedRefs = append(excludedRefs, checkpointRefs...)
+		excludedTruncated = excludedTruncated || checkpointTruncated
+	} else if len(input.ExcludedByCheckpoint) > 0 {
+		excludedTruncated = true
+	}
+	if len(excludedRefs) < workspaceModelContextRefLimit {
 		reducedRefs, reducedTruncated := workspaceModelContextMessageRefs(input.ExcludedByReduction, "reduced_history", workspaceModelContextRefLimit-len(excludedRefs))
 		excludedRefs = append(excludedRefs, reducedRefs...)
 		excludedTruncated = excludedTruncated || reducedTruncated
@@ -89,7 +98,11 @@ func (s *WorkspaceChatService) buildWorkspaceModelContextPlan(ctx context.Contex
 	} else if len(input.ExcludedDisplayOnly) > 0 {
 		excludedTruncated = true
 	}
-	excludedStored := len(input.ExcludedUnsupported) + len(input.ExcludedByReduction) + len(input.ExcludedDisplayOnly)
+	excludedStored := len(input.ExcludedUnsupported) + len(input.ExcludedByCheckpoint) + len(input.ExcludedByReduction) + len(input.ExcludedDisplayOnly)
+	systemMessages := 1
+	if input.Checkpoint != nil {
+		systemMessages++
+	}
 
 	return &dto.WorkspaceModelContextPlan{
 		ProtocolVersion: workspaceModelContextPlanVersion,
@@ -110,8 +123,8 @@ func (s *WorkspaceChatService) buildWorkspaceModelContextPlan(ctx context.Contex
 			ContextPolicy:               firstNonEmptyString(input.ContextPolicy, ContextPolicyFull),
 			ModelContextAnchorMessageID: input.ModelContextAnchorMessageID,
 			ParentSessionID:             strings.TrimSpace(input.ParentSessionID),
-			SourceHistoryPolicy:         workspaceModelContextSourceHistoryPolicy(input.ParentSessionID, input.ModelContextAnchorMessageID),
-			SystemMessages:              1,
+			SourceHistoryPolicy:         workspaceModelContextSourceHistoryPolicy(input.ParentSessionID, input.ModelContextAnchorMessageID, input.Checkpoint),
+			SystemMessages:              systemMessages,
 			LLMMessages:                 input.LLMMessageCount,
 			TotalStoredMessages:         len(input.AllMessages),
 			IncludedStoredMessages:      len(input.IncludedMessages),
@@ -119,6 +132,13 @@ func (s *WorkspaceChatService) buildWorkspaceModelContextPlan(ctx context.Contex
 			ExcludedByAnchor:            0,
 			ExcludedDisplayOnly:         len(input.ExcludedDisplayOnly),
 			ExcludedByReduction:         len(input.ExcludedByReduction),
+			ExcludedByCheckpoint:        len(input.ExcludedByCheckpoint),
+			CheckpointID:                workspaceContextCheckpointID(input.Checkpoint),
+			CheckpointCoveredFromID:     workspaceContextCheckpointCoveredFrom(input.Checkpoint),
+			CheckpointCoveredToID:       workspaceContextCheckpointCoveredTo(input.Checkpoint),
+			CheckpointSource:            workspaceContextCheckpointSource(input.Checkpoint),
+			CheckpointSummaryTokens:     workspaceContextCheckpointSummaryTokens(input.Checkpoint),
+			RecoverableHistory:          input.Checkpoint != nil && len(input.ExcludedByCheckpoint) > 0,
 			Included:                    includedRefs,
 			Excluded:                    excludedRefs,
 			Truncated:                   includedTruncated || excludedTruncated,
@@ -312,11 +332,52 @@ func workspaceModelContextFilesCount(workspaceCtx *dto.GetWorkspaceContextResp) 
 	return len(workspaceCtx.Files)
 }
 
-func workspaceModelContextSourceHistoryPolicy(parentSessionID string, anchorID int64) string {
+func workspaceModelContextSourceHistoryPolicy(parentSessionID string, anchorID int64, checkpoint *model.AgentChatContextCheckpoint) string {
+	if checkpoint != nil {
+		if strings.TrimSpace(parentSessionID) != "" {
+			return "same_session_checkpoint_plus_recent_raw_with_parent_reference"
+		}
+		return "same_session_checkpoint_plus_recent_raw"
+	}
 	if strings.TrimSpace(parentSessionID) != "" {
 		return "same_session_full_with_parent_reference"
 	}
 	return "same_session_full"
+}
+
+func workspaceContextCheckpointID(checkpoint *model.AgentChatContextCheckpoint) int64 {
+	if checkpoint == nil {
+		return 0
+	}
+	return checkpoint.ID
+}
+
+func workspaceContextCheckpointCoveredFrom(checkpoint *model.AgentChatContextCheckpoint) int64 {
+	if checkpoint == nil {
+		return 0
+	}
+	return checkpoint.CoveredFromMessageID
+}
+
+func workspaceContextCheckpointCoveredTo(checkpoint *model.AgentChatContextCheckpoint) int64 {
+	if checkpoint == nil {
+		return 0
+	}
+	return checkpoint.CoveredToMessageID
+}
+
+func workspaceContextCheckpointSource(checkpoint *model.AgentChatContextCheckpoint) string {
+	if checkpoint == nil {
+		return ""
+	}
+	return strings.TrimSpace(checkpoint.Source)
+}
+
+func workspaceContextCheckpointSummaryTokens(checkpoint *model.AgentChatContextCheckpoint) int {
+	if checkpoint == nil {
+		return 0
+	}
+	return workspaceEstimatedTokenCount(checkpoint.Summary)
 }
 
 func workspaceModelContextScopePolicy(roleID string, fullCodePath string, handoff *dto.WorkspaceModelContextHandoff) string {

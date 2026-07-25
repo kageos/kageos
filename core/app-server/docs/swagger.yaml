@@ -221,6 +221,10 @@ definitions:
     type: object
   dto.CopyDirectoryResp:
     properties:
+      agent_task_count:
+        description: 复制的 Agent 任务数
+        example: 1
+        type: integer
       directory_count:
         description: 复制的目录数
         example: 3
@@ -229,13 +233,17 @@ definitions:
         description: 复制的文件数
         example: 15
         type: integer
+      doc_count:
+        description: 复制的文档数
+        example: 2
+        type: integer
       git_commit_hash:
         description: Git 提交哈希
         example: abc123
         type: string
       message:
         description: 响应消息
-        example: 复制目录成功，共复制 3 个目录，15 个文件
+        example: 复制目录成功，共复制 3 个目录，15 个文件，2 份文档，1 个 Agent 任务
         type: string
       new_version:
         description: 新版本号

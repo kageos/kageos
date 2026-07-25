@@ -20,7 +20,7 @@ import (
 )
 
 type AppService struct {
-	appCall         appRuntimeClient
+	appCall         AppRuntimeClient
 	appRepo         *repository.AppRepository
 	functionRepo    *repository.FunctionRepository
 	serviceTreeRepo *repository.ServiceTreeRepository
@@ -30,36 +30,38 @@ type AppService struct {
 	sensitiveFields *FunctionSensitiveFieldService
 }
 
-type appRuntimeClient interface {
+type AppRuntimeClient interface {
 	CreateApp(ctx context.Context, hostID int64, req *dto.CreateAppReq) (*dto.CreateAppResp, error)
 	UpdateApp(ctx context.Context, hostID int64, req *dto.UpdateAppRuntimeReq) (*dto.UpdateAppResp, error)
 	RequestApp(ctx context.Context, hostID int64, req *dto.RequestAppReq) (*dto.RequestAppResp, error)
 	DeleteApp(ctx context.Context, hostID int64, req *dto.DeleteAppRuntimeReq) (*dto.DeleteAppResp, error)
 }
 
-var _ appRuntimeClient = (*appcall.Client)(nil)
+var _ AppRuntimeClient = (*appcall.Client)(nil)
+
+type AppServiceDependencies struct {
+	AppRuntimeClient              AppRuntimeClient
+	AppRepository                 *repository.AppRepository
+	FunctionRepository            *repository.FunctionRepository
+	ServiceTreeRepository         *repository.ServiceTreeRepository
+	OperateLogRepository          *repository.OperateLogRepository
+	DocService                    *DocService
+	TeamAccessService             *TeamAccessService
+	FunctionSensitiveFieldService *FunctionSensitiveFieldService
+}
 
 // NewAppService 创建 AppService（依赖注入）
-func NewAppService(appCall appRuntimeClient, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, operateLogRepo *repository.OperateLogRepository) *AppService {
+func NewAppService(deps AppServiceDependencies) *AppService {
 	return &AppService{
-		appCall:         appCall,
-		appRepo:         appRepo,
-		functionRepo:    functionRepo,
-		serviceTreeRepo: serviceTreeRepo,
-		operateLogRepo:  operateLogRepo,
+		appCall:         deps.AppRuntimeClient,
+		appRepo:         deps.AppRepository,
+		functionRepo:    deps.FunctionRepository,
+		serviceTreeRepo: deps.ServiceTreeRepository,
+		operateLogRepo:  deps.OperateLogRepository,
+		docService:      deps.DocService,
+		teamAccess:      deps.TeamAccessService,
+		sensitiveFields: deps.FunctionSensitiveFieldService,
 	}
-}
-
-func (a *AppService) SetTeamAccessService(teamAccess *TeamAccessService) {
-	a.teamAccess = teamAccess
-}
-
-func (a *AppService) SetFunctionSensitiveFieldService(sensitiveFields *FunctionSensitiveFieldService) {
-	a.sensitiveFields = sensitiveFields
-}
-
-func (a *AppService) SetDocService(docService *DocService) {
-	a.docService = docService
 }
 
 // CreateApp 创建应用

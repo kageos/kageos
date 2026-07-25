@@ -132,7 +132,7 @@ func (c *TimerSchedulerConfig) GetQueueAckTimeout() time.Duration {
 
 func (c *TimerSchedulerConfig) GetMaxDispatchAttempts() int {
 	if c == nil || c.Scheduler.MaxDispatchAttempts <= 0 {
-		return 3
+		return 30
 	}
 	return c.Scheduler.MaxDispatchAttempts
 }

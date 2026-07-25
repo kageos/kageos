@@ -11,14 +11,15 @@ import (
 // WithUserInfo 为请求添加用户信息的中间件
 // ⭐ 统一使用常量 RequestUserHeader 和 DepartmentFullPathHeader，与 GetRequestUser 保持一致
 // ⭐ 如果 X-Request-User header 为空，尝试从 token 中解析用户信息（作为降级方案）
-func WithUserInfo() gin.HandlerFunc {
+func WithUserInfo(options ...AuthOption) gin.HandlerFunc {
+	tokenStore := resolveAuthOptions(options...).openAPITokenStore
 	return func(c *gin.Context) {
 		// ✨ 优先从 X-Request-User header 读取（网关已设置）
 		requestUser := c.GetHeader(contextx.RequestUserHeader)
 
 		if requestUser == "" {
 			if rawOpenAPIToken := openapitoken.BearerToken(c.GetHeader("Authorization")); rawOpenAPIToken != "" {
-				principal, err := openapitoken.Validate(rawOpenAPIToken, c.ClientIP(), c.GetHeader("User-Agent"))
+				principal, err := tokenStore.Validate(rawOpenAPIToken, c.ClientIP(), c.GetHeader("User-Agent"))
 				if err == nil {
 					requestUser = principal.Username
 					c.Set("user_id", principal.UserID)

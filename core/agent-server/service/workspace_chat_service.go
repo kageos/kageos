@@ -354,7 +354,7 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		if e == nil && latest != nil && latest.Status == model.ChatSessionStatusCancelled {
 			finalStatus = RuntimeStateStatusCancelled
 		}
-		s.finishWorkspaceRuntimeState(context.Background(), runtimeStateKey, runtimeStateBase, err, finalStatus)
+		s.finishWorkspaceRuntimeState(context.WithoutCancel(ctx), runtimeStateKey, runtimeStateBase, err, finalStatus)
 	}()
 
 	llmConfigID := req.LLMConfigID

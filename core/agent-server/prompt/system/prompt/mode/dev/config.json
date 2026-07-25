@@ -5,6 +5,8 @@
     "change_role",
     "summarize_task_state",
     "read_workspace_artifact",
+    "search_session_history",
+    "read_session_messages",
     "read_file",
     "read_doc",
     "read_dir",
