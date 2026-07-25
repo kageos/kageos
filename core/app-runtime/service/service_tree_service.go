@@ -23,18 +23,13 @@ func NewWorkspaceChangeService(
 	config *config.AppManageServiceConfig,
 	appManageService *AppManageService,
 	workspaceFileService *WorkspaceFileService,
+	appDatabaseService *AppDatabaseService,
 ) *WorkspaceChangeService {
 	return &WorkspaceChangeService{
 		config:               config,
 		appManageService:     appManageService,
 		workspaceFileService: workspaceFileService,
-		packageScaffold:      NewPackageScaffoldService(config),
-	}
-}
-
-func (s *WorkspaceChangeService) SetAppDatabaseService(appDatabaseService *AppDatabaseService) {
-	if s != nil && s.packageScaffold != nil {
-		s.packageScaffold.SetAppDatabaseService(appDatabaseService)
+		packageScaffold:      NewPackageScaffoldService(config, appDatabaseService),
 	}
 }
 

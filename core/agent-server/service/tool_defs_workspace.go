@@ -5,6 +5,8 @@ func workspaceTools(r *ToolRegistry) []Tool {
 		&ChangeRoleTool{},
 		&SummarizeTaskStateTool{},
 		&ReadWorkspaceArtifactTool{},
+		&SearchSessionHistoryTool{},
+		&ReadSessionMessagesTool{},
 		&ReadFileTool{},
 		&ReadDocTool{},
 		&ReadDirTool{},

@@ -334,7 +334,8 @@ scheduler:
   dispatch_lease_seconds: 30
   execution_lease_seconds: 3600
   queue_ack_timeout_seconds: 120
-  max_dispatch_attempts: 3
+  # Retry every two minutes for about one hour before timing out.
+  max_dispatch_attempts: 30
   max_heartbeat_misses: 3
   max_outbox_attempts: 8
   payload_limit_bytes: 262144
@@ -374,11 +375,14 @@ timeouts:
   app_server_request: 30
   container_startup: 2
   app_startup_notification: 300
+  update_callback: 240
   container_cleanup: 10
 
 app_manage:
   app_dir:
     base_path: {{ q .AppRuntimeBasePath }}
+  build:
+    keep_debug_symbols: false
 
 container:
   timeout: 30

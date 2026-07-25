@@ -173,6 +173,12 @@ func (c *OpenAIResponsesClient) buildRequestBody(req *ChatRequest, stream bool) 
 	if req.MaxTokens > 0 {
 		body["max_output_tokens"] = req.MaxTokens
 	}
+	if reasoningEffort := normalizeReasoningEffort(req.ReasoningEffort); reasoningEffort != "" {
+		body["reasoning"] = map[string]interface{}{"effort": reasoningEffort}
+	}
+	if verbosity := normalizeVerbosity(req.Verbosity); verbosity != "" {
+		body["text"] = map[string]interface{}{"verbosity": verbosity}
+	}
 	if req.Temperature > 0 {
 		body["temperature"] = req.Temperature
 	}
@@ -323,9 +329,7 @@ func (s *responsesStreamState) handle(payload map[string]interface{}) []*StreamC
 	case "response.completed", "response.incomplete", "response.failed":
 		if response, ok := payload["response"].(map[string]interface{}); ok {
 			s.noteUsage(response["usage"])
-			if status, _ := response["status"].(string); status != "" {
-				s.finishReason = status
-			}
+			s.finishReason = openAIResponsesFinishReason(response)
 			if output, ok := response["output"].([]interface{}); ok {
 				for i, raw := range output {
 					if item, ok := raw.(map[string]interface{}); ok {
@@ -336,6 +340,21 @@ func (s *responsesStreamState) handle(payload map[string]interface{}) []*StreamC
 		}
 	}
 	return nil
+}
+
+func openAIResponsesFinishReason(response map[string]interface{}) string {
+	status, _ := response["status"].(string)
+	if status != "incomplete" {
+		return status
+	}
+	details, _ := response["incomplete_details"].(map[string]interface{})
+	reason, _ := details["reason"].(string)
+	switch strings.ToLower(strings.TrimSpace(reason)) {
+	case "max_output_tokens", "max_tokens", "length":
+		return "max_output_tokens"
+	default:
+		return status
+	}
 }
 
 func (s *responsesStreamState) noteResponseItem(event map[string]interface{}, item map[string]interface{}) {

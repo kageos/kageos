@@ -58,6 +58,8 @@ type createScheduledAgentTaskArgs struct {
 	Files              string `json:"files" schema_desc:"Agent 任务需要带上的附件 refs，多个用逗号分隔；没有附件就不传"`
 	LLMConfigID        int64  `json:"llm_config_id" schema_desc:"可选 LLM 配置 ID"`
 	MaxDurationSeconds int64  `json:"max_duration_seconds" schema_desc:"可选最大执行时长秒数"`
+	OverlapPolicy      string `json:"overlap_policy" schema_desc:"上一次尚未完成时的处理策略：forbid 跳过本轮（默认、最安全）；queue_latest 最多合并保留一个待执行；allow 允许并行" schema_enum:"forbid,queue_latest,allow"`
+	MaxParallelism     int    `json:"max_parallelism" schema_desc:"overlap_policy=allow 时同一任务最大并行数，默认 2，最大 16"`
 	Description        string `json:"description" schema_desc:"任务说明"`
 	IdempotencyKey     string `json:"idempotency_key" schema_desc:"可选幂等 key；不传则根据目标、计划和参数生成"`
 	Directory          string `json:"directory" schema_ignore:"true"`
@@ -77,6 +79,8 @@ type updateScheduledAgentTaskArgs struct {
 	Files              string `json:"files" schema_desc:"可选：附件 refs"`
 	LLMConfigID        int64  `json:"llm_config_id" schema_desc:"可选：LLM 配置 ID"`
 	MaxDurationSeconds int64  `json:"max_duration_seconds" schema_desc:"可选：最大执行时长秒数"`
+	OverlapPolicy      string `json:"overlap_policy" schema_desc:"可选：重叠策略 forbid/queue_latest/allow" schema_enum:"forbid,queue_latest,allow"`
+	MaxParallelism     int    `json:"max_parallelism" schema_desc:"可选：allow 策略的同任务最大并行数，最大 16"`
 	Description        string `json:"description" schema_desc:"可选：任务说明"`
 }
 
@@ -107,7 +111,7 @@ type manageScheduledTaskArgs struct {
 
 type listScheduledTaskExecutionsArgs struct {
 	TaskID   int64  `json:"task_id" schema_desc:"定时任务 ID" schema_required:"true"`
-	Status   string `json:"status" schema_desc:"执行状态过滤" schema_enum:"queued,running,success,failed,timeout,cancelled"`
+	Status   string `json:"status" schema_desc:"执行状态过滤" schema_enum:"waiting,queued,running,success,failed,timeout,cancelled,skipped"`
 	Page     int    `json:"page" schema_desc:"页码，默认 1"`
 	PageSize int    `json:"page_size" schema_desc:"每页条数，默认 20，最多 100"`
 }
@@ -139,7 +143,7 @@ var manageScheduledTaskToolDef = toolDefinition[manageScheduledTaskArgs](
 
 var listScheduledTaskExecutionsToolDef = toolDefinition[listScheduledTaskExecutionsArgs](
 	"list_scheduled_task_executions",
-	"查询某个定时任务的执行记录，用于回答“最近跑了没、成功没、失败原因是什么”。这是只读诊断查询，不按创建人过滤；可按 queued/running/success/failed/timeout/cancelled 过滤。",
+	"查询某个定时任务的执行记录，用于回答“最近跑了没、成功没、失败原因是什么”。这是只读诊断查询，不按创建人过滤；可按 waiting/queued/running/success/failed/timeout/cancelled/skipped 过滤。",
 )
 
 func (t *CreateScheduledFunctionTaskTool) Definition() dto.ToolDef {

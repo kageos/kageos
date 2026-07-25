@@ -53,14 +53,16 @@ type CopyDirectoryReq struct {
 
 // CopyDirectoryResp 复制目录响应
 type CopyDirectoryResp struct {
-	Message             string `json:"message" example:"复制目录成功，共复制 3 个目录，15 个文件"`  // 响应消息
-	DirectoryCount      int    `json:"directory_count" example:"3"`                // 复制的目录数
-	FileCount           int    `json:"file_count" example:"15"`                    // 复制的文件数
-	Replaced            bool   `json:"replaced,omitempty"`                         // 是否执行了同名目录完全替换
-	TargetDirectoryPath string `json:"target_directory_path,omitempty"`            // 最终目标目录完整路径
-	OldVersion          string `json:"old_version,omitempty" example:"v3"`         // 旧版本号
-	NewVersion          string `json:"new_version,omitempty" example:"v4"`         // 新版本号
-	GitCommitHash       string `json:"git_commit_hash,omitempty" example:"abc123"` // Git 提交哈希
+	Message             string `json:"message" example:"复制目录成功，共复制 3 个目录，15 个文件，2 份文档，1 个 Agent 任务"` // 响应消息
+	DirectoryCount      int    `json:"directory_count" example:"3"`                                  // 复制的目录数
+	FileCount           int    `json:"file_count" example:"15"`                                      // 复制的文件数
+	DocCount            int    `json:"doc_count" example:"2"`                                        // 复制的文档数
+	AgentTaskCount      int    `json:"agent_task_count" example:"1"`                                 // 复制的 Agent 任务数
+	Replaced            bool   `json:"replaced,omitempty"`                                           // 是否执行了同名目录完全替换
+	TargetDirectoryPath string `json:"target_directory_path,omitempty"`                              // 最终目标目录完整路径
+	OldVersion          string `json:"old_version,omitempty" example:"v3"`                           // 旧版本号
+	NewVersion          string `json:"new_version,omitempty" example:"v4"`                           // 新版本号
+	GitCommitHash       string `json:"git_commit_hash,omitempty" example:"abc123"`                   // Git 提交哈希
 }
 
 // CreateDirectoryReq 创建目录请求

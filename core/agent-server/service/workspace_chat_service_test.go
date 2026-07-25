@@ -786,7 +786,7 @@ func TestBuildLLMMessagesWithPlanReducesLongHistoryByBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.AgentChatSession{}); err != nil {
+	if err := db.AutoMigrate(&model.AgentChatSession{}, &model.AgentChatContextCheckpoint{}); err != nil {
 		t.Fatalf("migrate sessions: %v", err)
 	}
 	if err := createSQLiteAgentChatMessagesTable(db); err != nil {
@@ -830,25 +830,35 @@ func TestBuildLLMMessagesWithPlanReducesLongHistoryByBudget(t *testing.T) {
 	workspaceCtx.Directory.Code = "assets"
 	workspaceCtx.Directory.Type = "package"
 
-	msgs, _, plan, err := svc.buildLLMMessagesWithPlan(context.Background(), session.SessionID, "/liubeiluo/assets", "资产管理", workspaceCtx, nil, nil, "fallback", 0)
+	msgs, _, plan, err := svc.buildLLMMessagesWithPlanAndOptions(context.Background(), session.SessionID, "/liubeiluo/assets", "资产管理", workspaceCtx, nil, nil, "fallback", 0, workspaceLLMContextBuildOptions{
+		ContextWindowTokens: 32000,
+	}, 0)
 	if err != nil {
 		t.Fatalf("build messages: %v", err)
 	}
 	if plan == nil || plan.Budget == nil {
 		t.Fatalf("budget should be reported: %#v", plan)
 	}
-	if plan.Budget.ReducerLevel == workspaceContextReductionNone {
-		t.Fatalf("long history should trigger reducer, budget=%#v", plan.Budget)
+	if plan.Messages.ExcludedByCheckpoint == 0 || !plan.Messages.RecoverableHistory {
+		t.Fatalf("old history should be represented by a recoverable checkpoint: %#v", plan.Messages)
 	}
-	if plan.Messages.ExcludedByReduction == 0 {
-		t.Fatalf("reduced history should be reported: %#v", plan.Messages)
+	if plan.Messages.ExcludedByReduction != 0 {
+		t.Fatalf("checkpoint compaction should not drop messages by count: %#v", plan.Messages)
 	}
 	joined := joinLLMMessageContents(msgs)
-	if strings.Contains(joined, "old-marker-00") {
-		t.Fatalf("oldest history should be removed from model context")
+	if !strings.Contains(joined, "<conversation_checkpoint") {
+		t.Fatalf("model context should contain a conversation checkpoint")
 	}
 	if !strings.Contains(joined, "current-marker") {
 		t.Fatalf("current user request should remain in model context:\n%s", joined)
+	}
+	checkpoint, err := messageRepo.GetLatestContextCheckpoint(session.SessionID)
+	if err != nil || checkpoint.CoveredFromMessageID != 1 || checkpoint.CoveredToMessageID <= checkpoint.CoveredFromMessageID {
+		t.Fatalf("checkpoint range = %#v, err=%v", checkpoint, err)
+	}
+	oldest, err := messageRepo.GetByID(1)
+	if err != nil || !strings.Contains(oldest.Content, "old-marker-00") {
+		t.Fatalf("raw oldest message must remain unchanged: %#v err=%v", oldest, err)
 	}
 }
 

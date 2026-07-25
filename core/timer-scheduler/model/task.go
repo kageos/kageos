@@ -31,6 +31,8 @@ type TimerTask struct {
 	MaxRuns         int        `json:"max_runs" gorm:"default:0"`
 	NextRunAt       *time.Time `json:"next_run_at" gorm:"index"`
 	RunCount        int        `json:"run_count" gorm:"default:0"`
+	OverlapPolicy   string     `json:"overlap_policy" gorm:"size:20;not null;default:forbid;index"`
+	MaxParallelism  int        `json:"max_parallelism" gorm:"not null;default:1"`
 
 	Status              string     `json:"status" gorm:"size:20;not null;index"`
 	InflightExecutionID int64      `json:"inflight_execution_id" gorm:"index;default:0"`

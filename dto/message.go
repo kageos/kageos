@@ -163,10 +163,11 @@ type MessageUnreadCountResp struct {
 type MessageActionTokenStatus string
 
 const (
-	MessageActionTokenStatusOpen      MessageActionTokenStatus = "open"
-	MessageActionTokenStatusSubmitted MessageActionTokenStatus = "submitted"
-	MessageActionTokenStatusExpired   MessageActionTokenStatus = "expired"
-	MessageActionTokenStatusRevoked   MessageActionTokenStatus = "revoked"
+	MessageActionTokenStatusOpen       MessageActionTokenStatus = "open"
+	MessageActionTokenStatusProcessing MessageActionTokenStatus = "processing"
+	MessageActionTokenStatusSubmitted  MessageActionTokenStatus = "submitted"
+	MessageActionTokenStatusExpired    MessageActionTokenStatus = "expired"
+	MessageActionTokenStatusRevoked    MessageActionTokenStatus = "revoked"
 )
 
 type MessageActionViewResp struct {
@@ -187,6 +188,7 @@ type MessageActionViewResp struct {
 
 type MessageActionReplyReq struct {
 	Content string `json:"content" binding:"required"`
+	Files   string `json:"files,omitempty"`
 	Action  string `json:"action"`
 }
 

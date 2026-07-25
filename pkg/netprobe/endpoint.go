@@ -68,7 +68,7 @@ func URLCandidates(rawURL string) []string {
 }
 
 func ResolveTCPEndpointCached(ctx context.Context, label, endpoint string, timeout time.Duration) (string, error) {
-	key := label + "\x00" + strings.TrimSpace(endpoint)
+	key := tcpEndpointResolutionKey(label, endpoint)
 	entryValue, _ := tcpEndpointResolvers.LoadOrStore(key, &cachedResolution{})
 	entry := entryValue.(*cachedResolution)
 	entry.once.Do(func() {
@@ -77,7 +77,18 @@ func ResolveTCPEndpointCached(ctx context.Context, label, endpoint string, timeo
 			entry.value = strings.TrimSpace(endpoint)
 		}
 	})
+	if entry.err != nil {
+		// 只缓存成功结果。服务可能晚于调用方启动，失败结果若永久缓存，
+		// 后续即使服务恢复也不会重新探测。
+		tcpEndpointResolvers.CompareAndDelete(key, entry)
+	}
 	return entry.value, entry.err
+}
+
+// InvalidateTCPEndpointCached invalidates a successful resolution so the next
+// request probes candidates again. It intentionally does not replay requests.
+func InvalidateTCPEndpointCached(label, endpoint string) {
+	tcpEndpointResolvers.Delete(tcpEndpointResolutionKey(label, endpoint))
 }
 
 // ResolveHTTPURLHostCached resolves only the host:port part of a local URL and
@@ -98,6 +109,15 @@ func ResolveHTTPURLHostCached(ctx context.Context, label, rawURL string, timeout
 	next := *parsed
 	next.Host = resolvedEndpoint
 	return next.String(), nil
+}
+
+// InvalidateHTTPURLHostCached invalidates the TCP resolution used by
+// ResolveHTTPURLHostCached. External URLs do not have a local resolution cache.
+func InvalidateHTTPURLHostCached(label, rawURL string) {
+	_, endpoint, err := localURLTCPEndpoint(rawURL)
+	if err == nil && endpoint != "" {
+		InvalidateTCPEndpointCached(label, endpoint)
+	}
 }
 
 func ResolveTCPEndpoint(ctx context.Context, endpoint string, timeout time.Duration) (string, error) {
@@ -139,7 +159,7 @@ func localURLTCPEndpoint(rawURL string) (*url.URL, string, error) {
 }
 
 func ResolveHTTPBaseURLCached(ctx context.Context, label, rawURL, healthPath string, timeout time.Duration) (string, error) {
-	key := label + "\x00" + strings.TrimSpace(rawURL) + "\x00" + healthPath
+	key := httpURLResolutionKey(label, rawURL, healthPath)
 	entryValue, _ := httpURLResolvers.LoadOrStore(key, &cachedResolution{})
 	entry := entryValue.(*cachedResolution)
 	entry.once.Do(func() {
@@ -148,7 +168,17 @@ func ResolveHTTPBaseURLCached(ctx context.Context, label, rawURL, healthPath str
 			entry.value = strings.TrimSpace(rawURL)
 		}
 	})
+	if entry.err != nil {
+		// 启动时的暂时不可达不应污染整个进程生命周期。
+		httpURLResolvers.CompareAndDelete(key, entry)
+	}
 	return entry.value, entry.err
+}
+
+// InvalidateHTTPBaseURLCached invalidates a successful HTTP base URL
+// resolution. The next request will probe the deterministic candidate list.
+func InvalidateHTTPBaseURLCached(label, rawURL, healthPath string) {
+	httpURLResolvers.Delete(httpURLResolutionKey(label, rawURL, healthPath))
 }
 
 func ResolveHTTPBaseURL(ctx context.Context, rawURL, healthPath string, timeout time.Duration) (string, error) {
@@ -230,11 +260,23 @@ func defaultPortForScheme(scheme string) string {
 		return "80"
 	case "https":
 		return "443"
-	case "nats":
+	case "nats", "tls":
 		return "4222"
+	case "ws":
+		return "80"
+	case "wss":
+		return "443"
 	default:
 		return ""
 	}
+}
+
+func tcpEndpointResolutionKey(label, endpoint string) string {
+	return label + "\x00" + strings.TrimSpace(endpoint)
+}
+
+func httpURLResolutionKey(label, rawURL, healthPath string) string {
+	return label + "\x00" + strings.TrimSpace(rawURL) + "\x00" + healthPath
 }
 
 func joinURL(baseURL, path string) (string, error) {

@@ -268,6 +268,10 @@ func (s *WorkspaceChatService) callOtherTool(ctx context.Context, name string, a
 	var result ToolResult
 	if name == workspaceArtifactReadToolName {
 		result = s.readWorkspaceArtifactTool(ctx, args)
+	} else if name == searchSessionHistoryToolName {
+		result = s.searchSessionHistoryTool(ctx, args)
+	} else if name == readSessionMessagesToolName {
+		result = s.readSessionMessagesTool(ctx, args)
 	} else {
 		result = s.toolReg.CallTool(ctx, name, args, fullCodePath, files)
 	}

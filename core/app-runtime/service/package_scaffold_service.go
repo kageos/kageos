@@ -18,12 +18,11 @@ type PackageScaffoldService struct {
 }
 
 // NewPackageScaffoldService 创建 package 脚手架服务。
-func NewPackageScaffoldService(config *config.AppManageServiceConfig) *PackageScaffoldService {
-	return &PackageScaffoldService{config: config}
-}
-
-func (s *PackageScaffoldService) SetAppDatabaseService(appDatabaseService *AppDatabaseService) {
-	s.appDatabaseService = appDatabaseService
+func NewPackageScaffoldService(config *config.AppManageServiceConfig, appDatabaseService *AppDatabaseService) *PackageScaffoldService {
+	return &PackageScaffoldService{
+		config:             config,
+		appDatabaseService: appDatabaseService,
+	}
 }
 
 // DeleteServiceTree 删除目录脚手架，并从 main.go 移除 blank import。

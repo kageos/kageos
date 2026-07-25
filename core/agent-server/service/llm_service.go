@@ -225,6 +225,7 @@ func (s *LLMService) CreateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	if cfg.MaxTokens <= 0 {
 		cfg.MaxTokens = defaultLLMMaxTokens
 	}
+	normalizeLLMContextWindow(cfg)
 
 	// 规范化 extra_config 字段
 	normalizedExtraConfig, err := normalizeExtraConfig(func() string {
@@ -303,6 +304,7 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	if cfg.MaxTokens <= 0 {
 		cfg.MaxTokens = defaultLLMMaxTokens
 	}
+	normalizeLLMContextWindow(cfg)
 
 	// 规范化 extra_config 字段
 	normalizedExtraConfig, err := normalizeExtraConfig(func() string {

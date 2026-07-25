@@ -10,6 +10,7 @@ import (
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/shared"
 )
 
 const defaultOpenAIModel = "gpt-4o-mini"
@@ -296,7 +297,11 @@ func (c *OpenAIClient) buildChatParams(req *ChatRequest) (openai.ChatCompletionN
 		Model:    openai.ChatModel(model),
 	}
 	if req.MaxTokens > 0 {
-		params.MaxTokens = openai.Int(int64(req.MaxTokens))
+		if usesMaxCompletionTokens(model, req.ReasoningEffort) {
+			params.MaxCompletionTokens = openai.Int(int64(req.MaxTokens))
+		} else {
+			params.MaxTokens = openai.Int(int64(req.MaxTokens))
+		}
 	}
 	if req.Temperature > 0 {
 		params.Temperature = openai.Float(req.Temperature)
@@ -309,6 +314,12 @@ func (c *OpenAIClient) buildChatParams(req *ChatRequest) (openai.ChatCompletionN
 		return openai.ChatCompletionNewParams{}, err
 	}
 	params.ToolChoice = toolChoice
+	if reasoningEffort := normalizeReasoningEffort(req.ReasoningEffort); reasoningEffort != "" {
+		params.ReasoningEffort = shared.ReasoningEffort(reasoningEffort)
+	}
+	if verbosity := normalizeVerbosity(req.Verbosity); verbosity != "" {
+		params.Verbosity = openai.ChatCompletionNewParamsVerbosity(verbosity)
+	}
 	if promptCacheKey := strings.TrimSpace(req.PromptCacheKey); promptCacheKey != "" {
 		params.PromptCacheKey = openai.String(promptCacheKey)
 	}
@@ -316,6 +327,37 @@ func (c *OpenAIClient) buildChatParams(req *ChatRequest) (openai.ChatCompletionN
 		params.PromptCacheRetention = openai.ChatCompletionNewParamsPromptCacheRetention(promptCacheRetention)
 	}
 	return params, nil
+}
+
+func usesMaxCompletionTokens(model, reasoningEffort string) bool {
+	if normalizeReasoningEffort(reasoningEffort) != "" {
+		return true
+	}
+	model = strings.ToLower(strings.TrimSpace(model))
+	for _, prefix := range []string{"gpt-5", "o1", "o3", "o4"} {
+		if strings.HasPrefix(model, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeReasoningEffort(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "none", "minimal", "low", "medium", "high", "xhigh":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return ""
+	}
+}
+
+func normalizeVerbosity(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "low", "medium", "high":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return ""
+	}
 }
 
 func normalizePromptCacheRetention(value string) string {
@@ -592,11 +634,20 @@ func formatOpenAIError(err error) error {
 	var apiErr *openai.Error
 	if errors.As(err, &apiErr) {
 		if apiErr.Message != "" {
-			message := fmt.Sprintf("OpenAI API 错误: %s", apiErr.Message)
-			if IsContextWindowErrorMessage(apiErr.Message) {
-				return &ContextWindowError{Message: message}
+			providerErr := &ProviderError{
+				HTTPStatus: apiErr.StatusCode,
+				Code:       apiErr.Code,
+				Type:       apiErr.Type,
+				Param:      apiErr.Param,
+				Message:    apiErr.Message,
 			}
-			return fmt.Errorf("%s", message)
+			message := "OpenAI API 错误: " + providerErr.Error()
+			if IsContextWindowProviderError(providerErr.Code, providerErr.Type, providerErr.Param, providerErr.Message) {
+				contextErr := &ContextWindowError{Message: message, Cause: providerErr}
+				contextErr.MaxContextTokens = ContextWindowLimitFromError(contextErr)
+				return contextErr
+			}
+			return providerErr
 		}
 	}
 	if IsContextWindowErrorMessage(err.Error()) {

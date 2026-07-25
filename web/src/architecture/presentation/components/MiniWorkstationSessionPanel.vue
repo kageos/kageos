@@ -19,6 +19,19 @@
         {{ t('miniWorkstation.currentDirectoryNewSession') }}
       </button>
     </div>
+    <label class="mini-session-source-filter">
+      <el-icon :size="14"><MagicStick v-if="automationMode" /><User v-else /></el-icon>
+      <select
+        :value="sessionSourceFilter"
+        :aria-label="t('miniWorkstation.sessionSource')"
+        @change="emit('update:sessionSourceFilter', ($event.target as HTMLSelectElement).value)"
+      >
+        <option value="human">{{ t('miniWorkstation.humanSessions') }}</option>
+        <option v-for="agent in automationAgents" :key="agent.task_id" :value="`agent:${agent.task_id}`">
+          {{ agent.task_title }}
+        </option>
+      </select>
+    </label>
     <div class="mini-drawer-scope-tabs" role="tablist" :aria-label="t('miniWorkstation.sessionList')">
       <button
         type="button"
@@ -28,6 +41,7 @@
         {{ t('miniWorkstation.currentDirectory') }}
       </button>
       <button
+        v-if="!automationMode"
         type="button"
         :class="{ active: scope === 'all' }"
         @click="emit('scope-change', 'all')"
@@ -66,6 +80,10 @@
         <span class="mini-status-dot" :class="getSessionStatusClass(item)"></span>
         <span class="mini-current-session-copy">
           <span class="mini-current-session-title">{{ getSessionTitle(item) }}</span>
+          <span v-if="item.source === 'automation_agent'" class="mini-current-session-agent">
+            <el-icon :size="11"><MagicStick /></el-icon>
+            {{ item.automation_task_title || t('miniWorkstation.automationAgent') }}
+          </span>
           <span class="mini-current-session-sub">
             {{ getSessionStatusLabel(item) }} · {{ formatRelativeTime(item.updated_at || item.created_at) }}
           </span>
@@ -92,8 +110,8 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { Search } from '@element-plus/icons-vue'
-import type { WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
+import { MagicStick, Search, User } from '@element-plus/icons-vue'
+import type { WorkspaceAutomationAgentItem, WorkspaceSessionItem } from '@/architecture/presentation/context/api/workspace'
 import type { SessionFilterValue } from '../composables/useMiniWorkstationSessionView'
 
 defineProps<{
@@ -102,6 +120,9 @@ defineProps<{
   sessions: WorkspaceSessionItem[]
   activeSessionId: string | undefined
   scope: 'current' | 'all'
+  sessionSourceFilter: string
+  automationAgents: WorkspaceAutomationAgentItem[]
+  automationMode: boolean
   searchKeyword: string
   filter: SessionFilterValue
   filters: Array<{ label: string; value: SessionFilterValue }>
@@ -121,6 +142,7 @@ const emit = defineEmits<{
   (e: 'select', item: WorkspaceSessionItem): void
   (e: 'new-session'): void
   (e: 'scope-change', scope: 'current' | 'all'): void
+  (e: 'update:sessionSourceFilter', value: string): void
   (e: 'context-new-session'): void
 }>()
 
@@ -140,6 +162,34 @@ const { t } = useI18n()
   color: var(--text-primary);
   font-size: 12px;
   overflow: hidden;
+}
+
+.mini-session-source-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+  color: var(--text-secondary);
+}
+
+.mini-session-source-filter select {
+  min-width: 0;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.mini-current-session-agent {
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-primary);
+  font-size: 10px;
 }
 
 .mini-current-session-head {

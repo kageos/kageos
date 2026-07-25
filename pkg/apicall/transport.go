@@ -142,6 +142,9 @@ func isHTTPURL(raw string) bool {
 func doAPIRequest[T any](req *http.Request) (*ApiResult[T], error) {
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		// 当前请求可能包含写操作，不能在这里自动重放。仅让下一次请求
+		// 重新探测 Gateway 候选地址。
+		serviceconfig.InvalidateGatewayURL()
 		return nil, fmt.Errorf("请求失败: %w", err)
 	}
 	defer resp.Body.Close()

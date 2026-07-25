@@ -77,6 +77,9 @@ type fakeAppScheduleClient struct {
 	listResp *scheduledsdk.ListTasksResponse
 	created  []scheduledsdk.CreateTaskRequest
 	updated  []scheduledsdk.UpdateTaskRequest
+	paused   []int64
+	resumed  []int64
+	deleted  []int64
 }
 
 func (f *fakeAppScheduleClient) CreateTask(_ context.Context, req scheduledsdk.CreateTaskRequest) (*scheduledsdk.Task, error) {
@@ -94,6 +97,21 @@ func (f *fakeAppScheduleClient) ListTasks(_ context.Context, _ scheduledsdk.List
 		return f.listResp, nil
 	}
 	return &scheduledsdk.ListTasksResponse{}, nil
+}
+
+func (f *fakeAppScheduleClient) PauseTask(_ context.Context, taskID int64) error {
+	f.paused = append(f.paused, taskID)
+	return nil
+}
+
+func (f *fakeAppScheduleClient) ResumeTask(_ context.Context, taskID int64) error {
+	f.resumed = append(f.resumed, taskID)
+	return nil
+}
+
+func (f *fakeAppScheduleClient) DeleteTask(_ context.Context, taskID int64) error {
+	f.deleted = append(f.deleted, taskID)
+	return nil
 }
 
 func TestReconcilePackageAgentTasksPreservesExistingManifestTaskByDefault(t *testing.T) {

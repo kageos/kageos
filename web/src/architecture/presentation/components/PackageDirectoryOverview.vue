@@ -113,40 +113,51 @@
           <el-tag size="small" type="primary">{{ scheduledFunctionTotal }}</el-tag>
         </div>
 
-        <div v-if="displayFunctionTasks.length > 0" class="task-list">
-          <button
-            v-for="item in displayFunctionTasks"
-            :key="item.key"
-            type="button"
-            class="task-row"
-            @click="openTask(item)"
-          >
-            <span class="task-row-main">
-              <span class="task-row-title">
-                {{ item.task.title || t('scheduledTask.unnamedFunctionTask') }}
-                <el-tag
-                  v-if="item.task.inflight_execution_id"
-                  size="small"
-                  type="primary"
-                  effect="light"
-                >
-                  {{ t('scheduledTask.running') }}
+        <template v-if="displayFunctionTasks.length > 0">
+          <div class="task-list">
+            <button
+              v-for="item in displayFunctionTasks"
+              :key="item.key"
+              type="button"
+              class="task-row"
+              @click="openTask(item)"
+            >
+              <span class="task-row-main">
+                <span class="task-row-title">
+                  {{ item.task.title || t('scheduledTask.unnamedFunctionTask') }}
+                  <el-tag
+                    v-if="item.task.inflight_execution_id"
+                    size="small"
+                    type="primary"
+                    effect="light"
+                  >
+                    {{ t('scheduledTask.running') }}
+                  </el-tag>
+                </span>
+                <span class="task-row-path">{{ item.resourceName }} · {{ item.resourcePath }}</span>
+                <span v-if="item.task.last_error_message" class="task-row-error">
+                  {{ item.task.last_error_message }}
+                </span>
+              </span>
+              <span class="task-row-side">
+                <el-tag :type="taskStatusTag(item.task.status)" size="small">
+                  {{ taskStatusLabel(item.task.status) }}
                 </el-tag>
+                <span class="task-row-schedule">{{ scheduleLabel(item.task.schedule) }}</span>
+                <span class="task-row-next">{{ formatDateTime(item.task.next_run_at) }}</span>
               </span>
-              <span class="task-row-path">{{ item.resourceName }} · {{ item.resourcePath }}</span>
-              <span v-if="item.task.last_error_message" class="task-row-error">
-                {{ item.task.last_error_message }}
-              </span>
-            </span>
-            <span class="task-row-side">
-              <el-tag :type="taskStatusTag(item.task.status)" size="small">
-                {{ taskStatusLabel(item.task.status) }}
-              </el-tag>
-              <span class="task-row-schedule">{{ scheduleLabel(item.task.schedule) }}</span>
-              <span class="task-row-next">{{ formatDateTime(item.task.next_run_at) }}</span>
-            </span>
-          </button>
-        </div>
+            </button>
+          </div>
+          <div v-if="functionTaskItemCount > TASK_PAGE_SIZE" class="overview-pagination is-function">
+            <el-pagination
+              v-model:current-page="functionTaskPage"
+              small
+              :page-size="TASK_PAGE_SIZE"
+              :total="functionTaskItemCount"
+              layout="prev, pager, next"
+            />
+          </div>
+        </template>
 
         <el-empty
           v-else
@@ -168,43 +179,54 @@
           <el-tag size="small" type="success">{{ scheduledAgentTotal }}</el-tag>
         </div>
 
-        <div v-if="displayAgentTasks.length > 0" class="task-list">
-          <button
-            v-for="item in displayAgentTasks"
-            :key="item.key"
-            type="button"
-            class="task-row"
-            @click="openTask(item)"
-          >
-            <span class="task-row-main">
-              <span class="task-row-title">
-                {{ item.task.title || t('scheduledTask.unnamedAgentTask') }}
-                <el-tag
-                  v-if="item.task.inflight_execution_id"
-                  size="small"
-                  type="primary"
-                  effect="light"
-                >
-                  {{ t('scheduledTask.running') }}
+        <template v-if="displayAgentTasks.length > 0">
+          <div class="task-list">
+            <button
+              v-for="item in displayAgentTasks"
+              :key="item.key"
+              type="button"
+              class="task-row"
+              @click="openTask(item)"
+            >
+              <span class="task-row-main">
+                <span class="task-row-title">
+                  {{ item.task.title || t('scheduledTask.unnamedAgentTask') }}
+                  <el-tag
+                    v-if="item.task.inflight_execution_id"
+                    size="small"
+                    type="primary"
+                    effect="light"
+                  >
+                    {{ t('scheduledTask.running') }}
+                  </el-tag>
+                </span>
+                <span class="task-row-path">{{ item.resourceName }} · {{ item.resourcePath }}</span>
+                <span v-if="getAgentMessage(item.task)" class="task-row-message">
+                  {{ getAgentMessage(item.task) }}
+                </span>
+                <span v-if="item.task.last_error_message" class="task-row-error">
+                  {{ item.task.last_error_message }}
+                </span>
+              </span>
+              <span class="task-row-side">
+                <el-tag :type="taskStatusTag(item.task.status)" size="small">
+                  {{ taskStatusLabel(item.task.status) }}
                 </el-tag>
+                <span class="task-row-schedule">{{ scheduleLabel(item.task.schedule) }}</span>
+                <span class="task-row-next">{{ formatDateTime(item.task.next_run_at) }}</span>
               </span>
-              <span class="task-row-path">{{ item.resourceName }} · {{ item.resourcePath }}</span>
-              <span v-if="getAgentMessage(item.task)" class="task-row-message">
-                {{ getAgentMessage(item.task) }}
-              </span>
-              <span v-if="item.task.last_error_message" class="task-row-error">
-                {{ item.task.last_error_message }}
-              </span>
-            </span>
-            <span class="task-row-side">
-              <el-tag :type="taskStatusTag(item.task.status)" size="small">
-                {{ taskStatusLabel(item.task.status) }}
-              </el-tag>
-              <span class="task-row-schedule">{{ scheduleLabel(item.task.schedule) }}</span>
-              <span class="task-row-next">{{ formatDateTime(item.task.next_run_at) }}</span>
-            </span>
-          </button>
-        </div>
+            </button>
+          </div>
+          <div v-if="agentTaskItemCount > TASK_PAGE_SIZE" class="overview-pagination is-agent">
+            <el-pagination
+              v-model:current-page="agentTaskPage"
+              small
+              :page-size="TASK_PAGE_SIZE"
+              :total="agentTaskItemCount"
+              layout="prev, pager, next"
+            />
+          </div>
+        </template>
 
         <el-empty
           v-else
@@ -243,7 +265,7 @@ const props = defineProps<{
   packageNode: ServiceTree | null
 }>()
 
-const TASK_DISPLAY_LIMIT = 8
+const TASK_PAGE_SIZE = 8
 
 const { t } = useI18n()
 const router = useRouter()
@@ -251,6 +273,8 @@ const loading = ref(false)
 const loadSeq = ref(0)
 const overview = ref<DirectoryOverviewResp | null>(null)
 const errorMessage = ref('')
+const functionTaskPage = ref(1)
+const agentTaskPage = ref(1)
 
 const emptyStats: DirectoryOverviewStats = {
   directories: 0,
@@ -279,17 +303,33 @@ const runningTaskCount = computed(() => overviewStats.value.running_tasks)
 const nextRunLabel = computed(() => formatDateTime(overviewStats.value.next_run_at))
 const partialHint = computed(() => (overview.value?.warnings || []).join('；'))
 
-const displayFunctionTasks = computed(() => {
+const normalizedFunctionTasks = computed(() => {
   return (overview.value?.scheduled_function_tasks || [])
     .map(normalizeOverviewTask)
-    .slice(0, TASK_DISPLAY_LIMIT)
+})
+
+const normalizedAgentTasks = computed(() => {
+  return (overview.value?.scheduled_agent_tasks || [])
+    .map(normalizeOverviewTask)
+})
+
+const functionTaskItemCount = computed(() => normalizedFunctionTasks.value.length)
+const agentTaskItemCount = computed(() => normalizedAgentTasks.value.length)
+
+const displayFunctionTasks = computed(() => {
+  const start = (functionTaskPage.value - 1) * TASK_PAGE_SIZE
+  return normalizedFunctionTasks.value.slice(start, start + TASK_PAGE_SIZE)
 })
 
 const displayAgentTasks = computed(() => {
-  return (overview.value?.scheduled_agent_tasks || [])
-    .map(normalizeOverviewTask)
-    .slice(0, TASK_DISPLAY_LIMIT)
+  const start = (agentTaskPage.value - 1) * TASK_PAGE_SIZE
+  return normalizedAgentTasks.value.slice(start, start + TASK_PAGE_SIZE)
 })
+
+function clampTaskPage(page: number, itemCount: number): number {
+  const lastPage = Math.max(1, Math.ceil(itemCount / TASK_PAGE_SIZE))
+  return Math.min(Math.max(1, page), lastPage)
+}
 
 function fallbackStatsFromTree(): DirectoryOverviewStats {
   const stats: DirectoryOverviewStats = {
@@ -387,10 +427,20 @@ watch(
   () => props.packageNode?.full_code_path,
   () => {
     overview.value = null
+    functionTaskPage.value = 1
+    agentTaskPage.value = 1
     void loadOverview()
   },
   { immediate: true }
 )
+
+watch(functionTaskItemCount, (itemCount) => {
+  functionTaskPage.value = clampTaskPage(functionTaskPage.value, itemCount)
+})
+
+watch(agentTaskItemCount, (itemCount) => {
+  agentTaskPage.value = clampTaskPage(agentTaskPage.value, itemCount)
+})
 </script>
 
 <style scoped lang="scss">
@@ -564,6 +614,12 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.overview-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 
 .task-row {

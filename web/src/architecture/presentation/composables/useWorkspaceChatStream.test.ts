@@ -49,6 +49,26 @@ function deferred<T = void>() {
 }
 
 describe('useWorkspaceChatStream', () => {
+  it('rolls back partial output when a generation attempt is discarded before retry', () => {
+    const { stream, wrapper } = setupStream()
+
+    stream.handleEvent('generation_attempt', { attempt_id: '0-1', round: 0, action: 'started' })
+    stream.handleEvent('thinking', { content: '旧思考' })
+    stream.handleEvent('content', { content: '半截输出' })
+    expect(stream.messages.value[1]?.content).toBe('半截输出')
+
+    stream.handleEvent('generation_attempt', { attempt_id: '0-1', round: 0, action: 'discarded', reason: 'context_window_retry' })
+    expect(stream.messages.value[1]?.content).toBe('')
+    expect(stream.messages.value[1]?.blocks).toEqual([])
+
+    stream.handleEvent('generation_attempt', { attempt_id: '0-2', round: 0, action: 'started' })
+    stream.handleEvent('content', { content: '完整输出' })
+    stream.handleEvent('generation_attempt', { attempt_id: '0-2', round: 0, action: 'committed' })
+    expect(stream.messages.value[1]?.content).toBe('完整输出')
+
+    wrapper.unmount()
+  })
+
   it('matches streamed tool calls by round and index instead of reusing index zero across rounds', () => {
     const { stream, wrapper } = setupStream()
 

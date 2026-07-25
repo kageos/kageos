@@ -136,14 +136,15 @@ func validateRunWritePayloads(ctx context.Context, fields []*widget.Field, paylo
 			}
 			path := runWriteFieldPath(payload.Label, field.Code)
 			value, exists := payload.Body[field.Code]
-			if enforceRequired && isRunWriteRequiredField(field) && (!exists || isRunWriteEmptyValue(value)) {
+			empty := isRunWriteFieldEmptyValue(field, value)
+			if enforceRequired && isRunWriteRequiredField(field) && (!exists || empty) {
 				issues = append(issues, runWriteValidationIssue{
 					Kind:    runWriteIssueRequired,
 					Message: fmt.Sprintf("%s (%s) 必填，不能省略或传空值。", runWriteFieldDisplayName(field), path),
 				})
 				continue
 			}
-			if !exists || isRunWriteEmptyValue(value) {
+			if !exists || empty {
 				continue
 			}
 			widgetType := strings.TrimSpace(field.Widget.Type)

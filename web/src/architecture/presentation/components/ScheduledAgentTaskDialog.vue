@@ -115,6 +115,19 @@
           <el-input-number v-model="form.max_runs" :min="0" :max="1000000" style="width: 100%" />
         </el-form-item>
       </div>
+
+      <el-form-item :label="t('scheduledTask.overlapPolicy')" prop="overlap_policy">
+        <el-select v-model="form.overlap_policy" style="width: 100%">
+          <el-option :label="t('scheduledTask.overlapForbid')" value="forbid" />
+          <el-option :label="t('scheduledTask.overlapQueueLatest')" value="queue_latest" />
+          <el-option :label="t('scheduledTask.overlapAllow')" value="allow" />
+        </el-select>
+        <div class="scheduled-agent-field-hint">{{ t(`scheduledTask.overlapHint_${form.overlap_policy}`) }}</div>
+      </el-form-item>
+
+      <el-form-item v-if="form.overlap_policy === 'allow'" :label="t('scheduledTask.maxParallelism')" prop="max_parallelism">
+        <el-input-number v-model="form.max_parallelism" :min="1" :max="16" style="width: 100%" />
+      </el-form-item>
     </el-form>
 
     <template #footer>
@@ -130,7 +143,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { createTimerTask, updateTimerTask, type TimerTask } from '@/architecture/presentation/context/api/timer'
+import { createTimerTask, updateTimerTask, type TimerOverlapPolicy, type TimerTask } from '@/architecture/presentation/context/api/timer'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
 import { useMiniWorkstationUploads } from '@/architecture/presentation/composables/useMiniWorkstationUploads'
@@ -153,6 +166,8 @@ interface ScheduledAgentForm extends TimerScheduleForm {
   files: string
   llm_config_id: number
   max_duration_seconds: number
+  overlap_policy: TimerOverlapPolicy
+  max_parallelism: number
 }
 
 const props = withDefaults(defineProps<{
@@ -210,6 +225,8 @@ const form = reactive<ScheduledAgentForm>({
   files: '',
   llm_config_id: 0,
   max_duration_seconds: 0,
+  overlap_policy: 'forbid',
+  max_parallelism: 2,
   ...createDefaultTimerScheduleForm(),
 })
 const messageTextRef = computed({
@@ -266,6 +283,8 @@ function resetForm() {
     void loadLLMOptions()
   }
   form.max_duration_seconds = task ? numberFromRecord(payload, 'max_duration_seconds') : 0
+  form.overlap_policy = task?.overlap_policy || 'forbid'
+  form.max_parallelism = task?.max_parallelism || 2
   form.schedule_type = schedule.schedule_type
   form.run_at = schedule.run_at
   form.cron_expr = schedule.cron_expr
@@ -348,6 +367,8 @@ async function handleSubmit() {
         executor_payload: executorPayload,
         metadata,
         schedule: buildTimerSchedule(form),
+        overlap_policy: form.overlap_policy,
+        max_parallelism: form.overlap_policy === 'allow' ? form.max_parallelism : 1,
         source_type: 'agent_session',
         source_ref: resolvedFullCodePath.value,
         resource_scope: 'workspace_directory',
@@ -365,6 +386,8 @@ async function handleSubmit() {
         metadata,
         status: 'paused',
         schedule: buildTimerSchedule(form),
+        overlap_policy: form.overlap_policy,
+        max_parallelism: form.overlap_policy === 'allow' ? form.max_parallelism : 1,
         source_type: 'agent_session',
         source_ref: resolvedFullCodePath.value,
         resource_scope: 'workspace_directory',

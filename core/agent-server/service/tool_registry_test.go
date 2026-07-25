@@ -319,7 +319,7 @@ func TestReadDirOutputSchemaExposesStructuredData(t *testing.T) {
 	if !ok {
 		t.Fatal("read_dir summary properties missing or invalid")
 	}
-	for _, name := range []string{"directory_count", "function_count", "file_count"} {
+	for _, name := range []string{"directory_count", "document_count", "function_count", "file_count"} {
 		if _, ok := summaryProps[name]; !ok {
 			t.Fatalf("read_dir summary schema should expose %q", name)
 		}

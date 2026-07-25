@@ -132,14 +132,21 @@ func (s *LLMService) ProbeLLMConfig(ctx context.Context, req dto.LLMProbeReq) (*
 
 		chatTimeout := time.Duration(timeoutSeconds) * time.Second
 		callCtx, cancel := context.WithTimeout(ctx, chatTimeout)
-		resp, err := client.Chat(callCtx, &llms.ChatRequest{
+		probeReq := &llms.ChatRequest{
 			Messages: []llms.Message{
 				{Role: "user", Content: "Reply with exactly: KAGEOS_OK"},
 			},
 			Model:     modelName,
 			MaxTokens: maxTokens,
 			Timeout:   &chatTimeout,
-		})
+		}
+		if reasoningEffort, ok := extraConfig["reasoning_effort"].(string); ok {
+			probeReq.ReasoningEffort = strings.TrimSpace(reasoningEffort)
+		}
+		if verbosity, ok := extraConfig["verbosity"].(string); ok {
+			probeReq.Verbosity = strings.TrimSpace(verbosity)
+		}
+		resp, err := client.Chat(callCtx, probeReq)
 		cancel()
 		if err != nil {
 			attempt.Error = err.Error()
@@ -159,18 +166,21 @@ func (s *LLMService) ProbeLLMConfig(ctx context.Context, req dto.LLMProbeReq) (*
 
 		attempt.OK = true
 		attempts = append(attempts, attempt)
+		contextWindow, contextWindowSource := probeLLMContextWindow(ctx, clientConfig)
 		return &dto.LLMProbeResp{
-			OK:           true,
-			Provider:     provider,
-			Protocol:     protocol,
-			APIBase:      baseURL,
-			EndpointPath: endpointPath,
-			APIVersion:   apiVersion,
-			AuthScheme:   authScheme,
-			Model:        client.GetModelName(),
-			Message:      strings.TrimSpace(resp.Content),
-			Capabilities: llmProbeCapabilities(protocol),
-			Attempts:     attempts,
+			OK:                  true,
+			Provider:            provider,
+			Protocol:            protocol,
+			APIBase:             baseURL,
+			EndpointPath:        endpointPath,
+			APIVersion:          apiVersion,
+			AuthScheme:          authScheme,
+			Model:               client.GetModelName(),
+			Message:             strings.TrimSpace(resp.Content),
+			Capabilities:        llmProbeCapabilities(protocol),
+			ContextWindow:       contextWindow,
+			ContextWindowSource: contextWindowSource,
+			Attempts:            attempts,
 		}, nil
 	}
 

@@ -2,9 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 )
+
+const appNATSSecretTarget = "kageos-nats"
 
 // AppVersionRef identifies one runnable app version.
 type AppVersionRef struct {
@@ -29,6 +33,20 @@ type AppVersionSpec struct {
 	ContainerPath string
 	Command       []string
 	EnvVars       []string
+	Secrets       []RuntimeSecret
+}
+
+// RuntimeSecret is sensitive data provisioned by the runtime and mounted into
+// a container. Data is sent to Podman through stdin and must never be placed in
+// command arguments, environment variables, or logs.
+type RuntimeSecret struct {
+	Name   string
+	Target string
+	Data   []byte
+}
+
+func appNATSSecretName(ref AppVersionRef) string {
+	return ref.RuntimeName() + "-nats"
 }
 
 // AppRuntimeInstance is the runtime-neutral view of one app version instance.
@@ -87,10 +105,31 @@ func (d *PodmanAppRuntimeDriver) CreateAppVersion(ctx context.Context, spec AppV
 	if err != nil {
 		return err
 	}
-	if err := d.containerService.RunContainerWithCommand(ctx, spec.Image, name, spec.HostPath, spec.ContainerPath, spec.Command, spec.EnvVars...); err != nil {
-		return fmt.Errorf("failed to create app runtime instance: %w", err)
+
+	createdSecrets := make([]RuntimeSecret, 0, len(spec.Secrets))
+	for _, secret := range spec.Secrets {
+		if err := d.containerService.CreateSecret(ctx, secret); err != nil {
+			cleanupErr := d.removeSecrets(ctx, createdSecrets)
+			return errors.Join(fmt.Errorf("failed to create app runtime secret %s: %w", secret.Name, err), cleanupErr)
+		}
+		createdSecrets = append(createdSecrets, secret)
+	}
+
+	if err := d.containerService.RunContainerWithCommand(ctx, spec.Image, name, spec.HostPath, spec.ContainerPath, spec.Command, spec.Secrets, spec.EnvVars...); err != nil {
+		cleanupErr := d.removeSecrets(ctx, createdSecrets)
+		return errors.Join(fmt.Errorf("failed to create app runtime instance: %w", err), cleanupErr)
 	}
 	return nil
+}
+
+func (d *PodmanAppRuntimeDriver) removeSecrets(ctx context.Context, secrets []RuntimeSecret) error {
+	var errs []error
+	for _, secret := range secrets {
+		if err := d.containerService.RemoveSecret(ctx, secret.Name); err != nil {
+			errs = append(errs, fmt.Errorf("failed to remove app runtime secret %s: %w", secret.Name, err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (d *PodmanAppRuntimeDriver) StartAppVersion(ctx context.Context, spec AppVersionSpec) error {
@@ -122,7 +161,9 @@ func (d *PodmanAppRuntimeDriver) RemoveAppVersion(ctx context.Context, ref AppVe
 	if d == nil || d.containerService == nil {
 		return fmt.Errorf("app runtime driver not available")
 	}
-	return d.containerService.RemoveContainer(ctx, ref.RuntimeName())
+	containerErr := d.containerService.RemoveContainer(ctx, ref.RuntimeName())
+	secretErr := d.containerService.RemoveSecret(ctx, appNATSSecretName(ref))
+	return errors.Join(containerErr, secretErr)
 }
 
 func (d *PodmanAppRuntimeDriver) IsAppVersionRunning(ctx context.Context, ref AppVersionRef) (bool, error) {
@@ -187,6 +228,28 @@ func normalizeAppVersionSpec(spec AppVersionSpec) (AppVersionSpec, error) {
 	}
 	if len(spec.Command) == 0 {
 		return spec, fmt.Errorf("app runtime command cannot be empty")
+	}
+	seenSecrets := make(map[string]struct{}, len(spec.Secrets))
+	for _, secret := range spec.Secrets {
+		if strings.TrimSpace(secret.Name) == "" {
+			return spec, fmt.Errorf("app runtime secret name cannot be empty")
+		}
+		if strings.Contains(secret.Name, ",") {
+			return spec, fmt.Errorf("app runtime secret name cannot contain commas: %s", secret.Name)
+		}
+		if strings.TrimSpace(secret.Target) == "" {
+			return spec, fmt.Errorf("app runtime secret target cannot be empty: %s", secret.Name)
+		}
+		if strings.Contains(secret.Target, ",") {
+			return spec, fmt.Errorf("app runtime secret target cannot contain commas: %s", secret.Target)
+		}
+		if len(secret.Data) == 0 {
+			return spec, fmt.Errorf("app runtime secret data cannot be empty: %s", secret.Name)
+		}
+		if _, exists := seenSecrets[secret.Name]; exists {
+			return spec, fmt.Errorf("duplicate app runtime secret: %s", secret.Name)
+		}
+		seenSecrets[secret.Name] = struct{}{}
 	}
 	return spec, nil
 }

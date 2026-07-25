@@ -37,6 +37,8 @@ func taskToSDK(task *model.TimerTask) *scheduledsdk.Task {
 		Schedule:            schedule,
 		NextRunAt:           task.NextRunAt,
 		RunCount:            task.RunCount,
+		OverlapPolicy:       normalizedOverlapPolicy(task.OverlapPolicy),
+		MaxParallelism:      normalizedMaxParallelism(task.OverlapPolicy, task.MaxParallelism),
 		InflightExecutionID: task.InflightExecutionID,
 		LastExecutionID:     task.LastExecutionID,
 		LastErrorMessage:    task.LastErrorMessage,

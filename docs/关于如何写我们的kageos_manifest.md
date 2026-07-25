@@ -7,6 +7,8 @@
 
 它们都是 seed，不是长期权威源。build/update 后，平台会把缺失的文档和默认 Agent 任务挂到 Service Tree；后续运行态以树上的 `runbook.docs` 和平台里的任务配置为准。代码里的 `kageos_manifest.go` 只负责首次创建，不应覆盖线上人工维护过的内容。
 
+`DocManifest.Code` 在源码中统一显式包含 `.docs` 后缀，例如 `runbook.docs`、`./docs/readme.docs`。SDK 仍兼容旧的无后缀声明，但新代码和示例不要省略后缀。
+
 ## 核心区别
 
 `runbook.docs` 是目录级运行契约。任何 Agent 进入这个目录，都应该能靠它理解业务背景、核心资源、标准 SOP、异常处理、通知规则和禁止事项。它覆盖的不只是定时任务，还包括用户临时提问、移动端回复通知、人工要求分析数据、外部事件触发后的接续会话。
@@ -286,7 +288,7 @@ AgentTask 是无人值守任务，运行时用户不在线，所以不能写“�
 写 `kageos_manifest.go` 前检查：
 
 - 文件名必须是 `kageos_manifest.go`，不要用 `_init_data.go`。
-- 默认文档使用 `packageContext.AddDocs(app.DocManifest{Code: "runbook", ...})`。
+- 默认文档使用 `packageContext.AddDocs(app.DocManifest{Code: "runbook.docs", ...})`。
 - 默认 Agent 任务使用 `packageContext.AddAgentTask(app.AgentTask{...})`。
 - 不要给 AgentTask 填 `Policy`，默认就是缺失才创建。
 - build/update 后才会把 seed 同步到 Service Tree。

@@ -261,6 +261,73 @@ func TestBuildCapabilityBundleAgentTaskRequestRebasesTargetPath(t *testing.T) {
 	}
 }
 
+func TestInstallCapabilityBundleAgentTasksOverwriteRefreshesExistingTask(t *testing.T) {
+	fake := &fakeAppScheduleClient{}
+	old := newAppScheduleClient
+	newAppScheduleClient = func() appScheduleClient { return fake }
+	defer func() { newAppScheduleClient = old }()
+
+	svc := &serviceTreeCapabilityBundleService{}
+	refs, err := svc.installCapabilityBundleAgentTasks(context.Background(), "/alice/app", []*dto.CapabilityBundleAgentTask{
+		{
+			RelativePath: "customers",
+			Code:         "daily_brief",
+			Title:        "Daily brief",
+			Message:      "Summarize customer updates",
+			Enabled:      true,
+			Schedule:     scheduledsdk.Schedule{Type: scheduledsdk.ScheduleCron, CronExpr: "0 9 * * *"},
+		},
+	}, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 1 || refs[0] != "alice/app/customers:daily_brief" {
+		t.Fatalf("unexpected refs: %#v", refs)
+	}
+	if len(fake.updated) != 1 {
+		t.Fatalf("updated tasks = %d, want 1", len(fake.updated))
+	}
+	if len(fake.resumed) != 1 || fake.resumed[0] != 1 {
+		t.Fatalf("resumed task ids = %#v, want [1]", fake.resumed)
+	}
+}
+
+func TestCleanupReplacedAgentTasksDeletesOnlyTasksMissingFromSource(t *testing.T) {
+	fake := &fakeAppScheduleClient{
+		listResp: &scheduledsdk.ListTasksResponse{List: []*scheduledsdk.Task{
+			{
+				ID:          10,
+				ExecutorKey: ScheduledAgentSessionExecutorKey,
+				ResourceKey: "/bob/app/tools",
+				Metadata:    map[string]string{"bundle_task_code": "keep"},
+			},
+			{
+				ID:          11,
+				ExecutorKey: ScheduledAgentSessionExecutorKey,
+				ResourceKey: "/bob/app/tools",
+				Metadata:    map[string]string{"bundle_task_code": "remove"},
+			},
+		}},
+	}
+	old := newAppScheduleClient
+	newAppScheduleClient = func() appScheduleClient { return fake }
+	defer func() { newAppScheduleClient = old }()
+
+	err := cleanupReplacedAgentTasks(context.Background(), &copyDirectoryPlan{
+		targetRootPath:       "/bob/app/tools",
+		runtimeAssetBasePath: "/bob/app",
+		agentTasks: []*dto.CapabilityBundleAgentTask{
+			{RelativePath: "tools", Code: "keep"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !reflect.DeepEqual(fake.deleted, []int64{11}) {
+		t.Fatalf("deleted task ids = %#v, want [11]", fake.deleted)
+	}
+}
+
 func TestBuildCapabilityBundleInstallPlanMountsRelativePackages(t *testing.T) {
 	t.Parallel()
 

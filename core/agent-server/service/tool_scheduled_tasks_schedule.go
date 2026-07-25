@@ -87,6 +87,8 @@ func rejectCreateScheduledAgentTaskUnknownArgs(args map[string]interface{}) erro
 		"files":                {},
 		"llm_config_id":        {},
 		"max_duration_seconds": {},
+		"overlap_policy":       {},
+		"max_parallelism":      {},
 		"description":          {},
 		"idempotency_key":      {},
 	}

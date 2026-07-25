@@ -20,7 +20,7 @@ import (
 )
 
 type AppService struct {
-	appCall         appRuntimeClient
+	appCall         AppRuntimeClient
 	appRepo         *repository.AppRepository
 	functionRepo    *repository.FunctionRepository
 	serviceTreeRepo *repository.ServiceTreeRepository
@@ -30,36 +30,38 @@ type AppService struct {
 	sensitiveFields *FunctionSensitiveFieldService
 }
 
-type appRuntimeClient interface {
+type AppRuntimeClient interface {
 	CreateApp(ctx context.Context, hostID int64, req *dto.CreateAppReq) (*dto.CreateAppResp, error)
 	UpdateApp(ctx context.Context, hostID int64, req *dto.UpdateAppRuntimeReq) (*dto.UpdateAppResp, error)
 	RequestApp(ctx context.Context, hostID int64, req *dto.RequestAppReq) (*dto.RequestAppResp, error)
 	DeleteApp(ctx context.Context, hostID int64, req *dto.DeleteAppRuntimeReq) (*dto.DeleteAppResp, error)
 }
 
-var _ appRuntimeClient = (*appcall.Client)(nil)
+var _ AppRuntimeClient = (*appcall.Client)(nil)
+
+type AppServiceDependencies struct {
+	AppRuntimeClient              AppRuntimeClient
+	AppRepository                 *repository.AppRepository
+	FunctionRepository            *repository.FunctionRepository
+	ServiceTreeRepository         *repository.ServiceTreeRepository
+	OperateLogRepository          *repository.OperateLogRepository
+	DocService                    *DocService
+	TeamAccessService             *TeamAccessService
+	FunctionSensitiveFieldService *FunctionSensitiveFieldService
+}
 
 // NewAppService 创建 AppService（依赖注入）
-func NewAppService(appCall appRuntimeClient, appRepo *repository.AppRepository, functionRepo *repository.FunctionRepository, serviceTreeRepo *repository.ServiceTreeRepository, operateLogRepo *repository.OperateLogRepository) *AppService {
+func NewAppService(deps AppServiceDependencies) *AppService {
 	return &AppService{
-		appCall:         appCall,
-		appRepo:         appRepo,
-		functionRepo:    functionRepo,
-		serviceTreeRepo: serviceTreeRepo,
-		operateLogRepo:  operateLogRepo,
+		appCall:         deps.AppRuntimeClient,
+		appRepo:         deps.AppRepository,
+		functionRepo:    deps.FunctionRepository,
+		serviceTreeRepo: deps.ServiceTreeRepository,
+		operateLogRepo:  deps.OperateLogRepository,
+		docService:      deps.DocService,
+		teamAccess:      deps.TeamAccessService,
+		sensitiveFields: deps.FunctionSensitiveFieldService,
 	}
-}
-
-func (a *AppService) SetTeamAccessService(teamAccess *TeamAccessService) {
-	a.teamAccess = teamAccess
-}
-
-func (a *AppService) SetFunctionSensitiveFieldService(sensitiveFields *FunctionSensitiveFieldService) {
-	a.sensitiveFields = sensitiveFields
-}
-
-func (a *AppService) SetDocService(docService *DocService) {
-	a.docService = docService
 }
 
 // CreateApp 创建应用
@@ -990,6 +992,9 @@ func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto
 	if err != nil {
 		return nil, err
 	}
+	if app.IsPersonalWorkspace {
+		return nil, fmt.Errorf("默认个人空间不支持删除。若要开始新的工作，可创建其他工作空间。")
+	}
 
 	// 调用 app-runtime 删除应用
 	resp, err := a.appCall.DeleteApp(ctx, app.HostID, &dto.DeleteAppRuntimeReq{
@@ -1047,6 +1052,7 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 			NatsID:                app.NatsID,
 			HostID:                app.HostID,
 			IsPublic:              app.IsPublic,
+			IsPersonalWorkspace:   app.IsPersonalWorkspace,
 			HideUnauthorizedNodes: app.HideUnauthorizedNodes,
 			Admins:                app.Admins,
 			Type:                  int(app.Type),
@@ -1155,6 +1161,7 @@ func (a *AppService) GetAppDetail(ctx context.Context, req *dto.GetAppDetailReq)
 			NatsID:                app.NatsID,
 			HostID:                app.HostID,
 			IsPublic:              app.IsPublic,
+			IsPersonalWorkspace:   app.IsPersonalWorkspace,
 			HideUnauthorizedNodes: app.HideUnauthorizedNodes,
 			Admins:                app.Admins,
 			Type:                  int(app.Type),
@@ -1169,7 +1176,8 @@ func (a *AppService) GetAppByUserName(ctx context.Context, user, app string) (*m
 	return a.appRepo.GetAppByUserName(user, app)
 }
 
-// UpdateWorkspace 更新工作空间（只更新 MySQL 记录，不涉及容器更新）
+// UpdateWorkspace 更新工作空间（只更新 MySQL 记录，不涉及容器更新）。
+// Name 是展示字段，code、URL 与运行时目录保持不变；根节点名称与 App 在同一事务中更新。
 func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspaceReq) (*dto.UpdateWorkspaceResp, error) {
 	user, appCode, err := resolveUserAppFromRequiredResourcePath(req.ResourcePath)
 	if err != nil {
@@ -1182,24 +1190,61 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 		return nil, fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
+	// 仓储缓存的是模型指针；复制后再改，避免事务失败污染缓存值。
+	updatedApp := *app
+	nameChanged := false
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if name == "" {
+			return nil, fmt.Errorf("工作空间名称不能为空")
+		}
+		updatedApp.Name = name
+		nameChanged = name != app.Name
+	}
 	if req.Admins != nil {
-		app.Admins = *req.Admins
+		updatedApp.Admins = *req.Admins
 	}
 	if req.HideUnauthorizedNodes != nil {
-		app.HideUnauthorizedNodes = *req.HideUnauthorizedNodes
-	}
-	if err := a.appRepo.UpdateApp(app); err != nil {
-		return nil, fmt.Errorf("更新工作空间失败: %w", err)
+		updatedApp.HideUnauthorizedNodes = *req.HideUnauthorizedNodes
 	}
 
-	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, admins=%s, hide_unauthorized_nodes=%t",
-		user, appCode, app.Admins, app.HideUnauthorizedNodes)
+	db := a.appRepo.GetDB().WithContext(ctx)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if nameChanged {
+			var count int64
+			if err := tx.Model(&model.App{}).
+				Where("user = ? AND name = ? AND id <> ?", user, updatedApp.Name, updatedApp.ID).
+				Count(&count).Error; err != nil {
+				return fmt.Errorf("检查工作空间名称失败: %w", err)
+			}
+			if count > 0 {
+				return fmt.Errorf("工作空间名称已存在: %s", updatedApp.Name)
+			}
+
+			var rootNode model.ServiceTree
+			if err := tx.Where("app_id = ? AND ref_id = ?", updatedApp.ID, updatedApp.ID).First(&rootNode).Error; err != nil {
+				return fmt.Errorf("获取工作空间根目录失败: %w", err)
+			}
+			rootNode.Name = updatedApp.Name
+			if err := tx.Save(&rootNode).Error; err != nil {
+				return fmt.Errorf("更新工作空间根目录名称失败: %w", err)
+			}
+		}
+		return tx.Save(&updatedApp).Error
+	}); err != nil {
+		return nil, fmt.Errorf("更新工作空间失败: %w", err)
+	}
+	a.appRepo.InvalidateAppCacheBoth(updatedApp.User, updatedApp.Code, updatedApp.ID)
+
+	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, name=%s, admins=%s, hide_unauthorized_nodes=%t",
+		user, appCode, updatedApp.Name, updatedApp.Admins, updatedApp.HideUnauthorizedNodes)
 
 	return &dto.UpdateWorkspaceResp{
 		User:                  user,
 		App:                   appCode,
-		Admins:                app.Admins,
-		HideUnauthorizedNodes: app.HideUnauthorizedNodes,
+		Name:                  updatedApp.Name,
+		Admins:                updatedApp.Admins,
+		HideUnauthorizedNodes: updatedApp.HideUnauthorizedNodes,
 	}, nil
 }
 

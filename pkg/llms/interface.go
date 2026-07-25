@@ -149,6 +149,8 @@ type ChatRequest struct {
 	Timeout              *time.Duration `json:"timeout,omitempty"`                // 请求超时时间（可选，覆盖客户端默认超时）
 	Tools                []ToolDef      `json:"tools,omitempty"`                  // 工具定义列表（标准 Tool Calls）
 	ToolChoice           interface{}    `json:"tool_choice,omitempty"`            // 工具选择策略（auto/required/none 或具体工具名）
+	ReasoningEffort      string         `json:"reasoning_effort,omitempty"`       // 推理强度：none/minimal/low/medium/high/xhigh（协议支持时生效）
+	Verbosity            string         `json:"verbosity,omitempty"`              // 可见正文详细度：low/medium/high（协议支持时生效）
 	PromptCacheKey       string         `json:"prompt_cache_key,omitempty"`       // OpenAI prompt cache 路由 key
 	PromptCacheRetention string         `json:"prompt_cache_retention,omitempty"` // OpenAI prompt cache 留存策略：in_memory/24h
 }

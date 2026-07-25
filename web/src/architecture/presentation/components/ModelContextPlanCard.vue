@@ -34,9 +34,11 @@
           <span>{{ messageCountLabel }}</span>
           <span v-if="plan.messages.excluded_by_anchor > 0">{{ t('modelContext.excludedByAnchor', { count: plan.messages.excluded_by_anchor }) }}</span>
           <span v-if="plan.messages.excluded_display_only > 0">{{ t('modelContext.excludedDisplayOnly', { count: plan.messages.excluded_display_only }) }}</span>
+          <span v-if="plan.messages.recoverable_history">{{ t('modelContext.checkpointMessages', { count: plan.messages.excluded_by_checkpoint || 0 }) }}</span>
           <span v-if="plan.messages.truncated">{{ t('modelContext.truncated') }}</span>
         </div>
         <div class="model-context-subtle">{{ sourceHistoryLabel }}</div>
+        <div v-if="checkpointLabel" class="model-context-subtle">{{ checkpointLabel }}</div>
       </section>
 
       <section v-if="plan.handoff" class="model-context-section model-context-section--wide">
@@ -150,7 +152,7 @@ const contextPolicyLabel = computed(() => {
 
 const messageCountLabel = computed(() => {
   const messages = props.plan.messages
-  return t('modelContext.includedMessages', {
+  return t(messages.recoverable_history ? 'modelContext.recentRawMessages' : 'modelContext.includedMessages', {
     included: messages.included_stored_messages,
     total: messages.total_stored_messages,
   })
@@ -158,11 +160,25 @@ const messageCountLabel = computed(() => {
 
 const sourceHistoryLabel = computed(() => {
   switch (props.plan.messages.source_history_policy) {
+    case 'same_session_checkpoint_plus_recent_raw_with_parent_reference':
+      return t('modelContext.sourceHistory.checkpointWithParentReference')
+    case 'same_session_checkpoint_plus_recent_raw':
+      return t('modelContext.sourceHistory.checkpointPlusRecentRaw')
     case 'same_session_full_with_parent_reference':
       return t('modelContext.sourceHistory.sameSessionWithParentReference')
     default:
       return t('modelContext.sourceHistory.sameSessionFull')
   }
+})
+
+const checkpointLabel = computed(() => {
+  const messages = props.plan.messages
+  if (!messages.recoverable_history) return ''
+  return t('modelContext.checkpointDetail', {
+    from: messages.checkpoint_covered_from_message_id || 0,
+    to: messages.checkpoint_covered_to_message_id || 0,
+    tokens: formatTokenCount(messages.checkpoint_summary_tokens || 0),
+  })
 })
 
 const handoffSummary = computed(() => [

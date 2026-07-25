@@ -13,6 +13,7 @@ type serviceTreeCopyService struct {
 	appRepo          *repository.AppRepository
 	runtimeWorkspace *runtimeWorkspaceBridge
 	appService       *AppService
+	capabilityBundle *serviceTreeCapabilityBundleService
 }
 
 func newServiceTreeCopyService(
@@ -20,12 +21,14 @@ func newServiceTreeCopyService(
 	appRepo *repository.AppRepository,
 	runtimeWorkspace *runtimeWorkspaceBridge,
 	appService *AppService,
+	capabilityBundle *serviceTreeCapabilityBundleService,
 ) *serviceTreeCopyService {
 	return &serviceTreeCopyService{
 		serviceTreeRepo:  serviceTreeRepo,
 		appRepo:          appRepo,
 		runtimeWorkspace: runtimeWorkspace,
 		appService:       appService,
+		capabilityBundle: capabilityBundle,
 	}
 }
 

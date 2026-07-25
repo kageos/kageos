@@ -2,6 +2,7 @@ package v1
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/kageos/kageos/pkg/access"
 	"github.com/kageos/kageos/pkg/contextx"
@@ -59,6 +60,22 @@ func (a *App) CreateApp(c *gin.Context) {
 		return
 	}
 	response.OkWithData(c, app)
+}
+
+// BootstrapPersonalWorkspace 获取或创建当前 JWT 用户的默认个人空间。
+// 用户身份只取服务端认证上下文，不接受客户端传入用户名。
+func (a *App) BootstrapPersonalWorkspace(c *gin.Context) {
+	user := strings.TrimSpace(contextx.GetRequestUser(c))
+	if user == "" {
+		response.FailWithMessage(c, "无法获取用户信息")
+		return
+	}
+	resp, err := a.appService.BootstrapPersonalWorkspace(contextx.ToContext(c), user)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
 }
 
 // UpdateApp 更新应用

@@ -25,12 +25,17 @@ const (
 
 type WorkspaceActionRequest struct {
 	RecipientUser         string
+	DepartmentFullPath    string
+	CompanyCode           string
+	CompanyName           string
+	CompanyLogoURL        string
 	Channel               string
 	FullCodePath          string
 	SessionID             string
 	ThreadKey             string
 	Content               string
 	DisplayContent        string
+	Files                 string
 	OriginalTitle         string
 	TraceID               string
 	SourceRef             string
@@ -88,7 +93,11 @@ func (r *WorkspaceActionRunner) Submit(ctx context.Context, req WorkspaceActionR
 	}
 
 	started := make(chan workspaceActionStartResult, 1)
-	go r.run(req, started)
+	runCtx, cancelRun := context.WithCancel(context.WithoutCancel(ctx))
+	go func() {
+		defer cancelRun()
+		r.run(runCtx, req, started)
+	}()
 
 	timeout := r.startTimeout
 	if timeout <= 0 {
@@ -100,14 +109,21 @@ func (r *WorkspaceActionRunner) Submit(ctx context.Context, req WorkspaceActionR
 	select {
 	case result := <-started:
 		if result.err != nil {
+			cancelRun()
 			return nil, result.err
+		}
+		if strings.TrimSpace(result.sessionID) == "" {
+			cancelRun()
+			return nil, fmt.Errorf("工作台没有返回有效会话")
 		}
 		return &WorkspaceActionSubmitResult{SessionID: result.sessionID, Accepted: true}, nil
 	case <-ctx.Done():
+		cancelRun()
 		return nil, ctx.Err()
 	case <-timer.C:
+		cancelRun()
 		logger.Warnf(ctx, "[WorkspaceActionRunner] 等待工作台会话启动超时 full_code_path=%s user=%s", req.FullCodePath, req.RecipientUser)
-		return &WorkspaceActionSubmitResult{Accepted: true}, nil
+		return nil, fmt.Errorf("等待工作台创建会话超时")
 	}
 }
 
@@ -116,21 +132,23 @@ type workspaceActionStartResult struct {
 	err       error
 }
 
-func (r *WorkspaceActionRunner) run(req WorkspaceActionRequest, started chan<- workspaceActionStartResult) {
+func (r *WorkspaceActionRunner) run(parent context.Context, req WorkspaceActionRequest, started chan<- workspaceActionStartResult) {
 	runTimeout := r.runTimeout
 	if runTimeout <= 0 {
 		runTimeout = 30 * time.Minute
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+	ctx, cancel := context.WithTimeout(parent, runTimeout)
 	defer cancel()
 
 	signalStarted := workspaceActionStartSignaler(started)
 	requestBody := dto.WorkspaceChatReq{
-		FullCodePath: req.FullCodePath,
-		SessionID:    strings.TrimSpace(req.SessionID),
+		FullCodePath:         req.FullCodePath,
+		ResourceFullCodePath: strings.TrimSpace(req.SourcePath),
+		SessionID:            strings.TrimSpace(req.SessionID),
 		Message: dto.WorkspaceMsg{
 			Content:        req.Content,
 			DisplayContent: strings.TrimSpace(req.DisplayContent),
+			Files:          strings.TrimSpace(req.Files),
 			ContextUsage:   dto.WorkspaceMessageContextCurrentTurn,
 		},
 	}
@@ -179,6 +197,10 @@ func (r *WorkspaceActionRunner) chatStreamURL() string {
 func applyWorkspaceActionHeaders(httpReq *http.Request, req WorkspaceActionRequest) {
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set(contextx.RequestUserHeader, strings.TrimSpace(req.RecipientUser))
+	setHeaderIfNotEmpty(httpReq, contextx.DepartmentFullPathHeader, req.DepartmentFullPath)
+	setHeaderIfNotEmpty(httpReq, contextx.CompanyCodeHeader, req.CompanyCode)
+	setHeaderIfNotEmpty(httpReq, contextx.CompanyNameHeader, req.CompanyName)
+	setHeaderIfNotEmpty(httpReq, contextx.CompanyLogoURLHeader, req.CompanyLogoURL)
 	httpReq.Header.Set(contextx.ClientSourceHeader, WorkspaceActionClientSource)
 	httpReq.Header.Set(contextx.SourceTypeHeader, WorkspaceActionSourceType)
 	setHeaderIfNotEmpty(httpReq, contextx.TraceIdHeader, req.TraceID)

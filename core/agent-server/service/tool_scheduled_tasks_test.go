@@ -182,6 +182,21 @@ func TestCreateScheduledAgentTaskAllowsDirectoryAlias(t *testing.T) {
 	}
 }
 
+func TestCreateScheduledAgentTaskAcceptsOverlapConfig(t *testing.T) {
+	tool := &CreateScheduledAgentTaskTool{}
+	res := tool.Execute(context.Background(), ToolCall{Args: map[string]interface{}{
+		"full_code_path":  "/system/test22/hot_news",
+		"overlap_policy":  "allow",
+		"max_parallelism": 2,
+	}})
+	if !res.IsError {
+		t.Fatalf("expected missing message error, got %#v", res)
+	}
+	if strings.Contains(res.Content, "不支持参数") {
+		t.Fatalf("overlap config should be accepted, got %#v", res)
+	}
+}
+
 func TestNormalizeScheduledAgentTaskArgsInfersEverySchedule(t *testing.T) {
 	got := normalizeCreateScheduledAgentTaskArgs(createScheduledAgentTaskArgs{
 		Title:           "热点信息自动追踪与推送",

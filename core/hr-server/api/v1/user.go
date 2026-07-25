@@ -20,13 +20,15 @@ import (
 type User struct {
 	userService       *service.UserService
 	departmentService *service.DepartmentService
+	openAPITokenStore *openapitoken.Store
 }
 
 // NewUser 创建用户API（依赖注入）
-func NewUser(userService *service.UserService, departmentService *service.DepartmentService) *User {
+func NewUser(userService *service.UserService, departmentService *service.DepartmentService, openAPITokenStore *openapitoken.Store) *User {
 	return &User{
 		userService:       userService,
 		departmentService: departmentService,
+		openAPITokenStore: openAPITokenStore,
 	}
 }
 
@@ -317,7 +319,7 @@ func (u *User) ListOpenAPITokens(c *gin.Context) {
 		response.FailWithMessage(c, "未提供用户信息")
 		return
 	}
-	tokens, err := openapitoken.List(username)
+	tokens, err := u.openAPITokenStore.List(username)
 	if err != nil {
 		response.FailWithMessage(c, "查询 OpenAPI Token 失败: "+err.Error())
 		return
@@ -362,7 +364,7 @@ func (u *User) CreateOpenAPIToken(c *gin.Context) {
 			companyLogoURL = companies[0].LogoURL
 		}
 	}
-	result, err := openapitoken.Create(openapitoken.CreateInput{
+	result, err := u.openAPITokenStore.Create(openapitoken.CreateInput{
 		OwnerUsername:      username,
 		OwnerUserID:        currentUser.ID,
 		OwnerEmail:         currentUser.Email,
@@ -397,7 +399,7 @@ func (u *User) RevokeOpenAPIToken(c *gin.Context) {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
-	if err := openapitoken.Revoke(username, req.ID); err != nil {
+	if err := u.openAPITokenStore.Revoke(username, req.ID); err != nil {
 		response.FailWithMessage(c, "吊销 OpenAPI Token 失败: "+err.Error())
 		return
 	}

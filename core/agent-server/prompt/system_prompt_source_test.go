@@ -109,8 +109,19 @@ func TestGetPromptDocContent_ForSDKDirectoryAndLeafDoc(t *testing.T) {
 	}
 	for _, want := range []string{
 		"kageos_manifest.go / runbook.docs / AgentTask 写法",
-		"`runbook.docs` 管“这个目录遇到任何事怎么做”",
-		"`AgentTask.Message` 管“这个任务到点后这一轮怎么跑”",
+		"`runbook.docs` 管“公司希望这类事情怎么处理”",
+		"`AgentTask.Message` 管“Agent 到点后具体怎样安全执行”",
+		"业务文档与技术执行的边界",
+		"不要把业务人员变成 Agent 工程师",
+		"不要反过来要求业务人员把这些技术细节补进 docs",
+		"AgentTask 无人值守价值门禁",
+		"提交时已经能确定",
+		"结果回写位置",
+		"文档优先的场景知识闭环",
+		"待确认/待沉淀",
+		"不要先建一张与文档重复的知识表",
+		"./docs/readme.docs",
+		"不要为文档目录额外声明 `PackageContext`",
 		"<./runbook.docs>",
 		"<tool:send_notification>",
 		"不要给 AgentTask 填 `Policy`",
@@ -249,6 +260,11 @@ func TestProductManagerRoleRequiresPRDTablesAndConfirmation(t *testing.T) {
 		"禁止输出旧结构",
 		"`models/functions/workflow/route/method/order/columns/sample_rows/preview_data/acceptance_cases/confirmation`",
 		"时间趋势图的 `filters` 写清默认时间范围和粒度",
+		"无人值守价值门禁",
+		"提交—检查—退回—重新提交",
+		"中小企业与可安装价值门禁",
+		"文档优先的能力成长闭环",
+		"不要让 Table 和 docs 保存同一份权威内容",
 		"禁止调用 `create_directory`",
 		"app_developer",
 	} {
@@ -280,6 +296,12 @@ func TestAppDeveloperRoleExecutesConfirmedPRD(t *testing.T) {
 		"`MaxValues`",
 		"packageContext.AddDocs",
 		"/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask",
+		"提交当下可确定",
+		"草稿/校验中",
+		"后台新增价值",
+		"./docs/readme.docs",
+		"docs-first 闭环",
+		"重复的 knowledge Table",
 		"qa_engineer",
 		"build_engineer",
 	} {
@@ -298,6 +320,12 @@ func TestAutomationOperatorRoleDocumentsScheduledAgentSOP(t *testing.T) {
 		"情报/新闻日报",
 		"周报/月报",
 		"业务巡检",
+		"先过无人值守价值门禁",
+		"持续盯、等、查或协调",
+		"不要替代提交时同步校验",
+		"文档驱动的无人值守闭环",
+		"只有正文明确“已启用”",
+		"没有 `write_doc`",
 		"Agent 任务执行说明（message）标准 SOP",
 		"预期工具清单",
 		"`run_table_search`",
@@ -333,6 +361,28 @@ func TestAutomationOperatorRoleDocumentsScheduledAgentSOP(t *testing.T) {
 	}
 }
 
+func TestDevModePromptRejectsDelayedValidationAutomation(t *testing.T) {
+	provider := GetModeProvider("dev")
+	if provider == nil {
+		t.Fatal("dev mode provider missing")
+	}
+	content := provider.SystemPrompt(nil)
+	for _, needle := range []string{
+		"信息何时才可知",
+		"必须同步校验",
+		"提交—退回—重提",
+		"无人值守必须证明净价值",
+		"结果要回写业务主表",
+		"中小企业",
+		"优先采用文档闭环",
+		"组织知识默认文档优先",
+	} {
+		if !strings.Contains(content, needle) {
+			t.Fatalf("dev mode prompt should contain %q, got: %q", needle, content)
+		}
+	}
+}
+
 func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 	for docPath, needles := range map[string][]string{
 		"/system/prompt/roles/qa-engineer": {
@@ -351,6 +401,8 @@ func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 			"不重新输出 PRD，不创建目录，不写文档，不写 Go 文件，不 build",
 			"`run_python`",
 			"通知创建人、当前用户或“我”时可依赖默认通知对象并省略 `to_users`",
+			"只使用明确“已启用”",
+			"当前角色没有 `write_doc`",
 		},
 		"/system/prompt/roles/maintenance-engineer": {
 			"应用维护工程师 maintenance_engineer",
@@ -362,6 +414,9 @@ func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 			"ResolveChartBucket",
 			"不要一刀切禁止细粒度",
 			"packageContext.AddDocs",
+			"不要创建本地 docs Go 子包",
+			"docs-first",
+			"待确认/待沉淀",
 		},
 		"/system/prompt/roles/build-engineer": {
 			"构建修复工程师 build_engineer",

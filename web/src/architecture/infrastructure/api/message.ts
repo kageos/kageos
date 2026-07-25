@@ -134,6 +134,7 @@ export interface MessageActionViewResp {
 
 export interface MessageActionReplyReq {
   content: string
+	files?: string
   action?: string
 }
 

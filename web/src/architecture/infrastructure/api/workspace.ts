@@ -26,6 +26,7 @@ export interface WorkspaceChatMessageFiles {
 /** 工作台对话请求（只认 LLM，单模式） */
 export interface WorkspaceChatReq {
   full_code_path: string
+  resource_full_code_path?: string
   message: {
     content: string
     display_content?: string
@@ -46,6 +47,10 @@ export interface WorkspaceChatReq {
 export interface WorkspaceSessionItem {
   session_id: string
   title: string
+  source?: 'workspace' | 'automation_agent'
+  automation_task_id?: number
+  automation_task_code?: string
+  automation_task_title?: string
   user?: string
   mode_code?: string
   status: string // active | generating | output | pending_confirmation | pending_build_repair | done | cancelled
@@ -53,6 +58,9 @@ export interface WorkspaceSessionItem {
   role_display_name?: string
   full_code_path?: string
   directory_name?: string
+  resource_tree_id?: number
+  resource_full_code_path?: string
+  resource_name?: string
   parent_session_id?: string
   handoff_kind?: string
   handoff_target_role?: string
@@ -122,11 +130,22 @@ export interface WorkspaceHandoffResp {
 /** 获取工作台会话列表请求 */
 export interface ListWorkspaceSessionsReq {
   full_code_path: string
+  page?: number
+  page_size?: number
+  session_scope?: 'human' | 'automation' | 'all'
+  automation_task_id?: number
+}
+
+export interface WorkspaceAutomationAgentItem {
+  task_id: number
+  task_code?: string
+  task_title: string
 }
 
 /** 获取工作台会话列表响应 */
 export interface ListWorkspaceSessionsResp {
   sessions: WorkspaceSessionItem[]
+  automation_agents: WorkspaceAutomationAgentItem[]
   total: number
   page: number
   page_size: number
@@ -166,6 +185,7 @@ export interface BatchWorkspaceToolDetailsResp {
 export const workspaceStreamEvents = {
   session: 'session',
   modelContextPlan: 'model_context_plan',
+  generationAttempt: 'generation_attempt',
   toolCall: 'tool_call',
   toolCallsStreamDelta: 'tool_calls_stream_delta',
   thinking: 'thinking',
@@ -179,6 +199,13 @@ export type WorkspaceToolCallStatus = 'ok' | 'error' | 'running' | 'streaming'
 
 export interface WorkspaceStreamSessionPayload {
   session_id: string
+}
+
+export interface WorkspaceStreamGenerationAttemptPayload {
+  attempt_id: string
+  round: number
+  action: 'started' | 'discarded' | 'committed'
+  reason?: string
 }
 
 export interface WorkspaceStreamToolCallPayload {
@@ -264,6 +291,13 @@ export interface WorkspaceModelContextMessages {
   excluded_by_anchor: number
   excluded_display_only: number
   excluded_by_reduction?: number
+  excluded_by_checkpoint?: number
+  checkpoint_id?: number
+  checkpoint_covered_from_message_id?: number
+  checkpoint_covered_to_message_id?: number
+  checkpoint_source?: string
+  checkpoint_summary_tokens?: number
+  recoverable_history?: boolean
   included?: WorkspaceModelContextMessageRef[]
   excluded?: WorkspaceModelContextMessageRef[]
   truncated?: boolean
@@ -336,6 +370,8 @@ export interface WorkspaceModelContextLLM {
   model?: string
   request_model?: string
   max_tokens?: number
+  context_window?: number
+  context_window_source?: string
   message_count: number
   tool_count: number
 }
@@ -370,6 +406,7 @@ export interface WorkspaceStreamErrorPayload {
 export interface WorkspaceStreamPayloadMap {
   session: WorkspaceStreamSessionPayload
   model_context_plan: WorkspaceModelContextPlan
+  generation_attempt: WorkspaceStreamGenerationAttemptPayload
   tool_call: WorkspaceStreamToolCallPayload
   tool_calls_stream_delta: WorkspaceStreamToolCallsDeltaPayload
   thinking: WorkspaceStreamThinkingPayload
@@ -490,7 +527,7 @@ export async function workspaceChatStream(
  * 获取工作台会话列表
  */
 export async function getWorkspaceSessions(params: ListWorkspaceSessionsReq): Promise<ListWorkspaceSessionsResp> {
-  return get<ListWorkspaceSessionsResp>('/agent/api/v1/workspace/sessions', { full_code_path: params.full_code_path })
+  return get<ListWorkspaceSessionsResp>('/agent/api/v1/workspace/sessions', params)
 }
 
 /** 工作台消息信息 */

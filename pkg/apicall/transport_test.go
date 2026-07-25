@@ -1,10 +1,21 @@
 package apicall
 
 import (
+	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+
+	"github.com/kageos/kageos/pkg/serviceconfig"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
 func TestFormatHTTPErrorIncludesForbiddenBody(t *testing.T) {
 	resp := &http.Response{
@@ -44,5 +55,42 @@ func TestFormatHTTPErrorFallsBackForNonPermissionErrors(t *testing.T) {
 	}
 	if !strings.Contains(message, `{"msg":"boom"}`) {
 		t.Fatalf("expected raw body in %q", message)
+	}
+}
+
+func TestTransportFailureInvalidatesGatewayWithoutReplayingRequest(t *testing.T) {
+	var healthHits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		healthHits.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	t.Setenv("GATEWAY_URL", strings.Replace(server.URL, "127.0.0.1", "localhost", 1))
+
+	_ = serviceconfig.GetGatewayURL()
+	firstHealthHits := healthHits.Load()
+
+	previousClient := httpClient
+	t.Cleanup(func() { httpClient = previousClient })
+	var attempts atomic.Int32
+	httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		attempts.Add(1)
+		return nil, errors.New("connection failed")
+	})}
+
+	req, err := http.NewRequest(http.MethodPost, "http://gateway.invalid/write", strings.NewReader("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := doAPIRequest[any](req); err == nil {
+		t.Fatal("expected transport failure")
+	}
+	if attempts.Load() != 1 {
+		t.Fatalf("request was replayed %d times", attempts.Load())
+	}
+
+	_ = serviceconfig.GetGatewayURL()
+	if healthHits.Load() <= firstHealthHits {
+		t.Fatal("transport failure did not invalidate gateway resolution")
 	}
 }

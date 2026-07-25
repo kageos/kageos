@@ -120,6 +120,12 @@ func TestRenderBundledConfig(t *testing.T) {
 	if !strings.Contains(appRuntimeConfig, `app_startup_notification: 300`) {
 		t.Fatalf("generated app-runtime config should include startup notification timeout, got:\n%s", appRuntimeConfig)
 	}
+	if !strings.Contains(appRuntimeConfig, `update_callback: 240`) {
+		t.Fatalf("generated app-runtime config should include update callback timeout, got:\n%s", appRuntimeConfig)
+	}
+	if !strings.Contains(appRuntimeConfig, `keep_debug_symbols: false`) {
+		t.Fatalf("generated app-runtime config should strip release debug symbols by default, got:\n%s", appRuntimeConfig)
+	}
 	if !strings.Contains(appRuntimeConfig, `network_mode: "host"`) {
 		t.Fatalf("generated app-runtime config should run prod app containers with host network, got:\n%s", appRuntimeConfig)
 	}
@@ -186,6 +192,8 @@ func TestRenderBundledConfig(t *testing.T) {
 		`port: 9098`,
 		`name: "timer-scheduler"`,
 		`poll_interval_millis: 1000`,
+		`queue_ack_timeout_seconds: 120`,
+		`max_dispatch_attempts: 30`,
 	} {
 		if !strings.Contains(timerSchedulerConfig, want) {
 			t.Fatalf("generated timer-scheduler config missing %q, got:\n%s", want, timerSchedulerConfig)
@@ -922,6 +930,7 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 	for _, want := range []string{
 		`base_image: "kagebase:latest"`,
 		`base_path: "` + filepath.Join(repoRoot, ".kageos", "dev", "namespace") + `"`,
+		`keep_debug_symbols: false`,
 		`app_database:`,
 		`enabled: true`,
 		`port: 3318`,
@@ -947,6 +956,8 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 		`port: 9098`,
 		`port: 3318`,
 		`name: "timer-scheduler"`,
+		`queue_ack_timeout_seconds: 120`,
+		`max_dispatch_attempts: 30`,
 	} {
 		if !strings.Contains(timerSchedulerConfig, want) {
 			t.Fatalf("dev timer-scheduler config missing %q, got:\n%s", want, timerSchedulerConfig)

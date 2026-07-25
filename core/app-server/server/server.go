@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -48,6 +49,7 @@ type Server struct {
 	functionSensitiveFieldService *service.FunctionSensitiveFieldService
 	publicShareService            *service.PublicShareService
 	appRepo                       *repository.AppRepository // ⭐ 应用仓储（用于其他服务）
+	openAPITokenStore             *openapitoken.Store
 	scheduledFuncWorker           *scheduledsdk.Worker
 
 	// 上游服务
@@ -228,9 +230,11 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	if err := model.InitTables(s.db); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
-	if err := openapitoken.SetDB(s.db); err != nil {
+	openAPITokenStore, err := openapitoken.NewStore(s.db)
+	if err != nil {
 		return fmt.Errorf("failed to init openapi token store: %w", err)
 	}
+	s.openAPITokenStore = openAPITokenStore
 
 	logger.Infof(ctx, "[Server] Database initialized successfully")
 	return nil
@@ -286,25 +290,32 @@ func (s *Server) initServices(ctx context.Context) error {
 	publicShareRepo := repository.NewPublicShareRepository(s.db)
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
-	s.appService = service.NewAppService(s.appCall, appRepo, functionRepo, serviceTreeRepo, operateLogRepo)
 	s.operateLogService = service.NewOperateLogService(operateLogRepo)
 	s.teamAccessService = service.NewTeamAccessService(teamAccessRepo, operateLogRepo, appRepo)
 	s.functionSensitiveFieldService = service.NewFunctionSensitiveFieldService(functionSensitiveFieldRepo)
 	if err := s.functionSensitiveFieldService.LoadAll(ctx); err != nil {
 		return fmt.Errorf("加载敏感字段缓存失败: %w", err)
 	}
-	s.appService.SetTeamAccessService(s.teamAccessService)
-	s.appService.SetFunctionSensitiveFieldService(s.functionSensitiveFieldService)
+	// 初始化文档服务（AppService 和 ServiceTreeService 都依赖它）
+	docRepo := repository.NewDocRepository(s.db)
+	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo, s.teamAccessService)
+
+	s.appService = service.NewAppService(service.AppServiceDependencies{
+		AppRuntimeClient:              s.appCall,
+		AppRepository:                 appRepo,
+		FunctionRepository:            functionRepo,
+		ServiceTreeRepository:         serviceTreeRepo,
+		OperateLogRepository:          operateLogRepo,
+		DocService:                    s.docService,
+		TeamAccessService:             s.teamAccessService,
+		FunctionSensitiveFieldService: s.functionSensitiveFieldService,
+	})
+
 	scheduledFuncWorker, err := service.NewScheduledFunctionWorker(s.natsConn, s.appService)
 	if err != nil {
 		return fmt.Errorf("failed to init scheduled function worker: %w", err)
 	}
 	s.scheduledFuncWorker = scheduledFuncWorker
-
-	// 初始化文档服务（需要在 ServiceTreeService 之前初始化，因为 ServiceTreeService 依赖它）
-	docRepo := repository.NewDocRepository(s.db)
-	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo, s.teamAccessService)
-	s.appService.SetDocService(s.docService)
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
@@ -351,11 +362,34 @@ func (s *Server) initRouter(ctx context.Context) error {
 
 // healthHandler 健康检查处理器
 func (s *Server) healthHandler(c *gin.Context) {
-	c.JSON(200, gin.H{
+	pingCtx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+	defer cancel()
+	if err := s.pingDatabase(pingCtx); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"status":     "unavailable",
+			"timestamp":  time.Now().Format(time.DateTime),
+			"service":    "app-server",
+			"dependency": "mysql",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
 		"status":    "ok",
 		"timestamp": time.Now().Format(time.DateTime),
 		"service":   "app-server",
 	})
+}
+
+func (s *Server) pingDatabase(ctx context.Context) error {
+	if s.db == nil {
+		return fmt.Errorf("database is not initialized")
+	}
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.PingContext(ctx)
 }
 
 // GetDB 获取数据库连接

@@ -14,6 +14,8 @@ import (
 )
 
 type fakeAppRuntimeClient struct {
+	createCalls  int
+	createErr    error
 	updateHostID int64
 	updateReq    *dto.UpdateAppRuntimeReq
 	updateResp   *dto.UpdateAppResp
@@ -31,6 +33,10 @@ type fakeAppRuntimeClient struct {
 }
 
 func (c *fakeAppRuntimeClient) CreateApp(context.Context, int64, *dto.CreateAppReq) (*dto.CreateAppResp, error) {
+	c.createCalls++
+	if c.createErr != nil {
+		return nil, c.createErr
+	}
 	return &dto.CreateAppResp{}, nil
 }
 
@@ -111,7 +117,10 @@ func TestAppServiceUpdateAppUsesRuntimeBoundHostAndPersistsVersion(t *testing.T)
 			Warnings:   []string{"runtime warning"},
 		},
 	}
-	service := NewAppService(client, appRepo, nil, nil, nil)
+	service := NewAppService(AppServiceDependencies{
+		AppRuntimeClient: client,
+		AppRepository:    appRepo,
+	})
 
 	resp, err := service.UpdateApp(context.Background(), &dto.UpdateAppReq{
 		ResourcePath:      "/alice/demo/workspace",
@@ -167,7 +176,10 @@ func TestAppServiceUpdateAppDoesNotPersistVersionWhenRuntimeFails(t *testing.T) 
 	}); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
-	service := NewAppService(&fakeAppRuntimeClient{updateErr: errors.New("runtime down")}, appRepo, nil, nil, nil)
+	service := NewAppService(AppServiceDependencies{
+		AppRuntimeClient: &fakeAppRuntimeClient{updateErr: errors.New("runtime down")},
+		AppRepository:    appRepo,
+	})
 
 	_, err := service.UpdateApp(context.Background(), &dto.UpdateAppReq{ResourcePath: "/alice/demo"})
 	if err == nil {

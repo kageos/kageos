@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/kageos/kageos/core/app-server/model"
@@ -72,33 +73,38 @@ func buildPackageDocSeedItem(pkg *dto.PackageInfo, docConfig dto.DocSeedConfig) 
 	if parentPath == "" {
 		return nil, fmt.Errorf("文档种子缺少 package full_path")
 	}
-	code, err := normalizePackageDocSeedCode(docConfig.Code)
+	relativeCode, err := normalizePackageDocSeedCode(docConfig.Code)
 	if err != nil {
 		return nil, err
 	}
 	content := docConfig.Content
 	if strings.TrimSpace(content) == "" {
-		return nil, fmt.Errorf("文档种子 %s/%s content 不能为空", parentPath, code)
+		return nil, fmt.Errorf("文档种子 %s/%s content 不能为空", parentPath, relativeCode)
 	}
 	policy := strings.TrimSpace(docConfig.Policy)
 	if policy == "" {
 		policy = docSeedPolicyCreateIfMissing
 	}
 	if policy != docSeedPolicyCreateIfMissing {
-		return nil, fmt.Errorf("文档种子 %s/%s policy 不支持: %s", parentPath, code, policy)
+		return nil, fmt.Errorf("文档种子 %s/%s policy 不支持: %s", parentPath, relativeCode, policy)
+	}
+	docCode := path.Base(relativeCode)
+	docParentPath := parentPath
+	if relativeParent := path.Dir(relativeCode); relativeParent != "." {
+		docParentPath += "/" + relativeParent
 	}
 	name := strings.TrimSpace(docConfig.Name)
 	if name == "" {
-		name = strings.TrimSuffix(code, codeSuffixDocs)
+		name = strings.TrimSuffix(docCode, codeSuffixDocs)
 	}
 	format := strings.TrimSpace(docConfig.Format)
 	if format == "" {
 		format = "markdown"
 	}
 	return &packageDocSeedItem{
-		FullCodePath:       parentPath + "/" + code,
-		ParentFullCodePath: parentPath,
-		Code:               code,
+		FullCodePath:       parentPath + "/" + relativeCode,
+		ParentFullCodePath: docParentPath,
+		Code:               docCode,
 		Name:               name,
 		Description:        strings.TrimSpace(docConfig.Description),
 		Tags:               strings.TrimSpace(docConfig.Tags),
@@ -110,17 +116,33 @@ func buildPackageDocSeedItem(pkg *dto.PackageInfo, docConfig dto.DocSeedConfig) 
 }
 
 func normalizePackageDocSeedCode(code string) (string, error) {
-	code = strings.Trim(strings.TrimSpace(code), "/")
+	originalCode := code
+	code = strings.TrimSpace(code)
 	if code == "" {
 		return "", fmt.Errorf("文档种子 code 不能为空")
 	}
-	if strings.ContainsAny(code, `/\`) {
-		return "", fmt.Errorf("文档种子 code 必须是单段路径: %s", code)
+	if strings.HasPrefix(code, "/") {
+		return "", fmt.Errorf("文档种子 code 必须是 package 内相对路径: %s", originalCode)
 	}
-	if !strings.HasSuffix(code, codeSuffixDocs) {
-		code += codeSuffixDocs
+	if strings.Contains(code, `\`) {
+		return "", fmt.Errorf("文档种子 code 必须使用正斜杠: %s", originalCode)
 	}
-	return code, nil
+
+	code = strings.TrimPrefix(code, "./")
+	parts := strings.Split(code, "/")
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return "", fmt.Errorf("文档种子 code 包含非法路径段: %s", originalCode)
+		}
+	}
+
+	last := len(parts) - 1
+	parts[last] = strings.TrimSuffix(parts[last], codeSuffixDocs)
+	if parts[last] == "" {
+		return "", fmt.Errorf("文档种子 code 缺少文档名称: %s", originalCode)
+	}
+	parts[last] += codeSuffixDocs
+	return strings.Join(parts, "/"), nil
 }
 
 func (a *AppService) upsertPackageDocSeed(ctx context.Context, state *appMetadataSyncState, item *packageDocSeedItem) error {
@@ -141,6 +163,9 @@ func (a *AppService) upsertPackageDocSeed(ctx context.Context, state *appMetadat
 		parent, parentErr := a.serviceTreeRepo.GetServiceTreeByFullPath(item.ParentFullCodePath)
 		if parentErr != nil {
 			return fmt.Errorf("文档种子父目录不存在 %s: %w", item.ParentFullCodePath, parentErr)
+		}
+		if !parent.IsPackage() {
+			return fmt.Errorf("文档种子父路径不是 package: %s", item.ParentFullCodePath)
 		}
 		tree = &model.ServiceTree{
 			AppID:            parent.AppID,

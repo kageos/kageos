@@ -109,7 +109,8 @@
           <el-table-column :label="t('llmManagement.timeoutToken')" width="140" align="center">
             <template #default="{ row }">
               <div>{{ row.timeout }}s</div>
-              <div class="muted-line">{{ row.max_tokens }} tokens</div>
+              <div class="muted-line">out {{ row.max_tokens }}</div>
+              <div class="muted-line">ctx {{ row.effective_context_window }}</div>
             </template>
           </el-table-column>
 
@@ -248,7 +249,17 @@
           </el-form-item>
 
           <el-form-item :label="t('llmManagement.maxToken')">
-            <el-input-number v-model="form.max_tokens" :min="1" :max="1048576" style="width: 180px" />
+            <div class="form-control-stack">
+              <el-input-number v-model="form.max_tokens" :min="1" :max="1048576" style="width: 180px" />
+              <p class="form-tip">{{ t('llmManagement.maxTokenHint') }}</p>
+            </div>
+          </el-form-item>
+
+          <el-form-item :label="t('llmManagement.contextWindow')">
+            <div class="form-control-stack">
+              <el-input-number v-model="form.context_window" :min="0" :max="10000000" style="width: 180px" />
+              <p class="form-tip">{{ contextWindowHint }}</p>
+            </div>
           </el-form-item>
 
           <el-form-item :label="t('llmManagement.visibility')">
@@ -348,6 +359,9 @@ interface LLMFormState {
   headers: string
   timeout: number
   max_tokens: number
+  context_window: number
+  detected_context_window: number
+  detected_context_window_source: string
   extra_config: string
   capabilities: string
   is_default: boolean
@@ -357,6 +371,7 @@ interface LLMFormState {
 
 const DEFAULT_TIMEOUT = 300
 const DEFAULT_MAX_TOKENS = 8196
+const DEFAULT_CONTEXT_WINDOW = 128000
 const DEFAULT_PROVIDER = 'openai'
 const DEFAULT_PROTOCOL = 'openai_chat_completions'
 
@@ -425,6 +440,15 @@ const authSchemeOptions = computed(() => [
 const endpointPathPlaceholder = computed(() => protocolDefaults[form.protocol]?.endpointPath || '/chat/completions')
 const apiVersionPlaceholder = computed(() => protocolDefaults[form.protocol]?.apiVersion || t('llmManagement.apiVersionPlaceholder'))
 const authSchemePlaceholder = computed(() => protocolDefaults[form.protocol]?.authScheme || 'bearer')
+const contextWindowHint = computed(() => {
+  if (form.context_window > 0) {
+    return t('llmManagement.contextWindowManualHint', { count: form.context_window })
+  }
+  if (form.detected_context_window > 0) {
+    return t('llmManagement.contextWindowDetectedHint', { count: form.detected_context_window })
+  }
+  return t('llmManagement.contextWindowDefaultHint', { count: DEFAULT_CONTEXT_WINDOW })
+})
 
 const filteredConfigs = computed(() => {
   const q = keyword.value.trim().toLowerCase()
@@ -500,6 +524,9 @@ function createDefaultForm(): LLMFormState {
     headers: '',
     timeout: DEFAULT_TIMEOUT,
     max_tokens: DEFAULT_MAX_TOKENS,
+    context_window: 0,
+    detected_context_window: 0,
+    detected_context_window_source: '',
     extra_config: '',
     capabilities: '',
     is_default: false,
@@ -527,6 +554,9 @@ function applyForm(info: Partial<LLMInfo>) {
   form.headers = info.headers || ''
   form.timeout = info.timeout || DEFAULT_TIMEOUT
   form.max_tokens = info.max_tokens || DEFAULT_MAX_TOKENS
+  form.context_window = info.context_window || 0
+  form.detected_context_window = info.detected_context_window || 0
+  form.detected_context_window_source = info.detected_context_window_source || ''
   form.extra_config = info.extra_config || ''
   form.capabilities = info.capabilities || ''
   form.is_default = Boolean(info.is_default)
@@ -696,6 +726,9 @@ function buildCreatePayload(): LLMCreateReq {
     headers: form.headers.trim(),
     timeout: form.timeout,
     max_tokens: form.max_tokens,
+    context_window: form.context_window || 0,
+    detected_context_window: form.detected_context_window || 0,
+    detected_context_window_source: form.detected_context_window_source,
     extra_config: form.extra_config.trim(),
     capabilities: form.capabilities.trim(),
     is_default: form.is_default,
@@ -762,6 +795,13 @@ async function handleProbe() {
     }
     if (resp.capabilities) {
       form.capabilities = JSON.stringify(resp.capabilities, null, 2)
+    }
+    if (resp.context_window && resp.context_window_source === 'provider_metadata') {
+      form.detected_context_window = resp.context_window
+      form.detected_context_window_source = resp.context_window_source
+    } else {
+      form.detected_context_window = 0
+      form.detected_context_window_source = ''
     }
     const label = protocolLabel(form.protocol)
     ElMessage.success(t('llmManagement.probeSuccess', { protocol: label }))
@@ -1017,6 +1057,20 @@ onMounted(async () => {
     margin-left: 12px;
     color: var(--el-text-color-secondary);
     font-size: 13px;
+  }
+
+  .form-control-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .form-tip {
+    margin: 0;
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    line-height: 1.5;
   }
 }
 

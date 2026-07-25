@@ -11,6 +11,9 @@ import (
 
 // setupRoutes 设置路由
 func (s *Server) setupRoutes() {
+	openAPITokenStore := middleware2.WithOpenAPITokenStore(s.openAPITokenStore)
+	jwtAuth := middleware2.JWTAuth(openAPITokenStore)
+
 	// 健康检查
 	s.httpServer.GET("/health", s.healthHandler)
 
@@ -34,22 +37,23 @@ func (s *Server) setupRoutes() {
 	apiV1 := workspace.Group("/api/v1")
 
 	// ⭐ 统一添加用户信息中间件，所有接口都需要（网关会透传 token，解析后设置到 X-Request-User header）
-	apiV1.Use(middleware2.WithUserInfo())
+	apiV1.Use(middleware2.WithUserInfo(openAPITokenStore))
 
 	// 应用管理路由（需要JWT验证）
 	app := apiV1.Group("/app")
-	app.Use(middleware2.JWTAuth()) // 应用管理需要JWT认证
+	app.Use(jwtAuth) // 应用管理需要JWT认证
 	appHandler := v1.NewApp(s.appService, s.serviceTreeService, s.teamAccessService)
 	app.GET("/list", appHandler.GetApps)
 	app.GET("/detail", appHandler.GetAppDetail)
 	app.GET("/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
 	app.DELETE("/delete", appHandler.DeleteApp)
 	app.POST("/create", appHandler.CreateApp)
+	app.POST("/personal-workspace", appHandler.BootstrapPersonalWorkspace)
 	app.POST("/update", appHandler.UpdateApp)
 	app.PUT("/workspace", appHandler.UpdateWorkspace)
 
 	teamAccess := apiV1.Group("/team_access")
-	teamAccess.Use(middleware2.JWTAuth())
+	teamAccess.Use(jwtAuth)
 	teamAccessHandler := v1.NewTeamAccess(s.teamAccessService)
 	teamAccess.GET("/members", teamAccessHandler.ListMembers)
 	teamAccess.POST("/assign", teamAccessHandler.Assign)
@@ -58,7 +62,7 @@ func (s *Server) setupRoutes() {
 	teamAccess.GET("/my_permissions", teamAccessHandler.MyPermissions)
 
 	publicShares := apiV1.Group("/public_shares")
-	publicShares.Use(middleware2.JWTAuth())
+	publicShares.Use(jwtAuth)
 	publicShares.POST("", publicShareHandler.Create)
 	publicShares.GET("", publicShareHandler.List)
 	publicShares.POST("/:share_id/disable", publicShareHandler.Disable)
@@ -69,7 +73,7 @@ func (s *Server) setupRoutes() {
 
 	// 需要JWT验证的路由
 	serviceTreeAuth := serviceTree.Group("")
-	serviceTreeAuth.Use(middleware2.JWTAuth())                                           // 服务目录管理需要JWT认证
+	serviceTreeAuth.Use(jwtAuth)                                                         // 服务目录管理需要JWT认证
 	serviceTreeAuth.GET("/detail", serviceTreeHandler.GetServiceTreeDetail)              // 获取服务目录详情
 	serviceTreeAuth.POST("/batch_detail", serviceTreeHandler.BatchGetServiceTreeDetails) // 批量获取服务目录详情
 	serviceTreeAuth.GET("/overview", serviceTreeHandler.GetDirectoryOverview)            // 获取目录概览
@@ -84,14 +88,14 @@ func (s *Server) setupRoutes() {
 	// ⭐ 按类型分离的 CRUD 接口（推荐使用）
 	// ==================== Package 类型接口 ====================
 	packagesAuth := apiV1.Group("/packages")
-	packagesAuth.Use(middleware2.JWTAuth())
+	packagesAuth.Use(jwtAuth)
 	packagesAuth.POST("", serviceTreeHandler.CreatePackage)       // POST /api/v1/packages
 	packagesAuth.PUT("/:id", serviceTreeHandler.UpdatePackage)    // PUT /api/v1/packages/:id
 	packagesAuth.DELETE("/:id", serviceTreeHandler.DeletePackage) // DELETE /api/v1/packages/:id
 
 	// ==================== Function 类型接口 ====================
 	functionsAuth := apiV1.Group("/functions")
-	functionsAuth.Use(middleware2.JWTAuth())
+	functionsAuth.Use(jwtAuth)
 	functionsAuth.POST("", serviceTreeHandler.CreateFunction)       // POST /api/v1/functions
 	functionsAuth.PUT("/:id", serviceTreeHandler.UpdateFunction)    // PUT /api/v1/functions/:id
 	functionsAuth.DELETE("/:id", serviceTreeHandler.DeleteFunction) // DELETE /api/v1/functions/:id
@@ -99,14 +103,14 @@ func (s *Server) setupRoutes() {
 	// ==================== Docs 类型接口 ====================
 	// ⭐ docs CRUD 接口（使用 /docs/crud 避免与文档管理路由冲突）
 	docsCrudAuth := apiV1.Group("/docs/crud")
-	docsCrudAuth.Use(middleware2.JWTAuth())
+	docsCrudAuth.Use(jwtAuth)
 	docsCrudAuth.POST("", serviceTreeHandler.CreateDocs)       // POST /api/v1/docs/crud
 	docsCrudAuth.PUT("/:id", serviceTreeHandler.UpdateDocs)    // PUT /api/v1/docs/crud/:id
 	docsCrudAuth.DELETE("/:id", serviceTreeHandler.DeleteDocs) // DELETE /api/v1/docs/crud/:id
 
 	// ⭐ 文档管理路由（基于完整路径，与 table/form/chart 风格一致）
 	docs := apiV1.Group("/docs")
-	docs.Use(middleware2.JWTAuth())
+	docs.Use(jwtAuth)
 	docHandler := v1.NewDoc(s.docService, s.teamAccessService)
 	docs.GET("/search", docHandler.SearchDocs)                 // 搜索文档（模糊搜索）
 	docs.GET("/batch", docHandler.BatchGetDocs)                // 批量获取文档（精确查询）
@@ -128,19 +132,19 @@ func (s *Server) setupRoutes() {
 
 	// 函数管理路由（需要JWT验证）
 	function := apiV1.Group("/function")
-	function.Use(middleware2.JWTAuth()) // 函数管理需要JWT认证
+	function.Use(jwtAuth) // 函数管理需要JWT认证
 	functionHandler := v1.NewFunction(s.functionService)
 	function.GET("/info/:func-type/*full-code-path", functionHandler.GetFunction)
 
 	// 操作日志路由（需要JWT验证）
 	operateLog := apiV1.Group("/operate_log")
-	operateLog.Use(middleware2.JWTAuth())                                           // JWT 认证
+	operateLog.Use(jwtAuth)                                                         // JWT 认证
 	operateLogHandler := v1.NewOperateLog(s.operateLogService, s.teamAccessService) // 查询统一操作日志
 	operateLog.GET("/general", operateLogHandler.GetOperateLogs)                    // 查询通用操作日志
 
 	// 目录更新历史路由（需要JWT验证）
 	directoryUpdateHistory := apiV1.Group("/directory_update_history")
-	directoryUpdateHistory.Use(middleware2.JWTAuth()) // 目录更新历史需要JWT认证
+	directoryUpdateHistory.Use(jwtAuth) // 目录更新历史需要JWT认证
 	directoryUpdateHistoryHandler := v1.NewDirectoryUpdateHistory(s.directoryUpdateHistoryService)
 	directoryUpdateHistory.GET("/app_version", directoryUpdateHistoryHandler.GetAppVersionUpdateHistory) // 获取应用版本更新历史（App视角）
 	directoryUpdateHistory.GET("/directory", directoryUpdateHistoryHandler.GetDirectoryUpdateHistory)    // 获取目录更新历史（目录视角）
@@ -150,7 +154,7 @@ func (s *Server) setupRoutes() {
 
 	// Table 函数接口
 	table := apiV1.Group("/table")
-	table.Use(middleware2.JWTAuth())
+	table.Use(jwtAuth)
 	table.GET("/search/*full-code-path", standardAPI.TableSearch)     // Table 查询
 	table.GET("/template/*full-code-path", standardAPI.TableTemplate) // Table 下载导入模板
 	table.POST("/create/*full-code-path", standardAPI.TableCreate)    // Table 新增
@@ -159,22 +163,22 @@ func (s *Server) setupRoutes() {
 
 	// Form 函数接口
 	form := apiV1.Group("/form")
-	form.Use(middleware2.JWTAuth())
+	form.Use(jwtAuth)
 	form.POST("/submit/*full-code-path", standardAPI.FormSubmit) // Form 提交
 
 	// 工作台私有 runtime 接口（agent tool -> 当前 workspace app）
 	runtime := apiV1.Group("/runtime")
-	runtime.Use(middleware2.JWTAuth())
+	runtime.Use(jwtAuth)
 	runtime.POST("/python/*full-code-path", standardAPI.RuntimePython) // run_python 私有执行
 
 	// Chart 函数接口
 	chart := apiV1.Group("/chart")
-	chart.Use(middleware2.JWTAuth())
+	chart.Use(jwtAuth)
 	chart.GET("/query/*full-code-path", standardAPI.ChartQuery) // Chart 查询
 
 	// Callback 接口（不需要权限检查，因为这是内部回调）
 	callbackStandard := apiV1.Group("/callback")
-	callbackStandard.Use(middleware2.JWTAuth())
+	callbackStandard.Use(jwtAuth)
 	callbackStandard.POST("/on_select_fuzzy/*full-code-path", standardAPI.CallbackOnSelectFuzzy) // 模糊搜索回调
 
 	serverx.ApplyRouteRegistrars(serverx.ServiceAppServer, s.httpServer)

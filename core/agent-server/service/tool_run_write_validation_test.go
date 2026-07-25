@@ -202,6 +202,53 @@ func TestValidateRunWritePayloadsAcceptsOnSelectFuzzyMultiSelectValues(t *testin
 	}
 }
 
+func TestValidateRunWritePayloadsTreatsOptionalFuzzyIntegerZeroAsEmpty(t *testing.T) {
+	searchQueryField := testRunWriteField("search_query_id", "来源搜索词", widget.TypeSelect, nil, "")
+	searchQueryField.Callbacks = []string{"OnSelectFuzzy"}
+	searchQueryField.Data = &widget.FieldData{Type: widget.DataTypeInt}
+
+	resolverCalls := 0
+	issues := validateRunWritePayloads(context.Background(), []*widget.Field{searchQueryField}, []runWriteValidationPayload{{
+		Body: map[string]interface{}{"search_query_id": float64(0)},
+	}}, true, runWriteValidationOptions{
+		FullCodePath: "/system/democase/demand_radar/collect_platform.form",
+		ResolveFuzzyChoice: func(context.Context, string, map[string]interface{}) (map[string]interface{}, error) {
+			resolverCalls++
+			return map[string]interface{}{"items": []interface{}{}}, nil
+		},
+	})
+
+	if len(issues) != 0 {
+		t.Fatalf("optional fuzzy integer zero should be treated as unset, got %v", issues)
+	}
+	if resolverCalls != 0 {
+		t.Fatalf("unset optional fuzzy field should not call resolver, got %d calls", resolverCalls)
+	}
+}
+
+func TestValidateRunWritePayloadsRejectsRequiredFuzzyIntegerZeroAsMissing(t *testing.T) {
+	productField := testRunWriteField("product_id", "商品", widget.TypeSelect, nil, "required")
+	productField.Callbacks = []string{"OnSelectFuzzy"}
+	productField.Data = &widget.FieldData{Type: widget.DataTypeInt}
+
+	resolverCalls := 0
+	issues := validateRunWritePayloads(context.Background(), []*widget.Field{productField}, []runWriteValidationPayload{{
+		Body: map[string]interface{}{"product_id": float64(0)},
+	}}, true, runWriteValidationOptions{
+		ResolveFuzzyChoice: func(context.Context, string, map[string]interface{}) (map[string]interface{}, error) {
+			resolverCalls++
+			return nil, nil
+		},
+	})
+
+	if joined := joinRunWriteIssueMessages(issues); !strings.Contains(joined, "商品 (product_id) 必填") {
+		t.Fatalf("required fuzzy integer zero should report a missing value, got %q", joined)
+	}
+	if resolverCalls != 0 {
+		t.Fatalf("missing required fuzzy field should not call resolver, got %d calls", resolverCalls)
+	}
+}
+
 func TestValidateRunWritePayloadsKeepsCheckboxStatic(t *testing.T) {
 	field := testRunWriteField("tags", "标签", widget.TypeCheckbox, map[string]interface{}{
 		"options": []interface{}{"前端", "后端"},

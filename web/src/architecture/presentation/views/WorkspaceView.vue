@@ -1463,7 +1463,9 @@ useWorkspaceUiEffects({
 }
 
 .left-sidebar :deep(.tree-content) {
-  padding: 10px 12px 12px;
+  /* Keep the final tree node above the floating sidebar toggle. */
+  padding: 10px 12px 72px;
+  scroll-padding-bottom: 72px;
 }
 
 .left-sidebar :deep(.el-tree),

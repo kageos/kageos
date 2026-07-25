@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"time"
 
 	"github.com/kageos/kageos/core/timer-scheduler/model"
@@ -9,6 +10,16 @@ import (
 
 type TimerExecutionRepository struct {
 	db *gorm.DB
+}
+
+type ActiveExecutionState struct {
+	Queued  int64
+	Running int64
+	Waiting *model.TimerExecution
+}
+
+func (s ActiveExecutionState) ActiveCount() int64 {
+	return s.Queued + s.Running
 }
 
 func NewTimerExecutionRepository(db *gorm.DB) *TimerExecutionRepository {
@@ -65,6 +76,81 @@ func (r *TimerExecutionRepository) ListStale(now time.Time, limit int) ([]*model
 		return nil, err
 	}
 	return list, nil
+}
+
+func (r *TimerExecutionRepository) GetActiveState(taskID int64) (ActiveExecutionState, error) {
+	var rows []struct {
+		Status string
+		Count  int64
+	}
+	if err := r.db.Model(&model.TimerExecution{}).
+		Select("status, COUNT(*) AS count").
+		Where("task_id = ? AND status IN ?", taskID, []string{"queued", "running"}).
+		Group("status").
+		Scan(&rows).Error; err != nil {
+		return ActiveExecutionState{}, err
+	}
+	state := ActiveExecutionState{}
+	for _, row := range rows {
+		switch row.Status {
+		case "queued":
+			state.Queued = row.Count
+		case "running":
+			state.Running = row.Count
+		}
+	}
+	var waiting model.TimerExecution
+	err := r.db.Where("task_id = ? AND status = ?", taskID, "waiting").Order("id DESC").First(&waiting).Error
+	if err == nil {
+		state.Waiting = &waiting
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return ActiveExecutionState{}, err
+	}
+	return state, nil
+}
+
+func (r *TimerExecutionRepository) UpdateWaitingScheduledAt(taskID, executionID int64, scheduledAt time.Time) (bool, error) {
+	result := r.db.Model(&model.TimerExecution{}).
+		Where("task_id = ? AND id = ? AND status = ?", taskID, executionID, "waiting").
+		Update("scheduled_at", scheduledAt)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+func (r *TimerExecutionRepository) TryPromoteWaiting(exec *model.TimerExecution, now, leaseUntil time.Time) (bool, error) {
+	result := r.db.Model(&model.TimerExecution{}).
+		Where("task_id = ? AND id = ? AND status = ?", exec.TaskID, exec.ID, "waiting").
+		Updates(map[string]interface{}{
+			"status":             "queued",
+			"attempt":            1,
+			"lease_until":        leaseUntil,
+			"last_dispatched_at": now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+func (r *TimerExecutionRepository) LatestActiveExecutionID(taskID int64) (int64, error) {
+	var exec model.TimerExecution
+	err := r.db.Select("id").Where("task_id = ? AND status IN ?", taskID, []string{"queued", "running"}).Order("id DESC").First(&exec).Error
+	if err != nil {
+		return 0, err
+	}
+	return exec.ID, nil
+}
+
+func (r *TimerExecutionRepository) CancelWaitingByTask(taskID int64, now time.Time, message string) error {
+	return r.db.Model(&model.TimerExecution{}).
+		Where("task_id = ? AND status = ?", taskID, "waiting").
+		Updates(map[string]interface{}{
+			"status":        "cancelled",
+			"finished_at":   now,
+			"error_message": message,
+		}).Error
 }
 
 func (r *TimerExecutionRepository) TryMarkRunning(taskID, executionID int64, workerID, executorRunID string, startedAt, leaseUntil time.Time) (bool, error) {

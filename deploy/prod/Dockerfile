@@ -71,7 +71,9 @@ RUN mkdir -p /etc/kageos /etc/containers /var/lib/containers/storage /run/podman
 COPY --from=gobuilder /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV GOPATH="/go"
-ENV GOCACHE="/tmp/go-cache"
+# User app builds share a persistent cache on the mounted namespace volume, so
+# recreating the main container does not force every package to compile again.
+ENV GOCACHE="/app/namespace/.cache/go-build"
 
 WORKDIR /app
 

@@ -78,6 +78,7 @@ func (u *MinIOUploader) uploadWithSDK(ctx context.Context, creds *dto.GetUploadT
 	if region == "" {
 		region = "us-east-1" // 默认region
 	}
+	configuredEndpoint := endpoint
 	if resolvedEndpoint, err := netprobe.ResolveTCPEndpointCached(ctx, "minio-sdk", endpoint, time.Second); err == nil {
 		if resolvedEndpoint != endpoint {
 			logger.Debugf(ctx, "[MinIOUploader] endpoint auto-resolved: %s -> %s", endpoint, resolvedEndpoint)
@@ -117,6 +118,9 @@ func (u *MinIOUploader) uploadWithSDK(ctx context.Context, creds *dto.GetUploadT
 		ContentType: contentType,
 	})
 	if err != nil {
+		// fileReader may already be consumed, so do not replay the upload. Make
+		// the next upload re-evaluate local runtime candidates instead.
+		netprobe.InvalidateTCPEndpointCached("minio-sdk", configuredEndpoint)
 		uploadTime := time.Since(uploadStart)
 		logger.Errorf(ctx, "[MinIOUploader] 上传失败: 耗时=%v, 错误=%v", uploadTime, err)
 		return nil, fmt.Errorf("%w: 上传失败: %v", ErrUploadFailed, err)
@@ -194,6 +198,7 @@ func (u *MinIOUploader) uploadWithHTTP(ctx context.Context, creds *dto.GetUpload
 
 	resp, err := minIOUploadHTTPClient.Do(req)
 	if err != nil {
+		netprobe.InvalidateHTTPURLHostCached("minio-http-upload", configuredUploadURL(creds))
 		uploadTime := time.Since(uploadStart)
 		logger.Errorf(ctx, "[MinIOUploader] 上传失败: 耗时=%v, 错误=%v", uploadTime, err)
 		return nil, fmt.Errorf("%w: 上传请求失败: %v", ErrUploadFailed, err)
@@ -266,16 +271,21 @@ func resolveUploadURL(ctx context.Context, creds *dto.GetUploadTokenResp) string
 	if creds == nil {
 		return ""
 	}
-	var uploadURL string
-	if creds.ServerUploadURL != "" {
-		uploadURL = creds.ServerUploadURL
-	} else {
-		uploadURL = creds.UploadURL
-	}
+	uploadURL := configuredUploadURL(creds)
 	if resolvedURL, err := netprobe.ResolveHTTPURLHostCached(ctx, "minio-http-upload", uploadURL, time.Second); err == nil && resolvedURL != "" {
 		return resolvedURL
 	}
 	return uploadURL
+}
+
+func configuredUploadURL(creds *dto.GetUploadTokenResp) string {
+	if creds == nil {
+		return ""
+	}
+	if creds.ServerUploadURL != "" {
+		return creds.ServerUploadURL
+	}
+	return creds.UploadURL
 }
 
 func getUploadContentType(creds *dto.GetUploadTokenResp) string {

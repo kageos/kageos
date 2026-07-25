@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/kageos/kageos/pkg/auth"
@@ -17,10 +16,9 @@ import (
 
 const TokenPrefix = "kgos_"
 
-var (
-	dbMu sync.RWMutex
-	db   *gorm.DB
-)
+type Store struct {
+	db *gorm.DB
+}
 
 type OpenAPIToken struct {
 	ID                int64          `json:"id" gorm:"primaryKey;autoIncrement"`
@@ -72,25 +70,22 @@ type Principal struct {
 	DepartmentFullPath string
 }
 
-func SetDB(database *gorm.DB) error {
+func NewStore(database *gorm.DB) (*Store, error) {
 	if database == nil {
-		return errors.New("openapi token db is nil")
+		return nil, errors.New("openapi token db is nil")
 	}
 	if err := Migrate(database); err != nil {
-		return err
+		return nil, err
 	}
-	dbMu.Lock()
-	db = database
-	dbMu.Unlock()
-	return nil
+	return &Store{db: database}, nil
 }
 
 func Migrate(database *gorm.DB) error {
 	return database.AutoMigrate(&OpenAPIToken{})
 }
 
-func Create(input CreateInput) (*CreateResult, error) {
-	database := getDB()
+func (s *Store) Create(input CreateInput) (*CreateResult, error) {
+	database := s.database()
 	if database == nil {
 		return nil, errors.New("openapi token db is not configured")
 	}
@@ -130,8 +125,8 @@ func Create(input CreateInput) (*CreateResult, error) {
 	return &CreateResult{Token: record, Secret: secret}, nil
 }
 
-func List(ownerUsername string) ([]OpenAPIToken, error) {
-	database := getDB()
+func (s *Store) List(ownerUsername string) ([]OpenAPIToken, error) {
+	database := s.database()
 	if database == nil {
 		return nil, errors.New("openapi token db is not configured")
 	}
@@ -143,8 +138,8 @@ func List(ownerUsername string) ([]OpenAPIToken, error) {
 	return tokens, err
 }
 
-func Revoke(ownerUsername string, id int64) error {
-	database := getDB()
+func (s *Store) Revoke(ownerUsername string, id int64) error {
+	database := s.database()
 	if database == nil {
 		return errors.New("openapi token db is not configured")
 	}
@@ -161,7 +156,7 @@ func Revoke(ownerUsername string, id int64) error {
 	return nil
 }
 
-func Validate(rawToken, ip, userAgent string) (*Principal, error) {
+func (s *Store) Validate(rawToken, ip, userAgent string) (*Principal, error) {
 	rawToken = strings.TrimSpace(rawToken)
 	claims, err := auth.NewJWTService().ValidateToken(rawToken)
 	if err != nil {
@@ -179,7 +174,7 @@ func Validate(rawToken, ip, userAgent string) (*Principal, error) {
 	if claims.DepartmentFullPath != nil {
 		principal.DepartmentFullPath = *claims.DepartmentFullPath
 	}
-	database := getDB()
+	database := s.database()
 	if database == nil {
 		return principal, nil
 	}
@@ -216,10 +211,11 @@ func BearerToken(authorizationHeader string) string {
 	return strings.TrimSpace(header[7:])
 }
 
-func getDB() *gorm.DB {
-	dbMu.RLock()
-	defer dbMu.RUnlock()
-	return db
+func (s *Store) database() *gorm.DB {
+	if s == nil {
+		return nil
+	}
+	return s.db
 }
 
 func displayPrefix(token string) string {

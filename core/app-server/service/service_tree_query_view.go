@@ -112,6 +112,7 @@ func (q *serviceTreeQueryView) GetAppWithServiceTree(ctx context.Context, req *d
 		NatsID:                appModel.NatsID,
 		HostID:                appModel.HostID,
 		IsPublic:              appModel.IsPublic,
+		IsPersonalWorkspace:   appModel.IsPersonalWorkspace,
 		HideUnauthorizedNodes: appModel.HideUnauthorizedNodes,
 		Admins:                appModel.Admins,
 		Type:                  int(appModel.Type),

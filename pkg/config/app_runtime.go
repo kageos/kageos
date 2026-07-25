@@ -101,6 +101,7 @@ type AppRuntimeTimeoutConfig struct {
 	AppServerRequest       int `mapstructure:"app_server_request"`       // app-server 请求处理超时时间（秒）
 	ContainerStartup       int `mapstructure:"container_startup"`        // 容器启动等待时间（秒）
 	AppStartupNotification int `mapstructure:"app_startup_notification"` // 应用启动通知等待时间（秒）
+	UpdateCallback         int `mapstructure:"update_callback"`          // 更新后迁移与 schema diff 回调超时时间（秒）
 	ContainerCleanup       int `mapstructure:"container_cleanup"`        // 容器清理等待时间（秒）
 }
 
@@ -131,6 +132,10 @@ type AppDirConfig struct {
 type BuildConfig struct {
 	OutputDir        string `mapstructure:"output_dir"`
 	BinaryNameFormat string `mapstructure:"binary_name_format"`
+	// KeepDebugSymbols disables release binary stripping for local debugging.
+	// The default is false so normal app updates use smaller, faster-to-link
+	// release binaries.
+	KeepDebugSymbols bool `mapstructure:"keep_debug_symbols"`
 }
 
 // GitConfig Git 配置
@@ -207,6 +212,13 @@ func (c *AppManageServiceConfig) GetBinaryNameFormat() string {
 		return v
 	}
 	return defaultRuntimeBinaryNameFormat
+}
+
+func (c *AppManageServiceConfig) GetStripDebugSymbols() bool {
+	if c == nil {
+		return true
+	}
+	return !c.Build.KeepDebugSymbols
 }
 
 func (c *AppManageServiceConfig) GetGitEmailSuffix() string {
@@ -302,6 +314,15 @@ func (c *AppRuntimeConfig) GetAppStartupNotificationTimeout() int {
 		return 300 // 默认 300 秒
 	}
 	return c.Timeouts.AppStartupNotification
+}
+
+// GetUpdateCallbackTimeout 获取应用更新后迁移与 schema diff 回调超时时间。
+// 该超时应小于 app-server / gateway 的 5 分钟总请求超时，为编译和启动预留时间。
+func (c *AppRuntimeConfig) GetUpdateCallbackTimeout() int {
+	if c.Timeouts.UpdateCallback <= 0 {
+		return 240 // 默认 240 秒（4分钟）
+	}
+	return c.Timeouts.UpdateCallback
 }
 
 // GetContainerCleanupTimeout 获取容器清理等待时间

@@ -65,7 +65,9 @@
     "dayjs": "^1.11.18",
     "echarts": "^6.1.0",
     "element-plus": "^2.11.5",
+    "exceljs": "^4.4.0",
     "js-sha256": "^0.10.1",
+    "jszip": "^3.10.1",
     "marked": "^17.0.1",
     "monaco-editor": "^0.53.0",
     "pinia": "^3.0.3",
@@ -106,5 +108,11 @@
     "vite-plugin-vue-devtools": "^8.0.3",
     "vitest": "^3.2.6",
     "vue-tsc": "^3.1.1"
+  },
+  "overrides": {
+    "exceljs": {
+      "brace-expansion": "2.1.2",
+      "uuid": "11.1.1"
+    }
   }
 }

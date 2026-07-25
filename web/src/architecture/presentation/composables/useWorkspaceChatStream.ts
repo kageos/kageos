@@ -16,6 +16,7 @@ import type {
   WorkspaceStreamDonePayload,
   WorkspaceStreamErrorPayload,
   WorkspaceStreamEventName,
+  WorkspaceStreamGenerationAttemptPayload,
   WorkspaceStreamPayload,
   WorkspaceStreamSessionPayload,
   WorkspaceStreamThinkingPayload,
@@ -109,6 +110,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
   let smoothTimer: ReturnType<typeof setInterval> | null = null
   let streamEpoch = 0
   let activeStreamRun: ActiveStreamRun | null = null
+  const attemptSnapshots = new Map<string, { targetIdx: number; message: ChatMessage }>()
 
   function stopSmoothTimer() {
     if (smoothTimer != null) {
@@ -254,6 +256,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
   function invalidateActiveStream() {
     streamEpoch += 1
     activeStreamRun = null
+    attemptSnapshots.clear()
   }
 
   function isActiveStreamRun(run: ActiveStreamRun): boolean {
@@ -283,6 +286,25 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
 
     const m = messages.value[targetIdx]
     if (!m || m.role !== 'assistant') return false
+
+    if (event === 'generation_attempt') {
+      const payload = data as WorkspaceStreamGenerationAttemptPayload
+      const attemptID = String(payload.attempt_id || '')
+      if (!attemptID) return true
+      if (payload.action === 'started') {
+        attemptSnapshots.set(attemptID, { targetIdx, message: cloneChatMessage(m) })
+      } else if (payload.action === 'discarded') {
+        const snapshot = attemptSnapshots.get(attemptID)
+        if (snapshot && snapshot.targetIdx === targetIdx) {
+          messages.value[targetIdx] = cloneChatMessage(snapshot.message)
+          streamingDisplayLength.value = Math.min(streamingDisplayLength.value, snapshot.message.content.length)
+        }
+        attemptSnapshots.delete(attemptID)
+      } else if (payload.action === 'committed') {
+        attemptSnapshots.delete(attemptID)
+      }
+      return true
+    }
 
     if (event === 'model_context_plan') {
       const payload = data as WorkspaceModelContextPlan
@@ -371,6 +393,7 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
     if (event === 'done') {
       const payload = data as WorkspaceStreamDonePayload
       sending.value = false
+      attemptSnapshots.clear()
       const llmMeta = extractLLMMetadata(payload, m)
       if (Array.isArray(payload.tool_calls)) {
         const doneList = payload.tool_calls as ChatMessageToolCall[]
@@ -418,8 +441,13 @@ export function useWorkspaceChatStream(): UseWorkspaceChatStreamReturn {
         messages.value[targetIdx] = { ...m, content: m.content || rawErr, blocks: nextBlocks }
       }
       sending.value = false
+      attemptSnapshots.clear()
     }
     return true
+  }
+
+  function cloneChatMessage(message: ChatMessage): ChatMessage {
+    return JSON.parse(JSON.stringify(message)) as ChatMessage
   }
 
   function extractLLMMetadata(data: WorkspaceStreamDonePayload, message?: ChatMessage): Partial<ChatMessage> {

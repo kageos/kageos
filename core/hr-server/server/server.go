@@ -41,6 +41,7 @@ type Server struct {
 	userService         *service.UserService
 	departmentService   *service.DepartmentService
 	tokenPublisher      service.TokenPublisher
+	openAPITokenStore   *openapitoken.Store
 	subscriptions       []*nats.Subscription
 
 	// 上下文
@@ -181,9 +182,11 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	if err := model.InitModels(db); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
-	if err := openapitoken.SetDB(db); err != nil {
+	openAPITokenStore, err := openapitoken.NewStore(db)
+	if err != nil {
 		return fmt.Errorf("failed to init openapi token store: %w", err)
 	}
+	s.openAPITokenStore = openAPITokenStore
 
 	logger.Infof(ctx, "[Server] Database initialized successfully")
 	return nil

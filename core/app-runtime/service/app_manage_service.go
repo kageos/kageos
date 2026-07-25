@@ -125,27 +125,36 @@ func parseContainerName(containerName string) (string, string, string, error) {
 	return user, app, version, nil
 }
 
+type AppManageServiceDependencies struct {
+	Builder              *builder.Builder
+	Config               *appconfig.AppManageServiceConfig
+	RuntimeConfig        *appconfig.AppRuntimeConfig
+	ContainerService     ContainerOperator
+	AppRepository        *repository.AppRepository
+	AppDiscoveryService  *AppDiscoveryService
+	NATSConnection       *nats.Conn
+	WorkspaceFileService *WorkspaceFileService
+	AppDatabaseService   *AppDatabaseService
+}
+
 // NewAppManageService 创建应用管理服务（依赖注入）
-func NewAppManageService(builder *builder.Builder, config *appconfig.AppManageServiceConfig, runtimeConfig *appconfig.AppRuntimeConfig, containerService ContainerOperator, appRepo *repository.AppRepository, appDiscoveryService *AppDiscoveryService, natsConn *nats.Conn, workspaceFileService *WorkspaceFileService) *AppManageService {
+func NewAppManageService(deps AppManageServiceDependencies) *AppManageService {
 	return &AppManageService{
-		builder:              builder,
-		config:               config,
-		runtimeConfig:        runtimeConfig,
-		runtimeDriver:        NewPodmanAppRuntimeDriver(containerService),
-		appRepo:              appRepo,
-		appDiscoveryService:  appDiscoveryService,
-		appControlClient:     NewAppControlClient(natsConn),
+		builder:              deps.Builder,
+		config:               deps.Config,
+		runtimeConfig:        deps.RuntimeConfig,
+		runtimeDriver:        NewPodmanAppRuntimeDriver(deps.ContainerService),
+		appRepo:              deps.AppRepository,
+		appDiscoveryService:  deps.AppDiscoveryService,
+		appControlClient:     NewAppControlClient(deps.NATSConnection),
+		appDatabaseService:   deps.AppDatabaseService,
 		QPSTracker:           NewQPSTracker(60*time.Second, 10*time.Second), // 60秒窗口，10秒检查间隔
-		workspaceFileService: workspaceFileService,
+		workspaceFileService: deps.WorkspaceFileService,
 		startupWaiters:       make(map[string]chan *StartupNotification),
 		closeWaiters:         make(map[string]chan *CloseNotification),
 		cleanupDone:          make(chan struct{}),
 		containerCleanupDone: make(chan struct{}),
 	}
-}
-
-func (s *AppManageService) SetAppDatabaseService(appDatabaseService *AppDatabaseService) {
-	s.appDatabaseService = appDatabaseService
 }
 
 // CreateApp 创建应用目录结构
@@ -215,23 +224,25 @@ func (s *AppManageService) BuildApp(ctx context.Context, user, app string, opts 
 
 	// 设置默认编译选项（平台由 builder 内部固定为 linux/当前架构）
 	buildOpts := &builder.BuildOpts{
-		SourceDir:        appPaths.CmdAppDir(),
-		OutputDir:        appPaths.BuildOutputDir(s.config.GetBuildOutputDir()),
-		BinaryNameFormat: s.config.GetBinaryNameFormat(),
+		SourceDir:         appPaths.CmdAppDir(),
+		OutputDir:         appPaths.BuildOutputDir(s.config.GetBuildOutputDir()),
+		BinaryNameFormat:  s.config.GetBinaryNameFormat(),
+		StripDebugSymbols: s.config.GetStripDebugSymbols(),
 	}
 
 	if len(opts) > 0 && opts[0] != nil {
 		opt := opts[0]
 		// 转换类型，保留所有字段（平台由 builder 内部固定为 linux/当前架构）
 		buildOpts = &builder.BuildOpts{
-			User:             user,
-			App:              app,
-			SourceDir:        nonEmpty(opt.SourceDir, buildOpts.SourceDir),
-			OutputDir:        nonEmpty(opt.OutputDir, buildOpts.OutputDir),
-			BinaryNameFormat: nonEmpty(opt.BinaryNameFormat, buildOpts.BinaryNameFormat),
-			BuildTags:        opt.BuildTags,
-			LdFlags:          opt.LdFlags,
-			Env:              opt.Env,
+			User:              user,
+			App:               app,
+			SourceDir:         nonEmpty(opt.SourceDir, buildOpts.SourceDir),
+			OutputDir:         nonEmpty(opt.OutputDir, buildOpts.OutputDir),
+			BinaryNameFormat:  nonEmpty(opt.BinaryNameFormat, buildOpts.BinaryNameFormat),
+			BuildTags:         opt.BuildTags,
+			LdFlags:           opt.LdFlags,
+			StripDebugSymbols: buildOpts.StripDebugSymbols,
+			Env:               opt.Env,
 		}
 	}
 
@@ -452,7 +463,7 @@ func (s *AppManageService) sendUpdateCallbackAndWait(ctx context.Context, user, 
 		Timestamp: time.Now(),
 	}
 
-	rsp, err := s.appControlClient.RequestUpdateCallback(ctx, user, app, version, &request, 60*time.Second)
+	rsp, err := s.appControlClient.RequestUpdateCallback(ctx, user, app, version, &request, s.updateCallbackTimeout())
 	if err != nil {
 		logger.Errorf(ctx, "[sendUpdateCallbackAndWait] ❌ Request failed: %v", err)
 		return rsp, err
@@ -603,13 +614,16 @@ func (s *AppManageService) buildAppVersionSpec(ctx context.Context, ref AppVersi
 	// host.containers.internal 等本地候选地址，避免 prod host 网络和 dev bridge
 	// 网络使用同一份静态地址。
 	//
-	// SDK 配置会在构建时注入为环境变量：
-	//   - nats_url -> NATS_URL 环境变量
-	//   - gateway_url -> GATEWAY_URL 环境变量
-	//   - env_vars 中的键值对 -> 对应的环境变量
+	// NATS 凭据通过 Podman Secret 挂载到 SDK 的固定读取路径，不能进入环境变量；
+	// gateway_url 和 env_vars 中的非敏感配置仍作为环境变量注入。
 	sdkConfig := appconfig.GetSDKConfig()
+	natsSecret := RuntimeSecret{
+		Name:   appNATSSecretName(ref),
+		Target: appNATSSecretTarget,
+		Data:   []byte(sdkConfig.GetNatsURL()),
+	}
 
-	// 从 SDK 配置获取所有环境变量（包括固定字段和 env_vars 中的）
+	// 从 SDK 配置获取允许暴露给 App 进程的非敏感环境变量。
 	sdkEnvVars := sdkConfig.GetEnvVars()
 	for key, value := range sdkEnvVars {
 		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
@@ -651,6 +665,7 @@ func (s *AppManageService) buildAppVersionSpec(ctx context.Context, ref AppVersi
 		ContainerPath: containerPath,
 		Command:       []string{"/start.sh"},
 		EnvVars:       envVars,
+		Secrets:       []RuntimeSecret{natsSecret},
 	}, nil
 }
 
@@ -1264,6 +1279,13 @@ func (s *AppManageService) appStartupNotificationTimeout() time.Duration {
 		return time.Duration((&appconfig.AppRuntimeConfig{}).GetAppStartupNotificationTimeout()) * time.Second
 	}
 	return time.Duration(s.runtimeConfig.GetAppStartupNotificationTimeout()) * time.Second
+}
+
+func (s *AppManageService) updateCallbackTimeout() time.Duration {
+	if s.runtimeConfig == nil {
+		return time.Duration((&appconfig.AppRuntimeConfig{}).GetUpdateCallbackTimeout()) * time.Second
+	}
+	return time.Duration(s.runtimeConfig.GetUpdateCallbackTimeout()) * time.Second
 }
 
 type lineRange struct {

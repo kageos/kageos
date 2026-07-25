@@ -3,6 +3,7 @@ package scheduledsdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -23,6 +24,7 @@ type WorkerOptions struct {
 	QueueGroup        string
 	Handler           ExecutionHandler
 	HeartbeatInterval time.Duration
+	Concurrency       int
 	OnError           func(context.Context, error)
 }
 
@@ -34,10 +36,11 @@ type Worker struct {
 	queueGroup        string
 	handler           ExecutionHandler
 	heartbeatInterval time.Duration
+	concurrency       int
 	onError           func(context.Context, error)
 
-	mu  sync.Mutex
-	sub *nats.Subscription
+	mu   sync.Mutex
+	subs []*nats.Subscription
 }
 
 func NewWorker(opts WorkerOptions) (*Worker, error) {
@@ -66,6 +69,10 @@ func NewWorker(opts WorkerOptions) (*Worker, error) {
 	if heartbeatInterval == 0 {
 		heartbeatInterval = 30 * time.Second
 	}
+	concurrency := opts.Concurrency
+	if concurrency <= 0 {
+		concurrency = 1
+	}
 	return &Worker{
 		client:            opts.Client,
 		natsConn:          opts.NATSConn,
@@ -74,6 +81,7 @@ func NewWorker(opts WorkerOptions) (*Worker, error) {
 		queueGroup:        queueGroup,
 		handler:           opts.Handler,
 		heartbeatInterval: heartbeatInterval,
+		concurrency:       concurrency,
 		onError:           opts.OnError,
 	}, nil
 }
@@ -81,15 +89,21 @@ func NewWorker(opts WorkerOptions) (*Worker, error) {
 func (w *Worker) Start(ctx context.Context) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.sub != nil {
+	if len(w.subs) > 0 {
 		return fmt.Errorf("scheduledsdk: worker already started")
 	}
 	subject := subjects.TimerExecutionRequestedSubject(w.executorKey)
-	sub, err := w.natsConn.QueueSubscribe(subject, w.queueGroup, w.handleMessage)
-	if err != nil {
-		return err
+	for i := 0; i < w.concurrency; i++ {
+		sub, err := w.natsConn.QueueSubscribe(subject, w.queueGroup, w.handleMessage)
+		if err != nil {
+			for _, started := range w.subs {
+				_ = started.Unsubscribe()
+			}
+			w.subs = nil
+			return err
+		}
+		w.subs = append(w.subs, sub)
 	}
-	w.sub = sub
 	go func() {
 		<-ctx.Done()
 		_ = w.Stop()
@@ -100,12 +114,15 @@ func (w *Worker) Start(ctx context.Context) error {
 func (w *Worker) Stop() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.sub == nil {
+	if len(w.subs) == 0 {
 		return nil
 	}
-	err := w.sub.Unsubscribe()
-	w.sub = nil
-	return err
+	var stopErr error
+	for _, sub := range w.subs {
+		stopErr = errors.Join(stopErr, sub.Unsubscribe())
+	}
+	w.subs = nil
+	return stopErr
 }
 
 func (w *Worker) handleMessage(msg *nats.Msg) {

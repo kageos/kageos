@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"errors"
+
 	"github.com/kageos/kageos/core/agent-server/model"
 	"gorm.io/gorm"
 )
@@ -8,6 +10,32 @@ import (
 // ChatMessageRepository 工作台聊天消息数据访问层
 type ChatMessageRepository struct {
 	db *gorm.DB
+}
+
+func (r *ChatMessageRepository) SupportsContextCheckpoints() bool {
+	return r != nil && r.db != nil && r.db.Migrator().HasTable(&model.AgentChatContextCheckpoint{})
+}
+
+func (r *ChatMessageRepository) GetLatestContextCheckpoint(sessionID string) (*model.AgentChatContextCheckpoint, error) {
+	if !r.SupportsContextCheckpoints() {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var checkpoint model.AgentChatContextCheckpoint
+	err := r.db.Where("session_id = ?", sessionID).Order("covered_to_message_id DESC, id DESC").First(&checkpoint).Error
+	if err != nil {
+		return nil, err
+	}
+	return &checkpoint, nil
+}
+
+func (r *ChatMessageRepository) CreateContextCheckpoint(checkpoint *model.AgentChatContextCheckpoint) error {
+	if checkpoint == nil {
+		return errors.New("context checkpoint is nil")
+	}
+	if !r.SupportsContextCheckpoints() {
+		return errors.New("context checkpoint table is unavailable")
+	}
+	return r.db.Create(checkpoint).Error
 }
 
 // NewChatMessageRepository 创建聊天消息 Repository
@@ -68,7 +96,14 @@ func (r *ChatMessageRepository) ListBySessionIDWithLimit(sessionID string, limit
 
 // DeleteBySessionID 根据 SessionID 删除所有消息
 func (r *ChatMessageRepository) DeleteBySessionID(sessionID string) error {
-	return r.db.Where("session_id = ?", sessionID).Delete(&model.AgentChatMessage{}).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if tx.Migrator().HasTable(&model.AgentChatContextCheckpoint{}) {
+			if err := tx.Where("session_id = ?", sessionID).Delete(&model.AgentChatContextCheckpoint{}).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Where("session_id = ?", sessionID).Delete(&model.AgentChatMessage{}).Error
+	})
 }
 
 // Delete 删除消息（根据 ID）

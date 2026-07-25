@@ -71,17 +71,22 @@ func redactURLForLog(raw string) string {
 	if raw == "" {
 		return ""
 	}
+	servers := strings.Split(raw, ",")
+	for i, server := range servers {
+		servers[i] = redactSingleURLForLog(strings.TrimSpace(server))
+	}
+	return strings.Join(servers, ",")
+}
+
+func redactSingleURLForLog(raw string) string {
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return "<redacted-url>"
 	}
 	if parsed.User != nil {
-		username := parsed.User.Username()
-		if username == "" {
-			parsed.User = url.UserPassword("", "****")
-		} else {
-			parsed.User = url.UserPassword(username, "****")
-		}
+		// A one-part userinfo value is commonly a token. Remove all userinfo
+		// rather than risking token or username disclosure in logs.
+		parsed.User = nil
 	}
 	if parsed.RawQuery != "" {
 		parsed.RawQuery = "redacted=true"

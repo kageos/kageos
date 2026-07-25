@@ -326,6 +326,13 @@ export function useWorkspaceApp(
     }
 
     const code = normalizeGoPackageName(createAppForm.value.code)
+    if (code === 'home') {
+      ElNotification.warning({
+        title: translate('common.warning'),
+        message: translate('workspace.codeReserved', { label: translate('workspace.createCode'), code })
+      })
+      return
+    }
     const codeError = validateGoPackageName(code, translate('workspace.createCode'), { minLength: 2 }, goPackageValidationMessages)
     if (codeError) {
       ElNotification.warning({

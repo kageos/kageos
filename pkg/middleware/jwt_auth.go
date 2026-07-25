@@ -9,6 +9,28 @@ import (
 	"github.com/kageos/kageos/pkg/openapitoken"
 )
 
+type AuthOption func(*authOptions)
+
+type authOptions struct {
+	openAPITokenStore *openapitoken.Store
+}
+
+func WithOpenAPITokenStore(store *openapitoken.Store) AuthOption {
+	return func(options *authOptions) {
+		options.openAPITokenStore = store
+	}
+}
+
+func resolveAuthOptions(options ...AuthOption) authOptions {
+	resolved := authOptions{}
+	for _, option := range options {
+		if option != nil {
+			option(&resolved)
+		}
+	}
+	return resolved
+}
+
 // isInternalRequest 检查是否为内网请求（SDK内部调用）
 func isInternalRequest(c *gin.Context) bool {
 	clientIP := c.ClientIP()
@@ -20,7 +42,8 @@ func isInternalRequest(c *gin.Context) bool {
 }
 
 // JWTAuth JWT认证中间件（支持内网免验证）
-func JWTAuth() gin.HandlerFunc {
+func JWTAuth(options ...AuthOption) gin.HandlerFunc {
+	tokenStore := resolveAuthOptions(options...).openAPITokenStore
 	return func(c *gin.Context) {
 		// ✨ 优先从header获取username（网关已解析token并设置到header）
 		// 如果网关已经解析了token，直接使用header中的username，无需重复解析
@@ -46,7 +69,7 @@ func JWTAuth() gin.HandlerFunc {
 		}
 
 		if rawOpenAPIToken := openapitoken.BearerToken(c.GetHeader("Authorization")); rawOpenAPIToken != "" {
-			principal, err := openapitoken.Validate(rawOpenAPIToken, c.ClientIP(), c.GetHeader("User-Agent"))
+			principal, err := tokenStore.Validate(rawOpenAPIToken, c.ClientIP(), c.GetHeader("User-Agent"))
 			if err != nil {
 				logger.Errorf(c, "[JWTAuth] OpenAPI token validation failed: %v", err)
 				response.FailWithMessage(c, "OpenAPI Token 无效或已过期")

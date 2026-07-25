@@ -54,6 +54,41 @@ func TestOpenAIClientChatUsesSDKAndCustomBaseURL(t *testing.T) {
 	}
 }
 
+func TestOpenAIClientUsesReasoningControlsAndCompletionTokenLimit(t *testing.T) {
+	var payload map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id":"chatcmpl-test",
+			"object":"chat.completion",
+			"created":1,
+			"model":"gpt-5-test",
+			"choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewOpenAIClientWithOptions("test-key", DefaultClientOptions().WithBaseURL(server.URL+"/v1").WithModel("gpt-5-test"))
+	_, err := client.Chat(context.Background(), &ChatRequest{
+		Messages:        []Message{{Role: "user", Content: "hi"}},
+		MaxTokens:       16384,
+		ReasoningEffort: "medium",
+		Verbosity:       "low",
+	})
+	if err != nil {
+		t.Fatalf("Chat returned error: %v", err)
+	}
+	if _, exists := payload["max_tokens"]; exists {
+		t.Fatalf("reasoning request should not send deprecated max_tokens: %#v", payload)
+	}
+	if payload["max_completion_tokens"].(float64) != 16384 || payload["reasoning_effort"] != "medium" || payload["verbosity"] != "low" {
+		t.Fatalf("unexpected reasoning payload: %#v", payload)
+	}
+}
+
 func TestValidateRequestAllowsAssistantToolCallsWithoutContent(t *testing.T) {
 	tc := ToolCall{ID: "call_1", Type: "function"}
 	tc.Function.Name = "lookup"

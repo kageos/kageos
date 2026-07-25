@@ -107,7 +107,7 @@ func Specs() map[string]Spec {
 			Runtime: runtimeContract(
 				[]string{"用户要新建长期业务系统、应用目录、Form/Table/Chart 或管理后台", "尚未确认结构化 PRD"},
 				[]string{"当前目录已有应用且运行函数能完成用户目标", "用户只是要操作现有软件完成业务结果"},
-				[]string{"先结合当前目录判断是新建系统还是使用现有应用", "优先使用 file_profile、用户文件内容和样例数据提炼业务对象、字段、搜索、提交入口、统计和规则", "调用 write_prd 输出 PRD v2", "等待用户确认，不创建目录、不写代码、不 build"},
+				[]string{"先结合当前目录判断是新建系统还是使用现有应用", "优先使用 file_profile、用户文件内容和样例数据提炼业务对象、字段、搜索、提交入口、统计和规则", "涉及无人值守时先判断信息何时可知：提交时可确定的问题必须同步校验，只有时间流逝、外部状态变化、持续观察或跨记录分析才进入后台，并要求结果回写、幂等、人工接管和停止条件", "调用 write_prd 输出 PRD v2", "等待用户确认，不创建目录、不写代码、不 build"},
 				[]string{"write_prd 已生成可确认 PRD artifact", "用户确认前保持 pending_confirmation"},
 				[]LifecycleHook{
 					hook("product_manager.prd_ready", "after_tool", "write_prd 后固化 PRD artifact，供前端确认和后续 handoff 使用。", []string{"write_prd structured data"}, []string{"agent_app_prd artifact", "pending_confirmation interaction"}),
@@ -137,7 +137,7 @@ func Specs() map[string]Spec {
 			Runtime: runtimeContract(
 				[]string{"用户已确认 PRD", "handoff 会话携带完整 agent_app_prd JSON", "用户明确要求新增或改变软件能力"},
 				[]string{"用户在已有应用里使用软件完成业务结果", "需求尚未确认 PRD 且不是小范围维护"},
-				[]string{"调用 change_role 并固定 execute_directory", "优先阅读 PRD_EXECUTION_MARKDOWN，细节以 PRD JSON 为准", "读取 SDK 主文档和匹配案例", "涉及 kageos_manifest.go、runbook.docs、AddDocs 或 AddAgentTask 时必须按 /system/prompt/sdk/reference/kageos-manifest-runbook-agenttask 区分目录级运行契约和具体无人值守任务", "目录默认文档和运行手册优先通过 kageos_manifest.go 的 packageContext.AddDocs(...) 随应用代码维护", "创建或修改目标目录代码", "build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed", "build 成功后不等待用户确认，立即交接 qa_engineer 并自动测试"},
+				[]string{"调用 change_role 并固定 execute_directory", "优先阅读 PRD_EXECUTION_MARKDOWN，细节以 PRD JSON 为准", "读取 SDK 主文档和匹配案例", "实现写入入口时同步校验提交当下可确定的错误；耗时有效性校验使用明确的草稿/校验中状态，不得先成功再由后台退回", "涉及 kageos_manifest.go、runbook.docs、AddDocs 或 AddAgentTask 时必须按 /system/prompt/sdk/reference/kageos-manifest-runbook-agenttask 区分目录级运行契约和具体无人值守任务，并证明后台新增价值、结果回写位置、幂等、人工接管和停止条件", "目录默认文档和运行手册优先通过 kageos_manifest.go 的 packageContext.AddDocs(...) 随应用代码维护", "创建或修改目标目录代码", "build_workspace 前必须先读回相关源码做模型 CR，并在 build 参数提交 pre_build_review/review_passed", "build 成功后不等待用户确认，立即交接 qa_engineer 并自动测试"},
 				[]string{"build_workspace 成功、已交接 qa_engineer 并完成核心函数测试", "或 build/schema 失败并带完整错误交接给 build_engineer"},
 				[]LifecycleHook{
 					hook("app_developer.before_enter_prd", "before_enter", "整理确认后的 PRD、执行目录和开发参考资料。", []string{"agent_app_prd JSON", "PRD_EXECUTION_MARKDOWN", "reference docs"}, []string{"developer_context_packet"}),
@@ -256,13 +256,13 @@ func Specs() map[string]Spec {
 			Runtime: runtimeContract(
 				[]string{"用户要把已有应用函数、已有业务操作或已有工作台目录配置成指定时间、周期、提醒、巡检或 Agent 任务", "用户要查询、暂停、恢复、取消或立即运行已有定时任务"},
 				[]string{"用户只是要立即查询、提交、更新或删除真实业务数据", "用户想定时执行但目标能力尚不存在、函数未确认或需要新增/修改软件能力", "用户要测试刚构建应用"},
-				[]string{"固定目标应用 execute_directory", "先区分任务类型：固定 Form/Table/Chart 调用用函数任务，需要 Agent 判断/巡检/分析/总结/维护长期数据或多步骤用 Agent 任务", "先用 search 确认目标函数或目录，不搜索整个工作区", "创建或更新 Agent 任务 message 前必须按 /system/prompt/sdk/reference/kageos-manifest-runbook-agenttask 区分目录 runbook 和具体无人值守执行单，并要求 message 先读 <./runbook.docs>", "Agent 任务可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须按无人值守 SOP 写清场景、长期目标、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式和通知规则；不要把示例规则机械套到所有任务", "把用户自然语言计划转换为 atime、cron 或 every，并复述关键时间、频率和最多次数", "用户只是问能不能或怎么做时只说明方案，不创建任务", "创建任务前确认执行参数来自用户输入或已验证 schema，不猜必填字段、枚举或记录 ID；周期性写入任务必须等用户明确确认", "调用定时任务工具创建或管理任务", "返回 task_id、下次执行时间、执行来源和取消方式"},
+				[]string{"固定目标应用 execute_directory", "先过无人值守价值门禁：提交时可确定的问题必须由应用同步校验；只有时间流逝、外部状态变化、持续观察或跨记录分析产生的新工作才进入后台，结果必须可接手且有幂等、人工接管和停止条件", "先区分任务类型：固定 Form/Table/Chart 调用用函数任务，需要 Agent 判断/巡检/分析/总结/维护长期数据或多步骤用 Agent 任务", "先用 search 确认目标函数或目录，不搜索整个工作区", "创建或更新 Agent 任务 message 前必须按 /system/prompt/sdk/reference/kageos-manifest-runbook-agenttask 区分目录 runbook 和具体无人值守执行单，并要求 message 先读 <./runbook.docs>", "Agent 任务可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须按无人值守 SOP 写清场景、长期目标、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式和通知规则；不要把示例规则机械套到所有任务", "把用户自然语言计划转换为 atime、cron 或 every，并复述关键时间、频率和最多次数", "用户只是问能不能或怎么做时只说明方案，不创建任务", "创建任务前确认执行参数来自用户输入或已验证 schema，不猜必填字段、枚举或记录 ID；周期性写入任务必须等用户明确确认", "调用定时任务工具创建或管理任务", "返回 task_id、下次执行时间、执行来源和取消方式"},
 				[]string{"函数任务或 Agent 任务已创建并返回 task_id/next_run_at", "或任务已暂停、恢复、取消、立即运行、执行记录已查询", "失败原因已区分为时间表达式、权限、参数/schema 或调度服务问题"},
 				[]LifecycleHook{
 					hook("automation.before_enter_scope", "before_enter", "进入自动化角色前收敛目标应用、候选函数和计划类型。", []string{"execute_directory", "user schedule intent", "function schema"}, []string{"automation_scope", "schedule_plan"}),
 				},
 			),
-			Action:           "自动执行配置负责把已有业务操作配置成未来或周期自动执行，并管理函数任务、Agent 任务和执行记录；创建 Agent 任务 message 时按 manifest/runbook/AgentTask 规范写无人值守执行单；不直接修改代码，不直接执行真实业务写入。",
+			Action:           "自动执行配置负责把已有业务操作配置成未来或周期自动执行，并管理函数任务、Agent 任务和执行记录；先拒绝延迟本可同步解决的错误，只为后来状态、持续观察或跨记录工作创建有回写和停止条件的自动化；创建 Agent 任务 message 时按 manifest/runbook/AgentTask 规范写无人值守执行单；不直接修改代码，不直接执行真实业务写入。",
 			RouteDescription: "用户要“定时、每天、每周、周期、提醒、自动跑、定期巡检、到点提交、Agent 任务”且目标是已有应用函数、已有业务操作或已有工作台目录时进入。它负责把已有能力配置成 timer-scheduler 任务，并管理暂停、恢复、取消、立即运行和执行记录。先区分两类任务：目标是一个明确 Form/Table/Chart 和固定参数时，用函数任务；目标需要 Agent 到点后判断、巡检、分析、总结、维护长期数据、选择多个工具或临场决策时，用 Agent 任务。Agent 任务可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须读取 `/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask` 并写成无人值守 SOP：场景/长期目标、绑定目录、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式、通知规则；不要把示例规则机械套到所有任务。它不同于 `app_operator`：应用执行负责现在执行一次真实业务操作；自动执行配置负责以后自动执行。它也不同于 `product_manager/app_developer/maintenance_engineer`：如果用户想定时执行的能力还不存在、函数 schema 还不确定，或需要新增/修改软件能力，先进入产品、开发或维护，不要直接进入自动化。用户只是问“能不能/怎么做”时只说明方案和风险；周期性写入任务必须等用户明确确认后再创建。创建任务前必须确认目标函数/目录、计划时间、执行参数和权限边界；不设计 PRD、不写代码、不 build、不直接调用 run_* 完成真实业务写入。",
 			NextRoles: []NextRole{
 				{RoleID: AppOperator, When: "用户要求先立即执行一次业务操作验证参数"},

@@ -10,8 +10,10 @@ func TestRedactURLForLog(t *testing.T) {
 	}{
 		{name: "empty", raw: "", want: ""},
 		{name: "without credentials", raw: "nats://127.0.0.1:4222", want: "nats://127.0.0.1:4222"},
-		{name: "with password", raw: "nats://user:secret@nats.example:4222", want: "nats://user:%2A%2A%2A%2A@nats.example:4222"},
-		{name: "with query", raw: "nats://user:secret@nats.example:4222?token=secret", want: "nats://user:%2A%2A%2A%2A@nats.example:4222?redacted=true"},
+		{name: "with password", raw: "nats://user:secret@nats.example:4222", want: "nats://nats.example:4222"},
+		{name: "with token", raw: "nats://private-token@nats.example:4222", want: "nats://nats.example:4222"},
+		{name: "with query", raw: "nats://user:secret@nats.example:4222?token=secret", want: "nats://nats.example:4222?redacted=true"},
+		{name: "server list", raw: "nats://one:secret@nats-a:4222,nats://token@nats-b:4222", want: "nats://nats-a:4222,nats://nats-b:4222"},
 		{name: "invalid", raw: "://bad", want: "<redacted-url>"},
 	}
 

@@ -83,6 +83,37 @@
         >
           {{ hasAddCallback ? '新增' : '新增（当前表格不支持）' }}
         </el-button>
+        <el-dropdown
+          trigger="click"
+          :disabled="spreadsheetBusy"
+          @command="handleSpreadsheetCommand"
+        >
+          <el-button class="action-btn" :loading="spreadsheetBusy" data-testid="table-spreadsheet-actions">
+            <el-icon><FolderOpened /></el-icon>
+            导入 / 导出
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="template" :disabled="!hasAddCallback">
+                <el-icon><DocumentAdd /></el-icon>
+                下载导入模板
+              </el-dropdown-item>
+              <el-dropdown-item command="import" :disabled="!hasAddCallback">
+                <el-icon><Upload /></el-icon>
+                导入 Excel / CSV
+              </el-dropdown-item>
+              <el-dropdown-item command="export" divided>
+                <el-icon><Download /></el-icon>
+                导出当前筛选结果
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <TableSpreadsheetGuidePopover
+          v-if="hasAddCallback"
+          :fields="tableCreateFields"
+        />
         <!-- 批量删除按钮：不支持时保留禁用提示 -->
         <el-button 
           v-if="!isBatchDeleteMode" 
@@ -380,18 +411,27 @@
       @close="handleCreateDialogClose"
     />
 
+    <TableSpreadsheetImportDialog
+      v-if="hasAddCallback"
+      v-model="spreadsheetImportVisible"
+      :fields="tableCreateFields"
+      :import-rows="importSpreadsheetRows"
+    />
+
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElIcon, ElTable, ElForm, ElFormItem, ElButton, ElSkeleton } from 'element-plus'
-import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Edit, View, InfoFilled } from '@element-plus/icons-vue'
+import { ElIcon, ElTable, ElForm, ElFormItem, ElButton, ElSkeleton, ElMessage } from 'element-plus'
+import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Edit, View, InfoFilled, FolderOpened, DocumentAdd, Upload, Download } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../../presentation/widgets/WidgetComponent.vue'
 import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
 import FormDialog from '@/architecture/presentation/components/FormDialog.vue'
+import TableSpreadsheetImportDialog from '@/architecture/presentation/components/TableSpreadsheetImportDialog.vue'
+import TableSpreadsheetGuidePopover from '@/architecture/presentation/components/TableSpreadsheetGuidePopover.vue'
 import { getSortableConfig } from '@/architecture/domain/utils/fieldSort'
 import { useTableInitialization } from '../composables/useTableInitialization'
 import { useTableBatchDelete } from '../composables/useTableBatchDelete'
@@ -407,8 +447,10 @@ import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import type { TableRow } from '../../domain/types'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
-import { getFunctionCallbacks, getTableCreateFields } from '@/architecture/domain/utils/functionSchemaSelectors'
+import { getFunctionCallbacks, getTableCreateFields, getTableListFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 import { writeTablePageSizePreference } from './utils/tablePageSizePreference'
+import { downloadTableData, downloadTableImportTemplate } from './utils/tableSpreadsheetFile'
+import { TABLE_EXPORT_MAX_ROWS } from './utils/tableSpreadsheetRuntime'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
@@ -482,6 +524,10 @@ const getSortHeaderClass = (fieldCode: string): string => {
 
 // 创建对话框
 const createDialogVisible = ref(false)
+const spreadsheetImportVisible = ref(false)
+const spreadsheetBusy = ref(false)
+const tableCreateFields = computed(() => getTableCreateFields(props.functionDetail))
+const tableName = computed(() => props.functionDetail.name || props.functionDetail.code || '表格')
 
 const {
   preloadUserInfoFromSearchForm,
@@ -625,6 +671,41 @@ const hasDeleteCallback = computed(() => {
 const hasUpdateCallback = computed(() => {
   return getFunctionCallbacks(props.functionDetail).includes('OnTableUpdateRow')
 })
+
+const importSpreadsheetRows = async (
+  rows: Array<{ rowNumber: number, data: Record<string, unknown> }>
+) => applicationService.addRows(props.functionDetail, rows)
+
+const handleSpreadsheetCommand = async (command: string | number | object) => {
+  if (command === 'import') {
+    if (hasAddCallback.value) spreadsheetImportVisible.value = true
+    return
+  }
+  if (command !== 'template' && command !== 'export') return
+
+  spreadsheetBusy.value = true
+  try {
+    if (command === 'template') {
+      await downloadTableImportTemplate(tableCreateFields.value, tableName.value)
+      return
+    }
+
+    const snapshot = await applicationService.loadDataSnapshot(props.functionDetail, {
+      maxRows: TABLE_EXPORT_MAX_ROWS,
+      pageSize: 500
+    })
+    await downloadTableData(getTableListFields(props.functionDetail), snapshot.rows, tableName.value)
+    if (snapshot.truncated) {
+      ElMessage.warning(`结果共 ${snapshot.total} 行，本次已导出前 ${snapshot.rows.length} 行`)
+    } else {
+      ElMessage.success(`已导出 ${snapshot.rows.length} 行`)
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '导入 / 导出操作失败')
+  } finally {
+    spreadsheetBusy.value = false
+  }
+}
 
 const {
   handleAdd,

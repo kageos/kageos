@@ -204,35 +204,46 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化应用发现服务（需要在 AppManageService 之前）
 	runtimeID := s.cfg.GetRuntimeInstanceID()
-	s.appDiscoveryService = service.NewAppDiscoveryServiceWithRuntimeID(s.natsConn, s.cfg.AppManage.GetBasePath(), runtimeID)
-	logger.Infof(ctx, "[Server] App discovery runtime_id=%s", runtimeID)
-
-	// 设置回调函数
-	s.appDiscoveryService.SetCallbacks(
-		s.handleAppStartupFromDiscovery,
-		s.handleAppCloseFromDiscovery,
+	s.appDiscoveryService = service.NewAppDiscoveryService(
+		s.natsConn,
+		s.cfg.AppManage.GetBasePath(),
+		service.AppDiscoveryServiceOptions{
+			RuntimeID: runtimeID,
+			OnStartup: s.handleAppStartupFromDiscovery,
+			OnClose:   s.handleAppCloseFromDiscovery,
+		},
 	)
-
-	if err := s.appDiscoveryService.Start(); err != nil {
-		return fmt.Errorf("failed to start app discovery service: %w", err)
-	}
+	logger.Infof(ctx, "[Server] App discovery runtime_id=%s", runtimeID)
 
 	// 初始化工作区文件服务（需要在 AppManageService / WorkspaceChangeService 之前）
 	s.workspaceFileService = service.NewWorkspaceFileService(&s.cfg.AppManage)
 
 	// 初始化应用管理服务
 	wd, _ := os.Getwd()
-	s.appManageService = service.NewAppManageService(
-		builder.NewBuilder(wd),
+	s.appManageService = service.NewAppManageService(service.AppManageServiceDependencies{
+		Builder:              builder.NewBuilder(wd),
+		Config:               &s.cfg.AppManage,
+		RuntimeConfig:        s.cfg,
+		ContainerService:     s.containerService,
+		AppRepository:        appRepo,
+		AppDiscoveryService:  s.appDiscoveryService,
+		NATSConnection:       s.natsConn,
+		WorkspaceFileService: s.workspaceFileService,
+		AppDatabaseService:   s.appDatabaseService,
+	})
+
+	// 初始化工作区变更编排服务
+	s.workspaceChangeService = service.NewWorkspaceChangeService(
 		&s.cfg.AppManage,
-		s.cfg, // 传入完整的运行时配置（用于获取网关地址等）
-		s.containerService,
-		appRepo,
-		s.appDiscoveryService,
-		s.natsConn,
+		s.appManageService,
 		s.workspaceFileService,
+		s.appDatabaseService,
 	)
-	s.appManageService.SetAppDatabaseService(s.appDatabaseService)
+
+	// 所有回调依赖均已就绪后再启动发现订阅，避免启动事件早于 AppManageService 初始化。
+	if err := s.appDiscoveryService.Start(); err != nil {
+		return fmt.Errorf("failed to start app discovery service: %w", err)
+	}
 
 	// 启动 QPS 跟踪器清理任务
 	go s.appManageService.QPSTracker.StartCleanup(ctx)
@@ -240,13 +251,8 @@ func (s *Server) initServices(ctx context.Context) error {
 	// 启动应用清理任务
 	go s.appManageService.StartCleanupTask(ctx)
 
-	// 初始化工作区变更编排服务
-	s.workspaceChangeService = service.NewWorkspaceChangeService(&s.cfg.AppManage, s.appManageService, s.workspaceFileService)
-	s.workspaceChangeService.SetAppDatabaseService(s.appDatabaseService)
-
 	// 启动基础设施看门狗（以 NATS 连接状态为探针，1 秒轮询，断开时触发恢复）
-	watchdog := service.NewInfraWatchdog(s.natsConn, s.containerService)
-	watchdog.SetOnRecovered(s.reconcileAppContainers)
+	watchdog := service.NewInfraWatchdog(s.natsConn, s.containerService, s.reconcileAppContainers)
 	go watchdog.Start(ctx)
 
 	return nil
