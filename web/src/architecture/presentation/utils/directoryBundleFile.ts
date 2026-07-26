@@ -1,6 +1,13 @@
 import type { CapabilityBundle } from '@/architecture/domain/types'
 
 const FALLBACK_CAPABILITY_BUNDLE_FILENAME = 'directory.json'
+const GO_KEYWORDS = new Set([
+  'break', 'default', 'func', 'interface', 'select',
+  'case', 'defer', 'go', 'map', 'struct',
+  'chan', 'else', 'goto', 'package', 'switch',
+  'const', 'fallthrough', 'if', 'range', 'type',
+  'continue', 'for', 'import', 'return', 'var'
+])
 
 function sanitizeFilenamePart(value: string): string {
   return value
@@ -52,6 +59,18 @@ function ensureString(value: unknown, field: string): string {
   return value
 }
 
+function uniqueStrings(values: unknown[], field: string): string[] {
+  const result: string[] = []
+  const seen = new Set<string>()
+  values.forEach((value, index) => {
+    const item = ensureString(value, `${field}[${index}]`)
+    if (!item || seen.has(item)) return
+    seen.add(item)
+    result.push(item)
+  })
+  return result
+}
+
 function validateRelativePackagePath(value: string, field: string, allowEmpty = false): string {
   if (!value) {
     if (allowEmpty) return ''
@@ -66,6 +85,14 @@ function validateRelativePackagePath(value: string, field: string, allowEmpty = 
   }
   if (parts[0] === 'namespace' || value.includes('code/api')) {
     throw new Error(`${field} 不能包含工作空间路径`)
+  }
+  const invalidPart = parts.find((part) => (
+    part.length > 50 ||
+    !/^[a-z][a-z0-9_]*$/.test(part) ||
+    GO_KEYWORDS.has(part)
+  ))
+  if (invalidPart) {
+    throw new Error(`${field} 包含非法 package 标识 "${invalidPart}"`)
   }
   return value
 }
@@ -101,6 +128,38 @@ function validateRelativeNodePath(value: string, field: string, allowEmpty = fal
   return value
 }
 
+function parseBundleMetadata(value: unknown): CapabilityBundle['metadata'] {
+  if (value === undefined) return undefined
+  const metadata = ensurePlainObject(value, 'metadata')
+  if (metadata.directory === undefined) return {}
+  const directory = ensurePlainObject(metadata.directory, 'metadata.directory')
+  const code = validateRelativePackagePath(
+    ensureString(directory.code, 'metadata.directory.code'),
+    'metadata.directory.code'
+  )
+  if (code.includes('/')) {
+    throw new Error('metadata.directory.code 必须是单个 package 标识')
+  }
+  const releaseVersion = typeof directory.release_version === 'string'
+    ? ensureString(directory.release_version, 'metadata.directory.release_version')
+    : undefined
+  if (releaseVersion && !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(releaseVersion)) {
+    throw new Error('metadata.directory.release_version 必须是语义版本')
+  }
+  return {
+    directory: {
+      code,
+      name: typeof directory.name === 'string' ? directory.name.trim() : undefined,
+      description: typeof directory.description === 'string' ? directory.description.trim() : undefined,
+      tags: Array.isArray(directory.tags)
+        ? uniqueStrings(directory.tags, 'metadata.directory.tags')
+        : undefined,
+      source_revision: typeof directory.source_revision === 'string' ? directory.source_revision.trim() : undefined,
+      release_version: releaseVersion
+    }
+  }
+}
+
 function parentPathOf(relativePath: string): string {
   const parts = relativePath.split('/').filter(Boolean)
   if (parts.length <= 1) return ''
@@ -125,6 +184,7 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
   const rawTreeNodes = object.tree_nodes
   const rawDocs = object.docs
   const rawAgentTasks = object.agent_tasks
+  const metadata = parseBundleMetadata(object.metadata)
   const packages = Array.isArray(rawPackages) ? rawPackages.map((item, index) => {
     const pkg = ensurePlainObject(item, `packages[${index}]`)
     const packagePath = validateRelativePackagePath(ensureString(pkg.path, `packages[${index}].path`), `packages[${index}].path`)
@@ -279,6 +339,7 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
   return {
     schema_version: 'capability.bundle.v1',
     name: typeof object.name === 'string' ? object.name : undefined,
+    metadata,
     tree_nodes: treeNodes,
     docs,
     packages,

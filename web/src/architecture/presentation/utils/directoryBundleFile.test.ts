@@ -30,6 +30,16 @@ describe('directoryBundleFile', () => {
     const parsed = parseCapabilityBundleJson(JSON.stringify({
       schema_version: 'capability.bundle.v1',
       name: '消息能力',
+      metadata: {
+        directory: {
+          code: 'message',
+          name: '消息能力',
+          description: '发送和汇总消息。',
+          tags: ['消息', '通知', '消息'],
+          source_revision: 'v3',
+          release_version: '0.3.0'
+        }
+      },
       tree_nodes: [
         { relative_path: 'message', type: 'package', code: 'message', name: '消息' },
         { relative_path: 'message/send.form', parent_path: 'message', type: 'function', code: 'send.form', name: '发送消息', template_type: 'form' },
@@ -67,6 +77,14 @@ describe('directoryBundleFile', () => {
       parent_path: 'message',
       type: 'function',
       template_type: 'form'
+    })
+    expect(parsed.metadata?.directory).toEqual({
+      code: 'message',
+      name: '消息能力',
+      description: '发送和汇总消息。',
+      tags: ['消息', '通知'],
+      source_revision: 'v3',
+      release_version: '0.3.0'
     })
     expect(parsed.docs?.[0]).toEqual({
       relative_path: 'message/readme.docs',
@@ -110,5 +128,31 @@ describe('directoryBundleFile', () => {
       packages: [{ path: 'namespace/system/openapi/message' }],
       files: [{ package_path: 'namespace/system/openapi/message', path: 'send.go', content: '' }]
     }))).toThrow('工作空间路径')
+  })
+
+  it('rejects a rewritten marketplace slug as directory code', () => {
+    expect(() => parseCapabilityBundleJson(JSON.stringify({
+      schema_version: 'capability.bundle.v1',
+      metadata: {
+        directory: {
+          code: 'gold-watch'
+        }
+      },
+      packages: [{ path: 'gold_watch' }],
+      files: [{ package_path: 'gold_watch', path: 'watch.go', content: 'package gold_watch\n' }]
+    }))).toThrow('package')
+  })
+
+  it('rejects a nested directory code', () => {
+    expect(() => parseCapabilityBundleJson(JSON.stringify({
+      schema_version: 'capability.bundle.v1',
+      metadata: {
+        directory: {
+          code: 'tools/gold_watch'
+        }
+      },
+      packages: [{ path: 'gold_watch' }],
+      files: [{ package_path: 'gold_watch', path: 'watch.go', content: 'package gold_watch\n' }]
+    }))).toThrow('单个 package 标识')
   })
 })

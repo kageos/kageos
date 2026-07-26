@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -1289,6 +1291,35 @@ func TestCreateWorkspaceHandoffInjectsIntoCurrentSessionAndPreservesHistory(t *t
 }
 
 func TestWorkspaceSessionAccessIsScopedToCurrentUser(t *testing.T) {
+	const fullCodePath = "/system/x_world/vote"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/health":
+			w.WriteHeader(http.StatusOK)
+			return
+		case r.Method == http.MethodGet && r.URL.Path == "/workspace/api/v1/workspace/context":
+		default:
+			t.Fatalf("unexpected workspace context request: %s %s", r.Method, r.URL.String())
+		}
+		if got := r.URL.Query().Get("full_code_path"); got != fullCodePath {
+			t.Fatalf("full_code_path = %q, want %q", got, fullCodePath)
+		}
+		writeToolAPIResponse(t, w, map[string]interface{}{
+			"code": 0,
+			"msg":  "ok",
+			"data": dto.GetWorkspaceContextResp{
+				Directory: dto.WorkspaceContextDirectory{
+					Name:         "投票",
+					Code:         "vote",
+					FullCodePath: fullCodePath,
+					Type:         "package",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+	t.Setenv("GATEWAY_URL", server.URL)
+
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -1340,7 +1371,7 @@ func TestWorkspaceSessionAccessIsScopedToCurrentUser(t *testing.T) {
 	svc := &WorkspaceChatService{sessionRepo: sessionRepo, messageRepo: messageRepo}
 	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "alice")
 
-	sessions, total, err := svc.ListSessions(ctx, "/system/x_world/vote", 1, 20)
+	sessions, total, err := svc.ListSessions(ctx, fullCodePath, 1, 20)
 	if err != nil {
 		t.Fatalf("list sessions: %v", err)
 	}

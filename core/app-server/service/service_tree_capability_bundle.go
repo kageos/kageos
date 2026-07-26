@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -27,6 +28,8 @@ import (
 
 const maxRemoteCapabilityBundleBytes = 32 << 20
 const capabilityBundleAgentTaskPageSize = 100
+
+var capabilityBundleReleaseVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$`)
 
 type capabilityBundleInstallPlan struct {
 	targetRootPath string
@@ -91,6 +94,7 @@ func (s *serviceTreeCapabilityBundleService) ExportCapabilityBundle(ctx context.
 		if bundle.Name == "" {
 			bundle.Name = sourceRoot.Name
 		}
+		bundle.Metadata = capabilityBundleMetadataFromTree(sourceRoot)
 	}
 
 	for _, sourcePath := range sourcePaths {
@@ -111,6 +115,9 @@ func (s *serviceTreeCapabilityBundleService) ExportCapabilityBundle(ctx context.
 
 		if bundle.Name == "" {
 			bundle.Name = rootTree.Name
+		}
+		if bundle.Metadata == nil && len(sourcePaths) == 1 && rootTree.Type == model.ServiceTreeTypePackage {
+			bundle.Metadata = capabilityBundleMetadataFromTree(rootTree)
 		}
 
 		switch rootTree.Type {
@@ -630,8 +637,13 @@ func splitCapabilityTags(tags string) []string {
 		return r == ',' || r == '，' || r == ';' || r == '；'
 	})
 	result := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
 	for _, part := range parts {
 		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			if _, exists := seen[trimmed]; exists {
+				continue
+			}
+			seen[trimmed] = struct{}{}
 			result = append(result, trimmed)
 		}
 	}
@@ -998,6 +1010,7 @@ func filterCapabilityBundleBySubpath(bundle *dto.CapabilityBundle, rawSubpath st
 	filtered := &dto.CapabilityBundle{
 		SchemaVersion: bundle.SchemaVersion,
 		Name:          bundle.Name,
+		Metadata:      cloneCapabilityBundleMetadata(bundle.Metadata),
 		TreeNodes:     make([]*dto.CapabilityBundleTreeNode, 0),
 		Docs:          make([]*dto.CapabilityBundleDoc, 0),
 		Packages:      make([]*dto.CapabilityBundlePackage, 0),
@@ -1018,6 +1031,16 @@ func filterCapabilityBundleBySubpath(bundle *dto.CapabilityBundle, rawSubpath st
 		cp.Path = rebasedPath
 		if pkg.Path == subpath && strings.TrimSpace(pkg.Name) != "" {
 			filtered.Name = strings.TrimSpace(pkg.Name)
+		}
+		if pkg.Path == subpath {
+			filtered.Metadata = &dto.CapabilityBundleMetadata{
+				Directory: &dto.CapabilityBundleDirectoryMetadata{
+					Code:        path.Base(subpath),
+					Name:        strings.TrimSpace(pkg.Name),
+					Description: strings.TrimSpace(pkg.Description),
+					Tags:        splitCapabilityTags(pkg.Tags),
+				},
+			}
 		}
 		filtered.Packages = append(filtered.Packages, &cp)
 	}
@@ -1094,6 +1117,19 @@ func cloneCapabilityBundleExtensions(extensions map[string]interface{}) map[stri
 		out[key] = value
 	}
 	return out
+}
+
+func cloneCapabilityBundleMetadata(metadata *dto.CapabilityBundleMetadata) *dto.CapabilityBundleMetadata {
+	if metadata == nil {
+		return nil
+	}
+	out := *metadata
+	if metadata.Directory != nil {
+		directory := *metadata.Directory
+		directory.Tags = append([]string(nil), metadata.Directory.Tags...)
+		out.Directory = &directory
+	}
+	return &out
 }
 
 func readCapabilityBundleFile(filePath string) (*dto.CapabilityBundle, error) {
@@ -1265,6 +1301,9 @@ func validateCapabilityBundle(bundle *dto.CapabilityBundle) error {
 	if bundle.SchemaVersion != dto.CapabilityBundleSchemaVersion {
 		return fmt.Errorf("不支持的目录 JSON schema_version: %s", bundle.SchemaVersion)
 	}
+	if err := validateCapabilityBundleMetadata(bundle.Metadata); err != nil {
+		return err
+	}
 	if len(bundle.Files) == 0 && len(bundle.Packages) == 0 {
 		if len(bundle.Docs) == 0 {
 			return fmt.Errorf("目录 JSON 必须包含 files、packages 或 docs")
@@ -1327,6 +1366,59 @@ func validateCapabilityBundle(bundle *dto.CapabilityBundle) error {
 			return fmt.Errorf("目录 JSON 存在重复文件路径: %s", key)
 		}
 		seenFiles[key] = struct{}{}
+	}
+	return nil
+}
+
+func capabilityBundleMetadataFromTree(tree *model.ServiceTree) *dto.CapabilityBundleMetadata {
+	if tree == nil || tree.Type != model.ServiceTreeTypePackage {
+		return nil
+	}
+	sourceRevision := strings.TrimSpace(tree.Version)
+	releaseVersion := ""
+	if capabilityBundleReleaseVersionPattern.MatchString(sourceRevision) {
+		releaseVersion = sourceRevision
+	}
+	return &dto.CapabilityBundleMetadata{
+		Directory: &dto.CapabilityBundleDirectoryMetadata{
+			Code:           strings.TrimSpace(tree.Code),
+			Name:           strings.TrimSpace(tree.Name),
+			Description:    strings.TrimSpace(tree.Description),
+			Tags:           splitCapabilityTags(tree.Tags),
+			SourceRevision: sourceRevision,
+			ReleaseVersion: releaseVersion,
+		},
+	}
+}
+
+func validateCapabilityBundleMetadata(metadata *dto.CapabilityBundleMetadata) error {
+	if metadata == nil || metadata.Directory == nil {
+		return nil
+	}
+	directory := metadata.Directory
+	code := strings.TrimSpace(directory.Code)
+	if code == "" {
+		return fmt.Errorf("metadata.directory.code 不能为空")
+	}
+	if code != directory.Code {
+		return fmt.Errorf("metadata.directory.code 不能包含首尾空格")
+	}
+	if _, err := validateCapabilityPackagePath(code, "metadata.directory.code", false); err != nil {
+		return err
+	}
+	if strings.Contains(code, "/") {
+		return fmt.Errorf("metadata.directory.code 必须是单个 package 标识")
+	}
+	for index, tag := range directory.Tags {
+		if strings.TrimSpace(tag) == "" {
+			return fmt.Errorf("metadata.directory.tags[%d] 不能为空", index)
+		}
+		if tag != strings.TrimSpace(tag) {
+			return fmt.Errorf("metadata.directory.tags[%d] 不能包含首尾空格", index)
+		}
+	}
+	if version := strings.TrimSpace(directory.ReleaseVersion); version != "" && !capabilityBundleReleaseVersionPattern.MatchString(version) {
+		return fmt.Errorf("metadata.directory.release_version 必须是语义版本: %s", directory.ReleaseVersion)
 	}
 	return nil
 }

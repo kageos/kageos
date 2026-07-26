@@ -8,12 +8,29 @@ const CapabilityBundleSchemaVersion = "capability.bundle.v1"
 type CapabilityBundle struct {
 	SchemaVersion string                       `json:"schema_version"`
 	Name          string                       `json:"name,omitempty"`
+	Metadata      *CapabilityBundleMetadata    `json:"metadata,omitempty"`
 	TreeNodes     []*CapabilityBundleTreeNode  `json:"tree_nodes,omitempty"`
 	Docs          []*CapabilityBundleDoc       `json:"docs,omitempty"`
 	Packages      []*CapabilityBundlePackage   `json:"packages"`
 	Files         []*CapabilityBundleFile      `json:"files"`
 	AgentTasks    []*CapabilityBundleAgentTask `json:"agent_tasks,omitempty"`
 	Extensions    map[string]interface{}       `json:"extensions,omitempty"`
+}
+
+// CapabilityBundleMetadata contains portable facts about the exported directory.
+// Marketplace-owned fields such as prices, media and review state deliberately do
+// not belong here.
+type CapabilityBundleMetadata struct {
+	Directory *CapabilityBundleDirectoryMetadata `json:"directory,omitempty"`
+}
+
+type CapabilityBundleDirectoryMetadata struct {
+	Code           string   `json:"code"`
+	Name           string   `json:"name,omitempty"`
+	Description    string   `json:"description,omitempty"`
+	Tags           []string `json:"tags,omitempty"`
+	SourceRevision string   `json:"source_revision,omitempty"`
+	ReleaseVersion string   `json:"release_version,omitempty"`
 }
 
 type CapabilityBundleFile struct {
