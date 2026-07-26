@@ -40,6 +40,77 @@ func TestDownloadCapabilityBundleUsesInstallKeyHeader(t *testing.T) {
 	}
 }
 
+func TestCapabilityBundleMetadataFromTreePreservesDirectoryCode(t *testing.T) {
+	t.Parallel()
+
+	metadata := capabilityBundleMetadataFromTree(&model.ServiceTree{
+		Code:        "gold_watch",
+		Name:        "黄金盯盘助手",
+		Description: "监控黄金价格并生成提醒。",
+		Tags:        "黄金价格，行情监控, 价格提醒；黄金价格",
+		Type:        model.ServiceTreeTypePackage,
+		Version:     "v12",
+	})
+
+	if metadata == nil || metadata.Directory == nil {
+		t.Fatal("expected directory metadata")
+	}
+	directory := metadata.Directory
+	if directory.Code != "gold_watch" {
+		t.Fatalf("directory code = %q, want gold_watch", directory.Code)
+	}
+	if directory.ReleaseVersion != "" || directory.SourceRevision != "v12" {
+		t.Fatalf("unexpected versions: %#v", directory)
+	}
+	wantTags := []string{"黄金价格", "行情监控", "价格提醒"}
+	if !reflect.DeepEqual(directory.Tags, wantTags) {
+		t.Fatalf("tags = %#v, want %#v", directory.Tags, wantTags)
+	}
+}
+
+func TestCapabilityBundleMetadataUsesSemverReleaseVersion(t *testing.T) {
+	t.Parallel()
+
+	metadata := capabilityBundleMetadataFromTree(&model.ServiceTree{
+		Code:    "gold_watch",
+		Name:    "黄金盯盘助手",
+		Type:    model.ServiceTreeTypePackage,
+		Version: "0.2.0",
+	})
+	if got := metadata.Directory.ReleaseVersion; got != "0.2.0" {
+		t.Fatalf("release version = %q, want 0.2.0", got)
+	}
+	if err := validateCapabilityBundleMetadata(metadata); err != nil {
+		t.Fatalf("validateCapabilityBundleMetadata() error = %v", err)
+	}
+}
+
+func TestValidateCapabilityBundleMetadataRejectsMarketplaceSlug(t *testing.T) {
+	t.Parallel()
+
+	err := validateCapabilityBundleMetadata(&dto.CapabilityBundleMetadata{
+		Directory: &dto.CapabilityBundleDirectoryMetadata{
+			Code: "gold-watch",
+		},
+	})
+	if err == nil {
+		t.Fatal("expected invalid directory code")
+	}
+}
+
+func TestValidateCapabilityBundleMetadataRejectsNestedDirectoryCode(t *testing.T) {
+	t.Parallel()
+
+	err := validateCapabilityBundleMetadata(&dto.CapabilityBundleMetadata{
+		Directory: &dto.CapabilityBundleDirectoryMetadata{
+			Code: "tools/gold_watch",
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "单个 package 标识") {
+		t.Fatalf("expected single package identifier rejection, got %v", err)
+	}
+}
+
 func TestDownloadCapabilityBundleExtractsInstallKeyFromURL(t *testing.T) {
 	t.Parallel()
 

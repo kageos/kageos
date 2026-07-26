@@ -56,9 +56,23 @@ export interface CapabilityBundleAgentTask {
   policy?: string
 }
 
+export interface CapabilityBundleDirectoryMetadata {
+  code: string
+  name?: string
+  description?: string
+  tags?: string[]
+  source_revision?: string
+  release_version?: string
+}
+
+export interface CapabilityBundleMetadata {
+  directory?: CapabilityBundleDirectoryMetadata
+}
+
 export interface CapabilityBundle {
   schema_version: 'capability.bundle.v1'
   name?: string
+  metadata?: CapabilityBundleMetadata
   tree_nodes?: CapabilityBundleTreeNode[]
   docs?: CapabilityBundleDoc[]
   files: CapabilityBundleFile[]

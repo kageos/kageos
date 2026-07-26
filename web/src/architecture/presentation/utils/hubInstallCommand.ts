@@ -5,7 +5,7 @@ export interface HubInstallInput {
   displaySource: string
 }
 
-const DEFAULT_HUB_REGISTRY = 'hub-api.kageos.ai'
+const DEFAULT_HUB_REGISTRY = 'hub.kageos.ai'
 const DEFAULT_HUB_TAG = 'latest'
 
 export function tokenizeInstallCommand(command: string): string[] {
@@ -189,11 +189,13 @@ function normalizeDockerLikePath(pathname: string): { owner: string; app: string
 
 function splitAppRef(value: string): { app: string; ref: string } | null {
   const colonIndex = value.lastIndexOf(':')
-  if (colonIndex < 0) {
+  const atIndex = value.lastIndexOf('@')
+  const separatorIndex = colonIndex >= 0 ? colonIndex : atIndex
+  if (separatorIndex < 0) {
     return { app: value, ref: DEFAULT_HUB_TAG }
   }
-  const app = value.slice(0, colonIndex)
-  const ref = value.slice(colonIndex + 1)
+  const app = value.slice(0, separatorIndex)
+  const ref = value.slice(separatorIndex + 1)
   if (!app || !ref) return null
   return { app, ref }
 }

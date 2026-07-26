@@ -111,8 +111,11 @@
   },
   "overrides": {
     "exceljs": {
-      "brace-expansion": "2.1.2",
+      "archiver": "8.0.0",
+      "unzipper": "0.12.5",
       "uuid": "11.1.1"
-    }
+    },
+    "linkify-it": "5.0.2",
+    "postcss": "8.5.23"
   }
 }

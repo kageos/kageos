@@ -14,7 +14,7 @@ describe('hubInstallCommand', () => {
 
   it('normalizes a Docker-like Hub reference with a version tag', () => {
     expect(parseHubInstallInput('kageos install user_1210227080/meeting_room_booking:0.1.0 --key abc')).toEqual({
-      bundleUrl: 'https://hub-api.kageos.ai/api/v1/applications/user_1210227080/meeting_room_booking/0.1.0/bundle',
+      bundleUrl: 'https://hub.kageos.ai/api/v1/applications/user_1210227080/meeting_room_booking/0.1.0/bundle',
       installKey: 'abc',
       displaySource: 'user_1210227080/meeting_room_booking:0.1.0'
     })
@@ -22,7 +22,7 @@ describe('hubInstallCommand', () => {
 
   it('uses latest when the Docker-like reference omits a tag', () => {
     expect(parseHubInstallInput('user_1210227080/meeting_room_booking')).toEqual({
-      bundleUrl: 'https://hub-api.kageos.ai/api/v1/applications/user_1210227080/meeting_room_booking/latest/bundle',
+      bundleUrl: 'https://hub.kageos.ai/api/v1/applications/user_1210227080/meeting_room_booking/latest/bundle',
       installKey: undefined,
       displaySource: 'user_1210227080/meeting_room_booking:latest'
     })
@@ -62,7 +62,7 @@ describe('hubInstallCommand', () => {
 
   it('parses bundle subpaths from install command flags', () => {
     expect(parseHubInstallInput('kageos install user/app:1.0.0 --key abc --path crm/customers')).toEqual({
-      bundleUrl: 'https://hub-api.kageos.ai/api/v1/applications/user/app/1.0.0/bundle',
+      bundleUrl: 'https://hub.kageos.ai/api/v1/applications/user/app/1.0.0/bundle',
       installKey: 'abc',
       bundleSubpath: 'crm/customers',
       displaySource: 'user/app:1.0.0#crm/customers'
@@ -75,6 +75,14 @@ describe('hubInstallCommand', () => {
       installKey: 'abc',
       bundleSubpath: 'crm/customers',
       displaySource: 'https://hub.kageos.ai/api/v1/applications/user/app/latest/bundle#crm/customers'
+    })
+  })
+
+  it('accepts the readable Hub details URL as an install source', () => {
+    expect(parseHubInstallInput('https://hub.kageos.ai/beiluo/ai_service_desk@0.1.0')).toEqual({
+      bundleUrl: 'https://hub.kageos.ai/api/v1/applications/beiluo/ai_service_desk/0.1.0/bundle',
+      installKey: undefined,
+      displaySource: 'beiluo/ai_service_desk:0.1.0'
     })
   })
 })
