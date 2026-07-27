@@ -181,7 +181,7 @@ func TestGetAppWithServiceTreeAnnotatesScheduledAgentTaskBadges(t *testing.T) {
 				{ID: 21, ExecutorKey: "agent.session", Status: scheduledsdk.TaskStatusPaused, ResourceKey: "/alice/ops/hr"},
 			},
 			"agent.session|workspace_directory|/alice/ops/hr/payroll": {
-				{ID: 31, ExecutorKey: "agent.session", Status: scheduledsdk.TaskStatusPaused, ResourceKey: "/alice/ops/hr/payroll"},
+				{ID: 31, ExecutorKey: "agent.session", Status: scheduledsdk.TaskStatusPaused, ResourceKey: "/alice/ops/hr/payroll", LastErrorMessage: "连接上游失败"},
 				{ID: 32, ExecutorKey: "agent.session", Status: scheduledsdk.TaskStatusPending, ResourceKey: "/alice/ops/hr/payroll"},
 			},
 		}}
@@ -201,6 +201,9 @@ func TestGetAppWithServiceTreeAnnotatesScheduledAgentTaskBadges(t *testing.T) {
 	}
 	if root.ScheduledAgentTasks != 3 || hr.ScheduledAgentTasks != 3 || payroll.ScheduledAgentTasks != 2 {
 		t.Fatalf("unexpected scheduled agent task badges: root=%d hr=%d payroll=%d", root.ScheduledAgentTasks, hr.ScheduledAgentTasks, payroll.ScheduledAgentTasks)
+	}
+	if root.FailedAgentTasks != 1 || hr.FailedAgentTasks != 1 || payroll.FailedAgentTasks != 1 {
+		t.Fatalf("unexpected failed agent task badges: root=%d hr=%d payroll=%d", root.FailedAgentTasks, hr.FailedAgentTasks, payroll.FailedAgentTasks)
 	}
 }
 

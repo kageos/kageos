@@ -10,6 +10,87 @@
       </el-button>
     </div>
 
+    <aside
+      v-if="floatingAgentTasks.length > 0"
+      :class="[
+        'agent-presence-float',
+        `is-${agentPresenceState}`,
+        { 'is-expanded': agentRosterExpanded },
+      ]"
+      data-testid="agent-presence-float"
+      aria-label="本目录智能员工"
+    >
+      <div class="agent-presence-head">
+        <span class="agent-presence-title">
+          <span class="agent-presence-live-dot" aria-hidden="true" />
+          智能员工
+        </span>
+        <span class="agent-presence-summary">{{ agentPresenceSummary }}</span>
+      </div>
+      <div id="agent-presence-team" class="agent-presence-team">
+        <div
+          v-for="item in floatingAgentTasks"
+          :key="`presence:${item.key}`"
+          :class="[
+            'agent-presence-employee',
+            `is-${agentEmployeeState(item.task)}`,
+            { 'is-started': isAgentTaskStarted(item.task) },
+          ]"
+        >
+          <button
+            type="button"
+            class="agent-presence-open"
+            :title="`${item.task.title || t('scheduledTask.unnamedAgentTask')} · ${agentPresenceStatus(item.task)}`"
+            @click="openTask(item)"
+          >
+            <span class="agent-presence-avatar">
+              <AgentEmployeeMascot
+                variant="employee"
+                :state="agentEmployeeState(item.task)"
+                :label="`${item.task.title || t('scheduledTask.unnamedAgentTask')}，${agentPresenceStatus(item.task)}`"
+              />
+            </span>
+            <span class="agent-presence-employee-copy">
+              <strong>{{ item.task.title || t('scheduledTask.unnamedAgentTask') }}</strong>
+              <span class="agent-presence-status-line">
+                <small>{{ agentPresenceStatus(item.task) }}</small>
+                <span
+                  :class="['agent-presence-start-state', { 'is-started': isAgentTaskStarted(item.task) }]"
+                >
+                  {{ agentTaskActivationLabel(item.task) }}
+                </span>
+              </span>
+            </span>
+          </button>
+          <button
+            v-if="canStartAgentTask(item.task)"
+            type="button"
+            class="agent-presence-start"
+            :disabled="isStartingAgentTask(item.task)"
+            :aria-label="`启动 ${item.task.title || t('scheduledTask.unnamedAgentTask')}`"
+            @click="startAgentTask(item)"
+          >
+            <el-icon v-if="!isStartingAgentTask(item.task)"><CaretRight /></el-icon>
+            {{ isStartingAgentTask(item.task) ? '启动中…' : '启动' }}
+          </button>
+        </div>
+      </div>
+      <button
+        v-if="canExpandAgentRoster"
+        type="button"
+        class="agent-presence-more"
+        :aria-expanded="agentRosterExpanded"
+        aria-controls="agent-presence-team"
+        @click="agentRosterExpanded = !agentRosterExpanded"
+      >
+        <el-icon>
+          <ArrowUp v-if="agentRosterExpanded" />
+          <ArrowDown v-else />
+        </el-icon>
+        {{ agentRosterExpanded ? '收起员工' : `展开其余 ${hiddenAgentTaskCount} 名员工` }}
+      </button>
+    </aside>
+
     <div class="overview-metrics">
       <div class="metric-item">
         <div class="metric-icon metric-icon--directory">
@@ -171,8 +252,13 @@
         <div class="scheduled-panel-head">
           <div>
             <div class="scheduled-panel-title">
-              <el-icon><ChatLineRound /></el-icon>
-              {{ t('scheduledTask.scheduledAgents') }}
+              <AgentEmployeeMascot
+                class="scheduled-panel-agent-mark"
+                variant="mark"
+                :state="agentPresenceMascotState"
+                label="智能员工"
+              />
+              智能员工
             </div>
             <div class="scheduled-panel-subtitle">{{ t('scheduledTask.agentOverviewSubtitle') }}</div>
           </div>
@@ -185,12 +271,21 @@
               v-for="item in displayAgentTasks"
               :key="item.key"
               type="button"
-              class="task-row"
+              :class="['task-row', 'is-agent-row', { 'is-agent-working': !!item.task.inflight_execution_id }]"
               @click="openTask(item)"
             >
+              <span class="task-row-agent-avatar">
+                <AgentEmployeeMascot
+                  variant="mark"
+                  :state="agentEmployeeState(item.task)"
+                  :label="`${item.task.title || t('scheduledTask.unnamedAgentTask')}，${agentPresenceStatus(item.task)}`"
+                />
+              </span>
               <span class="task-row-main">
                 <span class="task-row-title">
                   {{ item.task.title || t('scheduledTask.unnamedAgentTask') }}
+                  <el-tag v-if="item.builtin" size="small" type="info" effect="plain">目录内置</el-tag>
+                  <el-tag v-else size="small" type="success" effect="plain">自定义</el-tag>
                   <el-tag
                     v-if="item.task.inflight_execution_id"
                     size="small"
@@ -243,10 +338,12 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ChatLineRound, Clock, Document, Folder, Operation, Refresh, Timer, VideoPlay } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, CaretRight, ChatLineRound, Clock, Document, Folder, Operation, Refresh, Timer, VideoPlay } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { getDirectoryOverview, type DirectoryOverviewResp, type DirectoryOverviewScheduledTask, type DirectoryOverviewStats } from '@/architecture/presentation/context/api/service-tree'
-import type { TimerTask } from '@/architecture/presentation/context/api/timer'
+import { resumeTimerTask, type TimerTask } from '@/architecture/presentation/context/api/timer'
+import AgentEmployeeMascot from './AgentEmployeeMascot.vue'
 import {
   formatDateTime,
   scheduleLabel,
@@ -275,6 +372,8 @@ const overview = ref<DirectoryOverviewResp | null>(null)
 const errorMessage = ref('')
 const functionTaskPage = ref(1)
 const agentTaskPage = ref(1)
+const startingAgentTaskIDs = ref<Set<number>>(new Set())
+const agentRosterExpanded = ref(false)
 
 const emptyStats: DirectoryOverviewStats = {
   directories: 0,
@@ -311,6 +410,55 @@ const normalizedFunctionTasks = computed(() => {
 const normalizedAgentTasks = computed(() => {
   return (overview.value?.scheduled_agent_tasks || [])
     .map(normalizeOverviewTask)
+})
+
+const agentPresencePriority = {
+  working: 0,
+  failed: 1,
+  ready: 2,
+  paused: 3,
+} as const
+
+const orderedAgentTasks = computed(() => {
+  return [...normalizedAgentTasks.value]
+    .sort((left, right) => {
+      return agentPresencePriority[agentEmployeeState(left.task)] - agentPresencePriority[agentEmployeeState(right.task)]
+    })
+})
+const floatingAgentTasks = computed(() => {
+  if (agentRosterExpanded.value) return orderedAgentTasks.value
+  return orderedAgentTasks.value.slice(0, 3)
+})
+const hiddenAgentTaskCount = computed(() => Math.max(0, normalizedAgentTasks.value.length - 3))
+const canExpandAgentRoster = computed(() => normalizedAgentTasks.value.length > 3)
+const agentRunningCount = computed(() => {
+  return normalizedAgentTasks.value.filter(item => Boolean(item.task.inflight_execution_id)).length
+})
+const agentFailedCount = computed(() => {
+  return normalizedAgentTasks.value.filter(item => agentEmployeeState(item.task) === 'failed').length
+})
+const agentEnabledCount = computed(() => {
+  return normalizedAgentTasks.value.filter(item => agentEmployeeState(item.task) === 'ready').length
+})
+const agentStartedCount = computed(() => {
+  return normalizedAgentTasks.value.filter(item => isAgentTaskStarted(item.task)).length
+})
+const agentPresenceState = computed<'running' | 'enabled' | 'paused' | 'failed'>(() => {
+  if (agentRunningCount.value > 0) return 'running'
+  if (agentFailedCount.value > 0) return 'failed'
+  if (agentEnabledCount.value > 0) return 'enabled'
+  return 'paused'
+})
+const agentPresenceMascotState = computed<'working' | 'ready' | 'paused' | 'failed'>(() => {
+  if (agentPresenceState.value === 'running') return 'working'
+  if (agentPresenceState.value === 'enabled') return 'ready'
+  return agentPresenceState.value
+})
+const agentPresenceSummary = computed(() => {
+  const summary = [`已启动 ${agentStartedCount.value}/${normalizedAgentTasks.value.length}`]
+  if (agentRunningCount.value > 0) summary.push(`${agentRunningCount.value} 名正在处理`)
+  if (agentFailedCount.value > 0) summary.push(`${agentFailedCount.value} 名需关注`)
+  return summary.join(' · ')
 })
 
 const functionTaskItemCount = computed(() => normalizedFunctionTasks.value.length)
@@ -413,6 +561,56 @@ function getAgentMessage(task: TimerTask): string {
 	return typeof task.description === 'string' ? task.description.trim() : ''
 }
 
+function agentPresenceStatus(task: TimerTask): string {
+  const state = agentEmployeeState(task)
+  if (state === 'working') return '正在处理'
+  if (state === 'failed') return '需要关注'
+  if (state === 'ready') return '待命'
+  return taskStatusLabel(task.status)
+}
+
+function agentEmployeeState(task: TimerTask): 'working' | 'ready' | 'paused' | 'failed' {
+  if (task.inflight_execution_id) return 'working'
+  if (task.status === 'failed' || Boolean(task.last_error_message?.trim())) return 'failed'
+  if (task.status === 'pending') return 'ready'
+  return 'paused'
+}
+
+function isAgentTaskStarted(task: TimerTask): boolean {
+  return task.status === 'pending' || Boolean(task.inflight_execution_id)
+}
+
+function canStartAgentTask(task: TimerTask): boolean {
+  return task.status === 'paused'
+}
+
+function agentTaskActivationLabel(task: TimerTask): string {
+  if (isAgentTaskStarted(task)) return '已启动'
+  if (canStartAgentTask(task)) return '未启动'
+  return '已停止'
+}
+
+function isStartingAgentTask(task: TimerTask): boolean {
+  return startingAgentTaskIDs.value.has(task.id)
+}
+
+async function startAgentTask(item: ScheduledOverviewItem) {
+  if (!canStartAgentTask(item.task) || isStartingAgentTask(item.task)) return
+
+  startingAgentTaskIDs.value = new Set(startingAgentTaskIDs.value).add(item.task.id)
+  try {
+    await resumeTimerTask(item.task.id)
+    ElMessage.success(`已启动 ${item.task.title || t('scheduledTask.unnamedAgentTask')}`)
+    await loadOverview()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '启动智能员工失败')
+  } finally {
+    const next = new Set(startingAgentTaskIDs.value)
+    next.delete(item.task.id)
+    startingAgentTaskIDs.value = next
+  }
+}
+
 function openTask(item: ScheduledOverviewItem) {
   const fullCodePath = item.resourcePath || item.task.resource_key || ''
   if (!fullCodePath) return
@@ -429,6 +627,7 @@ watch(
     overview.value = null
     functionTaskPage.value = 1
     agentTaskPage.value = 1
+    agentRosterExpanded.value = false
     void loadOverview()
   },
   { immediate: true }
@@ -460,6 +659,300 @@ watch(agentTaskItemCount, (itemCount) => {
 
 .overview-head-main {
   min-width: 0;
+}
+
+.agent-presence-float {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 18;
+  display: grid;
+  overflow: hidden;
+  width: min(330px, calc(100vw - 32px));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, #64748b 22%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--el-bg-color) 90%, transparent);
+  box-shadow:
+    0 18px 48px rgba(15, 23, 42, 0.18),
+    0 2px 8px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.agent-presence-float.is-expanded {
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(76vh, 680px);
+}
+
+.agent-presence-float.is-running {
+  border-color: color-mix(in srgb, var(--el-color-primary) 42%, transparent);
+  box-shadow:
+    0 18px 48px rgba(37, 99, 235, 0.2),
+    0 0 0 1px rgba(var(--el-color-primary-rgb), 0.08);
+}
+
+.agent-presence-float.is-failed {
+  border-color: color-mix(in srgb, #f97316 45%, transparent);
+  box-shadow:
+    0 18px 48px rgba(194, 65, 12, 0.16),
+    0 0 0 1px rgba(249, 115, 22, 0.08);
+}
+
+.agent-presence-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.agent-presence-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.agent-presence-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #94a3b8;
+  box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.12);
+}
+
+.agent-presence-float.is-enabled .agent-presence-live-dot {
+  background: #10b981;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+}
+
+.agent-presence-float.is-running .agent-presence-live-dot {
+  background: var(--el-color-primary);
+  box-shadow: 0 0 0 4px rgba(var(--el-color-primary-rgb), 0.12);
+  animation: agent-presence-live 1.1s ease-in-out infinite;
+}
+
+.agent-presence-float.is-failed .agent-presence-live-dot {
+  background: #f97316;
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.12);
+  animation: agent-presence-alert 1.35s ease-in-out infinite;
+}
+
+.agent-presence-summary,
+.agent-presence-more {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+
+.agent-presence-team {
+  display: grid;
+  min-height: 0;
+  gap: 6px;
+}
+
+.agent-presence-float.is-expanded .agent-presence-team {
+  overflow-y: auto;
+  max-height: min(60vh, 548px);
+  padding-right: 4px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.agent-presence-employee {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 60px;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+
+.agent-presence-employee:hover {
+  background: var(--el-fill-color-light);
+  transform: translateX(-2px);
+}
+
+.agent-presence-open {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agent-presence-avatar {
+  display: inline-flex;
+  width: 58px;
+  height: 52px;
+  align-items: center;
+  justify-content: center;
+}
+
+.agent-presence-employee-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.agent-presence-employee-copy strong,
+.agent-presence-employee-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-presence-employee-copy strong {
+  color: var(--el-text-color-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.agent-presence-employee-copy small {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+
+.agent-presence-status-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.agent-presence-status-line small {
+  min-width: 0;
+}
+
+.agent-presence-start-state {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.agent-presence-start-state::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #94a3b8;
+  content: '';
+}
+
+.agent-presence-start-state.is-started {
+  color: #059669;
+}
+
+.agent-presence-start-state.is-started::before {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.11);
+}
+
+.agent-presence-start {
+  display: inline-flex;
+  height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 9px 0 7px;
+  border: 1px solid color-mix(in srgb, var(--el-color-primary) 38%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  color: var(--el-color-primary);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.agent-presence-start:hover:not(:disabled) {
+  border-color: var(--el-color-primary);
+  background: color-mix(in srgb, var(--el-color-primary) 16%, transparent);
+  transform: translateY(-1px);
+}
+
+.agent-presence-start:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.agent-presence-start :deep(.el-icon) {
+  font-size: 13px;
+}
+
+.agent-presence-more {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.agent-presence-more:hover {
+  border-color: var(--el-border-color-light);
+  background: var(--el-fill-color-light);
+  color: var(--el-color-primary);
+}
+
+.agent-presence-more :deep(.el-icon) {
+  font-size: 12px;
+}
+
+@keyframes agent-presence-live {
+  0%,
+  100% {
+    transform: scale(0.88);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes agent-presence-alert {
+  0%,
+  100% {
+    transform: scale(0.88);
+    opacity: 0.68;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-presence-live-dot {
+    animation: none !important;
+  }
 }
 
 .overview-title {
@@ -604,6 +1097,12 @@ watch(agentTaskItemCount, (itemCount) => {
   color: var(--el-text-color-primary);
 }
 
+.scheduled-panel-agent-mark {
+  width: 23px;
+  height: 23px;
+  margin-right: 1px;
+}
+
 .scheduled-panel-subtitle {
   margin-top: 4px;
   font-size: 12px;
@@ -638,10 +1137,50 @@ watch(agentTaskItemCount, (itemCount) => {
   transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
 }
 
+.task-row.is-agent-row {
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+}
+
+.task-row-agent-avatar {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  align-self: flex-start;
+}
+
+.task-row-agent-avatar :deep(.agent-employee-mascot) {
+  width: 30px;
+  height: 30px;
+}
+
 .task-row:hover {
   border-color: rgba(var(--el-color-primary-rgb), 0.34);
   background: color-mix(in srgb, var(--el-color-primary) 6%, var(--app-shell-panel-bg-strong, #fff));
   transform: translateY(-1px);
+}
+
+.task-row.is-agent-working {
+  border-color: color-mix(in srgb, var(--el-color-primary) 34%, var(--directory-overview-line));
+  background: color-mix(in srgb, var(--el-color-primary) 5%, var(--directory-overview-paper));
+  animation: agent-task-working 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes agent-task-working {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-row.is-agent-working,
+  .agent-presence-float.is-running .agent-presence-live-dot,
+  .agent-presence-employee.is-working .agent-presence-avatar {
+    animation: none;
+  }
 }
 
 .task-row-main,
@@ -722,6 +1261,22 @@ watch(agentTaskItemCount, (itemCount) => {
   }
 }
 
+@media (max-width: 960px) {
+  .agent-presence-float {
+    position: static;
+    width: 100%;
+    max-height: none;
+  }
+
+  .agent-presence-team {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+
+  .agent-presence-float.is-expanded .agent-presence-team {
+    max-height: min(58vh, 548px);
+  }
+}
+
 @media (max-width: 720px) {
   .overview-head,
   .scheduled-panel-head {
@@ -731,6 +1286,14 @@ watch(agentTaskItemCount, (itemCount) => {
 
   .task-row {
     grid-template-columns: 1fr;
+  }
+
+  .task-row.is-agent-row {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .task-row.is-agent-row .task-row-side {
+    grid-column: 2;
   }
 
   .task-row-side {

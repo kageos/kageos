@@ -72,7 +72,9 @@ func TestGetWorkspaceContextKeepsPackageDirectory(t *testing.T) {
 		Code:         "site_monitor",
 		Name:         "Site Monitor",
 		FullCodePath: "/system/info/site_monitor",
+		Admins:       "bob,carol",
 	}
+	parent.CreatedBy = "alice"
 	if err := db.Create(parent).Error; err != nil {
 		t.Fatalf("create package: %v", err)
 	}
@@ -85,5 +87,8 @@ func TestGetWorkspaceContextKeepsPackageDirectory(t *testing.T) {
 	}
 	if resp.Directory.ID != parent.ID || resp.Directory.FullCodePath != parent.FullCodePath {
 		t.Fatalf("directory = %#v, want requested package %#v", resp.Directory, parent)
+	}
+	if resp.Directory.Owner != "alice" || resp.Directory.Admins != "bob,carol" {
+		t.Fatalf("directory contacts = owner:%q admins:%q, want alice and bob,carol", resp.Directory.Owner, resp.Directory.Admins)
 	}
 }

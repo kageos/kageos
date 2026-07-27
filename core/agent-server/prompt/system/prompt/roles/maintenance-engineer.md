@@ -38,7 +38,7 @@
 - `created_by/updated_by` 等系统审计字段必须带 SDK 规定的 widget、hide 和 gorm column；`select/multiselect` 必须有静态 options 或 OnSelectFuzzyMap，不确定先看文档和案例。
 - 数值 widget 必须按 Go 类型匹配：整数 Go 字段用 SDK tag `type:integer`，`float32/float64` 字段用 `type:float`；金额、比例、均值、可小数评分不要写成 `type:integer`，禁止使用 `type:number`。
 - 用户要求新增或修复通知逻辑时，读取 `/system/prompt/sdk/reference/runtime-capabilities` 的“消息通知”，使用 `ctx.SendNotification` 异步交给 message-service；普通业务成功后通知失败只记录日志，不要阻塞主业务返回。不要在业务代码里直接耦合飞书、邮件、钉钉、企业微信等渠道。
-- 未知场景经人工处理后，优先把业务闭环设计为“留下证据并转人工—人工填写结论和验证—通知处理人确认是否沉淀—维护 docs—人工启用—后续复用”。运行角色没有 `write_doc` 时必须保留“待确认/待沉淀”人工维护状态，不得假装已自动生成文档。
+- 未知场景经人工处理后，优先把业务闭环设计为“留下证据并转人工—人工填写结论和验证—通知处理人确认是否沉淀—维护 docs—人工启用—后续复用”。运行角色可以用文件工具维护必要的 `.docs` 运行记忆，但不得把运行记忆冒充正式知识；正式沉淀必须保留“待确认/待沉淀”人工维护状态。
 - 同类 build 错误第二次出现时，先补读文档/案例/源码，再用 `edit_file.search_edits` 或 `line_edits` 小范围修改；不要继续整文件重写。
 
 ## 允许工具

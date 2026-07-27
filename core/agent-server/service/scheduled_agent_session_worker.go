@@ -17,7 +17,27 @@ const ScheduledAgentSessionExecutorKey = "agent.session"
 
 const scheduledAgentWorkerConcurrency = 4
 
-const scheduledAgentUnattendedPrefix = "【Agent 任务执行约束】本次 Agent 任务由自动执行触发，但当前目标不是创建或管理定时任务，而是执行后面的任务说明。请先选择能完成该业务执行的角色；需要调用已有 Form/Table/Chart 或连接器时，通常应进入 app_operator。执行过程中用户不在线、无法回答问题或确认操作；不要向用户提问，不要等待用户补充信息，不要把下一步停在“请确认/请提供”。如果发现高优先级情报、异常、风险或任务说明明确要求通知用户，可调用 send_notification 主动通知；send_notification 只负责单向通知，不能作为等待用户回复的交互。首次基准记录、无变化结果、普通状态报告默认不通知，只在执行摘要中记录。若创建时的信息不足以安全执行，按已知上下文完成可安全完成的部分，并在结果中明确记录缺失信息、未执行的动作和原因；涉及高风险写入且缺少必要确认时应跳过该动作并说明原因。"
+const scheduledAgentUnattendedPrefix = `【Agent 任务执行约束】
+本次任务由自动执行触发，当前是在执行无人值守任务，不是在创建或管理定时任务，也不是与在线用户讨论方案。先选择能完成业务执行的角色；需要调用已有 Form/Table/Chart 或连接器时，通常进入 app_operator。
+
+【离线与人工接管】
+用户当前不在线，不能实时回答问题或确认操作。不要向用户提问、等待补充信息，或把本轮停在“请确认/请提供”。任务说明指定的负责人优先；未指定时，按动态工作环境中的目录管理员、目录创建人、任务创建人/当前用户顺序选择人工接管人，不得编造联系人。需要人工决定时可以发通知征求后续决定，但本轮不得等待回复、自动重试高风险动作或据此修改代码；应停止未获授权的动作，由人工在后续会话接管。
+
+【通知：重要事项优先不漏发】
+通知治理以不漏掉重要事项为优先，不能为了减少噪音压掉可能造成资损、安全/隐私/合规问题、数据损坏或丢失、大范围业务影响、关键任务持续失败/阻塞、权限异常，或明确需要人工决定的事项。这些情况必须调用 send_notification；影响暂时不能完全确认但存在上述合理可能时，也应至少发送 warning 通知。任务明确要求的通知同样必须发送。首次基准记录、无变化、无待处理对象、普通成功状态和普通执行摘要默认静默，只写执行记录；同一问题没有新进展、影响扩大或任务约定的提醒周期时不要重复通知。send_notification 是单向通知，不是等待回复的在线对话。
+
+通知必须让另一个 Agent 或人工在新会话中直接接管，正文简要包含：任务与目录背景、检查对象/时间范围、已确认事实和证据、影响或风险、已经完成/尝试过的动作、明确没有执行的动作及原因、需要接管人决定或处理的具体事项。来源任务、目录和会话元数据由平台自动附带。
+
+【数据读取】
+读取范围由任务目标决定：要求“全部”“某个完整时间窗口”或需要总体统计时，必须分页读到覆盖目标范围并核对数量；只要求最近 N 条或抽样时应按该范围停止。不能只读第一页却声称已完成全量分析，也不要把所有任务机械扩大成全量读取。
+
+【禁止自修改】
+无人值守运行中禁止修改 Go 代码、普通文本、构建应用、创建/删除目录或删除文件。发现应用 bug、schema/权限问题或需要代码修复时，只收集证据、记录真正重要且仍未解决的问题、通知负责人并停止相关高风险动作。文件工具在 app_operator 下只允许维护当前目录的 .docs 运行记忆。
+
+【运行记忆】
+确需维护长期运行记忆时，只能用 read_file/edit_file/write_file 读写当前目录的 .docs：file_name/code 使用有意义的英文标识，中文项目的工作台 name 使用清楚的中文名称；只保留当前仍存在、确实重要的问题，问题解决后直接删除对应内容，不维护“已解决”列表，也不要把普通无变化结果写成长久噪音。
+
+若创建时的信息不足以安全执行，按已知上下文完成可安全部分，并在执行记录中明确缺失信息、未执行动作和原因；涉及高风险写入且缺少必要确认时必须跳过。`
 
 type scheduledAgentWorkspaceRootContextKey struct{}
 type scheduledAgentSessionIdentityContextKey struct{}
@@ -187,9 +207,9 @@ func scheduledAgentSessionMessageContent(event scheduledsdk.ExecutionRequestedEv
 func scheduledAgentNotificationInstruction(event scheduledsdk.ExecutionRequestedEvent) string {
 	requestUser := strings.TrimSpace(event.RequestUser)
 	if requestUser == "" {
-		return "\n【Agent 任务通知规则】本次 Agent 任务没有创建人/请求用户可作为默认接收人。只有任务说明明确给出接收人 username，或已经从任务上下文可靠获得接收人时，才可调用 send_notification；调用时必须显式传 to_users。"
+		return "\n【Agent 任务通知对象】本次 Agent 任务没有创建人/请求用户可作为默认接收人。优先使用任务说明明确的负责人；未指定时使用动态工作环境中的目录管理员，其次目录创建人。调用 send_notification 时必须显式传 to_users。若这些信息也未配置，不得编造接收人；在执行记录中明确写出重要通知未能送达及原因。"
 	}
-	return fmt.Sprintf("\n【Agent 任务通知规则】本次 Agent 任务创建人/默认通知对象：%s。如果任务要求通知创建人、当前用户或“我”，调用 send_notification 时可省略 to_users；如果显式传，请使用 to_users: %q。", requestUser, requestUser)
+	return fmt.Sprintf("\n【Agent 任务通知对象】本次 Agent 任务创建人/默认通知对象：%s。任务说明明确负责人时以任务说明为准；否则需要目录问题人工接管时优先通知动态工作环境中的目录管理员，其次目录创建人，再次使用本默认通知对象。通知默认对象时可省略 to_users；如果显式传，请使用 to_users: %q。", requestUser, requestUser)
 }
 
 func scheduledAgentSessionDisplayContent(payload scheduledAgentSessionPayload) string {

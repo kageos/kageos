@@ -252,6 +252,8 @@ func workspaceCtxToEnvInput(c *dto.GetWorkspaceContextResp) *prompt.WorkspaceEnv
 		FullCodePath:           c.Directory.FullCodePath,
 		DirType:                c.Directory.Type,
 		DirDescription:         dirDesc,
+		DirOwner:               c.Directory.Owner,
+		DirAdmins:              c.Directory.Admins,
 		Children:               children,
 		Files:                  files,
 	}

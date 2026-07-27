@@ -76,12 +76,6 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "edit_file"); blocked || res.IsError {
 		t.Fatalf("app_developer should allow edit_file, blocked=%v res=%#v", blocked, res)
 	}
-	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "write_doc"); !blocked || !res.IsError {
-		t.Fatalf("app_developer should block default-hidden write_doc, blocked=%v res=%#v", blocked, res)
-	}
-	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleMaintenanceEngineer, "write_doc"); !blocked || !res.IsError {
-		t.Fatalf("maintenance_engineer should block default-hidden write_doc, blocked=%v res=%#v", blocked, res)
-	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppDeveloper, "write_prd"); !blocked || !res.IsError {
 		t.Fatalf("app_developer should block write_prd, blocked=%v res=%#v", blocked, res)
 	}
@@ -100,11 +94,11 @@ func TestWorkspaceRoleToolGateBlocksWrongRoleTools(t *testing.T) {
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "list_scheduled_task_executions"); blocked || res.IsError {
 		t.Fatalf("app_operator should allow read-only scheduled execution listing, blocked=%v res=%#v", blocked, res)
 	}
-	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "write_file"); !blocked || !res.IsError {
-		t.Fatalf("app_operator should block write_file, blocked=%v res=%#v", blocked, res)
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "write_file"); blocked || res.IsError {
+		t.Fatalf("app_operator should allow docs-scoped write_file, blocked=%v res=%#v", blocked, res)
 	}
-	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "write_doc"); !blocked || !res.IsError {
-		t.Fatalf("app_operator should block write_doc, blocked=%v res=%#v", blocked, res)
+	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAppOperator, "edit_file"); blocked || res.IsError {
+		t.Fatalf("app_operator should allow docs-scoped edit_file, blocked=%v res=%#v", blocked, res)
 	}
 	if res, blocked := workspaceRoleToolGateResult(WorkspaceRoleAutomationOperator, "create_scheduled_function_task"); blocked || res.IsError {
 		t.Fatalf("automation_operator should allow create_scheduled_function_task, blocked=%v res=%#v", blocked, res)

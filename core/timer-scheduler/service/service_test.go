@@ -121,6 +121,49 @@ func TestServiceCreateTaskSupportsPausedInitialStatus(t *testing.T) {
 	}
 }
 
+func TestBuiltinTaskDefinitionRejectsUserMutationButAllowsRuntimeControls(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, _ := newTestService(t, &now)
+	task, err := svc.CreateTask(context.Background(), scheduledsdk.CreateTaskRequest{
+		Title:       "directory built-in",
+		ExecutorKey: "test.executor",
+		Metadata: map[string]string{
+			"origin":     "manifest",
+			"managed_by": "app_manifest",
+		},
+		Schedule: scheduledsdk.Every(60),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	newTitle := "user rewrite"
+	if _, err := svc.UpdateTask(context.Background(), task.ID, scheduledsdk.UpdateTaskRequest{Title: &newTitle}); !errors.Is(err, ErrBuiltinTaskDefinition) {
+		t.Fatalf("UpdateTask() error = %v, want ErrBuiltinTaskDefinition", err)
+	}
+	if err := svc.CancelTask(context.Background(), task.ID); !errors.Is(err, ErrBuiltinTaskDefinition) {
+		t.Fatalf("CancelTask() error = %v, want ErrBuiltinTaskDefinition", err)
+	}
+	if err := svc.DeleteTask(context.Background(), task.ID); !errors.Is(err, ErrBuiltinTaskDefinition) {
+		t.Fatalf("DeleteTask() error = %v, want ErrBuiltinTaskDefinition", err)
+	}
+	if err := svc.PauseTask(context.Background(), task.ID); err != nil {
+		t.Fatalf("PauseTask() error = %v", err)
+	}
+	if err := svc.ResumeTask(context.Background(), task.ID); err != nil {
+		t.Fatalf("ResumeTask() error = %v", err)
+	}
+
+	managedCtx := contextx.WithClientSource(context.Background(), "app_manifest")
+	updated, err := svc.UpdateTask(managedCtx, task.ID, scheduledsdk.UpdateTaskRequest{Title: &newTitle})
+	if err != nil {
+		t.Fatalf("managed UpdateTask() error = %v", err)
+	}
+	if updated.Title != newTitle {
+		t.Fatalf("updated title = %q, want %q", updated.Title, newTitle)
+	}
+}
+
 func TestServiceValidatesAndUpdatesOverlapConfig(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, _ := newTestService(t, &now)

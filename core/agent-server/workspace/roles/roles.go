@@ -66,7 +66,7 @@ func Specs() map[string]Spec {
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "read_file", "read_app_log", "search", "web_search",
 			},
 			ForbiddenTools: []string{
-				"write_prd", "create_directory", "write_doc", "write_file", "edit_file", "delete_file", "build_workspace",
+				"write_prd", "create_directory", "write_file", "edit_file", "delete_file", "build_workspace",
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy", "run_python",
 				"create_scheduled_function_task", "create_scheduled_agent_task", "manage_scheduled_task", "send_notification",
@@ -100,7 +100,7 @@ func Specs() map[string]Spec {
 			Optional:     []string{"/system/prompt/case_catalog"},
 			AllowedTools: []string{"change_role", "read_doc", "read_dir", "write_prd"},
 			ForbiddenTools: []string{
-				"create_directory", "write_doc", "write_file", "edit_file", "delete_file", "build_workspace",
+				"create_directory", "write_file", "edit_file", "delete_file", "build_workspace",
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
 			},
@@ -189,7 +189,7 @@ func Specs() map[string]Spec {
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy", "send_notification",
 			},
-			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_file", "edit_file", "delete_file", "build_workspace"},
+			ForbiddenTools: []string{"write_prd", "create_directory", "write_file", "edit_file", "delete_file", "build_workspace"},
 			Runtime: runtimeContract(
 				[]string{"需要测试刚构建的应用", "需要验证已有函数是否符合预期"},
 				[]string{"需要修改代码", "用户只是要完成真实业务操作且不是测试验证"},
@@ -215,20 +215,20 @@ func Specs() map[string]Spec {
 				"change_role", "summarize_task_state", "read_doc", "read_dir", "search",
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy", "run_python", "send_notification",
-				"list_scheduled_tasks", "list_scheduled_task_executions",
+				"list_scheduled_tasks", "list_scheduled_task_executions", "write_file", "edit_file",
 			},
-			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_file", "edit_file", "delete_file", "build_workspace"},
+			ForbiddenTools: []string{"write_prd", "create_directory", "delete_file", "build_workspace"},
 			Runtime: runtimeContract(
 				[]string{"当前目录已有应用且用户要查询、新增、更新、删除、提交表单或查看图表", "用户意图是使用软件完成业务结果", "用户只是要轻量一次性文件/数据处理，例如简单转换、压缩、清洗、加水印、解析附件或整理临时结果"},
 				[]string{"用户要新增或改变软件能力", "用户要测试刚构建应用而不是真实业务操作", "用户要复杂、专项或多步骤文件处理，需要数据/文件处理工程师的完整 SOP"},
-				[]string{"固定目标应用 execute_directory", "先获取函数 schema、必填项、枚举、文件字段和写入能力", "必要时先查询关联数据或调用 OnSelectFuzzy", "需要轻量计算、解析附件、清洗、转换、压缩、加水印或整理中间数据时可调用 run_python，但真实业务写入仍走 run_* 函数", "调用 run_* 完成业务操作，或用 run_python 完成轻量一次性文件/数据处理", "失败时区分参数/数据问题、应用 bug 或是否需要交接 data_operator"},
+				[]string{"固定目标应用 execute_directory", "先获取函数 schema、必填项、枚举、文件字段和写入能力", "必要时先查询关联数据或调用 OnSelectFuzzy", "需要轻量计算、解析附件、清洗、转换、压缩、加水印或整理中间数据时可调用 run_python，但真实业务写入仍走 run_* 函数", "调用 run_* 完成业务操作，或用 run_python 完成轻量一次性文件/数据处理", "确需维护目录运行记忆时，只用 read_file/edit_file/write_file 读写 .docs：英文 file_name/code 搭配有意义的中文 name，只保留当前仍存在的少量重要事项，问题解决后直接删除对应内容，不保留已解决清单；这两个文件工具在本角色下不得修改代码或普通文本", "失败时区分参数/数据问题、应用 bug 或是否需要交接 data_operator"},
 				[]string{"业务操作完成并返回结果", "轻量文件/数据处理完成并返回产物或简洁结果", "或失败原因已分类并交接维护角色"},
 				[]LifecycleHook{
 					hook("app_operator.before_enter_capabilities", "before_enter", "进入操作角色前生成当前应用能力快照。", []string{"execute_directory", "registered functions"}, []string{"available_capabilities", "operation_schema_summary", "app_capabilities", "executed_hooks"}),
 					hook("app_operator.after_run", "after_tool", "业务运行后判断是否需要继续查询、补参数或交接维护。", []string{"run_* result"}, []string{"operation_result", "failure_classification"}),
 				},
 			),
-			Action:           "应用执行负责在已有应用里执行业务操作：查询、新增、更新、删除记录、提交表单、查看图表；也负责轻量一次性文件/数据处理。真实业务写入必须走 run_* 工具，不改 PRD、不改代码。",
+			Action:           "应用执行负责在已有应用里执行业务操作：查询、新增、更新、删除记录、提交表单、查看图表；也负责轻量一次性文件/数据处理和必要的 .docs 运行记忆维护。真实业务写入必须走 run_* 工具，文件工具在本角色下只允许修改文档，不改 PRD、不改代码。",
 			RouteDescription: "当前目录已是目标应用，或目录下已有 Table/Form/Chart 能完成用户目标时，只要用户是在使用软件完成业务结果且目的不是测试验证，就进入应用执行。用户只是要处理一个轻量一次性文件/数据任务，例如简单转换、压缩、清洗、改尺寸、加水印、解析附件或整理临时结果时，也默认进入应用执行，用 `run_python` 完成，不必为了这类短任务切到 `data_operator`。它优先于 `product_manager` 和 `app_developer` 处理真实业务数据操作，不依赖某个固定动词；例如在投票应用目录中“创建一个四大古都投票，北京南京西安洛阳单选”就是新增投票主题和选项。先确认目标应用和函数 schema；写入类操作要复述关键字段并避免误写；工具失败时判断是参数/数据问题、应用 bug 或文件处理复杂度超出轻量范围，必要时交接给 `maintenance_engineer` 或 `data_operator`。",
 			NextRoles: []NextRole{
 				{RoleID: MaintenanceEngineer, When: "业务操作失败且判断为应用 bug 或字段实现问题"},
@@ -249,21 +249,21 @@ func Specs() map[string]Spec {
 				"list_scheduled_tasks", "manage_scheduled_task", "list_scheduled_task_executions", "send_notification",
 			},
 			ForbiddenTools: []string{
-				"write_prd", "create_directory", "write_doc", "write_file", "edit_file", "delete_file", "build_workspace",
+				"write_prd", "create_directory", "write_file", "edit_file", "delete_file", "build_workspace",
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy",
 			},
 			Runtime: runtimeContract(
-				[]string{"用户要把已有应用函数、已有业务操作或已有工作台目录配置成指定时间、周期、提醒、巡检或 Agent 任务", "用户要查询、暂停、恢复、取消或立即运行已有定时任务"},
+				[]string{"用户要把已有应用函数、已有业务操作或已有工作台目录配置成指定时间、周期、提醒、巡检或 Agent 任务", "用户要创建、添加、配置或管理智能员工/值守员工", "用户要查询、暂停、恢复、取消或立即运行已有定时任务"},
 				[]string{"用户只是要立即查询、提交、更新或删除真实业务数据", "用户想定时执行但目标能力尚不存在、函数未确认或需要新增/修改软件能力", "用户要测试刚构建应用"},
-				[]string{"固定目标应用 execute_directory", "先过无人值守价值门禁：提交时可确定的问题必须由应用同步校验；只有时间流逝、外部状态变化、持续观察或跨记录分析产生的新工作才进入后台，结果必须可接手且有幂等、人工接管和停止条件", "先区分任务类型：固定 Form/Table/Chart 调用用函数任务，需要 Agent 判断/巡检/分析/总结/维护长期数据或多步骤用 Agent 任务", "先用 search 确认目标函数或目录，不搜索整个工作区", "创建或更新 Agent 任务 message 前必须按 /system/prompt/sdk/reference/kageos-manifest-runbook-agenttask 区分目录 runbook 和具体无人值守执行单，并要求 message 先读 <./runbook.docs>", "Agent 任务可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须按无人值守 SOP 写清场景、长期目标、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式和通知规则；不要把示例规则机械套到所有任务", "把用户自然语言计划转换为 atime、cron 或 every，并复述关键时间、频率和最多次数", "用户只是问能不能或怎么做时只说明方案，不创建任务", "创建任务前确认执行参数来自用户输入或已验证 schema，不猜必填字段、枚举或记录 ID；周期性写入任务必须等用户明确确认", "调用定时任务工具创建或管理任务", "返回 task_id、下次执行时间、执行来源和取消方式"},
+				[]string{"固定目标应用 execute_directory", "把“智能员工/值守员工”识别为 agent.session Agent 任务并使用 create_scheduled_agent_task，不创建用户、角色、应用目录或普通函数任务", "先过无人值守价值门禁：提交时可确定的问题必须由应用同步校验；只有时间流逝、外部状态变化、持续观察或跨记录分析产生的新工作才进入后台，结果必须可接手且有幂等、人工接管和停止条件", "先区分任务类型：固定 Form/Table/Chart 调用用函数任务，需要 Agent 判断/巡检/分析/总结/维护长期数据或多步骤用 Agent 任务", "先用 search 确认目标函数或目录，不搜索整个工作区", "创建或更新 Agent 任务 message 前必须按 /system/prompt/sdk/reference/kageos-manifest-runbook-agenttask 区分目录 runbook 和具体无人值守执行单，并要求 message 先读 <./runbook.docs>", "Agent 任务可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须按无人值守 SOP 写清场景、长期目标、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式和通知规则；不要把示例规则机械套到所有任务", "把用户自然语言计划转换为 atime、cron 或 every，并复述关键时间、频率和最多次数", "用户只是问能不能或怎么做时只说明方案，不创建任务", "创建任务前确认执行参数来自用户输入或已验证 schema，不猜必填字段、枚举或记录 ID；周期性写入任务必须等用户明确确认", "调用定时任务工具创建或管理任务", "返回 task_id、下次执行时间、执行来源和取消方式"},
 				[]string{"函数任务或 Agent 任务已创建并返回 task_id/next_run_at", "或任务已暂停、恢复、取消、立即运行、执行记录已查询", "失败原因已区分为时间表达式、权限、参数/schema 或调度服务问题"},
 				[]LifecycleHook{
 					hook("automation.before_enter_scope", "before_enter", "进入自动化角色前收敛目标应用、候选函数和计划类型。", []string{"execute_directory", "user schedule intent", "function schema"}, []string{"automation_scope", "schedule_plan"}),
 				},
 			),
-			Action:           "自动执行配置负责把已有业务操作配置成未来或周期自动执行，并管理函数任务、Agent 任务和执行记录；先拒绝延迟本可同步解决的错误，只为后来状态、持续观察或跨记录工作创建有回写和停止条件的自动化；创建 Agent 任务 message 时按 manifest/runbook/AgentTask 规范写无人值守执行单；不直接修改代码，不直接执行真实业务写入。",
-			RouteDescription: "用户要“定时、每天、每周、周期、提醒、自动跑、定期巡检、到点提交、Agent 任务”且目标是已有应用函数、已有业务操作或已有工作台目录时进入。它负责把已有能力配置成 timer-scheduler 任务，并管理暂停、恢复、取消、立即运行和执行记录。先区分两类任务：目标是一个明确 Form/Table/Chart 和固定参数时，用函数任务；目标需要 Agent 到点后判断、巡检、分析、总结、维护长期数据、选择多个工具或临场决策时，用 Agent 任务。Agent 任务可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须读取 `/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask` 并写成无人值守 SOP：场景/长期目标、绑定目录、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式、通知规则；不要把示例规则机械套到所有任务。它不同于 `app_operator`：应用执行负责现在执行一次真实业务操作；自动执行配置负责以后自动执行。它也不同于 `product_manager/app_developer/maintenance_engineer`：如果用户想定时执行的能力还不存在、函数 schema 还不确定，或需要新增/修改软件能力，先进入产品、开发或维护，不要直接进入自动化。用户只是问“能不能/怎么做”时只说明方案和风险；周期性写入任务必须等用户明确确认后再创建。创建任务前必须确认目标函数/目录、计划时间、执行参数和权限边界；不设计 PRD、不写代码、不 build、不直接调用 run_* 完成真实业务写入。",
+			Action:           "自动执行配置负责把已有业务操作配置成未来或周期自动执行，并管理函数任务、智能员工（Agent 任务）和执行记录；“智能员工/值守员工”固定映射到 agent.session；先拒绝延迟本可同步解决的错误，只为后来状态、持续观察或跨记录工作创建有回写和停止条件的自动化；创建 Agent 任务 message 时按 manifest/runbook/AgentTask 规范写无人值守执行单；不直接修改代码，不直接执行真实业务写入。",
+			RouteDescription: "用户要“定时、每天、每周、周期、提醒、自动跑、定期巡检、到点提交、Agent 任务、创建智能员工、安排员工值守”且目标是已有应用函数、已有业务操作或已有工作台目录时进入。“智能员工”“值守员工”是 Agent 任务的产品名称：用户明确这样说时使用 `create_scheduled_agent_task`，不要创建用户、角色、应用目录或普通函数任务。它负责把已有能力配置成 timer-scheduler 任务，并管理暂停、恢复、取消、立即运行和执行记录。先区分两类任务：目标是一个明确 Form/Table/Chart 和固定参数时，用函数任务；目标需要 Agent 到点后判断、巡检、分析、总结、维护长期数据、选择多个工具或临场决策时，用 Agent 任务。Agent 任务可以编排当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数；message 必须读取 `/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask` 并写成无人值守 SOP：场景/长期目标、绑定目录、可用资源/函数、预期使用工具清单、执行步骤、按业务场景裁剪的质量控制、失败处理、输出格式、通知规则；不要把示例规则机械套到所有任务。它不同于 `app_operator`：应用执行负责现在执行一次真实业务操作；自动执行配置负责以后自动执行。它也不同于 `product_manager/app_developer/maintenance_engineer`：如果用户想定时执行的能力还不存在、函数 schema 还不确定，或需要新增/修改软件能力，先进入产品、开发或维护，不要直接进入自动化。用户只是问“能不能/怎么做”时只说明方案和风险；周期性写入任务必须等用户明确确认后再创建。创建任务前必须确认目标函数/目录、计划时间、执行参数和权限边界；不设计 PRD、不写代码、不 build、不直接调用 run_* 完成真实业务写入。",
 			NextRoles: []NextRole{
 				{RoleID: AppOperator, When: "用户要求先立即执行一次业务操作验证参数"},
 				{RoleID: MaintenanceEngineer, When: "定时执行失败且判断为应用 bug 或字段实现问题"},
@@ -277,7 +277,7 @@ func Specs() map[string]Spec {
 				"change_role", "summarize_task_state", "read_doc", "read_file",
 				"edit_file", "write_file", "read_app_log", "build_workspace",
 			},
-			ForbiddenTools: []string{"write_prd", "write_doc", "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query"},
+			ForbiddenTools: []string{"write_prd", "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query"},
 			Runtime: runtimeContract(
 				[]string{"build_workspace 失败", "启动、schema、widget、路由后缀或 SDK API 相关错误"},
 				[]string{"业务功能本身需要重新设计", "只是测试数据或参数问题"},
@@ -339,7 +339,7 @@ func Specs() map[string]Spec {
 			Docs:           []string{"/system/prompt/roles/reviewer"},
 			Optional:       []string{"/system/prompt/platform-introduction", "/system/prompt/platform-usage-and-philosophy", "/system/prompt/platform-capability-boundaries"},
 			AllowedTools:   []string{"change_role", "summarize_task_state", "read_doc", "read_dir", "read_file"},
-			ForbiddenTools: []string{"write_prd", "create_directory", "write_doc", "write_file", "edit_file", "delete_file", "build_workspace", "run_form_submit"},
+			ForbiddenTools: []string{"write_prd", "create_directory", "write_file", "edit_file", "delete_file", "build_workspace", "run_form_submit"},
 			Runtime: runtimeContract(
 				[]string{"用户要解释、review、查问题、读代码或做方案评估", "用户咨询 Kageos 身份、公司、协议、Hub、怎么用、工作台能做什么、产品理念、服务目录或能力边界"},
 				[]string{"用户明确要求直接修改、构建或执行业务操作"},

@@ -114,7 +114,7 @@ func (f *fakeAppScheduleClient) DeleteTask(_ context.Context, taskID int64) erro
 	return nil
 }
 
-func TestReconcilePackageAgentTasksPreservesExistingManifestTaskByDefault(t *testing.T) {
+func TestReconcilePackageAgentTasksUpdatesExistingManifestDefinition(t *testing.T) {
 	fake := &fakeAppScheduleClient{
 		listResp: &scheduledsdk.ListTasksResponse{List: []*scheduledsdk.Task{
 			{
@@ -152,7 +152,7 @@ func TestReconcilePackageAgentTasksPreservesExistingManifestTaskByDefault(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fake.created) != 0 || len(fake.updated) != 0 {
+	if len(fake.created) != 0 || len(fake.updated) != 1 {
 		t.Fatalf("created=%d updated=%d", len(fake.created), len(fake.updated))
 	}
 }

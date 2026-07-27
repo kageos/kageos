@@ -28,6 +28,7 @@ import (
 
 const maxRemoteCapabilityBundleBytes = 32 << 20
 const capabilityBundleAgentTaskPageSize = 100
+const capabilityBundleScheduledFunctionPageSize = 100
 
 var capabilityBundleReleaseVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$`)
 
@@ -44,6 +45,14 @@ type scheduledAgentSessionPayload struct {
 	DisplayContent     string `json:"display_content"`
 	ModeCode           string `json:"mode_code"`
 	MaxDurationSeconds int64  `json:"max_duration_seconds"`
+}
+
+type capabilityScheduledFunctionPayload struct {
+	FullCodePath string          `json:"full_code_path"`
+	TemplateType string          `json:"template_type"`
+	Action       string          `json:"action"`
+	Method       string          `json:"method"`
+	Payload      json.RawMessage `json:"payload"`
 }
 
 type capabilityBundleDocInstallItem struct {
@@ -66,19 +75,27 @@ func (s *serviceTreeCapabilityBundleService) ExportCapabilityBundle(ctx context.
 	}
 
 	bundle := &dto.CapabilityBundle{
-		SchemaVersion: dto.CapabilityBundleSchemaVersion,
-		Name:          strings.TrimSpace(req.Name),
-		Files:         make([]*dto.CapabilityBundleFile, 0),
-		Packages:      make([]*dto.CapabilityBundlePackage, 0),
-		Docs:          make([]*dto.CapabilityBundleDoc, 0),
-		AgentTasks:    make([]*dto.CapabilityBundleAgentTask, 0),
+		SchemaVersion:      dto.CapabilityBundleSchemaVersion,
+		Name:               strings.TrimSpace(req.Name),
+		Files:              make([]*dto.CapabilityBundleFile, 0),
+		Packages:           make([]*dto.CapabilityBundlePackage, 0),
+		Docs:               make([]*dto.CapabilityBundleDoc, 0),
+		ScheduledFunctions: make([]*dto.CapabilityBundleScheduledFunction, 0),
+		AgentTasks:         make([]*dto.CapabilityBundleAgentTask, 0),
 	}
 
 	seenFiles := make(map[string]struct{})
 	seenPackages := make(map[string]struct{})
 	seenTreeNodes := make(map[string]struct{})
 	seenDocs := make(map[string]struct{})
+	seenScheduledFunctions := make(map[string]struct{})
 	seenAgentTasks := make(map[string]struct{})
+	selectedUserTaskIDs := make(map[int64]struct{}, len(req.IncludeUserTaskIDs))
+	for _, taskID := range req.IncludeUserTaskIDs {
+		if taskID > 0 {
+			selectedUserTaskIDs[taskID] = struct{}{}
+		}
+	}
 	var sourceAppID int64
 	var sourceRoot *model.ServiceTree
 	if strings.TrimSpace(req.SourceRootPath) != "" {
@@ -128,11 +145,14 @@ func (s *serviceTreeCapabilityBundleService) ExportCapabilityBundle(ctx context.
 				baseTree = sourceRoot
 				includeBaseCode = false
 			}
-			if err := s.appendCapabilityBundleRoot(ctx, bundle, baseTree, rootTree, includeBaseCode, seenPackages, seenFiles, seenTreeNodes, seenDocs, seenAgentTasks); err != nil {
+			if err := s.appendCapabilityBundleRoot(ctx, bundle, baseTree, rootTree, includeBaseCode, seenPackages, seenFiles, seenTreeNodes, seenDocs, seenScheduledFunctions, seenAgentTasks, selectedUserTaskIDs); err != nil {
 				return nil, err
 			}
 		case model.ServiceTreeTypeFunction:
 			if err := s.appendCapabilityBundleFunction(ctx, bundle, sourceRoot, rootTree, sourceRoot == nil, seenPackages, seenFiles, seenTreeNodes); err != nil {
+				return nil, err
+			}
+			if err := s.appendCapabilityBundleScheduledFunctions(ctx, bundle, baseTreeForCapabilityFunction(sourceRoot, rootTree), rootTree.FullCodePath, sourceRoot == nil, seenScheduledFunctions, selectedUserTaskIDs); err != nil {
 				return nil, err
 			}
 		default:
@@ -153,6 +173,11 @@ func (s *serviceTreeCapabilityBundleService) ExportCapabilityBundle(ctx context.
 	})
 	sort.Slice(bundle.Docs, func(i, j int) bool {
 		return bundle.Docs[i].RelativePath < bundle.Docs[j].RelativePath
+	})
+	sort.Slice(bundle.ScheduledFunctions, func(i, j int) bool {
+		left := capabilityScheduledFunctionKey(bundle.ScheduledFunctions[i].RelativePath, bundle.ScheduledFunctions[i].Code)
+		right := capabilityScheduledFunctionKey(bundle.ScheduledFunctions[j].RelativePath, bundle.ScheduledFunctions[j].Code)
+		return left < right
 	})
 	sort.Slice(bundle.AgentTasks, func(i, j int) bool {
 		left := capabilityAgentTaskKey(bundle.AgentTasks[i].RelativePath, bundle.AgentTasks[i].Code)
@@ -176,7 +201,9 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleRoot(
 	seenFiles map[string]struct{},
 	seenTreeNodes map[string]struct{},
 	seenDocs map[string]struct{},
+	seenScheduledFunctions map[string]struct{},
 	seenAgentTasks map[string]struct{},
+	selectedUserTaskIDs map[int64]struct{},
 ) error {
 	directoryFiles, err := readDirectoryFilesFromRuntimeRecursively(ctx, s.serviceTreeRepo, s.runtimeWorkspace, rootTree.AppID, rootTree.FullCodePath)
 	if err != nil {
@@ -239,7 +266,10 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleRoot(
 	if err := s.appendCapabilityBundleDocs(ctx, bundle, baseTree, treeNodes, includeBaseCode, seenDocs); err != nil {
 		return err
 	}
-	if err := s.appendCapabilityBundleAgentTasks(ctx, bundle, baseTree, rootTree, includeBaseCode, seenAgentTasks); err != nil {
+	if err := s.appendCapabilityBundleScheduledFunctions(ctx, bundle, baseTree, rootTree.FullCodePath, includeBaseCode, seenScheduledFunctions, selectedUserTaskIDs); err != nil {
+		return err
+	}
+	if err := s.appendCapabilityBundleAgentTasks(ctx, bundle, baseTree, rootTree, includeBaseCode, seenAgentTasks, selectedUserTaskIDs); err != nil {
 		return err
 	}
 
@@ -425,6 +455,133 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleDocs(
 	return nil
 }
 
+func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleScheduledFunctions(
+	ctx context.Context,
+	bundle *dto.CapabilityBundle,
+	baseTree *model.ServiceTree,
+	resourcePath string,
+	includeBaseCode bool,
+	seen map[string]struct{},
+	selectedUserTaskIDs map[int64]struct{},
+) error {
+	resourcePath = strings.TrimSpace(resourcePath)
+	if baseTree == nil || resourcePath == "" {
+		return nil
+	}
+	client := newAppScheduleClient()
+	for pageNumber := 1; ; pageNumber++ {
+		resp, err := client.ListTasks(ctx, scheduledsdk.ListTasksRequest{
+			ExecutorKey:       ScheduledFunctionExecutorKey,
+			Category:          "scheduled_function",
+			ResourceScope:     "function",
+			ResourceKeyPrefix: resourcePath,
+			Page:              pageNumber,
+			PageSize:          capabilityBundleScheduledFunctionPageSize,
+		})
+		if err != nil {
+			return fmt.Errorf("查询函数定时任务失败: %w", err)
+		}
+		if resp == nil || len(resp.List) == 0 {
+			return nil
+		}
+		for _, task := range resp.List {
+			if task == nil || !capabilityResourcePathWithin(task.ResourceKey, resourcePath) || !shouldExportScheduledTask(task, selectedUserTaskIDs) {
+				continue
+			}
+			item, err := capabilityBundleScheduledFunctionFromTask(baseTree, task, includeBaseCode)
+			if err != nil {
+				return err
+			}
+			if item == nil {
+				continue
+			}
+			key := capabilityScheduledFunctionKey(item.RelativePath, item.Code)
+			if _, exists := seen[key]; exists {
+				item.Code = fmt.Sprintf("%s_%d", item.Code, task.ID)
+				key = capabilityScheduledFunctionKey(item.RelativePath, item.Code)
+			}
+			seen[key] = struct{}{}
+			bundle.ScheduledFunctions = append(bundle.ScheduledFunctions, item)
+		}
+		if len(resp.List) < capabilityBundleScheduledFunctionPageSize {
+			return nil
+		}
+	}
+}
+
+func capabilityBundleScheduledFunctionFromTask(baseTree *model.ServiceTree, task *scheduledsdk.Task, includeBaseCode bool) (*dto.CapabilityBundleScheduledFunction, error) {
+	if task == nil || task.ExecutorKey != ScheduledFunctionExecutorKey {
+		return nil, nil
+	}
+	var payload capabilityScheduledFunctionPayload
+	if err := json.Unmarshal(task.ExecutorPayload, &payload); err != nil {
+		return nil, fmt.Errorf("函数定时任务 %d executor_payload 无效: %w", task.ID, err)
+	}
+	fullCodePath := firstNonEmptyString(strings.TrimSpace(task.ResourceKey), strings.TrimSpace(payload.FullCodePath))
+	if fullCodePath == "" {
+		return nil, nil
+	}
+	node := &model.ServiceTree{
+		Code:         path.Base(fullCodePath),
+		FullCodePath: fullCodePath,
+		Type:         model.ServiceTreeTypeFunction,
+	}
+	relativePath, err := capabilityRelativeTreeNodePath(baseTree, node, includeBaseCode)
+	if err != nil {
+		return nil, err
+	}
+	if relativePath == "" {
+		return nil, nil
+	}
+	body := payload.Payload
+	if len(body) == 0 || string(body) == "null" {
+		body = json.RawMessage(`{}`)
+	}
+	managedBy := strings.TrimSpace(task.Metadata["managed_by"])
+	if managedBy != "app_manifest" {
+		managedBy = "capability_bundle"
+	}
+	return &dto.CapabilityBundleScheduledFunction{
+		RelativePath:   relativePath,
+		Code:           capabilityBundleAgentTaskCode(task),
+		Title:          strings.TrimSpace(task.Title),
+		Description:    strings.TrimSpace(task.Description),
+		TemplateType:   firstNonEmptyString(strings.TrimSpace(payload.TemplateType), strings.TrimSpace(task.Metadata["template_type"])),
+		Action:         firstNonEmptyString(strings.TrimSpace(payload.Action), strings.TrimSpace(task.Metadata["action"]), "execute"),
+		Method:         firstNonEmptyString(strings.TrimSpace(payload.Method), strings.TrimSpace(task.Metadata["method"])),
+		Body:           body,
+		DefaultEnabled: scheduledTaskDefaultEnabled(task),
+		Schedule:       task.Schedule,
+		ManagedBy:      managedBy,
+		Origin:         scheduledTaskOriginManifest,
+	}, nil
+}
+
+func capabilityScheduledFunctionKey(relativePath, code string) string {
+	return strings.Trim(strings.TrimSpace(relativePath), "/") + ":" + strings.TrimSpace(code)
+}
+
+func capabilityResourcePathWithin(candidate, root string) bool {
+	candidate = strings.TrimRight(strings.TrimSpace(candidate), "/")
+	root = strings.TrimRight(strings.TrimSpace(root), "/")
+	return candidate == root || strings.HasPrefix(candidate, root+"/")
+}
+
+func baseTreeForCapabilityFunction(sourceRoot, functionTree *model.ServiceTree) *model.ServiceTree {
+	if sourceRoot != nil {
+		return sourceRoot
+	}
+	if functionTree == nil {
+		return nil
+	}
+	parentPath := strings.TrimRight(functionTree.GetParentFullPath(), "/")
+	return &model.ServiceTree{
+		Code:         path.Base(parentPath),
+		FullCodePath: parentPath,
+		Type:         model.ServiceTreeTypePackage,
+	}
+}
+
 func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleAgentTasks(
 	ctx context.Context,
 	bundle *dto.CapabilityBundle,
@@ -432,11 +589,17 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleAgentTasks(
 	rootTree *model.ServiceTree,
 	includeBaseCode bool,
 	seenAgentTasks map[string]struct{},
+	selectedUserTaskIDSets ...map[int64]struct{},
 ) error {
 	if rootTree == nil || strings.TrimSpace(rootTree.FullCodePath) == "" {
 		return nil
 	}
 	client := newAppScheduleClient()
+	var selectedUserTaskIDs map[int64]struct{}
+	exportAllTasks := len(selectedUserTaskIDSets) == 0
+	if len(selectedUserTaskIDSets) > 0 {
+		selectedUserTaskIDs = selectedUserTaskIDSets[0]
+	}
 	for page := 1; ; page++ {
 		resp, err := client.ListTasks(ctx, scheduledsdk.ListTasksRequest{
 			ExecutorKey:       ScheduledAgentSessionExecutorKey,
@@ -453,6 +616,9 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleAgentTasks(
 			return nil
 		}
 		for _, task := range resp.List {
+			if !exportAllTasks && !shouldExportScheduledTask(task, selectedUserTaskIDs) {
+				continue
+			}
 			item, err := capabilityBundleAgentTaskFromScheduledTask(baseTree, task, includeBaseCode)
 			if err != nil {
 				return err
@@ -515,6 +681,7 @@ func capabilityBundleAgentTaskFromScheduledTask(baseTree *model.ServiceTree, tas
 		ModeCode:           firstNonEmptyString(strings.TrimSpace(payload.ModeCode), strings.TrimSpace(task.Metadata["mode_code"])),
 		MaxDurationSeconds: payload.MaxDurationSeconds,
 		Policy:             agentTaskPolicyCreateIfMissing,
+		Origin:             scheduledTaskOriginManifest,
 	}, nil
 }
 
@@ -804,6 +971,13 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 	}
 
 	createdAgentTaskRefs := make([]string, 0)
+	createdScheduledFunctionRefs := make([]string, 0)
+	if len(installBundle.ScheduledFunctions) > 0 {
+		createdScheduledFunctionRefs, err = s.installCapabilityBundleScheduledFunctions(ctx, plan.targetRootPath, installBundle.ScheduledFunctions, opts.Overwrite)
+		if err != nil {
+			return nil, fmt.Errorf("导入函数定时任务失败: %w", err)
+		}
+	}
 	if len(installBundle.AgentTasks) > 0 {
 		createdAgentTaskRefs, err = s.installCapabilityBundleAgentTasks(ctx, plan.targetRootPath, installBundle.AgentTasks, opts.Overwrite)
 		if err != nil {
@@ -829,18 +1003,142 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 
 	logger.Infof(ctx, "[CapabilityBundle] 安装完成: target=%s, directories=%d, files=%d, docs=%d", plan.targetRootPath, len(plan.directoryItems), len(plan.fileItems), len(plan.docItems))
 	return &dto.InstallCapabilityBundleResp{
-		Message:             fmt.Sprintf("目录导入成功，共创建 %d 个目录，写入 %d 个文件，导入 %d 份文档，安装 %d 个 Agent 任务", len(plan.directoryItems), len(plan.fileItems), len(plan.docItems), len(createdAgentTaskRefs)),
-		DirectoryCount:      len(plan.directoryItems),
-		FileCount:           len(plan.fileItems),
-		DocCount:            len(plan.docItems),
-		AgentTaskCount:      len(createdAgentTaskRefs),
-		TargetDirectoryPath: plan.targetRootPath,
-		CreatedPaths:        createdPaths,
-		WrittenPaths:        writtenPaths,
-		OldVersion:          oldVersion,
-		NewVersion:          newVersion,
-		Warnings:            warnings,
+		Message:                fmt.Sprintf("目录导入成功，共创建 %d 个目录，写入 %d 个文件，导入 %d 份文档，安装 %d 个函数定时任务、%d 个 Agent 任务", len(plan.directoryItems), len(plan.fileItems), len(plan.docItems), len(createdScheduledFunctionRefs), len(createdAgentTaskRefs)),
+		DirectoryCount:         len(plan.directoryItems),
+		FileCount:              len(plan.fileItems),
+		DocCount:               len(plan.docItems),
+		ScheduledFunctionCount: len(createdScheduledFunctionRefs),
+		AgentTaskCount:         len(createdAgentTaskRefs),
+		TargetDirectoryPath:    plan.targetRootPath,
+		CreatedPaths:           createdPaths,
+		WrittenPaths:           writtenPaths,
+		OldVersion:             oldVersion,
+		NewVersion:             newVersion,
+		Warnings:               warnings,
 	}, nil
+}
+
+func (s *serviceTreeCapabilityBundleService) installCapabilityBundleScheduledFunctions(
+	ctx context.Context,
+	targetRootPath string,
+	tasks []*dto.CapabilityBundleScheduledFunction,
+	overwrite bool,
+) ([]string, error) {
+	client := newAppScheduleClient()
+	managedCtx := contextx.WithClientSource(ctx, scheduledTaskSourceBundle)
+	created := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		if task == nil || strings.TrimSpace(task.ManagedBy) == "app_manifest" {
+			// 代码内 app_manifest 会随目录源码构建并由 reconcileFormSchedules 维护，
+			// 这里只保留结构化定义供 Hub/导出预览展示，避免重复创建。
+			continue
+		}
+		targetFunctionPath := joinCapabilityFullCodePath(targetRootPath, task.RelativePath)
+		req, err := buildCapabilityBundleScheduledFunctionRequest(ctx, targetFunctionPath, task)
+		if err != nil {
+			return created, err
+		}
+		createdTask, err := client.CreateTask(managedCtx, req)
+		if err != nil {
+			return created, fmt.Errorf("%s/%s: %w", targetFunctionPath, task.Code, err)
+		}
+		if createdTask == nil || createdTask.ID <= 0 {
+			return created, fmt.Errorf("%s/%s 未返回有效 task_id", targetFunctionPath, task.Code)
+		}
+		if overwrite {
+			// 更新定义但不携带 status，保留安装目录当前的暂停/启用状态。
+			if _, err := client.UpdateTask(managedCtx, createdTask.ID, updateTaskRequestFromCreate(req)); err != nil {
+				return created, fmt.Errorf("更新 %s/%s 失败: %w", targetFunctionPath, task.Code, err)
+			}
+		}
+		created = append(created, capabilityScheduledFunctionKey(targetFunctionPath, task.Code))
+	}
+	return created, nil
+}
+
+func buildCapabilityBundleScheduledFunctionRequest(ctx context.Context, targetFunctionPath string, task *dto.CapabilityBundleScheduledFunction) (scheduledsdk.CreateTaskRequest, error) {
+	if task == nil {
+		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("函数定时任务不能为空")
+	}
+	code := normalizeCapabilityAgentTaskCode(task.Code)
+	if code == "" {
+		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("函数定时任务 code 不能为空")
+	}
+	targetFunctionPath = strings.TrimSpace(targetFunctionPath)
+	if targetFunctionPath == "" {
+		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("函数定时任务 %s 目标函数为空", code)
+	}
+	if err := task.Schedule.Validate(); err != nil {
+		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("函数定时任务 %s 计划错误: %w", code, err)
+	}
+	action := firstNonEmptyString(strings.TrimSpace(task.Action), "execute")
+	method := firstNonEmptyString(strings.TrimSpace(task.Method), methodForCapabilityScheduledAction(action))
+	body := task.Body
+	if len(body) == 0 || string(body) == "null" {
+		body = json.RawMessage(`{}`)
+	}
+	if !json.Valid(body) {
+		return scheduledsdk.CreateTaskRequest{}, fmt.Errorf("函数定时任务 %s body 不是合法 JSON", code)
+	}
+	requestUser := firstNonEmptyString(strings.TrimSpace(contextx.GetRequestUser(ctx)), "system")
+	title := firstNonEmptyString(strings.TrimSpace(task.Title), code)
+	status := scheduledsdk.TaskStatusPaused
+	if task.DefaultEnabled {
+		status = scheduledsdk.TaskStatusPending
+	}
+	return scheduledsdk.CreateTaskRequest{
+		Title:          title,
+		Description:    strings.TrimSpace(task.Description),
+		Category:       "scheduled_function",
+		Tags:           []string{"function", action, "capability_bundle"},
+		IdempotencyKey: capabilityBundleScheduledFunctionIdempotencyKey(targetFunctionPath, code),
+		ExecutorKey:    ScheduledFunctionExecutorKey,
+		ExecutorPayload: mustRawJSON(map[string]interface{}{
+			"full_code_path": targetFunctionPath,
+			"template_type":  strings.TrimSpace(task.TemplateType),
+			"action":         action,
+			"method":         method,
+			"payload":        json.RawMessage(body),
+		}),
+		Metadata: map[string]string{
+			"kind":             "scheduled_function",
+			"action":           action,
+			"method":           method,
+			"template_type":    strings.TrimSpace(task.TemplateType),
+			"managed_by":       "capability_bundle",
+			"origin":           scheduledTaskOriginManifest,
+			"default_enabled":  fmt.Sprintf("%t", task.DefaultEnabled),
+			"bundle_task_code": code,
+			"schedule_code":    code,
+		},
+		Status:          status,
+		Schedule:        task.Schedule,
+		SourceType:      "function",
+		SourceRef:       targetFunctionPath,
+		ResourceScope:   "function",
+		ResourceKey:     targetFunctionPath,
+		RequestUser:     requestUser,
+		RequestUserDept: contextx.GetRequestDepartmentFullPath(ctx),
+		CreatedBy:       requestUser,
+	}, nil
+}
+
+func methodForCapabilityScheduledAction(action string) string {
+	switch strings.TrimSpace(action) {
+	case "table_delete":
+		return http.MethodDelete
+	case "table_update":
+		return http.MethodPut
+	case "table_create", "execute":
+		return http.MethodPost
+	default:
+		return http.MethodPost
+	}
+}
+
+func capabilityBundleScheduledFunctionIdempotencyKey(fullCodePath, code string) string {
+	sum := sha1.Sum([]byte(strings.Join([]string{strings.TrimSpace(fullCodePath), strings.TrimSpace(code)}, "\x00")))
+	return "bundle-function-task-" + hex.EncodeToString(sum[:])
 }
 
 func (s *serviceTreeCapabilityBundleService) installCapabilityBundleAgentTasks(
@@ -850,6 +1148,7 @@ func (s *serviceTreeCapabilityBundleService) installCapabilityBundleAgentTasks(
 	overwrite bool,
 ) ([]string, error) {
 	client := newAppScheduleClient()
+	managedCtx := contextx.WithClientSource(ctx, scheduledTaskSourceBundle)
 	created := make([]string, 0, len(tasks))
 	for _, task := range tasks {
 		if task == nil {
@@ -860,7 +1159,7 @@ func (s *serviceTreeCapabilityBundleService) installCapabilityBundleAgentTasks(
 		if err != nil {
 			return created, err
 		}
-		createdTask, err := client.CreateTask(ctx, req)
+		createdTask, err := client.CreateTask(managedCtx, req)
 		if err != nil {
 			return created, fmt.Errorf("%s/%s: %w", targetFullCodePath, task.Code, err)
 		}
@@ -868,21 +1167,8 @@ func (s *serviceTreeCapabilityBundleService) installCapabilityBundleAgentTasks(
 			return created, fmt.Errorf("%s/%s 未返回有效 task_id", targetFullCodePath, task.Code)
 		}
 		if overwrite {
-			if _, err := client.UpdateTask(ctx, createdTask.ID, updateTaskRequestFromCreate(req)); err != nil {
+			if _, err := client.UpdateTask(managedCtx, createdTask.ID, updateTaskRequestFromCreate(req)); err != nil {
 				return created, fmt.Errorf("更新 %s/%s 失败: %w", targetFullCodePath, task.Code, err)
-			}
-			if statusClient, ok := client.(interface {
-				PauseTask(context.Context, int64) error
-				ResumeTask(context.Context, int64) error
-			}); ok {
-				if req.Status == scheduledsdk.TaskStatusPending {
-					err = statusClient.ResumeTask(ctx, createdTask.ID)
-				} else {
-					err = statusClient.PauseTask(ctx, createdTask.ID)
-				}
-				if err != nil {
-					return created, fmt.Errorf("同步 %s/%s 启停状态失败: %w", targetFullCodePath, task.Code, err)
-				}
 			}
 		}
 		created = append(created, capabilityAgentTaskKey(targetFullCodePath, task.Code))
@@ -948,6 +1234,8 @@ func buildCapabilityBundleAgentTaskRequest(ctx context.Context, targetFullCodePa
 		Metadata: map[string]string{
 			"kind":             "scheduled_agent_session",
 			"managed_by":       "capability_bundle",
+			"origin":           scheduledTaskOriginManifest,
+			"default_enabled":  fmt.Sprintf("%t", task.Enabled),
 			"bundle_task_code": code,
 			"schedule_code":    code,
 			"mode_code":        modeCode,
@@ -1008,15 +1296,16 @@ func filterCapabilityBundleBySubpath(bundle *dto.CapabilityBundle, rawSubpath st
 	}
 
 	filtered := &dto.CapabilityBundle{
-		SchemaVersion: bundle.SchemaVersion,
-		Name:          bundle.Name,
-		Metadata:      cloneCapabilityBundleMetadata(bundle.Metadata),
-		TreeNodes:     make([]*dto.CapabilityBundleTreeNode, 0),
-		Docs:          make([]*dto.CapabilityBundleDoc, 0),
-		Packages:      make([]*dto.CapabilityBundlePackage, 0),
-		Files:         make([]*dto.CapabilityBundleFile, 0),
-		AgentTasks:    make([]*dto.CapabilityBundleAgentTask, 0),
-		Extensions:    cloneCapabilityBundleExtensions(bundle.Extensions),
+		SchemaVersion:      bundle.SchemaVersion,
+		Name:               bundle.Name,
+		Metadata:           cloneCapabilityBundleMetadata(bundle.Metadata),
+		TreeNodes:          make([]*dto.CapabilityBundleTreeNode, 0),
+		Docs:               make([]*dto.CapabilityBundleDoc, 0),
+		Packages:           make([]*dto.CapabilityBundlePackage, 0),
+		Files:              make([]*dto.CapabilityBundleFile, 0),
+		ScheduledFunctions: make([]*dto.CapabilityBundleScheduledFunction, 0),
+		AgentTasks:         make([]*dto.CapabilityBundleAgentTask, 0),
+		Extensions:         cloneCapabilityBundleExtensions(bundle.Extensions),
 	}
 
 	for _, pkg := range bundle.Packages {
@@ -1097,6 +1386,20 @@ func filterCapabilityBundleBySubpath(bundle *dto.CapabilityBundle, rawSubpath st
 		cp := *task
 		cp.RelativePath = rebasedPath
 		filtered.AgentTasks = append(filtered.AgentTasks, &cp)
+	}
+
+	for _, task := range bundle.ScheduledFunctions {
+		if task == nil {
+			continue
+		}
+		rebasedPath, ok := rebase(task.RelativePath)
+		if !ok {
+			continue
+		}
+		cp := *task
+		cp.RelativePath = rebasedPath
+		cp.Body = append(json.RawMessage(nil), task.Body...)
+		filtered.ScheduledFunctions = append(filtered.ScheduledFunctions, &cp)
 	}
 
 	if len(filtered.Packages) == 0 && len(filtered.Files) == 0 && len(filtered.Docs) == 0 {
@@ -1336,6 +1639,9 @@ func validateCapabilityBundle(bundle *dto.CapabilityBundle) error {
 	if err := validateCapabilityBundleAgentTasks(bundle.AgentTasks, seenPackages); err != nil {
 		return err
 	}
+	if err := validateCapabilityBundleScheduledFunctions(bundle.ScheduledFunctions, bundle.TreeNodes); err != nil {
+		return err
+	}
 	seenFiles := make(map[string]struct{}, len(bundle.Files))
 	for index, file := range bundle.Files {
 		if file == nil {
@@ -1459,6 +1765,53 @@ func validateCapabilityBundleAgentTasks(tasks []*dto.CapabilityBundleAgentTask, 
 		key := capabilityAgentTaskKey(relativePath, code)
 		if _, exists := seen[key]; exists {
 			return fmt.Errorf("目录 JSON 存在重复 Agent 任务: %s", key)
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
+}
+
+func validateCapabilityBundleScheduledFunctions(tasks []*dto.CapabilityBundleScheduledFunction, treeNodes []*dto.CapabilityBundleTreeNode) error {
+	nodesByPath := make(map[string]*dto.CapabilityBundleTreeNode, len(treeNodes))
+	for _, node := range treeNodes {
+		if node != nil {
+			nodesByPath[node.RelativePath] = node
+		}
+	}
+	seen := make(map[string]struct{}, len(tasks))
+	for index, task := range tasks {
+		if task == nil {
+			return fmt.Errorf("scheduled_functions[%d] 不能为空", index)
+		}
+		relativePath, err := validateCapabilityTreeNodePath(task.RelativePath, fmt.Sprintf("scheduled_functions[%d].relative_path", index), false)
+		if err != nil {
+			return err
+		}
+		if relativePath != task.RelativePath {
+			return fmt.Errorf("scheduled_functions[%d].relative_path 必须使用规范相对路径: %s", index, task.RelativePath)
+		}
+		if len(nodesByPath) > 0 {
+			node, exists := nodesByPath[relativePath]
+			if !exists || node.Type != model.ServiceTreeTypeFunction {
+				return fmt.Errorf("scheduled_functions[%d].relative_path 未对应 function 节点: %s", index, relativePath)
+			}
+		}
+		code := normalizeCapabilityAgentTaskCode(task.Code)
+		if code == "" || code != task.Code {
+			return fmt.Errorf("scheduled_functions[%d].code 必须使用非空规范标识: %s", index, task.Code)
+		}
+		if strings.TrimSpace(task.Action) == "" {
+			return fmt.Errorf("scheduled_functions[%d].action 不能为空", index)
+		}
+		if len(task.Body) > 0 && !json.Valid(task.Body) {
+			return fmt.Errorf("scheduled_functions[%d].body 不是合法 JSON", index)
+		}
+		if err := task.Schedule.Validate(); err != nil {
+			return fmt.Errorf("scheduled_functions[%d].schedule 无效: %w", index, err)
+		}
+		key := capabilityScheduledFunctionKey(relativePath, code)
+		if _, exists := seen[key]; exists {
+			return fmt.Errorf("目录 JSON 存在重复函数定时任务: %s", key)
 		}
 		seen[key] = struct{}{}
 	}

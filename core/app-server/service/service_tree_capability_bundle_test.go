@@ -301,6 +301,71 @@ func TestAppendCapabilityBundleAgentTasksExportsRelativeTasks(t *testing.T) {
 	}
 }
 
+func TestCapabilityBundleAgentTaskSerializesPausedState(t *testing.T) {
+	raw, err := json.Marshal(&dto.CapabilityBundleAgentTask{
+		RelativePath: "customer_follow",
+		Code:         "daily_follow_brief",
+		Message:      "每天整理客户跟进清单。",
+		Enabled:      false,
+		Schedule: scheduledsdk.Schedule{
+			Type:     scheduledsdk.ScheduleCron,
+			CronExpr: "5 9 * * *",
+			Timezone: "Asia/Shanghai",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"enabled":false`) {
+		t.Fatalf("paused task must serialize an explicit enabled=false, got %s", raw)
+	}
+}
+
+func TestCapabilityBundleScheduledFunctionPreservesPortableDefinition(t *testing.T) {
+	payload := mustRawJSON(map[string]interface{}{
+		"full_code_path": "/system/demo/customer_follow/daily_report.form",
+		"template_type":  "form",
+		"action":         "execute",
+		"method":         "POST",
+		"payload": map[string]interface{}{
+			"scope": "last_30_days",
+		},
+	})
+	item, err := capabilityBundleScheduledFunctionFromTask(
+		&model.ServiceTree{Code: "customer_follow", FullCodePath: "/system/demo/customer_follow", Type: model.ServiceTreeTypePackage},
+		&scheduledsdk.Task{
+			ID:              8,
+			Title:           "客户跟进月报",
+			ExecutorKey:     ScheduledFunctionExecutorKey,
+			ExecutorPayload: payload,
+			Metadata: map[string]string{
+				"managed_by":      "app_manifest",
+				"schedule_code":   "monthly_report",
+				"default_enabled": "true",
+			},
+			Status:      scheduledsdk.TaskStatusPaused,
+			Schedule:    scheduledsdk.Schedule{Type: scheduledsdk.ScheduleCron, CronExpr: "0 9 1 * *"},
+			ResourceKey: "/system/demo/customer_follow/daily_report.form",
+		},
+		true,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item == nil {
+		t.Fatal("expected scheduled function")
+	}
+	if item.RelativePath != "customer_follow/daily_report.form" || item.Code != "monthly_report" {
+		t.Fatalf("unexpected identity: %#v", item)
+	}
+	if !item.DefaultEnabled || item.ManagedBy != "app_manifest" || item.Origin != scheduledTaskOriginManifest {
+		t.Fatalf("unexpected definition metadata: %#v", item)
+	}
+	if got := string(item.Body); !strings.Contains(got, `"scope":"last_30_days"`) {
+		t.Fatalf("unexpected body: %s", got)
+	}
+}
+
 func TestBuildCapabilityBundleAgentTaskRequestRebasesTargetPath(t *testing.T) {
 	req, err := buildCapabilityBundleAgentTaskRequest(context.Background(), "/alice/app/customers", &dto.CapabilityBundleAgentTask{
 		RelativePath:       "customers",
@@ -358,8 +423,8 @@ func TestInstallCapabilityBundleAgentTasksOverwriteRefreshesExistingTask(t *test
 	if len(fake.updated) != 1 {
 		t.Fatalf("updated tasks = %d, want 1", len(fake.updated))
 	}
-	if len(fake.resumed) != 1 || fake.resumed[0] != 1 {
-		t.Fatalf("resumed task ids = %#v, want [1]", fake.resumed)
+	if len(fake.resumed) != 0 || len(fake.paused) != 0 {
+		t.Fatalf("overwrite must preserve runtime status, resumed=%#v paused=%#v", fake.resumed, fake.paused)
 	}
 }
 
@@ -370,13 +435,19 @@ func TestCleanupReplacedAgentTasksDeletesOnlyTasksMissingFromSource(t *testing.T
 				ID:          10,
 				ExecutorKey: ScheduledAgentSessionExecutorKey,
 				ResourceKey: "/bob/app/tools",
-				Metadata:    map[string]string{"bundle_task_code": "keep"},
+				Metadata:    map[string]string{"bundle_task_code": "keep", "managed_by": "capability_bundle"},
 			},
 			{
 				ID:          11,
 				ExecutorKey: ScheduledAgentSessionExecutorKey,
 				ResourceKey: "/bob/app/tools",
-				Metadata:    map[string]string{"bundle_task_code": "remove"},
+				Metadata:    map[string]string{"bundle_task_code": "remove", "managed_by": "capability_bundle"},
+			},
+			{
+				ID:          12,
+				ExecutorKey: ScheduledAgentSessionExecutorKey,
+				ResourceKey: "/bob/app/tools",
+				Metadata:    map[string]string{"origin": "user", "bundle_task_code": "custom_copy"},
 			},
 		}},
 	}

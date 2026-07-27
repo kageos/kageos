@@ -996,8 +996,8 @@ const {
   currentApp
 })
 
-// 会改变服务目录结构的工具名（创建目录、写文档、写代码、编译工作空间）
-const TREE_AFFECTING_TOOLS = ['create_directory', 'write_doc', 'write_go_file', 'build_workspace']
+// 会改变服务目录结构或节点展示名的工具名
+const TREE_AFFECTING_TOOLS = ['create_directory', 'write_file', 'edit_file', 'build_workspace']
 
 // 工作台工具调用成功时：若为改树工具则刷新服务树
 const handleWorkstationToolCallOk = (payload: { name: string }) => {

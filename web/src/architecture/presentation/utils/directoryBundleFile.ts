@@ -184,6 +184,7 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
   const rawTreeNodes = object.tree_nodes
   const rawDocs = object.docs
   const rawAgentTasks = object.agent_tasks
+  const rawScheduledFunctions = object.scheduled_functions
   const metadata = parseBundleMetadata(object.metadata)
   const packages = Array.isArray(rawPackages) ? rawPackages.map((item, index) => {
     const pkg = ensurePlainObject(item, `packages[${index}]`)
@@ -308,7 +309,52 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
       },
       mode_code: typeof task.mode_code === 'string' ? task.mode_code : undefined,
       max_duration_seconds: typeof task.max_duration_seconds === 'number' ? task.max_duration_seconds : undefined,
-      policy: typeof task.policy === 'string' ? task.policy : undefined
+      policy: typeof task.policy === 'string' ? task.policy : undefined,
+      origin: typeof task.origin === 'string' ? task.origin : undefined
+    }
+  }) : []
+
+  const scheduledFunctions = Array.isArray(rawScheduledFunctions) ? rawScheduledFunctions.map((item, index) => {
+    const task = ensurePlainObject(item, `scheduled_functions[${index}]`)
+    const relativePath = validateRelativeNodePath(
+      ensureString(task.relative_path, `scheduled_functions[${index}].relative_path`),
+      `scheduled_functions[${index}].relative_path`
+    )
+    const treeNode = treeNodeByPath.get(relativePath)
+    if (treeNodes.length > 0 && (!treeNode || treeNode.type !== 'function')) {
+      throw new Error(`scheduled_functions[${index}].relative_path 未对应 function 节点`)
+    }
+    const code = ensureString(task.code, `scheduled_functions[${index}].code`)
+    if (!code || /[\\/\s]/.test(code)) {
+      throw new Error(`scheduled_functions[${index}].code 必须是非空标识`)
+    }
+    const action = ensureString(task.action, `scheduled_functions[${index}].action`)
+    if (!action) throw new Error(`scheduled_functions[${index}].action 不能为空`)
+    const schedule = ensurePlainObject(task.schedule, `scheduled_functions[${index}].schedule`)
+    const scheduleType = ensureString(schedule.type, `scheduled_functions[${index}].schedule.type`)
+    if (!['atime', 'cron', 'every'].includes(scheduleType)) {
+      throw new Error(`scheduled_functions[${index}].schedule.type 不支持`)
+    }
+    return {
+      relative_path: relativePath,
+      code,
+      title: typeof task.title === 'string' ? task.title : undefined,
+      description: typeof task.description === 'string' ? task.description : undefined,
+      template_type: typeof task.template_type === 'string' ? task.template_type : undefined,
+      action,
+      method: typeof task.method === 'string' ? task.method : undefined,
+      body: task.body,
+      default_enabled: task.default_enabled === true,
+      schedule: {
+        type: scheduleType,
+        run_at: typeof schedule.run_at === 'string' ? schedule.run_at : undefined,
+        cron_expr: typeof schedule.cron_expr === 'string' ? schedule.cron_expr : undefined,
+        interval_seconds: typeof schedule.interval_seconds === 'number' ? schedule.interval_seconds : undefined,
+        timezone: typeof schedule.timezone === 'string' ? schedule.timezone : undefined,
+        max_runs: typeof schedule.max_runs === 'number' ? schedule.max_runs : undefined
+      },
+      managed_by: typeof task.managed_by === 'string' ? task.managed_by : undefined,
+      origin: typeof task.origin === 'string' ? task.origin : undefined
     }
   }) : []
 
@@ -332,8 +378,8 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
     }
   }) : []
 
-  if (packages.length === 0 && files.length === 0 && docs.length === 0 && agentTasks.length === 0) {
-    throw new Error('目录 JSON 必须包含 packages、files、docs 或 agent_tasks')
+  if (packages.length === 0 && files.length === 0 && docs.length === 0 && agentTasks.length === 0 && scheduledFunctions.length === 0) {
+    throw new Error('目录 JSON 必须包含 packages、files、docs、scheduled_functions 或 agent_tasks')
   }
 
   return {
@@ -344,6 +390,7 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
     docs,
     packages,
     files,
+    scheduled_functions: scheduledFunctions,
     agent_tasks: agentTasks,
     extensions: object.extensions === undefined
       ? undefined

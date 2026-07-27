@@ -23,6 +23,8 @@ type WorkspaceEnvInput struct {
 	FullCodePath            string
 	DirType                 string
 	DirDescription          string
+	DirOwner                string
+	DirAdmins               string
 	DirectoryRunbookSection string
 	Children                []WorkspaceEnvNode
 	Files                   []WorkspaceEnvFile
@@ -105,6 +107,8 @@ func BuildWorkspaceEnvDataWithCatalog(in *WorkspaceEnvInput, directoryName, full
 		data.DirCode = in.DirCode
 		data.DirType = in.DirType
 		data.DirDescription = in.DirDescription
+		data.DirOwner = strings.TrimSpace(in.DirOwner)
+		data.DirAdmins = strings.TrimSpace(in.DirAdmins)
 		data.DirectoryRunbookSection = strings.TrimSpace(in.DirectoryRunbookSection)
 		data.ChildrenSection = buildChildrenSection(in.Children)
 		data.FunctionsSection = buildFunctionsSection(in.Children)
@@ -339,6 +343,8 @@ func FillWorkspaceEnvTemplateWithTemplate(data *WorkspaceEnvData, template strin
 		"FULL_CODE_PATH":            data.FullCodePath,
 		"DIR_TYPE":                  data.DirType,
 		"DIR_DESCRIPTION":           data.DirDescription,
+		"DIR_OWNER":                 defaultWorkspaceEnvValue(data.DirOwner),
+		"DIR_ADMINS":                defaultWorkspaceEnvValue(data.DirAdmins),
 		"DIRECTORY_RUNBOOK_SECTION": data.DirectoryRunbookSection,
 		"CHILDREN_SECTION":          data.ChildrenSection,
 		"FUNCTIONS_SECTION":         data.FunctionsSection,
@@ -352,6 +358,13 @@ func FillWorkspaceEnvTemplateWithTemplate(data *WorkspaceEnvData, template strin
 		s = strings.ReplaceAll(s, "{{"+k+"}}", v)
 	}
 	return s
+}
+
+func defaultWorkspaceEnvValue(value string) string {
+	if value = strings.TrimSpace(value); value != "" {
+		return value
+	}
+	return "未配置"
 }
 
 func BuildWorkspaceEnvBlock(data *WorkspaceEnvData, hasWorkspaceCtx bool, directoryName, fullCodePath string) string {

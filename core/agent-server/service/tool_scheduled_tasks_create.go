@@ -62,6 +62,7 @@ func runCreateScheduledFunctionTask(ctx context.Context, args createScheduledFun
 			"action":        action,
 			"method":        methodForScheduledFunctionAction(action),
 			"template_type": scheduledFunctionTemplateType(fullCodePath),
+			"origin":        "user",
 		},
 		Schedule:        schedule,
 		SourceType:      "function",
@@ -137,6 +138,7 @@ func runCreateScheduledAgentTask(ctx context.Context, args createScheduledAgentT
 		Metadata: map[string]string{
 			"kind":      "scheduled_agent_session",
 			"mode_code": modeCode,
+			"origin":    "user",
 		},
 		Status:          scheduledsdk.TaskStatusPaused,
 		Schedule:        schedule,
@@ -176,6 +178,9 @@ func runUpdateScheduledAgentTask(ctx context.Context, args updateScheduledAgentT
 	}
 	if task.ExecutorKey != "agent.session" {
 		return toolResult("该任务不是 Agent 任务，无法使用此工具更新", true)
+	}
+	if isManifestScheduledTask(task) {
+		return toolResult("目录内置 Agent 任务不能直接修改；请先复制为自定义任务，再修改副本。内置任务仍可暂停、恢复或立即运行。", true)
 	}
 	req := scheduledsdk.UpdateTaskRequest{}
 	if title := strings.TrimSpace(args.Title); title != "" {

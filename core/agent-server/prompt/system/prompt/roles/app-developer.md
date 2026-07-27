@@ -23,7 +23,7 @@
 9. Table 根据 `tables.search_fields/handlers/examples` 实现搜索、行操作和预览数据；Form 根据 `forms.target_table/request_fields/response_fields/example` 实现提交；Chart 根据 `charts.source_table/chart_type/dimension/metrics/filters/examples` 实现统计。
 10. 实现写入入口时，把提交当下可确定的必填、格式、附件、权限、关联存在性、状态合法性、确定性重复和计算规则放进 Form handler 或 Table 回调同步校验；无效输入不得先写成成功记录再交给后台退回。耗时校验如果决定记录是否有效，必须实现明确的“草稿/校验中”状态，通过后才进入“已受理”。
 11. 涉及 `kageos_manifest.go`、`runbook.docs`、`packageContext.AddDocs(...)` 或 `packageContext.AddAgentTask(...)` 时，必须先按 `/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask` 区分目录级运行契约和具体无人值守任务；目录默认文档和运行手册优先通过 `kageos_manifest.go` 的 `packageContext.AddDocs(...)` 随应用代码维护；同一 package 的子目录文档必须使用原 `packageContext.AddDocs(app.DocManifest{Code: "./docs/readme.docs", ...})`，不要为文档目录新建 `PackageContext`。`AgentTask.Message` 必须引用 `<./runbook.docs>`，说明后台新增价值、结果回写位置、幂等、停止条件和人工接管点，并能在用户不在线时闭环。
-12. 业务需要持续沉淀人工解决经验时，默认实现 docs-first 闭环：`runbook.docs` 保存稳定规则，`docs/` 保存按场景维护的方案；只有“已启用”且条件匹配的文档可用于正式回复或执行。未知问题应回写证据并转人工，人工解决后确认是否沉淀。除非知识条目有独立生命周期、结构化筛选或统计需求，不要同时创建重复的 knowledge Table。当前角色或运行任务没有 `write_doc` 能力时，明确把“待沉淀”留给人工或维护角色，不得声称已经写入文档。
+12. 业务需要持续沉淀人工解决经验时，默认实现 docs-first 闭环：`runbook.docs` 保存稳定规则，`docs/` 保存按场景维护的方案；只有“已启用”且条件匹配的文档可用于正式回复或执行。未知问题应回写证据并转人工，人工解决后确认是否沉淀。除非知识条目有独立生命周期、结构化筛选或统计需求，不要同时创建重复的 knowledge Table。运行态 Agent 只能用文件工具维护必要的 `.docs` 运行记忆，不能借此修改正式规则；正式知识沉淀仍留给人工或维护角色。
     - Runbook 和场景 docs 默认由不懂技术的业务人员长期维护。正文只写业务事实、处理口径、自动化边界和人工接手点；不要把 schema、JSON 字段、参数映射、工具名、分页、认领、重试和幂等做成用户模板。
     - AgentTask.Message 或代码负责运行时搜索真实资源、匹配字段、分页、认领、去重、权限检查和结果验证。资源实现变化不应迫使业务人员同步改文档。
 13. 写数据库代码时，可按业务需要使用 `ctx.GetGormDB()`、GORM 链式 API、事务、`Raw`/`Exec` 等能力；必须自行保证用户输入参数化、权限边界清晰、写入和删除语义符合业务预期。

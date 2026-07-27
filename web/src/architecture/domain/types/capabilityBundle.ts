@@ -54,6 +54,22 @@ export interface CapabilityBundleAgentTask {
   mode_code?: string
   max_duration_seconds?: number
   policy?: string
+  origin?: 'manifest' | 'user' | string
+}
+
+export interface CapabilityBundleScheduledFunction {
+  relative_path: string
+  code: string
+  title?: string
+  description?: string
+  template_type?: string
+  action: string
+  method?: string
+  body?: unknown
+  default_enabled: boolean
+  schedule: CapabilityBundleAgentTaskSchedule
+  managed_by?: 'app_manifest' | 'capability_bundle' | string
+  origin?: 'manifest' | 'user' | string
 }
 
 export interface CapabilityBundleDirectoryMetadata {
@@ -76,6 +92,7 @@ export interface CapabilityBundle {
   tree_nodes?: CapabilityBundleTreeNode[]
   docs?: CapabilityBundleDoc[]
   files: CapabilityBundleFile[]
+  scheduled_functions?: CapabilityBundleScheduledFunction[]
   agent_tasks?: CapabilityBundleAgentTask[]
   packages?: CapabilityBundlePackage[]
   extensions?: Record<string, unknown>

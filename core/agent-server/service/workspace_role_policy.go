@@ -74,10 +74,8 @@ func workspaceRoleGateSuggestion(roleID string, toolName string) string {
 	switch toolName {
 	case "write_prd":
 		return "如需重新设计 PRD，请交接给「产品经理」。"
-	case "write_doc":
-		return "默认工具池不暴露运行态文档写入；如需维护当前目录运行手册或默认文档，请交接给「应用维护工程师」通过 kageos_manifest.go / packageContext.AddDocs(...) 处理。"
 	case "create_directory", "write_file", "edit_file", "delete_file", "build_workspace":
-		return "如需创建或修改应用内容，请交接给「应用开发工程师」「应用维护工程师」或「构建修复工程师」；不确定切谁时切到「执行路由手册」。"
+		return "如需创建或修改应用代码，请交接给「应用开发工程师」「应用维护工程师」或「构建修复工程师」；应用执行角色只能用 write_file/edit_file 维护 .docs 文档，不能修改代码或普通文本；不确定切谁时切到「执行路由手册」。"
 	case "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query", "run_on_select_fuzzy":
 		return "如需执行业务操作，请交接给「应用执行」；如需验证功能，请交接给「测试工程师」；不确定切谁时切到「执行路由手册」。"
 	case "run_python":
@@ -85,7 +83,7 @@ func workspaceRoleGateSuggestion(roleID string, toolName string) string {
 	case "send_notification":
 		return "如需在执行过程中通知用户，请切换到应用执行、自动执行配置或其他具备通知权限的执行角色；不确定切谁时切到「执行路由手册」。"
 	case "create_scheduled_function_task", "create_scheduled_agent_task", "manage_scheduled_task":
-		return "如需创建或管理定时任务，请交接给「自动执行配置」；不确定切谁时切到「执行路由手册」。"
+		return "如需创建或管理定时任务、智能员工，请交接给「自动执行配置」；不确定切谁时切到「执行路由手册」。"
 	default:
 		if roleID == WorkspaceRoleProductManager {
 			return "产品经理只负责需求分析、PRD 和确认。"

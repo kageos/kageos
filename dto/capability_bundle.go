@@ -1,20 +1,25 @@
 package dto
 
-import "github.com/kageos/kageos/pkg/scheduledsdk"
+import (
+	"encoding/json"
+
+	"github.com/kageos/kageos/pkg/scheduledsdk"
+)
 
 const CapabilityBundleSchemaVersion = "capability.bundle.v1"
 
 // CapabilityBundle 是跨工作空间复用的能力包，只保存相对 code/api 的包和文件结构。
 type CapabilityBundle struct {
-	SchemaVersion string                       `json:"schema_version"`
-	Name          string                       `json:"name,omitempty"`
-	Metadata      *CapabilityBundleMetadata    `json:"metadata,omitempty"`
-	TreeNodes     []*CapabilityBundleTreeNode  `json:"tree_nodes,omitempty"`
-	Docs          []*CapabilityBundleDoc       `json:"docs,omitempty"`
-	Packages      []*CapabilityBundlePackage   `json:"packages"`
-	Files         []*CapabilityBundleFile      `json:"files"`
-	AgentTasks    []*CapabilityBundleAgentTask `json:"agent_tasks,omitempty"`
-	Extensions    map[string]interface{}       `json:"extensions,omitempty"`
+	SchemaVersion      string                               `json:"schema_version"`
+	Name               string                               `json:"name,omitempty"`
+	Metadata           *CapabilityBundleMetadata            `json:"metadata,omitempty"`
+	TreeNodes          []*CapabilityBundleTreeNode          `json:"tree_nodes,omitempty"`
+	Docs               []*CapabilityBundleDoc               `json:"docs,omitempty"`
+	Packages           []*CapabilityBundlePackage           `json:"packages"`
+	Files              []*CapabilityBundleFile              `json:"files"`
+	ScheduledFunctions []*CapabilityBundleScheduledFunction `json:"scheduled_functions,omitempty"`
+	AgentTasks         []*CapabilityBundleAgentTask         `json:"agent_tasks,omitempty"`
+	Extensions         map[string]interface{}               `json:"extensions,omitempty"`
 }
 
 // CapabilityBundleMetadata contains portable facts about the exported directory.
@@ -75,11 +80,29 @@ type CapabilityBundleAgentTask struct {
 	Title              string                `json:"title,omitempty"`
 	Description        string                `json:"description,omitempty"`
 	Message            string                `json:"message"`
-	Enabled            bool                  `json:"enabled,omitempty"`
+	Enabled            bool                  `json:"enabled"`
 	Schedule           scheduledsdk.Schedule `json:"schedule"`
 	ModeCode           string                `json:"mode_code,omitempty"`
 	MaxDurationSeconds int64                 `json:"max_duration_seconds,omitempty"`
 	Policy             string                `json:"policy,omitempty"`
+	Origin             string                `json:"origin,omitempty"`
+}
+
+// CapabilityBundleScheduledFunction 是随目录发布的函数定时定义。
+// app_manifest 定义由随包代码在构建时落地；capability_bundle 定义由安装器直接创建。
+type CapabilityBundleScheduledFunction struct {
+	RelativePath   string                `json:"relative_path"`
+	Code           string                `json:"code"`
+	Title          string                `json:"title,omitempty"`
+	Description    string                `json:"description,omitempty"`
+	TemplateType   string                `json:"template_type,omitempty"`
+	Action         string                `json:"action"`
+	Method         string                `json:"method,omitempty"`
+	Body           json.RawMessage       `json:"body,omitempty"`
+	DefaultEnabled bool                  `json:"default_enabled"`
+	Schedule       scheduledsdk.Schedule `json:"schedule"`
+	ManagedBy      string                `json:"managed_by,omitempty"`
+	Origin         string                `json:"origin,omitempty"`
 }
 
 type ExportCapabilityBundleReq struct {
@@ -87,6 +110,7 @@ type ExportCapabilityBundleReq struct {
 	SourceDirectoryPaths []string `json:"source_directory_paths" form:"source_directory_paths"`
 	SourceRootPath       string   `json:"source_root_path" form:"source_root_path"`
 	Name                 string   `json:"name" form:"name"`
+	IncludeUserTaskIDs   []int64  `json:"include_user_task_ids" form:"include_user_task_ids"`
 }
 
 type InstallCapabilityOptions struct {
@@ -108,15 +132,16 @@ type InstallCapabilityBundleFromURLReq struct {
 }
 
 type InstallCapabilityBundleResp struct {
-	Message             string   `json:"message"`
-	DirectoryCount      int      `json:"directory_count"`
-	FileCount           int      `json:"file_count"`
-	DocCount            int      `json:"doc_count,omitempty"`
-	AgentTaskCount      int      `json:"agent_task_count,omitempty"`
-	TargetDirectoryPath string   `json:"target_directory_path"`
-	CreatedPaths        []string `json:"created_paths,omitempty"`
-	WrittenPaths        []string `json:"written_paths,omitempty"`
-	OldVersion          string   `json:"old_version,omitempty"`
-	NewVersion          string   `json:"new_version,omitempty"`
-	Warnings            []string `json:"warnings,omitempty"`
+	Message                string   `json:"message"`
+	DirectoryCount         int      `json:"directory_count"`
+	FileCount              int      `json:"file_count"`
+	DocCount               int      `json:"doc_count,omitempty"`
+	ScheduledFunctionCount int      `json:"scheduled_function_count,omitempty"`
+	AgentTaskCount         int      `json:"agent_task_count,omitempty"`
+	TargetDirectoryPath    string   `json:"target_directory_path"`
+	CreatedPaths           []string `json:"created_paths,omitempty"`
+	WrittenPaths           []string `json:"written_paths,omitempty"`
+	OldVersion             string   `json:"old_version,omitempty"`
+	NewVersion             string   `json:"new_version,omitempty"`
+	Warnings               []string `json:"warnings,omitempty"`
 }

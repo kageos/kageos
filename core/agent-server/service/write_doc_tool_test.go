@@ -11,7 +11,7 @@ import (
 	"github.com/kageos/kageos/dto"
 )
 
-func TestRunWriteDocToolUsesDirectoryAsParentPathWhenCreatingDoc(t *testing.T) {
+func TestRunWriteDocCommandUsesDirectoryAsParentPathWhenCreatingDoc(t *testing.T) {
 	const (
 		directory = "/liubeiluo/work/ticket_system"
 		docCode   = "ticket_analysis_report"
@@ -70,14 +70,14 @@ func TestRunWriteDocToolUsesDirectoryAsParentPathWhenCreatingDoc(t *testing.T) {
 
 	t.Setenv("GATEWAY_URL", server.URL)
 
-	content, isError := runWriteDocTool(context.Background(), writeDocArgs{
-		Directory: directory,
-		Name:      docName,
-		Code:      docCode,
-		Content:   "# report",
+	content, isError := runWriteDocCommand(context.Background(), writeDocCommand{
+		FullCodePath: directory,
+		Name:         docName,
+		Code:         docCode,
+		Content:      "# report",
 	}, "")
 	if isError {
-		t.Fatalf("runWriteDocTool returned error: %s", content)
+		t.Fatalf("runWriteDocCommand returned error: %s", content)
 	}
 	if createReq.ParentFullCodePath != directory {
 		t.Fatalf("ParentFullCodePath = %q, want %q", createReq.ParentFullCodePath, directory)
@@ -93,7 +93,7 @@ func TestRunWriteDocToolUsesDirectoryAsParentPathWhenCreatingDoc(t *testing.T) {
 	}
 }
 
-func TestRunWriteDocToolUpdatesExistingDocWithCanonicalDocsSuffix(t *testing.T) {
+func TestRunWriteDocCommandUpdatesExistingDocWithCanonicalDocsSuffix(t *testing.T) {
 	const (
 		directory = "/liubeiluo/work/ticket_system"
 		docCode   = "ticket_analysis_report"
@@ -134,7 +134,7 @@ func TestRunWriteDocToolUpdatesExistingDocWithCanonicalDocsSuffix(t *testing.T) 
 			})
 		case r.Method == http.MethodPost && r.URL.Path == "/workspace/api/v1/docs/crud":
 			createCalled = true
-			t.Fatalf("write_doc should update existing docs node instead of creating")
+			t.Fatalf("document command should update existing docs node instead of creating")
 		default:
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
 		}
@@ -143,15 +143,15 @@ func TestRunWriteDocToolUpdatesExistingDocWithCanonicalDocsSuffix(t *testing.T) 
 
 	t.Setenv("GATEWAY_URL", server.URL)
 
-	content, isError := runWriteDocTool(context.Background(), writeDocArgs{
-		Directory: directory,
-		Name:      docName,
-		Code:      docCode,
-		Content:   "# updated report",
-		Format:    "markdown",
+	content, isError := runWriteDocCommand(context.Background(), writeDocCommand{
+		FullCodePath: directory,
+		Name:         docName,
+		Code:         docCode,
+		Content:      "# updated report",
+		Format:       "markdown",
 	}, "")
 	if isError {
-		t.Fatalf("runWriteDocTool returned error: %s", content)
+		t.Fatalf("runWriteDocCommand returned error: %s", content)
 	}
 	if createCalled {
 		t.Fatal("create should not be called")
@@ -161,6 +161,9 @@ func TestRunWriteDocToolUpdatesExistingDocWithCanonicalDocsSuffix(t *testing.T) 
 	}
 	if updateReq.Format == nil || *updateReq.Format != "markdown" {
 		t.Fatalf("Format = %#v, want markdown", updateReq.Format)
+	}
+	if updateReq.Name == nil || *updateReq.Name != docName {
+		t.Fatalf("Name = %#v, want %q", updateReq.Name, docName)
 	}
 }
 

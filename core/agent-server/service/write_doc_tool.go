@@ -39,13 +39,13 @@ type createDirectoryCommand struct {
 func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCodePath string) (content string, isError bool) {
 	fullCodePath := resolveFullCodePathArg(cmd.FullCodePath, defaultFullCodePath)
 	if fullCodePath == "" {
-		return "write_doc 需要 full_code_path（或当前目录上下文）", true
+		return "文档写入需要 full_code_path（或当前目录上下文）", true
 	}
 	docCode := strings.TrimSpace(cmd.Code)
 	docName := strings.TrimSpace(cmd.Name)
 	docContent := cmd.Content
 	if docContent == "" {
-		return "write_doc 缺少必需参数 content（文档内容）", true
+		return "文档写入缺少必需参数 content（文档内容）", true
 	}
 	format := strings.TrimSpace(cmd.Format)
 	if format == "" {
@@ -53,7 +53,7 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 	}
 	fullCodePath = strings.Trim(fullCodePath, "/")
 	if fullCodePath == "" {
-		return "write_doc full_code_path 无效", true
+		return "文档写入的 full_code_path 无效", true
 	}
 	legacyFullCodePath := fullCodePath
 	// 若传了 code，则 full_code_path 视为父目录，文档路径 = full_code_path/code.docs；
@@ -80,13 +80,17 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 	// 先查节点是否已存在且为 docs 类型
 	detail, err := getWriteDocDetail(ctx, pathForAPI, legacyPathForAPI)
 	if err == nil && detail != nil && detail.Type == servicetree.TypeDocs {
-		// 已存在 docs 节点：更新内容
+		// 已存在 docs 节点：更新内容；显式传 name 时同步更新工作台展示名。
 		contentPtr := &docContent
 		formatPtr := &format
-		err = apicall.UpdateDocs(ctx, detail.ID, &dto.UpdateDocsReq{Content: contentPtr, Format: formatPtr})
+		updateReq := &dto.UpdateDocsReq{Content: contentPtr, Format: formatPtr}
+		if docName != "" {
+			updateReq.Name = &docName
+		}
+		err = apicall.UpdateDocs(ctx, detail.ID, updateReq)
 		if err != nil {
 			logger.Errorf(ctx, "[WriteDocTool] UpdateDocs 失败: %v", err)
-			return "write_doc 更新文档失败: " + err.Error(), true
+			return "文档更新失败: " + err.Error(), true
 		}
 		logger.Infof(ctx, "[WriteDocTool] 文档已更新 - FullCodePath: %s", pathForAPI)
 		return fmt.Sprintf("文档已更新: %s", pathForAPI), false
@@ -95,7 +99,7 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 	// 节点不存在或不是 docs：在父目录下创建新 docs 节点
 	parts := strings.Split(fullCodePath, "/")
 	if len(parts) < 2 {
-		return "write_doc full_code_path 至少需要两段（如 user/app/文档/readme）", true
+		return "文档 full_code_path 至少需要两段（如 user/app/文档/readme）", true
 	}
 	segmentCode := parts[len(parts)-1]
 	parentPath := "/" + strings.Join(parts[:len(parts)-1], "/")
@@ -108,7 +112,7 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 
 	pathParts := strings.Split(strings.Trim(parentPath, "/"), "/")
 	if len(pathParts) < 2 {
-		return "write_doc 父路径格式无效", true
+		return "文档父路径格式无效", true
 	}
 	user, app := pathParts[0], pathParts[1]
 
@@ -137,10 +141,14 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 				if existDetail.Type == servicetree.TypeDocs {
 					contentPtr := &docContent
 					formatPtr := &format
-					updateErr := apicall.UpdateDocs(ctx, existDetail.ID, &dto.UpdateDocsReq{Content: contentPtr, Format: formatPtr})
+					updateReq := &dto.UpdateDocsReq{Content: contentPtr, Format: formatPtr}
+					if docName != "" {
+						updateReq.Name = &docName
+					}
+					updateErr := apicall.UpdateDocs(ctx, existDetail.ID, updateReq)
 					if updateErr != nil {
 						logger.Errorf(ctx, "[WriteDocTool] CreateDocs 已存在后 UpdateDocs 失败: %v", updateErr)
-						return "write_doc 更新文档失败: " + updateErr.Error(), true
+						return "文档更新失败: " + updateErr.Error(), true
 					}
 					logger.Infof(ctx, "[WriteDocTool] 文档已存在，已更新内容 - FullCodePath: %s", pathForAPI)
 					return fmt.Sprintf("文档已更新: %s", pathForAPI), false
@@ -150,7 +158,7 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 			}
 		}
 		logger.Errorf(ctx, "[WriteDocTool] CreateDocs 失败: %v", err)
-		return "write_doc 创建文档失败: " + err.Error(), true
+		return "文档创建失败: " + err.Error(), true
 	}
 	logger.Infof(ctx, "[WriteDocTool] 文档已创建 - FullCodePath: %s, ID: %d", resp.FullCodePath, resp.ID)
 	return fmt.Sprintf("文档已创建: %s", resp.FullCodePath), false

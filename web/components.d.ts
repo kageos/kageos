@@ -12,6 +12,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AgentEmployeeMascot: typeof import('./src/architecture/presentation/components/AgentEmployeeMascot.vue')['default']
     AppSwitcher: typeof import('./src/architecture/presentation/shared/components/AppSwitcher.vue')['default']
     BuildWorkspaceDiagnosticsCard: typeof import('./src/architecture/presentation/components/BuildWorkspaceDiagnosticsCard.vue')['default']
     ChartIcon: typeof import('./src/architecture/presentation/shared/components/icons/ChartIcon.vue')['default']
@@ -30,6 +31,7 @@ declare module 'vue' {
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']
     ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
+    ElCheckboxGroup: typeof import('element-plus/es')['ElCheckboxGroup']
     ElCol: typeof import('element-plus/es')['ElCol']
     ElCollapse: typeof import('element-plus/es')['ElCollapse']
     ElCollapseItem: typeof import('element-plus/es')['ElCollapseItem']
@@ -156,6 +158,7 @@ declare module 'vue' {
 
 // For TSX support
 declare global {
+  const AgentEmployeeMascot: typeof import('./src/architecture/presentation/components/AgentEmployeeMascot.vue')['default']
   const AppSwitcher: typeof import('./src/architecture/presentation/shared/components/AppSwitcher.vue')['default']
   const BuildWorkspaceDiagnosticsCard: typeof import('./src/architecture/presentation/components/BuildWorkspaceDiagnosticsCard.vue')['default']
   const ChartIcon: typeof import('./src/architecture/presentation/shared/components/icons/ChartIcon.vue')['default']
@@ -174,6 +177,7 @@ declare global {
   const ElButton: typeof import('element-plus/es')['ElButton']
   const ElCard: typeof import('element-plus/es')['ElCard']
   const ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
+  const ElCheckboxGroup: typeof import('element-plus/es')['ElCheckboxGroup']
   const ElCol: typeof import('element-plus/es')['ElCol']
   const ElCollapse: typeof import('element-plus/es')['ElCollapse']
   const ElCollapseItem: typeof import('element-plus/es')['ElCollapseItem']

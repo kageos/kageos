@@ -80,7 +80,7 @@ describe('useMiniWorkstationArtifacts', () => {
 
   it('recognizes tool calls that generated workspace artifacts', () => {
     expect(isGeneratedArtifactToolCall({
-      name: 'write_go_file',
+      name: 'write_file',
       status: 'ok'
     } as any)).toBe(true)
 
@@ -91,7 +91,7 @@ describe('useMiniWorkstationArtifacts', () => {
     } as any)).toBe(true)
 
     expect(isGeneratedArtifactToolCall({
-      name: 'write_go_file',
+      name: 'write_file',
       status: 'error'
     } as any)).toBe(false)
   })

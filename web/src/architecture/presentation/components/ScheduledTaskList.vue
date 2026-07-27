@@ -51,6 +51,8 @@
               <span class="agent-session-item-title">
                 {{ task.title || t('scheduledTask.unnamedFunctionTask') }}
               </span>
+              <el-tag v-if="isBuiltinTask(task)" size="small" type="info" effect="plain">目录内置</el-tag>
+              <el-tag v-else size="small" type="success" effect="plain">自定义</el-tag>
               <el-tag :type="taskStatusTag(task.status)" size="small" effect="light">
                 {{ taskStatusLabel(task.status) }}
               </el-tag>
@@ -197,13 +199,23 @@
               <section class="detail-aside-card">
                 <div class="detail-aside-card-head">
                   <div class="detail-aside-title">{{ t('scheduledTask.functionDetailTitle') }}</div>
-                  <el-tag :type="taskStatusTag(selectedTask.status)" effect="light">
-                    {{ taskStatusLabel(selectedTask.status) }}
-                  </el-tag>
+                  <div class="detail-aside-tags">
+                    <el-tag v-if="isBuiltinTask(selectedTask)" type="info" effect="plain">目录内置</el-tag>
+                    <el-tag v-else type="success" effect="plain">自定义</el-tag>
+                    <el-tag :type="taskStatusTag(selectedTask.status)" effect="light">
+                      {{ taskStatusLabel(selectedTask.status) }}
+                    </el-tag>
+                  </div>
                 </div>
                 <div class="detail-aside-name">{{ selectedTask.title || t('scheduledTask.unnamedFunctionTask') }}</div>
                 <div class="detail-aside-path">{{ selectedTask.resource_key || resourcePath || '-' }}</div>
                 <div class="detail-aside-actions">
+                  <el-tooltip v-if="isBuiltinTask(selectedTask)" content="复制为自定义" placement="top" effect="light">
+                    <el-button
+                      :icon="CopyDocument"
+                      @click="handleCopyAsCustom(selectedTask)"
+                    />
+                  </el-tooltip>
                   <el-tooltip :content="t('scheduledTask.runNow')" placement="top" effect="light">
                     <el-button
                       type="primary"
@@ -224,7 +236,7 @@
                       @click="selectedTask.status === 'paused' ? handleResume(selectedTask) : handlePause(selectedTask)"
                     />
                   </el-tooltip>
-                  <el-tooltip :content="t('scheduledTask.cancel')" placement="top" effect="light">
+                  <el-tooltip v-if="!isBuiltinTask(selectedTask)" :content="t('scheduledTask.cancel')" placement="top" effect="light">
                     <el-button
                       type="danger"
                       :icon="Close"
@@ -232,7 +244,7 @@
                       @click="handleCancel(selectedTask)"
                     />
                   </el-tooltip>
-                  <el-tooltip :content="t('scheduledTask.delete')" placement="top" effect="light">
+                  <el-tooltip v-if="!isBuiltinTask(selectedTask)" :content="t('scheduledTask.delete')" placement="top" effect="light">
                     <el-button
                       type="danger"
                       plain
@@ -294,10 +306,11 @@ import { reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CaretRight, Close, Delete, Plus, Refresh, VideoPause, VideoPlay } from '@element-plus/icons-vue'
+import { CaretRight, Close, CopyDocument, Delete, Plus, Refresh, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import type { FunctionDetail } from '@/architecture/domain/types'
 import {
   cancelTimerTask,
+  createTimerTask,
   deleteTimerTask,
   getTimerExecution,
   listTimerExecutions,
@@ -494,6 +507,13 @@ function isTerminal(status: string): boolean {
   return ['done', 'failed', 'cancelled'].includes(status)
 }
 
+function isBuiltinTask(task?: TimerTask | null): boolean {
+  const metadata = task?.metadata || {}
+  return metadata.origin === 'manifest'
+    || metadata.managed_by === 'app_manifest'
+    || metadata.managed_by === 'capability_bundle'
+}
+
 async function handleRunNow(task: TimerTask) {
   try {
     await runTimerTaskNow(task.id)
@@ -526,6 +546,10 @@ async function handleResume(task: TimerTask) {
 }
 
 async function handleCancel(task: TimerTask) {
+  if (isBuiltinTask(task)) {
+    ElMessage.info('目录内置任务不能取消；可以暂停，或复制为自定义任务。')
+    return
+  }
   try {
     await ElMessageBox.confirm(t('scheduledTask.cancelFunctionConfirm'), t('scheduledTask.cancelFunctionTitle'), {
       type: 'warning',
@@ -542,6 +566,10 @@ async function handleCancel(task: TimerTask) {
 }
 
 async function handleDelete(task: TimerTask) {
+  if (isBuiltinTask(task)) {
+    ElMessage.info('目录内置任务不能删除；可以暂停，或复制为自定义任务。')
+    return
+  }
   try {
     await ElMessageBox.confirm(
       t('scheduledTask.deleteFunctionConfirm'),
@@ -563,6 +591,54 @@ async function handleDelete(task: TimerTask) {
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
     ElMessage.error(error instanceof Error ? error.message : t('scheduledTask.deleteFailed'))
+  }
+}
+
+async function handleCopyAsCustom(task: TimerTask) {
+  try {
+    const copy = await createTimerTask({
+      title: `${task.title || t('scheduledTask.unnamedFunctionTask')}（自定义）`,
+      description: task.description,
+      category: task.category || 'scheduled_function',
+      tags: [...(task.tags || []).filter(tag => tag !== 'app_manifest'), 'custom'],
+      idempotency_key: `custom-function-${task.id}-${crypto.randomUUID()}`,
+      executor_key: task.executor_key,
+      executor_payload: task.executor_payload,
+      metadata: {
+        ...(task.metadata || {}),
+        origin: 'user',
+        managed_by: 'user',
+        derived_from: String(task.id),
+      },
+      status: 'paused',
+      schedule: task.schedule,
+      overlap_policy: task.overlap_policy,
+      max_parallelism: task.max_parallelism,
+      source_type: task.source_type,
+      source_ref: task.source_ref,
+      resource_scope: task.resource_scope,
+      resource_key: task.resource_key,
+    })
+    try {
+      await ElMessageBox.confirm(
+        '自定义副本已创建并保持暂停。为避免两份任务重复执行，是否同时暂停原来的目录内置任务？',
+        '复制完成',
+        {
+          type: 'warning',
+          confirmButtonText: '暂停原任务',
+          cancelButtonText: '保持原任务',
+        }
+      )
+      if (task.status === 'pending') await pauseTimerTask(task.id)
+    } catch (error) {
+      if (error !== 'cancel' && error !== 'close') throw error
+    }
+    ElMessage.success('已复制为自定义任务；副本默认暂停，请确认后再启用。')
+    await loadList()
+    const created = list.value.find(item => item.id === copy.id)
+    if (created) await selectTask(created)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '复制任务失败')
   }
 }
 

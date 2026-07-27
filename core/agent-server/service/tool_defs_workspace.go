@@ -12,7 +12,6 @@ func workspaceTools(r *ToolRegistry) []Tool {
 		&ReadDirTool{},
 		&CreateDirectoryTool{},
 		&WritePRDTool{},
-		&WriteDocTool{},
 		&WriteFileTool{},
 		&EditFileTool{},
 		&BuildWorkspaceTool{},

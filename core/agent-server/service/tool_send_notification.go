@@ -20,7 +20,7 @@ type SendNotificationTool struct {
 type sendNotificationArgs struct {
 	ToUsers     string `json:"to_users" schema_desc:"接收用户 username，多个用逗号分隔，例如 alice,bob。当前上下文有请求用户或会话创建人时，通知当前用户/创建人/我可省略；没有默认用户时才必须显式填写。不要为了给当前用户发通知而追问用户是谁。"`
 	Title       string `json:"title" schema_desc:"通知标题，简短说明发生了什么" schema_required:"true"`
-	Message     string `json:"message" schema_desc:"通知正文。支持 Markdown；content_type=html 时可以传已生成的 HTML 片段。message 或 files 至少传一个"`
+	Message     string `json:"message" schema_desc:"通知正文。无人值守异常通知应让新会话可直接接管，简要写清任务/目录背景、对象和时间范围、事实证据、影响风险、已做动作、未做动作及原因、需要接管人处理或决定的事项。支持 Markdown；content_type=html 时可以传已生成的 HTML 片段。message 或 files 至少传一个"`
 	ContentType string `json:"content_type" schema_desc:"正文格式：markdown、html 或 text；默认 markdown" schema_enum:"markdown,html,text"`
 	Level       string `json:"level" schema_desc:"通知级别：info=普通提醒，warning=需要注意，critical=高优先级；默认 info" schema_enum:"info,warning,critical"`
 	Files       string `json:"files" schema_desc:"可选附件文件引用，格式 bucket/object_key，多个用英文逗号分隔；可直接使用工具返回的 output_files 或文件组件值"`
@@ -45,7 +45,7 @@ type sendNotificationResultData struct {
 
 var sendNotificationToolDef = toolDefinitionWithOutput[sendNotificationArgs, structuredToolResultSchema[sendNotificationResultData]](
 	"send_notification",
-	"发送一条单向通知给用户，不等待回复。适合 Agent 任务或无人值守 Agent 在发现高优先级情报、风险、异常，或任务明确要求通知时主动提醒用户；不要用它询问用户并等待回复。当前上下文有请求用户或会话创建人时，通知当前用户/创建人/我可省略 to_users；没有默认用户时才必须显式传 to_users。首次基准记录、无变化结果、普通状态报告默认不通知。多个 username 用逗号分隔。files 可携带平台文件引用，多个用逗号分隔。通知来源会继承当前工作台/定时任务上下文，不会归到某个通知函数目录。content_type=html 时站内信会按安全清洗后的 HTML 渲染。",
+	"发送一条单向通知给用户，不等待回复。无人值守通知以重要事项不漏发为优先：可能造成资损、安全/隐私/合规问题、数据损坏或丢失、大范围影响、关键任务持续失败/阻塞、权限异常或需要人工决定时必须通知；影响不完全确定但存在合理重大风险时至少发 warning。首次基准、无变化、无待处理对象和普通成功状态默认静默；同一问题无新进展或影响扩大时不要重复通知。异常通知正文要让人工或另一个 Agent 在新会话中直接接管：写清任务/目录背景、对象/时间范围、事实证据、影响风险、已做动作、未做动作及原因、需要处理或决定的事项。可以征求后续决定，但不要等待回复后在本轮继续高风险操作。当前上下文有请求用户或会话创建人时，通知当前用户/创建人/我可省略 to_users；没有默认用户时才必须显式传 to_users。多个 username 用逗号分隔。files 可携带平台文件引用。通知来源会继承当前工作台/定时任务上下文。",
 )
 
 func (t *SendNotificationTool) Definition() dto.ToolDef {

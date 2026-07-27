@@ -86,7 +86,11 @@ func runManageScheduledTask(ctx context.Context, args manageScheduledTaskArgs) T
 	if resourcePath := resolveFullCodePathArg(args.ResourcePath, ""); resourcePath != "" && task.ResourceKey != resourcePath {
 		return toolResult(fmt.Sprintf("manage_scheduled_task 任务资源不匹配：任务属于 %s，不是 %s。", task.ResourceKey, resourcePath), true)
 	}
-	switch strings.TrimSpace(args.Action) {
+	action := strings.TrimSpace(args.Action)
+	if isManifestScheduledTask(task) && (action == "cancel" || action == "delete") {
+		return toolResult("目录内置任务不能取消或删除；可以暂停、恢复、立即运行，或复制为自定义任务后再调整。", true)
+	}
+	switch action {
 	case "pause":
 		err = client.PauseTask(ctx, args.TaskID)
 	case "resume":
@@ -130,6 +134,21 @@ func runManageScheduledTask(ctx context.Context, args manageScheduledTaskArgs) T
 		"task":    updated,
 		"message": "定时任务已" + scheduledManageActionLabel(args.Action),
 	}, false)
+}
+
+func isManifestScheduledTask(task *scheduledsdk.Task) bool {
+	if task == nil {
+		return false
+	}
+	if strings.TrimSpace(task.Metadata["origin"]) == "manifest" {
+		return true
+	}
+	switch strings.TrimSpace(task.Metadata["managed_by"]) {
+	case "app_manifest", "capability_bundle":
+		return true
+	default:
+		return false
+	}
 }
 
 func runListScheduledTaskExecutions(ctx context.Context, args listScheduledTaskExecutionsArgs) ToolResult {
