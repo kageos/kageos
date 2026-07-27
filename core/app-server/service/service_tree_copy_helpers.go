@@ -9,6 +9,7 @@ import (
 
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"gorm.io/gorm"
@@ -487,6 +488,7 @@ func cleanupReplacedDocs(
 
 func cleanupReplacedAgentTasks(ctx context.Context, plan *copyDirectoryPlan) error {
 	client := newAppScheduleClient()
+	managedCtx := contextx.WithClientSource(ctx, scheduledTaskSourceBundle)
 	deleteClient, ok := client.(interface {
 		DeleteTask(context.Context, int64) error
 	})
@@ -505,7 +507,7 @@ func cleanupReplacedAgentTasks(ctx context.Context, plan *copyDirectoryPlan) err
 
 	taskIDs := make([]int64, 0)
 	for page := 1; ; page++ {
-		resp, err := client.ListTasks(ctx, scheduledsdk.ListTasksRequest{
+		resp, err := client.ListTasks(managedCtx, scheduledsdk.ListTasksRequest{
 			ExecutorKey:       ScheduledAgentSessionExecutorKey,
 			Category:          "scheduled_agent_session",
 			ResourceScope:     "workspace_directory",
@@ -523,6 +525,9 @@ func cleanupReplacedAgentTasks(ctx context.Context, plan *copyDirectoryPlan) err
 			if task == nil {
 				continue
 			}
+			if strings.TrimSpace(task.Metadata["managed_by"]) != scheduledTaskSourceBundle {
+				continue
+			}
 			key := capabilityAgentTaskKey(scheduledAgentTaskResourcePath(task), capabilityBundleAgentTaskCode(task))
 			if _, keep := intended[key]; !keep {
 				taskIDs = append(taskIDs, task.ID)
@@ -533,7 +538,7 @@ func cleanupReplacedAgentTasks(ctx context.Context, plan *copyDirectoryPlan) err
 		}
 	}
 	for _, taskID := range taskIDs {
-		if err := deleteClient.DeleteTask(ctx, taskID); err != nil {
+		if err := deleteClient.DeleteTask(managedCtx, taskID); err != nil {
 			return fmt.Errorf("清理旧 Agent 任务失败: task_id=%d: %w", taskID, err)
 		}
 	}

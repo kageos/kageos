@@ -118,7 +118,8 @@ func TestGetPromptDocContent_ForSDKDirectoryAndLeafDoc(t *testing.T) {
 		"提交时已经能确定",
 		"结果回写位置",
 		"文档优先的场景知识闭环",
-		"待确认/待沉淀",
+		"运行态 Agent 可以通过 `read_file`、`edit_file`、`write_file`",
+		"问题解决后直接删除对应内容",
 		"不要先建一张与文档重复的知识表",
 		"./docs/readme.docs",
 		"不要为文档目录额外声明 `PackageContext`",
@@ -315,6 +316,10 @@ func TestAutomationOperatorRoleDocumentsScheduledAgentSOP(t *testing.T) {
 	_, content := GetPromptDocContent(nil, "/system/prompt/roles/automation-operator")
 	for _, needle := range []string{
 		"自动执行配置 automation_operator",
+		"产品术语：智能员工",
+		"“智能员工”“值守员工”是 `agent.session` Agent 任务的产品名称",
+		"最终调用 `create_scheduled_agent_task`",
+		"不要把“智能员工”理解成创建真实用户",
 		"Agent 任务的典型场景",
 		"长期数据维护",
 		"情报/新闻日报",
@@ -325,7 +330,7 @@ func TestAutomationOperatorRoleDocumentsScheduledAgentSOP(t *testing.T) {
 		"不要替代提交时同步校验",
 		"文档驱动的无人值守闭环",
 		"只有正文明确“已启用”",
-		"没有 `write_doc`",
+		"运行态 `app_operator` 可以用文件工具维护必要的 `.docs` 运行记忆",
 		"Agent 任务执行说明（message）标准 SOP",
 		"预期工具清单",
 		"`run_table_search`",
@@ -353,10 +358,24 @@ func TestAutomationOperatorRoleDocumentsScheduledAgentSOP(t *testing.T) {
 		"/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask",
 		"<./runbook.docs>",
 		"证据不足",
-		"禁止调用 `write_prd`、`create_directory`、`write_doc`、`write_file`、`edit_file`、`delete_file`、`build_workspace` 和任何业务 `run_*` 工具",
+		"禁止调用 `write_prd`、`create_directory`、`write_file`、`edit_file`、`delete_file`、`build_workspace` 和任何业务 `run_*` 工具",
 	} {
 		if !strings.Contains(content, needle) {
 			t.Fatalf("automation_operator role doc should contain %q, got: %q", needle, content)
+		}
+	}
+}
+
+func TestRouterTreatsSmartEmployeeAsScheduledAgentTask(t *testing.T) {
+	_, content := GetPromptDocContent(nil, "/system/prompt/roles/router")
+	for _, needle := range []string{
+		"创建 / 添加 / 配置 / 管理智能员工（值守员工）",
+		"“智能员工”按 Agent 任务处理",
+		"`create_scheduled_agent_task`",
+		"“智能员工”是 Agent 任务的产品名称",
+	} {
+		if !strings.Contains(content, needle) {
+			t.Fatalf("router role doc should contain %q, got: %q", needle, content)
 		}
 	}
 }
@@ -371,6 +390,8 @@ func TestDevModePromptRejectsDelayedValidationAutomation(t *testing.T) {
 		"信息何时才可知",
 		"必须同步校验",
 		"提交—退回—重提",
+		"产品界面和用户语言里的“智能员工”“值守员工”",
+		"最终使用 `create_scheduled_agent_task`",
 		"无人值守必须证明净价值",
 		"结果要回写业务主表",
 		"中小企业",
@@ -398,11 +419,14 @@ func TestExecutionRolesRetainPRDV2SearchRules(t *testing.T) {
 			"`run_table_search`",
 			"`run_table_create`",
 			"`run_form_submit`",
-			"不重新输出 PRD，不创建目录，不写文档，不写 Go 文件，不 build",
+			"不重新输出 PRD，不创建目录，不写 Go 文件或普通文本文件，不 build",
 			"`run_python`",
 			"通知创建人、当前用户或“我”时可依赖默认通知对象并省略 `to_users`",
 			"只使用明确“已启用”",
-			"当前角色没有 `write_doc`",
+			"`file_name`/`code` 使用有意义的英文标识",
+			"中文项目的工作台 `name` 使用清楚的中文名称",
+			"问题解决后直接删除对应内容",
+			"不增加“已解决”标记或历史清单",
 		},
 		"/system/prompt/roles/maintenance-engineer": {
 			"应用维护工程师 maintenance_engineer",

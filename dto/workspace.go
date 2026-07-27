@@ -315,6 +315,8 @@ type WorkspaceContextDirectory struct {
 	FullCodePath string `json:"full_code_path"` // 完整路径
 	Description  string `json:"description"`    // 目录描述
 	Type         string `json:"type"`           // 节点类型
+	Owner        string `json:"owner"`          // 目录创建人；无人值守人工接管候选人
+	Admins       string `json:"admins"`         // 目录管理员列表，逗号分隔；无人值守人工接管候选人
 }
 
 // WorkspaceContextFile 工作台环境文件信息

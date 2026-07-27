@@ -61,7 +61,7 @@ func TestScheduledAgentSessionWorkspaceRequestUsesMessageDirectly(t *testing.T) 
 	if strings.Contains(req.Message.Content, "每日热点推送") {
 		t.Fatalf("title/display content should not be used as runtime message, got %q", req.Message.Content)
 	}
-	for _, want := range []string{"Agent 任务执行约束", "不是创建或管理定时任务", "app_operator", "不要向用户提问", "可省略 to_users", "创建人/默认通知对象：alice", `to_users: "alice"`, "首次基准记录", "本次任务绑定工作台目录：/system/test22/hot_news", "搜索今天 AI 热点", "发送企业微信群"} {
+	for _, want := range []string{"Agent 任务执行约束", "执行无人值守任务", "不是在创建或管理定时任务", "app_operator", "不要向用户提问", "可省略 to_users", "创建人/默认通知对象：alice", `to_users: "alice"`, "重要事项优先不漏发", "资损", "必须调用 send_notification", "无待处理对象", "默认静默", "目录管理员", "目录创建人", "新会话中直接接管", "完整时间窗口", "不能只读第一页", "禁止修改 Go 代码", ".docs", "有意义的英文标识", "清楚的中文名称", "问题解决后直接删除", "本次任务绑定工作台目录：/system/test22/hot_news", "搜索今天 AI 热点", "发送企业微信群"} {
 		if !strings.Contains(req.Message.Content, want) {
 			t.Fatalf("message content should contain %q, got %q", want, req.Message.Content)
 		}

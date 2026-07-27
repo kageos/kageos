@@ -78,9 +78,16 @@ func TestWorkspaceEnvBlockIncludesDirectoryIntentHint(t *testing.T) {
 		DirName:      "投票系统",
 		DirCode:      "vote",
 		FullCodePath: "/system/x_world/vote",
+		DirOwner:     "alice",
+		DirAdmins:    "bob,carol",
 	}, "vote", "/system/x_world/vote", timeNowForTest())
 	got := BuildWorkspaceEnvBlock(data, true, "vote", "/system/x_world/vote")
 	for _, want := range []string{
+		"目录创建人：alice",
+		"目录管理员：bob,carol",
+		"### 责任人与人工接管",
+		"优先联系目录管理员",
+		"由人工在后续会话接管",
 		"### 当前目录语义",
 		"选择角色前必须先结合当前目录",
 		"使用这个软件完成业务结果",
@@ -90,6 +97,21 @@ func TestWorkspaceEnvBlockIncludesDirectoryIntentHint(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("workspace env block should contain %q, got:\n%s", want, got)
 		}
+	}
+}
+
+func TestWorkspaceEnvBlockMarksMissingDirectoryContacts(t *testing.T) {
+	t.Parallel()
+
+	data := BuildWorkspaceEnvData(&WorkspaceEnvInput{
+		DirName:      "投票系统",
+		DirCode:      "vote",
+		FullCodePath: "/system/x_world/vote",
+	}, "vote", "/system/x_world/vote", timeNowForTest())
+	got := BuildWorkspaceEnvBlock(data, true, "vote", "/system/x_world/vote")
+	if !strings.Contains(got, "目录创建人：未配置") ||
+		!strings.Contains(got, "目录管理员：未配置") {
+		t.Fatalf("workspace env should explicitly mark missing contacts, got:\n%s", got)
 	}
 }
 

@@ -153,6 +153,8 @@ func (s *serviceTreeWorkspaceService) GetWorkspaceContext(ctx context.Context, r
 			FullCodePath: detail.FullCodePath,
 			Description:  detail.Description,
 			Type:         detail.Type,
+			Owner:        detail.Owner,
+			Admins:       detail.Admins,
 		},
 		Children: childrenNodes,
 		Files:    files,

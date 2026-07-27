@@ -12,6 +12,8 @@ import (
 	"github.com/kageos/kageos/core/agent-server/prompt"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
+	"github.com/kageos/kageos/pkg/contextx"
+	"github.com/kageos/kageos/pkg/naming"
 )
 
 type ReadFileTool struct{}
@@ -77,7 +79,8 @@ type editFileSearchEditArgs struct {
 type editFileArgs struct {
 	Directory    string                   `json:"directory" schema_desc:"目标目录，不传则当前工作目录"`
 	FullCodePath string                   `json:"full_code_path" schema_ignore:"true"`
-	FileName     string                   `json:"file_name" schema_desc:"目标文件名，如 issue.go" schema_required:"true"`
+	FileName     string                   `json:"file_name" schema_desc:"目标文件名，如 issue.go 或 important_issues.docs；.docs 的文件名是英文 code，工作台展示现有中文 name" schema_required:"true"`
+	Name         string                   `json:"name" schema_desc:"可选；编辑 .docs 时同步更新工作台中文展示名，留空则保留现有 name；编辑代码文件时忽略"`
 	BaseSHA      string                   `json:"base_sha" schema_desc:"最近一次 read_file 返回的 content_sha" schema_required:"true"`
 	SearchEdits  []editFileSearchEditArgs `json:"search_edits" schema_desc:"精确文本替换列表；推荐用于小范围修改。与 line_edits 二选一"`
 	LineEdits    []editFileLineEditArgs   `json:"line_edits" schema_desc:"行号替换列表；用于明确行号的块级修改。与 search_edits 二选一"`
@@ -88,7 +91,7 @@ type editFileResultData struct {
 	FileName        string   `json:"file_name" schema_desc:"文件名" schema_required:"true"`
 	OldSHA          string   `json:"old_sha" schema_desc:"修改前 sha" schema_required:"true"`
 	NewSHA          string   `json:"new_sha" schema_desc:"修改后 sha" schema_required:"true"`
-	Mode            string   `json:"mode" schema_desc:"search_edits 或 line_edits" schema_required:"true"`
+	Mode            string   `json:"mode" schema_desc:"search_edits、line_edits 或 name_only" schema_required:"true"`
 	AppliedSearches int      `json:"applied_searches,omitempty" schema_desc:"应用的精确文本替换项数"`
 	AppliedEdits    int      `json:"applied_edits,omitempty" schema_desc:"应用的行号编辑数"`
 	Changed         bool     `json:"changed" schema_desc:"内容是否发生变化" schema_required:"true"`
@@ -97,7 +100,7 @@ type editFileResultData struct {
 
 var editFileToolDef = toolDefinitionWithOutput[editFileArgs, structuredToolResultSchema[editFileResultData]](
 	"edit_file",
-	"修改已有工作区代码文件。必须先 read_file 获取 content_sha，并作为 base_sha 传入；文件变化则拒绝。推荐 search_edits 精确文本替换；行号明确或块级修改时用 line_edits。两种模式二选一，所有 edit 原子应用，任一不匹配则不落盘。当前版本仅写入 .go 代码文件；工作台文档不通过 edit_file 修改。",
+	"修改已有工作区 .go 代码文件或 .docs 文档。必须先 read_file 获取 content_sha，并作为 base_sha 传入；内容变化则拒绝。推荐 search_edits 精确文本替换；行号明确或块级修改时用 line_edits。代码文件必须在两种内容编辑模式中二选一；.docs 还可以只传 name 修正工作台展示名。所有 edit 原子应用，任一不匹配则不落盘。.docs 的 file_name 使用英文 code（如 important_issues.docs），工作台展示沿用文档中文 name；需要修正展示名时显式传 name。文档修改直接写入工作台文档库，不触发 build_workspace。运行记忆只保留仍存在的重要事项，问题解决后直接删除对应段落，不维护“已解决”列表。",
 )
 
 func (t *EditFileTool) Definition() dto.ToolDef {
@@ -117,7 +120,8 @@ type WriteFileTool struct{}
 type writeFileArgs struct {
 	Directory         string `json:"directory" schema_desc:"目标目录，不传则当前工作目录"`
 	FullCodePath      string `json:"full_code_path" schema_ignore:"true"`
-	FileName          string `json:"file_name" schema_desc:"目标文件名，如 issue.go" schema_required:"true"`
+	FileName          string `json:"file_name" schema_desc:"目标文件名，如 issue.go；创建 .docs 时这里是英文 code，如 important_issues.docs" schema_required:"true"`
+	Name              string `json:"name" schema_desc:"创建 .docs 时必填的工作台展示名；中文项目使用清楚的中文名称，如“重要问题”。覆盖已有 .docs 时留空可保留原 name"`
 	FileType          string `json:"file_type" schema_desc:"可选文件类型；不传则从 file_name 后缀推断，无扩展名默认 go"`
 	Content           string `json:"content" schema_desc:"完整文件内容" schema_required:"true"`
 	BaseSHA           string `json:"base_sha" schema_desc:"覆盖已有文件时必须传最近一次 read_file 返回的 content_sha"`
@@ -137,7 +141,7 @@ type writeFileResultData struct {
 
 var writeFileToolDef = toolDefinitionWithOutput[writeFileArgs, structuredToolResultSchema[writeFileResultData]](
 	"write_file",
-	"创建或完整覆盖工作区文本文件。新文件可直接写；覆盖已有文件必须先 read_file，并传 base_sha、replace_entire_file=true、overwrite_reason。.go 文件会做 Go/SDK 诊断；.docs 会写入工作台文档库；其他受支持文本扩展写入应用目录但不触发编译。小范围修改优先用 edit_file。",
+	"创建或完整覆盖工作区文本文件。新文件可直接写；覆盖已有文件必须先 read_file，并传 base_sha、replace_entire_file=true、overwrite_reason。.go 文件会做 Go/SDK 诊断；.docs 会写入工作台文档库且不触发编译。创建 .docs 时 file_name/code 必须使用有意义的英文标识，同时必须传有意义的工作台展示 name；中文项目的 name 使用中文。已有 .docs 的小范围修改优先用 edit_file。运行记忆只记录仍存在的少量重要事项，问题解决后直接从文档删除，不保留已解决清单。",
 )
 
 func (t *WriteFileTool) Definition() dto.ToolDef {
@@ -168,8 +172,14 @@ func runEditFileTool(ctx context.Context, args editFileArgs, currentFullCodePath
 	if fileName == "" {
 		return toolResult("edit_file 缺少参数 file_name。", true)
 	}
+	if isDocsFileName(fileName) {
+		return runEditDocsFileTool(ctx, args, currentFullCodePath)
+	}
+	if normalizeWorkspaceRole(contextx.GetWorkspaceRole(ctx)) == WorkspaceRoleAppOperator {
+		return toolResult("应用执行角色的 edit_file 只允许修改 .docs 文档，不能修改代码文件。", true)
+	}
 	if !isGoFileName(ensureGoFileName(fileName)) {
-		return toolResult("edit_file 当前仅支持 .go 代码文件；工作台文档不通过 edit_file 修改。", true)
+		return toolResult("edit_file 只支持已有 .go 代码文件或 .docs 文档。", true)
 	}
 	if isGeneratedInitGoFile(fileName) {
 		return toolResult("edit_file 不允许修改 init_.go；该文件由目录创建流程自动维护。请修改普通业务 .go 文件。", true)
@@ -240,6 +250,87 @@ func runEditFileTool(ctx context.Context, args editFileArgs, currentFullCodePath
 	return toolResultWithData(msg+"\n\n"+formatStructuredToolData(data), false, data)
 }
 
+func runEditDocsFileTool(ctx context.Context, args editFileArgs, currentFullCodePath string) ToolResult {
+	fileName := strings.TrimSpace(args.FileName)
+	code := withoutWriteDocSuffix(filepath.Base(fileName))
+	if err := naming.ValidateGoPackageName(code, "文档英文 code"); err != nil {
+		return toolResult("edit_file 文档文件名无效："+err.Error(), true)
+	}
+	if strings.TrimSpace(args.BaseSHA) == "" {
+		return toolResult("edit_file 必须传 base_sha；请先 read_file 获取最新 content_sha。", true)
+	}
+	hasLineEdits := len(args.LineEdits) > 0
+	hasSearchEdits := len(args.SearchEdits) > 0
+	hasNameUpdate := strings.TrimSpace(args.Name) != ""
+	if hasLineEdits && hasSearchEdits {
+		return toolResult("edit_file 的 search_edits 和 line_edits 不能同时使用。", true)
+	}
+	if !hasLineEdits && !hasSearchEdits && !hasNameUpdate {
+		return toolResult("edit_file 修改 .docs 时需提供 search_edits、line_edits 或新的 name。", true)
+	}
+
+	targetPath, matched, errMsg, isError := readWorkspaceFile(ctx, args.Directory, args.FullCodePath, currentFullCodePath, fileName)
+	if errMsg != "" {
+		return toolResult(errMsg, isError)
+	}
+	oldSHA := fileContentSHA(matched.Content)
+	if normalizeContentSHA(args.BaseSHA) != oldSHA {
+		return toolResult(fmt.Sprintf("edit_file 拒绝写入：base_sha=%s 与当前文档 sha=%s 不一致。请重新 read_file 后再修改。", args.BaseSHA, oldSHA), true)
+	}
+
+	mode := "name_only"
+	newContent := matched.Content
+	applied := 0
+	var err error
+	if hasSearchEdits {
+		mode = "search_edits"
+		newContent, applied, err = applySearchEditsToContent(matched.Content, args.SearchEdits)
+	} else if hasLineEdits {
+		mode = "line_edits"
+		newContent, applied, err = applyLineEditsToContent(matched.Content, args.LineEdits)
+	}
+	if err != nil {
+		return toolResult("edit_file 未更新文档："+err.Error(), true)
+	}
+
+	docPath := strings.TrimRight(targetPath, "/") + "/" + withWriteDocSuffix(code)
+	detail, err := apicall.GetServiceTreeDetailByFullCodePath(ctx, docPath)
+	if err != nil || detail == nil {
+		return toolResult(fmt.Sprintf("edit_file 查询文档节点失败: %v", err), true)
+	}
+	updateReq := &dto.UpdateDocsReq{}
+	if hasSearchEdits || hasLineEdits {
+		content := newContent
+		updateReq.Content = &content
+	}
+	if name := strings.TrimSpace(args.Name); name != "" {
+		updateReq.Name = &name
+	}
+	if err := apicall.UpdateDocs(ctx, detail.ID, updateReq); err != nil {
+		return toolResult("edit_file 更新文档失败: "+err.Error(), true)
+	}
+
+	newSHA := fileContentSHA(newContent)
+	data := editFileResultData{
+		TargetPath: targetPath,
+		FileName:   withWriteDocSuffix(code),
+		OldSHA:     oldSHA,
+		NewSHA:     newSHA,
+		Mode:       mode,
+		Changed:    oldSHA != newSHA,
+		Diagnostics: []string{
+			"docs 文档已更新到工作台文档库；不会触发 build_workspace。",
+		},
+	}
+	if hasSearchEdits {
+		data.AppliedSearches = applied
+	} else {
+		data.AppliedEdits = applied
+	}
+	msg := fmt.Sprintf("文档已更新: %s", docPath)
+	return toolResultWithData(msg+"\n\n"+formatStructuredToolData(data), false, data)
+}
+
 func runWriteFileTool(ctx context.Context, args writeFileArgs, currentFullCodePath string) ToolResult {
 	fileName := strings.TrimSpace(args.FileName)
 	if fileName == "" {
@@ -260,6 +351,9 @@ func runWriteFileTool(ctx context.Context, args writeFileArgs, currentFullCodePa
 
 	if isDocsFileName(fileName) || strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(args.FileType), "."), "docs") {
 		return runWriteDocsFileTool(ctx, args, targetPath)
+	}
+	if normalizeWorkspaceRole(contextx.GetWorkspaceRole(ctx)) == WorkspaceRoleAppOperator {
+		return toolResult("应用执行角色的 write_file 只允许写入 .docs 文档，不能创建或覆盖代码/普通文本文件。", true)
 	}
 
 	fileName = normalizeWriteFileName(fileName, args.FileType)
@@ -337,12 +431,17 @@ func runWriteDocsFileTool(ctx context.Context, args writeFileArgs, targetPath st
 	if code == "" {
 		return toolResult("write_file 写 docs 文档时无法从 file_name 推断 code。", true)
 	}
+	if err := naming.ValidateGoPackageName(code, "文档英文 code"); err != nil {
+		return toolResult("write_file 文档文件名无效："+err.Error(), true)
+	}
 
 	docPath := strings.TrimRight(targetPath, "/") + "/" + withWriteDocSuffix(code)
 	var existingContent string
+	var existingName string
 	created := true
 	if doc, err := apicall.GetDoc(ctx, docPath); err == nil && doc != nil {
 		existingContent = doc.Content
+		existingName = strings.TrimSpace(doc.Name)
 		created = false
 	} else if err != nil && !isWorkspaceDocNotFoundError(err) {
 		return toolResult("write_file 读取现有文档失败: "+err.Error(), true)
@@ -361,9 +460,12 @@ func runWriteDocsFileTool(ctx context.Context, args writeFileArgs, targetPath st
 		}
 	}
 
-	docName := code
-	if code == "runbook" {
-		docName = "运行手册"
+	docName := strings.TrimSpace(args.Name)
+	if created && docName == "" {
+		return toolResult("write_file 创建 .docs 文档时必须传 name 作为工作台展示名；中文项目请使用清楚的中文名称，file_name/code 继续使用英文。", true)
+	}
+	if docName == "" {
+		docName = existingName
 	}
 	msg, isErr := runWriteDocCommand(ctx, writeDocCommand{
 		FullCodePath: targetPath,

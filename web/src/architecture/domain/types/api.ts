@@ -103,6 +103,9 @@ export interface ServiceTree {
   template_type?: string  // 模板类型（函数的类型，如 form、table）
   has_function?: boolean  // ⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true
   scheduled_agent_tasks?: number  // 当前目录及子目录内的 Agent 任务数量（仅 package 节点有意义）
+  enabled_agent_tasks?: number
+  running_agent_tasks?: number
+  failed_agent_tasks?: number
   run_count?: number  // ⭐ 运行次数（仅 function 类型有意义），用于展示「已使用 N 次」
   permissions?: AccessPermissions
   role_codes?: AccessRoleCode[]

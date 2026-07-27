@@ -242,6 +242,8 @@ func (q *serviceTreeQueryView) serviceTreeDetailRespFromModel(tree *model.Servic
 		Tags:               tree.Tags,
 		Connectors:         splitConnectorCodes(tree.Connectors),
 		ConnectorEndpoints: splitConnectorEndpoints(tree.ConnectorEndpoints),
+		Admins:             tree.Admins,
+		Owner:              tree.CreatedBy,
 		AppID:              tree.AppID,
 		RefID:              tree.RefID,
 		FullCodePath:       tree.FullCodePath,
@@ -387,8 +389,15 @@ func collectPackageServiceTreeResp(root *dto.GetServiceTreeResp) []*dto.GetServi
 	return out
 }
 
-func loadScheduledAgentTaskCountsByDirectory(ctx context.Context, client serviceTreeScheduleClient, packages []*dto.GetServiceTreeResp) (map[string]int, int) {
-	counts := make(map[string]int, len(packages))
+type scheduledAgentTaskBadgeCounts struct {
+	Total   int
+	Enabled int
+	Running int
+	Failed  int
+}
+
+func loadScheduledAgentTaskCountsByDirectory(ctx context.Context, client serviceTreeScheduleClient, packages []*dto.GetServiceTreeResp) (map[string]scheduledAgentTaskBadgeCounts, int) {
+	counts := make(map[string]scheduledAgentTaskBadgeCounts, len(packages))
 	if client == nil || len(packages) == 0 {
 		return counts, 0
 	}
@@ -416,39 +425,77 @@ func loadScheduledAgentTaskCountsByDirectory(ctx context.Context, client service
 				return
 			}
 
-			resp, err := client.ListTasks(ctx, scheduledsdk.ListTasksRequest{
-				ExecutorKey:   ScheduledAgentSessionExecutorKey,
-				ResourceScope: "workspace_directory",
-				ResourceKey:   resourcePath,
-				Page:          1,
-				PageSize:      1,
-			})
+			exact := scheduledAgentTaskBadgeCounts{}
+			var queryErr error
+			for pageNumber := 1; ; pageNumber++ {
+				resp, err := client.ListTasks(ctx, scheduledsdk.ListTasksRequest{
+					ExecutorKey:   ScheduledAgentSessionExecutorKey,
+					ResourceScope: "workspace_directory",
+					ResourceKey:   resourcePath,
+					Page:          pageNumber,
+					PageSize:      100,
+				})
+				if err != nil {
+					queryErr = err
+					break
+				}
+				if resp == nil {
+					break
+				}
+				exact.Total = int(resp.Total)
+				for _, task := range resp.List {
+					if task == nil {
+						continue
+					}
+					if task.Status == scheduledsdk.TaskStatusPending {
+						exact.Enabled++
+					}
+					if task.InflightExecutionID > 0 {
+						exact.Running++
+					}
+					if task.Status == scheduledsdk.TaskStatusFailed || strings.TrimSpace(task.LastErrorMessage) != "" {
+						exact.Failed++
+					}
+				}
+				if len(resp.List) < 100 {
+					break
+				}
+			}
 			mu.Lock()
 			defer mu.Unlock()
-			if err != nil {
+			if queryErr != nil {
 				failed++
 				return
 			}
-			if resp != nil {
-				counts[resourcePath] = int(resp.Total)
-			}
+			counts[resourcePath] = exact
 		}(path)
 	}
 	wg.Wait()
 	return counts, failed
 }
 
-func applyScheduledAgentTaskSubtreeCounts(node *dto.GetServiceTreeResp, exactCounts map[string]int) int {
+func applyScheduledAgentTaskSubtreeCounts(node *dto.GetServiceTreeResp, exactCounts map[string]scheduledAgentTaskBadgeCounts) scheduledAgentTaskBadgeCounts {
 	if node == nil {
-		return 0
+		return scheduledAgentTaskBadgeCounts{}
 	}
-	total := 0
+	total := scheduledAgentTaskBadgeCounts{}
 	for _, child := range node.Children {
-		total += applyScheduledAgentTaskSubtreeCounts(child, exactCounts)
+		childCounts := applyScheduledAgentTaskSubtreeCounts(child, exactCounts)
+		total.Total += childCounts.Total
+		total.Enabled += childCounts.Enabled
+		total.Running += childCounts.Running
+		total.Failed += childCounts.Failed
 	}
 	if node.Type == model.ServiceTreeTypePackage {
-		total += exactCounts[access.NormalizeResourcePath(node.FullCodePath)]
-		node.ScheduledAgentTasks = total
+		exact := exactCounts[access.NormalizeResourcePath(node.FullCodePath)]
+		total.Total += exact.Total
+		total.Enabled += exact.Enabled
+		total.Running += exact.Running
+		total.Failed += exact.Failed
+		node.ScheduledAgentTasks = total.Total
+		node.EnabledAgentTasks = total.Enabled
+		node.RunningAgentTasks = total.Running
+		node.FailedAgentTasks = total.Failed
 	}
 	return total
 }

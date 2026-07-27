@@ -64,6 +64,9 @@ type GetServiceTreeResp struct {
 	VersionNum          int                   `json:"version_num,omitempty" example:"1"`                     // 节点当前版本号（数字部分）
 	HasFunction         bool                  `json:"has_function,omitempty" example:"true"`                 // ⭐ 是否有函数（仅对package类型有效）：如果该package下直接或间接包含function类型的子节点，则为true
 	ScheduledAgentTasks int                   `json:"scheduled_agent_tasks,omitempty"`                       // 当前目录及子目录内的 Agent 任务数量（仅对package类型有意义）
+	EnabledAgentTasks   int                   `json:"enabled_agent_tasks,omitempty"`                         // 当前目录及子目录内已启用的 Agent 任务数量
+	RunningAgentTasks   int                   `json:"running_agent_tasks,omitempty"`                         // 当前目录及子目录内正在执行的 Agent 任务数量
+	FailedAgentTasks    int                   `json:"failed_agent_tasks,omitempty"`                          // 当前目录及子目录内需要关注的 Agent 任务数量
 	RunCount            int                   `json:"run_count,omitempty"`                                   // ⭐ 运行次数（仅 function 类型有意义），用于排序与展示「已使用 N 次」
 	Permissions         access.PermissionSet  `json:"permissions,omitempty"`                                 // 当前用户对节点的权限
 	RoleCodes           []access.RoleCode     `json:"role_codes,omitempty"`                                  // 当前用户在该节点命中的角色
@@ -88,6 +91,8 @@ type GetServiceTreeDetailResp struct {
 	Tags               string              `json:"tags" example:"user,management"`               // 标签
 	Connectors         []string            `json:"connectors,omitempty" example:"github,google"` // 函数依赖的连接器 provider 列表
 	ConnectorEndpoints []ConnectorEndpoint `json:"connector_endpoints,omitempty"`                // 函数声明使用的连接器 API 端点
+	Admins             string              `json:"admins,omitempty" example:"user1,user2"`       // 节点管理员列表，逗号分隔的用户名
+	Owner              string              `json:"owner,omitempty" example:"user1"`              // 节点创建者
 	AppID              int64               `json:"app_id" example:"1"`                           // 应用ID
 	RefID              int64               `json:"ref_id" example:"0"`                           // 引用ID
 	FullCodePath       string              `json:"full_code_path" example:"/beiluo/myapp/user"`  // 完整代码路径
@@ -140,7 +145,9 @@ type DirectoryOverviewStats struct {
 
 // DirectoryOverviewScheduledTask 是目录概览中的定时任务条目，带上绑定资源信息。
 type DirectoryOverviewScheduledTask struct {
-	Kind         string                     `json:"kind"` // function 或 agent
+	Kind         string                     `json:"kind"`    // function 或 agent
+	Origin       string                     `json:"origin"`  // manifest 或 user
+	Builtin      bool                       `json:"builtin"` // 目录内置定义不可直接修改/删除
 	Resource     *DirectoryOverviewResource `json:"resource"`
 	ResourcePath string                     `json:"resource_path"`
 	ResourceName string                     `json:"resource_name"`

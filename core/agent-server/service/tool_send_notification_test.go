@@ -222,6 +222,19 @@ func TestWorkspaceToolSourceDisplayInjectsActiveFullCodePath(t *testing.T) {
 
 func TestSendNotificationSchemaDoesNotRequireToUsers(t *testing.T) {
 	def := (&SendNotificationTool{}).Definition()
+	for _, want := range []string{
+		"重要事项不漏发",
+		"资损",
+		"无待处理对象",
+		"默认静默",
+		"新会话中直接接管",
+		"已做动作",
+		"未做动作及原因",
+	} {
+		if !strings.Contains(def.Description, want) {
+			t.Fatalf("send_notification description should contain %q, got %q", want, def.Description)
+		}
+	}
 	required, ok := def.InputSchema["required"].([]interface{})
 	if !ok {
 		t.Fatalf("input schema required missing: %#v", def.InputSchema)
@@ -244,6 +257,16 @@ func TestSendNotificationSchemaDoesNotRequireToUsers(t *testing.T) {
 	for _, want := range []string{"请求用户", "会话创建人", "没有默认用户时才必须显式填写"} {
 		if !strings.Contains(desc, want) {
 			t.Fatalf("to_users description should contain %q, got %q", want, desc)
+		}
+	}
+	message, ok := properties["message"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("message schema missing: %#v", properties)
+	}
+	messageDesc, _ := message["description"].(string)
+	for _, want := range []string{"任务/目录背景", "事实证据", "未做动作及原因", "接管人"} {
+		if !strings.Contains(messageDesc, want) {
+			t.Fatalf("message description should contain %q, got %q", want, messageDesc)
 		}
 	}
 }

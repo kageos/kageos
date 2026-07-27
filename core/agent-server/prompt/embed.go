@@ -46,6 +46,8 @@ type WorkspaceEnvData struct {
 	FullCodePath            string // {{FULL_CODE_PATH}}
 	DirType                 string // {{DIR_TYPE}}
 	DirDescription          string // {{DIR_DESCRIPTION}}
+	DirOwner                string // {{DIR_OWNER}} 当前目录创建人
+	DirAdmins               string // {{DIR_ADMINS}} 当前目录管理员列表
 	DirectoryRunbookSection string // {{DIRECTORY_RUNBOOK_SECTION}} 当前目录 runbook.docs 全量内容（可选，仅当前目录，不向上查找）
 	ChildrenSection         string // {{CHILDREN_SECTION}}
 	FunctionsSection        string // {{FUNCTIONS_SECTION}} 当前目录下的可执行函数（table/form/chart + full_code_path），执行模式可直接用

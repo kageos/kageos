@@ -38,8 +38,9 @@ const (
 )
 
 var (
-	ErrTaskBusy          = errors.New("timer-scheduler: task dispatch was not acquired")
-	ErrInvalidTaskStatus = errors.New("timer-scheduler: invalid task status")
+	ErrTaskBusy              = errors.New("timer-scheduler: task dispatch was not acquired")
+	ErrInvalidTaskStatus     = errors.New("timer-scheduler: invalid task status")
+	ErrBuiltinTaskDefinition = errors.New("timer-scheduler: built-in task definition is read-only")
 )
 
 type Options struct {
@@ -236,6 +237,9 @@ func (s *Service) UpdateTask(ctx context.Context, taskID int64, req scheduledsdk
 	if err != nil {
 		return nil, err
 	}
+	if isBuiltinTaskDefinition(task) && !canManageBuiltinTaskDefinition(ctx) {
+		return nil, ErrBuiltinTaskDefinition
+	}
 	if task.Status == string(scheduledsdk.TaskStatusCancelled) || task.Status == string(scheduledsdk.TaskStatusDone) {
 		return nil, ErrInvalidTaskStatus
 	}
@@ -350,6 +354,13 @@ func (s *Service) ResumeTask(ctx context.Context, taskID int64) error {
 }
 
 func (s *Service) CancelTask(ctx context.Context, taskID int64) error {
+	task, err := s.taskRepo.GetByID(taskID)
+	if err != nil {
+		return err
+	}
+	if isBuiltinTaskDefinition(task) && !canManageBuiltinTaskDefinition(ctx) {
+		return ErrBuiltinTaskDefinition
+	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		if err := s.taskRepo.WithDB(tx).Cancel(taskID); err != nil {
 			return err
@@ -359,6 +370,13 @@ func (s *Service) CancelTask(ctx context.Context, taskID int64) error {
 }
 
 func (s *Service) DeleteTask(ctx context.Context, taskID int64) error {
+	task, err := s.taskRepo.GetByID(taskID)
+	if err != nil {
+		return err
+	}
+	if isBuiltinTaskDefinition(task) && !canManageBuiltinTaskDefinition(ctx) {
+		return ErrBuiltinTaskDefinition
+	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		taskRepo := s.taskRepo.WithDB(tx)
 		execRepo := s.executionRepo.WithDB(tx)
@@ -377,6 +395,31 @@ func (s *Service) DeleteTask(ctx context.Context, taskID int64) error {
 		}
 		return taskRepo.Delete(task)
 	})
+}
+
+func isBuiltinTaskDefinition(task *model.TimerTask) bool {
+	if task == nil {
+		return false
+	}
+	metadata := decodeStringMap(task.MetadataJSON)
+	if strings.TrimSpace(metadata["origin"]) == "manifest" {
+		return true
+	}
+	switch strings.TrimSpace(metadata["managed_by"]) {
+	case "app_manifest", "capability_bundle":
+		return true
+	default:
+		return false
+	}
+}
+
+func canManageBuiltinTaskDefinition(ctx context.Context) bool {
+	switch strings.TrimSpace(contextx.ResolveClientSource(ctx)) {
+	case "app_manifest", "capability_bundle":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) RunNow(ctx context.Context, taskID int64) (*scheduledsdk.Execution, error) {

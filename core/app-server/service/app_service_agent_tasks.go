@@ -24,11 +24,12 @@ func (a *AppService) reconcilePackageAgentTasks(ctx context.Context, state *appM
 		return nil
 	}
 	client := newAppScheduleClient()
+	managedCtx := contextx.WithClientSource(ctx, scheduledTaskSourceManifest)
 	for _, pkg := range packages {
 		if pkg == nil || len(pkg.AgentTasks) == 0 {
 			continue
 		}
-		existing, err := listManifestAgentTasksForPackage(ctx, client, pkg.FullPath)
+		existing, err := listManifestAgentTasksForPackage(managedCtx, client, pkg.FullPath)
 		if err != nil {
 			return fmt.Errorf("查询默认 Agent 任务 %s 失败: %w", pkg.FullPath, err)
 		}
@@ -38,17 +39,19 @@ func (a *AppService) reconcilePackageAgentTasks(ctx context.Context, state *appM
 				return err
 			}
 			current := existing[strings.TrimSpace(taskConfig.Code)]
-			if current != nil && policy == agentTaskPolicyCreateIfMissing {
-				logger.Infof(ctx, "[PackageAgentTask] skip existing manifest task full_code_path=%s code=%s task_id=%d policy=%s",
-					pkg.FullPath, taskConfig.Code, current.ID, policy)
-				continue
-			}
-
 			req, err := buildPackageAgentTaskRequest(ctx, state, pkg, taskConfig)
 			if err != nil {
 				return err
 			}
-			task, err := client.CreateTask(ctx, req)
+			if current != nil && policy == agentTaskPolicyCreateIfMissing {
+				if _, err := client.UpdateTask(managedCtx, current.ID, updateTaskRequestFromCreate(req)); err != nil {
+					return fmt.Errorf("更新默认 Agent 任务 %s/%s 失败: %w", pkg.FullPath, taskConfig.Code, err)
+				}
+				logger.Infof(ctx, "[PackageAgentTask] updated manifest task definition full_code_path=%s code=%s task_id=%d",
+					pkg.FullPath, taskConfig.Code, current.ID)
+				continue
+			}
+			task, err := client.CreateTask(managedCtx, req)
 			if err != nil {
 				return fmt.Errorf("创建默认 Agent 任务 %s/%s 失败: %w", pkg.FullPath, taskConfig.Code, err)
 			}
@@ -171,10 +174,12 @@ func buildPackageAgentTaskRequest(ctx context.Context, state *appMetadataSyncSta
 		ExecutorKey:     ScheduledAgentSessionExecutorKey,
 		ExecutorPayload: mustRawJSON(executorPayload),
 		Metadata: map[string]string{
-			"kind":          "scheduled_agent_session",
-			"managed_by":    "app_manifest",
-			"schedule_code": code,
-			"mode_code":     modeCode,
+			"kind":            "scheduled_agent_session",
+			"managed_by":      "app_manifest",
+			"origin":          scheduledTaskOriginManifest,
+			"default_enabled": fmt.Sprintf("%t", task.Enabled),
+			"schedule_code":   code,
+			"mode_code":       modeCode,
 		},
 		Status:          status,
 		Schedule:        schedule,

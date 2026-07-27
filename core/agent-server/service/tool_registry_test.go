@@ -40,6 +40,9 @@ func TestRetiredRouterToolsAreNotInMainRegistry(t *testing.T) {
 	if _, ok := reg.tools["change_role"]; !ok {
 		t.Fatal("change_role should be registered")
 	}
+	if _, ok := reg.tools["write_"+"doc"]; ok {
+		t.Fatal("the standalone document writer should be retired in favor of write_file/edit_file")
+	}
 }
 
 func TestCodeEditToolsAreRegistered(t *testing.T) {
@@ -173,6 +176,9 @@ func TestDerivedSchemasHideCompatFields(t *testing.T) {
 	if _, ok := writeFileProps["content"]; !ok {
 		t.Fatal("write_file schema should expose content")
 	}
+	if _, ok := writeFileProps["name"]; !ok {
+		t.Fatal("write_file schema should expose docs display name")
+	}
 	if _, ok := writeFileProps["source_code"]; ok {
 		t.Fatal("write_file schema should not expose source_code")
 	}
@@ -182,6 +188,9 @@ func TestDerivedSchemaNestedArrayItems(t *testing.T) {
 	reg := NewToolRegistry()
 	schema := reg.tools["edit_file"].Definition().InputSchema
 	properties := schema["properties"].(map[string]interface{})
+	if _, ok := properties["name"]; !ok {
+		t.Fatal("edit_file schema should expose docs display name")
+	}
 	for _, name := range []string{"search_edits", "line_edits"} {
 		if _, ok := properties[name]; !ok {
 			t.Fatalf("edit_file schema should expose %s", name)

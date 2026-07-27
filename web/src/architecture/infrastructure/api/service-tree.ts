@@ -157,6 +157,8 @@ export interface DirectoryOverviewStats {
 
 export interface DirectoryOverviewScheduledTask {
   kind: 'function' | 'agent'
+  origin: 'manifest' | 'user'
+  builtin: boolean
   resource?: DirectoryOverviewResource
   resource_path?: string
   resource_name?: string
@@ -191,6 +193,7 @@ export function copyDirectory(data: {
     directory_count: number
     file_count: number
     doc_count?: number
+    scheduled_function_count?: number
     agent_task_count?: number
     replaced?: boolean
     target_directory_path?: string
@@ -205,6 +208,7 @@ export function exportCapabilityBundle(data: {
   source_directory_paths?: string[]
   source_root_path?: string
   name?: string
+  include_user_task_ids?: number[]
 }) {
   return post<CapabilityBundle>('/workspace/api/v1/service_tree/export_capability_bundle', data)
 }

@@ -33,6 +33,7 @@ func (a *AppService) reconcileFormSchedules(ctx context.Context, state *appMetad
 		return nil
 	}
 	client := newAppScheduleClient()
+	managedCtx := contextx.WithClientSource(ctx, scheduledTaskSourceManifest)
 	for _, api := range apis {
 		if api == nil || strings.TrimSpace(api.TemplateType) != "form" || len(api.Schedules) == 0 {
 			continue
@@ -42,14 +43,14 @@ func (a *AppService) reconcileFormSchedules(ctx context.Context, state *appMetad
 			if err != nil {
 				return err
 			}
-			task, err := client.CreateTask(ctx, req)
+			task, err := client.CreateTask(managedCtx, req)
 			if err != nil {
 				return fmt.Errorf("创建默认定时任务 %s/%s 失败: %w", api.FullCodePath, schedule.Code, err)
 			}
 			if task == nil || task.ID <= 0 {
 				return fmt.Errorf("创建默认定时任务 %s/%s 未返回有效 task_id", api.FullCodePath, schedule.Code)
 			}
-			if _, err := client.UpdateTask(ctx, task.ID, updateTaskRequestFromCreate(req)); err != nil {
+			if _, err := client.UpdateTask(managedCtx, task.ID, updateTaskRequestFromCreate(req)); err != nil {
 				return fmt.Errorf("更新默认定时任务 %s/%s 失败: %w", api.FullCodePath, schedule.Code, err)
 			}
 		}
@@ -114,12 +115,14 @@ func buildFormScheduleTaskRequest(ctx context.Context, state *appMetadataSyncSta
 		ExecutorKey:     ScheduledFunctionExecutorKey,
 		ExecutorPayload: mustRawJSON(executorPayload),
 		Metadata: map[string]string{
-			"kind":          "scheduled_function",
-			"action":        "execute",
-			"method":        "POST",
-			"template_type": "form",
-			"managed_by":    "app_manifest",
-			"schedule_code": code,
+			"kind":            "scheduled_function",
+			"action":          "execute",
+			"method":          "POST",
+			"template_type":   "form",
+			"managed_by":      "app_manifest",
+			"origin":          scheduledTaskOriginManifest,
+			"default_enabled": fmt.Sprintf("%t", formSchedule.Enabled),
+			"schedule_code":   code,
 		},
 		Schedule:        schedule,
 		SourceType:      "function",

@@ -192,6 +192,8 @@ func (q *serviceTreeQueryView) loadDirectoryOverviewTasks(
 			}
 			items = append(items, &dto.DirectoryOverviewScheduledTask{
 				Kind:         kind,
+				Origin:       scheduledTaskOrigin(task),
+				Builtin:      isBuiltinScheduledTask(task),
 				Resource:     taskResource,
 				ResourcePath: taskResource.FullCodePath,
 				ResourceName: taskResource.Name,

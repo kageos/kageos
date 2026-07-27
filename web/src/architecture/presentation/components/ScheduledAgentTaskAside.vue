@@ -3,13 +3,24 @@
     <section class="detail-aside-card">
       <div class="detail-aside-card-head">
         <div class="detail-aside-title">{{ t('scheduledTask.agentDetailTitle') }}</div>
-        <el-tag :type="taskStatusTag(task.status)" effect="light">
-          {{ taskStatusLabel(task.status) }}
-        </el-tag>
+        <div class="detail-aside-tags">
+          <el-tag v-if="builtin" type="info" effect="plain">目录内置</el-tag>
+          <el-tag v-else type="success" effect="plain">自定义</el-tag>
+          <el-tag :type="taskStatusTag(task.status)" effect="light">
+            {{ taskStatusLabel(task.status) }}
+          </el-tag>
+        </div>
       </div>
       <div class="detail-aside-name">{{ task.title || t('scheduledTask.unnamedAgentTask') }}</div>
       <div class="detail-aside-path">{{ workspacePath || '-' }}</div>
       <div class="detail-aside-actions">
+        <el-tooltip v-if="builtin" content="复制为自定义" placement="top" effect="light">
+          <el-button
+            :icon="CopyDocument"
+            :disabled="inlineEditing"
+            @click="emit('copy', task)"
+          />
+        </el-tooltip>
         <el-tooltip :content="t('scheduledTask.runNow')" placement="top" effect="light">
           <el-button
             type="primary"
@@ -30,7 +41,7 @@
             @click="task.status === 'paused' ? emit('resume', task) : emit('pause', task)"
           />
         </el-tooltip>
-        <el-tooltip :content="t('scheduledTask.cancel')" placement="top" effect="light">
+        <el-tooltip v-if="!builtin" :content="t('scheduledTask.cancel')" placement="top" effect="light">
           <el-button
             type="danger"
             :icon="Close"
@@ -38,7 +49,7 @@
             @click="emit('cancel', task)"
           />
         </el-tooltip>
-        <el-tooltip :content="t('scheduledTask.delete')" placement="top" effect="light">
+        <el-tooltip v-if="!builtin" :content="t('scheduledTask.delete')" placement="top" effect="light">
           <el-button
             type="danger"
             plain
@@ -176,7 +187,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { CaretRight, Close, Delete, VideoPause, VideoPlay } from '@element-plus/icons-vue'
+import { CaretRight, Close, CopyDocument, Delete, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import type { TimerOverlapPolicy, TimerScheduleType, TimerTask } from '@/architecture/presentation/context/api/timer'
 import { createRelativeDateTimeShortcuts } from '@/architecture/shared/date'
 import {
@@ -188,6 +199,7 @@ import {
 
 defineProps<{
   task: TimerTask
+  builtin: boolean
   inlineEditing: boolean
   workspacePath: string
   llmConfigLabel: string
@@ -206,6 +218,7 @@ const emit = defineEmits<{
   (e: 'resume', task: TimerTask): void
   (e: 'cancel', task: TimerTask): void
   (e: 'delete', task: TimerTask): void
+  (e: 'copy', task: TimerTask): void
   (e: 'update:scheduleType', value: TimerScheduleType): void
   (e: 'update:runAt', value: string): void
   (e: 'update:cronExpr', value: string): void

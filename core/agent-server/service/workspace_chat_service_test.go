@@ -19,6 +19,25 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestWorkspaceCtxToEnvInputIncludesDirectoryContacts(t *testing.T) {
+	input := workspaceCtxToEnvInput(&dto.GetWorkspaceContextResp{
+		Directory: dto.WorkspaceContextDirectory{
+			Name:         "工单巡检",
+			Code:         "ticket_watch",
+			FullCodePath: "/alice/ops/ticket_watch",
+			Type:         "package",
+			Owner:        "alice",
+			Admins:       "bob,carol",
+		},
+	})
+	if input == nil {
+		t.Fatal("workspaceCtxToEnvInput returned nil")
+	}
+	if input.DirOwner != "alice" || input.DirAdmins != "bob,carol" {
+		t.Fatalf("directory contacts = owner:%q admins:%q, want alice and bob,carol", input.DirOwner, input.DirAdmins)
+	}
+}
+
 func TestGuideDocPathsFromReadDocArgsSupportsCommaSeparatedPaths(t *testing.T) {
 	paths := guideDocPathsFromReadDocArgs(map[string]interface{}{
 		"directory": "/system/prompt/platform-capability-boundaries,/system/prompt/sdk/agent-app-sdk-readme/",

@@ -268,7 +268,6 @@ func workspaceToolCallHasGeneratedOutput(summary streamloop.ToolCallSummary) boo
 		"build_workspace",
 		"write_file",
 		"edit_file",
-		"write_doc",
 		"create_directory":
 		return true
 	}

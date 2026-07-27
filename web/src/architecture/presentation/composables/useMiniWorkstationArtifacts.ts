@@ -31,8 +31,8 @@ export interface MiniArtifactItem {
 const GENERATED_ARTIFACT_TOOL_NAMES = new Set([
   'write_prd',
   'build_workspace',
-  'write_go_file',
-  'write_doc',
+  'write_file',
+  'edit_file',
   'create_directory'
 ])
 

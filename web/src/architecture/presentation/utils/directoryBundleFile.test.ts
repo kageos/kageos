@@ -65,6 +65,22 @@ describe('directoryBundleFile', () => {
         max_duration_seconds: 900,
         policy: 'create_if_missing'
       }],
+      scheduled_functions: [{
+        relative_path: 'message/send.form',
+        code: 'morning_send',
+        title: '早间消息',
+        action: 'execute',
+        method: 'POST',
+        body: { channel: 'ops' },
+        default_enabled: false,
+        schedule: {
+          type: 'cron',
+          cron_expr: '0 8 * * *',
+          timezone: 'Asia/Shanghai'
+        },
+        managed_by: 'app_manifest',
+        origin: 'manifest'
+      }],
       extensions: {
         install: {
           recommended_subpath: 'message'
@@ -114,6 +130,15 @@ describe('directoryBundleFile', () => {
       mode_code: 'dev',
       max_duration_seconds: 900,
       policy: 'create_if_missing'
+    })
+    expect(parsed.scheduled_functions?.[0]).toMatchObject({
+      relative_path: 'message/send.form',
+      code: 'morning_send',
+      action: 'execute',
+      body: { channel: 'ops' },
+      default_enabled: false,
+      managed_by: 'app_manifest',
+      origin: 'manifest'
     })
     expect(parsed.extensions).toEqual({
       install: {

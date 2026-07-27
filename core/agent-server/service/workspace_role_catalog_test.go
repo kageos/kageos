@@ -86,8 +86,13 @@ func TestWorkspaceRoleSpecAppOperator(t *testing.T) {
 	if !containsWorkspaceRoleString(got.AllowedTools, "list_scheduled_task_executions") {
 		t.Fatalf("app_operator should allow read-only scheduled execution listing, tools=%v", got.AllowedTools)
 	}
-	if containsWorkspaceRoleString(got.AllowedTools, "write_file") {
-		t.Fatalf("app_operator should not write code, tools=%v", got.AllowedTools)
+	if !containsWorkspaceRoleString(got.AllowedTools, "write_file") ||
+		!containsWorkspaceRoleString(got.AllowedTools, "edit_file") {
+		t.Fatalf("app_operator should allow docs-scoped file tools, tools=%v", got.AllowedTools)
+	}
+	if !strings.Contains(got.Action, "只允许修改文档") ||
+		!strings.Contains(got.Action, "不改代码") {
+		t.Fatalf("app_operator should explicitly scope file tools to docs, action=%q", got.Action)
 	}
 	if !strings.Contains(got.RouteDescription, "目的不是测试验证") {
 		t.Fatalf("app_operator route description should distinguish business operation from QA: %q", got.RouteDescription)
@@ -122,6 +127,11 @@ func TestWorkspaceRoleSpecAutomationOperator(t *testing.T) {
 	if !strings.Contains(got.RouteDescription, "当前目录、本空间其他目录、其他空间函数、系统工具和连接器函数") ||
 		!strings.Contains(got.RouteDescription, "不要把示例规则机械套到所有任务") {
 		t.Fatalf("automation_operator route description should explain scheduled session resource orchestration and scenario-specific quality control: %q", got.RouteDescription)
+	}
+	for _, want := range []string{"创建智能员工", "“智能员工”“值守员工”是 Agent 任务的产品名称", "`create_scheduled_agent_task`", "不要创建用户、角色、应用目录或普通函数任务"} {
+		if !strings.Contains(got.RouteDescription, want) {
+			t.Fatalf("automation_operator route description should contain %q, got %q", want, got.RouteDescription)
+		}
 	}
 }
 

@@ -118,8 +118,9 @@
               :notification-route-badge-title="getNotificationRouteSummaryTitle(data)"
               :notification-route-badge-tone="getNotificationRouteBadgeTone(data)"
               :show-scheduled-agent-badge="hasScheduledAgentBadge(data)"
-              :scheduled-agent-badge-value="getScheduledAgentBadgeText(data)"
               :scheduled-agent-badge-title="getScheduledAgentBadgeTitle(data)"
+              :scheduled-agent-state="getScheduledAgentState(data)"
+              @scheduled-agent-click="handleNodeClick(data)"
               @dragstart="onTreeNodeDragStart($event, data)"
               @contextmenu.prevent
               @notification-click="openNodeNotifications(data)"
@@ -183,6 +184,69 @@
       :target-node="importDirectoryTargetNode"
       @imported="handleDirectoryImported"
     />
+
+    <el-dialog
+      v-model="exportDialogVisible"
+      width="680px"
+      title="导出自动执行配置"
+      destroy-on-close
+      :close-on-click-modal="false"
+    >
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        title="目录内置任务会强制随目录导出；自定义任务可按需选择，选中后会作为新目录的内置模板。"
+      />
+      <el-alert
+        v-if="exportPreviewWarnings.length"
+        class="export-preview-warning"
+        type="warning"
+        :closable="false"
+        show-icon
+        :title="exportPreviewWarnings.join('；')"
+      />
+      <section class="export-task-section">
+        <div class="export-task-section-head">
+          <strong>目录内置</strong>
+          <span>{{ exportBuiltinTasks.length }} 项 · 必选且不可修改</span>
+        </div>
+        <div v-if="exportBuiltinTasks.length" class="export-task-list">
+          <label v-for="item in exportBuiltinTasks" :key="`${item.kind}:${item.task.id}`" class="export-task-row is-locked">
+            <el-checkbox :model-value="true" disabled />
+            <span class="export-task-main">
+              <span>{{ item.task.title || '未命名任务' }}</span>
+              <small>{{ automationKindLabel(item.kind) }} · {{ item.resource_path }}</small>
+            </span>
+            <el-tag size="small" type="info">目录内置</el-tag>
+          </label>
+        </div>
+        <el-empty v-else :image-size="52" description="没有目录内置任务" />
+      </section>
+      <section class="export-task-section">
+        <div class="export-task-section-head">
+          <strong>自定义</strong>
+          <span>{{ exportUserTasks.length }} 项 · 默认不导出</span>
+        </div>
+        <el-checkbox-group v-if="exportUserTasks.length" v-model="selectedExportUserTaskIDs" class="export-task-list">
+          <label v-for="item in exportUserTasks" :key="`${item.kind}:${item.task.id}`" class="export-task-row">
+            <el-checkbox :value="item.task.id" />
+            <span class="export-task-main">
+              <span>{{ item.task.title || '未命名任务' }}</span>
+              <small>{{ automationKindLabel(item.kind) }} · {{ item.resource_path }}</small>
+            </span>
+            <el-tag size="small" type="success">自定义</el-tag>
+          </label>
+        </el-checkbox-group>
+        <el-empty v-else :image-size="52" description="没有可选的自定义任务" />
+      </section>
+      <template #footer>
+        <el-button @click="exportDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="exportConfirming" @click="confirmCapabilityExport">
+          确认导出
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -194,7 +258,14 @@ import { MoreFilled, Download, Delete, Search, Select, Close, Upload } from '@el
 import { ElLoading, ElMessageBox, ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { isRootNode } from '@/architecture/domain/utils/tree-utils'
-import { exportCapabilityBundle, updatePackage, updateServiceTreeFunction, updateDocs } from '@/architecture/presentation/context/api/service-tree'
+import {
+  exportCapabilityBundle,
+  getDirectoryOverview,
+  updatePackage,
+  updateServiceTreeFunction,
+  updateDocs,
+  type DirectoryOverviewScheduledTask,
+} from '@/architecture/presentation/context/api/service-tree'
 import { getRuntimeStateSummary, type RuntimeStateSummary } from '@/architecture/presentation/context/api/state'
 import {
   listMessageNotificationRouteSummary,
@@ -289,6 +360,23 @@ const bulkExporting = ref(false)
 const renamingNode = ref(false)
 const importDirectoryDialogVisible = ref(false)
 const importDirectoryTargetNode = ref<ServiceTree | null>(null)
+const exportDialogVisible = ref(false)
+const exportConfirming = ref(false)
+const exportBuiltinTasks = ref<DirectoryOverviewScheduledTask[]>([])
+const exportUserTasks = ref<DirectoryOverviewScheduledTask[]>([])
+const selectedExportUserTaskIDs = ref<number[]>([])
+const exportPreviewWarnings = ref<string[]>([])
+const pendingCapabilityExport = ref<{
+  request: {
+    source_directory_path?: string
+    source_directory_paths?: string[]
+    source_root_path?: string
+    name?: string
+  }
+  downloadPath: string
+  skippedCount: number
+  exitBulkAfterSuccess: boolean
+} | null>(null)
 const pendingExpandPath = ref('')
 let unsubscribeRuntimeRefresh: (() => void) | null = null
 let unsubscribeNotificationRouteRefresh: (() => void) | null = null
@@ -491,12 +579,23 @@ const hasScheduledAgentBadge = (node: ServiceTree): boolean => {
   return node.type === 'package' && getScheduledAgentTaskCount(node) > 0
 }
 
-const getScheduledAgentBadgeText = (node: ServiceTree): string | number => {
-  return getScheduledAgentTaskCount(node)
+const getScheduledAgentBadgeTitle = (node: ServiceTree): string => {
+  const total = getScheduledAgentTaskCount(node)
+  const enabled = Number(node.enabled_agent_tasks || 0)
+  const running = Number(node.running_agent_tasks || 0)
+  const failed = Number(node.failed_agent_tasks || 0)
+  if (running > 0 && failed > 0) return `${running} 名智能员工正在处理，${failed} 名需要关注`
+  if (running > 0) return `${running} 名智能员工正在处理，${total} 名员工在值守`
+  if (failed > 0) return `${failed} 名智能员工需要关注`
+  if (enabled > 0) return `${enabled} 名智能员工已启动，${total} 名员工在值守`
+  return `${total} 名智能员工已配置，目前全部暂停`
 }
 
-const getScheduledAgentBadgeTitle = (node: ServiceTree): string => {
-  return t('serviceTree.scheduledAgentBadgeTitle', { count: getScheduledAgentTaskCount(node) })
+const getScheduledAgentState = (node: ServiceTree): 'running' | 'enabled' | 'paused' | 'failed' => {
+  if (Number(node.failed_agent_tasks || 0) > 0) return 'failed'
+  if (Number(node.running_agent_tasks || 0) > 0) return 'running'
+  if (Number(node.enabled_agent_tasks || 0) > 0) return 'enabled'
+  return 'paused'
 }
 
 function openNodeNotifications(node: ServiceTree) {
@@ -872,6 +971,78 @@ function buildBulkExportName(nodes: ServiceTree[]): string {
   return props.treeData[0]?.name || 'capability'
 }
 
+function automationKindLabel(kind: DirectoryOverviewScheduledTask['kind']): string {
+  return kind === 'agent' ? '智能员工' : '函数定时'
+}
+
+function isTaskInsideExportNodes(item: DirectoryOverviewScheduledTask, nodes: ServiceTree[]): boolean {
+  const resourcePath = String(item.resource_path || item.task.resource_key || '').replace(/\/+$/, '')
+  if (!resourcePath) return false
+  return nodes.some((node) => {
+    const nodePath = String(node.full_code_path || '').replace(/\/+$/, '')
+    if (!nodePath) return false
+    if (node.type === 'function') return resourcePath === nodePath
+    return resourcePath === nodePath || resourcePath.startsWith(`${nodePath}/`)
+  })
+}
+
+async function prepareCapabilityExport(
+  request: {
+    source_directory_path?: string
+    source_directory_paths?: string[]
+    source_root_path?: string
+    name?: string
+  },
+  nodes: ServiceTree[],
+  downloadPath: string,
+  skippedCount = 0,
+  exitBulkAfterSuccess = false,
+) {
+  const overviewPath = request.source_root_path || request.source_directory_path
+  if (!overviewPath) throw new Error('缺少导出目录路径')
+  const overview = await getDirectoryOverview(overviewPath)
+  const tasks = [
+    ...(overview.scheduled_function_tasks || []),
+    ...(overview.scheduled_agent_tasks || []),
+  ].filter(item => isTaskInsideExportNodes(item, nodes))
+  exportBuiltinTasks.value = tasks.filter(item => item.builtin || item.origin === 'manifest')
+  exportUserTasks.value = tasks.filter(item => !item.builtin && item.origin !== 'manifest')
+  exportPreviewWarnings.value = overview.warnings || []
+  selectedExportUserTaskIDs.value = []
+  pendingCapabilityExport.value = {
+    request,
+    downloadPath,
+    skippedCount,
+    exitBulkAfterSuccess,
+  }
+  exportDialogVisible.value = true
+}
+
+async function confirmCapabilityExport() {
+  const pending = pendingCapabilityExport.value
+  if (!pending) return
+  exportConfirming.value = true
+  try {
+    const bundle = await exportCapabilityBundle({
+      ...pending.request,
+      include_user_task_ids: selectedExportUserTaskIDs.value,
+    })
+    downloadCapabilityBundleFile(bundle, pending.downloadPath)
+    ElMessage.success(
+      pending.skippedCount > 0
+        ? t('serviceTree.exportStartedSkipped', { count: pending.skippedCount })
+        : t('serviceTree.exportStarted')
+    )
+    exportDialogVisible.value = false
+    if (pending.exitBulkAfterSuccess) exitMultiSelectMode()
+  } catch (error: any) {
+    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('serviceTree.exportFailed')
+    ElMessage.error(message)
+  } finally {
+    exportConfirming.value = false
+  }
+}
+
 async function handleBulkExport() {
   const nodes = exportableSelectedNodes.value
   if (nodes.length === 0) {
@@ -882,14 +1053,11 @@ async function handleBulkExport() {
   const skippedCount = selectedNodes.value.length - nodes.length
   bulkExporting.value = true
   try {
-    const bundle = await exportCapabilityBundle({
+    await prepareCapabilityExport({
       source_root_path: rootFullCodePath.value,
       source_directory_paths: nodes.map((node) => node.full_code_path as string),
       name: buildBulkExportName(nodes)
-    })
-    downloadCapabilityBundleFile(bundle, rootFullCodePath.value)
-    ElMessage.success(skippedCount > 0 ? t('serviceTree.exportStartedSkipped', { count: skippedCount }) : t('serviceTree.exportStarted'))
-    exitMultiSelectMode()
+    }, nodes, rootFullCodePath.value, skippedCount, true)
   } catch (error: any) {
     const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('serviceTree.exportFailed')
     ElMessage.error(message)
@@ -921,12 +1089,10 @@ const handleExportJson = async (data: ServiceTree) => {
   }
 
   try {
-    const bundle = await exportCapabilityBundle({
+    await prepareCapabilityExport({
       source_directory_path: data.full_code_path,
       name: data.name || data.code
-    })
-    downloadCapabilityBundleFile(bundle, data.full_code_path)
-    ElMessage.success(t('serviceTree.exportStarted'))
+    }, [data], data.full_code_path)
   } catch (error: any) {
     const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('serviceTree.exportFailed')
     ElMessage.error(message)
@@ -999,6 +1165,72 @@ defineExpose({
   display: flex;
   flex-direction: column;
   background: var(--el-bg-color);
+}
+
+.export-task-section {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px;
+}
+
+.export-preview-warning {
+  margin-top: 12px;
+}
+
+.export-task-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.export-task-section-head span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.export-task-list {
+  display: grid;
+  max-height: 190px;
+  gap: 6px;
+  overflow: auto;
+}
+
+.export-task-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: var(--el-fill-color-lighter);
+  cursor: pointer;
+}
+
+.export-task-row.is-locked {
+  cursor: default;
+}
+
+.export-task-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.export-task-main > span,
+.export-task-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-task-main small {
+  color: var(--el-text-color-secondary);
 }
 
 .tree-header {

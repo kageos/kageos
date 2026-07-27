@@ -298,6 +298,9 @@ func TestScheduledTaskToolDescriptionsDistinguishFunctionAndAgentTasks(t *testin
 
 	agentDesc := (&CreateScheduledAgentTaskTool{}).Definition().Description
 	for _, want := range []string{
+		"智能员工（Agent 任务）",
+		"用户说“给这个目录创建一个智能员工”时使用本工具",
+		"不要创建用户、角色、应用目录或普通函数任务",
 		"启动一个 Agent 工作台会话",
 		"message 当作执行说明交给工作台 Agent",
 		"核心参数是 title + message",
@@ -311,6 +314,7 @@ func TestScheduledTaskToolDescriptionsDistinguishFunctionAndAgentTasks(t *testin
 		"Agent 任务可以编排当前目录、本空间其他目录、其他空间函数",
 		"质量规则要结合业务",
 		"不要用于已明确的单个 Form/Table/Chart 函数调用",
+		"不能静默替换用户明确要求的智能员工",
 	} {
 		if !strings.Contains(agentDesc, want) {
 			t.Fatalf("agent task description should contain %q, got %q", want, agentDesc)
