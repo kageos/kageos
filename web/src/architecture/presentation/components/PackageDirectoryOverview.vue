@@ -212,7 +212,7 @@
                     type="primary"
                     effect="light"
                   >
-                    {{ t('scheduledTask.running') }}
+                    <el-icon class="is-loading" style="margin-right: 4px"><Loading /></el-icon>{{ t('scheduledTask.running') }}
                   </el-tag>
                 </span>
                 <span class="task-row-path">{{ item.resourceName }} · {{ item.resourcePath }}</span>
@@ -292,7 +292,7 @@
                     type="primary"
                     effect="light"
                   >
-                    {{ t('scheduledTask.running') }}
+                    <el-icon class="is-loading" style="margin-right: 4px"><Loading /></el-icon>{{ t('scheduledTask.running') }}
                   </el-tag>
                 </span>
                 <span class="task-row-path">{{ item.resourceName }} · {{ item.resourcePath }}</span>
@@ -338,7 +338,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowDown, ArrowUp, CaretRight, ChatLineRound, Clock, Document, Folder, Operation, Refresh, Timer, VideoPlay } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, CaretRight, ChatLineRound, Clock, Document, Folder, Operation, Refresh, Timer, VideoPlay, Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { getDirectoryOverview, type DirectoryOverviewResp, type DirectoryOverviewScheduledTask, type DirectoryOverviewStats } from '@/architecture/presentation/context/api/service-tree'
