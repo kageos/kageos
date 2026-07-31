@@ -125,6 +125,64 @@ func TestPermissionRequestApproveGrantsRoleAndRecordsReviewer(t *testing.T) {
 	}
 }
 
+func TestPermissionRequestApproveSystemDirectoryMemberGrantsChildFormWrite(t *testing.T) {
+	requestService, permission, db := newPermissionRequestTestService(t)
+	appModel := &model.App{User: "system", Code: "democase", Name: "Demo", Version: "v1"}
+	if err := db.Create(appModel).Error; err != nil {
+		t.Fatal(err)
+	}
+	parentPath := "/system/democase/hangla_rank"
+	formPath := parentPath + "/rate.form"
+	if err := db.Create(&model.ServiceTree{
+		Name:         "排行榜",
+		Code:         "hangla_rank",
+		Type:         model.ServiceTreeTypePackage,
+		AppID:        appModel.ID,
+		RefID:        2,
+		FullCodePath: parentPath,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	created, err := requestService.CreateRequest(
+		actorContext("carol"),
+		"system",
+		"democase",
+		"carol",
+		parentPath,
+		access.RoleMember,
+		"需要提交评分",
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := requestService.Approve(actorContext("system"), created.ID, "system", "同意使用"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := permission.RequirePermission(
+		context.Background(),
+		"system",
+		"democase",
+		"carol",
+		formPath,
+		access.ActionWrite,
+	); err != nil {
+		t.Fatalf("approved directory member should submit child form: %v", err)
+	}
+	if err := permission.RequirePermission(
+		context.Background(),
+		"system",
+		"democase",
+		"carol",
+		parentPath,
+		access.ActionAdmin,
+	); err == nil {
+		t.Fatal("approved member must not receive admin")
+	}
+}
+
 func TestPermissionRequestAllowsInheritedMemberToUpgradeChildToAdmin(t *testing.T) {
 	requestService, permission, _ := newPermissionRequestTestService(t)
 	parentPath := "/alice/ops/tickets"

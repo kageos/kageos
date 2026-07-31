@@ -34,7 +34,7 @@ func (a *Permission) ListAssignments(c *gin.Context) {
 		return
 	}
 	ctx := contextx.ToContext(c)
-	if err := a.permissionService.RequirePermission(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath, access.ActionAdmin); err != nil {
+	if err := a.permissionService.RequirePermission(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}

@@ -138,7 +138,7 @@
                 <el-tag size="small" effect="plain">
                   {{ t('common.selectedCount', { count: displayedCheckedResourceCount }) }}
                 </el-tag>
-                <el-tooltip v-if="canManageActiveResource" :content="t('access.viewExisting')" placement="bottom">
+                <el-tooltip v-if="canRead(activeResource)" :content="t('access.viewExisting')" placement="bottom">
                   <el-button
                     size="small"
                     :icon="UserFilled"
@@ -750,7 +750,7 @@
             {{ formatExpiresAt(row.expires_at) }}
           </template>
         </el-table-column>
-        <el-table-column :label="t('common.operation')" width="92" fixed="right">
+        <el-table-column v-if="canManageActiveResource" :label="t('common.operation')" width="92" fixed="right">
           <template #default="{ row }">
             <el-button
               v-if="row.direct"
@@ -1299,10 +1299,9 @@ async function reloadPage() {
     refreshRequestNodeDisabledState()
     await nextTick()
     syncVisibleTreeChecks()
-    await Promise.all([
-      workflowTab.value === 'request' ? loadApprovers() : Promise.resolve(),
-      canAdmin(findNodeByPath(treeData.value, initialPath)) ? loadAssignments() : Promise.resolve(),
-    ])
+    if (workflowTab.value === 'request') {
+      await loadApprovers()
+    }
   } catch (error: any) {
     if (isWorkspaceForbiddenError(error)) {
       showAccessRequestFallback(error)
@@ -1504,7 +1503,6 @@ function setWorkflowTab(tab: WorkflowTab) {
     selectedResourcePaths.value = collectSelectionWithDescendants(activeResourcePath.value)
     refreshRequestNodeDisabledState()
     void nextTick(syncVisibleTreeChecks)
-    void loadAssignments()
   } else if (tab === 'request') {
     selectedResourcePaths.value = []
     setRecommendedRequestRole(activeResource.value)
@@ -1750,9 +1748,6 @@ function handleResourceClick(data: ServiceTree) {
     return
   }
   void nextTick(() => treeRef.value?.setCurrentKey?.(data.full_code_path))
-  if (workflowTab.value === 'grant') {
-    void loadAssignments()
-  }
 }
 
 function handleResourceCheck(data: ServiceTree) {
@@ -1778,7 +1773,6 @@ function syncCheckedResourcePaths() {
   if (selectedResourcePaths.value.length > 0 && !selectedResourcePaths.value.includes(activeResourcePath.value)) {
     activeResourcePath.value = selectedResourcePaths.value[0] || ''
     treeRef.value?.setCurrentKey?.(activeResourcePath.value)
-    void loadAssignments()
   }
 }
 
@@ -1925,7 +1919,7 @@ function goBack() {
 }
 
 async function openAssignmentsDialog() {
-  if (!canManageActiveResource.value) return
+  if (!canRead(activeResource.value)) return
   assignmentsDialogVisible.value = true
   await loadAssignments()
 }
@@ -1970,7 +1964,6 @@ async function submitGrant() {
     if (grantPrincipalType.value === 'user') {
       grantUsersValue.value = createStringFieldValue(grantUsersField.value, '', { emptyRaw: '' })
     }
-    await loadAssignments()
   } catch (error: any) {
     const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('access.grantFailed')
     ElMessage.error(message)

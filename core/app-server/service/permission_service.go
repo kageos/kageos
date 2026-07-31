@@ -65,15 +65,11 @@ func (s *PermissionService) ResolvePermissions(ctx context.Context, tenantUser, 
 	if isSystemRootUser(username) {
 		return ownerAccessResult(resourcePath), nil
 	}
-	if access.IsSystemBuiltinPath(resourcePath) {
-		return &access.Result{
-			ResourcePath: resourcePath,
-			RoleCodes:    []access.RoleCode{access.RoleViewer},
-			Permissions:  access.RolePermissions(access.RoleViewer),
-		}, nil
-	}
 	if tenantUser == "" || app == "" || username == "" || resourcePath == "" {
-		return &access.Result{ResourcePath: resourcePath, Permissions: access.EmptyPermissionSet()}, nil
+		return applySystemBuiltinViewer(&access.Result{
+			ResourcePath: resourcePath,
+			Permissions:  access.EmptyPermissionSet(),
+		}), nil
 	}
 
 	if s.isWorkspaceOwnerOrLegacyAdmin(ctx, tenantUser, app, username) {
@@ -89,7 +85,9 @@ func (s *PermissionService) ResolvePermissions(ctx context.Context, tenantUser, 
 	if err != nil {
 		return nil, err
 	}
-	return access.Resolve(toAccessAssignments(assignments), resourcePath, time.Now()), nil
+	return applySystemBuiltinViewer(
+		access.Resolve(toAccessAssignments(assignments), resourcePath, time.Now()),
+	), nil
 }
 
 func (s *PermissionService) GrantRole(ctx context.Context, req access.GrantRoleRequest) error {
@@ -336,7 +334,7 @@ func (s *PermissionService) PermissionsForTree(ctx context.Context, tenantUser, 
 	now := time.Now()
 	for _, path := range resourcePaths {
 		normalized := access.NormalizeResourcePath(path)
-		results[normalized] = access.Resolve(accessAssignments, normalized, now)
+		results[normalized] = applySystemBuiltinViewer(access.Resolve(accessAssignments, normalized, now))
 	}
 	return results, nil
 }
@@ -358,6 +356,24 @@ func ownerAccessResult(resourcePath string) *access.Result {
 		RoleCodes:    []access.RoleCode{access.RoleOwner},
 		Permissions:  access.RolePermissions(access.RoleOwner),
 	}
+}
+
+// applySystemBuiltinViewer keeps built-in workspaces readable by default while
+// still honoring explicit Member/Admin assignments. The Viewer role is only
+// exposed when there is no stronger assignment, so callers see the effective
+// assigned role instead of a synthetic Viewer + Member combination.
+func applySystemBuiltinViewer(result *access.Result) *access.Result {
+	if result == nil || !access.IsSystemBuiltinPath(result.ResourcePath) {
+		return result
+	}
+	result.Permissions = access.MergePermissionSets(
+		access.RolePermissions(access.RoleViewer),
+		result.Permissions,
+	)
+	if len(result.RoleCodes) == 0 {
+		result.RoleCodes = []access.RoleCode{access.RoleViewer}
+	}
+	return result
 }
 
 func (s *PermissionService) isWorkspaceOwnerOrLegacyAdmin(ctx context.Context, tenantUser, app, username string) bool {

@@ -36,7 +36,6 @@
           <div class="tab-content">
             <PermissionPanel
               v-if="activeTab === 'permission'"
-              ref="accessPanelRef"
               :node="currentFunction"
               embedded
               @changed="$emit('accessChanged')"
@@ -141,10 +140,6 @@ interface LoadableOperateLogSection {
   load: () => void
 }
 
-interface LoadableAccessPanel {
-  loadAssignments: () => void
-}
-
 interface ReplayableFormView {
   applyOperateLog?: (requestBody: Record<string, any>, responseBody?: Record<string, any> | null) => void
 }
@@ -167,7 +162,6 @@ const emit = defineEmits<{
 }>()
 
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
-const accessPanelRef = ref<LoadableAccessPanel | null>(null)
 const isFormFunction = computed(() => props.currentFunctionDetail?.template_type === 'form' || props.currentFunction?.template_type === 'form')
 const scheduledFocusTaskID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY))
 const scheduledFocusExecutionID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_EXECUTION_ID_QUERY_KEY))
@@ -175,9 +169,6 @@ const scheduledFocusExecutionID = computed(() => readStringQuery(route.query, PL
 function loadOperateLogTab(tabName: FunctionTabName) {
   if (tabName === 'operateLog' && featureFlags.operateLogs) {
     nextTick(() => operateLogSectionRef.value?.load())
-  }
-  if (tabName === 'permission') {
-    nextTick(() => accessPanelRef.value?.loadAssignments())
   }
 }
 

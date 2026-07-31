@@ -21,7 +21,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane name="permission">
+        <el-tab-pane name="permission" lazy>
           <template #label>
             <PermissionRequestTabLabel
               :label="t('packageDetail.permission')"
@@ -30,7 +30,7 @@
           </template>
           <div class="tab-content access-tab-content">
             <PermissionPanel
-              ref="accessPanelRef"
+              v-if="activeTab === 'permission'"
               :node="packageNode"
               embedded
               @changed="$emit('access-changed')"
@@ -100,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import type { ServiceTree } from '@/architecture/domain/types'
@@ -109,7 +109,6 @@ import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 import NotificationRoutePanel from './NotificationRoutePanel.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
-import PermissionPanel from './PermissionPanel.vue'
 import PermissionRequestTabLabel from './PermissionRequestTabLabel.vue'
 import { usePackageDetailTabs, type PackageTabName } from '@/architecture/presentation/composables/usePackageDetailTabs'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
@@ -122,10 +121,6 @@ import {
 
 interface LoadableOperateLogSection {
   load: () => void
-}
-
-interface LoadableAccessPanel {
-  loadAssignments: () => void
 }
 
 const props = defineProps<{
@@ -150,7 +145,7 @@ const { activeTab, handlePackageTabChange } = usePackageDetailTabs({
   currentPackageNode: packageNodeRef,
 })
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
-const accessPanelRef = ref<LoadableAccessPanel | null>(null)
+const PermissionPanel = defineAsyncComponent(() => import('./PermissionPanel.vue'))
 
 const directoryMarkdown = computed(() => {
   return props.packageNode?.description?.trim() || ''
@@ -177,9 +172,6 @@ function handleScheduledAgentTotalChange(value: number) {
 function loadOperateLogTab(tabName: PackageTabName) {
   if (tabName === 'operateLog' && featureFlags.operateLogs) {
     nextTick(() => operateLogSectionRef.value?.load())
-  }
-  if (tabName === 'permission') {
-    nextTick(() => accessPanelRef.value?.loadAssignments())
   }
 }
 

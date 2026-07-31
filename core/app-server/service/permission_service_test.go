@@ -152,6 +152,69 @@ func TestPermissionSystemBuiltinAllowsReadOnly(t *testing.T) {
 	}
 }
 
+func TestPermissionSystemBuiltinMergesExplicitMemberForExecutionAndTree(t *testing.T) {
+	service, _, db := newPermissionTestService(t)
+	parentPath := "/system/democase/hangla_rank"
+	formPath := parentPath + "/rate.form"
+	assignment := &appmodel.WorkspaceRoleAssignment{
+		TenantUser:    "system",
+		App:           "democase",
+		PrincipalType: string(access.PrincipalUser),
+		PrincipalKey:  "bob",
+		ResourcePath:  parentPath,
+		RoleCode:      string(access.RoleMember),
+	}
+	assignment.CreatedBy = "system"
+	if err := db.Create(assignment).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	resolved, err := service.ResolvePermissions(context.Background(), "system", "democase", "bob", formPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !access.HasPermission(resolved.Permissions, access.ActionWrite) {
+		t.Fatalf("explicit member on system directory should grant inherited form write: %#v", resolved)
+	}
+	if access.HasPermission(resolved.Permissions, access.ActionAdmin) {
+		t.Fatalf("member should not grant admin: %#v", resolved)
+	}
+	if resolved.InheritedFrom != parentPath {
+		t.Fatalf("inherited_from = %q, want %q", resolved.InheritedFrom, parentPath)
+	}
+	if len(resolved.RoleCodes) != 1 || resolved.RoleCodes[0] != access.RoleMember {
+		t.Fatalf("role_codes = %#v, want member without synthetic viewer", resolved.RoleCodes)
+	}
+	if err := service.RequirePermission(
+		context.Background(),
+		"system",
+		"democase",
+		"bob",
+		formPath,
+		access.ActionWrite,
+	); err != nil {
+		t.Fatalf("form execution should accept inherited system member: %v", err)
+	}
+
+	tree, err := service.PermissionsForTree(
+		context.Background(),
+		"system",
+		"democase",
+		"bob",
+		[]string{parentPath, formPath, "/system/democase/other"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !access.HasPermission(tree[formPath].Permissions, access.ActionWrite) {
+		t.Fatalf("tree resolver should agree with execution resolver: %#v", tree[formPath])
+	}
+	if !access.HasPermission(tree["/system/democase/other"].Permissions, access.ActionRead) ||
+		access.HasPermission(tree["/system/democase/other"].Permissions, access.ActionWrite) {
+		t.Fatalf("unassigned system resource should remain viewer-only: %#v", tree["/system/democase/other"])
+	}
+}
+
 func TestPermissionSystemUserHasOwnerPermissionOnSystemBuiltin(t *testing.T) {
 	service, _, _ := newPermissionTestService(t)
 
