@@ -26,7 +26,7 @@ type AppService struct {
 	serviceTreeRepo *repository.ServiceTreeRepository
 	operateLogRepo  *repository.OperateLogRepository
 	docService      *DocService
-	teamAccess      *TeamAccessService
+	permission      *PermissionService
 	sensitiveFields *FunctionSensitiveFieldService
 }
 
@@ -46,7 +46,7 @@ type AppServiceDependencies struct {
 	ServiceTreeRepository         *repository.ServiceTreeRepository
 	OperateLogRepository          *repository.OperateLogRepository
 	DocService                    *DocService
-	TeamAccessService             *TeamAccessService
+	PermissionService             *PermissionService
 	FunctionSensitiveFieldService *FunctionSensitiveFieldService
 }
 
@@ -59,7 +59,7 @@ func NewAppService(deps AppServiceDependencies) *AppService {
 		serviceTreeRepo: deps.ServiceTreeRepository,
 		operateLogRepo:  deps.OperateLogRepository,
 		docService:      deps.DocService,
-		teamAccess:      deps.TeamAccessService,
+		permission:      deps.PermissionService,
 		sensitiveFields: deps.FunctionSensitiveFieldService,
 	}
 }
@@ -1071,10 +1071,10 @@ func (a *AppService) GetApps(ctx context.Context, req *dto.GetAppsReq) (*dto.Get
 }
 
 func (a *AppService) mergeAccessibleApps(ctx context.Context, apps []*model.App, req *dto.GetAppsReq) ([]*model.App, error) {
-	if a.teamAccess == nil || req == nil || req.User == "" || req.Type != nil {
+	if a.permission == nil || req == nil || req.User == "" || req.Type != nil {
 		return apps, nil
 	}
-	grantedApps, err := a.teamAccess.ListAccessibleApps(ctx, req.User)
+	grantedApps, err := a.permission.ListAccessibleApps(ctx, req.User)
 	if err != nil {
 		return nil, err
 	}
@@ -1119,18 +1119,18 @@ func (a *AppService) canReadApp(ctx context.Context, app *model.App, currentUser
 	if app == nil {
 		return false
 	}
-	if a.teamAccess == nil {
+	if a.permission == nil {
 		return true
 	}
 	resourcePath := app.GetPrefix()
-	ok, err := a.teamAccess.Can(ctx, app.User, app.Code, currentUser, resourcePath, access.ActionRead)
+	ok, err := a.permission.HasPermission(ctx, app.User, app.Code, currentUser, resourcePath, access.ActionRead)
 	if err != nil {
 		return false
 	}
 	if ok {
 		return true
 	}
-	hasAnyAccess, err := a.teamAccess.HasAnyWorkspaceAccess(ctx, app.User, app.Code, currentUser)
+	hasAnyAccess, err := a.permission.HasAnyWorkspacePermission(ctx, app.User, app.Code, currentUser)
 	return err == nil && hasAnyAccess
 }
 

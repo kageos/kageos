@@ -53,7 +53,7 @@ func SearchResources(ctx context.Context, req *dto.SearchResourcesReq) (*dto.Sea
 
 // MyPermissions 查询当前用户对资源的权限。
 func MyPermissions(ctx context.Context, resourcePath string) (*dto.MyPermissionsResp, error) {
-	return GetAPI[*dto.MyPermissionsResp](ctx, "/workspace/api/v1/team_access/my_permissions", buildQueryParams(
+	return GetAPI[*dto.MyPermissionsResp](ctx, "/workspace/api/v1/permissions/me", buildQueryParams(
 		withTrimmedQueryValue("resource_path", resourcePath),
 	))
 }

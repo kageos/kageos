@@ -18,7 +18,7 @@ func TestCreateUserFromSystemCreatesUser(t *testing.T) {
 
 	db := openSystemUserManagementTestDB(t)
 	userRepo := repository.NewUserRepository(db)
-	svc := NewUserService(userRepo, nil, nil)
+	svc := NewUserService(userRepo, nil, nil, nil)
 
 	user, err := svc.CreateUserFromSystem(context.Background(), dto.SystemCreateUserReq{
 		Username: "alice",
@@ -44,7 +44,7 @@ func TestUpdateUserStatusFromSystemDoesNotDisableSystem(t *testing.T) {
 
 	db := openSystemUserManagementTestDB(t)
 	userRepo := repository.NewUserRepository(db)
-	svc := NewUserService(userRepo, nil, nil)
+	svc := NewUserService(userRepo, nil, nil, nil)
 	if err := userRepo.CreateUser(&model.User{
 		Username:      SystemUsername,
 		Email:         SystemUserEmail,

@@ -871,7 +871,7 @@ function getWorkspaceAccessResourcePath() {
 function openWorkspaceAccessPage() {
   const resource = getWorkspaceAccessResourcePath()
   void router.push({
-    path: '/permissions/access',
+    path: '/permissions',
     query: resource ? { resource } : {}
   })
 }

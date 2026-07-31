@@ -24,7 +24,7 @@ func (s *Server) setupRoutes() {
 	// Swagger 文档路由
 	s.httpServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	publicShareHandler := v1.NewPublicShareAPI(s.publicShareService, s.appService, s.teamAccessService)
+	publicShareHandler := v1.NewPublicShareAPI(s.publicShareService, s.appService, s.permissionService)
 	publicShareWriteLimit := newPublicShareRateLimiter().Middleware()
 	public := s.httpServer.Group("/public/api")
 	public.POST("/anonymous-token", publicShareHandler.AnonymousToken)
@@ -43,7 +43,7 @@ func (s *Server) setupRoutes() {
 	// 应用管理路由（需要JWT验证）
 	app := apiV1.Group("/app")
 	app.Use(jwtAuth) // 应用管理需要JWT认证
-	appHandler := v1.NewApp(s.appService, s.serviceTreeService, s.teamAccessService)
+	appHandler := v1.NewApp(s.appService, s.serviceTreeService, s.permissionService)
 	app.GET("/list", appHandler.GetApps)
 	app.GET("/detail", appHandler.GetAppDetail)
 	app.GET("/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
@@ -53,14 +53,14 @@ func (s *Server) setupRoutes() {
 	app.POST("/update", appHandler.UpdateApp)
 	app.PUT("/workspace", appHandler.UpdateWorkspace)
 
-	teamAccess := apiV1.Group("/team_access")
-	teamAccess.Use(jwtAuth)
-	teamAccessHandler := v1.NewTeamAccess(s.teamAccessService)
-	teamAccess.GET("/members", teamAccessHandler.ListMembers)
-	teamAccess.POST("/assign", teamAccessHandler.Assign)
-	teamAccess.POST("/batch_assign", teamAccessHandler.BatchAssign)
-	teamAccess.POST("/remove", teamAccessHandler.Remove)
-	teamAccess.GET("/my_permissions", teamAccessHandler.MyPermissions)
+	permission := apiV1.Group("/permissions")
+	permission.Use(jwtAuth)
+	permissionHandler := v1.NewPermission(s.permissionService)
+	permission.GET("/assignments", permissionHandler.ListAssignments)
+	permission.POST("/grant", permissionHandler.GrantRole)
+	permission.POST("/batch-grant", permissionHandler.BatchGrantRoles)
+	permission.POST("/revoke", permissionHandler.RevokeRole)
+	permission.GET("/me", permissionHandler.GetMyPermissions)
 
 	publicShares := apiV1.Group("/public_shares")
 	publicShares.Use(jwtAuth)
@@ -70,7 +70,7 @@ func (s *Server) setupRoutes() {
 
 	// 服务目录管理路由（需要JWT验证）
 	serviceTree := apiV1.Group("/service_tree")
-	serviceTreeHandler := v1.NewServiceTree(s.serviceTreeService, s.teamAccessService)
+	serviceTreeHandler := v1.NewServiceTree(s.serviceTreeService, s.permissionService)
 
 	// 需要JWT验证的路由
 	serviceTreeAuth := serviceTree.Group("")
@@ -112,7 +112,7 @@ func (s *Server) setupRoutes() {
 	// ⭐ 文档管理路由（基于完整路径，与 table/form/chart 风格一致）
 	docs := apiV1.Group("/docs")
 	docs.Use(jwtAuth)
-	docHandler := v1.NewDoc(s.docService, s.teamAccessService)
+	docHandler := v1.NewDoc(s.docService, s.permissionService)
 	docs.GET("/search", docHandler.SearchDocs)                 // 搜索文档（模糊搜索）
 	docs.GET("/batch", docHandler.BatchGetDocs)                // 批量获取文档（精确查询）
 	docs.GET("/info/*full-code-path", docHandler.GetDoc)       // 获取文档
@@ -140,7 +140,7 @@ func (s *Server) setupRoutes() {
 	// 操作日志路由（需要JWT验证）
 	operateLog := apiV1.Group("/operate_log")
 	operateLog.Use(jwtAuth)                                                         // JWT 认证
-	operateLogHandler := v1.NewOperateLog(s.operateLogService, s.teamAccessService) // 查询统一操作日志
+	operateLogHandler := v1.NewOperateLog(s.operateLogService, s.permissionService) // 查询统一操作日志
 	operateLog.GET("/general", operateLogHandler.GetOperateLogs)                    // 查询通用操作日志
 
 	// 目录更新历史路由（需要JWT验证）
@@ -151,7 +151,7 @@ func (s *Server) setupRoutes() {
 	directoryUpdateHistory.GET("/directory", directoryUpdateHistoryHandler.GetDirectoryUpdateHistory)    // 获取目录更新历史（目录视角）
 
 	// ⭐ 标准接口路由（使用 full-code-path）
-	standardAPI := v1.NewStandardAPI(s.appService, s.teamAccessService)
+	standardAPI := v1.NewStandardAPI(s.appService, s.permissionService)
 
 	// Table 函数接口
 	table := apiV1.Group("/table")

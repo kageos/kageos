@@ -1597,7 +1597,7 @@
                     },
                     {
                         "type": "string",
-                        "description": "资源类型：table/form/team_access/directory/function",
+                        "description": "资源类型：table/form/permission/directory/function",
                         "name": "resource_type",
                         "in": "query"
                     },

@@ -50,7 +50,7 @@ func TestResolveInheritsFromParentPath(t *testing.T) {
 	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
 	result := Resolve([]Assignment{
 		{
-			Username:     "bob",
+			Principal:    Principal{Type: PrincipalUser, Key: "bob"},
 			ResourcePath: "/alice/ops/ticket",
 			RoleCode:     RoleMember,
 		},
@@ -75,7 +75,7 @@ func TestResolveSkipsExpiredAssignments(t *testing.T) {
 	expired := now.Add(-time.Minute)
 	result := Resolve([]Assignment{
 		{
-			Username:     "bob",
+			Principal:    Principal{Type: PrincipalUser, Key: "bob"},
 			ResourcePath: "/alice/ops",
 			RoleCode:     RoleAdmin,
 			ExpiresAt:    &expired,
@@ -90,8 +90,8 @@ func TestResolveSkipsExpiredAssignments(t *testing.T) {
 func TestResolveMergesMultipleRoles(t *testing.T) {
 	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
 	result := Resolve([]Assignment{
-		{Username: "bob", ResourcePath: "/alice/ops", RoleCode: RoleViewer},
-		{Username: "bob", ResourcePath: "/alice/ops/ticket", RoleCode: RoleAdmin},
+		{Principal: Principal{Type: PrincipalUser, Key: "bob"}, ResourcePath: "/alice/ops", RoleCode: RoleViewer},
+		{Principal: Principal{Type: PrincipalUser, Key: "bob"}, ResourcePath: "/alice/ops/ticket", RoleCode: RoleAdmin},
 	}, "/alice/ops/ticket", now)
 
 	if !HasPermission(result.Permissions, ActionAdmin) {
@@ -99,6 +99,24 @@ func TestResolveMergesMultipleRoles(t *testing.T) {
 	}
 	if !HasPermission(result.Permissions, ActionRead) {
 		t.Fatal("expected read from merged roles")
+	}
+}
+
+func TestPrincipalsForUserIncludesOrganizationAncestors(t *testing.T) {
+	got := PrincipalsForUser("Alice", "/org/sales/east")
+	want := []Principal{
+		{Type: PrincipalUser, Key: "alice"},
+		{Type: PrincipalDepartment, Key: "/org/sales/east"},
+		{Type: PrincipalDepartment, Key: "/org/sales"},
+		{Type: PrincipalDepartment, Key: "/org"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("principals = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("principal[%d] = %#v, want %#v", i, got[i], want[i])
+		}
 	}
 }
 

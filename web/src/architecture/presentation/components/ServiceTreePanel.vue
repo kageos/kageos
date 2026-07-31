@@ -843,7 +843,7 @@ function openAccessPage(data: ServiceTree) {
     return
   }
   void router.push({
-    path: '/permissions/access',
+    path: '/permissions',
     query: {
       resource: data.full_code_path
     }

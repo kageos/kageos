@@ -2620,7 +2620,7 @@ paths:
         in: query
         name: app
         type: string
-      - description: 资源类型：table/form/team_access/directory/function
+      - description: 资源类型：table/form/permission/directory/function
         in: query
         name: resource_type
         type: string

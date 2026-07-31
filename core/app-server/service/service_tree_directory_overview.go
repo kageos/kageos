@@ -122,7 +122,7 @@ func (q *serviceTreeQueryView) GetDirectoryOverview(ctx context.Context, req *dt
 }
 
 func (q *serviceTreeQueryView) filterReadableNodes(ctx context.Context, appModel *model.App, nodes []*model.ServiceTree) ([]*model.ServiceTree, error) {
-	if q.teamAccess == nil {
+	if q.permission == nil {
 		return nodes, nil
 	}
 	permissionsByPath, err := q.permissionsByPath(ctx, appModel, nodes)

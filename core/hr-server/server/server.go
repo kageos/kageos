@@ -234,7 +234,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.emailService = service.NewEmailService(emailCodeRepo, s.settingsService)
 
 	// 初始化用户服务
-	s.userService = service.NewUserService(userRepo, s.tokenPublisher, userSessionRepo)
+	s.userService = service.NewUserService(userRepo, s.tokenPublisher, userSessionRepo, deptRepo)
 
 	s.departmentService = service.NewDepartmentService(deptRepo, userRepo)
 

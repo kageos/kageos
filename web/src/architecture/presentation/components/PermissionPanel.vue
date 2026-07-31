@@ -1,5 +1,5 @@
 <template>
-  <div v-if="node" class="team-access-panel" :class="{ 'is-embedded': embedded }">
+  <div v-if="node" class="permission-panel" :class="{ 'is-embedded': embedded }">
     <div class="access-layout">
       <section class="members-card">
         <div class="members-card-head">
@@ -8,7 +8,7 @@
             <div class="members-resource-path">{{ node.full_code_path }}</div>
           </div>
           <div class="members-actions">
-            <el-button size="small" :loading="loading" @click="loadMembers">{{ t('common.refresh') }}</el-button>
+            <el-button size="small" :loading="loading" @click="loadAssignments">{{ t('common.refresh') }}</el-button>
             <el-button size="small" type="primary" :icon="Plus" @click="goToGrantPage">
               {{ t('access.grantCurrent') }}
             </el-button>
@@ -17,22 +17,29 @@
 
         <el-table
           v-loading="loading"
-          :data="members"
+          :data="assignments"
           class="access-table"
-          :row-key="memberRowKey"
+          :row-key="assignmentRowKey"
           size="small"
           :empty-text="t('access.empty')"
         >
-          <el-table-column :label="t('access.member')" min-width="200">
+          <el-table-column :label="t('access.principal')" min-width="220">
             <template #default="{ row }">
-              <span class="member-users-cell">
+              <span v-if="row.principal_type === 'user'" class="member-users-cell">
                 <UsersWidget
-                  :value="memberUsersValue(row.username)"
+                  :value="principalUserValue(row.principal_key)"
                   :field="memberUsersField"
                   mode="response"
-                  :field-path="`teamAccessPanelMember:${memberRowKey(row)}`"
+                  :field-path="`permissionPanelPrincipal:${assignmentRowKey(row)}`"
                 />
               </span>
+              <DepartmentDisplay
+                v-else
+                :full-code-path="row.principal_key"
+                :display-name="departmentPrincipalLabel(row.principal_key)"
+                mode="simple"
+                size="small"
+              />
             </template>
           </el-table-column>
           <el-table-column :label="t('access.role')" width="108">
@@ -83,9 +90,10 @@ import type { AccessPermissions, AccessRoleCode, ServiceTree } from '@/architect
 import type { FieldConfig, FieldValue } from '@/architecture/domain/types/field'
 import { WidgetType } from '@/architecture/domain/constants/widget'
 import {
-  listTeamMembers,
-  type TeamMemberAccess
-} from '@/architecture/presentation/context/api/team-access'
+  listPermissionAssignments,
+  type RoleAssignment
+} from '@/architecture/presentation/context/api/permission'
+import DepartmentDisplay from '@/architecture/presentation/shared/components/DepartmentDisplay.vue'
 import UsersWidget from '@/architecture/presentation/shared/components/UsersWidget.vue'
 import { createStringFieldValue } from '@/architecture/domain/utils/widgetFieldHelpers'
 
@@ -120,7 +128,7 @@ const permissionLabelMap = {
 } satisfies Record<string, string>
 
 const memberUsersField = computed<FieldConfig>(() => ({
-  code: 'teamAccessPanelMemberUsers',
+  code: 'permissionPanelMemberUsers',
   name: t('access.member'),
   desc: t('access.member'),
   widget: {
@@ -134,32 +142,32 @@ const memberUsersField = computed<FieldConfig>(() => ({
   }
 }))
 
-const members = ref<TeamMemberAccess[]>([])
+const assignments = ref<RoleAssignment[]>([])
 const loading = ref(false)
 
 watch(
   () => props.node?.full_code_path || '',
   (path) => {
     if (path) {
-      void loadMembers()
+      void loadAssignments()
     } else {
-      members.value = []
+      assignments.value = []
     }
   },
   { immediate: true }
 )
 
-async function loadMembers() {
+async function loadAssignments() {
   const path = props.node?.full_code_path
   if (!path) {
-    members.value = []
+    assignments.value = []
     return
   }
 
   loading.value = true
   try {
-    const resp = await listTeamMembers(path)
-    members.value = resp.members || []
+    const resp = await listPermissionAssignments(path)
+    assignments.value = resp.assignments || []
   } catch (error: any) {
     const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('access.loadFailed')
     ElMessage.error(message)
@@ -174,21 +182,25 @@ function goToGrantPage() {
     return
   }
   void router.push({
-    path: '/permissions/access',
+    path: '/permissions',
     query: { resource: path }
   })
 }
 
-function memberRowKey(member: TeamMemberAccess): string {
-  return `${member.username}:${member.resource_path}:${member.role_code}`
+function assignmentRowKey(assignment: RoleAssignment): string {
+  return `${assignment.principal_type}:${assignment.principal_key}:${assignment.resource_path}:${assignment.role_code}`
 }
 
 function roleLabel(role: AccessRoleCode): string {
   return roleLabelMap.value[role] || role
 }
 
-function memberUsersValue(username: string): FieldValue {
+function principalUserValue(username: string): FieldValue {
   return createStringFieldValue(memberUsersField.value, username || '', { emptyRaw: '' })
+}
+
+function departmentPrincipalLabel(path: string): string | null {
+  return path === '/org' ? t('access.allMembers') : null
 }
 
 function roleTagType(role: AccessRoleCode): 'danger' | 'warning' | 'success' | 'info' {
@@ -198,8 +210,8 @@ function roleTagType(role: AccessRoleCode): 'danger' | 'warning' | 'success' | '
   return 'info'
 }
 
-function isDirectMember(member: TeamMemberAccess): boolean {
-  return member.direct !== false && member.source !== 'inherited'
+function isDirectMember(assignment: RoleAssignment): boolean {
+  return assignment.direct !== false && assignment.source !== 'inherited'
 }
 
 function permissionLabels(permissions: AccessPermissions | null | undefined): string[] {
@@ -218,19 +230,19 @@ function formatExpiresAt(value?: string): string {
 }
 
 defineExpose({
-  loadMembers
+  loadAssignments
 })
 </script>
 
 <style scoped lang="scss">
-.team-access-panel {
+.permission-panel {
   display: flex;
   flex-direction: column;
   gap: 14px;
   min-height: 0;
 }
 
-.team-access-panel.is-embedded {
+.permission-panel.is-embedded {
   height: 100%;
 }
 

@@ -27,7 +27,7 @@ import (
 // 提供标准化的 RESTful 接口，使用 full-code-path 作为路径参数
 type StandardAPI struct {
 	appService        *service.AppService
-	teamAccessService *service.TeamAccessService
+	permissionService *service.PermissionService
 }
 
 type callbackRequestEnvelope struct {
@@ -48,10 +48,10 @@ type tableGetRowsCallbackReq struct {
 }
 
 // NewStandardAPI 创建标准接口处理器
-func NewStandardAPI(appService *service.AppService, teamAccessService *service.TeamAccessService) *StandardAPI {
+func NewStandardAPI(appService *service.AppService, permissionService *service.PermissionService) *StandardAPI {
 	return &StandardAPI{
 		appService:        appService,
-		teamAccessService: teamAccessService,
+		permissionService: permissionService,
 	}
 }
 
@@ -403,7 +403,7 @@ func (s *StandardAPI) TableSearch(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -466,7 +466,7 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionWrite); err != nil {
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionWrite); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -557,7 +557,7 @@ func (s *StandardAPI) TableTemplate(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -837,7 +837,7 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionUpdate); err != nil {
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionUpdate); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -987,7 +987,7 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionDelete); err != nil {
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionDelete); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -1104,7 +1104,7 @@ func (s *StandardAPI) FormSubmit(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionWrite); err != nil {
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionWrite); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -1189,7 +1189,7 @@ func (s *StandardAPI) RuntimePython(c *gin.Context) {
 		response.FailWithMessage(c, "解析工作区路径失败: "+err.Error())
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, workspaceRoot, access.ActionWrite); err != nil {
+	if err := requireAccess(c, s.permissionService, workspaceRoot, access.ActionWrite); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -1251,7 +1251,7 @@ func (s *StandardAPI) ChartQuery(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionWrite); err != nil {
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionWrite); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -1318,7 +1318,7 @@ func (s *StandardAPI) CallbackOnSelectFuzzy(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}

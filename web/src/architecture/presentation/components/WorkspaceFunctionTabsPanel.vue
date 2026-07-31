@@ -28,7 +28,7 @@
 
         <el-tab-pane name="permission" :label="t('functionTabs.permission')" lazy>
           <div class="tab-content">
-            <TeamAccessPanel
+            <PermissionPanel
               v-if="activeTab === 'permission'"
               ref="accessPanelRef"
               :node="currentFunction"
@@ -125,7 +125,7 @@ import { ElMessage } from 'element-plus'
 type FunctionTabName = 'content' | 'permission' | 'notification' | 'publicShare' | 'operateLog' | 'scheduledTask'
 
 const OperateLogSection = defineAsyncComponent(() => import('./OperateLogSection.vue'))
-const TeamAccessPanel = defineAsyncComponent(() => import('./TeamAccessPanel.vue'))
+const PermissionPanel = defineAsyncComponent(() => import('./PermissionPanel.vue'))
 const NotificationRoutePanel = defineAsyncComponent(() => import('./NotificationRoutePanel.vue'))
 const PublicSharePanel = defineAsyncComponent(() => import('./PublicSharePanel.vue'))
 const ScheduledTaskList = defineAsyncComponent(() => import('./ScheduledTaskList.vue'))
@@ -135,7 +135,7 @@ interface LoadableOperateLogSection {
 }
 
 interface LoadableAccessPanel {
-  loadMembers: () => void
+  loadAssignments: () => void
 }
 
 interface ReplayableFormView {
@@ -170,7 +170,7 @@ function loadOperateLogTab(tabName: FunctionTabName) {
     nextTick(() => operateLogSectionRef.value?.load())
   }
   if (tabName === 'permission') {
-    nextTick(() => accessPanelRef.value?.loadMembers())
+    nextTick(() => accessPanelRef.value?.loadAssignments())
   }
 }
 

@@ -37,7 +37,7 @@ type ServiceTreeService struct {
 	packageService     *serviceTreePackageService
 	batchService       *serviceTreeBatchService
 	capabilityBundle   *serviceTreeCapabilityBundleService
-	teamAccessService  *TeamAccessService
+	permissionService  *PermissionService
 }
 
 func NewServiceTreeService(
@@ -47,16 +47,16 @@ func NewServiceTreeService(
 	fileSnapshotRepo *repository.FileSnapshotRepository,
 	appService *AppService,
 	docService *DocService,
-	teamAccessService *TeamAccessService,
+	permissionService *PermissionService,
 ) *ServiceTreeService {
 	runtimeWorkspace := newRuntimeWorkspaceBridge(appRepo, appCall)
-	queryView := newServiceTreeQueryView(serviceTreeRepo, appRepo, teamAccessService)
+	queryView := newServiceTreeQueryView(serviceTreeRepo, appRepo, permissionService)
 	capabilityBundle := newServiceTreeCapabilityBundleService(serviceTreeRepo, appRepo, runtimeWorkspace, appService, docService)
 
 	return &ServiceTreeService{
 		queryView:          queryView,
 		workspaceService:   newServiceTreeWorkspaceService(serviceTreeRepo, fileSnapshotRepo, runtimeWorkspace, queryView),
-		searchService:      newServiceTreeSearchService(serviceTreeRepo, teamAccessService),
+		searchService:      newServiceTreeSearchService(serviceTreeRepo, permissionService),
 		copyService:        newServiceTreeCopyService(serviceTreeRepo, appRepo, runtimeWorkspace, appService, capabilityBundle),
 		mutationService:    newServiceTreeMutationService(serviceTreeRepo, appRepo, runtimeWorkspace, docService),
 		specialNodeService: newServiceTreeSpecialNodeService(serviceTreeRepo, appRepo, docService),
@@ -64,7 +64,7 @@ func NewServiceTreeService(
 		packageService:     newServiceTreePackageService(serviceTreeRepo, appRepo, runtimeWorkspace),
 		batchService:       newServiceTreeBatchService(serviceTreeRepo, runtimeWorkspace, appService),
 		capabilityBundle:   capabilityBundle,
-		teamAccessService:  teamAccessService,
+		permissionService:  permissionService,
 	}
 }
 

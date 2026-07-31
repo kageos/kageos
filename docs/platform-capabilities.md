@@ -17,10 +17,31 @@
 | 能力 | 归属服务 | 当前作用 |
 | --- | --- | --- |
 | Service Tree | `app-server` | 组织工作空间、目录、函数、文档和能力包，是权限、操作日志、消息定位、定时任务定位的共同资源坐标。 |
+| 权限 | `app-server` 的 `PermissionService` + `hr-server` 组织架构 | 按资源路径向用户或组织授予固定角色，并同时支持资源层级继承和组织层级继承。 |
 | 工作台会话 | `agent-server` | 持久化 AI 工作台 session/message，支持 SSE 对话、工具调用、阶段交接、运行中/已结束任务查询和取消。 |
 | 消息/站内信 | `message-server` | 消费消息命令，落库收件箱、线程、已读状态、节点统计和工作空间统计。 |
 | 定时任务 | `timer-scheduler` | 统一保存调度状态、执行记录、租约、超时恢复和 outbox 投递。 |
 | 应用运行时 | `app-server` + `app-runtime` + `kageos-sdk/agent-app` | 调用 Form/Table/Chart/Callback，启动用户 App 版本容器，并把操作日志、trace、source 信息带回平台。 |
+
+## 权限与组织授权
+
+当前权限统一由 `PermissionService` 处理，不再区分一套“团队访问”概念。授权主体支持：
+
+- `user:<username>`：只对指定用户生效。
+- `department:/org/...`：对该组织及其所有下级组织成员生效。
+- `department:/org`：全体成员入口；当前和以后加入组织的非 `system` 用户都会继承。
+
+有效权限是“授权主体继承”和“资源路径继承”的并集。例如用户属于 `/org/sales/east`，会同时匹配用户本人、`/org/sales/east`、`/org/sales`、`/org`；授予 `/alice/ops` 的角色也会继续作用于它下面的目录、表单、表格、图表、文档和函数。当前只有允许规则，没有 deny 规则。
+
+所有非 `system` 用户必须属于 `/org`，没有明确部门时归入 `/org/unassigned`。组织结构和用户组织归属只允许 `system` 修改，避免普通工作空间管理员通过移动组织归属绕过授权边界。部署采用单企业边界，不再使用 `company_code`；需要彼此隔离的企业时使用独立部署。
+
+主要入口：
+
+- `GET /workspace/api/v1/permissions/assignments`
+- `POST /workspace/api/v1/permissions/grant`
+- `POST /workspace/api/v1/permissions/batch-grant`
+- `POST /workspace/api/v1/permissions/revoke`
+- `GET /workspace/api/v1/permissions/me`
 
 ## 工作台会话
 

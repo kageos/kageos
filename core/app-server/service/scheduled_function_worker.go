@@ -483,7 +483,7 @@ func (a *AppService) fetchScheduledTableRowsByIDs(ctx context.Context, fullCodeP
 }
 
 func (a *AppService) requireScheduledFunctionAccess(ctx context.Context, fullCodePath, action string) error {
-	if a == nil || a.teamAccess == nil {
+	if a == nil || a.permission == nil {
 		return nil
 	}
 	resourcePath := access.NormalizeResourcePath(fullCodePath)
@@ -491,7 +491,7 @@ func (a *AppService) requireScheduledFunctionAccess(ctx context.Context, fullCod
 	if err != nil {
 		return err
 	}
-	return a.teamAccess.Check(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath, scheduledFunctionRequiredAccessAction(fullCodePath, action))
+	return a.permission.RequirePermission(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath, scheduledFunctionRequiredAccessAction(fullCodePath, action))
 }
 
 func (a *AppService) ensureScheduledTableCallbackEnabled(ctx context.Context, fullCodePath, callbackType, denyMessage string) error {

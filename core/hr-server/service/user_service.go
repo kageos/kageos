@@ -19,14 +19,21 @@ type UserService struct {
 	userRepo        *repository.UserRepository
 	tokenPublisher  TokenPublisher                    // 可选：向 gateway 发布 token 命令
 	userSessionRepo *repository.UserSessionRepository // ⭐ 新增：用户会话仓库（用于查询活跃会话）
+	departmentRepo  *repository.DepartmentRepository
 }
 
 // NewUserService 创建用户服务（依赖注入）
-func NewUserService(userRepo *repository.UserRepository, tokenPublisher TokenPublisher, userSessionRepo *repository.UserSessionRepository) *UserService {
+func NewUserService(
+	userRepo *repository.UserRepository,
+	tokenPublisher TokenPublisher,
+	userSessionRepo *repository.UserSessionRepository,
+	departmentRepo *repository.DepartmentRepository,
+) *UserService {
 	return &UserService{
 		userRepo:        userRepo,
 		tokenPublisher:  tokenPublisher,
 		userSessionRepo: userSessionRepo,
+		departmentRepo:  departmentRepo,
 	}
 }
 
@@ -90,9 +97,9 @@ func (s *UserService) CreateUserFromSystem(ctx context.Context, req dto.SystemCr
 	if err != nil {
 		return nil, err
 	}
-	departmentFullPath := strings.TrimSpace(req.DepartmentFullPath)
-	if departmentFullPath == "" {
-		departmentFullPath = "/org/unassigned"
+	departmentFullPath, err := s.normalizeAndValidateDepartmentPath(req.DepartmentFullPath)
+	if err != nil {
+		return nil, err
 	}
 	leaderUsername := strings.ToLower(strings.TrimSpace(req.LeaderUsername))
 	if err := s.validateLeader(leaderUsername); err != nil {
@@ -166,7 +173,11 @@ func (s *UserService) UpdateUserFromSystem(ctx context.Context, username string,
 		if user.Username == SystemUsername {
 			return nil, fmt.Errorf("不能修改 system 用户组织归属")
 		}
-		user.DepartmentFullPath = strings.TrimSpace(*req.DepartmentFullPath)
+		departmentFullPath, err := s.normalizeAndValidateDepartmentPath(*req.DepartmentFullPath)
+		if err != nil {
+			return nil, err
+		}
+		user.DepartmentFullPath = departmentFullPath
 		profileChanged = true
 	}
 	if req.LeaderUsername != nil {
@@ -303,11 +314,15 @@ func (s *UserService) AssignUserOrganization(ctx context.Context, username strin
 	}
 
 	// 更新部门和 Leader
+	departmentPath := ""
 	if departmentFullPath != nil {
-		user.DepartmentFullPath = *departmentFullPath
-	} else {
-		user.DepartmentFullPath = "" // 清空部门
+		departmentPath = *departmentFullPath
 	}
+	departmentPath, err = s.normalizeAndValidateDepartmentPath(departmentPath)
+	if err != nil {
+		return nil, err
+	}
+	user.DepartmentFullPath = departmentPath
 
 	if leaderUsername != nil {
 		// 验证 Leader 是否存在
@@ -331,6 +346,31 @@ func (s *UserService) AssignUserOrganization(ctx context.Context, username strin
 
 	logger.Infof(ctx, "[UserService] User organization assigned: %s, department: %s, leader: %s", username, user.DepartmentFullPath, user.LeaderUsername)
 	return user, nil
+}
+
+func (s *UserService) normalizeAndValidateDepartmentPath(departmentPath string) (string, error) {
+	departmentPath = strings.TrimSpace(departmentPath)
+	if departmentPath == "" {
+		departmentPath = "/org/unassigned"
+	}
+	departmentPath = "/" + strings.Trim(departmentPath, "/")
+	if departmentPath != "/org" && !strings.HasPrefix(departmentPath, "/org/") {
+		return "", fmt.Errorf("组织路径必须位于 /org 下")
+	}
+	if s.departmentRepo == nil {
+		return departmentPath, nil
+	}
+	department, err := s.departmentRepo.GetDepartmentByFullCodePath(departmentPath)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", fmt.Errorf("组织不存在: %s", departmentPath)
+		}
+		return "", fmt.Errorf("查询组织失败: %w", err)
+	}
+	if !department.IsActive() {
+		return "", fmt.Errorf("组织已停用: %s", departmentPath)
+	}
+	return departmentPath, nil
 }
 
 // GetUsersByDepartmentFullPath 根据部门完整路径获取用户列表

@@ -9,13 +9,13 @@ import (
 	"github.com/kageos/kageos/pkg/contextx"
 )
 
-func requireAccess(c *gin.Context, teamAccessService *service.TeamAccessService, resourcePath string, action access.Action) error {
+func requireAccess(c *gin.Context, permissionService *service.PermissionService, resourcePath string, action access.Action) error {
 	resourcePath = access.NormalizeResourcePath(resourcePath)
 	tenantUser, app, err := access.ParseUserApp(resourcePath)
 	if err != nil {
 		return err
 	}
-	return teamAccessService.Check(contextx.ToContext(c), tenantUser, app, contextx.GetRequestUser(c), resourcePath, action)
+	return permissionService.RequirePermission(contextx.ToContext(c), tenantUser, app, contextx.GetRequestUser(c), resourcePath, action)
 }
 
 func normalizeFullCodePathParam(c *gin.Context) string {

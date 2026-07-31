@@ -95,16 +95,20 @@ type AppCallLogResponseBody struct {
 	TotalCostMill int64       `json:"total_cost_mill"`
 }
 
-// TeamRoleAssignedValues 是权限赋权日志的新值结构。
-type TeamRoleAssignedValues struct {
-	RoleCode  string     `json:"role_code"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+// PermissionRoleGrantedValues 是权限授予日志的新值结构。
+type PermissionRoleGrantedValues struct {
+	PrincipalType string     `json:"principal_type"`
+	PrincipalKey  string     `json:"principal_key"`
+	RoleCode      string     `json:"role_code"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
 }
 
-// TeamRoleRemovedDetails 是权限移除日志的详情结构。
-type TeamRoleRemovedDetails struct {
-	RoleCode     string `json:"role_code"`
-	RowsAffected int64  `json:"rows_affected"`
+// PermissionRoleRevokedDetails 是权限撤销日志的详情结构。
+type PermissionRoleRevokedDetails struct {
+	PrincipalType string `json:"principal_type"`
+	PrincipalKey  string `json:"principal_key"`
+	RoleCode      string `json:"role_code"`
+	RowsAffected  int64  `json:"rows_affected"`
 }
 
 // ServiceTreeNodeLogValues 是目录/函数/文档节点审计的结构化快照。

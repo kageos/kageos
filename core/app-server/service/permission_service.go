@@ -16,28 +16,30 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 )
 
-type TeamAccessService struct {
-	teamAccessRepo *repository.TeamAccessRepository
-	operateLogRepo *repository.OperateLogRepository
-	appRepo        *repository.AppRepository
-	userLookup     func(ctx context.Context, username string) (*dto.UserInfo, error)
+type PermissionService struct {
+	roleAssignmentRepo *repository.RoleAssignmentRepository
+	operateLogRepo     *repository.OperateLogRepository
+	appRepo            *repository.AppRepository
+	userLookup         func(ctx context.Context, username string) (*dto.UserInfo, error)
+	departmentLookup   func(ctx context.Context, departmentPath string) (bool, error)
 }
 
-func NewTeamAccessService(
-	teamAccessRepo *repository.TeamAccessRepository,
+func NewPermissionService(
+	roleAssignmentRepo *repository.RoleAssignmentRepository,
 	operateLogRepo *repository.OperateLogRepository,
 	appRepo *repository.AppRepository,
-) *TeamAccessService {
-	return &TeamAccessService{
-		teamAccessRepo: teamAccessRepo,
-		operateLogRepo: operateLogRepo,
-		appRepo:        appRepo,
-		userLookup:     lookupUserForTeamAccess,
+) *PermissionService {
+	return &PermissionService{
+		roleAssignmentRepo: roleAssignmentRepo,
+		operateLogRepo:     operateLogRepo,
+		appRepo:            appRepo,
+		userLookup:         lookupUserForPermission,
+		departmentLookup:   lookupDepartmentForPermission,
 	}
 }
 
-func (s *TeamAccessService) Check(ctx context.Context, tenantUser, app, username, resourcePath string, action access.Action) error {
-	ok, err := s.Can(ctx, tenantUser, app, username, resourcePath, action)
+func (s *PermissionService) RequirePermission(ctx context.Context, tenantUser, app, username, resourcePath string, action access.Action) error {
+	ok, err := s.HasPermission(ctx, tenantUser, app, username, resourcePath, action)
 	if err != nil {
 		return err
 	}
@@ -47,15 +49,15 @@ func (s *TeamAccessService) Check(ctx context.Context, tenantUser, app, username
 	return nil
 }
 
-func (s *TeamAccessService) Can(ctx context.Context, tenantUser, app, username, resourcePath string, action access.Action) (bool, error) {
-	result, err := s.Resolve(ctx, tenantUser, app, username, resourcePath)
+func (s *PermissionService) HasPermission(ctx context.Context, tenantUser, app, username, resourcePath string, action access.Action) (bool, error) {
+	result, err := s.ResolvePermissions(ctx, tenantUser, app, username, resourcePath)
 	if err != nil {
 		return false, err
 	}
 	return access.HasPermission(result.Permissions, action), nil
 }
 
-func (s *TeamAccessService) Resolve(ctx context.Context, tenantUser, app, username, resourcePath string) (*access.Result, error) {
+func (s *PermissionService) ResolvePermissions(ctx context.Context, tenantUser, app, username, resourcePath string) (*access.Result, error) {
 	tenantUser = strings.TrimSpace(tenantUser)
 	app = strings.TrimSpace(app)
 	username = strings.TrimSpace(username)
@@ -82,20 +84,21 @@ func (s *TeamAccessService) Resolve(ctx context.Context, tenantUser, app, userna
 		}, nil
 	}
 
-	assignments, err := s.teamAccessRepo.ListAssignmentsForUser(ctx, tenantUser, app, username)
+	principals := s.principalsForUser(ctx, username)
+	assignments, err := s.roleAssignmentRepo.ListAssignmentsForPrincipals(ctx, tenantUser, app, principals)
 	if err != nil {
 		return nil, err
 	}
 	return access.Resolve(toAccessAssignments(assignments), resourcePath, time.Now()), nil
 }
 
-func (s *TeamAccessService) Assign(ctx context.Context, req access.AssignRoleRequest) error {
+func (s *PermissionService) GrantRole(ctx context.Context, req access.GrantRoleRequest) error {
 	req.ResourcePath = access.NormalizeResourcePath(req.ResourcePath)
 	req.RoleCode = access.NormalizeRoleCode(req.RoleCode)
-	req.Username = strings.TrimSpace(req.Username)
+	req.Principal = access.NormalizePrincipal(req.Principal)
 	req.TenantUser = strings.TrimSpace(req.TenantUser)
 	req.App = strings.TrimSpace(req.App)
-	if err := validateAssignRoleRequest(req); err != nil {
+	if err := validateGrantRoleRequest(req); err != nil {
 		return err
 	}
 	if req.CreatedBy == "" {
@@ -104,20 +107,21 @@ func (s *TeamAccessService) Assign(ctx context.Context, req access.AssignRoleReq
 	if err := s.requireAdminForGrant(ctx, req.TenantUser, req.App, req.CreatedBy, req.ResourcePath, req.RoleCode); err != nil {
 		return err
 	}
-	if err := s.ensureAssignableUser(ctx, req.Username); err != nil {
+	if err := s.ensureAssignablePrincipal(ctx, req.Principal); err != nil {
 		return err
 	}
 
 	assignment := &model.WorkspaceRoleAssignment{
-		TenantUser:   req.TenantUser,
-		App:          req.App,
-		Username:     req.Username,
-		ResourcePath: req.ResourcePath,
-		RoleCode:     string(req.RoleCode),
-		ExpiresAt:    req.ExpiresAt,
+		TenantUser:    req.TenantUser,
+		App:           req.App,
+		PrincipalType: string(req.Principal.Type),
+		PrincipalKey:  req.Principal.Key,
+		ResourcePath:  req.ResourcePath,
+		RoleCode:      string(req.RoleCode),
+		ExpiresAt:     req.ExpiresAt,
 	}
 	assignment.CreatedBy = req.CreatedBy
-	if err := s.teamAccessRepo.UpsertAssignment(ctx, assignment); err != nil {
+	if err := s.roleAssignmentRepo.UpsertAssignment(ctx, assignment); err != nil {
 		return err
 	}
 
@@ -125,31 +129,34 @@ func (s *TeamAccessService) Assign(ctx context.Context, req access.AssignRoleReq
 		TenantUser:   req.TenantUser,
 		App:          req.App,
 		ActorUser:    req.CreatedBy,
-		Action:       "team.role.assigned",
-		ResourceType: "team_access",
+		Action:       "permission.role.granted",
+		ResourceType: "permission",
 		ResourcePath: req.ResourcePath,
-		TargetUser:   req.Username,
-		Summary:      fmt.Sprintf("%s assigned %s to %s on %s", req.CreatedBy, req.RoleCode, req.Username, req.ResourcePath),
+		TargetUser:   principalTargetUser(req.Principal),
+		TargetID:     principalAuditID(req.Principal),
+		Summary:      fmt.Sprintf("%s granted %s to %s on %s", req.CreatedBy, req.RoleCode, principalAuditID(req.Principal), req.ResourcePath),
 		Status:       "success",
-		NewValues: dto.TeamRoleAssignedValues{
-			RoleCode:  string(req.RoleCode),
-			ExpiresAt: req.ExpiresAt,
+		NewValues: dto.PermissionRoleGrantedValues{
+			PrincipalType: string(req.Principal.Type),
+			PrincipalKey:  req.Principal.Key,
+			RoleCode:      string(req.RoleCode),
+			ExpiresAt:     req.ExpiresAt,
 		},
 	})
 	return nil
 }
 
-func (s *TeamAccessService) BatchAssign(ctx context.Context, req access.BatchAssignRoleRequest) error {
-	if len(req.ResourcePaths) == 0 || len(req.Usernames) == 0 || len(req.RoleCodes) == 0 {
-		return fmt.Errorf("resource_paths、usernames、role_codes 不能为空")
+func (s *PermissionService) BatchGrantRoles(ctx context.Context, req access.BatchGrantRoleRequest) error {
+	if len(req.ResourcePaths) == 0 || len(req.Principals) == 0 || len(req.RoleCodes) == 0 {
+		return fmt.Errorf("resource_paths、principals、role_codes 不能为空")
 	}
 	for _, resourcePath := range req.ResourcePaths {
-		for _, username := range req.Usernames {
+		for _, principal := range req.Principals {
 			for _, roleCode := range req.RoleCodes {
-				if err := s.Assign(ctx, access.AssignRoleRequest{
+				if err := s.GrantRole(ctx, access.GrantRoleRequest{
 					TenantUser:   req.TenantUser,
 					App:          req.App,
-					Username:     username,
+					Principal:    principal,
 					ResourcePath: resourcePath,
 					RoleCode:     roleCode,
 					ExpiresAt:    req.ExpiresAt,
@@ -163,14 +170,14 @@ func (s *TeamAccessService) BatchAssign(ctx context.Context, req access.BatchAss
 	return nil
 }
 
-func (s *TeamAccessService) Remove(ctx context.Context, req access.RemoveRoleRequest) error {
+func (s *PermissionService) RevokeRole(ctx context.Context, req access.RevokeRoleRequest) error {
 	req.ResourcePath = access.NormalizeResourcePath(req.ResourcePath)
 	req.RoleCode = access.NormalizeRoleCode(req.RoleCode)
-	req.Username = strings.TrimSpace(req.Username)
+	req.Principal = access.NormalizePrincipal(req.Principal)
 	req.TenantUser = strings.TrimSpace(req.TenantUser)
 	req.App = strings.TrimSpace(req.App)
-	if req.TenantUser == "" || req.App == "" || req.Username == "" || req.ResourcePath == "" {
-		return fmt.Errorf("tenant_user、app、username、resource_path 不能为空")
+	if req.TenantUser == "" || req.App == "" || !access.IsValidPrincipal(req.Principal) || req.ResourcePath == "" {
+		return fmt.Errorf("tenant_user、app、principal、resource_path 不能为空")
 	}
 	if req.Actor == "" {
 		req.Actor = contextx.GetRequestUser(ctx)
@@ -182,7 +189,7 @@ func (s *TeamAccessService) Remove(ctx context.Context, req access.RemoveRoleReq
 		return fmt.Errorf("只有 Owner 可以移除 Owner 角色")
 	}
 
-	rows, err := s.teamAccessRepo.RemoveAssignment(ctx, req.TenantUser, req.App, req.Username, req.ResourcePath, req.RoleCode)
+	rows, err := s.roleAssignmentRepo.RemoveAssignment(ctx, req.TenantUser, req.App, req.Principal, req.ResourcePath, req.RoleCode)
 	if err != nil {
 		return err
 	}
@@ -190,28 +197,31 @@ func (s *TeamAccessService) Remove(ctx context.Context, req access.RemoveRoleReq
 		TenantUser:   req.TenantUser,
 		App:          req.App,
 		ActorUser:    req.Actor,
-		Action:       "team.role.removed",
-		ResourceType: "team_access",
+		Action:       "permission.role.revoked",
+		ResourceType: "permission",
 		ResourcePath: req.ResourcePath,
-		TargetUser:   req.Username,
-		Summary:      fmt.Sprintf("%s removed role %s from %s on %s", req.Actor, req.RoleCode, req.Username, req.ResourcePath),
+		TargetUser:   principalTargetUser(req.Principal),
+		TargetID:     principalAuditID(req.Principal),
+		Summary:      fmt.Sprintf("%s revoked role %s from %s on %s", req.Actor, req.RoleCode, principalAuditID(req.Principal), req.ResourcePath),
 		Status:       "success",
-		Details: dto.TeamRoleRemovedDetails{
-			RoleCode:     string(req.RoleCode),
-			RowsAffected: rows,
+		Details: dto.PermissionRoleRevokedDetails{
+			PrincipalType: string(req.Principal.Type),
+			PrincipalKey:  req.Principal.Key,
+			RoleCode:      string(req.RoleCode),
+			RowsAffected:  rows,
 		},
 	})
 	return nil
 }
 
-func (s *TeamAccessService) ListMembers(ctx context.Context, tenantUser, app, resourcePath string) ([]access.MemberAccess, error) {
+func (s *PermissionService) ListAssignments(ctx context.Context, tenantUser, app, resourcePath string) ([]access.RoleAssignmentView, error) {
 	resourcePath = access.NormalizeResourcePath(resourcePath)
-	assignments, err := s.teamAccessRepo.ListAssignmentsForWorkspace(ctx, tenantUser, app)
+	assignments, err := s.roleAssignmentRepo.ListAssignmentsForWorkspace(ctx, tenantUser, app)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now()
-	members := make([]access.MemberAccess, 0, len(assignments))
+	views := make([]access.RoleAssignmentView, 0, len(assignments))
 	for _, assignment := range assignments {
 		assignmentPath := access.NormalizeResourcePath(assignment.ResourcePath)
 		if !access.PathApplies(assignmentPath, resourcePath) {
@@ -230,10 +240,11 @@ func (s *TeamAccessService) ListMembers(ctx context.Context, tenantUser, app, re
 			source = "inherited"
 			inheritedFrom = assignmentPath
 		}
-		members = append(members, access.MemberAccess{
+		views = append(views, access.RoleAssignmentView{
 			TenantUser:     assignment.TenantUser,
 			App:            assignment.App,
-			Username:       assignment.Username,
+			PrincipalType:  access.NormalizePrincipalType(access.PrincipalType(assignment.PrincipalType)),
+			PrincipalKey:   assignment.PrincipalKey,
 			ResourcePath:   assignmentPath,
 			RoleCode:       roleCode,
 			Permissions:    access.RolePermissions(roleCode),
@@ -247,17 +258,17 @@ func (s *TeamAccessService) ListMembers(ctx context.Context, tenantUser, app, re
 			UpdatedAt:      &updatedAt,
 		})
 	}
-	return members, nil
+	return views, nil
 }
 
-func (s *TeamAccessService) HasAnyWorkspaceAccess(ctx context.Context, tenantUser, app, username string) (bool, error) {
+func (s *PermissionService) HasAnyWorkspacePermission(ctx context.Context, tenantUser, app, username string) (bool, error) {
 	if username == "" {
 		return false, nil
 	}
 	if s.isWorkspaceOwnerOrLegacyAdmin(ctx, tenantUser, app, username) {
 		return true, nil
 	}
-	assignments, err := s.teamAccessRepo.ListAssignmentsForUser(ctx, tenantUser, app, username)
+	assignments, err := s.roleAssignmentRepo.ListAssignmentsForPrincipals(ctx, tenantUser, app, s.principalsForUser(ctx, username))
 	if err != nil {
 		return false, err
 	}
@@ -270,11 +281,11 @@ func (s *TeamAccessService) HasAnyWorkspaceAccess(ctx context.Context, tenantUse
 	return false, nil
 }
 
-func (s *TeamAccessService) ListAccessibleApps(ctx context.Context, username string) ([]*model.App, error) {
+func (s *PermissionService) ListAccessibleApps(ctx context.Context, username string) ([]*model.App, error) {
 	if strings.TrimSpace(username) == "" || s.appRepo == nil {
 		return []*model.App{}, nil
 	}
-	assignments, err := s.teamAccessRepo.ListActiveAssignmentsForUsername(ctx, username, time.Now())
+	assignments, err := s.roleAssignmentRepo.ListActiveAssignmentsForPrincipals(ctx, s.principalsForUser(ctx, username), time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +305,7 @@ func (s *TeamAccessService) ListAccessibleApps(ctx context.Context, username str
 	return s.appRepo.GetAppsByUserAppPairs(pairs)
 }
 
-func (s *TeamAccessService) PermissionsForTree(ctx context.Context, tenantUser, app, username string, resourcePaths []string) (map[string]*access.Result, error) {
+func (s *PermissionService) PermissionsForTree(ctx context.Context, tenantUser, app, username string, resourcePaths []string) (map[string]*access.Result, error) {
 	results := make(map[string]*access.Result, len(resourcePaths))
 	if username == "" {
 		for _, path := range resourcePaths {
@@ -317,7 +328,7 @@ func (s *TeamAccessService) PermissionsForTree(ctx context.Context, tenantUser, 
 		}
 		return results, nil
 	}
-	assignments, err := s.teamAccessRepo.ListAssignmentsForUser(ctx, tenantUser, app, username)
+	assignments, err := s.roleAssignmentRepo.ListAssignmentsForPrincipals(ctx, tenantUser, app, s.principalsForUser(ctx, username))
 	if err != nil {
 		return nil, err
 	}
@@ -330,7 +341,7 @@ func (s *TeamAccessService) PermissionsForTree(ctx context.Context, tenantUser, 
 	return results, nil
 }
 
-func (s *TeamAccessService) isWorkspaceOwner(ctx context.Context, tenantUser, app, username string) bool {
+func (s *PermissionService) isWorkspaceOwner(ctx context.Context, tenantUser, app, username string) bool {
 	tenantUser = strings.TrimSpace(tenantUser)
 	username = strings.TrimSpace(username)
 	return tenantUser != "" && tenantUser == username
@@ -349,7 +360,7 @@ func ownerAccessResult(resourcePath string) *access.Result {
 	}
 }
 
-func (s *TeamAccessService) isWorkspaceOwnerOrLegacyAdmin(ctx context.Context, tenantUser, app, username string) bool {
+func (s *PermissionService) isWorkspaceOwnerOrLegacyAdmin(ctx context.Context, tenantUser, app, username string) bool {
 	if s.isWorkspaceOwner(ctx, tenantUser, app, username) {
 		return true
 	}
@@ -358,47 +369,77 @@ func (s *TeamAccessService) isWorkspaceOwnerOrLegacyAdmin(ctx context.Context, t
 	}
 	appModel, err := s.appRepo.GetAppByUserName(tenantUser, app)
 	if err != nil {
-		logger.Debugf(ctx, "[TeamAccess] load app failed for legacy admin fallback: %s/%s err=%v", tenantUser, app, err)
+		logger.Debugf(ctx, "[Permission] load app failed for legacy admin fallback: %s/%s err=%v", tenantUser, app, err)
 		return false
 	}
 	return appModel.IsOwnerOrAdmin(username)
 }
 
-func (s *TeamAccessService) requireAdminForGrant(ctx context.Context, tenantUser, app, actor, resourcePath string, roleCode access.RoleCode) error {
+func (s *PermissionService) requireAdminForGrant(ctx context.Context, tenantUser, app, actor, resourcePath string, roleCode access.RoleCode) error {
 	if actor == "" {
 		return fmt.Errorf("无法获取操作者")
 	}
 	if roleCode == access.RoleOwner && !s.isWorkspaceOwner(ctx, tenantUser, app, actor) {
 		return fmt.Errorf("只有 Owner 可以授予 Owner 角色")
 	}
-	return s.Check(ctx, tenantUser, app, actor, resourcePath, access.ActionAdmin)
+	return s.RequirePermission(ctx, tenantUser, app, actor, resourcePath, access.ActionAdmin)
 }
 
-func (s *TeamAccessService) ensureAssignableUser(ctx context.Context, username string) error {
-	username = strings.TrimSpace(username)
-	if username == "" {
-		return fmt.Errorf("username 不能为空")
+func (s *PermissionService) ensureAssignablePrincipal(ctx context.Context, principal access.Principal) error {
+	principal = access.NormalizePrincipal(principal)
+	if !access.IsValidPrincipal(principal) {
+		return fmt.Errorf("无效授权主体: %s:%s", principal.Type, principal.Key)
 	}
-	if s.userLookup == nil {
-		return nil
-	}
-	user, err := s.userLookup(ctx, username)
-	if err != nil {
-		return fmt.Errorf("被授权用户不存在: %w", err)
-	}
-	if user == nil || strings.TrimSpace(user.Username) == "" {
-		return fmt.Errorf("被授权用户不存在")
+	switch principal.Type {
+	case access.PrincipalUser:
+		if s.userLookup == nil {
+			return nil
+		}
+		user, err := s.userLookup(ctx, principal.Key)
+		if err != nil {
+			return fmt.Errorf("被授权用户不存在: %w", err)
+		}
+		if user == nil || strings.TrimSpace(user.Username) == "" {
+			return fmt.Errorf("被授权用户不存在")
+		}
+	case access.PrincipalDepartment:
+		if s.departmentLookup == nil {
+			return nil
+		}
+		exists, err := s.departmentLookup(ctx, principal.Key)
+		if err != nil {
+			return fmt.Errorf("查询授权组织失败: %w", err)
+		}
+		if !exists {
+			return fmt.Errorf("被授权组织不存在: %s", principal.Key)
+		}
 	}
 	return nil
 }
 
-func lookupUserForTeamAccess(ctx context.Context, username string) (*dto.UserInfo, error) {
+func lookupUserForPermission(ctx context.Context, username string) (*dto.UserInfo, error) {
 	return apicall.GetUserByUsername(ctx, &dto.QueryUserReq{Username: username})
 }
 
-func validateAssignRoleRequest(req access.AssignRoleRequest) error {
-	if req.TenantUser == "" || req.App == "" || req.Username == "" || req.ResourcePath == "" {
-		return fmt.Errorf("tenant_user、app、username、resource_path 不能为空")
+func lookupDepartmentForPermission(ctx context.Context, departmentPath string) (bool, error) {
+	result, err := apicall.GetDepartmentsByPaths(ctx, []string{departmentPath})
+	if err != nil {
+		return false, err
+	}
+	if result == nil {
+		return false, nil
+	}
+	for _, department := range result.Departments {
+		if department != nil && access.NormalizeResourcePath(department.FullCodePath) == access.NormalizeResourcePath(departmentPath) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func validateGrantRoleRequest(req access.GrantRoleRequest) error {
+	if req.TenantUser == "" || req.App == "" || !access.IsValidPrincipal(req.Principal) || req.ResourcePath == "" {
+		return fmt.Errorf("tenant_user、app、principal、resource_path 不能为空")
 	}
 	if !access.IsValidRoleCode(req.RoleCode) {
 		return fmt.Errorf("无效角色: %s", req.RoleCode)
@@ -420,9 +461,12 @@ func toAccessAssignments(assignments []*model.WorkspaceRoleAssignment) []access.
 			continue
 		}
 		result = append(result, access.Assignment{
-			TenantUser:   assignment.TenantUser,
-			App:          assignment.App,
-			Username:     assignment.Username,
+			TenantUser: assignment.TenantUser,
+			App:        assignment.App,
+			Principal: access.Principal{
+				Type: access.PrincipalType(assignment.PrincipalType),
+				Key:  assignment.PrincipalKey,
+			},
 			ResourcePath: assignment.ResourcePath,
 			RoleCode:     access.RoleCode(assignment.RoleCode),
 			ExpiresAt:    assignment.ExpiresAt,
@@ -430,6 +474,39 @@ func toAccessAssignments(assignments []*model.WorkspaceRoleAssignment) []access.
 		})
 	}
 	return result
+}
+
+func (s *PermissionService) principalsForUser(ctx context.Context, username string) []access.Principal {
+	username = strings.ToLower(strings.TrimSpace(username))
+	departmentPath := ""
+	if username != "" && username == strings.ToLower(strings.TrimSpace(contextx.GetRequestUser(ctx))) {
+		departmentPath = contextx.GetRequestDepartmentFullPath(ctx)
+	}
+	if departmentPath == "" && username != "" && username != "system" && s.userLookup != nil {
+		user, err := s.userLookup(ctx, username)
+		if err == nil && user != nil {
+			departmentPath = user.DepartmentFullPath
+		} else if err != nil {
+			logger.Debugf(ctx, "[Permission] load organization for %s failed: %v", username, err)
+		}
+	}
+	if departmentPath == "" && username != "" && username != "system" {
+		departmentPath = "/org/unassigned"
+	}
+	return access.PrincipalsForUser(username, departmentPath)
+}
+
+func principalTargetUser(principal access.Principal) string {
+	principal = access.NormalizePrincipal(principal)
+	if principal.Type == access.PrincipalUser {
+		return principal.Key
+	}
+	return ""
+}
+
+func principalAuditID(principal access.Principal) string {
+	principal = access.NormalizePrincipal(principal)
+	return string(principal.Type) + ":" + principal.Key
 }
 
 type operateLogInput struct {
@@ -449,7 +526,7 @@ type operateLogInput struct {
 	Status       string
 }
 
-func (s *TeamAccessService) writeOperateLog(ctx context.Context, input operateLogInput) {
+func (s *PermissionService) writeOperateLog(ctx context.Context, input operateLogInput) {
 	if s.operateLogRepo == nil {
 		return
 	}
@@ -482,7 +559,7 @@ func (s *TeamAccessService) writeOperateLog(ctx context.Context, input operateLo
 	writeCtx := context.WithoutCancel(ctx)
 	go func(ctx context.Context) {
 		if err := s.operateLogRepo.CreateOperateLog(ctx, log); err != nil {
-			logger.Warnf(ctx, "[TeamAccess] write operate log failed: action=%s err=%v", input.Action, err)
+			logger.Warnf(ctx, "[Permission] write operate log failed: action=%s err=%v", input.Action, err)
 		}
 	}(writeCtx)
 }

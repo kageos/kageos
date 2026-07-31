@@ -18,16 +18,16 @@ type DocService struct {
 	docRepo         *repository.DocRepository
 	serviceTreeRepo *repository.ServiceTreeRepository
 	appRepo         *repository.AppRepository
-	teamAccess      *TeamAccessService
+	permission      *PermissionService
 }
 
 // NewDocService 创建文档服务
-func NewDocService(docRepo *repository.DocRepository, serviceTreeRepo *repository.ServiceTreeRepository, appRepo *repository.AppRepository, teamAccess *TeamAccessService) *DocService {
+func NewDocService(docRepo *repository.DocRepository, serviceTreeRepo *repository.ServiceTreeRepository, appRepo *repository.AppRepository, permission *PermissionService) *DocService {
 	return &DocService{
 		docRepo:         docRepo,
 		serviceTreeRepo: serviceTreeRepo,
 		appRepo:         appRepo,
-		teamAccess:      teamAccess,
+		permission:      permission,
 	}
 }
 
@@ -339,14 +339,14 @@ func (s *DocService) BatchGetDocs(ctx context.Context, req *dto.BatchGetDocsReq)
 }
 
 func (s *DocService) canReadPath(ctx context.Context, fullCodePath string) bool {
-	if s.teamAccess == nil {
+	if s.permission == nil {
 		return true
 	}
 	tenantUser, app, err := access.ParseUserApp(fullCodePath)
 	if err != nil {
 		return false
 	}
-	ok, err := s.teamAccess.Can(ctx, tenantUser, app, contextx.GetRequestUser(ctx), fullCodePath, access.ActionRead)
+	ok, err := s.permission.HasPermission(ctx, tenantUser, app, contextx.GetRequestUser(ctx), fullCodePath, access.ActionRead)
 	return err == nil && ok
 }
 

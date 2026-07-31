@@ -44,7 +44,7 @@ type Server struct {
 	docService                    *service.DocService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	operateLogService             *service.OperateLogService
-	teamAccessService             *service.TeamAccessService
+	permissionService             *service.PermissionService
 	functionSensitiveFieldService *service.FunctionSensitiveFieldService
 	publicShareService            *service.PublicShareService
 	appRepo                       *repository.AppRepository // ⭐ 应用仓储（用于其他服务）
@@ -277,20 +277,20 @@ func (s *Server) initServices(ctx context.Context) error {
 	functionRepo := repository.NewFunctionRepository(s.db)
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
 	operateLogRepo := repository.NewOperateLogRepository(s.db)
-	teamAccessRepo := repository.NewTeamAccessRepository(s.db)
+	roleAssignmentRepo := repository.NewRoleAssignmentRepository(s.db)
 	functionSensitiveFieldRepo := repository.NewFunctionSensitiveFieldRepository(s.db)
 	publicShareRepo := repository.NewPublicShareRepository(s.db)
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
 	s.operateLogService = service.NewOperateLogService(operateLogRepo)
-	s.teamAccessService = service.NewTeamAccessService(teamAccessRepo, operateLogRepo, appRepo)
+	s.permissionService = service.NewPermissionService(roleAssignmentRepo, operateLogRepo, appRepo)
 	s.functionSensitiveFieldService = service.NewFunctionSensitiveFieldService(functionSensitiveFieldRepo)
 	if err := s.functionSensitiveFieldService.LoadAll(ctx); err != nil {
 		return fmt.Errorf("加载敏感字段缓存失败: %w", err)
 	}
 	// 初始化文档服务（AppService 和 ServiceTreeService 都依赖它）
 	docRepo := repository.NewDocRepository(s.db)
-	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo, s.teamAccessService)
+	s.docService = service.NewDocService(docRepo, serviceTreeRepo, appRepo, s.permissionService)
 
 	s.appService = service.NewAppService(service.AppServiceDependencies{
 		AppRuntimeClient:              s.appCall,
@@ -299,7 +299,7 @@ func (s *Server) initServices(ctx context.Context) error {
 		ServiceTreeRepository:         serviceTreeRepo,
 		OperateLogRepository:          operateLogRepo,
 		DocService:                    s.docService,
-		TeamAccessService:             s.teamAccessService,
+		PermissionService:             s.permissionService,
 		FunctionSensitiveFieldService: s.functionSensitiveFieldService,
 	})
 
@@ -311,7 +311,7 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.docService, s.teamAccessService)
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.docService, s.permissionService)
 	if _, err := service.ReconcileAppRootServiceTrees(ctx, appRepo, serviceTreeRepo); err != nil {
 		return fmt.Errorf("reconcile app root service trees: %w", err)
 	}
