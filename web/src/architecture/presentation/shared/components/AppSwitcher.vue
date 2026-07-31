@@ -104,6 +104,7 @@ import { ArrowUp, ArrowDown, FolderOpened, Monitor } from '@element-plus/icons-v
 import type { App } from '@/architecture/domain/types'
 import WorkspaceListDialog from './WorkspaceListDialog.vue'
 import WorkspaceListPanel from './WorkspaceListPanel.vue'
+import { isWorkspaceSwitcherOwnedPointerTarget } from '@/architecture/presentation/shared/utils/workspaceSwitcherPointerTarget'
 
 interface Props {
   currentApp: App | null
@@ -222,19 +223,7 @@ const handleDocumentPointerDown = (event: PointerEvent) => {
   }
 
   const target = event.target
-  if (!(target instanceof Node)) {
-    return
-  }
-
-  const popoverEl = document.querySelector('.workspace-switcher-popover')
-  const messageBoxEl = document.querySelector('.el-message-box')
-  const messageBoxOverlayEl = document.querySelector('.el-overlay-message-box')
-  if (
-    switcherRootRef.value?.contains(target) ||
-    popoverEl?.contains(target) ||
-    messageBoxEl?.contains(target) ||
-    messageBoxOverlayEl?.contains(target)
-  ) {
+  if (isWorkspaceSwitcherOwnedPointerTarget(target, switcherRootRef.value)) {
     return
   }
 

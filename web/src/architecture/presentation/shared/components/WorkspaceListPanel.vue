@@ -392,9 +392,12 @@
 
     <el-dialog
       v-model="workspaceSettingsVisible"
+      class="workspace-settings-dialog"
       :title="t('workspace.editWorkspaceTitle')"
       width="min(520px, calc(100vw - 32px))"
       append-to-body
+      modal-class="workspace-settings-dialog-overlay"
+      :close-on-click-modal="false"
       destroy-on-close
       data-testid="workspace-settings-dialog"
     >
