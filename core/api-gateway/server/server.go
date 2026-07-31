@@ -31,7 +31,8 @@ type Server struct {
 	httpServer      *gin.Engine
 	httpRuntime     *serverx.HTTPServer
 	sharedTransport *http.Transport // 共享 Transport，提高性能
-	tokenBlacklist  *TokenBlacklist // ⭐ 新增：Token 黑名单管理器
+	accessTokens    *AccessTokenValidator
+	openAPITokens   *OpenAPITokenValidator
 	natsConn        *nats.Conn
 	subscriptions   []*nats.Subscription
 
@@ -44,10 +45,9 @@ func NewServer(cfg *config.APIGatewayConfig) (*Server, error) {
 	ctx := context.Background()
 
 	s := &Server{
-		cfg:            cfg,
-		ctx:            ctx,
-		tokenBlacklist: NewTokenBlacklist(), // ⭐ 新增：初始化 Token 黑名单管理器
-		subscriptions:  make([]*nats.Subscription, 0),
+		cfg:           cfg,
+		ctx:           ctx,
+		subscriptions: make([]*nats.Subscription, 0),
 	}
 
 	// 初始化共享 Transport
@@ -57,6 +57,16 @@ func NewServer(cfg *config.APIGatewayConfig) (*Server, error) {
 	if err := s.validateConfig(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
+	accessTokens, err := NewAccessTokenValidator(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("initialize access token validator: %w", err)
+	}
+	s.accessTokens = accessTokens
+	openAPITokens, err := NewOpenAPITokenValidator(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("initialize OpenAPI Token validator: %w", err)
+	}
+	s.openAPITokens = openAPITokens
 
 	// 初始化路由
 	if err := s.initRouter(ctx); err != nil {
@@ -195,7 +205,7 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 		return nil
 	}
 
-	tokenHandler := NewTokenCommandHandler(s.tokenBlacklist)
+	tokenHandler := NewTokenCommandHandler(s.accessTokens, s.openAPITokens)
 	return RegisterNATS(ctx, s.natsConn, &s.subscriptions, tokenHandler)
 }
 

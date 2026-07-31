@@ -60,7 +60,7 @@ func WithUserInfo(options ...AuthOption) gin.HandlerFunc {
 			if token != "" {
 				// 尝试解析 token 获取用户信息
 				jwtService := auth.NewJWTService()
-				claims, err := jwtService.ValidateToken(token)
+				claims, err := jwtService.ValidateAccessToken(token)
 				if err == nil {
 					// token 解析成功，使用 token 中的用户信息
 					requestUser = claims.Username

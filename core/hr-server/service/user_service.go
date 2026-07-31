@@ -211,7 +211,9 @@ func (s *UserService) UpdateUserFromSystem(ctx context.Context, username string,
 		return nil, fmt.Errorf("更新用户失败: %w", err)
 	}
 	if companyChanged || req.DepartmentFullPath != nil || req.LeaderUsername != nil {
-		s.invalidateUserTokens(ctx, user, "system_user_profile_changed")
+		if err := s.invalidateUserTokens(ctx, user, "system_user_profile_changed"); err != nil {
+			return nil, err
+		}
 	}
 	logger.Infof(ctx, "[UserService] system updated user: %s", user.Username)
 	return user, nil
@@ -236,7 +238,9 @@ func (s *UserService) ResetUserPasswordFromSystem(ctx context.Context, username,
 	if err := s.userRepo.UpdateUser(user); err != nil {
 		return nil, fmt.Errorf("重置密码失败: %w", err)
 	}
-	s.invalidateUserTokens(ctx, user, "system_user_password_reset")
+	if err := s.invalidateUserTokens(ctx, user, "system_user_password_reset"); err != nil {
+		return nil, err
+	}
 	logger.Infof(ctx, "[UserService] system reset password for user: %s", user.Username)
 	return user, nil
 }
@@ -264,7 +268,9 @@ func (s *UserService) UpdateUserStatusFromSystem(ctx context.Context, username, 
 		return nil, fmt.Errorf("更新用户状态失败: %w", err)
 	}
 	if status != "active" {
-		s.invalidateUserTokens(ctx, user, "system_user_status_changed")
+		if err := s.invalidateUserTokens(ctx, user, "system_user_status_changed"); err != nil {
+			return nil, err
+		}
 	}
 	logger.Infof(ctx, "[UserService] system updated user status: %s status=%s", user.Username, status)
 	return user, nil
@@ -372,12 +378,8 @@ func (s *UserService) AssignUserOrganization(ctx context.Context, username strin
 		return nil, fmt.Errorf("更新用户失败: %w", err)
 	}
 
-	// ⭐ 发送 NATS 失效通知（如果组织架构发生变化）
-	if s.tokenPublisher != nil {
-		if err := s.tokenPublisher.InvalidateUserToken(ctx, user.ID, user.Username, "organization_changed", s.userSessionRepo); err != nil {
-			logger.Warnf(ctx, "[UserService] 发送 token 失效通知失败: %v", err)
-			// 不返回错误，因为用户更新已成功
-		}
+	if err := s.invalidateUserTokens(ctx, user, "organization_changed"); err != nil {
+		return nil, err
 	}
 
 	logger.Infof(ctx, "[UserService] User organization assigned: %s, department: %s, leader: %s", username, user.DepartmentFullPath, user.LeaderUsername)
@@ -435,13 +437,23 @@ func (s *UserService) validateLeaderForCompany(leaderUsername, companyCode strin
 	return nil
 }
 
-func (s *UserService) invalidateUserTokens(ctx context.Context, user *model.User, reason string) {
-	if s.tokenPublisher == nil || user == nil {
-		return
+func (s *UserService) invalidateUserTokens(ctx context.Context, user *model.User, reason string) error {
+	if user == nil {
+		return nil
 	}
-	if err := s.tokenPublisher.InvalidateUserToken(ctx, user.ID, user.Username, reason, s.userSessionRepo); err != nil {
-		logger.Warnf(ctx, "[UserService] 发送 token 失效通知失败: %v", err)
+	sessions, err := s.userSessionRepo.GetActiveSessionsByUserID(user.ID)
+	if err != nil {
+		return fmt.Errorf("查询用户活跃会话失败: %w", err)
 	}
+	if err := s.userSessionRepo.DeactivateAllUserSessions(user.ID); err != nil {
+		return fmt.Errorf("停用用户会话失败: %w", err)
+	}
+	if s.tokenPublisher != nil && len(sessions) > 0 {
+		if err := s.tokenPublisher.InvalidateUserTokens(ctx, user.ID, user.Username, sessions, reason); err != nil {
+			logger.Warnf(ctx, "[UserService] 会话已停用，但发送网关失效通知失败: %v", err)
+		}
+	}
+	return nil
 }
 
 func normalizeSystemUserStatus(status, defaultStatus string) (string, error) {

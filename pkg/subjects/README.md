@@ -42,7 +42,7 @@
 ### gateway
 
 - `gateway.v1.cmd.token.invalidate`
-- `gateway.v1.cmd.token.remove-blacklist`
+- `gateway.v1.cmd.openapi-token.revoked`
 
 ### timer
 

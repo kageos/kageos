@@ -22,11 +22,6 @@ const (
 	// HTTP 状态码：401
 	// 前端处理：自动跳转到登录页面
 	CodeTokenInvalid = "TOKEN_INVALID"
-
-	// CodeTokenBlacklisted Token 已失效（被加入黑名单，需要重新登录）
-	// HTTP 状态码：401
-	// 前端处理：自动跳转到登录页面
-	CodeTokenBlacklisted = "TOKEN_BLACKLISTED"
 )
 
 // GetTokenExpiredResponse 获取 Token 过期响应（用于前端跳转登录页）
@@ -47,17 +42,6 @@ func GetTokenInvalidResponse() map[string]interface{} {
 	return map[string]interface{}{
 		"code": CodeTokenInvalid,
 		"msg":  "Token 无效，请重新登录",
-		"data": nil,
-	}
-}
-
-// GetTokenBlacklistedResponse 获取 Token 黑名单响应（用于前端跳转登录页）
-// HTTP 状态码：401
-// 返回格式：{"code": "TOKEN_BLACKLISTED", "msg": "Token 已失效，请重新登录", "data": null}
-func GetTokenBlacklistedResponse() map[string]interface{} {
-	return map[string]interface{}{
-		"code": CodeTokenBlacklisted,
-		"msg":  "Token 已失效，请重新登录",
 		"data": nil,
 	}
 }

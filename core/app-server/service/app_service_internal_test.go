@@ -157,6 +157,51 @@ func TestReconcilePackageAgentTasksUpdatesExistingManifestDefinition(t *testing.
 	}
 }
 
+func TestReconcilePackageAgentTasksAdoptsExistingBundleDefinition(t *testing.T) {
+	fake := &fakeAppScheduleClient{
+		listResp: &scheduledsdk.ListTasksResponse{List: []*scheduledsdk.Task{
+			{
+				ID:     43,
+				Status: scheduledsdk.TaskStatusPaused,
+				Metadata: map[string]string{
+					"managed_by":    scheduledTaskSourceBundle,
+					"schedule_code": "gold_watch_daily_report",
+				},
+			},
+		}},
+	}
+	old := newAppScheduleClient
+	newAppScheduleClient = func() appScheduleClient { return fake }
+	defer func() { newAppScheduleClient = old }()
+
+	svc := &AppService{}
+	err := svc.reconcilePackageAgentTasks(context.Background(), &appMetadataSyncState{
+		app:         &model.App{User: "system", Code: "demo"},
+		requestUser: "system",
+	}, []*dto.PackageInfo{
+		{
+			Name:     "黄金盯盘助手",
+			FullPath: "/system/demo/gold_watch",
+			AgentTasks: []dto.AgentTaskConfig{
+				{
+					Code:     "gold_watch_daily_report",
+					Message:  "读取观察清单、行情快照和提醒记录，生成日报。",
+					CronExpr: "0 8 * * *",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.created) != 0 || len(fake.updated) != 1 {
+		t.Fatalf("bundled task must be adopted instead of duplicated, created=%d updated=%d", len(fake.created), len(fake.updated))
+	}
+	if fake.updated[0].Metadata == nil || (*fake.updated[0].Metadata)["managed_by"] != scheduledTaskSourceManifest {
+		t.Fatalf("adopted task must become manifest-managed, update=%#v", fake.updated[0])
+	}
+}
+
 func TestBuildFormScheduleTaskRequestSupportsCron(t *testing.T) {
 	req, err := buildFormScheduleTaskRequest(context.Background(), &appMetadataSyncState{
 		app:         &model.App{User: "system", Code: "demo"},

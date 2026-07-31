@@ -41,7 +41,7 @@ flowchart TB
       appBaseImage["kagebase latest user app base image"]
 
       subgraph platform ["Platform services started inside core-server"]
-        apiGateway["api-gateway HTTP router token blacklist"]
+        apiGateway["api-gateway HTTP router token validation cache"]
         appServer["app-server Service Tree access logs appcall"]
         agentServer["agent-server workspace chat ToolRegistry LLM"]
         appRuntime["app-runtime build deploy lifecycle"]
@@ -79,7 +79,7 @@ flowchart TB
     lifecycleSubjects["runtime.v1.event.lifecycle"]
     timerSubjects["timer.v1.cmd.execution requested started heartbeat finished"]
     messageSubjects["message.v1.cmd.send"]
-    gatewaySubjects["gateway.v1.cmd.token invalidate remove blacklist"]
+    gatewaySubjects["gateway.v1.cmd.token.invalidate and openapi-token.revoked"]
   end
 
   subgraph external ["External dependencies"]
@@ -189,7 +189,7 @@ flowchart TB
   nats -.->|"consume message command"| messageServer
   hrServer -.->|"logout session revoke"| gatewaySubjects
   gatewaySubjects -.-> nats
-  nats -.->|"token blacklist update"| apiGateway
+  nats -.->|"token cache eviction"| apiGateway
 
   mysqlData --> mysql
   minioData --> minio
@@ -287,7 +287,7 @@ flowchart TB
   timerScheduler -.->|"Execution requested and control"| natsC
   messageServer -.->|"Consumes message commands"| natsC
   hrServer -.->|"Token invalidation commands"| natsC
-  apiGateway -.->|"Token blacklist commands"| natsC
+  natsC -.->|"Token cache eviction commands"| apiGateway
 
   appServer --> mysqlC
   agentServer --> mysqlC
@@ -626,7 +626,7 @@ flowchart LR
 
 | 边界 | 当前职责 |
 | --- | --- |
-| `api-gateway` | HTTP 反向代理、Trace、鉴权头透传、token blacklist NATS 订阅、Swagger 聚合 |
+| `api-gateway` | HTTP 反向代理、Trace、鉴权头透传、HR 会话校验短缓存、token 失效 NATS 订阅、Swagger 聚合 |
 | `app-server` | 工作区 API、Service Tree、能力包安装导出、权限、操作日志、函数元数据、用户 App 调用编排 |
 | `agent-server` | 工作台会话、会话消息、LLM 配置、ToolRegistry、PRD/代码生成、通知工具和 Agent 任务 worker |
 | `app-runtime` | App 创建/更新/删除、源码文件和版本元数据、容器生命周期、NATS runtime handler、App discovery |

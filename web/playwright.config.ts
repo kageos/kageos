@@ -5,6 +5,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:5173'
 const authStatePath = path.resolve(fileURLToPath(new URL('.', import.meta.url)), 'tests/e2e/.auth/user.json')
+const emptyStorageState = { cookies: [], origins: [] }
 const shouldManageLocalWebServer = /^https?:\/\/(127\.0\.0\.1|localhost):5173(?:\/|$)/.test(baseURL)
 
 export default defineConfig({
@@ -34,8 +35,17 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: /(?:login-page|register-home)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
+      },
+    },
+    {
+      name: 'chromium-public',
+      testMatch: /(?:login-page|register-home)\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: emptyStorageState,
       },
     },
   ],

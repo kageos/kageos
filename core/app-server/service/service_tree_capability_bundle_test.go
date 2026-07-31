@@ -264,6 +264,7 @@ func TestAppendCapabilityBundleAgentTasksExportsRelativeTasks(t *testing.T) {
 				ExecutorKey:     ScheduledAgentSessionExecutorKey,
 				ExecutorPayload: payload,
 				Metadata: map[string]string{
+					"managed_by":    "app_manifest",
 					"schedule_code": "daily_follow_brief",
 					"mode_code":     "dev",
 				},
@@ -299,6 +300,9 @@ func TestAppendCapabilityBundleAgentTasksExportsRelativeTasks(t *testing.T) {
 	if task.Message != "每天整理客户跟进清单。" || task.MaxDurationSeconds != 900 || task.Schedule.CronExpr != "5 9 * * *" {
 		t.Fatalf("unexpected exported task content: %#v", task)
 	}
+	if task.ManagedBy != scheduledTaskSourceManifest || task.Origin != scheduledTaskOriginManifest {
+		t.Fatalf("unexpected exported task ownership: %#v", task)
+	}
 }
 
 func TestCapabilityBundleAgentTaskSerializesPausedState(t *testing.T) {
@@ -312,12 +316,16 @@ func TestCapabilityBundleAgentTaskSerializesPausedState(t *testing.T) {
 			CronExpr: "5 9 * * *",
 			Timezone: "Asia/Shanghai",
 		},
+		ManagedBy: scheduledTaskSourceManifest,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(raw), `"enabled":false`) {
 		t.Fatalf("paused task must serialize an explicit enabled=false, got %s", raw)
+	}
+	if !strings.Contains(string(raw), `"managed_by":"app_manifest"`) {
+		t.Fatalf("manifest ownership must be portable, got %s", raw)
 	}
 }
 
@@ -388,6 +396,9 @@ func TestBuildCapabilityBundleAgentTaskRequestRebasesTargetPath(t *testing.T) {
 	if req.Metadata["managed_by"] != "capability_bundle" || req.Metadata["bundle_task_code"] != "daily_follow_brief" {
 		t.Fatalf("unexpected metadata: %#v", req.Metadata)
 	}
+	if req.IdempotencyKey != packageAgentTaskIdempotencyKey("/alice/app/customers", "daily_follow_brief") {
+		t.Fatalf("bundle and manifest tasks must share one logical idempotency key, got %q", req.IdempotencyKey)
+	}
 	var payload scheduledAgentSessionPayload
 	if err := json.Unmarshal(req.ExecutorPayload, &payload); err != nil {
 		t.Fatal(err)
@@ -420,11 +431,116 @@ func TestInstallCapabilityBundleAgentTasksOverwriteRefreshesExistingTask(t *test
 	if len(refs) != 1 || refs[0] != "alice/app/customers:daily_brief" {
 		t.Fatalf("unexpected refs: %#v", refs)
 	}
+	if len(fake.created) != 1 {
+		t.Fatalf("first import must create exactly one task, created=%d", len(fake.created))
+	}
 	if len(fake.updated) != 1 {
 		t.Fatalf("updated tasks = %d, want 1", len(fake.updated))
 	}
 	if len(fake.resumed) != 0 || len(fake.paused) != 0 {
 		t.Fatalf("overwrite must preserve runtime status, resumed=%#v paused=%#v", fake.resumed, fake.paused)
+	}
+}
+
+func TestInstallCapabilityBundleAgentTasksSkipsManifestDefinition(t *testing.T) {
+	fake := &fakeAppScheduleClient{}
+	old := newAppScheduleClient
+	newAppScheduleClient = func() appScheduleClient { return fake }
+	defer func() { newAppScheduleClient = old }()
+
+	svc := &serviceTreeCapabilityBundleService{}
+	refs, err := svc.installCapabilityBundleAgentTasks(context.Background(), "/system/democase", []*dto.CapabilityBundleAgentTask{
+		{
+			RelativePath: "gold_watch",
+			Code:         "gold_watch_daily_report",
+			Title:        "黄金盯盘日报",
+			Message:      "生成黄金盯盘日报。",
+			Schedule:     scheduledsdk.Schedule{Type: scheduledsdk.ScheduleCron, CronExpr: "0 8 * * *"},
+			ManagedBy:    scheduledTaskSourceManifest,
+		},
+	}, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 0 || len(fake.created) != 0 || len(fake.updated) != 0 {
+		t.Fatalf("manifest definition must be left to source reconciliation, refs=%#v created=%d updated=%d", refs, len(fake.created), len(fake.updated))
+	}
+}
+
+func TestInstallCapabilityBundleAgentTasksLegacyBundleReusesManifestTask(t *testing.T) {
+	fake := &fakeAppScheduleClient{
+		listResp: &scheduledsdk.ListTasksResponse{List: []*scheduledsdk.Task{
+			{
+				ID:          25,
+				ExecutorKey: ScheduledAgentSessionExecutorKey,
+				ResourceKey: "/system/democase/gold_watch",
+				Metadata: map[string]string{
+					"managed_by":    scheduledTaskSourceManifest,
+					"schedule_code": "gold_watch_daily_report",
+				},
+			},
+		}},
+	}
+	old := newAppScheduleClient
+	newAppScheduleClient = func() appScheduleClient { return fake }
+	defer func() { newAppScheduleClient = old }()
+
+	svc := &serviceTreeCapabilityBundleService{}
+	refs, err := svc.installCapabilityBundleAgentTasks(context.Background(), "/system/democase", []*dto.CapabilityBundleAgentTask{
+		{
+			RelativePath: "gold_watch",
+			Code:         "gold_watch_daily_report",
+			Title:        "黄金盯盘日报",
+			Message:      "生成黄金盯盘日报。",
+			Schedule:     scheduledsdk.Schedule{Type: scheduledsdk.ScheduleCron, CronExpr: "0 8 * * *"},
+			// 旧 capability.bundle.v1 没有 managed_by。
+		},
+	}, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 0 || len(fake.created) != 0 || len(fake.updated) != 0 {
+		t.Fatalf("legacy bundle must reuse the manifest task, refs=%#v created=%d updated=%d", refs, len(fake.created), len(fake.updated))
+	}
+}
+
+func TestInstallCapabilityBundleAgentTasksRepeatedImportReusesBundleTask(t *testing.T) {
+	fake := &fakeAppScheduleClient{
+		listResp: &scheduledsdk.ListTasksResponse{List: []*scheduledsdk.Task{
+			{
+				ID:          26,
+				ExecutorKey: ScheduledAgentSessionExecutorKey,
+				ResourceKey: "/alice/app/customers",
+				Metadata: map[string]string{
+					"managed_by":       scheduledTaskSourceBundle,
+					"bundle_task_code": "daily_brief",
+					"schedule_code":    "daily_brief",
+				},
+			},
+		}},
+	}
+	old := newAppScheduleClient
+	newAppScheduleClient = func() appScheduleClient { return fake }
+	defer func() { newAppScheduleClient = old }()
+
+	svc := &serviceTreeCapabilityBundleService{}
+	refs, err := svc.installCapabilityBundleAgentTasks(context.Background(), "/alice/app", []*dto.CapabilityBundleAgentTask{
+		{
+			RelativePath: "customers",
+			Code:         "daily_brief",
+			Title:        "Daily brief",
+			Message:      "Summarize customer updates",
+			Schedule:     scheduledsdk.Schedule{Type: scheduledsdk.ScheduleCron, CronExpr: "0 9 * * *"},
+		},
+	}, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(refs) != 1 || refs[0] != "alice/app/customers:daily_brief" {
+		t.Fatalf("unexpected refs: %#v", refs)
+	}
+	if len(fake.created) != 0 || len(fake.updated) != 1 {
+		t.Fatalf("repeated import must update one existing task, created=%d updated=%d", len(fake.created), len(fake.updated))
 	}
 }
 

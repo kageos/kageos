@@ -1,11 +1,9 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -21,6 +19,7 @@ import (
 	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/openapitoken"
 	"github.com/kageos/kageos/pkg/pprof"
 	"github.com/kageos/kageos/pkg/response"
 	"github.com/kageos/kageos/pkg/serverx"
@@ -257,22 +256,6 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 	// 移除后端服务设置的 CORS 头，避免与网关的 CORS 中间件重复
 	// 网关的 CORS 中间件会统一处理所有响应
 	proxy.ModifyResponse = func(resp *http.Response) error {
-		// ⭐ 新增：检查 token 是否在黑名单中，如果是则返回 401
-		if resp.Request.Header.Get("X-Token-Blacklisted") == "true" {
-			logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, returning 401")
-			resp.StatusCode = http.StatusUnauthorized
-			resp.Status = "401 Unauthorized"
-			// 设置响应头
-			resp.Header = make(http.Header)
-			resp.Header.Set("Content-Type", "application/json")
-			// 返回 JSON 错误响应（使用定义的常量，前端会根据 code 跳转到登录页）
-			errorResp := response.GetTokenBlacklistedResponse()
-			errorBody, _ := json.Marshal(errorResp)
-			resp.Body = io.NopCloser(bytes.NewReader(errorBody))
-			resp.ContentLength = int64(len(errorBody))
-			return nil
-		}
-
 		// 移除后端服务设置的 CORS 头，避免重复
 		resp.Header.Del("Access-Control-Allow-Origin")
 		resp.Header.Del("Access-Control-Allow-Methods")
@@ -293,6 +276,7 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 
 	return func(c *gin.Context) {
 		proxyStart := time.Now()
+		stripUntrustedIdentityHeaders(c.Request.Header)
 
 		// ✨ 将 TraceId 从 gin context 设置到请求 header，供后端服务使用
 		// WithTraceId 中间件已经将 TraceId 设置到 gin context 中（使用常量 TraceIdHeader）
@@ -302,46 +286,30 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 			c.Request.Header.Set(contextx.TraceIdHeader, traceId)
 		}
 
-		// ✨ 解析 JWT Token 并提取 username，设置到 X-Request-User header（在调用 proxy 之前设置）
-		// ⭐ 按照 TraceId 的方式，直接在 gin handler 中设置 header，确保被正确传递
-		token := c.Request.Header.Get(contextx.TokenHeader)
-		if token != "" {
-			// ⭐ 新增：检查 token 是否在黑名单中
-			if s.tokenBlacklist.IsBlacklisted(token) {
-				logger.Warnf(s.ctx, "[Proxy] Token is blacklisted, rejecting request")
-				c.JSON(http.StatusUnauthorized, response.GetTokenBlacklistedResponse())
+		if rawOpenAPIToken := openapitoken.BearerToken(c.Request.Header.Get("Authorization")); rawOpenAPIToken != "" {
+			principal, err := s.openAPITokens.Validate(c.Request.Context(), rawOpenAPIToken)
+			if err != nil {
+				logger.Warnf(s.ctx, "[Proxy] OpenAPI Token validation failed - Path: %s, Error: %v", c.Request.URL.Path, err)
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"code": 7,
+					"data": gin.H{},
+					"msg":  "OpenAPI Token 无效、已过期或已吊销",
+				})
 				c.Abort()
 				return
 			}
-
-			// 解析 token 获取 username 和组织架构信息
-			jwtService := auth.NewJWTService()
-			claims, err := jwtService.ValidateToken(token)
-			if err == nil {
-				// 解析成功，直接覆盖 username 到 header（忽略请求中的 X-Request-User）
-				// ⭐ 按照 TraceId 的方式，直接在 c.Request.Header 中设置
-				c.Request.Header.Set(contextx.RequestUserHeader, claims.Username)
-				logger.Infof(s.ctx, "[Proxy] Extracted username from token: %s, Path: %s", claims.Username, c.Request.URL.Path)
-
-				// ⭐ 设置组织架构信息到 header（token 中一定包含这些字段，如果用户有组织架构信息）
-				if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
-					c.Request.Header.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
-					logger.Debugf(s.ctx, "[Proxy] Extracted department_full_path from token: %s", *claims.DepartmentFullPath)
-				}
-				if claims.CompanyCode != "" {
-					c.Request.Header.Set(contextx.CompanyCodeHeader, claims.CompanyCode)
-				}
-				if claims.CompanyName != "" {
-					c.Request.Header.Set(contextx.CompanyNameHeader, claims.CompanyName)
-				}
-				if claims.CompanyLogoURL != "" {
-					c.Request.Header.Set(contextx.CompanyLogoURLHeader, claims.CompanyLogoURL)
-				}
-			} else {
-				// token 解析失败，但不阻止请求（可能是不需要认证的接口）
-				logger.Warnf(s.ctx, "[Proxy] Failed to parse token - Path: %s, Error: %v, TokenLength: %d",
-					c.Request.URL.Path, err, len(token))
+			applyOpenAPIPrincipalHeaders(c.Request.Header, principal)
+			c.Request.Header.Del("Authorization")
+			c.Request.Header.Del(contextx.TokenHeader)
+		} else if token := c.Request.Header.Get(contextx.TokenHeader); token != "" {
+			principal, err := s.accessTokens.Validate(c.Request.Context(), token)
+			if err != nil {
+				logger.Warnf(s.ctx, "[Proxy] access token validation failed - Path: %s, Error: %v", c.Request.URL.Path, err)
+				c.JSON(http.StatusUnauthorized, response.GetTokenInvalidResponse())
+				c.Abort()
+				return
 			}
+			applyAccessPrincipalHeaders(c.Request.Header, principal)
 		}
 
 		// ✅ 创建带超时的 Context，避免高并发时请求堆积
@@ -375,6 +343,60 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 
 		logger.Infof(s.ctx, "[Proxy] done: traceId=%s, path=%s, status=%d, elapsed=%s",
 			traceId, c.Request.URL.Path, c.Writer.Status(), time.Since(proxyStart).Truncate(time.Millisecond))
+	}
+}
+
+func stripUntrustedIdentityHeaders(header http.Header) {
+	for _, key := range []string{
+		contextx.RequestUserHeader,
+		"X-Username",
+		contextx.DepartmentFullPathHeader,
+		contextx.CompanyCodeHeader,
+		contextx.CompanyNameHeader,
+		contextx.CompanyLogoURLHeader,
+	} {
+		header.Del(key)
+	}
+}
+
+func applyOpenAPIPrincipalHeaders(header http.Header, principal *openapitoken.Principal) {
+	if principal == nil {
+		return
+	}
+	header.Set(contextx.RequestUserHeader, principal.Username)
+	if principal.DepartmentFullPath != "" {
+		header.Set(contextx.DepartmentFullPathHeader, principal.DepartmentFullPath)
+	}
+	if principal.CompanyCode != "" {
+		header.Set(contextx.CompanyCodeHeader, principal.CompanyCode)
+	}
+	if principal.CompanyName != "" {
+		header.Set(contextx.CompanyNameHeader, principal.CompanyName)
+	}
+	if principal.CompanyLogoURL != "" {
+		header.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
+	}
+	header.Set(contextx.ClientSourceHeader, contextx.ClientSourceOpenAPI)
+	header.Set(contextx.SourceTypeHeader, contextx.SourceTypeOpenAPIToken)
+	header.Set(contextx.SourceRefHeader, principal.Username)
+}
+
+func applyAccessPrincipalHeaders(header http.Header, principal *auth.AccessTokenPrincipal) {
+	if principal == nil {
+		return
+	}
+	header.Set(contextx.RequestUserHeader, principal.Username)
+	if principal.DepartmentFullPath != "" {
+		header.Set(contextx.DepartmentFullPathHeader, principal.DepartmentFullPath)
+	}
+	if principal.CompanyCode != "" {
+		header.Set(contextx.CompanyCodeHeader, principal.CompanyCode)
+	}
+	if principal.CompanyName != "" {
+		header.Set(contextx.CompanyNameHeader, principal.CompanyName)
+	}
+	if principal.CompanyLogoURL != "" {
+		header.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
 	}
 }
 

@@ -85,6 +85,7 @@ type CapabilityBundleAgentTask struct {
 	ModeCode           string                `json:"mode_code,omitempty"`
 	MaxDurationSeconds int64                 `json:"max_duration_seconds,omitempty"`
 	Policy             string                `json:"policy,omitempty"`
+	ManagedBy          string                `json:"managed_by,omitempty"`
 	Origin             string                `json:"origin,omitempty"`
 }
 

@@ -51,7 +51,16 @@ func (r *UserSessionRepository) GetUserSessionByRefreshToken(refreshToken string
 
 // DeactivateUserSession 停用用户会话
 func (r *UserSessionRepository) DeactivateUserSession(token string) error {
-	return r.db.Model(&model.UserSession{}).Where("token = ?", token).Update("is_active", false).Error
+	result := r.db.Model(&model.UserSession{}).
+		Where("token = ? AND is_active = true", token).
+		Update("is_active", false)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // DeactivateAllUserSessions 停用用户的所有会话

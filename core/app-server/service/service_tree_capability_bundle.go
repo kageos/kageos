@@ -681,8 +681,16 @@ func capabilityBundleAgentTaskFromScheduledTask(baseTree *model.ServiceTree, tas
 		ModeCode:           firstNonEmptyString(strings.TrimSpace(payload.ModeCode), strings.TrimSpace(task.Metadata["mode_code"])),
 		MaxDurationSeconds: payload.MaxDurationSeconds,
 		Policy:             agentTaskPolicyCreateIfMissing,
+		ManagedBy:          capabilityBundleAgentTaskManagedBy(task),
 		Origin:             scheduledTaskOriginManifest,
 	}, nil
+}
+
+func capabilityBundleAgentTaskManagedBy(task *scheduledsdk.Task) string {
+	if task != nil && strings.TrimSpace(task.Metadata["managed_by"]) == scheduledTaskSourceManifest {
+		return scheduledTaskSourceManifest
+	}
+	return scheduledTaskSourceBundle
 }
 
 func scheduledAgentTaskResourcePath(task *scheduledsdk.Task) string {
@@ -1151,13 +1159,33 @@ func (s *serviceTreeCapabilityBundleService) installCapabilityBundleAgentTasks(
 	managedCtx := contextx.WithClientSource(ctx, scheduledTaskSourceBundle)
 	created := make([]string, 0, len(tasks))
 	for _, task := range tasks {
-		if task == nil {
+		if task == nil || strings.TrimSpace(task.ManagedBy) == scheduledTaskSourceManifest {
+			// 源码内 app_manifest 会在目录文件构建时由 reconcilePackageAgentTasks
+			// 幂等同步。bundle 只保留结构化定义用于预览，不能再次创建同一员工。
 			continue
 		}
 		targetFullCodePath := joinCapabilityFullCodePath(targetRootPath, task.RelativePath)
 		req, err := buildCapabilityBundleAgentTaskRequest(ctx, targetFullCodePath, task)
 		if err != nil {
 			return created, err
+		}
+		existing, err := findCapabilityBundleAgentTaskByCode(managedCtx, client, targetFullCodePath, task.Code)
+		if err != nil {
+			return created, fmt.Errorf("查询现有 Agent 任务 %s/%s 失败: %w", targetFullCodePath, task.Code, err)
+		}
+		if existing != nil {
+			if strings.TrimSpace(existing.Metadata["managed_by"]) == scheduledTaskSourceManifest {
+				// 兼容没有 managed_by 的旧 bundle：源码构建已经创建了同一
+				// full_code_path + code 的任务，不能再按旧 bundle 幂等键创建一条。
+				continue
+			}
+			if overwrite {
+				if _, err := client.UpdateTask(managedCtx, existing.ID, updateTaskRequestFromCreate(req)); err != nil {
+					return created, fmt.Errorf("更新 %s/%s 失败: %w", targetFullCodePath, task.Code, err)
+				}
+			}
+			created = append(created, capabilityAgentTaskKey(targetFullCodePath, task.Code))
+			continue
 		}
 		createdTask, err := client.CreateTask(managedCtx, req)
 		if err != nil {
@@ -1174,6 +1202,55 @@ func (s *serviceTreeCapabilityBundleService) installCapabilityBundleAgentTasks(
 		created = append(created, capabilityAgentTaskKey(targetFullCodePath, task.Code))
 	}
 	return created, nil
+}
+
+func findCapabilityBundleAgentTaskByCode(
+	ctx context.Context,
+	client appScheduleClient,
+	fullCodePath string,
+	code string,
+) (*scheduledsdk.Task, error) {
+	fullCodePath = strings.TrimSpace(fullCodePath)
+	code = normalizeCapabilityAgentTaskCode(code)
+	if fullCodePath == "" || code == "" {
+		return nil, nil
+	}
+	var fallback *scheduledsdk.Task
+	for pageNumber := 1; ; pageNumber++ {
+		resp, err := client.ListTasks(ctx, scheduledsdk.ListTasksRequest{
+			ExecutorKey:   ScheduledAgentSessionExecutorKey,
+			Category:      "scheduled_agent_session",
+			SourceType:    "agent_session",
+			SourceRef:     fullCodePath,
+			ResourceScope: "workspace_directory",
+			ResourceKey:   fullCodePath,
+			Page:          pageNumber,
+			PageSize:      capabilityBundleAgentTaskPageSize,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if resp == nil || len(resp.List) == 0 {
+			return fallback, nil
+		}
+		for _, existing := range resp.List {
+			if existing == nil || scheduledAgentTaskResourcePath(existing) != fullCodePath {
+				continue
+			}
+			if normalizeCapabilityAgentTaskCode(capabilityBundleAgentTaskCode(existing)) != code {
+				continue
+			}
+			if strings.TrimSpace(existing.Metadata["managed_by"]) == scheduledTaskSourceManifest {
+				return existing, nil
+			}
+			if fallback == nil {
+				fallback = existing
+			}
+		}
+		if len(resp.List) < capabilityBundleAgentTaskPageSize {
+			return fallback, nil
+		}
+	}
 }
 
 func buildCapabilityBundleAgentTaskRequest(ctx context.Context, targetFullCodePath string, task *dto.CapabilityBundleAgentTask) (scheduledsdk.CreateTaskRequest, error) {
@@ -1228,7 +1305,7 @@ func buildCapabilityBundleAgentTaskRequest(ctx context.Context, targetFullCodePa
 		Description:     strings.TrimSpace(task.Description),
 		Category:        "scheduled_agent_session",
 		Tags:            []string{"agent", "session", "capability_bundle"},
-		IdempotencyKey:  capabilityBundleAgentTaskIdempotencyKey(targetFullCodePath, code),
+		IdempotencyKey:  packageAgentTaskIdempotencyKey(targetFullCodePath, code),
 		ExecutorKey:     ScheduledAgentSessionExecutorKey,
 		ExecutorPayload: mustRawJSON(executorPayload),
 		Metadata: map[string]string{
@@ -1250,12 +1327,6 @@ func buildCapabilityBundleAgentTaskRequest(ctx context.Context, targetFullCodePa
 		RequestUserDept: contextx.GetRequestDepartmentFullPath(ctx),
 		CreatedBy:       requestUser,
 	}, nil
-}
-
-func capabilityBundleAgentTaskIdempotencyKey(fullCodePath string, code string) string {
-	parts := strings.Join([]string{strings.TrimSpace(fullCodePath), strings.TrimSpace(code)}, "\x00")
-	sum := sha1.Sum([]byte(parts))
-	return "bundle-agent-task-" + hex.EncodeToString(sum[:])
 }
 
 func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundleFromFile(ctx context.Context, opts *dto.InstallCapabilityOptions, filePath string) (*dto.InstallCapabilityBundleResp, error) {

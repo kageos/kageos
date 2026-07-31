@@ -72,8 +72,8 @@ func (s *Sender) SendHTML(to, subject, body string) error {
 	defer client.Quit()
 
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
-		ServerName:         s.cfg.Host,
+		MinVersion: tls.VersionTLS12,
+		ServerName: s.cfg.Host,
 	}
 	if err := client.StartTLS(tlsConfig); err != nil {
 		return fmt.Errorf("STARTTLS失败: %v", err)

@@ -82,3 +82,36 @@ jobs:
         run: npm run test:unit -- --run
       - name: Build
         run: npm run build
+
+  frontend-public-e2e:
+    name: Frontend Public E2E
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Test unauthenticated login route
+        run: npm run test:e2e:login
+
+  kagebase-definition:
+    name: Kagebase Dockerfile Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Validate runtime image definition
+        uses: docker/build-push-action@v7
+        with:
+          context: deploy/base/images/app-base
+          file: deploy/base/images/app-base/Dockerfile
+          call: check

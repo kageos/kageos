@@ -45,29 +45,6 @@ func isInternalRequest(c *gin.Context) bool {
 func JWTAuth(options ...AuthOption) gin.HandlerFunc {
 	tokenStore := resolveAuthOptions(options...).openAPITokenStore
 	return func(c *gin.Context) {
-		// ✨ 优先从header获取username（网关已解析token并设置到header）
-		// 如果网关已经解析了token，直接使用header中的username，无需重复解析
-		requestUser := c.GetHeader(contextx.RequestUserHeader)
-		if requestUser == "" {
-			requestUser = c.GetHeader("X-Username") // 备用
-		}
-		if requestUser != "" {
-			// ⭐ 网关已解析token，直接使用header中的username
-			// ⭐ 统一使用常量 RequestUserHeader，不再使用 "request_user" 和 "user" 字符串 key
-			c.Set(contextx.RequestUserHeader, requestUser)
-
-			// ⭐ 从 header 获取组织架构信息（网关已设置）
-			// ⭐ 统一使用 DepartmentFullPathHeader 常量
-			if deptPath := c.GetHeader(contextx.DepartmentFullPathHeader); deptPath != "" {
-				c.Set(contextx.DepartmentFullPathHeader, deptPath)
-			}
-			setCompanyContextFromHeaders(c)
-
-			logger.Debugf(c, "[JWTAuth] 从 header 获取用户信息 - User: %s, Path: %s", requestUser, c.Request.URL.Path)
-			c.Next()
-			return
-		}
-
 		if rawOpenAPIToken := openapitoken.BearerToken(c.GetHeader("Authorization")); rawOpenAPIToken != "" {
 			principal, err := tokenStore.Validate(rawOpenAPIToken, c.ClientIP(), c.GetHeader("User-Agent"))
 			if err != nil {
@@ -109,6 +86,22 @@ func JWTAuth(options ...AuthOption) gin.HandlerFunc {
 			return
 		}
 
+		// 网关会移除客户端伪造的身份 Header，并仅在认证成功后重新写入。
+		requestUser := c.GetHeader(contextx.RequestUserHeader)
+		if requestUser == "" {
+			requestUser = c.GetHeader("X-Username")
+		}
+		if requestUser != "" {
+			c.Set(contextx.RequestUserHeader, requestUser)
+			if deptPath := c.GetHeader(contextx.DepartmentFullPathHeader); deptPath != "" {
+				c.Set(contextx.DepartmentFullPathHeader, deptPath)
+			}
+			setCompanyContextFromHeaders(c)
+			logger.Debugf(c, "[JWTAuth] 从可信网关 header 获取用户信息 - User: %s, Path: %s", requestUser, c.Request.URL.Path)
+			c.Next()
+			return
+		}
+
 		// 如果header中没有username，尝试解析token（向后兼容）
 		// ⭐ 只从 header 读取 token
 		token := c.GetHeader(contextx.TokenHeader)
@@ -117,7 +110,7 @@ func JWTAuth(options ...AuthOption) gin.HandlerFunc {
 		if token != "" {
 			// 验证Token
 			jwtService := auth.NewJWTService()
-			claims, err := jwtService.ValidateToken(token)
+			claims, err := jwtService.ValidateAccessToken(token)
 			if err != nil {
 				logger.Errorf(c, "[JWTAuth] Token validation failed: %v", err)
 				response.FailWithMessage(c, "认证令牌无效或已过期")
@@ -184,7 +177,7 @@ func JWTAuthOptional() gin.HandlerFunc {
 		token := c.GetHeader(contextx.TokenHeader)
 		if token != "" {
 			jwtService := auth.NewJWTService()
-			claims, err := jwtService.ValidateToken(token)
+			claims, err := jwtService.ValidateAccessToken(token)
 			if err == nil {
 				c.Set(contextx.RequestUserHeader, claims.Username)
 				setCompanyContextFromClaims(c, claims)

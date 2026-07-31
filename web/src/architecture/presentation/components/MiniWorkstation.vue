@@ -18,7 +18,7 @@
     >
       <div class="mini-workspace-backdrop" aria-hidden="true"></div>
       <section class="mini-shell">
-        <header class="mini-drawer-head">
+        <header class="mini-drawer-head" data-testid="mini-workstation-header">
           <div class="mini-drawer-title">
             <MiniWorkstationResourceIdentity
               class="mini-drawer-resource"
@@ -78,6 +78,7 @@
             <button
               type="button"
               class="mini-drawer-icon-action"
+              data-testid="mini-workstation-close"
               :title="t('miniWorkstation.closePanelTitle', { shortcut: toggleShortcutLabel || t('miniWorkstation.shortcut') })"
               @click="hideWorkstation"
             >

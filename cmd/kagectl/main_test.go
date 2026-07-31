@@ -57,7 +57,7 @@ func TestRenderBundledConfig(t *testing.T) {
 
 	compose := mustReadFile(t, filepath.Join(paths.GeneratedDir, "docker-compose.yaml"))
 	for _, want := range []string{
-		`image: "docker.io/minio/minio:latest"`,
+		`image: "docker.io/minio/minio:RELEASE.2025-04-22T22-12-26Z"`,
 		`MYSQL_HOST: "mysql"`,
 		`MINIO_HOST: "minio"`,
 		`NATS_URL: "nats://aos:`,

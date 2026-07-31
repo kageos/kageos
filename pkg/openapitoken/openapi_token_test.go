@@ -1,9 +1,11 @@
 package openapitoken
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/kageos/kageos/pkg/auth"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -11,6 +13,67 @@ import (
 func TestNewStoreRejectsNilDatabase(t *testing.T) {
 	if _, err := NewStore(nil); err == nil {
 		t.Fatal("NewStore(nil) should fail")
+	}
+}
+
+func TestValidateRequiresExistingActiveRecord(t *testing.T) {
+	store := newTestStore(t, "active")
+	created, err := store.Create(CreateInput{
+		OwnerUserID:   42,
+		OwnerUsername: "alice",
+		Name:          "automation",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(created.Token.TokenPrefix, TokenPrefix) {
+		t.Fatalf("display prefix = %q, want %s fingerprint", created.Token.TokenPrefix, TokenPrefix)
+	}
+
+	principal, err := store.Validate(created.Secret, "127.0.0.1", "test")
+	if err != nil {
+		t.Fatalf("active token should validate: %v", err)
+	}
+	if principal.TokenID != created.Token.ID || principal.UserID != 42 || principal.Username != "alice" {
+		t.Fatalf("principal = %#v", principal)
+	}
+
+	emptyStore := newTestStore(t, "empty")
+	if _, err := emptyStore.Validate(created.Secret, "", ""); !errors.Is(err, ErrTokenNotFound) {
+		t.Fatalf("missing record error = %v, want ErrTokenNotFound", err)
+	}
+}
+
+func TestValidateRejectsRevokedRecord(t *testing.T) {
+	store := newTestStore(t, "revoked")
+	created, err := store.Create(CreateInput{
+		OwnerUserID:   42,
+		OwnerUsername: "alice",
+		Name:          "automation",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	revoked, err := store.RevokeWithResult("alice", created.Token.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revoked.TokenHash != HashToken(created.Secret) {
+		t.Fatalf("revoked hash = %q, want created token hash", revoked.TokenHash)
+	}
+	if _, err := store.Validate(created.Secret, "", ""); !errors.Is(err, ErrTokenRevoked) {
+		t.Fatalf("revoked token error = %v, want ErrTokenRevoked", err)
+	}
+}
+
+func TestValidateRejectsNonOpenAPIToken(t *testing.T) {
+	store := newTestStore(t, "wrong_type")
+	accessToken, err := auth.NewJWTService().GenerateAccessToken(42, "alice", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Validate(accessToken, "", ""); err == nil {
+		t.Fatal("access token must not validate as an OpenAPI Token")
 	}
 }
 

@@ -72,10 +72,15 @@ func (r *PublicShareRepository) Disable(ctx context.Context, shareID, actor stri
 		}).Error
 }
 
-func (r *PublicShareRepository) IncrementUseCount(ctx context.Context, shareID string) error {
+func (r *PublicShareRepository) ReserveUse(ctx context.Context, shareID string) error {
 	now := time.Now()
 	res := r.db.WithContext(ctx).Model(&model.PublicShare{}).
-		Where("share_id = ? AND enabled = ? AND (max_uses = 0 OR use_count < max_uses)", shareID, true).
+		Where(
+			"share_id = ? AND enabled = ? AND (expires_at IS NULL OR expires_at > ?) AND (max_uses = 0 OR use_count < max_uses)",
+			shareID,
+			true,
+			now,
+		).
 		Updates(map[string]interface{}{
 			"use_count":    gorm.Expr("use_count + 1"),
 			"last_used_at": &now,
@@ -87,6 +92,12 @@ func (r *PublicShareRepository) IncrementUseCount(ctx context.Context, shareID s
 		return gorm.ErrRecordNotFound
 	}
 	return nil
+}
+
+func (r *PublicShareRepository) ReleaseUse(ctx context.Context, shareID string) error {
+	return r.db.WithContext(ctx).Model(&model.PublicShare{}).
+		Where("share_id = ? AND use_count > 0", shareID).
+		UpdateColumn("use_count", gorm.Expr("use_count - 1")).Error
 }
 
 func (r *PublicShareRepository) CreateEvent(ctx context.Context, event *model.PublicShareEvent) error {

@@ -31,7 +31,7 @@ location /public/api/ {
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_read_timeout 300s;
     proxy_send_timeout 300s;
-    client_max_body_size 4096m;
+    client_max_body_size 4m;
 }
 
 location /agent/api/ {

@@ -17,9 +17,9 @@ site:
 images:
   main: "localhost/kageos-main:latest"
   app_base: "kagebase:latest"
-  mysql: "docker.io/library/mysql:latest"
-  nats: "docker.io/library/nats:latest"
-  minio: "docker.io/minio/minio:latest"
+  mysql: "docker.io/library/mysql:8.0.45"
+  nats: "docker.io/library/nats:2.10.29-alpine"
+  minio: "docker.io/minio/minio:RELEASE.2025-04-22T22-12-26Z"
 
 storage:
   root: "/home/kageos/.kageos/storage/prod"

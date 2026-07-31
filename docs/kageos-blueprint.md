@@ -187,7 +187,7 @@ flowchart LR
 | 路径 | 作用 | 说明 |
 | --- | --- | --- |
 | `core/cmd/main` | 平台统一启动入口，启动各 Go 服务 | 生产/开发主进程入口，不是用户 App 入口 |
-| `core/api-gateway` | HTTP 统一入口、鉴权转发、token 黑名单 | 前端 API 先到这里 |
+| `core/api-gateway` | HTTP 统一入口、鉴权转发、短期 token 校验缓存 | 前端 API 先到这里，持久化会话状态以 HR 数据库为准 |
 | `core/app-server` | 工作区 API、Service Tree、权限、操作日志、函数元数据、App 调用编排 | 目录治理和函数调用的中枢 |
 | `core/app-runtime` | namespace 文件写入、Go 构建、版本元数据、用户 App 容器生命周期 | 负责真实落盘和启动 App |
 | `core/agent-server` | 工作台会话、角色、工具、内嵌 prompt、LLM 编排 | 目录改造和工具编排的控制面 |

@@ -31,6 +31,8 @@ func (s *Server) setupRoutes() {
 	// 认证相关路由（不需要JWT验证）
 	auth := apiV1.Group("/auth")
 	authHandler := v1.NewAuth(s.authService, s.authOAuthService, s.emailService, s.settingsService, s.userService, s.departmentService)
+	accessTokenHandler := v1.NewAccessToken(s.authService)
+	openAPITokenHandler := v1.NewOpenAPIToken(s.openAPITokenStore)
 	auth.POST("/send_email_code", authHandler.SendEmailCode)
 	auth.POST("/register", authHandler.Register)
 	auth.GET("/companies/search", authHandler.SearchCompanies)
@@ -42,13 +44,15 @@ func (s *Server) setupRoutes() {
 	auth.POST("/refresh", authHandler.RefreshToken)
 	auth.POST("/logout", authHandler.Logout)
 	auth.POST("/forgot_password", authHandler.ForgotPassword)
+	auth.POST("/access_token/validate", accessTokenHandler.Validate)
+	auth.POST("/openapi_token/validate", openAPITokenHandler.Validate)
 	authProviderHandler := v1.NewAuthLoginProvider(s.authProviderService)
 	auth.GET("/methods", authProviderHandler.PublicMethods)
 
 	// 用户管理路由（需要JWT验证）
 	user := apiV1.Group("/user")
 	user.Use(jwtAuth) // 用户管理需要JWT认证
-	userHandler := v1.NewUser(s.userService, s.departmentService, s.openAPITokenStore)
+	userHandler := v1.NewUser(s.userService, s.departmentService, s.openAPITokenStore, s.tokenPublisher)
 	user.GET("/info", userHandler.GetUserInfo)
 	user.GET("/query", userHandler.QueryUser)
 	user.GET("/search_fuzzy", userHandler.SearchUsersFuzzy)

@@ -1,8 +1,13 @@
 package v1
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestMergePublicSharePresetValuesOverridesSubmittedFields(t *testing.T) {
@@ -60,5 +65,54 @@ func TestMergePublicSharePresetValuesRejectsNonObjectSubmitBody(t *testing.T) {
 	_, err := mergePublicSharePresetValues([]byte(`[]`), json.RawMessage(`{"topic_id":1}`))
 	if err == nil {
 		t.Fatal("expected non-object body error")
+	}
+}
+
+func TestPositivePublicQueryInt(t *testing.T) {
+	for _, test := range []struct {
+		raw      string
+		fallback int
+		want     int
+	}{
+		{raw: "2", fallback: 1, want: 2},
+		{raw: "", fallback: 20, want: 20},
+		{raw: "0", fallback: 20, want: 20},
+		{raw: "invalid", fallback: 20, want: 20},
+	} {
+		if got := positivePublicQueryInt(test.raw, test.fallback); got != test.want {
+			t.Fatalf("positivePublicQueryInt(%q, %d) = %d, want %d", test.raw, test.fallback, got, test.want)
+		}
+	}
+}
+
+func TestReadPublicShareRequestBodyRejectsOversizedChunkedBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/public/api/v1/shares/test/submit",
+		bytes.NewReader(bytes.Repeat([]byte("x"), int(maxPublicShareRequestBodyBytes)+1)),
+	)
+	request.ContentLength = -1
+	ctx.Request = request
+
+	if _, err := readPublicShareRequestBody(ctx); err == nil {
+		t.Fatal("oversized request body should be rejected")
+	}
+}
+
+func TestReadPublicShareRequestBodyAcceptsBoundedBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"Alice"}`))
+
+	body, err := readPublicShareRequestBody(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != `{"name":"Alice"}` {
+		t.Fatalf("body = %q", body)
 	}
 }

@@ -3,9 +3,11 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +22,8 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/publicshare"
 )
+
+const maxPublicShareRequestBodyBytes int64 = 4 << 20
 
 type PublicShareAPI struct {
 	publicShareService *service.PublicShareService
@@ -140,6 +144,40 @@ func (a *PublicShareAPI) View(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+func (a *PublicShareAPI) Submissions(c *gin.Context) {
+	c.Header("Cache-Control", "private, no-store")
+	c.Header("Vary", publicshare.AnonymousTokenHeader)
+	shareID := strings.TrimSpace(c.Param("share_id"))
+	claims, err := publicshare.ValidateAnonymousToken(c.GetHeader(publicshare.AnonymousTokenHeader))
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	share, err := a.publicShareService.GetShare(contextx.ToContext(c), shareID)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	if !share.Enabled {
+		response.FailWithMessage(c, "公开分享已关闭")
+		return
+	}
+	if share.ResourceType != model.PublicShareResourceTypeForm || share.Action != model.PublicShareActionFormSubmit {
+		response.FailWithMessage(c, "公开分享类型暂不支持")
+		return
+	}
+
+	page := positivePublicQueryInt(c.Query("page"), 1)
+	pageSize := positivePublicQueryInt(c.Query("page_size"), 20)
+	actorID := publicshare.DeriveActorID(share.TenantUser, share.App, share.ShareID, claims.SessionID)
+	resp, err := a.publicShareService.ListSubmissions(contextx.ToContext(c), share, actorID, page, pageSize)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, resp)
+}
+
 func (a *PublicShareAPI) Submit(c *gin.Context) {
 	shareID := strings.TrimSpace(c.Param("share_id"))
 	token := c.GetHeader(publicshare.AnonymousTokenHeader)
@@ -162,6 +200,17 @@ func (a *PublicShareAPI) Submit(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
+	if err := a.publicShareService.ReserveUse(ctx, share.ShareID); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	useCommitted := false
+	defer func() {
+		if !useCommitted {
+			a.publicShareService.ReleaseUse(context.WithoutCancel(ctx), share.ShareID)
+		}
+	}()
+
 	now := time.Now()
 	resp, callErr := a.appService.RequestApp(ctx, req)
 	mill := time.Since(now).Milliseconds()
@@ -211,13 +260,18 @@ func (a *PublicShareAPI) Submit(c *gin.Context) {
 		response.Result(resp.ErrCode, nil, resp.Error, c, metadata)
 		return
 	}
-	if err := a.publicShareService.IncrementUseCount(ctx, share.ShareID); err != nil {
-		response.FailWithMessage(c, err.Error(), metadata)
-		return
-	}
+	useCommitted = true
 	a.appService.IncrementFunctionRunCount(ctx, "/"+strings.TrimPrefix(share.FullCodePath, "/"))
 	c.Header(publicshare.AnonymousTokenHeader, token)
 	response.OkWithData(c, resp.Result, metadata)
+}
+
+func positivePublicQueryInt(raw string, fallback int) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value < 1 {
+		return fallback
+	}
+	return value
 }
 
 func (a *PublicShareAPI) CallbackOnSelectFuzzy(c *gin.Context) {
@@ -275,11 +329,10 @@ func (a *PublicShareAPI) buildPublicRequestAppReq(c *gin.Context, share *model.P
 	if err != nil {
 		return nil, err
 	}
-	body, err := io.ReadAll(c.Request.Body)
+	body, err := readPublicShareRequestBody(c)
 	if err != nil {
-		return nil, fmt.Errorf("读取请求体失败: %w", err)
+		return nil, err
 	}
-	defer c.Request.Body.Close()
 	body, err = mergePublicSharePresetValues(body, share.PresetValues)
 	if err != nil {
 		return nil, err
@@ -316,11 +369,10 @@ func (a *PublicShareAPI) buildPublicCallbackAppReq(c *gin.Context, share *model.
 	if err != nil {
 		return nil, err
 	}
-	all, err := io.ReadAll(c.Request.Body)
+	all, err := readPublicShareRequestBody(c)
 	if err != nil {
 		return nil, err
 	}
-	defer c.Request.Body.Close()
 	all, err = mergePublicSharePresetValuesIntoCallbackRequest(all, share.PresetValues)
 	if err != nil {
 		return nil, err
@@ -363,6 +415,23 @@ func (a *PublicShareAPI) buildPublicCallbackAppReq(c *gin.Context, share *model.
 		Body:           body,
 		UrlQuery:       c.Request.URL.RawQuery,
 	}, nil
+}
+
+func readPublicShareRequestBody(c *gin.Context) ([]byte, error) {
+	if c == nil || c.Request == nil || c.Request.Body == nil {
+		return nil, fmt.Errorf("请求体不能为空")
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxPublicShareRequestBodyBytes)
+	defer c.Request.Body.Close()
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return nil, fmt.Errorf("请求体不能超过 %d MiB", maxPublicShareRequestBodyBytes>>20)
+		}
+		return nil, fmt.Errorf("读取请求体失败: %w", err)
+	}
+	return body, nil
 }
 
 func (a *PublicShareAPI) recordPublicSubmitLog(ctx context.Context, c *gin.Context, req *dto.RequestAppReq, resp *dto.RequestAppResp, err error, durationMillis int64) {

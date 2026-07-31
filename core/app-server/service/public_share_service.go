@@ -13,6 +13,7 @@ import (
 	"github.com/kageos/kageos/core/app-server/repository"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/functionschema"
 	"gorm.io/gorm"
 )
@@ -21,19 +22,23 @@ type PublicShareService struct {
 	publicShareRepo *repository.PublicShareRepository
 	functionRepo    *repository.FunctionRepository
 	serviceTreeRepo *repository.ServiceTreeRepository
+	operateLogRepo  *repository.OperateLogRepository
 }
 
 const maxPublicSharePresetValuesBytes = 64 * 1024
+const maxPublicShareSubmissionPageSize = 100
 
 func NewPublicShareService(
 	publicShareRepo *repository.PublicShareRepository,
 	functionRepo *repository.FunctionRepository,
 	serviceTreeRepo *repository.ServiceTreeRepository,
+	operateLogRepo *repository.OperateLogRepository,
 ) *PublicShareService {
 	return &PublicShareService{
 		publicShareRepo: publicShareRepo,
 		functionRepo:    functionRepo,
 		serviceTreeRepo: serviceTreeRepo,
+		operateLogRepo:  operateLogRepo,
 	}
 }
 
@@ -164,6 +169,81 @@ func (s *PublicShareService) BuildView(ctx context.Context, share *model.PublicS
 	return resp, nil
 }
 
+// ListSubmissions 返回当前匿名访客在当前公开表单上的提交日志。
+// 查询范围完全由服务端固定，客户端不能传 actor、路由或来源条件。
+func (s *PublicShareService) ListSubmissions(
+	ctx context.Context,
+	share *model.PublicShare,
+	actorID string,
+	page int,
+	pageSize int,
+) (*dto.PublicShareSubmissionListResp, error) {
+	if share == nil {
+		return nil, fmt.Errorf("公开分享不存在")
+	}
+	if s.operateLogRepo == nil {
+		return nil, fmt.Errorf("操作日志服务不可用")
+	}
+	actorID = strings.TrimSpace(actorID)
+	if actorID == "" {
+		return nil, fmt.Errorf("匿名访客标识不能为空")
+	}
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > maxPublicShareSubmissionPageSize {
+		pageSize = maxPublicShareSubmissionPageSize
+	}
+
+	resourcePath := "/" + strings.TrimPrefix(access.NormalizeResourcePath(share.FullCodePath), "/")
+	logs, total, err := s.operateLogRepo.GetOperateLogs(ctx, &dto.GetOperateLogsReq{
+		TenantUser:   share.TenantUser,
+		ActorUser:    actorID,
+		App:          share.App,
+		ResourceType: "form",
+		ResourcePath: resourcePath,
+		Action:       "form_submit",
+		SourceType:   contextx.SourceTypePublicShare,
+		SourceRef:    share.ShareID,
+		Page:         page,
+		PageSize:     pageSize,
+		OrderBy:      "created_at desc",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("查询公开提交记录失败: %w", err)
+	}
+
+	items := make([]*dto.PublicShareSubmissionItem, 0, len(logs))
+	for _, log := range logs {
+		if log == nil {
+			continue
+		}
+		var details dto.FormOperateLogDetails
+		if len(log.DetailsJSON) > 0 {
+			_ = json.Unmarshal(log.DetailsJSON, &details)
+		}
+		items = append(items, &dto.PublicShareSubmissionItem{
+			Status:         log.Status,
+			Summary:        log.Summary,
+			RequestBody:    details.RequestBody,
+			ResponseBody:   details.ResponseBody,
+			DurationMillis: details.DurationMillis,
+			TraceID:        log.TraceID,
+			CreatedAt:      time.Time(log.CreatedAt).Format("2006-01-02 15:04:05"),
+		})
+	}
+
+	return &dto.PublicShareSubmissionListResp{
+		Items:    items,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
+}
+
 func fallbackPublicShareTitle(title string, function *model.Function) string {
 	title = strings.TrimSpace(title)
 	if title != "" {
@@ -178,14 +258,18 @@ func fallbackPublicShareTitle(title string, function *model.Function) string {
 	return "公开表单"
 }
 
-func (s *PublicShareService) IncrementUseCount(ctx context.Context, shareID string) error {
-	if err := s.publicShareRepo.IncrementUseCount(ctx, shareID); err != nil {
+func (s *PublicShareService) ReserveUse(ctx context.Context, shareID string) error {
+	if err := s.publicShareRepo.ReserveUse(ctx, shareID); err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return fmt.Errorf("公开分享已达到提交上限或已关闭")
 		}
-		return fmt.Errorf("更新公开分享提交次数失败: %w", err)
+		return fmt.Errorf("预留公开分享提交次数失败: %w", err)
 	}
 	return nil
+}
+
+func (s *PublicShareService) ReleaseUse(ctx context.Context, shareID string) {
+	_ = s.publicShareRepo.ReleaseUse(ctx, shareID)
 }
 
 func (s *PublicShareService) RecordEvent(ctx context.Context, event *model.PublicShareEvent) {

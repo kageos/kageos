@@ -85,11 +85,18 @@ func listManifestAgentTasksForPackage(ctx context.Context, client appScheduleCli
 		if task == nil || task.Metadata == nil {
 			continue
 		}
-		if strings.TrimSpace(task.Metadata["managed_by"]) != "app_manifest" {
+		managedBy := strings.TrimSpace(task.Metadata["managed_by"])
+		if managedBy != scheduledTaskSourceManifest && managedBy != scheduledTaskSourceBundle {
 			continue
 		}
 		code := strings.TrimSpace(task.Metadata["schedule_code"])
 		if code == "" {
+			continue
+		}
+		current := out[code]
+		if current != nil &&
+			strings.TrimSpace(current.Metadata["managed_by"]) == scheduledTaskSourceManifest &&
+			managedBy != scheduledTaskSourceManifest {
 			continue
 		}
 		out[code] = task

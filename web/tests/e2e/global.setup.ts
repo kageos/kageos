@@ -78,7 +78,6 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   await assertBaseURLReachable(baseURL)
 
   if (shouldSkipAuthSetup()) {
-    await fs.writeFile(AUTH_STATE_PATH, JSON.stringify({ cookies: [], origins: [] }, null, 2))
     return
   }
 
