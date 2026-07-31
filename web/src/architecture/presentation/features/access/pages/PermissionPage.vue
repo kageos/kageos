@@ -113,8 +113,12 @@
           </button>
         </nav>
 
-        <div v-if="workflowTab === 'grant' || workflowTab === 'request'" class="apply-layout">
-        <aside class="apply-sidebar">
+        <div
+          v-if="workflowTab === 'grant' || workflowTab === 'request'"
+          class="apply-layout"
+          :class="{ 'is-request-mode': workflowTab === 'request' }"
+        >
+          <aside class="apply-sidebar">
           <section class="tree-card">
             <div class="panel-toolbar">
               <div class="panel-title-copy">
@@ -188,20 +192,30 @@
                     />
                     <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
                     <span class="node-label">{{ treeNode.label }}</span>
-                    <el-icon
-                      v-if="!canRead(data)"
-                      class="resource-lock-icon"
-                      :title="hasPendingRequest(data.full_code_path) ? t('access.requestPending') : t('access.noReadAccess')"
-                    >
-                      <Clock v-if="hasPendingRequest(data.full_code_path)" />
-                      <Lock v-else />
-                    </el-icon>
+                    <span class="resource-node-status">
+                      <el-icon
+                        v-if="workflowTab === 'request' && activeResourcePath === data.full_code_path"
+                        class="resource-selection-icon"
+                        :title="t('access.selectedResourceMarker')"
+                        data-testid="permission-resource-selected"
+                      >
+                        <CircleCheck />
+                      </el-icon>
+                      <el-icon
+                        v-if="!canRead(data)"
+                        class="resource-lock-icon"
+                        :title="hasPendingRequest(data.full_code_path) ? t('access.requestPending') : t('access.noReadAccess')"
+                      >
+                        <Clock v-if="hasPendingRequest(data.full_code_path)" />
+                        <Lock v-else />
+                      </el-icon>
+                    </span>
                   </span>
                 </template>
               </el-tree>
             </div>
           </section>
-        </aside>
+          </aside>
 
         <section class="apply-main">
           <div class="scope-header-main">
@@ -2392,6 +2406,10 @@ function formatExpiresAt(value?: string): string {
   overflow: hidden;
 }
 
+.apply-layout.is-request-mode {
+  grid-template-columns: 360px minmax(0, 1fr) 320px;
+}
+
 .access-request-layout {
   height: 100%;
   min-height: 0;
@@ -3093,6 +3111,24 @@ function formatExpiresAt(value?: string): string {
   font-size: 14px;
 }
 
+.resource-node-status {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+}
+
+.resource-selection-icon {
+  color: var(--el-color-primary);
+  font-size: 17px;
+  filter: drop-shadow(0 1px 2px rgba(var(--el-color-primary-rgb), 0.18));
+}
+
+.resource-tree .tree-node.is-selected .node-label {
+  color: var(--el-color-primary);
+  font-weight: 700;
+}
+
 .approver-list {
   width: 100%;
   min-height: 52px;
@@ -3197,6 +3233,10 @@ function formatExpiresAt(value?: string): string {
     grid-template-columns: 260px minmax(0, 1fr) 280px;
     gap: 10px;
   }
+
+  .apply-layout.is-request-mode {
+    grid-template-columns: 330px minmax(0, 1fr) 300px;
+  }
 }
 
 @media (max-width: 1180px) {
@@ -3213,6 +3253,10 @@ function formatExpiresAt(value?: string): string {
   .apply-layout {
     grid-template-columns: 1fr;
     height: auto;
+  }
+
+  .apply-layout.is-request-mode {
+    grid-template-columns: 1fr;
   }
 
   .tree-card,

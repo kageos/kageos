@@ -1910,6 +1910,7 @@ export default {
     submitRequest: '提交权限申请',
     requestPending: '待审批',
     noReadAccess: '暂无读取权限',
+    selectedResourceMarker: '当前选中的申请目录',
     requestAlreadyPending: '该资源已有待审批申请',
     completeRequestForm: '请选择权限、填写理由并确认存在审批人',
     requestSubmitted: '权限申请已提交',

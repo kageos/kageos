@@ -1910,6 +1910,7 @@ export default {
     submitRequest: 'Submit access request',
     requestPending: 'Pending review',
     noReadAccess: 'No read access',
+    selectedResourceMarker: 'Currently selected request resource',
     requestAlreadyPending: 'This resource already has a pending request',
     completeRequestForm: 'Choose a role, enter a reason, and make sure an approver is available',
     requestSubmitted: 'Access request submitted',
