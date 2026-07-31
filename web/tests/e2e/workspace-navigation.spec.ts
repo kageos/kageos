@@ -25,9 +25,9 @@ test.describe('workspace navigation smoke', () => {
     const dialog = await ensureWorkspaceListDialog(page)
     await expect(dialog.getByTestId('workspace-list-tabs')).toBeVisible()
 
-    await page.getByRole('tab', { name: '全部工作空间' }).click()
-    await page.getByRole('tab', { name: '系统工作空间' }).click()
-    await page.getByRole('tab', { name: '我的工作空间' }).click()
+    await page.getByRole('tab', { name: /全部工作空间|All Workspaces/i }).click()
+    await page.getByRole('tab', { name: /系统工作空间|System Workspaces/i }).click()
+    await page.getByRole('tab', { name: /我的工作空间|My Workspaces/i }).click()
 
     await page.getByTestId('workspace-list-create').click()
 

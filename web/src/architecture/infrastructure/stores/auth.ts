@@ -20,6 +20,10 @@ function normalizeOAuthRedirect(redirectAfter: string | undefined) {
 }
 
 export const useAuthStore = defineStore('auth', () => {
+  interface LoginOptions {
+    notify?: boolean
+  }
+
   interface LogoutOptions {
     callApi?: boolean
     notify?: boolean
@@ -53,7 +57,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // 登录
-  async function login(credentials: LoginRequest) {
+  async function login(credentials: LoginRequest, options: LoginOptions = {}) {
+    const { notify = true } = options
     try {
       isLoading.value = true
       const response = await loginApi(credentials)
@@ -69,7 +74,9 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('token', response.token)
       localStorage.setItem('user', JSON.stringify(response.user))
 
-      ElMessage.success(translate('auth.loginSuccess'))
+      if (notify) {
+        ElMessage.success(translate('auth.loginSuccess'))
+      }
 
       // 进入默认空间准备页。
       await navigateTo('/workspace')

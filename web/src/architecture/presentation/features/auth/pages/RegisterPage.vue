@@ -5,11 +5,13 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Message, Loading, OfficeBuilding, Picture, Upload, Delete } from '@element-plus/icons-vue'
 import { register as registerApi, sendEmailCode, searchCompanies, uploadCompanyLogo } from '@/architecture/presentation/context/api/auth'
+import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { RegisterRequest, CompanyOption } from '@/architecture/domain/types'
 import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
 import defaultCompanyLogo from '@/architecture/presentation/assets/logo.svg'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const { t } = useI18n()
 const maxLogoSize = 512 * 1024
 
@@ -184,6 +186,7 @@ const searchJoinCompanies = async (keyword: string) => {
 
 // 处理注册
 const handleRegister = async () => {
+  let registrationSucceeded = false
   try {
     await registerFormRef.value.validate()
     loading.value = true
@@ -204,10 +207,23 @@ const handleRegister = async () => {
     }
 
     await registerApi(payload)
+    registrationSucceeded = true
 
     ElMessage.success(t('auth.registerSuccess'))
-    await router.push('/login')
+    await authStore.login({
+      username: payload.username,
+      password: payload.password
+    }, {
+      notify: false
+    })
   } catch (error: any) {
+    if (registrationSucceeded) {
+      console.error('Automatic login after registration failed:', error)
+      const message = error?.response?.data?.msg || error?.message || t('auth.loginFailed')
+      ElMessage.error(message)
+      await router.replace('/login')
+      return
+    }
     console.error('Register failed:', error)
     // 🔥 统一使用 msg 字段
     const message = error?.response?.data?.msg || error?.message || t('auth.registerFailed')
@@ -271,7 +287,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 </script>
 
 <template>
-  <div class="register-container" @keypress="handleKeyPress">
+  <div class="register-container" data-testid="register-page" @keypress="handleKeyPress">
     <div class="auth-language">
       <LanguageSwitcher />
     </div>
@@ -351,6 +367,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
         >
           <el-form-item prop="username">
             <el-input
+              data-testid="register-username"
               :model-value="registerForm.username"
               :placeholder="t('auth.usernamePlaceholder')"
               :prefix-icon="User"
@@ -363,6 +380,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
           <el-form-item prop="email">
             <el-input
+              data-testid="register-email"
               v-model="registerForm.email"
               :placeholder="t('auth.emailPlaceholder')"
               :prefix-icon="Message"
@@ -374,6 +392,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
           <el-form-item prop="password">
             <el-input
+              data-testid="register-password"
               v-model="registerForm.password"
               type="password"
               :placeholder="t('auth.passwordPlaceholder')"
@@ -409,6 +428,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
           <el-form-item v-if="registerForm.company_action === 'create'" prop="company_name">
             <el-input
+              data-testid="register-company-name"
               v-model="registerForm.company_name"
               :placeholder="t('auth.companyNamePlaceholder')"
               :prefix-icon="OfficeBuilding"
@@ -454,6 +474,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
           <el-form-item v-if="registerForm.company_action === 'create'" prop="company_code">
             <el-input
+              data-testid="register-company-code"
               v-model="registerForm.company_code"
               :placeholder="t('auth.companyCodeCreatePlaceholder')"
               :prefix-icon="OfficeBuilding"
@@ -498,6 +519,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
           <el-form-item prop="code">
             <div class="code-input-group">
               <el-input
+                data-testid="register-code"
                 v-model="registerForm.code"
                 :placeholder="t('auth.codePlaceholder')"
                 maxlength="6"
@@ -520,6 +542,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
           <el-form-item class="register-btn-item">
             <el-button
+              data-testid="register-submit"
               type="primary"
               size="large"
               :loading="loading"

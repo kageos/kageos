@@ -41,6 +41,14 @@ RUN if [ "${APT_CHECK_DATE}" = "0" ]; then \
         printf 'Acquire::Check-Date "false";\nAcquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/99disable-check-date; \
     fi
 
+# 下载抖动由 apt 自己重试；arm64 发布使用原生 GitHub runner，不再用 QEMU 执行 dpkg postinst。
+RUN printf '%s\n' \
+        'Acquire::Retries "5";' \
+        'Acquire::http::Timeout "120";' \
+        'Acquire::https::Timeout "120";' \
+        'DPkg::Lock::Timeout "120";' \
+        > /etc/apt/apt.conf.d/80-kageos-retries
+
 # 安装 tini：用 Ubuntu universe 包，避免构建时访问 GitHub（国内/内网常导致 wget exit 8）
 RUN apt-get update && apt-get install -y --no-install-recommends tini \
     && rm -rf /var/lib/apt/lists/* \

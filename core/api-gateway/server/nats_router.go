@@ -21,9 +21,9 @@ func RegisterNATS(ctx context.Context, conn *nats.Conn, subs *[]*nats.Subscripti
 	}
 	*subs = append(*subs, sub)
 
-	sub, err = conn.Subscribe(subjects.GatewayTokenRemoveBlacklistCommandSubject, tokenHandler.HandleRemoveBlacklist)
+	sub, err = conn.Subscribe(subjects.GatewayOpenAPITokenRevokedCommandSubject, tokenHandler.HandleOpenAPITokenRevoked)
 	if err != nil {
-		return fmt.Errorf("subscribe token remove blacklist: %w", err)
+		return fmt.Errorf("subscribe OpenAPI Token revoked: %w", err)
 	}
 	*subs = append(*subs, sub)
 

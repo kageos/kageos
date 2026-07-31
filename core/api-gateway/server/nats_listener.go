@@ -19,23 +19,39 @@ type InvalidateTokenMessage struct {
 	Timestamp int64    `json:"timestamp"`
 }
 
-// RemoveBlacklistMessage Token 黑名单移除消息
-type RemoveBlacklistMessage struct {
-	UserID    int64    `json:"user_id"`
-	Username  string   `json:"username"`
-	Tokens    []string `json:"tokens"` // 要移除的 token hash 列表
-	Reason    string   `json:"reason"` // user_relogin
-	Timestamp int64    `json:"timestamp"`
+type OpenAPITokenRevokedMessage struct {
+	UserID    int64  `json:"user_id"`
+	Username  string `json:"username"`
+	TokenHash string `json:"token_hash"`
+	ExpiresAt int64  `json:"expires_at"`
+	Timestamp int64  `json:"timestamp"`
 }
 
 // TokenCommandHandler 处理 gateway token 相关命令。
 type TokenCommandHandler struct {
-	tokenBlacklist *TokenBlacklist
+	accessTokens  *AccessTokenValidator
+	openAPITokens *OpenAPITokenValidator
 }
 
 // NewTokenCommandHandler 创建 TokenCommandHandler。
-func NewTokenCommandHandler(tokenBlacklist *TokenBlacklist) *TokenCommandHandler {
-	return &TokenCommandHandler{tokenBlacklist: tokenBlacklist}
+func NewTokenCommandHandler(accessTokens *AccessTokenValidator, openAPITokens *OpenAPITokenValidator) *TokenCommandHandler {
+	return &TokenCommandHandler{accessTokens: accessTokens, openAPITokens: openAPITokens}
+}
+
+func (h *TokenCommandHandler) HandleOpenAPITokenRevoked(msg *nats.Msg) {
+	ctx := context.Background()
+	var message OpenAPITokenRevokedMessage
+	if err := json.Unmarshal(msg.Data, &message); err != nil {
+		logger.Errorf(ctx, "[NATSListener] 解析 OpenAPI Token 吊销消息失败: %v", err)
+		return
+	}
+	if h.openAPITokens == nil {
+		logger.Errorf(ctx, "[NATSListener] OpenAPI Token validator 未初始化")
+		return
+	}
+	h.openAPITokens.MarkRevoked(message.TokenHash, message.ExpiresAt)
+	logger.Infof(ctx, "[NATSListener] 收到 OpenAPI Token 吊销通知: userID=%d username=%s",
+		message.UserID, message.Username)
 }
 
 // HandleTokenInvalidate 处理 token 失效命令。
@@ -51,22 +67,12 @@ func (h *TokenCommandHandler) HandleTokenInvalidate(msg *nats.Msg) {
 	h.handleTokenInvalidate(ctx, &message)
 }
 
-// HandleRemoveBlacklist 处理移除 token 黑名单命令。
-func (h *TokenCommandHandler) HandleRemoveBlacklist(msg *nats.Msg) {
-	ctx := context.Background()
-
-	var message RemoveBlacklistMessage
-	if err := json.Unmarshal(msg.Data, &message); err != nil {
-		logger.Errorf(ctx, "[NATSListener] 解析移除消息失败: %v", err)
-		return
-	}
-
-	h.handleRemoveBlacklist(ctx, &message)
-}
-
 // handleTokenInvalidate 处理 token 失效消息
 func (h *TokenCommandHandler) handleTokenInvalidate(ctx context.Context, message *InvalidateTokenMessage) {
-	// 将所有 token hash 加入黑名单
+	if h.accessTokens == nil {
+		logger.Errorf(ctx, "[NATSListener] Access Token validator 未初始化")
+		return
+	}
 	defaultExpireSeconds := config.GetGlobalSharedConfig().JWT.AccessTokenExpire
 	if defaultExpireSeconds <= 0 {
 		defaultExpireSeconds = 7 * 24 * 3600
@@ -74,20 +80,9 @@ func (h *TokenCommandHandler) handleTokenInvalidate(ctx context.Context, message
 	defaultExpireTime := time.Now().Add(time.Duration(defaultExpireSeconds) * time.Second).Unix()
 
 	for _, tokenHash := range message.Tokens {
-		h.tokenBlacklist.AddTokenByHash(tokenHash, defaultExpireTime)
+		h.accessTokens.MarkRevoked(tokenHash, defaultExpireTime)
 	}
 
 	logger.Infof(ctx, "[NATSListener] 收到 token 失效通知: userID=%d, reason=%s, tokenCount=%d",
-		message.UserID, message.Reason, len(message.Tokens))
-}
-
-// handleRemoveBlacklist 处理 token 黑名单移除消息
-func (h *TokenCommandHandler) handleRemoveBlacklist(ctx context.Context, message *RemoveBlacklistMessage) {
-	// 将所有 token hash 从黑名单移除
-	for _, tokenHash := range message.Tokens {
-		h.tokenBlacklist.RemoveTokenByHash(tokenHash)
-	}
-
-	logger.Infof(ctx, "[NATSListener] 收到移除黑名单通知: userID=%d, reason=%s, tokenCount=%d",
 		message.UserID, message.Reason, len(message.Tokens))
 }

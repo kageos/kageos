@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
-	"os"
 	"strings"
 	"time"
 
@@ -34,12 +33,23 @@ func NewEmailService(emailCodeRepo *repository.EmailCodeRepository, settingsServ
 
 // SendVerificationCode 发送验证码。log 模式用于本地开发：验证码写入日志并返回给调用方，不依赖真实 SMTP。
 func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgent string) (string, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	codeType = strings.TrimSpace(codeType)
+	if email == "" {
+		return "", fmt.Errorf("邮箱不能为空")
+	}
+	if codeType != "register" && codeType != "forgot_password" {
+		return "", fmt.Errorf("不支持的验证码类型")
+	}
 	// 生成验证码
-	code := s.generateCode()
+	code, err := s.generateCode()
+	if err != nil {
+		return "", fmt.Errorf("生成验证码失败: %w", err)
+	}
 	emailCfg := s.runtimeEmailConfig()
 
 	// 计算过期时间
-	expiresAt := models.Time(time.Now().Add(time.Duration(s.config.Verification.CodeExpire) * time.Second))
+	expiresAt := models.Time(time.Now().Add(time.Duration(s.verificationCodeExpireSeconds()) * time.Second))
 
 	// 检查发送频率（防刷）
 	count, err := s.emailCodeRepo.GetEmailCodeCount(email, 5) // 5分钟内
@@ -49,6 +59,16 @@ func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgen
 	}
 	if count >= 3 { // 5分钟内最多发送3次
 		return "", fmt.Errorf("验证码发送过于频繁，请稍后再试")
+	}
+	if strings.TrimSpace(ipAddress) != "" {
+		ipCount, err := s.emailCodeRepo.GetEmailCodeCountByIP(ipAddress, 5)
+		if err != nil {
+			logger.Errorf(nil, "[EmailService] Failed to get email code IP count: %v", err)
+			return "", err
+		}
+		if ipCount >= 10 {
+			return "", fmt.Errorf("验证码请求过于频繁，请稍后再试")
+		}
 	}
 
 	// 保存验证码到数据库
@@ -69,6 +89,9 @@ func (s *EmailService) SendVerificationCode(email, codeType, ipAddress, userAgen
 
 	err = emailx.NewSender(emailCfg.SMTP).SendHTML(email, subject, body)
 	if err != nil {
+		if invalidateErr := s.emailCodeRepo.InvalidateEmailCode(email, code, codeType); invalidateErr != nil {
+			logger.Errorf(nil, "[EmailService] Failed to invalidate undelivered email code: %v", invalidateErr)
+		}
 		logger.Errorf(nil, "[EmailService] Failed to send email: %v", err)
 		return "", err
 	}
@@ -107,16 +130,12 @@ func (s *EmailService) emailMode(cfg appconfig.EmailConfig) string {
 
 // VerifyCode 验证验证码
 func (s *EmailService) VerifyCode(email, code, codeType string) error {
-	_, err := s.emailCodeRepo.GetValidEmailCode(email, code, codeType)
+	email = strings.ToLower(strings.TrimSpace(email))
+	code = strings.TrimSpace(code)
+	codeType = strings.TrimSpace(codeType)
+	err := s.emailCodeRepo.VerifyAndConsumeLatestEmailCode(email, code, codeType, 5)
 	if err != nil {
 		return fmt.Errorf("验证码无效或已过期")
-	}
-
-	// 标记为已使用
-	err = s.emailCodeRepo.MarkEmailCodeAsUsed(email, code, codeType)
-	if err != nil {
-		logger.Errorf(nil, "[EmailService] Failed to mark email code as used: %v", err)
-		return err
 	}
 
 	logger.Infof(nil, "[EmailService] Email code verified for %s", email)
@@ -124,14 +143,29 @@ func (s *EmailService) VerifyCode(email, code, codeType string) error {
 }
 
 // generateCode 生成验证码
-func (s *EmailService) generateCode() string {
+func (s *EmailService) generateCode() (string, error) {
 	length := s.config.Verification.CodeLength
-	code := ""
-	for i := 0; i < length; i++ {
-		num, _ := rand.Int(rand.Reader, big.NewInt(10))
-		code += fmt.Sprintf("%d", num.Int64())
+	if length < 4 || length > 10 {
+		length = 6
 	}
-	return code
+	var code strings.Builder
+	code.Grow(length)
+	for i := 0; i < length; i++ {
+		num, err := rand.Int(rand.Reader, big.NewInt(10))
+		if err != nil {
+			return "", err
+		}
+		code.WriteByte(byte('0' + num.Int64()))
+	}
+	return code.String(), nil
+}
+
+func (s *EmailService) verificationCodeExpireSeconds() int {
+	expireSeconds := s.config.Verification.CodeExpire
+	if expireSeconds <= 0 {
+		return 10 * 60
+	}
+	return expireSeconds
 }
 
 // getSubject 获取邮件主题
@@ -163,25 +197,22 @@ func (s *EmailService) getBody(code, codeType string) string {
 				<hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
 				<p style="color: #666; font-size: 12px;">此邮件由系统自动发送，请勿回复。</p>
 			</div>
-		`, code, s.config.Verification.CodeExpire/60)
+		`, code, s.verificationCodeExpireSeconds()/60)
 	case "forgot_password":
-		// code 在这里是重置密码的链接
 		return fmt.Sprintf(`
 			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-				<h2 style="color: #333;">Kageos 重置密码</h2>
+				<h2 style="color: #333;">Kageos 重置密码验证码</h2>
 				<p>您好！</p>
-				<p>您正在重置 Kageos 账户密码，请点击以下链接重置密码：</p>
-				<div style="text-align: center; margin: 30px 0;">
-					<a href="%s" style="display: inline-block; padding: 12px 30px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold;">重置密码</a>
+				<p>您正在重置 Kageos 账户密码，验证码为：</p>
+				<div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
+					<h1 style="color: #007bff; font-size: 32px; margin: 0; letter-spacing: 5px;">%s</h1>
 				</div>
-				<p>如果按钮无法点击，请复制以下链接到浏览器打开：</p>
-				<p style="word-break: break-all; color: #666; font-size: 12px;">%s</p>
-				<p>链接有效期为 1 小时，请及时使用。</p>
+				<p>验证码有效期为 %d 分钟，请及时使用。</p>
 				<p>如果这不是您的操作，请忽略此邮件。</p>
 				<hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
 				<p style="color: #666; font-size: 12px;">此邮件由系统自动发送，请勿回复。</p>
 			</div>
-		`, code, code)
+		`, code, s.verificationCodeExpireSeconds()/60)
 	default:
 		return fmt.Sprintf("您的验证码是：%s", code)
 	}
@@ -191,32 +222,4 @@ func (s *EmailService) getBody(code, codeType string) string {
 func (s *EmailService) SendNotificationEmail(to, subject, body string) error {
 	cfg := s.runtimeEmailConfig()
 	return emailx.NewSender(cfg.SMTP).SendHTML(to, subject, body)
-}
-
-// SendPasswordResetEmail 发送密码重置邮件
-func (s *EmailService) SendPasswordResetEmail(email, resetToken string) error {
-	// 构建重置密码链接
-	// 从环境变量获取前端URL，如果没有则使用相对路径（前端会自动补全）
-	frontendURL := os.Getenv("FRONTEND_URL")
-	resetLink := fmt.Sprintf("/reset-password?token=%s", resetToken)
-
-	// 如果有配置前端URL，使用完整URL
-	if frontendURL != "" {
-		// 确保URL不以/结尾
-		frontendURL = strings.TrimSuffix(frontendURL, "/")
-		resetLink = fmt.Sprintf("%s/reset-password?token=%s", frontendURL, resetToken)
-	}
-
-	subject := s.getSubject("forgot_password")
-	body := s.getBody(resetLink, "forgot_password")
-
-	cfg := s.runtimeEmailConfig()
-	err := emailx.NewSender(cfg.SMTP).SendHTML(email, subject, body)
-	if err != nil {
-		logger.Errorf(nil, "[EmailService] Failed to send password reset email: %v", err)
-		return err
-	}
-
-	logger.Infof(nil, "[EmailService] Password reset email sent to %s", email)
-	return nil
 }

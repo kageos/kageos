@@ -16,6 +16,12 @@ import (
 
 const TokenPrefix = "kgos_"
 
+var (
+	ErrTokenNotFound = errors.New("openapi token does not exist")
+	ErrTokenRevoked  = errors.New("openapi token revoked")
+	ErrTokenExpired  = errors.New("openapi token expired")
+)
+
 type Store struct {
 	db *gorm.DB
 }
@@ -57,6 +63,13 @@ type CreateInput struct {
 type CreateResult struct {
 	Token  OpenAPIToken
 	Secret string
+}
+
+type RevokeResult struct {
+	UserID    int64
+	Username  string
+	TokenHash string
+	ExpiresAt *time.Time
 }
 
 type Principal struct {
@@ -116,7 +129,7 @@ func (s *Store) Create(input CreateInput) (*CreateResult, error) {
 		OwnerUsername: ownerUsername,
 		Name:          name,
 		TokenPrefix:   displayPrefix(secret),
-		TokenHash:     hashToken(secret),
+		TokenHash:     HashToken(secret),
 		ExpiresAt:     input.ExpiresAt,
 	}
 	if err := database.Create(&record).Error; err != nil {
@@ -138,34 +151,84 @@ func (s *Store) List(ownerUsername string) ([]OpenAPIToken, error) {
 	return tokens, err
 }
 
-func (s *Store) Revoke(ownerUsername string, id int64) error {
+func (s *Store) RevokeWithResult(ownerUsername string, id int64) (*RevokeResult, error) {
 	database := s.database()
 	if database == nil {
-		return errors.New("openapi token db is not configured")
+		return nil, errors.New("openapi token db is not configured")
 	}
-	now := time.Now()
-	result := database.Model(&OpenAPIToken{}).
-		Where("id = ? AND owner_username = ? AND revoked_at IS NULL", id, strings.TrimSpace(ownerUsername)).
-		Update("revoked_at", &now)
-	if result.Error != nil {
-		return result.Error
+	var revoked OpenAPIToken
+	err := database.Transaction(func(tx *gorm.DB) error {
+		if err := tx.
+			Where("id = ? AND owner_username = ? AND revoked_at IS NULL", id, strings.TrimSpace(ownerUsername)).
+			First(&revoked).Error; err != nil {
+			return err
+		}
+		now := time.Now()
+		result := tx.Model(&OpenAPIToken{}).
+			Where("id = ? AND revoked_at IS NULL", revoked.ID).
+			Update("revoked_at", &now)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return &RevokeResult{
+		UserID:    revoked.OwnerUserID,
+		Username:  revoked.OwnerUsername,
+		TokenHash: revoked.TokenHash,
+		ExpiresAt: revoked.ExpiresAt,
+	}, nil
 }
 
 func (s *Store) Validate(rawToken, ip, userAgent string) (*Principal, error) {
 	rawToken = strings.TrimSpace(rawToken)
-	claims, err := auth.NewJWTService().ValidateToken(rawToken)
+	claims, err := auth.NewJWTService().ValidateOpenAPIToken(rawToken)
 	if err != nil {
 		return nil, err
 	}
+	database := s.database()
+	if database == nil {
+		return nil, errors.New("openapi token db is not configured")
+	}
+
+	var token OpenAPIToken
+	if err := database.Where("token_hash = ?", HashToken(rawToken)).First(&token).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrTokenNotFound
+		}
+		return nil, err
+	}
+	if subtle.ConstantTimeCompare([]byte(token.TokenHash), []byte(HashToken(rawToken))) != 1 {
+		return nil, ErrTokenNotFound
+	}
+	if token.RevokedAt != nil {
+		return nil, ErrTokenRevoked
+	}
+	if token.ExpiresAt != nil && time.Now().After(*token.ExpiresAt) {
+		return nil, ErrTokenExpired
+	}
+	if strings.TrimSpace(token.OwnerUsername) != strings.TrimSpace(claims.Username) ||
+		(token.OwnerUserID != 0 && token.OwnerUserID != claims.UserID) {
+		return nil, errors.New("openapi token owner does not match signed claims")
+	}
+
+	now := time.Now()
+	_ = database.Model(&OpenAPIToken{}).Where("id = ?", token.ID).Updates(map[string]interface{}{
+		"last_used_at":         &now,
+		"last_used_ip":         strings.TrimSpace(ip),
+		"last_used_user_agent": truncate(strings.TrimSpace(userAgent), 500),
+	}).Error
+
 	principal := &Principal{
-		TokenID:        0,
-		UserID:         claims.UserID,
-		Username:       claims.Username,
+		TokenID:        token.ID,
+		UserID:         token.OwnerUserID,
+		Username:       token.OwnerUsername,
 		Email:          claims.Email,
 		CompanyCode:    claims.CompanyCode,
 		CompanyName:    claims.CompanyName,
@@ -173,32 +236,6 @@ func (s *Store) Validate(rawToken, ip, userAgent string) (*Principal, error) {
 	}
 	if claims.DepartmentFullPath != nil {
 		principal.DepartmentFullPath = *claims.DepartmentFullPath
-	}
-	database := s.database()
-	if database == nil {
-		return principal, nil
-	}
-	tokenPrefix := displayPrefix(rawToken)
-	var candidates []OpenAPIToken
-	if err := database.Where("token_prefix = ? AND revoked_at IS NULL", tokenPrefix).Find(&candidates).Error; err != nil {
-		return principal, nil
-	}
-	rawHash := hashToken(rawToken)
-	for _, candidate := range candidates {
-		if subtle.ConstantTimeCompare([]byte(candidate.TokenHash), []byte(rawHash)) != 1 {
-			continue
-		}
-		if candidate.ExpiresAt != nil && time.Now().After(*candidate.ExpiresAt) {
-			return nil, errors.New("openapi token expired")
-		}
-		now := time.Now()
-		_ = database.Model(&OpenAPIToken{}).Where("id = ?", candidate.ID).Updates(map[string]interface{}{
-			"last_used_at":         &now,
-			"last_used_ip":         strings.TrimSpace(ip),
-			"last_used_user_agent": truncate(strings.TrimSpace(userAgent), 500),
-		}).Error
-		principal.TokenID = candidate.ID
-		return principal, nil
 	}
 	return principal, nil
 }
@@ -219,13 +256,11 @@ func (s *Store) database() *gorm.DB {
 }
 
 func displayPrefix(token string) string {
-	if len(token) <= 14 {
-		return token
-	}
-	return token[:14]
+	fingerprint := HashToken(token)
+	return TokenPrefix + fingerprint[:10]
 }
 
-func hashToken(token string) string {
+func HashToken(token string) string {
 	secret := strings.TrimSpace(config.GetGlobalSharedConfig().JWT.Secret)
 	sum := sha256.Sum256([]byte(secret + ":" + token))
 	return hex.EncodeToString(sum[:])

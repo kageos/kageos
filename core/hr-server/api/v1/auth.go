@@ -431,7 +431,7 @@ func (a *Auth) Logout(c *gin.Context) {
 	response.OkWithMessage(c, "登出成功")
 }
 
-// ForgotPassword 忘记密码（简化版：直接通过验证码重置密码）
+// ForgotPassword 验证一次性邮箱验证码并重置密码。
 // @Summary 忘记密码
 // @Description 验证邮箱和验证码，直接重置密码
 // @Tags 认证管理

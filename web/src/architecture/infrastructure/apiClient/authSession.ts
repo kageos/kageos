@@ -1,6 +1,6 @@
 import type { ApiResponse } from '@/architecture/shared/apiTypes'
 
-const AUTH_ERROR_CODES = new Set(['TOKEN_EXPIRED', 'TOKEN_INVALID', 'TOKEN_BLACKLISTED'])
+const AUTH_ERROR_CODES = new Set(['TOKEN_EXPIRED', 'TOKEN_INVALID'])
 const AUTH_ERROR_MESSAGE_KEYWORDS = [
   '认证令牌无效或已过期',
   '未提供认证令牌',
@@ -11,9 +11,9 @@ const AUTH_ERROR_MESSAGE_KEYWORDS = [
   'Token 已失效',
   '登录已过期',
 ]
-const LEGACY_AUTH_ERROR_CODE = 7
+const UNAUTHORIZED_BUSINESS_CODE = 7
 const AUTH_SUBJECT_PATTERN = /(token|refresh\s*token|refreshtoken|令牌|认证|登录)/i
-const AUTH_STATE_PATTERN = /(过期|无效|失效|未提供|重新登录|blacklist|expired|invalid)/i
+const AUTH_STATE_PATTERN = /(过期|无效|失效|未提供|重新登录|expired|invalid)/i
 
 export function isRefreshRequestUrl(url?: string): boolean {
   return typeof url === 'string' && url.includes('/auth/refresh')
@@ -45,7 +45,7 @@ export function isAuthExpiredBusinessResponse(
     return true
   }
 
-  if (code === LEGACY_AUTH_ERROR_CODE && AUTH_SUBJECT_PATTERN.test(message) && AUTH_STATE_PATTERN.test(message)) {
+  if (code === UNAUTHORIZED_BUSINESS_CODE && AUTH_SUBJECT_PATTERN.test(message) && AUTH_STATE_PATTERN.test(message)) {
     return true
   }
 

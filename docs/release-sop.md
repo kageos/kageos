@@ -49,15 +49,48 @@ git push origin main
 在 `kageos` 主仓执行：
 
 ```bash
+bash scripts/check-sensitive-files.sh
+bash scripts/check-repo-size-guard.sh
+bash scripts/check-doc-links.sh
+bash scripts/check-sdk-boundaries.sh
+go vet -tags exclude_graphdriver_btrfs ./cmd/... ./core/... ./dto/... ./pkg/...
 bash scripts/test-core-go.sh
+go test -race ./pkg/auth ./pkg/middleware ./pkg/openapitoken \
+  ./core/api-gateway/server ./core/hr-server/... \
+  ./core/app-server/api/v1 ./core/app-server/repository ./core/app-server/service
+go run golang.org/x/vuln/cmd/govulncheck@latest ./cmd/... ./core/... ./dto/... ./pkg/...
+npm --prefix web audit --omit=dev
 npm --prefix web run check:architecture
+npm --prefix web run lint
 npm --prefix web run type-check
 npm --prefix web run test:unit -- --run
 npm --prefix web run build
 git diff --check
 ```
 
-这些检查应与 `.github/workflows/ci.yml` 保持一致。发布前本地工作区应只包含本次发布需要的改动。
+再对一个真实、隔离的测试实例运行完整浏览器冒烟测试：
+
+```bash
+cd web
+PLAYWRIGHT_BASE_URL=https://your-staging.example.com \
+E2E_USERNAME=release-smoke \
+E2E_PASSWORD='replace-me' \
+npm run test:e2e
+```
+
+最后检查安装和运行态：
+
+```bash
+go run ./cmd/kagectl doctor
+go run ./cmd/kagectl status
+go run ./cmd/kagectl verify
+MYSQL_ROOT_PASSWORD=release-check \
+MINIO_ROOT_PASSWORD=release-check \
+docker compose -f deploy/dev/compose/docker-compose.dev.yml config >/dev/null
+git status --short --branch
+```
+
+以上任何一步失败都不能打 tag。检查应与 `.github/workflows/ci.yml` 保持一致；发布提交必须已经进入 `main`，工作区不能有未提交文件。当前核心对外口径是“源码公开、可自托管”，不要写成 OSI open source。
 
 ### 4. 打 Kageos 版本 tag
 
@@ -73,6 +106,8 @@ tag 会同时触发：
 
 - `.github/workflows/docker-release.yml`
 - `.github/workflows/kagebase-release.yml`
+
+`kagebase-release.yml` 会分别在原生 amd64 和原生 arm64 runner 上构建，再合并多架构 manifest，避免用 QEMU 执行 arm64 `dpkg` 时随机崩溃。`docker-release.yml` 会等待同版本 Kagebase 的 amd64/arm64 manifest 就绪；Kagebase 失败时，主镜像不会发布一个引用不存在基础镜像的版本。
 
 ## 发布产物
 
@@ -107,6 +142,8 @@ docker buildx imagetools inspect docker.io/qiayanai/kageos:0.1.9
 docker buildx imagetools inspect docker.io/qiayanai/kagebase:0.1.9
 docker buildx imagetools inspect docker.io/qiayanai/kageos:latest
 ```
+
+必须在一台没有旧 Kageos 数据和镜像缓存的机器上做一次全新安装，再在一台保留真实测试数据的机器上做一次升级验证。两条链路都要执行 `status` 和 `verify`，不能只看容器处于 running。
 
 在国内生产机上验证用户更新：
 

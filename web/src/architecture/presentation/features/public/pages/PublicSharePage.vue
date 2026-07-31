@@ -11,7 +11,13 @@
         title="链接不可用"
         :sub-title="errorMessage"
         class="public-share-result"
-      />
+      >
+        <template #extra>
+          <el-button class="submission-entry-button" round plain :icon="Clock" @click="openSubmissionDrawer">
+            查看我的提交记录
+          </el-button>
+        </template>
+      </el-result>
 
       <template v-else-if="functionDetail && gateway">
         <header class="public-share-header">
@@ -20,7 +26,12 @@
             <h1>{{ title }}</h1>
             <p v-if="description" class="public-share-description">{{ description }}</p>
           </div>
-          <div v-if="metaText" class="public-share-meta">{{ metaText }}</div>
+          <div class="public-share-header-actions">
+            <div v-if="metaText" class="public-share-meta">{{ metaText }}</div>
+            <el-button class="submission-entry-button" round plain :icon="Clock" @click="openSubmissionDrawer">
+              提交记录<span v-if="submissionsTotal > 0">（{{ submissionsTotal }}）</span>
+            </el-button>
+          </div>
         </header>
 
         <div class="public-share-function-panel workspace-function-renderer public-share-renderer">
@@ -40,17 +51,117 @@
         </div>
       </template>
     </section>
+
+    <el-drawer
+      v-model="submissionDrawerVisible"
+      title="我的提交记录"
+      :size="isMobile ? '100%' : '560px'"
+      append-to-body
+      class="public-submission-drawer"
+    >
+      <div class="submission-drawer-content">
+        <el-alert
+          title="这里只展示当前浏览器在这个表单上的提交记录"
+          type="info"
+          :closable="false"
+          show-icon
+        />
+
+        <div class="submission-toolbar">
+          <span>共 {{ submissionsTotal }} 条</span>
+          <el-button
+            link
+            :icon="Refresh"
+            :loading="submissionsLoading"
+            @click="loadSubmissions(submissionsPage)"
+          >
+            刷新
+          </el-button>
+        </div>
+
+        <el-skeleton v-if="submissionsLoading && submissions.length === 0" :rows="6" animated />
+
+        <el-result
+          v-else-if="submissionsError"
+          icon="warning"
+          title="提交记录加载失败"
+          :sub-title="submissionsError"
+        />
+
+        <el-empty v-else-if="submissions.length === 0" description="当前还没有提交记录" />
+
+        <template v-else>
+          <el-collapse class="submission-list">
+            <el-collapse-item
+              v-for="(item, index) in submissions"
+              :key="item.trace_id || `${item.created_at}-${index}`"
+              :name="item.trace_id || `${item.created_at}-${index}`"
+            >
+              <template #title>
+                <div class="submission-title">
+                  <div class="submission-title-main">
+                    <el-tag :type="submissionTagType(item.status)" size="small" effect="light">
+                      {{ submissionStatusText(item.status) }}
+                    </el-tag>
+                    <span class="submission-summary">{{ item.summary || '表单提交' }}</span>
+                  </div>
+                  <time>{{ item.created_at }}</time>
+                </div>
+              </template>
+
+              <div class="submission-details">
+                <div v-if="item.duration_millis !== undefined" class="submission-meta-row">
+                  <span>耗时</span>
+                  <span>{{ item.duration_millis }} ms</span>
+                </div>
+                <div v-if="item.trace_id" class="submission-meta-row">
+                  <span>追踪编号</span>
+                  <code>{{ item.trace_id }}</code>
+                </div>
+
+                <section v-if="hasPayload(item.request_body)" class="submission-payload">
+                  <h3>提交内容</h3>
+                  <pre>{{ formatPayload(item.request_body) }}</pre>
+                </section>
+
+                <section v-if="hasPayload(item.response_body)" class="submission-payload">
+                  <h3>处理结果</h3>
+                  <pre>{{ formatPayload(item.response_body) }}</pre>
+                </section>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
+
+          <el-pagination
+            v-if="submissionsTotal > submissionsPageSize"
+            v-model:current-page="submissionsPage"
+            class="submission-pagination"
+            small
+            background
+            layout="prev, pager, next"
+            :pager-count="isMobile ? 5 : 7"
+            :page-size="submissionsPageSize"
+            :total="submissionsTotal"
+            @current-change="loadSubmissions"
+          />
+        </template>
+      </div>
+    </el-drawer>
   </main>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { Clock, Refresh } from '@element-plus/icons-vue'
+import { useMediaQuery } from '@vueuse/core'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import {
   PublicShareFormGateway,
   createPublicShareFunctionDetail,
   getPublicShareView,
+  listPublicShareSubmissions,
+  type PublicShareSubmissionItem,
   type PublicShareView,
 } from '@/architecture/presentation/context/api/publicShare'
 import { getErrorMessage } from '@/architecture/shared/apiError'
@@ -63,6 +174,15 @@ const errorMessage = ref('')
 const view = ref<PublicShareView | null>(null)
 const functionDetail = ref<FunctionDetail | null>(null)
 const gateway = ref<PublicShareFormGateway | null>(null)
+const submissionDrawerVisible = ref(false)
+const submissions = ref<PublicShareSubmissionItem[]>([])
+const submissionsLoading = ref(false)
+const submissionsError = ref('')
+const submissionsTotal = ref(0)
+const submissionsPage = ref(1)
+const submissionsPageSize = 20
+const isMobile = useMediaQuery('(max-width: 700px)')
+let submissionRefreshTimer: number | undefined
 
 const shareId = computed(() => String(route.params.shareId || route.params.share_id || ''))
 const title = computed(() => view.value?.title || '表单')
@@ -89,8 +209,9 @@ async function loadShare() {
       createPublicShareFunctionDetail(nextView),
       nextView.preset_values || {}
     )
-    gateway.value = new PublicShareFormGateway(nextView.share_id)
+    gateway.value = new PublicShareFormGateway(nextView.share_id, scheduleSubmissionReload)
     document.title = `${nextView.title} - Public Form`
+    void loadSubmissions(1)
   } catch (error) {
     errorMessage.value = getErrorMessage(error, '公开表单暂时不可用')
   } finally {
@@ -98,7 +219,76 @@ async function loadShare() {
   }
 }
 
+async function loadSubmissions(page = submissionsPage.value) {
+  if (!shareId.value) return
+  submissionsLoading.value = true
+  submissionsError.value = ''
+  try {
+    const result = await listPublicShareSubmissions(shareId.value, {
+      page,
+      page_size: submissionsPageSize,
+    })
+    submissions.value = result.items || []
+    submissionsTotal.value = result.total || 0
+    submissionsPage.value = result.page || page
+  } catch (error) {
+    submissionsError.value = getErrorMessage(error, '暂时无法读取提交记录')
+  } finally {
+    submissionsLoading.value = false
+  }
+}
+
+function openSubmissionDrawer() {
+  submissionDrawerVisible.value = true
+  void loadSubmissions(submissionsPage.value)
+}
+
+function scheduleSubmissionReload() {
+  if (submissionRefreshTimer !== undefined) {
+    window.clearTimeout(submissionRefreshTimer)
+  }
+  submissionRefreshTimer = window.setTimeout(() => {
+    void loadSubmissions(1)
+  }, 700)
+}
+
+function submissionTagType(status: string): 'success' | 'danger' | 'info' {
+  if (status === 'success') return 'success'
+  if (status === 'failed') return 'danger'
+  return 'info'
+}
+
+function submissionStatusText(status: string): string {
+  if (status === 'success') return '成功'
+  if (status === 'failed') return '失败'
+  return status || '未知'
+}
+
+function hasPayload(value: unknown): boolean {
+  return value !== undefined && value !== null
+}
+
+function formatPayload(value: unknown): string {
+  if (typeof value === 'string') {
+    try {
+      return JSON.stringify(JSON.parse(value), null, 2)
+    } catch {
+      return value
+    }
+  }
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
 onMounted(loadShare)
+onBeforeUnmount(() => {
+  if (submissionRefreshTimer !== undefined) {
+    window.clearTimeout(submissionRefreshTimer)
+  }
+})
 </script>
 
 <style scoped lang="scss">
@@ -188,6 +378,15 @@ onMounted(loadShare)
   text-align: right;
 }
 
+.public-share-header-actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 12px;
+}
+
 .public-share-renderer {
   flex: 1;
   min-height: 0;
@@ -213,12 +412,156 @@ onMounted(loadShare)
   -webkit-overflow-scrolling: touch;
 }
 
+.submission-drawer-content {
+  display: flex;
+  width: 100%;
+  min-height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.submission-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.submission-list {
+  min-width: 0;
+  border-top: none;
+}
+
+.submission-list :deep(.el-collapse-item__header) {
+  height: auto;
+  min-height: 64px;
+  min-width: 0;
+  padding: 10px 0;
+  line-height: 1.4;
+}
+
+.submission-list :deep(.el-collapse-item__arrow) {
+  flex: 0 0 auto;
+  margin-left: 8px;
+}
+
+.submission-list :deep(.el-collapse-item__wrap),
+.submission-list :deep(.el-collapse-item__content) {
+  min-width: 0;
+}
+
+.submission-title {
+  min-width: 0;
+  width: 100%;
+  padding-right: 12px;
+  overflow: hidden;
+}
+
+.submission-title-main {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.submission-title-main :deep(.el-tag) {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.submission-summary {
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.submission-title time {
+  display: block;
+  margin-top: 7px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.submission-details {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 14px;
+}
+
+.submission-meta-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.submission-meta-row code {
+  overflow-wrap: anywhere;
+  color: var(--el-text-color-regular);
+}
+
+.submission-payload h3 {
+  margin: 0 0 8px;
+  color: var(--el-text-color-regular);
+  font-size: 13px;
+}
+
+.submission-payload {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.submission-payload pre {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  max-height: 320px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+  font-family: var(--app-font-mono, 'JetBrains Mono', monospace);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.submission-pagination {
+  max-width: 100%;
+  justify-content: center;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+:global(.public-submission-drawer .el-drawer__body) {
+  overflow-x: hidden;
+}
+
 @media (max-width: 700px) {
   .public-share-page {
     height: auto;
     min-height: 100svh;
     align-items: center;
-    padding: 18px 12px 28px;
+    padding:
+      max(18px, env(safe-area-inset-top))
+      max(12px, env(safe-area-inset-right))
+      calc(28px + env(safe-area-inset-bottom))
+      max(12px, env(safe-area-inset-left));
     overflow-y: auto;
     overflow-x: hidden;
   }
@@ -268,6 +611,23 @@ onMounted(loadShare)
     font-size: 12px;
   }
 
+  .public-share-header-actions {
+    align-items: center;
+    gap: 10px;
+  }
+
+  .submission-entry-button {
+    min-height: 44px;
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .public-share-state,
+  .public-share-result {
+    width: 100%;
+    padding: 32px 12px;
+  }
+
   .public-share-renderer {
     min-height: 0;
   }
@@ -301,6 +661,38 @@ onMounted(loadShare)
   .public-share-renderer :deep(.form-actions-row .el-button) {
     width: 100%;
     margin-left: 0;
+  }
+
+  .submission-summary {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .submission-toolbar :deep(.el-button) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .submission-pagination :deep(.btn-prev),
+  .submission-pagination :deep(.btn-next),
+  .submission-pagination :deep(.el-pager li) {
+    min-width: 36px;
+    height: 36px;
+    line-height: 36px;
+  }
+
+  :global(.public-submission-drawer .el-drawer__header) {
+    margin-bottom: 18px;
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-right: max(20px, env(safe-area-inset-right));
+    padding-left: max(20px, env(safe-area-inset-left));
+  }
+
+  :global(.public-submission-drawer .el-drawer__body) {
+    padding-right: max(20px, env(safe-area-inset-right));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    padding-left: max(20px, env(safe-area-inset-left));
   }
 }
 </style>

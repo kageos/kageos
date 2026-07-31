@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "test:unit": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:login": "E2E_SKIP_AUTH_SETUP=1 playwright test tests/e2e/login-page.spec.ts --project chromium",
+    "test:e2e:login": "E2E_SKIP_AUTH_SETUP=1 playwright test tests/e2e/login-page.spec.ts --project chromium-public",
     "test:e2e:smoke": "playwright test tests/e2e/smoke.spec.ts --project chromium",
     "test:e2e:workspace-nav": "playwright test tests/e2e/workspace-navigation.spec.ts --project chromium",
     "test:e2e:service-tree": "playwright test tests/e2e/service-tree-actions.spec.ts --project chromium",

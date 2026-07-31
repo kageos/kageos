@@ -51,7 +51,7 @@ func JWTOrPubKeyAuth(validator PubKeyValidator) gin.HandlerFunc {
 		token := c.GetHeader(contextx.TokenHeader)
 		if token != "" {
 			jwtService := auth.NewJWTService()
-			claims, err := jwtService.ValidateToken(token)
+			claims, err := jwtService.ValidateAccessToken(token)
 			if err == nil {
 				c.Set(contextx.RequestUserHeader, claims.Username)
 				c.Set(contextx.TokenHeader, token)

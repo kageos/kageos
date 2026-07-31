@@ -24,6 +24,23 @@ export interface PublicAnonymousToken {
 
 export type PublicShareSubmitResult = unknown
 
+export interface PublicShareSubmissionItem {
+  status: string
+  summary: string
+  request_body?: unknown
+  response_body?: unknown
+  duration_millis?: number
+  trace_id?: string
+  created_at: string
+}
+
+export interface PublicShareSubmissionList {
+  items: PublicShareSubmissionItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export interface CreatePublicShareRequest {
   full_code_path: string
   title?: string
@@ -120,6 +137,16 @@ export async function submitPublicShare(shareId: string, data: Record<string, un
   })
 }
 
+export async function listPublicShareSubmissions(
+  shareId: string,
+  params: { page?: number; page_size?: number } = {}
+): Promise<PublicShareSubmissionList> {
+  await ensurePublicAnonymousToken()
+  return get<PublicShareSubmissionList>(`/public/api/s/${shareId}/submissions`, params, false, {
+    headers: publicShareAnonymousHeaders(),
+  })
+}
+
 export function createPublicShare(req: CreatePublicShareRequest): Promise<PublicShareItem> {
   return post<PublicShareItem>('/workspace/api/v1/public_shares', req)
 }
@@ -145,12 +172,23 @@ export function createPublicShareFunctionDetail(view: PublicShareView): Function
 }
 
 export class PublicShareFormGateway implements IFormGateway {
-  constructor(private shareId: string) {}
+  constructor(
+    private shareId: string,
+    private onSubmissionSettled?: () => void
+  ) {}
 
   async submitForm(request: FormSubmitRequest): Promise<unknown> {
-    const response = await submitPublicShare(this.shareId, request.data)
-    return response && typeof response === 'object'
-      ? response
-      : { result: response }
+    try {
+      const response = await submitPublicShare(this.shareId, request.data)
+      return response && typeof response === 'object'
+        ? response
+        : { result: response }
+    } finally {
+      try {
+        this.onSubmissionSettled?.()
+      } catch {
+        // 提交结果不能被记录刷新回调影响。
+      }
+    }
   }
 }

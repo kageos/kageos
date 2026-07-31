@@ -105,7 +105,7 @@ func scheduledTaskMetadataWithContext(ctx context.Context, metadata map[string]s
 		out[key] = value
 	}
 	if token := strings.TrimSpace(contextx.GetToken(ctx)); token != "" {
-		if claims, err := auth.NewJWTService().ValidateToken(token); err == nil && claims != nil {
+		if claims, err := auth.NewJWTService().ValidateAccessToken(token); err == nil && claims != nil {
 			if claims.UserID > 0 && strings.TrimSpace(out[scheduledsdk.MetadataRequestUserID]) == "" {
 				out[scheduledsdk.MetadataRequestUserID] = strconv.FormatInt(claims.UserID, 10)
 			}
@@ -165,7 +165,7 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 		requestUserDept = strings.TrimSpace(contextx.GetRequestDepartmentFullPath(ctx))
 	}
 	if requestUserDept == "" {
-		if claims, err := auth.NewJWTService().ValidateToken(strings.TrimSpace(contextx.GetToken(ctx))); err == nil && claims != nil && claims.DepartmentFullPath != nil {
+		if claims, err := auth.NewJWTService().ValidateAccessToken(strings.TrimSpace(contextx.GetToken(ctx))); err == nil && claims != nil && claims.DepartmentFullPath != nil {
 			requestUserDept = strings.TrimSpace(*claims.DepartmentFullPath)
 		}
 	}

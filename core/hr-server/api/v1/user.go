@@ -21,14 +21,16 @@ type User struct {
 	userService       *service.UserService
 	departmentService *service.DepartmentService
 	openAPITokenStore *openapitoken.Store
+	tokenPublisher    service.TokenPublisher
 }
 
 // NewUser 创建用户API（依赖注入）
-func NewUser(userService *service.UserService, departmentService *service.DepartmentService, openAPITokenStore *openapitoken.Store) *User {
+func NewUser(userService *service.UserService, departmentService *service.DepartmentService, openAPITokenStore *openapitoken.Store, tokenPublisher service.TokenPublisher) *User {
 	return &User{
 		userService:       userService,
 		departmentService: departmentService,
 		openAPITokenStore: openAPITokenStore,
+		tokenPublisher:    tokenPublisher,
 	}
 }
 
@@ -399,9 +401,16 @@ func (u *User) RevokeOpenAPIToken(c *gin.Context) {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
-	if err := u.openAPITokenStore.Revoke(username, req.ID); err != nil {
+	revoked, err := u.openAPITokenStore.RevokeWithResult(username, req.ID)
+	if err != nil {
 		response.FailWithMessage(c, "吊销 OpenAPI Token 失败: "+err.Error())
 		return
+	}
+	if u.tokenPublisher != nil {
+		if err := u.tokenPublisher.InvalidateOpenAPIToken(c, revoked.UserID, revoked.Username, revoked.TokenHash, revoked.ExpiresAt); err != nil {
+			response.FailWithMessage(c, "Token 已吊销，但同步网关缓存失败: "+err.Error())
+			return
+		}
 	}
 	response.Ok(c)
 }

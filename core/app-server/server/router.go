@@ -11,8 +11,7 @@ import (
 
 // setupRoutes 设置路由
 func (s *Server) setupRoutes() {
-	openAPITokenStore := middleware2.WithOpenAPITokenStore(s.openAPITokenStore)
-	jwtAuth := middleware2.JWTAuth(openAPITokenStore)
+	jwtAuth := middleware2.JWTAuth()
 
 	// 健康检查
 	s.httpServer.GET("/health", s.healthHandler)
@@ -26,18 +25,20 @@ func (s *Server) setupRoutes() {
 	s.httpServer.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	publicShareHandler := v1.NewPublicShareAPI(s.publicShareService, s.appService, s.teamAccessService)
+	publicShareWriteLimit := newPublicShareRateLimiter().Middleware()
 	public := s.httpServer.Group("/public/api")
 	public.POST("/anonymous-token", publicShareHandler.AnonymousToken)
 	public.GET("/s/:share_id", publicShareHandler.View)
-	public.POST("/s/:share_id/submit", publicShareHandler.Submit)
-	public.POST("/s/:share_id/callback/on_select_fuzzy", publicShareHandler.CallbackOnSelectFuzzy)
+	public.GET("/s/:share_id/submissions", publicShareHandler.Submissions)
+	public.POST("/s/:share_id/submit", publicShareWriteLimit, publicShareHandler.Submit)
+	public.POST("/s/:share_id/callback/on_select_fuzzy", publicShareWriteLimit, publicShareHandler.CallbackOnSelectFuzzy)
 
 	// Workspace 路由组（统一使用 /workspace/api/v1 开头，方便网关代理）
 	workspace := s.httpServer.Group("/workspace")
 	apiV1 := workspace.Group("/api/v1")
 
 	// ⭐ 统一添加用户信息中间件，所有接口都需要（网关会透传 token，解析后设置到 X-Request-User header）
-	apiV1.Use(middleware2.WithUserInfo(openAPITokenStore))
+	apiV1.Use(middleware2.WithUserInfo())
 
 	// 应用管理路由（需要JWT验证）
 	app := apiV1.Group("/app")

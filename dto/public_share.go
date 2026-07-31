@@ -55,3 +55,22 @@ type PublicAnonymousTokenResp struct {
 	AnonymousToken string    `json:"anonymous_token"`
 	ExpiresAt      time.Time `json:"expires_at"`
 }
+
+// PublicShareSubmissionItem 是公开表单当前匿名访客可见的提交记录。
+// 这里只返回展示所需的脱敏字段，不暴露租户、操作者、IP、User-Agent 等内部审计信息。
+type PublicShareSubmissionItem struct {
+	Status         string      `json:"status"`
+	Summary        string      `json:"summary"`
+	RequestBody    interface{} `json:"request_body,omitempty"`
+	ResponseBody   interface{} `json:"response_body,omitempty"`
+	DurationMillis int64       `json:"duration_millis,omitempty"`
+	TraceID        string      `json:"trace_id,omitempty"`
+	CreatedAt      string      `json:"created_at"`
+}
+
+type PublicShareSubmissionListResp struct {
+	Items    []*PublicShareSubmissionItem `json:"items"`
+	Total    int64                        `json:"total"`
+	Page     int                          `json:"page"`
+	PageSize int                          `json:"page_size"`
+}

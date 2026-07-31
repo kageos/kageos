@@ -18,7 +18,6 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/natsx"
-	"github.com/kageos/kageos/pkg/openapitoken"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/kageos/kageos/pkg/waiter"
@@ -49,7 +48,6 @@ type Server struct {
 	functionSensitiveFieldService *service.FunctionSensitiveFieldService
 	publicShareService            *service.PublicShareService
 	appRepo                       *repository.AppRepository // ⭐ 应用仓储（用于其他服务）
-	openAPITokenStore             *openapitoken.Store
 	scheduledFuncWorker           *scheduledsdk.Worker
 
 	// 上游服务
@@ -230,12 +228,6 @@ func (s *Server) initDatabase(ctx context.Context) error {
 	if err := model.InitTables(s.db); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
-	openAPITokenStore, err := openapitoken.NewStore(s.db)
-	if err != nil {
-		return fmt.Errorf("failed to init openapi token store: %w", err)
-	}
-	s.openAPITokenStore = openAPITokenStore
-
 	logger.Infof(ctx, "[Server] Database initialized successfully")
 	return nil
 }
@@ -328,7 +320,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.functionService = service.NewFunctionService(functionRepo, appRepo)
 
 	// 初始化公开分享服务（MVP: Form 匿名提交）
-	s.publicShareService = service.NewPublicShareService(publicShareRepo, functionRepo, serviceTreeRepo)
+	s.publicShareService = service.NewPublicShareService(publicShareRepo, functionRepo, serviceTreeRepo, operateLogRepo)
 
 	// 初始化目录更新历史服务
 	s.directoryUpdateHistoryService = service.NewDirectoryUpdateHistoryService(directoryUpdateHistoryRepo, serviceTreeRepo)
