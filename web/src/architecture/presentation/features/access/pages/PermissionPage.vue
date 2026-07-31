@@ -127,7 +127,7 @@
               </div>
               <div class="resource-tools">
                 <el-tag size="small" effect="plain">
-                  {{ t('common.selectedCount', { count: selectedResourcePaths.length }) }}
+                  {{ t('common.selectedCount', { count: displayedCheckedResourceCount }) }}
                 </el-tag>
                 <el-tooltip v-if="canManageActiveResource" :content="t('access.viewExisting')" placement="bottom">
                   <el-button
@@ -149,11 +149,11 @@
                 :data="treeData"
                 :props="treeProps"
                 node-key="full_code_path"
-                :show-checkbox="workflowTab === 'grant'"
+                :show-checkbox="true"
                 :check-strictly="true"
                 :default-expand-all="true"
                 :expand-on-click-node="false"
-                :check-on-click-node="workflowTab === 'grant'"
+                :check-on-click-node="true"
                 :highlight-current="true"
                 :current-node-key="activeResourcePath"
                 @node-click="handleResourceClick"
@@ -193,14 +193,6 @@
                     <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
                     <span class="node-label">{{ treeNode.label }}</span>
                     <span class="resource-node-status">
-                      <el-icon
-                        v-if="workflowTab === 'request' && activeResourcePath === data.full_code_path"
-                        class="resource-selection-icon"
-                        :title="t('access.selectedResourceMarker')"
-                        data-testid="permission-resource-selected"
-                      >
-                        <CircleCheck />
-                      </el-icon>
                       <el-icon
                         v-if="!canRead(data)"
                         class="resource-lock-icon"
@@ -503,7 +495,7 @@
               <div class="grant-preview">
                 <div class="preview-row">
                   <span>{{ t('access.resource') }}</span>
-                  <strong class="request-resource-path">{{ activeResourcePath }}</strong>
+                  <strong>{{ t('common.resourceCount', { count: requestTargetPaths.length }) }}</strong>
                 </div>
                 <div class="preview-row">
                   <span>{{ t('access.role') }}</span>
@@ -519,7 +511,7 @@
                 :disabled="!canSubmitRequest"
                 @click="submitAccessRequest"
               >
-                {{ hasPendingRequest(activeResourcePath) ? t('access.requestPending') : t('access.submitRequest') }}
+                {{ t('access.submitRequest') }}
               </el-button>
               <el-button class="cancel-button" @click="goBack">
                 {{ t('common.cancel') }}
@@ -780,6 +772,10 @@ import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
 import { getErrorMessage, isWorkspaceForbiddenError } from '@/architecture/shared/apiError'
 import { canAdmin, canRead } from '@/architecture/presentation/composables/useAccessControl'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
+import {
+  getPermissionRequestCheckedPaths,
+  getPermissionRequestTargetPaths,
+} from '@/architecture/presentation/features/access/utils/permissionRequestSelection'
 
 type AccessTab = 'current' | 'inherited'
 type RoleTone = 'view' | 'edit' | 'admin' | 'owner'
@@ -820,6 +816,10 @@ interface DepartmentOption {
   value: string
   label: string
   children?: DepartmentOption[]
+}
+
+type PermissionTreeNode = ServiceTree & {
+  permission_request_disabled?: boolean
 }
 
 type AccessPermissionsKey = keyof AccessPermissions
@@ -869,10 +869,12 @@ const approversLoading = ref(false)
 const workflowLoading = ref(false)
 const reviewingRequestID = ref<number | null>(null)
 const approvers = ref<PermissionApprover[]>([])
+const approverReadyResourcePaths = ref<string[]>([])
 const myRequests = ref<PermissionRequest[]>([])
 const pendingRequests = ref<PermissionRequest[]>([])
 const requestHistory = ref<PermissionRequest[]>([])
 const pendingRequestCount = ref(0)
+let approverLoadSequence = 0
 
 const grantUsersField = computed<FieldConfig>(() => ({
   code: 'permissionPageUsers',
@@ -908,7 +910,8 @@ const grantUsersValue = ref<FieldValue>(createStringFieldValue(grantUsersField.v
 
 const treeProps = {
   children: 'children',
-  label: 'name'
+  label: 'name',
+  disabled: 'permission_request_disabled',
 }
 
 const directoryRoleActionKinds: ResourceKind[] = ['directory', 'table', 'form', 'chart', 'docs']
@@ -991,10 +994,26 @@ const visibleRoleOptions = computed(() => {
 const pendingRequestPaths = computed(() => new Set(
   myRequests.value.filter(item => item.status === 'pending').map(item => item.resource_path)
 ))
+const readableResourcePaths = computed(() => new Set(collectReadableResourcePaths(treeData.value)))
+const requestTargetPaths = computed(() => getPermissionRequestTargetPaths(
+  selectedResourcePaths.value,
+  readableResourcePaths.value,
+  pendingRequestPaths.value,
+))
+const requestCheckedResourcePaths = computed(() => getPermissionRequestCheckedPaths(
+  requestTargetPaths.value,
+  readableResourcePaths.value,
+  pendingRequestPaths.value,
+))
+const displayedCheckedResourceCount = computed(() => (
+  workflowTab.value === 'request'
+    ? requestCheckedResourcePaths.value.length
+    : selectedResourcePaths.value.length
+))
 const canSubmitRequest = computed(() => {
-  return Boolean(activeResourcePath.value && requestReason.value.trim() && approvers.value.length > 0)
+  return Boolean(requestTargetPaths.value.length > 0 && requestReason.value.trim() && approvers.value.length > 0)
     && (grantRole.value === 'viewer' || grantRole.value === 'member')
-    && !pendingRequestPaths.value.has(activeResourcePath.value)
+    && requestTargetPaths.value.every(path => approverReadyResourcePaths.value.includes(path))
 })
 const activeWorkflowRequests = computed(() => {
   if (workflowTab.value === 'pending') return pendingRequests.value
@@ -1164,21 +1183,26 @@ async function reloadPage() {
       : 'grant'
     selectedResourcePaths.value = workflowTab.value === 'grant'
       ? collectSelectionWithDescendants(initialPath)
-      : [initialPath]
+      : (canRead(findNodeByPath(treeData.value, initialPath)) ? [] : [initialPath])
     resetGrantForm()
+    refreshRequestNodeDisabledState()
 
     await nextTick()
-    treeRef.value?.setCheckedKeys?.(selectedResourcePaths.value)
+    syncVisibleTreeChecks()
     treeRef.value?.setCurrentKey?.(initialPath)
+    await loadPermissionWorkflow()
+    refreshRequestNodeDisabledState()
+    await nextTick()
+    syncVisibleTreeChecks()
     await Promise.all([
-      loadPermissionWorkflow(),
-      loadApprovers(),
-      canAdmin(findNodeByPath(treeData.value, initialPath)) ? loadAssignments() : Promise.resolve()
+      workflowTab.value === 'request' ? loadApprovers() : Promise.resolve(),
+      canAdmin(findNodeByPath(treeData.value, initialPath)) ? loadAssignments() : Promise.resolve(),
     ])
   } catch (error: any) {
     if (isWorkspaceForbiddenError(error)) {
       showAccessRequestFallback(error)
-      await Promise.all([loadPermissionWorkflow(), loadApprovers()])
+      await loadPermissionWorkflow()
+      await loadApprovers()
       return
     }
     const message = getErrorMessage(error, t('access.loadTreeFailed'))
@@ -1237,6 +1261,7 @@ function showAccessRequestFallback(error: unknown) {
   treeData.value = []
   activeResourcePath.value = requestedResourcePath.value
   selectedResourcePaths.value = requestedResourcePath.value ? [requestedResourcePath.value] : []
+  workflowTab.value = 'request'
   assignments.value = []
   treeAccessDenied.value = true
   treeAccessDeniedMessage.value = getErrorMessage(error, '')
@@ -1286,20 +1311,49 @@ async function loadAssignments() {
 }
 
 async function loadApprovers() {
-  const path = activeResourcePath.value
-  if (!path) {
+  const sequence = ++approverLoadSequence
+  const paths = workflowTab.value === 'request'
+    ? [...requestTargetPaths.value]
+    : (activeResourcePath.value ? [activeResourcePath.value] : [])
+  if (paths.length === 0) {
     approvers.value = []
+    approverReadyResourcePaths.value = []
+    approversLoading.value = false
     return
   }
   approversLoading.value = true
   try {
-    const response = await listPermissionApprovers(path)
-    approvers.value = response.approvers || []
-  } catch (error: any) {
-    approvers.value = []
-    ElMessage.error(getErrorMessage(error, t('access.loadApproversFailed')))
+    const results = await Promise.allSettled(paths.map(async path => ({
+      path,
+      response: await listPermissionApprovers(path),
+    })))
+    if (sequence !== approverLoadSequence) return
+
+    const uniqueApprovers = new Map<string, PermissionApprover>()
+    const readyPaths: string[] = []
+    let firstError: unknown = null
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        firstError ||= result.reason
+        continue
+      }
+      const resourceApprovers = result.value.response.approvers || []
+      if (resourceApprovers.length > 0) {
+        readyPaths.push(result.value.path)
+      }
+      for (const approver of resourceApprovers) {
+        uniqueApprovers.set(approverKey(approver), approver)
+      }
+    }
+    approvers.value = [...uniqueApprovers.values()]
+    approverReadyResourcePaths.value = readyPaths
+    if (firstError) {
+      ElMessage.error(getErrorMessage(firstError, t('access.loadApproversFailed')))
+    }
   } finally {
-    approversLoading.value = false
+    if (sequence === approverLoadSequence) {
+      approversLoading.value = false
+    }
   }
 }
 
@@ -1342,14 +1396,21 @@ function setWorkflowTab(tab: WorkflowTab) {
   workflowTab.value = tab
   if (tab === 'grant') {
     selectedResourcePaths.value = collectSelectionWithDescendants(activeResourcePath.value)
-    void nextTick(() => treeRef.value?.setCheckedKeys?.(selectedResourcePaths.value))
+    refreshRequestNodeDisabledState()
+    void nextTick(syncVisibleTreeChecks)
     void loadAssignments()
   } else if (tab === 'request') {
-    selectedResourcePaths.value = activeResourcePath.value ? [activeResourcePath.value] : []
+    selectedResourcePaths.value = isRequestableResourcePath(activeResourcePath.value)
+      ? [activeResourcePath.value]
+      : []
     if (grantRole.value !== 'viewer' && grantRole.value !== 'member') {
       grantRole.value = 'viewer'
     }
-    void loadApprovers()
+    refreshRequestNodeDisabledState()
+    void nextTick(() => {
+      syncVisibleTreeChecks()
+      void loadApprovers()
+    })
   } else {
     void loadActiveWorkflowRecords()
   }
@@ -1364,21 +1425,45 @@ async function submitAccessRequest() {
     }
     return
   }
+  const targetPaths = [...requestTargetPaths.value]
   requestSubmitting.value = true
   try {
-    await createPermissionRequest({
-      resource_path: activeResourcePath.value,
+    const results = await Promise.allSettled(targetPaths.map(resourcePath => createPermissionRequest({
+      resource_path: resourcePath,
       role_code: grantRole.value as 'viewer' | 'member',
       reason: requestReason.value.trim(),
-      expires_at: requestPermanent.value ? null : (requestExpiresAt.value?.toISOString() || null)
-    })
-    ElMessage.success(t('access.requestSubmitted'))
-    requestReason.value = ''
-    requestPermanent.value = true
-    requestExpiresAt.value = null
+      expires_at: requestPermanent.value ? null : (requestExpiresAt.value?.toISOString() || null),
+    })))
+    const successfulCount = results.filter(result => result.status === 'fulfilled').length
+    const failedResults = results.filter(result => result.status === 'rejected') as PromiseRejectedResult[]
+
+    if (failedResults.length === 0) {
+      ElMessage.success(t('access.requestResourcesSubmitted', { count: successfulCount }))
+      requestReason.value = ''
+      requestPermanent.value = true
+      requestExpiresAt.value = null
+    } else if (successfulCount > 0) {
+      ElMessage.warning(t('access.requestResourcesPartiallySubmitted', {
+        success: successfulCount,
+        failed: failedResults.length,
+      }))
+    } else {
+      ElMessage.error(getErrorMessage(failedResults[0]?.reason, t('access.requestSubmitFailed')))
+    }
+
     await loadPermissionWorkflow()
-    if (!treeAccessDenied.value) {
+    if (!treeAccessDenied.value && failedResults.length === 0) {
       workflowTab.value = 'mine'
+    } else if (!treeAccessDenied.value) {
+      selectedResourcePaths.value = getPermissionRequestTargetPaths(
+        targetPaths,
+        readableResourcePaths.value,
+        pendingRequestPaths.value,
+      )
+      refreshRequestNodeDisabledState()
+      await nextTick()
+      syncVisibleTreeChecks()
+      await loadApprovers()
     }
   } catch (error: any) {
     ElMessage.error(getErrorMessage(error, t('access.requestSubmitFailed')))
@@ -1498,19 +1583,32 @@ function handleResourceClick(data: ServiceTree) {
   if (workflowTab.value === 'grant' && !canAdmin(data)) {
     workflowTab.value = 'request'
     grantRole.value = 'viewer'
-  }
-  if (workflowTab.value === 'request') {
-    selectedResourcePaths.value = [data.full_code_path]
+    selectedResourcePaths.value = isRequestableResourcePath(data.full_code_path)
+      ? [data.full_code_path]
+      : []
+    refreshRequestNodeDisabledState()
+    void nextTick(() => {
+      syncVisibleTreeChecks()
+      treeRef.value?.setCurrentKey?.(data.full_code_path)
+      void loadApprovers()
+    })
+    return
   }
   void nextTick(() => treeRef.value?.setCurrentKey?.(data.full_code_path))
   if (workflowTab.value === 'grant') {
     void loadAssignments()
-  } else {
-    void loadApprovers()
   }
 }
 
 function handleResourceCheck(data: ServiceTree) {
+  if (workflowTab.value === 'request') {
+    if (!isRequestableResourcePath(data?.full_code_path)) {
+      syncVisibleTreeChecks()
+      return
+    }
+    applyRequestSelectionCascade(data, isResourceChecked(data))
+    return
+  }
   if (workflowTab.value !== 'grant') return
   if (data?.full_code_path) {
     applyResourceSelectionCascade(data, isResourceChecked(data))
@@ -1546,6 +1644,60 @@ function applyResourceSelectionCascade(node: ServiceTree, checked: boolean) {
   }
   treeRef.value?.setCheckedKeys?.([...checkedKeys])
   syncCheckedResourcePaths()
+}
+
+function applyRequestSelectionCascade(node: ServiceTree, checked: boolean) {
+  const checkedKeys = new Set((treeRef.value?.getCheckedKeys?.() as string[] | undefined) || [])
+  for (const path of collectNodeAndDescendantPaths(node)) {
+    if (!isRequestableResourcePath(path)) continue
+    if (checked) {
+      checkedKeys.add(path)
+    } else {
+      checkedKeys.delete(path)
+    }
+  }
+  selectedResourcePaths.value = getPermissionRequestTargetPaths(
+    checkedKeys,
+    readableResourcePaths.value,
+    pendingRequestPaths.value,
+  )
+  syncVisibleTreeChecks()
+  void loadApprovers()
+}
+
+function isRequestableResourcePath(resourcePath?: string): boolean {
+  return Boolean(
+    resourcePath
+    && !readableResourcePaths.value.has(resourcePath)
+    && !pendingRequestPaths.value.has(resourcePath),
+  )
+}
+
+function syncVisibleTreeChecks() {
+  const checkedPaths = workflowTab.value === 'request'
+    ? requestCheckedResourcePaths.value
+    : selectedResourcePaths.value
+  treeRef.value?.setCheckedKeys?.(checkedPaths)
+}
+
+function refreshRequestNodeDisabledState(nodes: ServiceTree[] = treeData.value) {
+  for (const node of nodes) {
+    const permissionNode = node as PermissionTreeNode
+    permissionNode.permission_request_disabled = workflowTab.value === 'request'
+      && !isRequestableResourcePath(node.full_code_path)
+    refreshRequestNodeDisabledState(node.children || [])
+  }
+}
+
+function collectReadableResourcePaths(nodes: ServiceTree[]): string[] {
+  const paths: string[] = []
+  for (const node of nodes) {
+    if (node.full_code_path && canRead(node)) {
+      paths.push(node.full_code_path)
+    }
+    paths.push(...collectReadableResourcePaths(node.children || []))
+  }
+  return normalizeResourcePathList(paths)
 }
 
 function handleGrantUsersChange(value: FieldValue) {
@@ -3118,12 +3270,6 @@ function formatExpiresAt(value?: string): string {
   gap: 5px;
 }
 
-.resource-selection-icon {
-  color: var(--el-color-primary);
-  font-size: 17px;
-  filter: drop-shadow(0 1px 2px rgba(var(--el-color-primary-rgb), 0.18));
-}
-
 .resource-tree .tree-node.is-selected .node-label {
   color: var(--el-color-primary);
   font-weight: 700;
@@ -3151,12 +3297,6 @@ function formatExpiresAt(value?: string): string {
 .approver-item small {
   color: var(--el-text-color-secondary);
   white-space: nowrap;
-}
-
-.request-resource-path {
-  max-width: 190px;
-  overflow-wrap: anywhere;
-  text-align: right;
 }
 
 .request-records-card {
