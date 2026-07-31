@@ -271,6 +271,7 @@ type UpdateWorkspaceReq struct {
 	ResourcePath          string  `json:"resource_path,omitempty"`                           // 工作空间资源路径，规范为 /user/app
 	Name                  *string `json:"name,omitempty"`                                    // 展示名称；nil 表示不更新，不影响 code、URL 或运行时目录
 	Admins                *string `json:"admins,omitempty"`                                  // 管理员列表，逗号分隔；nil 表示不更新
+	IsPublic              *bool   `json:"is_public,omitempty"`                               // 登录用户是否可发现并进入工作空间；nil 表示不更新，不代表获得目录权限
 	HideUnauthorizedNodes *bool   `json:"hide_unauthorized_nodes,omitempty" example:"false"` // 是否隐藏当前用户无 read 权限的目录节点；nil 表示不更新
 }
 
@@ -280,6 +281,7 @@ type UpdateWorkspaceResp struct {
 	App                   string `json:"app"`
 	Name                  string `json:"name"`
 	Admins                string `json:"admins"`
+	IsPublic              bool   `json:"is_public"`
 	HideUnauthorizedNodes bool   `json:"hide_unauthorized_nodes"`
 }
 

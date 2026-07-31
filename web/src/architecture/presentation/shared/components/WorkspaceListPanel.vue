@@ -56,6 +56,15 @@
 
       <div class="current-workspace-actions">
         <el-button
+          v-if="canOfferWorkspaceSettings(currentApp)"
+          plain
+          :icon="Setting"
+          data-testid="workspace-current-settings"
+          @click.stop="handleEditWorkspace(currentApp)"
+        >
+          {{ t('workspace.editWorkspace') }}
+        </el-button>
+        <el-button
           type="primary"
           plain
           :icon="RefreshRight"
@@ -200,11 +209,11 @@
                   <el-button
                     link
                     size="small"
-                    :title="t('workspace.renameWorkspace')"
-                    :data-testid="`workspace-card-rename-${app.id}`"
-                    @click.stop="handleRenameWorkspace(app)"
+                    :title="t('workspace.editWorkspace')"
+                    :data-testid="`workspace-card-settings-${app.id}`"
+                    @click.stop="handleEditWorkspace(app)"
                   >
-                    <el-icon><EditPen /></el-icon>
+                    <el-icon><Setting /></el-icon>
                   </el-button>
                   <el-button
                     link
@@ -380,11 +389,53 @@
         {{ t('workspace.createNewWorkspace') }}
       </el-button>
     </div>
+
+    <el-dialog
+      v-model="workspaceSettingsVisible"
+      :title="t('workspace.editWorkspaceTitle')"
+      width="min(520px, calc(100vw - 32px))"
+      append-to-body
+      destroy-on-close
+      data-testid="workspace-settings-dialog"
+    >
+      <el-form label-position="top" @submit.prevent="saveWorkspaceSettings">
+        <el-form-item :label="t('workspace.createName')" required>
+          <el-input
+            v-model="workspaceSettingsForm.name"
+            :placeholder="t('workspace.renameWorkspacePlaceholder')"
+            maxlength="100"
+          />
+        </el-form-item>
+
+        <div class="workspace-setting-row">
+          <div class="workspace-setting-copy">
+            <div class="workspace-setting-label">{{ t('workspace.createPublicLabel') }}</div>
+            <div class="workspace-setting-tip">{{ t('workspace.editPublicTip') }}</div>
+          </div>
+          <el-switch v-model="workspaceSettingsForm.is_public" />
+        </div>
+
+        <div class="workspace-setting-row">
+          <div class="workspace-setting-copy">
+            <div class="workspace-setting-label">{{ t('workspace.hideUnauthorizedNodes') }}</div>
+            <div class="workspace-setting-tip">{{ t('workspace.editHideUnauthorizedNodesTip') }}</div>
+          </div>
+          <el-switch v-model="workspaceSettingsForm.hide_unauthorized_nodes" />
+        </div>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="workspaceSettingsVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="workspaceSettingsSaving" @click="saveWorkspaceSettings">
+          {{ t('common.save') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, type CSSProperties } from 'vue'
+import { computed, reactive, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Search,
@@ -402,7 +453,7 @@ import {
   PriceTag,
   Clock,
   CollectionTag,
-  EditPen
+  Setting
 } from '@element-plus/icons-vue'
 import { getAppList, updateWorkspace } from '@/architecture/presentation/context/api/app'
 import type { App } from '@/architecture/domain/types'
@@ -444,6 +495,14 @@ const loading = ref(false)
 const myWorkspaces = ref<App[]>([])
 const allWorkspaces = ref<App[]>([])
 const systemWorkspaces = ref<App[]>([])
+const workspaceSettingsVisible = ref(false)
+const workspaceSettingsSaving = ref(false)
+const workspaceSettingsTarget = ref<App | null>(null)
+const workspaceSettingsForm = reactive({
+  name: '',
+  is_public: false,
+  hide_unauthorized_nodes: false
+})
 
 const showHeader = computed(() => props.showHeader)
 const currentWorkspaceDisplayName = computed(() => props.currentApp ? getWorkspaceDisplayName(props.currentApp) : '')
@@ -588,35 +647,52 @@ const handleDeleteApp = (app: App) => {
   emit('delete-app', app)
 }
 
-const handleRenameWorkspace = async (app: App) => {
-  let name = ''
-  try {
-    const result = await ElMessageBox.prompt(
-      t('workspace.renameWorkspaceDescription'),
-      t('workspace.renameWorkspaceTitle'),
-      {
-        inputValue: app.name || '',
-        inputPlaceholder: t('workspace.renameWorkspacePlaceholder'),
-        inputValidator: (value: string) => value.trim().length > 0 || t('workspace.renameWorkspaceRequired'),
-        confirmButtonText: t('workspace.renameWorkspaceConfirm'),
-        cancelButtonText: t('common.cancel')
-      }
-    )
-    name = result.value.trim()
-  } catch {
+const canOfferWorkspaceSettings = (app: App) => {
+  return myWorkspaces.value.some(item => item.id === app.id)
+}
+
+const handleEditWorkspace = (app: App) => {
+  workspaceSettingsTarget.value = app
+  workspaceSettingsForm.name = app.name || ''
+  workspaceSettingsForm.is_public = Boolean(app.is_public)
+  workspaceSettingsForm.hide_unauthorized_nodes = Boolean(app.hide_unauthorized_nodes)
+  workspaceSettingsVisible.value = true
+}
+
+const saveWorkspaceSettings = async () => {
+  const app = workspaceSettingsTarget.value
+  const name = workspaceSettingsForm.name.trim()
+  if (!app || workspaceSettingsSaving.value) return
+  if (!name) {
+    ElMessage.warning(t('workspace.renameWorkspaceRequired'))
     return
   }
-  if (!name || name === app.name) return
 
+  workspaceSettingsSaving.value = true
   try {
-    await updateWorkspace(buildAppResourcePath(app.user, app.code), { name })
-    const renamedApp = { ...app, name }
-    eventBus.emit(WorkspaceEvent.appInfoUpdated, { app: renamedApp })
+    const resp = await updateWorkspace(buildAppResourcePath(app.user, app.code), {
+      name,
+      is_public: workspaceSettingsForm.is_public,
+      hide_unauthorized_nodes: workspaceSettingsForm.hide_unauthorized_nodes
+    })
+    const updatedApp: App = {
+      ...app,
+      name: resp.name,
+      is_public: resp.is_public,
+      hide_unauthorized_nodes: resp.hide_unauthorized_nodes
+    }
+    if (props.currentApp?.id === app.id) {
+      eventBus.emit(WorkspaceEvent.appInfoUpdated, { app: updatedApp })
+      eventBus.emit(WorkspaceEvent.settingsUpdated, { app: updatedApp })
+    }
+    workspaceSettingsVisible.value = false
     await loadWorkspaces()
-    ElMessage.success(t('workspace.renameWorkspaceSuccess'))
+    ElMessage.success(t('workspace.editWorkspaceSuccess'))
   } catch (error) {
-    console.error('[WorkspaceListPanel] rename workspace failed:', error)
-    ElMessage.error(t('workspace.renameWorkspaceFailed'))
+    console.error('[WorkspaceListPanel] update workspace settings failed:', error)
+    ElMessage.error(t('workspace.editWorkspaceFailed'))
+  } finally {
+    workspaceSettingsSaving.value = false
   }
 }
 
@@ -1183,6 +1259,32 @@ watch(() => props.visible, (newVal: boolean) => {
   border-color: var(--el-color-primary);
   background: var(--el-color-primary);
   box-shadow: var(--app-auth-primary-shadow-hover);
+}
+
+.workspace-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 0;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.workspace-setting-copy {
+  min-width: 0;
+}
+
+.workspace-setting-label {
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.workspace-setting-tip {
+  margin-top: 5px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .certified-badge-icon {

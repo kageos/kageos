@@ -130,13 +130,14 @@ export function getAppWithServiceTree(resourcePath: string, nodeType?: string) {
 // 更新工作空间配置（只更新 MySQL 记录，不涉及容器更新，canonical 标识为 resource_path）
 export function updateWorkspace(
   resourcePath: string,
-  data: { name?: string; admins?: string; hide_unauthorized_nodes?: boolean }
+  data: { name?: string; admins?: string; is_public?: boolean; hide_unauthorized_nodes?: boolean }
 ) {
   return put<{
     user: string
     app: string
     name: string
     admins: string
+    is_public: boolean
     hide_unauthorized_nodes: boolean
   }>('/workspace/api/v1/app/workspace', {
     resource_path: normalizeResourcePath(resourcePath),

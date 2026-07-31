@@ -373,14 +373,27 @@ func TestGetAppWithServiceTreeKeepsUnauthorizedNodesByDefault(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	oldClientFactory := newServiceTreeScheduleClient
+	newServiceTreeScheduleClient = func() serviceTreeScheduleClient {
+		return fakeDirectoryOverviewScheduleClient{tasks: map[string][]*scheduledsdk.Task{
+			"agent.session|workspace_directory|/alice/ops/secret": {
+				{ID: 99, ExecutorKey: "agent.session", Status: scheduledsdk.TaskStatusPending, ResourceKey: "/alice/ops/secret"},
+			},
+		}}
+	}
+	defer func() { newServiceTreeScheduleClient = oldClientFactory }()
 
 	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "bob")
 	resp, err := queryView.GetAppWithServiceTree(ctx, &dto.GetAppWithServiceTreeReq{ResourcePath: "/alice/ops"})
 	if err != nil {
 		t.Fatalf("GetAppWithServiceTree: %v", err)
 	}
-	if findServiceTreeRespByPath(resp.ServiceTree, "/alice/ops/secret") == nil {
+	secret := findServiceTreeRespByPath(resp.ServiceTree, "/alice/ops/secret")
+	if secret == nil {
 		t.Fatal("default tree should keep unauthorized nodes visible")
+	}
+	if secret.ScheduledAgentTasks != 0 {
+		t.Fatalf("unauthorized directory must not expose scheduled agent task count, got %d", secret.ScheduledAgentTasks)
 	}
 }
 

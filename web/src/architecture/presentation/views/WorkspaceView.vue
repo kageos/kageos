@@ -99,6 +99,24 @@
           </div>
         </div>
 
+        <div
+          v-else-if="currentFunction && !canRead(currentFunction)"
+          class="workspace-access-state"
+          data-testid="workspace-resource-locked-state"
+        >
+          <div class="workspace-access-state__icon">
+            <el-icon><Lock /></el-icon>
+          </div>
+          <p class="workspace-access-state__eyebrow">{{ t('workspace.accessForbiddenEyebrow') }}</p>
+          <h2>{{ t('workspace.directoryAccessForbiddenTitle') }}</h2>
+          <p class="workspace-access-state__description">
+            {{ t('workspace.directoryAccessForbiddenDescription') }}
+          </p>
+          <div v-if="currentFunction.full_code_path" class="workspace-access-state__path">
+            {{ currentFunction.full_code_path }}
+          </div>
+        </div>
+
         <!-- 🔥 Create/Edit 模式：根据 queryTab 显示独立页面 -->
         <template v-else-if="queryTab === 'create' && currentFunction && currentFunctionDetail">
           <WorkspaceFormPage
@@ -330,6 +348,9 @@ import { getFormRequestFields, getFunctionCallbacks } from '@/architecture/domai
 import { listMessageInboxSourceCounts, type MessageInboxSourceCount } from '@/architecture/presentation/context/api/message'
 import { featureFlags } from '@/architecture/shared/config/features'
 import { extractWorkspacePath } from '@/architecture/shared/routing/route'
+import { canRead } from '@/architecture/presentation/composables/useAccessControl'
+import { eventBus } from '@/architecture/presentation/context/eventBusContext'
+import { WorkspaceEvent } from '@/architecture/domain/interfaces/IEventBus'
 
 const route = useRoute()
 const router = useRouter()
@@ -942,6 +963,17 @@ async function refreshMessageCounts() {
     messageCountsByPath.value = {}
   }
 }
+
+let unsubscribeWorkspaceSettingsUpdated: (() => void) | null = null
+onMounted(() => {
+  unsubscribeWorkspaceSettingsUpdated = eventBus.on(WorkspaceEvent.settingsUpdated, () => {
+    void handleRefreshTree()
+  })
+})
+onBeforeUnmount(() => {
+  unsubscribeWorkspaceSettingsUpdated?.()
+  unsubscribeWorkspaceSettingsUpdated = null
+})
 
 function handleOpenNodeNotifications(node: ServiceTreeType) {
   const sourcePath = normalizeFullCodePath(node.full_code_path || '')

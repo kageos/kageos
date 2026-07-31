@@ -273,8 +273,13 @@ func (a *App) GetAppDetail(c *gin.Context) {
 	req = dto.GetAppDetailReq{
 		ResourcePath: resourcePath,
 	}
-	if err := requireAccess(c, a.permissionService, req.ResourcePath, access.ActionRead); err != nil {
+	canEnter, err := a.appService.CanEnterWorkspace(contextx.ToContext(c), req.ResourcePath, contextx.GetRequestUser(c))
+	if err != nil {
 		response.FailWithMessage(c, err.Error())
+		return
+	}
+	if !canEnter {
+		response.FailWithMessage(c, "无权限查看该 workspace")
 		return
 	}
 
@@ -312,12 +317,7 @@ func (a *App) GetAppWithServiceTree(c *gin.Context) {
 		ResourcePath: c.Query("resource_path"),
 		Type:         c.Query("type"),
 	}
-	tenantUser, appCode, err := access.ParseUserApp(req.ResourcePath)
-	if err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
-	hasAccess, err := a.permissionService.HasAnyWorkspacePermission(contextx.ToContext(c), tenantUser, appCode, contextx.GetRequestUser(c))
+	hasAccess, err := a.appService.CanEnterWorkspace(contextx.ToContext(c), req.ResourcePath, contextx.GetRequestUser(c))
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
