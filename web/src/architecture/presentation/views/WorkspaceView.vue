@@ -67,7 +67,11 @@
 
       <!-- 中间函数渲染区域 -->
       <div class="function-renderer" data-testid="workspace-function-renderer">
-        <div v-if="workspaceAccessError" class="workspace-access-state" data-testid="workspace-access-state">
+        <div
+          v-if="workspaceContentState === 'workspace-error' && workspaceAccessError"
+          class="workspace-access-state"
+          data-testid="workspace-access-state"
+        >
           <div class="workspace-access-state__icon">
             <el-icon><Lock /></el-icon>
           </div>
@@ -100,7 +104,7 @@
         </div>
 
         <div
-          v-else-if="currentFunction && !canRead(currentFunction)"
+          v-else-if="workspaceContentState === 'resource-locked' && currentFunction"
           class="workspace-access-state"
           data-testid="workspace-resource-locked-state"
         >
@@ -118,7 +122,7 @@
         </div>
 
         <!-- 🔥 Create/Edit 模式：根据 queryTab 显示独立页面 -->
-        <template v-else-if="queryTab === 'create' && currentFunction && currentFunctionDetail">
+        <template v-else-if="workspaceContentState === 'create' && currentFunction && currentFunctionDetail">
           <WorkspaceFormPage
             :title="t('workspace.createData')"
             :function-detail="currentFunctionDetail"
@@ -129,7 +133,7 @@
           />
         </template>
         
-        <template v-else-if="queryTab === 'edit' && currentFunction && currentFunctionDetail">
+        <template v-else-if="workspaceContentState === 'edit' && currentFunction && currentFunctionDetail">
           <WorkspaceFormPage
             :title="t('workspace.editData')"
             :function-detail="editFunctionDetail || currentFunctionDetail"
@@ -145,7 +149,10 @@
         <!-- 注意：detail 模式使用抽屉显示，不需要单独的页面 -->
         
         <!-- 🔥 文档详情页面（可滚动） -->
-        <div v-if="currentFunction && currentFunction.type === 'docs'" class="main-content-scroll docs-content-scroll">
+        <div
+          v-else-if="workspaceContentState === 'docs' && currentFunction"
+          class="main-content-scroll docs-content-scroll"
+        >
           <DocView
             :node="currentFunction"
             @deleted="handleDocDeleted"
@@ -153,7 +160,10 @@
         </div>
 
         <!-- 🔥 服务目录详情页面（可滚动） -->
-        <div v-else-if="currentFunction && currentFunction.type === 'package'" class="main-content-scroll package-content-scroll">
+        <div
+          v-else-if="workspaceContentState === 'package' && currentFunction"
+          class="main-content-scroll package-content-scroll"
+        >
           <PackageDetailView
             :package-node="currentFunction"
             @refresh="handleRefreshTree"
@@ -161,7 +171,10 @@
         </div>
         
         <!-- 函数详情区域（正常模式 - 函数节点） -->
-        <div v-else-if="currentFunction && currentFunction.type === 'function'" class="function-content-wrapper">
+        <div
+          v-else-if="workspaceContentState === 'function' && currentFunction"
+          class="function-content-wrapper"
+        >
           <div class="function-content">
             <WorkspaceFunctionTabsPanel
               v-if="showFunctionTabsWrapper"
@@ -185,7 +198,7 @@
           </div>
         </div>
         <div
-          v-else-if="isRestoringWorkspaceRoute"
+          v-else-if="workspaceContentState === 'restoring'"
           class="workspace-route-restoring"
           data-testid="workspace-route-restoring"
           aria-hidden="true"
@@ -348,9 +361,9 @@ import { getFormRequestFields, getFunctionCallbacks } from '@/architecture/domai
 import { listMessageInboxSourceCounts, type MessageInboxSourceCount } from '@/architecture/presentation/context/api/message'
 import { featureFlags } from '@/architecture/shared/config/features'
 import { extractWorkspacePath } from '@/architecture/shared/routing/route'
-import { canRead } from '@/architecture/presentation/composables/useAccessControl'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import { WorkspaceEvent } from '@/architecture/domain/interfaces/IEventBus'
+import { resolveWorkspaceContentState } from './utils/workspaceContentState'
 
 const route = useRoute()
 const router = useRouter()
@@ -866,6 +879,14 @@ const isRestoringWorkspaceRoute = computed(() => {
 
   return loading.value || serviceTree.value.length === 0 || Boolean(workspaceRouteTargetNode.value)
 })
+
+const workspaceContentState = computed(() => resolveWorkspaceContentState({
+  hasWorkspaceAccessError: Boolean(workspaceAccessError.value),
+  currentFunction: currentFunction.value,
+  queryTab: queryTab.value,
+  hasCurrentFunctionDetail: Boolean(currentFunctionDetail.value),
+  isRestoringWorkspaceRoute: isRestoringWorkspaceRoute.value
+}))
 
 const workspaceAccessTitle = computed(() => {
   return workspaceAccessError.value?.type === 'forbidden'
