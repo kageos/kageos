@@ -26,6 +26,17 @@ type RevokeRoleReq struct {
 	RoleCode     access.RoleCode  `json:"role_code,omitempty"`
 }
 
+type CreatePermissionRequestReq struct {
+	ResourcePath string          `json:"resource_path" binding:"required"`
+	RoleCode     access.RoleCode `json:"role_code" binding:"required"`
+	Reason       string          `json:"reason" binding:"required"`
+	ExpiresAt    *time.Time      `json:"expires_at,omitempty"`
+}
+
+type ReviewPermissionRequestReq struct {
+	Comment string `json:"comment,omitempty"`
+}
+
 type PermissionAssignmentsResp struct {
 	Assignments []access.RoleAssignmentView `json:"assignments"`
 }

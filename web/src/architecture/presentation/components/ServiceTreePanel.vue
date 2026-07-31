@@ -120,7 +120,11 @@
               :show-scheduled-agent-badge="hasScheduledAgentBadge(data)"
               :scheduled-agent-badge-title="getScheduledAgentBadgeTitle(data)"
               :scheduled-agent-state="getScheduledAgentState(data)"
+              :show-access-lock="!canRead(data)"
+              :access-request-pending="pendingAccessRequestPaths.has(data.full_code_path)"
+              :access-lock-title="getAccessLockTitle(data)"
               @scheduled-agent-click="handleNodeClick(data)"
+              @access-request-click="openAccessRequestPage(data)"
               @dragstart="onTreeNodeDragStart($event, data)"
               @contextmenu.prevent
               @notification-click="openNodeNotifications(data)"
@@ -283,6 +287,8 @@ import {
   type ServiceTreeNodeActionCommand
 } from '../utils/serviceTreeNodeActions'
 import { featureFlags } from '@/architecture/shared/config/features'
+import { listMyPermissionRequests } from '@/architecture/presentation/context/api/permission'
+import { canRead } from '@/architecture/presentation/composables/useAccessControl'
 import ServiceTreeNodeContent from './ServiceTreeNodeContent.vue'
 import WorkspaceImportDirectoryDialog from './WorkspaceImportDirectoryDialog.vue'
 
@@ -321,6 +327,7 @@ const router = useRouter()
 
 const runtimeSummaries = ref<Record<string, RuntimeStateSummary>>({})
 const notificationRouteSummaries = ref<Record<string, MessageNotificationRoutePathSummary>>({})
+const pendingAccessRequestPaths = ref<Set<string>>(new Set())
 let runtimeSummaryTimer: ReturnType<typeof setInterval> | null = null
 
 const {
@@ -463,11 +470,29 @@ const startRuntimeSummaryPolling = () => {
 watch(rootFullCodePath, () => {
   runtimeSummaries.value = {}
   notificationRouteSummaries.value = {}
+  pendingAccessRequestPaths.value = new Set()
   exitMultiSelectMode()
   refreshRuntimeSummary()
   refreshNotificationRouteSummary()
+  refreshPendingAccessRequests()
   startRuntimeSummaryPolling()
 }, { immediate: true })
+
+async function refreshPendingAccessRequests() {
+  const root = rootFullCodePath.value
+  if (!root) {
+    pendingAccessRequestPaths.value = new Set()
+    return
+  }
+  try {
+    const response = await listMyPermissionRequests(root, 'pending')
+    pendingAccessRequestPaths.value = new Set(
+      (response.requests || []).map(item => item.resource_path).filter(Boolean)
+    )
+  } catch {
+    // 申请状态只用于树上提示，不阻断目录加载。
+  }
+}
 
 unsubscribeNotificationRouteRefresh = eventBus.on('notification-route:changed', () => {
   void refreshNotificationRouteSummary()
@@ -848,6 +873,26 @@ function openAccessPage(data: ServiceTree) {
       resource: data.full_code_path
     }
   })
+}
+
+function openAccessRequestPage(data: ServiceTree) {
+  if (!data.full_code_path) {
+    ElMessage.warning(t('serviceTree.pathMissingRefresh'))
+    return
+  }
+  void router.push({
+    path: '/permissions',
+    query: {
+      resource: data.full_code_path,
+      mode: 'request'
+    }
+  })
+}
+
+function getAccessLockTitle(data: ServiceTree): string {
+  return pendingAccessRequestPaths.value.has(data.full_code_path)
+    ? t('serviceTree.accessRequestPending')
+    : t('serviceTree.accessRequestAction')
 }
 
 const selectedNodeCount = computed(() => selectedNodes.value.length)

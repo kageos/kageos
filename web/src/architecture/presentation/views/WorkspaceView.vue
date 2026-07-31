@@ -119,6 +119,11 @@
           <div v-if="currentFunction.full_code_path" class="workspace-access-state__path">
             {{ currentFunction.full_code_path }}
           </div>
+          <div class="workspace-access-state__actions">
+            <el-button type="primary" :icon="Key" @click="openResourceAccessPage">
+              {{ t('workspace.applyAccess') }}
+            </el-button>
+          </div>
         </div>
 
         <!-- 🔥 Create/Edit 模式：根据 queryTab 显示独立页面 -->
@@ -914,7 +919,15 @@ function openWorkspaceAccessPage() {
   const resource = getWorkspaceAccessResourcePath()
   void router.push({
     path: '/permissions',
-    query: resource ? { resource } : {}
+    query: resource ? { resource, mode: 'request' } : { mode: 'request' }
+  })
+}
+
+function openResourceAccessPage() {
+  const resource = currentFunction.value?.full_code_path || getWorkspaceAccessResourcePath()
+  void router.push({
+    path: '/permissions',
+    query: resource ? { resource, mode: 'request' } : { mode: 'request' }
   })
 }
 

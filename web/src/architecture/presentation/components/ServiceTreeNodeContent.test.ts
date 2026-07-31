@@ -81,6 +81,34 @@ describe('ServiceTreeNodeContent', () => {
     expect(marker.find('.agent-alert-mark').exists()).toBe(true)
   })
 
+  it('shows a clickable lock and switches to the pending marker after a request is submitted', async () => {
+    const wrapper = mount(ServiceTreeNodeContent, {
+      props: {
+        node: {
+          id: 20,
+          type: 'package',
+          name: '受限目录',
+          full_code_path: '/alice/ops/locked',
+        } as any,
+        showAccessLock: true,
+        accessLockTitle: '暂无读取权限，点击申请',
+      },
+    })
+
+    const lock = wrapper.get('[data-testid="service-tree-access-lock"]')
+    expect(lock.attributes('aria-label')).toBe('暂无读取权限，点击申请')
+    expect(lock.classes()).not.toContain('is-pending')
+    await lock.trigger('click')
+    expect(wrapper.emitted('access-request-click')).toHaveLength(1)
+
+    await wrapper.setProps({
+      accessRequestPending: true,
+      accessLockTitle: '权限申请待审批',
+    })
+    expect(lock.classes()).toContain('is-pending')
+    expect(lock.attributes('aria-label')).toBe('权限申请待审批')
+  })
+
   it.each([
     ['running', 'working'],
     ['enabled', 'ready'],

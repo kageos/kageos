@@ -31,6 +31,7 @@ func (r *RoleAssignmentRepository) UpsertAssignment(ctx context.Context, assignm
 	if err == nil {
 		existing.ExpiresAt = assignment.ExpiresAt
 		existing.CreatedBy = assignment.CreatedBy
+		existing.UpdatedBy = assignment.UpdatedBy
 		return r.db.WithContext(ctx).Save(&existing).Error
 	}
 	if err != nil && err != gorm.ErrRecordNotFound {

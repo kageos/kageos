@@ -33,12 +33,36 @@
             <code>{{ activeResourcePath }}</code>
           </div>
 
-          <p class="access-request-note">{{ t('access.requestAccessContactAdmin') }}</p>
+          <div class="access-request-compact-form">
+            <el-radio-group v-model="grantRole">
+              <el-radio-button label="viewer">{{ roleLabel('viewer') }}</el-radio-button>
+              <el-radio-button label="member">{{ roleLabel('member') }}</el-radio-button>
+            </el-radio-group>
+            <el-input
+              v-model="requestReason"
+              type="textarea"
+              :rows="3"
+              maxlength="1000"
+              show-word-limit
+              :placeholder="t('access.requestReasonPlaceholder')"
+            />
+            <p v-if="approvers.length > 0" class="access-request-note">
+              {{ t('access.approverCount', { count: approvers.length }) }}
+            </p>
+            <p v-else class="access-request-note">{{ t('access.noApprover') }}</p>
+          </div>
 
           <div class="access-request-actions">
-            <el-button type="primary" :icon="Document" @click="copyResourcePath">
-              {{ t('access.copyResourcePath') }}
+            <el-button
+              type="primary"
+              :icon="Key"
+              :loading="requestSubmitting"
+              :disabled="!canSubmitRequest"
+              @click="submitAccessRequest"
+            >
+              {{ hasPendingRequest(activeResourcePath) ? t('access.requestPending') : t('access.submitRequest') }}
             </el-button>
+            <el-button :icon="Document" @click="copyResourcePath">{{ t('access.copyResourcePath') }}</el-button>
             <el-button @click="goBack">
               {{ t('access.backToWorkspace') }}
             </el-button>
@@ -46,7 +70,50 @@
         </section>
       </section>
 
-      <section v-else v-loading="pageLoading" class="apply-layout">
+      <section v-else v-loading="pageLoading" class="permission-workflow">
+        <nav class="workflow-tabs" :aria-label="t('access.workflowTitle')">
+          <button
+            v-if="canManageActiveResource"
+            type="button"
+            :class="{ 'is-active': workflowTab === 'grant' }"
+            @click="setWorkflowTab('grant')"
+          >
+            {{ t('access.grantTab') }}
+          </button>
+          <button
+            type="button"
+            :class="{ 'is-active': workflowTab === 'request' }"
+            @click="setWorkflowTab('request')"
+          >
+            {{ t('access.requestTab') }}
+          </button>
+          <button
+            v-if="canReviewRequests || pendingRequestCount > 0"
+            type="button"
+            :class="{ 'is-active': workflowTab === 'pending' }"
+            @click="setWorkflowTab('pending')"
+          >
+            {{ t('access.pendingTab') }}
+            <span v-if="pendingRequestCount > 0" class="workflow-tab-badge">{{ pendingRequestCount }}</span>
+          </button>
+          <button
+            type="button"
+            :class="{ 'is-active': workflowTab === 'mine' }"
+            @click="setWorkflowTab('mine')"
+          >
+            {{ t('access.myRequestsTab') }}
+          </button>
+          <button
+            v-if="canReviewRequests"
+            type="button"
+            :class="{ 'is-active': workflowTab === 'history' }"
+            @click="setWorkflowTab('history')"
+          >
+            {{ t('access.reviewHistoryTab') }}
+          </button>
+        </nav>
+
+        <div v-if="workflowTab === 'grant' || workflowTab === 'request'" class="apply-layout">
         <aside class="apply-sidebar">
           <section class="tree-card">
             <div class="panel-toolbar">
@@ -58,7 +125,7 @@
                 <el-tag size="small" effect="plain">
                   {{ t('common.selectedCount', { count: selectedResourcePaths.length }) }}
                 </el-tag>
-                <el-tooltip :content="t('access.viewExisting')" placement="bottom">
+                <el-tooltip v-if="canManageActiveResource" :content="t('access.viewExisting')" placement="bottom">
                   <el-button
                     size="small"
                     :icon="UserFilled"
@@ -78,11 +145,11 @@
                 :data="treeData"
                 :props="treeProps"
                 node-key="full_code_path"
-                show-checkbox
+                :show-checkbox="workflowTab === 'grant'"
                 :check-strictly="true"
                 :default-expand-all="true"
                 :expand-on-click-node="false"
-                :check-on-click-node="true"
+                :check-on-click-node="workflowTab === 'grant'"
                 :highlight-current="true"
                 :current-node-key="activeResourcePath"
                 @node-click="handleResourceClick"
@@ -121,6 +188,14 @@
                     />
                     <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
                     <span class="node-label">{{ treeNode.label }}</span>
+                    <el-icon
+                      v-if="!canRead(data)"
+                      class="resource-lock-icon"
+                      :title="hasPendingRequest(data.full_code_path) ? t('access.requestPending') : t('access.noReadAccess')"
+                    >
+                      <Clock v-if="hasPendingRequest(data.full_code_path)" />
+                      <Lock v-else />
+                    </el-icon>
                   </span>
                 </template>
               </el-tree>
@@ -189,7 +264,7 @@
 
             <div class="role-cards">
               <button
-                v-for="role in roleOptions"
+                v-for="role in visibleRoleOptions"
                 :key="role.value"
                 class="role-card"
                 :class="[`tone-${role.tone}`, { 'is-selected': grantRole === role.value }]"
@@ -267,12 +342,12 @@
           <section class="form-card">
             <div class="panel-toolbar">
               <div class="panel-title-copy">
-                <h3>{{ t('access.grantInfo') }}</h3>
-                <p>{{ t('access.grantInfoDesc') }}</p>
+                <h3>{{ workflowTab === 'grant' ? t('access.grantInfo') : t('access.requestInfo') }}</h3>
+                <p>{{ workflowTab === 'grant' ? t('access.grantInfoDesc') : t('access.requestInfoDesc') }}</p>
               </div>
             </div>
 
-            <el-form label-position="top" class="grant-form" @submit.prevent>
+            <el-form v-if="workflowTab === 'grant'" label-position="top" class="grant-form" @submit.prevent>
               <el-form-item :label="t('access.principalType')">
                 <el-radio-group v-model="grantPrincipalType">
                   <el-radio-button label="department">{{ t('access.organization') }}</el-radio-button>
@@ -356,8 +431,173 @@
                 {{ t('common.cancel') }}
               </el-button>
             </el-form>
+
+            <el-form v-else label-position="top" class="grant-form request-form" @submit.prevent>
+              <el-form-item :label="t('access.requester')">
+                <strong>{{ currentUsername || t('access.currentAccount') }}</strong>
+              </el-form-item>
+
+              <el-form-item :label="t('access.approvers')">
+                <div v-loading="approversLoading" class="approver-list">
+                  <div v-for="approver in approvers" :key="approverKey(approver)" class="approver-item">
+                    <UsersWidget
+                      v-if="approver.principal_type === 'user'"
+                      :value="principalUserValue(approver.principal_key)"
+                      :field="memberUsersField"
+                      mode="response"
+                      :field-path="`permissionApprover:${approverKey(approver)}`"
+                    />
+                    <DepartmentDisplay
+                      v-else
+                      :full-code-path="approver.principal_key"
+                      :display-name="departmentPrincipalLabel(approver.principal_key)"
+                      mode="simple"
+                      size="small"
+                    />
+                    <small>{{ roleLabel(approver.role_code) }} · {{ approver.inherited ? t('access.inherited') : t('access.currentResource') }}</small>
+                  </div>
+                  <el-empty v-if="!approversLoading && approvers.length === 0" :image-size="44" :description="t('access.noApprover')" />
+                </div>
+              </el-form-item>
+
+              <el-form-item :label="t('access.requestReason')" required>
+                <el-input
+                  v-model="requestReason"
+                  type="textarea"
+                  :rows="4"
+                  maxlength="1000"
+                  show-word-limit
+                  :placeholder="t('access.requestReasonPlaceholder')"
+                />
+              </el-form-item>
+
+              <el-form-item :label="t('access.expires')">
+                <el-radio-group v-model="requestPermanent">
+                  <el-radio :label="true">{{ t('access.permanent') }}</el-radio>
+                  <el-radio :label="false">{{ t('access.customTime') }}</el-radio>
+                </el-radio-group>
+                <el-date-picker
+                  v-if="!requestPermanent"
+                  v-model="requestExpiresAt"
+                  class="expires-picker"
+                  type="datetime"
+                  :placeholder="t('access.expiresPlaceholder')"
+                  clearable
+                />
+              </el-form-item>
+
+              <div class="grant-preview">
+                <div class="preview-row">
+                  <span>{{ t('access.resource') }}</span>
+                  <strong class="request-resource-path">{{ activeResourcePath }}</strong>
+                </div>
+                <div class="preview-row">
+                  <span>{{ t('access.role') }}</span>
+                  <strong>{{ roleLabel(grantRole) }}</strong>
+                </div>
+              </div>
+
+              <el-button
+                class="submit-button"
+                type="primary"
+                :icon="Key"
+                :loading="requestSubmitting"
+                :disabled="!canSubmitRequest"
+                @click="submitAccessRequest"
+              >
+                {{ hasPendingRequest(activeResourcePath) ? t('access.requestPending') : t('access.submitRequest') }}
+              </el-button>
+              <el-button class="cancel-button" @click="goBack">
+                {{ t('common.cancel') }}
+              </el-button>
+            </el-form>
           </section>
         </aside>
+        </div>
+
+        <section v-else class="request-records-card">
+          <div class="request-records-header">
+            <div>
+              <h2>{{ workflowRecordTitle }}</h2>
+              <p>{{ workflowRecordDescription }}</p>
+            </div>
+            <el-button :icon="Refresh" :loading="workflowLoading" @click="loadActiveWorkflowRecords">
+              {{ t('common.refresh') }}
+            </el-button>
+          </div>
+
+          <el-table
+            v-loading="workflowLoading"
+            :data="activeWorkflowRequests"
+            row-key="id"
+            class="request-records-table"
+            :empty-text="t('access.noRequests')"
+          >
+            <el-table-column v-if="workflowTab !== 'mine'" :label="t('access.requester')" width="150">
+              <template #default="{ row }">
+                <UsersWidget
+                  :value="principalUserValue(row.requester)"
+                  :field="memberUsersField"
+                  mode="response"
+                  :field-path="`permissionRequester:${row.id}`"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('access.resource')" min-width="260">
+              <template #default="{ row }"><code class="request-table-path">{{ row.resource_path }}</code></template>
+            </el-table-column>
+            <el-table-column :label="t('access.role')" width="110">
+              <template #default="{ row }">
+                <el-tag size="small" :type="roleTagType(row.requested_role)">{{ roleLabel(row.requested_role) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('access.requestReason')" min-width="220" prop="reason" show-overflow-tooltip />
+            <el-table-column :label="t('access.status')" width="110">
+              <template #default="{ row }">
+                <el-tag size="small" :type="requestStatusTagType(row.status)">{{ requestStatusLabel(row.status) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('access.requestedAt')" width="170">
+              <template #default="{ row }">{{ formatDateTime(row.created_at) }}</template>
+            </el-table-column>
+            <el-table-column v-if="workflowTab === 'history'" :label="t('access.reviewedBy')" min-width="170">
+              <template #default="{ row }">
+                <div class="review-result-cell">
+                  <UsersWidget
+                    v-if="row.reviewed_by"
+                    :value="principalUserValue(row.reviewed_by)"
+                    :field="memberUsersField"
+                    mode="response"
+                    :field-path="`permissionReviewer:${row.id}`"
+                  />
+                  <small v-if="row.review_comment">{{ row.review_comment }}</small>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('common.operation')" width="170" fixed="right">
+              <template #default="{ row }">
+                <template v-if="workflowTab === 'pending'">
+                  <el-button type="success" link :loading="reviewingRequestID === row.id" @click="approveRequest(row)">
+                    {{ t('access.approve') }}
+                  </el-button>
+                  <el-button type="danger" link :loading="reviewingRequestID === row.id" @click="rejectRequest(row)">
+                    {{ t('access.reject') }}
+                  </el-button>
+                </template>
+                <el-button
+                  v-else-if="workflowTab === 'mine' && row.status === 'pending'"
+                  type="danger"
+                  link
+                  :loading="reviewingRequestID === row.id"
+                  @click="cancelRequest(row)"
+                >
+                  {{ t('access.cancelRequest') }}
+                </el-button>
+                <el-button v-else link @click="openRequestResource(row)">{{ t('access.openResource') }}</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </section>
       </section>
     </div>
 
@@ -472,10 +712,12 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   CircleCheck,
   CircleClose,
+  Clock,
   Delete,
   Document,
   EditPen,
   Key,
+  Lock,
   Plus,
   Refresh,
   User,
@@ -490,11 +732,23 @@ import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { WidgetType } from '@/architecture/domain/constants/widget'
 import { getAppWithServiceTree } from '@/architecture/presentation/context/api/app'
 import {
+  approvePermissionRequest,
   batchGrantRoles,
+  cancelPermissionRequest,
+  createPermissionRequest,
+  getPendingPermissionRequestCount,
+  listMyPermissionRequests,
+  listPendingPermissionRequests,
+  listPermissionApprovers,
+  listPermissionRequestHistory,
   listPermissionAssignments,
+  rejectPermissionRequest,
   revokeRole,
+  type PermissionApprover,
   type PermissionPrincipal,
   type PermissionPrincipalType,
+  type PermissionRequest,
+  type PermissionRequestStatus,
   type RoleAssignment
 } from '@/architecture/presentation/context/api/permission'
 import {
@@ -510,10 +764,13 @@ import { createStringFieldValue, extractStringFieldRaw } from '@/architecture/do
 import { buildAppResourcePath, normalizeResourcePath, parseResourcePath } from '@/architecture/shared/resourcePath'
 import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
 import { getErrorMessage, isWorkspaceForbiddenError } from '@/architecture/shared/apiError'
+import { canAdmin, canRead } from '@/architecture/presentation/composables/useAccessControl'
+import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 
 type AccessTab = 'current' | 'inherited'
 type RoleTone = 'view' | 'edit' | 'admin' | 'owner'
 type ResourceKind = 'app' | 'directory' | 'table' | 'form' | 'chart' | 'docs'
+type WorkflowTab = 'grant' | 'request' | 'pending' | 'mine' | 'history'
 
 interface RoleOption {
   value: AccessRoleCode
@@ -556,6 +813,7 @@ type AccessPermissionsKey = keyof AccessPermissions
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const authStore = useAuthStore()
 
 const permissionLabelMap = {
   read: 'read',
@@ -588,6 +846,19 @@ const grantDepartmentPath = ref('/org')
 const grantRole = ref<AccessRoleCode>('viewer')
 const grantPermanent = ref(true)
 const grantExpiresAt = ref<Date | null>(null)
+const workflowTab = ref<WorkflowTab>('request')
+const requestReason = ref('')
+const requestPermanent = ref(true)
+const requestExpiresAt = ref<Date | null>(null)
+const requestSubmitting = ref(false)
+const approversLoading = ref(false)
+const workflowLoading = ref(false)
+const reviewingRequestID = ref<number | null>(null)
+const approvers = ref<PermissionApprover[]>([])
+const myRequests = ref<PermissionRequest[]>([])
+const pendingRequests = ref<PermissionRequest[]>([])
+const requestHistory = ref<PermissionRequest[]>([])
+const pendingRequestCount = ref(0)
 
 const grantUsersField = computed<FieldConfig>(() => ({
   code: 'permissionPageUsers',
@@ -677,12 +948,54 @@ const requestedResourcePath = computed(() => {
   return normalizeResourcePath(String(raw || ''))
 })
 
+const requestedWorkflowMode = computed(() => {
+  const raw = Array.isArray(route.query.mode) ? route.query.mode[0] : route.query.mode
+  return raw === 'request' ? 'request' : ''
+})
+
 const parsedResource = computed(() => parseResourcePath(requestedResourcePath.value))
 const invalidResource = computed(() => !parsedResource.value)
 
 const activeResource = computed(() => {
   if (!activeResourcePath.value) return null
   return findNodeByPath(treeData.value, activeResourcePath.value)
+})
+
+const currentUsername = computed(() => authStore.user?.username || '')
+const workspaceRootPath = computed(() => {
+  const parsed = parsedResource.value
+  return parsed ? buildAppResourcePath(parsed.user, parsed.app) : ''
+})
+const canManageActiveResource = computed(() => canAdmin(activeResource.value))
+const canReviewRequests = computed(() => treeContainsAdminResource(treeData.value))
+const visibleRoleOptions = computed(() => {
+  if (workflowTab.value === 'request') {
+    return roleOptions.value.filter(role => role.value === 'viewer' || role.value === 'member')
+  }
+  return roleOptions.value
+})
+const pendingRequestPaths = computed(() => new Set(
+  myRequests.value.filter(item => item.status === 'pending').map(item => item.resource_path)
+))
+const canSubmitRequest = computed(() => {
+  return Boolean(activeResourcePath.value && requestReason.value.trim() && approvers.value.length > 0)
+    && (grantRole.value === 'viewer' || grantRole.value === 'member')
+    && !pendingRequestPaths.value.has(activeResourcePath.value)
+})
+const activeWorkflowRequests = computed(() => {
+  if (workflowTab.value === 'pending') return pendingRequests.value
+  if (workflowTab.value === 'history') return requestHistory.value
+  return myRequests.value
+})
+const workflowRecordTitle = computed(() => {
+  if (workflowTab.value === 'pending') return t('access.pendingTitle')
+  if (workflowTab.value === 'history') return t('access.reviewHistoryTitle')
+  return t('access.myRequestsTitle')
+})
+const workflowRecordDescription = computed(() => {
+  if (workflowTab.value === 'pending') return t('access.pendingDescription')
+  if (workflowTab.value === 'history') return t('access.reviewHistoryDescription')
+  return t('access.myRequestsDescription')
 })
 
 const currentResourceKind = computed<ResourceKind>(() => {
@@ -801,7 +1114,7 @@ const roleActionConfigs = computed<Record<ResourceKind, RoleActionConfig[]>>(() 
   ],
 }))
 
-watch(requestedResourcePath, () => {
+watch([requestedResourcePath, requestedWorkflowMode], () => {
   void reloadPage()
 }, { immediate: true })
 
@@ -830,19 +1143,28 @@ async function reloadPage() {
     treeData.value = buildTreeData(resp.app, resp.service_tree || [])
 
     const initialPath = findNodeByPath(treeData.value, parsed.resourcePath)?.full_code_path || parsed.resourcePath
-    const initialResourcePaths = collectSelectionWithDescendants(initialPath)
     activeTab.value = 'current'
     activeResourcePath.value = initialPath
-    selectedResourcePaths.value = initialResourcePaths
+    workflowTab.value = requestedWorkflowMode.value === 'request' || !canAdmin(findNodeByPath(treeData.value, initialPath))
+      ? 'request'
+      : 'grant'
+    selectedResourcePaths.value = workflowTab.value === 'grant'
+      ? collectSelectionWithDescendants(initialPath)
+      : [initialPath]
     resetGrantForm()
 
     await nextTick()
-    treeRef.value?.setCheckedKeys?.(initialResourcePaths)
+    treeRef.value?.setCheckedKeys?.(selectedResourcePaths.value)
     treeRef.value?.setCurrentKey?.(initialPath)
-    await loadAssignments()
+    await Promise.all([
+      loadPermissionWorkflow(),
+      loadApprovers(),
+      canAdmin(findNodeByPath(treeData.value, initialPath)) ? loadAssignments() : Promise.resolve()
+    ])
   } catch (error: any) {
     if (isWorkspaceForbiddenError(error)) {
       showAccessRequestFallback(error)
+      await Promise.all([loadPermissionWorkflow(), loadApprovers()])
       return
     }
     const message = getErrorMessage(error, t('access.loadTreeFailed'))
@@ -949,15 +1271,233 @@ async function loadAssignments() {
   }
 }
 
+async function loadApprovers() {
+  const path = activeResourcePath.value
+  if (!path) {
+    approvers.value = []
+    return
+  }
+  approversLoading.value = true
+  try {
+    const response = await listPermissionApprovers(path)
+    approvers.value = response.approvers || []
+  } catch (error: any) {
+    approvers.value = []
+    ElMessage.error(getErrorMessage(error, t('access.loadApproversFailed')))
+  } finally {
+    approversLoading.value = false
+  }
+}
+
+async function loadPermissionWorkflow() {
+  const root = workspaceRootPath.value
+  if (!root) return
+  workflowLoading.value = true
+  try {
+    const [mineResult, pendingResult, historyResult, countResult] = await Promise.allSettled([
+      listMyPermissionRequests(root),
+      listPendingPermissionRequests(root),
+      listPermissionRequestHistory(root),
+      getPendingPermissionRequestCount(root),
+    ])
+    if (mineResult.status === 'fulfilled') {
+      myRequests.value = mineResult.value.requests || []
+    }
+    if (pendingResult.status === 'fulfilled') {
+      pendingRequests.value = pendingResult.value.requests || []
+    }
+    if (historyResult.status === 'fulfilled') {
+      requestHistory.value = historyResult.value.requests || []
+    }
+    if (countResult.status === 'fulfilled') {
+      pendingRequestCount.value = Number(countResult.value.count || 0)
+    } else {
+      pendingRequestCount.value = pendingRequests.value.length
+    }
+  } finally {
+    workflowLoading.value = false
+  }
+}
+
+async function loadActiveWorkflowRecords() {
+  await loadPermissionWorkflow()
+}
+
+function setWorkflowTab(tab: WorkflowTab) {
+  if (tab === 'grant' && !canManageActiveResource.value) return
+  workflowTab.value = tab
+  if (tab === 'grant') {
+    selectedResourcePaths.value = collectSelectionWithDescendants(activeResourcePath.value)
+    void nextTick(() => treeRef.value?.setCheckedKeys?.(selectedResourcePaths.value))
+    void loadAssignments()
+  } else if (tab === 'request') {
+    selectedResourcePaths.value = activeResourcePath.value ? [activeResourcePath.value] : []
+    if (grantRole.value !== 'viewer' && grantRole.value !== 'member') {
+      grantRole.value = 'viewer'
+    }
+    void loadApprovers()
+  } else {
+    void loadActiveWorkflowRecords()
+  }
+}
+
+async function submitAccessRequest() {
+  if (!canSubmitRequest.value) {
+    if (hasPendingRequest(activeResourcePath.value)) {
+      ElMessage.warning(t('access.requestAlreadyPending'))
+    } else {
+      ElMessage.warning(t('access.completeRequestForm'))
+    }
+    return
+  }
+  requestSubmitting.value = true
+  try {
+    await createPermissionRequest({
+      resource_path: activeResourcePath.value,
+      role_code: grantRole.value as 'viewer' | 'member',
+      reason: requestReason.value.trim(),
+      expires_at: requestPermanent.value ? null : (requestExpiresAt.value?.toISOString() || null)
+    })
+    ElMessage.success(t('access.requestSubmitted'))
+    requestReason.value = ''
+    requestPermanent.value = true
+    requestExpiresAt.value = null
+    await loadPermissionWorkflow()
+    if (!treeAccessDenied.value) {
+      workflowTab.value = 'mine'
+    }
+  } catch (error: any) {
+    ElMessage.error(getErrorMessage(error, t('access.requestSubmitFailed')))
+  } finally {
+    requestSubmitting.value = false
+  }
+}
+
+async function approveRequest(request: PermissionRequest) {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      t('access.approveCommentPrompt'),
+      t('access.approveRequestTitle'),
+      {
+        confirmButtonText: t('access.approve'),
+        cancelButtonText: t('common.cancel'),
+        inputPlaceholder: t('access.reviewCommentOptional'),
+      }
+    )
+    reviewingRequestID.value = request.id
+    await approvePermissionRequest(request.id, String(value || '').trim())
+    ElMessage.success(t('access.requestApproved'))
+    await loadPermissionWorkflow()
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(getErrorMessage(error, t('access.reviewFailed')))
+  } finally {
+    reviewingRequestID.value = null
+  }
+}
+
+async function rejectRequest(request: PermissionRequest) {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      t('access.rejectReasonPrompt'),
+      t('access.rejectRequestTitle'),
+      {
+        confirmButtonText: t('access.reject'),
+        cancelButtonText: t('common.cancel'),
+        inputPlaceholder: t('access.rejectReasonPlaceholder'),
+        inputPattern: /\S+/,
+        inputErrorMessage: t('access.rejectReasonRequired'),
+      }
+    )
+    reviewingRequestID.value = request.id
+    await rejectPermissionRequest(request.id, String(value || '').trim())
+    ElMessage.success(t('access.requestRejected'))
+    await loadPermissionWorkflow()
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(getErrorMessage(error, t('access.reviewFailed')))
+  } finally {
+    reviewingRequestID.value = null
+  }
+}
+
+async function cancelRequest(request: PermissionRequest) {
+  try {
+    await ElMessageBox.confirm(
+      t('access.cancelRequestConfirm'),
+      t('access.cancelRequestTitle'),
+      {
+        confirmButtonText: t('access.cancelRequest'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    )
+    reviewingRequestID.value = request.id
+    await cancelPermissionRequest(request.id)
+    ElMessage.success(t('access.requestCancelled'))
+    await loadPermissionWorkflow()
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(getErrorMessage(error, t('access.cancelRequestFailed')))
+  } finally {
+    reviewingRequestID.value = null
+  }
+}
+
+function openRequestResource(request: PermissionRequest) {
+  void router.push(resolveWorkspaceUrl(request.resource_path))
+}
+
+function hasPendingRequest(resourcePath?: string): boolean {
+  return Boolean(resourcePath && pendingRequestPaths.value.has(resourcePath))
+}
+
+function approverKey(approver: PermissionApprover): string {
+  return `${approver.principal_type}:${approver.principal_key}:${approver.resource_path}`
+}
+
+function treeContainsAdminResource(nodes: ServiceTree[]): boolean {
+  return nodes.some(node => canAdmin(node) || treeContainsAdminResource(node.children || []))
+}
+
+function requestStatusLabel(status: PermissionRequestStatus): string {
+  return t(`access.requestStatus.${status}`)
+}
+
+function requestStatusTagType(status: PermissionRequestStatus): 'success' | 'warning' | 'danger' | 'info' {
+  if (status === 'approved') return 'success'
+  if (status === 'pending') return 'warning'
+  if (status === 'rejected') return 'danger'
+  return 'info'
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) return '-'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
 function handleResourceClick(data: ServiceTree) {
   if (!data.full_code_path) return
   activeTab.value = 'current'
   activeResourcePath.value = data.full_code_path
+  if (workflowTab.value === 'grant' && !canAdmin(data)) {
+    workflowTab.value = 'request'
+    grantRole.value = 'viewer'
+  }
+  if (workflowTab.value === 'request') {
+    selectedResourcePaths.value = [data.full_code_path]
+  }
   void nextTick(() => treeRef.value?.setCurrentKey?.(data.full_code_path))
-  void loadAssignments()
+  if (workflowTab.value === 'grant') {
+    void loadAssignments()
+  } else {
+    void loadApprovers()
+  }
 }
 
 function handleResourceCheck(data: ServiceTree) {
+  if (workflowTab.value !== 'grant') return
   if (data?.full_code_path) {
     applyResourceSelectionCascade(data, isResourceChecked(data))
   } else {
@@ -1025,6 +1565,7 @@ function goBack() {
 }
 
 async function openAssignmentsDialog() {
+  if (!canManageActiveResource.value) return
   assignmentsDialogVisible.value = true
   await loadAssignments()
 }
@@ -1049,7 +1590,7 @@ function getNodeIconClass(data: ServiceTree): string {
 }
 
 async function submitGrant() {
-  if (!canSubmitGrant.value) {
+  if (!canManageActiveResource.value || !canSubmitGrant.value) {
     ElMessage.warning(t('access.selectResourceUserRole'))
     return
   }
@@ -1938,6 +2479,19 @@ function formatExpiresAt(value?: string): string {
   color: var(--el-text-color-secondary) !important;
 }
 
+.access-request-compact-form {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  text-align: left;
+}
+
+.access-request-compact-form .access-request-note {
+  margin: 0;
+  font-size: 12px;
+}
+
 .access-request-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2468,6 +3022,152 @@ function formatExpiresAt(value?: string): string {
 
 .cancel-button {
   margin: 12px 0 0;
+}
+
+.permission-workflow {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.permission-workflow > .apply-layout {
+  flex: 1 1 auto;
+  height: auto;
+}
+
+.workflow-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  min-height: 42px;
+  padding: 4px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 9px;
+  background: var(--el-bg-color);
+}
+
+.workflow-tabs button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.workflow-tabs button:hover {
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+}
+
+.workflow-tabs button.is-active {
+  background: rgba(var(--el-color-primary-rgb), 0.12);
+  color: var(--el-color-primary);
+  font-weight: 700;
+}
+
+.workflow-tab-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--el-color-danger);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.resource-lock-icon {
+  flex: 0 0 auto;
+  color: var(--el-color-danger);
+  font-size: 14px;
+}
+
+.approver-list {
+  width: 100%;
+  min-height: 52px;
+  display: grid;
+  gap: 7px;
+}
+
+.approver-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+}
+
+.approver-item small {
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.request-resource-path {
+  max-width: 190px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.request-records-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 9px;
+  background: var(--el-bg-color);
+}
+
+.request-records-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.request-records-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.request-records-header p {
+  margin: 6px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.request-records-table {
+  width: 100%;
+}
+
+.request-table-path {
+  color: var(--el-text-color-regular);
+  overflow-wrap: anywhere;
+}
+
+.review-result-cell {
+  display: grid;
+  gap: 5px;
+}
+
+.review-result-cell small {
+  color: var(--el-text-color-secondary);
 }
 
 .members-dialog-header {

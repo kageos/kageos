@@ -45,6 +45,18 @@
 
     <span class="node-label">{{ displayLabel }}</span>
 
+    <button
+      v-if="showAccessLock"
+      type="button"
+      :class="['access-lock-badge', { 'is-pending': accessRequestPending }]"
+      :title="accessLockTitle"
+      :aria-label="accessLockTitle"
+      data-testid="service-tree-access-lock"
+      @click.stop="emit('access-request-click')"
+    >
+      <el-icon><Clock v-if="accessRequestPending" /><Lock v-else /></el-icon>
+    </button>
+
     <el-badge
       v-if="showRuntimeBadge"
       :value="runtimeBadgeValue"
@@ -201,7 +213,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { BellFilled, Document } from '@element-plus/icons-vue'
+import { BellFilled, Clock, Document, Lock } from '@element-plus/icons-vue'
 import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
 import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'
@@ -237,6 +249,9 @@ const props = withDefaults(defineProps<{
   showNotificationRouteBadge?: boolean
   notificationRouteBadgeTitle?: string
   notificationRouteBadgeTone?: string
+  showAccessLock?: boolean
+  accessRequestPending?: boolean
+  accessLockTitle?: string
 }>(), {
   label: '',
   title: '',
@@ -256,12 +271,16 @@ const props = withDefaults(defineProps<{
   showNotificationRouteBadge: false,
   notificationRouteBadgeTitle: '',
   notificationRouteBadgeTone: 'direct',
+  showAccessLock: false,
+  accessRequestPending: false,
+  accessLockTitle: '',
 })
 
 const emit = defineEmits<{
   (e: 'notification-click'): void
   (e: 'notification-route-click'): void
   (e: 'scheduled-agent-click'): void
+  (e: 'access-request-click'): void
 }>()
 
 const scheduledAgentDetails = ref<DirectoryOverviewScheduledTask[]>([])
@@ -919,6 +938,39 @@ const nodeIconClass = computed(() => {
   color: #2563eb;
   cursor: pointer;
   transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
+}
+
+.access-lock-badge {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 0;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.access-lock-badge:hover {
+  border-color: rgba(239, 68, 68, 0.46);
+  background: rgba(239, 68, 68, 0.17);
+  transform: translateY(-1px);
+}
+
+.access-lock-badge.is-pending {
+  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+.access-lock-badge :deep(.el-icon) {
+  font-size: 13px;
 }
 
 .notification-route-badge:hover {

@@ -69,6 +69,8 @@ func InitTables(db *gorm.DB) error {
 		&OperateLog{},
 		// 轻量团队授权表
 		&WorkspaceRoleAssignment{},
+		// 权限申请与审批状态；实际权限仍落在 WorkspaceRoleAssignment
+		&WorkspacePermissionRequest{},
 		// 目录更新历史表（用于记录API变更历史）
 		&DirectoryUpdateHistory{},
 		// 文档表（用于存储文档内容）
