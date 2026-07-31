@@ -58,6 +58,16 @@
     </button>
 
     <el-badge
+      v-if="showPermissionRequestBadge"
+      :value="permissionRequestBadgeValue"
+      :max="99"
+      :class="['permission-request-count-badge', permissionRequestBadgeClass]"
+      :title="permissionRequestBadgeTitle"
+      data-testid="service-tree-permission-request-badge"
+      @click.stop="emit('permission-request-click')"
+    />
+
+    <el-badge
       v-if="showRuntimeBadge"
       :value="runtimeBadgeValue"
       :max="99"
@@ -252,6 +262,10 @@ const props = withDefaults(defineProps<{
   showAccessLock?: boolean
   accessRequestPending?: boolean
   accessLockTitle?: string
+  showPermissionRequestBadge?: boolean
+  permissionRequestBadgeValue?: string | number
+  permissionRequestBadgeClass?: string
+  permissionRequestBadgeTitle?: string
 }>(), {
   label: '',
   title: '',
@@ -274,6 +288,10 @@ const props = withDefaults(defineProps<{
   showAccessLock: false,
   accessRequestPending: false,
   accessLockTitle: '',
+  showPermissionRequestBadge: false,
+  permissionRequestBadgeValue: '',
+  permissionRequestBadgeClass: '',
+  permissionRequestBadgeTitle: '',
 })
 
 const emit = defineEmits<{
@@ -281,6 +299,7 @@ const emit = defineEmits<{
   (e: 'notification-route-click'): void
   (e: 'scheduled-agent-click'): void
   (e: 'access-request-click'): void
+  (e: 'permission-request-click'): void
 }>()
 
 const scheduledAgentDetails = ref<DirectoryOverviewScheduledTask[]>([])
@@ -971,6 +990,25 @@ const nodeIconClass = computed(() => {
 
 .access-lock-badge :deep(.el-icon) {
   font-size: 13px;
+}
+
+.permission-request-count-badge {
+  flex-shrink: 0;
+  margin-left: 6px;
+  cursor: pointer;
+}
+
+.permission-request-count-badge :deep(.el-badge__content) {
+  border: none !important;
+  background: #f59e0b !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+  color: #fff !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+
+.permission-request-count-badge.needs-review :deep(.el-badge__content) {
+  background: #ef4444 !important;
 }
 
 .notification-route-badge:hover {

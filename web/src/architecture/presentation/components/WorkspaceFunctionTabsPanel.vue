@@ -26,7 +26,13 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane name="permission" :label="t('functionTabs.permission')" lazy>
+        <el-tab-pane name="permission" lazy>
+          <template #label>
+            <PermissionRequestTabLabel
+              :label="t('functionTabs.permission')"
+              :resource-path="currentFunction?.full_code_path || currentFunctionDetail?.full_code_path || ''"
+            />
+          </template>
           <div class="tab-content">
             <PermissionPanel
               v-if="activeTab === 'permission'"
@@ -112,6 +118,7 @@ import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
 import FunctionConnectorBar from './FunctionConnectorBar.vue'
+import PermissionRequestTabLabel from './PermissionRequestTabLabel.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
 import {
   isScheduledPanelQuery,

@@ -193,6 +193,19 @@
                     <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
                     <span class="node-label">{{ treeNode.label }}</span>
                     <span class="resource-node-status">
+                      <span
+                        v-if="workflowTab === 'request'
+                          && !canRead(data)
+                          && !hasPendingRequest(data.full_code_path)
+                          && getRequestInheritanceSource(data.full_code_path)"
+                        class="resource-inheritance-state"
+                        :title="t('access.inheritedRequestSource', { source: getRequestInheritanceSource(data.full_code_path) })"
+                      >
+                        <el-icon><Connection /></el-icon>
+                        {{ isPendingRequestInheritance(data.full_code_path)
+                          ? t('access.inheritedFromPendingRequest')
+                          : t('access.inheritedFromSelectedParent') }}
+                      </span>
                       <el-icon
                         v-if="!canRead(data)"
                         class="resource-lock-icon"
@@ -497,6 +510,10 @@
                   <span>{{ t('access.resource') }}</span>
                   <strong>{{ t('common.resourceCount', { count: requestTargetPaths.length }) }}</strong>
                 </div>
+                <div v-if="requestInheritedResourcePaths.length > 0" class="preview-row">
+                  <span>{{ t('access.automaticInheritance') }}</span>
+                  <strong>{{ t('common.resourceCount', { count: requestInheritedResourcePaths.length }) }}</strong>
+                </div>
                 <div class="preview-row">
                   <span>{{ t('access.role') }}</span>
                   <strong>{{ roleLabel(grantRole) }}</strong>
@@ -719,6 +736,7 @@ import {
   CircleCheck,
   CircleClose,
   Clock,
+  Connection,
   Delete,
   Document,
   EditPen,
@@ -772,9 +790,12 @@ import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
 import { getErrorMessage, isWorkspaceForbiddenError } from '@/architecture/shared/apiError'
 import { canAdmin, canRead } from '@/architecture/presentation/composables/useAccessControl'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
+import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import {
+  findNearestPermissionRequestAncestor,
   getPermissionRequestCheckedPaths,
   getPermissionRequestTargetPaths,
+  isDescendantResourcePath,
 } from '@/architecture/presentation/features/access/utils/permissionRequestSelection'
 
 type AccessTab = 'current' | 'inherited'
@@ -1005,9 +1026,18 @@ const requestCheckedResourcePaths = computed(() => getPermissionRequestCheckedPa
   readableResourcePaths.value,
   pendingRequestPaths.value,
 ))
+const requestInheritanceSourcePaths = computed(() => [
+  ...pendingRequestPaths.value,
+  ...requestTargetPaths.value,
+])
+const requestInheritedResourcePaths = computed(() => collectAllResourcePaths(treeData.value).filter(path => (
+  Boolean(findNearestPermissionRequestAncestor(path, requestInheritanceSourcePaths.value))
+  && !readableResourcePaths.value.has(path)
+  && !pendingRequestPaths.value.has(path)
+)))
 const displayedCheckedResourceCount = computed(() => (
   workflowTab.value === 'request'
-    ? requestCheckedResourcePaths.value.length
+    ? requestTargetPaths.value.length
     : selectedResourcePaths.value.length
 ))
 const canSubmitRequest = computed(() => {
@@ -1451,9 +1481,15 @@ async function submitAccessRequest() {
       ElMessage.error(getErrorMessage(failedResults[0]?.reason, t('access.requestSubmitFailed')))
     }
 
+    if (successfulCount > 0) {
+      eventBus.emit('permission-request:changed', { resource_paths: targetPaths })
+    }
     await loadPermissionWorkflow()
-    if (!treeAccessDenied.value && failedResults.length === 0) {
-      workflowTab.value = 'mine'
+    if (failedResults.length === 0 && targetPaths[0]) {
+      await router.push({
+        path: resolveWorkspaceUrl(targetPaths[0]),
+        query: { _panel: 'permission' },
+      })
     } else if (!treeAccessDenied.value) {
       selectedResourcePaths.value = getPermissionRequestTargetPaths(
         targetPaths,
@@ -1486,6 +1522,7 @@ async function approveRequest(request: PermissionRequest) {
     reviewingRequestID.value = request.id
     await approvePermissionRequest(request.id, String(value || '').trim())
     ElMessage.success(t('access.requestApproved'))
+    eventBus.emit('permission-request:changed', { resource_paths: [request.resource_path] })
     await loadPermissionWorkflow()
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
@@ -1511,6 +1548,7 @@ async function rejectRequest(request: PermissionRequest) {
     reviewingRequestID.value = request.id
     await rejectPermissionRequest(request.id, String(value || '').trim())
     ElMessage.success(t('access.requestRejected'))
+    eventBus.emit('permission-request:changed', { resource_paths: [request.resource_path] })
     await loadPermissionWorkflow()
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
@@ -1534,6 +1572,7 @@ async function cancelRequest(request: PermissionRequest) {
     reviewingRequestID.value = request.id
     await cancelPermissionRequest(request.id)
     ElMessage.success(t('access.requestCancelled'))
+    eventBus.emit('permission-request:changed', { resource_paths: [request.resource_path] })
     await loadPermissionWorkflow()
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
@@ -1606,7 +1645,7 @@ function handleResourceCheck(data: ServiceTree) {
       syncVisibleTreeChecks()
       return
     }
-    applyRequestSelectionCascade(data, isResourceChecked(data))
+    applyRequestSelection(data, isResourceChecked(data))
     return
   }
   if (workflowTab.value !== 'grant') return
@@ -1646,21 +1685,24 @@ function applyResourceSelectionCascade(node: ServiceTree, checked: boolean) {
   syncCheckedResourcePaths()
 }
 
-function applyRequestSelectionCascade(node: ServiceTree, checked: boolean) {
-  const checkedKeys = new Set((treeRef.value?.getCheckedKeys?.() as string[] | undefined) || [])
-  for (const path of collectNodeAndDescendantPaths(node)) {
-    if (!isRequestableResourcePath(path)) continue
-    if (checked) {
-      checkedKeys.add(path)
-    } else {
-      checkedKeys.delete(path)
+function applyRequestSelection(node: ServiceTree, checked: boolean) {
+  const selectedPaths = new Set(requestTargetPaths.value)
+  if (checked) {
+    selectedPaths.add(node.full_code_path)
+    for (const path of [...selectedPaths]) {
+      if (isDescendantResourcePath(path, node.full_code_path)) {
+        selectedPaths.delete(path)
+      }
     }
+  } else {
+    selectedPaths.delete(node.full_code_path)
   }
   selectedResourcePaths.value = getPermissionRequestTargetPaths(
-    checkedKeys,
+    selectedPaths,
     readableResourcePaths.value,
     pendingRequestPaths.value,
   )
+  refreshRequestNodeDisabledState()
   syncVisibleTreeChecks()
   void loadApprovers()
 }
@@ -1669,8 +1711,19 @@ function isRequestableResourcePath(resourcePath?: string): boolean {
   return Boolean(
     resourcePath
     && !readableResourcePaths.value.has(resourcePath)
-    && !pendingRequestPaths.value.has(resourcePath),
+    && !pendingRequestPaths.value.has(resourcePath)
+    && !getRequestInheritanceSource(resourcePath),
   )
+}
+
+function getRequestInheritanceSource(resourcePath?: string): string {
+  if (!resourcePath) return ''
+  return findNearestPermissionRequestAncestor(resourcePath, requestInheritanceSourcePaths.value) || ''
+}
+
+function isPendingRequestInheritance(resourcePath?: string): boolean {
+  const source = getRequestInheritanceSource(resourcePath)
+  return Boolean(source && pendingRequestPaths.value.has(source))
 }
 
 function syncVisibleTreeChecks() {
@@ -1696,6 +1749,17 @@ function collectReadableResourcePaths(nodes: ServiceTree[]): string[] {
       paths.push(node.full_code_path)
     }
     paths.push(...collectReadableResourcePaths(node.children || []))
+  }
+  return normalizeResourcePathList(paths)
+}
+
+function collectAllResourcePaths(nodes: ServiceTree[]): string[] {
+  const paths: string[] = []
+  for (const node of nodes) {
+    if (node.full_code_path) {
+      paths.push(node.full_code_path)
+    }
+    paths.push(...collectAllResourcePaths(node.children || []))
   }
   return normalizeResourcePathList(paths)
 }
@@ -3268,6 +3332,23 @@ function formatExpiresAt(value?: string): string {
   flex: 0 0 auto;
   align-items: center;
   gap: 5px;
+}
+
+.resource-inheritance-state {
+  display: inline-flex;
+  max-width: 108px;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  color: var(--el-color-primary);
+  font-size: 11px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-inheritance-state .el-icon {
+  flex: 0 0 auto;
 }
 
 .resource-tree .tree-node.is-selected .node-label {

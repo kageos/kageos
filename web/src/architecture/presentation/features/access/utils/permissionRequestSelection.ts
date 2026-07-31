@@ -2,13 +2,33 @@ function uniqueResourcePaths(paths: Iterable<string>): string[] {
   return [...new Set([...paths].filter(Boolean))]
 }
 
+export function isDescendantResourcePath(path: string, ancestorPath: string): boolean {
+  return Boolean(path && ancestorPath && path !== ancestorPath && path.startsWith(`${ancestorPath}/`))
+}
+
+export function findNearestPermissionRequestAncestor(
+  path: string,
+  candidatePaths: Iterable<string>,
+): string | undefined {
+  return uniqueResourcePaths(candidatePaths)
+    .filter(candidate => isDescendantResourcePath(path, candidate))
+    .sort((left, right) => right.length - left.length)[0]
+}
+
 export function getPermissionRequestTargetPaths(
   selectedPaths: Iterable<string>,
   readablePaths: ReadonlySet<string>,
   pendingPaths: ReadonlySet<string>,
 ): string[] {
-  return uniqueResourcePaths(selectedPaths).filter(path => (
-    !readablePaths.has(path) && !pendingPaths.has(path)
+  const pending = uniqueResourcePaths(pendingPaths)
+  const requestablePaths = uniqueResourcePaths(selectedPaths).filter(path => (
+    !readablePaths.has(path)
+    && !pendingPaths.has(path)
+    && !findNearestPermissionRequestAncestor(path, pending)
+  ))
+
+  return requestablePaths.filter(path => (
+    !findNearestPermissionRequestAncestor(path, requestablePaths)
   ))
 }
 

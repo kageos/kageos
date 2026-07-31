@@ -109,6 +109,29 @@ describe('ServiceTreeNodeContent', () => {
     expect(lock.attributes('aria-label')).toBe('权限申请待审批')
   })
 
+  it('shows a clickable permission request count beside the resource', async () => {
+    const wrapper = mount(ServiceTreeNodeContent, {
+      props: {
+        node: {
+          id: 21,
+          type: 'package',
+          name: '审批目录',
+          full_code_path: '/alice/ops/review',
+        } as any,
+        showPermissionRequestBadge: true,
+        permissionRequestBadgeValue: 3,
+        permissionRequestBadgeClass: 'needs-review',
+        permissionRequestBadgeTitle: '3 个权限申请待处理',
+      },
+    })
+
+    const badge = wrapper.get('[data-testid="service-tree-permission-request-badge"]')
+    expect(badge.classes()).toContain('needs-review')
+    expect(badge.attributes('title')).toBe('3 个权限申请待处理')
+    await badge.trigger('click')
+    expect(wrapper.emitted('permission-request-click')).toHaveLength(1)
+  })
+
   it.each([
     ['running', 'working'],
     ['enabled', 'ready'],

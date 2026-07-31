@@ -8,14 +8,27 @@
             <div class="members-resource-path">{{ node.full_code_path }}</div>
           </div>
           <div class="members-actions">
-            <el-button size="small" :loading="loading" @click="loadAssignments">{{ t('common.refresh') }}</el-button>
+            <el-button size="small" :loading="loading" @click="refreshPanel">{{ t('common.refresh') }}</el-button>
             <el-button size="small" type="primary" :icon="Plus" @click="goToGrantPage">
-              {{ t('access.grantCurrent') }}
+              {{ canAdmin(node) ? t('access.grantCurrent') : t('access.requestTab') }}
             </el-button>
           </div>
         </div>
 
+        <el-tabs v-model="activeSection" class="permission-section-tabs">
+          <el-tab-pane :label="t('access.permissionMembers')" name="members" />
+          <el-tab-pane name="requests">
+            <template #label>
+              <PermissionRequestTabLabel
+                :label="t('access.resourceRequestRecords')"
+                :resource-path="node.full_code_path"
+              />
+            </template>
+          </el-tab-pane>
+        </el-tabs>
+
         <el-table
+          v-if="activeSection === 'members'"
           v-loading="loading"
           :data="assignments"
           class="access-table"
@@ -75,6 +88,13 @@
             </template>
           </el-table-column>
         </el-table>
+
+        <PermissionRequestRecordsPanel
+          v-else
+          ref="requestRecordsRef"
+          :resource-path="node.full_code_path"
+          @changed="emit('changed')"
+        />
       </section>
     </div>
   </div>
@@ -93,9 +113,12 @@ import {
   listPermissionAssignments,
   type RoleAssignment
 } from '@/architecture/presentation/context/api/permission'
+import { canAdmin, canRead } from '@/architecture/presentation/composables/useAccessControl'
 import DepartmentDisplay from '@/architecture/presentation/shared/components/DepartmentDisplay.vue'
 import UsersWidget from '@/architecture/presentation/shared/components/UsersWidget.vue'
 import { createStringFieldValue } from '@/architecture/domain/utils/widgetFieldHelpers'
+import PermissionRequestRecordsPanel from './PermissionRequestRecordsPanel.vue'
+import PermissionRequestTabLabel from './PermissionRequestTabLabel.vue'
 
 const props = withDefaults(defineProps<{
   node: ServiceTree | null
@@ -104,7 +127,7 @@ const props = withDefaults(defineProps<{
   embedded: false
 })
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'changed'): void
 }>()
 
@@ -144,12 +167,17 @@ const memberUsersField = computed<FieldConfig>(() => ({
 
 const assignments = ref<RoleAssignment[]>([])
 const loading = ref(false)
+const activeSection = ref<'members' | 'requests'>('members')
+const requestRecordsRef = ref<{ loadRequests: () => void } | null>(null)
 
 watch(
   () => props.node?.full_code_path || '',
   (path) => {
     if (path) {
-      void loadAssignments()
+      activeSection.value = canRead(props.node) ? 'members' : 'requests'
+      if (canRead(props.node)) {
+        void loadAssignments()
+      }
     } else {
       assignments.value = []
     }
@@ -176,6 +204,14 @@ async function loadAssignments() {
   }
 }
 
+function refreshPanel() {
+  if (activeSection.value === 'requests') {
+    requestRecordsRef.value?.loadRequests()
+    return
+  }
+  void loadAssignments()
+}
+
 function goToGrantPage() {
   const path = props.node?.full_code_path
   if (!path) {
@@ -183,7 +219,10 @@ function goToGrantPage() {
   }
   void router.push({
     path: '/permissions',
-    query: { resource: path }
+    query: {
+      resource: path,
+      ...(canAdmin(props.node) ? {} : { mode: 'request' }),
+    }
   })
 }
 
@@ -230,7 +269,8 @@ function formatExpiresAt(value?: string): string {
 }
 
 defineExpose({
-  loadAssignments
+  loadAssignments,
+  refreshPanel,
 })
 </script>
 

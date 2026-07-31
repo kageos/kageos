@@ -104,6 +104,22 @@
         </div>
 
         <div
+          v-else-if="workspaceContentState === 'resource-permission' && currentFunction"
+          class="workspace-resource-permission"
+          data-testid="workspace-resource-permission"
+        >
+          <el-tabs model-value="permission" class="workspace-resource-permission-tabs">
+            <el-tab-pane name="permission" :label="t('functionTabs.permission')">
+              <PermissionPanel
+                :node="currentFunction"
+                embedded
+                @changed="handleRefreshTree"
+              />
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+
+        <div
           v-else-if="workspaceContentState === 'resource-locked' && currentFunction"
           class="workspace-access-state"
           data-testid="workspace-resource-locked-state"
@@ -382,6 +398,7 @@ const WorkspaceFunctionTabsPanel = defineAsyncComponent(() => import('../compone
 const WorkspaceInbox = defineAsyncComponent(() => import('../components/WorkspaceInbox.vue'))
 const DocView = defineAsyncComponent(() => import('../components/DocView.vue'))
 const PackageDetailView = defineAsyncComponent(() => import('../components/PackageDetailView.vue'))
+const PermissionPanel = defineAsyncComponent(() => import('../components/PermissionPanel.vue'))
 const TableRowDetailDrawer = defineAsyncComponent(() => import('../components/TableRowDetailDrawer.vue'))
 const WorkspaceCreateAppDialog = defineAsyncComponent(() => import('../components/WorkspaceCreateAppDialog.vue'))
 const WorkspaceCreateDirectoryDialog = defineAsyncComponent(() => import('../components/WorkspaceCreateDirectoryDialog.vue'))
@@ -889,6 +906,7 @@ const workspaceContentState = computed(() => resolveWorkspaceContentState({
   hasWorkspaceAccessError: Boolean(workspaceAccessError.value),
   currentFunction: currentFunction.value,
   queryTab: queryTab.value,
+  panel: String(route.query._panel || ''),
   hasCurrentFunctionDetail: Boolean(currentFunctionDetail.value),
   isRestoringWorkspaceRoute: isRestoringWorkspaceRoute.value
 }))
@@ -1198,6 +1216,18 @@ useWorkspaceUiEffects({
   justify-content: center;
   gap: 10px;
   margin-top: 26px;
+}
+
+.workspace-resource-permission {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 22px 28px;
+  overflow: auto;
+}
+
+.workspace-resource-permission-tabs {
+  min-width: 0;
 }
 
 .function-content-wrapper {

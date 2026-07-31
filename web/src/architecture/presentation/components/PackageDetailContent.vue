@@ -21,7 +21,13 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane :label="t('packageDetail.permission')" name="permission">
+        <el-tab-pane name="permission">
+          <template #label>
+            <PermissionRequestTabLabel
+              :label="t('packageDetail.permission')"
+              :resource-path="packageNode.full_code_path || ''"
+            />
+          </template>
           <div class="tab-content access-tab-content">
             <PermissionPanel
               ref="accessPanelRef"
@@ -104,6 +110,7 @@ import NotificationRoutePanel from './NotificationRoutePanel.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
 import PermissionPanel from './PermissionPanel.vue'
+import PermissionRequestTabLabel from './PermissionRequestTabLabel.vue'
 import { usePackageDetailTabs, type PackageTabName } from '@/architecture/presentation/composables/usePackageDetailTabs'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { featureFlags } from '@/architecture/shared/config/features'

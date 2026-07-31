@@ -121,10 +121,15 @@
               :scheduled-agent-badge-title="getScheduledAgentBadgeTitle(data)"
               :scheduled-agent-state="getScheduledAgentState(data)"
               :show-access-lock="!canRead(data)"
-              :access-request-pending="pendingAccessRequestPaths.has(data.full_code_path)"
+              :access-request-pending="Boolean(getOwnPendingRequestSource(data.full_code_path))"
               :access-lock-title="getAccessLockTitle(data)"
+              :show-permission-request-badge="getPermissionRequestSummary(data).totalCount > 0"
+              :permission-request-badge-value="getPermissionRequestSummary(data).totalCount"
+              :permission-request-badge-class="getPermissionRequestSummary(data).reviewPendingCount > 0 ? 'needs-review' : 'is-mine'"
+              :permission-request-badge-title="getPermissionRequestBadgeTitle(data)"
               @scheduled-agent-click="handleNodeClick(data)"
               @access-request-click="openAccessRequestPage(data)"
+              @permission-request-click="openNodePermissionRecords(data.full_code_path)"
               @dragstart="onTreeNodeDragStart($event, data)"
               @contextmenu.prevent
               @notification-click="openNodeNotifications(data)"
@@ -287,8 +292,14 @@ import {
   type ServiceTreeNodeActionCommand
 } from '../utils/serviceTreeNodeActions'
 import { featureFlags } from '@/architecture/shared/config/features'
-import { listMyPermissionRequests } from '@/architecture/presentation/context/api/permission'
+import {
+  listMyPermissionRequests,
+  listPendingPermissionRequests,
+  type PermissionRequest,
+} from '@/architecture/presentation/context/api/permission'
 import { canRead } from '@/architecture/presentation/composables/useAccessControl'
+import { findNearestPermissionRequestAncestor } from '@/architecture/presentation/features/access/utils/permissionRequestSelection'
+import { summarizePermissionRequests } from '@/architecture/presentation/features/access/utils/permissionRequestSummary'
 import ServiceTreeNodeContent from './ServiceTreeNodeContent.vue'
 import WorkspaceImportDirectoryDialog from './WorkspaceImportDirectoryDialog.vue'
 
@@ -328,6 +339,8 @@ const router = useRouter()
 const runtimeSummaries = ref<Record<string, RuntimeStateSummary>>({})
 const notificationRouteSummaries = ref<Record<string, MessageNotificationRoutePathSummary>>({})
 const pendingAccessRequestPaths = ref<Set<string>>(new Set())
+const ownPendingAccessRequests = ref<PermissionRequest[]>([])
+const reviewPendingAccessRequests = ref<PermissionRequest[]>([])
 let runtimeSummaryTimer: ReturnType<typeof setInterval> | null = null
 
 const {
@@ -387,6 +400,7 @@ const pendingCapabilityExport = ref<{
 const pendingExpandPath = ref('')
 let unsubscribeRuntimeRefresh: (() => void) | null = null
 let unsubscribeNotificationRouteRefresh: (() => void) | null = null
+let unsubscribePermissionRequestRefresh: (() => void) | null = null
 
 const panelLoading = computed(() => Boolean(props.loading) || bulkExporting.value || renamingNode.value)
 const panelLoadingText = computed(() => {
@@ -471,6 +485,8 @@ watch(rootFullCodePath, () => {
   runtimeSummaries.value = {}
   notificationRouteSummaries.value = {}
   pendingAccessRequestPaths.value = new Set()
+  ownPendingAccessRequests.value = []
+  reviewPendingAccessRequests.value = []
   exitMultiSelectMode()
   refreshRuntimeSummary()
   refreshNotificationRouteSummary()
@@ -482,12 +498,23 @@ async function refreshPendingAccessRequests() {
   const root = rootFullCodePath.value
   if (!root) {
     pendingAccessRequestPaths.value = new Set()
+    ownPendingAccessRequests.value = []
+    reviewPendingAccessRequests.value = []
     return
   }
   try {
-    const response = await listMyPermissionRequests(root, 'pending')
+    const [mineResult, reviewResult] = await Promise.allSettled([
+      listMyPermissionRequests(root, 'pending'),
+      listPendingPermissionRequests(root),
+    ])
+    ownPendingAccessRequests.value = mineResult.status === 'fulfilled'
+      ? mineResult.value.requests || []
+      : []
+    reviewPendingAccessRequests.value = reviewResult.status === 'fulfilled'
+      ? reviewResult.value.requests || []
+      : []
     pendingAccessRequestPaths.value = new Set(
-      (response.requests || []).map(item => item.resource_path).filter(Boolean)
+      ownPendingAccessRequests.value.map(item => item.resource_path).filter(Boolean)
     )
   } catch {
     // 申请状态只用于树上提示，不阻断目录加载。
@@ -498,11 +525,19 @@ unsubscribeNotificationRouteRefresh = eventBus.on('notification-route:changed', 
   void refreshNotificationRouteSummary()
 })
 
+unsubscribePermissionRequestRefresh = eventBus.on('permission-request:changed', () => {
+  void refreshPendingAccessRequests()
+})
+
 onBeforeUnmount(() => {
   stopRuntimeSummaryPolling()
   if (unsubscribeNotificationRouteRefresh) {
     unsubscribeNotificationRouteRefresh()
     unsubscribeNotificationRouteRefresh = null
+  }
+  if (unsubscribePermissionRequestRefresh) {
+    unsubscribePermissionRequestRefresh()
+    unsubscribePermissionRequestRefresh = null
   }
 })
 
@@ -880,6 +915,11 @@ function openAccessRequestPage(data: ServiceTree) {
     ElMessage.warning(t('serviceTree.pathMissingRefresh'))
     return
   }
+  const pendingSource = getOwnPendingRequestSource(data.full_code_path)
+  if (pendingSource) {
+    openNodePermissionRecords(pendingSource)
+    return
+  }
   void router.push({
     path: '/permissions',
     query: {
@@ -890,9 +930,41 @@ function openAccessRequestPage(data: ServiceTree) {
 }
 
 function getAccessLockTitle(data: ServiceTree): string {
-  return pendingAccessRequestPaths.value.has(data.full_code_path)
+  const pendingSource = getOwnPendingRequestSource(data.full_code_path)
+  if (!pendingSource) return t('serviceTree.accessRequestAction')
+  return pendingSource === data.full_code_path
     ? t('serviceTree.accessRequestPending')
-    : t('serviceTree.accessRequestAction')
+    : t('serviceTree.accessRequestInheritedPending', { source: pendingSource })
+}
+
+function getOwnPendingRequestSource(resourcePath?: string): string {
+  if (!resourcePath) return ''
+  if (pendingAccessRequestPaths.value.has(resourcePath)) return resourcePath
+  return findNearestPermissionRequestAncestor(resourcePath, pendingAccessRequestPaths.value) || ''
+}
+
+function getPermissionRequestSummary(data: ServiceTree) {
+  return summarizePermissionRequests(
+    data.full_code_path || '',
+    ownPendingAccessRequests.value,
+    reviewPendingAccessRequests.value,
+  )
+}
+
+function getPermissionRequestBadgeTitle(data: ServiceTree): string {
+  const summary = getPermissionRequestSummary(data)
+  return t('serviceTree.permissionRequestBadgeTitle', {
+    review: summary.reviewPendingCount,
+    mine: summary.ownPendingCount,
+  })
+}
+
+function openNodePermissionRecords(resourcePath?: string) {
+  if (!resourcePath) return
+  void router.push({
+    path: resolveWorkspaceUrl(resourcePath),
+    query: { _panel: 'permission' },
+  })
 }
 
 const selectedNodeCount = computed(() => selectedNodes.value.length)

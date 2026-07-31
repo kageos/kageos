@@ -45,6 +45,12 @@ describe('resolveWorkspaceContentState', () => {
     expect(resolveWithNode(createNode('function', { read: true }))).toBe('function')
   })
 
+  it('allows an unreadable resource to open its permission records without exposing content', () => {
+    expect(resolveWithNode(createNode('function', { read: false }), {
+      panel: 'permission',
+    })).toBe('resource-permission')
+  })
+
   it('gives a workspace access error priority over a resource lock', () => {
     expect(resolveWithNode(createNode('function', { read: false }), {
       hasWorkspaceAccessError: true

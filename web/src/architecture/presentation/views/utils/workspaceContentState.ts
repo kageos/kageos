@@ -3,6 +3,7 @@ import { canRead } from '@/architecture/presentation/composables/useAccessContro
 
 export type WorkspaceContentState =
   | 'workspace-error'
+  | 'resource-permission'
   | 'resource-locked'
   | 'create'
   | 'edit'
@@ -16,6 +17,7 @@ export interface ResolveWorkspaceContentStateOptions {
   hasWorkspaceAccessError: boolean
   currentFunction: ServiceTree | null
   queryTab: string
+  panel?: string
   hasCurrentFunctionDetail: boolean
   isRestoringWorkspaceRoute: boolean
 }
@@ -28,6 +30,9 @@ export function resolveWorkspaceContentState(
   }
 
   if (options.currentFunction && !canRead(options.currentFunction)) {
+    if (options.panel === 'permission') {
+      return 'resource-permission'
+    }
     return 'resource-locked'
   }
 
