@@ -8,7 +8,7 @@
             <div class="members-resource-path">{{ node.full_code_path }}</div>
           </div>
           <div class="members-actions">
-            <el-button size="small" :loading="loading" @click="refreshPanel">{{ t('common.refresh') }}</el-button>
+            <el-button size="small" :loading="loading || requestLoading" @click="refreshPanel">{{ t('common.refresh') }}</el-button>
             <el-button size="small" type="primary" :icon="Plus" @click="goToGrantPage">
               {{ canAdmin(node) ? t('access.grantCurrent') : t('access.requestTab') }}
             </el-button>
@@ -16,15 +16,34 @@
         </div>
 
         <el-tabs v-model="activeSection" class="permission-section-tabs">
-          <el-tab-pane :label="t('access.permissionMembers')" name="members" />
-          <el-tab-pane name="requests">
+          <el-tab-pane :label="t('access.permissionMembers')" name="members" :disabled="!canRead(node)" />
+          <el-tab-pane v-if="canAdmin(node)" name="pending">
             <template #label>
-              <PermissionRequestTabLabel
-                :label="t('access.resourceRequestRecords')"
-                :resource-path="node.full_code_path"
-              />
+              <span class="permission-section-label">
+                {{ t('access.pendingTab') }}
+                <span
+                  v-if="requestCounts.pending > 0"
+                  class="permission-section-count is-review"
+                >
+                  {{ formatBadgeCount(requestCounts.pending) }}
+                </span>
+              </span>
             </template>
           </el-tab-pane>
+          <el-tab-pane name="mine">
+            <template #label>
+              <span class="permission-section-label">
+                {{ t('access.myRequestsTab') }}
+                <span
+                  v-if="requestCounts.mine > 0"
+                  class="permission-section-count"
+                >
+                  {{ formatBadgeCount(requestCounts.mine) }}
+                </span>
+              </span>
+            </template>
+          </el-tab-pane>
+          <el-tab-pane v-if="canAdmin(node)" :label="t('access.reviewHistoryTab')" name="history" />
         </el-tabs>
 
         <el-table
@@ -93,7 +112,10 @@
           v-else
           ref="requestRecordsRef"
           :resource-path="node.full_code_path"
-          @changed="emit('changed')"
+          :view="activeRequestView"
+          @changed="handleRequestChanged"
+          @count-change="handleRequestCountChange"
+          @loading-change="requestLoading = $event"
         />
       </section>
     </div>
@@ -101,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -118,7 +140,9 @@ import DepartmentDisplay from '@/architecture/presentation/shared/components/Dep
 import UsersWidget from '@/architecture/presentation/shared/components/UsersWidget.vue'
 import { createStringFieldValue } from '@/architecture/domain/utils/widgetFieldHelpers'
 import PermissionRequestRecordsPanel from './PermissionRequestRecordsPanel.vue'
-import PermissionRequestTabLabel from './PermissionRequestTabLabel.vue'
+
+type PermissionRequestView = 'pending' | 'mine' | 'history'
+type PermissionSection = 'members' | PermissionRequestView
 
 const props = withDefaults(defineProps<{
   node: ServiceTree | null
@@ -167,26 +191,51 @@ const memberUsersField = computed<FieldConfig>(() => ({
 
 const assignments = ref<RoleAssignment[]>([])
 const loading = ref(false)
-const activeSection = ref<'members' | 'requests'>('members')
+const requestLoading = ref(false)
+const activeSection = ref<PermissionSection>('members')
 const requestRecordsRef = ref<{ loadRequests: () => void } | null>(null)
+const requestCounts = reactive<Record<'pending' | 'mine', number>>({
+  pending: 0,
+  mine: 0,
+})
+let assignmentLoadSequence = 0
+const activeRequestView = computed<PermissionRequestView>(() => (
+  activeSection.value === 'members' ? 'mine' : activeSection.value
+))
 
 watch(
-  () => props.node?.full_code_path || '',
-  (path) => {
+  () => [props.node?.full_code_path || '', canRead(props.node), canAdmin(props.node)] as const,
+  ([path, readable]) => {
+    assignmentLoadSequence += 1
+    loading.value = false
+    assignments.value = []
+    requestCounts.pending = 0
+    requestCounts.mine = 0
+    requestLoading.value = false
     if (path) {
-      activeSection.value = canRead(props.node) ? 'members' : 'requests'
-      if (canRead(props.node)) {
-        void loadAssignments()
+      if (readable) {
+        const alreadyShowingMembers = activeSection.value === 'members'
+        activeSection.value = 'members'
+        if (alreadyShowingMembers) {
+          void loadAssignments()
+        }
+      } else {
+        activeSection.value = 'mine'
       }
-    } else {
-      assignments.value = []
     }
   },
   { immediate: true }
 )
 
+watch(activeSection, (section) => {
+  if (section === 'members' && canRead(props.node)) {
+    void loadAssignments()
+  }
+})
+
 async function loadAssignments() {
   const path = props.node?.full_code_path
+  const sequence = ++assignmentLoadSequence
   if (!path) {
     assignments.value = []
     return
@@ -195,21 +244,40 @@ async function loadAssignments() {
   loading.value = true
   try {
     const resp = await listPermissionAssignments(path)
+    if (sequence !== assignmentLoadSequence) return
     assignments.value = resp.assignments || []
   } catch (error: any) {
-    const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('access.loadFailed')
-    ElMessage.error(message)
+    if (sequence === assignmentLoadSequence) {
+      const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('access.loadFailed')
+      ElMessage.error(message)
+    }
   } finally {
-    loading.value = false
+    if (sequence === assignmentLoadSequence) {
+      loading.value = false
+    }
   }
 }
 
 function refreshPanel() {
-  if (activeSection.value === 'requests') {
+  if (activeSection.value !== 'members') {
     requestRecordsRef.value?.loadRequests()
     return
   }
   void loadAssignments()
+}
+
+function handleRequestChanged() {
+  emit('changed')
+}
+
+function handleRequestCountChange(payload: { view: PermissionRequestView; count: number }) {
+  if (payload.view === 'pending' || payload.view === 'mine') {
+    requestCounts[payload.view] = payload.count
+  }
+}
+
+function formatBadgeCount(count: number): string {
+  return count > 99 ? '99+' : String(count)
 }
 
 function goToGrantPage() {
@@ -347,6 +415,29 @@ defineExpose({
 
 .access-table {
   width: 100%;
+}
+
+.permission-section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.permission-section-count {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.permission-section-count.is-review {
+  background: #ef4444;
 }
 
 .member-users-cell {

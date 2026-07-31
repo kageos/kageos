@@ -1,33 +1,5 @@
 <template>
   <section class="permission-request-records">
-    <div class="request-records-head">
-      <div>
-        <h3>{{ t('access.resourceRequestRecords') }}</h3>
-        <p>{{ resourcePath }}</p>
-      </div>
-      <el-button size="small" :loading="loading" @click="loadRequests">{{ t('common.refresh') }}</el-button>
-    </div>
-
-    <el-tabs v-model="activeTab" class="request-record-tabs">
-      <el-tab-pane name="pending">
-        <template #label>
-          <span class="request-tab-label">
-            {{ t('access.pendingTab') }}
-            <span v-if="pendingRequests.length > 0" class="request-tab-count is-review">{{ pendingRequests.length }}</span>
-          </span>
-        </template>
-      </el-tab-pane>
-      <el-tab-pane name="mine">
-        <template #label>
-          <span class="request-tab-label">
-            {{ t('access.myRequestsTab') }}
-            <span v-if="myPendingCount > 0" class="request-tab-count">{{ myPendingCount }}</span>
-          </span>
-        </template>
-      </el-tab-pane>
-      <el-tab-pane name="history" :label="t('access.reviewHistoryTab')" />
-    </el-tabs>
-
     <el-table
       v-loading="loading"
       :data="activeRequests"
@@ -35,7 +7,7 @@
       size="small"
       :empty-text="t('access.noRequests')"
     >
-      <el-table-column v-if="activeTab !== 'mine'" :label="t('access.requester')" min-width="150">
+      <el-table-column v-if="view !== 'mine'" :label="t('access.requester')" min-width="150">
         <template #default="{ row }">
           <UsersWidget
             :value="principalUserValue(row.requester)"
@@ -101,7 +73,7 @@
       </el-table-column>
       <el-table-column :label="t('common.operation')" width="150" fixed="right">
         <template #default="{ row }">
-          <template v-if="activeTab === 'pending'">
+          <template v-if="view === 'pending'">
             <el-button type="success" link :loading="reviewingRequestID === row.id" @click="approveRequest(row)">
               {{ t('access.approve') }}
             </el-button>
@@ -110,7 +82,7 @@
             </el-button>
           </template>
           <el-button
-            v-else-if="activeTab === 'mine' && row.status === 'pending'"
+            v-else-if="view === 'mine' && row.status === 'pending'"
             type="danger"
             link
             :loading="reviewingRequestID === row.id"
@@ -150,23 +122,27 @@ import { createStringFieldValue } from '@/architecture/domain/utils/widgetFieldH
 import { getErrorMessage } from '@/architecture/shared/apiError'
 import { getPermissionRequestWorkspaceRoot } from '@/architecture/presentation/features/access/utils/permissionRequestSummary'
 
-type RequestRecordTab = 'pending' | 'mine' | 'history'
+type RequestRecordView = 'pending' | 'mine' | 'history'
 
 const props = defineProps<{
   resourcePath: string
+  view: RequestRecordView
 }>()
 
 const emit = defineEmits<{
   (e: 'changed'): void
+  (e: 'count-change', payload: { view: RequestRecordView; count: number }): void
+  (e: 'loading-change', loading: boolean): void
 }>()
 
 const { t } = useI18n()
-const activeTab = ref<RequestRecordTab>('mine')
 const loading = ref(false)
+const loadingView = ref<RequestRecordView | null>(null)
 const reviewingRequestID = ref<number | null>(null)
 const myRequests = ref<PermissionRequest[]>([])
 const pendingRequests = ref<PermissionRequest[]>([])
 const reviewHistory = ref<PermissionRequest[]>([])
+const loadedViews = new Set<RequestRecordView>()
 let loadSequence = 0
 
 const memberUsersField = computed<FieldConfig>(() => ({
@@ -180,49 +156,77 @@ const memberUsersField = computed<FieldConfig>(() => ({
   data: { type: 'string' },
 }))
 
-const myPendingCount = computed(() => myRequests.value.filter(request => request.status === 'pending').length)
 const activeRequests = computed(() => {
-  if (activeTab.value === 'pending') return pendingRequests.value
-  if (activeTab.value === 'history') return reviewHistory.value
+  if (props.view === 'pending') return pendingRequests.value
+  if (props.view === 'history') return reviewHistory.value
   return myRequests.value
 })
 
-async function loadRequests() {
+function clearRequests() {
+  loadSequence += 1
+  loading.value = false
+  loadingView.value = null
+  emit('loading-change', false)
+  loadedViews.clear()
+  myRequests.value = []
+  pendingRequests.value = []
+  reviewHistory.value = []
+  emit('count-change', { view: 'pending', count: 0 })
+  emit('count-change', { view: 'mine', count: 0 })
+}
+
+async function loadRequests(force = true) {
+  const view = props.view
   const resourcePath = props.resourcePath
   const root = getPermissionRequestWorkspaceRoot(resourcePath)
+  if ((!force && loadedViews.has(view)) || loadingView.value === view) {
+    return
+  }
   const sequence = ++loadSequence
   if (!resourcePath || !root) {
-    myRequests.value = []
-    pendingRequests.value = []
-    reviewHistory.value = []
+    clearRequests()
     return
   }
 
   loading.value = true
+  loadingView.value = view
+  emit('loading-change', true)
   try {
-    const [mineResult, pendingResult, historyResult] = await Promise.allSettled([
-      listMyPermissionRequests(root),
-      listPendingPermissionRequests(root),
-      listPermissionRequestHistory(root),
-    ])
+    let requests: PermissionRequest[] = []
+    if (view === 'pending') {
+      requests = (await listPendingPermissionRequests(root)).requests || []
+    } else if (view === 'history') {
+      requests = (await listPermissionRequestHistory(root)).requests || []
+    } else {
+      requests = (await listMyPermissionRequests(root)).requests || []
+    }
     if (sequence !== loadSequence) return
-    const forCurrentResource = (requests: PermissionRequest[]) => requests.filter(request => (
+    const currentRequests = requests.filter(request => (
       request.resource_path === resourcePath
     ))
-    myRequests.value = mineResult.status === 'fulfilled'
-      ? forCurrentResource(mineResult.value.requests || [])
-      : []
-    pendingRequests.value = pendingResult.status === 'fulfilled'
-      ? forCurrentResource(pendingResult.value.requests || [])
-      : []
-    reviewHistory.value = historyResult.status === 'fulfilled'
-      ? forCurrentResource(historyResult.value.requests || [])
-      : []
-    if (pendingRequests.value.length > 0 && activeTab.value === 'mine' && myRequests.value.length === 0) {
-      activeTab.value = 'pending'
+    if (view === 'pending') {
+      pendingRequests.value = currentRequests
+      emit('count-change', { view, count: currentRequests.length })
+    } else if (view === 'history') {
+      reviewHistory.value = currentRequests
+    } else {
+      myRequests.value = currentRequests
+      emit('count-change', {
+        view,
+        count: currentRequests.filter(request => request.status === 'pending').length,
+      })
+    }
+    loadedViews.add(view)
+  } catch (error: any) {
+    if (sequence === loadSequence) {
+      ElMessage.error(getErrorMessage(error, t('access.loadFailed')))
     }
   } finally {
-    if (sequence === loadSequence) loading.value = false
+    if (sequence === loadSequence) {
+      loading.value = false
+      loadingView.value = null
+      emit('loading-change', false)
+    }
   }
 }
 
@@ -343,9 +347,13 @@ function formatDateTime(value?: string): string {
 }
 
 watch(() => props.resourcePath, () => {
-  activeTab.value = 'mine'
-  void loadRequests()
+  clearRequests()
+  void loadRequests(false)
 }, { immediate: true })
+
+watch(() => props.view, () => {
+  void loadRequests(false)
+})
 
 const unsubscribe = eventBus.on<{ resource_paths?: string[] }>('permission-request:changed', (payload) => {
   const paths = payload?.resource_paths || []
@@ -356,58 +364,14 @@ const unsubscribe = eventBus.on<{ resource_paths?: string[] }>('permission-reque
 
 onBeforeUnmount(unsubscribe)
 
+onBeforeUnmount(() => emit('loading-change', false))
+
 defineExpose({ loadRequests })
 </script>
 
 <style scoped>
 .permission-request-records {
   min-width: 0;
-}
-
-.request-records-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 4px;
-}
-
-.request-records-head h3,
-.request-records-head p {
-  margin: 0;
-}
-
-.request-records-head h3 {
-  font-size: 14px;
-}
-
-.request-records-head p {
-  margin-top: 3px;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
-
-.request-tab-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.request-tab-count {
-  min-width: 16px;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: #f59e0b;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 16px;
-  text-align: center;
-}
-
-.request-tab-count.is-review {
-  background: #ef4444;
 }
 
 .review-result-cell {
