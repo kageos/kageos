@@ -125,6 +125,68 @@ func TestPermissionRequestApproveGrantsRoleAndRecordsReviewer(t *testing.T) {
 	}
 }
 
+func TestPermissionRequestAllowsInheritedMemberToUpgradeChildToAdmin(t *testing.T) {
+	requestService, permission, _ := newPermissionRequestTestService(t)
+	parentPath := "/alice/ops/tickets"
+	resourcePath := "/alice/ops/tickets/submit.form"
+
+	if err := permission.GrantRole(actorContext("bob"), access.GrantRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Principal:    access.Principal{Type: access.PrincipalUser, Key: "carol"},
+		ResourcePath: parentPath,
+		RoleCode:     access.RoleMember,
+		CreatedBy:    "bob",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved, err := permission.ResolvePermissions(context.Background(), "alice", "ops", "carol", resourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !permissionSetCoversRole(resolved.Permissions, access.RoleMember) || resolved.InheritedFrom != parentPath {
+		t.Fatalf("resolved = %#v, want inherited member from %s", resolved, parentPath)
+	}
+
+	for _, roleCode := range []access.RoleCode{access.RoleViewer, access.RoleMember} {
+		if _, err := requestService.CreateRequest(
+			actorContext("carol"), "alice", "ops", "carol", resourcePath,
+			roleCode, "申请已有或更低权限", nil,
+		); err == nil || !strings.Contains(err.Error(), "无需重复申请") {
+			t.Fatalf("request %s error = %v, want covered-role rejection", roleCode, err)
+		}
+	}
+	if _, err := requestService.CreateRequest(
+		actorContext("carol"), "alice", "ops", "carol", resourcePath,
+		access.RoleOwner, "申请所有权", nil,
+	); err == nil || !strings.Contains(err.Error(), "Viewer、Member 或 Admin") {
+		t.Fatalf("owner request error = %v", err)
+	}
+
+	created, err := requestService.CreateRequest(
+		actorContext("carol"), "alice", "ops", "carol", resourcePath,
+		access.RoleAdmin, "需要管理当前函数", nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.RequestedRole != access.RoleAdmin {
+		t.Fatalf("requested role = %q", created.RequestedRole)
+	}
+	if _, err := requestService.Approve(actorContext("bob"), created.ID, "bob", "同意升级"); err != nil {
+		t.Fatal(err)
+	}
+
+	canAdmin, err := permission.HasPermission(context.Background(), "alice", "ops", "carol", resourcePath, access.ActionAdmin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !canAdmin {
+		t.Fatal("approved admin upgrade should grant admin permission on the child resource")
+	}
+}
+
 func TestPermissionRequestRejectAndCancelDoNotGrantRole(t *testing.T) {
 	requestService, permission, _ := newPermissionRequestTestService(t)
 	resourcePath := "/alice/ops/tickets/submit.form"

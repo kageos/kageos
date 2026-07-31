@@ -22,7 +22,7 @@ type WorkspacePermissionRequest struct {
 	App              string     `json:"app" gorm:"type:varchar(100);not null;index:idx_permission_request_workspace;comment:应用代码"`
 	Requester        string     `json:"requester" gorm:"type:varchar(100);not null;index:idx_permission_request_requester;comment:申请用户"`
 	ResourcePath     string     `json:"resource_path" gorm:"type:varchar(500);not null;index:idx_permission_request_workspace;comment:申请资源路径"`
-	RequestedRole    string     `json:"requested_role" gorm:"type:varchar(30);not null;comment:申请角色 viewer/member"`
+	RequestedRole    string     `json:"requested_role" gorm:"type:varchar(30);not null;comment:申请角色 viewer/member/admin"`
 	Reason           string     `json:"reason" gorm:"type:text;not null;comment:申请理由"`
 	Status           string     `json:"status" gorm:"type:varchar(30);not null;default:'pending';index:idx_permission_request_status;comment:pending/approved/rejected/cancelled"`
 	PendingKey       *string    `json:"-" gorm:"type:char(64);uniqueIndex:idx_permission_request_pending_key;comment:待审批请求幂等键"`

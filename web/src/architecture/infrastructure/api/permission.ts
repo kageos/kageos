@@ -112,7 +112,7 @@ export function getMyPermissions(resourcePath: string) {
 
 export function createPermissionRequest(data: {
   resource_path: string
-  role_code: 'viewer' | 'member'
+  role_code: 'viewer' | 'member' | 'admin'
   reason: string
   expires_at?: string | null
 }) {

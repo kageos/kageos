@@ -6,23 +6,23 @@ import {
 } from './permissionRequestSelection'
 
 describe('permission request selection', () => {
-  it('keeps readable and pending resources checked while excluding them from new requests', () => {
-    const readablePaths = new Set(['/app/readable'])
+  it('keeps already-covered and pending resources checked while excluding them from new requests', () => {
+    const coveredPaths = new Set(['/app/covered'])
     const pendingPaths = new Set(['/app/pending'])
 
     expect(getPermissionRequestCheckedPaths(
-      ['/app/new', '/app/readable'],
-      readablePaths,
+      ['/app/new', '/app/covered'],
+      coveredPaths,
       pendingPaths,
     )).toEqual([
-      '/app/readable',
+      '/app/covered',
       '/app/pending',
       '/app/new',
     ])
 
     expect(getPermissionRequestTargetPaths(
-      ['/app/new', '/app/readable', '/app/pending', '/app/new'],
-      readablePaths,
+      ['/app/new', '/app/covered', '/app/pending', '/app/new'],
+      coveredPaths,
       pendingPaths,
     )).toEqual(['/app/new'])
   })
@@ -46,5 +46,14 @@ describe('permission request selection', () => {
       new Set(),
       new Set(['/app/parent']),
     )).toEqual([])
+  })
+
+  it('allows a higher child request when the pending parent role will not cover it', () => {
+    expect(getPermissionRequestTargetPaths(
+      ['/app/parent/child'],
+      new Set(),
+      new Set(['/app/parent']),
+      new Set(),
+    )).toEqual(['/app/parent/child'])
   })
 })

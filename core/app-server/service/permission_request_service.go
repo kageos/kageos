@@ -84,8 +84,8 @@ func (s *PermissionRequestService) CreateRequest(
 	if tenantUser == "" || app == "" || requester == "" || resourcePath == "" {
 		return nil, fmt.Errorf("tenant_user、app、requester、resource_path 不能为空")
 	}
-	if roleCode != access.RoleViewer && roleCode != access.RoleMember {
-		return nil, fmt.Errorf("自助申请仅支持 Viewer 或 Member")
+	if roleCode != access.RoleViewer && roleCode != access.RoleMember && roleCode != access.RoleAdmin {
+		return nil, fmt.Errorf("自助申请仅支持 Viewer、Member 或 Admin")
 	}
 	if reason == "" {
 		return nil, fmt.Errorf("请填写申请理由")
@@ -399,7 +399,7 @@ func (s *PermissionRequestService) review(
 
 		if status == model.PermissionRequestStatusApproved {
 			roleCode := access.NormalizeRoleCode(access.RoleCode(current.RequestedRole))
-			if roleCode != access.RoleViewer && roleCode != access.RoleMember {
+			if roleCode != access.RoleViewer && roleCode != access.RoleMember && roleCode != access.RoleAdmin {
 				return fmt.Errorf("权限申请角色无效: %s", current.RequestedRole)
 			}
 			if current.RequestedExpires != nil && !current.RequestedExpires.After(now) {

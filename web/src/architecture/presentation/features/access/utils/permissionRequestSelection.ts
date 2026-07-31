@@ -17,14 +17,15 @@ export function findNearestPermissionRequestAncestor(
 
 export function getPermissionRequestTargetPaths(
   selectedPaths: Iterable<string>,
-  readablePaths: ReadonlySet<string>,
+  coveredPaths: ReadonlySet<string>,
   pendingPaths: ReadonlySet<string>,
+  inheritingPendingPaths: ReadonlySet<string> = pendingPaths,
 ): string[] {
-  const pending = uniqueResourcePaths(pendingPaths)
+  const inheritingPending = uniqueResourcePaths(inheritingPendingPaths)
   const requestablePaths = uniqueResourcePaths(selectedPaths).filter(path => (
-    !readablePaths.has(path)
+    !coveredPaths.has(path)
     && !pendingPaths.has(path)
-    && !findNearestPermissionRequestAncestor(path, pending)
+    && !findNearestPermissionRequestAncestor(path, inheritingPending)
   ))
 
   return requestablePaths.filter(path => (
@@ -34,11 +35,11 @@ export function getPermissionRequestTargetPaths(
 
 export function getPermissionRequestCheckedPaths(
   targetPaths: Iterable<string>,
-  readablePaths: Iterable<string>,
+  coveredPaths: Iterable<string>,
   pendingPaths: Iterable<string>,
 ): string[] {
   return uniqueResourcePaths([
-    ...readablePaths,
+    ...coveredPaths,
     ...pendingPaths,
     ...targetPaths,
   ])
