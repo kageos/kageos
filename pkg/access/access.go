@@ -27,12 +27,24 @@ const (
 	RoleViewer RoleCode = "viewer"
 )
 
+type PrincipalType string
+
+const (
+	PrincipalUser       PrincipalType = "user"
+	PrincipalDepartment PrincipalType = "department"
+)
+
 type PermissionSet map[Action]bool
+
+type Principal struct {
+	Type PrincipalType `json:"type"`
+	Key  string        `json:"key"`
+}
 
 type Assignment struct {
 	TenantUser   string
 	App          string
-	Username     string
+	Principal    Principal
 	ResourcePath string
 	RoleCode     RoleCode
 	ExpiresAt    *time.Time
@@ -49,51 +61,52 @@ type Result struct {
 }
 
 type Checker interface {
-	Check(ctx context.Context, tenantUser, app, username, resourcePath string, action Action) error
-	Can(ctx context.Context, tenantUser, app, username, resourcePath string, action Action) (bool, error)
-	Resolve(ctx context.Context, tenantUser, app, username, resourcePath string) (*Result, error)
+	RequirePermission(ctx context.Context, tenantUser, app, username, resourcePath string, action Action) error
+	HasPermission(ctx context.Context, tenantUser, app, username, resourcePath string, action Action) (bool, error)
+	ResolvePermissions(ctx context.Context, tenantUser, app, username, resourcePath string) (*Result, error)
 }
 
 type Manager interface {
-	Assign(ctx context.Context, req AssignRoleRequest) error
-	BatchAssign(ctx context.Context, req BatchAssignRoleRequest) error
-	Remove(ctx context.Context, req RemoveRoleRequest) error
-	ListMembers(ctx context.Context, tenantUser, app, resourcePath string) ([]MemberAccess, error)
+	GrantRole(ctx context.Context, req GrantRoleRequest) error
+	BatchGrantRoles(ctx context.Context, req BatchGrantRoleRequest) error
+	RevokeRole(ctx context.Context, req RevokeRoleRequest) error
+	ListAssignments(ctx context.Context, tenantUser, app, resourcePath string) ([]RoleAssignmentView, error)
 }
 
-type AssignRoleRequest struct {
+type GrantRoleRequest struct {
 	TenantUser   string
 	App          string
-	Username     string
+	Principal    Principal
 	ResourcePath string
 	RoleCode     RoleCode
 	ExpiresAt    *time.Time
 	CreatedBy    string
 }
 
-type BatchAssignRoleRequest struct {
+type BatchGrantRoleRequest struct {
 	TenantUser    string
 	App           string
-	Usernames     []string
+	Principals    []Principal
 	ResourcePaths []string
 	RoleCodes     []RoleCode
 	ExpiresAt     *time.Time
 	CreatedBy     string
 }
 
-type RemoveRoleRequest struct {
+type RevokeRoleRequest struct {
 	TenantUser   string
 	App          string
-	Username     string
+	Principal    Principal
 	ResourcePath string
 	RoleCode     RoleCode
 	Actor        string
 }
 
-type MemberAccess struct {
+type RoleAssignmentView struct {
 	TenantUser     string        `json:"tenant_user"`
 	App            string        `json:"app"`
-	Username       string        `json:"username"`
+	PrincipalType  PrincipalType `json:"principal_type"`
+	PrincipalKey   string        `json:"principal_key"`
 	ResourcePath   string        `json:"resource_path"`
 	RoleCode       RoleCode      `json:"role_code"`
 	Permissions    PermissionSet `json:"permissions"`
@@ -113,6 +126,57 @@ func NormalizeAction(action Action) Action {
 
 func NormalizeRoleCode(role RoleCode) RoleCode {
 	return RoleCode(strings.ToLower(strings.TrimSpace(string(role))))
+}
+
+func NormalizePrincipalType(principalType PrincipalType) PrincipalType {
+	return PrincipalType(strings.ToLower(strings.TrimSpace(string(principalType))))
+}
+
+func NormalizePrincipal(principal Principal) Principal {
+	principal.Type = NormalizePrincipalType(principal.Type)
+	switch principal.Type {
+	case PrincipalUser:
+		principal.Key = strings.ToLower(strings.TrimSpace(principal.Key))
+	case PrincipalDepartment:
+		principal.Key = NormalizeResourcePath(principal.Key)
+	default:
+		principal.Key = strings.TrimSpace(principal.Key)
+	}
+	return principal
+}
+
+func IsValidPrincipal(principal Principal) bool {
+	principal = NormalizePrincipal(principal)
+	if principal.Key == "" {
+		return false
+	}
+	switch principal.Type {
+	case PrincipalUser:
+		return true
+	case PrincipalDepartment:
+		return principal.Key == "/org" || strings.HasPrefix(principal.Key, "/org/")
+	default:
+		return false
+	}
+}
+
+// PrincipalsForUser returns the direct user principal plus every organization
+// ancestor. A user in /org/sales/east therefore inherits grants from east,
+// sales, and the /org all-members root.
+func PrincipalsForUser(username, departmentPath string) []Principal {
+	principals := make([]Principal, 0, 4)
+	userPrincipal := NormalizePrincipal(Principal{Type: PrincipalUser, Key: username})
+	if IsValidPrincipal(userPrincipal) {
+		principals = append(principals, userPrincipal)
+	}
+	departmentPath = NormalizeResourcePath(departmentPath)
+	if departmentPath != "/org" && !strings.HasPrefix(departmentPath, "/org/") {
+		return principals
+	}
+	for _, path := range ParentPaths(departmentPath) {
+		principals = append(principals, Principal{Type: PrincipalDepartment, Key: path})
+	}
+	return principals
 }
 
 func NormalizeResourcePath(path string) string {

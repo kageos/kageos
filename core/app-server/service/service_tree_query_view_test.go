@@ -49,7 +49,7 @@ func newServiceTreeQueryViewTest(t *testing.T) (*serviceTreeQueryView, *gorm.DB,
 	return newServiceTreeQueryView(serviceTreeRepo, appRepo, nil), db, app
 }
 
-func newServiceTreeQueryViewAccessTest(t *testing.T, hideUnauthorizedNodes bool) (*serviceTreeQueryView, *gorm.DB, *model.App, *TeamAccessService) {
+func newServiceTreeQueryViewAccessTest(t *testing.T, hideUnauthorizedNodes bool) (*serviceTreeQueryView, *gorm.DB, *model.App, *PermissionService) {
 	t.Helper()
 	oldClientFactory := newServiceTreeScheduleClient
 	newServiceTreeScheduleClient = func() serviceTreeScheduleClient {
@@ -86,15 +86,15 @@ func newServiceTreeQueryViewAccessTest(t *testing.T, hideUnauthorizedNodes bool)
 	}
 
 	serviceTreeRepo := repository.NewServiceTreeRepository(db)
-	teamAccess := NewTeamAccessService(
-		repository.NewTeamAccessRepository(db),
+	permission := NewPermissionService(
+		repository.NewRoleAssignmentRepository(db),
 		repository.NewOperateLogRepository(db),
 		appRepo,
 	)
-	teamAccess.userLookup = func(ctx context.Context, username string) (*dto.UserInfo, error) {
+	permission.userLookup = func(ctx context.Context, username string) (*dto.UserInfo, error) {
 		return &dto.UserInfo{Username: username}, nil
 	}
-	return newServiceTreeQueryView(serviceTreeRepo, appRepo, teamAccess), db, app, teamAccess
+	return newServiceTreeQueryView(serviceTreeRepo, appRepo, permission), db, app, permission
 }
 
 func seedServiceTreeVisibilityNodes(t *testing.T, db *gorm.DB, app *model.App) {
@@ -333,12 +333,12 @@ func TestBatchGetServiceTreeDetailsReturnsReadableItemsInRequestOrder(t *testing
 }
 
 func TestBatchGetServiceTreeDetailsFiltersUnreadableItems(t *testing.T) {
-	queryView, db, app, teamAccess := newServiceTreeQueryViewAccessTest(t, false)
+	queryView, db, app, permission := newServiceTreeQueryViewAccessTest(t, false)
 	seedServiceTreeVisibilityNodes(t, db, app)
-	if err := teamAccess.Assign(actorContext("alice"), access.AssignRoleRequest{
+	if err := permission.GrantRole(actorContext("alice"), access.GrantRoleRequest{
 		TenantUser:   "alice",
 		App:          "ops",
-		Username:     "bob",
+		Principal:    userPrincipal("bob"),
 		ResourcePath: "/alice/ops/hr/readme",
 		RoleCode:     access.RoleViewer,
 		CreatedBy:    "alice",
@@ -361,12 +361,12 @@ func TestBatchGetServiceTreeDetailsFiltersUnreadableItems(t *testing.T) {
 }
 
 func TestGetAppWithServiceTreeKeepsUnauthorizedNodesByDefault(t *testing.T) {
-	queryView, db, app, teamAccess := newServiceTreeQueryViewAccessTest(t, false)
+	queryView, db, app, permission := newServiceTreeQueryViewAccessTest(t, false)
 	seedServiceTreeVisibilityNodes(t, db, app)
-	if err := teamAccess.Assign(actorContext("alice"), access.AssignRoleRequest{
+	if err := permission.GrantRole(actorContext("alice"), access.GrantRoleRequest{
 		TenantUser:   "alice",
 		App:          "ops",
-		Username:     "bob",
+		Principal:    userPrincipal("bob"),
 		ResourcePath: "/alice/ops/hr/readme",
 		RoleCode:     access.RoleViewer,
 		CreatedBy:    "alice",
@@ -385,12 +385,12 @@ func TestGetAppWithServiceTreeKeepsUnauthorizedNodesByDefault(t *testing.T) {
 }
 
 func TestGetAppWithServiceTreeHidesUnauthorizedNodesWhenEnabled(t *testing.T) {
-	queryView, db, app, teamAccess := newServiceTreeQueryViewAccessTest(t, true)
+	queryView, db, app, permission := newServiceTreeQueryViewAccessTest(t, true)
 	seedServiceTreeVisibilityNodes(t, db, app)
-	if err := teamAccess.Assign(actorContext("alice"), access.AssignRoleRequest{
+	if err := permission.GrantRole(actorContext("alice"), access.GrantRoleRequest{
 		TenantUser:   "alice",
 		App:          "ops",
-		Username:     "bob",
+		Principal:    userPrincipal("bob"),
 		ResourcePath: "/alice/ops/hr/readme",
 		RoleCode:     access.RoleViewer,
 		CreatedBy:    "alice",

@@ -28,18 +28,18 @@ const maxPublicShareRequestBodyBytes int64 = 4 << 20
 type PublicShareAPI struct {
 	publicShareService *service.PublicShareService
 	appService         *service.AppService
-	teamAccessService  *service.TeamAccessService
+	permissionService  *service.PermissionService
 }
 
 func NewPublicShareAPI(
 	publicShareService *service.PublicShareService,
 	appService *service.AppService,
-	teamAccessService *service.TeamAccessService,
+	permissionService *service.PermissionService,
 ) *PublicShareAPI {
 	return &PublicShareAPI{
 		publicShareService: publicShareService,
 		appService:         appService,
-		teamAccessService:  teamAccessService,
+		permissionService:  permissionService,
 	}
 }
 
@@ -50,7 +50,7 @@ func (a *PublicShareAPI) Create(c *gin.Context) {
 		return
 	}
 	req.FullCodePath = access.NormalizeResourcePath(req.FullCodePath)
-	if err := requireAccess(c, a.teamAccessService, req.FullCodePath, access.ActionWrite); err != nil {
+	if err := requireAccess(c, a.permissionService, req.FullCodePath, access.ActionWrite); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -69,7 +69,7 @@ func (a *PublicShareAPI) List(c *gin.Context) {
 		response.FailWithMessage(c, "full_code_path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, a.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+	if err := requireAccess(c, a.permissionService, fullCodePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -101,7 +101,7 @@ func (a *PublicShareAPI) Disable(c *gin.Context) {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
-	if err := requireAccess(c, a.teamAccessService, share.FullCodePath, access.ActionWrite); err != nil {
+	if err := requireAccess(c, a.permissionService, share.FullCodePath, access.ActionWrite); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}

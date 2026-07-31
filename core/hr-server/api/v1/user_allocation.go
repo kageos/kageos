@@ -35,6 +35,9 @@ func NewUserAllocation(userService *service.UserService, departmentService *serv
 // @Success 200 {object} dto.AssignUserResp
 // @Router /hr/api/v1/user/assign [post]
 func (u *UserAllocation) AssignUser(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
 	var req dto.AssignUserReq
 	var resp *dto.AssignUserResp
 	var err error

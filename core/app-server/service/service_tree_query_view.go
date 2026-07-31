@@ -22,7 +22,7 @@ import (
 type serviceTreeQueryView struct {
 	serviceTreeRepo *repository.ServiceTreeRepository
 	appRepo         *repository.AppRepository
-	teamAccess      *TeamAccessService
+	permission      *PermissionService
 }
 
 const (
@@ -33,12 +33,12 @@ const (
 func newServiceTreeQueryView(
 	serviceTreeRepo *repository.ServiceTreeRepository,
 	appRepo *repository.AppRepository,
-	teamAccess *TeamAccessService,
+	permission *PermissionService,
 ) *serviceTreeQueryView {
 	return &serviceTreeQueryView{
 		serviceTreeRepo: serviceTreeRepo,
 		appRepo:         appRepo,
-		teamAccess:      teamAccess,
+		permission:      permission,
 	}
 }
 
@@ -215,14 +215,14 @@ func normalizeBatchServiceTreeDetailPaths(rawPaths []string) []string {
 }
 
 func (q *serviceTreeQueryView) canReadServiceTreePath(ctx context.Context, path string) bool {
-	if q.teamAccess == nil {
+	if q.permission == nil {
 		return true
 	}
 	tenantUser, app, err := access.ParseUserApp(path)
 	if err != nil {
 		return false
 	}
-	result, err := q.teamAccess.Resolve(ctx, tenantUser, app, contextx.GetRequestUser(ctx), path)
+	result, err := q.permission.ResolvePermissions(ctx, tenantUser, app, contextx.GetRequestUser(ctx), path)
 	if err != nil {
 		return false
 	}
@@ -279,7 +279,7 @@ func parseAppRootFullCodePath(fullCodePath string) (user string, app string, roo
 
 func (q *serviceTreeQueryView) permissionsByPath(ctx context.Context, appModel *model.App, trees []*model.ServiceTree) (map[string]*access.Result, error) {
 	paths := collectServiceTreePaths(trees)
-	if q.teamAccess == nil {
+	if q.permission == nil {
 		results := make(map[string]*access.Result, len(paths))
 		for _, path := range paths {
 			normalized := access.NormalizeResourcePath(path)
@@ -287,7 +287,7 @@ func (q *serviceTreeQueryView) permissionsByPath(ctx context.Context, appModel *
 		}
 		return results, nil
 	}
-	return q.teamAccess.PermissionsForTree(ctx, appModel.User, appModel.Code, contextx.GetRequestUser(ctx), paths)
+	return q.permission.PermissionsForTree(ctx, appModel.User, appModel.Code, contextx.GetRequestUser(ctx), paths)
 }
 
 func collectServiceTreePaths(trees []*model.ServiceTree) []string {

@@ -46,6 +46,9 @@ func InitTables(db *gorm.DB) error {
 	if err := removeRetiredOperateLogCompanyColumn(db); err != nil {
 		return err
 	}
+	if err := migrateLegacyPermissionPrincipals(db); err != nil {
+		return err
+	}
 	if err := dropLegacyFunctionNaturalKeyIndex(db); err != nil {
 		return err
 	}
@@ -84,6 +87,62 @@ func InitTables(db *gorm.DB) error {
 
 	// 创建默认的NATS和Host记录
 	return initDefaultData(db)
+}
+
+// migrateLegacyPermissionPrincipals upgrades username-only role assignments to
+// the generic user/department principal model without losing existing grants.
+func migrateLegacyPermissionPrincipals(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&legacyPermissionAssignment{}) {
+		return nil
+	}
+	migrator := db.Migrator()
+	if !migrator.HasColumn(&legacyPermissionAssignment{}, "Username") {
+		return nil
+	}
+	if !migrator.HasColumn(&WorkspaceRoleAssignment{}, "PrincipalType") {
+		if err := migrator.AddColumn(&WorkspaceRoleAssignment{}, "PrincipalType"); err != nil {
+			return fmt.Errorf("add permission principal type: %w", err)
+		}
+	}
+	if !migrator.HasColumn(&WorkspaceRoleAssignment{}, "PrincipalKey") {
+		if err := migrator.AddColumn(&WorkspaceRoleAssignment{}, "PrincipalKey"); err != nil {
+			return fmt.Errorf("add permission principal key: %w", err)
+		}
+	}
+	if err := db.Table((WorkspaceRoleAssignment{}).TableName()).
+		Where("principal_key = '' OR principal_key IS NULL").
+		Updates(map[string]any{
+			"principal_type": "user",
+			"principal_key":  gorm.Expr("username"),
+		}).Error; err != nil {
+		return fmt.Errorf("backfill permission principals: %w", err)
+	}
+	for _, indexName := range []string{"idx_team_access_scope", "idx_team_access_user"} {
+		if migrator.HasIndex(&legacyPermissionAssignment{}, indexName) {
+			if err := migrator.DropIndex(&legacyPermissionAssignment{}, indexName); err != nil {
+				return fmt.Errorf("drop retired permission index %s: %w", indexName, err)
+			}
+		}
+	}
+	var dropErr error
+	if db.Dialector.Name() == "sqlite" {
+		dropErr = db.Exec("ALTER TABLE `workspace_role_assignments` DROP COLUMN `username`").Error
+	} else {
+		dropErr = migrator.DropColumn(&legacyPermissionAssignment{}, "Username")
+	}
+	if dropErr != nil {
+		return fmt.Errorf("drop retired permission username column: %w", dropErr)
+	}
+	return nil
+}
+
+type legacyPermissionAssignment struct {
+	WorkspaceRoleAssignment `gorm:"embedded"`
+	Username                string `gorm:"column:username"`
+}
+
+func (legacyPermissionAssignment) TableName() string {
+	return "workspace_role_assignments"
 }
 
 func removeRetiredOperateLogCompanyColumn(db *gorm.DB) error {

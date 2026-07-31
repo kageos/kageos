@@ -12,11 +12,11 @@ import (
 
 type serviceTreeSearchService struct {
 	serviceTreeRepo *repository.ServiceTreeRepository
-	teamAccess      *TeamAccessService
+	permission      *PermissionService
 }
 
-func newServiceTreeSearchService(serviceTreeRepo *repository.ServiceTreeRepository, teamAccess *TeamAccessService) *serviceTreeSearchService {
-	return &serviceTreeSearchService{serviceTreeRepo: serviceTreeRepo, teamAccess: teamAccess}
+func newServiceTreeSearchService(serviceTreeRepo *repository.ServiceTreeRepository, permission *PermissionService) *serviceTreeSearchService {
+	return &serviceTreeSearchService{serviceTreeRepo: serviceTreeRepo, permission: permission}
 }
 
 func (s *serviceTreeSearchService) SearchFunctions(
@@ -85,7 +85,7 @@ func (s *serviceTreeSearchService) SearchResources(
 }
 
 func (s *serviceTreeSearchService) filterReadableTrees(ctx context.Context, username string, trees []*model.ServiceTree) []*model.ServiceTree {
-	if s.teamAccess == nil || username == "" {
+	if s.permission == nil || username == "" {
 		return trees
 	}
 	filtered := make([]*model.ServiceTree, 0, len(trees))
@@ -105,7 +105,7 @@ func (s *serviceTreeSearchService) filterReadableTrees(ctx context.Context, user
 				continue
 			}
 		}
-		ok, err := s.teamAccess.Can(ctx, tenantUser, app, username, tree.FullCodePath, access.ActionRead)
+		ok, err := s.permission.HasPermission(ctx, tenantUser, app, username, tree.FullCodePath, access.ActionRead)
 		if err == nil && ok {
 			filtered = append(filtered, tree)
 		}

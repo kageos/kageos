@@ -16,15 +16,15 @@ import (
 type App struct {
 	appService         *service.AppService
 	serviceTreeService *service.ServiceTreeService
-	teamAccessService  *service.TeamAccessService
+	permissionService  *service.PermissionService
 }
 
 // NewApp 创建 App 处理器（依赖注入）
-func NewApp(appService *service.AppService, serviceTreeService *service.ServiceTreeService, teamAccessService *service.TeamAccessService) *App {
+func NewApp(appService *service.AppService, serviceTreeService *service.ServiceTreeService, permissionService *service.PermissionService) *App {
 	return &App{
 		appService:         appService,
 		serviceTreeService: serviceTreeService,
-		teamAccessService:  teamAccessService,
+		permissionService:  permissionService,
 	}
 }
 
@@ -103,7 +103,7 @@ func (a *App) UpdateApp(c *gin.Context) {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
-	if err := requireAccess(c, a.teamAccessService, req.ResourcePath, access.ActionAdmin); err != nil {
+	if err := requireAccess(c, a.permissionService, req.ResourcePath, access.ActionAdmin); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -138,7 +138,7 @@ func (a *App) UpdateWorkspace(c *gin.Context) {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
-	if err := requireAccess(c, a.teamAccessService, req.ResourcePath, access.ActionAdmin); err != nil {
+	if err := requireAccess(c, a.permissionService, req.ResourcePath, access.ActionAdmin); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -172,7 +172,7 @@ func (a *App) DeleteApp(c *gin.Context) {
 	req := &dto.DeleteAppReq{
 		ResourcePath: resourcePath,
 	}
-	if err := requireAccess(c, a.teamAccessService, req.ResourcePath, access.ActionDelete); err != nil {
+	if err := requireAccess(c, a.permissionService, req.ResourcePath, access.ActionDelete); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -273,7 +273,7 @@ func (a *App) GetAppDetail(c *gin.Context) {
 	req = dto.GetAppDetailReq{
 		ResourcePath: resourcePath,
 	}
-	if err := requireAccess(c, a.teamAccessService, req.ResourcePath, access.ActionRead); err != nil {
+	if err := requireAccess(c, a.permissionService, req.ResourcePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -317,7 +317,7 @@ func (a *App) GetAppWithServiceTree(c *gin.Context) {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
-	hasAccess, err := a.teamAccessService.HasAnyWorkspaceAccess(contextx.ToContext(c), tenantUser, appCode, contextx.GetRequestUser(c))
+	hasAccess, err := a.permissionService.HasAnyWorkspacePermission(contextx.ToContext(c), tenantUser, appCode, contextx.GetRequestUser(c))
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return

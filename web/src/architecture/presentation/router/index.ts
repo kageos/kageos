@@ -163,10 +163,10 @@ const router = createRouter({
       }
     },
     {
-      path: '/permissions/access',
-      alias: '/permissions/apply',
-      name: 'permission-access',
-      component: () => import('@/architecture/presentation/features/access/pages/TeamAccessPage.vue'),
+      path: '/permissions',
+      alias: ['/permissions/access', '/permissions/apply'],
+      name: 'permissions',
+      component: () => import('@/architecture/presentation/features/access/pages/PermissionPage.vue'),
       meta: {
         titleKey: 'access.title',
         requireAuth: true

@@ -9,15 +9,15 @@ import (
 	"github.com/kageos/kageos/pkg/ginx/response"
 )
 
-type TeamAccess struct {
-	teamAccessService *service.TeamAccessService
+type Permission struct {
+	permissionService *service.PermissionService
 }
 
-func NewTeamAccess(teamAccessService *service.TeamAccessService) *TeamAccess {
-	return &TeamAccess{teamAccessService: teamAccessService}
+func NewPermission(permissionService *service.PermissionService) *Permission {
+	return &Permission{permissionService: permissionService}
 }
 
-func (a *TeamAccess) ListMembers(c *gin.Context) {
+func (a *Permission) ListAssignments(c *gin.Context) {
 	resourcePath := access.NormalizeResourcePath(c.Query("resource_path"))
 	tenantUser, app, err := access.ParseUserApp(resourcePath)
 	if err != nil {
@@ -25,20 +25,20 @@ func (a *TeamAccess) ListMembers(c *gin.Context) {
 		return
 	}
 	ctx := contextx.ToContext(c)
-	if err := a.teamAccessService.Check(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath, access.ActionAdmin); err != nil {
+	if err := a.permissionService.RequirePermission(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath, access.ActionAdmin); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
-	members, err := a.teamAccessService.ListMembers(ctx, tenantUser, app, resourcePath)
+	assignments, err := a.permissionService.ListAssignments(ctx, tenantUser, app, resourcePath)
 	if err != nil {
-		response.FailWithMessage(c, "获取成员授权失败: "+err.Error())
+		response.FailWithMessage(c, "获取权限分配失败: "+err.Error())
 		return
 	}
-	response.OkWithData(c, dto.TeamMemberAccessResp{Members: members})
+	response.OkWithData(c, dto.PermissionAssignmentsResp{Assignments: assignments})
 }
 
-func (a *TeamAccess) Assign(c *gin.Context) {
-	var req dto.AssignTeamRoleReq
+func (a *Permission) GrantRole(c *gin.Context) {
+	var req dto.GrantRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
@@ -50,10 +50,10 @@ func (a *TeamAccess) Assign(c *gin.Context) {
 		return
 	}
 	ctx := contextx.ToContext(c)
-	if err := a.teamAccessService.Assign(ctx, access.AssignRoleRequest{
+	if err := a.permissionService.GrantRole(ctx, access.GrantRoleRequest{
 		TenantUser:   tenantUser,
 		App:          app,
-		Username:     req.Username,
+		Principal:    req.Principal,
 		ResourcePath: resourcePath,
 		RoleCode:     req.RoleCode,
 		ExpiresAt:    req.ExpiresAt,
@@ -65,8 +65,8 @@ func (a *TeamAccess) Assign(c *gin.Context) {
 	response.Ok(c)
 }
 
-func (a *TeamAccess) BatchAssign(c *gin.Context) {
-	var req dto.BatchAssignTeamRoleReq
+func (a *Permission) BatchGrantRoles(c *gin.Context) {
+	var req dto.BatchGrantRolesReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
@@ -93,10 +93,10 @@ func (a *TeamAccess) BatchAssign(c *gin.Context) {
 		}
 	}
 	ctx := contextx.ToContext(c)
-	if err := a.teamAccessService.BatchAssign(ctx, access.BatchAssignRoleRequest{
+	if err := a.permissionService.BatchGrantRoles(ctx, access.BatchGrantRoleRequest{
 		TenantUser:    tenantUser,
 		App:           app,
-		Usernames:     req.Usernames,
+		Principals:    req.Principals,
 		ResourcePaths: req.ResourcePaths,
 		RoleCodes:     req.RoleCodes,
 		ExpiresAt:     req.ExpiresAt,
@@ -108,8 +108,8 @@ func (a *TeamAccess) BatchAssign(c *gin.Context) {
 	response.Ok(c)
 }
 
-func (a *TeamAccess) Remove(c *gin.Context) {
-	var req dto.RemoveTeamRoleReq
+func (a *Permission) RevokeRole(c *gin.Context) {
+	var req dto.RevokeRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "参数错误: "+err.Error())
 		return
@@ -121,10 +121,10 @@ func (a *TeamAccess) Remove(c *gin.Context) {
 		return
 	}
 	ctx := contextx.ToContext(c)
-	if err := a.teamAccessService.Remove(ctx, access.RemoveRoleRequest{
+	if err := a.permissionService.RevokeRole(ctx, access.RevokeRoleRequest{
 		TenantUser:   tenantUser,
 		App:          app,
-		Username:     req.Username,
+		Principal:    req.Principal,
 		ResourcePath: resourcePath,
 		RoleCode:     req.RoleCode,
 		Actor:        contextx.GetRequestUser(ctx),
@@ -135,7 +135,7 @@ func (a *TeamAccess) Remove(c *gin.Context) {
 	response.Ok(c)
 }
 
-func (a *TeamAccess) MyPermissions(c *gin.Context) {
+func (a *Permission) GetMyPermissions(c *gin.Context) {
 	resourcePath := access.NormalizeResourcePath(c.Query("resource_path"))
 	tenantUser, app, err := access.ParseUserApp(resourcePath)
 	if err != nil {
@@ -143,7 +143,7 @@ func (a *TeamAccess) MyPermissions(c *gin.Context) {
 		return
 	}
 	ctx := contextx.ToContext(c)
-	result, err := a.teamAccessService.Resolve(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath)
+	result, err := a.permissionService.ResolvePermissions(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath)
 	if err != nil {
 		response.FailWithMessage(c, "获取当前用户权限失败: "+err.Error())
 		return

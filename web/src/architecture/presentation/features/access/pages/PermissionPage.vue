@@ -1,5 +1,5 @@
 <template>
-  <main class="team-access-page">
+  <main class="permission-page">
     <div class="access-shell">
       <el-alert
         v-if="invalidResource"
@@ -62,8 +62,8 @@
                   <el-button
                     size="small"
                     :icon="UserFilled"
-                    :loading="membersLoading && membersDialogVisible"
-                    @click="openMembersDialog"
+                    :loading="assignmentsLoading && assignmentsDialogVisible"
+                    @click="openAssignmentsDialog"
                   >
                     {{ t('access.existing') }}
                   </el-button>
@@ -273,12 +273,41 @@
             </div>
 
             <el-form label-position="top" class="grant-form" @submit.prevent>
-              <el-form-item :label="t('access.grantUser')">
+              <el-form-item :label="t('access.principalType')">
+                <el-radio-group v-model="grantPrincipalType">
+                  <el-radio-button label="department">{{ t('access.organization') }}</el-radio-button>
+                  <el-radio-button label="user">{{ t('access.users') }}</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+
+              <el-form-item v-if="grantPrincipalType === 'department'" :label="t('access.grantPrincipal')">
+                <el-tree-select
+                  v-model="grantDepartmentPath"
+                  class="principal-selector"
+                  :data="departmentOptions"
+                  :loading="departmentsLoading"
+                  value-key="value"
+                  check-strictly
+                  filterable
+                  default-expand-all
+                  :placeholder="t('access.selectOrganization')"
+                />
+                <el-alert
+                  v-if="grantDepartmentPath === '/org'"
+                  class="all-members-alert"
+                  type="info"
+                  :title="t('access.allMembersGrantTip')"
+                  :closable="false"
+                  show-icon
+                />
+              </el-form-item>
+
+              <el-form-item v-else :label="t('access.grantPrincipal')">
                 <UsersWidget
                   :value="grantUsersValue"
                   :field="grantUsersField"
                   mode="edit"
-                  field-path="teamAccessPageUsers"
+                  field-path="permissionPageUsers"
                   @update:modelValue="handleGrantUsersChange"
                 />
               </el-form-item>
@@ -304,8 +333,8 @@
                   <strong>{{ t('common.resourceCount', { count: selectedResourcePaths.length }) }}</strong>
                 </div>
                 <div class="preview-row">
-                  <span>{{ t('access.users') }}</span>
-                  <strong>{{ t('common.userCount', { count: selectedUsernames.length }) }}</strong>
+                  <span>{{ t('access.principal') }}</span>
+                  <strong>{{ principalPreview }}</strong>
                 </div>
                 <div class="preview-row">
                   <span>{{ t('access.role') }}</span>
@@ -333,7 +362,7 @@
     </div>
 
     <el-dialog
-      v-model="membersDialogVisible"
+      v-model="assignmentsDialogVisible"
       class="access-members-dialog"
       width="960px"
       :title="t('access.existing')"
@@ -344,34 +373,41 @@
           <h3>{{ activeResource?.name || t('common.currentResource') }}</h3>
           <p>{{ activeResourcePath }}</p>
         </div>
-        <el-button size="small" :icon="Refresh" :loading="membersLoading" @click="loadMembers">
+        <el-button size="small" :icon="Refresh" :loading="assignmentsLoading" @click="loadAssignments">
           {{ t('common.refresh') }}
         </el-button>
       </div>
 
       <el-tabs v-model="activeTab" class="access-tabs">
-        <el-tab-pane :label="t('access.currentDirectoryCount', { count: currentMembers.length })" name="current" />
-        <el-tab-pane :label="t('access.inheritedParentCount', { count: inheritedMembers.length })" name="inherited" />
+        <el-tab-pane :label="t('access.currentDirectoryCount', { count: currentAssignments.length })" name="current" />
+        <el-tab-pane :label="t('access.inheritedParentCount', { count: inheritedAssignments.length })" name="inherited" />
       </el-tabs>
 
       <el-table
-        v-loading="membersLoading"
-        :data="visibleMembers"
+        v-loading="assignmentsLoading"
+        :data="visibleAssignments"
         class="access-table"
-        :row-key="memberRowKey"
+        :row-key="assignmentRowKey"
         size="small"
         :empty-text="t('access.empty')"
       >
-        <el-table-column :label="t('access.member')" min-width="220">
+        <el-table-column :label="t('access.principal')" min-width="240">
           <template #default="{ row }">
-            <div class="member-users-cell">
+            <div v-if="row.principal_type === 'user'" class="member-users-cell">
               <UsersWidget
-                :value="memberUsersValue(row.username)"
+                :value="principalUserValue(row.principal_key)"
                 :field="memberUsersField"
                 mode="response"
-                :field-path="`teamAccessPageMember:${memberRowKey(row)}`"
+                :field-path="`permissionPagePrincipal:${assignmentRowKey(row)}`"
               />
             </div>
+            <DepartmentDisplay
+              v-else
+              :full-code-path="row.principal_key"
+              :display-name="departmentPrincipalLabel(row.principal_key)"
+              mode="simple"
+              size="small"
+            />
           </template>
         </el-table-column>
         <el-table-column :label="t('access.role')" width="116">
@@ -414,8 +450,8 @@
               link
               size="small"
               :icon="Delete"
-              :loading="removingKey === memberRowKey(row)"
-              @click="removeMember(row)"
+              :loading="removingKey === assignmentRowKey(row)"
+              @click="removeAssignment(row)"
             >
               {{ t('common.remove') }}
             </el-button>
@@ -454,14 +490,21 @@ import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { WidgetType } from '@/architecture/domain/constants/widget'
 import { getAppWithServiceTree } from '@/architecture/presentation/context/api/app'
 import {
-  batchAssignTeamRoles,
-  listTeamMembers,
-  removeTeamRole,
-  type TeamMemberAccess
-} from '@/architecture/presentation/context/api/team-access'
+  batchGrantRoles,
+  listPermissionAssignments,
+  revokeRole,
+  type PermissionPrincipal,
+  type PermissionPrincipalType,
+  type RoleAssignment
+} from '@/architecture/presentation/context/api/permission'
+import {
+  getDepartmentTree,
+  type Department
+} from '@/architecture/presentation/context/api/department'
 import ChartIcon from '@/architecture/presentation/shared/components/icons/ChartIcon.vue'
 import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'
 import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
+import DepartmentDisplay from '@/architecture/presentation/shared/components/DepartmentDisplay.vue'
 import UsersWidget from '@/architecture/presentation/shared/components/UsersWidget.vue'
 import { createStringFieldValue, extractStringFieldRaw } from '@/architecture/domain/utils/widgetFieldHelpers'
 import { buildAppResourcePath, normalizeResourcePath, parseResourcePath } from '@/architecture/shared/resourcePath'
@@ -502,6 +545,12 @@ interface RoleActionGroup {
   actions: RoleActionState[]
 }
 
+interface DepartmentOption {
+  value: string
+  label: string
+  children?: DepartmentOption[]
+}
+
 type AccessPermissionsKey = keyof AccessPermissions
 
 const route = useRoute()
@@ -521,7 +570,8 @@ const treeRef = ref()
 const treeData = ref<ServiceTree[]>([])
 const appName = ref('')
 const pageLoading = ref(false)
-const membersLoading = ref(false)
+const assignmentsLoading = ref(false)
+const departmentsLoading = ref(false)
 const submitting = ref(false)
 const removingKey = ref('')
 const loadError = ref('')
@@ -530,14 +580,17 @@ const treeAccessDeniedMessage = ref('')
 const activeTab = ref<AccessTab>('current')
 const activeResourcePath = ref('')
 const selectedResourcePaths = ref<string[]>([])
-const members = ref<TeamMemberAccess[]>([])
-const membersDialogVisible = ref(false)
+const assignments = ref<RoleAssignment[]>([])
+const assignmentsDialogVisible = ref(false)
+const departmentOptions = ref<DepartmentOption[]>([])
+const grantPrincipalType = ref<PermissionPrincipalType>('department')
+const grantDepartmentPath = ref('/org')
 const grantRole = ref<AccessRoleCode>('viewer')
 const grantPermanent = ref(true)
 const grantExpiresAt = ref<Date | null>(null)
 
 const grantUsersField = computed<FieldConfig>(() => ({
-  code: 'teamAccessPageUsers',
+  code: 'permissionPageUsers',
   name: t('access.users'),
   desc: t('access.memberPickerDesc'),
   widget: {
@@ -552,7 +605,7 @@ const grantUsersField = computed<FieldConfig>(() => ({
 }))
 
 const memberUsersField = computed<FieldConfig>(() => ({
-  code: 'teamAccessPageMemberUsers',
+  code: 'permissionPageMemberUsers',
   name: t('access.member'),
   desc: t('access.member'),
   widget: {
@@ -670,20 +723,36 @@ const selectedUsernames = computed(() => {
     .filter(Boolean)
 })
 
+const selectedPrincipals = computed<PermissionPrincipal[]>(() => {
+  if (grantPrincipalType.value === 'department') {
+    return grantDepartmentPath.value
+      ? [{ type: 'department', key: grantDepartmentPath.value }]
+      : []
+  }
+  return selectedUsernames.value.map(username => ({ type: 'user', key: username }))
+})
+
+const principalPreview = computed(() => {
+  if (grantPrincipalType.value === 'department') {
+    return departmentPrincipalLabel(grantDepartmentPath.value) || grantDepartmentPath.value
+  }
+  return t('common.userCount', { count: selectedUsernames.value.length })
+})
+
 const canSubmitGrant = computed(() => {
-  return selectedResourcePaths.value.length > 0 && selectedUsernames.value.length > 0 && Boolean(grantRole.value)
+  return selectedResourcePaths.value.length > 0 && selectedPrincipals.value.length > 0 && Boolean(grantRole.value)
 })
 
-const currentMembers = computed(() => {
-  return members.value.filter(member => member.direct !== false && member.source !== 'inherited')
+const currentAssignments = computed(() => {
+  return assignments.value.filter(assignment => assignment.direct !== false && assignment.source !== 'inherited')
 })
 
-const inheritedMembers = computed(() => {
-  return members.value.filter(member => member.direct === false || member.source === 'inherited')
+const inheritedAssignments = computed(() => {
+  return assignments.value.filter(assignment => assignment.direct === false || assignment.source === 'inherited')
 })
 
-const visibleMembers = computed(() => {
-  return activeTab.value === 'current' ? currentMembers.value : inheritedMembers.value
+const visibleAssignments = computed(() => {
+  return activeTab.value === 'current' ? currentAssignments.value : inheritedAssignments.value
 })
 
 const roleActionConfigs = computed<Record<ResourceKind, RoleActionConfig[]>>(() => ({
@@ -736,6 +805,8 @@ watch(requestedResourcePath, () => {
   void reloadPage()
 }, { immediate: true })
 
+void loadDepartmentOptions()
+
 async function reloadPage() {
   const parsed = parsedResource.value
   loadError.value = ''
@@ -747,7 +818,7 @@ async function reloadPage() {
     treeData.value = []
     activeResourcePath.value = ''
     selectedResourcePaths.value = []
-    members.value = []
+    assignments.value = []
     return
   }
 
@@ -768,7 +839,7 @@ async function reloadPage() {
     await nextTick()
     treeRef.value?.setCheckedKeys?.(initialResourcePaths)
     treeRef.value?.setCurrentKey?.(initialPath)
-    await loadMembers()
+    await loadAssignments()
   } catch (error: any) {
     if (isWorkspaceForbiddenError(error)) {
       showAccessRequestFallback(error)
@@ -782,13 +853,55 @@ async function reloadPage() {
   }
 }
 
+async function loadDepartmentOptions() {
+  departmentsLoading.value = true
+  try {
+    const response = await getDepartmentTree()
+    const root = findDepartmentByPath(response.departments || [], '/org')
+    departmentOptions.value = [{
+      value: '/org',
+      label: t('access.allMembers'),
+      children: (root?.children || response.departments || [])
+        .filter(department => department.full_code_path !== '/org')
+        .map(toDepartmentOption),
+    }]
+  } catch {
+    // /org is a built-in permission principal even when the organization
+    // management endpoint is temporarily unavailable.
+    departmentOptions.value = [{
+      value: '/org',
+      label: t('access.allMembers'),
+    }]
+  } finally {
+    departmentsLoading.value = false
+  }
+}
+
+function findDepartmentByPath(departments: Department[], path: string): Department | null {
+  for (const department of departments) {
+    if (department.full_code_path === path) return department
+    const child = findDepartmentByPath(department.children || [], path)
+    if (child) return child
+  }
+  return null
+}
+
+function toDepartmentOption(department: Department): DepartmentOption {
+  const children = (department.children || []).map(toDepartmentOption)
+  return {
+    value: department.full_code_path,
+    label: department.name,
+    ...(children.length > 0 ? { children } : {}),
+  }
+}
+
 function showAccessRequestFallback(error: unknown) {
   const parsed = parsedResource.value
   appName.value = parsed?.app || ''
   treeData.value = []
   activeResourcePath.value = requestedResourcePath.value
   selectedResourcePaths.value = requestedResourcePath.value ? [requestedResourcePath.value] : []
-  members.value = []
+  assignments.value = []
   treeAccessDenied.value = true
   treeAccessDeniedMessage.value = getErrorMessage(error, '')
   resetGrantForm()
@@ -817,22 +930,22 @@ function buildTreeData(app: App, serviceTree: ServiceTree[]): ServiceTree[] {
   }]
 }
 
-async function loadMembers() {
+async function loadAssignments() {
   const path = activeResourcePath.value
   if (!path) {
-    members.value = []
+    assignments.value = []
     return
   }
 
-  membersLoading.value = true
+  assignmentsLoading.value = true
   try {
-    const resp = await listTeamMembers(path)
-    members.value = resp.members || []
+    const resp = await listPermissionAssignments(path)
+    assignments.value = resp.assignments || []
   } catch (error: any) {
     const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('access.loadFailed')
     ElMessage.error(message)
   } finally {
-    membersLoading.value = false
+    assignmentsLoading.value = false
   }
 }
 
@@ -841,7 +954,7 @@ function handleResourceClick(data: ServiceTree) {
   activeTab.value = 'current'
   activeResourcePath.value = data.full_code_path
   void nextTick(() => treeRef.value?.setCurrentKey?.(data.full_code_path))
-  void loadMembers()
+  void loadAssignments()
 }
 
 function handleResourceCheck(data: ServiceTree) {
@@ -858,7 +971,7 @@ function syncCheckedResourcePaths() {
   if (selectedResourcePaths.value.length > 0 && !selectedResourcePaths.value.includes(activeResourcePath.value)) {
     activeResourcePath.value = selectedResourcePaths.value[0] || ''
     treeRef.value?.setCurrentKey?.(activeResourcePath.value)
-    void loadMembers()
+    void loadAssignments()
   }
 }
 
@@ -886,6 +999,8 @@ function handleGrantUsersChange(value: FieldValue) {
 }
 
 function resetGrantForm() {
+  grantPrincipalType.value = 'department'
+  grantDepartmentPath.value = '/org'
   grantUsersValue.value = createStringFieldValue(grantUsersField.value, '', { emptyRaw: '' })
   grantRole.value = 'viewer'
   grantPermanent.value = true
@@ -909,9 +1024,9 @@ function goBack() {
   void router.push(target)
 }
 
-async function openMembersDialog() {
-  membersDialogVisible.value = true
-  await loadMembers()
+async function openAssignmentsDialog() {
+  assignmentsDialogVisible.value = true
+  await loadAssignments()
 }
 
 function getFunctionIcon(data: ServiceTree): Component {
@@ -941,18 +1056,20 @@ async function submitGrant() {
 
   submitting.value = true
   try {
-    await batchAssignTeamRoles({
+    await batchGrantRoles({
       resource_paths: selectedResourcePaths.value,
-      usernames: selectedUsernames.value,
+      principals: selectedPrincipals.value,
       role_codes: [grantRole.value],
       expires_at: grantPermanent.value ? null : (grantExpiresAt.value ? grantExpiresAt.value.toISOString() : null)
     })
     ElMessage.success(t('access.grantResourcesSuccess', {
-      users: selectedUsernames.value.length,
+      principals: selectedPrincipals.value.length,
       resources: selectedResourcePaths.value.length
     }))
-    grantUsersValue.value = createStringFieldValue(grantUsersField.value, '', { emptyRaw: '' })
-    await loadMembers()
+    if (grantPrincipalType.value === 'user') {
+      grantUsersValue.value = createStringFieldValue(grantUsersField.value, '', { emptyRaw: '' })
+    }
+    await loadAssignments()
   } catch (error: any) {
     const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('access.grantFailed')
     ElMessage.error(message)
@@ -961,11 +1078,12 @@ async function submitGrant() {
   }
 }
 
-async function removeMember(member: TeamMemberAccess) {
-  const key = memberRowKey(member)
+async function removeAssignment(assignment: RoleAssignment) {
+  const key = assignmentRowKey(assignment)
+  const principal = principalLabel(assignment)
   try {
     await ElMessageBox.confirm(
-      t('access.removeDirectoryConfirm', { username: member.username, role: roleLabel(member.role_code) }),
+      t('access.removeDirectoryConfirm', { principal, role: roleLabel(assignment.role_code) }),
       t('access.removeConfirmTitle'),
       {
         confirmButtonText: t('common.remove'),
@@ -979,13 +1097,16 @@ async function removeMember(member: TeamMemberAccess) {
 
   removingKey.value = key
   try {
-    await removeTeamRole({
-      resource_path: member.resource_path,
-      username: member.username,
-      role_code: member.role_code
+    await revokeRole({
+      resource_path: assignment.resource_path,
+      principal: {
+        type: assignment.principal_type,
+        key: assignment.principal_key,
+      },
+      role_code: assignment.role_code
     })
     ElMessage.success(t('access.removeSuccess'))
-    await loadMembers()
+    await loadAssignments()
   } catch (error: any) {
     const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('access.removeFailed')
     ElMessage.error(message)
@@ -1026,8 +1147,8 @@ function normalizeResourcePathList(paths: string[]): string[] {
   return [...new Set(paths.map(item => String(item).trim()).filter(Boolean))]
 }
 
-function memberRowKey(member: TeamMemberAccess): string {
-  return `${member.username}:${member.resource_path}:${member.role_code}`
+function assignmentRowKey(assignment: RoleAssignment): string {
+  return `${assignment.principal_type}:${assignment.principal_key}:${assignment.resource_path}:${assignment.role_code}`
 }
 
 function roleLabel(role: AccessRoleCode): string {
@@ -1112,8 +1233,28 @@ function getResourceIconClass(kind: ResourceKind): string {
   return 'table-icon'
 }
 
-function memberUsersValue(username: string): FieldValue {
+function principalUserValue(username: string): FieldValue {
   return createStringFieldValue(memberUsersField.value, username || '', { emptyRaw: '' })
+}
+
+function departmentPrincipalLabel(path: string): string | null {
+  if (path === '/org') return t('access.allMembers')
+  const findLabel = (options: DepartmentOption[]): string | null => {
+    for (const option of options) {
+      if (option.value === path) return option.label
+      const childLabel = option.children?.length ? findLabel(option.children) : null
+      if (childLabel) return childLabel
+    }
+    return null
+  }
+  return findLabel(departmentOptions.value)
+}
+
+function principalLabel(assignment: RoleAssignment): string {
+  if (assignment.principal_type === 'department') {
+    return departmentPrincipalLabel(assignment.principal_key) || assignment.principal_key
+  }
+  return assignment.principal_key
 }
 
 function roleTagType(role: AccessRoleCode): 'danger' | 'warning' | 'success' | 'info' {
@@ -1140,7 +1281,7 @@ function formatExpiresAt(value?: string): string {
 </script>
 
 <style scoped lang="scss">
-.team-access-page {
+.permission-page {
   min-height: 100vh;
   padding: 18px 22px 24px;
   background: var(--el-bg-color-page);
@@ -1545,6 +1686,14 @@ function formatExpiresAt(value?: string): string {
   }
 }
 
+.principal-selector {
+  width: 100%;
+}
+
+.all-members-alert {
+  margin-top: 10px;
+}
+
 .expires-picker {
   width: 100%;
   margin-top: 10px;
@@ -1665,7 +1814,7 @@ function formatExpiresAt(value?: string): string {
 }
 
 @media (max-width: 640px) {
-  .team-access-page {
+  .permission-page {
     padding: 14px 12px 18px;
   }
 
@@ -1678,7 +1827,7 @@ function formatExpiresAt(value?: string): string {
   }
 }
 
-.team-access-page {
+.permission-page {
   box-sizing: border-box;
   height: 100vh;
   padding: 12px 10px;
@@ -2351,7 +2500,7 @@ function formatExpiresAt(value?: string): string {
 }
 
 @media (max-width: 1180px) {
-  .team-access-page {
+  .permission-page {
     height: auto;
     min-height: 100vh;
     overflow: auto;

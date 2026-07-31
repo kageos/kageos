@@ -12,14 +12,14 @@ import (
 
 type Doc struct {
 	docService        *service.DocService
-	teamAccessService *service.TeamAccessService
+	permissionService *service.PermissionService
 }
 
 // NewDoc 创建文档处理器（依赖注入）
-func NewDoc(docService *service.DocService, teamAccessService *service.TeamAccessService) *Doc {
+func NewDoc(docService *service.DocService, permissionService *service.PermissionService) *Doc {
 	return &Doc{
 		docService:        docService,
-		teamAccessService: teamAccessService,
+		permissionService: permissionService,
 	}
 }
 
@@ -43,7 +43,7 @@ func (s *Doc) GetDoc(c *gin.Context) {
 		response.FailWithMessage(c, "路径不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionRead); err != nil {
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -89,7 +89,7 @@ func (s *Doc) UpdateDoc(c *gin.Context) {
 
 	// 从 URL 路径参数填充 FullCodePath 到 DTO
 	req.FullCodePath = fullCodePath
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionUpdate); err != nil {
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionUpdate); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -125,7 +125,7 @@ func (s *Doc) DeleteDoc(c *gin.Context) {
 		response.FailWithMessage(c, "路径不能为空")
 		return
 	}
-	if err := requireAccess(c, s.teamAccessService, fullCodePath, access.ActionDelete); err != nil {
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionDelete); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -200,7 +200,7 @@ func (s *Doc) BatchGetDocs(c *gin.Context) {
 		return
 	}
 	for _, path := range req.Paths {
-		if err := requireAccess(c, s.teamAccessService, path, access.ActionRead); err != nil {
+		if err := requireAccess(c, s.permissionService, path, access.ActionRead); err != nil {
 			response.FailWithMessage(c, err.Error())
 			return
 		}

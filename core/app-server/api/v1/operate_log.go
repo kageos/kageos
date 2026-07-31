@@ -13,11 +13,11 @@ import (
 // OperateLog 操作日志相关API
 type OperateLog struct {
 	operateLogService *service.OperateLogService
-	teamAccessService *service.TeamAccessService
+	permissionService *service.PermissionService
 }
 
-func NewOperateLog(operateLogService *service.OperateLogService, teamAccessService *service.TeamAccessService) *OperateLog {
-	return &OperateLog{operateLogService: operateLogService, teamAccessService: teamAccessService}
+func NewOperateLog(operateLogService *service.OperateLogService, permissionService *service.PermissionService) *OperateLog {
+	return &OperateLog{operateLogService: operateLogService, permissionService: permissionService}
 }
 
 // GetOperateLogs 查询通用操作日志
@@ -32,7 +32,7 @@ func NewOperateLog(operateLogService *service.OperateLogService, teamAccessServi
 // @Param actor_user query string false "执行用户"
 // @Param target_user query string false "被操作用户"
 // @Param app query string false "应用名"
-// @Param resource_type query string false "资源类型：table/form/team_access/directory/function"
+// @Param resource_type query string false "资源类型：table/form/permission/directory/function"
 // @Param resource_path query string false "资源路径"
 // @Param resource_path_prefix query string false "资源路径前缀"
 // @Param action query string false "操作类型"
@@ -85,7 +85,7 @@ func (o *OperateLog) GetOperateLogs(c *gin.Context) {
 		return
 	}
 	auditResourcePath = access.NormalizeResourcePath(auditResourcePath)
-	if err := requireAccess(c, o.teamAccessService, auditResourcePath, access.ActionRead); err != nil {
+	if err := requireAccess(c, o.permissionService, auditResourcePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}

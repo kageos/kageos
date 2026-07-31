@@ -38,6 +38,9 @@ func InitModels(db *gorm.DB) error {
 		return err
 	}
 
+	if err := ensureUserOrganizationMembership(db); err != nil {
+		return err
+	}
 	if err := ensureUserEmailContactIndex(db); err != nil {
 		return err
 	}
@@ -45,6 +48,22 @@ func InitModels(db *gorm.DB) error {
 		return err
 	}
 
+	return nil
+}
+
+// ensureUserOrganizationMembership keeps /org meaningful as the all-members
+// principal. Every non-system account belongs to the organization, with
+// /org/unassigned as the safe fallback.
+func ensureUserOrganizationMembership(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&User{}) {
+		return nil
+	}
+	if err := db.Model(&User{}).
+		Where("username <> ?", "system").
+		Where("department_full_path IS NULL OR TRIM(department_full_path) = ''").
+		Update("department_full_path", "/org/unassigned").Error; err != nil {
+		return fmt.Errorf("backfill user organization membership: %w", err)
+	}
 	return nil
 }
 

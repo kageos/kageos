@@ -36,6 +36,9 @@ func NewDepartment(deptService *service.DepartmentService) *Department {
 // @Success 200 {object} dto.CreateDepartmentResp
 // @Router /hr/api/v1/department [post]
 func (d *Department) CreateDepartment(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
 	var req dto.CreateDepartmentReq
 	var resp *dto.CreateDepartmentResp
 	var err error
@@ -75,6 +78,9 @@ func (d *Department) CreateDepartment(c *gin.Context) {
 // @Success 200 {object} dto.UpdateDepartmentResp
 // @Router /hr/api/v1/department/{id} [put]
 func (d *Department) UpdateDepartment(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
 	var req dto.UpdateDepartmentReq
 	var resp *dto.UpdateDepartmentResp
 	var err error
@@ -209,6 +215,9 @@ func (d *Department) GetDepartmentByID(c *gin.Context) {
 // @Success 200 {object} object
 // @Router /hr/api/v1/department/{id} [delete]
 func (d *Department) DeleteDepartment(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
 	var err error
 	defer func() {
 		logger.Infof(c, "DeleteDepartment err:%v", err)

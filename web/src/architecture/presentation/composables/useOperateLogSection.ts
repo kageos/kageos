@@ -823,7 +823,7 @@ export function useOperateLogSection({
     }
     if (
       log.summary &&
-      (log.resource_type === 'team_access' || !['OnTableAddRow', 'OnTableUpdateRow', 'OnTableDeleteRows'].includes(log.action))
+      (log.resource_type === 'permission' || !['OnTableAddRow', 'OnTableUpdateRow', 'OnTableDeleteRows'].includes(log.action))
     ) {
       return log.summary
     }

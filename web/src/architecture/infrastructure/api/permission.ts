@@ -2,10 +2,18 @@ import { get, post } from '@/architecture/infrastructure/apiClient/request'
 import type { AccessPermissions, AccessRoleCode } from '@/architecture/domain/types'
 import { normalizeResourcePath } from '@/architecture/shared/resourcePath'
 
-export interface TeamMemberAccess {
+export type PermissionPrincipalType = 'user' | 'department'
+
+export interface PermissionPrincipal {
+  type: PermissionPrincipalType
+  key: string
+}
+
+export interface RoleAssignment {
   tenant_user: string
   app: string
-  username: string
+  principal_type: PermissionPrincipalType
+  principal_key: string
   resource_path: string
   role_code: AccessRoleCode
   permissions: AccessPermissions
@@ -27,49 +35,49 @@ export interface MyPermissions {
   expires_at?: string
 }
 
-export function listTeamMembers(resourcePath: string) {
-  return get<{ members: TeamMemberAccess[] }>('/workspace/api/v1/team_access/members', {
+export function listPermissionAssignments(resourcePath: string) {
+  return get<{ assignments: RoleAssignment[] }>('/workspace/api/v1/permissions/assignments', {
     resource_path: normalizeResourcePath(resourcePath)
   })
 }
 
-export function assignTeamRole(data: {
+export function grantRole(data: {
   resource_path: string
-  username: string
+  principal: PermissionPrincipal
   role_code: AccessRoleCode
   expires_at?: string | null
 }) {
-  return post('/workspace/api/v1/team_access/assign', {
+  return post('/workspace/api/v1/permissions/grant', {
     ...data,
     resource_path: normalizeResourcePath(data.resource_path)
   })
 }
 
-export function batchAssignTeamRoles(data: {
+export function batchGrantRoles(data: {
   resource_paths: string[]
-  usernames: string[]
+  principals: PermissionPrincipal[]
   role_codes: AccessRoleCode[]
   expires_at?: string | null
 }) {
-  return post('/workspace/api/v1/team_access/batch_assign', {
+  return post('/workspace/api/v1/permissions/batch-grant', {
     ...data,
     resource_paths: data.resource_paths.map(normalizeResourcePath)
   })
 }
 
-export function removeTeamRole(data: {
+export function revokeRole(data: {
   resource_path: string
-  username: string
+  principal: PermissionPrincipal
   role_code?: AccessRoleCode
 }) {
-  return post('/workspace/api/v1/team_access/remove', {
+  return post('/workspace/api/v1/permissions/revoke', {
     ...data,
     resource_path: normalizeResourcePath(data.resource_path)
   })
 }
 
 export function getMyPermissions(resourcePath: string) {
-  return get<MyPermissions>('/workspace/api/v1/team_access/my_permissions', {
+  return get<MyPermissions>('/workspace/api/v1/permissions/me', {
     resource_path: normalizeResourcePath(resourcePath)
   })
 }

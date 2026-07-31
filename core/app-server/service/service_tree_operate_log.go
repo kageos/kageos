@@ -52,7 +52,7 @@ func (s *ServiceTreeService) resolveAddFunctionsAuditPath(ctx context.Context, r
 }
 
 func (s *ServiceTreeService) writeServiceTreeOperateLog(ctx context.Context, action string, oldNode, newNode *model.ServiceTree) {
-	if s == nil || s.teamAccessService == nil {
+	if s == nil || s.permissionService == nil {
 		return
 	}
 	node := newNode
@@ -78,7 +78,7 @@ func (s *ServiceTreeService) writeServiceTreeOperateLog(ctx context.Context, act
 	if newNode != nil {
 		newValues = serviceTreeNodeLogValues(newNode)
 	}
-	s.teamAccessService.writeOperateLog(ctx, operateLogInput{
+	s.permissionService.writeOperateLog(ctx, operateLogInput{
 		TenantUser:   tenantUser,
 		App:          app,
 		ActorUser:    actor,

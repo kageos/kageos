@@ -23,7 +23,7 @@
 
         <el-tab-pane :label="t('packageDetail.permission')" name="permission">
           <div class="tab-content access-tab-content">
-            <TeamAccessPanel
+            <PermissionPanel
               ref="accessPanelRef"
               :node="packageNode"
               embedded
@@ -103,7 +103,7 @@ import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
 import NotificationRoutePanel from './NotificationRoutePanel.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
-import TeamAccessPanel from './TeamAccessPanel.vue'
+import PermissionPanel from './PermissionPanel.vue'
 import { usePackageDetailTabs, type PackageTabName } from '@/architecture/presentation/composables/usePackageDetailTabs'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { featureFlags } from '@/architecture/shared/config/features'
@@ -118,7 +118,7 @@ interface LoadableOperateLogSection {
 }
 
 interface LoadableAccessPanel {
-  loadMembers: () => void
+  loadAssignments: () => void
 }
 
 const props = defineProps<{
@@ -172,7 +172,7 @@ function loadOperateLogTab(tabName: PackageTabName) {
     nextTick(() => operateLogSectionRef.value?.load())
   }
   if (tabName === 'permission') {
-    nextTick(() => accessPanelRef.value?.loadMembers())
+    nextTick(() => accessPanelRef.value?.loadAssignments())
   }
 }
 
