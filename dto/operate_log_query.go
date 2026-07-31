@@ -6,7 +6,6 @@ import "encoding/json"
 type GetOperateLogsReq struct {
 	ID                 int64  `json:"id" form:"id"`
 	TenantUser         string `json:"tenant_user" form:"tenant_user"`
-	CompanyCode        string `json:"company_code" form:"company_code"`
 	ActorUser          string `json:"actor_user" form:"actor_user"`
 	TargetUser         string `json:"target_user" form:"target_user"`
 	App                string `json:"app" form:"app"`
@@ -44,7 +43,6 @@ type GetOperateLogsResp struct {
 type OperateLogItem struct {
 	ID                    int64           `json:"id"`
 	TenantUser            string          `json:"tenant_user"`
-	CompanyCode           string          `json:"company_code"`
 	App                   string          `json:"app"`
 	ActorUser             string          `json:"actor_user"`
 	Action                string          `json:"action"`

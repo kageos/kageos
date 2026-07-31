@@ -3,7 +3,6 @@ import { get } from '@/architecture/infrastructure/apiClient/request'
 export interface OperateLog {
   id: number
   tenant_user: string
-  company_code?: string
   app: string
   actor_user: string
   action: string
@@ -37,7 +36,6 @@ export interface OperateLog {
 export interface GetOperateLogsParams {
   id?: number
   tenant_user?: string
-  company_code?: string
   actor_user?: string
   target_user?: string
   app?: string

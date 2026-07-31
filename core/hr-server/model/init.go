@@ -1,7 +1,7 @@
 package model
 
 import (
-	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/kageos/kageos/pkg/openapitoken"
@@ -10,11 +10,14 @@ import (
 
 // InitModels 初始化所有模型（自动迁移）
 func InitModels(db *gorm.DB) error {
+	if err := removeRetiredCompanySchema(db); err != nil {
+		return err
+	}
+
 	// ⭐ 先创建被引用的表（父表），再创建引用它们的表（子表）
 	// 这样可以确保外键约束能够正确创建
 	err := db.AutoMigrate(
 		// 第一层：基础表（不被其他表引用）
-		&Company{},
 		&SystemSetting{},
 		&AuthLoginProvider{},
 		&AuthOAuthState{},
@@ -35,9 +38,6 @@ func InitModels(db *gorm.DB) error {
 		return err
 	}
 
-	if err := ensureCompanyLogoColumn(db); err != nil {
-		return err
-	}
 	if err := ensureUserEmailContactIndex(db); err != nil {
 		return err
 	}
@@ -45,14 +45,52 @@ func InitModels(db *gorm.DB) error {
 		return err
 	}
 
-	return initDefaultCompany(db)
+	return nil
 }
 
-func ensureCompanyLogoColumn(db *gorm.DB) error {
-	if db.Migrator().HasColumn(&Company{}, "LogoURL") {
-		return db.Migrator().AlterColumn(&Company{}, "LogoURL")
+// removeRetiredCompanySchema permanently removes the retired multi-company schema.
+// The checks keep startup idempotent for both upgraded and newly created databases.
+func removeRetiredCompanySchema(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	migrator := db.Migrator()
+	for _, column := range []struct {
+		model any
+		name  string
+	}{
+		{model: &retiredUserCompanyColumn{}, name: "CompanyCode"},
+		{model: &retiredOAuthCompanyColumn{}, name: "CompanyCode"},
+	} {
+		if !migrator.HasTable(column.model) || !migrator.HasColumn(column.model, column.name) {
+			continue
+		}
+		if err := migrator.DropColumn(column.model, column.name); err != nil {
+			return fmt.Errorf("drop retired column %s: %w", column.name, err)
+		}
+	}
+	if migrator.HasTable("company") {
+		if err := migrator.DropTable("company"); err != nil {
+			return fmt.Errorf("drop retired company table: %w", err)
+		}
 	}
 	return nil
+}
+
+type retiredUserCompanyColumn struct {
+	CompanyCode string `gorm:"column:company_code"`
+}
+
+func (retiredUserCompanyColumn) TableName() string {
+	return "user"
+}
+
+type retiredOAuthCompanyColumn struct {
+	CompanyCode string `gorm:"column:company_code"`
+}
+
+func (retiredOAuthCompanyColumn) TableName() string {
+	return "auth_oauth_registration_intents"
 }
 
 func ensureUserEmailContactIndex(db *gorm.DB) error {
@@ -84,24 +122,4 @@ func ensureOAuthRegistrationIntentEmailNullable(db *gorm.DB) error {
 		return db.Migrator().AlterColumn(&AuthOAuthRegistrationIntent{}, "Email")
 	}
 	return nil
-}
-
-func initDefaultCompany(db *gorm.DB) error {
-	company := &Company{}
-	err := db.Where("code = ?", DefaultCompanyCode).First(company).Error
-	if err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
-		company = &Company{
-			Code:      DefaultCompanyCode,
-			Name:      "Default",
-			CreatedBy: "system",
-			LogoURL:   "",
-		}
-		if err := db.Create(company).Error; err != nil {
-			return err
-		}
-	}
-	return db.Model(&User{}).Where("company_code = '' OR company_code IS NULL").Update("company_code", DefaultCompanyCode).Error
 }

@@ -81,7 +81,7 @@ func (s *SystemUser) Update(c *gin.Context) {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
-	user, err := s.userService.UpdateUserFromSystem(contextx.ToContext(c), usernameParam(c), req, contextx.GetRequestUser(c))
+	user, err := s.userService.UpdateUserFromSystem(contextx.ToContext(c), usernameParam(c), req)
 	if err != nil {
 		response.FailWithMessage(c, "更新用户失败: "+err.Error())
 		return

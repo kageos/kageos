@@ -22,7 +22,6 @@ type AuthOAuthRegistrationIntent struct {
 	SuggestedCode       string         `json:"suggested_code" gorm:"column:suggested_code;type:varchar(64)"`
 	CodeSuggestionsJSON string         `json:"code_suggestions_json" gorm:"column:code_suggestions_json;type:text"`
 	RedirectAfter       string         `json:"redirect_after" gorm:"column:redirect_after;type:varchar(1000)"`
-	CompanyCode         string         `json:"company_code" gorm:"column:company_code;type:varchar(64);index;not null;default:'default'"`
 	ExpiresAt           time.Time      `json:"expires_at" gorm:"column:expires_at;index;not null"`
 	UsedAt              *time.Time     `json:"used_at" gorm:"column:used_at;index"`
 }

@@ -26,9 +26,6 @@ const (
 type WorkspaceActionRequest struct {
 	RecipientUser         string
 	DepartmentFullPath    string
-	CompanyCode           string
-	CompanyName           string
-	CompanyLogoURL        string
 	Channel               string
 	FullCodePath          string
 	SessionID             string
@@ -198,9 +195,6 @@ func applyWorkspaceActionHeaders(httpReq *http.Request, req WorkspaceActionReque
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set(contextx.RequestUserHeader, strings.TrimSpace(req.RecipientUser))
 	setHeaderIfNotEmpty(httpReq, contextx.DepartmentFullPathHeader, req.DepartmentFullPath)
-	setHeaderIfNotEmpty(httpReq, contextx.CompanyCodeHeader, req.CompanyCode)
-	setHeaderIfNotEmpty(httpReq, contextx.CompanyNameHeader, req.CompanyName)
-	setHeaderIfNotEmpty(httpReq, contextx.CompanyLogoURLHeader, req.CompanyLogoURL)
 	httpReq.Header.Set(contextx.ClientSourceHeader, WorkspaceActionClientSource)
 	httpReq.Header.Set(contextx.SourceTypeHeader, WorkspaceActionSourceType)
 	setHeaderIfNotEmpty(httpReq, contextx.TraceIdHeader, req.TraceID)

@@ -89,9 +89,6 @@ func (s *Server) submitPublicMessageActionReply(c *gin.Context) {
 	runResult, runErr := s.workspaceActionRunner.Submit(c.Request.Context(), service.WorkspaceActionRequest{
 		RecipientUser:         view.RecipientUser,
 		DepartmentFullPath:    c.GetHeader(contextx.DepartmentFullPathHeader),
-		CompanyCode:           c.GetHeader(contextx.CompanyCodeHeader),
-		CompanyName:           c.GetHeader(contextx.CompanyNameHeader),
-		CompanyLogoURL:        c.GetHeader(contextx.CompanyLogoURLHeader),
 		Channel:               firstNonEmptyActionString(resp.Channel, view.Channel),
 		FullCodePath:          resp.FullCodePath,
 		SessionID:             resp.WorkspaceSessionID,

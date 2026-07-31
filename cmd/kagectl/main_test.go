@@ -759,7 +759,7 @@ func TestParseBuildAppBaseFlagsRejectsEmptyImage(t *testing.T) {
 }
 
 func TestParseInitDevFlags(t *testing.T) {
-	opts, err := parseInitDevFlags([]string{"--engine", "podman", "--base-image", "registry.example.com/kagebase:stable", "--base-force", "--base-no-cache", "--company-code", "acme", "--company-name", "Acme Inc"})
+	opts, err := parseInitDevFlags([]string{"--engine", "podman", "--base-image", "registry.example.com/kagebase:stable", "--base-force", "--base-no-cache"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -774,9 +774,6 @@ func TestParseInitDevFlags(t *testing.T) {
 	}
 	if !opts.BaseNoCache {
 		t.Fatal("BaseNoCache = false, want true")
-	}
-	if opts.CompanyCode != "acme" || opts.CompanyName != "Acme Inc" {
-		t.Fatalf("unexpected company opts: %#v", opts)
 	}
 }
 
@@ -881,7 +878,7 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 		GeneratedDir: filepath.Join(repoRoot, defaultProdDir, defaultGenerated),
 	}
 
-	if err := renderDevConfig(paths, false, "", ""); err != nil {
+	if err := renderDevConfig(paths, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -992,31 +989,6 @@ func TestRenderDevConfigUsesKageosDir(t *testing.T) {
 	}
 }
 
-func TestRenderDevConfigAcceptsCompanyOverrides(t *testing.T) {
-	repoRoot := t.TempDir()
-	paths := Paths{
-		RepoRoot:     repoRoot,
-		ProdDir:      filepath.Join(repoRoot, defaultProdDir),
-		ConfigPath:   filepath.Join(repoRoot, defaultProdDir, defaultConfigName),
-		GeneratedDir: filepath.Join(repoRoot, defaultProdDir, defaultGenerated),
-	}
-
-	if err := renderDevConfig(paths, false, "acme", "Acme Inc"); err != nil {
-		t.Fatal(err)
-	}
-
-	hrConfig := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "config", "hr-server.yaml"))
-	for _, want := range []string{`code: "acme"`, `name: "Acme Inc"`} {
-		if !strings.Contains(hrConfig, want) {
-			t.Fatalf("dev hr config missing %q, got:\n%s", want, hrConfig)
-		}
-	}
-	envContent := mustReadFile(t, filepath.Join(repoRoot, ".kageos", "dev", "env", "kageos.env"))
-	if !strings.Contains(envContent, "KAGEOS_COMPANY_CODE=acme") || !strings.Contains(envContent, `KAGEOS_COMPANY_NAME="Acme Inc"`) {
-		t.Fatalf("dev env missing company values, got:\n%s", envContent)
-	}
-}
-
 func TestRenderDevConfigPreservesExistingSecrets(t *testing.T) {
 	repoRoot := t.TempDir()
 	paths := Paths{
@@ -1045,7 +1017,7 @@ func TestRenderDevConfigPreservesExistingSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := renderDevConfig(paths, false, "", ""); err != nil {
+	if err := renderDevConfig(paths, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1071,7 +1043,7 @@ func TestRenderDevConfigRefusesImplicitSecretsWhenStateExistsWithoutEnv(t *testi
 		t.Fatal(err)
 	}
 
-	err := renderDevConfig(paths, false, "", "")
+	err := renderDevConfig(paths, false)
 	if err == nil || !strings.Contains(err.Error(), "refusing to generate new secrets implicitly") {
 		t.Fatalf("expected implicit secret generation refusal, got: %v", err)
 	}
@@ -1093,7 +1065,7 @@ func TestRenderDevConfigRefusesIncompleteExistingEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := renderDevConfig(paths, false, "", "")
+	err := renderDevConfig(paths, false)
 	if err == nil || !strings.Contains(err.Error(), "dev env is incomplete") {
 		t.Fatalf("expected incomplete env refusal, got: %v", err)
 	}
@@ -1410,11 +1382,11 @@ func TestUninstallDataTargetsKeepPodmanStorageByDefault(t *testing.T) {
 func TestParseInitAndBootstrapFlags(t *testing.T) {
 	t.Parallel()
 
-	initOpts, err := parseInitFlags("init", []string{"--force", "--base-url", "http://example.com:8080", "--http-port", "8080", "--https-port", "8443", "--mysql-mode", "bundled", "--company-code", "acme", "--company-name", "Acme Inc"})
+	initOpts, err := parseInitFlags("init", []string{"--force", "--base-url", "http://example.com:8080", "--http-port", "8080", "--https-port", "8443", "--mysql-mode", "bundled"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !initOpts.Force || initOpts.BaseURL != "http://example.com:8080" || initOpts.HTTPPort != 8080 || initOpts.HTTPSPort != 8443 || initOpts.MySQLMode != "bundled" || initOpts.CompanyCode != "acme" || initOpts.CompanyName != "Acme Inc" {
+	if !initOpts.Force || initOpts.BaseURL != "http://example.com:8080" || initOpts.HTTPPort != 8080 || initOpts.HTTPSPort != 8443 || initOpts.MySQLMode != "bundled" {
 		t.Fatalf("unexpected init opts: %#v", initOpts)
 	}
 
@@ -1455,7 +1427,7 @@ func TestWriteInitialConfig(t *testing.T) {
 		ConfigPath:   filepath.Join(prodDir, defaultConfigName),
 		GeneratedDir: filepath.Join(prodDir, defaultGenerated),
 	}
-	created, err := writeInitialConfig(paths, initOptions{BaseURL: "http://example.com:8080", TLSMode: "http", HTTPPort: 8080, HTTPSPort: 8443, MySQLMode: "bundled", CompanyCode: "acme", CompanyName: "Acme Inc", RegistrationMode: "email_code", SMTPMode: "smtp"})
+	created, err := writeInitialConfig(paths, initOptions{BaseURL: "http://example.com:8080", TLSMode: "http", HTTPPort: 8080, HTTPSPort: 8443, MySQLMode: "bundled", RegistrationMode: "email_code", SMTPMode: "smtp"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1471,9 +1443,6 @@ func TestWriteInitialConfig(t *testing.T) {
 	}
 	if cfg.Site.HTTPPort != 8080 || cfg.Site.HTTPSPort != 8443 {
 		t.Fatalf("unexpected site ports: http=%d https=%d", cfg.Site.HTTPPort, cfg.Site.HTTPSPort)
-	}
-	if cfg.Company.Code != "acme" || cfg.Company.Name != "Acme Inc" {
-		t.Fatalf("unexpected company config: %#v", cfg.Company)
 	}
 	if cfg.Auth.RegistrationMode != "email_code" || cfg.SMTP.Mode != "smtp" {
 		t.Fatalf("unexpected auth/smtp config: auth=%#v smtp=%#v", cfg.Auth, cfg.SMTP)

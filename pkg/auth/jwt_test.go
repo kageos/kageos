@@ -23,7 +23,6 @@ func TestGenerateRefreshTokenWithContextExpiresAtUsesRequestedExpiry(t *testing.
 		UserID:             42,
 		Username:           "alice",
 		Email:              "alice@example.com",
-		CompanyCode:        "acme",
 		DepartmentFullPath: "/org/engineering",
 		LeaderUsername:     "lead",
 	}, expiresAt)

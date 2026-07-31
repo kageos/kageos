@@ -91,6 +91,9 @@ func newServiceTreeQueryViewAccessTest(t *testing.T, hideUnauthorizedNodes bool)
 		repository.NewOperateLogRepository(db),
 		appRepo,
 	)
+	teamAccess.userLookup = func(ctx context.Context, username string) (*dto.UserInfo, error) {
+		return &dto.UserInfo{Username: username}, nil
+	}
 	return newServiceTreeQueryView(serviceTreeRepo, appRepo, teamAccess), db, app, teamAccess
 }
 

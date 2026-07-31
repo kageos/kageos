@@ -58,7 +58,7 @@ func (v runWriteUserWidgetValidator) ValidateBatch(ctx context.Context, items []
 		if _, ok := existing[ref.Username]; !ok {
 			issues = append(issues, runWriteValidationIssue{
 				Kind:    runWriteIssueUser,
-				Message: fmt.Sprintf("%s (%s) 包含不存在或当前企业不可见的用户 %q。", runWriteFieldDisplayName(ref.Field), ref.Path, ref.Username),
+				Message: fmt.Sprintf("%s (%s) 包含不存在的用户 %q。", runWriteFieldDisplayName(ref.Field), ref.Path, ref.Username),
 			})
 		}
 	}

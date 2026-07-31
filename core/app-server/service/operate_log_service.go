@@ -27,7 +27,6 @@ func (s *OperateLogService) GetOperateLogs(ctx context.Context, req *dto.GetOper
 		logItems[i] = dto.OperateLogItem{
 			ID:                    log.ID,
 			TenantUser:            log.TenantUser,
-			CompanyCode:           log.CompanyCode,
 			App:                   log.App,
 			ActorUser:             log.ActorUser,
 			Action:                log.Action,

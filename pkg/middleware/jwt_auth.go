@@ -65,18 +65,6 @@ func JWTAuth(options ...AuthOption) gin.HandlerFunc {
 				c.Set(contextx.DepartmentFullPathHeader, principal.DepartmentFullPath)
 				c.Request.Header.Set(contextx.DepartmentFullPathHeader, principal.DepartmentFullPath)
 			}
-			if principal.CompanyCode != "" {
-				c.Set(contextx.CompanyCodeHeader, principal.CompanyCode)
-				c.Request.Header.Set(contextx.CompanyCodeHeader, principal.CompanyCode)
-			}
-			if principal.CompanyName != "" {
-				c.Set(contextx.CompanyNameHeader, principal.CompanyName)
-				c.Request.Header.Set(contextx.CompanyNameHeader, principal.CompanyName)
-			}
-			if principal.CompanyLogoURL != "" {
-				c.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
-				c.Request.Header.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
-			}
 			c.Set(contextx.ClientSourceHeader, contextx.ClientSourceOpenAPI)
 			c.Request.Header.Set(contextx.ClientSourceHeader, contextx.ClientSourceOpenAPI)
 			c.Request.Header.Set(contextx.SourceTypeHeader, contextx.SourceTypeOpenAPIToken)
@@ -96,7 +84,6 @@ func JWTAuth(options ...AuthOption) gin.HandlerFunc {
 			if deptPath := c.GetHeader(contextx.DepartmentFullPathHeader); deptPath != "" {
 				c.Set(contextx.DepartmentFullPathHeader, deptPath)
 			}
-			setCompanyContextFromHeaders(c)
 			logger.Debugf(c, "[JWTAuth] 从可信网关 header 获取用户信息 - User: %s, Path: %s", requestUser, c.Request.URL.Path)
 			c.Next()
 			return
@@ -130,8 +117,6 @@ func JWTAuth(options ...AuthOption) gin.HandlerFunc {
 			if claims.DepartmentFullPath != nil && *claims.DepartmentFullPath != "" {
 				c.Set(contextx.DepartmentFullPathHeader, *claims.DepartmentFullPath)
 			}
-			setCompanyContextFromClaims(c, claims)
-
 			c.Next()
 			return
 		}
@@ -180,33 +165,8 @@ func JWTAuthOptional() gin.HandlerFunc {
 			claims, err := jwtService.ValidateAccessToken(token)
 			if err == nil {
 				c.Set(contextx.RequestUserHeader, claims.Username)
-				setCompanyContextFromClaims(c, claims)
 			}
 		}
 		c.Next()
-	}
-}
-
-func setCompanyContextFromHeaders(c *gin.Context) {
-	if companyCode := c.GetHeader(contextx.CompanyCodeHeader); companyCode != "" {
-		c.Set(contextx.CompanyCodeHeader, companyCode)
-	}
-	if companyName := c.GetHeader(contextx.CompanyNameHeader); companyName != "" {
-		c.Set(contextx.CompanyNameHeader, companyName)
-	}
-	if companyLogoURL := c.GetHeader(contextx.CompanyLogoURLHeader); companyLogoURL != "" {
-		c.Set(contextx.CompanyLogoURLHeader, companyLogoURL)
-	}
-}
-
-func setCompanyContextFromClaims(c *gin.Context, claims *auth.JWTClaims) {
-	if claims.CompanyCode != "" {
-		c.Set(contextx.CompanyCodeHeader, claims.CompanyCode)
-	}
-	if claims.CompanyName != "" {
-		c.Set(contextx.CompanyNameHeader, claims.CompanyName)
-	}
-	if claims.CompanyLogoURL != "" {
-		c.Set(contextx.CompanyLogoURLHeader, claims.CompanyLogoURL)
 	}
 }

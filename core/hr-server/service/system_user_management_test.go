@@ -13,26 +13,20 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestCreateUserFromSystemCreatesCompanyAndUser(t *testing.T) {
+func TestCreateUserFromSystemCreatesUser(t *testing.T) {
 	t.Parallel()
 
 	db := openSystemUserManagementTestDB(t)
 	userRepo := repository.NewUserRepository(db)
-	companyRepo := repository.NewCompanyRepository(db)
-	svc := NewUserService(userRepo, companyRepo, nil, nil)
+	svc := NewUserService(userRepo, nil, nil)
 
 	user, err := svc.CreateUserFromSystem(context.Background(), dto.SystemCreateUserReq{
-		Username:    "alice",
-		Password:    "secret123",
-		Nickname:    "Alice",
-		CompanyCode: "acme",
-		CompanyName: "Acme Inc",
+		Username: "alice",
+		Password: "secret123",
+		Nickname: "Alice",
 	}, SystemUsername)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if user.CompanyCode != "acme" {
-		t.Fatalf("company code = %q, want acme", user.CompanyCode)
 	}
 	if user.Status != "active" || !user.EmailVerified {
 		t.Fatalf("status/email_verified = %q/%v, want active/true", user.Status, user.EmailVerified)
@@ -43,14 +37,6 @@ func TestCreateUserFromSystemCreatesCompanyAndUser(t *testing.T) {
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte("secret123")); err != nil {
 		t.Fatalf("password hash mismatch: %v", err)
 	}
-
-	company, err := companyRepo.GetCompanyByCode("acme")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if company.Name != "Acme Inc" {
-		t.Fatalf("company name = %q, want Acme Inc", company.Name)
-	}
 }
 
 func TestUpdateUserStatusFromSystemDoesNotDisableSystem(t *testing.T) {
@@ -58,12 +44,10 @@ func TestUpdateUserStatusFromSystemDoesNotDisableSystem(t *testing.T) {
 
 	db := openSystemUserManagementTestDB(t)
 	userRepo := repository.NewUserRepository(db)
-	companyRepo := repository.NewCompanyRepository(db)
-	svc := NewUserService(userRepo, companyRepo, nil, nil)
+	svc := NewUserService(userRepo, nil, nil)
 	if err := userRepo.CreateUser(&model.User{
 		Username:      SystemUsername,
 		Email:         SystemUserEmail,
-		CompanyCode:   model.DefaultCompanyCode,
 		Status:        "active",
 		RegisterType:  "system",
 		EmailVerified: true,
@@ -85,11 +69,8 @@ func openSystemUserManagementTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.Company{}, &model.User{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}); err != nil {
 		t.Fatalf("migrate system user management test db: %v", err)
-	}
-	if err := db.Create(&model.Company{Code: model.DefaultCompanyCode, Name: "Default", CreatedBy: SystemUsername}).Error; err != nil {
-		t.Fatalf("create default company: %v", err)
 	}
 	return db
 }

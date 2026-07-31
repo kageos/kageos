@@ -12,29 +12,15 @@ type SendEmailCodeResp struct {
 
 // RegisterReq 用户注册请求
 type RegisterReq struct {
-	Username       string `json:"username" binding:"required,min=3,max=32" example:"beiluo"`            // 用户 code
-	Email          string `json:"email" binding:"required,email" example:"beiluo@example.com"`          // 邮箱
-	Password       string `json:"password" binding:"required,min=6" example:"123456"`                   // 密码
-	Code           string `json:"code" binding:"required,len=6" example:"123456"`                       // 验证码
-	CompanyAction  string `json:"company_action" binding:"required,oneof=create join" example:"create"` // 企业动作：create 创建企业，join 加入企业
-	CompanyCode    string `json:"company_code" binding:"required,min=2,max=64" example:"acme"`          // 企业代码，全局唯一
-	CompanyName    string `json:"company_name" example:"Acme Inc"`                                      // 企业名称，创建企业时必填且全局唯一
-	CompanyLogoURL string `json:"company_logo_url" example:"https://cdn.example.com/acme.png"`          // 企业 Logo 地址，可选
+	Username string `json:"username" binding:"required,min=3,max=32" example:"beiluo"`   // 用户 code
+	Email    string `json:"email" binding:"required,email" example:"beiluo@example.com"` // 邮箱
+	Password string `json:"password" binding:"required,min=6" example:"123456"`          // 密码
+	Code     string `json:"code" binding:"required,len=6" example:"123456"`              // 验证码
 }
 
 // RegisterResp 用户注册响应
 type RegisterResp struct {
 	UserID int64 `json:"user_id" example:"1"` // 用户ID
-}
-
-type SearchCompaniesResp struct {
-	Companies []CompanyOption `json:"companies"`
-}
-
-type CompanyOption struct {
-	Code    string `json:"code" example:"acme"`                                        // 企业代码
-	Name    string `json:"name" example:"Acme Inc"`                                    // 企业名称
-	LogoURL string `json:"logo_url,omitempty" example:"https://cdn.example.com/a.png"` // 企业 Logo 地址
 }
 
 // LoginReq 用户登录请求
@@ -78,25 +64,22 @@ type ConfirmOAuthRegistrationResp struct {
 
 // UserInfo 用户信息
 type UserInfo struct {
-	ID                     int64  `json:"id" example:"1"`                                                        // 用户ID
-	Username               string `json:"username" example:"beiluo"`                                             // 用户名
-	Email                  string `json:"email" example:"beiluo@example.com"`                                    // 邮箱
-	CompanyCode            string `json:"company_code" example:"acme"`                                           // 企业代码
-	CompanyName            string `json:"company_name,omitempty" example:"Acme Inc"`                             // 企业名称
-	CompanyLogoURL         string `json:"company_logo_url,omitempty" example:"https://cdn.example.com/acme.png"` // 企业 Logo 地址
-	RegisterType           string `json:"register_type" example:"email"`                                         // 注册方式
-	Avatar                 string `json:"avatar" example:"https://avatar.com/1.jpg"`                             // 头像
-	Nickname               string `json:"nickname" example:"北落"`                                                 // 昵称
-	Signature              string `json:"signature" example:"这个人很懒，什么都没有留下"`                                     // 个人签名/简介
-	Gender                 string `json:"gender" example:"male"`                                                 // 性别: male(男), female(女), other(其他), 空字符串表示未设置
-	EmailVerified          bool   `json:"email_verified" example:"true"`                                         // 邮箱是否已验证
-	Status                 string `json:"status" example:"active"`                                               // 用户状态: pending(待邮箱验证), active(已激活)
-	CreatedAt              string `json:"created_at" example:"2024-01-01T00:00:00Z"`                             // 创建时间
-	DepartmentFullPath     string `json:"department_full_path,omitempty" example:"/tech/backend"`                // 部门完整路径（可选）
-	DepartmentName         string `json:"department_name,omitempty" example:"后端组"`                               // 部门名称（可选，用于显示）
-	DepartmentFullNamePath string `json:"department_full_name_path,omitempty" example:"技术部/后端组"`                 // 部门完整名称路径（可选，用于展示组织架构全称）
-	LeaderUsername         string `json:"leader_username,omitempty" example:"lisi"`                              // Leader 用户名（可选）
-	LeaderDisplayName      string `json:"leader_display_name,omitempty" example:"lisi(李四)"`                      // Leader 显示名称（可选，用于显示）
+	ID                     int64  `json:"id" example:"1"`                                         // 用户ID
+	Username               string `json:"username" example:"beiluo"`                              // 用户名
+	Email                  string `json:"email" example:"beiluo@example.com"`                     // 邮箱
+	RegisterType           string `json:"register_type" example:"email"`                          // 注册方式
+	Avatar                 string `json:"avatar" example:"https://avatar.com/1.jpg"`              // 头像
+	Nickname               string `json:"nickname" example:"北落"`                                  // 昵称
+	Signature              string `json:"signature" example:"这个人很懒，什么都没有留下"`                      // 个人签名/简介
+	Gender                 string `json:"gender" example:"male"`                                  // 性别: male(男), female(女), other(其他), 空字符串表示未设置
+	EmailVerified          bool   `json:"email_verified" example:"true"`                          // 邮箱是否已验证
+	Status                 string `json:"status" example:"active"`                                // 用户状态: pending(待邮箱验证), active(已激活)
+	CreatedAt              string `json:"created_at" example:"2024-01-01T00:00:00Z"`              // 创建时间
+	DepartmentFullPath     string `json:"department_full_path,omitempty" example:"/tech/backend"` // 部门完整路径（可选）
+	DepartmentName         string `json:"department_name,omitempty" example:"后端组"`                // 部门名称（可选，用于显示）
+	DepartmentFullNamePath string `json:"department_full_name_path,omitempty" example:"技术部/后端组"`  // 部门完整名称路径（可选，用于展示组织架构全称）
+	LeaderUsername         string `json:"leader_username,omitempty" example:"lisi"`               // Leader 用户名（可选）
+	LeaderDisplayName      string `json:"leader_display_name,omitempty" example:"lisi(李四)"`       // Leader 显示名称（可选，用于显示）
 }
 
 // RefreshTokenReq 刷新Token请求

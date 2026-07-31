@@ -1380,7 +1380,6 @@ async function hydrateResourceMetadata(paths: string[], seq: number) {
 function mapUserInfoToMeta(user: UserInfo): PromptUserMeta {
   const username = user.username || ''
   const department = user.department_full_name_path || user.department_name || ''
-  const company = user.company_name || user.company_code || ''
   const signature = cleanMentionText(user.signature)
   const email = cleanMentionText(user.email)
   const label = normalizeUserDisplayLabel(username, user.nickname || '')
@@ -1392,7 +1391,6 @@ function mapUserInfoToMeta(user: UserInfo): PromptUserMeta {
     metaItems: compactMetaItems([
       username ? `@${username}` : '',
       department,
-      company,
     ]),
   }
 }

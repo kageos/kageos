@@ -27,9 +27,8 @@ type ExternalPrincipal struct {
 }
 
 type ExternalLoginOptions struct {
-	ShortCode          string
-	DefaultCompanyCode string
-	RedirectAfter      string
+	ShortCode     string
+	RedirectAfter string
 }
 
 type ExternalLoginResult struct {
@@ -115,19 +114,6 @@ func (s *AuthOAuthService) createExternalRegistrationIntent(principal ExternalPr
 		return nil, fmt.Errorf("生成用户 code 建议失败")
 	}
 
-	companyCode := strings.TrimSpace(options.DefaultCompanyCode)
-	if companyCode == "" {
-		companyCode = model.DefaultCompanyCode
-	}
-	if s.authService != nil && s.authService.companyRepo != nil {
-		if _, err := s.authService.companyRepo.GetCompanyByCode(companyCode); err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("生成授权注册失败：企业代码 %s 不存在", companyCode)
-			}
-			return nil, fmt.Errorf("检查企业代码失败: %w", err)
-		}
-	}
-
 	suggestionsJSON, err := json.Marshal(suggestions)
 	if err != nil {
 		return nil, err
@@ -147,7 +133,6 @@ func (s *AuthOAuthService) createExternalRegistrationIntent(principal ExternalPr
 		SuggestedCode:       suggestions[0],
 		CodeSuggestionsJSON: string(suggestionsJSON),
 		RedirectAfter:       sanitizeRedirectAfter(options.RedirectAfter),
-		CompanyCode:         companyCode,
 		ExpiresAt:           time.Now().Add(oauthRegistrationIntentTTL),
 	}
 	if err := s.registrationIntentRepo.Create(intent); err != nil {

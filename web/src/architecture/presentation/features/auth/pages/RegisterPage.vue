@@ -1,67 +1,31 @@
 <script setup lang="ts">
-import { computed, ref, reactive, watch } from 'vue'
+import { computed, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { User, Lock, Message, Loading, OfficeBuilding, Picture, Upload, Delete } from '@element-plus/icons-vue'
-import { register as registerApi, sendEmailCode, searchCompanies, uploadCompanyLogo } from '@/architecture/presentation/context/api/auth'
+import { User, Lock, Message, Loading } from '@element-plus/icons-vue'
+import { register as registerApi, sendEmailCode } from '@/architecture/presentation/context/api/auth'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
-import type { RegisterRequest, CompanyOption } from '@/architecture/domain/types'
+import type { RegisterRequest } from '@/architecture/domain/types'
 import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
-import defaultCompanyLogo from '@/architecture/presentation/assets/logo.svg'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const { t } = useI18n()
-const maxLogoSize = 512 * 1024
-
 // 表单数据
 const registerForm = reactive<RegisterRequest>({
   username: '',
   email: '',
   password: '',
-  code: '',
-  company_action: 'create',
-  company_code: '',
-  company_name: '',
-  company_logo_url: ''
+  code: ''
 })
 
 // 表单引用
 const registerFormRef = ref()
-const logoInputRef = ref<HTMLInputElement>()
-
 // 加载状态
 const loading = ref(false)
 const sendingCode = ref(false)
 const countdown = ref(0)
-const logoLoadFailed = ref(false)
-const uploadingLogo = ref(false)
-const searchingCompanies = ref(false)
-const companyOptions = ref<CompanyOption[]>([])
-let companySearchSeq = 0
-
-const normalizedCompanyLogoURL = computed(() => registerForm.company_logo_url?.trim() || '')
-const companyLogoPreview = computed(() => (
-  registerForm.company_action === 'create' && !logoLoadFailed.value
-    ? normalizedCompanyLogoURL.value || defaultCompanyLogo
-    : ''
-))
-
-watch(() => registerForm.company_action, (action) => {
-  registerFormRef.value?.clearValidate?.(['company_name', 'company_logo_url'])
-  if (action === 'join') {
-    registerForm.company_name = ''
-    registerForm.company_logo_url = ''
-    logoLoadFailed.value = false
-    searchJoinCompanies('')
-  }
-})
-
-watch(normalizedCompanyLogoURL, () => {
-  logoLoadFailed.value = false
-})
-
 // 表单验证规则
 const rules = computed(() => ({
   username: [
@@ -80,28 +44,7 @@ const rules = computed(() => ({
   code: [
     { required: true, message: t('auth.codeRequired'), trigger: 'blur' },
     { len: 6, message: t('auth.codeLength'), trigger: 'blur' }
-  ],
-  company_action: [
-    { required: true, message: t('auth.companyActionRequired'), trigger: 'change' }
-  ],
-  company_code: [
-    { required: true, message: t('auth.companyCodeRequired'), trigger: 'blur' },
-    { min: 2, max: 64, message: t('auth.companyCodeLength'), trigger: 'blur' },
-    { pattern: /^[a-zA-Z0-9_-]+$/, message: t('auth.companyCodePattern'), trigger: 'blur' }
-  ],
-  company_name: [
-    {
-      validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
-        if (registerForm.company_action === 'create' && !value?.trim()) {
-          callback(new Error(t('auth.companyNameRequired')))
-          return
-        }
-        callback()
-      },
-      trigger: 'blur'
-    }
-  ],
-  company_logo_url: []
+  ]
 }))
 
 const normalizeUserCodeInput = (value: string | number) => {
@@ -111,77 +54,6 @@ const normalizeUserCodeInput = (value: string | number) => {
     .replace(/[^a-z0-9_]/g, '')
     .replace(/_+/g, '_')
     .replace(/^[^a-z]+/g, '')
-}
-
-const triggerLogoUpload = () => {
-  logoInputRef.value?.click()
-}
-
-const resetCompanyLogo = () => {
-  registerForm.company_logo_url = ''
-  logoLoadFailed.value = false
-  if (logoInputRef.value) {
-    logoInputRef.value.value = ''
-  }
-}
-
-const clearCompanyLogo = () => {
-  registerForm.company_logo_url = ''
-  logoLoadFailed.value = false
-  if (logoInputRef.value) {
-    logoInputRef.value.value = ''
-  }
-}
-
-const handleLogoFileChange = async (event: Event) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) {
-    return
-  }
-  if (!file.type.startsWith('image/')) {
-    ElMessage.warning(t('auth.companyLogoFileType'))
-    input.value = ''
-    return
-  }
-  if (file.size > maxLogoSize) {
-    ElMessage.warning(t('auth.companyLogoFileSize'))
-    input.value = ''
-    return
-  }
-  uploadingLogo.value = true
-  try {
-    const url = await uploadCompanyLogo(file)
-    registerForm.company_logo_url = url
-    logoLoadFailed.value = false
-    ElMessage.success(t('auth.companyLogoUploadSuccess'))
-  } catch (error: any) {
-    console.error('Upload company logo failed:', error)
-    ElMessage.error(error?.message || t('auth.companyLogoUploadFailed'))
-  } finally {
-    uploadingLogo.value = false
-    input.value = ''
-  }
-}
-
-const searchJoinCompanies = async (keyword: string) => {
-  const seq = ++companySearchSeq
-  searchingCompanies.value = true
-  try {
-    const resp = await searchCompanies(keyword, 10)
-    if (seq === companySearchSeq) {
-      companyOptions.value = resp.companies || []
-    }
-  } catch (error) {
-    console.error('Search companies failed:', error)
-    if (seq === companySearchSeq) {
-      companyOptions.value = []
-    }
-  } finally {
-    if (seq === companySearchSeq) {
-      searchingCompanies.value = false
-    }
-  }
 }
 
 // 处理注册
@@ -195,15 +67,7 @@ const handleRegister = async () => {
       username: registerForm.username.trim().toLowerCase(),
       email: registerForm.email.trim(),
       password: registerForm.password,
-      code: registerForm.code,
-      company_action: registerForm.company_action,
-      company_code: registerForm.company_code.trim()
-    }
-    if (registerForm.company_action === 'create') {
-      payload.company_name = registerForm.company_name?.trim()
-      if (normalizedCompanyLogoURL.value) {
-        payload.company_logo_url = normalizedCompanyLogoURL.value
-      }
+      code: registerForm.code
     }
 
     await registerApi(payload)
@@ -402,118 +266,6 @@ const handleKeyPress = (event: KeyboardEvent) => {
               size="large"
               class="form-input"
             />
-          </el-form-item>
-
-          <el-form-item prop="company_action">
-            <div class="company-panel">
-              <div class="company-panel-header">
-                <div class="company-panel-icon">
-                  <el-icon><OfficeBuilding /></el-icon>
-                </div>
-                <div class="company-panel-copy">
-                  <div class="company-panel-title">{{ t('auth.companySectionTitle') }}</div>
-                  <div class="company-panel-desc">{{ t('auth.companySectionDesc') }}</div>
-                </div>
-              </div>
-              <el-segmented
-                v-model="registerForm.company_action"
-                :options="[
-                  { label: t('auth.createCompany'), value: 'create' },
-                  { label: t('auth.joinCompany'), value: 'join' }
-                ]"
-                class="company-mode"
-              />
-            </div>
-          </el-form-item>
-
-          <el-form-item v-if="registerForm.company_action === 'create'" prop="company_name">
-            <el-input
-              data-testid="register-company-name"
-              v-model="registerForm.company_name"
-              :placeholder="t('auth.companyNamePlaceholder')"
-              :prefix-icon="OfficeBuilding"
-              clearable
-              size="large"
-              class="form-input"
-            />
-          </el-form-item>
-
-          <div v-if="registerForm.company_action === 'create'" class="company-logo-row">
-            <div class="company-logo-preview">
-              <img
-                v-if="companyLogoPreview"
-                :src="companyLogoPreview"
-                :alt="registerForm.company_name || t('auth.companyLogoPreview')"
-                @error="logoLoadFailed = true"
-              />
-              <el-icon v-else><Picture /></el-icon>
-            </div>
-            <div class="company-logo-actions">
-              <div class="company-logo-title">{{ t('auth.companyLogoTitle') }}</div>
-              <div class="company-logo-desc">{{ t('auth.companyLogoDesc') }}</div>
-              <div class="company-logo-buttons">
-                <el-button size="small" :icon="Upload" :loading="uploadingLogo" :disabled="uploadingLogo" @click="triggerLogoUpload">
-                  {{ uploadingLogo ? t('auth.companyLogoUploading') : t('auth.companyLogoUpload') }}
-                </el-button>
-                <el-button size="small" :icon="Picture" :disabled="uploadingLogo" @click="resetCompanyLogo">
-                  {{ t('auth.companyLogoUseDefault') }}
-                </el-button>
-                <el-button size="small" text :icon="Delete" :disabled="uploadingLogo" @click="clearCompanyLogo">
-                  {{ t('auth.companyLogoClear') }}
-                </el-button>
-              </div>
-              <input
-                ref="logoInputRef"
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                class="company-logo-input"
-                @change="handleLogoFileChange"
-              />
-            </div>
-          </div>
-
-          <el-form-item v-if="registerForm.company_action === 'create'" prop="company_code">
-            <el-input
-              data-testid="register-company-code"
-              v-model="registerForm.company_code"
-              :placeholder="t('auth.companyCodeCreatePlaceholder')"
-              :prefix-icon="OfficeBuilding"
-              clearable
-              size="large"
-              class="form-input"
-            />
-          </el-form-item>
-
-          <el-form-item v-else prop="company_code">
-            <el-select
-              v-model="registerForm.company_code"
-              filterable
-              remote
-              clearable
-              reserve-keyword
-              :remote-method="searchJoinCompanies"
-              :loading="searchingCompanies"
-              :placeholder="t('auth.companySearchPlaceholder')"
-              size="large"
-              class="form-input company-select"
-            >
-              <el-option
-                v-for="company in companyOptions"
-                :key="company.code"
-                :label="`${company.name} (${company.code})`"
-                :value="company.code"
-              >
-                <div class="company-select-option">
-                  <div class="company-select-logo">
-                    <img :src="company.logo_url || defaultCompanyLogo" :alt="company.name" />
-                  </div>
-                  <div class="company-select-copy">
-                    <div class="company-select-name">{{ company.name }}</div>
-                    <div class="company-select-code">{{ company.code }}</div>
-                  </div>
-                </div>
-              </el-option>
-            </el-select>
           </el-form-item>
 
           <el-form-item prop="code">
@@ -904,179 +656,6 @@ const handleKeyPress = (event: KeyboardEvent) => {
   --el-text-color-regular: var(--auth-input-text);
 }
 
-.company-panel {
-  width: 100%;
-  padding: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 14px;
-  background: rgba(248, 250, 252, 0.86);
-}
-
-.company-panel-header {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.company-panel-icon {
-  width: 38px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  border-radius: 10px;
-  color: var(--auth-accent-strong);
-  background: rgba(22, 163, 74, 0.12);
-}
-
-.company-panel-copy {
-  min-width: 0;
-}
-
-.company-panel-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--auth-text);
-  line-height: 1.3;
-}
-
-.company-panel-desc {
-  margin-top: 2px;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--auth-text-soft);
-}
-
-.company-mode {
-  width: 100%;
-}
-
-:deep(.company-mode .el-segmented__item) {
-  flex: 1;
-  min-height: 44px;
-}
-
-.company-logo-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 28px;
-}
-
-.company-logo-preview {
-  width: 64px;
-  height: 64px;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  border-radius: 14px;
-  color: #94a3b8;
-  background: rgba(255, 255, 255, 0.92);
-}
-
-.company-logo-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.company-logo-preview .el-icon {
-  font-size: 24px;
-}
-
-.company-logo-actions {
-  flex: 1;
-  min-width: 0;
-  padding-top: 1px;
-}
-
-.company-logo-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--auth-text);
-  line-height: 1.35;
-}
-
-.company-logo-desc {
-  margin-top: 2px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--auth-text-soft);
-}
-
-.company-logo-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.company-logo-buttons :deep(.el-button) {
-  margin-left: 0;
-  border-radius: 10px;
-}
-
-.company-logo-input {
-  display: none;
-}
-
-.company-select {
-  width: 100%;
-}
-
-.company-select-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.company-select-logo {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border-radius: 8px;
-  color: #16a34a;
-  background: rgba(22, 163, 74, 0.1);
-}
-
-.company-select-logo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.company-select-copy {
-  min-width: 0;
-  line-height: 1.25;
-}
-
-.company-select-name {
-  overflow: hidden;
-  color: #174630;
-  font-size: 13px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.company-select-code {
-  overflow: hidden;
-  color: #7f9b8c;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 :deep(.el-form-item) {
   margin-bottom: 28px;
 }
@@ -1352,98 +931,6 @@ const handleKeyPress = (event: KeyboardEvent) => {
 .register-container .form-input.el-input .el-input__wrapper.is-focus {
   background-color: rgba(255, 255, 255, 0.98) !important;
   border-color: #16a34a !important;
-}
-
-.register-container .company-select.el-select {
-  --el-select-input-color: #174630;
-  --el-select-input-focus-border-color: #16a34a;
-  --el-select-border-color-hover: rgba(22, 163, 74, 0.42);
-  --el-text-color-placeholder: #7f9b8c;
-}
-
-.register-container .company-select.el-select .el-select__wrapper {
-  min-height: 54px;
-  background-color: rgba(248, 252, 249, 0.96) !important;
-  border: 1px solid rgba(80, 143, 105, 0.3) !important;
-  border-radius: 12px !important;
-  box-shadow: none !important;
-}
-
-.register-container .company-select.el-select .el-select__wrapper.is-focused {
-  background-color: rgba(255, 255, 255, 0.98) !important;
-  border-color: #16a34a !important;
-  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14) !important;
-}
-
-.register-container .company-select.el-select .el-select__selected-item,
-.register-container .company-select.el-select .el-select__placeholder,
-.register-container .company-select.el-select .el-select__input {
-  color: #174630 !important;
-  -webkit-text-fill-color: #174630 !important;
-  font-weight: 600;
-}
-
-.register-container .company-select.el-select .el-select__placeholder.is-transparent,
-.register-container .company-select.el-select .el-select__input::placeholder {
-  color: #7f9b8c !important;
-  -webkit-text-fill-color: #7f9b8c !important;
-  font-weight: 400;
-}
-
-.register-container .company-select.el-select .el-select__suffix,
-.register-container .company-select.el-select .el-select__caret {
-  color: rgba(22, 163, 74, 0.58) !important;
-}
-
-.register-container .company-mode.el-segmented {
-  --el-segmented-bg-color: rgba(22, 163, 74, 0.08);
-  --el-segmented-item-selected-bg-color: #16a34a;
-  --el-segmented-item-selected-color: #ffffff;
-  --el-segmented-item-hover-bg-color: rgba(22, 163, 74, 0.12);
-  --el-segmented-item-hover-color: #174630;
-  --el-border-radius-base: 12px;
-  background: rgba(22, 163, 74, 0.08) !important;
-  border: 1px solid rgba(80, 143, 105, 0.24);
-}
-
-.register-container .company-mode.el-segmented .el-segmented__item {
-  color: #2f684a !important;
-  font-weight: 600;
-}
-
-.register-container .company-mode.el-segmented .el-segmented__item:hover {
-  color: #174630 !important;
-}
-
-.register-container .company-mode.el-segmented .el-segmented__item:active,
-.register-container .company-mode.el-segmented .el-segmented__item:focus,
-.register-container .company-mode.el-segmented .el-segmented__item:focus-visible {
-  color: #174630 !important;
-  background-color: rgba(22, 163, 74, 0.16) !important;
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-.register-container .company-mode.el-segmented .el-segmented__item.is-selected {
-  color: #ffffff !important;
-}
-
-.register-container .company-mode.el-segmented .el-segmented__item.is-selected:active,
-.register-container .company-mode.el-segmented .el-segmented__item.is-selected:focus,
-.register-container .company-mode.el-segmented .el-segmented__item.is-selected:focus-visible {
-  color: #ffffff !important;
-  background-color: #16a34a !important;
-}
-
-.register-container .company-mode.el-segmented .el-segmented__item-label {
-  color: inherit !important;
-}
-
-.register-container .company-mode.el-segmented .el-segmented__item *,
-.register-container .company-mode.el-segmented .el-segmented__item:active *,
-.register-container .company-mode.el-segmented .el-segmented__item:focus *,
-.register-container .company-mode.el-segmented .el-segmented__item:focus-visible * {
-  color: inherit !important;
 }
 
 .register-container .auth-language .language-switcher {

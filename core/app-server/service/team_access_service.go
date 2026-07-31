@@ -104,7 +104,7 @@ func (s *TeamAccessService) Assign(ctx context.Context, req access.AssignRoleReq
 	if err := s.requireAdminForGrant(ctx, req.TenantUser, req.App, req.CreatedBy, req.ResourcePath, req.RoleCode); err != nil {
 		return err
 	}
-	if err := s.ensureAssignableUserInRequesterCompany(ctx, req.Username); err != nil {
+	if err := s.ensureAssignableUser(ctx, req.Username); err != nil {
 		return err
 	}
 
@@ -374,24 +374,20 @@ func (s *TeamAccessService) requireAdminForGrant(ctx context.Context, tenantUser
 	return s.Check(ctx, tenantUser, app, actor, resourcePath, access.ActionAdmin)
 }
 
-func (s *TeamAccessService) ensureAssignableUserInRequesterCompany(ctx context.Context, username string) error {
+func (s *TeamAccessService) ensureAssignableUser(ctx context.Context, username string) error {
 	username = strings.TrimSpace(username)
 	if username == "" {
 		return fmt.Errorf("username 不能为空")
 	}
-	companyCode := strings.TrimSpace(contextx.GetRequestCompanyCode(ctx))
-	if companyCode == "" || s.userLookup == nil {
+	if s.userLookup == nil {
 		return nil
 	}
 	user, err := s.userLookup(ctx, username)
 	if err != nil {
-		return fmt.Errorf("被授权用户不存在或不属于当前企业: %w", err)
+		return fmt.Errorf("被授权用户不存在: %w", err)
 	}
 	if user == nil || strings.TrimSpace(user.Username) == "" {
-		return fmt.Errorf("被授权用户不存在或不属于当前企业")
-	}
-	if user.CompanyCode != "" && user.CompanyCode != companyCode {
-		return fmt.Errorf("被授权用户不存在或不属于当前企业")
+		return fmt.Errorf("被授权用户不存在")
 	}
 	return nil
 }
@@ -438,7 +434,6 @@ func toAccessAssignments(assignments []*model.WorkspaceRoleAssignment) []access.
 
 type operateLogInput struct {
 	TenantUser   string
-	CompanyCode  string
 	App          string
 	ActorUser    string
 	Action       string
@@ -467,7 +462,6 @@ func (s *TeamAccessService) writeOperateLog(ctx context.Context, input operateLo
 	auditMeta := buildOperateLogAuditMetadata(ctx, "")
 	log := &model.OperateLog{
 		TenantUser:   input.TenantUser,
-		CompanyCode:  firstNonEmpty(input.CompanyCode, contextx.GetRequestCompanyCode(ctx)),
 		App:          input.App,
 		ActorUser:    input.ActorUser,
 		Action:       input.Action,
@@ -491,15 +485,6 @@ func (s *TeamAccessService) writeOperateLog(ctx context.Context, input operateLo
 			logger.Warnf(ctx, "[TeamAccess] write operate log failed: action=%s err=%v", input.Action, err)
 		}
 	}(writeCtx)
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func mustMarshalRaw(v interface{}) json.RawMessage {

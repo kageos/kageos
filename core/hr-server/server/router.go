@@ -35,7 +35,6 @@ func (s *Server) setupRoutes() {
 	openAPITokenHandler := v1.NewOpenAPIToken(s.openAPITokenStore)
 	auth.POST("/send_email_code", authHandler.SendEmailCode)
 	auth.POST("/register", authHandler.Register)
-	auth.GET("/companies/search", authHandler.SearchCompanies)
 	auth.GET("/oauth/registration/:ticket", authHandler.GetOAuthRegistrationIntent)
 	auth.POST("/oauth/registration/:ticket/confirm", authHandler.ConfirmOAuthRegistration)
 	auth.GET("/:provider/authorize", authHandler.OAuthAuthorize)

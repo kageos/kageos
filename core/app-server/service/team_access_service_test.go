@@ -36,11 +36,15 @@ func newTeamAccessTestService(t *testing.T) (*TeamAccessService, *repository.App
 	if err := appRepo.CreateApp(&appmodel.App{User: "alice", Code: "ops", Name: "Ops", Version: "v1"}); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
-	return NewTeamAccessService(
+	service := NewTeamAccessService(
 		repository.NewTeamAccessRepository(db),
 		repository.NewOperateLogRepository(db),
 		appRepo,
-	), appRepo, db
+	)
+	service.userLookup = func(ctx context.Context, username string) (*dto.UserInfo, error) {
+		return &dto.UserInfo{Username: username}, nil
+	}
+	return service, appRepo, db
 }
 
 func actorContext(username string) context.Context {
@@ -220,11 +224,10 @@ func TestTeamAccessBatchAssignGrantsEveryCombination(t *testing.T) {
 	}
 }
 
-func TestTeamAccessAssignValidatesTargetUserWhenCompanyContextExists(t *testing.T) {
+func TestTeamAccessAssignValidatesTargetUser(t *testing.T) {
 	service, _, _ := newTeamAccessTestService(t)
 	ctx := contextx.WithRequestInfo(actorContext("alice"), contextx.RequestInfo{
 		RequestUser: "alice",
-		CompanyCode: "acme",
 	})
 	lookups := 0
 	service.userLookup = func(ctx context.Context, username string) (*dto.UserInfo, error) {
@@ -232,7 +235,7 @@ func TestTeamAccessAssignValidatesTargetUserWhenCompanyContextExists(t *testing.
 		if username != "member-user" {
 			t.Fatalf("unexpected lookup username: %s", username)
 		}
-		return &dto.UserInfo{Username: username, CompanyCode: "acme"}, nil
+		return &dto.UserInfo{Username: username}, nil
 	}
 
 	if err := service.Assign(ctx, access.AssignRoleRequest{
@@ -250,11 +253,10 @@ func TestTeamAccessAssignValidatesTargetUserWhenCompanyContextExists(t *testing.
 	}
 }
 
-func TestTeamAccessAssignRejectsUnknownTargetUserWhenCompanyContextExists(t *testing.T) {
+func TestTeamAccessAssignRejectsUnknownTargetUser(t *testing.T) {
 	service, _, _ := newTeamAccessTestService(t)
 	ctx := contextx.WithRequestInfo(actorContext("alice"), contextx.RequestInfo{
 		RequestUser: "alice",
-		CompanyCode: "acme",
 	})
 	service.userLookup = func(ctx context.Context, username string) (*dto.UserInfo, error) {
 		return nil, errors.New("user not found")
@@ -268,8 +270,8 @@ func TestTeamAccessAssignRejectsUnknownTargetUserWhenCompanyContextExists(t *tes
 		RoleCode:     access.RoleMember,
 		CreatedBy:    "alice",
 	})
-	if err == nil || !strings.Contains(err.Error(), "被授权用户不存在或不属于当前企业") {
-		t.Fatalf("expected company target validation error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "被授权用户不存在") {
+		t.Fatalf("expected target validation error, got %v", err)
 	}
 }
 
@@ -407,12 +409,11 @@ func TestTeamAccessListMembersSeparatesCurrentAndInherited(t *testing.T) {
 func TestTeamAccessAssignWritesOperateLog(t *testing.T) {
 	service, _, db := newTeamAccessTestService(t)
 	ctx := contextx.WithRequestInfo(actorContext("alice"), contextx.RequestInfo{
-		CompanyCode: "acme",
-		SourceType:  contextx.SourceTypeOpenAPIToken,
-		SourceRef:   "alice",
+		SourceType: contextx.SourceTypeOpenAPIToken,
+		SourceRef:  "alice",
 	})
 	service.userLookup = func(ctx context.Context, username string) (*dto.UserInfo, error) {
-		return &dto.UserInfo{Username: username, CompanyCode: "acme"}, nil
+		return &dto.UserInfo{Username: username}, nil
 	}
 
 	if err := service.Assign(ctx, access.AssignRoleRequest{
@@ -432,9 +433,6 @@ func TestTeamAccessAssignWritesOperateLog(t *testing.T) {
 	}
 	if log.ResourceType != "team_access" || log.Status != "success" {
 		t.Fatalf("unexpected assign log type/status: %+v", log)
-	}
-	if log.CompanyCode != "acme" {
-		t.Fatalf("company_code = %q", log.CompanyCode)
 	}
 	if log.Source != contextx.ClientSourceOpenAPI {
 		t.Fatalf("source = %q, want openapi", log.Source)

@@ -110,9 +110,6 @@ services:
       KAGEOS_APP_DB_SECRET_KEY: {{ q .Secrets.AppDBSecret }}
       KAGEOS_APP_DB_CLUSTER_KEY: {{ q .AppDBClusterKey }}
       SYSTEM_USER_PASSWORD: {{ q .SystemUser.Password }}
-      KAGEOS_COMPANY_CODE: {{ q .Company.Code }}
-      KAGEOS_COMPANY_NAME: {{ q .Company.Name }}
-      KAGEOS_COMPANY_LOGO_URL: {{ q .Company.LogoURL }}
       SMTP_MODE: {{ q .SMTP.Mode }}
       SMTP_HOST: {{ q .SMTP.Host }}
       SMTP_PORT: {{ q .SMTP.Port }}
@@ -181,9 +178,6 @@ MINIO_ROOT_USER={{ .MinIO.RootUser }}
 MINIO_ROOT_PASSWORD={{ .MinIO.SecretKey }}
 JWT_SECRET={{ .Secrets.JWTSecret }}
 SYSTEM_USER_PASSWORD={{ .SystemUser.Password }}
-KAGEOS_COMPANY_CODE={{ .Company.Code }}
-KAGEOS_COMPANY_NAME={{ q .Company.Name }}
-KAGEOS_COMPANY_LOGO_URL={{ q .Company.LogoURL }}
 KAGEOS_REGISTRATION_MODE={{ .Auth.RegistrationMode }}
 SMTP_MODE={{ .SMTP.Mode }}
 SMTP_HOST={{ .SMTP.Host }}
@@ -619,11 +613,6 @@ email:
 
 auth:
   registration_mode: {{ q .Auth.RegistrationMode }}
-
-company:
-  code: {{ q .Company.Code }}
-  name: {{ q .Company.Name }}
-  logo_url: {{ q .Company.LogoURL }}
 
 system_user:
   password: {{ q .SystemUser.Password }}

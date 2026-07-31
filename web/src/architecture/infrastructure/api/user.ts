@@ -119,7 +119,6 @@ export function getUsersByDepartment(departmentFullPath: string) {
 
 export interface SystemListUsersReq {
   keyword?: string
-  company_code?: string
   status?: string
   register_type?: string
   page?: number
@@ -138,9 +137,6 @@ export interface SystemCreateUserReq {
   password: string
   email?: string
   nickname?: string
-  company_code?: string
-  company_name?: string
-  company_logo_url?: string
   department_full_path?: string
   leader_username?: string
   status?: 'active' | 'pending' | 'disabled'
@@ -156,9 +152,6 @@ export interface SystemUpdateUserReq {
   signature?: string
   avatar?: string
   gender?: string
-  company_code?: string
-  company_name?: string
-  company_logo_url?: string
   department_full_path?: string
   leader_username?: string
 }

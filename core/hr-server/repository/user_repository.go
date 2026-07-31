@@ -101,30 +101,12 @@ func (r *UserRepository) SearchUsersFuzzy(keyword string, limit int) ([]*model.U
 	return users, err
 }
 
-// SearchUsersFuzzyByCompany 模糊查询同企业用户（根据用户名、邮箱或昵称）。
-func (r *UserRepository) SearchUsersFuzzyByCompany(companyCode, keyword string, limit int) ([]*model.User, error) {
-	var users []*model.User
-	companyCode = strings.TrimSpace(companyCode)
-	keyword = strings.TrimSpace(keyword)
-	query := r.db.Where("company_code = ?", companyCode)
-	if keyword != "" {
-		like := "%" + keyword + "%"
-		query = query.Where("(username LIKE ? OR email LIKE ? OR nickname LIKE ?)", like, like, like)
-	}
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-	err := query.Find(&users).Error
-	return users, err
-}
-
 // ListUsersForSystem 分页查询全局用户，仅供 system 管理入口使用。
-func (r *UserRepository) ListUsersForSystem(keyword, companyCode, status, registerType string, page, pageSize int) ([]*model.User, int64, error) {
+func (r *UserRepository) ListUsersForSystem(keyword, status, registerType string, page, pageSize int) ([]*model.User, int64, error) {
 	var users []*model.User
 	var total int64
 
 	keyword = strings.ToLower(strings.TrimSpace(keyword))
-	companyCode = strings.TrimSpace(companyCode)
 	status = strings.TrimSpace(status)
 	registerType = strings.TrimSpace(registerType)
 
@@ -132,9 +114,6 @@ func (r *UserRepository) ListUsersForSystem(keyword, companyCode, status, regist
 	if keyword != "" {
 		like := "%" + keyword + "%"
 		query = query.Where("(LOWER(username) LIKE ? OR LOWER(email) LIKE ? OR LOWER(nickname) LIKE ?)", like, like, like)
-	}
-	if companyCode != "" {
-		query = query.Where("company_code = ?", companyCode)
 	}
 	if status != "" {
 		query = query.Where("status = ?", status)
@@ -169,15 +148,6 @@ func (r *UserRepository) GetUsersByUsernames(usernames []string) ([]*model.User,
 	}
 	var users []*model.User
 	err := r.db.Where("username IN ?", usernames).Find(&users).Error
-	return users, err
-}
-
-func (r *UserRepository) GetUsersByUsernamesAndCompany(usernames []string, companyCode string) ([]*model.User, error) {
-	if len(usernames) == 0 {
-		return []*model.User{}, nil
-	}
-	var users []*model.User
-	err := r.db.Where("company_code = ? AND username IN ?", strings.TrimSpace(companyCode), usernames).Find(&users).Error
 	return users, err
 }
 

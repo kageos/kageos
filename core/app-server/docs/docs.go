@@ -1586,12 +1586,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "企业代码（默认当前登录企业）",
-                        "name": "company_code",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "description": "执行用户",
                         "name": "actor_user",
                         "in": "query"
@@ -4050,9 +4044,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "app": {
-                    "type": "string"
-                },
-                "company_code": {
                     "type": "string"
                 },
                 "created_at": {

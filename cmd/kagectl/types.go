@@ -5,13 +5,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
-
-var defaultCompanyCodePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 const (
 	defaultProdDir    = ".kageos/prod"
@@ -100,7 +97,6 @@ type Config struct {
 	MySQL      MySQLConfig      `yaml:"mysql"`
 	NATS       NATSConfig       `yaml:"nats"`
 	MinIO      MinIOConfig      `yaml:"minio"`
-	Company    CompanyConfig    `yaml:"company"`
 	Auth       AuthConfig       `yaml:"auth"`
 	Secrets    SecretsConfig    `yaml:"secrets"`
 	SystemUser SystemUserConfig `yaml:"system_user"`
@@ -175,12 +171,6 @@ type MinIOConfig struct {
 	UseSSL       bool   `yaml:"use_ssl"`
 	Region       string `yaml:"region"`
 	Bucket       string `yaml:"bucket"`
-}
-
-type CompanyConfig struct {
-	Code    string `yaml:"code"`
-	Name    string `yaml:"name"`
-	LogoURL string `yaml:"logo_url"`
 }
 
 type AuthConfig struct {

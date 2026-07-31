@@ -43,6 +43,9 @@ func localNatsHosts() []string {
 }
 
 func InitTables(db *gorm.DB) error {
+	if err := removeRetiredOperateLogCompanyColumn(db); err != nil {
+		return err
+	}
 	if err := dropLegacyFunctionNaturalKeyIndex(db); err != nil {
 		return err
 	}
@@ -81,6 +84,25 @@ func InitTables(db *gorm.DB) error {
 
 	// 创建默认的NATS和Host记录
 	return initDefaultData(db)
+}
+
+func removeRetiredOperateLogCompanyColumn(db *gorm.DB) error {
+	legacyColumn := &retiredOperateLogCompanyColumn{}
+	if db == nil || !db.Migrator().HasTable(legacyColumn) || !db.Migrator().HasColumn(legacyColumn, "CompanyCode") {
+		return nil
+	}
+	if err := db.Migrator().DropColumn(legacyColumn, "CompanyCode"); err != nil {
+		return fmt.Errorf("drop retired operate log company column: %w", err)
+	}
+	return nil
+}
+
+type retiredOperateLogCompanyColumn struct {
+	CompanyCode string `gorm:"column:company_code"`
+}
+
+func (retiredOperateLogCompanyColumn) TableName() string {
+	return "operate_logs"
 }
 
 func dropLegacyFunctionNaturalKeyIndex(db *gorm.DB) error {

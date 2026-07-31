@@ -17,7 +17,7 @@ func GetUserByUsername(ctx context.Context, req *dto.QueryUserReq) (*dto.UserInf
 	return &result.User, nil
 }
 
-// GetUsersByUsernames 批量获取当前请求人企业内的用户信息。
+// GetUsersByUsernames 批量获取当前实例内的用户信息。
 func GetUsersByUsernames(ctx context.Context, usernames []string) ([]dto.UserInfo, error) {
 	if len(usernames) == 0 {
 		return nil, nil

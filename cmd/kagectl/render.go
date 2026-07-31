@@ -61,7 +61,7 @@ func renderAll(rt RuntimeConfig) error {
 	return nil
 }
 
-func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, companyName string) error {
+func renderDevConfig(paths Paths, regenSecrets bool) error {
 	stateDir := filepath.Join(paths.RepoRoot, ".kageos", "dev")
 	envDir := filepath.Join(paths.RepoRoot, ".kageos", "dev", "env")
 	envPath := filepath.Join(envDir, "kageos.env")
@@ -77,12 +77,6 @@ func renderDevConfig(paths Paths, regenSecrets bool, companyCode string, company
 	}
 
 	cfg := defaultDevDeploymentConfig(secrets)
-	if companyCode != "" {
-		cfg.Company.Code = companyCode
-	}
-	if companyName != "" {
-		cfg.Company.Name = companyName
-	}
 	applyEnvOverrides(&cfg)
 	rt, err := buildRuntimeConfig(paths, cfg)
 	if err != nil {
@@ -167,8 +161,6 @@ func printDevInitSummary(paths Paths, opts initDevOptions) {
 		{"MinIO root user", values["MINIO_ROOT_USER"]},
 		{"MinIO root password", values["MINIO_ROOT_PASSWORD"]},
 		{"JWT secret", values["JWT_SECRET"]},
-		{"Company code", values["KAGEOS_COMPANY_CODE"]},
-		{"Company name", strings.Trim(values["KAGEOS_COMPANY_NAME"], `"'`)},
 		{"SMTP mode", values["SMTP_MODE"]},
 		{"SMTP status", smtpStatus},
 		{"SMTP host", values["SMTP_HOST"]},
@@ -433,8 +425,6 @@ func deploymentSummaryRows(rt RuntimeConfig, status string) [][2]string {
 		{"Registration mode", rt.Auth.RegistrationMode},
 		{"SMTP mode", rt.SMTP.Mode},
 		{"SMTP status", smtpStatus(rt.SMTP)},
-		{"Company code", rt.Company.Code},
-		{"Company name", rt.Company.Name},
 		{"MySQL mode", rt.MySQL.Mode},
 		{"MySQL address", rt.MySQLAddress},
 		{"MySQL user", rt.MySQL.User},
@@ -480,8 +470,6 @@ func printProdInitSummary(paths Paths, cfg Config) {
 		{"Registration mode", cfg.Auth.RegistrationMode},
 		{"SMTP mode", cfg.SMTP.Mode},
 		{"SMTP status", smtpStatus(cfg.SMTP)},
-		{"Company code", cfg.Company.Code},
-		{"Company name", cfg.Company.Name},
 		{"MySQL mode", cfg.MySQL.Mode},
 		{"MySQL address", rt.MySQLAddress},
 		{"MySQL user", cfg.MySQL.User},
