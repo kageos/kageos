@@ -22,8 +22,6 @@ func TestHTTPAdapterForwardsContextHeaders(t *testing.T) {
 		assertHeader(contextx.TraceIdHeader, "trace-1")
 		assertHeader(contextx.RequestUserHeader, "alice")
 		assertHeader(contextx.DepartmentFullPathHeader, "/org/dev")
-		assertHeader(contextx.CompanyCodeHeader, "acme")
-		assertHeader(contextx.CompanyNameHeader, "Acme")
 		assertHeader(contextx.ClientSourceHeader, contextx.ClientSourceAgent)
 		assertHeader(contextx.SourceTypeHeader, contextx.SourceTypeAgentTool)
 		assertHeader(contextx.SourceRefHeader, "session-1")
@@ -37,8 +35,6 @@ func TestHTTPAdapterForwardsContextHeaders(t *testing.T) {
 		TraceId:            "trace-1",
 		RequestUser:        "alice",
 		DepartmentFullPath: "/org/dev",
-		CompanyCode:        "acme",
-		CompanyName:        "Acme",
 		ClientSource:       contextx.ClientSourceAgent,
 		SourceType:         contextx.SourceTypeAgentTool,
 		SourceRef:          "session-1",

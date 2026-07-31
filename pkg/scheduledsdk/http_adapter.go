@@ -195,15 +195,6 @@ func applyContextHeaders(req *http.Request, ctx context.Context) {
 	if departmentFullPath := contextx.GetRequestDepartmentFullPath(ctx); departmentFullPath != "" {
 		req.Header.Set(contextx.DepartmentFullPathHeader, departmentFullPath)
 	}
-	if companyCode := contextx.GetRequestCompanyCode(ctx); companyCode != "" {
-		req.Header.Set(contextx.CompanyCodeHeader, companyCode)
-	}
-	if companyName := contextx.GetRequestCompanyName(ctx); companyName != "" {
-		req.Header.Set(contextx.CompanyNameHeader, companyName)
-	}
-	if companyLogoURL := contextx.GetRequestCompanyLogoURL(ctx); companyLogoURL != "" {
-		req.Header.Set(contextx.CompanyLogoURLHeader, companyLogoURL)
-	}
 	if clientSource := contextx.GetClientSource(ctx); clientSource != "" {
 		req.Header.Set(contextx.ClientSourceHeader, clientSource)
 	}

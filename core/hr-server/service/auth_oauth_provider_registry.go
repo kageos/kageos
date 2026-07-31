@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kageos/kageos/core/hr-server/model"
 	"golang.org/x/oauth2"
 )
 
@@ -112,7 +111,6 @@ func init() {
 				{Key: "client_id", Label: "Client ID", Type: "text", Required: true},
 				{Key: "client_secret", Label: "Client Secret", Type: "password", Required: true, Secret: true},
 				{Key: "redirect_url", Label: "Redirect URL", Type: "url", Required: true, Help: "需要和 Google Cloud Console 中配置的回调地址一致。"},
-				{Key: "default_company_code", Label: "默认企业代码", Type: "text", Required: false, Placeholder: model.DefaultCompanyCode, Help: "授权注册创建用户时归属的企业代码；留空使用 default。"},
 			},
 		},
 		Factory: OAuthProviderFactory{
@@ -143,7 +141,6 @@ func init() {
 				{Key: "client_secret", Label: "Client Secret", Type: "password", Required: true, Secret: true},
 				{Key: "redirect_url", Label: "Redirect URL", Type: "url", Required: true, Help: "需要和 GitHub OAuth App 中配置的 Authorization callback URL 一致。"},
 				{Key: "scopes", Label: "Scopes", Type: "text", Required: false, Placeholder: "read:user user:email"},
-				{Key: "default_company_code", Label: "默认企业代码", Type: "text", Required: false, Placeholder: model.DefaultCompanyCode, Help: "授权注册创建用户时归属的企业代码；留空使用 default。"},
 			},
 		},
 		Factory: OAuthProviderFactory{

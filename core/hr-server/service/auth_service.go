@@ -1,9 +1,7 @@
 package service
 
 import (
-	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -14,7 +12,6 @@ import (
 	"github.com/kageos/kageos/pkg/gormx/models"
 	"github.com/kageos/kageos/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 )
 
 // AuthService 认证服务
@@ -22,26 +19,22 @@ type AuthService struct {
 	config          *appconfig.HRServerConfig
 	jwtService      *auth.JWTService
 	userRepo        *repository.UserRepository
-	companyRepo     *repository.CompanyRepository
 	userSessionRepo *repository.UserSessionRepository
 	tokenPublisher  TokenPublisher // 可选：向 gateway 发布 token 命令
 }
 
 // NewAuthService 创建认证服务（依赖注入）
-func NewAuthService(userRepo *repository.UserRepository, companyRepo *repository.CompanyRepository, userSessionRepo *repository.UserSessionRepository, tokenPublisher TokenPublisher) *AuthService {
+func NewAuthService(userRepo *repository.UserRepository, userSessionRepo *repository.UserSessionRepository, tokenPublisher TokenPublisher) *AuthService {
 	config := appconfig.GetHRServerConfig()
 	jwtService := auth.NewJWTService()
 	return &AuthService{
 		config:          config,
 		jwtService:      jwtService,
 		userRepo:        userRepo,
-		companyRepo:     companyRepo,
 		userSessionRepo: userSessionRepo,
 		tokenPublisher:  tokenPublisher,
 	}
 }
-
-var companyCodePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 const (
 	defaultRefreshTokenExpireSeconds  = 24 * 3600
@@ -49,7 +42,7 @@ const (
 )
 
 // RegisterUser 注册用户
-func (s *AuthService) RegisterUser(username, email, password, companyAction, companyCode, companyName, companyLogoURL string) (int64, error) {
+func (s *AuthService) RegisterUser(username, email, password string) (int64, error) {
 	username = strings.ToLower(strings.TrimSpace(username))
 	if err := ValidateUserCode(username); err != nil {
 		return 0, err
@@ -74,17 +67,11 @@ func (s *AuthService) RegisterUser(username, email, password, companyAction, com
 		return 0, fmt.Errorf("密码加密失败")
 	}
 
-	companyCode, err = s.resolveRegisterCompany(companyAction, companyCode, companyName, companyLogoURL, username)
-	if err != nil {
-		return 0, err
-	}
-
 	// 创建用户（不再分配 HostID，Host 和 Nats 绑定在 App 上）
 	// ⭐ 默认分配到未分配组织
 	user := &model.User{
 		Username:           username,
 		Email:              email,
-		CompanyCode:        companyCode,
 		PasswordHash:       string(hashedPassword),
 		RegisterType:       "email",
 		Status:             "pending", // 待邮箱验证
@@ -102,55 +89,6 @@ func (s *AuthService) RegisterUser(username, email, password, companyAction, com
 
 	logger.Infof(nil, "[AuthService] User registered successfully: %s", username)
 	return user.ID, nil
-}
-
-func (s *AuthService) resolveRegisterCompany(action, code, name, logoURL, createdBy string) (string, error) {
-	action = strings.TrimSpace(action)
-	code = strings.ToLower(strings.TrimSpace(code))
-	name = strings.TrimSpace(name)
-	logoURL = strings.TrimSpace(logoURL)
-	if code == "" {
-		return "", fmt.Errorf("企业代码不能为空")
-	}
-	if !companyCodePattern.MatchString(code) {
-		return "", fmt.Errorf("企业代码只能包含字母、数字、下划线和中划线")
-	}
-	switch action {
-	case "create":
-		if name == "" {
-			return "", fmt.Errorf("创建企业时企业名称不能为空")
-		}
-		if _, err := s.companyRepo.GetCompanyByCode(code); err == nil {
-			return "", fmt.Errorf("企业代码已存在")
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", fmt.Errorf("检查企业代码失败: %w", err)
-		}
-		if _, err := s.companyRepo.GetCompanyByName(name); err == nil {
-			return "", fmt.Errorf("企业名称已存在")
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", fmt.Errorf("检查企业名称失败: %w", err)
-		}
-		if err := s.companyRepo.CreateCompany(&model.Company{
-			Code:      code,
-			Name:      name,
-			LogoURL:   logoURL,
-			CreatedBy: createdBy,
-		}); err != nil {
-			return "", fmt.Errorf("创建企业失败: %w", err)
-		}
-		return code, nil
-	case "join":
-		if _, err := s.companyRepo.GetCompanyByCode(code); err != nil {
-			return "", fmt.Errorf("企业不存在")
-		}
-		return code, nil
-	default:
-		return "", fmt.Errorf("企业操作类型必须是 create 或 join")
-	}
-}
-
-func (s *AuthService) SearchCompaniesFuzzy(keyword string, limit int) ([]*model.Company, error) {
-	return s.companyRepo.SearchCompaniesFuzzy(keyword, limit)
 }
 
 // ActivateUser 激活用户
@@ -227,7 +165,7 @@ func (s *AuthService) IssueTokensForUser(user *model.User, remember bool) (strin
 	tokenContext := s.buildUserTokenContext(user)
 	refreshExpiresAt := time.Now().Add(time.Duration(refreshTokenExpire) * time.Second)
 
-	// 生成 JWT Token（包含企业、组织架构信息）
+	// 生成 JWT Token（包含组织架构信息）
 	token, err := s.jwtService.GenerateAccessTokenWithContext(tokenContext)
 	if err != nil {
 		logger.Errorf(nil, "[AuthService] Failed to generate access token: %v", err)
@@ -261,25 +199,13 @@ func resolveRefreshTokenExpireSeconds(configured int, remember bool) int {
 }
 
 func (s *AuthService) buildUserTokenContext(user *model.User) auth.UserTokenContext {
-	tokenContext := auth.UserTokenContext{
+	return auth.UserTokenContext{
 		UserID:             user.ID,
 		Username:           user.Username,
 		Email:              user.Email,
-		CompanyCode:        user.CompanyCode,
 		DepartmentFullPath: user.DepartmentFullPath,
 		LeaderUsername:     user.LeaderUsername,
 	}
-	if user.CompanyCode == "" || s.companyRepo == nil {
-		return tokenContext
-	}
-	company, err := s.companyRepo.GetCompanyByCode(user.CompanyCode)
-	if err != nil {
-		logger.Warnf(nil, "[AuthService] 查询企业信息失败 company_code=%s err=%v", user.CompanyCode, err)
-		return tokenContext
-	}
-	tokenContext.CompanyName = company.Name
-	tokenContext.CompanyLogoURL = company.LogoURL
-	return tokenContext
 }
 
 // RefreshToken 刷新Token
@@ -384,9 +310,6 @@ func (s *AuthService) ValidateAccessToken(rawToken string) (*auth.AccessTokenPri
 		UserID:             current.UserID,
 		Username:           current.Username,
 		Email:              current.Email,
-		CompanyCode:        current.CompanyCode,
-		CompanyName:        current.CompanyName,
-		CompanyLogoURL:     current.CompanyLogoURL,
 		DepartmentFullPath: current.DepartmentFullPath,
 	}, nil
 }

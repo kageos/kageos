@@ -29,10 +29,6 @@ type JWTClaims struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 
-	CompanyCode    string `json:"company_code,omitempty"`
-	CompanyName    string `json:"company_name,omitempty"`
-	CompanyLogoURL string `json:"company_logo_url,omitempty"`
-
 	DepartmentFullPath *string `json:"department_full_path,omitempty"`
 	LeaderUsername     *string `json:"leader_username,omitempty"`
 
@@ -63,9 +59,6 @@ type UserTokenContext struct {
 	UserID             int64
 	Username           string
 	Email              string
-	CompanyCode        string
-	CompanyName        string
-	CompanyLogoURL     string
 	DepartmentFullPath string
 	LeaderUsername     string
 }
@@ -75,13 +68,10 @@ type AccessTokenPrincipal struct {
 	UserID             int64  `json:"user_id"`
 	Username           string `json:"username"`
 	Email              string `json:"email"`
-	CompanyCode        string `json:"company_code"`
-	CompanyName        string `json:"company_name"`
-	CompanyLogoURL     string `json:"company_logo_url"`
 	DepartmentFullPath string `json:"department_full_path"`
 }
 
-// GenerateAccessTokenWithContext 生成访问令牌，携带用户、企业和组织架构上下文。
+// GenerateAccessTokenWithContext 生成访问令牌，携带用户和组织架构上下文。
 func (s *JWTService) GenerateAccessTokenWithContext(userContext UserTokenContext) (string, error) {
 	return s.generateTokenWithContext(userContext, "access", time.Now().Add(time.Duration(s.config.AccessTokenExpire)*time.Second))
 }
@@ -123,9 +113,6 @@ func (s *JWTService) generateTokenWithClaims(userContext UserTokenContext, regis
 		UserID:           userContext.UserID,
 		Username:         userContext.Username,
 		Email:            userContext.Email,
-		CompanyCode:      userContext.CompanyCode,
-		CompanyName:      userContext.CompanyName,
-		CompanyLogoURL:   userContext.CompanyLogoURL,
 		RegisteredClaims: registeredClaims,
 	}
 
@@ -156,7 +143,7 @@ func (s *JWTService) GenerateRefreshToken(userID int64, username, email string) 
 	})
 }
 
-// GenerateRefreshTokenWithContext 生成刷新令牌，携带企业上下文，便于刷新时保持租户信息。
+// GenerateRefreshTokenWithContext 生成刷新令牌，携带组织架构上下文。
 func (s *JWTService) GenerateRefreshTokenWithContext(userContext UserTokenContext) (string, error) {
 	return s.GenerateRefreshTokenWithContextExpiresAt(
 		userContext,
@@ -171,12 +158,9 @@ func (s *JWTService) GenerateRefreshTokenWithContextExpiresAt(userContext UserTo
 		expiresAt = now.Add(time.Duration(s.config.RefreshTokenExpire) * time.Second)
 	}
 	claims := JWTClaims{
-		UserID:         userContext.UserID,
-		Username:       userContext.Username,
-		Email:          userContext.Email,
-		CompanyCode:    userContext.CompanyCode,
-		CompanyName:    userContext.CompanyName,
-		CompanyLogoURL: userContext.CompanyLogoURL,
+		UserID:   userContext.UserID,
+		Username: userContext.Username,
+		Email:    userContext.Email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    s.config.Issuer,
 			Subject:   fmt.Sprintf("refresh_%d", userContext.UserID),
@@ -281,12 +265,9 @@ func (s *JWTService) RefreshAccessToken(refreshTokenString string) (string, stri
 	}
 
 	tokenContext := UserTokenContext{
-		UserID:         claims.UserID,
-		Username:       claims.Username,
-		Email:          claims.Email,
-		CompanyCode:    claims.CompanyCode,
-		CompanyName:    claims.CompanyName,
-		CompanyLogoURL: claims.CompanyLogoURL,
+		UserID:   claims.UserID,
+		Username: claims.Username,
+		Email:    claims.Email,
 	}
 	if claims.DepartmentFullPath != nil {
 		tokenContext.DepartmentFullPath = *claims.DepartmentFullPath

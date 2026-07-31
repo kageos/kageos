@@ -416,7 +416,6 @@ func (a *AppService) buildTableActionOperateLog(ctx context.Context, req *dto.Re
 	}
 	log := &model.OperateLog{
 		TenantUser:    req.TenantUser,
-		CompanyCode:   contextx.GetRequestCompanyCode(ctx),
 		App:           req.App,
 		ActorUser:     req.RequestUser,
 		Action:        req.Action,

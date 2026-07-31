@@ -68,11 +68,6 @@ secrets:
 system_user:
   password: "replace-with-a-strong-system-password"
 
-company:
-  code: "default"
-  name: "Default"
-  logo_url: ""
-
 auth:
   # admin_only: only system-created users can sign in.
   # email_code: self-service registration requires complete SMTP settings.

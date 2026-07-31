@@ -1065,7 +1065,6 @@ html.light[data-theme="hub-light"] .function-renderer::before {
 
 html.light[data-theme="hub-light"] .sidebar-toggle-bottom-left .sidebar-toggle-btn,
 html.light[data-theme="hub-light"] .user-profile,
-html.light[data-theme="hub-light"] .user-company-card,
 html.light[data-theme="hub-light"] .user-preference-panel,
 html.light[data-theme="hub-light"] .preference-card,
 html.light[data-theme="hub-light"] .toolbar {
@@ -1492,7 +1491,6 @@ html.light[data-theme="hub-light"] .submit-btn:hover {
 
 html.light[data-theme="hub-light"] .login-container .form-input.el-input .el-input__wrapper,
 html.light[data-theme="hub-light"] .register-container .form-input.el-input .el-input__wrapper,
-html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__wrapper,
 html.light[data-theme="hub-light"] .forgot-password-container .el-input__wrapper,
 html.light[data-theme="hub-light"] .oauth-register-page .confirm-form .el-input__wrapper {
   border-color: var(--auth-input-border) !important;
@@ -1503,7 +1501,6 @@ html.light[data-theme="hub-light"] .oauth-register-page .confirm-form .el-input_
 
 html.light[data-theme="hub-light"] .login-container .form-input.el-input .el-input__wrapper.is-focus,
 html.light[data-theme="hub-light"] .register-container .form-input.el-input .el-input__wrapper.is-focus,
-html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__wrapper.is-focused,
 html.light[data-theme="hub-light"] .forgot-password-container .el-input__wrapper.is-focus,
 html.light[data-theme="hub-light"] .oauth-register-page .confirm-form .el-input__wrapper.is-focus {
   border-color: var(--auth-accent) !important;
@@ -1514,9 +1511,6 @@ html.light[data-theme="hub-light"] .oauth-register-page .confirm-form .el-input_
 
 html.light[data-theme="hub-light"] .login-container .form-input.el-input .el-input__inner,
 html.light[data-theme="hub-light"] .register-container .form-input.el-input .el-input__inner,
-html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__selected-item,
-html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__placeholder,
-html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__input,
 html.light[data-theme="hub-light"] .forgot-password-container .el-input__inner,
 html.light[data-theme="hub-light"] .oauth-register-page .confirm-form .el-input__inner {
   color: var(--auth-input-text) !important;
@@ -1525,17 +1519,13 @@ html.light[data-theme="hub-light"] .oauth-register-page .confirm-form .el-input_
 
 html.light[data-theme="hub-light"] .login-container .form-input.el-input .el-input__inner::placeholder,
 html.light[data-theme="hub-light"] .register-container .form-input.el-input .el-input__inner::placeholder,
-html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__placeholder.is-transparent,
-html.light[data-theme="hub-light"] .register-container .company-select.el-select .el-select__input::placeholder,
 html.light[data-theme="hub-light"] .forgot-password-container .el-input__inner::placeholder,
 html.light[data-theme="hub-light"] .oauth-register-page .confirm-form .el-input__inner::placeholder {
   color: var(--auth-input-placeholder) !important;
   -webkit-text-fill-color: var(--auth-input-placeholder) !important;
 }
 
-html.light[data-theme="hub-light"] .oauth-btn,
-html.light[data-theme="hub-light"] .company-panel,
-html.light[data-theme="hub-light"] .company-logo-preview {
+html.light[data-theme="hub-light"] .oauth-btn {
   border-color: var(--hub-light-border) !important;
   background: var(--hub-light-surface-raised) !important;
   color: var(--auth-text) !important;
@@ -1777,7 +1767,6 @@ html.dark[data-theme="hub-dark"] .function-renderer::before {
 
 html.dark[data-theme="hub-dark"] .sidebar-toggle-bottom-left .sidebar-toggle-btn,
 html.dark[data-theme="hub-dark"] .user-profile,
-html.dark[data-theme="hub-dark"] .user-company-card,
 html.dark[data-theme="hub-dark"] .user-preference-panel,
 html.dark[data-theme="hub-dark"] .preference-card,
 html.dark[data-theme="hub-dark"] .toolbar {
@@ -2635,7 +2624,6 @@ html.dark[data-theme="hub-dark"] .register-header {
 }
 
 html.dark[data-theme="hub-dark"] .register-container .form-input.el-input .el-input__wrapper,
-html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__wrapper,
 html.dark[data-theme="hub-dark"] .forgot-password-container .el-input__wrapper,
 html.dark[data-theme="hub-dark"] .oauth-register-page .confirm-form .el-input__wrapper {
   border-color: var(--auth-input-border) !important;
@@ -2645,7 +2633,6 @@ html.dark[data-theme="hub-dark"] .oauth-register-page .confirm-form .el-input__w
 }
 
 html.dark[data-theme="hub-dark"] .register-container .form-input.el-input .el-input__wrapper.is-focus,
-html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__wrapper.is-focused,
 html.dark[data-theme="hub-dark"] .forgot-password-container .el-input__wrapper.is-focus,
 html.dark[data-theme="hub-dark"] .oauth-register-page .confirm-form .el-input__wrapper.is-focus {
   border-color: var(--auth-accent) !important;
@@ -2655,9 +2642,6 @@ html.dark[data-theme="hub-dark"] .oauth-register-page .confirm-form .el-input__w
 }
 
 html.dark[data-theme="hub-dark"] .register-container .form-input.el-input .el-input__inner,
-html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__selected-item,
-html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__placeholder,
-html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__input,
 html.dark[data-theme="hub-dark"] .forgot-password-container .el-input__inner,
 html.dark[data-theme="hub-dark"] .oauth-register-page .confirm-form .el-input__inner {
   color: var(--auth-input-text) !important;
@@ -2665,8 +2649,6 @@ html.dark[data-theme="hub-dark"] .oauth-register-page .confirm-form .el-input__i
 }
 
 html.dark[data-theme="hub-dark"] .register-container .form-input.el-input .el-input__inner::placeholder,
-html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__placeholder.is-transparent,
-html.dark[data-theme="hub-dark"] .register-container .company-select.el-select .el-select__input::placeholder,
 html.dark[data-theme="hub-dark"] .forgot-password-container .el-input__inner::placeholder,
 html.dark[data-theme="hub-dark"] .oauth-register-page .confirm-form .el-input__inner::placeholder {
   color: var(--auth-input-placeholder) !important;

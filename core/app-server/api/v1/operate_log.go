@@ -29,7 +29,6 @@ func NewOperateLog(operateLogService *service.OperateLogService, teamAccessServi
 // @Param X-Token header string true "JWT Token"
 // @Param id query int false "操作日志 ID"
 // @Param tenant_user query string false "租户用户（app 的所有者）"
-// @Param company_code query string false "企业代码（默认当前登录企业）"
 // @Param actor_user query string false "执行用户"
 // @Param target_user query string false "被操作用户"
 // @Param app query string false "应用名"
@@ -98,13 +97,6 @@ func (o *OperateLog) GetOperateLogs(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	if companyCode := contextx.GetRequestCompanyCode(ctx); companyCode != "" {
-		if req.CompanyCode != "" && req.CompanyCode != companyCode {
-			response.FailWithMessage(c, "不能查询其他企业的操作日志")
-			return
-		}
-		req.CompanyCode = companyCode
-	}
 	resp, err = o.operateLogService.GetOperateLogs(ctx, &req)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())

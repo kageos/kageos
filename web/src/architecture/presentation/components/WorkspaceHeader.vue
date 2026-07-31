@@ -72,22 +72,6 @@
               <span class="user-account-badge">MVP</span>
             </el-dropdown-item>
 
-            <div
-              v-if="companyName || companyCode"
-              class="user-company-card"
-              :title="companyTitle"
-              data-testid="workspace-user-menu-company"
-              @click.stop
-            >
-              <el-avatar :size="34" :src="companyLogo" class="user-company-logo">
-                {{ companyInitials }}
-              </el-avatar>
-              <span class="user-company-copy">
-                <span class="user-company-label">{{ t('workspace.company') }}</span>
-                <span class="user-company-name">{{ companyTitle }}</span>
-              </span>
-            </div>
-
             <el-dropdown-item disabled class="user-dropdown-section-title">{{ t('workspace.account') }}</el-dropdown-item>
             <el-dropdown-item command="settings" class="user-dropdown-action">
               <span class="user-menu-icon user-menu-icon--profile">
@@ -228,7 +212,6 @@ const WorkspaceInbox = defineAsyncComponent(() => import('./WorkspaceInbox.vue')
 import { featureFlags } from '@/architecture/shared/config/features'
 import { getKageosDocsURL, getKageosHubURL, openExternalURL } from '@/architecture/shared/config/externalLinks'
 import type { SupportedLocale } from '@/architecture/shared/i18n'
-import defaultCompanyLogo from '@/architecture/presentation/assets/logo.svg'
 import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar.vue'
 
 const GlobalResourceSearchDialog = defineAsyncComponent(() => import('./GlobalResourceSearchDialog.vue'))
@@ -259,19 +242,6 @@ const userName = computed(() => authStore.userName || 'User')
 const userEmail = computed(() => authStore.userEmail || '')
 const isSystemUser = computed(() => userName.value === 'system')
 const userAvatar = computed(() => authStore.user?.avatar || '')
-const companyName = computed(() => authStore.user?.company_name || authStore.user?.company_code || '')
-const companyCode = computed(() => authStore.user?.company_code || '')
-const companyLogo = computed(() => authStore.user?.company_logo_url || defaultCompanyLogo)
-const companyInitials = computed(() => {
-  const source = companyName.value || companyCode.value || 'CO'
-  return source.substring(0, 2).toUpperCase()
-})
-const companyTitle = computed(() => {
-  if (!companyCode.value || companyCode.value === companyName.value) {
-    return companyName.value
-  }
-  return `${companyName.value} (${companyCode.value})`
-})
 const availableThemes = computed(() => themeStore.getAvailableThemes())
 const currentThemeName = computed(() => themeStore.currentTheme.name)
 
@@ -550,55 +520,6 @@ defineExpose({
   background: rgba(var(--el-color-primary-rgb), 0.1);
   color: var(--el-color-primary);
   font-size: 11px;
-  font-weight: 700;
-}
-
-.user-company-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 52px;
-  padding: 8px 9px;
-  margin-bottom: 6px;
-  border: 1px solid var(--app-shell-panel-border);
-  border-radius: 14px;
-  background: var(--app-shell-panel-muted-bg);
-  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight);
-}
-
-.user-company-logo {
-  flex-shrink: 0;
-  border: 1px solid rgba(var(--el-color-primary-rgb), 0.16);
-  background: rgba(var(--el-color-primary-rgb), 0.1);
-  color: var(--el-color-primary);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.user-company-copy {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.user-company-label,
-.user-company-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.user-company-label {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.user-company-name {
-  color: var(--el-text-color-primary);
-  font-size: 13px;
   font-weight: 700;
 }
 

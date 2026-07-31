@@ -1,5 +1,5 @@
 import { get, post } from '@/architecture/infrastructure/apiClient/request'
-import type { UserInfo, LoginRequest, RegisterRequest, CompanyOption } from '@/architecture/domain/types'
+import type { UserInfo, LoginRequest, RegisterRequest } from '@/architecture/domain/types'
 
 export interface LoginMethodInfo {
   provider: string
@@ -41,61 +41,6 @@ export interface ConfirmOAuthRegistrationResponse {
 // 用户注册
 export function register(data: RegisterRequest) {
   return post('/hr/api/v1/auth/register', data)
-}
-
-export function searchCompanies(keyword: string, limit = 10) {
-  return get<{ companies: CompanyOption[] }>('/hr/api/v1/auth/companies/search', { keyword, limit })
-}
-
-interface PublicLogoUploadToken {
-  key: string
-  bucket?: string
-  upload_url: string
-  download_url?: string
-  headers?: Record<string, string>
-}
-
-interface PublicLogoUploadComplete {
-  download_url: string
-  key: string
-  bucket?: string
-}
-
-export async function uploadCompanyLogo(file: File): Promise<string> {
-  const token = await post<PublicLogoUploadToken>('/storage/api/v1/public/company_logo/upload_token', {
-    file_name: file.name,
-    content_type: file.type || 'application/octet-stream',
-    file_size: file.size,
-  })
-  if (!token.upload_url) {
-    throw new Error('未获取到企业 Logo 上传地址')
-  }
-
-  const uploadResp = await fetch(token.upload_url, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': file.type || 'application/octet-stream',
-      ...(token.headers || {}),
-    },
-    body: file,
-  })
-  if (!uploadResp.ok) {
-    throw new Error('企业 Logo 上传失败')
-  }
-
-  const complete = await post<PublicLogoUploadComplete>('/storage/api/v1/public/company_logo/upload_complete', {
-    key: token.key,
-    bucket: token.bucket,
-    success: true,
-    router: 'public/company-logos',
-    file_name: file.name,
-    file_size: file.size,
-    content_type: file.type || 'application/octet-stream',
-  })
-  if (!complete.download_url) {
-    throw new Error('企业 Logo 上传完成后未返回访问链接')
-  }
-  return complete.download_url
 }
 
 // 用户登录

@@ -115,25 +115,7 @@ func scheduledTaskMetadataWithContext(ctx context.Context, metadata map[string]s
 			if claims.LeaderUsername != nil && strings.TrimSpace(*claims.LeaderUsername) != "" && strings.TrimSpace(out[scheduledsdk.MetadataLeaderUsername]) == "" {
 				out[scheduledsdk.MetadataLeaderUsername] = strings.TrimSpace(*claims.LeaderUsername)
 			}
-			if claims.CompanyCode != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyCode]) == "" {
-				out[scheduledsdk.MetadataCompanyCode] = claims.CompanyCode
-			}
-			if claims.CompanyName != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyName]) == "" {
-				out[scheduledsdk.MetadataCompanyName] = claims.CompanyName
-			}
-			if claims.CompanyLogoURL != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyLogoURL]) == "" {
-				out[scheduledsdk.MetadataCompanyLogoURL] = claims.CompanyLogoURL
-			}
 		}
-	}
-	if companyCode := strings.TrimSpace(contextx.GetRequestCompanyCode(ctx)); companyCode != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyCode]) == "" {
-		out[scheduledsdk.MetadataCompanyCode] = companyCode
-	}
-	if companyName := strings.TrimSpace(contextx.GetRequestCompanyName(ctx)); companyName != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyName]) == "" {
-		out[scheduledsdk.MetadataCompanyName] = companyName
-	}
-	if companyLogoURL := strings.TrimSpace(contextx.GetRequestCompanyLogoURL(ctx)); companyLogoURL != "" && strings.TrimSpace(out[scheduledsdk.MetadataCompanyLogoURL]) == "" {
-		out[scheduledsdk.MetadataCompanyLogoURL] = companyLogoURL
 	}
 	if len(out) == 0 {
 		return nil
@@ -1128,9 +1110,6 @@ func scheduledExecutionToken(task *model.TimerTask) string {
 		Email:              strings.TrimSpace(metadata[scheduledsdk.MetadataRequestEmail]),
 		DepartmentFullPath: strings.TrimSpace(task.RequestUserDept),
 		LeaderUsername:     strings.TrimSpace(metadata[scheduledsdk.MetadataLeaderUsername]),
-		CompanyCode:        strings.TrimSpace(metadata[scheduledsdk.MetadataCompanyCode]),
-		CompanyName:        strings.TrimSpace(metadata[scheduledsdk.MetadataCompanyName]),
-		CompanyLogoURL:     strings.TrimSpace(metadata[scheduledsdk.MetadataCompanyLogoURL]),
 	})
 	if err != nil {
 		return ""

@@ -28,11 +28,8 @@ func (s *Server) setupRoutes() {
 	// API v1 路由组
 	apiV1 := storage.Group("/api/v1")
 
-	// 公开上传：注册前企业 Logo 使用，接口内部会限制文件类型、大小和存储路径。
 	public := apiV1.Group("/public")
 	storageHandler := v1.NewStorage(s.storageService)
-	public.POST("/company_logo/upload_token", storageHandler.GetPublicCompanyLogoUploadToken)
-	public.POST("/company_logo/upload_complete", storageHandler.PublicCompanyLogoUploadComplete)
 	public.POST("/share/:share_id/upload_token", storageHandler.PublicShareGetUploadToken)
 	public.POST("/share/:share_id/upload_complete", storageHandler.PublicShareUploadComplete)
 	public.POST("/share/:share_id/batch_upload_complete", storageHandler.PublicShareBatchUploadComplete)

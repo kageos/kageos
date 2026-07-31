@@ -91,7 +91,6 @@ func TestStripUntrustedIdentityHeaders(t *testing.T) {
 	header.Set(contextx.RequestUserHeader, "admin")
 	header.Set("X-Username", "admin")
 	header.Set(contextx.DepartmentFullPathHeader, "/org/root")
-	header.Set(contextx.CompanyCodeHeader, "root")
 	header.Set(contextx.TokenHeader, "web-token")
 
 	stripUntrustedIdentityHeaders(header)
@@ -100,7 +99,6 @@ func TestStripUntrustedIdentityHeaders(t *testing.T) {
 		contextx.RequestUserHeader,
 		"X-Username",
 		contextx.DepartmentFullPathHeader,
-		contextx.CompanyCodeHeader,
 	} {
 		if value := header.Get(key); value != "" {
 			t.Fatalf("%s was not stripped: %q", key, value)

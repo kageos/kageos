@@ -351,9 +351,6 @@ func stripUntrustedIdentityHeaders(header http.Header) {
 		contextx.RequestUserHeader,
 		"X-Username",
 		contextx.DepartmentFullPathHeader,
-		contextx.CompanyCodeHeader,
-		contextx.CompanyNameHeader,
-		contextx.CompanyLogoURLHeader,
 	} {
 		header.Del(key)
 	}
@@ -367,15 +364,6 @@ func applyOpenAPIPrincipalHeaders(header http.Header, principal *openapitoken.Pr
 	if principal.DepartmentFullPath != "" {
 		header.Set(contextx.DepartmentFullPathHeader, principal.DepartmentFullPath)
 	}
-	if principal.CompanyCode != "" {
-		header.Set(contextx.CompanyCodeHeader, principal.CompanyCode)
-	}
-	if principal.CompanyName != "" {
-		header.Set(contextx.CompanyNameHeader, principal.CompanyName)
-	}
-	if principal.CompanyLogoURL != "" {
-		header.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
-	}
 	header.Set(contextx.ClientSourceHeader, contextx.ClientSourceOpenAPI)
 	header.Set(contextx.SourceTypeHeader, contextx.SourceTypeOpenAPIToken)
 	header.Set(contextx.SourceRefHeader, principal.Username)
@@ -388,15 +376,6 @@ func applyAccessPrincipalHeaders(header http.Header, principal *auth.AccessToken
 	header.Set(contextx.RequestUserHeader, principal.Username)
 	if principal.DepartmentFullPath != "" {
 		header.Set(contextx.DepartmentFullPathHeader, principal.DepartmentFullPath)
-	}
-	if principal.CompanyCode != "" {
-		header.Set(contextx.CompanyCodeHeader, principal.CompanyCode)
-	}
-	if principal.CompanyName != "" {
-		header.Set(contextx.CompanyNameHeader, principal.CompanyName)
-	}
-	if principal.CompanyLogoURL != "" {
-		header.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
 	}
 }
 

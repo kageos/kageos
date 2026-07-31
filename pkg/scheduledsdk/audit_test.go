@@ -16,11 +16,6 @@ func TestExecutionRequestedEventWithAuditContext(t *testing.T) {
 		Token:           "token-1",
 		RequestUser:     "alice",
 		RequestUserDept: "/org/dev",
-		Metadata: map[string]string{
-			MetadataCompanyCode:    "acme",
-			MetadataCompanyName:    "Acme",
-			MetadataCompanyLogoURL: "https://example.com/logo.png",
-		},
 	}
 
 	ctx := event.WithAuditContext(context.Background())
@@ -46,15 +41,6 @@ func TestExecutionRequestedEventWithAuditContext(t *testing.T) {
 	if got := contextx.GetRequestDepartmentFullPath(ctx); got != "/org/dev" {
 		t.Fatalf("request dept = %q, want /org/dev", got)
 	}
-	if got := contextx.GetRequestCompanyCode(ctx); got != "acme" {
-		t.Fatalf("company code = %q, want acme", got)
-	}
-	if got := contextx.GetRequestCompanyName(ctx); got != "Acme" {
-		t.Fatalf("company name = %q, want Acme", got)
-	}
-	if got := contextx.GetRequestCompanyLogoURL(ctx); got != "https://example.com/logo.png" {
-		t.Fatalf("company logo = %q", got)
-	}
 }
 
 func TestExecutionRequestedEventApplyAuditHeaders(t *testing.T) {
@@ -64,9 +50,6 @@ func TestExecutionRequestedEventApplyAuditHeaders(t *testing.T) {
 		TraceID:     "trace-1",
 		Token:       "token-1",
 		RequestUser: "alice",
-		Metadata: map[string]string{
-			MetadataCompanyCode: "acme",
-		},
 	}
 	header := http.Header{}
 
@@ -89,8 +72,5 @@ func TestExecutionRequestedEventApplyAuditHeaders(t *testing.T) {
 	}
 	if got := header.Get(contextx.TokenHeader); got != "token-1" {
 		t.Fatalf("token header = %q, want token-1", got)
-	}
-	if got := header.Get(contextx.CompanyCodeHeader); got != "acme" {
-		t.Fatalf("company code header = %q, want acme", got)
 	}
 }

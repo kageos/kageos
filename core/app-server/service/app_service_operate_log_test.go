@@ -42,7 +42,7 @@ func newAppServiceOperateLogTest(t *testing.T) (*AppService, *gorm.DB) {
 
 func TestRecordTableActionLogPersistsFailedResultAndDuration(t *testing.T) {
 	service, db := newAppServiceOperateLogTest(t)
-	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{CompanyCode: "acme"})
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{})
 
 	err := service.RecordTableActionLog(ctx, &dto.RecordTableActionLogReq{
 		TenantUser:     "alice",
@@ -79,9 +79,6 @@ func TestRecordTableActionLogPersistsFailedResultAndDuration(t *testing.T) {
 
 	if log.Status != "failed" {
 		t.Fatalf("status = %q", log.Status)
-	}
-	if log.CompanyCode != "acme" {
-		t.Fatalf("company_code = %q", log.CompanyCode)
 	}
 	if log.Summary != "boom" {
 		t.Fatalf("summary = %q", log.Summary)

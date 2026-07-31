@@ -137,9 +137,8 @@ func (s *AuthOAuthService) FinishCallback(ctx context.Context, providerAlias, st
 		return nil, err
 	}
 	return s.CompleteExternalLogin(ctx, externalPrincipalFromOAuthProfile(profile), ExternalLoginOptions{
-		ShortCode:          oauthProviderShortCode(providerCode),
-		DefaultCompanyCode: runtimeConfig.Values["default_company_code"],
-		RedirectAfter:      oauthState.RedirectAfter,
+		ShortCode:     oauthProviderShortCode(providerCode),
+		RedirectAfter: oauthState.RedirectAfter,
 	})
 }
 
@@ -184,23 +183,9 @@ func (s *AuthOAuthService) ConfirmRegistration(ticket, username, nickname string
 	}
 	nickname = truncateRunes(nickname, 100)
 
-	companyCode := strings.TrimSpace(intent.CompanyCode)
-	if companyCode == "" {
-		companyCode = model.DefaultCompanyCode
-	}
-	if s.authService != nil && s.authService.companyRepo != nil {
-		if _, err := s.authService.companyRepo.GetCompanyByCode(companyCode); err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("企业代码 %s 不存在，请联系系统管理员", companyCode)
-			}
-			return nil, fmt.Errorf("检查企业代码失败: %w", err)
-		}
-	}
-
 	user := &model.User{
 		Username:           username,
 		Email:              strings.ToLower(strings.TrimSpace(intent.Email)),
-		CompanyCode:        companyCode,
 		RegisterType:       oauthRegisterType(intent.ProviderCode),
 		Status:             "active",
 		EmailVerified:      userEmailVerified(intent.Email, intent.EmailVerified),

@@ -40,7 +40,7 @@ func cmdInitDev(paths Paths, args []string) error {
 }
 
 func runInitDev(paths Paths, opts initDevOptions) error {
-	if err := renderDevConfig(paths, opts.RegenSecrets, opts.CompanyCode, opts.CompanyName); err != nil {
+	if err := renderDevConfig(paths, opts.RegenSecrets); err != nil {
 		return err
 	}
 	if err := writeWorkspaceConfig(paths, workspaceModeDev, workspaceDevConfig{Engine: opts.Engine}); err != nil {
@@ -136,12 +136,6 @@ func writeInitialConfig(paths Paths, opts initOptions) (bool, error) {
 		cfg.Site.HTTPSPort = opts.HTTPSPort
 	}
 	cfg.MySQL.Mode = opts.MySQLMode
-	if opts.CompanyCode != "" {
-		cfg.Company.Code = opts.CompanyCode
-	}
-	if opts.CompanyName != "" {
-		cfg.Company.Name = opts.CompanyName
-	}
 	if opts.RegistrationMode != "" {
 		cfg.Auth.RegistrationMode = opts.RegistrationMode
 	}
@@ -184,7 +178,7 @@ func writeInitialConfig(paths Paths, opts initOptions) (bool, error) {
 
 func cmdRender(paths Paths) error {
 	if currentWorkspaceMode(paths) == workspaceModeDev {
-		if err := renderDevConfig(paths, false, "", ""); err != nil {
+		if err := renderDevConfig(paths, false); err != nil {
 			return err
 		}
 		fmt.Printf("rendered dev config: %s\n", filepath.Join(paths.RepoRoot, defaultDevConfig))

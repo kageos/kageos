@@ -51,9 +51,6 @@ type CreateInput struct {
 	OwnerUsername      string
 	OwnerUserID        int64
 	OwnerEmail         string
-	CompanyCode        string
-	CompanyName        string
-	CompanyLogoURL     string
 	DepartmentFullPath string
 	LeaderUsername     string
 	Name               string
@@ -77,9 +74,6 @@ type Principal struct {
 	UserID             int64
 	Username           string
 	Email              string
-	CompanyCode        string
-	CompanyName        string
-	CompanyLogoURL     string
 	DepartmentFullPath string
 }
 
@@ -115,9 +109,6 @@ func (s *Store) Create(input CreateInput) (*CreateResult, error) {
 		UserID:             input.OwnerUserID,
 		Username:           ownerUsername,
 		Email:              strings.TrimSpace(input.OwnerEmail),
-		CompanyCode:        strings.TrimSpace(input.CompanyCode),
-		CompanyName:        strings.TrimSpace(input.CompanyName),
-		CompanyLogoURL:     strings.TrimSpace(input.CompanyLogoURL),
 		DepartmentFullPath: strings.TrimSpace(input.DepartmentFullPath),
 		LeaderUsername:     strings.TrimSpace(input.LeaderUsername),
 	}, input.ExpiresAt)
@@ -226,13 +217,10 @@ func (s *Store) Validate(rawToken, ip, userAgent string) (*Principal, error) {
 	}).Error
 
 	principal := &Principal{
-		TokenID:        token.ID,
-		UserID:         token.OwnerUserID,
-		Username:       token.OwnerUsername,
-		Email:          claims.Email,
-		CompanyCode:    claims.CompanyCode,
-		CompanyName:    claims.CompanyName,
-		CompanyLogoURL: claims.CompanyLogoURL,
+		TokenID:  token.ID,
+		UserID:   token.OwnerUserID,
+		Username: token.OwnerUsername,
+		Email:    claims.Email,
 	}
 	if claims.DepartmentFullPath != nil {
 		principal.DepartmentFullPath = *claims.DepartmentFullPath

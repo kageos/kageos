@@ -9,8 +9,6 @@ async function fillRegistrationForm(page: Page) {
   await page.getByTestId('register-username').fill(username)
   await page.getByTestId('register-email').fill('new-home@example.com')
   await page.getByTestId('register-password').fill(password)
-  await page.getByTestId('register-company-name').fill('New Home Company')
-  await page.getByTestId('register-company-code').fill('new_home_company')
   await page.getByTestId('register-code').fill('123456')
 }
 
@@ -80,7 +78,6 @@ test.describe('email registration personal workspace', () => {
               id: 42,
               username,
               email: 'new-home@example.com',
-              company_code: 'new_home_company',
               register_type: 'email',
               avatar: '',
               email_verified: true,
@@ -103,9 +100,6 @@ test.describe('email registration personal workspace', () => {
       password,
       email: 'new-home@example.com',
       code: '123456',
-      company_action: 'create',
-      company_code: 'new_home_company',
-      company_name: 'New Home Company',
     })
     expect(loginRequests).toEqual([{ username, password }])
     expect(bootstrapToken).toBe('new-user-access-token')

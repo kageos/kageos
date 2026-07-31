@@ -32,18 +32,6 @@ func WithUserInfo(options ...AuthOption) gin.HandlerFunc {
 						c.Set(contextx.DepartmentFullPathHeader, principal.DepartmentFullPath)
 						c.Request.Header.Set(contextx.DepartmentFullPathHeader, principal.DepartmentFullPath)
 					}
-					if principal.CompanyCode != "" {
-						c.Set(contextx.CompanyCodeHeader, principal.CompanyCode)
-						c.Request.Header.Set(contextx.CompanyCodeHeader, principal.CompanyCode)
-					}
-					if principal.CompanyName != "" {
-						c.Set(contextx.CompanyNameHeader, principal.CompanyName)
-						c.Request.Header.Set(contextx.CompanyNameHeader, principal.CompanyName)
-					}
-					if principal.CompanyLogoURL != "" {
-						c.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
-						c.Request.Header.Set(contextx.CompanyLogoURLHeader, principal.CompanyLogoURL)
-					}
 					c.Set(contextx.ClientSourceHeader, contextx.ClientSourceOpenAPI)
 					c.Request.Header.Set(contextx.ClientSourceHeader, contextx.ClientSourceOpenAPI)
 					c.Request.Header.Set(contextx.SourceTypeHeader, contextx.SourceTypeOpenAPIToken)

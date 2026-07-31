@@ -151,7 +151,6 @@ func (a *AppService) recordScheduledFunctionOperateLog(ctx context.Context, payl
 	}
 	log := &model.OperateLog{
 		TenantUser:    user,
-		CompanyCode:   contextx.GetRequestCompanyCode(ctx),
 		App:           app,
 		ActorUser:     actor,
 		Action:        "scheduled_function_execute",

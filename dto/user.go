@@ -46,9 +46,8 @@ type UpdateUserResp struct {
 
 // SystemListUsersReq system 用户管理：分页查询用户
 type SystemListUsersReq struct {
-	Keyword      string `json:"keyword" form:"keyword" example:"bei"`            // 搜索关键词：用户名、邮箱、昵称
-	CompanyCode  string `json:"company_code" form:"company_code" example:"acme"` // 企业代码
-	Status       string `json:"status" form:"status" example:"active"`           // 用户状态：active/pending/disabled
+	Keyword      string `json:"keyword" form:"keyword" example:"bei"`  // 搜索关键词：用户名、邮箱、昵称
+	Status       string `json:"status" form:"status" example:"active"` // 用户状态：active/pending/disabled
 	RegisterType string `json:"register_type" form:"register_type" example:"email"`
 	Page         int    `json:"page" form:"page" example:"1"`
 	PageSize     int    `json:"page_size" form:"page_size" example:"20"`
@@ -68,9 +67,6 @@ type SystemCreateUserReq struct {
 	Password           string `json:"password" binding:"required,min=6" example:"123456"`
 	Email              string `json:"email" example:"newuser@example.com"`
 	Nickname           string `json:"nickname" example:"新用户"`
-	CompanyCode        string `json:"company_code" example:"acme"`     // 为空时使用默认企业
-	CompanyName        string `json:"company_name" example:"Acme Inc"` // 企业不存在时必填，用于创建企业
-	CompanyLogoURL     string `json:"company_logo_url" example:"https://cdn.example.com/acme.png"`
 	DepartmentFullPath string `json:"department_full_path" example:"/org/unassigned"`
 	LeaderUsername     string `json:"leader_username" example:"leader1"`
 	Status             string `json:"status" example:"active"` // 为空默认 active；支持 active/pending/disabled
@@ -88,9 +84,6 @@ type SystemUpdateUserReq struct {
 	Signature          *string `json:"signature,omitempty" example:"负责客户成功"`
 	Avatar             *string `json:"avatar,omitempty" example:"https://avatar.com/1.jpg"`
 	Gender             *string `json:"gender,omitempty" example:"other"`
-	CompanyCode        *string `json:"company_code,omitempty" example:"acme"`
-	CompanyName        *string `json:"company_name,omitempty" example:"Acme Inc"`
-	CompanyLogoURL     *string `json:"company_logo_url,omitempty" example:"https://cdn.example.com/acme.png"`
 	DepartmentFullPath *string `json:"department_full_path,omitempty" example:"/org/unassigned"`
 	LeaderUsername     *string `json:"leader_username,omitempty" example:"leader1"`
 }

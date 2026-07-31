@@ -71,7 +71,7 @@ func TestScheduledExecutionTokenSupportsSystemUser(t *testing.T) {
 		RequestUser:     "system",
 		CreatedBy:       "system",
 		RequestUserDept: "/system",
-		MetadataJSON:    json.RawMessage(`{"request_user_id":"1","request_email":"system@example.com","company_code":"kageos"}`),
+		MetadataJSON:    json.RawMessage(`{"request_user_id":"1","request_email":"system@example.com"}`),
 	}
 	token := scheduledExecutionToken(task)
 	if token == "" {
@@ -86,9 +86,6 @@ func TestScheduledExecutionTokenSupportsSystemUser(t *testing.T) {
 	}
 	if claims.DepartmentFullPath == nil || *claims.DepartmentFullPath != "/system" {
 		t.Fatalf("expected department in system token, claims=%+v", claims)
-	}
-	if claims.CompanyCode != "kageos" {
-		t.Fatalf("company code = %q, want kageos", claims.CompanyCode)
 	}
 }
 
@@ -201,8 +198,6 @@ func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 		UserID:             42,
 		Username:           "alice",
 		Email:              "alice@example.com",
-		CompanyCode:        "acme",
-		CompanyName:        "Acme",
 		DepartmentFullPath: "/org/dev",
 	})
 	if err != nil {
@@ -212,8 +207,6 @@ func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 		Token:              createToken,
 		RequestUser:        "alice",
 		DepartmentFullPath: "/org/dev",
-		CompanyCode:        "acme",
-		CompanyName:        "Acme",
 	})
 	payload := json.RawMessage(`{"hello":"timer"}`)
 
@@ -259,9 +252,6 @@ func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 	if err := json.Unmarshal(requestedEvent.Payload, &event); err != nil {
 		t.Fatal(err)
 	}
-	if event.Metadata[scheduledsdk.MetadataCompanyCode] != "acme" || event.Metadata[scheduledsdk.MetadataCompanyName] != "Acme" {
-		t.Fatalf("company metadata was not propagated: %+v", event.Metadata)
-	}
 	if event.RequestUser != "alice" || event.RequestUserDept != "/org/dev" {
 		t.Fatalf("request user was not propagated: user=%q dept=%q", event.RequestUser, event.RequestUserDept)
 	}
@@ -278,10 +268,6 @@ func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 	if claims.DepartmentFullPath == nil || *claims.DepartmentFullPath != "/org/dev" {
 		t.Fatalf("scheduled token should include department, claims=%+v", claims)
 	}
-	if claims.CompanyCode != "acme" || claims.CompanyName != "Acme" {
-		t.Fatalf("scheduled token should include company metadata, claims=%+v", claims)
-	}
-
 	if err := svc.MarkExecutionStarted(ctx, scheduledsdk.MarkExecutionStartedRequest{
 		TaskID:      task.ID,
 		ExecutionID: exec.ID,

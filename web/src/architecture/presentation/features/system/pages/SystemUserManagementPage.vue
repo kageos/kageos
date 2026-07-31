@@ -11,14 +11,6 @@
             @keyup.enter="handleSearch"
           />
         </el-form-item>
-        <el-form-item :label="t('systemUser.company')">
-          <el-input
-            v-model="filters.company_code"
-            clearable
-            placeholder="acme"
-            @keyup.enter="handleSearch"
-          />
-        </el-form-item>
         <el-form-item :label="t('systemUser.status')">
           <el-select v-model="filters.status" clearable class="filter-select">
             <el-option :label="t('systemUser.statusActive')" value="active" />
@@ -72,14 +64,6 @@
         </template>
       </el-table-column>
       <el-table-column prop="email" :label="t('systemUser.email')" min-width="210" show-overflow-tooltip />
-      <el-table-column :label="t('systemUser.company')" min-width="170">
-        <template #default="{ row }">
-          <div class="company-cell">
-            <span>{{ row.company_name || row.company_code || '-' }}</span>
-            <code v-if="row.company_code">{{ row.company_code }}</code>
-          </div>
-        </template>
-      </el-table-column>
       <el-table-column :label="t('systemUser.status')" width="120">
         <template #default="{ row }">
           <el-tag :type="statusTagType(row.status)">
@@ -205,29 +189,6 @@
         <el-form-item :label="t('systemUser.email')">
           <el-input v-model="userForm.email" placeholder="user@example.com" />
         </el-form-item>
-        <el-form-item :label="t('systemUser.companyCode')">
-          <el-select
-            v-model="userForm.company_code"
-            filterable
-            remote
-            allow-create
-            clearable
-            :remote-method="loadCompanyOptions"
-            :loading="companyLoading"
-            placeholder="default"
-            @change="handleCompanyChange"
-          >
-            <el-option
-              v-for="company in companyOptions"
-              :key="company.code"
-              :label="`${company.name} (${company.code})`"
-              :value="company.code"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="t('systemUser.companyName')">
-          <el-input v-model="userForm.company_name" />
-        </el-form-item>
         <el-form-item :label="t('systemUser.departmentPath')">
           <el-input v-model="userForm.department_full_path" placeholder="/org/unassigned" />
         </el-form-item>
@@ -274,8 +235,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CircleCheck, CircleClose, Clock, EditPen, Key, MoreFilled, Plus, Refresh, Search } from '@element-plus/icons-vue'
-import type { CompanyOption, UserInfo } from '@/architecture/domain/types'
-import { searchCompanies } from '@/architecture/presentation/context/api/auth'
+import type { UserInfo } from '@/architecture/domain/types'
 import {
   createSystemUser,
   listSystemUsers,
@@ -289,18 +249,15 @@ const { t } = useI18n()
 const loading = ref(false)
 const savingUser = ref(false)
 const resettingPassword = ref(false)
-const companyLoading = ref(false)
 const userDialogVisible = ref(false)
 const passwordDialogVisible = ref(false)
 const userDialogMode = ref<'create' | 'edit'>('create')
 const selectedUsername = ref('')
 const users = ref<UserInfo[]>([])
 const total = ref(0)
-const companyOptions = ref<CompanyOption[]>([])
 
 const filters = reactive({
   keyword: '',
-  company_code: '',
   status: '',
   register_type: '',
   page: 1,
@@ -312,8 +269,6 @@ const userForm = reactive({
   password: '',
   email: '',
   nickname: '',
-  company_code: '',
-  company_name: '',
   department_full_path: '',
   leader_username: '',
   status: 'active' as 'active' | 'pending' | 'disabled',
@@ -334,7 +289,6 @@ async function loadUsers() {
   try {
     const resp = await listSystemUsers({
       keyword: filters.keyword,
-      company_code: filters.company_code,
       status: filters.status,
       register_type: filters.register_type,
       page: filters.page,
@@ -366,8 +320,6 @@ function resetUserForm() {
   userForm.password = ''
   userForm.email = ''
   userForm.nickname = ''
-  userForm.company_code = ''
-  userForm.company_name = ''
   userForm.department_full_path = '/org/unassigned'
   userForm.leader_username = ''
   userForm.status = 'active'
@@ -377,7 +329,6 @@ function openCreateDialog() {
   resetUserForm()
   userDialogMode.value = 'create'
   userDialogVisible.value = true
-  loadCompanyOptions('')
 }
 
 function openEditDialog(user: UserInfo) {
@@ -386,12 +337,9 @@ function openEditDialog(user: UserInfo) {
   userForm.username = user.username
   userForm.email = user.email || ''
   userForm.nickname = user.nickname || ''
-  userForm.company_code = user.company_code || ''
-  userForm.company_name = user.company_name || ''
   userForm.department_full_path = user.department_full_path || ''
   userForm.leader_username = user.leader_username || ''
   userDialogVisible.value = true
-  loadCompanyOptions(user.company_code || '')
 }
 
 function openPasswordDialog(user: UserInfo) {
@@ -424,8 +372,6 @@ async function saveUser() {
         password: userForm.password,
         email: userForm.email.trim() || undefined,
         nickname: userForm.nickname.trim() || undefined,
-        company_code: userForm.company_code.trim() || undefined,
-        company_name: userForm.company_name.trim() || undefined,
         department_full_path: userForm.department_full_path.trim() || undefined,
         leader_username: userForm.leader_username.trim() || undefined,
         status: userForm.status,
@@ -435,8 +381,6 @@ async function saveUser() {
       await updateSystemUser(userForm.username, {
         email: userForm.email.trim(),
         nickname: userForm.nickname.trim(),
-        company_code: userForm.company_code.trim(),
-        company_name: userForm.company_name.trim(),
         department_full_path: userForm.department_full_path.trim(),
         leader_username: userForm.leader_username.trim(),
       })
@@ -504,25 +448,6 @@ async function handleUserActionCommand(user: UserInfo, command: string) {
 
 function isStatusActionDisabled(user: UserInfo, status: string) {
   return user.username === 'system' || user.status === status
-}
-
-async function loadCompanyOptions(keyword: string) {
-  companyLoading.value = true
-  try {
-    const resp = await searchCompanies(keyword, 20)
-    companyOptions.value = resp.companies || []
-  } catch {
-    companyOptions.value = []
-  } finally {
-    companyLoading.value = false
-  }
-}
-
-function handleCompanyChange(code: string) {
-  const selected = companyOptions.value.find((company) => company.code === code)
-  if (selected) {
-    userForm.company_name = selected.name
-  }
 }
 
 function normalizeUserCodeInput(value: string | number) {
@@ -672,8 +597,7 @@ onMounted(loadUsers)
   min-width: 0;
 }
 
-.user-cell-main,
-.company-cell {
+.user-cell-main {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -689,19 +613,6 @@ onMounted(loadUsers)
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 1.4;
-}
-
-.company-cell code {
-  width: fit-content;
-  max-width: 100%;
-  margin-top: 4px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--el-fill-color-light);
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .pagination-row {

@@ -37,9 +37,6 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 	if req.TenantUser != "" {
 		query = query.Where("tenant_user = ?", req.TenantUser)
 	}
-	if req.CompanyCode != "" {
-		query = query.Where("(company_code = ? OR company_code = '' OR company_code IS NULL)", req.CompanyCode)
-	}
 	if req.ActorUser != "" {
 		query = query.Where("actor_user = ?", req.ActorUser)
 	}
@@ -101,8 +98,7 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 		keyword := strings.TrimSpace(req.Keyword)
 		likeKeyword := "%" + keyword + "%"
 		query = query.Where(
-			"company_code LIKE ? OR actor_user LIKE ? OR target_user LIKE ? OR resource_path LIKE ? OR source_type LIKE ? OR source_ref LIKE ? OR executor_type LIKE ? OR workspace_session_id LIKE ? OR workspace_session_title LIKE ? OR initiator_user LIKE ? OR tool_call_id LIKE ? OR tool_name LIKE ? OR trace_id LIKE ? OR summary LIKE ?",
-			likeKeyword,
+			"actor_user LIKE ? OR target_user LIKE ? OR resource_path LIKE ? OR source_type LIKE ? OR source_ref LIKE ? OR executor_type LIKE ? OR workspace_session_id LIKE ? OR workspace_session_title LIKE ? OR initiator_user LIKE ? OR tool_call_id LIKE ? OR tool_name LIKE ? OR trace_id LIKE ? OR summary LIKE ?",
 			likeKeyword,
 			likeKeyword,
 			likeKeyword,

@@ -141,10 +141,6 @@ func defaultConfig() (Config, error) {
 			Region:       "us-east-1",
 			Bucket:       "kageos",
 		},
-		Company: CompanyConfig{
-			Code: "default",
-			Name: "Default",
-		},
 		Auth: AuthConfig{
 			RegistrationMode: "admin_only",
 		},
@@ -220,10 +216,6 @@ func defaultDevDeploymentConfig(secrets devSecrets) Config {
 			Region:       "us-east-1",
 			Bucket:       "kageos",
 		},
-		Company: CompanyConfig{
-			Code: "default",
-			Name: "Default",
-		},
 		Auth: AuthConfig{
 			RegistrationMode: "debug_code",
 		},
@@ -281,12 +273,6 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Storage.Root == "" {
 		cfg.Storage.Root = defaultStorageRoot()
-	}
-	if cfg.Company.Code == "" {
-		cfg.Company.Code = "default"
-	}
-	if cfg.Company.Name == "" {
-		cfg.Company.Name = "Default"
 	}
 	if cfg.Auth.RegistrationMode == "" {
 		if cfg.SMTP.Mode == "log" {
@@ -388,15 +374,6 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_BASE_IMAGE")); v != "" {
 		cfg.Images.AppBase = v
-	}
-	if v := strings.TrimSpace(os.Getenv("KAGEOS_COMPANY_CODE")); v != "" {
-		cfg.Company.Code = v
-	}
-	if v := strings.TrimSpace(os.Getenv("KAGEOS_COMPANY_NAME")); v != "" {
-		cfg.Company.Name = v
-	}
-	if v := strings.TrimSpace(os.Getenv("KAGEOS_COMPANY_LOGO_URL")); v != "" {
-		cfg.Company.LogoURL = v
 	}
 	if v := strings.TrimSpace(os.Getenv("KAGEOS_REGISTRATION_MODE")); v != "" {
 		cfg.Auth.RegistrationMode = v
@@ -656,14 +633,6 @@ func validateConfig(rt RuntimeConfig) error {
 		if rt.MinIO.RootUser != rt.MinIO.AccessKey || rt.MinIO.RootPassword != rt.MinIO.SecretKey {
 			errs = append(errs, fmt.Errorf("minio.mode=bundled requires root credentials to match access_key/secret_key"))
 		}
-	}
-	if strings.TrimSpace(rt.Company.Code) == "" {
-		errs = append(errs, fmt.Errorf("company.code is required"))
-	} else if !defaultCompanyCodePattern.MatchString(rt.Company.Code) {
-		errs = append(errs, fmt.Errorf("company.code can only contain letters, numbers, underscores, and hyphens"))
-	}
-	if strings.TrimSpace(rt.Company.Name) == "" {
-		errs = append(errs, fmt.Errorf("company.name is required"))
 	}
 	if err := validateRegistrationMode(rt.Auth.RegistrationMode); err != nil {
 		errs = append(errs, err)

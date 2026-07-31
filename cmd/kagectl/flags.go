@@ -48,8 +48,6 @@ type initOptions struct {
 	HTTPPort         int
 	HTTPSPort        int
 	MySQLMode        string
-	CompanyCode      string
-	CompanyName      string
 	RegistrationMode string
 	SMTPMode         string
 }
@@ -77,8 +75,6 @@ type initDevOptions struct {
 	BaseForce    bool
 	BaseNoCache  bool
 	RegenSecrets bool
-	CompanyCode  string
-	CompanyName  string
 }
 
 func parseCommonFlags(args []string) (commonOptions, []string, error) {
@@ -281,18 +277,6 @@ func parseInitFlags(command string, args []string) (initOptions, error) {
 				return opts, fmt.Errorf("--mysql-mode requires a value")
 			}
 			opts.MySQLMode = args[i]
-		case "--company-code":
-			i++
-			if i >= len(args) {
-				return opts, fmt.Errorf("--company-code requires a value")
-			}
-			opts.CompanyCode = strings.TrimSpace(args[i])
-		case "--company-name":
-			i++
-			if i >= len(args) {
-				return opts, fmt.Errorf("--company-name requires a value")
-			}
-			opts.CompanyName = strings.TrimSpace(args[i])
 		case "--registration-mode":
 			i++
 			if i >= len(args) {
@@ -512,18 +496,6 @@ func parseInitDevFlags(args []string) (initDevOptions, error) {
 			opts.BaseNoCache = true
 		case "--regen-secrets":
 			opts.RegenSecrets = true
-		case "--company-code":
-			i++
-			if i >= len(args) {
-				return opts, fmt.Errorf("--company-code requires a value")
-			}
-			opts.CompanyCode = strings.TrimSpace(args[i])
-		case "--company-name":
-			i++
-			if i >= len(args) {
-				return opts, fmt.Errorf("--company-name requires a value")
-			}
-			opts.CompanyName = strings.TrimSpace(args[i])
 		default:
 			if args[i] == "auto" || args[i] == "docker" || args[i] == "podman" {
 				opts.Engine = args[i]
@@ -542,10 +514,10 @@ func printUsage() {
 	fmt.Println(`kagectl manages Kageos lifecycle.
 
 Usage:
-  kagectl init [--force] [--base-url URL] [--tls-mode auto|http|https|redirect|external] [--timezone TZ] [--http-port PORT] [--https-port PORT] [--mysql-mode bundled|external] [--company-code CODE] [--company-name NAME] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log]
-  kagectl init --dev [--engine podman|docker|auto] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME]
+  kagectl init [--force] [--base-url URL] [--tls-mode auto|http|https|redirect|external] [--timezone TZ] [--http-port PORT] [--https-port PORT] [--mysql-mode bundled|external] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log]
+  kagectl init --dev [--engine podman|docker|auto] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache]
   kagectl bootstrap --base-url URL [--tls-mode auto|http|https|redirect|external] [--timezone TZ] [--http-port PORT] [--https-port PORT] [--mysql-mode bundled|external] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log] [--image|--no-build] [--skip-verify] [--wait-timeout 5m]
-  kagectl bootstrap --dev [--engine podman|docker|auto] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--company-code CODE] [--company-name NAME] [--skip-verify] [--wait-timeout 5m]
+  kagectl bootstrap --dev [--engine podman|docker|auto] [--skip-base] [--regen-secrets] [--base-image IMAGE] [--base-force] [--base-no-cache] [--skip-verify] [--wait-timeout 5m]
   kagectl build-app-base [--image IMAGE] [--force] [--no-cache]
   kagectl render [--config .kageos/prod/kage.yaml]
   kagectl reload-tls [--config .kageos/prod/kage.yaml]

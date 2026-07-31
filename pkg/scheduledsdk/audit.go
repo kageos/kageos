@@ -10,9 +10,6 @@ import (
 )
 
 const (
-	MetadataCompanyCode    = "company_code"
-	MetadataCompanyName    = "company_name"
-	MetadataCompanyLogoURL = "company_logo_url"
 	MetadataRequestUserID  = "request_user_id"
 	MetadataRequestEmail   = "request_email"
 	MetadataLeaderUsername = "leader_username"
@@ -47,9 +44,6 @@ func (e ExecutionRequestedEvent) WithAuditContext(parent context.Context) contex
 		RequestUser:        e.RequestUser,
 		Token:              e.Token,
 		DepartmentFullPath: e.RequestUserDept,
-		CompanyCode:        strings.TrimSpace(e.Metadata[MetadataCompanyCode]),
-		CompanyName:        strings.TrimSpace(e.Metadata[MetadataCompanyName]),
-		CompanyLogoURL:     strings.TrimSpace(e.Metadata[MetadataCompanyLogoURL]),
 		ClientSource:       contextx.ClientSourceScheduledTask,
 		SourceType:         contextx.SourceTypeScheduledTask,
 		SourceRef:          e.AuditSourceRef(),
@@ -77,14 +71,5 @@ func (e ExecutionRequestedEvent) ApplyAuditHeaders(header http.Header) {
 	}
 	if requestUserDept := strings.TrimSpace(e.RequestUserDept); requestUserDept != "" {
 		header.Set(contextx.DepartmentFullPathHeader, requestUserDept)
-	}
-	if companyCode := strings.TrimSpace(e.Metadata[MetadataCompanyCode]); companyCode != "" {
-		header.Set(contextx.CompanyCodeHeader, companyCode)
-	}
-	if companyName := strings.TrimSpace(e.Metadata[MetadataCompanyName]); companyName != "" {
-		header.Set(contextx.CompanyNameHeader, companyName)
-	}
-	if companyLogoURL := strings.TrimSpace(e.Metadata[MetadataCompanyLogoURL]); companyLogoURL != "" {
-		header.Set(contextx.CompanyLogoURLHeader, companyLogoURL)
 	}
 }

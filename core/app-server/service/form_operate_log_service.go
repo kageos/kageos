@@ -8,7 +8,6 @@ import (
 
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/dto"
-	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
@@ -69,7 +68,6 @@ func (a *AppService) RecordFormOperateLog(ctx context.Context, req *dto.RecordFo
 
 	log := &model.OperateLog{
 		TenantUser:    req.TenantUser,
-		CompanyCode:   contextx.GetRequestCompanyCode(ctx),
 		App:           req.App,
 		ActorUser:     req.RequestUser,
 		Action:        action,

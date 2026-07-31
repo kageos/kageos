@@ -21,7 +21,6 @@ func TestResolveExistingUserForPrincipalDoesNotAutoBindByEmail(t *testing.T) {
 	if err := userRepo.CreateUser(&model.User{
 		Username:      "google_user",
 		Email:         "same@example.com",
-		CompanyCode:   model.DefaultCompanyCode,
 		Status:        "active",
 		EmailVerified: true,
 		RegisterType:  "google",
@@ -70,9 +69,8 @@ func TestCreateRegistrationIntentAllowsMissingEmail(t *testing.T) {
 		ExternalID:   "github-no-email",
 		Nickname:     "No Email User",
 	}, ExternalLoginOptions{
-		DefaultCompanyCode: model.DefaultCompanyCode,
-		ShortCode:          "github",
-		RedirectAfter:      "/workspace",
+		ShortCode:     "github",
+		RedirectAfter: "/workspace",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -102,9 +100,8 @@ func TestCompleteExternalLoginCreatesRegistrationIntentForUnknownPrincipal(t *te
 		Email:        "Alice@Example.COM",
 		Nickname:     "Alice",
 	}, ExternalLoginOptions{
-		DefaultCompanyCode: model.DefaultCompanyCode,
-		ShortCode:          "sso",
-		RedirectAfter:      "/workspace",
+		ShortCode:     "sso",
+		RedirectAfter: "/workspace",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -141,7 +138,6 @@ func TestOAuthRegistrationCompleteAllowsDuplicateEmailContact(t *testing.T) {
 			Email:         "same@example.com",
 			EmailVerified: true,
 			SuggestedCode: fmt.Sprintf("oauthuser%d", i),
-			CompanyCode:   model.DefaultCompanyCode,
 			ExpiresAt:     time.Now().Add(time.Minute),
 		}); err != nil {
 			t.Fatal(err)
@@ -149,7 +145,6 @@ func TestOAuthRegistrationCompleteAllowsDuplicateEmailContact(t *testing.T) {
 		_, err := registrationRepo.Complete(ticket, &model.User{
 			Username:      fmt.Sprintf("oauthuser%d", i),
 			Email:         "same@example.com",
-			CompanyCode:   model.DefaultCompanyCode,
 			Status:        "active",
 			RegisterType:  "github",
 			EmailVerified: true,
