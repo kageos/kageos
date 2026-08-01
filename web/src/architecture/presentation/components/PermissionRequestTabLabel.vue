@@ -12,18 +12,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  listMyPermissionRequests,
-  listPendingPermissionRequests,
-} from '@/architecture/presentation/context/api/permission'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import {
   getPermissionRequestWorkspaceRoot,
-  summarizePermissionRequests,
   type PermissionRequestSummary,
 } from '@/architecture/presentation/features/access/utils/permissionRequestSummary'
+import {
+  getPermissionRequestSummaryState,
+  loadPermissionRequestSummary,
+  permissionRequestPathSummary,
+} from '@/architecture/presentation/features/access/utils/permissionRequestSummaryStore'
 
 const props = defineProps<{
   label: string
@@ -31,47 +31,32 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const emptySummary = (): PermissionRequestSummary => ({
-  ownPendingCount: 0,
-  reviewPendingCount: 0,
-  totalCount: 0,
+const workspaceRoot = computed(() => getPermissionRequestWorkspaceRoot(props.resourcePath))
+const workspaceSummary = computed(() => getPermissionRequestSummaryState(workspaceRoot.value))
+const summary = computed<PermissionRequestSummary>(() => {
+  const pathSummary = permissionRequestPathSummary(workspaceSummary.value, props.resourcePath)
+  const ownPendingCount = Number(pathSummary.own_pending_count || 0)
+  const reviewPendingCount = Number(pathSummary.review_pending_count || 0)
+  return {
+    ownPendingCount,
+    reviewPendingCount,
+    totalCount: ownPendingCount + reviewPendingCount,
+  }
 })
-const summary = ref<PermissionRequestSummary>(emptySummary())
-let loadSequence = 0
 
 const badgeTitle = computed(() => t('access.permissionRequestBadgeTitle', {
   review: summary.value.reviewPendingCount,
   mine: summary.value.ownPendingCount,
 }))
 
-async function loadSummary() {
-  const resourcePath = props.resourcePath
-  const root = getPermissionRequestWorkspaceRoot(resourcePath)
-  const sequence = ++loadSequence
-  if (!resourcePath || !root) {
-    summary.value = emptySummary()
-    return
-  }
-
-  const [mineResult, reviewResult] = await Promise.allSettled([
-    listMyPermissionRequests(root, 'pending'),
-    listPendingPermissionRequests(root),
-  ])
-  if (sequence !== loadSequence) return
-  const mine = mineResult.status === 'fulfilled' ? mineResult.value.requests || [] : []
-  const review = reviewResult.status === 'fulfilled' ? reviewResult.value.requests || [] : []
-  summary.value = summarizePermissionRequests(resourcePath, mine, review)
-}
-
-watch(() => props.resourcePath, () => {
-  summary.value = emptySummary()
-  void loadSummary()
+watch(workspaceRoot, (root) => {
+  if (root) void loadPermissionRequestSummary(root)
 }, { immediate: true })
 
 const unsubscribe = eventBus.on<{ resource_paths?: string[] }>('permission-request:changed', (payload) => {
   const paths = payload?.resource_paths || []
   if (paths.length === 0 || paths.includes(props.resourcePath)) {
-    void loadSummary()
+    void loadPermissionRequestSummary(workspaceRoot.value, { force: true })
   }
 })
 

@@ -23,6 +23,7 @@ func TestSetupRoutesRegistersCanonicalRoutes(t *testing.T) {
 		"GET /workspace/api/v1/service_tree/detail",
 		"POST /workspace/api/v1/service_tree/batch_detail",
 		"GET /workspace/api/v1/function/info/:func-type/*full-code-path",
+		"GET /workspace/api/v1/permissions/requests/summary",
 	}
 	for _, route := range expectedRoutes {
 		if _, ok := routes[route]; !ok {

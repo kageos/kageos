@@ -18,7 +18,7 @@
         />
         <el-tooltip
           v-if="featureFlags.capabilityBundle && !multiSelectMode"
-          :content="t('serviceTree.importBundle')"
+          :content="canAdmin(resolveHeaderImportTarget()) ? t('serviceTree.importBundle') : t('access.requiresPermission', { permission: 'Admin' })"
           placement="bottom"
         >
           <el-button
@@ -26,6 +26,7 @@
             size="small"
             text
             :icon="Upload"
+            :disabled="!canAdmin(resolveHeaderImportTarget())"
             :aria-label="t('serviceTree.importBundle')"
             data-testid="service-tree-import-directory"
             @click="openCurrentDirectoryImportDialog"
@@ -103,7 +104,7 @@
               :data-node-id="String(data.id)"
               :data-node-type="data.type"
               :data-root-node="isRootNode(data) ? 'true' : 'false'"
-              :draggable="!multiSelectMode && (data.type === 'function' || data.type === 'package')"
+              :draggable="!multiSelectMode && canRead(data) && (data.type === 'function' || data.type === 'package')"
               :node="data"
               :label="node.label"
               :active="String(currentNodeId || '') === String(data.id || '')"
@@ -162,6 +163,8 @@
                         :key="action.command"
                         :data-testid="buildServiceTreeNodeActionTestId(action.command, data)"
                         :command="action.command"
+                        :disabled="action.disabled"
+                        :title="action.disabledReason || action.label"
                       >
                         <el-icon><component :is="action.icon" /></el-icon>
                         {{ action.label }}
@@ -177,6 +180,8 @@
                   v-for="action in getNodeActions(data)"
                   :key="`context-${action.command}`"
                   :command="action.command"
+                  :disabled="action.disabled"
+                  :title="action.disabledReason || action.label"
                 >
                   <el-icon><component :is="action.icon" /></el-icon>
                   {{ action.label }}
@@ -292,14 +297,14 @@ import {
   type ServiceTreeNodeActionCommand
 } from '../utils/serviceTreeNodeActions'
 import { featureFlags } from '@/architecture/shared/config/features'
-import {
-  listMyPermissionRequests,
-  listPendingPermissionRequests,
-  type PermissionRequest,
-} from '@/architecture/presentation/context/api/permission'
-import { canRead } from '@/architecture/presentation/composables/useAccessControl'
+import { canAdmin, canDelete, canRead } from '@/architecture/presentation/composables/useAccessControl'
 import { findNearestPermissionRequestAncestor } from '@/architecture/presentation/features/access/utils/permissionRequestSelection'
-import { summarizePermissionRequests } from '@/architecture/presentation/features/access/utils/permissionRequestSummary'
+import {
+  getPermissionRequestSummaryState,
+  loadPermissionRequestSummary,
+  ownPendingPermissionRequestPaths,
+  permissionRequestPathSummary,
+} from '@/architecture/presentation/features/access/utils/permissionRequestSummaryStore'
 import ServiceTreeNodeContent from './ServiceTreeNodeContent.vue'
 import WorkspaceImportDirectoryDialog from './WorkspaceImportDirectoryDialog.vue'
 
@@ -338,9 +343,6 @@ const router = useRouter()
 
 const runtimeSummaries = ref<Record<string, RuntimeStateSummary>>({})
 const notificationRouteSummaries = ref<Record<string, MessageNotificationRoutePathSummary>>({})
-const pendingAccessRequestPaths = ref<Set<string>>(new Set())
-const ownPendingAccessRequests = ref<PermissionRequest[]>([])
-const reviewPendingAccessRequests = ref<PermissionRequest[]>([])
 let runtimeSummaryTimer: ReturnType<typeof setInterval> | null = null
 
 const {
@@ -374,6 +376,12 @@ const {
 })
 
 const rootFullCodePath = computed(() => props.treeData[0]?.full_code_path || '')
+const permissionRequestSummaryState = computed(() => getPermissionRequestSummaryState(rootFullCodePath.value))
+const pendingAccessRequestPaths = computed(() => ownPendingPermissionRequestPaths(permissionRequestSummaryState.value))
+const hasAnyAdminNode = computed(() => {
+  const walk = (nodes: ServiceTree[]): boolean => nodes.some(node => canAdmin(node) || walk(node.children || []))
+  return walk(props.treeData || [])
+})
 const multiSelectMode = ref(false)
 const selectedNodes = ref<ServiceTree[]>([])
 const bulkExporting = ref(false)
@@ -462,7 +470,7 @@ const refreshRuntimeSummary = async () => {
 
 const refreshNotificationRouteSummary = async () => {
   const root = rootFullCodePath.value
-  if (!root) {
+  if (!root || !hasAnyAdminNode.value) {
     notificationRouteSummaries.value = {}
     return
   }
@@ -477,16 +485,13 @@ const refreshNotificationRouteSummary = async () => {
 const startRuntimeSummaryPolling = () => {
   stopRuntimeSummaryPolling()
   if (!rootFullCodePath.value) return
-  runtimeSummaryTimer = setInterval(refreshRuntimeSummary, 3000)
+  runtimeSummaryTimer = setInterval(refreshRuntimeSummary, 15000)
   window.addEventListener('focus', refreshRuntimeSummary)
 }
 
-watch(rootFullCodePath, () => {
+watch([rootFullCodePath, hasAnyAdminNode], () => {
   runtimeSummaries.value = {}
   notificationRouteSummaries.value = {}
-  pendingAccessRequestPaths.value = new Set()
-  ownPendingAccessRequests.value = []
-  reviewPendingAccessRequests.value = []
   exitMultiSelectMode()
   refreshRuntimeSummary()
   refreshNotificationRouteSummary()
@@ -496,26 +501,9 @@ watch(rootFullCodePath, () => {
 
 async function refreshPendingAccessRequests() {
   const root = rootFullCodePath.value
-  if (!root) {
-    pendingAccessRequestPaths.value = new Set()
-    ownPendingAccessRequests.value = []
-    reviewPendingAccessRequests.value = []
-    return
-  }
+  if (!root) return
   try {
-    const [mineResult, reviewResult] = await Promise.allSettled([
-      listMyPermissionRequests(root, 'pending'),
-      listPendingPermissionRequests(root),
-    ])
-    ownPendingAccessRequests.value = mineResult.status === 'fulfilled'
-      ? mineResult.value.requests || []
-      : []
-    reviewPendingAccessRequests.value = reviewResult.status === 'fulfilled'
-      ? reviewResult.value.requests || []
-      : []
-    pendingAccessRequestPaths.value = new Set(
-      ownPendingAccessRequests.value.map(item => item.resource_path).filter(Boolean)
-    )
+    await loadPermissionRequestSummary(root, { force: true })
   } catch {
     // 申请状态只用于树上提示，不阻断目录加载。
   }
@@ -711,7 +699,7 @@ function getEffectiveNotificationRoute(node: ServiceTree): NotificationRouteEffe
 }
 
 function hasNotificationRouteBadge(node: ServiceTree): boolean {
-  return Boolean(getEffectiveNotificationRoute(node))
+  return canAdmin(node) && Boolean(getEffectiveNotificationRoute(node))
 }
 
 function notificationChannelLabel(channel?: string): string {
@@ -754,6 +742,10 @@ function getNotificationRouteSummaryTitle(node: ServiceTree): string {
 function openNodeNotificationRoutes(node: ServiceTree) {
   const path = normalizeTreePath(node.full_code_path)
   if (!path || !isNotificationRouteNode(node)) return
+  if (!canAdmin(node)) {
+    ElMessage.warning(t('access.requiresPermission', { permission: 'Admin' }))
+    return
+  }
   void router.push({
     path: resolveWorkspaceUrl(path),
     query: { _panel: 'notification' }
@@ -793,6 +785,10 @@ function openDirectoryImportDialog(node: ServiceTree | null | undefined) {
   }
   if (!node.full_code_path) {
     ElMessage.warning(t('serviceTree.pathMissingRefresh'))
+    return
+  }
+  if (!canAdmin(node)) {
+    ElMessage.warning(t('access.requiresPermission', { permission: 'Admin' }))
     return
   }
   importDirectoryTargetNode.value = node
@@ -944,11 +940,14 @@ function getOwnPendingRequestSource(resourcePath?: string): string {
 }
 
 function getPermissionRequestSummary(data: ServiceTree) {
-  return summarizePermissionRequests(
-    data.full_code_path || '',
-    ownPendingAccessRequests.value,
-    reviewPendingAccessRequests.value,
-  )
+  const pathSummary = permissionRequestPathSummary(permissionRequestSummaryState.value, data.full_code_path || '')
+  const ownPendingCount = Number(pathSummary.own_pending_count || 0)
+  const reviewPendingCount = Number(pathSummary.review_pending_count || 0)
+  return {
+    ownPendingCount,
+    reviewPendingCount,
+    totalCount: ownPendingCount + reviewPendingCount,
+  }
 }
 
 function getPermissionRequestBadgeTitle(data: ServiceTree): string {
@@ -1069,11 +1068,11 @@ function compactSelectedTreeNodes(nodes: ServiceTree[]): ServiceTree[] {
 
 function canExportNode(node: ServiceTree): boolean {
   if (!node.full_code_path) return false
-  return node.type === 'package' || node.type === 'function'
+  return canRead(node) && (node.type === 'package' || node.type === 'function')
 }
 
 function canDeleteNode(node: ServiceTree): boolean {
-  if (!node.full_code_path) return false
+  if (!node.full_code_path || !canDelete(node)) return false
   if (node.type === 'package') {
     return !isRootNode(node)
   }
@@ -1217,6 +1216,11 @@ const handleExportJson = async (data: ServiceTree) => {
 }
 
 const handleNodeAction = (command: ServiceTreeNodeActionCommand, data: ServiceTree) => {
+  const action = getNodeActions(data).find(item => item.command === command)
+  if (!action || action.disabled) {
+    if (action?.disabledReason) ElMessage.warning(action.disabledReason)
+    return
+  }
   switch (command) {
     case 'create-directory':
       emit('create-directory', data)

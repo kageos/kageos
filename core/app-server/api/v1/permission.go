@@ -273,6 +273,25 @@ func (a *Permission) PendingRequestCount(c *gin.Context) {
 	response.OkWithData(c, gin.H{"count": count})
 }
 
+func (a *Permission) PermissionRequestSummary(c *gin.Context) {
+	tenantUser, app, ok := permissionRequestWorkspace(c)
+	if !ok {
+		return
+	}
+	ctx := contextx.ToContext(c)
+	summary, err := a.permissionRequestService.WorkspaceSummary(
+		ctx,
+		tenantUser,
+		app,
+		contextx.GetRequestUser(ctx),
+	)
+	if err != nil {
+		response.FailWithMessage(c, "获取权限申请摘要失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, summary)
+}
+
 func (a *Permission) ListApprovers(c *gin.Context) {
 	resourcePath := access.NormalizeResourcePath(c.Query("resource_path"))
 	tenantUser, app, err := access.ParseUserApp(resourcePath)

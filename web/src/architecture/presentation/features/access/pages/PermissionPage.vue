@@ -647,17 +647,18 @@
             <el-table-column :label="t('common.operation')" width="170" fixed="right">
               <template #default="{ row }">
                 <template v-if="workflowTab === 'pending'">
-                  <el-button type="success" link :loading="reviewingRequestID === row.id" @click="approveRequest(row)">
+                  <el-button type="success" plain size="small" :loading="reviewingRequestID === row.id" @click="approveRequest(row)">
                     {{ t('access.approve') }}
                   </el-button>
-                  <el-button type="danger" link :loading="reviewingRequestID === row.id" @click="rejectRequest(row)">
+                  <el-button type="danger" plain size="small" :loading="reviewingRequestID === row.id" @click="rejectRequest(row)">
                     {{ t('access.reject') }}
                   </el-button>
                 </template>
                 <el-button
                   v-else-if="workflowTab === 'mine' && row.status === 'pending'"
                   type="danger"
-                  link
+                  plain
+                  size="small"
                   :loading="reviewingRequestID === row.id"
                   @click="cancelRequest(row)"
                 >
@@ -807,7 +808,6 @@ import {
   batchGrantRoles,
   cancelPermissionRequest,
   createPermissionRequest,
-  getPendingPermissionRequestCount,
   listMyPermissionRequests,
   listPendingPermissionRequests,
   listPermissionApprovers,
@@ -855,6 +855,10 @@ import {
   disablePastPermissionDate,
   isPermissionExpiryValid,
 } from '@/architecture/presentation/features/access/utils/permissionExpiry'
+import {
+  getPermissionRequestSummaryState,
+  loadPermissionRequestSummary,
+} from '@/architecture/presentation/features/access/utils/permissionRequestSummaryStore'
 
 type AccessTab = 'current' | 'inherited'
 type RoleTone = 'view' | 'edit' | 'admin' | 'owner'
@@ -954,6 +958,7 @@ const pendingRequests = ref<PermissionRequest[]>([])
 const requestHistory = ref<PermissionRequest[]>([])
 const pendingRequestCount = ref(0)
 let approverLoadSequence = 0
+const loadedWorkflowTabs = new Set<WorkflowTab>()
 
 const grantUsersField = computed<FieldConfig>(() => ({
   code: 'permissionPageUsers',
@@ -1279,6 +1284,7 @@ async function reloadPage() {
   loadError.value = ''
   treeAccessDenied.value = false
   treeAccessDeniedMessage.value = ''
+  loadedWorkflowTabs.clear()
 
   if (!parsed) {
     appName.value = ''
@@ -1315,7 +1321,7 @@ async function reloadPage() {
     await nextTick()
     syncVisibleTreeChecks()
     treeRef.value?.setCurrentKey?.(initialPath)
-    await loadPermissionWorkflow()
+    await loadPermissionWorkflow(true)
     refreshRequestNodeDisabledState()
     await nextTick()
     syncVisibleTreeChecks()
@@ -1325,7 +1331,7 @@ async function reloadPage() {
   } catch (error: any) {
     if (isWorkspaceForbiddenError(error)) {
       showAccessRequestFallback(error)
-      await loadPermissionWorkflow()
+      await loadPermissionWorkflow(true)
       await loadApprovers()
       return
     }
@@ -1481,38 +1487,35 @@ async function loadApprovers() {
   }
 }
 
-async function loadPermissionWorkflow() {
+async function loadPermissionWorkflow(force = false) {
   const root = workspaceRootPath.value
   if (!root) return
+  const tab = workflowTab.value
+  if (force) loadedWorkflowTabs.clear()
   workflowLoading.value = true
   try {
-    const [mineResult, pendingResult, historyResult, countResult] = await Promise.allSettled([
-      listMyPermissionRequests(root),
-      listPendingPermissionRequests(root),
-      listPermissionRequestHistory(root),
-      getPendingPermissionRequestCount(root),
-    ])
-    if (mineResult.status === 'fulfilled') {
-      myRequests.value = mineResult.value.requests || []
-    }
-    if (pendingResult.status === 'fulfilled') {
-      pendingRequests.value = pendingResult.value.requests || []
-    }
-    if (historyResult.status === 'fulfilled') {
-      requestHistory.value = historyResult.value.requests || []
-    }
-    if (countResult.status === 'fulfilled') {
-      pendingRequestCount.value = Number(countResult.value.count || 0)
-    } else {
+    await loadPermissionRequestSummary(root, { force })
+    pendingRequestCount.value = getPermissionRequestSummaryState(root).reviewPendingCount
+    if ((tab === 'grant') || (!force && loadedWorkflowTabs.has(tab))) return
+
+    if (tab === 'request') {
+      myRequests.value = (await listMyPermissionRequests(root, 'pending')).requests || []
+    } else if (tab === 'mine') {
+      myRequests.value = (await listMyPermissionRequests(root)).requests || []
+    } else if (tab === 'pending') {
+      pendingRequests.value = (await listPendingPermissionRequests(root)).requests || []
       pendingRequestCount.value = pendingRequests.value.length
+    } else if (tab === 'history') {
+      requestHistory.value = (await listPermissionRequestHistory(root)).requests || []
     }
+    loadedWorkflowTabs.add(tab)
   } finally {
     workflowLoading.value = false
   }
 }
 
 async function loadActiveWorkflowRecords() {
-  await loadPermissionWorkflow()
+  await loadPermissionWorkflow(true)
 }
 
 function setWorkflowTab(tab: WorkflowTab) {
@@ -1610,7 +1613,7 @@ async function submitAccessRequest() {
     if (successfulCount > 0) {
       eventBus.emit('permission-request:changed', { resource_paths: targetPaths })
     }
-    await loadPermissionWorkflow()
+    await loadPermissionWorkflow(true)
     if (failedResults.length === 0 && targetPaths[0]) {
       await router.push({
         path: resolveWorkspaceUrl(targetPaths[0]),
@@ -1650,7 +1653,7 @@ async function approveRequest(request: PermissionRequest) {
     await approvePermissionRequest(request.id, String(value || '').trim())
     ElMessage.success(t('access.requestApproved'))
     eventBus.emit('permission-request:changed', { resource_paths: [request.resource_path] })
-    await loadPermissionWorkflow()
+    await loadPermissionWorkflow(true)
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
     ElMessage.error(getErrorMessage(error, t('access.reviewFailed')))
@@ -1676,7 +1679,7 @@ async function rejectRequest(request: PermissionRequest) {
     await rejectPermissionRequest(request.id, String(value || '').trim())
     ElMessage.success(t('access.requestRejected'))
     eventBus.emit('permission-request:changed', { resource_paths: [request.resource_path] })
-    await loadPermissionWorkflow()
+    await loadPermissionWorkflow(true)
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
     ElMessage.error(getErrorMessage(error, t('access.reviewFailed')))
@@ -1700,7 +1703,7 @@ async function cancelRequest(request: PermissionRequest) {
     await cancelPermissionRequest(request.id)
     ElMessage.success(t('access.requestCancelled'))
     eventBus.emit('permission-request:changed', { resource_paths: [request.resource_path] })
-    await loadPermissionWorkflow()
+    await loadPermissionWorkflow(true)
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
     ElMessage.error(getErrorMessage(error, t('access.cancelRequestFailed')))

@@ -15,6 +15,7 @@
         :current-app="currentApp"
         :app-list="appList"
         :loading-apps="loadingApps"
+        :current-workspace-node="serviceTree?.[0] || null"
         @switch-app="$emit('switch-app', $event)"
         @create-app="$emit('create-app')"
         @update-app="$emit('update-app', $event)"

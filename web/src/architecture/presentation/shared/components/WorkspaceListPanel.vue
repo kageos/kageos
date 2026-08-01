@@ -55,24 +55,41 @@
       </div>
 
       <div class="current-workspace-actions">
-        <el-button
-          v-if="canOfferWorkspaceSettings(currentApp)"
-          plain
-          :icon="Setting"
-          data-testid="workspace-current-settings"
-          @click.stop="handleEditWorkspace(currentApp)"
+        <el-tooltip
+          :disabled="canConfigureWorkspace(currentApp)"
+          :content="t('access.requiresPermission', { permission: 'Admin' })"
+          placement="bottom"
         >
-          {{ t('workspace.editWorkspace') }}
-        </el-button>
-        <el-button
-          type="primary"
-          plain
-          :icon="RefreshRight"
-          data-testid="workspace-current-update"
-          @click.stop="handleUpdateCurrentWorkspace"
+          <span>
+            <el-button
+              plain
+              :icon="Setting"
+              :disabled="!canConfigureWorkspace(currentApp)"
+              data-testid="workspace-current-settings"
+              @click.stop="handleEditWorkspace(currentApp)"
+            >
+              {{ t('workspace.editWorkspace') }}
+            </el-button>
+          </span>
+        </el-tooltip>
+        <el-tooltip
+          :disabled="canConfigureWorkspace(currentApp)"
+          :content="t('access.requiresPermission', { permission: 'Admin' })"
+          placement="bottom"
         >
-          {{ t('workspace.updateCurrentWorkspace') }}
-        </el-button>
+          <span>
+            <el-button
+              type="primary"
+              plain
+              :icon="RefreshRight"
+              :disabled="!canConfigureWorkspace(currentApp)"
+              data-testid="workspace-current-update"
+              @click.stop="handleUpdateCurrentWorkspace"
+            >
+              {{ t('workspace.updateCurrentWorkspace') }}
+            </el-button>
+          </span>
+        </el-tooltip>
       </div>
 
       <div class="current-workspace-meta-grid">
@@ -206,34 +223,61 @@
                 <el-tag v-if="app.is_public" type="success" size="small">{{ t('workspace.public') }}</el-tag>
                 <el-tag v-else type="info" size="small">{{ t('workspace.private') }}</el-tag>
                 <div class="card-actions">
-                  <el-button
-                    link
-                    size="small"
-                    :title="t('workspace.editWorkspace')"
-                    :data-testid="`workspace-card-settings-${app.id}`"
-                    @click.stop="handleEditWorkspace(app)"
+                  <el-tooltip
+                    :disabled="canConfigureWorkspace(app)"
+                    :content="workspaceActionTitle(app, 'admin', t('workspace.editWorkspace'))"
+                    placement="top"
                   >
-                    <el-icon><Setting /></el-icon>
-                  </el-button>
-                  <el-button
-                    link
-                    size="small"
-                    :title="t('workspace.recompile')"
-                    :data-testid="`workspace-card-refresh-${app.id}`"
-                    @click.stop="handleUpdateApp(app)"
+                    <span>
+                      <el-button
+                        link
+                        size="small"
+                        :disabled="!canConfigureWorkspace(app)"
+                        :title="workspaceActionTitle(app, 'admin', t('workspace.editWorkspace'))"
+                        :data-testid="`workspace-card-settings-${app.id}`"
+                        @click.stop="handleEditWorkspace(app)"
+                      >
+                        <el-icon><Setting /></el-icon>
+                      </el-button>
+                    </span>
+                  </el-tooltip>
+                  <el-tooltip
+                    :disabled="canConfigureWorkspace(app)"
+                    :content="workspaceActionTitle(app, 'admin', t('workspace.recompile'))"
+                    placement="top"
                   >
-                    <el-icon><RefreshRight /></el-icon>
-                  </el-button>
-                  <el-button
+                    <span>
+                      <el-button
+                        link
+                        size="small"
+                        :disabled="!canConfigureWorkspace(app)"
+                        :title="workspaceActionTitle(app, 'admin', t('workspace.recompile'))"
+                        :data-testid="`workspace-card-refresh-${app.id}`"
+                        @click.stop="handleUpdateApp(app)"
+                      >
+                        <el-icon><RefreshRight /></el-icon>
+                      </el-button>
+                    </span>
+                  </el-tooltip>
+                  <el-tooltip
                     v-if="!app.is_personal_workspace"
-                    link
-                    size="small"
-                    :title="t('common.delete')"
-                    :data-testid="`workspace-card-delete-${app.id}`"
-                    @click.stop="handleDeleteApp(app)"
+                    :disabled="canDeleteWorkspace(app)"
+                    :content="workspaceActionTitle(app, 'delete', t('common.delete'))"
+                    placement="top"
                   >
-                    <el-icon><Delete /></el-icon>
-                  </el-button>
+                    <span>
+                      <el-button
+                        link
+                        size="small"
+                        :disabled="!canDeleteWorkspace(app)"
+                        :title="workspaceActionTitle(app, 'delete', t('common.delete'))"
+                        :data-testid="`workspace-card-delete-${app.id}`"
+                        @click.stop="handleDeleteApp(app)"
+                      >
+                        <el-icon><Delete /></el-icon>
+                      </el-button>
+                    </span>
+                  </el-tooltip>
                 </div>
               </div>
             </div>
@@ -438,7 +482,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch, type CSSProperties } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Search,
@@ -459,15 +503,18 @@ import {
   Setting
 } from '@element-plus/icons-vue'
 import { getAppList, updateWorkspace } from '@/architecture/presentation/context/api/app'
-import type { App } from '@/architecture/domain/types'
+import type { App, ServiceTree } from '@/architecture/domain/types'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import { WorkspaceEvent } from '@/architecture/domain/interfaces/IEventBus'
 import { buildAppResourcePath } from '@/architecture/shared/resourcePath'
+import { canAdmin, canDelete } from '@/architecture/presentation/composables/useAccessControl'
+import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 
 interface Props {
   currentApp: App | null
+  currentWorkspaceNode?: ServiceTree | null
   forceSelect?: boolean
   surface?: 'dialog' | 'popover'
   visible?: boolean
@@ -491,6 +538,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 const { t, locale } = useI18n()
+const authStore = useAuthStore()
 
 const activeTab = ref<'mine' | 'all' | 'system'>('mine')
 const searchKeyword = ref('')
@@ -506,6 +554,8 @@ const workspaceSettingsForm = reactive({
   is_public: false,
   hide_unauthorized_nodes: false
 })
+let workspaceLoadSequence = 0
+let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const showHeader = computed(() => props.showHeader)
 const currentWorkspaceDisplayName = computed(() => props.currentApp ? getWorkspaceDisplayName(props.currentApp) : '')
@@ -580,27 +630,33 @@ const formatDateTime = (value?: string) => {
 }
 
 const loadWorkspaces = async () => {
+  const sequence = ++workspaceLoadSequence
   try {
     loading.value = true
-
-    const myApps = await getAppList(200, searchKeyword.value || undefined, false)
+    const [myApps, discoverableApps] = await Promise.all([
+      getAppList(200, searchKeyword.value || undefined, false),
+      getAppList(200, searchKeyword.value || undefined, true),
+    ])
+    if (sequence !== workspaceLoadSequence) return
     myWorkspaces.value = myApps
-
-    const allApps = await getAppList(200, searchKeyword.value || undefined, true)
-    allWorkspaces.value = allApps.filter((app: App) => app.user !== props.currentApp?.user || !myApps.some((my: App) => my.id === app.id))
-
-    const systemApps = await getAppList(200, searchKeyword.value || undefined, false, 1)
-    systemWorkspaces.value = systemApps
+    allWorkspaces.value = discoverableApps.filter((app: App) => (
+      app.type !== 1 && !myApps.some((my: App) => my.id === app.id)
+    ))
+    systemWorkspaces.value = discoverableApps.filter((app: App) => app.type === 1)
   } catch (error: any) {
     console.error('[WorkspaceListPanel] load workspaces failed:', error)
     ElMessage.error(t('workspace.loadListFailed'))
   } finally {
-    loading.value = false
+    if (sequence === workspaceLoadSequence) loading.value = false
   }
 }
 
 const handleSearch = () => {
-  loadWorkspaces()
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    searchTimer = null
+    void loadWorkspaces()
+  }, 300)
 }
 
 const handleTabChange = () => {
@@ -632,6 +688,7 @@ async function confirmUpdateWorkspace(app: App) {
 }
 
 const handleUpdateApp = async (app: App) => {
+  if (!canConfigureWorkspace(app)) return
   if (await confirmUpdateWorkspace(app)) {
     emit('update-app', app)
   }
@@ -641,20 +698,54 @@ const handleUpdateCurrentWorkspace = async () => {
   if (!props.currentApp) {
     return
   }
+  if (!canConfigureWorkspace(props.currentApp)) return
   if (await confirmUpdateWorkspace(props.currentApp)) {
     emit('update-app', props.currentApp)
   }
 }
 
 const handleDeleteApp = (app: App) => {
+  if (!canDeleteWorkspace(app)) return
   emit('delete-app', app)
 }
 
-const canOfferWorkspaceSettings = (app: App) => {
-  return myWorkspaces.value.some(item => item.id === app.id)
+function isCurrentWorkspace(app: App): boolean {
+  return Boolean(props.currentApp && (
+    props.currentApp.id === app.id
+    || (props.currentApp.user === app.user && props.currentApp.code === app.code)
+  ))
+}
+
+function isWorkspaceOwnerOrLegacyAdmin(app: App): boolean {
+  const username = authStore.userName?.trim()
+  if (!username) return false
+  if (app.user === username) return true
+  return String(app.admins || '').split(',').some(item => item.trim() === username)
+}
+
+function canConfigureWorkspace(app: App): boolean {
+  if (isCurrentWorkspace(app) && props.currentWorkspaceNode) {
+    return canAdmin(props.currentWorkspaceNode)
+  }
+  return isWorkspaceOwnerOrLegacyAdmin(app)
+}
+
+function canDeleteWorkspace(app: App): boolean {
+  if (isCurrentWorkspace(app) && props.currentWorkspaceNode) {
+    return canDelete(props.currentWorkspaceNode)
+  }
+  return isWorkspaceOwnerOrLegacyAdmin(app)
+}
+
+function workspaceActionTitle(app: App, action: 'admin' | 'delete', fallback: string): string {
+  const allowed = action === 'admin' ? canConfigureWorkspace(app) : canDeleteWorkspace(app)
+  if (allowed) return fallback
+  const permission = action === 'admin' ? 'Admin' : 'Delete'
+  return t('access.requiresPermission', { permission })
 }
 
 const handleEditWorkspace = (app: App) => {
+  if (!canConfigureWorkspace(app)) return
   workspaceSettingsTarget.value = app
   workspaceSettingsForm.name = app.name || ''
   workspaceSettingsForm.is_public = Boolean(app.is_public)
@@ -666,6 +757,10 @@ const saveWorkspaceSettings = async () => {
   const app = workspaceSettingsTarget.value
   const name = workspaceSettingsForm.name.trim()
   if (!app || workspaceSettingsSaving.value) return
+  if (!canConfigureWorkspace(app)) {
+    workspaceSettingsVisible.value = false
+    return
+  }
   if (!name) {
     ElMessage.warning(t('workspace.renameWorkspaceRequired'))
     return
@@ -707,6 +802,11 @@ watch(() => props.visible, (newVal: boolean) => {
 
   searchKeyword.value = ''
 }, { immediate: true })
+
+onBeforeUnmount(() => {
+  workspaceLoadSequence += 1
+  if (searchTimer) clearTimeout(searchTimer)
+})
 </script>
 
 <style scoped lang="scss">

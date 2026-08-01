@@ -74,6 +74,7 @@
       <WorkspaceListPanel
         v-if="popoverVisible"
         :current-app="currentApp"
+        :current-workspace-node="currentWorkspaceNode"
         :visible="popoverVisible"
         surface="popover"
         show-header
@@ -89,6 +90,7 @@
       v-if="dialogVisible || workspaceListForceSelect"
       v-model="dialogVisible"
       :current-app="currentApp"
+      :current-workspace-node="currentWorkspaceNode"
       :force-select="workspaceListForceSelect"
       @switch-app="handleSwitchApp"
       @create-app="handleCreateApp"
@@ -101,13 +103,14 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ArrowUp, ArrowDown, FolderOpened, Monitor } from '@element-plus/icons-vue'
-import type { App } from '@/architecture/domain/types'
+import type { App, ServiceTree } from '@/architecture/domain/types'
 import WorkspaceListDialog from './WorkspaceListDialog.vue'
 import WorkspaceListPanel from './WorkspaceListPanel.vue'
 import { isWorkspaceSwitcherOwnedPointerTarget } from '@/architecture/presentation/shared/utils/workspaceSwitcherPointerTarget'
 
 interface Props {
   currentApp: App | null
+  currentWorkspaceNode?: ServiceTree | null
   appList: App[]
   loadingApps: boolean
   compact?: boolean  // 紧凑模式：用于左侧边栏控制区
@@ -163,14 +166,10 @@ const getWorkspaceMetaLine = (app: App) => {
 const handleTriggerClick = () => {
   if (workspaceListForceSelect.value) {
     dialogVisible.value = true
-    emit('load-apps')
     return
   }
 
   popoverVisible.value = !popoverVisible.value
-  if (popoverVisible.value) {
-    emit('load-apps')
-  }
 }
 
 const closeWorkspacePopover = () => {
@@ -214,7 +213,6 @@ function openWorkspaceListDialog(forceSelect = false) {
   if (!forceSelect) {
     popoverVisible.value = true
   }
-  emit('load-apps')
 }
 
 const handleDocumentPointerDown = (event: PointerEvent) => {

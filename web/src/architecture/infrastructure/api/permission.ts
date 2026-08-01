@@ -63,6 +63,17 @@ export interface PermissionRequest {
   approvers?: PermissionApprover[]
 }
 
+export interface PermissionRequestPathSummary {
+  own_pending_count: number
+  review_pending_count: number
+}
+
+export interface PermissionRequestWorkspaceSummary {
+  paths: Record<string, PermissionRequestPathSummary>
+  own_pending_count: number
+  review_pending_count: number
+}
+
 export function listPermissionAssignments(resourcePath: string) {
   return get<{ assignments: RoleAssignment[] }>('/workspace/api/v1/permissions/assignments', {
     resource_path: normalizeResourcePath(resourcePath)
@@ -137,6 +148,12 @@ export function listPendingPermissionRequests(resourcePath: string) {
 
 export function getPendingPermissionRequestCount(resourcePath: string) {
   return get<{ count: number }>('/workspace/api/v1/permissions/requests/pending-count', {
+    resource_path: normalizeResourcePath(resourcePath)
+  })
+}
+
+export function getPermissionRequestSummary(resourcePath: string) {
+  return get<PermissionRequestWorkspaceSummary>('/workspace/api/v1/permissions/requests/summary', {
     resource_path: normalizeResourcePath(resourcePath)
   })
 }

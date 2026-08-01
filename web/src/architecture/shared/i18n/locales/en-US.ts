@@ -1861,6 +1861,7 @@ export default {
     expiresColumn: 'Expires',
     inherited: 'Inherited',
     noPermission: 'None',
+    requiresPermission: 'Requires {permission} permission',
     selectMemberAndRole: 'Select members and a role',
     loadFailed: 'Failed to load access list',
     grantFailed: 'Failed to grant access',

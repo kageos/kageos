@@ -125,6 +125,51 @@ func TestPermissionRequestApproveGrantsRoleAndRecordsReviewer(t *testing.T) {
 	}
 }
 
+func TestPermissionRequestWorkspaceSummaryGroupsMineAndReviewableCounts(t *testing.T) {
+	requestService, _, _ := newPermissionRequestTestService(t)
+	resourcePath := "/alice/ops/tickets/submit.form"
+	for _, requester := range []string{"carol", "dave"} {
+		if _, err := requestService.CreateRequest(
+			actorContext(requester),
+			"alice",
+			"ops",
+			requester,
+			resourcePath,
+			access.RoleViewer,
+			"需要查看工单",
+			nil,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	carolSummary, err := requestService.WorkspaceSummary(
+		actorContext("carol"), "alice", "ops", "carol",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if carolSummary.OwnPendingCount != 1 || carolSummary.ReviewPendingCount != 0 {
+		t.Fatalf("carol summary = %#v", carolSummary)
+	}
+	if got := carolSummary.Paths[resourcePath]; got.OwnPendingCount != 1 || got.ReviewPendingCount != 0 {
+		t.Fatalf("carol path summary = %#v", got)
+	}
+
+	bobSummary, err := requestService.WorkspaceSummary(
+		actorContext("bob"), "alice", "ops", "bob",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bobSummary.OwnPendingCount != 0 || bobSummary.ReviewPendingCount != 2 {
+		t.Fatalf("bob summary = %#v", bobSummary)
+	}
+	if got := bobSummary.Paths[resourcePath]; got.OwnPendingCount != 0 || got.ReviewPendingCount != 2 {
+		t.Fatalf("bob path summary = %#v", got)
+	}
+}
+
 func TestPermissionRequestApproveSystemDirectoryMemberGrantsChildFormWrite(t *testing.T) {
 	requestService, permission, db := newPermissionRequestTestService(t)
 	appModel := &model.App{User: "system", Code: "democase", Name: "Demo", Version: "v1"}

@@ -66,6 +66,7 @@ func (s *Server) setupRoutes() {
 	permission.GET("/requests/mine", permissionHandler.ListMyRequests)
 	permission.GET("/requests/pending", permissionHandler.ListPendingRequests)
 	permission.GET("/requests/pending-count", permissionHandler.PendingRequestCount)
+	permission.GET("/requests/summary", permissionHandler.PermissionRequestSummary)
 	permission.GET("/requests/history", permissionHandler.ListRequestHistory)
 	permission.POST("/requests/:id/approve", permissionHandler.ApproveRequest)
 	permission.POST("/requests/:id/reject", permissionHandler.RejectRequest)

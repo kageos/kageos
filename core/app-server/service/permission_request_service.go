@@ -43,6 +43,17 @@ type PermissionRequestView struct {
 	Approvers          []PermissionApproverView `json:"approvers,omitempty"`
 }
 
+type PermissionRequestPathSummary struct {
+	OwnPendingCount    int `json:"own_pending_count"`
+	ReviewPendingCount int `json:"review_pending_count"`
+}
+
+type PermissionRequestWorkspaceSummary struct {
+	Paths              map[string]PermissionRequestPathSummary `json:"paths"`
+	OwnPendingCount    int                                     `json:"own_pending_count"`
+	ReviewPendingCount int                                     `json:"review_pending_count"`
+}
+
 type PermissionRequestService struct {
 	requestRepo        *repository.PermissionRequestRepository
 	roleAssignmentRepo *repository.RoleAssignmentRepository
@@ -224,6 +235,78 @@ func (s *PermissionRequestService) CountPendingForReviewer(
 		return 0, err
 	}
 	return len(requests), nil
+}
+
+func (s *PermissionRequestService) WorkspaceSummary(
+	ctx context.Context,
+	tenantUser, app, username string,
+) (*PermissionRequestWorkspaceSummary, error) {
+	username = strings.ToLower(strings.TrimSpace(username))
+	summary := &PermissionRequestWorkspaceSummary{
+		Paths: make(map[string]PermissionRequestPathSummary),
+	}
+	mine, err := s.requestRepo.ListMine(
+		ctx,
+		tenantUser,
+		app,
+		username,
+		model.PermissionRequestStatusPending,
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, request := range mine {
+		if request == nil {
+			continue
+		}
+		path := access.NormalizeResourcePath(request.ResourcePath)
+		pathSummary := summary.Paths[path]
+		pathSummary.OwnPendingCount++
+		summary.Paths[path] = pathSummary
+		summary.OwnPendingCount++
+	}
+
+	pending, err := s.requestRepo.ListWorkspace(
+		ctx,
+		tenantUser,
+		app,
+		[]string{model.PermissionRequestStatusPending},
+	)
+	if err != nil {
+		return nil, err
+	}
+	paths := make([]string, 0, len(pending))
+	seenPaths := make(map[string]struct{}, len(pending))
+	for _, request := range pending {
+		if request == nil {
+			continue
+		}
+		path := access.NormalizeResourcePath(request.ResourcePath)
+		if _, exists := seenPaths[path]; exists {
+			continue
+		}
+		seenPaths[path] = struct{}{}
+		paths = append(paths, path)
+	}
+	permissionsByPath, err := s.permission.PermissionsForTree(ctx, tenantUser, app, username, paths)
+	if err != nil {
+		return nil, err
+	}
+	for _, request := range pending {
+		if request == nil {
+			continue
+		}
+		path := access.NormalizeResourcePath(request.ResourcePath)
+		resolved := permissionsByPath[path]
+		if resolved == nil || !access.HasPermission(resolved.Permissions, access.ActionAdmin) {
+			continue
+		}
+		pathSummary := summary.Paths[path]
+		pathSummary.ReviewPendingCount++
+		summary.Paths[path] = pathSummary
+		summary.ReviewPendingCount++
+	}
+	return summary, nil
 }
 
 func (s *PermissionRequestService) Approvers(

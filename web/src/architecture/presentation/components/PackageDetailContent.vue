@@ -38,7 +38,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane :label="t('packageDetail.notification')" name="notification" lazy>
+        <el-tab-pane v-if="canConfigurePackage" :label="t('packageDetail.notification')" name="notification" lazy>
           <div class="tab-content notification-tab-content">
             <NotificationRoutePanel
               v-if="activeTab === 'notification'"
@@ -69,7 +69,7 @@
         </el-tab-pane>
 
         <el-tab-pane
-          v-if="featureFlags.scheduledTasks"
+          v-if="featureFlags.scheduledTasks && canWritePackage"
           name="scheduledAgentTask"
         >
           <template #label>
@@ -106,13 +106,13 @@ import { useRoute, useRouter } from 'vue-router'
 import type { ServiceTree } from '@/architecture/domain/types'
 import PackageDirectoryOverview from './PackageDirectoryOverview.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
-import NotificationRoutePanel from './NotificationRoutePanel.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
 import PermissionRequestTabLabel from './PermissionRequestTabLabel.vue'
 import { usePackageDetailTabs, type PackageTabName } from '@/architecture/presentation/composables/usePackageDetailTabs'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { featureFlags } from '@/architecture/shared/config/features'
+import { canAdmin, canWrite } from '@/architecture/presentation/composables/useAccessControl'
 import {
   PLATFORM_SCHEDULED_EXECUTION_ID_QUERY_KEY,
   PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY,
@@ -146,6 +146,9 @@ const { activeTab, handlePackageTabChange } = usePackageDetailTabs({
 })
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
 const PermissionPanel = defineAsyncComponent(() => import('./PermissionPanel.vue'))
+const NotificationRoutePanel = defineAsyncComponent(() => import('./NotificationRoutePanel.vue'))
+const canConfigurePackage = computed(() => canAdmin(props.packageNode))
+const canWritePackage = computed(() => canWrite(props.packageNode))
 
 const directoryMarkdown = computed(() => {
   return props.packageNode?.description?.trim() || ''
@@ -190,6 +193,13 @@ watch(
     }
   }
 )
+
+watch([activeTab, canConfigurePackage, canWritePackage], ([tabName, canConfigure, canWriteAccess]) => {
+  if ((tabName === 'notification' && !canConfigure)
+    || (tabName === 'scheduledAgentTask' && !canWriteAccess)) {
+    handlePackageTabChange('detail')
+  }
+})
 
 </script>
 

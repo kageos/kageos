@@ -74,17 +74,18 @@
       <el-table-column :label="t('common.operation')" width="150" fixed="right">
         <template #default="{ row }">
           <template v-if="view === 'pending'">
-            <el-button type="success" link :loading="reviewingRequestID === row.id" @click="approveRequest(row)">
+            <el-button type="success" plain size="small" :loading="reviewingRequestID === row.id" @click="approveRequest(row)">
               {{ t('access.approve') }}
             </el-button>
-            <el-button type="danger" link :loading="reviewingRequestID === row.id" @click="rejectRequest(row)">
+            <el-button type="danger" plain size="small" :loading="reviewingRequestID === row.id" @click="rejectRequest(row)">
               {{ t('access.reject') }}
             </el-button>
           </template>
           <el-button
             v-else-if="view === 'mine' && row.status === 'pending'"
             type="danger"
-            link
+            plain
+            size="small"
             :loading="reviewingRequestID === row.id"
             @click="cancelRequest(row)"
           >

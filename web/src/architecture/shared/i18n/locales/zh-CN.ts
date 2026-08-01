@@ -1861,6 +1861,7 @@ export default {
     expiresColumn: '到期',
     inherited: '继承',
     noPermission: '无',
+    requiresPermission: '需要 {permission} 权限',
     selectMemberAndRole: '请选择成员和角色',
     loadFailed: '获取权限列表失败',
     grantFailed: '赋权失败',
