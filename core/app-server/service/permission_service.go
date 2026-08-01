@@ -14,6 +14,7 @@ import (
 	"github.com/kageos/kageos/pkg/apicall"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
+	"gorm.io/gorm"
 )
 
 type PermissionService struct {
@@ -117,28 +118,12 @@ func (s *PermissionService) GrantRole(ctx context.Context, req access.GrantRoleR
 		ExpiresAt:     req.ExpiresAt,
 	}
 	assignment.CreatedBy = req.CreatedBy
+	assignment.UpdatedBy = req.CreatedBy
 	if err := s.roleAssignmentRepo.UpsertAssignment(ctx, assignment); err != nil {
 		return err
 	}
 
-	s.writeOperateLog(ctx, operateLogInput{
-		TenantUser:   req.TenantUser,
-		App:          req.App,
-		ActorUser:    req.CreatedBy,
-		Action:       "permission.role.granted",
-		ResourceType: "permission",
-		ResourcePath: req.ResourcePath,
-		TargetUser:   principalTargetUser(req.Principal),
-		TargetID:     principalAuditID(req.Principal),
-		Summary:      fmt.Sprintf("%s granted %s to %s on %s", req.CreatedBy, req.RoleCode, principalAuditID(req.Principal), req.ResourcePath),
-		Status:       "success",
-		NewValues: dto.PermissionRoleGrantedValues{
-			PrincipalType: string(req.Principal.Type),
-			PrincipalKey:  req.Principal.Key,
-			RoleCode:      string(req.RoleCode),
-			ExpiresAt:     req.ExpiresAt,
-		},
-	})
+	s.writeRoleGrantedOperateLog(ctx, req)
 	return nil
 }
 
@@ -146,22 +131,77 @@ func (s *PermissionService) BatchGrantRoles(ctx context.Context, req access.Batc
 	if len(req.ResourcePaths) == 0 || len(req.Principals) == 0 || len(req.RoleCodes) == 0 {
 		return fmt.Errorf("resource_paths、principals、role_codes 不能为空")
 	}
-	for _, resourcePath := range req.ResourcePaths {
-		for _, principal := range req.Principals {
-			for _, roleCode := range req.RoleCodes {
-				if err := s.GrantRole(ctx, access.GrantRoleRequest{
-					TenantUser:   req.TenantUser,
-					App:          req.App,
-					Principal:    principal,
-					ResourcePath: resourcePath,
-					RoleCode:     roleCode,
-					ExpiresAt:    req.ExpiresAt,
-					CreatedBy:    req.CreatedBy,
-				}); err != nil {
-					return err
-				}
+	req.TenantUser = strings.TrimSpace(req.TenantUser)
+	req.App = strings.TrimSpace(req.App)
+	req.CreatedBy = strings.TrimSpace(req.CreatedBy)
+	if req.CreatedBy == "" {
+		req.CreatedBy = contextx.GetRequestUser(ctx)
+	}
+
+	resourcePaths := uniqueResourcePaths(req.ResourcePaths)
+	principals := uniquePrincipals(req.Principals)
+	roleCodes := uniqueRoleCodes(req.RoleCodes)
+	if len(resourcePaths) == 0 || len(principals) == 0 || len(roleCodes) == 0 {
+		return fmt.Errorf("resource_paths、principals、role_codes 不能为空")
+	}
+
+	for _, principal := range principals {
+		if err := s.ensureAssignablePrincipal(ctx, principal); err != nil {
+			return err
+		}
+	}
+
+	grants := make([]access.GrantRoleRequest, 0, len(resourcePaths)*len(principals)*len(roleCodes))
+	for _, resourcePath := range resourcePaths {
+		for _, roleCode := range roleCodes {
+			validationReq := access.GrantRoleRequest{
+				TenantUser:   req.TenantUser,
+				App:          req.App,
+				Principal:    principals[0],
+				ResourcePath: resourcePath,
+				RoleCode:     roleCode,
+				ExpiresAt:    req.ExpiresAt,
+				CreatedBy:    req.CreatedBy,
+			}
+			if err := validateGrantRoleRequest(validationReq); err != nil {
+				return err
+			}
+			if err := s.requireAdminForGrant(ctx, req.TenantUser, req.App, req.CreatedBy, resourcePath, roleCode); err != nil {
+				return err
+			}
+			for _, principal := range principals {
+				grant := validationReq
+				grant.Principal = principal
+				grants = append(grants, grant)
 			}
 		}
+	}
+
+	if err := s.roleAssignmentRepo.Transaction(ctx, func(tx *gorm.DB) error {
+		txRepo := repository.NewRoleAssignmentRepository(tx)
+		for _, grant := range grants {
+			assignment := &model.WorkspaceRoleAssignment{
+				TenantUser:    grant.TenantUser,
+				App:           grant.App,
+				PrincipalType: string(grant.Principal.Type),
+				PrincipalKey:  grant.Principal.Key,
+				ResourcePath:  grant.ResourcePath,
+				RoleCode:      string(grant.RoleCode),
+				ExpiresAt:     grant.ExpiresAt,
+			}
+			assignment.CreatedBy = grant.CreatedBy
+			assignment.UpdatedBy = grant.CreatedBy
+			if err := txRepo.UpsertAssignment(ctx, assignment); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	for _, grant := range grants {
+		s.writeRoleGrantedOperateLog(ctx, grant)
 	}
 	return nil
 }
@@ -503,6 +543,70 @@ func principalTargetUser(principal access.Principal) string {
 func principalAuditID(principal access.Principal) string {
 	principal = access.NormalizePrincipal(principal)
 	return string(principal.Type) + ":" + principal.Key
+}
+
+func uniqueResourcePaths(resourcePaths []string) []string {
+	result := make([]string, 0, len(resourcePaths))
+	seen := make(map[string]struct{}, len(resourcePaths))
+	for _, resourcePath := range resourcePaths {
+		resourcePath = access.NormalizeResourcePath(resourcePath)
+		if _, exists := seen[resourcePath]; exists {
+			continue
+		}
+		seen[resourcePath] = struct{}{}
+		result = append(result, resourcePath)
+	}
+	return result
+}
+
+func uniquePrincipals(principals []access.Principal) []access.Principal {
+	result := make([]access.Principal, 0, len(principals))
+	seen := make(map[string]struct{}, len(principals))
+	for _, principal := range principals {
+		principal = access.NormalizePrincipal(principal)
+		identity := string(principal.Type) + "\x00" + principal.Key
+		if _, exists := seen[identity]; exists {
+			continue
+		}
+		seen[identity] = struct{}{}
+		result = append(result, principal)
+	}
+	return result
+}
+
+func uniqueRoleCodes(roleCodes []access.RoleCode) []access.RoleCode {
+	result := make([]access.RoleCode, 0, len(roleCodes))
+	seen := make(map[access.RoleCode]struct{}, len(roleCodes))
+	for _, roleCode := range roleCodes {
+		roleCode = access.NormalizeRoleCode(roleCode)
+		if _, exists := seen[roleCode]; exists {
+			continue
+		}
+		seen[roleCode] = struct{}{}
+		result = append(result, roleCode)
+	}
+	return result
+}
+
+func (s *PermissionService) writeRoleGrantedOperateLog(ctx context.Context, req access.GrantRoleRequest) {
+	s.writeOperateLog(ctx, operateLogInput{
+		TenantUser:   req.TenantUser,
+		App:          req.App,
+		ActorUser:    req.CreatedBy,
+		Action:       "permission.role.granted",
+		ResourceType: "permission",
+		ResourcePath: req.ResourcePath,
+		TargetUser:   principalTargetUser(req.Principal),
+		TargetID:     principalAuditID(req.Principal),
+		Summary:      fmt.Sprintf("%s granted %s to %s on %s", req.CreatedBy, req.RoleCode, principalAuditID(req.Principal), req.ResourcePath),
+		Status:       "success",
+		NewValues: dto.PermissionRoleGrantedValues{
+			PrincipalType: string(req.Principal.Type),
+			PrincipalKey:  req.Principal.Key,
+			RoleCode:      string(req.RoleCode),
+			ExpiresAt:     req.ExpiresAt,
+		},
+	})
 }
 
 type operateLogInput struct {

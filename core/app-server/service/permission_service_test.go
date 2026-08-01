@@ -306,6 +306,70 @@ func TestPermissionBatchGrantRolesGrantsEveryCombination(t *testing.T) {
 	}
 }
 
+func TestPermissionBatchGrantRolesValidatesAllTargetsBeforeWriting(t *testing.T) {
+	service, _, db := newPermissionTestService(t)
+	service.userLookup = func(ctx context.Context, username string) (*dto.UserInfo, error) {
+		if username == "missing-user" {
+			return nil, errors.New("user not found")
+		}
+		return &dto.UserInfo{Username: username}, nil
+	}
+
+	err := service.BatchGrantRoles(actorContext("alice"), access.BatchGrantRoleRequest{
+		TenantUser:    "alice",
+		App:           "ops",
+		Principals:    userPrincipals("bob", "missing-user"),
+		ResourcePaths: []string{"/alice/ops/ticket"},
+		RoleCodes:     []access.RoleCode{access.RoleMember},
+		CreatedBy:     "alice",
+	})
+	if err == nil || !strings.Contains(err.Error(), "被授权用户不存在") {
+		t.Fatalf("expected target validation error, got %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&appmodel.WorkspaceRoleAssignment{}).Count(&count).Error; err != nil {
+		t.Fatalf("count assignments: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("batch validation failure must not leave partial assignments, got %d", count)
+	}
+}
+
+func TestPermissionBatchGrantRolesRollsBackWhenAWriteFails(t *testing.T) {
+	service, _, db := newPermissionTestService(t)
+	callbackName := "test:fail_batch_role_assignment"
+	if err := db.Callback().Create().Before("gorm:create").Register(callbackName, func(tx *gorm.DB) {
+		assignment, ok := tx.Statement.Dest.(*appmodel.WorkspaceRoleAssignment)
+		if ok && assignment.PrincipalKey == "cora" {
+			tx.AddError(errors.New("forced assignment write failure"))
+		}
+	}); err != nil {
+		t.Fatalf("register create callback: %v", err)
+	}
+	defer db.Callback().Create().Remove(callbackName)
+
+	err := service.BatchGrantRoles(actorContext("alice"), access.BatchGrantRoleRequest{
+		TenantUser:    "alice",
+		App:           "ops",
+		Principals:    userPrincipals("bob", "cora"),
+		ResourcePaths: []string{"/alice/ops/ticket"},
+		RoleCodes:     []access.RoleCode{access.RoleMember},
+		CreatedBy:     "alice",
+	})
+	if err == nil || !strings.Contains(err.Error(), "forced assignment write failure") {
+		t.Fatalf("expected forced write failure, got %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&appmodel.WorkspaceRoleAssignment{}).Count(&count).Error; err != nil {
+		t.Fatalf("count assignments: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("batch write failure must roll back every assignment, got %d", count)
+	}
+}
+
 func TestPermissionGrantValidatesTargetUser(t *testing.T) {
 	service, _, _ := newPermissionTestService(t)
 	ctx := contextx.WithRequestInfo(actorContext("alice"), contextx.RequestInfo{

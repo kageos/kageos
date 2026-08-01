@@ -67,6 +67,17 @@ export class WorkspaceApplicationService {
     const nodeClickSeq = ++this.nodeClickSeq
 
     if (node.type === 'function') {
+      // 服务树已经携带逐节点权限。无读取权限时只保留选中态，
+      // 让工作区展示申请入口，不再提前请求函数详情接口。
+      if (node.permissions?.read !== true) {
+        const functionDirectory = this.getFunctionDirectory(node)
+        if (functionDirectory) {
+          this.domainService.setCurrentDirectory(functionDirectory, false)
+        }
+        this.domainService.setCurrentFunction(node)
+        return
+      }
+
       // 函数节点：直接加载函数详情
       try {
         await this.domainService.loadFunction(node)

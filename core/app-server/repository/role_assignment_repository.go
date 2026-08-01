@@ -18,6 +18,13 @@ func NewRoleAssignmentRepository(db *gorm.DB) *RoleAssignmentRepository {
 	return &RoleAssignmentRepository{db: db}
 }
 
+func (r *RoleAssignmentRepository) Transaction(
+	ctx context.Context,
+	fn func(tx *gorm.DB) error,
+) error {
+	return r.db.WithContext(ctx).Transaction(fn)
+}
+
 func (r *RoleAssignmentRepository) UpsertAssignment(ctx context.Context, assignment *model.WorkspaceRoleAssignment) error {
 	if assignment == nil {
 		return fmt.Errorf("assignment 不能为空")
