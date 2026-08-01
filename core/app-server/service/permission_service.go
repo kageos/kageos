@@ -66,10 +66,10 @@ func (s *PermissionService) ResolvePermissions(ctx context.Context, tenantUser, 
 		return ownerAccessResult(resourcePath), nil
 	}
 	if tenantUser == "" || app == "" || username == "" || resourcePath == "" {
-		return applySystemBuiltinViewer(&access.Result{
+		return &access.Result{
 			ResourcePath: resourcePath,
 			Permissions:  access.EmptyPermissionSet(),
-		}), nil
+		}, nil
 	}
 
 	if s.isWorkspaceOwnerOrLegacyAdmin(ctx, tenantUser, app, username) {
@@ -85,9 +85,7 @@ func (s *PermissionService) ResolvePermissions(ctx context.Context, tenantUser, 
 	if err != nil {
 		return nil, err
 	}
-	return applySystemBuiltinViewer(
-		access.Resolve(toAccessAssignments(assignments), resourcePath, time.Now()),
-	), nil
+	return access.Resolve(toAccessAssignments(assignments), resourcePath, time.Now()), nil
 }
 
 func (s *PermissionService) GrantRole(ctx context.Context, req access.GrantRoleRequest) error {
@@ -334,7 +332,7 @@ func (s *PermissionService) PermissionsForTree(ctx context.Context, tenantUser, 
 	now := time.Now()
 	for _, path := range resourcePaths {
 		normalized := access.NormalizeResourcePath(path)
-		results[normalized] = applySystemBuiltinViewer(access.Resolve(accessAssignments, normalized, now))
+		results[normalized] = access.Resolve(accessAssignments, normalized, now)
 	}
 	return results, nil
 }
@@ -356,24 +354,6 @@ func ownerAccessResult(resourcePath string) *access.Result {
 		RoleCodes:    []access.RoleCode{access.RoleOwner},
 		Permissions:  access.RolePermissions(access.RoleOwner),
 	}
-}
-
-// applySystemBuiltinViewer keeps built-in workspaces readable by default while
-// still honoring explicit Member/Admin assignments. The Viewer role is only
-// exposed when there is no stronger assignment, so callers see the effective
-// assigned role instead of a synthetic Viewer + Member combination.
-func applySystemBuiltinViewer(result *access.Result) *access.Result {
-	if result == nil || !access.IsSystemBuiltinPath(result.ResourcePath) {
-		return result
-	}
-	result.Permissions = access.MergePermissionSets(
-		access.RolePermissions(access.RoleViewer),
-		result.Permissions,
-	)
-	if len(result.RoleCodes) == 0 {
-		result.RoleCodes = []access.RoleCode{access.RoleViewer}
-	}
-	return result
 }
 
 func (s *PermissionService) isWorkspaceOwnerOrLegacyAdmin(ctx context.Context, tenantUser, app, username string) bool {

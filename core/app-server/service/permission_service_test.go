@@ -132,15 +132,15 @@ func TestPermissionOwnerFallback(t *testing.T) {
 	}
 }
 
-func TestPermissionSystemBuiltinAllowsReadOnly(t *testing.T) {
+func TestPermissionSystemBuiltinRequiresExplicitRead(t *testing.T) {
 	service, _, _ := newPermissionTestService(t)
 
 	canRead, err := service.HasPermission(context.Background(), "system", "prompt", "alice", "/system/prompt/case_catalog/table/ticket", access.ActionRead)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !canRead {
-		t.Fatal("system builtin resources should be readable")
+	if canRead {
+		t.Fatal("system workspace nodes must not synthesize read permission")
 	}
 
 	canWrite, err := service.HasPermission(context.Background(), "system", "prompt", "alice", "/system/prompt/case_catalog/table/ticket", access.ActionWrite)
@@ -152,7 +152,7 @@ func TestPermissionSystemBuiltinAllowsReadOnly(t *testing.T) {
 	}
 }
 
-func TestPermissionSystemBuiltinMergesExplicitMemberForExecutionAndTree(t *testing.T) {
+func TestPermissionSystemBuiltinHonorsExplicitMemberForExecutionAndTree(t *testing.T) {
 	service, _, db := newPermissionTestService(t)
 	parentPath := "/system/democase/hangla_rank"
 	formPath := parentPath + "/rate.form"
@@ -209,9 +209,12 @@ func TestPermissionSystemBuiltinMergesExplicitMemberForExecutionAndTree(t *testi
 	if !access.HasPermission(tree[formPath].Permissions, access.ActionWrite) {
 		t.Fatalf("tree resolver should agree with execution resolver: %#v", tree[formPath])
 	}
-	if !access.HasPermission(tree["/system/democase/other"].Permissions, access.ActionRead) ||
+	if access.HasPermission(tree["/system/democase/other"].Permissions, access.ActionRead) ||
 		access.HasPermission(tree["/system/democase/other"].Permissions, access.ActionWrite) {
-		t.Fatalf("unassigned system resource should remain viewer-only: %#v", tree["/system/democase/other"])
+		t.Fatalf("unassigned system resource should remain locked: %#v", tree["/system/democase/other"])
+	}
+	if len(tree["/system/democase/other"].RoleCodes) != 0 {
+		t.Fatalf("unassigned system resource should not expose a synthetic role: %#v", tree["/system/democase/other"])
 	}
 }
 
