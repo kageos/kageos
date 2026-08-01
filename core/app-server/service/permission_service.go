@@ -480,6 +480,9 @@ func validateGrantRoleRequest(req access.GrantRoleRequest) error {
 	if !access.IsValidRoleCode(req.RoleCode) {
 		return fmt.Errorf("无效角色: %s", req.RoleCode)
 	}
+	if req.ExpiresAt != nil && !req.ExpiresAt.After(time.Now()) {
+		return fmt.Errorf("权限到期时间必须晚于当前时间")
+	}
 	resourceTenant, resourceApp, err := access.ParseUserApp(req.ResourcePath)
 	if err != nil {
 		return err

@@ -1847,6 +1847,8 @@ export default {
     permanent: '长期有效',
     customTime: '指定时间',
     expiresPlaceholder: '选择到期时间',
+    expiresRequired: '请选择到期时间',
+    expiresFutureRequired: '到期时间必须晚于当前时间',
     users: '用户',
     resource: '资源',
     submitGrant: '提交赋权',

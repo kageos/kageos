@@ -1847,6 +1847,8 @@ export default {
     permanent: 'Never expires',
     customTime: 'Custom time',
     expiresPlaceholder: 'Select expiration time',
+    expiresRequired: 'Select an expiration time',
+    expiresFutureRequired: 'Expiration must be later than the current time',
     users: 'Users',
     resource: 'Resource',
     submitGrant: 'Grant access',

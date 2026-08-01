@@ -14,6 +14,7 @@ type WorkspaceRoleAssignment struct {
 	PrincipalKey  string     `json:"principal_key" gorm:"type:varchar(500);not null;default:'';index:idx_permission_principal;comment:用户名或组织完整路径"`
 	ResourcePath  string     `json:"resource_path" gorm:"type:varchar(500);not null;index:idx_permission_scope;comment:授权资源路径 full_code_path"`
 	RoleCode      string     `json:"role_code" gorm:"type:varchar(30);not null;index:idx_permission_scope;comment:固定角色 owner/admin/member/viewer"`
+	AssignmentKey *string    `json:"-" gorm:"type:char(64);uniqueIndex:idx_permission_assignment_key;comment:授权主体、资源和角色的幂等键"`
 	ExpiresAt     *time.Time `json:"expires_at" gorm:"type:datetime;index;comment:到期时间，空表示永久有效"`
 }
 

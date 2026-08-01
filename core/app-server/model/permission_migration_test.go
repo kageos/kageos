@@ -2,6 +2,7 @@ package model
 
 import (
 	"testing"
+	"time"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -48,5 +49,76 @@ func TestMigrateLegacyPermissionPrincipals(t *testing.T) {
 	}
 	if assignment.PrincipalType != "user" || assignment.PrincipalKey != "bob" {
 		t.Fatalf("principal = %s:%s, want user:bob", assignment.PrincipalType, assignment.PrincipalKey)
+	}
+}
+
+func TestBackfillPermissionAssignmentKeysDeduplicatesLegacyGrants(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:permission-assignment-keys?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&WorkspaceRoleAssignment{}); err != nil {
+		t.Fatal(err)
+	}
+
+	expiresSoon := time.Now().Add(time.Hour)
+	assignments := []*WorkspaceRoleAssignment{
+		{
+			TenantUser:    "alice",
+			App:           "ops",
+			PrincipalType: "user",
+			PrincipalKey:  "bob",
+			ResourcePath:  "/alice/ops/ticket",
+			RoleCode:      "member",
+			ExpiresAt:     &expiresSoon,
+		},
+		{
+			TenantUser:    "alice",
+			App:           "ops",
+			PrincipalType: "user",
+			PrincipalKey:  "bob",
+			ResourcePath:  "/alice/ops/ticket",
+			RoleCode:      "member",
+			ExpiresAt:     nil,
+		},
+		{
+			TenantUser:    "alice",
+			App:           "ops",
+			PrincipalType: "user",
+			PrincipalKey:  "bob",
+			ResourcePath:  "/alice/ops/ticket",
+			RoleCode:      "viewer",
+			ExpiresAt:     nil,
+		},
+	}
+	for _, assignment := range assignments {
+		assignment.CreatedBy = "alice"
+		if err := db.Create(assignment).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := backfillPermissionAssignmentKeys(db); err != nil {
+		t.Fatal(err)
+	}
+
+	var migrated []*WorkspaceRoleAssignment
+	if err := db.Order("role_code ASC").Find(&migrated).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(migrated) != 2 {
+		t.Fatalf("assignment count = %d, want one member and one viewer", len(migrated))
+	}
+	for _, assignment := range migrated {
+		if assignment.AssignmentKey == nil || *assignment.AssignmentKey == "" {
+			t.Fatalf("assignment key was not backfilled: %+v", assignment)
+		}
+		if assignment.RoleCode == "member" && assignment.ExpiresAt != nil {
+			t.Fatalf("deduplication should preserve the permanent member grant: %+v", assignment)
+		}
+	}
+
+	if err := backfillPermissionAssignmentKeys(db); err != nil {
+		t.Fatalf("re-running key migration should be idempotent: %v", err)
 	}
 }

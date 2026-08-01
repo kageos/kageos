@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kageos/kageos/pkg/access"
 	kageconfig "github.com/kageos/kageos/pkg/config"
 	"gorm.io/gorm"
 )
@@ -82,6 +83,9 @@ func InitTables(db *gorm.DB) error {
 	if err != nil {
 		return err
 	}
+	if err := backfillPermissionAssignmentKeys(db); err != nil {
+		return err
+	}
 
 	if err := ensureOperateLogQueryIndexes(db); err != nil {
 		return err
@@ -136,6 +140,111 @@ func migrateLegacyPermissionPrincipals(db *gorm.DB) error {
 		return fmt.Errorf("drop retired permission username column: %w", dropErr)
 	}
 	return nil
+}
+
+// backfillPermissionAssignmentKeys makes grants idempotent without placing a
+// very wide composite unique index on organization and resource paths. Legacy
+// duplicate rows are collapsed while preserving the longest active grant.
+func backfillPermissionAssignmentKeys(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&WorkspaceRoleAssignment{}) ||
+		!db.Migrator().HasColumn(&WorkspaceRoleAssignment{}, "AssignmentKey") {
+		return nil
+	}
+
+	var missing int64
+	if err := db.Unscoped().Model(&WorkspaceRoleAssignment{}).
+		Where("assignment_key IS NULL OR assignment_key = ''").
+		Count(&missing).Error; err != nil {
+		return fmt.Errorf("count permission assignment keys: %w", err)
+	}
+	if missing == 0 {
+		return nil
+	}
+
+	var assignments []*WorkspaceRoleAssignment
+	if err := db.Unscoped().Order("id ASC").Find(&assignments).Error; err != nil {
+		return fmt.Errorf("load permission assignments for key migration: %w", err)
+	}
+	groups := make(map[string][]*WorkspaceRoleAssignment, len(assignments))
+	for _, assignment := range assignments {
+		if assignment == nil {
+			continue
+		}
+		key := access.PermissionAssignmentKey(
+			assignment.TenantUser,
+			assignment.App,
+			access.Principal{
+				Type: access.PrincipalType(assignment.PrincipalType),
+				Key:  assignment.PrincipalKey,
+			},
+			assignment.ResourcePath,
+			access.RoleCode(assignment.RoleCode),
+		)
+		groups[key] = append(groups[key], assignment)
+	}
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Unscoped().Model(&WorkspaceRoleAssignment{}).
+			Where("id > 0").
+			Update("assignment_key", nil).Error; err != nil {
+			return fmt.Errorf("reset permission assignment keys: %w", err)
+		}
+		for key, group := range groups {
+			if len(group) == 0 {
+				continue
+			}
+			winner := group[0]
+			for _, candidate := range group[1:] {
+				if preferPermissionAssignment(candidate, winner) {
+					winner = candidate
+				}
+			}
+			duplicateIDs := make([]int64, 0, len(group)-1)
+			for _, assignment := range group {
+				if assignment.ID != winner.ID {
+					duplicateIDs = append(duplicateIDs, assignment.ID)
+				}
+			}
+			if len(duplicateIDs) > 0 {
+				if err := tx.Unscoped().Where("id IN ?", duplicateIDs).
+					Delete(&WorkspaceRoleAssignment{}).Error; err != nil {
+					return fmt.Errorf("remove duplicate permission assignments: %w", err)
+				}
+			}
+			if err := tx.Unscoped().Model(&WorkspaceRoleAssignment{}).
+				Where("id = ?", winner.ID).
+				Update("assignment_key", key).Error; err != nil {
+				return fmt.Errorf("backfill permission assignment key: %w", err)
+			}
+		}
+		return nil
+	})
+}
+
+func preferPermissionAssignment(candidate, current *WorkspaceRoleAssignment) bool {
+	if candidate == nil {
+		return false
+	}
+	if current == nil {
+		return true
+	}
+	candidateActive := !candidate.DeletedAt.Valid
+	currentActive := !current.DeletedAt.Valid
+	if candidateActive != currentActive {
+		return candidateActive
+	}
+	if candidateActive {
+		if (candidate.ExpiresAt == nil) != (current.ExpiresAt == nil) {
+			return candidate.ExpiresAt == nil
+		}
+		if candidate.ExpiresAt != nil && current.ExpiresAt != nil && !candidate.ExpiresAt.Equal(*current.ExpiresAt) {
+			return candidate.ExpiresAt.After(*current.ExpiresAt)
+		}
+	}
+	if candidate.UpdatedAt.GetUnix() != current.UpdatedAt.GetUnix() {
+		return candidate.UpdatedAt.GetUnix() > current.UpdatedAt.GetUnix()
+	}
+	return candidate.ID > current.ID
 }
 
 type legacyPermissionAssignment struct {

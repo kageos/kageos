@@ -451,7 +451,7 @@
                 />
               </el-form-item>
 
-              <el-form-item :label="t('access.expires')">
+              <el-form-item :label="t('access.expires')" :error="grantExpiryError">
                 <el-radio-group v-model="grantPermanent">
                   <el-radio :label="true">{{ t('access.permanent') }}</el-radio>
                   <el-radio :label="false">{{ t('access.customTime') }}</el-radio>
@@ -462,6 +462,7 @@
                   class="expires-picker"
                   type="datetime"
                   :placeholder="t('access.expiresPlaceholder')"
+                  :disabled-date="disablePastPermissionDate"
                   clearable
                 />
               </el-form-item>
@@ -535,7 +536,7 @@
                 />
               </el-form-item>
 
-              <el-form-item :label="t('access.expires')">
+              <el-form-item :label="t('access.expires')" :error="requestExpiryError">
                 <el-radio-group v-model="requestPermanent">
                   <el-radio :label="true">{{ t('access.permanent') }}</el-radio>
                   <el-radio :label="false">{{ t('access.customTime') }}</el-radio>
@@ -546,6 +547,7 @@
                   class="expires-picker"
                   type="datetime"
                   :placeholder="t('access.expiresPlaceholder')"
+                  :disabled-date="disablePastPermissionDate"
                   clearable
                 />
               </el-form-item>
@@ -849,6 +851,10 @@ import {
   permissionSetCoversRequestRole,
   type PermissionRequestRole,
 } from '@/architecture/presentation/features/access/utils/permissionRequestRole'
+import {
+  disablePastPermissionDate,
+  isPermissionExpiryValid,
+} from '@/architecture/presentation/features/access/utils/permissionExpiry'
 
 type AccessTab = 'current' | 'inherited'
 type RoleTone = 'view' | 'edit' | 'admin' | 'owner'
@@ -1106,6 +1112,16 @@ const requestInheritedResourcePaths = computed(() => collectAllResourcePaths(tre
   && !requestedRoleCoveredResourcePaths.value.has(path)
   && !pendingRequestPaths.value.has(path)
 )))
+const grantExpiryValid = computed(() => isPermissionExpiryValid(grantPermanent.value, grantExpiresAt.value))
+const requestExpiryValid = computed(() => isPermissionExpiryValid(requestPermanent.value, requestExpiresAt.value))
+const grantExpiryError = computed(() => {
+  if (grantExpiryValid.value) return ''
+  return grantExpiresAt.value ? t('access.expiresFutureRequired') : t('access.expiresRequired')
+})
+const requestExpiryError = computed(() => {
+  if (requestExpiryValid.value) return ''
+  return requestExpiresAt.value ? t('access.expiresFutureRequired') : t('access.expiresRequired')
+})
 const displayedCheckedResourceCount = computed(() => (
   workflowTab.value === 'request'
     ? requestTargetPaths.value.length
@@ -1115,6 +1131,7 @@ const canSubmitRequest = computed(() => {
   return Boolean(requestTargetPaths.value.length > 0 && requestReason.value.trim() && approvers.value.length > 0)
     && (grantRole.value === 'viewer' || grantRole.value === 'member' || grantRole.value === 'admin')
     && requestTargetPaths.value.every(path => approverReadyResourcePaths.value.includes(path))
+    && requestExpiryValid.value
 })
 const activeWorkflowRequests = computed(() => {
   if (workflowTab.value === 'pending') return pendingRequests.value
@@ -1187,7 +1204,10 @@ const principalPreview = computed(() => {
 })
 
 const canSubmitGrant = computed(() => {
-  return selectedResourcePaths.value.length > 0 && selectedPrincipals.value.length > 0 && Boolean(grantRole.value)
+  return selectedResourcePaths.value.length > 0
+    && selectedPrincipals.value.length > 0
+    && Boolean(grantRole.value)
+    && grantExpiryValid.value
 })
 
 const currentAssignments = computed(() => {

@@ -98,17 +98,19 @@ func TestPermissionGrantAndResolveInheritedPermissions(t *testing.T) {
 }
 
 func TestPermissionExpiredAssignmentDoesNotGrantPermission(t *testing.T) {
-	service, _, _ := newPermissionTestService(t)
+	service, _, db := newPermissionTestService(t)
 	expired := time.Now().Add(-time.Minute)
-	if err := service.GrantRole(actorContext("alice"), access.GrantRoleRequest{
-		TenantUser:   "alice",
-		App:          "ops",
-		Principal:    userPrincipal("bob"),
-		ResourcePath: "/alice/ops",
-		RoleCode:     access.RoleAdmin,
-		ExpiresAt:    &expired,
-		CreatedBy:    "alice",
-	}); err != nil {
+	assignment := &appmodel.WorkspaceRoleAssignment{
+		TenantUser:    "alice",
+		App:           "ops",
+		PrincipalType: string(access.PrincipalUser),
+		PrincipalKey:  "bob",
+		ResourcePath:  "/alice/ops",
+		RoleCode:      string(access.RoleAdmin),
+		ExpiresAt:     &expired,
+	}
+	assignment.CreatedBy = "alice"
+	if err := db.Create(assignment).Error; err != nil {
 		t.Fatal(err)
 	}
 
@@ -118,6 +120,31 @@ func TestPermissionExpiredAssignmentDoesNotGrantPermission(t *testing.T) {
 	}
 	if ok {
 		t.Fatal("expired admin assignment should not grant admin")
+	}
+}
+
+func TestPermissionGrantRejectsExpiredAssignment(t *testing.T) {
+	service, _, db := newPermissionTestService(t)
+	expired := time.Now().Add(-time.Minute)
+	err := service.GrantRole(actorContext("alice"), access.GrantRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Principal:    userPrincipal("bob"),
+		ResourcePath: "/alice/ops",
+		RoleCode:     access.RoleMember,
+		ExpiresAt:    &expired,
+		CreatedBy:    "alice",
+	})
+	if err == nil || !strings.Contains(err.Error(), "权限到期时间必须晚于当前时间") {
+		t.Fatalf("expected expired grant validation error, got %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&appmodel.WorkspaceRoleAssignment{}).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("expired grant must not write an assignment, got %d", count)
 	}
 }
 
@@ -333,6 +360,31 @@ func TestPermissionBatchGrantRolesValidatesAllTargetsBeforeWriting(t *testing.T)
 	}
 	if count != 0 {
 		t.Fatalf("batch validation failure must not leave partial assignments, got %d", count)
+	}
+}
+
+func TestPermissionBatchGrantRolesRejectsExpiredAssignmentBeforeWriting(t *testing.T) {
+	service, _, db := newPermissionTestService(t)
+	expired := time.Now().Add(-time.Minute)
+	err := service.BatchGrantRoles(actorContext("alice"), access.BatchGrantRoleRequest{
+		TenantUser:    "alice",
+		App:           "ops",
+		Principals:    userPrincipals("bob", "cora"),
+		ResourcePaths: []string{"/alice/ops/ticket"},
+		RoleCodes:     []access.RoleCode{access.RoleMember},
+		ExpiresAt:     &expired,
+		CreatedBy:     "alice",
+	})
+	if err == nil || !strings.Contains(err.Error(), "权限到期时间必须晚于当前时间") {
+		t.Fatalf("expected expired batch validation error, got %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&appmodel.WorkspaceRoleAssignment{}).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("expired batch must not write assignments, got %d", count)
 	}
 }
 
