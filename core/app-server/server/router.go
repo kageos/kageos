@@ -43,7 +43,7 @@ func (s *Server) setupRoutes() {
 	// 应用管理路由（需要JWT验证）
 	app := apiV1.Group("/app")
 	app.Use(jwtAuth) // 应用管理需要JWT认证
-	appHandler := v1.NewApp(s.appService, s.serviceTreeService, s.permissionService)
+	appHandler := v1.NewApp(s.appService, s.serviceTreeService, s.permissionService, s.permissionRequestService)
 	app.GET("/list", appHandler.GetApps)
 	app.GET("/detail", appHandler.GetAppDetail)
 	app.GET("/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)

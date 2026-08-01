@@ -12,7 +12,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, watch } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import {
@@ -48,10 +48,6 @@ const badgeTitle = computed(() => t('access.permissionRequestBadgeTitle', {
   review: summary.value.reviewPendingCount,
   mine: summary.value.ownPendingCount,
 }))
-
-watch(workspaceRoot, (root) => {
-  if (root) void loadPermissionRequestSummary(root)
-}, { immediate: true })
 
 const unsubscribe = eventBus.on<{ resource_paths?: string[] }>('permission-request:changed', (payload) => {
   const paths = payload?.resource_paths || []

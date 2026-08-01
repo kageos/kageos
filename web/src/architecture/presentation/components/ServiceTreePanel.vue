@@ -299,11 +299,13 @@ import {
 import { featureFlags } from '@/architecture/shared/config/features'
 import { canAdmin, canDelete, canRead } from '@/architecture/presentation/composables/useAccessControl'
 import { findNearestPermissionRequestAncestor } from '@/architecture/presentation/features/access/utils/permissionRequestSelection'
+import { getPermissionRequestWorkspaceRoot } from '@/architecture/presentation/features/access/utils/permissionRequestSummary'
 import {
   getPermissionRequestSummaryState,
   loadPermissionRequestSummary,
   ownPendingPermissionRequestPaths,
   permissionRequestPathSummary,
+  seedPermissionRequestSummaryFromTree,
 } from '@/architecture/presentation/features/access/utils/permissionRequestSummaryStore'
 import ServiceTreeNodeContent from './ServiceTreeNodeContent.vue'
 import WorkspaceImportDirectoryDialog from './WorkspaceImportDirectoryDialog.vue'
@@ -376,7 +378,8 @@ const {
 })
 
 const rootFullCodePath = computed(() => props.treeData[0]?.full_code_path || '')
-const permissionRequestSummaryState = computed(() => getPermissionRequestSummaryState(rootFullCodePath.value))
+const permissionRequestWorkspaceRoot = computed(() => getPermissionRequestWorkspaceRoot(rootFullCodePath.value))
+const permissionRequestSummaryState = computed(() => getPermissionRequestSummaryState(permissionRequestWorkspaceRoot.value))
 const pendingAccessRequestPaths = computed(() => ownPendingPermissionRequestPaths(permissionRequestSummaryState.value))
 const hasAnyAdminNode = computed(() => {
   const walk = (nodes: ServiceTree[]): boolean => nodes.some(node => canAdmin(node) || walk(node.children || []))
@@ -495,12 +498,20 @@ watch([rootFullCodePath, hasAnyAdminNode], () => {
   exitMultiSelectMode()
   refreshRuntimeSummary()
   refreshNotificationRouteSummary()
-  refreshPendingAccessRequests()
   startRuntimeSummaryPolling()
 }, { immediate: true })
 
+watch(
+  () => props.treeData,
+  (nodes) => {
+    const root = permissionRequestWorkspaceRoot.value
+    if (root) seedPermissionRequestSummaryFromTree(root, nodes)
+  },
+  { immediate: true },
+)
+
 async function refreshPendingAccessRequests() {
-  const root = rootFullCodePath.value
+  const root = permissionRequestWorkspaceRoot.value
   if (!root) return
   try {
     await loadPermissionRequestSummary(root, { force: true })

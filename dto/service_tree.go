@@ -44,6 +44,12 @@ type CreateServiceTreeResp struct {
 	Status       string `json:"status" example:"enabled"`                    // 状态
 }
 
+// PermissionReqs 当前用户在服务树节点上的权限申请徽章摘要。
+type PermissionReqs struct {
+	OwnPendingCount    int `json:"own_pending_count"`
+	ReviewPendingCount int `json:"review_pending_count"`
+}
+
 // GetServiceTreeResp 获取服务目录响应
 type GetServiceTreeResp struct {
 	ID                  int64                 `json:"id,omitempty" example:"1"`                              // 服务目录ID
@@ -68,6 +74,7 @@ type GetServiceTreeResp struct {
 	RunningAgentTasks   int                   `json:"running_agent_tasks,omitempty"`                         // 当前目录及子目录内正在执行的 Agent 任务数量
 	FailedAgentTasks    int                   `json:"failed_agent_tasks,omitempty"`                          // 当前目录及子目录内需要关注的 Agent 任务数量
 	RunCount            int                   `json:"run_count,omitempty"`                                   // ⭐ 运行次数（仅 function 类型有意义），用于排序与展示「已使用 N 次」
+	PermissionRequests  *PermissionReqs       `json:"permission_requests,omitempty"`                         // 当前用户在该节点的权限申请徽章摘要
 	Permissions         access.PermissionSet  `json:"permissions,omitempty"`                                 // 当前用户对节点的权限
 	RoleCodes           []access.RoleCode     `json:"role_codes,omitempty"`                                  // 当前用户在该节点命中的角色
 	InheritedFrom       string                `json:"inherited_from,omitempty"`                              // 权限继承来源

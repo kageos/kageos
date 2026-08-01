@@ -11,6 +11,7 @@ import {
   loadPermissionRequestSummary,
   ownPendingPermissionRequestPaths,
   permissionRequestPathSummary,
+  seedPermissionRequestSummaryFromTree,
 } from './permissionRequestSummaryStore'
 
 describe('permission request summary store', () => {
@@ -42,5 +43,31 @@ describe('permission request summary store', () => {
       review_pending_count: 2,
     })
     expect([...ownPendingPermissionRequestPaths(state)]).toEqual(['/system/demo/orders'])
+  })
+
+  it('seeds badge counts from the initial service tree without another request', () => {
+    seedPermissionRequestSummaryFromTree('/alice/ops', [
+      {
+        full_code_path: '/alice/ops',
+        children: [
+          {
+            full_code_path: '/alice/ops/orders',
+            permission_requests: {
+              own_pending_count: 1,
+              review_pending_count: 2,
+            },
+          },
+        ],
+      },
+    ])
+
+    expect(permissionApi.getPermissionRequestSummary).not.toHaveBeenCalled()
+    expect(permissionRequestPathSummary(
+      getPermissionRequestSummaryState('/alice/ops'),
+      '/alice/ops/orders',
+    )).toEqual({
+      own_pending_count: 1,
+      review_pending_count: 2,
+    })
   })
 })
