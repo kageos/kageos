@@ -33,6 +33,7 @@ type Server struct {
 	messageConsumerService *service.MessageConsumerService
 	messageCommandHandler  *service.MessageCommandHandler
 	workspaceActionRunner  workspaceActionSubmitter
+	notificationRouteAuth  notificationRoutePermissionResolver
 	notificationVault      *service.NotificationSecretVault
 	subscriptions          []*nats.Subscription
 }
@@ -173,6 +174,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	)
 	s.messageCommandHandler = service.NewMessageCommandHandler(s.messageConsumerService)
 	s.workspaceActionRunner = service.NewWorkspaceActionRunner(config.GetGlobalSharedConfig().Gateway.GetInternalURL())
+	s.notificationRouteAuth = workspaceNotificationRoutePermissionResolver{}
 	logger.Infof(ctx, "[message-server] services initialized")
 	return nil
 }
