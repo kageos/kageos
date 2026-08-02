@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { seedPermissionRequestSummaryFromTree } from '@/architecture/presentation/features/access/utils/permissionRequestSummaryStore'
 import PermissionPanel from './PermissionPanel.vue'
 
 const permissionApi = vi.hoisted(() => ({
@@ -47,6 +48,10 @@ function permissionNode(admin: boolean) {
       admin,
       owner: false,
     },
+    permission_requests: {
+      own_pending_count: 1,
+      review_pending_count: admin ? 1 : 0,
+    },
   } as any
 }
 
@@ -59,6 +64,7 @@ function findTab(wrapper: ReturnType<typeof mount>, label: string) {
 describe('PermissionPanel', () => {
   beforeEach(() => {
     Object.values(permissionApi).forEach(mock => mock.mockReset())
+    seedPermissionRequestSummaryFromTree('/system/democase', [permissionNode(true)])
     permissionApi.listPermissionAssignments.mockResolvedValue({ assignments: [] })
     permissionApi.listMyPermissionRequests.mockResolvedValue({
       requests: [
@@ -95,6 +101,8 @@ describe('PermissionPanel', () => {
     expect(permissionApi.listPendingPermissionRequests).not.toHaveBeenCalled()
     expect(permissionApi.listMyPermissionRequests).not.toHaveBeenCalled()
     expect(permissionApi.listPermissionRequestHistory).not.toHaveBeenCalled()
+    expect(findTab(wrapper, '待我审批').text()).toContain('1')
+    expect(findTab(wrapper, '我的申请').text()).toContain('1')
 
     await findTab(wrapper, '待我审批').trigger('click')
     await flushPromises()
@@ -131,8 +139,10 @@ describe('PermissionPanel', () => {
     await flushPromises()
 
     const labels = wrapper.findAll('.el-tabs__item').map(item => item.text())
-    expect(labels).toEqual(expect.arrayContaining(['权限成员', '我的申请']))
-    expect(labels).not.toEqual(expect.arrayContaining(['待我审批', '审批记录']))
+    expect(findTab(wrapper, '权限成员').exists()).toBe(true)
+    expect(findTab(wrapper, '我的申请').text()).toContain('1')
+    expect(labels.some(label => label.includes('待我审批'))).toBe(false)
+    expect(labels.some(label => label.includes('审批记录'))).toBe(false)
     expect(permissionApi.listPermissionAssignments).toHaveBeenCalledTimes(1)
     expect(permissionApi.listMyPermissionRequests).not.toHaveBeenCalled()
   })

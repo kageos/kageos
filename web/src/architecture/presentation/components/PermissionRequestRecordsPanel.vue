@@ -132,7 +132,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'changed'): void
-  (e: 'count-change', payload: { view: RequestRecordView; count: number }): void
   (e: 'loading-change', loading: boolean): void
 }>()
 
@@ -172,8 +171,6 @@ function clearRequests() {
   myRequests.value = []
   pendingRequests.value = []
   reviewHistory.value = []
-  emit('count-change', { view: 'pending', count: 0 })
-  emit('count-change', { view: 'mine', count: 0 })
 }
 
 async function loadRequests(force = true) {
@@ -207,15 +204,10 @@ async function loadRequests(force = true) {
     ))
     if (view === 'pending') {
       pendingRequests.value = currentRequests
-      emit('count-change', { view, count: currentRequests.length })
     } else if (view === 'history') {
       reviewHistory.value = currentRequests
     } else {
       myRequests.value = currentRequests
-      emit('count-change', {
-        view,
-        count: currentRequests.filter(request => request.status === 'pending').length,
-      })
     }
     loadedViews.add(view)
   } catch (error: any) {

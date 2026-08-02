@@ -114,7 +114,6 @@
           :resource-path="node.full_code_path"
           :view="activeRequestView"
           @changed="handleRequestChanged"
-          @count-change="handleRequestCountChange"
           @loading-change="requestLoading = $event"
         />
       </section>
@@ -123,7 +122,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -139,6 +138,11 @@ import { canAdmin, canRead } from '@/architecture/presentation/composables/useAc
 import DepartmentDisplay from '@/architecture/presentation/shared/components/DepartmentDisplay.vue'
 import UsersWidget from '@/architecture/presentation/shared/components/UsersWidget.vue'
 import { createStringFieldValue } from '@/architecture/domain/utils/widgetFieldHelpers'
+import { getPermissionRequestWorkspaceRoot } from '@/architecture/presentation/features/access/utils/permissionRequestSummary'
+import {
+  getPermissionRequestSummaryState,
+  permissionRequestPathSummary,
+} from '@/architecture/presentation/features/access/utils/permissionRequestSummaryStore'
 import PermissionRequestRecordsPanel from './PermissionRequestRecordsPanel.vue'
 
 type PermissionRequestView = 'pending' | 'mine' | 'history'
@@ -194,9 +198,17 @@ const loading = ref(false)
 const requestLoading = ref(false)
 const activeSection = ref<PermissionSection>('members')
 const requestRecordsRef = ref<{ loadRequests: () => void } | null>(null)
-const requestCounts = reactive<Record<'pending' | 'mine', number>>({
-  pending: 0,
-  mine: 0,
+const requestCounts = computed<Record<'pending' | 'mine', number>>(() => {
+  const path = props.node?.full_code_path || ''
+  const root = getPermissionRequestWorkspaceRoot(path)
+  const state = getPermissionRequestSummaryState(root)
+  const summary = state.loaded
+    ? permissionRequestPathSummary(state, path)
+    : props.node?.permission_requests
+  return {
+    pending: Number(summary?.review_pending_count || 0),
+    mine: Number(summary?.own_pending_count || 0),
+  }
 })
 let assignmentLoadSequence = 0
 const activeRequestView = computed<PermissionRequestView>(() => (
@@ -209,8 +221,6 @@ watch(
     assignmentLoadSequence += 1
     loading.value = false
     assignments.value = []
-    requestCounts.pending = 0
-    requestCounts.mine = 0
     requestLoading.value = false
     if (path) {
       if (readable) {
@@ -268,12 +278,6 @@ function refreshPanel() {
 
 function handleRequestChanged() {
   emit('changed')
-}
-
-function handleRequestCountChange(payload: { view: PermissionRequestView; count: number }) {
-  if (payload.view === 'pending' || payload.view === 'mine') {
-    requestCounts[payload.view] = payload.count
-  }
 }
 
 function formatBadgeCount(count: number): string {
