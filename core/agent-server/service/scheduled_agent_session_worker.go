@@ -9,6 +9,7 @@ import (
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/scheduledauth"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/nats-io/nats.go"
 )
@@ -100,10 +101,10 @@ func (s *WorkspaceChatService) RunScheduledAgentSession(ctx context.Context, eve
 	if err != nil {
 		return nil, err
 	}
-	if err := event.IssueToken(scheduledAgentExecutionTokenTTL(payload.MaxDurationSeconds)); err != nil {
+	ctx, err = scheduledauth.WithExecutionToken(ctx, event, scheduledAgentExecutionTokenTTL(payload.MaxDurationSeconds))
+	if err != nil {
 		return nil, fmt.Errorf("签发 Agent 任务执行令牌失败: %w", err)
 	}
-	ctx = event.WithAuditContext(ctx)
 	if payload.MaxDurationSeconds > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(payload.MaxDurationSeconds)*time.Second)

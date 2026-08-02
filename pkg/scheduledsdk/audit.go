@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	MetadataRequestUserID  = "request_user_id"
 	MetadataRequestEmail   = "request_email"
 	MetadataLeaderUsername = "leader_username"
 )
