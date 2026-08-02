@@ -1300,6 +1300,27 @@ useTableViewLifecycle({
   overflow: hidden;
 }
 
+/* 固定列必须拥有实体底色，否则横向滚动时会与经过其下方的单元格叠字。 */
+:deep(.table-with-fixed-column td.control-column.el-table-fixed-column--left),
+:deep(.table-with-fixed-column td.action-column.el-table-fixed-column--right) {
+  background: var(--app-shell-panel-bg-strong, var(--el-bg-color)) !important;
+}
+
+:deep(.table-with-fixed-column th.control-column.el-table-fixed-column--left),
+:deep(.table-with-fixed-column th.action-column.el-table-fixed-column--right) {
+  background: var(--app-shell-panel-muted-bg, var(--el-fill-color-light)) !important;
+}
+
+:deep(.table-with-fixed-column .el-table__body tr:hover > td.control-column.el-table-fixed-column--left),
+:deep(.table-with-fixed-column .el-table__body tr:hover > td.action-column.el-table-fixed-column--right) {
+  background: var(--el-fill-color-light) !important;
+}
+
+:deep(.table-with-fixed-column td.action-column .cell) {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
 .detail-icon-button {
   min-width: 44px;
   width: 100%;

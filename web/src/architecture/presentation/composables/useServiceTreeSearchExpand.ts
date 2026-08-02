@@ -136,6 +136,22 @@ export function useServiceTreeSearchExpand(options: UseServiceTreeSearchExpandOp
     }
   }
 
+  const expandNodeIds = async (nodeIds: number[]) => {
+    const normalizedIds = [...new Set(nodeIds.map(Number).filter(Number.isFinite))]
+    if (normalizedIds.length === 0) return
+
+    expandedKeysState.value = [...new Set([...expandedKeysState.value, ...normalizedIds])]
+    await nextTick()
+    if (!treeRef.value || !groupedTreeData.value.length) return
+
+    for (const nodeId of normalizedIds) {
+      const path = findPathToNode(groupedTreeData.value, nodeId)
+      if (path.length > 0) {
+        await expandPathOnly(treeRef.value, path)
+      }
+    }
+  }
+
   return {
     treeRef,
     groupedTreeData,
@@ -144,6 +160,7 @@ export function useServiceTreeSearchExpand(options: UseServiceTreeSearchExpandOp
     defaultExpandedKeysWithWorkspace,
     expandedKeysState,
     treeKey,
-    expandPaths
+    expandPaths,
+    expandNodeIds,
   }
 }

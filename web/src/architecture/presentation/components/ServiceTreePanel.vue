@@ -16,32 +16,54 @@
           :prefix-icon="Search"
           data-testid="service-tree-search"
         />
-        <el-tooltip
-          v-if="featureFlags.capabilityBundle && !multiSelectMode"
-          :content="canAdmin(resolveHeaderImportTarget()) ? t('serviceTree.importBundle') : t('access.requiresPermission', { permission: 'Admin' })"
-          placement="bottom"
+        <el-popover
+          v-if="!multiSelectMode"
+          v-model:visible="treeToolsVisible"
+          placement="bottom-end"
+          trigger="click"
+          :width="260"
+          popper-class="service-tree-tools-popper"
         >
-          <el-button
-            class="tree-import-button"
-            size="small"
-            text
-            :icon="Upload"
-            :disabled="!canAdmin(resolveHeaderImportTarget())"
-            :aria-label="t('serviceTree.importBundle')"
-            data-testid="service-tree-import-directory"
-            @click="openCurrentDirectoryImportDialog"
-          />
-        </el-tooltip>
-        <el-tooltip v-if="!multiSelectMode" :content="t('serviceTree.multiSelect')" placement="bottom">
-          <el-button
-            class="tree-select-button"
-            size="small"
-            text
-            :icon="Select"
-            :aria-label="t('serviceTree.multiSelect')"
-            @click="enterMultiSelectMode"
-          />
-        </el-tooltip>
+          <template #reference>
+            <el-button
+              class="tree-tools-button"
+              size="small"
+              text
+              :icon="MoreFilled"
+              :aria-label="t('serviceTree.directoryTools')"
+              data-testid="service-tree-tools"
+            />
+          </template>
+          <div class="tree-tools-menu">
+            <button
+              v-if="featureFlags.capabilityBundle"
+              type="button"
+              class="tree-tool-action"
+              :disabled="!canAdmin(resolveHeaderImportTarget())"
+              :title="canAdmin(resolveHeaderImportTarget()) ? t('serviceTree.importBundle') : t('access.requiresPermission', { permission: 'Admin' })"
+              data-testid="service-tree-import-directory"
+              @click="handleHeaderImport"
+            >
+              <el-icon><Upload /></el-icon>
+              <span>{{ t('serviceTree.importBundle') }}</span>
+            </button>
+            <button type="button" class="tree-tool-action" @click="handleHeaderMultiSelect">
+              <el-icon><Select /></el-icon>
+              <span>{{ t('serviceTree.multiSelect') }}</span>
+            </button>
+            <div class="tree-tool-preference">
+              <span>
+                <strong>{{ t('serviceTree.authorizedOnly') }}</strong>
+                <small>{{ t('serviceTree.authorizedOnlyDescription') }}</small>
+              </span>
+              <el-switch
+                v-model="authorizedOnly"
+                data-testid="service-tree-authorized-only"
+                :aria-label="t('serviceTree.authorizedOnly')"
+              />
+            </div>
+          </div>
+        </el-popover>
       </div>
       <div v-if="multiSelectMode" class="tree-bulk-toolbar">
         <span class="bulk-selected-count">{{ t('common.selectedCount', { count: selectedNodeCount }) }}</span>
@@ -297,6 +319,7 @@ import {
   type ServiceTreeNodeActionCommand
 } from '../utils/serviceTreeNodeActions'
 import { featureFlags } from '@/architecture/shared/config/features'
+import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import { canAdmin, canDelete, canRead } from '@/architecture/presentation/composables/useAccessControl'
 import { findNearestPermissionRequestAncestor } from '@/architecture/presentation/features/access/utils/permissionRequestSelection'
 import { getPermissionRequestWorkspaceRoot } from '@/architecture/presentation/features/access/utils/permissionRequestSummary'
@@ -304,11 +327,15 @@ import {
   getPermissionRequestSummaryState,
   loadPermissionRequestSummary,
   ownPendingPermissionRequestPaths,
-  permissionRequestPathSummary,
   seedPermissionRequestSummaryFromTree,
 } from '@/architecture/presentation/features/access/utils/permissionRequestSummaryStore'
 import ServiceTreeNodeContent from './ServiceTreeNodeContent.vue'
 import WorkspaceImportDirectoryDialog from './WorkspaceImportDirectoryDialog.vue'
+import {
+  aggregatePermissionRequestSummaries,
+  collectPermissionRequestExpandedDirectoryIds,
+  filterServiceTreeByReadAccess,
+} from '@/architecture/presentation/utils/serviceTreePermissionView'
 
 interface Props {
   treeData: ServiceTree[]
@@ -342,10 +369,31 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 const { t } = useI18n()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const runtimeSummaries = ref<Record<string, RuntimeStateSummary>>({})
 const notificationRouteSummaries = ref<Record<string, MessageNotificationRoutePathSummary>>({})
 let runtimeSummaryTimer: ReturnType<typeof setInterval> | null = null
+
+const rootFullCodePath = computed(() => props.treeData[0]?.full_code_path || '')
+const authorizedOnly = ref(false)
+const treeToolsVisible = ref(false)
+const treePreferenceKey = computed(() => {
+  const username = authStore.user?.username || 'anonymous'
+  const root = rootFullCodePath.value
+  return root ? `kageos:service-tree:authorized-only:${username}:${root}` : ''
+})
+const visibleTreeData = computed(() => (
+  authorizedOnly.value ? filterServiceTreeByReadAccess(props.treeData) : props.treeData
+))
+
+watch(treePreferenceKey, (key) => {
+  authorizedOnly.value = key ? localStorage.getItem(key) === 'true' : false
+}, { immediate: true })
+
+watch(authorizedOnly, (value) => {
+  if (treePreferenceKey.value) localStorage.setItem(treePreferenceKey.value, String(value))
+})
 
 const {
   treeRef,
@@ -355,9 +403,10 @@ const {
   defaultExpandedKeysWithWorkspace,
   expandedKeysState,
   treeKey,
-  expandPaths
+  expandPaths,
+  expandNodeIds,
 } = useServiceTreeSearchExpand({
-  treeData: computed(() => props.treeData),
+  treeData: visibleTreeData,
   expandedKeys: computed(() => props.expandedKeys)
 })
 
@@ -377,9 +426,16 @@ const {
   onRefreshTree: () => emit('refresh-tree')
 })
 
-const rootFullCodePath = computed(() => props.treeData[0]?.full_code_path || '')
 const permissionRequestWorkspaceRoot = computed(() => getPermissionRequestWorkspaceRoot(rootFullCodePath.value))
 const permissionRequestSummaryState = computed(() => getPermissionRequestSummaryState(permissionRequestWorkspaceRoot.value))
+const aggregatedPermissionRequestSummaries = computed(() => aggregatePermissionRequestSummaries(
+  props.treeData,
+  permissionRequestSummaryState.value.paths,
+))
+const permissionRequestExpandedDirectoryIds = computed(() => collectPermissionRequestExpandedDirectoryIds(
+  visibleTreeData.value,
+  aggregatedPermissionRequestSummaries.value,
+))
 const pendingAccessRequestPaths = computed(() => ownPendingPermissionRequestPaths(permissionRequestSummaryState.value))
 const hasAnyAdminNode = computed(() => {
   const walk = (nodes: ServiceTree[]): boolean => nodes.some(node => canAdmin(node) || walk(node.children || []))
@@ -412,6 +468,18 @@ const pendingExpandPath = ref('')
 let unsubscribeRuntimeRefresh: (() => void) | null = null
 let unsubscribeNotificationRouteRefresh: (() => void) | null = null
 let unsubscribePermissionRequestRefresh: (() => void) | null = null
+let lastPermissionExpansionSignature = ''
+
+watch(permissionRequestExpandedDirectoryIds, async (ids) => {
+  const signature = ids.join(',')
+  if (!signature || signature === lastPermissionExpansionSignature) {
+    if (!signature) lastPermissionExpansionSignature = ''
+    return
+  }
+  lastPermissionExpansionSignature = signature
+  await nextTick()
+  await expandNodeIds(ids)
+}, { immediate: true, flush: 'post' })
 
 const panelLoading = computed(() => Boolean(props.loading) || bulkExporting.value || renamingNode.value)
 const panelLoadingText = computed(() => {
@@ -810,6 +878,16 @@ function openCurrentDirectoryImportDialog() {
   openDirectoryImportDialog(resolveHeaderImportTarget())
 }
 
+function handleHeaderImport() {
+  treeToolsVisible.value = false
+  openCurrentDirectoryImportDialog()
+}
+
+function handleHeaderMultiSelect() {
+  treeToolsVisible.value = false
+  enterMultiSelectMode()
+}
+
 function handleDirectoryImported(path?: string) {
   refreshTreeAndExpand(path || importDirectoryTargetNode.value?.full_code_path || '')
 }
@@ -951,13 +1029,10 @@ function getOwnPendingRequestSource(resourcePath?: string): string {
 }
 
 function getPermissionRequestSummary(data: ServiceTree) {
-  const pathSummary = permissionRequestPathSummary(permissionRequestSummaryState.value, data.full_code_path || '')
-  const ownPendingCount = Number(pathSummary.own_pending_count || 0)
-  const reviewPendingCount = Number(pathSummary.review_pending_count || 0)
-  return {
-    ownPendingCount,
-    reviewPendingCount,
-    totalCount: ownPendingCount + reviewPendingCount,
+  return aggregatedPermissionRequestSummaries.value[normalizeTreePath(data.full_code_path)] || {
+    ownPendingCount: 0,
+    reviewPendingCount: 0,
+    totalCount: 0,
   }
 }
 
@@ -1435,16 +1510,7 @@ defineExpose({
     color: var(--color-primary);
   }
 
-  .tree-select-button {
-    flex: 0 0 32px;
-    width: 32px;
-    min-width: 32px;
-    height: 32px;
-    padding: 0;
-    border-radius: 8px;
-  }
-
-  .tree-import-button {
+  .tree-tools-button {
     flex: 0 0 32px;
     width: 32px;
     min-width: 32px;
@@ -1647,6 +1713,72 @@ defineExpose({
     border-top: 1px solid var(--border-light) !important;
     &::before {
       display: none !important;
+    }
+  }
+}
+
+.service-tree-tools-popper.el-popper {
+  padding: 6px !important;
+  background: var(--app-shell-panel-bg-strong, var(--el-bg-color)) !important;
+  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-light)) !important;
+  border-radius: 10px !important;
+  box-shadow: var(--app-shell-panel-shadow-soft, var(--el-box-shadow-light)) !important;
+
+  .tree-tools-menu {
+    display: grid;
+    gap: 3px;
+  }
+
+  .tree-tool-action {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--el-text-color-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: var(--el-fill-color-light);
+      color: var(--el-color-primary);
+    }
+
+    &:disabled {
+      color: var(--el-text-color-disabled);
+      cursor: not-allowed;
+    }
+  }
+
+  .tree-tool-preference {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 3px;
+    padding: 10px;
+    border-top: 1px solid var(--el-border-color-lighter);
+
+    > span {
+      display: grid;
+      min-width: 0;
+      gap: 3px;
+    }
+
+    strong {
+      color: var(--el-text-color-primary);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    small {
+      color: var(--el-text-color-secondary);
+      font-size: 11px;
+      line-height: 1.35;
     }
   }
 }

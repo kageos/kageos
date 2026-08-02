@@ -71,7 +71,13 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column :label="t('common.operation')" width="150" fixed="right">
+      <el-table-column
+        :label="t('common.operation')"
+        width="150"
+        fixed="right"
+        class-name="permission-request-action-column"
+        label-class-name="permission-request-action-column"
+      >
         <template #default="{ row }">
           <template v-if="view === 'pending'">
             <el-button type="success" plain size="small" :loading="reviewingRequestID === row.id" @click="approveRequest(row)">
@@ -387,5 +393,22 @@ defineExpose({ loadRequests })
 .request-record-finished {
   color: var(--el-text-color-secondary);
   font-size: 12px;
+}
+
+:deep(td.permission-request-action-column .cell) {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+:deep(td.permission-request-action-column.el-table-fixed-column--right) {
+  background: var(--app-shell-panel-bg-strong, var(--el-bg-color)) !important;
+}
+
+:deep(th.permission-request-action-column.el-table-fixed-column--right) {
+  background: var(--el-fill-color-light) !important;
+}
+
+:deep(.el-table__body tr:hover > td.permission-request-action-column.el-table-fixed-column--right) {
+  background: var(--el-fill-color-light) !important;
 }
 </style>
