@@ -13,6 +13,7 @@ import (
 	"github.com/kageos/kageos/core/message-server/service"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/ginx/response"
 	"gorm.io/gorm"
 )
@@ -310,6 +311,10 @@ func (s *Server) upsertNotificationRoute(c *gin.Context) {
 		response.FailWithMessage(c, "scope_path 不能为空")
 		return
 	}
+	if err := s.requireNotificationRouteAdmin(contextx.ToContext(c), scopePath); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 	if s.notificationVault == nil {
 		response.FailWithMessage(c, "通知密钥服务未初始化")
 		return
@@ -413,6 +418,10 @@ func (s *Server) deleteNotificationRoute(c *gin.Context) {
 		response.FailWithMessage(c, "scope_path 不能为空")
 		return
 	}
+	if err := s.requireNotificationRouteAdmin(contextx.ToContext(c), scopePath); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 	if err := s.messageRepo.DeleteNotificationRoute(c.Request.Context(), scopePath, channel); err != nil {
 		response.FailWithMessage(c, "删除目录通知路由失败: "+err.Error())
 		return
@@ -440,6 +449,10 @@ func (s *Server) testNotificationRoute(c *gin.Context) {
 	}
 	if scopePath == "" {
 		response.FailWithMessage(c, "scope_path 不能为空")
+		return
+	}
+	if err := s.requireNotificationRouteAdmin(contextx.ToContext(c), scopePath); err != nil {
+		response.FailWithMessage(c, err.Error())
 		return
 	}
 	row, err := s.messageRepo.GetNotificationRoute(c.Request.Context(), scopePath, channel)

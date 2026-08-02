@@ -26,11 +26,16 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane name="permission" :label="t('functionTabs.permission')" lazy>
+        <el-tab-pane name="permission" lazy>
+          <template #label>
+            <PermissionRequestTabLabel
+              :label="t('functionTabs.permission')"
+              :resource-path="currentFunction?.full_code_path || currentFunctionDetail?.full_code_path || ''"
+            />
+          </template>
           <div class="tab-content">
             <PermissionPanel
               v-if="activeTab === 'permission'"
-              ref="accessPanelRef"
               :node="currentFunction"
               embedded
               @changed="$emit('accessChanged')"
@@ -38,7 +43,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane name="notification" :label="t('functionTabs.notification')" lazy>
+        <el-tab-pane v-if="canConfigureFunction" name="notification" :label="t('functionTabs.notification')" lazy>
           <div class="tab-content">
             <NotificationRoutePanel
               v-if="activeTab === 'notification'"
@@ -48,7 +53,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane v-if="isFormFunction" name="publicShare" :label="t('functionTabs.publicShare')" lazy>
+        <el-tab-pane v-if="isFormFunction && canWriteFunction" name="publicShare" :label="t('functionTabs.publicShare')" lazy>
           <div class="tab-content">
             <PublicSharePanel
               v-if="activeTab === 'publicShare'"
@@ -82,7 +87,7 @@
         </el-tab-pane>
 
         <el-tab-pane
-          v-if="featureFlags.scheduledTasks"
+          v-if="featureFlags.scheduledTasks && canWriteFunction"
           name="scheduledTask"
           :label="t('functionTabs.scheduledTask')"
           lazy
@@ -112,6 +117,7 @@ import type { FunctionDetail } from '@/architecture/domain/types'
 import type { ServiceTree as ServiceTreeType } from '@/architecture/domain/types'
 import WorkspaceFunctionRenderer from './WorkspaceFunctionRenderer.vue'
 import FunctionConnectorBar from './FunctionConnectorBar.vue'
+import PermissionRequestTabLabel from './PermissionRequestTabLabel.vue'
 import { featureFlags } from '@/architecture/shared/config/features'
 import {
   isScheduledPanelQuery,
@@ -121,6 +127,7 @@ import {
   readStringQuery,
 } from '@/architecture/shared/routing/platformRouteParams'
 import { ElMessage } from 'element-plus'
+import { canAdmin, canWrite } from '@/architecture/presentation/composables/useAccessControl'
 
 type FunctionTabName = 'content' | 'permission' | 'notification' | 'publicShare' | 'operateLog' | 'scheduledTask'
 
@@ -132,10 +139,6 @@ const ScheduledTaskList = defineAsyncComponent(() => import('./ScheduledTaskList
 
 interface LoadableOperateLogSection {
   load: () => void
-}
-
-interface LoadableAccessPanel {
-  loadAssignments: () => void
 }
 
 interface ReplayableFormView {
@@ -160,17 +163,15 @@ const emit = defineEmits<{
 }>()
 
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
-const accessPanelRef = ref<LoadableAccessPanel | null>(null)
 const isFormFunction = computed(() => props.currentFunctionDetail?.template_type === 'form' || props.currentFunction?.template_type === 'form')
+const canConfigureFunction = computed(() => canAdmin(props.currentFunction))
+const canWriteFunction = computed(() => canWrite(props.currentFunction))
 const scheduledFocusTaskID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY))
 const scheduledFocusExecutionID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_EXECUTION_ID_QUERY_KEY))
 
 function loadOperateLogTab(tabName: FunctionTabName) {
   if (tabName === 'operateLog' && featureFlags.operateLogs) {
     nextTick(() => operateLogSectionRef.value?.load())
-  }
-  if (tabName === 'permission') {
-    nextTick(() => accessPanelRef.value?.loadAssignments())
   }
 }
 
@@ -197,8 +198,17 @@ async function handleApplyFormLog(requestBody: Record<string, any>, responseBody
 }
 
 watch(
-  () => props.activeTab,
-  (tabName) => loadOperateLogTab(tabName),
+  [() => props.activeTab, canConfigureFunction, canWriteFunction, isFormFunction],
+  ([tabName]) => {
+    if ((tabName === 'notification' && !canConfigureFunction.value)
+      || (tabName === 'publicShare' && (!isFormFunction.value || !canWriteFunction.value))
+      || (tabName === 'scheduledTask' && !canWriteFunction.value)) {
+      emit('update:activeTab', 'content')
+      props.onFunctionTabChange('content')
+      return
+    }
+    loadOperateLogTab(tabName)
+  },
   { immediate: true }
 )
 
@@ -225,7 +235,7 @@ watch(
     props.currentFunctionDetail?.full_code_path,
   ],
   () => {
-    if (isScheduledPanelQuery(route.query, 'function') && scheduledFocusTaskID.value && featureFlags.scheduledTasks) {
+    if (isScheduledPanelQuery(route.query, 'function') && scheduledFocusTaskID.value && featureFlags.scheduledTasks && canWriteFunction.value) {
       emit('update:activeTab', 'scheduledTask')
       props.onFunctionTabChange('scheduledTask')
     }

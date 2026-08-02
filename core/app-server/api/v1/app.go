@@ -11,20 +11,28 @@ import (
 	"github.com/kageos/kageos/core/app-server/service"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/ginx/response"
+	"github.com/kageos/kageos/pkg/logger"
 )
 
 type App struct {
-	appService         *service.AppService
-	serviceTreeService *service.ServiceTreeService
-	permissionService  *service.PermissionService
+	appService               *service.AppService
+	serviceTreeService       *service.ServiceTreeService
+	permissionService        *service.PermissionService
+	permissionRequestService *service.PermissionRequestService
 }
 
 // NewApp 创建 App 处理器（依赖注入）
-func NewApp(appService *service.AppService, serviceTreeService *service.ServiceTreeService, permissionService *service.PermissionService) *App {
+func NewApp(
+	appService *service.AppService,
+	serviceTreeService *service.ServiceTreeService,
+	permissionService *service.PermissionService,
+	permissionRequestService *service.PermissionRequestService,
+) *App {
 	return &App{
-		appService:         appService,
-		serviceTreeService: serviceTreeService,
-		permissionService:  permissionService,
+		appService:               appService,
+		serviceTreeService:       serviceTreeService,
+		permissionService:        permissionService,
+		permissionRequestService: permissionRequestService,
 	}
 }
 
@@ -273,8 +281,13 @@ func (a *App) GetAppDetail(c *gin.Context) {
 	req = dto.GetAppDetailReq{
 		ResourcePath: resourcePath,
 	}
-	if err := requireAccess(c, a.permissionService, req.ResourcePath, access.ActionRead); err != nil {
+	canEnter, err := a.appService.CanEnterWorkspace(contextx.ToContext(c), req.ResourcePath, contextx.GetRequestUser(c))
+	if err != nil {
 		response.FailWithMessage(c, err.Error())
+		return
+	}
+	if !canEnter {
+		response.FailWithMessage(c, "无权限查看该 workspace")
 		return
 	}
 
@@ -312,12 +325,7 @@ func (a *App) GetAppWithServiceTree(c *gin.Context) {
 		ResourcePath: c.Query("resource_path"),
 		Type:         c.Query("type"),
 	}
-	tenantUser, appCode, err := access.ParseUserApp(req.ResourcePath)
-	if err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
-	hasAccess, err := a.permissionService.HasAnyWorkspacePermission(contextx.ToContext(c), tenantUser, appCode, contextx.GetRequestUser(c))
+	hasAccess, err := a.appService.CanEnterWorkspace(contextx.ToContext(c), req.ResourcePath, contextx.GetRequestUser(c))
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
@@ -334,7 +342,43 @@ func (a *App) GetAppWithServiceTree(c *gin.Context) {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
+	if a.permissionRequestService != nil {
+		tenantUser, appCode, parseErr := access.ParseUserApp(req.ResourcePath)
+		if parseErr == nil {
+			summary, summaryErr := a.permissionRequestService.WorkspaceSummary(
+				ctx,
+				tenantUser,
+				appCode,
+				contextx.GetRequestUser(ctx),
+			)
+			if summaryErr != nil {
+				logger.Warnf(ctx, "[App] load permission request badge summary failed: %v", summaryErr)
+			} else {
+				annotatePermissionRequestBadges(resp.ServiceTree, summary)
+			}
+		}
+	}
 	response.OkWithData(c, resp)
+}
+
+func annotatePermissionRequestBadges(
+	nodes []*dto.GetServiceTreeResp,
+	summary *service.PermissionRequestWorkspaceSummary,
+) {
+	if summary == nil {
+		return
+	}
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+		pathSummary := summary.Paths[access.NormalizeResourcePath(node.FullCodePath)]
+		node.PermissionRequests = &dto.PermissionReqs{
+			OwnPendingCount:    pathSummary.OwnPendingCount,
+			ReviewPendingCount: pathSummary.ReviewPendingCount,
+		}
+		annotatePermissionRequestBadges(node.Children, summary)
+	}
 }
 
 // parseIntWithDefault 解析字符串为整数，如果解析失败则返回默认值

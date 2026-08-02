@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	appconfig "github.com/kageos/kageos/pkg/config"
 )
 
@@ -115,13 +116,20 @@ func TestTokenValidatorsRejectWrongPurpose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	scheduledToken, err := service.GenerateScheduledTokenWithContext(UserTokenContext{
+		Username: "alice",
+	}, 10, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := service.ValidateAccessToken(accessToken); err != nil {
 		t.Fatalf("access token should validate: %v", err)
 	}
 	for name, token := range map[string]string{
-		"refresh": refreshToken,
-		"openapi": openAPIToken,
+		"refresh":   refreshToken,
+		"openapi":   openAPIToken,
+		"scheduled": scheduledToken,
 	} {
 		if _, err := service.ValidateAccessToken(token); err == nil {
 			t.Fatalf("%s token must not validate as an access token", name)
@@ -132,5 +140,74 @@ func TestTokenValidatorsRejectWrongPurpose(t *testing.T) {
 	}
 	if _, err := service.ValidateRefreshToken(accessToken); err == nil {
 		t.Fatal("access token must not validate as a refresh token")
+	}
+	claims, err := service.ValidateScheduledToken(scheduledToken)
+	if err != nil {
+		t.Fatalf("scheduled token should validate: %v", err)
+	}
+	if claims.TokenUse != TokenUseScheduled || claims.TaskID != 10 || claims.ExecutionID != 20 || claims.Subject != "scheduled:10:20" {
+		t.Fatalf("unexpected scheduled claims: %+v", claims)
+	}
+	if claims.UserID != 0 || claims.Username != "alice" {
+		t.Fatalf("scheduled token must use username identity only: %+v", claims)
+	}
+	if claims.ExpiresAt == nil || claims.IssuedAt == nil {
+		t.Fatal("scheduled token must have issued-at and expiry")
+	}
+	if ttl := claims.ExpiresAt.Time.Sub(claims.IssuedAt.Time); ttl != DefaultScheduledTokenTTL {
+		t.Fatalf("scheduled token ttl = %s, want %s", ttl, DefaultScheduledTokenTTL)
+	}
+	if _, err := service.ValidateScheduledToken(accessToken); err == nil {
+		t.Fatal("access token must not validate as a scheduled token")
+	}
+}
+
+func TestValidateScheduledTokenRejectsInvalidSecurityBoundary(t *testing.T) {
+	service := &JWTService{
+		config: &appconfig.JWTConfig{
+			Secret: "test-secret",
+			Issuer: "test-issuer",
+		},
+	}
+	now := time.Now().Truncate(time.Second)
+	validClaims := func() JWTClaims {
+		return JWTClaims{
+			TokenUse:    TokenUseScheduled,
+			Username:    "alice",
+			TaskID:      10,
+			ExecutionID: 20,
+			RegisteredClaims: jwt.RegisteredClaims{
+				Issuer:    "test-issuer",
+				Subject:   "scheduled:10:20",
+				IssuedAt:  jwt.NewNumericDate(now),
+				NotBefore: jwt.NewNumericDate(now),
+				ExpiresAt: jwt.NewNumericDate(now.Add(DefaultScheduledTokenTTL)),
+			},
+		}
+	}
+	tests := map[string]func(*JWTClaims){
+		"wrong subject": func(claims *JWTClaims) {
+			claims.Subject = "scheduled:10:21"
+		},
+		"missing expiry": func(claims *JWTClaims) {
+			claims.ExpiresAt = nil
+		},
+		"invalid ttl": func(claims *JWTClaims) {
+			claims.IssuedAt = jwt.NewNumericDate(now.Add(2 * time.Hour))
+			claims.ExpiresAt = jwt.NewNumericDate(now.Add(time.Hour))
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			claims := validClaims()
+			mutate(&claims)
+			token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(service.config.Secret))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.ValidateScheduledToken(token); err == nil {
+				t.Fatal("invalid scheduled token should be rejected")
+			}
+		})
 	}
 }

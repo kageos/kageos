@@ -55,15 +55,41 @@
       </div>
 
       <div class="current-workspace-actions">
-        <el-button
-          type="primary"
-          plain
-          :icon="RefreshRight"
-          data-testid="workspace-current-update"
-          @click.stop="handleUpdateCurrentWorkspace"
+        <el-tooltip
+          :disabled="canConfigureWorkspace(currentApp)"
+          :content="t('access.requiresPermission', { permission: 'Admin' })"
+          placement="bottom"
         >
-          {{ t('workspace.updateCurrentWorkspace') }}
-        </el-button>
+          <span>
+            <el-button
+              plain
+              :icon="Setting"
+              :disabled="!canConfigureWorkspace(currentApp)"
+              data-testid="workspace-current-settings"
+              @click.stop="handleEditWorkspace(currentApp)"
+            >
+              {{ t('workspace.editWorkspace') }}
+            </el-button>
+          </span>
+        </el-tooltip>
+        <el-tooltip
+          :disabled="canConfigureWorkspace(currentApp)"
+          :content="t('access.requiresPermission', { permission: 'Admin' })"
+          placement="bottom"
+        >
+          <span>
+            <el-button
+              type="primary"
+              plain
+              :icon="RefreshRight"
+              :disabled="!canConfigureWorkspace(currentApp)"
+              data-testid="workspace-current-update"
+              @click.stop="handleUpdateCurrentWorkspace"
+            >
+              {{ t('workspace.updateCurrentWorkspace') }}
+            </el-button>
+          </span>
+        </el-tooltip>
       </div>
 
       <div class="current-workspace-meta-grid">
@@ -197,34 +223,61 @@
                 <el-tag v-if="app.is_public" type="success" size="small">{{ t('workspace.public') }}</el-tag>
                 <el-tag v-else type="info" size="small">{{ t('workspace.private') }}</el-tag>
                 <div class="card-actions">
-                  <el-button
-                    link
-                    size="small"
-                    :title="t('workspace.renameWorkspace')"
-                    :data-testid="`workspace-card-rename-${app.id}`"
-                    @click.stop="handleRenameWorkspace(app)"
+                  <el-tooltip
+                    :disabled="canConfigureWorkspace(app)"
+                    :content="workspaceActionTitle(app, 'admin', t('workspace.editWorkspace'))"
+                    placement="top"
                   >
-                    <el-icon><EditPen /></el-icon>
-                  </el-button>
-                  <el-button
-                    link
-                    size="small"
-                    :title="t('workspace.recompile')"
-                    :data-testid="`workspace-card-refresh-${app.id}`"
-                    @click.stop="handleUpdateApp(app)"
+                    <span>
+                      <el-button
+                        link
+                        size="small"
+                        :disabled="!canConfigureWorkspace(app)"
+                        :title="workspaceActionTitle(app, 'admin', t('workspace.editWorkspace'))"
+                        :data-testid="`workspace-card-settings-${app.id}`"
+                        @click.stop="handleEditWorkspace(app)"
+                      >
+                        <el-icon><Setting /></el-icon>
+                      </el-button>
+                    </span>
+                  </el-tooltip>
+                  <el-tooltip
+                    :disabled="canConfigureWorkspace(app)"
+                    :content="workspaceActionTitle(app, 'admin', t('workspace.recompile'))"
+                    placement="top"
                   >
-                    <el-icon><RefreshRight /></el-icon>
-                  </el-button>
-                  <el-button
+                    <span>
+                      <el-button
+                        link
+                        size="small"
+                        :disabled="!canConfigureWorkspace(app)"
+                        :title="workspaceActionTitle(app, 'admin', t('workspace.recompile'))"
+                        :data-testid="`workspace-card-refresh-${app.id}`"
+                        @click.stop="handleUpdateApp(app)"
+                      >
+                        <el-icon><RefreshRight /></el-icon>
+                      </el-button>
+                    </span>
+                  </el-tooltip>
+                  <el-tooltip
                     v-if="!app.is_personal_workspace"
-                    link
-                    size="small"
-                    :title="t('common.delete')"
-                    :data-testid="`workspace-card-delete-${app.id}`"
-                    @click.stop="handleDeleteApp(app)"
+                    :disabled="canDeleteWorkspace(app)"
+                    :content="workspaceActionTitle(app, 'delete', t('common.delete'))"
+                    placement="top"
                   >
-                    <el-icon><Delete /></el-icon>
-                  </el-button>
+                    <span>
+                      <el-button
+                        link
+                        size="small"
+                        :disabled="!canDeleteWorkspace(app)"
+                        :title="workspaceActionTitle(app, 'delete', t('common.delete'))"
+                        :data-testid="`workspace-card-delete-${app.id}`"
+                        @click.stop="handleDeleteApp(app)"
+                      >
+                        <el-icon><Delete /></el-icon>
+                      </el-button>
+                    </span>
+                  </el-tooltip>
                 </div>
               </div>
             </div>
@@ -380,11 +433,56 @@
         {{ t('workspace.createNewWorkspace') }}
       </el-button>
     </div>
+
+    <el-dialog
+      v-model="workspaceSettingsVisible"
+      class="workspace-settings-dialog"
+      :title="t('workspace.editWorkspaceTitle')"
+      width="min(520px, calc(100vw - 32px))"
+      append-to-body
+      modal-class="workspace-settings-dialog-overlay"
+      :close-on-click-modal="false"
+      destroy-on-close
+      data-testid="workspace-settings-dialog"
+    >
+      <el-form label-position="top" @submit.prevent="saveWorkspaceSettings">
+        <el-form-item :label="t('workspace.createName')" required>
+          <el-input
+            v-model="workspaceSettingsForm.name"
+            :placeholder="t('workspace.renameWorkspacePlaceholder')"
+            maxlength="100"
+          />
+        </el-form-item>
+
+        <div class="workspace-setting-row">
+          <div class="workspace-setting-copy">
+            <div class="workspace-setting-label">{{ t('workspace.createPublicLabel') }}</div>
+            <div class="workspace-setting-tip">{{ t('workspace.editPublicTip') }}</div>
+          </div>
+          <el-switch v-model="workspaceSettingsForm.is_public" />
+        </div>
+
+        <div class="workspace-setting-row">
+          <div class="workspace-setting-copy">
+            <div class="workspace-setting-label">{{ t('workspace.hideUnauthorizedNodes') }}</div>
+            <div class="workspace-setting-tip">{{ t('workspace.editHideUnauthorizedNodesTip') }}</div>
+          </div>
+          <el-switch v-model="workspaceSettingsForm.hide_unauthorized_nodes" />
+        </div>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="workspaceSettingsVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="workspaceSettingsSaving" @click="saveWorkspaceSettings">
+          {{ t('common.save') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, type CSSProperties } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Search,
@@ -402,18 +500,21 @@ import {
   PriceTag,
   Clock,
   CollectionTag,
-  EditPen
+  Setting
 } from '@element-plus/icons-vue'
 import { getAppList, updateWorkspace } from '@/architecture/presentation/context/api/app'
-import type { App } from '@/architecture/domain/types'
+import type { App, ServiceTree } from '@/architecture/domain/types'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import { WorkspaceEvent } from '@/architecture/domain/interfaces/IEventBus'
 import { buildAppResourcePath } from '@/architecture/shared/resourcePath'
+import { canAdmin, canDelete } from '@/architecture/presentation/composables/useAccessControl'
+import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 
 interface Props {
   currentApp: App | null
+  currentWorkspaceNode?: ServiceTree | null
   forceSelect?: boolean
   surface?: 'dialog' | 'popover'
   visible?: boolean
@@ -437,6 +538,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 const { t, locale } = useI18n()
+const authStore = useAuthStore()
 
 const activeTab = ref<'mine' | 'all' | 'system'>('mine')
 const searchKeyword = ref('')
@@ -444,6 +546,16 @@ const loading = ref(false)
 const myWorkspaces = ref<App[]>([])
 const allWorkspaces = ref<App[]>([])
 const systemWorkspaces = ref<App[]>([])
+const workspaceSettingsVisible = ref(false)
+const workspaceSettingsSaving = ref(false)
+const workspaceSettingsTarget = ref<App | null>(null)
+const workspaceSettingsForm = reactive({
+  name: '',
+  is_public: false,
+  hide_unauthorized_nodes: false
+})
+let workspaceLoadSequence = 0
+let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const showHeader = computed(() => props.showHeader)
 const currentWorkspaceDisplayName = computed(() => props.currentApp ? getWorkspaceDisplayName(props.currentApp) : '')
@@ -518,27 +630,33 @@ const formatDateTime = (value?: string) => {
 }
 
 const loadWorkspaces = async () => {
+  const sequence = ++workspaceLoadSequence
   try {
     loading.value = true
-
-    const myApps = await getAppList(200, searchKeyword.value || undefined, false)
+    const [myApps, discoverableApps] = await Promise.all([
+      getAppList(200, searchKeyword.value || undefined, false),
+      getAppList(200, searchKeyword.value || undefined, true),
+    ])
+    if (sequence !== workspaceLoadSequence) return
     myWorkspaces.value = myApps
-
-    const allApps = await getAppList(200, searchKeyword.value || undefined, true)
-    allWorkspaces.value = allApps.filter((app: App) => app.user !== props.currentApp?.user || !myApps.some((my: App) => my.id === app.id))
-
-    const systemApps = await getAppList(200, searchKeyword.value || undefined, false, 1)
-    systemWorkspaces.value = systemApps
+    allWorkspaces.value = discoverableApps.filter((app: App) => (
+      app.type !== 1 && !myApps.some((my: App) => my.id === app.id)
+    ))
+    systemWorkspaces.value = discoverableApps.filter((app: App) => app.type === 1)
   } catch (error: any) {
     console.error('[WorkspaceListPanel] load workspaces failed:', error)
     ElMessage.error(t('workspace.loadListFailed'))
   } finally {
-    loading.value = false
+    if (sequence === workspaceLoadSequence) loading.value = false
   }
 }
 
 const handleSearch = () => {
-  loadWorkspaces()
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    searchTimer = null
+    void loadWorkspaces()
+  }, 300)
 }
 
 const handleTabChange = () => {
@@ -570,6 +688,7 @@ async function confirmUpdateWorkspace(app: App) {
 }
 
 const handleUpdateApp = async (app: App) => {
+  if (!canConfigureWorkspace(app)) return
   if (await confirmUpdateWorkspace(app)) {
     emit('update-app', app)
   }
@@ -579,44 +698,99 @@ const handleUpdateCurrentWorkspace = async () => {
   if (!props.currentApp) {
     return
   }
+  if (!canConfigureWorkspace(props.currentApp)) return
   if (await confirmUpdateWorkspace(props.currentApp)) {
     emit('update-app', props.currentApp)
   }
 }
 
 const handleDeleteApp = (app: App) => {
+  if (!canDeleteWorkspace(app)) return
   emit('delete-app', app)
 }
 
-const handleRenameWorkspace = async (app: App) => {
-  let name = ''
-  try {
-    const result = await ElMessageBox.prompt(
-      t('workspace.renameWorkspaceDescription'),
-      t('workspace.renameWorkspaceTitle'),
-      {
-        inputValue: app.name || '',
-        inputPlaceholder: t('workspace.renameWorkspacePlaceholder'),
-        inputValidator: (value: string) => value.trim().length > 0 || t('workspace.renameWorkspaceRequired'),
-        confirmButtonText: t('workspace.renameWorkspaceConfirm'),
-        cancelButtonText: t('common.cancel')
-      }
-    )
-    name = result.value.trim()
-  } catch {
+function isCurrentWorkspace(app: App): boolean {
+  return Boolean(props.currentApp && (
+    props.currentApp.id === app.id
+    || (props.currentApp.user === app.user && props.currentApp.code === app.code)
+  ))
+}
+
+function isWorkspaceOwnerOrLegacyAdmin(app: App): boolean {
+  const username = authStore.userName?.trim()
+  if (!username) return false
+  if (app.user === username) return true
+  return String(app.admins || '').split(',').some(item => item.trim() === username)
+}
+
+function canConfigureWorkspace(app: App): boolean {
+  if (isCurrentWorkspace(app) && props.currentWorkspaceNode) {
+    return canAdmin(props.currentWorkspaceNode)
+  }
+  return isWorkspaceOwnerOrLegacyAdmin(app)
+}
+
+function canDeleteWorkspace(app: App): boolean {
+  if (isCurrentWorkspace(app) && props.currentWorkspaceNode) {
+    return canDelete(props.currentWorkspaceNode)
+  }
+  return isWorkspaceOwnerOrLegacyAdmin(app)
+}
+
+function workspaceActionTitle(app: App, action: 'admin' | 'delete', fallback: string): string {
+  const allowed = action === 'admin' ? canConfigureWorkspace(app) : canDeleteWorkspace(app)
+  if (allowed) return fallback
+  const permission = action === 'admin' ? 'Admin' : 'Delete'
+  return t('access.requiresPermission', { permission })
+}
+
+const handleEditWorkspace = (app: App) => {
+  if (!canConfigureWorkspace(app)) return
+  workspaceSettingsTarget.value = app
+  workspaceSettingsForm.name = app.name || ''
+  workspaceSettingsForm.is_public = Boolean(app.is_public)
+  workspaceSettingsForm.hide_unauthorized_nodes = Boolean(app.hide_unauthorized_nodes)
+  workspaceSettingsVisible.value = true
+}
+
+const saveWorkspaceSettings = async () => {
+  const app = workspaceSettingsTarget.value
+  const name = workspaceSettingsForm.name.trim()
+  if (!app || workspaceSettingsSaving.value) return
+  if (!canConfigureWorkspace(app)) {
+    workspaceSettingsVisible.value = false
     return
   }
-  if (!name || name === app.name) return
+  if (!name) {
+    ElMessage.warning(t('workspace.renameWorkspaceRequired'))
+    return
+  }
 
+  workspaceSettingsSaving.value = true
   try {
-    await updateWorkspace(buildAppResourcePath(app.user, app.code), { name })
-    const renamedApp = { ...app, name }
-    eventBus.emit(WorkspaceEvent.appInfoUpdated, { app: renamedApp })
+    const resp = await updateWorkspace(buildAppResourcePath(app.user, app.code), {
+      name,
+      is_public: workspaceSettingsForm.is_public,
+      hide_unauthorized_nodes: workspaceSettingsForm.hide_unauthorized_nodes
+    })
+    const updatedApp: App = {
+      ...app,
+      name: resp.name,
+      is_public: resp.is_public,
+      hide_unauthorized_nodes: resp.hide_unauthorized_nodes
+    }
+    if (props.currentApp?.id === app.id) {
+      eventBus.emit(WorkspaceEvent.appInfoUpdated, { app: updatedApp })
+      eventBus.emit(WorkspaceEvent.settingsUpdated, { app: updatedApp })
+    }
+    workspaceSettingsVisible.value = false
     await loadWorkspaces()
-    ElMessage.success(t('workspace.renameWorkspaceSuccess'))
+    ElMessage.success(t('workspace.editWorkspaceSuccess'))
   } catch (error) {
-    console.error('[WorkspaceListPanel] rename workspace failed:', error)
-    ElMessage.error(t('workspace.renameWorkspaceFailed'))
+    console.error('[WorkspaceListPanel] update workspace settings failed:', error)
+    ElMessage.error(t('workspace.editWorkspaceFailed'))
+  } finally {
+    workspaceSettingsSaving.value = false
   }
 }
 
@@ -628,6 +802,11 @@ watch(() => props.visible, (newVal: boolean) => {
 
   searchKeyword.value = ''
 }, { immediate: true })
+
+onBeforeUnmount(() => {
+  workspaceLoadSequence += 1
+  if (searchTimer) clearTimeout(searchTimer)
+})
 </script>
 
 <style scoped lang="scss">
@@ -1183,6 +1362,32 @@ watch(() => props.visible, (newVal: boolean) => {
   border-color: var(--el-color-primary);
   background: var(--el-color-primary);
   box-shadow: var(--app-auth-primary-shadow-hover);
+}
+
+.workspace-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 0;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.workspace-setting-copy {
+  min-width: 0;
+}
+
+.workspace-setting-label {
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.workspace-setting-tip {
+  margin-top: 5px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .certified-badge-icon {

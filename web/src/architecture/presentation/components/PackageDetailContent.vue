@@ -21,10 +21,16 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane :label="t('packageDetail.permission')" name="permission">
+        <el-tab-pane name="permission" lazy>
+          <template #label>
+            <PermissionRequestTabLabel
+              :label="t('packageDetail.permission')"
+              :resource-path="packageNode.full_code_path || ''"
+            />
+          </template>
           <div class="tab-content access-tab-content">
             <PermissionPanel
-              ref="accessPanelRef"
+              v-if="activeTab === 'permission'"
               :node="packageNode"
               embedded
               @changed="$emit('access-changed')"
@@ -32,7 +38,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane :label="t('packageDetail.notification')" name="notification" lazy>
+        <el-tab-pane v-if="canConfigurePackage" :label="t('packageDetail.notification')" name="notification" lazy>
           <div class="tab-content notification-tab-content">
             <NotificationRoutePanel
               v-if="activeTab === 'notification'"
@@ -63,7 +69,7 @@
         </el-tab-pane>
 
         <el-tab-pane
-          v-if="featureFlags.scheduledTasks"
+          v-if="featureFlags.scheduledTasks && canWritePackage"
           name="scheduledAgentTask"
         >
           <template #label>
@@ -94,19 +100,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import type { ServiceTree } from '@/architecture/domain/types'
 import PackageDirectoryOverview from './PackageDirectoryOverview.vue'
 import PackageDetailChildrenGrid from './PackageDetailChildrenGrid.vue'
-import NotificationRoutePanel from './NotificationRoutePanel.vue'
 import OperateLogSection from './OperateLogSection.vue'
 import ScheduledAgentTaskList from './ScheduledAgentTaskList.vue'
-import PermissionPanel from './PermissionPanel.vue'
+import PermissionRequestTabLabel from './PermissionRequestTabLabel.vue'
 import { usePackageDetailTabs, type PackageTabName } from '@/architecture/presentation/composables/usePackageDetailTabs'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import { featureFlags } from '@/architecture/shared/config/features'
+import { canAdmin, canWrite } from '@/architecture/presentation/composables/useAccessControl'
 import {
   PLATFORM_SCHEDULED_EXECUTION_ID_QUERY_KEY,
   PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY,
@@ -115,10 +121,6 @@ import {
 
 interface LoadableOperateLogSection {
   load: () => void
-}
-
-interface LoadableAccessPanel {
-  loadAssignments: () => void
 }
 
 const props = defineProps<{
@@ -143,7 +145,10 @@ const { activeTab, handlePackageTabChange } = usePackageDetailTabs({
   currentPackageNode: packageNodeRef,
 })
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
-const accessPanelRef = ref<LoadableAccessPanel | null>(null)
+const PermissionPanel = defineAsyncComponent(() => import('./PermissionPanel.vue'))
+const NotificationRoutePanel = defineAsyncComponent(() => import('./NotificationRoutePanel.vue'))
+const canConfigurePackage = computed(() => canAdmin(props.packageNode))
+const canWritePackage = computed(() => canWrite(props.packageNode))
 
 const directoryMarkdown = computed(() => {
   return props.packageNode?.description?.trim() || ''
@@ -171,9 +176,6 @@ function loadOperateLogTab(tabName: PackageTabName) {
   if (tabName === 'operateLog' && featureFlags.operateLogs) {
     nextTick(() => operateLogSectionRef.value?.load())
   }
-  if (tabName === 'permission') {
-    nextTick(() => accessPanelRef.value?.loadAssignments())
-  }
 }
 
 watch(
@@ -191,6 +193,13 @@ watch(
     }
   }
 )
+
+watch([activeTab, canConfigurePackage, canWritePackage], ([tabName, canConfigure, canWriteAccess]) => {
+  if ((tabName === 'notification' && !canConfigure)
+    || (tabName === 'scheduledAgentTask' && !canWriteAccess)) {
+    handlePackageTabChange('detail')
+  }
+})
 
 </script>
 

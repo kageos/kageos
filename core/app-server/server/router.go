@@ -43,7 +43,7 @@ func (s *Server) setupRoutes() {
 	// 应用管理路由（需要JWT验证）
 	app := apiV1.Group("/app")
 	app.Use(jwtAuth) // 应用管理需要JWT认证
-	appHandler := v1.NewApp(s.appService, s.serviceTreeService, s.permissionService)
+	appHandler := v1.NewApp(s.appService, s.serviceTreeService, s.permissionService, s.permissionRequestService)
 	app.GET("/list", appHandler.GetApps)
 	app.GET("/detail", appHandler.GetAppDetail)
 	app.GET("/tree", middleware2.Gzip(), appHandler.GetAppWithServiceTree)
@@ -55,12 +55,22 @@ func (s *Server) setupRoutes() {
 
 	permission := apiV1.Group("/permissions")
 	permission.Use(jwtAuth)
-	permissionHandler := v1.NewPermission(s.permissionService)
+	permissionHandler := v1.NewPermission(s.permissionService, s.permissionRequestService)
 	permission.GET("/assignments", permissionHandler.ListAssignments)
 	permission.POST("/grant", permissionHandler.GrantRole)
 	permission.POST("/batch-grant", permissionHandler.BatchGrantRoles)
 	permission.POST("/revoke", permissionHandler.RevokeRole)
 	permission.GET("/me", permissionHandler.GetMyPermissions)
+	permission.GET("/approvers", permissionHandler.ListApprovers)
+	permission.POST("/requests", permissionHandler.CreateRequest)
+	permission.GET("/requests/mine", permissionHandler.ListMyRequests)
+	permission.GET("/requests/pending", permissionHandler.ListPendingRequests)
+	permission.GET("/requests/pending-count", permissionHandler.PendingRequestCount)
+	permission.GET("/requests/summary", permissionHandler.PermissionRequestSummary)
+	permission.GET("/requests/history", permissionHandler.ListRequestHistory)
+	permission.POST("/requests/:id/approve", permissionHandler.ApproveRequest)
+	permission.POST("/requests/:id/reject", permissionHandler.RejectRequest)
+	permission.POST("/requests/:id/cancel", permissionHandler.CancelRequest)
 
 	publicShares := apiV1.Group("/public_shares")
 	publicShares.Use(jwtAuth)

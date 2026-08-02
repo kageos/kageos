@@ -76,6 +76,13 @@ export class EventTypeRegistry {
       payloadType: 'FunctionLoadedPayload'
     })
 
+    this.register(WorkspaceEvent.settingsUpdated, {
+      name: '工作空间设置更新',
+      description: '工作空间可见性或目录展示设置已更新',
+      category: 'workspace',
+      payloadType: 'WorkspaceSettingsUpdatedPayload'
+    })
+
     // Form 事件
     this.register(FormEvent.initialized, {
       name: '表单初始化完成',

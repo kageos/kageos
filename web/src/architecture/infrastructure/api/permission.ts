@@ -35,6 +35,45 @@ export interface MyPermissions {
   expires_at?: string
 }
 
+export type PermissionRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
+
+export interface PermissionApprover {
+  principal_type: PermissionPrincipalType
+  principal_key: string
+  role_code: AccessRoleCode
+  resource_path: string
+  inherited: boolean
+}
+
+export interface PermissionRequest {
+  id: number
+  tenant_user: string
+  app: string
+  requester: string
+  resource_path: string
+  requested_role: AccessRoleCode
+  reason: string
+  status: PermissionRequestStatus
+  reviewed_by?: string
+  reviewed_at?: string
+  review_comment?: string
+  requested_expires_at?: string
+  created_at: string
+  updated_at: string
+  approvers?: PermissionApprover[]
+}
+
+export interface PermissionRequestPathSummary {
+  own_pending_count: number
+  review_pending_count: number
+}
+
+export interface PermissionRequestWorkspaceSummary {
+  paths: Record<string, PermissionRequestPathSummary>
+  own_pending_count: number
+  review_pending_count: number
+}
+
 export function listPermissionAssignments(resourcePath: string) {
   return get<{ assignments: RoleAssignment[] }>('/workspace/api/v1/permissions/assignments', {
     resource_path: normalizeResourcePath(resourcePath)
@@ -80,4 +119,69 @@ export function getMyPermissions(resourcePath: string) {
   return get<MyPermissions>('/workspace/api/v1/permissions/me', {
     resource_path: normalizeResourcePath(resourcePath)
   })
+}
+
+export function createPermissionRequest(data: {
+  resource_path: string
+  role_code: 'viewer' | 'member' | 'admin'
+  reason: string
+  expires_at?: string | null
+}) {
+  return post<{ request: PermissionRequest }>('/workspace/api/v1/permissions/requests', {
+    ...data,
+    resource_path: normalizeResourcePath(data.resource_path)
+  })
+}
+
+export function listMyPermissionRequests(resourcePath: string, status?: PermissionRequestStatus) {
+  return get<{ requests: PermissionRequest[] }>('/workspace/api/v1/permissions/requests/mine', {
+    resource_path: normalizeResourcePath(resourcePath),
+    ...(status ? { status } : {})
+  })
+}
+
+export function listPendingPermissionRequests(resourcePath: string) {
+  return get<{ requests: PermissionRequest[] }>('/workspace/api/v1/permissions/requests/pending', {
+    resource_path: normalizeResourcePath(resourcePath)
+  })
+}
+
+export function getPendingPermissionRequestCount(resourcePath: string) {
+  return get<{ count: number }>('/workspace/api/v1/permissions/requests/pending-count', {
+    resource_path: normalizeResourcePath(resourcePath)
+  })
+}
+
+export function getPermissionRequestSummary(resourcePath: string) {
+  return get<PermissionRequestWorkspaceSummary>('/workspace/api/v1/permissions/requests/summary', {
+    resource_path: normalizeResourcePath(resourcePath)
+  })
+}
+
+export function listPermissionRequestHistory(resourcePath: string) {
+  return get<{ requests: PermissionRequest[] }>('/workspace/api/v1/permissions/requests/history', {
+    resource_path: normalizeResourcePath(resourcePath)
+  })
+}
+
+export function listPermissionApprovers(resourcePath: string) {
+  return get<{ approvers: PermissionApprover[] }>('/workspace/api/v1/permissions/approvers', {
+    resource_path: normalizeResourcePath(resourcePath)
+  })
+}
+
+export function approvePermissionRequest(id: number, comment = '') {
+  return post<{ request: PermissionRequest }>(`/workspace/api/v1/permissions/requests/${id}/approve`, {
+    comment
+  })
+}
+
+export function rejectPermissionRequest(id: number, comment: string) {
+  return post<{ request: PermissionRequest }>(`/workspace/api/v1/permissions/requests/${id}/reject`, {
+    comment
+  })
+}
+
+export function cancelPermissionRequest(id: number) {
+  return post<{ request: PermissionRequest }>(`/workspace/api/v1/permissions/requests/${id}/cancel`, {})
 }

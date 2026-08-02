@@ -8,6 +8,7 @@ import (
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/pkg/access"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type RoleAssignmentRepository struct {
@@ -18,25 +19,41 @@ func NewRoleAssignmentRepository(db *gorm.DB) *RoleAssignmentRepository {
 	return &RoleAssignmentRepository{db: db}
 }
 
+func (r *RoleAssignmentRepository) Transaction(
+	ctx context.Context,
+	fn func(tx *gorm.DB) error,
+) error {
+	return r.db.WithContext(ctx).Transaction(fn)
+}
+
 func (r *RoleAssignmentRepository) UpsertAssignment(ctx context.Context, assignment *model.WorkspaceRoleAssignment) error {
 	if assignment == nil {
 		return fmt.Errorf("assignment 不能为空")
 	}
 
-	var existing model.WorkspaceRoleAssignment
-	err := r.db.WithContext(ctx).
-		Where("tenant_user = ? AND app = ? AND principal_type = ? AND principal_key = ? AND resource_path = ? AND role_code = ?",
-			assignment.TenantUser, assignment.App, assignment.PrincipalType, assignment.PrincipalKey, assignment.ResourcePath, assignment.RoleCode).
-		First(&existing).Error
-	if err == nil {
-		existing.ExpiresAt = assignment.ExpiresAt
-		existing.CreatedBy = assignment.CreatedBy
-		return r.db.WithContext(ctx).Save(&existing).Error
-	}
-	if err != nil && err != gorm.ErrRecordNotFound {
-		return err
-	}
-	return r.db.WithContext(ctx).Create(assignment).Error
+	key := access.PermissionAssignmentKey(
+		assignment.TenantUser,
+		assignment.App,
+		access.Principal{
+			Type: access.PrincipalType(assignment.PrincipalType),
+			Key:  assignment.PrincipalKey,
+		},
+		assignment.ResourcePath,
+		access.RoleCode(assignment.RoleCode),
+	)
+	assignment.AssignmentKey = &key
+	return r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "assignment_key"}},
+			DoUpdates: clause.Assignments(map[string]any{
+				"expires_at": assignment.ExpiresAt,
+				"updated_by": assignment.UpdatedBy,
+				"updated_at": time.Now(),
+				"deleted_at": nil,
+				"deleted_by": "",
+			}),
+		}).
+		Create(assignment).Error
 }
 
 func (r *RoleAssignmentRepository) RemoveAssignment(

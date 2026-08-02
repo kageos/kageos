@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -100,15 +99,12 @@ func NewService(db *gorm.DB, opts Options) *Service {
 }
 
 func scheduledTaskMetadataWithContext(ctx context.Context, metadata map[string]string) map[string]string {
-	out := make(map[string]string, len(metadata)+3)
+	out := make(map[string]string, len(metadata)+2)
 	for key, value := range metadata {
 		out[key] = value
 	}
 	if token := strings.TrimSpace(contextx.GetToken(ctx)); token != "" {
 		if claims, err := auth.NewJWTService().ValidateAccessToken(token); err == nil && claims != nil {
-			if claims.UserID > 0 && strings.TrimSpace(out[scheduledsdk.MetadataRequestUserID]) == "" {
-				out[scheduledsdk.MetadataRequestUserID] = strconv.FormatInt(claims.UserID, 10)
-			}
 			if claims.Email != "" && strings.TrimSpace(out[scheduledsdk.MetadataRequestEmail]) == "" {
 				out[scheduledsdk.MetadataRequestEmail] = claims.Email
 			}
@@ -1060,7 +1056,6 @@ func (s *Service) executionRequestedOutbox(task *model.TimerTask, exec *model.Ti
 		SourceRef:       task.SourceRef,
 		ResourceScope:   task.ResourceScope,
 		ResourceKey:     task.ResourceKey,
-		Token:           scheduledExecutionToken(task),
 		RequestUser:     scheduledTaskRequestUser(task),
 		RequestUserDept: task.RequestUserDept,
 		Metadata:        decodeStringMap(task.MetadataJSON),
@@ -1089,32 +1084,6 @@ func scheduledTaskRequestUser(task *model.TimerTask) string {
 		return user
 	}
 	return strings.TrimSpace(task.CreatedBy)
-}
-
-func scheduledExecutionToken(task *model.TimerTask) string {
-	if task == nil {
-		return ""
-	}
-	requestUser := scheduledTaskRequestUser(task)
-	if requestUser == "" {
-		return ""
-	}
-	metadata := decodeStringMap(task.MetadataJSON)
-	userID, err := strconv.ParseInt(strings.TrimSpace(metadata[scheduledsdk.MetadataRequestUserID]), 10, 64)
-	if err != nil || userID <= 0 {
-		return ""
-	}
-	token, err := auth.NewJWTService().GenerateAccessTokenWithContext(auth.UserTokenContext{
-		UserID:             userID,
-		Username:           requestUser,
-		Email:              strings.TrimSpace(metadata[scheduledsdk.MetadataRequestEmail]),
-		DepartmentFullPath: strings.TrimSpace(task.RequestUserDept),
-		LeaderUsername:     strings.TrimSpace(metadata[scheduledsdk.MetadataLeaderUsername]),
-	})
-	if err != nil {
-		return ""
-	}
-	return token
 }
 
 func isTerminalTaskStatus(status string) bool {

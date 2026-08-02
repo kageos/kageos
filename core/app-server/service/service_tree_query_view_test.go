@@ -50,6 +50,15 @@ func newServiceTreeQueryViewTest(t *testing.T) (*serviceTreeQueryView, *gorm.DB,
 }
 
 func newServiceTreeQueryViewAccessTest(t *testing.T, hideUnauthorizedNodes bool) (*serviceTreeQueryView, *gorm.DB, *model.App, *PermissionService) {
+	return newServiceTreeQueryViewAccessTestForWorkspace(t, "alice", "ops", hideUnauthorizedNodes)
+}
+
+func newServiceTreeQueryViewAccessTestForWorkspace(
+	t *testing.T,
+	workspaceUser string,
+	workspaceCode string,
+	hideUnauthorizedNodes bool,
+) (*serviceTreeQueryView, *gorm.DB, *model.App, *PermissionService) {
 	t.Helper()
 	oldClientFactory := newServiceTreeScheduleClient
 	newServiceTreeScheduleClient = func() serviceTreeScheduleClient {
@@ -73,14 +82,15 @@ func newServiceTreeQueryViewAccessTest(t *testing.T, hideUnauthorizedNodes bool)
 
 	appRepo := repository.NewAppRepository(db)
 	app := &model.App{
-		User:                  "alice",
-		Code:                  "ops",
-		Name:                  "Ops",
+		User:                  workspaceUser,
+		Code:                  workspaceCode,
+		Name:                  workspaceCode,
 		Version:               "v1",
-		Admins:                "alice",
+		Admins:                workspaceUser,
+		IsPublic:              true,
 		HideUnauthorizedNodes: hideUnauthorizedNodes,
 	}
-	app.CreatedBy = "alice"
+	app.CreatedBy = workspaceUser
 	if err := appRepo.CreateApp(app); err != nil {
 		t.Fatalf("create app: %v", err)
 	}
@@ -95,6 +105,82 @@ func newServiceTreeQueryViewAccessTest(t *testing.T, hideUnauthorizedNodes bool)
 		return &dto.UserInfo{Username: username}, nil
 	}
 	return newServiceTreeQueryView(serviceTreeRepo, appRepo, permission), db, app, permission
+}
+
+func TestGetAppWithServiceTreeReturnsEffectivePermissionsForEverySystemNode(t *testing.T) {
+	queryView, db, app, permission := newServiceTreeQueryViewAccessTestForWorkspace(t, "system", "democase", false)
+	nodes := []*model.ServiceTree{
+		{
+			Name:         "演示案例",
+			Code:         "democase",
+			Type:         model.ServiceTreeTypePackage,
+			AppID:        app.ID,
+			RefID:        app.ID,
+			FullCodePath: "/system/democase",
+		},
+		{
+			Name:         "排行目录",
+			Code:         "hangla_rank",
+			Type:         model.ServiceTreeTypePackage,
+			AppID:        app.ID,
+			FullCodePath: "/system/democase/hangla_rank",
+		},
+		{
+			Name:         "评分表单",
+			Code:         "rate.form",
+			Type:         model.ServiceTreeTypeFunction,
+			TemplateType: "form",
+			AppID:        app.ID,
+			FullCodePath: "/system/democase/hangla_rank/rate.form",
+		},
+		{
+			Name:         "保密目录",
+			Code:         "secret",
+			Type:         model.ServiceTreeTypePackage,
+			AppID:        app.ID,
+			FullCodePath: "/system/democase/secret",
+		},
+	}
+	if err := db.Create(&nodes).Error; err != nil {
+		t.Fatalf("seed system service tree: %v", err)
+	}
+	if err := permission.GrantRole(actorContext("system"), access.GrantRoleRequest{
+		TenantUser:   "system",
+		App:          "democase",
+		Principal:    userPrincipal("bob"),
+		ResourcePath: "/system/democase/hangla_rank",
+		RoleCode:     access.RoleMember,
+		CreatedBy:    "system",
+	}); err != nil {
+		t.Fatalf("grant system directory member: %v", err)
+	}
+
+	resp, err := queryView.GetAppWithServiceTree(actorContext("bob"), &dto.GetAppWithServiceTreeReq{
+		ResourcePath: "/system/democase",
+	})
+	if err != nil {
+		t.Fatalf("GetAppWithServiceTree: %v", err)
+	}
+
+	root := findServiceTreeRespByPath(resp.ServiceTree, "/system/democase")
+	granted := findServiceTreeRespByPath(resp.ServiceTree, "/system/democase/hangla_rank")
+	form := findServiceTreeRespByPath(resp.ServiceTree, "/system/democase/hangla_rank/rate.form")
+	locked := findServiceTreeRespByPath(resp.ServiceTree, "/system/democase/secret")
+	if root == nil || granted == nil || form == nil || locked == nil {
+		t.Fatalf("service tree nodes missing: root=%v granted=%v form=%v locked=%v", root, granted, form, locked)
+	}
+	if access.HasPermission(root.Permissions, access.ActionRead) {
+		t.Fatalf("public workspace entry must not synthesize root node read: %#v", root.Permissions)
+	}
+	if !access.HasPermission(granted.Permissions, access.ActionWrite) {
+		t.Fatalf("explicit member should grant directory write: %#v", granted.Permissions)
+	}
+	if !access.HasPermission(form.Permissions, access.ActionWrite) || form.InheritedFrom != granted.FullCodePath {
+		t.Fatalf("child function should inherit member permission: permissions=%#v inherited_from=%q", form.Permissions, form.InheritedFrom)
+	}
+	if access.HasPermission(locked.Permissions, access.ActionRead) || len(locked.RoleCodes) != 0 {
+		t.Fatalf("unassigned system node should be returned as locked: permissions=%#v roles=%#v", locked.Permissions, locked.RoleCodes)
+	}
 }
 
 func seedServiceTreeVisibilityNodes(t *testing.T, db *gorm.DB, app *model.App) {
@@ -373,14 +459,27 @@ func TestGetAppWithServiceTreeKeepsUnauthorizedNodesByDefault(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	oldClientFactory := newServiceTreeScheduleClient
+	newServiceTreeScheduleClient = func() serviceTreeScheduleClient {
+		return fakeDirectoryOverviewScheduleClient{tasks: map[string][]*scheduledsdk.Task{
+			"agent.session|workspace_directory|/alice/ops/secret": {
+				{ID: 99, ExecutorKey: "agent.session", Status: scheduledsdk.TaskStatusPending, ResourceKey: "/alice/ops/secret"},
+			},
+		}}
+	}
+	defer func() { newServiceTreeScheduleClient = oldClientFactory }()
 
 	ctx := context.WithValue(context.Background(), contextx.RequestUserHeader, "bob")
 	resp, err := queryView.GetAppWithServiceTree(ctx, &dto.GetAppWithServiceTreeReq{ResourcePath: "/alice/ops"})
 	if err != nil {
 		t.Fatalf("GetAppWithServiceTree: %v", err)
 	}
-	if findServiceTreeRespByPath(resp.ServiceTree, "/alice/ops/secret") == nil {
+	secret := findServiceTreeRespByPath(resp.ServiceTree, "/alice/ops/secret")
+	if secret == nil {
 		t.Fatal("default tree should keep unauthorized nodes visible")
+	}
+	if secret.ScheduledAgentTasks != 0 {
+		t.Fatalf("unauthorized directory must not expose scheduled agent task count, got %d", secret.ScheduledAgentTasks)
 	}
 }
 

@@ -123,6 +123,7 @@ export interface ListTimerTasksParams {
   source_ref?: string
   resource_scope?: string
   resource_key?: string
+  resource_key_prefix?: string
   created_by?: string
   page?: number
   page_size?: number

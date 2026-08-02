@@ -126,3 +126,33 @@ func TestNormalizeResourcePath(t *testing.T) {
 		t.Fatalf("unexpected normalized path: %q", got)
 	}
 }
+
+func TestPermissionAssignmentKeyNormalizesGrantIdentity(t *testing.T) {
+	first := PermissionAssignmentKey(
+		"alice",
+		"ops",
+		Principal{Type: PrincipalUser, Key: " Bob "},
+		"alice/ops/ticket/",
+		RoleCode(" MEMBER "),
+	)
+	second := PermissionAssignmentKey(
+		"alice",
+		"ops",
+		Principal{Type: PrincipalUser, Key: "bob"},
+		"/alice/ops/ticket",
+		RoleMember,
+	)
+	if first != second || len(first) != 64 {
+		t.Fatalf("normalized assignment keys = %q and %q", first, second)
+	}
+	other := PermissionAssignmentKey(
+		"alice",
+		"ops",
+		Principal{Type: PrincipalUser, Key: "bob"},
+		"/alice/ops/other",
+		RoleMember,
+	)
+	if first == other {
+		t.Fatal("different resources must not share an assignment key")
+	}
+}

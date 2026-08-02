@@ -419,7 +419,7 @@ async function loadList() {
     const resp = await listTimerTasks({
       executor_key: 'agent.session',
       resource_scope: 'workspace_directory',
-      resource_key: props.resourcePath,
+      resource_key_prefix: props.resourcePath,
       status: statusFilter.value,
       page: page.value,
       page_size: pageSize,
@@ -553,11 +553,12 @@ async function selectTask(task: TimerTask, syncRoute = true) {
   discardInlineEdit()
   selectedTask.value = task
   resetSelectedExecutionState()
-  if (syncRoute && props.resourcePath) {
+  const taskWorkspacePath = getTaskWorkspacePath(task)
+  if (syncRoute && taskWorkspacePath) {
     await router.replace({
       path: route.path,
       query: buildScheduledExecutionRoute({
-        fullCodePath: props.resourcePath,
+        fullCodePath: taskWorkspacePath,
         kind: 'agent',
         taskId: task.id,
       }).query,

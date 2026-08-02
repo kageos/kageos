@@ -12,6 +12,7 @@
   >
     <WorkspaceListPanel
       :current-app="currentApp"
+      :current-workspace-node="currentWorkspaceNode"
       :force-select="forceSelect"
       :visible="visible"
       surface="dialog"
@@ -26,12 +27,13 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { App } from '@/architecture/domain/types'
+import type { App, ServiceTree } from '@/architecture/domain/types'
 import WorkspaceListPanel from './WorkspaceListPanel.vue'
 
 interface Props {
   modelValue: boolean
   currentApp: App | null
+  currentWorkspaceNode?: ServiceTree | null
   /** 为 true 时不可关闭弹窗，必须选择或创建工作空间（如从 /workspace/:user 进入时） */
   forceSelect?: boolean
 }

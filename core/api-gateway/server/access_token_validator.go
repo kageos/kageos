@@ -83,6 +83,39 @@ func (v *AccessTokenValidator) Validate(ctx context.Context, rawToken string) (*
 	if err != nil {
 		return nil, err
 	}
+	return v.validateAccessWithClaims(ctx, rawToken, claims)
+}
+
+// ValidateGatewayToken routes signed gateway tokens by purpose. Normal access
+// tokens keep the HR session check; short-lived scheduled tokens are validated
+// locally and never become login sessions.
+func (v *AccessTokenValidator) ValidateGatewayToken(ctx context.Context, rawToken string) (*auth.AccessTokenPrincipal, error) {
+	rawToken = strings.TrimSpace(rawToken)
+	if v == nil {
+		return nil, errors.New("access token validator is not configured")
+	}
+	claims, err := auth.NewJWTService().ValidateGatewayToken(rawToken)
+	if err != nil {
+		return nil, err
+	}
+	if claims.TokenUse == auth.TokenUseScheduled {
+		principal := &auth.AccessTokenPrincipal{
+			UserID:   claims.UserID,
+			Username: strings.TrimSpace(claims.Username),
+			Email:    strings.TrimSpace(claims.Email),
+		}
+		if claims.DepartmentFullPath != nil {
+			principal.DepartmentFullPath = strings.TrimSpace(*claims.DepartmentFullPath)
+		}
+		return principal, nil
+	}
+	if strings.TrimSpace(v.validationURL) == "" {
+		return nil, errors.New("access token validator is not configured")
+	}
+	return v.validateAccessWithClaims(ctx, rawToken, claims)
+}
+
+func (v *AccessTokenValidator) validateAccessWithClaims(ctx context.Context, rawToken string, claims *auth.JWTClaims) (*auth.AccessTokenPrincipal, error) {
 
 	tokenHash := hashAccessToken(rawToken)
 	if v.isRejected(tokenHash) {

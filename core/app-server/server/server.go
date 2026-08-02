@@ -45,6 +45,7 @@ type Server struct {
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	operateLogService             *service.OperateLogService
 	permissionService             *service.PermissionService
+	permissionRequestService      *service.PermissionRequestService
 	functionSensitiveFieldService *service.FunctionSensitiveFieldService
 	publicShareService            *service.PublicShareService
 	appRepo                       *repository.AppRepository // ⭐ 应用仓储（用于其他服务）
@@ -278,12 +279,25 @@ func (s *Server) initServices(ctx context.Context) error {
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
 	operateLogRepo := repository.NewOperateLogRepository(s.db)
 	roleAssignmentRepo := repository.NewRoleAssignmentRepository(s.db)
+	permissionRequestRepo := repository.NewPermissionRequestRepository(s.db)
 	functionSensitiveFieldRepo := repository.NewFunctionSensitiveFieldRepository(s.db)
 	publicShareRepo := repository.NewPublicShareRepository(s.db)
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
 	s.operateLogService = service.NewOperateLogService(operateLogRepo)
-	s.permissionService = service.NewPermissionService(roleAssignmentRepo, operateLogRepo, appRepo)
+	s.permissionService = service.NewPermissionService(
+		roleAssignmentRepo,
+		operateLogRepo,
+		appRepo,
+		service.WithPermissionNotifier(service.NewNATSPermissionNotifier(s.natsConn)),
+	)
+	s.permissionRequestService = service.NewPermissionRequestService(
+		permissionRequestRepo,
+		roleAssignmentRepo,
+		serviceTreeRepo,
+		appRepo,
+		s.permissionService,
+	)
 	s.functionSensitiveFieldService = service.NewFunctionSensitiveFieldService(functionSensitiveFieldRepo)
 	if err := s.functionSensitiveFieldService.LoadAll(ctx); err != nil {
 		return fmt.Errorf("加载敏感字段缓存失败: %w", err)

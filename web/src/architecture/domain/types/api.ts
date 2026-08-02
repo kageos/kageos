@@ -94,6 +94,10 @@ export interface ServiceTree {
   running_agent_tasks?: number
   failed_agent_tasks?: number
   run_count?: number  // ⭐ 运行次数（仅 function 类型有意义），用于展示「已使用 N 次」
+  permission_requests?: {
+    own_pending_count: number
+    review_pending_count: number
+  }
   permissions?: AccessPermissions
   role_codes?: AccessRoleCode[]
   inherited_from?: string

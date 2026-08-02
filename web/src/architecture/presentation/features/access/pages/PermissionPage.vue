@@ -33,12 +33,45 @@
             <code>{{ activeResourcePath }}</code>
           </div>
 
-          <p class="access-request-note">{{ t('access.requestAccessContactAdmin') }}</p>
+          <div class="access-request-compact-form">
+            <el-radio-group v-model="grantRole" @change="handleRequestRoleChange">
+              <el-radio-button label="viewer">{{ roleLabel('viewer') }}</el-radio-button>
+              <el-radio-button label="member">{{ roleLabel('member') }}</el-radio-button>
+              <el-radio-button label="admin">{{ roleLabel('admin') }}</el-radio-button>
+            </el-radio-group>
+            <el-alert
+              v-if="grantRole === 'admin'"
+              type="warning"
+              :title="t('access.adminRequestWarningTitle')"
+              :description="t('access.adminRequestWarningDescription')"
+              :closable="false"
+              show-icon
+            />
+            <el-input
+              v-model="requestReason"
+              type="textarea"
+              :rows="3"
+              maxlength="1000"
+              show-word-limit
+              :placeholder="t('access.requestReasonPlaceholder')"
+            />
+            <p v-if="approvers.length > 0" class="access-request-note">
+              {{ t('access.approverCount', { count: approvers.length }) }}
+            </p>
+            <p v-else class="access-request-note">{{ t('access.noApprover') }}</p>
+          </div>
 
           <div class="access-request-actions">
-            <el-button type="primary" :icon="Document" @click="copyResourcePath">
-              {{ t('access.copyResourcePath') }}
+            <el-button
+              type="primary"
+              :icon="Key"
+              :loading="requestSubmitting"
+              :disabled="!canSubmitRequest"
+              @click="submitAccessRequest"
+            >
+              {{ hasPendingRequest(activeResourcePath) ? t('access.requestPending') : t('access.submitRequest') }}
             </el-button>
+            <el-button :icon="Document" @click="copyResourcePath">{{ t('access.copyResourcePath') }}</el-button>
             <el-button @click="goBack">
               {{ t('access.backToWorkspace') }}
             </el-button>
@@ -46,8 +79,55 @@
         </section>
       </section>
 
-      <section v-else v-loading="pageLoading" class="apply-layout">
-        <aside class="apply-sidebar">
+      <section v-else v-loading="pageLoading" class="permission-workflow">
+        <nav class="workflow-tabs" :aria-label="t('access.workflowTitle')">
+          <button
+            v-if="canManageActiveResource"
+            type="button"
+            :class="{ 'is-active': workflowTab === 'grant' }"
+            @click="setWorkflowTab('grant')"
+          >
+            {{ t('access.grantTab') }}
+          </button>
+          <button
+            type="button"
+            :class="{ 'is-active': workflowTab === 'request' }"
+            @click="setWorkflowTab('request')"
+          >
+            {{ t('access.requestTab') }}
+          </button>
+          <button
+            v-if="canReviewRequests || pendingRequestCount > 0"
+            type="button"
+            :class="{ 'is-active': workflowTab === 'pending' }"
+            @click="setWorkflowTab('pending')"
+          >
+            {{ t('access.pendingTab') }}
+            <span v-if="pendingRequestCount > 0" class="workflow-tab-badge">{{ pendingRequestCount }}</span>
+          </button>
+          <button
+            type="button"
+            :class="{ 'is-active': workflowTab === 'mine' }"
+            @click="setWorkflowTab('mine')"
+          >
+            {{ t('access.myRequestsTab') }}
+          </button>
+          <button
+            v-if="canReviewRequests"
+            type="button"
+            :class="{ 'is-active': workflowTab === 'history' }"
+            @click="setWorkflowTab('history')"
+          >
+            {{ t('access.reviewHistoryTab') }}
+          </button>
+        </nav>
+
+        <div
+          v-if="workflowTab === 'grant' || workflowTab === 'request'"
+          class="apply-layout"
+          :class="{ 'is-request-mode': workflowTab === 'request' }"
+        >
+          <aside class="apply-sidebar">
           <section class="tree-card">
             <div class="panel-toolbar">
               <div class="panel-title-copy">
@@ -56,9 +136,9 @@
               </div>
               <div class="resource-tools">
                 <el-tag size="small" effect="plain">
-                  {{ t('common.selectedCount', { count: selectedResourcePaths.length }) }}
+                  {{ t('common.selectedCount', { count: displayedCheckedResourceCount }) }}
                 </el-tag>
-                <el-tooltip :content="t('access.viewExisting')" placement="bottom">
+                <el-tooltip v-if="canRead(activeResource)" :content="t('access.viewExisting')" placement="bottom">
                   <el-button
                     size="small"
                     :icon="UserFilled"
@@ -78,7 +158,7 @@
                 :data="treeData"
                 :props="treeProps"
                 node-key="full_code_path"
-                show-checkbox
+                :show-checkbox="true"
                 :check-strictly="true"
                 :default-expand-all="true"
                 :expand-on-click-node="false"
@@ -121,12 +201,50 @@
                     />
                     <span v-else class="node-icon fx-icon" :class="getNodeIconClass(data)">fx</span>
                     <span class="node-label">{{ treeNode.label }}</span>
+                    <span class="resource-node-status">
+                      <span
+                        v-if="workflowTab === 'request' && hasPendingRequest(data.full_code_path)"
+                        class="resource-pending-role"
+                      >
+                        <el-icon><Clock /></el-icon>
+                        {{ t('access.pendingRole', { role: pendingRequestRoleLabel(data.full_code_path) }) }}
+                      </span>
+                      <span
+                        v-if="workflowTab === 'request' && getEffectiveResourceRole(data)"
+                        class="resource-current-role"
+                        :class="`tone-${getEffectiveResourceRole(data)}`"
+                      >
+                        {{ data.inherited_from
+                          ? t('access.inheritedCurrentRole', { role: effectiveResourceRoleLabel(data) })
+                          : t('access.currentRole', { role: effectiveResourceRoleLabel(data) }) }}
+                      </span>
+                      <span
+                        v-if="workflowTab === 'request'
+                          && !isResourceCoveredForRequestedRole(data.full_code_path)
+                          && !hasPendingRequest(data.full_code_path)
+                          && getRequestInheritanceSource(data.full_code_path)"
+                        class="resource-inheritance-state"
+                        :title="t('access.inheritedRequestSource', { source: getRequestInheritanceSource(data.full_code_path) })"
+                      >
+                        <el-icon><Connection /></el-icon>
+                        {{ isPendingRequestInheritance(data.full_code_path)
+                          ? t('access.inheritedFromPendingRequest')
+                          : t('access.inheritedFromSelectedParent') }}
+                      </span>
+                      <el-icon
+                        v-if="!canRead(data) && !hasPendingRequest(data.full_code_path)"
+                        class="resource-lock-icon"
+                        :title="t('access.noReadAccess')"
+                      >
+                        <Lock />
+                      </el-icon>
+                    </span>
                   </span>
                 </template>
               </el-tree>
             </div>
           </section>
-        </aside>
+          </aside>
 
         <section class="apply-main">
           <div class="scope-header-main">
@@ -182,20 +300,28 @@
                 </div>
                 <p class="role-selection-desc">{{ t('access.roleCardDesc') }}</p>
               </div>
-              <span class="role-selection-hint">
+              <span
+                class="role-selection-hint is-selected-role"
+                :class="`tone-${selectedRoleOption?.tone || 'edit'}`"
+              >
+                <el-icon><CircleCheck /></el-icon>
                 {{ t('access.selectedRole', { role: roleLabel(grantRole) }) }}
               </span>
             </div>
 
             <div class="role-cards">
               <button
-                v-for="role in roleOptions"
+                v-for="role in visibleRoleOptions"
                 :key="role.value"
                 class="role-card"
-                :class="[`tone-${role.tone}`, { 'is-selected': grantRole === role.value }]"
+                :class="[`tone-${role.tone}`, {
+                  'is-selected': grantRole === role.value,
+                  'is-unavailable': isRequestRoleUnavailable(role.value),
+                }]"
                 :aria-pressed="grantRole === role.value"
+                :disabled="isRequestRoleUnavailable(role.value)"
                 type="button"
-                @click="grantRole = role.value"
+                @click="selectRole(role.value)"
               >
                 <span class="role-card-aside">
                   <span class="role-card-identity">
@@ -211,8 +337,12 @@
                     </span>
                   </span>
                   <span class="role-card-state" :class="{ 'is-selected': grantRole === role.value }">
-                    <el-icon><component :is="grantRole === role.value ? CircleCheck : CircleClose" /></el-icon>
-                    {{ grantRole === role.value ? t('access.roleSelected') : t('access.roleSelect') }}
+                    <el-icon>
+                      <component :is="grantRole === role.value || isRequestRoleUnavailable(role.value) ? CircleCheck : CircleClose" />
+                    </el-icon>
+                    {{ isRequestRoleUnavailable(role.value)
+                      ? t('access.roleAlreadyCovered')
+                      : (grantRole === role.value ? t('access.roleSelected') : t('access.roleSelect')) }}
                   </span>
                 </span>
                 <span class="role-action-groups">
@@ -260,6 +390,15 @@
                 </span>
               </button>
             </div>
+            <el-alert
+              v-if="workflowTab === 'request' && grantRole === 'admin'"
+              class="admin-request-warning"
+              type="warning"
+              :title="t('access.adminRequestWarningTitle')"
+              :description="t('access.adminRequestWarningDescription')"
+              :closable="false"
+              show-icon
+            />
           </div>
         </section>
 
@@ -267,12 +406,12 @@
           <section class="form-card">
             <div class="panel-toolbar">
               <div class="panel-title-copy">
-                <h3>{{ t('access.grantInfo') }}</h3>
-                <p>{{ t('access.grantInfoDesc') }}</p>
+                <h3>{{ workflowTab === 'grant' ? t('access.grantInfo') : t('access.requestInfo') }}</h3>
+                <p>{{ workflowTab === 'grant' ? t('access.grantInfoDesc') : t('access.requestInfoDesc') }}</p>
               </div>
             </div>
 
-            <el-form label-position="top" class="grant-form" @submit.prevent>
+            <el-form v-if="workflowTab === 'grant'" label-position="top" class="grant-form" @submit.prevent>
               <el-form-item :label="t('access.principalType')">
                 <el-radio-group v-model="grantPrincipalType">
                   <el-radio-button label="department">{{ t('access.organization') }}</el-radio-button>
@@ -312,7 +451,7 @@
                 />
               </el-form-item>
 
-              <el-form-item :label="t('access.expires')">
+              <el-form-item :label="t('access.expires')" :error="grantExpiryError">
                 <el-radio-group v-model="grantPermanent">
                   <el-radio :label="true">{{ t('access.permanent') }}</el-radio>
                   <el-radio :label="false">{{ t('access.customTime') }}</el-radio>
@@ -323,6 +462,7 @@
                   class="expires-picker"
                   type="datetime"
                   :placeholder="t('access.expiresPlaceholder')"
+                  :disabled-date="disablePastPermissionDate"
                   clearable
                 />
               </el-form-item>
@@ -356,8 +496,179 @@
                 {{ t('common.cancel') }}
               </el-button>
             </el-form>
+
+            <el-form v-else label-position="top" class="grant-form request-form" @submit.prevent>
+              <el-form-item :label="t('access.requester')">
+                <strong>{{ currentUsername || t('access.currentAccount') }}</strong>
+              </el-form-item>
+
+              <el-form-item :label="t('access.approvers')">
+                <div v-loading="approversLoading" class="approver-list">
+                  <div v-for="approver in approvers" :key="approverKey(approver)" class="approver-item">
+                    <UsersWidget
+                      v-if="approver.principal_type === 'user'"
+                      :value="principalUserValue(approver.principal_key)"
+                      :field="memberUsersField"
+                      mode="response"
+                      :field-path="`permissionApprover:${approverKey(approver)}`"
+                    />
+                    <DepartmentDisplay
+                      v-else
+                      :full-code-path="approver.principal_key"
+                      :display-name="departmentPrincipalLabel(approver.principal_key)"
+                      mode="simple"
+                      size="small"
+                    />
+                    <small>{{ roleLabel(approver.role_code) }} · {{ approver.inherited ? t('access.inherited') : t('access.currentResource') }}</small>
+                  </div>
+                  <el-empty v-if="!approversLoading && approvers.length === 0" :image-size="44" :description="t('access.noApprover')" />
+                </div>
+              </el-form-item>
+
+              <el-form-item :label="t('access.requestReason')" required>
+                <el-input
+                  v-model="requestReason"
+                  type="textarea"
+                  :rows="4"
+                  maxlength="1000"
+                  show-word-limit
+                  :placeholder="t('access.requestReasonPlaceholder')"
+                />
+              </el-form-item>
+
+              <el-form-item :label="t('access.expires')" :error="requestExpiryError">
+                <el-radio-group v-model="requestPermanent">
+                  <el-radio :label="true">{{ t('access.permanent') }}</el-radio>
+                  <el-radio :label="false">{{ t('access.customTime') }}</el-radio>
+                </el-radio-group>
+                <el-date-picker
+                  v-if="!requestPermanent"
+                  v-model="requestExpiresAt"
+                  class="expires-picker"
+                  type="datetime"
+                  :placeholder="t('access.expiresPlaceholder')"
+                  :disabled-date="disablePastPermissionDate"
+                  clearable
+                />
+              </el-form-item>
+
+              <div class="grant-preview">
+                <div class="preview-row">
+                  <span>{{ t('access.resource') }}</span>
+                  <strong>{{ t('common.resourceCount', { count: requestTargetPaths.length }) }}</strong>
+                </div>
+                <div v-if="requestInheritedResourcePaths.length > 0" class="preview-row">
+                  <span>{{ t('access.automaticInheritance') }}</span>
+                  <strong>{{ t('common.resourceCount', { count: requestInheritedResourcePaths.length }) }}</strong>
+                </div>
+                <div class="preview-row">
+                  <span>{{ t('access.role') }}</span>
+                  <strong>{{ roleLabel(grantRole) }}</strong>
+                </div>
+              </div>
+
+              <el-button
+                class="submit-button"
+                type="primary"
+                :icon="Key"
+                :loading="requestSubmitting"
+                :disabled="!canSubmitRequest"
+                @click="submitAccessRequest"
+              >
+                {{ t('access.submitRequest') }}
+              </el-button>
+              <el-button class="cancel-button" @click="goBack">
+                {{ t('common.cancel') }}
+              </el-button>
+            </el-form>
           </section>
         </aside>
+        </div>
+
+        <section v-else class="request-records-card">
+          <div class="request-records-header">
+            <div>
+              <h2>{{ workflowRecordTitle }}</h2>
+              <p>{{ workflowRecordDescription }}</p>
+            </div>
+            <el-button :icon="Refresh" :loading="workflowLoading" @click="loadActiveWorkflowRecords">
+              {{ t('common.refresh') }}
+            </el-button>
+          </div>
+
+          <el-table
+            v-loading="workflowLoading"
+            :data="activeWorkflowRequests"
+            row-key="id"
+            class="request-records-table"
+            :empty-text="t('access.noRequests')"
+          >
+            <el-table-column v-if="workflowTab !== 'mine'" :label="t('access.requester')" width="150">
+              <template #default="{ row }">
+                <UsersWidget
+                  :value="principalUserValue(row.requester)"
+                  :field="memberUsersField"
+                  mode="response"
+                  :field-path="`permissionRequester:${row.id}`"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('access.resource')" min-width="260">
+              <template #default="{ row }"><code class="request-table-path">{{ row.resource_path }}</code></template>
+            </el-table-column>
+            <el-table-column :label="t('access.role')" width="110">
+              <template #default="{ row }">
+                <el-tag size="small" :type="roleTagType(row.requested_role)">{{ roleLabel(row.requested_role) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('access.requestReason')" min-width="220" prop="reason" show-overflow-tooltip />
+            <el-table-column :label="t('access.status')" width="110">
+              <template #default="{ row }">
+                <el-tag size="small" :type="requestStatusTagType(row.status)">{{ requestStatusLabel(row.status) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('access.requestedAt')" width="170">
+              <template #default="{ row }">{{ formatDateTime(row.created_at) }}</template>
+            </el-table-column>
+            <el-table-column v-if="workflowTab === 'history'" :label="t('access.reviewedBy')" min-width="170">
+              <template #default="{ row }">
+                <div class="review-result-cell">
+                  <UsersWidget
+                    v-if="row.reviewed_by"
+                    :value="principalUserValue(row.reviewed_by)"
+                    :field="memberUsersField"
+                    mode="response"
+                    :field-path="`permissionReviewer:${row.id}`"
+                  />
+                  <small v-if="row.review_comment">{{ row.review_comment }}</small>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('common.operation')" width="170" fixed="right">
+              <template #default="{ row }">
+                <template v-if="workflowTab === 'pending'">
+                  <el-button type="success" plain size="small" :loading="reviewingRequestID === row.id" @click="approveRequest(row)">
+                    {{ t('access.approve') }}
+                  </el-button>
+                  <el-button type="danger" plain size="small" :loading="reviewingRequestID === row.id" @click="rejectRequest(row)">
+                    {{ t('access.reject') }}
+                  </el-button>
+                </template>
+                <el-button
+                  v-else-if="workflowTab === 'mine' && row.status === 'pending'"
+                  type="danger"
+                  plain
+                  size="small"
+                  :loading="reviewingRequestID === row.id"
+                  @click="cancelRequest(row)"
+                >
+                  {{ t('access.cancelRequest') }}
+                </el-button>
+                <el-button v-else link @click="openRequestResource(row)">{{ t('access.openResource') }}</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </section>
       </section>
     </div>
 
@@ -442,7 +753,7 @@
             {{ formatExpiresAt(row.expires_at) }}
           </template>
         </el-table-column>
-        <el-table-column :label="t('common.operation')" width="92" fixed="right">
+        <el-table-column v-if="canManageActiveResource" :label="t('common.operation')" width="92" fixed="right">
           <template #default="{ row }">
             <el-button
               v-if="row.direct"
@@ -472,10 +783,13 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   CircleCheck,
   CircleClose,
+  Clock,
+  Connection,
   Delete,
   Document,
   EditPen,
   Key,
+  Lock,
   Plus,
   Refresh,
   User,
@@ -490,11 +804,22 @@ import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { WidgetType } from '@/architecture/domain/constants/widget'
 import { getAppWithServiceTree } from '@/architecture/presentation/context/api/app'
 import {
+  approvePermissionRequest,
   batchGrantRoles,
+  cancelPermissionRequest,
+  createPermissionRequest,
+  listMyPermissionRequests,
+  listPendingPermissionRequests,
+  listPermissionApprovers,
+  listPermissionRequestHistory,
   listPermissionAssignments,
+  rejectPermissionRequest,
   revokeRole,
+  type PermissionApprover,
   type PermissionPrincipal,
   type PermissionPrincipalType,
+  type PermissionRequest,
+  type PermissionRequestStatus,
   type RoleAssignment
 } from '@/architecture/presentation/context/api/permission'
 import {
@@ -510,10 +835,35 @@ import { createStringFieldValue, extractStringFieldRaw } from '@/architecture/do
 import { buildAppResourcePath, normalizeResourcePath, parseResourcePath } from '@/architecture/shared/resourcePath'
 import { resolveWorkspaceUrl } from '@/architecture/shared/routing/route'
 import { getErrorMessage, isWorkspaceForbiddenError } from '@/architecture/shared/apiError'
+import { canAdmin, canRead } from '@/architecture/presentation/composables/useAccessControl'
+import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
+import { eventBus } from '@/architecture/presentation/context/eventBusContext'
+import {
+  findNearestPermissionRequestAncestor,
+  getPermissionRequestCheckedPaths,
+  getPermissionRequestTargetPaths,
+  isDescendantResourcePath,
+} from '@/architecture/presentation/features/access/utils/permissionRequestSelection'
+import {
+  getEffectiveAccessRole,
+  getRecommendedPermissionRequestRole,
+  permissionRequestRoleCovers,
+  permissionSetCoversRequestRole,
+  type PermissionRequestRole,
+} from '@/architecture/presentation/features/access/utils/permissionRequestRole'
+import {
+  disablePastPermissionDate,
+  isPermissionExpiryValid,
+} from '@/architecture/presentation/features/access/utils/permissionExpiry'
+import {
+  getPermissionRequestSummaryState,
+  loadPermissionRequestSummary,
+} from '@/architecture/presentation/features/access/utils/permissionRequestSummaryStore'
 
 type AccessTab = 'current' | 'inherited'
 type RoleTone = 'view' | 'edit' | 'admin' | 'owner'
 type ResourceKind = 'app' | 'directory' | 'table' | 'form' | 'chart' | 'docs'
+type WorkflowTab = 'grant' | 'request' | 'pending' | 'mine' | 'history'
 
 interface RoleOption {
   value: AccessRoleCode
@@ -551,11 +901,16 @@ interface DepartmentOption {
   children?: DepartmentOption[]
 }
 
+type PermissionTreeNode = ServiceTree & {
+  permission_request_disabled?: boolean
+}
+
 type AccessPermissionsKey = keyof AccessPermissions
 
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const authStore = useAuthStore()
 
 const permissionLabelMap = {
   read: 'read',
@@ -585,9 +940,25 @@ const assignmentsDialogVisible = ref(false)
 const departmentOptions = ref<DepartmentOption[]>([])
 const grantPrincipalType = ref<PermissionPrincipalType>('department')
 const grantDepartmentPath = ref('/org')
-const grantRole = ref<AccessRoleCode>('viewer')
+const grantRole = ref<AccessRoleCode>('member')
 const grantPermanent = ref(true)
 const grantExpiresAt = ref<Date | null>(null)
+const workflowTab = ref<WorkflowTab>('request')
+const requestReason = ref('')
+const requestPermanent = ref(true)
+const requestExpiresAt = ref<Date | null>(null)
+const requestSubmitting = ref(false)
+const approversLoading = ref(false)
+const workflowLoading = ref(false)
+const reviewingRequestID = ref<number | null>(null)
+const approvers = ref<PermissionApprover[]>([])
+const approverReadyResourcePaths = ref<string[]>([])
+const myRequests = ref<PermissionRequest[]>([])
+const pendingRequests = ref<PermissionRequest[]>([])
+const requestHistory = ref<PermissionRequest[]>([])
+const pendingRequestCount = ref(0)
+let approverLoadSequence = 0
+const loadedWorkflowTabs = new Set<WorkflowTab>()
 
 const grantUsersField = computed<FieldConfig>(() => ({
   code: 'permissionPageUsers',
@@ -623,7 +994,8 @@ const grantUsersValue = ref<FieldValue>(createStringFieldValue(grantUsersField.v
 
 const treeProps = {
   children: 'children',
-  label: 'name'
+  label: 'name',
+  disabled: 'permission_request_disabled',
 }
 
 const directoryRoleActionKinds: ResourceKind[] = ['directory', 'table', 'form', 'chart', 'docs']
@@ -677,12 +1049,109 @@ const requestedResourcePath = computed(() => {
   return normalizeResourcePath(String(raw || ''))
 })
 
+const requestedWorkflowMode = computed(() => {
+  const raw = Array.isArray(route.query.mode) ? route.query.mode[0] : route.query.mode
+  return raw === 'request' ? 'request' : ''
+})
+
 const parsedResource = computed(() => parseResourcePath(requestedResourcePath.value))
 const invalidResource = computed(() => !parsedResource.value)
 
 const activeResource = computed(() => {
   if (!activeResourcePath.value) return null
   return findNodeByPath(treeData.value, activeResourcePath.value)
+})
+
+const currentUsername = computed(() => authStore.user?.username || '')
+const workspaceRootPath = computed(() => {
+  const parsed = parsedResource.value
+  return parsed ? buildAppResourcePath(parsed.user, parsed.app) : ''
+})
+const canManageActiveResource = computed(() => canAdmin(activeResource.value))
+const canReviewRequests = computed(() => treeContainsAdminResource(treeData.value))
+const visibleRoleOptions = computed(() => {
+  if (workflowTab.value === 'request') {
+    return roleOptions.value.filter(role => role.value !== 'owner')
+  }
+  return roleOptions.value
+})
+const selectedRoleOption = computed(() => roleOptions.value.find(role => role.value === grantRole.value))
+const pendingRequestByPath = computed(() => new Map(
+  myRequests.value
+    .filter(item => item.status === 'pending')
+    .map(item => [item.resource_path, item] as const),
+))
+const pendingRequestPaths = computed(() => new Set(pendingRequestByPath.value.keys()))
+const inheritingPendingRequestPaths = computed(() => new Set(
+  grantRole.value === 'owner'
+    ? []
+    : [...pendingRequestByPath.value.values()]
+        .filter(request => permissionRequestRoleCovers(
+          request.requested_role,
+          grantRole.value as PermissionRequestRole,
+        ))
+        .map(request => request.resource_path),
+))
+const requestedRoleCoveredResourcePaths = computed(() => new Set(
+  grantRole.value === 'owner'
+    ? []
+    : collectRoleCoveredResourcePaths(treeData.value, grantRole.value as PermissionRequestRole),
+))
+const requestTargetPaths = computed(() => getPermissionRequestTargetPaths(
+  selectedResourcePaths.value,
+  requestedRoleCoveredResourcePaths.value,
+  pendingRequestPaths.value,
+  inheritingPendingRequestPaths.value,
+))
+const requestCheckedResourcePaths = computed(() => getPermissionRequestCheckedPaths(
+  requestTargetPaths.value,
+  requestedRoleCoveredResourcePaths.value,
+  pendingRequestPaths.value,
+))
+const requestInheritanceSourcePaths = computed(() => [
+  ...inheritingPendingRequestPaths.value,
+  ...requestTargetPaths.value,
+])
+const requestInheritedResourcePaths = computed(() => collectAllResourcePaths(treeData.value).filter(path => (
+  Boolean(findNearestPermissionRequestAncestor(path, requestInheritanceSourcePaths.value))
+  && !requestedRoleCoveredResourcePaths.value.has(path)
+  && !pendingRequestPaths.value.has(path)
+)))
+const grantExpiryValid = computed(() => isPermissionExpiryValid(grantPermanent.value, grantExpiresAt.value))
+const requestExpiryValid = computed(() => isPermissionExpiryValid(requestPermanent.value, requestExpiresAt.value))
+const grantExpiryError = computed(() => {
+  if (grantExpiryValid.value) return ''
+  return grantExpiresAt.value ? t('access.expiresFutureRequired') : t('access.expiresRequired')
+})
+const requestExpiryError = computed(() => {
+  if (requestExpiryValid.value) return ''
+  return requestExpiresAt.value ? t('access.expiresFutureRequired') : t('access.expiresRequired')
+})
+const displayedCheckedResourceCount = computed(() => (
+  workflowTab.value === 'request'
+    ? requestTargetPaths.value.length
+    : selectedResourcePaths.value.length
+))
+const canSubmitRequest = computed(() => {
+  return Boolean(requestTargetPaths.value.length > 0 && requestReason.value.trim() && approvers.value.length > 0)
+    && (grantRole.value === 'viewer' || grantRole.value === 'member' || grantRole.value === 'admin')
+    && requestTargetPaths.value.every(path => approverReadyResourcePaths.value.includes(path))
+    && requestExpiryValid.value
+})
+const activeWorkflowRequests = computed(() => {
+  if (workflowTab.value === 'pending') return pendingRequests.value
+  if (workflowTab.value === 'history') return requestHistory.value
+  return myRequests.value
+})
+const workflowRecordTitle = computed(() => {
+  if (workflowTab.value === 'pending') return t('access.pendingTitle')
+  if (workflowTab.value === 'history') return t('access.reviewHistoryTitle')
+  return t('access.myRequestsTitle')
+})
+const workflowRecordDescription = computed(() => {
+  if (workflowTab.value === 'pending') return t('access.pendingDescription')
+  if (workflowTab.value === 'history') return t('access.reviewHistoryDescription')
+  return t('access.myRequestsDescription')
 })
 
 const currentResourceKind = computed<ResourceKind>(() => {
@@ -740,7 +1209,10 @@ const principalPreview = computed(() => {
 })
 
 const canSubmitGrant = computed(() => {
-  return selectedResourcePaths.value.length > 0 && selectedPrincipals.value.length > 0 && Boolean(grantRole.value)
+  return selectedResourcePaths.value.length > 0
+    && selectedPrincipals.value.length > 0
+    && Boolean(grantRole.value)
+    && grantExpiryValid.value
 })
 
 const currentAssignments = computed(() => {
@@ -801,7 +1273,7 @@ const roleActionConfigs = computed<Record<ResourceKind, RoleActionConfig[]>>(() 
   ],
 }))
 
-watch(requestedResourcePath, () => {
+watch([requestedResourcePath, requestedWorkflowMode], () => {
   void reloadPage()
 }, { immediate: true })
 
@@ -812,6 +1284,7 @@ async function reloadPage() {
   loadError.value = ''
   treeAccessDenied.value = false
   treeAccessDeniedMessage.value = ''
+  loadedWorkflowTabs.clear()
 
   if (!parsed) {
     appName.value = ''
@@ -830,19 +1303,36 @@ async function reloadPage() {
     treeData.value = buildTreeData(resp.app, resp.service_tree || [])
 
     const initialPath = findNodeByPath(treeData.value, parsed.resourcePath)?.full_code_path || parsed.resourcePath
-    const initialResourcePaths = collectSelectionWithDescendants(initialPath)
     activeTab.value = 'current'
     activeResourcePath.value = initialPath
-    selectedResourcePaths.value = initialResourcePaths
+    workflowTab.value = requestedWorkflowMode.value === 'request' || !canAdmin(findNodeByPath(treeData.value, initialPath))
+      ? 'request'
+      : 'grant'
     resetGrantForm()
+    selectedResourcePaths.value = []
+    if (workflowTab.value === 'grant') {
+      selectedResourcePaths.value = collectSelectionWithDescendants(initialPath)
+    } else {
+      setRecommendedRequestRole(findNodeByPath(treeData.value, initialPath))
+      selectedResourcePaths.value = isRequestableResourcePath(initialPath) ? [initialPath] : []
+    }
+    refreshRequestNodeDisabledState()
 
     await nextTick()
-    treeRef.value?.setCheckedKeys?.(initialResourcePaths)
+    syncVisibleTreeChecks()
     treeRef.value?.setCurrentKey?.(initialPath)
-    await loadAssignments()
+    await loadPermissionWorkflow(true)
+    refreshRequestNodeDisabledState()
+    await nextTick()
+    syncVisibleTreeChecks()
+    if (workflowTab.value === 'request') {
+      await loadApprovers()
+    }
   } catch (error: any) {
     if (isWorkspaceForbiddenError(error)) {
       showAccessRequestFallback(error)
+      await loadPermissionWorkflow(true)
+      await loadApprovers()
       return
     }
     const message = getErrorMessage(error, t('access.loadTreeFailed'))
@@ -900,11 +1390,12 @@ function showAccessRequestFallback(error: unknown) {
   appName.value = parsed?.app || ''
   treeData.value = []
   activeResourcePath.value = requestedResourcePath.value
-  selectedResourcePaths.value = requestedResourcePath.value ? [requestedResourcePath.value] : []
+  workflowTab.value = 'request'
   assignments.value = []
   treeAccessDenied.value = true
   treeAccessDeniedMessage.value = getErrorMessage(error, '')
   resetGrantForm()
+  selectedResourcePaths.value = requestedResourcePath.value ? [requestedResourcePath.value] : []
 }
 
 function buildTreeData(app: App, serviceTree: ServiceTree[]): ServiceTree[] {
@@ -949,15 +1440,349 @@ async function loadAssignments() {
   }
 }
 
+async function loadApprovers() {
+  const sequence = ++approverLoadSequence
+  const paths = workflowTab.value === 'request'
+    ? [...requestTargetPaths.value]
+    : (activeResourcePath.value ? [activeResourcePath.value] : [])
+  if (paths.length === 0) {
+    approvers.value = []
+    approverReadyResourcePaths.value = []
+    approversLoading.value = false
+    return
+  }
+  approversLoading.value = true
+  try {
+    const results = await Promise.allSettled(paths.map(async path => ({
+      path,
+      response: await listPermissionApprovers(path),
+    })))
+    if (sequence !== approverLoadSequence) return
+
+    const uniqueApprovers = new Map<string, PermissionApprover>()
+    const readyPaths: string[] = []
+    let firstError: unknown = null
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        firstError ||= result.reason
+        continue
+      }
+      const resourceApprovers = result.value.response.approvers || []
+      if (resourceApprovers.length > 0) {
+        readyPaths.push(result.value.path)
+      }
+      for (const approver of resourceApprovers) {
+        uniqueApprovers.set(approverKey(approver), approver)
+      }
+    }
+    approvers.value = [...uniqueApprovers.values()]
+    approverReadyResourcePaths.value = readyPaths
+    if (firstError) {
+      ElMessage.error(getErrorMessage(firstError, t('access.loadApproversFailed')))
+    }
+  } finally {
+    if (sequence === approverLoadSequence) {
+      approversLoading.value = false
+    }
+  }
+}
+
+async function loadPermissionWorkflow(force = false) {
+  const root = workspaceRootPath.value
+  if (!root) return
+  const tab = workflowTab.value
+  if (force) loadedWorkflowTabs.clear()
+  workflowLoading.value = true
+  try {
+    await loadPermissionRequestSummary(root, { force })
+    pendingRequestCount.value = getPermissionRequestSummaryState(root).reviewPendingCount
+    if ((tab === 'grant') || (!force && loadedWorkflowTabs.has(tab))) return
+
+    if (tab === 'request') {
+      myRequests.value = (await listMyPermissionRequests(root, 'pending')).requests || []
+    } else if (tab === 'mine') {
+      myRequests.value = (await listMyPermissionRequests(root)).requests || []
+    } else if (tab === 'pending') {
+      pendingRequests.value = (await listPendingPermissionRequests(root)).requests || []
+      pendingRequestCount.value = pendingRequests.value.length
+    } else if (tab === 'history') {
+      requestHistory.value = (await listPermissionRequestHistory(root)).requests || []
+    }
+    loadedWorkflowTabs.add(tab)
+  } finally {
+    workflowLoading.value = false
+  }
+}
+
+async function loadActiveWorkflowRecords() {
+  await loadPermissionWorkflow(true)
+}
+
+function setWorkflowTab(tab: WorkflowTab) {
+  if (tab === 'grant' && !canManageActiveResource.value) return
+  workflowTab.value = tab
+  if (tab === 'grant') {
+    grantRole.value = 'member'
+    selectedResourcePaths.value = collectSelectionWithDescendants(activeResourcePath.value)
+    refreshRequestNodeDisabledState()
+    void nextTick(syncVisibleTreeChecks)
+  } else if (tab === 'request') {
+    selectedResourcePaths.value = []
+    setRecommendedRequestRole(activeResource.value)
+    selectedResourcePaths.value = isRequestableResourcePath(activeResourcePath.value)
+      ? [activeResourcePath.value]
+      : []
+    refreshRequestNodeDisabledState()
+    void nextTick(() => {
+      syncVisibleTreeChecks()
+      void loadApprovers()
+    })
+  } else {
+    void loadActiveWorkflowRecords()
+  }
+}
+
+function setRecommendedRequestRole(node: ServiceTree | null) {
+  grantRole.value = getRecommendedPermissionRequestRole(node?.permissions) || 'admin'
+}
+
+function selectRole(role: AccessRoleCode) {
+  if (isRequestRoleUnavailable(role)) return
+  grantRole.value = role
+  handleRequestRoleChange()
+}
+
+function handleRequestRoleChange() {
+  if (workflowTab.value !== 'request') return
+  refreshRequestNodeDisabledState()
+  void nextTick(() => {
+    syncVisibleTreeChecks()
+    void loadApprovers()
+  })
+}
+
+function isRequestRoleUnavailable(role: AccessRoleCode): boolean {
+  if (workflowTab.value !== 'request') return false
+  if (role === 'owner') return true
+  const paths = selectedResourcePaths.value.length > 0
+    ? selectedResourcePaths.value
+    : (activeResourcePath.value ? [activeResourcePath.value] : [])
+  if (paths.length === 0 || treeAccessDenied.value) return false
+
+  return paths.every(path => {
+    const node = findNodeByPath(treeData.value, path)
+    return Boolean(node && permissionSetCoversRequestRole(node.permissions, role))
+  })
+}
+
+async function submitAccessRequest() {
+  if (!canSubmitRequest.value) {
+    if (hasPendingRequest(activeResourcePath.value)) {
+      ElMessage.warning(t('access.requestAlreadyPending'))
+    } else {
+      ElMessage.warning(t('access.completeRequestForm'))
+    }
+    return
+  }
+  const targetPaths = [...requestTargetPaths.value]
+  requestSubmitting.value = true
+  try {
+    const results = await Promise.allSettled(targetPaths.map(resourcePath => createPermissionRequest({
+      resource_path: resourcePath,
+      role_code: grantRole.value as PermissionRequestRole,
+      reason: requestReason.value.trim(),
+      expires_at: requestPermanent.value ? null : (requestExpiresAt.value?.toISOString() || null),
+    })))
+    const successfulCount = results.filter(result => result.status === 'fulfilled').length
+    const failedResults = results.filter(result => result.status === 'rejected') as PromiseRejectedResult[]
+
+    if (failedResults.length === 0) {
+      ElMessage.success(t('access.requestResourcesSubmitted', { count: successfulCount }))
+      requestReason.value = ''
+      requestPermanent.value = true
+      requestExpiresAt.value = null
+    } else if (successfulCount > 0) {
+      ElMessage.warning(t('access.requestResourcesPartiallySubmitted', {
+        success: successfulCount,
+        failed: failedResults.length,
+      }))
+    } else {
+      ElMessage.error(getErrorMessage(failedResults[0]?.reason, t('access.requestSubmitFailed')))
+    }
+
+    if (successfulCount > 0) {
+      eventBus.emit('permission-request:changed', { resource_paths: targetPaths })
+    }
+    await loadPermissionWorkflow(true)
+    if (failedResults.length === 0 && targetPaths[0]) {
+      await router.push({
+        path: resolveWorkspaceUrl(targetPaths[0]),
+        query: { _panel: 'permission' },
+      })
+    } else if (!treeAccessDenied.value) {
+      selectedResourcePaths.value = getPermissionRequestTargetPaths(
+        targetPaths,
+        requestedRoleCoveredResourcePaths.value,
+        pendingRequestPaths.value,
+        inheritingPendingRequestPaths.value,
+      )
+      refreshRequestNodeDisabledState()
+      await nextTick()
+      syncVisibleTreeChecks()
+      await loadApprovers()
+    }
+  } catch (error: any) {
+    ElMessage.error(getErrorMessage(error, t('access.requestSubmitFailed')))
+  } finally {
+    requestSubmitting.value = false
+  }
+}
+
+async function approveRequest(request: PermissionRequest) {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      t('access.approveCommentPrompt'),
+      t('access.approveRequestTitle'),
+      {
+        confirmButtonText: t('access.approve'),
+        cancelButtonText: t('common.cancel'),
+        inputPlaceholder: t('access.reviewCommentOptional'),
+      }
+    )
+    reviewingRequestID.value = request.id
+    await approvePermissionRequest(request.id, String(value || '').trim())
+    ElMessage.success(t('access.requestApproved'))
+    eventBus.emit('permission-request:changed', { resource_paths: [request.resource_path] })
+    await loadPermissionWorkflow(true)
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(getErrorMessage(error, t('access.reviewFailed')))
+  } finally {
+    reviewingRequestID.value = null
+  }
+}
+
+async function rejectRequest(request: PermissionRequest) {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      t('access.rejectReasonPrompt'),
+      t('access.rejectRequestTitle'),
+      {
+        confirmButtonText: t('access.reject'),
+        cancelButtonText: t('common.cancel'),
+        inputPlaceholder: t('access.rejectReasonPlaceholder'),
+        inputPattern: /\S+/,
+        inputErrorMessage: t('access.rejectReasonRequired'),
+      }
+    )
+    reviewingRequestID.value = request.id
+    await rejectPermissionRequest(request.id, String(value || '').trim())
+    ElMessage.success(t('access.requestRejected'))
+    eventBus.emit('permission-request:changed', { resource_paths: [request.resource_path] })
+    await loadPermissionWorkflow(true)
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(getErrorMessage(error, t('access.reviewFailed')))
+  } finally {
+    reviewingRequestID.value = null
+  }
+}
+
+async function cancelRequest(request: PermissionRequest) {
+  try {
+    await ElMessageBox.confirm(
+      t('access.cancelRequestConfirm'),
+      t('access.cancelRequestTitle'),
+      {
+        confirmButtonText: t('access.cancelRequest'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    )
+    reviewingRequestID.value = request.id
+    await cancelPermissionRequest(request.id)
+    ElMessage.success(t('access.requestCancelled'))
+    eventBus.emit('permission-request:changed', { resource_paths: [request.resource_path] })
+    await loadPermissionWorkflow(true)
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(getErrorMessage(error, t('access.cancelRequestFailed')))
+  } finally {
+    reviewingRequestID.value = null
+  }
+}
+
+function openRequestResource(request: PermissionRequest) {
+  void router.push(resolveWorkspaceUrl(request.resource_path))
+}
+
+function hasPendingRequest(resourcePath?: string): boolean {
+  return Boolean(resourcePath && pendingRequestPaths.value.has(resourcePath))
+}
+
+function pendingRequestRoleLabel(resourcePath?: string): string {
+  if (!resourcePath) return ''
+  const request = pendingRequestByPath.value.get(resourcePath)
+  return request ? roleLabel(request.requested_role) : ''
+}
+
+function approverKey(approver: PermissionApprover): string {
+  return `${approver.principal_type}:${approver.principal_key}:${approver.resource_path}`
+}
+
+function treeContainsAdminResource(nodes: ServiceTree[]): boolean {
+  return nodes.some(node => canAdmin(node) || treeContainsAdminResource(node.children || []))
+}
+
+function requestStatusLabel(status: PermissionRequestStatus): string {
+  return t(`access.requestStatus.${status}`)
+}
+
+function requestStatusTagType(status: PermissionRequestStatus): 'success' | 'warning' | 'danger' | 'info' {
+  if (status === 'approved') return 'success'
+  if (status === 'pending') return 'warning'
+  if (status === 'rejected') return 'danger'
+  return 'info'
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) return '-'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
 function handleResourceClick(data: ServiceTree) {
   if (!data.full_code_path) return
   activeTab.value = 'current'
   activeResourcePath.value = data.full_code_path
+  if (workflowTab.value === 'grant' && !canAdmin(data)) {
+    workflowTab.value = 'request'
+    selectedResourcePaths.value = []
+    setRecommendedRequestRole(data)
+    selectedResourcePaths.value = isRequestableResourcePath(data.full_code_path)
+      ? [data.full_code_path]
+      : []
+    refreshRequestNodeDisabledState()
+    void nextTick(() => {
+      syncVisibleTreeChecks()
+      treeRef.value?.setCurrentKey?.(data.full_code_path)
+      void loadApprovers()
+    })
+    return
+  }
   void nextTick(() => treeRef.value?.setCurrentKey?.(data.full_code_path))
-  void loadAssignments()
 }
 
 function handleResourceCheck(data: ServiceTree) {
+  if (workflowTab.value === 'request') {
+    if (!isRequestableResourcePath(data?.full_code_path)) {
+      syncVisibleTreeChecks()
+      return
+    }
+    applyRequestSelection(data, isResourceChecked(data))
+    return
+  }
+  if (workflowTab.value !== 'grant') return
   if (data?.full_code_path) {
     applyResourceSelectionCascade(data, isResourceChecked(data))
   } else {
@@ -971,7 +1796,6 @@ function syncCheckedResourcePaths() {
   if (selectedResourcePaths.value.length > 0 && !selectedResourcePaths.value.includes(activeResourcePath.value)) {
     activeResourcePath.value = selectedResourcePaths.value[0] || ''
     treeRef.value?.setCurrentKey?.(activeResourcePath.value)
-    void loadAssignments()
   }
 }
 
@@ -994,6 +1818,99 @@ function applyResourceSelectionCascade(node: ServiceTree, checked: boolean) {
   syncCheckedResourcePaths()
 }
 
+function applyRequestSelection(node: ServiceTree, checked: boolean) {
+  const selectedPaths = new Set(requestTargetPaths.value)
+  if (checked) {
+    selectedPaths.add(node.full_code_path)
+    for (const path of [...selectedPaths]) {
+      if (isDescendantResourcePath(path, node.full_code_path)) {
+        selectedPaths.delete(path)
+      }
+    }
+  } else {
+    selectedPaths.delete(node.full_code_path)
+  }
+  selectedResourcePaths.value = getPermissionRequestTargetPaths(
+    selectedPaths,
+    requestedRoleCoveredResourcePaths.value,
+    pendingRequestPaths.value,
+    inheritingPendingRequestPaths.value,
+  )
+  refreshRequestNodeDisabledState()
+  syncVisibleTreeChecks()
+  void loadApprovers()
+}
+
+function isRequestableResourcePath(resourcePath?: string): boolean {
+  return Boolean(
+    resourcePath
+    && !requestedRoleCoveredResourcePaths.value.has(resourcePath)
+    && !pendingRequestPaths.value.has(resourcePath)
+    && !getRequestInheritanceSource(resourcePath),
+  )
+}
+
+function isResourceCoveredForRequestedRole(resourcePath?: string): boolean {
+  return Boolean(resourcePath && requestedRoleCoveredResourcePaths.value.has(resourcePath))
+}
+
+function getEffectiveResourceRole(node: ServiceTree): AccessRoleCode | null {
+  return getEffectiveAccessRole(node.permissions)
+}
+
+function effectiveResourceRoleLabel(node: ServiceTree): string {
+  const role = getEffectiveResourceRole(node)
+  return role ? roleLabel(role) : ''
+}
+
+function getRequestInheritanceSource(resourcePath?: string): string {
+  if (!resourcePath) return ''
+  return findNearestPermissionRequestAncestor(resourcePath, requestInheritanceSourcePaths.value) || ''
+}
+
+function isPendingRequestInheritance(resourcePath?: string): boolean {
+  const source = getRequestInheritanceSource(resourcePath)
+  return Boolean(source && inheritingPendingRequestPaths.value.has(source))
+}
+
+function syncVisibleTreeChecks() {
+  const checkedPaths = workflowTab.value === 'request'
+    ? requestCheckedResourcePaths.value
+    : selectedResourcePaths.value
+  treeRef.value?.setCheckedKeys?.(checkedPaths)
+}
+
+function refreshRequestNodeDisabledState(nodes: ServiceTree[] = treeData.value) {
+  for (const node of nodes) {
+    const permissionNode = node as PermissionTreeNode
+    permissionNode.permission_request_disabled = workflowTab.value === 'request'
+      && !isRequestableResourcePath(node.full_code_path)
+    refreshRequestNodeDisabledState(node.children || [])
+  }
+}
+
+function collectRoleCoveredResourcePaths(nodes: ServiceTree[], role: PermissionRequestRole): string[] {
+  const paths: string[] = []
+  for (const node of nodes) {
+    if (node.full_code_path && permissionSetCoversRequestRole(node.permissions, role)) {
+      paths.push(node.full_code_path)
+    }
+    paths.push(...collectRoleCoveredResourcePaths(node.children || [], role))
+  }
+  return normalizeResourcePathList(paths)
+}
+
+function collectAllResourcePaths(nodes: ServiceTree[]): string[] {
+  const paths: string[] = []
+  for (const node of nodes) {
+    if (node.full_code_path) {
+      paths.push(node.full_code_path)
+    }
+    paths.push(...collectAllResourcePaths(node.children || []))
+  }
+  return normalizeResourcePathList(paths)
+}
+
 function handleGrantUsersChange(value: FieldValue) {
   grantUsersValue.value = value
 }
@@ -1002,7 +1919,7 @@ function resetGrantForm() {
   grantPrincipalType.value = 'department'
   grantDepartmentPath.value = '/org'
   grantUsersValue.value = createStringFieldValue(grantUsersField.value, '', { emptyRaw: '' })
-  grantRole.value = 'viewer'
+  grantRole.value = 'member'
   grantPermanent.value = true
   grantExpiresAt.value = null
 }
@@ -1025,6 +1942,7 @@ function goBack() {
 }
 
 async function openAssignmentsDialog() {
+  if (!canRead(activeResource.value)) return
   assignmentsDialogVisible.value = true
   await loadAssignments()
 }
@@ -1049,7 +1967,7 @@ function getNodeIconClass(data: ServiceTree): string {
 }
 
 async function submitGrant() {
-  if (!canSubmitGrant.value) {
+  if (!canManageActiveResource.value || !canSubmitGrant.value) {
     ElMessage.warning(t('access.selectResourceUserRole'))
     return
   }
@@ -1069,7 +1987,6 @@ async function submitGrant() {
     if (grantPrincipalType.value === 'user') {
       grantUsersValue.value = createStringFieldValue(grantUsersField.value, '', { emptyRaw: '' })
     }
-    await loadAssignments()
   } catch (error: any) {
     const message = error?.response?.data?.msg || error?.response?.data?.message || error?.message || t('access.grantFailed')
     ElMessage.error(message)
@@ -1851,6 +2768,10 @@ function formatExpiresAt(value?: string): string {
   overflow: hidden;
 }
 
+.apply-layout.is-request-mode {
+  grid-template-columns: 360px minmax(0, 1fr) 320px;
+}
+
 .access-request-layout {
   height: 100%;
   min-height: 0;
@@ -1936,6 +2857,19 @@ function formatExpiresAt(value?: string): string {
 
 .access-request-note {
   color: var(--el-text-color-secondary) !important;
+}
+
+.access-request-compact-form {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  text-align: left;
+}
+
+.access-request-compact-form .access-request-note {
+  margin: 0;
+  font-size: 12px;
 }
 
 .access-request-actions {
@@ -2152,6 +3086,9 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-selection-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
   font-size: 12px;
   line-height: 1.6;
@@ -2160,6 +3097,21 @@ function formatExpiresAt(value?: string): string {
   border-radius: 999px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
+}
+
+.role-selection-hint.is-selected-role {
+  border-color: rgba(var(--el-color-primary-rgb), 0.5);
+  background: rgba(var(--el-color-primary-rgb), 0.12);
+  color: var(--el-color-primary);
+  font-weight: 800;
+  box-shadow: 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.07);
+}
+
+.role-selection-hint.is-selected-role.tone-admin {
+  border-color: rgba(217, 119, 6, 0.48);
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.08);
 }
 
 .role-cards {
@@ -2190,9 +3142,32 @@ function formatExpiresAt(value?: string): string {
 }
 
 .role-card.is-selected {
-  border-color: color-mix(in srgb, #15803d 48%, var(--el-border-color) 52%);
-  background: var(--el-bg-color);
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08), inset 0 0 0 1px rgba(21, 128, 61, 0.16);
+  padding: 9px;
+  border: 2px solid var(--el-color-primary);
+  background: color-mix(in srgb, var(--el-bg-color) 88%, var(--el-color-primary) 12%);
+  box-shadow: 0 12px 28px rgba(var(--el-color-primary-rgb), 0.16), inset 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.1);
+}
+
+.role-card.tone-admin.is-selected {
+  border-color: #d97706;
+  background: color-mix(in srgb, var(--el-bg-color) 88%, #f59e0b 12%);
+  box-shadow: 0 12px 28px rgba(217, 119, 6, 0.16), inset 0 0 0 1px rgba(217, 119, 6, 0.1);
+}
+
+.role-card.is-unavailable {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.role-card.is-unavailable:hover,
+.role-card.is-unavailable:focus-visible {
+  border-color: var(--el-border-color-light);
+  box-shadow: none;
+  transform: none;
+}
+
+.admin-request-warning {
+  margin-top: 2px;
 }
 
 .role-card-aside {
@@ -2470,6 +3445,218 @@ function formatExpiresAt(value?: string): string {
   margin: 12px 0 0;
 }
 
+.permission-workflow {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.permission-workflow > .apply-layout {
+  flex: 1 1 auto;
+  height: auto;
+}
+
+.workflow-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  min-height: 42px;
+  padding: 4px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 9px;
+  background: var(--el-bg-color);
+}
+
+.workflow-tabs button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.workflow-tabs button:hover {
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+}
+
+.workflow-tabs button.is-active {
+  background: rgba(var(--el-color-primary-rgb), 0.12);
+  color: var(--el-color-primary);
+  font-weight: 700;
+}
+
+.workflow-tab-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--el-color-danger);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.resource-lock-icon {
+  flex: 0 0 auto;
+  color: var(--el-color-danger);
+  font-size: 14px;
+}
+
+.resource-node-status {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+}
+
+.resource-current-role {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  white-space: nowrap;
+}
+
+.resource-pending-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  white-space: nowrap;
+}
+
+.resource-current-role.tone-member {
+  background: rgba(15, 118, 110, 0.12);
+  color: #0f766e;
+}
+
+.resource-current-role.tone-admin,
+.resource-current-role.tone-owner {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+
+.resource-current-role.tone-viewer {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.resource-inheritance-state {
+  display: inline-flex;
+  max-width: 108px;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  color: var(--el-color-primary);
+  font-size: 11px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-inheritance-state .el-icon {
+  flex: 0 0 auto;
+}
+
+.resource-tree .tree-node.is-selected .node-label {
+  color: var(--el-color-primary);
+  font-weight: 700;
+}
+
+.approver-list {
+  width: 100%;
+  min-height: 52px;
+  display: grid;
+  gap: 7px;
+}
+
+.approver-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+}
+
+.approver-item small {
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.request-records-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 9px;
+  background: var(--el-bg-color);
+}
+
+.request-records-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.request-records-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.request-records-header p {
+  margin: 6px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.request-records-table {
+  width: 100%;
+}
+
+.request-table-path {
+  color: var(--el-text-color-regular);
+  overflow-wrap: anywhere;
+}
+
+.review-result-cell {
+  display: grid;
+  gap: 5px;
+}
+
+.review-result-cell small {
+  color: var(--el-text-color-secondary);
+}
+
 .members-dialog-header {
   display: flex;
   align-items: flex-start;
@@ -2497,6 +3684,10 @@ function formatExpiresAt(value?: string): string {
     grid-template-columns: 260px minmax(0, 1fr) 280px;
     gap: 10px;
   }
+
+  .apply-layout.is-request-mode {
+    grid-template-columns: 330px minmax(0, 1fr) 300px;
+  }
 }
 
 @media (max-width: 1180px) {
@@ -2513,6 +3704,10 @@ function formatExpiresAt(value?: string): string {
   .apply-layout {
     grid-template-columns: 1fr;
     height: auto;
+  }
+
+  .apply-layout.is-request-mode {
+    grid-template-columns: 1fr;
   }
 
   .tree-card,

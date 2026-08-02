@@ -2,6 +2,7 @@ package access
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"strings"
 	"time"
@@ -211,6 +212,27 @@ func AppRootPath(tenantUser, app string) string {
 		return ""
 	}
 	return "/" + tenantUser + "/" + app
+}
+
+// PermissionAssignmentKey is the stable database identity for one role grant.
+// A hash keeps the unique index small even when organization and resource paths
+// are long.
+func PermissionAssignmentKey(
+	tenantUser, app string,
+	principal Principal,
+	resourcePath string,
+	roleCode RoleCode,
+) string {
+	principal = NormalizePrincipal(principal)
+	parts := []string{
+		strings.TrimSpace(tenantUser),
+		strings.TrimSpace(app),
+		string(principal.Type),
+		principal.Key,
+		NormalizeResourcePath(resourcePath),
+		string(NormalizeRoleCode(roleCode)),
+	}
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(parts, "\x00"))))
 }
 
 func IsValidAction(action Action) bool {

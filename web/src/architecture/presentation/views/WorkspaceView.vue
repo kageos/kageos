@@ -67,7 +67,11 @@
 
       <!-- 中间函数渲染区域 -->
       <div class="function-renderer" data-testid="workspace-function-renderer">
-        <div v-if="workspaceAccessError" class="workspace-access-state" data-testid="workspace-access-state">
+        <div
+          v-if="workspaceContentState === 'workspace-error' && workspaceAccessError"
+          class="workspace-access-state"
+          data-testid="workspace-access-state"
+        >
           <div class="workspace-access-state__icon">
             <el-icon><Lock /></el-icon>
           </div>
@@ -99,8 +103,47 @@
           </div>
         </div>
 
+        <div
+          v-else-if="workspaceContentState === 'resource-permission' && currentFunction"
+          class="workspace-resource-permission"
+          data-testid="workspace-resource-permission"
+        >
+          <el-tabs model-value="permission" class="workspace-resource-permission-tabs">
+            <el-tab-pane name="permission" :label="t('functionTabs.permission')">
+              <PermissionPanel
+                :node="currentFunction"
+                embedded
+                @changed="handleRefreshTree"
+              />
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+
+        <div
+          v-else-if="workspaceContentState === 'resource-locked' && currentFunction"
+          class="workspace-access-state"
+          data-testid="workspace-resource-locked-state"
+        >
+          <div class="workspace-access-state__icon">
+            <el-icon><Lock /></el-icon>
+          </div>
+          <p class="workspace-access-state__eyebrow">{{ t('workspace.accessForbiddenEyebrow') }}</p>
+          <h2>{{ t('workspace.directoryAccessForbiddenTitle') }}</h2>
+          <p class="workspace-access-state__description">
+            {{ t('workspace.directoryAccessForbiddenDescription') }}
+          </p>
+          <div v-if="currentFunction.full_code_path" class="workspace-access-state__path">
+            {{ currentFunction.full_code_path }}
+          </div>
+          <div class="workspace-access-state__actions">
+            <el-button type="primary" :icon="Key" @click="openResourceAccessPage">
+              {{ t('workspace.applyAccess') }}
+            </el-button>
+          </div>
+        </div>
+
         <!-- 🔥 Create/Edit 模式：根据 queryTab 显示独立页面 -->
-        <template v-else-if="queryTab === 'create' && currentFunction && currentFunctionDetail">
+        <template v-else-if="workspaceContentState === 'create' && currentFunction && currentFunctionDetail">
           <WorkspaceFormPage
             :title="t('workspace.createData')"
             :function-detail="currentFunctionDetail"
@@ -111,7 +154,7 @@
           />
         </template>
         
-        <template v-else-if="queryTab === 'edit' && currentFunction && currentFunctionDetail">
+        <template v-else-if="workspaceContentState === 'edit' && currentFunction && currentFunctionDetail">
           <WorkspaceFormPage
             :title="t('workspace.editData')"
             :function-detail="editFunctionDetail || currentFunctionDetail"
@@ -127,7 +170,10 @@
         <!-- 注意：detail 模式使用抽屉显示，不需要单独的页面 -->
         
         <!-- 🔥 文档详情页面（可滚动） -->
-        <div v-if="currentFunction && currentFunction.type === 'docs'" class="main-content-scroll docs-content-scroll">
+        <div
+          v-else-if="workspaceContentState === 'docs' && currentFunction"
+          class="main-content-scroll docs-content-scroll"
+        >
           <DocView
             :node="currentFunction"
             @deleted="handleDocDeleted"
@@ -135,7 +181,10 @@
         </div>
 
         <!-- 🔥 服务目录详情页面（可滚动） -->
-        <div v-else-if="currentFunction && currentFunction.type === 'package'" class="main-content-scroll package-content-scroll">
+        <div
+          v-else-if="workspaceContentState === 'package' && currentFunction"
+          class="main-content-scroll package-content-scroll"
+        >
           <PackageDetailView
             :package-node="currentFunction"
             @refresh="handleRefreshTree"
@@ -143,7 +192,10 @@
         </div>
         
         <!-- 函数详情区域（正常模式 - 函数节点） -->
-        <div v-else-if="currentFunction && currentFunction.type === 'function'" class="function-content-wrapper">
+        <div
+          v-else-if="workspaceContentState === 'function' && currentFunction"
+          class="function-content-wrapper"
+        >
           <div class="function-content">
             <WorkspaceFunctionTabsPanel
               v-if="showFunctionTabsWrapper"
@@ -167,7 +219,7 @@
           </div>
         </div>
         <div
-          v-else-if="isRestoringWorkspaceRoute"
+          v-else-if="workspaceContentState === 'restoring'"
           class="workspace-route-restoring"
           data-testid="workspace-route-restoring"
           aria-hidden="true"
@@ -330,6 +382,10 @@ import { getFormRequestFields, getFunctionCallbacks } from '@/architecture/domai
 import { listMessageInboxSourceCounts, type MessageInboxSourceCount } from '@/architecture/presentation/context/api/message'
 import { featureFlags } from '@/architecture/shared/config/features'
 import { extractWorkspacePath } from '@/architecture/shared/routing/route'
+import { eventBus } from '@/architecture/presentation/context/eventBusContext'
+import { WorkspaceEvent } from '@/architecture/domain/interfaces/IEventBus'
+import { resolveWorkspaceContentState } from './utils/workspaceContentState'
+import { canRead } from '@/architecture/presentation/composables/useAccessControl'
 
 const route = useRoute()
 const router = useRouter()
@@ -343,6 +399,7 @@ const WorkspaceFunctionTabsPanel = defineAsyncComponent(() => import('../compone
 const WorkspaceInbox = defineAsyncComponent(() => import('../components/WorkspaceInbox.vue'))
 const DocView = defineAsyncComponent(() => import('../components/DocView.vue'))
 const PackageDetailView = defineAsyncComponent(() => import('../components/PackageDetailView.vue'))
+const PermissionPanel = defineAsyncComponent(() => import('../components/PermissionPanel.vue'))
 const TableRowDetailDrawer = defineAsyncComponent(() => import('../components/TableRowDetailDrawer.vue'))
 const WorkspaceCreateAppDialog = defineAsyncComponent(() => import('../components/WorkspaceCreateAppDialog.vue'))
 const WorkspaceCreateDirectoryDialog = defineAsyncComponent(() => import('../components/WorkspaceCreateDirectoryDialog.vue'))
@@ -679,7 +736,7 @@ const toggleLeftSidebar = () => {
 /** 工作台上下文：点击什么节点就用什么节点的 full_code_path */
 const workstationContext = computed(() => {
   const node = currentFunction.value
-  if (!node?.full_code_path) return null
+  if (!node?.full_code_path || !canRead(node)) return null
   const path = (node.full_code_path || '').replace(/\/+$/g, '')
   if (!path) return null
   const name = node.name || path.split('/').pop() || t('workspace.workbench')
@@ -846,6 +903,15 @@ const isRestoringWorkspaceRoute = computed(() => {
   return loading.value || serviceTree.value.length === 0 || Boolean(workspaceRouteTargetNode.value)
 })
 
+const workspaceContentState = computed(() => resolveWorkspaceContentState({
+  hasWorkspaceAccessError: Boolean(workspaceAccessError.value),
+  currentFunction: currentFunction.value,
+  queryTab: queryTab.value,
+  panel: String(route.query._panel || ''),
+  hasCurrentFunctionDetail: Boolean(currentFunctionDetail.value),
+  isRestoringWorkspaceRoute: isRestoringWorkspaceRoute.value
+}))
+
 const workspaceAccessTitle = computed(() => {
   return workspaceAccessError.value?.type === 'forbidden'
     ? t('workspace.accessForbiddenTitle')
@@ -872,7 +938,15 @@ function openWorkspaceAccessPage() {
   const resource = getWorkspaceAccessResourcePath()
   void router.push({
     path: '/permissions',
-    query: resource ? { resource } : {}
+    query: resource ? { resource, mode: 'request' } : { mode: 'request' }
+  })
+}
+
+function openResourceAccessPage() {
+  const resource = currentFunction.value?.full_code_path || getWorkspaceAccessResourcePath()
+  void router.push({
+    path: '/permissions',
+    query: resource ? { resource, mode: 'request' } : { mode: 'request' }
   })
 }
 
@@ -942,6 +1016,17 @@ async function refreshMessageCounts() {
     messageCountsByPath.value = {}
   }
 }
+
+let unsubscribeWorkspaceSettingsUpdated: (() => void) | null = null
+onMounted(() => {
+  unsubscribeWorkspaceSettingsUpdated = eventBus.on(WorkspaceEvent.settingsUpdated, () => {
+    void handleRefreshTree()
+  })
+})
+onBeforeUnmount(() => {
+  unsubscribeWorkspaceSettingsUpdated?.()
+  unsubscribeWorkspaceSettingsUpdated = null
+})
 
 function handleOpenNodeNotifications(node: ServiceTreeType) {
   const sourcePath = normalizeFullCodePath(node.full_code_path || '')
@@ -1132,6 +1217,18 @@ useWorkspaceUiEffects({
   justify-content: center;
   gap: 10px;
   margin-top: 26px;
+}
+
+.workspace-resource-permission {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 22px 28px;
+  overflow: auto;
+}
+
+.workspace-resource-permission-tabs {
+  min-width: 0;
 }
 
 .function-content-wrapper {

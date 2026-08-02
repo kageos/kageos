@@ -1116,22 +1116,38 @@ func (a *AppService) mergeAccessibleApps(ctx context.Context, apps []*model.App,
 }
 
 func (a *AppService) canReadApp(ctx context.Context, app *model.App, currentUser string) bool {
-	if app == nil {
-		return false
+	ok, err := a.canEnterApp(ctx, app, currentUser)
+	return err == nil && ok
+}
+
+// CanEnterWorkspace 判断登录用户是否可以发现并进入工作空间壳层。
+// 公开只放开工作空间详情和目录树入口；目录内容与操作仍由 PermissionService 独立校验。
+func (a *AppService) CanEnterWorkspace(ctx context.Context, resourcePath, currentUser string) (bool, error) {
+	user, appCode, err := resolveUserAppFromRequiredResourcePath(resourcePath)
+	if err != nil {
+		return false, err
+	}
+	app, err := a.appRepo.GetAppByUserName(user, appCode)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, fmt.Errorf("应用不存在: %s/%s", user, appCode)
+		}
+		return false, fmt.Errorf("获取应用信息失败: %w", err)
+	}
+	return a.canEnterApp(ctx, app, currentUser)
+}
+
+func (a *AppService) canEnterApp(ctx context.Context, app *model.App, currentUser string) (bool, error) {
+	if app == nil || strings.TrimSpace(currentUser) == "" {
+		return false, nil
+	}
+	if app.User == currentUser || app.IsPublic {
+		return true, nil
 	}
 	if a.permission == nil {
-		return true
+		return false, nil
 	}
-	resourcePath := app.GetPrefix()
-	ok, err := a.permission.HasPermission(ctx, app.User, app.Code, currentUser, resourcePath, access.ActionRead)
-	if err != nil {
-		return false
-	}
-	if ok {
-		return true
-	}
-	hasAnyAccess, err := a.permission.HasAnyWorkspacePermission(ctx, app.User, app.Code, currentUser)
-	return err == nil && hasAnyAccess
+	return a.permission.HasAnyWorkspacePermission(ctx, app.User, app.Code, currentUser)
 }
 
 // GetAppDetail 获取应用详情
@@ -1203,6 +1219,9 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 	if req.Admins != nil {
 		updatedApp.Admins = *req.Admins
 	}
+	if req.IsPublic != nil {
+		updatedApp.IsPublic = *req.IsPublic
+	}
 	if req.HideUnauthorizedNodes != nil {
 		updatedApp.HideUnauthorizedNodes = *req.HideUnauthorizedNodes
 	}
@@ -1235,14 +1254,15 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 	}
 	a.appRepo.InvalidateAppCacheBoth(updatedApp.User, updatedApp.Code, updatedApp.ID)
 
-	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, name=%s, admins=%s, hide_unauthorized_nodes=%t",
-		user, appCode, updatedApp.Name, updatedApp.Admins, updatedApp.HideUnauthorizedNodes)
+	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, name=%s, admins=%s, is_public=%t, hide_unauthorized_nodes=%t",
+		user, appCode, updatedApp.Name, updatedApp.Admins, updatedApp.IsPublic, updatedApp.HideUnauthorizedNodes)
 
 	return &dto.UpdateWorkspaceResp{
 		User:                  user,
 		App:                   appCode,
 		Name:                  updatedApp.Name,
 		Admins:                updatedApp.Admins,
+		IsPublic:              updatedApp.IsPublic,
 		HideUnauthorizedNodes: updatedApp.HideUnauthorizedNodes,
 	}, nil
 }

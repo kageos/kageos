@@ -9,6 +9,7 @@ import (
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/scheduledauth"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/nats-io/nats.go"
 )
@@ -16,6 +17,11 @@ import (
 const ScheduledAgentSessionExecutorKey = "agent.session"
 
 const scheduledAgentWorkerConcurrency = 4
+
+const (
+	scheduledAgentDefaultTokenTTL = 24 * time.Hour
+	scheduledAgentTokenGrace      = 30 * time.Minute
+)
 
 const scheduledAgentUnattendedPrefix = `【Agent 任务执行约束】
 本次任务由自动执行触发，当前是在执行无人值守任务，不是在创建或管理定时任务，也不是与在线用户讨论方案。先选择能完成业务执行的角色；需要调用已有 Form/Table/Chart 或连接器时，通常进入 app_operator。
@@ -91,10 +97,13 @@ func NewScheduledAgentSessionWorker(natsConn *nats.Conn, chatSvc *WorkspaceChatS
 
 // RunScheduledAgentSession executes one timer-scheduler agent.session event.
 func (s *WorkspaceChatService) RunScheduledAgentSession(ctx context.Context, event scheduledsdk.ExecutionRequestedEvent) (*scheduledsdk.ExecutionResult, error) {
-	ctx = event.WithAuditContext(ctx)
 	req, payload, err := scheduledAgentSessionWorkspaceRequest(event)
 	if err != nil {
 		return nil, err
+	}
+	ctx, err = scheduledauth.WithExecutionToken(ctx, event, scheduledAgentExecutionTokenTTL(payload.MaxDurationSeconds))
+	if err != nil {
+		return nil, fmt.Errorf("签发 Agent 任务执行令牌失败: %w", err)
 	}
 	if payload.MaxDurationSeconds > 0 {
 		var cancel context.CancelFunc
@@ -118,6 +127,13 @@ func (s *WorkspaceChatService) RunScheduledAgentSession(ctx context.Context, eve
 	logger.Infof(ctx, "[ScheduledAgentSessionWorker] done task_id=%d execution_id=%d session_id=%s",
 		event.TaskID, event.ExecutionID, sink.SessionID())
 	return result, nil
+}
+
+func scheduledAgentExecutionTokenTTL(maxDurationSeconds int64) time.Duration {
+	if maxDurationSeconds <= 0 {
+		return scheduledAgentDefaultTokenTTL
+	}
+	return time.Duration(maxDurationSeconds)*time.Second + scheduledAgentTokenGrace
 }
 
 func scheduledAgentSessionRunError(fullCodePath string, err error) error {

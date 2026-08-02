@@ -98,17 +98,19 @@ func TestPermissionGrantAndResolveInheritedPermissions(t *testing.T) {
 }
 
 func TestPermissionExpiredAssignmentDoesNotGrantPermission(t *testing.T) {
-	service, _, _ := newPermissionTestService(t)
+	service, _, db := newPermissionTestService(t)
 	expired := time.Now().Add(-time.Minute)
-	if err := service.GrantRole(actorContext("alice"), access.GrantRoleRequest{
-		TenantUser:   "alice",
-		App:          "ops",
-		Principal:    userPrincipal("bob"),
-		ResourcePath: "/alice/ops",
-		RoleCode:     access.RoleAdmin,
-		ExpiresAt:    &expired,
-		CreatedBy:    "alice",
-	}); err != nil {
+	assignment := &appmodel.WorkspaceRoleAssignment{
+		TenantUser:    "alice",
+		App:           "ops",
+		PrincipalType: string(access.PrincipalUser),
+		PrincipalKey:  "bob",
+		ResourcePath:  "/alice/ops",
+		RoleCode:      string(access.RoleAdmin),
+		ExpiresAt:     &expired,
+	}
+	assignment.CreatedBy = "alice"
+	if err := db.Create(assignment).Error; err != nil {
 		t.Fatal(err)
 	}
 
@@ -118,6 +120,31 @@ func TestPermissionExpiredAssignmentDoesNotGrantPermission(t *testing.T) {
 	}
 	if ok {
 		t.Fatal("expired admin assignment should not grant admin")
+	}
+}
+
+func TestPermissionGrantRejectsExpiredAssignment(t *testing.T) {
+	service, _, db := newPermissionTestService(t)
+	expired := time.Now().Add(-time.Minute)
+	err := service.GrantRole(actorContext("alice"), access.GrantRoleRequest{
+		TenantUser:   "alice",
+		App:          "ops",
+		Principal:    userPrincipal("bob"),
+		ResourcePath: "/alice/ops",
+		RoleCode:     access.RoleMember,
+		ExpiresAt:    &expired,
+		CreatedBy:    "alice",
+	})
+	if err == nil || !strings.Contains(err.Error(), "权限到期时间必须晚于当前时间") {
+		t.Fatalf("expected expired grant validation error, got %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&appmodel.WorkspaceRoleAssignment{}).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("expired grant must not write an assignment, got %d", count)
 	}
 }
 
@@ -132,15 +159,15 @@ func TestPermissionOwnerFallback(t *testing.T) {
 	}
 }
 
-func TestPermissionSystemBuiltinAllowsReadOnly(t *testing.T) {
+func TestPermissionSystemBuiltinRequiresExplicitRead(t *testing.T) {
 	service, _, _ := newPermissionTestService(t)
 
 	canRead, err := service.HasPermission(context.Background(), "system", "prompt", "alice", "/system/prompt/case_catalog/table/ticket", access.ActionRead)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !canRead {
-		t.Fatal("system builtin resources should be readable")
+	if canRead {
+		t.Fatal("system workspace nodes must not synthesize read permission")
 	}
 
 	canWrite, err := service.HasPermission(context.Background(), "system", "prompt", "alice", "/system/prompt/case_catalog/table/ticket", access.ActionWrite)
@@ -149,6 +176,72 @@ func TestPermissionSystemBuiltinAllowsReadOnly(t *testing.T) {
 	}
 	if canWrite {
 		t.Fatal("system builtin resources should not grant write")
+	}
+}
+
+func TestPermissionSystemBuiltinHonorsExplicitMemberForExecutionAndTree(t *testing.T) {
+	service, _, db := newPermissionTestService(t)
+	parentPath := "/system/democase/hangla_rank"
+	formPath := parentPath + "/rate.form"
+	assignment := &appmodel.WorkspaceRoleAssignment{
+		TenantUser:    "system",
+		App:           "democase",
+		PrincipalType: string(access.PrincipalUser),
+		PrincipalKey:  "bob",
+		ResourcePath:  parentPath,
+		RoleCode:      string(access.RoleMember),
+	}
+	assignment.CreatedBy = "system"
+	if err := db.Create(assignment).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	resolved, err := service.ResolvePermissions(context.Background(), "system", "democase", "bob", formPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !access.HasPermission(resolved.Permissions, access.ActionWrite) {
+		t.Fatalf("explicit member on system directory should grant inherited form write: %#v", resolved)
+	}
+	if access.HasPermission(resolved.Permissions, access.ActionAdmin) {
+		t.Fatalf("member should not grant admin: %#v", resolved)
+	}
+	if resolved.InheritedFrom != parentPath {
+		t.Fatalf("inherited_from = %q, want %q", resolved.InheritedFrom, parentPath)
+	}
+	if len(resolved.RoleCodes) != 1 || resolved.RoleCodes[0] != access.RoleMember {
+		t.Fatalf("role_codes = %#v, want member without synthetic viewer", resolved.RoleCodes)
+	}
+	if err := service.RequirePermission(
+		context.Background(),
+		"system",
+		"democase",
+		"bob",
+		formPath,
+		access.ActionWrite,
+	); err != nil {
+		t.Fatalf("form execution should accept inherited system member: %v", err)
+	}
+
+	tree, err := service.PermissionsForTree(
+		context.Background(),
+		"system",
+		"democase",
+		"bob",
+		[]string{parentPath, formPath, "/system/democase/other"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !access.HasPermission(tree[formPath].Permissions, access.ActionWrite) {
+		t.Fatalf("tree resolver should agree with execution resolver: %#v", tree[formPath])
+	}
+	if access.HasPermission(tree["/system/democase/other"].Permissions, access.ActionRead) ||
+		access.HasPermission(tree["/system/democase/other"].Permissions, access.ActionWrite) {
+		t.Fatalf("unassigned system resource should remain locked: %#v", tree["/system/democase/other"])
+	}
+	if len(tree["/system/democase/other"].RoleCodes) != 0 {
+		t.Fatalf("unassigned system resource should not expose a synthetic role: %#v", tree["/system/democase/other"])
 	}
 }
 
@@ -198,6 +291,8 @@ func TestPermissionAdminCanGrantMember(t *testing.T) {
 
 func TestPermissionBatchGrantRolesGrantsEveryCombination(t *testing.T) {
 	service, _, db := newPermissionTestService(t)
+	notifier := &recordingPermissionNotifier{}
+	service.permissionNotifier = notifier
 
 	if err := service.BatchGrantRoles(actorContext("alice"), access.BatchGrantRoleRequest{
 		TenantUser:    "alice",
@@ -237,6 +332,118 @@ func TestPermissionBatchGrantRolesGrantsEveryCombination(t *testing.T) {
 	}
 	if ok {
 		t.Fatal("batch assignment should not leak read permission to unrelated paths")
+	}
+	if len(notifier.notifications) != 2 {
+		t.Fatalf("batch notifications = %#v, want one per user", notifier.notifications)
+	}
+	for _, notification := range notifier.notifications {
+		if notification.ToUser != "bob" && notification.ToUser != "cora" {
+			t.Fatalf("unexpected notification recipient: %#v", notification)
+		}
+		requireNotificationContains(t, notification, "你已获得新的权限", "/alice/ops/ticket", "/alice/ops/report", "查看者", "成员")
+	}
+}
+
+func TestPermissionGrantNotifiesDirectUser(t *testing.T) {
+	service, _, _ := newPermissionTestService(t)
+	notifier := &recordingPermissionNotifier{}
+	service.permissionNotifier = notifier
+
+	if err := service.GrantRole(actorContext("alice"), accessGrantForNotificationTest("bob")); err != nil {
+		t.Fatal(err)
+	}
+	if len(notifier.notifications) != 1 || notifier.notifications[0].ToUser != "bob" {
+		t.Fatalf("notifications = %#v", notifier.notifications)
+	}
+	requireNotificationContains(t, notifier.notifications[0], "你已获得新的权限", "/alice/ops/ticket", "成员", "alice")
+}
+
+func TestPermissionBatchGrantRolesValidatesAllTargetsBeforeWriting(t *testing.T) {
+	service, _, db := newPermissionTestService(t)
+	service.userLookup = func(ctx context.Context, username string) (*dto.UserInfo, error) {
+		if username == "missing-user" {
+			return nil, errors.New("user not found")
+		}
+		return &dto.UserInfo{Username: username}, nil
+	}
+
+	err := service.BatchGrantRoles(actorContext("alice"), access.BatchGrantRoleRequest{
+		TenantUser:    "alice",
+		App:           "ops",
+		Principals:    userPrincipals("bob", "missing-user"),
+		ResourcePaths: []string{"/alice/ops/ticket"},
+		RoleCodes:     []access.RoleCode{access.RoleMember},
+		CreatedBy:     "alice",
+	})
+	if err == nil || !strings.Contains(err.Error(), "被授权用户不存在") {
+		t.Fatalf("expected target validation error, got %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&appmodel.WorkspaceRoleAssignment{}).Count(&count).Error; err != nil {
+		t.Fatalf("count assignments: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("batch validation failure must not leave partial assignments, got %d", count)
+	}
+}
+
+func TestPermissionBatchGrantRolesRejectsExpiredAssignmentBeforeWriting(t *testing.T) {
+	service, _, db := newPermissionTestService(t)
+	expired := time.Now().Add(-time.Minute)
+	err := service.BatchGrantRoles(actorContext("alice"), access.BatchGrantRoleRequest{
+		TenantUser:    "alice",
+		App:           "ops",
+		Principals:    userPrincipals("bob", "cora"),
+		ResourcePaths: []string{"/alice/ops/ticket"},
+		RoleCodes:     []access.RoleCode{access.RoleMember},
+		ExpiresAt:     &expired,
+		CreatedBy:     "alice",
+	})
+	if err == nil || !strings.Contains(err.Error(), "权限到期时间必须晚于当前时间") {
+		t.Fatalf("expected expired batch validation error, got %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&appmodel.WorkspaceRoleAssignment{}).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("expired batch must not write assignments, got %d", count)
+	}
+}
+
+func TestPermissionBatchGrantRolesRollsBackWhenAWriteFails(t *testing.T) {
+	service, _, db := newPermissionTestService(t)
+	callbackName := "test:fail_batch_role_assignment"
+	if err := db.Callback().Create().Before("gorm:create").Register(callbackName, func(tx *gorm.DB) {
+		assignment, ok := tx.Statement.Dest.(*appmodel.WorkspaceRoleAssignment)
+		if ok && assignment.PrincipalKey == "cora" {
+			tx.AddError(errors.New("forced assignment write failure"))
+		}
+	}); err != nil {
+		t.Fatalf("register create callback: %v", err)
+	}
+	defer db.Callback().Create().Remove(callbackName)
+
+	err := service.BatchGrantRoles(actorContext("alice"), access.BatchGrantRoleRequest{
+		TenantUser:    "alice",
+		App:           "ops",
+		Principals:    userPrincipals("bob", "cora"),
+		ResourcePaths: []string{"/alice/ops/ticket"},
+		RoleCodes:     []access.RoleCode{access.RoleMember},
+		CreatedBy:     "alice",
+	})
+	if err == nil || !strings.Contains(err.Error(), "forced assignment write failure") {
+		t.Fatalf("expected forced write failure, got %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&appmodel.WorkspaceRoleAssignment{}).Count(&count).Error; err != nil {
+		t.Fatalf("count assignments: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("batch write failure must roll back every assignment, got %d", count)
 	}
 }
 

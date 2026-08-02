@@ -378,7 +378,7 @@ func collectPackageServiceTreeResp(root *dto.GetServiceTreeResp) []*dto.GetServi
 		if node == nil {
 			return
 		}
-		if node.Type == model.ServiceTreeTypePackage {
+		if node.Type == model.ServiceTreeTypePackage && access.HasPermission(node.Permissions, access.ActionRead) {
 			out = append(out, node)
 		}
 		for _, child := range node.Children {
@@ -492,10 +492,12 @@ func applyScheduledAgentTaskSubtreeCounts(node *dto.GetServiceTreeResp, exactCou
 		total.Enabled += exact.Enabled
 		total.Running += exact.Running
 		total.Failed += exact.Failed
-		node.ScheduledAgentTasks = total.Total
-		node.EnabledAgentTasks = total.Enabled
-		node.RunningAgentTasks = total.Running
-		node.FailedAgentTasks = total.Failed
+		if access.HasPermission(node.Permissions, access.ActionRead) {
+			node.ScheduledAgentTasks = total.Total
+			node.EnabledAgentTasks = total.Enabled
+			node.RunningAgentTasks = total.Running
+			node.FailedAgentTasks = total.Failed
+		}
 	}
 	return total
 }
