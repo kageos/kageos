@@ -285,7 +285,12 @@ func (s *Server) initServices(ctx context.Context) error {
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
 	s.operateLogService = service.NewOperateLogService(operateLogRepo)
-	s.permissionService = service.NewPermissionService(roleAssignmentRepo, operateLogRepo, appRepo)
+	s.permissionService = service.NewPermissionService(
+		roleAssignmentRepo,
+		operateLogRepo,
+		appRepo,
+		service.WithPermissionNotifier(service.NewNATSPermissionNotifier(s.natsConn)),
+	)
 	s.permissionRequestService = service.NewPermissionRequestService(
 		permissionRequestRepo,
 		roleAssignmentRepo,

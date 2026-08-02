@@ -291,6 +291,8 @@ func TestPermissionAdminCanGrantMember(t *testing.T) {
 
 func TestPermissionBatchGrantRolesGrantsEveryCombination(t *testing.T) {
 	service, _, db := newPermissionTestService(t)
+	notifier := &recordingPermissionNotifier{}
+	service.permissionNotifier = notifier
 
 	if err := service.BatchGrantRoles(actorContext("alice"), access.BatchGrantRoleRequest{
 		TenantUser:    "alice",
@@ -331,6 +333,29 @@ func TestPermissionBatchGrantRolesGrantsEveryCombination(t *testing.T) {
 	if ok {
 		t.Fatal("batch assignment should not leak read permission to unrelated paths")
 	}
+	if len(notifier.notifications) != 2 {
+		t.Fatalf("batch notifications = %#v, want one per user", notifier.notifications)
+	}
+	for _, notification := range notifier.notifications {
+		if notification.ToUser != "bob" && notification.ToUser != "cora" {
+			t.Fatalf("unexpected notification recipient: %#v", notification)
+		}
+		requireNotificationContains(t, notification, "你已获得新的权限", "/alice/ops/ticket", "/alice/ops/report", "查看者", "成员")
+	}
+}
+
+func TestPermissionGrantNotifiesDirectUser(t *testing.T) {
+	service, _, _ := newPermissionTestService(t)
+	notifier := &recordingPermissionNotifier{}
+	service.permissionNotifier = notifier
+
+	if err := service.GrantRole(actorContext("alice"), accessGrantForNotificationTest("bob")); err != nil {
+		t.Fatal(err)
+	}
+	if len(notifier.notifications) != 1 || notifier.notifications[0].ToUser != "bob" {
+		t.Fatalf("notifications = %#v", notifier.notifications)
+	}
+	requireNotificationContains(t, notifier.notifications[0], "你已获得新的权限", "/alice/ops/ticket", "成员", "alice")
 }
 
 func TestPermissionBatchGrantRolesValidatesAllTargetsBeforeWriting(t *testing.T) {

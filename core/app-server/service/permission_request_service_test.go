@@ -70,6 +70,8 @@ func newPermissionRequestTestService(t *testing.T) (*PermissionRequestService, *
 
 func TestPermissionRequestApproveGrantsRoleAndRecordsReviewer(t *testing.T) {
 	requestService, permission, db := newPermissionRequestTestService(t)
+	notifier := &recordingPermissionNotifier{}
+	permission.permissionNotifier = notifier
 	resourcePath := "/alice/ops/tickets/submit.form"
 
 	created, err := requestService.CreateRequest(
@@ -107,6 +109,13 @@ func TestPermissionRequestApproveGrantsRoleAndRecordsReviewer(t *testing.T) {
 	if approved.Status != model.PermissionRequestStatusApproved || approved.ReviewedBy != "bob" {
 		t.Fatalf("approved = %#v", approved)
 	}
+	if len(notifier.notifications) != 1 {
+		t.Fatalf("notifications = %#v", notifier.notifications)
+	}
+	if notifier.notifications[0].ToUser != "carol" {
+		t.Fatalf("notification recipient = %q", notifier.notifications[0].ToUser)
+	}
+	requireNotificationContains(t, notifier.notifications[0], "权限申请已通过", resourcePath, "查看者", "bob", "同意使用")
 
 	canRead, err := permission.HasPermission(context.Background(), "alice", "ops", "carol", resourcePath, access.ActionRead)
 	if err != nil {
@@ -292,6 +301,8 @@ func TestPermissionRequestAllowsInheritedMemberToUpgradeChildToAdmin(t *testing.
 
 func TestPermissionRequestRejectAndCancelDoNotGrantRole(t *testing.T) {
 	requestService, permission, _ := newPermissionRequestTestService(t)
+	notifier := &recordingPermissionNotifier{}
+	permission.permissionNotifier = notifier
 	resourcePath := "/alice/ops/tickets/submit.form"
 
 	rejectedRequest, err := requestService.CreateRequest(
@@ -304,6 +315,10 @@ func TestPermissionRequestRejectAndCancelDoNotGrantRole(t *testing.T) {
 	if _, err := requestService.Reject(actorContext("bob"), rejectedRequest.ID, "bob", "用途不明确"); err != nil {
 		t.Fatal(err)
 	}
+	if len(notifier.notifications) != 1 || notifier.notifications[0].ToUser != "carol" {
+		t.Fatalf("rejection notifications = %#v", notifier.notifications)
+	}
+	requireNotificationContains(t, notifier.notifications[0], "权限申请已驳回", resourcePath, "用途不明确")
 
 	cancelledRequest, err := requestService.CreateRequest(
 		actorContext("carol"), "alice", "ops", "carol", resourcePath,
@@ -314,6 +329,9 @@ func TestPermissionRequestRejectAndCancelDoNotGrantRole(t *testing.T) {
 	}
 	if _, err := requestService.Cancel(actorContext("carol"), cancelledRequest.ID, "carol"); err != nil {
 		t.Fatal(err)
+	}
+	if len(notifier.notifications) != 1 {
+		t.Fatalf("cancel should not send another notification: %#v", notifier.notifications)
 	}
 
 	canRead, err := permission.HasPermission(context.Background(), "alice", "ops", "carol", resourcePath, access.ActionRead)

@@ -527,6 +527,7 @@ func (s *PermissionRequestService) review(
 	request.ReviewComment = comment
 	request.UpdatedBy = reviewer
 	s.writeReviewOperateLog(ctx, request, reviewer)
+	s.permission.notifyPermissionRequestDecision(ctx, request)
 	return s.buildRequestView(ctx, request)
 }
 

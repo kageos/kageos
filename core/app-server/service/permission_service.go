@@ -21,22 +21,38 @@ type PermissionService struct {
 	roleAssignmentRepo *repository.RoleAssignmentRepository
 	operateLogRepo     *repository.OperateLogRepository
 	appRepo            *repository.AppRepository
+	permissionNotifier PermissionNotifier
 	userLookup         func(ctx context.Context, username string) (*dto.UserInfo, error)
 	departmentLookup   func(ctx context.Context, departmentPath string) (bool, error)
+}
+
+type PermissionServiceOption func(*PermissionService)
+
+func WithPermissionNotifier(notifier PermissionNotifier) PermissionServiceOption {
+	return func(service *PermissionService) {
+		service.permissionNotifier = notifier
+	}
 }
 
 func NewPermissionService(
 	roleAssignmentRepo *repository.RoleAssignmentRepository,
 	operateLogRepo *repository.OperateLogRepository,
 	appRepo *repository.AppRepository,
+	options ...PermissionServiceOption,
 ) *PermissionService {
-	return &PermissionService{
+	service := &PermissionService{
 		roleAssignmentRepo: roleAssignmentRepo,
 		operateLogRepo:     operateLogRepo,
 		appRepo:            appRepo,
 		userLookup:         lookupUserForPermission,
 		departmentLookup:   lookupDepartmentForPermission,
 	}
+	for _, option := range options {
+		if option != nil {
+			option(service)
+		}
+	}
+	return service
 }
 
 func (s *PermissionService) RequirePermission(ctx context.Context, tenantUser, app, username, resourcePath string, action access.Action) error {
@@ -124,6 +140,7 @@ func (s *PermissionService) GrantRole(ctx context.Context, req access.GrantRoleR
 	}
 
 	s.writeRoleGrantedOperateLog(ctx, req)
+	s.notifyRoleGranted(ctx, req)
 	return nil
 }
 
@@ -203,6 +220,7 @@ func (s *PermissionService) BatchGrantRoles(ctx context.Context, req access.Batc
 	for _, grant := range grants {
 		s.writeRoleGrantedOperateLog(ctx, grant)
 	}
+	s.notifyBatchRolesGranted(ctx, grants)
 	return nil
 }
 
