@@ -182,7 +182,7 @@ type ExecutionRequestedEvent struct {
 	SourceRef       string            `json:"source_ref,omitempty"`
 	ResourceScope   string            `json:"resource_scope,omitempty"`
 	ResourceKey     string            `json:"resource_key,omitempty"`
-	Token           string            `json:"token,omitempty"`
+	Token           string            `json:"-"` // 仅 Worker 运行时内存使用，禁止进入 outbox/NATS payload。
 	RequestUser     string            `json:"request_user,omitempty"`
 	RequestUserDept string            `json:"request_user_dept,omitempty"`
 	Metadata        map[string]string `json:"metadata,omitempty"`

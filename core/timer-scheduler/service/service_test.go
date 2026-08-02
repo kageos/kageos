@@ -56,39 +56,6 @@ func TestServiceDefaultQueuedPickupWindowIsOneHour(t *testing.T) {
 	}
 }
 
-func TestScheduledExecutionTokenSkipsTaskWithoutRequestUserID(t *testing.T) {
-	task := &model.TimerTask{
-		RequestUser: "system",
-		CreatedBy:   "system",
-	}
-	if token := scheduledExecutionToken(task); token != "" {
-		t.Fatalf("task without request_user_id should not receive delegated token, got %q", token)
-	}
-}
-
-func TestScheduledExecutionTokenSupportsSystemUser(t *testing.T) {
-	task := &model.TimerTask{
-		RequestUser:     "system",
-		CreatedBy:       "system",
-		RequestUserDept: "/system",
-		MetadataJSON:    json.RawMessage(`{"request_user_id":"1","request_email":"system@example.com"}`),
-	}
-	token := scheduledExecutionToken(task)
-	if token == "" {
-		t.Fatal("system task with request_user_id should receive delegated token")
-	}
-	claims, err := auth.NewJWTService().ValidateToken(token)
-	if err != nil {
-		t.Fatalf("system delegated token should validate: %v", err)
-	}
-	if claims.UserID != 1 || claims.Username != "system" || claims.Email != "system@example.com" {
-		t.Fatalf("unexpected claims: user_id=%d username=%q email=%q", claims.UserID, claims.Username, claims.Email)
-	}
-	if claims.DepartmentFullPath == nil || *claims.DepartmentFullPath != "/system" {
-		t.Fatalf("expected department in system token, claims=%+v", claims)
-	}
-}
-
 func TestServiceCreateTaskSupportsPausedInitialStatus(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, _ := newTestService(t, &now)
@@ -255,18 +222,8 @@ func TestServiceDispatchAndFinishAtimeTask(t *testing.T) {
 	if event.RequestUser != "alice" || event.RequestUserDept != "/org/dev" {
 		t.Fatalf("request user was not propagated: user=%q dept=%q", event.RequestUser, event.RequestUserDept)
 	}
-	if strings.TrimSpace(event.Token) == "" {
-		t.Fatal("scheduled execution event should include delegated token")
-	}
-	claims, err := auth.NewJWTService().ValidateToken(event.Token)
-	if err != nil {
-		t.Fatalf("scheduled execution token should validate: %v", err)
-	}
-	if claims.UserID != 42 || claims.Username != "alice" || claims.Email != "alice@example.com" || claims.Subject != "access_42" {
-		t.Fatalf("unexpected scheduled token claims: user_id=%d username=%q email=%q subject=%q", claims.UserID, claims.Username, claims.Email, claims.Subject)
-	}
-	if claims.DepartmentFullPath == nil || *claims.DepartmentFullPath != "/org/dev" {
-		t.Fatalf("scheduled token should include department, claims=%+v", claims)
+	if strings.TrimSpace(event.Token) != "" || strings.Contains(string(requestedEvent.Payload), `"token"`) {
+		t.Fatalf("scheduled execution outbox must not persist token: %s", requestedEvent.Payload)
 	}
 	if err := svc.MarkExecutionStarted(ctx, scheduledsdk.MarkExecutionStartedRequest{
 		TaskID:      task.ID,

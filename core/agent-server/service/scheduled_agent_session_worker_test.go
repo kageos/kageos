@@ -6,11 +6,21 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 )
+
+func TestScheduledAgentExecutionTokenTTLCoversLongSession(t *testing.T) {
+	if got := scheduledAgentExecutionTokenTTL(4 * 60 * 60); got != 4*time.Hour+scheduledAgentTokenGrace {
+		t.Fatalf("4h session token ttl = %s", got)
+	}
+	if got := scheduledAgentExecutionTokenTTL(0); got != scheduledAgentDefaultTokenTTL {
+		t.Fatalf("default session token ttl = %s, want %s", got, scheduledAgentDefaultTokenTTL)
+	}
+}
 
 func TestScheduledAgentSessionWorkspaceRequestRequiresMessage(t *testing.T) {
 	payload := map[string]interface{}{

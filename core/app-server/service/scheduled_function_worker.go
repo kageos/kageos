@@ -80,6 +80,10 @@ func (a *AppService) RunScheduledFunction(ctx context.Context, event scheduledsd
 	if err != nil {
 		return nil, err
 	}
+	if err := event.IssueToken(0); err != nil {
+		return nil, fmt.Errorf("签发函数定时任务执行令牌失败: %w", err)
+	}
+	ctx = event.WithAuditContext(ctx)
 	logger.Infof(ctx, "[ScheduledFunctionWorker] start task_id=%d execution_id=%d full_code_path=%s action=%s",
 		event.TaskID, event.ExecutionID, payload.FullCodePath, payload.Action)
 	startedAt := time.Now()

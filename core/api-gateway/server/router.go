@@ -302,7 +302,7 @@ func (s *Server) createProxy(targetURL string, timeout int, route *config.RouteC
 			c.Request.Header.Del("Authorization")
 			c.Request.Header.Del(contextx.TokenHeader)
 		} else if token := c.Request.Header.Get(contextx.TokenHeader); token != "" {
-			principal, err := s.accessTokens.Validate(c.Request.Context(), token)
+			principal, err := s.accessTokens.ValidateGatewayToken(c.Request.Context(), token)
 			if err != nil {
 				logger.Warnf(s.ctx, "[Proxy] access token validation failed - Path: %s, Error: %v", c.Request.URL.Path, err)
 				c.JSON(http.StatusUnauthorized, response.GetTokenInvalidResponse())

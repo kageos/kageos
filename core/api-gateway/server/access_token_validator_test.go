@@ -105,6 +105,45 @@ func TestAccessTokenValidatorRejectsRefreshTokenBeforeAuthorityCall(t *testing.T
 	}
 }
 
+func TestGatewayTokenValidatorAcceptsScheduledTokenWithoutAuthorityCall(t *testing.T) {
+	var authorityCalls atomic.Int64
+	authority := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorityCalls.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer authority.Close()
+	validator := &AccessTokenValidator{
+		validationURL: authority.URL,
+		httpClient:    authority.Client(),
+		active:        make(map[string]cachedAccessPrincipal),
+		rejected:      make(map[string]time.Time),
+	}
+	token, err := auth.NewJWTService().GenerateScheduledTokenWithContext(auth.UserTokenContext{
+		Username:           "alice",
+		Email:              "alice@example.com",
+		DepartmentFullPath: "/org/dev",
+	}, 10, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	principal, err := validator.ValidateGatewayToken(context.Background(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if principal.UserID != 0 || principal.Username != "alice" || principal.DepartmentFullPath != "/org/dev" {
+		t.Fatalf("principal = %#v", principal)
+	}
+	if authorityCalls.Load() != 0 {
+		t.Fatal("scheduled token must not call HR authority")
+	}
+	if _, err := validator.Validate(context.Background(), token); err == nil {
+		t.Fatal("scheduled token must not validate as a login access token")
+	}
+	if authorityCalls.Load() != 0 {
+		t.Fatal("wrong-purpose scheduled token must be rejected before authority call")
+	}
+}
+
 func TestAccessTokenValidatorPrunesExpiredAndBoundsCache(t *testing.T) {
 	now := time.Now()
 	validator := &AccessTokenValidator{

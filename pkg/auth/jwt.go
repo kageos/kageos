@@ -10,6 +10,15 @@ import (
 	"github.com/kageos/kageos/pkg/logger"
 )
 
+const (
+	TokenUseAccess    = "access"
+	TokenUseRefresh   = "refresh"
+	TokenUseOpenAPI   = "openapi"
+	TokenUseScheduled = "scheduled"
+
+	DefaultScheduledTokenTTL = 24 * time.Hour
+)
+
 // JWTService JWT 服务（公共基础设施，所有服务共享）
 type JWTService struct {
 	config *appconfig.JWTConfig
@@ -25,9 +34,12 @@ func NewJWTService() *JWTService {
 
 // JWTClaims JWT 声明
 type JWTClaims struct {
-	UserID   int64  `json:"user_id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
+	TokenUse    string `json:"token_use"`
+	UserID      int64  `json:"user_id,omitempty"`
+	Username    string `json:"username"`
+	Email       string `json:"email"`
+	TaskID      int64  `json:"task_id,omitempty"`
+	ExecutionID int64  `json:"execution_id,omitempty"`
 
 	DepartmentFullPath *string `json:"department_full_path,omitempty"`
 	LeaderUsername     *string `json:"leader_username,omitempty"`
@@ -73,7 +85,7 @@ type AccessTokenPrincipal struct {
 
 // GenerateAccessTokenWithContext 生成访问令牌，携带用户和组织架构上下文。
 func (s *JWTService) GenerateAccessTokenWithContext(userContext UserTokenContext) (string, error) {
-	return s.generateTokenWithContext(userContext, "access", time.Now().Add(time.Duration(s.config.AccessTokenExpire)*time.Second))
+	return s.generateTokenWithContext(userContext, TokenUseAccess, "access", time.Now().Add(time.Duration(s.config.AccessTokenExpire)*time.Second))
 }
 
 // GenerateOpenAPITokenWithContext 生成用于 OpenAPI 调用的长期 JWT。
@@ -87,14 +99,46 @@ func (s *JWTService) GenerateOpenAPITokenWithContext(userContext UserTokenContex
 	if expiresAt != nil {
 		exp = *expiresAt
 	}
-	return s.generateTokenWithSubject(userContext, "openapi:"+username, exp)
+	return s.generateTokenWithSubject(userContext, TokenUseOpenAPI, "openapi:"+username, exp)
 }
 
-func (s *JWTService) generateTokenWithContext(userContext UserTokenContext, subjectPrefix string, expiresAt time.Time) (string, error) {
-	return s.generateTokenWithSubject(userContext, fmt.Sprintf("%s_%d", subjectPrefix, userContext.UserID), expiresAt)
+// GenerateScheduledTokenWithContext 生成仅供一次定时任务执行使用的短期委托令牌。
+// 该令牌不属于登录会话，不持久化，也不经过 user_session 校验。
+func (s *JWTService) GenerateScheduledTokenWithContext(userContext UserTokenContext, taskID, executionID int64) (string, error) {
+	return s.GenerateScheduledTokenWithContextTTL(userContext, taskID, executionID, DefaultScheduledTokenTTL)
 }
 
-func (s *JWTService) generateTokenWithSubject(userContext UserTokenContext, subject string, expiresAt time.Time) (string, error) {
+// GenerateScheduledTokenWithContextTTL 按本次执行的最长运行时间生成委托令牌。
+// 令牌只应在 Worker 内存中使用，不能写入任务、执行记录或 outbox。
+func (s *JWTService) GenerateScheduledTokenWithContextTTL(userContext UserTokenContext, taskID, executionID int64, ttl time.Duration) (string, error) {
+	userContext.Username = strings.TrimSpace(userContext.Username)
+	if userContext.Username == "" {
+		return "", fmt.Errorf("定时任务令牌缺少用户名")
+	}
+	if taskID <= 0 || executionID <= 0 {
+		return "", fmt.Errorf("定时任务令牌缺少任务身份")
+	}
+	if ttl <= 0 {
+		return "", fmt.Errorf("定时任务令牌有效期无效")
+	}
+	now := time.Now()
+	claims := jwt.RegisteredClaims{
+		Issuer:    s.config.Issuer,
+		Subject:   fmt.Sprintf("scheduled:%d:%d", taskID, executionID),
+		IssuedAt:  jwt.NewNumericDate(now),
+		ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
+		NotBefore: jwt.NewNumericDate(now),
+	}
+	// 定时任务以唯一用户名代表执行人，不依赖 HR 用户 ID，也不进入登录会话。
+	userContext.UserID = 0
+	return s.generateTokenWithClaims(userContext, TokenUseScheduled, taskID, executionID, claims)
+}
+
+func (s *JWTService) generateTokenWithContext(userContext UserTokenContext, tokenUse, subjectPrefix string, expiresAt time.Time) (string, error) {
+	return s.generateTokenWithSubject(userContext, tokenUse, fmt.Sprintf("%s_%d", subjectPrefix, userContext.UserID), expiresAt)
+}
+
+func (s *JWTService) generateTokenWithSubject(userContext UserTokenContext, tokenUse, subject string, expiresAt time.Time) (string, error) {
 	now := time.Now()
 	registeredClaims := jwt.RegisteredClaims{
 		Issuer:    s.config.Issuer,
@@ -105,14 +149,17 @@ func (s *JWTService) generateTokenWithSubject(userContext UserTokenContext, subj
 	if !expiresAt.IsZero() {
 		registeredClaims.ExpiresAt = jwt.NewNumericDate(expiresAt)
 	}
-	return s.generateTokenWithClaims(userContext, registeredClaims)
+	return s.generateTokenWithClaims(userContext, tokenUse, 0, 0, registeredClaims)
 }
 
-func (s *JWTService) generateTokenWithClaims(userContext UserTokenContext, registeredClaims jwt.RegisteredClaims) (string, error) {
+func (s *JWTService) generateTokenWithClaims(userContext UserTokenContext, tokenUse string, taskID, executionID int64, registeredClaims jwt.RegisteredClaims) (string, error) {
 	claims := JWTClaims{
+		TokenUse:         tokenUse,
 		UserID:           userContext.UserID,
 		Username:         userContext.Username,
 		Email:            userContext.Email,
+		TaskID:           taskID,
+		ExecutionID:      executionID,
 		RegisteredClaims: registeredClaims,
 	}
 
@@ -126,11 +173,11 @@ func (s *JWTService) generateTokenWithClaims(userContext UserTokenContext, regis
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(s.config.Secret))
 	if err != nil {
-		logger.Errorf(nil, "[JWTService] Failed to generate access token: %v", err)
-		return "", fmt.Errorf("生成访问令牌失败: %w", err)
+		logger.Errorf(nil, "[JWTService] Failed to generate %s token: %v", tokenUse, err)
+		return "", fmt.Errorf("生成令牌失败: %w", err)
 	}
 
-	logger.Infof(nil, "[JWTService] Access token generated for user: %s", userContext.Username)
+	logger.Infof(nil, "[JWTService] %s token generated for user: %s", tokenUse, userContext.Username)
 	return tokenString, nil
 }
 
@@ -158,6 +205,7 @@ func (s *JWTService) GenerateRefreshTokenWithContextExpiresAt(userContext UserTo
 		expiresAt = now.Add(time.Duration(s.config.RefreshTokenExpire) * time.Second)
 	}
 	claims := JWTClaims{
+		TokenUse: TokenUseRefresh,
 		UserID:   userContext.UserID,
 		Username: userContext.Username,
 		Email:    userContext.Email,
@@ -215,6 +263,9 @@ func (s *JWTService) ValidateAccessToken(tokenString string) (*JWTClaims, error)
 	if err != nil {
 		return nil, err
 	}
+	if claims.TokenUse != TokenUseAccess {
+		return nil, fmt.Errorf("令牌不是访问令牌")
+	}
 	if claims.UserID <= 0 || strings.TrimSpace(claims.Username) == "" {
 		return nil, fmt.Errorf("访问令牌缺少用户身份")
 	}
@@ -229,6 +280,9 @@ func (s *JWTService) ValidateRefreshToken(tokenString string) (*JWTClaims, error
 	claims, err := s.ValidateToken(tokenString)
 	if err != nil {
 		return nil, err
+	}
+	if claims.TokenUse != TokenUseRefresh {
+		return nil, fmt.Errorf("令牌不是刷新令牌")
 	}
 	if claims.UserID <= 0 || strings.TrimSpace(claims.Username) == "" {
 		return nil, fmt.Errorf("刷新令牌缺少用户身份")
@@ -246,6 +300,9 @@ func (s *JWTService) ValidateOpenAPIToken(tokenString string) (*JWTClaims, error
 	if err != nil {
 		return nil, err
 	}
+	if claims.TokenUse != TokenUseOpenAPI {
+		return nil, fmt.Errorf("令牌不是 OpenAPI Token")
+	}
 	username := strings.TrimSpace(claims.Username)
 	if username == "" {
 		return nil, fmt.Errorf("OpenAPI Token 缺少用户名")
@@ -255,6 +312,65 @@ func (s *JWTService) ValidateOpenAPIToken(tokenString string) (*JWTClaims, error
 		return nil, fmt.Errorf("令牌不是 OpenAPI Token")
 	}
 	return claims, nil
+}
+
+// ValidateScheduledToken 验证定时任务短期委托令牌。
+func (s *JWTService) ValidateScheduledToken(tokenString string) (*JWTClaims, error) {
+	claims, err := s.ValidateToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateScheduledClaims(claims); err != nil {
+		return nil, err
+	}
+	return claims, nil
+}
+
+// ValidateGatewayToken 验证可以通过 X-Token 进入网关的令牌类型。
+// 登录访问令牌在网关中还需要继续执行 HR 会话校验；scheduled 令牌只需本地校验。
+func (s *JWTService) ValidateGatewayToken(tokenString string) (*JWTClaims, error) {
+	claims, err := s.ValidateToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+	switch claims.TokenUse {
+	case TokenUseAccess:
+		if claims.UserID <= 0 || strings.TrimSpace(claims.Username) == "" || claims.Subject != fmt.Sprintf("access_%d", claims.UserID) {
+			return nil, fmt.Errorf("无效的访问令牌")
+		}
+	case TokenUseScheduled:
+		if err := s.validateScheduledClaims(claims); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("令牌不能用于网关访问")
+	}
+	return claims, nil
+}
+
+func (s *JWTService) validateScheduledClaims(claims *JWTClaims) error {
+	if claims == nil || claims.TokenUse != TokenUseScheduled {
+		return fmt.Errorf("令牌不是定时任务令牌")
+	}
+	if strings.TrimSpace(claims.Username) == "" {
+		return fmt.Errorf("定时任务令牌缺少用户名")
+	}
+	if claims.TaskID <= 0 || claims.ExecutionID <= 0 {
+		return fmt.Errorf("定时任务令牌缺少任务身份")
+	}
+	if claims.Subject != fmt.Sprintf("scheduled:%d:%d", claims.TaskID, claims.ExecutionID) {
+		return fmt.Errorf("定时任务令牌主题无效")
+	}
+	if claims.Issuer != s.config.Issuer {
+		return fmt.Errorf("定时任务令牌签发方无效")
+	}
+	if claims.IssuedAt == nil || claims.NotBefore == nil || claims.ExpiresAt == nil {
+		return fmt.Errorf("定时任务令牌缺少有效期")
+	}
+	if !claims.ExpiresAt.Time.After(claims.IssuedAt.Time) {
+		return fmt.Errorf("定时任务令牌有效期无效")
+	}
+	return nil
 }
 
 // RefreshAccessToken 刷新访问令牌
