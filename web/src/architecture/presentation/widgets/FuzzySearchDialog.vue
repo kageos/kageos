@@ -74,7 +74,7 @@
             :key="index"
             class="suggestion-item"
             :class="{ 'active': selectedIndex === index, 'selected': isItemSelected(item) }"
-            @click="handleItemClick(item)"
+            @click.stop="handleItemClick(item)"
             @mouseenter="selectedIndex = index"
           >
             <!-- 多选模式下的复选框 -->
@@ -186,6 +186,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
 import { Search, Loading, InfoFilled, ArrowRight, Check } from '@element-plus/icons-vue'
+import SelectFuzzyPresentation from './SelectFuzzyPresentation.vue'
 
 /**
  * OnSelectFuzzy / 模糊搜索回调的标准候选项结构。
@@ -402,9 +403,11 @@ const handleItemClick = (item: InputFuzzyItem) => {
     // 多选模式：切换选中状态
     toggleItemSelection(item)
   } else {
-    // 单选模式：直接选择并关闭对话框
-    handleSelectItem(item)
+    // 单选模式：不论之前选中了谁，点击直接选择新的并关闭对话框
+    selectedItem.value = item;
+    handleSelectItem(item);
   }
+}
 }
 
 // 切换项目选中状态（多选模式）
