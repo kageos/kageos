@@ -106,6 +106,7 @@
       :suggestions="dialogSuggestions"
       :loading="loading"
       :is-multiselect="false"
+      :selected-values="hasCurrentValue ? [internalValue] : []"
       :get-item-color="getOptionColor"
       :append-to-body="shouldTeleportPopper"
       @search="handleDialogSearch"
@@ -542,6 +543,16 @@ async function openDialog(): Promise<void> {
     // 🔥 如果已有值，通过 by_value 搜索获取对应的选项和 label
     if (props.value?.raw !== null && props.value?.raw !== undefined && props.value?.raw !== '') {
       await handleSearch(props.value.raw, true) // by_value 搜索
+      // 为了让弹窗展示该选项，需要填充 dialogSuggestions
+      dialogSuggestions.value = options.value.map((opt) => ({
+        label: opt.label,
+        value: opt.value,
+        displayInfo: toDisplayInfoRecord(opt.displayInfo),
+        display_info: toDisplayInfoRecord(opt.displayInfo),
+        icon: opt.icon,
+        rich_text: opt.richText,
+        files: opt.files
+      }))
     } else {
       // 没有值，触发空搜索加载初始选项
       await handleDialogSearch('')

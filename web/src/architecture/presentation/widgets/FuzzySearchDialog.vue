@@ -296,6 +296,9 @@ watch(visible, (newVisible) => {
       selectedItems.value = props.suggestions.filter(item => 
         props.selectedValues.some(val => String(val) === String(item.value))
       )
+    } else if (!props.isMultiselect && props.selectedValues && props.selectedValues.length > 0) {
+      const targetVal = String(props.selectedValues[0]);
+      selectedItem.value = props.suggestions.find(item => String(item.value) === targetVal) || null;
     }
   } else {
     // 对话框关闭时，重置状态
@@ -307,11 +310,17 @@ watch(visible, (newVisible) => {
 })
 
 // 监听 suggestions 变化，更新已选项目（多选模式）
+// 监听 suggestions 变化，更新已选项目
 watch(() => props.suggestions, (newSuggestions) => {
-  if (props.isMultiselect && props.selectedValues && visible.value) {
-    selectedItems.value = newSuggestions.filter(item => 
-      props.selectedValues.some(val => String(val) === String(item.value))
-    )
+  if (visible.value && props.selectedValues) {
+    if (props.isMultiselect) {
+      selectedItems.value = newSuggestions.filter(item => 
+        props.selectedValues.some(val => String(val) === String(item.value))
+      )
+    } else if (props.selectedValues.length > 0) {
+      const targetVal = String(props.selectedValues[0]);
+      selectedItem.value = newSuggestions.find(item => String(item.value) === targetVal) || null;
+    }
   }
 }, { immediate: true })
 
@@ -328,7 +337,7 @@ function isItemSelected(item: InputFuzzyItem): boolean {
   if (props.isMultiselect) {
     return selectedItems.value.some(selected => String(selected.value) === String(item.value))
   }
-  return false
+  return selectedItem.value !== null && String(selectedItem.value.value) === String(item.value)
 }
 
 // 获取选项颜色
@@ -407,7 +416,6 @@ const handleItemClick = (item: InputFuzzyItem) => {
     selectedItem.value = item;
     handleSelectItem(item);
   }
-}
 }
 
 // 切换项目选中状态（多选模式）
