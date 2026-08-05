@@ -122,6 +122,8 @@ export class SelectWidgetInitializer implements IWidgetInitializer {
               {
                 ...processedValue.meta,
                 displayInfo: matchedItem.display_info || matchedItem.displayInfo,
+                richText: matchedItem.rich_text,
+                files: matchedItem.files,
                 statistics: response.statistics || {}
               }
             )

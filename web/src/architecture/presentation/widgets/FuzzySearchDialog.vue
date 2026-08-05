@@ -197,11 +197,14 @@ import SelectFuzzyPresentation from './SelectFuzzyPresentation.vue'
  * - `display_info` / `displayInfo` 是候选项的次级结构化信息
  *   例如职位的部门/地点/薪资，供应商的联系人/电话
  *   适合展示成 key-value chip，不适合直接把整个对象或 statistics 原样抛给用户
+ * - `rich_text` / `files` 是只读的富内容展示，不参与表单值提交
  */
 export interface InputFuzzyItem {
   value: unknown
   label?: string
   icon?: string
+  rich_text?: string
+  files?: string
   display_info?: Record<string, unknown>
   displayInfo?: Record<string, unknown>
 }

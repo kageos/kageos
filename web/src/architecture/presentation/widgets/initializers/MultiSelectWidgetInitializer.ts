@@ -132,6 +132,15 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
         const displayInfoArray = finalRawValue.map((val: any) => {
           return displayInfoMap.get(val) || null
         })
+        const presentations = finalRawValue.map((val: any) => {
+          const item = (response.items || []).find((candidate) => {
+            return candidate.value === val || String(candidate.value) === String(val)
+          })
+          return item ? {
+            richText: item.rich_text || '',
+            files: item.files || '',
+          } : null
+        })
         
         const initializedValue = createFieldValue(
           field,
@@ -140,6 +149,7 @@ export class MultiSelectWidgetInitializer implements IWidgetInitializer {
           {
             ...processedValue.meta,  // 🔥 使用 processedValue.meta，保留转换标记
             displayInfo: displayInfoArray.length > 0 ? displayInfoArray : undefined,
+            presentations,
             statistics: response.statistics || {}
           }
         )
