@@ -2,7 +2,7 @@
   <div
     v-if="hasContent"
     class="select-fuzzy-presentation"
-    :class="{ 'is-compact': compact }"
+    :class="{ 'is-compact': compact, 'has-files-only': files && !richText }"
   >
     <div v-if="richText" class="presentation-rich-text-container" :class="{ 'is-expanded': isExpanded, 'is-collapsible': shouldShowToggle }">
       <div class="presentation-rich-text" ref="richTextRef">
@@ -128,6 +128,14 @@ const filesValue = computed<FieldValue>(() => ({
   border-left: 2px solid color-mix(in srgb, var(--el-color-primary) 30%, var(--el-border-color-light));
   border-radius: 0 4px 4px 0;
 }
+
+.select-fuzzy-presentation.is-compact.has-files-only {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
 
 .presentation-rich-text-container {
   position: relative;
