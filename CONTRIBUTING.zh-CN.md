@@ -1,13 +1,13 @@
 # 贡献 Kageos
 
-感谢你愿意改进 Kageos。本仓库当前采用 Business Source License 1.1 源码公开授权，不是 OSI open source。贡献前请阅读 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)，确认你理解当前授权范围和未来 Apache-2.0 转换机制。
+感谢你愿意改进 Kageos。本仓库源码公开，当前采用 Business Source License 1.1，并在各版本发布四年后转为 Apache-2.0。贡献前请阅读 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)，确认你理解当前授权范围和转换机制。
 
 ## 开始之前
 
 - 较大的功能、架构调整或产品方向变化，请先和维护者讨论。
 - 保持 PR 聚焦。不要把重构、格式化、依赖升级和产品行为变化混在一个 PR 中。
 - 不要提交真实密钥、客户数据、生成的生产文件、license、`namespace/`、`local/` 或运行时数据目录。
-- 在核心平台转为 Apache-2.0 之前，对外描述请使用“源码公开、可自托管”，不要称为 OSI open source。
+- 对外描述请遵循 [源码与授权对外口径](docs/source-available-messaging.md)，统一使用“源码公开、可自托管”。
 
 ## 贡献流程
 

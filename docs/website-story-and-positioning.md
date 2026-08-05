@@ -9,7 +9,9 @@
 
 Kageos 由恰研智能（qiayan.ai）打造，源码公开、可自托管，项目地址是 `github.com/kageos/kageos`。
 
-当前 Kageos 核心采用 BSL 1.1，不是 OSI open source；它允许查看、修改、分发和自托管，限制未经授权的商业 SaaS、MSP 托管、白标、OEM、嵌入、改名转售和竞品化产品/服务，各版本发布四年后转 Apache-2.0。对外不要把当前核心说成“已开源”，推荐说“源码公开、可自托管；当前采用 BSL 1.1，四年后转 Apache-2.0”。后续版本如果需要，也可以设置更早的 Change Date。
+当前 Kageos 核心采用 BSL 1.1，允许在授权范围内查看、修改、分发和自托管，限制未经授权的商业 SaaS、MSP 托管、白标、OEM、嵌入、改名转售和竞品化产品/服务，各版本发布四年后转 Apache-2.0。对外统一使用“源码公开、可自托管；当前采用 BSL 1.1，四年后转 Apache-2.0”，不把“开源”作为产品标签或传播卖点。后续版本如果需要，也可以设置更早的 Change Date。
+
+完整表达规则见 [源码与授权对外口径](source-available-messaging.md)。
 
 标准短句：
 

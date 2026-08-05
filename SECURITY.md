@@ -26,7 +26,7 @@ and coordinate a fix or mitigation before public disclosure.
 
 ## Supported Versions
 
-The project is preparing public source releases. Until a formal support matrix is
+The project source is publicly available. Until a formal support matrix is
 published, security fixes target the current `main` branch and actively
 maintained release branches.
 

@@ -1,6 +1,6 @@
 # Kageos 使用方式与产品理念
 
-本文件用于回答用户关于 Kageos 怎么用、智能工作台能做什么、服务目录、如何上手和产品理念的问题。用户问“介绍 Kageos”“你是谁”“介绍公司”“开源协议”“Hub/企业版”时，先读取 `/system/prompt/platform-introduction`；如果问题还涉及“能不能做、边界在哪里、平台侧还是应用侧”，再读取 `/system/prompt/platform-capability-boundaries`。
+本文件用于回答用户关于 Kageos 怎么用、智能工作台能做什么、服务目录、如何上手和产品理念的问题。用户问“介绍 Kageos”“你是谁”“介绍公司”“源码授权”“许可协议”“Hub/企业版”时，先读取 `/system/prompt/platform-introduction`；如果问题还涉及“能不能做、边界在哪里、平台侧还是应用侧”，再读取 `/system/prompt/platform-capability-boundaries`。
 
 ## 一句话定位
 

@@ -74,7 +74,6 @@
       <el-table-column
         :label="t('common.operation')"
         width="150"
-        fixed="right"
         class-name="permission-request-action-column"
         label-class-name="permission-request-action-column"
       >
@@ -89,10 +88,12 @@
           </template>
           <el-button
             v-else-if="view === 'mine' && row.status === 'pending'"
+            class="permission-cancel-request-button"
             type="danger"
             plain
             size="small"
             :loading="reviewingRequestID === row.id"
+            data-testid="permission-cancel-request"
             @click="cancelRequest(row)"
           >
             {{ t('access.cancelRequest') }}
@@ -400,15 +401,24 @@ defineExpose({ loadRequests })
   visibility: visible !important;
 }
 
-:deep(td.permission-request-action-column.el-table-fixed-column--right) {
+:deep(td.permission-request-action-column) {
   background: var(--app-shell-panel-bg-strong, var(--el-bg-color)) !important;
 }
 
-:deep(th.permission-request-action-column.el-table-fixed-column--right) {
+:deep(th.permission-request-action-column) {
   background: var(--el-fill-color-light) !important;
 }
 
-:deep(.el-table__body tr:hover > td.permission-request-action-column.el-table-fixed-column--right) {
+:deep(.el-table__body tr:hover > td.permission-request-action-column) {
   background: var(--el-fill-color-light) !important;
+}
+
+:deep(.permission-cancel-request-button) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  border-color: var(--el-color-danger) !important;
+  background: color-mix(in srgb, var(--el-color-danger) 16%, var(--el-bg-color)) !important;
+  color: var(--el-color-danger) !important;
+  font-weight: 700;
 }
 </style>
