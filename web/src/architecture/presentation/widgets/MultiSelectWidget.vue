@@ -841,8 +841,7 @@ async function handleDialogSearch(keyword: string): Promise<void> {
 // 处理对话框多选确认
 function handleDialogSelectMultiple(items: InputFuzzyItem[]): void {
   const newValues = items.map(item => item.value)
-  // 合并已选值和新增值，去重
-  const allValues = Array.from(new Set([...selectedValues.value, ...newValues]))
+  const allValues = newValues
   
   // 🔥 更新 options，确保新选择的项的 displayInfo 被保存
   items.forEach(item => {
