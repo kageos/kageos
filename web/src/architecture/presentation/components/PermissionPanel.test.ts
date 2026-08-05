@@ -116,6 +116,8 @@ describe('PermissionPanel', () => {
     expect(permissionApi.listMyPermissionRequests).toHaveBeenCalledTimes(1)
     expect(permissionApi.listPermissionRequestHistory).not.toHaveBeenCalled()
     expect(wrapper.get('.permission-section-count:not(.is-review)').text()).toBe('1')
+    expect(wrapper.get('[data-testid="permission-cancel-request"]').classes())
+      .toContain('permission-cancel-request-button')
 
     await findTab(wrapper, '审批记录').trigger('click')
     await flushPromises()

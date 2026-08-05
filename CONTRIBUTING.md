@@ -1,9 +1,9 @@
 # Contributing to Kageos
 
-Thanks for taking the time to improve Kageos. This repository is currently
-source-available under the Business Source License 1.1, not OSI open source.
-Before contributing, read `LICENSE` and `LICENSE_FAQ.md` so you understand the
-current use grant and future Apache-2.0 change license.
+Thanks for taking the time to improve Kageos. This repository is
+source-available under the Business Source License 1.1, and each release
+converts to Apache-2.0 after four years. Before contributing, read `LICENSE`
+and `LICENSE_FAQ.md` so you understand the current use grant and change license.
 
 ## Before You Start
 
@@ -13,7 +13,7 @@ current use grant and future Apache-2.0 change license.
   upgrades, and product behavior changes in one pull request.
 - Do not commit real secrets, customer data, generated production files,
   licenses, `namespace/`, `local/`, or runtime data directories.
-- Preserve the public wording in `README.md`: call the core platform
+- Follow `docs/source-available-messaging.md` and describe the core platform as
   "source-available and self-hostable" while it is BSL-licensed.
 
 ## Contribution Workflow

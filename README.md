@@ -219,6 +219,7 @@ The same checks are wired into GitHub Actions in `.github/workflows/ci.yml`.
 - [Local development](deploy/dev/README.md)
 - [Production deployment](deploy/prod/README.md)
 - [Release SOP](docs/release-sop.md)
+- [Source and licensing messaging](docs/source-available-messaging.md)
 - [License FAQ](LICENSE_FAQ.md)
 
 ## Chinese Overview
@@ -232,7 +233,7 @@ Kageos 是面向个人、团队和企业的 AI 原生服务平台。它把业务
 - Write the product name as `Kageos` in prose, UI copy, docs, SDK docs, and website content.
 - Use lowercase `kageos` for package, module, path, and domain identifiers.
 - Use all-caps `KAGEOS_*` only for environment variables or config keys.
-- Use "source-available and self-hostable" for the BSL-licensed core. Do not call the current core "OSI open source" until the relevant version has converted to Apache-2.0.
+- Describe the BSL-licensed core as "source-available and self-hostable" and follow the [source and licensing messaging guide](docs/source-available-messaging.md).
 
 ## Contributing
 

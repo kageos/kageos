@@ -216,6 +216,7 @@ bash scripts/check-doc-links.sh
 - [本地开发](deploy/dev/README.md)
 - [生产部署](deploy/prod/README.md)
 - [发布 SOP](docs/release-sop.md)
+- [源码与授权对外口径](docs/source-available-messaging.md)
 - [License FAQ](LICENSE_FAQ.md)
 
 ## 命名口径
@@ -223,7 +224,7 @@ bash scripts/check-doc-links.sh
 - 正文、UI、官网、SDK 文档和对外材料都写作 `Kageos`。
 - Go 包、模块、路径和域名标识使用小写 `kageos`。
 - 环境变量和配置键使用全大写 `KAGEOS_*`。
-- 对 BSL 授权的核心平台，使用“源码公开、可自托管”或 “source-available and self-hostable”。在对应版本转为 Apache-2.0 之前，不要把当前核心说成 OSI open source。
+- 对 BSL 授权的核心平台，统一使用“源码公开、可自托管”或 “source-available and self-hostable”，并遵循[源码与授权对外口径](docs/source-available-messaging.md)。
 
 ## 贡献
 

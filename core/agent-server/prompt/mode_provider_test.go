@@ -56,7 +56,7 @@ func TestDevModePromptIsShortAndDoesNotAppendAllInOne(t *testing.T) {
 		t.Fatalf("dev prompt should not force ritual change_role calls when the current role still matches:\n%s", got)
 	}
 	if strings.Contains(got, "恰研智能（qiayan.ai）") ||
-		strings.Contains(got, "源码开放、可自托管") ||
+		strings.Contains(got, "源码公开、可自托管") ||
 		strings.Contains(got, "到期后转为 Apache-2.0") {
 		t.Fatalf("dev prompt should route introduction details to platform-introduction instead of inlining them:\n%s", got)
 	}

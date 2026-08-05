@@ -1,0 +1,47 @@
+--- web/src/architecture/presentation/widgets/FuzzySearchDialog.vue
++++ web/src/architecture/presentation/widgets/FuzzySearchDialog.vue
+@@ -98,8 +98,8 @@
+             <!-- 左侧展示附件/图片 -->
+             <div v-if="item.files" class="item-files-side">
+               <SelectFuzzyPresentation
+-                v-if="item.rich_text"
+-                :rich-text="item.rich_text"
++                :files="item.files"
+                 compact
+               />
+             </div>
+             
+             <!-- 颜色指示器 -->
+             <span
+               v-if="resolveItemColor(item.value)"
+               class="option-color-indicator"
+               :style="getItemColorStyle(item.value)"
+             />
+             
+             <!-- 主要内容 -->
+             <div class="item-content">
+               <div class="item-header">
+                 <div class="item-label">{{ item.label || item.value }}</div>
+                 <span v-if="isItemSelected(item)" class="item-state-chip">已选</span>
+               </div>
+               
+               <!-- 显示信息 -->
+               <div v-if="(item.display_info && Object.keys(item.display_info).length > 0) || (item.displayInfo && Object.keys(item.displayInfo).length > 0)" class="item-display-info">
+                 <div
+                   v-for="([infoKey, infoValue], infoIndex) in getDisplayInfoEntries(item)"
+                   :key="`${String(item.value)}-${infoKey}-${infoIndex}`"
+                   class="info-item"
+                 >
+                   <span class="info-key">{{ infoKey }}</span>
+                   <span class="info-value">{{ infoValue }}</span>
+                 </div>
+               </div>
++              <!-- 富文本展示在下方 -->
++              <SelectFuzzyPresentation
++                v-if="item.rich_text"
++                :rich-text="item.rich_text"
++                compact
++              />
+             </div>
+             
+             <!-- 选择指示器 -->

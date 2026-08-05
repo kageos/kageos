@@ -90,7 +90,7 @@ docker compose -f deploy/dev/compose/docker-compose.dev.yml config >/dev/null
 git status --short --branch
 ```
 
-以上任何一步失败都不能打 tag。检查应与 `.github/workflows/ci.yml` 保持一致；发布提交必须已经进入 `main`，工作区不能有未提交文件。当前核心对外口径是“源码公开、可自托管”，不要写成 OSI open source。
+以上任何一步失败都不能打 tag。检查应与 `.github/workflows/ci.yml` 保持一致；发布提交必须已经进入 `main`，工作区不能有未提交文件。当前核心对外统一使用“源码公开、可自托管”，具体遵循[源码与授权对外口径](source-available-messaging.md)。
 
 ### 4. 打 Kageos 版本 tag
 

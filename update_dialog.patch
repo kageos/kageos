@@ -1,0 +1,43 @@
+--- web/src/architecture/presentation/widgets/FuzzySearchDialog.vue
++++ web/src/architecture/presentation/widgets/FuzzySearchDialog.vue
+@@ -75,6 +75,13 @@
+               <span v-else class="item-icon-emoji">{{ item.icon }}</span>
+             </div>
+             
++            <!-- 左侧展示附件/图片（优先使用 table-cell 模式展示缩略图） -->
++            <div v-if="item.files" class="item-files-side">
++              <SelectFuzzyPresentation
++                :files="item.files"
++                compact
++              />
++            </div>
++            
+             <!-- 颜色指示器 -->
+             <span
+               v-if="resolveItemColor(item.value)"
+@@ -99,10 +106,9 @@
+                   <span class="info-value">{{ infoValue }}</span>
+                 </div>
+               </div>
++              <!-- 富文本展示在下方 -->
+               <SelectFuzzyPresentation
+-                v-if="item.rich_text || item.files"
++                v-if="item.rich_text"
+                 :rich-text="item.rich_text"
+-                :files="item.files"
+                 compact
+               />
+             </div>
+@@ -533,6 +539,12 @@
+   display: flex;
+   align-items: center;
+   justify-content: center;
++}
++
++.item-files-side {
++  margin-right: 12px;
++  flex-shrink: 0;
++  display: flex;
+ }
+ 
+ .item-icon-emoji {

@@ -58,7 +58,7 @@ check_remotes() {
     
     GITEE_URL=$(git remote get-url gitee)
     print_info "Gitee: $GITEE_URL"
-    print_info "策略：提交当前开源 MVP 代码到 Gitee"
+    print_info "策略：提交当前源码公开版本到 Gitee"
 }
 
 # 提交 Submodule 更改（自动模式，向后兼容）
@@ -200,7 +200,7 @@ push_to_remotes_auto() {
     fi
     
     print_success "推送操作完成"
-    print_info "提示：如需同步到 GitHub（开源），请使用 scripts/git-sync-to-github.sh"
+    print_info "提示：如需同步源码到 GitHub，请使用 scripts/git-sync-to-github.sh"
 }
 
 # 主函数

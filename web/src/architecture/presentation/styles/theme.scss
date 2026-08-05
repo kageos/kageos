@@ -497,10 +497,10 @@ html.dark {
     tr {
       background-color: transparent !important;
       
-      // 行操作区悬浮显影逻辑（对内部 cell 内容进行隐显）
+      // 操作属于关键业务入口，默认必须完整可见，不能依赖 hover 才能发现。
       td.action-column .cell, 
       td.table-widget-actions-column .cell {
-        opacity: 0.15;
+        opacity: 1;
         transition: opacity 0.2s ease, transform 0.2s ease;
       }
 
@@ -508,13 +508,6 @@ html.dark {
         background-color: var(--bg-tertiary) !important;
       }
       
-      // 保证整行 hover 时，操作列内的内容高亮显示
-      &:hover {
-        td.action-column .cell, 
-        td.table-widget-actions-column .cell {
-          opacity: 1;
-        }
-      }
     }
 
     // 空数据区域
