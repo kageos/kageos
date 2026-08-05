@@ -590,6 +590,7 @@ export default {
   },
   publicSharePanel: {
     title: '公开链接',
+    publicFormText: '公开表单',
     subtitle: '管理这个 Form 的外部提交入口。',
     createShare: '创建公开链接',
     searchPlaceholder: '搜索标题、描述、链接 ID',

@@ -590,6 +590,7 @@ export default {
   },
   publicSharePanel: {
     title: 'Public links',
+    publicFormText: 'Public form',
     subtitle: 'Manage external submission links for this form.',
     createShare: 'Create public link',
     searchPlaceholder: 'Search title, description, or link ID',
