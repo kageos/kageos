@@ -95,6 +95,14 @@
               <span v-else class="item-icon-emoji">{{ item.icon }}</span>
             </div>
             
+            <!-- 左侧展示附件/图片 -->
+            <div v-if="item.files" class="item-files-side">
+              <SelectFuzzyPresentation
+                :files="item.files"
+                compact
+              />
+            </div>
+            
             <!-- 颜色指示器 -->
             <span
               v-if="resolveItemColor(item.value)"
@@ -690,6 +698,23 @@ watch(visible, (newVisible) => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.item-files-side {
+  margin-right: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+}
+.item-files-side :deep(.select-fuzzy-presentation) {
+  margin-top: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.item-files-side :deep(.select-fuzzy-presentation.is-compact) {
+  border-left: none;
+  border-radius: 4px;
 }
 
 .item-icon-emoji {
