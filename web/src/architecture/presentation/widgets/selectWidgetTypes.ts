@@ -6,4 +6,7 @@ export type SelectOptionItem = {
   disabled?: boolean
   displayInfo?: unknown
   icon?: string
+  richText?: string
+  files?: string
+  rich_text?: string
 }

@@ -104,6 +104,19 @@
         @select-multiple="handleDialogSelectMultiple"
         @select-all="handleDialogSelectAll"
       />
+      <div v-if="selectedPresentations.length > 0 && mode !== 'search'" class="selected-presentations">
+        <div
+          v-for="presentation in selectedPresentations"
+          :key="presentation.value"
+          class="selected-presentation"
+        >
+          <div class="selected-presentation-title">{{ presentation.label }}</div>
+          <SelectFuzzyPresentation
+            :rich-text="presentation.richText"
+            :files="presentation.files"
+          />
+        </div>
+      </div>
     </div>
     
     <!-- 响应模式（只读） -->
@@ -124,6 +137,7 @@ import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from '
 import { ElIcon } from 'element-plus'
 import { ArrowDown, Close } from '@element-plus/icons-vue'
 import FuzzySearchDialog, { type InputFuzzyItem } from './FuzzySearchDialog.vue'
+import SelectFuzzyPresentation from './SelectFuzzyPresentation.vue'
 import MultiSelectWidgetInlineSelect from './MultiSelectWidgetInlineSelect.vue'
 import MultiSelectWidgetValueDisplay from './MultiSelectWidgetValueDisplay.vue'
 import type { WidgetComponentProps } from '@/architecture/presentation/widgets/types'
@@ -220,7 +234,9 @@ function normalizeOption(opt: string | SelectOptionConfig): MultiSelectOptionIte
     value: toOptionValue(opt.value),
     disabled: opt.disabled,
     displayInfo: opt.displayInfo ?? opt.display_info,
-    icon: opt.icon
+    icon: opt.icon,
+    richText: opt.rich_text,
+    files: opt.files
   }
 }
 
@@ -330,6 +346,13 @@ const selectedValues = computed({
       const option = options.value.find((opt) => String(opt.value) === val)
       return option?.displayInfo || null
     })
+    const presentations = stringValues.map((val) => {
+      const option = options.value.find((opt) => String(opt.value) === val)
+      return option ? {
+        richText: option.richText || '',
+        files: option.files || '',
+      } : null
+    })
     const statisticsDisplayInfos = displayInfos.filter(isRecord)
     
     const displayText = stringValues.map((val) => {
@@ -361,6 +384,7 @@ const selectedValues = computed({
       displayText || '未选择',
       {
         displayInfo: displayInfos,
+        presentations,
         statistics: currentStatistics.value,
         rowStatistics: rowStatistics
       }
@@ -387,6 +411,27 @@ const inlineSelectedValues = computed({
 
 const selectionSummary = computed(() => {
   return buildSelectionSummary(selectedValues.value, 1)
+})
+
+const selectedPresentations = computed(() => {
+  const savedPresentations = Array.isArray(props.value?.meta?.presentations)
+    ? props.value.meta.presentations
+    : []
+  return selectedValues.value.flatMap((value, index) => {
+    const option = options.value.find((candidate) => String(candidate.value) === String(value))
+    const saved = savedPresentations[index]
+    const richText = option?.richText || saved?.richText || ''
+    const files = option?.files || saved?.files || ''
+    if (!richText && !files) {
+      return []
+    }
+    return [{
+      value: String(value),
+      label: option?.label || getOptionLabel(value),
+      richText,
+      files,
+    }]
+  })
 })
 
 const inlineTagSummary = computed(() => {
@@ -712,7 +757,10 @@ async function handleSearch(query: string | unknown[], isByValue = false): Promi
       label: item.label || String(item.value),
       value: toOptionValue(item.value),
       displayInfo: item.display_info || item.displayInfo,
-      icon: item.icon
+      icon: item.icon,
+      richText: item.rich_text,
+        rich_text: item.rich_text,
+      files: item.files
     }))
 
     if (
@@ -752,7 +800,9 @@ async function openDialog(): Promise<void> {
       value: opt.value,
       displayInfo: toDisplayInfoRecord(opt.displayInfo),
       display_info: toDisplayInfoRecord(opt.displayInfo), // 同时提供两种格式，确保兼容
-      icon: opt.icon
+      icon: opt.icon,
+      rich_text: opt.richText || opt.rich_text,
+      files: opt.files
     }))
   }
 }
@@ -767,7 +817,9 @@ async function handleDialogSearch(keyword: string): Promise<void> {
       value: opt.value,
       displayInfo: toDisplayInfoRecord(opt.displayInfo),
       display_info: toDisplayInfoRecord(opt.displayInfo), // 同时提供两种格式，确保兼容
-      icon: opt.icon
+      icon: opt.icon,
+      rich_text: opt.richText || opt.rich_text,
+      files: opt.files
     }))
   } else {
     // 静态选项，本地过滤
@@ -779,7 +831,9 @@ async function handleDialogSearch(keyword: string): Promise<void> {
         value: opt.value,
         displayInfo: toDisplayInfoRecord(opt.displayInfo),
         display_info: toDisplayInfoRecord(opt.displayInfo), // 同时提供两种格式，确保兼容
-        icon: opt.icon
+        icon: opt.icon,
+        rich_text: opt.richText || opt.rich_text,
+        files: opt.files
       }))
   }
 }
@@ -798,11 +852,18 @@ function handleDialogSelectMultiple(items: InputFuzzyItem[]): void {
       options.value.push({
         label: item.label || String(item.value),
         value: toOptionValue(item.value),
-        displayInfo: item.displayInfo || item.display_info
+        displayInfo: item.displayInfo || item.display_info,
+        richText: item.rich_text,
+        rich_text: item.rich_text,
+        files: item.files
       })
     } else if (item.displayInfo && !existingOption.displayInfo) {
       // 如果 options 中有但没有 displayInfo，更新它
       existingOption.displayInfo = item.displayInfo
+    }
+    if (existingOption) {
+      existingOption.richText = item.rich_text || existingOption.richText
+      existingOption.files = item.files || existingOption.files
     }
   })
   
@@ -832,11 +893,18 @@ function handleDialogSelectAll(items: InputFuzzyItem[]): void {
       options.value.push({
         label: item.label || String(item.value),
         value: toOptionValue(item.value),
-        displayInfo: item.displayInfo || item.display_info
+        displayInfo: item.displayInfo || item.display_info,
+        richText: item.rich_text,
+        rich_text: item.rich_text,
+        files: item.files
       })
     } else if (item.displayInfo && !existingOption.displayInfo) {
       // 如果 options 中有但没有 displayInfo，更新它
       existingOption.displayInfo = item.displayInfo
+    }
+    if (existingOption) {
+      existingOption.richText = item.rich_text || existingOption.richText
+      existingOption.files = item.files || existingOption.files
     }
   })
   
@@ -1153,6 +1221,19 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.selected-presentations {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.selected-presentation-title {
+  margin-bottom: 6px;
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .input-icon {
