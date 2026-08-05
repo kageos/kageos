@@ -425,21 +425,27 @@ function toggleItemSelection(item: InputFuzzyItem) {
     // 已选中，取消选择
     selectedItems.value.splice(index, 1)
   } else {
-    // 未选中，检查是否超过最大选择数量
-    if (props.maxSelections > 0 && selectedItems.value.length >= props.maxSelections) {
+    // 未选中
+    if (props.maxSelections === 1) {
+      // 限制为1个时，直接替换
+      selectedItems.value = [item]
+    } else if (props.maxSelections > 0 && selectedItems.value.length >= props.maxSelections) {
+      // 达到上限，不再添加
       return
+    } else {
+      selectedItems.value.push(item)
     }
-    selectedItems.value.push(item)
   }
 }
 
 // 处理复选框变化（多选模式）
 function handleItemCheckboxChange(item: InputFuzzyItem, checked: boolean) {
   if (checked) {
-    if (props.maxSelections > 0 && selectedItems.value.length >= props.maxSelections) {
+    if (props.maxSelections === 1) {
+      selectedItems.value = [item]
+    } else if (props.maxSelections > 0 && selectedItems.value.length >= props.maxSelections) {
       return
-    }
-    if (!selectedItems.value.some(selected => String(selected.value) === String(item.value))) {
+    } else if (!selectedItems.value.some(selected => String(selected.value) === String(item.value))) {
       selectedItems.value.push(item)
     }
   } else {
