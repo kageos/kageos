@@ -5,7 +5,7 @@
 - **类型**：多表（主题 + 选项 + 记录）+ 两个 POST Form（提交投票、查看结果）。
 - **GET Table**：`vote_topic_list.table`（投票主题管理）、`vote_option_list.table`（投票选项管理）、`vote_record_list.table`（投票记录查询）。
 - **POST Form**：`vote_submit.form`（选择主题 + 选择选项 **multiselect；depend_on:topic_id** + 备注）、`vote_result.form`（选择主题 → 返回结果：选项得票数、得票率 table）。
-- **关系**：主题 1:N 选项，主题 1:N 记录；选项选主题用 OnSelectFuzzy；提交时选主题用 OnSelectFuzzy（仅「进行中」），选选项用 **multiselect + depend_on:topic_id**（选项列表随主题变化）。
+- **关系**：主题 1:N 选项，主题 1:N 记录；选项选主题用 OnSelectFuzzy；提交时选主题用 OnSelectFuzzy（仅「进行中」），选选项用 **multiselect + depend_on:topic_id**（选项列表随主题变化）；主题只通过 `RichText` 展示唯一的富文本说明，选项通过 `Files` 展示候选图片。
 - **状态**：主题状态不落库，按开始/结束时间**实时计算**（未开始/进行中/已结束）；列表可筛「投票状态」时在 Handler 里用时间条件过滤。
 - **link**：主题列表带「选项列表」link（跳转 vote_option_list）、「投票操作」link（进行中且未投→vote_submit，已投或已结束→vote_result）。
 - **适合参考**：主从多表（主题-选项-记录）、**multiselect + depend_on**、OnSelectFuzzy、link 按状态切换、时间状态计算、POST 提交与得票率更新。
@@ -78,6 +78,7 @@ type VoteOption struct {
 	DeletedBy  string         `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`
 	TopicID    int            `json:"topic_id" gorm:"column:topic_id;comment:主题ID;index" widget:"name:投票主题ID;type:select" validate:"required" callback:"OnSelectFuzzy"`
 	Content    string         `json:"content" gorm:"column:content;comment:选项内容" widget:"name:选项内容;type:input" validate:"required"`
+	Image      string         `json:"image" gorm:"column:image;type:text;comment:选项图片" widget:"name:选项图片;type:files;accept:image/*;max_count:1;thumbnail:true;list_preview:true"`
 	VoteCount  int            `json:"vote_count" gorm:"column:vote_count;comment:得票人数;default:0" widget:"name:得票人数;type:integer;unit:人"`
 	Percentage float64        `json:"percentage" gorm:"column:percentage;comment:得票率;default:0;type:decimal(5,2)" widget:"name:得票率%;type:progress;min:0;max:100;unit:%"`
 	Topic      *VoteTopic     `json:"-" widget:"-" gorm:"foreignKey:TopicID"`
@@ -170,7 +171,7 @@ func voteOnSelectFuzzyTopicForOptionList(ctx *app.Context, req *callback.OnSelec
 	} else if req.IsByValues() {
 		db = db.Where("id in ?", req.GetValues())
 	} else {
-		db = db.Where("title LIKE ? OR description LIKE ?", "%"+req.Keyword()+"%", "%"+req.Keyword()+"%").
+		db = db.Where("title LIKE ?", "%"+req.Keyword()+"%").
 			Limit(20)
 	}
 
@@ -181,11 +182,11 @@ func voteOnSelectFuzzyTopicForOptionList(ctx *app.Context, req *callback.OnSelec
 	for _, topic := range topics {
 		status := getTopicStatus(topic.StartTime, topic.EndTime)
 		items = append(items, &callback.SelectFuzzyItem{
-			Value: topic.ID,
-			Label: fmt.Sprintf("%s - %s", topic.Title, status),
+			Value:    topic.ID,
+			Label:    fmt.Sprintf("%s - %s", topic.Title, status),
+			RichText: topicRichText(topic),
 			DisplayInfo: map[string]interface{}{
 				"投票标题": topic.Title,
-				"投票描述": topic.Description,
 				"投票状态": status,
 				"投票类型": topic.VoteType,
 				"最多选择": func() string {
@@ -205,7 +206,6 @@ func voteOnSelectFuzzyTopicForOptionList(ctx *app.Context, req *callback.OnSelec
 			"投票类型": statistics.Value("投票类型"),
 			"最多选择": statistics.Value("最多选择"),
 			"投票状态": statistics.Value("投票状态"),
-			"投票描述": statistics.Value("投票描述"),
 		},
 	}, nil
 }
@@ -272,9 +272,22 @@ var VoteOptionListTemplate = &app.TableTemplate{
 			return nil, fmt.Errorf("获取用户信息失败，请重新登录")
 		}
 
+		var currentOption VoteOption
+		if err := db.Where("id = ?", req.GetId()).First(&currentOption).Error; err != nil {
+			return nil, fmt.Errorf("查询待更新投票选项失败: %w", err)
+		}
+
+		topicID := currentOption.TopicID
+		if req.IsFieldUpdated("topic_id") {
+			if updateFields.TopicID <= 0 {
+				return nil, fmt.Errorf("投票主题不能为空")
+			}
+			topicID = updateFields.TopicID
+		}
+
 		var topic VoteTopic
-		if err := db.Where("id = ?", updateFields.TopicID).First(&topic).Error; err != nil {
-			return &callback.OnTableUpdateRowResp{}, nil
+		if err := db.Where("id = ?", topicID).First(&topic).Error; err != nil {
+			return nil, fmt.Errorf("投票主题不存在或查询失败: %w", err)
 		}
 
 		if topic.CreatedBy != currentUser {
@@ -527,7 +540,7 @@ type VoteResultResp struct {
 	Success     bool                `json:"success" widget:"name:是否成功;type:switch"`
 	Message     string              `json:"message" widget:"name:处理结果;type:text_area"`
 	TopicTitle  string              `json:"topic_title" widget:"name:投票标题;type:input"`
-	Description string              `json:"description" widget:"name:投票描述;type:text_area"`
+	Content     string              `json:"content" widget:"name:主题说明;type:richtext"`
 	VoteType    string              `json:"vote_type" widget:"name:投票类型;type:input"`
 	Status      string              `json:"status" widget:"name:投票状态;type:select;options:未开始,进行中,已结束;options_colors:909399,409EFF,67C23A"`
 	TotalVotes  int                 `json:"total_votes" widget:"name:总选择次数;type:integer;unit:次"`
@@ -601,7 +614,7 @@ func DoVoteResult(ctx *app.Context, req *VoteResultReq) (*VoteResultResp, error)
 		Success:     true,
 		Message:     "查询成功",
 		TopicTitle:  topic.Title,
-		Description: topic.Description,
+		Content:     topicRichText(topic),
 		VoteType:    topic.VoteType,
 		Status:      status,
 		TotalVotes:  topic.TotalVotes,
@@ -769,8 +782,8 @@ func voteOnSelectFuzzyTopicForSubmit(ctx *app.Context, req *callback.OnSelectFuz
 		db = db.Where("id in ?", req.GetValues())
 	} else {
 		keyword := req.Keyword()
-		db = db.Where("(title LIKE ? OR description LIKE ?) AND start_time <= ? AND end_time > ?",
-			"%"+keyword+"%", "%"+keyword+"%", now, now).
+		db = db.Where("title LIKE ? AND start_time <= ? AND end_time > ?",
+			"%"+keyword+"%", now, now).
 			Limit(20)
 	}
 
@@ -780,11 +793,11 @@ func voteOnSelectFuzzyTopicForSubmit(ctx *app.Context, req *callback.OnSelectFuz
 	for _, topic := range topics {
 		status := getTopicStatus(topic.StartTime, topic.EndTime)
 		items = append(items, &callback.SelectFuzzyItem{
-			Value: topic.ID,
-			Label: fmt.Sprintf("%s - %s", topic.Title, status),
+			Value:    topic.ID,
+			Label:    fmt.Sprintf("%s - %s", topic.Title, status),
+			RichText: topicRichText(topic),
 			DisplayInfo: map[string]interface{}{
 				"投票标题": topic.Title,
-				"投票描述": topic.Description,
 				"投票状态": status,
 				"投票类型": topic.VoteType,
 				"最多选择": func() string {
@@ -814,7 +827,6 @@ func voteOnSelectFuzzyTopicForSubmit(ctx *app.Context, req *callback.OnSelectFuz
 			"投票类型": statistics.Value("投票类型"),
 			"最多选择": statistics.Value("最多选择"),
 			"投票状态": statistics.Value("投票状态"),
-			"投票描述": statistics.Value("投票描述"),
 		},
 	}, nil
 }
@@ -864,6 +876,7 @@ func voteOnSelectFuzzyOption(ctx *app.Context, req *callback.OnSelectFuzzyReq) (
 		items = append(items, &callback.SelectFuzzyItem{
 			Value: o.ID,
 			Label: o.Content,
+			Files: o.Image,
 			DisplayInfo: map[string]interface{}{
 				"选项内容": o.Content,
 			},
@@ -1036,6 +1049,8 @@ package vote
 
 import (
 	"fmt"
+	"html"
+	"strings"
 	"time"
 
 	"github.com/kageos/kageos-sdk/pkg/gormx/query"
@@ -1057,7 +1072,8 @@ type VoteTopic struct {
 	DeletedAt   gorm.DeletedAt `json:"deleted_at" gorm:"index;column:deleted_at" widget:"-"`
 	DeletedBy   string         `json:"deleted_by" gorm:"column:deleted_by" widget:"-"`
 	Title       string         `json:"title" gorm:"column:title;comment:投票标题" widget:"name:投票标题;type:input" validate:"required,min=2,max=100"`
-	Description string         `json:"description" gorm:"column:description;comment:投票描述" widget:"name:投票描述;type:text_area" validate:"required,min=5,max=500"`
+	Content     string         `json:"content" gorm:"column:content;type:text;comment:投票主题说明" widget:"name:主题说明;type:richtext;height:420" validate:"required,min=1"`
+	LegacyDescription string   `json:"-" gorm:"column:description;type:text;comment:旧投票描述，仅兼容历史数据" widget:"-"`
 	// select 须配 options_colors，与 options 一一对应，前端用颜色区分选项
 	VoteType        string           `json:"vote_type" gorm:"column:vote_type;comment:投票类型" widget:"name:投票类型;type:select;options:单选,多选;options_colors:409EFF,67C23A;render_default:单选" validate:"required,oneof=单选 多选"`
 	// required_if 不只是后端校验；前端也会按条件动态处理：
@@ -1069,7 +1085,6 @@ type VoteTopic struct {
 	StartTime       types.Time            `json:"start_time" gorm:"column:start_time;type:datetime;comment:开始时间;index" widget:"name:开始时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" validate:"required"`
 	EndTime         types.Time            `json:"end_time" gorm:"column:end_time;type:datetime;comment:结束时间;index" widget:"name:结束时间;type:datetime;format:YYYY-MM-DD HH:mm:ss" validate:"required,gtfield=StartTime"`
 	Options         []VoteOptionItem `json:"options" gorm:"-" widget:"name:投票选项;type:table" hide:"list,update" validate:"required,min=2"` // 前端仅在新增表单展示，列表和编辑不展示。
-	Content         string           `json:"content" gorm:"column:content;type:text" widget:"name:详细内容;type:richtext;height:420"`
 	OptionsLink     string           `json:"options_link" gorm:"-" widget:"name:选项列表;type:link;target:_blank" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	Status          string           `json:"status" gorm:"-" widget:"name:状态;type:select;options:未开始,进行中,已结束;options_colors:909399,409EFF,67C23A" hide:"create,update"` // 前端仅在列表展示，不进入新增/编辑表单。
 	TotalVotes      int              `json:"total_votes" gorm:"column:total_votes;comment:总选择次数;default:0" widget:"name:总选择次数;type:integer;unit:次"`
@@ -1085,6 +1100,7 @@ func (VoteTopic) TableName() string {
 // VoteOptionItem 投票选项项（用于 list/table 组件）
 type VoteOptionItem struct {
 	Content string `json:"content" widget:"name:选项内容;type:input" validate:"required,min=1,max=100"`
+	Image   string `json:"image" widget:"name:选项图片;type:files;accept:image/*;max_count:1;thumbnail:true;list_preview:true"`
 }
 
 // ================ 辅助函数 ================
@@ -1100,38 +1116,54 @@ func getTopicStatus(startTime, endTime types.Time) string {
 	return "进行中"
 }
 
+func topicRichText(topic VoteTopic) string {
+	if strings.TrimSpace(topic.Content) != "" {
+		return topic.Content
+	}
+	legacy := strings.TrimSpace(topic.LegacyDescription)
+	if legacy == "" {
+		return ""
+	}
+	return "<p>" + html.EscapeString(legacy) + "</p>"
+}
+
 // ================ 模糊搜索回调 ================
 
 // voteOnSelectFuzzyTopic 投票主题模糊搜索回调
 func voteOnSelectFuzzyTopic(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*callback.OnSelectFuzzyResp, error) {
 	db := ctx.GetGormDB()
 	if db == nil {
-		return nil, fmt.Errorf("数据库连接失败")
+		logger.Errorf(ctx, "[系统错误]-[voteOnSelectFuzzyTopic] 数据库连接失败, req: %+v", req)
+		return nil, fmt.Errorf("[系统错误]-[voteOnSelectFuzzyTopic]：数据库连接失败")
 	}
 
 	var topics []VoteTopic
+	queryDB := db.Model(&VoteTopic{})
 
 	if req.IsByValue() {
-		db = db.Where("id = ?", req.GetValue()).Limit(1)
+		queryDB = queryDB.Where("id = ?", req.GetValue()).Limit(1)
 	} else if req.IsByValues() {
-		db = db.Where("id in ?", req.GetValues())
+		queryDB = queryDB.Where("id in ?", req.GetValues())
 	} else {
 		keyword := req.Keyword()
-		db = db.Where("title LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%").
+		queryDB = queryDB.Where("title LIKE ?", "%"+keyword+"%").
 			Limit(20)
 	}
 
-	db.Find(&topics)
+	if err := queryDB.Order("id DESC").Find(&topics).Error; err != nil {
+		logger.Errorf(ctx, "[系统错误]-[voteOnSelectFuzzyTopic] 查询投票主题失败, req: %+v, err: %v", req, err)
+		return nil, fmt.Errorf("[系统错误]-[voteOnSelectFuzzyTopic]：查询投票主题失败，请确认应用数据库迁移已完成: %w", err)
+	}
 
 	items := make([]*callback.SelectFuzzyItem, 0)
 	for _, topic := range topics {
 		status := getTopicStatus(topic.StartTime, topic.EndTime)
 		items = append(items, &callback.SelectFuzzyItem{
-			Value: topic.ID,
-			Label: fmt.Sprintf("%s - %s", topic.Title, status),
+			Value:    topic.ID,
+			Label:    fmt.Sprintf("%s - %s", topic.Title, status),
+			RichText: topicRichText(topic),
 			DisplayInfo: map[string]interface{}{
 				"投票标题": topic.Title,
-				"投票描述": topic.Description,
 				"投票状态": status,
 				"投票类型": topic.VoteType,
 				"最多选择": func() string {
@@ -1155,6 +1187,7 @@ func voteOnSelectFuzzyTopic(ctx *app.Context, req *callback.OnSelectFuzzyReq) (*
 	}
 
 	return &callback.OnSelectFuzzyResp{
+		MaxSelections: 1,
 		Statistics: map[string]interface{}{
 			"选中标题": statistics.Value("投票标题"),
 			"投票类型": statistics.Value("投票类型"),
@@ -1223,6 +1256,7 @@ func VoteTopicList(ctx *app.Context, resp response.Response) error {
 
 	for i := range topics {
 		topics[i].Status = getTopicStatus(topics[i].StartTime, topics[i].EndTime)
+		topics[i].Content = topicRichText(topics[i])
 
 		hasUserVoted := len(topics[i].UserVoteRecords) > 0
 
@@ -1291,6 +1325,7 @@ var VoteTopicListTemplate = &app.TableTemplate{
 				optionList = append(optionList, &VoteOption{
 					TopicID:    topic.ID,
 					Content:    opt.Content,
+					Image:      opt.Image,
 					VoteCount:  0,
 					Percentage: 0,
 				})

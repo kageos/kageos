@@ -74,7 +74,7 @@
             :key="index"
             class="suggestion-item"
             :class="{ 'active': selectedIndex === index, 'selected': isItemSelected(item) }"
-            @click="handleItemClick(item)"
+            @click.stop="handleItemClick(item)"
             @mouseenter="selectedIndex = index"
           >
             <!-- 多选模式下的复选框 -->
@@ -93,6 +93,14 @@
                 <component :is="item.icon" />
               </el-icon>
               <span v-else class="item-icon-emoji">{{ item.icon }}</span>
+            </div>
+            
+            <!-- 左侧展示附件/图片 -->
+            <div v-if="item.files" class="item-files-side">
+              <SelectFuzzyPresentation
+                :files="item.files"
+                compact
+              />
             </div>
             
             <!-- 颜色指示器 -->
@@ -178,6 +186,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
 import { Search, Loading, InfoFilled, ArrowRight, Check } from '@element-plus/icons-vue'
+import SelectFuzzyPresentation from './SelectFuzzyPresentation.vue'
 
 /**
  * OnSelectFuzzy / 模糊搜索回调的标准候选项结构。
@@ -188,11 +197,14 @@ import { Search, Loading, InfoFilled, ArrowRight, Check } from '@element-plus/ic
  * - `display_info` / `displayInfo` 是候选项的次级结构化信息
  *   例如职位的部门/地点/薪资，供应商的联系人/电话
  *   适合展示成 key-value chip，不适合直接把整个对象或 statistics 原样抛给用户
+ * - `rich_text` / `files` 是只读的富内容展示，不参与表单值提交
  */
 export interface InputFuzzyItem {
   value: unknown
   label?: string
   icon?: string
+  rich_text?: string
+  files?: string
   display_info?: Record<string, unknown>
   displayInfo?: Record<string, unknown>
 }
@@ -287,6 +299,9 @@ watch(visible, (newVisible) => {
       selectedItems.value = props.suggestions.filter(item => 
         props.selectedValues.some(val => String(val) === String(item.value))
       )
+    } else if (!props.isMultiselect && props.selectedValues && props.selectedValues.length > 0) {
+      const targetVal = String(props.selectedValues[0]);
+      selectedItem.value = props.suggestions.find(item => String(item.value) === targetVal) || null;
     }
   } else {
     // 对话框关闭时，重置状态
@@ -298,11 +313,17 @@ watch(visible, (newVisible) => {
 })
 
 // 监听 suggestions 变化，更新已选项目（多选模式）
+// 监听 suggestions 变化，更新已选项目
 watch(() => props.suggestions, (newSuggestions) => {
-  if (props.isMultiselect && props.selectedValues && visible.value) {
-    selectedItems.value = newSuggestions.filter(item => 
-      props.selectedValues.some(val => String(val) === String(item.value))
-    )
+  if (visible.value && props.selectedValues) {
+    if (props.isMultiselect) {
+      selectedItems.value = newSuggestions.filter(item => 
+        props.selectedValues.some(val => String(val) === String(item.value))
+      )
+    } else if (props.selectedValues.length > 0) {
+      const targetVal = String(props.selectedValues[0]);
+      selectedItem.value = newSuggestions.find(item => String(item.value) === targetVal) || null;
+    }
   }
 }, { immediate: true })
 
@@ -319,7 +340,7 @@ function isItemSelected(item: InputFuzzyItem): boolean {
   if (props.isMultiselect) {
     return selectedItems.value.some(selected => String(selected.value) === String(item.value))
   }
-  return false
+  return selectedItem.value !== null && String(selectedItem.value.value) === String(item.value)
 }
 
 // 获取选项颜色
@@ -394,8 +415,9 @@ const handleItemClick = (item: InputFuzzyItem) => {
     // 多选模式：切换选中状态
     toggleItemSelection(item)
   } else {
-    // 单选模式：直接选择并关闭对话框
-    handleSelectItem(item)
+    // 单选模式：不论之前选中了谁，点击直接选择新的并关闭对话框
+    selectedItem.value = item;
+    handleSelectItem(item);
   }
 }
 
@@ -406,21 +428,27 @@ function toggleItemSelection(item: InputFuzzyItem) {
     // 已选中，取消选择
     selectedItems.value.splice(index, 1)
   } else {
-    // 未选中，检查是否超过最大选择数量
-    if (props.maxSelections > 0 && selectedItems.value.length >= props.maxSelections) {
+    // 未选中
+    if (props.maxSelections === 1) {
+      // 限制为1个时，直接替换
+      selectedItems.value = [item]
+    } else if (props.maxSelections > 0 && selectedItems.value.length >= props.maxSelections) {
+      // 达到上限，不再添加
       return
+    } else {
+      selectedItems.value.push(item)
     }
-    selectedItems.value.push(item)
   }
 }
 
 // 处理复选框变化（多选模式）
 function handleItemCheckboxChange(item: InputFuzzyItem, checked: boolean) {
   if (checked) {
-    if (props.maxSelections > 0 && selectedItems.value.length >= props.maxSelections) {
+    if (props.maxSelections === 1) {
+      selectedItems.value = [item]
+    } else if (props.maxSelections > 0 && selectedItems.value.length >= props.maxSelections) {
       return
-    }
-    if (!selectedItems.value.some(selected => String(selected.value) === String(item.value))) {
+    } else if (!selectedItems.value.some(selected => String(selected.value) === String(item.value))) {
       selectedItems.value.push(item)
     }
   } else {
@@ -690,6 +718,23 @@ watch(visible, (newVisible) => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.item-files-side {
+  margin-right: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+}
+.item-files-side :deep(.select-fuzzy-presentation) {
+  margin-top: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.item-files-side :deep(.select-fuzzy-presentation.is-compact) {
+  border-left: none;
+  border-radius: 4px;
 }
 
 .item-icon-emoji {

@@ -50,6 +50,11 @@
         :value="props.value"
         :statistics="currentStatistics"
       />
+      <SelectFuzzyPresentation
+        v-if="selectedPresentation"
+        :rich-text="selectedPresentation.richText"
+        :files="selectedPresentation.files"
+      />
       
     </div>
     
@@ -101,6 +106,7 @@
       :suggestions="dialogSuggestions"
       :loading="loading"
       :is-multiselect="false"
+      :selected-values="hasCurrentValue ? [internalValue] : []"
       :get-item-color="getOptionColor"
       :append-to-body="shouldTeleportPopper"
       @search="handleDialogSearch"
@@ -113,6 +119,7 @@
 import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import FuzzySearchDialog, { type InputFuzzyItem } from './FuzzySearchDialog.vue'
+import SelectFuzzyPresentation from './SelectFuzzyPresentation.vue'
 import FieldStatistics from './FieldStatistics.vue'
 import SelectWidgetDialogTrigger from './SelectWidgetDialogTrigger.vue'
 import SelectWidgetInlineSelect from './SelectWidgetInlineSelect.vue'
@@ -193,6 +200,8 @@ function normalizeOption(option: string | SelectOptionConfig): SelectOptionItem 
     disabled: option.disabled,
     displayInfo: option.displayInfo ?? option.display_info,
     icon: option.icon,
+    richText: option.rich_text,
+    files: option.files,
   }
 }
 
@@ -409,6 +418,13 @@ const hasCurrentValue = computed(() => {
   return hasSelectedValue(props.value?.raw)
 })
 
+const selectedPresentation = computed(() => {
+  const selectedOption = findSelectedOption(props.value?.raw)
+  const richText = selectedOption?.richText || props.value?.meta?.richText || ''
+  const files = selectedOption?.files || props.value?.meta?.files || ''
+  return richText || files ? { richText, files } : null
+})
+
 const shouldShowDialogClear = computed(() => {
   return !widgetConfig.value.disabled && hasCurrentValue.value && (props.mode === 'search' || !isFieldRequired(props.field))
 })
@@ -524,13 +540,8 @@ async function openDialog(): Promise<void> {
       return
     }
     
-    // 🔥 如果已有值，通过 by_value 搜索获取对应的选项和 label
-    if (props.value?.raw !== null && props.value?.raw !== undefined && props.value?.raw !== '') {
-      await handleSearch(props.value.raw, true) // by_value 搜索
-    } else {
-      // 没有值，触发空搜索加载初始选项
-      await handleDialogSearch('')
-    }
+    // 🔥 即使有选中值，用户打开弹窗也意味着想重新选择，直接进行空搜索拉取全部选项
+    await handleDialogSearch('')
   } else {
     // 静态选项，直接使用
     dialogSuggestions.value = options.value.map((opt) => ({
@@ -538,7 +549,9 @@ async function openDialog(): Promise<void> {
       value: opt.value,
       displayInfo: toDisplayInfoRecord(opt.displayInfo),
       display_info: toDisplayInfoRecord(opt.displayInfo), // 同时提供两种格式，确保兼容
-      icon: opt.icon
+      icon: opt.icon,
+      rich_text: opt.richText || opt.rich_text,
+      files: opt.files
     }))
   }
 }
@@ -562,7 +575,9 @@ async function handleDialogSearch(keyword: string): Promise<void> {
       value: opt.value,
       displayInfo: toDisplayInfoRecord(opt.displayInfo),
       display_info: toDisplayInfoRecord(opt.displayInfo), // 同时提供两种格式，确保兼容
-      icon: opt.icon
+      icon: opt.icon,
+      rich_text: opt.richText || opt.rich_text,
+      files: opt.files
     }))
   } else {
     // 静态选项，本地过滤
@@ -575,7 +590,9 @@ async function handleDialogSearch(keyword: string): Promise<void> {
         value: opt.value,
         displayInfo: toDisplayInfoRecord(opt.displayInfo),
         display_info: toDisplayInfoRecord(opt.displayInfo), // 同时提供两种格式，确保兼容
-        icon: opt.icon
+        icon: opt.icon,
+        rich_text: opt.richText || opt.rich_text,
+        files: opt.files
       }
     })
   }
@@ -590,11 +607,18 @@ function handleDialogSelect(item: InputFuzzyItem): void {
     options.value.push({
       label: item.label || String(item.value),
       value: toOptionValue(item.value),
-      displayInfo: item.displayInfo
+      displayInfo: item.displayInfo || item.display_info,
+      richText: item.rich_text,
+        rich_text: item.rich_text,
+      files: item.files
     })
   } else if (item.displayInfo && !existingOption.displayInfo) {
     // 如果 options 中有但没有 displayInfo，更新它
     existingOption.displayInfo = item.displayInfo
+  }
+  if (existingOption) {
+    existingOption.richText = item.rich_text || existingOption.richText
+    existingOption.files = item.files || existingOption.files
   }
   
   const selectedOption = options.value.find((opt) => String(opt.value) === String(item.value))
@@ -604,7 +628,9 @@ function handleDialogSelect(item: InputFuzzyItem): void {
     item.value,
     item.label || selectedOption?.label || String(item.value),
     {
-    displayInfo: item.displayInfo || item.display_info || selectedOption?.displayInfo,
+      displayInfo: item.displayInfo || item.display_info || selectedOption?.displayInfo,
+      richText: item.rich_text || selectedOption?.richText,
+      files: item.files || selectedOption?.files,
       statistics: currentStatistics.value  // 🔥 保存 statistics 配置
     }
   )
@@ -731,7 +757,10 @@ async function handleSearch(query: string | number | SelectValue, isByValue: boo
         label: item.label || String(item.value),
         value: toOptionValue(item.value),
         disabled: false,
-        displayInfo: item.display_info || item.displayInfo
+        displayInfo: item.display_info || item.displayInfo,
+        richText: item.rich_text,
+        rich_text: item.rich_text,
+        files: item.files
       }))
       
       // 🔥 如果是通过 by_value 查询，找到匹配的选项并更新显示值
@@ -758,7 +787,9 @@ async function handleSearch(query: string | number | SelectValue, isByValue: boo
               matchedOption.label,
               {
                 ...props.value.meta,
-                displayInfo: matchedOption.displayInfo
+                displayInfo: matchedOption.displayInfo,
+                richText: matchedOption.richText,
+                files: matchedOption.files
               }
             )
             formDataStore.setValue(props.fieldPath, newFieldValue)

@@ -6,6 +6,8 @@ export interface SelectFuzzyItem {
   value: unknown
   label?: string
   icon?: string
+  rich_text?: string
+  files?: string
   display_info?: Record<string, unknown>
   displayInfo?: Record<string, unknown>
 }

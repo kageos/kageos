@@ -16,6 +16,8 @@ export interface SelectOptionConfig {
   displayInfo?: any
   display_info?: any
   icon?: string
+  rich_text?: string
+  files?: string
 }
 
 /**

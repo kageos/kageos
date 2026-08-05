@@ -644,6 +644,7 @@ ApiToken     string  `json:"api_token" gorm:"column:api_token" widget:"name:API 
 
 - **TableTemplate**：`BaseConfig` 含 Name、Request、CreateTables；**不要写 Table Response**，表格 schema 由 `AutoCrudTable` 推导。**`AutoCrudTable` 必须显式配置**（指向列表结构体，前端据此渲染列表字段、筛选、分页和表格 schema）。**不需要哪种操作就删掉对应回调**：不想要新增 → 不配 `OnTableAddRow`；不想要更新 → 不配 `OnTableUpdateRow`；不允许删除 → 不配 `OnTableDeleteRows`（如消费记录、支付流水、操作记录通常应直接只读）。前端根据是否配置回调来显示或隐藏「新增」「编辑」「删除」按钮；工作台和服务端也会据此判断表是否允许写入。若新增/编辑表单中有 select 需后端动态选项，配 `OnSelectFuzzyMap`（用法见「六、Form 模式要点 → OnSelectFuzzy」）。
 - **AutoCrudTable 的 model 可落库字段类型**：model 里凡是有 **gorm 列**（会被 GORM 写入数据库）的字段，**只能是**以下可落库类型：**基础类型**（int、string、bool、int64、float64 等）、**string**（`gorm:"type:text"`，实际存 `bucket/object_key` 字符串，多文件逗号分隔）、**gorm.DeletedAt**（软删除，GORM 特例）。除此以外，**其他 struct、slice（如 type:table / type:form）不能作为一列写入数据库**。关联对象可以作为 GORM 关联字段用于 `Preload`，但必须写成 `json:"-" widget:"-"`，例如 `Room *MeetingRoom gorm:"foreignKey:RoomID;references:ID"`；应用 SDK 打开业务库时启用 `DisableForeignKeyConstraintWhenMigrating`，所以 `AutoMigrate` 不会创建数据库外键约束。需要展示关联对象名称时，保存逻辑 ID（如 `RoomID`），用 `Preload("Room")` 读取关联对象，再填充 `gorm:"-"` 展示字段（如 RoomName、Status、Options、link 等）。
+- **MySQL 索引字符串必须有界**：任何带 `index`、`uniqueIndex`、`primaryKey`，或被 GORM 关联引用的 `string` 字段，都必须显式声明合适的 `type:varchar(N)`，例如业务编号用 `varchar(64)`、外部 ID 用 `varchar(191)`。不得对 `text` / `longtext` 直接建索引，否则 `AutoMigrate` 会报 `Error 1170: BLOB/TEXT column used in key specification without a key length`。富文本和文件 refs 可以用 `type:text`，但不要直接给它们加普通索引；需要检索时另设有界业务键。
 - **List 函数**：Request 显式声明筛选字段，并嵌入 `query.PageSortReq`（`widget:"-"`）隐藏分页字段；Handler 显式处理 `Where` / 必要的 `Preload` / `Joins`、`req.PageSortReq.GetOrder()`、`Count`、`Offset/Limit/Find`，或调用第三方 API 获取当前页数据和总数；最后调用 `resp.Table(response.TableResult{Items: lists, TotalCount: total, PageInfo: &req.PageSortReq}).Build()`。返回前可在内存中给计算字段赋值（如剩余时间、关联展示字段、**link 跳转 URL**，见「三、结构体与标签 → link 组件」）。`Table` 只渲染响应，不查询数据库；
 - 主键、CreatedAt、UpdatedAt、DeletedAt、DeletedBy 等系统字段约定见案例；init_.go 由脚手架生成，不要手写。
 
@@ -682,6 +683,7 @@ OnTableAddRow: func(ctx *app.Context, req *callback.OnTableAddRowReq) (*callback
 - **作用**：只更新变更字段，支持零值（空字符串、0）；可用 `req.IsFieldUpdated("字段名")` 做状态流转、自动计算等。
 - **关键 API**：`req.BindChangedFields(&updateFields)`、`req.ChangedFields()`、`req.GetId()`、`req.IsFieldUpdated("fieldName")`。
 - **注意**：必须用 `db.Model(&Model{}).Where("id = ?", req.GetId()).Updates(updates)` 更新，以便支持零值；本回调不校验 validate（仅部分字段更新）。
+- **部分更新安全规则**：`BindChangedFields` 只会填充本次真正变更的字段，未变更字段在 `updateFields` 中是 Go 零值。权限判断、关联对象查询和状态校验如果依赖未必会修改的字段（如 `topic_id`），必须先用 `req.GetId()` 查询当前完整记录；仅当 `req.IsFieldUpdated("topic_id")` 为 true 时才使用 `updateFields.TopicID`。不得因零值查不到关联记录就返回空成功，否则会出现界面提示更新成功但数据库未写入的静默失败。
 
 ```go
 OnTableUpdateRow: func(ctx *app.Context, req *callback.OnTableUpdateRowReq) (*callback.OnTableUpdateRowResp, error) {
@@ -1024,7 +1026,7 @@ type Product struct {
 
 **OnSelectFuzzyReq**：前端会传 `Code`（字段标识）、`Type`（`by_keyword` 用户输入关键字 / `by_value` 回显单个值 / `by_values` 回显多选值）、`Value`（关键字或已选值）。常用方法：`req.IsByKeyword()`、`req.IsByValue()`、`req.IsByValues()`；`req.Keyword()` 取关键字；`req.GetValue()`、`req.GetValues()` 取已选值（用于回显时查库）。**在回调中获取当前表单已填数据**：当某个下拉的选项依赖同表单其他字段时（例如「投票选项」依赖「投票主题」），可用 `req.BindCurrentFormData(&currentData)` 将当前用户已填写的表单数据绑定到与 Request 一致的结构体上，从而根据已填字段（如 `currentData.TopicID`）查库返回选项。**字段顺序很重要**：依赖的字段必须放在表单上面先填写（如投票主题在上、投票选项在下），这样用户先选主题后，选项回调里才能通过 `BindCurrentFormData` 拿到 `TopicID`；否则选项回调触发时依赖字段可能尚未填写，需在回调里校验并提示「请先选择 xxx」。
 
-**OnSelectFuzzyResp**：返回 `Items []*SelectFuzzyItem`（每项含 `Value`、`Label`、可选 `DisplayInfo` 供详情展示）；`MaxSelections`（0 表示不限制，1 表示单选）；可选 `Statistics map[string]interface{}`，用于在表单旁**聚合展示**（见下「Statistics 与聚合计算」）。
+**OnSelectFuzzyResp**：返回 `Items []*SelectFuzzyItem`（每项含 `Value`、`Label`，以及可选的 `DisplayInfo`、`RichText`、`Files`）；`MaxSelections`（0 表示不限制，1 表示单选）；可选 `Statistics map[string]interface{}`，用于在表单旁**聚合展示**（见下「Statistics 与聚合计算」）。`RichText` 和 `Files` 是候选项的只读展示内容，不会代替 `Value` 提交。
 
 **回调中获取当前表单数据示例（依赖字段 + 顺序）**：例如提交投票表单：先选「投票主题」、再选「投票选项」，选项列表依赖主题 ID。请求结构体上把 `TopicID` 放上面、`OptionIDs` 放下面；选项回调里用 `BindCurrentFormData` 拿到已填的 `TopicID`，再按 `topic_id` 查库返回该主题下的选项。若解析失败或 `TopicID == 0`，提示用户先选择投票主题。
 
@@ -1055,7 +1057,27 @@ func voteOnSelectFuzzyOption(ctx *app.Context, req *callback.OnSelectFuzzyReq) (
 }
 ```
 
-**SelectFuzzyItem**：`Value`（提交给后端的值，如 ID）、`Label`（下拉展示文本）、`Icon`、`DisplayInfo`（额外展示信息，如单价、库存；字段名会参与聚合表达式）。
+**SelectFuzzyItem**：`Value`（提交给后端的稳定业务值，如 ID）、`Label`（下拉展示文本）、`DisplayInfo`（状态、单价、库存等短属性，字段名可参与聚合表达式）、`RichText`（只读富文本说明）、`Files`（只读文件 refs，协议与 files widget 一致，多个 ref 用逗号分隔）。不要把富文本、文件或复合 UI 对象塞进 `Value`；也不要把它们塞进 `DisplayInfo` 或 `Statistics`。前端会在候选项和选中结果区域分别渲染 `RichText`、`Files`，最终表单仍只提交 `Value`。
+
+富内容下拉示例：投票主题用一个 `RichText` 承载完整说明（富文本本身已能插入图片和附件时，不要再设计重复的“描述/附件”字段）；投票选项用 `Files` 展示候选图片。普通文本、状态、时间和计算字段继续放在 `Label` / `DisplayInfo` / `Statistics` 中。
+
+```go
+items = append(items, &callback.SelectFuzzyItem{
+    Value:    topic.ID,
+    Label:    topic.Title,
+    RichText: topic.Content,
+    DisplayInfo: map[string]interface{}{
+        "投票状态": topic.Status,
+        "最多选择": topic.MaxSelections,
+    },
+})
+
+items = append(items, &callback.SelectFuzzyItem{
+    Value: option.ID,
+    Label: option.Content,
+    Files: option.Image,
+})
+```
 
 示例：Form 收银台请求中「商品清单」table 的 `product_id`、顶层「会员卡」`member_id` 均用 OnSelectFuzzy；Table 预约表的「会议室」`room_id` 用 OnSelectFuzzy 且只查 `status='可用'`。
 
