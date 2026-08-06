@@ -390,15 +390,22 @@ html.dark {
   
   // 按钮组件 - 统一主题的hover效果
   .el-button {
-    transition: all 0.3s ease !important;
-    
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+
     &:hover {
       transform: translateY(-1px);
     }
-    
+
+    &:active {
+      transform: scale(0.97) translateY(1px);
+    }
+
     &.is-circle {
       &:hover {
         transform: translateY(-2px) scale(1.05);
+      }
+      &:active {
+        transform: scale(0.93) translateY(1px);
       }
     }
     
@@ -941,16 +948,23 @@ body {
 
 // 全局按钮样式增强 - 统一主题
 .el-button {
-  transition: all 0.3s ease;
+  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
   border-radius: var(--border-radius-base);
-  
+
   &:hover {
     transform: translateY(-1px);
   }
-  
+
+  &:active {
+    transform: scale(0.97) translateY(1px);
+  }
+
   &.is-circle {
     &:hover {
       transform: translateY(-2px) scale(1.05);
+    }
+    &:active {
+      transform: scale(0.93) translateY(1px);
     }
   }
   
