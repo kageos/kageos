@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KageOS Architecture Diagrams</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 40px; max-width: 1200px; margin: 0 auto; color: #333; line-height: 1.6; }
+        h1 { border-bottom: 2px solid #eaecef; padding-bottom: 10px; margin-bottom: 30px; }
+        h2 { margin-top: 50px; color: #2c3e50; }
+        .diagram-container { border: 1px solid #eaecef; border-radius: 8px; padding: 20px; margin: 20px 0; background: white; overflow-x: auto; }
+        .note { background: #f8f9fa; border-left: 4px solid #0366d6; padding: 15px; margin: 20px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Kageos Full-Link Architecture Diagrams</h1>
+
+    <div class="note">
+        <strong>Key Principles:</strong><br>
+        1. <strong>api-gateway</strong> handles all auth (JWT) and passes trusted headers (X-Request-User).<br>
+        2. <strong>Inter-service calls</strong> use `pkg/apicall` and route back through the api-gateway.<br>
+        3. <strong>app-runtime</strong> exposes no HTTP API, communicating entirely over NATS.<br>
+        4. <strong>NATS</strong> is the central bus for async commands, event broadcasting, and app invocations.
+    </div>
+
+    <h2>1. High-Level Architecture Flowchart</h2>
+    <p>Shows all microservices, their ports, and how HTTP/NATS traffic flows between them.</p>
+    <div class="diagram-container">
+        <pre class="mermaid">
+flowchart TD
+    Browser["Browser / Web (Vue)"]
+    ViteProxy["Vite Dev Proxy\n(dev only)"]
+    GW["api-gateway :9090\n(Gin + Reverse Proxy)\nJWT/Token Auth, TraceId"]
+
+    AppSrv["app-server :9091\n/workspace/api/v1\nApps, ServiceTree, Table"]
+    AgentSrv["agent-server :9095\n/agent/api/v1\nLLM, WorkspaceChat"]
+    HRSrv["hr-server :9097\n/hr/api/v1\nAuth, Users, Tokens"]
+    Storage["app-storage :9092\n/storage/api/v1\nUpload, File Refs"]
+    ConnSrv["connector-server :9096\n/connector/api/v1\nOAuth, Proxy"]
+    TimerSrv["timer-scheduler :9098\n/timer/api/v1\nScheduled Tasks"]
+    MsgSrv["message-server :9099\n/message/api/v1\nNotifications"]
+
+    AppRuntime["app-runtime\n(NATS subscriber only)\nApp Container Lifecycle"]
+
+    NATS["NATS :4222\n(Message Bus)"]
+    MySQL[("MySQL\nper-service DBs")]
+    MinIO[("MinIO\nObject Storage")]
+    LLM["External LLM APIs\n(OpenAI / compatible)"]
+
+    Browser --> ViteProxy --> GW
+    Browser --> GW
+
+    GW -->|"HTTP proxy"| AppSrv
+    GW -->|"HTTP proxy"| AgentSrv
+    GW -->|"HTTP proxy"| HRSrv
+    GW -->|"HTTP proxy"| Storage
+    GW -->|"HTTP proxy"| ConnSrv
+    GW -->|"HTTP proxy"| TimerSrv
+    GW -->|"HTTP proxy"| MsgSrv
+
+    %% Inter-service REST via apicall
+    AgentSrv -->|"REST via pkg/apicall"| GW
+    AppSrv -->|"REST via pkg/apicall"| GW
+
+    %% NATS publish from services
+    AppSrv -->|"Publish"| NATS
+    AgentSrv -->|"Publish"| NATS
+    GW -->|"Publish"| NATS
+
+    %% NATS subscribers
+    NATS -->|"Subscribe"| AppRuntime
+    NATS -->|"Subscribe"| MsgSrv
+    NATS -->|"Subscribe"| TimerSrv
+    NATS -->|"Subscribe"| GW
+
+    AppSrv --> MySQL
+    AgentSrv --> MySQL
+    Storage --> MinIO
+    AgentSrv --> LLM
+    AppRuntime -->|"app.v1.cmd.invoke reply"| NATS
+        </pre>
+    </div>
+
+    <h2>2. Full-Link Chat Request Sequence</h2>
+    <p>How an AI chat message from the user results in tool calls and an SSE token stream.</p>
+    <div class="diagram-container">
+        <pre class="mermaid">
+sequenceDiagram
+    actor User
+    participant Web as Web (Vue)
+    participant GW as api-gateway :9090
+    participant AgentSrv as agent-server :9095
+    participant LLM as External LLM API
+    participant AppSrv as app-server :9091
+    participant AppRuntime as app-runtime (NATS)
+    participant NATS as NATS Bus
+
+    User->>Web: POST /agent/api/v1/workspace/chat/stream
+    Web->>GW: HTTP POST (X-Token: JWT)
+
+    Note over GW: Validate JWT\nInject X-Request-User header\nAdd TraceId
+
+    GW->>AgentSrv: proxy /workspace/chat/stream (SSE)
+
+    AgentSrv->>LLM: Stream LLM tokens
+    LLM-->>AgentSrv: token stream
+
+    loop Agent Tool Calls
+        AgentSrv->>GW: REST GET /workspace/api/v1/service_tree/detail
+        GW->>AppSrv: proxy
+        AppSrv-->>GW: data
+        GW-->>AgentSrv: JSON
+
+        AgentSrv->>GW: REST POST /workspace/files/write
+        GW->>AppSrv: proxy
+        AppSrv->>NATS: Publish runtime.v1.cmd.file.write
+        NATS->>AppRuntime: QueueSubscribe
+        AppRuntime-->>NATS: reply OK
+        AppSrv-->>GW: OK
+        GW-->>AgentSrv: OK
+    end
+
+    AgentSrv-->>GW: SSE stream chunks
+    GW-->>Web: SSE stream
+    Web-->>User: Real-time text display
+        </pre>
+    </div>
+
+    <h2>3. App Build & Container Reload Flow</h2>
+    <p>How agent-server modifying code triggers an app container rebuild in app-runtime.</p>
+    <div class="diagram-container">
+        <pre class="mermaid">
+sequenceDiagram
+    participant AgentSrv as agent-server
+    participant GW as api-gateway
+    participant AppSrv as app-server
+    participant NATS as NATS Bus
+    participant AppRuntime as app-runtime
+
+    AgentSrv->>GW: POST /workspace/api/v1/app/update
+    GW->>AppSrv: proxy
+
+    AppSrv->>NATS: Publish runtime.v1.cmd.app.update
+    NATS->>AppRuntime: HandleAppUpdate
+    AppRuntime->>AppRuntime: Rebuild & reload app container
+
+    AppRuntime->>NATS: Publish runtime.v1.event.lifecycle.*
+    AppSrv-->>GW: 200 OK (build enqueued)
+    GW-->>AgentSrv: OK
+
+    Note over AppRuntime: App container now live
+        </pre>
+    </div>
+
+    <h2>4. Function Invocation Flow (Table/Form)</h2>
+    <p>How the frontend executing an app function routes all the way to the Python/JS sandbox.</p>
+    <div class="diagram-container">
+        <pre class="mermaid">
+sequenceDiagram
+    actor User
+    participant Web as Web
+    participant GW as api-gateway
+    participant AppSrv as app-server
+    participant NATS as NATS Bus
+    participant AppRuntime as app-runtime
+    participant App as App Container (Python/JS)
+
+    User->>Web: GET /workspace/api/v1/table/search/...
+    Web->>GW: HTTP (JWT)
+    GW->>AppSrv: proxy /workspace/*
+
+    AppSrv->>NATS: Publish runtime.v1.cmd.app.invoke... (request-reply)
+    NATS->>AppRuntime: QueueSubscribe
+    AppRuntime->>App: Forward invoke to app process
+
+    App-->>AppRuntime: result
+    AppRuntime-->>NATS: Reply
+    NATS-->>AppSrv: Result received
+
+    AppSrv-->>GW: JSON response
+    GW-->>Web: JSON
+    Web-->>User: Render Table
+        </pre>
+    </div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+</body>
+</html>
