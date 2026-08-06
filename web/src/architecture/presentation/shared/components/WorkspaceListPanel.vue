@@ -174,17 +174,35 @@
     <el-tabs v-model="activeTab" class="workspace-list-tabs" data-testid="workspace-list-tabs" @tab-change="handleTabChange">
       <el-tab-pane :label="t('workspace.myWorkspaces')" name="mine">
         <div class="workspace-list-container">
-          <div v-if="loading" class="loading-state">
-            <el-icon class="loading-icon"><Loading /></el-icon>
-            <span>{{ t('common.loading') }}</span>
+          <div v-if="loading" class="loading-state-skeleton">
+            <div class="workspace-grid">
+              <div v-for="i in (surface === 'popover' ? 2 : 4)" :key="i" class="workspace-card" style="box-shadow: none; border: 1px solid var(--app-auth-card-border); pointer-events: none;">
+                <el-skeleton animated style="height: 100%;">
+                  <template #template>
+                    <div class="card-header" style="margin-bottom: 24px;">
+                      <div class="workspace-avatar">
+                        <el-skeleton-item variant="circle" style="width: 40px; height: 40px; border-radius: 12px;" />
+                      </div>
+                      <div class="workspace-info" style="display: flex; flex-direction: column; gap: 8px; justify-content: center;">
+                        <el-skeleton-item variant="h3" style="width: 60%; height: 16px;" />
+                        <el-skeleton-item variant="text" style="width: 80%; height: 12px;" />
+                      </div>
+                    </div>
+                    <div class="card-footer" style="padding-top: 12px; margin-top: auto; border-top: 1px solid var(--app-auth-card-border); justify-content: flex-start;">
+                      <el-skeleton-item variant="rect" style="width: 48px; height: 24px; border-radius: 4px;" />
+                    </div>
+                  </template>
+                </el-skeleton>
+              </div>
+            </div>
           </div>
           <div v-else-if="myWorkspaces.length === 0" class="empty-state">
-            <el-empty :description="t('workspace.noWorkspace')">
+            <kageos-empty :description="t('workspace.noWorkspace')">
               <el-button type="primary" data-testid="workspace-list-create-empty" @click="$emit('create-app')">
                 <el-icon><Plus /></el-icon>
                 {{ t('workspace.createWorkspace') }}
               </el-button>
-            </el-empty>
+            </kageos-empty>
           </div>
           <div v-else class="workspace-grid">
             <div
@@ -287,12 +305,30 @@
 
       <el-tab-pane :label="t('workspace.allWorkspaces')" name="all">
         <div class="workspace-list-container">
-          <div v-if="loading" class="loading-state">
-            <el-icon class="loading-icon"><Loading /></el-icon>
-            <span>{{ t('common.loading') }}</span>
+          <div v-if="loading" class="loading-state-skeleton">
+            <div class="workspace-grid">
+              <div v-for="i in (surface === 'popover' ? 2 : 4)" :key="i" class="workspace-card" style="box-shadow: none; border: 1px solid var(--app-auth-card-border); pointer-events: none;">
+                <el-skeleton animated style="height: 100%;">
+                  <template #template>
+                    <div class="card-header" style="margin-bottom: 24px;">
+                      <div class="workspace-avatar">
+                        <el-skeleton-item variant="circle" style="width: 40px; height: 40px; border-radius: 12px;" />
+                      </div>
+                      <div class="workspace-info" style="display: flex; flex-direction: column; gap: 8px; justify-content: center;">
+                        <el-skeleton-item variant="h3" style="width: 60%; height: 16px;" />
+                        <el-skeleton-item variant="text" style="width: 80%; height: 12px;" />
+                      </div>
+                    </div>
+                    <div class="card-footer" style="padding-top: 12px; margin-top: auto; border-top: 1px solid var(--app-auth-card-border); justify-content: flex-start;">
+                      <el-skeleton-item variant="rect" style="width: 48px; height: 24px; border-radius: 4px;" />
+                    </div>
+                  </template>
+                </el-skeleton>
+              </div>
+            </div>
           </div>
           <div v-else-if="allWorkspaces.length === 0" class="empty-state">
-            <el-empty :description="t('workspace.noPublicWorkspace')" />
+            <kageos-empty :description="t('workspace.noPublicWorkspace')" />
           </div>
           <div v-else class="workspace-grid">
             <div
@@ -356,12 +392,30 @@
 
       <el-tab-pane :label="t('workspace.systemWorkspaces')" name="system">
         <div class="workspace-list-container">
-          <div v-if="loading" class="loading-state">
-            <el-icon class="loading-icon"><Loading /></el-icon>
-            <span>{{ t('common.loading') }}</span>
+          <div v-if="loading" class="loading-state-skeleton">
+            <div class="workspace-grid">
+              <div v-for="i in (surface === 'popover' ? 2 : 4)" :key="i" class="workspace-card" style="box-shadow: none; border: 1px solid var(--app-auth-card-border); pointer-events: none;">
+                <el-skeleton animated style="height: 100%;">
+                  <template #template>
+                    <div class="card-header" style="margin-bottom: 24px;">
+                      <div class="workspace-avatar">
+                        <el-skeleton-item variant="circle" style="width: 40px; height: 40px; border-radius: 12px;" />
+                      </div>
+                      <div class="workspace-info" style="display: flex; flex-direction: column; gap: 8px; justify-content: center;">
+                        <el-skeleton-item variant="h3" style="width: 60%; height: 16px;" />
+                        <el-skeleton-item variant="text" style="width: 80%; height: 12px;" />
+                      </div>
+                    </div>
+                    <div class="card-footer" style="padding-top: 12px; margin-top: auto; border-top: 1px solid var(--app-auth-card-border); justify-content: flex-start;">
+                      <el-skeleton-item variant="rect" style="width: 48px; height: 24px; border-radius: 4px;" />
+                    </div>
+                  </template>
+                </el-skeleton>
+              </div>
+            </div>
           </div>
           <div v-else-if="systemWorkspaces.length === 0" class="empty-state">
-            <el-empty :description="t('workspace.noSystemWorkspace')" />
+            <kageos-empty :description="t('workspace.noSystemWorkspace')" />
           </div>
           <div v-else class="workspace-grid">
             <div

@@ -118,7 +118,7 @@
               </el-tree>
             </template>
             <template v-else>
-              <el-empty
+              <kageos-empty
                 v-if="!listLoading && inboxThreads.length === 0"
                 :description="t('workspaceInbox.empty')"
                 :image-size="80"
@@ -164,7 +164,7 @@
           </section>
 
           <section class="inbox-detail-pane" v-loading="detailLoading || (showServiceTreeInbox && listLoading)">
-            <el-empty
+            <kageos-empty
               v-if="!selectedThread"
               :description="sourceFilter ? t('workspaceInbox.currentNodeEmpty') : t('workspaceInbox.selectSource')"
               :image-size="96"

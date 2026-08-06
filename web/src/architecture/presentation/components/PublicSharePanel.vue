@@ -43,7 +43,7 @@
       </div>
 
       <div v-loading="loading" class="mobile-share-list">
-        <el-empty v-if="shares.length === 0" :description="t('publicSharePanel.empty')" :image-size="80" />
+        <kageos-empty v-if="shares.length === 0" :description="t('publicSharePanel.empty')" :image-size="80" />
         <article v-for="row in shares" :key="row.share_id" class="mobile-share-card">
           <div class="mobile-share-head">
             <div class="mobile-share-title">
@@ -245,7 +245,7 @@
         <div class="qr-box">
           <el-skeleton v-if="qrGenerating" :rows="5" animated />
           <img v-else-if="qrDataUrl" class="qr-image" :src="qrDataUrl" :alt="t('publicSharePanel.qrAlt')" />
-          <el-empty v-else :description="t('publicSharePanel.qrGenerateFailed')" :image-size="80" />
+          <kageos-empty v-else :description="t('publicSharePanel.qrGenerateFailed')" :image-size="80" />
         </div>
         <div class="qr-storage">
           <el-tag v-if="qrUploading" size="small" type="info" effect="light">

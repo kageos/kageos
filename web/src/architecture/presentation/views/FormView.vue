@@ -319,7 +319,7 @@
             </el-form-item>
           </template>
         </el-form>
-        <el-empty v-else :description="t('formView.noOutputData')" />
+        <kageos-empty v-else :description="t('formView.noOutputData')" />
 
         <div v-if="showDialogMetadataSection" class="metadata-section response-dialog-metadata">
           <div class="metadata-title">
@@ -394,7 +394,7 @@
               readonly
               class="debug-json-input"
             />
-            <el-empty v-else :description="t('formView.noOutputSubmitFirst')" />
+            <kageos-empty v-else :description="t('formView.noOutputSubmitFirst')" />
           </div>
         </el-tab-pane>
 

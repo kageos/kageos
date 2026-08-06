@@ -37,7 +37,7 @@
       :closable="false"
     />
 
-    <el-empty
+    <kageos-empty
       v-else-if="state.loaded && state.list.length === 0"
       :description="t('scheduledTask.emptyExecutions')"
       :image-size="56"

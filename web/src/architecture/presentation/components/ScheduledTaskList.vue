@@ -28,7 +28,7 @@
           </el-select>
         </div>
 
-        <el-empty
+        <kageos-empty
           v-if="!loading && list.length === 0"
           :description="t('scheduledTask.emptyFunctions')"
           :image-size="72"
@@ -84,7 +84,7 @@
       </aside>
 
       <main class="scheduled-agent-detail">
-        <el-empty
+        <kageos-empty
           v-if="!selectedTask"
           :description="t('scheduledTask.selectFunctionHint')"
           :image-size="96"
@@ -137,7 +137,7 @@
                   :closable="false"
                 />
 
-                <el-empty
+                <kageos-empty
                   v-else-if="selectedExecutionState.loaded && selectedExecutionState.list.length === 0"
                   :description="t('scheduledTask.emptyExecutions')"
                   :image-size="56"

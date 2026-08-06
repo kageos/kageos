@@ -10,7 +10,7 @@
       </el-button>
     </div>
 
-    <el-empty v-if="!normalizedScopePath" :description="t('notificationRoute.noNode')" />
+    <kageos-empty v-if="!normalizedScopePath" :description="t('notificationRoute.noNode')" />
 
     <template v-else>
       <div class="scope-summary">

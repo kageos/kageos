@@ -235,7 +235,7 @@
           </div>
         </template>
 
-        <el-empty v-else :description="t('prdPreview.emptyPreview')" />
+        <kageos-empty v-else :description="t('prdPreview.emptyPreview')" />
       </div>
 
       <div
@@ -277,7 +277,7 @@
     </section>
 
     <section v-else class="prd-stage prd-stage-empty">
-      <el-empty :description="t('prdPreview.emptyPreview')" />
+      <kageos-empty :description="t('prdPreview.emptyPreview')" />
     </section>
 
     <div v-if="props.showConfirmation && confirmationQuestion" class="prd-confirmation">

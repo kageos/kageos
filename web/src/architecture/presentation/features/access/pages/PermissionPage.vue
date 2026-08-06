@@ -521,7 +521,7 @@
                     />
                     <small>{{ roleLabel(approver.role_code) }} · {{ approver.inherited ? t('access.inherited') : t('access.currentResource') }}</small>
                   </div>
-                  <el-empty v-if="!approversLoading && approvers.length === 0" :image-size="44" :description="t('access.noApprover')" />
+                  <kageos-empty v-if="!approversLoading && approvers.length === 0" :image-size="44" :description="t('access.noApprover')" />
                 </div>
               </el-form-item>
 

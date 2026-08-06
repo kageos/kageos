@@ -240,7 +240,7 @@
           </div>
         </template>
 
-        <el-empty
+        <kageos-empty
           v-else
           :description="t('scheduledTask.emptyFunctions')"
           :image-size="76"
@@ -323,7 +323,7 @@
           </div>
         </template>
 
-        <el-empty
+        <kageos-empty
           v-else
           :description="t('scheduledTask.emptyAgents')"
           :image-size="76"

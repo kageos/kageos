@@ -143,16 +143,16 @@
           :show-submit-button="false"
           :show-reset-button="false"
         />
-        <el-empty v-else-if="!editFunctionDetail" :description="t('tableDetail.buildEditFormFailed')" />
-        <el-empty
+        <kageos-empty v-else-if="!editFunctionDetail" :description="t('tableDetail.buildEditFormFailed')" />
+        <kageos-empty
           v-else-if="editFormState.readiness === 'no-editable-fields'"
           :description="t('tableDetail.noEditableFields')"
         />
-        <el-empty
+        <kageos-empty
           v-else-if="editFormState.readiness === 'missing-edit-values'"
           :description="t('tableDetail.missingEditValues')"
         />
-        <el-empty
+        <kageos-empty
           v-else-if="editFormState.readiness === 'missing-row-data'"
           :description="t('tableDetail.missingRowData')"
         />

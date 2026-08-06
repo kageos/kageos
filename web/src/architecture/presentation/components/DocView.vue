@@ -108,7 +108,7 @@
 
     <!-- 空状态 -->
     <div v-else-if="!loading" class="doc-empty">
-      <el-empty description="文档不存在或尚未创建">
+      <kageos-empty description="文档不存在或尚未创建">
         <el-button 
           v-if="canEditDoc"
           type="primary" 
@@ -117,7 +117,7 @@
         >
           创建文档
         </el-button>
-      </el-empty>
+      </kageos-empty>
     </div>
 
     <!-- 图片预览弹层 -->

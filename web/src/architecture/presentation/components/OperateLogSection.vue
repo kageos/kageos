@@ -497,7 +497,7 @@
             </template>
           </el-table-column>
         </el-table>
-      <el-empty v-else :description="t('operateLog.empty')" :image-size="80" />
+      <kageos-empty v-else :description="t('operateLog.empty')" :image-size="80" />
 
       <div class="operate-log-pagination">
         <el-pagination

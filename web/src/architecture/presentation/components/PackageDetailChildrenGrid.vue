@@ -78,7 +78,7 @@
     </div>
   </div>
 
-  <el-empty
+  <kageos-empty
     v-else
     :description="t('packageDetail.emptyChildren')"
     :image-size="120"

@@ -675,7 +675,7 @@ onBeforeUnmount(() => {
               <el-icon><MagicStick /></el-icon>{{ item.automation_task_title || '自动化 Agent' }}
             </span>
           </button>
-          <el-empty v-if="!historyLoading && historySessions.length === 0" description="暂无会话" :image-size="72" />
+          <kageos-empty v-if="!historyLoading && historySessions.length === 0" description="暂无会话" :image-size="72" />
         </div>
       </section>
     </el-drawer>

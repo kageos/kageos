@@ -122,7 +122,7 @@
                 </div>
               </div>
 
-              <el-empty v-if="!authProviders.length && !providersLoading" :description="t('systemSettings.noLoginProviders')" />
+              <kageos-empty v-if="!authProviders.length && !providersLoading" :description="t('systemSettings.noLoginProviders')" />
 
               <div
                 v-for="provider in authProviders"

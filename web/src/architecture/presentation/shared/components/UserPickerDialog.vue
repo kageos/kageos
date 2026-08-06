@@ -64,13 +64,13 @@
         v-else-if="userList.length === 0 && searchKeyword"
         class="user-picker-dialog-empty"
       >
-        <el-empty description="未找到用户" :image-size="80" />
+        <kageos-empty description="未找到用户" :image-size="80" />
       </div>
       <div
         v-else-if="userList.length === 0 && !searchKeyword"
         class="user-picker-dialog-empty"
       >
-        <el-empty description="请输入关键词搜索用户" :image-size="80" />
+        <kageos-empty description="请输入关键词搜索用户" :image-size="80" />
       </div>
       <div
         v-else

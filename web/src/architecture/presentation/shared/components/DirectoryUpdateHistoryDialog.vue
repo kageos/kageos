@@ -18,7 +18,7 @@
       <!-- App视角：显示所有版本的变更 -->
       <template v-if="mode === 'app' && appHistory">
         <div v-if="appHistory.versions.length === 0" class="empty-state">
-          <el-empty :description="t('directoryHistory.empty')" />
+          <kageos-empty :description="t('directoryHistory.empty')" />
         </div>
 
         <div v-else class="versions-list">
@@ -256,7 +256,7 @@
       <!-- 目录视角：显示单个目录的变更历史 -->
       <template v-else-if="mode === 'directory' && directoryHistory">
         <div v-if="directoryHistory.directory_changes.length === 0" class="empty-state">
-          <el-empty :description="t('directoryHistory.empty')" />
+          <kageos-empty :description="t('directoryHistory.empty')" />
         </div>
 
         <div v-else class="changes-grid">

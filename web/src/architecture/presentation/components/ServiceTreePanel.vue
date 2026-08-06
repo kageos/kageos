@@ -257,7 +257,7 @@
             <el-tag size="small" type="info">目录内置</el-tag>
           </label>
         </div>
-        <el-empty v-else :image-size="52" description="没有目录内置任务" />
+        <kageos-empty v-else :image-size="52" description="没有目录内置任务" />
       </section>
       <section class="export-task-section">
         <div class="export-task-section-head">
@@ -274,7 +274,7 @@
             <el-tag size="small" type="success">自定义</el-tag>
           </label>
         </el-checkbox-group>
-        <el-empty v-else :image-size="52" description="没有可选的自定义任务" />
+        <kageos-empty v-else :image-size="52" description="没有可选的自定义任务" />
       </section>
       <template #footer>
         <el-button @click="exportDialogVisible = false">取消</el-button>

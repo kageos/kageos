@@ -101,7 +101,7 @@
           </span>
         </button>
 
-        <el-empty
+        <kageos-empty
           v-if="!loading && hasSearched && results.length === 0"
           :description="t('globalSearch.noResults')"
           :image-size="96"

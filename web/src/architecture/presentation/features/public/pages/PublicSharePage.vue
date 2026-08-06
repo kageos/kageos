@@ -88,7 +88,7 @@
           :sub-title="submissionsError"
         />
 
-        <el-empty v-else-if="submissions.length === 0" description="当前还没有提交记录" />
+        <kageos-empty v-else-if="submissions.length === 0" description="当前还没有提交记录" />
 
         <template v-else>
           <el-collapse class="submission-list">

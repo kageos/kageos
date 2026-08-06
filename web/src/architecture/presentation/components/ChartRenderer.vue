@@ -107,7 +107,7 @@
           </div>
         </template>
         <div v-else class="empty-chart">
-          <el-empty :description="t('chartRenderer.empty')" />
+          <kageos-empty :description="t('chartRenderer.empty')" />
         </div>
       </div>
     </el-card>

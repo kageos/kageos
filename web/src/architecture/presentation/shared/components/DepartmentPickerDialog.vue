@@ -58,7 +58,7 @@
         v-if="departmentTreeData.length === 0 && !loading"
         class="department-picker-dialog-empty"
       >
-        <el-empty description="暂无组织架构" :image-size="80" />
+        <kageos-empty description="暂无组织架构" :image-size="80" />
       </div>
       <div
         v-else
