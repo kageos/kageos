@@ -723,21 +723,24 @@ html.dark {
     }
   }
 
-  // 对话框组件 - 统一主题
+  // 对话框组件 - 统一主题，现代化拟物、去边框化风格
   .el-dialog {
     background-color: var(--bg-primary) !important;
-    border: 1px solid transparent; // 移除生硬边框
-    border-radius: var(--border-radius-xl); // 更大的圆角
+    border: none !important; // 彻底移除生硬边框
+    border-radius: var(--border-radius-xl) !important; // 保持大圆角
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1), 0 0 1px 1px rgba(0, 0, 0, 0.05) !important; // 使用细致的阴影代替边框
+    overflow: hidden; // 防止内部内容溢出圆角
     
     .el-dialog__header {
-      border-bottom: 1px solid var(--border-light);
+      border-bottom: 1px solid color-mix(in srgb, var(--border-light) 60%, transparent); // 非常淡的分割线
       background-color: var(--bg-primary);
-      padding: 20px 24px;
+      padding: 20px 24px 16px; // 稍微紧凑
       margin-right: 0;
     }
     .el-dialog__title {
       color: var(--text-primary);
       font-weight: 600;
+      font-size: 16px; // 不至于太大
     }
     .el-dialog__body {
       color: var(--text-regular);
@@ -745,8 +748,35 @@ html.dark {
       padding: 24px;
     }
     .el-dialog__footer {
-      border-top: 1px solid var(--border-light);
+      border-top: 1px solid color-mix(in srgb, var(--border-light) 60%, transparent); // 同样淡的分割线
       padding: 16px 24px;
+      background-color: color-mix(in srgb, var(--bg-secondary) 30%, var(--bg-primary)); // footer可以稍微沉下去一点
+    }
+  }
+
+  // 抽屉组件也做相同的现代风格处理
+  .el-drawer {
+    box-shadow: -10px 0 30px -10px rgba(0, 0, 0, 0.1), -1px 0 1px 0 rgba(0, 0, 0, 0.05) !important;
+    
+    .el-drawer__header {
+      border-bottom: 1px solid color-mix(in srgb, var(--border-light) 60%, transparent);
+      padding: 20px 24px 16px;
+      margin-bottom: 0;
+    }
+    
+    .el-drawer__body {
+      padding: 24px;
+    }
+  }
+
+  // 卡片组件扁平化，去除厚重感
+  .el-card {
+    border: 1px solid color-mix(in srgb, var(--border-light) 80%, transparent) !important;
+    box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.03), 0 1px 3px 0 rgba(0, 0, 0, 0.02) !important;
+    border-radius: var(--border-radius-lg);
+    
+    &.is-hover-shadow:focus, &.is-hover-shadow:hover {
+      box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.06), 0 2px 6px 0 rgba(0, 0, 0, 0.03) !important;
     }
   }
   
