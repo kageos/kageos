@@ -52,6 +52,12 @@
       </template>
     </section>
 
+    <footer class="public-share-watermark">
+      <a href="https://kageos.ai" target="_blank" rel="noopener noreferrer">
+        Powered by <strong>KageOS</strong>
+      </a>
+    </footer>
+
     <el-drawer
       v-model="submissionDrawerVisible"
       title="我的提交记录"
@@ -698,3 +704,34 @@ onBeforeUnmount(() => {
   }
 }
 </style>
+
+.public-share-watermark {
+  text-align: center;
+  padding: 24px 0 16px;
+  margin-top: auto;
+  opacity: 0.65;
+  transition: opacity 0.3s ease;
+}
+
+.public-share-watermark:hover {
+  opacity: 1;
+}
+
+.public-share-watermark a {
+  display: inline-block;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  text-decoration: none;
+  letter-spacing: 0.5px;
+}
+
+.public-share-watermark a strong {
+  font-weight: 700;
+  color: var(--el-text-color-primary);
+}
+
+@media (max-width: 700px) {
+  .public-share-watermark {
+    padding: 16px 0;
+  }
+}
