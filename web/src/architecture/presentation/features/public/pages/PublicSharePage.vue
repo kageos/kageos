@@ -54,7 +54,7 @@
 
     <footer class="public-share-watermark">
       <a href="https://kageos.ai" target="_blank" rel="noopener noreferrer">
-        Powered by <strong>KageOS</strong>
+        Powered by <strong>kageos</strong>
       </a>
     </footer>
 
