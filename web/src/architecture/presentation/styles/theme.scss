@@ -752,6 +752,33 @@ html.dark {
       padding: 16px 24px;
       background-color: color-mix(in srgb, var(--bg-secondary) 30%, var(--bg-primary)); // footer可以稍微沉下去一点
     }
+    
+    // 移动端：将 Dialog 强制转换为 BottomSheet 形态
+    @media screen and (max-width: 768px) {
+      width: 100% !important;
+      margin: 0 !important;
+      position: absolute;
+      bottom: 0;
+      border-radius: var(--border-radius-xl) var(--border-radius-xl) 0 0 !important;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      
+      .el-dialog__body {
+        overflow-y: auto;
+        flex: 1;
+        padding: 20px 16px; // 移动端稍微减小内边距
+      }
+      
+      .el-dialog__header {
+        padding: 16px 16px 12px;
+      }
+      
+      .el-dialog__footer {
+        padding: 12px 16px 16px;
+        padding-bottom: calc(16px + env(safe-area-inset-bottom)); // 适配刘海屏
+      }
+    }
   }
 
   // 抽屉组件也做相同的现代风格处理
