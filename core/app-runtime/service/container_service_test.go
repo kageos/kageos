@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -9,6 +11,55 @@ import (
 
 	appconfig "github.com/kageos/kageos/pkg/config"
 )
+
+type fakeFileInfo struct {
+	mode os.FileMode
+}
+
+func (f fakeFileInfo) Name() string       { return "tool" }
+func (f fakeFileInfo) Size() int64        { return 0 }
+func (f fakeFileInfo) Mode() os.FileMode  { return f.mode }
+func (f fakeFileInfo) ModTime() time.Time { return time.Time{} }
+func (f fakeFileInfo) IsDir() bool        { return f.mode.IsDir() }
+func (f fakeFileInfo) Sys() any           { return nil }
+
+func TestCommandPathForOSFallsBackToMacOSInstallLocations(t *testing.T) {
+	lookPath := func(string) (string, error) { return "", errors.New("not in PATH") }
+	stat := func(path string) (os.FileInfo, error) {
+		if path == "/opt/podman/bin/podman" {
+			return fakeFileInfo{mode: 0o755}, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	got, err := commandPathForOS("podman", "darwin", lookPath, stat)
+	if err != nil {
+		t.Fatalf("commandPathForOS() error = %v", err)
+	}
+	if got != "/opt/podman/bin/podman" {
+		t.Fatalf("commandPathForOS() = %q, want /opt/podman/bin/podman", got)
+	}
+}
+
+func TestCommandPathForOSDoesNotUseMacOSFallbackOnLinux(t *testing.T) {
+	wantErr := errors.New("not in PATH")
+	statCalled := false
+	_, err := commandPathForOS(
+		"podman",
+		"linux",
+		func(string) (string, error) { return "", wantErr },
+		func(string) (os.FileInfo, error) {
+			statCalled = true
+			return fakeFileInfo{mode: 0o755}, nil
+		},
+	)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("commandPathForOS() error = %v, want %v", err, wantErr)
+	}
+	if statCalled {
+		t.Fatal("Linux lookup must not inspect macOS fallback paths")
+	}
+}
 
 func TestPodmanRunBaseArgsDoNotInjectDockerHostGateway(t *testing.T) {
 	t.Setenv("TZ", "Asia/Tokyo")
