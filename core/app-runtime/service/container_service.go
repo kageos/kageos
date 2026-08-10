@@ -208,7 +208,7 @@ func (s *PodmanService) detectLSMFromHost(ctx context.Context) string {
 func (s *PodmanService) detectLSMFromProbeContainer(ctx context.Context) string {
 	image := s.config.GetBaseImage()
 	// 使用本项目运行镜像执行一条命令并退出，避免引入额外镜像依赖
-	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs("run", "--rm", image, "cat", "/proc/self/attr/current")...)
+	cmd := exec.CommandContext(ctx, podmanPath(), s.podmanArgs("run", "--rm", image, "cat", "/proc/self/attr/current")...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		logger.Warnf(ctx, "[LSM] 临时容器探测失败 (image=%s): %v，输出: %s，视为 none", image, err, string(out))
@@ -252,7 +252,7 @@ func (s *PodmanService) ExecCommand(ctx context.Context, containerName string, c
 	args = append(args, command...)
 
 	// 执行命令
-	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs(args...)...)
+	cmd := exec.CommandContext(ctx, podmanPath(), s.podmanArgs(args...)...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to execute command in container: %w, output: %s", err, string(output))
@@ -271,7 +271,7 @@ func (s *PodmanService) CopyToContainer(ctx context.Context, containerName, srcP
 	args := []string{"cp", srcPath, fmt.Sprintf("%s:%s", containerName, destPath)}
 
 	// 执行命令
-	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs(args...)...)
+	cmd := exec.CommandContext(ctx, podmanPath(), s.podmanArgs(args...)...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to copy file to container: %w, output: %s", err, string(output))
@@ -280,9 +280,64 @@ func (s *PodmanService) CopyToContainer(ctx context.Context, containerName, srcP
 	return nil
 }
 
+// commandPath resolves tools that macOS GUI applications commonly cannot find
+// because they do not inherit the user's login-shell PATH. Returning an
+// absolute path also makes all subsequent child processes use the same binary.
+func commandPath(name string) (string, error) {
+	return commandPathForOS(name, runtime.GOOS, exec.LookPath, os.Stat)
+}
+
+func commandPathForOS(
+	name string,
+	goos string,
+	lookPath func(string) (string, error),
+	stat func(string) (os.FileInfo, error),
+) (string, error) {
+	path, lookErr := lookPath(name)
+	if lookErr == nil {
+		return path, nil
+	}
+	if goos != "darwin" {
+		return "", lookErr
+	}
+
+	var candidates []string
+	switch name {
+	case "podman":
+		candidates = []string{
+			"/opt/podman/bin/podman",
+			"/opt/homebrew/bin/podman",
+			"/usr/local/bin/podman",
+		}
+	case "brew":
+		candidates = []string{
+			"/opt/homebrew/bin/brew",
+			"/usr/local/bin/brew",
+		}
+	default:
+		return "", lookErr
+	}
+
+	for _, candidate := range candidates {
+		info, err := stat(candidate)
+		if err == nil && !info.IsDir() && info.Mode().Perm()&0o111 != 0 {
+			return candidate, nil
+		}
+	}
+	return "", lookErr
+}
+
+func podmanPath() string {
+	path, err := commandPath("podman")
+	if err != nil {
+		return "podman"
+	}
+	return path
+}
+
 // isContainerRuntimeInstalled 检查容器运行时是否安装
 func (s *PodmanService) isContainerRuntimeInstalled() bool {
-	_, err := exec.LookPath("podman")
+	_, err := commandPath("podman")
 	return err == nil
 }
 
@@ -307,7 +362,8 @@ func (s *PodmanService) installOnMacOS(ctx context.Context) error {
 	logger.Infof(ctx, "正在 macOS 上安装 Podman...")
 
 	// 检查 Homebrew 是否安装
-	if _, err := exec.LookPath("brew"); err != nil {
+	brew, err := commandPath("brew")
+	if err != nil {
 		logger.Errorf(ctx, "未找到 Homebrew，请先安装 Homebrew:")
 		logger.Infof(ctx, "/bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"")
 		return fmt.Errorf("homebrew 未安装")
@@ -315,7 +371,7 @@ func (s *PodmanService) installOnMacOS(ctx context.Context) error {
 
 	// 使用 Homebrew 安装 Podman
 	logger.Infof(ctx, "使用 Homebrew 安装 Podman...")
-	cmd := exec.CommandContext(ctx, "brew", "install", "podman")
+	cmd := exec.CommandContext(ctx, brew, "install", "podman")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -326,7 +382,7 @@ func (s *PodmanService) installOnMacOS(ctx context.Context) error {
 
 	// 初始化 Podman Machine
 	logger.Infof(ctx, "初始化 Podman Machine...")
-	cmd = exec.CommandContext(ctx, "podman", "machine", "init")
+	cmd = exec.CommandContext(ctx, podmanPath(), "machine", "init")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -338,7 +394,7 @@ func (s *PodmanService) installOnMacOS(ctx context.Context) error {
 
 	// 启动 Podman Machine
 	logger.Infof(ctx, "启动 Podman Machine...")
-	cmd = exec.CommandContext(ctx, "podman", "machine", "start")
+	cmd = exec.CommandContext(ctx, podmanPath(), "machine", "start")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -505,7 +561,7 @@ func (s *PodmanService) prepareLinuxEnvironment() error {
 			// systemd 启动失败，尝试直接启动服务
 			logger.Warnf(s.ctx, "systemd start failed, trying podman system service...")
 
-			cmd = exec.Command("podman", "system", "service", "--time=0", "unix:///run/user/"+os.Getenv("UID")+"/podman/podman.sock")
+			cmd = exec.Command(podmanPath(), "system", "service", "--time=0", "unix:///run/user/"+os.Getenv("UID")+"/podman/podman.sock")
 			if err := cmd.Start(); err != nil {
 				return fmt.Errorf("failed to start podman service: %w", err)
 			}
@@ -523,7 +579,7 @@ func (s *PodmanService) prepareLinuxEnvironment() error {
 // prepareMacOSEnvironment 准备 macOS 环境
 func (s *PodmanService) prepareMacOSEnvironment() error {
 	// 检查 Podman Machine 状态
-	cmd := exec.Command("podman", "machine", "list", "--format", "{{.Running}}")
+	cmd := exec.Command(podmanPath(), "machine", "list", "--format", "{{.Running}}")
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to check podman machine status: %w\n\n"+
@@ -534,7 +590,7 @@ func (s *PodmanService) prepareMacOSEnvironment() error {
 	if running != "true" {
 		// Machine 未运行，启动它
 		logger.Infof(s.ctx, "Starting Podman Machine...")
-		cmd = exec.Command("podman", "machine", "start")
+		cmd = exec.Command(podmanPath(), "machine", "start")
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to start podman machine: %w\n\n"+
 				"Try running manually: podman machine start", err)
@@ -563,7 +619,7 @@ func (s *PodmanService) prepareWindowsEnvironment() error {
 	}
 
 	// 检查 Podman Machine 状态
-	cmd = exec.Command("podman", "machine", "list", "--format", "{{.Running}}")
+	cmd = exec.Command(podmanPath(), "machine", "list", "--format", "{{.Running}}")
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to check podman machine status: %w\n\n"+
@@ -574,7 +630,7 @@ func (s *PodmanService) prepareWindowsEnvironment() error {
 	if running != "true" {
 		// Machine 未运行，启动它
 		logger.Infof(s.ctx, "Starting Podman Machine...")
-		cmd = exec.Command("podman", "machine", "start")
+		cmd = exec.Command(podmanPath(), "machine", "start")
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to start podman machine: %w\n\n"+
 				"Try running manually: podman machine start", err)
@@ -593,7 +649,7 @@ func (s *PodmanService) prepareWindowsEnvironment() error {
 // connectToContainerRuntime 连接到容器运行时
 func (s *PodmanService) connectToContainerRuntime() error {
 	// 使用 Podman CLI 作为稳定边界，避免把 Podman/Docker Go SDK 的未修复 CVE 传递到默认二进制。
-	cmd := exec.CommandContext(s.ctx, "podman", s.podmanArgs("info", "--format", "json")...)
+	cmd := exec.CommandContext(s.ctx, podmanPath(), s.podmanArgs("info", "--format", "json")...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		target := "default podman context"
@@ -625,7 +681,7 @@ func (s *PodmanService) podmanArgs(args ...string) []string {
 }
 
 func (s *PodmanService) runPodman(ctx context.Context, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs(args...)...)
+	cmd := exec.CommandContext(ctx, podmanPath(), s.podmanArgs(args...)...)
 	return cmd.CombinedOutput()
 }
 
@@ -644,7 +700,7 @@ func (s *PodmanService) CreateSecret(ctx context.Context, secret RuntimeSecret) 
 		return fmt.Errorf("failed to replace runtime secret %s: %w, output: %s", secret.Name, err, string(output))
 	}
 
-	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs("secret", "create", secret.Name, "-")...)
+	cmd := exec.CommandContext(ctx, podmanPath(), s.podmanArgs("secret", "create", secret.Name, "-")...)
 	cmd.Stdin = bytes.NewReader(secret.Data)
 	if _, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to create runtime secret %s: %w", secret.Name, err)
@@ -911,7 +967,7 @@ func (s *PodmanService) RunContainerWithMount(ctx context.Context, image, name, 
 		"tail", "-f", "/dev/null", // 保持容器运行
 	)
 
-	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs(args...)...)
+	cmd := exec.CommandContext(ctx, podmanPath(), s.podmanArgs(args...)...)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -971,7 +1027,7 @@ func (s *PodmanService) RunContainerWithCommand(ctx context.Context, image, name
 	args = append(args, image)
 	args = append(args, command...)
 
-	cmd := exec.CommandContext(ctx, "podman", s.podmanArgs(args...)...)
+	cmd := exec.CommandContext(ctx, podmanPath(), s.podmanArgs(args...)...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to run container with command: %w, output: %s", err, string(output))

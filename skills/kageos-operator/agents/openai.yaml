@@ -1,4 +1,4 @@
 interface:
   display_name: "KageOS Operator"
-  short_description: "Operate and verify a KageOS workspace app through real APIs"
-  default_prompt: "Operate this KageOS app end to end, verify real data flows, and report evidence."
+  short_description: "Verify KageOS directories and complex inputs over HTTP"
+  default_prompt: "Use $kageos-operator to verify this KageOS directory through direct authenticated HTTP calls, including files, users, rich text, business readback, and safe cleanup."
