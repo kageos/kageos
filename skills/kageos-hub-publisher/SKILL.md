@@ -28,9 +28,9 @@ Never log or embed the token. Never request R2 credentials: all files must use S
    - inspect every image for tokens, email, phone, customer names, private URLs, or unrelated tabs;
    - discard unsafe captures and re-run with synthetic data;
    - write a concise editable caption for each capture explaining the user value and visible evidence.
-4. Upload the bundle and screenshots with `scripts/hub_publish.py upload`. The helper creates an upload intent, performs the direct R2/S3 PUT, and completes the intent.
+4. Upload the bundle with `scripts/hub_publish.py upload`. For screenshots, write the reviewed media manifest described in the SOP and run `scripts/hub_publish.py prepare`; it uploads every local file through a Sona intent, builds the ordered gallery, and appends selected images to `description_html`.
 5. Optionally call Hub AI assist with bundle-derived facts and operator evidence. Treat suggestions as a draft; never invent capabilities.
-6. Prepare the submission JSON. Gallery items must include `url`, `kind`, useful `alt`, and `caption`.
+6. Inspect the prepared submission JSON. The first gallery item is the catalog cover; every gallery item must include `url`, `kind`, useful `alt`, and `caption`. Inline screenshots must explain the visible outcome instead of duplicating empty UI.
 7. Show the final name, summary, version facts, screenshot captions, and target Hub to the user. Obtain explicit confirmation immediately before `submit`.
 8. Submit with `scripts/hub_publish.py submit`, then query `status` until the pending submission is visible.
 
