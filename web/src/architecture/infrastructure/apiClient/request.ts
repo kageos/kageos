@@ -354,10 +354,16 @@ service.interceptors.response.use(
 // 支持两种模式：
 // 1. params 参数 - 作为查询参数（默认）
 // 2. data 参数 - 作为 body（用于特殊场景，如回调接口）
+// 响应拦截器会将普通 JSON 响应解包为 response.data。Axios 实例本身无法
+// 在类型层面表达这一运行时约定，因此统一在请求边界收窄返回类型。
+function asResponseData<T>(request: Promise<unknown>): Promise<T> {
+  return request as Promise<T>
+}
+
 export function get<T = unknown>(url: string, params?: unknown, useBody: boolean = false, config?: AxiosRequestConfig): Promise<T> {
   if (useBody) {
     // 特殊场景：GET 请求带 body（用于回调接口）
-    return service.request({
+    return asResponseData<T>(service.request({
       ...config,
       url,
       method: 'GET',
@@ -366,7 +372,7 @@ export function get<T = unknown>(url: string, params?: unknown, useBody: boolean
         ...(config?.headers || {}),
         'Content-Type': 'application/json'
       }
-    })
+    }))
   } else {
     // 标准场景：GET 请求使用查询参数
     // 确保 params 是对象，并且只包含有值的字段
@@ -381,23 +387,23 @@ export function get<T = unknown>(url: string, params?: unknown, useBody: boolean
         }
       })
     }
-    return service.get(url, { ...config, params: cleanParams })
+    return asResponseData<T>(service.get(url, { ...config, params: cleanParams }))
   }
 }
 
 // 封装POST请求
 export function post<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-  return service.post(url, data, config)
+  return asResponseData<T>(service.post(url, data, config))
 }
 
 // 封装PUT请求
 export function put<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-  return service.put(url, data, config)
+  return asResponseData<T>(service.put(url, data, config))
 }
 
 // 封装PATCH请求
 export function patch<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-  return service.patch(url, data, config)
+  return asResponseData<T>(service.patch(url, data, config))
 }
 
 // 封装DELETE请求
@@ -407,24 +413,24 @@ export function patch<T = unknown>(url: string, data?: unknown, config?: AxiosRe
 export function del<T = unknown>(url: string, data?: unknown): Promise<T> {
   if (data) {
     // 特殊场景：DELETE 请求带 body
-    return service.request({
+    return asResponseData<T>(service.request({
       url,
       method: 'DELETE',
       data
-    })
+    }))
   } else {
     // 标准场景：DELETE 请求无 body
-    return service.delete(url)
+    return asResponseData<T>(service.delete(url))
   }
 }
 
 // 封装文件上传
 export function upload<T = unknown>(url: string, formData: FormData): Promise<T> {
-  return service.post(url, formData, {
+  return asResponseData<T>(service.post(url, formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
-  })
+  }))
 }
 
 // 封装文件下载

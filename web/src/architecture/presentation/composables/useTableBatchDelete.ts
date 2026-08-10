@@ -1,5 +1,4 @@
 import { ref } from 'vue'
-import type { ElTable } from 'element-plus'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { buildBatchDeleteIds } from '../views/utils/tableViewActionRuntime'
 import type { FunctionDetail, FieldConfig } from '../../domain/types'
@@ -11,10 +10,14 @@ interface UseTableBatchDeleteOptions {
   loadTableData: () => Promise<void>
 }
 
+interface TableSelectionController {
+  clearSelection: () => void
+}
+
 export function useTableBatchDelete(options: UseTableBatchDeleteOptions) {
   const isBatchDeleteMode = ref(false)
   const selectedRows = ref<TableRow[]>([])
-  const tableRef = ref<InstanceType<typeof ElTable> | null>(null)
+  const tableRef = ref<TableSelectionController | null>(null)
 
   const clearSelection = () => {
     selectedRows.value = []

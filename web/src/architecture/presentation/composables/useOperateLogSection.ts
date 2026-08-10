@@ -13,7 +13,7 @@ import { getFormRequestFields, getTableAllFields } from '@/architecture/domain/u
 import { translate } from '@/architecture/shared/i18n'
 
 type OperateLogScope = 'row' | 'function' | 'directory'
-type OperateLogEntry = {
+export type OperateLogEntry = {
   id: number
   tenant_user: string
   request_user: string
@@ -912,8 +912,16 @@ export function useOperateLogSection({
     expandedLogIds.value = [...expandedLogIds.value, logId]
   }
 
-  const handleLogExpandChange = (_log: OperateLogEntry, expandedRows: OperateLogEntry[]) => {
-    expandedLogIds.value = expandedRows.map((log) => log.id)
+  const handleLogExpandChange = (log: OperateLogEntry, expandedRows: OperateLogEntry[] | boolean) => {
+    if (Array.isArray(expandedRows)) {
+      expandedLogIds.value = expandedRows.map((item) => item.id)
+      return
+    }
+    if (expandedRows) {
+      expandedLogIds.value = [...new Set([...expandedLogIds.value, log.id])]
+      return
+    }
+    expandedLogIds.value = expandedLogIds.value.filter((id) => id !== log.id)
   }
 
   const canApplyFormLog = (log: OperateLogEntry): boolean => {
