@@ -170,7 +170,7 @@ export function useTableSearchAndSort(options: UseTableSearchAndSortOptions) {
     void options.loadTableData()
   }
 
-  const handleSortChange = (sortInfo: { prop?: string; order?: string }): void => {
+  const handleSortChange = (sortInfo: { prop?: string | null; order?: string | null }): void => {
     const currentState = options.stateManager.getState()
     let newSorts = [...currentState.sorts]
 

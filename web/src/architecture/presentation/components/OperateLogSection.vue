@@ -120,11 +120,11 @@
                 <template #default="{ row }">
                   <div class="table-log-details">
                     <div
-                      v-if="getFormRequestEntries(row).length > 0"
+                      v-if="getFormRequestEntries(asOperateLogEntry(row)).length > 0"
                       class="value-list"
                     >
                       <div
-                        v-for="item in getFormRequestEntries(row)"
+                        v-for="item in getFormRequestEntries(asOperateLogEntry(row))"
                         :key="item.fieldCode"
                         class="value-row"
                         :class="{ 'is-file-value': isFilesField(item.field) }"
@@ -141,11 +141,11 @@
                       </div>
                     </div>
 
-                    <div v-else class="text-muted">{{ getLogEmptyText(row) }}</div>
+                    <div v-else class="text-muted">{{ getLogEmptyText(asOperateLogEntry(row)) }}</div>
 
                     <div class="log-meta-grid">
                       <span
-                        v-for="item in getLogMetaEntries(row)"
+                        v-for="item in getLogMetaEntries(asOperateLogEntry(row))"
                         :key="`${item.label}:${item.value}`"
                       >
                         {{ item.label }}: {{ item.value }}
@@ -185,7 +185,7 @@
               <el-table-column :label="t('operateLog.source')" min-width="110" align="center">
                 <template #default="{ row }">
                   <el-tag :type="getSourceTagType(row.source)" size="small" effect="light">
-                    {{ getLogSourceLabel(row) }}
+                    {{ getLogSourceLabel(asOperateLogEntry(row)) }}
                   </el-tag>
                 </template>
               </el-table-column>
@@ -236,7 +236,7 @@
                     <el-button text @click="openPreviewDialog(row)">
                       {{ t('operateLog.preview') }}
                     </el-button>
-                    <el-button type="primary" @click="applyFormLog(row)">
+                    <el-button type="primary" @click="applyFormLog(asOperateLogEntry(row))">
                       {{ t('operateLog.replayForm') }}
                     </el-button>
                   </div>
@@ -342,11 +342,11 @@
             <template #default="{ row }">
               <div class="table-log-details">
                 <div
-                  v-if="row.action === 'OnTableUpdateRow' && getChangeEntries(row).length > 0"
+                  v-if="row.action === 'OnTableUpdateRow' && getChangeEntries(asOperateLogEntry(row)).length > 0"
                   class="change-list"
                 >
                   <OperateLogFieldChange
-                    v-for="item in getChangeEntries(row)"
+                    v-for="item in getChangeEntries(asOperateLogEntry(row))"
                     :key="item.fieldCode"
                     :field-code="item.fieldCode"
                     :field-name="item.fieldName"
@@ -360,11 +360,11 @@
                 </div>
 
                 <div
-                  v-else-if="getValueEntries(row).length > 0"
+                  v-else-if="getValueEntries(asOperateLogEntry(row)).length > 0"
                   class="value-list"
                 >
                   <div
-                    v-for="item in getValueEntries(row)"
+                    v-for="item in getValueEntries(asOperateLogEntry(row))"
                     :key="item.fieldCode"
                     class="value-row"
                     :class="{ 'is-file-value': isFilesField(item.field) }"
@@ -381,11 +381,11 @@
                   </div>
                 </div>
 
-                <div v-else class="text-muted">{{ getLogEmptyText(row) }}</div>
+                <div v-else class="text-muted">{{ getLogEmptyText(asOperateLogEntry(row)) }}</div>
 
                 <div class="log-meta-grid">
                   <span
-                    v-for="item in getLogMetaEntries(row)"
+                    v-for="item in getLogMetaEntries(asOperateLogEntry(row))"
                     :key="`${item.label}:${item.value}`"
                   >
                     {{ item.label }}: {{ item.value }}
@@ -428,7 +428,7 @@
           <el-table-column :label="t('operateLog.recordColumn')" min-width="220">
             <template #default="{ row }">
               <div class="table-record-cell">
-                <div class="table-record-title">{{ getLogTitle(row) }}</div>
+                <div class="table-record-title">{{ getLogTitle(asOperateLogEntry(row)) }}</div>
                 <div v-if="showRowIdColumn && row.row_id" class="table-record-meta">
                   {{ t('common.rowRecord', { id: row.row_id }) }}
                 </div>
@@ -442,15 +442,15 @@
           <el-table-column :label="t('operateLog.summary')" min-width="240" show-overflow-tooltip>
             <template #default="{ row }">
               <div class="table-summary-cell">
-                <div class="table-summary-text">{{ getLogSummary(row) }}</div>
+                <div class="table-summary-text">{{ getLogSummary(asOperateLogEntry(row)) }}</div>
               </div>
             </template>
           </el-table-column>
 
           <el-table-column :label="t('operateLog.result')" width="96" align="center">
             <template #default="{ row }">
-              <el-tag :type="getLogStatusTagType(row)" size="small" effect="light">
-                {{ getLogStatusLabel(row) }}
+              <el-tag :type="getLogStatusTagType(asOperateLogEntry(row))" size="small" effect="light">
+                {{ getLogStatusLabel(asOperateLogEntry(row)) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -458,7 +458,7 @@
           <el-table-column :label="t('operateLog.source')" width="110" align="center">
             <template #default="{ row }">
               <el-tag :type="getSourceTagType(row.source)" size="small" effect="light">
-                {{ getLogSourceLabel(row) }}
+                {{ getLogSourceLabel(asOperateLogEntry(row)) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -493,7 +493,7 @@
 
           <el-table-column :label="t('operateLog.duration')" width="110" align="center">
             <template #default="{ row }">
-              <span class="duration-text">{{ formatDuration(getLogDuration(row)) }}</span>
+              <span class="duration-text">{{ formatDuration(getLogDuration(asOperateLogEntry(row))) }}</span>
             </template>
           </el-table-column>
         </el-table>
@@ -595,7 +595,10 @@ import {
 import type { TagProps } from 'element-plus'
 import { WidgetType } from '@/architecture/domain/constants/widget'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
-import { useOperateLogSection } from '@/architecture/presentation/composables/useOperateLogSection'
+import {
+  useOperateLogSection,
+  type OperateLogEntry,
+} from '@/architecture/presentation/composables/useOperateLogSection'
 import OperateLogFieldValue from './OperateLogFieldValue.vue'
 import OperateLogFieldChange from './OperateLogFieldChange.vue'
 import {
@@ -635,6 +638,11 @@ const router = useRouter()
 const previewDialogVisible = ref(false)
 const previewActiveTab = ref('request')
 const previewLog = ref<any | null>(null)
+
+function asOperateLogEntry(row: Record<string, unknown>): OperateLogEntry {
+  return row as OperateLogEntry
+}
+
 const focusLogId = computed(() => readStringQuery(route.query, PLATFORM_LOG_ID_QUERY_KEY))
 const focusTraceId = computed(() => readStringQuery(route.query, PLATFORM_TRACE_ID_QUERY_KEY))
 
