@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -31,12 +32,57 @@ func TestDownloadCapabilityBundleUsesInstallKeyHeader(t *testing.T) {
 	}))
 	defer server.Close()
 
-	bundle, err := downloadCapabilityBundle(context.Background(), server.URL+"/bundle", "install-key-123")
+	bundle, reportURL, err := downloadCapabilityBundle(context.Background(), server.URL+"/bundle", "install-key-123")
 	if err != nil {
 		t.Fatalf("downloadCapabilityBundle() error = %v", err)
 	}
 	if bundle.Name != "remote bundle" || bundle.SchemaVersion != dto.CapabilityBundleSchemaVersion {
 		t.Fatalf("unexpected bundle: %#v", bundle)
+	}
+	if reportURL != "" {
+		t.Fatalf("unexpected install report URL: %q", reportURL)
+	}
+}
+
+func TestDownloadCapabilityBundleAcceptsSameOriginInstallReport(t *testing.T) {
+	t.Parallel()
+
+	reported := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/install-complete" {
+			reported <- struct{}{}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.Header().Set(capabilityBundleInstallReportHeader, "/install-complete?receipt=signed")
+		_, _ = w.Write([]byte(`{"schema_version":"capability.bundle.v1","packages":[],"files":[]}`))
+	}))
+	defer server.Close()
+
+	_, reportURL, err := downloadCapabilityBundle(context.Background(), server.URL+"/bundle", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reportURL != server.URL+"/install-complete?receipt=signed" {
+		t.Fatalf("report URL = %q", reportURL)
+	}
+	if err := reportCapabilityBundleInstall(context.Background(), reportURL); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-reported:
+	default:
+		t.Fatal("expected install report callback")
+	}
+}
+
+func TestResolveInstallReportURLRejectsCrossOrigin(t *testing.T) {
+	bundleURL, err := url.Parse("https://hub.kageos.ai/api/v1/applications/demo/app/latest/bundle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveInstallReportURL(bundleURL, "http://127.0.0.1/internal"); got != "" {
+		t.Fatalf("cross-origin report URL must be rejected, got %q", got)
 	}
 }
 
@@ -130,7 +176,7 @@ func TestDownloadCapabilityBundleExtractsInstallKeyFromURL(t *testing.T) {
 	}))
 	defer server.Close()
 
-	bundle, err := downloadCapabilityBundle(context.Background(), server.URL+"/api/v1/products/demo/bundle/url-key-123", "")
+	bundle, _, err := downloadCapabilityBundle(context.Background(), server.URL+"/api/v1/products/demo/bundle/url-key-123", "")
 	if err != nil {
 		t.Fatalf("downloadCapabilityBundle() error = %v", err)
 	}
@@ -145,7 +191,7 @@ func TestDownloadCapabilityBundleExtractsInstallKeyFromURL(t *testing.T) {
 func TestDownloadCapabilityBundleRejectsUnsupportedScheme(t *testing.T) {
 	t.Parallel()
 
-	_, err := downloadCapabilityBundle(context.Background(), "file:///tmp/bundle.json", "")
+	_, _, err := downloadCapabilityBundle(context.Background(), "file:///tmp/bundle.json", "")
 	if err == nil || !strings.Contains(err.Error(), "http/https") {
 		t.Fatalf("expected scheme rejection, got %v", err)
 	}
@@ -371,6 +417,24 @@ func TestCapabilityBundleScheduledFunctionPreservesPortableDefinition(t *testing
 	}
 	if got := string(item.Body); !strings.Contains(got, `"scope":"last_30_days"`) {
 		t.Fatalf("unexpected body: %s", got)
+	}
+}
+
+func TestAppendUniqueCapabilityScheduledFunctionSkipsReconcilerDuplicate(t *testing.T) {
+	bundle := &dto.CapabilityBundle{}
+	seen := map[string]struct{}{}
+	item := &dto.CapabilityBundleScheduledFunction{
+		RelativePath: "meeting/meeting_room_notify_soon.form",
+		Code:         "meeting_reminder_soon",
+	}
+	if !appendUniqueCapabilityScheduledFunction(bundle, seen, item) {
+		t.Fatal("first schedule must be appended")
+	}
+	if appendUniqueCapabilityScheduledFunction(bundle, seen, item) {
+		t.Fatal("duplicate schedule must be skipped")
+	}
+	if len(bundle.ScheduledFunctions) != 1 {
+		t.Fatalf("scheduled functions = %d, want 1", len(bundle.ScheduledFunctions))
 	}
 }
 

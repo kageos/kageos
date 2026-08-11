@@ -29,6 +29,7 @@ import (
 const maxRemoteCapabilityBundleBytes = 32 << 20
 const capabilityBundleAgentTaskPageSize = 100
 const capabilityBundleScheduledFunctionPageSize = 100
+const capabilityBundleInstallReportHeader = "X-Kageos-Install-Report"
 
 var capabilityBundleReleaseVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$`)
 
@@ -495,18 +496,28 @@ func (s *serviceTreeCapabilityBundleService) appendCapabilityBundleScheduledFunc
 			if item == nil {
 				continue
 			}
-			key := capabilityScheduledFunctionKey(item.RelativePath, item.Code)
-			if _, exists := seen[key]; exists {
-				item.Code = fmt.Sprintf("%s_%d", item.Code, task.ID)
-				key = capabilityScheduledFunctionKey(item.RelativePath, item.Code)
-			}
-			seen[key] = struct{}{}
-			bundle.ScheduledFunctions = append(bundle.ScheduledFunctions, item)
+			appendUniqueCapabilityScheduledFunction(bundle, seen, item)
 		}
 		if len(resp.List) < capabilityBundleScheduledFunctionPageSize {
 			return nil
 		}
 	}
+}
+
+func appendUniqueCapabilityScheduledFunction(bundle *dto.CapabilityBundle, seen map[string]struct{}, item *dto.CapabilityBundleScheduledFunction) bool {
+	if bundle == nil || item == nil {
+		return false
+	}
+	key := capabilityScheduledFunctionKey(item.RelativePath, item.Code)
+	if _, exists := seen[key]; exists {
+		// Manifest reconciliation can temporarily leave two records for the
+		// same portable schedule. Exporting a renamed copy would install the
+		// same automation twice.
+		return false
+	}
+	seen[key] = struct{}{}
+	bundle.ScheduledFunctions = append(bundle.ScheduledFunctions, item)
+	return true
 }
 
 func capabilityBundleScheduledFunctionFromTask(baseTree *model.ServiceTree, task *scheduledsdk.Task, includeBaseCode bool) (*dto.CapabilityBundleScheduledFunction, error) {
@@ -1338,11 +1349,21 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundleFromFile(ctx
 }
 
 func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundleFromURL(ctx context.Context, opts *dto.InstallCapabilityOptions, bundleURL, installKey string) (*dto.InstallCapabilityBundleResp, error) {
-	bundle, err := downloadCapabilityBundle(ctx, bundleURL, installKey)
+	bundle, installReportURL, err := downloadCapabilityBundle(ctx, bundleURL, installKey)
 	if err != nil {
 		return nil, err
 	}
-	return s.InstallCapabilityBundle(ctx, opts, bundle)
+	resp, err := s.InstallCapabilityBundle(ctx, opts, bundle)
+	if err != nil {
+		return nil, err
+	}
+	if installReportURL != "" {
+		if err := reportCapabilityBundleInstall(ctx, installReportURL); err != nil {
+			logger.Warnf(ctx, "report capability bundle install failed: %v", err)
+			resp.Warnings = append(resp.Warnings, "目录已导入，但 Hub 安装统计回报失败")
+		}
+	}
+	return resp, nil
 }
 
 func filterCapabilityBundleBySubpath(bundle *dto.CapabilityBundle, rawSubpath string) (*dto.CapabilityBundle, error) {
@@ -1518,17 +1539,17 @@ func readCapabilityBundleFile(filePath string) (*dto.CapabilityBundle, error) {
 	return &bundle, nil
 }
 
-func downloadCapabilityBundle(ctx context.Context, rawURL, installKey string) (*dto.CapabilityBundle, error) {
+func downloadCapabilityBundle(ctx context.Context, rawURL, installKey string) (*dto.CapabilityBundle, string, error) {
 	rawURL = strings.TrimSpace(rawURL)
 	if rawURL == "" {
-		return nil, fmt.Errorf("目录 URL 不能为空")
+		return nil, "", fmt.Errorf("目录 URL 不能为空")
 	}
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("目录 URL 无效: %w", err)
+		return nil, "", fmt.Errorf("目录 URL 无效: %w", err)
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return nil, fmt.Errorf("目录 URL 仅支持 http/https")
+		return nil, "", fmt.Errorf("目录 URL 仅支持 http/https")
 	}
 	if installKey == "" {
 		rawPath := strings.Trim(parsed.EscapedPath(), "/")
@@ -1536,7 +1557,7 @@ func downloadCapabilityBundle(ctx context.Context, rawURL, installKey string) (*
 		if len(parts) >= 2 && parts[len(parts)-2] == "bundle" {
 			key, err := url.PathUnescape(parts[len(parts)-1])
 			if err != nil {
-				return nil, fmt.Errorf("解析 URL 中的安装密钥失败: %w", err)
+				return nil, "", fmt.Errorf("解析 URL 中的安装密钥失败: %w", err)
 			}
 			installKey = key
 			parts = parts[:len(parts)-1]
@@ -1547,7 +1568,7 @@ func downloadCapabilityBundle(ctx context.Context, rawURL, installKey string) (*
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("创建目录下载请求失败: %w", err)
+		return nil, "", fmt.Errorf("创建目录下载请求失败: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
 	if installKey = strings.TrimSpace(installKey); installKey != "" {
@@ -1557,27 +1578,60 @@ func downloadCapabilityBundle(ctx context.Context, rawURL, installKey string) (*
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("下载目录失败: %w", err)
+		return nil, "", fmt.Errorf("下载目录失败: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("下载目录失败: HTTP %d", resp.StatusCode)
+		return nil, "", fmt.Errorf("下载目录失败: HTTP %d", resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxRemoteCapabilityBundleBytes+1))
 	if err != nil {
-		return nil, fmt.Errorf("读取目录响应失败: %w", err)
+		return nil, "", fmt.Errorf("读取目录响应失败: %w", err)
 	}
 	if len(data) > maxRemoteCapabilityBundleBytes {
-		return nil, fmt.Errorf("目录 JSON 过大，最大支持 %d MB", maxRemoteCapabilityBundleBytes>>20)
+		return nil, "", fmt.Errorf("目录 JSON 过大，最大支持 %d MB", maxRemoteCapabilityBundleBytes>>20)
 	}
 
 	var bundle dto.CapabilityBundle
 	if err := json.Unmarshal(data, &bundle); err != nil {
-		return nil, fmt.Errorf("解析目录 JSON 失败: %w", err)
+		return nil, "", fmt.Errorf("解析目录 JSON 失败: %w", err)
 	}
-	return &bundle, nil
+	return &bundle, resolveInstallReportURL(parsed, resp.Header.Get(capabilityBundleInstallReportHeader)), nil
+}
+
+func resolveInstallReportURL(bundleURL *url.URL, rawReportURL string) string {
+	if bundleURL == nil || strings.TrimSpace(rawReportURL) == "" {
+		return ""
+	}
+	reportURL, err := url.Parse(strings.TrimSpace(rawReportURL))
+	if err != nil {
+		return ""
+	}
+	reportURL = bundleURL.ResolveReference(reportURL)
+	if reportURL.Scheme != bundleURL.Scheme || !strings.EqualFold(reportURL.Host, bundleURL.Host) {
+		return ""
+	}
+	return reportURL.String()
+}
+
+func reportCapabilityBundleInstall(ctx context.Context, reportURL string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reportURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/json")
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func (s *serviceTreeCapabilityBundleService) resolveCapabilityInstallTarget(opts *dto.InstallCapabilityOptions) (*model.App, string, error) {
