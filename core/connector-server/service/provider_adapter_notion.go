@@ -122,7 +122,7 @@ func fetchNotionResourceSummary(ctx context.Context, provider config.ConnectorOA
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	decorateProviderAPIRequest("notion", req)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := connectorOAuthHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

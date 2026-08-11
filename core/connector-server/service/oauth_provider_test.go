@@ -5,6 +5,12 @@ import (
 	"testing"
 )
 
+func TestConnectorOAuthHTTPClientHasTimeout(t *testing.T) {
+	if connectorOAuthHTTPClient.Timeout != connectorOAuthHTTPTimeout {
+		t.Fatalf("OAuth HTTP timeout = %v, want %v", connectorOAuthHTTPClient.Timeout, connectorOAuthHTTPTimeout)
+	}
+}
+
 func TestOAuthTokenEndpointErrorHidesBody(t *testing.T) {
 	err := oauthTokenEndpointError(400, []byte(`{"error":"invalid_grant","access_token":"secret-token","client_secret":"secret-client"}`))
 	if err == nil {

@@ -2,6 +2,7 @@ package apicall
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -92,5 +93,73 @@ func TestTransportFailureInvalidatesGatewayWithoutReplayingRequest(t *testing.T)
 	_ = serviceconfig.GetGatewayURL()
 	if healthHits.Load() <= firstHealthHits {
 		t.Fatal("transport failure did not invalidate gateway resolution")
+	}
+}
+
+func TestDoAPIRequestRejectsOversizedSuccessResponse(t *testing.T) {
+	previousClient := httpClient
+	t.Cleanup(func() { httpClient = previousClient })
+	httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Body:       io.NopCloser(strings.NewReader(strings.Repeat("x", maxAPIResponseBytes+1))),
+			Header:     make(http.Header),
+		}, nil
+	})}
+
+	req, err := http.NewRequest(http.MethodGet, "http://gateway.invalid/large", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := doAPIRequest[any](req); err == nil || !strings.Contains(err.Error(), "响应体超过限制") {
+		t.Fatalf("doAPIRequest error = %v, want response size limit error", err)
+	}
+}
+
+func TestDoAPIRequestBoundsErrorResponseBody(t *testing.T) {
+	previousClient := httpClient
+	t.Cleanup(func() { httpClient = previousClient })
+	httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusBadGateway,
+			Status:     "502 Bad Gateway",
+			Body:       io.NopCloser(strings.NewReader(strings.Repeat("x", maxHTTPErrorBodyBytes+1))),
+			Header:     make(http.Header),
+		}, nil
+	})}
+
+	req, err := http.NewRequest(http.MethodGet, "http://gateway.invalid/error", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := doAPIRequest[any](req); err == nil || !strings.Contains(err.Error(), "limit=65536") {
+		t.Fatalf("doAPIRequest error = %v, want bounded error response", err)
+	}
+}
+
+func TestDoAPIRequestTruncatesInvalidJSONInError(t *testing.T) {
+	previousClient := httpClient
+	t.Cleanup(func() { httpClient = previousClient })
+	hugeInvalidJSON := strings.Repeat("x", maxAPIResponseErrorSnippetBytes+1024)
+	httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Body:       io.NopCloser(strings.NewReader(hugeInvalidJSON)),
+			Header:     make(http.Header),
+		}, nil
+	})}
+
+	req, err := http.NewRequest(http.MethodGet, "http://gateway.invalid/invalid-json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = doAPIRequest[any](req)
+	if err == nil || !strings.Contains(err.Error(), "已截断") {
+		t.Fatalf("doAPIRequest error = %v, want truncated response marker", err)
+	}
+	if strings.Contains(err.Error(), hugeInvalidJSON) {
+		t.Fatal("parse error included the complete response body")
 	}
 }

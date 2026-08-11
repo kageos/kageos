@@ -170,7 +170,17 @@ function extractTimerError(payload: unknown, fallback: string): string {
 
 async function parseTimerResponse<T>(response: Response): Promise<T> {
   const text = await response.text()
-  const payload = text ? JSON.parse(text) : null
+  let payload: unknown = null
+  if (text) {
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`)
+      }
+      throw new Error(`响应格式错误: HTTP ${response.status}`)
+    }
+  }
 
   if (!response.ok) {
     throw new Error(extractTimerError(payload, `HTTP ${response.status}`))

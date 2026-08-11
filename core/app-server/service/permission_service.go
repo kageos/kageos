@@ -677,12 +677,13 @@ func (s *PermissionService) writeOperateLog(ctx context.Context, input operateLo
 	log.OldValuesJSON = mustMarshalRaw(input.OldValues)
 	log.NewValuesJSON = mustMarshalRaw(input.NewValues)
 
-	writeCtx := context.WithoutCancel(ctx)
-	go func(ctx context.Context) {
-		if err := s.operateLogRepo.CreateOperateLog(ctx, log); err != nil {
-			logger.Warnf(ctx, "[Permission] write operate log failed: action=%s err=%v", input.Action, err)
+	go func(parent context.Context) {
+		writeCtx, cancel := newDetachedWriteContext(parent)
+		defer cancel()
+		if err := s.operateLogRepo.CreateOperateLog(writeCtx, log); err != nil {
+			logger.Warnf(writeCtx, "[Permission] write operate log failed: action=%s err=%v", input.Action, err)
 		}
-	}(writeCtx)
+	}(ctx)
 }
 
 func mustMarshalRaw(v interface{}) json.RawMessage {

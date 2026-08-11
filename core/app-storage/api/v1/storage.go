@@ -846,13 +846,14 @@ func (s *Storage) DownloadFile(c *gin.Context) {
 	}
 
 	// 异步记录下载（不阻塞响应）
-	writeCtx := context.WithoutCancel(ctx)
-	go func() {
+	go func(parent context.Context) {
+		writeCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
+		defer cancel()
 		if err := s.storageService.RecordDownload(writeCtx, downloadRecord); err != nil {
 			logger.Errorf(writeCtx, "Failed to record download: %v", err)
 			// 不影响下载流程，只记录错误
 		}
-	}()
+	}(ctx)
 
 	downloadURL, _, _, err := s.storageService.GetFileURLs(ctx, key)
 	if err != nil || downloadURL == "" {

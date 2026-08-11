@@ -189,6 +189,9 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
   async function loadMiniSessionMessages(targetSessionId: string) {
     try {
       const response = await getWorkspaceMessages({ session_id: targetSessionId })
+      if (sessionId.value !== targetSessionId) {
+        return
+      }
       setMessages(normalizeWorkspaceSessionMessages(response?.messages || []))
     } catch (error) {
       Logger.error('[MiniWorkstationSessions]', '加载会话消息失败', { error })
@@ -237,23 +240,29 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
     }
 
     stopMiniPoll()
+    let pollInFlight = false
     miniPollTimer = setInterval(async () => {
       if (sessionId.value !== targetSessionId) {
         stopMiniPoll()
         return
       }
-      if (sending.value) {
+      if (sending.value || pollInFlight) {
         return
       }
+      pollInFlight = true
       try {
-        const { connected } = await getWorkspaceSessionSSEStatus(targetSessionId)
-        if (connected) {
-          return
+        try {
+          const { connected } = await getWorkspaceSessionSSEStatus(targetSessionId)
+          if (connected) {
+            return
+          }
+        } catch {
+          // 存活检测失败时仍按原逻辑拉取，避免漏更新
         }
-      } catch {
-        // 存活检测失败时仍按原逻辑拉取，避免漏更新
+        await loadMiniSessionMessages(targetSessionId)
+      } finally {
+        pollInFlight = false
       }
-      await loadMiniSessionMessages(targetSessionId)
     }, 3000)
   }
 

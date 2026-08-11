@@ -207,7 +207,9 @@ func (a *PublicShareAPI) Submit(c *gin.Context) {
 	useCommitted := false
 	defer func() {
 		if !useCommitted {
-			a.publicShareService.ReleaseUse(context.WithoutCancel(ctx), share.ShareID)
+			releaseCtx, releaseCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer releaseCancel()
+			a.publicShareService.ReleaseUse(releaseCtx, share.ShareID)
 		}
 	}()
 
@@ -225,7 +227,9 @@ func (a *PublicShareAPI) Submit(c *gin.Context) {
 	}
 
 	a.recordPublicSubmitLog(ctx, c, req, resp, callErr, mill)
-	a.publicShareService.RecordEvent(context.WithoutCancel(ctx), &model.PublicShareEvent{
+	eventCtx, eventCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer eventCancel()
+	a.publicShareService.RecordEvent(eventCtx, &model.PublicShareEvent{
 		ShareID:       share.ShareID,
 		TenantUser:    share.TenantUser,
 		App:           share.App,

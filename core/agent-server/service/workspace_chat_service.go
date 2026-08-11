@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kageos/kageos/core/agent-server/model"
@@ -354,7 +355,9 @@ func (s *WorkspaceChatService) WorkspaceChatStream(ctx context.Context, req *dto
 		if e == nil && latest != nil && latest.Status == model.ChatSessionStatusCancelled {
 			finalStatus = RuntimeStateStatusCancelled
 		}
-		s.finishWorkspaceRuntimeState(context.WithoutCancel(ctx), runtimeStateKey, runtimeStateBase, err, finalStatus)
+		finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer finishCancel()
+		s.finishWorkspaceRuntimeState(finishCtx, runtimeStateKey, runtimeStateBase, err, finalStatus)
 	}()
 
 	llmConfigID := req.LLMConfigID

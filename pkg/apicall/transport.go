@@ -26,6 +26,12 @@ var httpClient = &http.Client{
 	Timeout: 300 * time.Second,
 }
 
+const (
+	maxAPIResponseBytes             = 32 << 20
+	maxHTTPErrorBodyBytes           = 64 << 10
+	maxAPIResponseErrorSnippetBytes = 4 << 10
+)
+
 func callAPI[T any](ctx context.Context, method, path string, reqBody interface{}) (*ApiResult[T], error) {
 	fullURL := serviceconfig.BuildGatewayURL(path)
 	return callAPIWithOptions[T](ctx, method, fullURL, reqBody)
@@ -149,9 +155,16 @@ func doAPIRequest[T any](req *http.Request) (*ApiResult[T], error) {
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := io.ReadAll(resp.Body)
+	maxBodyBytes := int64(maxAPIResponseBytes)
+	if resp.StatusCode != http.StatusOK {
+		maxBodyBytes = maxHTTPErrorBodyBytes
+	}
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("读取响应失败: %w", err)
+	}
+	if int64(len(bodyBytes)) > maxBodyBytes {
+		return nil, fmt.Errorf("HTTP响应体超过限制: status=%d limit=%d", resp.StatusCode, maxBodyBytes)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -160,7 +173,7 @@ func doAPIRequest[T any](req *http.Request) (*ApiResult[T], error) {
 
 	var result ApiResult[T]
 	if err := json.Unmarshal(bodyBytes, &result); err != nil {
-		return nil, fmt.Errorf("解析响应失败: %w, 响应内容: %s", err, string(bodyBytes))
+		return nil, fmt.Errorf("解析响应失败: %w, 响应内容: %s", err, responseBodySnippet(bodyBytes))
 	}
 
 	if result.Code != 0 {
@@ -168,6 +181,13 @@ func doAPIRequest[T any](req *http.Request) (*ApiResult[T], error) {
 	}
 
 	return &result, nil
+}
+
+func responseBodySnippet(body []byte) string {
+	if len(body) <= maxAPIResponseErrorSnippetBytes {
+		return string(body)
+	}
+	return string(body[:maxAPIResponseErrorSnippetBytes]) + "...(已截断)"
 }
 
 func formatHTTPError(resp *http.Response, bodyBytes []byte) error {

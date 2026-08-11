@@ -22,7 +22,10 @@ import (
 const (
 	tokenRequestModeJSON      = "json"
 	tokenRequestModeJSONBasic = "json_basic"
+	connectorOAuthHTTPTimeout = 30 * time.Second
 )
+
+var connectorOAuthHTTPClient = &http.Client{Timeout: connectorOAuthHTTPTimeout}
 
 type OAuthProviderRegistry struct {
 	definitions map[string]ConnectorDefinition
@@ -303,7 +306,7 @@ func postJSONToken(ctx context.Context, tokenURL string, body map[string]string,
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := connectorOAuthHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -332,7 +335,7 @@ func postJSONBasicToken(ctx context.Context, provider config.ConnectorOAuthProvi
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	decorateProviderAPIRequest(provider.Code, req)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := connectorOAuthHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -366,7 +369,7 @@ func fetchProviderUserInfo(ctx context.Context, provider config.ConnectorOAuthPr
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Accept", "application/json")
 	decorateProviderAPIRequest(provider.Code, req)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := connectorOAuthHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

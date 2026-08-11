@@ -41,10 +41,22 @@ const (
 	privateRuntimePythonRouter     = "/_runtime/python"
 	internalTableGetRowsCallback   = "__table_get_rows"
 	tableGetRowsCallbackHTTPMethod = http.MethodPost
+	maxStandardAPIRequestBodyBytes = 16 << 20
 )
 
 type tableGetRowsCallbackReq struct {
 	IDs []int64 `json:"ids"`
+}
+
+func readStandardAPIRequestBody(body io.Reader) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(body, maxStandardAPIRequestBodyBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxStandardAPIRequestBodyBytes {
+		return nil, fmt.Errorf("请求体超过 %d 字节限制", maxStandardAPIRequestBodyBytes)
+	}
+	return data, nil
 }
 
 // NewStandardAPI 创建标准接口处理器
@@ -210,7 +222,7 @@ func (s *StandardAPI) buildRequestAppReq(c *gin.Context, fullCodePath string) (*
 
 	// 绑定请求体（POST、PUT、PATCH、DELETE 等方法通常有请求体）
 	if c.Request.ContentLength > 0 && (c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut || c.Request.Method == http.MethodPatch || c.Request.Method == http.MethodDelete) {
-		all, err := io.ReadAll(c.Request.Body)
+		all, err := readStandardAPIRequestBody(c.Request.Body)
 		if err != nil {
 			return nil, err
 		}
@@ -230,7 +242,7 @@ func (s *StandardAPI) buildRuntimePythonRequestAppReq(c *gin.Context, fullCodePa
 		return nil, err
 	}
 
-	all, err := io.ReadAll(c.Request.Body)
+	all, err := readStandardAPIRequestBody(c.Request.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +289,7 @@ func requireAgentToolRuntimeSource(c *gin.Context) error {
 // buildCallbackAppReq 构建 CallbackApp 请求对象
 func (s *StandardAPI) buildCallbackAppReq(c *gin.Context, fullCodePath string, callbackType string) (*dto.RequestAppReq, error) {
 	// 读取请求体
-	all, err := io.ReadAll(c.Request.Body)
+	all, err := readStandardAPIRequestBody(c.Request.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -475,7 +487,7 @@ func (s *StandardAPI) TableCreate(c *gin.Context) {
 		return
 	}
 
-	bodyBytes, err := io.ReadAll(c.Request.Body)
+	bodyBytes, err := readStandardAPIRequestBody(c.Request.Body)
 	if err != nil {
 		response.FailWithMessage(c, "读取请求体失败: "+err.Error())
 		return
@@ -847,7 +859,7 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 	}
 
 	// 读取请求体
-	bodyBytes, err := io.ReadAll(c.Request.Body)
+	bodyBytes, err := readStandardAPIRequestBody(c.Request.Body)
 	if err != nil {
 		response.FailWithMessage(c, "读取请求体失败: "+err.Error())
 		return
@@ -997,7 +1009,7 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 	}
 
 	// 读取请求体，用于记录操作日志
-	bodyBytes, err := io.ReadAll(c.Request.Body)
+	bodyBytes, err := readStandardAPIRequestBody(c.Request.Body)
 	if err != nil {
 		response.FailWithMessage(c, "读取请求体失败: "+err.Error())
 		return

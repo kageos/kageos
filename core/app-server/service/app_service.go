@@ -350,36 +350,40 @@ func (a *AppService) RecordTableActionLog(ctx context.Context, req *dto.RecordTa
 	}
 
 	resourceID := fmt.Sprintf("%s/%s/%s", req.TenantUser, req.App, strings.TrimPrefix(req.Router, "/"))
-	writeCtx := context.WithoutCancel(ctx)
-
 	// 根据操作类型处理不同的记录逻辑
 	switch req.Action {
 	case "OnTableAddRow":
 		log := a.buildTableActionOperateLog(ctx, req, resourceID, req.RowID, req.Body, nil, version)
-		go func(ctx context.Context, log *model.OperateLog) {
-			if err := a.operateLogRepo.CreateOperateLog(ctx, log); err != nil {
-				logger.Warnf(ctx, "[RecordTableActionLog] 记录 Table 新增操作日志失败: %v", err)
+		go func(parent context.Context, log *model.OperateLog) {
+			writeCtx, cancel := newDetachedWriteContext(parent)
+			defer cancel()
+			if err := a.operateLogRepo.CreateOperateLog(writeCtx, log); err != nil {
+				logger.Warnf(writeCtx, "[RecordTableActionLog] 记录 Table 新增操作日志失败: %v", err)
 			}
-		}(writeCtx, log)
+		}(ctx, log)
 
 	case "OnTableUpdateRow":
 		// 更新操作：记录 updates 和 old_values
 		log := a.buildTableActionOperateLog(ctx, req, resourceID, req.RowID, req.Updates, req.OldValues, version)
-		go func(ctx context.Context, log *model.OperateLog) {
-			if err := a.operateLogRepo.CreateOperateLog(ctx, log); err != nil {
-				logger.Warnf(ctx, "[RecordTableActionLog] 记录 Table 更新操作日志失败: %v", err)
+		go func(parent context.Context, log *model.OperateLog) {
+			writeCtx, cancel := newDetachedWriteContext(parent)
+			defer cancel()
+			if err := a.operateLogRepo.CreateOperateLog(writeCtx, log); err != nil {
+				logger.Warnf(writeCtx, "[RecordTableActionLog] 记录 Table 更新操作日志失败: %v", err)
 			}
-		}(writeCtx, log)
+		}(ctx, log)
 
 	case "OnTableDeleteRows":
 		// 删除操作：为每个删除的记录创建一条日志
 		for _, rowID := range req.RowIDs {
 			log := a.buildTableActionOperateLog(ctx, req, resourceID, rowID, nil, nil, version)
-			go func(ctx context.Context, log *model.OperateLog) {
-				if err := a.operateLogRepo.CreateOperateLog(ctx, log); err != nil {
-					logger.Warnf(ctx, "[RecordTableActionLog] 记录 Table 删除操作日志失败: %v", err)
+			go func(parent context.Context, log *model.OperateLog) {
+				writeCtx, cancel := newDetachedWriteContext(parent)
+				defer cancel()
+				if err := a.operateLogRepo.CreateOperateLog(writeCtx, log); err != nil {
+					logger.Warnf(writeCtx, "[RecordTableActionLog] 记录 Table 删除操作日志失败: %v", err)
 				}
-			}(writeCtx, log)
+			}(ctx, log)
 		}
 	}
 
