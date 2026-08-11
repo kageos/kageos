@@ -22,6 +22,7 @@ func InitModels(db *gorm.DB) error {
 		&AuthLoginProvider{},
 		&AuthOAuthState{},
 		&AuthOAuthRegistrationIntent{},
+		&AuthWechatLoginAttempt{},
 		&User{}, // 被 UserSession、EmailVerification 引用
 
 		// 第二层：依赖 User 的表

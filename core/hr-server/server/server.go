@@ -35,6 +35,7 @@ type Server struct {
 	// 服务
 	authService         *service.AuthService
 	authOAuthService    *service.AuthOAuthService
+	authWechatService   *service.AuthWechatOfficialService
 	authProviderService *service.AuthLoginProviderService
 	emailService        *service.EmailService
 	settingsService     *service.SystemSettingsService
@@ -219,6 +220,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	authOAuthStateRepo := repository.NewAuthOAuthStateRepository(s.db)
 	authOAuthRegistrationIntentRepo := repository.NewAuthOAuthRegistrationIntentRepository(s.db)
 	authExternalIdentityRepo := repository.NewAuthExternalIdentityRepository(s.db)
+	authWechatAttemptRepo := repository.NewAuthWechatLoginAttemptRepository(s.db)
 
 	if s.natsConn != nil {
 		s.tokenPublisher = service.NewGatewayTokenPublisher(s.natsConn)
@@ -228,6 +230,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.authService = service.NewAuthService(userRepo, userSessionRepo, s.tokenPublisher)
 	s.authProviderService = service.NewAuthLoginProviderService(authProviderRepo)
 	s.authOAuthService = service.NewAuthOAuthService(s.authService, s.authProviderService, authOAuthStateRepo, authOAuthRegistrationIntentRepo, authExternalIdentityRepo, userRepo)
+	s.authWechatService = service.NewAuthWechatOfficialService(s.authProviderService, authWechatAttemptRepo, s.authOAuthService)
 	s.settingsService = service.NewSystemSettingsService(settingRepo)
 
 	// 初始化邮件服务

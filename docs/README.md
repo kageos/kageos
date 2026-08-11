@@ -19,6 +19,7 @@ This directory collects product thinking, architecture notes, operating guides, 
 
 ## Runtime Operations
 
+- [登录方式配置](authentication.md)
 - [Kageos 生命周期 SOP](kagectl-lifecycle-sop.md)
 - [Kageos 发布 SOP](release-sop.md)
 - [Podman Runtime 事故复盘与本地客户端风险评估](podman-runtime-incident-and-local-client-risk.md)

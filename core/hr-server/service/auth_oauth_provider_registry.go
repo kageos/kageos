@@ -21,12 +21,14 @@ type OAuthProfile struct {
 }
 
 type OAuthProviderFactory struct {
-	OAuth2Config    func(values map[string]string) (*oauth2.Config, error)
-	FetchProfile    func(ctx context.Context, client *http.Client) (*OAuthProfile, error)
-	AuthCodeOptions func(values map[string]string) []oauth2.AuthCodeOption
-	DisplayName     string
-	ShortCode       string
-	RegisterType    string
+	OAuth2Config      func(values map[string]string) (*oauth2.Config, error)
+	FetchProfile      func(ctx context.Context, client *http.Client) (*OAuthProfile, error)
+	AuthCodeOptions   func(values map[string]string) []oauth2.AuthCodeOption
+	BuildAuthorizeURL func(values map[string]string, state string) (string, error)
+	ExchangeProfile   func(ctx context.Context, values map[string]string, code string) (*OAuthProfile, error)
+	DisplayName       string
+	ShortCode         string
+	RegisterType      string
 }
 
 // OAuthLoginProvider bundles login configuration metadata with runtime OAuth behavior.
@@ -49,8 +51,8 @@ var oauthProviderRegistry = struct {
 // and the runtime OAuth provider factory. Prefer this for OAuth/OIDC login providers.
 func RegisterOAuthLoginProvider(provider OAuthLoginProvider) {
 	provider.Seed.Code = normalizeProviderCode(provider.Seed.Code)
-	if provider.Seed.Code == "" || provider.Factory.OAuth2Config == nil || provider.Factory.FetchProfile == nil {
-		panic("oauth login provider requires seed code, OAuth2Config, and FetchProfile")
+	if provider.Seed.Code == "" || !validOAuthProviderFactory(provider.Factory) {
+		panic("oauth login provider requires a seed code and a complete standard or custom OAuth flow")
 	}
 	RegisterAuthProviderSeed(provider.Seed)
 	RegisterOAuthProvider(provider.Seed.Code, provider.Factory, provider.Aliases...)
@@ -59,8 +61,8 @@ func RegisterOAuthLoginProvider(provider OAuthLoginProvider) {
 // RegisterOAuthProvider registers only the runtime OAuth behavior.
 func RegisterOAuthProvider(code string, factory OAuthProviderFactory, aliases ...string) {
 	code = normalizeProviderCode(code)
-	if code == "" || factory.OAuth2Config == nil || factory.FetchProfile == nil {
-		panic("oauth provider requires code, OAuth2Config, and FetchProfile")
+	if code == "" || !validOAuthProviderFactory(factory) {
+		panic("oauth provider requires a code and a complete standard or custom OAuth flow")
 	}
 	oauthProviderRegistry.Lock()
 	defer oauthProviderRegistry.Unlock()
@@ -78,6 +80,12 @@ func RegisterOAuthProvider(code string, factory OAuthProviderFactory, aliases ..
 			oauthProviderRegistry.aliases[alias] = code
 		}
 	}
+}
+
+func validOAuthProviderFactory(factory OAuthProviderFactory) bool {
+	standard := factory.OAuth2Config != nil && factory.FetchProfile != nil
+	custom := factory.BuildAuthorizeURL != nil && factory.ExchangeProfile != nil
+	return standard || custom
 }
 
 func GetOAuthProvider(code string) (OAuthProviderFactory, bool) {
@@ -151,6 +159,48 @@ func init() {
 			RegisterType: "github",
 		},
 		Aliases: []string{"github"},
+	})
+
+	RegisterOAuthLoginProvider(OAuthLoginProvider{
+		Seed: AuthProviderSeed{
+			Code:          ProviderWechatOpenOAuth,
+			Name:          "微信开放平台登录",
+			Description:   "使用微信开放平台网站应用授权登录。",
+			Action:        ProviderActionRedirect,
+			AuthorizePath: "/hr/api/v1/auth/wechat-open/authorize",
+			CallbackPath:  "/hr/api/v1/auth/wechat-open/callback",
+			DocsURL:       "https://open.weixin.qq.com/",
+			SortOrder:     30,
+			Fields: []AuthProviderFieldDef{
+				{Key: "app_id", Label: "AppID", Type: "text", Required: true},
+				{Key: "app_secret", Label: "AppSecret", Type: "password", Required: true, Secret: true},
+				{Key: "redirect_url", Label: "回调地址", Type: "url", Required: true, Help: "需要和微信开放平台网站应用配置的授权回调域一致。"},
+			},
+		},
+		Factory: OAuthProviderFactory{
+			BuildAuthorizeURL: buildWechatOpenAuthorizeURL,
+			ExchangeProfile:   exchangeWechatOpenProfile,
+			DisplayName:       "微信",
+			ShortCode:         "wechat",
+			RegisterType:      "wechat",
+		},
+		Aliases: []string{"wechat-open", "wechat_open"},
+	})
+
+	RegisterAuthProviderSeed(AuthProviderSeed{
+		Code:          ProviderWechatOfficial,
+		Name:          "微信公众号扫码登录",
+		Description:   "使用已认证公众号的带参二维码登录；未关注用户关注后也可完成登录。",
+		Action:        ProviderActionQRCode,
+		AuthorizePath: "/hr/api/v1/auth/wechat/attempts",
+		CallbackPath:  "/hr/api/v1/auth/wechat/callback",
+		DocsURL:       "https://mp.weixin.qq.com/",
+		SortOrder:     40,
+		Fields: []AuthProviderFieldDef{
+			{Key: "app_id", Label: "AppID", Type: "text", Required: true},
+			{Key: "app_secret", Label: "AppSecret", Type: "password", Required: true, Secret: true},
+			{Key: "message_token", Label: "消息 Token", Type: "password", Required: true, Secret: true, Help: "必须和公众号服务器配置中的 Token 完全一致；首版使用明文消息模式。"},
+		},
 	})
 }
 

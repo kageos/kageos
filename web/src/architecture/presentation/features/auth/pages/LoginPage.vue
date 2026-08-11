@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, reactive } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
@@ -7,7 +7,10 @@ import { User, Lock, Check, Loading } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { LoginRequest } from '@/architecture/domain/types'
 import {
+  completeWechatLoginAttempt,
+  createWechatLoginAttempt,
   listLoginMethods,
+  type WechatLoginAttempt,
   type LoginMethodInfo
 } from '@/architecture/presentation/context/api/auth'
 import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
@@ -30,6 +33,11 @@ const loginFormRef = ref()
 const loading = ref(false)
 const methodsLoading = ref(false)
 const loginMethods = ref<LoginMethodInfo[]>([])
+const wechatDialogVisible = ref(false)
+const wechatAttempt = ref<WechatLoginAttempt | null>(null)
+const wechatLoading = ref(false)
+const wechatStatus = ref<'idle' | 'waiting' | 'error'>('idle')
+let wechatPollTimer: number | undefined
 
 // 表单验证规则
 const rules = computed(() => ({
@@ -91,7 +99,84 @@ const providerButtonClass = (provider: string) => {
   return 'oauth-btn--default'
 }
 
+const redirectAfter = () => typeof route.query.redirect === 'string' ? route.query.redirect : '/workspace'
+
+const clearWechatPolling = () => {
+  if (wechatPollTimer !== undefined) {
+    window.clearTimeout(wechatPollTimer)
+    wechatPollTimer = undefined
+  }
+}
+
+const scheduleWechatPoll = () => {
+  clearWechatPolling()
+  const delay = Math.max(1000, wechatAttempt.value?.poll_after_ms || 2000)
+  wechatPollTimer = window.setTimeout(pollWechatLogin, delay)
+}
+
+const pollWechatLogin = async () => {
+  const attemptToken = wechatAttempt.value?.attempt_token
+  if (!attemptToken || !wechatDialogVisible.value) {
+    return
+  }
+  try {
+    const result = await completeWechatLoginAttempt(attemptToken)
+    if (!wechatDialogVisible.value || wechatAttempt.value?.attempt_token !== attemptToken) {
+      return
+    }
+    if (result.status === 'pending') {
+      scheduleWechatPoll()
+      return
+    }
+    clearWechatPolling()
+    wechatDialogVisible.value = false
+    if (result.registration_required && result.registration_ticket) {
+      const params = new URLSearchParams()
+      params.set('ticket', result.registration_ticket)
+      params.set('redirect_after', result.redirect_after || redirectAfter())
+      window.location.assign(`/auth/oauth/register#${params.toString()}`)
+      return
+    }
+    if (!result.token || !result.refresh_token) {
+      throw new Error(t('auth.wechatInvalidResult'))
+    }
+    await authStore.completeOAuthLogin(result.token, result.refresh_token, result.redirect_after)
+  } catch (error: any) {
+    clearWechatPolling()
+    wechatStatus.value = 'error'
+    ElMessage.error(error?.response?.data?.msg || error?.message || t('auth.wechatExpired'))
+  }
+}
+
+const startWechatLogin = async () => {
+  clearWechatPolling()
+  wechatLoading.value = true
+  wechatStatus.value = 'idle'
+  wechatAttempt.value = null
+  wechatDialogVisible.value = true
+  try {
+    wechatAttempt.value = await createWechatLoginAttempt(redirectAfter())
+    wechatStatus.value = 'waiting'
+    scheduleWechatPoll()
+  } catch (error: any) {
+    wechatStatus.value = 'error'
+    ElMessage.error(error?.response?.data?.msg || error?.message || t('auth.wechatStartFailed'))
+  } finally {
+    wechatLoading.value = false
+  }
+}
+
+const handleWechatDialogClosed = () => {
+  clearWechatPolling()
+  wechatAttempt.value = null
+  wechatStatus.value = 'idle'
+}
+
 const handleLoginMethod = (method: LoginMethodInfo) => {
+  if (method.action === 'qrcode') {
+    startWechatLogin()
+    return
+  }
   if (method.action === 'redirect') {
     const authorizePath = method.authorize_path || ''
     if (!authorizePath) {
@@ -99,8 +184,7 @@ const handleLoginMethod = (method: LoginMethodInfo) => {
       return
     }
     const params = new URLSearchParams()
-    const redirectAfter = typeof route.query.redirect === 'string' ? route.query.redirect : '/workspace'
-    params.set('redirect_after', redirectAfter)
+    params.set('redirect_after', redirectAfter())
     window.location.assign(`${authorizePath}?${params.toString()}`)
     return
   }
@@ -130,6 +214,8 @@ onMounted(() => {
     ElMessage.error(route.query.oauth_error)
   }
 })
+
+onBeforeUnmount(clearWechatPolling)
 </script>
 
 <template>
@@ -290,6 +376,33 @@ onMounted(() => {
         </el-form>
       </div>
     </div>
+
+    <el-dialog
+      v-model="wechatDialogVisible"
+      :title="t('auth.wechatDialogTitle')"
+      width="360px"
+      align-center
+      :close-on-click-modal="false"
+      @closed="handleWechatDialogClosed"
+    >
+      <div v-loading="wechatLoading" class="wechat-login-panel">
+        <img
+          v-if="wechatAttempt?.qr_code_url"
+          :src="wechatAttempt.qr_code_url"
+          :alt="t('auth.wechatDialogTitle')"
+          class="wechat-qrcode"
+        />
+        <div v-else-if="wechatStatus === 'error'" class="wechat-error">
+          {{ t('auth.wechatStartFailed') }}
+        </div>
+        <div class="wechat-hint">
+          {{ wechatStatus === 'error' ? t('auth.wechatRetryHint') : t('auth.wechatScanHint') }}
+        </div>
+        <el-button v-if="wechatStatus === 'error'" type="primary" @click="startWechatLogin">
+          {{ t('auth.wechatRetry') }}
+        </el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -780,6 +893,35 @@ onMounted(() => {
 .oauth-btn--default .oauth-mark {
   background: var(--auth-accent-soft);
   color: var(--auth-accent);
+}
+
+.wechat-login-panel {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.wechat-qrcode {
+  width: 220px;
+  height: 220px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: #fff;
+}
+
+.wechat-hint,
+.wechat-error {
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.wechat-error {
+  color: var(--el-color-danger);
 }
 
 .login-footer {

@@ -83,10 +83,6 @@ func (s *AuthOAuthService) StartAuthorize(ctx context.Context, providerAlias, re
 	if err != nil {
 		return "", err
 	}
-	conf, err := s.oauth2Config(providerCode, runtimeConfig.Values)
-	if err != nil {
-		return "", err
-	}
 	state, err := newOAuthState()
 	if err != nil {
 		return "", err
@@ -98,6 +94,13 @@ func (s *AuthOAuthService) StartAuthorize(ctx context.Context, providerAlias, re
 		ExpiresAt:     time.Now().Add(oauthStateTTL),
 	}); err != nil {
 		return "", fmt.Errorf("创建授权状态失败: %w", err)
+	}
+	if factory, ok := GetOAuthProvider(providerCode); ok && factory.BuildAuthorizeURL != nil {
+		return factory.BuildAuthorizeURL(runtimeConfig.Values, state)
+	}
+	conf, err := s.oauth2Config(providerCode, runtimeConfig.Values)
+	if err != nil {
+		return "", err
 	}
 
 	var opts []oauth2.AuthCodeOption
@@ -126,17 +129,29 @@ func (s *AuthOAuthService) FinishCallback(ctx context.Context, providerAlias, st
 	if err != nil {
 		return nil, err
 	}
-	conf, err := s.oauth2Config(providerCode, runtimeConfig.Values)
+	factory, ok := GetOAuthProvider(providerCode)
+	if !ok {
+		return nil, fmt.Errorf("暂不支持该授权登录方式")
+	}
+	var profile *OAuthProfile
+	if factory.ExchangeProfile != nil {
+		profile, err = factory.ExchangeProfile(ctx, runtimeConfig.Values, strings.TrimSpace(code))
+	} else {
+		conf, configErr := s.oauth2Config(providerCode, runtimeConfig.Values)
+		if configErr != nil {
+			return nil, configErr
+		}
+		token, exchangeErr := conf.Exchange(ctx, strings.TrimSpace(code))
+		if exchangeErr != nil {
+			return nil, fmt.Errorf("换取授权令牌失败: %w", exchangeErr)
+		}
+		profile, err = s.fetchProfile(ctx, providerCode, conf.Client(ctx, token))
+	}
 	if err != nil {
 		return nil, err
 	}
-	token, err := conf.Exchange(ctx, strings.TrimSpace(code))
-	if err != nil {
-		return nil, fmt.Errorf("换取授权令牌失败: %w", err)
-	}
-	profile, err := s.fetchProfile(ctx, providerCode, conf.Client(ctx, token))
-	if err != nil {
-		return nil, err
+	if profile != nil && profile.ProviderCode == "" {
+		profile.ProviderCode = providerCode
 	}
 	return s.CompleteExternalLogin(ctx, externalPrincipalFromOAuthProfile(profile), ExternalLoginOptions{
 		ShortCode:     oauthProviderShortCode(providerCode),
@@ -238,7 +253,7 @@ func (s *AuthOAuthService) activeRegistrationIntent(ticket string) (*model.AuthO
 
 func (s *AuthOAuthService) oauth2Config(providerCode string, values map[string]string) (*oauth2.Config, error) {
 	factory, ok := GetOAuthProvider(providerCode)
-	if !ok {
+	if !ok || factory.OAuth2Config == nil {
 		return nil, fmt.Errorf("暂不支持该授权登录方式")
 	}
 	return factory.OAuth2Config(values)
@@ -246,7 +261,7 @@ func (s *AuthOAuthService) oauth2Config(providerCode string, values map[string]s
 
 func (s *AuthOAuthService) fetchProfile(ctx context.Context, providerCode string, client *http.Client) (*OAuthProfile, error) {
 	factory, ok := GetOAuthProvider(providerCode)
-	if !ok {
+	if !ok || factory.FetchProfile == nil {
 		return nil, fmt.Errorf("暂不支持该授权登录方式")
 	}
 	profile, err := factory.FetchProfile(ctx, client)
@@ -262,6 +277,9 @@ func (s *AuthOAuthService) fetchProfile(ctx context.Context, providerCode string
 func oauthRegisterType(providerCode string) string {
 	if factory, ok := GetOAuthProvider(providerCode); ok && strings.TrimSpace(factory.RegisterType) != "" {
 		return strings.TrimSpace(factory.RegisterType)
+	}
+	if normalizeProviderCode(providerCode) == ProviderWechatOfficial {
+		return "wechat"
 	}
 	return "oauth"
 }
@@ -335,12 +353,18 @@ func oauthProviderDisplayName(providerCode string) string {
 	if factory, ok := GetOAuthProvider(providerCode); ok && strings.TrimSpace(factory.DisplayName) != "" {
 		return strings.TrimSpace(factory.DisplayName)
 	}
+	if seed, ok := LookupAuthProviderSeed(providerCode); ok && strings.TrimSpace(seed.Name) != "" {
+		return strings.TrimSpace(seed.Name)
+	}
 	return providerCode
 }
 
 func oauthProviderShortCode(providerCode string) string {
 	if factory, ok := GetOAuthProvider(providerCode); ok && strings.TrimSpace(factory.ShortCode) != "" {
 		return strings.TrimSpace(factory.ShortCode)
+	}
+	if normalizeProviderCode(providerCode) == ProviderWechatOfficial {
+		return "wechat"
 	}
 	return "oauth"
 }
