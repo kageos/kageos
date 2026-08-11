@@ -39,8 +39,9 @@ type Worker struct {
 	concurrency       int
 	onError           func(context.Context, error)
 
-	mu   sync.Mutex
-	subs []*nats.Subscription
+	mu              sync.Mutex
+	subs            []*nats.Subscription
+	lifecycleCancel context.CancelFunc
 }
 
 func NewWorker(opts WorkerOptions) (*Worker, error) {
@@ -87,15 +88,22 @@ func NewWorker(opts WorkerOptions) (*Worker, error) {
 }
 
 func (w *Worker) Start(ctx context.Context) error {
+	if ctx == nil {
+		return fmt.Errorf("scheduledsdk: worker context is required")
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if len(w.subs) > 0 {
 		return fmt.Errorf("scheduledsdk: worker already started")
 	}
+	lifecycleCtx, lifecycleCancel := context.WithCancel(ctx)
 	subject := subjects.TimerExecutionRequestedSubject(w.executorKey)
 	for i := 0; i < w.concurrency; i++ {
-		sub, err := w.natsConn.QueueSubscribe(subject, w.queueGroup, w.handleMessage)
+		sub, err := w.natsConn.QueueSubscribe(subject, w.queueGroup, func(msg *nats.Msg) {
+			w.handleMessage(lifecycleCtx, msg)
+		})
 		if err != nil {
+			lifecycleCancel()
 			for _, started := range w.subs {
 				_ = started.Unsubscribe()
 			}
@@ -104,8 +112,9 @@ func (w *Worker) Start(ctx context.Context) error {
 		}
 		w.subs = append(w.subs, sub)
 	}
+	w.lifecycleCancel = lifecycleCancel
 	go func() {
-		<-ctx.Done()
+		<-lifecycleCtx.Done()
 		_ = w.Stop()
 	}()
 	return nil
@@ -114,6 +123,10 @@ func (w *Worker) Start(ctx context.Context) error {
 func (w *Worker) Stop() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.lifecycleCancel != nil {
+		w.lifecycleCancel()
+		w.lifecycleCancel = nil
+	}
 	if len(w.subs) == 0 {
 		return nil
 	}
@@ -125,8 +138,7 @@ func (w *Worker) Stop() error {
 	return stopErr
 }
 
-func (w *Worker) handleMessage(msg *nats.Msg) {
-	ctx := context.Background()
+func (w *Worker) handleMessage(ctx context.Context, msg *nats.Msg) {
 	var event ExecutionRequestedEvent
 	if err := json.Unmarshal(msg.Data, &event); err != nil {
 		w.reportError(ctx, err)
@@ -172,7 +184,13 @@ func (w *Worker) handleMessage(msg *nats.Msg) {
 	} else if result.Status == "" {
 		result.Status = ExecutionStatusSuccess
 	}
-	if finishErr := w.client.MarkExecutionFinished(ctx, MarkExecutionFinishedRequest{
+	finishCtx := ctx
+	finishCancel := func() {}
+	if ctx.Err() != nil {
+		finishCtx, finishCancel = context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	}
+	defer finishCancel()
+	if finishErr := w.client.MarkExecutionFinished(finishCtx, MarkExecutionFinishedRequest{
 		TaskID:         event.TaskID,
 		ExecutionID:    event.ExecutionID,
 		Status:         result.Status,

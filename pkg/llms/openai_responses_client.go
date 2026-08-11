@@ -255,15 +255,17 @@ func readOpenAIResponsesStream(ctx context.Context, body interface {
 			return err
 		}
 		for _, chunk := range state.handle(payload) {
-			chunkChan <- chunk
+			if !sendStreamChunk(ctx, chunkChan, chunk) {
+				return ctx.Err()
+			}
 		}
 		return nil
 	})
 	if err != nil {
-		chunkChan <- &StreamChunk{Error: err.Error(), Done: true, Usage: state.usage}
+		sendStreamChunk(ctx, chunkChan, &StreamChunk{Error: err.Error(), Done: true, Usage: state.usage})
 		return
 	}
-	chunkChan <- &StreamChunk{Done: true, FinalToolCalls: state.finalToolCalls(), FinishReason: state.finishReason, Usage: state.usage}
+	sendStreamChunk(ctx, chunkChan, &StreamChunk{Done: true, FinalToolCalls: state.finalToolCalls(), FinishReason: state.finishReason, Usage: state.usage})
 }
 
 type responsesStreamState struct {

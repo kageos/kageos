@@ -149,25 +149,27 @@ func readOpenAIStream(ctx context.Context, stream interface {
 				FinishReason:     choice.FinishReason,
 			}
 			if out.Content != "" || out.ReasoningContent != "" || len(out.ToolCallDeltas) > 0 {
-				chunkChan <- out
+				if !sendStreamChunk(ctx, chunkChan, out) {
+					return
+				}
 			}
 		}
 	}
 	if err := stream.Err(); err != nil {
 		if ctx.Err() != nil {
-			chunkChan <- &StreamChunk{Error: ctx.Err().Error(), Done: true, Usage: state.finalUsage(), FinishReason: lastFinishReason}
+			sendStreamChunk(ctx, chunkChan, &StreamChunk{Error: ctx.Err().Error(), Done: true, Usage: state.finalUsage(), FinishReason: lastFinishReason})
 			return
 		}
-		chunkChan <- &StreamChunk{Error: formatOpenAIError(err).Error(), Done: true, Usage: state.finalUsage(), FinishReason: lastFinishReason}
+		sendStreamChunk(ctx, chunkChan, &StreamChunk{Error: formatOpenAIError(err).Error(), Done: true, Usage: state.finalUsage(), FinishReason: lastFinishReason})
 		return
 	}
 
-	chunkChan <- &StreamChunk{
+	sendStreamChunk(ctx, chunkChan, &StreamChunk{
 		Done:           true,
 		FinalToolCalls: state.finalToolCalls(),
 		FinishReason:   lastFinishReason,
 		Usage:          state.finalUsage(),
-	}
+	})
 }
 
 type openAIStreamState struct {

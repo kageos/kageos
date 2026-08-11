@@ -40,6 +40,15 @@ func resolveRequestTimeout(options *ClientOptions, req *ChatRequest) time.Durati
 	return timeout
 }
 
+func sendStreamChunk(ctx context.Context, chunkChan chan<- *StreamChunk, chunk *StreamChunk) bool {
+	select {
+	case chunkChan <- chunk:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
 // validateRequest 验证请求参数（公共函数）
 func validateRequest(ctx context.Context, apiKey string, req *ChatRequest) error {
 	if req == nil {
