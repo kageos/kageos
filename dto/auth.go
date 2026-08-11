@@ -62,6 +62,30 @@ type ConfirmOAuthRegistrationResp struct {
 	RedirectAfter string   `json:"redirect_after"`
 }
 
+type CreateWechatLoginAttemptReq struct {
+	RedirectAfter string `json:"redirect_after" binding:"omitempty,max=1000"`
+}
+
+type CreateWechatLoginAttemptResp struct {
+	AttemptToken string `json:"attempt_token"`
+	QRCodeURL    string `json:"qr_code_url"`
+	ExpiresAt    string `json:"expires_at"`
+	PollAfterMS  int    `json:"poll_after_ms"`
+}
+
+type CompleteWechatLoginAttemptReq struct {
+	AttemptToken string `json:"attempt_token" binding:"required,max=128"`
+}
+
+type CompleteWechatLoginAttemptResp struct {
+	Status               string `json:"status"`
+	Token                string `json:"token,omitempty"`
+	RefreshToken         string `json:"refresh_token,omitempty"`
+	RedirectAfter        string `json:"redirect_after,omitempty"`
+	RegistrationRequired bool   `json:"registration_required,omitempty"`
+	RegistrationTicket   string `json:"registration_ticket,omitempty"`
+}
+
 // UserInfo 用户信息
 type UserInfo struct {
 	ID                     int64  `json:"id" example:"1"`                                         // 用户ID

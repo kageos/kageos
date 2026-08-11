@@ -3,6 +3,7 @@ package v1
 import (
 	"errors"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -22,6 +23,7 @@ var errSelfRegistrationDisabled = errors.New("self registration disabled")
 type Auth struct {
 	authService       *service.AuthService
 	authOAuthService  *service.AuthOAuthService
+	wechatService     *service.AuthWechatOfficialService
 	emailService      *service.EmailService
 	settingsService   *service.SystemSettingsService
 	userService       *service.UserService
@@ -29,14 +31,87 @@ type Auth struct {
 }
 
 // NewAuth 创建认证API（依赖注入）
-func NewAuth(authService *service.AuthService, authOAuthService *service.AuthOAuthService, emailService *service.EmailService, settingsService *service.SystemSettingsService, userService *service.UserService, departmentService *service.DepartmentService) *Auth {
+func NewAuth(authService *service.AuthService, authOAuthService *service.AuthOAuthService, wechatService *service.AuthWechatOfficialService, emailService *service.EmailService, settingsService *service.SystemSettingsService, userService *service.UserService, departmentService *service.DepartmentService) *Auth {
 	return &Auth{
 		authService:       authService,
 		authOAuthService:  authOAuthService,
+		wechatService:     wechatService,
 		emailService:      emailService,
 		settingsService:   settingsService,
 		userService:       userService,
 		departmentService: departmentService,
+	}
+}
+
+func (a *Auth) CreateWechatLoginAttempt(c *gin.Context) {
+	var req dto.CreateWechatLoginAttemptReq
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	result, err := a.wechatService.CreateAttempt(contextx.ToContext(c), req.RedirectAfter)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, &dto.CreateWechatLoginAttemptResp{
+		AttemptToken: result.AttemptToken,
+		QRCodeURL:    result.QRCodeURL,
+		ExpiresAt:    result.ExpiresAt.Format(time.RFC3339),
+		PollAfterMS:  result.PollAfterMS,
+	})
+}
+
+func (a *Auth) CompleteWechatLoginAttempt(c *gin.Context) {
+	var req dto.CompleteWechatLoginAttemptReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	result, err := a.wechatService.CompleteAttempt(contextx.ToContext(c), req.AttemptToken)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, &dto.CompleteWechatLoginAttemptResp{
+		Status:               result.Status,
+		Token:                result.Token,
+		RefreshToken:         result.RefreshToken,
+		RedirectAfter:        result.RedirectAfter,
+		RegistrationRequired: result.RegistrationRequired,
+		RegistrationTicket:   result.RegistrationTicket,
+	})
+}
+
+func (a *Auth) VerifyWechatCallback(c *gin.Context) {
+	echo, err := a.wechatService.VerifyCallback(wechatCallbackInput(c))
+	if err != nil {
+		c.String(http.StatusForbidden, "forbidden")
+		return
+	}
+	c.String(http.StatusOK, echo)
+}
+
+func (a *Auth) ReceiveWechatCallback(c *gin.Context) {
+	err := a.wechatService.ReceiveEvent(contextx.ToContext(c), wechatCallbackInput(c), c.Request.Body)
+	if errors.Is(err, service.ErrWechatCallbackUnauthorized) {
+		c.String(http.StatusForbidden, "forbidden")
+		return
+	}
+	if err != nil {
+		logger.Errorf(c, "[Auth] WeChat callback failed: %v", err)
+		c.String(http.StatusInternalServerError, "failed")
+		return
+	}
+	c.String(http.StatusOK, "success")
+}
+
+func wechatCallbackInput(c *gin.Context) service.WechatCallbackInput {
+	return service.WechatCallbackInput{
+		Signature: c.Query("signature"),
+		Timestamp: c.Query("timestamp"),
+		Nonce:     c.Query("nonce"),
+		Echo:      c.Query("echostr"),
 	}
 }
 

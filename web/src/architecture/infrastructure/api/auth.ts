@@ -38,6 +38,22 @@ export interface ConfirmOAuthRegistrationResponse {
   redirect_after: string
 }
 
+export interface WechatLoginAttempt {
+  attempt_token: string
+  qr_code_url: string
+  expires_at: string
+  poll_after_ms: number
+}
+
+export interface WechatLoginCompletion {
+  status: 'pending' | 'complete'
+  token?: string
+  refresh_token?: string
+  redirect_after?: string
+  registration_required?: boolean
+  registration_ticket?: string
+}
+
 // 用户注册
 export function register(data: RegisterRequest) {
   return post('/hr/api/v1/auth/register', data)
@@ -54,6 +70,18 @@ export function login(data: LoginRequest) {
 
 export function listLoginMethods() {
   return get<ListLoginMethodsResp>('/hr/api/v1/auth/methods')
+}
+
+export function createWechatLoginAttempt(redirectAfter: string) {
+  return post<WechatLoginAttempt>('/hr/api/v1/auth/wechat/attempts', {
+    redirect_after: redirectAfter,
+  })
+}
+
+export function completeWechatLoginAttempt(attemptToken: string) {
+  return post<WechatLoginCompletion>('/hr/api/v1/auth/wechat/attempts/complete', {
+    attempt_token: attemptToken,
+  })
 }
 
 export function getOAuthRegistrationIntent(ticket: string) {

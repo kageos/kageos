@@ -30,13 +30,17 @@ func (s *Server) setupRoutes() {
 
 	// 认证相关路由（不需要JWT验证）
 	auth := apiV1.Group("/auth")
-	authHandler := v1.NewAuth(s.authService, s.authOAuthService, s.emailService, s.settingsService, s.userService, s.departmentService)
+	authHandler := v1.NewAuth(s.authService, s.authOAuthService, s.authWechatService, s.emailService, s.settingsService, s.userService, s.departmentService)
 	accessTokenHandler := v1.NewAccessToken(s.authService)
 	openAPITokenHandler := v1.NewOpenAPIToken(s.openAPITokenStore)
 	auth.POST("/send_email_code", authHandler.SendEmailCode)
 	auth.POST("/register", authHandler.Register)
 	auth.GET("/oauth/registration/:ticket", authHandler.GetOAuthRegistrationIntent)
 	auth.POST("/oauth/registration/:ticket/confirm", authHandler.ConfirmOAuthRegistration)
+	auth.POST("/wechat/attempts", authHandler.CreateWechatLoginAttempt)
+	auth.POST("/wechat/attempts/complete", authHandler.CompleteWechatLoginAttempt)
+	auth.GET("/wechat/callback", authHandler.VerifyWechatCallback)
+	auth.POST("/wechat/callback", authHandler.ReceiveWechatCallback)
 	auth.GET("/:provider/authorize", authHandler.OAuthAuthorize)
 	auth.GET("/:provider/callback", authHandler.OAuthCallback)
 	auth.POST("/login", authHandler.Login)

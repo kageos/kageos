@@ -15,10 +15,13 @@ import (
 )
 
 const (
-	ProviderGoogleOAuth = "google_oauth"
-	ProviderGitHubOAuth = "github_oauth"
+	ProviderGoogleOAuth     = "google_oauth"
+	ProviderGitHubOAuth     = "github_oauth"
+	ProviderWechatOpenOAuth = "wechat_open_oauth"
+	ProviderWechatOfficial  = "wechat_official"
 
 	ProviderActionRedirect = "redirect"
+	ProviderActionQRCode   = "qrcode"
 
 	ProviderStatusUnconfigured = "unconfigured"
 	ProviderStatusDisabled     = "disabled"
