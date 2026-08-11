@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, reactive } from 'vue'
+import { computed, onUnmounted, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
@@ -26,6 +26,16 @@ const registerFormRef = ref()
 const loading = ref(false)
 const sendingCode = ref(false)
 const countdown = ref(0)
+let countdownTimer: ReturnType<typeof setInterval> | null = null
+
+const stopCountdown = () => {
+  if (countdownTimer !== null) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+}
+
+onUnmounted(stopCountdown)
 // 表单验证规则
 const rules = computed(() => ({
   username: [
@@ -120,11 +130,12 @@ const sendVerificationCode = async () => {
     }
 
     // 开始倒计时
+    stopCountdown()
     countdown.value = 60
-    const timer = setInterval(() => {
+    countdownTimer = setInterval(() => {
       countdown.value--
       if (countdown.value <= 0) {
-        clearInterval(timer)
+        stopCountdown()
       }
     }, 1000)
   } catch (error: any) {

@@ -10,11 +10,17 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/kageos/kageos/pkg/contextx"
 )
 
 var _ Adapter = (*HTTPAdapter)(nil)
+
+const (
+	defaultHTTPTimeout = 30 * time.Second
+	maxResponseBytes   = 8 << 20
+)
 
 type HTTPAdapter struct {
 	baseURL string
@@ -23,7 +29,7 @@ type HTTPAdapter struct {
 
 func NewHTTPAdapter(baseURL string, client *http.Client) *HTTPAdapter {
 	if client == nil {
-		client = http.DefaultClient
+		client = &http.Client{Timeout: defaultHTTPTimeout}
 	}
 	return &HTTPAdapter{
 		baseURL: strings.TrimRight(strings.TrimSpace(baseURL), "/"),
@@ -163,9 +169,12 @@ func (a *HTTPAdapter) doJSON(ctx context.Context, method, path string, query url
 		return err
 	}
 	defer resp.Body.Close()
-	data, err := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
 		return err
+	}
+	if len(data) > maxResponseBytes {
+		return fmt.Errorf("scheduledsdk: response body exceeds %d bytes", maxResponseBytes)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var errResp struct {

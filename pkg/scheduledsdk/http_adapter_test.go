@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/kageos/kageos/pkg/contextx"
 )
@@ -61,5 +63,33 @@ func TestHTTPAdapterDeleteTaskUsesDeleteMethod(t *testing.T) {
 	client := NewClient(Options{BaseURL: server.URL})
 	if err := client.DeleteTask(context.Background(), 42); err != nil {
 		t.Fatalf("DeleteTask returned error: %v", err)
+	}
+}
+
+func TestHTTPAdapterUsesBoundedDefaultClient(t *testing.T) {
+	adapter := NewHTTPAdapter("http://example.test", nil)
+	if adapter.client == http.DefaultClient {
+		t.Fatal("default client must not use the unbounded http.DefaultClient")
+	}
+	if adapter.client.Timeout != defaultHTTPTimeout {
+		t.Fatalf("timeout = %s, want %s", adapter.client.Timeout, defaultHTTPTimeout)
+	}
+
+	custom := &http.Client{Timeout: 2 * time.Minute}
+	if got := NewHTTPAdapter("http://example.test", custom).client; got != custom {
+		t.Fatal("custom client was not preserved")
+	}
+}
+
+func TestHTTPAdapterRejectsOversizedResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(strings.Repeat("x", maxResponseBytes+1)))
+	}))
+	defer server.Close()
+
+	client := NewClient(Options{BaseURL: server.URL})
+	_, err := client.ListTasks(context.Background(), ListTasksRequest{})
+	if err == nil || !strings.Contains(err.Error(), "response body exceeds") {
+		t.Fatalf("ListTasks error = %v, want oversized response error", err)
 	}
 }

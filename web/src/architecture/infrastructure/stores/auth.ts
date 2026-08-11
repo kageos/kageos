@@ -19,6 +19,54 @@ function normalizeOAuthRedirect(redirectAfter: string | undefined) {
   return raw
 }
 
+function getStoredValue(key: string): string {
+  try {
+    return localStorage.getItem(key) || ''
+  } catch {
+    return ''
+  }
+}
+
+function setStoredValue(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // Authentication must keep working when storage is unavailable or full.
+  }
+}
+
+function removeStoredValue(key: string) {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    // In-memory state is still cleared when storage is unavailable.
+  }
+}
+
+function getStoredUser(): UserInfo | null {
+  const raw = getStoredValue('user')
+  if (!raw) return null
+
+  try {
+    const value: unknown = JSON.parse(raw)
+    if (
+      typeof value === 'object'
+      && value !== null
+      && !Array.isArray(value)
+      && typeof (value as Partial<UserInfo>).id === 'number'
+      && typeof (value as Partial<UserInfo>).username === 'string'
+      && (value as Partial<UserInfo>).username!.trim() !== ''
+    ) {
+      return value as UserInfo
+    }
+  } catch {
+    // Remove corrupt data so subsequent app starts do not repeat the failure.
+  }
+
+  removeStoredValue('user')
+  return null
+}
+
 export const useAuthStore = defineStore('auth', () => {
   interface LoginOptions {
     notify?: boolean
@@ -31,13 +79,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // 状态
-  const token = ref<string>(localStorage.getItem('token') || '')
-  const refreshToken = ref<string>(localStorage.getItem('refresh_token') || '')
-  
-  // 从 localStorage 读取用户信息
-  const savedUserStr = localStorage.getItem('user')
-  const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null
-  const user = ref<UserInfo | null>(savedUser)
+  const token = ref<string>(getStoredValue('token'))
+  const refreshToken = ref<string>(getStoredValue('refresh_token'))
+  const user = ref<UserInfo | null>(getStoredUser())
   
   const isLoading = ref(false)
   let refreshingTokenPromise: Promise<string> | null = null
@@ -51,9 +95,9 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = ''
     user.value = null
     refreshToken.value = ''
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    localStorage.removeItem('refresh_token')
+    removeStoredValue('token')
+    removeStoredValue('user')
+    removeStoredValue('refresh_token')
   }
 
   // 登录
@@ -67,12 +111,12 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = response.user
       if (response.refresh_token) {
         refreshToken.value = response.refresh_token
-        localStorage.setItem('refresh_token', response.refresh_token)
+        setStoredValue('refresh_token', response.refresh_token)
       }
 
       // 保存token和用户信息到localStorage
-      localStorage.setItem('token', response.token)
-      localStorage.setItem('user', JSON.stringify(response.user))
+      setStoredValue('token', response.token)
+      setStoredValue('user', JSON.stringify(response.user))
 
       if (notify) {
         ElMessage.success(translate('auth.loginSuccess'))
@@ -95,9 +139,9 @@ export const useAuthStore = defineStore('auth', () => {
       isLoading.value = true
       token.value = accessToken
       refreshToken.value = refreshTokenValue
-      localStorage.setItem('token', accessToken)
+      setStoredValue('token', accessToken)
       if (refreshTokenValue) {
-        localStorage.setItem('refresh_token', refreshTokenValue)
+        setStoredValue('refresh_token', refreshTokenValue)
       }
 
       await fetchUserInfo()
@@ -148,7 +192,7 @@ export const useAuthStore = defineStore('auth', () => {
       const userInfo = await getUserInfo()
       user.value = userInfo
       // 保存用户信息到localStorage
-      localStorage.setItem('user', JSON.stringify(userInfo))
+      setStoredValue('user', JSON.stringify(userInfo))
       return userInfo
     } catch (error) {
       console.error('Failed to fetch user info:', error)
@@ -160,7 +204,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 刷新token（无感刷新用：只负责刷新并保存，失败时 throw，不主动 logout）
   function getRefreshTokenValue(): string {
-    return refreshToken.value || localStorage.getItem('refresh_token') || ''
+    return refreshToken.value || getStoredValue('refresh_token')
   }
 
   async function refreshUserToken(): Promise<string> {
@@ -178,9 +222,9 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = response.token
       if (response.refresh_token) {
         refreshToken.value = response.refresh_token
-        localStorage.setItem('refresh_token', response.refresh_token)
+        setStoredValue('refresh_token', response.refresh_token)
       }
-      localStorage.setItem('token', response.token)
+      setStoredValue('token', response.token)
       return response.token
     })().finally(() => {
       refreshingTokenPromise = null
@@ -216,7 +260,7 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await updateUserApi(data)
       user.value = response.user
       // 更新 localStorage
-      localStorage.setItem('user', JSON.stringify(response.user))
+      setStoredValue('user', JSON.stringify(response.user))
       ElMessage.success(translate('common.updateSuccess'))
       return response.user
     } catch (error) {
