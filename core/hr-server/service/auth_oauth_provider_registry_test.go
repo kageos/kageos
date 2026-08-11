@@ -3,10 +3,31 @@ package service
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"golang.org/x/oauth2"
 )
+
+func TestKageOSAuthProviderUsesFirstPartyEndpointsAndPKCE(t *testing.T) {
+	factory, ok := GetOAuthProvider(ProviderKageOSAuth)
+	if !ok || !factory.UsePKCE {
+		t.Fatal("KageOS Auth provider must be registered with PKCE")
+	}
+	config, err := factory.OAuth2Config(map[string]string{
+		"client_id": "kageos-app", "client_secret": strings.Repeat("s", 32),
+		"redirect_url": "https://app.kageos.com/hr/api/v1/auth/kageos/callback",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Endpoint.AuthURL != "https://auth.kageos.com/api/v1/oauth/authorize" || config.Endpoint.TokenURL != "https://auth.kageos.com/api/v1/oauth/token" {
+		t.Fatalf("unexpected KageOS Auth endpoints: %#v", config.Endpoint)
+	}
+	if config.Endpoint.AuthStyle != oauth2.AuthStyleInHeader {
+		t.Fatalf("auth style = %v, want HTTP Basic", config.Endpoint.AuthStyle)
+	}
+}
 
 func TestRegisterOAuthLoginProviderRegistersSeedAndFactory(t *testing.T) {
 	restoreOAuthProviderRegistriesForTest(t)

@@ -17,6 +17,7 @@ import (
 const (
 	ProviderGoogleOAuth     = "google_oauth"
 	ProviderGitHubOAuth     = "github_oauth"
+	ProviderKageOSAuth      = "kageos_auth"
 	ProviderWechatOpenOAuth = "wechat_open_oauth"
 	ProviderWechatOfficial  = "wechat_official"
 

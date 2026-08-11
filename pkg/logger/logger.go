@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -19,6 +20,7 @@ var (
 	logger      *zap.Logger
 	sugar       *zap.SugaredLogger
 	initialized bool
+	loggerMu    sync.RWMutex
 )
 
 const (
@@ -41,6 +43,9 @@ type Config struct {
 // Init 初始化日志系统
 // 注意：如果日志系统已经初始化，会跳过本次初始化（避免统一入口时重复初始化）
 func Init(cfg Config) error {
+	loggerMu.Lock()
+	defer loggerMu.Unlock()
+
 	// 如果已经初始化，跳过（避免统一入口时各服务重复初始化）
 	if initialized {
 		return nil
@@ -145,42 +150,52 @@ func Init(cfg Config) error {
 
 // IsInitialized 检查日志系统是否已初始化
 func IsInitialized() bool {
+	loggerMu.RLock()
+	defer loggerMu.RUnlock()
 	return initialized
 }
 
 // ensureInitialized 确保日志系统已初始化，如果没有则自动初始化
 func ensureInitialized() {
-	if !initialized {
-		// 使用默认配置自动初始化
-		defaultConfig := Config{
-			Level:      "info",
-			Filename:   defaultLogFilename(),
-			MaxSize:    DefaultMaxSize,
-			MaxBackups: DefaultMaxBackups,
-			MaxAge:     DefaultMaxAge,
-			Compress:   true,
-			IsDev:      true, // 默认开发环境，输出到控制台
+	if IsInitialized() {
+		return
+	}
+
+	// 使用默认配置自动初始化
+	defaultConfig := Config{
+		Level:      "info",
+		Filename:   defaultLogFilename(),
+		MaxSize:    DefaultMaxSize,
+		MaxBackups: DefaultMaxBackups,
+		MaxAge:     DefaultMaxAge,
+		Compress:   true,
+		IsDev:      true, // 默认开发环境，输出到控制台
+	}
+
+	if err := Init(defaultConfig); err != nil {
+		loggerMu.Lock()
+		defer loggerMu.Unlock()
+		if initialized {
+			return
 		}
 
-		if err := Init(defaultConfig); err != nil {
-			// 如果自动初始化失败，创建一个基础的logger避免panic
-			encoderConfig := zapcore.EncoderConfig{
-				TimeKey:    "ts",
-				LevelKey:   "level",
-				MessageKey: "msg",
-				EncodeTime: customTimeEncoder,
-			}
-
-			core := zapcore.NewCore(
-				zapcore.NewConsoleEncoder(encoderConfig),
-				zapcore.AddSync(os.Stdout),
-				zapcore.InfoLevel,
-			)
-
-			logger = zap.New(core)
-			sugar = logger.Sugar()
-			initialized = true
+		// 如果自动初始化失败，创建一个基础的logger避免panic
+		encoderConfig := zapcore.EncoderConfig{
+			TimeKey:    "ts",
+			LevelKey:   "level",
+			MessageKey: "msg",
+			EncodeTime: customTimeEncoder,
 		}
+
+		core := zapcore.NewCore(
+			zapcore.NewConsoleEncoder(encoderConfig),
+			zapcore.AddSync(os.Stdout),
+			zapcore.InfoLevel,
+		)
+
+		logger = zap.New(core)
+		sugar = logger.Sugar()
+		initialized = true
 	}
 }
 
@@ -330,8 +345,11 @@ func Fatalf(ctx context.Context, format string, args ...interface{}) {
 
 // Sync 同步日志
 func Sync() error {
-	if initialized {
-		return logger.Sync()
+	loggerMu.RLock()
+	current := logger
+	loggerMu.RUnlock()
+	if current != nil {
+		return current.Sync()
 	}
 	return nil
 }

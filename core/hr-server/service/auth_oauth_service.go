@@ -87,15 +87,21 @@ func (s *AuthOAuthService) StartAuthorize(ctx context.Context, providerAlias, re
 	if err != nil {
 		return "", err
 	}
+	factory, _ := GetOAuthProvider(providerCode)
+	pkceVerifier := ""
+	if factory.UsePKCE {
+		pkceVerifier = oauth2.GenerateVerifier()
+	}
 	if err := s.stateRepo.Create(&model.AuthOAuthState{
 		State:         state,
 		ProviderCode:  providerCode,
 		RedirectAfter: sanitizeRedirectAfter(redirectAfter),
+		PKCEVerifier:  pkceVerifier,
 		ExpiresAt:     time.Now().Add(oauthStateTTL),
 	}); err != nil {
 		return "", fmt.Errorf("创建授权状态失败: %w", err)
 	}
-	if factory, ok := GetOAuthProvider(providerCode); ok && factory.BuildAuthorizeURL != nil {
+	if factory.BuildAuthorizeURL != nil {
 		return factory.BuildAuthorizeURL(runtimeConfig.Values, state)
 	}
 	conf, err := s.oauth2Config(providerCode, runtimeConfig.Values)
@@ -106,6 +112,9 @@ func (s *AuthOAuthService) StartAuthorize(ctx context.Context, providerAlias, re
 	var opts []oauth2.AuthCodeOption
 	if factory, ok := GetOAuthProvider(providerCode); ok && factory.AuthCodeOptions != nil {
 		opts = factory.AuthCodeOptions(runtimeConfig.Values)
+	}
+	if pkceVerifier != "" {
+		opts = append(opts, oauth2.S256ChallengeOption(pkceVerifier))
 	}
 	return conf.AuthCodeURL(state, opts...), nil
 }
@@ -141,7 +150,11 @@ func (s *AuthOAuthService) FinishCallback(ctx context.Context, providerAlias, st
 		if configErr != nil {
 			return nil, configErr
 		}
-		token, exchangeErr := conf.Exchange(ctx, strings.TrimSpace(code))
+		var exchangeOptions []oauth2.AuthCodeOption
+		if oauthState.PKCEVerifier != "" {
+			exchangeOptions = append(exchangeOptions, oauth2.VerifierOption(oauthState.PKCEVerifier))
+		}
+		token, exchangeErr := conf.Exchange(ctx, strings.TrimSpace(code), exchangeOptions...)
 		if exchangeErr != nil {
 			return nil, fmt.Errorf("换取授权令牌失败: %w", exchangeErr)
 		}

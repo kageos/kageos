@@ -1,0 +1,139 @@
+# Kageos — Full Repository Context
+
+> This document gives coding and research agents enough public context to identify the Kageos project, navigate the repository, and avoid common architectural mistakes. Detailed implementation contracts remain in the linked source and documentation.
+
+## What Kageos Is
+
+Kageos is a source-available, self-hostable AI-native service platform for individuals, teams, and enterprises. It turns useful capabilities into ready-to-run directories rather than leaving them as isolated prompts, scripts, pages, or automations.
+
+A Kageos directory is a governed capability unit mounted on the Service Tree. It can contain Forms, Tables, Charts, Docs, typed functions, Go application code, data models, runbooks, schedules, messages, and permissions. A person can open the directory as normal software. An AI workstation can inspect its context and call registered functions through typed schemas. A scheduled function or unattended Agent session can operate it without a user remaining online.
+
+Kageos is not primarily a custom HTML or chat-app generator. The durable application surface is built from platform-rendered resources and typed runtime contracts. AI helps create, inspect, repair, analyze, and operate capabilities, but the capability must remain addressable, usable, and governable outside a single conversation.
+
+## Core Product Model
+
+- Directory: a runnable and portable capability boundary with a stable Service Tree path.
+- Service Tree: the shared coordinate system for directories, functions, docs, permissions, messages, schedules, logs, and runtime sources.
+- Form: a typed one-shot input and execution surface.
+- Table: a typed record-management surface and the normal main workspace for business applications.
+- Chart: a standard visualization calculated from application data.
+- Docs and runbooks: human-maintainable operating context and scenario knowledge.
+- Typed functions: SDK-registered inputs and outputs that people and agents can use without guessing request fields.
+- AI workstation: persistent Agent sessions that can read context, use tools, edit code, build applications, run functions, inspect results, and hand off work.
+- Unattended automation: scheduler-owned `app.function` jobs for deterministic work and `agent.session` jobs for work that genuinely requires model judgment.
+- Capability bundle: the portable `capability.bundle.v1` format used to export, install, seed, and publish directories.
+
+## What Works on the Mainline
+
+The current mainline includes the Service Tree, access control, operation logs, AI workstation sessions, Form/Table/Chart/Docs resources, the application runtime, inbox and notifications, scheduled function tasks, scheduled Agent tasks, and capability bundle import/export.
+
+The public Hub marketplace, hosted trials, publishing loop, and private enterprise Hub are evolving product areas. Workflow graphs, `workflow.run`, generic approval, discussions, ratings, and a backup control plane are reserved or future-facing unless the current code and platform capability documentation explicitly show otherwise.
+
+Do not infer shipped behavior from architecture proposals or roadmap wording. Use `docs/platform-capabilities.md` and the implementation as the current source of truth.
+
+## Runtime Architecture
+
+Kageos combines a Vue frontend, Go platform services, and versioned user-application containers:
+
+- `core/api-gateway`: authenticated HTTP routing and frontend entry.
+- `core/app-server`: workspace APIs, Service Tree metadata, permissions, operation logs, function metadata, capability bundles, and application invocation.
+- `core/agent-server`: workstation sessions, roles, tools, prompts, LLM orchestration, code workflows, and unattended Agent workers.
+- `core/app-runtime`: namespace file writing, Go application builds, version metadata, and user-application container lifecycle.
+- `core/timer-scheduler`: scheduled task state, executions, leases, heartbeat, overlap policy, recovery, and outbox delivery.
+- `core/message-server`: inbox messages, threads, unread state, source-aware navigation, and notification command processing.
+- `core/hr-server`: authentication, users, organization data, and system settings.
+- `core/connector-server`: connector bindings and proxy behavior.
+- `core/app-storage`: file and object-storage APIs.
+- `web`: Vue 3 user interface.
+- `core/app-server/system-seed`: built-in capability bundles.
+- `pkg/scheduledsdk`: scheduler client and worker contracts.
+- `deploy`: local, production, all-in-one, image, and security deployment material.
+
+The public `kageos-sdk/agent-app` module is the contract for generated workspace applications. Workspace application code must not import internal Kageos platform packages.
+
+## Repository Boundaries for Agents
+
+Platform work belongs in the relevant `core`, `pkg`, `dto`, `cmd`, `web`, or deployment package. Workspace business applications belong under a namespace application module and should use the public SDK.
+
+For workspace applications, the durable UI is composed from Form, Table, Chart, and Docs resources. Do not introduce a custom React or HTML application surface when the requested capability is meant to run as a normal Kageos directory.
+
+Use typed schemas as the execution contract. Before submitting a Form or writing a Table, inspect the registered schema and required fields. Do not guess request bodies from route names. Preserve Service Tree paths, source references, trace IDs, and operation-log context across service boundaries.
+
+Use the platform notification and scheduling layers instead of creating app-specific infrastructure. Business applications send notifications through the SDK. Deterministic scheduled work should normally use a scheduled function; Agent tasks are appropriate when the work requires cross-resource inspection, semantic judgment, or natural-language synthesis.
+
+## Local Development
+
+Normal development prerequisites are Go 1.25 or newer, Node.js 20.19 or newer or 22.12 or newer, and Docker Compose or Podman Compose.
+
+From the repository root:
+
+```bash
+go run ./cmd/kagectl bootstrap --dev
+```
+
+In another terminal:
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`. The bootstrap command prints the `system` user password. Local generated secrets and runtime data live under `.kageos/` and must not be committed.
+
+Useful diagnostics include `go run ./cmd/kagectl doctor`, `verify`, `status`, `logs main`, and `logs infra`.
+
+## Verification
+
+Run checks in proportion to the affected area. The repository CI includes backend tests and vetting, frontend architecture/lint/type/unit/build checks, dependency and vulnerability checks, sensitive-file checks, SDK-boundary checks, and documentation-link checks.
+
+Important entry points:
+
+- `CONTRIBUTING.md` for the contributor workflow.
+- `scripts/test-core-go.sh` for the core Go test path.
+- `scripts/check-sensitive-files.sh` for accidental secret exposure.
+- `scripts/check-sdk-boundaries.sh` for platform/SDK separation.
+- `scripts/check-doc-links.sh` for documentation references.
+- `web/package.json` for frontend checks.
+
+Do not treat a successful compile as complete verification when behavior crosses the scheduler, message service, application runtime, permissions, storage, or frontend.
+
+## Self-Hosting and Operations
+
+Kageos is designed to run with private data in a user-controlled environment. The current production path is a single-machine deployment managed through `kagectl` and Compose, with MySQL, NATS, MinIO, platform services, and user-application containers.
+
+Runtime state, application source, database state, object storage, and generated environment files are material data. Inspect and back them up before destructive resets. Keep secrets out of issues, logs, commits, examples, and Agent-visible public documents.
+
+Start with `deploy/prod/README.md`, `deploy/prod/QUICK_START.md`, and `deploy/aio/README.md` rather than reconstructing deployment from individual Compose files.
+
+## Distribution Through Hub
+
+Kageos Hub is the public supply and delivery side of the directory network. Contributors submit versioned capability bundles. Hub preserves source-language metadata, records immutable revisions, supports review, and publishes a separate official snapshot. Users inspect a reviewed directory and install its exact bundle into a private Kageos workspace.
+
+Hub is a separate application at `https://hub.kageos.ai/`. The core repository should not absorb Hub marketplace concerns into platform runtime services without an explicit architecture decision.
+
+## Licensing and Public Wording
+
+The Kageos core platform is source-available and self-hostable under the Business Source License 1.1. Each release converts to Apache License 2.0 four years after release. It should not be described as currently OSI open source unless referring to a separately licensed component.
+
+The authoritative terms are `LICENSE` and `LICENSE_FAQ.md`. Product copy should explain user value first, then use the consistent wording: source-available, self-hostable, BSL 1.1, Apache-2.0 after four years.
+
+## Authoritative Reading Order
+
+1. `README.md` or `README.zh-CN.md` for the product and repository overview.
+2. `docs/current-architecture.md` for current service responsibilities.
+3. `docs/platform-capabilities.md` to distinguish live, in-progress, and reserved behavior.
+4. `CONTRIBUTING.md` for development and verification rules.
+5. The relevant service README, tests, and implementation for task-specific truth.
+6. `docs/kageos-blueprint.md` for longer-term direction, without treating plans as shipped behavior.
+
+Public links:
+
+- Website: https://kageos.ai/
+- Public handbook: https://kageos.ai/docs
+- Hub: https://hub.kageos.ai/
+- Repository: https://github.com/kageos/kageos
+
+## Public Information Boundary
+
+This file describes public product and repository information only. It does not authorize access to private deployments, workspaces, credentials, customer data, authenticated routes, or internal operational systems. Agents must follow the permissions and instructions of the environment in which they run.
