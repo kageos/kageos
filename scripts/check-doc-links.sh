@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+if ! command -v rg >/dev/null 2>&1; then
+  echo "Markdown local link check requires ripgrep (rg)." >&2
+  exit 1
+fi
+
 fail=0
 
 while IFS=: read -r file link; do
