@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +14,19 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+func TestGetJSONRejectsOversizedOAuthProfile(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(strings.Repeat("x", maxOAuthProfileResponseBytes+1)))
+	}))
+	defer server.Close()
+
+	var out map[string]interface{}
+	err := getJSON(context.Background(), server.Client(), server.URL, &out)
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("getJSON error = %v, want size limit", err)
+	}
+}
 
 func TestResolveExistingUserForPrincipalDoesNotAutoBindByEmail(t *testing.T) {
 	t.Parallel()

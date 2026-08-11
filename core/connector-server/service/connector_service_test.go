@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -17,6 +18,31 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+func TestReadConnectorProxyResponseBodyRejectsOversizedPayload(t *testing.T) {
+	body := io.MultiReader(
+		io.LimitReader(zeroReader{}, connectorProxyMaxBodyBytes),
+		strings.NewReader("x"),
+	)
+	_, err := readConnectorProxyResponseBody(body)
+	if err == nil || !strings.Contains(err.Error(), "4 MiB") {
+		t.Fatalf("readConnectorProxyResponseBody error = %v, want size limit", err)
+	}
+}
+
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	for i := range p {
+		p[i] = 0
+	}
+	return len(p), nil
+}
+
+var _ io.Reader = zeroReader{}
 
 func TestDirectoryBindingIsScopedToRequestUser(t *testing.T) {
 	svc := newTestConnectorService(t)

@@ -5,8 +5,10 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/smtp"
+	"strings"
 	"time"
 
 	appconfig "github.com/kageos/kageos/pkg/config"
@@ -23,6 +25,16 @@ func NewSender(cfg appconfig.EmailSMTPConfig) *Sender {
 
 // SendHTML 发送 HTML 邮件。
 func (s *Sender) SendHTML(to, subject, body string) error {
+	for name, value := range map[string]string{
+		"From":    s.cfg.From,
+		"To":      to,
+		"Subject": subject,
+	} {
+		if strings.ContainsAny(value, "\r\n") {
+			return fmt.Errorf("邮件头 %s 包含非法换行符", name)
+		}
+	}
+
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	boundary := writer.Boundary()
@@ -92,10 +104,16 @@ func (s *Sender) SendHTML(to, subject, body string) error {
 	if err != nil {
 		return fmt.Errorf("准备发送数据失败: %v", err)
 	}
-	defer w.Close()
+	return writeSMTPData(w, buf.Bytes())
+}
 
-	if _, err := w.Write(buf.Bytes()); err != nil {
+func writeSMTPData(w io.WriteCloser, data []byte) error {
+	if _, err := w.Write(data); err != nil {
+		_ = w.Close()
 		return fmt.Errorf("发送邮件内容失败: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("SMTP 服务器拒绝邮件内容: %v", err)
 	}
 	return nil
 }

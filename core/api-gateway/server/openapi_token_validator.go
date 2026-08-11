@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -245,7 +244,7 @@ func (v *OpenAPITokenValidator) validateWithHR(ctx context.Context, rawToken str
 		Msg  string                 `json:"msg"`
 		Data openapitoken.Principal `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := decodeAuthorityResponse(resp.Body, &result); err != nil {
 		return nil, fmt.Errorf("decode OpenAPI Token authority response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK || result.Code != 0 {

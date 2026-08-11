@@ -118,18 +118,12 @@ func Convert(src, dest interface{}) error {
 }
 
 func SaveFile(file string, data interface{}) error {
-	os.MkdirAll(filepath.Dir(file), 0777)
-	create, err := os.Create(file)
-	if err != nil {
-		return err
-	}
 	marshal, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	_, err = create.Write(marshal)
-	if err != nil {
+	if err := os.MkdirAll(filepath.Dir(file), 0755); err != nil {
 		return err
 	}
-	return nil
+	return os.WriteFile(file, marshal, 0644)
 }

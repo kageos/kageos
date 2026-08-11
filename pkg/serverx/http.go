@@ -12,6 +12,8 @@ import (
 
 const (
 	DefaultHTTPReadHeaderTimeout = 5 * time.Second
+	DefaultHTTPReadTimeout       = 30 * time.Second
+	DefaultHTTPIdleTimeout       = 60 * time.Second
 	DefaultHTTPShutdownTimeout   = 5 * time.Second
 )
 
@@ -43,6 +45,8 @@ func StartHTTPServer(ctx context.Context, addr string, handler http.Handler) (*H
 			Addr:              addr,
 			Handler:           handler,
 			ReadHeaderTimeout: DefaultHTTPReadHeaderTimeout,
+			ReadTimeout:       DefaultHTTPReadTimeout,
+			IdleTimeout:       DefaultHTTPIdleTimeout,
 		},
 		listener: listener,
 		serveErr: make(chan error, 1),

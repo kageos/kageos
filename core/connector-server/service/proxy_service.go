@@ -91,7 +91,7 @@ func (s *ConnectorService) Proxy(ctx context.Context, req dto.ConnectorProxyReq)
 		return nil, fmt.Errorf("调用 %s API 失败: %w", provider, err)
 	}
 	defer outResp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(outResp.Body, connectorProxyMaxBodyBytes))
+	data, err := readConnectorProxyResponseBody(outResp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("读取 %s API 响应失败: %w", provider, err)
 	}
@@ -106,6 +106,17 @@ func (s *ConnectorService) Proxy(ctx context.Context, req dto.ConnectorProxyReq)
 		ResolvedFrom:  resolved.ResolvedFrom,
 		RequestedPath: resolved.RequestedPath,
 	}, nil
+}
+
+func readConnectorProxyResponseBody(body io.Reader) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(body, connectorProxyMaxBodyBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > connectorProxyMaxBodyBytes {
+		return nil, fmt.Errorf("响应体超过 %d MiB 限制", connectorProxyMaxBodyBytes>>20)
+	}
+	return data, nil
 }
 
 func buildConnectorProxyURL(baseURL, rawPath string, query map[string]string) (string, error) {

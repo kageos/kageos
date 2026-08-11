@@ -39,6 +39,24 @@ func TestStartHTTPServerListensBeforeReturning(t *testing.T) {
 	}
 }
 
+func TestStartHTTPServerConfiguresConnectionTimeouts(t *testing.T) {
+	srv, err := StartHTTPServer(context.Background(), "127.0.0.1:0", http.NewServeMux())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = srv.Shutdown(context.Background()) }()
+
+	if srv.server.ReadHeaderTimeout != DefaultHTTPReadHeaderTimeout {
+		t.Fatalf("ReadHeaderTimeout = %v", srv.server.ReadHeaderTimeout)
+	}
+	if srv.server.ReadTimeout != DefaultHTTPReadTimeout {
+		t.Fatalf("ReadTimeout = %v", srv.server.ReadTimeout)
+	}
+	if srv.server.IdleTimeout != DefaultHTTPIdleTimeout {
+		t.Fatalf("IdleTimeout = %v", srv.server.IdleTimeout)
+	}
+}
+
 func TestStartHTTPServerFailsWhenPortIsBusy(t *testing.T) {
 	srv, err := StartHTTPServer(context.Background(), "127.0.0.1:0", http.NewServeMux())
 	if err != nil {

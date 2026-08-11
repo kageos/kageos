@@ -1,6 +1,12 @@
 package serverx
 
-import "github.com/gin-gonic/gin"
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+)
+
+const DefaultMaxRequestBodyBytes int64 = 32 << 20
 
 // GinOption configures a shared Gin bootstrap.
 type GinOption func(*ginOptions)
@@ -24,10 +30,20 @@ func NewGin(opts ...GinOption) *gin.Engine {
 	}
 
 	engine := gin.New()
+	engine.Use(limitRequestBody(DefaultMaxRequestBodyBytes))
 	if len(cfg.middleware) > 0 {
 		engine.Use(cfg.middleware...)
 	}
 	return engine
+}
+
+func limitRequestBody(maxBytes int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if maxBytes > 0 && c.Request != nil && c.Request.Body != nil {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		}
+		c.Next()
+	}
 }
 
 // WithMode sets the Gin global mode before the engine is created.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -279,7 +278,7 @@ func (v *AccessTokenValidator) validateWithHR(ctx context.Context, rawToken stri
 		Msg  string                    `json:"msg"`
 		Data auth.AccessTokenPrincipal `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := decodeAuthorityResponse(resp.Body, &result); err != nil {
 		return nil, fmt.Errorf("decode access token authority response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK || result.Code != 0 {

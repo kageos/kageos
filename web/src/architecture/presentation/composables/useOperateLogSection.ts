@@ -111,6 +111,8 @@ export function useOperateLogSection({
   const functionDetailMap = ref<Map<string, FunctionDetail>>(new Map())
   const userInfoMap = ref<Map<string, any>>(new Map())
   const hasLoaded = ref(false)
+  let operateLogLoadSeq = 0
+  let userSearchSeq = 0
   const currentScope = () => scope?.value || 'row'
   const lastLoadParams = ref<{ fullCodePath: string; rowId: number; scope: OperateLogScope } | null>(null)
   const showRowIdColumn = computed(() => currentScope() !== 'row')
@@ -206,8 +208,12 @@ export function useOperateLogSection({
     }
 
     if (fullCodePath.value && !functionDetailCache.value) {
+      const targetPath = fullCodePath.value
       try {
-        const detail = await getFunctionByPath(fullCodePath.value)
+        const detail = await getFunctionByPath(targetPath)
+        if (fullCodePath.value !== targetPath) {
+          return
+        }
         if (detail && getTableAllFields(detail as unknown as FunctionDetail).length > 0) {
           functionDetailCache.value = detail as unknown as FunctionDetail
         }
@@ -270,24 +276,34 @@ export function useOperateLogSection({
   }
 
   const searchUserOptions = async (query: string) => {
+    const currentSeq = ++userSearchSeq
     const keywordText = query.trim()
     if (!keywordText) {
+      userFilterLoading.value = false
       return
     }
 
     userFilterLoading.value = true
     try {
       const response = await searchUsersFuzzy(keywordText, 20)
+      if (currentSeq !== userSearchSeq) {
+        return
+      }
       userOptions.value = (response.users || []).map((user) => ({
         label: formatUserOptionLabel(user.username, user),
         value: user.username,
         userInfo: user,
       }))
     } catch (error) {
+      if (currentSeq !== userSearchSeq) {
+        return
+      }
       Logger.warn('[OperateLogSection]', '搜索操作用户失败', { keyword: keywordText, error })
       userOptions.value = []
     } finally {
-      userFilterLoading.value = false
+      if (currentSeq === userSearchSeq) {
+        userFilterLoading.value = false
+      }
     }
   }
 
@@ -321,10 +337,14 @@ export function useOperateLogSection({
   }
 
   const loadOperateLogs = async () => {
+    const currentSeq = ++operateLogLoadSeq
     const scopeValue = currentScope()
     if (!fullCodePath.value || (scopeValue === 'row' && !rowId.value)) {
+      loading.value = false
       return
     }
+    const targetFullCodePath = fullCodePath.value
+    const targetRowID = rowId.value
 
     loading.value = true
     try {
@@ -337,8 +357,8 @@ export function useOperateLogSection({
         ...(focusedLogID ? { id: focusedLogID } : {}),
         ...(!focusedLogID && focusedTraceID ? { trace_id: focusedTraceID } : {}),
         ...(resourceType ? { resource_type: resourceType } : {}),
-        ...(scopeValue === 'directory' ? { resource_path_prefix: fullCodePath.value } : { resource_path: fullCodePath.value }),
-        ...(scopeValue === 'row' ? { row_id: rowId.value } : {}),
+        ...(scopeValue === 'directory' ? { resource_path_prefix: targetFullCodePath } : { resource_path: targetFullCodePath }),
+        ...(scopeValue === 'row' ? { row_id: targetRowID } : {}),
         ...(actionFilter.value ? { action: actionFilter.value } : {}),
         ...(sourceFilter.value ? { source: sourceFilter.value } : {}),
         ...(userFilter.value ? { actor_user: userFilter.value } : {}),
@@ -347,6 +367,9 @@ export function useOperateLogSection({
         page_size: pageSize.value,
         order_by: 'created_at DESC',
       })
+      if (currentSeq !== operateLogLoadSeq) {
+        return
+      }
       logs.value = (response.logs || []).map(normalizeOperateLog)
       total.value = response.total || 0
       if (focusedLogID && logs.value.some((log) => log.id === focusedLogID)) {
@@ -358,15 +381,20 @@ export function useOperateLogSection({
       await loadUserInfos()
       hasLoaded.value = true
       lastLoadParams.value = {
-        fullCodePath: fullCodePath.value,
-        rowId: rowId.value,
+        fullCodePath: targetFullCodePath,
+        rowId: targetRowID,
         scope: scopeValue,
       }
     } catch (error: any) {
+      if (currentSeq !== operateLogLoadSeq) {
+        return
+      }
       Logger.error('[OperateLogSection]', '加载操作日志失败', { error })
       ElMessage.warning(t('operateLog.loadFailed', { message: error.message || t('common.none') }))
     } finally {
-      loading.value = false
+      if (currentSeq === operateLogLoadSeq) {
+        loading.value = false
+      }
     }
   }
 

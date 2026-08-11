@@ -1,4 +1,4 @@
-import { effectScope, ref } from 'vue'
+import { effectScope, nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useOperateLogSection } from './useOperateLogSection'
 
@@ -20,7 +20,61 @@ vi.mock('@/architecture/presentation/context/api/function', () => ({
 
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0))
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
 describe('useOperateLogSection', () => {
+  it('ignores an older log response after switching resources', async () => {
+    const scope = effectScope()
+    const first = deferred<any>()
+    const second = deferred<any>()
+    getOperateLogsMock.mockReset()
+    getOperateLogsMock
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+    const fullCodePath = ref('/alice/ops/first.table')
+
+    try {
+      const section = scope.run(() =>
+        useOperateLogSection({
+          fullCodePath,
+          rowId: ref(0),
+          functionDetail: ref({ template_type: 'table', schema: { type: 'table', table: { fields: [] } } }),
+          autoLoad: ref(false),
+          scope: ref('function'),
+        }),
+      )!
+
+      section.load()
+      await flushPromises()
+      fullCodePath.value = '/alice/ops/second.table'
+      await nextTick()
+      section.load()
+      await flushPromises()
+
+      second.resolve({
+        logs: [{ id: 2, actor_user: 'alice', action: 'OnTableUpdateRow', resource_path: fullCodePath.value, created_at: '2026-08-11' }],
+        total: 1,
+      })
+      await flushPromises()
+      first.resolve({
+        logs: [{ id: 1, actor_user: 'alice', action: 'OnTableUpdateRow', resource_path: '/alice/ops/first.table', created_at: '2026-08-10' }],
+        total: 1,
+      })
+      await flushPromises()
+
+      expect(section.logs.value.map((log) => log.id)).toEqual([2])
+      expect(section.total.value).toBe(1)
+    } finally {
+      scope.stop()
+    }
+  })
+
   it('uses schema field names when summarizing current function logs', () => {
     const scope = effectScope()
 

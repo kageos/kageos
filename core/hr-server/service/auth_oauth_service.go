@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -19,8 +20,9 @@ import (
 )
 
 const (
-	oauthStateTTL              = 10 * time.Minute
-	oauthRegistrationIntentTTL = 20 * time.Minute
+	oauthStateTTL                = 10 * time.Minute
+	oauthRegistrationIntentTTL   = 20 * time.Minute
+	maxOAuthProfileResponseBytes = 1 << 20
 )
 
 type AuthOAuthService struct {
@@ -425,7 +427,14 @@ func getJSON(ctx context.Context, client *http.Client, endpoint string, out inte
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxOAuthProfileResponseBytes+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > maxOAuthProfileResponseBytes {
+		return fmt.Errorf("OAuth profile response exceeds %d MiB limit", maxOAuthProfileResponseBytes>>20)
+	}
+	return json.Unmarshal(data, out)
 }
 
 func oauthProviderCode(alias string) (string, error) {
