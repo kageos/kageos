@@ -416,10 +416,11 @@ func GetPresignHost(c context.Context) string {
 	return ""
 }
 
-// ToContext 将 gin.Context 转换为标准 context.Context
-// 从 header 或 gin 上下文（如中间件 c.Set）读取关键信息，写入 context.Value，并同步回 c.Request.Header，保证请求头为权威来源。
+// ToContext 将 gin.Context 转换为标准 context.Context。
+// 以 HTTP request context 为父级，保留客户端断开、deadline 和上游 middleware 写入的值；
+// 再从 header 或 gin 上下文（如中间件 c.Set）读取关键信息，写入 context.Value，并同步回 c.Request.Header。
 func ToContext(c *gin.Context) context.Context {
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	// 1. TraceId：header 或 context，取到后 set 回 header + context
 	traceId := c.GetHeader(TraceIdHeader)

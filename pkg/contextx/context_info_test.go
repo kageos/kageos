@@ -4,10 +4,43 @@ import (
 	"context"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
 )
+
+type requestContextTestKey struct{}
+
+func TestToContextPreservesRequestContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	deadline := time.Now().Add(time.Minute)
+	parent := context.WithValue(context.Background(), requestContextTestKey{}, "middleware-value")
+	parent, cancel := context.WithDeadline(parent, deadline)
+	request := httptest.NewRequest("GET", "/demo", nil).WithContext(parent)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = request
+
+	ctx := ToContext(c)
+
+	if got := ctx.Value(requestContextTestKey{}); got != "middleware-value" {
+		t.Fatalf("request context value = %v, want middleware-value", got)
+	}
+	if got, ok := ctx.Deadline(); !ok || !got.Equal(deadline) {
+		t.Fatalf("deadline = %v, %v; want %v, true", got, ok, deadline)
+	}
+
+	cancel()
+	select {
+	case <-ctx.Done():
+		if ctx.Err() != context.Canceled {
+			t.Fatalf("context error = %v, want context.Canceled", ctx.Err())
+		}
+	case <-time.After(time.Second):
+		t.Fatal("request cancellation was not propagated")
+	}
+}
 
 func TestToContextPreservesClientSource(t *testing.T) {
 	gin.SetMode(gin.TestMode)
