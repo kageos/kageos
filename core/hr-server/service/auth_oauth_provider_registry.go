@@ -29,6 +29,7 @@ type OAuthProviderFactory struct {
 	DisplayName       string
 	ShortCode         string
 	RegisterType      string
+	UsePKCE           bool
 }
 
 // OAuthLoginProvider bundles login configuration metadata with runtime OAuth behavior.
@@ -163,6 +164,33 @@ func init() {
 
 	RegisterOAuthLoginProvider(OAuthLoginProvider{
 		Seed: AuthProviderSeed{
+			Code:          ProviderKageOSAuth,
+			Name:          "KageOS 微信扫码登录",
+			Description:   "通过 KageOS 第一方统一认证服务使用微信公众号扫码登录。",
+			Action:        ProviderActionRedirect,
+			AuthorizePath: "/hr/api/v1/auth/kageos/authorize",
+			CallbackPath:  "/hr/api/v1/auth/kageos/callback",
+			DocsURL:       "https://auth.kageos.com",
+			SortOrder:     30,
+			Fields: []AuthProviderFieldDef{
+				{Key: "client_id", Label: "Client ID", Type: "text", Required: true},
+				{Key: "client_secret", Label: "Client Secret", Type: "password", Required: true, Secret: true},
+				{Key: "redirect_url", Label: "回调地址", Type: "url", Required: true, Help: "必须是 KageOS Auth 白名单中登记的精确回调地址。"},
+			},
+		},
+		Factory: OAuthProviderFactory{
+			OAuth2Config: kageOSAuthOAuth2Config,
+			FetchProfile: fetchKageOSAuthProfile,
+			DisplayName:  "KageOS Auth",
+			ShortCode:    "kageos",
+			RegisterType: "kageos_auth",
+			UsePKCE:      true,
+		},
+		Aliases: []string{"kageos", "kageos-auth"},
+	})
+
+	RegisterOAuthLoginProvider(OAuthLoginProvider{
+		Seed: AuthProviderSeed{
 			Code:          ProviderWechatOpenOAuth,
 			Name:          "微信开放平台登录",
 			Description:   "使用微信开放平台网站应用授权登录。",
@@ -170,7 +198,7 @@ func init() {
 			AuthorizePath: "/hr/api/v1/auth/wechat-open/authorize",
 			CallbackPath:  "/hr/api/v1/auth/wechat-open/callback",
 			DocsURL:       "https://open.weixin.qq.com/",
-			SortOrder:     30,
+			SortOrder:     40,
 			Fields: []AuthProviderFieldDef{
 				{Key: "app_id", Label: "AppID", Type: "text", Required: true},
 				{Key: "app_secret", Label: "AppSecret", Type: "password", Required: true, Secret: true},
@@ -195,13 +223,47 @@ func init() {
 		AuthorizePath: "/hr/api/v1/auth/wechat/attempts",
 		CallbackPath:  "/hr/api/v1/auth/wechat/callback",
 		DocsURL:       "https://mp.weixin.qq.com/",
-		SortOrder:     40,
+		SortOrder:     50,
 		Fields: []AuthProviderFieldDef{
 			{Key: "app_id", Label: "AppID", Type: "text", Required: true},
 			{Key: "app_secret", Label: "AppSecret", Type: "password", Required: true, Secret: true},
 			{Key: "message_token", Label: "消息 Token", Type: "password", Required: true, Secret: true, Help: "必须和公众号服务器配置中的 Token 完全一致；首版使用明文消息模式。"},
 		},
 	})
+}
+
+func kageOSAuthOAuth2Config(values map[string]string) (*oauth2.Config, error) {
+	clientID, clientSecret, redirectURL, err := oauthClientValues(values)
+	if err != nil {
+		return nil, err
+	}
+	return &oauth2.Config{
+		ClientID: clientID, ClientSecret: clientSecret, RedirectURL: redirectURL,
+		Scopes: []string{"openid", "profile"},
+		Endpoint: oauth2.Endpoint{
+			AuthURL: "https://auth.kageos.com/api/v1/oauth/authorize", TokenURL: "https://auth.kageos.com/api/v1/oauth/token",
+			AuthStyle: oauth2.AuthStyleInHeader,
+		},
+	}, nil
+}
+
+func fetchKageOSAuthProfile(ctx context.Context, client *http.Client) (*OAuthProfile, error) {
+	var payload struct {
+		Subject           string `json:"sub"`
+		Name              string `json:"name"`
+		PreferredUsername string `json:"preferred_username"`
+		Picture           string `json:"picture"`
+	}
+	if err := getJSON(ctx, client, "https://auth.kageos.com/api/v1/oauth/userinfo", &payload); err != nil {
+		return nil, fmt.Errorf("获取 KageOS Auth 用户信息失败: %w", err)
+	}
+	if strings.TrimSpace(payload.Subject) == "" {
+		return nil, fmt.Errorf("KageOS Auth 未返回有效用户标识")
+	}
+	return &OAuthProfile{
+		ProviderCode: ProviderKageOSAuth, ExternalID: payload.Subject, PreferredUsername: payload.PreferredUsername,
+		Nickname: payload.Name, Avatar: payload.Picture,
+	}, nil
 }
 
 func googleOAuth2Config(values map[string]string) (*oauth2.Config, error) {

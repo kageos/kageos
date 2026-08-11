@@ -15,6 +15,7 @@ type AuthOAuthState struct {
 	State         string         `json:"state" gorm:"column:state;type:varchar(128);uniqueIndex;not null"`
 	ProviderCode  string         `json:"provider_code" gorm:"column:provider_code;type:varchar(64);index;not null"`
 	RedirectAfter string         `json:"redirect_after" gorm:"column:redirect_after;type:varchar(1000)"`
+	PKCEVerifier  string         `json:"-" gorm:"column:pkce_verifier;type:varchar(128)"`
 	ExpiresAt     time.Time      `json:"expires_at" gorm:"column:expires_at;index;not null"`
 	UsedAt        *time.Time     `json:"used_at" gorm:"column:used_at;index"`
 }

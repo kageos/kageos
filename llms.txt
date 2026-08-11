@@ -1,0 +1,36 @@
+# Kageos
+
+> Kageos is a source-available, self-hostable AI-native service platform that turns useful personal and business capabilities into installable, runnable, and governed directories.
+
+Kageos directories can contain Forms, Tables, Charts, Docs, typed functions, code, data models, runbooks, schedules, messages, and permissions. People use the rendered UI, AI agents call the same capabilities through schemas, and unattended agents can operate them on a schedule. The core platform is licensed under BSL 1.1 and converts to Apache-2.0 four years after each release.
+
+When analyzing this repository, start with the product overview and current architecture. Treat roadmap documents as plans rather than shipped behavior, and keep platform code separate from workspace applications built with the public SDK.
+
+## Start Here
+
+- [English README](https://github.com/kageos/kageos/blob/main/README.md): Product overview, current capabilities, repository map, local setup, deployment, and verification
+- [中文 README](https://github.com/kageos/kageos/blob/main/README.zh-CN.md): 中文产品说明、当前能力、仓库结构、本地启动与部署
+- [Full agent context](https://github.com/kageos/kageos/blob/main/llms-full.txt): Consolidated repository orientation for coding and research agents
+- [Current architecture](https://github.com/kageos/kageos/blob/main/docs/current-architecture.md): Mainline service responsibilities and runtime relationships
+- [Platform capabilities](https://github.com/kageos/kageos/blob/main/docs/platform-capabilities.md): What is live, in progress, or only reserved
+
+## Development
+
+- [Contributing](https://github.com/kageos/kageos/blob/main/CONTRIBUTING.md): Contributor workflow and required checks
+- [Kageos blueprint](https://github.com/kageos/kageos/blob/main/docs/kageos-blueprint.md): Product and architecture direction
+- [Local development](https://github.com/kageos/kageos/blob/main/deploy/dev/README.md): Development environment and troubleshooting
+- [Production deployment](https://github.com/kageos/kageos/blob/main/deploy/prod/README.md): Current self-hosted production path
+- [Release SOP](https://github.com/kageos/kageos/blob/main/docs/release-sop.md): Release process and verification
+
+## Product and License
+
+- [Official website](https://kageos.ai/): Public product website
+- [Public handbook](https://kageos.ai/docs): Human-readable product and contributor guide
+- [Kageos Hub](https://hub.kageos.ai/): Discover and publish reviewed Kageos directories
+- [License](https://github.com/kageos/kageos/blob/main/LICENSE): Business Source License 1.1 terms
+- [License FAQ](https://github.com/kageos/kageos/blob/main/LICENSE_FAQ.md): Plain-language licensing guidance; the license text remains authoritative
+
+## Optional
+
+- [Product thesis](https://kageos.ai/blog/kageos-thesis): Why Kageos uses durable directories instead of chat-only applications
+- [Repository documentation index](https://github.com/kageos/kageos/blob/main/docs/README.md): Additional design notes, incidents, and operating documents
