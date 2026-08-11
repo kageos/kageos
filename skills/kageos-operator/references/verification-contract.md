@@ -48,3 +48,13 @@ When a machine-readable artifact is needed, write it only after or during execut
 ```
 
 Never edit a failed report into a passing one. Return `verified` only when all required checks pass, every run-owned business record and uploaded object is cleaned up, and every discovered automation has runtime evidence. Otherwise return `blocked`.
+
+## Human-readable rendering
+
+Keep JSON as the source of truth, then generate readable artifacts:
+
+```bash
+python3 scripts/render_report.py /tmp/example.operator-report.json
+```
+
+The command writes sibling `.md` and `.html` files by default. Use `--format md` or `--format html` when only one form is needed, and `--output-dir <directory>` to choose another existing directory. The renderer escapes all report content and produces self-contained HTML without scripts or remote assets. Return all generated artifact paths to the user; never replace or reinterpret JSON evidence inside the renderer.

@@ -32,7 +32,8 @@ Keep credentials only in the environment. Never print them or place them in comm
 9. Test only operations relevant to the real workflow. Do not mechanically invoke all CRUD endpoints merely because callbacks exist.
 10. Always attempt deterministic cleanup of synthetic records and uploaded objects created by this run. Never delete pre-existing or customer data.
 11. If a browser URL is supplied, use Browser or Chrome control to exercise the same scenario. Do not inspect cookies, local storage, or hidden state.
-12. Write an after-the-fact `kageos.operator-report.v1` report when an artifact is needed. The report records evidence; it never drives execution.
+12. Write an after-the-fact `kageos.operator-report.v1` JSON report when an artifact is needed. Write scenario and evidence text in the user's language while keeping operation names, paths, status values, and schema fields stable. The JSON records machine-checkable evidence; it never drives execution.
+13. Render every saved JSON report for humans with `python3 scripts/render_report.py <report.json>`. Return links to the generated Markdown and self-contained HTML alongside the JSON. Do not hand-edit a rendered report to change verification status or evidence.
 
 ## Authentication
 
@@ -53,4 +54,4 @@ Return `verified` only when every required business assertion passes, cleanup su
 
 ## Handoff
 
-Give the publisher the directory `full_code_path`, verification report path, browser URL and key screens, known sensitive fields, and concise release facts.
+Give the publisher the directory `full_code_path`, JSON/Markdown/HTML verification report paths, browser URL and key screens, known sensitive fields, and concise release facts.

@@ -1,4 +1,4 @@
 interface:
-  display_name: "KageOS Operator"
-  short_description: "Verify KageOS directories and complex inputs over HTTP"
-  default_prompt: "Use $kageos-operator to verify this KageOS directory through direct authenticated HTTP calls, including files, users, rich text, business readback, and safe cleanup."
+  display_name: "Kageos Operator"
+  short_description: "Verify Kageos directories with readable evidence reports"
+  default_prompt: "Use $kageos-operator to verify this Kageos directory through direct authenticated HTTP calls and return JSON, Markdown, and HTML evidence reports."
