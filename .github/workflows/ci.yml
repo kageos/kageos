@@ -13,7 +13,7 @@ jobs:
     name: Governance Checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Check sensitive file boundaries
         run: bash scripts/check-sensitive-files.sh
       - name: Check repository size guard
@@ -21,7 +21,7 @@ jobs:
       - name: Check markdown links
         run: bash scripts/check-doc-links.sh
       - name: Checkout SDK contract
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: kageos/kageos-sdk
           path: .ci/kageos-sdk
@@ -34,7 +34,7 @@ jobs:
     name: Backend Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -62,8 +62,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -90,8 +90,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -107,7 +107,7 @@ jobs:
     name: Kagebase Dockerfile Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: docker/setup-buildx-action@v4
       - name: Validate runtime image definition
         uses: docker/build-push-action@v7
