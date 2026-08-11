@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { mergeConfig, defineConfig, configDefaults } from 'vitest/config'
 import type { UserConfig as ViteUserConfig } from 'vite'
-import viteConfig from './vite.config'
+import viteConfig from './vite.config.ts'
 
 async function resolveViteConfig(): Promise<ViteUserConfig> {
   const resolved =

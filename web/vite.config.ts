@@ -55,7 +55,7 @@ export default defineConfig(({ command, mode }) => {
   build: {
     // This app intentionally ships heavy chart/editor surfaces. Keep the warning
     // meaningful for unexpected growth without flagging the known vendor chunks.
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 1150,
     rollupOptions: {
       output: {
         manualChunks(id) {
