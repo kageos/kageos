@@ -10,18 +10,25 @@ import (
 	"github.com/kageos/kageos/pkg/netprobe"
 )
 
-// GetGatewayURL 获取网关地址
-// 优先级：环境变量 > 全局配置 > 默认值
-// 本地地址会自动探测 127.0.0.1 / host.containers.internal 等候选，
-// 避免 SDK app 在 host/bridge 网络之间切换时使用不可达地址。
+// GetGatewayURL 获取网关地址。
+//
+// 核心服务使用全局配置中的权威地址。SDK app 容器会显式注入
+// GATEWAY_URL；只有这种运行时地址才需要在 127.0.0.1、
+// host.containers.internal 等候选之间自动探测。
 func GetGatewayURL() string {
-	return resolveGatewayURL(gatewayBaseURL())
+	if runtimeURL, ok := gatewayRuntimeURL(); ok {
+		return resolveGatewayURL(runtimeURL)
+	}
+	return config.GetGatewayURL()
 }
 
 // InvalidateGatewayURL makes the next gateway request probe local runtime
 // candidates again. The failed request itself is never replayed here.
 func InvalidateGatewayURL() {
-	baseURL := gatewayBaseURL()
+	baseURL, ok := gatewayRuntimeURL()
+	if !ok {
+		return
+	}
 	if len(netprobe.URLCandidates(baseURL)) > 1 {
 		netprobe.InvalidateHTTPBaseURLCached("gateway", baseURL, "/health")
 	}
@@ -55,9 +62,9 @@ func resolveGatewayURL(baseURL string) string {
 	return resolved
 }
 
-func gatewayBaseURL() string {
-	if configured := os.Getenv("GATEWAY_URL"); configured != "" {
-		return configured
+func gatewayRuntimeURL() (string, bool) {
+	if configured := strings.TrimSpace(os.Getenv("GATEWAY_URL")); configured != "" {
+		return configured, true
 	}
-	return config.GetGatewayURL()
+	return "", false
 }
