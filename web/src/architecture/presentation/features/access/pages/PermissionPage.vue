@@ -865,6 +865,7 @@ import {
 import {
   getPermissionRequestSummaryState,
   loadPermissionRequestSummary,
+  settlePermissionRequestSummary,
 } from '@/architecture/presentation/features/access/utils/permissionRequestSummaryStore'
 
 type AccessTab = 'current' | 'inherited'
@@ -1659,6 +1660,8 @@ async function approveRequest(request: PermissionRequest) {
     reviewingRequestID.value = request.id
     await approvePermissionRequest(request.id, String(value || '').trim())
     ElMessage.success(t('access.requestApproved'))
+    settlePermissionRequestSummary(workspaceRootPath.value, request.resource_path, 'review')
+    pendingRequestCount.value = Math.max(0, pendingRequestCount.value - 1)
     eventBus.emit('permission-request:changed', { resource_paths: [request.resource_path] })
     await loadPermissionWorkflow(true)
   } catch (error: any) {
@@ -1685,6 +1688,8 @@ async function rejectRequest(request: PermissionRequest) {
     reviewingRequestID.value = request.id
     await rejectPermissionRequest(request.id, String(value || '').trim())
     ElMessage.success(t('access.requestRejected'))
+    settlePermissionRequestSummary(workspaceRootPath.value, request.resource_path, 'review')
+    pendingRequestCount.value = Math.max(0, pendingRequestCount.value - 1)
     eventBus.emit('permission-request:changed', { resource_paths: [request.resource_path] })
     await loadPermissionWorkflow(true)
   } catch (error: any) {
@@ -1709,6 +1714,7 @@ async function cancelRequest(request: PermissionRequest) {
     reviewingRequestID.value = request.id
     await cancelPermissionRequest(request.id)
     ElMessage.success(t('access.requestCancelled'))
+    settlePermissionRequestSummary(workspaceRootPath.value, request.resource_path, 'own')
     eventBus.emit('permission-request:changed', { resource_paths: [request.resource_path] })
     await loadPermissionWorkflow(true)
   } catch (error: any) {

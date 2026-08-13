@@ -404,7 +404,7 @@ function cancelExpandedEditor() {
 .mini-ws-input {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
   gap: 12px;
   box-sizing: border-box;
   min-height: 50px;
@@ -482,7 +482,8 @@ html.dark .mini-ws-input--schedule {
   display: flex;
   flex-direction: row;
   align-items: center;
-  align-self: center;
+  align-self: start;
+  padding-top: 1px;
   gap: 8px;
 }
 
@@ -533,7 +534,7 @@ html.dark .mini-ws-input--schedule {
   min-width: 0;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
+  align-items: start;
   gap: 10px;
   box-sizing: border-box;
   min-height: 36px;
@@ -583,6 +584,7 @@ html.dark .mini-ws-input--schedule {
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: default;
+  margin-top: 4px;
 }
 
 .mini-blocked-pill {
@@ -639,6 +641,7 @@ html.dark .mini-ws-input--schedule {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  padding-top: 1px;
 }
 
 .mini-ws-model-select {

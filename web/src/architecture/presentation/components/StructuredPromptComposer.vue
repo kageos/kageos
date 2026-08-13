@@ -203,22 +203,12 @@
             <span class="spc-mention-main">
               <span class="spc-mention-title-row">
                 <span class="spc-mention-title" :title="option.label">{{ option.label }}</span>
-                <span class="spc-mention-type">{{ option.typeLabel }}</span>
               </span>
               <span v-if="option.description" class="spc-mention-desc" :title="option.description">
                 {{ option.description }}
               </span>
-              <span v-if="option.metaItems.length > 0" class="spc-mention-meta-row">
-                <span
-                  v-for="meta in option.metaItems"
-                  :key="`${option.key}-${meta}`"
-                  class="spc-mention-meta"
-                  :title="meta"
-                >
-                  {{ meta }}
-                </span>
-              </span>
             </span>
+            <span class="spc-mention-type">{{ option.typeLabel }}</span>
           </button>
         </div>
       </div>
@@ -774,12 +764,24 @@ function scheduleTokenRender() {
     const offset = getCaretTextOffset(editor)
     const text = serializeEditorContent(editor)
     currentText.value = text
+    if (!needsTokenRender(editor, text)) return
     renderEditorContent(text)
     void nextTick(() => {
       restoreCaretTextOffset(editor, offset)
       updateMentionFromEditor()
     })
   }, 260)
+}
+
+function needsTokenRender(editor: HTMLElement, text: string) {
+  const renderedTokens = Array.from(editor.querySelectorAll<HTMLElement>('.spc-editor-token'))
+    .map(token => token.dataset.tokenRaw || '')
+    .filter(Boolean)
+  const parsedTokens = parseStructuredPromptSegments(text)
+    .filter(segment => segment.type !== 'text')
+    .map(segment => segment.text)
+  return renderedTokens.length !== parsedTokens.length
+    || renderedTokens.some((token, index) => token !== parsedTokens[index])
 }
 
 function clearRenderTimer() {
@@ -1033,11 +1035,15 @@ function updateMentionFromEditor() {
 
   const text = serializeEditorContent(editor)
   const query = findMiniComposerMentionQuery(text, getCaretTextOffset(editor))
+  const previousSearchKey = mentionQuery.value ? getMentionSearchKey(mentionQuery.value) : ''
+  const nextSearchKey = query ? getMentionSearchKey(query) : ''
   if (query) {
     mentionAnchorRect.value = getMentionAnchorRect(editor)
   }
   mentionQuery.value = query
-  highlightedMentionIndex.value = 0
+  if (previousSearchKey !== nextSearchKey) {
+    highlightedMentionIndex.value = 0
+  }
 
   if (!query) {
     pendingMentionCommitKey = ''
@@ -1197,6 +1203,22 @@ function moveMentionHighlight(delta: number) {
   const count = mentionOptions.value.length
   if (count === 0) return
   highlightedMentionIndex.value = (highlightedMentionIndex.value + delta + count) % count
+  void nextTick(scrollHighlightedMentionIntoView)
+}
+
+function scrollHighlightedMentionIntoView() {
+  const panel = document.querySelector<HTMLElement>('[data-testid="structured-prompt-mention-panel"]')
+  const list = panel?.querySelector<HTMLElement>('.spc-mention-list')
+  const option = panel?.querySelector<HTMLElement>('.spc-mention-option.is-active')
+  if (!list || !option) return
+
+  const optionTop = option.offsetTop
+  const optionBottom = optionTop + option.offsetHeight
+  if (optionTop < list.scrollTop) {
+    list.scrollTop = optionTop
+  } else if (optionBottom > list.scrollTop + list.clientHeight) {
+    list.scrollTop = optionBottom - list.clientHeight
+  }
 }
 
 function applyMentionOption(option: StructuredMentionOption | undefined) {
@@ -2163,12 +2185,10 @@ defineExpose({
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(125, 146, 183, 0.24);
-  border-radius: 8px;
-  background:
-    linear-gradient(145deg, rgba(7, 16, 29, 0.98), rgba(10, 24, 39, 0.96)),
-    rgba(4, 12, 24, 0.98);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--border-light, var(--el-border-color-light));
+  border-radius: 10px;
+  background: var(--el-bg-color-overlay, var(--bg-secondary));
+  box-shadow: var(--el-box-shadow-light, 0 12px 32px rgba(15, 23, 42, 0.14));
 }
 
 :global(.spc-mention-popover.el-popover.el-popper) {
@@ -2187,8 +2207,8 @@ defineExpose({
   gap: 8px;
   min-height: 38px;
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(125, 146, 183, 0.16);
-  color: rgba(216, 230, 245, 0.78);
+  border-bottom: 1px solid var(--border-light, var(--el-border-color-lighter));
+  color: var(--text-secondary, var(--el-text-color-secondary));
   font-size: 12px;
   font-weight: 700;
 }
@@ -2199,10 +2219,10 @@ defineExpose({
   justify-content: center;
   width: 20px;
   height: 20px;
-  border: 1px solid rgba(96, 231, 255, 0.2);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.22);
   border-radius: 5px;
-  background: rgba(96, 231, 255, 0.1);
-  color: #9eeeff;
+  background: rgba(var(--color-primary-rgb), 0.1);
+  color: var(--color-primary, var(--el-color-primary));
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
@@ -2211,7 +2231,7 @@ defineExpose({
   display: flex;
   align-items: center;
   padding: 16px 14px;
-  color: rgba(184, 225, 235, 0.68);
+  color: var(--text-secondary, var(--el-text-color-secondary));
   font-size: 12px;
 }
 
@@ -2226,17 +2246,17 @@ defineExpose({
 
 .spc-mention-list::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(96, 231, 255, 0.2);
+  background: rgba(var(--color-primary-rgb), 0.2);
 }
 
 .spc-mention-option {
   width: 100%;
   min-width: 0;
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
-  min-height: 60px;
+  height: 62px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
@@ -2249,10 +2269,12 @@ defineExpose({
 
 .spc-mention-option:hover,
 .spc-mention-option.is-active {
-  border-color: rgba(96, 231, 255, 0.26);
-  background:
-    linear-gradient(135deg, rgba(96, 231, 255, 0.1), rgba(139, 92, 246, 0.06)),
-    rgba(255, 255, 255, 0.035);
+  border-color: rgba(var(--color-primary-rgb), 0.3);
+  background: rgba(var(--color-primary-rgb), 0.09);
+}
+
+.spc-mention-option.is-active {
+  box-shadow: inset 3px 0 0 var(--color-primary, var(--el-color-primary));
 }
 
 .spc-mention-icon {
@@ -2263,20 +2285,20 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(96, 231, 255, 0.18);
-  background: rgba(34, 211, 238, 0.08);
-  color: #22d3ee;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.18);
+  background: rgba(var(--color-primary-rgb), 0.08);
+  color: var(--color-primary, var(--el-color-primary));
 }
 
 .spc-mention-icon.is-user {
   overflow: hidden;
-  color: #9eeeff;
-  background: rgba(96, 231, 255, 0.08);
-  border-color: rgba(96, 231, 255, 0.18);
+  color: var(--color-primary, var(--el-color-primary));
+  background: rgba(var(--color-primary-rgb), 0.08);
+  border-color: rgba(var(--color-primary-rgb), 0.18);
 }
 
 .spc-mention-icon.table-icon {
-  color: #10b981;
+  color: var(--color-primary, var(--el-color-primary));
 }
 
 .spc-mention-icon.form-icon-img {
@@ -2326,16 +2348,16 @@ defineExpose({
 .spc-mention-main,
 .spc-mention-title-row,
 .spc-mention-title,
-.spc-mention-desc,
-.spc-mention-meta-row,
-.spc-mention-meta {
+.spc-mention-desc {
   min-width: 0;
 }
 
 .spc-mention-main {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  justify-content: center;
+  gap: 3px;
+  overflow: hidden;
 }
 
 .spc-mention-title-row {
@@ -2350,50 +2372,28 @@ defineExpose({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--spc-text);
+  color: var(--text-primary, var(--el-text-color-primary));
   font-size: 13px;
   font-weight: 700;
 }
 
 .spc-mention-type {
   flex-shrink: 0;
-  border: 1px solid rgba(125, 146, 183, 0.22);
+  border: 1px solid var(--border-light, var(--el-border-color-light));
   border-radius: 6px;
   padding: 2px 5px;
-  color: rgba(184, 225, 235, 0.78);
+  color: var(--text-secondary, var(--el-text-color-secondary));
   font-size: 11px;
   line-height: 1.2;
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--el-fill-color-light);
 }
 
 .spc-mention-desc {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: rgba(184, 225, 235, 0.62);
+  color: var(--text-secondary, var(--el-text-color-secondary));
   font-size: 12px;
 }
 
-.spc-mention-meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  overflow: hidden;
-}
-
-.spc-mention-meta {
-  max-width: 160px;
-  display: inline-flex;
-  align-items: center;
-  overflow: hidden;
-  border: 1px solid rgba(96, 231, 255, 0.13);
-  border-radius: 7px;
-  padding: 2px 6px;
-  background: rgba(255, 255, 255, 0.035);
-  color: rgba(184, 225, 235, 0.7);
-  font-size: 11px;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 </style>
