@@ -19,7 +19,8 @@ export interface PermissionRequestSummaryTreeNode {
 }
 
 const states = reactive<Record<string, PermissionRequestSummaryState>>({})
-const inFlight = new Map<string, Promise<void>>()
+const revisions = new Map<string, number>()
+const inFlight = new Map<string, { revision: number; promise: Promise<void> }>()
 
 function emptyState(): PermissionRequestSummaryState {
   return {
@@ -80,20 +81,56 @@ export async function loadPermissionRequestSummary(
   const state = getPermissionRequestSummaryState(root)
   if (state.loaded && !options.force) return
   const existing = inFlight.get(root)
-  if (existing) return existing
+  const revision = revisions.get(root) || 0
+  if (existing) {
+    if (existing.revision === revision) return existing.promise
+    await existing.promise
+    return loadPermissionRequestSummary(root, options)
+  }
 
   const request = getPermissionRequestSummary(root)
     .then((response) => {
+      if ((revisions.get(root) || 0) !== revision) return
       state.paths = response.paths || {}
       state.ownPendingCount = Number(response.own_pending_count || 0)
       state.reviewPendingCount = Number(response.review_pending_count || 0)
       state.loaded = true
     })
     .finally(() => {
-      inFlight.delete(root)
+      if (inFlight.get(root)?.promise === request) {
+        inFlight.delete(root)
+      }
     })
-  inFlight.set(root, request)
+  inFlight.set(root, { revision, promise: request })
   return request
+}
+
+export function settlePermissionRequestSummary(
+  workspaceRoot: string,
+  resourcePath: string,
+  kind: 'own' | 'review',
+): void {
+  const root = normalizeResourcePath(workspaceRoot)
+  const path = normalizeResourcePath(resourcePath)
+  if (!root || !path) return
+
+  revisions.set(root, (revisions.get(root) || 0) + 1)
+  const state = getPermissionRequestSummaryState(root)
+  const current = permissionRequestPathSummary(state, path)
+  const next = {
+    own_pending_count: Math.max(0, Number(current.own_pending_count || 0) - (kind === 'own' ? 1 : 0)),
+    review_pending_count: Math.max(0, Number(current.review_pending_count || 0) - (kind === 'review' ? 1 : 0)),
+  }
+  const paths = { ...state.paths }
+  if (next.own_pending_count === 0 && next.review_pending_count === 0) {
+    delete paths[path]
+  } else {
+    paths[path] = next
+  }
+  state.paths = paths
+  state.ownPendingCount = Math.max(0, state.ownPendingCount - (kind === 'own' ? 1 : 0))
+  state.reviewPendingCount = Math.max(0, state.reviewPendingCount - (kind === 'review' ? 1 : 0))
+  state.loaded = true
 }
 
 export function permissionRequestPathSummary(

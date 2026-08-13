@@ -129,6 +129,7 @@ import UsersWidget from '@/architecture/presentation/shared/components/UsersWidg
 import { createStringFieldValue } from '@/architecture/domain/utils/widgetFieldHelpers'
 import { getErrorMessage } from '@/architecture/shared/apiError'
 import { getPermissionRequestWorkspaceRoot } from '@/architecture/presentation/features/access/utils/permissionRequestSummary'
+import { settlePermissionRequestSummary } from '@/architecture/presentation/features/access/utils/permissionRequestSummaryStore'
 
 type RequestRecordView = 'pending' | 'mine' | 'history'
 
@@ -244,7 +245,7 @@ async function approveRequest(request: PermissionRequest) {
     reviewingRequestID.value = request.id
     await approvePermissionRequest(request.id, String(value || '').trim())
     ElMessage.success(t('access.requestApproved'))
-    notifyChanged()
+    notifyChanged(request, 'review')
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
     ElMessage.error(getErrorMessage(error, t('access.reviewFailed')))
@@ -269,7 +270,7 @@ async function rejectRequest(request: PermissionRequest) {
     reviewingRequestID.value = request.id
     await rejectPermissionRequest(request.id, String(value || '').trim())
     ElMessage.success(t('access.requestRejected'))
-    notifyChanged()
+    notifyChanged(request, 'review')
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
     ElMessage.error(getErrorMessage(error, t('access.reviewFailed')))
@@ -292,7 +293,7 @@ async function cancelRequest(request: PermissionRequest) {
     reviewingRequestID.value = request.id
     await cancelPermissionRequest(request.id)
     ElMessage.success(t('access.requestCancelled'))
-    notifyChanged()
+    notifyChanged(request, 'own')
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
     ElMessage.error(getErrorMessage(error, t('access.cancelRequestFailed')))
@@ -301,7 +302,12 @@ async function cancelRequest(request: PermissionRequest) {
   }
 }
 
-function notifyChanged() {
+function notifyChanged(request: PermissionRequest, kind: 'own' | 'review') {
+  settlePermissionRequestSummary(
+    getPermissionRequestWorkspaceRoot(request.resource_path),
+    request.resource_path,
+    kind,
+  )
   eventBus.emit('permission-request:changed', { resource_paths: [props.resourcePath] })
   emit('changed')
 }

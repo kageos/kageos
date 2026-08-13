@@ -291,7 +291,6 @@
       :service-tree="serviceTree"
       :current-app="currentApp"
       :app-list="appList"
-      @messages-updated="refreshMessageCounts"
     />
 
     <!-- 变更记录对话框 -->
@@ -1018,14 +1017,20 @@ async function refreshMessageCounts() {
 }
 
 let unsubscribeWorkspaceSettingsUpdated: (() => void) | null = null
+let unsubscribeMessageInboxUpdated: (() => void) | null = null
 onMounted(() => {
   unsubscribeWorkspaceSettingsUpdated = eventBus.on(WorkspaceEvent.settingsUpdated, () => {
     void handleRefreshTree()
+  })
+  unsubscribeMessageInboxUpdated = eventBus.on('message-inbox:changed', () => {
+    void refreshMessageCounts()
   })
 })
 onBeforeUnmount(() => {
   unsubscribeWorkspaceSettingsUpdated?.()
   unsubscribeWorkspaceSettingsUpdated = null
+  unsubscribeMessageInboxUpdated?.()
+  unsubscribeMessageInboxUpdated = null
 })
 
 function handleOpenNodeNotifications(node: ServiceTreeType) {

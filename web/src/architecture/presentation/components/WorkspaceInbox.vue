@@ -298,7 +298,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
@@ -351,6 +351,7 @@ import {
   type MessageInboxStatus,
 } from '@/architecture/presentation/context/api/message'
 import { getAppList } from '@/architecture/presentation/context/api/app'
+import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import type { App, ServiceTree } from '@/architecture/domain/types'
 
 const props = withDefaults(defineProps<{
@@ -370,6 +371,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'messages-updated'): void
 }>()
+const inboxInstanceID = Symbol('workspace-inbox')
 
 interface InboxThread {
   key: string
@@ -551,6 +553,17 @@ const selectedThreadMessages = computed(() => {
 onMounted(() => {
   void loadUnreadCount()
 })
+
+const unsubscribeMessagesUpdated = eventBus.on<{ source?: symbol }>('message-inbox:changed', (payload) => {
+  if (payload?.source === inboxInstanceID) return
+  void Promise.all([
+    loadUnreadCount(),
+    loadWorkspaceCounts(),
+    ...(showServiceTreeInbox.value ? [loadSourceCounts()] : []),
+  ])
+})
+
+onBeforeUnmount(unsubscribeMessagesUpdated)
 
 watch(
   () => [
@@ -871,7 +884,7 @@ async function selectMessage(item: MessageInboxItem) {
       if (showServiceTreeInbox.value) {
         await loadSourceCounts()
       }
-      emit('messages-updated')
+      notifyMessagesUpdated()
     }
   } catch (error) {
     if (loadSeq === detailLoadSeq) {
@@ -913,7 +926,7 @@ async function focusMessageByID(id: number) {
       if (showServiceTreeInbox.value) {
         await loadSourceCounts()
       }
-      emit('messages-updated')
+      notifyMessagesUpdated()
     }
   } catch (error) {
     if (loadSeq === detailLoadSeq) {
@@ -988,7 +1001,7 @@ async function markThreadRead(thread: InboxThread) {
     if (showServiceTreeInbox.value) {
       await loadSourceCounts()
     }
-    emit('messages-updated')
+    notifyMessagesUpdated()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : t('workspaceInbox.markReadFailed'))
   }
@@ -1006,7 +1019,7 @@ async function markMessageRead(id: number) {
     if (showServiceTreeInbox.value) {
       await loadSourceCounts()
     }
-    emit('messages-updated')
+    notifyMessagesUpdated()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : t('workspaceInbox.markReadFailed'))
   }
@@ -1044,7 +1057,7 @@ async function markCurrentSourceRead(filter: SourceFilter) {
     if (showServiceTreeInbox.value) {
       await loadSourceCounts()
     }
-    emit('messages-updated')
+    notifyMessagesUpdated()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : t('workspaceInbox.markReadFailed'))
   }
@@ -1069,7 +1082,7 @@ async function markAllRead() {
       await loadSourceCounts()
     }
     ElMessage.success(t('workspaceInbox.allReadSuccess'))
-    emit('messages-updated')
+    notifyMessagesUpdated()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : t('workspaceInbox.allReadFailed'))
   }
@@ -1091,6 +1104,11 @@ function updateListReadState(id: number) {
         : thread.lastMessage,
     }
   })
+}
+
+function notifyMessagesUpdated() {
+  emit('messages-updated')
+  eventBus.emit('message-inbox:changed', { source: inboxInstanceID })
 }
 
 function previewText(content?: string, files?: string) {
