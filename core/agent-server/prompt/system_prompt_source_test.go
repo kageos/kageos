@@ -43,9 +43,9 @@ func TestGetPromptDocContent_ForSDKDirectoryAndLeafDoc(t *testing.T) {
 		t.Fatal("expected platform introduction doc name")
 	}
 	for _, want := range []string{
-		"Kageos 介绍与身份口径",
+		"kageos 介绍与身份口径",
 		"恰研智能（qiayan.ai）",
-		"当前 Kageos 核心采用 BSL 1.1",
+		"当前 kageos 核心采用 BSL 1.1",
 		"Hub/企业版",
 		"不要暗示第三方可以冒充官方 Hub",
 	} {
@@ -59,7 +59,7 @@ func TestGetPromptDocContent_ForSDKDirectoryAndLeafDoc(t *testing.T) {
 		t.Fatal("expected platform usage and philosophy doc name")
 	}
 	for _, want := range []string{
-		"Kageos 使用方式与产品理念",
+		"kageos 使用方式与产品理念",
 		"目录是业务资产",
 		"人机共用同一套能力",
 		"平台管横切，应用管业务",

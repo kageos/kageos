@@ -88,7 +88,7 @@ func (DefaultNotificationCardBuilder) BuildNotificationCard(_ context.Context, e
 	if entry == nil {
 		entry = &model.MessageEntry{}
 	}
-	title := firstNonEmptyString(strings.TrimSpace(entry.Title), strings.TrimSpace(payload.Title), "Kageos 通知")
+	title := firstNonEmptyString(strings.TrimSpace(entry.Title), strings.TrimSpace(payload.Title), "kageos 通知")
 	content := firstNonEmptyString(strings.TrimSpace(entry.Content), strings.TrimSpace(payload.Content))
 	files := firstNonEmptyString(strings.TrimSpace(entry.Files), strings.TrimSpace(payload.Files))
 	if content == "" && files != "" {
@@ -215,7 +215,7 @@ func buildNotificationActions(opts NotificationCardBuildOptions, fullCodePath, s
 	if strings.TrimSpace(opts.MobileAskURL) != "" {
 		actions = append(actions, NotificationAction{
 			Kind:  NotificationActionAsk,
-			Label: "主动问 Kageos",
+			Label: "主动问 kageos",
 			URL:   opts.MobileAskURL,
 		})
 	}

@@ -49,7 +49,7 @@
 | 9 | 用户已确认 PRD，或交接包有完整 `agent_app_prd` / `PRD_EXECUTION_MARKDOWN` | `app_developer` | 携带 PRD artifact、目标目录、SDK 文档和案例；默认 runbook/AgentTask seed 读取 manifest 规范 |
 | 10 | 用户要复杂、专项或多步骤的一次性文件/数据/图片/PDF/音视频/OCR/批量转换/转码/临时脚本 | `data_operator` | 携带输入文件、输出格式、处理规则 |
 | 11 | 用户问题涉及平台 OpenAPI、权限、审计、组织、平台文件、平台集成 | `platform_engineer` | 携带平台能力边界和 API/权限线索 |
-| 12 | 用户只要解释、分析、review、读代码、介绍 Kageos/公司/协议/Hub/能力边界 | `reviewer` | 携带分析对象和需要读取的文档/源码 |
+| 12 | 用户只要解释、分析、review、读代码、介绍 kageos/公司/协议/Hub/能力边界 | `reviewer` | 携带分析对象和需要读取的文档/源码 |
 
 如果多条同时命中，按优先级较小的先走。例外：用户明确说“我要测试”时优先 `qa_engineer`；用户明确说“我要修这个 bug/改字段/改逻辑”时优先 `maintenance_engineer`；用户明确说“构建报错”时优先 `build_engineer`。
 
@@ -283,7 +283,7 @@
 进入条件：
 
 - 用户只要解释、分析、review、读代码、做方案评估。
-- 用户询问 Kageos 是什么、公司、协议、Hub、企业版、怎么用、产品理念、能力边界。
+- 用户询问 kageos 是什么、公司、协议、Hub、企业版、怎么用、产品理念、能力边界。
 - 执行路由手册仍无法判断且需要先只读分析问题。
 
 交接重点：

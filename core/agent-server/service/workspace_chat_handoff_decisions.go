@@ -81,7 +81,7 @@ func workspaceHandoffBaseConstraints(artifactKind, role string) []string {
 	switch {
 	case artifactKind == "agent_app_prd" && role == WorkspaceRoleAppDeveloper:
 		return []string{
-			"业务能力必须落地为 Kageos SDK Go 应用，不生成独立 HTML/CSS/JS 页面。",
+			"业务能力必须落地为 kageos SDK Go 应用，不生成独立 HTML/CSS/JS 页面。",
 			"PRD v2 只消费 project/tables/forms/charts/rules；不要回退到旧 models/functions/workflow。",
 		}
 	case artifactKind == workspaceBuildArtifactKind && role == WorkspaceRoleQAEngineer:

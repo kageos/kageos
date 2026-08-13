@@ -66,6 +66,21 @@ describe('serviceTreeNodeActions', () => {
     expect(actions.find(action => action.command === 'manage-access')?.disabled).toBe(false)
   })
 
+  it('requires member access to open the workstation', () => {
+    const viewerActions = getServiceTreeNodeActions(node({
+      permissions: { read: true }
+    }))
+    expect(viewerActions.find(action => action.command === 'open-workstation')).toMatchObject({
+      disabled: true,
+      disabledReason: '使用工作台至少需要成员权限'
+    })
+
+    const memberActions = getServiceTreeNodeActions(node({
+      permissions: { read: true, write: true, update: true }
+    }))
+    expect(memberActions.find(action => action.command === 'open-workstation')?.disabled).toBe(false)
+  })
+
   it('only shows delete and paste for eligible non-root packages', () => {
     const actions = getServiceTreeNodeActions(
       node({

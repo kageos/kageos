@@ -64,6 +64,10 @@ func (s *PublicShareService) Create(ctx context.Context, req *dto.CreatePublicSh
 	if functionschema.Type(function.Schema) != functionschema.TypeForm {
 		return nil, fmt.Errorf("公开匿名提交 MVP 仅支持 form 节点")
 	}
+	if req.ExpiresAt != nil && !req.ExpiresAt.After(time.Now()) {
+		return nil, fmt.Errorf("expires_at 必须晚于当前时间")
+	}
+	resourceNode := s.getPublicShareResourceNode(fullCodePath)
 	presetValues, err := normalizePublicSharePresetValues(req.PresetValues)
 	if err != nil {
 		return nil, err
@@ -80,7 +84,7 @@ func (s *PublicShareService) Create(ctx context.Context, req *dto.CreatePublicSh
 		FullCodePath: fullCodePath,
 		ResourceType: model.PublicShareResourceTypeForm,
 		Action:       model.PublicShareActionFormSubmit,
-		Title:        strings.TrimSpace(req.Title),
+		Title:        fallbackPublicShareTitle(req.Title, resourceNode),
 		Description:  strings.TrimSpace(req.Description),
 		Enabled:      true,
 		ExpiresAt:    req.ExpiresAt,
@@ -101,8 +105,10 @@ func (s *PublicShareService) List(ctx context.Context, tenantUser, app string, f
 	if err != nil {
 		return nil, fmt.Errorf("查询公开分享失败: %w", err)
 	}
+	nodes := s.getPublicShareResourceNodes(shares)
 	resp := &dto.PublicShareListResp{Items: make([]*dto.PublicShareResp, 0, len(shares))}
 	for _, share := range shares {
+		share.Title = fallbackPublicShareTitle(share.Title, nodes[share.FullCodePath])
 		resp.Items = append(resp.Items, publicShareToResp(share))
 	}
 	return resp, nil
@@ -152,7 +158,7 @@ func (s *PublicShareService) BuildView(ctx context.Context, share *model.PublicS
 	}
 	resp := &dto.PublicShareViewResp{
 		ShareID:      share.ShareID,
-		Title:        fallbackPublicShareTitle(share.Title, function),
+		Title:        fallbackPublicShareTitle(share.Title, s.getPublicShareResourceNode(share.FullCodePath)),
 		Description:  share.Description,
 		FullCodePath: share.FullCodePath,
 		Schema:       schema,
@@ -244,18 +250,51 @@ func (s *PublicShareService) ListSubmissions(
 	}, nil
 }
 
-func fallbackPublicShareTitle(title string, function *model.Function) string {
+func fallbackPublicShareTitle(title string, resourceNode *model.ServiceTree) string {
 	title = strings.TrimSpace(title)
 	if title != "" {
 		return title
 	}
-	if function == nil {
-		return "公开表单"
-	}
-	if last := strings.TrimSpace(function.GetLastRouterSegment()); last != "" {
-		return last
+	if resourceNode != nil {
+		if name := strings.TrimSpace(resourceNode.Name); name != "" {
+			return name
+		}
 	}
 	return "公开表单"
+}
+
+func (s *PublicShareService) getPublicShareResourceNode(fullCodePath string) *model.ServiceTree {
+	if s == nil || s.serviceTreeRepo == nil {
+		return nil
+	}
+	node, err := s.serviceTreeRepo.GetServiceTreeByFullPath(fullCodePath)
+	if err != nil {
+		return nil
+	}
+	return node
+}
+
+func (s *PublicShareService) getPublicShareResourceNodes(shares []*model.PublicShare) map[string]*model.ServiceTree {
+	if s == nil || s.serviceTreeRepo == nil || len(shares) == 0 {
+		return map[string]*model.ServiceTree{}
+	}
+	paths := make([]string, 0, len(shares))
+	seen := make(map[string]struct{}, len(shares))
+	for _, share := range shares {
+		if share == nil || share.FullCodePath == "" {
+			continue
+		}
+		if _, ok := seen[share.FullCodePath]; ok {
+			continue
+		}
+		seen[share.FullCodePath] = struct{}{}
+		paths = append(paths, share.FullCodePath)
+	}
+	nodes, err := s.serviceTreeRepo.GetServiceTreeByFullPaths(paths)
+	if err != nil {
+		return map[string]*model.ServiceTree{}
+	}
+	return nodes
 }
 
 func (s *PublicShareService) ReserveUse(ctx context.Context, shareID string) error {

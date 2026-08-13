@@ -19,7 +19,7 @@ func (FeishuCardRenderer) Channel() string {
 }
 
 func (FeishuCardRenderer) Render(card NotificationCard) (map[string]interface{}, error) {
-	title := firstNonEmptyString(card.Title, "Kageos 通知")
+	title := firstNonEmptyString(card.Title, "kageos 通知")
 	reply := notificationActionByKind(card.Actions, NotificationActionProcess)
 	if strings.TrimSpace(reply.URL) == "" {
 		reply = notificationActionByKind(card.Actions, NotificationActionAsk)
@@ -143,12 +143,12 @@ func (WeComTemplateCardRenderer) Render(card NotificationCard) (map[string]inter
 	templateCard := map[string]interface{}{
 		"card_type": "text_notice",
 		"source": map[string]interface{}{
-			"desc":       "Kageos 自动通知",
+			"desc":       "kageos 自动通知",
 			"desc_color": wecomLevelDescColor(card.Level),
 		},
 		"main_title": map[string]interface{}{
-			"title": firstNonEmptyString(card.Title, "Kageos 通知"),
-			"desc":  firstNonEmptyString(card.Summary, "你有一条新的 Kageos 通知"),
+			"title": firstNonEmptyString(card.Title, "kageos 通知"),
+			"desc":  firstNonEmptyString(card.Summary, "你有一条新的 kageos 通知"),
 		},
 		"emphasis_content": map[string]interface{}{
 			"title": notificationLevelLabel(card.Level),
@@ -177,7 +177,7 @@ func (DingTalkActionCardRenderer) Channel() string {
 }
 
 func (DingTalkActionCardRenderer) Render(card NotificationCard) (map[string]interface{}, error) {
-	title := firstNonEmptyString(card.Title, "Kageos 通知")
+	title := firstNonEmptyString(card.Title, "kageos 通知")
 	content := renderDingTalkActionCardText(card)
 	if strings.TrimSpace(content) == "" {
 		return nil, fmt.Errorf("dingtalk notification content is empty")
@@ -267,7 +267,7 @@ func renderFeishuCard2ActionSet(reply, detail NotificationAction) map[string]int
 
 func renderWeComMarkdown(card NotificationCard) string {
 	var lines []string
-	title := firstNonEmptyString(card.Title, "Kageos 通知")
+	title := firstNonEmptyString(card.Title, "kageos 通知")
 	lines = append(lines, fmt.Sprintf("**%s**", escapeCardMarkdown(title)))
 	lines = append(lines, fmt.Sprintf(">级别：%s", notificationLevelLabel(card.Level)))
 	if card.Summary != "" {
@@ -306,7 +306,7 @@ func renderWeComMarkdown(card NotificationCard) string {
 			lines = append(lines, fmt.Sprintf("[%s](%s)", firstNonEmptyString(action.Label, "打开"), action.URL))
 		}
 	}
-	lines = append(lines, "", "完整内容已保存到 Kageos 站内信。")
+	lines = append(lines, "", "完整内容已保存到 kageos 站内信。")
 	return strings.Join(lines, "\n")
 }
 
@@ -382,8 +382,8 @@ func wecomLevelDescColor(level string) int {
 
 func renderDingTalkActionCardText(card NotificationCard) string {
 	var lines []string
-	title := firstNonEmptyString(card.Title, "Kageos 通知")
-	lines = append(lines, "Kageos 自动通知")
+	title := firstNonEmptyString(card.Title, "kageos 通知")
+	lines = append(lines, "kageos 自动通知")
 	lines = append(lines, "")
 	lines = append(lines, "标题："+plainDingTalkText(title))
 	lines = append(lines, fmt.Sprintf("级别：%s", notificationLevelLabel(card.Level)))
@@ -414,7 +414,7 @@ func renderDingTalkActionCardText(card NotificationCard) string {
 	if attachments := renderNotificationAttachmentText(card.Files, notificationAttachmentPreviewLimit); attachments != "" {
 		lines = append(lines, "", "附件："+plainDingTalkText(attachments))
 	}
-	lines = append(lines, "", "完整内容已保存到 Kageos 站内信。")
+	lines = append(lines, "", "完整内容已保存到 kageos 站内信。")
 	return strings.Join(lines, "\n\n")
 }
 

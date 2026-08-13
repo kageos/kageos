@@ -109,7 +109,7 @@ func main() {
 	defer cancel()
 
 	fmt.Println("========================================")
-	fmt.Println("  Kageos - 统一启动入口")
+	fmt.Println("  kageos - 统一启动入口")
 	fmt.Println("========================================")
 	fmt.Println("  说明：")
 	fmt.Println("  - 运行模式由 .kageos/kageos.env 决定")

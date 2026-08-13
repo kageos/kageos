@@ -1,6 +1,6 @@
-// @title Kageos Storage API
+// @title kageos Storage API
 // @version 1.0
-// @description Kageos 存储服务 API 文档
+// @description kageos 存储服务 API 文档
 
 // @license.name Business Source License 1.1
 // @license.url https://github.com/kageos/kageos/blob/main/LICENSE

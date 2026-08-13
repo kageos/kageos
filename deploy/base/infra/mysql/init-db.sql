@@ -1,4 +1,4 @@
--- Kageos 数据库初始化脚本
+-- kageos 数据库初始化脚本
 -- 由 MySQL 容器首次启动时自动执行（挂载到 /docker-entrypoint-initdb.d/）。
 --
 -- 账号密码由 .kageos/dev/env/kageos.env 或生产部署 env 注入。

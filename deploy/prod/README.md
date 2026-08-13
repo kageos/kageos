@@ -2,7 +2,7 @@
 
 > 官方生产入口：`deploy/prod/`
 
-Kageos 的生产部署由 `kagectl` 统一控制。Compose 仍是底层容器执行器，但用户不需要手工维护生成后的 Compose 文件。
+kageos 的生产部署由 `kagectl` 统一控制。Compose 仍是底层容器执行器，但用户不需要手工维护生成后的 Compose 文件。
 
 快速入口：
 

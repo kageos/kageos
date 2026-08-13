@@ -60,7 +60,7 @@ set_smtp_defaults() {
   SMTP_USERNAME="${SMTP_USERNAME-}"
   SMTP_PASSWORD="${SMTP_PASSWORD-}"
   SMTP_FROM="${SMTP_FROM-}"
-  SMTP_FROM_NAME="${SMTP_FROM_NAME:-Kageos}"
+  SMTP_FROM_NAME="${SMTP_FROM_NAME:-kageos}"
 }
 
 render_runtime_templates() {

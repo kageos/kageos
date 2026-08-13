@@ -167,7 +167,7 @@ func TestWeComTemplateCardRendererIncludesContextAndLinks(t *testing.T) {
 		t.Fatalf("card action url = %#v", action)
 	}
 	raw, _ := json.Marshal(payload)
-	for _, want := range []string{"来源目录", "线索巡检", "附件", "lead-report.pdf", "打开会话", "Kageos 自动通知"} {
+	for _, want := range []string{"来源目录", "线索巡检", "附件", "lead-report.pdf", "打开会话", "kageos 自动通知"} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("wecom template card missing %q:\n%s", want, string(raw))
 		}
@@ -187,7 +187,7 @@ func TestDingTalkActionCardRendererIncludesContextAndButtons(t *testing.T) {
 		t.Fatalf("title = %v", actionCard["title"])
 	}
 	text := actionCard["text"].(string)
-	for _, want := range []string{"Kageos 自动通知", "来源目录：线索巡检", "alice/demo", "附件：4 个附件：lead-report.pdf、risk.xlsx、raw.csv 等 1 个文件", "完整内容已保存到 Kageos 站内信"} {
+	for _, want := range []string{"kageos 自动通知", "来源目录：线索巡检", "alice/demo", "附件：4 个附件：lead-report.pdf、risk.xlsx、raw.csv 等 1 个文件", "完整内容已保存到 kageos 站内信"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dingtalk content missing %q:\n%s", want, text)
 		}

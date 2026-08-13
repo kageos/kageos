@@ -112,7 +112,7 @@ export const downloadTableImportTemplate = async (
 ): Promise<void> => {
   const { Workbook } = await import('exceljs')
   const workbook = new Workbook()
-  workbook.creator = 'KageOS'
+  workbook.creator = 'kageos'
   workbook.created = new Date()
   const supportedFields = fields.filter(isTableSpreadsheetFieldSupported)
   const worksheet = workbook.addWorksheet('导入数据', {
@@ -170,7 +170,7 @@ export const downloadTableData = async (
 ): Promise<void> => {
   const { Workbook } = await import('exceljs')
   const workbook = new Workbook()
-  workbook.creator = 'KageOS'
+  workbook.creator = 'kageos'
   workbook.created = new Date()
   const worksheet = workbook.addWorksheet('数据', {
     views: [{ state: 'frozen', ySplit: 1 }]

@@ -1,6 +1,6 @@
-# Kageos All-in-One Image
+# kageos All-in-One Image
 
-`deploy/aio` 是单容器部署镜像。外部只运行一个 Kageos 容器，容器内部会用 Podman 拉起 MySQL、NATS、MinIO，并启动 Kageos 主服务。
+`deploy/aio` 是单容器部署镜像。外部只运行一个 kageos 容器，容器内部会用 Podman 拉起 MySQL、NATS、MinIO，并启动 kageos 主服务。
 
 用户应用运行时依赖单独发布为 `qiayanai/kagebase`。AIO 首次启动时会优先拉取匹配版本的 `kagebase`；如果拉取失败，会 fallback 到本地构建。
 
@@ -75,7 +75,7 @@ docker logs -f kageos
 启动成功后日志会输出最终成功块：
 
 ```text
-Kageos started successfully
+kageos started successfully
 Access URL:
   http://localhost:8080
 
@@ -119,7 +119,7 @@ podman run -d \
 AIO 有两层网络：
 
 - 外层 Docker/Podman 容器必须是 bridge/slirp 网络，宿主机只通过 `-p` 暴露入口端口。
-- 内层 Podman 容器共享外层 Kageos 容器的网络命名空间，所以 MySQL/NATS/MinIO/用户 App 可以用 `127.0.0.1` 互通。
+- 内层 Podman 容器共享外层 kageos 容器的网络命名空间，所以 MySQL/NATS/MinIO/用户 App 可以用 `127.0.0.1` 互通。
 
 这意味着官方部署方式是：
 

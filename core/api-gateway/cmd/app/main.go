@@ -1,6 +1,6 @@
-// @title Kageos API Gateway
+// @title kageos API Gateway
 // @version 1.0
-// @description Kageos API 网关服务文档
+// @description kageos API 网关服务文档
 
 // @host localhost:9090
 // @BasePath /

@@ -184,7 +184,7 @@ func buildDefaultConnectorProxyRequest(ctx context.Context, method, targetURL, a
 	}
 	outReq.Header.Set("Authorization", "Bearer "+accessToken)
 	outReq.Header.Set("Accept", "application/json")
-	outReq.Header.Set("User-Agent", "Kageos-Connector")
+	outReq.Header.Set("User-Agent", "kageos-Connector")
 	if method != http.MethodGet && len(req.Body) > 0 {
 		outReq.Header.Set("Content-Type", "application/json")
 	}

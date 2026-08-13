@@ -157,7 +157,7 @@ func defaultConfig() (Config, error) {
 			Mode:     "smtp",
 			Host:     "smtp.qq.com",
 			Port:     587,
-			FromName: "Kageos",
+			FromName: "kageos",
 		},
 	}
 	return cfg, nil
@@ -230,7 +230,7 @@ func defaultDevDeploymentConfig(secrets devSecrets) Config {
 			Mode:     "log",
 			Host:     "smtp.qq.com",
 			Port:     587,
-			FromName: "Kageos",
+			FromName: "kageos",
 		},
 	}
 }
@@ -348,7 +348,7 @@ func applyDefaults(cfg *Config) {
 		cfg.SMTP.Port = 587
 	}
 	if cfg.SMTP.FromName == "" {
-		cfg.SMTP.FromName = "Kageos"
+		cfg.SMTP.FromName = "kageos"
 	}
 }
 

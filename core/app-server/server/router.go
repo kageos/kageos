@@ -153,6 +153,10 @@ func (s *Server) setupRoutes() {
 	operateLogHandler := v1.NewOperateLog(s.operateLogService, s.permissionService) // 查询统一操作日志
 	operateLog.GET("/general", operateLogHandler.GetOperateLogs)                    // 查询通用操作日志
 
+	logArchive := apiV1.Group("/system/log_archives")
+	logArchive.Use(jwtAuth)
+	logArchive.GET("", v1.NewLogArchive(s.logArchiveService).List)
+
 	// 目录更新历史路由（需要JWT验证）
 	directoryUpdateHistory := apiV1.Group("/directory_update_history")
 	directoryUpdateHistory.Use(jwtAuth) // 目录更新历史需要JWT认证

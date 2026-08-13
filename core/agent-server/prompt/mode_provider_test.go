@@ -31,11 +31,11 @@ func TestDevModePromptIsShortAndDoesNotAppendAllInOne(t *testing.T) {
 		!strings.Contains(got, "## 介绍类文档路由") ||
 		!strings.Contains(got, "## 角色速查与选择") ||
 		!strings.Contains(got, "## 执行阶段与上下文交接") ||
-		!strings.Contains(got, "Kageos 工作台不是普通聊天窗口") ||
+		!strings.Contains(got, "kageos 工作台不是普通聊天窗口") ||
 		!strings.Contains(got, "能力地图") ||
 		!strings.Contains(got, "/system/prompt/platform-introduction") ||
 		!strings.Contains(got, "/system/prompt/platform-usage-and-philosophy") ||
-		!strings.Contains(got, "Kageos 怎么用") ||
+		!strings.Contains(got, "kageos 怎么用") ||
 		!strings.Contains(got, "按“介绍类文档路由”读取对应文档") ||
 		!strings.Contains(got, "角色文档不是主路由入口") ||
 		!strings.Contains(got, "`automation_operator` 自动执行配置") ||

@@ -1,7 +1,7 @@
 # Hub 目录包元数据契约
 
-KageOS 导出的 `capability.bundle.v1` 首先是可安装目录包，其次才是 Hub 投稿输入。
-安装内容和运营数据必须分离：KageOS 只导出能够从目录本身确定的事实，价格、图片、
+kageos 导出的 `capability.bundle.v1` 首先是可安装目录包，其次才是 Hub 投稿输入。
+安装内容和运营数据必须分离：kageos 只导出能够从目录本身确定的事实，价格、图片、
 营销文案和审核状态由 Hub 管理。
 
 ## 顶层结构
@@ -37,7 +37,7 @@ KageOS 导出的 `capability.bundle.v1` 首先是可安装目录包，其次才�
 | `name` | 导出根 package 的名称 | 目录本身的名称，不负责生成中英文翻译 |
 | `description` | 导出根 package 的描述 | 目录事实描述，Hub 可以基于它补充投稿摘要 |
 | `tags` | 导出根 package 的标签 | 规范化为去重字符串数组 |
-| `source_revision` | KageOS 目录内部版本 | 用于追溯，不等同于 Hub 商品版本 |
+| `source_revision` | kageos 目录内部版本 | 用于追溯，不等同于 Hub 商品版本 |
 | `release_version` | 可选语义版本 | 只有目录本身已有合法 SemVer 时才导出 |
 
 ## 身份规则
@@ -66,7 +66,7 @@ AI 不得生成或改写目录 `code`，也不得把下划线转换成中划线�
 
 ## 不进入目录包的字段
 
-以下字段属于 Hub 运营数据，不写入 KageOS 导出 JSON：
+以下字段属于 Hub 运营数据，不写入 kageos 导出 JSON：
 
 - 投稿者账号和署名；
 - 建议价格、官方售价和支付产品；

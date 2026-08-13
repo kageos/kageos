@@ -1,6 +1,6 @@
 {
-  "name": "Kageos",
-  "short_name": "Kageos",
+  "name": "kageos",
+  "short_name": "kageos",
   "description": "下一代软件开发与运行平台",
   "start_url": "/",
   "display": "standalone",

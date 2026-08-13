@@ -13,17 +13,17 @@ import (
 	"strings"
 )
 
-const sqlitePolicyHint = "Kageos SDK 已全局注册 database/sql driver \"sqlite3\"。读取用户上传的 SQLite 文件时，请直接使用 database/sql + sql.Open(\"sqlite3\", path)；应用内置数据库请使用 ctx.GetGormDB()。不要在应用代码里额外导入或注册 sqlite3 driver，否则可能在启动时 panic: sql: Register called twice for driver sqlite3。"
-const appDBPolicyHint = "Kageos 应用数据库安全规则：ctx.GetGormDB() 得到的数据库对象只能在当前目录业务代码内直接使用；禁止传给第三方库、外部 package、全局变量、struct 字段或 return 出去；db.Raw 仅允许字符串字面量或 const 形式的 SELECT/WITH 只读查询，用户输入必须通过 ? 参数传入；禁止 Exec/Unscoped/Migrator/DB/AutoMigrate。删除记录必须走 Table Delete / OnTableDeleteRows 受控入口，并用 UPDATE 软删除语义同时写入 deleted_at 和 deleted_by；表结构迁移由 SDK/runtime 生命周期处理。"
-const sdkBoundaryPolicyHint = "Kageos 应用代码只能依赖 github.com/kageos/kageos-sdk 暴露的公共 API；禁止导入主仓库 github.com/kageos/kageos 的 sdk/pkg/dto/core 等内部实现包。"
+const sqlitePolicyHint = "kageos SDK 已全局注册 database/sql driver \"sqlite3\"。读取用户上传的 SQLite 文件时，请直接使用 database/sql + sql.Open(\"sqlite3\", path)；应用内置数据库请使用 ctx.GetGormDB()。不要在应用代码里额外导入或注册 sqlite3 driver，否则可能在启动时 panic: sql: Register called twice for driver sqlite3。"
+const appDBPolicyHint = "kageos 应用数据库安全规则：ctx.GetGormDB() 得到的数据库对象只能在当前目录业务代码内直接使用；禁止传给第三方库、外部 package、全局变量、struct 字段或 return 出去；db.Raw 仅允许字符串字面量或 const 形式的 SELECT/WITH 只读查询，用户输入必须通过 ? 参数传入；禁止 Exec/Unscoped/Migrator/DB/AutoMigrate。删除记录必须走 Table Delete / OnTableDeleteRows 受控入口，并用 UPDATE 软删除语义同时写入 deleted_at 和 deleted_by；表结构迁移由 SDK/runtime 生命周期处理。"
+const sdkBoundaryPolicyHint = "kageos 应用代码只能依赖 github.com/kageos/kageos-sdk 暴露的公共 API；禁止导入主仓库 github.com/kageos/kageos 的 sdk/pkg/dto/core 等内部实现包。"
 
 // Keep the analyzer available, but do not enforce app DB usage restrictions by default.
 const enforceAppDBPolicy = false
 
 var forbiddenSQLiteImports = map[string]string{
-	"github.com/mattn/go-sqlite3":          "该包会注册 database/sql driver \"sqlite3\"，会和 Kageos SDK 的全局注册冲突。",
-	"github.com/ncruces/go-sqlite3/driver": "Kageos SDK 已经统一导入并注册该 driver，应用代码无需再次导入。",
-	"gorm.io/driver/sqlite":                "该 GORM dialect 默认依赖会注册 \"sqlite3\" 的 driver；Kageos 应用如需 GORM 请使用 ctx.GetGormDB()，读取上传 SQLite 文件请使用 database/sql + sql.Open(\"sqlite3\", path)。",
+	"github.com/mattn/go-sqlite3":          "该包会注册 database/sql driver \"sqlite3\"，会和 kageos SDK 的全局注册冲突。",
+	"github.com/ncruces/go-sqlite3/driver": "kageos SDK 已经统一导入并注册该 driver，应用代码无需再次导入。",
+	"gorm.io/driver/sqlite":                "该 GORM dialect 默认依赖会注册 \"sqlite3\" 的 driver；kageos 应用如需 GORM 请使用 ctx.GetGormDB()，读取上传 SQLite 文件请使用 database/sql + sql.Open(\"sqlite3\", path)。",
 }
 
 var forbiddenAppDBMethods = map[string]string{
@@ -34,7 +34,7 @@ var forbiddenAppDBMethods = map[string]string{
 	"AutoMigrate": "禁止在业务代码中调用 db.AutoMigrate：表结构由 Template CreateTables 和 SDK/runtime 生命周期迁移。",
 }
 
-// ValidateAppGoSource blocks app code that would conflict with Kageos SDK's
+// ValidateAppGoSource blocks app code that would conflict with kageos SDK's
 // process-wide database/sql driver registration.
 func ValidateAppGoSource(fileName, source string) error {
 	if !isGoFileName(fileName) {

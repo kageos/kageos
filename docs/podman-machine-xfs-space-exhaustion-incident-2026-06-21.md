@@ -9,7 +9,7 @@
 
 本次事故的根因可以基本确认：macOS 宿主机磁盘空间严重不足，事故发生时只剩约 `5G` 可用空间，导致 Podman machine 的 raw 虚拟磁盘写入异常，进而造成 VM 内 XFS 根分区元数据损坏。
 
-直接损坏点不是 Kageos 代码，也不是用户主动删除容器数据，而是：
+直接损坏点不是 kageos 代码，也不是用户主动删除容器数据，而是：
 
 1. macOS 上 Podman 需要一个 Linux VM 承载容器。
 2. 该 VM 的磁盘文件是宿主机上的 raw 文件。
@@ -47,7 +47,7 @@ read tcp 127.0.0.1:55888->127.0.0.1:55851: read: connection reset by peer
 本次影响的是本地开发环境：
 
 - Podman CLI 无法列出镜像和容器。
-- Kageos 本地容器依赖不可用。
+- kageos 本地容器依赖不可用。
 - 已有镜像、容器、volume 一度看起来像消失。
 - 若误执行 `podman machine init`，可能创建新空 VM，增加恢复难度。
 

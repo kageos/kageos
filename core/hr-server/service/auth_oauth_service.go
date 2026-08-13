@@ -455,7 +455,7 @@ func getJSON(ctx context.Context, client *http.Client, endpoint string, out inte
 		return err
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "Kageos OAuth")
+	req.Header.Set("User-Agent", "kageos OAuth")
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

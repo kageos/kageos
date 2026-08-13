@@ -397,11 +397,11 @@ definitions:
 host: localhost:9092
 info:
   contact: {}
-  description: Kageos 存储服务 API 文档
+  description: kageos 存储服务 API 文档
   license:
     name: Business Source License 1.1
     url: https://github.com/kageos/kageos/blob/main/LICENSE
-  title: Kageos Storage API
+  title: kageos Storage API
   version: "1.0"
 paths:
   /storage/api/v1/batch_delete:

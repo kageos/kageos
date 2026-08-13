@@ -509,13 +509,17 @@ function getTablePreviewUrl(file: FileItem): string {
   if (file.thumbnail_ref) {
     return normalizeStorageFileDisplayUrl(file.thumbnail_ref)
   }
-  if (shouldPreferThumbnailPreview.value) {
+  // Browser uploads persist preview_kind together with the generated thumbnail.
+  // Server-generated files do not have that metadata, so do not invent a
+  // `.thumb.webp` URL for them: it produces a broken <img> for videos.
+  if (shouldPreferThumbnailPreview.value && file.preview_kind) {
     const inferredThumbnailUrl = deriveThumbnailPreviewUrl(file.ref || file.download_url || file.server_download_url)
     if (inferredThumbnailUrl) {
       return normalizeStorageFileDisplayUrl(inferredThumbnailUrl)
     }
   }
-  if (!shouldPreferThumbnailPreview.value && isImageFile(file)) {
+  // Images remain directly previewable even when no separate thumbnail exists.
+  if (isImageFile(file)) {
     return getFileDisplayUrl(file)
   }
   return ''

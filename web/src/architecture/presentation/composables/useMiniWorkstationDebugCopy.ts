@@ -110,7 +110,7 @@ export function useMiniWorkstationDebugCopy(options: UseMiniWorkstationDebugCopy
     try {
       const html = await buildPrintableDebugHtml(
         text,
-        `${translate('miniWorkstation.debugConversationTitle')} - ${options.sessionId.value || options.fullCodePath() || 'Kageos'}`
+        `${translate('miniWorkstation.debugConversationTitle')} - ${options.sessionId.value || options.fullCodePath() || 'kageos'}`
       )
       printHtmlDocument(html)
       ElMessage.success(translate('miniWorkstation.exportPdfReady'))

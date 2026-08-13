@@ -176,63 +176,12 @@
       </el-table>
     </div>
 
-    <el-dialog
+    <PublicShareCreateDialog
       v-model="dialogVisible"
-      :title="t('publicSharePanel.createDialogTitle')"
-      :width="createDialogWidth"
-      :close-on-click-modal="false"
-      class="public-share-dialog"
-    >
-      <el-form label-position="top">
-        <el-form-item :label="t('publicSharePanel.shareTitle')">
-          <el-input v-model="createForm.title" maxlength="80" show-word-limit :placeholder="t('publicSharePanel.titlePlaceholder')" />
-        </el-form-item>
-        <el-form-item :label="t('publicSharePanel.description')">
-          <el-input
-            v-model="createForm.description"
-            type="textarea"
-            :rows="3"
-            maxlength="300"
-            show-word-limit
-            :placeholder="t('publicSharePanel.descriptionPlaceholder')"
-          />
-        </el-form-item>
-        <el-form-item :label="t('publicSharePanel.expirationTime')">
-          <el-radio-group v-model="expireMode">
-            <el-radio-button label="never">{{ t('publicSharePanel.neverExpires') }}</el-radio-button>
-            <el-radio-button label="custom">{{ t('publicSharePanel.custom') }}</el-radio-button>
-          </el-radio-group>
-          <el-date-picker
-            v-if="expireMode === 'custom'"
-            v-model="customExpiresAt"
-            type="datetime"
-            :placeholder="t('publicSharePanel.expirationPlaceholder')"
-            class="custom-expire-picker"
-            value-format="YYYY-MM-DDTHH:mm:ssZ"
-          />
-        </el-form-item>
-
-        <el-form-item :label="t('publicSharePanel.submissionCount')">
-          <el-radio-group v-model="limitMode">
-            <el-radio-button label="unlimited">{{ t('publicSharePanel.unlimited') }}</el-radio-button>
-            <el-radio-button label="limited">{{ t('publicSharePanel.limited') }}</el-radio-button>
-          </el-radio-group>
-          <el-input-number
-            v-if="limitMode === 'limited'"
-            v-model="maxUses"
-            :min="1"
-            :step="10"
-            controls-position="right"
-            class="max-uses-input"
-          />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="creating" @click="createShare">{{ t('publicSharePanel.createAndGenerateQr') }}</el-button>
-      </template>
-    </el-dialog>
+      :full-code-path="fullCodePath"
+      :default-title="functionDetail?.name || functionNode?.name || ''"
+      @created="handleShareCreated"
+    />
 
     <el-dialog
       v-model="qrDialogVisible"
@@ -240,8 +189,13 @@
       :width="qrDialogWidth"
       class="public-share-qr-dialog"
     >
-      <div class="qr-dialog-body">
-        <div class="qr-title">{{ qrShare ? shareDisplayTitle(qrShare) : t('publicSharePanel.untitled') }}</div>
+        <div class="qr-dialog-body">
+          <div class="qr-title">{{ qrShare ? shareDisplayTitle(qrShare) : t('publicSharePanel.untitled') }}</div>
+          <div v-if="qrShare?.description" class="qr-description">{{ qrShare.description }}</div>
+          <div v-if="qrShare" class="qr-meta">
+            <span>{{ qrShare.expires_at ? `${t('publicSharePanel.expirationTime')}：${formatDate(qrShare.expires_at)}` : t('publicSharePanel.permanent') }}</span>
+            <span>{{ qrShare.max_uses > 0 ? `${t('publicSharePanel.submissionCount')}：${qrShare.use_count}/${qrShare.max_uses}` : t('publicSharePanel.unlimited') }}</span>
+          </div>
         <div class="qr-box">
           <el-skeleton v-if="qrGenerating" :rows="5" animated />
           <img v-else-if="qrDataUrl" class="qr-image" :src="qrDataUrl" :alt="t('publicSharePanel.qrAlt')" />
@@ -293,9 +247,9 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import QRCode from 'qrcode'
 import { Refresh, Search } from '@element-plus/icons-vue'
+import PublicShareCreateDialog from '@/architecture/presentation/components/PublicShareCreateDialog.vue'
 import { notifyUploadComplete, uploadFile } from '@/architecture/presentation/context/uploadContext'
 import {
-  createPublicShare,
   disablePublicShare,
   listPublicShares,
   type PublicShareItem,
@@ -310,7 +264,6 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const loading = ref(false)
-const creating = ref(false)
 const disablingId = ref('')
 const shares = ref<PublicShareItem[]>([])
 const dialogVisible = ref(false)
@@ -324,21 +277,12 @@ const qrStorageUrl = ref('')
 const qrStorageRef = ref('')
 const qrUploadError = ref('')
 const qrStorageCache = new Map<string, { url: string; ref: string }>()
-const expireMode = ref<'never' | 'custom'>('never')
-const limitMode = ref<'unlimited' | 'limited'>('unlimited')
-const customExpiresAt = ref('')
-const maxUses = ref(100)
-const createForm = reactive({
-  title: '',
-  description: '',
-})
 const filters = reactive({
   keyword: '',
   createdBy: '',
   status: '',
 })
 
-const createDialogWidth = computed(() => 'min(520px, calc(100vw - 32px))')
 const qrDialogWidth = computed(() => 'min(420px, calc(100vw - 32px))')
 
 const fullCodePath = computed(() => {
@@ -403,41 +347,14 @@ function resetFilters() {
 }
 
 function openCreateDialog() {
-  createForm.title = ''
-  createForm.description = ''
-  expireMode.value = 'never'
-  limitMode.value = 'unlimited'
-  customExpiresAt.value = ''
-  maxUses.value = 100
   dialogVisible.value = true
 }
 
-async function createShare() {
-  if (!fullCodePath.value) {
-    ElMessage.warning(t('publicSharePanel.pathNotReady'))
-    return
-  }
-  if (expireMode.value === 'custom' && !customExpiresAt.value) {
-    ElMessage.warning(t('publicSharePanel.expirationRequired'))
-    return
-  }
-  creating.value = true
-  try {
-    const share = await createPublicShare({
-      full_code_path: fullCodePath.value,
-      title: createForm.title.trim(),
-      description: createForm.description.trim(),
-      expires_at: expireMode.value === 'custom' ? customExpiresAt.value : null,
-      max_uses: limitMode.value === 'limited' ? maxUses.value : 0,
-    })
-    shares.value = [share, ...shares.value]
-    dialogVisible.value = false
-    await copyLink(publicLink(share))
-    await openQrDialog(share)
-    ElMessage.success(t('publicSharePanel.createSuccess'))
-  } finally {
-    creating.value = false
-  }
+async function handleShareCreated(share: PublicShareItem) {
+  shares.value = [share, ...shares.value]
+  await copyLink(publicLink(share))
+  await openQrDialog(share)
+  ElMessage.success(t('publicSharePanel.createSuccess'))
 }
 
 async function disableShare(shareId: string) {
@@ -822,6 +739,26 @@ watch(fullCodePath, load)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.qr-description {
+  max-width: 100%;
+  color: var(--el-text-color-regular);
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.qr-meta {
+  display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 14px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .qr-box {

@@ -301,7 +301,7 @@ func TestBuildLLMMessagesWithPlanReportsContextPolicyAndHandoff(t *testing.T) {
 	if !strings.Contains(msgs[0].Content, "/system/prompt/platform-introduction") ||
 		!strings.Contains(msgs[0].Content, "/system/prompt/platform-usage-and-philosophy") ||
 		!strings.Contains(msgs[0].Content, "/system/prompt/platform-capability-boundaries") {
-		t.Fatalf("system message should route Kageos introduction, usage and boundary questions to docs:\n%s", msgs[0].Content)
+		t.Fatalf("system message should route kageos introduction, usage and boundary questions to docs:\n%s", msgs[0].Content)
 	}
 	if strings.Contains(msgs[0].Content, "恰研智能（qiayan.ai）") ||
 		strings.Contains(msgs[0].Content, "转 Apache-2.0") {

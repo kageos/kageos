@@ -114,7 +114,7 @@ onMounted(loadIntent)
     <div class="register-shell">
       <div v-loading="loading" class="register-card">
         <div class="register-header">
-          <img alt="Kageos" class="brand-logo" src="@/architecture/presentation/assets/logo.svg" />
+          <img alt="kageos" class="brand-logo" src="@/architecture/presentation/assets/logo.svg" />
           <div class="register-title-block">
             <h1>完成授权注册</h1>
             <p>确认账号标识后进入工作空间</p>

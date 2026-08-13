@@ -1,8 +1,8 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "Kageos 存储服务 API 文档",
-        "title": "Kageos Storage API",
+        "description": "kageos 存储服务 API 文档",
+        "title": "kageos Storage API",
         "contact": {},
         "license": {
             "name": "Business Source License 1.1",

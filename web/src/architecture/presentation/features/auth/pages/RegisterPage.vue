@@ -180,7 +180,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
         <div class="brand-logo-wrapper">
           <div class="logo-glow"></div>
           <div class="brand-logo">
-            <img alt="Kageos" class="logo" src="@/architecture/presentation/assets/logo.svg" />
+            <img alt="kageos" class="logo" src="@/architecture/presentation/assets/logo.svg" />
           </div>
         </div>
         <h1 class="brand-title">

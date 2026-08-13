@@ -98,7 +98,7 @@ func (s *SystemSettingsService) UpdateSettings(req dto.UpdateSystemSettingsReq, 
 		values[settingSMTPPort] = "587"
 	}
 	if values[settingSMTPFromName] == "" {
-		values[settingSMTPFromName] = "Kageos"
+		values[settingSMTPFromName] = "kageos"
 	}
 	if mode == RegistrationModeEmailCode {
 		if err := validateSMTPConfig(appconfig.EmailSMTPConfig{
@@ -129,7 +129,7 @@ func (s *SystemSettingsService) TestEmail(to string) error {
 	if err := validateSMTPConfig(cfg.SMTP); err != nil {
 		return err
 	}
-	return emailx.NewSender(cfg.SMTP).SendHTML(to, "Kageos test email", "<p>Kageos email service is configured correctly.</p>")
+	return emailx.NewSender(cfg.SMTP).SendHTML(to, "kageos test email", "<p>kageos email service is configured correctly.</p>")
 }
 
 func (s *SystemSettingsService) GetTLSSettings() (*dto.TLSSettingsResp, error) {
@@ -241,7 +241,7 @@ func (s *SystemSettingsService) emailSettingsFrom(values map[string]string, incl
 		Port:     firstNonZeroInt(values[settingSMTPPort], s.cfg.Email.SMTP.Port, 587),
 		Username: firstNonEmpty(values[settingSMTPUsername], s.cfg.Email.SMTP.Username),
 		From:     firstNonEmpty(values[settingSMTPFrom], s.cfg.Email.SMTP.From),
-		FromName: firstNonEmpty(values[settingSMTPFromName], s.cfg.Email.SMTP.FromName, "Kageos"),
+		FromName: firstNonEmpty(values[settingSMTPFromName], s.cfg.Email.SMTP.FromName, "kageos"),
 	}
 	email.Mode = normalizeEmailMode(email.Mode)
 	password := firstNonEmpty(values[settingSMTPPassword], s.cfg.Email.SMTP.Password)

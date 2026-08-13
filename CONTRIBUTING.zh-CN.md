@@ -1,6 +1,6 @@
-# 贡献 Kageos
+# 贡献 kageos
 
-感谢你愿意改进 Kageos。本仓库源码公开，当前采用 Business Source License 1.1，并在各版本发布四年后转为 Apache-2.0。贡献前请阅读 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)，确认你理解当前授权范围和转换机制。
+感谢你愿意改进 kageos。本仓库源码公开，当前采用 Business Source License 1.1，并在各版本发布四年后转为 Apache-2.0。贡献前请阅读 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)，确认你理解当前授权范围和转换机制。
 
 ## 开始之前
 
@@ -12,7 +12,7 @@
 ## 贡献流程
 
 1. Fork 仓库，并从最新 `main` 创建分支。
-2. 按本文的本地开发流程启动 Kageos。
+2. 按本文的本地开发流程启动 kageos。
 3. 进行小而清晰的修改。
 4. 为 bug fix 或新功能补充测试，或在 PR 中说明验证方式。
 5. 行为、部署、公开定位有变化时同步更新 README 或 docs。
@@ -84,7 +84,7 @@ npm install
 npm run dev
 ```
 
-启动后访问 `http://localhost:5173`。`kagectl bootstrap --dev` 会打印 `Kageos dev initialization summary`；使用用户名 `system` 和其中的 `Admin password` 登录。如果需要重新查看密码，可以执行 `go run ./cmd/kagectl init --dev`，或读取 `.kageos/dev/env/kageos.env` 中的 `SYSTEM_USER_PASSWORD`。
+启动后访问 `http://localhost:5173`。`kagectl bootstrap --dev` 会打印 `kageos dev initialization summary`；使用用户名 `system` 和其中的 `Admin password` 登录。如果需要重新查看密码，可以执行 `go run ./cmd/kagectl init --dev`，或读取 `.kageos/dev/env/kageos.env` 中的 `SYSTEM_USER_PASSWORD`。
 
 ## 常用开发命令
 

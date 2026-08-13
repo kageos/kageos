@@ -1,9 +1,9 @@
 ---
 name: kageos-operator
-description: Operate and verify an already-developed KageOS workspace directory through direct authenticated HTTP requests, live schema discovery, Form/Table/Chart and OnSelectFuzzy calls, file uploads, user selectors, rich-text assets, business readback, cleanup, automation evidence, and optional UI checks. Use after kageos-developer and before publishing when a user asks to test, operate, validate, walk through, or prove a KageOS directory works end to end.
+description: Operate and verify an already-developed kageos workspace directory through direct authenticated HTTP requests, live schema discovery, Form/Table/Chart and OnSelectFuzzy calls, file uploads, user selectors, rich-text assets, business readback, cleanup, automation evidence, and optional UI checks. Use after kageos-developer and before publishing when a user asks to test, operate, validate, walk through, or prove a kageos directory works end to end.
 ---
 
-# KageOS Operator
+# kageos Operator
 
 Verify the installed product as an operator would. Do not redesign, edit, build, or publish it.
 
@@ -11,7 +11,7 @@ Verify the installed product as an operator would. Do not redesign, edit, build,
 
 Collect or discover:
 
-- KageOS gateway base URL.
+- kageos gateway base URL.
 - Workspace directory `full_code_path`, not a local filesystem path.
 - `KAGEOS_OPENAPI_TOKEN`, or temporarily `KAGEOS_ACCESS_TOKEN` for local/test use.
 - Expected user scenario and safe synthetic test data.

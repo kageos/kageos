@@ -1,6 +1,6 @@
 # 关于如何写 kageos_manifest.go
 
-`kageos_manifest.go` 用来给一个 Kageos package 声明出厂默认资产。第一版只放两类东西：
+`kageos_manifest.go` 用来给一个 kageos package 声明出厂默认资产。第一版只放两类东西：
 
 - `runbook.docs`：目录级运行手册。
 - `AgentTask`：某个具体无人值守任务的默认模板。

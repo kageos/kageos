@@ -2,7 +2,7 @@
 
 ## 我们的承诺
 
-Kageos 是一个面向 AI 原生服务基础设施的技术社区。我们希望 issue、discussion、pull request、文档和社区空间保持专业、直接、友好。
+kageos 是一个面向 AI 原生服务基础设施的技术社区。我们希望 issue、discussion、pull request、文档和社区空间保持专业、直接、友好。
 
 我们承诺为所有贡献者和用户提供无骚扰的参与环境，不因年龄、体型、身心能力、民族、性别认同与表达、经验水平、教育程度、国籍、外貌、种族、宗教信仰、性取向或社会经济地位而区别对待。
 
@@ -29,7 +29,7 @@ Kageos 是一个面向 AI 原生服务基础设施的技术社区。我们希望
 
 ## 适用范围
 
-本行为准则适用于 Kageos 的项目空间，包括 GitHub issue、pull request、discussion、文档、社区聊天、活动，以及个人在公共空间中代表 Kageos 时的行为。
+本行为准则适用于 kageos 的项目空间，包括 GitHub issue、pull request、discussion、文档、社区聊天、活动，以及个人在公共空间中代表 kageos 时的行为。
 
 ## 执行
 
@@ -39,4 +39,4 @@ Kageos 是一个面向 AI 原生服务基础设施的技术社区。我们希望
 
 ## 致谢
 
-本准则参考 Contributor Covenant，并结合 Kageos 项目情况进行了调整。
+本准则参考 Contributor Covenant，并结合 kageos 项目情况进行了调整。

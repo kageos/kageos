@@ -53,7 +53,7 @@ go run ./cmd/kagectl bootstrap --dev --engine docker
 http://localhost:5173
 ```
 
-首次执行 `bootstrap --dev` 或 `init --dev` 时，终端会打印 `Kageos dev initialization summary`。本地默认管理员：
+首次执行 `bootstrap --dev` 或 `init --dev` 时，终端会打印 `kageos dev initialization summary`。本地默认管理员：
 
 ```text
 Username: system

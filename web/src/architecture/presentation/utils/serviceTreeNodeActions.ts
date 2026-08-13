@@ -14,7 +14,7 @@ import {
 import type { ServiceTree } from '@/architecture/domain/types'
 import { isRootNode } from '@/architecture/domain/utils/tree-utils'
 import { featureFlags } from '@/architecture/shared/config/features'
-import { canAdmin, canDelete, canRead, canWrite } from '../composables/useAccessControl'
+import { canAdmin, canDelete, canRead, canUseWorkstation, canWrite } from '../composables/useAccessControl'
 import { translate } from '@/architecture/shared/i18n'
 
 export type ServiceTreeNodeActionCommand =
@@ -73,7 +73,8 @@ export function getServiceTreeNodeActions(
       label: translate('serviceTree.openWorkbench'),
       icon: ChatDotRound,
       visible: data.type === 'package',
-      ...requires(canRead(data), 'Read'),
+      disabled: !canUseWorkstation(data),
+      disabledReason: canUseWorkstation(data) ? undefined : translate('access.requiresMemberForWorkstation'),
     },
     {
       command: 'manage-access',

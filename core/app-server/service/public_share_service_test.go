@@ -12,6 +12,40 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestFallbackPublicShareTitleUsesBusinessNameInsteadOfCode(t *testing.T) {
+	tests := []struct {
+		name  string
+		title string
+		node  *model.ServiceTree
+		want  string
+	}{
+		{
+			name:  "custom title wins",
+			title: "活动报名",
+			node:  &model.ServiceTree{Name: "提交记录", Code: "submit.form"},
+			want:  "活动报名",
+		},
+		{
+			name: "business name is the fallback",
+			node: &model.ServiceTree{Name: "提交记录", Code: "submit.form"},
+			want: "提交记录",
+		},
+		{
+			name: "technical code is never exposed",
+			node: &model.ServiceTree{Code: "submit.form"},
+			want: "公开表单",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := fallbackPublicShareTitle(tt.title, tt.node); got != tt.want {
+				t.Fatalf("fallbackPublicShareTitle() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestPublicShareListSubmissionsOnlyReturnsCurrentAnonymousActorAndShare(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {

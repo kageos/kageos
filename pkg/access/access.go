@@ -324,6 +324,22 @@ func HasPermission(perms PermissionSet, action Action) bool {
 	return perms[action]
 }
 
+// CoversRole reports whether a resolved permission set contains every action
+// granted by role. It is useful for feature gates such as the AI workstation,
+// which is available to Member and above without introducing another role.
+func CoversRole(perms PermissionSet, role RoleCode) bool {
+	role = NormalizeRoleCode(role)
+	if !IsValidRoleCode(role) {
+		return false
+	}
+	for action, required := range RolePermissions(role) {
+		if required && !HasPermission(perms, action) {
+			return false
+		}
+	}
+	return true
+}
+
 func ParentPaths(resourcePath string) []string {
 	resourcePath = NormalizeResourcePath(resourcePath)
 	if resourcePath == "" {

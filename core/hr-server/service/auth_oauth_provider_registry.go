@@ -165,8 +165,8 @@ func init() {
 	RegisterOAuthLoginProvider(OAuthLoginProvider{
 		Seed: AuthProviderSeed{
 			Code:          ProviderKageOSAuth,
-			Name:          "KageOS 微信扫码登录",
-			Description:   "通过 KageOS 第一方统一认证服务使用微信公众号扫码登录。",
+			Name:          "kageos 微信扫码登录",
+			Description:   "通过 kageos 第一方统一认证服务使用微信公众号扫码登录。",
 			Action:        ProviderActionRedirect,
 			AuthorizePath: "/hr/api/v1/auth/kageos/authorize",
 			CallbackPath:  "/hr/api/v1/auth/kageos/callback",
@@ -175,13 +175,13 @@ func init() {
 			Fields: []AuthProviderFieldDef{
 				{Key: "client_id", Label: "Client ID", Type: "text", Required: true},
 				{Key: "client_secret", Label: "Client Secret", Type: "password", Required: true, Secret: true},
-				{Key: "redirect_url", Label: "回调地址", Type: "url", Required: true, Help: "必须是 KageOS Auth 白名单中登记的精确回调地址。"},
+				{Key: "redirect_url", Label: "回调地址", Type: "url", Required: true, Help: "必须是 kageos Auth 白名单中登记的精确回调地址。"},
 			},
 		},
 		Factory: OAuthProviderFactory{
-			OAuth2Config: kageOSAuthOAuth2Config,
+			OAuth2Config: kageosAuthOAuth2Config,
 			FetchProfile: fetchKageOSAuthProfile,
-			DisplayName:  "KageOS Auth",
+			DisplayName:  "kageos Auth",
 			ShortCode:    "kageos",
 			RegisterType: "kageos_auth",
 			UsePKCE:      true,
@@ -232,7 +232,7 @@ func init() {
 	})
 }
 
-func kageOSAuthOAuth2Config(values map[string]string) (*oauth2.Config, error) {
+func kageosAuthOAuth2Config(values map[string]string) (*oauth2.Config, error) {
 	clientID, clientSecret, redirectURL, err := oauthClientValues(values)
 	if err != nil {
 		return nil, err
@@ -255,10 +255,10 @@ func fetchKageOSAuthProfile(ctx context.Context, client *http.Client) (*OAuthPro
 		Picture           string `json:"picture"`
 	}
 	if err := getJSON(ctx, client, "https://auth.kageos.com/api/v1/oauth/userinfo", &payload); err != nil {
-		return nil, fmt.Errorf("获取 KageOS Auth 用户信息失败: %w", err)
+		return nil, fmt.Errorf("获取 kageos Auth 用户信息失败: %w", err)
 	}
 	if strings.TrimSpace(payload.Subject) == "" {
-		return nil, fmt.Errorf("KageOS Auth 未返回有效用户标识")
+		return nil, fmt.Errorf("kageos Auth 未返回有效用户标识")
 	}
 	return &OAuthProfile{
 		ProviderCode: ProviderKageOSAuth, ExternalID: payload.Subject, PreferredUsername: payload.PreferredUsername,

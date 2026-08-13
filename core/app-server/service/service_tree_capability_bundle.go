@@ -29,7 +29,7 @@ import (
 const maxRemoteCapabilityBundleBytes = 32 << 20
 const capabilityBundleAgentTaskPageSize = 100
 const capabilityBundleScheduledFunctionPageSize = 100
-const capabilityBundleInstallReportHeader = "X-Kageos-Install-Report"
+const capabilityBundleInstallReportHeader = "X-kageos-Install-Report"
 
 var capabilityBundleReleaseVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$`)
 

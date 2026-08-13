@@ -1,6 +1,6 @@
 # App Storage
 
-App Storage is the MinIO-backed file service for Kageos. It provides presigned upload credentials, browser/server download URLs, file metadata records, listing, statistics, and delete operations.
+App Storage is the MinIO-backed file service for kageos. It provides presigned upload credentials, browser/server download URLs, file metadata records, listing, statistics, and delete operations.
 
 ## Scope
 

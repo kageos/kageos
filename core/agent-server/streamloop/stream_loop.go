@@ -237,7 +237,7 @@ func actionableOutputLimitError(err *outputLimitError, maxTokens int, retried bo
 	}
 	prefix := err.Error()
 	if retried {
-		prefix += "；KageOS 已自动精简上下文并重试一次，仍未完成"
+		prefix += "；kageos 已自动精简上下文并重试一次，仍未完成"
 	}
 	return fmt.Errorf("%s。%s，请到「LLM 管理」调大最大 Token；推理模型还可在额外配置中降低 reasoning_effort 后重试", prefix, limit)
 }

@@ -1,4 +1,4 @@
-# Kageos 平台能力总览
+# kageos 平台能力总览
 
 本文描述当前代码里已经接回主线的平台横切能力，重点是工作台会话、消息/站内信和定时任务。它们不是某个业务应用私有实现，而是挂在 Service Tree 和平台运行时上的共享能力。
 
@@ -34,6 +34,8 @@
 有效权限是“授权主体继承”和“资源路径继承”的并集。例如用户属于 `/org/sales/east`，会同时匹配用户本人、`/org/sales/east`、`/org/sales`、`/org`；授予 `/alice/ops` 的角色也会继续作用于它下面的目录、表单、表格、图表、文档和函数。当前只有允许规则，没有 deny 规则。
 
 工作空间的 `is_public` 只控制登录用户能否发现并进入工作空间壳层，不等于根目录 Viewer 授权，也不会向下继承目录权限。公开空间里的目录内容、数据和操作仍统一由 `PermissionService` 判断；`hide_unauthorized_nodes=false` 时无权限目录可以作为锁定节点展示，设为 `true` 时直接从目录树隐藏。私有空间只允许所有者、管理员或已获得任意目录授权的用户进入。
+
+AI 工作台不是独立资源角色。用户在目标目录具备 Member、Admin 或 Owner 权限时可以进入工作台，Viewer 不能进入；进入后也不会获得额外权限。查询、新增、更新、删除、代码修改、构建和权限管理等每个具体动作仍由目标资源接口按当前用户的 `read/write/update/delete/admin/owner` 权限逐次校验。
 
 所有非 `system` 用户必须属于 `/org`，没有明确部门时归入 `/org/unassigned`。组织结构和用户组织归属只允许 `system` 修改，避免普通工作空间管理员通过移动组织归属绕过授权边界。部署采用单企业边界，不再使用 `company_code`；需要彼此隔离的企业时使用独立部署。
 
@@ -110,7 +112,7 @@ flowchart LR
 - `PATCH /message/api/v1/inbox/:id/read`
 - `PATCH /message/api/v1/inbox/read_all`
 
-站内信是完整保存和查看入口。飞书、企业微信、钉钉等外部 webhook 渠道由 message-service 的 channel provider 统一投递；外部卡片只展示附件数量和前几个文件名，并跳回 Kageos 详情查看/下载，不做渠道原生文件上传。业务应用不应直接耦合具体外部渠道。
+站内信是完整保存和查看入口。飞书、企业微信、钉钉等外部 webhook 渠道由 message-service 的 channel provider 统一投递；外部卡片只展示附件数量和前几个文件名，并跳回 kageos 详情查看/下载，不做渠道原生文件上传。业务应用不应直接耦合具体外部渠道。
 
 ## 定时任务
 
@@ -120,6 +122,7 @@ flowchart LR
 
 - `app.function`：到点后由 `app-server` 调用已确认的 Form/Table/Chart。适合固定函数路径和固定 body，例如每天提交表单、每小时扫描表格、每周查询图表。
 - `agent.session`：到点后由 `agent-server` 启动无人值守工作台会话。适合巡检、分析、总结、跨目录/跨工作空间组合工具和需要判断的长期任务。
+- `platform.log_archive`：由 `app-server` 确定性归档过期操作日志；这是平台维护任务，不使用 Agent，也不挂到 Service Tree。
 - `workflow.run`：未上线，仅作为后续 workflow 图能力的架构预留；当前没有主线 worker 或用户入口。
 
 周期任务通过 `overlap_policy` 控制同一任务的重叠执行，默认 `forbid`：
@@ -143,6 +146,21 @@ flowchart LR
 
 生成应用里的默认定时任务可以通过 `FormTemplate.Schedules` 声明，发布后由平台幂等同步到 `timer-scheduler`。普通业务代码不要自造 cron、调度表或后台 goroutine。
 
+## 操作日志离线归档
+
+操作日志默认在线保留 90 天。`platform.log_archive` 每天按工作空间分批把更早的 `operate_logs` 流式写成 `JSONL.gz` 并上传到平台对象存储。每个批次会保存精确日志 ID 清单；只有上传成功、对象可读取且文件大小一致后，才按这份清单分块删除数据库记录。失败批次保留原日志并在下次执行时恢复。
+
+系统设置的“备份管理”只展示批次范围、记录数、服务目录摘要、对象引用、文件大小和 SHA256，不把归档内容接回在线日志搜索。需要排障时由技术人员获取压缩文件离线分析。
+
+可用环境变量：
+
+- `KAGEOS_LOG_ARCHIVE_ENABLED`：是否执行归档，默认 `true`。
+- `KAGEOS_LOG_ARCHIVE_RETENTION_DAYS`：在线保留天数，默认 `90`，最小 `7`。
+- `KAGEOS_LOG_ARCHIVE_BATCH_SIZE`：单个归档文件最多日志数，默认 `10000`。
+- `KAGEOS_LOG_ARCHIVE_MAX_BATCHES`：单次任务最多处理批次数，默认 `20`。
+- `KAGEOS_LOG_ARCHIVE_CRON`：cron，默认 `20 3 * * *`。
+- `KAGEOS_LOG_ARCHIVE_TIMEZONE`：时区，默认 `Asia/Shanghai`。
+
 ## 开发边界
 
 - 业务应用发通知时使用 `ctx.SendNotification`，不要直接写 `message-server` 的表，也不要绑定具体外部渠道。
@@ -151,4 +169,4 @@ flowchart LR
 - Agent 后台任务发通知时使用 `send_notification`。在 runbook 或 AgentTask message 中引用该内置工具时可写 `<tool:send_notification>`；Agent 任务和后台上下文优先显式写 `to_users`，通知创建人/当前用户时可依赖默认通知对象。
 - 业务应用需要默认定时执行时使用 `FormTemplate.Schedules`；临时或运营型自动化由自动执行配置创建 `timer-scheduler` 任务。
 - Service Tree 路径、`full_code_path`、`source_path`、trace 和操作日志是平台排障与跳转的共同索引，新增能力时应完整传递，不要在前端用临时 URL 状态替代持久来源信息。
-- 权限和基础消息通知是当前平台能力；审批、评论、收藏、外部渠道原生文件上传、复杂通知策略和备份控制面目前未上线，不应由单个业务 App 自造通用版本。
+- 权限、基础消息通知和操作日志离线归档是当前平台能力；审批、评论、收藏、外部渠道原生文件上传、复杂通知策略和通用数据库备份控制面目前未上线，不应由单个业务 App 自造通用版本。

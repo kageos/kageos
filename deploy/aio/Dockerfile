@@ -1,4 +1,4 @@
-# Kageos All-in-One local image.
+# kageos All-in-One local image.
 # Build from repository root:
 #   docker build -f deploy/aio/Dockerfile -t kageos:latest -t qiayanai/kageos:latest .
 #

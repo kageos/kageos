@@ -772,7 +772,7 @@ func (s *ServiceTree) GetWorkspaceContext(c *gin.Context) {
 	}
 
 	ctx := contextx.ToContext(c)
-	if err := requireAccess(c, s.permissionService, req.FullCodePath, access.ActionRead); err != nil {
+	if err := requireWorkstationAccess(c, s.permissionService, req.FullCodePath); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}

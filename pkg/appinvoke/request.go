@@ -13,7 +13,7 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-const TargetRouterHeader = "X-Kageos-Target-Router"
+const TargetRouterHeader = "X-kageos-Target-Router"
 
 // RequestMeta 描述 runtime -> app invoke 请求的路由与调用头信息。
 type RequestMeta struct {

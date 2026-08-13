@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
-  <title id="title">Kageos app icon</title>
-  <desc id="desc">Kageos app icon using the selected Kage Blade logo direction.</desc>
+  <title id="title">kageos app icon</title>
+  <desc id="desc">kageos app icon using the selected Kage Blade logo direction.</desc>
   <defs>
     <linearGradient id="bladeGradient" x1="116" y1="94" x2="396" y2="414" gradientUnits="userSpaceOnUse">
       <stop stop-color="#67e8f9"/>

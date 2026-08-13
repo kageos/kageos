@@ -169,8 +169,7 @@
         <el-button
           v-if="canCreatePublicShare"
           size="large"
-          :disabled="submitting || creatingPublicShare"
-          :loading="creatingPublicShare"
+          :disabled="submitting"
           @click="handleCreatePublicShare"
           data-testid="form-create-public-share"
         >
@@ -433,6 +432,16 @@
       :get-payload="buildScheduledSubmitPayload"
     />
 
+    <PublicShareCreateDialog
+      v-if="canCreatePublicShare"
+      v-model="publicShareDialogVisible"
+      :full-code-path="scheduledFunctionPath"
+      :default-title="functionDetail?.name || ''"
+      :default-description="functionDetail?.description || ''"
+      :preset-values="publicSharePresetValues"
+      @created="handlePublicShareCreated"
+    />
+
       </div>
     </div>
   </div>
@@ -448,6 +457,7 @@ import { eventBus } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../widgets/WidgetComponent.vue'
 import ScheduledTaskDialog from '@/architecture/presentation/components/ScheduledTaskDialog.vue'
+import PublicShareCreateDialog from '@/architecture/presentation/components/PublicShareCreateDialog.vue'
 import { getErrorMessage } from '@/architecture/shared/apiError'
 import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { getChangedFields } from '@/architecture/domain/utils/objectDiff'
@@ -470,7 +480,7 @@ import {
   copyTextToClipboard,
   filterEmptyInvocationParams,
 } from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
-import { createPublicShare, type PublicShareItem } from '@/architecture/presentation/context/api/publicShare'
+import type { PublicShareItem } from '@/architecture/presentation/context/api/publicShare'
 import { buildPublicSharePresetValues } from '@/architecture/domain/utils/publicSharePreset'
 
 const props = withDefaults(defineProps<{
@@ -540,7 +550,8 @@ const currentFunctionNode = computed(() => {
   return workspaceStateManager.getCurrentFunction()
 })
 const showScheduledTaskDialog = ref(false)
-const creatingPublicShare = ref(false)
+const publicShareDialogVisible = ref(false)
+const publicSharePresetValues = ref<Record<string, unknown>>({})
 const scheduledFunctionPath = computed(() => {
   return functionDetail.value?.full_code_path || currentFunctionNode.value?.full_code_path || ''
 })
@@ -673,27 +684,24 @@ async function handleCopyWorkspaceInvocation(): Promise<void> {
   }
 }
 
-async function handleCreatePublicShare(): Promise<void> {
+function handleCreatePublicShare(): void {
   if (!scheduledFunctionPath.value) {
     ElMessage.warning(t('publicSharePanel.pathNotReady'))
     return
   }
 
-  creatingPublicShare.value = true
+  publicSharePresetValues.value = buildPublicSharePresetValues(
+    filterEmptyInvocationParams(prepareSubmitDataWithTypeConversion())
+  )
+  publicShareDialogVisible.value = true
+}
+
+async function handlePublicShareCreated(share: PublicShareItem): Promise<void> {
   try {
-    const presetValues = buildPublicSharePresetValues(
-      filterEmptyInvocationParams(prepareSubmitDataWithTypeConversion())
-    )
-    const share = await createPublicShare({
-      full_code_path: scheduledFunctionPath.value,
-      preset_values: presetValues,
-    })
     await copyTextToClipboard(resolvePublicShareLink(share))
     ElMessage.success(t('formView.publicShareCreatedCopied'))
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, t('formView.publicShareCreateFailed')))
-  } finally {
-    creatingPublicShare.value = false
+    ElMessage.error(getErrorMessage(error, t('formView.copyFailedManual')))
   }
 }
 

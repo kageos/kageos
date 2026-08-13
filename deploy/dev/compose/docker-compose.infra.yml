@@ -1,4 +1,4 @@
-# Kageos - 基础设施（NATS / MySQL / MinIO）
+# kageos - 基础设施（NATS / MySQL / MinIO）
 # 用于 Podman 本地开发：容器名必须为 mysql8、nats-server、minio，与 app-runtime InfraWatchdog 一致。
 # 因为这层约束，Podman 版本单独保留一份 compose，而不是和 Docker 版本强行复用。
 #

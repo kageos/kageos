@@ -21,7 +21,7 @@ var (
 	kageosRootOnce sync.Once
 )
 
-// GetKageosRoot 返回 Kageos 项目根目录绝对路径，用于解析 .kageos、deploy/dev、deploy/prod 等。
+// GetKageosRoot 返回 kageos 项目根目录绝对路径，用于解析 .kageos、deploy/dev、deploy/prod 等。
 // 查找顺序：
 //  1. 从代码所在目录、当前工作目录开始，优先向上查找 `.kageos-root`
 //  2. 若仍未找到，则从这些起点的祖先目录向下搜索 `.kageos-root`

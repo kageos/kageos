@@ -14,7 +14,7 @@ import urllib.parse
 import urllib.request
 
 
-USER_AGENT = "KageOS-Hub-Publisher/1.0"
+USER_AGENT = "kageos-Hub-Publisher/1.0"
 
 
 def request_json(url, token, method="GET", body=None):

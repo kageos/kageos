@@ -69,14 +69,14 @@ wait_core_ready() {
       return 1
     fi
     if curl --silent --show-error --fail "$url" >/dev/null 2>&1; then
-      echo "==> Kageos API (${url}) 就绪"
+      echo "==> kageos API (${url}) 就绪"
       return 0
     fi
-    echo "    等待 Kageos API (${url}) ... ($i/90)"
+    echo "    等待 kageos API (${url}) ... ($i/90)"
     sleep 2
     i=$((i + 1))
   done
-  echo "ERROR: 超时未连上 Kageos API ${url}" >&2
+  echo "ERROR: 超时未连上 kageos API ${url}" >&2
   return 1
 }
 
@@ -105,7 +105,7 @@ print_aio_success_summary() {
   cat <<EOF
 
 ============================================================
-Kageos started successfully
+kageos started successfully
 ============================================================
 Access URL:
   ${CANONICAL_BASE_URL}

@@ -167,7 +167,7 @@ func printDevInitSummary(paths Paths, opts initDevOptions) {
 		{"SMTP username", values["SMTP_USERNAME"]},
 	}
 	fmt.Println()
-	fmt.Println("Kageos dev initialization summary")
+	fmt.Println("kageos dev initialization summary")
 	printPlainTable("Item", "Value", rows)
 	fmt.Println()
 	fmt.Println("Next: run `go run ./cmd/kagectl up` to start the local backend.")
@@ -381,7 +381,7 @@ func writeDeploymentSummary(rt RuntimeConfig, status string) error {
 func deploymentSummaryMarkdown(rt RuntimeConfig, status string) string {
 	rows := deploymentSummaryRows(rt, status)
 	var b strings.Builder
-	b.WriteString("# Kageos Deployment Summary\n\n")
+	b.WriteString("# kageos Deployment Summary\n\n")
 	b.WriteString("| Item | Value |\n")
 	b.WriteString("|---|---|\n")
 	for _, row := range rows {
@@ -404,7 +404,7 @@ func printDeploymentSummary(rt RuntimeConfig, status string) {
 	}
 
 	fmt.Println()
-	fmt.Println("Kageos deployment summary")
+	fmt.Println("kageos deployment summary")
 	fmt.Printf("%-*s  %s\n", width, "Item", "Value")
 	fmt.Printf("%s  %s\n", strings.Repeat("-", width), strings.Repeat("-", 48))
 	for _, row := range rows {
@@ -484,7 +484,7 @@ func printProdInitSummary(paths Paths, cfg Config) {
 		{"Storage root", cfg.Storage.Root},
 	}
 	fmt.Println()
-	fmt.Println("Kageos production initialization summary")
+	fmt.Println("kageos production initialization summary")
 	printPlainTable("Item", "Value", rows)
 	fmt.Println()
 	fmt.Println("Next: run `go run ./cmd/kagectl doctor`, then `go run ./cmd/kagectl up`.")

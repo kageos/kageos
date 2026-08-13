@@ -96,7 +96,7 @@ jobs:
           tags: ${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}-${{ matrix.suffix }}
           labels: |
             org.opencontainers.image.title=Kagebase
-            org.opencontainers.image.description=Kageos user application runtime base image
+            org.opencontainers.image.description=kageos user application runtime base image
             org.opencontainers.image.version=${{ needs.metadata.outputs.version }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           build-args: |

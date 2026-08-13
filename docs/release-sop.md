@@ -1,6 +1,6 @@
-# Kageos 发布 SOP
+# kageos 发布 SOP
 
-本文档记录 Kageos 正式发布的标准流程。目标是保证 SDK、平台镜像、国内镜像同步和用户 `kageos update` 入口保持一致。
+本文档记录 kageos 正式发布的标准流程。目标是保证 SDK、平台镜像、国内镜像同步和用户 `kageos update` 入口保持一致。
 
 ## 发布入口
 
@@ -92,7 +92,7 @@ git status --short --branch
 
 以上任何一步失败都不能打 tag。检查应与 `.github/workflows/ci.yml` 保持一致；发布提交必须已经进入 `main`，工作区不能有未提交文件。当前核心对外统一使用“源码公开、可自托管”，具体遵循[源码与授权对外口径](source-available-messaging.md)。
 
-### 4. 打 Kageos 版本 tag
+### 4. 打 kageos 版本 tag
 
 确认 `main` 已推送后打正式 tag：
 
@@ -143,7 +143,7 @@ docker buildx imagetools inspect docker.io/qiayanai/kagebase:0.1.9
 docker buildx imagetools inspect docker.io/qiayanai/kageos:latest
 ```
 
-必须在一台没有旧 Kageos 数据和镜像缓存的机器上做一次全新安装，再在一台保留真实测试数据的机器上做一次升级验证。两条链路都要执行 `status` 和 `verify`，不能只看容器处于 running。
+必须在一台没有旧 kageos 数据和镜像缓存的机器上做一次全新安装，再在一台保留真实测试数据的机器上做一次升级验证。两条链路都要执行 `status` 和 `verify`，不能只看容器处于 running。
 
 在国内生产机上验证用户更新：
 

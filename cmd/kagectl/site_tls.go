@@ -171,13 +171,13 @@ func generateSelfSignedTLSPEM(baseURL string) ([]byte, []byte, error) {
 	now := time.Now()
 	commonName := host
 	if len(commonName) > 64 {
-		commonName = "Kageos Bootstrap TLS"
+		commonName = "kageos Bootstrap TLS"
 	}
 	template := x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
 			CommonName:   commonName,
-			Organization: []string{"Kageos Bootstrap"},
+			Organization: []string{"kageos Bootstrap"},
 		},
 		NotBefore:             now.Add(-time.Hour),
 		NotAfter:              now.Add(365 * 24 * time.Hour),

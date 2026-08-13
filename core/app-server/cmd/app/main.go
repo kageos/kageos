@@ -1,6 +1,6 @@
-// @title Kageos API
+// @title kageos API
 // @version 1.0
-// @description Kageos 应用管理平台 API 文档
+// @description kageos 应用管理平台 API 文档
 // @termsOfService http://swagger.io/terms/
 
 // @contact.name API Support

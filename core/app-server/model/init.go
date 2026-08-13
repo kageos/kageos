@@ -68,6 +68,8 @@ func InitTables(db *gorm.DB) error {
 		&FileSnapshot{},
 		// 平台级操作审计日志
 		&OperateLog{},
+		// 操作日志离线归档批次摘要
+		&LogArchiveBatch{},
 		// 轻量团队授权表
 		&WorkspaceRoleAssignment{},
 		// 权限申请与审批状态；实际权限仍落在 WorkspaceRoleAssignment
@@ -300,6 +302,8 @@ func ensureOperateLogQueryIndexes(db *gorm.DB) error {
 	}
 
 	indexes := []operateLogIndexSpec{
+		{name: "idx_oplog_created_id", columns: []string{"created_at", "id"}},
+		{name: "idx_oplog_scope_created_id", columns: []string{"tenant_user", "app", "created_at", "id"}},
 		{name: "idx_oplog_path_created", columns: []string{"resource_path", "created_at", "id"}},
 		{name: "idx_oplog_path_target_created", columns: []string{"resource_path", "target_id", "created_at", "id"}},
 		{name: "idx_oplog_path_action_created", columns: []string{"resource_path", "action", "created_at", "id"}},
