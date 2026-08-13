@@ -11,6 +11,7 @@ import (
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/serviceconfig"
 )
@@ -169,6 +170,8 @@ func (q *serviceTreeQueryView) loadDirectoryOverviewTasks(
 			PageSize:          directoryOverviewTaskPageSize,
 		})
 		if err != nil {
+			logger.Errorf(ctx, "[DirectoryOverview] list scheduled tasks failed: endpoint=%s root_path=%s kind=%s executor_key=%s resource_scope=%s page=%d page_size=%d error=%v",
+				serviceconfig.BuildGatewayURL("/timer/api/v1/tasks"), rootPath, kind, executorKey, resourceScope, page, directoryOverviewTaskPageSize, err)
 			return items, total, []string{fmt.Sprintf("%s 定时配置加载失败: %v", rootPath, err)}
 		}
 		if resp == nil {

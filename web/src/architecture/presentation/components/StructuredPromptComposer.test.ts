@@ -167,6 +167,26 @@ describe('StructuredPromptComposer', () => {
     expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toBe('调用 </system/app/search.form> 完成后总结')
   })
 
+  it('does not rebuild the contenteditable DOM while typing plain text', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mountComposer('')
+      const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
+      const replaceChildren = vi.spyOn(editor.element, 'replaceChildren')
+
+      editor.element.textContent = '继续完善客户资料'
+      await editor.trigger('focus')
+      await editor.trigger('input')
+      await vi.advanceTimersByTimeAsync(280)
+
+      expect(replaceChildren).not.toHaveBeenCalled()
+      expect(editor.element.textContent).toBe('继续完善客户资料')
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('renders user mentions as chips while keeping raw @username text', async () => {
     const wrapper = mountComposer('请 @beiluo 协助处理')
     const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
@@ -393,6 +413,70 @@ describe('StructuredPromptComposer', () => {
       wrapper.unmount()
     } finally {
       warnSpy.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('confirms the resource highlighted with arrow keys and displays its name', async () => {
+    vi.useFakeTimers()
+    vi.mocked(searchResources).mockResolvedValueOnce({
+      items: [
+        {
+          id: 1,
+          name: '订单表',
+          code: 'orders',
+          type: 'function',
+          full_code_path: '/system/app/orders.table',
+          description: '订单数据表',
+          template_type: 'table',
+        },
+        {
+          id: 2,
+          name: '客户资料',
+          code: 'customers',
+          type: 'package',
+          full_code_path: '/system/app/customers',
+          description: '客户资料目录',
+        },
+      ],
+      total: 2,
+      page: 1,
+      page_size: 8,
+    })
+    try {
+      const wrapper = mount(StructuredPromptComposer, {
+        props: {
+          modelValue: '',
+          submitOnEnter: true,
+        },
+        global: {
+          stubs: {
+            ElIcon: IconStub,
+            EditPen: IconStub,
+            View: IconStub,
+          },
+        },
+      })
+      const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
+
+      editor.element.textContent = '/客'
+      await editor.trigger('input')
+      await vi.advanceTimersByTimeAsync(230)
+      await nextTick()
+
+      await editor.trigger('keydown', { key: 'ArrowDown' })
+      await nextTick()
+      const activeOption = document.body.querySelector('.spc-mention-option.is-active')
+      expect(activeOption?.getAttribute('data-testid')).toBe('structured-prompt-mention-option-1')
+
+      await editor.trigger('keydown', { key: 'Enter' })
+
+      expect(wrapper.emitted('enter')).toBeUndefined()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toBe('</system/app/customers> ')
+      expect(wrapper.find('.spc-editor-token.is-resource').text()).toContain('客户资料')
+      expect(wrapper.find('.spc-editor-token.is-resource').text()).not.toContain('customers')
+      wrapper.unmount()
+    } finally {
       vi.useRealTimers()
     }
   })
