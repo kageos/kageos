@@ -93,6 +93,10 @@ jobs:
           file: deploy/base/images/app-base/Dockerfile
           platforms: ${{ matrix.platform }}
           push: true
+          # Aliyun ACR rejects Buildx attestation manifests
+          # (application/vnd.oci.empty.v1+json) during multi-arch sync.
+          provenance: false
+          sbom: false
           tags: ${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}-${{ matrix.suffix }}
           labels: |
             org.opencontainers.image.title=Kagebase
