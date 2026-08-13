@@ -116,6 +116,10 @@ jobs:
           file: deploy/aio/Dockerfile
           platforms: ${{ matrix.platform }}
           push: true
+          # Keep the manifest list portable to registries that do not support
+          # Buildx attestation manifests, including Aliyun ACR.
+          provenance: false
+          sbom: false
           tags: ${{ env.IMAGE_NAME }}:${{ needs.metadata.outputs.version }}-${{ matrix.suffix }}
           labels: |
             org.opencontainers.image.title=kageos
