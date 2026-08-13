@@ -97,7 +97,7 @@ const sourceName = computed(() => firstNonEmpty(
   actionView.value?.message.workspace_session_title,
   actionView.value?.message.source_parent_title,
   leafName(fullCodePath.value),
-  'Kageos'
+  'kageos'
 ))
 const conversationTitle = computed(() => firstNonEmpty(
   currentSessionItem.value?.title,
@@ -124,7 +124,7 @@ const sessionLabel = computed(() => {
 const composerPlaceholder = computed(() => {
   if (!fullCodePath.value.trim()) return '先填写工作台目录'
   if (actionView.value?.can_reply) return '回复这条通知…'
-  return '给 Kageos 发消息…'
+  return '给 kageos 发消息…'
 })
 
 function queryString(key: string) {
@@ -171,7 +171,7 @@ function notificationMessages(): ChatMessage[] {
     .sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime())
     .map(item => ({
       role: 'assistant' as const,
-      user: item.from || 'Kageos',
+      user: item.from || 'kageos',
       content: notificationContent(item),
       files: item.files
         ? parseFileRefs(item.files).map(ref => ({ ref, name: fileNameFromRef(ref), source_name: fileNameFromRef(ref) }))
@@ -305,7 +305,7 @@ async function selectHistorySession(item: WorkspaceSessionItem) {
 function buildPocketMessage(rawMessage: string) {
   if (sessionId.value) return rawMessage.trim()
   return [
-    '【Kageos Pocket 会话】',
+    '【kageos Pocket 会话】',
     '用户正在移动端实时查看本会话，工作台回复会在页面中每 5 秒同步显示。',
     '请像 PC 工作台会话一样直接回答；最终回复使用适合手机阅读的 Markdown。',
     '只有确实需要离开会话后异步提醒时，才使用 send_notification；不要每轮重复发送通知。',
@@ -500,7 +500,7 @@ onBeforeUnmount(() => {
     <section class="pocket-shell">
       <header class="pocket-header">
         <div class="pocket-title-block">
-          <div class="pocket-brand">Kageos Pocket</div>
+          <div class="pocket-brand">kageos Pocket</div>
           <h1>{{ conversationTitle }}</h1>
           <div class="pocket-context-line">
             <span v-if="fullCodePath" :title="fullCodePath">{{ fullCodePath }}</span>

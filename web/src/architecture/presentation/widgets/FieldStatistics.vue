@@ -1,10 +1,10 @@
 <template>
   <div class="field-statistics" v-if="hasStatistics">
-    <el-row :gutter="0">
-      <el-col 
+    <div class="field-statistics-grid">
+      <div
         v-for="(stat, index) in statisticsData" 
         :key="index"
-        :span="getStatisticSpan(statisticsData.length)"
+        :class="['field-statistics-item', { 'is-display': typeof stat.value !== 'number' }]"
       >
         <!-- 数值型：上下展示（标题在上，数值在下） -->
         <div v-if="typeof stat.value === 'number'" class="field-statistic number-statistic">
@@ -18,8 +18,8 @@
           <div class="statistic-title">{{ stat.label }}</div>
           <div class="statistic-value">{{ stat.value }}</div>
         </div>
-      </el-col>
-    </el-row>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -142,13 +142,6 @@ const formatNumber = (value: number, precision?: number) => {
   return String(value)
 }
 
-// 计算统计组件的span值
-const getStatisticSpan = (count: number) => {
-  if (count <= 2) return 12
-  if (count <= 4) return 6
-  if (count <= 6) return 4
-  return 3
-}
 </script>
 
 <style scoped>
@@ -161,6 +154,17 @@ const getStatisticSpan = (count: number) => {
   /* 确保宽度与父容器一致，避免右侧边距过大 */
   width: 100%;
   box-sizing: border-box;
+  container-type: inline-size;
+}
+
+.field-statistics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px 12px;
+}
+
+.field-statistics-item {
+  min-width: 0;
 }
 
 .field-statistic {
@@ -182,6 +186,8 @@ const getStatisticSpan = (count: number) => {
   font-size: 24px;
   font-weight: 600;
   color: var(--el-color-primary);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .number-statistic .statistic-suffix {
@@ -201,17 +207,56 @@ const getStatisticSpan = (count: number) => {
 }
 
 .display-statistic .statistic-value {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--el-color-primary);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
-/* 确保栅格系统不会产生额外的边距 */
-:deep(.el-row) {
-  margin: 0 !important;
-}
+@container (max-width: 520px) {
+  .field-statistics {
+    padding: 4px 14px;
+  }
 
-:deep(.el-col) {
-  padding: 0 !important;
+  .field-statistics-grid {
+    display: block;
+  }
+
+  .field-statistics-item + .field-statistics-item {
+    border-top: 1px solid var(--el-border-color-lighter);
+  }
+
+  .field-statistic {
+    display: grid;
+    grid-template-columns: minmax(76px, 32%) minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    padding: 11px 0;
+    text-align: left;
+  }
+
+  .number-statistic,
+  .display-statistic {
+    text-align: left;
+  }
+
+  .number-statistic .statistic-title,
+  .display-statistic .statistic-title {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .number-statistic .statistic-value,
+  .display-statistic .statistic-value {
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .number-statistic .statistic-value {
+    font-size: 18px;
+  }
 }
 </style>

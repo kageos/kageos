@@ -35,6 +35,20 @@ func TestRolePermissions(t *testing.T) {
 	}
 }
 
+func TestCoversRoleForWorkstationMemberGate(t *testing.T) {
+	if CoversRole(RolePermissions(RoleViewer), RoleMember) {
+		t.Fatal("viewer must not cover member access")
+	}
+	for _, role := range []RoleCode{RoleMember, RoleAdmin, RoleOwner} {
+		if !CoversRole(RolePermissions(role), RoleMember) {
+			t.Fatalf("%s should cover member access", role)
+		}
+	}
+	if CoversRole(RolePermissions(RoleOwner), RoleCode("unknown")) {
+		t.Fatal("unknown role must not be covered")
+	}
+}
+
 func TestIsSystemBuiltinPath(t *testing.T) {
 	for _, path := range []string{"/system", "/system/prompt/case_catalog/table/ticket", "system/tools/runtime/python.form"} {
 		if !IsSystemBuiltinPath(path) {

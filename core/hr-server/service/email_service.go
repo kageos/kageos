@@ -172,11 +172,11 @@ func (s *EmailService) verificationCodeExpireSeconds() int {
 func (s *EmailService) getSubject(codeType string) string {
 	switch codeType {
 	case "register":
-		return "Kageos 注册验证码"
+		return "kageos 注册验证码"
 	case "forgot_password":
-		return "Kageos 重置密码"
+		return "kageos 重置密码"
 	default:
-		return "Kageos 验证码"
+		return "kageos 验证码"
 	}
 }
 
@@ -186,9 +186,9 @@ func (s *EmailService) getBody(code, codeType string) string {
 	case "register":
 		return fmt.Sprintf(`
 			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-				<h2 style="color: #333;">Kageos 注册验证码</h2>
+				<h2 style="color: #333;">kageos 注册验证码</h2>
 				<p>您好！</p>
-				<p>您正在注册 Kageos 账户，验证码为：</p>
+				<p>您正在注册 kageos 账户，验证码为：</p>
 				<div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
 					<h1 style="color: #007bff; font-size: 32px; margin: 0; letter-spacing: 5px;">%s</h1>
 				</div>
@@ -201,9 +201,9 @@ func (s *EmailService) getBody(code, codeType string) string {
 	case "forgot_password":
 		return fmt.Sprintf(`
 			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-				<h2 style="color: #333;">Kageos 重置密码验证码</h2>
+				<h2 style="color: #333;">kageos 重置密码验证码</h2>
 				<p>您好！</p>
-				<p>您正在重置 Kageos 账户密码，验证码为：</p>
+				<p>您正在重置 kageos 账户密码，验证码为：</p>
 				<div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
 					<h1 style="color: #007bff; font-size: 32px; margin: 0; letter-spacing: 5px;">%s</h1>
 				</div>

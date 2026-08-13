@@ -624,7 +624,7 @@ func TestWriteDeploymentSummary(t *testing.T) {
 
 	summary := mustReadFile(t, rt.SummaryPath)
 	for _, want := range []string{
-		"# Kageos Deployment Summary",
+		"# kageos Deployment Summary",
 		"| Access URL | `http://127.0.0.1` |",
 		"| Admin username | `system` |",
 		"| Initial password | `" + cfg.SystemUser.Password + "` |",

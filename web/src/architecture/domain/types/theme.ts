@@ -31,12 +31,12 @@ export const THEME_PRESETS: ThemeConfig[] = [
   {
     mode: 'dark',
     name: 'hub-dark',
-    label: 'Kageos Hub'
+    label: 'kageos Hub'
   },
   {
     mode: 'light',
     name: 'hub-light',
-    label: 'Kageos Light'
+    label: 'kageos Light'
   }
 ]
 
@@ -46,5 +46,5 @@ export const THEME_PRESETS: ThemeConfig[] = [
 export const DEFAULT_THEME: ThemeConfig = THEME_PRESETS[0] ?? {
   mode: 'light',
   name: 'hub-light',
-  label: 'Kageos Light'
+  label: 'kageos Light'
 }

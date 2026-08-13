@@ -2,7 +2,7 @@
 
 ## Our Commitment
 
-Kageos is a technical community for building AI-native service infrastructure. We want issues, discussions, pull requests, documentation, and community spaces to stay professional, direct, and welcoming.
+kageos is a technical community for building AI-native service infrastructure. We want issues, discussions, pull requests, documentation, and community spaces to stay professional, direct, and welcoming.
 
 We are committed to a harassment-free experience for contributors and users regardless of age, body size, disability, ethnicity, gender identity or expression, level of experience, education, nationality, personal appearance, race, religion, sexual identity, or socioeconomic status.
 
@@ -29,7 +29,7 @@ Examples of unacceptable behavior include:
 
 ## Scope
 
-This code of conduct applies in project spaces, including GitHub issues, pull requests, discussions, documentation, community chats, events, and any public space where a person is representing Kageos.
+This code of conduct applies in project spaces, including GitHub issues, pull requests, discussions, documentation, community chats, events, and any public space where a person is representing kageos.
 
 ## Enforcement
 
@@ -39,4 +39,4 @@ Reports can be sent privately to [admin@kageos.ai](mailto:admin@kageos.ai). Plea
 
 ## Acknowledgement
 
-This policy is inspired by the Contributor Covenant and adapted for the Kageos project.
+This policy is inspired by the Contributor Covenant and adapted for the kageos project.

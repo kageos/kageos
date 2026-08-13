@@ -29,7 +29,7 @@ POST /storage/api/v1/upload_token
 
 Use the target function `full_code_path` without the leading slash as `router`. The response must contain `method: presigned_url`, `key`, `bucket`, `ref`, exact upload `headers`, and a usable `server_upload_url` or `upload_url`.
 
-2. Upload raw bytes with `PUT` to `server_upload_url` when available; otherwise use `upload_url`. Send the exact returned storage headers. Do not send KageOS authentication headers to the presigned storage URL. Never print or persist the signed URL.
+2. Upload raw bytes with `PUT` to `server_upload_url` when available; otherwise use `upload_url`. Send the exact returned storage headers. Do not send kageos authentication headers to the presigned storage URL. Never print or persist the signed URL.
 
 3. Notify completion:
 

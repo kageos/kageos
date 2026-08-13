@@ -1,4 +1,4 @@
-# Kageos
+# kageos
 
 语言: [English](README.md) | **简体中文**
 
@@ -8,15 +8,15 @@
 
 **源码公开 · 可自托管 · BSL 1.1 · 发布四年后转 Apache-2.0**
 
-Kageos 把个人和业务能力变成开箱即用的目录。目录不是静态模板，也不是一次性 prompt 生成结果；它可以包含 Form、Table、Chart、Docs、Function、代码、数据模型、运行手册、定时任务、消息和权限。人可以直接打开使用，AI 可以按 schema 调用，无人值守 Agent 可以按计划运行，平台可以统一治理、审计、版本化、安装、导出和复用。
+kageos 把个人和业务能力变成开箱即用的目录。目录不是静态模板，也不是一次性 prompt 生成结果；它可以包含 Form、Table、Chart、Docs、Function、代码、数据模型、运行手册、定时任务、消息和权限。人可以直接打开使用，AI 可以按 schema 调用，无人值守 Agent 可以按计划运行，平台可以统一治理、审计、版本化、安装、导出和复用。
 
-Kageos 由[恰研智能](https://qiayan.ai)创建。核心平台源码公开、可自托管；当前采用 Business Source License 1.1，发布四年后转 Apache License 2.0。准确授权条款见 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)。
+kageos 由[恰研智能](https://qiayan.ai)创建。核心平台源码公开、可自托管；当前采用 Business Source License 1.1，发布四年后转 Apache License 2.0。准确授权条款见 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)。
 
-## 为什么做 Kageos
+## 为什么做 kageos
 
 AI 已经能很快生成工具，但更快的工具生产也会带来新的混乱：孤立页面、脚本、prompt、自动化、数据表和 Agent 越来越多，彼此看不见，不能稳定调用，也不能变成长期可治理的资产。
 
-Kageos 走另一条路：
+kageos 走另一条路：
 
 - 从**开箱即用的目录**开始，而不是从空白 prompt 开始。
 - 让每个能力同时**人可用、AI 可调**。
@@ -25,11 +25,11 @@ Kageos 走另一条路：
 - 把能力挂到 **Service Tree**，让权限、日志、trace、消息、定时任务和版本都有统一坐标。
 - 保持运行时**可自托管**，让个人数据、团队流程和企业系统可以跑在私有 namespace 里。
 
-Kageos 的目标不是做一个更便宜的 AI app generator，而是让有价值的能力可以被安装、运行、组合、审计、复用和发布。
+kageos 的目标不是做一个更便宜的 AI app generator，而是让有价值的能力可以被安装、运行、组合、审计、复用和发布。
 
 ## 核心概念
 
-| 概念 | 在 Kageos 里的含义 |
+| 概念 | 在 kageos 里的含义 |
 | --- | --- |
 | 目录 | 挂在 Service Tree 上的可运行能力单元，可以包含 UI、函数、文档、数据、定时任务和运行上下文。 |
 | Service Tree | 目录、函数、文档、消息、定时任务、权限和操作日志共享的治理坐标系。 |
@@ -59,7 +59,7 @@ Kageos 的目标不是做一个更便宜的 AI app generator，而是让有价�
 | Hub | 建设中：公共目录市场、在线试用、发布链路、企业私有 Hub。 |
 | 后续工作流层 | 路线储备：workflow 图、`workflow.run`、通用审批、讨论、评分、外部通知渠道和备份控制面。 |
 
-## Kageos 如何运转
+## kageos 如何运转
 
 ```mermaid
 flowchart LR
@@ -77,7 +77,7 @@ flowchart LR
 
 ## 架构
 
-Kageos 是 Vue 前端、Go 平台服务群和用户应用容器运行时组成的平台：
+kageos 是 Vue 前端、Go 平台服务群和用户应用容器运行时组成的平台：
 
 - `api-gateway` 负责认证后的 HTTP 流量转发。
 - `app-server` 负责工作区 API、Service Tree 元数据、权限、操作日志、函数元数据和应用调用。
@@ -144,7 +144,7 @@ npm run dev
 ```
 
 浏览器打开 `http://localhost:5173`。执行 `bootstrap --dev` 时，`kagectl`
-会打印 `Kageos dev initialization summary`；用用户名 `system` 和其中的
+会打印 `kageos dev initialization summary`；用用户名 `system` 和其中的
 `Admin password` 登录。如果需要重新查看密码，可以再次执行
 `go run ./cmd/kagectl init --dev`，或从 `.kageos/dev/env/kageos.env` 读取
 `SYSTEM_USER_PASSWORD`。
@@ -206,7 +206,7 @@ bash scripts/check-doc-links.sh
 
 ## 文档
 
-- [Kageos Blueprint](docs/kageos-blueprint.md)
+- [kageos Blueprint](docs/kageos-blueprint.md)
 - [当前架构](docs/current-architecture.md)
 - [平台能力总览](docs/platform-capabilities.md)
 - [目录 vs Skills：确定性架构论证](docs/directory-vs-skills-certainty-architecture.md)
@@ -221,7 +221,7 @@ bash scripts/check-doc-links.sh
 
 ## 命名口径
 
-- 正文、UI、官网、SDK 文档和对外材料都写作 `Kageos`。
+- 正文、UI、官网、SDK 文档和对外材料都写作 `kageos`。
 - Go 包、模块、路径和域名标识使用小写 `kageos`。
 - 环境变量和配置键使用全大写 `KAGEOS_*`。
 - 对 BSL 授权的核心平台，统一使用“源码公开、可自托管”或 “source-available and self-hostable”，并遵循[源码与授权对外口径](docs/source-available-messaging.md)。
@@ -245,12 +245,12 @@ bash scripts/check-doc-links.sh
 
 ## 授权
 
-Kageos 核心采用 Business Source License 1.1，并在发布四年后转 Apache License 2.0。源码公开，允许在 BSL 授权范围内查看、修改、分发和自托管；未经授权的商业 SaaS、MSP 托管、白标、OEM、嵌入、on-premises 商业产品、改名转售和竞品化产品/服务受到限制。
+kageos 核心采用 Business Source License 1.1，并在发布四年后转 Apache License 2.0。源码公开，允许在 BSL 授权范围内查看、修改、分发和自托管；未经授权的商业 SaaS、MSP 托管、白标、OEM、嵌入、on-premises 商业产品、改名转售和竞品化产品/服务受到限制。
 
 详情见 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)。SDK、示例、模板和文档如有单独 license 文件，可以采用各自的宽松开源授权。
 
 ## 致谢
 
-Kageos 由[恰研智能](https://qiayan.ai)创建和维护。它构建在更广泛的开源基础设施和开发工具生态之上，包括 Go、Vue、MySQL、NATS、MinIO、Docker、Podman 以及许多其他项目。
+kageos 由[恰研智能](https://qiayan.ai)创建和维护。它构建在更广泛的开源基础设施和开发工具生态之上，包括 Go、Vue、MySQL、NATS、MinIO、Docker、Podman 以及许多其他项目。
 
-Kageos 不是 OCTO、TangSengDaoDao 或 WuKongIM 的 fork。我们依然感谢这些项目，以及更广泛的 Agent、协作系统和基础设施社区共同推动这个领域向前。
+kageos 不是 OCTO、TangSengDaoDao 或 WuKongIM 的 fork。我们依然感谢这些项目，以及更广泛的 Agent、协作系统和基础设施社区共同推动这个领域向前。

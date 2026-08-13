@@ -35,7 +35,7 @@ func TestValidateAppGoSourceRejectsSQLiteDriverImports(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected validation error")
 			}
-			for _, want := range []string{"Kageos SDK 已全局注册", "sql.Open(\"sqlite3\", path)", "sql: Register called twice"} {
+			for _, want := range []string{"kageos SDK 已全局注册", "sql.Open(\"sqlite3\", path)", "sql: Register called twice"} {
 				if !strings.Contains(err.Error(), want) {
 					t.Fatalf("expected %q in %v", want, err)
 				}

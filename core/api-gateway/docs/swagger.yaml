@@ -29,8 +29,8 @@ definitions:
 host: localhost:9090
 info:
   contact: {}
-  description: Kageos API 网关服务文档
-  title: Kageos API Gateway
+  description: kageos API 网关服务文档
+  title: kageos API Gateway
   version: "1.0"
 paths:
   /api/v1/config:

@@ -14,7 +14,7 @@ UP_ARGS=()
 
 usage() {
   cat <<'EOF'
-Kageos production installer
+kageos production installer
 
 Usage:
   sudo ./install.sh --base-url app.example.com
@@ -194,7 +194,7 @@ resolve_path() {
 
 CONFIG_ABS="$(resolve_path "$CONFIG_PATH")"
 
-echo "Kageos production install"
+echo "kageos production install"
 echo "repo:        $ROOT_DIR"
 echo "deploy user: $DEPLOY_USER"
 echo "config:      $CONFIG_PATH"

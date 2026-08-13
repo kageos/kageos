@@ -1,11 +1,11 @@
-# Kageos Blueprint
+# kageos Blueprint
 
-这是一份放在仓库里的项目蓝图，给维护者、产品和工程同学对齐项目心智用。它不替代详细架构文档，而是回答一个问题：只看一份文件时，应该怎样理解 Kageos 的愿景、运行方式、代码组织和开发边界。
+这是一份放在仓库里的项目蓝图，给维护者、产品和工程同学对齐项目心智用。它不替代详细架构文档，而是回答一个问题：只看一份文件时，应该怎样理解 kageos 的愿景、运行方式、代码组织和开发边界。
 
 ## 总览
 
-- 项目名称写作 `Kageos`。Go 包、路径、域名使用小写 `kageos`，环境变量使用 `KAGEOS_*`。
-- Kageos 不是低价造应用工具，也不是要替代 Linux、macOS 这类传统操作系统。它更像业务能力的统一操作层：提供资源路径、运行时、权限、日志、任务、安装和分发。
+- 项目名称写作 `kageos`。Go 包、路径、域名使用小写 `kageos`，环境变量使用 `KAGEOS_*`。
+- kageos 不是低价造应用工具，也不是要替代 Linux、macOS 这类传统操作系统。它更像业务能力的统一操作层：提供资源路径、运行时、权限、日志、任务、安装和分发。
 - 核心对象是目录：目录可以被人打开使用，可以被工作台按 schema 调用，可以被平台权限、审计、日志、定时、消息和版本治理。
 - 当前阶段重点是 namespace 场景包生态：把可运行、可试用、可安装、可派生、可发布的业务目录做扎实。
 - 工作台增强能力只是目录的一种使用方式。它可以加速生成、改造、巡检和编排；没有它时，人仍然可以通过 UI 使用同一套目录能力。
@@ -13,11 +13,11 @@
 
 ## 一句话
 
-Kageos 把业务能力组织成可运行的 Service Tree 目录：用户从 Hub 安装成熟目录，放进自己的私有 namespace，用自己的数据运行，必要时通过工作台改造，再把稳定能力发布回生态。
+kageos 把业务能力组织成可运行的 Service Tree 目录：用户从 Hub 安装成熟目录，放进自己的私有 namespace，用自己的数据运行，必要时通过工作台改造，再把稳定能力发布回生态。
 
 ## 核心世界观
 
-Kageos 的关键不是“低价造应用”，而是“业务能力沉淀为目录资产”。
+kageos 的关键不是“低价造应用”，而是“业务能力沉淀为目录资产”。
 
 ```text
 Hub directory -> private namespace -> governed Service Tree -> human UI
@@ -70,15 +70,15 @@ flowchart LR
 
 智能孤岛又会反过来加剧数据孤岛。因为单点工具解决不了跨系统流程，团队会继续补脚本、补导入导出、补中间表、补聊天窗口里的人工判断。于是企业获得了更多黑盒，更多隐形依赖，更多没人敢删也没人敢改的流程。
 
-Kageos 要切断的正是这条循环。
+kageos 要切断的正是这条循环。
 
-## Kageos 怎么破局
+## kageos 怎么破局
 
-Kageos 不把应用当作一座座封闭城堡，而是把业务能力拆成挂在 Service Tree 上的目录和函数。目录有路径，函数有 schema，执行有 runtime，数据访问有 SDK 边界，权限、日志、消息、定时、版本和审计都回到平台。
+kageos 不把应用当作一座座封闭城堡，而是把业务能力拆成挂在 Service Tree 上的目录和函数。目录有路径，函数有 schema，执行有 runtime，数据访问有 SDK 边界，权限、日志、消息、定时、版本和审计都回到平台。
 
 只要能力进入平台，它就不是一个藏在黑盒里的按钮，而是一段有坐标、有接口、有记录、可安装、可调用、可编排、可治理的业务资产。
 
-在 Kageos 里，目录之间的衔接不是靠人记住“去哪个系统点哪个按钮”，也不是靠临时脚本猜测别人的数据库结构。能力之间通过几个稳定层面通信：
+在 kageos 里，目录之间的衔接不是靠人记住“去哪个系统点哪个按钮”，也不是靠临时脚本猜测别人的数据库结构。能力之间通过几个稳定层面通信：
 
 - 通过 `full_code_path` 找到能力，例如 `/sales/crm/customer/create.form`。
 - 通过函数 schema 知道需要什么输入、会返回什么输出、字段如何展示和校验。
@@ -106,17 +106,17 @@ flowchart LR
 
 函数到函数的衔接也应该走这条公共面：看见公开 schema，发起受权限约束的调用，拿到结构化响应，留下运行记录。调用者不需要知道对方内部用了哪张表、哪个文件、哪个第三方连接器；被调用者也不需要把自己的实现泄漏给所有人。这样才能让“直接通信”不变成新的耦合灾难。
 
-这才是 Kageos 的性感之处：它不是让企业更快生产更多孤立软件，而是让每一次新增能力都长在同一张网里。新目录装进来，旧目录能发现它；新函数发布后，流程可以编排它；某个目录被派生到另一个企业或团队，仍然保留标准结构；企业的软件资产越多，不是越乱，而是越像一张越来越密、越来越有用的业务神经网络。
+这才是 kageos 的性感之处：它不是让企业更快生产更多孤立软件，而是让每一次新增能力都长在同一张网里。新目录装进来，旧目录能发现它；新函数发布后，流程可以编排它；某个目录被派生到另一个企业或团队，仍然保留标准结构；企业的软件资产越多，不是越乱，而是越像一张越来越密、越来越有用的业务神经网络。
 
 ## 统一的不只是接口
 
-Kageos 里的统一不只发生在后端。企业软件的学习成本，很大一部分来自体验层割裂：每套系统都有自己的菜单、列表、筛选、表单、详情页、图表、消息和审批逻辑。员工不是在学习业务，而是在反复适应不同软件的脾气。
+kageos 里的统一不只发生在后端。企业软件的学习成本，很大一部分来自体验层割裂：每套系统都有自己的菜单、列表、筛选、表单、详情页、图表、消息和审批逻辑。员工不是在学习业务，而是在反复适应不同软件的脾气。
 
-Kageos 把体验层也收进同一套资源模型里。Form、Table、Chart、Docs、Function 不是各自随便长出来的页面，而是由 SDK schema、Widget 配置和平台组件共同渲染。目录挂在同一棵 Service Tree 上，表单遵守同一套字段描述和校验逻辑，表格遵守同一套查询、编辑和展示协议，图表遵守同一套数据结构，消息和定时任务也回到同一套平台入口。
+kageos 把体验层也收进同一套资源模型里。Form、Table、Chart、Docs、Function 不是各自随便长出来的页面，而是由 SDK schema、Widget 配置和平台组件共同渲染。目录挂在同一棵 Service Tree 上，表单遵守同一套字段描述和校验逻辑，表格遵守同一套查询、编辑和展示协议，图表遵守同一套数据结构，消息和定时任务也回到同一套平台入口。
 
 这意味着企业新增一个业务目录时，用户不需要重新学习一个新软件的世界观。它在熟悉的位置出现，用熟悉的组件呈现，按熟悉的权限和日志规则运行。对使用者来说，这是降低学习成本；对管理者来说，这是降低培训、运维和治理成本；对平台来说，这是让能力持续积累而不是持续分裂。
 
-更重要的是，Kageos 不把项目理解押在某个开发者个人身上。传统黑盒项目常常在开发者离职后变成遗迹：能跑，但没人敢改；有代码，但没人知道为什么这么写；有数据，但没人知道字段到底代表什么。Kageos 要把理解沉淀在目录结构、函数 schema、packageContext、文档、运行记录、版本 diff 和 Service Tree 里。
+更重要的是，kageos 不把项目理解押在某个开发者个人身上。传统黑盒项目常常在开发者离职后变成遗迹：能跑，但没人敢改；有代码，但没人知道为什么这么写；有数据，但没人知道字段到底代表什么。kageos 要把理解沉淀在目录结构、函数 schema、packageContext、文档、运行记录、版本 diff 和 Service Tree 里。
 
 在智能原生企业里，工作台会话可以沿着这些结构读取应用：它知道目录在哪里，函数如何注册，字段如何校验，数据如何访问，最近改了什么，运行失败在哪里。它不是靠猜，也不是靠某个人留下的口头说明，而是沿着平台提供的标准坐标理解业务能力。
 
@@ -124,9 +124,9 @@ Kageos 把体验层也收进同一套资源模型里。Form、Table、Chart、Do
 
 ## 产品价值观
 
-Kageos 希望把软件资产从“散落的页面、脚本、接口和聊天记录”收束成可以长期治理的业务能力网络。它的产品价值观不是多做一个编辑器，而是让能力本身具备统一坐标、标准接口和可分发形态。
+kageos 希望把软件资产从“散落的页面、脚本、接口和聊天记录”收束成可以长期治理的业务能力网络。它的产品价值观不是多做一个编辑器，而是让能力本身具备统一坐标、标准接口和可分发形态。
 
-| 特性 | 在 Kageos 里的含义 |
+| 特性 | 在 kageos 里的含义 |
 | --- | --- |
 | 统一化 | 所有能力进入同一套 `full_code_path`、Service Tree、函数 schema、UI 组件、运行时和权限模型 |
 | 标准化 | 工作空间是 Go module，目录是 Go package，函数用 SDK template 注册，发布走同一条 build/update 链路 |
@@ -135,17 +135,17 @@ Kageos 希望把软件资产从“散落的页面、脚本、接口和聊天记�
 | 可发现 | 目录、函数、文档、运行记录和 schema 都挂在 Service Tree 上，能搜索、能授权、能追踪来源 |
 | 可编排 | 标准输入输出、定时任务、消息、工作台会话和跨目录调用，让能力可以被流程串起来 |
 | 可治理 | 权限、审计、日志、版本、运行记录、消息来源和连接器依赖都在平台层收口 |
-| 可分发 | 稳定目录可以打包发布到 Hub，安装到任意使用 Kageos 的工作空间 |
+| 可分发 | 稳定目录可以打包发布到 Hub，安装到任意使用 kageos 的工作空间 |
 
 未来的软件会越来越像编排工作：先从已有目录里找到合适的能力，把它们组合成流程；缺少某个原子能力时，再补充代码。编程仍然重要，但它不应该让企业重新回到一堆孤立项目、一堆临时脚本、一堆没人敢改的系统里。
 
-所以 Kageos 创造的不是一次性应用，而是一块块可以迁移、复制、组合和治理的业务积木。它们可以跟随一家企业成长：软件资产越多，能力网络越强，而不是系统越多，权限、数据、流程和知识越难管理。
+所以 kageos 创造的不是一次性应用，而是一块块可以迁移、复制、组合和治理的业务积木。它们可以跟随一家企业成长：软件资产越多，能力网络越强，而不是系统越多，权限、数据、流程和知识越难管理。
 
-这也是 Kageos 和传统企业应用平台的区别：它不是再造一批互不相干的软件，而是给智能原生应用提供从创建、测试、部署、分发、治理到操作的一体化底座。个人可以用它安装一个开箱即用目录；团队可以基于它沉淀业务包；大型企业可以用它把越来越多的软件资产纳入同一套治理模型。
+这也是 kageos 和传统企业应用平台的区别：它不是再造一批互不相干的软件，而是给智能原生应用提供从创建、测试、部署、分发、治理到操作的一体化底座。个人可以用它安装一个开箱即用目录；团队可以基于它沉淀业务包；大型企业可以用它把越来越多的软件资产纳入同一套治理模型。
 
 ## 运行架构
 
-Kageos 是 Vue 前端加 Go 平台服务群，加用户 App 容器运行时。
+kageos 是 Vue 前端加 Go 平台服务群，加用户 App 容器运行时。
 
 ```mermaid
 flowchart LR
@@ -178,9 +178,9 @@ flowchart LR
   appContainer --> namespace
 ```
 
-生产 AIO 镜像里，外层只运行一个 Kageos 容器；容器内部用 Podman 拉起 MySQL、NATS、MinIO 和用户 App 版本容器。开发环境通常在宿主机跑 `core-server`，用 Compose 跑基础设施。
+生产 AIO 镜像里，外层只运行一个 kageos 容器；容器内部用 Podman 拉起 MySQL、NATS、MinIO 和用户 App 版本容器。开发环境通常在宿主机跑 `core-server`，用 Compose 跑基础设施。
 
-详细图见 [Kageos 当前架构图](current-architecture.md)。
+详细图见 [kageos 当前架构图](current-architecture.md)。
 
 ## 仓库地图
 
@@ -246,7 +246,7 @@ namespace/<user>/<app>/
 
 ## 工作空间生命周期
 
-Kageos 的工作空间不是一个纯前端概念。它在平台元数据、运行时文件系统、Go module、用户 App 容器之间都有对应实体。
+kageos 的工作空间不是一个纯前端概念。它在平台元数据、运行时文件系统、Go module、用户 App 容器之间都有对应实体。
 
 ### 创建工作空间
 
@@ -412,7 +412,7 @@ SDK 开发的基本规则：
 
 ## 自动对账链路
 
-Kageos 支持“代码即目录结构”。通常不需要先去页面或数据库里创建目录。
+kageos 支持“代码即目录结构”。通常不需要先去页面或数据库里创建目录。
 
 ```mermaid
 sequenceDiagram
@@ -502,7 +502,7 @@ sudo ./install.sh --base-url https://app.example.com
 
 生命周期入口：
 
-- 本地/源码部署用 `kagectl`，见 [Kageos 生命周期 SOP](kagectl-lifecycle-sop.md)。
+- 本地/源码部署用 `kagectl`，见 [kageos 生命周期 SOP](kagectl-lifecycle-sop.md)。
 - AIO 镜像部署见 [deploy/aio README](../deploy/aio/README.md)。
 - 生产单机部署见 [deploy/prod README](../deploy/prod/README.md)。
 
@@ -512,7 +512,7 @@ sudo ./install.sh --base-url https://app.example.com
 - 主仓升级 SDK 依赖后再打 `kageos` tag。
 - Docker Hub、R2 release archive、阿里 ACR 同步由 GitHub Actions 完成。
 
-详细流程见 [Kageos 发布 SOP](release-sop.md)。
+详细流程见 [kageos 发布 SOP](release-sop.md)。
 
 ## 开发守则
 
@@ -539,13 +539,13 @@ sudo ./install.sh --base-url https://app.example.com
 
 | 想了解 | 文档 |
 | --- | --- |
-| 项目愿景和定位 | [Kageos 项目说明](product-thinking-ai-era-application-governance.md) |
-| 完整运行架构图 | [Kageos 当前架构图](current-architecture.md) |
-| 平台横切能力 | [Kageos 平台能力总览](platform-capabilities.md) |
-| 定时任务设计 | [Kageos 定时能力架构设计](scheduled-tasks-architecture-design.md) |
-| 生命周期命令 | [Kageos 生命周期 SOP](kagectl-lifecycle-sop.md) |
-| 正式发版流程 | [Kageos 发布 SOP](release-sop.md) |
+| 项目愿景和定位 | [kageos 项目说明](product-thinking-ai-era-application-governance.md) |
+| 完整运行架构图 | [kageos 当前架构图](current-architecture.md) |
+| 平台横切能力 | [kageos 平台能力总览](platform-capabilities.md) |
+| 定时任务设计 | [kageos 定时能力架构设计](scheduled-tasks-architecture-design.md) |
+| 生命周期命令 | [kageos 生命周期 SOP](kagectl-lifecycle-sop.md) |
+| 正式发版流程 | [kageos 发布 SOP](release-sop.md) |
 | 生产部署 | [生产单机部署](../deploy/prod/README.md) |
-| AIO 镜像 | [Kageos All-in-One Image](../deploy/aio/README.md) |
+| AIO 镜像 | [kageos All-in-One Image](../deploy/aio/README.md) |
 | 前端架构 | [architecture 目录](../web/src/architecture/README.md) |
 | 目录与 Skills 的差异 | [目录 vs Skills](directory-vs-skills-certainty-architecture.md) |

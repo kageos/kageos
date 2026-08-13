@@ -1,6 +1,6 @@
 # Direct HTTP operation contract
 
-Send native HTTP requests to the KageOS gateway. Do not generate or interpret an execution-plan JSON file.
+Send native HTTP requests to the kageos gateway. Do not generate or interpret an execution-plan JSON file.
 
 ## Headers
 

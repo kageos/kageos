@@ -40,7 +40,7 @@ def _register_reportlab_cjk_fonts() -> None:
     # Helvetica-Bold becomes black squares. Registering these common names lets
     # generated scripts that use standard font names still render CJK text.
     names = (
-        "Kageos-CJK",
+        "kageos-CJK",
         "Helvetica",
         "Helvetica-Bold",
         "Helvetica-Oblique",

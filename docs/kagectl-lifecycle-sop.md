@@ -1,6 +1,6 @@
-# Kageos 生命周期 SOP
+# kageos 生命周期 SOP
 
-Kageos 生命周期只有一个官方入口：`kagectl`。
+kageos 生命周期只有一个官方入口：`kagectl`。
 
 当前运行模式记录在：
 

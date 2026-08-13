@@ -385,7 +385,7 @@ import { extractWorkspacePath } from '@/architecture/shared/routing/route'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
 import { WorkspaceEvent } from '@/architecture/domain/interfaces/IEventBus'
 import { resolveWorkspaceContentState } from './utils/workspaceContentState'
-import { canRead } from '@/architecture/presentation/composables/useAccessControl'
+import { canUseWorkstation } from '@/architecture/presentation/composables/useAccessControl'
 
 const route = useRoute()
 const router = useRouter()
@@ -736,7 +736,7 @@ const toggleLeftSidebar = () => {
 /** 工作台上下文：点击什么节点就用什么节点的 full_code_path */
 const workstationContext = computed(() => {
   const node = currentFunction.value
-  if (!node?.full_code_path || !canRead(node)) return null
+  if (!node?.full_code_path || !canUseWorkstation(node)) return null
   const path = (node.full_code_path || '').replace(/\/+$/g, '')
   if (!path) return null
   const name = node.name || path.split('/').pop() || t('workspace.workbench')

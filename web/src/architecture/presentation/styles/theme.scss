@@ -194,7 +194,7 @@
   }
 }
 
-// 旧浅色主题已合并为 Kageos Light，旧 theme name 会在 store 中迁移。
+// 旧浅色主题已合并为 kageos Light，旧 theme name 会在 store 中迁移。
 
 // 暗色主题 - 现代深色主题
 html.dark {
@@ -989,7 +989,7 @@ html.light {
 }
 
 // ==========================================
-// Kageos Hub 浅色主题
+// kageos Hub 浅色主题
 // 柔和雾蓝灰底色，保留 Hub 的 Indigo 品牌感，避免大片纯白刺眼。
 // ==========================================
 html.light[data-theme="hub-light"] {
@@ -1553,7 +1553,7 @@ html.dark {
 }
 
 // ==========================================
-// Kageos Hub 深色主题
+// kageos Hub 深色主题
 // 复刻 hub.kageos.ai 的深色 surface、靛蓝 brand、透明面板和轻边框。
 // ==========================================
 html.dark[data-theme="hub-dark"] {

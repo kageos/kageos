@@ -97,4 +97,4 @@ smtp:
   username: ""
   password: ""
   from: ""
-  from_name: "Kageos"
+  from_name: "kageos"

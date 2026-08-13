@@ -33,6 +33,13 @@ export function canAdmin(node: Pick<ServiceTree, 'permissions'> | null | undefin
   return can(node?.permissions, 'admin')
 }
 
+// The AI workstation is a member capability, not an additional resource role.
+// Requiring the complete member permission set keeps Viewer read-only while
+// allowing Member, Admin, and Owner to use the workstation.
+export function canUseWorkstation(node: Pick<ServiceTree, 'permissions'> | null | undefined): boolean {
+  return canRead(node) && canWrite(node) && canUpdate(node)
+}
+
 export function useAccessControl() {
   return {
     can,
@@ -40,6 +47,7 @@ export function useAccessControl() {
     canWrite,
     canUpdate,
     canDelete,
-    canAdmin
+    canAdmin,
+    canUseWorkstation
   }
 }

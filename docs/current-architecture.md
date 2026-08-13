@@ -1,10 +1,10 @@
-# Kageos 当前架构图
+# kageos 当前架构图
 
-本文基于当前仓库代码、`README`、部署文档和开发配置整理，目标是描述现阶段真实运行的 Kageos 平台架构。
+本文基于当前仓库代码、`README`、部署文档和开发配置整理，目标是描述现阶段真实运行的 kageos 平台架构。
 
 ## 一句话总览
 
-Kageos 是一个 Vue 前端加 Go 平台服务群的轻应用工作台。平台通过 `api-gateway` 统一入口，通过 MySQL 保存平台元数据，通过 NATS 连接 `app-server`、`app-runtime` 和用户 App 容器，通过 MinIO 管文件对象，通过 `Service Tree` 把 Form、Table、Chart、Docs、Function 等能力组织成可治理、可调用、可分发的目录资源。
+kageos 是一个 Vue 前端加 Go 平台服务群的轻应用工作台。平台通过 `api-gateway` 统一入口，通过 MySQL 保存平台元数据，通过 NATS 连接 `app-server`、`app-runtime` 和用户 App 容器，通过 MinIO 管文件对象，通过 `Service Tree` 把 Form、Table、Chart、Docs、Function 等能力组织成可治理、可调用、可分发的目录资源。
 
 ## 一张全景总图
 
@@ -565,7 +565,7 @@ flowchart LR
 
 ## 消息和站内信链路
 
-消息能力由 `message-server` 统一承载。生成应用通过 SDK `ctx.SendNotification` 发布通知命令，Agent 通过 `send_notification` 工具发布通知命令，二者最终都进入 `message.v1.cmd.send`。`message-server` 消费后落库为站内信，并提供 inbox、thread、source counts、workspace counts 和 unread count 给前端抽屉和 Service Tree 使用。通知可携带平台文件引用；站内信和移动处理页展示完整附件，飞书、企业微信、钉钉等外部 webhook 卡片只展示附件摘要并跳回 Kageos 详情。
+消息能力由 `message-server` 统一承载。生成应用通过 SDK `ctx.SendNotification` 发布通知命令，Agent 通过 `send_notification` 工具发布通知命令，二者最终都进入 `message.v1.cmd.send`。`message-server` 消费后落库为站内信，并提供 inbox、thread、source counts、workspace counts 和 unread count 给前端抽屉和 Service Tree 使用。通知可携带平台文件引用；站内信和移动处理页展示完整附件，飞书、企业微信、钉钉等外部 webhook 卡片只展示附件摘要并跳回 kageos 详情。
 
 ```mermaid
 flowchart LR

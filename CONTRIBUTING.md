@@ -1,6 +1,6 @@
-# Contributing to Kageos
+# Contributing to kageos
 
-Thanks for taking the time to improve Kageos. This repository is
+Thanks for taking the time to improve kageos. This repository is
 source-available under the Business Source License 1.1, and each release
 converts to Apache-2.0 after four years. Before contributing, read `LICENSE`
 and `LICENSE_FAQ.md` so you understand the current use grant and change license.
@@ -67,7 +67,7 @@ Use `kagectl` as the contributor entrypoint for local development. The
 repository still contains Compose files for the underlying development stack,
 but those files are implementation details and troubleshooting tools. A new
 contributor should not need to remember historical `customer`, `embedding`, or
-root-level Compose paths just to run Kageos locally.
+root-level Compose paths just to run kageos locally.
 
 If you plan to open a pull request, fork the repository first and clone your
 fork. For a read-only local run, clone the upstream repository:
@@ -122,7 +122,7 @@ npm run dev
 ```
 
 After startup, open `http://localhost:5173`. `kagectl bootstrap --dev` prints a
-`Kageos dev initialization summary`; use username `system` and the printed
+`kageos dev initialization summary`; use username `system` and the printed
 `Admin password` to sign in. If the summary has scrolled away, re-run
 `go run ./cmd/kagectl init --dev` or read `SYSTEM_USER_PASSWORD` from
 `.kageos/dev/env/kageos.env`.

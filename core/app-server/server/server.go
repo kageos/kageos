@@ -44,12 +44,14 @@ type Server struct {
 	docService                    *service.DocService
 	directoryUpdateHistoryService *service.DirectoryUpdateHistoryService
 	operateLogService             *service.OperateLogService
+	logArchiveService             *service.LogArchiveService
 	permissionService             *service.PermissionService
 	permissionRequestService      *service.PermissionRequestService
 	functionSensitiveFieldService *service.FunctionSensitiveFieldService
 	publicShareService            *service.PublicShareService
 	appRepo                       *repository.AppRepository // ⭐ 应用仓储（用于其他服务）
 	scheduledFuncWorker           *scheduledsdk.Worker
+	logArchiveWorker              *scheduledsdk.Worker
 
 	// 上游服务
 	natsConnPool *service.NATSConnPool
@@ -108,19 +110,53 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 		logger.Infof(ctx, "[Server] Scheduled function worker started")
 	}
+	if s.logArchiveWorker != nil {
+		if err := s.logArchiveWorker.Start(ctx); err != nil {
+			if s.scheduledFuncWorker != nil {
+				_ = s.scheduledFuncWorker.Stop()
+			}
+			return fmt.Errorf("failed to start log archive worker: %w", err)
+		}
+		logger.Infof(ctx, "[Server] Log archive worker started")
+	}
 
 	if err := s.StartHTTP(ctx); err != nil {
 		if s.scheduledFuncWorker != nil {
 			_ = s.scheduledFuncWorker.Stop()
 		}
+		if s.logArchiveWorker != nil {
+			_ = s.logArchiveWorker.Stop()
+		}
 		return err
 	}
 
 	s.startSystemWorkspaceInit(ctx)
+	s.startLogArchiveScheduleReconcile(ctx)
 
 	logger.Infof(ctx, "[Server] App-server started successfully")
 	logger.Infof(ctx, "[Server] NATS subscriptions are active")
 	return nil
+}
+
+func (s *Server) startLogArchiveScheduleReconcile(ctx context.Context) {
+	if s.logArchiveService == nil {
+		return
+	}
+	go func() {
+		for attempt := 1; attempt <= 10; attempt++ {
+			if err := s.logArchiveService.ReconcileSchedule(ctx); err == nil {
+				logger.Infof(ctx, "[Server] Log archive schedule reconciled")
+				return
+			} else {
+				logger.Warnf(ctx, "[Server] Reconcile log archive schedule attempt %d failed: %v", attempt, err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(15 * time.Second):
+			}
+		}
+	}()
 }
 
 func (s *Server) startSystemWorkspaceInit(ctx context.Context) {
@@ -174,6 +210,13 @@ func (s *Server) Stop(ctx context.Context) error {
 			logger.Warnf(ctx, "[Server] Scheduled function worker stop failed: %v", err)
 		} else {
 			logger.Infof(ctx, "[Server] Scheduled function worker stopped")
+		}
+	}
+	if s.logArchiveWorker != nil {
+		if err := s.logArchiveWorker.Stop(); err != nil {
+			logger.Warnf(ctx, "[Server] Log archive worker stop failed: %v", err)
+		} else {
+			logger.Infof(ctx, "[Server] Log archive worker stopped")
 		}
 	}
 
@@ -278,6 +321,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	functionRepo := repository.NewFunctionRepository(s.db)
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
 	operateLogRepo := repository.NewOperateLogRepository(s.db)
+	logArchiveRepo := repository.NewLogArchiveRepository(s.db)
 	roleAssignmentRepo := repository.NewRoleAssignmentRepository(s.db)
 	permissionRequestRepo := repository.NewPermissionRequestRepository(s.db)
 	functionSensitiveFieldRepo := repository.NewFunctionSensitiveFieldRepository(s.db)
@@ -285,6 +329,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	fileSnapshotRepo := repository.NewFileSnapshotRepository(s.db)
 	directoryUpdateHistoryRepo := repository.NewDirectoryUpdateHistoryRepository(s.db)
 	s.operateLogService = service.NewOperateLogService(operateLogRepo)
+	s.logArchiveService = service.NewLogArchiveService(logArchiveRepo, service.DefaultLogArchiveConfig())
 	s.permissionService = service.NewPermissionService(
 		roleAssignmentRepo,
 		operateLogRepo,
@@ -322,6 +367,11 @@ func (s *Server) initServices(ctx context.Context) error {
 		return fmt.Errorf("failed to init scheduled function worker: %w", err)
 	}
 	s.scheduledFuncWorker = scheduledFuncWorker
+	logArchiveWorker, err := service.NewLogArchiveWorker(s.natsConn, s.logArchiveService)
+	if err != nil {
+		return fmt.Errorf("failed to init log archive worker: %w", err)
+	}
+	s.logArchiveWorker = logArchiveWorker
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中

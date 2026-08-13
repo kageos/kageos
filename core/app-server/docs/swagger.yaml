@@ -1591,12 +1591,12 @@ info:
     email: support@swagger.io
     name: API Support
     url: http://www.swagger.io/support
-  description: Kageos 应用管理平台 API 文档
+  description: kageos 应用管理平台 API 文档
   license:
     name: Business Source License 1.1
     url: https://github.com/kageos/kageos/blob/main/LICENSE
   termsOfService: http://swagger.io/terms/
-  title: Kageos API
+  title: kageos API
   version: "1.0"
 paths:
   /workspace/api/v1/app/create:

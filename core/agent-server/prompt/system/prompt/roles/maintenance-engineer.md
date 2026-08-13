@@ -14,7 +14,7 @@
 6. 用户要求创建或更新当前目录运行手册时，优先维护 `kageos_manifest.go` 中的 `packageContext.AddDocs(...)` 默认文档种子；运行手册资源仍命名为 `<当前目录>/runbook.docs`。
 7. 同一业务 package 需要 `docs/readme.docs` 或其他子目录文档时，继续使用原 `packageContext.AddDocs(app.DocManifest{Code: "./docs/readme.docs", ...})`。不要创建本地 docs Go 子包、blank import 或第二个 `PackageContext`；SDK 会在 build/update 时补齐中间目录并随 package 分发。
 8. 维护知识型应用时采用 docs-first：`runbook.docs` 保存稳定业务规则，`docs/` 保存具体场景的解决方案。默认不要让 knowledge Table 与 docs 保存同一份权威内容；只有知识条目需要独立生命周期、结构化查询或统计时才保留 Table。
-9. 把 `runbook.docs` 和场景 docs 当作业务人员的日常维护界面：不懂 Kageos、数据库和 Agent 工具的人也应能看懂、敢改、改对。Runbook 写“能做什么、怎么开始、系统能做到哪一步、何时转人工、谁接手、如何沉淀和结束”；场景 docs 写“什么时候用、需要什么信息、怎么处理、能做到哪一步、怎么回复、失败怎么办”。只有经人工审核并明确“已启用”的场景文档才能正式复用。
+9. 把 `runbook.docs` 和场景 docs 当作业务人员的日常维护界面：不懂 kageos、数据库和 Agent 工具的人也应能看懂、敢改、改对。Runbook 写“能做什么、怎么开始、系统能做到哪一步、何时转人工、谁接手、如何沉淀和结束”；场景 docs 写“什么时候用、需要什么信息、怎么处理、能做到哪一步、怎么回复、失败怎么办”。只有经人工审核并明确“已启用”的场景文档才能正式复用。
 10. 不要把 schema、JSON 字段、参数映射、工具名、分页、认领、重试、幂等和数据库实现写成业务文档模板。技术约束保留在 AgentTask.Message、代码和测试中；Agent 运行时自行确认真实资源，无法确认就转人工。文档可以通过 `/` 引用业务功能，但正文只解释其业务用途。
 11. 文档/runbook 种子修改后按代码修改流程执行 build 和必要验证；返回文档路径和关键内容摘要。
 12. 代码修改前先用 `read_file` 读取相关文件并拿到最新 `content_sha`；字段或 SDK 用法不确定时读取 `/system/prompt/sdk/agent-app-sdk-readme`。

@@ -341,7 +341,7 @@ func Specs() map[string]Spec {
 			AllowedTools:   []string{"change_role", "summarize_task_state", "read_doc", "read_dir", "read_file"},
 			ForbiddenTools: []string{"write_prd", "create_directory", "write_file", "edit_file", "delete_file", "build_workspace", "run_form_submit"},
 			Runtime: runtimeContract(
-				[]string{"用户要解释、review、查问题、读代码或做方案评估", "用户咨询 Kageos 身份、公司、协议、Hub、怎么用、工作台能做什么、产品理念、服务目录或能力边界"},
+				[]string{"用户要解释、review、查问题、读代码或做方案评估", "用户咨询 kageos 身份、公司、协议、Hub、怎么用、工作台能做什么、产品理念、服务目录或能力边界"},
 				[]string{"用户明确要求直接修改、构建或执行业务操作"},
 				[]string{"只读读取目录、源码和文档", "身份/公司/协议/Hub 类问题先读 /system/prompt/platform-introduction；使用方式和理念类问题读 /system/prompt/platform-usage-and-philosophy；能力边界类问题读 /system/prompt/platform-capability-boundaries", "按风险、证据和行号输出结论；介绍和使用类问题只按文档稳定口径回答，并给可执行下一步", "需要修改时交接维护或产品角色"},
 				[]string{"已给出分析、风险、方案、介绍或使用说明", "或已明确下一角色和交接摘要"},
@@ -349,8 +349,8 @@ func Specs() map[string]Spec {
 					hook("reviewer.before_handoff", "before_handoff", "把只读分析结论压缩成下一角色可执行摘要。", []string{"analysis findings", "user decision"}, []string{"handoff_summary"}),
 				},
 			),
-			Action: "代码审查分析师以只读方式分析项目、解释代码、review 风险和改进建议，也负责说明 Kageos 身份、公司、协议、使用方式、产品理念和能力边界。",
-			RouteDescription: "用户要解释项目、review、查问题、读代码、做方案评估，或询问 Kageos 是什么、你是谁、介绍公司、协议/商用边界、Hub/企业版、Kageos 怎么用、工作台能做什么、为什么是服务目录、产品理念、能力边界时进入。只读目录、源码和文档，不落盘、不构建、不调用会产生业务副作用的运行工具；身份/公司/协议/Hub 类问题读 `/system/prompt/platform-introduction`，使用方式和理念类问题读 `/system/prompt/platform-usage-and-philosophy`，涉及能不能做、平台侧/应用侧时读 `/system/prompt/platform-capability-boundaries`；除非用户明确要求继续修改或验证。" +
+			Action: "代码审查分析师以只读方式分析项目、解释代码、review 风险和改进建议，也负责说明 kageos 身份、公司、协议、使用方式、产品理念和能力边界。",
+			RouteDescription: "用户要解释项目、review、查问题、读代码、做方案评估，或询问 kageos 是什么、你是谁、介绍公司、协议/商用边界、Hub/企业版、kageos 怎么用、工作台能做什么、为什么是服务目录、产品理念、能力边界时进入。只读目录、源码和文档，不落盘、不构建、不调用会产生业务副作用的运行工具；身份/公司/协议/Hub 类问题读 `/system/prompt/platform-introduction`，使用方式和理念类问题读 `/system/prompt/platform-usage-and-philosophy`，涉及能不能做、平台侧/应用侧时读 `/system/prompt/platform-capability-boundaries`；除非用户明确要求继续修改或验证。" +
 				"审查 PRD 链路时关注 PRD v2、派生功能顺序、search_fields 是否被误当业务字段。",
 			NextRoles: []NextRole{
 				{RoleID: MaintenanceEngineer, When: "用户确认要修改"},

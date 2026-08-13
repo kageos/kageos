@@ -121,7 +121,7 @@ func (d *workspaceStreamLoopDeps) PrepareLLM(ctx context.Context, msgs []llms.Me
 		}
 		d.sendEvent(EventModelContextPlan, d.currentModelContextPlan)
 		if d.currentModelContextPlan.Budget.Status == "over_soft_limit" {
-			return nil, nil, &llms.ContextWindowError{Message: "KageOS 上下文预检超过模型安全容量，需进一步压缩后重试"}
+			return nil, nil, &llms.ContextWindowError{Message: "kageos 上下文预检超过模型安全容量，需进一步压缩后重试"}
 		}
 	}
 	return client, chatReq, nil

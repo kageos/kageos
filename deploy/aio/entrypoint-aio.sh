@@ -148,7 +148,7 @@ assert_outer_network_supported() {
   fi
 
   cat >&2 <<'EOF'
-ERROR: Kageos AIO 不支持外层容器使用 host 网络。
+ERROR: kageos AIO 不支持外层容器使用 host 网络。
 
 原因：
   AIO 容器内部会启动 core-server、MySQL、NATS、MinIO 和用户 App 容器。
@@ -328,7 +328,7 @@ prepare_secrets() {
 
 print_summary() {
   cat <<EOF
-==> Kageos AIO 配置
+==> kageos AIO 配置
     访问地址: ${CANONICAL_BASE_URL}
     system 初始用户: system
     system 初始密码文件: ${AIO_SECRETS_DIR}/SYSTEM_USER_PASSWORD

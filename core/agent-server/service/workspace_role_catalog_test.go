@@ -163,10 +163,10 @@ func TestWorkspaceRoleSpecReviewerCoversIntroductionUsageAndPhilosophy(t *testin
 		}
 	}
 	for _, want := range []string{
-		"Kageos 是什么",
+		"kageos 是什么",
 		"Hub/企业版",
 		"/system/prompt/platform-introduction",
-		"Kageos 怎么用",
+		"kageos 怎么用",
 		"产品理念",
 		"/system/prompt/platform-usage-and-philosophy",
 	} {

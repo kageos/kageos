@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +17,28 @@ func requireAccess(c *gin.Context, permissionService *service.PermissionService,
 		return err
 	}
 	return permissionService.RequirePermission(contextx.ToContext(c), tenantUser, app, contextx.GetRequestUser(c), resourcePath, action)
+}
+
+// requireWorkstationAccess treats the AI workstation as a Member capability.
+// It deliberately reuses the existing resource permissions instead of adding a
+// second workstation-specific role: Viewer is denied, while Member, Admin, and
+// Owner pass. Individual tools still enforce their own action permission.
+func requireWorkstationAccess(c *gin.Context, permissionService *service.PermissionService, resourcePath string) error {
+	resourcePath = access.NormalizeResourcePath(resourcePath)
+	tenantUser, app, err := access.ParseUserApp(resourcePath)
+	if err != nil {
+		return err
+	}
+	result, err := permissionService.ResolvePermissions(
+		contextx.ToContext(c), tenantUser, app, contextx.GetRequestUser(c), resourcePath,
+	)
+	if err != nil {
+		return err
+	}
+	if !access.CoversRole(result.Permissions, access.RoleMember) {
+		return fmt.Errorf("使用工作台至少需要 Member 权限: %s", resourcePath)
+	}
+	return nil
 }
 
 func normalizeFullCodePathParam(c *gin.Context) string {

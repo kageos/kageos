@@ -25,7 +25,7 @@ func cmdDevUp(paths Paths, opts upOptions) error {
 			return err
 		}
 	}
-	fmt.Println("[dev] 启动 Kageos 后端主进程")
+	fmt.Println("[dev] 启动 kageos 后端主进程")
 	fmt.Println("[dev] Stop with Ctrl-C. Run `kagectl down` to stop local infra containers.")
 	return runDevMain(paths)
 }
@@ -44,7 +44,7 @@ func cmdDevStatus(paths Paths, opts outputOptions) error {
 	if err := requireDevLayout(paths); err != nil {
 		return err
 	}
-	fmt.Printf("Kageos mode: dev (%s)\n", workspaceEnvPath(paths))
+	fmt.Printf("kageos mode: dev (%s)\n", workspaceEnvPath(paths))
 	return runDevInfraCommand(paths, currentDevEngine(paths), "ps")
 }
 

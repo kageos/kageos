@@ -38,8 +38,8 @@ jobs:
           push: true
           tags: ${{ env.IMAGE_NAME }}:latest
           labels: |
-            org.opencontainers.image.title=Kageos
-            org.opencontainers.image.description=Kageos all-in-one local image
+            org.opencontainers.image.title=kageos
+            org.opencontainers.image.description=kageos all-in-one local image
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           build-args: |
             APT_USE_MIRROR=0

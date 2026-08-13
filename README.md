@@ -1,4 +1,4 @@
-# Kageos
+# kageos
 
 Language: **English** | [简体中文](README.zh-CN.md)
 
@@ -8,15 +8,15 @@ Translations can follow the `README.<locale>.md` pattern.
 
 **Source-available · Self-hostable · BSL 1.1 · Apache-2.0 after 4 years**
 
-Kageos turns personal and business capabilities into ready-to-run directories. A directory is not a static template or a one-off prompt result: it can contain Forms, Tables, Charts, Docs, Functions, code, data models, runbooks, schedules, messages, and permissions. Humans can open it. AI agents can call it through typed schemas. Unattended agent sessions can run it on a schedule. The platform can govern, audit, version, install, export, and reuse it.
+kageos turns personal and business capabilities into ready-to-run directories. A directory is not a static template or a one-off prompt result: it can contain Forms, Tables, Charts, Docs, Functions, code, data models, runbooks, schedules, messages, and permissions. Humans can open it. AI agents can call it through typed schemas. Unattended agent sessions can run it on a schedule. The platform can govern, audit, version, install, export, and reuse it.
 
-Kageos is created by [QiaYan AI](https://qiayan.ai). The core platform is source-available and designed for self-hosting. It is licensed under the Business Source License 1.1 today and converts to Apache License 2.0 four years after release. See [LICENSE](LICENSE) and [LICENSE_FAQ.md](LICENSE_FAQ.md) for the exact terms.
+kageos is created by [QiaYan AI](https://qiayan.ai). The core platform is source-available and designed for self-hosting. It is licensed under the Business Source License 1.1 today and converts to Apache License 2.0 four years after release. See [LICENSE](LICENSE) and [LICENSE_FAQ.md](LICENSE_FAQ.md) for the exact terms.
 
-## Why Kageos
+## Why kageos
 
 AI can now create tools quickly, but fast tool creation often creates another kind of sprawl: isolated pages, scripts, prompts, automations, data tables, and agents that cannot see each other, cannot be reliably called, and cannot be governed as durable assets.
 
-Kageos takes a different route:
+kageos takes a different route:
 
 - Start from **ready-to-run directories**, not blank prompts.
 - Make every capability **human-usable and AI-callable**.
@@ -29,7 +29,7 @@ The goal is not to be a cheaper AI app generator. The goal is to make useful cap
 
 ## Core Ideas
 
-| Idea | Meaning in Kageos |
+| Idea | Meaning in kageos |
 | --- | --- |
 | Directory | A runnable capability unit mounted on the Service Tree. It can contain UI, functions, docs, data, schedules, and runtime context. |
 | Service Tree | The governed coordinate system for directories, functions, docs, messages, schedules, permissions, and operation logs. |
@@ -77,7 +77,7 @@ flowchart LR
 
 ## Architecture
 
-Kageos is a Vue frontend plus a Go service cluster and user app container runtime:
+kageos is a Vue frontend plus a Go service cluster and user app container runtime:
 
 - `api-gateway` routes authenticated HTTP traffic.
 - `app-server` owns workspace APIs, Service Tree metadata, access, operation logs, function metadata, and app invocation.
@@ -145,7 +145,7 @@ npm run dev
 ```
 
 Open the web app at `http://localhost:5173`. During `bootstrap --dev`,
-`kagectl` prints a `Kageos dev initialization summary`; sign in with username
+`kagectl` prints a `kageos dev initialization summary`; sign in with username
 `system` and the printed `Admin password`. If you need to see the password
 again, re-run `go run ./cmd/kagectl init --dev` or read
 `SYSTEM_USER_PASSWORD` from `.kageos/dev/env/kageos.env`.
@@ -209,7 +209,7 @@ The same checks are wired into GitHub Actions in `.github/workflows/ci.yml`.
 
 ## Documentation
 
-- [Kageos Blueprint](docs/kageos-blueprint.md)
+- [kageos Blueprint](docs/kageos-blueprint.md)
 - [Current architecture](docs/current-architecture.md)
 - [Platform capabilities](docs/platform-capabilities.md)
 - [Directory vs Skills: certainty architecture](docs/directory-vs-skills-certainty-architecture.md)
@@ -224,13 +224,13 @@ The same checks are wired into GitHub Actions in `.github/workflows/ci.yml`.
 
 ## Chinese Overview
 
-Kageos 是面向个人、团队和企业的 AI 原生服务平台。它把业务目录变成人可用、AI 可调、无人值守可运行、平台可治理的能力资产。Kageos 的核心不是低价生成孤立应用，而是让成熟能力可以从 Hub 安装到私有 namespace，用自己的数据长期运行，通过 AI 工作台改造和执行，并在稳定后发布回生态。
+kageos 是面向个人、团队和企业的 AI 原生服务平台。它把业务目录变成人可用、AI 可调、无人值守可运行、平台可治理的能力资产。kageos 的核心不是低价生成孤立应用，而是让成熟能力可以从 Hub 安装到私有 namespace，用自己的数据长期运行，通过 AI 工作台改造和执行，并在稳定后发布回生态。
 
 完整中文介绍见 [README.zh-CN.md](README.zh-CN.md)。
 
 ## Naming
 
-- Write the product name as `Kageos` in prose, UI copy, docs, SDK docs, and website content.
+- Write the product name as `kageos` in prose, UI copy, docs, SDK docs, and website content.
 - Use lowercase `kageos` for package, module, path, and domain identifiers.
 - Use all-caps `KAGEOS_*` only for environment variables or config keys.
 - Describe the BSL-licensed core as "source-available and self-hostable" and follow the [source and licensing messaging guide](docs/source-available-messaging.md).
@@ -254,12 +254,12 @@ Send security reports privately to [admin@kageos.ai](mailto:admin@kageos.ai). In
 
 ## License
 
-Kageos core is licensed under the Business Source License 1.1 and converts to Apache License 2.0 four years after release. The source code is public and self-hostable under the BSL grant, while unauthorized commercial SaaS, managed-service, white-label, OEM, embedded, rebranded, resale, and competing offerings are restricted.
+kageos core is licensed under the Business Source License 1.1 and converts to Apache License 2.0 four years after release. The source code is public and self-hostable under the BSL grant, while unauthorized commercial SaaS, managed-service, white-label, OEM, embedded, rebranded, resale, and competing offerings are restricted.
 
 See [LICENSE](LICENSE) and [LICENSE_FAQ.md](LICENSE_FAQ.md) for details. SDKs, examples, templates, and docs may use separate permissive licenses when their own license files say so.
 
 ## Acknowledgements
 
-Kageos is created and maintained by [QiaYan AI](https://qiayan.ai). It is built on the work of the wider open-source infrastructure and developer-tooling ecosystem, including Go, Vue, MySQL, NATS, MinIO, Docker, Podman, and many other projects.
+kageos is created and maintained by [QiaYan AI](https://qiayan.ai). It is built on the work of the wider open-source infrastructure and developer-tooling ecosystem, including Go, Vue, MySQL, NATS, MinIO, Docker, Podman, and many other projects.
 
-Kageos is not a fork of OCTO, TangSengDaoDao, or WuKongIM. We still appreciate those projects and the broader agent, collaboration, and infrastructure communities for pushing the field forward.
+kageos is not a fork of OCTO, TangSengDaoDao, or WuKongIM. We still appreciate those projects and the broader agent, collaboration, and infrastructure communities for pushing the field forward.

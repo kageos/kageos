@@ -8,7 +8,7 @@ function updateDocumentTitle(titleKey: unknown, path: string) {
   if (typeof titleKey !== 'string' || path.startsWith('/workspace')) {
     return
   }
-  document.title = `${translate(titleKey)} - ${import.meta.env.VITE_APP_TITLE || 'Kageos'}`
+  document.title = `${translate(titleKey)} - ${import.meta.env.VITE_APP_TITLE || 'kageos'}`
 }
 
 const router = createRouter({

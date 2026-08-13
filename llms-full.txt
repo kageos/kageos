@@ -1,14 +1,14 @@
-# Kageos — Full Repository Context
+# kageos — Full Repository Context
 
-> This document gives coding and research agents enough public context to identify the Kageos project, navigate the repository, and avoid common architectural mistakes. Detailed implementation contracts remain in the linked source and documentation.
+> This document gives coding and research agents enough public context to identify the kageos project, navigate the repository, and avoid common architectural mistakes. Detailed implementation contracts remain in the linked source and documentation.
 
-## What Kageos Is
+## What kageos Is
 
-Kageos is a source-available, self-hostable AI-native service platform for individuals, teams, and enterprises. It turns useful capabilities into ready-to-run directories rather than leaving them as isolated prompts, scripts, pages, or automations.
+kageos is a source-available, self-hostable AI-native service platform for individuals, teams, and enterprises. It turns useful capabilities into ready-to-run directories rather than leaving them as isolated prompts, scripts, pages, or automations.
 
-A Kageos directory is a governed capability unit mounted on the Service Tree. It can contain Forms, Tables, Charts, Docs, typed functions, Go application code, data models, runbooks, schedules, messages, and permissions. A person can open the directory as normal software. An AI workstation can inspect its context and call registered functions through typed schemas. A scheduled function or unattended Agent session can operate it without a user remaining online.
+A kageos directory is a governed capability unit mounted on the Service Tree. It can contain Forms, Tables, Charts, Docs, typed functions, Go application code, data models, runbooks, schedules, messages, and permissions. A person can open the directory as normal software. An AI workstation can inspect its context and call registered functions through typed schemas. A scheduled function or unattended Agent session can operate it without a user remaining online.
 
-Kageos is not primarily a custom HTML or chat-app generator. The durable application surface is built from platform-rendered resources and typed runtime contracts. AI helps create, inspect, repair, analyze, and operate capabilities, but the capability must remain addressable, usable, and governable outside a single conversation.
+kageos is not primarily a custom HTML or chat-app generator. The durable application surface is built from platform-rendered resources and typed runtime contracts. AI helps create, inspect, repair, analyze, and operate capabilities, but the capability must remain addressable, usable, and governable outside a single conversation.
 
 ## Core Product Model
 
@@ -33,7 +33,7 @@ Do not infer shipped behavior from architecture proposals or roadmap wording. Us
 
 ## Runtime Architecture
 
-Kageos combines a Vue frontend, Go platform services, and versioned user-application containers:
+kageos combines a Vue frontend, Go platform services, and versioned user-application containers:
 
 - `core/api-gateway`: authenticated HTTP routing and frontend entry.
 - `core/app-server`: workspace APIs, Service Tree metadata, permissions, operation logs, function metadata, capability bundles, and application invocation.
@@ -49,13 +49,13 @@ Kageos combines a Vue frontend, Go platform services, and versioned user-applica
 - `pkg/scheduledsdk`: scheduler client and worker contracts.
 - `deploy`: local, production, all-in-one, image, and security deployment material.
 
-The public `kageos-sdk/agent-app` module is the contract for generated workspace applications. Workspace application code must not import internal Kageos platform packages.
+The public `kageos-sdk/agent-app` module is the contract for generated workspace applications. Workspace application code must not import internal kageos platform packages.
 
 ## Repository Boundaries for Agents
 
 Platform work belongs in the relevant `core`, `pkg`, `dto`, `cmd`, `web`, or deployment package. Workspace business applications belong under a namespace application module and should use the public SDK.
 
-For workspace applications, the durable UI is composed from Form, Table, Chart, and Docs resources. Do not introduce a custom React or HTML application surface when the requested capability is meant to run as a normal Kageos directory.
+For workspace applications, the durable UI is composed from Form, Table, Chart, and Docs resources. Do not introduce a custom React or HTML application surface when the requested capability is meant to run as a normal kageos directory.
 
 Use typed schemas as the execution contract. Before submitting a Form or writing a Table, inspect the registered schema and required fields. Do not guess request bodies from route names. Preserve Service Tree paths, source references, trace IDs, and operation-log context across service boundaries.
 
@@ -100,7 +100,7 @@ Do not treat a successful compile as complete verification when behavior crosses
 
 ## Self-Hosting and Operations
 
-Kageos is designed to run with private data in a user-controlled environment. The current production path is a single-machine deployment managed through `kagectl` and Compose, with MySQL, NATS, MinIO, platform services, and user-application containers.
+kageos is designed to run with private data in a user-controlled environment. The current production path is a single-machine deployment managed through `kagectl` and Compose, with MySQL, NATS, MinIO, platform services, and user-application containers.
 
 Runtime state, application source, database state, object storage, and generated environment files are material data. Inspect and back them up before destructive resets. Keep secrets out of issues, logs, commits, examples, and Agent-visible public documents.
 
@@ -108,13 +108,13 @@ Start with `deploy/prod/README.md`, `deploy/prod/QUICK_START.md`, and `deploy/ai
 
 ## Distribution Through Hub
 
-Kageos Hub is the public supply and delivery side of the directory network. Contributors submit versioned capability bundles. Hub preserves source-language metadata, records immutable revisions, supports review, and publishes a separate official snapshot. Users inspect a reviewed directory and install its exact bundle into a private Kageos workspace.
+kageos Hub is the public supply and delivery side of the directory network. Contributors submit versioned capability bundles. Hub preserves source-language metadata, records immutable revisions, supports review, and publishes a separate official snapshot. Users inspect a reviewed directory and install its exact bundle into a private kageos workspace.
 
 Hub is a separate application at `https://hub.kageos.ai/`. The core repository should not absorb Hub marketplace concerns into platform runtime services without an explicit architecture decision.
 
 ## Licensing and Public Wording
 
-The Kageos core platform is source-available and self-hostable under the Business Source License 1.1. Each release converts to Apache License 2.0 four years after release. It should not be described as currently OSI open source unless referring to a separately licensed component.
+The kageos core platform is source-available and self-hostable under the Business Source License 1.1. Each release converts to Apache License 2.0 four years after release. It should not be described as currently OSI open source unless referring to a separately licensed component.
 
 The authoritative terms are `LICENSE` and `LICENSE_FAQ.md`. Product copy should explain user value first, then use the consistent wording: source-available, self-hostable, BSL 1.1, Apache-2.0 after four years.
 

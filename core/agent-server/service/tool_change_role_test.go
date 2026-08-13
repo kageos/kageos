@@ -198,10 +198,10 @@ func TestBuildChangeRoleDoesNotInferFromUserInput(t *testing.T) {
 	loadedIntroDoc := false
 	loadedUsageDoc := false
 	for _, doc := range got.LoadedDocs {
-		if doc.Path == "/system/prompt/platform-introduction" && strings.Contains(doc.Content, "Kageos 介绍与身份口径") {
+		if doc.Path == "/system/prompt/platform-introduction" && strings.Contains(doc.Content, "kageos 介绍与身份口径") {
 			loadedIntroDoc = true
 		}
-		if doc.Path == "/system/prompt/platform-usage-and-philosophy" && strings.Contains(doc.Content, "Kageos 使用方式与产品理念") {
+		if doc.Path == "/system/prompt/platform-usage-and-philosophy" && strings.Contains(doc.Content, "kageos 使用方式与产品理念") {
 			loadedUsageDoc = true
 		}
 	}

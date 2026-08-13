@@ -1,8 +1,8 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "Kageos API 网关服务文档",
-        "title": "Kageos API Gateway",
+        "description": "kageos API 网关服务文档",
+        "title": "kageos API Gateway",
         "contact": {},
         "version": "1.0"
     },

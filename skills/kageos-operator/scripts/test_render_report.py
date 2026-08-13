@@ -81,7 +81,7 @@ class RenderReportTest(unittest.TestCase):
             self.assertEqual(result["status"], "verified")
             self.assertEqual(Path(result["outputs"]["markdown"]).resolve(), markdown_path.resolve())
             self.assertEqual(Path(result["outputs"]["html"]).resolve(), html_path.resolve())
-            self.assertIn("Kageos 验证报告", markdown_path.read_text(encoding="utf-8"))
+            self.assertIn("kageos 验证报告", markdown_path.read_text(encoding="utf-8"))
             self.assertIn("<!doctype html>", html_path.read_text(encoding="utf-8"))
 
     def test_format_and_output_directory_are_respected(self) -> None:

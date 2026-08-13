@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { can } from './useAccessControl'
+import { can, canUseWorkstation } from './useAccessControl'
 
 describe('useAccessControl', () => {
   it('allows owner to do everything', () => {
@@ -14,5 +14,12 @@ describe('useAccessControl', () => {
 
   it('does not allow member-like permissions to delete', () => {
     expect(can({ read: true, write: true, update: true }, 'delete')).toBe(false)
+  })
+
+  it('allows the workstation for member and above but not viewer', () => {
+    expect(canUseWorkstation({ permissions: { read: true } })).toBe(false)
+    expect(canUseWorkstation({ permissions: { read: true, write: true, update: true } })).toBe(true)
+    expect(canUseWorkstation({ permissions: { admin: true } })).toBe(true)
+    expect(canUseWorkstation({ permissions: { owner: true } })).toBe(true)
   })
 })

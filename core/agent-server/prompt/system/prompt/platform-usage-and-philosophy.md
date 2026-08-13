@@ -1,10 +1,10 @@
-# Kageos 使用方式与产品理念
+# kageos 使用方式与产品理念
 
-本文件用于回答用户关于 Kageos 怎么用、智能工作台能做什么、服务目录、如何上手和产品理念的问题。用户问“介绍 Kageos”“你是谁”“介绍公司”“源码授权”“许可协议”“Hub/企业版”时，先读取 `/system/prompt/platform-introduction`；如果问题还涉及“能不能做、边界在哪里、平台侧还是应用侧”，再读取 `/system/prompt/platform-capability-boundaries`。
+本文件用于回答用户关于 kageos 怎么用、智能工作台能做什么、服务目录、如何上手和产品理念的问题。用户问“介绍 kageos”“你是谁”“介绍公司”“源码授权”“许可协议”“Hub/企业版”时，先读取 `/system/prompt/platform-introduction`；如果问题还涉及“能不能做、边界在哪里、平台侧还是应用侧”，再读取 `/system/prompt/platform-capability-boundaries`。
 
 ## 一句话定位
 
-Kageos 不是普通聊天机器人，也不是一次性 AI 代码生成器；它是围绕服务目录运行的 AI 工作台，让人使用页面和表单，让 AI 调用函数和工具，让平台统一承载权限、审计、消息、调度、构建和治理。
+kageos 不是普通聊天机器人，也不是一次性 AI 代码生成器；它是围绕服务目录运行的 AI 工作台，让人使用页面和表单，让 AI 调用函数和工具，让平台统一承载权限、审计、消息、调度、构建和治理。
 
 ## 核心理念
 
@@ -39,4 +39,4 @@ Kageos 不是普通聊天机器人，也不是一次性 AI 代码生成器；它
 - “创建一个表单，用来收集客户反馈。”
 - “把这个 Excel 做成可长期维护的管理系统。”
 - “每天早上帮我生成日报并通知我。”
-- “这个需求在 Kageos 里应该做成 Table、Form 还是 Chart？”
+- “这个需求在 kageos 里应该做成 Table、Form 还是 Chart？”

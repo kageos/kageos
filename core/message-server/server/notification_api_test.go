@@ -71,7 +71,7 @@ func TestNotificationChannelToInfoIncludesDeliveryStatus(t *testing.T) {
 		DisplayName:      "钉钉群",
 		WebhookURLCipher: "cipher-url",
 		SecretCipher:     "cipher-secret",
-		Metadata:         `{"keyword":"Kageos"}`,
+		Metadata:         `{"keyword":"kageos"}`,
 		LastSuccessAt:    &now,
 		LastFailedAt:     &now,
 		LastTestAt:       &now,
@@ -83,7 +83,7 @@ func TestNotificationChannelToInfoIncludesDeliveryStatus(t *testing.T) {
 	if info.Channel != service.NotificationChannelDingTalk || !info.Enabled || !info.HasWebhookURL || !info.HasSecret {
 		t.Fatalf("unexpected basic info: %#v", info)
 	}
-	if info.Metadata["keyword"] != "Kageos" {
+	if info.Metadata["keyword"] != "kageos" {
 		t.Fatalf("metadata = %#v", info.Metadata)
 	}
 	if info.LastSuccessAt == nil || info.LastFailedAt == nil || info.LastTestAt == nil {

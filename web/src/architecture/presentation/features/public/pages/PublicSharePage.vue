@@ -22,7 +22,7 @@
       <template v-else-if="functionDetail && gateway">
         <header class="public-share-header">
           <div>
-            <p class="public-share-eyebrow">Public Form</p>
+            <p class="public-share-eyebrow">{{ t('publicSharePanel.publicForm') }}</p>
             <h1>{{ title }}</h1>
             <p v-if="description" class="public-share-description">{{ description }}</p>
           </div>
@@ -155,6 +155,7 @@ import { Clock, Refresh } from '@element-plus/icons-vue'
 import { useMediaQuery } from '@vueuse/core'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import FormView from '@/architecture/presentation/views/FormView.vue'
 import {
   PublicShareFormGateway,
@@ -169,6 +170,7 @@ import type { FunctionDetail } from '@/architecture/domain/types'
 import { lockFunctionDetailPresetFields } from '@/architecture/domain/utils/publicSharePreset'
 
 const route = useRoute()
+const { t } = useI18n()
 const loading = ref(true)
 const errorMessage = ref('')
 const view = ref<PublicShareView | null>(null)
@@ -210,7 +212,7 @@ async function loadShare() {
       nextView.preset_values || {}
     )
     gateway.value = new PublicShareFormGateway(nextView.share_id, scheduleSubmissionReload)
-    document.title = `${nextView.title} - Public Form`
+    document.title = `${nextView.title} - ${t('publicSharePanel.publicForm')}`
     void loadSubmissions(1)
   } catch (error) {
     errorMessage.value = getErrorMessage(error, '公开表单暂时不可用')

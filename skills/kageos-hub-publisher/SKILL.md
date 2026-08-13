@@ -1,9 +1,9 @@
 ---
 name: kageos-hub-publisher
-description: Package and publish a verified KageOS workspace directory to KageOS Hub using a scoped Sona personal access token, direct R2/S3 uploads, AI-assisted metadata, and browser screenshots with editable captions. Use after kageos-operator when a user asks to release, submit, update, or publish a KageOS directory or skill to Hub.
+description: Package and publish a verified kageos workspace directory to kageos Hub using a scoped Sona personal access token, direct R2/S3 uploads, AI-assisted metadata, and browser screenshots with editable captions. Use after kageos-operator when a user asks to release, submit, update, or publish a kageos directory or skill to Hub.
 ---
 
-# KageOS Hub Publisher
+# kageos Hub Publisher
 
 Publish evidence, not an untested demo. Read `references/publishing-sop.md` before acting.
 

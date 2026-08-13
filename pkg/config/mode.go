@@ -14,7 +14,7 @@ const (
 	ConfigDevEnginePodman = "podman"
 )
 
-// GetConfigEnv returns the local Kageos runtime mode.
+// GetConfigEnv returns the local kageos runtime mode.
 //
 // The canonical source is .kageos/kageos.env, written by kagectl init/init --dev.
 func GetConfigEnv() string {

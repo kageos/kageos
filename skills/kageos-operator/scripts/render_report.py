@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a Kageos operator JSON report as readable Markdown and HTML."""
+"""Render a kageos operator JSON report as readable Markdown and HTML."""
 
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ def render_markdown(report: dict[str, Any]) -> str:
     status = text(report.get("status")).upper()
     directory = text(report.get("directory")) or "未指定目录"
     lines = [
-        f"# Kageos 验证报告：{markdown_text(directory)}",
+        f"# kageos 验证报告：{markdown_text(directory)}",
         "",
         f"**状态：{status}**",
         "",
@@ -199,7 +199,7 @@ def render_html(report: dict[str, Any]) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Kageos 验证报告 · {h(directory)}</title>
+<title>kageos 验证报告 · {h(directory)}</title>
 <style>
 :root{{--bg:#f4f7fb;--panel:#fff;--ink:#172033;--muted:#667085;--line:#e4e9f2;--brand:#2457a6;--ok:#16825d;--bad:#c33d52;--warn:#b7791f}}
 *{{box-sizing:border-box}} body{{margin:0;background:linear-gradient(145deg,#edf4ff 0,#f7f9fc 42%,#f4f7fb 100%);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}}
@@ -213,7 +213,7 @@ section{{background:var(--panel);border:1px solid var(--line);border-radius:18px
 </style>
 </head>
 <body><main class="page">
-<header class="hero"><div class="eyebrow">Kageos Operator Report</div><h1>{h(directory)}</h1><p class="scenario">{h(report.get("scenario")) or "目录运行验证结果"}</p><div class="hero-status">{h(status.upper())}</div></header>
+<header class="hero"><div class="eyebrow">kageos Operator Report</div><h1>{h(directory)}</h1><p class="scenario">{h(report.get("scenario")) or "目录运行验证结果"}</p><div class="hero-status">{h(status.upper())}</div></header>
 <div class="stats"><div class="stat"><strong>{len(checks)}</strong><span>验证检查</span></div><div class="stat"><strong>{passed}</strong><span>通过检查</span></div><div class="stat"><strong>{len(cleanup)}</strong><span>清理项</span></div></div>
 <div class="metadata">{cards}</div>
 <section><h2>验证检查</h2>{html_table(checks, [("操作","operation"),("路径","full_code_path"),("状态","status"),("证据","evidence")])}</section>

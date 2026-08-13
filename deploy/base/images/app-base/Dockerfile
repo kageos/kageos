@@ -257,12 +257,12 @@ RUN site_dir="$(python3 -c 'import site; print(site.getsitepackages()[0])')" \
     && stdlib_dir="$(python3 -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \
     && cp /tmp/kageos_font_defaults.py "${site_dir}/kageos_font_defaults.py" \
     && if [ -f "${stdlib_dir}/sitecustomize.py" ]; then \
-        printf '\n# Kageos font defaults\ntry:\n    import kageos_font_defaults\nexcept Exception:\n    pass\n' >> "${stdlib_dir}/sitecustomize.py"; \
+        printf '\n# kageos font defaults\ntry:\n    import kageos_font_defaults\nexcept Exception:\n    pass\n' >> "${stdlib_dir}/sitecustomize.py"; \
     else \
-        printf '# Kageos font defaults\ntry:\n    import kageos_font_defaults\nexcept Exception:\n    pass\n' > "${stdlib_dir}/sitecustomize.py"; \
+        printf '# kageos font defaults\ntry:\n    import kageos_font_defaults\nexcept Exception:\n    pass\n' > "${stdlib_dir}/sitecustomize.py"; \
     fi \
     && rm /tmp/kageos_font_defaults.py \
-    && python3 -c "from reportlab.pdfbase import pdfmetrics; assert 'Kageos-CJK' in pdfmetrics.getRegisteredFontNames(); from PIL import ImageFont; assert ImageFont.load_default(size=16).getname()[0] == 'Noto Sans CJK SC'; print('✓ Python font defaults configured')"
+    && python3 -c "from reportlab.pdfbase import pdfmetrics; assert 'kageos-CJK' in pdfmetrics.getRegisteredFontNames(); from PIL import ImageFont; assert ImageFont.load_default(size=16).getname()[0] == 'Noto Sans CJK SC'; print('✓ Python font defaults configured')"
 
 # 生成已安装 Python 包列表（用于快速检查）
 RUN python3 -c "from importlib.metadata import distributions; packages = sorted(d.metadata['Name'] for d in distributions()); print('\n'.join(packages))" \

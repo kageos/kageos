@@ -1,4 +1,4 @@
 interface:
-  display_name: "KageOS Hub Publisher"
-  short_description: "Capture, package, and publish a verified KageOS directory to Hub"
-  default_prompt: "Prepare this verified KageOS directory for Hub, capture safe screenshots, upload through R2, and publish after confirmation."
+  display_name: "kageos Hub Publisher"
+  short_description: "Capture, package, and publish a verified kageos directory to Hub"
+  default_prompt: "Prepare this verified kageos directory for Hub, capture safe screenshots, upload through R2, and publish after confirmation."

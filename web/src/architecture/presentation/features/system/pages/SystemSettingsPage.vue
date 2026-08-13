@@ -90,7 +90,7 @@
                 <el-input v-model="form.email.from" placeholder="noreply@example.com" />
               </el-form-item>
               <el-form-item :label="t('systemSettings.fromName')">
-                <el-input v-model="form.email.from_name" placeholder="Kageos" />
+                <el-input v-model="form.email.from_name" placeholder="kageos" />
               </el-form-item>
 
               <el-divider content-position="left">{{ t('systemSettings.testEmail') }}</el-divider>
@@ -249,6 +249,46 @@
             <SystemUserManagementPage :key="usersPanelKey" />
           </div>
 
+          <div v-else-if="activeTab === 'backups'" v-loading="archivesLoading" class="section-pane">
+            <el-alert :title="t('systemSettings.archiveFallbackNote')" type="info" show-icon :closable="false" />
+            <div class="archive-summary-row">
+              <span>{{ t('systemSettings.archiveRetention', { days: archiveRetentionDays }) }}</span>
+              <span>{{ t('systemSettings.archiveSchedule', { cron: archiveCronExpr, timezone: archiveTimezone }) }}</span>
+            </div>
+            <el-table :data="archiveBatches" stripe class="archive-table">
+              <el-table-column :label="t('systemSettings.archiveScope')" min-width="150">
+                <template #default="{ row }">{{ row.tenant_user }}/{{ row.app }}</template>
+              </el-table-column>
+              <el-table-column :label="t('systemSettings.archiveRange')" min-width="220">
+                <template #default="{ row }">{{ formatArchiveTime(row.range_started_at) }} — {{ formatArchiveTime(row.range_ended_at) }}</template>
+              </el-table-column>
+              <el-table-column prop="record_count" :label="t('systemSettings.archiveRecords')" width="110" />
+              <el-table-column :label="t('systemSettings.archiveSize')" width="110">
+                <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
+              </el-table-column>
+              <el-table-column :label="t('systemSettings.archiveStatus')" width="110">
+                <template #default="{ row }"><el-tag :type="archiveStatusType(row.status)" size="small">{{ archiveStatusLabel(row.status) }}</el-tag></template>
+              </el-table-column>
+              <el-table-column :label="t('systemSettings.archiveSummary')" min-width="240">
+                <template #default="{ row }">{{ archiveResourceSummary(row) }}</template>
+              </el-table-column>
+              <el-table-column :label="t('systemSettings.archiveEvidence')" min-width="260">
+                <template #default="{ row }">
+                  <div class="archive-evidence"><code>{{ row.object_ref || '-' }}</code><code v-if="row.sha256">SHA256 {{ row.sha256 }}</code></div>
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-empty v-if="!archiveBatches.length && !archivesLoading" :description="t('systemSettings.noArchives')" />
+            <el-pagination
+              v-if="archiveTotal > archivePageSize"
+              v-model:current-page="archivePage"
+              :page-size="archivePageSize"
+              :total="archiveTotal"
+              layout="prev, pager, next"
+              @current-change="loadArchives"
+            />
+          </div>
+
           <div v-else-if="activeTab === 'appearance'" class="section-pane">
             <div class="preference-grid">
               <button
@@ -302,16 +342,18 @@ import SystemUserManagementPage from '@/architecture/presentation/features/syste
 import {
   getSystemSettings,
   listAuthLoginProviders,
+  listLogArchiveBatches,
   updateSystemSettings,
   updateAuthLoginProviderConfig,
   updateAuthLoginProviderEnabled,
   testSystemEmail,
   type AuthLoginProviderField,
   type AuthLoginProviderInfo,
+  type LogArchiveBatch,
   type SystemSettings
 } from '@/architecture/presentation/context/api/system-settings'
 
-type SettingsTab = 'email' | 'login' | 'connectors' | 'openapi' | 'users' | 'appearance' | 'language'
+type SettingsTab = 'email' | 'login' | 'connectors' | 'openapi' | 'users' | 'backups' | 'appearance' | 'language'
 
 interface SettingsSection {
   key: SettingsTab
@@ -328,6 +370,14 @@ const activeTab = ref<SettingsTab>(defaultSettingsTab)
 const connectorPanelKey = ref(0)
 const openapiPanelKey = ref(0)
 const usersPanelKey = ref(0)
+const archivesLoading = ref(false)
+const archiveBatches = ref<LogArchiveBatch[]>([])
+const archivePage = ref(1)
+const archivePageSize = 20
+const archiveTotal = ref(0)
+const archiveRetentionDays = ref(90)
+const archiveCronExpr = ref('20 3 * * *')
+const archiveTimezone = ref('Asia/Shanghai')
 const providersLoading = ref(false)
 const authProviders = ref<AuthLoginProviderInfo[]>([])
 const providerConfigs = reactive<Record<string, Record<string, string>>>({})
@@ -343,6 +393,7 @@ const allSettingsSections = computed<SettingsSection[]>(() => [
   { key: 'email', title: t('systemSettings.sections.emailTitle'), desc: t('systemSettings.sections.emailDesc') },
   { key: 'login', title: t('systemSettings.sections.loginTitle'), desc: t('systemSettings.sections.loginDesc') },
   { key: 'users', title: t('systemSettings.sections.usersTitle'), desc: t('systemSettings.sections.usersDesc') },
+  { key: 'backups', title: t('systemSettings.sections.backupsTitle'), desc: t('systemSettings.sections.backupsDesc') },
   { key: 'openapi', title: t('systemSettings.sections.openapiTitle'), desc: t('systemSettings.sections.openapiDesc') },
   { key: 'connectors', title: t('systemSettings.sections.connectorsTitle'), desc: t('systemSettings.sections.connectorsDesc') },
   { key: 'appearance', title: t('systemSettings.sections.appearanceTitle'), desc: t('systemSettings.sections.appearanceDesc') },
@@ -364,6 +415,7 @@ const settingsDocSlugMap: Record<SettingsTab, KageosDocSlug> = {
   connectors: 'connectors',
   openapi: 'api',
   users: 'runtime',
+  backups: 'runtime',
   appearance: 'docs',
   language: 'docs',
 }
@@ -389,7 +441,7 @@ const form = reactive<SystemSettings>({
     password: '',
     password_set: false,
     from: '',
-    from_name: 'Kageos',
+    from_name: 'kageos',
   },
 })
 
@@ -463,6 +515,10 @@ async function refreshActiveTab() {
     usersPanelKey.value += 1
     return
   }
+  if (activeTab.value === 'backups') {
+    await loadArchives()
+    return
+  }
   if (activeTab.value === 'appearance' || activeTab.value === 'language') {
     return
   }
@@ -473,6 +529,53 @@ function handleTabChange(tabName: string | number) {
   if (tabName === 'login' && !authProviders.value.length) {
     loadAuthProviders()
   }
+  if (tabName === 'backups' && !archiveBatches.value.length) {
+    loadArchives()
+  }
+}
+
+async function loadArchives() {
+  archivesLoading.value = true
+  try {
+    const resp = await listLogArchiveBatches(archivePage.value, archivePageSize)
+    archiveBatches.value = resp.list || []
+    archiveTotal.value = resp.total || 0
+    archiveRetentionDays.value = resp.retention_days || 90
+    archiveCronExpr.value = resp.cron_expr || '20 3 * * *'
+    archiveTimezone.value = resp.timezone || 'Asia/Shanghai'
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.loadArchivesFailed'))
+  } finally {
+    archivesLoading.value = false
+  }
+}
+
+function formatArchiveTime(value?: string) {
+  if (!value) return '-'
+  const date = new Date(value.replace(' ', 'T'))
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
+function formatFileSize(size: number) {
+  if (!size) return '-'
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
+function archiveStatusType(status: string) {
+  if (status === 'completed') return 'success'
+  if (status === 'failed') return 'danger'
+  return 'warning'
+}
+
+function archiveStatusLabel(status: string) {
+  return t(`systemSettings.archiveStatuses.${status}`)
+}
+
+function archiveResourceSummary(batch: LogArchiveBatch) {
+  const paths = batch.summary_json?.top_resource_paths || []
+  if (!paths.length) return '-'
+  return paths.slice(0, 3).map((item) => `${item.resource_path || '/'} (${item.count})`).join('；')
 }
 
 function isSettingsTab(value: unknown): value is SettingsTab {
@@ -723,14 +826,12 @@ onMounted(() => {
 <style scoped>
 .system-settings-page {
   min-height: 100vh;
-  padding: 32px 40px;
+  padding: 32px clamp(20px, 2.5vw, 48px);
   background: var(--bg-primary);
 }
 
 .settings-card {
   width: 100%;
-  max-width: 1440px;
-  margin: 0 auto;
   border-radius: var(--border-radius-xl);
   border: 1px solid var(--border-light);
   box-shadow: var(--app-shell-panel-shadow-soft);
@@ -862,6 +963,26 @@ onMounted(() => {
 
 .settings-form {
   max-width: 760px;
+}
+
+.archive-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin: 16px 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.archive-table {
+  margin-bottom: 16px;
+}
+
+.archive-evidence {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .test-row {

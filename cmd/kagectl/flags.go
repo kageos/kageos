@@ -511,7 +511,7 @@ func parseInitDevFlags(args []string) (initDevOptions, error) {
 }
 
 func printUsage() {
-	fmt.Println(`kagectl manages Kageos lifecycle.
+	fmt.Println(`kagectl manages kageos lifecycle.
 
 Usage:
   kagectl init [--force] [--base-url URL] [--tls-mode auto|http|https|redirect|external] [--timezone TZ] [--http-port PORT] [--https-port PORT] [--mysql-mode bundled|external] [--registration-mode admin_only|email_code|debug_code] [--smtp-mode smtp|log]
