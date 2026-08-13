@@ -134,6 +134,34 @@ func TestLLMGetDoesNotExposeAPIKey(t *testing.T) {
 	}
 }
 
+func TestLLMGetDefaultReturnsNullWhenNotConfigured(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	router.GET("/llm/get_default", NewLLM(newLLMHandlerTestService(t)).GetDefault)
+
+	req := httptest.NewRequest(http.MethodGet, "/llm/get_default", nil)
+	req.Header.Set(contextx.RequestUserHeader, "alice")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+
+	var body struct {
+		Code int             `json:"code"`
+		Data json.RawMessage `json:"data"`
+		Msg  string          `json:"msg"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v; body = %s", err, w.Body.String())
+	}
+	if body.Code != 0 || string(body.Data) != "null" {
+		t.Fatalf("response = code %d data %s msg %q, want successful null data", body.Code, body.Data, body.Msg)
+	}
+}
+
 func TestLLMInfoInfersResponsesProtocolFromEndpoint(t *testing.T) {
 	info := llmInfoFromConfig(&model.LLMConfig{
 		Name:         "Responses",

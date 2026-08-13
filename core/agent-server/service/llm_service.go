@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -15,6 +16,8 @@ import (
 	"github.com/kageos/kageos/pkg/secretvault"
 	"gorm.io/gorm"
 )
+
+var ErrDefaultLLMNotConfigured = errors.New("未设置默认LLM配置")
 
 func normalizeJSONText(label, value string) (*string, error) {
 	value = strings.TrimSpace(value)
@@ -170,7 +173,7 @@ func (s *LLMService) GetDefaultLLMConfig(ctx context.Context) (*model.LLMConfig,
 	cfg, err := s.repo.GetDefault()
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("未设置默认LLM配置")
+			return nil, ErrDefaultLLMNotConfigured
 		}
 		return nil, fmt.Errorf("获取默认LLM配置失败: %w", err)
 	}
