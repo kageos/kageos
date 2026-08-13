@@ -3,6 +3,7 @@ import { useAuthStore } from '@/architecture/presentation/context/appStoresConte
 import { featureFlags } from '@/architecture/shared/config/features'
 import { setAppRouter } from '@/architecture/shared/routing/navigation'
 import { onLocaleChanged, translate } from '@/architecture/shared/i18n'
+import { createBrowserChunkLoadRecovery } from './chunkLoadRecovery'
 
 function updateDocumentTitle(titleKey: unknown, path: string) {
   if (typeof titleKey !== 'string' || path.startsWith('/workspace')) {
@@ -248,6 +249,19 @@ const router = createRouter({
       }
     }
   ],
+})
+
+const chunkLoadRecovery = createBrowserChunkLoadRecovery()
+
+router.onError((error, to) => {
+  const target = to?.fullPath || `${window.location.pathname}${window.location.search}${window.location.hash}`
+  chunkLoadRecovery.recover(error, target)
+})
+
+router.afterEach((_to, _from, failure) => {
+  if (!failure) {
+    chunkLoadRecovery.clear()
+  }
 })
 
 setAppRouter(router)

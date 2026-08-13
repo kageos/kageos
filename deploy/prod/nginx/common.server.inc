@@ -10,6 +10,10 @@ location /assets/ {
     add_header Cache-Control "public, immutable";
 }
 
+location = /index.html {
+    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+}
+
 location /workspace/api/ {
     proxy_pass http://127.0.0.1:9090;
     proxy_http_version 1.1;
