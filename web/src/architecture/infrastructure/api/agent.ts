@@ -233,7 +233,7 @@ export function getLLM(params: LLMGetReq) {
  * 获取默认LLM配置
  */
 export function getDefaultLLM() {
-  return get<LLMGetDefaultResp>('/agent/api/v1/llm/get_default')
+  return get<LLMGetDefaultResp | null>('/agent/api/v1/llm/get_default')
 }
 
 /**

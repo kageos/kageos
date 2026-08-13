@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"errors"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -224,6 +225,10 @@ func (h *LLM) GetDefault(c *gin.Context) {
 	ctx := contextx.ToContext(c)
 	cfg, err := h.service.GetViewableDefaultLLMConfig(ctx)
 	if err != nil {
+		if errors.Is(err, service.ErrDefaultLLMNotConfigured) {
+			response.OkWithData(c, nil)
+			return
+		}
 		response.FailWithMessage(c, err.Error())
 		return
 	}

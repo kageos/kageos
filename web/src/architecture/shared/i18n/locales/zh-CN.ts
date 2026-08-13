@@ -585,7 +585,7 @@ export default {
     adminPlaceholder: '多个用户名用英文逗号分隔；留空默认当前用户',
     setAsDefault: '设为默认',
     extraConfig: '额外配置',
-    extraConfigPlaceholder: '请输入 JSON，例如 {"reasoning_effort":"medium","verbosity":"low","temperature":0.2}',
+    extraConfigPlaceholder: `请输入 JSON，例如 {'{"reasoning_effort":"medium","verbosity":"low","temperature":0.2}'}`,
     headers: '请求头',
     headersPlaceholder: '请输入 JSON，例如 OpenAI-Organization=org_xxx',
     capabilities: '能力声明',

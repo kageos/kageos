@@ -585,7 +585,7 @@ export default {
     adminPlaceholder: 'Separate usernames with commas. Leave blank to use the current user.',
     setAsDefault: 'Set as default',
     extraConfig: 'Extra config',
-    extraConfigPlaceholder: 'Enter JSON, for example {"reasoning_effort":"medium","verbosity":"low","temperature":0.2}',
+    extraConfigPlaceholder: `Enter JSON, for example {'{"reasoning_effort":"medium","verbosity":"low","temperature":0.2}'}`,
     headers: 'Headers',
     headersPlaceholder: 'Enter JSON, for example OpenAI-Organization=org_xxx',
     capabilities: 'Capabilities',
