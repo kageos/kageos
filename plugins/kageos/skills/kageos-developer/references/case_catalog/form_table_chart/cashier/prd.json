@@ -1,0 +1,447 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "会员收银系统",
+    "code": "cashier",
+    "summary": "管理商品、会员、收银支付记录，并统计销售趋势、支付状态和分类销售。"
+  },
+  "tables": [
+    {
+      "name": "商品",
+      "title": "商品管理",
+      "desc": "维护门店商品资料和库存。",
+      "fields": [
+        {
+          "name": "商品名称",
+          "widget": "input",
+          "required": true,
+          "desc": "商品显示名称。"
+        },
+        {
+          "name": "商品分类",
+          "widget": "select",
+          "required": true,
+          "desc": "例如饮料、零食、日用品、其他。"
+        },
+        {
+          "name": "单价",
+          "widget": "float",
+          "required": true,
+          "desc": "商品销售单价，单位元。"
+        },
+        {
+          "name": "库存数量",
+          "widget": "integer",
+          "required": true,
+          "desc": "当前库存数量，必须为非负整数。"
+        },
+        {
+          "name": "上架状态",
+          "widget": "select",
+          "required": true,
+          "desc": "有上架、下架两个选项，默认上架。"
+        }
+      ],
+      "search_fields": [
+        {
+          "name": "商品名称",
+          "widget": "input",
+          "required": false,
+          "desc": "按商品名称模糊搜索。"
+        },
+        {
+          "name": "商品分类",
+          "widget": "select",
+          "required": false,
+          "desc": "按商品分类筛选。"
+        },
+        {
+          "name": "上架状态",
+          "widget": "select",
+          "required": false,
+          "desc": "按上架或下架筛选。"
+        }
+      ],
+      "handlers": [
+        "OnTableAddRow",
+        "OnTableUpdateRow",
+        "OnTableDeleteRow"
+      ],
+      "examples": [
+        {
+          "商品名称": "可口可乐",
+          "商品分类": "饮料",
+          "单价": 3.5,
+          "库存数量": 120,
+          "上架状态": "上架"
+        }
+      ]
+    },
+    {
+      "name": "会员",
+      "title": "会员管理",
+      "desc": "维护会员卡、余额和折扣信息。",
+      "fields": [
+        {
+          "name": "会员卡号",
+          "widget": "input",
+          "required": true,
+          "desc": "会员唯一卡号。"
+        },
+        {
+          "name": "会员姓名",
+          "widget": "input",
+          "required": true,
+          "desc": "会员真实姓名。"
+        },
+        {
+          "name": "手机号",
+          "widget": "input",
+          "required": true,
+          "desc": "会员联系电话。"
+        },
+        {
+          "name": "账户余额",
+          "widget": "float",
+          "required": true,
+          "desc": "会员账户余额，单位元。"
+        },
+        {
+          "name": "会员等级",
+          "widget": "select",
+          "required": true,
+          "desc": "有普通、银卡、金卡三个等级，等级影响折扣。"
+        },
+        {
+          "name": "状态",
+          "widget": "select",
+          "required": true,
+          "desc": "有正常、冻结两个状态，默认正常。"
+        }
+      ],
+      "search_fields": [
+        {
+          "name": "会员卡号",
+          "widget": "input",
+          "required": false,
+          "desc": "按会员卡号搜索。"
+        },
+        {
+          "name": "会员姓名",
+          "widget": "input",
+          "required": false,
+          "desc": "按会员姓名模糊搜索。"
+        },
+        {
+          "name": "状态",
+          "widget": "select",
+          "required": false,
+          "desc": "按正常或冻结筛选。"
+        }
+      ],
+      "handlers": [
+        "OnTableAddRow",
+        "OnTableUpdateRow",
+        "OnTableDeleteRow"
+      ],
+      "examples": [
+        {
+          "会员卡号": "M001",
+          "会员姓名": "张三",
+          "手机号": "13800000000",
+          "账户余额": 500,
+          "会员等级": "金卡",
+          "状态": "正常"
+        }
+      ]
+    },
+    {
+      "name": "支付记录",
+      "title": "支付记录",
+      "desc": "只读查看收银台产生的支付流水。",
+      "fields": [
+        {
+          "name": "订单号",
+          "widget": "input",
+          "required": true,
+          "desc": "系统生成的支付订单号。"
+        },
+        {
+          "name": "会员卡号",
+          "widget": "input",
+          "required": false,
+          "desc": "本次支付关联的会员卡号。"
+        },
+        {
+          "name": "会员姓名",
+          "widget": "input",
+          "required": false,
+          "desc": "本次支付关联的会员姓名。"
+        },
+        {
+          "name": "消费明细",
+          "widget": "text_area",
+          "required": true,
+          "desc": "商品名称、数量和单价组成的消费明细。"
+        },
+        {
+          "name": "商品总额",
+          "widget": "float",
+          "required": true,
+          "desc": "折扣前商品金额合计。"
+        },
+        {
+          "name": "折扣金额",
+          "widget": "float",
+          "required": true,
+          "desc": "会员折扣产生的优惠金额。"
+        },
+        {
+          "name": "实付金额",
+          "widget": "float",
+          "required": true,
+          "desc": "实际支付金额。"
+        },
+        {
+          "name": "支付状态",
+          "widget": "select",
+          "required": true,
+          "desc": "有支付成功、支付失败两个状态。"
+        },
+        {
+          "name": "支付时间",
+          "widget": "datetime",
+          "required": true,
+          "desc": "支付提交时间，由系统记录。"
+        }
+      ],
+      "search_fields": [
+        {
+          "name": "会员卡号",
+          "widget": "input",
+          "required": false,
+          "desc": "按会员卡号搜索支付记录。"
+        },
+        {
+          "name": "支付状态",
+          "widget": "select",
+          "required": false,
+          "desc": "按支付成功或支付失败筛选。"
+        },
+        {
+          "name": "支付开始时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "支付时间开始。"
+        },
+        {
+          "name": "支付结束时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "支付时间结束。"
+        }
+      ],
+      "handlers": [],
+      "examples": [
+        {
+          "订单号": "ORD202605090001",
+          "会员卡号": "M001",
+          "会员姓名": "张三",
+          "消费明细": "可口可乐×2，薯片×1",
+          "商品总额": 15,
+          "折扣金额": 1.5,
+          "实付金额": 13.5,
+          "支付状态": "支付成功",
+          "支付时间": "2026-05-09 11:30"
+        }
+      ]
+    }
+  ],
+  "forms": [
+    {
+      "name": "收银台",
+      "desc": "选择商品、数量和会员后完成收银支付，生成支付记录并扣减库存。",
+      "target_table": "支付记录",
+      "request_fields": [
+        {
+          "name": "商品清单",
+          "widget": "table",
+          "required": true,
+          "desc": "至少 1 行，每行选择商品并填写数量；商品从商品表中选择。"
+        },
+        {
+          "name": "会员卡号",
+          "widget": "select",
+          "required": false,
+          "desc": "选择正常状态会员；不选择时按非会员原价结算。"
+        },
+        {
+          "name": "支付方式",
+          "widget": "select",
+          "required": true,
+          "desc": "有现金、微信、支付宝、会员余额四个选项。"
+        }
+      ],
+      "response_fields": [
+        {
+          "name": "订单号",
+          "widget": "input",
+          "required": false,
+          "desc": "支付成功后返回系统生成订单号。"
+        },
+        {
+          "name": "支付结果",
+          "widget": "input",
+          "required": false,
+          "desc": "展示支付成功或失败原因。"
+        },
+        {
+          "name": "实付金额",
+          "widget": "float",
+          "required": false,
+          "desc": "本次订单实际支付金额。"
+        }
+      ],
+      "example": {
+        "request": {
+          "商品清单": "可口可乐×2，薯片×1",
+          "会员卡号": "M001",
+          "支付方式": "会员余额"
+        },
+        "response": {
+          "订单号": "ORD202605090001",
+          "支付结果": "支付成功",
+          "实付金额": 13.5
+        }
+      }
+    }
+  ],
+  "charts": [
+    {
+      "name": "销售趋势统计",
+      "desc": "按日期统计销售额和订单数。",
+      "source_table": "支付记录",
+      "chart_type": "line",
+      "dimension": "日期",
+      "metrics": [
+        "销售额",
+        "订单数"
+      ],
+      "filters": [
+        {
+          "name": "开始时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "统计开始时间。"
+        },
+        {
+          "name": "结束时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "统计结束时间。"
+        }
+      ],
+      "examples": [
+        {
+          "dimension": "2026-05-07",
+          "metrics": {
+            "销售额": 860.5,
+            "订单数": 28
+          }
+        },
+        {
+          "dimension": "2026-05-08",
+          "metrics": {
+            "销售额": 1024,
+            "订单数": 34
+          }
+        }
+      ]
+    },
+    {
+      "name": "支付状态分布",
+      "desc": "按支付状态展示成功和失败订单数量。",
+      "source_table": "支付记录",
+      "chart_type": "pie",
+      "dimension": "支付状态",
+      "metrics": [
+        "订单数"
+      ],
+      "filters": [
+        {
+          "name": "开始时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "统计开始时间。"
+        },
+        {
+          "name": "结束时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "统计结束时间。"
+        }
+      ],
+      "examples": [
+        {
+          "dimension": "支付成功",
+          "metrics": {
+            "订单数": 96
+          }
+        },
+        {
+          "dimension": "支付失败",
+          "metrics": {
+            "订单数": 4
+          }
+        }
+      ]
+    },
+    {
+      "name": "分类销售统计",
+      "desc": "按商品分类统计销售额和订单数。",
+      "source_table": "支付记录",
+      "chart_type": "bar",
+      "dimension": "商品分类",
+      "metrics": [
+        "销售额",
+        "订单数"
+      ],
+      "filters": [
+        {
+          "name": "开始时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "统计开始时间。"
+        },
+        {
+          "name": "结束时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "统计结束时间。"
+        }
+      ],
+      "examples": [
+        {
+          "dimension": "饮料",
+          "metrics": {
+            "销售额": 520,
+            "订单数": 80
+          }
+        },
+        {
+          "dimension": "零食",
+          "metrics": {
+            "销售额": 390,
+            "订单数": 45
+          }
+        }
+      ]
+    }
+  ],
+  "rules": [
+    "收银台提交成功后生成支付记录并扣减商品库存。",
+    "会员余额支付时需要校验余额是否充足。",
+    "支付记录只允许查询和筛选，不允许手工新增、编辑、删除。"
+  ]
+}

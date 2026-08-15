@@ -1,0 +1,152 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "工单管理",
+    "code": "ticket_management",
+    "summary": "管理工单提交、处理、状态流转和列表筛选。"
+  },
+  "tables": [
+    {
+      "name": "工单",
+      "title": "工单列表",
+      "desc": "管理工单记录，支持新增、编辑、删除和按条件筛选。",
+      "fields": [
+        {
+          "name": "工单标题",
+          "widget": "input",
+          "required": true,
+          "desc": "2-200 字，描述工单核心问题。"
+        },
+        {
+          "name": "问题描述",
+          "widget": "text_area",
+          "required": true,
+          "desc": "详细描述问题，建议不少于 10 字。"
+        },
+        {
+          "name": "优先级",
+          "widget": "select",
+          "required": true,
+          "desc": "有低、中、高三个选项，默认中。"
+        },
+        {
+          "name": "工单状态",
+          "widget": "select",
+          "required": true,
+          "desc": "有待处理、处理中、已完成、已关闭四个选项，默认待处理。"
+        },
+        {
+          "name": "问题分类",
+          "widget": "select",
+          "required": true,
+          "desc": "有民生、交通、医疗、就业、建议、其他六个选项。"
+        },
+        {
+          "name": "联系电话",
+          "widget": "input",
+          "required": true,
+          "desc": "提交人联系电话，通常为 11-20 位。"
+        },
+        {
+          "name": "工单来源",
+          "widget": "radio",
+          "required": true,
+          "desc": "有电话、邮件、在线、现场、其他五个来源，默认在线。"
+        },
+        {
+          "name": "处理人",
+          "widget": "user",
+          "required": false,
+          "desc": "负责处理该工单的人员。"
+        },
+        {
+          "name": "截止时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "期望完成处理的截止时间。"
+        },
+        {
+          "name": "备注",
+          "widget": "text_area",
+          "required": false,
+          "desc": "处理过程中的补充说明。"
+        }
+      ],
+      "search_fields": [
+        {
+          "name": "工单标题",
+          "widget": "input",
+          "required": false,
+          "desc": "按工单标题模糊搜索。"
+        },
+        {
+          "name": "工单状态",
+          "widget": "select",
+          "required": false,
+          "desc": "按待处理、处理中、已完成、已关闭筛选。"
+        },
+        {
+          "name": "优先级",
+          "widget": "select",
+          "required": false,
+          "desc": "按低、中、高筛选。"
+        },
+        {
+          "name": "问题分类",
+          "widget": "select",
+          "required": false,
+          "desc": "按民生、交通、医疗、就业、建议、其他筛选。"
+        },
+        {
+          "name": "处理人",
+          "widget": "user",
+          "required": false,
+          "desc": "按工单处理人筛选。"
+        },
+        {
+          "name": "创建人",
+          "widget": "user",
+          "required": false,
+          "desc": "按系统记录的创建人筛选。"
+        },
+        {
+          "name": "创建开始时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "按记录创建时间范围查询的开始时间。"
+        },
+        {
+          "name": "创建结束时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "按记录创建时间范围查询的结束时间。"
+        }
+      ],
+      "handlers": [
+        "OnTableAddRow",
+        "OnTableUpdateRow",
+        "OnTableDeleteRow"
+      ],
+      "examples": [
+        {
+          "工单标题": "打印机无法连接",
+          "问题描述": "办公室打印机无法连接网络。",
+          "优先级": "中",
+          "工单状态": "待处理",
+          "问题分类": "其他",
+          "联系电话": "13800000000",
+          "工单来源": "在线",
+          "处理人": "李工",
+          "截止时间": "2026-05-10 18:00",
+          "备注": "请优先检查网络。"
+        }
+      ]
+    }
+  ],
+  "rules": [
+    "新建工单默认状态为待处理。",
+    "处理中、已完成、已关闭用于描述工单处理进度。",
+    "工单表支持新增、编辑、删除和列表筛选。"
+  ]
+}

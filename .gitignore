@@ -45,6 +45,10 @@ plan/
 /note
 /test
 /plugins
+!/plugins/
+/plugins/*
+!/plugins/kageos/
+!/plugins/kageos/**
 .cursor/
 .claude/
 .ci/

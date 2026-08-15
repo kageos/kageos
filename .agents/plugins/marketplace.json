@@ -1,0 +1,20 @@
+{
+  "name": "kageos-dev",
+  "interface": {
+    "displayName": "Kageos Dev"
+  },
+  "plugins": [
+    {
+      "name": "kageos",
+      "source": {
+        "source": "local",
+        "path": "./plugins/kageos"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "DeveloperTools"
+    }
+  ]
+}

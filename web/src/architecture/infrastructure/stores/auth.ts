@@ -6,6 +6,7 @@ import { updateUser as updateUserApi, type UpdateUserReq } from '@/architecture/
 import type { UserInfo, LoginRequest } from '@/architecture/domain/types'
 import { translate } from '@/architecture/shared/i18n'
 import { getCurrentRoutePath, navigateTo } from '@/architecture/shared/routing/navigation'
+import { normalizeBuiltinUserAvatar } from '@/architecture/domain/utils/builtinUserAvatar'
 
 function normalizeOAuthRedirect(redirectAfter: string | undefined) {
   const fallback = '/workspace'
@@ -57,7 +58,12 @@ function getStoredUser(): UserInfo | null {
       && typeof (value as Partial<UserInfo>).username === 'string'
       && (value as Partial<UserInfo>).username!.trim() !== ''
     ) {
-      return value as UserInfo
+      const storedUser = value as UserInfo
+      const normalizedUser = normalizeBuiltinUserAvatar(storedUser)
+      if (normalizedUser !== storedUser) {
+        setStoredValue('user', JSON.stringify(normalizedUser))
+      }
+      return normalizedUser
     }
   } catch {
     // Remove corrupt data so subsequent app starts do not repeat the failure.
@@ -108,6 +114,7 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await loginApi(credentials)
 
       token.value = response.token
+      response.user = normalizeBuiltinUserAvatar(response.user)
       user.value = response.user
       if (response.refresh_token) {
         refreshToken.value = response.refresh_token
@@ -190,10 +197,10 @@ export const useAuthStore = defineStore('auth', () => {
       if (!token.value) return
 
       const userInfo = await getUserInfo()
-      user.value = userInfo
+      user.value = normalizeBuiltinUserAvatar(userInfo)
       // 保存用户信息到localStorage
-      setStoredValue('user', JSON.stringify(userInfo))
-      return userInfo
+      setStoredValue('user', JSON.stringify(user.value))
+      return user.value
     } catch (error) {
       console.error('Failed to fetch user info:', error)
       // 如果获取用户信息失败，可能是token过期，清理状态
@@ -258,6 +265,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function updateUser(data: UpdateUserReq) {
     try {
       const response = await updateUserApi(data)
+      response.user = normalizeBuiltinUserAvatar(response.user)
       user.value = response.user
       // 更新 localStorage
       setStoredValue('user', JSON.stringify(response.user))

@@ -14,6 +14,7 @@ import {
   type LoginMethodInfo
 } from '@/architecture/presentation/context/api/auth'
 import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
+import { BRAND_LOGO_192_URL } from '@/architecture/domain/utils/builtinUserAvatar'
 
 const router = useRouter()
 const route = useRoute()
@@ -237,7 +238,7 @@ onBeforeUnmount(clearWechatPolling)
         <div class="brand-logo-wrapper">
           <div class="logo-glow"></div>
           <div class="brand-logo">
-            <img alt="kageos" class="logo" src="@/architecture/presentation/assets/logo.svg" />
+            <img alt="kageos" class="logo" :src="BRAND_LOGO_192_URL" width="80" height="80" decoding="async" />
           </div>
         </div>
         <h1 class="brand-title">
@@ -1002,6 +1003,10 @@ onBeforeUnmount(clearWechatPolling)
 @media (max-width: 968px) {
   .login-container {
     flex-direction: column;
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .login-brand {
@@ -1034,7 +1039,11 @@ onBeforeUnmount(clearWechatPolling)
 
 @media (max-width: 640px) {
   .login-brand {
-    padding: 60px 20px 40px;
+    padding: 52px 20px 28px;
+  }
+
+  .brand-logo-wrapper {
+    margin-bottom: 16px;
   }
 
   .brand-title {
@@ -1043,15 +1052,15 @@ onBeforeUnmount(clearWechatPolling)
 
   .brand-subtitle {
     font-size: 14px;
+    margin-bottom: 0;
   }
 
-  .feature-item {
-    padding: 16px;
-    margin-bottom: 16px;
+  .brand-features {
+    display: none;
   }
 
   .login-form-section {
-    padding: 40px 24px;
+    padding: 24px 16px 32px;
   }
 
   .login-card {

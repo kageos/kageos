@@ -1,0 +1,47 @@
+# 常见坑
+
+- 把 `/<user>/<app>/<package>` 当成本地路径创建文件。
+- 在 kageos 主仓库根目录跑 `go test ./namespace/...`，导致 Go module 错误。
+- 新增 package 后忘记更新 `code/cmd/app/main.go`。
+- 只写 `packageContext` 变量，没有注册函数、默认文档或默认定时会话。
+- 给默认 runbook 发明 `AddRunbook`、`AddDoc`、`kageos_seed.go` 或 `_init_data.go`；统一使用 `kageos_manifest.go` + `packageContext.AddDocs(app.DocManifest{Code: "runbook.docs", ...})`。
+- 为 `docs/readme.docs` 创建 Go 子包、blank import 或第二个 `PackageContext`；同一业务 package 的子目录文档应由原 `packageContext.AddDocs(app.DocManifest{Code: "./docs/readme.docs", ...})` 声明。
+- 同时维护保存相同方案的 knowledge Table 和 docs，导致两份权威内容冲突；没有独立结构化生命周期时默认只用 docs。
+- 给默认 `AddAgentTask` 主动填写 `Policy`，或误以为 update 会覆盖已有任务；当前默认就是 `create_if_missing`，已有任务以平台运行态为准。
+- 函数路由没有 `.form`、`.table`、`.chart` 后缀，前端展示语义不清。
+- Table 查询没有分页，或没有返回 `response.Table`。
+- 写入表结构但没有加入 `CreateTables`，导致表未迁移。
+- Table template 省略 `AutoCrudTable`，导致 SDK 从 `CreateTables` 第一个表推断 schema，多表函数会展示错字段。
+- Table template 写 `Response: &[]Model{}`，误以为它会驱动列表 schema；Table 列 schema 看 `AutoCrudTable`，列表运行时响应看 `resp.Table(response.TableResult{...})`。
+- 把所有表封装进一个共享 `CreateTables` helper，每个函数都迁移无关表，也模糊了表归属。
+- 把事实表、结果表、流水表或审核记录表做成完整手工 CRUD；这类表通常由 Form/Agent/系统动作写入，只读查询即可。
+- 在 `OnTableDeleteRows` 里直接 `db.Delete`，导致 runtime 用户没有 DELETE 权限时报 `Error 1142 ... DELETE command denied`；正确做法是用 UPDATE 软删除，同时写 `deleted_at` 和 `deleted_by`。
+- 把本该是表格新增的能力做成 Form，例如 AI 写草稿另造 `ai_write_draft.form`，而不是让 AI 直接向草稿表 `OnTableAddRow` 写入。
+- 把本该是表格编辑的审核流转做成 Form，例如预览通过/退回另造 `review_preview.form`，而不是在预览表 `OnTableUpdateRow` 校验状态并同步草稿状态。
+- 把“生成预览”这种可由草稿新增或状态流转自动触发的产物生成做成人工 Form；如果预览只是当前草稿的 HTML/PDF/图片字段，应在草稿表 `OnTableAddRow/OnTableUpdateRow` 自动生成并落库。
+- 为当前草稿预览单独建表，导致用户要在“草稿”和“预览”之间来回切；除非确实需要多版本预览历史、独立审计或跨草稿聚合，否则预览应作为草稿状态和文件字段。
+- 看到外部动作就默认创建 Form；如果动作可以由主对象状态更新表达，且参数已在行内，例如合同节点从“提醒草稿已生成”改为“已提醒”后发送提醒，应优先放在 `OnTableUpdateRow`。
+- 在平台已有操作日志时再建一张重复审核记录表；除非业务需要独立报表或外部审计字段，否则不要重复存审计流水。
+- 用户选择了上游对象后，仍要求手填或选择下游 ID；应在后端根据上游 ID 查询补齐。
+- 为了修补手填 ID 问题到处加 `OnSelectFuzzy`，而没有重新设计主工作台和对象边界。
+- `OnSelectFuzzy` 只提交 ID，却没有用 `Label`、`DisplayInfo`、`Statistics` 展示业务名称，导致用户看到“公众号ID 1/任务ID 2”。
+- 列表和 Form 响应只返回外键 ID，没有通过 `Preload` 或二次查询补出 `gorm:"-"` 的 `AccountName`、`TopicTitle`、`DraftTitle` 等展示字段。
+- 列表需要关联展示字段时只返回外键 ID，或声明了关联字段却忘记 `json:"-" widget:"-"` / `Preload`；推荐保存逻辑 ID，用 `foreignKey + Preload` 读取关联对象，再填充 `gorm:"-"` 展示字段。SDK 的 app DB 连接已禁用迁移时创建数据库外键约束。
+- 用“提交查询 Form 返回 table”替代高频待办列表；人的日常入口应优先是可筛选的 Table/List。
+- 给 MVP 默认塞初始化、示例数据、今日清单、批量处理入口，导致目录显得像演示后台而不是生产工具；除非用户明确要，否则先删掉。
+- 列表直接使用前端传入的排序字段，导致虚拟展示字段或别名字段进入 `ORDER BY`，例如 `preview_id`、`account_name`、`topic_title`；应做排序白名单或字段映射。
+- 把给工作台操作员看的配置流程写在 Go 注释里；应写进 `BaseConfig.Desc` 或字段 widget 提示。
+- 把 `render_default` 当后端默认值，在 `ShouldBind` 后强行覆盖字段，导致用户提交的 `false` 被改掉。
+- 用户字段手填字符串，应该优先用 `type:user` 或 `type:users`。
+- 业务通知直接写表，应该用 `ctx.SendNotification`。
+- 把通知附件当成本地路径、二进制上传或飞书/钉钉/企业微信原生文件；`Files` 应传平台 `bucket/object_key` 引用，外部卡片只做附件摘要。
+- 本地 `go build` 后留下 `app` 二进制。
+- 改了已有目录的 `Name/Desc`，误以为平台一定会覆盖旧目录元数据。
+- 用 write-only 更新后期待平台目录自动补齐。
+- 写了 `FormTemplate.Schedules` 后没有 build/update，误以为平台已经创建或更新默认定时任务。
+- 把当前机器的 `namespace/...` 目录写进 skill 参考资料，导致换机器后参考失效。
+- `namespace/` 运行态目录被仓库忽略时，只看 `git diff` 判断“没有改动”；应直接检查目标文件。
+- 主动编写外部服务端点声明；这类能力边界未确认前只参考已有成熟实现。
+- 用户只需要通用文件、PDF、图片、音视频、HTML、脚本或消息能力时，直接在业务目录重造工具，而没有先考虑安装自带的 `/system/tools`。
+- 把 files 字段的 bucket/object_key 引用当作本地路径传给 Python；业务 app 要先 `DownloadFiles`，用完 `RemoveFiles`。
+- 在 Go 与 Python 之间传相对路径，或忘记 `defer executor.Close()`；Go/Python cwd 可能不同，输出文件要用绝对路径和受控 output_dir。

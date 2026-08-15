@@ -27,6 +27,7 @@ func TestInitSystemUserWithPasswordUpdatesExistingMismatchedPassword(t *testing.
 		Status:       "active",
 		RegisterType: "system",
 		Type:         hrmodel.UserTypeNormal,
+		Avatar:       "/legacy-avatar.svg",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -41,6 +42,9 @@ func TestInitSystemUserWithPasswordUpdatesExistingMismatchedPassword(t *testing.
 	}
 	if got.Type != hrmodel.UserTypeSystem {
 		t.Fatalf("system user type = %v, want %v", got.Type, hrmodel.UserTypeSystem)
+	}
+	if got.Avatar != DefaultBuiltinUserAvatar {
+		t.Fatalf("system user avatar = %q, want %q", got.Avatar, DefaultBuiltinUserAvatar)
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(got.PasswordHash), []byte("new-password")); err != nil {
 		t.Fatalf("system password was not updated: %v", err)
@@ -64,6 +68,7 @@ func TestInitTestUserWithPasswordUpdatesExistingMismatchedPassword(t *testing.T)
 		RegisterType:       "system",
 		Type:               hrmodel.UserTypeNormal,
 		DepartmentFullPath: "/old",
+		Avatar:             "/legacy-avatar.svg",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +83,9 @@ func TestInitTestUserWithPasswordUpdatesExistingMismatchedPassword(t *testing.T)
 	}
 	if got.DepartmentFullPath != TestUserDepartmentPath {
 		t.Fatalf("test_user department = %q, want %q", got.DepartmentFullPath, TestUserDepartmentPath)
+	}
+	if got.Avatar != DefaultBuiltinUserAvatar {
+		t.Fatalf("test_user avatar = %q, want %q", got.Avatar, DefaultBuiltinUserAvatar)
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(got.PasswordHash), []byte("new-password")); err != nil {
 		t.Fatalf("test_user password was not updated: %v", err)

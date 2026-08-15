@@ -1,0 +1,85 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "PDF 工具",
+    "code": "pdf_tool",
+    "summary": "上传 PDF 文件后提取文本、合并文件或转换为图片附件。"
+  },
+  "forms": [
+    {
+      "name": "PDF文本提取",
+      "desc": "上传 PDF 后提取文本内容并返回处理统计。",
+      "request_fields": [
+        {
+          "name": "上传PDF文件",
+          "widget": "files",
+          "required": true,
+          "desc": "上传一个或多个 PDF 文件。"
+        }
+      ],
+      "response_fields": [
+        {
+          "name": "提取的文本",
+          "widget": "text_area",
+          "required": false,
+          "desc": "展示提取出的 PDF 文本。"
+        },
+        {
+          "name": "提取统计",
+          "widget": "text_area",
+          "required": false,
+          "desc": "展示页数、字符数、成功数量和失败数量。"
+        }
+      ],
+      "example": {
+        "request": {
+          "上传PDF文件": "合同.pdf"
+        },
+        "response": {
+          "提取的文本": "合同正文内容...",
+          "提取统计": "成功处理 1 个文件，共 12 页。"
+        }
+      }
+    },
+    {
+      "name": "PDF合并",
+      "desc": "上传多个 PDF 文件后合并为一个 PDF 附件。",
+      "request_fields": [
+        {
+          "name": "上传PDF文件",
+          "widget": "files",
+          "required": true,
+          "desc": "至少上传 2 个 PDF 文件，按上传顺序合并。"
+        }
+      ],
+      "response_fields": [
+        {
+          "name": "合并后的PDF文件",
+          "widget": "files",
+          "required": false,
+          "desc": "返回合并后的 PDF 附件。"
+        },
+        {
+          "name": "处理结果",
+          "widget": "text_area",
+          "required": false,
+          "desc": "展示合并成功或失败原因。"
+        }
+      ],
+      "example": {
+        "request": {
+          "上传PDF文件": "合同1.pdf,合同2.pdf"
+        },
+        "response": {
+          "合并后的PDF文件": "merged.pdf",
+          "处理结果": "成功合并 2 个文件。"
+        }
+      }
+    }
+  ],
+  "rules": [
+    "PDF 工具属于纯文件处理，不写 target_table。",
+    "返回附件必须来自运行时输出目录。"
+  ]
+}

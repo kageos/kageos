@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/kageos/kageos/core/app-server/service"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/ginx/response"
 	"github.com/kageos/kageos/pkg/logger"
@@ -59,7 +61,7 @@ func (a *PublicShareAPI) Create(c *gin.Context) {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
-	resp.PublicURL = publicShareURL(c, resp.ShareID)
+	resp.PublicURL = publicShareURL(resp.ShareID)
 	response.OkWithData(c, resp)
 }
 
@@ -89,7 +91,7 @@ func (a *PublicShareAPI) List(c *gin.Context) {
 		return
 	}
 	for _, item := range resp.Items {
-		item.PublicURL = publicShareURL(c, item.ShareID)
+		item.PublicURL = publicShareURL(item.ShareID)
 	}
 	response.OkWithData(c, resp)
 }
@@ -549,17 +551,14 @@ func decodePublicSharePresetValues(raw json.RawMessage) (map[string]json.RawMess
 	return preset, nil
 }
 
-func publicShareURL(c *gin.Context, shareID string) string {
-	scheme := c.GetHeader("X-Forwarded-Proto")
-	if scheme == "" {
-		scheme = "http"
-		if c.Request.TLS != nil {
-			scheme = "https"
-		}
+func publicShareURL(shareID string) string {
+	return buildPublicShareURL(config.GetPublicSiteBaseURL(), shareID)
+}
+
+func buildPublicShareURL(baseURL, shareID string) string {
+	publicURL, err := url.JoinPath(strings.TrimSpace(baseURL), "s", strings.TrimSpace(shareID))
+	if err != nil {
+		return ""
 	}
-	host := c.GetHeader("X-Forwarded-Host")
-	if host == "" {
-		host = c.Request.Host
-	}
-	return fmt.Sprintf("%s://%s/public/s/%s", scheme, host, shareID)
+	return publicURL
 }

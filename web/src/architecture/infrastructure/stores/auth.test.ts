@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore } from './auth'
+import { DEFAULT_BUILTIN_USER_AVATAR } from '@/architecture/domain/utils/builtinUserAvatar'
 
 describe('auth store persistence', () => {
   beforeEach(() => {
@@ -26,5 +27,18 @@ describe('auth store persistence', () => {
 
     expect(store.user).toBeNull()
     expect(localStorage.getItem('user')).toBeNull()
+  })
+
+  it('migrates a persisted system avatar immediately', () => {
+    localStorage.setItem('user', JSON.stringify({
+      id: 1,
+      username: 'system',
+      avatar: '/kageos/system/avatar/legacy.png',
+    }))
+
+    const store = useAuthStore()
+
+    expect(store.user?.avatar).toBe(DEFAULT_BUILTIN_USER_AVATAR)
+    expect(JSON.parse(localStorage.getItem('user') || '{}').avatar).toBe(DEFAULT_BUILTIN_USER_AVATAR)
   })
 })

@@ -19,6 +19,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getUsersByUsernames } from '@/architecture/infrastructure/api/user'
 import type { UserInfo } from '@/architecture/domain/types'
+import { normalizeBuiltinUserAvatar } from '@/architecture/domain/utils/builtinUserAvatar'
 import { USER_INFO_CACHE_CONFIG } from './config'
 import { 
   type CacheItem, 
@@ -66,7 +67,14 @@ export const useUserInfoStore = defineStore('userInfo', () => {
         if (data?.userInfoCache) {
           // 将存储的对象转换为 Map
           const map = objectToMap<CacheItem>(data.userInfoCache)
+          map.forEach((cacheItem, username) => {
+            map.set(username, {
+              ...cacheItem,
+              user: normalizeBuiltinUserAvatar(cacheItem.user),
+            })
+          })
           userInfoCache.value = map
+          saveCacheToStorage()
         }
       }
     } catch (error) {
@@ -315,7 +323,7 @@ export const useUserInfoStore = defineStore('userInfo', () => {
    */
   async function fetchAndUpdateUsers(usernames: string[]): Promise<UserInfo[]> {
     const response = await getUsersByUsernames(usernames)
-    const loadedUsers = response.users || []
+    const loadedUsers = (response.users || []).map(normalizeBuiltinUserAvatar)
     
     const now = Date.now()
     

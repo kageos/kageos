@@ -62,7 +62,7 @@ const router = createRouter({
       }
     },
     {
-      path: '/public/s/:shareId',
+      path: '/s/:shareId',
       name: 'public-share',
       component: () => import('@/architecture/presentation/features/public/pages/PublicSharePage.vue'),
       meta: {

@@ -1,0 +1,21 @@
+{
+  "schema_version": "kageos.plugin-compatibility.v1",
+  "plugin_version": "0.2.2",
+  "language": "zh-CN",
+  "hosts": {
+    "codex": {
+      "status": "supported",
+      "installation": "personal_or_repo_marketplace"
+    },
+    "claude_code": {
+      "status": "supported",
+      "minimum_tested_version": "2.1.139",
+      "installation": "plugin_directory_or_marketplace"
+    }
+  },
+  "kageos": {
+    "bundle_schema": "capability.bundle.v1",
+    "operator_report_schema": "kageos.operator-report.v1",
+    "delivery_run_schema": "kageos.delivery-run.v1"
+  }
+}

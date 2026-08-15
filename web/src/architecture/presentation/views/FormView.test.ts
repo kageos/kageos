@@ -1,9 +1,10 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
-import { ref } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const formGatewaySubmitMock = vi.hoisted(() => vi.fn(async () => ({})))
+const resetFormRuntimeStateMock = vi.hoisted(() => vi.fn())
+const copyTextToClipboardMock = vi.hoisted(() => vi.fn(async () => undefined))
 
 vi.mock('vue-router', () => ({
   createRouter: () => ({
@@ -61,17 +62,6 @@ vi.mock('../../infrastructure/factories', () => ({
   }
 }))
 
-vi.mock('../composables/useFormDebug', () => ({
-  useFormDebug: () => ({
-    showDebugDialog: ref(false),
-    debugActiveTab: ref('request'),
-    debugRequestData: ref(''),
-    debugResponseData: ref(''),
-    debugRawData: ref(''),
-    copyToClipboard: vi.fn()
-  })
-}))
-
 vi.mock('../composables/useFunctionParamInitialization', () => ({
   useFunctionParamInitialization: () => ({
     initialize: vi.fn(async () => undefined)
@@ -86,8 +76,13 @@ vi.mock('../composables/useFormParamURLSync', () => ({
 
 vi.mock('../composables/useFormViewLifecycle', () => ({
   useFormViewLifecycle: () => ({
-    resetFormRuntimeState: vi.fn()
+    resetFormRuntimeState: resetFormRuntimeStateMock
   })
+}))
+
+vi.mock('@/architecture/presentation/components/utils/workspaceInvocationSnippet', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/architecture/presentation/components/utils/workspaceInvocationSnippet')>(),
+  copyTextToClipboard: copyTextToClipboardMock
 }))
 
 import FormView from './FormView.vue'
@@ -115,6 +110,7 @@ function createFormDetail() {
   return {
     id: 1,
     router: '/demo/form',
+    full_code_path: '/alice/demo/form',
     template_type: 'form',
     method: 'POST',
     schema: {
@@ -129,6 +125,12 @@ function createFormDetail() {
 }
 
 describe('FormView', () => {
+  beforeEach(() => {
+    formGatewaySubmitMock.mockClear()
+    resetFormRuntimeStateMock.mockClear()
+    copyTextToClipboardMock.mockClear()
+  })
+
   it('renders slider fields in the request form', () => {
     const wrapper = mount(FormView, {
       props: {
@@ -157,7 +159,7 @@ describe('FormView', () => {
     expect(wrapper.find('.el-slider').exists()).toBe(true)
   })
 
-  it('shows only the primary submit button', () => {
+  it('keeps secondary actions in one discoverable menu and removes debug', () => {
     const wrapper = mount(FormView, {
       props: {
         functionDetail: createFormDetail()
@@ -169,6 +171,9 @@ describe('FormView', () => {
           ElForm: { template: '<form><slot /></form>' },
           ElFormItem: { template: '<div class="form-item"><slot /></div>' },
           ElButton: { template: '<button><slot /></button>' },
+          ElDropdown: { template: '<div class="dropdown"><slot /><slot name="dropdown" /></div>' },
+          ElDropdownMenu: { template: '<div class="dropdown-menu"><slot /></div>' },
+          ElDropdownItem: { template: '<button class="dropdown-item"><slot /></button>' },
           ElDialog: { template: '<div><slot /></div>' },
           ElTabs: { template: '<div><slot /></div>' },
           ElTabPane: { template: '<div><slot /></div>' },
@@ -186,6 +191,66 @@ describe('FormView', () => {
 
     expect(submitButtons).toHaveLength(1)
     expect(submitButtons.at(0)?.text()).toBe('提交')
+    expect(wrapper.find('[data-testid="form-more-actions"]').text()).toContain('更多操作')
+    expect(wrapper.text()).toContain('创建公开链接')
+    expect(wrapper.text()).toContain('定时执行')
+    expect(wrapper.text()).toContain('复制给工作台')
+    expect(wrapper.text()).toContain('重置')
+    expect(wrapper.text()).not.toContain('Debug')
+  })
+
+  it('routes every more-menu command to its intended action', async () => {
+    const wrapper = mount(FormView, {
+      props: {
+        functionDetail: createFormDetail()
+      },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          ElForm: { template: '<form><slot /></form>' },
+          ElFormItem: { template: '<div class="form-item"><slot /></div>' },
+          ElButton: { template: '<button><slot /></button>' },
+          ElDropdown: {
+            emits: ['command'],
+            template: `<div class="dropdown">
+              <slot />
+              <slot name="dropdown" />
+              <button data-testid="command-public-share" @click="$emit('command', 'public-share')" />
+              <button data-testid="command-schedule" @click="$emit('command', 'schedule')" />
+              <button data-testid="command-copy-invocation" @click="$emit('command', 'copy-invocation')" />
+              <button data-testid="command-reset" @click="$emit('command', 'reset')" />
+            </div>`
+          },
+          ElDropdownMenu: { template: '<div><slot /></div>' },
+          ElDropdownItem: { template: '<div><slot /></div>' },
+          ElDialog: { template: '<div><slot /></div>' },
+          ElEmpty: { template: '<div />' },
+          ElTag: { template: '<span><slot /></span>' },
+          ElIcon: { template: '<i><slot /></i>' },
+          ScheduledTaskDialog: {
+            props: ['modelValue'],
+            template: '<div v-if="modelValue" data-testid="scheduled-task-dialog" />'
+          },
+          PublicShareCreateDialog: {
+            props: ['modelValue'],
+            template: '<div v-if="modelValue" data-testid="public-share-dialog" />'
+          }
+        }
+      }
+    })
+
+    await wrapper.find('[data-testid="command-public-share"]').trigger('click')
+    expect(wrapper.find('[data-testid="public-share-dialog"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="command-schedule"]').trigger('click')
+    expect(wrapper.find('[data-testid="scheduled-task-dialog"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="command-copy-invocation"]').trigger('click')
+    await flushPromises()
+    expect(copyTextToClipboardMock).toHaveBeenCalledTimes(1)
+
+    await wrapper.find('[data-testid="command-reset"]').trigger('click')
+    expect(resetFormRuntimeStateMock).toHaveBeenCalledTimes(1)
   })
 
   it('shows compact inline error feedback when submit returns a business error', async () => {

@@ -201,39 +201,17 @@
           <img v-else-if="qrDataUrl" class="qr-image" :src="qrDataUrl" :alt="t('publicSharePanel.qrAlt')" />
           <el-empty v-else :description="t('publicSharePanel.qrGenerateFailed')" :image-size="80" />
         </div>
-        <div class="qr-storage">
-          <el-tag v-if="qrUploading" size="small" type="info" effect="light">
-            {{ t('publicSharePanel.qrUploading', { percent: qrUploadPercent }) }}
-          </el-tag>
-          <el-tag v-else-if="qrStorageUrl" size="small" type="success" effect="light">
-            {{ t('publicSharePanel.qrUploaded') }}
-          </el-tag>
-          <el-tag v-else-if="qrUploadError" size="small" type="warning" effect="light">
-            {{ qrUploadError }}
-          </el-tag>
-        </div>
         <div class="qr-link-group">
           <div class="qr-link-label">{{ t('publicSharePanel.scanLink') }}</div>
           <button class="qr-link" type="button" @click="copyLink(currentQrLink)">
             {{ currentQrLink }}
           </button>
         </div>
-        <div v-if="backendQrLink && backendQrLink !== currentQrLink" class="qr-link-group">
-          <div class="qr-link-label">{{ t('publicSharePanel.backendLink') }}</div>
-          <button class="qr-link" type="button" @click="copyLink(backendQrLink)">
-            {{ backendQrLink }}
-          </button>
-        </div>
-        <button v-if="qrStorageUrl" class="qr-link" type="button" @click="copyLink(qrStorageUrl)">
-          {{ qrStorageUrl }}
-        </button>
-        <div v-if="qrStorageRef" class="qr-ref">{{ t('publicSharePanel.fileRef', { ref: qrStorageRef }) }}</div>
       </div>
 
       <template #footer>
         <div class="qr-footer-actions">
           <el-button @click="copyLink(currentQrLink)">{{ t('publicSharePanel.copyLink') }}</el-button>
-          <el-button :disabled="!qrStorageUrl" @click="copyLink(qrStorageUrl)">{{ t('publicSharePanel.copyImageUrl') }}</el-button>
           <el-button :disabled="!qrDataUrl" @click="downloadQrCode">{{ t('publicSharePanel.downloadQr') }}</el-button>
         </div>
       </template>
@@ -248,7 +226,6 @@ import { ElMessage } from 'element-plus'
 import QRCode from 'qrcode'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import PublicShareCreateDialog from '@/architecture/presentation/components/PublicShareCreateDialog.vue'
-import { notifyUploadComplete, uploadFile } from '@/architecture/presentation/context/uploadContext'
 import {
   disablePublicShare,
   listPublicShares,
@@ -271,12 +248,6 @@ const qrDialogVisible = ref(false)
 const qrShare = ref<PublicShareItem | null>(null)
 const qrDataUrl = ref('')
 const qrGenerating = ref(false)
-const qrUploading = ref(false)
-const qrUploadPercent = ref(0)
-const qrStorageUrl = ref('')
-const qrStorageRef = ref('')
-const qrUploadError = ref('')
-const qrStorageCache = new Map<string, { url: string; ref: string }>()
 const filters = reactive({
   keyword: '',
   createdBy: '',
@@ -289,22 +260,8 @@ const fullCodePath = computed(() => {
   return props.functionNode?.full_code_path || props.functionDetail?.full_code_path || props.functionDetail?.router || ''
 })
 
-function pageURL(shareId: string) {
-  return `${window.location.origin}/public/s/${shareId}`
-}
-
-function normalizePublicURL(value: string) {
-  if (!value) {
-    return ''
-  }
-  return new URL(value, window.location.origin).toString()
-}
-
 function publicLink(row: PublicShareItem) {
-  if (import.meta.env.DEV) {
-    return pageURL(row.share_id)
-  }
-  return officialPublicLink(row) || pageURL(row.share_id)
+  return row.public_url
 }
 
 function shareDisplayTitle(row: Pick<PublicShareItem, 'title' | 'share_id'>) {
@@ -315,10 +272,6 @@ function usageLimitText(maxUses: number) {
   return maxUses > 0
     ? t('publicSharePanel.maxUses', { count: maxUses })
     : t('publicSharePanel.unlimited')
-}
-
-function officialPublicLink(row: PublicShareItem) {
-  return normalizePublicURL(row.public_url || '')
 }
 
 async function load() {
@@ -350,11 +303,8 @@ function openCreateDialog() {
   dialogVisible.value = true
 }
 
-async function handleShareCreated(share: PublicShareItem) {
+function handleShareCreated(share: PublicShareItem) {
   shares.value = [share, ...shares.value]
-  await copyLink(publicLink(share))
-  await openQrDialog(share)
-  ElMessage.success(t('publicSharePanel.createSuccess'))
 }
 
 async function disableShare(shareId: string) {
@@ -380,16 +330,11 @@ const currentQrLink = computed(() => {
   return qrShare.value ? publicLink(qrShare.value) : ''
 })
 
-const backendQrLink = computed(() => {
-  return qrShare.value ? officialPublicLink(qrShare.value) : ''
-})
-
 async function openQrDialog(share: PublicShareItem) {
   qrShare.value = share
   qrDialogVisible.value = true
   qrDataUrl.value = ''
   qrGenerating.value = true
-  resetQrStorageState()
   try {
     qrDataUrl.value = await QRCode.toDataURL(publicLink(share), {
       errorCorrectionLevel: 'M',
@@ -400,90 +345,11 @@ async function openQrDialog(share: PublicShareItem) {
         light: '#ffffff',
       },
     })
-    const cached = qrStorageCache.get(share.share_id)
-    if (cached) {
-      qrStorageUrl.value = cached.url
-      qrStorageRef.value = cached.ref
-    } else {
-      await uploadQrCode(share, qrDataUrl.value)
-    }
   } catch (_error) {
     ElMessage.error(t('publicSharePanel.qrGenerateFailed'))
   } finally {
     qrGenerating.value = false
   }
-}
-
-function resetQrStorageState() {
-  qrUploading.value = false
-  qrUploadPercent.value = 0
-  qrStorageUrl.value = ''
-  qrStorageRef.value = ''
-  qrUploadError.value = ''
-}
-
-async function uploadQrCode(share: PublicShareItem, dataUrl: string) {
-  if (!dataUrl || !fullCodePath.value) {
-    return
-  }
-
-  qrUploading.value = true
-  qrUploadPercent.value = 0
-  qrUploadError.value = ''
-
-  try {
-    const blob = dataUrlToBlob(dataUrl)
-    const file = new File([blob], qrFileName(share), { type: 'image/png' })
-    const uploadResult = await uploadFile(fullCodePath.value, file, (progress) => {
-      qrUploadPercent.value = progress.percent
-    })
-    const fileInfo = uploadResult.fileInfo
-    if (!fileInfo) {
-      throw new Error(t('publicSharePanel.qrUploadMissingFile'))
-    }
-    const complete = await notifyUploadComplete({
-      key: fileInfo.key,
-      bucket: fileInfo.bucket,
-      success: true,
-      router: fileInfo.router,
-      file_name: fileInfo.file_name,
-      description: t('publicSharePanel.qrFileDescription', { title: shareDisplayTitle(share) }),
-      file_size: fileInfo.file_size,
-      content_type: fileInfo.content_type,
-      hash: fileInfo.hash,
-      storage: uploadResult.storage,
-    })
-
-    if (!complete?.download_url) {
-      throw new Error(t('publicSharePanel.qrUploadMissingUrl'))
-    }
-
-    qrStorageUrl.value = complete.download_url
-    qrStorageRef.value = complete.ref || uploadResult.ref || ''
-    qrStorageCache.set(share.share_id, {
-      url: qrStorageUrl.value,
-      ref: qrStorageRef.value,
-    })
-  } catch (_error) {
-    qrUploadError.value = t('publicSharePanel.qrUploadFailed')
-  } finally {
-    qrUploading.value = false
-  }
-}
-
-function dataUrlToBlob(dataUrl: string) {
-  const [header, base64Data] = dataUrl.split(',')
-  if (!header || !base64Data) {
-    throw new Error(t('publicSharePanel.invalidQrData'))
-  }
-  const mimeMatch = header.match(/^data:(.*?);base64$/)
-  const mime = mimeMatch?.[1] || 'image/png'
-  const binary = window.atob(base64Data)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i)
-  }
-  return new Blob([bytes], { type: mime })
 }
 
 function qrFileName(share: PublicShareItem) {
@@ -804,19 +670,6 @@ watch(fullCodePath, load)
   font-size: 12px;
   line-height: 1.4;
   text-align: center;
-}
-
-.qr-storage {
-  min-height: 24px;
-}
-
-.qr-ref {
-  width: 100%;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  line-height: 1.5;
-  text-align: center;
-  word-break: break-all;
 }
 
 .qr-footer-actions {

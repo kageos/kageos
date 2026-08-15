@@ -43,6 +43,7 @@ export function seedPermissionRequestSummaryFromTree(
 ): void {
   const root = normalizeResourcePath(workspaceRoot)
   if (!root) return
+  revisions.set(root, (revisions.get(root) || 0) + 1)
   const state = getPermissionRequestSummaryState(root)
   const paths: Record<string, PermissionRequestPathSummary> = {}
   let ownPendingCount = 0
@@ -84,7 +85,11 @@ export async function loadPermissionRequestSummary(
   const revision = revisions.get(root) || 0
   if (existing) {
     if (existing.revision === revision) return existing.promise
-    await existing.promise
+    try {
+      await existing.promise
+    } catch {
+      // A stale failure must not prevent the newer revision from being loaded.
+    }
     return loadPermissionRequestSummary(root, options)
   }
 

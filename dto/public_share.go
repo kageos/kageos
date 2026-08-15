@@ -32,7 +32,7 @@ type PublicShareResp struct {
 	LastUsedAt   *time.Time      `json:"last_used_at,omitempty"`
 	CreatedAt    time.Time       `json:"created_at"`
 	CreatedBy    string          `json:"created_by"`
-	PublicURL    string          `json:"public_url,omitempty"`
+	PublicURL    string          `json:"public_url"`
 	PresetValues json.RawMessage `json:"preset_values,omitempty" swaggertype:"object"`
 }
 

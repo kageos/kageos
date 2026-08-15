@@ -28,6 +28,8 @@ const (
 	TestUserEmail = "test_user@kageos.local"
 	// TestUserDepartmentPath 测试用户默认归属部门（虚拟组织/测试组）
 	TestUserDepartmentPath = "/org/virtual/test"
+	// DefaultBuiltinUserAvatar 平台内置默认用户使用的轻量品牌头像。
+	DefaultBuiltinUserAvatar = "/brand/kageos-avatar-128.png"
 )
 
 // InitDefaultUsers 初始化默认用户：system + test_user（密码与 system 共用，test_user 归属 /org/virtual/test）
@@ -60,12 +62,20 @@ func initSystemUserWithPassword(ctx context.Context, db *gorm.DB, password strin
 
 	existingUser, err := userRepo.GetUserByUsername(SystemUsername)
 	if err == nil && existingUser != nil {
+		profileUpdated := false
 		if existingUser.Type != hrmodel.UserTypeSystem {
 			existingUser.Type = hrmodel.UserTypeSystem
+			profileUpdated = true
+		}
+		if existingUser.Avatar != DefaultBuiltinUserAvatar {
+			existingUser.Avatar = DefaultBuiltinUserAvatar
+			profileUpdated = true
+		}
+		if profileUpdated {
 			if err := userRepo.UpdateUser(existingUser); err != nil {
-				return fmt.Errorf("更新 system 用户类型失败: %w", err)
+				return fmt.Errorf("更新 system 用户资料失败: %w", err)
 			}
-			logger.Infof(ctx, "[SystemUser] 已更新 system 用户类型为系统用户")
+			logger.Infof(ctx, "[SystemUser] 已更新 system 用户类型和默认头像")
 		}
 		if existingUser.PasswordHash == "" {
 			if err := setSystemUserPassword(ctx, userRepo, existingUser, password, generated); err != nil {
@@ -95,6 +105,7 @@ func initSystemUserWithPassword(ctx context.Context, db *gorm.DB, password strin
 		RegisterType:  "system",
 		Type:          hrmodel.UserTypeSystem,
 		CreatedBy:     "system",
+		Avatar:        DefaultBuiltinUserAvatar,
 		Nickname:      "系统",
 		Signature:     "系统内置用户，用于管理系统工具、平台接口和提示词",
 	}
@@ -126,10 +137,18 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 
 	existingUser, err := userRepo.GetUserByUsername(TestUsername)
 	if err == nil && existingUser != nil {
+		profileUpdated := false
 		if existingUser.DepartmentFullPath != TestUserDepartmentPath {
 			existingUser.DepartmentFullPath = TestUserDepartmentPath
+			profileUpdated = true
+		}
+		if existingUser.Avatar != DefaultBuiltinUserAvatar {
+			existingUser.Avatar = DefaultBuiltinUserAvatar
+			profileUpdated = true
+		}
+		if profileUpdated {
 			if err := userRepo.UpdateUser(existingUser); err != nil {
-				logger.Warnf(ctx, "[TestUser] 更新 test_user 部门失败: %v", err)
+				logger.Warnf(ctx, "[TestUser] 更新 test_user 部门和默认头像失败: %v", err)
 			}
 		}
 		if existingUser.PasswordHash == "" {
@@ -159,6 +178,7 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 		RegisterType:       "system",
 		Type:               hrmodel.UserTypeNormal,
 		CreatedBy:          SystemUsername,
+		Avatar:             DefaultBuiltinUserAvatar,
 		Nickname:           "测试用户",
 		Signature:          "执行/测试场景兜底用户，归属虚拟组织/测试组",
 		DepartmentFullPath: TestUserDepartmentPath,

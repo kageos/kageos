@@ -27,7 +27,9 @@
             <p v-if="description" class="public-share-description">{{ description }}</p>
           </div>
           <div class="public-share-header-actions">
-            <div v-if="metaText" class="public-share-meta">{{ metaText }}</div>
+            <div v-if="metaItems.length" class="public-share-meta">
+              <span v-for="item in metaItems" :key="item">{{ item }}</span>
+            </div>
             <el-button class="submission-entry-button" round plain :icon="Clock" @click="openSubmissionDrawer">
               提交记录<span v-if="submissionsTotal > 0">（{{ submissionsTotal }}）</span>
             </el-button>
@@ -44,7 +46,6 @@
               :show-submit-button="true"
               :show-public-share-button="false"
               :show-reset-button="false"
-              :show-debug-button="false"
               response-display-mode="dialog"
             />
           </div>
@@ -190,7 +191,7 @@ const shareId = computed(() => String(route.params.shareId || route.params.share
 const title = computed(() => view.value?.title || '表单')
 const description = computed(() => view.value?.description || '')
 const presetValues = computed(() => view.value?.preset_values || {})
-const metaText = computed(() => {
+const metaItems = computed(() => {
   const pieces: string[] = []
   if (view.value?.expires_at) {
     pieces.push(`有效期至 ${new Date(view.value.expires_at).toLocaleString()}`)
@@ -198,7 +199,7 @@ const metaText = computed(() => {
   if (view.value?.remaining_uses !== undefined) {
     pieces.push(`剩余 ${view.value.remaining_uses} 次`)
   }
-  return pieces.join(' · ')
+  return pieces
 })
 
 async function loadShare() {
@@ -374,10 +375,21 @@ onBeforeUnmount(() => {
 .public-share-meta {
   flex: 0 0 auto;
   max-width: 260px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
   color: var(--el-text-color-secondary);
   font-size: 13px;
   line-height: 1.5;
   text-align: right;
+}
+
+.public-share-meta span {
+  padding: 4px 9px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 999px;
+  background: var(--el-fill-color-light);
 }
 
 .public-share-header-actions {
@@ -577,12 +589,12 @@ onBeforeUnmount(() => {
 
   .public-share-header {
     display: block;
-    padding: 8px 8px 4px;
+    padding: 8px 4px 4px;
     border: none;
     border-radius: 0;
     background: transparent;
     box-shadow: none;
-    text-align: center;
+    text-align: left;
   }
 
   .public-share-header::before,
@@ -609,16 +621,18 @@ onBeforeUnmount(() => {
   .public-share-meta {
     margin-top: 10px;
     max-width: none;
-    text-align: center;
+    justify-content: flex-start;
+    text-align: left;
     font-size: 12px;
   }
 
   .public-share-header-actions {
-    align-items: center;
+    align-items: stretch;
     gap: 10px;
   }
 
   .submission-entry-button {
+    width: 100%;
     min-height: 44px;
     padding-right: 18px;
     padding-left: 18px;
@@ -635,13 +649,16 @@ onBeforeUnmount(() => {
   }
 
   .public-share-function-panel {
-    border-radius: 18px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
     overflow: visible;
   }
 
   .public-share-renderer .function-runtime {
     overflow: visible;
-    padding: 10px;
+    padding: 0;
   }
 
   .public-share-renderer :deep(.form-view-main) {

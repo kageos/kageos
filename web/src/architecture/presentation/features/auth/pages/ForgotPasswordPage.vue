@@ -6,6 +6,7 @@ import { ElMessage } from 'element-plus'
 import { Message, Loading, Lock } from '@element-plus/icons-vue'
 import { forgotPassword, sendEmailCode } from '@/architecture/presentation/context/api/auth'
 import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
+import { BRAND_LOGO_192_URL } from '@/architecture/domain/utils/builtinUserAvatar'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -159,7 +160,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
         <div class="brand-logo-wrapper">
           <div class="logo-glow"></div>
           <div class="brand-logo">
-            <img alt="kageos" class="logo" src="@/architecture/presentation/assets/logo.svg" />
+            <img alt="kageos" class="logo" :src="BRAND_LOGO_192_URL" width="80" height="80" decoding="async" />
           </div>
         </div>
         <h1 class="brand-title">

@@ -66,7 +66,7 @@ export interface PublicShareItem {
   last_used_at?: string
   created_at: string
   created_by: string
-  public_url?: string
+  public_url: string
   preset_values?: Record<string, unknown>
 }
 
@@ -119,7 +119,7 @@ export async function ensurePublicAnonymousToken(options: { refresh?: boolean } 
 }
 
 export function getCurrentPublicShareId(): string {
-  const match = window.location.pathname.match(/^\/public\/s\/([^/]+)/)
+  const match = window.location.pathname.match(/^\/s\/([^/]+)\/?$/)
   return match?.[1] ? decodeURIComponent(match[1]) : ''
 }
 

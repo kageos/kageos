@@ -10,6 +10,7 @@ import {
   type OAuthRegistrationIntent
 } from '@/architecture/presentation/context/api/auth'
 import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar.vue'
+import { BRAND_LOGO_192_URL } from '@/architecture/domain/utils/builtinUserAvatar'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -114,7 +115,7 @@ onMounted(loadIntent)
     <div class="register-shell">
       <div v-loading="loading" class="register-card">
         <div class="register-header">
-          <img alt="kageos" class="brand-logo" src="@/architecture/presentation/assets/logo.svg" />
+          <img alt="kageos" class="brand-logo" :src="BRAND_LOGO_192_URL" width="42" height="42" decoding="async" />
           <div class="register-title-block">
             <h1>完成授权注册</h1>
             <p>确认账号标识后进入工作空间</p>

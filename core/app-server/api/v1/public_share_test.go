@@ -116,3 +116,31 @@ func TestReadPublicShareRequestBodyAcceptsBoundedBody(t *testing.T) {
 		t.Fatalf("body = %q", body)
 	}
 }
+
+func TestBuildPublicShareURLUsesCanonicalBaseURL(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		baseURL string
+		shareID string
+		want    string
+	}{
+		{
+			name:    "single domain",
+			baseURL: "https://app.kageos.com",
+			shareID: "ps_abc123",
+			want:    "https://app.kageos.com/s/ps_abc123",
+		},
+		{
+			name:    "reverse proxy base path",
+			baseURL: "https://example.com/kageos/",
+			shareID: "ps_abc123",
+			want:    "https://example.com/kageos/s/ps_abc123",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := buildPublicShareURL(test.baseURL, test.shareID); got != test.want {
+				t.Fatalf("buildPublicShareURL(%q, %q) = %q, want %q", test.baseURL, test.shareID, got, test.want)
+			}
+		})
+	}
+}

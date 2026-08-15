@@ -8,6 +8,7 @@ import { register as registerApi, sendEmailCode } from '@/architecture/presentat
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { RegisterRequest } from '@/architecture/domain/types'
 import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
+import { BRAND_LOGO_192_URL } from '@/architecture/domain/utils/builtinUserAvatar'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -180,7 +181,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
         <div class="brand-logo-wrapper">
           <div class="logo-glow"></div>
           <div class="brand-logo">
-            <img alt="kageos" class="logo" src="@/architecture/presentation/assets/logo.svg" />
+            <img alt="kageos" class="logo" :src="BRAND_LOGO_192_URL" width="80" height="80" decoding="async" />
           </div>
         </div>
         <h1 class="brand-title">

@@ -1,0 +1,58 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "视频工具",
+    "code": "video_tool",
+    "summary": "上传视频后使用 FFmpeg 转换格式并返回视频附件。"
+  },
+  "forms": [
+    {
+      "name": "视频格式转换",
+      "desc": "上传视频文件后转换为指定格式，返回转换后的视频附件。",
+      "request_fields": [
+        {
+          "name": "上传视频文件",
+          "widget": "files",
+          "required": true,
+          "desc": "上传一个或多个视频文件。"
+        },
+        {
+          "name": "目标格式",
+          "widget": "select",
+          "required": true,
+          "desc": "可选 mp4、avi、mov、mkv 等格式；MP4 默认使用 H.264 编码。"
+        }
+      ],
+      "response_fields": [
+        {
+          "name": "转换后的视频",
+          "widget": "files",
+          "required": false,
+          "desc": "返回转换完成的视频附件。"
+        },
+        {
+          "name": "转换统计",
+          "widget": "text_area",
+          "required": false,
+          "desc": "展示成功数量、失败数量和 FFmpeg 错误信息。"
+        }
+      ],
+      "example": {
+        "request": {
+          "上传视频文件": "demo.mov",
+          "目标格式": "mp4"
+        },
+        "response": {
+          "转换后的视频": "demo.mp4",
+          "转换统计": "成功转换 1 个视频。"
+        }
+      }
+    }
+  ],
+  "rules": [
+    "视频处理类 Form 不写 target_table。",
+    "输出文件必须写入运行时输出目录，再通过附件字段返回。",
+    "如果输入和输出格式相同，也要复制到输出目录后返回。"
+  ]
+}

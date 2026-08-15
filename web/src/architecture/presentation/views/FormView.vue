@@ -166,45 +166,48 @@
           <el-icon><Promotion /></el-icon>
           {{ t('common.submit') }}
         </el-button>
-        <el-button
-          v-if="canCreatePublicShare"
-          size="large"
+        <el-dropdown
+          v-if="showMoreActions"
+          class="form-more-actions"
+          trigger="click"
+          placement="bottom-end"
           :disabled="submitting"
-          @click="handleCreatePublicShare"
-          data-testid="form-create-public-share"
+          @command="handleMoreAction"
         >
-          <el-icon><Link /></el-icon>
-          {{ t('formView.createPublicShare') }}
-        </el-button>
-        <el-button
-          v-if="canCreateScheduledSubmit"
-          size="large"
-          :disabled="submitting"
-          @click="showScheduledTaskDialog = true"
-          data-testid="form-schedule-submit"
-        >
-          <el-icon><Clock /></el-icon>
-          {{ t('formView.scheduledExecute') }}
-        </el-button>
-        <el-button
-          v-if="canCopyWorkspaceInvocation"
-          size="large"
-          :disabled="submitting"
-          @click="handleCopyWorkspaceInvocation"
-          data-testid="form-copy-workspace-invocation"
-          :title="t('formView.copyInvocationTitle')"
-        >
-          <el-icon><DocumentCopy /></el-icon>
-          {{ t('formView.copyToWorkbench') }}
-        </el-button>
-        <el-button v-if="showResetButton" size="large" @click="handleReset">
-          <el-icon><RefreshLeft /></el-icon>
-          {{ t('common.reset') }}
-        </el-button>
-        <el-button v-if="showDebugButton" size="large" @click="showDebugDialog = true" type="info">
-          <el-icon><View /></el-icon>
-          Debug
-        </el-button>
+          <el-button
+            size="large"
+            :disabled="submitting"
+            class="more-actions-button"
+            data-testid="form-more-actions"
+          >
+            {{ t('formView.moreActions') }}
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-if="canCreatePublicShare" command="public-share">
+                <el-icon><Link /></el-icon>
+                {{ t('formView.createPublicShare') }}
+              </el-dropdown-item>
+              <el-dropdown-item v-if="canCreateScheduledSubmit" command="schedule">
+                <el-icon><Clock /></el-icon>
+                {{ t('formView.scheduledExecute') }}
+              </el-dropdown-item>
+              <el-dropdown-item v-if="canCopyWorkspaceInvocation" command="copy-invocation">
+                <el-icon><DocumentCopy /></el-icon>
+                {{ t('formView.copyToWorkbench') }}
+              </el-dropdown-item>
+              <el-dropdown-item
+                v-if="showResetButton"
+                command="reset"
+                :divided="hasNonResetMoreActions"
+              >
+                <el-icon><RefreshLeft /></el-icon>
+                {{ t('common.reset') }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
 
@@ -338,91 +341,6 @@
       </template>
     </el-dialog>
 
-    <!-- Debug 弹窗 -->
-    <el-dialog
-      v-model="showDebugDialog"
-      :title="t('formView.debugTitle')"
-      width="80%"
-      :close-on-click-modal="false"
-    >
-      <el-tabs v-model="debugActiveTab">
-        <!-- 输入参数 -->
-        <el-tab-pane :label="t('formView.inputParameters')" name="request">
-          <div class="debug-section">
-            <div class="debug-header">
-              <span class="debug-label">{{ t('formView.submitDataLive') }}</span>
-              <el-button
-                size="small"
-                type="primary"
-                @click="copyToClipboard(debugRequestData)"
-              >
-                <el-icon><DocumentCopy /></el-icon>
-                {{ t('common.copy') }}
-              </el-button>
-            </div>
-            <el-input
-              v-model="debugRequestData"
-              type="textarea"
-              :rows="20"
-              readonly
-              class="debug-json-input"
-            />
-          </div>
-        </el-tab-pane>
-
-        <!-- 输出参数 -->
-        <el-tab-pane :label="t('formView.outputParameters')" name="response">
-          <div class="debug-section">
-            <div class="debug-header">
-              <span class="debug-label">{{ t('formView.outputData') }}</span>
-              <el-button
-                v-if="debugResponseData"
-                size="small"
-                type="primary"
-                @click="copyToClipboard(debugResponseData)"
-              >
-                <el-icon><DocumentCopy /></el-icon>
-                {{ t('common.copy') }}
-              </el-button>
-            </div>
-            <el-input
-              v-if="debugResponseData"
-              v-model="debugResponseData"
-              type="textarea"
-              :rows="20"
-              readonly
-              class="debug-json-input"
-            />
-            <el-empty v-else :description="t('formView.noOutputSubmitFirst')" />
-          </div>
-        </el-tab-pane>
-
-        <!-- 原始状态 -->
-        <el-tab-pane :label="t('formView.rawState')" name="raw">
-          <div class="debug-section">
-            <div class="debug-header">
-              <span class="debug-label">{{ t('formView.rawFormData') }}</span>
-              <el-button
-                size="small"
-                type="primary"
-                @click="copyToClipboard(debugRawData)"
-              >
-                <el-icon><DocumentCopy /></el-icon>
-                {{ t('common.copy') }}
-              </el-button>
-            </div>
-            <el-input
-              v-model="debugRawData"
-              type="textarea"
-              :rows="20"
-              readonly
-              class="debug-json-input"
-            />
-          </div>
-        </el-tab-pane>
-      </el-tabs>
-    </el-dialog>
-
     <ScheduledTaskDialog
       v-if="showScheduledTaskDialog && canCreateScheduledSubmit"
       v-model="showScheduledTaskDialog"
@@ -439,7 +357,6 @@
       :default-title="functionDetail?.name || ''"
       :default-description="functionDetail?.description || ''"
       :preset-values="publicSharePresetValues"
-      @created="handlePublicShareCreated"
     />
 
       </div>
@@ -451,7 +368,7 @@
 import { computed, nextTick, ref, provide } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Promotion, RefreshLeft, View, DocumentCopy, InfoFilled, Clock, Link } from '@element-plus/icons-vue'
+import { ArrowDown, Promotion, RefreshLeft, DocumentCopy, InfoFilled, Clock, Link } from '@element-plus/icons-vue'
 import { ElIcon, ElTag, ElNotification, ElMessage, ElEmpty } from 'element-plus'
 import { eventBus } from '../../infrastructure/eventBus'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -465,7 +382,6 @@ import { featureFlags } from '@/architecture/shared/config/features'
 import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
 import { formDataStoreKey } from '@/architecture/presentation/context/formRuntimeContext'
 import { useFunctionParamInitialization } from '../composables/useFunctionParamInitialization'
-import { useFormDebug } from '../composables/useFormDebug'
 import { useFormParamURLSync } from '../composables/useFormParamURLSync'
 import { useFormViewState } from '../composables/useFormViewState'
 import { useFormViewLifecycle } from '../composables/useFormViewLifecycle'
@@ -480,7 +396,6 @@ import {
   copyTextToClipboard,
   filterEmptyInvocationParams,
 } from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
-import type { PublicShareItem } from '@/architecture/presentation/context/api/publicShare'
 import { buildPublicSharePresetValues } from '@/architecture/domain/utils/publicSharePreset'
 
 const props = withDefaults(defineProps<{
@@ -488,7 +403,6 @@ const props = withDefaults(defineProps<{
   showSubmitButton?: boolean  // 🔥 是否显示提交按钮（用于 FormDialog 等场景）
   showPublicShareButton?: boolean
   showResetButton?: boolean  // 🔥 是否显示重置按钮
-  showDebugButton?: boolean
   flatSurface?: boolean
   initialData?: Record<string, any>  // 🔥 初始数据（用于编辑模式）
   formGateway?: IFormGateway
@@ -497,7 +411,6 @@ const props = withDefaults(defineProps<{
   showSubmitButton: true,
   showPublicShareButton: true,
   showResetButton: true,
-  showDebugButton: true,
   flatSurface: false,
   initialData: () => ({}),
   responseDisplayMode: 'inline',
@@ -568,6 +481,17 @@ const canCreatePublicShare = computed(() => {
     !!scheduledFunctionPath.value &&
     detail?.template_type === TEMPLATE_TYPE.FORM
 })
+const showMoreActions = computed(() => {
+  return canCreatePublicShare.value ||
+    canCreateScheduledSubmit.value ||
+    canCopyWorkspaceInvocation.value ||
+    props.showResetButton
+})
+const hasNonResetMoreActions = computed(() => {
+  return canCreatePublicShare.value ||
+    canCreateScheduledSubmit.value ||
+    canCopyWorkspaceInvocation.value
+})
 
 // 🔥 移除 formInitialData computed，改为使用统一的数据初始化框架
 // URL 参数会在 useFunctionParamInitialization 中统一处理
@@ -584,19 +508,6 @@ const formatCostTime = (milliseconds: number): string => {
     return t('formView.durationMinutesSeconds', { minutes, seconds })
   }
 }
-
-const {
-  showDebugDialog,
-  debugActiveTab,
-  debugRequestData,
-  debugResponseData,
-  debugRawData,
-  copyToClipboard,
-} = useFormDebug({
-  stateManager,
-  domainService,
-  requestFields,
-})
 
 const submitFeedback = ref<{ type: 'success' | 'error'; message: string } | null>(null)
 const responseDialogVisible = ref(false)
@@ -664,6 +575,23 @@ const handleReset = (): void => {
   }
 }
 
+function handleMoreAction(command: string): void {
+  switch (command) {
+    case 'public-share':
+      handleCreatePublicShare()
+      break
+    case 'schedule':
+      showScheduledTaskDialog.value = true
+      break
+    case 'copy-invocation':
+      void handleCopyWorkspaceInvocation()
+      break
+    case 'reset':
+      handleReset()
+      break
+  }
+}
+
 async function handleCopyWorkspaceInvocation(): Promise<void> {
   if (!functionDetail.value || !scheduledFunctionPath.value) {
     ElMessage.warning(t('formView.functionDetailNotReady'))
@@ -694,26 +622,6 @@ function handleCreatePublicShare(): void {
     filterEmptyInvocationParams(prepareSubmitDataWithTypeConversion())
   )
   publicShareDialogVisible.value = true
-}
-
-async function handlePublicShareCreated(share: PublicShareItem): Promise<void> {
-  try {
-    await copyTextToClipboard(resolvePublicShareLink(share))
-    ElMessage.success(t('formView.publicShareCreatedCopied'))
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, t('formView.copyFailedManual')))
-  }
-}
-
-function resolvePublicShareLink(share: PublicShareItem): string {
-  if (!share.public_url || import.meta.env.DEV) {
-    return publicSharePageURL(share.share_id)
-  }
-  return new URL(share.public_url, window.location.origin).toString()
-}
-
-function publicSharePageURL(shareId: string): string {
-  return `${window.location.origin}/public/s/${encodeURIComponent(shareId)}`
 }
 
 /**
@@ -1176,42 +1084,6 @@ const lifecycle = useFormViewLifecycle({
 }
 
 
-/* Debug 弹窗样式 */
-.debug-section {
-  margin-bottom: 20px;
-}
-
-.debug-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.debug-label {
-  font-weight: 600;
-  color: var(--el-text-color-regular);
-}
-
-.debug-json-input {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.debug-json-input :deep(.el-textarea__inner) {
-  background-color: var(--app-code-bg);
-  border: 1px solid var(--app-code-border);
-  color: var(--app-code-text);
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
-  resize: none;
-}
-
-.debug-json-input :deep(.el-textarea__inner):focus {
-  border-color: var(--el-color-primary);
-  background-color: var(--el-fill-color-blank);
-}
-
 .section-title {
   font-size: 22px;
   font-weight: 700;
@@ -1234,8 +1106,9 @@ const lifecycle = useFormViewLifecycle({
 
 .form-actions-row {
   display: flex;
+  align-items: stretch;
   gap: 12px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .form-actions-row :deep(.el-button) {
@@ -1272,6 +1145,12 @@ const lifecycle = useFormViewLifecycle({
 
 .submit-button-full-width {
   flex: 1;
+  min-width: 0;
+}
+
+.form-more-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
 }
 
 .response-section {
@@ -1499,13 +1378,20 @@ const lifecycle = useFormViewLifecycle({
   }
 
   .form-actions-row {
-    display: grid;
-    grid-template-columns: 1fr;
+    display: flex;
   }
 
   .form-actions-row :deep(.el-button) {
-    width: 100%;
     margin-left: 0;
+  }
+
+  .submit-button-full-width {
+    width: auto;
+  }
+
+  .form-more-actions :deep(.el-button) {
+    width: auto;
+    padding: 0 14px;
   }
 
   .response-dialog-entry {

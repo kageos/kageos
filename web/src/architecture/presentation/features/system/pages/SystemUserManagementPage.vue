@@ -53,9 +53,7 @@
       <el-table-column :label="t('systemUser.user')" min-width="210">
         <template #default="{ row }">
           <div class="user-cell">
-            <el-avatar :size="32" :src="row.avatar">
-              {{ avatarText(row) }}
-            </el-avatar>
+            <UserAvatar :size="32" :src="row.avatar" :alt="row.nickname || row.username" />
             <div class="user-cell-main">
               <span class="username">{{ row.username }}</span>
               <span class="nickname">{{ row.nickname || '-' }}</span>
@@ -236,6 +234,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CircleCheck, CircleClose, Clock, EditPen, Key, MoreFilled, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import type { UserInfo } from '@/architecture/domain/types'
+import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar.vue'
 import {
   createSystemUser,
   listSystemUsers,
@@ -488,10 +487,6 @@ function formatDateTime(value: string) {
     return value || '-'
   }
   return date.toLocaleString()
-}
-
-function avatarText(user: UserInfo) {
-  return (user.nickname || user.username || '?').slice(0, 1).toUpperCase()
 }
 
 onMounted(loadUsers)

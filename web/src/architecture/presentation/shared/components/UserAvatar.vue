@@ -18,7 +18,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElAvatar } from 'element-plus'
-import defaultUserAvatar from '@/architecture/presentation/assets/logo.svg'
+import { DEFAULT_BUILTIN_USER_AVATAR } from '@/architecture/domain/utils/builtinUserAvatar'
 
 type AvatarSize = number | 'large' | 'default' | 'small'
 type AvatarShape = 'circle' | 'square'
@@ -37,7 +37,7 @@ const props = withDefaults(defineProps<{
   shape: 'circle',
   fit: 'cover',
   alt: 'User avatar',
-  fallback: defaultUserAvatar,
+  fallback: DEFAULT_BUILTIN_USER_AVATAR,
 })
 
 const loadFailed = ref(false)
@@ -70,6 +70,6 @@ function handleImageError() {
 }
 
 .kage-user-avatar.is-logo-fallback .kage-user-avatar__img {
-  padding: 18%;
+  padding: 0;
 }
 </style>

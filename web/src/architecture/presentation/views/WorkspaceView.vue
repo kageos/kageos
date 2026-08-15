@@ -382,6 +382,7 @@ import { listMessageInboxSourceCounts, type MessageInboxSourceCount } from '@/ar
 import { featureFlags } from '@/architecture/shared/config/features'
 import { extractWorkspacePath } from '@/architecture/shared/routing/route'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
+import { subscribeToMessageInboxChanges } from '@/architecture/presentation/components/utils/messageInboxSync'
 import { WorkspaceEvent } from '@/architecture/domain/interfaces/IEventBus'
 import { resolveWorkspaceContentState } from './utils/workspaceContentState'
 import { canUseWorkstation } from '@/architecture/presentation/composables/useAccessControl'
@@ -1012,7 +1013,7 @@ async function refreshMessageCounts() {
     }
     messageCountsByPath.value = next
   } catch {
-    messageCountsByPath.value = {}
+    // Keep the last known counts when a transient refresh fails.
   }
 }
 
@@ -1022,8 +1023,8 @@ onMounted(() => {
   unsubscribeWorkspaceSettingsUpdated = eventBus.on(WorkspaceEvent.settingsUpdated, () => {
     void handleRefreshTree()
   })
-  unsubscribeMessageInboxUpdated = eventBus.on('message-inbox:changed', () => {
-    void refreshMessageCounts()
+  unsubscribeMessageInboxUpdated = subscribeToMessageInboxChanges({
+    refresh: refreshMessageCounts,
   })
 })
 onBeforeUnmount(() => {
