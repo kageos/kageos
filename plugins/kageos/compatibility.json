@@ -1,6 +1,6 @@
 {
   "schema_version": "kageos.plugin-compatibility.v1",
-  "plugin_version": "0.2.1",
+  "plugin_version": "0.2.2",
   "language": "zh-CN",
   "hosts": {
     "codex": {

@@ -1,5 +1,11 @@
 # 更新日志
 
+## 0.2.2 — 2026-08-15
+
+- 补齐插件产品官网、源码仓库和开发方官网元数据。
+- Codex 插件详情页的“网站”现在直接指向 `https://kageos.ai/zh/developer/`。
+- 开发方统一显示为恰研智能（QiaYan AI），链接到 `https://qiayan.ai/`。
+
 ## 0.2.1 — 2026-08-15
 
 - 接入现有 kageos 品牌母版，为 Codex 插件卡片和输入区补齐透明背景 logo 与 composer 图标。

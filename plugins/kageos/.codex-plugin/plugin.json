@@ -1,18 +1,22 @@
 {
   "name": "kageos",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "通过一套有门禁、可续跑的流程，完成 kageos 工作空间目录的设计、开发、构建、真实验收、打包和 Hub 发布。",
   "author": {
-    "name": "kageos"
+    "name": "QiaYan AI",
+    "url": "https://qiayan.ai/"
   },
+  "homepage": "https://kageos.ai/zh/developer/",
+  "repository": "https://github.com/kageos/kageos",
   "skills": "./skills/",
   "interface": {
     "displayName": "kageos",
     "shortDescription": "设计、开发、验收并发布 kageos 目录。",
     "longDescription": "面向 kageos 工作空间目录的中文交付套件，从最小设计和开发开始，经过平台构建、真实业务验收、确定性目录包、Hub 投稿和最终状态确认，形成可审计、可恢复的完整闭环。",
-    "developerName": "kageos",
+    "developerName": "QiaYan AI",
     "category": "DeveloperTools",
     "brandColor": "#5B4BDF",
+    "websiteURL": "https://kageos.ai/zh/developer/",
     "composerIcon": "./assets/composer-icon.png",
     "logo": "./assets/logo.png",
     "capabilities": [
