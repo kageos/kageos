@@ -1,0 +1,4 @@
+interface:
+  display_name: "kageos 本地启动与贡献"
+  short_description: "检查环境、启动本地 kageos 并衔接源码贡献流程"
+  default_prompt: "使用 $kageos-contributor 检查我的电脑环境，拉取并启动 kageos；成功打开本地页面后，再帮助我阅读源码或准备贡献。"
