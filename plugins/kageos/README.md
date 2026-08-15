@@ -2,6 +2,8 @@
 
 `kageos` 是面向 Codex 和 Claude Code 的中文交付套件，用于把一个 kageos 工作空间目录从设计、开发、构建、真实验收一直推进到 Hub 发布和状态确认。
 
+套件沿用 kageos 官网品牌标识，插件卡片和 Codex 输入区图标位于 `assets/`。
+
 套件包含四个 Skill：
 
 - `kageos`：默认统一入口，负责完整闭环和失败续跑。

@@ -1,7 +1,7 @@
 {
   "name": "kageos",
   "description": "通过一套有门禁、可续跑的流程，完成 kageos 工作空间目录的设计、开发、构建、真实验收、打包和 Hub 发布。",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": {
     "name": "kageos"
   }

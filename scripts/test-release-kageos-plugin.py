@@ -19,13 +19,15 @@ def digest(path: Path) -> str:
 
 
 def main() -> int:
+    version = (ROOT / "plugins" / "kageos" / "VERSION").read_text(encoding="utf-8").strip()
     with tempfile.TemporaryDirectory() as directory:
         temporary = Path(directory)
         output = temporary / "releases"
         command = [sys.executable, str(ROOT / "scripts" / "release-kageos-plugin.py"), "--output-root", str(output)]
         subprocess.run(command, check=True)
-        release = json.loads((output / "0.2.0" / "release.json").read_text(encoding="utf-8"))
-        archive = output / "0.2.0" / release["filename"]
+        release_dir = output / version
+        release = json.loads((release_dir / "release.json").read_text(encoding="utf-8"))
+        archive = release_dir / release["filename"]
         first = digest(archive)
         subprocess.run(command, check=True)
         second = digest(archive)
@@ -36,7 +38,7 @@ def main() -> int:
             [
                 sys.executable,
                 str(ROOT / "scripts" / "upload-kageos-plugin-release.py"),
-                str(output / "0.2.0"),
+                str(release_dir),
                 "--directory",
                 str(storage),
             ],
