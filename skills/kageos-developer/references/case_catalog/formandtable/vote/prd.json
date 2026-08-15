@@ -1,0 +1,329 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "投票系统",
+    "code": "vote",
+    "summary": "管理投票主题、选项和投票记录，支持在联动下拉中展示主题富文本和选项图片，并让用户提交投票和查看结果。"
+  },
+  "tables": [
+    {
+      "name": "投票主题",
+      "title": "投票主题管理",
+      "desc": "维护投票活动的标题、时间、规则和状态。",
+      "fields": [
+        {
+          "name": "投票标题",
+          "widget": "input",
+          "required": true,
+          "desc": "2-100 字，描述投票主题。"
+        },
+        {
+          "name": "主题说明",
+          "widget": "richtext",
+          "required": true,
+          "desc": "投票的唯一说明正文；可包含富文本、图片和附件，选中主题后在下拉结果区域展示。"
+        },
+        {
+          "name": "投票类型",
+          "widget": "select",
+          "required": true,
+          "desc": "有单选、多选两个选项，默认单选。"
+        },
+        {
+          "name": "最多选择数",
+          "widget": "integer",
+          "required": true,
+          "desc": "多选时允许选择的最大选项数，单选时固定为 1。"
+        },
+        {
+          "name": "是否匿名投票",
+          "widget": "switch",
+          "required": false,
+          "desc": "默认否；开启后结果中隐藏投票人。"
+        },
+        {
+          "name": "是否显示实时结果",
+          "widget": "switch",
+          "required": false,
+          "desc": "默认是；关闭后只有投票结束才能查看结果。"
+        },
+        {
+          "name": "开始时间",
+          "widget": "datetime",
+          "required": true,
+          "desc": "投票开始时间。"
+        },
+        {
+          "name": "结束时间",
+          "widget": "datetime",
+          "required": true,
+          "desc": "必须晚于开始时间。"
+        },
+        {
+          "name": "状态",
+          "widget": "select",
+          "required": false,
+          "hide": "create,update",
+          "desc": "按开始时间和结束时间实时计算，有未开始、进行中、已结束。"
+        },
+        {
+          "name": "总选择次数",
+          "widget": "integer",
+          "required": false,
+          "hide": "create,update",
+          "desc": "所有选项累计被选择的次数。"
+        }
+      ],
+      "search_fields": [
+        {
+          "name": "投票标题",
+          "widget": "input",
+          "required": false,
+          "desc": "按投票标题模糊搜索。"
+        },
+        {
+          "name": "投票状态",
+          "widget": "select",
+          "required": false,
+          "desc": "按未开始、进行中、已结束筛选。"
+        }
+      ],
+      "handlers": [
+        "OnTableAddRow",
+        "OnTableUpdateRow",
+        "OnTableDeleteRow"
+      ],
+      "examples": [
+        {
+          "投票标题": "年度优秀员工评选",
+          "主题说明": "<p>请结合工作成果、协作表现和客户反馈进行选择。</p>",
+          "投票类型": "单选",
+          "最多选择数": 1,
+          "是否匿名投票": false,
+          "是否显示实时结果": true,
+          "开始时间": "2026-05-10 00:00",
+          "结束时间": "2026-05-20 23:59",
+          "状态": "进行中",
+          "总选择次数": 42
+        }
+      ]
+    },
+    {
+      "name": "投票选项",
+      "title": "投票选项管理",
+      "desc": "维护每个投票主题下的可选项和得票统计。",
+      "fields": [
+        {
+          "name": "投票主题",
+          "widget": "select",
+          "required": true,
+          "desc": "从投票主题中选择；新增和编辑时只允许选择当前用户可维护的主题。"
+        },
+        {
+          "name": "选项内容",
+          "widget": "input",
+          "required": true,
+          "desc": "1-100 字。"
+        },
+        {
+          "name": "选项图片",
+          "widget": "files",
+          "required": false,
+          "desc": "在候选下拉中展示的单张选项图片。"
+        },
+        {
+          "name": "得票人数",
+          "widget": "integer",
+          "required": false,
+          "hide": "create,update",
+          "desc": "该选项被选择的人数，由系统统计。"
+        },
+        {
+          "name": "得票率",
+          "widget": "float",
+          "required": false,
+          "hide": "create,update",
+          "desc": "该选项得票人数占总选择次数的比例。"
+        }
+      ],
+      "search_fields": [
+        {
+          "name": "投票主题",
+          "widget": "select",
+          "required": false,
+          "desc": "按投票主题筛选。"
+        }
+      ],
+      "handlers": [
+        "OnTableAddRow",
+        "OnTableUpdateRow",
+        "OnTableDeleteRow"
+      ],
+      "examples": [
+        {
+          "投票主题": "年度优秀员工评选",
+          "选项内容": "小王",
+          "选项图片": "vote/candidates/xiaowang.jpg",
+          "得票人数": 15,
+          "得票率": 35.7
+        }
+      ]
+    },
+    {
+      "name": "投票记录",
+      "title": "投票记录查询",
+      "desc": "只读查看用户提交投票后产生的投票记录。",
+      "fields": [
+        {
+          "name": "投票时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "投票提交时间。"
+        },
+        {
+          "name": "投票标题",
+          "widget": "input",
+          "required": false,
+          "desc": "投票主题标题。"
+        },
+        {
+          "name": "选项内容",
+          "widget": "input",
+          "required": false,
+          "desc": "用户选择的选项内容。"
+        },
+        {
+          "name": "投票人",
+          "widget": "user",
+          "required": false,
+          "desc": "提交投票的用户；匿名投票时隐藏。"
+        },
+        {
+          "name": "投票备注",
+          "widget": "text_area",
+          "required": false,
+          "desc": "用户提交投票时填写的备注。"
+        }
+      ],
+      "search_fields": [
+        {
+          "name": "投票标题",
+          "widget": "input",
+          "required": false,
+          "desc": "按投票标题搜索。"
+        },
+        {
+          "name": "选项内容",
+          "widget": "input",
+          "required": false,
+          "desc": "按选项内容搜索。"
+        }
+      ],
+      "handlers": [],
+      "examples": [
+        {
+          "投票时间": "2026-05-12 10:30",
+          "投票标题": "年度优秀员工评选",
+          "选项内容": "小王",
+          "投票人": "赵六",
+          "投票备注": "认可项目交付表现。"
+        }
+      ]
+    }
+  ],
+  "forms": [
+    {
+      "name": "提交投票",
+      "desc": "用户选择进行中的投票主题和选项后提交投票，生成投票记录并更新统计。",
+      "target_table": "投票记录",
+      "request_fields": [
+        {
+          "name": "投票主题",
+          "widget": "select",
+          "required": true,
+          "desc": "只允许选择状态为进行中的投票主题。"
+        },
+        {
+          "name": "投票选项",
+          "widget": "select",
+          "required": true,
+          "desc": "根据投票主题联动展示选项；单选只能选 1 个，多选不能超过最多选择数。"
+        },
+        {
+          "name": "投票备注",
+          "widget": "text_area",
+          "required": false,
+          "desc": "可填写投票理由。"
+        }
+      ],
+      "response_fields": [
+        {
+          "name": "提交结果",
+          "widget": "input",
+          "required": false,
+          "desc": "展示投票成功或失败原因。"
+        },
+        {
+          "name": "投票时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "系统记录的投票时间。"
+        }
+      ],
+      "example": {
+        "request": {
+          "投票主题": "年度优秀员工评选",
+          "投票选项": "小王",
+          "投票备注": "认可项目交付表现。"
+        },
+        "response": {
+          "提交结果": "投票成功",
+          "投票时间": "2026-05-12 10:30"
+        }
+      }
+    },
+    {
+      "name": "查看投票结果",
+      "desc": "选择投票主题后查看选项得票人数和得票率。",
+      "target_table": "投票记录",
+      "request_fields": [
+        {
+          "name": "投票主题",
+          "widget": "select",
+          "required": true,
+          "desc": "选择要查看结果的投票主题。"
+        }
+      ],
+      "response_fields": [
+        {
+          "name": "投票标题",
+          "widget": "input",
+          "required": false,
+          "desc": "投票主题标题。"
+        },
+        {
+          "name": "投票选项统计",
+          "widget": "table",
+          "required": false,
+          "desc": "展示选项内容、得票人数和得票率。"
+        }
+      ],
+      "example": {
+        "request": {
+          "投票主题": "年度优秀员工评选"
+        },
+        "response": {
+          "投票标题": "年度优秀员工评选",
+          "投票选项统计": "小王 15 票，占比 35.7%"
+        }
+      }
+    }
+  ],
+  "rules": [
+    "投票主题状态按开始时间和结束时间实时计算，不需要用户手动维护。",
+    "每个用户在同一投票主题下只能投一次。",
+    "提交投票时必须校验主题状态、选项归属和多选数量上限。",
+    "投票记录只允许查询，不允许手工新增、编辑、删除。"
+  ]
+}

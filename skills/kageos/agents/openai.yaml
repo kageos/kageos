@@ -1,0 +1,4 @@
+interface:
+  display_name: "kageos"
+  short_description: "从目录设计到真实验收和 Hub 发布的完整闭环"
+  default_prompt: "使用 $kageos 把这个目录从最小设计、开发和平台构建，推进到真实验收、确定性打包、确认后的 Hub 投稿和最终状态证据。"

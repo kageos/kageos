@@ -1,0 +1,4 @@
+interface:
+  display_name: "kageos MVP 案例优先开发"
+  short_description: "开发低部署、业务可维护文档和真无人值守的 kageos 应用"
+  default_prompt: "Use $kageos-developer 把需求收成面向中小企业、安装后可用的最小版本；业务文档让普通员工能看懂和维护，技术执行约束下沉到 AgentTask、代码和测试。"

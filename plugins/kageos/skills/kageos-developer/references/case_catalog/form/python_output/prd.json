@@ -1,0 +1,58 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "Python 产物输出示例",
+    "code": "python_output_demo",
+    "summary": "在应用运行时内调用 Python 生成文件，并把生成文件作为附件返回。"
+  },
+  "forms": [
+    {
+      "name": "Python生成PNG",
+      "desc": "提交图片标题后由 Python 生成 PNG 文件，并返回可下载附件。",
+      "request_fields": [
+        {
+          "name": "图片标题",
+          "widget": "input",
+          "required": true,
+          "desc": "将绘制在图片上，并用于生成文件名；非法字符会被替换。"
+        }
+      ],
+      "response_fields": [
+        {
+          "name": "生成的PNG",
+          "widget": "files",
+          "required": false,
+          "desc": "返回 Python 生成的 PNG 图片附件。"
+        },
+        {
+          "name": "说明",
+          "widget": "text_area",
+          "required": false,
+          "desc": "展示生成过程说明和输出路径说明。"
+        },
+        {
+          "name": "状态",
+          "widget": "input",
+          "required": false,
+          "desc": "展示成功或失败状态。"
+        }
+      ],
+      "example": {
+        "request": {
+          "图片标题": "销售趋势"
+        },
+        "response": {
+          "生成的PNG": "销售趋势.png",
+          "说明": "Python 已在输出目录生成图片。",
+          "状态": "成功"
+        }
+      }
+    }
+  ],
+  "rules": [
+    "Go 先用 GetTraceOutputDir 获取输出目录，并把绝对路径传给 Python。",
+    "Python 直接写入 Go 传入的绝对路径，不使用相对路径互传。",
+    "Go 使用 OutputFilePaths 校验产物，再通过 ResponseFiles 返回附件。"
+  ]
+}

@@ -1,0 +1,251 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "招聘投递系统",
+    "code": "hr_recruitment",
+    "summary": "管理招聘职位和候选人投递记录，支持按职位、部门和投递状态筛选。"
+  },
+  "tables": [
+    {
+      "name": "职位",
+      "title": "职位管理",
+      "desc": "维护招聘职位、部门、薪资范围、招聘人数和招聘状态。",
+      "fields": [
+        {
+          "name": "职位名称",
+          "widget": "input",
+          "required": true,
+          "desc": "2-100 字。"
+        },
+        {
+          "name": "部门",
+          "widget": "select",
+          "required": true,
+          "desc": "可选技术、产品、设计、运营、市场、销售、人事、财务、其他。"
+        },
+        {
+          "name": "工作类型",
+          "widget": "select",
+          "required": true,
+          "desc": "可选全职、兼职、实习、外包，默认全职。"
+        },
+        {
+          "name": "工作经验",
+          "widget": "select",
+          "required": true,
+          "desc": "可选 1-3年、3-5年、5-10年、10年以上、不限。"
+        },
+        {
+          "name": "学历要求",
+          "widget": "select",
+          "required": true,
+          "desc": "可选本科、硕士、博士、不限。"
+        },
+        {
+          "name": "工作地点",
+          "widget": "input",
+          "required": true,
+          "desc": "2-100 字。"
+        },
+        {
+          "name": "最低薪资",
+          "widget": "float",
+          "required": false,
+          "desc": "单位元，必须大于等于 0。"
+        },
+        {
+          "name": "最高薪资",
+          "widget": "float",
+          "required": false,
+          "desc": "单位元，必须大于等于最低薪资。"
+        },
+        {
+          "name": "职位描述",
+          "widget": "text_area",
+          "required": true,
+          "desc": "至少 10 字。"
+        },
+        {
+          "name": "招聘人数",
+          "widget": "integer",
+          "required": true,
+          "desc": "默认 1，必须大于 0。"
+        },
+        {
+          "name": "招聘状态",
+          "widget": "select",
+          "required": true,
+          "desc": "有招聘中、已暂停、已关闭、已招满四个选项，默认招聘中。"
+        },
+        {
+          "name": "截止时间",
+          "widget": "datetime",
+          "required": false,
+          "desc": "职位投递截止时间。"
+        }
+      ],
+      "search_fields": [
+        {
+          "name": "职位名称",
+          "widget": "input",
+          "required": false,
+          "desc": "按职位名称模糊搜索。"
+        },
+        {
+          "name": "部门",
+          "widget": "select",
+          "required": false,
+          "desc": "按部门筛选。"
+        },
+        {
+          "name": "招聘状态",
+          "widget": "select",
+          "required": false,
+          "desc": "按招聘状态筛选。"
+        }
+      ],
+      "handlers": [
+        "OnTableAddRow",
+        "OnTableUpdateRow",
+        "OnTableDeleteRow"
+      ],
+      "examples": [
+        {
+          "职位名称": "Go 后端开发",
+          "部门": "技术",
+          "工作类型": "全职",
+          "工作经验": "3-5年",
+          "学历要求": "本科",
+          "工作地点": "北京",
+          "最低薪资": 20000,
+          "最高薪资": 35000,
+          "职位描述": "负责后端服务开发。",
+          "招聘人数": 2,
+          "招聘状态": "招聘中",
+          "截止时间": "2026-06-15 18:00"
+        }
+      ]
+    },
+    {
+      "name": "投递记录",
+      "title": "简历投递管理",
+      "desc": "管理候选人的简历投递和筛选状态。",
+      "fields": [
+        {
+          "name": "投递职位",
+          "widget": "select",
+          "required": true,
+          "desc": "从招聘中的职位中选择。"
+        },
+        {
+          "name": "姓名",
+          "widget": "input",
+          "required": true,
+          "desc": "候选人姓名，2-20 字。"
+        },
+        {
+          "name": "联系电话",
+          "widget": "input",
+          "required": true,
+          "desc": "候选人手机号或联系电话。"
+        },
+        {
+          "name": "邮箱",
+          "widget": "input",
+          "required": true,
+          "desc": "候选人邮箱。"
+        },
+        {
+          "name": "学历",
+          "widget": "select",
+          "required": false,
+          "desc": "可选本科、硕士、博士、其他。"
+        },
+        {
+          "name": "工作经验",
+          "widget": "select",
+          "required": false,
+          "desc": "可选 1-3年、3-5年、5-10年、10年以上、应届生。"
+        },
+        {
+          "name": "简历内容",
+          "widget": "text_area",
+          "required": true,
+          "desc": "候选人简历正文，至少 10 字。"
+        },
+        {
+          "name": "简历附件",
+          "widget": "files",
+          "required": false,
+          "desc": "可上传简历附件。"
+        },
+        {
+          "name": "投递状态",
+          "widget": "select",
+          "required": true,
+          "desc": "有待筛选、已通过、已拒绝、待面试、已录用五个选项，默认待筛选。"
+        },
+        {
+          "name": "职位名称",
+          "widget": "input",
+          "required": false,
+          "hide": "create,update",
+          "desc": "列表展示字段，来自关联职位。"
+        },
+        {
+          "name": "部门",
+          "widget": "select",
+          "required": false,
+          "hide": "create,update",
+          "desc": "列表展示字段，来自关联职位。"
+        }
+      ],
+      "search_fields": [
+        {
+          "name": "职位名称",
+          "widget": "input",
+          "required": false,
+          "desc": "按关联职位名称搜索。"
+        },
+        {
+          "name": "部门",
+          "widget": "select",
+          "required": false,
+          "desc": "按职位所属部门筛选。"
+        },
+        {
+          "name": "投递状态",
+          "widget": "select",
+          "required": false,
+          "desc": "按候选人投递状态筛选。"
+        }
+      ],
+      "handlers": [
+        "OnTableAddRow",
+        "OnTableUpdateRow",
+        "OnTableDeleteRow"
+      ],
+      "examples": [
+        {
+          "投递职位": "Go 后端开发",
+          "姓名": "王五",
+          "联系电话": "13800138000",
+          "邮箱": "wang@example.com",
+          "学历": "本科",
+          "工作经验": "3-5年",
+          "简历内容": "有 Go 后端开发经验。",
+          "简历附件": "resume.pdf",
+          "投递状态": "待筛选",
+          "职位名称": "Go 后端开发",
+          "部门": "技术"
+        }
+      ]
+    }
+  ],
+  "rules": [
+    "投递职位只能选择招聘中的职位。",
+    "职位列表可按招聘状态判断是否展示投递入口。",
+    "投递记录列表中的职位名称和部门来自关联职位。"
+  ]
+}
