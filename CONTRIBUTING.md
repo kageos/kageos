@@ -214,6 +214,31 @@ Local dev files under `.kageos/dev/config/`, `.kageos/dev/env/`, and
 `.kageos/dev/namespace/` are private runtime state. Do not commit them. The
 full local development reference lives in `deploy/dev/README.md`.
 
+## Maintaining The AI Toolkit
+
+The public `skills/` directory is the canonical source for the five kageos
+skills used by Codex and Claude Code. Community fixes and improvements to local
+startup, source navigation, workspace development, verification, or Hub
+publishing should be submitted here through normal pull requests.
+
+- Edit `skills/<skill-name>` first. Do not hand-edit the generated copies under
+  `plugins/kageos/skills`.
+- Keep `SKILL.md` concise. Put deterministic repeated work in `scripts/` and
+  detailed, conditionally loaded guidance in `references/`.
+- Validate every changed skill with the repository-independent validator when
+  available, and run bundled script tests or representative real commands.
+- Run `python3 scripts/package-kageos-plugin.py` before committing. Include both
+  the canonical skill change and its generated plugin copy in the same PR.
+- Do not bump the plugin version for an ordinary skill PR unless the change is
+  explicitly being prepared as a release.
+- Never add credentials, access tokens, private workspace content, local
+  runtime state, or customer data to a skill, reference, example, or fixture.
+
+Changes to `kageos-contributor` must preserve the local startup safety gates:
+reuse a healthy Docker/Podman environment, explain system installations before
+performing them, and never initialize, delete, or reset an existing Podman
+machine without explicit inspection and approval.
+
 ## Local Verification
 
 Run the checks that match your change before opening a pull request.

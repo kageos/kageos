@@ -107,6 +107,8 @@ kageos 是 Vue 前端、Go 平台服务群和用户应用容器运行时组成�
 | `web` | Vue 3 前端 |
 | `deploy` | 本地开发、生产部署、AIO、镜像和安全部署资料 |
 | `docs` | 产品思考、架构文档、SOP 和治理文档 |
+| `skills` | 随项目共同维护的五个 Codex/Claude Code Skill 唯一源码 |
+| `plugins/kageos` | 生成的可安装 kageos 套件；不要直接修改其中的 Skill 副本 |
 
 ## 快速开始
 
@@ -160,6 +162,24 @@ AI 工作台能力需要登录后配置 LLM，但 LLM API Key 不是启动平台
 `go run ./cmd/kagectl logs infra`。
 
 贡献者工作流、IDE 调试、只开发前端和提交前检查见 [CONTRIBUTING.md](CONTRIBUTING.md)。更完整的依赖说明和排障材料见 [deploy/dev/README.md](deploy/dev/README.md)。
+
+## AI 贡献者套件
+
+这个公共仓库同时维护面向 Codex 和 Claude Code、中文优先的 `kageos`
+套件。它可以带贡献者完成依赖检查、源码拉取、本地启动、健康验证、源码
+导览和聚焦 PR 准备。安装后可以直接说：
+
+```text
+$kageos 检查我的电脑环境，拉取并启动 kageos，成功后打开本地页面。
+```
+
+五个 Skill 的唯一源码位于 [`skills/`](skills)。其中
+[`skills/kageos-contributor`](skills/kageos-contributor) 负责本地启动和平台
+源码贡献；[`plugins/kageos`](plugins/kageos) 是 Codex/Claude 的生成发布物，
+必须通过 `scripts/package-kageos-plugin.py` 与源码同步。
+
+- 下载和安装：[kageos 中文开发套件](https://kageos.ai/zh/developer/)
+- 套件贡献规则：[CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md#维护-ai-套件)
 
 ## 生产部署
 

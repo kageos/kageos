@@ -97,6 +97,23 @@ go run ./cmd/kagectl logs infra
 go run ./cmd/kagectl down
 ```
 
+## 维护 AI 套件
+
+公共 `skills/` 目录是 Codex 和 Claude Code 使用的五个 kageos Skill 唯一
+源码。社区对本地启动、源码导览、工作空间开发、真实验收或 Hub 发布流程的
+改进，都应通过普通 Pull Request 提交到这里。
+
+- 先修改 `skills/<skill-name>`，不要手工修改 `plugins/kageos/skills` 下的生成副本。
+- 保持 `SKILL.md` 精简；重复且需要确定性的工作放进 `scripts/`，按需加载的详细说明放进 `references/`。
+- 使用可用的通用 Skill 校验器检查每个变更，并实际运行配套脚本测试或代表性命令。
+- 提交前运行 `python3 scripts/package-kageos-plugin.py`，同一个 PR 同时包含源 Skill 和生成的插件副本。
+- 普通 Skill PR 不要自行修改插件版本；只有明确准备发布时才统一升级版本和更新日志。
+- Skill、参考、示例和测试夹具中不得加入凭证、访问令牌、私有工作区内容、本地运行态或客户数据。
+
+修改 `kageos-contributor` 时必须保留本地启动安全门禁：优先复用健康的
+Docker/Podman 环境；安装系统软件前解释准确动作；未经检查和明确同意，不得
+初始化、删除或重置已经存在的 Podman machine。
+
 ## 本地验证
 
 按修改范围运行对应检查。

@@ -107,6 +107,8 @@ For the full architecture map, see [docs/current-architecture.md](docs/current-a
 | `web` | Vue 3 frontend |
 | `deploy` | Local development, production, AIO, image, and security deployment material |
 | `docs` | Product thinking, architecture notes, SOPs, and governance docs |
+| `skills` | Canonical source for the five Codex and Claude Code skills maintained with the project |
+| `plugins/kageos` | Generated, installable kageos toolkit; do not edit copied skills here directly |
 
 ## Quick Start
 
@@ -163,6 +165,26 @@ If startup gets stuck, run `go run ./cmd/kagectl doctor`,
 `go run ./cmd/kagectl logs infra` from the repository root.
 
 Contributor workflow, IDE debugging, frontend-only development, and verification checks live in [CONTRIBUTING.md](CONTRIBUTING.md). Detailed dependency notes and troubleshooting live in [deploy/dev/README.md](deploy/dev/README.md).
+
+## AI Contributor Toolkit
+
+The public repository also maintains the Chinese-first `kageos` toolkit for
+Codex and Claude Code. It can guide a contributor through prerequisites,
+cloning, local startup, health verification, source navigation, and focused PR
+preparation. After installation, start with:
+
+```text
+$kageos check my computer, clone and start kageos, then open the local page.
+```
+
+The five canonical skills live under [`skills/`](skills). In particular,
+[`skills/kageos-contributor`](skills/kageos-contributor) owns the local startup
+and source contribution workflow. [`plugins/kageos`](plugins/kageos) is the
+generated Codex/Claude distribution and must stay synchronized through
+`scripts/package-kageos-plugin.py`.
+
+- Download and install: [kageos Developer Toolkit](https://kageos.ai/developer/)
+- Toolkit contribution rules: [CONTRIBUTING.md](CONTRIBUTING.md#maintaining-the-ai-toolkit)
 
 ## Production Deployment
 
