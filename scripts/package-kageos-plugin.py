@@ -11,7 +11,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "skills"
 TARGET = ROOT / "plugins" / "kageos" / "skills"
-SKILLS = ("kageos", "kageos-developer", "kageos-operator", "kageos-hub-publisher")
+SKILLS = (
+    "kageos",
+    "kageos-contributor",
+    "kageos-developer",
+    "kageos-operator",
+    "kageos-hub-publisher",
+)
 
 
 def assert_skill(path: Path) -> None:

@@ -1,7 +1,7 @@
 {
   "name": "kageos",
-  "version": "0.2.2",
-  "description": "通过一套有门禁、可续跑的流程，完成 kageos 工作空间目录的设计、开发、构建、真实验收、打包和 Hub 发布。",
+  "version": "0.3.0",
+  "description": "帮助用户在本地启动和贡献 kageos 平台，并通过有门禁、可续跑的流程完成工作空间目录的设计、开发、验收和 Hub 发布。",
   "author": {
     "name": "QiaYan AI",
     "url": "https://qiayan.ai/"
@@ -11,8 +11,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "kageos",
-    "shortDescription": "设计、开发、验收并发布 kageos 目录。",
-    "longDescription": "面向 kageos 工作空间目录的中文交付套件，从最小设计和开发开始，经过平台构建、真实业务验收、确定性目录包、Hub 投稿和最终状态确认，形成可审计、可恢复的完整闭环。",
+    "shortDescription": "本地启动、贡献并完整交付 kageos 目录。",
+    "longDescription": "中文优先的 kageos 开发套件：帮助用户检查电脑环境、拉取和启动平台源码、排查故障并参与贡献，也能从目录最小设计和开发推进到平台构建、真实业务验收、确定性目录包、Hub 投稿和最终状态确认。",
     "developerName": "QiaYan AI",
     "category": "DeveloperTools",
     "brandColor": "#5B4BDF",
@@ -24,6 +24,8 @@
       "Write"
     ],
     "defaultPrompt": [
+      "检查我的电脑环境，拉取并启动 kageos，成功后打开本地页面。",
+      "带我阅读 kageos 源码并准备一个聚焦贡献。",
       "把这个 kageos 目录从设计、开发、构建、真实验收一直做到 Hub 投稿。",
       "从第一个阻塞阶段继续这次 kageos 交付。",
       "查看这次 kageos 交付的证据和当前状态。"

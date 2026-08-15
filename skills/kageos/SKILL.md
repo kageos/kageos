@@ -1,30 +1,35 @@
 ---
 name: kageos
-description: 统一编排 kageos 工作空间目录从需求设计、开发、本地检查、平台 build/update、真实业务验收、bundle 导出到 Hub 投稿和状态确认的完整交付闭环。用户要求从头做到发布、继续一次交付、查看交付状态，或不确定该使用 kageos-developer、kageos-operator、kageos-hub-publisher 中哪一个时使用。
+description: kageos 套件统一入口：把 kageos 平台源码拉到本地并启动、排障、阅读和贡献，或编排工作空间目录从需求设计、开发、平台构建、真实业务验收、bundle 导出到 Hub 投稿和状态确认的完整交付闭环。用户要求本地打开 kageos、参与平台贡献、从目录设计做到发布、继续一次交付、查看状态，或不确定该使用哪个 kageos 专业 skill 时使用。
 ---
 
 # kageos
 
 这是 kageos 套件的统一入口。名称只表示产品 `kageos`，不要扩写、改写或解释名称。
 
-本 skill 负责编排，不替代三个专业 skill：
+本 skill 负责编排，不替代四个专业 skill：
 
+- `kageos-contributor`：拉取和启动 kageos 平台源码、排障、源码导览及贡献准备。
 - `kageos-developer`：目录设计、实现、本地检查和平台 build/update。
 - `kageos-operator`：在已构建目录上执行真实业务场景、清理合成数据并产出验证报告。
 - `kageos-hub-publisher`：校验发布证据、准备媒体和元数据、获得最终确认后提交 Hub。
 
-开始完整交付前，依次读取本 skill、当前阶段对应的专业 skill，以及该专业 skill 明确要求的 references。不要一次把三个专业 skill 的全部 references 都载入上下文。
+开始工作前，依次读取本 skill、当前阶段对应的专业 skill，以及该专业 skill 明确要求的 references。不要一次把四个专业 skill 的全部 references 都载入上下文。
 
 ## 意图路由
 
 | 用户意图 | 路由 |
 |---|---|
+| 在本地电脑拉取、安装依赖、启动或排障 kageos 平台 | `kageos-contributor` |
+| 阅读、调试或贡献 kageos 平台源码 | `kageos-contributor` |
 | 设计、开发、修改、修 bug、本地检查、平台构建 | `kageos-developer` |
 | 操作现有目录、真实测试、验收、证明业务闭环 | `kageos-operator` |
 | 发布已验收目录、更新 Hub 版本、查询投稿 | `kageos-hub-publisher` |
 | 从设计做到发布、继续上次交付、查看全链路状态 | 本 skill 编排完整流程 |
 
 用户只要求单阶段工作时，不得擅自扩展到后续写操作或发布。用户明确要求“全链路、闭环、做到发布”时，授权的是推进整个流程，不代表跳过 Operator 写入确认或 Publisher 最终提交确认。
+
+“开发 kageos 平台源码”和“开发运行在 kageos 中的工作空间目录”必须区分。前者路由 `kageos-contributor`，后者路由 `kageos-developer`。完整目录交付遇到平台尚未启动时，可先调用 `kageos-contributor` 恢复本地平台，再返回原交付阶段；平台启动不增加或跳过下面八个目录交付阶段。
 
 ## 完整流水线
 

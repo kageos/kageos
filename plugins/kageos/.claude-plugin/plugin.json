@@ -1,7 +1,7 @@
 {
   "name": "kageos",
-  "description": "通过一套有门禁、可续跑的流程，完成 kageos 工作空间目录的设计、开发、构建、真实验收、打包和 Hub 发布。",
-  "version": "0.2.2",
+  "description": "帮助用户在本地启动和贡献 kageos 平台，并通过有门禁、可续跑的流程完成工作空间目录的设计、开发、验收和 Hub 发布。",
+  "version": "0.3.0",
   "author": {
     "name": "QiaYan AI",
     "url": "https://qiayan.ai/"
