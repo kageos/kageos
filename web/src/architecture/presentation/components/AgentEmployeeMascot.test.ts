@@ -15,10 +15,10 @@ describe('AgentEmployeeMascot', () => {
     expect(wrapper.attributes('data-agent-variant')).toBe('mark')
     expect(wrapper.attributes('data-agent-state')).toBe('working')
     expect(wrapper.attributes('aria-label')).toBe('巡检员工正在处理')
-    expect(wrapper.find('.agent-data-sparks').exists()).toBe(true)
+    expect(wrapper.get('img').attributes('src')).toContain('service-icon')
   })
 
-  it('changes the employee pose as the task state changes', async () => {
+  it('changes the employee artwork as the task state changes', async () => {
     const wrapper = mount(AgentEmployeeMascot, {
       props: {
         variant: 'employee',
@@ -26,13 +26,13 @@ describe('AgentEmployeeMascot', () => {
       },
     })
 
-    expect(wrapper.find('.agent-eyes-closed').exists()).toBe(true)
-    expect(wrapper.find('.agent-sleep-sign').exists()).toBe(true)
+    const pausedSource = wrapper.get('img').attributes('src')
+    expect(pausedSource).toContain('employee-paused')
 
     await wrapper.setProps({ state: 'failed' })
 
     expect(wrapper.attributes('data-agent-state')).toBe('failed')
-    expect(wrapper.find('.agent-alert-sign').exists()).toBe(true)
-    expect(wrapper.find('.agent-brows').exists()).toBe(true)
+    expect(wrapper.get('img').attributes('src')).toContain('employee-failed')
+    expect(wrapper.get('img').attributes('src')).not.toBe(pausedSource)
   })
 })
