@@ -2,7 +2,7 @@
 
 Thanks for taking the time to improve kageos. This repository is
 source-available under the Business Source License 1.1, and each release
-converts to Apache-2.0 after four years. Before contributing, read `LICENSE`
+converts to Apache-2.0 after three years. Before contributing, read `LICENSE`
 and `LICENSE_FAQ.md` so you understand the current use grant and change license.
 
 ## Before You Start

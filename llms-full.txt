@@ -114,9 +114,9 @@ Hub is a separate application at `https://hub.kageos.ai/`. The core repository s
 
 ## Licensing and Public Wording
 
-The kageos core platform is source-available and self-hostable under the Business Source License 1.1. Each release converts to Apache License 2.0 four years after release. It should not be described as currently OSI open source unless referring to a separately licensed component.
+The kageos core platform is source-available and self-hostable under the Business Source License 1.1. Each release converts to Apache License 2.0 three years after release. The default grant permits internal use by an organization and its Affiliates, qualifying customer-facing business solutions, and independently developed SDK extensions, while restricting unauthorized hosted platforms, MSP services, white-label, OEM, and competing platform offerings. It should not be described as currently OSI open source unless referring to a separately licensed component.
 
-The authoritative terms are `LICENSE` and `LICENSE_FAQ.md`. Product copy should explain user value first, then use the consistent wording: source-available, self-hostable, BSL 1.1, Apache-2.0 after four years.
+The authoritative terms are `LICENSE` and `LICENSE_FAQ.md`; `COMMERCIAL_LICENSE.md` explains how to request rights outside the default grant. Product copy should explain user value first, then use the consistent wording: source-available, self-hostable, BSL 1.1, Apache-2.0 after three years.
 
 ## Authoritative Reading Order
 

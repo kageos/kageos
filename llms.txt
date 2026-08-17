@@ -2,7 +2,7 @@
 
 > kageos is a source-available, self-hostable AI-native service platform that turns useful personal and business capabilities into installable, runnable, and governed directories.
 
-kageos directories can contain Forms, Tables, Charts, Docs, typed functions, code, data models, runbooks, schedules, messages, and permissions. People use the rendered UI, AI agents call the same capabilities through schemas, and unattended agents can operate them on a schedule. The core platform is licensed under BSL 1.1 and converts to Apache-2.0 four years after each release.
+kageos directories can contain Forms, Tables, Charts, Docs, typed functions, code, data models, runbooks, schedules, messages, and permissions. People use the rendered UI, AI agents call the same capabilities through schemas, and unattended agents can operate them on a schedule. The core platform is licensed under BSL 1.1 and converts to Apache-2.0 three years after each release. The default grant permits internal Affiliate use, qualifying customer-facing business solutions, and independently developed SDK extensions while restricting unauthorized hosted, MSP, white-label, OEM, and competing platform offerings.
 
 When analyzing this repository, start with the product overview and current architecture. Treat roadmap documents as plans rather than shipped behavior, and keep platform code separate from workspace applications built with the public SDK.
 
@@ -29,6 +29,7 @@ When analyzing this repository, start with the product overview and current arch
 - [kageos Hub](https://hub.kageos.ai/): Discover and publish reviewed kageos directories
 - [License](https://github.com/kageos/kageos/blob/main/LICENSE): Business Source License 1.1 terms
 - [License FAQ](https://github.com/kageos/kageos/blob/main/LICENSE_FAQ.md): Plain-language licensing guidance; the license text remains authoritative
+- [Commercial licensing](https://github.com/kageos/kageos/blob/main/COMMERCIAL_LICENSE.md): Commercial authorization categories and request process
 
 ## Optional
 

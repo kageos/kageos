@@ -7,46 +7,98 @@ License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved.
 
 Parameters
 
-Licensor:             kageos Project
+Licensor:             北京恰研智能科技有限公司
 Licensed Work:        kageos
-                      The Licensed Work is (c) 2025 kageos Project
+                      The Licensed Work is (c) 2025-present
+                      北京恰研智能科技有限公司
 Additional Use Grant: You may make production use of the Licensed Work for
-                      your own internal business operations or personal use,
-                      including use by your employees and contractors, provided
-                      that you do not use the Licensed Work for a Restricted
-                      Commercial Offering.
+                      personal use, your own internal business operations, or
+                      a Customer-Facing Solution, including use by your
+                      Affiliates, employees, and contractors, provided that
+                      (a) you do not use the Licensed Work to provide a
+                      Restricted Commercial Offering, and (b) your production
+                      use is not supplied to you as part of a Restricted
+                      Commercial Offering by a third party that has not
+                      received separate written authorization from Licensor.
 
-                      A "Restricted Commercial Offering" means any commercial
-                      product, service, distribution, or offering in which the
+                      An "Affiliate" means an entity that controls, is
+                      controlled by, or is under common control with you.
+                      "Control" means the direct or indirect power to direct
+                      an entity's management or policies, or ownership of more
+                      than fifty percent of its voting interests.
+
+                      A "Customer-Facing Solution" means your use of the
+                      Licensed Work to provide your customers, suppliers,
+                      partners, or the public with limited interactions or
+                      outputs from your own business solution, including public
+                      forms and submissions, application pages, portals,
+                      tables, charts, dashboards, documents, reports,
+                      notifications, automations, APIs, and support or chat
+                      interfaces. A Customer-Facing Solution is permitted only
+                      when:
+
+                      (a) external users do not receive general-purpose access
+                          to create, install, develop, or administer kageos
+                          workspaces, Service Trees, directories, agents,
+                          applications, users, permissions, or platform
+                          configuration;
+                      (b) the Licensed Work is not offered, marketed, or branded
+                          as a product or service available to those external
+                          users; and
+                      (c) the primary value offered to external users derives
+                          from your own goods, services, content, data, or
+                          independently developed solution, and not from
+                          providing the Licensed Work or substantially similar
+                          platform functionality.
+
+                      A "Restricted Commercial Offering" means a product or
+                      service that provides third parties (other than your
+                      Affiliates, employees, and contractors), for a fee or
+                      other direct or indirect commercial benefit, with the
                       Licensed Work, or a modified or derivative version of the
-                      Licensed Work, is offered, hosted, managed, operated,
-                      resold, embedded, white-labeled, OEM-distributed,
-                      rebranded, packaged, or otherwise provided to third
-                      parties (other than your employees and contractors) as a
-                      core value-driving component or as functionality that is
-                      substantially similar to the Licensed Work.
+                      Licensed Work, in a form in which:
 
-                      Restricted Commercial Offerings include, without
-                      limitation: commercial SaaS or hosted services; managed
-                      services operated by MSPs, agencies, consultants, or
-                      similar providers for external customers; resale of
-                      hosted access, seats, accounts, workspaces, or tenant
-                      instances; white-label, OEM, embedded, rebranded, or
-                      on-premises products provided to third parties for
-                      production use; and competing products or services whose
-                      main value substantially overlaps with the Licensed Work.
+                      (a) third parties access a hosted or managed instance of
+                          the Licensed Work in order to create, install,
+                          develop, operate, or administer workspaces, Service
+                          Trees, directories, agents, applications, users,
+                          permissions, platform configuration, or substantially
+                          similar platform functionality;
+                      (b) the Licensed Work is operated, embedded,
+                          white-labeled, OEM-distributed, or rebranded as a core
+                          value-driving component; or
+                      (c) the product or service is offered, marketed, or sold
+                          as an alternative to, or substitute for, substantial
+                          functionality of the Licensed Work, including its
+                          workspace and Service Tree management, directory
+                          lifecycle and governance, agent workbench and
+                          scheduled agents, application build and runtime
+                          administration, or user, permission, and audit
+                          administration.
 
                       Restricted Commercial Offerings do not include
-                      implementation, integration, configuration, training, or
-                      support services that assist a customer with a
-                      customer-controlled deployment of the Licensed Work for
-                      that customer's internal business operations, provided
-                      that the service provider does not host, control, resell,
-                      white-label, OEM-distribute, embed, rebrand, or offer the
-                      Licensed Work as the service provider's own product or
-                      service.
+                      (a) your own internal business operations, even when
+                          those operations support a commercial business, or
+                          internal use shared with your Affiliates;
+                      (b) implementation, integration, configuration, training,
+                          or support for a customer-controlled deployment used
+                          for that customer's permitted production use,
+                          provided that you do not offer the Licensed Work as
+                          your own hosted or managed product or service;
+                      (c) a Customer-Facing Solution that satisfies all of the
+                          conditions above;
+                      (d) independently developed directories, applications,
+                          plugins, integrations, or other extensions that use
+                          the public kageos SDK or public interfaces, do not
+                          incorporate or derive from the kageos core platform,
+                          and do not themselves provide a substantially similar
+                          platform; or
+                      (e) redistribution of original or modified copies of the
+                          Licensed Work under this License, provided that such
+                          redistribution does not itself authorize production
+                          use beyond this Additional Use Grant.
 
-Change Date:          Four years from the date of release
+Change Date:          Three years from the date of release
 Change License:       Apache License, Version 2.0
 
 -----------------------------------------------------------------------------

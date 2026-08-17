@@ -6,15 +6,15 @@
 
 先讲用户价值，再在需要时说明授权：
 
-> kageos 是源码公开、可自托管的业务目录平台。当前核心采用 BSL 1.1，各版本发布四年后转 Apache-2.0。
+> kageos 是源码公开、可自托管的业务目录平台。当前核心采用 BSL 1.1，各版本发布三年后转 Apache-2.0。
 
 英文统一使用：
 
-> kageos is source-available and self-hostable. The core platform is licensed under BSL 1.1 and converts to Apache-2.0 four years after release.
+> kageos is source-available and self-hostable. The core platform is licensed under BSL 1.1 and converts to Apache-2.0 three years after release.
 
 标题、徽标或页脚可使用：
 
-> Source-available · Self-hostable · BSL 1.1 · Apache-2.0 after 4 years
+> Source-available · Self-hostable · BSL 1.1 · Apache-2.0 after 3 years
 
 ## 表达规则
 
@@ -22,7 +22,8 @@
 - 不把“开源”作为 kageos 的产品标签、传播卖点、标题、CTA 或分类标签。
 - 不使用“开源项目”“完全开源”“open-source platform”等容易让人理解为当前采用 OSI 开源许可证的说法。
 - 用户明确询问是否开源时，直接说明当前核心采用 BSL 1.1，源码公开并允许授权范围内的自托管，但当前不是 OSI open source。
-- 需要解释商用边界时，链接到根目录的 `LICENSE` 和 `LICENSE_FAQ.md`，不要自行简化或扩展法律承诺。
+- 需要解释商用边界时，链接到根目录的 `LICENSE`、`LICENSE_FAQ.md` 和 `COMMERCIAL_LICENSE.zh-CN.md`，不要自行简化或扩展法律承诺。
+- 企业及同一控制关系下的关联公司可以内部生产使用。企业也可以通过公开表单、门户、报告、看板、API、通知、自动化和客服界面向自己的客户提供有限业务交互，只要外部用户不能获得 kageos 平台控制面，且 kageos 不是对外产品的核心销售价值。
 - “开源生态”“开源依赖”等表述只用于准确描述 Go、Vue、MySQL、NATS、MinIO 等第三方项目，不用于描述当前 kageos 核心。
 - 某个 SDK、示例、模板或文档只有在自身存在独立宽松许可证时，才可以单独称为开源；不得由此推导整个核心平台已开源。
 
@@ -38,7 +39,7 @@
 
 授权短答：
 
-> kageos 当前核心采用 BSL 1.1，源码公开、可自托管；限制未经授权的商业托管、白标、OEM 和竞品化产品或服务。各版本发布四年后转 Apache-2.0，具体以许可证正文为准。
+> kageos 当前核心采用 BSL 1.1，源码公开、可自托管；允许企业及关联公司内部使用，也允许符合条件的客户侧表单、门户、API 和业务输出；限制未经授权的商业托管、MSP、白标、OEM 和竞品化平台。各版本发布三年后转 Apache-2.0，具体以许可证正文为准。
 
 ## 发布前检查
 
@@ -47,4 +48,4 @@
 1. 标题和核心卖点是否围绕业务目录、私有运行、AI 可调用和平台治理，而不是围绕“开源”。
 2. 是否统一使用“源码公开、可自托管”或 “source-available and self-hostable”。
 3. 是否避免让用户误以为当前核心采用 Apache-2.0、MIT 或其他 OSI 开源许可证。
-4. 授权细节是否链接到 `LICENSE` 和 `LICENSE_FAQ.md`。
+4. 授权细节是否链接到 `LICENSE`、`LICENSE_FAQ.md` 和对应的商业授权说明。

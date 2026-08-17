@@ -6,11 +6,11 @@ Translations can follow the `README.<locale>.md` pattern.
 
 **AI-native service platform for individuals, teams, and enterprises: governed directories, unattended agents, typed functions, and self-hosted execution.**
 
-**Source-available · Self-hostable · BSL 1.1 · Apache-2.0 after 4 years**
+**Source-available · Self-hostable · BSL 1.1 · Apache-2.0 after 3 years**
 
 kageos turns personal and business capabilities into ready-to-run directories. A directory is not a static template or a one-off prompt result: it can contain Forms, Tables, Charts, Docs, Functions, code, data models, runbooks, schedules, messages, and permissions. Humans can open it. AI agents can call it through typed schemas. Unattended agent sessions can run it on a schedule. The platform can govern, audit, version, install, export, and reuse it.
 
-kageos is created by [QiaYan AI](https://qiayan.ai). The core platform is source-available and designed for self-hosting. It is licensed under the Business Source License 1.1 today and converts to Apache License 2.0 four years after release. See [LICENSE](LICENSE) and [LICENSE_FAQ.md](LICENSE_FAQ.md) for the exact terms.
+kageos is created by [QiaYan AI](https://qiayan.ai). The core platform is source-available and designed for self-hosting. It is licensed under the Business Source License 1.1 today and converts to Apache License 2.0 three years after release. See [LICENSE](LICENSE) and [LICENSE_FAQ.md](LICENSE_FAQ.md) for the exact terms.
 
 ## Why kageos
 
@@ -243,6 +243,7 @@ The same checks are wired into GitHub Actions in `.github/workflows/ci.yml`.
 - [Release SOP](docs/release-sop.md)
 - [Source and licensing messaging](docs/source-available-messaging.md)
 - [License FAQ](LICENSE_FAQ.md)
+- [Commercial licensing](COMMERCIAL_LICENSE.md)
 
 ## Chinese Overview
 
@@ -276,9 +277,9 @@ Send security reports privately to [admin@kageos.ai](mailto:admin@kageos.ai). In
 
 ## License
 
-kageos core is licensed under the Business Source License 1.1 and converts to Apache License 2.0 four years after release. The source code is public and self-hostable under the BSL grant, while unauthorized commercial SaaS, managed-service, white-label, OEM, embedded, rebranded, resale, and competing offerings are restricted.
+kageos core is licensed under the Business Source License 1.1 and converts to Apache License 2.0 three years after release. The source code is public and self-hostable under the BSL grant. Internal use by an organization and its Affiliates, qualifying customer-facing forms, portals, APIs and business outputs, and independently developed directories, apps, plugins, and integrations remain permitted. Unauthorized commercial SaaS, managed-service, white-label, OEM, embedded, rebranded, and competing platform offerings are restricted.
 
-See [LICENSE](LICENSE) and [LICENSE_FAQ.md](LICENSE_FAQ.md) for details. SDKs, examples, templates, and docs may use separate permissive licenses when their own license files say so.
+See [LICENSE](LICENSE), [LICENSE_FAQ.md](LICENSE_FAQ.md), and [commercial licensing](COMMERCIAL_LICENSE.md) for details. SDKs, examples, templates, and docs may use separate permissive licenses when their own license files say so.
 
 ## Acknowledgements
 

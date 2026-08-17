@@ -6,11 +6,11 @@
 
 **面向个人、团队和企业的 AI 原生服务平台：业务目录、无人值守 Agent、类型化函数、自托管运行时和平台治理。**
 
-**源码公开 · 可自托管 · BSL 1.1 · 发布四年后转 Apache-2.0**
+**源码公开 · 可自托管 · BSL 1.1 · 发布三年后转 Apache-2.0**
 
 kageos 把个人和业务能力变成开箱即用的目录。目录不是静态模板，也不是一次性 prompt 生成结果；它可以包含 Form、Table、Chart、Docs、Function、代码、数据模型、运行手册、定时任务、消息和权限。人可以直接打开使用，AI 可以按 schema 调用，无人值守 Agent 可以按计划运行，平台可以统一治理、审计、版本化、安装、导出和复用。
 
-kageos 由[恰研智能](https://qiayan.ai)创建。核心平台源码公开、可自托管；当前采用 Business Source License 1.1，发布四年后转 Apache License 2.0。准确授权条款见 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)。
+kageos 由[恰研智能](https://qiayan.ai)创建。核心平台源码公开、可自托管；当前采用 Business Source License 1.1，发布三年后转 Apache License 2.0。准确授权条款见 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)。
 
 ## 为什么做 kageos
 
@@ -238,6 +238,7 @@ bash scripts/check-doc-links.sh
 - [发布 SOP](docs/release-sop.md)
 - [源码与授权对外口径](docs/source-available-messaging.md)
 - [License FAQ](LICENSE_FAQ.md)
+- [商业授权](COMMERCIAL_LICENSE.zh-CN.md)
 
 ## 命名口径
 
@@ -265,9 +266,9 @@ bash scripts/check-doc-links.sh
 
 ## 授权
 
-kageos 核心采用 Business Source License 1.1，并在发布四年后转 Apache License 2.0。源码公开，允许在 BSL 授权范围内查看、修改、分发和自托管；未经授权的商业 SaaS、MSP 托管、白标、OEM、嵌入、on-premises 商业产品、改名转售和竞品化产品/服务受到限制。
+kageos 核心采用 Business Source License 1.1，并在发布三年后转 Apache License 2.0。源码公开，允许组织及其关联公司内部使用、符合条件的客户侧表单、门户、API 和业务输出，也允许独立开发并通过公共 SDK 或公共接口接入的目录、应用、插件和集成采用自己的许可证进行商业化；未经授权的商业 SaaS、MSP 托管、白标、OEM、嵌入、改名和竞品化平台受到限制。
 
-详情见 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)。SDK、示例、模板和文档如有单独 license 文件，可以采用各自的宽松开源授权。
+详情见 [LICENSE](LICENSE)、[LICENSE_FAQ.md](LICENSE_FAQ.md)和[商业授权](COMMERCIAL_LICENSE.zh-CN.md)。SDK、示例、模板和文档如有单独 license 文件，可以采用各自的宽松开源授权。
 
 ## 致谢
 

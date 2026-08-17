@@ -1,6 +1,6 @@
 # 贡献 kageos
 
-感谢你愿意改进 kageos。本仓库源码公开，当前采用 Business Source License 1.1，并在各版本发布四年后转为 Apache-2.0。贡献前请阅读 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)，确认你理解当前授权范围和转换机制。
+感谢你愿意改进 kageos。本仓库源码公开，当前采用 Business Source License 1.1，并在各版本发布三年后转为 Apache-2.0。贡献前请阅读 [LICENSE](LICENSE) 和 [LICENSE_FAQ.md](LICENSE_FAQ.md)，确认你理解当前授权范围和转换机制。
 
 ## 开始之前
 
