@@ -31,6 +31,18 @@ and `LICENSE_FAQ.md` so you understand the current use grant and change license.
 All code changes should go through pull requests. Pull requests need passing CI
 and maintainer review before merge.
 
+## Contributor License Agreement
+
+Before a pull request can be merged, its author must read and accept the
+[kageos Contributor License Agreement](CONTRIBUTOR_LICENSE_AGREEMENT.md). A
+[Chinese version](CONTRIBUTOR_LICENSE_AGREEMENT.zh-CN.md) is also available.
+
+Accept the CLA by checking the CLA acknowledgement in the pull request
+template. The acknowledgement applies to contributions submitted before and
+after acceptance. If an employer or another organization owns the contribution,
+the contributor must have authority to grant the rights in the CLA; maintainers
+may request separate evidence of corporate authorization.
+
 ## Branch Model
 
 Create branches from `main`. Recommended names:
@@ -298,7 +310,8 @@ Follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) when participating in project
 spaces. Report security issues privately through [SECURITY.md](SECURITY.md);
 do not open public issues for suspected vulnerabilities.
 
-By submitting a contribution, you agree that your contribution is provided under
-the repository's current license terms and will follow the Change License
-mechanism described in [LICENSE](LICENSE), unless separately agreed in writing
-with the maintainers.
+By submitting a contribution, you agree that it is provided under the
+repository's current license terms and follows the Change License mechanism
+described in [LICENSE](LICENSE), subject to the additional rights granted in the
+Contributor License Agreement, unless separately agreed in writing with the
+maintainers.

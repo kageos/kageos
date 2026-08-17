@@ -1,0 +1,35 @@
+name: CLA acknowledgement
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  cla:
+    if: github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify CLA acknowledgement
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import sys
+
+          body = os.environ.get("PR_BODY", "")
+          pattern = re.compile(
+              r"^- \[[xX]\] I have read and agree to the "
+              r"\[kageos Contributor License Agreement v1\.0\]",
+              re.MULTILINE,
+          )
+          if not pattern.search(body):
+              print("CLA acknowledgement is missing.")
+              print("Edit the pull request and check the CLA v1.0 checkbox.")
+              sys.exit(1)
+          print("CLA v1.0 acknowledgement found.")
+          PY

@@ -20,6 +20,12 @@
 
 所有代码修改都应通过 Pull Request 合并。PR 需要通过 CI，并由维护者审核后合并。
 
+## 贡献者许可协议
+
+Pull Request 合并前，作者必须阅读并接受 [kageos 贡献者许可协议](CONTRIBUTOR_LICENSE_AGREEMENT.zh-CN.md)。同时提供[英文版本](CONTRIBUTOR_LICENSE_AGREEMENT.md)供国际贡献者阅读。
+
+贡献者通过勾选 Pull Request 模板中的 CLA 确认项接受协议，该确认同时适用于接受前后提交的贡献。如果贡献的权利属于雇主或其他组织，贡献者必须有权授予 CLA 中约定的权利；维护者可以要求贡献者另行提供企业授权证明。
+
 ## 分支模型
 
 从 `main` 拉分支，推荐命名：
@@ -168,4 +174,4 @@ go run golang.org/x/vuln/cmd/govulncheck@latest ./cmd/... ./core/... ./dto/... .
 
 参与社区请遵守 [CODE_OF_CONDUCT.zh-CN.md](CODE_OF_CONDUCT.zh-CN.md)。安全漏洞请按 [SECURITY.zh-CN.md](SECURITY.zh-CN.md) 私下报告，不要发公开 issue。
 
-提交贡献即表示你同意将贡献按本仓库当前授权条款发布，并接受对应版本未来按 [LICENSE](LICENSE) 中的 Change License 机制转换为 Apache License 2.0，除非你和维护者另有书面约定。
+提交贡献即表示你同意将贡献按本仓库当前授权条款发布，并接受对应版本未来按 [LICENSE](LICENSE) 中的 Change License 机制转换为 Apache License 2.0，同时受贡献者许可协议所授予附加权利的约束，除非你和维护者另有书面约定。
