@@ -25,10 +25,11 @@
 - 当前目录表单：`<./send_notice.form>`
 - 当前目录图表：`<./risk_report.chart>`
 - 当前目录文档：`<./runbook.docs>`
-- 跨目录资源：`</system/tools/html/render.form>`
+- 同一能力包内的兄弟目录资源：`<../shared/render.form>`
+- 用户明确指定的跨工作空间资源：`</alice/support/tickets.table>`（不可移植，复制后需重新绑定）
 - 内置 Agent 工具：`<tool:send_notification>`
 
-不要写 `./profiles.table`，也不要写 `<profiles.table>`。相对资源必须带 `./`，否则阅读态和工具解析容易不一致。引用内置工具时不要写 `<send_notification>`，因为它不是 Service Tree 资源路径；需要回显工具 chip 时写 `<tool:send_notification>`，真实工具调用名仍是 `send_notification`。
+不要写 `./profiles.table`，也不要写 `<profiles.table>`；所有资源引用都放在尖括号中。选择顺序是：当前目录 `<./...>`，同一可复制能力包的兄弟目录 `<../...>`，最后才是跨工作空间绝对标记 `</...>`。只有用户明确要求绑定其他工作空间，而且无法用稳定相对关系表达时才使用绝对路径；必须在说明中标记“不可移植，复制或安装到其他实例后需重新绑定”。不要为了省事把本可相对引用的资源写成绝对路径。引用内置工具时不要写 `<send_notification>`，因为它不是 Service Tree 资源路径；需要回显工具 chip 时写 `<tool:send_notification>`，真实工具调用名仍是 `send_notification`。
 
 轻量资源标记只提供导航和语义引用，不会自动查询数据。真正查询表格时，Agent 仍要调用 table 工具，并按分页读完。
 

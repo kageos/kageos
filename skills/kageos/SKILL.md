@@ -1,6 +1,6 @@
 ---
 name: kageos
-description: kageos 套件统一入口：把 kageos 平台源码拉到本地并启动、排障、阅读和贡献，或编排工作空间目录从需求设计、开发、平台构建、真实业务验收、bundle 导出到 Hub 投稿和状态确认的完整交付闭环。用户要求本地打开 kageos、参与平台贡献、从目录设计做到发布、继续一次交付、查看状态，或不确定该使用哪个 kageos 专业 skill 时使用。
+description: kageos 套件统一入口：把 kageos 平台源码拉到本地并启动、排障、阅读和贡献，规划由一个或多个隔离目录组成的场景包，或编排工作空间目录从需求设计、开发、平台构建、真实业务验收、bundle 导出到 Hub 投稿和状态确认的完整交付闭环。用户要求本地打开 kageos、参与平台贡献、规划场景包、从目录设计做到发布、继续一次交付、查看状态，或不确定该使用哪个 kageos 专业 skill 时使用。
 ---
 
 # kageos
@@ -22,6 +22,7 @@ description: kageos 套件统一入口：把 kageos 平台源码拉到本地并�
 |---|---|
 | 在本地电脑拉取、安装依赖、启动或排障 kageos 平台 | `kageos-contributor` |
 | 阅读、调试或贡献 kageos 平台源码 | `kageos-contributor` |
+| 规划场景包、判断目录拆分/合并、数据库边界或跨目录 HTTP | `kageos-developer` |
 | 设计、开发、修改、修 bug、本地检查、平台构建 | `kageos-developer` |
 | 操作现有目录、真实测试、验收、证明业务闭环 | `kageos-operator` |
 | 发布已验收目录、更新 Hub 版本、查询投稿 | `kageos-hub-publisher` |
@@ -48,7 +49,7 @@ design
 
 阶段定义：
 
-1. `design`：明确业务问题、目录、模板组合、主入口、暂不做和验收场景。
+1. `design`：明确业务问题；涉及场景包时先区分场景包、目录和目录内资源，确认每个目录的独立闭环、数据库边界及是否真的需要跨目录 HTTP；再明确模板组合、主入口、暂不做和验收场景。
 2. `local_build`：实现代码并通过 gofmt、go test、go build。
 3. `platform_build`：执行真实 build/update，并从实时 service tree 证明新版本已经生效。
 4. `operator_verify`：按真实 schema 执行业务场景、读回结果、验证自动化、清理测试数据，必须生成 `verified` 的 `kageos.operator-report.v1`。
@@ -90,6 +91,7 @@ python3 scripts/delivery_run.py reset \
 
 ## 强制门禁
 
+- 场景包不等于共享数据库。不同目录是隔离的业务库和 HTTP 边界；如果核心路径要求共享记录、同步修改或强一致，优先合并到同一目录。能独立闭环的能力默认拆成场景包中的独立目录，跨目录 HTTP 只作为有真实依据的可选增强。
 - `local_build` 通过不代表平台已生效；必须单独完成 `platform_build`。
 - 发布链路中的 Operator report 不是可选制品，必须落盘并渲染成人类可读的 Markdown/HTML。
 - `operator_verify` 之后如果目录代码或平台版本改变，原报告作废，回到 `platform_build` 和 `operator_verify`。

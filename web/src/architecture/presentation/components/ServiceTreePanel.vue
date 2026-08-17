@@ -711,11 +711,11 @@ const getScheduledAgentBadgeTitle = (node: ServiceTree): string => {
   const enabled = Number(node.enabled_agent_tasks || 0)
   const running = Number(node.running_agent_tasks || 0)
   const failed = Number(node.failed_agent_tasks || 0)
-  if (running > 0 && failed > 0) return `${running} 名智能员工正在处理，${failed} 名需要关注`
-  if (running > 0) return `${running} 名智能员工正在处理，${total} 名员工在值守`
-  if (failed > 0) return `${failed} 名智能员工需要关注`
-  if (enabled > 0) return `${enabled} 名智能员工已启动，${total} 名员工在值守`
-  return `${total} 名智能员工已配置，目前全部暂停`
+  if (running > 0 && failed > 0) return `${running} 名数字员工正在处理，${failed} 名需要关注`
+  if (running > 0) return `${running} 名数字员工正在处理，${total} 名员工在值守`
+  if (failed > 0) return `${failed} 名数字员工需要关注`
+  if (enabled > 0) return `${enabled} 名数字员工已启动，${total} 名员工在值守`
+  return `${total} 名数字员工已配置，目前全部暂停`
 }
 
 const getScheduledAgentState = (node: ServiceTree): 'running' | 'enabled' | 'paused' | 'failed' => {
@@ -1174,7 +1174,7 @@ function buildBulkExportName(nodes: ServiceTree[]): string {
 }
 
 function automationKindLabel(kind: DirectoryOverviewScheduledTask['kind']): string {
-  return kind === 'agent' ? '智能员工' : '函数定时'
+  return kind === 'agent' ? '数字员工' : '函数定时'
 }
 
 function isTaskInsideExportNodes(item: DirectoryOverviewScheduledTask, nodes: ServiceTree[]): boolean {

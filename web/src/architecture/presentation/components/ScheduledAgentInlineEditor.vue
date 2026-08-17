@@ -1,6 +1,6 @@
 <template>
   <el-form class="detail-inline-form" label-position="top">
-    <el-form-item :label="t('scheduledTask.taskName')" required>
+    <el-form-item :label="t('scheduledTask.employeeName')" required>
       <el-input
         :model-value="title"
         maxlength="100"
@@ -26,6 +26,7 @@
       <el-select
         :model-value="llmConfigId"
         filterable
+        popper-class="scheduled-agent-dialog-popper"
         :placeholder="t('scheduledTask.defaultModel')"
         :loading="llmLoading"
         style="width: 100%"

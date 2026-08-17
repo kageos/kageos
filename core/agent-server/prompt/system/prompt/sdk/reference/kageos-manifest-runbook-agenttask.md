@@ -1,6 +1,6 @@
 # kageos_manifest.go / runbook.docs / AgentTask 写法
 
-这份文档用于写或审查 `kageos_manifest.go`、`runbook.docs` 和 `AgentTask.Message`。产品界面和用户语言里的“智能员工”“值守员工”默认指 `agent.session` Agent 任务；用户要求创建智能员工时，应创建或声明 AgentTask，而不是创建用户、角色或普通定时函数。命中这些对象时必须先区分目录级运行契约和具体无人值守任务，不要把两者混成一段提示词。
+这份文档用于写或审查 `kageos_manifest.go`、`runbook.docs` 和 `AgentTask.Message`。产品界面和用户语言里的“数字员工”“值守员工”默认指 `agent.session` Agent 任务；用户要求创建数字员工时，应创建或声明 AgentTask，而不是创建用户、角色或普通定时函数。命中这些对象时必须先区分目录级运行契约和具体无人值守任务，不要把两者混成一段提示词。
 
 ## 核心区别
 
@@ -67,10 +67,11 @@ build/update 时，SDK 会自动把缺失的中间目录加入目录对账，并
 - 当前目录表单：`<./send_notice.form>`
 - 当前目录图表：`<./risk_report.chart>`
 - 当前目录文档：`<./runbook.docs>`
-- 跨目录资源：`</system/tools/html/render.form>`
+- 同一能力包内的兄弟目录资源：`<../shared/render.form>`
+- 用户明确指定的跨工作空间资源：`</alice/support/tickets.table>`（不可移植，复制后需重新绑定）
 - 内置 Agent 工具：`<tool:send_notification>`
 
-不要写 `./profiles.table`，也不要写 `<profiles.table>`。相对资源必须带 `./`，否则阅读态和工具解析容易不一致。引用内置工具时不要写 `<send_notification>`，因为它不是 Service Tree 资源路径；需要回显工具 chip 时写 `<tool:send_notification>`，真实工具调用名仍是 `send_notification`。
+不要写 `./profiles.table`，也不要写 `<profiles.table>`；所有资源引用都放在尖括号中。选择顺序是：当前目录 `<./...>`，同一可复制能力包的兄弟目录 `<../...>`，最后才是跨工作空间绝对标记 `</...>`。只有用户明确要求绑定其他工作空间，而且无法用稳定相对关系表达时才使用绝对路径；必须在说明中标记“不可移植，复制或安装到其他实例后需重新绑定”。不要为了省事把本可相对引用的资源写成绝对路径。引用内置工具时不要写 `<send_notification>`，因为它不是 Service Tree 资源路径；需要回显工具 chip 时写 `<tool:send_notification>`，真实工具调用名仍是 `send_notification`。
 
 轻量资源标记只提供导航和语义引用，不会自动查询数据。真正查询表格时，Agent 仍要调用 table 工具，并按分页读完。
 
@@ -124,7 +125,7 @@ Runbook 只写稳定业务规则，不写某个 cron 的细碎安排。像“黄
 - `<./docs/readme.docs>` 用普通人的语言说明解决方案目录怎么用；其他 docs 一份文档对应一个可复用场景。
 - 场景文档写清状态、什么时候使用、需要哪些业务信息、怎么处理、系统可以做到哪一步、怎么回复、失败时找谁。不要把 schema、字段名、参数映射和幂等规则做成必填模板。
 - 只有人工审核且正文明确“已启用”的场景文档，才能作为正式回复或自动执行依据。“待确认”和“已停用”文档必须被忽略。
-- 场景文档可以通过 `/` 引用已有查询或处理功能。维护者只需要说明这个功能在业务上用来做什么；Agent 执行前自行搜索真实 schema，确认参数来源、权限、风险、幂等和执行后验证。
+- 场景文档引用已有查询或处理功能时优先使用 `<./...>` 或 `<../...>`。用户明确要求跨工作空间编排时可以使用 `</...>` 绝对标记，但必须说明它不可移植、复制后需要重新绑定。维护者只需要说明这个功能在业务上用来做什么；Agent 执行前自行搜索真实 schema，确认参数来源、权限、风险、幂等和执行后验证。
 
 推荐的场景文档模板：
 

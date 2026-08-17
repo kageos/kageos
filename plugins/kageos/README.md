@@ -8,7 +8,7 @@
 
 - `kageos`：默认统一入口，负责完整闭环和失败续跑。
 - `kageos-contributor`：检查环境、拉取和启动平台源码、排障、源码导览和贡献准备。
-- `kageos-developer`：目录设计、开发、本地检查和平台 build/update。
+- `kageos-developer`：场景包规划、目录与数据库边界判断、目录设计、开发、本地检查和平台 build/update。
 - `kageos-operator`：真实业务操作、验收、测试数据清理和证据报告。
 - `kageos-hub-publisher`：目录包、截图、元数据、确认、投稿和状态查询。
 
@@ -24,6 +24,12 @@ $kageos 检查我的电脑环境，拉取并启动 kageos，成功后打开本�
 
 ```text
 $kageos 把 /user/app/package 从设计、开发、构建、真实验收一直做到 Hub 投稿。
+```
+
+场景包规划使用：
+
+```text
+$kageos 把这些业务需求规划成场景包，判断哪些能力应放在同一目录，哪些应拆成独立目录。
 ```
 
 若通过仓库开发 marketplace 测试：

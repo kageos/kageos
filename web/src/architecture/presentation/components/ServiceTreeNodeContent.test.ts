@@ -39,7 +39,7 @@ describe('ServiceTreeNodeContent', () => {
           full_code_path: '/alice/ops',
         } as any,
         showScheduledAgentBadge: true,
-        scheduledAgentBadgeTitle: '2 名智能员工已启动',
+        scheduledAgentBadgeTitle: '2 名数字员工已启动',
         scheduledAgentState: 'enabled',
       },
       global: {
@@ -52,7 +52,7 @@ describe('ServiceTreeNodeContent', () => {
     const marker = wrapper.get('.scheduled-agent-badge')
     const node = wrapper.get('.tree-node')
     expect(marker.text()).toBe('')
-    expect(marker.attributes('aria-label')).toBe('2 名智能员工已启动')
+    expect(marker.attributes('aria-label')).toBe('2 名数字员工已启动')
     expect(marker.classes()).toContain('is-enabled')
     expect(node.classes()).not.toContain('has-scheduled-agent')
     expect(node.classes()).toContain('agent-state-enabled')
@@ -60,7 +60,7 @@ describe('ServiceTreeNodeContent', () => {
     expect(wrapper.text()).not.toContain('员工在值守')
   })
 
-  it('shows the alert pose when the directory has an Agent that needs attention', () => {
+  it('marks the directory employee icon as failed when an employee needs attention', () => {
     const wrapper = mount(ServiceTreeNodeContent, {
       props: {
         node: {
@@ -70,7 +70,7 @@ describe('ServiceTreeNodeContent', () => {
           full_code_path: '/alice/reports',
         } as any,
         showScheduledAgentBadge: true,
-        scheduledAgentBadgeTitle: '1 名智能员工需要关注',
+        scheduledAgentBadgeTitle: '1 名数字员工需要关注',
         scheduledAgentState: 'failed',
       },
     })
@@ -78,7 +78,8 @@ describe('ServiceTreeNodeContent', () => {
     const marker = wrapper.get('[data-agent-variant="mark"]')
     expect(wrapper.get('.tree-node').classes()).toContain('agent-state-failed')
     expect(marker.attributes('data-agent-state')).toBe('failed')
-    expect(marker.find('.agent-alert-mark').exists()).toBe(true)
+    const image = marker.get('img')
+    expect(image.attributes('src')).toContain('service-icon.webp')
   })
 
   it('shows a clickable lock and switches to the pending marker after a request is submitted', async () => {
@@ -147,7 +148,7 @@ describe('ServiceTreeNodeContent', () => {
           full_code_path: '/alice/customers',
         } as any,
         showScheduledAgentBadge: true,
-        scheduledAgentBadgeTitle: '智能员工状态',
+        scheduledAgentBadgeTitle: '数字员工状态',
         scheduledAgentState: directoryState,
       },
     })
@@ -233,7 +234,7 @@ describe('ServiceTreeNodeContent', () => {
           admins: 'alice,bob',
         } as any,
         showScheduledAgentBadge: true,
-        scheduledAgentBadgeTitle: '1 名智能员工正在处理，1 名需要关注',
+        scheduledAgentBadgeTitle: '1 名数字员工正在处理，1 名需要关注',
         scheduledAgentState: 'failed',
       },
       global: {
@@ -248,7 +249,7 @@ describe('ServiceTreeNodeContent', () => {
 
     expect(getDirectoryOverview).toHaveBeenCalledWith('/alice/ops/tickets')
     const card = wrapper.get('[data-testid="scheduled-agent-hover-card"]')
-    expect(card.text()).toContain('智能员工 · 客户工单')
+    expect(card.text()).toContain('数字员工 · 客户工单')
     expect(card.text()).toContain('负责人alice、bob')
     expect(card.text()).toContain('紧急工单处理')
     expect(card.text()).toContain('检查新工单，符合规则时自动处理')

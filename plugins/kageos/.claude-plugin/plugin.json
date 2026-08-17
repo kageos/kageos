@@ -1,7 +1,7 @@
 {
   "name": "kageos",
-  "description": "帮助用户在本地启动和贡献 kageos 平台，并通过有门禁、可续跑的流程完成工作空间目录的设计、开发、验收和 Hub 发布。",
-  "version": "0.3.0",
+  "description": "帮助用户在本地启动和贡献 kageos 平台，规划场景包和目录数据边界，并通过有门禁、可续跑的流程完成目录设计、开发、验收和 Hub 发布。",
+  "version": "0.3.1",
   "author": {
     "name": "QiaYan AI",
     "url": "https://qiayan.ai/"

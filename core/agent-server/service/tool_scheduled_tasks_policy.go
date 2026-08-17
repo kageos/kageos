@@ -167,7 +167,7 @@ func defaultScheduledAgentTitle(fullCodePath string, message string) string {
 	if name == "" {
 		name = "工作台"
 	}
-	return name + " Agent 任务"
+	return name + " 值守员"
 }
 
 func defaultScheduledAgentTitleFromMessage(message string) string {

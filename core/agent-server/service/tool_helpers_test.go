@@ -85,6 +85,16 @@ func TestResolveTypedFunctionFullCodePathArg(t *testing.T) {
 			t.Fatalf("unexpected path: %s", got)
 		}
 	})
+
+	t.Run("unwraps portable parent relative resource token path", func(t *testing.T) {
+		got, notice := resolveTypedFunctionFullCodePathArg("<../shared/record_screening.form>", "/alice/hr/recruit_interview", ".form")
+		if notice != "" {
+			t.Fatalf("unexpected notice: %s", notice)
+		}
+		if got != "/alice/hr/shared/record_screening.form" {
+			t.Fatalf("unexpected path: %s", got)
+		}
+	})
 }
 
 func TestResolveDirectoryArgUnwrapsResourceTokens(t *testing.T) {

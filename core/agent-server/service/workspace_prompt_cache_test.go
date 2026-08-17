@@ -95,7 +95,7 @@ func TestScheduledTaskSummaryExcludesVolatileRunState(t *testing.T) {
 			t.Fatalf("scheduled summary should not include volatile %q: %s", volatile, got)
 		}
 	}
-	for _, stable := range []string{"id=42", "类型=Agent 任务", "标题=日报巡检", "资源=/system/demo/report", "计划=every 3600s", "创建人=alice"} {
+	for _, stable := range []string{"id=42", "类型=数字员工", "标题=日报巡检", "资源=/system/demo/report", "计划=every 3600s", "创建人=alice"} {
 		if !strings.Contains(got, stable) {
 			t.Fatalf("scheduled summary missing stable %q: %s", stable, got)
 		}

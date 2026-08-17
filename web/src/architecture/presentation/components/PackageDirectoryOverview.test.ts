@@ -162,7 +162,7 @@ describe('PackageDirectoryOverview', () => {
     expect(roster.text()).not.toContain('Agent 任务 16')
 
     const agentPanel = wrapper.findAll('.scheduled-panel')[1]!
-    expect(agentPanel.text()).toContain('智能员工')
+    expect(agentPanel.text()).toContain('数字员工')
     expect(agentPanel.text()).not.toContain('Agent 值守员工')
     const sectionLogo = agentPanel.get('.scheduled-panel-agent-mark')
     expect(sectionLogo.attributes('data-agent-variant')).toBe('mark')

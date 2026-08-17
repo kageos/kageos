@@ -3,13 +3,13 @@
     <div class="scheduled-list-header">
       <div>
         <div class="scheduled-list-title">{{ t('scheduledTask.agentTitle') }}</div>
-        <div class="scheduled-list-subtitle">{{ resourcePath ? t('scheduledTask.currentWorkspace') : t('scheduledTask.noWorkspaceSelected') }}</div>
+        <div class="scheduled-list-subtitle">{{ resourcePath ? `${t('scheduledTask.currentWorkspace')} · ${resourcePath}` : t('scheduledTask.noWorkspaceSelected') }}</div>
       </div>
       <div class="scheduled-list-actions">
         <span class="scheduled-total">{{ t('scheduledTask.totalCount', { count: total }) }}</span>
         <el-button :icon="Refresh" @click="handleListRefresh">{{ t('common.refresh') }}</el-button>
         <el-button type="primary" :icon="Plus" :disabled="!resourcePath" @click="handleOpenCreate">
-          {{ t('scheduledTask.newTask') }}
+          新建数字员工
         </el-button>
       </div>
     </div>
@@ -17,7 +17,7 @@
     <div class="scheduled-agent-workspace">
       <aside class="scheduled-agent-sidebar">
         <div class="scheduled-list-filter">
-          <div class="scheduled-sidebar-title">{{ t('scheduledTask.sessionList') }}</div>
+          <div class="scheduled-sidebar-title">数字员工队伍</div>
           <el-select v-model="statusFilter" :placeholder="t('scheduledTask.allStatuses')" clearable size="small" @change="handleStatusFilterChange">
             <el-option :label="t('scheduledTask.allStatuses')" value="" />
             <el-option :label="t('scheduledTask.taskStatusPending')" value="pending" />
@@ -47,29 +47,40 @@
             ]"
             @click="selectTask(task)"
           >
-            <span class="agent-session-item-head">
-              <span class="agent-session-item-title">
-                {{ task.title || t('scheduledTask.unnamedAgentTask') }}
+            <span class="agent-session-item-avatar">
+              <AgentEmployeeMascot
+                variant="employee"
+                :state="agentEmployeeState(task)"
+                :label="`${task.title || t('scheduledTask.unnamedAgentTask')}，${agentEmployeeStatus(task)}`"
+              />
+            </span>
+            <span class="agent-session-item-content">
+              <span class="agent-session-item-head">
+                <span class="agent-session-item-title">
+                  {{ task.title || t('scheduledTask.unnamedAgentTask') }}
+                </span>
+                <el-tag :type="agentEmployeeTagType(task)" size="small" effect="light">
+                  {{ agentEmployeeStatus(task) }}
+                </el-tag>
               </span>
-              <el-tag v-if="isBuiltinTask(task)" size="small" type="info" effect="plain">目录内置</el-tag>
-              <el-tag v-else size="small" type="success" effect="plain">自定义</el-tag>
-              <el-tag :type="taskStatusTag(task.status)" size="small" effect="light">
-                {{ taskStatusLabel(task.status) }}
-              </el-tag>
-            </span>
-            <span class="agent-session-item-summary">
-              {{ getTaskSummary(task) }}
-            </span>
-            <span v-if="task.last_error_message" class="agent-session-item-error">
-              {{ task.last_error_message }}
-            </span>
-            <span class="agent-session-item-meta">
-              <span>{{ scheduleLabel(task.schedule) }}</span>
-              <span>{{ t('scheduledTask.nextRun') }} {{ formatDateTime(task.next_run_at) }}</span>
-              <span>{{ t('scheduledTask.runCount') }} {{ task.run_count || 0 }}</span>
-            </span>
-            <span v-if="isTaskPaused(task)" class="agent-session-item-hint">
-              {{ t('scheduledTask.enableForUnattendedHint') }}
+              <span class="agent-session-item-badges">
+                <el-tag v-if="isBuiltinTask(task)" size="small" type="info" effect="plain">目录内置</el-tag>
+                <el-tag v-else size="small" type="success" effect="plain">自定义</el-tag>
+              </span>
+              <span class="agent-session-item-summary">
+                {{ getTaskSummary(task) }}
+              </span>
+              <span v-if="task.last_error_message" class="agent-session-item-error">
+                {{ task.last_error_message }}
+              </span>
+              <span class="agent-session-item-meta">
+                <span>{{ scheduleLabel(task.schedule) }}</span>
+                <span>{{ t('scheduledTask.nextRun') }} {{ formatDateTime(task.next_run_at) }}</span>
+                <span>{{ t('scheduledTask.runCount') }} {{ task.run_count || 0 }}</span>
+              </span>
+              <span v-if="isTaskPaused(task)" class="agent-session-item-hint">
+                {{ t('scheduledTask.enableForUnattendedHint') }}
+              </span>
             </span>
           </button>
         </div>
@@ -97,28 +108,100 @@
         <template v-else>
           <div class="scheduled-detail-shell" :class="{ 'is-editing': inlineEditing }">
             <section class="detail-document">
-              <div class="detail-document-toolbar">
-                <div>
-                  <div class="detail-kicker">{{ t('scheduledTask.sessionMessage') }}</div>
-                  <div class="detail-toolbar-title">
-                    {{ inlineEditing ? t('scheduledTask.editAgentDialogTitle') : t('scheduledTask.sessionMessageHint') }}
+              <div v-if="!inlineEditing" class="detail-employee-hero">
+                <div class="detail-employee-avatar">
+                  <AgentEmployeeMascot
+                    variant="employee"
+                    :state="agentEmployeeState(selectedTask)"
+                    :label="`${selectedTask.title || t('scheduledTask.unnamedAgentTask')}，${agentEmployeeStatus(selectedTask)}`"
+                  />
+                </div>
+                <div class="detail-employee-copy">
+                  <div class="detail-employee-title-row">
+                    <h2>{{ selectedTask.title || t('scheduledTask.unnamedAgentTask') }}</h2>
+                    <el-tag v-if="isBuiltinTask(selectedTask)" type="info" effect="plain">目录内置</el-tag>
+                    <el-tag v-else type="success" effect="plain">自定义</el-tag>
+                    <el-tag :type="agentEmployeeTagType(selectedTask)" effect="light">
+                      {{ agentEmployeeStatus(selectedTask) }}
+                    </el-tag>
                   </div>
+                  <p>{{ getTaskDescription(selectedTask) || t('scheduledTask.noDescription') }}</p>
+                  <div class="detail-employee-promise">看见谁在值守，也看见每一次真实执行。</div>
                 </div>
                 <div class="detail-edit-actions">
-                  <template v-if="inlineEditing">
-                    <el-button @click="cancelInlineEdit">{{ t('common.cancel') }}</el-button>
-                    <el-button type="primary" :loading="inlineSaving" @click="saveInlineEdit">
-                      {{ t('common.save') }}
-                    </el-button>
-                  </template>
                   <el-button
-                    v-else
-                    type="primary"
+                    v-if="isBuiltinTask(selectedTask)"
+                    :icon="CopyDocument"
+                    @click="handleCopyAsCustom(selectedTask)"
+                  >
+                    复制为自定义
+                  </el-button>
+                  <el-button
                     :icon="EditPen"
                     :disabled="isTerminal(selectedTask.status) || isBuiltinTask(selectedTask)"
                     @click="startInlineEdit(selectedTask)"
                   >
                     {{ t('scheduledTask.edit') }}
+                  </el-button>
+                  <el-button
+                    type="primary"
+                    :icon="VideoPlay"
+                    :disabled="isTerminal(selectedTask.status)"
+                    @click="handleRunNow(selectedTask)"
+                  >
+                    {{ t('scheduledTask.runNow') }}
+                  </el-button>
+                  <el-button
+                    :type="selectedTask.status === 'paused' ? 'primary' : 'warning'"
+                    :icon="selectedTask.status === 'paused' ? CaretRight : VideoPause"
+                    :disabled="isTerminal(selectedTask.status)"
+                    @click="selectedTask.status === 'paused' ? handleResume(selectedTask) : handlePause(selectedTask)"
+                  >
+                    {{ selectedTask.status === 'paused' ? t('scheduledTask.resume') : t('scheduledTask.pause') }}
+                  </el-button>
+                </div>
+              </div>
+
+              <div v-if="!inlineEditing" class="detail-employee-facts">
+                <div class="detail-employee-fact">
+                  <span>{{ t('scheduledTask.schedule') }}</span>
+                  <strong>{{ scheduleLabel(selectedTask.schedule) }}</strong>
+                </div>
+                <div class="detail-employee-fact">
+                  <span>{{ t('scheduledTask.nextRun') }}</span>
+                  <strong>{{ formatDateTime(selectedTask.next_run_at) }}</strong>
+                </div>
+                <div class="detail-employee-fact">
+                  <span>{{ t('scheduledTask.runCount') }}</span>
+                  <strong>{{ selectedTask.run_count || 0 }} 次</strong>
+                </div>
+                <div class="detail-employee-fact is-path">
+                  <span>工作目录</span>
+                  <strong>{{ selectedTaskWorkspacePath || '-' }}</strong>
+                </div>
+                <div class="detail-employee-fact">
+                  <span>{{ t('scheduledTask.overlapPolicy') }}</span>
+                  <strong>{{ overlapPolicyLabel(selectedTask.overlap_policy) }}</strong>
+                </div>
+                <div class="detail-employee-fact">
+                  <span>{{ t('scheduledTask.agentModel') }}</span>
+                  <strong>{{ getTaskLLMConfigLabel(selectedTask) }}</strong>
+                </div>
+                <div class="detail-employee-fact">
+                  <span>{{ t('scheduledTask.createdBy') }}</span>
+                  <strong>{{ selectedTask.created_by || selectedTask.request_user || '-' }}</strong>
+                </div>
+              </div>
+
+              <div v-else class="detail-document-toolbar">
+                <div>
+                  <div class="detail-kicker">编辑数字员工</div>
+                  <div class="detail-toolbar-title">修改职责、工作说明和执行设置</div>
+                </div>
+                <div class="detail-edit-actions">
+                  <el-button @click="cancelInlineEdit">{{ t('common.cancel') }}</el-button>
+                  <el-button type="primary" :loading="inlineSaving" @click="saveInlineEdit">
+                    {{ t('common.save') }}
                   </el-button>
                 </div>
               </div>
@@ -136,6 +219,23 @@
                 :full-code-path="selectedTaskWorkspacePath"
                 @llm-visible-change="handleLLMSelectVisibleChange"
                 @save="saveInlineEdit"
+              />
+
+              <ScheduledAgentTaskAside
+                v-if="inlineEditing"
+                class="is-inline-schedule"
+                :task="selectedTask"
+                :builtin="isBuiltinTask(selectedTask)"
+                :inline-editing="true"
+                :workspace-path="selectedTaskWorkspacePath"
+                :llm-config-label="getTaskLLMConfigLabel(selectedTask)"
+                v-model:schedule-type="inlineForm.schedule_type"
+                v-model:run-at="inlineForm.run_at"
+                v-model:cron-expr="inlineForm.cron_expr"
+                v-model:interval-seconds="inlineForm.interval_seconds"
+                v-model:max-runs="inlineForm.max_runs"
+                v-model:overlap-policy="inlineForm.overlap_policy"
+                v-model:max-parallelism="inlineForm.max_parallelism"
               />
 
               <template v-else>
@@ -198,6 +298,21 @@
                 </section>
               </template>
 
+              <section v-if="!inlineEditing && !isBuiltinTask(selectedTask)" class="detail-document-section detail-management-section">
+                <div>
+                  <div class="detail-section-title">更多管理</div>
+                  <div class="detail-section-subtitle">取消会保留记录；删除后会从数字员工队伍中移除。</div>
+                </div>
+                <div class="detail-edit-actions">
+                  <el-button type="danger" plain :disabled="isTerminal(selectedTask.status)" @click="handleCancel(selectedTask)">
+                    {{ t('scheduledTask.cancel') }}
+                  </el-button>
+                  <el-button type="danger" plain :disabled="!!selectedTask.inflight_execution_id" @click="handleDelete(selectedTask)">
+                    {{ t('scheduledTask.delete') }}
+                  </el-button>
+                </div>
+              </section>
+
               <ScheduledAgentExecutionRecords
                 :state="selectedExecutionState"
                 :focused-execution-id="focusedExecutionId"
@@ -208,26 +323,6 @@
               />
             </section>
 
-            <ScheduledAgentTaskAside
-              :task="selectedTask"
-              :builtin="isBuiltinTask(selectedTask)"
-              :inline-editing="inlineEditing"
-              :workspace-path="selectedTaskWorkspacePath"
-              :llm-config-label="getTaskLLMConfigLabel(selectedTask)"
-              v-model:schedule-type="inlineForm.schedule_type"
-              v-model:run-at="inlineForm.run_at"
-              v-model:cron-expr="inlineForm.cron_expr"
-              v-model:interval-seconds="inlineForm.interval_seconds"
-              v-model:max-runs="inlineForm.max_runs"
-              v-model:overlap-policy="inlineForm.overlap_policy"
-              v-model:max-parallelism="inlineForm.max_parallelism"
-              @run-now="handleRunNow"
-              @pause="handlePause"
-              @resume="handleResume"
-              @cancel="handleCancel"
-              @delete="handleDelete"
-              @copy="handleCopyAsCustom"
-            />
           </div>
         </template>
       </main>
@@ -257,7 +352,7 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { EditPen, Paperclip, Plus, Refresh } from '@element-plus/icons-vue'
+import { CaretRight, CopyDocument, EditPen, Paperclip, Plus, Refresh, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import {
   cancelTimerTask,
   createTimerTask,
@@ -288,6 +383,7 @@ import ScheduledAgentTaskDialog from './ScheduledAgentTaskDialog.vue'
 import ScheduledAgentExecutionRecords from './ScheduledAgentExecutionRecords.vue'
 import ScheduledAgentInlineEditor from './ScheduledAgentInlineEditor.vue'
 import ScheduledAgentTaskAside from './ScheduledAgentTaskAside.vue'
+import AgentEmployeeMascot from './AgentEmployeeMascot.vue'
 import WorkspaceResourceHoverCard from './WorkspaceResourceHoverCard.vue'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
 import { fileNameFromRef, parseFileRefs, stringifyFileRefs } from '@/architecture/presentation/widgets/filesWidgetTypes'
@@ -711,6 +807,35 @@ function compactText(value: string, fallback: string): string {
 
 function getTaskSummary(task?: TimerTask | null): string {
   return compactText(getTaskDescription(task) || getAgentDisplayMessage(task), t('scheduledTask.noDescription'))
+}
+
+function agentEmployeeState(task: TimerTask): 'working' | 'ready' | 'paused' | 'failed' {
+  if (task.inflight_execution_id) return 'working'
+  if (task.status === 'failed' || Boolean(task.last_error_message?.trim())) return 'failed'
+  if (task.status === 'pending') return 'ready'
+  return 'paused'
+}
+
+function agentEmployeeStatus(task: TimerTask): string {
+  const state = agentEmployeeState(task)
+  if (state === 'working') return '工作中'
+  if (state === 'ready') return '待命'
+  if (state === 'failed') return '需要关注'
+  return taskStatusLabel(task.status)
+}
+
+function agentEmployeeTagType(task: TimerTask): 'primary' | 'success' | 'warning' | 'danger' | 'info' {
+  const state = agentEmployeeState(task)
+  if (state === 'working') return 'success'
+  if (state === 'ready') return 'primary'
+  if (state === 'failed') return 'danger'
+  return 'warning'
+}
+
+function overlapPolicyLabel(policy?: TimerOverlapPolicy): string {
+  if (policy === 'queue_latest') return t('scheduledTask.overlapQueueLatest')
+  if (policy === 'allow') return t('scheduledTask.overlapAllow')
+  return t('scheduledTask.overlapForbid')
 }
 
 function applyInlineScheduleForm(scheduleForm: TimerScheduleForm) {
@@ -1185,7 +1310,7 @@ defineExpose({ load: loadList })
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(270px, 340px) minmax(0, 1fr);
+  grid-template-columns: minmax(310px, 360px) minmax(0, 1fr);
   gap: 14px;
 }
 
@@ -1220,10 +1345,10 @@ defineExpose({ load: loadList })
   appearance: none;
   width: 100%;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 12px 13px;
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px;
   border: 1px solid var(--scheduled-session-line);
   border-left: 3px solid transparent;
   border-radius: 10px;
@@ -1232,6 +1357,26 @@ defineExpose({ load: loadList })
   text-align: left;
   cursor: pointer;
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.agent-session-item-avatar {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 2px;
+}
+
+.agent-session-item-avatar :deep(.agent-employee-mascot) {
+  width: 72px;
+  height: 64px;
+}
+
+.agent-session-item-content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
 }
 
 .agent-session-item:hover {
@@ -1264,6 +1409,12 @@ defineExpose({ load: loadList })
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+}
+
+.agent-session-item-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .agent-session-item-title {
@@ -1371,7 +1522,7 @@ defineExpose({ load: loadList })
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 310px);
+  grid-template-columns: minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -1381,6 +1532,114 @@ defineExpose({ load: loadList })
   overflow: auto;
   padding: 24px 28px 30px;
   background: var(--app-shell-panel-bg, var(--el-bg-color));
+}
+
+.detail-employee-hero {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+  padding: 6px 0 22px;
+}
+
+.detail-employee-avatar {
+  display: flex;
+  min-height: 108px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--scheduled-session-accent) 22%, var(--scheduled-session-line));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--scheduled-session-accent) 8%, var(--scheduled-session-paper));
+  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight, rgba(255, 255, 255, 0.7));
+}
+
+.detail-employee-avatar :deep(.agent-employee-mascot) {
+  width: 104px;
+  height: 90px;
+}
+
+.detail-employee-copy {
+  min-width: 0;
+}
+
+.detail-employee-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-employee-title-row h2 {
+  min-width: 0;
+  margin: 0 4px 0 0;
+  color: var(--scheduled-session-ink);
+  font-size: clamp(22px, 2vw, 30px);
+  font-weight: 760;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.detail-employee-copy p {
+  max-width: 760px;
+  margin: 12px 0 0;
+  color: var(--el-text-color-regular);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.detail-employee-promise {
+  margin-top: 10px;
+  color: var(--scheduled-session-accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.detail-employee-hero .detail-edit-actions {
+  grid-column: 1 / -1;
+  max-width: none;
+  justify-content: flex-start;
+}
+
+.detail-employee-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.detail-employee-fact {
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--scheduled-session-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--scheduled-session-paper) 90%, var(--scheduled-session-tint) 10%);
+}
+
+.detail-employee-fact span,
+.detail-employee-fact strong {
+  display: block;
+}
+
+.detail-employee-fact span {
+  color: var(--scheduled-session-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.detail-employee-fact strong {
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--scheduled-session-ink);
+  font-size: 14px;
+  font-weight: 720;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-employee-fact.is-path strong {
+  font-family: var(--font-family-mono, ui-monospace, monospace);
+  font-size: 12px;
 }
 
 .detail-document-toolbar {
@@ -1428,6 +1687,10 @@ defineExpose({ load: loadList })
 }
 
 .detail-document-toolbar + .detail-document-section {
+  border-top: 0;
+}
+
+.detail-employee-facts + .detail-document-section {
   border-top: 0;
 }
 
@@ -1714,14 +1977,39 @@ defineExpose({ load: loadList })
   white-space: nowrap;
 }
 
+.detail-management-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+:deep(.is-inline-schedule.detail-aside) {
+  margin-top: 20px;
+  padding: 0;
+  overflow: visible;
+  border-left: 0;
+}
+
 @media (max-width: 1100px) {
   .scheduled-agent-workspace {
-    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+    grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
   }
 
-  .scheduled-detail-shell {
-    grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
+  .detail-employee-hero {
+    grid-template-columns: 104px minmax(0, 1fr);
   }
+
+  .detail-employee-hero .detail-edit-actions {
+    grid-column: 1 / -1;
+    max-width: none;
+    justify-content: flex-start;
+  }
+
+  .detail-employee-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
 }
 
 @media (max-width: 860px) {
@@ -1743,8 +2031,10 @@ defineExpose({ load: loadList })
   }
 
   .detail-document-toolbar,
-  .detail-section-head {
+  .detail-section-head,
+  .detail-management-section {
     flex-direction: column;
+    align-items: flex-start;
   }
 
   .detail-edit-actions {
@@ -1764,6 +2054,28 @@ defineExpose({ load: loadList })
 
   .detail-document {
     padding: 18px 16px 22px;
+  }
+
+  .detail-employee-hero {
+    grid-template-columns: 82px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .detail-employee-avatar {
+    min-height: 82px;
+  }
+
+  .detail-employee-avatar :deep(.agent-employee-mascot) {
+    width: 76px;
+    height: 66px;
+  }
+
+  .detail-employee-title-row h2 {
+    font-size: 20px;
+  }
+
+  .detail-employee-facts {
+    grid-template-columns: 1fr;
   }
 
 }

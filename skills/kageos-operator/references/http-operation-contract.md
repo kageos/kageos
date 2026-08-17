@@ -15,17 +15,13 @@ X-Source-Ref: <stable run reference>
 X-Trace-Id: <stable run trace ID>
 ```
 
-Add exactly one authentication header:
-
-```http
-Authorization: Bearer <OpenAPI token>
-```
-
-or, temporarily for local/test verification:
+Add this authentication header:
 
 ```http
 X-Token: <access JWT>
 ```
+
+Use the value from `KAGEOS_ACCESS_TOKEN`. Current kageos workspace operations do not use an OpenAPI Bearer token; do not send `Authorization: Bearer`.
 
 ## Discovery
 
