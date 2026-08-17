@@ -2,7 +2,7 @@
   <aside class="detail-aside">
     <section class="detail-aside-card">
       <div class="detail-aside-card-head">
-        <div class="detail-aside-title">{{ t('scheduledTask.agentDetailTitle') }}</div>
+        <div class="detail-aside-title">{{ inlineEditing ? '执行设置' : '运行信息' }}</div>
         <div class="detail-aside-tags">
           <el-tag v-if="builtin" type="info" effect="plain">目录内置</el-tag>
           <el-tag v-else type="success" effect="plain">自定义</el-tag>
@@ -11,66 +11,6 @@
           </el-tag>
         </div>
       </div>
-      <div class="detail-aside-name">{{ task.title || t('scheduledTask.unnamedAgentTask') }}</div>
-      <div class="detail-aside-path">{{ workspacePath || '-' }}</div>
-      <div class="detail-aside-actions">
-        <el-tooltip v-if="builtin" content="复制为自定义" placement="top" effect="light">
-          <el-button
-            :icon="CopyDocument"
-            :disabled="inlineEditing"
-            @click="emit('copy', task)"
-          />
-        </el-tooltip>
-        <el-tooltip :content="t('scheduledTask.runNow')" placement="top" effect="light">
-          <el-button
-            type="primary"
-            :icon="VideoPlay"
-            :disabled="inlineEditing || isTerminal(task.status)"
-            @click="emit('run-now', task)"
-          />
-        </el-tooltip>
-        <el-tooltip
-          :content="task.status === 'paused' ? t('scheduledTask.resume') : t('scheduledTask.pause')"
-          placement="top"
-          effect="light"
-        >
-          <el-button
-            :type="task.status === 'paused' ? 'primary' : 'warning'"
-            :icon="task.status === 'paused' ? CaretRight : VideoPause"
-            :disabled="inlineEditing || isTerminal(task.status)"
-            @click="task.status === 'paused' ? emit('resume', task) : emit('pause', task)"
-          />
-        </el-tooltip>
-        <el-tooltip v-if="!builtin" :content="t('scheduledTask.cancel')" placement="top" effect="light">
-          <el-button
-            type="danger"
-            :icon="Close"
-            :disabled="inlineEditing || isTerminal(task.status)"
-            @click="emit('cancel', task)"
-          />
-        </el-tooltip>
-        <el-tooltip v-if="!builtin" :content="t('scheduledTask.delete')" placement="top" effect="light">
-          <el-button
-            type="danger"
-            plain
-            :icon="Delete"
-            :disabled="inlineEditing || !!task.inflight_execution_id"
-            @click="emit('delete', task)"
-          />
-        </el-tooltip>
-      </div>
-      <el-alert
-        v-if="isTaskPaused(task)"
-        class="detail-enable-hint"
-        type="info"
-        show-icon
-        :closable="false"
-        :title="t('scheduledTask.enableForUnattendedHint')"
-      />
-    </section>
-
-    <section class="detail-aside-card">
-      <div class="detail-aside-title">{{ t('scheduledTask.schedule') }}</div>
       <div v-if="!inlineEditing" class="detail-property-list">
         <div class="detail-property">
           <span>{{ t('scheduledTask.schedule') }}</span>
@@ -100,6 +40,10 @@
           <span>{{ t('scheduledTask.createdBy') }}</span>
           <strong>{{ task.created_by || task.request_user || '-' }}</strong>
         </div>
+        <div class="detail-property is-path">
+          <span>工作目录</span>
+          <strong>{{ workspacePath || '-' }}</strong>
+        </div>
       </div>
 
       <el-form v-else class="detail-schedule-form" label-position="top">
@@ -119,6 +63,7 @@
           <el-date-picker
             :model-value="runAt"
             type="datetime"
+            popper-class="scheduled-agent-dialog-popper"
             :placeholder="t('scheduledTask.runAtPlaceholder')"
             format="YYYY-MM-DD HH:mm"
             value-format="YYYY-MM-DD HH:mm:ss"
@@ -153,7 +98,7 @@
         </el-form-item>
 
         <el-form-item :label="t('scheduledTask.overlapPolicy')">
-          <el-select :model-value="overlapPolicy" style="width: 100%" @update:model-value="updateOverlapPolicy">
+          <el-select :model-value="overlapPolicy" popper-class="scheduled-agent-dialog-popper" style="width: 100%" @update:model-value="updateOverlapPolicy">
             <el-option :label="t('scheduledTask.overlapForbid')" value="forbid" />
             <el-option :label="t('scheduledTask.overlapQueueLatest')" value="queue_latest" />
             <el-option :label="t('scheduledTask.overlapAllow')" value="allow" />
@@ -173,6 +118,28 @@
       </el-form>
     </section>
 
+    <section v-if="!inlineEditing && !builtin" class="detail-aside-card is-danger-zone">
+      <div class="detail-aside-title">更多管理</div>
+      <div class="detail-aside-management">
+        <el-button
+          type="danger"
+          plain
+          :disabled="isTerminal(task.status)"
+          @click="emit('cancel', task)"
+        >
+          {{ t('scheduledTask.cancel') }}
+        </el-button>
+        <el-button
+          type="danger"
+          plain
+          :disabled="!!task.inflight_execution_id"
+          @click="emit('delete', task)"
+        >
+          {{ t('scheduledTask.delete') }}
+        </el-button>
+      </div>
+    </section>
+
     <el-alert
       v-if="task.last_error_message"
       class="detail-alert"
@@ -187,7 +154,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { CaretRight, Close, CopyDocument, Delete, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import type { TimerOverlapPolicy, TimerScheduleType, TimerTask } from '@/architecture/presentation/context/api/timer'
 import { createRelativeDateTimeShortcuts } from '@/architecture/shared/date'
 import {
@@ -213,12 +179,8 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'run-now', task: TimerTask): void
-  (e: 'pause', task: TimerTask): void
-  (e: 'resume', task: TimerTask): void
   (e: 'cancel', task: TimerTask): void
   (e: 'delete', task: TimerTask): void
-  (e: 'copy', task: TimerTask): void
   (e: 'update:scheduleType', value: TimerScheduleType): void
   (e: 'update:runAt', value: string): void
   (e: 'update:cronExpr', value: string): void
@@ -230,10 +192,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const dateTimeShortcuts = computed(() => createRelativeDateTimeShortcuts())
-
-function isTaskPaused(task?: TimerTask | null): boolean {
-  return task?.status === 'paused'
-}
 
 function isTerminal(status: string): boolean {
   return ['done', 'failed', 'cancelled'].includes(status)
@@ -395,6 +353,28 @@ function formatDateInput(date: Date): string {
   font-weight: 700;
   line-height: 1.45;
   word-break: break-word;
+}
+
+.detail-property.is-path strong {
+  font-family: var(--font-family-mono, ui-monospace, monospace);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.detail-aside-card.is-danger-zone {
+  margin-top: auto;
+}
+
+.detail-aside-management {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.detail-aside-management :deep(.el-button) {
+  width: 100%;
+  margin: 0;
 }
 
 .detail-schedule-form {

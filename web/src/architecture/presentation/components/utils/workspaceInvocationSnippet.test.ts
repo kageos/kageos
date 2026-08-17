@@ -21,10 +21,13 @@ describe('workspaceInvocationSnippet', () => {
 
   it('preserves relative resource tokens and resolves them against a workspace path', () => {
     const token = wrapWorkspaceResourcePath('./record_screening.form')
+    const siblingToken = wrapWorkspaceResourcePath('../shared/jobs.table')
 
     expect(token).toBe('<./record_screening.form>')
+    expect(siblingToken).toBe('<../shared/jobs.table>')
     expect(unwrapWorkspaceResourceToken(token)).toBe('./record_screening.form')
     expect(unwrapWorkspaceResourceToken(token, '/system/democase/recruit_interview')).toBe('/system/democase/recruit_interview/record_screening.form')
+    expect(unwrapWorkspaceResourceToken(siblingToken, '/system/democase/recruit_interview')).toBe('/system/democase/shared/jobs.table')
     expect(resolveWorkspaceResourcePath('../shared/jobs.table', '/system/democase/recruit_interview')).toBe('/system/democase/shared/jobs.table')
   })
 

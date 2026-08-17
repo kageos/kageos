@@ -93,7 +93,7 @@ func workspaceScheduledTaskKindLabel(task *scheduledsdk.Task) string {
 		case "scheduled_function":
 			return "函数任务"
 		case "scheduled_agent_session":
-			return "Agent 任务"
+			return "数字员工"
 		default:
 			return kind
 		}
@@ -102,7 +102,7 @@ func workspaceScheduledTaskKindLabel(task *scheduledsdk.Task) string {
 	case "app.function":
 		return "函数任务"
 	case "agent.session":
-		return "Agent 任务"
+		return "数字员工"
 	default:
 		return "定时任务"
 	}

@@ -271,7 +271,7 @@ func TestWorkspaceScheduledTaskSummarySkipsExecutorPayloadContent(t *testing.T) 
 		CreatedBy:       "system",
 	}
 	got := formatWorkspaceScheduledTaskSummary(task)
-	for _, want := range []string{"id=25", "类型=Agent 任务", "标题=黄金盯盘日报", "描述=每天生成观察日报"} {
+	for _, want := range []string{"id=25", "类型=数字员工", "标题=黄金盯盘日报", "描述=每天生成观察日报"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("summary should contain %q, got %s", want, got)
 		}
@@ -298,8 +298,8 @@ func TestScheduledTaskToolDescriptionsDistinguishFunctionAndAgentTasks(t *testin
 
 	agentDesc := (&CreateScheduledAgentTaskTool{}).Definition().Description
 	for _, want := range []string{
-		"智能员工（Agent 任务）",
-		"用户说“给这个目录创建一个智能员工”时使用本工具",
+		"数字员工（Agent 任务）",
+		"用户说“给这个目录创建一个数字员工”时使用本工具",
 		"不要创建用户、角色、应用目录或普通函数任务",
 		"启动一个 Agent 工作台会话",
 		"message 当作执行说明交给工作台 Agent",
@@ -311,10 +311,15 @@ func TestScheduledTaskToolDescriptionsDistinguishFunctionAndAgentTasks(t *testin
 		"全部写进 message",
 		"预期使用工具清单",
 		"change_role、read_dir/search、web_search",
-		"Agent 任务可以编排当前目录、本空间其他目录、其他空间函数",
+		"Agent 任务可以编排当前目录、同一能力包其他目录、用户明确授权的其他工作空间",
+		"资源引用遵循相对路径优先",
+		"当前目录写成 <./xxx.form>",
+		"同一能力包兄弟目录写成 <../other/xxx.table>",
+		"只有用户明确要求跨工作空间绑定时才使用 </完整路径>",
+		"不可移植、复制后需重新绑定",
 		"质量规则要结合业务",
 		"不要用于已明确的单个 Form/Table/Chart 函数调用",
-		"不能静默替换用户明确要求的智能员工",
+		"不能静默替换用户明确要求的数字员工",
 	} {
 		if !strings.Contains(agentDesc, want) {
 			t.Fatalf("agent task description should contain %q, got %q", want, agentDesc)

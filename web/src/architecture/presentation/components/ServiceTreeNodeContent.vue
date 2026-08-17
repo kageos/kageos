@@ -104,7 +104,7 @@
         class="scheduled-agent-hover-card"
         :class="`is-${scheduledAgentState}`"
         data-testid="scheduled-agent-hover-card"
-        :aria-label="`${displayLabel}的智能员工详情`"
+        :aria-label="`${displayLabel}的数字员工详情`"
       >
         <header class="scheduled-agent-hover-head">
           <span class="scheduled-agent-hover-avatar">
@@ -115,7 +115,7 @@
             />
           </span>
           <span class="scheduled-agent-hover-heading">
-            <strong>智能员工 · {{ displayLabel }}</strong>
+            <strong>数字员工 · {{ displayLabel }}</strong>
             <small>{{ scheduledAgentBadgeTitle }}</small>
           </span>
         </header>
@@ -192,7 +192,7 @@
           class="scheduled-agent-hover-open"
           @click.stop="emit('scheduled-agent-click')"
         >
-          查看全部智能员工
+          查看全部数字员工
         </button>
       </section>
     </el-popover>
@@ -407,7 +407,7 @@ function scheduledAgentTaskStatus(item: DirectoryOverviewScheduledTask): string 
 }
 
 function scheduledAgentTaskTitle(item: DirectoryOverviewScheduledTask): string {
-  return item.task.title?.trim() || '未命名智能员工'
+  return item.task.title?.trim() || '未命名数字员工'
 }
 
 function scheduledAgentTaskPurpose(item: DirectoryOverviewScheduledTask): string {

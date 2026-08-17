@@ -128,7 +128,7 @@ func TestWorkspaceRoleSpecAutomationOperator(t *testing.T) {
 		!strings.Contains(got.RouteDescription, "不要把示例规则机械套到所有任务") {
 		t.Fatalf("automation_operator route description should explain scheduled session resource orchestration and scenario-specific quality control: %q", got.RouteDescription)
 	}
-	for _, want := range []string{"创建智能员工", "“智能员工”“值守员工”是 Agent 任务的产品名称", "`create_scheduled_agent_task`", "不要创建用户、角色、应用目录或普通函数任务"} {
+	for _, want := range []string{"创建数字员工", "“数字员工”“值守员工”是 Agent 任务的产品名称", "`create_scheduled_agent_task`", "不要创建用户、角色、应用目录或普通函数任务"} {
 		if !strings.Contains(got.RouteDescription, want) {
 			t.Fatalf("automation_operator route description should contain %q, got %q", want, got.RouteDescription)
 		}

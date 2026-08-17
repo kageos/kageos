@@ -83,7 +83,7 @@ func workspaceRoleGateSuggestion(roleID string, toolName string) string {
 	case "send_notification":
 		return "如需在执行过程中通知用户，请切换到应用执行、自动执行配置或其他具备通知权限的执行角色；不确定切谁时切到「执行路由手册」。"
 	case "create_scheduled_function_task", "create_scheduled_agent_task", "manage_scheduled_task":
-		return "如需创建或管理定时任务、智能员工，请交接给「自动执行配置」；不确定切谁时切到「执行路由手册」。"
+		return "如需创建或管理定时任务、数字员工，请交接给「自动执行配置」；不确定切谁时切到「执行路由手册」。"
 	default:
 		if roleID == WorkspaceRoleProductManager {
 			return "产品经理只负责需求分析、PRD 和确认。"

@@ -1,6 +1,6 @@
 ---
 name: kageos-developer
-description: 用于本地开发、修改和验证 kageos 工作空间应用。强调面向中小企业的低部署门槛、MVP、简单优先、案例优先、真正有价值的无人值守和 docs-first 知识闭环。当用户要求在 kageos 工作台目录或 full_code_path 下开发、设计 PRD、创建 Form/Table/Chart、编辑 namespace/{user}/{app}/code/api 下 SDK package、维护 packageContext/runbook/docs/AgentTask，或运行 gofmt/go test/go build 时使用。
+description: 用于规划 kageos 场景包、判断目录与数据库边界，以及在本地开发、修改和验证 kageos 工作空间应用。强调面向中小企业的低部署门槛、MVP、简单优先、案例优先、真正有价值的无人值守和 docs-first 知识闭环。当用户要求设计场景包、拆分或合并目录、设计 PRD、创建 Form/Table/Chart、编辑 namespace/{user}/{app}/code/api 下 SDK package、维护 packageContext/runbook/docs/AgentTask，或运行 gofmt/go test/go build 时使用。
 ---
 
 # kageos Developer
@@ -41,6 +41,29 @@ Docs、runbook、AgentTask、通知和定时任务是辅助能力，不是新的
 复杂功能必须有明确理由再加。默认不做：审批流、节点表、日志表、通用配置中心、权限模型、统计大盘、AgentTask、多个角色入口、复杂状态机、外部系统集成。某个目录为跑通自身能力所需的一条最小外部服务配置，不算“通用配置中心”，应按下面的配置入口规则实现。
 
 如果用户反馈“太复杂、不好用、看不懂”，立刻收缩到一个主入口和 6-10 个用户能理解的字段，不要解释为什么复杂是必要的。
+
+## 场景包与目录边界硬规则
+
+先区分三个层级：
+
+- **场景包**：面向同一类客户或同一段业务的发现、推荐和组合安装单元；本身不意味着共享数据库或运行时通信。
+- **目录**：独立应用、独立业务库和 HTTP API 边界；不同目录不得假设能直接查表、关联记录或共享事务。
+- **目录内资源**：同一目录中的 Form/Table/Chart/Docs；只有确实需要共享核心数据、保持一致或共同完成一个闭环的功能才放在一起。
+
+默认优先“多个可独立安装的目录组成一个场景包”。满足任一条件时才合并进同一目录：操作同一批核心记录、一次动作必须更新多个功能、拆开后无法独立闭环，或数据不一致会直接破坏业务。反过来，如果两个能力只服务同一类客户，但各自能在五分钟内独立产生价值，就拆成不同目录，即使它们属于同一个场景包。
+
+不同目录只能通过 HTTP 通信。跨目录 HTTP 默认是可选增强，不得成为目录首次安装即可使用的隐含前置条件。如果核心路径离不开同步跨目录读写，先重新评估是否应该合并目录。确需 HTTP 时，必须定义唯一数据所有者、最小请求载荷、鉴权配置、幂等键、超时与重试、可见失败状态和人工补偿；不得设计跨库事务、全量双向同步或把 token 写入代码、日志、截图、示例数据和 Hub 包。
+
+设计新目录或场景包时，先完整读取 `references/scenario-pack-directory-boundaries.md`，并输出：
+
+1. 场景包服务谁、解决什么共同问题。
+2. 包含哪些目录，每个目录的核心业务对象和独立闭环是什么。
+3. 每个目录能否独立安装；不能时为什么不合并。
+4. 是否共享数据；如需共享，是否应放回同一目录。
+5. 是否需要跨目录 HTTP；如果需要，它是核心依赖还是可选增强。
+6. 现有 democase 可复用项、新增项和明确不做项。
+
+没有完成这次边界判断，不得开始写 PRD 或代码。
 
 ## 外部服务配置入口硬规则
 
@@ -134,7 +157,7 @@ Demo 的五分钟价值路径应尽量完整：安装 → 打开主入口 → �
 - `docs/readme.docs` 用普通人的语言说明解决方案目录怎么用、怎么新增方案、谁审核和何时启用。
 - `docs/*.docs` 保存具体场景的业务事实：什么时候使用、需要哪些信息、怎么处理、系统可以做到哪一步、怎么回复和失败找谁。
 - 只有人工审核且正文明确“已启用”的场景文档，才能作为正式回复或自动执行依据；“待确认”和“已停用”必须忽略。
-- 场景文档可以通过 `/` 引用当前或其他目录的 Form/Table/Chart。业务人员只需说明该功能的业务用途；Agent 必须自行搜索真实 schema，确认参数来源、权限、风险、幂等和执行后验证，资源标记本身不授权执行。
+- 场景文档引用 Form/Table/Chart 时遵循“相对路径优先”：当前目录用 `<./xxx.form>`，同一可复制能力包的兄弟目录用 `<../other/xxx.table>`。只有用户明确要求绑定能力包外的其他工作空间，而且无法用稳定相对关系表达时，才允许 `</user/app/...>` 绝对资源标记；必须同时说明该依赖不可移植，复制或安装到其他实例后需要重新绑定。不要为了省事把本可相对引用的资源写成绝对路径。业务人员只需说明该功能的业务用途；Agent 必须自行搜索真实 schema，确认参数来源、权限、风险、幂等和执行后验证，资源标记本身不授权执行。
 
 推荐闭环：
 
@@ -224,7 +247,7 @@ packageContext.AddDocs(app.DocManifest{
 2. `references/sdk-prompt.md`：从工作台搬来的 SDK 主提示词，查 Form/Table/Chart 真实写法。
 3. `references/examples/index.md`：选择最接近当前需求的案例。
 4. 涉及业务通知、提醒、附件推送时读 `references/notifications.md`。
-5. 涉及场景目录、复杂工作流、AI 后台任务或多表协同时，按需读 `references/solution-design-principles.md`、`references/ai-native-workflow-modeling.md`、`references/workflow-product-quality.md`。
+5. 涉及场景包、目录拆分或跨目录通信时，必须读 `references/scenario-pack-directory-boundaries.md`；涉及场景目录、复杂工作流、AI 后台任务或多表协同时，按需读 `references/solution-design-principles.md`、`references/ai-native-workflow-modeling.md`、`references/workflow-product-quality.md`。
 6. 至少读 1 个 `references/case_catalog/` 或 `references/examples/` 下的完整最佳实践案例，再设计方案；组合型需求读多个案例。
 
 不要只读概念就开始写。模型更应该照着完整案例做。

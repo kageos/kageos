@@ -94,7 +94,7 @@ func rejectCreateScheduledAgentTaskUnknownArgs(args map[string]interface{}) erro
 	}
 	for key := range args {
 		if _, ok := allowed[key]; !ok {
-			return fmt.Errorf("不支持参数 %q；Agent 任务只接收顶层 title、message、full_code_path（directory 仅兼容旧别名）和计划配置，间隔执行请用 interval_seconds", key)
+			return fmt.Errorf("不支持参数 %q；数字员工只接收顶层 title、message、full_code_path（directory 仅兼容旧别名）和计划配置，间隔执行请用 interval_seconds", key)
 		}
 	}
 	return nil

@@ -316,10 +316,10 @@ func TestAutomationOperatorRoleDocumentsScheduledAgentSOP(t *testing.T) {
 	_, content := GetPromptDocContent(nil, "/system/prompt/roles/automation-operator")
 	for _, needle := range []string{
 		"自动执行配置 automation_operator",
-		"产品术语：智能员工",
-		"“智能员工”“值守员工”是 `agent.session` Agent 任务的产品名称",
+		"产品术语：数字员工",
+		"“数字员工”“值守员工”是 `agent.session` Agent 任务的产品名称",
 		"最终调用 `create_scheduled_agent_task`",
-		"不要把“智能员工”理解成创建真实用户",
+		"不要把“数字员工”理解成创建真实用户",
 		"Agent 任务的典型场景",
 		"长期数据维护",
 		"情报/新闻日报",
@@ -347,8 +347,10 @@ func TestAutomationOperatorRoleDocumentsScheduledAgentSOP(t *testing.T) {
 		"跨资源工作流类",
 		"其他目录函数或连接器",
 		"工作台调用片段约定",
-		"`<资源路径>`",
 		"`<./daily_brief.form>`",
+		"`<../shared/search_articles.form>`",
+		"只有用户明确要求绑定其他工作空间时才使用 `</完整路径>`",
+		"不可移植、复制后需重新绑定",
 		"复制给工作台",
 		"函数调用：",
 		"`run_table_create`",
@@ -369,10 +371,10 @@ func TestAutomationOperatorRoleDocumentsScheduledAgentSOP(t *testing.T) {
 func TestRouterTreatsSmartEmployeeAsScheduledAgentTask(t *testing.T) {
 	_, content := GetPromptDocContent(nil, "/system/prompt/roles/router")
 	for _, needle := range []string{
-		"创建 / 添加 / 配置 / 管理智能员工（值守员工）",
-		"“智能员工”按 Agent 任务处理",
+		"创建 / 添加 / 配置 / 管理数字员工（值守员工）",
+		"“数字员工”按 Agent 任务处理",
 		"`create_scheduled_agent_task`",
-		"“智能员工”是 Agent 任务的产品名称",
+		"“数字员工”是 Agent 任务的产品名称",
 	} {
 		if !strings.Contains(content, needle) {
 			t.Fatalf("router role doc should contain %q, got: %q", needle, content)
@@ -390,7 +392,7 @@ func TestDevModePromptRejectsDelayedValidationAutomation(t *testing.T) {
 		"信息何时才可知",
 		"必须同步校验",
 		"提交—退回—重提",
-		"产品界面和用户语言里的“智能员工”“值守员工”",
+		"产品界面和用户语言里的“数字员工”“值守员工”",
 		"最终使用 `create_scheduled_agent_task`",
 		"无人值守必须证明净价值",
 		"结果要回写业务主表",

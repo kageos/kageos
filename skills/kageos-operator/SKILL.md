@@ -13,7 +13,7 @@ description: 通过真实鉴权 HTTP 请求、实时 schema 发现、Form/Table/
 
 - kageos gateway 基础地址。
 - 工作空间目录 `full_code_path`，不是本地磁盘路径。
-- `KAGEOS_OPENAPI_TOKEN`，或仅在本地/测试环境临时使用 `KAGEOS_ACCESS_TOKEN`。
+- `KAGEOS_ACCESS_TOKEN`，请求时通过 `X-Token` header 发送。
 - 预期业务场景和安全的合成测试数据。
 - 可选的浏览器地址，用于视觉一致性检查。
 
@@ -37,12 +37,7 @@ description: 通过真实鉴权 HTTP 请求、实时 schema 发现、Form/Table/
 
 ## 鉴权
 
-只能选择一种模式：
-
-- OpenAPI：发送 `Authorization: Bearer $KAGEOS_OPENAPI_TOKEN`。
-- 临时本地/测试访问 JWT：发送 `X-Token: $KAGEOS_ACCESS_TOKEN`。
-
-访问 JWT 不得作为 Bearer 发送，OpenAPI token 不得作为 `X-Token` 发送。证据中只记录 `auth_mode`，不记录凭证。
+发送 `X-Token: $KAGEOS_ACCESS_TOKEN`。当前不使用 OpenAPI Bearer token；不得发送 `Authorization: Bearer`。证据中只记录 `auth_mode: access_token`，不记录凭证。
 
 ## 自动化
 

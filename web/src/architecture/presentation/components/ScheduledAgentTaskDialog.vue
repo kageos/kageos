@@ -10,7 +10,7 @@
     @close="handleClose"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="104px">
-      <el-form-item :label="t('scheduledTask.taskName')" prop="title">
+      <el-form-item :label="t('scheduledTask.employeeName')" prop="title">
         <el-input v-model="form.title" maxlength="100" show-word-limit :placeholder="t('scheduledTask.agentTaskNamePlaceholder')" />
       </el-form-item>
 
@@ -29,6 +29,7 @@
         <el-select
           :model-value="form.llm_config_id"
           filterable
+          popper-class="scheduled-agent-dialog-popper"
           :placeholder="t('scheduledTask.defaultModel')"
           :loading="llmLoading"
           style="width: 100%"
@@ -95,6 +96,7 @@
         <el-date-picker
           v-model="form.run_at"
           type="datetime"
+          popper-class="scheduled-agent-dialog-popper"
           :placeholder="t('scheduledTask.runAtPlaceholder')"
           format="YYYY-MM-DD HH:mm"
           value-format="YYYY-MM-DD HH:mm:ss"
@@ -117,7 +119,7 @@
       </div>
 
       <el-form-item :label="t('scheduledTask.overlapPolicy')" prop="overlap_policy">
-        <el-select v-model="form.overlap_policy" style="width: 100%">
+        <el-select v-model="form.overlap_policy" popper-class="scheduled-agent-dialog-popper" style="width: 100%">
           <el-option :label="t('scheduledTask.overlapForbid')" value="forbid" />
           <el-option :label="t('scheduledTask.overlapQueueLatest')" value="queue_latest" />
           <el-option :label="t('scheduledTask.overlapAllow')" value="allow" />
@@ -237,7 +239,7 @@ const messageTextRef = computed({
 })
 
 const rules: FormRules = {
-  title: [{ required: true, message: () => t('scheduledTask.taskTitleRequired'), trigger: 'blur' }],
+  title: [{ required: true, message: () => t('scheduledTask.employeeNameRequired'), trigger: 'blur' }],
   message: [{ required: true, message: () => t('scheduledTask.agentMessageRequired'), trigger: 'blur' }],
   schedule_type: [{ required: true, message: () => t('scheduledTask.scheduleTypeRequired'), trigger: 'change' }],
   run_at: [{ required: true, message: () => t('scheduledTask.runAtRequired'), trigger: 'change' }],

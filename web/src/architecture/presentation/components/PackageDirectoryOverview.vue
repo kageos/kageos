@@ -18,12 +18,12 @@
         { 'is-expanded': agentRosterExpanded },
       ]"
       data-testid="agent-presence-float"
-      aria-label="本目录智能员工"
+      aria-label="本目录数字员工"
     >
       <div class="agent-presence-head">
         <span class="agent-presence-title">
           <span class="agent-presence-live-dot" aria-hidden="true" />
-          智能员工
+          数字员工
         </span>
         <span class="agent-presence-summary">{{ agentPresenceSummary }}</span>
       </div>
@@ -256,9 +256,9 @@
                 class="scheduled-panel-agent-mark"
                 variant="mark"
                 :state="agentPresenceMascotState"
-                label="智能员工"
+                label="数字员工"
               />
-              智能员工
+              数字员工
             </div>
             <div class="scheduled-panel-subtitle">{{ t('scheduledTask.agentOverviewSubtitle') }}</div>
           </div>
@@ -603,7 +603,7 @@ async function startAgentTask(item: ScheduledOverviewItem) {
     ElMessage.success(`已启动 ${item.task.title || t('scheduledTask.unnamedAgentTask')}`)
     await loadOverview()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '启动智能员工失败')
+    ElMessage.error(error instanceof Error ? error.message : '启动数字员工失败')
   } finally {
     const next = new Set(startingAgentTaskIDs.value)
     next.delete(item.task.id)

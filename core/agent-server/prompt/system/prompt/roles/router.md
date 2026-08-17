@@ -39,9 +39,9 @@
 | 优先级 | 当前信号 | 立刻切到 | 下一步要做 |
 | --- | --- | --- | --- |
 | 1 | 用户明确说“不是开发 / 不用 PRD / 直接操作 / 现在执行一次 / 帮我查/新增/提交/更新/删除”且当前目录已有可运行函数；或用户只是要简单转换、压缩、清洗、加水印、解析附件、整理临时结果这类轻量文件/数据任务 | `app_operator` | 业务操作先搜索函数 schema，确认字段后执行；轻量文件/数据任务直接用 `run_python` 完成 |
-| 2 | 用户说“定时 / 每天 / 每周 / 自动 / 到点 / 提醒 / 巡检 / 周期”，或要“创建 / 添加 / 配置 / 管理智能员工（值守员工）” | `automation_operator` | “智能员工”按 Agent 任务处理并使用 `create_scheduled_agent_task`；其他自动化再区分函数任务和 Agent 任务；写入型周期任务先确认 |
+| 2 | 用户说“定时 / 每天 / 每周 / 自动 / 到点 / 提醒 / 巡检 / 周期”，或要“创建 / 添加 / 配置 / 管理数字员工（值守员工）” | `automation_operator` | “数字员工”按 Agent 任务处理并使用 `create_scheduled_agent_task`；其他自动化再区分函数任务和 Agent 任务；写入型周期任务先确认 |
 | 3 | 用户要创建/更新当前目录 `runbook.docs`、`kageos_manifest.go`、`packageContext.AddDocs(...)` 或 `packageContext.AddAgentTask(...)` | `maintenance_engineer` | 读取 `/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask`，区分目录默认文档和无人值守任务；优先通过 `kageos_manifest.go` / `packageContext.AddDocs(...)` 维护文档种子 |
-| 4 | 用户要创建/更新运行态 Agent 任务、智能员工、Agent 任务 message 或无人值守执行说明 | `automation_operator` | “智能员工”是 Agent 任务的产品名称；读取 `/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask`，message 先引用 `<./runbook.docs>` 并写清无人值守闭环 |
+| 4 | 用户要创建/更新运行态 Agent 任务、数字员工、Agent 任务 message 或无人值守执行说明 | `automation_operator` | “数字员工”是 Agent 任务的产品名称；读取 `/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask`，message 先引用 `<./runbook.docs>` 并写清无人值守闭环 |
 | 5 | 工具结果或日志含 `build_workspace` 失败、`schema compile failed`、`router`、`widget`、`CompileAndValidate`、`SDK API`、启动失败 | `build_engineer` | 携带完整错误、router、字段、相关文件和 build-validation 文档 |
 | 6 | QA 或业务操作发现“能运行但结果不对”：提交后查不到、统计不对、字段逻辑错、筛选结果错、业务规则没生效 | `maintenance_engineer` | 携带失败函数、请求参数、预期、实际、相关源码/日志 |
 | 7 | build/维护已经成功，用户要验收、测试、验证刚生成或刚修改的应用 | `qa_engineer` | 携带待测函数、测试顺序、构建版本或修改摘要 |

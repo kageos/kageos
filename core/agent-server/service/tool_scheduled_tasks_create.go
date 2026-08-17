@@ -93,7 +93,7 @@ func runCreateScheduledAgentTask(ctx context.Context, args createScheduledAgentT
 	}
 	message := strings.TrimSpace(args.Message)
 	if message == "" {
-		return toolResult("create_scheduled_agent_task 需传 message。message 是到点后交给 Agent 的执行说明。", true)
+		return toolResult("create_scheduled_agent_task 需传 message。message 是数字员工到点后遵循的完整工作说明。", true)
 	}
 	schedule, err := buildScheduledTaskSchedule(args.scheduleArgs())
 	if err != nil {
@@ -159,7 +159,7 @@ func runCreateScheduledAgentTask(ctx context.Context, args createScheduledAgentT
 	return toolResultWithStructuredData(map[string]interface{}{
 		"task":        task,
 		"next_run_at": task.NextRunAt,
-		"message":     "Agent 任务已创建，默认暂停；需要启用后才会无人值守执行。",
+		"message":     "数字员工已创建，默认暂停；需要启用后才会无人值守工作。",
 	}, false)
 }
 
@@ -177,10 +177,10 @@ func runUpdateScheduledAgentTask(ctx context.Context, args updateScheduledAgentT
 		return toolResult("update_scheduled_agent_task 权限校验失败: "+err.Error(), true)
 	}
 	if task.ExecutorKey != "agent.session" {
-		return toolResult("该任务不是 Agent 任务，无法使用此工具更新", true)
+		return toolResult("该记录不是数字员工，无法使用此工具更新", true)
 	}
 	if isManifestScheduledTask(task) {
-		return toolResult("目录内置 Agent 任务不能直接修改；请先复制为自定义任务，再修改副本。内置任务仍可暂停、恢复或立即运行。", true)
+		return toolResult("目录内置数字员工不能直接修改；请先复制为自定义员工，再修改副本。内置员工仍可暂停、恢复或立即运行。", true)
 	}
 	req := scheduledsdk.UpdateTaskRequest{}
 	if title := strings.TrimSpace(args.Title); title != "" {
@@ -248,6 +248,6 @@ func runUpdateScheduledAgentTask(ctx context.Context, args updateScheduledAgentT
 	return toolResultWithStructuredData(map[string]interface{}{
 		"task":        updated,
 		"next_run_at": updated.NextRunAt,
-		"message":     "Agent 任务已更新",
+		"message":     "数字员工已更新",
 	}, false)
 }
