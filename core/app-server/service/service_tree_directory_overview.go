@@ -52,9 +52,7 @@ func (q *serviceTreeQueryView) GetDirectoryOverview(ctx context.Context, req *dt
 	if root.Type != model.ServiceTreeTypePackage {
 		return nil, fmt.Errorf("目录概览仅支持 package 类型节点")
 	}
-
-	appModel, err := q.appRepo.GetAppByID(root.AppID)
-	if err != nil {
+	if _, err := q.appRepo.GetAppByID(root.AppID); err != nil {
 		return nil, fmt.Errorf("获取应用信息失败: %w", err)
 	}
 
@@ -64,7 +62,7 @@ func (q *serviceTreeQueryView) GetDirectoryOverview(ctx context.Context, req *dt
 	}
 
 	nodes := append([]*model.ServiceTree{root}, descendants...)
-	nodes, err = q.filterReadableNodes(ctx, appModel, nodes)
+	nodes, err = q.filterReadableNodes(ctx, nodes)
 	if err != nil {
 		return nil, err
 	}
@@ -122,11 +120,11 @@ func (q *serviceTreeQueryView) GetDirectoryOverview(ctx context.Context, req *dt
 	return resp, nil
 }
 
-func (q *serviceTreeQueryView) filterReadableNodes(ctx context.Context, appModel *model.App, nodes []*model.ServiceTree) ([]*model.ServiceTree, error) {
+func (q *serviceTreeQueryView) filterReadableNodes(ctx context.Context, nodes []*model.ServiceTree) ([]*model.ServiceTree, error) {
 	if q.permission == nil {
 		return nodes, nil
 	}
-	permissionsByPath, err := q.permissionsByPath(ctx, appModel, nodes)
+	permissionsByPath, err := q.permissionsByPath(ctx, nodes)
 	if err != nil {
 		return nil, fmt.Errorf("计算目录权限失败: %w", err)
 	}

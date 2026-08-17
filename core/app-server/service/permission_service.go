@@ -55,8 +55,8 @@ func NewPermissionService(
 	return service
 }
 
-func (s *PermissionService) RequirePermission(ctx context.Context, tenantUser, app, username, resourcePath string, action access.Action) error {
-	ok, err := s.HasPermission(ctx, tenantUser, app, username, resourcePath, action)
+func (s *PermissionService) RequirePermission(ctx context.Context, username, resourcePath string, action access.Action) error {
+	ok, err := s.HasPermission(ctx, username, resourcePath, action)
 	if err != nil {
 		return err
 	}
@@ -66,23 +66,25 @@ func (s *PermissionService) RequirePermission(ctx context.Context, tenantUser, a
 	return nil
 }
 
-func (s *PermissionService) HasPermission(ctx context.Context, tenantUser, app, username, resourcePath string, action access.Action) (bool, error) {
-	result, err := s.ResolvePermissions(ctx, tenantUser, app, username, resourcePath)
+func (s *PermissionService) HasPermission(ctx context.Context, username, resourcePath string, action access.Action) (bool, error) {
+	result, err := s.ResolvePermissions(ctx, username, resourcePath)
 	if err != nil {
 		return false, err
 	}
 	return access.HasPermission(result.Permissions, action), nil
 }
 
-func (s *PermissionService) ResolvePermissions(ctx context.Context, tenantUser, app, username, resourcePath string) (*access.Result, error) {
-	tenantUser = strings.TrimSpace(tenantUser)
-	app = strings.TrimSpace(app)
+func (s *PermissionService) ResolvePermissions(ctx context.Context, username, resourcePath string) (*access.Result, error) {
 	username = strings.TrimSpace(username)
 	resourcePath = access.NormalizeResourcePath(resourcePath)
+	tenantUser, app, err := access.ParseUserApp(resourcePath)
+	if err != nil {
+		return nil, err
+	}
 	if isSystemRootUser(username) {
 		return ownerAccessResult(resourcePath), nil
 	}
-	if tenantUser == "" || app == "" || username == "" || resourcePath == "" {
+	if username == "" {
 		return &access.Result{
 			ResourcePath: resourcePath,
 			Permissions:  access.EmptyPermissionSet(),
@@ -268,8 +270,12 @@ func (s *PermissionService) RevokeRole(ctx context.Context, req access.RevokeRol
 	return nil
 }
 
-func (s *PermissionService) ListAssignments(ctx context.Context, tenantUser, app, resourcePath string) ([]access.RoleAssignmentView, error) {
+func (s *PermissionService) ListAssignments(ctx context.Context, resourcePath string) ([]access.RoleAssignmentView, error) {
 	resourcePath = access.NormalizeResourcePath(resourcePath)
+	tenantUser, app, err := access.ParseUserApp(resourcePath)
+	if err != nil {
+		return nil, err
+	}
 	assignments, err := s.roleAssignmentRepo.ListAssignmentsForWorkspace(ctx, tenantUser, app)
 	if err != nil {
 		return nil, err
@@ -359,8 +365,25 @@ func (s *PermissionService) ListAccessibleApps(ctx context.Context, username str
 	return s.appRepo.GetAppsByUserAppPairs(pairs)
 }
 
-func (s *PermissionService) PermissionsForTree(ctx context.Context, tenantUser, app, username string, resourcePaths []string) (map[string]*access.Result, error) {
+func (s *PermissionService) PermissionsForTree(ctx context.Context, username string, resourcePaths []string) (map[string]*access.Result, error) {
 	results := make(map[string]*access.Result, len(resourcePaths))
+	if len(resourcePaths) == 0 {
+		return results, nil
+	}
+	firstPath := access.NormalizeResourcePath(resourcePaths[0])
+	tenantUser, app, err := access.ParseUserApp(firstPath)
+	if err != nil {
+		return nil, err
+	}
+	for _, resourcePath := range resourcePaths {
+		pathTenant, pathApp, err := access.ParseUserApp(resourcePath)
+		if err != nil {
+			return nil, err
+		}
+		if pathTenant != tenantUser || pathApp != app {
+			return nil, fmt.Errorf("resource_paths 必须属于同一个 workspace")
+		}
+	}
 	if username == "" {
 		for _, path := range resourcePaths {
 			normalized := access.NormalizeResourcePath(path)
@@ -436,7 +459,7 @@ func (s *PermissionService) requireAdminForGrant(ctx context.Context, tenantUser
 	if roleCode == access.RoleOwner && !s.isWorkspaceOwner(ctx, tenantUser, app, actor) {
 		return fmt.Errorf("只有 Owner 可以授予 Owner 角色")
 	}
-	return s.RequirePermission(ctx, tenantUser, app, actor, resourcePath, access.ActionAdmin)
+	return s.RequirePermission(ctx, actor, resourcePath, access.ActionAdmin)
 }
 
 func (s *PermissionService) ensureAssignablePrincipal(ctx context.Context, principal access.Principal) error {

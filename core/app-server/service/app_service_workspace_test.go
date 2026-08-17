@@ -110,7 +110,7 @@ func TestCanEnterWorkspaceSeparatesVisibilityFromDirectoryPermission(t *testing.
 	if err != nil || canEnter {
 		t.Fatalf("user without assignment should not enter private workspace: canEnter=%t err=%v", canEnter, err)
 	}
-	canReadDirectory, err := permission.HasPermission(context.Background(), "alice", "public", "bob", "/alice/public/finance", access.ActionRead)
+	canReadDirectory, err := permission.HasPermission(context.Background(), "bob", "/alice/public/finance", access.ActionRead)
 	if err != nil || canReadDirectory {
 		t.Fatalf("public visibility must not grant directory read: canRead=%t err=%v", canReadDirectory, err)
 	}

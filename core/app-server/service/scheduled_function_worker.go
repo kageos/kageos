@@ -492,11 +492,7 @@ func (a *AppService) requireScheduledFunctionAccess(ctx context.Context, fullCod
 		return nil
 	}
 	resourcePath := access.NormalizeResourcePath(fullCodePath)
-	tenantUser, app, err := access.ParseUserApp(resourcePath)
-	if err != nil {
-		return err
-	}
-	return a.permission.RequirePermission(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath, scheduledFunctionRequiredAccessAction(fullCodePath, action))
+	return a.permission.RequirePermission(ctx, contextx.GetRequestUser(ctx), resourcePath, scheduledFunctionRequiredAccessAction(fullCodePath, action))
 }
 
 func (a *AppService) ensureScheduledTableCallbackEnabled(ctx context.Context, fullCodePath, callbackType, denyMessage string) error {

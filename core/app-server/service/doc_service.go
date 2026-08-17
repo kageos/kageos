@@ -342,11 +342,7 @@ func (s *DocService) canReadPath(ctx context.Context, fullCodePath string) bool 
 	if s.permission == nil {
 		return true
 	}
-	tenantUser, app, err := access.ParseUserApp(fullCodePath)
-	if err != nil {
-		return false
-	}
-	ok, err := s.permission.HasPermission(ctx, tenantUser, app, contextx.GetRequestUser(ctx), fullCodePath, access.ActionRead)
+	ok, err := s.permission.HasPermission(ctx, contextx.GetRequestUser(ctx), fullCodePath, access.ActionRead)
 	return err == nil && ok
 }
 

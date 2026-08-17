@@ -28,17 +28,12 @@ func NewPermission(
 
 func (a *Permission) ListAssignments(c *gin.Context) {
 	resourcePath := access.NormalizeResourcePath(c.Query("resource_path"))
-	tenantUser, app, err := access.ParseUserApp(resourcePath)
-	if err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
 	ctx := contextx.ToContext(c)
-	if err := a.permissionService.RequirePermission(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath, access.ActionRead); err != nil {
+	if err := a.permissionService.RequirePermission(ctx, contextx.GetRequestUser(ctx), resourcePath, access.ActionRead); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
-	assignments, err := a.permissionService.ListAssignments(ctx, tenantUser, app, resourcePath)
+	assignments, err := a.permissionService.ListAssignments(ctx, resourcePath)
 	if err != nil {
 		response.FailWithMessage(c, "获取权限分配失败: "+err.Error())
 		return
@@ -146,13 +141,8 @@ func (a *Permission) RevokeRole(c *gin.Context) {
 
 func (a *Permission) GetMyPermissions(c *gin.Context) {
 	resourcePath := access.NormalizeResourcePath(c.Query("resource_path"))
-	tenantUser, app, err := access.ParseUserApp(resourcePath)
-	if err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
 	ctx := contextx.ToContext(c)
-	result, err := a.permissionService.ResolvePermissions(ctx, tenantUser, app, contextx.GetRequestUser(ctx), resourcePath)
+	result, err := a.permissionService.ResolvePermissions(ctx, contextx.GetRequestUser(ctx), resourcePath)
 	if err != nil {
 		response.FailWithMessage(c, "获取当前用户权限失败: "+err.Error())
 		return

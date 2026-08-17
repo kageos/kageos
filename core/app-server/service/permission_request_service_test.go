@@ -117,7 +117,7 @@ func TestPermissionRequestApproveGrantsRoleAndRecordsReviewer(t *testing.T) {
 	}
 	requireNotificationContains(t, notifier.notifications[0], "权限申请已通过", resourcePath, "查看者", "bob", "同意使用")
 
-	canRead, err := permission.HasPermission(context.Background(), "alice", "ops", "carol", resourcePath, access.ActionRead)
+	canRead, err := permission.HasPermission(context.Background(), "carol", resourcePath, access.ActionRead)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,8 +217,6 @@ func TestPermissionRequestApproveSystemDirectoryMemberGrantsChildFormWrite(t *te
 
 	if err := permission.RequirePermission(
 		context.Background(),
-		"system",
-		"democase",
 		"carol",
 		formPath,
 		access.ActionWrite,
@@ -227,8 +225,6 @@ func TestPermissionRequestApproveSystemDirectoryMemberGrantsChildFormWrite(t *te
 	}
 	if err := permission.RequirePermission(
 		context.Background(),
-		"system",
-		"democase",
 		"carol",
 		parentPath,
 		access.ActionAdmin,
@@ -253,7 +249,7 @@ func TestPermissionRequestAllowsInheritedMemberToUpgradeChildToAdmin(t *testing.
 		t.Fatal(err)
 	}
 
-	resolved, err := permission.ResolvePermissions(context.Background(), "alice", "ops", "carol", resourcePath)
+	resolved, err := permission.ResolvePermissions(context.Background(), "carol", resourcePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,7 +286,7 @@ func TestPermissionRequestAllowsInheritedMemberToUpgradeChildToAdmin(t *testing.
 		t.Fatal(err)
 	}
 
-	canAdmin, err := permission.HasPermission(context.Background(), "alice", "ops", "carol", resourcePath, access.ActionAdmin)
+	canAdmin, err := permission.HasPermission(context.Background(), "carol", resourcePath, access.ActionAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +330,7 @@ func TestPermissionRequestRejectAndCancelDoNotGrantRole(t *testing.T) {
 		t.Fatalf("cancel should not send another notification: %#v", notifier.notifications)
 	}
 
-	canRead, err := permission.HasPermission(context.Background(), "alice", "ops", "carol", resourcePath, access.ActionRead)
+	canRead, err := permission.HasPermission(context.Background(), "carol", resourcePath, access.ActionRead)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,7 +403,7 @@ func TestPermissionRequestSupportsWorkspaceRootAndRefusesExpiredApproval(t *test
 	if _, err := requestService.Approve(actorContext("bob"), created.ID, "bob", ""); err == nil || !strings.Contains(err.Error(), "有效期已过") {
 		t.Fatalf("expired approval error = %v", err)
 	}
-	canRead, err := permission.HasPermission(context.Background(), "alice", "ops", "carol", resourcePath, access.ActionRead)
+	canRead, err := permission.HasPermission(context.Background(), "carol", resourcePath, access.ActionRead)
 	if err != nil {
 		t.Fatal(err)
 	}

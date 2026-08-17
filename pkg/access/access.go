@@ -62,16 +62,16 @@ type Result struct {
 }
 
 type Checker interface {
-	RequirePermission(ctx context.Context, tenantUser, app, username, resourcePath string, action Action) error
-	HasPermission(ctx context.Context, tenantUser, app, username, resourcePath string, action Action) (bool, error)
-	ResolvePermissions(ctx context.Context, tenantUser, app, username, resourcePath string) (*Result, error)
+	RequirePermission(ctx context.Context, username, resourcePath string, action Action) error
+	HasPermission(ctx context.Context, username, resourcePath string, action Action) (bool, error)
+	ResolvePermissions(ctx context.Context, username, resourcePath string) (*Result, error)
 }
 
 type Manager interface {
 	GrantRole(ctx context.Context, req GrantRoleRequest) error
 	BatchGrantRoles(ctx context.Context, req BatchGrantRoleRequest) error
 	RevokeRole(ctx context.Context, req RevokeRoleRequest) error
-	ListAssignments(ctx context.Context, tenantUser, app, resourcePath string) ([]RoleAssignmentView, error)
+	ListAssignments(ctx context.Context, resourcePath string) ([]RoleAssignmentView, error)
 }
 
 type GrantRoleRequest struct {

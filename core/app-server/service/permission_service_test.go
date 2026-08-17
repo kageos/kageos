@@ -82,7 +82,7 @@ func TestPermissionGrantAndResolveInheritedPermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, err := service.ResolvePermissions(ctx, "alice", "ops", "bob", "/alice/ops/ticket/sub/items.table")
+	result, err := service.ResolvePermissions(ctx, "bob", "/alice/ops/ticket/sub/items.table")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestPermissionExpiredAssignmentDoesNotGrantPermission(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ok, err := service.HasPermission(context.Background(), "alice", "ops", "bob", "/alice/ops/ticket", access.ActionAdmin)
+	ok, err := service.HasPermission(context.Background(), "bob", "/alice/ops/ticket", access.ActionAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestPermissionGrantRejectsExpiredAssignment(t *testing.T) {
 
 func TestPermissionOwnerFallback(t *testing.T) {
 	service, _, _ := newPermissionTestService(t)
-	ok, err := service.HasPermission(context.Background(), "alice", "ops", "alice", "/alice/ops/anything", access.ActionDelete)
+	ok, err := service.HasPermission(context.Background(), "alice", "/alice/ops/anything", access.ActionDelete)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,10 +159,34 @@ func TestPermissionOwnerFallback(t *testing.T) {
 	}
 }
 
+func TestPermissionWorkspaceIsDerivedFromResourcePath(t *testing.T) {
+	service, _, _ := newPermissionTestService(t)
+
+	ok, err := service.HasPermission(context.Background(), "alice", "/bob/finance/secret", access.ActionRead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("workspace owner permission must not apply to a resource in another workspace")
+	}
+}
+
+func TestPermissionsForTreeRejectsCrossWorkspacePaths(t *testing.T) {
+	service, _, _ := newPermissionTestService(t)
+
+	_, err := service.PermissionsForTree(context.Background(), "alice", []string{
+		"/alice/ops/ticket",
+		"/bob/finance/secret",
+	})
+	if err == nil {
+		t.Fatal("cross-workspace resource paths must be rejected")
+	}
+}
+
 func TestPermissionSystemBuiltinRequiresExplicitRead(t *testing.T) {
 	service, _, _ := newPermissionTestService(t)
 
-	canRead, err := service.HasPermission(context.Background(), "system", "prompt", "alice", "/system/prompt/case_catalog/table/ticket", access.ActionRead)
+	canRead, err := service.HasPermission(context.Background(), "alice", "/system/prompt/case_catalog/table/ticket", access.ActionRead)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +194,7 @@ func TestPermissionSystemBuiltinRequiresExplicitRead(t *testing.T) {
 		t.Fatal("system workspace nodes must not synthesize read permission")
 	}
 
-	canWrite, err := service.HasPermission(context.Background(), "system", "prompt", "alice", "/system/prompt/case_catalog/table/ticket", access.ActionWrite)
+	canWrite, err := service.HasPermission(context.Background(), "alice", "/system/prompt/case_catalog/table/ticket", access.ActionWrite)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +220,7 @@ func TestPermissionSystemBuiltinHonorsExplicitMemberForExecutionAndTree(t *testi
 		t.Fatal(err)
 	}
 
-	resolved, err := service.ResolvePermissions(context.Background(), "system", "democase", "bob", formPath)
+	resolved, err := service.ResolvePermissions(context.Background(), "bob", formPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,8 +238,6 @@ func TestPermissionSystemBuiltinHonorsExplicitMemberForExecutionAndTree(t *testi
 	}
 	if err := service.RequirePermission(
 		context.Background(),
-		"system",
-		"democase",
 		"bob",
 		formPath,
 		access.ActionWrite,
@@ -225,8 +247,6 @@ func TestPermissionSystemBuiltinHonorsExplicitMemberForExecutionAndTree(t *testi
 
 	tree, err := service.PermissionsForTree(
 		context.Background(),
-		"system",
-		"democase",
 		"bob",
 		[]string{parentPath, formPath, "/system/democase/other"},
 	)
@@ -248,7 +268,7 @@ func TestPermissionSystemBuiltinHonorsExplicitMemberForExecutionAndTree(t *testi
 func TestPermissionSystemUserHasOwnerPermissionOnSystemBuiltin(t *testing.T) {
 	service, _, _ := newPermissionTestService(t)
 
-	result, err := service.ResolvePermissions(context.Background(), "system", "tools", "system", "/system/tools")
+	result, err := service.ResolvePermissions(context.Background(), "system", "/system/tools")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +278,7 @@ func TestPermissionSystemUserHasOwnerPermissionOnSystemBuiltin(t *testing.T) {
 	if !access.HasPermission(result.Permissions, access.ActionOwner) {
 		t.Fatal("system user should have owner permission on /system/tools")
 	}
-	if err := service.RequirePermission(context.Background(), "system", "tools", "system", "/system/tools", access.ActionAdmin); err != nil {
+	if err := service.RequirePermission(context.Background(), "system", "/system/tools", access.ActionAdmin); err != nil {
 		t.Fatalf("system user should pass admin check: %v", err)
 	}
 }
@@ -314,7 +334,7 @@ func TestPermissionBatchGrantRolesGrantsEveryCombination(t *testing.T) {
 	}
 
 	for _, username := range []string{"bob", "cora"} {
-		result, err := service.ResolvePermissions(context.Background(), "alice", "ops", username, "/alice/ops/ticket/sub/items.table")
+		result, err := service.ResolvePermissions(context.Background(), username, "/alice/ops/ticket/sub/items.table")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -326,7 +346,7 @@ func TestPermissionBatchGrantRolesGrantsEveryCombination(t *testing.T) {
 		}
 	}
 
-	ok, err := service.HasPermission(context.Background(), "alice", "ops", "bob", "/alice/ops/other", access.ActionRead)
+	ok, err := service.HasPermission(context.Background(), "bob", "/alice/ops/other", access.ActionRead)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -603,7 +623,7 @@ func TestPermissionOrganizationAndResourceInheritance(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bob, err := service.ResolvePermissions(context.Background(), "alice", "ops", "bob", "/alice/ops/crm/leads.table")
+	bob, err := service.ResolvePermissions(context.Background(), "bob", "/alice/ops/crm/leads.table")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -611,7 +631,7 @@ func TestPermissionOrganizationAndResourceInheritance(t *testing.T) {
 		t.Fatalf("sales descendant should inherit org read and sales update: %#v", bob)
 	}
 
-	cora, err := service.ResolvePermissions(context.Background(), "alice", "ops", "cora", "/alice/ops/crm/leads.table")
+	cora, err := service.ResolvePermissions(context.Background(), "cora", "/alice/ops/crm/leads.table")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -704,7 +724,7 @@ func TestPermissionListAssignmentsSeparatesCurrentAndInherited(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	members, err := service.ListAssignments(ctx, "alice", "ops", "/alice/ops/ticket/sub")
+	members, err := service.ListAssignments(ctx, "/alice/ops/ticket/sub")
 	if err != nil {
 		t.Fatal(err)
 	}

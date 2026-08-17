@@ -126,7 +126,7 @@ func (s *PermissionRequestService) CreateRequest(
 		}
 	}
 
-	resolved, err := s.permission.ResolvePermissions(ctx, tenantUser, app, requester, resourcePath)
+	resolved, err := s.permission.ResolvePermissions(ctx, requester, resourcePath)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +288,7 @@ func (s *PermissionRequestService) WorkspaceSummary(
 		seenPaths[path] = struct{}{}
 		paths = append(paths, path)
 	}
-	permissionsByPath, err := s.permission.PermissionsForTree(ctx, tenantUser, app, username, paths)
+	permissionsByPath, err := s.permission.PermissionsForTree(ctx, username, paths)
 	if err != nil {
 		return nil, err
 	}
@@ -461,8 +461,6 @@ func (s *PermissionRequestService) review(
 	}
 	if err := s.permission.RequirePermission(
 		ctx,
-		request.TenantUser,
-		request.App,
 		reviewer,
 		request.ResourcePath,
 		access.ActionAdmin,
@@ -548,8 +546,6 @@ func (s *PermissionRequestService) filterReviewableRequests(
 		}
 		canReview, err := s.permission.HasPermission(
 			ctx,
-			request.TenantUser,
-			request.App,
 			reviewer,
 			request.ResourcePath,
 			access.ActionAdmin,

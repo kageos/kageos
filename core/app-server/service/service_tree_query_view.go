@@ -68,7 +68,7 @@ func (q *serviceTreeQueryView) getServiceTreeByAppModel(ctx context.Context, app
 
 	logger.Debugf(ctx, "[ServiceTreeService] 加载服务树: app_id=%d, hide_unauthorized_nodes=%t", appModel.ID, appModel.HideUnauthorizedNodes)
 
-	permissionsByPath, err := q.permissionsByPath(ctx, appModel, trees)
+	permissionsByPath, err := q.permissionsByPath(ctx, trees)
 	if err != nil {
 		return nil, err
 	}
@@ -218,11 +218,7 @@ func (q *serviceTreeQueryView) canReadServiceTreePath(ctx context.Context, path 
 	if q.permission == nil {
 		return true
 	}
-	tenantUser, app, err := access.ParseUserApp(path)
-	if err != nil {
-		return false
-	}
-	result, err := q.permission.ResolvePermissions(ctx, tenantUser, app, contextx.GetRequestUser(ctx), path)
+	result, err := q.permission.ResolvePermissions(ctx, contextx.GetRequestUser(ctx), path)
 	if err != nil {
 		return false
 	}
@@ -277,7 +273,7 @@ func parseAppRootFullCodePath(fullCodePath string) (user string, app string, roo
 	return user, app, "/" + user + "/" + app, true
 }
 
-func (q *serviceTreeQueryView) permissionsByPath(ctx context.Context, appModel *model.App, trees []*model.ServiceTree) (map[string]*access.Result, error) {
+func (q *serviceTreeQueryView) permissionsByPath(ctx context.Context, trees []*model.ServiceTree) (map[string]*access.Result, error) {
 	paths := collectServiceTreePaths(trees)
 	if q.permission == nil {
 		results := make(map[string]*access.Result, len(paths))
@@ -287,7 +283,7 @@ func (q *serviceTreeQueryView) permissionsByPath(ctx context.Context, appModel *
 		}
 		return results, nil
 	}
-	return q.permission.PermissionsForTree(ctx, appModel.User, appModel.Code, contextx.GetRequestUser(ctx), paths)
+	return q.permission.PermissionsForTree(ctx, contextx.GetRequestUser(ctx), paths)
 }
 
 func collectServiceTreePaths(trees []*model.ServiceTree) []string {

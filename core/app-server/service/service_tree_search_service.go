@@ -93,19 +93,7 @@ func (s *serviceTreeSearchService) filterReadableTrees(ctx context.Context, user
 		if tree == nil {
 			continue
 		}
-		tenantUser, app := "", ""
-		if tree.App != nil {
-			tenantUser = tree.App.User
-			app = tree.App.Code
-		}
-		if tenantUser == "" || app == "" {
-			var err error
-			tenantUser, app, err = access.ParseUserApp(tree.FullCodePath)
-			if err != nil {
-				continue
-			}
-		}
-		ok, err := s.permission.HasPermission(ctx, tenantUser, app, username, tree.FullCodePath, access.ActionRead)
+		ok, err := s.permission.HasPermission(ctx, username, tree.FullCodePath, access.ActionRead)
 		if err == nil && ok {
 			filtered = append(filtered, tree)
 		}

@@ -12,11 +12,7 @@ import (
 
 func requireAccess(c *gin.Context, permissionService *service.PermissionService, resourcePath string, action access.Action) error {
 	resourcePath = access.NormalizeResourcePath(resourcePath)
-	tenantUser, app, err := access.ParseUserApp(resourcePath)
-	if err != nil {
-		return err
-	}
-	return permissionService.RequirePermission(contextx.ToContext(c), tenantUser, app, contextx.GetRequestUser(c), resourcePath, action)
+	return permissionService.RequirePermission(contextx.ToContext(c), contextx.GetRequestUser(c), resourcePath, action)
 }
 
 // requireWorkstationAccess treats the AI workstation as a Member capability.
@@ -25,12 +21,8 @@ func requireAccess(c *gin.Context, permissionService *service.PermissionService,
 // Owner pass. Individual tools still enforce their own action permission.
 func requireWorkstationAccess(c *gin.Context, permissionService *service.PermissionService, resourcePath string) error {
 	resourcePath = access.NormalizeResourcePath(resourcePath)
-	tenantUser, app, err := access.ParseUserApp(resourcePath)
-	if err != nil {
-		return err
-	}
 	result, err := permissionService.ResolvePermissions(
-		contextx.ToContext(c), tenantUser, app, contextx.GetRequestUser(c), resourcePath,
+		contextx.ToContext(c), contextx.GetRequestUser(c), resourcePath,
 	)
 	if err != nil {
 		return err
