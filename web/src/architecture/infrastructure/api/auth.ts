@@ -29,6 +29,10 @@ export interface OAuthRegistrationIntent {
 export interface ConfirmOAuthRegistrationRequest {
   username: string
   nickname: string
+  accepted_terms: boolean
+  terms_version: string
+  accepted_privacy: boolean
+  privacy_version: string
 }
 
 export interface ConfirmOAuthRegistrationResponse {

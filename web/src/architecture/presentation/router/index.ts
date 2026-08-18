@@ -62,6 +62,26 @@ const router = createRouter({
       }
     },
     {
+      path: '/legal/terms',
+      name: 'legal-terms',
+      component: () => import('@/architecture/presentation/features/legal/pages/LegalDocumentPage.vue'),
+      meta: {
+        titleKey: 'route.terms',
+        legalDocument: 'terms',
+        requireAuth: false
+      }
+    },
+    {
+      path: '/legal/privacy',
+      name: 'legal-privacy',
+      component: () => import('@/architecture/presentation/features/legal/pages/LegalDocumentPage.vue'),
+      meta: {
+        titleKey: 'route.privacy',
+        legalDocument: 'privacy',
+        requireAuth: false
+      }
+    },
+    {
       path: '/s/:shareId',
       name: 'public-share',
       component: () => import('@/architecture/presentation/features/public/pages/PublicSharePage.vue'),

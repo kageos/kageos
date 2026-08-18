@@ -12,10 +12,14 @@ type SendEmailCodeResp struct {
 
 // RegisterReq 用户注册请求
 type RegisterReq struct {
-	Username string `json:"username" binding:"required,min=3,max=32" example:"beiluo"`   // 用户 code
-	Email    string `json:"email" binding:"required,email" example:"beiluo@example.com"` // 邮箱
-	Password string `json:"password" binding:"required,min=6" example:"123456"`          // 密码
-	Code     string `json:"code" binding:"required,len=6" example:"123456"`              // 验证码
+	Username        string `json:"username" binding:"required,min=3,max=32" example:"beiluo"`   // 用户 code
+	Email           string `json:"email" binding:"required,email" example:"beiluo@example.com"` // 邮箱
+	Password        string `json:"password" binding:"required,min=6" example:"123456"`          // 密码
+	Code            string `json:"code" binding:"required,len=6" example:"123456"`              // 验证码
+	AcceptedTerms   bool   `json:"accepted_terms" example:"true"`
+	TermsVersion    string `json:"terms_version" binding:"required" example:"2026-08-18"`
+	AcceptedPrivacy bool   `json:"accepted_privacy" example:"true"`
+	PrivacyVersion  string `json:"privacy_version" binding:"required" example:"2026-08-18"`
 }
 
 // RegisterResp 用户注册响应
@@ -51,8 +55,12 @@ type OAuthRegistrationIntentResp struct {
 }
 
 type ConfirmOAuthRegistrationReq struct {
-	Username string `json:"username" binding:"required,min=3,max=32" example:"beiluo"` // 用户 code
-	Nickname string `json:"nickname" binding:"max=100" example:"北落"`                   // 显示名称
+	Username        string `json:"username" binding:"required,min=3,max=32" example:"beiluo"` // 用户 code
+	Nickname        string `json:"nickname" binding:"max=100" example:"北落"`                   // 显示名称
+	AcceptedTerms   bool   `json:"accepted_terms" example:"true"`
+	TermsVersion    string `json:"terms_version" binding:"required" example:"2026-08-18"`
+	AcceptedPrivacy bool   `json:"accepted_privacy" example:"true"`
+	PrivacyVersion  string `json:"privacy_version" binding:"required" example:"2026-08-18"`
 }
 
 type ConfirmOAuthRegistrationResp struct {

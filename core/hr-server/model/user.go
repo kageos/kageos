@@ -6,22 +6,25 @@ import (
 )
 
 type User struct {
-	ID            int64          `json:"id" gorm:"primaryKey;autoIncrement"`
-	CreatedAt     models.Time    `json:"created_at" gorm:"column:created_at;autoCreateTime"`
-	UpdatedAt     models.Time    `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
-	DeletedAt     gorm.DeletedAt `json:"-" gorm:"index"`
-	CreatedBy     string         `json:"created_by" gorm:"column:created_by;type:varchar(255)"`
-	Username      string         `json:"username" gorm:"column:username;type:varchar(255);uniqueIndex;not null"`     // 登录用户名，唯一
-	Email         string         `json:"email" gorm:"column:email;type:varchar(255);index:idx_user_email"`           // 邮箱，仅作为联系方式/通知渠道，可为空且不作为账号唯一标识
-	PasswordHash  string         `json:"-" gorm:"column:password_hash;type:varchar(255)"`                            // 密码哈希，不返回给前端
-	Status        string         `json:"status" gorm:"column:status;type:varchar(50);default:'pending'"`             // 用户状态: pending(待邮箱验证), active(已激活)
-	EmailVerified bool           `json:"email_verified" gorm:"column:email_verified;type:boolean;default:false"`     // 邮箱是否已验证
-	RegisterType  string         `json:"register_type" gorm:"column:register_type;type:varchar(50);default:'email'"` // 注册方式: email(邮箱), wechat(微信), github(GitHub), google(Google), qq(QQ), phone(手机号)
-	ThirdPartyID  string         `json:"third_party_id" gorm:"column:third_party_id;type:varchar(255)"`              // 第三方平台用户ID
-	Avatar        string         `json:"avatar" gorm:"column:avatar;type:varchar(500)"`                              // 头像URL
-	Nickname      string         `json:"nickname" gorm:"column:nickname;type:varchar(100)"`                          // 昵称
-	Signature     string         `json:"signature" gorm:"column:signature;type:varchar(500)"`                        // 个人签名/简介
-	Gender        string         `json:"gender" gorm:"column:gender;type:varchar(20)"`                               // 性别: male(男), female(女), other(其他), 空字符串表示未设置
+	ID              int64          `json:"id" gorm:"primaryKey;autoIncrement"`
+	CreatedAt       models.Time    `json:"created_at" gorm:"column:created_at;autoCreateTime"`
+	UpdatedAt       models.Time    `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
+	DeletedAt       gorm.DeletedAt `json:"-" gorm:"index"`
+	CreatedBy       string         `json:"created_by" gorm:"column:created_by;type:varchar(255)"`
+	Username        string         `json:"username" gorm:"column:username;type:varchar(255);uniqueIndex;not null"`     // 登录用户名，唯一
+	Email           string         `json:"email" gorm:"column:email;type:varchar(255);index:idx_user_email"`           // 邮箱，仅作为联系方式/通知渠道，可为空且不作为账号唯一标识
+	PasswordHash    string         `json:"-" gorm:"column:password_hash;type:varchar(255)"`                            // 密码哈希，不返回给前端
+	Status          string         `json:"status" gorm:"column:status;type:varchar(50);default:'pending'"`             // 用户状态: pending(待邮箱验证), active(已激活)
+	EmailVerified   bool           `json:"email_verified" gorm:"column:email_verified;type:boolean;default:false"`     // 邮箱是否已验证
+	RegisterType    string         `json:"register_type" gorm:"column:register_type;type:varchar(50);default:'email'"` // 注册方式: email(邮箱), wechat(微信), github(GitHub), google(Google), qq(QQ), phone(手机号)
+	ThirdPartyID    string         `json:"third_party_id" gorm:"column:third_party_id;type:varchar(255)"`              // 第三方平台用户ID
+	Avatar          string         `json:"avatar" gorm:"column:avatar;type:varchar(500)"`                              // 头像URL
+	Nickname        string         `json:"nickname" gorm:"column:nickname;type:varchar(100)"`                          // 昵称
+	Signature       string         `json:"signature" gorm:"column:signature;type:varchar(500)"`                        // 个人签名/简介
+	Gender          string         `json:"gender" gorm:"column:gender;type:varchar(20)"`                               // 性别: male(男), female(女), other(其他), 空字符串表示未设置
+	TermsVersion    string         `json:"-" gorm:"column:terms_version;type:varchar(32)"`
+	PrivacyVersion  string         `json:"-" gorm:"column:privacy_version;type:varchar(32)"`
+	LegalAcceptedAt *models.Time   `json:"-" gorm:"column:legal_accepted_at"`
 
 	// ⭐ 新增：组织架构相关字段（使用路径和用户名，不使用ID）
 	DepartmentFullPath string `json:"department_full_path" gorm:"type:varchar(500);index;comment:所属部门完整路径（可选，可以为空）"`

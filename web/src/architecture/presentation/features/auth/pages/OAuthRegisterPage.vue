@@ -11,12 +11,15 @@ import {
 } from '@/architecture/presentation/context/api/auth'
 import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar.vue'
 import { BRAND_LOGO_192_URL } from '@/architecture/domain/utils/builtinUserAvatar'
+import LegalConsent from '@/architecture/presentation/features/legal/components/LegalConsent.vue'
+import { CURRENT_LEGAL_POLICY_VERSION } from '@/architecture/presentation/features/legal/legalDocuments'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const submitting = ref(false)
+const acceptedLegal = ref(false)
 const intent = ref<OAuthRegistrationIntent | null>(null)
 
 const form = reactive({
@@ -88,12 +91,20 @@ async function submitRegistration() {
   if (!intent.value) {
     return
   }
+  if (!acceptedLegal.value) {
+    ElMessage.warning('请先阅读并同意服务协议和隐私政策')
+    return
+  }
   await formRef.value?.validate()
   submitting.value = true
   try {
     const result = await confirmOAuthRegistration(ticket.value, {
       username: form.username.trim(),
       nickname: form.nickname.trim(),
+      accepted_terms: true,
+      terms_version: CURRENT_LEGAL_POLICY_VERSION,
+      accepted_privacy: true,
+      privacy_version: CURRENT_LEGAL_POLICY_VERSION,
     })
     await authStore.completeOAuthLogin(result.token, result.refresh_token, result.redirect_after)
   } catch (error: any) {
@@ -182,6 +193,8 @@ onMounted(loadIntent)
                   placeholder="用于界面展示，可后续修改"
                 />
               </el-form-item>
+
+              <LegalConsent v-model="acceptedLegal" required locale="zh-CN" class="register-legal" />
 
               <div v-if="expiresAtText" class="expiry-text">
                 本次确认有效期至 {{ expiresAtText }}
@@ -449,6 +462,10 @@ onMounted(loadIntent)
 
 .expiry-text {
   margin: 2px 0 16px;
+}
+
+.register-legal {
+  margin: -2px 0 16px;
 }
 
 .form-actions {
