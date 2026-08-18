@@ -747,6 +747,7 @@ export default {
     fullscreen: '全屏编辑',
     exitFullscreen: '退出全屏',
     fullscreenFailed: '无法进入全屏编辑',
+    editorError: '文档编辑器发生错误',
     linkPlaceholder: '请输入链接地址',
     imagePlaceholder: '请输入图片地址',
     fileName: '文件名',

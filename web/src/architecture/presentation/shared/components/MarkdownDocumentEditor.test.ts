@@ -1,5 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MdEditor } from 'md-editor-v3'
 import { notifyUploadComplete, uploadFile } from '@/architecture/presentation/context/uploadContext'
 import MarkdownDocumentEditor from './MarkdownDocumentEditor.vue'
 
@@ -23,30 +25,34 @@ describe('MarkdownDocumentEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.setItem('user', JSON.stringify({ username: 'tester' }))
+    Range.prototype.getClientRects = vi.fn(() => [] as unknown as DOMRectList)
+    Range.prototype.getBoundingClientRect = vi.fn(() => new DOMRect())
   })
 
-  it('loads and emits Markdown instead of editor HTML', async () => {
-    const wrapper = mount(MarkdownDocumentEditor, {
-      props: { modelValue: '# 使用说明\n\n初始内容' },
+  function mountEditor(modelValue: string, attachTo?: Element | string) {
+    return mount(MarkdownDocumentEditor, {
+      props: { modelValue },
+      attachTo,
+      global: { plugins: [createPinia()] },
     })
+  }
+
+  it('loads and emits Markdown instead of editor HTML', async () => {
+    const wrapper = mountEditor('# 使用说明\n\n初始内容')
 
     await flushPromises()
-    expect(wrapper.find('.tiptap h1').text()).toBe('使用说明')
+    expect(wrapper.find('.md-editor-preview h1').text()).toBe('使用说明')
 
-    wrapper.find('.tiptap p').element.textContent = '修改后的内容'
-    wrapper.find('.tiptap p').element.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    wrapper.findComponent(MdEditor).vm.$emit('update:modelValue', '## 修改后的内容')
     await flushPromises()
 
     const updates = wrapper.emitted('update:modelValue') || []
-    expect(updates.at(-1)?.[0]).toContain('修改后的内容')
-    expect(updates.at(-1)?.[0]).not.toContain('<p>')
+    expect(updates.at(-1)?.[0]).toBe('## 修改后的内容')
     wrapper.unmount()
   })
 
   it('uploads pasted images and regular files with the correct Markdown', async () => {
-    const wrapper = mount(MarkdownDocumentEditor, {
-      props: { modelValue: '' },
-    })
+    const wrapper = mountEditor('')
     await flushPromises()
 
     const image = new File(['image'], 'clipboard.png', { type: 'image/png' })
@@ -63,7 +69,7 @@ describe('MarkdownDocumentEditor', () => {
         files: [image, documentFile],
       },
     })
-    wrapper.find('.tiptap').element.dispatchEvent(pasteEvent)
+    wrapper.element.dispatchEvent(pasteEvent)
     await flushPromises()
 
     expect(uploadFile).toHaveBeenCalledWith('tester/docs/files', image, expect.any(Function))
@@ -89,10 +95,7 @@ describe('MarkdownDocumentEditor', () => {
       }),
     })
 
-    const wrapper = mount(MarkdownDocumentEditor, {
-      props: { modelValue: '内容' },
-      attachTo: document.body,
-    })
+    const wrapper = mountEditor('内容', document.body)
     await flushPromises()
     const shell = wrapper.get('.markdown-document-editor').element as HTMLElement
     Object.defineProperty(shell, 'requestFullscreen', {
@@ -103,11 +106,11 @@ describe('MarkdownDocumentEditor', () => {
       }),
     })
 
-    await wrapper.get('.markdown-document-editor__toolbar-end button').trigger('click')
+    await wrapper.get('button[title="全屏编辑"]').trigger('click')
     expect(shell.requestFullscreen).toHaveBeenCalledOnce()
     expect(document.body.querySelector('.markdown-document-editor__drop-hint')).toBeNull()
 
-    await wrapper.get('.markdown-document-editor__toolbar-end button').trigger('click')
+    await wrapper.get('button[title="退出全屏"]').trigger('click')
     expect(document.exitFullscreen).toHaveBeenCalledOnce()
     wrapper.unmount()
   })

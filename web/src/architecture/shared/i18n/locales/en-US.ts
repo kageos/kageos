@@ -747,6 +747,7 @@ export default {
     fullscreen: 'Edit full screen',
     exitFullscreen: 'Exit full screen',
     fullscreenFailed: 'Unable to enter full-screen editing',
+    editorError: 'The document editor encountered an error',
     linkPlaceholder: 'Enter link URL',
     imagePlaceholder: 'Enter image URL',
     fileName: 'File name',
