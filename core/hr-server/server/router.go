@@ -60,6 +60,7 @@ func (s *Server) setupRoutes() {
 	user.GET("/query", userHandler.QueryUser)
 	user.GET("/search_fuzzy", userHandler.SearchUsersFuzzy)
 	user.PUT("/update", userHandler.UpdateUser)
+	user.PUT("/password", userHandler.ChangePassword)
 	user.GET("/openapi_tokens", userHandler.ListOpenAPITokens)
 	user.POST("/openapi_tokens", userHandler.CreateOpenAPIToken)
 	user.POST("/openapi_tokens/revoke", userHandler.RevokeOpenAPIToken)

@@ -64,6 +64,15 @@ func llmInfoFromConfig(cfg *model.LLMConfig, currentUser string) dto.LLMInfo {
 	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg)
 	provider, protocol := llmProviderProtocolForResponse(cfg)
 	effectiveContextWindow, contextWindowSource := service.ResolveLLMContextWindow(cfg)
+	isAdmin := cfg.IsAdminUser(currentUser)
+	headers := ""
+	extraConfig := ""
+	admin := ""
+	if isAdmin {
+		headers = llmStringValue(cfg.Headers)
+		extraConfig = llmStringValue(cfg.ExtraConfig)
+		admin = cfg.Admin
+	}
 	return dto.LLMInfo{
 		ID:                          cfg.ID,
 		Code:                        cfg.Code,
@@ -77,7 +86,7 @@ func llmInfoFromConfig(cfg *model.LLMConfig, currentUser string) dto.LLMInfo {
 		EndpointPath:                cfg.EndpointPath,
 		APIVersion:                  cfg.APIVersion,
 		AuthScheme:                  cfg.AuthScheme,
-		Headers:                     llmStringValue(cfg.Headers),
+		Headers:                     headers,
 		Timeout:                     cfg.Timeout,
 		MaxTokens:                   cfg.MaxTokens,
 		ContextWindow:               cfg.ContextWindow,
@@ -85,12 +94,12 @@ func llmInfoFromConfig(cfg *model.LLMConfig, currentUser string) dto.LLMInfo {
 		DetectedContextWindowSource: cfg.DetectedContextWindowSource,
 		EffectiveContextWindow:      effectiveContextWindow,
 		ContextWindowSource:         contextWindowSource,
-		ExtraConfig:                 llmStringValue(cfg.ExtraConfig),
+		ExtraConfig:                 extraConfig,
 		Capabilities:                llmStringValue(cfg.Capabilities),
 		IsDefault:                   cfg.IsDefault,
 		Visibility:                  cfg.Visibility,
-		Admin:                       cfg.Admin,
-		IsAdmin:                     cfg.IsAdminUser(currentUser),
+		Admin:                       admin,
+		IsAdmin:                     isAdmin,
 		CreatedAt:                   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:                   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 	}

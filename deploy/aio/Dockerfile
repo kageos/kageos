@@ -30,6 +30,11 @@ RUN GOCACHE=/tmp/go-build CGO_ENABLED=1 GOOS=linux go build \
     -ldflags="-s -w" \
     -o /out/core-server \
     ./core/cmd/main/main.go \
+    && GOCACHE=/tmp/go-build CGO_ENABLED=1 GOOS=linux go build \
+    -tags "exclude_graphdriver_btrfs" \
+    -ldflags="-s -w" \
+    -o /out/web-assets-publisher \
+    ./cmd/web-assets-publisher \
     && rm -rf /tmp/go-build /root/.cache/go-build
 
 # ========== Web static build ==========
@@ -86,6 +91,7 @@ ENV GOCACHE="/app/namespace/.cache/go-build"
 WORKDIR /app
 
 COPY --from=gobuilder /out/core-server /app/core-server
+COPY --from=gobuilder /out/web-assets-publisher /app/web-assets-publisher
 COPY --from=gobuilder /src/go.mod /src/go.sum /app/
 COPY --from=gobuilder /go/pkg/mod /go/pkg/mod
 

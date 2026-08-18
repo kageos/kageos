@@ -93,6 +93,12 @@ type SystemResetUserPasswordReq struct {
 	Password string `json:"password" binding:"required,min=6" example:"123456"`
 }
 
+// ChangeOwnPasswordReq 当前登录用户修改自己的密码
+type ChangeOwnPasswordReq struct {
+	CurrentPassword string `json:"current_password" binding:"required" example:"old-password"`
+	NewPassword     string `json:"new_password" binding:"required,min=6" example:"new-password"`
+}
+
 // SystemUpdateUserStatusReq system 用户管理：更新用户状态
 type SystemUpdateUserStatusReq struct {
 	Status string `json:"status" binding:"required,oneof=active pending disabled" example:"disabled"`

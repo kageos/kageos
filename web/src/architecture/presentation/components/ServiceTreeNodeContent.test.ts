@@ -133,6 +133,74 @@ describe('ServiceTreeNodeContent', () => {
     expect(wrapper.emitted('permission-request-click')).toHaveLength(1)
   })
 
+  it('shows compact platform logos for configured notification routes', async () => {
+    const wrapper = mount(ServiceTreeNodeContent, {
+      props: {
+        node: {
+          id: 22,
+          type: 'package',
+          name: '站点巡检',
+          full_code_path: '/alice/ops/site-monitor',
+        } as any,
+        showNotificationRouteBadge: true,
+        notificationRouteBadgeTitle: '通知发送到飞书和企业微信',
+        notificationRouteChannels: ['feishu', 'wecom', 'feishu'],
+      },
+      global: {
+        stubs: {
+          ElIcon: true,
+        },
+      },
+    })
+
+    const badge = wrapper.get('.notification-route-badge')
+    const logos = badge.findAll('.notification-route-logo')
+    expect(badge.classes()).toContain('has-channel-logos')
+    expect(badge.attributes('title')).toBe('通知发送到飞书和企业微信')
+    expect(badge.attributes('aria-label')).toBe('通知发送到飞书和企业微信')
+    expect(logos).toHaveLength(2)
+    expect(logos[0]!.attributes('src')).toContain('data:image/jpeg;base64,')
+
+    await badge.trigger('click')
+    expect(wrapper.emitted('notification-route-click')).toHaveLength(1)
+  })
+
+  it('reduces inherited route noise on resource nodes while keeping directory routes visible', () => {
+    const resource = mount(ServiceTreeNodeContent, {
+      props: {
+        node: {
+          id: 23,
+          type: 'function',
+          name: '巡检日志',
+          full_code_path: '/alice/ops/site-monitor/logs.table',
+        } as any,
+        showNotificationRouteBadge: true,
+        notificationRouteBadgeTone: 'inherited',
+        notificationRouteBadgeTitle: '继承飞书通知',
+        notificationRouteChannels: ['feishu'],
+      },
+      global: { stubs: { ElIcon: true } },
+    })
+    expect(resource.get('.notification-route-badge').classes()).toContain('is-idle-hidden')
+
+    const directory = mount(ServiceTreeNodeContent, {
+      props: {
+        node: {
+          id: 24,
+          type: 'package',
+          name: '站点巡检',
+          full_code_path: '/alice/ops/site-monitor',
+        } as any,
+        showNotificationRouteBadge: true,
+        notificationRouteBadgeTone: 'inherited',
+        notificationRouteBadgeTitle: '继承飞书通知',
+        notificationRouteChannels: ['feishu'],
+      },
+      global: { stubs: { ElIcon: true } },
+    })
+    expect(directory.get('.notification-route-badge').classes()).not.toContain('is-idle-hidden')
+  })
+
   it.each([
     ['running', 'working'],
     ['enabled', 'ready'],

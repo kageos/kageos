@@ -100,7 +100,16 @@ backend env files:
 
 Those files are private runtime state and must not be committed.
 
-From the source checkout, run `kagectl` through Go so contributors do not need
+For the shortest full-stack path, run the repository script:
+
+```bash
+./scripts/dev.sh
+```
+
+It keeps backend and frontend output visible in one terminal and stops both
+foreground processes on `Ctrl-C`. Local infrastructure and data stay intact.
+
+To run the two processes separately, start `kagectl` through Go so contributors do not need
 to install a separate binary first:
 
 ```bash

@@ -30,12 +30,12 @@ cd kageos
 
 | 目标 | 推荐做法 |
 | --- | --- |
-| 第一次把完整产品跑起来 | `go run ./cmd/kagectl bootstrap --dev`，再另开终端跑 `cd web && npm run dev` |
+| 第一次把完整产品跑起来 | `./scripts/dev.sh` |
 | 用 GoLand / VS Code 调试后端 | 先执行 `go run ./cmd/kagectl init --dev`，再从仓库根目录运行 `core/cmd/main/main.go` |
 | 只改前端 | 跑 `web` 的 dev server；需要连接已有后端时配置 `web/.env.development.local` 里的 `VITE_PROXY_TARGET` |
 | 排查本地基础设施 | 先用 `kagectl status`、`kagectl doctor`、`kagectl verify`、`kagectl logs`，再看底层 compose |
 
-`bootstrap --dev` 已经包含初始化步骤，会先完成 `init --dev` 对应的开发模式准备，再启动本地基础设施和后端主进程。只有在你想用 IDE 自己启动后端，或者只想初始化不启动后端时，才需要单独执行 `go run ./cmd/kagectl init --dev`。
+`scripts/dev.sh` 会同时启动后端、基础设施和前端，并把两边输出留在当前终端。`bootstrap --dev` 已经包含初始化步骤；只有在你想分开调试、用 IDE 启动后端，或者只初始化不启动后端时，才需要直接运行 `kagectl`。
 
 本地开发默认优先使用 Podman。若贡献者本机更习惯 Docker，可在首次启动时显式选择：
 
@@ -146,9 +146,19 @@ go run ./cmd/kagectl down
 
 ## 官方入口
 
-### 1. 一键启动开发后端
+### 1. 一键启动完整开发环境
 
-推荐首次开发直接用 `kagectl bootstrap --dev`：
+推荐首次开发直接运行仓库脚本：
+
+```bash
+./scripts/dev.sh
+```
+
+脚本会启动基础设施、后端和 Vite 前端。按 `Ctrl-C` 会停止前后端进程，但保留本地基础设施和数据。
+
+### 1.1 分开启动开发后端
+
+需要分别调试时使用 `kagectl bootstrap --dev`：
 
 ```bash
 go run ./cmd/kagectl bootstrap --dev
@@ -160,7 +170,7 @@ go run ./cmd/kagectl bootstrap --dev
 go run ./cmd/kagectl down
 ```
 
-### 1.1 只初始化开发模式
+### 1.2 只初始化开发模式
 
 如需只初始化，不启动后端主进程：
 

@@ -140,6 +140,7 @@
               :show-notification-route-badge="hasNotificationRouteBadge(data)"
               :notification-route-badge-title="getNotificationRouteSummaryTitle(data)"
               :notification-route-badge-tone="getNotificationRouteBadgeTone(data)"
+              :notification-route-channels="getNotificationRouteChannels(data)"
               :show-scheduled-agent-badge="hasScheduledAgentBadge(data)"
               :scheduled-agent-badge-title="getScheduledAgentBadgeTitle(data)"
               :scheduled-agent-state="getScheduledAgentState(data)"
@@ -732,6 +733,7 @@ function openNodeNotifications(node: ServiceTree) {
 
 interface NotificationRouteEffectiveSummary {
   route?: MessageNotificationRouteInfo
+  routes: MessageNotificationRouteInfo[]
   scopePath: string
   inherited: boolean
   disabled: boolean
@@ -741,12 +743,12 @@ function isNotificationRouteNode(node: ServiceTree): boolean {
   return node.type === 'package' || node.type === 'function'
 }
 
-function getUsableNotificationRoute(summary?: MessageNotificationRoutePathSummary): MessageNotificationRouteInfo | undefined {
-  return (summary?.routes || []).find((route) => Boolean(route.enabled) && Boolean(route.has_webhook_url))
+function getUsableNotificationRoutes(summary?: MessageNotificationRoutePathSummary): MessageNotificationRouteInfo[] {
+  return (summary?.routes || []).filter((route) => Boolean(route.enabled) && Boolean(route.has_webhook_url))
 }
 
-function getConfiguredNotificationRoute(summary?: MessageNotificationRoutePathSummary): MessageNotificationRouteInfo | undefined {
-  return (summary?.routes || []).find((route) => {
+function getConfiguredNotificationRoutes(summary?: MessageNotificationRoutePathSummary): MessageNotificationRouteInfo[] {
+  return (summary?.routes || []).filter((route) => {
     return Boolean(route.id || route.display_name || route.enabled || route.has_webhook_url || route.last_error)
   })
 }
@@ -756,10 +758,11 @@ function getEffectiveNotificationRoute(node: ServiceTree): NotificationRouteEffe
   if (!path || !isNotificationRouteNode(node)) return undefined
 
   for (const scopePath of getNotificationScopeAncestors(path)) {
-    const route = getUsableNotificationRoute(notificationRouteSummaries.value[scopePath])
-    if (route) {
+    const routes = getUsableNotificationRoutes(notificationRouteSummaries.value[scopePath])
+    if (routes.length > 0) {
       return {
-        route,
+        route: routes[0],
+        routes,
         scopePath,
         inherited: scopePath !== path,
         disabled: false
@@ -767,10 +770,11 @@ function getEffectiveNotificationRoute(node: ServiceTree): NotificationRouteEffe
     }
   }
 
-  const directRoute = getConfiguredNotificationRoute(notificationRouteSummaries.value[path])
-  if (!directRoute) return undefined
+  const directRoutes = getConfiguredNotificationRoutes(notificationRouteSummaries.value[path])
+  if (directRoutes.length === 0) return undefined
   return {
-    route: directRoute,
+    route: directRoutes[0],
+    routes: directRoutes,
     scopePath: path,
     inherited: false,
     disabled: true
@@ -779,6 +783,18 @@ function getEffectiveNotificationRoute(node: ServiceTree): NotificationRouteEffe
 
 function hasNotificationRouteBadge(node: ServiceTree): boolean {
   return canAdmin(node) && Boolean(getEffectiveNotificationRoute(node))
+}
+
+function getNotificationRouteChannels(node: ServiceTree): string[] {
+  const summary = getEffectiveNotificationRoute(node)
+  if (!summary) return []
+  const channelOrder = ['feishu', 'wecom', 'dingtalk']
+  return [...new Set(summary.routes.map((route) => String(route.channel || '').trim()).filter(Boolean))]
+    .sort((left, right) => {
+      const leftIndex = channelOrder.indexOf(left)
+      const rightIndex = channelOrder.indexOf(right)
+      return (leftIndex < 0 ? channelOrder.length : leftIndex) - (rightIndex < 0 ? channelOrder.length : rightIndex)
+    })
 }
 
 function notificationChannelLabel(channel?: string): string {
@@ -798,7 +814,7 @@ function getNotificationRouteBadgeTone(node: ServiceTree): string {
   const summary = getEffectiveNotificationRoute(node)
   if (!summary) return 'direct'
   if (summary.disabled) return 'disabled'
-  if (summary.route?.last_error || Number(summary.route?.fail_count || 0) > 0) return 'failed'
+  if (summary.routes.some((route) => route.last_error || Number(route.fail_count || 0) > 0)) return 'failed'
   if (summary.inherited) return 'inherited'
   return 'direct'
 }
@@ -806,14 +822,15 @@ function getNotificationRouteBadgeTone(node: ServiceTree): string {
 function getNotificationRouteSummaryTitle(node: ServiceTree): string {
   const summary = getEffectiveNotificationRoute(node)
   if (!summary) return ''
-  const name = formatNotificationRouteName(summary.route)
+  const name = summary.routes.map(formatNotificationRouteName).join('、')
   let title = summary.disabled
     ? t('serviceTree.notificationRouteDisabledTitle', { name })
     : summary.inherited
       ? t('serviceTree.notificationRouteInheritedTitle', { name, path: summary.scopePath })
       : t('serviceTree.notificationRouteDirectTitle', { name })
-  if (summary.route?.last_error) {
-    title += `；${t('serviceTree.notificationRouteLastError', { error: summary.route.last_error })}`
+  const lastError = summary.routes.find((route) => route.last_error)?.last_error
+  if (lastError) {
+    title += `；${t('serviceTree.notificationRouteLastError', { error: lastError })}`
   }
   return title
 }

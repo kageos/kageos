@@ -20,6 +20,15 @@ export function updateUser(data: UpdateUserReq) {
   return put<UpdateUserResp>('/hr/api/v1/user/update', data)
 }
 
+export interface ChangeOwnPasswordReq {
+  current_password: string
+  new_password: string
+}
+
+export function changeOwnPassword(data: ChangeOwnPasswordReq) {
+  return put('/hr/api/v1/user/password', data)
+}
+
 export interface OpenAPITokenInfo {
   id: number
   name: string

@@ -62,6 +62,45 @@ func TestUpdateUserStatusFromSystemDoesNotDisableSystem(t *testing.T) {
 	}
 }
 
+func TestChangeOwnPassword(t *testing.T) {
+	t.Parallel()
+
+	db := openSystemUserManagementTestDB(t)
+	userRepo := repository.NewUserRepository(db)
+	sessionRepo := repository.NewUserSessionRepository(db)
+	svc := NewUserService(userRepo, nil, sessionRepo, nil)
+	oldHash, err := bcrypt.GenerateFromPassword([]byte("old-password"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := &model.User{
+		Username:      "alice",
+		Email:         "alice@example.com",
+		PasswordHash:  string(oldHash),
+		Status:        "active",
+		RegisterType:  "system",
+		EmailVerified: true,
+		Type:          model.UserTypeNormal,
+	}
+	if err := userRepo.CreateUser(user); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := svc.ChangeOwnPassword(context.Background(), user.Username, "wrong-password", "new-password"); err == nil || !strings.Contains(err.Error(), "当前密码错误") {
+		t.Fatalf("expected current password error, got %v", err)
+	}
+	if err := svc.ChangeOwnPassword(context.Background(), user.Username, "old-password", "new-password"); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := userRepo.GetUserByUsername(user.Username)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(updated.PasswordHash), []byte("new-password")); err != nil {
+		t.Fatalf("new password hash mismatch: %v", err)
+	}
+}
+
 func openSystemUserManagementTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -69,7 +108,7 @@ func openSystemUserManagementTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.UserSession{}); err != nil {
 		t.Fatalf("migrate system user management test db: %v", err)
 	}
 	return db

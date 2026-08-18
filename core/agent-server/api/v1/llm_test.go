@@ -134,6 +134,32 @@ func TestLLMGetDoesNotExposeAPIKey(t *testing.T) {
 	}
 }
 
+func TestLLMInfoHidesEditableAdvancedFieldsFromNonAdmins(t *testing.T) {
+	headers := `{"Authorization":"Bearer should-not-leak"}`
+	extraConfig := `{"temperature":0.2}`
+	capabilities := `{"stream":true}`
+	info := llmInfoFromConfig(&model.LLMConfig{
+		Name:         "Shared",
+		Provider:     model.LLMProviderOpenAI,
+		Model:        "gpt-test",
+		Headers:      &headers,
+		ExtraConfig:  &extraConfig,
+		Capabilities: &capabilities,
+		Admin:        "alice",
+		Visibility:   0,
+	}, "bob")
+
+	if info.IsAdmin {
+		t.Fatal("IsAdmin = true, want false")
+	}
+	if info.Headers != "" || info.ExtraConfig != "" || info.Admin != "" {
+		t.Fatalf("editable advanced fields leaked: headers=%q extra_config=%q admin=%q", info.Headers, info.ExtraConfig, info.Admin)
+	}
+	if info.Capabilities == "" {
+		t.Fatal("Capabilities should remain visible because it describes runtime support")
+	}
+}
+
 func TestLLMGetDefaultReturnsNullWhenNotConfigured(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

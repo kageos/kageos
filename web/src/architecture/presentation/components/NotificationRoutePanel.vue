@@ -34,17 +34,11 @@
           :key="definition.channel"
           class="route-channel-section"
         >
-          <el-alert
-            v-if="routeForms[definition.channel].configured && !routeForms[definition.channel].enabled"
-            class="route-disabled-alert"
-            type="warning"
-            :closable="false"
-            show-icon
-            :title="t('notificationRoute.configuredButDisabled')"
-          />
           <div class="channel-header">
             <div class="channel-title">
-              <span class="channel-mark">{{ definition.mark }}</span>
+              <span class="channel-mark">
+                <img :src="definition.logo" :alt="definition.name" />
+              </span>
               <div>
                 <div class="channel-name-row">
                   <h4>{{ definition.name }}</h4>
@@ -71,22 +65,52 @@
                 <p v-if="inheritedByChannel[definition.channel] && !routeForms[definition.channel].configured" class="channel-guide">
                   {{ t('notificationRoute.inheritedFrom', { path: inheritedByChannel[definition.channel]?.scope_path }) }}
                 </p>
-                <p v-else class="channel-guide">{{ definition.guide }}</p>
               </div>
             </div>
-            <el-switch
-              v-model="routeForms[definition.channel].enabled"
-              inline-prompt
-              :active-text="t('userSettings.enabled')"
-              :inactive-text="t('userSettings.disabled')"
-            />
+            <div class="channel-summary-actions">
+              <el-tag size="small" :type="deliveryStatusType(routeForms[definition.channel])">
+                {{ deliveryStatusLabel(routeForms[definition.channel]) }}
+              </el-tag>
+              <el-button
+                text
+                type="primary"
+                :aria-label="`${definition.name} · ${isRouteChannelExpanded(definition.channel)
+                  ? t('userSettings.collapseDetails')
+                  : t('userSettings.configure')}`"
+                @click="toggleRouteChannel(definition.channel)"
+              >
+                {{ isRouteChannelExpanded(definition.channel) ? t('userSettings.collapseDetails') : t('userSettings.configure') }}
+                <el-icon class="channel-expand-icon" :class="{ 'is-expanded': isRouteChannelExpanded(definition.channel) }">
+                  <ArrowDown />
+                </el-icon>
+              </el-button>
+            </div>
           </div>
 
-          <el-form
-            :model="routeForms[definition.channel]"
-            label-width="118px"
-            class="route-form"
-          >
+          <el-collapse-transition>
+            <div v-show="isRouteChannelExpanded(definition.channel)" class="channel-details">
+              <p class="channel-detail-guide">{{ definition.guide }}</p>
+              <el-alert
+                v-if="routeForms[definition.channel].configured && !routeForms[definition.channel].enabled"
+                class="route-disabled-alert"
+                type="warning"
+                :closable="false"
+                show-icon
+                :title="t('notificationRoute.configuredButDisabled')"
+              />
+              <el-form
+                :model="routeForms[definition.channel]"
+                label-width="118px"
+                class="route-form"
+              >
+                <el-form-item :label="t('userSettings.channelEnabledLabel')">
+                  <el-switch
+                    v-model="routeForms[definition.channel].enabled"
+                    inline-prompt
+                    :active-text="t('userSettings.enabled')"
+                    :inactive-text="t('userSettings.disabled')"
+                  />
+                </el-form-item>
             <el-form-item :label="t('notificationRoute.displayName')">
               <el-input
                 v-model="routeForms[definition.channel].display_name"
@@ -205,7 +229,9 @@
                 </span>
               </div>
             </el-form-item>
-          </el-form>
+              </el-form>
+            </div>
+          </el-collapse-transition>
         </section>
       </div>
     </template>
@@ -216,7 +242,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Check, Delete, Promotion, Refresh } from '@element-plus/icons-vue'
+import { ArrowDown, Check, Delete, Promotion, Refresh } from '@element-plus/icons-vue'
 import {
   deleteMessageNotificationRoute,
   listMessageNotificationRoutes,
@@ -225,13 +251,14 @@ import {
   type MessageNotificationRouteInfo
 } from '@/architecture/presentation/context/api/message'
 import { eventBus } from '@/architecture/presentation/context/eventBusContext'
+import { notificationChannelLogos } from '@/architecture/shared/assets/notificationChannelLogos'
 
 type ChannelCode = 'feishu' | 'wecom' | 'dingtalk'
 
 interface ChannelDefinition {
   channel: ChannelCode
   name: string
-  mark: string
+  logo: string
   hint: string
   guide: string
 }
@@ -267,6 +294,7 @@ const props = withDefaults(defineProps<{
 
 const { t } = useI18n()
 const loading = ref(false)
+const expandedRouteChannels = ref<ChannelCode[]>([])
 
 const normalizedScopePath = computed(() => normalizeScopePath(props.scopePath))
 const resolvedScopeType = computed(() => props.scopeType || inferScopeType(normalizedScopePath.value))
@@ -275,21 +303,21 @@ const channelDefinitions = computed<ChannelDefinition[]>(() => [
   {
     channel: 'feishu',
     name: t('userSettings.channelFeishu'),
-    mark: t('userSettings.channelFeishuMark'),
+    logo: notificationChannelLogos.feishu,
     hint: t('userSettings.channelFeishuHint'),
     guide: t('userSettings.channelFeishuGuide')
   },
   {
     channel: 'wecom',
     name: t('userSettings.channelWecom'),
-    mark: t('userSettings.channelWecomMark'),
+    logo: notificationChannelLogos.wecom,
     hint: t('userSettings.channelWecomHint'),
     guide: t('userSettings.channelWecomGuide')
   },
   {
     channel: 'dingtalk',
     name: t('userSettings.channelDingtalk'),
-    mark: t('userSettings.channelDingtalkMark'),
+    logo: notificationChannelLogos.dingtalk,
     hint: t('userSettings.channelDingtalkHint'),
     guide: t('userSettings.channelDingtalkGuide')
   }
@@ -342,6 +370,16 @@ const inheritedSummary = computed(() => {
   }
   return t('notificationRoute.inheritedFrom', { path: [...paths].join(', ') })
 })
+
+function isRouteChannelExpanded(channel: ChannelCode): boolean {
+  return expandedRouteChannels.value.includes(channel)
+}
+
+function toggleRouteChannel(channel: ChannelCode) {
+  expandedRouteChannels.value = isRouteChannelExpanded(channel)
+    ? expandedRouteChannels.value.filter((item) => item !== channel)
+    : [...expandedRouteChannels.value, channel]
+}
 
 function createDefaultRouteForm(channel: ChannelCode): RouteFormState {
   return {
@@ -720,6 +758,7 @@ function inferScopeType(path: string): string {
 watch(
   () => normalizedScopePath.value,
   () => {
+    expandedRouteChannels.value = []
     void loadRoutes()
   }
 )
@@ -863,7 +902,6 @@ onMounted(() => {
 .channel-header {
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
 }
 
 .channel-title {
@@ -879,9 +917,16 @@ onMounted(() => {
   height: 36px;
   flex: 0 0 36px;
   border-radius: 8px;
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-  font-weight: 700;
+  overflow: hidden;
+  background: var(--el-fill-color-light);
+  box-shadow: 0 0 0 1px var(--el-border-color-lighter);
+}
+
+.channel-mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .channel-name-row {
@@ -898,6 +943,35 @@ onMounted(() => {
 .channel-title .channel-guide {
   margin-top: 4px;
   color: var(--el-text-color-placeholder);
+}
+
+.channel-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.channel-expand-icon {
+  margin-left: 4px;
+  transition: transform 0.2s ease;
+}
+
+.channel-expand-icon.is-expanded {
+  transform: rotate(180deg);
+}
+
+.channel-details {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.channel-detail-guide {
+  margin: 0 0 16px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .route-form {
@@ -960,7 +1034,8 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   .route-panel-header,
-  .channel-header {
+  .channel-header,
+  .channel-summary-actions {
     align-items: flex-start;
     flex-direction: column;
   }

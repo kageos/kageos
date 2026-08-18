@@ -131,15 +131,16 @@ git clone https://github.com/kageos/kageos.git
 cd kageos
 ```
 
-启动本地开发后端：
+启动完整的本地开发环境：
+
+```bash
+./scripts/dev.sh
+```
+
+脚本会在同一个终端持续显示后端和前端输出。如果希望分别调试，也可以手动在两个终端运行：
 
 ```bash
 go run ./cmd/kagectl bootstrap --dev
-```
-
-另开一个终端启动前端：
-
-```bash
 cd web
 npm install
 npm run dev

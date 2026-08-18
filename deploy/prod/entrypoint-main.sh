@@ -236,6 +236,29 @@ fi
 mkdir -p /etc/nginx/snippets
 envsubst '${MINIO_HOST} ${MINIO_PORT}' < /app/deploy/prod/nginx/common.server.inc > /etc/nginx/snippets/kageos-common.conf
 
+configure_web_asset_base() {
+  local asset_base="${KAGEOS_WEB_ASSET_BASE_URL:-}"
+  local escaped
+  [[ -n "$asset_base" ]] || return 0
+  asset_base="${asset_base%/}"
+  case "$asset_base" in
+    http://*|https://*) ;;
+    *)
+      echo "ERROR: KAGEOS_WEB_ASSET_BASE_URL must start with http:// or https://" >&2
+      exit 1
+      ;;
+  esac
+  if [[ "$asset_base" == *\"* || "$asset_base" == *\'* || "$asset_base" == *' '* || "$asset_base" == *$'\n'* ]]; then
+    echo "ERROR: KAGEOS_WEB_ASSET_BASE_URL contains unsupported characters" >&2
+    exit 1
+  fi
+  escaped="$(printf '%s' "$asset_base" | sed 's/[&|]/\\&/g')"
+  sed -i "s|=\"/assets/|=\"${escaped}/assets/|g" /var/www/web/dist/index.html
+  echo "==> Web static assets use CDN: ${asset_base}/assets/"
+}
+
+configure_web_asset_base
+
 export TLS_CERT_FILE
 export TLS_KEY_FILE
 echo "==> 生成 Nginx（${NGINX_MODE_DESC}，www → 裸域 301）canonical_host=${CANONICAL_HOST} server_name=${CANONICAL_SERVER_NAME} scheme=${CANONICAL_SCHEME}"
