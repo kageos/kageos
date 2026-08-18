@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	PersonalWorkspaceCode = "home"
-	PersonalWorkspaceName = "我的空间"
+	PersonalWorkspaceCode       = "home"
+	legacyPersonalWorkspaceName = "我的空间"
 
 	personalWorkspaceProvisioning = "provisioning"
 	personalWorkspaceReady        = "ready"
@@ -55,6 +55,9 @@ func (a *AppService) bootstrapPersonalWorkspace(ctx context.Context, user string
 	if app, found, err := a.findBootstrapWorkspace(ctx, user); err != nil {
 		return nil, err
 	} else if found {
+		if err := a.ensurePersonalWorkspaceName(ctx, app); err != nil {
+			return nil, err
+		}
 		return personalWorkspaceResponse(app, false), nil
 	}
 
@@ -75,7 +78,7 @@ func (a *AppService) bootstrapPersonalWorkspace(ctx context.Context, user string
 	req := &dto.CreateAppReq{
 		User:     user,
 		Code:     PersonalWorkspaceCode,
-		Name:     PersonalWorkspaceName,
+		Name:     personalWorkspaceName(user),
 		IsPublic: &private,
 	}
 	if _, err := a.provisionRuntimeApp(ctx, selectedHost.ID, req); err != nil {
@@ -98,6 +101,36 @@ func (a *AppService) bootstrapPersonalWorkspace(ctx context.Context, user string
 		return personalWorkspaceResponse(app, true), nil
 	}
 	return personalWorkspaceResponse(app, true), nil
+}
+
+func personalWorkspaceName(tenantUser string) string {
+	name := strings.TrimSpace(tenantUser)
+	if name == "" {
+		return "默认空间"
+	}
+	return name + " 的默认空间"
+}
+
+// ensurePersonalWorkspaceName 只迁移平台曾自动生成的旧名称，用户自定义名称保持不变。
+func (a *AppService) ensurePersonalWorkspaceName(ctx context.Context, app *model.App) error {
+	if app == nil || !app.IsPersonalWorkspace || strings.TrimSpace(app.Name) != legacyPersonalWorkspaceName {
+		return nil
+	}
+	name := personalWorkspaceName(app.User)
+	db := a.appRepo.GetDB().WithContext(ctx)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.App{}).Where("id = ?", app.ID).Update("name", name).Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.ServiceTree{}).
+			Where("app_id = ? AND full_code_path = ?", app.ID, app.GetPrefix()).
+			Update("name", name).Error
+	}); err != nil {
+		return fmt.Errorf("更新默认空间名称失败: %w", err)
+	}
+	app.Name = name
+	a.appRepo.InvalidateAppCacheBoth(app.User, app.Code, app.ID)
+	return nil
 }
 
 func (a *AppService) findBootstrapWorkspace(ctx context.Context, user string) (*model.App, bool, error) {

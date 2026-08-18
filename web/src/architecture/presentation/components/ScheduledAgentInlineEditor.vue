@@ -75,10 +75,11 @@
           :expanded-title="title || t('scheduledTask.editAgentDialogTitle')"
           :expanded-subtitle="fullCodePath"
           :expanded-save-label="t('common.save')"
-          mention-panel-placement="below"
+          mention-panel-placement="above"
           @update:input-text="emit('update:message', $event)"
           @expanded-save="handleExpandedSave"
         />
+        <div class="detail-inline-editor-help">{{ t('scheduledTask.agentMessageHelp') }}</div>
         <div v-if="dragOver" class="detail-inline-drop-hint">
           {{ t('scheduledTask.dropUpload') }}
         </div>
@@ -226,6 +227,13 @@ function noopInputEnter() {}
 
 .detail-inline-hint {
   margin-top: 6px;
+  color: var(--scheduled-session-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.detail-inline-editor-help {
+  padding: 8px 2px 0;
   color: var(--scheduled-session-muted);
   font-size: 12px;
   line-height: 1.45;

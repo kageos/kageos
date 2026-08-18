@@ -75,17 +75,24 @@
             :remove-file="removeFile"
             :on-input-enter="noopInputEnter"
             :placeholder="t('scheduledTask.agentMessagePlaceholder')"
+            mention-panel-placement="above"
             @update:input-text="form.message = $event"
             @update:selected-l-l-m-config-id="form.llm_config_id = $event"
           />
+          <div class="scheduled-agent-editor-help">
+            <span>{{ t('scheduledTask.agentMessageHelp') }}</span>
+            <span>{{ form.message.trim().length }} {{ t('scheduledTask.characters') }}</span>
+          </div>
           <div v-if="dragOver" class="scheduled-agent-drop-hint">
             {{ t('scheduledTask.dropUpload') }}
           </div>
         </div>
       </el-form-item>
 
+      <template v-if="isEditing">
       <el-form-item :label="t('scheduledTask.scheduleType')" prop="schedule_type">
         <el-radio-group v-model="form.schedule_type">
+          <el-radio-button value="manual">{{ t('scheduledTask.scheduleManual') }}</el-radio-button>
           <el-radio-button value="atime">{{ t('scheduledTask.scheduleAtime') }}</el-radio-button>
           <el-radio-button value="cron">{{ t('scheduledTask.scheduleCron') }}</el-radio-button>
           <el-radio-button value="every">{{ t('scheduledTask.scheduleEvery') }}</el-radio-button>
@@ -130,6 +137,15 @@
       <el-form-item v-if="form.overlap_policy === 'allow'" :label="t('scheduledTask.maxParallelism')" prop="max_parallelism">
         <el-input-number v-model="form.max_parallelism" :min="1" :max="16" style="width: 100%" />
       </el-form-item>
+      </template>
+
+      <el-alert
+        v-else
+        type="info"
+        :closable="false"
+        show-icon
+        :title="t('scheduledTask.createWithoutScheduleHint')"
+      />
     </el-form>
 
     <template #footer>
@@ -154,7 +170,7 @@ import { createRelativeDateTimeShortcuts } from '@/architecture/shared/date'
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
 import {
   buildTimerSchedule,
-  createDefaultTimerScheduleForm,
+  createDefaultManualTimerScheduleForm,
   timerScheduleToForm,
   type TimerScheduleForm,
 } from './utils/timerSchedule'
@@ -175,6 +191,7 @@ interface ScheduledAgentForm extends TimerScheduleForm {
 const props = withDefaults(defineProps<{
   modelValue: boolean
   fullCodePath: string
+  resourceName?: string
   initialMessage?: string
   initialFiles?: string
   initialAttachedFiles?: WorkspaceChatMessageFile[]
@@ -182,6 +199,7 @@ const props = withDefaults(defineProps<{
   editTask?: TimerTask | null
 }>(), {
   initialMessage: '',
+  resourceName: '',
   initialFiles: '',
   initialAttachedFiles: () => [],
   initialLLMConfigId: 0,
@@ -229,7 +247,7 @@ const form = reactive<ScheduledAgentForm>({
   max_duration_seconds: 0,
   overlap_policy: 'forbid',
   max_parallelism: 2,
-  ...createDefaultTimerScheduleForm(),
+  ...createDefaultManualTimerScheduleForm(),
 })
 const messageTextRef = computed({
   get: () => form.message,
@@ -273,7 +291,7 @@ const attachedFileRefs = computed(() => {
 function resetForm() {
   const task = props.editTask
   const payload = getTaskPayload(task)
-  const schedule = task ? timerScheduleToForm(task.schedule) : createDefaultTimerScheduleForm()
+  const schedule = task ? timerScheduleToForm(task.schedule) : createDefaultManualTimerScheduleForm()
   form.message = task ? getTaskMessage(task) : props.initialMessage || ''
   form.description = task?.description?.trim() || ''
   form.title = task?.title || defaultTaskTitle()
@@ -310,11 +328,9 @@ function setFormLLMConfigID(value: unknown) {
 }
 
 function defaultTaskTitle(): string {
-  const message = (props.initialMessage || '').trim()
-  if (message) {
-    return `${message.slice(0, 18)}${message.length > 18 ? '…' : ''}`
-  }
-  const name = resolvedFullCodePath.value.split('/').filter(Boolean).pop() || t('scheduledTask.defaultWorkspaceName')
+  const name = props.resourceName.trim()
+    || resolvedFullCodePath.value.split('/').filter(Boolean).pop()
+    || t('scheduledTask.defaultWorkspaceName')
   return t('scheduledTask.defaultAgentTaskTitle', { name })
 }
 
@@ -510,6 +526,16 @@ watch(
 .scheduled-agent-field-hint {
   margin-top: 6px;
   color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.scheduled-agent-editor-help {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 2px 0;
+  color: var(--text-placeholder);
   font-size: 12px;
   line-height: 1.45;
 }

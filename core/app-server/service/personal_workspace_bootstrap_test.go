@@ -42,6 +42,9 @@ func TestBootstrapPersonalWorkspaceCreatesPrivateHomeIdempotently(t *testing.T) 
 	if !first.Created || first.App.Code != PersonalWorkspaceCode || first.App.IsPublic || !first.App.IsPersonalWorkspace {
 		t.Fatalf("unexpected first bootstrap: %#v", first)
 	}
+	if first.App.Name != "alice 的默认空间" {
+		t.Fatalf("default workspace name = %q", first.App.Name)
+	}
 	second, err := service.BootstrapPersonalWorkspace(context.Background(), "alice")
 	if err != nil {
 		t.Fatal(err)
@@ -55,6 +58,33 @@ func TestBootstrapPersonalWorkspaceCreatesPrivateHomeIdempotently(t *testing.T) 
 	}
 	if stored.IsPublic || !stored.IsPersonalWorkspace {
 		t.Fatalf("home persistence is incorrect: %#v", stored)
+	}
+}
+
+func TestBootstrapPersonalWorkspaceMigratesLegacyGeneratedName(t *testing.T) {
+	service, repo, _ := newPersonalWorkspaceTestService(t)
+	app := &model.App{User: "alice", Code: PersonalWorkspaceCode, Name: legacyPersonalWorkspaceName, Version: "v1", IsPersonalWorkspace: true}
+	if err := repo.CreateApp(app); err != nil {
+		t.Fatal(err)
+	}
+	root := &model.ServiceTree{AppID: app.ID, RefID: app.ID, Name: legacyPersonalWorkspaceName, Code: PersonalWorkspaceCode, Type: model.ServiceTreeTypePackage, FullCodePath: "/alice/home"}
+	if err := repo.GetDB().Create(root).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := service.BootstrapPersonalWorkspace(context.Background(), "alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.App.Name != "alice 的默认空间" {
+		t.Fatalf("migrated app name = %q", resp.App.Name)
+	}
+	var storedRoot model.ServiceTree
+	if err := repo.GetDB().Where("id = ?", root.ID).First(&storedRoot).Error; err != nil {
+		t.Fatal(err)
+	}
+	if storedRoot.Name != "alice 的默认空间" {
+		t.Fatalf("migrated root name = %q", storedRoot.Name)
 	}
 }
 

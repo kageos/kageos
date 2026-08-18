@@ -116,6 +116,8 @@ func nextRunForSchedule(schedule scheduledsdk.Schedule, now time.Time) (*time.Ti
 		return nil, err
 	}
 	switch schedule.Type {
+	case scheduledsdk.ScheduleManual:
+		return nil, nil
 	case scheduledsdk.ScheduleAt:
 		runAt := schedule.RunAt
 		runAt = runAt.UTC()
@@ -153,6 +155,8 @@ func computeTaskNextState(task *model.TimerTask, success bool, now time.Time) (s
 		return string(scheduledsdk.TaskStatusDone), nil, lastErr
 	}
 	switch scheduledsdk.ScheduleType(task.ScheduleType) {
+	case scheduledsdk.ScheduleManual:
+		return string(scheduledsdk.TaskStatusPaused), nil, lastErr
 	case scheduledsdk.ScheduleAt:
 		if success {
 			return string(scheduledsdk.TaskStatusDone), nil, ""
@@ -171,6 +175,8 @@ func computeTaskNextState(task *model.TimerTask, success bool, now time.Time) (s
 
 func nextRunAfterScheduledDispatch(task *model.TimerTask, now time.Time) (*time.Time, error) {
 	switch scheduledsdk.ScheduleType(task.ScheduleType) {
+	case scheduledsdk.ScheduleManual:
+		return nil, nil
 	case scheduledsdk.ScheduleAt:
 		return nil, nil
 	case scheduledsdk.ScheduleCron, scheduledsdk.ScheduleEvery:

@@ -153,6 +153,7 @@
       :persistent="false"
       :z-index="4200"
       strategy="fixed"
+      :popper-options="mentionPopperOptions"
       popper-class="spc-mention-popover"
     >
       <div
@@ -480,6 +481,11 @@ const mentionPopoverWidth = computed(() => {
   const rootWidth = rootRef.value?.getBoundingClientRect().width || 360
   return Math.max(300, Math.min(rootWidth, 520))
 })
+const mentionPopperOptions = computed(() => ({
+  modifiers: props.mentionPanelPlacement === 'above'
+    ? [{ name: 'flip', enabled: false }]
+    : [],
+}))
 const mentionVirtualRef = {
   getBoundingClientRect: () => mentionAnchorRect.value,
   get contextElement() {
@@ -1915,7 +1921,9 @@ defineExpose({
 
 .spc-editor.is-empty::before {
   content: attr(data-placeholder);
-  color: rgba(141, 160, 189, 0.72);
+  color: var(--text-placeholder, rgba(141, 160, 189, 0.64));
+  -webkit-text-fill-color: var(--text-placeholder, rgba(141, 160, 189, 0.64));
+  font-weight: 400;
   pointer-events: none;
 }
 

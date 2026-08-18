@@ -154,7 +154,8 @@
                   <el-button
                     :type="selectedTask.status === 'paused' ? 'primary' : 'warning'"
                     :icon="selectedTask.status === 'paused' ? CaretRight : VideoPause"
-                    :disabled="isTerminal(selectedTask.status)"
+                    :disabled="isTerminal(selectedTask.status) || (selectedTask.status === 'paused' && selectedTask.schedule?.type === 'manual')"
+                    :title="selectedTask.schedule?.type === 'manual' ? t('scheduledTask.configureScheduleBeforeEnable') : ''"
                     @click="selectedTask.status === 'paused' ? handleResume(selectedTask) : handlePause(selectedTask)"
                   >
                     {{ selectedTask.status === 'paused' ? t('scheduledTask.resume') : t('scheduledTask.pause') }}
@@ -331,6 +332,7 @@
     <ScheduledAgentTaskDialog
       v-model="showCreateDialog"
       :full-code-path="resourcePath || ''"
+      :resource-name="resourceName"
       @success="handleCreated"
     />
 
@@ -417,11 +419,13 @@ interface InlineScheduledAgentForm extends TimerScheduleForm {
 
 const props = withDefaults(defineProps<{
   resourcePath?: string
+  resourceName?: string
   autoLoad?: boolean
   focusTaskId?: number | string
   focusExecutionId?: number | string
 }>(), {
   resourcePath: '',
+  resourceName: '',
   autoLoad: false,
   focusTaskId: '',
   focusExecutionId: '',
@@ -932,6 +936,9 @@ function validateInlineEditForm(): boolean {
   if (!inlineForm.message.trim()) {
     ElMessage.warning(t('scheduledTask.agentMessageRequired'))
     return false
+  }
+  if (inlineForm.schedule_type === 'manual') {
+    return true
   }
   if (inlineForm.schedule_type === 'atime' && !inlineForm.run_at.trim()) {
     ElMessage.warning(t('scheduledTask.runAtRequired'))

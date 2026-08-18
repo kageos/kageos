@@ -53,6 +53,7 @@
             class="detail-schedule-type"
             @update:model-value="updateScheduleType"
           >
+            <el-radio-button value="manual">{{ t('scheduledTask.scheduleManual') }}</el-radio-button>
             <el-radio-button value="atime">{{ t('scheduledTask.scheduleAtime') }}</el-radio-button>
             <el-radio-button value="cron">{{ t('scheduledTask.scheduleCron') }}</el-radio-button>
             <el-radio-button value="every">{{ t('scheduledTask.scheduleEvery') }}</el-radio-button>

@@ -29,6 +29,8 @@ export type OperateLogEntry = {
   version?: string
   created_at: string
   resource_type?: string
+  target_user?: string
+  target_id?: string
   status?: string
   summary?: string
   details_json?: any
@@ -127,6 +129,12 @@ export function useOperateLogSection({
           { label: t('operateLog.resourceCreate'), value: 'service_tree.node.created' },
           { label: t('operateLog.resourceUpdate'), value: 'service_tree.node.updated' },
           { label: t('operateLog.resourceDelete'), value: 'service_tree.node.deleted' },
+          { label: t('operateLog.permissionRequestCreated'), value: 'permission.request.created' },
+          { label: t('operateLog.permissionRequestApproved'), value: 'permission.request.approved' },
+          { label: t('operateLog.permissionRequestRejected'), value: 'permission.request.rejected' },
+          { label: t('operateLog.permissionRequestCancelled'), value: 'permission.request.cancelled' },
+          { label: t('operateLog.permissionGranted'), value: 'permission.role.granted' },
+          { label: t('operateLog.permissionRevoked'), value: 'permission.role.revoked' },
         ]
       : []),
     { label: t('operateLog.add'), value: 'OnTableAddRow' },
@@ -421,6 +429,8 @@ export function useOperateLogSection({
     version: log.details_json?.version || log.new_values_json?.version,
     created_at: log.created_at,
     resource_type: log.resource_type,
+    target_user: log.target_user,
+    target_id: log.target_id,
     status: log.status,
     summary: log.summary,
     details_json: log.details_json,
@@ -463,6 +473,18 @@ export function useOperateLogSection({
     return action === 'service_tree.node.created' || action === 'service_tree.node.updated' || action === 'service_tree.node.deleted'
   }
 
+  const isPermissionAction = (action: string): boolean => action.startsWith('permission.')
+
+  const getPermissionRoleLabel = (role: unknown): string => {
+    switch (String(role || '').trim()) {
+      case 'owner': return t('operateLog.permissionRoleOwner')
+      case 'admin': return t('operateLog.permissionRoleAdmin')
+      case 'write': return t('operateLog.permissionRoleWrite')
+      case 'read': return t('operateLog.permissionRoleRead')
+      default: return String(role || '').trim() || t('operateLog.permissionRoleUnknown')
+    }
+  }
+
   const getServiceTreeResourceTypeLabel = (log: OperateLogEntry): string => {
     const rawType = String(log.details_json?.node_type || log.resource_type || '').trim()
     switch (rawType) {
@@ -494,12 +516,18 @@ export function useOperateLogSection({
         return 'info'
       case 'OnTableAddRow':
       case 'service_tree.node.created':
+      case 'permission.request.created':
+      case 'permission.request.approved':
+      case 'permission.role.granted':
         return 'success'
       case 'OnTableUpdateRow':
       case 'service_tree.node.updated':
+      case 'permission.request.cancelled':
+      case 'permission.role.revoked':
         return 'warning'
       case 'OnTableDeleteRows':
       case 'service_tree.node.deleted':
+      case 'permission.request.rejected':
         return 'danger'
       default:
         return 'info'
@@ -526,6 +554,18 @@ export function useOperateLogSection({
         return t('operateLog.update')
       case 'service_tree.node.deleted':
         return t('operateLog.delete')
+      case 'permission.request.created':
+        return t('operateLog.permissionRequestCreated')
+      case 'permission.request.approved':
+        return t('operateLog.permissionRequestApproved')
+      case 'permission.request.rejected':
+        return t('operateLog.permissionRequestRejected')
+      case 'permission.request.cancelled':
+        return t('operateLog.permissionRequestCancelled')
+      case 'permission.role.granted':
+        return t('operateLog.permissionGranted')
+      case 'permission.role.revoked':
+        return t('operateLog.permissionRevoked')
       default:
         return humanizeAction(action)
     }
@@ -796,6 +836,9 @@ export function useOperateLogSection({
           return t('operateLog.serviceTreeDeleted', { type: typeLabel })
       }
     }
+    if (isPermissionAction(log.action)) {
+      return getActionLabel(log.action)
+    }
     const recordName = log.row_id ? t('common.rowRecord', { id: log.row_id }) : t('operateLog.record')
     switch (log.action) {
       case 'OnTableAddRow':
@@ -843,6 +886,30 @@ export function useOperateLogSection({
           return t('operateLog.serviceTreeUpdatedSummary', { type: typeLabel, path })
         case 'service_tree.node.deleted':
           return t('operateLog.serviceTreeDeletedSummary', { type: typeLabel, path })
+      }
+    }
+    if (isPermissionAction(log.action)) {
+      const values = {
+        ...(parseJSON(log.details_json) || {}),
+        ...(parseJSON(log.new_values_json) || {}),
+      }
+      const role = getPermissionRoleLabel(values.requested_role || values.role_code || values.role)
+      const actor = log.request_user || '-'
+      const target = log.target_user || values.requester || log.target_id || '-'
+      const path = log.full_code_path || '-'
+      switch (log.action) {
+        case 'permission.request.created':
+          return t('operateLog.permissionRequestCreatedSummary', { user: target, role, path })
+        case 'permission.request.approved':
+          return t('operateLog.permissionRequestApprovedSummary', { actor, user: target, role })
+        case 'permission.request.rejected':
+          return t('operateLog.permissionRequestRejectedSummary', { actor, user: target, role })
+        case 'permission.request.cancelled':
+          return t('operateLog.permissionRequestCancelledSummary', { user: target, role })
+        case 'permission.role.granted':
+          return t('operateLog.permissionGrantedSummary', { actor, user: target, role, path })
+        case 'permission.role.revoked':
+          return t('operateLog.permissionRevokedSummary', { actor, user: target, role, path })
       }
     }
     const response = getLogResponseBody(log)

@@ -27,6 +27,15 @@
       >
         <el-button :icon="Paperclip" link :loading="uploading" size="small" :title="t('miniWorkstation.uploadFile')" />
       </el-upload>
+      <el-button
+        v-if="variant === 'schedule' && expandable"
+        :icon="FullScreen"
+        link
+        size="small"
+        class="mini-expand-editor-btn"
+        :title="t('miniWorkstation.expandEditor')"
+        @click="openExpandedEditor"
+      />
       <slot name="left-actions" />
     </div>
 
@@ -174,7 +183,7 @@
               :min-rows="18"
               :max-rows="36"
               :full-code-path="fullCodePath"
-              mention-panel-placement="below"
+              mention-panel-placement="above"
               editor-test-id="mini-workstation-expanded-input"
               @update:model-value="expandedDraft = $event"
             />
@@ -188,7 +197,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Check, Close, Paperclip, VideoPause } from '@element-plus/icons-vue'
+import { Check, Close, FullScreen, Paperclip, VideoPause } from '@element-plus/icons-vue'
 import type { LLMInfo } from '@/architecture/presentation/context/api/agent'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
 import StructuredPromptComposer from './StructuredPromptComposer.vue'
@@ -365,7 +374,7 @@ function handleContainerClick(event: MouseEvent) {
   structuredInputRef.value?.focus()
 }
 
-function _openExpandedEditor() {
+function openExpandedEditor() {
   if (props.blocked) return
   expandedDraft.value = props.inputText
   expandedEditorVisible.value = true
