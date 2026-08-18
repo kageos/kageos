@@ -8,25 +8,24 @@ require (
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/kageos/kageos-sdk v0.3.0
+	github.com/kageos/kageos-sdk v0.3.1
 	github.com/minio/minio-go/v7 v7.2.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/mozillazg/go-pinyin v0.21.0
-	github.com/nats-io/nats.go v1.52.0
+	github.com/nats-io/nats.go v1.53.1
 	github.com/openai/openai-go/v3 v3.50.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.1
 	github.com/swaggo/swag v1.16.6
 	github.com/xuri/excelize/v2 v2.11.0
-	github.com/yuin/goldmark v1.4.13
 	go.uber.org/zap v1.28.0
-	golang.org/x/crypto v0.54.0
-	golang.org/x/mod v0.38.0
+	golang.org/x/crypto v0.55.0
+	golang.org/x/mod v0.39.0
 	golang.org/x/net v0.57.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.22.0
-	golang.org/x/text v0.40.0
+	golang.org/x/text v0.41.0
 	golang.org/x/tools v0.48.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
