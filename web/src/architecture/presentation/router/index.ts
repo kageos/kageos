@@ -225,16 +225,15 @@ const router = createRouter({
         requireAuth: true
       },
       // 路由守卫：排除 /api 路径
-      beforeEnter: (to, from, next) => {
+      beforeEnter: (to) => {
         // 如果路径包含 /api，说明是 API 请求，不应该被 Vue Router 处理
         // 这种情况应该由 Vite 代理处理，但为了安全，我们在这里也做检查
         if (to.path.startsWith('/workspace/api')) {
           // 这不应该发生，因为 Vite 代理应该已经处理了
           // 但为了安全，我们返回 404
-          next({ name: 'not-found' })
-          return
+          return { name: 'not-found' }
         }
-        next()
+        return true
       }
     },
 
@@ -290,14 +289,13 @@ async function restoreAccessTokenIfPossible(authStore: ReturnType<typeof useAuth
 }
 
 // 路由守卫
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
   const hasAuthSession = await restoreAccessTokenIfPossible(authStore)
   const routeFeature = to.meta?.feature
 
   if (typeof routeFeature === 'string' && !featureFlags[routeFeature as keyof typeof featureFlags]) {
-    next({ path: '/workspace', replace: true })
-    return
+    return { path: '/workspace', replace: true }
   }
 
   // 设置页面标题（Workspace页面会通过watch动态更新，这里只设置默认标题）
@@ -308,28 +306,24 @@ router.beforeEach(async (to, from, next) => {
     // 先尝试用 refresh token 无感恢复登录态，失败才进入登录页
     if (!hasAuthSession) {
       // 没有token，直接跳转到登录页
-      next({ name: 'login', query: { redirect: to.fullPath } })
-      return
+      return { name: 'login', query: { redirect: to.fullPath } }
     }
   }
 
   // 已登录用户访问登录/注册页面时进入默认空间准备页。
   if (hasAuthSession && (to.name === 'login' || to.name === 'register')) {
-    next({ path: '/workspace', replace: true })
-    return
+    return { path: '/workspace', replace: true }
   }
 
   // 根路径直接进入默认空间准备页。
   if (to.path === '/') {
     if (hasAuthSession) {
-      next({ path: '/workspace', replace: true })
-      return
+      return { path: '/workspace', replace: true }
     }
-    next({ path: '/login', query: { redirect: to.fullPath }, replace: true })
-    return
+    return { path: '/login', query: { redirect: to.fullPath }, replace: true }
   }
 
-  next()
+  return true
 })
 
 export default router
