@@ -33,6 +33,10 @@ export interface RegisterRequest {
   email: string
   password: string
   code?: string
+  accepted_terms: boolean
+  terms_version: string
+  accepted_privacy: boolean
+  privacy_version: string
 }
 
 // 应用相关类型

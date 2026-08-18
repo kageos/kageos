@@ -9,16 +9,22 @@ import { useAuthStore } from '@/architecture/presentation/context/appStoresConte
 import type { RegisterRequest } from '@/architecture/domain/types'
 import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
 import { BRAND_LOGO_192_URL } from '@/architecture/domain/utils/builtinUserAvatar'
+import LegalConsent from '@/architecture/presentation/features/legal/components/LegalConsent.vue'
+import { CURRENT_LEGAL_POLICY_VERSION } from '@/architecture/presentation/features/legal/legalDocuments'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 // 表单数据
 const registerForm = reactive<RegisterRequest>({
   username: '',
   email: '',
   password: '',
-  code: ''
+  code: '',
+  accepted_terms: false,
+  terms_version: CURRENT_LEGAL_POLICY_VERSION,
+  accepted_privacy: false,
+  privacy_version: CURRENT_LEGAL_POLICY_VERSION,
 })
 
 // 表单引用
@@ -26,6 +32,7 @@ const registerFormRef = ref()
 // 加载状态
 const loading = ref(false)
 const sendingCode = ref(false)
+const acceptedLegal = ref(false)
 const countdown = ref(0)
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
@@ -71,6 +78,10 @@ const normalizeUserCodeInput = (value: string | number) => {
 const handleRegister = async () => {
   let registrationSucceeded = false
   try {
+    if (!acceptedLegal.value) {
+      ElMessage.warning(t('auth.legalConsentRequired'))
+      return
+    }
     await registerFormRef.value.validate()
     loading.value = true
 
@@ -78,7 +89,11 @@ const handleRegister = async () => {
       username: registerForm.username.trim().toLowerCase(),
       email: registerForm.email.trim(),
       password: registerForm.password,
-      code: registerForm.code
+      code: registerForm.code,
+      accepted_terms: true,
+      terms_version: CURRENT_LEGAL_POLICY_VERSION,
+      accepted_privacy: true,
+      privacy_version: CURRENT_LEGAL_POLICY_VERSION,
     }
 
     await registerApi(payload)
@@ -110,6 +125,10 @@ const handleRegister = async () => {
 
 // 发送验证码
 const sendVerificationCode = async () => {
+  if (!acceptedLegal.value) {
+    ElMessage.warning(t('auth.legalConsentRequired'))
+    return
+  }
   if (!registerForm.email) {
     ElMessage.warning(t('auth.emailFirst'))
     return
@@ -303,6 +322,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
               </el-button>
             </div>
           </el-form-item>
+
+          <LegalConsent v-model="acceptedLegal" required :locale="locale" class="register-legal" />
 
           <el-form-item class="register-btn-item">
             <el-button
@@ -743,6 +764,10 @@ const handleKeyPress = (event: KeyboardEvent) => {
 .code-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.register-legal {
+  margin: -2px 0 18px;
 }
 
 .register-btn-item {

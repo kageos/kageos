@@ -14,7 +14,7 @@ The supplied reference is a portrait crop rather than a full viewport. For the c
 
 ## Comparison
 
-1. Global shell and service tree: preserved the existing KageOS dark theme, spacing, navigation, and hierarchy. The service-tree employee mark is now a generated raster asset and remains recognizable at 24 px.
+1. Global shell and service tree: preserved the existing kageos dark theme, spacing, navigation, and hierarchy. The service-tree employee mark is now a generated raster asset and remains recognizable at 24 px.
 2. Employee roster: preserves real task status, schedule, next run, run count, description, and error data. The selected employee uses the generated state GIF matching the real state.
 3. Employee hero and facts: title, status, role type, responsibilities, actions, schedule, next run, run count, work directory, overlap policy, model, and creator are readable without the old right column.
 4. Main content and execution history: the former right-side runtime card is merged into the center facts grid. The center column gains width while responsibilities, work instructions, management actions, and execution records keep their hierarchy.

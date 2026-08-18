@@ -15,6 +15,7 @@ import (
 
 	"github.com/kageos/kageos/core/hr-server/model"
 	"github.com/kageos/kageos/core/hr-server/repository"
+	"github.com/kageos/kageos/pkg/gormx/models"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
@@ -195,7 +196,7 @@ func (s *AuthOAuthService) GetRegistrationIntent(ticket string) (*OAuthRegistrat
 	return view, nil
 }
 
-func (s *AuthOAuthService) ConfirmRegistration(ticket, username, nickname string) (*OAuthRegistrationConfirmResult, error) {
+func (s *AuthOAuthService) ConfirmRegistration(ticket, username, nickname, termsVersion, privacyVersion string) (*OAuthRegistrationConfirmResult, error) {
 	intent, err := s.activeRegistrationIntent(ticket)
 	if err != nil {
 		return nil, err
@@ -213,6 +214,7 @@ func (s *AuthOAuthService) ConfirmRegistration(ticket, username, nickname string
 	}
 	nickname = truncateRunes(nickname, 100)
 
+	acceptedAt := models.Time(time.Now())
 	user := &model.User{
 		Username:           username,
 		Email:              strings.ToLower(strings.TrimSpace(intent.Email)),
@@ -225,6 +227,9 @@ func (s *AuthOAuthService) ConfirmRegistration(ticket, username, nickname string
 		Nickname:           nickname,
 		DepartmentFullPath: defaultExternalDepartmentFullPath,
 		Type:               model.UserTypeNormal,
+		TermsVersion:       termsVersion,
+		PrivacyVersion:     privacyVersion,
+		LegalAcceptedAt:    &acceptedAt,
 	}
 	identity := &model.AuthExternalIdentity{
 		ProviderCode: intent.ProviderCode,

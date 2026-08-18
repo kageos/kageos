@@ -140,7 +140,6 @@ func (a *Auth) SendEmailCode(c *gin.Context) {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
-
 	// 获取客户端信息
 	ipAddress := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
@@ -200,6 +199,11 @@ func (a *Auth) Register(c *gin.Context) {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
+	if !dto.HasCurrentLegalConsent(req.AcceptedTerms, req.TermsVersion, req.AcceptedPrivacy, req.PrivacyVersion) {
+		err = errors.New("请阅读并同意当前版本的服务协议和隐私政策")
+		response.FailWithMessage(c, err.Error())
+		return
+	}
 	mode, modeErr := a.settingsService.GetRegistrationMode()
 	if modeErr != nil {
 		err = modeErr
@@ -220,7 +224,7 @@ func (a *Auth) Register(c *gin.Context) {
 	}
 
 	// 注册用户
-	userID, err := a.authService.RegisterUser(req.Username, req.Email, req.Password)
+	userID, err := a.authService.RegisterUser(req.Username, req.Email, req.Password, req.TermsVersion, req.PrivacyVersion)
 	if err != nil {
 		response.FailWithMessage(c, "注册失败: "+err.Error())
 		return
@@ -302,7 +306,11 @@ func (a *Auth) ConfirmOAuthRegistration(c *gin.Context) {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())
 		return
 	}
-	result, err := a.authOAuthService.ConfirmRegistration(c.Param("ticket"), req.Username, req.Nickname)
+	if !dto.HasCurrentLegalConsent(req.AcceptedTerms, req.TermsVersion, req.AcceptedPrivacy, req.PrivacyVersion) {
+		response.FailWithMessage(c, "请阅读并同意当前版本的服务协议和隐私政策")
+		return
+	}
+	result, err := a.authOAuthService.ConfirmRegistration(c.Param("ticket"), req.Username, req.Nickname, req.TermsVersion, req.PrivacyVersion)
 	if err != nil {
 		response.FailWithMessage(c, err.Error())
 		return

@@ -42,7 +42,7 @@ const (
 )
 
 // RegisterUser 注册用户
-func (s *AuthService) RegisterUser(username, email, password string) (int64, error) {
+func (s *AuthService) RegisterUser(username, email, password, termsVersion, privacyVersion string) (int64, error) {
 	username = strings.ToLower(strings.TrimSpace(username))
 	if err := ValidateUserCode(username); err != nil {
 		return 0, err
@@ -69,6 +69,7 @@ func (s *AuthService) RegisterUser(username, email, password string) (int64, err
 
 	// 创建用户（不再分配 HostID，Host 和 Nats 绑定在 App 上）
 	// ⭐ 默认分配到未分配组织
+	acceptedAt := models.Time(time.Now())
 	user := &model.User{
 		Username:           username,
 		Email:              email,
@@ -78,6 +79,9 @@ func (s *AuthService) RegisterUser(username, email, password string) (int64, err
 		EmailVerified:      false,
 		CreatedBy:          "system",
 		DepartmentFullPath: "/org/unassigned", // ⭐ 默认分配到未分配组织
+		TermsVersion:       termsVersion,
+		PrivacyVersion:     privacyVersion,
+		LegalAcceptedAt:    &acceptedAt,
 	}
 
 	// 保存到数据库

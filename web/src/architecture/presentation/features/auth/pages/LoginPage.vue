@@ -15,11 +15,12 @@ import {
 } from '@/architecture/presentation/context/api/auth'
 import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
 import { BRAND_LOGO_192_URL } from '@/architecture/domain/utils/builtinUserAvatar'
+import LegalConsent from '@/architecture/presentation/features/legal/components/LegalConsent.vue'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 // 表单数据
 const loginForm = reactive<LoginRequest>({
@@ -360,6 +361,8 @@ onBeforeUnmount(clearWechatPolling)
               </el-button>
             </div>
           </div>
+
+          <LegalConsent :locale="locale" class="login-legal" />
 
           <div class="login-footer">
             <div class="footer-top">
@@ -923,6 +926,10 @@ onBeforeUnmount(clearWechatPolling)
 
 .wechat-error {
   color: var(--el-color-danger);
+}
+
+.login-legal {
+  margin: -8px 0 18px;
 }
 
 .login-footer {
