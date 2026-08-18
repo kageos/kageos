@@ -187,12 +187,6 @@
         <el-form-item :label="t('systemUser.email')">
           <el-input v-model="userForm.email" placeholder="user@example.com" />
         </el-form-item>
-        <el-form-item :label="t('systemUser.departmentPath')">
-          <el-input v-model="userForm.department_full_path" placeholder="/org/unassigned" />
-        </el-form-item>
-        <el-form-item :label="t('systemUser.leader')">
-          <el-input v-model="userForm.leader_username" placeholder="leader_username" />
-        </el-form-item>
         <el-form-item v-if="userDialogMode === 'create'" :label="t('systemUser.status')">
           <el-select v-model="userForm.status">
             <el-option :label="t('systemUser.statusActive')" value="active" />
@@ -200,6 +194,16 @@
             <el-option :label="t('systemUser.statusDisabled')" value="disabled" />
           </el-select>
         </el-form-item>
+        <el-collapse v-model="userAdvancedPanels" class="user-advanced-settings">
+          <el-collapse-item name="organization" :title="t('systemUser.organizationAdvanced')">
+            <el-form-item :label="t('systemUser.departmentPath')">
+              <el-input v-model="userForm.department_full_path" placeholder="/org/unassigned" />
+            </el-form-item>
+            <el-form-item :label="t('systemUser.leader')">
+              <el-input v-model="userForm.leader_username" placeholder="leader_username" />
+            </el-form-item>
+          </el-collapse-item>
+        </el-collapse>
       </el-form>
       <template #footer>
         <el-button @click="userDialogVisible = false">{{ t('common.cancel') }}</el-button>
@@ -252,6 +256,7 @@ const userDialogVisible = ref(false)
 const passwordDialogVisible = ref(false)
 const userDialogMode = ref<'create' | 'edit'>('create')
 const selectedUsername = ref('')
+const userAdvancedPanels = ref<string[]>([])
 const users = ref<UserInfo[]>([])
 const total = ref(0)
 
@@ -326,12 +331,14 @@ function resetUserForm() {
 
 function openCreateDialog() {
   resetUserForm()
+  userAdvancedPanels.value = []
   userDialogMode.value = 'create'
   userDialogVisible.value = true
 }
 
 function openEditDialog(user: UserInfo) {
   resetUserForm()
+  userAdvancedPanels.value = []
   userDialogMode.value = 'edit'
   userForm.username = user.username
   userForm.email = user.email || ''
@@ -617,6 +624,11 @@ onMounted(loadUsers)
 
 .user-form :deep(.el-select) {
   width: 100%;
+}
+
+.user-advanced-settings {
+  margin-top: 4px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 
 @media (max-width: 768px) {

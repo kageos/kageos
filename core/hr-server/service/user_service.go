@@ -233,6 +233,40 @@ func (s *UserService) ResetUserPasswordFromSystem(ctx context.Context, username,
 	return user, nil
 }
 
+// ChangeOwnPassword 校验当前密码后修改登录用户自己的密码。
+func (s *UserService) ChangeOwnPassword(ctx context.Context, username, currentPassword, newPassword string) error {
+	user, err := s.userRepo.GetUserByUsername(strings.ToLower(strings.TrimSpace(username)))
+	if err != nil {
+		return fmt.Errorf("用户不存在: %w", err)
+	}
+	if user.PasswordHash == "" {
+		return fmt.Errorf("当前账号未设置密码")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+		return fmt.Errorf("当前密码错误")
+	}
+	if len(newPassword) < 6 {
+		return fmt.Errorf("新密码至少 6 位")
+	}
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(newPassword)) == nil {
+		return fmt.Errorf("新密码不能与当前密码相同")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("密码加密失败")
+	}
+	user.PasswordHash = string(hashedPassword)
+	if err := s.userRepo.UpdateUser(user); err != nil {
+		return fmt.Errorf("修改密码失败: %w", err)
+	}
+	if err := s.invalidateUserTokens(ctx, user, "user_password_changed"); err != nil {
+		return err
+	}
+	logger.Infof(ctx, "[UserService] user changed own password: %s", user.Username)
+	return nil
+}
+
 func (s *UserService) UpdateUserStatusFromSystem(ctx context.Context, username, status string) (*model.User, error) {
 	user, err := s.userRepo.GetUserByUsername(strings.ToLower(strings.TrimSpace(username)))
 	if err != nil {

@@ -15,14 +15,25 @@
               </el-button>
               <h2>{{ t('userSettings.title') }}</h2>
             </div>
-            <el-button :icon="Refresh" :loading="notificationsLoading" @click="loadNotificationChannels">
+            <el-button
+              v-if="activeSection === 'notifications'"
+              :icon="Refresh"
+              :loading="notificationsLoading"
+              @click="loadNotificationChannels"
+            >
               {{ t('common.refresh') }}
             </el-button>
           </div>
         </template>
 
         <div class="settings-sections">
-          <section class="settings-section">
+          <el-tabs v-model="activeSection" class="settings-tabs" @tab-change="handleSectionChange">
+            <el-tab-pane :label="t('userSettings.profileTitle')" name="profile" />
+            <el-tab-pane :label="t('userSettings.passwordTitle')" name="security" />
+            <el-tab-pane :label="t('userSettings.notificationsTitle')" name="notifications" />
+          </el-tabs>
+
+          <section v-show="activeSection === 'profile'" class="settings-section">
             <div class="section-heading">
               <div>
                 <h3>{{ t('userSettings.profileTitle') }}</h3>
@@ -94,10 +105,10 @@
 
               <el-form-item :label="t('userSettings.gender')" prop="gender">
                 <el-radio-group v-model="formData.gender">
-                  <el-radio label="">{{ t('userSettings.genderUnset') }}</el-radio>
-                  <el-radio label="male">{{ t('userSettings.genderMale') }}</el-radio>
-                  <el-radio label="female">{{ t('userSettings.genderFemale') }}</el-radio>
-                  <el-radio label="other">{{ t('userSettings.genderOther') }}</el-radio>
+                  <el-radio value="">{{ t('userSettings.genderUnset') }}</el-radio>
+                  <el-radio value="male">{{ t('userSettings.genderMale') }}</el-radio>
+                  <el-radio value="female">{{ t('userSettings.genderFemale') }}</el-radio>
+                  <el-radio value="other">{{ t('userSettings.genderOther') }}</el-radio>
                 </el-radio-group>
               </el-form-item>
 
@@ -115,9 +126,64 @@
             </el-form>
           </section>
 
-          <el-divider />
+          <section v-show="activeSection === 'security'" class="settings-section">
+            <div class="section-heading">
+              <div>
+                <h3>{{ t('userSettings.passwordTitle') }}</h3>
+                <p>{{ t('userSettings.passwordSubtitle') }}</p>
+              </div>
+            </div>
 
-          <section class="settings-section">
+            <el-form
+              ref="passwordFormRef"
+              :model="passwordForm"
+              :rules="passwordRules"
+              label-width="100px"
+              class="settings-form"
+            >
+              <el-form-item :label="t('userSettings.currentPassword')" prop="currentPassword">
+                <el-input
+                  v-model="passwordForm.currentPassword"
+                  type="password"
+                  show-password
+                  autocomplete="current-password"
+                />
+              </el-form-item>
+
+              <el-form-item :label="t('userSettings.newPassword')" prop="newPassword">
+                <el-input
+                  v-model="passwordForm.newPassword"
+                  type="password"
+                  show-password
+                  autocomplete="new-password"
+                />
+                <p class="form-tip">{{ t('userSettings.passwordTip') }}</p>
+              </el-form-item>
+
+              <el-form-item :label="t('userSettings.confirmPassword')" prop="confirmPassword">
+                <el-input
+                  v-model="passwordForm.confirmPassword"
+                  type="password"
+                  show-password
+                  autocomplete="new-password"
+                  @keyup.enter="handlePasswordChange"
+                />
+              </el-form-item>
+
+              <el-form-item>
+                <el-button
+                  type="primary"
+                  :icon="Lock"
+                  :loading="changingPassword"
+                  @click="handlePasswordChange"
+                >
+                  {{ t('userSettings.changePassword') }}
+                </el-button>
+              </el-form-item>
+            </el-form>
+          </section>
+
+          <section v-show="activeSection === 'notifications'" class="settings-section">
             <div class="section-heading">
               <div>
                 <h3>{{ t('userSettings.notificationsTitle') }}</h3>
@@ -133,7 +199,9 @@
               >
                 <div class="channel-header">
                   <div class="channel-title">
-                    <span class="channel-mark">{{ definition.mark }}</span>
+                    <span class="channel-mark">
+                      <img :src="definition.logo" :alt="definition.name" />
+                    </span>
                     <div>
                       <div class="channel-name-row">
                         <h4>{{ definition.name }}</h4>
@@ -142,22 +210,44 @@
                         </el-tag>
                       </div>
                       <p>{{ definition.hint }}</p>
-                      <p class="channel-guide">{{ definition.guide }}</p>
                     </div>
                   </div>
-                  <el-switch
-                    v-model="notificationForms[definition.channel].enabled"
-                    inline-prompt
-                    :active-text="t('userSettings.enabled')"
-                    :inactive-text="t('userSettings.disabled')"
-                  />
+                  <div class="channel-summary-actions">
+                    <el-tag size="small" :type="deliveryStatusType(notificationForms[definition.channel])">
+                      {{ deliveryStatusLabel(notificationForms[definition.channel]) }}
+                    </el-tag>
+                    <el-button
+                      text
+                      type="primary"
+                      :aria-label="`${definition.name} · ${isNotificationChannelExpanded(definition.channel)
+                        ? t('userSettings.collapseDetails')
+                        : t('userSettings.configure')}`"
+                      @click="toggleNotificationChannel(definition.channel)"
+                    >
+                      {{ isNotificationChannelExpanded(definition.channel) ? t('userSettings.collapseDetails') : t('userSettings.configure') }}
+                      <el-icon class="channel-expand-icon" :class="{ 'is-expanded': isNotificationChannelExpanded(definition.channel) }">
+                        <ArrowDown />
+                      </el-icon>
+                    </el-button>
+                  </div>
                 </div>
 
-                <el-form
-                  :model="notificationForms[definition.channel]"
-                  label-width="110px"
-                  class="channel-form"
-                >
+                <el-collapse-transition>
+                  <div v-show="isNotificationChannelExpanded(definition.channel)" class="channel-details">
+                    <p class="channel-guide">{{ definition.guide }}</p>
+                    <el-form
+                      :model="notificationForms[definition.channel]"
+                      label-width="110px"
+                      class="channel-form"
+                    >
+                  <el-form-item :label="t('userSettings.channelEnabledLabel')">
+                    <el-switch
+                      v-model="notificationForms[definition.channel].enabled"
+                      inline-prompt
+                      :active-text="t('userSettings.enabled')"
+                      :inactive-text="t('userSettings.disabled')"
+                    />
+                  </el-form-item>
                   <el-form-item :label="t('userSettings.displayName')">
                     <el-input
                       v-model="notificationForms[definition.channel].display_name"
@@ -258,7 +348,9 @@
                       </span>
                     </div>
                   </el-form-item>
-                </el-form>
+                    </el-form>
+                  </div>
+                </el-collapse-transition>
               </div>
             </div>
           </section>
@@ -273,9 +365,11 @@ import { reactive, computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { ArrowLeft, Check, Delete, Promotion, Refresh } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowLeft, Check, Delete, Lock, Promotion, Refresh } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import CommonUpload from '@/architecture/presentation/shared/components/CommonUpload.vue'
+import { changeOwnPassword } from '@/architecture/presentation/context/api/user'
+import { notificationChannelLogos } from '@/architecture/shared/assets/notificationChannelLogos'
 import {
   deleteMessageNotificationChannel,
   listMessageNotificationChannels,
@@ -285,11 +379,12 @@ import {
 } from '@/architecture/presentation/context/api/message'
 
 type ChannelCode = 'feishu' | 'wecom' | 'dingtalk'
+type SettingsSection = 'profile' | 'security' | 'notifications'
 
 interface ChannelDefinition {
   channel: ChannelCode
   name: string
-  mark: string
+  logo: string
   hint: string
   guide: string
 }
@@ -318,8 +413,13 @@ const authStore = useAuthStore()
 const { t } = useI18n()
 
 const formRef = ref<FormInstance>()
+const passwordFormRef = ref<FormInstance>()
 const submitting = ref(false)
+const changingPassword = ref(false)
 const notificationsLoading = ref(false)
+const notificationsLoaded = ref(false)
+const activeSection = ref<SettingsSection>('profile')
+const expandedNotificationChannels = ref<ChannelCode[]>([])
 
 const currentUser = computed(() => authStore.user)
 
@@ -335,6 +435,12 @@ const formData = reactive({
   gender: '' as '' | 'male' | 'female' | 'other'
 })
 
+const passwordForm = reactive({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
 const rules = computed<FormRules>(() => ({
   nickname: [
     { max: 50, message: t('userSettings.nicknameMax'), trigger: 'blur' }
@@ -344,25 +450,48 @@ const rules = computed<FormRules>(() => ({
   ]
 }))
 
+const passwordRules = computed<FormRules>(() => ({
+  currentPassword: [
+    { required: true, message: t('userSettings.currentPasswordRequired'), trigger: 'blur' }
+  ],
+  newPassword: [
+    { required: true, message: t('userSettings.newPasswordRequired'), trigger: 'blur' },
+    { min: 6, message: t('userSettings.passwordInvalid'), trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: t('userSettings.confirmPasswordRequired'), trigger: 'blur' },
+    {
+      validator: (_rule, value, callback) => {
+        if (value !== passwordForm.newPassword) {
+          callback(new Error(t('userSettings.passwordMismatch')))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur'
+    }
+  ]
+}))
+
 const channelDefinitions = computed<ChannelDefinition[]>(() => [
   {
     channel: 'feishu',
     name: t('userSettings.channelFeishu'),
-    mark: t('userSettings.channelFeishuMark'),
+    logo: notificationChannelLogos.feishu,
     hint: t('userSettings.channelFeishuHint'),
     guide: t('userSettings.channelFeishuGuide')
   },
   {
     channel: 'wecom',
     name: t('userSettings.channelWecom'),
-    mark: t('userSettings.channelWecomMark'),
+    logo: notificationChannelLogos.wecom,
     hint: t('userSettings.channelWecomHint'),
     guide: t('userSettings.channelWecomGuide')
   },
   {
     channel: 'dingtalk',
     name: t('userSettings.channelDingtalk'),
-    mark: t('userSettings.channelDingtalkMark'),
+    logo: notificationChannelLogos.dingtalk,
     hint: t('userSettings.channelDingtalkHint'),
     guide: t('userSettings.channelDingtalkGuide')
   }
@@ -482,6 +611,30 @@ function handleReset() {
   formRef.value?.clearValidate()
 }
 
+async function handlePasswordChange() {
+  if (!passwordFormRef.value) return
+
+  try {
+    await passwordFormRef.value.validate()
+    changingPassword.value = true
+    await changeOwnPassword({
+      current_password: passwordForm.currentPassword,
+      new_password: passwordForm.newPassword
+    })
+    ElMessage.success(t('userSettings.passwordChanged'))
+    passwordForm.currentPassword = ''
+    passwordForm.newPassword = ''
+    passwordForm.confirmPassword = ''
+    await authStore.logout({ callApi: false, notify: false })
+  } catch (error: any) {
+    if (error?.message && !error.message.includes('validate')) {
+      ElMessage.error(error?.response?.data?.msg || error.message || t('userSettings.passwordChangeFailed'))
+    }
+  } finally {
+    changingPassword.value = false
+  }
+}
+
 function handleBack() {
   router.go(-1)
 }
@@ -527,11 +680,28 @@ async function loadNotificationChannels() {
     const resp = await listMessageNotificationChannels()
     const list = resp.list || []
     list.forEach(applyNotificationInfo)
+    notificationsLoaded.value = true
   } catch (error: any) {
     ElMessage.error(error?.response?.data?.msg || error?.message || t('userSettings.loadNotificationsFailed'))
   } finally {
     notificationsLoading.value = false
   }
+}
+
+async function handleSectionChange(name: string | number) {
+  if (name === 'notifications' && !notificationsLoaded.value) {
+    await loadNotificationChannels()
+  }
+}
+
+function isNotificationChannelExpanded(channel: ChannelCode): boolean {
+  return expandedNotificationChannels.value.includes(channel)
+}
+
+function toggleNotificationChannel(channel: ChannelCode) {
+  expandedNotificationChannels.value = isNotificationChannelExpanded(channel)
+    ? expandedNotificationChannels.value.filter((item) => item !== channel)
+    : [...expandedNotificationChannels.value, channel]
 }
 
 async function saveNotificationChannel(channel: ChannelCode, options: { silent?: boolean } = {}): Promise<boolean> {
@@ -770,7 +940,6 @@ onMounted(async () => {
   }
 
   initFormData()
-  await loadNotificationChannels()
 })
 </script>
 
@@ -831,7 +1000,16 @@ onMounted(async () => {
 .settings-sections {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 18px;
+}
+
+.settings-tabs :deep(.el-tabs__header) {
+  margin: 0;
+}
+
+.settings-tabs :deep(.el-tabs__item) {
+  min-width: 112px;
+  font-weight: 600;
 }
 
 .settings-section {
@@ -858,11 +1036,6 @@ onMounted(async () => {
   color: var(--el-text-color-secondary);
   font-size: 13px;
   line-height: 1.5;
-}
-
-.channel-title .channel-guide {
-  margin-top: 4px;
-  color: var(--el-text-color-placeholder);
 }
 
 .settings-form {
@@ -903,7 +1076,6 @@ onMounted(async () => {
 .channel-header {
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
 }
 
 .channel-title {
@@ -919,9 +1091,16 @@ onMounted(async () => {
   height: 36px;
   flex: 0 0 36px;
   border-radius: 8px;
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-  font-weight: 700;
+  overflow: hidden;
+  background: var(--el-fill-color-light);
+  box-shadow: 0 0 0 1px var(--el-border-color-lighter);
+}
+
+.channel-mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .channel-name-row {
@@ -937,6 +1116,35 @@ onMounted(async () => {
 
 .channel-form {
   max-width: 840px;
+}
+
+.channel-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.channel-expand-icon {
+  margin-left: 4px;
+  transition: transform 0.2s ease;
+}
+
+.channel-expand-icon.is-expanded {
+  transform: rotate(180deg);
+}
+
+.channel-details {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.channel-guide {
+  margin: 0 0 16px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .secret-row {
@@ -991,9 +1199,14 @@ onMounted(async () => {
 
   .card-header,
   .section-heading,
-  .channel-header {
+  .channel-header,
+  .channel-summary-actions {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .settings-tabs :deep(.el-tabs__nav-wrap) {
+    overflow-x: auto;
   }
 
   .secret-row {

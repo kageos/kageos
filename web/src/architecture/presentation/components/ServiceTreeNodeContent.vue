@@ -200,11 +200,28 @@
     <button
       v-if="showNotificationRouteBadge"
       type="button"
-      :class="['notification-route-badge', `notification-route-badge-${notificationRouteBadgeTone}`]"
+      :class="[
+        'notification-route-badge',
+        `notification-route-badge-${notificationRouteBadgeTone}`,
+        {
+          'has-channel-logos': notificationRouteLogoItems.length > 0,
+          'is-idle-hidden': notificationRouteBadgeTone === 'inherited' && node.type !== 'package',
+        },
+      ]"
       :title="notificationRouteBadgeTitle"
+      :aria-label="notificationRouteBadgeTitle"
       @click.stop="$emit('notification-route-click')"
     >
-      <el-icon><BellFilled /></el-icon>
+      <span v-if="notificationRouteLogoItems.length > 0" class="notification-route-logo-stack" aria-hidden="true">
+        <img
+          v-for="item in notificationRouteLogoItems"
+          :key="item.channel"
+          class="notification-route-logo"
+          :src="item.logo"
+          alt=""
+        />
+      </span>
+      <el-icon v-else><BellFilled /></el-icon>
     </button>
 
     <el-badge
@@ -228,6 +245,7 @@ import ChartIcon from '@/architecture/presentation/shared/components/icons/Chart
 import TableIcon from '@/architecture/presentation/shared/components/icons/TableIcon.vue'
 import FormIcon from '@/architecture/presentation/shared/components/icons/FormIcon.vue'
 import AgentEmployeeMascot from './AgentEmployeeMascot.vue'
+import { notificationChannelLogos } from '@/architecture/shared/assets/notificationChannelLogos'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { TEMPLATE_TYPE } from '@/architecture/domain/constants/functionTypes'
 import { isRootNode } from '@/architecture/domain/utils/tree-utils'
@@ -259,6 +277,7 @@ const props = withDefaults(defineProps<{
   showNotificationRouteBadge?: boolean
   notificationRouteBadgeTitle?: string
   notificationRouteBadgeTone?: string
+  notificationRouteChannels?: string[]
   showAccessLock?: boolean
   accessRequestPending?: boolean
   accessLockTitle?: string
@@ -285,6 +304,7 @@ const props = withDefaults(defineProps<{
   showNotificationRouteBadge: false,
   notificationRouteBadgeTitle: '',
   notificationRouteBadgeTone: 'direct',
+  notificationRouteChannels: () => [],
   showAccessLock: false,
   accessRequestPending: false,
   accessLockTitle: '',
@@ -315,6 +335,22 @@ const SCHEDULED_AGENT_DETAIL_CACHE_MS = 15_000
 
 const displayLabel = computed(() => {
   return props.label || props.node.name || props.node.code || props.node.full_code_path || '-'
+})
+
+const notificationRouteLogoItems = computed(() => {
+  const seen = new Set<string>()
+  return props.notificationRouteChannels
+    .map((channel) => String(channel || '').trim())
+    .filter((channel) => {
+      if (!channel || seen.has(channel)) return false
+      seen.add(channel)
+      return channel in notificationChannelLogos
+    })
+    .slice(0, 3)
+    .map((channel) => ({
+      channel,
+      logo: notificationChannelLogos[channel as keyof typeof notificationChannelLogos],
+    }))
 })
 
 const scheduledAgentTotal = computed(() => Number(props.node.scheduled_agent_tasks || 0))
@@ -959,6 +995,32 @@ const nodeIconClass = computed(() => {
   transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
 }
 
+.notification-route-badge.has-channel-logos {
+  width: auto;
+  min-width: 20px;
+  padding: 1px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.notification-route-logo-stack {
+  display: inline-flex;
+  align-items: center;
+}
+
+.notification-route-logo {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px var(--el-border-color-lighter);
+}
+
+.notification-route-logo + .notification-route-logo {
+  margin-left: -4px;
+}
+
 .access-lock-badge {
   display: inline-flex;
   width: 20px;
@@ -1034,16 +1096,57 @@ const nodeIconClass = computed(() => {
   background: rgba(100, 116, 139, 0.14);
 }
 
+.notification-route-badge-inherited .notification-route-logo {
+  width: 14px;
+  height: 14px;
+  opacity: 0.62;
+}
+
+.notification-route-badge.is-idle-hidden:not(:focus-visible) {
+  width: 0;
+  min-width: 0;
+  margin-left: 0;
+  padding: 0;
+  border-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.tree-node:hover .notification-route-badge.is-idle-hidden,
+.tree-node.is-active .notification-route-badge.is-idle-hidden,
+.notification-route-badge.is-idle-hidden:focus-visible {
+  width: auto;
+  min-width: 20px;
+  margin-left: 6px;
+  padding: 1px;
+  border-width: 1px;
+  opacity: 1;
+  pointer-events: auto;
+  overflow: visible;
+}
+
 .notification-route-badge-disabled {
   border-color: rgba(148, 163, 184, 0.22);
   background: rgba(148, 163, 184, 0.08);
   color: #94a3b8;
 }
 
+.notification-route-badge-disabled .notification-route-logo {
+  opacity: 0.5;
+  filter: grayscale(0.8);
+}
+
 .notification-route-badge-failed {
   border-color: rgba(239, 68, 68, 0.28);
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
+}
+
+.notification-route-badge-failed.has-channel-logos {
+  border-color: rgba(239, 68, 68, 0.56);
+  background: rgba(239, 68, 68, 0.08);
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.12);
 }
 
 .notification-route-badge-failed:hover {

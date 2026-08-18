@@ -49,7 +49,13 @@ Podman 安全门禁：
 
 ### 4. 启动并保持进程可见
 
-在仓库根目录运行官方入口，不直接操作底层 Compose：
+在仓库根目录运行官方一键入口，不直接操作底层 Compose：
+
+```bash
+./scripts/dev.sh
+```
+
+脚本同时启动基础设施、后端和前端，并持续显示两边输出。需要分开调试时，后端使用：
 
 ```bash
 go run ./cmd/kagectl bootstrap --dev
@@ -61,7 +67,7 @@ go run ./cmd/kagectl bootstrap --dev
 go run ./cmd/kagectl bootstrap --dev --engine docker
 ```
 
-让后端运行在一个可继续读取输出的终端会话中。确认后端没有立即退出后，在第二个终端会话运行：
+分开调试时，让后端运行在一个可继续读取输出的终端会话中。确认后端没有立即退出后，在第二个终端会话运行：
 
 ```bash
 cd web

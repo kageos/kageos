@@ -104,21 +104,10 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="api_base" label="API Base" min-width="220" show-overflow-tooltip />
-
-          <el-table-column :label="t('llmManagement.timeoutToken')" width="140" align="center">
+          <el-table-column :label="t('llmManagement.timeoutToken')" width="150" align="center">
             <template #default="{ row }">
-              <div>{{ row.timeout }}s</div>
-              <div class="muted-line">out {{ row.max_tokens }}</div>
+              <div>out {{ row.max_tokens }}</div>
               <div class="muted-line">ctx {{ row.effective_context_window }}</div>
-            </template>
-          </el-table-column>
-
-          <el-table-column prop="admin" :label="t('llmManagement.admin')" min-width="180" show-overflow-tooltip />
-
-          <el-table-column :label="t('llmManagement.updatedAt')" width="180">
-            <template #default="{ row }">
-              {{ formatDateTime(row.updated_at) }}
             </template>
           </el-table-column>
 
@@ -219,93 +208,85 @@
             <el-input v-model="form.api_base" :placeholder="t('llmManagement.apiBasePlaceholder')" />
           </el-form-item>
 
-          <el-row :gutter="12">
-            <el-col :xs="24" :sm="12">
-              <el-form-item :label="t('llmManagement.endpointPath')">
-                <el-input v-model="form.endpoint_path" :placeholder="endpointPathPlaceholder" />
-              </el-form-item>
-            </el-col>
-            <el-col :xs="24" :sm="12">
-              <el-form-item :label="t('llmManagement.apiVersion')">
-                <el-input v-model="form.api_version" :placeholder="apiVersionPlaceholder" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-
-          <el-form-item :label="t('llmManagement.authScheme')">
-            <el-select v-model="form.auth_scheme" clearable style="width: 220px" :placeholder="authSchemePlaceholder">
-              <el-option
-                v-for="option in authSchemeOptions"
-                :key="option.value"
-                :label="option.label"
-                :value="option.value"
-              />
-            </el-select>
-          </el-form-item>
-
-          <el-form-item :label="t('llmManagement.timeout')">
-            <el-input-number v-model="form.timeout" :min="1" :max="3600" style="width: 180px" />
-            <span class="form-suffix">{{ t('llmManagement.seconds') }}</span>
-          </el-form-item>
-
-          <el-form-item :label="t('llmManagement.maxToken')">
-            <div class="form-control-stack">
-              <el-input-number v-model="form.max_tokens" :min="1" :max="1048576" style="width: 180px" />
-              <p class="form-tip">{{ t('llmManagement.maxTokenHint') }}</p>
-            </div>
-          </el-form-item>
-
-          <el-form-item :label="t('llmManagement.contextWindow')">
-            <div class="form-control-stack">
-              <el-input-number v-model="form.context_window" :min="0" :max="10000000" style="width: 180px" />
-              <p class="form-tip">{{ contextWindowHint }}</p>
-            </div>
-          </el-form-item>
-
           <el-form-item :label="t('llmManagement.visibility')">
             <el-radio-group v-model="form.visibility">
-              <el-radio :value="0">{{ t('llmManagement.public') }}</el-radio>
               <el-radio :value="1">{{ t('llmManagement.private') }}</el-radio>
+              <el-radio :value="0">{{ t('llmManagement.public') }}</el-radio>
             </el-radio-group>
-          </el-form-item>
-
-          <el-form-item :label="t('llmManagement.admin')">
-            <el-input
-              v-model="form.admin"
-              :placeholder="t('llmManagement.adminPlaceholder')"
-            />
+            <p class="form-tip form-tip--block">{{ t('llmManagement.visibilityHint') }}</p>
           </el-form-item>
 
           <el-form-item :label="t('llmManagement.setAsDefault')">
             <el-switch v-model="form.is_default" />
           </el-form-item>
 
-          <el-form-item :label="t('llmManagement.extraConfig')" prop="extra_config">
-            <el-input
-              v-model="form.extra_config"
-              type="textarea"
-              :rows="6"
-              :placeholder="t('llmManagement.extraConfigPlaceholder')"
-            />
-          </el-form-item>
+          <el-collapse v-model="advancedPanels" class="advanced-settings">
+            <el-collapse-item name="advanced">
+              <template #title>
+                <div class="advanced-title">
+                  <span>{{ t('llmManagement.advancedSettings') }}</span>
+                  <span class="advanced-title-desc">{{ t('llmManagement.advancedSettingsHint') }}</span>
+                </div>
+              </template>
 
-          <el-form-item :label="t('llmManagement.headers')" prop="headers">
-            <el-input
-              v-model="form.headers"
-              type="textarea"
-              :rows="4"
-              :placeholder="t('llmManagement.headersPlaceholder')"
-            />
-          </el-form-item>
+              <el-row :gutter="12">
+                <el-col :xs="24" :sm="12">
+                  <el-form-item :label="t('llmManagement.endpointPath')">
+                    <el-input v-model="form.endpoint_path" :placeholder="endpointPathPlaceholder" />
+                  </el-form-item>
+                </el-col>
+                <el-col :xs="24" :sm="12">
+                  <el-form-item :label="t('llmManagement.apiVersion')">
+                    <el-input v-model="form.api_version" :placeholder="apiVersionPlaceholder" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
 
-          <el-form-item :label="t('llmManagement.capabilities')" prop="capabilities">
-            <el-input
-              v-model="form.capabilities"
-              type="textarea"
-              :rows="4"
-              :placeholder="t('llmManagement.capabilitiesPlaceholder')"
-            />
-          </el-form-item>
+              <el-form-item :label="t('llmManagement.authScheme')">
+                <el-select v-model="form.auth_scheme" clearable style="width: 220px" :placeholder="authSchemePlaceholder">
+                  <el-option v-for="option in authSchemeOptions" :key="option.value" :label="option.label" :value="option.value" />
+                </el-select>
+              </el-form-item>
+
+              <el-form-item :label="t('llmManagement.timeout')">
+                <el-input-number v-model="form.timeout" :min="1" :max="3600" style="width: 180px" />
+                <span class="form-suffix">{{ t('llmManagement.seconds') }}</span>
+              </el-form-item>
+
+              <el-form-item :label="t('llmManagement.maxToken')">
+                <div class="form-control-stack">
+                  <el-input-number v-model="form.max_tokens" :min="1" :max="1048576" style="width: 180px" />
+                  <p class="form-tip">{{ t('llmManagement.maxTokenHint') }}</p>
+                </div>
+              </el-form-item>
+
+              <el-form-item :label="t('llmManagement.contextWindow')">
+                <div class="form-control-stack">
+                  <el-input-number v-model="form.context_window" :min="0" :max="10000000" style="width: 180px" />
+                  <p class="form-tip">{{ contextWindowHint }}</p>
+                </div>
+              </el-form-item>
+
+              <el-form-item :label="t('llmManagement.admin')">
+                <el-input v-model="form.admin" :placeholder="t('llmManagement.adminPlaceholder')" />
+              </el-form-item>
+
+              <el-form-item :label="t('llmManagement.extraConfig')" prop="extra_config">
+                <el-input v-model="form.extra_config" type="textarea" :rows="4" :placeholder="t('llmManagement.extraConfigPlaceholder')" />
+              </el-form-item>
+
+              <el-form-item :label="t('llmManagement.headers')" prop="headers">
+                <div class="form-control-stack form-control-stack--wide">
+                  <el-input v-model="form.headers" type="textarea" :rows="3" :placeholder="t('llmManagement.headersPlaceholder')" />
+                  <p class="form-tip form-tip--warning">{{ t('llmManagement.headersSecurityHint') }}</p>
+                </div>
+              </el-form-item>
+
+              <el-form-item :label="t('llmManagement.capabilities')" prop="capabilities">
+                <el-input v-model="form.capabilities" type="textarea" :rows="3" :placeholder="t('llmManagement.capabilitiesPlaceholder')" />
+              </el-form-item>
+            </el-collapse-item>
+          </el-collapse>
         </el-form>
       </div>
 
@@ -327,7 +308,6 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Connection, Plus, Refresh, Search } from '@element-plus/icons-vue'
-import dayjs from 'dayjs'
 import {
   createLLM,
   deleteLLM,
@@ -405,6 +385,7 @@ const defaultLoading = ref(false)
 const dialogLoading = ref(false)
 const dialogVisible = ref(false)
 const dialogMode = ref<DialogMode>('create')
+const advancedPanels = ref<string[]>([])
 const submitting = ref(false)
 const probing = ref(false)
 
@@ -415,8 +396,8 @@ const formRef = ref<FormInstance>()
 const form = reactive<LLMFormState>(createDefaultForm())
 
 const providerOptions = computed(() => [
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic' }
+  { value: 'openai', label: t('llmManagement.providerOpenAICompatible') },
+  { value: 'anthropic', label: t('llmManagement.providerAnthropic') }
 ])
 
 const protocolOptions = computed(() => {
@@ -530,13 +511,14 @@ function createDefaultForm(): LLMFormState {
     extra_config: '',
     capabilities: '',
     is_default: false,
-    visibility: 0,
+    visibility: 1,
     admin: ''
   }
 }
 
 function resetForm() {
   Object.assign(form, createDefaultForm())
+  advancedPanels.value = []
   formRef.value?.clearValidate()
 }
 
@@ -560,7 +542,7 @@ function applyForm(info: Partial<LLMInfo>) {
   form.extra_config = info.extra_config || ''
   form.capabilities = info.capabilities || ''
   form.is_default = Boolean(info.is_default)
-  form.visibility = typeof info.visibility === 'number' ? info.visibility : 0
+  form.visibility = typeof info.visibility === 'number' ? info.visibility : 1
   form.admin = info.admin || ''
 }
 
@@ -627,7 +609,9 @@ function applyProtocolDefaults(force = false) {
 }
 
 function providerLabel(provider: string) {
-  return provider === 'anthropic' ? 'Anthropic' : 'OpenAI'
+  return provider === 'anthropic'
+    ? t('llmManagement.providerAnthropic')
+    : t('llmManagement.providerOpenAICompatible')
 }
 
 function protocolLabel(protocol: string) {
@@ -643,11 +627,6 @@ function protocolLabel(protocol: string) {
 
 function visibilityLabel(visibility: number) {
   return visibility === 1 ? t('llmManagement.private') : t('llmManagement.public')
-}
-
-function formatDateTime(value: string) {
-  if (!value) return '-'
-  return dayjs(value).format('YYYY-MM-DD HH:mm:ss')
 }
 
 async function loadConfigs() {
@@ -1071,6 +1050,38 @@ onMounted(async () => {
     color: var(--el-text-color-secondary);
     font-size: 12px;
     line-height: 1.5;
+  }
+
+  .form-tip--block {
+    width: 100%;
+    margin-top: 6px;
+  }
+
+  .form-tip--warning {
+    color: var(--el-color-warning);
+  }
+
+  .form-control-stack--wide {
+    width: 100%;
+  }
+
+  .advanced-settings {
+    margin-top: 8px;
+    border-top: 1px solid var(--el-border-color-lighter);
+  }
+
+  .advanced-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--el-text-color-primary);
+    font-weight: 600;
+  }
+
+  .advanced-title-desc {
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    font-weight: 400;
   }
 }
 

@@ -132,15 +132,17 @@ git clone https://github.com/kageos/kageos.git
 cd kageos
 ```
 
-Start the local development backend:
+Start the complete local development environment:
+
+```bash
+./scripts/dev.sh
+```
+
+The script keeps the backend and frontend output visible in one terminal. If
+you prefer separate terminals, run them manually:
 
 ```bash
 go run ./cmd/kagectl bootstrap --dev
-```
-
-Start the frontend in another terminal:
-
-```bash
 cd web
 npm install
 npm run dev

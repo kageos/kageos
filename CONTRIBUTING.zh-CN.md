@@ -64,7 +64,13 @@ git clone https://github.com/kageos/kageos.git
 cd kageos
 ```
 
-启动本地后端：
+最短路径是运行仓库脚本，它会同时启动基础设施、后端和前端：
+
+```bash
+./scripts/dev.sh
+```
+
+需要分别调试时，再单独启动本地后端：
 
 ```bash
 go run ./cmd/kagectl bootstrap --dev

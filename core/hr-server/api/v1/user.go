@@ -295,6 +295,38 @@ func (u *User) UpdateUser(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// ChangePassword 修改当前登录用户的密码
+// @Summary 修改当前登录用户密码
+// @Description 校验当前密码后设置新密码，成功后全部登录会话失效
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param X-Token header string true "JWT Token"
+// @Param request body dto.ChangeOwnPasswordReq true "修改密码请求"
+// @Success 200 {object} response.Response "修改成功"
+// @Failure 400 {object} response.Response "请求错误"
+// @Failure 401 {object} response.Response "未认证"
+// @Router /hr/api/v1/user/password [put]
+func (u *User) ChangePassword(c *gin.Context) {
+	var req dto.ChangeOwnPasswordReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	username := contextx.GetRequestUser(c)
+	if username == "" {
+		response.FailWithMessage(c, "未提供用户信息")
+		return
+	}
+	if err := u.userService.ChangeOwnPassword(contextx.ToContext(c), username, req.CurrentPassword, req.NewPassword); err != nil {
+		response.FailWithMessage(c, "修改密码失败: "+err.Error())
+		return
+	}
+	response.OkWithMessage(c, "密码修改成功，请重新登录")
+}
+
 func (u *User) ListOpenAPITokens(c *gin.Context) {
 	username := contextx.GetRequestUser(c)
 	if username == "" {
