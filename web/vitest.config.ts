@@ -26,7 +26,7 @@ export default defineConfig(async () =>
       setupFiles: [fileURLToPath(new URL('./src/test/setup.ts', import.meta.url))],
       server: {
         deps: {
-          inline: ['element-plus', '@element-plus/icons-vue', 'vditor']
+          inline: ['element-plus', '@element-plus/icons-vue']
         }
       }
     },

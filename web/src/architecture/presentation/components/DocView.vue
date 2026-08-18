@@ -78,11 +78,10 @@
               show-word-limit
             />
             
-            <VditorEditor
+            <MarkdownDocumentEditor
               v-model="editContent"
-              height="100%"
               placeholder="开始写文档..."
-              class="doc-vditor-editor"
+              class="doc-markdown-editor"
             />
           </div>
 
@@ -228,7 +227,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Check, Plus, Delete, Close, ArrowLeft, ArrowRight, Clock, RefreshRight } from '@element-plus/icons-vue'
@@ -247,8 +246,8 @@ import {
 } from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
 import { consumeDocAutoEdit } from '@/architecture/presentation/utils/docAutoEdit'
 import UserDisplay from '@/architecture/presentation/shared/components/UserDisplay.vue'
+import MarkdownDocumentEditor from '@/architecture/presentation/shared/components/MarkdownDocumentEditor.vue'
 
-const VditorEditor = defineAsyncComponent(() => import('@/architecture/presentation/shared/components/VditorEditor.vue'))
 const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 void preloadMarkdown()
 const router = useRouter()
@@ -1182,7 +1181,7 @@ watch(renderedContent, () => {
   background: var(--app-shell-panel-bg, #fff);
 }
 
-.doc-vditor-editor {
+.doc-markdown-editor {
   flex: 1;
   min-height: clamp(560px, calc(100vh - 360px), 820px);
   display: flex;
@@ -1698,7 +1697,7 @@ watch(renderedContent, () => {
     font-size: 28px;
   }
 
-  .doc-vditor-editor {
+  .doc-markdown-editor {
     min-height: 560px;
   }
 }

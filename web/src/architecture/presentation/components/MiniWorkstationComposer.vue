@@ -129,66 +129,12 @@
     </div>
   </div>
 
-  <Teleport to="body">
-    <Transition name="mini-composer-expanded">
-      <div
-        v-if="expandedEditorVisible"
-        class="mini-composer-expanded-backdrop"
-        @click.self="cancelExpandedEditor"
-      >
-        <section class="mini-composer-expanded-panel" role="dialog" aria-modal="true">
-          <header class="mini-composer-expanded-header">
-            <div class="mini-composer-expanded-title-block">
-              <div class="mini-composer-expanded-kicker">{{ t('miniWorkstation.expandedComposerKicker') }}</div>
-              <h2 class="mini-composer-expanded-title">{{ expandedTitle || t('miniWorkstation.expandedComposerTitle') }}</h2>
-              <div class="mini-composer-expanded-subtitle">
-                {{ expandedSubtitle || displayPath }}
-              </div>
-            </div>
-            <div class="mini-composer-expanded-actions">
-              <el-button @click="cancelExpandedEditor">{{ t('common.cancel') }}</el-button>
-              <el-button type="primary" :icon="Check" @click="saveExpandedEditor">
-                {{ expandedSaveLabel || t('common.save') }}
-              </el-button>
-              <button
-                type="button"
-                class="mini-composer-expanded-close"
-                :aria-label="t('miniWorkstation.closeExpandedComposer')"
-                @click="cancelExpandedEditor"
-              >
-                <el-icon><Close /></el-icon>
-              </button>
-            </div>
-          </header>
-
-          <div class="mini-composer-expanded-body">
-            <StructuredPromptComposer
-              ref="expandedInputRef"
-              class="mini-expanded-structured-input"
-              :model-value="expandedDraft"
-              :placeholder="composerPlaceholder"
-              :disabled="blocked"
-              :submit-on-enter="false"
-              :show-toolbar="true"
-              :compact="false"
-              :min-rows="18"
-              :max-rows="36"
-              :full-code-path="fullCodePath"
-              mention-panel-placement="above"
-              editor-test-id="mini-workstation-expanded-input"
-              @update:model-value="expandedDraft = $event"
-            />
-          </div>
-        </section>
-      </div>
-    </Transition>
-  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Check, Close, Paperclip, VideoPause } from '@element-plus/icons-vue'
+import { Paperclip, VideoPause } from '@element-plus/icons-vue'
 import type { LLMInfo } from '@/architecture/presentation/context/api/agent'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
 import StructuredPromptComposer from './StructuredPromptComposer.vue'
@@ -224,20 +170,12 @@ const props = withDefaults(defineProps<{
   toggleShortcutLabel?: string
   variant?: 'chat' | 'schedule'
   placeholder?: string
-  expandable?: boolean
-  expandedTitle?: string
-  expandedSubtitle?: string
-  expandedSaveLabel?: string
   mentionPanelPlacement?: 'above' | 'below'
 }>(), {
   variant: 'chat',
   resourceType: '',
   resourceTemplateType: '',
   placeholder: '',
-  expandable: true,
-  expandedTitle: '',
-  expandedSubtitle: '',
-  expandedSaveLabel: '',
   mentionPanelPlacement: 'above',
 })
 
@@ -247,14 +185,10 @@ const emit = defineEmits<{
   (e: 'send'): void
   (e: 'stop'): void
   (e: 'collapse'): void
-  (e: 'expanded-save', value: string): void
 }>()
 
 const { t } = useI18n()
 const structuredInputRef = ref<InstanceType<typeof StructuredPromptComposer> | null>(null)
-const expandedInputRef = ref<InstanceType<typeof StructuredPromptComposer> | null>(null)
-const expandedEditorVisible = ref(false)
-const expandedDraft = ref('')
 
 const modelSelectPopperOptions = {
   strategy: 'fixed' as const,
@@ -365,24 +299,6 @@ function handleContainerClick(event: MouseEvent) {
   structuredInputRef.value?.focus()
 }
 
-function _openExpandedEditor() {
-  if (props.blocked) return
-  expandedDraft.value = props.inputText
-  expandedEditorVisible.value = true
-  void nextTick(() => expandedInputRef.value?.focus())
-}
-
-function saveExpandedEditor() {
-  emit('update:inputText', expandedDraft.value)
-  emit('expanded-save', expandedDraft.value)
-  expandedEditorVisible.value = false
-  void nextTick(() => structuredInputRef.value?.focus())
-}
-
-function cancelExpandedEditor() {
-  expandedEditorVisible.value = false
-  void nextTick(() => structuredInputRef.value?.focus())
-}
 </script>
 
 <style scoped>
@@ -733,141 +649,6 @@ html.dark .mini-ws-input--schedule {
   padding: 6px 24px;
 }
 
-.mini-composer-expanded-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 3600;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  padding: 28px;
-  box-sizing: border-box;
-  background: var(--bg-tertiary);
-  backdrop-filter: blur(14px) saturate(118%);
-}
-
-.mini-composer-expanded-panel {
-  width: min(1180px, 100%);
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
-  border-radius: 12px;
-  background: var(--bg-secondary);
-  box-shadow:
-    0 12px 32px rgba(15, 23, 42, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-
-.mini-composer-expanded-header {
-  flex-shrink: 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 22px 24px 18px;
-  border-bottom: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
-}
-
-.mini-composer-expanded-title-block {
-  min-width: 0;
-}
-
-.mini-composer-expanded-kicker {
-  color: var(--el-color-primary);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.4;
-}
-
-.mini-composer-expanded-title {
-  margin: 5px 0 0;
-  color: var(--el-text-color-primary);
-  font-size: 24px;
-  font-weight: 760;
-  line-height: 1.25;
-  letter-spacing: 0;
-  word-break: break-word;
-}
-
-.mini-composer-expanded-subtitle {
-  margin-top: 8px;
-  color: var(--el-text-color-secondary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.55;
-  word-break: break-all;
-}
-
-.mini-composer-expanded-actions {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.mini-composer-expanded-close {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--el-border-color);
-  border-radius: 8px;
-  background: var(--el-fill-color-blank);
-  color: var(--el-text-color-secondary);
-  cursor: pointer;
-}
-
-.mini-composer-expanded-close:hover {
-  color: var(--el-text-color-primary);
-  border-color: var(--el-color-primary);
-  background: color-mix(in srgb, var(--el-color-primary) 8%, var(--el-fill-color-blank));
-}
-
-.mini-composer-expanded-body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 22px 24px 26px;
-}
-
-.mini-expanded-structured-input {
-  min-height: 100%;
-  border-radius: 10px;
-  background: var(--app-shell-panel-bg, var(--el-bg-color));
-}
-
-.mini-expanded-structured-input :deep(.spc-editor),
-.mini-expanded-structured-input :deep(.spc-preview) {
-  min-height: min(680px, calc(100vh - 220px)) !important;
-  max-height: none !important;
-  color: var(--el-text-color-regular);
-}
-
-.mini-composer-expanded-enter-active,
-.mini-composer-expanded-leave-active {
-  transition: opacity 0.18s ease;
-}
-
-.mini-composer-expanded-enter-active .mini-composer-expanded-panel,
-.mini-composer-expanded-leave-active .mini-composer-expanded-panel {
-  transition: transform 0.2s ease, opacity 0.2s ease;
-}
-
-.mini-composer-expanded-enter-from,
-.mini-composer-expanded-leave-to {
-  opacity: 0;
-}
-
-.mini-composer-expanded-enter-from .mini-composer-expanded-panel,
-.mini-composer-expanded-leave-to .mini-composer-expanded-panel {
-  opacity: 0;
-  transform: translateY(28px);
-}
-
 @media (max-width: 720px) {
   .mini-ws-input {
     grid-template-columns: minmax(0, 1fr);
@@ -883,28 +664,6 @@ html.dark .mini-ws-input--schedule {
     justify-content: space-between;
   }
 
-  .mini-composer-expanded-backdrop {
-    padding: 0;
-  }
-
-  .mini-composer-expanded-panel {
-    min-height: 100%;
-    border-radius: 0;
-  }
-
-  .mini-composer-expanded-header {
-    flex-direction: column;
-    padding: 18px 16px 14px;
-  }
-
-  .mini-composer-expanded-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .mini-composer-expanded-body {
-    padding: 16px;
-  }
 }
 </style>
 

@@ -219,7 +219,6 @@
                 :llm-option-label="llmOptionLabel"
                 :full-code-path="selectedTaskWorkspacePath"
                 @llm-visible-change="handleLLMSelectVisibleChange"
-                @save="saveInlineEdit"
               />
 
               <ScheduledAgentTaskAside

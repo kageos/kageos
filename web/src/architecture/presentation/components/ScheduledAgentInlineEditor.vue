@@ -71,12 +71,8 @@
           :remove-file="removeInlineComposerFile"
           :on-input-enter="noopInputEnter"
           :placeholder="t('scheduledTask.agentMessagePlaceholder')"
-          :expanded-title="title || t('scheduledTask.editAgentDialogTitle')"
-          :expanded-subtitle="fullCodePath"
-          :expanded-save-label="t('common.save')"
           mention-panel-placement="above"
           @update:input-text="emit('update:message', $event)"
-          @expanded-save="handleExpandedSave"
         />
         <div class="detail-inline-editor-help">{{ t('scheduledTask.agentMessageHelp') }}</div>
         <div v-if="dragOver" class="detail-inline-drop-hint">
@@ -115,7 +111,6 @@ const emit = defineEmits<{
   (e: 'update:files', value: string): void
   (e: 'update:llmConfigId', value: number): void
   (e: 'llm-visible-change', value: boolean): void
-  (e: 'save'): void
 }>()
 
 const { t } = useI18n()
@@ -201,11 +196,6 @@ function registerInlineMessageInputRef(element: { focus: () => void } | null) {
 function updateLLMConfigID(value: string | number | boolean | null | undefined) {
   const id = Number(value || 0)
   emit('update:llmConfigId', Number.isFinite(id) && id > 0 ? id : 0)
-}
-
-function handleExpandedSave(value: string) {
-  emit('update:message', value)
-  emit('save')
 }
 
 function noop() {}
