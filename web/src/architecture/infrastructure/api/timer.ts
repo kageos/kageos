@@ -1,7 +1,7 @@
 import { authFetch } from '@/architecture/infrastructure/apiClient/request'
 import { getApiBaseURL } from '@/architecture/infrastructure/config/runtime'
 
-export type TimerScheduleType = 'atime' | 'cron' | 'every'
+export type TimerScheduleType = 'manual' | 'atime' | 'cron' | 'every'
 export type TimerTaskStatus = 'pending' | 'paused' | 'done' | 'failed' | 'cancelled'
 export type TimerExecutionStatus = 'waiting' | 'queued' | 'running' | 'success' | 'failed' | 'timeout' | 'cancelled' | 'skipped'
 export type TimerOverlapPolicy = 'forbid' | 'queue_latest' | 'allow'

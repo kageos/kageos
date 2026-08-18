@@ -581,11 +581,12 @@ function isAgentTaskStarted(task: TimerTask): boolean {
 }
 
 function canStartAgentTask(task: TimerTask): boolean {
-  return task.status === 'paused'
+  return task.status === 'paused' && task.schedule?.type !== 'manual'
 }
 
 function agentTaskActivationLabel(task: TimerTask): string {
   if (isAgentTaskStarted(task)) return '已启动'
+  if (task.schedule?.type === 'manual') return '待设置计划'
   if (canStartAgentTask(task)) return '未启动'
   return '已停止'
 }

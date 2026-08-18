@@ -34,7 +34,7 @@ test.describe('email registration personal workspace', () => {
               id: 1,
               user: username,
               code: 'home',
-              name: '我的空间',
+              name: `${username} 的默认空间`,
               status: 'enabled',
               version: 'v1',
               nats_id: 1,

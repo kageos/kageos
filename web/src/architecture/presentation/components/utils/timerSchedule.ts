@@ -21,6 +21,13 @@ export function createDefaultTimerScheduleForm(): TimerScheduleForm {
   }
 }
 
+export function createDefaultManualTimerScheduleForm(): TimerScheduleForm {
+  return {
+    ...createDefaultTimerScheduleForm(),
+    schedule_type: 'manual',
+  }
+}
+
 export function guessTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai'
 }
@@ -47,7 +54,9 @@ export function buildTimerSchedule(form: TimerScheduleForm): TimerSchedule {
     max_runs: form.schedule_type === 'every' ? (form.max_runs || 0) : 0,
   }
 
-  if (form.schedule_type === 'atime') {
+  if (form.schedule_type === 'manual') {
+    return schedule
+  } else if (form.schedule_type === 'atime') {
     schedule.run_at = toRFC3339(form.run_at)
   } else if (form.schedule_type === 'cron') {
     schedule.cron_expr = form.cron_expr.trim()
@@ -119,6 +128,9 @@ export function formatDuration(milliseconds?: number): string {
 
 export function scheduleLabel(schedule?: TimerSchedule): string {
   if (!schedule) return '-'
+  if (schedule.type === 'manual') {
+    return translate('scheduledTask.planManual')
+  }
   if (schedule.type === 'atime') {
     return translate('scheduledTask.planOnce', { time: formatDateTime(schedule.run_at) })
   }

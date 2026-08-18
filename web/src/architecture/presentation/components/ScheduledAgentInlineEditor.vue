@@ -26,7 +26,6 @@
       <el-select
         :model-value="llmConfigId"
         filterable
-        popper-class="scheduled-agent-dialog-popper"
         :placeholder="t('scheduledTask.defaultModel')"
         :loading="llmLoading"
         style="width: 100%"
@@ -72,13 +71,10 @@
           :remove-file="removeInlineComposerFile"
           :on-input-enter="noopInputEnter"
           :placeholder="t('scheduledTask.agentMessagePlaceholder')"
-          :expanded-title="title || t('scheduledTask.editAgentDialogTitle')"
-          :expanded-subtitle="fullCodePath"
-          :expanded-save-label="t('common.save')"
-          mention-panel-placement="below"
+          mention-panel-placement="above"
           @update:input-text="emit('update:message', $event)"
-          @expanded-save="handleExpandedSave"
         />
+        <div class="detail-inline-editor-help">{{ t('scheduledTask.agentMessageHelp') }}</div>
         <div v-if="dragOver" class="detail-inline-drop-hint">
           {{ t('scheduledTask.dropUpload') }}
         </div>
@@ -115,7 +111,6 @@ const emit = defineEmits<{
   (e: 'update:files', value: string): void
   (e: 'update:llmConfigId', value: number): void
   (e: 'llm-visible-change', value: boolean): void
-  (e: 'save'): void
 }>()
 
 const { t } = useI18n()
@@ -203,11 +198,6 @@ function updateLLMConfigID(value: string | number | boolean | null | undefined) 
   emit('update:llmConfigId', Number.isFinite(id) && id > 0 ? id : 0)
 }
 
-function handleExpandedSave(value: string) {
-  emit('update:message', value)
-  emit('save')
-}
-
 function noop() {}
 
 function noopInputEnter() {}
@@ -231,10 +221,16 @@ function noopInputEnter() {}
   line-height: 1.45;
 }
 
+.detail-inline-editor-help {
+  padding: 8px 2px 0;
+  color: var(--scheduled-session-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .detail-inline-composer {
   position: relative;
   width: 100%;
-  z-index: 2;
 }
 
 .detail-inline-composer.is-dragging {
@@ -255,14 +251,6 @@ function noopInputEnter() {}
 .detail-inline-composer :deep(.mini-structured-input .spc-preview) {
   min-height: 190px !important;
   max-height: 520px !important;
-}
-
-.detail-inline-composer :deep(.structured-prompt-composer.is-focused) {
-  z-index: 30;
-}
-
-.detail-inline-composer :deep(.spc-mention-panel) {
-  z-index: 2600;
 }
 
 .detail-inline-drop-hint {

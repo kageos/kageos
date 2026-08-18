@@ -262,6 +262,7 @@
     v-if="featureFlags.scheduledTasks"
     v-model="showScheduledAgentTaskDialog"
     :full-code-path="fullCodePath"
+    :resource-name="resourceDisplayName"
     :initial-message="scheduledDraftMessage"
     :initial-files="scheduledDraftFiles"
     :initial-attached-files="attachedFiles"

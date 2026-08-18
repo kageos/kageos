@@ -85,6 +85,53 @@ func TestServiceCreateTaskSupportsPausedInitialStatus(t *testing.T) {
 	}
 }
 
+func TestServiceCreateManualTaskWithoutSyntheticRunTime(t *testing.T) {
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	svc, _ := newTestService(t, &now)
+
+	task, err := svc.CreateTask(context.Background(), scheduledsdk.CreateTaskRequest{
+		Title:           "manual digital employee",
+		ExecutorKey:     "agent.session",
+		ExecutorPayload: json.RawMessage(`{"message":"inspect tickets"}`),
+		Status:          scheduledsdk.TaskStatusPaused,
+		Schedule:        scheduledsdk.Manual(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Schedule.Type != scheduledsdk.ScheduleManual {
+		t.Fatalf("schedule type = %q, want %q", task.Schedule.Type, scheduledsdk.ScheduleManual)
+	}
+	if task.NextRunAt != nil {
+		t.Fatalf("next run = %v, want nil", task.NextRunAt)
+	}
+	if err := svc.ResumeTask(context.Background(), task.ID); !errors.Is(err, scheduledsdk.ErrInvalidRequest) {
+		t.Fatalf("ResumeTask() error = %v, want invalid request", err)
+	}
+
+	exec, err := svc.RunNow(context.Background(), task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.MarkExecutionStarted(context.Background(), scheduledsdk.MarkExecutionStartedRequest{
+		TaskID: task.ID, ExecutionID: exec.ID, WorkerID: "worker-1", StartedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.MarkExecutionFinished(context.Background(), scheduledsdk.MarkExecutionFinishedRequest{
+		TaskID: task.ID, ExecutionID: exec.ID, Status: scheduledsdk.ExecutionStatusSuccess, FinishedAt: now.Add(time.Minute),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.GetTask(context.Background(), task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != scheduledsdk.TaskStatusPaused || got.NextRunAt != nil {
+		t.Fatalf("manual task after run = status %q next %v, want paused with no next run", got.Status, got.NextRunAt)
+	}
+}
+
 func TestBuiltinTaskDefinitionRejectsUserMutationButAllowsRuntimeControls(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, _ := newTestService(t, &now)

@@ -417,7 +417,7 @@
             </template>
           </el-table-column>
 
-          <el-table-column :label="t('operateLog.action')" width="96">
+          <el-table-column :label="t('operateLog.action')" width="148">
             <template #default="{ row }">
               <el-tag :type="getActionTagType(row.action)" size="small" effect="light">
                 {{ getActionLabel(row.action) }}

@@ -110,6 +110,8 @@ func workspaceScheduledTaskKindLabel(task *scheduledsdk.Task) string {
 
 func workspaceScheduledTaskScheduleLabel(schedule scheduledsdk.Schedule) string {
 	switch schedule.Type {
+	case scheduledsdk.ScheduleManual:
+		return "仅手动运行"
 	case scheduledsdk.ScheduleAt:
 		if schedule.RunAt.IsZero() {
 			return "atime"

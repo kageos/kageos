@@ -151,8 +151,6 @@
       :show-arrow="false"
       :teleported="true"
       :persistent="false"
-      :z-index="4200"
-      strategy="fixed"
       popper-class="spc-mention-popover"
     >
       <div
@@ -1915,7 +1913,9 @@ defineExpose({
 
 .spc-editor.is-empty::before {
   content: attr(data-placeholder);
-  color: rgba(141, 160, 189, 0.72);
+  color: var(--text-placeholder, rgba(141, 160, 189, 0.64));
+  -webkit-text-fill-color: var(--text-placeholder, rgba(141, 160, 189, 0.64));
+  font-weight: 400;
   pointer-events: none;
 }
 

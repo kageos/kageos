@@ -87,6 +87,7 @@
           <div class="tab-content scheduled-agent-tab-content">
             <ScheduledAgentTaskList
               :resource-path="packageNode.full_code_path || ''"
+              :resource-name="packageNode.name || ''"
               :auto-load="activeTab === 'scheduledAgentTask'"
               :focus-task-id="scheduledFocusTaskID"
               :focus-execution-id="scheduledFocusExecutionID"

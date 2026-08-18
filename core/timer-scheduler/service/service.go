@@ -324,6 +324,9 @@ func (s *Service) ResumeTask(ctx context.Context, taskID int64) error {
 	if err != nil {
 		return err
 	}
+	if scheduledsdk.ScheduleType(task.ScheduleType) == scheduledsdk.ScheduleManual {
+		return fmt.Errorf("%w: configure a schedule before enabling a manual task", scheduledsdk.ErrInvalidRequest)
+	}
 	nextRunAt, err := nextRunForTask(task, s.now())
 	if err != nil {
 		return err

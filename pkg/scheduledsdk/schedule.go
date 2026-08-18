@@ -9,9 +9,10 @@ import (
 type ScheduleType string
 
 const (
-	ScheduleAt    ScheduleType = "atime"
-	ScheduleCron  ScheduleType = "cron"
-	ScheduleEvery ScheduleType = "every"
+	ScheduleManual ScheduleType = "manual"
+	ScheduleAt     ScheduleType = "atime"
+	ScheduleCron   ScheduleType = "cron"
+	ScheduleEvery  ScheduleType = "every"
 )
 
 type Schedule struct {
@@ -35,8 +36,14 @@ func Every(seconds int64) Schedule {
 	return Schedule{Type: ScheduleEvery, IntervalSeconds: seconds}
 }
 
+func Manual() Schedule {
+	return Schedule{Type: ScheduleManual}
+}
+
 func (s Schedule) Validate() error {
 	switch s.Type {
+	case ScheduleManual:
+		return nil
 	case ScheduleAt:
 		if s.RunAt.IsZero() {
 			return fmt.Errorf("%w: run_at is required for atime schedule", ErrInvalidRequest)

@@ -362,6 +362,47 @@ describe('useOperateLogSection', () => {
     }
   })
 
+  it('renders permission events as localized business actions', () => {
+    const scope = effectScope()
+
+    try {
+      const section = scope.run(() =>
+        useOperateLogSection({
+          fullCodePath: ref('/alice/ops'),
+          rowId: ref(0),
+          functionDetail: ref(null),
+          autoLoad: ref(false),
+          scope: ref('directory'),
+        }),
+      )!
+
+      const log = {
+        id: 23,
+        tenant_user: 'alice',
+        request_user: 'bob',
+        target_user: 'bob',
+        action: 'permission.request.created',
+        app: 'ops',
+        full_code_path: '/alice/ops/tickets.table',
+        row_id: 0,
+        resource_type: 'permission_request',
+        status: 'success',
+        summary: 'bob requested write on /alice/ops/tickets.table',
+        new_values_json: { requested_role: 'write' },
+        created_at: '2026-08-18T00:00:00Z',
+      }
+
+      expect(section.getActionLabel(log.action)).toBe('提交权限申请')
+      expect(section.getLogTitle(log)).toBe('提交权限申请')
+      expect(section.getLogSummary(log)).toBe('bob 申请了“可编辑”权限 · /alice/ops/tickets.table')
+      expect(section.actionOptions.value).toEqual(
+        expect.arrayContaining([{ label: '提交权限申请', value: 'permission.request.created' }]),
+      )
+    } finally {
+      scope.stop()
+    }
+  })
+
   it('syncs expanded log row keys from table expand changes', () => {
     const scope = effectScope()
 
