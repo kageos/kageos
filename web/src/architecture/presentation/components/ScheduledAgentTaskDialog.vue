@@ -6,7 +6,6 @@
     width="680px"
     destroy-on-close
     :close-on-click-modal="false"
-    :z-index="Z_INDEX.globalOverlay"
     @close="handleClose"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="104px">
@@ -29,7 +28,6 @@
         <el-select
           :model-value="form.llm_config_id"
           filterable
-          popper-class="scheduled-agent-dialog-popper"
           :placeholder="t('scheduledTask.defaultModel')"
           :loading="llmLoading"
           style="width: 100%"
@@ -103,7 +101,6 @@
         <el-date-picker
           v-model="form.run_at"
           type="datetime"
-          popper-class="scheduled-agent-dialog-popper"
           :placeholder="t('scheduledTask.runAtPlaceholder')"
           format="YYYY-MM-DD HH:mm"
           value-format="YYYY-MM-DD HH:mm:ss"
@@ -126,7 +123,7 @@
       </div>
 
       <el-form-item :label="t('scheduledTask.overlapPolicy')" prop="overlap_policy">
-        <el-select v-model="form.overlap_policy" popper-class="scheduled-agent-dialog-popper" style="width: 100%">
+        <el-select v-model="form.overlap_policy" style="width: 100%">
           <el-option :label="t('scheduledTask.overlapForbid')" value="forbid" />
           <el-option :label="t('scheduledTask.overlapQueueLatest')" value="queue_latest" />
           <el-option :label="t('scheduledTask.overlapAllow')" value="allow" />
@@ -165,7 +162,6 @@ import { createTimerTask, updateTimerTask, type TimerOverlapPolicy, type TimerTa
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
 import { useMiniWorkstationUploads } from '@/architecture/presentation/composables/useMiniWorkstationUploads'
-import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 import { createRelativeDateTimeShortcuts } from '@/architecture/shared/date'
 import MiniWorkstationComposer from './MiniWorkstationComposer.vue'
 import {

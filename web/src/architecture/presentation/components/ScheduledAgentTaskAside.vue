@@ -64,7 +64,6 @@
           <el-date-picker
             :model-value="runAt"
             type="datetime"
-            popper-class="scheduled-agent-dialog-popper"
             :placeholder="t('scheduledTask.runAtPlaceholder')"
             format="YYYY-MM-DD HH:mm"
             value-format="YYYY-MM-DD HH:mm:ss"
@@ -99,7 +98,7 @@
         </el-form-item>
 
         <el-form-item :label="t('scheduledTask.overlapPolicy')">
-          <el-select :model-value="overlapPolicy" popper-class="scheduled-agent-dialog-popper" style="width: 100%" @update:model-value="updateOverlapPolicy">
+          <el-select :model-value="overlapPolicy" style="width: 100%" @update:model-value="updateOverlapPolicy">
             <el-option :label="t('scheduledTask.overlapForbid')" value="forbid" />
             <el-option :label="t('scheduledTask.overlapQueueLatest')" value="queue_latest" />
             <el-option :label="t('scheduledTask.overlapAllow')" value="allow" />

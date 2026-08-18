@@ -151,9 +151,6 @@
       :show-arrow="false"
       :teleported="true"
       :persistent="false"
-      :z-index="4200"
-      strategy="fixed"
-      :popper-options="mentionPopperOptions"
       popper-class="spc-mention-popover"
     >
       <div
@@ -481,11 +478,6 @@ const mentionPopoverWidth = computed(() => {
   const rootWidth = rootRef.value?.getBoundingClientRect().width || 360
   return Math.max(300, Math.min(rootWidth, 520))
 })
-const mentionPopperOptions = computed(() => ({
-  modifiers: props.mentionPanelPlacement === 'above'
-    ? [{ name: 'flip', enabled: false }]
-    : [],
-}))
 const mentionVirtualRef = {
   getBoundingClientRect: () => mentionAnchorRect.value,
   get contextElement() {

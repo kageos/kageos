@@ -12,7 +12,6 @@ export const Z_INDEX = {
   imagePreview: 3000,
   floatingPopper: 10010,
   globalOverlay: 10040,
-  dialogPopper: 10050,
   criticalPreview: 10060,
   notification: 10120
 } as const

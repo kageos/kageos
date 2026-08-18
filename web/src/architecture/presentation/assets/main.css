@@ -6,7 +6,6 @@
   --aos-z-image-preview: 3000;
   --aos-z-floating-popper: 10010;
   --aos-z-global-overlay: 10040;
-  --aos-z-dialog-popper: 10050;
   --aos-z-critical-preview: 10060;
   --aos-z-notification: 10120;
 }
@@ -40,11 +39,6 @@
 
 .mini-workstation-tooltip-popper.el-popper {
   z-index: var(--aos-z-floating-popper) !important;
-}
-
-/* 数字员工弹窗内的选择器和日期面板必须高于 dialog overlay。 */
-.scheduled-agent-dialog-popper.el-popper {
-  z-index: var(--aos-z-dialog-popper) !important;
 }
 
 /* 全局消息不能被 mini 工作台挡住，例如网络错误、复制成功、校验失败。 */

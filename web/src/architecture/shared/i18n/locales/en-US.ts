@@ -1134,7 +1134,6 @@ export default {
     sessionCenterDesc: 'Current directory sessions are on the left. Recent cross-directory sessions are on the right.',
     newSession: 'New session',
     newSessionTitle: 'Start a new session in the current workbench directory',
-    expandEditor: 'Expand work instructions editor',
     openPrevious: 'Open previous',
     openSession: 'Open',
     openSessionTitle: 'Open: {title}',

@@ -26,7 +26,6 @@
       <el-select
         :model-value="llmConfigId"
         filterable
-        popper-class="scheduled-agent-dialog-popper"
         :placeholder="t('scheduledTask.defaultModel')"
         :loading="llmLoading"
         style="width: 100%"
@@ -242,7 +241,6 @@ function noopInputEnter() {}
 .detail-inline-composer {
   position: relative;
   width: 100%;
-  z-index: 2;
 }
 
 .detail-inline-composer.is-dragging {
@@ -263,14 +261,6 @@ function noopInputEnter() {}
 .detail-inline-composer :deep(.mini-structured-input .spc-preview) {
   min-height: 190px !important;
   max-height: 520px !important;
-}
-
-.detail-inline-composer :deep(.structured-prompt-composer.is-focused) {
-  z-index: 30;
-}
-
-.detail-inline-composer :deep(.spc-mention-panel) {
-  z-index: 2600;
 }
 
 .detail-inline-drop-hint {

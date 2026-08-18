@@ -1134,7 +1134,6 @@ export default {
     sessionCenterDesc: '左侧是当前目录会话，右侧是跨目录最近会话。',
     newSession: '新建会话',
     newSessionTitle: '在当前工作台目录新建会话',
-    expandEditor: '放大编辑工作说明',
     openPrevious: '打开上次',
     openSession: '打开',
     openSessionTitle: '打开：{title}',
