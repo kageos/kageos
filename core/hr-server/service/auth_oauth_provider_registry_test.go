@@ -27,6 +27,11 @@ func TestKageOSAuthProviderUsesFirstPartyEndpointsAndPKCE(t *testing.T) {
 	if config.Endpoint.AuthStyle != oauth2.AuthStyleInHeader {
 		t.Fatalf("auth style = %v, want HTTP Basic", config.Endpoint.AuthStyle)
 	}
+	options := factory.AuthCodeOptions(nil)
+	target := config.AuthCodeURL("state-value", options...)
+	if !strings.Contains(target, "prompt=login") {
+		t.Fatalf("authorization URL = %q, want prompt=login", target)
+	}
 }
 
 func TestRegisterOAuthLoginProviderRegistersSeedAndFactory(t *testing.T) {
