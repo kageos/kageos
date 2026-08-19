@@ -29,14 +29,16 @@ const (
 	EmailModeSMTP = "smtp"
 	EmailModeLog  = "log"
 
-	settingRegistrationMode = "auth.registration_mode"
-	settingEmailMode        = "email.mode"
-	settingSMTPHost         = "email.smtp.host"
-	settingSMTPPort         = "email.smtp.port"
-	settingSMTPUsername     = "email.smtp.username"
-	settingSMTPPassword     = "email.smtp.password"
-	settingSMTPFrom         = "email.smtp.from"
-	settingSMTPFromName     = "email.smtp.from_name"
+	settingRegistrationMode         = "auth.registration_mode"
+	settingEmailMode                = "email.mode"
+	settingSMTPHost                 = "email.smtp.host"
+	settingSMTPPort                 = "email.smtp.port"
+	settingSMTPUsername             = "email.smtp.username"
+	settingSMTPPassword             = "email.smtp.password"
+	settingSMTPFrom                 = "email.smtp.from"
+	settingSMTPFromName             = "email.smtp.from_name"
+	settingLoginAnnouncementEnabled = "auth.login_announcement.enabled"
+	settingLoginAnnouncementContent = "auth.login_announcement.content"
 )
 
 const (
@@ -66,6 +68,34 @@ func (s *SystemSettingsService) GetSettings() (*dto.SystemSettingsResp, error) {
 		RegistrationMode: s.registrationModeFrom(values, email.Mode),
 		Email:            email,
 	}, nil
+}
+
+func (s *SystemSettingsService) GetLoginAnnouncement() (*dto.LoginAnnouncement, error) {
+	values, err := s.repo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	return &dto.LoginAnnouncement{
+		Enabled:  values[settingLoginAnnouncementEnabled] == "true",
+		Markdown: values[settingLoginAnnouncementContent],
+	}, nil
+}
+
+func (s *SystemSettingsService) UpdateLoginAnnouncement(req dto.UpdateLoginAnnouncementReq, updatedBy string) (*dto.LoginAnnouncement, error) {
+	markdown := strings.TrimSpace(req.Markdown)
+	if len([]rune(markdown)) > 10000 {
+		return nil, fmt.Errorf("announcement markdown must not exceed 10000 characters")
+	}
+	if req.Enabled && markdown == "" {
+		return nil, fmt.Errorf("announcement markdown is required when enabled")
+	}
+	if err := s.repo.UpsertMany(map[string]string{
+		settingLoginAnnouncementEnabled: strconv.FormatBool(req.Enabled),
+		settingLoginAnnouncementContent: markdown,
+	}, updatedBy); err != nil {
+		return nil, err
+	}
+	return s.GetLoginAnnouncement()
 }
 
 func (s *SystemSettingsService) UpdateSettings(req dto.UpdateSystemSettingsReq, updatedBy string) (*dto.SystemSettingsResp, error) {

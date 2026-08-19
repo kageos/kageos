@@ -127,7 +127,7 @@ describe('useMiniWorkstationPendingInteraction', () => {
     expect(recordWorkspaceInteractionEventMock).not.toHaveBeenCalled()
   })
 
-  it('sends through build repair interactions without duplicating the user message', async () => {
+  it('ignores retired build repair interactions from historical artifacts', async () => {
     const { api } = createHarness([
       assistantWithArtifact({
         kind: 'agent_app_build_failure',
@@ -141,13 +141,10 @@ describe('useMiniWorkstationPendingInteraction', () => {
       })
     ])
 
-    expect(api.composerBlocked.value).toBe(false)
-    await expect(api.handleBeforeSend({ text: '我来继续改', files: null })).resolves.toMatchObject({
-      interactionAction: 'continue_development'
-    })
-
-    expect(recordWorkspaceInteractionEventMock).not.toHaveBeenCalled()
     expect(api.pendingInteraction.value).toBeNull()
+    expect(api.composerBlocked.value).toBe(false)
+    await expect(api.handleBeforeSend({ text: '我来继续改', files: null })).resolves.toBe(false)
+    expect(recordWorkspaceInteractionEventMock).not.toHaveBeenCalled()
   })
 
   it('unblocks the composer immediately after confirming a PRD', async () => {

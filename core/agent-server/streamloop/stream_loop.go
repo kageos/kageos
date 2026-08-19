@@ -20,7 +20,6 @@ const (
 	EventGenerationAttempt     = dto.WorkspaceStreamEventGenerationAttempt
 	EventToolCallsStreamDelta  = dto.WorkspaceStreamEventToolCallsStreamDelta // 增量+节流，节省带宽
 	EventError                 = dto.WorkspaceStreamEventError
-	MaxToolRounds              = 100 // 最大工具调用轮数，防止无限循环；过小易中断，过大增加耗时与成本
 	maxContextReductionRetries = 4
 	maxOutputLimitRetries      = 1
 
@@ -29,21 +28,33 @@ const (
 	throttleSizeChars  = 200 // 累积 delta 超过 200 字
 )
 
-// RunStreamLoop 流式工具对话循环：从 BuildMessages 开始，调 LLM 流式，若有 tool_calls 则执行并递归，否则结束
-func RunStreamLoop(ctx context.Context, deps StreamLoopDeps) error {
-	return runStreamLoopRound(ctx, deps, 0, nil, nil)
+type streamLoopRoundResult struct {
+	summaries []ToolCallSummary
+	usage     *llms.Usage
+	done      bool
 }
 
-func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, previousSummaries []ToolCallSummary, previousUsage *llms.Usage) error {
-	if err := ctx.Err(); err != nil {
-		return err
+// RunStreamLoop 流式工具对话循环：从 BuildMessages 开始，调 LLM 流式，若有 tool_calls 则执行并继续，否则结束。
+// 工具轮数不设固定上限；循环由任务完成、上下文取消或真实错误终止。
+func RunStreamLoop(ctx context.Context, deps StreamLoopDeps) error {
+	var previousSummaries []ToolCallSummary
+	var previousUsage *llms.Usage
+	for round := 0; ; round++ {
+		result, err := runStreamLoopRound(ctx, deps, round, previousSummaries, previousUsage)
+		if err != nil {
+			return err
+		}
+		if result.done {
+			return nil
+		}
+		previousSummaries = result.summaries
+		previousUsage = result.usage
 	}
-	if round >= MaxToolRounds {
-		logger.Warnf(ctx, "[StreamLoop] 达到最大工具调用轮数 %d，停止循环", MaxToolRounds)
-		// 发一句提示，避免前端“戛然而止”显得乱
-		deps.SendEvent(EventContent, &contentData{Content: "\n\n---\n已达到本轮最大工具调用次数，如需继续请再次发送消息。"})
-		deps.OnDone(previousSummaries, previousUsage)
-		return nil
+}
+
+func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, previousSummaries []ToolCallSummary, previousUsage *llms.Usage) (streamLoopRoundResult, error) {
+	if err := ctx.Err(); err != nil {
+		return streamLoopRoundResult{}, err
 	}
 
 	var content string
@@ -59,10 +70,10 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 		msgs, tools, err := deps.BuildMessages(ctx)
 		if err != nil {
 			deps.SendEvent(EventError, &errorData{Message: err.Error()})
-			return err
+			return streamLoopRoundResult{}, err
 		}
 		if err := ctx.Err(); err != nil {
-			return err
+			return streamLoopRoundResult{}, err
 		}
 		client, chatReq, err := deps.PrepareLLM(ctx, msgs, tools)
 		if err != nil {
@@ -72,10 +83,10 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 				continue
 			}
 			deps.SendEvent(EventError, &errorData{Message: err.Error()})
-			return err
+			return streamLoopRoundResult{}, err
 		}
 		if err := ctx.Err(); err != nil {
-			return err
+			return streamLoopRoundResult{}, err
 		}
 		attemptID := fmt.Sprintf("%d-%d", round, attempt+1)
 		deps.SendEvent(EventGenerationAttempt, &dto.WorkspaceStreamGenerationAttempt{AttemptID: attemptID, Round: round, Action: "started"})
@@ -88,7 +99,7 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 				continue
 			}
 			deps.SendEvent(EventError, &errorData{Message: "LLM 调用失败: " + err.Error()})
-			return err
+			return streamLoopRoundResult{}, err
 		}
 
 		var attemptUsage *llms.Usage
@@ -129,7 +140,7 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 				err = actionableOutputLimitError(outputLimitErr, chatReq.MaxTokens, outputLimitRetries > 0)
 			}
 			deps.SendEvent(EventError, &errorData{Message: err.Error()})
-			return err
+			return streamLoopRoundResult{}, err
 		}
 		content = committedContentPrefix + content
 		thinkingContent = joinOutputThinking(committedThinkingPrefix, thinkingContent)
@@ -143,24 +154,24 @@ func runStreamLoopRound(ctx context.Context, deps StreamLoopDeps, round int, pre
 		if err := deps.SaveAssistantMessageWithToolCalls(ctx, content, thinkingContent, allToolCalls, usage); err != nil {
 			logger.Warnf(ctx, "[StreamLoop] 保存 assistant 消息失败: %v", err)
 			deps.SendEvent(EventError, &errorData{Message: "保存 assistant 消息失败: " + err.Error()})
-			return err
+			return streamLoopRoundResult{}, err
 		}
 		summaries, err := deps.ExecuteToolCalls(ctx, allToolCalls, round, deps.SendEvent)
 		if err != nil {
 			if ctx.Err() == nil {
 				deps.SendEvent(EventError, &errorData{Message: err.Error()})
 			}
-			return err
+			return streamLoopRoundResult{}, err
 		}
 		combined := append(previousSummaries, summaries...)
-		return runStreamLoopRound(ctx, deps, round+1, combined, combinedUsage)
+		return streamLoopRoundResult{summaries: combined, usage: combinedUsage}, nil
 	}
 
 	if err := deps.SaveAssistantMessage(ctx, content, thinkingContent, usage); err != nil {
 		logger.Warnf(ctx, "[StreamLoop] 保存 assistant 消息失败: %v", err)
 	}
 	deps.OnDone(previousSummaries, combinedUsage)
-	return nil
+	return streamLoopRoundResult{summaries: previousSummaries, usage: combinedUsage, done: true}, nil
 }
 
 func requestContextReduction(ctx context.Context, deps StreamLoopDeps, err error) bool {

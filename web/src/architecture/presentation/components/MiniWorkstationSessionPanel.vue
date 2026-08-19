@@ -1,7 +1,7 @@
 <!--
   MiniWorkstationSessionPanel - 工作台「会话中心」抽屉
-  从 MiniWorkstation.vue 抽离：会话列表、目录范围切换、搜索、状态筛选、当前目录上下文切换。
-  纯展示组件：数据与展示用 helper 通过 props 传入，交互通过 emit 上抛（与同目录 Messages/Composer 子组件保持一致）。
+  从 MiniWorkstation.vue 抽离：会话列表、服务目录范围切换、搜索、状态筛选、当前服务目录上下文切换。
+  纯展示组件：数据与展示用 helper 通过 props 传入，交互通过 emit 上抛（与同服务目录 Messages/Composer 子组件保持一致）。
 -->
 <template>
   <aside class="mini-current-meta">

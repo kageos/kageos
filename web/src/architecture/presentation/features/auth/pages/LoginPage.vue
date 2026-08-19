@@ -3,19 +3,22 @@ import { computed, onBeforeUnmount, onMounted, ref, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { User, Lock, Check, Loading } from '@element-plus/icons-vue'
+import { ArrowRight, InfoFilled, User, Lock, Check, Loading } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import type { LoginRequest } from '@/architecture/domain/types'
 import {
   completeWechatLoginAttempt,
   createWechatLoginAttempt,
+  getLoginAnnouncement,
   listLoginMethods,
+  type LoginAnnouncement,
   type WechatLoginAttempt,
   type LoginMethodInfo
 } from '@/architecture/presentation/context/api/auth'
 import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
 import { BRAND_LOGO_192_URL } from '@/architecture/domain/utils/builtinUserAvatar'
 import LegalConsent from '@/architecture/presentation/features/legal/components/LegalConsent.vue'
+import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 
 const router = useRouter()
 const route = useRoute()
@@ -35,11 +38,23 @@ const loginFormRef = ref()
 const loading = ref(false)
 const methodsLoading = ref(false)
 const loginMethods = ref<LoginMethodInfo[]>([])
+const loginAnnouncement = ref<LoginAnnouncement | null>(null)
+const announcementDialogVisible = ref(false)
 const wechatDialogVisible = ref(false)
 const wechatAttempt = ref<WechatLoginAttempt | null>(null)
 const wechatLoading = ref(false)
 const wechatStatus = ref<'idle' | 'waiting' | 'error'>('idle')
 let wechatPollTimer: number | undefined
+const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
+
+const announcementSummary = computed(() => {
+  const markdown = loginAnnouncement.value?.markdown || ''
+  return markdown
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[#>*_`~\[\]()|!-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+})
 
 // 表单验证规则
 const rules = computed(() => ({
@@ -82,6 +97,15 @@ const loadLoginMethods = async () => {
     loginMethods.value = []
   } finally {
     methodsLoading.value = false
+  }
+}
+
+const loadLoginAnnouncement = async () => {
+  try {
+    const announcement = await getLoginAnnouncement()
+    loginAnnouncement.value = announcement.enabled && announcement.markdown ? announcement : null
+  } catch {
+    loginAnnouncement.value = null
   }
 }
 
@@ -212,6 +236,8 @@ const handleKeyPress = (event: KeyboardEvent) => {
 
 onMounted(() => {
   loadLoginMethods()
+  loadLoginAnnouncement()
+  preloadMarkdown()
   if (typeof route.query.oauth_error === 'string' && route.query.oauth_error) {
     ElMessage.error(route.query.oauth_error)
   }
@@ -290,6 +316,23 @@ onBeforeUnmount(clearWechatPolling)
           <h2 class="login-title">{{ t('auth.loginTitle') }}</h2>
           <p class="login-subtitle">{{ t('auth.loginSubtitle') }}</p>
         </div>
+
+        <button
+          v-if="loginAnnouncement"
+          type="button"
+          class="login-announcement"
+          @click="announcementDialogVisible = true"
+        >
+          <el-icon class="login-announcement-icon"><InfoFilled /></el-icon>
+          <span class="login-announcement-copy">
+            <strong>{{ t('auth.loginAnnouncementDefaultTitle') }}</strong>
+            <span>{{ announcementSummary }}</span>
+          </span>
+          <span class="login-announcement-action">
+            {{ t('auth.viewLoginAnnouncement') }}
+            <el-icon><ArrowRight /></el-icon>
+          </span>
+        </button>
 
         <el-form
           ref="loginFormRef"
@@ -380,6 +423,19 @@ onBeforeUnmount(clearWechatPolling)
         </el-form>
       </div>
     </div>
+
+    <el-dialog
+      v-model="announcementDialogVisible"
+      :title="t('auth.loginAnnouncementDefaultTitle')"
+      width="min(640px, calc(100vw - 32px))"
+      align-center
+      class="login-announcement-dialog"
+    >
+      <div
+        class="login-announcement-markdown"
+        v-html="renderMarkdown(loginAnnouncement?.markdown || '')"
+      />
+    </el-dialog>
 
     <el-dialog
       v-model="wechatDialogVisible"
@@ -732,6 +788,113 @@ onBeforeUnmount(clearWechatPolling)
 
 .login-form {
   margin-bottom: 32px;
+}
+
+.login-announcement {
+  margin: -24px 0 24px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  color: var(--auth-text);
+  text-align: left;
+  background: rgba(22, 119, 255, 0.055);
+  border: 1px solid rgba(22, 119, 255, 0.16);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.login-announcement:hover {
+  background: rgba(22, 119, 255, 0.085);
+  border-color: rgba(22, 119, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.login-announcement:focus-visible {
+  outline: 3px solid rgba(22, 119, 255, 0.2);
+  outline-offset: 2px;
+}
+
+.login-announcement-icon {
+  flex: 0 0 auto;
+  font-size: 20px;
+  color: var(--auth-accent);
+}
+
+.login-announcement-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.login-announcement-copy strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.login-announcement-copy > span {
+  overflow: hidden;
+  color: var(--auth-text-soft);
+  font-size: 13px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.login-announcement-action {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 3px;
+  color: var(--auth-accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.login-announcement-markdown {
+  color: var(--el-text-color-primary);
+  font-size: 15px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.login-announcement-markdown :deep(:first-child) {
+  margin-top: 0;
+}
+
+.login-announcement-markdown :deep(:last-child) {
+  margin-bottom: 0;
+}
+
+.login-announcement-markdown :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.login-announcement-markdown :deep(th),
+.login-announcement-markdown :deep(td) {
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--el-border-color-light);
+}
+
+.login-announcement-markdown :deep(th) {
+  background: var(--el-fill-color-light);
+}
+
+.login-announcement-markdown :deep(code) {
+  padding: 2px 6px;
+  background: var(--el-fill-color-light);
+  border-radius: 5px;
+}
+
+@media (max-width: 640px) {
+  .login-announcement-action {
+    font-size: 0;
+  }
 }
 
 .form-input {

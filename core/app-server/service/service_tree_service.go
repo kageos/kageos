@@ -48,6 +48,7 @@ func NewServiceTreeService(
 	appService *AppService,
 	docService *DocService,
 	permissionService *PermissionService,
+	taskReconciler *ScheduledTaskReconciler,
 ) *ServiceTreeService {
 	runtimeWorkspace := newRuntimeWorkspaceBridge(appRepo, appCall)
 	queryView := newServiceTreeQueryView(serviceTreeRepo, appRepo, permissionService)
@@ -58,7 +59,7 @@ func NewServiceTreeService(
 		workspaceService:   newServiceTreeWorkspaceService(serviceTreeRepo, fileSnapshotRepo, runtimeWorkspace, queryView),
 		searchService:      newServiceTreeSearchService(serviceTreeRepo, permissionService),
 		copyService:        newServiceTreeCopyService(serviceTreeRepo, appRepo, runtimeWorkspace, appService, capabilityBundle),
-		mutationService:    newServiceTreeMutationService(serviceTreeRepo, appRepo, runtimeWorkspace, docService),
+		mutationService:    newServiceTreeMutationService(serviceTreeRepo, appRepo, runtimeWorkspace, docService, taskReconciler),
 		specialNodeService: newServiceTreeSpecialNodeService(serviceTreeRepo, appRepo, docService),
 		functionService:    newServiceTreeFunctionService(serviceTreeRepo, appRepo, appService),
 		packageService:     newServiceTreePackageService(serviceTreeRepo, appRepo, runtimeWorkspace),

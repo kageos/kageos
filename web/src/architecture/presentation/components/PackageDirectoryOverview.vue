@@ -18,7 +18,7 @@
         { 'is-expanded': agentRosterExpanded },
       ]"
       data-testid="agent-presence-float"
-      aria-label="本目录数字员工"
+      aria-label="本服务目录数字员工"
     >
       <div class="agent-presence-head">
         <span class="agent-presence-title">
@@ -284,7 +284,7 @@
               <span class="task-row-main">
                 <span class="task-row-title">
                   {{ item.task.title || t('scheduledTask.unnamedAgentTask') }}
-                  <el-tag v-if="item.builtin" size="small" type="info" effect="plain">目录内置</el-tag>
+                  <el-tag v-if="item.builtin" size="small" type="info" effect="plain">服务目录内置</el-tag>
                   <el-tag v-else size="small" type="success" effect="plain">自定义</el-tag>
                   <el-tag
                     v-if="item.task.inflight_execution_id"

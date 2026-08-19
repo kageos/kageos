@@ -32,7 +32,8 @@ type buildWorkspaceResultData struct {
 	BuildTrace       *dto.BuildTrace            `json:"build_trace,omitempty" schema_desc:"构建/更新阶段耗时追踪"`
 	Error            string                     `json:"error,omitempty" schema_desc:"构建失败摘要"`
 	BuildDiagnostics *workspaceBuildDiagnostics `json:"build_diagnostics,omitempty" schema_desc:"构建失败诊断和修复策略"`
-	Interaction      *workspaceStageInteraction `json:"interaction,omitempty" schema_desc:"构建失败后的修复交互状态"`
+	NextRole         string                     `json:"next_role" schema_desc:"构建结果要求立即进入的下一角色：成功为 qa_engineer，失败为 build_engineer" schema_required:"true"`
+	AutoContinue     bool                       `json:"auto_continue" schema_desc:"是否无需用户确认、应在当前会话自动继续下一阶段" schema_required:"true"`
 }
 
 type workspaceBuildDiagnostics struct {
@@ -65,7 +66,7 @@ var workspaceBuildFieldIssueRe = regexp.MustCompile(`field\s+([A-Za-z0-9_]+)\s+\
 
 var buildWorkspaceToolDef = toolDefinitionWithOutput[buildWorkspaceArgs, structuredToolResultSchema[buildWorkspaceResultData]](
 	"build_workspace",
-	"编译当前工作空间（Go 应用）。不写文件，仅基于当前已落盘的代码触发一次编译并部署。调用前必须先由当前模型完成 build 前代码审查，并在参数中提交 pre_build_review 和 review_passed=true；审查重点包括 PRD/用户需求对照、可见入口到后端逻辑闭环、伪代码/占位/开发中返回、PRD 外擅自新增功能、数据库 SQL 参数化和写入/删除影响面。审查未通过、未审或发现问题时先修复，不得调用 build_workspace。构建成功后返回 agent_app_build 阶段产物，不等待用户确认，必须立即 change_role 到 qa_engineer 测试工程师并按目标目录函数 schema 自动测试；构建失败后返回 agent_app_build_failure、build_diagnostics 和 pending_build_repair 交互状态，前端应提示是否交接给 build_engineer。构建失败时不要交接测试，也不要凭直觉反复重写。先完整阅读错误，按 router/字段/文件定位同类问题；不清楚 SDK schema、widget、callback、审计字段或 API 写法时，先 read_doc /system/prompt/sdk/reference/build-validation、SDK 主文档或匹配案例，再批量修复后重新 build。",
+	"编译当前工作空间（Go 应用）。不写文件，仅基于当前已落盘的代码触发一次编译并部署。调用前必须先由当前模型完成 build 前代码审查，并在参数中提交 pre_build_review 和 review_passed=true；审查重点包括 PRD/用户需求对照、可见入口到后端逻辑闭环、伪代码/占位/开发中返回、PRD 外擅自新增功能、数据库 SQL 参数化和写入/删除影响面。审查未通过、未审或发现问题时先修复，不得调用 build_workspace。构建成功后返回 agent_app_build 阶段产物，不等待用户确认，必须立即 change_role 到 qa_engineer 测试工程师并按目标目录函数 schema 自动测试；构建失败后返回 agent_app_build_failure 和 build_diagnostics，必须直接 change_role 到 build_engineer 继续修复，不等待用户确认，也不生成暂停交互。构建失败时不要交接测试，也不要凭直觉反复重写。先完整阅读错误，按 router/字段/文件定位同类问题；不清楚 SDK schema、widget、callback、审计字段或 API 写法时，先 read_doc /system/prompt/sdk/reference/build-validation、SDK 主文档或匹配案例，再批量修复后重新 build。",
 )
 
 func (t *BuildWorkspaceTool) Definition() dto.ToolDef {
@@ -136,6 +137,8 @@ func buildWorkspaceSuccessResult(workspacePath string, resp *dto.UpdateAppResp) 
 		WorkspacePath: strings.TrimSpace(workspacePath),
 		User:          user,
 		App:           app,
+		NextRole:      WorkspaceRoleQAEngineer,
+		AutoContinue:  true,
 	}
 	if resp == nil {
 		return result
@@ -165,7 +168,8 @@ func buildWorkspaceFailureResult(workspacePath string, errText string) buildWork
 		App:              app,
 		Error:            compactText(errText, 700),
 		BuildDiagnostics: buildWorkspaceDiagnostics(errText, workspacePath),
-		Interaction:      pendingBuildRepairInteraction(),
+		NextRole:         WorkspaceRoleBuildEngineer,
+		AutoContinue:     true,
 	}
 }
 

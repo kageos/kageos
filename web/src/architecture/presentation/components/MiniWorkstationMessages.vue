@@ -909,7 +909,11 @@ function getInteractionCardsFromCalls(calls: ChatMessageToolCall[]): WorkspaceIn
   const interactions: WorkspaceInteraction[] = []
   for (const call of calls) {
     const interaction = buildWorkspaceInteractionFromArtifact(call.result_data)
-    if (interaction) interactions.push(interaction)
+    // PRD confirmation is the only user-facing stage interaction. Build errors
+    // and every other process state continue automatically without a pause card.
+    if (interaction?.card_type === 'prd_confirmation' && interaction.artifact_kind === 'agent_app_prd') {
+      interactions.push(interaction)
+    }
   }
   return interactions
 }

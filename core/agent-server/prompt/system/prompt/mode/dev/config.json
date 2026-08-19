@@ -3,8 +3,6 @@
   "description": "生成、修改、构建、验证工作台应用，也可操作已有函数",
   "tool_names": [
     "change_role",
-    "summarize_task_state",
-    "read_workspace_artifact",
     "search_session_history",
     "read_session_messages",
     "read_file",

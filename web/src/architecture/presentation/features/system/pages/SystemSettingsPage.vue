@@ -107,6 +107,37 @@
 
           <div v-else-if="activeTab === 'login'" class="section-pane">
             <div v-loading="providersLoading" class="login-provider-section">
+              <div class="login-announcement-panel">
+                <div class="login-announcement-heading">
+                  <div>
+                    <h4>{{ t('systemSettings.loginAnnouncementTitle') }}</h4>
+                    <p>{{ t('systemSettings.loginAnnouncementDesc') }}</p>
+                  </div>
+                  <el-switch
+                    v-model="loginAnnouncement.enabled"
+                    :active-text="t('systemSettings.on')"
+                    :inactive-text="t('systemSettings.off')"
+                  />
+                </div>
+                <el-form label-width="96px">
+                  <el-form-item :label="t('systemSettings.loginAnnouncementMarkdown')">
+                    <el-input
+                      v-model="loginAnnouncement.markdown"
+                      type="textarea"
+                      :rows="8"
+                      maxlength="10000"
+                      show-word-limit
+                      :placeholder="t('systemSettings.loginAnnouncementMarkdownPlaceholder')"
+                    />
+                  </el-form-item>
+                  <div class="login-announcement-actions">
+                    <el-button type="primary" :icon="Check" :loading="announcementSaving" @click="saveLoginAnnouncement">
+                      {{ t('systemSettings.saveLoginAnnouncement') }}
+                    </el-button>
+                  </div>
+                </el-form>
+              </div>
+
               <div class="provider-summary">
                 <div class="summary-item">
                   <span class="summary-value">{{ authProviders.length }}</span>
@@ -341,15 +372,18 @@ import OpenAPITokenManagementPage from '@/architecture/presentation/features/age
 import SystemUserManagementPage from '@/architecture/presentation/features/system/pages/SystemUserManagementPage.vue'
 import {
   getSystemSettings,
+  getLoginAnnouncementConfig,
   listAuthLoginProviders,
   listLogArchiveBatches,
   updateSystemSettings,
+  updateLoginAnnouncementConfig,
   updateAuthLoginProviderConfig,
   updateAuthLoginProviderEnabled,
   testSystemEmail,
   type AuthLoginProviderField,
   type AuthLoginProviderInfo,
   type LogArchiveBatch,
+  type LoginAnnouncement,
   type SystemSettings
 } from '@/architecture/presentation/context/api/system-settings'
 
@@ -379,10 +413,12 @@ const archiveRetentionDays = ref(90)
 const archiveCronExpr = ref('20 3 * * *')
 const archiveTimezone = ref('Asia/Shanghai')
 const providersLoading = ref(false)
+const announcementSaving = ref(false)
 const authProviders = ref<AuthLoginProviderInfo[]>([])
 const providerConfigs = reactive<Record<string, Record<string, string>>>({})
 const providerSaving = reactive<Record<string, boolean>>({})
 const providerSwitching = reactive<Record<string, boolean>>({})
+const loginAnnouncement = reactive<LoginAnnouncement>({ enabled: false, markdown: '' })
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
@@ -488,13 +524,41 @@ async function loadSettings() {
 async function loadAuthProviders() {
   providersLoading.value = true
   try {
-    const resp = await listAuthLoginProviders()
-    authProviders.value = resp.providers || []
-    authProviders.value.forEach(applyProviderConfigDraft)
-  } catch (error: any) {
-    ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.loadAuthProvidersFailed'))
+    const [providersResult, announcementResult] = await Promise.allSettled([
+      listAuthLoginProviders(),
+      getLoginAnnouncementConfig(),
+    ])
+    if (providersResult.status === 'fulfilled') {
+      authProviders.value = providersResult.value.providers || []
+      authProviders.value.forEach(applyProviderConfigDraft)
+    } else {
+      const error: any = providersResult.reason
+      ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.loadAuthProvidersFailed'))
+    }
+    if (announcementResult.status === 'fulfilled') {
+      Object.assign(loginAnnouncement, announcementResult.value)
+    } else {
+      const error: any = announcementResult.reason
+      ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.loginAnnouncementLoadFailed'))
+    }
   } finally {
     providersLoading.value = false
+  }
+}
+
+async function saveLoginAnnouncement() {
+  if (loginAnnouncement.enabled && !loginAnnouncement.markdown.trim()) {
+    ElMessage.warning(t('systemSettings.loginAnnouncementContentRequired'))
+    return
+  }
+  announcementSaving.value = true
+  try {
+    Object.assign(loginAnnouncement, await updateLoginAnnouncementConfig({ ...loginAnnouncement }))
+    ElMessage.success(t('systemSettings.loginAnnouncementSaved'))
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.loginAnnouncementSaveFailed'))
+  } finally {
+    announcementSaving.value = false
   }
 }
 
@@ -994,6 +1058,38 @@ onMounted(() => {
   flex-direction: column;
   gap: 16px;
   min-height: 160px;
+}
+
+.login-announcement-panel {
+  padding: 18px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background: var(--el-bg-color);
+}
+
+.login-announcement-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.login-announcement-heading h4 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.login-announcement-heading p {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.login-announcement-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .provider-summary {

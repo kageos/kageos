@@ -304,11 +304,16 @@ func workspaceInteractionSessionStatusFromResultData(resultData interface{}) str
 		return ""
 	}
 	var payload struct {
+		Kind        string `json:"kind"`
 		Interaction *struct {
-			Status string `json:"status"`
+			Status   string `json:"status"`
+			CardType string `json:"card_type"`
 		} `json:"interaction"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil || payload.Interaction == nil {
+		return ""
+	}
+	if strings.TrimSpace(payload.Kind) != "agent_app_prd" || strings.TrimSpace(payload.Interaction.CardType) != "prd_confirmation" {
 		return ""
 	}
 	return normalizeWorkspacePendingInteractionStatus(payload.Interaction.Status)
@@ -318,8 +323,6 @@ func normalizeWorkspacePendingInteractionStatus(status string) string {
 	switch strings.TrimSpace(status) {
 	case model.ChatSessionStatusPendingConfirmation:
 		return model.ChatSessionStatusPendingConfirmation
-	case model.ChatSessionStatusPendingBuildRepair:
-		return model.ChatSessionStatusPendingBuildRepair
 	default:
 		return ""
 	}

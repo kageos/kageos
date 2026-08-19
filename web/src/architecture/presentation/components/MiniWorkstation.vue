@@ -425,7 +425,7 @@ function registerInputRef(element: { focus: () => void } | null) {
   inputRef.value = element || undefined
 }
 
-// 首条用户消息摘要，用于同目录多 Mini 时区分（如「分析数据」「帮我把xxx改成」）
+// 首条用户消息摘要，用于同服务目录多 Mini 时区分（如「分析数据」「帮我把xxx改成」）
 const firstUserMessagePreview = computed(() => {
   const first = messages.value?.find(m => m.role === 'user')
   const content = typeof first?.content === 'string' ? first.content.trim() : ''

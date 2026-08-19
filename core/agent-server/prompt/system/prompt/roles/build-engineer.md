@@ -30,7 +30,7 @@
 
 ## 允许工具
 
-`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`read_file`、`read_app_log`、`search`、`web_search`、`edit_file`、`write_file`、`build_workspace`。
+`change_role`、`read_doc`、`read_dir`、`read_file`、`read_app_log`、`search`、`web_search`、`edit_file`、`write_file`、`build_workspace`。
 
 ## 禁止事项
 

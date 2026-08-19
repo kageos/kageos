@@ -1,5 +1,5 @@
 <template>
-  <div :class="['mini-interaction-gate', { 'is-readonly': readonly }]" :data-testid="dataTestId">
+  <div v-if="isPrdConfirmation" :class="['mini-interaction-gate', { 'is-readonly': readonly }]" :data-testid="dataTestId">
     <div class="mini-interaction-icon">
       <el-icon :size="readonly ? 18 : 24">
         <component :is="statusIcon" />
@@ -90,6 +90,9 @@ const revisionText = ref('')
 const { t } = useI18n()
 
 const cardType = computed(() => props.interaction.card_type || 'stage_confirmation')
+const isPrdConfirmation = computed(() => {
+  return cardType.value === 'prd_confirmation' && props.interaction.artifact_kind === 'agent_app_prd'
+})
 const title = computed(() => props.interaction.title || defaultTitle(cardType.value))
 const description = computed(() => {
   return props.interaction.description ||

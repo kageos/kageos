@@ -51,7 +51,7 @@
               <span class="agent-session-item-title">
                 {{ task.title || t('scheduledTask.unnamedFunctionTask') }}
               </span>
-              <el-tag v-if="isBuiltinTask(task)" size="small" type="info" effect="plain">目录内置</el-tag>
+              <el-tag v-if="isBuiltinTask(task)" size="small" type="info" effect="plain">服务目录内置</el-tag>
               <el-tag v-else size="small" type="success" effect="plain">自定义</el-tag>
               <el-tag :type="taskStatusTag(task.status)" size="small" effect="light">
                 {{ taskStatusLabel(task.status) }}
@@ -200,7 +200,7 @@
                 <div class="detail-aside-card-head">
                   <div class="detail-aside-title">{{ t('scheduledTask.functionDetailTitle') }}</div>
                   <div class="detail-aside-tags">
-                    <el-tag v-if="isBuiltinTask(selectedTask)" type="info" effect="plain">目录内置</el-tag>
+                    <el-tag v-if="isBuiltinTask(selectedTask)" type="info" effect="plain">服务目录内置</el-tag>
                     <el-tag v-else type="success" effect="plain">自定义</el-tag>
                     <el-tag :type="taskStatusTag(selectedTask.status)" effect="light">
                       {{ taskStatusLabel(selectedTask.status) }}
@@ -547,7 +547,7 @@ async function handleResume(task: TimerTask) {
 
 async function handleCancel(task: TimerTask) {
   if (isBuiltinTask(task)) {
-    ElMessage.info('目录内置任务不能取消；可以暂停，或复制为自定义任务。')
+    ElMessage.info('服务目录内置任务不能取消；可以暂停，或复制为自定义任务。')
     return
   }
   try {
@@ -567,7 +567,7 @@ async function handleCancel(task: TimerTask) {
 
 async function handleDelete(task: TimerTask) {
   if (isBuiltinTask(task)) {
-    ElMessage.info('目录内置任务不能删除；可以暂停，或复制为自定义任务。')
+    ElMessage.info('服务目录内置任务不能删除；可以暂停，或复制为自定义任务。')
     return
   }
   try {
@@ -621,7 +621,7 @@ async function handleCopyAsCustom(task: TimerTask) {
     })
     try {
       await ElMessageBox.confirm(
-        '自定义副本已创建并保持暂停。为避免两份任务重复执行，是否同时暂停原来的目录内置任务？',
+        '自定义副本已创建并保持暂停。为避免两份任务重复执行，是否同时暂停原来的服务目录内置任务？',
         '复制完成',
         {
           type: 'warning',

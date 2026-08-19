@@ -282,6 +282,12 @@ scheduler 可以做的校验只限通用层：payload 必须是合法 JSON、大
 | 消费隔离 | NATS subject/queue group | 按 `executor_key` 分 subject 或 metadata route，不同 executor 不抢同一类任务 |
 | 配额隔离 | `executor_key + resource_scope + request_user` | 防止单个用户、目录节点或任务类型压垮系统 |
 
+资源生命周期规则：
+
+- 删除 Service Tree 节点时，app-server 必须先按 `resource_key` 路径前缀删除绑定到该节点及其后代的定时任务；任务清理失败时中止目录删除，避免产生仍会触发的孤儿任务。
+- app-server 启动后及每天本地时间 04:30 对账目录绑定任务。`app.function + function` 必须指向 function 节点，`agent.session + workspace_directory` 必须指向 package 节点；资源缺失或类型不匹配时直接删除任务。
+- 对账不处理未知 `executor_key/resource_scope` 组合。scheduler 仍不解析业务 payload，资源是否存在及类型是否正确由拥有 Service Tree 的 app-server 判断。
+
 ```mermaid
 flowchart TB
   Task["timer_task"] --> Type["executor_key\nwhat to run"]

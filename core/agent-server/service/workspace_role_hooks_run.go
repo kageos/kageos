@@ -14,7 +14,7 @@ func runWorkspacePRDToDeveloperHook(ctx context.Context, input workspaceRoleHook
 		return out
 	}
 	out.PRDExecutionMarkdown = markdown
-	note := "已根据 agent_app_prd JSON 生成开发执行视图；目标模型不接收来源会话完整历史。"
+	note := "已根据 agent_app_prd JSON 生成开发执行视图；当前会话完整历史持续保留，执行视图只用于突出开发重点。"
 	if sourceRole == "" {
 		note += " 来源角色未记录，按目标角色和产物类型兼容触发。"
 	}

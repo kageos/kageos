@@ -7,7 +7,7 @@
 - 项目名称写作 `kageos`。Go 包、路径、域名使用小写 `kageos`，环境变量使用 `KAGEOS_*`。
 - kageos 不是低价造应用工具，也不是要替代 Linux、macOS 这类传统操作系统。它更像业务能力的统一操作层：提供资源路径、运行时、权限、日志、任务、安装和分发。
 - 核心对象是目录：目录可以被人打开使用，可以被工作台按 schema 调用，可以被平台权限、审计、日志、定时、消息和版本治理。
-- 当前阶段重点是 namespace 场景包生态：把可运行、可试用、可安装、可派生、可发布的业务目录做扎实。
+- 当前阶段重点是 namespace 场景包生态：把可运行、可试用、可安装、可派生、可发布的服务目录做扎实。
 - 工作台增强能力只是目录的一种使用方式。它可以加速生成、改造、巡检和编排；没有它时，人仍然可以通过 UI 使用同一套目录能力。
 - 新能力优先复用现有平台横切层：Service Tree、权限、操作日志、站内信、定时任务、文件服务、app-runtime、agent-app SDK。不要为了单个场景自造一套通用平台能力。
 
@@ -114,13 +114,13 @@ kageos 里的统一不只发生在后端。企业软件的学习成本，很大�
 
 kageos 把体验层也收进同一套资源模型里。Form、Table、Chart、Docs、Function 不是各自随便长出来的页面，而是由 SDK schema、Widget 配置和平台组件共同渲染。目录挂在同一棵 Service Tree 上，表单遵守同一套字段描述和校验逻辑，表格遵守同一套查询、编辑和展示协议，图表遵守同一套数据结构，消息和定时任务也回到同一套平台入口。
 
-这意味着企业新增一个业务目录时，用户不需要重新学习一个新软件的世界观。它在熟悉的位置出现，用熟悉的组件呈现，按熟悉的权限和日志规则运行。对使用者来说，这是降低学习成本；对管理者来说，这是降低培训、运维和治理成本；对平台来说，这是让能力持续积累而不是持续分裂。
+这意味着企业新增一个服务目录时，用户不需要重新学习一个新软件的世界观。它在熟悉的位置出现，用熟悉的组件呈现，按熟悉的权限和日志规则运行。对使用者来说，这是降低学习成本；对管理者来说，这是降低培训、运维和治理成本；对平台来说，这是让能力持续积累而不是持续分裂。
 
 更重要的是，kageos 不把项目理解押在某个开发者个人身上。传统黑盒项目常常在开发者离职后变成遗迹：能跑，但没人敢改；有代码，但没人知道为什么这么写；有数据，但没人知道字段到底代表什么。kageos 要把理解沉淀在目录结构、函数 schema、packageContext、文档、运行记录、版本 diff 和 Service Tree 里。
 
 在智能原生企业里，工作台会话可以沿着这些结构读取应用：它知道目录在哪里，函数如何注册，字段如何校验，数据如何访问，最近改了什么，运行失败在哪里。它不是靠猜，也不是靠某个人留下的口头说明，而是沿着平台提供的标准坐标理解业务能力。
 
-随着模型能力升级，这种结构化资产的价值会继续放大。同一份目录、schema、日志和版本历史，会被更强的工作台理解得更深、修复得更稳、编排得更自然。企业不用害怕某个人离开导致业务中断，因为真正的知识不再只藏在人的脑子里，而是沉淀在平台可读取、可验证、可治理的业务目录中。
+随着模型能力升级，这种结构化资产的价值会继续放大。同一份目录、schema、日志和版本历史，会被更强的工作台理解得更深、修复得更稳、编排得更自然。企业不用害怕某个人离开导致业务中断，因为真正的知识不再只藏在人的脑子里，而是沉淀在平台可读取、可验证、可治理的服务目录中。
 
 ## 产品价值观
 
@@ -236,8 +236,8 @@ namespace/<user>/<app>/
 | 工作台路径 | 磁盘含义 | 代码含义 |
 | --- | --- | --- |
 | `/<user>/<app>` | `namespace/<user>/<app>` | 一个独立 Go module 和工作空间应用 |
-| `/<user>/<app>/<package>` | `code/api/<package>` | 一个业务目录 package |
-| `/<user>/<app>/<package>/<child>` | `code/api/<package>/<child>` | 嵌套业务目录 package |
+| `/<user>/<app>/<package>` | `code/api/<package>` | 一个服务目录 package |
+| `/<user>/<app>/<package>/<child>` | `code/api/<package>/<child>` | 嵌套服务目录 package |
 | `/<user>/<app>/<package>/xxx.form` | SDK 注册的 Form 函数 | UI 可提交，工作台可调用 |
 | `/<user>/<app>/<package>/xxx.table` | SDK 注册的 Table 函数 | UI 可查表，工作台可查询/写入 |
 | `/<user>/<app>/<package>/xxx.chart` | SDK 注册的 Chart 函数 | UI 可看图，工作台可查询数据 |
@@ -318,9 +318,11 @@ namespace/<user>/<app>/code/api/<package>/xxx.go
 
 ### 删除目录
 
-删除 package 节点时，`app-server` 先找到节点所属 app，再调用 runtime 删除磁盘脚手架。runtime 会删除对应 `code/api/<package>` 目录，并从 `main.go` 移除该 package 的 blank import。
+删除 package 节点时，`app-server` 先按目录 `full_code_path` 级联删除绑定到该节点及子节点的定时任务；调度服务不可用或任务删除失败时，目录删除会失败并保留 Service Tree，不能静默留下继续触发的孤儿任务。任务清理成功后，`app-server` 找到节点所属 app，再调用 runtime 删除磁盘脚手架。runtime 会删除对应 `code/api/<package>` 目录，并从 `main.go` 移除该 package 的 blank import。
 
-随后 `app-server` 删除 Service Tree 节点及子树。删除源码和删除元数据是两件事：源码被移除后，还需要通过 build/update 让运行中的新版本彻底不再包含这批函数；否则旧版本容器仍可能保留上一版已经编译进去的能力。
+随后 `app-server` 删除 Service Tree 节点及子树。build/update 对账发现函数已从新版本移除时，也会先删除该函数绑定的定时任务，再删除函数节点。删除源码和删除元数据是两件事：源码被移除后，还需要通过 build/update 让运行中的新版本彻底不再包含这批函数；否则旧版本容器仍可能保留上一版已经编译进去的能力。
+
+app-server 启动后会先做一次孤儿定时任务对账，并在每天本地时间 04:30 再执行一次：`function/app.function` 任务必须指向真实 function 节点，`workspace_directory/agent.session` 任务必须指向真实 package 节点；路径不存在或节点类型不匹配的任务会直接删除。未知的资源范围和执行器不参与该对账，避免误删其他平台任务。
 
 删除整个工作空间时，runtime 会停止并移除该 app 的版本容器，删除 `namespace/<user>/<app>`，再清理 runtime app/version 记录；`app-server` 负责清理平台侧 app 和 Service Tree 元数据。
 
@@ -361,7 +363,7 @@ Service Tree 是平台理解目录的共同坐标。它把应用、目录、函�
 
 ## SDK 开发模型
 
-每个业务目录 package 都通过 `packageContext` 声明目录元数据：
+每个服务目录 package 都通过 `packageContext` 声明目录元数据：
 
 ```go
 package sample

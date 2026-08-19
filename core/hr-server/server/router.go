@@ -51,6 +51,8 @@ func (s *Server) setupRoutes() {
 	auth.POST("/openapi_token/validate", openAPITokenHandler.Validate)
 	authProviderHandler := v1.NewAuthLoginProvider(s.authProviderService)
 	auth.GET("/methods", authProviderHandler.PublicMethods)
+	loginAnnouncementHandler := v1.NewLoginAnnouncement(s.settingsService)
+	auth.GET("/login-announcement", loginAnnouncementHandler.PublicGet)
 
 	// 用户管理路由（需要JWT验证）
 	user := apiV1.Group("/user")
@@ -80,6 +82,11 @@ func (s *Server) setupRoutes() {
 	systemAuthProviders.GET("", authProviderHandler.List)
 	systemAuthProviders.PUT("/:code/config", authProviderHandler.UpdateConfig)
 	systemAuthProviders.PUT("/:code/enabled", authProviderHandler.SetEnabled)
+
+	systemAuth := apiV1.Group("/system/auth")
+	systemAuth.Use(jwtAuth)
+	systemAuth.GET("/login-announcement", loginAnnouncementHandler.Get)
+	systemAuth.PUT("/login-announcement", loginAnnouncementHandler.Update)
 
 	systemUsers := apiV1.Group("/system/users")
 	systemUsers.Use(jwtAuth)

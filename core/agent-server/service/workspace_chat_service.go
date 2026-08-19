@@ -22,7 +22,6 @@ import (
 const (
 	SourceWorkspace       = model.ChatSessionSourceWorkspace
 	SourceAutomationAgent = model.ChatSessionSourceAutomationAgent
-	MaxToolRounds         = 100 // 与 streamloop.MaxToolRounds 保持一致，仅作注释/文档用，实际以 streamloop 为准
 )
 
 // 工作台系统提示词与内置文档统一来自本地内嵌的 /system/prompt。

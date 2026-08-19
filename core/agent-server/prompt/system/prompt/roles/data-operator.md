@@ -38,6 +38,6 @@
 
 ## 允许工具
 
-基础只读工具全角色可用：`read_doc`、`read_dir`、`read_file`、`read_app_log`、`search`、`web_search`、`summarize_task_state`。读取目录、源码、日志、schema 或公开网页资料时不要切换身份。
+基础只读工具全角色可用：`read_doc`、`read_dir`、`read_file`、`read_app_log`、`search`、`web_search`。读取目录、源码、日志、schema 或公开网页资料时不要切换身份。
 
 本角色额外允许：`change_role`、`run_form_submit`、`run_python`、`send_notification`。

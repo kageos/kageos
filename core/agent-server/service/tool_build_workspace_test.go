@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -19,8 +20,8 @@ func TestBuildWorkspaceSuccessResultDoesNotBlockForTestConfirmation(t *testing.T
 	if got.Kind != workspaceBuildArtifactKind || got.WorkspacePath != "/liubeiluo/nps" || got.App != "nps" {
 		t.Fatalf("unexpected build result: %#v", got)
 	}
-	if got.Interaction != nil {
-		t.Fatalf("build success should not expose a pending test interaction: %#v", got.Interaction)
+	if got.NextRole != WorkspaceRoleQAEngineer || !got.AutoContinue {
+		t.Fatalf("successful build should continue directly to QA: %#v", got)
 	}
 	if len(got.Warnings) != 1 || got.Warnings[0] != "metadata sync delayed" {
 		t.Fatalf("warnings not copied: %#v", got.Warnings)
@@ -60,10 +61,20 @@ func TestBuildWorkspaceToolSchemaExposesStructuredResult(t *testing.T) {
 	if !ok {
 		t.Fatalf("data schema properties missing: %#v", data)
 	}
-	for _, name := range []string{"kind", "workspace_path", "app", "interaction"} {
+	for _, name := range []string{"kind", "workspace_path", "app", "build_diagnostics", "next_role", "auto_continue"} {
 		if _, ok := dataProps[name]; !ok {
 			t.Fatalf("build_workspace data schema should expose %q", name)
 		}
+	}
+	if _, ok := dataProps["interaction"]; ok {
+		t.Fatal("build_workspace data schema must not expose the retired build repair interaction")
+	}
+}
+
+func TestBuildWorkspaceFailureResultContinuesToBuildEngineer(t *testing.T) {
+	got := buildWorkspaceFailureResult("/liubeiluo/nps", "compile failed")
+	if got.NextRole != WorkspaceRoleBuildEngineer || !got.AutoContinue {
+		t.Fatalf("failed build should continue directly to build engineer: %#v", got)
 	}
 }
 
@@ -229,12 +240,12 @@ func TestBuildWorkspaceToolReturnsStructuredDataOnLocalError(t *testing.T) {
 	if data.Kind != workspaceBuildFailureKind || data.Status != "error" || data.BuildDiagnostics == nil {
 		t.Fatalf("unexpected build failure data: %#v", data)
 	}
-	if data.Interaction == nil ||
-		data.Interaction.Status != "pending_build_repair" ||
-		data.Interaction.TargetRoleOnConfirm != WorkspaceRoleBuildEngineer ||
-		data.Interaction.Blocking ||
-		!containsWorkspaceRoleString(data.Interaction.AllowedActions, "start_build_repair") {
-		t.Fatalf("unexpected build repair interaction: %#v", data.Interaction)
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		t.Fatalf("marshal build failure data: %v", err)
+	}
+	if strings.Contains(string(encoded), `"interaction"`) || strings.Contains(string(encoded), "pending_build_repair") {
+		t.Fatalf("build failure must not expose a repair pause interaction: %s", encoded)
 	}
 	if data.BuildDiagnostics.Status != "error" || !strings.Contains(data.BuildDiagnostics.ErrorSummary, "无法获取当前工作目录") {
 		t.Fatalf("unexpected diagnostics: %#v", data.BuildDiagnostics)

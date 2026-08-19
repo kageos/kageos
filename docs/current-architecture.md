@@ -627,7 +627,7 @@ flowchart LR
 | 边界 | 当前职责 |
 | --- | --- |
 | `api-gateway` | HTTP 反向代理、Trace、鉴权头透传、HR 会话校验短缓存、token 失效 NATS 订阅、Swagger 聚合 |
-| `app-server` | 工作区 API、Service Tree、能力包安装导出、权限、操作日志、函数元数据、用户 App 调用编排 |
+| `app-server` | 工作区 API、Service Tree、服务目录安装导出、权限、操作日志、函数元数据、用户 App 调用编排 |
 | `agent-server` | 工作台会话、会话消息、LLM 配置、ToolRegistry、PRD/代码生成、通知工具和 Agent 任务 worker |
 | `app-runtime` | App 创建/更新/删除、源码文件和版本元数据、容器生命周期、NATS runtime handler、App discovery |
 | `github.com/kageos/kageos-sdk/agent-app` | 生成 App 的运行时 SDK，注册 Form/Table/Chart/Callback 路由并通过 NATS 接收调用 |

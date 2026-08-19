@@ -45,6 +45,15 @@ func TestRetiredRouterToolsAreNotInMainRegistry(t *testing.T) {
 	}
 }
 
+func TestContextCompactionToolsAreNotInMainRegistry(t *testing.T) {
+	reg := NewToolRegistry()
+	for _, name := range []string{"read_workspace_artifact", "summarize_task_state"} {
+		if _, ok := reg.tools[name]; ok {
+			t.Fatalf("%s must not be exposed while workspace chat uses complete raw history", name)
+		}
+	}
+}
+
 func TestCodeEditToolsAreRegistered(t *testing.T) {
 	reg := NewToolRegistry()
 	for _, name := range []string{"read_file", "edit_file", "write_file"} {

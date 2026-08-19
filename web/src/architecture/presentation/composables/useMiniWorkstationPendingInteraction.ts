@@ -57,7 +57,7 @@ export function useMiniWorkstationPendingInteraction(options: UseMiniWorkstation
         const call = calls[j]
         if (!call) continue
         const interaction = buildWorkspaceInteractionFromArtifact(call.result_data)
-        if (!interaction) continue
+        if (interaction?.card_type !== 'prd_confirmation' || interaction.artifact_kind !== 'agent_app_prd') continue
         const key = getInteractionKey(interaction)
         if (handledInteractionKeys.value.has(key) || auditedInteractionKeys.has(key) || hasUnscopedAuditAfter) {
           return null

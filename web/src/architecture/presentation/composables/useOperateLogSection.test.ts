@@ -351,8 +351,8 @@ describe('useOperateLogSection', () => {
       }
 
       expect(section.getActionLabel(log.action)).toBe('创建')
-      expect(section.getLogTitle(log)).toBe('创建了目录')
-      expect(section.getLogSummary(log)).toBe('目录 /system/demos/meeting 已创建')
+      expect(section.getLogTitle(log)).toBe('创建了服务目录')
+      expect(section.getLogSummary(log)).toBe('服务目录 /system/demos/meeting 已创建')
       expect(section.getActionTagType(log.action)).toBe('success')
       expect(section.actionOptions.value).toEqual(
         expect.arrayContaining([{ label: '资源创建', value: 'service_tree.node.created' }]),

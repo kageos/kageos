@@ -18,7 +18,7 @@ function hasReadAccess(node: ServiceTree): boolean {
 }
 
 /**
- * 仅保留当前账号可读取的节点，同时保留通向可读后代的目录，避免树结构断裂。
+ * 仅保留当前账号可读取的节点，同时保留通向可读后代的服务目录，避免树结构断裂。
  */
 export function filterServiceTreeByReadAccess(nodes: ServiceTree[]): ServiceTree[] {
   return nodes.flatMap((node) => {
@@ -29,7 +29,7 @@ export function filterServiceTreeByReadAccess(nodes: ServiceTree[]): ServiceTree
 }
 
 /**
- * 将后端返回的节点直属申请数向祖先目录汇总。叶子保持自己的数量，父目录展示整棵子树总数。
+ * 将后端返回的节点直属申请数向祖先服务目录汇总。叶子保持自己的数量，父服务目录展示整棵子树总数。
  */
 export function aggregatePermissionRequestSummaries(
   nodes: ServiceTree[],
@@ -60,7 +60,7 @@ export function aggregatePermissionRequestSummaries(
   return summaries
 }
 
-/** 返回需要自动展开的目录 ID，使所有带申请徽章的后代尽快可见。 */
+/** 返回需要自动展开的服务目录 ID，使所有带申请徽章的后代尽快可见。 */
 export function collectPermissionRequestExpandedDirectoryIds(
   nodes: ServiceTree[],
   summaries: Record<string, PermissionRequestViewSummary>,

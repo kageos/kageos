@@ -53,7 +53,7 @@ func newServiceTreeAuditTestService(t *testing.T) (*ServiceTreeService, *gorm.DB
 
 	operateLogRepo := repository.NewOperateLogRepository(db)
 	permission := NewPermissionService(repository.NewRoleAssignmentRepository(db), operateLogRepo, appRepo)
-	service := NewServiceTreeService(serviceTreeRepo, appRepo, nil, nil, nil, nil, permission)
+	service := NewServiceTreeService(serviceTreeRepo, appRepo, nil, nil, nil, nil, permission, nil)
 	return service, db, functionNode
 }
 

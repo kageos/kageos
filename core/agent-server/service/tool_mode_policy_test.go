@@ -66,7 +66,7 @@ func TestWorkspaceToolNamesForRoleFiltersVisibleTools(t *testing.T) {
 	}
 
 	routerTools := workspaceToolNamesForRole(provider.ToolNames(), WorkspaceRoleRouter)
-	for _, want := range []string{"change_role", "read_doc", "read_dir", "read_file", "search", "summarize_task_state"} {
+	for _, want := range []string{"change_role", "read_doc", "read_dir", "read_file", "search"} {
 		if !containsServiceToolName(routerTools, want) {
 			t.Fatalf("router visible tools should include %s: %v", want, routerTools)
 		}

@@ -144,7 +144,7 @@ onMounted(loadIntent)
             </div>
 
             <el-alert
-              title="用户 code 会用于目录、URL 和工作空间标识，注册后不建议修改。"
+              title="用户 code 会用于服务目录、URL 和工作空间标识，注册后不建议修改。"
               type="info"
               show-icon
               :closable="false"

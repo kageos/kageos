@@ -718,7 +718,7 @@ function inferResourceKind(path: string, type?: string, templateType?: string) {
 
 function getResourcePreviewTypeLabel(kind: string, type?: string, templateType?: string) {
   if (type === 'docs' || kind === 'docs') return '文档'
-  if (type === 'package' || kind === 'directory') return '目录'
+  if (type === 'package' || kind === 'directory') return '服务目录'
   if (kind === 'tool') return '内置工具'
   if (templateType === 'table' || kind === 'table') return '表格'
   if (templateType === 'form' || kind === 'form') return '表单'

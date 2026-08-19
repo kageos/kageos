@@ -91,7 +91,7 @@ var searchSessionHistoryToolDef = toolDefinitionWithOutput[searchSessionHistoryA
 
 var readSessionMessagesToolDef = toolDefinitionWithOutput[readSessionMessagesArgs, structuredToolResultSchema[readSessionMessagesData]](
 	readSessionMessagesToolName,
-	"按 message_id 或消息 ID 范围精确读取当前工作台会话的原始记录。用于从 `<conversation_checkpoint>` 摘要恢复旧需求、决策、回复或工具结果；原始记录是事实源，摘要有歧义时以本工具返回内容为准。返回 truncated=true 时按 next_message_id/next_offset_chars 继续分页，直到读完。只能访问当前用户的当前会话，只读无副作用。",
+	"按 message_id 或消息 ID 范围精确读取当前工作台会话的原始记录。仅用于按条件定位特定历史消息；正常对话已直接携带完整历史，不需要反复调用本工具恢复上下文。返回 truncated=true 时按 next_message_id/next_offset_chars 继续分页，直到读完。只能访问当前用户的当前会话，只读无副作用。",
 )
 
 func (t *SearchSessionHistoryTool) Definition() dto.ToolDef { return searchSessionHistoryToolDef }

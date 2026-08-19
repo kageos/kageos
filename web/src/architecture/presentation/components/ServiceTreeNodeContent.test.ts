@@ -88,7 +88,7 @@ describe('ServiceTreeNodeContent', () => {
         node: {
           id: 20,
           type: 'package',
-          name: '受限目录',
+          name: '受限服务目录',
           full_code_path: '/alice/ops/locked',
         } as any,
         showAccessLock: true,
@@ -116,7 +116,7 @@ describe('ServiceTreeNodeContent', () => {
         node: {
           id: 21,
           type: 'package',
-          name: '审批目录',
+          name: '审批服务目录',
           full_code_path: '/alice/ops/review',
         } as any,
         showPermissionRequestBadge: true,

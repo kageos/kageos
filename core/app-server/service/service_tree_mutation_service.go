@@ -16,6 +16,7 @@ type serviceTreeMutationService struct {
 	appRepo          *repository.AppRepository
 	runtimeWorkspace *runtimeWorkspaceBridge
 	docService       *DocService
+	taskReconciler   *ScheduledTaskReconciler
 }
 
 func newServiceTreeMutationService(
@@ -23,12 +24,14 @@ func newServiceTreeMutationService(
 	appRepo *repository.AppRepository,
 	runtimeWorkspace *runtimeWorkspaceBridge,
 	docService *DocService,
+	taskReconciler *ScheduledTaskReconciler,
 ) *serviceTreeMutationService {
 	return &serviceTreeMutationService{
 		serviceTreeRepo:  serviceTreeRepo,
 		appRepo:          appRepo,
 		runtimeWorkspace: runtimeWorkspace,
 		docService:       docService,
+		taskReconciler:   taskReconciler,
 	}
 }
 
@@ -133,6 +136,15 @@ func (m *serviceTreeMutationService) DeleteServiceTree(ctx context.Context, id i
 	serviceTree, err := m.serviceTreeRepo.GetServiceTreeByID(id)
 	if err != nil {
 		return fmt.Errorf("failed to get service tree: %w", err)
+	}
+	if m.taskReconciler != nil {
+		deleted, err := m.taskReconciler.DeleteTasksByResourcePrefix(ctx, serviceTree.FullCodePath)
+		if err != nil {
+			return fmt.Errorf("删除目录关联定时任务失败: %w", err)
+		}
+		if deleted > 0 {
+			logger.Infof(ctx, "[ServiceTreeService] Deleted scheduled tasks for service tree: path=%s count=%d", serviceTree.FullCodePath, deleted)
+		}
 	}
 
 	m.cleanupRuntimePackageScaffold(ctx, serviceTree)

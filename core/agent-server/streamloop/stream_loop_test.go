@@ -3,6 +3,7 @@ package streamloop
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -80,6 +81,94 @@ func TestRunStreamLoopContinuesVisibleOutputAfterRepeatedLengthFinish(t *testing
 	if deps.continuations != 1 || !deps.recoveryCompleted {
 		t.Fatalf("continuations/completed = %d/%v, want 1/true", deps.continuations, deps.recoveryCompleted)
 	}
+}
+
+func TestRunStreamLoopAllowsMoreThanOneHundredToolRounds(t *testing.T) {
+	const toolRounds = 150
+	client := &manyToolRoundsClient{toolRounds: toolRounds}
+	deps := &manyToolRoundsDeps{client: client}
+
+	if err := RunStreamLoop(context.Background(), deps); err != nil {
+		t.Fatalf("RunStreamLoop returned error: %v", err)
+	}
+	if client.calls != toolRounds+1 {
+		t.Fatalf("client calls = %d, want %d", client.calls, toolRounds+1)
+	}
+	if deps.executed != toolRounds {
+		t.Fatalf("executed tool rounds = %d, want %d", deps.executed, toolRounds)
+	}
+	if len(deps.doneSummaries) != toolRounds {
+		t.Fatalf("done summaries = %d, want %d", len(deps.doneSummaries), toolRounds)
+	}
+	if deps.savedContent != "完成" || !deps.done {
+		t.Fatalf("saved content/done = %q/%v, want 完成/true", deps.savedContent, deps.done)
+	}
+}
+
+type manyToolRoundsDeps struct {
+	client        *manyToolRoundsClient
+	executed      int
+	savedContent  string
+	done          bool
+	doneSummaries []ToolCallSummary
+}
+
+func (d *manyToolRoundsDeps) BuildMessages(context.Context) ([]llms.Message, []llms.ToolDef, error) {
+	return []llms.Message{{Role: "user", Content: "持续执行直到完成"}}, nil, nil
+}
+
+func (d *manyToolRoundsDeps) PrepareLLM(context.Context, []llms.Message, []llms.ToolDef) (llms.LLMClient, *llms.ChatRequest, error) {
+	return d.client, &llms.ChatRequest{}, nil
+}
+
+func (d *manyToolRoundsDeps) SendEvent(string, interface{}) {}
+
+func (d *manyToolRoundsDeps) SaveAssistantMessage(_ context.Context, content string, _ string, _ *llms.Usage) error {
+	d.savedContent = content
+	return nil
+}
+
+func (d *manyToolRoundsDeps) SaveAssistantMessageWithToolCalls(context.Context, string, string, []llms.ToolCall, *llms.Usage) error {
+	return nil
+}
+
+func (d *manyToolRoundsDeps) ExecuteToolCalls(_ context.Context, _ []llms.ToolCall, round int, _ func(string, interface{})) ([]ToolCallSummary, error) {
+	d.executed++
+	return []ToolCallSummary{{Round: round, Name: "test_tool", Status: "ok"}}, nil
+}
+
+func (d *manyToolRoundsDeps) OnDone(summaries []ToolCallSummary, _ *llms.Usage) {
+	d.done = true
+	d.doneSummaries = summaries
+}
+
+type manyToolRoundsClient struct {
+	calls      int
+	toolRounds int
+}
+
+func (c *manyToolRoundsClient) Chat(context.Context, *llms.ChatRequest) (*llms.ChatResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (c *manyToolRoundsClient) ChatStream(context.Context, *llms.ChatRequest) (<-chan *llms.StreamChunk, error) {
+	c.calls++
+	stream := make(chan *llms.StreamChunk, 1)
+	if c.calls <= c.toolRounds {
+		index := 0
+		call := llms.ToolCallDelta{ID: fmt.Sprintf("call_%d", c.calls), Type: "function", Index: &index}
+		call.Function.Name = "test_tool"
+		call.Function.Arguments = `{}`
+		stream <- &llms.StreamChunk{ToolCallDeltas: []llms.ToolCallDelta{call}, Done: true}
+	} else {
+		stream <- &llms.StreamChunk{Content: "完成", Done: true}
+	}
+	close(stream)
+	return stream, nil
+}
+
+func (c *manyToolRoundsClient) GetModelName() string {
+	return "many-tool-rounds-test-model"
 }
 
 type retryOutputLimitDeps struct {

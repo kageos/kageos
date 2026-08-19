@@ -13,13 +13,13 @@
         </span>
         <div class="import-dialog-title-block">
           <div class="import-dialog-title">{{ dialogTitle }}</div>
-          <div class="import-dialog-subtitle">任务会在后台执行，完成后自动刷新目录。</div>
+          <div class="import-dialog-subtitle">任务会在后台执行，完成后自动刷新服务目录。</div>
         </div>
       </div>
     </template>
 
     <section class="import-target" data-testid="import-directory-target">
-      <span class="import-target-label">目标目录</span>
+      <span class="import-target-label">目标服务目录</span>
       <div class="import-target-main">
         <strong>{{ targetLabel }}</strong>
         <code>{{ targetPath || '-' }}</code>
@@ -28,7 +28,7 @@
 
     <div class="import-notice">
       <el-icon><InfoFilled /></el-icon>
-      <span>同名目录或文件会按导入规则覆盖。</span>
+      <span>同名服务目录或文件会按导入规则覆盖。</span>
     </div>
 
     <el-tabs v-model="activeSource" class="import-source-tabs" data-testid="import-directory-tabs">
@@ -53,7 +53,7 @@
             />
             <div class="hub-source-actions">
               <el-button link type="primary" :icon="Compass" @click="openHubDirectory">
-                去 Hub 查找目录
+                去 Hub 查找服务目录
               </el-button>
             </div>
           </el-form-item>
@@ -88,7 +88,7 @@
           />
           <el-icon class="json-import-icon"><UploadFilled /></el-icon>
           <div class="json-file-name">
-            {{ selectedJsonFile?.name || '选择目录 JSON 文件' }}
+            {{ selectedJsonFile?.name || '选择服务目录 JSON 文件' }}
           </div>
           <el-button
             :icon="FolderOpened"
@@ -174,11 +174,11 @@ const targetPath = computed(() => props.targetNode?.full_code_path || '')
 
 const targetLabel = computed(() => {
   const node = props.targetNode
-  if (!node) return '未选择目录'
-  return node.name || node.code || node.full_code_path || '未命名目录'
+  if (!node) return '未选择服务目录'
+  return node.name || node.code || node.full_code_path || '未命名服务目录'
 })
 
-const dialogTitle = computed(() => `导入目录到「${targetLabel.value}」`)
+const dialogTitle = computed(() => `导入服务目录到「${targetLabel.value}」`)
 
 const canSubmit = computed(() => {
   if (importing.value || !targetPath.value || props.targetNode?.type !== 'package') {
@@ -234,7 +234,7 @@ function directoryTaskNotificationOptions() {
 function renderImportResultMessage(resp: InstallDirectoryResp, fallbackPath: string) {
   const lines = [
     `目标：${resp.target_directory_path || fallbackPath}`,
-    `写入：${resp.directory_count || 0} 个目录，${resp.file_count || 0} 个文件`
+    `写入：${resp.directory_count || 0} 个服务目录，${resp.file_count || 0} 个文件`
   ]
   if (resp.old_version || resp.new_version) {
     lines.push(`版本：${resp.old_version || '-'} → ${resp.new_version || '-'}`)
@@ -268,7 +268,7 @@ async function runDirectoryImportTask(options: {
   const progressNotification = ElNotification({
     ...directoryTaskNotificationOptions(),
     type: 'info',
-    title: '目录导入中',
+    title: '服务目录导入中',
     message: `正在后台导入「${options.sourceLabel}」到「${options.targetLabel}」，页面可以继续使用。`,
     duration: 0,
     showClose: true
@@ -280,7 +280,7 @@ async function runDirectoryImportTask(options: {
     ElNotification({
       ...directoryTaskNotificationOptions(),
       type: resp.warnings?.length ? 'warning' : 'success',
-      title: resp.warnings?.length ? '目录导入完成（有提醒）' : '目录导入完成',
+      title: resp.warnings?.length ? '服务目录导入完成（有提醒）' : '服务目录导入完成',
       message: renderImportResultMessage(resp, options.targetPath),
       duration: resp.warnings?.length ? 0 : 9000
     })
@@ -290,7 +290,7 @@ async function runDirectoryImportTask(options: {
     ElNotification({
       ...directoryTaskNotificationOptions(),
       type: 'error',
-      title: '目录导入失败',
+      title: '服务目录导入失败',
       message: getErrorMessage(error, '导入失败'),
       duration: 0
     })
@@ -302,7 +302,7 @@ async function runDirectoryImportTask(options: {
 async function submitHubImport() {
   const targetNode = props.targetNode
   if (!targetNode?.full_code_path || targetNode.type !== 'package') {
-    ElMessage.warning('请选择一个目录作为导入目标')
+    ElMessage.warning('请选择一个服务目录作为导入目标')
     return
   }
 
@@ -333,7 +333,7 @@ async function submitJsonImport() {
   const targetNode = props.targetNode
   const file = selectedJsonFile.value
   if (!targetNode?.full_code_path || targetNode.type !== 'package') {
-    ElMessage.warning('请选择一个目录作为导入目标')
+    ElMessage.warning('请选择一个服务目录作为导入目标')
     return
   }
   if (!file) {

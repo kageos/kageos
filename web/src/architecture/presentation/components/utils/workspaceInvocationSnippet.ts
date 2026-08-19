@@ -213,7 +213,7 @@ function workspaceResourceTypeLabel(kind: string): string {
     case 'tool':
       return '内置工具'
     default:
-      return '目录'
+      return '服务目录'
   }
 }
 

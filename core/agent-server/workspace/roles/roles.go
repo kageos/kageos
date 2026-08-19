@@ -63,7 +63,7 @@ func Specs() map[string]Spec {
 			DisplayName: "执行路由手册",
 			Docs:        []string{"/system/prompt/roles/router"},
 			AllowedTools: []string{
-				"change_role", "summarize_task_state", "read_doc", "read_dir", "read_file", "read_app_log", "search", "web_search",
+				"change_role", "read_doc", "read_dir", "read_file", "read_app_log", "search", "web_search",
 			},
 			ForbiddenTools: []string{
 				"write_prd", "create_directory", "write_file", "edit_file", "delete_file", "build_workspace",
@@ -130,7 +130,7 @@ func Specs() map[string]Spec {
 			},
 			Optional: []string{"/system/prompt/case_catalog"},
 			AllowedTools: []string{
-				"change_role", "summarize_task_state", "read_doc", "read_dir", "read_file",
+				"change_role", "read_doc", "read_dir", "read_file",
 				"create_directory", "write_file", "edit_file", "read_app_log", "build_workspace",
 			},
 			ForbiddenTools: []string{"write_prd"},
@@ -159,7 +159,7 @@ func Specs() map[string]Spec {
 				"/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask",
 			},
 			AllowedTools: []string{
-				"change_role", "summarize_task_state", "read_doc", "read_dir", "read_file",
+				"change_role", "read_doc", "read_dir", "read_file",
 				"create_directory", "write_file", "edit_file", "delete_file", "read_app_log", "build_workspace",
 			},
 			ForbiddenTools: []string{"write_prd"},
@@ -185,7 +185,7 @@ func Specs() map[string]Spec {
 			DisplayName: "测试工程师",
 			Docs:        []string{"/system/prompt/roles/qa-engineer"},
 			AllowedTools: []string{
-				"change_role", "summarize_task_state", "read_doc", "read_dir", "search",
+				"change_role", "read_doc", "read_dir", "search",
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy", "send_notification",
 			},
@@ -212,7 +212,7 @@ func Specs() map[string]Spec {
 			DisplayName: "应用执行",
 			Docs:        []string{"/system/prompt/roles/app-operator"},
 			AllowedTools: []string{
-				"change_role", "summarize_task_state", "read_doc", "read_dir", "search",
+				"change_role", "read_doc", "read_dir", "search",
 				"run_table_search", "run_table_create", "run_table_update", "run_table_delete",
 				"run_form_submit", "run_chart_query", "run_on_select_fuzzy", "run_python", "send_notification",
 				"list_scheduled_tasks", "list_scheduled_task_executions", "write_file", "edit_file",
@@ -244,7 +244,7 @@ func Specs() map[string]Spec {
 				"/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask",
 			},
 			AllowedTools: []string{
-				"change_role", "summarize_task_state", "read_doc", "read_dir", "search",
+				"change_role", "read_doc", "read_dir", "search",
 				"create_scheduled_function_task", "create_scheduled_agent_task",
 				"list_scheduled_tasks", "manage_scheduled_task", "list_scheduled_task_executions", "send_notification",
 			},
@@ -274,7 +274,7 @@ func Specs() map[string]Spec {
 			DisplayName: "构建修复工程师",
 			Docs:        []string{"/system/prompt/roles/build-engineer"},
 			AllowedTools: []string{
-				"change_role", "summarize_task_state", "read_doc", "read_file",
+				"change_role", "read_doc", "read_file",
 				"edit_file", "write_file", "read_app_log", "build_workspace",
 			},
 			ForbiddenTools: []string{"write_prd", "run_table_search", "run_table_create", "run_table_update", "run_table_delete", "run_form_submit", "run_chart_query"},
@@ -338,7 +338,7 @@ func Specs() map[string]Spec {
 			DisplayName:    "代码审查分析师",
 			Docs:           []string{"/system/prompt/roles/reviewer"},
 			Optional:       []string{"/system/prompt/platform-introduction", "/system/prompt/platform-usage-and-philosophy", "/system/prompt/platform-capability-boundaries"},
-			AllowedTools:   []string{"change_role", "summarize_task_state", "read_doc", "read_dir", "read_file"},
+			AllowedTools:   []string{"change_role", "read_doc", "read_dir", "read_file"},
 			ForbiddenTools: []string{"write_prd", "create_directory", "write_file", "edit_file", "delete_file", "build_workspace", "run_form_submit"},
 			Runtime: runtimeContract(
 				[]string{"用户要解释、review、查问题、读代码或做方案评估", "用户咨询 kageos 身份、公司、协议、Hub、怎么用、工作台能做什么、产品理念、服务目录或能力边界"},

@@ -99,7 +99,7 @@ function validateRelativePackagePath(value: string, field: string, allowEmpty = 
 
 function validateRelativeFileName(value: string, field: string): string {
   if (!value || value.includes('/') || value.includes('\\') || value.startsWith('.')) {
-    throw new Error(`${field} 必须是目录内直接文件名`)
+    throw new Error(`${field} 必须是服务目录内直接文件名`)
   }
   if (value === '.' || value === '..' || value === 'init_.go') {
     throw new Error(`${field} 文件名非法`)
@@ -174,9 +174,9 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
     throw new Error('JSON 格式不正确')
   }
 
-  const object = ensurePlainObject(raw, '目录 JSON')
+  const object = ensurePlainObject(raw, '服务目录 JSON')
   if (object.schema_version !== 'capability.bundle.v1') {
-    throw new Error('只支持目录 JSON（capability.bundle.v1）')
+    throw new Error('只支持服务目录 JSON（capability.bundle.v1）')
   }
 
   const rawPackages = object.packages
@@ -379,7 +379,7 @@ export function parseCapabilityBundleJson(text: string): CapabilityBundle {
   }) : []
 
   if (packages.length === 0 && files.length === 0 && docs.length === 0 && agentTasks.length === 0 && scheduledFunctions.length === 0) {
-    throw new Error('目录 JSON 必须包含 packages、files、docs、scheduled_functions 或 agent_tasks')
+    throw new Error('服务目录 JSON 必须包含 packages、files、docs、scheduled_functions 或 agent_tasks')
   }
 
   return {

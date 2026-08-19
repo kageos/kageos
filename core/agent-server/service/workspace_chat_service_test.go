@@ -505,7 +505,7 @@ func TestBuildLLMMessagesWithPlanCurrentTurnMessageDoesNotPolluteFutureContext(t
 	}
 }
 
-func TestBuildLLMMessagesWithPlanCompactsLargeHistoricalToolPayloads(t *testing.T) {
+func TestBuildLLMMessagesWithPlanKeepsLargeHistoricalToolPayloadsVerbatim(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -572,8 +572,8 @@ func TestBuildLLMMessagesWithPlanCompactsLargeHistoricalToolPayloads(t *testing.
 	if strings.Contains(joined, "只展示给前端") {
 		t.Fatalf("display-only message should not enter model context:\n%s", joined)
 	}
-	if !strings.Contains(joined, "历史内容已截断") {
-		t.Fatalf("large tool result should be compacted:\n%s", joined)
+	if !strings.Contains(joined, largeResult) || strings.Contains(joined, "历史内容已截断") {
+		t.Fatalf("large tool result should remain verbatim:\n%s", joined)
 	}
 	var gotArgs string
 	for _, msg := range msgs {
@@ -582,15 +582,15 @@ func TestBuildLLMMessagesWithPlanCompactsLargeHistoricalToolPayloads(t *testing.
 			break
 		}
 	}
-	if !strings.Contains(gotArgs, "_kageos_arguments_truncated") || strings.Contains(gotArgs, strings.Repeat("参数内容", 1200)) {
-		t.Fatalf("large tool arguments should be compacted, got length=%d args=%s", len(gotArgs), gotArgs)
+	if gotArgs != largeArgs {
+		t.Fatalf("large tool arguments should remain verbatim, got length=%d", len(gotArgs))
 	}
 	if plan == nil || plan.Messages.ExcludedDisplayOnly != 1 {
 		t.Fatalf("display-only exclusion should be reported: %#v", plan)
 	}
 }
 
-func TestBuildLLMMessagesWithPlanUsesArtifactReferenceForUserArtifact(t *testing.T) {
+func TestBuildLLMMessagesWithPlanKeepsUserArtifactVerbatim(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -644,17 +644,15 @@ func TestBuildLLMMessagesWithPlanUsesArtifactReferenceForUserArtifact(t *testing
 		t.Fatalf("build messages: %v", err)
 	}
 	joined := joinLLMMessageContents(msgs)
-	if !strings.Contains(joined, "workspace_artifact_ref") ||
-		!strings.Contains(joined, "read_workspace_artifact") ||
-		!strings.Contains(joined, `"message_id": `) {
-		t.Fatalf("artifact message should enter context as reference:\n%s", joined)
+	if !strings.Contains(joined, "artifact-secret-marker") {
+		t.Fatalf("full artifact JSON should enter model context:\n%s", joined)
 	}
-	if strings.Contains(joined, "artifact-secret-marker") {
-		t.Fatalf("full artifact JSON should not enter model context:\n%s", joined)
+	if strings.Contains(joined, "workspace_artifact_ref") || strings.Contains(joined, "read_workspace_artifact") {
+		t.Fatalf("artifact references should be disabled:\n%s", joined)
 	}
 }
 
-func TestBuildLLMMessagesWithPlanUsesArtifactReferenceForWritePRDToolResult(t *testing.T) {
+func TestBuildLLMMessagesWithPlanKeepsWritePRDToolResultVerbatim(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -719,11 +717,11 @@ func TestBuildLLMMessagesWithPlanUsesArtifactReferenceForWritePRDToolResult(t *t
 		t.Fatalf("build messages: %v", err)
 	}
 	joined := joinLLMMessageContents(msgs)
-	if !strings.Contains(joined, "workspace_artifact_ref") || !strings.Contains(joined, "read_workspace_artifact") {
-		t.Fatalf("write_prd tool result should enter context as artifact reference:\n%s", joined)
+	if !strings.Contains(joined, "tool-secret-marker") {
+		t.Fatalf("full write_prd result should enter model context:\n%s", joined)
 	}
-	if strings.Contains(joined, "tool-secret-marker") {
-		t.Fatalf("full write_prd result should not enter model context:\n%s", joined)
+	if strings.Contains(joined, "workspace_artifact_ref") || strings.Contains(joined, "read_workspace_artifact") {
+		t.Fatalf("write_prd result should not be replaced by an artifact reference:\n%s", joined)
 	}
 }
 
@@ -802,7 +800,7 @@ func TestReadWorkspaceArtifactReturnsPrimaryArtifactJSONAndChecksSession(t *test
 	}
 }
 
-func TestBuildLLMMessagesWithPlanReducesLongHistoryByBudget(t *testing.T) {
+func TestBuildLLMMessagesWithPlanKeepsLongHistoryDespiteBudget(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -860,22 +858,23 @@ func TestBuildLLMMessagesWithPlanReducesLongHistoryByBudget(t *testing.T) {
 	if plan == nil || plan.Budget == nil {
 		t.Fatalf("budget should be reported: %#v", plan)
 	}
-	if plan.Messages.ExcludedByCheckpoint == 0 || !plan.Messages.RecoverableHistory {
-		t.Fatalf("old history should be represented by a recoverable checkpoint: %#v", plan.Messages)
+	if plan.Messages.ExcludedByCheckpoint != 0 || plan.Messages.RecoverableHistory || plan.Messages.IncludedStoredMessages != 81 {
+		t.Fatalf("all stored history should remain in model context: %#v", plan.Messages)
 	}
 	if plan.Messages.ExcludedByReduction != 0 {
 		t.Fatalf("checkpoint compaction should not drop messages by count: %#v", plan.Messages)
 	}
 	joined := joinLLMMessageContents(msgs)
-	if !strings.Contains(joined, "<conversation_checkpoint") {
-		t.Fatalf("model context should contain a conversation checkpoint")
+	if strings.Contains(joined, "<conversation_checkpoint") {
+		t.Fatalf("model context should not contain a conversation checkpoint")
 	}
-	if !strings.Contains(joined, "current-marker") {
-		t.Fatalf("current user request should remain in model context:\n%s", joined)
+	for _, marker := range []string{"old-marker-00", "recent-marker-79", "current-marker"} {
+		if !strings.Contains(joined, marker) {
+			t.Fatalf("history marker %q should remain in model context", marker)
+		}
 	}
-	checkpoint, err := messageRepo.GetLatestContextCheckpoint(session.SessionID)
-	if err != nil || checkpoint.CoveredFromMessageID != 1 || checkpoint.CoveredToMessageID <= checkpoint.CoveredFromMessageID {
-		t.Fatalf("checkpoint range = %#v, err=%v", checkpoint, err)
+	if _, err := messageRepo.GetLatestContextCheckpoint(session.SessionID); err == nil {
+		t.Fatal("building model context should not create a checkpoint")
 	}
 	oldest, err := messageRepo.GetByID(1)
 	if err != nil || !strings.Contains(oldest.Content, "old-marker-00") {
@@ -1451,7 +1450,8 @@ func TestPersistWorkspaceSessionInteractionStatusMarksPending(t *testing.T) {
 			ResultData: map[string]interface{}{
 				"kind": "agent_app_prd",
 				"interaction": map[string]interface{}{
-					"status": model.ChatSessionStatusPendingConfirmation,
+					"status":    model.ChatSessionStatusPendingConfirmation,
+					"card_type": "prd_confirmation",
 				},
 			},
 		},
@@ -1466,7 +1466,7 @@ func TestPersistWorkspaceSessionInteractionStatusMarksPending(t *testing.T) {
 	}
 }
 
-func TestPersistWorkspaceSessionInteractionStatusMarksBuildRepairPendingFromErrorTool(t *testing.T) {
+func TestPersistWorkspaceSessionInteractionStatusIgnoresBuildRepairFromErrorTool(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -1497,7 +1497,8 @@ func TestPersistWorkspaceSessionInteractionStatusMarksBuildRepairPendingFromErro
 			ResultData: map[string]interface{}{
 				"kind": "agent_app_build_failure",
 				"interaction": map[string]interface{}{
-					"status": model.ChatSessionStatusPendingBuildRepair,
+					"status":    model.ChatSessionStatusPendingBuildRepair,
+					"card_type": "build_repair",
 				},
 			},
 		},
@@ -1507,8 +1508,8 @@ func TestPersistWorkspaceSessionInteractionStatusMarksBuildRepairPendingFromErro
 	if err != nil {
 		t.Fatalf("get updated session: %v", err)
 	}
-	if updated.Status != model.ChatSessionStatusPendingBuildRepair {
-		t.Fatalf("status = %q, want %q", updated.Status, model.ChatSessionStatusPendingBuildRepair)
+	if updated.Status != model.ChatSessionStatusGenerating {
+		t.Fatalf("status = %q, want unchanged %q", updated.Status, model.ChatSessionStatusGenerating)
 	}
 }
 
@@ -1625,7 +1626,7 @@ func TestWorkspacePendingInteractionFromMessagesBuildsGenericInteraction(t *test
 	}
 }
 
-func TestWorkspaceBuildRepairInteractionIsNonBlockingByDefault(t *testing.T) {
+func TestWorkspaceBuildRepairInteractionIsIgnored(t *testing.T) {
 	raw := []byte(`{
 		"kind": "agent_app_build_failure",
 		"interaction": {
@@ -1634,17 +1635,8 @@ func TestWorkspaceBuildRepairInteractionIsNonBlockingByDefault(t *testing.T) {
 		}
 	}`)
 	interaction := workspaceInteractionFromResultData(raw)
-	if interaction == nil {
-		t.Fatal("interaction should be derived")
-	}
-	if interaction.CardType != "build_repair" || interaction.Blocking {
-		t.Fatalf("unexpected build repair interaction: %+v", interaction)
-	}
-	if !workspaceInteractionAllowsAction(interaction, "continue_development") {
-		t.Fatal("continue_development should be allowed")
-	}
-	if !workspaceInteractionActionCanRunModel("continue_development") {
-		t.Fatal("continue_development should enter model loop")
+	if interaction != nil {
+		t.Fatalf("build failures must not produce a pending interaction: %+v", interaction)
 	}
 }
 

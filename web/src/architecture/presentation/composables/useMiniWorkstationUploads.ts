@@ -113,7 +113,7 @@ export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOpti
     event.stopPropagation()
 
     if (!fullCodePath.value) {
-      ElMessage.warning('请先选择目录后再粘贴文件')
+      ElMessage.warning('请先选择服务目录后再粘贴文件')
       return
     }
 
@@ -155,7 +155,7 @@ export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOpti
         const raw = dataTransfer.getData('application/x-workspace-node')
         const payload = raw ? JSON.parse(raw) as { type?: string; full_code_path?: string; name?: string } : null
         if (payload?.full_code_path) {
-          const label = payload.type === 'package' ? '目录' : '函数'
+          const label = payload.type === 'package' ? '服务目录' : '函数'
           const name = payload.name || payload.full_code_path.split('/').pop() || payload.full_code_path
           inputText.value = `请处理以下${label}：${name} ${wrapWorkspaceResourcePath(payload.full_code_path)}`
           await nextTick()

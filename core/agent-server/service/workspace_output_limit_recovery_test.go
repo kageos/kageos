@@ -16,8 +16,8 @@ func TestWorkspaceOutputLimitRecoveryAddsInstructionAndKeepsTokenCeiling(t *test
 	if deps.RequestOutputLimitRecovery(context.Background(), "length") {
 		t.Fatal("second output limit recovery should be rejected")
 	}
-	if deps.contextReductionLevel != workspaceContextReductionLight {
-		t.Fatalf("reduction level = %d, want light", deps.contextReductionLevel)
+	if deps.contextReductionLevel != workspaceContextReductionNone {
+		t.Fatalf("reduction level = %d, want none", deps.contextReductionLevel)
 	}
 
 	msgs := applyWorkspaceOutputLimitRecoveryInstruction([]llms.Message{

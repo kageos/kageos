@@ -47,7 +47,7 @@ function agentTask(index: number) {
   return {
     kind: 'agent',
     resource_path: `/alice/ops/task-${index}`,
-    resource_name: `目录 ${index}`,
+    resource_name: `服务目录 ${index}`,
     task: {
       id: index,
       title: `Agent 任务 ${index}`,

@@ -238,7 +238,7 @@ func loadCopyDirectorySource(ctx context.Context, s *serviceTreeCopyService, sou
 		return nil, fmt.Errorf("未找到任何目录，请确认源目录存在")
 	}
 	if s.capabilityBundle == nil {
-		return nil, fmt.Errorf("目录能力包服务未初始化，无法复制文档和 Agent 任务")
+		return nil, fmt.Errorf("服务目录复制能力未初始化，无法复制文档和 Agent 任务")
 	}
 	runtimeBundle, err := s.capabilityBundle.ExportCapabilityBundle(ctx, &dto.ExportCapabilityBundleReq{
 		SourceDirectoryPath: sourceDirectoryPath,
@@ -430,7 +430,7 @@ func syncCopiedRuntimeAssets(
 	replaceExisting bool,
 ) (int, int, error) {
 	if s.capabilityBundle == nil {
-		return 0, 0, fmt.Errorf("目录能力包服务未初始化，无法复制文档和 Agent 任务")
+		return 0, 0, fmt.Errorf("服务目录复制能力未初始化，无法复制文档和 Agent 任务")
 	}
 	if replaceExisting {
 		if err := cleanupReplacedDocs(ctx, s, targetApp, plan); err != nil {

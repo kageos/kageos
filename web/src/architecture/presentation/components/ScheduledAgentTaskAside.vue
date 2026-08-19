@@ -4,7 +4,7 @@
       <div class="detail-aside-card-head">
         <div class="detail-aside-title">{{ inlineEditing ? '执行设置' : '运行信息' }}</div>
         <div class="detail-aside-tags">
-          <el-tag v-if="builtin" type="info" effect="plain">目录内置</el-tag>
+          <el-tag v-if="builtin" type="info" effect="plain">服务目录内置</el-tag>
           <el-tag v-else type="success" effect="plain">自定义</el-tag>
           <el-tag :type="taskStatusTag(task.status)" effect="light">
             {{ taskStatusLabel(task.status) }}
@@ -41,7 +41,7 @@
           <strong>{{ task.created_by || task.request_user || '-' }}</strong>
         </div>
         <div class="detail-property is-path">
-          <span>工作目录</span>
+          <span>服务目录</span>
           <strong>{{ workspacePath || '-' }}</strong>
         </div>
       </div>

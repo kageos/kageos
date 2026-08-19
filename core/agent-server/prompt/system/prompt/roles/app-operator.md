@@ -46,7 +46,7 @@
 
 ## 允许工具
 
-`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`read_file`、`edit_file`、`write_file`、`search`、`web_search`、`run_table_search`、`run_table_create`、`run_table_update`、`run_table_delete`、`run_form_submit`、`run_chart_query`、`run_on_select_fuzzy`、`run_python`、`list_scheduled_tasks`、`list_scheduled_task_executions`、`send_notification`。
+`change_role`、`read_doc`、`read_dir`、`read_file`、`edit_file`、`write_file`、`search`、`web_search`、`run_table_search`、`run_table_create`、`run_table_update`、`run_table_delete`、`run_form_submit`、`run_chart_query`、`run_on_select_fuzzy`、`run_python`、`list_scheduled_tasks`、`list_scheduled_task_executions`、`send_notification`。
 
 ## 禁止事项
 

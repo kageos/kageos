@@ -28,6 +28,7 @@ type AppService struct {
 	docService      *DocService
 	permission      *PermissionService
 	sensitiveFields *FunctionSensitiveFieldService
+	taskReconciler  *ScheduledTaskReconciler
 }
 
 type AppRuntimeClient interface {
@@ -48,6 +49,7 @@ type AppServiceDependencies struct {
 	DocService                    *DocService
 	PermissionService             *PermissionService
 	FunctionSensitiveFieldService *FunctionSensitiveFieldService
+	ScheduledTaskReconciler       *ScheduledTaskReconciler
 }
 
 // NewAppService 创建 AppService（依赖注入）
@@ -61,6 +63,7 @@ func NewAppService(deps AppServiceDependencies) *AppService {
 		docService:      deps.DocService,
 		permission:      deps.PermissionService,
 		sensitiveFields: deps.FunctionSensitiveFieldService,
+		taskReconciler:  deps.ScheduledTaskReconciler,
 	}
 }
 
@@ -953,6 +956,11 @@ func (a *AppService) deleteFunctionsForAPIs(ctx context.Context, app *model.App,
 				continue
 			}
 			return fmt.Errorf("查询service_tree失败: %w", err)
+		}
+		if a.taskReconciler != nil {
+			if _, err := a.taskReconciler.DeleteTasksByResourcePrefix(ctx, serviceTree.FullCodePath); err != nil {
+				return fmt.Errorf("删除函数关联定时任务失败: path=%s: %w", serviceTree.FullCodePath, err)
+			}
 		}
 
 		// 删除ServiceTree（会级联删除子节点）

@@ -284,7 +284,7 @@ export function useWorkspaceRouting(
           
           const serviceNode: ServiceTree = node
           
-          // 🔥 如果是目录节点，只设置当前函数，不打开 Tab
+          // 🔥 如果是服务目录节点，只设置当前函数，不打开 Tab
           if (serviceNode.type === 'package') {
             applicationService.triggerNodeClick(serviceNode)
             return
@@ -312,7 +312,7 @@ export function useWorkspaceRouting(
           await tryOpenTab()
         }
         
-        // 展开目录树
+        // 展开服务目录树
         options.expandCurrentRoutePath()
       }
     } catch (_error) {

@@ -167,7 +167,7 @@
             </div>
             <p>{{ scheduledAgentTaskPurpose(item) }}</p>
             <div class="scheduled-agent-hover-task-meta">
-              <span>{{ item.resource_name || item.resource?.name || item.resource_path || '当前目录' }}</span>
+              <span>{{ item.resource_name || item.resource?.name || item.resource_path || '当前服务目录' }}</span>
               <span>{{ scheduleLabel(item.task.schedule) }}</span>
               <span v-if="item.task.next_run_at">下次 {{ formatDateTime(item.task.next_run_at) }}</span>
             </div>
@@ -176,7 +176,7 @@
             </div>
           </article>
           <div v-if="hiddenScheduledAgentDetailCount > 0" class="scheduled-agent-hover-more">
-            还有 {{ hiddenScheduledAgentDetailCount }} 名员工，请进入目录查看
+            还有 {{ hiddenScheduledAgentDetailCount }} 名员工，请进入服务目录查看
           </div>
         </div>
         <div v-else class="scheduled-agent-hover-empty">
@@ -415,11 +415,11 @@ async function loadScheduledAgentDetails() {
     scheduledAgentDetailsPath = path
     scheduledAgentDetailsLoadedAt = Date.now()
     if (overview.partial || (overview.warnings || []).length > 0) {
-      scheduledAgentDetailsWarning.value = '部分员工详情暂不可用，进入目录可继续查看'
+      scheduledAgentDetailsWarning.value = '部分员工详情暂不可用，进入服务目录可继续查看'
     }
   } catch {
     if (loadSeq !== scheduledAgentDetailsLoadSeq || path !== props.node.full_code_path) return
-    scheduledAgentDetailsError.value = '员工详情加载失败，请进入目录重试'
+    scheduledAgentDetailsError.value = '员工详情加载失败，请进入服务目录重试'
   } finally {
     if (loadSeq === scheduledAgentDetailsLoadSeq) {
       scheduledAgentDetailsLoading.value = false

@@ -15,7 +15,7 @@ func workspaceRoleToolGateResult(roleID string, toolName string) (ToolResult, bo
 	}
 	roleID = normalizeWorkspaceRole(roleID)
 	if roleID == "" {
-		if containsWorkspaceRoleString([]string{"change_role", "read_doc", "read_dir", "summarize_task_state"}, toolName) {
+		if containsWorkspaceRoleString([]string{"change_role", "read_doc", "read_dir"}, toolName) {
 			return ToolResult{}, false
 		}
 		return toolResult(fmt.Sprintf(
@@ -61,8 +61,6 @@ func workspaceRoleBaseReadOnlyTools() []string {
 		"read_app_log",
 		"search",
 		"web_search",
-		"summarize_task_state",
-		"read_workspace_artifact",
 		searchSessionHistoryToolName,
 		readSessionMessagesToolName,
 		"list_scheduled_tasks",

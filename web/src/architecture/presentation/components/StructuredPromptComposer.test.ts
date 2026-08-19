@@ -436,7 +436,7 @@ describe('StructuredPromptComposer', () => {
           code: 'customers',
           type: 'package',
           full_code_path: '/system/app/customers',
-          description: '客户资料目录',
+          description: '客户资料服务目录',
         },
       ],
       total: 2,

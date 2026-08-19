@@ -87,7 +87,7 @@ export function formatWorkspaceToolCallResultPreview(call: ToolCallLike | null |
     stringFromRecord(handoff, 'execute_directory'),
     stringFromRecord(args, 'execute_directory')
   )
-  if (executeDirectory) lines.push(`执行目录: ${executeDirectory}`)
+  if (executeDirectory) lines.push(`执行服务目录: ${executeDirectory}`)
 
   const reason = stringFromRecord(data, 'reason')
   if (reason) lines.push(`原因: ${compactPreviewText(reason, 180)}`)

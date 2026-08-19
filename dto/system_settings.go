@@ -16,6 +16,16 @@ type SystemSettingsResp struct {
 	Email            EmailSettings `json:"email"`
 }
 
+type LoginAnnouncement struct {
+	Enabled  bool   `json:"enabled"`
+	Markdown string `json:"markdown"`
+}
+
+type UpdateLoginAnnouncementReq struct {
+	Enabled  bool   `json:"enabled"`
+	Markdown string `json:"markdown"`
+}
+
 type TLSCertificateInfo struct {
 	Subject      string   `json:"subject"`
 	Issuer       string   `json:"issuer"`

@@ -249,7 +249,7 @@ The same checks are wired into GitHub Actions in `.github/workflows/ci.yml`.
 
 ## Chinese Overview
 
-kageos 是面向个人、团队和企业的 AI 原生服务平台。它把业务目录变成人可用、AI 可调、无人值守可运行、平台可治理的能力资产。kageos 的核心不是低价生成孤立应用，而是让成熟能力可以从 Hub 安装到私有 namespace，用自己的数据长期运行，通过 AI 工作台改造和执行，并在稳定后发布回生态。
+kageos 是面向个人、团队和企业的 AI 原生服务平台。它把服务目录变成人可用、AI 可调、无人值守可运行、平台可治理的能力资产。kageos 的核心不是低价生成孤立应用，而是让成熟能力可以从 Hub 安装到私有 namespace，用自己的数据长期运行，通过 AI 工作台改造和执行，并在稳定后发布回生态。
 
 完整中文介绍见 [README.zh-CN.md](README.zh-CN.md)。
 

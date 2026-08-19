@@ -484,12 +484,12 @@ const mentionVirtualRef = {
     return editorRef.value || rootRef.value || undefined
   },
 }
-const mentionModeLabel = computed(() => mentionQuery.value?.kind === 'user' ? '选择用户' : '选择目录或工具')
+const mentionModeLabel = computed(() => mentionQuery.value?.kind === 'user' ? '选择用户' : '选择服务目录或工具')
 const mentionEmptyText = computed(() => {
   const query = mentionQuery.value
   if (!query) return ''
   if (!query.query.trim()) {
-    return query.kind === 'user' ? '继续输入用户名或姓名' : '继续输入目录、函数或工具名称'
+    return query.kind === 'user' ? '继续输入用户名或姓名' : '继续输入服务目录、函数或工具名称'
   }
   return query.kind === 'user' ? '没有匹配的用户' : '没有匹配的资源'
 })
@@ -1693,7 +1693,7 @@ function compactMetaItems(items: Array<string | undefined | null>) {
 
 function getResourceTypeLabel(resource: ResourceSearchResult) {
   if (isWorkspaceToolResourcePath(resource.full_code_path || '')) return '内置工具'
-  if (resource.type === 'package') return '目录'
+  if (resource.type === 'package') return '服务目录'
   if (resource.type === 'docs') return '文档'
   if (resource.template_type === 'table') return '表格工具'
   if (resource.template_type === 'form') return '表单工具'

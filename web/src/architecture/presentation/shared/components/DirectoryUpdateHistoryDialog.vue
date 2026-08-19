@@ -2,7 +2,7 @@
   DirectoryUpdateHistoryDialog - 变更记录对话框组件
 
   职责：
-  - 显示工作空间变更记录（App视角）或目录变更记录（目录视角）
+  - 显示工作空间变更记录（App视角）或服务目录变更记录（服务目录视角）
   - 封装为可复用组件，避免代码重复
 -->
 <template>
@@ -38,7 +38,7 @@
               </el-tag>
             </div>
 
-            <!-- 目录变更卡片列表 -->
+            <!-- 服务目录变更卡片列表 -->
             <div class="changes-grid">
               <div
                 v-for="change in version.directory_changes"
@@ -64,7 +64,7 @@
                         {{ change.directory_name || getDirectoryName(change.full_code_path) }}
                       </el-tag>
                     </div>
-                    <!-- 目录描述 -->
+                    <!-- 服务目录描述 -->
                     <div v-if="change.directory_desc" class="change-directory-info">
                       <div class="directory-desc">{{ change.directory_desc }}</div>
                     </div>
@@ -253,7 +253,7 @@
         </div>
       </template>
 
-      <!-- 目录视角：显示单个目录的变更历史 -->
+      <!-- 服务目录视角：显示单个服务目录的变更历史 -->
       <template v-else-if="mode === 'directory' && directoryHistory">
         <div v-if="directoryHistory.directory_changes.length === 0" class="empty-state">
           <el-empty :description="t('directoryHistory.empty')" />
@@ -274,7 +274,7 @@
                 <div class="change-version">
                   <el-tag type="primary" size="large">v{{ change.dir_version_num }}</el-tag>
                 </div>
-                <!-- 目录名称和描述 -->
+                <!-- 服务目录名称和描述 -->
                 <div v-if="change.directory_name || change.directory_desc" class="change-directory-info">
                   <div v-if="change.directory_name" class="directory-name">
                     <el-icon><Folder /></el-icon>
@@ -504,10 +504,10 @@ import ChartIcon from '@/architecture/presentation/shared/components/icons/Chart
 
 interface Props {
   modelValue: boolean
-  mode: 'app' | 'directory' // app: 工作空间视角, directory: 目录视角
+  mode: 'app' | 'directory' // app: 工作空间视角, directory: 服务目录视角
   appId: number
   appVersion?: string // App视角时，可选指定版本
-  fullCodePath?: string // 目录视角时，必填
+  fullCodePath?: string // 服务目录视角时，必填
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -607,7 +607,7 @@ const formatDuration = (duration: number) => {
   }
 }
 
-// 获取目录名字（从完整路径中提取最后一部分）
+// 获取服务目录名字（从完整路径中提取最后一部分）
 const getDirectoryName = (fullCodePath: string): string => {
   if (!fullCodePath) return ''
   const parts = fullCodePath.split('/').filter(Boolean)
@@ -681,9 +681,9 @@ const handleSizeChange = (size: number) => {
   loadData()
 }
 
-// 查看目录
+// 查看服务目录
 const handleViewDirectory = (fullCodePath: string) => {
-  // 跳转到目录详情页
+  // 跳转到服务目录详情页
   const pathParts = fullCodePath.split('/').filter(Boolean)
   if (pathParts.length >= 2) {
     const user = pathParts[0]

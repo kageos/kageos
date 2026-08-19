@@ -14,6 +14,7 @@ function mountBar(props: Record<string, unknown> = {}) {
       interaction: {
         id: 'prd-1',
         card_type: 'prd_confirmation',
+        artifact_kind: 'agent_app_prd',
         status: 'pending_confirmation',
         blocking: true,
         title: 'PRD 等待确认',
@@ -62,7 +63,7 @@ describe('MiniWorkstationPendingActionBar', () => {
     expect(wrapper.emitted('revise')?.[0]?.[0]).toEqual({ text: '增加审批状态' })
   })
 
-  it('renders build repair labels', () => {
+  it('does not render retired build repair cards', () => {
     const wrapper = mountBar({
       interaction: {
         id: 'build-1',
@@ -79,11 +80,8 @@ describe('MiniWorkstationPendingActionBar', () => {
       sending: true,
     })
 
-    expect(wrapper.attributes('data-testid')).toBe('mini-interaction-gate-build_repair')
-    expect(wrapper.text()).toContain('构建等待修复')
-    expect(wrapper.text()).toContain('查看诊断')
-    expect(wrapper.text()).toContain('暂不修复')
-    expect(wrapper.findAll('button')[3]!.attributes('data-loading')).toBe('true')
+    expect(wrapper.find('[data-testid="mini-interaction-gate-build_repair"]').exists()).toBe(false)
+    expect(wrapper.text()).toBe('')
   })
 
   it('keeps historical cards read-only for audit', async () => {

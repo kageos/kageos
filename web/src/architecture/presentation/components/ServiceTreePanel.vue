@@ -233,7 +233,7 @@
         type="info"
         :closable="false"
         show-icon
-        title="目录内置任务会强制随目录导出；自定义任务可按需选择，选中后会作为新目录的内置模板。"
+        title="服务目录内置任务会强制随服务目录导出；自定义任务可按需选择，选中后会作为新服务目录的内置模板。"
       />
       <el-alert
         v-if="exportPreviewWarnings.length"
@@ -245,7 +245,7 @@
       />
       <section class="export-task-section">
         <div class="export-task-section-head">
-          <strong>目录内置</strong>
+          <strong>服务目录内置</strong>
           <span>{{ exportBuiltinTasks.length }} 项 · 必选且不可修改</span>
         </div>
         <div v-if="exportBuiltinTasks.length" class="export-task-list">
@@ -255,10 +255,10 @@
               <span>{{ item.task.title || '未命名任务' }}</span>
               <small>{{ automationKindLabel(item.kind) }} · {{ item.resource_path }}</small>
             </span>
-            <el-tag size="small" type="info">目录内置</el-tag>
+            <el-tag size="small" type="info">服务目录内置</el-tag>
           </label>
         </div>
-        <el-empty v-else :image-size="52" description="没有目录内置任务" />
+        <el-empty v-else :image-size="52" description="没有服务目录内置任务" />
       </section>
       <section class="export-task-section">
         <div class="export-task-section-head">
@@ -354,10 +354,10 @@ interface Emits {
   (e: 'create-docs', parentNode?: ServiceTree): void
   (e: 'delete-doc', node: ServiceTree): void
   (e: 'delete-function', node: ServiceTree): void  // 删除函数
-  (e: 'delete-directory', node: ServiceTree): void  // 删除目录（非根 package）
+  (e: 'delete-directory', node: ServiceTree): void  // 删除服务目录（非根 package）
   (e: 'bulk-delete', nodes: ServiceTree[]): void
   (e: 'refresh-tree'): void  // 刷新树（复制粘贴后需要刷新）
-  (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或目录）
+  (e: 'update-history', node?: ServiceTree): void  // 显示变更记录（工作空间或服务目录）
 }
 
 interface ServiceTreeNotificationCount {
@@ -484,8 +484,8 @@ watch(permissionRequestExpandedDirectoryIds, async (ids) => {
 
 const panelLoading = computed(() => Boolean(props.loading) || bulkExporting.value || renamingNode.value)
 const panelLoadingText = computed(() => {
-  if (renamingNode.value) return '正在更新目录...'
-  if (bulkExporting.value) return '正在导出目录...'
+  if (renamingNode.value) return '正在更新服务目录...'
+  if (bulkExporting.value) return '正在导出服务目录...'
   return '正在刷新服务目录...'
 })
 
@@ -585,7 +585,7 @@ async function refreshPendingAccessRequests() {
   try {
     await loadPermissionRequestSummary(root, { force: true })
   } catch {
-    // 申请状态只用于树上提示，不阻断目录加载。
+    // 申请状态只用于树上提示，不阻断服务目录加载。
   }
 }
 
@@ -909,7 +909,7 @@ function handleDirectoryImported(path?: string) {
   refreshTreeAndExpand(path || importDirectoryTargetNode.value?.full_code_path || '')
 }
 
-// 重命名目录
+// 重命名服务目录
 const handleRename = async (node: ServiceTree) => {
   if (node.type !== 'package') {
     ElMessage.warning(t('serviceTree.renameOnlyDirectory'))
@@ -941,7 +941,7 @@ const handleRename = async (node: ServiceTree) => {
       return
     }
     
-    const loadingInstance = showBlockingLoading('正在更新目录，请稍候...')
+    const loadingInstance = showBlockingLoading('正在更新服务目录，请稍候...')
     renamingNode.value = true
     try {
       // ⭐ 根据节点类型调用对应的更新接口
@@ -1218,7 +1218,7 @@ async function prepareCapabilityExport(
   exitBulkAfterSuccess = false,
 ) {
   const overviewPath = request.source_root_path || request.source_directory_path
-  if (!overviewPath) throw new Error('缺少导出目录路径')
+  if (!overviewPath) throw new Error('缺少导出服务目录路径')
   const overview = await getDirectoryOverview(overviewPath)
   const tasks = [
     ...(overview.scheduled_function_tasks || []),

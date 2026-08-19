@@ -13,7 +13,7 @@ export type KageosDocSlug =
   | 'api'
 
 const kageosDocsBaseURL = 'https://kageos.ai'
-const kageosHubBaseURL = 'https://hub.kageos.ai'
+const kageosHubBaseURL = 'https://hub.kageos.com'
 
 export function getKageosDocsURL(slug: KageosDocSlug = 'docs', locale?: SupportedLocale | string): string {
   const docsPrefix = locale?.toLowerCase().startsWith('zh') ? '/zh/docs' : '/docs'

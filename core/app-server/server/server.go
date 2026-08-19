@@ -22,6 +22,7 @@ import (
 	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/kageos/kageos/pkg/waiter"
 	"github.com/nats-io/nats.go"
+	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
 
@@ -52,6 +53,8 @@ type Server struct {
 	appRepo                       *repository.AppRepository // ⭐ 应用仓储（用于其他服务）
 	scheduledFuncWorker           *scheduledsdk.Worker
 	logArchiveWorker              *scheduledsdk.Worker
+	scheduledTaskReconciler       *service.ScheduledTaskReconciler
+	scheduledTaskReconcileCron    *cron.Cron
 
 	// 上游服务
 	natsConnPool *service.NATSConnPool
@@ -132,6 +135,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	s.startSystemWorkspaceInit(ctx)
 	s.startLogArchiveScheduleReconcile(ctx)
+	s.startScheduledTaskOrphanReconcile(ctx)
 
 	logger.Infof(ctx, "[Server] App-server started successfully")
 	logger.Infof(ctx, "[Server] NATS subscriptions are active")
@@ -170,6 +174,44 @@ func (s *Server) startSystemWorkspaceInit(ctx context.Context) {
 	}()
 }
 
+const scheduledTaskOrphanReconcileCronExpr = "30 4 * * *"
+
+func (s *Server) startScheduledTaskOrphanReconcile(ctx context.Context) {
+	if s.scheduledTaskReconciler == nil {
+		return
+	}
+	run := func() error {
+		result, err := s.scheduledTaskReconciler.ReconcileOrphans(ctx)
+		if err != nil {
+			logger.Warnf(ctx, "[ScheduledTaskReconcile] failed: %v", err)
+			return err
+		}
+		logger.Infof(ctx, "[ScheduledTaskReconcile] completed: checked=%d deleted=%d skipped=%d", result.Checked, result.Deleted, result.Skipped)
+		return nil
+	}
+
+	go func() {
+		for attempt := 1; attempt <= 10; attempt++ {
+			if err := run(); err == nil {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(15 * time.Second):
+			}
+		}
+	}()
+	s.scheduledTaskReconcileCron = cron.New(cron.WithLocation(time.Local))
+	if _, err := s.scheduledTaskReconcileCron.AddFunc(scheduledTaskOrphanReconcileCronExpr, func() { _ = run() }); err != nil {
+		logger.Warnf(ctx, "[ScheduledTaskReconcile] add cron failed: %v", err)
+		s.scheduledTaskReconcileCron = nil
+		return
+	}
+	s.scheduledTaskReconcileCron.Start()
+	logger.Infof(ctx, "[ScheduledTaskReconcile] scheduled: cron=%s timezone=%s", scheduledTaskOrphanReconcileCronExpr, time.Local.String())
+}
+
 func (s *Server) StartHTTP(ctx context.Context) error {
 	if s.httpServer == nil {
 		return fmt.Errorf("http server is not initialized")
@@ -194,6 +236,14 @@ func (s *Server) StartHTTP(ctx context.Context) error {
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping server...")
 	var stopErr error
+	if s.scheduledTaskReconcileCron != nil {
+		cronStopped := s.scheduledTaskReconcileCron.Stop()
+		select {
+		case <-cronStopped.Done():
+		case <-ctx.Done():
+		}
+		s.scheduledTaskReconcileCron = nil
+	}
 
 	if s.httpRuntime != nil {
 		if err := s.httpRuntime.Shutdown(ctx); err != nil {
@@ -320,6 +370,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	//hostRepo := repository.NewHostRepository(s.db)
 	functionRepo := repository.NewFunctionRepository(s.db)
 	serviceTreeRepo := repository.NewServiceTreeRepository(s.db)
+	s.scheduledTaskReconciler = service.NewScheduledTaskReconciler(serviceTreeRepo)
 	operateLogRepo := repository.NewOperateLogRepository(s.db)
 	logArchiveRepo := repository.NewLogArchiveRepository(s.db)
 	roleAssignmentRepo := repository.NewRoleAssignmentRepository(s.db)
@@ -360,6 +411,7 @@ func (s *Server) initServices(ctx context.Context) error {
 		DocService:                    s.docService,
 		PermissionService:             s.permissionService,
 		FunctionSensitiveFieldService: s.functionSensitiveFieldService,
+		ScheduledTaskReconciler:       s.scheduledTaskReconciler,
 	})
 
 	scheduledFuncWorker, err := service.NewScheduledFunctionWorker(s.natsConn, s.appService)
@@ -375,7 +427,7 @@ func (s *Server) initServices(ctx context.Context) error {
 
 	// 初始化服务目录服务（包含目录管理功能：copy、create、remove）
 	// ⭐ 函数生成逻辑已移到 ServiceTreeService 中
-	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.docService, s.permissionService)
+	s.serviceTreeService = service.NewServiceTreeService(serviceTreeRepo, appRepo, s.appCall, fileSnapshotRepo, s.appService, s.docService, s.permissionService, s.scheduledTaskReconciler)
 	if _, err := service.ReconcileAppRootServiceTrees(ctx, appRepo, serviceTreeRepo); err != nil {
 		return fmt.Errorf("reconcile app root service trees: %w", err)
 	}

@@ -45,8 +45,8 @@ describe('serviceTreeNodeActions', () => {
       'import-directory'
     ])
     expect(actions.every(action => action.disabled)).toBe(true)
-    expect(actions.find(action => action.command === 'export-json')?.label).toBe('导出目录')
-    expect(actions.find(action => action.command === 'import-directory')?.label).toBe('导入目录')
+    expect(actions.find(action => action.command === 'export-json')?.label).toBe('导出服务目录')
+    expect(actions.find(action => action.command === 'import-directory')?.label).toBe('导入服务目录')
   })
 
   it('keeps restricted actions visible with permission guidance', () => {

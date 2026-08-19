@@ -340,7 +340,7 @@ func workspaceHandoffStageSummary(ctx workspaceHandoffContext, digest *workspace
 	if name == "" {
 		name = workspaceHandoffArtifactLabel(ctx.ArtifactKind)
 	}
-	return fmt.Sprintf("%s 已确认，进入%s阶段；目标模型只接收本交接摘要和结构化产物，不接收来源会话完整历史。", name, target)
+	return fmt.Sprintf("%s 已确认，进入%s阶段；当前会话完整历史持续保留，交接摘要和结构化产物只用于突出当前阶段重点。", name, target)
 }
 
 func summarizeWorkspaceSourceMessages(messages []*model.AgentChatMessage) (string, []string) {

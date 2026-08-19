@@ -110,10 +110,9 @@ func (s *WorkspaceChatService) executeToolCalls(
 		}
 
 		resultStr, errStr := "", ""
-		var resultData interface{}
+		resultData := toolRes.Data
 		if st == ToolCallStatusOK {
 			resultStr = toolRes.Content
-			resultData = toolRes.Data
 		} else {
 			errStr = toolRes.Content
 		}

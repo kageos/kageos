@@ -225,7 +225,6 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
       'waiting',
       'pending',
       'pending_confirmation',
-      'pending_build_repair',
       'waiting_approval',
       'paused',
       'queued'
@@ -233,7 +232,7 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
 
     if (['cancelled', 'canceled', 'abort', 'aborted'].includes(status)) return 'cancelled'
     if (['failed', 'failure', 'error', 'timeout'].includes(status)) return 'failed'
-    if (['output', 'new_file', 'new_output', 'has_output', 'artifact', 'artifact_ready', 'pending_test'].includes(status)) return 'output'
+    if (['output', 'new_file', 'new_output', 'has_output', 'artifact', 'artifact_ready', 'pending_test', 'pending_build_repair'].includes(status)) return 'output'
     if (sessionHasGeneratedArtifacts(session)) return 'output'
     if (session.handoff_kind) return 'output'
     if (['done', 'completed', 'complete', 'success', 'succeeded', 'finished'].includes(status)) return 'done'
@@ -245,7 +244,6 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
     const status = getSessionRawStatus(session)
     if (status === 'pending_confirmation') return translate('miniWorkstation.statusPrdPending')
     if (status === 'pending_test') return translate('miniWorkstation.statusAutoTestPending')
-    if (status === 'pending_build_repair') return translate('miniWorkstation.statusRepairPending')
     const labels: Record<SessionStatusKind, string> = {
       running: translate('miniWorkstation.statusRunning'),
       waiting: translate('miniWorkstation.statusWaiting'),

@@ -91,7 +91,7 @@ func workspaceHandoffBaseConstraints(artifactKind, role string) []string {
 		}
 	default:
 		return []string{
-			"不要携带来源会话完整历史，只依据交接摘要、结构化产物、用户补充备注和参考资料推进。",
+			"当前会话完整历史持续保留；交接摘要、结构化产物、用户补充备注和参考资料用于突出当前阶段重点，不替代历史原文。",
 		}
 	}
 }

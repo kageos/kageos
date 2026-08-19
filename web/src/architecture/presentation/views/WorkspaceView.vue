@@ -25,7 +25,7 @@
     />
 
     <div class="workspace-view" :class="{ 'workspace-view--access-error': workspaceAccessError }">
-      <!-- 左下角：隐藏/显示目录按钮 -->
+      <!-- 左下角：隐藏/显示服务目录按钮 -->
       <div v-if="!workspaceAccessError" class="sidebar-toggle-bottom-left">
         <el-button
           link
@@ -40,7 +40,7 @@
         </el-button>
       </div>
 
-      <!-- 左侧：目录树 -->
+      <!-- 左侧：服务目录树 -->
       <div v-if="!workspaceAccessError" class="left-sidebar" :class="{ 'sidebar-collapsed': !showLeftSidebar }">
         <div class="left-sidebar-tree" data-testid="workspace-service-tree">
           <ServiceTreePanel
@@ -965,7 +965,7 @@ async function retryWorkspaceLoad() {
   await routingLoadAppFromRoute()
 }
 
-// 🔥 处理创建目录（使用 Composable）
+// 🔥 处理创建服务目录（使用 Composable）
 const handleCreateDirectory = (parentNode?: ServiceTreeType) => {
   serviceTreeHandleCreateDirectory(parentNode || null, () => currentApp.value)
 }
@@ -974,7 +974,7 @@ const handleSubmitCreateDirectory = async () => {
   await serviceTreeHandleSubmitCreateDirectory(() => currentApp.value)
 }
 
-// 处理关闭创建目录对话框
+// 处理关闭创建服务目录对话框
 const handleCloseCreateDirectoryDialog = () => {
   resetCreateDirectoryForm(() => currentApp.value)
 }
@@ -1281,7 +1281,7 @@ useWorkspaceUiEffects({
   min-height: 0;
 }
 
-/* 左下角：隐藏/显示目录按钮 */
+/* 左下角：隐藏/显示服务目录按钮 */
 .sidebar-toggle-bottom-left {
   position: absolute;
   bottom: 18px;
@@ -1497,7 +1497,7 @@ useWorkspaceUiEffects({
   }
 }
 
-/* 文档/目录主内容区：可滚动 */
+/* 文档/服务目录主内容区：可滚动 */
 .main-content-scroll {
   flex: 1;
   min-height: 0;

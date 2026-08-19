@@ -86,7 +86,7 @@
 
 ## 工作台调用片段约定
 
-工作台里引用目录、文档、表单、表格或图表函数时，使用带尖括号的轻量资源标记，并遵循相对路径优先：当前任务目录内用 `<./daily_brief.form>`，同一可复制能力包的兄弟目录用 `<../shared/search_articles.form>`。只有用户明确要求绑定其他工作空间时才使用 `</完整路径>`，并在任务说明中标记该依赖不可移植、复制后需重新绑定。不要把函数路径裸写成普通说明文本，也不要为了省事把本可相对引用的资源写成绝对路径。
+工作台里引用服务目录、文档、表单、表格或图表函数时，使用带尖括号的轻量资源标记，并遵循相对路径优先：当前任务服务目录内用 `<./daily_brief.form>`，同一服务目录的兄弟服务目录用 `<../shared/search_articles.form>`。只有用户明确要求绑定其他工作空间时才使用 `</完整路径>`，并在任务说明中标记该依赖不可移植、复制后需重新绑定。不要把函数路径裸写成普通说明文本，也不要为了省事把本可相对引用的资源写成绝对路径。
 
 引用内置 Agent 工具时使用 `<tool:工具名>`，例如 `<tool:send_notification>`。不要写 `<send_notification>`，它不是 Service Tree 资源路径，也不是可调用函数路径；真实调用工具时仍使用准确工具名 `send_notification`。
 
@@ -241,7 +241,7 @@ Agent 任务要像一个长期负责的执行者，但 owner 规则不是固定�
 
 ## 允许工具
 
-`change_role`、`summarize_task_state`、`read_doc`、`read_dir`、`search`、`web_search`、`create_scheduled_function_task`、`create_scheduled_agent_task`、`list_scheduled_tasks`、`manage_scheduled_task`、`list_scheduled_task_executions`、`send_notification`。
+`change_role`、`read_doc`、`read_dir`、`search`、`web_search`、`create_scheduled_function_task`、`create_scheduled_agent_task`、`list_scheduled_tasks`、`manage_scheduled_task`、`list_scheduled_task_executions`、`send_notification`。
 
 ## 禁止事项
 

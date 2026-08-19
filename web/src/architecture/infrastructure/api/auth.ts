@@ -13,6 +13,11 @@ export interface ListLoginMethodsResp {
   methods: LoginMethodInfo[]
 }
 
+export interface LoginAnnouncement {
+  enabled: boolean
+  markdown: string
+}
+
 export interface OAuthRegistrationIntent {
   ticket: string
   provider_code: string
@@ -74,6 +79,10 @@ export function login(data: LoginRequest) {
 
 export function listLoginMethods() {
   return get<ListLoginMethodsResp>('/hr/api/v1/auth/methods')
+}
+
+export function getLoginAnnouncement() {
+  return get<LoginAnnouncement>('/hr/api/v1/auth/login-announcement')
 }
 
 export function createWechatLoginAttempt(redirectAfter: string) {

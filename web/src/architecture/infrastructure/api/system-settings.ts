@@ -92,6 +92,11 @@ export interface ListLoginMethodsResp {
   methods: LoginMethodInfo[]
 }
 
+export interface LoginAnnouncement {
+  enabled: boolean
+  markdown: string
+}
+
 export interface LogArchiveResourceSummary {
   resource_path: string
   count: number
@@ -152,6 +157,14 @@ export function reloadTLSCertificate() {
 
 export function listAuthLoginProviders() {
   return get<ListAuthLoginProvidersResp>('/hr/api/v1/system/auth/providers')
+}
+
+export function getLoginAnnouncementConfig() {
+  return get<LoginAnnouncement>('/hr/api/v1/system/auth/login-announcement')
+}
+
+export function updateLoginAnnouncementConfig(data: LoginAnnouncement) {
+  return put<LoginAnnouncement>('/hr/api/v1/system/auth/login-announcement', data)
 }
 
 export function updateAuthLoginProviderConfig(code: string, config: Record<string, string>) {

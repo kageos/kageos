@@ -36,7 +36,7 @@ const emit = defineEmits<{
 
 const route = useRoute()
 
-// 处理子项点击（跳转到对应的目录或函数）
+// 处理子项点击（跳转到对应的服务目录或函数）
 function handleChildClick(child: ServiceTree): void {
   const serviceProvider: IServiceProvider = serviceFactory
   const applicationService = serviceProvider.getWorkspaceApplicationService()
@@ -69,7 +69,7 @@ function handleChildClick(child: ServiceTree): void {
       applicationService.triggerNodeClick(child)
     }
   } else if (child.type === 'package' && child.full_code_path) {
-    // 目录节点：跳转到目录详情页面
+    // 服务目录节点：跳转到服务目录详情页面
     applicationService.triggerNodeClick(child)
 
     const targetPath = `/workspace${child.full_code_path}`

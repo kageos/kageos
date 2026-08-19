@@ -93,8 +93,8 @@ describe('useMiniWorkstationSessionView', () => {
     expect(api.getSessionStatusKind(createSession({ status: 'pending_confirmation' }))).toBe('waiting')
     expect(api.getSessionStatusKind(createSession({ status: 'pending_test' }))).toBe('output')
     expect(api.getSessionStatusLabel(createSession({ status: 'pending_test' }))).toBe('待自动测试')
-    expect(api.getSessionStatusKind(createSession({ status: 'pending_build_repair' }))).toBe('waiting')
-    expect(api.getSessionStatusLabel(createSession({ status: 'pending_build_repair' }))).toBe('修复待确认')
+    expect(api.getSessionStatusKind(createSession({ status: 'pending_build_repair' }))).toBe('output')
+    expect(api.getSessionStatusLabel(createSession({ status: 'pending_build_repair' }))).toBe('新文件')
     expect(api.getSessionStatusKind(createSession({ status: 'finished' }))).toBe('done')
 
     hasCurrentGeneratedArtifacts.value = true

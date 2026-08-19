@@ -338,7 +338,7 @@ export function useOperateLogSection({
           nextMap.set(path, detail as unknown as FunctionDetail)
         }
       } catch (error) {
-        Logger.warn('[OperateLogSection]', '加载目录日志函数详情失败', { path, error })
+        Logger.warn('[OperateLogSection]', '加载服务目录日志函数详情失败', { path, error })
       }
     }))
     functionDetailMap.value = nextMap

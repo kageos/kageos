@@ -25,7 +25,7 @@ function mountCenter(props: Record<string, unknown> = {}) {
   const currentSession = createSession()
   const recentSession = createSession({
     session_id: 'session-2',
-    title: '跨目录会话',
+    title: '跨服务目录会话',
     full_code_path: '/Users/demo/other',
     directory_name: 'other',
     status: 'done',

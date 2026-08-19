@@ -348,84 +348,48 @@ func (s *WorkspaceChatService) buildLLMMessagesWithPlanAndOptions(ctx context.Co
 	if dynamicTime := workspaceDynamicTimeHint(data); dynamicTime != "" {
 		systemParts = append(systemParts, dynamicTime)
 	}
-	if workingState := buildWorkspaceWorkingStateBlock(list, session, currentTurnMessageID); workingState != "" {
-		systemParts = append(systemParts, workingState)
-	}
 	system := strings.Join(systemParts, "\n\n")
 
-	reductionLevel := normalizeWorkspaceContextReductionLevel(options.ReductionLevel)
-	reductionReason := strings.TrimSpace(options.ReductionReason)
-	checkpoint := s.latestWorkspaceContextCheckpoint(sessionID)
-	list, checkpointCoveredMessages := workspaceMessagesAfterCheckpoint(allMessages, checkpoint)
-	checkpointAttempted := false
-	// A provider-reported overflow is authoritative even when our tokenizer
-	// estimate is still below the soft limit. Advance the reversible checkpoint
-	// before applying any content-level emergency reduction.
-	if reductionLevel > workspaceContextReductionNone {
-		checkpointAttempted = true
-		if next, changed := s.ensureWorkspaceContextCheckpoint(ctx, sessionID, allMessages, currentTurnMessageID, options, checkpoint); changed {
-			checkpoint = next
-			list, checkpointCoveredMessages = workspaceMessagesAfterCheckpoint(allMessages, checkpoint)
-		}
+	// Context compaction is intentionally disabled. Always send the complete
+	// stored conversation so product, PRD handoff, development, build and QA
+	// stages share one continuous source of truth. The budget remains observable,
+	// but it must not rewrite history, replace artifacts with references or
+	// silently reduce individual messages.
+	msgs := []llms.Message{{Role: "system", Content: system}}
+	historyMessages, includedMessages, excludedUnsupported, excludedDisplayOnly, excludedByReduction := buildWorkspaceLLMHistoryWithOptions(ctx, allMessages, currentTurnMessageID, workspaceLLMContextBuildOptions{})
+	msgs = append(msgs, historyMessages...)
+	outputReserve := options.OutputReserveTokens
+	if outputReserve <= 0 {
+		outputReserve = workspaceContextDefaultOutputReserve
 	}
-	for {
-		msgs := []llms.Message{{Role: "system", Content: system}}
-		if checkpointMessage, ok := workspaceContextCheckpointMessage(checkpoint); ok {
-			msgs = append(msgs, checkpointMessage)
-		}
-		historyMessages, includedMessages, excludedUnsupported, excludedDisplayOnly, excludedByReduction := buildWorkspaceLLMHistoryWithOptions(ctx, list, currentTurnMessageID, workspaceLLMContextBuildOptions{
-			ReductionLevel:  reductionLevel,
-			ReductionReason: reductionReason,
-		})
-		msgs = append(msgs, historyMessages...)
-		outputReserve := options.OutputReserveTokens
-		if outputReserve <= 0 {
-			outputReserve = workspaceContextDefaultOutputReserve
-		}
-		budget := buildWorkspaceModelContextBudget(msgs, llmTools, outputReserve, options.ContextWindowTokens, reductionLevel, reductionReason)
-		if budget.Status == "over_soft_limit" && !checkpointAttempted {
-			checkpointAttempted = true
-			if next, changed := s.ensureWorkspaceContextCheckpoint(ctx, sessionID, allMessages, currentTurnMessageID, options, checkpoint); changed {
-				checkpoint = next
-				list, checkpointCoveredMessages = workspaceMessagesAfterCheckpoint(allMessages, checkpoint)
-				continue
-			}
-		}
-		if budget.Status == "over_soft_limit" && reductionLevel < workspaceContextReductionCritical {
-			reductionLevel++
-			if reductionReason == "" {
-				reductionReason = workspaceContextPreflightReductionReason
-			}
-			continue
-		}
-		plan := s.buildWorkspaceModelContextPlan(ctx, workspaceModelContextPlanInput{
-			SessionID:                   sessionID,
-			Round:                       round,
-			FullCodePath:                fullCodePath,
-			DirectoryName:               directoryName,
-			WorkspaceCtx:                workspaceCtx,
-			Session:                     session,
-			ModeProvider:                modeProvider,
-			ContextPolicy:               contextPolicy,
-			ParentSessionID:             parentSessionID,
-			ModelContextAnchorMessageID: modelContextAnchorMessageID,
-			AllMessages:                 allMessages,
-			ScopedMessages:              allMessages,
-			IncludedMessages:            includedMessages,
-			ExcludedUnsupported:         excludedUnsupported,
-			ExcludedDisplayOnly:         excludedDisplayOnly,
-			ExcludedByReduction:         excludedByReduction,
-			ExcludedByCheckpoint:        checkpointCoveredMessages,
-			Checkpoint:                  checkpoint,
-			RequestedToolNames:          toolNames,
-			LLMToolNames:                llmToolNames,
-			RoleAllowedToolNames:        roleAllowedToolNames,
-			LLMMessageCount:             len(msgs),
-			LLMToolCount:                len(llmTools),
-			Budget:                      budget,
-		})
-		return msgs, llmTools, plan, nil
-	}
+	budget := buildWorkspaceModelContextBudget(msgs, llmTools, outputReserve, options.ContextWindowTokens, workspaceContextReductionNone, "")
+	plan := s.buildWorkspaceModelContextPlan(ctx, workspaceModelContextPlanInput{
+		SessionID:                   sessionID,
+		Round:                       round,
+		FullCodePath:                fullCodePath,
+		DirectoryName:               directoryName,
+		WorkspaceCtx:                workspaceCtx,
+		Session:                     session,
+		ModeProvider:                modeProvider,
+		ContextPolicy:               contextPolicy,
+		ParentSessionID:             parentSessionID,
+		ModelContextAnchorMessageID: modelContextAnchorMessageID,
+		AllMessages:                 allMessages,
+		ScopedMessages:              allMessages,
+		IncludedMessages:            includedMessages,
+		ExcludedUnsupported:         excludedUnsupported,
+		ExcludedDisplayOnly:         excludedDisplayOnly,
+		ExcludedByReduction:         excludedByReduction,
+		ExcludedByCheckpoint:        nil,
+		Checkpoint:                  nil,
+		RequestedToolNames:          toolNames,
+		LLMToolNames:                llmToolNames,
+		RoleAllowedToolNames:        roleAllowedToolNames,
+		LLMMessageCount:             len(msgs),
+		LLMToolCount:                len(llmTools),
+		Budget:                      budget,
+	})
+	return msgs, llmTools, plan, nil
 }
 
 type workspaceLLMHistoryEntry struct {
@@ -439,7 +403,7 @@ func buildWorkspaceLLMHistory(ctx context.Context, messages []*model.AgentChatMe
 }
 
 func buildWorkspaceLLMHistoryWithOptions(ctx context.Context, messages []*model.AgentChatMessage, currentTurnMessageID int64, options workspaceLLMContextBuildOptions) ([]llms.Message, []*model.AgentChatMessage, []*model.AgentChatMessage, []*model.AgentChatMessage, []*model.AgentChatMessage) {
-	limits := workspaceLLMHistoryLimitsForLevel(options.ReductionLevel)
+	_ = options
 	entries := make([]workspaceLLMHistoryEntry, 0, len(messages))
 	includedMessages := make([]*model.AgentChatMessage, 0, len(messages))
 	excludedUnsupported := make([]*model.AgentChatMessage, 0)
@@ -469,27 +433,18 @@ func buildWorkspaceLLMHistoryWithOptions(ctx context.Context, messages []*model.
 		}
 		switch m.Role {
 		case RoleUser:
-			userContent := ""
-			if refContent, ok := workspaceMessageArtifactReferenceContent(m); ok {
-				userContent = refContent
-			} else {
-				userContent = userContentForLLMWithFileProfile(ctx, m.Content, m.Files)
-			}
+			userContent := userContentForLLMWithFileProfile(ctx, m.Content, m.Files)
 			if strings.TrimSpace(userContent) == "" {
 				excludedUnsupported = append(excludedUnsupported, m)
 				continue
 			}
 			entries = append(entries, workspaceLLMHistoryEntry{
-				msg:    llms.Message{Role: RoleUser, Content: compactWorkspaceLLMHistoryMessageContent(userContent, limits.UserContentMaxRunes, m.ID)},
+				msg:    llms.Message{Role: RoleUser, Content: userContent},
 				source: m,
 			})
 		case RoleAssistant:
-			content := m.Content
-			if refContent, ok := workspaceMessageArtifactReferenceContent(m); ok {
-				content = refContent
-			}
-			msg := llms.Message{Role: RoleAssistant, Content: compactWorkspaceLLMHistoryMessageContent(content, limits.AssistantContentMaxRunes, m.ID)}
-			if toolCalls, ok := storedToolCallsForLLMWithSource(m.ToolCalls, limits.ToolArgsMaxRunes, m.ID); ok {
+			msg := llms.Message{Role: RoleAssistant, Content: m.Content}
+			if toolCalls, ok := storedToolCallsForLLMWithSource(m.ToolCalls, 0, m.ID); ok {
 				msg.ToolCalls = toolCalls
 			} else if strings.TrimSpace(msg.Content) == "" {
 				excludedUnsupported = append(excludedUnsupported, m)
@@ -506,12 +461,6 @@ func buildWorkspaceLLMHistoryWithOptions(ctx context.Context, messages []*model.
 				continue
 			}
 			content := m.Content
-			maxContentRunes := limits.ToolContentMaxRunes
-			if refContent, ok := workspaceMessageArtifactReferenceContent(m); ok {
-				content = refContent
-			} else if workspaceMessageIsArtifactReadResult(m) && limits.ArtifactReadMaxRunes > maxContentRunes {
-				maxContentRunes = limits.ArtifactReadMaxRunes
-			}
 			if strings.TrimSpace(content) == "" {
 				content = "工具调用没有返回内容。"
 			}
@@ -519,7 +468,7 @@ func buildWorkspaceLLMHistoryWithOptions(ctx context.Context, messages []*model.
 				msg: llms.Message{
 					Role:       RoleTool,
 					ToolCallID: strings.TrimSpace(m.ToolCallID),
-					Content:    compactWorkspaceLLMHistoryMessageContent(content, maxContentRunes, m.ID),
+					Content:    content,
 				},
 				source: m,
 			})
@@ -573,7 +522,7 @@ func storedToolCallsForLLMWithSource(raw *string, maxRunes int, sourceMessageID 
 }
 
 func compactWorkspaceToolCallArguments(raw string, maxRunes int, sourceMessageID int64) string {
-	if workspaceRuneLen(raw) <= maxRunes {
+	if maxRunes <= 0 || workspaceRuneLen(raw) <= maxRunes {
 		return raw
 	}
 	payload := map[string]interface{}{

@@ -4,7 +4,7 @@
  * 职责：
  * - 服务树节点关联
  * - 服务树展开逻辑
- * - 目录创建
+ * - 服务目录创建
  */
 
 import { ref, nextTick } from 'vue'
@@ -35,7 +35,7 @@ export function useWorkspaceServiceTree(
   const applicationService = serviceProvider.getWorkspaceApplicationService()
   const authStore = useAuthStore()
 
-  // 创建目录对话框状态
+  // 创建服务目录对话框状态
   const createDirectoryDialogVisible = ref(false)
   const creatingDirectory = ref(false)
   const currentParentNode = ref<ServiceTreeType | null>(null)
@@ -56,7 +56,7 @@ export function useWorkspaceServiceTree(
     admins: getDefaultAdmins()
   })
 
-  // 处理创建目录
+  // 处理创建服务目录
   const handleCreateDirectory = (parentNode: ServiceTreeType | null, currentApp: () => any) => {
     if (!currentApp()) {
       ElNotification.warning({
@@ -79,7 +79,7 @@ export function useWorkspaceServiceTree(
     createDirectoryDialogVisible.value = true
   }
 
-  // 重置创建目录表单
+  // 重置创建服务目录表单
   const resetCreateDirectoryForm = (currentApp?: (() => any) | any) => {
     // 处理 currentApp 可能是函数或值的情况
     let app: any = null
@@ -102,7 +102,7 @@ export function useWorkspaceServiceTree(
     currentParentNode.value = null
   }
 
-  // 提交创建目录
+  // 提交创建服务目录
   const handleSubmitCreateDirectory = async (currentApp: () => any) => {
     if (!currentApp()) {
       ElNotification.warning({
@@ -163,7 +163,7 @@ export function useWorkspaceServiceTree(
       createDirectoryDialogVisible.value = false
       resetCreateDirectoryForm(currentApp)
       
-      // 刷新服务目录树，使左侧树展示最新目录（当前应用未变，triggerAppSwitch 会跳过，故用 refreshServiceTree）
+      // 刷新服务目录树，使左侧树展示最新服务目录（当前应用未变，triggerAppSwitch 会跳过，故用 refreshServiceTree）
       await applicationService.refreshServiceTree()
     } catch (error: any) {
       // 🔥 统一使用 msg 字段

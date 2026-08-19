@@ -14,12 +14,7 @@ import (
 )
 
 func workspaceSessionHasPendingInteractionStatus(status string) bool {
-	switch normalizeWorkspacePendingInteractionStatus(status) {
-	case model.ChatSessionStatusPendingConfirmation, model.ChatSessionStatusPendingBuildRepair:
-		return true
-	default:
-		return false
-	}
+	return normalizeWorkspacePendingInteractionStatus(status) == model.ChatSessionStatusPendingConfirmation
 }
 
 func (s *WorkspaceChatService) pendingInteractionForSession(session *model.AgentChatSession) *dto.WorkspaceInteraction {
@@ -62,7 +57,7 @@ func workspaceInteractionFromResultData(raw []byte) *dto.WorkspaceInteraction {
 		return nil
 	}
 	status := normalizeWorkspacePendingInteractionStatus(workspaceStringFromMap(interactionRaw, "status"))
-	if status == "" {
+	if status != model.ChatSessionStatusPendingConfirmation {
 		return nil
 	}
 	artifactKind := firstNonEmptyString(
@@ -73,6 +68,12 @@ func workspaceInteractionFromResultData(raw []byte) *dto.WorkspaceInteraction {
 		workspaceStringFromMap(interactionRaw, "card_type"),
 		workspaceInteractionCardType(artifactKind, status),
 	)
+	// PRD confirmation is the only interaction allowed to pause a workspace
+	// session. Build failures and every other process state are model-owned and
+	// must continue without asking the user to handle a card.
+	if artifactKind != "agent_app_prd" || cardType != "prd_confirmation" {
+		return nil
+	}
 	blocking, hasBlocking := interactionRaw["blocking"].(bool)
 	if !hasBlocking {
 		blocking = status != model.ChatSessionStatusPendingBuildRepair
@@ -190,28 +191,19 @@ func workspaceInteractionActionCanRunModel(action string) bool {
 
 func workspaceFallbackPendingInteraction(status string) *dto.WorkspaceInteraction {
 	status = normalizeWorkspacePendingInteractionStatus(status)
-	if status == "" {
+	if status != model.ChatSessionStatusPendingConfirmation {
 		return nil
 	}
 	cardType := workspaceInteractionCardType("", status)
-	allowedActions := []string{"view_details"}
-	if status == model.ChatSessionStatusPendingConfirmation {
-		allowedActions = []string{"confirm_prd", "revise_prd", "cancel_prd", "view_prd"}
-	} else if status == model.ChatSessionStatusPendingBuildRepair {
-		allowedActions = []string{"start_build_repair", "continue_development", "skip_build_repair", "view_build_diagnostics"}
-	}
-	blocking := true
-	if status == model.ChatSessionStatusPendingBuildRepair {
-		blocking = false
-	}
 	return &dto.WorkspaceInteraction{
 		ID:             status + ":fallback",
 		CardType:       cardType,
+		ArtifactKind:   "agent_app_prd",
 		Status:         status,
-		Blocking:       blocking,
+		Blocking:       true,
 		Title:          workspaceInteractionTitle(cardType, status),
 		ViewText:       workspaceInteractionViewText(cardType),
-		AllowedActions: allowedActions,
+		AllowedActions: []string{"confirm_prd", "revise_prd", "cancel_prd", "view_prd"},
 	}
 }
 
@@ -272,7 +264,7 @@ func (s *WorkspaceChatService) RecordWorkspaceInteractionEvent(ctx context.Conte
 
 func workspaceInteractionActionResolvesPending(action string) bool {
 	switch strings.TrimSpace(action) {
-	case "confirm_prd", "cancel_prd", "skip_build_repair", "start_build_repair":
+	case "confirm_prd", "cancel_prd":
 		return true
 	default:
 		return false

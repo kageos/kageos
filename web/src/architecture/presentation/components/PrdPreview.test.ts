@@ -188,7 +188,7 @@ describe('PrdPreview', () => {
   it('keeps confirmation controls hidden by default', () => {
     const wrapper = mountPreview()
 
-    expect(wrapper.text()).not.toContain('请确认是否按以上 PRD 创建目录和生成代码')
+    expect(wrapper.text()).not.toContain('请确认是否按以上 PRD 创建服务目录和生成代码')
     expect(wrapper.find('textarea').exists()).toBe(false)
     expect(wrapper.findAll('button').some(button => button.text().includes('确认 PRD'))).toBe(false)
   })

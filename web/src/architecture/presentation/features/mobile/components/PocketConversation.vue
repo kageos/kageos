@@ -122,7 +122,7 @@ const sessionLabel = computed(() => {
   return id.length > 18 ? `${id.slice(0, 8)}…${id.slice(-6)}` : id
 })
 const composerPlaceholder = computed(() => {
-  if (!fullCodePath.value.trim()) return '先填写工作台目录'
+  if (!fullCodePath.value.trim()) return '先填写工作台服务目录'
   if (actionView.value?.can_reply) return '回复这条通知…'
   return '给 kageos 发消息…'
 })
@@ -273,7 +273,7 @@ async function loadHistory() {
 
 function openHistory() {
   if (!fullCodePath.value.trim()) {
-    ElMessage.warning('请先填写工作台目录')
+    ElMessage.warning('请先填写工作台服务目录')
     return
   }
   historyVisible.value = true
@@ -381,7 +381,7 @@ async function sendDraft() {
   const files = [...attachedFiles.value]
   if ((!rawContent && files.length === 0) || sending.value || uploading.value) return
   if (!fullCodePath.value.trim()) {
-    ElMessage.warning('请先填写工作台目录')
+    ElMessage.warning('请先填写工作台服务目录')
     return
   }
   const content = rawContent || '请处理我上传的文件。'
@@ -519,7 +519,7 @@ onBeforeUnmount(() => {
 
       <section v-if="!fullCodePath && !loading" class="pocket-setup">
         <strong>选择工作台上下文</strong>
-        <p>输入一个目录路径，后续消息会像 PC 工作台一样在同一会话中连续处理。</p>
+        <p>输入一个服务目录路径，后续消息会像 PC 工作台一样在同一会话中连续处理。</p>
         <el-input
           v-model="fullCodePath"
           size="large"

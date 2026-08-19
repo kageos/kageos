@@ -39,7 +39,7 @@ describe('workspaceRoleDisplay', () => {
     })
 
     expect(preview).toContain('已切换角色: 应用搭建 -> 功能验证')
-    expect(preview).toContain('执行目录: /demo/app/order')
+    expect(preview).toContain('执行服务目录: /demo/app/order')
     expect(preview).toContain('角色文档: 已加载 1 个')
     expect(preview).not.toContain('very long doc')
   })
