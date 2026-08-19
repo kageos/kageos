@@ -1798,7 +1798,7 @@ export default {
     copiedTo: 'Copied to {path}',
     pasteRunningMessage: 'Pasting "{sourceName}" into "{targetName}" in the background. You can keep using the page.',
     targetPathLine: 'Target: {path}',
-    copyResultCount: 'Written: {service directories} service directories, {files} files, {docs} docs, {agentTasks} Agent tasks',
+    copyResultCount: 'Written: {directories} service directories, {files} files, {docs} docs, {agentTasks} Agent tasks',
     versionChanged: 'Version: {oldVersion} -> {newVersion}',
     copyFailed: 'Copy failed',
   },
