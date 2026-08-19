@@ -181,6 +181,9 @@ func init() {
 		Factory: OAuthProviderFactory{
 			OAuth2Config: kageosAuthOAuth2Config,
 			FetchProfile: fetchKageOSAuthProfile,
+			AuthCodeOptions: func(map[string]string) []oauth2.AuthCodeOption {
+				return []oauth2.AuthCodeOption{oauth2.SetAuthURLParam("prompt", "login")}
+			},
 			DisplayName:  "kageos Auth",
 			ShortCode:    "kageos",
 			RegisterType: "kageos_auth",
