@@ -8,6 +8,7 @@ import { getCurrentRouteFullPath, getCurrentRoutePath, navigateTo } from '@/arch
 import type { ApiResponse } from '@/architecture/shared/apiTypes'
 import { isWorkspaceForbiddenError } from '@/architecture/shared/apiError'
 import { extractApiMessage, isAuthExpiredBusinessResponse, isRefreshRequestUrl } from './authSession'
+import { queryParamsSerializer } from './queryParamsSerializer'
 
 const CLIENT_SOURCE_HEADER = 'X-Client-Source'
 const CLIENT_SOURCE_BROWSER = 'browser'
@@ -29,6 +30,8 @@ interface AuthFetchOptions {
 const service = axios.create({
   baseURL: getApiBaseURL(),
   timeout: 300000, // 300 秒（5分钟），与后端超时时间保持一致
+  // Go 的表单绑定器接受重复键（ids=1&ids=2），不接受空下标（ids[]=1）。
+  paramsSerializer: queryParamsSerializer,
   headers: {
     'Content-Type': 'application/json'
   }
