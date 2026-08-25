@@ -19,6 +19,7 @@ HTTPS_PORT="${HTTPS_PORT:-443}"
 TLS_CERT_FILE="${TLS_CERT_FILE:-/app/tls/fullchain.pem}"
 TLS_KEY_FILE="${TLS_KEY_FILE:-/app/tls/privkey.pem}"
 KAGEOS_APP_BASE_IMAGE="${KAGEOS_APP_BASE_IMAGE:-kagebase:latest}"
+KAGEOS_APP_BASE_BACKGROUND="${KAGEOS_APP_BASE_BACKGROUND:-0}"
 MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
 NATS_HOST="${NATS_HOST:-127.0.0.1}"
@@ -45,6 +46,8 @@ export MINIO_ROOT_USER
 export HTTP_PORT
 export HTTPS_PORT
 
+APP_BASE_PID=""
+
 is_aio_bundle() {
   [[ -f /etc/kageos/aio-bundle ]]
 }
@@ -62,8 +65,15 @@ aio_secret_value() {
 
 wait_core_ready() {
   local url="${KAGEOS_AIO_HEALTH_URL:-http://127.0.0.1:9090/health}"
-  local i=1
-  while [ "$i" -le 90 ]; do
+  local timeout="${KAGEOS_AIO_CORE_READY_TIMEOUT:-600}"
+  local elapsed=0
+  case "$timeout" in
+    ''|*[!0-9]*)
+      echo "ERROR: KAGEOS_AIO_CORE_READY_TIMEOUT 必须是秒数，当前值: ${timeout}" >&2
+      return 1
+      ;;
+  esac
+  while [ "$elapsed" -lt "$timeout" ]; do
     if ! kill -0 "$CORE_PID" 2>/dev/null; then
       echo "ERROR: core-server 在就绪前已退出" >&2
       return 1
@@ -72,11 +82,11 @@ wait_core_ready() {
       echo "==> kageos API (${url}) 就绪"
       return 0
     fi
-    echo "    等待 kageos API (${url}) ... ($i/90)"
-    sleep 2
-    i=$((i + 1))
+    echo "    等待 kageos API (${url}) ... (${elapsed}/${timeout}s)"
+    sleep 5
+    elapsed=$((elapsed + 5))
   done
-  echo "ERROR: 超时未连上 kageos API ${url}" >&2
+  echo "ERROR: ${timeout}s 内未连上 kageos API ${url}" >&2
   return 1
 }
 
@@ -145,6 +155,30 @@ Useful commands:
 ============================================================
 
 EOF
+}
+
+prepare_app_base_image() {
+  if podman image exists "${KAGEOS_APP_BASE_IMAGE}" 2>/dev/null; then
+    echo "==> 用户应用基础镜像已就绪: ${KAGEOS_APP_BASE_IMAGE}"
+    return 0
+  fi
+
+  if ! is_aio_bundle || [[ "$KAGEOS_APP_BASE_BACKGROUND" != "1" ]]; then
+    echo "ERROR: 未找到用户应用基础镜像 ${KAGEOS_APP_BASE_IMAGE}" >&2
+    echo "ERROR: 请先准备用户应用基础镜像后再启动 kageos" >&2
+    exit 1
+  fi
+
+  echo "==> 后台准备用户应用基础镜像: ${KAGEOS_APP_BASE_IMAGE}"
+  (
+    if KAGEOS_APP_BASE_ACTION="${KAGEOS_APP_BASE_ACTION:-ensure}" /app/entrypoint-app-base.sh; then
+      echo "==> 后台用户应用基础镜像已就绪: ${KAGEOS_APP_BASE_IMAGE}"
+    else
+      echo "WARN: 用户应用基础镜像后台准备失败；平台仍可登录，但工作空间构建暂不可用。" >&2
+      echo "WARN: 检查网络后重启实例即可重试，已下载的镜像层会继续复用。" >&2
+    fi
+  ) &
+  APP_BASE_PID=$!
 }
 
 case "$HTTP_PORT" in
@@ -285,19 +319,20 @@ if [ ! -S /run/podman/podman.sock ]; then
   echo "WARN: /run/podman/podman.sock 未出现，app-runtime 可能仍失败"
 fi
 
-if ! podman image exists "${KAGEOS_APP_BASE_IMAGE}" 2>/dev/null; then
-  echo "ERROR: 未找到用户应用基础镜像 ${KAGEOS_APP_BASE_IMAGE}" >&2
-  echo "ERROR: 请先在宿主机执行 go run ./cmd/kagectl up" >&2
-  exit 1
-fi
-echo "==> 用户应用基础镜像已就绪: ${KAGEOS_APP_BASE_IMAGE}"
+prepare_app_base_image
 
 shutdown() {
   echo "==> 停止..."
   kill -TERM "$CORE_PID" 2>/dev/null || true
+  if [[ -n "$APP_BASE_PID" ]]; then
+    kill -TERM "$APP_BASE_PID" 2>/dev/null || true
+  fi
   kill -TERM "$PODMAN_PID" 2>/dev/null || true
   nginx -s quit 2>/dev/null || true
   wait "$CORE_PID" 2>/dev/null || true
+  if [[ -n "$APP_BASE_PID" ]]; then
+    wait "$APP_BASE_PID" 2>/dev/null || true
+  fi
   exit 0
 }
 trap shutdown SIGTERM SIGINT

@@ -10,9 +10,10 @@ AIO_SECRETS_DIR="${AIO_DATA_DIR}/secrets"
 MYSQL_CONTAINER_NAME="${KAGEOS_AIO_MYSQL_CONTAINER_NAME:-kageos-mysql}"
 NATS_CONTAINER_NAME="${KAGEOS_AIO_NATS_CONTAINER_NAME:-kageos-nats}"
 MINIO_CONTAINER_NAME="${KAGEOS_AIO_MINIO_CONTAINER_NAME:-kageos-minio}"
-KAGEOS_AIO_RECREATE_INFRA="${KAGEOS_AIO_RECREATE_INFRA:-1}"
+KAGEOS_AIO_RECREATE_INFRA="${KAGEOS_AIO_RECREATE_INFRA:-0}"
 KAGEOS_AIO_REQUIRE_BRIDGE="${KAGEOS_AIO_REQUIRE_BRIDGE:-1}"
 KAGEOS_AIO_ALLOW_HOST_NETWORK="${KAGEOS_AIO_ALLOW_HOST_NETWORK:-0}"
+KAGEOS_APP_BASE_BACKGROUND="${KAGEOS_APP_BASE_BACKGROUND:-1}"
 
 MYSQL_IMAGE="${KAGEOS_AIO_MYSQL_IMAGE:-docker.io/library/mysql:8.0.45}"
 NATS_IMAGE="${KAGEOS_AIO_NATS_IMAGE:-docker.io/library/nats:2.10.29-alpine}"
@@ -312,6 +313,24 @@ export_defaults() {
     KAGEOS_REGISTRATION_MODE SMTP_MODE
 }
 
+validate_startup_options() {
+  case "$KAGEOS_AIO_RECREATE_INFRA" in
+    0|1) ;;
+    *)
+      echo "ERROR: KAGEOS_AIO_RECREATE_INFRA 仅支持 0 或 1，当前值: ${KAGEOS_AIO_RECREATE_INFRA}" >&2
+      exit 1
+      ;;
+  esac
+  case "$KAGEOS_APP_BASE_BACKGROUND" in
+    0|1) ;;
+    *)
+      echo "ERROR: KAGEOS_APP_BASE_BACKGROUND 仅支持 0 或 1，当前值: ${KAGEOS_APP_BASE_BACKGROUND}" >&2
+      exit 1
+      ;;
+  esac
+  export KAGEOS_APP_BASE_BACKGROUND
+}
+
 prepare_secrets() {
   load_or_create_secret MYSQL_ROOT_PASSWORD 32
   load_or_create_secret MINIO_ROOT_PASSWORD 32
@@ -339,6 +358,7 @@ EOF
 main() {
   prepare_layout
   export_defaults
+  validate_startup_options
   prepare_secrets
   write_infra_files
   assert_outer_network_supported
@@ -348,8 +368,12 @@ main() {
   start_nats
   start_minio
 
-  echo "==> 初始化用户应用基础镜像（首次会比较久）..."
-  KAGEOS_APP_BASE_ACTION="${KAGEOS_APP_BASE_ACTION:-ensure}" /app/entrypoint-app-base.sh
+  if [[ "$KAGEOS_APP_BASE_BACKGROUND" == "1" ]]; then
+    echo "==> 用户应用基础镜像将在平台启动后后台准备；首次构建工作空间前请等待其就绪。"
+  else
+    echo "==> 初始化用户应用基础镜像（首次会比较久）..."
+    KAGEOS_APP_BASE_ACTION="${KAGEOS_APP_BASE_ACTION:-ensure}" /app/entrypoint-app-base.sh
+  fi
 
   print_summary
   exec /app/entrypoint-main.sh

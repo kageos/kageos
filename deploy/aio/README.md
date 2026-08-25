@@ -2,7 +2,7 @@
 
 `deploy/aio` 是单容器部署镜像。外部只运行一个 kageos 容器，容器内部会用 Podman 拉起 MySQL、NATS、MinIO，并启动 kageos 主服务。
 
-用户应用运行时依赖单独发布为 `qiayanai/kagebase`。AIO 首次启动时会优先拉取匹配版本的 `kagebase`；如果拉取失败，会 fallback 到本地构建。
+用户应用运行时依赖单独发布为 `qiayanai/kagebase`。AIO 首次启动时会先让平台达到可登录状态，再在后台拉取匹配版本的 `kagebase`；如果拉取失败，会 fallback 到本地构建。平台登录不再被重型工具镜像阻塞，但首次构建工作空间前仍需等待 `kagebase` 就绪。
 
 > AIO 必须使用 Docker/Podman 的 bridge/slirp 网络，通过 `-p` 映射入口端口。不要使用 `--network host`，否则容器内部的 `9093`、`13306`、`14222`、`19000` 等监听会直接占用宿主机端口。
 
@@ -63,8 +63,10 @@ docker run -d \
   qiayanai/kageos:latest
 ```
 
-首次启动会在容器内部拉取并初始化 MySQL、NATS、MinIO，并准备用户应用基础镜像。
+首次启动会在容器内部拉取并初始化 MySQL、NATS、MinIO。平台 API 和登录页就绪后，用户应用基础镜像会继续在后台准备。
 如果使用官方发布镜像，AIO 会优先拉取 `docker.io/qiayanai/kagebase:<version>`，通常比现场构建快很多；只有拉取失败时才会 fallback 到本地构建。
+
+日志出现 `kageos started successfully` 后即可登录。需要创建或构建工作空间时，先等待日志出现 `后台用户应用基础镜像已就绪`。后台拉取失败不会关闭平台；修复网络后重启外层实例即可复用已下载层并重试。
 
 查看日志：
 
@@ -250,9 +252,10 @@ docker volume rm kageos-data
 | --- | --- | --- |
 | `CANONICAL_BASE_URL` | `http://localhost:8080` | Browser-facing site URL. Set this to the Ubuntu VM IP when testing over LAN. |
 | `KAGEOS_AIO_DATA_DIR` | `/var/lib/kageos` | Persistent data root inside the container. |
-| `KAGEOS_AIO_RECREATE_INFRA` | `1` | Recreate inner MySQL/NATS/MinIO containers on each boot while keeping persisted data. Set to `0` to reuse existing inner containers. |
+| `KAGEOS_AIO_RECREATE_INFRA` | `0` | Reuse existing inner MySQL/NATS/MinIO containers on restart. Set to `1` only when an explicit infrastructure recreation is required. |
 | `KAGEOS_AIO_REQUIRE_BRIDGE` | `1` | Refuse to start when the outer container does not look like bridge/slirp networking. |
 | `KAGEOS_AIO_ALLOW_HOST_NETWORK` | `0` | Emergency override for the network guard. Setting it to `1` allows host networking but may expose internal ports on the host. |
+| `KAGEOS_AIO_CORE_READY_TIMEOUT` | `600` | Seconds to wait for the platform API after infrastructure startup. |
 | `KAGEOS_AIO_MYSQL_IMAGE` | `docker.io/library/mysql:8.0.45` | Inner MySQL image. |
 | `KAGEOS_AIO_NATS_IMAGE` | `docker.io/library/nats:2.10.29-alpine` | Inner NATS image. |
 | `KAGEOS_AIO_MINIO_IMAGE` | `docker.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` | Inner MinIO image. |
@@ -260,4 +263,5 @@ docker volume rm kageos-data
 | `KAGEOS_APP_BASE_ACTION` | `ensure` | Use `rebuild` to rebuild the user app base image. |
 | `KAGEOS_APP_BASE_PULL` | `1` | Pull `KAGEOS_APP_BASE_IMAGE` before falling back to local build. |
 | `KAGEOS_APP_BASE_PULL_FALLBACK_BUILD` | `1` | Build locally if pulling the base image fails. Set to `0` to fail fast. |
+| `KAGEOS_APP_BASE_BACKGROUND` | `1` | Start the platform first and prepare `kagebase` in the background. Set to `0` to retain the blocking startup behavior. |
 | `KAGEOS_AIO_PRINT_SECRETS` | `0` | Hide plaintext secrets in the final success log. Set to `1` only for disposable local testing. |
