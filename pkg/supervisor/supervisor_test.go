@@ -2,10 +2,33 @@ package supervisor
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
+
+type captureLogger struct {
+	mu   sync.Mutex
+	logs []string
+}
+
+func (l *captureLogger) Infof(_ context.Context, format string, args ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.logs = append(l.logs, fmt.Sprintf(format, args...))
+}
+
+func (l *captureLogger) Errorf(_ context.Context, format string, args ...interface{}) {
+	l.Infof(context.Background(), format, args...)
+}
+
+func (l *captureLogger) contains(value string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return strings.Contains(strings.Join(l.logs, "\n"), value)
+}
 
 func TestGroupWaitsForServiceMainToReturn(t *testing.T) {
 	stopCh := make(chan struct{})
@@ -143,5 +166,39 @@ func TestGroupRejectsUnknownDependency(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "depends on unknown service database") {
 		t.Fatalf("expected unknown dependency error, got %v", err)
+	}
+}
+
+func TestGroupLogsServiceReadyDuration(t *testing.T) {
+	stopCh := make(chan struct{})
+	logger := &captureLogger{}
+	group := Group{
+		Services: []Service{{
+			Name: "test-service",
+			Main: func(ctx context.Context, stopCh <-chan struct{}, readyCh chan<- struct{}) error {
+				readyCh <- struct{}{}
+				<-stopCh
+				return nil
+			},
+		}},
+		StartupTimeout: time.Second,
+		Logger:         logger,
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- group.Run(context.Background(), stopCh) }()
+
+	deadline := time.After(time.Second)
+	for !logger.contains("[耗时] test-service 启动就绪:") {
+		select {
+		case <-deadline:
+			t.Fatal("ready duration log was not emitted")
+		case <-time.After(time.Millisecond):
+		}
+	}
+
+	close(stopCh)
+	if err := <-done; err != nil {
+		t.Fatalf("unexpected group error: %v", err)
 	}
 }

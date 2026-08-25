@@ -355,7 +355,7 @@ print_summary() {
 EOF
 }
 
-main() {
+prepare_aio_environment() {
   prepare_layout
   export_defaults
   validate_startup_options
@@ -363,16 +363,23 @@ main() {
   write_infra_files
   assert_outer_network_supported
   ensure_podman
+}
 
-  start_mysql
-  start_nats
-  start_minio
+main() {
+  KAGEOS_AIO_BOOT_STARTED_AT="$(kageos_now_seconds)"
+  export KAGEOS_AIO_BOOT_STARTED_AT
+
+  kageos_run_timed_stage "AIO 环境与密钥准备" prepare_aio_environment
+
+  kageos_run_timed_stage "MySQL 拉取/启动/初始化" start_mysql
+  kageos_run_timed_stage "NATS 拉取/启动" start_nats
+  kageos_run_timed_stage "MinIO 拉取/启动" start_minio
 
   if [[ "$KAGEOS_APP_BASE_BACKGROUND" == "1" ]]; then
     echo "==> 用户应用基础镜像将在平台启动后后台准备；首次构建工作空间前请等待其就绪。"
   else
     echo "==> 初始化用户应用基础镜像（首次会比较久）..."
-    KAGEOS_APP_BASE_ACTION="${KAGEOS_APP_BASE_ACTION:-ensure}" /app/entrypoint-app-base.sh
+    kageos_run_timed_stage "用户应用基础镜像阻塞式准备" env KAGEOS_APP_BASE_ACTION="${KAGEOS_APP_BASE_ACTION:-ensure}" /app/entrypoint-app-base.sh
   fi
 
   print_summary

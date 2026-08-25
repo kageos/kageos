@@ -135,7 +135,20 @@ func (g Group) runService(ctx context.Context, svc Service, stopCh <-chan struct
 	}
 
 	g.infof(ctx, "[启动] %s 开始执行 Main 函数...", svc.Name)
-	if err := svc.Main(context.WithValue(ctx, "service_name", svc.Name), stopCh, readyCh); err != nil {
+	startedAt := time.Now()
+	serviceReadyCh := make(chan struct{}, 1)
+	go func() {
+		select {
+		case <-serviceReadyCh:
+			g.infof(ctx, "[耗时] %s 启动就绪: %s", svc.Name, time.Since(startedAt).Round(time.Millisecond))
+			select {
+			case readyCh <- struct{}{}:
+			case <-ctx.Done():
+			}
+		case <-ctx.Done():
+		}
+	}()
+	if err := svc.Main(context.WithValue(ctx, "service_name", svc.Name), stopCh, serviceReadyCh); err != nil {
 		g.errorf(ctx, "[启动] %s Main 函数返回错误: %v", svc.Name, err)
 		return fmt.Errorf("%s 运行失败: %w", svc.Name, err)
 	}

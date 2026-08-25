@@ -3,6 +3,8 @@ set -euo pipefail
 
 source /app/entrypoint-common.sh
 
+MAIN_STARTED_AT="$(kageos_now_seconds)"
+
 ensure_main_runtime_dirs
 
 require_env CANONICAL_BASE_URL "环境变量 CANONICAL_BASE_URL 未设置或为空（须由 Compose 从宿主机 .env 注入）"
@@ -203,12 +205,14 @@ if [ "$HTTPS_PORT" -lt 1 ] || [ "$HTTPS_PORT" -gt 65535 ]; then
 fi
 
 echo "==> 等待依赖（MySQL / NATS / MinIO）..."
+DEPENDENCIES_STARTED_AT="$(kageos_now_seconds)"
 wait_tcp "$MYSQL_HOST" "$MYSQL_PORT" "MySQL"
 wait_tcp "$NATS_HOST" "$NATS_PORT" "NATS"
 wait_tcp "$MINIO_HOST" "$MINIO_PORT" "MinIO"
+kageos_report_duration "主服务依赖复检" "$DEPENDENCIES_STARTED_AT"
 
 PROD_TEMPLATE_VARS='${CANONICAL_BASE_URL} ${MYSQL_HOST} ${MYSQL_PORT} ${MYSQL_ROOT_PASSWORD} ${KAGEOS_APP_DB_SECRET_KEY} ${KAGEOS_APP_DB_CLUSTER_KEY} ${JWT_SECRET} ${SYSTEM_USER_PASSWORD} ${MINIO_HOST} ${MINIO_PORT} ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} ${NATS_URL} ${KAGEOS_REGISTRATION_MODE} ${SMTP_MODE} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_FROM} ${SMTP_FROM_NAME} ${KAGEOS_APP_BASE_IMAGE}'
-render_runtime_templates "$PROD_TEMPLATE_VARS"
+kageos_run_timed_stage "运行时配置渲染" render_runtime_templates "$PROD_TEMPLATE_VARS"
 
 CANONICAL_BASE_URL="${CANONICAL_BASE_URL}"
 export CANONICAL_BASE_URL
@@ -232,6 +236,7 @@ esac
 
 NGINX_TEMPLATE="/app/deploy/prod/nginx/default.conf.template"
 NGINX_MODE_DESC="${HTTP_PORT} HTTP"
+NGINX_STARTED_AT="$(kageos_now_seconds)"
 
 if [[ "$TLS_MODE" == "https" || "$TLS_MODE" == "redirect" ]]; then
   if [[ ! -f "$TLS_CERT_FILE" ]]; then
@@ -301,11 +306,13 @@ nginx -t
 
 echo "==> 启动 Nginx（监听 ${NGINX_MODE_DESC}）..."
 nginx
+kageos_report_duration "Nginx 配置与启动" "$NGINX_STARTED_AT"
 
 # Podman 需要明确的 runroot/graphroot（见 /etc/containers/storage.conf）；/run 每次启动需重建
 mkdir -p /run/podman /run/containers/storage
 
 echo "==> 启动 Podman API..."
+PODMAN_STARTED_AT="$(kageos_now_seconds)"
 podman system service --time=0 unix:///run/podman/podman.sock &
 PODMAN_PID=$!
 for _i in $(seq 1 30); do
@@ -318,6 +325,7 @@ done
 if [ ! -S /run/podman/podman.sock ]; then
   echo "WARN: /run/podman/podman.sock 未出现，app-runtime 可能仍失败"
 fi
+kageos_report_duration "Podman API 启动" "$PODMAN_STARTED_AT"
 
 prepare_app_base_image
 
@@ -338,6 +346,7 @@ shutdown() {
 trap shutdown SIGTERM SIGINT
 
 echo "==> 启动 core-server（全服务）..."
+CORE_STARTED_AT="$(kageos_now_seconds)"
 /app/core-server &
 CORE_PID=$!
 
@@ -348,6 +357,11 @@ if is_aio_bundle; then
     nginx -s quit 2>/dev/null || true
     wait "$CORE_PID" 2>/dev/null || true
     exit 1
+  fi
+  kageos_report_duration "core-server 启动至 API 就绪" "$CORE_STARTED_AT"
+  kageos_report_duration "主服务入口启动至可登录" "$MAIN_STARTED_AT"
+  if [[ "${KAGEOS_AIO_BOOT_STARTED_AT:-}" =~ ^[0-9]+$ ]]; then
+    kageos_report_duration "AIO 容器启动至可登录总计" "$KAGEOS_AIO_BOOT_STARTED_AT"
   fi
   print_aio_success_summary
 fi

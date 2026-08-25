@@ -12,6 +12,35 @@ require_env() {
   fi
 }
 
+kageos_now_seconds() {
+  date +%s
+}
+
+kageos_report_duration() {
+  local label="$1"
+  local started_at="$2"
+  local status="${3:-success}"
+  local finished_at elapsed
+  finished_at="$(kageos_now_seconds)"
+  elapsed=$((finished_at - started_at))
+  echo "==> [耗时] ${label}: ${elapsed}s (${status})"
+}
+
+kageos_run_timed_stage() {
+  local label="$1"
+  local started_at status
+  shift
+  started_at="$(kageos_now_seconds)"
+  if "$@"; then
+    kageos_report_duration "$label" "$started_at" success
+    return 0
+  else
+    status=$?
+    kageos_report_duration "$label" "$started_at" failed >&2
+    return "$status"
+  fi
+}
+
 wait_tcp() {
   local host="$1" port="$2" label="$3"
   local i=1
