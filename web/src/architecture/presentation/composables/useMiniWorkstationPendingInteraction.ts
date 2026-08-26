@@ -39,16 +39,20 @@ export function useMiniWorkstationPendingInteraction(options: UseMiniWorkstation
   const pendingInteraction = computed<WorkspaceInteraction | null>(() => {
     if (options.currentSessionDisablesPendingInteraction.value) return null
     const auditedInteractionKeys = new Set<string>()
-    let hasUnscopedAuditAfter = false
+    let hasUnscopedResolutionAfter = false
     for (let i = options.messages.value.length - 1; i >= 0; i--) {
       const message = options.messages.value[i]
       if (!message) continue
+      if (isPrdHandoffMessage(message)) {
+        hasUnscopedResolutionAfter = true
+        continue
+      }
       const auditedKey = getWorkspaceInteractionAuditResolutionKey(message)
       if (auditedKey !== undefined) {
         if (auditedKey) {
           auditedInteractionKeys.add(auditedKey)
         } else {
-          hasUnscopedAuditAfter = true
+          hasUnscopedResolutionAfter = true
         }
         continue
       }
@@ -59,7 +63,7 @@ export function useMiniWorkstationPendingInteraction(options: UseMiniWorkstation
         const interaction = buildWorkspaceInteractionFromArtifact(call.result_data)
         if (interaction?.card_type !== 'prd_confirmation' || interaction.artifact_kind !== 'agent_app_prd') continue
         const key = getInteractionKey(interaction)
-        if (handledInteractionKeys.value.has(key) || auditedInteractionKeys.has(key) || hasUnscopedAuditAfter) {
+        if (handledInteractionKeys.value.has(key) || auditedInteractionKeys.has(key) || hasUnscopedResolutionAfter) {
           return null
         }
         return interaction
@@ -337,6 +341,12 @@ export function buildWorkspaceInteractionFromArtifact(value: unknown): Workspace
     allowed_actions: Array.isArray(rawInteraction.allowed_actions) ? rawInteraction.allowed_actions.map(String) : undefined,
     artifact
   }
+}
+
+function isPrdHandoffMessage(message: ChatMessage) {
+  return message.role === 'user' &&
+    message.context_usage === 'artifact' &&
+    message.artifact_kind === 'agent_app_prd'
 }
 
 function getStageArtifactKey(artifact: unknown) {

@@ -186,4 +186,30 @@ describe('useMiniWorkstationPendingInteraction', () => {
     expect(api.pendingInteraction.value).toBeNull()
     expect(api.composerBlocked.value).toBe(false)
   })
+
+  it('keeps the composer unblocked after reopening a confirmed PRD conversation', () => {
+    const prdArtifact = {
+      kind: 'agent_app_prd',
+      project: { name: '线索跟进提醒' },
+      interaction: {
+        status: 'pending_confirmation',
+        card_type: 'prd_confirmation',
+        blocking: true,
+        artifact_kind: 'agent_app_prd'
+      }
+    }
+    const { api } = createHarness([
+      assistantWithArtifact(prdArtifact),
+      {
+        role: 'user',
+        content: '已确认 PRD，进入开发阶段',
+        raw_content: '阶段交接上下文',
+        context_usage: 'artifact',
+        artifact_kind: 'agent_app_prd'
+      }
+    ])
+
+    expect(api.pendingInteraction.value).toBeNull()
+    expect(api.composerBlocked.value).toBe(false)
+  })
 })
